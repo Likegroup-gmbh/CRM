@@ -8,6 +8,10 @@ import {
   getVideoFeedbackBucket,
   normalizeVideoFeedbackComments
 } from '../../core/VideoFeedbackBuckets.js';
+import { sortKooperationen } from './KooperationSortHelper.js';
+import { calculateEkVkTotals, filterPaidKooperationen } from '../../core/budget/EkVkAgencyFeeHelper.js';
+
+const DEFAULT_KOOPERATION_SORT = 'created_desc';
 
 export class KampagneDetailStore {
   constructor(kampagneId) {
@@ -20,6 +24,9 @@ export class KampagneDetailStore {
     this.creatorAdressen = {};
     this.kampagneInfo = null;
     this.statusOptions = [];
+
+    this.kooperationSort = DEFAULT_KOOPERATION_SORT;
+    this.rechnungStatusMap = {};
 
     this._loadedAssetVideoIds = new Set();
     this._listeners = new Map();
@@ -107,6 +114,19 @@ export class KampagneDetailStore {
     return this.kooperationen;
   }
 
+  setKooperationSort(sortValue) {
+    this.kooperationSort = sortValue || DEFAULT_KOOPERATION_SORT;
+  }
+
+  /**
+   * Gefilterte (tab) UND sortierte Kooperationen.
+   * Die Sortierung wird clientseitig via KooperationSortHelper.sortKooperationen
+   * angewandt und nutzt this.kooperationSort als aktuell aktiven Sort-Wert.
+   */
+  getFilteredAndSorted(tab) {
+    return sortKooperationen(this.getFiltered(tab), this.kooperationSort, this.videos);
+  }
+
   getOpenCount() {
     return this.kooperationen.filter(k => !this.areAllVideosApproved(k.id)).length;
   }
@@ -123,13 +143,21 @@ export class KampagneDetailStore {
   // SUMMARY CALCULATION
   // ========================================
 
+  setRechnungStatusMap(map) {
+    this.rechnungStatusMap = map || {};
+  }
+
   calculateSummary() {
     const allVideos = Object.values(this.videos).flat();
     const koopBudgetSum = allVideos.reduce((sum, v) => sum + (parseFloat(v.verkaufspreis_netto) || 0), 0);
     const koopVideosUsed = this.kooperationen.reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
     const extraKostenVkSum = this.kooperationen.reduce((sum, k) => sum + (parseFloat(k.verkaufspreis_zusatzkosten) || 0), 0);
     const koopCreatorsUsed = this.kooperationen.filter(k => k.creator_id).length;
-    return { koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum };
+
+    const paid = filterPaidKooperationen(this.kooperationen, allVideos, this.rechnungStatusMap);
+    const ekVk = calculateEkVkTotals(paid.kooperationen, paid.videos);
+
+    return { koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum: ekVk.marginSum };
   }
 
   // ========================================
@@ -307,6 +335,7 @@ export class KampagneDetailStore {
     this.creatorAdressen = {};
     this.creators.clear();
     this.statusOptions = [];
+    this.kooperationSort = DEFAULT_KOOPERATION_SORT;
     this._loadedAssetVideoIds.clear();
   }
 }

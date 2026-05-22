@@ -268,14 +268,34 @@ export class CreatorAuswahlService {
   }
 
   /**
+   * Prüft ob der aktuelle Benutzer die Liste löschen darf (Permission + Kampagnen-Scope).
+   */
+  async _assertCanDeleteListe(id) {
+    if (window.isKunde()) {
+      throw new Error('Keine Berechtigung zum Löschen von Listen');
+    }
+    if (!window.checkUserPermission('sourcing', 'delete')) {
+      throw new Error('Keine Berechtigung zum Löschen von Listen');
+    }
+    if (window.isAdmin()) return;
+
+    const liste = await this.getListeById(id);
+    if (!liste) throw new Error('Liste nicht gefunden');
+    if (!liste.kampagne_id) {
+      throw new Error('Keine Berechtigung: Liste ohne Kampagnen-Zuordnung');
+    }
+    const allowedIds = await this._getAllowedKampagneIds(window.currentUser);
+    if (!allowedIds.includes(liste.kampagne_id)) {
+      throw new Error('Keine Berechtigung: Liste außerhalb des zugewiesenen Bereichs');
+    }
+  }
+
+  /**
    * Liste löschen (inkl. aller Items)
    */
   async deleteListe(id) {
-    if (!window.isAdmin()) {
-      throw new Error('Nur Admins dürfen Listen löschen');
-    }
+    await this._assertCanDeleteListe(id);
     
-    // Items werden durch CASCADE automatisch gelöscht
     const { error } = await window.supabase
       .from('creator_auswahl')
       .delete()
@@ -364,9 +384,16 @@ export class CreatorAuswahlService {
   }
 
   /**
-   * Item löschen
+   * Item löschen (Defense-in-Depth: Client-seitiger Scope-Check, RLS sichert zusätzlich ab)
    */
   async deleteItem(id) {
+    if (window.isKunde()) {
+      throw new Error('Keine Berechtigung zum Löschen von Creator-Einträgen');
+    }
+    if (!window.checkUserPermission('sourcing', 'delete')) {
+      throw new Error('Keine Berechtigung zum Löschen von Creator-Einträgen');
+    }
+
     const { error } = await window.supabase
       .from('creator_auswahl_items')
       .delete()

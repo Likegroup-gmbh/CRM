@@ -73,7 +73,7 @@ export class VideoTableDataLoader {
       if (t.kooperationen.length === 0) {
         t._startPerformanceTracking('Query: kooperationen');
         const isKunde = t.isKundeRole();
-        const kampagneJoin = 'kampagne:kampagne_id (id, kampagnenname, eigener_name, unternehmen:unternehmen_id(id, firmenname), marke:marke_id(id, markenname))';
+        const kampagneJoin = 'kampagne:kampagne_id (id, kampagnenname, eigener_name, unternehmen:unternehmen_id(id, firmenname, kein_dropbox), marke:marke_id(id, markenname))';
         const statusJoin = 'status_ref:status_id(id, name)';
         const koopSelect = isKunde
           ? `id, name, status_id, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, bilder_folder_url, ${statusJoin}, ${kampagneJoin}`
@@ -98,6 +98,8 @@ export class VideoTableDataLoader {
           id: firstKamp.id,
           name: firstKamp.kampagnenname || firstKamp.eigener_name || '',
           unternehmen: firstKamp.unternehmen?.firmenname || '',
+          unternehmenId: firstKamp.unternehmen?.id || null,
+          keinDropbox: firstKamp.unternehmen?.kein_dropbox || false,
           marke: firstKamp.marke?.markenname || ''
         };
       }

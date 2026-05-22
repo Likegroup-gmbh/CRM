@@ -126,6 +126,11 @@ export class KampagneKooperationenVideoTable {
     this.refilter();
   }
 
+  _isGoLiveSortActive() {
+    const sort = this.store?.kooperationSort;
+    return sort === 'posting_asc' || sort === 'posting_desc';
+  }
+
   getOpenCount() {
     return this.kooperationen.filter(koop => !this.areAllVideosApproved(koop.id)).length;
   }
@@ -222,6 +227,11 @@ export class KampagneKooperationenVideoTable {
     container.addEventListener('change', async (e) => {
       if (e.target.classList.contains('custom-date-picker__input') && e.target.dataset.entity === 'video') {
         await this.handleFieldUpdate(e.target);
+
+        if (e.target.dataset.field === 'posting_datum' && this._isGoLiveSortActive()) {
+          clearTimeout(this._refilterTimer);
+          this._refilterTimer = setTimeout(() => this.refilter(), 600);
+        }
       }
     }, { signal });
 
@@ -243,16 +253,26 @@ export class KampagneKooperationenVideoTable {
         }
         await this.handleFieldUpdate(e.target);
 
-        if (e.target.dataset.field === 'freigabe' && this.activeFilterTab !== 'alle') {
-          const koopRow = e.target.closest('[data-kooperation-id]');
-          const koopId = koopRow?.dataset?.kooperationId || e.target.dataset.kooperationId;
-          if (koopId) {
-            const allApproved = this.areAllVideosApproved(koopId);
-            const shouldBeVisible = this.activeFilterTab === 'offen' ? !allApproved : allApproved;
-            if (!shouldBeVisible) {
-              clearTimeout(this._refilterTimer);
-              this._refilterTimer = setTimeout(() => this.refilter(), 600);
+        if (e.target.dataset.field === 'freigabe') {
+          if (this.activeFilterTab !== 'alle') {
+            const koopRow = e.target.closest('[data-kooperation-id]');
+            const koopId = koopRow?.dataset?.kooperationId || e.target.dataset.kooperationId;
+            if (koopId) {
+              const allApproved = this.areAllVideosApproved(koopId);
+              const shouldBeVisible = this.activeFilterTab === 'offen' ? !allApproved : allApproved;
+              if (!shouldBeVisible) {
+                clearTimeout(this._refilterTimer);
+                this._refilterTimer = setTimeout(() => this.refilter(), 600);
+                return;
+              }
             }
+          }
+
+          // GoLive-Sort: Freigabe ändert die effektive Sortier-Position →
+          // immer refilter triggern (auch im "alle"-Tab)
+          if (this._isGoLiveSortActive()) {
+            clearTimeout(this._refilterTimer);
+            this._refilterTimer = setTimeout(() => this.refilter(), 600);
           }
         }
       }
@@ -405,6 +425,8 @@ export class KampagneKooperationenVideoTable {
       videoPosition: video?.position || 1,
       videoThema: video?.thema || '',
       unternehmen: this.kampagneInfo?.unternehmen || '',
+      unternehmenId: this.kampagneInfo?.unternehmenId || null,
+      keinDropbox: this.kampagneInfo?.keinDropbox || false,
       marke: this.kampagneInfo?.marke || '',
       kampagne: this.kampagneInfo?.name || '',
       creatorName,

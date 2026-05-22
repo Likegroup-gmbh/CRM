@@ -186,12 +186,6 @@ export class CreatorDetail extends PersonDetailBase {
     if (this.creator.hat_haustier) {
       detailItems.push({ icon: 'info', label: 'Haustier', value: this.creator.haustier_beschreibung || 'Ja' });
     }
-    if (this.creator.agentur_vertreten) {
-      detailItems.push({ icon: 'building', label: 'Agentur', value: this.creator.agentur_name || 'Ja' });
-      if (this.creator.agentur_vertretung) {
-        detailItems.push({ icon: 'user', label: 'Vertreten durch', value: this.creator.agentur_vertretung });
-      }
-    }
     if (this.creator.budget_letzte_buchung) {
       detailItems.push({ icon: 'currency', label: 'Letztes Budget', value: this.formatCurrency(this.creator.budget_letzte_buchung) });
     }

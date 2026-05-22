@@ -1,6 +1,8 @@
 // AuftragsdetailsDetail.js (ES6-Modul)
 // Auftragsdetails-Detailseite ohne Tabs - direkte Anzeige der Informationen
 
+import { calculateEkVkTotals, calculateAgencyFeeSummary, filterPaidKooperationen, renderAgencyFeeCardHtml, renderKskCardHtml } from '../../core/budget/EkVkAgencyFeeHelper.js';
+
 export class AuftragsdetailsDetail {
   constructor() {
     this.detailsId = null;
@@ -251,6 +253,14 @@ export class AuftragsdetailsDetail {
     this.budgetSummary.targetVideos = (this.kampagnen || []).reduce((sum, k) => sum + (k.videoanzahl || 0), 0);
     this.budgetSummary.targetCreators = (this.kampagnen || []).reduce((sum, k) => sum + (k.creatoranzahl || 0), 0);
 
+    const ekVk = calculateEkVkTotals(this.kooperationen, this.videos);
+    this.budgetSummary.ekSum = ekVk.ekSum;
+    this.budgetSummary.vkSum = ekVk.vkSum;
+    this.budgetSummary.ekVkMarginSum = ekVk.marginSum;
+
+    const paid = filterPaidKooperationen(this.kooperationen, this.videos, this.rechnungStatusMap);
+    this.budgetSummary.agencyFeeSummary = calculateAgencyFeeSummary(this.details, paid.kooperationen, paid.videos);
+
     console.log('✅ AUFTRAGSDETAILSDETAIL: Budget-Zusammenfassung berechnet:', this.budgetSummary);
   }
 
@@ -303,8 +313,7 @@ export class AuftragsdetailsDetail {
       ? extraServices.filter(s => s && typeof s.name === 'string' && s.name.trim())
       : [];
 
-    const showAgencyFee = d?.agency_services_enabled && d.percentage_fee_enabled && parseFloat(d.percentage_fee_value) > 0;
-    const showKsk = d?.agency_services_enabled && d.ksk_enabled && parseFloat(d.ksk_value) > 0;
+    const agencyFeeSummary = this.budgetSummary.agencyFeeSummary || {};
 
     const zusatzleistungenCardsHtml = canViewInternalBudget
       ? validExtraServices.map(s => `
@@ -348,23 +357,14 @@ export class AuftragsdetailsDetail {
               </div>
             </div>
             ${zusatzleistungenCardsHtml}
-            ${showKsk ? `
-            <div class="summary-card">
-              <div class="summary-value">${formatCurrency(parseFloat(d.ksk_value))}</div>
-              <div class="summary-label">KSK</div>
-            </div>
-            ` : ''}
-            ${showAgencyFee ? `
-            <div class="summary-card">
-              <div class="summary-value">${formatCurrency(parseFloat(d.percentage_fee_value))}</div>
-              <div class="summary-label">Agentur Fee</div>
-            </div>
-            ` : ''}
+            ${renderKskCardHtml(agencyFeeSummary, formatCurrency)}
+            ${renderAgencyFeeCardHtml(agencyFeeSummary, formatCurrency, { canSeePricing: true })}
             <div class="summary-card">
               <div class="summary-value">${formatCurrency(this.budgetSummary.extraKostenVkSum || 0)}</div>
               <div class="summary-label">Extra Kosten</div>
             </div>
             ` : ''}
+            ${!canViewInternalBudget ? renderAgencyFeeCardHtml(agencyFeeSummary, formatCurrency, { canSeePricing: false }) : ''}
           </div>
         </div>
 
@@ -909,6 +909,24 @@ export class AuftragsdetailsDetail {
             <tbody>
               ${rowsHtml}
             </tbody>
+            ${!isKunde ? `
+            <tfoot>
+              <tr style="font-weight: 600;">
+                <td colspan="3">Gesamt</td>
+                <td class="text-right">${formatCurrency(this.budgetSummary.ekSum || 0)}</td>
+                <td class="text-right">${formatCurrency(this.budgetSummary.vkSum || 0)}</td>
+                <td class="text-right">${formatCurrency(this.budgetSummary.extraKostenVkSum || 0)}</td>
+                <td colspan="2"></td>
+              </tr>
+              ${this.budgetSummary.ekVkMarginSum ? `
+              <tr style="font-weight: 600;">
+                <td colspan="3">Differenz (VK − EK)</td>
+                <td></td>
+                <td class="text-right">${formatCurrency(this.budgetSummary.ekVkMarginSum)}</td>
+                <td colspan="3"></td>
+              </tr>` : ''}
+            </tfoot>
+            ` : ''}
           </table>
         </div>
     `;

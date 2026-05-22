@@ -1,6 +1,8 @@
 import {
   escapeHtml, readFileAsBase64, proxyPost, uploadLargeFile, createFolderSharedLink,
-  IMAGE_EXTENSIONS, IMAGE_MIME_PREFIX, MAX_IMAGE_SIZE
+  IMAGE_EXTENSIONS, IMAGE_MIME_PREFIX, MAX_IMAGE_SIZE,
+  normalizeExternalUrl, isValidExternalUrl,
+  mdcBtnIcon, ICON_PLUS_16, ICON_CHECK_16, ICON_UPLOAD_16
 } from '../../core/VideoUploadUtils.js';
 
 export class BilderTabHandler {
@@ -23,6 +25,7 @@ export class BilderTabHandler {
   reset() {
     this._selectedImages = [];
     this._existingImages = [];
+    this._linkQueue = [];
     this._isUploadingImages = false;
     this._initialized = false;
   }
@@ -30,6 +33,9 @@ export class BilderTabHandler {
   // ─── Render ────────────────────────────────────────────────
 
   renderTab(activeTab) {
+    if (this.drawer.useExternalLinks) {
+      return this._renderLinkTab(activeTab);
+    }
     return `
       <div id="upload-tab-bilder" style="${activeTab !== 'bilder' ? 'display:none' : ''}">
         <div class="bilder-upload-drawer-content">
@@ -57,11 +63,46 @@ export class BilderTabHandler {
 
           <div class="drawer-footer bilder-upload-drawer-footer">
             <button type="button" class="mdc-btn mdc-btn--cancel" id="bilder-upload-cancel-btn">Abbrechen</button>
-            <button type="button" class="mdc-btn mdc-btn--primary" id="bilder-upload-submit-btn" disabled>
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/>
-              </svg>
-              Hochladen
+            <button type="button" class="mdc-btn mdc-btn--create" id="bilder-upload-submit-btn" disabled>
+              ${mdcBtnIcon(ICON_UPLOAD_16)}
+              <span class="mdc-btn__label">Hochladen</span>
+            </button>
+          </div>
+
+          <div class="existing-images-section" id="existing-images-section">
+            <div class="existing-images-header">
+              <span class="existing-images-title">Vorhandene Bilder</span>
+              <span class="existing-images-count" id="existing-images-count"></span>
+            </div>
+            <div class="existing-images-list" id="existing-images-list">
+              <div class="existing-images-loading">Lade...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  _renderLinkTab(activeTab) {
+    return `
+      <div id="upload-tab-bilder" style="${activeTab !== 'bilder' ? 'display:none' : ''}">
+        <div class="bilder-upload-drawer-content">
+          <div class="link-add-section">
+            <button type="button" class="mdc-btn upload-drawer-btn--secondary" id="bilder-link-add-btn">
+              ${mdcBtnIcon(ICON_PLUS_16)}
+              <span class="mdc-btn__label">Bilder-Link hinzufügen</span>
+            </button>
+          </div>
+
+          <div class="upload-file-list" id="bilder-preview-list"></div>
+
+          <div class="upload-error-msg" id="bilder-upload-error" style="display:none;"></div>
+
+          <div class="drawer-footer bilder-upload-drawer-footer">
+            <button type="button" class="mdc-btn mdc-btn--cancel" id="bilder-upload-cancel-btn">Abbrechen</button>
+            <button type="button" class="mdc-btn mdc-btn--create" id="bilder-upload-submit-btn" disabled>
+              ${mdcBtnIcon(ICON_CHECK_16)}
+              <span class="mdc-btn__label">Speichern</span>
             </button>
           </div>
 
@@ -84,36 +125,60 @@ export class BilderTabHandler {
   bindEvents(_panel) {
     const cancelBtn = document.getElementById('bilder-upload-cancel-btn');
     const submitBtn = document.getElementById('bilder-upload-submit-btn');
-    const dropzone = document.getElementById('bilder-upload-dropzone');
-    const fileInput = document.getElementById('bilder-upload-file-input');
-    const browseBtn = document.getElementById('bilder-browse-btn');
 
     cancelBtn?.addEventListener('click', () => this.drawer.close());
     submitBtn?.addEventListener('click', () => {
-      if (this._selectedImages.length > 0 && !this._isUploadingImages) this._handleBilderUpload();
+      if (this.drawer.useExternalLinks) {
+        if (this._linkQueue && this._linkQueue.length > 0 && !this._isUploadingImages) this._handleBilderLinkSubmit();
+      } else {
+        if (this._selectedImages.length > 0 && !this._isUploadingImages) this._handleBilderUpload();
+      }
     });
 
-    browseBtn?.addEventListener('click', () => fileInput?.click());
-    fileInput?.addEventListener('change', (e) => {
-      if (e.target.files?.length) this._addImages(Array.from(e.target.files));
-      fileInput.value = '';
-    });
+    if (this.drawer.useExternalLinks) {
+      const addLinkBtn = document.getElementById('bilder-link-add-btn');
+      addLinkBtn?.addEventListener('click', () => this._addBilderLinkEntry());
+    } else {
+      const dropzone = document.getElementById('bilder-upload-dropzone');
+      const fileInput = document.getElementById('bilder-upload-file-input');
+      const browseBtn = document.getElementById('bilder-browse-btn');
 
-    dropzone?.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
-    dropzone?.addEventListener('dragleave', () => { dropzone.classList.remove('dragover'); });
-    dropzone?.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropzone.classList.remove('dragover');
-      const files = e.dataTransfer.files;
-      if (files?.length) this._addImages(Array.from(files));
-    });
+      browseBtn?.addEventListener('click', () => fileInput?.click());
+      fileInput?.addEventListener('change', (e) => {
+        if (e.target.files?.length) this._addImages(Array.from(e.target.files));
+        fileInput.value = '';
+      });
+
+      dropzone?.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+      dropzone?.addEventListener('dragleave', () => { dropzone.classList.remove('dragover'); });
+      dropzone?.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files?.length) this._addImages(Array.from(files));
+      });
+    }
 
     const previewList = document.getElementById('bilder-preview-list');
     previewList?.addEventListener('click', (e) => {
       const removeBtn = e.target.closest('.bilder-file-remove');
       if (removeBtn) {
         const idx = parseInt(removeBtn.dataset.idx, 10);
-        this._removeSelectedImage(idx);
+        if (this.drawer.useExternalLinks) {
+          this._removeBilderLink(idx);
+        } else {
+          this._removeSelectedImage(idx);
+        }
+      }
+    });
+    previewList?.addEventListener('input', (e) => {
+      const urlInput = e.target.closest('.bilder-link-url-input');
+      if (urlInput) {
+        const idx = parseInt(urlInput.dataset.idx, 10);
+        if (this._linkQueue && this._linkQueue[idx]) {
+          this._linkQueue[idx].url = urlInput.value;
+        }
+        this._updateBilderSubmitState();
       }
     });
 
@@ -188,7 +253,14 @@ export class BilderTabHandler {
 
   _updateBilderSubmitState() {
     const btn = document.getElementById('bilder-upload-submit-btn');
-    if (btn) btn.disabled = this._isUploadingImages || this._selectedImages.length === 0;
+    if (!btn) return;
+    if (this.drawer.useExternalLinks) {
+      const hasLinks = this._linkQueue && this._linkQueue.length > 0;
+      const allFilled = hasLinks && this._linkQueue.every(q => (q.url || '').trim().length > 0);
+      btn.disabled = this._isUploadingImages || !allFilled;
+    } else {
+      btn.disabled = this._isUploadingImages || this._selectedImages.length === 0;
+    }
   }
 
   // ─── Upload ────────────────────────────────────────────────
@@ -334,6 +406,84 @@ export class BilderTabHandler {
       if (submitBtn) submitBtn.disabled = false;
       if (cancelBtn) cancelBtn.disabled = false;
       this._isUploadingImages = false;
+    }
+  }
+
+  // ─── External Link Mode ─────────────────────────────────────
+
+  _addBilderLinkEntry() {
+    if (!this._linkQueue) this._linkQueue = [];
+    this._linkQueue.push({ url: '' });
+    this._renderBilderLinkList();
+    this._updateBilderSubmitState();
+  }
+
+  _removeBilderLink(idx) {
+    if (!this._linkQueue) return;
+    this._linkQueue.splice(idx, 1);
+    this._renderBilderLinkList();
+    this._updateBilderSubmitState();
+  }
+
+  _renderBilderLinkList() {
+    const list = document.getElementById('bilder-preview-list');
+    if (!list) return;
+    if (!this._linkQueue || this._linkQueue.length === 0) {
+      list.innerHTML = '';
+      return;
+    }
+    list.innerHTML = this._linkQueue.map((item, i) => `
+      <div class="upload-file-item">
+        <div class="file-info" style="flex:1">
+          <input type="url" class="form-input bilder-link-url-input" data-idx="${i}"
+            value="${escapeHtml(item.url || '')}"
+            placeholder="https://..." />
+        </div>
+        <button type="button" class="file-remove-btn bilder-file-remove" data-idx="${i}" title="Entfernen">&times;</button>
+      </div>
+    `).join('');
+  }
+
+  async _handleBilderLinkSubmit() {
+    if (!this._linkQueue || this._linkQueue.length === 0 || this._isUploadingImages) return;
+    this._hideBilderError();
+
+    const invalid = this._linkQueue.filter(q => !isValidExternalUrl(normalizeExternalUrl(q.url)));
+    if (invalid.length > 0) {
+      this._showBilderError('Bitte gültige URLs eingeben (https://...)');
+      return;
+    }
+
+    this._isUploadingImages = true;
+    this._updateBilderSubmitState();
+
+    try {
+      const insertRows = this._linkQueue.map(item => ({
+        kooperation_id: this.drawer.kooperationId,
+        file_url: normalizeExternalUrl(item.url),
+        file_path: null,
+        file_name: item.url.split('/').pop() || 'Link',
+        file_size: 0,
+        uploaded_by: window.currentUser?.id || null,
+        created_at: new Date().toISOString(),
+      }));
+
+      const { error: insertErr } = await window.supabase
+        .from('kooperation_bilder_asset')
+        .insert(insertRows);
+      if (insertErr) throw insertErr;
+
+      this._linkQueue = [];
+      this._renderBilderLinkList();
+      this._isUploadingImages = false;
+      this._updateBilderSubmitState();
+      await this._loadExistingImages();
+      window.toastSystem?.success?.('Bilder-Links gespeichert');
+    } catch (err) {
+      console.error('[BilderTabHandler] Link-Submit fehlgeschlagen:', err);
+      this._showBilderError(err.message || 'Speichern fehlgeschlagen');
+      this._isUploadingImages = false;
+      this._updateBilderSubmitState();
     }
   }
 

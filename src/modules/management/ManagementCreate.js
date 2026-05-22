@@ -1,6 +1,8 @@
 // ManagementCreate.js (ES6-Modul)
 // Management-Erstellungsseite mit FormSystem + Creator-Zuordnung via Tag-Multi-Select
 
+import { FormSubmitHelper } from '../../core/form/FormSubmitHelper.js';
+
 export class ManagementCreate {
   constructor() {
     this.formData = {};
@@ -123,38 +125,8 @@ export class ManagementCreate {
 
   collectFormData(form) {
     const formData = new FormData(form);
-    const data = {};
-
-    // Tag-basierte Multi-Selects zuerst
-    const tagBasedSelects = form.querySelectorAll('select[data-tag-based="true"]');
-    tagBasedSelects.forEach(select => {
-      const fieldName = select.name;
-      let hiddenSelect = form.querySelector(`select[name="${fieldName}[]"][style*="display: none"]`);
-      if (!hiddenSelect) {
-        hiddenSelect = form.querySelector(`select[name="${fieldName}"][style*="display: none"]`);
-      }
-      if (!hiddenSelect && select.id) {
-        hiddenSelect = document.getElementById(select.id + '_hidden');
-      }
-      if (hiddenSelect) {
-        data[fieldName] = Array.from(hiddenSelect.selectedOptions)
-          .map(opt => opt.value)
-          .filter(Boolean);
-      }
-    });
-
-    // Standard FormData
-    for (const [key, value] of formData.entries()) {
-      if (data.hasOwnProperty(key)) continue;
-      const cleanKey = key.replace('[]', '');
-      if (key.includes('[]')) {
-        if (!data[cleanKey]) data[cleanKey] = [];
-        data[cleanKey].push(value);
-      } else {
-        data[key] = typeof value === 'string' ? value.trim() : value;
-      }
-    }
-
+    const tagBasedValues = FormSubmitHelper.collectTagBasedSelects(form);
+    const data = FormSubmitHelper.formDataToObject(formData, tagBasedValues);
     return data;
   }
 

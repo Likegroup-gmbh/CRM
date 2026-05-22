@@ -410,7 +410,7 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
   const batchIn = VideoTableDataLoader.batchInQuery;
   const sb = window.supabase;
 
-  const [videosResult, creatorsResult, vertraegeResult, versandResult, statusResult, tagsResult] = await Promise.allSettled([
+  const [videosResult, creatorsResult, vertraegeResult, versandResult, statusResult, tagsResult, rechnungResult] = await Promise.allSettled([
     batchIn(
       sb.from('kooperation_videos'),
       'id, kooperation_id, position, asset_url, content_art, caption, freigabe, link_content, folder_url, story_folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, skript_deadline, content_deadline, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id, video_link)',
@@ -439,7 +439,10 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
       sb.from('kooperation_tags'),
       'kooperation_id, tag_id, kooperation_tag_typen(id, name)',
       'kooperation_id', koopIds
-    )
+    ),
+    sb.from('rechnung')
+      .select('kooperation_id, status')
+      .in('kooperation_id', koopIds)
   ]);
 
   const allVideos = videosResult.status === 'fulfilled' ? (videosResult.value.data || []) : [];
@@ -448,6 +451,13 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
   const versandInfos = versandResult.status === 'fulfilled' ? (versandResult.value.data || []) : [];
   const statusOptions = statusResult.status === 'fulfilled' ? (statusResult.value.data || []) : [];
   const allTags = tagsResult.status === 'fulfilled' ? (tagsResult.value.data || []) : [];
+  const rechnungen = rechnungResult.status === 'fulfilled' ? (rechnungResult.value.data || []) : [];
+
+  const rechnungStatusMap = rechnungen.reduce((acc, r) => {
+    if (r.kooperation_id) acc[r.kooperation_id] = r.status;
+    return acc;
+  }, {});
+  store.setRechnungStatusMap(rechnungStatusMap);
 
   const creatorsMap = new Map();
   creators.forEach(c => creatorsMap.set(c.id, c));

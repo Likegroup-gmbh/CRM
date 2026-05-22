@@ -232,13 +232,14 @@ VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       y += 8;
+      const creatorContractAddress = this.getResolvedCreatorContractAddress(creator, vertrag);
       doc.text(`Name: ${creator?.vorname || ''} ${creator?.nachname || ''}`, 105, y, { align: 'center' });
       y += 5;
-      doc.text(`${creator?.lieferadresse_strasse || ''} ${creator?.lieferadresse_hausnummer || ''}`, 105, y, { align: 'center' });
+      doc.text(`${creatorContractAddress?.strasse || ''} ${creatorContractAddress?.hausnummer || ''}`.trim(), 105, y, { align: 'center' });
       y += 5;
-      doc.text(`${creator?.lieferadresse_plz || ''} ${creator?.lieferadresse_stadt || ''}`, 105, y, { align: 'center' });
+      doc.text(`${creatorContractAddress?.plz || ''} ${creatorContractAddress?.stadt || ''}`.trim(), 105, y, { align: 'center' });
       y += 5;
-      doc.text(`${vertrag.influencer_land || 'Deutschland'}`, 105, y, { align: 'center' });
+      doc.text(`${creatorContractAddress?.land || vertrag.influencer_land || 'Deutschland'}`, 105, y, { align: 'center' });
       if (vertrag.influencer_steuer_id) {
         y += 5;
         doc.text(`Steuer-ID: ${vertrag.influencer_steuer_id}`, 105, y, { align: 'center' });

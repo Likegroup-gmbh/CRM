@@ -33,6 +33,13 @@ input:-webkit-autofill:focus {
   --space-20: 1.25rem;     /* 20px */
   --space-44: 2.75rem;     /* 44px */
 
+  /* Quick Access Floating Bar */
+  --quick-access-bar-height: calc(var(--space-xl) + var(--space-xs) * 2);
+  --quick-access-bar-offset: var(--space-lg);
+  --quick-access-bar-clearance: calc(
+    var(--quick-access-bar-height) + var(--quick-access-bar-offset) + var(--space-md)
+  );
+
   /* Font Sizes */
   --text-xxs: 0.625rem;    /* 10px */
   --text-xs: 0.75rem;      /* 12px */
@@ -249,6 +256,9 @@ input:-webkit-autofill:focus {
   /* Readonly / Disabled Felder */
   --readonly-bg: var(--gray-50);
   --readonly-text: var(--gray-900);
+
+  /* Tabellen: breite Name/Details-Spalten (24.57em + 5%) */
+  --table-name-col-width: 25.7985em;
 }
 
 

@@ -105,3 +105,69 @@ export const VIDEO_MIME_TYPES = ['video/mp4', 'video/quicktime', 'video/x-msvide
 // Dropbox Upload-Sessions können bis 350 GB; 1 GB ist ein praktikabler Browser-Client-Cap.
 export const MAX_VIDEO_SIZE = 1024 * 1024 * 1024;
 export const MAX_STORY_SIZE = 1024 * 1024 * 1024;
+
+// ─── External Link Helpers ───────────────────────────────────
+
+export function normalizeExternalUrl(input) {
+  if (!input) return '';
+  let url = input.trim();
+  if (url && !/^https?:\/\//i.test(url)) {
+    url = 'https://' + url;
+  }
+  return url;
+}
+
+export function isValidExternalUrl(url) {
+  if (!url) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+export function getAssetDisplayLabel(asset) {
+  if (!asset) return '?';
+  if (asset.variant_name) return asset.variant_name;
+  if (asset.file_name) return asset.file_name;
+  if (asset.file_path) {
+    const last = asset.file_path.split('/').pop();
+    if (last) return last;
+  }
+  if (asset.file_url) {
+    try {
+      const parsed = new URL(asset.file_url);
+      const segment = parsed.pathname.split('/').filter(Boolean).pop();
+      return segment || parsed.hostname;
+    } catch {
+      return asset.file_url;
+    }
+  }
+  return '?';
+}
+
+export function isExternalAsset(asset) {
+  return !!(asset?.file_url && !asset?.file_path);
+}
+
+export function isDirectImageUrl(url) {
+  if (!url) return false;
+  try {
+    return IMAGE_EXTENSIONS.test(new URL(url).pathname);
+  } catch {
+    return IMAGE_EXTENSIONS.test(url);
+  }
+}
+
+// ─── Upload-Drawer Button Icons ──────────────────────────────
+
+export function mdcBtnIcon(svgMarkup) {
+  return `<span class="mdc-btn__icon" aria-hidden="true">${svgMarkup}</span>`;
+}
+
+export const ICON_PLUS_16 = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>`;
+
+export const ICON_CHECK_16 = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/></svg>`;
+
+export const ICON_UPLOAD_16 = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>`;

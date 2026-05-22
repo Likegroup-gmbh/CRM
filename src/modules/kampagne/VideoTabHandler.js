@@ -1,7 +1,13 @@
 import {
   buildVersionedFileName, MAX_VERSIONS,
   escapeHtml,
-  MAX_VIDEO_SIZE
+  MAX_VIDEO_SIZE,
+  normalizeExternalUrl,
+  isValidExternalUrl,
+  mdcBtnIcon,
+  ICON_PLUS_16,
+  ICON_CHECK_16,
+  ICON_UPLOAD_16
 } from '../../core/VideoUploadUtils.js';
 import { deleteSingleDropboxFile } from '../../core/VideoDeleteHelper.js';
 import { backgroundUploadService, UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
@@ -59,6 +65,9 @@ export class VideoTabHandler {
   }
 
   renderTab(activeTab) {
+    if (this.drawer.useExternalLinks) {
+      return this._renderLinkTab(activeTab);
+    }
     return `
       <div id="upload-tab-video" style="${activeTab !== 'video' ? 'display:none' : ''}">
         <div class="video-upload-drawer-content">
@@ -86,11 +95,46 @@ export class VideoTabHandler {
 
           <div class="drawer-footer video-upload-drawer-footer">
             <button type="button" class="mdc-btn mdc-btn--cancel" id="video-upload-cancel-btn">Abbrechen</button>
-            <button type="button" class="mdc-btn mdc-btn--primary" id="video-upload-submit-btn" disabled>
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/>
-              </svg>
-              Hochladen
+            <button type="button" class="mdc-btn mdc-btn--create" id="video-upload-submit-btn" disabled>
+              ${mdcBtnIcon(ICON_UPLOAD_16)}
+              <span class="mdc-btn__label">Hochladen</span>
+            </button>
+          </div>
+
+          <div class="existing-images-section" id="existing-videos-section">
+            <div class="existing-images-header">
+              <span class="existing-images-title">Vorhandene Videos</span>
+              <span class="existing-images-count" id="existing-videos-count"></span>
+            </div>
+            <div class="existing-images-list" id="existing-videos-list">
+              <div class="existing-images-loading">Lade...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  _renderLinkTab(activeTab) {
+    return `
+      <div id="upload-tab-video" style="${activeTab !== 'video' ? 'display:none' : ''}">
+        <div class="video-upload-drawer-content">
+          <div class="link-add-section">
+            <button type="button" class="mdc-btn upload-drawer-btn--secondary" id="video-link-add-btn">
+              ${mdcBtnIcon(ICON_PLUS_16)}
+              <span class="mdc-btn__label">Link hinzufügen</span>
+            </button>
+          </div>
+
+          <div class="upload-file-list" id="video-upload-queue"></div>
+
+          <div class="upload-error-msg" id="video-upload-error" style="display:none;"></div>
+
+          <div class="drawer-footer video-upload-drawer-footer">
+            <button type="button" class="mdc-btn mdc-btn--cancel" id="video-upload-cancel-btn">Abbrechen</button>
+            <button type="button" class="mdc-btn mdc-btn--create" id="video-upload-submit-btn" disabled>
+              ${mdcBtnIcon(ICON_CHECK_16)}
+              <span class="mdc-btn__label">Speichern</span>
             </button>
           </div>
 
@@ -113,29 +157,41 @@ export class VideoTabHandler {
   bindEvents(panel) {
     const cancelBtn = document.getElementById('video-upload-cancel-btn');
     const submitBtn = document.getElementById('video-upload-submit-btn');
-    const dropzone = document.getElementById('video-upload-dropzone');
-    const fileInput = document.getElementById('video-upload-file-input');
-    const browseBtn = panel?.querySelector('#upload-tab-video .dropzone-browse-btn');
 
     cancelBtn?.addEventListener('click', () => this.drawer.close());
     submitBtn?.addEventListener('click', () => {
-      if (this._queue.length > 0 && !this._isUploading) this.handleUpload();
+      if (this._queue.length > 0 && !this._isUploading) {
+        if (this.drawer.useExternalLinks) {
+          this._handleLinkSubmit();
+        } else {
+          this.handleUpload();
+        }
+      }
     });
 
-    browseBtn?.addEventListener('click', () => fileInput?.click());
-    fileInput?.addEventListener('change', (e) => {
-      if (e.target.files?.length) this._addFiles(Array.from(e.target.files));
-      fileInput.value = '';
-    });
+    if (this.drawer.useExternalLinks) {
+      const addLinkBtn = document.getElementById('video-link-add-btn');
+      addLinkBtn?.addEventListener('click', () => this._addLinkEntry());
+    } else {
+      const dropzone = document.getElementById('video-upload-dropzone');
+      const fileInput = document.getElementById('video-upload-file-input');
+      const browseBtn = panel?.querySelector('#upload-tab-video .dropzone-browse-btn');
 
-    dropzone?.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
-    dropzone?.addEventListener('dragleave', () => { dropzone.classList.remove('dragover'); });
-    dropzone?.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropzone.classList.remove('dragover');
-      const files = e.dataTransfer.files;
-      if (files?.length) this._addFiles(Array.from(files));
-    });
+      browseBtn?.addEventListener('click', () => fileInput?.click());
+      fileInput?.addEventListener('change', (e) => {
+        if (e.target.files?.length) this._addFiles(Array.from(e.target.files));
+        fileInput.value = '';
+      });
+
+      dropzone?.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+      dropzone?.addEventListener('dragleave', () => { dropzone.classList.remove('dragover'); });
+      dropzone?.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files?.length) this._addFiles(Array.from(files));
+      });
+    }
 
     const queueEl = document.getElementById('video-upload-queue');
     queueEl?.addEventListener('click', (e) => {
@@ -151,6 +207,14 @@ export class VideoTabHandler {
         const idx = parseInt(variantInput.dataset.idx, 10);
         if (this._queue[idx]) {
           this._queue[idx].variantName = variantInput.value;
+        }
+        this._updateSubmitButtonState();
+      }
+      const urlInput = e.target.closest('.video-link-url-input');
+      if (urlInput) {
+        const idx = parseInt(urlInput.dataset.idx, 10);
+        if (this._queue[idx]) {
+          this._queue[idx].url = urlInput.value;
         }
         this._updateSubmitButtonState();
       }
@@ -231,6 +295,31 @@ export class VideoTabHandler {
       return;
     }
 
+    if (this.drawer.useExternalLinks) {
+      list.innerHTML = this._queue.map((item, i) => {
+        const versionOptions = this._buildVersionOptions(item);
+        return `
+          <div class="upload-file-item video-queue-item">
+            <div class="video-queue-variant" style="flex:1">
+              <input type="url" class="form-input video-link-url-input" data-idx="${i}"
+                value="${escapeHtml(item.url || '')}"
+                placeholder="https://drive.google.com/..." />
+            </div>
+            <div class="video-queue-variant">
+              <input type="text" class="form-input video-variant-name-input" data-idx="${i}"
+                value="${escapeHtml(item.variantName)}"
+                placeholder="Varianten-Name" maxlength="120"/>
+            </div>
+            <div class="video-queue-selects">
+              <select class="form-input video-version-select" data-idx="${i}">${versionOptions}</select>
+            </div>
+            <button type="button" class="file-remove-btn video-file-remove" data-idx="${i}" title="Entfernen">&times;</button>
+          </div>
+        `;
+      }).join('');
+      return;
+    }
+
     list.innerHTML = this._queue.map((item, i) => {
       const versionOptions = this._buildVersionOptions(item);
       return `
@@ -253,6 +342,71 @@ export class VideoTabHandler {
     }).join('');
   }
 
+  // ─── External Link Mode ────────────────────────────────────
+
+  _addLinkEntry() {
+    const defaultVersion = this._existingVersions.length > 0
+      ? Math.max(...this._existingVersions)
+      : 1;
+    this._queue.push({ url: '', variantName: '', versionNumber: defaultVersion });
+    this._renderQueue();
+    this._updateSubmitButtonState();
+    const list = document.getElementById('video-upload-queue');
+    const lastInput = list?.querySelector(`.video-link-url-input[data-idx="${this._queue.length - 1}"]`);
+    lastInput?.focus();
+  }
+
+  async _handleLinkSubmit() {
+    if (this._queue.length === 0 || this._isUploading) return;
+    this.hideError();
+
+    const invalid = this._queue.filter(q => !isValidExternalUrl(normalizeExternalUrl(q.url)));
+    if (invalid.length > 0) {
+      this.showError('Bitte gültige URLs eingeben (https://...)');
+      return;
+    }
+
+    this._isUploading = true;
+    this._updateSubmitButtonState();
+
+    try {
+      let lastFileUrl = null;
+      for (const item of this._queue) {
+        const fileUrl = normalizeExternalUrl(item.url);
+        await this._saveAssetVersion(fileUrl, null, item.variantName, item.versionNumber);
+        lastFileUrl = fileUrl;
+      }
+
+      await this._updateCurrentFlags();
+
+      const videoName = this.drawer.metadaten?.videoName || null;
+      const updateData = { link_content: lastFileUrl };
+      if (videoName) updateData.video_name = videoName;
+
+      await window.supabase
+        .from('kooperation_videos')
+        .update(updateData)
+        .eq('id', this.drawer.videoId);
+
+      this._queue = [];
+      this._renderQueue();
+      this._isUploading = false;
+      this._updateSubmitButtonState();
+
+      if (typeof this.drawer.onSuccess === 'function') {
+        this.drawer.onSuccess(lastFileUrl, null, videoName, null);
+      }
+
+      this._loadExistingVideoAssets();
+      window.toastSystem?.success?.('Links gespeichert');
+    } catch (err) {
+      console.error('[VideoTabHandler] Link-Submit fehlgeschlagen:', err);
+      this.showError(err.message || 'Speichern fehlgeschlagen');
+      this._isUploading = false;
+      this._updateSubmitButtonState();
+    }
+  }
+
   _getVersionedFileName(file, versionNumber) {
     const ext = file.name.split('.').pop() || 'mp4';
     return buildVersionedFileName(
@@ -267,9 +421,14 @@ export class VideoTabHandler {
   _updateSubmitButtonState() {
     const submitBtn = document.getElementById('video-upload-submit-btn');
     if (!submitBtn) return;
-    const hasFiles = this._queue.length > 0;
+    const hasItems = this._queue.length > 0;
     const allVariantsNamed = this._queue.every(q => q.variantName.trim().length > 0);
-    submitBtn.disabled = !hasFiles || !allVariantsNamed;
+    if (this.drawer.useExternalLinks) {
+      const allUrlsFilled = this._queue.every(q => (q.url || '').trim().length > 0);
+      submitBtn.disabled = this._isUploading || !hasItems || !allVariantsNamed || !allUrlsFilled;
+    } else {
+      submitBtn.disabled = !hasItems || !allVariantsNamed;
+    }
   }
 
   // ─── Upload (Enqueue Background) ───────────────────────────

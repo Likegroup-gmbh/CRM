@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { buildVersionedFileName, getAvailableVersions } from '../core/VideoUploadUtils.js';
+import {
+  buildVersionedFileName,
+  getAvailableVersions,
+  normalizeExternalUrl,
+  isValidExternalUrl,
+  getAssetDisplayLabel,
+  isExternalAsset,
+  isDirectImageUrl,
+} from '../core/VideoUploadUtils.js';
 
 describe('buildVersionedFileName', () => {
   it('erzeugt Dateinamen im Format creator_unternehmen_kampagne_v{n}.ext', () => {
@@ -53,5 +61,89 @@ describe('getAvailableVersions', () => {
 
   it('nutzt Default maxVersions=3', () => {
     expect(getAvailableVersions([])).toEqual([1, 2, 3]);
+  });
+});
+
+describe('normalizeExternalUrl', () => {
+  it('fügt https:// hinzu wenn Protokoll fehlt', () => {
+    expect(normalizeExternalUrl('drive.google.com/file/123')).toBe('https://drive.google.com/file/123');
+  });
+
+  it('lässt bestehende https:// URL unverändert', () => {
+    expect(normalizeExternalUrl('https://example.com/video')).toBe('https://example.com/video');
+  });
+
+  it('lässt http:// URL unverändert', () => {
+    expect(normalizeExternalUrl('http://example.com/video')).toBe('http://example.com/video');
+  });
+
+  it('trimmt Whitespace', () => {
+    expect(normalizeExternalUrl('  https://example.com  ')).toBe('https://example.com');
+  });
+
+  it('gibt leeren String für null/undefined zurück', () => {
+    expect(normalizeExternalUrl(null)).toBe('');
+    expect(normalizeExternalUrl(undefined)).toBe('');
+    expect(normalizeExternalUrl('')).toBe('');
+  });
+});
+
+describe('isValidExternalUrl', () => {
+  it('akzeptiert gültige https URL', () => {
+    expect(isValidExternalUrl('https://drive.google.com/file/123')).toBe(true);
+  });
+
+  it('akzeptiert gültige http URL', () => {
+    expect(isValidExternalUrl('http://example.com')).toBe(true);
+  });
+
+  it('lehnt ftp-Protokoll ab', () => {
+    expect(isValidExternalUrl('ftp://files.example.com')).toBe(false);
+  });
+
+  it('lehnt ungültige URL ab', () => {
+    expect(isValidExternalUrl('not a url')).toBe(false);
+  });
+
+  it('lehnt leere/null Werte ab', () => {
+    expect(isValidExternalUrl('')).toBe(false);
+    expect(isValidExternalUrl(null)).toBe(false);
+  });
+});
+
+describe('getAssetDisplayLabel', () => {
+  it('bevorzugt variant_name', () => {
+    expect(getAssetDisplayLabel({ variant_name: 'Haupt', file_name: 'a.mp4' })).toBe('Haupt');
+  });
+
+  it('nutzt Host/Dateiname aus file_url wenn kein Pfad', () => {
+    expect(getAssetDisplayLabel({
+      file_url: 'https://cdn.example.com/pfad/bild.png',
+      file_path: null,
+    })).toBe('bild.png');
+  });
+
+  it('nutzt letztes Segment von file_path', () => {
+    expect(getAssetDisplayLabel({ file_path: '/dropbox/foo/bar.mp4' })).toBe('bar.mp4');
+  });
+});
+
+describe('isExternalAsset', () => {
+  it('ist true bei file_url ohne file_path', () => {
+    expect(isExternalAsset({ file_url: 'https://x.com/v', file_path: null })).toBe(true);
+  });
+
+  it('ist false bei Dropbox-Asset', () => {
+    expect(isExternalAsset({ file_url: 'https://dl.dropbox.com/x', file_path: '/a/b.mp4' })).toBe(false);
+  });
+});
+
+describe('isDirectImageUrl', () => {
+  it('erkennt Bild-URLs an der Pfadendung', () => {
+    expect(isDirectImageUrl('https://example.com/photo.jpg')).toBe(true);
+  });
+
+  it('lehnt Video-URLs ab', () => {
+    expect(isDirectImageUrl('https://example.com/clip.mp4')).toBe(false);
   });
 });

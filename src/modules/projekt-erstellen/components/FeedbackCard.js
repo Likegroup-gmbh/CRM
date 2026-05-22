@@ -350,16 +350,31 @@ export class FeedbackCard {
       this.renderSummaryMetric('Brutto', a.bruttobetrag != null && a.bruttobetrag !== '' ? formatCurrency(a.bruttobetrag) : null, a.bruttobetrag == null || a.bruttobetrag === '')
     ];
 
-    const rightCol = [
-      this.renderSummaryMetric('Rechnungsnummer', this.escapeHtml(a.re_nr || ''), !a.re_nr),
-      this.renderSummaryMetric('Externe PO', this.escapeHtml(a.externe_po || ''), !a.externe_po)
-    ];
+    const rightCol = this.buildTeilrechnungenSummary(a);
 
     if (isContracting) {
       rightCol.push(...this.buildAgencyMetrics(d));
     }
 
     return this.renderSummaryGrid([leftCol, rightCol]);
+  }
+
+  buildTeilrechnungenSummary(auftrag) {
+    const trs = auftrag.teilrechnungen;
+    if (!Array.isArray(trs) || trs.length === 0) {
+      return [
+        this.renderSummaryMetric('Rechnungsnummer', this.escapeHtml(auftrag.re_nr || ''), !auftrag.re_nr),
+        this.renderSummaryMetric('Externe PO', this.escapeHtml(auftrag.externe_po || ''), !auftrag.externe_po)
+      ];
+    }
+
+    return trs.map((tr, i) => {
+      const label = `TR ${tr.position} von ${trs.length}`;
+      const netto = tr.nettobetrag != null && tr.nettobetrag !== '' ? formatCurrency(tr.nettobetrag) : EMPTY_PLACEHOLDER;
+      const reNr = tr.re_nr ? this.escapeHtml(tr.re_nr) : '';
+      const detail = reNr ? `${netto} · ${reNr}` : netto;
+      return this.renderSummaryMetric(label, detail, false);
+    });
   }
 
   buildStep3Kampagnenarten(formData) {

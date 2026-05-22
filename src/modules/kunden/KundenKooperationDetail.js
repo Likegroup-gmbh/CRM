@@ -40,7 +40,7 @@ export class KundenKooperationDetail {
         const videoIds = this.videos.map(v => v.id);
         const { data: assets } = await window.supabase
           .from('kooperation_video_asset')
-          .select('id, video_id, file_url, version_number, is_current, description, created_at')
+          .select('id, video_id, file_url, file_path, version_number, variant_name, is_current, description, created_at')
           .in('video_id', videoIds)
           .order('version_number', { ascending: false });
         
@@ -108,6 +108,23 @@ export class KundenKooperationDetail {
   }
 
   renderVideoSection(video, safe, fmtDateTime) {
+    const currentAssets = (video.assets || []).filter(a => a.is_current);
+    const hasDirectLinks = currentAssets.some(a => a.file_url && !a.file_path);
+    const hasAnyLinks = currentAssets.length > 0;
+
+    let contentHtml = '';
+    if (video.folder_url) {
+      contentHtml = `<a href="${video.folder_url}" target="_blank" rel="noopener" class="link-btn">Ordner öffnen</a>`;
+    } else if (hasAnyLinks) {
+      contentHtml = currentAssets.map(a => {
+        if (!a.file_url) return '';
+        const label = a.description || a.variant_name || `Version ${a.version_number || 1}`;
+        return `<a href="${a.file_url}" target="_blank" rel="noopener" class="link-btn" style="margin-right:8px;margin-bottom:4px;">${safe(label)}</a>`;
+      }).join('');
+    } else {
+      contentHtml = '<p class="empty-state">Kein Content hinterlegt.</p>';
+    }
+
     return `
       <div class="video-section" style="margin-bottom:24px;padding-bottom:24px;border-bottom:1px solid var(--border-primary);">
         <h3>${safe(video.titel || 'Video #' + video.id)}</h3>
@@ -116,9 +133,7 @@ export class KundenKooperationDetail {
           ${video.content_art ? `<span class="badge">${safe(video.content_art)}</span>` : ''}
         </div>
         
-        ${video.folder_url
-          ? `<a href="${video.folder_url}" target="_blank" rel="noopener" class="link-btn">Ordner öffnen</a>`
-          : '<p class="empty-state">Kein Ordner hinterlegt.</p>'}
+        ${contentHtml}
         ${video.story_folder_url
           ? `<a href="${video.story_folder_url}" target="_blank" rel="noopener" class="link-btn">Storys-Ordner öffnen</a>`
           : ''}

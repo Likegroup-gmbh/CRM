@@ -52,8 +52,8 @@ export class EntityMutator {
       
       await this.relationManager.handleManyToManyRelations(entityType, result.id, data);
       
-      if (entityType === 'creator') {
-        await this.relationManager.handleCreatorAgentur(result.id, data);
+      if (entityType === 'creator' && data.management_id !== undefined) {
+        await this._syncCreatorManagement(result.id, data.management_id);
       }
       
       return { success: true, id: result.id, data: result };
@@ -96,8 +96,8 @@ export class EntityMutator {
       
       await this.relationManager.handleManyToManyRelations(entityType, id, data);
       
-      if (entityType === 'creator') {
-        await this.relationManager.handleCreatorAgentur(id, data);
+      if (entityType === 'creator' && data.management_id !== undefined) {
+        await this._syncCreatorManagement(id, data.management_id);
       }
       
       return { success: true, id: id, data: result };
@@ -175,6 +175,43 @@ export class EntityMutator {
     } catch (error) {
       console.error(`❌ Fehler beim Batch-Delete von ${entityType}:`, error);
       return { success: false, error: error.message };
+    }
+  }
+
+  async _syncCreatorManagement(creatorId, managementId) {
+    try {
+      if (!window.supabase) return;
+
+      await window.supabase
+        .from('creator_management')
+        .update({ ist_aktiv: false })
+        .eq('creator_id', creatorId)
+        .eq('ist_aktiv', true);
+
+      if (managementId && managementId.trim && managementId.trim() !== '') {
+        const { data: existing } = await window.supabase
+          .from('creator_management')
+          .select('id')
+          .eq('creator_id', creatorId)
+          .eq('management_id', managementId)
+          .maybeSingle();
+
+        if (existing) {
+          await window.supabase
+            .from('creator_management')
+            .update({ ist_aktiv: true, updated_at: new Date().toISOString() })
+            .eq('id', existing.id);
+        } else {
+          await window.supabase
+            .from('creator_management')
+            .insert([{ creator_id: creatorId, management_id: managementId, ist_aktiv: true }]);
+        }
+        console.log(`✅ Creator-Management Zuordnung gesetzt: ${creatorId} → ${managementId}`);
+      } else {
+        console.log(`✅ Creator-Management Zuordnung entfernt für ${creatorId}`);
+      }
+    } catch (err) {
+      console.error('❌ Fehler bei _syncCreatorManagement:', err);
     }
   }
 }

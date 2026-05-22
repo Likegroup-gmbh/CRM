@@ -46,7 +46,7 @@ export class VideoTableRenderer {
 
   getFilteredKooperationen() {
     const t = this.table;
-    if (t.store) return t.store.getFiltered(t.activeFilterTab);
+    if (t.store) return t.store.getFilteredAndSorted(t.activeFilterTab);
     if (t.activeFilterTab === 'offen') {
       return t.kooperationen.filter(koop => !t.areAllVideosApproved(koop.id));
     }
@@ -429,13 +429,18 @@ export class VideoTableRenderer {
               </div>`;
             } else {
               if (isKunde) {
-                if (koop.bilder_folder_url) {
+                if (videoUrl || koop.bilder_folder_url) {
                   return `<div class="content-cell-actions">
-                    <a href="${koop.bilder_folder_url}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Bilder-Ordner öffnen">
+                    ${videoUrl ? `<a href="${videoUrl}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Content öffnen">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m9.86-2.373a4.5 4.5 0 0 0-1.242-7.244l-4.5-4.5a4.5 4.5 0 0 0-6.364 6.364L4.757 8.188" />
+                      </svg>
+                    </a>` : ''}
+                    ${koop.bilder_folder_url ? `<a href="${koop.bilder_folder_url}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Bilder-Ordner öffnen">
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                         <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z" />
                       </svg>
-                    </a>
+                    </a>` : ''}
                   </div>`;
                 }
                 return `<span class="no-content-placeholder">—</span>`;

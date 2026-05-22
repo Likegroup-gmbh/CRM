@@ -170,7 +170,8 @@ export const EntityRegistry = {
       { name: 'status', type: 'string' },
       { name: 'notiz', type: 'string' },
       { name: 'logo_url', type: 'string' },
-      { name: 'logo_path', type: 'string' }
+      { name: 'logo_path', type: 'string' },
+      { name: 'kein_dropbox', type: 'boolean' }
     ],
     relations: {
       branche: { table: 'branchen', foreignKey: 'branche_id', displayField: 'name' }

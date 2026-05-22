@@ -812,6 +812,12 @@
   overflow-x: hidden; /* Verhindert horizontales Scrollen (außer wenn explizit überschrieben) */
 }
 
+body.has-quick-access-bar .main-wrapper,
+body.has-quick-access-bar #dashboard-content {
+  padding-bottom: var(--quick-access-bar-clearance);
+  scroll-padding-bottom: var(--quick-access-bar-clearance);
+}
+
 #dashboard-content {
   padding-left: 0;
   padding-right: 0;

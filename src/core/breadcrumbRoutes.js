@@ -30,6 +30,7 @@ const ROUTE_CONFIG = {
   'creator-lists':    { label: 'Listen',            icon: 'icon-list' },
   kickoff:            { label: 'Kick-Off',          icon: 'icon-tag' },
   contracts:          { label: 'Contracts',          icon: 'icon-contract' },
+  ausgangsrechnungen: { label: 'Ausgangsrechnungen', icon: 'icon-currency-euro' },
   profile:            { label: 'Profil',            icon: 'icon-user-circle' },
 };
 

@@ -246,6 +246,46 @@ export class ProjektErstellenPersistence {
     }, {});
   }
 
+  buildTeilrechnungPayloads(fd, auftragId) {
+    const trs = fd?.auftrag?.teilrechnungen;
+    if (!Array.isArray(trs) || trs.length === 0) return [];
+
+    return trs.map((tr, i) => ({
+      auftrag_id: auftragId,
+      position: tr.position ?? (i + 1),
+      nettobetrag: this.roundMoney(tr.nettobetrag),
+      ust_prozent: tr.ust_prozent ?? 19,
+      ust_betrag: this.roundMoney(tr.ust_betrag),
+      bruttobetrag: this.roundMoney(tr.bruttobetrag),
+      re_nr: this.normalizeTextValue(tr.re_nr),
+      externe_po: this.normalizeTextValue(tr.externe_po),
+      rechnung_gestellt: !!tr.rechnung_gestellt,
+      rechnung_gestellt_am: tr.rechnung_gestellt_am || null,
+      re_faelligkeit: tr.re_faelligkeit || null,
+      ueberwiesen: !!tr.ueberwiesen,
+      ueberwiesen_am: tr.ueberwiesen_am || null,
+      erwarteter_monat_zahlungseingang: tr.erwarteter_monat_zahlungseingang || null
+    }));
+  }
+
+  async _saveTeilrechnungen(supabase, formData, auftragId, { deleteFirst = false } = {}) {
+    if (deleteFirst) {
+      const { error: delErr } = await supabase
+        .from('auftrag_teilrechnung')
+        .delete()
+        .eq('auftrag_id', auftragId);
+      if (delErr) throw delErr;
+    }
+
+    const payloads = this.buildTeilrechnungPayloads(formData, auftragId);
+    if (payloads.length > 0) {
+      const { error: trErr } = await supabase
+        .from('auftrag_teilrechnung')
+        .insert(payloads);
+      if (trErr) throw trErr;
+    }
+  }
+
   buildCampaignBlockPayloads(fd, { auftragId, kampagneId, createdById, campaignArtIdMap = {} } = {}) {
     const blocks = normalizeCampaignBlocks(fd.details || {});
 
@@ -297,6 +337,8 @@ export class ProjektErstellenPersistence {
       if (auftragErr) throw auftragErr;
 
       const auftragId = auftragData.id;
+
+      await this._saveTeilrechnungen(supabase, formData, auftragId);
 
       // Auftragsbestaetigungen nach Dropbox hochladen + DB-Eintraege anlegen
       const uploadResult = await this.uploadAuftragsbestaetigungenIfAny({
@@ -496,7 +538,10 @@ export class ProjektErstellenPersistence {
         if (blocksErr) throw blocksErr;
       }
 
-      // 5) ansprechpartner_kampagne synchronisieren
+      // 5) Teilrechnungen: delete + reinsert
+      await this._saveTeilrechnungen(supabase, formData, auftragId, { deleteFirst: true });
+
+      // 6) ansprechpartner_kampagne synchronisieren
       const ansprechpartnerId = auftragPayload.ansprechpartner_id;
       if (savedKampagneId) {
         const { error: delApErr } = await supabase
@@ -550,6 +595,8 @@ export class ProjektErstellenPersistence {
         .update(auftragPayload)
         .eq('id', auftragId);
       if (auftragErr) throw auftragErr;
+
+      await this._saveTeilrechnungen(supabase, formData, auftragId, { deleteFirst: true });
 
       return { success: true, auftragId };
     } catch (e) {
@@ -631,6 +678,8 @@ export class ProjektErstellenPersistence {
             .insert(blockPayloads);
           if (blocksErr) throw blocksErr;
         }
+
+        await this._saveTeilrechnungen(supabase, formData, savedAuftragId);
 
         const ansprechpartnerId = auftragPayload.ansprechpartner_id;
         if (ansprechpartnerId) {

@@ -5,6 +5,37 @@ import { AuftragList } from './AuftragListCore.js';
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { AuftragFilterLogic } from './filters/AuftragFilterLogic.js';
+import { sortRowsByPrefixedNumberDesc } from './logic/PrefixedNumberSort.js';
+
+const AUFTRAG_LIST_SELECT = `
+        id,
+        auftragsname,
+        auftragtype,
+        angebotsnummer,
+        status,
+        po,
+        externe_po,
+        re_nr,
+        re_faelligkeit,
+        zahlungsziel_tage,
+        start,
+        ende,
+        nettobetrag,
+        ust_betrag,
+        bruttobetrag,
+        rechnung_gestellt,
+        rechnung_gestellt_am,
+        ueberwiesen,
+        ueberwiesen_am,
+        created_by_id,
+        created_at,
+        unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url, logo_thumb_url),
+        marke:marke_id(id, markenname, logo_url, logo_thumb_url),
+        ansprechpartner:ansprechpartner_id(id, vorname, nachname, email, profile_image_url, profile_image_thumb_url),
+        created_by:created_by_id(id, name, profile_image_url, profile_image_thumb_url),
+        auftrag_details(id),
+        kampagne_arten:auftrag_kampagne_art(art:kampagne_art_id(id, name))
+      `;
 
 AuftragList.prototype.refreshInactiveTabCount = async function() {
   if (!window.canViewContracts?.() || !window.supabase) return;
@@ -71,85 +102,86 @@ AuftragList.prototype.loadContractsData = async function() {
   }
 };
 
+AuftragList.prototype.buildFilteredAuftragQuery = async function(filters = {}, mode = 'auftraege', select = AUFTRAG_LIST_SELECT) {
+  let query = window.supabase
+    .from('auftrag')
+    .select(select, { count: 'estimated' });
+
+  if (mode === 'contracts') {
+    query = query.eq('auftragtype', 'Contracting');
+  } else {
+    query = query.neq('auftragtype', 'Contracting');
+  }
+
+  if (filters.auftragsname) {
+    const search = filters.auftragsname;
+    const [{ data: matchU }, { data: matchM }] = await Promise.all([
+      window.supabase.from('unternehmen').select('id').ilike('firmenname', `%${search}%`),
+      window.supabase.from('marke').select('id').ilike('markenname', `%${search}%`)
+    ]);
+    const orParts = [`auftragsname.ilike.%${search}%`];
+    if (matchU?.length) orParts.push(`unternehmen_id.in.(${matchU.map(u => u.id).join(',')})`);
+    if (matchM?.length) orParts.push(`marke_id.in.(${matchM.map(m => m.id).join(',')})`);
+    query = query.or(orParts.join(','));
+    delete filters.auftragsname;
+  }
+
+  return AuftragFilterLogic.buildSupabaseQuery(query, filters);
+};
+
 AuftragList.prototype.loadAuftraegeWithPagination = async function(filters = {}, page = 1, limit = 25, mode = 'auftraege') {
   try {
     if (!window.supabase) {
       const mockData = await window.dataService.loadEntities('auftrag');
-      return { data: mockData, count: mockData.length };
+      const sortField = this._getSortField();
+      const sorted = sortRowsByPrefixedNumberDesc(mockData, sortField);
+      const from = (page - 1) * limit;
+      return { data: sorted.slice(from, from + limit), count: sorted.length };
     }
 
     const from = (page - 1) * limit;
     const to = from + limit - 1;
+    const sortField = this._getSortField();
+    const filterCopy = { ...filters };
 
-    // count: 'estimated' nutzt Postgres-Statistiken statt Full-Scan
-    let query = window.supabase
+    const sortQuery = await this.buildFilteredAuftragQuery(
+      filterCopy,
+      mode,
+      `id, ${sortField}`
+    );
+    const { data: sortRows, error: sortError, count } = await sortQuery;
+
+    if (sortError) {
+      console.error('❌ Fehler beim Laden der Aufträge (Sortierung):', sortError);
+      throw sortError;
+    }
+
+    const sorted = sortRowsByPrefixedNumberDesc(sortRows, sortField);
+    const pageSlice = sorted.slice(from, to + 1);
+    const pageIds = pageSlice.map(row => row.id);
+
+    if (pageIds.length === 0) {
+      return { data: [], count: count || 0 };
+    }
+
+    const { data, error } = await window.supabase
       .from('auftrag')
-      .select(`
-        id,
-        auftragsname,
-        auftragtype,
-        angebotsnummer,
-        status,
-        po,
-        externe_po,
-        re_nr,
-        re_faelligkeit,
-        zahlungsziel_tage,
-        start,
-        ende,
-        nettobetrag,
-        ust_betrag,
-        bruttobetrag,
-        rechnung_gestellt,
-        rechnung_gestellt_am,
-        ueberwiesen,
-        ueberwiesen_am,
-        created_by_id,
-        created_at,
-        unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url, logo_thumb_url),
-        marke:marke_id(id, markenname, logo_url, logo_thumb_url),
-        ansprechpartner:ansprechpartner_id(id, vorname, nachname, email, profile_image_url, profile_image_thumb_url),
-        created_by:created_by_id(id, name, profile_image_url, profile_image_thumb_url),
-        auftrag_details(id),
-        kampagne_arten:auftrag_kampagne_art(art:kampagne_art_id(id, name))
-      `, { count: 'estimated' });
-
-    if (mode === 'contracts') {
-      query = query.eq('auftragtype', 'Contracting');
-    } else {
-      query = query.neq('auftragtype', 'Contracting');
-    }
-
-    if (filters.auftragsname) {
-      const search = filters.auftragsname;
-      const [{ data: matchU }, { data: matchM }] = await Promise.all([
-        window.supabase.from('unternehmen').select('id').ilike('firmenname', `%${search}%`),
-        window.supabase.from('marke').select('id').ilike('markenname', `%${search}%`)
-      ]);
-      const orParts = [`auftragsname.ilike.%${search}%`];
-      if (matchU?.length) orParts.push(`unternehmen_id.in.(${matchU.map(u => u.id).join(',')})`);
-      if (matchM?.length) orParts.push(`marke_id.in.(${matchM.map(m => m.id).join(',')})`);
-      query = query.or(orParts.join(','));
-      delete filters.auftragsname;
-    }
-
-    query = AuftragFilterLogic.buildSupabaseQuery(query, filters);
-
-    query = query
-      .order('created_at', { ascending: false })
-      .order('angebotsnummer', { ascending: false, nullsFirst: false })
-      .range(from, to);
-
-    const { data, error, count } = await query;
+      .select(AUFTRAG_LIST_SELECT)
+      .in('id', pageIds);
 
     if (error) {
       console.error('❌ Fehler beim Laden der Aufträge:', error);
       throw error;
     }
 
-    const createdByFallbacks = await this.loadCreatedByFallbacks(data || []);
+    const idOrder = new Map(pageIds.map((id, index) => [id, index]));
+    const orderedData = [...(data || [])].sort(
+      (a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0)
+    );
 
-    const formattedData = (data || []).map(auftrag => {
+    const createdByFallbacks = await this.loadCreatedByFallbacks(orderedData);
+
+    const formattedData = orderedData.map(auftrag => {
       const details = auftrag.auftrag_details;
       const detailsId = Array.isArray(details) ? details[0]?.id : details?.id;
 
@@ -251,3 +283,4 @@ AuftragList.prototype.handleSearch = function(query) {
     }
   }, 300);
 };
+

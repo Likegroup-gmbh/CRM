@@ -87,6 +87,7 @@ import { managementList } from './modules/management/ManagementList.js';
 import { managementDetail } from './modules/management/ManagementDetail.js';
 import { managementCreate } from './modules/management/ManagementCreate.js';
 import { videoList } from './modules/video/VideoList.js';
+import { ausgangsrechnungenList } from './modules/ausgangsrechnungen/AusgangsrechnungenList.js';
 import { vertraegeList } from './modules/vertrag/VertraegeList.js';
 import { vertraegeCreate } from './modules/vertrag/create/VertraegeCreate.js';
 import { projektErstellenModule } from './modules/projekt-erstellen/ProjektErstellenModule.js';
@@ -176,6 +177,7 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('vertraege', vertraegeList);
   moduleRegistry.register('vertraege-create', vertraegeCreate);
   moduleRegistry.register('projekt-erstellen', projektErstellenModule);
+  moduleRegistry.register('ausgangsrechnungen', ausgangsrechnungenList);
   
   // Profile-Modul initialisieren und registrieren (V2 - neue Version mit zweispaltigem Layout)
   const profileDetailV2 = new ProfileDetailV2();

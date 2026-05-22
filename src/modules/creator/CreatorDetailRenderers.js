@@ -19,34 +19,8 @@ CreatorDetail.prototype.renderInfoTab = function() {
             </div>
             <div class="detail-item">
               <label>Telefon:</label>
-              <span>${this.creator.telefonnummer || '-'}</span>
+              <span>            ${this.creator.telefonnummer || '-'}</span>
             </div>
-            ${this.creator.agentur_vertreten ? `
-            <div class="detail-item" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color, #e5e7eb);">
-              <label>Agentur-Vertretung:</label>
-              <span class="status-badge status-aktiv">Ja</span>
-            </div>
-            <div class="detail-item">
-              <label>Agenturname:</label>
-              <span>${this.creator.agentur_name || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Straße:</label>
-              <span>${this.creator.agentur_strasse ? `${this.creator.agentur_strasse} ${this.creator.agentur_hausnummer || ''}`.trim() : '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>PLZ / Stadt:</label>
-              <span>${(this.creator.agentur_plz || this.creator.agentur_stadt) ? `${this.creator.agentur_plz || ''} ${this.creator.agentur_stadt || ''}`.trim() : '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Land:</label>
-              <span>${this.creator.agentur_land || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Vertreten durch:</label>
-              <span>${this.creator.agentur_vertretung || '-'}</span>
-            </div>
-            ` : ''}
           </div>
 
           <div class="detail-card">

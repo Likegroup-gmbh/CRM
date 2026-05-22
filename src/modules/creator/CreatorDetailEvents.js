@@ -104,9 +104,13 @@ CreatorDetail.prototype.switchTab = async function(tabName) {
     }
 };
 
-CreatorDetail.prototype.showEditForm = function() {
+CreatorDetail.prototype.showEditForm = async function() {
     console.log('🎯 CREATORDETAIL: Zeige Creator-Bearbeitungsformular für ID:', this.creatorId);
     window.setHeadline('Creator bearbeiten');
+
+    if (!this.managements) {
+      await this.loadManagements();
+    }
     
     const intToFollowerRange = (value) => {
       if (!value) return null;
@@ -136,15 +140,15 @@ CreatorDetail.prototype.showEditForm = function() {
       tiktok_follower: intToFollowerRange(this.creator.tiktok_follower),
       sprachen_ids: this.creator.sprachen ? this.creator.sprachen.map(s => s.id) : [],
       branche_ids: this.creator.branchen ? this.creator.branchen.map(b => b.id) : [],
-      creator_type_ids: this.creator.creator_types ? this.creator.creator_types.map(t => t.id) : []
+      creator_type_ids: this.creator.creator_types ? this.creator.creator_types.map(t => t.id) : [],
+      management_id: this.managements && this.managements.length > 0 ? this.managements[0].id : ''
     };
     
     console.log('📋 CREATORDETAIL: Edit-Daten vorbereitet:', {
       sprachen_ids: editData.sprachen_ids,
       branche_ids: editData.branche_ids,
       creator_type_ids: editData.creator_type_ids,
-      agentur_vertreten: editData.agentur_vertreten,
-      agentur_name: editData.agentur_name
+      management_id: editData.management_id
     });
     
     const formHtml = window.formSystem.renderFormOnly('creator', editData);

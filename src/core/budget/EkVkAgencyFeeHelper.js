@@ -89,38 +89,78 @@ export function calculateAgencyFeeSummary(details, kooperationen, videos) {
 }
 
 /**
- * Renders the Agency Fee summary card HTML with breakdown lines.
- * @param {object} summary - from calculateAgencyFeeSummary
- * @param {function} formatCurrency
+ * Adjusts an agency fee summary for the current viewer role.
+ * Kunden only see baseFee; interne Nutzer see baseFee + ekVkMargin.
+ * Pure function — caller passes the boolean, no window access here.
  */
-export function renderAgencyFeeCardHtml(summary, formatCurrency) {
-  if (!summary.showAgencyFeeCard) return '';
+export function resolveAgencyFeeForViewer(summary, canSeePricing) {
+  if (canSeePricing) return summary;
+  return {
+    ...summary,
+    total: summary.baseFee,
+    ekVkMargin: 0,
+    showAgencyFeeCard: summary.baseFee > 0,
+  };
+}
 
-  const hasBase = summary.baseFee > 0;
-  const hasMargin = summary.ekVkMargin !== 0;
-  const showBreakdown = hasBase && hasMargin;
+/**
+ * Renders the Agency Fee breakdown lines (always both rows).
+ */
+export function renderAgencyFeeBreakdownHtml(summary, formatCurrency, { dataAttrs = false } = {}) {
+  const baseAttr = dataAttrs ? ' data-summary-value="agentur-fee-base"' : '';
+  const marginAttr = dataAttrs ? ' data-summary-value="agentur-fee-margin"' : '';
 
-  let breakdownHtml = '';
-  if (showBreakdown) {
-    breakdownHtml = `
+  return `
       <div class="summary-card-breakdown">
         <div class="summary-card-breakdown-line">
           <span>Festgelegt</span>
-          <span>${formatCurrency(summary.baseFee)}</span>
+          <span${baseAttr}>${formatCurrency(summary.baseFee)}</span>
         </div>
         <div class="summary-card-breakdown-line">
           <span>EK/VK-Differenz</span>
-          <span>${formatCurrency(summary.ekVkMargin)}</span>
+          <span${marginAttr}>${formatCurrency(summary.ekVkMargin)}</span>
         </div>
       </div>`;
-  }
+}
+
+/**
+ * Renders the Agency Fee summary card HTML.
+ * @param {object} summary - from calculateAgencyFeeSummary
+ * @param {function} formatCurrency
+ * @param {{ dataAttrs?: boolean, canSeePricing?: boolean }} options
+ */
+export function renderAgencyFeeCardHtml(summary, formatCurrency, { dataAttrs = false, canSeePricing = true } = {}) {
+  const resolved = resolveAgencyFeeForViewer(summary, canSeePricing);
+  if (!resolved.showAgencyFeeCard) return '';
+
+  const totalAttr = dataAttrs ? ' data-summary-value="agentur-fee-total"' : '';
+  const cardAttr = dataAttrs ? ' data-summary-card="agentur-fee"' : '';
 
   return `
-    <div class="summary-card">
-      <div class="summary-value">${formatCurrency(summary.total)}</div>
+    <div class="summary-card"${cardAttr}>
+      <div class="summary-value"${totalAttr}>${formatCurrency(resolved.total)}</div>
       <div class="summary-label">Agentur Fee</div>
-      ${breakdownHtml}
+      ${canSeePricing ? renderAgencyFeeBreakdownHtml(resolved, formatCurrency, { dataAttrs }) : ''}
     </div>`;
+}
+
+/**
+ * Filters kooperationen + videos to only those with a paid invoice.
+ * @param {Array} kooperationen
+ * @param {Array} videos
+ * @param {Object} rechnungStatusMap - { kooperation_id: status }
+ * @returns {{ kooperationen: Array, videos: Array }}
+ */
+export function filterPaidKooperationen(kooperationen, videos, rechnungStatusMap) {
+  const paidIds = new Set(
+    Object.entries(rechnungStatusMap || {})
+      .filter(([, status]) => status === 'Bezahlt')
+      .map(([id]) => id)
+  );
+  return {
+    kooperationen: (kooperationen || []).filter(k => paidIds.has(k.id)),
+    videos: (videos || []).filter(v => paidIds.has(v.kooperation_id)),
+  };
 }
 
 /**

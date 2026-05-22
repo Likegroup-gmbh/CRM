@@ -158,8 +158,15 @@ export async function handleEditFormSubmit(detail, form) {
       }
     }
 
+    // Checkboxen/Toggles explizit erfassen (unchecked erscheinen nicht in FormData)
+    form.querySelectorAll('input[type="checkbox"][name]').forEach((input) => {
+      allFormData[input.name] = input.checked;
+    });
+
     for (let [key, value] of Object.entries(allFormData)) {
-      data[key] = Array.isArray(value) ? value : value.trim();
+      if (Array.isArray(value)) data[key] = value;
+      else if (typeof value === 'boolean') data[key] = value;
+      else data[key] = typeof value === 'string' ? value.trim() : value;
     }
 
     // Unternehmen aktualisieren

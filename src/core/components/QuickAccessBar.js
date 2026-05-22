@@ -96,6 +96,7 @@ export class QuickAccessBar {
     `;
 
     document.body.appendChild(this.container);
+    document.body.classList.add('has-quick-access-bar');
     this._bindEvents();
   }
 
@@ -138,6 +139,7 @@ export class QuickAccessBar {
       this.container.remove();
       this.container = null;
     }
+    document.body.classList.remove('has-quick-access-bar');
   }
 }
 

@@ -35,6 +35,7 @@
 .kooperation-video-grid {
   --grid-col-nr: 3ch;
   --grid-col-creator: 18ch;
+  --kampagne-grid-border: var(--gray-100);
   border-collapse: separate;
   border-spacing: 0;
   min-width: 100%;
@@ -115,7 +116,7 @@
   background: white;
   border-right: none !important;
   border-left: none !important;
-  box-shadow: inset 1px 0 0 0 var(--gray-300), -4px 0 8px rgba(0, 0, 0, 0.04);
+  box-shadow: inset 1px 0 0 0 var(--kampagne-grid-border), -4px 0 8px rgba(0, 0, 0, 0.04);
   overflow: visible !important;
 }
 
@@ -130,13 +131,19 @@
 .kooperation-video-grid thead th,
 .kooperation-video-grid tbody td {
   border: none;
-  border-right: 1px solid var(--gray-300);
-  border-bottom: 1px solid var(--gray-300);
+  border-right: 1px solid var(--kampagne-grid-border);
+  border-bottom: 1px solid var(--kampagne-grid-border);
+}
+
+/* Kein Doppelborder links: main-content hat bereits 1px-Rand */
+.kooperation-video-grid thead th.col-header.col-nr,
+.kooperation-video-grid tbody td:nth-child(1) {
+  border-left: none;
 }
 
 /* Header: zusaetzlich border-top */
 .kooperation-video-grid .col-header {
-  border-top: 1px solid var(--gray-300);
+  border-top: 1px solid var(--kampagne-grid-border);
   padding: var(--space-xs) var(--space-sm);
   color: var(--text-secondary);
   position: sticky;
@@ -1698,7 +1705,7 @@
 
 /* Kampagne: No-Wrap + em-basierte Spaltenkalibrierung */
 .data-table.data-table--kampagne th.col-name,
-.data-table.data-table--kampagne td.col-name { min-width: 18em; }
+.data-table.data-table--kampagne td.col-name { min-width: var(--table-name-col-width); }
 
 .data-table.data-table--kampagne th.col-unternehmen,
 .data-table.data-table--kampagne td.col-unternehmen { min-width: 12em; }
@@ -2283,8 +2290,12 @@ width: 18em;
 }
 
 .col-ad-auftrag {
-  min-width: 200px;
-  width: 280px;
+  width: var(--table-name-col-width);
+  min-width: var(--table-name-col-width);
+  max-width: var(--table-name-col-width);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ========================================

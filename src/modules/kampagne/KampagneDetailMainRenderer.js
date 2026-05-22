@@ -44,7 +44,7 @@ export function formatDeadlineBadge(dateStr) {
 export function renderMainPage(state) {
   const {
     kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed,
-    extraKostenVkSum, isKunde, kampagneId
+    extraKostenVkSum, ekVkMarginSum, isKunde, kampagneId
   } = state;
 
   const canCreateKooperation = window.currentUser?.permissions?.kooperation?.can_edit || false;
@@ -62,7 +62,7 @@ export function renderMainPage(state) {
     </div>
 
     <div class="content-section">
-      ${renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum)}
+      ${renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum)}
 
       <div class="tab-navigation">
         <button class="tab-button active" data-tab="offen">
@@ -75,6 +75,7 @@ export function renderMainPage(state) {
           Alle <span class="tab-count" id="tab-count-alle"></span>
         </button>
         <div class="tab-actions" style="margin-left: auto; display: flex; align-items: center; gap: var(--space-sm);">
+          <div id="kampagne-kooperation-sort-container"></div>
           ${!isKunde ? `
           <button id="btn-column-visibility" class="secondary-btn">
             Sichtbarkeit anpassen
