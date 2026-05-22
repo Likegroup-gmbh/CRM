@@ -226,15 +226,27 @@ export class ManagementDetail extends PersonDetailBase {
   }
 
   renderCreators() {
+    const addBtn = `
+      <div style="margin-bottom: 1rem;">
+        <button class="primary-btn btn-sm" id="btn-add-creator-to-management">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; margin-right: 4px;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          Creator hinzufügen
+        </button>
+      </div>
+    `;
+
     if (!this.creators || this.creators.length === 0) {
       return `
+        ${addBtn}
         <div class="empty-state">
           <h3>Keine Creator vorhanden</h3>
           <p>Diesem Management sind noch keine aktiven Creator zugeordnet.</p>
         </div>
       `;
     }
-    return renderCreatorTable(this.creators);
+    return `${addBtn}${renderCreatorTable(this.creators, { showRemoveAction: true, managementId: this.managementId })}`;
   }
 
   renderRechnungen() {
@@ -360,6 +372,19 @@ export class ManagementDetail extends PersonDetailBase {
     };
     document.addEventListener('click', this._tableLinkClickHandler, { signal });
 
+    document.addEventListener('click', async (e) => {
+      if (e.target.id === 'btn-add-creator-to-management' || e.target.closest('#btn-add-creator-to-management')) {
+        e.preventDefault();
+        await this._showAddCreatorDialog();
+      }
+      const removeBtn = e.target.closest('[data-action="remove-creator-from-management"]');
+      if (removeBtn) {
+        e.preventDefault();
+        const creatorId = removeBtn.dataset.creatorId;
+        if (creatorId) await this._removeCreatorFromManagement(creatorId);
+      }
+    }, { signal });
+
     this._entityUpdatedHandler = (e) => {
       if (e.detail?.entity === 'management' && e.detail?.id === this.managementId) {
         console.log('🔄 MANAGEMENTDETAIL: Management aktualisiert, lade neu');
@@ -389,6 +414,74 @@ export class ManagementDetail extends PersonDetailBase {
     this._softRefreshHandler = null;
     this._sidebarTabsBound = false;
     this.eventsBound = false;
+  }
+
+  async _showAddCreatorDialog() {
+    const existingIds = this.creators.map(c => c.id);
+    const { data: allCreators } = await window.supabase
+      .from('creator')
+      .select('id, vorname, nachname')
+      .order('nachname');
+
+    const available = (allCreators || []).filter(c => !existingIds.includes(c.id));
+    if (available.length === 0) {
+      window.toastSystem?.show('Keine weiteren Creator verfügbar.', 'info');
+      return;
+    }
+
+    const options = available.map(c => `<option value="${c.id}">${c.vorname || ''} ${c.nachname || ''}</option>`).join('');
+    const dialog = document.createElement('div');
+    dialog.className = 'modal show';
+    dialog.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.4)';
+    dialog.innerHTML = `
+      <div style="background:var(--bg-primary,#fff);border-radius:12px;padding:24px;min-width:320px;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+        <h3 style="margin:0 0 16px">Creator hinzufügen</h3>
+        <select id="mgmt-add-creator-select" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border-color,#ddd);">
+          <option value="">Bitte wählen...</option>
+          ${options}
+        </select>
+        <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+          <button class="secondary-btn btn-sm" id="mgmt-add-cancel">Abbrechen</button>
+          <button class="primary-btn btn-sm" id="mgmt-add-confirm">Hinzufügen</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+
+    dialog.querySelector('#mgmt-add-cancel').onclick = () => dialog.remove();
+    dialog.querySelector('#mgmt-add-confirm').onclick = async () => {
+      const creatorId = dialog.querySelector('#mgmt-add-creator-select').value;
+      if (!creatorId) return;
+      const { error } = await window.supabase
+        .from('creator_management')
+        .insert([{ management_id: this.managementId, creator_id: creatorId, ist_aktiv: true }]);
+      dialog.remove();
+      if (error) {
+        window.toastSystem?.show('Fehler: ' + error.message, 'error');
+      } else {
+        window.toastSystem?.success('Creator zugeordnet!');
+        await this.loadManagementData();
+        this.render();
+      }
+    };
+  }
+
+  async _removeCreatorFromManagement(creatorId) {
+    if (!confirm('Creator-Zuordnung wirklich entfernen?')) return;
+    const { error } = await window.supabase
+      .from('creator_management')
+      .update({ ist_aktiv: false })
+      .eq('management_id', this.managementId)
+      .eq('creator_id', creatorId)
+      .eq('ist_aktiv', true);
+
+    if (error) {
+      window.toastSystem?.show('Fehler: ' + error.message, 'error');
+    } else {
+      window.toastSystem?.success('Creator-Zuordnung entfernt.');
+      await this.loadManagementData();
+      this.render();
+    }
   }
 
   destroy() {

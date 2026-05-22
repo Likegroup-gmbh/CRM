@@ -76,19 +76,22 @@ export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUse
   const extraKostenVal = document.querySelector('[data-summary-value="extra-kosten-vk"]');
   if (extraKostenVal) extraKostenVal.textContent = KampagneUtils.formatCurrency(extraKostenVkSum || 0);
 
+  const canViewInternalBudget = window.canSeePricing?.() !== false;
   const d = kampagneData?.auftragDetails || {};
   const baseFee = (d.agency_services_enabled && d.percentage_fee_enabled)
     ? (parseFloat(d.percentage_fee_value) || 0) : 0;
-  const agencyTotal = baseFee + (ekVkMarginSum || 0);
+  const agencyTotal = canViewInternalBudget ? baseFee + (ekVkMarginSum || 0) : baseFee;
 
   const agencyFeeVal = document.querySelector('[data-summary-value="agentur-fee-total"]');
   if (agencyFeeVal) agencyFeeVal.textContent = KampagneUtils.formatCurrency(agencyTotal);
 
-  const agencyFeeBase = document.querySelector('[data-summary-value="agentur-fee-base"]');
-  if (agencyFeeBase) agencyFeeBase.textContent = KampagneUtils.formatCurrency(baseFee);
+  if (canViewInternalBudget) {
+    const agencyFeeBase = document.querySelector('[data-summary-value="agentur-fee-base"]');
+    if (agencyFeeBase) agencyFeeBase.textContent = KampagneUtils.formatCurrency(baseFee);
 
-  const agencyFeeMargin = document.querySelector('[data-summary-value="agentur-fee-margin"]');
-  if (agencyFeeMargin) agencyFeeMargin.textContent = KampagneUtils.formatCurrency(ekVkMarginSum || 0);
+    const agencyFeeMargin = document.querySelector('[data-summary-value="agentur-fee-margin"]');
+    if (agencyFeeMargin) agencyFeeMargin.textContent = KampagneUtils.formatCurrency(ekVkMarginSum || 0);
+  }
 }
 
 export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum) {
@@ -128,8 +131,15 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
     ? extraServices.filter(s => s && typeof s.name === 'string' && s.name.trim())
     : [];
 
+  const canViewInternalBudget = window.canSeePricing?.() !== false;
+
   const agencyFeeSummary = calculateAgencyFeeSummary(d, [], []);
-  const agencyFeeSummaryWithMargin = { ...agencyFeeSummary, ekVkMargin: ekVkMarginSum || 0, total: agencyFeeSummary.baseFee + (ekVkMarginSum || 0), showAgencyFeeCard: (agencyFeeSummary.baseFee + (ekVkMarginSum || 0)) > 0 };
+  const agencyFeeSummaryWithMargin = {
+    ...agencyFeeSummary,
+    ekVkMargin: ekVkMarginSum || 0,
+    total: agencyFeeSummary.baseFee + (ekVkMarginSum || 0),
+    showAgencyFeeCard: (agencyFeeSummary.baseFee + (ekVkMarginSum || 0)) > 0,
+  };
   const fmt = KampagneUtils.formatCurrency;
 
   const zusatzleistungenCardsHtml = validExtraServices.map(s => `
@@ -139,26 +149,10 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
         </div>
       `).join('');
 
-  const hasBase = agencyFeeSummaryWithMargin.baseFee > 0;
-  const hasMargin = (ekVkMarginSum || 0) !== 0;
-  const showBreakdown = hasBase && hasMargin;
-
-  const agencyFeeCardHtml = agencyFeeSummaryWithMargin.showAgencyFeeCard ? `
-        <div class="summary-card" data-summary-card="agentur-fee">
-          <div class="summary-value" data-summary-value="agentur-fee-total">${fmt(agencyFeeSummaryWithMargin.total)}</div>
-          <div class="summary-label">Agentur Fee</div>
-          ${showBreakdown ? `
-          <div class="summary-card-breakdown">
-            <div class="summary-card-breakdown-line">
-              <span>Festgelegt</span>
-              <span data-summary-value="agentur-fee-base">${fmt(agencyFeeSummaryWithMargin.baseFee)}</span>
-            </div>
-            <div class="summary-card-breakdown-line">
-              <span>EK/VK-Differenz</span>
-              <span data-summary-value="agentur-fee-margin">${fmt(ekVkMarginSum || 0)}</span>
-            </div>
-          </div>` : ''}
-        </div>` : '';
+  const agencyFeeCardHtml = renderAgencyFeeCardHtml(agencyFeeSummaryWithMargin, fmt, {
+    dataAttrs: true,
+    canSeePricing: canViewInternalBudget,
+  });
 
   return `
     <div class="auftragsdetails-summary" style="margin-bottom: var(--space-xl);">
@@ -190,7 +184,7 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
           </div>
         </div>
         ${zusatzleistungenCardsHtml}
-        ${renderKskCardHtml(agencyFeeSummaryWithMargin, fmt)}
+        ${canViewInternalBudget ? renderKskCardHtml(agencyFeeSummaryWithMargin, fmt) : ''}
         ${agencyFeeCardHtml}
         <div class="summary-card" data-summary-card="extra-kosten-vk">
           <div class="summary-value" data-summary-value="extra-kosten-vk">${fmt(extraKostenVkSum || 0)}</div>

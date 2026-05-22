@@ -14,12 +14,12 @@ function renderTags(items, tagClass) {
 }
 
 export function renderCreatorTable(creators, options = {}) {
-  const { showFavoriteAction = false, showFavoritesMenu = false, showSelection = false, kampagneId = null } = options || {};
+  const { showFavoriteAction = false, showFavoritesMenu = false, showSelection = false, showRemoveAction = false, managementId = null, kampagneId = null } = options || {};
   const isKunde = window.isKunde();
   const canViewViaPage = window.canViewPage?.('creator');
   const canViewViaPerm = window.currentUser?.permissions?.creator?.can_view;
   const canViewCreator = !isKunde && canViewViaPage !== false && canViewViaPerm !== false;
-  const canShowActions = !isKunde && (showFavoriteAction || showFavoritesMenu);
+  const canShowActions = !isKunde && (showFavoriteAction || showFavoritesMenu || showRemoveAction);
 
   const rows = (creators || []).map((c) => {
     const id = c.id;
@@ -32,7 +32,17 @@ export function renderCreatorTable(creators, options = {}) {
     const stadt = c.lieferadresse_stadt || '-';
     const land = c.lieferadresse_land || '-';
 
-    const actionsCell = canShowActions && showFavoriteAction
+    const actionsCell = canShowActions && showRemoveAction
+      ? `
+        <td>
+          <button class="secondary-btn btn-sm btn-danger" data-action="remove-creator-from-management" data-creator-id="${id}" title="Zuordnung entfernen">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:14px;height:14px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </td>
+      `
+      : canShowActions && showFavoriteAction
       ? `
         <td>
           <div class="actions-dropdown-container" data-entity-type="creator">

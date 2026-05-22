@@ -66,10 +66,6 @@ export class DataService {
     return this._relationManager.handleManyToManyRelations(entityType, entityId, data);
   }
 
-  async handleCreatorAgentur(creatorId, data) {
-    return this._relationManager.handleCreatorAgentur(creatorId, data);
-  }
-
   async loadManyToManyRelations(entities, entityType, manyToManyConfig) {
     return this._relationManager.loadManyToManyRelations(entities, entityType, manyToManyConfig);
   }

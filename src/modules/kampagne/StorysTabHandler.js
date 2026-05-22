@@ -1,7 +1,9 @@
 import {
   getAvailableVersions, MAX_VERSIONS,
   escapeHtml,
-  VIDEO_EXTENSIONS, VIDEO_MIME_TYPES, MAX_STORY_SIZE
+  VIDEO_EXTENSIONS, VIDEO_MIME_TYPES, MAX_STORY_SIZE,
+  normalizeExternalUrl, isValidExternalUrl,
+  mdcBtnIcon, ICON_PLUS_16, ICON_CHECK_16, ICON_UPLOAD_16
 } from '../../core/VideoUploadUtils.js';
 import { backgroundUploadService, UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 
@@ -84,6 +86,9 @@ export class StorysTabHandler {
   // ─── Render ────────────────────────────────────────────────
 
   renderTab(activeTab) {
+    if (this.drawer.useExternalLinks) {
+      return this._renderLinkTab(activeTab);
+    }
     return `
       <div id="upload-tab-storys" style="${activeTab !== 'storys' ? 'display:none' : ''}">
         <div class="storys-upload-drawer-content">
@@ -121,11 +126,46 @@ export class StorysTabHandler {
 
           <div class="drawer-footer storys-upload-drawer-footer">
             <button type="button" class="mdc-btn mdc-btn--cancel" id="storys-upload-cancel-btn">Abbrechen</button>
-            <button type="button" class="mdc-btn mdc-btn--primary" id="storys-upload-submit-btn" disabled>
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/>
-              </svg>
-              Hochladen
+            <button type="button" class="mdc-btn mdc-btn--create" id="storys-upload-submit-btn" disabled>
+              ${mdcBtnIcon(ICON_UPLOAD_16)}
+              <span class="mdc-btn__label">Hochladen</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  _renderLinkTab(activeTab) {
+    return `
+      <div id="upload-tab-storys" style="${activeTab !== 'storys' ? 'display:none' : ''}">
+        <div class="storys-upload-drawer-content">
+          <div class="existing-storys-section" id="existing-storys-section">
+            <div class="existing-images-header">
+              <span class="existing-images-title">Story-Slots</span>
+              <span class="existing-images-count" id="existing-storys-count"></span>
+            </div>
+            <div class="existing-images-list" id="existing-storys-list">
+              <div class="existing-images-loading">Lade...</div>
+            </div>
+          </div>
+
+          <div class="link-add-section">
+            <button type="button" class="mdc-btn upload-drawer-btn--secondary" id="storys-link-add-btn">
+              ${mdcBtnIcon(ICON_PLUS_16)}
+              <span class="mdc-btn__label">Story-Link hinzufügen</span>
+            </button>
+          </div>
+
+          <div class="upload-file-list" id="storys-preview-list"></div>
+
+          <div class="upload-error-msg" id="storys-upload-error" style="display:none;"></div>
+
+          <div class="drawer-footer storys-upload-drawer-footer">
+            <button type="button" class="mdc-btn mdc-btn--cancel" id="storys-upload-cancel-btn">Abbrechen</button>
+            <button type="button" class="mdc-btn mdc-btn--create" id="storys-upload-submit-btn" disabled>
+              ${mdcBtnIcon(ICON_CHECK_16)}
+              <span class="mdc-btn__label">Speichern</span>
             </button>
           </div>
         </div>
@@ -138,29 +178,41 @@ export class StorysTabHandler {
   bindEvents(_panel) {
     const cancelBtn = document.getElementById('storys-upload-cancel-btn');
     const submitBtn = document.getElementById('storys-upload-submit-btn');
-    const dropzone = document.getElementById('storys-upload-dropzone');
-    const fileInput = document.getElementById('storys-upload-file-input');
-    const browseBtn = document.getElementById('storys-browse-btn');
 
     cancelBtn?.addEventListener('click', () => this.drawer.close());
     submitBtn?.addEventListener('click', () => {
-      if (this._queue.length > 0 && !this._isUploadingStorys) this._handleStorysUpload();
+      if (this._queue.length > 0 && !this._isUploadingStorys) {
+        if (this.drawer.useExternalLinks) {
+          this._handleStorysLinkSubmit();
+        } else {
+          this._handleStorysUpload();
+        }
+      }
     });
 
-    browseBtn?.addEventListener('click', () => fileInput?.click());
-    fileInput?.addEventListener('change', (e) => {
-      if (e.target.files?.length) this._addStorys(Array.from(e.target.files));
-      fileInput.value = '';
-    });
+    if (this.drawer.useExternalLinks) {
+      const addLinkBtn = document.getElementById('storys-link-add-btn');
+      addLinkBtn?.addEventListener('click', () => this._addLinkEntry());
+    } else {
+      const dropzone = document.getElementById('storys-upload-dropzone');
+      const fileInput = document.getElementById('storys-upload-file-input');
+      const browseBtn = document.getElementById('storys-browse-btn');
 
-    dropzone?.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
-    dropzone?.addEventListener('dragleave', () => { dropzone.classList.remove('dragover'); });
-    dropzone?.addEventListener('drop', (e) => {
-      e.preventDefault();
-      dropzone.classList.remove('dragover');
-      const files = e.dataTransfer.files;
-      if (files?.length) this._addStorys(Array.from(files));
-    });
+      browseBtn?.addEventListener('click', () => fileInput?.click());
+      fileInput?.addEventListener('change', (e) => {
+        if (e.target.files?.length) this._addStorys(Array.from(e.target.files));
+        fileInput.value = '';
+      });
+
+      dropzone?.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+      dropzone?.addEventListener('dragleave', () => { dropzone.classList.remove('dragover'); });
+      dropzone?.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files?.length) this._addStorys(Array.from(files));
+      });
+    }
 
     const previewList = document.getElementById('storys-preview-list');
     previewList?.addEventListener('click', (e) => {
@@ -188,6 +240,14 @@ export class StorysTabHandler {
         const idx = parseInt(variantInput.dataset.idx, 10);
         if (this._queue[idx]) {
           this._queue[idx].variantName = variantInput.value;
+        }
+        this._updateSubmitState();
+      }
+      const urlInput = e.target.closest('.storys-link-url-input');
+      if (urlInput) {
+        const idx = parseInt(urlInput.dataset.idx, 10);
+        if (this._queue[idx]) {
+          this._queue[idx].url = urlInput.value;
         }
         this._updateSubmitState();
       }
@@ -280,6 +340,33 @@ export class StorysTabHandler {
       return;
     }
 
+    if (this.drawer.useExternalLinks) {
+      list.innerHTML = this._queue.map((item, i) => {
+        const slotOptions = this._buildSlotOptions(item.slotId);
+        const versionOptions = this._buildVersionOptions(item);
+        return `
+          <div class="upload-file-item storys-queue-item">
+            <div class="storys-queue-variant" style="flex:1">
+              <input type="url" class="form-input storys-link-url-input" data-idx="${i}"
+                value="${escapeHtml(item.url || '')}"
+                placeholder="https://..." />
+            </div>
+            <div class="storys-queue-variant">
+              <input type="text" class="form-input storys-variant-name-input" data-idx="${i}"
+                value="${escapeHtml(item.variantName || '')}"
+                placeholder="Name (optional)" maxlength="120"/>
+            </div>
+            <div class="storys-queue-selects">
+              <select class="form-input storys-slot-select" data-idx="${i}">${slotOptions}</select>
+              <select class="form-input storys-version-select" data-idx="${i}">${versionOptions}</select>
+            </div>
+            <button type="button" class="file-remove-btn storys-file-remove" data-idx="${i}" title="Entfernen">&times;</button>
+          </div>
+        `;
+      }).join('');
+      return;
+    }
+
     list.innerHTML = this._queue.map((item, i) => {
       const slotOptions = this._buildSlotOptions(item.slotId);
       const versionOptions = this._buildVersionOptions(item);
@@ -326,7 +413,13 @@ export class StorysTabHandler {
 
   _updateSubmitState() {
     const btn = document.getElementById('storys-upload-submit-btn');
-    if (btn) btn.disabled = this._queue.length === 0;
+    if (!btn) return;
+    if (this.drawer.useExternalLinks) {
+      const allUrlsFilled = this._queue.every(q => (q.url || '').trim().length > 0);
+      btn.disabled = this._isUploadingStorys || this._queue.length === 0 || !allUrlsFilled;
+    } else {
+      btn.disabled = this._queue.length === 0;
+    }
   }
 
   // ─── Upload ────────────────────────────────────────────────
@@ -375,6 +468,81 @@ export class StorysTabHandler {
     }
     if (typeof this.drawer.onStorysSuccess === 'function') {
       this.drawer.onStorysSuccess(e.detail?.result?.storysFolderUrl || null);
+    }
+  }
+
+  // ─── External Link Mode ────────────────────────────────────
+
+  _addLinkEntry() {
+    this._queue.push({ url: '', slotId: '__new__', versionNumber: 1, variantName: '' });
+    this._renderQueue();
+    this._updateSubmitState();
+  }
+
+  async _handleStorysLinkSubmit() {
+    if (this._queue.length === 0 || this._isUploadingStorys) return;
+    this._hideStorysError();
+
+    const invalid = this._queue.filter(q => !isValidExternalUrl(normalizeExternalUrl(q.url)));
+    if (invalid.length > 0) {
+      this._showStorysError('Bitte gültige URLs eingeben (https://...)');
+      return;
+    }
+
+    this._isUploadingStorys = true;
+    this._updateSubmitState();
+
+    try {
+      for (const item of this._queue) {
+        const fileUrl = normalizeExternalUrl(item.url);
+        let slotId = item.slotId;
+
+        if (slotId === '__new__') {
+          const nextIndex = (this._storySlots.length > 0
+            ? Math.max(...this._storySlots.map(s => s.slot_index)) + 1
+            : 1);
+          const { data: newSlot, error: slotErr } = await window.supabase
+            .from('kooperation_story')
+            .insert({
+              video_id: this.drawer.videoId,
+              slot_index: nextIndex,
+              slot_name: `Story ${nextIndex}`,
+            })
+            .select('id')
+            .single();
+          if (slotErr) throw slotErr;
+          slotId = newSlot.id;
+          this._storySlots.push({ id: slotId, slot_index: nextIndex, slot_name: `Story ${nextIndex}`, assets: [], existingVersions: [] });
+        }
+
+        await window.supabase
+          .from('kooperation_story_asset')
+          .insert({
+            story_id: slotId,
+            video_id: this.drawer.videoId,
+            file_url: fileUrl,
+            file_path: null,
+            file_name: item.variantName || fileUrl.split('/').pop() || 'Link',
+            file_size: 0,
+            version_number: item.versionNumber,
+            variant_name: item.variantName || null,
+            is_current: true,
+            uploaded_by: window.currentUser?.id || null,
+            created_at: new Date().toISOString(),
+          });
+      }
+
+      this._queue = [];
+      this._renderQueue();
+      this._isUploadingStorys = false;
+      this._updateSubmitState();
+      this._loadExistingStorys();
+      window.toastSystem?.success?.('Story-Links gespeichert');
+    } catch (err) {
+      console.error('[StorysTabHandler] Link-Submit fehlgeschlagen:', err);
+      this._showStorysError(err.message || 'Speichern fehlgeschlagen');
+      this._isUploadingStorys = false;
+      this._updateSubmitState();
     }
   }
 

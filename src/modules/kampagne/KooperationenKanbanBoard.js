@@ -60,7 +60,7 @@ export class KooperationenKanbanBoard {
 
   _getKooperationen() {
     if (!this.store) return [];
-    return this.store.getFiltered(this.activeFilterTab);
+    return this.store.getFilteredAndSorted(this.activeFilterTab);
   }
 
   _getStatusOptions() {

@@ -33,11 +33,18 @@ export class BreadcrumbSystem {
     // Extrahiere den Basis-Pfad (z.B. /auftrag aus /auftrag/123)
     const basePath = '/' + url.split('/').filter(Boolean)[0];
     
-    // Durchsuche alle Nav-Sections
+    // Durchsuche alle Nav-Sections inkl. children
     for (const section of navigationSystem.navSections) {
       for (const item of section.items) {
         if (item.url === basePath || item.url === url) {
           return navigationSystem.getIcon(item.icon);
+        }
+        if (Array.isArray(item.children)) {
+          for (const child of item.children) {
+            if (child.url === basePath || child.url === url) {
+              return navigationSystem.getIcon(child.icon);
+            }
+          }
         }
       }
     }

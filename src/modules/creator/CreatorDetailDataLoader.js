@@ -14,8 +14,7 @@ CreatorDetail.prototype.loadCriticalData = async function() {
       sprachenResult,
       branchenResult,
       typenResult,
-      adressenResult,
-      agenturResult
+      adressenResult
     ] = await parallelLoad([
       () => window.supabase
         .from('creator')
@@ -46,14 +45,7 @@ CreatorDetail.prototype.loadCriticalData = async function() {
         .select('*')
         .eq('creator_id', this.creatorId)
         .order('created_at', { ascending: false })
-        .then(r => r.data || []),
-      
-      () => window.supabase
-        .from('creator_agentur')
-        .select('*')
-        .eq('creator_id', this.creatorId)
-        .maybeSingle()
-        .then(r => r.data || null)
+        .then(r => r.data || [])
     ]);
     
     if (creatorResult.error) {
@@ -65,18 +57,6 @@ CreatorDetail.prototype.loadCriticalData = async function() {
     this.creator.branchen = branchenResult;
     this.creator.creator_types = typenResult;
     this.creatorAdressen = adressenResult;
-    
-    // Agentur-Daten
-    if (agenturResult && agenturResult.ist_aktiv) {
-      this.creator.agentur_vertreten = true;
-      this.creator.agentur_name = agenturResult.agentur_name;
-      this.creator.agentur_strasse = agenturResult.agentur_strasse;
-      this.creator.agentur_hausnummer = agenturResult.agentur_hausnummer;
-      this.creator.agentur_plz = agenturResult.agentur_plz;
-      this.creator.agentur_stadt = agenturResult.agentur_stadt;
-      this.creator.agentur_land = agenturResult.agentur_land;
-      this.creator.agentur_vertretung = agenturResult.agentur_vertretung;
-    }
     
     const loadTime = (performance.now() - startTime).toFixed(0);
     console.log(`✅ CREATORDETAIL: Kritische Daten geladen in ${loadTime}ms`);
@@ -153,9 +133,25 @@ CreatorDetail.prototype.loadKampagnen = async function() {
       .eq('creator_id', this.creatorId)
       .order('hinzugefuegt_am', { ascending: false });
 
-    if (!error) {
-      this.kampagnen = kampagnen || [];
+    this.kampagnen = !error ? (kampagnen || []) : [];
+
+    if (!this.kooperationen?.length) {
+      try {
+        const { data: koops } = await window.supabase
+          .from('kooperationen')
+          .select(`
+            id, name, status, created_at,
+            kampagne:kampagne_id ( id, kampagnenname, eigener_name )
+          `)
+          .eq('creator_id', this.creatorId)
+          .order('created_at', { ascending: false });
+        this.kooperationen = koops || [];
+      } catch (e) {
+        console.warn('⚠️ CREATORDETAIL: Kooperationen für Kampagnen-Merge konnten nicht geladen werden', e);
+      }
     }
+
+    await this.mergeKampagnenFromKooperationen();
 };
 
 CreatorDetail.prototype.loadKooperationen = async function() {
@@ -330,7 +326,12 @@ CreatorDetail.prototype.mergeKampagnenFromKooperationen = async function() {
       if (allIds.length > 0) {
         const { data: kampagnenDetails } = await window.supabase
           .from('kampagne')
-          .select('id, unternehmen:unternehmen_id ( firmenname ), marke:marke_id ( markenname )')
+          .select(`
+            id, kampagnenname, eigener_name, status, start, deadline,
+            art_der_kampagne, creatoranzahl, videoanzahl,
+            unternehmen:unternehmen_id ( id, firmenname ),
+            marke:marke_id ( id, markenname )
+          `)
           .in('id', allIds);
         const detailsMap = (kampagnenDetails || []).reduce((acc, k) => {
           acc[k.id] = k; return acc;
@@ -343,6 +344,18 @@ CreatorDetail.prototype.mergeKampagnenFromKooperationen = async function() {
             if (!e.kampagne) e.kampagne = { id };
             if (!e.kampagne.unternehmen) e.kampagne.unternehmen = detail.unternehmen || null;
             if (!e.kampagne.marke) e.kampagne.marke = detail.marke || null;
+            if (e.kampagne.status == null && detail.status != null) e.kampagne.status = detail.status;
+            if (e.kampagne.start == null && detail.start != null) e.kampagne.start = detail.start;
+            if (e.kampagne.deadline == null && detail.deadline != null) e.kampagne.deadline = detail.deadline;
+            if (e.kampagne.art_der_kampagne == null && detail.art_der_kampagne != null) {
+              e.kampagne.art_der_kampagne = detail.art_der_kampagne;
+            }
+            if (e.kampagne.creatoranzahl == null && detail.creatoranzahl != null) {
+              e.kampagne.creatoranzahl = detail.creatoranzahl;
+            }
+            if (e.kampagne.videoanzahl == null && detail.videoanzahl != null) {
+              e.kampagne.videoanzahl = detail.videoanzahl;
+            }
           }
           return e;
         });

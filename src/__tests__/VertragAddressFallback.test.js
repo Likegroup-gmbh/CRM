@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { VertraegeCreate } from '../modules/vertrag/create/VertraegeCreateCore.js';
 import '../modules/vertrag/create/SearchableSelects.js';
+import '../modules/vertrag/create/CreatorAddressResolver.js';
 
 const creatorWithoutAddress = {
   id: 'creator-1',
@@ -22,7 +23,7 @@ const creatorWithAddress = {
   lieferadresse_land: 'Deutschland'
 };
 
-const agencyAddress = {
+const managementAddress = {
   influencer_agentur_vertreten: true,
   influencer_agentur_name: 'Creator Agency GmbH',
   influencer_agentur_strasse: 'Agenturweg',
@@ -36,7 +37,7 @@ describe('Vertrag Creator-Adressfallback', () => {
   it('nutzt die Creator-Adresse, wenn sie vollständig ist', () => {
     const form = new VertraegeCreate();
 
-    const resolved = form.getResolvedCreatorContractAddress(creatorWithAddress, agencyAddress);
+    const resolved = form.getResolvedCreatorContractAddress(creatorWithAddress, managementAddress);
 
     expect(resolved).toMatchObject({
       source: 'creator',
@@ -47,13 +48,13 @@ describe('Vertrag Creator-Adressfallback', () => {
     });
   });
 
-  it('nutzt die Agentur-Adresse, wenn die Creator-Adresse fehlt', () => {
+  it('nutzt die Management-Adresse, wenn die Creator-Adresse fehlt', () => {
     const form = new VertraegeCreate();
 
-    const resolved = form.getResolvedCreatorContractAddress(creatorWithoutAddress, agencyAddress);
+    const resolved = form.getResolvedCreatorContractAddress(creatorWithoutAddress, managementAddress);
 
     expect(resolved).toMatchObject({
-      source: 'agentur',
+      source: 'management',
       name: 'Creator Agency GmbH',
       strasse: 'Agenturweg',
       hausnummer: '7',
@@ -62,25 +63,25 @@ describe('Vertrag Creator-Adressfallback', () => {
     });
   });
 
-  it('liefert keine Vertragsadresse, wenn Creator und Agentur unvollständig sind', () => {
+  it('liefert keine Vertragsadresse, wenn Creator und Management unvollständig sind', () => {
     const form = new VertraegeCreate();
 
     const resolved = form.getResolvedCreatorContractAddress(creatorWithoutAddress, {
-      ...agencyAddress,
+      ...managementAddress,
       influencer_agentur_plz: ''
     });
 
     expect(resolved).toBeNull();
   });
 
-  it('rendert einen Hinweis, wenn die Agentur-Adresse als Fallback verwendet wird', () => {
+  it('rendert einen Hinweis, wenn die Management-Adresse als Fallback verwendet wird', () => {
     const form = new VertraegeCreate();
-    form.formData = agencyAddress;
+    form.formData = managementAddress;
 
     const html = form.renderCreatorAddressPreview(creatorWithoutAddress);
 
     expect(html).toContain('contract-address-fallback');
-    expect(html).toContain('Agentur-Adresse verwendet');
+    expect(html).toContain('Management-Adresse verwendet');
     expect(form.creatorAddressMissing).toBe(true);
   });
 });

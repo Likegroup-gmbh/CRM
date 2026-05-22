@@ -61,6 +61,10 @@ export class AuftragList {
     this._isKunde = null;
   }
 
+  _getSortField() {
+    return 'angebotsnummer';
+  }
+
   async init() {
     if (this._pendingTab) {
       this.activeTab = this._pendingTab;

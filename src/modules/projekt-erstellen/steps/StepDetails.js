@@ -1,7 +1,7 @@
 // StepDetails.js
 // Step 2 des Projekt-Erstellen-Flows:
 // Block 1: Angebot & Budget (inkl. Leistungszeitraum)
-// Block 2: Rechnung
+// Block 2: Dynamische Teilrechnungs-Blöcke (basierend auf anzahl_teilrechnungen)
 // Agenturleistungen nur bei Contracting (bei UGC/Vorort -> StepKampagnenarten)
 
 import { AgencyServicesBlock } from '../components/AgencyServicesBlock.js';
@@ -17,15 +17,83 @@ export class StepDetails {
     this.agencyBlock = null;
     this.angebotsnummerOptions = [];
     this._datePickerCleanup = null;
+    this._trDatePickerCleanups = [];
   }
 
   get isContracting() {
     return this.wizard.formData.auftrag?.auftragtype === 'Contracting';
   }
 
+  _ensureTeilrechnungen() {
+    const a = this.wizard.formData.auftrag;
+    const count = Math.max(1, parseInt(a.anzahl_teilrechnungen, 10) || 1);
+    if (!Array.isArray(a.teilrechnungen) || a.teilrechnungen.length === 0) {
+      const netto = parseFloat(a.nettobetrag) || 0;
+      const perTR = count > 0 ? +(netto / count).toFixed(2) : 0;
+      a.teilrechnungen = Array.from({ length: count }, (_, i) => this._makeTeilrechnung(i + 1, perTR));
+    }
+  }
+
+  _makeTeilrechnung(position, nettobetrag = 0) {
+    const ust = +(nettobetrag * DEFAULT_UST_PROZENT / 100).toFixed(2);
+    return {
+      position,
+      nettobetrag,
+      ust_prozent: DEFAULT_UST_PROZENT,
+      ust_betrag: ust,
+      bruttobetrag: +(nettobetrag + ust).toFixed(2),
+      re_nr: '',
+      externe_po: '',
+      rechnung_gestellt: false,
+      rechnung_gestellt_am: null,
+      re_faelligkeit: null,
+      erwarteter_monat_zahlungseingang: null,
+      ueberwiesen: false,
+      ueberwiesen_am: null
+    };
+  }
+
+  _recalcTRBrutto(tr) {
+    const net = parseFloat(tr.nettobetrag) || 0;
+    tr.ust_betrag = +(net * DEFAULT_UST_PROZENT / 100).toFixed(2);
+    tr.bruttobetrag = +(net + tr.ust_betrag).toFixed(2);
+  }
+
+  _distributeEvenly() {
+    const a = this.wizard.formData.auftrag;
+    const netto = parseFloat(a.nettobetrag) || 0;
+    const trs = a.teilrechnungen || [];
+    if (trs.length === 0) return;
+    const perTR = +(netto / trs.length).toFixed(2);
+    trs.forEach(tr => {
+      tr.nettobetrag = perTR;
+      this._recalcTRBrutto(tr);
+    });
+  }
+
+  _sumUpFromTeilrechnungen() {
+    const a = this.wizard.formData.auftrag;
+    const trs = a.teilrechnungen || [];
+    const totalNetto = trs.reduce((sum, tr) => sum + (parseFloat(tr.nettobetrag) || 0), 0);
+    a.nettobetrag = +totalNetto.toFixed(2);
+    a.ust_betrag = +(totalNetto * DEFAULT_UST_PROZENT / 100).toFixed(2);
+    a.bruttobetrag = +(totalNetto + a.ust_betrag).toFixed(2);
+  }
+
+  _updateAuftragBruttoFields() {
+    const a = this.wizard.formData.auftrag;
+    const nettoEl = document.getElementById('field-pe-nettobetrag');
+    const ustEl = document.getElementById('field-pe-ust_betrag');
+    const bruttoEl = document.getElementById('field-pe-bruttobetrag');
+    if (nettoEl) nettoEl.value = a.nettobetrag ?? '';
+    if (ustEl) ustEl.value = a.ust_betrag ?? '';
+    if (bruttoEl) bruttoEl.value = a.bruttobetrag ?? '';
+  }
+
   render(host) {
     this.host = host;
     const a = this.wizard.formData.auftrag || {};
+    this._ensureTeilrechnungen();
 
     host.innerHTML = `
       <div class="form-section projekt-erstellen-section-stack">
@@ -87,39 +155,162 @@ export class StepDetails {
           </div>
         </div>
 
-        <div class="projekt-erstellen-subsection">
-          <h5 class="section-subtitle">Rechnung</h5>
-
-          <div class="form-two-col">
-            <div class="form-field form-field--half">
-              <label for="field-pe-re_nr">Rechnungsnummer</label>
-              <input type="text" id="field-pe-re_nr" value="${this.escape(a.re_nr)}">
-            </div>
-            <div class="form-field form-field--half">
-              <label for="field-pe-externe_po">Externe PO</label>
-              <input type="text" id="field-pe-externe_po" value="${this.escape(a.externe_po)}">
-            </div>
-          </div>
-          <div class="form-two-col">
-            <div class="form-field form-field--half">
-              <label for="field-pe-rechnung_gestellt_am">RE gestellt am</label>
-              ${CustomDatePicker.render({ id: 'pe-rechnung_gestellt_am', field: 'rechnung_gestellt_am', value: a.rechnung_gestellt_am, label: 'RE gestellt am', variant: 'native', entity: 'projekt-erstellen' })}
-            </div>
-            <div class="form-field form-field--half">
-              <label for="field-pe-re_faelligkeit">Rechnungsfälligkeit</label>
-              ${CustomDatePicker.render({ id: 'pe-re_faelligkeit', field: 're_faelligkeit', value: a.re_faelligkeit, label: 'Rechnungsfälligkeit', variant: 'native', entity: 'projekt-erstellen' })}
-            </div>
-          </div>
-          <div class="form-field">
-            <label for="field-pe-erwarteter_monat_zahlungseingang">Erwarteter Zahlungseingang</label>
-            ${CustomDatePicker.render({ id: 'pe-erwarteter_monat_zahlungseingang', field: 'erwarteter_monat_zahlungseingang', value: a.erwarteter_monat_zahlungseingang, label: 'Erwarteter Zahlungseingang', variant: 'native', entity: 'projekt-erstellen' })}
-          </div>
-        </div>
+        <div id="pe-teilrechnungen-host"></div>
 
         ${this.isContracting ? '<div id="pe-agency-host"></div>' : ''}
 
       </div>
     `;
+
+    this._renderTeilrechnungsBlocks();
+  }
+
+  _renderTeilrechnungsBlocks() {
+    const host = document.getElementById('pe-teilrechnungen-host');
+    if (!host) return;
+
+    this._trDatePickerCleanups.forEach(fn => { try { fn(); } catch (_) {} });
+    this._trDatePickerCleanups = [];
+
+    const a = this.wizard.formData.auftrag;
+    const trs = a.teilrechnungen || [];
+    const count = trs.length;
+
+    host.innerHTML = trs.map((tr, i) => `
+      <div class="projekt-erstellen-subsection pe-teilrechnung-block" data-tr-index="${i}">
+        <h5 class="section-subtitle">Teilrechnung ${tr.position} von ${count}</h5>
+
+        <div class="form-two-col">
+          <div class="form-field form-field--half">
+            <label>Netto (€)</label>
+            <input type="number" class="pe-tr-nettobetrag" data-tr-index="${i}" step="0.01" min="0" value="${tr.nettobetrag ?? ''}">
+          </div>
+          <div class="form-field form-field--half">
+            <label>USt-Betrag (€)</label>
+            <input type="number" class="pe-tr-ust_betrag" data-tr-index="${i}" step="0.01" value="${tr.ust_betrag ?? ''}" readonly>
+          </div>
+        </div>
+        <div class="form-field form-field--half">
+          <label>Bruttobetrag (€)</label>
+          <input type="number" class="pe-tr-bruttobetrag" data-tr-index="${i}" step="0.01" value="${tr.bruttobetrag ?? ''}" readonly>
+        </div>
+
+        <div class="form-two-col">
+          <div class="form-field form-field--half">
+            <label>Rechnungsnummer</label>
+            <input type="text" class="pe-tr-re_nr" data-tr-index="${i}" value="${this.escape(tr.re_nr)}">
+          </div>
+          <div class="form-field form-field--half">
+            <label>Externe PO</label>
+            <input type="text" class="pe-tr-externe_po" data-tr-index="${i}" value="${this.escape(tr.externe_po)}">
+          </div>
+        </div>
+        <div class="form-two-col">
+          <div class="form-field form-field--half">
+            <label>RE gestellt am</label>
+            ${CustomDatePicker.render({ id: `pe-tr-rechnung_gestellt_am-${i}`, field: `tr_rechnung_gestellt_am_${i}`, value: tr.rechnung_gestellt_am, label: 'RE gestellt am', variant: 'native', entity: 'projekt-erstellen' })}
+          </div>
+          <div class="form-field form-field--half">
+            <label>Rechnungsfälligkeit</label>
+            ${CustomDatePicker.render({ id: `pe-tr-re_faelligkeit-${i}`, field: `tr_re_faelligkeit_${i}`, value: tr.re_faelligkeit, label: 'Rechnungsfälligkeit', variant: 'native', entity: 'projekt-erstellen' })}
+          </div>
+        </div>
+        <div class="form-field">
+          <label>Erwarteter Zahlungseingang</label>
+          ${CustomDatePicker.render({ id: `pe-tr-erwarteter_monat-${i}`, field: `tr_erwarteter_monat_${i}`, value: tr.erwarteter_monat_zahlungseingang, label: 'Erwarteter Zahlungseingang', variant: 'native', entity: 'projekt-erstellen' })}
+        </div>
+      </div>
+    `).join('');
+
+    this._bindTeilrechnungsEvents(host);
+  }
+
+  _bindTeilrechnungsEvents(host) {
+    const cleanup = CustomDatePicker.bind(host);
+    if (cleanup) this._trDatePickerCleanups.push(cleanup);
+
+    host.querySelectorAll('.pe-tr-nettobetrag').forEach(input => {
+      input.addEventListener('input', () => {
+        const idx = parseInt(input.dataset.trIndex, 10);
+        const tr = this.wizard.formData.auftrag.teilrechnungen[idx];
+        if (!tr) return;
+
+        tr.nettobetrag = parseFloat(input.value) || 0;
+        this._recalcTRBrutto(tr);
+
+        const block = input.closest('.pe-teilrechnung-block');
+        const ustEl = block?.querySelector('.pe-tr-ust_betrag');
+        const bruttoEl = block?.querySelector('.pe-tr-bruttobetrag');
+        if (ustEl) ustEl.value = tr.ust_betrag;
+        if (bruttoEl) bruttoEl.value = tr.bruttobetrag;
+
+        this._sumUpFromTeilrechnungen();
+        this._updateAuftragBruttoFields();
+        this.wizard.onFormDataChange();
+      });
+    });
+
+    host.querySelectorAll('.pe-tr-re_nr, .pe-tr-externe_po').forEach(input => {
+      input.addEventListener('input', () => {
+        const idx = parseInt(input.dataset.trIndex, 10);
+        const tr = this.wizard.formData.auftrag.teilrechnungen[idx];
+        if (!tr) return;
+
+        if (input.classList.contains('pe-tr-re_nr')) tr.re_nr = input.value;
+        if (input.classList.contains('pe-tr-externe_po')) tr.externe_po = input.value;
+        this.wizard.onFormDataChange();
+      });
+    });
+
+    host.addEventListener('change', (e) => {
+      if (!e.target.classList?.contains('custom-date-picker__input')) return;
+      const field = e.target.dataset.field;
+      if (!field || !field.startsWith('tr_')) return;
+
+      const value = CustomDatePicker.getValue(e.target) || null;
+
+      const match = field.match(/^tr_(.+)_(\d+)$/);
+      if (!match) return;
+      const [, dateField, idxStr] = match;
+      const idx = parseInt(idxStr, 10);
+      const tr = this.wizard.formData.auftrag.teilrechnungen[idx];
+      if (!tr) return;
+
+      if (dateField === 'rechnung_gestellt_am') {
+        tr.rechnung_gestellt_am = value;
+        this._recalcTRFaelligkeit(idx);
+      } else if (dateField === 're_faelligkeit') {
+        tr.re_faelligkeit = value;
+      } else if (dateField === 'erwarteter_monat') {
+        tr.erwarteter_monat_zahlungseingang = value;
+      }
+      this.wizard.onFormDataChange();
+    });
+  }
+
+  _recalcTRFaelligkeit(trIndex) {
+    const tr = this.wizard.formData.auftrag.teilrechnungen[trIndex];
+    if (!tr || !tr.rechnung_gestellt_am) return;
+
+    const ziel = parseInt(document.getElementById('field-pe-zahlungsziel_tage')?.value, 10);
+    if (isNaN(ziel)) return;
+
+    const d = new Date(tr.rechnung_gestellt_am);
+    d.setDate(d.getDate() + ziel);
+    const berechnet = d.toISOString().slice(0, 10);
+
+    tr.re_faelligkeit = berechnet;
+    tr.erwarteter_monat_zahlungseingang = berechnet;
+
+    const host = document.getElementById('pe-teilrechnungen-host');
+    if (!host) return;
+    const block = host.querySelector(`.pe-teilrechnung-block[data-tr-index="${trIndex}"]`);
+    if (!block) return;
+
+    const fInput = block.querySelector(`.custom-date-picker__input[data-field="tr_re_faelligkeit_${trIndex}"]`);
+    const ezInput = block.querySelector(`.custom-date-picker__input[data-field="tr_erwarteter_monat_${trIndex}"]`);
+    if (fInput) CustomDatePicker.setValue(fInput, berechnet);
+    if (ezInput) CustomDatePicker.setValue(ezInput, berechnet);
   }
 
   escape(v) {
@@ -245,34 +436,46 @@ export class StepDetails {
         this.wizard.formData.auftrag.bruttobetrag = b;
       }
     };
-    document.getElementById('field-pe-nettobetrag')?.addEventListener('input', recalcBrutto);
+
+    document.getElementById('field-pe-nettobetrag')?.addEventListener('input', () => {
+      const net = parseFloat(document.getElementById('field-pe-nettobetrag')?.value);
+      if (!isNaN(net)) {
+        this.wizard.formData.auftrag.nettobetrag = net;
+      }
+      recalcBrutto();
+      this._distributeEvenly();
+      this._renderTeilrechnungsBlocks();
+      this.wizard.onFormDataChange();
+    });
     recalcBrutto();
 
-    const recalcFaelligkeit = () => {
-      const reInput = this._getDateInput('rechnung_gestellt_am');
-      const reDate = reInput ? CustomDatePicker.getValue(reInput) : '';
-      const ziel = parseInt(document.getElementById('field-pe-zahlungsziel_tage')?.value, 10);
-      const fInput = this._getDateInput('re_faelligkeit');
-      const ezInput = this._getDateInput('erwarteter_monat_zahlungseingang');
-      if (!fInput) return;
-      if (reDate && !isNaN(ziel)) {
-        const d = new Date(reDate);
-        d.setDate(d.getDate() + ziel);
-        const berechnet = d.toISOString().slice(0, 10);
-        CustomDatePicker.setValue(fInput, berechnet);
-        this.wizard.formData.auftrag.re_faelligkeit = berechnet;
-        if (ezInput) {
-          CustomDatePicker.setValue(ezInput, berechnet);
-          this.wizard.formData.auftrag.erwarteter_monat_zahlungseingang = berechnet;
-        }
-      }
-    };
+    document.getElementById('field-pe-anzahl_teilrechnungen')?.addEventListener('input', () => {
+      const newCount = Math.max(1, parseInt(document.getElementById('field-pe-anzahl_teilrechnungen')?.value, 10) || 1);
+      const a = this.wizard.formData.auftrag;
+      a.anzahl_teilrechnungen = newCount;
 
-    // Leistungszeitraum change -> formData + Titel-Recompute
+      const netto = parseFloat(a.nettobetrag) || 0;
+      const perTR = newCount > 0 ? +(netto / newCount).toFixed(2) : 0;
+      a.teilrechnungen = Array.from({ length: newCount }, (_, i) => {
+        const existing = (a.teilrechnungen || [])[i];
+        const tr = this._makeTeilrechnung(i + 1, perTR);
+        if (existing) {
+          tr.re_nr = existing.re_nr || '';
+          tr.externe_po = existing.externe_po || '';
+        }
+        return tr;
+      });
+
+      this._renderTeilrechnungsBlocks();
+      this.wizard.onFormDataChange();
+    });
+
     this.host.addEventListener('change', (e) => {
       if (!e.target.classList?.contains('custom-date-picker__input')) return;
       const field = e.target.dataset.field;
       if (!field) return;
+
+      if (field.startsWith('tr_')) return;
 
       const value = CustomDatePicker.getValue(e.target) || null;
 
@@ -283,26 +486,16 @@ export class StepDetails {
       } else if (field === 'ende') {
         this.wizard.formData.auftrag.ende = value;
         this.wizard.updateFeedback();
-      } else if (field === 'rechnung_gestellt_am') {
-        this.wizard.formData.auftrag.rechnung_gestellt_am = value;
-        recalcFaelligkeit();
-        this.wizard.updateFeedback();
-      } else if (field === 're_faelligkeit') {
-        this.wizard.formData.auftrag.re_faelligkeit = value;
-        this.wizard.updateFeedback();
-      } else if (field === 'erwarteter_monat_zahlungseingang') {
-        this.wizard.formData.auftrag.erwarteter_monat_zahlungseingang = value;
-        this.wizard.updateFeedback();
       }
     });
 
-    document.getElementById('field-pe-zahlungsziel_tage')?.addEventListener('change', recalcFaelligkeit);
+    document.getElementById('field-pe-zahlungsziel_tage')?.addEventListener('change', () => {
+      this.wizard.onFormDataChange();
+    });
 
     const syncInputs = [
-      'field-pe-angebotsnummer', 'field-pe-re_nr', 'field-pe-externe_po',
-      'field-pe-zahlungsziel_tage',
-      'field-pe-nettobetrag',
-      'field-pe-anzahl_teilrechnungen'
+      'field-pe-angebotsnummer',
+      'field-pe-zahlungsziel_tage'
     ];
     syncInputs.forEach(id => {
       const el = document.getElementById(id);
@@ -360,29 +553,65 @@ export class StepDetails {
 
     const startInput = this._getDateInput('start');
     const endeInput = this._getDateInput('ende');
-    const reGestelltInput = this._getDateInput('rechnung_gestellt_am');
-    const reFaelligkeitInput = this._getDateInput('re_faelligkeit');
-    const ezInput = this._getDateInput('erwarteter_monat_zahlungseingang');
+
+    const teilrechnungen = this._collectTeilrechnungen();
+    const firstTR = teilrechnungen[0] || {};
 
     const auftrag = {
       start: startInput ? CustomDatePicker.getValue(startInput) || null : null,
       ende: endeInput ? CustomDatePicker.getValue(endeInput) || null : null,
       angebotsnummer: document.getElementById('field-pe-angebotsnummer')?.value?.trim() || '',
-      re_nr: document.getElementById('field-pe-re_nr')?.value || '',
+      re_nr: firstTR.re_nr || '',
       po: this.wizard.formData.auftrag.po || '',
-      externe_po: document.getElementById('field-pe-externe_po')?.value || '',
+      externe_po: firstTR.externe_po || '',
       zahlungsziel_tage: parseInt10('field-pe-zahlungsziel_tage'),
-      rechnung_gestellt_am: reGestelltInput ? CustomDatePicker.getValue(reGestelltInput) || null : null,
-      re_faelligkeit: reFaelligkeitInput ? CustomDatePicker.getValue(reFaelligkeitInput) || null : null,
-      erwarteter_monat_zahlungseingang: ezInput ? CustomDatePicker.getValue(ezInput) || null : null,
+      rechnung_gestellt_am: firstTR.rechnung_gestellt_am || null,
+      re_faelligkeit: firstTR.re_faelligkeit || null,
+      erwarteter_monat_zahlungseingang: firstTR.erwarteter_monat_zahlungseingang || null,
       nettobetrag: parseNum('field-pe-nettobetrag'),
       ust_prozent: DEFAULT_UST_PROZENT,
       ust_betrag: parseNum('field-pe-ust_betrag'),
       bruttobetrag: parseNum('field-pe-bruttobetrag'),
-      anzahl_teilrechnungen: parseInt10('field-pe-anzahl_teilrechnungen')
+      anzahl_teilrechnungen: parseInt10('field-pe-anzahl_teilrechnungen'),
+      teilrechnungen
     };
 
     return { details, auftrag };
+  }
+
+  _collectTeilrechnungen() {
+    const host = document.getElementById('pe-teilrechnungen-host');
+    if (!host) return this.wizard.formData.auftrag.teilrechnungen || [];
+
+    const blocks = host.querySelectorAll('.pe-teilrechnung-block');
+    return Array.from(blocks).map((block, i) => {
+      const idx = parseInt(block.dataset.trIndex, 10);
+      const existing = (this.wizard.formData.auftrag.teilrechnungen || [])[idx] || {};
+
+      const nettoInput = block.querySelector('.pe-tr-nettobetrag');
+      const netto = parseFloat(nettoInput?.value) || 0;
+      const ust = +(netto * DEFAULT_UST_PROZENT / 100).toFixed(2);
+
+      const reGestelltInput = block.querySelector(`.custom-date-picker__input[data-field="tr_rechnung_gestellt_am_${idx}"]`);
+      const reFaelligkeitInput = block.querySelector(`.custom-date-picker__input[data-field="tr_re_faelligkeit_${idx}"]`);
+      const ezInput = block.querySelector(`.custom-date-picker__input[data-field="tr_erwarteter_monat_${idx}"]`);
+
+      return {
+        position: i + 1,
+        nettobetrag: netto,
+        ust_prozent: DEFAULT_UST_PROZENT,
+        ust_betrag: ust,
+        bruttobetrag: +(netto + ust).toFixed(2),
+        re_nr: block.querySelector('.pe-tr-re_nr')?.value || '',
+        externe_po: block.querySelector('.pe-tr-externe_po')?.value || '',
+        rechnung_gestellt: existing.rechnung_gestellt || false,
+        rechnung_gestellt_am: reGestelltInput ? CustomDatePicker.getValue(reGestelltInput) || null : null,
+        re_faelligkeit: reFaelligkeitInput ? CustomDatePicker.getValue(reFaelligkeitInput) || null : null,
+        erwarteter_monat_zahlungseingang: ezInput ? CustomDatePicker.getValue(ezInput) || null : null,
+        ueberwiesen: existing.ueberwiesen || false,
+        ueberwiesen_am: existing.ueberwiesen_am || null
+      };
+    });
   }
 
   destroy() {
@@ -390,6 +619,8 @@ export class StepDetails {
       this._datePickerCleanup();
       this._datePickerCleanup = null;
     }
+    this._trDatePickerCleanups.forEach(fn => { try { fn(); } catch (_) {} });
+    this._trDatePickerCleanups = [];
     this.agencyBlock = null;
   }
 }

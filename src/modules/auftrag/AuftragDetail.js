@@ -7,6 +7,7 @@ import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
+import { calculateAgencyFeeSummary, filterPaidKooperationen, renderAgencyFeeCardHtml, renderKskCardHtml } from '../../core/budget/EkVkAgencyFeeHelper.js';
 
 export class AuftragDetail extends PersonDetailBase {
   constructor() {
@@ -335,6 +336,7 @@ export class AuftragDetail extends PersonDetailBase {
           typ,
           videoanzahl,
           einkaufspreis_netto,
+          verkaufspreis_netto,
           einkaufspreis_gesamt,
           kampagne_id,
           creator:creator_id (
@@ -351,17 +353,28 @@ export class AuftragDetail extends PersonDetailBase {
         kampagne: this.kampagnen.find(k => k.id === koop.kampagne_id)
       }));
       
-      // Lade Videos für alle Kooperationen
+      // Lade Videos + Rechnungsstatus für alle Kooperationen
       if (this.kooperationen.length > 0) {
         const koopIds = this.kooperationen.map(k => k.id);
-        const { data: videos } = await window.supabase
-          .from('kooperation_videos')
-          .select('id, titel, thema, content_art, kooperation_id, asset_url, link_content')
-          .in('kooperation_id', koopIds);
+        const [videoResult, rechnungResult] = await Promise.all([
+          window.supabase
+            .from('kooperation_videos')
+            .select('id, titel, thema, content_art, kooperation_id, asset_url, link_content, einkaufspreis_netto, verkaufspreis_netto')
+            .in('kooperation_id', koopIds),
+          window.supabase
+            .from('rechnung')
+            .select('kooperation_id, status')
+            .in('kooperation_id', koopIds),
+        ]);
         
-        this.videos = videos || [];
+        this.videos = videoResult.data || [];
+        this.rechnungStatusMap = (rechnungResult.data || []).reduce((acc, r) => {
+          if (r.kooperation_id) acc[r.kooperation_id] = r.status;
+          return acc;
+        }, {});
       } else {
         this.videos = [];
+        this.rechnungStatusMap = {};
       }
       
       // Berechne realVideoCount und realCreatorCount
@@ -694,18 +707,12 @@ export class AuftragDetail extends PersonDetailBase {
             </div>
           </div>` : ''}
           ${(() => {
-            const d = this.auftragsDetails;
-            const showFee = d?.agency_services_enabled && d.percentage_fee_enabled && parseFloat(d.percentage_fee_value) > 0;
-            const showKsk = d?.agency_services_enabled && d.ksk_enabled && parseFloat(d.ksk_value) > 0;
-            return (canViewInternalBudget && showFee ? `
-          <div class="summary-card" data-summary-card="agentur-fee">
-            <div class="summary-value">${fmt(parseFloat(d.percentage_fee_value))}</div>
-            <div class="summary-label">Agentur Fee</div>
-          </div>` : '') + (canViewInternalBudget && showKsk ? `
-          <div class="summary-card" data-summary-card="ksk">
-            <div class="summary-value">${fmt(parseFloat(d.ksk_value))}</div>
-            <div class="summary-label">KSK</div>
-          </div>` : '');
+            const paid = filterPaidKooperationen(this.kooperationen, this.videos, this.rechnungStatusMap);
+            const agencyFeeSummary = calculateAgencyFeeSummary(this.auftragsDetails, paid.kooperationen, paid.videos);
+            if (canViewInternalBudget) {
+              return renderKskCardHtml(agencyFeeSummary, fmt) + renderAgencyFeeCardHtml(agencyFeeSummary, fmt, { canSeePricing: true });
+            }
+            return renderAgencyFeeCardHtml(agencyFeeSummary, fmt, { canSeePricing: false });
           })()}
           <div class="summary-card" data-summary-card="creators">
             <div class="summary-value">${num(this.realCreatorCount)} von ${num(this.targetCreatorCount)}</div>

@@ -26,15 +26,7 @@ export class FormConfig {
           { name: 'rechnungsadresse_stadt', label: 'Stadt', type: 'text', required: false, row: 'rechnungsadresse2', colSize: 'grow', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true', section: 'basis' },
           { name: 'rechnungsadresse_land', label: 'Land (Rechnung)', type: 'text', required: false, defaultValue: 'Deutschland', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true', section: 'basis' },
           { name: 'umsatzsteuerpflichtig', label: 'Umsatzsteuerpflichtig', type: 'toggle', required: false, defaultValue: true, section: 'basis' },
-          // Agentur-Vertretung
-          { name: 'agentur_vertreten', label: 'Wird der Creator durch eine Agentur vertreten?', type: 'toggle', required: false, section: 'basis' },
-          { name: 'agentur_name', label: 'Agenturname', type: 'text', required: false, dependsOn: 'agentur_vertreten', showWhen: 'true', placeholder: 'Name der Agentur', section: 'basis' },
-          { name: 'agentur_strasse', label: 'Straße (Agentur)', type: 'text', required: false, row: 'agentur_adresse1', colSize: 'grow', dependsOn: 'agentur_vertreten', showWhen: 'true', section: 'basis' },
-          { name: 'agentur_hausnummer', label: 'Nr.', type: 'text', required: false, row: 'agentur_adresse1', colSize: 'small', dependsOn: 'agentur_vertreten', showWhen: 'true', section: 'basis' },
-          { name: 'agentur_plz', label: 'PLZ', type: 'text', required: false, row: 'agentur_adresse2', colSize: 'small', dependsOn: 'agentur_vertreten', showWhen: 'true', section: 'basis' },
-          { name: 'agentur_stadt', label: 'Stadt', type: 'text', required: false, row: 'agentur_adresse2', colSize: 'grow', dependsOn: 'agentur_vertreten', showWhen: 'true', section: 'basis' },
-          { name: 'agentur_land', label: 'Land (Agentur)', type: 'text', required: false, defaultValue: 'Deutschland', dependsOn: 'agentur_vertreten', showWhen: 'true', section: 'basis' },
-          { name: 'agentur_vertretung', label: 'Vertreten durch', type: 'text', required: false, dependsOn: 'agentur_vertreten', showWhen: 'true', placeholder: 'Name des Vertreters', section: 'basis' },
+          { name: 'management_id', label: 'Management', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Management suchen und auswählen...', table: 'management', displayField: 'firmenname', valueField: 'id', directQuery: true, section: 'basis' },
           // Social Media
           { name: 'instagram', label: 'Instagram', type: 'text', required: false, row: 'social_instagram', section: 'social' },
           { 
@@ -236,7 +228,8 @@ export class FormConfig {
           },
           // Sonstige Felder ohne Section
           { name: 'invoice_email', label: 'Rechnungs-Email', type: 'email', required: false, validation: { type: 'email' } },
-          { name: 'status', label: 'Status', type: 'select', required: false, editOnly: true, options: ['Aktiv', 'Inaktiv', 'Prospekt'] }
+          { name: 'status', label: 'Status', type: 'select', required: false, editOnly: true, options: ['Aktiv', 'Inaktiv', 'Prospekt'] },
+          { name: 'kein_dropbox', label: 'Content ohne Dropbox (nur externe Links)', type: 'toggle', required: false, section: 'online' }
         ]
       },
       kampagne: {

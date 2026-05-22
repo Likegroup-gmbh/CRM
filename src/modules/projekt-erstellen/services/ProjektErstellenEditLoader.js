@@ -29,7 +29,7 @@ export class ProjektErstellenEditLoader {
       throw new Error('Auftrag-ID fehlt');
     }
 
-    const [auftragResult, detailsResult, kampagneResult, blocksResult, junctionResult] = await Promise.all([
+    const [auftragResult, detailsResult, kampagneResult, blocksResult, junctionResult, teilrechnungenResult] = await Promise.all([
       supabase
         .from('auftrag')
         .select('*')
@@ -53,7 +53,12 @@ export class ProjektErstellenEditLoader {
       supabase
         .from('auftrag_kampagne_art')
         .select('kampagne_art_typen:kampagne_art_id(id, name)')
+        .eq('auftrag_id', auftragId),
+      supabase
+        .from('auftrag_teilrechnung')
+        .select('*')
         .eq('auftrag_id', auftragId)
+        .order('position', { ascending: true })
     ]);
 
     if (auftragResult.error) {
@@ -72,26 +77,28 @@ export class ProjektErstellenEditLoader {
       .map(row => row?.kampagne_art_typen?.name)
       .filter(Boolean);
 
+    const teilrechnungen = teilrechnungenResult.error ? [] : (teilrechnungenResult.data || []);
+
     const kampagne = kampagnen[0] || null;
-    const formData = this.toFormData({ auftrag, details, kampagne, blocks, junctionArtNames });
+    const formData = this.toFormData({ auftrag, details, kampagne, blocks, junctionArtNames, teilrechnungen });
 
     return {
       formData,
-      raw: { auftrag, details, kampagne, kampagnen, blocks, junctionArtNames }
+      raw: { auftrag, details, kampagne, kampagnen, blocks, junctionArtNames, teilrechnungen }
     };
   }
 
-  toFormData({ auftrag, details, kampagne, blocks, junctionArtNames = [] }) {
+  toFormData({ auftrag, details, kampagne, blocks, junctionArtNames = [], teilrechnungen = [] }) {
     return {
-      auftrag: this.mapAuftrag(auftrag),
+      auftrag: this.mapAuftrag(auftrag, teilrechnungen),
       details: this.mapDetails(details, blocks, junctionArtNames, kampagne),
       kampagne: this.mapKampagne(kampagne, auftrag)
     };
   }
 
-  mapAuftrag(auftrag) {
+  mapAuftrag(auftrag, teilrechnungen = []) {
     const titel = auftrag.titel || auftrag.auftragsname || '';
-    return {
+    const mapped = {
       unternehmen_id: auftrag.unternehmen_id || null,
       marke_id: auftrag.marke_id || null,
       ansprechpartner_id: auftrag.ansprechpartner_id || null,
@@ -117,10 +124,53 @@ export class ProjektErstellenEditLoader {
       ust_betrag: auftrag.ust_betrag ?? null,
       bruttobetrag: auftrag.bruttobetrag ?? null,
       anzahl_teilrechnungen: auftrag.anzahl_teilrechnungen ?? 1,
+      teilrechnungen: this.mapTeilrechnungen(teilrechnungen, auftrag),
 
       auftragsbestaetigungen_files: [],
       rechnungen_files: []
     };
+
+    return mapped;
+  }
+
+  mapTeilrechnungen(teilrechnungen, auftrag) {
+    if (Array.isArray(teilrechnungen) && teilrechnungen.length > 0) {
+      return teilrechnungen.map(tr => ({
+        position: tr.position,
+        nettobetrag: tr.nettobetrag ?? 0,
+        ust_prozent: tr.ust_prozent ?? 19,
+        ust_betrag: tr.ust_betrag ?? 0,
+        bruttobetrag: tr.bruttobetrag ?? 0,
+        re_nr: tr.re_nr || '',
+        externe_po: tr.externe_po || '',
+        rechnung_gestellt: !!tr.rechnung_gestellt,
+        rechnung_gestellt_am: tr.rechnung_gestellt_am || null,
+        re_faelligkeit: tr.re_faelligkeit || null,
+        ueberwiesen: !!tr.ueberwiesen,
+        ueberwiesen_am: tr.ueberwiesen_am || null,
+        erwarteter_monat_zahlungseingang: tr.erwarteter_monat_zahlungseingang || null
+      }));
+    }
+
+    // Fallback: Alten Auftrag ohne Teilrechnungen → synthetischen Block aus Auftragsfeldern
+    const netto = parseFloat(auftrag.nettobetrag) || 0;
+    const ustProzent = parseFloat(auftrag.ust_prozent) || 19;
+    const ustBetrag = +(netto * ustProzent / 100).toFixed(2);
+    return [{
+      position: 1,
+      nettobetrag: netto,
+      ust_prozent: ustProzent,
+      ust_betrag: ustBetrag,
+      bruttobetrag: +(netto + ustBetrag).toFixed(2),
+      re_nr: auftrag.re_nr || '',
+      externe_po: auftrag.externe_po || '',
+      rechnung_gestellt: !!auftrag.rechnung_gestellt,
+      rechnung_gestellt_am: auftrag.rechnung_gestellt_am || null,
+      re_faelligkeit: auftrag.re_faelligkeit || null,
+      ueberwiesen: !!auftrag.ueberwiesen,
+      ueberwiesen_am: auftrag.ueberwiesen_am || null,
+      erwarteter_monat_zahlungseingang: auftrag.erwarteter_monat_zahlungseingang || null
+    }];
   }
 
   mapDetails(details, blocks, junctionArtNames = [], kampagne = null) {

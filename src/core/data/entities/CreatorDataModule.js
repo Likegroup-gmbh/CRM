@@ -202,18 +202,7 @@ creator_sprachen(sprachen!sprache_id(id,name))`;
       console.log(`🏷️ Verarbeite ${field} für Creator:`, value);
       return true;
     }
-    // Agentur-Felder (werden in separater Tabelle gespeichert)
-    if (
-      field === 'agentur_vertreten' ||
-      field === 'agentur_name' ||
-      field === 'agentur_strasse' ||
-      field === 'agentur_hausnummer' ||
-      field === 'agentur_plz' ||
-      field === 'agentur_stadt' ||
-      field === 'agentur_land' ||
-      field === 'agentur_vertretung'
-    ) {
-      console.log(`🏢 Überspringe Agentur-Feld ${field} für Haupttabelle (wird in creator_agentur gespeichert)`);
+    if (field === 'management_id') {
       return true;
     }
     return false;

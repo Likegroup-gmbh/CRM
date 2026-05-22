@@ -374,11 +374,13 @@ export class CreatorAuswahlList {
                     ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
                     Bearbeiten
                   </a>
-                  <div class="action-separator"></div>
-                  <a href="#" class="action-item action-danger" data-action="delete-liste" data-id="${liste.id}">
-                    ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
-                    Löschen
-                  </a>
+                  ${window.checkUserPermission('sourcing', 'delete') ? `
+                    <div class="action-separator"></div>
+                    <a href="#" class="action-item action-danger" data-action="delete-liste" data-id="${liste.id}">
+                      ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
+                      Löschen
+                    </a>
+                  ` : ''}
                 ` : ''}
               </div>
             </div>

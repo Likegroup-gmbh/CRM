@@ -1,5 +1,10 @@
 import { deleteSingleDropboxFile } from '../../core/VideoDeleteHelper.js';
-import { escapeHtml } from '../../core/VideoUploadUtils.js';
+import {
+  escapeHtml,
+  getAssetDisplayLabel,
+  isExternalAsset,
+  isDirectImageUrl,
+} from '../../core/VideoUploadUtils.js';
 
 const DELETE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="15" height="15">
   <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
@@ -59,7 +64,7 @@ export class VideoSettingsDrawer {
           .order('version_number', { ascending: true }),
         window.supabase
           .from('kooperation_story_asset')
-          .select('id, file_url, file_path, file_name, file_size, version_number, is_current, variant_name, created_at')
+          .select('id, file_url, file_path, file_name, file_size, version_number, is_current, variant_name, created_at, story_id, kooperation_story(slot_index, slot_name)')
           .eq('video_id', this.videoId)
           .order('version_number', { ascending: true })
           .order('file_name', { ascending: true }),
@@ -82,6 +87,8 @@ export class VideoSettingsDrawer {
     if (this.assets.length > 0) {
       const maxV = Math.max(...this.assets.map(a => a.version_number));
       this._expandedRounds.add(`video-${maxV}`);
+    } else if (this.videoUrl) {
+      this._expandedRounds.add('video-legacy');
     }
     if (this.storyAssets.length > 0) {
       const maxV = Math.max(...this.storyAssets.map(a => a.version_number));
@@ -192,15 +199,117 @@ export class VideoSettingsDrawer {
     if (bilderPane) bilderPane.style.display = tabName === 'bilder' ? '' : 'none';
   }
 
+  _formatUploadDate(createdAt) {
+    if (!createdAt) return '–';
+    return new Date(createdAt).toLocaleDateString('de-DE', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+  }
+
+  _renderFileLinkBlock(url) {
+    if (!url) return '';
+    return `
+      <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="video-settings-file-link" title="Link öffnen">
+        ${LINK_ICON}
+        <span class="video-settings-path">${escapeHtml(url)}</span>
+      </a>
+    `;
+  }
+
+  _renderAssetThumb(url) {
+    if (!isDirectImageUrl(url)) return '';
+    return `<img src="${escapeHtml(url)}" alt="" class="settings-asset-thumb" loading="lazy" onerror="this.style.display='none'">`;
+  }
+
+  _renderExternalBadge(asset) {
+    return isExternalAsset(asset)
+      ? ' <span class="settings-external-badge">Externer Link</span>'
+      : '';
+  }
+
+  _getStorySlotLabel(asset) {
+    const story = asset.kooperation_story;
+    if (!story) return 'Story';
+    const name = story.slot_name ? ` · ${story.slot_name}` : '';
+    return `Story ${story.slot_index}${name}`;
+  }
+
+  _renderAccordionAssetRow(asset, { deleteBtnClass, showSize = false, showThumb = false }) {
+    const url = asset.file_url || '';
+    const label = getAssetDisplayLabel(asset);
+    const uploadDate = this._formatUploadDate(asset.created_at);
+    const sizeMB = showSize && asset.file_size
+      ? `${(asset.file_size / 1024 / 1024).toFixed(1)} MB`
+      : '';
+    const linkIcon = url
+      ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="video-version-link-icon" title="Öffnen">${LINK_ICON}</a>`
+      : '<span class="video-version-nofile">–</span>';
+
+    return `
+      <div class="settings-accordion-file-row">
+        <div class="settings-accordion-file-row-top">
+          <span class="settings-file-variant">${escapeHtml(label)}${this._renderExternalBadge(asset)}</span>
+          ${sizeMB ? `<span class="settings-file-size">${sizeMB}</span>` : ''}
+          <span class="settings-file-date">${uploadDate}</span>
+          <span class="settings-file-actions">
+            ${linkIcon}
+            <button type="button" class="${deleteBtnClass}" data-asset-id="${asset.id}" data-file-path="${escapeHtml(asset.file_path || '')}" title="Löschen">${DELETE_ICON}</button>
+          </span>
+        </div>
+        ${url ? this._renderFileLinkBlock(url) : ''}
+        ${showThumb ? this._renderAssetThumb(url) : ''}
+      </div>
+    `;
+  }
+
+  _renderLegacyVideoBlock() {
+    const url = this.videoUrl || '';
+    return `
+      <div class="settings-accordion settings-accordion--legacy">
+        <div class="settings-accordion-item">
+          <button type="button" class="settings-accordion-header expanded" data-accordion="video-legacy">
+            <span class="settings-accordion-chevron">${CHEVRON_ICON}</span>
+            <span>Legacy-Link</span>
+          </button>
+          <div class="settings-accordion-body">
+            <p class="video-settings-hint">Älterer Content-Link ohne Asset-Eintrag in der Datenbank.</p>
+            ${this._renderFileLinkBlock(url)}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  _groupStoryAssetsBySlot(assets) {
+    const bySlot = {};
+    for (const asset of assets) {
+      const key = asset.story_id || '__unknown__';
+      if (!bySlot[key]) bySlot[key] = [];
+      bySlot[key].push(asset);
+    }
+    return Object.entries(bySlot).sort(([, a], [, b]) => {
+      const idxA = a[0]?.kooperation_story?.slot_index ?? 999;
+      const idxB = b[0]?.kooperation_story?.slot_index ?? 999;
+      return idxA - idxB;
+    });
+  }
+
   // ─── Videos Tab (Accordion) ────────────────────────────────
 
   _renderVideosTab() {
     const hasAssets = this.assets.length > 0;
-    const uploadBtnText = hasAssets ? 'Weitere Videos hochladen' : 'Neues Video hochladen';
+    const hasLegacy = !hasAssets && !!this.videoUrl;
+    const uploadBtnText = hasAssets || hasLegacy
+      ? 'Weiteren Video-Content hinzufügen'
+      : 'Video-Content hinzufügen';
 
     let contentHtml;
-    if (!hasAssets) {
-      contentHtml = '<p class="video-settings-no-file">Noch kein Video hochgeladen</p>';
+    if (hasLegacy) {
+      contentHtml = this._renderLegacyVideoBlock();
+    } else if (!hasAssets) {
+      contentHtml = '<p class="video-settings-no-file">Noch kein Video vorhanden</p>';
     } else {
       const grouped = {};
       for (const asset of this.assets) {
@@ -230,25 +339,9 @@ export class VideoSettingsDrawer {
         `;
 
         for (const asset of assets) {
-          const url = asset.file_url || '';
-          const variantLabel = asset.variant_name || asset.file_path?.split('/').pop() || '?';
-          const linkIcon = url
-            ? `<a href="${url}" target="_blank" rel="noopener noreferrer" class="video-version-link-icon" title="Video öffnen">${LINK_ICON}</a>`
-            : '<span class="video-version-nofile">–</span>';
-          const uploadDate = asset.created_at
-            ? new Date(asset.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
-            : '–';
-
-          contentHtml += `
-            <div class="settings-accordion-file-row">
-              <span class="settings-file-variant">${escapeHtml(variantLabel)}</span>
-              <span class="settings-file-date">${uploadDate}</span>
-              <span class="settings-file-actions">
-                ${linkIcon}
-                <button type="button" class="video-version-delete-btn" data-asset-id="${asset.id}" data-file-path="${escapeHtml(asset.file_path || '')}" title="Datei löschen">${DELETE_ICON}</button>
-              </span>
-            </div>
-          `;
+          contentHtml += this._renderAccordionAssetRow(asset, {
+            deleteBtnClass: 'video-version-delete-btn',
+          });
         }
 
         contentHtml += `
@@ -282,7 +375,7 @@ export class VideoSettingsDrawer {
     let contentHtml;
 
     if (this.storyAssets.length === 0) {
-      contentHtml = '<p class="video-settings-no-file">Keine Storys hochgeladen</p>';
+      contentHtml = '<p class="video-settings-no-file">Keine Storys vorhanden</p>';
     } else {
       const grouped = {};
       for (const asset of this.storyAssets) {
@@ -311,28 +404,15 @@ export class VideoSettingsDrawer {
             <div class="settings-accordion-body" style="${isExpanded ? '' : 'display:none;'}">
         `;
 
-        for (const asset of assets) {
-          const url = asset.file_url || '';
-          const name = asset.variant_name || asset.file_name || asset.file_path?.split('/').pop() || '?';
-          const linkIcon = url
-            ? `<a href="${url}" target="_blank" rel="noopener noreferrer" class="video-version-link-icon" title="Öffnen">${LINK_ICON}</a>`
-            : '<span class="video-version-nofile">–</span>';
-          const uploadDate = asset.created_at
-            ? new Date(asset.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
-            : '–';
-          const sizeMB = asset.file_size ? `${(asset.file_size / 1024 / 1024).toFixed(1)} MB` : '';
-
-          contentHtml += `
-            <div class="settings-accordion-file-row">
-              <span class="settings-file-variant">${escapeHtml(name)}</span>
-              ${sizeMB ? `<span class="settings-file-size">${sizeMB}</span>` : ''}
-              <span class="settings-file-date">${uploadDate}</span>
-              <span class="settings-file-actions">
-                ${linkIcon}
-                <button type="button" class="story-asset-delete-btn" data-asset-id="${asset.id}" data-file-path="${escapeHtml(asset.file_path || '')}" title="Löschen">${DELETE_ICON}</button>
-              </span>
-            </div>
-          `;
+        for (const [, slotAssets] of this._groupStoryAssetsBySlot(assets)) {
+          contentHtml += `<div class="settings-story-slot-header">${escapeHtml(this._getStorySlotLabel(slotAssets[0]))}</div>`;
+          for (const asset of slotAssets) {
+            contentHtml += this._renderAccordionAssetRow(asset, {
+              deleteBtnClass: 'story-asset-delete-btn',
+              showSize: true,
+              showThumb: isDirectImageUrl(asset.file_url),
+            });
+          }
         }
 
         contentHtml += `
@@ -344,7 +424,7 @@ export class VideoSettingsDrawer {
     }
 
     const hasStorys = this.storyAssets.length > 0;
-    const storysUploadText = hasStorys ? 'Weitere Storys hochladen' : 'Neue Storys hochladen';
+    const storysUploadText = hasStorys ? 'Weiteren Story-Content hinzufügen' : 'Story-Content hinzufügen';
 
     return `
       <div id="settings-tab-storys" style="${this._activeTab !== 'storys' ? 'display:none' : ''}">
@@ -363,32 +443,45 @@ export class VideoSettingsDrawer {
 
   // ─── Bilder Tab ─────────────────────────────────────────────
 
+  _renderBilderTableRow(asset) {
+    const url = asset.file_url || '';
+    const name = getAssetDisplayLabel(asset);
+    const sizeMB = asset.file_size ? `${(asset.file_size / 1024 / 1024).toFixed(1)} MB` : '';
+    const linkIcon = url
+      ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="video-version-link-icon" title="Öffnen">${LINK_ICON}</a>`
+      : '<span class="video-version-nofile">–</span>';
+    const uploadDate = this._formatUploadDate(asset.created_at);
+    const externalBadge = this._renderExternalBadge(asset);
+
+    let html = `<tr>
+      <td class="settings-asset-name">${escapeHtml(name)}${externalBadge}</td>
+      <td>${sizeMB}</td>
+      <td style="text-align:center;">${linkIcon}</td>
+      <td>${uploadDate}</td>
+      <td style="text-align:center;">
+        <button type="button" class="bilder-asset-delete-btn" data-asset-id="${asset.id}" data-file-path="${escapeHtml(asset.file_path || '')}" title="Löschen">${DELETE_ICON}</button>
+      </td>
+    </tr>`;
+
+    if (url) {
+      html += `<tr class="settings-asset-url-row">
+        <td colspan="5">
+          ${this._renderFileLinkBlock(url)}
+          ${this._renderAssetThumb(url)}
+        </td>
+      </tr>`;
+    }
+
+    return html;
+  }
+
   _renderBilderTab() {
     let contentHtml;
 
     if (this.bilderAssets.length === 0) {
-      contentHtml = '<p class="video-settings-no-file">Keine Bilder hochgeladen</p>';
+      contentHtml = '<p class="video-settings-no-file">Keine Bilder vorhanden</p>';
     } else {
-      const rows = this.bilderAssets.map(asset => {
-        const url = asset.file_url || '';
-        const name = asset.file_name || asset.file_path?.split('/').pop() || '?';
-        const sizeMB = asset.file_size ? `${(asset.file_size / 1024 / 1024).toFixed(1)} MB` : '';
-        const linkIcon = url
-          ? `<a href="${url}" target="_blank" rel="noopener noreferrer" class="video-version-link-icon" title="Öffnen">${LINK_ICON}</a>`
-          : '<span class="video-version-nofile">–</span>';
-        const uploadDate = asset.created_at
-          ? new Date(asset.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
-          : '–';
-        return `<tr>
-          <td class="settings-asset-name">${escapeHtml(name)}</td>
-          <td>${sizeMB}</td>
-          <td style="text-align:center;">${linkIcon}</td>
-          <td>${uploadDate}</td>
-          <td style="text-align:center;">
-            <button type="button" class="bilder-asset-delete-btn" data-asset-id="${asset.id}" data-file-path="${escapeHtml(asset.file_path || '')}" title="Löschen">${DELETE_ICON}</button>
-          </td>
-        </tr>`;
-      }).join('');
+      const rows = this.bilderAssets.map(asset => this._renderBilderTableRow(asset)).join('');
 
       contentHtml = `
         <table class="data-table video-versions-table">
@@ -398,7 +491,7 @@ export class VideoSettingsDrawer {
     }
 
     const hasBilder = this.bilderAssets.length > 0;
-    const bilderUploadText = hasBilder ? 'Weitere Bilder hochladen' : 'Neue Bilder hochladen';
+    const bilderUploadText = hasBilder ? 'Weiteren Bild-Content hinzufügen' : 'Bild-Content hinzufügen';
 
     return `
       <div id="settings-tab-bilder" style="${this._activeTab !== 'bilder' ? 'display:none' : ''}">

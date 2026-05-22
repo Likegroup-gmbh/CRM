@@ -81,9 +81,211 @@ describe('AuftragsdetailsDetail', () => {
 
     const html = instance.renderInformationen();
 
-    expect(html).toContain('Gesamtbudget (netto)');
-    expect(html).toContain('Verbrauchtes Budget');
+    expect(html).toContain('Gesamt Nettobetrag');
+    expect(html).toContain('Verbrauchtes Creatorbudget');
     expect(html).toContain('Offenes Budget');
     expect(html).toContain('Extra Kosten');
+  });
+
+  it('summiert Extra Kosten (VK) in der Tabelle einmal pro Kooperation', () => {
+    window.currentUser = { rolle: 'mitarbeiter' };
+    window.validatorSystem = { sanitizeHtml: (v) => v || '' };
+
+    const instance = new AuftragsdetailsDetail();
+    instance.auftrag = { id: 'a1', creator_budget: 1000 };
+    instance.kooperationen = [{
+      id: 'koop-1',
+      name: 'Koop 1',
+      verkaufspreis_zusatzkosten: 100,
+      creator: { id: 'c1', vorname: 'Max', nachname: 'Muster' },
+      kampagne: { id: 'k1', kampagnenname: 'Kampagne A' }
+    }];
+    instance.videos = [
+      { id: 'v1', kooperation_id: 'koop-1', titel: 'Video 1', verkaufspreis_netto: 50, einkaufspreis_netto: 30 },
+      { id: 'v2', kooperation_id: 'koop-1', titel: 'Video 2', verkaufspreis_netto: 50, einkaufspreis_netto: 30 }
+    ];
+    instance.rechnungStatusMap = {};
+
+    instance.calculateBudgetSummary();
+    expect(instance.budgetSummary.extraKostenVkSum).toBe(100);
+
+    const html = instance.renderCreatorVideosTable();
+    const tfoot = html.match(/<tfoot>[\s\S]*?<\/tfoot>/);
+    expect(tfoot).not.toBeNull();
+    expect(tfoot[0]).toContain('100,00');
+    expect(html).toContain('Gesamt');
+  });
+
+  it('berechnet EK/VK-Summen und Differenz im budgetSummary', () => {
+    window.currentUser = { rolle: 'mitarbeiter' };
+
+    const instance = new AuftragsdetailsDetail();
+    instance.auftrag = { id: 'a1', creator_budget: 1000 };
+    instance.details = {};
+    instance.kooperationen = [{ id: 'k1', verkaufspreis_zusatzkosten: 0 }];
+    instance.videos = [
+      { id: 'v1', kooperation_id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: 200 },
+      { id: 'v2', kooperation_id: 'k1', einkaufspreis_netto: 50, verkaufspreis_netto: 80 },
+    ];
+    instance.kampagnen = [];
+
+    instance.calculateBudgetSummary();
+
+    expect(instance.budgetSummary.ekSum).toBe(150);
+    expect(instance.budgetSummary.vkSum).toBe(280);
+    expect(instance.budgetSummary.ekVkMarginSum).toBe(130);
+  });
+
+  it('ignoriert EK/VK-Differenz wenn EK=0', () => {
+    window.currentUser = { rolle: 'mitarbeiter' };
+
+    const instance = new AuftragsdetailsDetail();
+    instance.auftrag = { id: 'a1', creator_budget: 1000 };
+    instance.details = {};
+    instance.kooperationen = [{ id: 'k1', einkaufspreis_netto: 0, verkaufspreis_netto: 2000, verkaufspreis_zusatzkosten: 0 }];
+    instance.videos = [];
+    instance.kampagnen = [];
+
+    instance.calculateBudgetSummary();
+
+    expect(instance.budgetSummary.ekVkMarginSum).toBe(0);
+  });
+
+  it('zeigt EK/VK-Summen und Differenz im Tabellen-Footer', () => {
+    window.currentUser = { rolle: 'mitarbeiter' };
+    window.validatorSystem = { sanitizeHtml: (v) => v || '' };
+
+    const instance = new AuftragsdetailsDetail();
+    instance.auftrag = { id: 'a1', creator_budget: 1000 };
+    instance.details = {};
+    instance.kooperationen = [{ id: 'k1', verkaufspreis_zusatzkosten: 0 }];
+    instance.videos = [
+      { id: 'v1', kooperation_id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: 200 },
+    ];
+    instance.rechnungStatusMap = {};
+    instance.kampagnen = [];
+
+    instance.calculateBudgetSummary();
+    const html = instance.renderCreatorVideosTable();
+    const tfoot = html.match(/<tfoot>[\s\S]*?<\/tfoot>/)?.[0] || '';
+
+    expect(tfoot).toContain('Gesamt');
+    expect(tfoot).toContain('Differenz');
+    expect(tfoot).toContain('100,00');
+    expect(tfoot).toContain('200,00');
+  });
+
+  it('zeigt Agency-Fee-Kachel mit Breakdown wenn base + margin vorhanden', () => {
+    window.currentUser = { rolle: 'mitarbeiter' };
+
+    const instance = new AuftragsdetailsDetail();
+    instance.details = {
+      agency_services_enabled: true,
+      percentage_fee_enabled: true,
+      percentage_fee_value: '500',
+    };
+    instance.auftrag = { id: 'a1', nettobetrag: 5000 };
+    instance.kooperationen = [{ id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: 300, verkaufspreis_zusatzkosten: 0 }];
+    instance.videos = [];
+    instance.kampagnen = [];
+    instance.rechnungStatusMap = { k1: 'Bezahlt' };
+
+    instance.calculateBudgetSummary();
+
+    expect(instance.budgetSummary.agencyFeeSummary.baseFee).toBe(500);
+    expect(instance.budgetSummary.agencyFeeSummary.ekVkMargin).toBe(200);
+    expect(instance.budgetSummary.agencyFeeSummary.total).toBe(700);
+
+    const html = instance.renderInformationen();
+    expect(html).toContain('Agentur Fee');
+    expect(html).toContain('Festgelegt');
+    expect(html).toContain('EK/VK-Differenz');
+  });
+
+  it('Kunde sieht nur baseFee Agency Fee ohne Breakdown', () => {
+    window.currentUser = { rolle: 'kunde' };
+
+    const instance = new AuftragsdetailsDetail();
+    instance.details = {
+      agency_services_enabled: true,
+      percentage_fee_enabled: true,
+      percentage_fee_value: '500',
+    };
+    instance.auftrag = { id: 'a1', nettobetrag: 5000 };
+    instance.kooperationen = [{ id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: 300, verkaufspreis_zusatzkosten: 0 }];
+    instance.videos = [];
+    instance.kampagnen = [];
+
+    instance.calculateBudgetSummary();
+    const html = instance.renderInformationen();
+
+    expect(html).toContain('Agentur Fee');
+    expect(html).not.toContain('Festgelegt');
+    expect(html).not.toContain('EK/VK-Differenz');
+    expect(html).not.toContain('KSK');
+    expect(html).not.toContain('Gesamt Nettobetrag');
+  });
+
+  it('Kunde sieht keine Agency Fee wenn baseFee 0 (auch bei Margin)', () => {
+    window.currentUser = { rolle: 'kunde' };
+
+    const instance = new AuftragsdetailsDetail();
+    instance.details = {};
+    instance.auftrag = { id: 'a1', nettobetrag: 5000 };
+    instance.kooperationen = [{ id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: 300, verkaufspreis_zusatzkosten: 0 }];
+    instance.videos = [];
+    instance.kampagnen = [];
+
+    instance.calculateBudgetSummary();
+    const html = instance.renderInformationen();
+
+    expect(html).not.toContain('Agentur Fee');
+  });
+
+  it('Agency Fee EK/VK-Margin nur für bezahlte Kooperationen', () => {
+    window.currentUser = { rolle: 'mitarbeiter' };
+
+    const instance = new AuftragsdetailsDetail();
+    instance.details = {
+      agency_services_enabled: true,
+      percentage_fee_enabled: true,
+      percentage_fee_value: '100',
+    };
+    instance.auftrag = { id: 'a1', nettobetrag: 5000 };
+    instance.kooperationen = [
+      { id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: 300, verkaufspreis_zusatzkosten: 0 },
+      { id: 'k2', einkaufspreis_netto: 50, verkaufspreis_netto: 150, verkaufspreis_zusatzkosten: 0 },
+    ];
+    instance.videos = [];
+    instance.kampagnen = [];
+    instance.rechnungStatusMap = { k1: 'Bezahlt', k2: 'Offen' };
+
+    instance.calculateBudgetSummary();
+
+    expect(instance.budgetSummary.agencyFeeSummary.ekVkMargin).toBe(200);
+    expect(instance.budgetSummary.agencyFeeSummary.total).toBe(300);
+  });
+
+  it('Agency Fee EK/VK-Margin = 0 wenn keine Kooperation bezahlt', () => {
+    window.currentUser = { rolle: 'mitarbeiter' };
+
+    const instance = new AuftragsdetailsDetail();
+    instance.details = {
+      agency_services_enabled: true,
+      percentage_fee_enabled: true,
+      percentage_fee_value: '100',
+    };
+    instance.auftrag = { id: 'a1', nettobetrag: 5000 };
+    instance.kooperationen = [
+      { id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: 300, verkaufspreis_zusatzkosten: 0 },
+    ];
+    instance.videos = [];
+    instance.kampagnen = [];
+    instance.rechnungStatusMap = {};
+
+    instance.calculateBudgetSummary();
+
+    expect(instance.budgetSummary.agencyFeeSummary.ekVkMargin).toBe(0);
+    expect(instance.budgetSummary.agencyFeeSummary.total).toBe(100);
   });
 });

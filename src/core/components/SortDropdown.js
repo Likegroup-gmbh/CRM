@@ -8,9 +8,10 @@ export class SortDropdown {
   }
 
   /**
-   * Sortier-Optionen Definition
+   * Default-Sortier-Optionen (werden verwendet, wenn beim init() keine sortOptions
+   * übergeben werden). Pro Instance können eigene sortOptions gesetzt werden.
    */
-  static SORT_OPTIONS = [
+  static DEFAULT_SORT_OPTIONS = [
     { value: 'name_asc', label: 'A-Z', icon: 'sort-asc' },
     { value: 'name_desc', label: 'Z-A', icon: 'sort-desc' },
     { value: 'created_desc', label: 'Neueste zuerst', icon: 'calendar-desc' },
@@ -21,7 +22,8 @@ export class SortDropdown {
    * Initialisiert das Sort-Dropdown für einen Entity-Type
    * @param {string} entityType - z.B. 'unternehmen', 'marke'
    * @param {HTMLElement} containerElement - Mount-Point im DOM
-   * @param {Object} options - { nameField: 'firmenname', defaultSort: 'name_asc', onSortChange: (sort) => {} }
+   * @param {Object} options - { nameField, defaultSort, onSortChange, sortOptions? }
+   *   sortOptions: optional, eigene Optionsliste [{ value, label, icon? }, ...]
    */
   init(entityType, containerElement, options = {}) {
     if (!containerElement) {
@@ -32,7 +34,10 @@ export class SortDropdown {
     const config = {
       nameField: options.nameField || 'name',
       defaultSort: options.defaultSort || 'name_asc',
-      onSortChange: options.onSortChange || (() => {})
+      onSortChange: options.onSortChange || (() => {}),
+      sortOptions: Array.isArray(options.sortOptions) && options.sortOptions.length > 0
+        ? options.sortOptions
+        : SortDropdown.DEFAULT_SORT_OPTIONS
     };
 
     // Prüfe ob bereits eine Instance existiert und behalte currentSort
@@ -61,7 +66,9 @@ export class SortDropdown {
    * Rendert das Dropdown-HTML
    */
   renderDropdown(entityType, currentSort) {
-    const currentOption = SortDropdown.SORT_OPTIONS.find(opt => opt.value === currentSort) || SortDropdown.SORT_OPTIONS[0];
+    const instance = this.instances.get(entityType);
+    const sortOptions = instance?.config?.sortOptions || SortDropdown.DEFAULT_SORT_OPTIONS;
+    const currentOption = sortOptions.find(opt => opt.value === currentSort) || sortOptions[0];
 
     return `
       <div class="sort-dropdown" data-entity-type="${entityType}">
@@ -70,7 +77,7 @@ export class SortDropdown {
           ${this.getChevronIcon()}
         </button>
         <div class="sort-dropdown-menu">
-          ${SortDropdown.SORT_OPTIONS.map(opt => `
+          ${sortOptions.map(opt => `
             <button class="sort-option${opt.value === currentSort ? ' active' : ''}" data-sort="${opt.value}">
               ${opt.label}
             </button>
@@ -186,7 +193,8 @@ export class SortDropdown {
 
     // UI aktualisieren - Label im Toggle-Button
     const label = dropdown.querySelector('.sort-dropdown-label');
-    const option = SortDropdown.SORT_OPTIONS.find(opt => opt.value === sortValue);
+    const sortOptions = instance.config?.sortOptions || SortDropdown.DEFAULT_SORT_OPTIONS;
+    const option = sortOptions.find(opt => opt.value === sortValue);
     
     console.log(`🔍 SORTDROPDOWN DEBUG: label=${!!label}, option=${option?.label}`);
     
@@ -261,7 +269,8 @@ export class SortDropdown {
     const dropdown = instance.containerElement.querySelector('.sort-dropdown');
     if (dropdown) {
       const label = dropdown.querySelector('.sort-dropdown-label');
-      const option = SortDropdown.SORT_OPTIONS.find(opt => opt.value === sortValue);
+      const sortOptions = instance.config?.sortOptions || SortDropdown.DEFAULT_SORT_OPTIONS;
+      const option = sortOptions.find(opt => opt.value === sortValue);
       if (label && option) {
         label.textContent = option.label;
       }

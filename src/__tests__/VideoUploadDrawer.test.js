@@ -168,6 +168,68 @@ describe('VideoUploadDrawer', () => {
     });
   });
 
+  describe('Upload-Drawer Layout und Icons', () => {
+    it('setzt drawer-panel--upload am Panel', async () => {
+      window.supabase = createMockSupabase([]);
+      await drawer.open('video-1', defaultMetadaten, vi.fn());
+
+      const panel = document.getElementById('video-upload-drawer');
+      expect(panel?.classList.contains('drawer-panel--upload')).toBe(true);
+    });
+
+    it('Link-Modus: Speichern-Button nutzt Check-Icon, kein Link-Ketten-SVG', async () => {
+      window.supabase = createMockSupabase([]);
+      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true }, vi.fn());
+
+      const submitBtn = document.getElementById('video-upload-submit-btn');
+      expect(submitBtn?.innerHTML).toContain('M9 16.17');
+      expect(submitBtn?.innerHTML).not.toContain('M13.19 8.688');
+      expect(submitBtn?.querySelector('.mdc-btn__icon')).not.toBeNull();
+    });
+
+    it('Link-Modus: Link-hinzufügen nutzt Plus-Icon in mdc-btn__icon', async () => {
+      window.supabase = createMockSupabase([]);
+      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true }, vi.fn());
+
+      const addBtn = document.getElementById('video-link-add-btn');
+      expect(addBtn?.innerHTML).toContain('M12 4.5v15');
+      expect(addBtn?.classList.contains('upload-drawer-btn--secondary')).toBe(true);
+    });
+  });
+
+  describe('Kein-Dropbox Header-Chip', () => {
+    it('zeigt aktiven Chip wenn keinDropbox in Metadaten gesetzt ist', async () => {
+      window.supabase = createMockSupabase([]);
+      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true }, vi.fn());
+
+      const chip = document.getElementById('external-links-chip');
+      expect(chip).not.toBeNull();
+      expect(chip.classList.contains('is-active')).toBe(true);
+      expect(chip.getAttribute('aria-pressed')).toBe('true');
+      expect(document.getElementById('external-links-toggle')).toBeNull();
+    });
+
+    it('toggelt useExternalLinks beim Klick auf den Chip', async () => {
+      window.supabase = createMockSupabase([]);
+      await drawer.open('video-1', defaultMetadaten, vi.fn());
+
+      const chip = document.getElementById('external-links-chip');
+      expect(drawer.useExternalLinks).toBe(false);
+      expect(chip.classList.contains('is-active')).toBe(false);
+
+      chip.click();
+      expect(drawer.useExternalLinks).toBe(true);
+      expect(chip.classList.contains('is-active')).toBe(true);
+      expect(chip.getAttribute('aria-pressed')).toBe('true');
+      expect(document.getElementById('video-upload-dropzone')).toBeNull();
+
+      chip.click();
+      expect(drawer.useExternalLinks).toBe(false);
+      expect(chip.classList.contains('is-active')).toBe(false);
+      expect(document.getElementById('video-upload-dropzone')).not.toBeNull();
+    });
+  });
+
   describe('Background Upload Integration', () => {
     it('close() schließt den Drawer auch wenn ein Background-Job für das Video läuft', async () => {
       const { backgroundUploadService } = await import('../core/BackgroundUploadService.js');

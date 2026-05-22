@@ -2689,8 +2689,18 @@ input.input-error {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: var(--space-sm);
   padding: var(--space-md);
   border-bottom: 1px solid #e9ecef;
+  flex-shrink: 0;
+}
+
+.drawer-header-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.drawer-header-right {
   flex-shrink: 0;
 }
 
@@ -4450,6 +4460,7 @@ input.input-error {
 /* Auftrags-Tabelle Basis */
 .auftrag-table {
   --auftrag-col-checkbox-width: 40px;
+  --auftrag-col-details-width: var(--table-name-col-width);
   border-collapse: separate !important;
   border-spacing: 0 !important;
 }
@@ -4502,7 +4513,15 @@ input.input-error {
 .auftrag-table td.col-marke { min-width: 10em; }
 
 .auftrag-table th.col-details,
-.auftrag-table td.col-details { min-width: 12em; text-align: left; }
+.auftrag-table td.col-details {
+  width: var(--auftrag-col-details-width);
+  min-width: var(--auftrag-col-details-width);
+  max-width: var(--auftrag-col-details-width);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .auftrag-table th.col-angebotsnr,
 .auftrag-table td.col-angebotsnr { min-width: 10em; }
@@ -4647,6 +4666,21 @@ input.input-error {
   font-size: var(--text-sm);
   color: var(--gray-400);
   font-weight: 300;
+}
+
+.summary-card-breakdown {
+  font-size: var(--text-xs);
+  color: var(--gray-400);
+  margin-top: var(--space-xs);
+  border-top: 1px solid var(--gray-200);
+  padding-top: var(--space-xs);
+}
+
+.summary-card-breakdown-line {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  line-height: 1.6;
 }
 
 .summary-planned {
@@ -8470,6 +8504,12 @@ span.profile-name {
   min-width: 0;
 }
 
+body.has-quick-access-bar .profile-main-content,
+body.has-quick-access-bar .profile-main-content--secondary-scroll {
+  padding-bottom: var(--quick-access-bar-clearance);
+  scroll-padding-bottom: var(--quick-access-bar-clearance);
+}
+
 /* Secondary Navigation Layout (Unternehmen Detail - Test) */
 .profile-detail-layout--secondary-nav {
   height: 100vh;
@@ -10773,7 +10813,7 @@ table:has(#strategien-table-body) td.col-actions {
 
 .kampagne-table-container {
   --kampagne-col-checkbox-width: 2.5em;
-  --kampagne-col-name-width: 18em;
+  --kampagne-col-name-width: var(--table-name-col-width);
   overflow-x: auto;
   overflow-y: visible;
 }
@@ -10841,7 +10881,7 @@ table:has(#strategien-table-body) td.col-actions {
 
 .auftragsdetails-table-container {
   --auftragsdetails-col-checkbox-width: 2.5em;
-  --auftragsdetails-col-auftrag-width: 18em;
+  --auftragsdetails-col-auftrag-width: var(--table-name-col-width);
   overflow-x: auto;
   overflow-y: visible;
 }
@@ -15525,6 +15565,87 @@ table.vertraege-unternehmen-table td:last-child {
 }
 
 /* ============================================
+   DRAWER MODE CHIP (Kein Dropbox)
+   ============================================ */
+
+.drawer-mode-chip {
+  flex-shrink: 0;
+  padding: var(--space-xs) var(--space-sm);
+  border: var(--border-xs) solid var(--gray-300);
+  border-radius: 999px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  user-select: none;
+  background: var(--bg-primary, #fff);
+  color: var(--gray-700);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.drawer-mode-chip:hover:not(:disabled) {
+  border-color: var(--gray-500);
+}
+
+.drawer-mode-chip.is-active {
+  background: var(--color-primary, var(--gray-900));
+  color: #fff;
+  border-color: var(--color-primary, var(--gray-900));
+}
+
+.drawer-mode-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ============================================
+   UPLOAD DRAWER (scoped layout – nur #video-upload-drawer)
+   ============================================ */
+
+#video-upload-drawer.drawer-panel--upload .drawer-body {
+  padding: 0;
+}
+
+#video-upload-drawer .video-upload-active-banner {
+  padding: var(--space-md);
+  margin-bottom: 0;
+}
+
+#video-upload-drawer .drawer-tab-nav {
+  width: 100%;
+  margin-bottom: 0;
+  padding: 0 var(--space-md);
+  box-sizing: border-box;
+}
+
+#video-upload-drawer .video-upload-drawer-content,
+#video-upload-drawer .storys-upload-drawer-content,
+#video-upload-drawer .bilder-upload-drawer-content {
+  padding: var(--space-md);
+}
+
+#video-upload-drawer .mdc-btn__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+#video-upload-drawer .mdc-btn__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+#video-upload-drawer .upload-drawer-btn--secondary {
+  background: var(--bg-primary) !important;
+  border: 1px solid var(--gray-300) !important;
+  color: var(--gray-900) !important;
+}
+
+#video-upload-drawer .upload-drawer-btn--secondary:hover {
+  border-color: var(--gray-500) !important;
+}
+
+/* ============================================
    DRAWER TAB NAVIGATION (Upload-Drawer)
    ============================================ */
 
@@ -15911,14 +16032,71 @@ table.vertraege-unternehmen-table td:last-child {
 }
 .settings-accordion-file-row {
   display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-xxs) 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-xs);
+  padding: var(--space-xs) 0;
   font-size: var(--text-xs);
   border-bottom: var(--border-xs) solid var(--border-primary);
 }
 .settings-accordion-file-row:last-child {
   border-bottom: none;
+}
+.settings-accordion-file-row-top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.settings-accordion-file-row .video-settings-file-link {
+  width: 100%;
+  max-width: 100%;
+}
+.settings-accordion-file-row .video-settings-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.settings-story-slot-header {
+  font-size: var(--text-11);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: var(--space-xs);
+  padding-top: var(--space-xxs);
+}
+.settings-story-slot-header:first-child {
+  margin-top: 0;
+  padding-top: 0;
+}
+.settings-external-badge {
+  font-size: var(--text-11);
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: var(--border-xs) solid var(--border-primary);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  margin-left: var(--space-xxs);
+  vertical-align: middle;
+}
+.settings-asset-thumb {
+  display: block;
+  max-width: 100%;
+  max-height: 120px;
+  margin-top: var(--space-xs);
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  border: var(--border-xs) solid var(--border-primary);
+  background: var(--bg-secondary);
+}
+.settings-asset-url-row td {
+  padding-top: 0;
+  padding-bottom: var(--space-sm);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+}
+.settings-asset-url-row .video-settings-file-link {
+  margin-bottom: var(--space-xs);
 }
 .settings-file-variant {
   flex: 1;

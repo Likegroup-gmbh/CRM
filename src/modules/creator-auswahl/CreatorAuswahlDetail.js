@@ -211,19 +211,34 @@ export class CreatorAuswahlDetail {
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
 
-    // Event-basierte Action-Behandlung (Portal-kompatibel)
-    const actionHandler = (event) => {
-      const { action, entityType, entityId } = event.detail;
-      if (entityType !== 'creator_auswahl_item') return;
+    if (!this.isKunde) {
+      const actionClickHandler = (e) => {
+        const actionItem = e.target.closest('[data-action]');
+        if (!actionItem) return;
+        const container = actionItem.closest('[data-entity-type="creator_auswahl_item"]');
+        if (!container) return;
 
-      switch (action) {
-        case 'delete-item': this.handleDeleteItem(entityId); break;
-        case 'transfer-to-crm': this.handleTransferToCRM(entityId); break;
-        case 'view-crm-creator': window.navigateTo(`/creator/${entityId}`); break;
-      }
-    };
-    document.addEventListener('actionRequested', actionHandler);
-    this._boundEventListeners.add(() => document.removeEventListener('actionRequested', actionHandler));
+        const action = actionItem.dataset.action;
+        const id = actionItem.dataset.id;
+
+        switch (action) {
+          case 'delete-item':
+            e.preventDefault();
+            this.handleDeleteItem(id);
+            break;
+          case 'transfer-to-crm':
+            e.preventDefault();
+            this.handleTransferToCRM(id);
+            break;
+          case 'view-crm-creator':
+            e.preventDefault();
+            window.navigateTo(`/creator/${id}`);
+            break;
+        }
+      };
+      document.addEventListener('click', actionClickHandler);
+      this._boundEventListeners.add(() => document.removeEventListener('click', actionClickHandler));
+    }
 
     if (!this.isKunde) {
       const kundenCallBtn = document.getElementById('btn-kunden-call-toggle');

@@ -41,7 +41,15 @@ export class NavigationSystem {
       {
         title: 'Projektmanagement',
         items: [
-          { id: 'auftrag', label: 'Aufträge', icon: 'icon-briefcase', url: '/auftrag' },
+          {
+            id: 'auftrag',
+            label: 'Aufträge',
+            icon: 'icon-briefcase',
+            url: '/auftrag',
+            children: [
+              { id: 'ausgangsrechnungen', label: 'Ausgangsrechnungen', icon: 'icon-currency-euro', url: '/ausgangsrechnungen' }
+            ]
+          },
           { id: 'auftragsdetails', label: 'Auftragsdetails', icon: 'icon-auftragsdetails', url: '/auftragsdetails' },
           { id: 'kampagne', label: 'Kampagnen', icon: 'icon-campaign', url: '/kampagne' }
         ]
@@ -142,7 +150,8 @@ export class NavigationSystem {
         tasks: 'tasks',
         tabellen: 'dashboard',
         feedback: 'feedback',
-        contracts: 'contracts'
+        contracts: 'contracts',
+        ausgangsrechnungen: 'auftrag'
       };
       
       const entity = map[id] || id;

@@ -365,6 +365,13 @@ describe('ProjektErstellenPersistence', () => {
           };
         }
 
+        if (table === 'auftrag_teilrechnung') {
+          return {
+            delete: vi.fn(() => chainEq()),
+            insert: vi.fn(async () => ({ error: null }))
+          };
+        }
+
         return { insert: vi.fn(async () => ({ error: null })) };
       })
     };
