@@ -92,6 +92,14 @@ export async function handleContractingCreateSubmit(form) {
 
     const rechnungId = result.id;
 
+    console.log('[ZusatzkostenSync] ContractingCreate-Hook ausgeloest fuer rechnungId=', rechnungId);
+    try {
+      const { syncEkZusatzkostenAfterRechnungSave } = await import('../../core/RechnungZusatzkostenSync.js');
+      await syncEkZusatzkostenAfterRechnungSave(rechnungId);
+    } catch (syncErr) {
+      console.warn('Zusatzkosten-Sync (Contracting create) fehlgeschlagen:', syncErr);
+    }
+
     await savePdfMetadata(rechnungId, pdfFiles);
     await uploadBelege(form, rechnungId, pathMeta);
 
@@ -124,6 +132,14 @@ export async function handleContractingEditSubmit(form, existingRechnung) {
       .update(submitData)
       .eq('id', existingRechnung.id);
     if (error) throw error;
+
+    console.log('[ZusatzkostenSync] ContractingEdit-Hook ausgeloest fuer rechnungId=', existingRechnung.id);
+    try {
+      const { syncEkZusatzkostenAfterRechnungSave } = await import('../../core/RechnungZusatzkostenSync.js');
+      await syncEkZusatzkostenAfterRechnungSave(existingRechnung.id);
+    } catch (syncErr) {
+      console.warn('Zusatzkosten-Sync (Contracting edit) fehlgeschlagen:', syncErr);
+    }
 
     alert('Rechnung aktualisiert');
     window.navigateTo(`/rechnung/${existingRechnung.id}`);

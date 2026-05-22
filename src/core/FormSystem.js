@@ -292,6 +292,7 @@ export class FormSystem {
 
         // Rechnungs-Dateien (Belege + PDF) beim Edit verarbeiten
         if (entity === 'rechnung') {
+          console.log('[ZusatzkostenSync] FormSystem-Hook ausgeloest fuer rechnungId=', result.id);
           try {
             const { syncEkZusatzkostenAfterRechnungSave } = await import('./RechnungZusatzkostenSync.js');
             await syncEkZusatzkostenAfterRechnungSave(result.id);

@@ -218,31 +218,45 @@ export async function syncEkZusatzkostenFromRechnung({
   }
 }
 
-/** Nach Rechnung-Save: Sync aus DB + sichtbares Feedback bei Fehlern. */
+/** Nach Rechnung-Save: Sync aus DB + sichtbares Feedback. */
 export async function syncEkZusatzkostenAfterRechnungSave(rechnungId, { supabase: sb } = {}) {
   const result = await syncEkZusatzkostenFromRechnungId(rechnungId, { supabase: sb });
 
   if (result.success && result.updated) {
     const sides = (result.updatedSides || []).join(' + ').toUpperCase() || 'EK/VK';
     console.log(`Zusatzkosten-Sync: Kooperation aktualisiert (${sides})`, result.updated);
-    if (result.partial && typeof window !== 'undefined') {
-      window.toastSystem?.show?.(
-        `Zusatzkosten teilweise übernommen (${sides}). Bitte Konsole prüfen: ${result.warning}`,
-        'warning'
-      );
+
+    if (typeof window !== 'undefined') {
+      if (result.partial) {
+        window.toastSystem?.show?.(
+          `Zusatzkosten teilweise übernommen (${sides}). Bitte Konsole prüfen: ${result.warning}`,
+          'warning'
+        );
+      } else {
+        window.toastSystem?.show?.(
+          `Zusatzkosten in Kooperation übernommen (${sides})`,
+          'success'
+        );
+      }
     }
     return result;
   }
 
   if (result.skipped) {
+    console.log('Zusatzkosten-Sync uebersprungen:', result.skipped);
     return result;
   }
 
   if (!result.success) {
-    console.warn('Zusatzkosten-Sync fehlgeschlagen:', result.error);
+    const rawError = result.error || 'Unbekannter Fehler';
+    const looksLikeRls = /permission|denied|policy|JSON object requested|0 rows|PGRST116/i.test(rawError);
+    const hint = looksLikeRls
+      ? ' (moeglicherweise fehlt UPDATE-Permission/RLS auf kooperationen)'
+      : '';
+    console.warn('Zusatzkosten-Sync fehlgeschlagen:', rawError, hint);
     if (typeof window !== 'undefined') {
       window.toastSystem?.show?.(
-        `Rechnung gespeichert, aber Zusatzkosten konnten nicht in die Kooperation übernommen werden: ${result.error || 'Unbekannter Fehler'}`,
+        `Rechnung gespeichert, aber Zusatzkosten konnten nicht in die Kooperation übernommen werden: ${rawError}${hint}`,
         'warning'
       );
     }

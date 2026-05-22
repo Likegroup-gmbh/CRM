@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   syncEkZusatzkostenFromRechnung,
   syncEkZusatzkostenFromRechnungId,
+  syncEkZusatzkostenAfterRechnungSave,
 } from '../core/RechnungZusatzkostenSync.js';
 
 function makeSupabase({
@@ -315,5 +316,60 @@ describe('syncEkZusatzkostenFromRechnung', () => {
 
     expect(result.success).toBe(false);
     expect(updateCalls).toHaveLength(0);
+  });
+});
+
+describe('syncEkZusatzkostenAfterRechnungSave', () => {
+  let toastShow;
+
+  beforeEach(() => {
+    toastShow = vi.fn();
+    globalThis.window = globalThis.window || {};
+    globalThis.window.toastSystem = { show: toastShow };
+    globalThis.window.dispatchEvent = vi.fn();
+    globalThis.window.CustomEvent = function (type, init) { return { type, ...(init || {}) }; };
+  });
+
+  afterEach(() => {
+    delete globalThis.window.toastSystem;
+  });
+
+  it('zeigt Success-Toast wenn Sync EK+VK aktualisiert', async () => {
+    const { supabase } = makeSupabase({
+      rechnungRow: { id: 'r1', kooperation_id: 'k1', zusatzkosten: 100, ust_prozent: 19 },
+      koopRow: {
+        id: 'k1',
+        einkaufspreis_netto: 1000, einkaufspreis_zusatzkosten: 0, einkaufspreis_ust: 190,
+        verkaufspreis_netto: 1200, verkaufspreis_zusatzkosten: 0, verkaufspreis_ust: 228,
+      },
+    });
+
+    const result = await syncEkZusatzkostenAfterRechnungSave('r1', { supabase });
+
+    expect(result.success).toBe(true);
+    expect(toastShow).toHaveBeenCalledWith(
+      expect.stringMatching(/Zusatzkosten in Kooperation/i),
+      'success'
+    );
+  });
+
+  it('zeigt RLS-Hinweis in Warning-Toast wenn Update permission denied', async () => {
+    const { supabase } = makeSupabase({
+      rechnungRow: { id: 'r1', kooperation_id: 'k1', zusatzkosten: 100, ust_prozent: 19 },
+      koopRow: {
+        id: 'k1',
+        einkaufspreis_netto: 1000, einkaufspreis_zusatzkosten: 0, einkaufspreis_ust: 190,
+        verkaufspreis_netto: 1200, verkaufspreis_zusatzkosten: 0, verkaufspreis_ust: 228,
+      },
+      updateError: { message: 'permission denied for table kooperationen' },
+    });
+
+    const result = await syncEkZusatzkostenAfterRechnungSave('r1', { supabase });
+
+    expect(result.success).toBe(false);
+    expect(toastShow).toHaveBeenCalledWith(
+      expect.stringMatching(/RLS|permission/i),
+      'warning'
+    );
   });
 });
