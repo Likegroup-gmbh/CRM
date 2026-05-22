@@ -4,6 +4,42 @@
 import { KampagneUtils } from './KampagneUtils.js';
 import { VideoTableColumnVisibilityDrawer } from './VideoTableColumnVisibilityDrawer.js';
 import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
+import { sortDropdown } from '../../core/components/SortDropdown.js';
+
+const KOOPERATION_SORT_ENTITY = 'kampagne-kooperationen';
+
+const KAMPAGNE_KOOPERATION_SORT_OPTIONS = [
+  { value: 'name_asc', label: 'A-Z' },
+  { value: 'name_desc', label: 'Z-A' },
+  { value: 'created_desc', label: 'Neueste zuerst' },
+  { value: 'created_asc', label: 'Älteste zuerst' },
+  { value: 'posting_asc', label: 'GoLive früheste zuerst' },
+  { value: 'posting_desc', label: 'GoLive späteste zuerst' }
+];
+
+function initKooperationSortDropdown(detail) {
+  const container = document.getElementById('kampagne-kooperation-sort-container');
+  if (!container) return;
+
+  sortDropdown.init(KOOPERATION_SORT_ENTITY, container, {
+    nameField: 'name',
+    defaultSort: 'created_desc',
+    sortOptions: KAMPAGNE_KOOPERATION_SORT_OPTIONS,
+    onSortChange: () => {
+      const currentSort = sortDropdown.getCurrentSort(KOOPERATION_SORT_ENTITY);
+      detail.store?.setKooperationSort(currentSort);
+      if (detail.currentView === 'table') {
+        detail.kooperationenVideoTable?.refilter();
+      } else if (detail.currentView === 'kanban') {
+        detail.kanbanBoard?.render();
+      }
+    }
+  });
+
+  // Store mit (ggf. bereits persistierter) Auswahl synchronisieren
+  const persisted = sortDropdown.getCurrentSort(KOOPERATION_SORT_ENTITY);
+  detail.store?.setKooperationSort(persisted);
+}
 
 let _abortController = null;
 
@@ -11,6 +47,8 @@ export function setupEvents(detail) {
   teardownEvents();
   _abortController = new AbortController();
   const signal = _abortController.signal;
+
+  initKooperationSortDropdown(detail);
 
   // Tab Navigation (Offen / Abgeschlossen / Alle)
   document.addEventListener('click', (e) => {
@@ -47,7 +85,7 @@ export function setupEvents(detail) {
       e.preventDefault();
       const auftragId = detail.kampagneData?.auftrag_id;
       if (auftragId) {
-        window.navigateTo(`/projekt-erstellen/edit/${auftragId}?step=kampagnen`);
+        window.navigateTo(`/projekt-erstellen/edit/${auftragId}?step=kampagnen&kampagneId=${detail.kampagneId}`);
       } else {
         console.warn('⚠️ Keine auftrag_id auf Kampagne – Fallback auf Wizard-Neuanlage');
         window.navigateTo('/projekt-erstellen');

@@ -2,6 +2,16 @@
 // Summary-Kacheln: Berechnung, Rendering und DOM-Updates
 
 import { KampagneUtils } from './KampagneUtils.js';
+import { getCampaignTargetTotals } from '../projekt-erstellen/logic/CampaignBudgetFields.js';
+import { calculateAgencyFeeSummary, renderAgencyFeeCardHtml, renderKskCardHtml } from '../../core/budget/EkVkAgencyFeeHelper.js';
+
+function resolveTargets(kampagneData) {
+  return getCampaignTargetTotals({
+    blocks: kampagneData?.campaignBlocks,
+    auftragDetails: kampagneData?.auftragDetails,
+    kampagne: kampagneData
+  });
+}
 
 export function calculateSummaryCards(kooperationen, videos) {
   const koopBudgetSum = (videos || []).reduce((sum, v) => sum + (parseFloat(v.verkaufspreis_netto) || 0), 0);
@@ -13,7 +23,7 @@ export function calculateSummaryCards(kooperationen, videos) {
   return { koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum };
 }
 
-export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum) {
+export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum) {
   const totalBudget = parseFloat(
     kampagneData?.auftrag?.creator_budget ||
     kampagneData?.auftrag?.gesamt_budget ||
@@ -21,8 +31,9 @@ export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUse
   );
   const usedBudget = koopBudgetSum || 0;
   const openBudget = Math.max(0, totalBudget - usedBudget);
-  const totalVideos = kampagneData?.videoanzahl || 0;
-  const totalCreators = kampagneData?.creatoranzahl || 0;
+  const targets = resolveTargets(kampagneData);
+  const totalVideos = targets.videos;
+  const totalCreators = targets.creators;
 
   const budgetPct = KampagneUtils.getProgressPercentage(usedBudget, totalBudget);
   const openPct = totalBudget > 0 ? Math.max(0, 100 - budgetPct) : 0;
@@ -64,9 +75,23 @@ export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUse
 
   const extraKostenVal = document.querySelector('[data-summary-value="extra-kosten-vk"]');
   if (extraKostenVal) extraKostenVal.textContent = KampagneUtils.formatCurrency(extraKostenVkSum || 0);
+
+  const d = kampagneData?.auftragDetails || {};
+  const baseFee = (d.agency_services_enabled && d.percentage_fee_enabled)
+    ? (parseFloat(d.percentage_fee_value) || 0) : 0;
+  const agencyTotal = baseFee + (ekVkMarginSum || 0);
+
+  const agencyFeeVal = document.querySelector('[data-summary-value="agentur-fee-total"]');
+  if (agencyFeeVal) agencyFeeVal.textContent = KampagneUtils.formatCurrency(agencyTotal);
+
+  const agencyFeeBase = document.querySelector('[data-summary-value="agentur-fee-base"]');
+  if (agencyFeeBase) agencyFeeBase.textContent = KampagneUtils.formatCurrency(baseFee);
+
+  const agencyFeeMargin = document.querySelector('[data-summary-value="agentur-fee-margin"]');
+  if (agencyFeeMargin) agencyFeeMargin.textContent = KampagneUtils.formatCurrency(ekVkMarginSum || 0);
 }
 
-export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum) {
+export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum) {
   const gesamtNettoBetrag = parseFloat(kampagneData?.auftrag?.nettobetrag) || 0;
   const totalBudget = parseFloat(
     kampagneData?.auftrag?.creator_budget ||
@@ -75,9 +100,10 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
   );
   const usedBudget = koopBudgetSum || 0;
   const openBudget = Math.max(0, totalBudget - usedBudget);
-  const totalVideos = kampagneData?.videoanzahl || 0;
+  const targets = resolveTargets(kampagneData);
+  const totalVideos = targets.videos;
   const usedVideos = koopVideosUsed || 0;
-  const totalCreators = kampagneData?.creatoranzahl || 0;
+  const totalCreators = targets.creators;
   const usedCreators = koopCreatorsUsed || 0;
 
   const budgetPct = KampagneUtils.getProgressPercentage(usedBudget, totalBudget);
@@ -102,29 +128,51 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
     ? extraServices.filter(s => s && typeof s.name === 'string' && s.name.trim())
     : [];
 
-  const showAgencyFee = d?.agency_services_enabled && d.percentage_fee_enabled && parseFloat(d.percentage_fee_value) > 0;
-  const showKsk = d?.agency_services_enabled && d.ksk_enabled && parseFloat(d.ksk_value) > 0;
+  const agencyFeeSummary = calculateAgencyFeeSummary(d, [], []);
+  const agencyFeeSummaryWithMargin = { ...agencyFeeSummary, ekVkMargin: ekVkMarginSum || 0, total: agencyFeeSummary.baseFee + (ekVkMarginSum || 0), showAgencyFeeCard: (agencyFeeSummary.baseFee + (ekVkMarginSum || 0)) > 0 };
+  const fmt = KampagneUtils.formatCurrency;
 
   const zusatzleistungenCardsHtml = validExtraServices.map(s => `
         <div class="summary-card">
-          <div class="summary-value">${KampagneUtils.formatCurrency(parseFloat(s.amount) || 0)}</div>
+          <div class="summary-value">${fmt(parseFloat(s.amount) || 0)}</div>
           <div class="summary-label">${sanitize(s.name)}</div>
         </div>
       `).join('');
+
+  const hasBase = agencyFeeSummaryWithMargin.baseFee > 0;
+  const hasMargin = (ekVkMarginSum || 0) !== 0;
+  const showBreakdown = hasBase && hasMargin;
+
+  const agencyFeeCardHtml = agencyFeeSummaryWithMargin.showAgencyFeeCard ? `
+        <div class="summary-card" data-summary-card="agentur-fee">
+          <div class="summary-value" data-summary-value="agentur-fee-total">${fmt(agencyFeeSummaryWithMargin.total)}</div>
+          <div class="summary-label">Agentur Fee</div>
+          ${showBreakdown ? `
+          <div class="summary-card-breakdown">
+            <div class="summary-card-breakdown-line">
+              <span>Festgelegt</span>
+              <span data-summary-value="agentur-fee-base">${fmt(agencyFeeSummaryWithMargin.baseFee)}</span>
+            </div>
+            <div class="summary-card-breakdown-line">
+              <span>EK/VK-Differenz</span>
+              <span data-summary-value="agentur-fee-margin">${fmt(ekVkMarginSum || 0)}</span>
+            </div>
+          </div>` : ''}
+        </div>` : '';
 
   return `
     <div class="auftragsdetails-summary" style="margin-bottom: var(--space-xl);">
       <div class="summary-cards">
         <div class="summary-card" data-summary-card="gesamt-netto">
-          <div class="summary-value">${KampagneUtils.formatCurrency(gesamtNettoBetrag)}</div>
+          <div class="summary-value">${fmt(gesamtNettoBetrag)}</div>
           <div class="summary-label">Gesamt Nettobetrag</div>
         </div>
         <div class="summary-card" data-summary-card="total-budget">
-          <div class="summary-value" data-summary-value="total-budget">${KampagneUtils.formatCurrency(totalBudget)}</div>
+          <div class="summary-value" data-summary-value="total-budget">${fmt(totalBudget)}</div>
           <div class="summary-label">Creatorbudget</div>
         </div>
         <div class="summary-card" data-summary-card="spent-budget">
-          <div class="summary-value" data-summary-value="spent-budget">${KampagneUtils.formatCurrency(usedBudget)}</div>
+          <div class="summary-value" data-summary-value="spent-budget">${fmt(usedBudget)}</div>
           <div class="summary-label">Verbrauchtes Creatorbudget</div>
           <div class="summary-progress">
             <div class="summary-progress-fill ${getBudgetColorClass(budgetPct)}" data-summary-progress="spent-budget"
@@ -133,7 +181,7 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
           </div>
         </div>
         <div class="summary-card" data-summary-card="open-budget">
-          <div class="summary-value" data-summary-value="open-budget">${KampagneUtils.formatCurrency(openBudget)}</div>
+          <div class="summary-value" data-summary-value="open-budget">${fmt(openBudget)}</div>
           <div class="summary-label">Offenes Budget</div>
           <div class="summary-progress">
             <div class="summary-progress-fill ${getOpenBudgetColorClass(openPct)}" data-summary-progress="open-budget"
@@ -142,18 +190,10 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
           </div>
         </div>
         ${zusatzleistungenCardsHtml}
-        ${showKsk ? `
-        <div class="summary-card" data-summary-card="ksk">
-          <div class="summary-value">${KampagneUtils.formatCurrency(parseFloat(d.ksk_value))}</div>
-          <div class="summary-label">KSK</div>
-        </div>` : ''}
-        ${showAgencyFee ? `
-        <div class="summary-card" data-summary-card="agentur-fee">
-          <div class="summary-value">${KampagneUtils.formatCurrency(parseFloat(d.percentage_fee_value))}</div>
-          <div class="summary-label">Agentur Fee</div>
-        </div>` : ''}
+        ${renderKskCardHtml(agencyFeeSummaryWithMargin, fmt)}
+        ${agencyFeeCardHtml}
         <div class="summary-card" data-summary-card="extra-kosten-vk">
-          <div class="summary-value" data-summary-value="extra-kosten-vk">${KampagneUtils.formatCurrency(extraKostenVkSum || 0)}</div>
+          <div class="summary-value" data-summary-value="extra-kosten-vk">${fmt(extraKostenVkSum || 0)}</div>
           <div class="summary-label">Extra Kosten</div>
         </div>
         <div class="summary-card" data-summary-card="creators">

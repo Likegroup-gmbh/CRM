@@ -56,6 +56,7 @@ export class ProjektErstellenWizard {
         ust_betrag: null,
         bruttobetrag: null,
         anzahl_teilrechnungen: 1,
+        teilrechnungen: [],
 
         auftragsbestaetigungen_files: [],
         rechnungen_files: []
@@ -173,7 +174,7 @@ export class ProjektErstellenWizard {
       details: { ...this.formData.details, ...loaded.formData.details },
       kampagne: { ...this.formData.kampagne, ...loaded.formData.kampagne }
     };
-    this.editKampagneId = loaded.raw?.kampagne?.id || null;
+    this.editKampagneId = this._resolveKampagneIdFromUrl() || loaded.raw?.kampagne?.id || null;
     this.editRaw = loaded.raw;
 
     this._isContracting = this.isContracting;
@@ -209,6 +210,12 @@ export class ProjektErstellenWizard {
     const normalized = STEP_MAP[key.toLowerCase()] || key.toLowerCase();
     const idx = labels.indexOf(normalized);
     return idx >= 0 ? idx + 1 : null;
+  }
+
+  _resolveKampagneIdFromUrl() {
+    try {
+      return new URL(window.location.href).searchParams.get('kampagneId') || null;
+    } catch { return null; }
   }
 
   render() {

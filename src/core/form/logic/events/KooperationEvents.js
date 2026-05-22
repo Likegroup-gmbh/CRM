@@ -252,6 +252,17 @@ export async function setup(form, ctx) {
         console.warn('⚠️ Kampagnenarten konnten nicht geladen werden:', e);
       }
 
+      let blockTotal = 0;
+      if (kampagne?.auftrag_id) {
+        try {
+          const { data: blocks } = await window.supabase
+            .from('auftrag_kampagnenart_blocks')
+            .select('video_anzahl')
+            .eq('auftrag_id', kampagne.auftrag_id);
+          blockTotal = (blocks || []).reduce((sum, b) => sum + (parseInt(b.video_anzahl, 10) || 0), 0);
+        } catch (_) { /* ignore */ }
+      }
+
       const newFieldsSum =
         (parseInt(kampagne?.ugc_paid_video_anzahl, 10) || 0) +
         (parseInt(kampagne?.ugc_organic_video_anzahl, 10) || 0) +
@@ -267,7 +278,7 @@ export async function setup(form, ctx) {
         (parseInt(kampagne?.igc_video_anzahl, 10) || 0) +
         (parseInt(kampagne?.influencer_video_anzahl, 10) || 0) +
         (parseInt(kampagne?.vor_ort_video_anzahl, 10) || 0);
-      const totalVideos = newFieldsSum || legacyFieldsSum || (kampagne?.videoanzahl ?? 0);
+      const totalVideos = blockTotal || newFieldsSum || legacyFieldsSum || (kampagne?.videoanzahl ?? 0);
 
       const currentKoopId = form.dataset.entityId;
       let koopQuery = window.supabase

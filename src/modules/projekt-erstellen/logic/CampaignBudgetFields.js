@@ -194,6 +194,42 @@ export function aggregateCampaignBlocksForLegacy(blocks = []) {
 }
 
 /**
+ * Berechnet die Soll-Summen (videos, creators) aus der besten verfügbaren Quelle.
+ * Priorität: blocks > auftragDetails.gesamt_* > Legacy-Spalten > kampagne-Spalten.
+ */
+export function getCampaignTargetTotals({ blocks = [], auftragDetails = null, kampagne = null } = {}) {
+  const sumBlocks = (blocks || []).reduce((sum, b) => {
+    sum.videos += parseInt(b.video_anzahl, 10) || 0;
+    sum.creators += parseInt(b.creator_anzahl, 10) || 0;
+    return sum;
+  }, { videos: 0, creators: 0 });
+
+  if (sumBlocks.videos > 0 || sumBlocks.creators > 0) return sumBlocks;
+
+  if (auftragDetails) {
+    const gv = parseInt(auftragDetails.gesamt_videos, 10) || 0;
+    const gc = parseInt(auftragDetails.gesamt_creator, 10) || 0;
+    if (gv > 0 || gc > 0) return { videos: gv, creators: gc };
+
+    const chips = Array.isArray(auftragDetails.campaign_type) ? auftragDetails.campaign_type : [];
+    if (chips.length > 0) {
+      const budgets = mapDbColumnsToBudgets(auftragDetails, chips);
+      const legacy = Object.values(budgets).reduce((sum, v) => {
+        sum.videos += parseInt(v.video_anzahl, 10) || 0;
+        sum.creators += parseInt(v.creator_anzahl, 10) || 0;
+        return sum;
+      }, { videos: 0, creators: 0 });
+      if (legacy.videos > 0 || legacy.creators > 0) return legacy;
+    }
+  }
+
+  return {
+    videos: parseInt(kampagne?.videoanzahl, 10) || 0,
+    creators: parseInt(kampagne?.creatoranzahl, 10) || 0
+  };
+}
+
+/**
  * Generiert HTML fuer einen wiederholbaren Kampagnenart-Block.
  */
 export function generateBudgetBlockHtml(block, campaignTypes = [], index = 0) {
