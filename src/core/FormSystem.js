@@ -293,6 +293,13 @@ export class FormSystem {
         // Rechnungs-Dateien (Belege + PDF) beim Edit verarbeiten
         if (entity === 'rechnung') {
           try {
+            const { syncEkZusatzkostenAfterRechnungSave } = await import('./RechnungZusatzkostenSync.js');
+            await syncEkZusatzkostenAfterRechnungSave(result.id);
+          } catch (syncErr) {
+            console.warn('Zusatzkosten-Sync fehlgeschlagen:', syncErr);
+          }
+
+          try {
             await this.handleRechnungFiles(result.id, form);
           } catch (fileErr) {
             this.validator.showErrorMessage(`Rechnung gespeichert, aber PDF-Verarbeitung fehlgeschlagen: ${fileErr.message}`);
