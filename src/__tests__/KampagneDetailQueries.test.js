@@ -8,6 +8,7 @@ function createQueryMock(result = { data: [], error: null }) {
     eq: vi.fn(() => mock),
     in: vi.fn(() => mock),
     single: vi.fn(() => Promise.resolve(mock._result)),
+    maybeSingle: vi.fn(() => Promise.resolve(mock._result)),
     order: vi.fn(() => mock),
     then: (resolve) => resolve(mock._result),
   };

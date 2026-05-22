@@ -70,7 +70,7 @@ export class KooperationEditLoader {
     this._fillSelectField(form, 'briefing_id', briefings, data?.briefing_id, { displayField: 'product_service_offer' });
     this._fillCreatorField(form, creators, creatorId, currentCreator);
 
-    const totalVideos = this._getKampagneTotalVideos(kampagne);
+    const totalVideos = await this._getKampagneTotalVideosWithBlocks(kampagne);
     const usedVideos = (andereKooperationen || []).reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
     const remainingVideos = Math.max(0, totalVideos - usedVideos + (parseInt(data?.videoanzahl, 10) || 0));
     const isUnlimited = totalVideos === 0;
@@ -439,6 +439,22 @@ export class KooperationEditLoader {
       (parseInt(kampagne.influencer_video_anzahl, 10) || 0) +
       (parseInt(kampagne.vor_ort_video_anzahl, 10) || 0);
     return newSum || legacy || (kampagne.videoanzahl ?? 0);
+  }
+
+  async _getKampagneTotalVideosWithBlocks(kampagne) {
+    if (!kampagne) return 0;
+    let blockTotal = 0;
+    if (kampagne.auftrag_id && window.supabase) {
+      try {
+        const { data: blocks } = await window.supabase
+          .from('auftrag_kampagnenart_blocks')
+          .select('video_anzahl')
+          .eq('auftrag_id', kampagne.auftrag_id);
+        blockTotal = (blocks || []).reduce((sum, b) => sum + (parseInt(b.video_anzahl, 10) || 0), 0);
+      } catch (_) { /* ignore */ }
+    }
+    if (blockTotal > 0) return blockTotal;
+    return this._getKampagneTotalVideos(kampagne);
   }
 
   // Kampagnenarten-Options aus auftrag_kampagne_art oder Fallback auf alle

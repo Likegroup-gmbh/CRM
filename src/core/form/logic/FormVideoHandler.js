@@ -45,12 +45,23 @@ export class FormVideoHandler {
 
       const { data: kampagne, error: kampagneError } = await window.supabase
         .from('kampagne')
-        .select('videoanzahl, ugc_paid_video_anzahl, ugc_organic_video_anzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, story_video_anzahl, vor_ort_video_anzahl, ugc_video_anzahl, igc_video_anzahl')
+        .select('videoanzahl, auftrag_id, ugc_paid_video_anzahl, ugc_organic_video_anzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, story_video_anzahl, vor_ort_video_anzahl, ugc_video_anzahl, igc_video_anzahl')
         .eq('id', kampagneId)
         .single();
 
       if (kampagneError) {
         throw kampagneError;
+      }
+
+      let blockTotal = 0;
+      if (kampagne?.auftrag_id) {
+        try {
+          const { data: blocks } = await window.supabase
+            .from('auftrag_kampagnenart_blocks')
+            .select('video_anzahl')
+            .eq('auftrag_id', kampagne.auftrag_id);
+          blockTotal = (blocks || []).reduce((sum, b) => sum + (parseInt(b.video_anzahl, 10) || 0), 0);
+        } catch (_) { /* ignore */ }
       }
 
       let koopQuery = window.supabase
@@ -67,7 +78,7 @@ export class FormVideoHandler {
         throw koopError;
       }
 
-      const totalVideos = this.getKampagneTotalVideos(kampagne);
+      const totalVideos = blockTotal || this.getKampagneTotalVideos(kampagne);
 
       // Unlimited-Modus: Wenn die Kampagne kein Video-Kontingent definiert hat,
       // duerfen Kooperationen frei angelegt werden -- der Counter laeuft nach oben.

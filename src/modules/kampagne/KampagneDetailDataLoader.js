@@ -49,12 +49,21 @@ export async function loadCriticalData(kampagneId) {
       .eq('id', kampagneId)
       .single()
       .then(async (res) => {
-        if (res.error || !res.data?.auftrag_id) return { data: null, error: null };
-        return window.supabase
-          .from('auftrag_details')
-          .select('agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, extra_services_enabled, extra_services')
-          .eq('auftrag_id', res.data.auftrag_id)
-          .maybeSingle();
+        if (res.error || !res.data?.auftrag_id) return { data: null, error: null, blocks: [] };
+        const auftragId = res.data.auftrag_id;
+        const [detailsRes, blocksRes] = await Promise.all([
+          window.supabase
+            .from('auftrag_details')
+            .select('agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, extra_services_enabled, extra_services, gesamt_videos, gesamt_creator, campaign_type')
+            .eq('auftrag_id', auftragId)
+            .maybeSingle(),
+          window.supabase
+            .from('auftrag_kampagnenart_blocks')
+            .select('video_anzahl, creator_anzahl, campaign_type, sort_order')
+            .eq('auftrag_id', auftragId)
+            .order('sort_order', { ascending: true })
+        ]);
+        return { data: detailsRes.data, error: detailsRes.error, blocks: blocksRes.data || [] };
       })
   ]);
 
@@ -67,6 +76,7 @@ export async function loadCriticalData(kampagneId) {
     .filter(Boolean) || [];
 
   kampagneData.auftragDetails = auftragDetailsResult?.data || null;
+  kampagneData.campaignBlocks = auftragDetailsResult?.blocks || [];
 
   const mitarbeiterData = mitarbeiterResult.data || [];
   kampagneData.mitarbeiter = mitarbeiterData.map(m => ({
