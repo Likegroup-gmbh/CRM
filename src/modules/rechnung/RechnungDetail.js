@@ -351,6 +351,13 @@ export class RechnungDetail {
 
       const result = await window.dataService.createEntity('rechnung', submitData);
       if (result.success) {
+        try {
+          const { syncEkZusatzkostenAfterRechnungSave } = await import('../../core/RechnungZusatzkostenSync.js');
+          await syncEkZusatzkostenAfterRechnungSave(result.id);
+        } catch (syncErr) {
+          console.warn('Zusatzkosten-Sync fehlgeschlagen:', syncErr);
+        }
+
         // PDF-Metadaten in rechnung_pdfs speichern
         try {
           const rechnungId = result.id;
