@@ -226,7 +226,7 @@ describe('AuftragsdetailsDetail', () => {
     expect(html).not.toContain('Gesamt Nettobetrag');
   });
 
-  it('Kunde sieht keine Agency Fee wenn baseFee 0 (auch bei Margin)', () => {
+  it('Kunde sieht Agency Fee-Kachel ohne Breakdown auch bei baseFee 0', () => {
     window.currentUser = { rolle: 'kunde' };
 
     const instance = new AuftragsdetailsDetail();
@@ -239,10 +239,12 @@ describe('AuftragsdetailsDetail', () => {
     instance.calculateBudgetSummary();
     const html = instance.renderInformationen();
 
-    expect(html).not.toContain('Agentur Fee');
+    expect(html).toContain('Agentur Fee');
+    expect(html).not.toContain('Festgelegt');
+    expect(html).not.toContain('EK/VK-Differenz');
   });
 
-  it('Agency Fee EK/VK-Margin nur für bezahlte Kooperationen', () => {
+  it('Agency Fee EK/VK-Margin aus allen Kooperationen (ohne Bezahlt-Filter)', () => {
     window.currentUser = { rolle: 'mitarbeiter' };
 
     const instance = new AuftragsdetailsDetail();
@@ -258,34 +260,29 @@ describe('AuftragsdetailsDetail', () => {
     ];
     instance.videos = [];
     instance.kampagnen = [];
-    instance.rechnungStatusMap = { k1: 'Bezahlt', k2: 'Offen' };
 
     instance.calculateBudgetSummary();
 
-    expect(instance.budgetSummary.agencyFeeSummary.ekVkMargin).toBe(200);
-    expect(instance.budgetSummary.agencyFeeSummary.total).toBe(300);
+    expect(instance.budgetSummary.agencyFeeSummary.ekVkMargin).toBe(300);
+    expect(instance.budgetSummary.agencyFeeSummary.total).toBe(400);
   });
 
-  it('Agency Fee EK/VK-Margin = 0 wenn keine Kooperation bezahlt', () => {
+  it('zeigt Creatorbudget-Prozent-Tag in der EK/VK-Differenz-Zeile', () => {
     window.currentUser = { rolle: 'mitarbeiter' };
 
     const instance = new AuftragsdetailsDetail();
-    instance.details = {
-      agency_services_enabled: true,
-      percentage_fee_enabled: true,
-      percentage_fee_value: '100',
-    };
-    instance.auftrag = { id: 'a1', nettobetrag: 5000 };
+    instance.details = {};
+    instance.auftrag = { id: 'a1', creator_budget: 1000 };
     instance.kooperationen = [
-      { id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: 300, verkaufspreis_zusatzkosten: 0 },
+      { id: 'k1', creator: { id: 'c1', vorname: 'Max' }, einkaufspreis_netto: 100, verkaufspreis_netto: 300, verkaufspreis_zusatzkosten: 0 },
     ];
     instance.videos = [];
-    instance.kampagnen = [];
-    instance.rechnungStatusMap = {};
+    instance.kampagnen = [{ id: 'ka1', kampagnenname: 'Test', videoanzahl: 1, creatoranzahl: 1 }];
 
     instance.calculateBudgetSummary();
+    const html = instance.renderCreatorVideosTable();
 
-    expect(instance.budgetSummary.agencyFeeSummary.ekVkMargin).toBe(0);
-    expect(instance.budgetSummary.agencyFeeSummary.total).toBe(100);
+    expect(html).toContain('class="tag tag--branche"');
+    expect(html).toContain('20% Creatorbudget');
   });
 });

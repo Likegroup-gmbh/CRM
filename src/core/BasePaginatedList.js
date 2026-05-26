@@ -5,6 +5,7 @@
 import { PaginationSystem } from './PaginationSystem.js';
 import { TableAnimationHelper } from './TableAnimationHelper.js';
 import { modularFilterSystem as filterSystem } from './filters/ModularFilterSystem.js';
+import { getSearchConfig } from './config/ListSearchConfig.js';
 
 /**
  * Abstrakte Basisklasse für paginierte Listen
@@ -163,8 +164,14 @@ export class BasePaginatedList {
       _sortOrder: this.currentSort.ascending ? 'asc' : 'desc'
     };
     
-    // Suchbegriff hinzufügen wenn vorhanden
     if (this.searchQuery && this.searchQuery.trim().length > 0) {
+      const searchConfig = getSearchConfig(this.entityType);
+      filters._search = {
+        query: this.searchQuery.trim(),
+        fields: searchConfig.fields,
+        relations: searchConfig.relations || []
+      };
+      // Legacy-Kompatibilitaet: filters.name weiterhin setzen fuer Services die noch nicht umgestellt sind
       filters.name = this.searchQuery.trim();
     }
     

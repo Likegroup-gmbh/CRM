@@ -118,7 +118,7 @@ export async function loadUnternehmenData(detail) {
     const auftragIds = detail.auftraege.map(a => a.id).filter(Boolean);
     const kampagneIds = detail.kampagnen.map(k => k.id).filter(Boolean);
 
-    const [auftragsdetailsResult, kooperationenResult] = await Promise.all([
+    const [auftragsdetailsResult, kooperationenResult, teilrechnungenResult] = await Promise.all([
       auftragIds.length > 0
         ? window.supabase.from('auftrag_details')
             .select('*, auftrag:auftrag_id (id, auftragsname, status, po, start, ende, externe_po, marke:marke_id(id, markenname, logo_url)), created_by:created_by_id(id, name, profile_image_url)')
@@ -130,11 +130,69 @@ export async function loadUnternehmenData(detail) {
             .select('id, name, status, videoanzahl, einkaufspreis_gesamt, verkaufspreis_gesamt, verkaufspreis_zusatzkosten, kampagne_id, creator_id, created_at, kampagne:kampagne_id(kampagnenname, eigener_name)')
             .in('kampagne_id', kampagneIds)
             .order('created_at', { ascending: false })
+        : Promise.resolve({ data: [] }),
+      auftragIds.length > 0
+        ? window.supabase.from('auftrag_teilrechnung')
+            .select('*')
+            .in('auftrag_id', auftragIds)
+            .order('position', { ascending: true })
         : Promise.resolve({ data: [] })
     ]);
 
     detail.auftragsdetails = auftragsdetailsResult.data || [];
     detail.kooperationen = kooperationenResult.data || [];
+
+    // Kundenrechnungen: Aufträge nach Teilrechnungen explodieren
+    const TR_FIELDS = [
+      're_nr', 'externe_po', 'nettobetrag', 'ust_betrag', 'bruttobetrag',
+      'rechnung_gestellt', 'rechnung_gestellt_am', 're_faelligkeit',
+      'ueberwiesen', 'ueberwiesen_am'
+    ];
+    const teilrechnungen = teilrechnungenResult.data || [];
+    const trByAuftrag = new Map();
+    for (const tr of teilrechnungen) {
+      if (!trByAuftrag.has(tr.auftrag_id)) trByAuftrag.set(tr.auftrag_id, []);
+      trByAuftrag.get(tr.auftrag_id).push(tr);
+    }
+
+    const exploded = [];
+    for (const auftrag of detail.auftraege) {
+      const base = {
+        id: auftrag.id,
+        auftragsname: auftrag.auftragsname,
+        angebotsnummer: auftrag.angebotsnummer,
+        re_nr: auftrag.re_nr,
+        externe_po: auftrag.externe_po,
+        zahlungsziel_tage: auftrag.zahlungsziel_tage,
+        re_faelligkeit: auftrag.re_faelligkeit,
+        nettobetrag: auftrag.nettobetrag,
+        ust_betrag: auftrag.ust_betrag,
+        bruttobetrag: auftrag.bruttobetrag,
+        rechnung_gestellt: auftrag.rechnung_gestellt,
+        rechnung_gestellt_am: auftrag.rechnung_gestellt_am,
+        ueberwiesen: auftrag.ueberwiesen,
+        ueberwiesen_am: auftrag.ueberwiesen_am,
+        marke: auftrag.marke,
+        status: auftrag.status
+      };
+
+      const trs = trByAuftrag.get(auftrag.id);
+      if (trs && trs.length > 0) {
+        const total = trs.length;
+        for (const tr of trs) {
+          const row = { ...base };
+          for (const field of TR_FIELDS) {
+            if (tr[field] !== undefined) row[field] = tr[field];
+          }
+          row._teilrechnung = { position: tr.position, total, label: `${tr.position} von ${total}` };
+          exploded.push(row);
+        }
+      } else {
+        base._teilrechnung = { position: 1, total: 1, label: '1 von 1' };
+        exploded.push(base);
+      }
+    }
+    detail.kundenrechnungen = exploded;
 
     // ========== BATCH 3: Creator + Kampagnenart-Typen parallel laden ==========
     const creatorIds = Array.from(new Set(detail.kooperationen.map(k => k.creator_id).filter(Boolean)));

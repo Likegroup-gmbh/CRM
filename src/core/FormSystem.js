@@ -11,6 +11,7 @@ import { OptionsManager } from './form/data/OptionsManager.js';
 import { FormVideoHandler } from './form/logic/FormVideoHandler.js';
 import { FormRelationsHandler } from './form/logic/FormRelationsHandler.js';
 import { FormSearchableSelect } from './form/logic/FormSearchableSelect.js';
+import { finalizeRechnungSubmitData } from './form/logic/events/RechnungEvents.js';
 // Neue Architektur
 import { SmartFormInitializer } from './form/initialization/SmartFormInitializer.js';
 
@@ -262,6 +263,12 @@ export class FormSystem {
 
       // Entity erstellen/aktualisieren
       let result;
+
+      // Rechnungen: Toggle → ust_prozent finalisieren (ust_aktiv ist UI-only)
+      if (entity === 'rechnung' || entity === 'rechnung_contracting') {
+        finalizeRechnungSubmitData(form, submitData);
+      }
+
       if (data && data.id) {
         // Update
         result = await window.dataService.updateEntity(entity, data.id, submitData);

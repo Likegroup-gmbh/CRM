@@ -22,6 +22,7 @@ export class UnternehmenDetail extends PersonDetailBase {
     this.kooperationen = [];
     this.creators = [];
     this.rechnungen = [];
+    this.kundenrechnungen = [];
     this.vertraege = [];
     this.strategien = [];
     this.creatorAuswahlen = [];

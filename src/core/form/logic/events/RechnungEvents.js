@@ -99,6 +99,41 @@ export function berechneRechnungFromInputs({ nettoInput, zusatzInput, skontoTogg
   if (bruttoInput) bruttoInput.value = brutto.toFixed(2);
 }
 
+/**
+ * Finalisiert submitData vor dem Speichern einer Rechnung.
+ * Stellt sicher, dass ust_prozent korrekt aus dem Toggle abgeleitet wird
+ * und alle berechneten Felder konsistent sind.
+ * Muss nach collectSubmitData/FormData-Auslesen aufgerufen werden.
+ */
+export function finalizeRechnungSubmitData(form, submitData) {
+  const ustAktivToggle = form.querySelector('input[name="ust_aktiv"]');
+  const ustProzentInput = form.querySelector('input[name="ust_prozent"]');
+  const skontoToggle = form.querySelector('input[name="skonto"]');
+
+  const ustAktiv = ustAktivToggle ? ustAktivToggle.checked : true;
+  const rawProzent = parseFloat(ustProzentInput?.value);
+  submitData.ust_prozent = ustAktiv ? (Number.isFinite(rawProzent) && rawProzent > 0 ? rawProzent : 19) : 0;
+
+  // Berechnete Felder aus dem Formular übernehmen (berechneRechnung() lief bereits via Event-Listener)
+  const readField = (name) => {
+    const el = form.querySelector(`input[name="${name}"]`);
+    const v = parseFloat(el?.value);
+    return Number.isFinite(v) ? v : null;
+  };
+  submitData.ust_betrag = readField('ust_betrag');
+  submitData.bruttobetrag = readField('bruttobetrag');
+
+  // Checkboxen/Toggles die FormData evtl. nicht enthält (unchecked)
+  if (skontoToggle) submitData.skonto = skontoToggle.checked;
+  const geprueftToggle = form.querySelector('input[name="geprueft"]');
+  if (geprueftToggle) submitData.geprueft = geprueftToggle.checked;
+  const kskToggle = form.querySelector('input[name="ksk_pflichtig"]');
+  if (kskToggle) submitData.ksk_pflichtig = kskToggle.checked;
+
+  // UI-only Feld entfernen
+  delete submitData.ust_aktiv;
+}
+
 export async function setup(form, ctx) {
   const koopSelect = findSelect(form, 'kooperation_id');
   if (!koopSelect || !window.supabase) return;

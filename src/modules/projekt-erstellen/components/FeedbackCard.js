@@ -108,7 +108,7 @@ export class FeedbackCard {
       <div class="projekt-erstellen-summary-doc">
         ${this.renderSummarySection('Basisdaten', this.buildStep1(formData))}
         ${this.renderSummarySection(isContracting ? 'Finanzen' : 'Details', this.buildStep2(formData))}
-        ${isContracting ? '' : this.renderSummarySection('Kampagne', this.buildKampagneSummary(formData))}
+        ${isContracting ? '' : this.renderSummarySection('Kampagne', this.buildKampagneSummaryInline(formData))}
       </div>
     `;
   }
@@ -201,7 +201,7 @@ export class FeedbackCard {
       [
         this.renderSummaryMetric('Art des Auftrags', artLabel, !artLabel),
         this.renderSummaryMetric('Interne PO', this.escapeHtml(a.po || ''), !a.po),
-        this.renderSummaryMetric('Titel', this.escapeHtml(a.titel || ''), !a.titel)
+        this.renderSummaryMetric('Projektname', this.escapeHtml(a.titel || ''), !a.titel)
       ]
     ]);
   }
@@ -423,6 +423,23 @@ export class FeedbackCard {
     return `
       <div class="projekt-erstellen-summary-metrics">
         ${this.renderSummaryMetric('Kampagnenname', this.escapeHtml(name || ''), !name)}
+        ${this.renderSummaryMetric('Creator gesamt', formatNumber(totals.creators), false)}
+        ${this.renderSummaryMetric('Videos gesamt', formatNumber(totals.videos), false)}
+      </div>
+      ${this.buildStep3Kampagnenarten(formData)}
+      <div class="projekt-erstellen-summary-metrics">
+        ${agencyMetrics.join('')}
+      </div>
+    `;
+  }
+
+  buildKampagneSummaryInline(formData) {
+    const d = formData.details || {};
+    const totals = this.calculateCampaignTotals(normalizeCampaignBlocks(d));
+    const agencyMetrics = this.buildAgencyMetrics(d);
+
+    return `
+      <div class="projekt-erstellen-summary-metrics">
         ${this.renderSummaryMetric('Creator gesamt', formatNumber(totals.creators), false)}
         ${this.renderSummaryMetric('Videos gesamt', formatNumber(totals.videos), false)}
       </div>

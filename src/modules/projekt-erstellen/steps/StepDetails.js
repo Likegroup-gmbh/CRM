@@ -7,6 +7,8 @@
 import { AgencyServicesBlock } from '../components/AgencyServicesBlock.js';
 import { CustomDatePicker } from '../../../core/components/CustomDatePicker.js';
 import { generateAuftragTitle } from '../components/TitelGenerator.js';
+import { parseCurrencyInput } from '../../../core/utils/parseCurrency.js';
+import { StepKampagnenarten } from './StepKampagnenarten.js';
 
 const DEFAULT_UST_PROZENT = 19;
 
@@ -15,9 +17,9 @@ export class StepDetails {
     this.wizard = wizard;
     this.host = null;
     this.agencyBlock = null;
+    this.kampagnenStep = null;
     this.angebotsnummerOptions = [];
     this._datePickerCleanup = null;
-    this._trDatePickerCleanups = [];
   }
 
   get isContracting() {
@@ -28,7 +30,7 @@ export class StepDetails {
     const a = this.wizard.formData.auftrag;
     const count = Math.max(1, parseInt(a.anzahl_teilrechnungen, 10) || 1);
     if (!Array.isArray(a.teilrechnungen) || a.teilrechnungen.length === 0) {
-      const netto = parseFloat(a.nettobetrag) || 0;
+      const netto = parseCurrencyInput(a.nettobetrag) || 0;
       const perTR = count > 0 ? +(netto / count).toFixed(2) : 0;
       a.teilrechnungen = Array.from({ length: count }, (_, i) => this._makeTeilrechnung(i + 1, perTR));
     }
@@ -48,20 +50,21 @@ export class StepDetails {
       rechnung_gestellt_am: null,
       re_faelligkeit: null,
       erwarteter_monat_zahlungseingang: null,
+      notiz: '',
       ueberwiesen: false,
       ueberwiesen_am: null
     };
   }
 
   _recalcTRBrutto(tr) {
-    const net = parseFloat(tr.nettobetrag) || 0;
+    const net = parseCurrencyInput(tr.nettobetrag) || 0;
     tr.ust_betrag = +(net * DEFAULT_UST_PROZENT / 100).toFixed(2);
     tr.bruttobetrag = +(net + tr.ust_betrag).toFixed(2);
   }
 
   _distributeEvenly() {
     const a = this.wizard.formData.auftrag;
-    const netto = parseFloat(a.nettobetrag) || 0;
+    const netto = parseCurrencyInput(a.nettobetrag) || 0;
     const trs = a.teilrechnungen || [];
     if (trs.length === 0) return;
     const perTR = +(netto / trs.length).toFixed(2);
@@ -74,7 +77,7 @@ export class StepDetails {
   _sumUpFromTeilrechnungen() {
     const a = this.wizard.formData.auftrag;
     const trs = a.teilrechnungen || [];
-    const totalNetto = trs.reduce((sum, tr) => sum + (parseFloat(tr.nettobetrag) || 0), 0);
+    const totalNetto = trs.reduce((sum, tr) => sum + (parseCurrencyInput(tr.nettobetrag) || 0), 0);
     a.nettobetrag = +totalNetto.toFixed(2);
     a.ust_betrag = +(totalNetto * DEFAULT_UST_PROZENT / 100).toFixed(2);
     a.bruttobetrag = +(totalNetto + a.ust_betrag).toFixed(2);
@@ -142,22 +145,25 @@ export class StepDetails {
           <div class="form-two-col">
             <div class="form-field form-field--half">
               <label for="field-pe-nettobetrag">Netto (€)</label>
-              <input type="number" id="field-pe-nettobetrag" step="0.01" min="0" value="${a.nettobetrag ?? ''}">
+              <input type="text" inputmode="decimal" id="field-pe-nettobetrag" value="${a.nettobetrag ?? ''}">
             </div>
             <div class="form-field form-field--half">
               <label for="field-pe-ust_betrag">MwSt-Gesamtbetrag (€)</label>
-              <input type="number" id="field-pe-ust_betrag" step="0.01" min="0" value="${a.ust_betrag ?? ''}" readonly>
+              <input type="text" inputmode="decimal" id="field-pe-ust_betrag" value="${a.ust_betrag ?? ''}" readonly>
             </div>
           </div>
           <div class="form-field form-field--half">
             <label for="field-pe-bruttobetrag">Bruttobetrag (€)</label>
-            <input type="number" id="field-pe-bruttobetrag" step="0.01" min="0" value="${a.bruttobetrag ?? ''}" readonly>
+            <input type="text" inputmode="decimal" id="field-pe-bruttobetrag" value="${a.bruttobetrag ?? ''}" readonly>
           </div>
         </div>
 
         <div id="pe-teilrechnungen-host"></div>
 
-        ${this.isContracting ? '<div id="pe-agency-host"></div>' : ''}
+        ${this.isContracting
+          ? '<div id="pe-agency-host"></div>'
+          : '<div id="pe-kampagnen-host"></div>'
+        }
 
       </div>
     `;
@@ -168,9 +174,6 @@ export class StepDetails {
   _renderTeilrechnungsBlocks() {
     const host = document.getElementById('pe-teilrechnungen-host');
     if (!host) return;
-
-    this._trDatePickerCleanups.forEach(fn => { try { fn(); } catch (_) {} });
-    this._trDatePickerCleanups = [];
 
     const a = this.wizard.formData.auftrag;
     const trs = a.teilrechnungen || [];
@@ -183,16 +186,16 @@ export class StepDetails {
         <div class="form-two-col">
           <div class="form-field form-field--half">
             <label>Netto (€)</label>
-            <input type="number" class="pe-tr-nettobetrag" data-tr-index="${i}" step="0.01" min="0" value="${tr.nettobetrag ?? ''}">
+            <input type="text" inputmode="decimal" class="pe-tr-nettobetrag" data-tr-index="${i}" value="${tr.nettobetrag ?? ''}">
           </div>
           <div class="form-field form-field--half">
             <label>USt-Betrag (€)</label>
-            <input type="number" class="pe-tr-ust_betrag" data-tr-index="${i}" step="0.01" value="${tr.ust_betrag ?? ''}" readonly>
+            <input type="text" inputmode="decimal" class="pe-tr-ust_betrag" data-tr-index="${i}" value="${tr.ust_betrag ?? ''}" readonly>
           </div>
         </div>
         <div class="form-field form-field--half">
           <label>Bruttobetrag (€)</label>
-          <input type="number" class="pe-tr-bruttobetrag" data-tr-index="${i}" step="0.01" value="${tr.bruttobetrag ?? ''}" readonly>
+          <input type="text" inputmode="decimal" class="pe-tr-bruttobetrag" data-tr-index="${i}" value="${tr.bruttobetrag ?? ''}" readonly>
         </div>
 
         <div class="form-two-col">
@@ -219,6 +222,10 @@ export class StepDetails {
           <label>Erwarteter Zahlungseingang</label>
           ${CustomDatePicker.render({ id: `pe-tr-erwarteter_monat-${i}`, field: `tr_erwarteter_monat_${i}`, value: tr.erwarteter_monat_zahlungseingang, label: 'Erwarteter Zahlungseingang', variant: 'native', entity: 'projekt-erstellen' })}
         </div>
+        <div class="form-field">
+          <label>Notiz</label>
+          <textarea class="pe-tr-notiz" data-tr-index="${i}" rows="2" placeholder="Optionale Notiz zur Teilrechnung…">${this.escape(tr.notiz)}</textarea>
+        </div>
       </div>
     `).join('');
 
@@ -226,16 +233,20 @@ export class StepDetails {
   }
 
   _bindTeilrechnungsEvents(host) {
-    const cleanup = CustomDatePicker.bind(host);
-    if (cleanup) this._trDatePickerCleanups.push(cleanup);
-
     host.querySelectorAll('.pe-tr-nettobetrag').forEach(input => {
+      input.addEventListener('paste', () => {
+        setTimeout(() => {
+          const parsed = parseCurrencyInput(input.value);
+          if (parsed != null) input.value = parsed;
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+        }, 0);
+      });
       input.addEventListener('input', () => {
         const idx = parseInt(input.dataset.trIndex, 10);
         const tr = this.wizard.formData.auftrag.teilrechnungen[idx];
         if (!tr) return;
 
-        tr.nettobetrag = parseFloat(input.value) || 0;
+        tr.nettobetrag = parseCurrencyInput(input.value) || 0;
         this._recalcTRBrutto(tr);
 
         const block = input.closest('.pe-teilrechnung-block');
@@ -250,7 +261,7 @@ export class StepDetails {
       });
     });
 
-    host.querySelectorAll('.pe-tr-re_nr, .pe-tr-externe_po').forEach(input => {
+    host.querySelectorAll('.pe-tr-re_nr, .pe-tr-externe_po, .pe-tr-notiz').forEach(input => {
       input.addEventListener('input', () => {
         const idx = parseInt(input.dataset.trIndex, 10);
         const tr = this.wizard.formData.auftrag.teilrechnungen[idx];
@@ -258,6 +269,7 @@ export class StepDetails {
 
         if (input.classList.contains('pe-tr-re_nr')) tr.re_nr = input.value;
         if (input.classList.contains('pe-tr-externe_po')) tr.externe_po = input.value;
+        if (input.classList.contains('pe-tr-notiz')) tr.notiz = input.value;
         this.wizard.onFormDataChange();
       });
     });
@@ -290,10 +302,20 @@ export class StepDetails {
 
   _recalcTRFaelligkeit(trIndex) {
     const tr = this.wizard.formData.auftrag.teilrechnungen[trIndex];
-    if (!tr || !tr.rechnung_gestellt_am) return;
+    if (!tr) return;
 
     const ziel = parseInt(document.getElementById('field-pe-zahlungsziel_tage')?.value, 10);
-    if (isNaN(ziel)) return;
+    if (isNaN(ziel) || !tr.rechnung_gestellt_am) {
+      tr.re_faelligkeit = null;
+      tr.erwarteter_monat_zahlungseingang = null;
+      const host = document.getElementById('pe-teilrechnungen-host');
+      const block = host?.querySelector(`.pe-teilrechnung-block[data-tr-index="${trIndex}"]`);
+      const fInput = block?.querySelector(`.custom-date-picker__input[data-field="tr_re_faelligkeit_${trIndex}"]`);
+      const ezInput = block?.querySelector(`.custom-date-picker__input[data-field="tr_erwarteter_monat_${trIndex}"]`);
+      if (fInput) CustomDatePicker.setValue(fInput, '');
+      if (ezInput) CustomDatePicker.setValue(ezInput, '');
+      return;
+    }
 
     const d = new Date(tr.rechnung_gestellt_am);
     d.setDate(d.getDate() + ziel);
@@ -311,6 +333,11 @@ export class StepDetails {
     const ezInput = block.querySelector(`.custom-date-picker__input[data-field="tr_erwarteter_monat_${trIndex}"]`);
     if (fInput) CustomDatePicker.setValue(fInput, berechnet);
     if (ezInput) CustomDatePicker.setValue(ezInput, berechnet);
+  }
+
+  _recalcAllTRFaelligkeiten() {
+    const trs = this.wizard.formData.auftrag.teilrechnungen || [];
+    trs.forEach((_, i) => this._recalcTRFaelligkeit(i));
   }
 
   escape(v) {
@@ -368,6 +395,10 @@ export class StepDetails {
 
     await this.loadAngebotsnummerOptions();
     this.populateAngebotsnummerOptions();
+
+    if (this.kampagnenStep?.onEnter) {
+      await this.kampagnenStep.onEnter();
+    }
   }
 
   async loadAngebotsnummerOptions() {
@@ -420,13 +451,15 @@ export class StepDetails {
         }
       });
       this.agencyBlock.render();
+    } else {
+      this._mountKampagnenarten();
     }
 
     const recalcBrutto = () => {
-      const net = parseFloat(document.getElementById('field-pe-nettobetrag')?.value);
+      const net = parseCurrencyInput(document.getElementById('field-pe-nettobetrag')?.value);
       const ustBetragEl = document.getElementById('field-pe-ust_betrag');
       const bruttoEl = document.getElementById('field-pe-bruttobetrag');
-      if (!isNaN(net)) {
+      if (net != null) {
         const u = +(net * DEFAULT_UST_PROZENT / 100).toFixed(2);
         const b = +(net + u).toFixed(2);
         if (ustBetragEl) ustBetragEl.value = u;
@@ -437,9 +470,19 @@ export class StepDetails {
       }
     };
 
-    document.getElementById('field-pe-nettobetrag')?.addEventListener('input', () => {
-      const net = parseFloat(document.getElementById('field-pe-nettobetrag')?.value);
-      if (!isNaN(net)) {
+    const nettoEl = document.getElementById('field-pe-nettobetrag');
+    const handleNettoPaste = () => {
+      setTimeout(() => {
+        const parsed = parseCurrencyInput(nettoEl.value);
+        if (parsed != null) nettoEl.value = parsed;
+        nettoEl.dispatchEvent(new Event('input', { bubbles: true }));
+      }, 0);
+    };
+    nettoEl?.addEventListener('paste', handleNettoPaste);
+
+    nettoEl?.addEventListener('input', () => {
+      const net = parseCurrencyInput(nettoEl.value);
+      if (net != null) {
         this.wizard.formData.auftrag.nettobetrag = net;
       }
       recalcBrutto();
@@ -454,7 +497,7 @@ export class StepDetails {
       const a = this.wizard.formData.auftrag;
       a.anzahl_teilrechnungen = newCount;
 
-      const netto = parseFloat(a.nettobetrag) || 0;
+      const netto = parseCurrencyInput(a.nettobetrag) || 0;
       const perTR = newCount > 0 ? +(netto / newCount).toFixed(2) : 0;
       a.teilrechnungen = Array.from({ length: newCount }, (_, i) => {
         const existing = (a.teilrechnungen || [])[i];
@@ -490,6 +533,8 @@ export class StepDetails {
     });
 
     document.getElementById('field-pe-zahlungsziel_tage')?.addEventListener('change', () => {
+      this._recalcAllTRFaelligkeiten();
+      this._renderTeilrechnungsBlocks();
       this.wizard.onFormDataChange();
     });
 
@@ -529,20 +574,35 @@ export class StepDetails {
     }
   }
 
+  _mountKampagnenarten() {
+    const kampagnenHost = document.getElementById('pe-kampagnen-host');
+    if (!kampagnenHost) return;
+
+    this.kampagnenStep = new StepKampagnenarten(this.wizard);
+    this.kampagnenStep.render(kampagnenHost);
+    this.kampagnenStep.bindEvents();
+  }
+
   attachLiveUpdate(handler) {
     // onChange passt bereits direkt an; nichts weiteres zu tun.
   }
 
   collectData() {
-    const details = this.isContracting && this.agencyBlock
+    let details = this.isContracting && this.agencyBlock
       ? this.agencyBlock.getValue()
       : {};
+
+    let kampagne = {};
+    if (!this.isContracting && this.kampagnenStep) {
+      const kData = this.kampagnenStep.collectData();
+      if (kData.details) details = { ...details, ...kData.details };
+      if (kData.kampagne) kampagne = kData.kampagne;
+    }
 
     const parseNum = (id) => {
       const v = document.getElementById(id)?.value;
       if (v === '' || v == null) return null;
-      const n = parseFloat(v);
-      return isNaN(n) ? null : n;
+      return parseCurrencyInput(v);
     };
     const parseInt10 = (id) => {
       const v = document.getElementById(id)?.value;
@@ -576,7 +636,7 @@ export class StepDetails {
       teilrechnungen
     };
 
-    return { details, auftrag };
+    return { details, auftrag, kampagne };
   }
 
   _collectTeilrechnungen() {
@@ -589,7 +649,7 @@ export class StepDetails {
       const existing = (this.wizard.formData.auftrag.teilrechnungen || [])[idx] || {};
 
       const nettoInput = block.querySelector('.pe-tr-nettobetrag');
-      const netto = parseFloat(nettoInput?.value) || 0;
+      const netto = parseCurrencyInput(nettoInput?.value) || 0;
       const ust = +(netto * DEFAULT_UST_PROZENT / 100).toFixed(2);
 
       const reGestelltInput = block.querySelector(`.custom-date-picker__input[data-field="tr_rechnung_gestellt_am_${idx}"]`);
@@ -608,6 +668,7 @@ export class StepDetails {
         rechnung_gestellt_am: reGestelltInput ? CustomDatePicker.getValue(reGestelltInput) || null : null,
         re_faelligkeit: reFaelligkeitInput ? CustomDatePicker.getValue(reFaelligkeitInput) || null : null,
         erwarteter_monat_zahlungseingang: ezInput ? CustomDatePicker.getValue(ezInput) || null : null,
+        notiz: block.querySelector('.pe-tr-notiz')?.value || '',
         ueberwiesen: existing.ueberwiesen || false,
         ueberwiesen_am: existing.ueberwiesen_am || null
       };
@@ -619,8 +680,8 @@ export class StepDetails {
       this._datePickerCleanup();
       this._datePickerCleanup = null;
     }
-    this._trDatePickerCleanups.forEach(fn => { try { fn(); } catch (_) {} });
-    this._trDatePickerCleanups = [];
+    if (this.kampagnenStep?.destroy) this.kampagnenStep.destroy();
+    this.kampagnenStep = null;
     this.agencyBlock = null;
   }
 }

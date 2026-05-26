@@ -1,7 +1,6 @@
 // StepBasisdaten.js
-// Step 1 des Projekt-Erstellen-Flows:
-// Unternehmen, Marke, Ansprechpartner, Art des Auftrags, Zeitrahmen, Titel.
-// Bei Contracting zusaetzlich: Upload-Feld fuer Auftragsbestaetigungen.
+// Step 1: Auftragstyp-Auswahl + Unternehmen, Marke, Ansprechpartner, Projektname.
+// Bei Contracting zusaetzlich: Upload-Felder fuer Auftragsbestaetigungen + Rechnungen.
 
 import { TitelGenerator } from '../components/TitelGenerator.js';
 import { UploaderField } from '../../../core/form/fields/UploaderField.js';
@@ -66,8 +65,8 @@ export class StepBasisdaten {
 
         <div class="projekt-erstellen-titel-wrap">
           <div class="form-field">
-            <label for="field-pe-titel">Titel <span class="required">*</span></label>
-            <input type="text" id="field-pe-titel" name="titel" value="${this.escape(a.titel)}" placeholder="Wird aus Marke, Art und Startdatum generiert..." autocomplete="off">
+            <label for="field-pe-titel">Projektname <span class="required">*</span></label>
+            <input type="text" id="field-pe-titel" name="titel" value="${this.escape(a.titel)}" placeholder="Wird aus Unternehmen, Art und Startdatum generiert..." autocomplete="off">
           </div>
           <button type="button" class="secondary-btn" id="pe-titel-reset-btn" title="Vorschlag zurücksetzen" style="display:none;">Vorschlag nutzen</button>
         </div>

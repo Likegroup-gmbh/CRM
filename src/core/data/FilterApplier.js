@@ -1,6 +1,8 @@
 export class FilterApplier {
   applyFilters(query, filters, fieldConfig, entityType) {
     for (const [field, value] of Object.entries(filters)) {
+      if (field.startsWith('_')) continue;
+
       // Ignoriere null/undefined/empty
       if (!value || value === '') continue;
       
@@ -11,18 +13,21 @@ export class FilterApplier {
       if (field === 'name' && value) {
         switch (entityType) {
           case 'unternehmen':
-            query = query.ilike('firmenname', `%${value}%`);
+            query = query.or(`firmenname.ilike.%${value}%,internes_kuerzel.ilike.%${value}%,webseite.ilike.%${value}%,invoice_email.ilike.%${value}%`);
             break;
           case 'marke':
-            query = query.ilike('markenname', `%${value}%`);
+            query = query.or(`markenname.ilike.%${value}%,webseite.ilike.%${value}%`);
             break;
           case 'auftrag':
-            query = query.ilike('auftragsname', `%${value}%`);
+            query = query.or(`auftragsname.ilike.%${value}%,po.ilike.%${value}%,externe_po.ilike.%${value}%,re_nr.ilike.%${value}%,angebotsnummer.ilike.%${value}%`);
             break;
           case 'ansprechpartner':
+            query = query.or(`vorname.ilike.%${value}%,nachname.ilike.%${value}%,email.ilike.%${value}%,telefonnummer.ilike.%${value}%,linkedin.ilike.%${value}%`);
+            break;
           case 'creator':
+            query = query.or(`vorname.ilike.%${value}%,nachname.ilike.%${value}%,instagram.ilike.%${value}%,tiktok.ilike.%${value}%,mail.ilike.%${value}%`);
+            break;
           default:
-            // Suche in vorname UND nachname
             query = query.or(`vorname.ilike.%${value}%,nachname.ilike.%${value}%`);
             break;
         }

@@ -104,20 +104,28 @@ async function loadKooperationIdOptionsForRechnung(form) {
     const hasCurrentKoop = options.some(o => o.value === currentKoopId);
 
     if (!hasCurrentKoop && currentKoopId) {
-      const { data: currentKoop } = await window.supabase
-        .from('kooperationen')
-        .select('id, name, kampagne_id, kampagne:kampagne_id(kampagnenname, eigener_name)')
-        .eq('id', currentKoopId)
-        .single();
+      const [{ data: currentKoop }, { data: tagRows }] = await Promise.all([
+        window.supabase
+          .from('kooperationen')
+          .select('id, name, kampagne_id, kampagne:kampagne_id(kampagnenname, eigener_name)')
+          .eq('id', currentKoopId)
+          .single(),
+        window.supabase
+          .from('kooperation_tags')
+          .select('kooperation_tag_typen(name)')
+          .eq('kooperation_id', currentKoopId)
+      ]);
 
       if (currentKoop) {
         const label = currentKoop.name
           ? `${currentKoop.name} — ${KampagneUtils.getDisplayName(currentKoop.kampagne)}`
           : (KampagneUtils.getDisplayName(currentKoop.kampagne) !== 'Unbenannte Kampagne' ? KampagneUtils.getDisplayName(currentKoop.kampagne) : currentKoop.id);
+        const tagNames = (tagRows || []).map(r => r.kooperation_tag_typen?.name).filter(Boolean);
 
         options.unshift({
           value: currentKoop.id,
           label: label,
+          subtitle: tagNames.length > 0 ? tagNames.join(', ') : null,
           selected: true
         });
       }
@@ -355,7 +363,7 @@ export async function loadKooperationenOhneRechnung() {
 
     let query = window.supabase
       .from('kooperationen')
-      .select('id, name, kampagne_id')
+      .select('id, name, kampagne_id, creator_id, created_at')
       .order('created_at', { ascending: false });
     if (excluded.length > 0) {
       query = query.not('id', 'in', `(${excluded.join(',')})`);
@@ -389,10 +397,60 @@ export async function loadKooperationenOhneRechnung() {
       });
     }
 
-    return filteredKoops.map(k => ({
-      value: k.id,
-      label: k.name ? `${k.name} ${k.kampagne_id ? `— ${kampagneMap[k.kampagne_id] || 'Kampagne'}` : ''}` : (kampagneMap[k.kampagne_id] || k.id)
-    }));
+    // Tags pro Kooperation laden für Subtitle-Anzeige im Dropdown
+    let tagMap = {};
+    const koopIds = filteredKoops.map(k => k.id);
+    if (koopIds.length > 0) {
+      try {
+        const { data: tagRows } = await window.supabase
+          .from('kooperation_tags')
+          .select('kooperation_id, kooperation_tag_typen(name)')
+          .in('kooperation_id', koopIds);
+        tagMap = (tagRows || []).reduce((acc, row) => {
+          const name = row.kooperation_tag_typen?.name;
+          if (name) {
+            if (!acc[row.kooperation_id]) acc[row.kooperation_id] = [];
+            acc[row.kooperation_id].push(name);
+          }
+          return acc;
+        }, {});
+      } catch (tagErr) {
+        console.warn('⚠️ Tags konnten nicht geladen werden:', tagErr);
+      }
+    }
+
+    // Duplikate erkennen (gleicher name + kampagne_id) und fortlaufend nummerieren
+    const duplicateCountMap = {};
+    filteredKoops.forEach(k => {
+      const key = `${k.name || ''}__${k.kampagne_id || ''}`;
+      duplicateCountMap[key] = (duplicateCountMap[key] || 0) + 1;
+    });
+
+    const numberMap = {};
+    const counterMap = {};
+    const chronological = [...filteredKoops].sort((a, b) =>
+      new Date(a.created_at) - new Date(b.created_at)
+    );
+    chronological.forEach(k => {
+      const key = `${k.name || ''}__${k.kampagne_id || ''}`;
+      counterMap[key] = (counterMap[key] || 0) + 1;
+      if (duplicateCountMap[key] > 1) {
+        numberMap[k.id] = counterMap[key];
+      }
+    });
+
+    return filteredKoops.map(k => {
+      const suffix = numberMap[k.id] ? ` (${numberMap[k.id]}. Kooperation)` : '';
+      const baseName = k.name ? `${k.name}${suffix}` : (kampagneMap[k.kampagne_id] || k.id);
+      const label = k.name && k.kampagne_id
+        ? `${baseName} — ${kampagneMap[k.kampagne_id] || 'Kampagne'}`
+        : baseName;
+      return {
+        value: k.id,
+        label,
+        subtitle: tagMap[k.id]?.join(', ') || null
+      };
+    });
   } catch (e) {
     console.error('❌ Unerwarteter Fehler beim Laden der kooperation_id Optionen:', e);
     return [];

@@ -13,6 +13,7 @@ export class AuftragsdetailsFilterLogic {
     const processedFilters = {};
 
     for (const [key, value] of Object.entries(filters)) {
+      if (key.startsWith('_')) continue;
       if (!value) continue;
 
       switch (key) {

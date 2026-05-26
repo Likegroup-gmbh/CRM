@@ -19,6 +19,7 @@ export class AuftragsdetailsList {
     this.searchQuery = '';
     this._searchDebounceTimer = null;
     this._eventsBound = false;
+    this._shellRendered = false;
     this._reloadTimer = null;
     this._loadRequestId = 0;
     this._isKunde = null;
@@ -42,6 +43,7 @@ export class AuftragsdetailsList {
   // Initialisiere Auftragsdetails-Liste
   async init() {
     console.log('📋 AUFTRAGSDETAILSLIST: Initialisiere Auftragsdetails-Liste');
+    this._shellRendered = false;
     
     // Pagination initialisieren mit dynamicResize für animiertes Entfernen
     this.pagination.init('pagination-auftragsdetails', {
@@ -57,7 +59,6 @@ export class AuftragsdetailsList {
       window.bulkActionSystem?.registerList('auftragsdetails', this);
       
       await this.loadAndRender();
-      this.bindEvents();
       console.log('✅ AUFTRAGSDETAILSLIST: Initialisierung abgeschlossen');
     } catch (error) {
       console.error('❌ AUFTRAGSDETAILSLIST: Fehler bei der Initialisierung:', error);
@@ -71,12 +72,12 @@ export class AuftragsdetailsList {
     console.log('🔄 AUFTRAGSDETAILSLIST: Lade und rendere Auftragsdetails');
     
     try {
-      // Seite rendern
-      await this.render();
-      console.log('✅ AUFTRAGSDETAILSLIST: Content gesetzt');
-      
-      // Filter-Bar initialisieren
-      await this.initializeFilterBar();
+      if (!this._shellRendered) {
+        await this.render();
+        await this.initializeFilterBar();
+        this.bindEvents();
+        console.log('✅ AUFTRAGSDETAILSLIST: Shell gerendert');
+      }
       
       // Auftragsdetails mit Beziehungen und Pagination laden
       console.log('🔍 AUFTRAGSDETAILSLIST: Lade Auftragsdetails mit Beziehungen und Pagination');
@@ -181,6 +182,7 @@ export class AuftragsdetailsList {
     `;
 
     window.setContentSafely(window.content, html);
+    this._shellRendered = true;
   }
 
   // Lade Auftragsdetails mit Beziehungen und Pagination
@@ -755,6 +757,7 @@ export class AuftragsdetailsList {
   // Cleanup
   destroy() {
     console.log('AuftragsdetailsList: Cleaning up...');
+    this._shellRendered = false;
     
     // Pagination cleanup
     if (this.pagination) {

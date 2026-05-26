@@ -24,21 +24,11 @@ export class StepKampagnenarten {
   render(host) {
     this.host = host;
     const d = this.wizard.formData.details || {};
-    const k = this.wizard.formData.kampagne || {};
-    const a = this.wizard.formData.auftrag || {};
-    const kampagnenname = k.kampagnenname || a.titel || '';
-    if (!k.kampagnenname && kampagnenname) {
-      this.wizard.formData.kampagne = { ...k, kampagnenname };
-    }
     const blocks = normalizeCampaignBlocks(d);
     this.syncBlocksIntoState(blocks);
 
     host.innerHTML = `
-      <div class="form-section projekt-erstellen-section-stack">
-        <div class="form-field">
-          <label for="field-pe-kampagnenname">Kampagnenname <span class="required">*</span></label>
-          <input type="text" id="field-pe-kampagnenname" name="kampagnenname" value="${this.escape(kampagnenname)}" placeholder="z.B. Kampagnenname" autocomplete="off">
-        </div>
+      <div class="projekt-erstellen-subsection">
         <div>
           <h5 class="section-subtitle" style="margin-bottom: var(--space-sm);">Kampagnenarten</h5>
           <div class="projekt-erstellen-campaign-add-row">
@@ -113,15 +103,6 @@ export class StepKampagnenarten {
   }
 
   bindEvents() {
-    const kampagnennameInput = document.getElementById('field-pe-kampagnenname');
-    if (kampagnennameInput) {
-      kampagnennameInput.addEventListener('input', (e) => {
-        if (!this.wizard.formData.kampagne) this.wizard.formData.kampagne = {};
-        this.wizard.formData.kampagne.kampagnenname = e.target.value || '';
-        this.wizard.updateFeedback();
-      });
-    }
-
     const addBtn = document.getElementById('pe-add-campaign-block-btn');
     if (addBtn) {
       addBtn.addEventListener('click', () => this.addCampaignBlock());
@@ -257,9 +238,7 @@ export class StepKampagnenarten {
       : {};
 
     return {
-      kampagne: {
-        kampagnenname: document.getElementById('field-pe-kampagnenname')?.value || ''
-      },
+      kampagne: {},
       details: {
         ...agencyData,
         campaign_blocks: blocks,

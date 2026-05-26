@@ -414,17 +414,16 @@ describe('ProjektErstellenPersistence', () => {
 });
 
 describe('ProjektErstellenValidator', () => {
-  it('verhindert Agentur-Abzüge über dem Netto-Budget (Step 3 für Nicht-Contracting)', () => {
+  it('verhindert Agentur-Abzüge über dem Netto-Budget (Step 2 für Nicht-Contracting)', () => {
     const validator = new ProjektErstellenValidator();
 
-    const result = validator.validateStep3({
+    const result = validator.validateStep2WithKampagne({
       auftrag: {
+        auftragtype: 'UGC/Influencer',
         angebotsnummer: 'AN-100',
         nettobetrag: 100000
       },
-      kampagne: {
-        kampagnenname: 'Test'
-      },
+      kampagne: {},
       details: {
         campaign_blocks: [{ id: 'b1', campaign_type: 'ugc_paid' }],
         campaign_type: ['ugc_paid'],
@@ -442,5 +441,30 @@ describe('ProjektErstellenValidator', () => {
 
     expect(result.valid).toBe(false);
     expect(result.errors).toContain('Agentur Fee, KSK und Zusatzleistungen dürfen das Netto-Budget nicht überschreiten');
+  });
+
+  it('validiert Step 1 (Auftragstyp) und Step 2 (Basisdaten) separat', () => {
+    const validator = new ProjektErstellenValidator();
+
+    const noType = validator.validateStep(1, { auftrag: {} });
+    expect(noType.valid).toBe(false);
+    expect(noType.errors).toContain('Bitte wählen Sie einen Auftragstyp aus');
+
+    const withType = validator.validateStep(1, { auftrag: { auftragtype: 'UGC/Influencer' } });
+    expect(withType.valid).toBe(true);
+
+    const noBasisdaten = validator.validateStep(2, { auftrag: { auftragtype: 'UGC/Influencer' } });
+    expect(noBasisdaten.valid).toBe(false);
+    expect(noBasisdaten.errors).toContain('Unternehmen ist ein Pflichtfeld');
+
+    const complete = validator.validateStep(2, {
+      auftrag: {
+        auftragtype: 'UGC/Influencer',
+        unternehmen_id: 'u-1',
+        ansprechpartner_id: 'ap-1',
+        titel: 'Testprojekt'
+      }
+    });
+    expect(complete.valid).toBe(true);
   });
 });

@@ -126,9 +126,9 @@ export class ProjektErstellenPersistence {
       externe_po: this.normalizeTextValue(a.externe_po),
       zahlungsziel_tage: a.zahlungsziel_tage ?? null,
       re_faelligkeit: a.re_faelligkeit || null,
+      erwarteter_monat_zahlungseingang: a.erwarteter_monat_zahlungseingang || null,
       rechnung_gestellt: !!a.rechnung_gestellt,
       rechnung_gestellt_am: a.rechnung_gestellt_am || null,
-      erwarteter_monat_zahlungseingang: a.erwarteter_monat_zahlungseingang || null,
       nettobetrag: a.nettobetrag ?? null,
       creator_budget: creatorBudget,
       ust_prozent: a.ust_prozent ?? null,
@@ -188,7 +188,7 @@ export class ProjektErstellenPersistence {
     const totals = this.calculateCampaignBlockTotals(blocks);
     const artDerKampagne = campaignTypes.map(v => CAMPAIGN_TYPES.find(t => t.value === v)?.label || v);
     return {
-      kampagnenname: k.kampagnenname || a.titel || null,
+      kampagnenname: a.titel || null,
       eigener_name: null,
       unternehmen_id: a.unternehmen_id || null,
       marke_id: a.marke_id || null,
@@ -262,9 +262,10 @@ export class ProjektErstellenPersistence {
       rechnung_gestellt: !!tr.rechnung_gestellt,
       rechnung_gestellt_am: tr.rechnung_gestellt_am || null,
       re_faelligkeit: tr.re_faelligkeit || null,
+      erwarteter_monat_zahlungseingang: tr.erwarteter_monat_zahlungseingang || null,
       ueberwiesen: !!tr.ueberwiesen,
       ueberwiesen_am: tr.ueberwiesen_am || null,
-      erwarteter_monat_zahlungseingang: tr.erwarteter_monat_zahlungseingang || null
+      notiz: this.normalizeTextValue(tr.notiz)
     }));
   }
 
@@ -696,7 +697,7 @@ export class ProjektErstellenPersistence {
       } catch (innerErr) {
         // Rollback: verwaisten Auftrag loeschen
         console.warn('⚠️ Rollback: Auftrag wird geloescht weil Folge-Inserts fehlschlugen', savedAuftragId);
-        await supabase.from('auftrag').delete().eq('id', savedAuftragId).catch(() => {});
+        try { await supabase.from('auftrag').delete().eq('id', savedAuftragId); } catch (_) {}
         throw innerErr;
       }
     } catch (e) {

@@ -5,7 +5,6 @@
 import { StepAuftragstyp } from './steps/StepAuftragstyp.js';
 import { StepBasisdaten } from './steps/StepBasisdaten.js';
 import { StepDetails } from './steps/StepDetails.js';
-import { StepKampagnenarten } from './steps/StepKampagnenarten.js';
 import { FeedbackCard } from './components/FeedbackCard.js';
 import { WizardProgressBar } from './components/WizardProgressBar.js';
 import { ProjektErstellenPersistence } from './services/ProjektErstellenPersistence.js';
@@ -49,8 +48,8 @@ export class ProjektErstellenWizard {
         zahlungsziel_tage: null,
         rechnung_gestellt: false,
         rechnung_gestellt_am: null,
-        erwarteter_monat_zahlungseingang: null,
         re_faelligkeit: null,
+        erwarteter_monat_zahlungseingang: null,
         nettobetrag: null,
         ust_prozent: 19,
         ust_betrag: null,
@@ -98,19 +97,14 @@ export class ProjektErstellenWizard {
   getStepLabels() {
     return this.isContracting
       ? ['Basisdaten', 'Finanzen']
-      : ['Basisdaten', 'Details', 'Kampagne'];
+      : ['Basisdaten', 'Details'];
   }
 
   buildSteps() {
     if (this.isEditMode) {
-      // Im Edit-Mode wird der Auftragstyp nicht mehr abgefragt
-      return this.isContracting
-        ? [new StepBasisdaten(this), new StepDetails(this)]
-        : [new StepBasisdaten(this), new StepDetails(this), new StepKampagnenarten(this)];
+      return [new StepBasisdaten(this), new StepDetails(this)];
     }
-    return this.isContracting
-      ? [new StepAuftragstyp(this), new StepBasisdaten(this), new StepDetails(this)]
-      : [new StepAuftragstyp(this), new StepBasisdaten(this), new StepDetails(this), new StepKampagnenarten(this)];
+    return [new StepAuftragstyp(this), new StepBasisdaten(this), new StepDetails(this)];
   }
 
   updateStepsForAuftragtype() {
@@ -195,7 +189,7 @@ export class ProjektErstellenWizard {
 
   _resolveInitialStep(named) {
     const labels = this.getStepLabels().map(l => l.toLowerCase());
-    const STEP_MAP = { basis: 'basisdaten', details: 'details', kampagnen: 'kampagne', finanzen: 'finanzen' };
+    const STEP_MAP = { basis: 'basisdaten', details: 'details', kampagnen: 'details', finanzen: 'finanzen' };
 
     // 1) Explizit übergebener Name
     let key = named;
@@ -324,14 +318,11 @@ export class ProjektErstellenWizard {
   }
 
   get isTypeSelectStep() {
-    // Im Edit-Mode gibt es keinen Type-Select-Step
     return !this.isEditMode && this.currentStep === 1;
   }
 
-  // Mappt die aktuelle Step-Position auf die im Validator erwarteten
-  // logischen Step-Nummern (1=Auftragstyp, 2=Basisdaten, 3=Details, 4=Kampagne).
   getLogicalStepNumber(stepIndex = this.currentStep) {
-    return this.isEditMode ? stepIndex + 1 : stepIndex;
+    return this.isEditMode ? stepIndex : stepIndex;
   }
 
   updateWizardChrome() {
@@ -370,9 +361,6 @@ export class ProjektErstellenWizard {
     this.feedbackCard?.update(this.currentStep, this.formData);
   }
 
-  // Mappt currentStep auf den 1-basierten ProgressBar-Index.
-  // Create-Mode: Step 1 = Auftragstyp (nicht in Progress), Step 2 = Basisdaten = Progress-Pos 1
-  // Edit-Mode: Step 1 = Basisdaten = Progress-Pos 1
   getProgressBarStep() {
     return this.isEditMode ? this.currentStep : Math.max(1, this.currentStep - 1);
   }
@@ -380,7 +368,7 @@ export class ProjektErstellenWizard {
   async navigate(direction) {
     const currentStepInstance = this.steps[this.currentStep - 1];
     const leavingTypeSelect = this.isTypeSelectStep && direction > 0;
-    const enteringTypeSelect = this.currentStep === 2 && direction < 0;
+    const enteringTypeSelect = !this.isEditMode && this.currentStep === 2 && direction < 0;
 
     if (direction > 0) {
       if (currentStepInstance?.collectData) {
@@ -460,7 +448,6 @@ export class ProjektErstellenWizard {
     if (targetStep === this.currentStep) return;
     if (targetStep < 1 || targetStep > this.totalSteps) return;
 
-    const wasTypeSelect = this.isTypeSelectStep;
     const currentStepInstance = this.steps[this.currentStep - 1];
     if (currentStepInstance?.collectData) {
       const collected = currentStepInstance.collectData();
@@ -477,8 +464,9 @@ export class ProjektErstellenWizard {
       }
     }
 
+    const wasTypeSelect = this.isTypeSelectStep;
     this.currentStep = targetStep;
-    const needsTransition = wasTypeSelect || targetStep === 1;
+    const needsTransition = wasTypeSelect || (!this.isEditMode && targetStep === 1);
 
     if (needsTransition) {
       await this._animateTransition();

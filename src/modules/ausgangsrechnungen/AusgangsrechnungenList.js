@@ -20,7 +20,7 @@ export class AusgangsrechnungenList extends AuftragList {
   }
 
   async render() {
-    window.setHeadline('Ausgangsrechnungen');
+    window.setHeadline('Kundenrechnungen');
 
     const isContracts = this.activeTab === 'contracts';
     const viewToggleDisabled = isContracts ? 'disabled' : '';
@@ -61,7 +61,7 @@ export class AusgangsrechnungenList extends AuftragList {
 
   renderListView(mode = 'auftraege') {
     const isContracts = mode === 'contracts';
-    const loadingText = 'Lade Ausgangsrechnungen...';
+    const loadingText = 'Lade Kundenrechnungen...';
     const tableClass = isContracts ? 'auftrag-table contracts-table' : 'auftrag-table';
 
     return `
@@ -120,8 +120,8 @@ export class AusgangsrechnungenList extends AuftragList {
             <td colspan="${this.getListColumnCount()}" class="no-data">
               <div style="text-align: center; padding: 40px 20px;">
                 <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📋</div>
-                <h3 style="color: #666; margin-bottom: 8px;">Keine Ausgangsrechnungen vorhanden</h3>
-                <p style="color: #999; margin-bottom: 20px;">Es wurden noch keine Ausgangsrechnungen erstellt.</p>
+                <h3 style="color: #666; margin-bottom: 8px;">Keine Kundenrechnungen vorhanden</h3>
+                <p style="color: #999; margin-bottom: 20px;">Es wurden noch keine Kundenrechnungen erstellt.</p>
               </div>
             </td>
           </tr>
@@ -307,7 +307,7 @@ export class AusgangsrechnungenList extends AuftragList {
       return { data: pageSlice, count: totalCount };
 
     } catch (error) {
-      console.error('❌ Fehler beim Laden der Ausgangsrechnungen:', error);
+      console.error('❌ Fehler beim Laden der Kundenrechnungen:', error);
       throw error;
     }
   }

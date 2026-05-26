@@ -15,11 +15,11 @@ export class CreatorFilterLogic {
     const processedFilters = {};
 
     for (const [key, value] of Object.entries(filters)) {
+      if (key.startsWith('_')) continue;
       if (!value) continue;
 
       switch (key) {
         case 'name':
-          // Spezielle Behandlung für Name-Suche (vorname UND nachname)
           processedFilters[key] = {
             type: 'name_search',
             value: value,
@@ -189,8 +189,7 @@ export class CreatorFilterLogic {
     for (const [field, filter] of Object.entries(processedFilters)) {
       switch (filter.type) {
         case 'name_search':
-          // Suche in vorname UND nachname
-          query = query.or(`vorname.ilike.%${filter.value}%,nachname.ilike.%${filter.value}%`);
+          query = query.or(`vorname.ilike.%${filter.value}%,nachname.ilike.%${filter.value}%,instagram.ilike.%${filter.value}%,tiktok.ilike.%${filter.value}%,mail.ilike.%${filter.value}%`);
           break;
 
         case 'number_range':
@@ -279,9 +278,8 @@ export class CreatorFilterLogic {
     switch (filter.type) {
       case 'name_search':
         const searchValue = filter.value.toLowerCase();
-        const vorname = (item.vorname || '').toLowerCase();
-        const nachname = (item.nachname || '').toLowerCase();
-        return vorname.includes(searchValue) || nachname.includes(searchValue);
+        return ['vorname', 'nachname', 'instagram', 'tiktok', 'mail']
+          .some(f => (item[f] || '').toLowerCase().includes(searchValue));
 
       case 'number_range':
         if (filter.min !== null && (value === null || value < filter.min)) return false;

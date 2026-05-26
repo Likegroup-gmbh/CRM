@@ -3,6 +3,7 @@ import { findSignedVertragForKooperation } from './RechnungVertragZuordnung.js';
 import { renderSegmentedControl, bindSegmentSwitcher, handleContractingCreateSubmit, handleContractingEditSubmit } from './RechnungContractingCreate.js';
 import { uploadRechnungPdf, uploadRechnungBeleg } from '../../core/DropboxDocumentUploader.js';
 import { resolveRechnungPathMetadata } from '../../core/RechnungPathMetadata.js';
+import { finalizeRechnungSubmitData } from '../../core/form/logic/events/RechnungEvents.js';
 
 // Pfade die mit "/" anfangen sind Dropbox-Pfade (neue Uploads), alle anderen
 // sind Legacy Supabase Storage-Pfade. Für Dropbox-Pfade reicht die
@@ -240,34 +241,14 @@ export class RechnungDetail {
   async handleCreateSubmit() {
     try {
       const form = document.getElementById('rechnung-form');
-      const formData = new FormData(form);
-      const submitData = {};
-      for (const [key, value] of formData.entries()) {
-        submitData[key] = value;
-      }
+      const submitData = window.formSystem.collectSubmitData(form);
 
-      // Spezielle Behandlung für searchable Select-Felder
-      // Diese haben versteckte Select-Elemente, die möglicherweise nicht korrekt aktualisiert wurden
-      const searchableSelects = form.querySelectorAll('select[data-searchable="true"]');
-      searchableSelects.forEach(select => {
-        const container = select.parentNode.querySelector('.searchable-select-container');
-        if (container) {
-          const input = container.querySelector('.searchable-select-input');
-          if (input && input.value) {
-            // Prüfe ob der Input-Wert einer gültigen Option entspricht
-            const options = Array.from(select.options);
-            const matchingOption = options.find(opt => opt.textContent.trim() === input.value.trim());
-            if (matchingOption) {
-              submitData[select.name] = matchingOption.value;
-              console.log(`✅ Searchable Select ${select.name} korrigiert: ${input.value} → ${matchingOption.value}`);
-            }
-          }
-        }
-      });
+      // finalizeRechnungSubmitData: Toggle → ust_prozent, berechnete Felder, Checkboxen
+      finalizeRechnungSubmitData(form, submitData);
 
       // Validierung der required Felder
       const requiredFields = ['auftrag_id', 'kooperation_id', 'unternehmen_id', 'kampagne_id'];
-      const missingFields = requiredFields.filter(field => !submitData[field] || submitData[field].trim() === '');
+      const missingFields = requiredFields.filter(field => !submitData[field] || (typeof submitData[field] === 'string' && submitData[field].trim() === ''));
       
       if (missingFields.length > 0) {
         alert(`Bitte füllen Sie alle Pflichtfelder aus: ${missingFields.join(', ')}`);

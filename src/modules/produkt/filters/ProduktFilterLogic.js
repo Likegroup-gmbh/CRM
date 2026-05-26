@@ -15,14 +15,15 @@ export class ProduktFilterLogic {
     const processedFilters = {};
 
     for (const [key, value] of Object.entries(filters)) {
+      if (key.startsWith('_')) continue;
       if (!value) continue;
 
       switch (key) {
         case 'name':
-          // Text-Suche für Produktname
           processedFilters[key] = {
-            type: 'text_search',
-            value: value
+            type: 'multi_text_search',
+            value: value,
+            fields: ['name', 'url', 'kernbotschaft']
           };
           break;
 
@@ -84,8 +85,11 @@ export class ProduktFilterLogic {
     for (const [field, filter] of Object.entries(processedFilters)) {
       switch (filter.type) {
         case 'text_search':
-          // Text-Suche mit ilike (case-insensitive)
           query = query.ilike(field, `%${filter.value}%`);
+          break;
+
+        case 'multi_text_search':
+          query = query.or(filter.fields.map(f => `${f}.ilike.%${filter.value}%`).join(','));
           break;
 
         case 'equals':

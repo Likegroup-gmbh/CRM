@@ -47,7 +47,7 @@ export class NavigationSystem {
             icon: 'icon-briefcase',
             url: '/auftrag',
             children: [
-              { id: 'ausgangsrechnungen', label: 'Ausgangsrechnungen', icon: 'icon-currency-euro', url: '/ausgangsrechnungen' }
+              { id: 'ausgangsrechnungen', label: 'Kundenrechnungen', icon: 'icon-currency-euro', url: '/ausgangsrechnungen' }
             ]
           },
           { id: 'auftragsdetails', label: 'Auftragsdetails', icon: 'icon-auftragsdetails', url: '/auftragsdetails' },

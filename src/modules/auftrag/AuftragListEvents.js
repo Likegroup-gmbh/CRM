@@ -124,7 +124,13 @@ AuftragList.prototype.bindGlobalDelegatedEvents = function() {
       }
 
       this.currentView = 'list';
-      this.loadAndRender();
+      this.renderAuftraegeContent();
+      SearchInput.bind('auftrag', (value) => this.handleSearch(value));
+      this.initDragToScroll();
+      this.loadAuftraegeData();
+
+      document.getElementById('btn-view-list')?.classList.add('active');
+      document.getElementById('btn-view-calendar')?.classList.remove('active');
       return;
     }
 
@@ -134,7 +140,11 @@ AuftragList.prototype.bindGlobalDelegatedEvents = function() {
       if (this.currentView === 'calendar') return;
 
       this.currentView = 'calendar';
-      this.loadAndRender();
+      this.renderAuftraegeContent();
+      this.initCashFlowCalendar();
+
+      document.getElementById('btn-view-list')?.classList.remove('active');
+      document.getElementById('btn-view-calendar')?.classList.add('active');
       return;
     }
 
@@ -192,7 +202,7 @@ AuftragList.prototype.bindGlobalDelegatedEvents = function() {
         const currentFilters = window.filterSystem.getFilters('auftrag');
         delete currentFilters[key];
         window.filterSystem.applyFilters('auftrag', currentFilters);
-        this.loadAndRender();
+        this.loadAuftraegeData();
       }
       return;
     }
@@ -244,7 +254,11 @@ AuftragList.prototype.bindGlobalDelegatedEvents = function() {
       return;
     }
 
-    this.loadAndRender();
+    if (this.activeTab === 'contracts') {
+      this.loadContractsData();
+    } else {
+      this.loadAuftraegeData();
+    }
   };
 
   document.addEventListener('click', this._globalClickHandler);

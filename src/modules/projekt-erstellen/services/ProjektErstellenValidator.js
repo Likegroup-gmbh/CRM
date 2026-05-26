@@ -13,9 +13,8 @@ export class ProjektErstellenValidator {
   validateStep(step, formData) {
     const isContracting = formData.auftrag?.auftragtype === 'Contracting';
     if (step === 1) return this.validateStepAuftragstyp(formData);
-    if (step === 2) return this.validateStep1(formData);
-    if (step === 3) return isContracting ? this.validateStep2Contracting(formData) : this.validateStep2(formData);
-    if (step === 4 && !isContracting) return this.validateStep3(formData);
+    if (step === 2) return this.validateStepBasisdaten(formData);
+    if (step === 3) return isContracting ? this.validateStep2Contracting(formData) : this.validateStep2WithKampagne(formData);
     return { valid: true, errors: [] };
   }
 
@@ -27,12 +26,12 @@ export class ProjektErstellenValidator {
     return { valid: errors.length === 0, errors };
   }
 
-  validateStep1(formData) {
+  validateStepBasisdaten(formData) {
     const errors = [];
     const a = formData.auftrag || {};
     if (!a.unternehmen_id) errors.push('Unternehmen ist ein Pflichtfeld');
     if (!a.ansprechpartner_id) errors.push('Ansprechpartner ist ein Pflichtfeld');
-    if (!a.titel || !String(a.titel).trim()) errors.push('Titel ist ein Pflichtfeld');
+    if (!a.titel || !String(a.titel).trim()) errors.push('Projektname ist ein Pflichtfeld');
     return { valid: errors.length === 0, errors };
   }
 
@@ -50,25 +49,16 @@ export class ProjektErstellenValidator {
     return { valid: errors.length === 0, errors };
   }
 
-  validateStep2(formData) {
+  validateStep2WithKampagne(formData) {
     const errors = [];
     const a = formData.auftrag || {};
+    const d = formData.details || {};
     if (!a.angebotsnummer || !String(a.angebotsnummer).trim()) {
       errors.push('Angebotsnummer ist ein Pflichtfeld');
     }
     this._validateDateRange(a, errors);
-    return { valid: errors.length === 0, errors };
-  }
 
-  validateStep3(formData) {
-    const errors = [];
-    const k = formData.kampagne || {};
-    const d = formData.details || {};
-    const a = formData.auftrag || {};
     const blocks = normalizeCampaignBlocks(d);
-    if (!k.kampagnenname || !String(k.kampagnenname).trim()) {
-      errors.push('Kampagnenname ist ein Pflichtfeld');
-    }
     if (!blocks.length) {
       errors.push('Mindestens eine Kampagnenart muss ausgewählt sein');
     }

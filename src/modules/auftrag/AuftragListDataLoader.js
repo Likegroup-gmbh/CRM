@@ -119,7 +119,13 @@ AuftragList.prototype.buildFilteredAuftragQuery = async function(filters = {}, m
       window.supabase.from('unternehmen').select('id').ilike('firmenname', `%${search}%`),
       window.supabase.from('marke').select('id').ilike('markenname', `%${search}%`)
     ]);
-    const orParts = [`auftragsname.ilike.%${search}%`];
+    const orParts = [
+      `auftragsname.ilike.%${search}%`,
+      `po.ilike.%${search}%`,
+      `externe_po.ilike.%${search}%`,
+      `re_nr.ilike.%${search}%`,
+      `angebotsnummer.ilike.%${search}%`
+    ];
     if (matchU?.length) orParts.push(`unternehmen_id.in.(${matchU.map(u => u.id).join(',')})`);
     if (matchM?.length) orParts.push(`marke_id.in.(${matchM.map(m => m.id).join(',')})`);
     query = query.or(orParts.join(','));
@@ -258,13 +264,13 @@ AuftragList.prototype.initializeFilterBar = async function() {
 AuftragList.prototype.onFiltersApplied = function(filters) {
   filterSystem.applyFilters('auftrag', filters);
   this.pagination.reset();
-  this.loadAndRender();
+  this.loadAuftraegeData();
 };
 
 AuftragList.prototype.onFiltersReset = function() {
   filterSystem.resetFilters('auftrag');
   this.pagination.reset();
-  this.loadAndRender();
+  this.loadAuftraegeData();
 };
 
 AuftragList.prototype.handleSearch = function(query) {

@@ -4,7 +4,7 @@
 import { renderTabButton } from '../../core/TabUtils.js';
 import { UnternehmenService } from './services/UnternehmenService.js';
 import { renderAuftraege, renderAuftragsdetails, renderBriefings, renderKampagnen } from './UnternehmenDetailRendererBusiness.js';
-import { renderStrategien, renderCreatorAuswahl, renderKooperationen, renderCreators, renderAnsprechpartner, renderRechnungen, renderVertraege, renderKickOff } from './UnternehmenDetailRendererRelations.js';
+import { renderStrategien, renderCreatorAuswahl, renderKooperationen, renderCreators, renderAnsprechpartner, renderRechnungen, renderKundenrechnungen, renderVertraege, renderKickOff } from './UnternehmenDetailRendererRelations.js';
 
 export function renderUnternehmenDetailPage(detail) {
   if (!detail.activeMainTab) {
@@ -101,6 +101,7 @@ export function renderTabNavigation(detail) {
     { tab: 'kooperationen', label: 'Kooperationen', count: detail.kooperationen.length, isActive: detail.activeMainTab === 'kooperationen' },
     { tab: 'creators', label: 'Creator', count: detail.creators.length, isActive: detail.activeMainTab === 'creators' },
     { tab: 'rechnungen', label: 'Rechnungen', count: detail.rechnungen.length, isActive: detail.activeMainTab === 'rechnungen' },
+    { tab: 'kundenrechnungen', label: 'Kundenrechnungen', count: detail.kundenrechnungen.length, isActive: detail.activeMainTab === 'kundenrechnungen' },
     { tab: 'vertraege', label: 'Verträge', count: detail.vertraege.length, isActive: detail.activeMainTab === 'vertraege' }
   ];
 
@@ -145,6 +146,9 @@ export function renderMainContent(detail) {
       </div>
       <div class="tab-pane ${detail.activeMainTab === 'rechnungen' ? 'active' : ''}" id="tab-rechnungen">
         ${renderRechnungen(detail)}
+      </div>
+      <div class="tab-pane ${detail.activeMainTab === 'kundenrechnungen' ? 'active' : ''}" id="tab-kundenrechnungen">
+        ${renderKundenrechnungen(detail)}
       </div>
       <div class="tab-pane ${detail.activeMainTab === 'vertraege' ? 'active' : ''}" id="tab-vertraege">
         ${renderVertraege(detail)}

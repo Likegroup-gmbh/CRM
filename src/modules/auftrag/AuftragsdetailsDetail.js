@@ -257,6 +257,9 @@ export class AuftragsdetailsDetail {
     this.budgetSummary.ekSum = ekVk.ekSum;
     this.budgetSummary.vkSum = ekVk.vkSum;
     this.budgetSummary.ekVkMarginSum = ekVk.marginSum;
+    this.budgetSummary.ekVkMarginCreatorbudgetPct = this.budgetSummary.totalBudget > 0
+      ? (this.budgetSummary.ekVkMarginSum / this.budgetSummary.totalBudget) * 100
+      : 0;
 
     this.budgetSummary.agencyFeeSummary = calculateAgencyFeeSummary(this.details, this.kooperationen, this.videos);
 
@@ -841,6 +844,10 @@ export class AuftragsdetailsDetail {
       return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
     };
 
+    const formatCreatorbudgetPct = (pct) => new Intl.NumberFormat('de-DE', {
+      maximumFractionDigits: 1,
+    }).format(pct ?? 0);
+
     const renderRechnungStatusBadge = (kooperationId) => {
       const status = this.rechnungStatusMap[kooperationId];
       if (!status) {
@@ -910,7 +917,7 @@ export class AuftragsdetailsDetail {
             </tbody>
             ${!isKunde ? `
             <tfoot>
-              <tr style="font-weight: 600;">
+              <tr>
                 <td colspan="3">Gesamt</td>
                 <td class="text-right">${formatCurrency(this.budgetSummary.ekSum || 0)}</td>
                 <td class="text-right">${formatCurrency(this.budgetSummary.vkSum || 0)}</td>
@@ -918,10 +925,17 @@ export class AuftragsdetailsDetail {
                 <td colspan="2"></td>
               </tr>
               ${this.budgetSummary.ekVkMarginSum ? `
-              <tr style="font-weight: 600;">
+              <tr>
                 <td colspan="3">Differenz (VK − EK)</td>
                 <td></td>
-                <td class="text-right">${formatCurrency(this.budgetSummary.ekVkMarginSum)}</td>
+                <td class="text-right">
+                  <div class="data-table-footer-value-group">
+                    <span>${formatCurrency(this.budgetSummary.ekVkMarginSum)}</span>
+                    <div class="tags tags-compact">
+                      <span class="tag tag--branche">${formatCreatorbudgetPct(this.budgetSummary.ekVkMarginCreatorbudgetPct)}% Creatorbudget</span>
+                    </div>
+                  </div>
+                </td>
                 <td colspan="3"></td>
               </tr>` : ''}
             </tfoot>

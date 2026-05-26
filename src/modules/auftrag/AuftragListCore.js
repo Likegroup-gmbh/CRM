@@ -40,6 +40,7 @@ export class AuftragList {
     this.contractsSearchQuery = '';
     this._searchDebounceTimer = null;
     this._contractsSearchDebounceTimer = null;
+    this._shellRendered = false;
   }
 
   get isAdmin() {
@@ -103,9 +104,10 @@ export class AuftragList {
 
   async loadAndRender() {
     try {
-      await this.render();
-
-      this.bindEvents();
+      if (!this._shellRendered) {
+        await this.render();
+        this.bindEvents();
+      }
 
       if (this.currentView === 'calendar' && this.activeTab !== 'contracts') {
         return;
@@ -126,7 +128,9 @@ export class AuftragList {
         return;
       }
 
-      await this.initializeFilterBar();
+      if (!this._shellRendered) {
+        await this.initializeFilterBar();
+      }
       await this.loadAuftraegeData();
 
     } catch (error) {
@@ -140,11 +144,11 @@ export class AuftragList {
   }
 
   handlePageChange(page) {
-    this.loadAndRender();
+    this.loadAuftraegeData();
   }
 
   handleItemsPerPageChange(limit, page) {
-    this.loadAndRender();
+    this.loadAuftraegeData();
   }
 
   async render() {
@@ -167,6 +171,7 @@ export class AuftragList {
     `;
 
     window.setContentSafely(window.content, html);
+    this._shellRendered = true;
 
     this.renderAuftraegeContent();
     if (!isContracts && this.currentView === 'calendar') {
@@ -323,6 +328,7 @@ export class AuftragList {
   }
 
   destroy() {
+    this._shellRendered = false;
     clearTimeout(this._searchDebounceTimer);
     clearTimeout(this._contractsSearchDebounceTimer);
 

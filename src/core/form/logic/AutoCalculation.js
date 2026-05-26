@@ -136,7 +136,8 @@ export class AutoCalculation {
       if (!nettoField) return 0;
       const netto = parseFloat(nettoField.value) || 0;
       const ustProzentField = form.querySelector('[name="ust_prozent"]');
-      const ustProzent = ustProzentField ? (parseFloat(ustProzentField.value) || 19) : 19;
+      const parsed = parseFloat(ustProzentField?.value);
+      const ustProzent = Number.isFinite(parsed) ? parsed : 19;
       const ust = netto * (ustProzent / 100);
       return Math.round(ust * 100) / 100;
     } catch (error) {
@@ -252,7 +253,8 @@ export class AutoCalculation {
       const ustProzentField = form.querySelector('[name="einkaufspreis_ust_prozent"]');
       const netto = nettoField ? (parseFloat(nettoField.value) || 0) : 0;
       const zusatz = zusatzField ? (parseFloat(zusatzField.value) || 0) : 0;
-      const ustSatz = ustProzentField ? (parseFloat(ustProzentField.value) ?? 19) : 19;
+      const parsedSatz = parseFloat(ustProzentField?.value);
+      const ustSatz = Number.isFinite(parsedSatz) ? parsedSatz : 19;
       const ust = (netto + zusatz) * (ustSatz / 100);
       return Math.round(ust * 100) / 100;
     } catch (error) {

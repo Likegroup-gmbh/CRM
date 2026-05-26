@@ -48,13 +48,14 @@ export class AuftragCashFlowCalendar {
         return;
       }
 
-      // Lade ALLE Aufträge (nicht nur die mit Datums-Feldern)
+      // Lade ALLE Aufträge inkl. Teilrechnungen
       let query = window.supabase
         .from('auftrag')
         .select(`
           *,
           unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
-          marke:marke_id(id, markenname, logo_url)
+          marke:marke_id(id, markenname, logo_url),
+          teilrechnungen:auftrag_teilrechnung(id, position, nettobetrag, re_nr, re_faelligkeit, erwarteter_monat_zahlungseingang, rechnung_gestellt, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am)
         `);
 
       // Filter anwenden
@@ -141,60 +142,78 @@ export class AuftragCashFlowCalendar {
     console.log(`✅ ${this.groupedData.length} Gruppen erstellt`);
   }
 
-  // Ordne Auftrag zu Monaten zu
+  // Ordne Auftrag (über seine Teilrechnungen) zu Monaten zu
   assignToMonths(auftrag, months) {
-    const rechnungDatum = auftrag.rechnung_gestellt_am ? new Date(auftrag.rechnung_gestellt_am) : null;
-    const ueberweisenDatum = auftrag.ueberwiesen_am ? new Date(auftrag.ueberwiesen_am) : null;
-    const erwarteterZahlungseingangDatum = auftrag.erwarteter_monat_zahlungseingang
-      ? new Date(auftrag.erwarteter_monat_zahlungseingang)
-      : null;
-    const reFaelligkeitDatum = auftrag.re_faelligkeit ? new Date(auftrag.re_faelligkeit) : null;
-    const betrag = parseFloat(auftrag.nettobetrag) || 0;
-    
-    // Priorität: paid > invoiced > pending (expected/re_faelligkeit)
-    let anzeigeStatus = null;
-    let anzeigeDatum = null;
-    
-    if (ueberweisenDatum) {
-      anzeigeStatus = 'paid';
-      anzeigeDatum = ueberweisenDatum;
-    } else if (rechnungDatum) {
-      anzeigeStatus = 'invoiced';
-      anzeigeDatum = rechnungDatum;
-    } else if (erwarteterZahlungseingangDatum) {
-      anzeigeStatus = 'pending';
-      anzeigeDatum = erwarteterZahlungseingangDatum;
-    } else if (reFaelligkeitDatum) {
-      anzeigeStatus = 'pending';
-      anzeigeDatum = reFaelligkeitDatum;
-    }
-    
-    // Nur anzeigen wenn ein Datum existiert und es im aktuellen Jahr liegt
-    if (!anzeigeDatum || anzeigeDatum.getFullYear() !== this.currentYear) {
-      return;
-    }
-    
-    const monthIndex = anzeigeDatum.getMonth();
-    const existingEntry = months[monthIndex].auftraege.find(a => a.id === auftrag.id);
-    
-    if (!existingEntry) {
-      months[monthIndex].auftraege.push({
-        id: auftrag.id,
-        auftragsname: auftrag.auftragsname,
-        betrag: betrag,
-        status: anzeigeStatus,
-        datum: anzeigeDatum
-      });
-      months[monthIndex].total += betrag;
-    }
-    
-    // Setze Zellen-Status (höchster Status gewinnt)
+    const teilrechnungen = auftrag.teilrechnungen?.length
+      ? auftrag.teilrechnungen
+      : [{
+          id: null,
+          position: 1,
+          nettobetrag: auftrag.nettobetrag,
+          re_nr: auftrag.re_nr,
+          re_faelligkeit: auftrag.re_faelligkeit,
+          erwarteter_monat_zahlungseingang: auftrag.erwarteter_monat_zahlungseingang,
+          rechnung_gestellt: auftrag.rechnung_gestellt,
+          rechnung_gestellt_am: auftrag.rechnung_gestellt_am,
+          ueberwiesen: auftrag.ueberwiesen,
+          ueberwiesen_am: auftrag.ueberwiesen_am
+        }];
+
     const statusPriority = { 'paid': 3, 'invoiced': 2, 'pending': 1 };
-    const currentPriority = statusPriority[months[monthIndex].status] || 0;
-    const newPriority = statusPriority[anzeigeStatus] || 0;
-    
-    if (newPriority > currentPriority) {
-      months[monthIndex].status = anzeigeStatus;
+
+    for (const tr of teilrechnungen) {
+      const ueberweisenDatum = tr.ueberwiesen_am ? new Date(tr.ueberwiesen_am) : null;
+      const rechnungDatum = tr.rechnung_gestellt_am ? new Date(tr.rechnung_gestellt_am) : null;
+      const erwarteterZahlungseingangDatum = tr.erwarteter_monat_zahlungseingang ? new Date(tr.erwarteter_monat_zahlungseingang) : null;
+      const reFaelligkeitDatum = tr.re_faelligkeit ? new Date(tr.re_faelligkeit) : null;
+      const betrag = parseFloat(tr.nettobetrag) || 0;
+
+      let anzeigeStatus = null;
+      let anzeigeDatum = null;
+
+      if (ueberweisenDatum) {
+        anzeigeStatus = 'paid';
+        anzeigeDatum = ueberweisenDatum;
+      } else if (rechnungDatum) {
+        anzeigeStatus = 'invoiced';
+        anzeigeDatum = rechnungDatum;
+      } else if (erwarteterZahlungseingangDatum) {
+        anzeigeStatus = 'pending';
+        anzeigeDatum = erwarteterZahlungseingangDatum;
+      } else if (reFaelligkeitDatum) {
+        anzeigeStatus = 'pending';
+        anzeigeDatum = reFaelligkeitDatum;
+      }
+
+      if (!anzeigeDatum || anzeigeDatum.getFullYear() !== this.currentYear) continue;
+
+      const monthIndex = anzeigeDatum.getMonth();
+      const entryId = `${auftrag.id}-${tr.id || 'legacy'}`;
+      const existingEntry = months[monthIndex].auftraege.find(a => a.entryId === entryId);
+
+      if (!existingEntry) {
+        months[monthIndex].auftraege.push({
+          entryId,
+          id: auftrag.id,
+          trId: tr.id,
+          auftragsname: auftrag.auftragsname,
+          betrag,
+          status: anzeigeStatus,
+          datum: anzeigeDatum,
+          position: tr.position,
+          reNr: tr.re_nr,
+          rechnung_gestellt: tr.rechnung_gestellt,
+          rechnung_gestellt_am: tr.rechnung_gestellt_am,
+          ueberwiesen: tr.ueberwiesen,
+          ueberwiesen_am: tr.ueberwiesen_am
+        });
+        months[monthIndex].total += betrag;
+      }
+
+      const currentP = statusPriority[months[monthIndex].status] || 0;
+      if ((statusPriority[anzeigeStatus] || 0) > currentP) {
+        months[monthIndex].status = anzeigeStatus;
+      }
     }
   }
 
@@ -404,36 +423,26 @@ export class AuftragCashFlowCalendar {
   async showCellDetails(groupIndex, monthIndex) {
     const group = this.groupedData[groupIndex];
     if (!group) return;
-    
+
     const month = group.months[monthIndex];
     if (!month || month.auftraege.length === 0) return;
-    
+
     const monthName = this.months[monthIndex];
     const unternehmenName = group.unternehmen?.firmenname || 'Unbekannt';
     const markeName = group.marke?.markenname || '';
-    
-    // Lade vollständige Auftrags-Details aus der Datenbank
-    const auftragIds = month.auftraege.map(a => a.id);
-    
+
     try {
-      const { data: auftraege, error } = await window.supabase
-        .from('auftrag')
-        .select('*')
-        .in('id', auftragIds);
-      
-      if (error) {
-        console.error('❌ Fehler beim Laden der Auftrags-Details:', error);
-        return;
-      }
-      
-      // Alphabetisch nach Auftragsname sortieren
-      auftraege.sort((a, b) => (a.auftragsname || '').localeCompare(b.auftragsname || ''));
-      
-      // Öffne den Details-Drawer
+      // Sortiere Einträge nach Auftragsname, dann Position
+      const entries = [...month.auftraege].sort((a, b) => {
+        const nameComp = (a.auftragsname || '').localeCompare(b.auftragsname || '');
+        if (nameComp !== 0) return nameComp;
+        return (a.position || 1) - (b.position || 1);
+      });
+
       const { CashFlowDetailsDrawer } = await import('./CashFlowDetailsDrawer.js');
       const drawer = new CashFlowDetailsDrawer();
-      await drawer.open(auftraege, unternehmenName, markeName, monthName, this.currentYear);
-      
+      await drawer.open(entries, unternehmenName, markeName, monthName, this.currentYear);
+
     } catch (error) {
       console.error('❌ Fehler beim Öffnen des Details-Drawers:', error);
     }

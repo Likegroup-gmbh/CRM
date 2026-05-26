@@ -25,6 +25,7 @@ export class KampagneList {
     // AbortController und Mount-Status für Race Condition Prevention
     this._abortController = null;
     this._isMounted = false;
+    this._shellRendered = false;
     
     // Named Event-Handler References (für sauberes Cleanup)
     this._handlers = {
@@ -44,7 +45,7 @@ export class KampagneList {
     // Debounced Methoden (verhindert multiple API-Calls bei schnellen Filter-Änderungen)
     this._debouncedLoadAndRender = debounce(() => {
       if (this._isMounted) {
-        this.loadAndRender();
+        this.loadData();
       }
     }, 300);
 
@@ -89,7 +90,7 @@ export class KampagneList {
         const currentFilters = filterSystem.getFilters('kampagne');
         delete currentFilters[key];
         filterSystem.applyFilters('kampagne', currentFilters);
-        this.loadAndRender();
+        this.loadData();
       }
       return;
     }
@@ -156,7 +157,7 @@ export class KampagneList {
       if (this.currentView === 'calendar' && this.calendarView) {
         this.calendarView.refresh();
       } else {
-        this.loadAndRender();
+        this.loadData();
       }
     }
   }
@@ -165,7 +166,7 @@ export class KampagneList {
     if (this.currentView === 'calendar' && this.calendarView) {
       this.calendarView.refresh();
     } else {
-      this.loadAndRender();
+      this.loadData();
     }
   }
 
@@ -214,13 +215,28 @@ export class KampagneList {
     try {
       if (!checkMounted()) return;
       
-      await this.render();
+      if (!this._shellRendered) {
+        await this.render();
+        if (!checkMounted()) return;
+      }
       
+      await this.loadData();
+      
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      window.ErrorHandler.handle(error, 'KampagneList.loadAndRender');
+    }
+  }
+
+  async loadData() {
+    const checkMounted = () => this._isMounted && !this._abortController?.signal.aborted;
+    
+    try {
       if (!checkMounted()) return;
       
       if (this.currentView === 'list') {
         const [, result] = await Promise.all([
-          this.initializeFilterBar(),
+          this._shellRendered ? Promise.resolve() : this.initializeFilterBar(),
           loadKampagnenWithRelations(
             this.pagination.currentPage,
             this.pagination.itemsPerPage,
@@ -241,10 +257,9 @@ export class KampagneList {
         });
         this.pagination.render();
       }
-      
     } catch (error) {
       if (error.name === 'AbortError') return;
-      window.ErrorHandler.handle(error, 'KampagneList.loadAndRender');
+      window.ErrorHandler.handle(error, 'KampagneList.loadData');
     }
   }
 
@@ -266,8 +281,10 @@ export class KampagneList {
     });
 
     window.setContentSafely(window.content, html);
+    this._shellRendered = true;
 
     this.updateViewClass();
+    await this.initializeFilterBar();
 
     if (this.currentView === 'calendar') {
       await this.initCalendarView();
@@ -320,15 +337,15 @@ export class KampagneList {
     debugLog('🔄 KampagneList: Filter zurückgesetzt');
     filterSystem.resetFilters('kampagne');
     this.pagination.currentPage = 1;
-    this.loadAndRender();
+    this.loadData();
   }
 
   handlePageChange(page) {
-    this.loadAndRender();
+    this.loadData();
   }
 
   handleItemsPerPageChange(limit, page) {
-    this.loadAndRender();
+    this.loadData();
   }
 
   updateViewClass() {
@@ -353,7 +370,7 @@ export class KampagneList {
       }
       
       this.pagination.currentPage = 1;
-      this.loadAndRender();
+      this.loadData();
     }, 300);
   }
 
@@ -375,7 +392,23 @@ export class KampagneList {
 
       this.currentView = targetView;
       this.updateViewClass();
-      targetView === 'list' ? await this.loadAndRender() : await this.render();
+
+      // Content-Container updaten ohne Shell neu zu rendern
+      const container = document.getElementById('kampagnen-content-container');
+      if (container) {
+        if (targetView === 'calendar') {
+          container.innerHTML = '<div id="calendar-container"></div>';
+          await this.initCalendarView();
+        } else {
+          const { renderTableWrapper } = await import('./KampagneListRenderers.js');
+          container.innerHTML = renderTableWrapper();
+          await this.loadData();
+        }
+      }
+
+      // View-Toggle Buttons aktualisieren
+      document.getElementById('btn-view-list')?.classList.toggle('active', targetView === 'list');
+      document.getElementById('btn-view-calendar')?.classList.toggle('active', targetView === 'calendar');
     };
 
     document.getElementById('btn-view-list')?.addEventListener('click', () => switchView('list'));
@@ -505,6 +538,7 @@ export class KampagneList {
 
   destroy() {
     this._isMounted = false;
+    this._shellRendered = false;
     clearTimeout(this._searchDebounceTimer);
     
     if (this._abortController) {

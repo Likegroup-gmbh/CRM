@@ -157,13 +157,17 @@ export class UnternehmenList extends BasePaginatedList {
         query = query.in('id', constrainedUnternehmenIds);
       }
       
-      // Weitere Filter anwenden
-      // Name-Filter vom Suchfeld: sucht in firmenname UND zugehörigen Markennamen
+      // Multi-Spalten-Suche: firmenname, internes_kuerzel, webseite, invoice_email + Markennamen
       if (filters.name) {
         const search = filters.name;
         const { data: matchM } = await window.supabase
           .from('marke').select('unternehmen_id').ilike('markenname', `%${search}%`);
-        const orParts = [`firmenname.ilike.%${search}%`];
+        const orParts = [
+          `firmenname.ilike.%${search}%`,
+          `internes_kuerzel.ilike.%${search}%`,
+          `webseite.ilike.%${search}%`,
+          `invoice_email.ilike.%${search}%`
+        ];
         if (matchM?.length) {
           const ids = [...new Set(matchM.map(m => m.unternehmen_id).filter(Boolean))];
           if (ids.length) orParts.push(`id.in.(${ids.join(',')})`);

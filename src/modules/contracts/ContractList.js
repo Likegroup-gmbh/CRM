@@ -10,6 +10,7 @@ export class ContractList {
   constructor() {
     this._abortController = null;
     this._isMounted = false;
+    this._shellRendered = false;
     this._searchDebounceTimer = null;
     this.searchQuery = '';
 
@@ -44,12 +45,13 @@ export class ContractList {
 
   _handleEntityUpdated(e) {
     if (e.detail?.entity === 'auftrag') {
-      this.loadAndRender();
+      this.loadData();
     }
   }
 
   async init() {
     this._isMounted = true;
+    this._shellRendered = false;
 
     if (this._abortController) this._abortController.abort();
     this._abortController = new AbortController();
@@ -58,8 +60,8 @@ export class ContractList {
 
     this.pagination.init('pagination-contracts', {
       itemsPerPage: 25,
-      onPageChange: () => this.loadAndRender(),
-      onItemsPerPageChange: () => this.loadAndRender(),
+      onPageChange: () => this.loadData(),
+      onItemsPerPageChange: () => this.loadData(),
       dynamicResize: true,
       tbodySelector: '.data-table tbody'
     });
@@ -74,15 +76,22 @@ export class ContractList {
       return;
     }
 
-    await this.loadAndRender();
+    this.renderShell();
+    await this.loadData();
   }
 
-  async loadAndRender() {
+  renderShell() {
+    if (this._shellRendered) return;
+    const html = renderPageHtml({ searchQuery: this.searchQuery });
+    window.setContentSafely(window.content, html);
+    this._shellRendered = true;
+    this.bindEvents();
+  }
+
+  async loadData() {
     if (!this._isMounted) return;
 
     try {
-      this.render();
-
       const result = await loadContracts(
         this.pagination.currentPage,
         this.pagination.itemsPerPage,
@@ -96,18 +105,12 @@ export class ContractList {
       this.pagination.render();
     } catch (error) {
       if (error.name === 'AbortError') return;
-      console.error('❌ ContractList.loadAndRender:', error);
+      console.error('❌ ContractList.loadData:', error);
     }
   }
 
-  render() {
-    const html = renderPageHtml({ searchQuery: this.searchQuery });
-    window.setContentSafely(window.content, html);
-    this.bindEvents();
-  }
-
   bindEvents() {
-    SearchInput.bind('contracts', (value) => this.handleSearch(value));
+    SearchInput.bind('contracts', (value) => this.handleSearch(value), this._abortController.signal);
 
     document.addEventListener('click', this._handlers.globalClick, { signal: this._abortController.signal });
     window.addEventListener('entityUpdated', this._handlers.entityUpdated, { signal: this._abortController.signal });
@@ -118,12 +121,13 @@ export class ContractList {
     this._searchDebounceTimer = setTimeout(() => {
       this.searchQuery = query.trim();
       this.pagination.currentPage = 1;
-      this.loadAndRender();
+      this.loadData();
     }, 300);
   }
 
   destroy() {
     this._isMounted = false;
+    this._shellRendered = false;
     clearTimeout(this._searchDebounceTimer);
 
     if (this._abortController) {

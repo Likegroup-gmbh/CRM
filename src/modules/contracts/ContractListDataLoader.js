@@ -28,7 +28,7 @@ export async function loadContracts(page = 1, limit = 25, { searchQuery = '' } =
       .range(offset, offset + limit - 1);
 
     if (searchQuery) {
-      query = query.or(`titel.ilike.%${searchQuery}%,auftragsname.ilike.%${searchQuery}%,angebotsnummer.ilike.%${searchQuery}%,po.ilike.%${searchQuery}%`);
+      query = query.or(`titel.ilike.%${searchQuery}%,auftragsname.ilike.%${searchQuery}%,angebotsnummer.ilike.%${searchQuery}%,po.ilike.%${searchQuery}%,externe_po.ilike.%${searchQuery}%`);
     }
 
     const { data, count, error } = await query;

@@ -117,8 +117,8 @@ export class ProjektErstellenEditLoader {
       zahlungsziel_tage: auftrag.zahlungsziel_tage ?? null,
       rechnung_gestellt: !!auftrag.rechnung_gestellt,
       rechnung_gestellt_am: auftrag.rechnung_gestellt_am || null,
-      erwarteter_monat_zahlungseingang: auftrag.erwarteter_monat_zahlungseingang || null,
       re_faelligkeit: auftrag.re_faelligkeit || null,
+      erwarteter_monat_zahlungseingang: auftrag.erwarteter_monat_zahlungseingang || null,
       nettobetrag: auftrag.nettobetrag ?? null,
       ust_prozent: auftrag.ust_prozent ?? null,
       ust_betrag: auftrag.ust_betrag ?? null,
@@ -146,9 +146,10 @@ export class ProjektErstellenEditLoader {
         rechnung_gestellt: !!tr.rechnung_gestellt,
         rechnung_gestellt_am: tr.rechnung_gestellt_am || null,
         re_faelligkeit: tr.re_faelligkeit || null,
+        erwarteter_monat_zahlungseingang: tr.erwarteter_monat_zahlungseingang || null,
+        notiz: tr.notiz || '',
         ueberwiesen: !!tr.ueberwiesen,
-        ueberwiesen_am: tr.ueberwiesen_am || null,
-        erwarteter_monat_zahlungseingang: tr.erwarteter_monat_zahlungseingang || null
+        ueberwiesen_am: tr.ueberwiesen_am || null
       }));
     }
 
@@ -167,9 +168,10 @@ export class ProjektErstellenEditLoader {
       rechnung_gestellt: !!auftrag.rechnung_gestellt,
       rechnung_gestellt_am: auftrag.rechnung_gestellt_am || null,
       re_faelligkeit: auftrag.re_faelligkeit || null,
+      erwarteter_monat_zahlungseingang: auftrag.erwarteter_monat_zahlungseingang || null,
+      notiz: '',
       ueberwiesen: !!auftrag.ueberwiesen,
-      ueberwiesen_am: auftrag.ueberwiesen_am || null,
-      erwarteter_monat_zahlungseingang: auftrag.erwarteter_monat_zahlungseingang || null
+      ueberwiesen_am: auftrag.ueberwiesen_am || null
     }];
   }
 

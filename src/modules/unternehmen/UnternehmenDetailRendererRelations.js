@@ -286,6 +286,76 @@ export function renderRechnungen(detail) {
   `;
 }
 
+export function renderKundenrechnungen(detail) {
+  if (!detail.kundenrechnungen || detail.kundenrechnungen.length === 0) {
+    return `
+      <div class="empty-state">
+        <h3>Keine Kundenrechnungen vorhanden</h3>
+        <p>Für dieses Unternehmen wurden noch keine Kundenrechnungen erfasst.</p>
+      </div>
+    `;
+  }
+
+  const formatDate = (d) => detail.formatDate(d);
+  const formatCurrency = (v) => detail.formatCurrency(v);
+  const formatZahlungsziel = (tage) => tage ? `${tage} Tage` : '-';
+  const checkIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="var(--success-color, #16a34a)" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>`;
+  const uncheckIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="var(--text-muted, #9ca3af)" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>`;
+
+  const rows = detail.kundenrechnungen.map(r => {
+    const paymentClass = r.ueberwiesen
+      ? 'auftrag-row--ueberwiesen'
+      : r.rechnung_gestellt
+        ? 'auftrag-row--rechnung-gestellt'
+        : '';
+    return `
+    <tr class="${paymentClass}">
+      <td>${r.marke ? renderMarkeBubble(detail, r.marke) : '-'}</td>
+      <td><a href="#" class="table-link" data-table="auftrag" data-id="${r.id}">${detail.sanitize(r.auftragsname || '-')}</a></td>
+      <td>${r._teilrechnung?.label || '1 von 1'}</td>
+      <td>${detail.sanitize(r.angebotsnummer || '-')}</td>
+      <td>${detail.sanitize(r.re_nr || '-')}</td>
+      <td>${detail.sanitize(r.externe_po || '-')}</td>
+      <td>${formatDate(r.rechnung_gestellt_am)}</td>
+      <td>${formatZahlungsziel(r.zahlungsziel_tage)}</td>
+      <td>${formatDate(r.re_faelligkeit)}</td>
+      <td>${formatCurrency(r.nettobetrag)}</td>
+      <td>${formatCurrency(r.ust_betrag)}</td>
+      <td>${formatCurrency(r.bruttobetrag)}</td>
+      <td class="table-cell-center">${r.rechnung_gestellt ? checkIcon : uncheckIcon}</td>
+      <td class="table-cell-center">${r.ueberwiesen ? checkIcon : uncheckIcon}</td>
+      <td>${formatDate(r.ueberwiesen_am)}</td>
+    </tr>
+  `}).join('');
+
+  return `
+    <div class="data-table-container">
+      <table class="data-table data-table--nowrap">
+        <thead>
+          <tr>
+            <th>Marke</th>
+            <th>Auftrag</th>
+            <th>Teilrechnung</th>
+            <th>Angebotsnr.</th>
+            <th>Rechnungsnr.</th>
+            <th>Externe PO</th>
+            <th>Rechnungsdatum</th>
+            <th>Zahlungsziel</th>
+            <th>Fälligkeit</th>
+            <th>Netto</th>
+            <th>USt</th>
+            <th>Brutto</th>
+            <th class="table-cell-center">Gestellt</th>
+            <th class="table-cell-center">Überwiesen</th>
+            <th>Bezahlt am</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
 export function renderVertraege(detail) {
   if (!detail.vertraege || detail.vertraege.length === 0) {
     return `
