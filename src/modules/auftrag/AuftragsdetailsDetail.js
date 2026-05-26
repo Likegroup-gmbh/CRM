@@ -1,7 +1,7 @@
 // AuftragsdetailsDetail.js (ES6-Modul)
 // Auftragsdetails-Detailseite ohne Tabs - direkte Anzeige der Informationen
 
-import { calculateEkVkTotals, calculateAgencyFeeSummary, filterPaidKooperationen, renderAgencyFeeCardHtml, renderKskCardHtml } from '../../core/budget/EkVkAgencyFeeHelper.js';
+import { calculateEkVkTotals, calculateAgencyFeeSummary, renderAgencyFeeCardHtml, renderKskCardHtml } from '../../core/budget/EkVkAgencyFeeHelper.js';
 
 export class AuftragsdetailsDetail {
   constructor() {
@@ -258,8 +258,7 @@ export class AuftragsdetailsDetail {
     this.budgetSummary.vkSum = ekVk.vkSum;
     this.budgetSummary.ekVkMarginSum = ekVk.marginSum;
 
-    const paid = filterPaidKooperationen(this.kooperationen, this.videos, this.rechnungStatusMap);
-    this.budgetSummary.agencyFeeSummary = calculateAgencyFeeSummary(this.details, paid.kooperationen, paid.videos);
+    this.budgetSummary.agencyFeeSummary = calculateAgencyFeeSummary(this.details, this.kooperationen, this.videos);
 
     console.log('✅ AUFTRAGSDETAILSDETAIL: Budget-Zusammenfassung berechnet:', this.budgetSummary);
   }

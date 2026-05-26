@@ -82,7 +82,7 @@ export function calculateAgencyFeeSummary(details, kooperationen, videos) {
 
   const total = baseFee + marginSum;
 
-  const showAgencyFeeCard = total > 0;
+  const showAgencyFeeCard = true;
   const showKskCard = d.agency_services_enabled && d.ksk_enabled && kskValue > 0;
 
   return { baseFee, ekVkMargin: marginSum, total, kskValue, showAgencyFeeCard, showKskCard, ekSum, vkSum };
@@ -99,7 +99,7 @@ export function resolveAgencyFeeForViewer(summary, canSeePricing) {
     ...summary,
     total: summary.baseFee,
     ekVkMargin: 0,
-    showAgencyFeeCard: summary.baseFee > 0,
+    showAgencyFeeCard: true,
   };
 }
 

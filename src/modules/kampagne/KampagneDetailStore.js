@@ -9,7 +9,7 @@ import {
   normalizeVideoFeedbackComments
 } from '../../core/VideoFeedbackBuckets.js';
 import { sortKooperationen } from './KooperationSortHelper.js';
-import { calculateEkVkTotals, filterPaidKooperationen } from '../../core/budget/EkVkAgencyFeeHelper.js';
+
 
 const DEFAULT_KOOPERATION_SORT = 'created_desc';
 
@@ -154,10 +154,7 @@ export class KampagneDetailStore {
     const extraKostenVkSum = this.kooperationen.reduce((sum, k) => sum + (parseFloat(k.verkaufspreis_zusatzkosten) || 0), 0);
     const koopCreatorsUsed = this.kooperationen.filter(k => k.creator_id).length;
 
-    const paid = filterPaidKooperationen(this.kooperationen, allVideos, this.rechnungStatusMap);
-    const ekVk = calculateEkVkTotals(paid.kooperationen, paid.videos);
-
-    return { koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum: ekVk.marginSum };
+    return { koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum: 0 };
   }
 
   // ========================================

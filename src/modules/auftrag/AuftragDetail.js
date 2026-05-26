@@ -7,7 +7,6 @@ import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
-import { calculateAgencyFeeSummary, filterPaidKooperationen, renderAgencyFeeCardHtml, renderKskCardHtml } from '../../core/budget/EkVkAgencyFeeHelper.js';
 
 export class AuftragDetail extends PersonDetailBase {
   constructor() {
@@ -356,25 +355,14 @@ export class AuftragDetail extends PersonDetailBase {
       // Lade Videos + Rechnungsstatus für alle Kooperationen
       if (this.kooperationen.length > 0) {
         const koopIds = this.kooperationen.map(k => k.id);
-        const [videoResult, rechnungResult] = await Promise.all([
-          window.supabase
-            .from('kooperation_videos')
-            .select('id, titel, thema, content_art, kooperation_id, asset_url, link_content, einkaufspreis_netto, verkaufspreis_netto')
-            .in('kooperation_id', koopIds),
-          window.supabase
-            .from('rechnung')
-            .select('kooperation_id, status')
-            .in('kooperation_id', koopIds),
-        ]);
+        const { data: videoData } = await window.supabase
+          .from('kooperation_videos')
+          .select('id, titel, thema, content_art, kooperation_id, asset_url, link_content, einkaufspreis_netto, verkaufspreis_netto')
+          .in('kooperation_id', koopIds);
         
-        this.videos = videoResult.data || [];
-        this.rechnungStatusMap = (rechnungResult.data || []).reduce((acc, r) => {
-          if (r.kooperation_id) acc[r.kooperation_id] = r.status;
-          return acc;
-        }, {});
+        this.videos = videoData || [];
       } else {
         this.videos = [];
-        this.rechnungStatusMap = {};
       }
       
       // Berechne realVideoCount und realCreatorCount
@@ -706,14 +694,6 @@ export class AuftragDetail extends PersonDetailBase {
               </div>
             </div>
           </div>` : ''}
-          ${(() => {
-            const paid = filterPaidKooperationen(this.kooperationen, this.videos, this.rechnungStatusMap);
-            const agencyFeeSummary = calculateAgencyFeeSummary(this.auftragsDetails, paid.kooperationen, paid.videos);
-            if (canViewInternalBudget) {
-              return renderKskCardHtml(agencyFeeSummary, fmt) + renderAgencyFeeCardHtml(agencyFeeSummary, fmt, { canSeePricing: true });
-            }
-            return renderAgencyFeeCardHtml(agencyFeeSummary, fmt, { canSeePricing: false });
-          })()}
           <div class="summary-card" data-summary-card="creators">
             <div class="summary-value">${num(this.realCreatorCount)} von ${num(this.targetCreatorCount)}</div>
             <div class="summary-label">Gebuchte Creator</div>
