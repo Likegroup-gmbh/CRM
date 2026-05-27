@@ -12567,7 +12567,7 @@ table:has(#strategien-table-body) td.col-actions {
 
 .rechnung-table-container {
   --rechnung-col-checkbox-width: 2.5em;
-  --rechnung-col-name-width: 18em;
+  --rechnung-col-name-width: 22em;
   --rechnung-col-auftrag-width: 18em;
   overflow-x: auto;
   overflow-y: visible;
@@ -17511,34 +17511,37 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
 
 /* Notiz-Indikator in der Tabelle */
 .col-name-inner {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  width: 100%;
 }
 
 .notiz-indicator {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: none;
-  border-radius: 50%;
-  background: var(--gray-100);
-  color: var(--gray-700);
+  border-radius: var(--radius-md);
+  background: #fef3c7;
+  color: #d97706;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.1s ease;
+  transition: background 0.15s ease;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .notiz-indicator:hover {
-  background: var(--gray-200);
+  background: #fde68a;
+  color: #92400e;
 }
 
 .notiz-indicator svg {
-  width: 13px;
-  height: 13px;
+  width: 16px;
+  height: 16px;
 }
 
 /* Notiz-Card in Detail-Ansicht */

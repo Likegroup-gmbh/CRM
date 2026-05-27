@@ -760,7 +760,7 @@ export class RechnungList {
       tbody.innerHTML = rechnungen.map(r => `
         <tr data-id="${r.id}" class="${getRowClass(r)}">
           ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="rechnung-check" data-id="${r.id}"></td>` : ''}
-          <td class="col-name"><span class="col-name-inner">${this._renderNotizIndicator(r.id)}${r.rechnung_nr || '-'}</span></td>
+          <td class="col-name"><span class="col-name-inner">${r.rechnung_nr || '-'}${this._renderNotizIndicator(r.id)}</span></td>
           <td class="col-typ"><span class="status-badge ${r.rechnungstyp === 'contracting' ? 'status-gestellt' : 'status-beauftragt'}">${r.rechnungstyp === 'contracting' ? 'Contracting' : 'Kampagne'}</span></td>
           <td class="col-auftrag">${r.auftrag_id ? `<a href="#" class="table-link" data-table="${r.rechnungstyp === 'contracting' ? 'contracts' : 'auftragsdetails'}" data-id="${r.rechnungstyp === 'contracting' ? r.auftrag_id : (r.auftrag?.auftrag_details?.[0]?.id || r.auftrag_id)}">${r.auftrag?.auftragsname || '-'}</a>` : '-'}</td>
           <td class="col-po">${r.po_nummer || '-'}</td>
