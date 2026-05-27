@@ -570,14 +570,6 @@ button.is-submit-locked,
   }
 }
 
-.danger-btn {
-  background-color: var(--color-error);
-  color: var(--text-inverse);
-  padding: var(--space-xs);
-  border: none;
-  border-radius: var(--radius-xl);
-}
-
 .btn-sm {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
@@ -1898,7 +1890,7 @@ h3.section-title,
   align-items: center;
   animation: modalOverlayIn 0.2s ease-out;
   justify-content: center;
-  z-index: 1100;
+  z-index: 2000;
   padding: 1rem;
 }
 
@@ -14017,6 +14009,7 @@ table:has(#strategien-table-body) td.col-actions {
   color: white;
   border: none;
   border-radius: var(--radius-md);
+  font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;

@@ -703,55 +703,5 @@ export class AutoGeneration {
       }
     }
 
-    // ========== STRATEGIENAME (für Strategie-Formulare) ==========
-    const strategieNameInput = form.querySelector('input[name="name"]');
-    const kampagneSelectForStrategie = form.querySelector('select[name="kampagne_id"]');
-    const strategieForm = form.id === 'strategie-form';
-    
-    if (strategieForm && strategieNameInput && kampagneSelectForStrategie) {
-      const triggerStrategieName = async () => {
-        const kampagneId = kampagneSelectForStrategie.value;
-        if (kampagneId) {
-          const markeSelect = form.querySelector('select[name="marke_id"]');
-          const unternehmenSelect = form.querySelector('select[name="unternehmen_id"]');
-          const generatedName = await this.autoGenerateStrategieName(
-            kampagneId,
-            markeSelect?.value,
-            unternehmenSelect?.value
-          );
-          if (generatedName && strategieNameInput) {
-            strategieNameInput.value = generatedName;
-            strategieNameInput.dispatchEvent(new Event('input', { bubbles: true }));
-            strategieNameInput.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-        }
-      };
-      
-      // Event-Listener für Kampagnen-Auswahl
-      kampagneSelectForStrategie.addEventListener('change', triggerStrategieName);
-      
-      // Searchable Select für Kampagne
-      const kampagneField = kampagneSelectForStrategie.closest('.form-field');
-      if (kampagneField) {
-        const searchableContainer = kampagneField.querySelector('.searchable-select-container');
-        if (searchableContainer) {
-          const searchInput = searchableContainer.querySelector('.searchable-select-input');
-          if (searchInput) {
-            let timeout;
-            searchInput.addEventListener('input', () => {
-              clearTimeout(timeout);
-              timeout = setTimeout(triggerStrategieName, 300);
-            });
-          }
-        }
-      }
-      
-      // Sofort generieren wenn Kampagne bereits ausgewählt
-      if (kampagneSelectForStrategie.value) {
-        triggerStrategieName();
-      }
-      
-      console.log('✅ Auto-Generierung für Strategie-Name eingerichtet');
-    }
   }
 } 

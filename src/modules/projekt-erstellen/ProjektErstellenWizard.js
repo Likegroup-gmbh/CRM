@@ -5,6 +5,7 @@
 import { StepAuftragstyp } from './steps/StepAuftragstyp.js';
 import { StepBasisdaten } from './steps/StepBasisdaten.js';
 import { StepDetails } from './steps/StepDetails.js';
+import { StepKampagne } from './steps/StepKampagne.js';
 import { FeedbackCard } from './components/FeedbackCard.js';
 import { WizardProgressBar } from './components/WizardProgressBar.js';
 import { ProjektErstellenPersistence } from './services/ProjektErstellenPersistence.js';
@@ -97,14 +98,18 @@ export class ProjektErstellenWizard {
   getStepLabels() {
     return this.isContracting
       ? ['Basisdaten', 'Finanzen']
-      : ['Basisdaten', 'Details'];
+      : ['Basisdaten', 'Details', 'Kampagne'];
   }
 
   buildSteps() {
     if (this.isEditMode) {
-      return [new StepBasisdaten(this), new StepDetails(this)];
+      const steps = [new StepBasisdaten(this), new StepDetails(this)];
+      if (!this.isContracting) steps.push(new StepKampagne(this));
+      return steps;
     }
-    return [new StepAuftragstyp(this), new StepBasisdaten(this), new StepDetails(this)];
+    const steps = [new StepAuftragstyp(this), new StepBasisdaten(this), new StepDetails(this)];
+    if (!this.isContracting) steps.push(new StepKampagne(this));
+    return steps;
   }
 
   updateStepsForAuftragtype() {
@@ -189,7 +194,7 @@ export class ProjektErstellenWizard {
 
   _resolveInitialStep(named) {
     const labels = this.getStepLabels().map(l => l.toLowerCase());
-    const STEP_MAP = { basis: 'basisdaten', details: 'details', kampagnen: 'details', finanzen: 'finanzen' };
+    const STEP_MAP = { basis: 'basisdaten', details: 'details', kampagnen: 'kampagne', finanzen: 'finanzen' };
 
     // 1) Explizit übergebener Name
     let key = named;
@@ -322,7 +327,7 @@ export class ProjektErstellenWizard {
   }
 
   getLogicalStepNumber(stepIndex = this.currentStep) {
-    return this.isEditMode ? stepIndex : stepIndex;
+    return this.isEditMode ? stepIndex + 1 : stepIndex;
   }
 
   updateWizardChrome() {

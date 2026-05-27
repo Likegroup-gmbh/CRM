@@ -134,12 +134,8 @@ async function handleCreateFormSubmit(list, form) {
   try {
     const submitData = window.formSystem.collectSubmitData(form);
     if (!submitData.name || submitData.name.trim() === '') {
-      const generatedName = await list.autoGeneration.autoGenerateStrategieName(
-        submitData.kampagne_id,
-        submitData.marke_id,
-        submitData.unternehmen_id
-      );
-      if (generatedName) submitData.name = generatedName;
+      window.toastSystem?.show('Bitte geben Sie einen Strategienamen ein', 'error');
+      return;
     }
 
     const newStrategie = await strategieService.createStrategie(submitData);
@@ -177,7 +173,7 @@ export async function openEditDrawer(list, strategieId) {
     header.innerHTML = `
       <div>
         <span class="drawer-title">Strategie bearbeiten</span>
-        <p class="drawer-subtitle">Zuordnungen ändern – der Name wird automatisch angepasst</p>
+        <p class="drawer-subtitle">Strategie bearbeiten</p>
       </div>
       <div>
         <button type="button" class="drawer-close-btn" aria-label="Schließen">&times;</button>
@@ -191,8 +187,8 @@ export async function openEditDrawer(list, strategieId) {
         <input type="hidden" name="strategie_id" value="${strategie.id}" />
 
         <div class="mdc-field">
-          <label class="mdc-label" for="edit-strategie-name">Name (auto-generiert)</label>
-          <input type="text" id="edit-strategie-name" class="mdc-input" value="${list.sanitize(strategie.name || '')}" readonly disabled />
+          <label class="mdc-label" for="edit-strategie-name">Name <span class="required">*</span></label>
+          <input type="text" id="edit-strategie-name" name="name" class="mdc-input" value="${list.sanitize(strategie.name || '')}" required />
         </div>
 
         <div class="mdc-field">
@@ -363,18 +359,6 @@ function bindEditSelectCascades(list) {
       kampagnen.map(k => `<option value="${k.id}">${list.sanitize(k.kampagnenname)}</option>`).join('');
   });
 
-  kampagneSelect.addEventListener('change', async () => {
-    const kampagneId = kampagneSelect.value;
-    if (!kampagneId || !nameInput) return;
-    const generatedName = await list.autoGeneration.autoGenerateStrategieName(
-      kampagneId,
-      markeSelect.value || null,
-      unternehmenSelect.value || null
-    );
-    if (generatedName) {
-      nameInput.value = generatedName;
-    }
-  });
 }
 
 async function handleEditFormSubmit(list, strategieId, form) {
@@ -386,10 +370,15 @@ async function handleEditFormSubmit(list, strategieId, form) {
       submitBtn.textContent = 'Speichern...';
     }
 
+    const name = form.querySelector('[name="name"]').value.trim();
     const unternehmenId = form.querySelector('[name="unternehmen_id"]').value;
     const markeId = form.querySelector('[name="marke_id"]').value || null;
     const kampagneId = form.querySelector('[name="kampagne_id"]').value;
 
+    if (!name) {
+      window.toastSystem?.show('Bitte geben Sie einen Strategienamen ein', 'error');
+      return;
+    }
     if (!unternehmenId) {
       window.toastSystem?.show('Bitte wählen Sie ein Unternehmen aus', 'error');
       return;
@@ -399,18 +388,12 @@ async function handleEditFormSubmit(list, strategieId, form) {
       return;
     }
 
-    const generatedName = await list.autoGeneration.autoGenerateStrategieName(
-      kampagneId, markeId, unternehmenId
-    );
-
     const updates = {
+      name,
       unternehmen_id: unternehmenId,
       marke_id: markeId,
       kampagne_id: kampagneId
     };
-    if (generatedName) {
-      updates.name = generatedName;
-    }
 
     await strategieService.updateStrategie(strategieId, updates);
 

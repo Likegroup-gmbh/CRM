@@ -1,6 +1,8 @@
 import { renderVertragCell } from '../../core/VertragSyncHelper.js';
 import { formatVideoFeedbackValue, VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
+import { getOrderedColumns, isColumnVisible, isCustomColumnId } from './columns/ColumnRegistry.js';
+import { renderCustomHeader, renderCustomCell } from './columns/CustomColumnRenderer.js';
 
 const EXTERNAL_LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`;
 
@@ -122,44 +124,20 @@ export class VideoTableRenderer {
 
   renderHeaderRow() {
     const t = this.table;
-    const h = (colClass, label, dataCol, extraAttr = '') => {
-      const vis = t.isColumnVisibleForCustomer(colClass) ? '' : 'style="display:none;"';
-      return `<th class="col-header ${colClass}" ${vis} data-col="${dataCol}" ${extraAttr}>
-        ${label}
-        <div class="resize-handle resize-handle-col" data-col="${dataCol}"></div>
+    const hiddenColumns = t.hiddenColumns || [];
+    const isKunde = t.isKundeRole();
+    const columns = getOrderedColumns(t.store);
+
+    return columns.map(col => {
+      if (col.isCustom) {
+        return renderCustomHeader(col, hiddenColumns, isKunde);
+      }
+      const vis = t.isColumnVisibleForCustomer(col.id) ? '' : 'style="display:none;"';
+      return `<th class="col-header ${col.id}" ${vis} data-col="${col.dataCol}" draggable="true">
+        ${col.label}
+        <div class="resize-handle resize-handle-col" data-col="${col.dataCol}"></div>
       </th>`;
-    };
-    return [
-      h('col-nr', 'Nr', '0'),
-      h('col-creator', 'Creator', '1'),
-      h('col-status', 'Status', '1b'),
-      h('col-tags', 'Tags', '1c'),
-      h('col-extra-kosten', 'Extra Kosten', '1d'),
-      h('col-vertrag', 'Vertrag', '4'),
-      h('col-nutzungsrechte', 'Nutzungsrechte', '5'),
-      h('col-start-datum', 'Erstellt', '6'),
-      h('col-videoanzahl', 'Videos', '9'),
-      h('col-video-nr', 'Video-Nr', '10'),
-      h('col-vk-video', 'Kosten', '10b'),
-      h('col-video-script-deadline', 'Script Deadline', '10d'),
-      h('col-video-content-deadline', 'Content Deadline', '10e'),
-      h('col-video-typ', 'Typ', '10c'),
-      h('col-thema', 'Thema', '11'),
-      h('col-organic-paid', 'Content/Art', '12'),
-      h('col-produkt', 'Produkte', '13'),
-      h('col-lieferadresse', 'Lieferadresse', '14'),
-      h('col-paket-tracking', 'Tracking', '15'),
-      h('col-drehort', 'Drehort', '16'),
-      h('col-link-skript', 'Link Skript / Briefing', '17'),
-      h('col-skript-freigegeben', 'Skript freigegeben', '18'),
-      h('col-video-name', 'Video-Name', '18b'),
-      h('col-link-content', 'Content', '19'),
-      ...VIDEO_FEEDBACK_FIELDS.map((slot, idx) => h(slot.colClass, slot.label, String(20 + idx))),
-      h('col-freigabe', 'Freigabe', '24'),
-      h('col-caption', 'Caption', '25'),
-      h('col-posting-datum', 'Posting Datum', '26'),
-      h('col-actions', 'Aktionen', '27'),
-    ].join('\n');
+    }).join('\n');
   }
 
   renderKooperationWithVideos(koop, rowNumber) {
@@ -491,6 +469,7 @@ export class VideoTableRenderer {
         <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-posting-datum') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => this._renderVideoDatePicker(video, 'posting_datum', 'Posting Datum'))}
         </td>
+        ${this._renderCustomColumnCells(koop, videos)}
         <td class="grid-cell col-actions" ${!t.isColumnVisibleForCustomer('col-actions') ? 'style="display:none;"' : ''}>
           <div class="actions-dropdown-container" data-entity-type="kooperation">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
@@ -520,6 +499,17 @@ export class VideoTableRenderer {
         </td>
       </tr>
     `;
+  }
+
+  _renderCustomColumnCells(koop, videos) {
+    const t = this.table;
+    const columns = getOrderedColumns(t.store);
+    const customCols = columns.filter(c => c.isCustom);
+    if (customCols.length === 0) return '';
+
+    return customCols.map(col =>
+      renderCustomCell(col, koop, videos, t.store, t)
+    ).join('');
   }
 
   renderActionStatusSubmenu(koop) {

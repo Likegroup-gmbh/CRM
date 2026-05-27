@@ -7,6 +7,7 @@ import {
   VIDEO_FEEDBACK_LEGACY_SELECT,
   VIDEO_FEEDBACK_SELECT
 } from '../../core/VideoFeedbackBuckets.js';
+import { CustomColumnDataLoader } from './columns/CustomColumnDataLoader.js';
 
 export class VideoTableDataLoader {
   constructor(table) {
@@ -231,12 +232,12 @@ export class VideoTableDataLoader {
       t._loadingProgressTimer = setTimeout(() => t._removeLoadingProgress(), 300);
 
       const videoIds = allVideos.map(v => v.id);
+      const parallelTasks = [this.loadCustomColumnsAndValues(koopIds, videoIds)];
       if (videoIds.length > 0) {
-        await Promise.all([
-          this.loadAssetsAndComments(videoIds),
-          this.loadStorySlots(videoIds),
-        ]);
+        parallelTasks.push(this.loadAssetsAndComments(videoIds));
+        parallelTasks.push(this.loadStorySlots(videoIds));
       }
+      await Promise.all(parallelTasks);
 
     } catch (error) {
       console.error('❌ Kritischer Fehler beim Laden:', error);
@@ -400,6 +401,31 @@ export class VideoTableDataLoader {
   getVersandForVideo(videoId) {
     if (!this.table.versandInfos) return null;
     return this.table.versandInfos[videoId] || null;
+  }
+
+  async loadCustomColumnsAndValues(koopIds, videoIds) {
+    const t = this.table;
+    const store = t.store;
+    if (!store) return;
+
+    try {
+      const [columns, columnOrder] = await Promise.all([
+        CustomColumnDataLoader.loadCustomColumns(t.kampagneId),
+        CustomColumnDataLoader.loadColumnOrder(t.kampagneId)
+      ]);
+
+      store.setCustomColumns(columns);
+      store.setColumnOrder(columnOrder);
+
+      if (columns.length > 0) {
+        const columnIds = columns.map(c => c.id);
+        const entityIds = [...koopIds, ...videoIds];
+        const values = await CustomColumnDataLoader.loadCustomColumnValues(columnIds, entityIds);
+        store.setCustomColumnValues(values);
+      }
+    } catch (error) {
+      console.warn('⚠️ Custom Columns konnten nicht geladen werden:', error);
+    }
   }
 
   async loadColumnVisibilitySettings() {

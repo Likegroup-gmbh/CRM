@@ -108,7 +108,7 @@ export class FeedbackCard {
       <div class="projekt-erstellen-summary-doc">
         ${this.renderSummarySection('Basisdaten', this.buildStep1(formData))}
         ${this.renderSummarySection(isContracting ? 'Finanzen' : 'Details', this.buildStep2(formData))}
-        ${isContracting ? '' : this.renderSummarySection('Kampagne', this.buildKampagneSummaryInline(formData))}
+        ${isContracting ? '' : this.renderSummarySection('Kampagne', this.buildStepKampagne(formData))}
       </div>
     `;
   }
@@ -185,6 +185,7 @@ export class FeedbackCard {
 
   buildStep1(formData) {
     const a = formData.auftrag || {};
+    const isContracting = a.auftragtype === 'Contracting';
 
     const unternehmen = this.resolveBasisdatenEntity('unternehmen', a.unternehmen_id);
     const marke = this.resolveBasisdatenEntity('marke', a.marke_id);
@@ -192,17 +193,21 @@ export class FeedbackCard {
 
     const artLabel = AUFTRAG_TYPES.find(t => t.value === a.auftragtype)?.label || null;
 
+    const rightCol = [
+      this.renderSummaryMetric('Art des Auftrags', artLabel, !artLabel),
+      this.renderSummaryMetric('Interne PO', this.escapeHtml(a.po || ''), !a.po)
+    ];
+    if (isContracting) {
+      rightCol.push(this.renderSummaryMetric('Projektname', this.escapeHtml(a.titel || ''), !a.titel));
+    }
+
     return this.renderSummaryGrid([
       [
         this.renderEntityMetric('Unternehmen', unternehmen, 'org'),
         this.renderEntityMetric('Marke', marke, 'org'),
         this.renderEntityMetric('Ansprechpartner', ap, 'person')
       ],
-      [
-        this.renderSummaryMetric('Art des Auftrags', artLabel, !artLabel),
-        this.renderSummaryMetric('Interne PO', this.escapeHtml(a.po || ''), !a.po),
-        this.renderSummaryMetric('Projektname', this.escapeHtml(a.titel || ''), !a.titel)
-      ]
+      rightCol
     ]);
   }
 
@@ -408,6 +413,14 @@ export class FeedbackCard {
       ` : `
         <div class="projekt-erstellen-empty-note">Keine Kampagnenarten ausgewählt.</div>
       `}
+    `;
+  }
+
+  buildStepKampagne(formData) {
+    const a = formData.auftrag || {};
+    return `
+      ${this.renderSummaryMetric('Projektname', this.escapeHtml(a.titel || ''), !a.titel)}
+      ${this.buildKampagneSummaryInline(formData)}
     `;
   }
 

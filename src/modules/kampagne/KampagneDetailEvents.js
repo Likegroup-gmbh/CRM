@@ -3,6 +3,7 @@
 
 import { KampagneUtils } from './KampagneUtils.js';
 import { VideoTableColumnVisibilityDrawer } from './VideoTableColumnVisibilityDrawer.js';
+import { CustomColumnsDrawer } from './columns/CustomColumnsDrawer.js';
 import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
 import { sortDropdown } from '../../core/components/SortDropdown.js';
 
@@ -102,6 +103,15 @@ export function setupEvents(detail) {
     }
   }, { signal });
 
+  // Custom Columns verwalten
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('#btn-custom-columns')) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      showCustomColumnsDrawer(detail);
+    }
+  }, { signal });
+
   // View-Switch (Tabelle / Kanban)
   document.addEventListener('click', (e) => {
     if (e.target.closest('#btn-view-table')) {
@@ -152,9 +162,21 @@ export function teardownEvents() {
 
 function showColumnVisibilityDrawer(detail) {
   if (!detail.videoColumnVisibilityDrawer) {
-    detail.videoColumnVisibilityDrawer = new VideoTableColumnVisibilityDrawer(detail.kampagneId);
+    detail.videoColumnVisibilityDrawer = new VideoTableColumnVisibilityDrawer(detail.kampagneId, detail.store);
   }
   detail.videoColumnVisibilityDrawer.open();
+}
+
+function showCustomColumnsDrawer(detail) {
+  if (window.isKunde()) return;
+  if (!detail._customColumnsDrawer) {
+    detail._customColumnsDrawer = new CustomColumnsDrawer(
+      detail.kampagneId,
+      detail.store,
+      () => detail.kooperationenVideoTable?.refilter()
+    );
+  }
+  detail._customColumnsDrawer.open();
 }
 
 async function deleteKampagne(detail) {

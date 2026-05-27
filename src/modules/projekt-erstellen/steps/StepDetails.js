@@ -8,7 +8,6 @@ import { AgencyServicesBlock } from '../components/AgencyServicesBlock.js';
 import { CustomDatePicker } from '../../../core/components/CustomDatePicker.js';
 import { generateAuftragTitle } from '../components/TitelGenerator.js';
 import { parseCurrencyInput } from '../../../core/utils/parseCurrency.js';
-import { StepKampagnenarten } from './StepKampagnenarten.js';
 
 const DEFAULT_UST_PROZENT = 19;
 
@@ -17,7 +16,6 @@ export class StepDetails {
     this.wizard = wizard;
     this.host = null;
     this.agencyBlock = null;
-    this.kampagnenStep = null;
     this.angebotsnummerOptions = [];
     this._datePickerCleanup = null;
   }
@@ -160,10 +158,7 @@ export class StepDetails {
 
         <div id="pe-teilrechnungen-host"></div>
 
-        ${this.isContracting
-          ? '<div id="pe-agency-host"></div>'
-          : '<div id="pe-kampagnen-host"></div>'
-        }
+        ${this.isContracting ? '<div id="pe-agency-host"></div>' : ''}
 
       </div>
     `;
@@ -395,10 +390,6 @@ export class StepDetails {
 
     await this.loadAngebotsnummerOptions();
     this.populateAngebotsnummerOptions();
-
-    if (this.kampagnenStep?.onEnter) {
-      await this.kampagnenStep.onEnter();
-    }
   }
 
   async loadAngebotsnummerOptions() {
@@ -451,8 +442,6 @@ export class StepDetails {
         }
       });
       this.agencyBlock.render();
-    } else {
-      this._mountKampagnenarten();
     }
 
     const recalcBrutto = () => {
@@ -574,15 +563,6 @@ export class StepDetails {
     }
   }
 
-  _mountKampagnenarten() {
-    const kampagnenHost = document.getElementById('pe-kampagnen-host');
-    if (!kampagnenHost) return;
-
-    this.kampagnenStep = new StepKampagnenarten(this.wizard);
-    this.kampagnenStep.render(kampagnenHost);
-    this.kampagnenStep.bindEvents();
-  }
-
   attachLiveUpdate(handler) {
     // onChange passt bereits direkt an; nichts weiteres zu tun.
   }
@@ -593,11 +573,6 @@ export class StepDetails {
       : {};
 
     let kampagne = {};
-    if (!this.isContracting && this.kampagnenStep) {
-      const kData = this.kampagnenStep.collectData();
-      if (kData.details) details = { ...details, ...kData.details };
-      if (kData.kampagne) kampagne = kData.kampagne;
-    }
 
     const parseNum = (id) => {
       const v = document.getElementById(id)?.value;
@@ -680,8 +655,6 @@ export class StepDetails {
       this._datePickerCleanup();
       this._datePickerCleanup = null;
     }
-    if (this.kampagnenStep?.destroy) this.kampagnenStep.destroy();
-    this.kampagnenStep = null;
     this.agencyBlock = null;
   }
 }

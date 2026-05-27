@@ -10,6 +10,7 @@ import { deleteVideoFile } from '../../core/VideoDeleteHelper.js';
 import { VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
 import { UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
+import { ColumnDragHandler } from './columns/ColumnDragHandler.js';
 
 export class KampagneKooperationenVideoTable {
   constructor(kampagneId, store) {
@@ -47,6 +48,7 @@ export class KampagneKooperationenVideoTable {
     this.renderer = new VideoTableRenderer(this);
     this.dataLoader = new VideoTableDataLoader(this);
     this.fieldHandler = new VideoTableFieldHandler(this);
+    this.columnDragHandler = new ColumnDragHandler(this);
     this._uploadDrawer = new VideoUploadDrawer();
     this._settingsDrawer = new VideoSettingsDrawer();
     this._linkStrategieDrawer = new LinkStrategieItemDrawer();
@@ -225,23 +227,33 @@ export class KampagneKooperationenVideoTable {
     CustomDatePicker.bind(container, signal);
 
     container.addEventListener('change', async (e) => {
-      if (e.target.classList.contains('custom-date-picker__input') && e.target.dataset.entity === 'video') {
-        await this.handleFieldUpdate(e.target);
-
-        if (e.target.dataset.field === 'posting_datum' && this._isGoLiveSortActive()) {
-          clearTimeout(this._refilterTimer);
-          this._refilterTimer = setTimeout(() => this.refilter(), 600);
+      if (e.target.classList.contains('custom-date-picker__input')) {
+        if (e.target.dataset.entity === 'custom') {
+          await this.handleFieldUpdate(e.target);
+          return;
+        }
+        if (e.target.dataset.entity === 'video') {
+          await this.handleFieldUpdate(e.target);
+          if (e.target.dataset.field === 'posting_datum' && this._isGoLiveSortActive()) {
+            clearTimeout(this._refilterTimer);
+            this._refilterTimer = setTimeout(() => this.refilter(), 600);
+          }
         }
       }
     }, { signal });
 
     container.addEventListener('blur', async (e) => {
-      if (e.target.classList.contains('grid-input') || e.target.classList.contains('grid-textarea')) {
+      if (e.target.classList.contains('grid-input') || e.target.classList.contains('grid-textarea') || e.target.classList.contains('custom-col-input')) {
         await this.handleFieldUpdate(e.target);
       }
     }, true);
 
     container.addEventListener('change', async (e) => {
+      // Custom Column Checkboxes, Selects und Date-Inputs
+      if (e.target.classList.contains('custom-col-checkbox') || e.target.classList.contains('custom-col-select') || e.target.classList.contains('custom-col-date')) {
+        await this.handleFieldUpdate(e.target);
+        return;
+      }
       if (e.target.classList.contains('grid-checkbox') || e.target.classList.contains('grid-select')) {
         if (e.target.classList.contains('grid-checkbox') && e.target.dataset.field === 'freigabe') {
           this.toggleVideoRowApproval(e.target.dataset.id, e.target.checked);
@@ -347,6 +359,7 @@ export class KampagneKooperationenVideoTable {
 
     this.bindResizeEvents();
     this.bindDragToScroll();
+    this.columnDragHandler.bind(container, signal);
   }
 
   // Legacy-API fuer Tests/Kompatibilitaet -- delegiert auf Portal-Logik
@@ -760,6 +773,7 @@ export class KampagneKooperationenVideoTable {
     }
 
     this.uiHelpers.destroy();
+    this.columnDragHandler.destroy();
 
     clearTimeout(this._refilterTimer);
     clearTimeout(this._loadingProgressTimer);

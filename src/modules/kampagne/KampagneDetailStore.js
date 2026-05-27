@@ -28,6 +28,11 @@ export class KampagneDetailStore {
     this.kooperationSort = DEFAULT_KOOPERATION_SORT;
     this.rechnungStatusMap = {};
 
+    // Custom Columns
+    this.customColumns = [];
+    this.customColumnValues = {};  // { [entityId]: { [columnId]: value } }
+    this.columnOrder = null;       // JSONB Array oder null (= Default)
+
     this._loadedAssetVideoIds = new Set();
     this._listeners = new Map();
   }
@@ -320,6 +325,57 @@ export class KampagneDetailStore {
   }
 
   // ========================================
+  // CUSTOM COLUMNS
+  // ========================================
+
+  setCustomColumns(columns) {
+    this.customColumns = columns || [];
+    this.emit('custom-columns-changed', this.customColumns);
+  }
+
+  setCustomColumnValues(valuesMap) {
+    this.customColumnValues = valuesMap || {};
+  }
+
+  setColumnOrder(order) {
+    this.columnOrder = order;
+    this.emit('column-order-changed', this.columnOrder);
+  }
+
+  getCustomColumnValue(entityId, columnId) {
+    return this.customColumnValues[entityId]?.[columnId] ?? null;
+  }
+
+  updateCustomColumnValue(entityId, columnId, value) {
+    if (!this.customColumnValues[entityId]) {
+      this.customColumnValues[entityId] = {};
+    }
+    this.customColumnValues[entityId][columnId] = value;
+    this.emit('custom-value-updated', { entityId, columnId, value });
+  }
+
+  addCustomColumn(col) {
+    this.customColumns.push(col);
+    this.emit('custom-columns-changed', this.customColumns);
+  }
+
+  removeCustomColumn(colId) {
+    this.customColumns = this.customColumns.filter(c => c.id !== colId);
+    for (const entityId in this.customColumnValues) {
+      delete this.customColumnValues[entityId][colId];
+    }
+    this.emit('custom-columns-changed', this.customColumns);
+  }
+
+  updateCustomColumn(colId, patch) {
+    const idx = this.customColumns.findIndex(c => c.id === colId);
+    if (idx !== -1) {
+      this.customColumns[idx] = { ...this.customColumns[idx], ...patch };
+      this.emit('custom-columns-changed', this.customColumns);
+    }
+  }
+
+  // ========================================
   // LIFECYCLE
   // ========================================
 
@@ -332,6 +388,9 @@ export class KampagneDetailStore {
     this.creatorAdressen = {};
     this.creators.clear();
     this.statusOptions = [];
+    this.customColumns = [];
+    this.customColumnValues = {};
+    this.columnOrder = null;
     this.kooperationSort = DEFAULT_KOOPERATION_SORT;
     this._loadedAssetVideoIds.clear();
   }

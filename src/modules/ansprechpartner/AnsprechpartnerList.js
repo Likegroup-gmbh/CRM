@@ -280,6 +280,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
         )}</td>
         <td class="table-cell-center">${this.renderLinkedInLink(ap.linkedin)}</td>
         <td class="table-cell-center">${this.renderNewsletterToggle(ap, canEdit)}</td>
+        <td class="table-cell-center"><span class="status-dot ${ap.ist_rechnungsverantwortlich ? 'status-dot--active' : 'status-dot--inactive'}" title="${ap.ist_rechnungsverantwortlich ? 'Rechnungskontakt' : 'Kein Rechnungskontakt'}"></span></td>
         <td class="table-cell-center"><span class="status-dot ${ap.ist_verknuepft ? 'status-dot--active' : 'status-dot--inactive'}" title="${ap.ist_verknuepft ? 'Kunde aktiv auf Plattform' : 'Kein aktiver Kunde'}"></span></td>
         <td class="col-actions table-cell-center">
           ${actionBuilder.create('ansprechpartner', ap.id)}
@@ -334,13 +335,14 @@ export class AnsprechpartnerList extends BasePaginatedList {
               <th class="ap-col-nowrap">Telefon Mobil</th>
               <th class="table-cell-center">LinkedIn</th>
               <th class="table-cell-center">Newsletter</th>
+              <th class="table-cell-center ap-col-nowrap">Rechnungskontakt</th>
               <th class="table-cell-center ap-col-nowrap">Kunde aktiv</th>
               <th class="col-actions table-cell-center">Aktionen</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td colspan="${canBulkDelete ? '14' : '13'}" class="no-data">Lade Ansprechpartner...</td>
+              <td colspan="${canBulkDelete ? '15' : '14'}" class="no-data">Lade Ansprechpartner...</td>
             </tr>
           </tbody>
         </table>

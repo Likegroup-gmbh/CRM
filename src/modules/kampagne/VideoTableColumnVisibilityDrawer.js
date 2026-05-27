@@ -2,44 +2,23 @@
 // Drawer zur Verwaltung der Spalten-Sichtbarkeit für Kunden in der Video-Tabelle
 
 import { VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
+import { getConfigurableColumns } from './columns/ColumnRegistry.js';
 
 export class VideoTableColumnVisibilityDrawer {
-  constructor(kampagneId) {
+  constructor(kampagneId, store) {
     this.kampagneId = kampagneId;
+    this.store = store || null;
     this.hiddenColumns = [];
     this.drawerId = 'video-column-visibility-drawer';
     this._settingsLoaded = false;
     this._openRequestId = 0;
-    
-    // Alle konfigurierbaren Spalten in exakt derselben Reihenfolge wie im Tabellen-Header
-    // (Nr und Creator sind nicht konfigurierbar und daher hier nicht enthalten)
-    this.columns = [
-      { className: 'col-status', label: 'Status' },
-      { className: 'col-tags', label: 'Tags' },
-      { className: 'col-extra-kosten', label: 'Extra Kosten' },
-      { className: 'col-vertrag', label: 'Vertrag' },
-      { className: 'col-nutzungsrechte', label: 'Nutzungsrechte' },
-      { className: 'col-start-datum', label: 'Erstellt' },
-      { className: 'col-videoanzahl', label: 'Videos' },
-      { className: 'col-video-nr', label: 'Video-Nr' },
-      { className: 'col-vk-video', label: 'Kosten' },
-      { className: 'col-video-script-deadline', label: 'Script Deadline' },
-      { className: 'col-video-content-deadline', label: 'Content Deadline' },
-      { className: 'col-video-typ', label: 'Typ' },
-      { className: 'col-thema', label: 'Thema' },
-      { className: 'col-organic-paid', label: 'Content/Art' },
-      { className: 'col-produkt', label: 'Produkte' },
-      { className: 'col-lieferadresse', label: 'Lieferadresse' },
-      { className: 'col-paket-tracking', label: 'Tracking' },
-      { className: 'col-drehort', label: 'Drehort' },
-      { className: 'col-link-skript', label: 'Link Skript / Briefing' },
-      { className: 'col-skript-freigegeben', label: 'Skript freigegeben' },
-      { className: 'col-link-content', label: 'Link Content' },
-      ...VIDEO_FEEDBACK_FIELDS.map(slot => ({ className: slot.colClass, label: slot.label })),
-      { className: 'col-freigabe', label: 'Freigabe' },
-      { className: 'col-caption', label: 'Caption' },
-      { className: 'col-posting-datum', label: 'Posting Datum' }
-    ];
+  }
+
+  get columns() {
+    return getConfigurableColumns(this.store).map(col => ({
+      className: col.id,
+      label: col.label
+    }));
   }
 
   // Lade die aktuellen Sichtbarkeits-Einstellungen

@@ -2,6 +2,7 @@
 // Datenlade-Logik für die Kampagnen-Detail-Ansicht
 
 import { VideoTableDataLoader } from './VideoTableDataLoader.js';
+import { CustomColumnDataLoader } from './columns/CustomColumnDataLoader.js';
 
 /**
  * Lädt Kampagne-Metadaten (ohne Kooperationen/Videos — die kommen via loadFullTableData).
@@ -410,7 +411,7 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
   const batchIn = VideoTableDataLoader.batchInQuery;
   const sb = window.supabase;
 
-  const [videosResult, creatorsResult, vertraegeResult, versandResult, statusResult, tagsResult, rechnungResult] = await Promise.allSettled([
+  const [videosResult, creatorsResult, vertraegeResult, versandResult, statusResult, tagsResult, rechnungResult, customColsResult, colOrderResult] = await Promise.allSettled([
     batchIn(
       sb.from('kooperation_videos'),
       'id, kooperation_id, position, asset_url, content_art, caption, freigabe, link_content, folder_url, story_folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, skript_deadline, content_deadline, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id, video_link)',
@@ -442,7 +443,9 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
     ),
     sb.from('rechnung')
       .select('kooperation_id, status')
-      .in('kooperation_id', koopIds)
+      .in('kooperation_id', koopIds),
+    CustomColumnDataLoader.loadCustomColumns(kampagneId),
+    CustomColumnDataLoader.loadColumnOrder(kampagneId)
   ]);
 
   const allVideos = videosResult.status === 'fulfilled' ? (videosResult.value.data || []) : [];
@@ -513,6 +516,24 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
   store.setVersandInfos(versandMap);
   store.setCreatorAdressen(creatorAdressenMap);
   store.setStatusOptions(statusOptions);
+
+  // Custom Columns
+  const customColumns = customColsResult.status === 'fulfilled' ? (customColsResult.value || []) : [];
+  const columnOrder = colOrderResult.status === 'fulfilled' ? (colOrderResult.value || null) : null;
+  store.setCustomColumns(customColumns);
+  store.setColumnOrder(columnOrder);
+
+  if (customColumns.length > 0) {
+    try {
+      const columnIds = customColumns.map(c => c.id);
+      const videoIds = allVideos.map(v => v.id);
+      const entityIds = [...koopIds, ...videoIds];
+      const ccValues = await CustomColumnDataLoader.loadCustomColumnValues(columnIds, entityIds);
+      store.setCustomColumnValues(ccValues);
+    } catch (e) {
+      console.warn('⚠️ Custom Column Values konnten nicht geladen werden:', e);
+    }
+  }
 
   console.log(`✅ KAMPAGNEDETAIL: Tabellendaten geladen in ${(performance.now() - startTime).toFixed(0)}ms (${kooperationen.length} Koops, ${allVideos.length} Videos)`);
   return { videoIds: allVideos.map(v => v.id), statusOptions };

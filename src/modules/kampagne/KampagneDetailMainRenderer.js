@@ -77,6 +77,10 @@ export function renderMainPage(state) {
         <div class="tab-actions" style="margin-left: auto; display: flex; align-items: center; gap: var(--space-sm);">
           <div id="kampagne-kooperation-sort-container"></div>
           ${!isKunde ? `
+          <button id="btn-custom-columns" class="secondary-btn" title="Eigene Spalten verwalten">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+            Spalten
+          </button>
           <button id="btn-column-visibility" class="secondary-btn">
             Sichtbarkeit anpassen
           </button>` : ''}

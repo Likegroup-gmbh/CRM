@@ -14,7 +14,12 @@ export class ProjektErstellenValidator {
     const isContracting = formData.auftrag?.auftragtype === 'Contracting';
     if (step === 1) return this.validateStepAuftragstyp(formData);
     if (step === 2) return this.validateStepBasisdaten(formData);
-    if (step === 3) return isContracting ? this.validateStep2Contracting(formData) : this.validateStep2WithKampagne(formData);
+    if (step === 3) {
+      return isContracting
+        ? this.validateStep2Contracting(formData)
+        : this.validateStepDetailsOnly(formData);
+    }
+    if (step === 4) return this.validateStepKampagne(formData);
     return { valid: true, errors: [] };
   }
 
@@ -29,9 +34,12 @@ export class ProjektErstellenValidator {
   validateStepBasisdaten(formData) {
     const errors = [];
     const a = formData.auftrag || {};
+    const isContracting = a.auftragtype === 'Contracting';
     if (!a.unternehmen_id) errors.push('Unternehmen ist ein Pflichtfeld');
     if (!a.ansprechpartner_id) errors.push('Ansprechpartner ist ein Pflichtfeld');
-    if (!a.titel || !String(a.titel).trim()) errors.push('Projektname ist ein Pflichtfeld');
+    if (isContracting && (!a.titel || !String(a.titel).trim())) {
+      errors.push('Projektname ist ein Pflichtfeld');
+    }
     return { valid: errors.length === 0, errors };
   }
 
@@ -89,6 +97,55 @@ export class ProjektErstellenValidator {
       this._validateAgencyFull(d, a, errors);
     }
 
+    return { valid: errors.length === 0, errors };
+  }
+
+  validateStepDetailsOnly(formData) {
+    const errors = [];
+    const a = formData.auftrag || {};
+    if (!a.angebotsnummer || !String(a.angebotsnummer).trim()) {
+      errors.push('Angebotsnummer ist ein Pflichtfeld');
+    }
+    this._validateDateRange(a, errors);
+    return { valid: errors.length === 0, errors };
+  }
+
+  validateStepKampagne(formData) {
+    const errors = [];
+    const a = formData.auftrag || {};
+    const d = formData.details || {};
+    if (!a.titel || !String(a.titel).trim()) {
+      errors.push('Projektname ist ein Pflichtfeld');
+    }
+    const blocks = normalizeCampaignBlocks(d);
+    if (!blocks.length) {
+      errors.push('Mindestens eine Kampagnenart muss ausgewählt sein');
+    }
+    blocks.forEach(block => {
+      if (!block.campaign_type) {
+        errors.push('Jeder Kampagnenblock braucht eine Kampagnenart');
+      }
+      ['video_anzahl', 'creator_anzahl'].forEach(field => {
+        const raw = block[field];
+        if (raw !== '' && raw != null && Number(raw) < 0) {
+          errors.push('Creator- und Video-Anzahl dürfen nicht negativ sein');
+        }
+      });
+      [
+        'einkaufspreis_netto_von',
+        'einkaufspreis_netto_bis',
+        'verkaufspreis_netto_von',
+        'verkaufspreis_netto_bis'
+      ].forEach(field => {
+        const raw = block[field];
+        if (raw !== '' && raw != null && Number(raw) < 0) {
+          errors.push('Preise dürfen nicht negativ sein');
+        }
+      });
+    });
+    if (d.agency_services_enabled) {
+      this._validateAgencyFull(d, a, errors);
+    }
     return { valid: errors.length === 0, errors };
   }
 

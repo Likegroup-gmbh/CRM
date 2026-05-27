@@ -4,6 +4,7 @@ import {
   replaceVideoFeedbackBucket,
   VIDEO_FEEDBACK_SELECT
 } from '../../core/VideoFeedbackBuckets.js';
+import { CustomColumnFieldHandler } from './columns/CustomColumnFieldHandler.js';
 
 export class VideoTableFieldHandler {
   constructor(table) {
@@ -30,6 +31,20 @@ export class VideoTableFieldHandler {
   }
 
   async handleFieldUpdate(field) {
+    // Custom Column Felder an den spezialisierten Handler delegieren
+    if (CustomColumnFieldHandler.isCustomColumnField(field)) {
+      try {
+        await CustomColumnFieldHandler.handleUpdate(field, this._getStore());
+        field.classList.add('save-success');
+        setTimeout(() => field.classList.remove('save-success'), 1000);
+      } catch (error) {
+        console.error('❌ Custom Column Update fehlgeschlagen:', error);
+        field.classList.add('save-error');
+        setTimeout(() => field.classList.remove('save-error'), 2000);
+      }
+      return;
+    }
+
     const t = this.table;
     const store = this._getStore();
     const entity = field.getAttribute('data-entity');

@@ -63,6 +63,7 @@ export class StepBasisdaten {
           </div>
         </div>
 
+        ${isContracting ? `
         <div class="projekt-erstellen-titel-wrap">
           <div class="form-field">
             <label for="field-pe-titel">Projektname <span class="required">*</span></label>
@@ -70,6 +71,7 @@ export class StepBasisdaten {
           </div>
           <button type="button" class="secondary-btn" id="pe-titel-reset-btn" title="Vorschlag zurücksetzen" style="display:none;">Vorschlag nutzen</button>
         </div>
+        ` : ''}
 
         ${isContracting ? `
           <div class="form-field">
@@ -118,25 +120,27 @@ export class StepBasisdaten {
     const unternehmenSelect = document.getElementById('field-pe-unternehmen_id');
     const markeSelect = document.getElementById('field-pe-marke_id');
 
-    this.titelGenerator = new TitelGenerator({
-      rootEl: this.host,
-      onChange: ({ titel, manual, reset }) => {
-        if (reset) {
-          this.wizard.formData.auftrag.titel_manuell_geaendert = false;
-          this.recomputeTitle();
+    if (this.wizard.isContracting) {
+      this.titelGenerator = new TitelGenerator({
+        rootEl: this.host,
+        onChange: ({ titel, manual, reset }) => {
+          if (reset) {
+            this.wizard.formData.auftrag.titel_manuell_geaendert = false;
+            this.recomputeTitle();
+            this.wizard.updateFeedback();
+            return;
+          }
+          this.wizard.formData.auftrag.titel = titel || '';
+          this.wizard.formData.auftrag.titel_manuell_geaendert = !!manual;
           this.wizard.updateFeedback();
-          return;
         }
-        this.wizard.formData.auftrag.titel = titel || '';
-        this.wizard.formData.auftrag.titel_manuell_geaendert = !!manual;
-        this.wizard.updateFeedback();
-      }
-    });
-    this.titelGenerator.bind('field-pe-titel', 'pe-titel-reset-btn');
-    this.titelGenerator.setInitial(
-      this.wizard.formData.auftrag.titel,
-      this.wizard.formData.auftrag.titel_manuell_geaendert
-    );
+      });
+      this.titelGenerator.bind('field-pe-titel', 'pe-titel-reset-btn');
+      this.titelGenerator.setInitial(
+        this.wizard.formData.auftrag.titel,
+        this.wizard.formData.auftrag.titel_manuell_geaendert
+      );
+    }
 
     if (unternehmenSelect) {
       unternehmenSelect.addEventListener('change', async (e) => {
@@ -423,7 +427,7 @@ export class StepBasisdaten {
   }
 
   recomputeTitle() {
-    if (!this.titelGenerator) return;
+    if (!this.titelGenerator || !this.wizard.isContracting) return;
     const a = this.wizard.formData.auftrag;
     const unternehmenOption = this.unternehmenOptions.find(o => o.value === a.unternehmen_id);
     const displayName = unternehmenOption?.internes_kuerzel || unternehmenOption?.label || null;
@@ -448,7 +452,6 @@ export class StepBasisdaten {
     const unternehmenId = document.getElementById('field-pe-unternehmen_id')?.value || a.unternehmen_id || null;
     const markeId = document.getElementById('field-pe-marke_id')?.value || a.marke_id || null;
     const apId = document.getElementById('field-pe-ansprechpartner_id')?.value || a.ansprechpartner_id || null;
-    const titel = document.getElementById('field-pe-titel')?.value || '';
 
     const auftragsbestaetigungen_files = this.uploader
       ? [...this.uploader.files]
@@ -458,17 +461,22 @@ export class StepBasisdaten {
       ? [...this.rechnungUploader.files]
       : (Array.isArray(a.rechnungen_files) ? a.rechnungen_files : []);
 
-    return {
+    const result = {
       auftrag: {
         unternehmen_id: unternehmenId,
         marke_id: markeId,
         ansprechpartner_id: apId,
-        titel,
-        titel_manuell_geaendert: this.wizard.formData.auftrag.titel_manuell_geaendert,
         auftragsbestaetigungen_files,
         rechnungen_files
       }
     };
+
+    if (this.wizard.isContracting) {
+      result.auftrag.titel = document.getElementById('field-pe-titel')?.value || '';
+      result.auftrag.titel_manuell_geaendert = this.wizard.formData.auftrag.titel_manuell_geaendert;
+    }
+
+    return result;
   }
 
   destroy() {
