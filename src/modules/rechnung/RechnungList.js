@@ -10,6 +10,7 @@ import { SearchInput } from '../../core/components/SearchInput.js';
 import { renderVertragCell } from './RechnungVertragColumn.js';
 import { renderBezahltToggle } from './RechnungBezahltToggle.js';
 import { renderTabButton } from '../../core/TabUtils.js';
+import { rechnungNotizModal } from './RechnungNotizModal.js';
 
 export class RechnungList {
   _abortController = null;
@@ -17,6 +18,7 @@ export class RechnungList {
   constructor() {
     this.selectedRechnungen = new Set();
     this.rechnungen = [];
+    this._notizMap = new Map();
     this._bezahltUpdateInFlight = new Set();
     this.activeStatusTab = 'alle';
     this.activeTypeTab = 'rechnung';
@@ -60,7 +62,11 @@ export class RechnungList {
       if (e?.detail?.entity === 'rechnung') {
         const { action, id, field, value } = e.detail;
         if (action === 'updated' && field === 'status' && id) {
-          this.updateSingleRow(id, value);
+          if (value === 'Rückfrage' || this.activeStatusTab === 'Rückfrage') {
+            this.loadAndRender();
+          } else {
+            this.updateSingleRow(id, value);
+          }
         } else {
           this.loadAndRender();
         }
@@ -80,6 +86,25 @@ export class RechnungList {
         e.preventDefault();
         const id = actionItem.dataset.id;
         this.handleDownload(id);
+      }
+    }, { signal });
+
+    // Notiz-Indikator Klick
+    document.addEventListener('click', async (e) => {
+      const indicator = e.target.closest('.notiz-indicator');
+      if (!indicator) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const rechnungId = indicator.dataset.notizId;
+      if (!rechnungId) return;
+      const result = await rechnungNotizModal.open({ rechnungId, mode: 'edit' });
+      if (result.action === 'save' && result.text) {
+        await rechnungNotizModal.saveNotiz(rechnungId, result.text);
+      } else if (result.action === 'delete') {
+        await rechnungNotizModal.deleteNotiz(rechnungId);
+        this._notizMap.delete(rechnungId);
+        const btn = document.querySelector(`.notiz-indicator[data-notiz-id="${rechnungId}"]`);
+        if (btn) btn.remove();
       }
     }, { signal });
     
@@ -322,6 +347,7 @@ export class RechnungList {
         : rechnungen;
 
       RechnungList._normalizeRechnungPdfUrls(this.rechnungen);
+      await this._loadNotizen();
       this.updateStatusTabCounts();
       await this.updateTable(this.getFilteredRechnungen());
     } catch (error) {
@@ -441,6 +467,37 @@ export class RechnungList {
       console.error('❌ Fehler beim Laden der Zuordnungen:', error);
       return { kampagneIds: [], koopIds: [], unternehmenIds: [] };
     }
+  }
+
+  async _loadNotizen() {
+    this._notizMap.clear();
+    if (window.isKunde()) return;
+    const rueckfrageIds = (this.rechnungen || [])
+      .filter(r => r.status === 'Rückfrage')
+      .map(r => r.id);
+    if (rueckfrageIds.length === 0) return;
+
+    try {
+      const { data } = await window.supabase
+        .from('rechnung_notizen')
+        .select('rechnung_id')
+        .in('rechnung_id', rueckfrageIds);
+      for (const row of (data || [])) {
+        this._notizMap.set(row.rechnung_id, true);
+      }
+    } catch (err) {
+      console.warn('⚠️ Notizen laden fehlgeschlagen:', err?.message);
+    }
+  }
+
+  _renderNotizIndicator(rechnungId) {
+    if (this.activeStatusTab !== 'Rückfrage') return '';
+    if (!this._notizMap.has(rechnungId)) return '';
+    return `<button class="notiz-indicator" data-notiz-id="${rechnungId}" title="Rückfrage-Notiz anzeigen">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor" width="14" height="14">
+        <path d="M88,96a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H96A8,8,0,0,1,88,96Zm8,40h64a8,8,0,0,0,0-16H96a8,8,0,0,0,0,16Zm32,16H96a8,8,0,0,0,0,16h32a8,8,0,0,0,0-16ZM224,48V156.69A15.86,15.86,0,0,1,219.31,168L168,219.31A15.86,15.86,0,0,1,156.69,224H48a16,16,0,0,1-16-16V48A16,16,0,0,1,48,32H208A16,16,0,0,1,224,48ZM48,208H152V160a8,8,0,0,1,8-8h48V48H48Zm120-40v28.7L196.69,168Z"></path>
+      </svg>
+    </button>`;
   }
 
   static _normalizeRechnungPdfUrls(rechnungen) {
@@ -703,7 +760,7 @@ export class RechnungList {
       tbody.innerHTML = rechnungen.map(r => `
         <tr data-id="${r.id}" class="${getRowClass(r)}">
           ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="rechnung-check" data-id="${r.id}"></td>` : ''}
-          <td class="col-name">${r.rechnung_nr || '-'}</td>
+          <td class="col-name"><span class="col-name-inner">${this._renderNotizIndicator(r.id)}${r.rechnung_nr || '-'}</span></td>
           <td class="col-typ"><span class="status-badge ${r.rechnungstyp === 'contracting' ? 'status-gestellt' : 'status-beauftragt'}">${r.rechnungstyp === 'contracting' ? 'Contracting' : 'Kampagne'}</span></td>
           <td class="col-auftrag">${r.auftrag_id ? `<a href="#" class="table-link" data-table="${r.rechnungstyp === 'contracting' ? 'contracts' : 'auftragsdetails'}" data-id="${r.rechnungstyp === 'contracting' ? r.auftrag_id : (r.auftrag?.auftrag_details?.[0]?.id || r.auftrag_id)}">${r.auftrag?.auftragsname || '-'}</a>` : '-'}</td>
           <td class="col-po">${r.po_nummer || '-'}</td>

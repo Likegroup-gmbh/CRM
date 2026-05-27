@@ -3,6 +3,7 @@
 
 import { deleteVideoFull, deleteDropboxCascade } from './VideoDeleteHelper.js';
 import { deleteUnternehmenCascade, collectDependentIds } from '../modules/unternehmen/services/UnternehmenDeleteService.js';
+import { rechnungNotizModal } from '../modules/rechnung/RechnungNotizModal.js';
 
 function getEntityDisplayName(entityType) {
   const names = {
@@ -372,6 +373,12 @@ async function resolveAuftragIdForKampagne(kampagneId) {
 
 export async function setField(dropdown, entityType, entityId, fieldName, fieldValue) {
   try {
+    // Rückfrage-Notiz Intercept für Rechnungen
+    if (entityType === 'rechnung' && fieldName === 'status') {
+      const interceptResult = await _handleRechnungNotizIntercept(entityId, fieldValue);
+      if (interceptResult === 'cancelled') return;
+    }
+
     if (window.supabase) {
       const table = window.dataService?.entities?.[entityType]?.table || entityType;
       const payload = { [fieldName]: fieldValue };
@@ -393,6 +400,40 @@ export async function setField(dropdown, entityType, entityId, fieldName, fieldV
     console.error('setField fehlgeschlagen', err);
     alert('Aktualisierung fehlgeschlagen.');
   }
+}
+
+async function _handleRechnungNotizIntercept(rechnungId, newStatus) {
+  if (newStatus === 'Rückfrage') {
+    const result = await rechnungNotizModal.open({ rechnungId, mode: 'create' });
+    if (result.action === 'save' && result.text) {
+      await rechnungNotizModal.saveNotiz(rechnungId, result.text);
+    }
+    // Status-Wechsel passiert IMMER (Notiz ist optional)
+    return 'proceed';
+  }
+
+  // Nur prüfen wenn Rechnung aktuell auf Rückfrage steht
+  const { data: current } = await window.supabase
+    .from('rechnung')
+    .select('status')
+    .eq('id', rechnungId)
+    .single();
+  if (current?.status !== 'Rückfrage') return 'proceed';
+
+  const hasNotiz = await rechnungNotizModal.hasNotiz(rechnungId);
+  if (hasNotiz) {
+    const deleteConfirm = await window.confirmationModal.open({
+      title: 'Rückfrage-Notiz löschen?',
+      message: 'Diese Rechnung hat eine Rückfrage-Notiz. Soll die Notiz beim Status-Wechsel gelöscht werden?',
+      confirmText: 'Ja, löschen',
+      cancelText: 'Nein, behalten',
+      danger: false
+    });
+    if (deleteConfirm?.confirmed) {
+      await rechnungNotizModal.deleteNotiz(rechnungId);
+    }
+  }
+  return 'proceed';
 }
 
 export async function addToFavorites(dropdown, creatorId, kampagneId) {

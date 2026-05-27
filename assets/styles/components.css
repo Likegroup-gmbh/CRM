@@ -17436,3 +17436,137 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
   border: 1px solid rgba(234, 88, 12, 0.2);
   border-radius: 4px;
 }
+
+/* ==========================================================================
+   Rechnung Notiz Modal + Indikator
+   ========================================================================== */
+
+.rechnung-notiz-modal .notiz-modal-dialog {
+  max-width: 480px;
+  width: 90vw;
+}
+
+.notiz-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: var(--space-sm);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  resize: vertical;
+  transition: border-color 0.2s ease;
+}
+
+.notiz-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.notiz-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.notiz-meta-author {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.notiz-btn-delete {
+  border: 1px solid var(--gray-200);
+  padding: var(--space-xs);
+  background-color: var(--bg-primary);
+  border-radius: var(--radius-xl);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-error);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.notiz-btn-delete:hover {
+  background-color: rgba(239, 68, 68, 0.05);
+  border-color: var(--color-error);
+}
+
+.notiz-footer-right {
+  display: flex;
+  gap: var(--space-xs);
+  margin-left: auto;
+}
+
+.rechnung-notiz-modal .modal-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* Notiz-Indikator in der Tabelle */
+.col-name-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.notiz-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--gray-100);
+  color: var(--gray-700);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+  flex-shrink: 0;
+}
+
+.notiz-indicator:hover {
+  background: var(--gray-200);
+}
+
+.notiz-indicator svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Notiz-Card in Detail-Ansicht */
+.notiz-detail-card {
+  border-left: 3px solid rgb(234, 179, 8);
+  background: rgba(234, 179, 8, 0.04);
+}
+
+.notiz-detail-content {
+  padding: var(--space-sm) 0;
+}
+
+.notiz-detail-text {
+  margin: 0 0 var(--space-sm) 0;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  color: var(--text-primary);
+}
+
+.notiz-detail-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.notiz-detail-edit-btn {
+  margin-top: var(--space-sm);
+}

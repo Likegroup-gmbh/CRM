@@ -4,6 +4,7 @@ import { renderSegmentedControl, bindSegmentSwitcher, handleContractingCreateSub
 import { uploadRechnungPdf, uploadRechnungBeleg } from '../../core/DropboxDocumentUploader.js';
 import { resolveRechnungPathMetadata } from '../../core/RechnungPathMetadata.js';
 import { finalizeRechnungSubmitData } from '../../core/form/logic/events/RechnungEvents.js';
+import { rechnungNotizModal } from './RechnungNotizModal.js';
 
 // Pfade die mit "/" anfangen sind Dropbox-Pfade (neue Uploads), alle anderen
 // sind Legacy Supabase Storage-Pfade. Für Dropbox-Pfade reicht die
@@ -31,6 +32,7 @@ export class RechnungDetail {
     this.data = null;
     this.belege = [];
     this.pdfs = [];
+    this.notiz = null;
     this._abortController = null;
   }
 
@@ -103,6 +105,23 @@ export class RechnungDetail {
       console.warn('⚠️ Fehler beim Laden der PDFs:', err?.message);
       this.pdfs = [];
     }
+
+    // Rückfrage-Notiz laden
+    this.notiz = null;
+    if (this.data?.status === 'Rückfrage' && !window.isKunde()) {
+      try {
+        const { data: notizRow } = await window.supabase
+          .from('rechnung_notizen')
+          .select('id, notiz, erstellt_von, erstellt_am, benutzer:erstellt_von(name)')
+          .eq('rechnung_id', this.id)
+          .maybeSingle();
+        if (notizRow) {
+          this.notiz = { ...notizRow, benutzer_name: notizRow.benutzer?.name || 'Unbekannt' };
+        }
+      } catch (err) {
+        console.warn('⚠️ Fehler beim Laden der Notiz:', err?.message);
+      }
+    }
   }
 
   render() {
@@ -131,6 +150,20 @@ export class RechnungDetail {
             ${this.data?.rechnungstyp === 'contracting' ? `<div class="detail-item"><label>KSK-pflichtig</label><span>${this.data?.ksk_pflichtig ? 'Ja' : 'Nein'}</span></div>` : ''}
             <div class="detail-item"><label>PDFs</label><span>${this.pdfs && this.pdfs.length > 0 ? this.pdfs.map((p, i) => `<a href="${p.open_url}" target="_blank" rel="noopener noreferrer">${window.validatorSystem?.sanitizeHtml?.(p.file_name) || ('PDF ' + (i + 1))}</a>`).join(' &middot; ') : (this.data?.pdf_url ? `<a href="${this.data.pdf_url}" target="_blank" rel="noopener noreferrer">Öffnen</a>` : '-')}</span></div>
           </div>
+
+          ${this.notiz ? `
+          <div class="detail-card notiz-detail-card">
+            <h3>Rückfrage-Notiz</h3>
+            <div class="notiz-detail-content">
+              <p class="notiz-detail-text">${window.validatorSystem?.sanitizeHtml?.(this.notiz.notiz) || this.notiz.notiz}</p>
+              <div class="notiz-detail-meta">
+                <span>${this.notiz.benutzer_name}</span>
+                <span>${new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(this.notiz.erstellt_am))}</span>
+              </div>
+            </div>
+            ${this._canEditNotiz() ? `<button class="secondary-btn notiz-detail-edit-btn" id="btn-edit-notiz">Bearbeiten</button>` : ''}
+          </div>
+          ` : ''}
 
           <div class="detail-card">
             <h3>Belege</h3>
@@ -436,6 +469,12 @@ export class RechnungDetail {
     }
   }
 
+  _canEditNotiz() {
+    if (!this.notiz) return false;
+    if (window.isAdmin()) return true;
+    return this.notiz.erstellt_von === window.currentUser?.id;
+  }
+
   bindEvents() {
     this._abortController?.abort();
     this._abortController = new AbortController();
@@ -451,6 +490,10 @@ export class RechnungDetail {
         }
         this.showEditForm();
       }
+      if (e.target.closest('#btn-edit-notiz')) {
+        e.preventDefault();
+        this._openNotizEdit();
+      }
       const link = e.target.closest('.table-link[data-table][data-id]');
       if (link) {
         e.preventDefault();
@@ -459,6 +502,21 @@ export class RechnungDetail {
         if (table && id) window.navigateTo(`/${table}/${id}`);
       }
     }, { signal });
+  }
+
+  async _openNotizEdit() {
+    const result = await rechnungNotizModal.open({ rechnungId: this.id, mode: 'edit' });
+    if (result.action === 'save' && result.text) {
+      await rechnungNotizModal.saveNotiz(this.id, result.text);
+      await this.load();
+      this.render();
+      this.bindEvents();
+    } else if (result.action === 'delete') {
+      await rechnungNotizModal.deleteNotiz(this.id);
+      this.notiz = null;
+      this.render();
+      this.bindEvents();
+    }
   }
 
   destroy() {
