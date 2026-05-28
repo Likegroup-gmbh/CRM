@@ -124,7 +124,11 @@ export class KickOffDetail extends PersonDetailBase {
 
     const action = actionBtn.dataset.action;
     if (action === 'edit-kickoff') {
-      window.navigateTo('/kickoff-create');
+      if (this.kickoff?.marke?.id) {
+        window.navigateTo(`/marke/${this.kickoff.marke.id}`);
+      } else if (this.kickoff?.unternehmen?.id) {
+        window.navigateTo(`/unternehmen/${this.kickoff.unternehmen.id}`);
+      }
     } else if (action === 'goto-unternehmen' && this.kickoff?.unternehmen?.id) {
       window.navigateTo(`/unternehmen/${this.kickoff.unternehmen.id}`);
     } else if (action === 'goto-marke' && this.kickoff?.marke?.id) {

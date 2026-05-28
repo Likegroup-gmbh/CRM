@@ -25,10 +25,10 @@ export class SourcingDetailColumnVisibilityDrawer {
       { className: 'cp-col-location', label: 'Location' },
       { className: 'cp-col-notiz', label: 'Kurzbeschreibung' },
       { className: 'cp-col-feedback', label: 'Rückmeldung Kunde' },
-      { className: 'cp-col-prio1', label: 'Prio 1' },
-      { className: 'cp-col-prio2', label: 'Prio 2' },
       { className: 'cp-col-anfragen', label: 'Anfragen' },
       { className: 'cp-col-buchen', label: 'Buchen' },
+      { className: 'cp-col-prio1', label: 'Prio 1' },
+      { className: 'cp-col-prio2', label: 'Prio 2' },
       { className: 'cp-col-absagen', label: 'Absagen' },
       { className: 'cp-col-check', label: 'Rückmeldung' }
     ];

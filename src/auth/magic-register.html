@@ -85,6 +85,10 @@
               <input id="email" class="input" type="email" placeholder="ihre@email.com" required />
             </div>
             <div class="form-box">
+              <label class="label" for="geburtsdatum">Geburtsdatum *</label>
+              <input id="geburtsdatum" class="input" type="date" required />
+            </div>
+            <div class="form-box">
               <label class="label" for="password">Passwort</label>
               <div class="password-input-container">
                 <input id="password" class="input" type="password" placeholder="••••••••" minlength="8" required />
@@ -236,7 +240,15 @@
     const nachname = document.getElementById('nachname').value.trim();
     const name = `${vorname} ${nachname}`.trim();
     const email = document.getElementById('email').value.trim();
+    const geburtsdatum = document.getElementById('geburtsdatum').value;
     const password = document.getElementById('password').value;
+
+    if (!geburtsdatum) {
+      showMessage('error', 'Bitte geben Sie Ihr Geburtsdatum ein.');
+      btn.disabled = false;
+      btn.textContent = 'Konto erstellen';
+      return;
+    }
 
     try {
       const ansprechpartner = validationData.ansprechpartner;
@@ -289,6 +301,7 @@
           name,
           vorname,
           nachname,
+          geburtsdatum,
           rolle: 'kunde',
           freigeschaltet: true
         };
@@ -311,6 +324,7 @@
             vorname,
             nachname,
             email,
+            geburtsdatum,
             rolle: 'kunde',
             freigeschaltet: true
           }, {

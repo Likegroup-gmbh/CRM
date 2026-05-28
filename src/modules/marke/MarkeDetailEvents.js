@@ -4,9 +4,13 @@
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { loadMarkeTabData } from './MarkeDetailLoader.js';
 import { updateKickOffTab } from './MarkeDetailTabUpdates.js';
+import { bindKickOffCreateButton } from './MarkeDetailRendererKickOff.js';
 
 export function bindMarkeDetailEvents(detail) {
   detail.bindSidebarTabs();
+
+  // Kick-Off Create Button binden (nach jedem Render)
+  bindKickOffCreateButton(detail);
 
   if (detail._eventsBound) return;
   detail._eventsBound = true;

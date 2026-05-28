@@ -91,11 +91,9 @@ import { ausgangsrechnungenList } from './modules/ausgangsrechnungen/Ausgangsrec
 import { vertraegeList } from './modules/vertrag/VertraegeList.js';
 import { vertraegeCreate } from './modules/vertrag/create/VertraegeCreate.js';
 import { projektErstellenModule } from './modules/projekt-erstellen/ProjektErstellenModule.js';
-import { kickOffPage } from './modules/marke/KickOffPage.js';
 import { kickOffList } from './modules/kickoff/KickOffList.js';
 import { kickOffDetail } from './modules/kickoff/KickOffDetail.js';
 import { globalSearch } from './core/components/GlobalSearch.js';
-import { quickAccessBar } from './core/components/QuickAccessBar.js';
 import { backgroundUploadPanel } from './core/components/BackgroundUploadPanel.js';
 import { backgroundUploadService } from './core/BackgroundUploadService.js';
 import { DROPBOX_DIRECT_UPLOAD_VERSION } from './core/DropboxDirectUploader.js';
@@ -131,7 +129,6 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('marke-create', markeCreate);
   moduleRegistry.register('kickoff', kickOffList);
   moduleRegistry.register('kickoff-detail', kickOffDetail);
-  moduleRegistry.register('kickoff-create', kickOffPage);
   moduleRegistry.register('produkt', produktList);
   moduleRegistry.register('produkt-detail', produktDetail);
   moduleRegistry.register('produkt-create', produktCreate);
@@ -369,9 +366,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Navigation initialisieren
     navigationSystem.init();
-    
-    // Quick Access Floating Bar (vorerst nur Admin)
-    quickAccessBar.init();
 
     // Background Upload Panel (global, rechts unten)
     backgroundUploadPanel.init();
@@ -503,20 +497,7 @@ window.setupHeaderUI = () => {
       });
     }
 
-    // Kick-Off Button setup
-    const kickoffBtn = document.getElementById('kickoffBtn');
-    if (kickoffBtn) {
-      const isKunde = window.isKunde();
-      kickoffBtn.style.display = isKunde ? 'none' : '';
-
-      if (!isKunde && !kickoffBtn.dataset.bound) {
-        kickoffBtn.dataset.bound = 'true';
-        kickoffBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          moduleRegistry.navigateTo('/kickoff-create');
-        });
-      }
-    }
+    // Kick-Off Button entfernt — Kick-Off wird jetzt über Unternehmen/Marke Create-Flow oder Detail-Seite erstellt
 
     // Profile dropdown setup
     const profileBtn = document.querySelector('.profile-btn');

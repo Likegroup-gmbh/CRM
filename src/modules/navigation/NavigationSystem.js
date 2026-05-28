@@ -8,32 +8,28 @@ export class NavigationSystem {
       {
         title: 'Dashboard',
         items: [
-          { id: 'dashboard', label: 'Dashboard', icon: 'icon-dashboard', url: '/dashboard' },
-          { id: 'tasks', label: 'Aufgaben', icon: 'icon-tasks', url: '/tasks' }
+          { id: 'dashboard', label: 'Dashboard', icon: 'icon-dashboard', url: '/dashboard' }
+          // Ausgeblendet, kommt später wieder:
+          // { id: 'tasks', label: 'Aufgaben', icon: 'icon-tasks', url: '/tasks' }
+        ]
+      },
+      {
+        title: null,
+        items: [
+          { id: 'projekt-erstellen', label: 'Projekt anlegen', icon: 'icon-plus-circle', url: '/projekt-erstellen' }
         ]
       },
       {
         title: 'Stammdaten',
         items: [
-          {
-            id: 'unternehmen',
-            label: 'Unternehmen',
-            icon: 'icon-building',
-            url: '/unternehmen',
-            children: [
-              { id: 'marke', label: 'Marken', icon: 'icon-tag', url: '/marke' },
-              { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'icon-user-circle', url: '/ansprechpartner' }
-            ]
-          },
+          { id: 'unternehmen', label: 'Unternehmen', icon: 'icon-building', url: '/unternehmen' },
+          { id: 'marke', label: 'Marken', icon: 'icon-tag', url: '/marke' },
+          { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'icon-user-circle', url: '/ansprechpartner' },
           {
             id: 'management',
             label: 'Management',
             icon: 'icon-building',
-            url: '/management',
-            children: [
-              { id: 'management-creator', label: 'Creator', icon: 'icon-users', url: '/management-creator' },
-              { id: 'management-ansprechpartner', label: 'Ansprechpartner', icon: 'icon-user-circle', url: '/management-ansprechpartner' }
-            ]
+            url: '/management'
           },
           { id: 'creator', label: 'Creator', icon: 'icon-users', url: '/creator' }
         ]
@@ -41,15 +37,8 @@ export class NavigationSystem {
       {
         title: 'Projektmanagement',
         items: [
-          {
-            id: 'auftrag',
-            label: 'Aufträge',
-            icon: 'icon-briefcase',
-            url: '/auftrag',
-            children: [
-              { id: 'ausgangsrechnungen', label: 'Kundenrechnungen', icon: 'icon-currency-euro', url: '/ausgangsrechnungen' }
-            ]
-          },
+          { id: 'auftrag', label: 'Aufträge', icon: 'icon-briefcase', url: '/auftrag' },
+          { id: 'ausgangsrechnungen', label: 'Kundenrechnungen', icon: 'icon-currency-euro', url: '/ausgangsrechnungen' },
           { id: 'auftragsdetails', label: 'Auftragsdetails', icon: 'icon-auftragsdetails', url: '/auftragsdetails' },
           { id: 'kampagne', label: 'Kampagnen', icon: 'icon-campaign', url: '/kampagne' }
         ]
@@ -57,8 +46,9 @@ export class NavigationSystem {
       {
         title: 'Content & Strategie',
         items: [
-          { id: 'kickoff', label: 'Kick-Off', icon: 'icon-kick-off', url: '/kickoff' },
-          { id: 'produkt', label: 'Produkte', icon: 'icon-cube', url: '/produkt' },
+          // Ausgeblendet, kommt später wieder:
+          // { id: 'kickoff', label: 'Kick-Off', icon: 'icon-kick-off', url: '/kickoff' },
+          // { id: 'produkt', label: 'Produkte', icon: 'icon-cube', url: '/produkt' },
           { id: 'strategie', label: 'Strategie', icon: 'icon-lightbulb', url: '/strategie' },
           { id: 'sourcing', label: 'Sourcing', icon: 'icon-users', url: '/sourcing' },
           { id: 'vertraege', label: 'Verträge', icon: 'icon-contract', url: '/vertraege' },
@@ -112,7 +102,8 @@ export class NavigationSystem {
 
       // "Projekt anlegen" nur für interne Mitarbeiter, nicht für Kunden
       if (id === 'projekt-erstellen') {
-        if (!window.canCreateProject()) return false;
+        if (typeof window.canCreateProject === 'function' && !window.canCreateProject()) return false;
+        if (typeof window.canCreateProject !== 'function') return false;
       }
       
       // 1) Page-Scoped Check (DB-Overrides)
@@ -170,11 +161,7 @@ export class NavigationSystem {
     // Feedback separat rendern (für Footer)
     const feedbackSection = this.navSections.find(s => s.title === 'Feedback');
     const feedbackItems = feedbackSection ? feedbackSection.items.filter(it => canView(it.id)) : [];
-    
-    const searchAllowed = typeof window.globalSearch?.isAllowed === 'function' && window.globalSearch.isAllowed();
-    const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-    const searchShortcut = isMac ? '⌘K' : 'Strg+K';
-    
+
     const renderNavItem = (item) => `
       <li class="nav-item">
         <a href="${item.url}" class="nav-link" data-route="${item.url}">
@@ -231,21 +218,10 @@ export class NavigationSystem {
         });
         if (visibleItems.length === 0) return '';
         
-        // Dashboard ohne Section-Title: Suche (falls erlaubt) + Dashboard + Aufgaben in einer Gruppe
-        if (section.title === 'Dashboard') {
-          const searchLi = searchAllowed ? `
-            <li class="nav-item">
-              <span class="nav-link nav-link-search-wrap">
-                <button type="button" class="nav-link-search" data-action="open-global-search" title="Globale Suche (${searchShortcut})">
-                  <span class="nav-icon">${this.getIcon('icon-search')}</span>
-                  <span class="nav-label">Suche</span>
-                  <span class="nav-shortcut">${searchShortcut}</span>
-                </button>
-              </span>
-            </li>` : '';
+        // Dashboard und title-less Sections ohne Section-Title
+        if (section.title === 'Dashboard' || section.title === null) {
           return `
             <ul class="nav-list nav-list-standalone">
-              ${searchLi}
               ${renderItemsHtml(visibleItems)}
             </ul>`;
         }
@@ -291,14 +267,6 @@ export class NavigationSystem {
 
   // Navigation-Events binden
   bindNavigationEvents() {
-    const openSearchBtn = document.querySelector('.nav-link-search[data-action="open-global-search"]');
-    if (openSearchBtn) {
-      openSearchBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        window.globalSearch?.open?.();
-      });
-    }
-
     const navLinks = document.querySelectorAll('.nav-link[data-route]');
     navLinks.forEach(link => {
       link.addEventListener('click', (e) => {
@@ -366,6 +334,7 @@ export class NavigationSystem {
       // Dashboard & Navigation
       'icon-dashboard': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h7.5" /></svg>`,
       'icon-search': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>`,
+      'icon-plus-circle': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>`,
       
       // Creator Management
       'icon-users': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" /></svg>`,
@@ -400,16 +369,45 @@ export class NavigationSystem {
 
   init() {
     console.log('🧭 NavigationSystem: Initialisiere Navigation');
-    this.renderNavigation();
+    this._bindSidebarToggle();
     this._restoreSidebarState();
+    try {
+      this.renderNavigation();
+    } catch (err) {
+      console.error('NavigationSystem: Fehler beim Rendern der Navigation', err);
+    }
   }
 
   _restoreSidebarState() {
-    if (!window.isAdmin?.()) return;
     const appRoot = document.getElementById('app-root');
-    if (appRoot && localStorage.getItem('sidebar-collapsed') === 'true') {
-      appRoot.classList.add('sidebar-collapsed');
+    if (appRoot && appRoot.classList.contains('sidebar-collapsed')) {
+      this._updateToggleIcon(true);
     }
+  }
+
+  _bindSidebarToggle() {
+    const btn = document.getElementById('sidebar-toggle');
+    if (!btn || btn._sidebarBound) return;
+    btn._sidebarBound = true;
+    btn.addEventListener('click', () => this._toggleSidebar());
+  }
+
+  _toggleSidebar() {
+    const appRoot = document.getElementById('app-root');
+    if (!appRoot) return;
+
+    const isNowCollapsed = appRoot.classList.toggle('sidebar-collapsed');
+    localStorage.setItem('sidebar-collapsed', isNowCollapsed);
+    this._updateToggleIcon(isNowCollapsed);
+  }
+
+  _updateToggleIcon(isCollapsed) {
+    const btn = document.getElementById('sidebar-toggle');
+    if (!btn) return;
+    const showIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 9V4.5M9 9H4.5M9 9 3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5 5.25 5.25" /></svg>`;
+    const hideIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>`;
+    btn.innerHTML = isCollapsed ? showIcon : hideIcon;
+    btn.title = isCollapsed ? 'Navigation einblenden' : 'Navigation verkleinern';
   }
 
   // Cleanup

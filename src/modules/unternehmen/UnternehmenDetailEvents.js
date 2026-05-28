@@ -1,10 +1,13 @@
 // UnternehmenDetailEvents.js
 // Event-Binding und Drag-to-Scroll für Unternehmen-Detailseite
 
-import { renderKickOff } from './UnternehmenDetailRendererRelations.js';
+import { renderKickOff, bindUnternehmenKickOffCreateButton } from './UnternehmenDetailRendererRelations.js';
 
 export function bindUnternehmenDetailEvents(detail) {
   detail.bindSidebarTabs();
+
+  // Kick-Off Create Button binden (nach jedem Render)
+  bindUnternehmenKickOffCreateButton(detail);
 
   detail._eventsAbort?.abort();
   detail._eventsAbort = new AbortController();
@@ -22,6 +25,7 @@ export function bindUnternehmenDetailEvents(detail) {
       detail.kickoffMarkenwerte = detail.kickoffMarkenwerteByType[nextType] || [];
       const pane = document.getElementById('tab-kickoff');
       if (pane) pane.innerHTML = renderKickOff(detail);
+      bindUnternehmenKickOffCreateButton(detail);
       return;
     }
 

@@ -95,7 +95,7 @@ export class PermissionSystem {
   get canManageStaff()     { return this.isAdmin; }
   get canBulkDelete()      { return this.isInternal; }
   get canCreateProject()   { return this.isInternal; }
-  get canUseGlobalSearch() { return this.isInternal; }
+  get canUseGlobalSearch() { return !this.isPending; }
   get canViewContracts() {
     if (this.isAdmin) return true;
     if (this.isKunde) return !!window.currentUser?.contracting_sicht;

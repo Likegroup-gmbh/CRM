@@ -320,7 +320,7 @@ export class AuthService {
   }
 
   // Registrierung
-  async signUp(email, vorname, nachname, password, klasseId = null, firmenhandy = null, firmenhandyLandId = null) {
+  async signUp(email, vorname, nachname, password, klasseId = null, firmenhandy = null, firmenhandyLandId = null, geburtsdatum = null) {
     try {
       // Rate Limiting prüfen
       if (this.checkRateLimit(email)) {
@@ -377,7 +377,8 @@ export class AuthService {
           email,
           klasseId,
           firmenhandy,
-          firmenhandyLandId
+          firmenhandyLandId,
+          geburtsdatum
         );
       }
 
@@ -407,7 +408,8 @@ export class AuthService {
     email = null,
     klasseId = null,
     firmenhandy = null,
-    firmenhandyLandId = null
+    firmenhandyLandId = null,
+    geburtsdatum = null
   ) {
     try {
       if (!window.supabase) {
@@ -442,6 +444,7 @@ export class AuthService {
         if (fullName) updateData.name = fullName;
         if (firmenhandy) updateData.telefonnummer_firmenhandy = firmenhandy;
         if (firmenhandyLandId) updateData.telefonnummer_firmenhandy_land_id = firmenhandyLandId;
+        if (geburtsdatum) updateData.geburtsdatum = geburtsdatum;
         
         if (Object.keys(updateData).length > 0) {
           const { error: updateError } = await window.supabase
@@ -472,6 +475,7 @@ export class AuthService {
           mitarbeiter_klasse_id: klasseId,
           telefonnummer_firmenhandy: firmenhandy,
           telefonnummer_firmenhandy_land_id: firmenhandyLandId,
+          geburtsdatum: geburtsdatum,
           zugriffsrechte: null,
           freigeschaltet: false
         });
@@ -488,7 +492,8 @@ export class AuthService {
               vorname: vorname,
               nachname: nachname,
               telefonnummer_firmenhandy: firmenhandy,
-              telefonnummer_firmenhandy_land_id: firmenhandyLandId
+              telefonnummer_firmenhandy_land_id: firmenhandyLandId,
+              geburtsdatum: geburtsdatum
             })
             .eq('auth_user_id', authUserId);
           

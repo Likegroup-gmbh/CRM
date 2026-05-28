@@ -394,6 +394,7 @@ export const EntityRegistry = {
       mitarbeiter_klasse_id: 'uuid',
       telefonnummer_firmenhandy: 'string',
       telefonnummer_firmenhandy_land_id: 'uuid',
+      geburtsdatum: 'date',
       freigeschaltet: 'boolean',
       updated_at: 'date'
     },
@@ -409,6 +410,7 @@ export const EntityRegistry = {
       name: 'string',
       email: 'string',
       rolle: 'string',
+      geburtsdatum: 'date',
       freigeschaltet: 'boolean',
       created_at: 'date',
       updated_at: 'date'

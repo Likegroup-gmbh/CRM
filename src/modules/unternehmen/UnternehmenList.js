@@ -798,6 +798,10 @@ export class UnternehmenList extends BasePaginatedList {
               <label class="form-logo-label">Logo Vorschau:</label>
               <img id="logo-preview-image" class="form-logo-image" alt="Logo Vorschau" />
             </div>
+            <button type="button" class="kickoff-create-toggle-btn" id="kickoff-toggle-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+              Kick-Off anlegen
+            </button>
           </div>
         </div>
         <div class="form-split-right hidden" id="unternehmen-split-container">
@@ -818,6 +822,85 @@ export class UnternehmenList extends BasePaginatedList {
       this.setupLogoPreview(form);
       this.setupDuplicateValidation(form);
     }
+
+    this._kickoffType = null;
+    this._kickoffPanelOpen = false;
+    this.setupKickOffToggle();
+  }
+
+  async setupKickOffToggle() {
+    const toggleBtn = document.getElementById('kickoff-toggle-btn');
+    if (!toggleBtn) return;
+
+    toggleBtn.addEventListener('click', async () => {
+      if (this._kickoffPanelOpen) {
+        this.closeKickOffPanel('unternehmen');
+        return;
+      }
+
+      const { KickOffTypeDialog } = await import('../kickoff/KickOffTypeDialog.js');
+      const type = await KickOffTypeDialog.show();
+      if (!type) return;
+
+      this._kickoffType = type;
+      this._kickoffPanelOpen = true;
+      toggleBtn.classList.add('active');
+      toggleBtn.textContent = `Kick-Off (${type === 'organic' ? 'Organic' : 'Paid'}) ✓`;
+
+      const splitContainer = document.getElementById('unternehmen-split-container');
+      const embeddedForm = document.getElementById('unternehmen-embedded-form');
+      if (!splitContainer || !embeddedForm) return;
+
+      splitContainer.classList.remove('hidden');
+
+      const kickoffFormHtml = window.formSystem.renderFormOnly('kickoff_embedded');
+      embeddedForm.innerHTML = `
+        <div class="kickoff-panel-header">
+          <h3 class="kickoff-panel-header__title">Kick-Off <span class="kickoff-panel-header__badge">${type === 'organic' ? 'Organic' : 'Paid'}</span></h3>
+          <button type="button" class="kickoff-panel-header__close" id="kickoff-panel-close" title="Kick-Off Panel schließen">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div>
+          ${kickoffFormHtml}
+        </div>
+      `;
+
+      window.formSystem.bindFormEvents('kickoff_embedded', null);
+
+      const kickoffForm = embeddedForm.querySelector('form');
+      if (kickoffForm) {
+        kickoffForm.onsubmit = (e) => e.preventDefault();
+        const submitRow = kickoffForm.querySelector('.form-actions');
+        if (submitRow) submitRow.style.display = 'none';
+      }
+
+      document.getElementById('kickoff-panel-close')?.addEventListener('click', () => {
+        this.closeKickOffPanel('unternehmen');
+      });
+
+      setTimeout(() => {
+        const container = document.querySelector('.form-split-container');
+        if (container) container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    });
+  }
+
+  closeKickOffPanel(entityPrefix) {
+    const splitContainer = document.getElementById(`${entityPrefix}-split-container`);
+    if (splitContainer) splitContainer.classList.add('hidden');
+    
+    const toggleBtn = document.getElementById('kickoff-toggle-btn');
+    if (toggleBtn) {
+      toggleBtn.classList.remove('active');
+      toggleBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        Kick-Off anlegen
+      `;
+    }
+    
+    this._kickoffPanelOpen = false;
+    this._kickoffType = null;
   }
 
   setupDuplicateValidation(form) {
@@ -976,6 +1059,25 @@ export class UnternehmenList extends BasePaginatedList {
         return;
       }
 
+      // Kick-Off-Validierung (wenn Panel offen)
+      if (this._kickoffPanelOpen) {
+        const kickoffForm = document.querySelector('#unternehmen-embedded-form form');
+        if (kickoffForm) {
+          const kickoffData = window.formSystem.collectSubmitData(kickoffForm);
+          const kickoffValidation = window.validatorSystem.validateForm(kickoffData, {
+            brand_essenz: { type: 'text', minLength: 2, required: true },
+            mission: { type: 'text', required: true },
+            zielgruppe: { type: 'text', required: true },
+            marken_usp: { type: 'text', required: true },
+            tonalitaet_sprachstil: { type: 'text', required: true }
+          });
+          if (!kickoffValidation.isValid) {
+            window.toastSystem?.show('Bitte alle Pflichtfelder im Kick-Off ausfüllen', 'error');
+            return;
+          }
+        }
+      }
+
       const result = await window.dataService.createEntity('unternehmen', submitData);
 
       if (result.success && result.id) {
@@ -999,6 +1101,16 @@ export class UnternehmenList extends BasePaginatedList {
           console.error('❌ Logo-Upload Fehler:', logoErr);
         }
 
+        // Kick-Off speichern (wenn Panel offen)
+        if (this._kickoffPanelOpen && this._kickoffType) {
+          try {
+            await this.saveKickOff(result.id, null);
+          } catch (kickoffErr) {
+            console.error('❌ Kick-Off Fehler:', kickoffErr);
+            window.toastSystem?.show('Unternehmen erstellt, aber Kick-Off konnte nicht gespeichert werden', 'warning');
+          }
+        }
+
         this.showSuccessMessage('Unternehmen erfolgreich erstellt!');
         
         window.dispatchEvent(new CustomEvent('entityUpdated', { 
@@ -1012,6 +1124,57 @@ export class UnternehmenList extends BasePaginatedList {
       console.error('❌ Formular-Submit Fehler:', error);
       this.showErrorMessage(error.message);
     }
+  }
+
+  async saveKickOff(unternehmenId, markeId) {
+    const kickoffForm = document.querySelector('#unternehmen-embedded-form form');
+    if (!kickoffForm) return;
+
+    const kickoffData = window.formSystem.collectSubmitData(kickoffForm);
+    
+    const insertData = {
+      kickoff_type: this._kickoffType,
+      brand_essenz: kickoffData.brand_essenz || '',
+      mission: kickoffData.mission || '',
+      zielgruppe: kickoffData.zielgruppe || '',
+      zielgruppen_mindset: kickoffData.zielgruppen_mindset || '',
+      marken_usp: kickoffData.marken_usp || '',
+      tonalitaet_sprachstil: kickoffData.tonalitaet_sprachstil || '',
+      content_charakter: kickoffData.content_charakter || '',
+      dos_donts: kickoffData.dos_donts || '',
+      rechtliche_leitplanken: kickoffData.rechtliche_leitplanken || '',
+      unternehmen_id: markeId ? null : unternehmenId,
+      marke_id: markeId || null,
+      created_by: window.currentUser?.id || null
+    };
+
+    const { data: kickoffResult, error } = await window.supabase
+      .from('marke_kickoff')
+      .insert([insertData])
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Markenwerte Junction speichern
+    const markenwerte = kickoffData.markenwerte_ids;
+    if (markenwerte && Array.isArray(markenwerte) && markenwerte.length > 0) {
+      const junctionRows = markenwerte.slice(0, 3).map(markenwertId => ({
+        kickoff_id: kickoffResult.id,
+        markenwert_id: markenwertId
+      }));
+
+      const { error: junctionError } = await window.supabase
+        .from('marke_kickoff_markenwerte')
+        .insert(junctionRows);
+
+      if (junctionError) {
+        console.error('❌ Markenwerte Junction Fehler:', junctionError);
+      }
+    }
+
+    console.log('✅ Kick-Off gespeichert:', kickoffResult.id);
+    return kickoffResult;
   }
 
   showValidationErrors(errors) {

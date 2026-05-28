@@ -180,6 +180,10 @@ export class AuthUtils {
                 <div id="registerEmailError" class="text-error" style="display: none;"></div>
               </div>
               <div class="form-box">
+                <label for="registerGeburtsdatum" class="label label-register">Geburtsdatum *</label>
+                <input type="date" id="registerGeburtsdatum" class="input" required>
+              </div>
+              <div class="form-box">
                 <label for="registerFirmenhandy" class="label label-register">Firmenhandy <span class="label-optional">(optional)</span></label>
                 <input type="tel" id="registerFirmenhandy" class="input" placeholder="z. B. 15123456789">
               </div>
@@ -231,6 +235,7 @@ export class AuthUtils {
     const nachname = document.getElementById('registerNachname').value.trim();
     const emailInput = document.getElementById('registerEmail');
     const email = emailInput.value;
+    const geburtsdatum = document.getElementById('registerGeburtsdatum')?.value || '';
     const firmenhandy = document.getElementById('registerFirmenhandy')?.value?.trim() || '';
     const password = document.getElementById('registerPassword').value;
     const errorDiv = document.getElementById('registerError');
@@ -240,12 +245,14 @@ export class AuthUtils {
       errorDiv.style.display = 'none';
       this.clearRegisterEmailError(emailInput, emailErrorDiv);
       
-      // Validierung
       if (!vorname || !nachname) {
         throw new Error('Bitte geben Sie Vorname und Nachname ein.');
       }
 
-      
+      if (!geburtsdatum) {
+        throw new Error('Bitte geben Sie Ihr Geburtsdatum ein.');
+      }
+
       const result = await authService.signUp(
         email,
         vorname,
@@ -253,7 +260,8 @@ export class AuthUtils {
         password,
         null,
         firmenhandy,
-        null
+        null,
+        geburtsdatum
       );
       
       if (result.error) {

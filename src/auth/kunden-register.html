@@ -32,6 +32,10 @@
             <input id="email" class="input" type="email" placeholder="kunde@example.com" required />
           </div>
           <div class="form-box">
+            <label class="label" for="geburtsdatum">Geburtsdatum *</label>
+            <input id="geburtsdatum" class="input" type="date" required />
+          </div>
+          <div class="form-box">
             <label class="label" for="password">Passwort</label>
             <input id="password" class="input" type="password" placeholder="••••••••" minlength="8" required />
           </div>
@@ -87,7 +91,14 @@
 
     const name = document.getElementById('name').value.trim();
     const email = document.getElementById('email').value.trim();
+    const geburtsdatum = document.getElementById('geburtsdatum').value;
     const password = document.getElementById('password').value;
+
+    if (!geburtsdatum) {
+      show('error', 'Bitte geben Sie Ihr Geburtsdatum ein.');
+      btn.disabled = false;
+      return;
+    }
 
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -101,15 +112,14 @@
 
       if (error) throw error;
 
-      // E-Mail in benutzer-Tabelle speichern (falls Record bereits vom Trigger erstellt wurde)
       if (data?.user?.id) {
         const { error: updateError } = await supabase
           .from('benutzer')
-          .update({ email: email })
+          .update({ email: email, geburtsdatum: geburtsdatum })
           .eq('auth_user_id', data.user.id);
         
         if (updateError) {
-          console.warn('⚠️ E-Mail Update fehlgeschlagen (wird später vom Admin korrigiert):', updateError);
+          console.warn('⚠️ Benutzer-Update fehlgeschlagen (wird später vom Admin korrigiert):', updateError);
         }
       }
 

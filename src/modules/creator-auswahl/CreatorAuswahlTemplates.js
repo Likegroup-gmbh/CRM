@@ -42,7 +42,7 @@ export function getVisibleColumnCount(isKunde, hiddenColumns) {
     'cp-col-reichweite-ig', 'cp-col-reichweite-tt', 'cp-col-reichweite-garantie',
     'cp-col-cpm-ig', 'cp-col-cpm-tt',
     'cp-col-location', 'cp-col-notiz',
-    'cp-col-feedback', 'cp-col-prio1', 'cp-col-prio2', 'cp-col-anfragen', 'cp-col-buchen', 'cp-col-absagen', 'cp-col-check', 'cp-col-actions'
+    'cp-col-feedback', 'cp-col-anfragen', 'cp-col-buchen', 'cp-col-prio1', 'cp-col-prio2', 'cp-col-absagen', 'cp-col-check', 'cp-col-actions'
   ];
 
   let count = 0;
@@ -138,10 +138,10 @@ export function renderItemsTable(ctx) {
             <th class="cp-col-location" ${hide('cp-col-location')}>Location</th>
             <th class="cp-col-notiz" ${hide('cp-col-notiz')}>Kurzbeschreibung</th>
             <th class="cp-col-feedback" ${hide('cp-col-feedback')}>Rückmeldung Kunde</th>
-            <th class="cp-col-prio1" ${hide('cp-col-prio1')}>Prio 1</th>
-            <th class="cp-col-prio2" ${hide('cp-col-prio2')}>Prio 2</th>
             <th class="cp-col-anfragen" ${hide('cp-col-anfragen')}>Anfragen</th>
             <th class="cp-col-buchen" ${hide('cp-col-buchen')}>Buchen</th>
+            <th class="cp-col-prio1" ${hide('cp-col-prio1')}>Prio 1</th>
+            <th class="cp-col-prio2" ${hide('cp-col-prio2')}>Prio 2</th>
             <th class="cp-col-absagen" ${hide('cp-col-absagen')}>Absagen</th>
             <th class="cp-col-check" ${hide('cp-col-check')}>Rückmeldung</th>
             ${!ctx.isKunde ? '<th class="col-actions cp-col-actions">Aktionen</th>' : ''}
@@ -378,12 +378,6 @@ export function renderItemRow(ctx, item, index) {
           ${ctx.isKunde ? '' : 'readonly'}
         >${item.feedback_kunde || ''}</textarea>
       </td>
-      <td class="cp-col-prio1" style="${hide('cp-col-prio1')}">
-        <input type="checkbox" ${item.prio_1 ? 'checked' : ''} data-field="prio_1" data-item-id="${item.id}" class="cp-checkbox">
-      </td>
-      <td class="cp-col-prio2" style="${hide('cp-col-prio2')}">
-        <input type="checkbox" ${item.prio_2 ? 'checked' : ''} data-field="prio_2" data-item-id="${item.id}" class="cp-checkbox">
-      </td>
       <td class="cp-col-anfragen" style="${hide('cp-col-anfragen')}">
         <div class="angefragt-cell">
           <input
@@ -398,7 +392,13 @@ export function renderItemRow(ctx, item, index) {
         </div>
       </td>
       <td class="cp-col-buchen" style="${hide('cp-col-buchen')}">
-        <input type="checkbox" ${item.gebucht ? 'checked' : ''} data-field="gebucht" data-item-id="${item.id}" class="cp-checkbox">
+        <input type="checkbox" ${item.gebucht ? 'checked' : ''} data-field="gebucht" data-item-id="${item.id}" class="cp-checkbox${item.absage ? ' cp-checkbox--disabled' : ''}" ${item.absage ? 'disabled' : ''}>
+      </td>
+      <td class="cp-col-prio1" style="${hide('cp-col-prio1')}">
+        <input type="checkbox" ${item.prio_1 ? 'checked' : ''} data-field="prio_1" data-item-id="${item.id}" class="cp-checkbox${item.absage ? ' cp-checkbox--disabled' : ''}" ${item.absage ? 'disabled' : ''}>
+      </td>
+      <td class="cp-col-prio2" style="${hide('cp-col-prio2')}">
+        <input type="checkbox" ${item.prio_2 ? 'checked' : ''} data-field="prio_2" data-item-id="${item.id}" class="cp-checkbox${item.absage ? ' cp-checkbox--disabled' : ''}" ${item.absage ? 'disabled' : ''}>
       </td>
       <td class="cp-col-absagen" style="${hide('cp-col-absagen')}">
         <div class="absage-cell">

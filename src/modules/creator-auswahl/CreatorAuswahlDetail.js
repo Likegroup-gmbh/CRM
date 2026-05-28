@@ -486,11 +486,21 @@ export class CreatorAuswahlDetail {
       if (field === 'absage') {
         const updates = { absage: value };
         updates.absage_am = value ? new Date().toISOString() : null;
+        if (value) {
+          updates.prio_1 = false;
+          updates.prio_2 = false;
+          updates.gebucht = false;
+        }
         await creatorAuswahlService.updateItem(itemId, updates);
         const item = this.items.find(i => i.id === itemId);
         if (item) {
           item.absage = value;
           item.absage_am = updates.absage_am;
+          if (value) {
+            item.prio_1 = false;
+            item.prio_2 = false;
+            item.gebucht = false;
+          }
         }
         this.rerenderTable();
         return;

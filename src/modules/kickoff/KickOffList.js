@@ -90,7 +90,7 @@ export class KickOffList {
     `).join('');
 
     const createBtn = isKunde ? '' : `
-      <button class="primary-btn" id="kickoff-create-btn">Neuer Kick-Off</button>
+      <button class="primary-btn" id="kickoff-create-btn" title="Kick-Off über Unternehmen oder Marke anlegen">Neuer Kick-Off</button>
     `;
 
     const colCount = isKunde ? 3 : 5;
@@ -133,8 +133,12 @@ export class KickOffList {
 
     const createBtn = document.getElementById('kickoff-create-btn');
     if (createBtn) {
-      createBtn.addEventListener('click', () => {
-        window.navigateTo('/kickoff-create');
+      createBtn.addEventListener('click', async () => {
+        const { KickOffTypeDialog } = await import('./KickOffTypeDialog.js');
+        const type = await KickOffTypeDialog.show();
+        if (!type) return;
+        window.toastSystem?.show(`Kick-Off (${type === 'organic' ? 'Organic' : 'Paid'}) bitte über die Unternehmen- oder Marke-Erstellung anlegen`, 'info');
+        window.navigateTo('/unternehmen');
       });
     }
   }
