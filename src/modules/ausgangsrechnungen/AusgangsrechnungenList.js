@@ -3,14 +3,14 @@
 
 import { AuftragList } from '../auftrag/AuftragList.js';
 import { sortRowsByPrefixedNumberDesc } from '../auftrag/logic/PrefixedNumberSort.js';
-import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
-import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
+import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 
 const TR_FIELDS = [
   're_nr', 'externe_po', 'nettobetrag', 'ust_betrag', 'bruttobetrag',
   'rechnung_gestellt', 'rechnung_gestellt_am', 're_faelligkeit',
+  'erwarteter_monat_zahlungseingang',
   'ueberwiesen', 'ueberwiesen_am'
 ];
 
@@ -53,10 +53,9 @@ export class AusgangsrechnungenList extends AuftragList {
     return 're_nr';
   }
 
-  // +1 Spalte gegenueber AuftragList (Teilrechnung-Spalte)
   getListColumnCount() {
-    if (this.isKunde) return 17;
-    return (this.isAdmin ? 1 : 0) + 20;
+    if (this.isKunde) return 18;
+    return 19;
   }
 
   renderListView(mode = 'auftraege') {
@@ -69,28 +68,24 @@ export class AusgangsrechnungenList extends AuftragList {
         <table class="data-table ${tableClass}">
           <thead>
             <tr>
-              ${this.isAdmin ? `<th class="col-checkbox">
-                <input type="checkbox" id="select-all-auftraege">
-              </th>` : ''}
               <th class="col-unternehmen">Unternehmen</th>
               <th class="col-marke">Marke</th>
-              ${!this.isKunde ? '<th class="col-details">Details</th>' : ''}
-              <th class="col-teilrechnung">Teilrechnung</th>
               <th class="col-angebotsnr">Angebotsnummer</th>
               <th class="col-rechnungsnr">Rechnungsnummer</th>
+              <th class="col-teilrechnung">Teilrechnung</th>
               <th class="col-externe-po">Externe PO</th>
               <th class="col-rechnung-gestellt">Rechnungsdatum</th>
               <th class="col-zahlungsziel">Zahlungsziel</th>
               <th class="col-re-faelligkeit">Rechnungsfälligkeit</th>
-              <th class="col-netto">Betrag netto</th>
-              <th class="col-ust">Umsatzsteuer</th>
-              <th class="col-brutto">Betrag brutto</th>
+              <th class="col-erwarteter-ze table-cell-center">Erwarteter Zahlungseingang</th>
+              <th class="col-netto">Netto</th>
+              <th class="col-mwst-prozent">Mehrwertsteuer</th>
+              <th class="col-ust">MwSt-Betrag</th>
+              <th class="col-brutto">Bruttobetrag</th>
               <th class="col-re-gestellt table-cell-center">Rechnung gestellt</th>
               <th class="col-ueberwiesen-bool table-cell-center">Überwiesen</th>
-              <th class="col-ueberwiesen">Bezahlt am</th>
-              ${!this.isKunde ? '<th class="col-ansprechpartner">Ansprechpartner</th>' : ''}
+              <th class="col-erstellt-am">Erstellt am</th>
               <th class="col-erstellt-von">Erstellt von</th>
-              <th class="col-status">Status</th>
               ${!this.isKunde ? '<th class="col-actions">Aktionen</th>' : ''}
             </tr>
           </thead>
@@ -135,38 +130,48 @@ export class AusgangsrechnungenList extends AuftragList {
           : auftrag.rechnung_gestellt
             ? 'auftrag-row--rechnung-gestellt'
             : '';
-        const detailsLink = isContracts
-          ? this.renderContractDetailsLink(auftrag)
-          : this.renderAuftragsdetailsLink(auftrag);
         const trLabel = auftrag._teilrechnung?.label || '1 von 1';
+        const mwstProzent = auftrag.ust_prozent != null ? `${auftrag.ust_prozent}%` : '19%';
         return `
         <tr data-id="${auftrag.id}" class="${paymentStatusClass}" data-rechnung-gestellt="${Boolean(auftrag.rechnung_gestellt)}" data-ueberwiesen="${Boolean(auftrag.ueberwiesen)}">
-          ${this.isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
           <td class="col-unternehmen">${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
           <td class="col-marke">${this.formatMarkeTag(auftrag.marke)}</td>
-          ${!this.isKunde ? `<td class="col-details">${detailsLink}</td>` : ''}
-          <td class="col-teilrechnung">${trLabel}</td>
           <td class="col-angebotsnr">${window.validatorSystem.sanitizeHtml(auftrag.angebotsnummer || '-')}</td>
           <td class="col-rechnungsnr">${window.validatorSystem.sanitizeHtml(auftrag.re_nr || '-')}</td>
+          <td class="col-teilrechnung">${trLabel}</td>
           <td class="col-externe-po">${window.validatorSystem.sanitizeHtml(auftrag.externe_po || '-')}</td>
           <td class="col-rechnung-gestellt">${this.formatDate(auftrag.rechnung_gestellt_am)}</td>
           <td class="col-zahlungsziel">${this.formatZahlungsziel(auftrag.zahlungsziel_tage)}</td>
           <td class="col-re-faelligkeit">${this.formatDate(auftrag.re_faelligkeit)}</td>
+          <td class="col-erwarteter-ze table-cell-center">${this.renderExpectedPaymentDateCell(auftrag)}</td>
           <td class="col-netto">${this.formatCurrency(auftrag.nettobetrag)}</td>
+          <td class="col-mwst-prozent">${mwstProzent}</td>
           <td class="col-ust">${this.formatCurrency(auftrag.ust_betrag)}</td>
           <td class="col-brutto">${this.formatCurrency(auftrag.bruttobetrag)}</td>
           <td class="col-re-gestellt table-cell-center">${this.renderBillingDateCell(auftrag, 'rechnung_gestellt', 'rechnung_gestellt_am')}</td>
           <td class="col-ueberwiesen-bool table-cell-center">${this.renderBillingDateCell(auftrag, 'ueberwiesen', 'ueberwiesen_am')}</td>
-          <td class="col-ueberwiesen">${this.formatDate(auftrag.ueberwiesen_am)}</td>
-          ${!this.isKunde ? `<td class="col-ansprechpartner">${this.formatAnsprechpartner(auftrag.ansprechpartner)}</td>` : ''}
+          <td class="col-erstellt-am">${this.formatDate(auftrag.created_at)}</td>
           <td class="col-erstellt-von">${this.renderCreatedBy(auftrag.created_by)}</td>
-          <td class="col-status">${renderAuftragAmpel(auftrag.status)}</td>
           ${!this.isKunde ? `<td class="col-actions">${actionBuilder.create(actionEntity, auftrag.id, window.currentUser, {
             statusOptions: this.statusOptions,
             currentStatus: { id: auftrag.status || 'Beauftragt', name: auftrag.status || 'Beauftragt' }
           })}</td>` : ''}
         </tr>
       `}).join('');
+    });
+  }
+
+  renderExpectedPaymentDateCell(auftrag) {
+    if (!this.isAdmin) {
+      return this.formatDate(auftrag.erwarteter_monat_zahlungseingang);
+    }
+    return CustomDatePicker.render({
+      id: auftrag.id,
+      field: 'erwarteter_monat_zahlungseingang',
+      dateField: '',
+      value: auftrag.erwarteter_monat_zahlungseingang,
+      label: 'Erwarteter Zahlungseingang',
+      inputClass: 'auftrag-inline-date-input'
     });
   }
 
@@ -204,10 +209,12 @@ export class AusgangsrechnungenList extends AuftragList {
         externe_po,
         re_nr,
         re_faelligkeit,
+        erwarteter_monat_zahlungseingang,
         zahlungsziel_tage,
         start,
         ende,
         nettobetrag,
+        ust_prozent,
         ust_betrag,
         bruttobetrag,
         rechnung_gestellt,
@@ -218,7 +225,6 @@ export class AusgangsrechnungenList extends AuftragList {
         created_at,
         unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url, logo_thumb_url),
         marke:marke_id(id, markenname, logo_url, logo_thumb_url),
-        ansprechpartner:ansprechpartner_id(id, vorname, nachname, email, profile_image_url, profile_image_thumb_url),
         created_by:created_by_id(id, name, profile_image_url, profile_image_thumb_url),
         auftrag_details(id),
         kampagne_arten:auftrag_kampagne_art(art:kampagne_art_id(id, name))

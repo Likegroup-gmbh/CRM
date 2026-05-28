@@ -26,11 +26,13 @@ export class KampagneDetailStore {
     this.statusOptions = [];
 
     this.kooperationSort = DEFAULT_KOOPERATION_SORT;
+    this.selectedTags = [];
     this.rechnungStatusMap = {};
 
     // Custom Columns
     this.customColumns = [];
     this.customColumnValues = {};  // { [entityId]: { [columnId]: value } }
+    this.customColumnAssets = {};  // { [columnId:entityId]: [assetRow, ...] }
     this.columnOrder = null;       // JSONB Array oder null (= Default)
 
     this._loadedAssetVideoIds = new Set();
@@ -110,13 +112,33 @@ export class KampagneDetailStore {
   }
 
   getFiltered(tab) {
+    let filtered = this.kooperationen;
     if (tab === 'offen') {
-      return this.kooperationen.filter(k => !this.areAllVideosApproved(k.id));
+      filtered = filtered.filter(k => !this.areAllVideosApproved(k.id));
+    } else if (tab === 'abgeschlossen') {
+      filtered = filtered.filter(k => this.areAllVideosApproved(k.id));
     }
-    if (tab === 'abgeschlossen') {
-      return this.kooperationen.filter(k => this.areAllVideosApproved(k.id));
+    if (this.selectedTags.length > 0) {
+      filtered = filtered.filter(k =>
+        (k._tags || []).some(tag => this.selectedTags.includes(tag))
+      );
     }
-    return this.kooperationen;
+    return filtered;
+  }
+
+  setSelectedTags(tags) {
+    this.selectedTags = tags || [];
+    this.emit('tags-filter-changed', this.selectedTags);
+  }
+
+  getAvailableTags() {
+    const tagSet = new Set();
+    for (const k of this.kooperationen) {
+      for (const tag of (k._tags || [])) {
+        tagSet.add(tag);
+      }
+    }
+    return [...tagSet].sort((a, b) => a.localeCompare(b, 'de'));
   }
 
   setKooperationSort(sortValue) {
@@ -346,12 +368,24 @@ export class KampagneDetailStore {
     return this.customColumnValues[entityId]?.[columnId] ?? null;
   }
 
-  updateCustomColumnValue(entityId, columnId, value) {
+  setCustomColumnValue(entityId, columnId, value) {
     if (!this.customColumnValues[entityId]) {
       this.customColumnValues[entityId] = {};
     }
     this.customColumnValues[entityId][columnId] = value;
     this.emit('custom-value-updated', { entityId, columnId, value });
+  }
+
+  updateCustomColumnValue(entityId, columnId, value) {
+    this.setCustomColumnValue(entityId, columnId, value);
+  }
+
+  setCustomColumnAssets(assetsMap) {
+    this.customColumnAssets = assetsMap || {};
+  }
+
+  getCustomColumnAssets(columnId, entityId) {
+    return this.customColumnAssets[`${columnId}:${entityId}`] || [];
   }
 
   addCustomColumn(col) {
@@ -390,8 +424,10 @@ export class KampagneDetailStore {
     this.statusOptions = [];
     this.customColumns = [];
     this.customColumnValues = {};
+    this.customColumnAssets = {};
     this.columnOrder = null;
     this.kooperationSort = DEFAULT_KOOPERATION_SORT;
+    this.selectedTags = [];
     this._loadedAssetVideoIds.clear();
   }
 }

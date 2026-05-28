@@ -528,8 +528,17 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
       const columnIds = customColumns.map(c => c.id);
       const videoIds = allVideos.map(v => v.id);
       const entityIds = [...koopIds, ...videoIds];
-      const ccValues = await CustomColumnDataLoader.loadCustomColumnValues(columnIds, entityIds);
+
+      const loadPromises = [CustomColumnDataLoader.loadCustomColumnValues(columnIds, entityIds)];
+
+      const uploadColumnIds = customColumns.filter(c => c.field_type === 'upload').map(c => c.id);
+      if (uploadColumnIds.length > 0) {
+        loadPromises.push(CustomColumnDataLoader.loadCustomColumnAssets(uploadColumnIds, entityIds));
+      }
+
+      const [ccValues, ccAssets] = await Promise.all(loadPromises);
       store.setCustomColumnValues(ccValues);
+      if (ccAssets) store.setCustomColumnAssets(ccAssets);
     } catch (e) {
       console.warn('⚠️ Custom Column Values konnten nicht geladen werden:', e);
     }

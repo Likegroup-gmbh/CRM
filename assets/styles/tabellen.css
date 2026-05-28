@@ -2466,6 +2466,41 @@ width: 18em;
   width: 100%;
 }
 
+.custom-upload-folder-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.custom-upload-folder-row {
+  margin-bottom: 12px;
+}
+.custom-upload-label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: var(--text-primary);
+}
+.custom-upload-folder-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color, #ccc);
+  border-radius: 6px;
+  font-size: var(--text-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+.custom-upload-folder-input:focus {
+  outline: none;
+  border-color: var(--accent, #4f7df9);
+  box-shadow: 0 0 0 2px rgba(79,125,249,0.15);
+}
+
+.custom-upload-link-section {
+  margin-bottom: 12px;
+}
+
 /* Column drag & drop */
 .column-dragging {
   opacity: 0.4;

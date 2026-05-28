@@ -246,10 +246,11 @@ AuftragList.prototype.bindGlobalDelegatedEvents = function() {
     const isInlineBillingUpdate =
       entity === 'auftrag' &&
       e.detail.action === 'updated' &&
-      (e.detail.field === 'rechnung_gestellt_am' || e.detail.field === 'ueberwiesen_am') &&
+      (e.detail.field === 'rechnung_gestellt_am' || e.detail.field === 'ueberwiesen_am' || e.detail.field === 'erwarteter_monat_zahlungseingang') &&
       e.detail.id;
 
     if (isInlineBillingUpdate) {
+      if (e.detail.field === 'erwarteter_monat_zahlungseingang') return;
       this.syncInlineBillingUpdate(e.detail.id, e.detail.field, e.detail.value);
       return;
     }

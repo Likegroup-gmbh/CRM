@@ -7,6 +7,10 @@ import { CustomDatePicker } from '../../../core/components/CustomDatePicker.js';
 
 const EXTERNAL_LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`;
 
+const FOLDER_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`;
+
+const UPLOAD_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`;
+
 function escapeHtml(text) {
   if (!text) return '';
   const div = document.createElement('div');
@@ -78,6 +82,8 @@ function renderFieldByType(col, entityId, value, isEditable) {
       return renderDropdownField(attrs, value, isEditable, col);
     case 'number':
       return renderNumberField(attrs, value, isEditable, col.label);
+    case 'upload':
+      return renderUploadField(attrs, col, entityId, value, isEditable);
     default:
       return renderTextField(attrs, value, isEditable, col.label);
   }
@@ -157,4 +163,22 @@ function renderNumberField(attrs, value, isEditable, placeholder) {
     ${attrs} value="${escapeHtml(value != null ? String(value) : '')}" 
     ${!isEditable ? 'readonly' : ''} 
     placeholder="${escapeHtml(placeholder)}" step="any"/>`;
+}
+
+function renderUploadField(attrs, col, entityId, value, isEditable) {
+  if (value) {
+    return `<a href="${escapeHtml(value)}" target="_blank" rel="noopener noreferrer" 
+      class="external-link-btn stacked-video-link-btn custom-upload-folder-link" title="Ordner öffnen">${FOLDER_ICON}</a>`;
+  }
+
+  if (!isEditable) {
+    return `<span class="stacked-video-empty">-</span>`;
+  }
+
+  return `<button type="button" class="video-upload-btn custom-upload-btn" 
+    data-custom-column-id="${col.uuid}" data-entity-id="${entityId}" data-column-name="${escapeHtml(col.label)}"
+    title="Dateien hochladen">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>
+    Upload
+  </button>`;
 }

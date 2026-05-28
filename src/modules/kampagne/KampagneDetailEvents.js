@@ -6,8 +6,10 @@ import { VideoTableColumnVisibilityDrawer } from './VideoTableColumnVisibilityDr
 import { CustomColumnsDrawer } from './columns/CustomColumnsDrawer.js';
 import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
 import { sortDropdown } from '../../core/components/SortDropdown.js';
+import { tagFilterDropdown } from '../../core/components/TagFilterDropdown.js';
 
 const KOOPERATION_SORT_ENTITY = 'kampagne-kooperationen';
+const TAG_FILTER_ENTITY = 'kampagne-kooperation-tags';
 
 const KAMPAGNE_KOOPERATION_SORT_OPTIONS = [
   { value: 'name_asc', label: 'A-Z' },
@@ -42,6 +44,25 @@ function initKooperationSortDropdown(detail) {
   detail.store?.setKooperationSort(persisted);
 }
 
+function initTagFilterDropdown(detail) {
+  const container = document.getElementById('kampagne-tag-filter-container');
+  if (!container || !detail.store) return;
+
+  const tags = detail.store.getAvailableTags();
+  tagFilterDropdown.init(TAG_FILTER_ENTITY, container, {
+    tags,
+    selectedTags: detail.store.selectedTags,
+    onTagsChange: (selected) => {
+      detail.store.setSelectedTags(selected);
+      if (detail.currentView === 'table') {
+        detail.kooperationenVideoTable?.refilter();
+      } else if (detail.currentView === 'kanban') {
+        detail.kanbanBoard?.render();
+      }
+    }
+  });
+}
+
 let _abortController = null;
 
 export function setupEvents(detail) {
@@ -50,6 +71,7 @@ export function setupEvents(detail) {
   const signal = _abortController.signal;
 
   initKooperationSortDropdown(detail);
+  initTagFilterDropdown(detail);
 
   // Tab Navigation (Offen / Abgeschlossen / Alle)
   document.addEventListener('click', (e) => {
@@ -158,6 +180,7 @@ export function teardownEvents() {
     _abortController.abort();
     _abortController = null;
   }
+  tagFilterDropdown.destroy(TAG_FILTER_ENTITY);
 }
 
 function showColumnVisibilityDrawer(detail) {

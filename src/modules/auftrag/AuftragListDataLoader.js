@@ -20,6 +20,7 @@ const AUFTRAG_LIST_SELECT = `
         zahlungsziel_tage,
         start,
         ende,
+        anzahl_teilrechnungen,
         nettobetrag,
         ust_betrag,
         bruttobetrag,
@@ -58,6 +59,39 @@ AuftragList.prototype.refreshInactiveTabCount = async function() {
   }
 };
 
+AuftragList.prototype.loadRechnungskontakteMap = async function(unternehmenIds) {
+  const map = new Map();
+  if (!window.supabase || !Array.isArray(unternehmenIds) || unternehmenIds.length === 0) {
+    return map;
+  }
+  try {
+    const { data, error } = await window.supabase
+      .from('ansprechpartner_unternehmen')
+      .select(`
+        unternehmen_id,
+        ansprechpartner:ansprechpartner_id (
+          id, vorname, nachname, email, profile_image_url, profile_image_thumb_url, ist_rechnungsverantwortlich
+        )
+      `)
+      .in('unternehmen_id', unternehmenIds);
+
+    if (error) {
+      console.warn('⚠️ Rechnungskontakte konnten nicht geladen werden:', error);
+      return map;
+    }
+
+    (data || []).forEach(item => {
+      if (!item.ansprechpartner?.ist_rechnungsverantwortlich) return;
+      const list = map.get(item.unternehmen_id) || [];
+      list.push(item.ansprechpartner);
+      map.set(item.unternehmen_id, list);
+    });
+  } catch (e) {
+    console.warn('⚠️ loadRechnungskontakteMap Fehler:', e);
+  }
+  return map;
+};
+
 AuftragList.prototype.loadAuftraegeData = async function() {
   const filters = filterSystem.getFilters('auftrag');
 
@@ -71,6 +105,14 @@ AuftragList.prototype.loadAuftraegeData = async function() {
     this.pagination.itemsPerPage,
     'auftraege'
   );
+
+  const unternehmenIds = [...new Set(
+    (auftraege || []).map(a => a.unternehmen?.id).filter(Boolean)
+  )];
+  const rkMap = await this.loadRechnungskontakteMap(unternehmenIds);
+  (auftraege || []).forEach(a => {
+    a._rechnungskontakte = rkMap.get(a.unternehmen?.id) || [];
+  });
 
   this.pagination.updateTotal(count);
   await this.updateTable(auftraege, 'auftraege');

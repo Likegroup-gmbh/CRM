@@ -24,12 +24,12 @@ export class SourcingDetailColumnVisibilityDrawer {
       { className: 'cp-col-cpm-tt', label: 'CPM TikTok' },
       { className: 'cp-col-location', label: 'Location' },
       { className: 'cp-col-notiz', label: 'Kurzbeschreibung' },
-      { className: 'cp-col-angefragt', label: 'Angefragt' },
-      { className: 'cp-col-absage', label: 'Absage' },
       { className: 'cp-col-feedback', label: 'Rückmeldung Kunde' },
-      { className: 'cp-col-prio1', label: 'Buchen' },
+      { className: 'cp-col-prio1', label: 'Prio 1' },
       { className: 'cp-col-prio2', label: 'Prio 2' },
-      { className: 'cp-col-nicht', label: 'Nicht buchen' },
+      { className: 'cp-col-anfragen', label: 'Anfragen' },
+      { className: 'cp-col-buchen', label: 'Buchen' },
+      { className: 'cp-col-absagen', label: 'Absagen' },
       { className: 'cp-col-check', label: 'Rückmeldung' }
     ];
   }

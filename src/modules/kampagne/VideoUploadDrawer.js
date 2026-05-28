@@ -1,6 +1,7 @@
 import { VideoTabHandler } from './VideoTabHandler.js';
 import { StorysTabHandler } from './StorysTabHandler.js';
 import { BilderTabHandler } from './BilderTabHandler.js';
+import { CustomUploadTabHandler } from './CustomUploadTabHandler.js';
 import { backgroundUploadService, UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 
 export class VideoUploadDrawer {
@@ -19,6 +20,8 @@ export class VideoUploadDrawer {
     this.videoTab = new VideoTabHandler(this);
     this.storysTab = new StorysTabHandler(this);
     this.bilderTab = new BilderTabHandler(this);
+    this.customTab = new CustomUploadTabHandler(this);
+    this.customMeta = null;
   }
 
   /**
@@ -28,7 +31,7 @@ export class VideoUploadDrawer {
    * @param {function} [onBilderSuccess]
    * @param {function} [onStorysSuccess]
    */
-  async open(videoId, metadaten, onSuccess, onBilderSuccess, onStorysSuccess, { initialTab = 'video', onBilderCleared, onStorysCleared } = {}) {
+  async open(videoId, metadaten, onSuccess, onBilderSuccess, onStorysSuccess, { initialTab = 'video', onBilderCleared, onStorysCleared, customMeta } = {}) {
     this.videoId = videoId;
     this.kooperationId = metadaten.kooperationId;
     this.metadaten = metadaten;
@@ -38,16 +41,27 @@ export class VideoUploadDrawer {
     this.onBilderCleared = onBilderCleared || null;
     this.onStorysCleared = onStorysCleared || null;
     this.useExternalLinks = !!metadaten.keinDropbox;
+    this.customMeta = customMeta || null;
 
     this.videoTab.reset();
     this.storysTab.reset();
     this.bilderTab.reset();
+    this.customTab.reset();
+
+    this._activeTab = initialTab;
+
+    if (initialTab === 'custom') {
+      this.createDrawer();
+      this.renderForm();
+      this.bindEvents();
+      this._syncExternalLinksChip();
+      return;
+    }
 
     const [videoVersions, storySlots] = await Promise.all([
       this.videoTab._loadExistingVersions(),
       this.storysTab._loadStorySlots()
     ]);
-    this._activeTab = initialTab;
 
     this.createDrawer();
     this.renderForm();
@@ -147,6 +161,7 @@ export class VideoUploadDrawer {
     this.videoTab.reset();
     this.storysTab.reset();
     this.bilderTab.reset();
+    this.customTab.reset();
     this.renderForm();
     this.bindEvents();
     this._syncExternalLinksChip();
@@ -155,6 +170,10 @@ export class VideoUploadDrawer {
   // ─── Tab Navigation ────────────────────────────────────────
 
   _renderTabNav() {
+    if (this._activeTab === 'custom') {
+      const colName = this.customMeta?.columnName || 'Upload';
+      return `<div class="drawer-tab-nav"><button type="button" class="drawer-tab-btn active" data-drawer-tab="custom">${colName}</button></div>`;
+    }
     return `
       <div class="drawer-tab-nav">
         <button type="button" class="drawer-tab-btn ${this._activeTab === 'video' ? 'active' : ''}" data-drawer-tab="video">Video</button>
@@ -176,9 +195,11 @@ export class VideoUploadDrawer {
     const videoPane = document.getElementById('upload-tab-video');
     const storysPane = document.getElementById('upload-tab-storys');
     const bilderPane = document.getElementById('upload-tab-bilder');
+    const customPane = document.getElementById('upload-tab-custom');
     if (videoPane) videoPane.style.display = tabName === 'video' ? '' : 'none';
     if (storysPane) storysPane.style.display = tabName === 'storys' ? '' : 'none';
     if (bilderPane) bilderPane.style.display = tabName === 'bilder' ? '' : 'none';
+    if (customPane) customPane.style.display = tabName === 'custom' ? '' : 'none';
 
     if (tabName === 'bilder') {
       this.bilderTab.ensureInitialized();
@@ -196,6 +217,15 @@ export class VideoUploadDrawer {
   renderForm() {
     const body = document.getElementById(`${this.drawerId}-body`);
     if (!body) return;
+
+    if (this._activeTab === 'custom') {
+      body.innerHTML = `
+        ${this._renderActiveJobsBanner()}
+        ${this._renderTabNav()}
+        ${this.customTab.renderTab(this._activeTab)}
+      `;
+      return;
+    }
 
     body.innerHTML = `
       ${this._renderActiveJobsBanner()}
@@ -240,9 +270,13 @@ export class VideoUploadDrawer {
       btn.addEventListener('click', () => this._switchTab(btn.dataset.drawerTab));
     });
 
-    this.videoTab.bindEvents(panel);
-    this.storysTab.bindEvents(panel);
-    this.bilderTab.bindEvents(panel);
+    if (this._activeTab === 'custom') {
+      this.customTab.bindEvents(panel);
+    } else {
+      this.videoTab.bindEvents(panel);
+      this.storysTab.bindEvents(panel);
+      this.bilderTab.bindEvents(panel);
+    }
 
     // Banner aktuell halten, falls sich Jobs ändern, während Drawer offen ist
     this._onJobsChangedBound = () => this._updateActiveJobsBanner();

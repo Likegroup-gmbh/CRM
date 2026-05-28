@@ -11,7 +11,8 @@ const FIELD_TYPES = [
   { value: 'date', label: 'Datum' },
   { value: 'boolean', label: 'Ja/Nein (Checkbox)' },
   { value: 'dropdown', label: 'Dropdown' },
-  { value: 'number', label: 'Zahl' }
+  { value: 'number', label: 'Zahl' },
+  { value: 'upload', label: 'Datei-Upload' }
 ];
 
 const ENTITY_TYPES = [

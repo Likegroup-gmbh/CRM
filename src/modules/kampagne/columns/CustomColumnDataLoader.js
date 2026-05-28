@@ -222,6 +222,34 @@ export class CustomColumnDataLoader {
   }
 
   /**
+   * Laedt Assets (Dateien) fuer Upload-Spalten.
+   * Gibt Map zurueck: { [columnId:entityId]: [{ id, file_url, file_name, ... }] }
+   */
+  static async loadCustomColumnAssets(columnIds, entityIds) {
+    if (!columnIds.length || !entityIds.length) return {};
+
+    const { data, error } = await window.supabase
+      .from('custom_column_assets')
+      .select('*')
+      .in('custom_column_id', columnIds)
+      .in('entity_id', entityIds)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Custom Column Assets laden fehlgeschlagen:', error);
+      return {};
+    }
+
+    const map = {};
+    for (const row of (data || [])) {
+      const key = `${row.custom_column_id}:${row.entity_id}`;
+      if (!map[key]) map[key] = [];
+      map[key].push(row);
+    }
+    return map;
+  }
+
+  /**
    * Tauscht die Positionen zweier Dropdown-Optionen.
    */
   static async swapDropdownPositions(optA, optB) {

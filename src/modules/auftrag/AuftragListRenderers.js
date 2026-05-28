@@ -20,11 +20,14 @@ AuftragList.prototype.renderCreatedBy = function(user) {
   return avatarBubbles.renderBubbles(items);
 };
 
-AuftragList.prototype.getListColumnCount = function() {
-  if (this.isKunde) {
-    return 16;
+AuftragList.prototype.getListColumnCount = function(mode) {
+  const m = mode || this.activeTab || 'auftraege';
+  if (m === 'contracts') {
+    if (this.isKunde) return 16;
+    return (this.isAdmin ? 1 : 0) + 19;
   }
-  return (this.isAdmin ? 1 : 0) + 19;
+  if (this.isKunde) return 11;
+  return (this.isAdmin ? 1 : 0) + 14;
 };
 
 AuftragList.prototype.renderAuftragsdetailsLink = function(auftrag) {
@@ -51,43 +54,66 @@ AuftragList.prototype.renderContractDetailsLink = function(auftrag) {
   `;
 };
 
+AuftragList.prototype._renderLegacyListHead = function() {
+  return `
+    ${this.isAdmin ? `<th class="col-checkbox"><input type="checkbox" id="select-all-auftraege"></th>` : ''}
+    <th class="col-unternehmen">Unternehmen</th>
+    <th class="col-marke">Marke</th>
+    ${!this.isKunde ? '<th class="col-details">Details</th>' : ''}
+    <th class="col-angebotsnr">Angebotsnummer</th>
+    <th class="col-rechnungsnr">Rechnungsnummer</th>
+    <th class="col-externe-po">Externe PO</th>
+    <th class="col-rechnung-gestellt">Rechnungsdatum</th>
+    <th class="col-zahlungsziel">Zahlungsziel</th>
+    <th class="col-re-faelligkeit">Rechnungsfälligkeit</th>
+    <th class="col-netto">Betrag netto</th>
+    <th class="col-ust">Umsatzsteuer</th>
+    <th class="col-brutto">Betrag brutto</th>
+    <th class="col-re-gestellt table-cell-center">Rechnung gestellt</th>
+    <th class="col-ueberwiesen-bool table-cell-center">Überwiesen</th>
+    <th class="col-ueberwiesen">Bezahlt am</th>
+    ${!this.isKunde ? '<th class="col-ansprechpartner">Ansprechpartner</th>' : ''}
+    <th class="col-erstellt-von">Erstellt von</th>
+    <th class="col-status">Status</th>
+    ${!this.isKunde ? '<th class="col-actions">Aktionen</th>' : ''}
+  `;
+};
+
+AuftragList.prototype._renderAuftraegeListHead = function() {
+  return `
+    ${this.isAdmin ? `<th class="col-checkbox"><input type="checkbox" id="select-all-auftraege"></th>` : ''}
+    <th class="col-unternehmen">Unternehmen</th>
+    <th class="col-marke">Marke</th>
+    ${!this.isKunde ? '<th class="col-details">Details</th>' : ''}
+    <th class="col-angebotsnr">Angebotsnummer</th>
+    <th class="col-zahlungsziel">Zahlungsziel</th>
+    <th class="col-leistungszeitraum">Leistungszeitraum</th>
+    <th class="col-teilrechnungen">Teilrechnungen</th>
+    <th class="col-netto">Betrag netto</th>
+    <th class="col-ust">Mehrwertsteuer</th>
+    <th class="col-brutto">Betrag brutto</th>
+    ${!this.isKunde ? '<th class="col-rechnungskontakte">Rechnungskontakte</th>' : ''}
+    <th class="col-erstellt-von">Erstellt von</th>
+    <th class="col-status">Status</th>
+    ${!this.isKunde ? '<th class="col-actions">Aktionen</th>' : ''}
+  `;
+};
+
 AuftragList.prototype.renderListView = function(mode = 'auftraege') {
   const isContracts = mode === 'contracts';
   const loadingText = isContracts ? 'Lade Contracts...' : 'Lade Aufträge...';
   const tableClass = isContracts ? 'auftrag-table contracts-table' : 'auftrag-table';
+  const headContent = isContracts ? this._renderLegacyListHead() : this._renderAuftraegeListHead();
 
   return `
     <div class="table-container" id="auftrag-table-container">
         <table class="data-table ${tableClass}">
           <thead>
-            <tr>
-              ${this.isAdmin ? `<th class="col-checkbox">
-                <input type="checkbox" id="select-all-auftraege">
-              </th>` : ''}
-              <th class="col-unternehmen">Unternehmen</th>
-              <th class="col-marke">Marke</th>
-              ${!this.isKunde ? '<th class="col-details">Details</th>' : ''}
-              <th class="col-angebotsnr">Angebotsnummer</th>
-              <th class="col-rechnungsnr">Rechnungsnummer</th>
-              <th class="col-externe-po">Externe PO</th>
-              <th class="col-rechnung-gestellt">Rechnungsdatum</th>
-              <th class="col-zahlungsziel">Zahlungsziel</th>
-              <th class="col-re-faelligkeit">Rechnungsfälligkeit</th>
-              <th class="col-netto">Betrag netto</th>
-              <th class="col-ust">Umsatzsteuer</th>
-              <th class="col-brutto">Betrag brutto</th>
-              <th class="col-re-gestellt table-cell-center">Rechnung gestellt</th>
-              <th class="col-ueberwiesen-bool table-cell-center">Überwiesen</th>
-              <th class="col-ueberwiesen">Bezahlt am</th>
-              ${!this.isKunde ? '<th class="col-ansprechpartner">Ansprechpartner</th>' : ''}
-              <th class="col-erstellt-von">Erstellt von</th>
-              <th class="col-status">Status</th>
-              ${!this.isKunde ? '<th class="col-actions">Aktionen</th>' : ''}
-            </tr>
+            <tr>${headContent}</tr>
           </thead>
           <tbody id="auftraege-table-body">
             <tr>
-              <td colspan="${this.getListColumnCount()}" class="loading">${loadingText}</td>
+              <td colspan="${this.getListColumnCount(mode)}" class="loading">${loadingText}</td>
             </tr>
           </tbody>
         </table>
@@ -95,6 +121,70 @@ AuftragList.prototype.renderListView = function(mode = 'auftraege') {
 
     <div class="pagination-container" id="pagination-auftrag"></div>
   `;
+};
+
+AuftragList.prototype._renderLegacyRow = function(auftrag, actionEntity) {
+  const paymentStatusClass = auftrag.ueberwiesen
+    ? 'auftrag-row--ueberwiesen'
+    : auftrag.rechnung_gestellt ? 'auftrag-row--rechnung-gestellt' : '';
+  const detailsLink = actionEntity === 'contract'
+    ? this.renderContractDetailsLink(auftrag)
+    : this.renderAuftragsdetailsLink(auftrag);
+  return `
+  <tr data-id="${auftrag.id}" class="${paymentStatusClass}" data-rechnung-gestellt="${Boolean(auftrag.rechnung_gestellt)}" data-ueberwiesen="${Boolean(auftrag.ueberwiesen)}">
+    ${this.isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
+    <td class="col-unternehmen">${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
+    <td class="col-marke">${this.formatMarkeTag(auftrag.marke)}</td>
+    ${!this.isKunde ? `<td class="col-details">${detailsLink}</td>` : ''}
+    <td class="col-angebotsnr">${window.validatorSystem.sanitizeHtml(auftrag.angebotsnummer || '-')}</td>
+    <td class="col-rechnungsnr">${window.validatorSystem.sanitizeHtml(auftrag.re_nr || '-')}</td>
+    <td class="col-externe-po">${window.validatorSystem.sanitizeHtml(auftrag.externe_po || '-')}</td>
+    <td class="col-rechnung-gestellt">${this.formatDate(auftrag.rechnung_gestellt_am)}</td>
+    <td class="col-zahlungsziel">${this.formatZahlungsziel(auftrag.zahlungsziel_tage)}</td>
+    <td class="col-re-faelligkeit">${this.formatDate(auftrag.re_faelligkeit)}</td>
+    <td class="col-netto">${this.formatCurrency(auftrag.nettobetrag)}</td>
+    <td class="col-ust">${this.formatCurrency(auftrag.ust_betrag)}</td>
+    <td class="col-brutto">${this.formatCurrency(auftrag.bruttobetrag)}</td>
+    <td class="col-re-gestellt table-cell-center">${this.renderBillingDateCell(auftrag, 'rechnung_gestellt', 'rechnung_gestellt_am')}</td>
+    <td class="col-ueberwiesen-bool table-cell-center">${this.renderBillingDateCell(auftrag, 'ueberwiesen', 'ueberwiesen_am')}</td>
+    <td class="col-ueberwiesen">${this.formatDate(auftrag.ueberwiesen_am)}</td>
+    ${!this.isKunde ? `<td class="col-ansprechpartner">${this.formatAnsprechpartner(auftrag.ansprechpartner)}</td>` : ''}
+    <td class="col-erstellt-von">${this.renderCreatedBy(auftrag.created_by)}</td>
+    <td class="col-status">${renderAuftragAmpel(auftrag.status)}</td>
+    ${!this.isKunde ? `<td class="col-actions">${actionBuilder.create(actionEntity, auftrag.id, window.currentUser, {
+      statusOptions: this.statusOptions,
+      currentStatus: { id: auftrag.status || 'Beauftragt', name: auftrag.status || 'Beauftragt' }
+    })}</td>` : ''}
+  </tr>`;
+};
+
+AuftragList.prototype._renderAuftraegeRow = function(auftrag) {
+  const paymentStatusClass = auftrag.ueberwiesen
+    ? 'auftrag-row--ueberwiesen'
+    : auftrag.rechnung_gestellt ? 'auftrag-row--rechnung-gestellt' : '';
+  const detailsLink = this.renderAuftragsdetailsLink(auftrag);
+  const teilrechnungen = auftrag.anzahl_teilrechnungen ?? 1;
+  return `
+  <tr data-id="${auftrag.id}" class="${paymentStatusClass}" data-rechnung-gestellt="${Boolean(auftrag.rechnung_gestellt)}" data-ueberwiesen="${Boolean(auftrag.ueberwiesen)}">
+    ${this.isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
+    <td class="col-unternehmen">${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
+    <td class="col-marke">${this.formatMarkeTag(auftrag.marke)}</td>
+    ${!this.isKunde ? `<td class="col-details">${detailsLink}</td>` : ''}
+    <td class="col-angebotsnr">${window.validatorSystem.sanitizeHtml(auftrag.angebotsnummer || '-')}</td>
+    <td class="col-zahlungsziel">${this.formatZahlungsziel(auftrag.zahlungsziel_tage)}</td>
+    <td class="col-leistungszeitraum">${this.formatLeistungszeitraum(auftrag.start, auftrag.ende)}</td>
+    <td class="col-teilrechnungen table-cell-center">${teilrechnungen}</td>
+    <td class="col-netto">${this.formatCurrency(auftrag.nettobetrag)}</td>
+    <td class="col-ust">${this.formatCurrency(auftrag.ust_betrag)}</td>
+    <td class="col-brutto">${this.formatCurrency(auftrag.bruttobetrag)}</td>
+    ${!this.isKunde ? `<td class="col-rechnungskontakte">${this.formatRechnungskontakte(auftrag._rechnungskontakte)}</td>` : ''}
+    <td class="col-erstellt-von">${this.renderCreatedBy(auftrag.created_by)}</td>
+    <td class="col-status">${renderAuftragAmpel(auftrag.status)}</td>
+    ${!this.isKunde ? `<td class="col-actions">${actionBuilder.create('auftrag', auftrag.id, window.currentUser, {
+      statusOptions: this.statusOptions,
+      currentStatus: { id: auftrag.status || 'Beauftragt', name: auftrag.status || 'Beauftragt' }
+    })}</td>` : ''}
+  </tr>`;
 };
 
 AuftragList.prototype.updateTable = async function(auftraege, mode = 'auftraege') {
@@ -112,7 +202,7 @@ AuftragList.prototype.updateTable = async function(auftraege, mode = 'auftraege'
     if (!auftraege || auftraege.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="${this.getListColumnCount()}" class="no-data">
+          <td colspan="${this.getListColumnCount(mode)}" class="no-data">
             <div style="text-align: center; padding: 40px 20px;">
               <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📋</div>
               <h3 style="color: #666; margin-bottom: 8px;">${emptyTitle}</h3>
@@ -124,42 +214,10 @@ AuftragList.prototype.updateTable = async function(auftraege, mode = 'auftraege'
       return;
     }
 
-    tbody.innerHTML = auftraege.map(auftrag => {
-      const paymentStatusClass = auftrag.ueberwiesen
-        ? 'auftrag-row--ueberwiesen'
-        : auftrag.rechnung_gestellt
-          ? 'auftrag-row--rechnung-gestellt'
-          : '';
-      const rowClasses = paymentStatusClass;
-      const detailsLink = isContracts
-        ? this.renderContractDetailsLink(auftrag)
-        : this.renderAuftragsdetailsLink(auftrag);
-      return `
-      <tr data-id="${auftrag.id}" class="${rowClasses}" data-rechnung-gestellt="${Boolean(auftrag.rechnung_gestellt)}" data-ueberwiesen="${Boolean(auftrag.ueberwiesen)}">
-        ${this.isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
-        <td class="col-unternehmen">${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
-        <td class="col-marke">${this.formatMarkeTag(auftrag.marke)}</td>
-        ${!this.isKunde ? `<td class="col-details">${detailsLink}</td>` : ''}
-        <td class="col-angebotsnr">${window.validatorSystem.sanitizeHtml(auftrag.angebotsnummer || '-')}</td>
-        <td class="col-rechnungsnr">${window.validatorSystem.sanitizeHtml(auftrag.re_nr || '-')}</td>
-        <td class="col-externe-po">${window.validatorSystem.sanitizeHtml(auftrag.externe_po || '-')}</td>
-        <td class="col-rechnung-gestellt">${this.formatDate(auftrag.rechnung_gestellt_am)}</td>
-        <td class="col-zahlungsziel">${this.formatZahlungsziel(auftrag.zahlungsziel_tage)}</td>
-        <td class="col-re-faelligkeit">${this.formatDate(auftrag.re_faelligkeit)}</td>
-        <td class="col-netto">${this.formatCurrency(auftrag.nettobetrag)}</td>
-        <td class="col-ust">${this.formatCurrency(auftrag.ust_betrag)}</td>
-        <td class="col-brutto">${this.formatCurrency(auftrag.bruttobetrag)}</td>
-        <td class="col-re-gestellt table-cell-center">${this.renderBillingDateCell(auftrag, 'rechnung_gestellt', 'rechnung_gestellt_am')}</td>
-        <td class="col-ueberwiesen-bool table-cell-center">${this.renderBillingDateCell(auftrag, 'ueberwiesen', 'ueberwiesen_am')}</td>
-        <td class="col-ueberwiesen">${this.formatDate(auftrag.ueberwiesen_am)}</td>
-        ${!this.isKunde ? `<td class="col-ansprechpartner">${this.formatAnsprechpartner(auftrag.ansprechpartner)}</td>` : ''}
-        <td class="col-erstellt-von">${this.renderCreatedBy(auftrag.created_by)}</td>
-        <td class="col-status">${renderAuftragAmpel(auftrag.status)}</td>
-        ${!this.isKunde ? `<td class="col-actions">${actionBuilder.create(actionEntity, auftrag.id, window.currentUser, {
-          statusOptions: this.statusOptions,
-          currentStatus: { id: auftrag.status || 'Beauftragt', name: auftrag.status || 'Beauftragt' }
-        })}</td>` : ''}
-      </tr>
-    `}).join('');
+    tbody.innerHTML = auftraege.map(auftrag =>
+      isContracts
+        ? this._renderLegacyRow(auftrag, actionEntity)
+        : this._renderAuftraegeRow(auftrag)
+    ).join('');
   });
 };

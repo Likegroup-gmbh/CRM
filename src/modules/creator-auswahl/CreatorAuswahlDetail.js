@@ -496,17 +496,12 @@ export class CreatorAuswahlDetail {
         return;
       }
 
-      if (field === 'nicht_umsetzen') {
-        await this.handleNichtUmsetzenChange(itemId, value);
-        return;
-      }
-
       await creatorAuswahlService.updateItem(itemId, { [field]: value });
 
       const item = this.items.find(i => i.id === itemId);
       if (item) item[field] = value;
 
-      if (field === 'prio_1' && value === true) {
+      if (field === 'gebucht' && value === true) {
         const reorderedItems = this.promoteBookedItemWithinCategory(itemId);
         await creatorAuswahlService.updateItemsSortierungWithKategorie(reorderedItems);
         this.items = reorderedItems.map((entry, index) => ({ ...entry, sortierung: index }));
@@ -541,8 +536,8 @@ export class CreatorAuswahlDetail {
 
     const targetItem = categoryItems.find(entry => entry.id === itemId);
     const remaining = categoryItems.filter(entry => entry.id !== itemId);
-    const booked = remaining.filter(entry => entry.prio_1);
-    const nonBooked = remaining.filter(entry => !entry.prio_1);
+    const booked = remaining.filter(entry => entry.gebucht);
+    const nonBooked = remaining.filter(entry => !entry.gebucht);
     const reordered = [targetItem, ...booked, ...nonBooked];
 
     const result = [...this.items];

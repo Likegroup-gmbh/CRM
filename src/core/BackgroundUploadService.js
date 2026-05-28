@@ -8,6 +8,7 @@
 import { runVideoUploadJob } from './uploadJobs/runVideoUploadJob.js';
 import { runVideoReplaceJob } from './uploadJobs/runVideoReplaceJob.js';
 import { runStorysUploadJob } from './uploadJobs/runStorysUploadJob.js';
+import { runCustomUploadJob } from './uploadJobs/runCustomUploadJob.js';
 
 const EVT = {
   QUEUE_CHANGED: 'upload:queue-changed',
@@ -15,6 +16,7 @@ const EVT = {
   JOB_UPDATE: 'upload:job-update',
   VIDEO_DONE: 'upload:video-done',
   STORYS_DONE: 'upload:storys-done',
+  CUSTOM_DONE: 'upload:custom-done',
   ERROR: 'upload:error',
 };
 
@@ -30,6 +32,7 @@ const RUNNERS = {
   video: runVideoUploadJob,
   'video-replace': runVideoReplaceJob,
   storys: runStorysUploadJob,
+  custom: runCustomUploadJob,
 };
 
 class BackgroundUploadService {
@@ -54,6 +57,9 @@ class BackgroundUploadService {
   }
   enqueueStorysJob(payload) {
     return this._enqueue('storys', payload);
+  }
+  enqueueCustomUploadJob(payload) {
+    return this._enqueue('custom', payload);
   }
 
   getJob(jobId) {
@@ -161,6 +167,13 @@ class BackgroundUploadService {
         meta: { slotId: q.slotId, versionNumber: q.versionNumber, variantName: q.variantName },
       }));
     }
+    if (kind === 'custom') {
+      return (payload.files || []).map(f => this._mkItem({
+        fileName: f.name || 'datei',
+        fileSize: f.size || 0,
+        meta: { columnId: payload.columnId, entityId: payload.entityId },
+      }));
+    }
     return [];
   }
 
@@ -205,6 +218,8 @@ class BackgroundUploadService {
         this._emit(EVT.VIDEO_DONE, { jobId: next.id, videoId: next.videoId, result });
       } else if (next.kind === 'storys') {
         this._emit(EVT.STORYS_DONE, { jobId: next.id, videoId: next.videoId, result });
+      } else if (next.kind === 'custom') {
+        this._emit(EVT.CUSTOM_DONE, { jobId: next.id, result });
       }
     } catch (err) {
       console.error('[BackgroundUpload] Job fehlgeschlagen:', err);

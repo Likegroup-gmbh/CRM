@@ -108,17 +108,23 @@ AuftragList.prototype.handleInlineBillingDateChange = async function(input) {
   if (!this.isAdmin || !input) return;
 
   const auftragId = input.dataset.id;
-  const boolField = input.dataset.field;
+  const field = input.dataset.field;
   const dateField = input.dataset.dateField;
-  if (!auftragId || !boolField || !dateField) return;
+  if (!auftragId || !field) return;
 
   const previousValue = input.dataset.previousValue || '';
   const nextValue = CustomDatePicker.getValue(input);
   if (nextValue === previousValue) return;
 
-  const payload = nextValue
-    ? { [dateField]: nextValue, [boolField]: true }
-    : { [dateField]: null, [boolField]: false };
+  const isSimpleDateField = !dateField;
+  let payload;
+  if (isSimpleDateField) {
+    payload = { [field]: nextValue || null };
+  } else {
+    payload = nextValue
+      ? { [dateField]: nextValue, [field]: true }
+      : { [dateField]: null, [field]: false };
+  }
 
   CustomDatePicker.setDisabled(input, true);
   try {
@@ -129,14 +135,16 @@ AuftragList.prototype.handleInlineBillingDateChange = async function(input) {
 
     input.dataset.previousValue = nextValue;
 
-    const row = input.closest('tr');
-    if (row) {
-      if (boolField === 'rechnung_gestellt') {
-        row.dataset.rechnungGestellt = String(Boolean(nextValue));
-      } else if (boolField === 'ueberwiesen') {
-        row.dataset.ueberwiesen = String(Boolean(nextValue));
+    if (!isSimpleDateField) {
+      const row = input.closest('tr');
+      if (row) {
+        if (field === 'rechnung_gestellt') {
+          row.dataset.rechnungGestellt = String(Boolean(nextValue));
+        } else if (field === 'ueberwiesen') {
+          row.dataset.ueberwiesen = String(Boolean(nextValue));
+        }
+        this.updateAuftragRowStatusClass(row);
       }
-      this.updateAuftragRowStatusClass(row);
     }
 
     window.dispatchEvent(new CustomEvent('entityUpdated', {
@@ -144,7 +152,7 @@ AuftragList.prototype.handleInlineBillingDateChange = async function(input) {
         entity: 'auftrag',
         action: 'updated',
         id: auftragId,
-        field: dateField,
+        field: isSimpleDateField ? field : dateField,
         value: nextValue || null
       }
     }));
@@ -166,6 +174,39 @@ AuftragList.prototype.formatKampagneArtTags = function(arten) {
   }).join('');
 
   return `<div class="tags tags-compact">${tags}</div>`;
+};
+
+AuftragList.prototype.formatLeistungszeitraum = function(start, ende) {
+  if (!start && !ende) return '-';
+  const fmtShort = (d) => {
+    const dt = new Date(d);
+    return `${String(dt.getDate()).padStart(2, '0')}.${String(dt.getMonth() + 1).padStart(2, '0')}.`;
+  };
+  const fmtFull = (d) => {
+    const dt = new Date(d);
+    return `${String(dt.getDate()).padStart(2, '0')}.${String(dt.getMonth() + 1).padStart(2, '0')}.${dt.getFullYear()}`;
+  };
+  if (start && !ende) return fmtFull(start);
+  if (!start && ende) return fmtFull(ende);
+  const sameYear = new Date(start).getFullYear() === new Date(ende).getFullYear();
+  return sameYear
+    ? `${fmtShort(start)} – ${fmtFull(ende)}`
+    : `${fmtFull(start)} – ${fmtFull(ende)}`;
+};
+
+AuftragList.prototype.formatRechnungskontakte = function(kontakte) {
+  if (!kontakte || kontakte.length === 0) return '-';
+  const items = kontakte
+    .filter(ap => ap && ap.vorname && ap.nachname)
+    .map(ap => ({
+      name: `${ap.vorname} ${ap.nachname}`,
+      type: 'person',
+      id: ap.id,
+      entityType: 'ansprechpartner',
+      profile_image_url: ap.profile_image_url || null,
+      thumb_url: ap.profile_image_thumb_url || null
+    }));
+  return items.length > 0 ? avatarBubbles.renderBubbles(items) : '-';
 };
 
 AuftragList.prototype.formatAnsprechpartner = function(person) {

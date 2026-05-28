@@ -10,7 +10,7 @@ describe('AuftragList', () => {
     window.navigateTo = vi.fn();
   });
 
-  it('rendert externe PO nach Rechnungsnummer und Details am Ende ohne Auftrag-Spalte', () => {
+  it('rendert schlanke Auftraege-Spalten (Admin) ohne Rechnungsspalten', () => {
     const list = new AuftragList();
     document.body.innerHTML = list.renderListView();
 
@@ -21,29 +21,25 @@ describe('AuftragList', () => {
     expect(headers).toEqual([
       'Unternehmen',
       'Marke',
+      'Details',
       'Angebotsnummer',
-      'Rechnungsnummer',
-      'Externe PO',
-      'Rechnungsdatum',
       'Zahlungsziel',
-      'Rechnungsfälligkeit',
+      'Leistungszeitraum',
+      'Teilrechnungen',
       'Betrag netto',
-      'Umsatzsteuer',
+      'Mehrwertsteuer',
       'Betrag brutto',
-      'Rechnung gestellt',
-      'Überwiesen',
-      'Bezahlt am',
-      'Ansprechpartner',
+      'Rechnungskontakte',
       'Erstellt von',
       'Status',
-      'Details',
       'Aktionen'
     ]);
-    expect(headers).not.toContain('Auftrag');
-    expect(headers).not.toContain('Interne PO');
+    expect(headers).not.toContain('Rechnungsnummer');
+    expect(headers).not.toContain('Externe PO');
+    expect(headers).not.toContain('Ansprechpartner');
   });
 
-  it('blendet Auftrag und Details fuer Kunden aus', () => {
+  it('blendet Details, Rechnungskontakte und Aktionen fuer Kunden aus', () => {
     window.currentUser = { rolle: 'kunde' };
     const list = new AuftragList();
     list._kundeHasMultipleMarken = true;
@@ -53,9 +49,26 @@ describe('AuftragList', () => {
       .map((header) => header.textContent.trim())
       .filter(Boolean);
 
-    expect(headers).not.toContain('Auftrag');
     expect(headers).not.toContain('Details');
+    expect(headers).not.toContain('Rechnungskontakte');
+    expect(headers).not.toContain('Aktionen');
+    expect(headers).toContain('Leistungszeitraum');
+    expect(headers).toContain('Teilrechnungen');
+  });
+
+  it('rendert Legacy-Spalten im Contracts-Modus', () => {
+    const list = new AuftragList();
+    document.body.innerHTML = list.renderListView('contracts');
+
+    const headers = [...document.querySelectorAll('thead th')]
+      .map((header) => header.textContent.trim())
+      .filter(Boolean);
+
+    expect(headers).toContain('Rechnungsnummer');
     expect(headers).toContain('Externe PO');
+    expect(headers).toContain('Ansprechpartner');
+    expect(headers).not.toContain('Leistungszeitraum');
+    expect(headers).not.toContain('Rechnungskontakte');
   });
 
   it('laedt Erstellt-von per auth_user_id nach, wenn die Relation leer ist', async () => {

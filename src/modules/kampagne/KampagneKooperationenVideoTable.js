@@ -133,16 +133,26 @@ export class KampagneKooperationenVideoTable {
     return sort === 'posting_asc' || sort === 'posting_desc';
   }
 
+  _applyTagFilter(list) {
+    const tags = this.store?.selectedTags;
+    if (!tags || tags.length === 0) return list;
+    return list.filter(k => (k._tags || []).some(t => tags.includes(t)));
+  }
+
   getOpenCount() {
-    return this.kooperationen.filter(koop => !this.areAllVideosApproved(koop.id)).length;
+    return this._applyTagFilter(
+      this.kooperationen.filter(koop => !this.areAllVideosApproved(koop.id))
+    ).length;
   }
 
   getClosedCount() {
-    return this.kooperationen.filter(koop => this.areAllVideosApproved(koop.id)).length;
+    return this._applyTagFilter(
+      this.kooperationen.filter(koop => this.areAllVideosApproved(koop.id))
+    ).length;
   }
 
   getAllCount() {
-    return this.kooperationen.length;
+    return this._applyTagFilter(this.kooperationen).length;
   }
 
   updateTabCounts() {
@@ -297,6 +307,12 @@ export class KampagneKooperationenVideoTable {
       if (uploadBtn) {
         e.preventDefault();
         this._openUploadDrawer(uploadBtn.dataset.videoId, uploadBtn.dataset.kooperationId);
+      }
+
+      const customUploadBtn = e.target.closest('.custom-upload-btn');
+      if (customUploadBtn) {
+        e.preventDefault();
+        this._openCustomUploadDrawer(customUploadBtn);
       }
     });
 
@@ -489,6 +505,41 @@ export class KampagneKooperationenVideoTable {
     this.refilter();
   }
 
+  _openCustomUploadDrawer(btn) {
+    const columnId = btn.dataset.customColumnId;
+    const entityId = btn.dataset.entityId;
+    const columnName = btn.dataset.columnName || 'Upload';
+
+    const row = btn.closest('tr');
+    const kooperationId = row?.dataset?.kooperationId;
+    const koop = this.kooperationen.find(k => k.id === kooperationId);
+
+    const metadaten = {
+      kooperationId,
+      kooperationName: koop?.name || 'Kooperation',
+      unternehmen: this.kampagneInfo?.unternehmen || '',
+      marke: this.kampagneInfo?.marke || '',
+      kampagne: this.kampagneInfo?.name || '',
+      keinDropbox: this.kampagneInfo?.keinDropbox || false,
+    };
+
+    this._uploadDrawer.open(null, metadaten, null, null, null, {
+      initialTab: 'custom',
+      customMeta: {
+        columnId,
+        entityId,
+        columnName,
+        folderName: columnName,
+        onSuccess: (folderUrl) => {
+          if (this.store) {
+            this.store.setCustomColumnValue(entityId, columnId, folderUrl);
+          }
+          this.refilter();
+        },
+      },
+    });
+  }
+
   async _openSettingsDrawer(btn) {
     const videoId = btn.dataset.videoId;
     const kooperationId = btn.dataset.kooperationId;
@@ -585,6 +636,17 @@ export class KampagneKooperationenVideoTable {
       };
       window.addEventListener(UPLOAD_EVENTS.VIDEO_DONE, this._uploadDoneHandler);
       window.addEventListener(UPLOAD_EVENTS.STORYS_DONE, this._uploadDoneHandler);
+    }
+
+    if (!this._customUploadDoneHandler) {
+      this._customUploadDoneHandler = (e) => {
+        const { result } = e.detail || {};
+        if (result?.columnId && result?.entityId && result?.folderUrl) {
+          if (this.store) this.store.setCustomColumnValue(result.entityId, result.columnId, result.folderUrl);
+          this.refilter();
+        }
+      };
+      window.addEventListener(UPLOAD_EVENTS.CUSTOM_DONE, this._customUploadDoneHandler);
     }
 
     if (this._dataLoaded && this.containerId === containerId) {
@@ -794,6 +856,10 @@ export class KampagneKooperationenVideoTable {
       window.removeEventListener(UPLOAD_EVENTS.VIDEO_DONE, this._uploadDoneHandler);
       window.removeEventListener(UPLOAD_EVENTS.STORYS_DONE, this._uploadDoneHandler);
       this._uploadDoneHandler = null;
+    }
+    if (this._customUploadDoneHandler) {
+      window.removeEventListener(UPLOAD_EVENTS.CUSTOM_DONE, this._customUploadDoneHandler);
+      this._customUploadDoneHandler = null;
     }
 
     this.store = null;

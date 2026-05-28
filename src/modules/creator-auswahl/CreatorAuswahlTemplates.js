@@ -41,8 +41,8 @@ export function getVisibleColumnCount(isKunde, hiddenColumns) {
     'cp-col-follower-tt', 'cp-col-ek', 'cp-col-vk', 'cp-col-pricing',
     'cp-col-reichweite-ig', 'cp-col-reichweite-tt', 'cp-col-reichweite-garantie',
     'cp-col-cpm-ig', 'cp-col-cpm-tt',
-    'cp-col-location', 'cp-col-notiz', 'cp-col-angefragt', 'cp-col-absage',
-    'cp-col-feedback', 'cp-col-prio1', 'cp-col-prio2', 'cp-col-nicht', 'cp-col-check', 'cp-col-actions'
+    'cp-col-location', 'cp-col-notiz',
+    'cp-col-feedback', 'cp-col-prio1', 'cp-col-prio2', 'cp-col-anfragen', 'cp-col-buchen', 'cp-col-absagen', 'cp-col-check', 'cp-col-actions'
   ];
 
   let count = 0;
@@ -137,12 +137,12 @@ export function renderItemsTable(ctx) {
             <th class="cp-col-cpm-tt" ${hide('cp-col-cpm-tt')}>CPM ${TIKTOK_ICON}</th>
             <th class="cp-col-location" ${hide('cp-col-location')}>Location</th>
             <th class="cp-col-notiz" ${hide('cp-col-notiz')}>Kurzbeschreibung</th>
-            <th class="cp-col-angefragt" ${hide('cp-col-angefragt')}>Angefragt</th>
-            <th class="cp-col-absage" ${hide('cp-col-absage')}>Absage</th>
             <th class="cp-col-feedback" ${hide('cp-col-feedback')}>Rückmeldung Kunde</th>
-            <th class="cp-col-prio1" ${hide('cp-col-prio1')}>Buchen</th>
+            <th class="cp-col-prio1" ${hide('cp-col-prio1')}>Prio 1</th>
             <th class="cp-col-prio2" ${hide('cp-col-prio2')}>Prio 2</th>
-            <th class="cp-col-nicht" ${hide('cp-col-nicht')}>Nicht buchen</th>
+            <th class="cp-col-anfragen" ${hide('cp-col-anfragen')}>Anfragen</th>
+            <th class="cp-col-buchen" ${hide('cp-col-buchen')}>Buchen</th>
+            <th class="cp-col-absagen" ${hide('cp-col-absagen')}>Absagen</th>
             <th class="cp-col-check" ${hide('cp-col-check')}>Rückmeldung</th>
             ${!ctx.isKunde ? '<th class="col-actions cp-col-actions">Aktionen</th>' : ''}
           </tr>
@@ -258,10 +258,10 @@ export function renderItemRow(ctx, item, index) {
     .map(typ => `<option value="${typ}" ${item.typ === typ ? 'selected' : ''}>${typ}</option>`)
     .join('');
 
-  const isBooked = !!item.prio_1 && !item.nicht_umsetzen;
+  const isBooked = !!item.gebucht;
 
   return `
-    <tr class="item-row ${!ctx.isKunde ? 'draggable' : ''} ${isBooked ? 'item-gebucht' : ''} ${item.nicht_umsetzen ? 'item-nicht-umsetzen' : ''}" data-item-id="${item.id}" draggable="false">
+    <tr class="item-row ${!ctx.isKunde ? 'draggable' : ''} ${isBooked ? 'item-gebucht' : ''}" data-item-id="${item.id}" draggable="false">
       ${!ctx.isKunde ? `
         <td class="col-drag drag-handle col-sticky-1">
           <div class="drag-cell-content">
@@ -369,32 +369,6 @@ export function renderItemRow(ctx, item, index) {
           <textarea class="strategie-textarea" data-field="notiz" data-item-id="${item.id}" placeholder="Kurzbeschreibung...">${item.notiz || ''}</textarea>
         ` : `<div class="cell-text-readonly">${item.notiz || '-'}</div>`}
       </td>
-      <td class="cp-col-angefragt" style="${hide('cp-col-angefragt')}">
-        <div class="angefragt-cell">
-          <input
-            type="checkbox"
-            ${item.angefragt ? 'checked' : ''}
-            data-field="angefragt"
-            data-item-id="${item.id}"
-            class="cp-checkbox${ctx.isKunde ? ' cp-checkbox--readonly' : ''}"
-            ${ctx.isKunde ? 'disabled' : ''}
-          >
-          ${item.angefragt_am ? `<span class="angefragt-datum">${new Date(item.angefragt_am).toLocaleDateString('de-DE')}</span>` : ''}
-        </div>
-      </td>
-      <td class="cp-col-absage" style="${hide('cp-col-absage')}">
-        <div class="absage-cell">
-          <input
-            type="checkbox"
-            ${item.absage ? 'checked' : ''}
-            data-field="absage"
-            data-item-id="${item.id}"
-            class="cp-checkbox${ctx.isKunde ? ' cp-checkbox--readonly' : ''}"
-            ${ctx.isKunde ? 'disabled' : ''}
-          >
-          ${item.absage_am ? `<span class="absage-datum">${new Date(item.absage_am).toLocaleDateString('de-DE')}</span>` : ''}
-        </div>
-      </td>
       <td class="cell-textarea cp-col-feedback" style="${hide('cp-col-feedback')}">
         <textarea
           class="strategie-textarea auto-resize-textarea ${ctx.isKunde ? '' : 'readonly-textarea'}"
@@ -410,8 +384,34 @@ export function renderItemRow(ctx, item, index) {
       <td class="cp-col-prio2" style="${hide('cp-col-prio2')}">
         <input type="checkbox" ${item.prio_2 ? 'checked' : ''} data-field="prio_2" data-item-id="${item.id}" class="cp-checkbox">
       </td>
-      <td class="cp-col-nicht" style="${hide('cp-col-nicht')}">
-        <input type="checkbox" ${item.nicht_umsetzen ? 'checked' : ''} data-field="nicht_umsetzen" data-item-id="${item.id}" class="cp-checkbox">
+      <td class="cp-col-anfragen" style="${hide('cp-col-anfragen')}">
+        <div class="angefragt-cell">
+          <input
+            type="checkbox"
+            ${item.angefragt ? 'checked' : ''}
+            data-field="angefragt"
+            data-item-id="${item.id}"
+            class="cp-checkbox${ctx.isKunde ? ' cp-checkbox--readonly' : ''}"
+            ${ctx.isKunde ? 'disabled' : ''}
+          >
+          ${item.angefragt_am ? `<span class="angefragt-datum">${new Date(item.angefragt_am).toLocaleDateString('de-DE')}</span>` : ''}
+        </div>
+      </td>
+      <td class="cp-col-buchen" style="${hide('cp-col-buchen')}">
+        <input type="checkbox" ${item.gebucht ? 'checked' : ''} data-field="gebucht" data-item-id="${item.id}" class="cp-checkbox">
+      </td>
+      <td class="cp-col-absagen" style="${hide('cp-col-absagen')}">
+        <div class="absage-cell">
+          <input
+            type="checkbox"
+            ${item.absage ? 'checked' : ''}
+            data-field="absage"
+            data-item-id="${item.id}"
+            class="cp-checkbox${ctx.isKunde ? ' cp-checkbox--readonly' : ''}"
+            ${ctx.isKunde ? 'disabled' : ''}
+          >
+          ${item.absage_am ? `<span class="absage-datum">${new Date(item.absage_am).toLocaleDateString('de-DE')}</span>` : ''}
+        </div>
       </td>
       <td class="cp-col-check" style="${hide('cp-col-check')}">
         <input

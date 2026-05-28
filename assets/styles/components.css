@@ -570,6 +570,118 @@ button.is-submit-locked,
   }
 }
 
+/* ==========================================================================
+   TAG FILTER DROPDOWN
+   ========================================================================== */
+
+.tag-filter-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.tag-filter-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  padding: var(--space-xs) var(--space-sm);
+  white-space: nowrap;
+}
+
+.tag-filter-toggle .tag-filter-chevron {
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: transform 0.2s ease;
+}
+
+.tag-filter-toggle[aria-expanded="true"] .tag-filter-chevron {
+  transform: rotate(180deg);
+}
+
+.tag-filter-toggle.tag-filter-active {
+  background-color: var(--color-primary-bg, rgba(37, 99, 235, 0.08));
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.tag-filter-label {
+  font-weight: 400;
+  font-size: var(--text-xsm);
+}
+
+.tag-filter-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 200px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--bg-primary);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+  padding: var(--space-xxs) 0;
+}
+
+.tag-filter-menu.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.tag-filter-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  user-select: none;
+}
+
+.tag-filter-option:hover {
+  background-color: var(--gray-50);
+}
+
+.tag-filter-option input[type="checkbox"] {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.tag-filter-reset {
+  display: block;
+  width: 100%;
+  padding: var(--space-xs) var(--space-md);
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--gray-100);
+  font-size: var(--text-xsm);
+  color: var(--color-primary);
+  cursor: pointer;
+  margin-bottom: var(--space-xxs);
+}
+
+.tag-filter-reset:hover {
+  background-color: var(--gray-50);
+}
+
+@media (max-width: 768px) {
+  .tag-filter-menu {
+    min-width: 160px;
+  }
+}
+
 .btn-sm {
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
@@ -4573,11 +4685,32 @@ input.input-error {
 .auftrag-table th.col-ansprechpartner,
 .auftrag-table td.col-ansprechpartner { min-width: 10em; }
 
+.auftrag-table th.col-leistungszeitraum,
+.auftrag-table td.col-leistungszeitraum { min-width: 11em; white-space: nowrap; }
+
+.auftrag-table th.col-teilrechnungen,
+.auftrag-table td.col-teilrechnungen { min-width: 6em; }
+
+.auftrag-table th.col-rechnungskontakte,
+.auftrag-table td.col-rechnungskontakte { min-width: 10em; }
+
 .auftrag-table th.col-erstellt-von,
 .auftrag-table td.col-erstellt-von { min-width: 4em; }
 
 .auftrag-table th.col-status,
 .auftrag-table td.col-status { min-width: 6em; }
+
+.auftrag-table th.col-teilrechnung,
+.auftrag-table td.col-teilrechnung { min-width: 7em; }
+
+.auftrag-table th.col-erwarteter-ze,
+.auftrag-table td.col-erwarteter-ze { min-width: 10em; }
+
+.auftrag-table th.col-mwst-prozent,
+.auftrag-table td.col-mwst-prozent { min-width: 6em; }
+
+.auftrag-table th.col-erstellt-am,
+.auftrag-table td.col-erstellt-am { min-width: 7em; }
 
 .auftrag-table th.col-actions,
 .auftrag-table td.col-actions { min-width: 5em; }
@@ -11264,12 +11397,12 @@ table:has(#strategien-table-body) td.col-actions {
   min-width: 260px;
 }
 
-.creator-pool-table .cp-col-angefragt {
+.creator-pool-table .cp-col-anfragen {
   width: 140px;
   min-width: 140px;
 }
 
-.creator-pool-table td.cp-col-angefragt {
+.creator-pool-table td.cp-col-anfragen {
   padding: var(--space-xs) var(--space-sm) !important;
   vertical-align: top;
 }
@@ -11286,12 +11419,12 @@ table:has(#strategien-table-body) td.col-actions {
   color: var(--text-secondary);
 }
 
-.creator-pool-table .cp-col-absage {
+.creator-pool-table .cp-col-absagen {
   width: 140px;
   min-width: 140px;
 }
 
-.creator-pool-table td.cp-col-absage {
+.creator-pool-table td.cp-col-absagen {
   padding: var(--space-xs) var(--space-sm) !important;
   vertical-align: top;
 }
@@ -11313,14 +11446,16 @@ table:has(#strategien-table-body) td.col-actions {
   min-width: 60px;
 }
 
-.creator-pool-table .cp-col-nicht {
-  width: 120px;
-  min-width: 120px;
+.creator-pool-table .cp-col-buchen {
+  width: 80px;
+  min-width: 80px;
 }
 
 .creator-pool-table td.cp-col-prio1,
 .creator-pool-table td.cp-col-prio2,
-.creator-pool-table td.cp-col-nicht,
+.creator-pool-table td.cp-col-anfragen,
+.creator-pool-table td.cp-col-buchen,
+.creator-pool-table td.cp-col-absagen,
 .creator-pool-table td.cp-col-check {
   padding: var(--space-xs) var(--space-sm) !important;
   vertical-align: top;
@@ -14004,11 +14139,11 @@ table:has(#strategien-table-body) td.col-actions {
   display: inline-flex;
   align-items: center;
   gap: var(--space-xs);
-  padding: var(--space-sm) var(--space-md);
+  padding: var(--space-xs);
   background: var(--error-500, #EF4444);
   color: white;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-xl);
   font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
