@@ -1081,6 +1081,24 @@
   color: #fff;
 }
 
+/* Konformitäts-Hinweis bei Registrierung */
+.login-consent {
+  margin-top: var(--space-md);
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+  line-height: 1.5;
+}
+
+.login-consent a {
+  color: var(--gray-700);
+  text-decoration: underline;
+}
+
+.login-consent a:hover {
+  color: var(--gray-900);
+}
+
 /* Divider with text */
 .login-divider {
   display: flex;

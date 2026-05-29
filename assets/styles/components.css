@@ -4502,6 +4502,8 @@ input.input-error {
 /* Auftrags-Tabelle Basis */
 .auftrag-table {
   --auftrag-col-checkbox-width: 40px;
+  --auftrag-col-unternehmen-width: 12em;
+  --auftrag-col-marke-width: 10em;
   --auftrag-col-details-width: var(--table-name-col-width);
   border-collapse: separate !important;
   border-spacing: 0 !important;
@@ -4547,12 +4549,77 @@ input.input-error {
   background: var(--gray-50) !important;
 }
 
-/* Feste Spaltenbreiten (verhindert Layout-Shift beim Tab-Wechsel) */
+/* Unternehmen-Spalte fixieren (erste Inhaltsspalte) -- z-index 19 */
 .auftrag-table th.col-unternehmen,
-.auftrag-table td.col-unternehmen { min-width: 12em; }
+.auftrag-table td.col-unternehmen {
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 19;
+  background: white !important;
+  width: var(--auftrag-col-unternehmen-width);
+  min-width: var(--auftrag-col-unternehmen-width);
+  max-width: var(--auftrag-col-unternehmen-width);
+}
 
+/* Marke-Spalte fixieren (zweite Inhaltsspalte) -- z-index 18 */
 .auftrag-table th.col-marke,
-.auftrag-table td.col-marke { min-width: 10em; }
+.auftrag-table td.col-marke {
+  position: sticky !important;
+  left: var(--auftrag-col-unternehmen-width) !important;
+  z-index: 18;
+  background: white !important;
+  width: var(--auftrag-col-marke-width);
+  min-width: var(--auftrag-col-marke-width);
+  max-width: var(--auftrag-col-marke-width);
+}
+
+/* Wenn Checkbox-Spalte vorhanden (Aufträge-Admin): Offsets verschieben */
+.auftrag-table:has(th.col-checkbox) th.col-unternehmen,
+.auftrag-table:has(th.col-checkbox) td.col-unternehmen {
+  left: var(--auftrag-col-checkbox-width) !important;
+}
+
+.auftrag-table:has(th.col-checkbox) th.col-marke,
+.auftrag-table:has(th.col-checkbox) td.col-marke {
+  left: calc(var(--auftrag-col-checkbox-width) + var(--auftrag-col-unternehmen-width)) !important;
+}
+
+/* Header-Zellen über Body-Zellen halten (gestaffelt unter Checkbox-Header) */
+.auftrag-table thead th.col-unternehmen {
+  z-index: 29 !important;
+  background: white !important;
+}
+.auftrag-table thead th.col-marke {
+  z-index: 28 !important;
+  background: white !important;
+}
+
+/* Hover-Zustand für fixierte Spalten */
+.auftrag-table tbody tr:hover td.col-unternehmen,
+.auftrag-table tbody tr:hover td.col-marke {
+  background: var(--gray-50) !important;
+}
+
+/* Inhalt der fixierten Spalten auf Zellbreite begrenzen (Ellipsis statt Überlauf) */
+.auftrag-table td.col-unternehmen,
+.auftrag-table td.col-marke {
+  overflow: hidden;
+}
+
+.auftrag-table td.col-unternehmen .avatar-bubbles,
+.auftrag-table td.col-marke .avatar-bubbles,
+.auftrag-table td.col-unternehmen .avatar-bubble-item--labeled,
+.auftrag-table td.col-marke .avatar-bubble-item--labeled {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.auftrag-table td.col-unternehmen .avatar-bubble-label,
+.auftrag-table td.col-marke .avatar-bubble-label {
+  max-width: 100%;
+  min-width: 0;
+  flex: 0 1 auto;
+}
 
 .auftrag-table th.col-details,
 .auftrag-table td.col-details {
@@ -4677,6 +4744,10 @@ input.input-error {
 
 .data-table tr.auftrag-row--ueberwiesen td:first-child {
   box-shadow: inset 4px 0 0 var(--color-success);
+}
+
+.data-table tr.auftrag-row--ueberfaellig td:first-child {
+  box-shadow: inset 4px 0 0 var(--red-600);
 }
 
 

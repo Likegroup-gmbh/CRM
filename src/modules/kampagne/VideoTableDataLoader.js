@@ -237,6 +237,9 @@ export class VideoTableDataLoader {
         parallelTasks.push(this.loadAssetsAndComments(videoIds));
         parallelTasks.push(this.loadStorySlots(videoIds));
       }
+      if (koopIds.length > 0) {
+        parallelTasks.push(this.loadBilder(koopIds));
+      }
       await Promise.all(parallelTasks);
 
     } catch (error) {
@@ -329,7 +332,7 @@ export class VideoTableDataLoader {
         ),
         batchIn(
           sb.from('kooperation_story_asset'),
-          'id, video_id, story_id, file_url, file_name, file_size, version_number, is_current',
+          'id, video_id, story_id, file_url, file_path, file_name, file_size, version_number, is_current',
           'video_id', videoIds
         )
       ]);
@@ -374,6 +377,38 @@ export class VideoTableDataLoader {
       console.log(`✅ Story-Slots (${slots.length}) + Assets (${assets.length}) geladen`);
     } catch (error) {
       console.error('❌ Fehler beim Laden der Story-Slots:', error);
+    }
+  }
+
+  async loadBilder(koopIds) {
+    const t = this.table;
+    if (!koopIds || koopIds.length === 0) return;
+
+    try {
+      const batchIn = VideoTableDataLoader.batchInQuery;
+      const sb = window.supabase;
+
+      const result = await batchIn(
+        sb.from('kooperation_bilder_asset'),
+        'id, kooperation_id, file_url, file_path, file_name, created_at',
+        'kooperation_id', koopIds,
+        q => q.order('file_name', { ascending: true })
+      );
+
+      const images = result?.data || [];
+      const byKoop = {};
+      for (const img of images) {
+        if (!byKoop[img.kooperation_id]) byKoop[img.kooperation_id] = [];
+        byKoop[img.kooperation_id].push(img);
+      }
+
+      for (const koop of t.kooperationen) {
+        koop._bilder = byKoop[koop.id] || [];
+      }
+
+      console.log(`✅ Bilder-Assets (${images.length}) geladen`);
+    } catch (error) {
+      console.error('❌ Fehler beim Laden der Bilder-Assets:', error);
     }
   }
 

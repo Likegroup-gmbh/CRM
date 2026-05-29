@@ -188,19 +188,20 @@ function makeFakeTable(koops, videosByKoop) {
 }
 
 describe('VideoPlayerLightbox – Listen & Dropdown-Logik', () => {
-  it('_buildFlatList flacht Videos in gerenderter Reihenfolge', () => {
+  it('_buildItems flacht Videos in gerenderter Reihenfolge', () => {
     const koops = [{ id: 'k1', name: 'A' }, { id: 'k2', name: 'B' }];
     const videos = {
       k1: [{ id: 'v1', file_url: 'u1' }, { id: 'v2', file_url: 'u2' }],
       k2: [{ id: 'v3', file_url: 'u3' }],
     };
     const player = new VideoPlayerLightbox(makeFakeTable(koops, videos));
-    player._buildFlatList();
-    expect(player.flat.map(e => e.video.id)).toEqual(['v1', 'v2', 'v3']);
-    expect(player.flat[2].koop.id).toBe('k2');
+    player._buildItems();
+    expect(player.items.map(e => e.video.id)).toEqual(['v1', 'v2', 'v3']);
+    expect(player.items.every(e => e.type === 'video')).toBe(true);
+    expect(player.items[2].koop.id).toBe('k2');
   });
 
-  it('_buildFlatList ueberspringt Videos ohne hochgeladene Datei', () => {
+  it('_buildItems ueberspringt Videos ohne hochgeladene Datei', () => {
     const koops = [{ id: 'k1' }, { id: 'k2' }, { id: 'k3' }];
     const videos = {
       k1: [{ id: 'v1', file_url: 'u1' }],
@@ -208,8 +209,84 @@ describe('VideoPlayerLightbox – Listen & Dropdown-Logik', () => {
       k3: [{ id: 'v4', asset_url: 'a4' }, { id: 'v5' }],
     };
     const player = new VideoPlayerLightbox(makeFakeTable(koops, videos));
-    player._buildFlatList();
-    expect(player.flat.map(e => e.video.id)).toEqual(['v1', 'v3', 'v4']);
+    player._buildItems();
+    expect(player.items.map(e => e.video.id)).toEqual(['v1', 'v3', 'v4']);
+  });
+
+  it('_buildItems beruecksichtigt currentAsset.file_path als Upload', () => {
+    const koops = [{ id: 'k1' }];
+    const videos = { k1: [{ id: 'v1', currentAsset: { file_path: '/x/a.mp4' } }, { id: 'v2' }] };
+    const player = new VideoPlayerLightbox(makeFakeTable(koops, videos));
+    player._buildItems();
+    expect(player.items.map(e => e.video.id)).toEqual(['v1']);
+  });
+
+  it('_buildItems reiht pro Koop Video -> Story -> Bild', () => {
+    const koops = [{
+      id: 'k1',
+      _bilder: [{ id: 'img1', file_url: 'iu1' }],
+    }];
+    const videos = {
+      k1: [{
+        id: 'v1',
+        file_url: 'u1',
+        story_slots: [{ id: 's1', video_id: 'v1', assets: [{ id: 'sa1', version_number: 1 }] }],
+      }],
+    };
+    const player = new VideoPlayerLightbox(makeFakeTable(koops, videos));
+    player._buildItems();
+    expect(player.items.map(e => e.type)).toEqual(['video', 'story', 'bild']);
+    expect(player.items[1].slot.id).toBe('s1');
+    expect(player.items[2].image.id).toBe('img1');
+  });
+
+  it('_buildItems ueberspringt Storys ohne Assets', () => {
+    const koops = [{ id: 'k1' }];
+    const videos = {
+      k1: [{
+        id: 'v1',
+        file_url: 'u1',
+        story_slots: [
+          { id: 's1', video_id: 'v1', assets: [] },
+          { id: 's2', video_id: 'v1', assets: [{ id: 'sa2', version_number: 1 }] },
+        ],
+      }],
+    };
+    const player = new VideoPlayerLightbox(makeFakeTable(koops, videos));
+    player._buildItems();
+    const storyItems = player.items.filter(e => e.type === 'story');
+    expect(storyItems.map(e => e.slot.id)).toEqual(['s2']);
+  });
+
+  it('_feedbackTarget mappt Story auf slot.video_id und Bild auf erstes Koop-Video', () => {
+    const koops = [{ id: 'k1', _bilder: [{ id: 'img1', file_url: 'iu1' }] }];
+    const videos = {
+      k1: [{
+        id: 'v1',
+        file_url: 'u1',
+        story_slots: [{ id: 's1', video_id: 'v1', assets: [{ id: 'sa1', version_number: 1 }] }],
+      }],
+    };
+    const player = new VideoPlayerLightbox(makeFakeTable(koops, videos));
+    player._buildItems();
+
+    player.index = player.items.findIndex(e => e.type === 'story');
+    player.storyVersion = 1;
+    expect(player._feedbackTarget().videoId).toBe('v1');
+
+    player.index = player.items.findIndex(e => e.type === 'bild');
+    const bildTarget = player._feedbackTarget();
+    expect(bildTarget.videoId).toBe('v1');
+    expect(bildTarget.target.runde).toBe(1);
+  });
+
+  it('_feedbackTarget ist null fuer Bild in Koop ohne Video', () => {
+    const koops = [{ id: 'k1', _bilder: [{ id: 'img1', file_url: 'iu1' }] }];
+    const videos = { k1: [] };
+    const player = new VideoPlayerLightbox(makeFakeTable(koops, videos));
+    player._buildItems();
+    player.index = 0;
+    expect(player._feedbackTarget()).toBeNull();
   });
 
   it('_versions liefert distinkte, sortierte version_number', () => {
@@ -238,12 +315,12 @@ describe('VideoPlayerLightbox – Listen & Dropdown-Logik', () => {
     const koops = [{ id: 'k1' }];
     const videos = { k1: [{ id: 'v1', file_url: 'u1' }, { id: 'v2', file_url: 'u2' }] };
     const player = new VideoPlayerLightbox(makeFakeTable(koops, videos));
-    player._buildFlatList();
+    player._buildItems();
     player.index = 0;
     expect(player.index > 0).toBe(false);
-    expect(player.index < player.flat.length - 1).toBe(true);
+    expect(player.index < player.items.length - 1).toBe(true);
     player.index = 1;
     expect(player.index > 0).toBe(true);
-    expect(player.index < player.flat.length - 1).toBe(false);
+    expect(player.index < player.items.length - 1).toBe(false);
   });
 });

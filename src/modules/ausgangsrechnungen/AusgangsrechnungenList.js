@@ -6,6 +6,7 @@ import { sortRowsByPrefixedNumberDesc } from '../auftrag/logic/PrefixedNumberSor
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
+import { getPaymentRowStatusClass } from '../auftrag/logic/PaymentRowStatus.js';
 
 const TR_FIELDS = [
   're_nr', 'externe_po', 'nettobetrag', 'ust_betrag', 'bruttobetrag',
@@ -125,15 +126,11 @@ export class AusgangsrechnungenList extends AuftragList {
       }
 
       tbody.innerHTML = auftraege.map(auftrag => {
-        const paymentStatusClass = auftrag.ueberwiesen
-          ? 'auftrag-row--ueberwiesen'
-          : auftrag.rechnung_gestellt
-            ? 'auftrag-row--rechnung-gestellt'
-            : '';
+        const paymentStatusClass = getPaymentRowStatusClass(auftrag);
         const trLabel = auftrag._teilrechnung?.label || '1 von 1';
         const mwstProzent = auftrag.ust_prozent != null ? `${auftrag.ust_prozent}%` : '19%';
         return `
-        <tr data-id="${auftrag.id}" class="${paymentStatusClass}" data-rechnung-gestellt="${Boolean(auftrag.rechnung_gestellt)}" data-ueberwiesen="${Boolean(auftrag.ueberwiesen)}">
+        <tr data-id="${auftrag.id}" data-tr-id="${auftrag.teilrechnung_id || auftrag.id}" class="${paymentStatusClass}" data-rechnung-gestellt="${Boolean(auftrag.rechnung_gestellt_am)}" data-ueberwiesen="${Boolean(auftrag.ueberwiesen_am)}" data-re-faelligkeit="${auftrag.re_faelligkeit || ''}">
           <td class="col-unternehmen">${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
           <td class="col-marke">${this.formatMarkeTag(auftrag.marke)}</td>
           <td class="col-angebotsnr">${window.validatorSystem.sanitizeHtml(auftrag.angebotsnummer || '-')}</td>
@@ -165,12 +162,39 @@ export class AusgangsrechnungenList extends AuftragList {
     if (!this.isAdmin) {
       return this.formatDate(auftrag.erwarteter_monat_zahlungseingang);
     }
+    const { id, entity } = this._inlineTarget(auftrag);
     return CustomDatePicker.render({
-      id: auftrag.id,
+      id,
+      entity,
       field: 'erwarteter_monat_zahlungseingang',
       dateField: '',
       value: auftrag.erwarteter_monat_zahlungseingang,
       label: 'Erwarteter Zahlungseingang',
+      inputClass: 'auftrag-inline-date-input'
+    });
+  }
+
+  // Bei Kundenrechnungen werden Inline-Edits pro Teilrechnung geschrieben,
+  // sonst (kein Teilrechnungs-Datensatz) auf den Auftrag.
+  _inlineTarget(auftrag) {
+    return auftrag.teilrechnung_id
+      ? { id: auftrag.teilrechnung_id, entity: 'auftrag_teilrechnung' }
+      : { id: auftrag.id, entity: 'auftrag' };
+  }
+
+  renderBillingDateCell(auftrag, boolField, dateField) {
+    if (!this.isAdmin) {
+      return this.formatBoolean(Boolean(auftrag[dateField]));
+    }
+    const { id, entity } = this._inlineTarget(auftrag);
+    const label = boolField === 'rechnung_gestellt' ? 'Rechnung gestellt am' : 'Ueberwiesen am';
+    return CustomDatePicker.render({
+      id,
+      entity,
+      field: boolField,
+      dateField,
+      value: auftrag[dateField],
+      label,
       inputClass: 'auftrag-inline-date-input'
     });
   }
@@ -289,6 +313,7 @@ export class AusgangsrechnungenList extends AuftragList {
             for (const field of TR_FIELDS) {
               if (tr[field] !== undefined) row[field] = tr[field];
             }
+            row.teilrechnung_id = tr.id;
             row._teilrechnung = {
               position: tr.position,
               total,
@@ -297,6 +322,7 @@ export class AusgangsrechnungenList extends AuftragList {
             exploded.push(row);
           }
         } else {
+          base.teilrechnung_id = null;
           base._teilrechnung = { position: 1, total: 1, label: '1 von 1' };
           exploded.push(base);
         }

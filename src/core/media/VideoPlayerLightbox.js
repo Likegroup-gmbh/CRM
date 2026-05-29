@@ -1,5 +1,5 @@
 import { MediaLightbox } from './MediaLightbox.js';
-import { escapeHtml } from '../VideoUploadUtils.js';
+import { escapeHtml, toRawDropboxUrl } from '../VideoUploadUtils.js';
 import { resolveStreamUrl, prefetchStreamUrl } from './mediaSrc.js';
 import { downloadMediaAsset, DOWNLOAD_ICON } from './downloadMediaAsset.js';
 import {
@@ -25,21 +25,28 @@ function formatTime(sec) {
 }
 
 /**
- * Eingebetteter Video-Player als Lightbox fuer die Kampagnen-Tabelle.
- * - Zweistufiger Dropdown: Feedbackschleife (version_number) + Variante (variant_name)
- * - Streaming via dropbox-proxy temporary-link (Fallback file_url)
- * - Rollenbasiertes Inline-Feedback (Version->Runde Mapping, V3 read-only)
- * - Prev/Next ueber alle Videos der gefilterten Tabelle
+ * Durchgaengiger Medien-Viewer fuer die Kampagnen-Tabelle.
+ * - Eine flache Item-Liste ueber ALLE gefilterten Kooperationen: pro Koop
+ *   Videos -> Storys -> Bilder (nur vorhandene Inhalte).
+ * - Prev/Next blaettert durchgaengig ueber alle Typen.
+ * - Video & Story nutzen denselben Custom-Player; Bilder werden als <img> gezeigt.
+ * - Rechtes Panel mit Feedback fuer alle Typen (kooperation_video_comment):
+ *     Video  -> eigenes Video, Runde aus Feedbackschleife
+ *     Story  -> Video der Story (slot.video_id), Runde aus Story-Version
+ *     Bild   -> erstes Video der Koop, Runde 1
  */
 export class VideoPlayerLightbox {
   constructor(table) {
     this.table = table;
     this.lightbox = new MediaLightbox();
-    this.flat = [];
+    this.items = [];
     this.index = 0;
+    // Video-spezifischer Zustand
     this.assets = [];
     this.selectedVersion = null;
     this.selectedAssetId = null;
+    // Story-spezifischer Zustand
+    this.storyVersion = null;
     this.loading = false;
     this.src = null;
     this.fallbackUrl = null;
@@ -50,49 +57,111 @@ export class VideoPlayerLightbox {
     this._preconnected = false;
   }
 
-  _hasPlayable(video) {
-    return !!(video.file_url || video.link_content || video.asset_url);
+  _hasUpload(video) {
+    return !!(video.file_url || video.link_content || video.asset_url || video.currentAsset?.file_path);
   }
 
-  _buildFlatList() {
+  // Bilder aller gefilterten Koops sicherstellen (Preload kann fehlen/leer sein).
+  // Garantiert, dass die durchgaengige Liste auch Bilder enthaelt.
+  async _ensureBilderLoaded() {
     const koops = this.table.renderer.getFilteredKooperationen() || [];
-    const flat = [];
+    const missing = koops.filter(k => k.bilder_folder_url && !Array.isArray(k._bilder));
+    if (missing.length === 0) return;
+
+    try {
+      const ids = missing.map(k => k.id);
+      const { data, error } = await window.supabase
+        .from('kooperation_bilder_asset')
+        .select('id, kooperation_id, file_url, file_path, file_name, created_at')
+        .in('kooperation_id', ids)
+        .order('file_name', { ascending: true });
+      if (error) throw error;
+
+      const byKoop = {};
+      for (const img of (data || [])) {
+        if (!byKoop[img.kooperation_id]) byKoop[img.kooperation_id] = [];
+        byKoop[img.kooperation_id].push(img);
+      }
+      for (const k of missing) k._bilder = byKoop[k.id] || [];
+    } catch (err) {
+      console.warn('Bilder konnten nicht geladen werden:', err);
+      for (const k of missing) k._bilder = Array.isArray(k._bilder) ? k._bilder : [];
+    }
+  }
+
+  _buildItems() {
+    const koops = this.table.renderer.getFilteredKooperationen() || [];
+    const items = [];
     for (const koop of koops) {
       const videos = this.table.videos[koop.id] || [];
       for (const video of videos) {
-        if (this._hasPlayable(video)) flat.push({ video, koop });
+        if (this._hasUpload(video)) items.push({ type: 'video', video, koop });
+      }
+      for (const video of videos) {
+        const slots = video.story_slots || [];
+        for (const slot of slots) {
+          if ((slot.assets || []).length > 0) items.push({ type: 'story', slot, video, koop });
+        }
+      }
+      const bilder = koop._bilder || [];
+      for (const image of bilder) {
+        items.push({ type: 'bild', image, koop });
       }
     }
-    this.flat = flat;
+    this.items = items;
   }
 
   get current() {
-    return this.flat[this.index] || null;
+    return this.items[this.index] || null;
   }
 
-  async open(videoId, kooperationId) {
-    this._addPreconnect();
-    this._buildFlatList();
-    const idx = this.flat.findIndex(
-      e => e.video.id === videoId && e.koop.id === kooperationId
-    );
-    this.index = idx >= 0 ? idx : Math.max(0, this.flat.findIndex(e => e.video.id === videoId));
+  // ---- Public Einstiegspunkte ----
 
-    // Warm-Start: Temp-Link des angeklickten Videos sofort anfragen (parallel zur Asset-Query)
-    const warm = this.current?.video;
-    if (warm) {
-      prefetchStreamUrl({
-        file_path: warm.currentAsset?.file_path || null,
-        file_url: warm.file_url || warm.link_content || warm.asset_url || null
-      });
+  openVideo(videoId, kooperationId) {
+    return this._open([
+      it => it.type === 'video' && it.video.id === videoId && it.koop.id === kooperationId,
+      it => it.type === 'video' && it.video.id === videoId,
+    ]);
+  }
+
+  openStory(videoId, kooperationId) {
+    return this._open([
+      it => it.type === 'story' && it.video?.id === videoId && it.koop.id === kooperationId,
+      it => it.type === 'story' && it.koop.id === kooperationId,
+      it => it.koop.id === kooperationId,
+    ]);
+  }
+
+  openBilder(kooperationId) {
+    return this._open([
+      it => it.type === 'bild' && it.koop.id === kooperationId,
+      it => it.koop.id === kooperationId,
+    ]);
+  }
+
+  async _open(finders) {
+    this._addPreconnect();
+    await this._ensureBilderLoaded();
+    this._buildItems();
+
+    let idx = -1;
+    for (const f of finders) {
+      idx = this.items.findIndex(f);
+      if (idx >= 0) break;
     }
+    this.index = idx >= 0 ? idx : 0;
+    this._resetItemState();
+
+    // Warm-Start: Temp-Link des angeklickten Mediums sofort anfragen
+    const lookup = this._currentLookup();
+    if (lookup.file_path || lookup.file_url) prefetchStreamUrl(lookup);
 
     this.lightbox.open({
       className: 'video-player-lightbox media-split-lightbox',
       onPrev: () => this._navigate(-1),
       onNext: () => this._navigate(1),
       hasPrev: () => this.index > 0,
-      hasNext: () => this.index < this.flat.length - 1,
+      hasNext: () => this.index < this.items.length - 1,
       renderBody: () => this._renderBody(),
       onMount: (root) => this._mount(root),
       onClose: () => this._cleanupPrefetch(),
@@ -115,35 +184,22 @@ export class VideoPlayerLightbox {
 
   _navigate(dir) {
     const next = this.index + dir;
-    if (next < 0 || next >= this.flat.length) return;
+    if (next < 0 || next >= this.items.length) return;
     this.index = next;
-
-    const videoId = this.current.video.id;
-    const cachedAssets = this._assetCache.get(videoId);
-    if (cachedAssets) {
-      // Flickerfrei: Assets liegen vor -> in EINEM Render fuellen (Selects bleiben sichtbar)
-      this.src = null;
-      this.fallbackUrl = null;
-      this.assets = cachedAssets;
-      this.loading = false;
-      this._applyDefaultSelection();
-      this.lightbox.update();
-      this._resolveSrc();
-    } else {
-      this._resetAssetState();
-      this.lightbox.update();
-      this._loadCurrent();
-    }
+    this._resetItemState();
+    this._loadCurrent();
   }
 
-  _resetAssetState() {
+  _resetItemState() {
     this.assets = [];
     this.selectedVersion = null;
     this.selectedAssetId = null;
+    this.storyVersion = null;
     this.src = null;
     this.fallbackUrl = null;
-    this.loading = true;
   }
+
+  // ---- Laden ----
 
   async _loadAssets(videoId) {
     if (this._assetCache.has(videoId)) return this._assetCache.get(videoId);
@@ -166,7 +222,6 @@ export class VideoPlayerLightbox {
   }
 
   _applyDefaultSelection() {
-    // Default: aktuellste Version (max version_number), erste/aktuelle Variante darin
     const versions = this._versions();
     if (versions.length > 0) {
       this.selectedVersion = versions[versions.length - 1];
@@ -180,27 +235,48 @@ export class VideoPlayerLightbox {
   }
 
   async _loadCurrent() {
-    const entry = this.current;
-    if (!entry) return;
+    const item = this.current;
+    if (!item) return;
 
-    const videoId = entry.video.id;
-    const cached = this._assetCache.has(videoId);
-    // Bei Cache-Hit kein Spinner-Flicker: direkt rendern, Temp-Link liegt i.d.R. schon vor.
-    this.loading = !cached;
-    this.lightbox.update();
+    if (item.type === 'video') {
+      const videoId = item.video.id;
+      if (this._assetCache.has(videoId)) {
+        this.assets = this._assetCache.get(videoId);
+        this.loading = false;
+        this._applyDefaultSelection();
+        this.lightbox.update();
+        await this._resolveSrc();
+        return;
+      }
+      this.assets = [];
+      this.loading = true;
+      this.lightbox.update();
+      const assets = await this._loadAssets(videoId);
+      if (this.current?.video?.id !== videoId) return;
+      this.assets = assets;
+      this.loading = false;
+      this._applyDefaultSelection();
+      this.lightbox.update();
+      await this._resolveSrc();
+      return;
+    }
 
-    const assets = await this._loadAssets(videoId);
+    if (item.type === 'story') {
+      const versions = this._storyVersions(item.slot);
+      this.storyVersion = versions.length ? versions[versions.length - 1] : 1;
+      this.loading = true;
+      this.lightbox.update();
+      await this._resolveSrc();
+      return;
+    }
 
-    // Verworfen falls inzwischen weiternavigiert
-    if (this.current?.video.id !== videoId) return;
-
-    this.assets = assets;
-    this.loading = false;
-    this._applyDefaultSelection();
-
+    // bild
+    this.loading = true;
     this.lightbox.update();
     await this._resolveSrc();
   }
+
+  // ---- Video-Versionen/Varianten ----
 
   _versions() {
     return [...new Set(this.assets.map(a => a.version_number || 1))].sort((a, b) => a - b);
@@ -214,45 +290,62 @@ export class VideoPlayerLightbox {
     return this.assets.find(a => a.id === this.selectedAssetId) || null;
   }
 
+  // ---- Story-Versionen ----
+
+  _storyVersions(slot) {
+    if (slot.existingVersions?.length) return slot.existingVersions;
+    if (slot.versions?.length) return slot.versions;
+    return [...new Set((slot.assets || []).map(a => a.version_number || 1))].sort((a, b) => a - b);
+  }
+
+  _storyAsset(slot, version) {
+    const variants = (slot.assets || []).filter(a => (a.version_number || 1) === version);
+    return variants.find(a => a.is_current) || variants[0] || null;
+  }
+
+  // ---- Quelle aufloesen ----
+
+  _currentLookup() {
+    const item = this.current;
+    if (!item) return { file_path: null, file_url: null };
+    if (item.type === 'video') {
+      const asset = this._selectedAsset();
+      if (asset) return { file_path: asset.file_path || null, file_url: asset.file_url || null };
+      const v = item.video;
+      return {
+        file_path: v.currentAsset?.file_path || null,
+        file_url: v.file_url || v.link_content || v.asset_url || null
+      };
+    }
+    if (item.type === 'story') {
+      const a = this._storyAsset(item.slot, this.storyVersion);
+      return { file_path: a?.file_path || null, file_url: a?.file_url || null };
+    }
+    return { file_path: item.image.file_path || null, file_url: item.image.file_url || null };
+  }
+
   async _resolveSrc() {
     const token = ++this._srcToken;
-    const asset = this._selectedAsset();
-    const video = this.current?.video;
-
-    let lookup;
-    if (asset) {
-      lookup = { file_path: asset.file_path || null, file_url: asset.file_url || null };
-    } else if (video) {
-      lookup = {
-        file_path: video.currentAsset?.file_path || null,
-        file_url: video.file_url || video.link_content || video.asset_url || null
-      };
-    } else {
-      lookup = { file_path: null, file_url: null };
-    }
-
-    const resolved = await resolveStreamUrl(lookup);
+    const resolved = await resolveStreamUrl(this._currentLookup());
 
     if (token !== this._srcToken) return; // veraltet
     this.src = resolved;
     this.fallbackUrl = resolved;
+    this.loading = false;
     this._applySrc();
     this._prefetchNeighborAssets();
     this._scheduleNeighborPrefetch();
   }
 
-  // Nachbar-Asset-Metadaten (DB) vorladen -> Navigation rendert Selects flickerfrei.
   _prefetchNeighborAssets() {
     [this.index - 1, this.index + 1].forEach(i => {
-      const e = this.flat[i];
-      if (e && !this._assetCache.has(e.video.id)) {
+      const e = this.items[i];
+      if (e && e.type === 'video' && !this._assetCache.has(e.video.id)) {
         this._loadAssets(e.video.id).catch(() => {});
       }
     });
   }
 
-  // Nachbarn erst vorladen, wenn das aktive Video spielbereit ist -> keine
-  // Bandbreiten-Konkurrenz mit dem sichtbaren Video.
   _scheduleNeighborPrefetch() {
     const token = this._srcToken;
     const stage = this.lightbox?.contentEl?.querySelector('.media-viewer-stage');
@@ -264,21 +357,31 @@ export class VideoPlayerLightbox {
       if (token === this._srcToken) this._prefetchNeighbors();
     };
     if (video) {
-      if (video.readyState >= 2) run(); // bereits genug gepuffert
+      if (video.readyState >= 2) run();
       else video.addEventListener('loadeddata', run, { once: true });
     }
-    // Fallback, falls loadeddata nicht feuert (Fehler/sehr langsam)
     setTimeout(run, 2500);
   }
 
   _prefetchNeighbors() {
     const lookups = [this.index - 1, this.index + 1]
-      .map(i => this.flat[i])
+      .map(i => this.items[i])
       .filter(Boolean)
-      .map(e => ({
-        file_path: e.video.currentAsset?.file_path || null,
-        file_url: e.video.file_url || e.video.link_content || e.video.asset_url || null
-      }));
+      .map(e => {
+        if (e.type === 'video') {
+          return {
+            file_path: e.video.currentAsset?.file_path || null,
+            file_url: e.video.file_url || e.video.link_content || e.video.asset_url || null
+          };
+        }
+        if (e.type === 'story') {
+          const versions = this._storyVersions(e.slot);
+          const a = this._storyAsset(e.slot, versions[versions.length - 1] || 1);
+          return { file_path: a?.file_path || null, file_url: a?.file_url || null };
+        }
+        return null;
+      })
+      .filter(Boolean);
     Promise.all(lookups.map(l => resolveStreamUrl(l).catch(() => null)))
       .then(urls => this._prefetchBytes(urls.filter(Boolean)));
   }
@@ -306,8 +409,6 @@ export class VideoPlayerLightbox {
     for (const url of keep) {
       if (this._bytePrefetch.has(url)) continue;
       const v = document.createElement('video');
-      // metadata statt auto: nur Header + erstes Frame -> schneller Start/Vorschau
-      // beim Navigieren, ohne dem aktiven Video Bandbreite zu stehlen.
       v.preload = 'metadata';
       v.muted = true;
       v.playsInline = true;
@@ -404,7 +505,7 @@ export class VideoPlayerLightbox {
     const link = this.fallbackUrl || this.src;
     stage.innerHTML = `
       <div class="media-viewer-empty">
-        <span>Video kann nicht eingebettet abgespielt werden.</span>
+        <span>Medium kann nicht eingebettet abgespielt werden.</span>
         ${link ? `<a class="media-viewer-fallback-link" href="${escapeHtml(link)}" target="_blank" rel="noopener">Extern oeffnen</a>` : ''}
       </div>`;
   }
@@ -412,17 +513,28 @@ export class VideoPlayerLightbox {
   // ---- Rendering ----
 
   _renderBody() {
-    const entry = this.current;
-    if (!entry) return '<div class="media-viewer-empty">Kein Video gefunden.</div>';
+    const item = this.current;
+    if (!item) return '<div class="media-viewer-empty">Kein Inhalt gefunden.</div>';
 
-    const v = entry.video;
-    const koop = entry.koop;
+    const koop = item.koop;
     const creatorName = `${koop.creator?.vorname || ''} ${koop.creator?.nachname || ''}`.trim() || 'Unbekannt';
-    const title = v.video_name || v.thema || 'Video';
-    const counter = `${this.index + 1} / ${this.flat.length}`;
+    const counter = `${this.index + 1} / ${this.items.length}`;
+
+    let title;
+    let controls;
+    if (item.type === 'video') {
+      title = item.video.video_name || item.video.thema || 'Video';
+      controls = `${this._renderVersionSelect()}${this._renderVariantSelect()}`;
+    } else if (item.type === 'story') {
+      title = item.slot.slot_name || `Story ${item.slot.slot_index || ''}`.trim();
+      controls = this._renderStoryVersionSelect();
+    } else {
+      title = item.image.file_name || 'Bild';
+      controls = this._renderThumbs();
+    }
 
     const hasPrev = this.index > 0;
-    const hasNext = this.index < this.flat.length - 1;
+    const hasNext = this.index < this.items.length - 1;
 
     return `
       <div class="vpl-stage media-viewer-stage">${this._renderStageInner()}</div>
@@ -432,10 +544,7 @@ export class VideoPlayerLightbox {
             <div class="media-viewer-title">${escapeHtml(title)}</div>
             <div class="media-viewer-sub">${escapeHtml(creatorName)} &middot; ${escapeHtml(koop.name || '')} &middot; ${counter}</div>
           </div>
-          <div class="vpl-selects">
-            ${this._renderVersionSelect()}
-            ${this._renderVariantSelect()}
-          </div>
+          <div class="vpl-selects">${controls}</div>
         </div>
         <div class="vpl-feedback-wrap">${this._renderFeedback()}</div>
         <div class="vpl-nav">
@@ -449,8 +558,17 @@ export class VideoPlayerLightbox {
 
   _renderStageInner() {
     if (this.loading) {
-      return `<div class="media-viewer-loading"><div class="media-viewer-spinner"></div><span>Video wird geladen...</span></div>`;
+      return `<div class="media-viewer-loading"><div class="media-viewer-spinner"></div><span>Wird geladen...</span></div>`;
     }
+
+    const item = this.current;
+    if (item?.type === 'bild') {
+      if (this.src) {
+        return `<img class="vpl-image" src="${escapeHtml(this.src)}" alt="${escapeHtml(item.image.file_name || 'Bild')}">`;
+      }
+      return `<div class="media-viewer-empty"><span>Bild kann nicht geladen werden.</span></div>`;
+    }
+
     if (this.src) {
       const previewSrc = this.src + (this.src.includes('#') ? '' : '#t=0.1');
       return `
@@ -463,7 +581,8 @@ export class VideoPlayerLightbox {
           <button type="button" class="vpl-fs" aria-label="Vollbild">${ICON_FS}</button>
         </div>`;
     }
-    const folderUrl = this.current?.video?.folder_url;
+
+    const folderUrl = item?.video?.folder_url;
     return `
       <div class="media-viewer-empty">
         <span>Kein Video hochgeladen.</span>
@@ -497,23 +616,67 @@ export class VideoPlayerLightbox {
       </div>`;
   }
 
-  _renderInfo() {
-    const asset = this._selectedAsset();
-    const desc = asset?.description;
+  _renderStoryVersionSelect() {
+    const versions = this._storyVersions(this.current.slot);
+    if (versions.length <= 1) return '';
+    const options = versions.map(ver =>
+      `<option value="${ver}" ${ver === this.storyVersion ? 'selected' : ''}>Feedbackschleife ${ver}</option>`
+    ).join('');
     return `
-      <div class="media-viewer-info">
-        ${desc ? escapeHtml(desc) : '<span class="media-viewer-info-empty">Keine Beschreibung hinterlegt.</span>'}
+      <div class="media-viewer-control">
+        <select class="story-version-select">${options}</select>
       </div>`;
   }
 
-  _renderFeedback() {
-    const versions = this._versions();
-    const version = this.selectedVersion || (versions.length ? versions[versions.length - 1] : 1);
+  _renderThumbs() {
+    const images = this.current.koop._bilder || [];
+    if (images.length <= 1) return '';
+    const currentId = this.current.image.id;
+    const thumbs = images.map(img => {
+      const itemIndex = this.items.findIndex(it => it.type === 'bild' && it.image.id === img.id);
+      const url = toRawDropboxUrl(img.file_url) || '';
+      return `<button type="button" class="media-gallery-thumb ${img.id === currentId ? 'active' : ''}" data-item-index="${itemIndex}">
+        <img src="${escapeHtml(url)}" alt="${escapeHtml(img.file_name || '')}" loading="lazy">
+      </button>`;
+    }).join('');
+    return `<div class="media-gallery-thumbs">${thumbs}</div>`;
+  }
+
+  _feedbackTarget() {
+    const item = this.current;
+    if (!item) return null;
+
+    let videoId = null;
+    let version = 1;
+    if (item.type === 'video') {
+      videoId = item.video.id;
+      version = this.selectedVersion || 1;
+    } else if (item.type === 'story') {
+      videoId = item.slot.video_id || item.video?.id || null;
+      version = this.storyVersion || 1;
+    } else {
+      const koopVideos = this.table.videos[item.koop.id] || [];
+      videoId = koopVideos[0]?.id || null;
+      version = 1;
+    }
+    if (!videoId) return null;
+
     const isKunde = this.table.isKundeRole();
-    const target = resolveVideoFeedbackTarget(version, isKunde);
+    return { videoId, target: resolveVideoFeedbackTarget(version, isKunde) };
+  }
+
+  _renderFeedback() {
+    const ft = this._feedbackTarget();
+    if (!ft) {
+      return `
+        <div class="media-viewer-feedback">
+          <div class="media-viewer-feedback-hint">Kein Video vorhanden &ndash; Feedback nicht möglich.</div>
+        </div>`;
+    }
+
+    const { videoId, target } = ft;
     if (!target.slot) return '';
 
-    const videoId = this.current.video.id;
     const comments = normalizeVideoFeedbackComments(this.table.videoComments[videoId]);
     const ownValue = formatVideoFeedbackValue(comments, target.slot.bucket);
     const counterpartValue = target.counterpartSlot
@@ -571,6 +734,27 @@ export class VideoPlayerLightbox {
       });
     }
 
+    const storyVersionSelect = root.querySelector('.story-version-select');
+    if (storyVersionSelect) {
+      storyVersionSelect.addEventListener('change', () => {
+        this.storyVersion = Number(storyVersionSelect.value);
+        this.src = null;
+        this.lightbox.update();
+        this._resolveSrc();
+      });
+    }
+
+    root.querySelectorAll('.media-gallery-thumb').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.dataset.itemIndex);
+        if (Number.isInteger(idx) && idx >= 0 && idx !== this.index) {
+          this.index = idx;
+          this._resetItemState();
+          this._loadCurrent();
+        }
+      });
+    });
+
     const feedbackInput = root.querySelector('.player-feedback-input:not([readonly])');
     if (feedbackInput) {
       feedbackInput.addEventListener('blur', () => this._saveFeedback(feedbackInput));
@@ -591,17 +775,32 @@ export class VideoPlayerLightbox {
   }
 
   _download() {
-    const asset = this._selectedAsset();
-    const video = this.current?.video;
-    const source = asset || {
-      file_path: video?.currentAsset?.file_path || null,
-      file_url: video?.file_url || video?.link_content || video?.asset_url || null,
-    };
-    if (!source.file_path && !source.file_url) {
-      window.toastSystem?.show('Kein Video zum Herunterladen.', 'error');
+    const item = this.current;
+    if (!item) return;
+
+    let source = null;
+    let filename = null;
+    if (item.type === 'video') {
+      const asset = this._selectedAsset();
+      const v = item.video;
+      source = asset || {
+        file_path: v.currentAsset?.file_path || null,
+        file_url: v.file_url || v.link_content || v.asset_url || null,
+      };
+      filename = asset?.file_name || this._buildVideoFilename(asset, v);
+    } else if (item.type === 'story') {
+      source = this._storyAsset(item.slot, this.storyVersion);
+      filename = source?.file_name || `${item.slot.slot_name || 'Story'}_v${this.storyVersion || 1}`;
+    } else {
+      source = item.image;
+      filename = item.image.file_name || 'Bild';
+    }
+
+    if (!source || (!source.file_path && !source.file_url)) {
+      window.toastSystem?.show('Kein Inhalt zum Herunterladen.', 'error');
       return;
     }
-    downloadMediaAsset(source, asset?.file_name || this._buildVideoFilename(asset, video));
+    downloadMediaAsset(source, filename);
   }
 
   _buildVideoFilename(asset, video) {
@@ -620,7 +819,6 @@ export class VideoPlayerLightbox {
     const field = textarea.dataset.field;
     await this.table.handleFieldUpdate(textarea);
 
-    // Tabellen-Textarea im Grid synchronisieren
     const gridTextarea = document.querySelector(
       `.kooperation-video-grid [data-entity="video"][data-id="${videoId}"][data-field="${field}"]`
     );

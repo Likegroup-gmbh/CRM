@@ -4,6 +4,7 @@
 import { AuftragList } from './AuftragListCore.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
+import { getPaymentRowStatusClass } from './logic/PaymentRowStatus.js';
 
 const currencyFormatter = new Intl.NumberFormat('de-DE', {
   style: 'currency', currency: 'EUR',
@@ -55,7 +56,7 @@ AuftragList.prototype.formatBoolean = function(value) {
 
 AuftragList.prototype.renderBillingDateCell = function(auftrag, boolField, dateField) {
   if (!this.isAdmin) {
-    return this.formatBoolean(Boolean(auftrag[boolField]));
+    return this.formatBoolean(Boolean(auftrag[dateField]));
   }
   const label = boolField === 'rechnung_gestellt' ? 'Rechnung gestellt am' : 'Ueberwiesen am';
   return CustomDatePicker.render({
@@ -70,18 +71,24 @@ AuftragList.prototype.renderBillingDateCell = function(auftrag, boolField, dateF
 
 AuftragList.prototype.updateAuftragRowStatusClass = function(row) {
   if (!row) return;
-  const isUeberwiesen = row.dataset.ueberwiesen === 'true';
-  const isRechnungGestellt = row.dataset.rechnungGestellt === 'true';
-  row.classList.remove('auftrag-row--ueberwiesen', 'auftrag-row--rechnung-gestellt');
-  if (isUeberwiesen) {
-    row.classList.add('auftrag-row--ueberwiesen');
-  } else if (isRechnungGestellt) {
-    row.classList.add('auftrag-row--rechnung-gestellt');
+  const statusClass = getPaymentRowStatusClass({
+    ueberwiesen: row.dataset.ueberwiesen === 'true',
+    rechnung_gestellt: row.dataset.rechnungGestellt === 'true',
+    re_faelligkeit: row.dataset.reFaelligkeit || null
+  });
+  row.classList.remove(
+    'auftrag-row--ueberwiesen',
+    'auftrag-row--ueberfaellig',
+    'auftrag-row--rechnung-gestellt'
+  );
+  if (statusClass) {
+    row.classList.add(statusClass);
   }
 };
 
-AuftragList.prototype.syncInlineBillingUpdate = function(auftragId, dateField, value) {
-  const row = document.querySelector(`.data-table tr[data-id="${auftragId}"]`);
+AuftragList.prototype.syncInlineBillingUpdate = function(rowId, dateField, value) {
+  const row = document.querySelector(`.data-table tr[data-tr-id="${rowId}"]`)
+    || document.querySelector(`.data-table tr[data-id="${rowId}"]`);
   if (!row) {
     this.loadAndRender();
     return;
@@ -110,6 +117,7 @@ AuftragList.prototype.handleInlineBillingDateChange = async function(input) {
   const auftragId = input.dataset.id;
   const field = input.dataset.field;
   const dateField = input.dataset.dateField;
+  const entity = input.dataset.entity || 'auftrag';
   if (!auftragId || !field) return;
 
   const previousValue = input.dataset.previousValue || '';
@@ -128,7 +136,7 @@ AuftragList.prototype.handleInlineBillingDateChange = async function(input) {
 
   CustomDatePicker.setDisabled(input, true);
   try {
-    const result = await window.dataService.updateEntity('auftrag', auftragId, payload);
+    const result = await window.dataService.updateEntity(entity, auftragId, payload);
     if (!result?.success) {
       throw new Error(result?.error || 'Update fehlgeschlagen');
     }
@@ -149,7 +157,7 @@ AuftragList.prototype.handleInlineBillingDateChange = async function(input) {
 
     window.dispatchEvent(new CustomEvent('entityUpdated', {
       detail: {
-        entity: 'auftrag',
+        entity,
         action: 'updated',
         id: auftragId,
         field: isSimpleDateField ? field : dateField,

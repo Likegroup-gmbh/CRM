@@ -203,6 +203,13 @@ export class AuthUtils {
                 <div class="form-box">
                   <button type="submit" class="btn primary-btn" style="width: 100%;">Registrieren</button>
                 </div>
+                <p class="login-consent">
+                  Mit der Registrierung akzeptierst du unsere
+                  <a href="https://likegroup.de/agb" target="_blank" rel="noopener noreferrer">AGB</a> und
+                  <a href="https://likegroup.de/datenschutz" target="_blank" rel="noopener noreferrer">Datenschutzerklärung</a>.
+                  <br>
+                  <a href="https://likegroup.de/impressum" target="_blank" rel="noopener noreferrer">Impressum</a>
+                </p>
                 <div class="register-links-row">
                   <a href="javascript:void(0)" onclick="window.authUtils.showLogin()" class="register-link-btn">
                     Zurück zum Login

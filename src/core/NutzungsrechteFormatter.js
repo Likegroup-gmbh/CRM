@@ -155,6 +155,13 @@ function hasValue(v) {
   return true;
 }
 
+function usableFreeText(t) {
+  if (!hasValue(t)) return null;
+  const s = String(t).trim();
+  if (!s || s === '-' || s === '–') return null;
+  return s;
+}
+
 function mapEnum(value, map) {
   if (!hasValue(value)) return null;
   return map[value] || String(value);
@@ -188,7 +195,7 @@ function formatNutzungsdauer(v) {
     const wert = v.nutzungsdauer_custom_wert;
     const einheit = EINHEIT_MAP[v.nutzungsdauer_custom_einheit] || v.nutzungsdauer_custom_einheit;
     if (hasValue(wert) && hasValue(einheit)) return `${wert} ${einheit}`;
-    return 'Individuell';
+    return usableFreeText(v._koopNutzungsrechte) || 'Individuell';
   }
   return NUTZUNGSDAUER_MAP[v.nutzungsdauer] || String(v.nutzungsdauer);
 }

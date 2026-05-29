@@ -8,6 +8,7 @@ import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { renderMarkeBubble, renderPersonBubble } from './UnternehmenDetailRendererHelpers.js';
 import { renderStrategiebriefing as renderStrategiebriefingShared, bindStrategiebriefingCreateButton } from '../kickoff/StrategiebriefingRenderer.js';
+import { getPaymentRowStatusClass } from '../auftrag/logic/PaymentRowStatus.js';
 
 export function renderStrategien(detail) {
   if (!detail.strategien || detail.strategien.length === 0) {
@@ -304,11 +305,7 @@ export function renderKundenrechnungen(detail) {
   const uncheckIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="var(--text-muted, #9ca3af)" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>`;
 
   const rows = detail.kundenrechnungen.map(r => {
-    const paymentClass = r.ueberwiesen
-      ? 'auftrag-row--ueberwiesen'
-      : r.rechnung_gestellt
-        ? 'auftrag-row--rechnung-gestellt'
-        : '';
+    const paymentClass = getPaymentRowStatusClass(r);
     return `
     <tr class="${paymentClass}">
       <td>${r.marke ? renderMarkeBubble(detail, r.marke) : '-'}</td>
@@ -323,8 +320,8 @@ export function renderKundenrechnungen(detail) {
       <td>${formatCurrency(r.nettobetrag)}</td>
       <td>${formatCurrency(r.ust_betrag)}</td>
       <td>${formatCurrency(r.bruttobetrag)}</td>
-      <td class="table-cell-center">${r.rechnung_gestellt ? checkIcon : uncheckIcon}</td>
-      <td class="table-cell-center">${r.ueberwiesen ? checkIcon : uncheckIcon}</td>
+      <td class="table-cell-center">${r.rechnung_gestellt_am ? checkIcon : uncheckIcon}</td>
+      <td class="table-cell-center">${r.ueberwiesen_am ? checkIcon : uncheckIcon}</td>
       <td>${formatDate(r.ueberwiesen_am)}</td>
     </tr>
   `}).join('');

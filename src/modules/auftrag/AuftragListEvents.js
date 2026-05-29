@@ -241,10 +241,10 @@ AuftragList.prototype.bindGlobalDelegatedEvents = function() {
 
   this._entityUpdatedHandler = (e) => {
     const entity = e?.detail?.entity;
-    if (entity !== 'auftrag' && entity !== 'auftrag_details' && entity !== 'auftragsdetails') return;
+    if (entity !== 'auftrag' && entity !== 'auftrag_teilrechnung' && entity !== 'auftrag_details' && entity !== 'auftragsdetails') return;
 
     const isInlineBillingUpdate =
-      entity === 'auftrag' &&
+      (entity === 'auftrag' || entity === 'auftrag_teilrechnung') &&
       e.detail.action === 'updated' &&
       (e.detail.field === 'rechnung_gestellt_am' || e.detail.field === 'ueberwiesen_am' || e.detail.field === 'erwarteter_monat_zahlungseingang') &&
       e.detail.id;

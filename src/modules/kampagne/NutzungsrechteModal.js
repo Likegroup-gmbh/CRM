@@ -42,7 +42,7 @@ export class NutzungsrechteModal {
     try {
       const { data, error } = await window.supabase
         .from('vertraege')
-        .select(NUTZUNGSRECHTE_SELECT)
+        .select(`${NUTZUNGSRECHTE_SELECT}, kooperationen(nutzungsrechte)`)
         .eq('id', vertragId)
         .single();
 
@@ -51,6 +51,10 @@ export class NutzungsrechteModal {
         this._setBody(this._errorBody('Nutzungsrechte konnten nicht geladen werden.'));
         return;
       }
+
+      data._koopNutzungsrechte = Array.isArray(data.kooperationen)
+        ? data.kooperationen[0]?.nutzungsrechte
+        : data.kooperationen?.nutzungsrechte;
 
       const { typLabel, sections } = buildNutzungsrechte(data);
       this._setHeader(typLabel);
