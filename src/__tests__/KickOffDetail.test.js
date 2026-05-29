@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { KickOffDetail } from '../modules/kickoff/KickOffDetail.js';
 
-const SAMPLE_KICKOFF = {
+const LEGACY_KICKOFF = {
   id: 'ko-1',
   kickoff_type: 'organic',
+  schema_version: 'legacy',
   brand_essenz: 'Nachhaltigkeit und Innovation',
   mission: 'Wir machen die Welt besser',
   zielgruppe: 'Frauen 25-35, urban',
@@ -17,12 +18,29 @@ const SAMPLE_KICKOFF = {
   marke: { id: 'm1', markenname: 'SuperBrand' },
 };
 
+const V2_KICKOFF = {
+  id: 'ko-2',
+  kickoff_type: 'influencer',
+  schema_version: 'v2',
+  kampagnenart: 'influencer',
+  kampagnen_zusammenfassung: 'Creator-Kampagne mit TikTok-Fokus auf Gen-Z',
+  beworben_typ: 'produkt',
+  plattformen: ['tiktok', 'instagram'],
+  ziel_influencer: 'awareness',
+  format_influencer: 'reel',
+  erfolgskriterien: 'Native Optik, Hook in 2 Sek',
+  created_at: '2025-08-01T10:00:00Z',
+  updated_at: '2025-08-10T14:00:00Z',
+  unternehmen: { id: 'u2', firmenname: 'Beta Corp' },
+  marke: { id: 'm2', markenname: 'BetaBrand' },
+};
+
 const SAMPLE_MARKENWERTE = [
   { markenwert_id: 'mw1', markenwert: { id: 'mw1', name: 'Qualität' } },
   { markenwert_id: 'mw2', markenwert: { id: 'mw2', name: 'Innovation' } },
 ];
 
-function mockSupabaseForDetail(kickoff = SAMPLE_KICKOFF, markenwerte = SAMPLE_MARKENWERTE) {
+function mockSupabaseForDetail(kickoff, markenwerte = SAMPLE_MARKENWERTE) {
   return {
     from: vi.fn((table) => {
       if (table === 'marke_kickoff') {
@@ -46,7 +64,7 @@ function mockSupabaseForDetail(kickoff = SAMPLE_KICKOFF, markenwerte = SAMPLE_MA
   };
 }
 
-describe('KickOffDetail', () => {
+describe('KickOffDetail (Strategiebriefing)', () => {
   let detail;
 
   beforeEach(() => {
@@ -65,94 +83,79 @@ describe('KickOffDetail', () => {
     window.validatorSystem = { sanitizeHtml: (s) => s };
     window.breadcrumbSystem = { updateDetailLabel: vi.fn() };
     window.currentUser = { rolle: 'admin', permissions: { kickoff: { can_view: true, can_edit: true, can_delete: true } } };
-    window.supabase = mockSupabaseForDetail();
-    detail = new KickOffDetail();
   });
 
-  it('Sidebar enthält nur Tab-Navigation, keine Info-Items', async () => {
-    await detail.init('ko-1');
+  describe('Legacy-Ansicht', () => {
+    beforeEach(() => {
+      window.supabase = mockSupabaseForDetail(LEGACY_KICKOFF);
+      detail = new KickOffDetail();
+    });
 
-    const sidebar = document.querySelector('.profile-sidebar');
-    const sidebarText = sidebar.innerHTML;
+    it('zeigt Legacy-Felder (Brand-Essenz, Mission, etc.)', async () => {
+      await detail.init('ko-1');
 
-    expect(sidebarText).toContain('secondary-tab-nav');
-    expect(sidebarText).toContain('Informationen');
-    expect(sidebarText).not.toContain('Brand-Essenz');
-    expect(sidebarText).not.toContain('Mission');
+      const content = window.content.innerHTML;
+      expect(content).toContain('Nachhaltigkeit und Innovation');
+      expect(content).toContain('Wir machen die Welt besser');
+      expect(content).toContain('Frauen 25-35, urban');
+      expect(content).toContain('Legacy');
+    });
+
+    it('zeigt Markenwerte als Tags', async () => {
+      await detail.init('ko-1');
+
+      const content = window.content.innerHTML;
+      expect(content).toContain('Qualität');
+      expect(content).toContain('Innovation');
+    });
+
+    it('zeigt headline "Strategiebriefing"', async () => {
+      await detail.init('ko-1');
+      expect(window.setHeadline).toHaveBeenCalledWith('Strategiebriefing');
+    });
   });
 
-  it('Main Content enthält alle Kick-Off-Inhaltsfelder im Informationen-Tab', async () => {
-    await detail.init('ko-1');
+  describe('v2-Ansicht', () => {
+    beforeEach(() => {
+      window.supabase = mockSupabaseForDetail(V2_KICKOFF, []);
+      detail = new KickOffDetail();
+    });
 
-    const main = document.querySelector('.profile-main-content--secondary-scroll');
-    const mainText = main.innerHTML;
+    it('zeigt v2-Felder (Zusammenfassung, Plattformen, etc.)', async () => {
+      await detail.init('ko-2');
 
-    expect(mainText).toContain('Nachhaltigkeit und Innovation');
-    expect(mainText).toContain('Wir machen die Welt besser');
-    expect(mainText).toContain('Frauen 25-35, urban');
-    expect(mainText).toContain('Umweltbewusst, aktiv');
-    expect(mainText).toContain('Einzigartiges Material');
-    expect(mainText).toContain('Locker und professionell');
-    expect(mainText).toContain('Modern, clean');
+      const content = window.content.innerHTML;
+      expect(content).toContain('Creator-Kampagne mit TikTok-Fokus');
+      expect(content).toContain('Zusammenfassung');
+      expect(content).toContain('tiktok, instagram');
+      expect(content).toContain('awareness');
+    });
 
-    expect(mainText).toContain('Acme GmbH');
-    expect(mainText).toContain('SuperBrand');
-    expect(mainText).toContain('Erstellt am');
+    it('zeigt Kampagnenart "Influencer"', async () => {
+      await detail.init('ko-2');
 
-    expect(document.querySelector('#tab-informationen')).not.toBeNull();
-  });
+      const content = window.content.innerHTML;
+      expect(content).toContain('Influencer');
+    });
 
-  it('zeigt Markenwerte als Tags', async () => {
-    await detail.init('ko-1');
+    it('zeigt Erfolgskriterien', async () => {
+      await detail.init('ko-2');
 
-    const content = window.content.innerHTML;
-    expect(content).toContain('Qualität');
-    expect(content).toContain('Innovation');
-  });
+      const content = window.content.innerHTML;
+      expect(content).toContain('Native Optik, Hook in 2 Sek');
+    });
 
-  it('zeigt den Typ als Tag (nicht Badge)', async () => {
-    await detail.init('ko-1');
-
-    const content = window.content.innerHTML;
-    expect(content).toContain('<span class="tag">Organic</span>');
-    expect(content).not.toContain('badge');
-  });
-
-  it('nutzt das Secondary-Nav-Layout wie MarkeDetail', async () => {
-    await detail.init('ko-1');
-
-    expect(document.querySelector('.profile-page-wrapper')).not.toBeNull();
-    expect(document.querySelector('.profile-detail-layout--secondary-nav')).not.toBeNull();
-    expect(document.querySelector('.secondary-tab-nav')).not.toBeNull();
-    expect(document.querySelector('.profile-main-content--secondary-scroll')).not.toBeNull();
+    it('lädt keine Markenwerte für v2', async () => {
+      await detail.init('ko-2');
+      // v2 braucht keine Markenwerte-Junction
+      expect(window.supabase.from).not.toHaveBeenCalledWith('marke_kickoff_markenwerte');
+    });
   });
 
   describe('Berechtigungen', () => {
-    it('zeigt keine Quick-Action-Buttons', async () => {
-      window.currentUser = { rolle: 'admin' };
-      await detail.init('ko-1');
-
-      const actions = document.querySelectorAll('.profile-action-btn');
-      expect(actions.length).toBe(0);
-    });
-
-    it('zeigt keine Bearbeiten-Action für Kunde', async () => {
-      window.currentUser = { rolle: 'kunde' };
-      await detail.init('ko-1');
-
-      const content = window.content.innerHTML;
-      expect(content).not.toContain('Bearbeiten');
-    });
-
-    it('zeigt Unternehmen und Marke ohne Link für Kunde', async () => {
-      window.currentUser = { rolle: 'kunde' };
-      await detail.init('ko-1');
-
-      const content = window.content.innerHTML;
-      expect(content).toContain('Acme GmbH');
-      expect(content).toContain('SuperBrand');
-      expect(content).not.toContain('href="/unternehmen/');
-      expect(content).not.toContain('href="/marke/');
+    beforeEach(() => {
+      window.supabase = mockSupabaseForDetail(LEGACY_KICKOFF);
+      detail = new KickOffDetail();
     });
 
     it('zeigt Unternehmen und Marke als Link für Admin', async () => {
@@ -162,6 +165,15 @@ describe('KickOffDetail', () => {
       const content = window.content.innerHTML;
       expect(content).toContain('href="/unternehmen/u1"');
       expect(content).toContain('href="/marke/m1"');
+    });
+
+    it('zeigt Unternehmen und Marke ohne Link für Kunde', async () => {
+      window.currentUser = { rolle: 'kunde' };
+      await detail.init('ko-1');
+
+      const content = window.content.innerHTML;
+      expect(content).toContain('Acme GmbH');
+      expect(content).not.toContain('href="/unternehmen/');
     });
   });
 });

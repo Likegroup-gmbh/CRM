@@ -185,21 +185,23 @@ export async function loadMarkeTabData(detail, tabName) {
             .eq('marke_id', detail.markeId);
           if (!isStillActive()) return kickoffList;
 
-          detail.kickoffsByType = { paid: null, organic: null };
+          detail.kickoffsByType = { influencer: null, paid: null, organic: null };
           (kickoffList || []).forEach(item => {
-            const typeKey = item.kickoff_type || 'organic';
-            if (typeKey === 'paid' || typeKey === 'organic') {
+            const typeKey = item.kampagnenart || item.kickoff_type || 'organic';
+            if (typeKey === 'paid' || typeKey === 'organic' || typeKey === 'influencer') {
               detail.kickoffsByType[typeKey] = item;
             }
           });
 
           if (!detail.kickoffsByType[detail.activeKickoffType]) {
-            detail.activeKickoffType = detail.kickoffsByType.organic
-              ? 'organic'
-              : (detail.kickoffsByType.paid ? 'paid' : 'organic');
+            detail.activeKickoffType = detail.kickoffsByType.influencer
+              ? 'influencer'
+              : (detail.kickoffsByType.organic
+                ? 'organic'
+                : (detail.kickoffsByType.paid ? 'paid' : 'influencer'));
           }
 
-          detail.kickoffMarkenwerteByType = { paid: [], organic: [] };
+          detail.kickoffMarkenwerteByType = { influencer: [], paid: [], organic: [] };
           const kickoffEntries = Object.entries(detail.kickoffsByType).filter(([, value]) => value);
           if (kickoffEntries.length > 0) {
             const markenwerteResults = await Promise.all(

@@ -86,7 +86,7 @@ export function renderTabNavigation(detail) {
     { tab: 'informationen', label: 'Informationen', isActive: detail.activeMainTab === 'informationen' },
     ...(showKickOffTab ? [{
       tab: 'kickoff',
-      label: 'Kick-Off',
+      label: 'Strategiebriefing',
       count: Object.values(detail.kickoffsByType).filter(Boolean).length,
       isActive: detail.activeMainTab === 'kickoff'
     }] : []),

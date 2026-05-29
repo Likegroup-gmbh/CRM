@@ -28,6 +28,32 @@ export function getVideoFeedbackSlotByField(fieldName) {
   return VIDEO_FEEDBACK_FIELD_MAP[fieldName] || null;
 }
 
+export function getVideoFeedbackSlot(runde, feedbackTyp) {
+  return VIDEO_FEEDBACK_FIELDS.find(
+    slot => slot.runde === Number(runde) && slot.feedback_typ === feedbackTyp
+  ) || null;
+}
+
+/**
+ * Mappt eine Video-Version (Feedbackschleife) + Rolle auf das passende
+ * Feedback-Ziel im Player.
+ *  - Version 1 -> Runde 1, Version 2 -> Runde 2.
+ *  - Version 3 = finale Version: Feedback read-only (kein editierbarer Slot).
+ *  - feedback_typ: Kunde -> 'kunde', sonst 'cj'.
+ * @param {number} version
+ * @param {boolean} isKunde
+ * @returns {{ runde: number, feedback_typ: string, slot: object|null, counterpartSlot: object|null, readonly: boolean }}
+ */
+export function resolveVideoFeedbackTarget(version, isKunde) {
+  const v = Number(version) || 1;
+  const runde = v >= 2 ? 2 : 1;
+  const feedbackTyp = isKunde ? 'kunde' : 'cj';
+  const readonly = v >= 3;
+  const slot = getVideoFeedbackSlot(runde, feedbackTyp);
+  const counterpartSlot = getVideoFeedbackSlot(runde, feedbackTyp === 'kunde' ? 'cj' : 'kunde');
+  return { runde, feedback_typ: feedbackTyp, slot, counterpartSlot, readonly };
+}
+
 export function getVideoFeedbackBucket(comment) {
   const hasType = comment?.feedback_typ === 'cj' || comment?.feedback_typ === 'kunde';
   if (!hasType) {

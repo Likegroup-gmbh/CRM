@@ -91,6 +91,27 @@ describe('finalizeRechnungSubmitData', () => {
 
     expect(submitData.ust_prozent).toBe(19);
   });
+
+  it('entfernt leeres vertrag_id statt es auf null zu setzen (kein Entknuepfen)', () => {
+    const form = makeForm();
+
+    const empty = { vertrag_id: '' };
+    finalizeRechnungSubmitData(form, empty);
+    expect(empty).not.toHaveProperty('vertrag_id');
+
+    const nullVal = { vertrag_id: null };
+    finalizeRechnungSubmitData(form, nullVal);
+    expect(nullVal).not.toHaveProperty('vertrag_id');
+  });
+
+  it('behaelt ein gesetztes vertrag_id (bewusstes Aendern bleibt moeglich)', () => {
+    const form = makeForm();
+    const submitData = { vertrag_id: 'v-123' };
+
+    finalizeRechnungSubmitData(form, submitData);
+
+    expect(submitData.vertrag_id).toBe('v-123');
+  });
 });
 
 describe('AutoCalculation.calculateUstBetrag with ust_prozent=0', () => {

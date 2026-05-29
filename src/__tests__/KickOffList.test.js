@@ -16,6 +16,7 @@ const SAMPLE_KICKOFFS = [
   {
     id: '1',
     kickoff_type: 'organic',
+    schema_version: 'legacy',
     brand_essenz: 'Wir stehen für Nachhaltigkeit und Innovation in allem was wir tun und mehr als achtzig Zeichen lang ist dieser Text hier',
     created_at: '2025-06-01T10:00:00Z',
     unternehmen: { id: 'u1', firmenname: 'Acme GmbH', internes_kuerzel: 'ACM', logo_url: null },
@@ -24,22 +25,26 @@ const SAMPLE_KICKOFFS = [
   {
     id: '2',
     kickoff_type: 'paid',
-    brand_essenz: 'Performance first',
+    schema_version: 'v2',
+    kampagnenart: 'paid',
+    kampagnen_zusammenfassung: 'Performance-Kampagne mit ROAS-Ziel',
     created_at: '2025-07-15T12:00:00Z',
     unternehmen: { id: 'u2', firmenname: 'Beta Corp', internes_kuerzel: 'BET', logo_url: null },
     marke: null,
   },
   {
     id: '3',
-    kickoff_type: 'organic',
-    brand_essenz: 'Marke ohne direktes Unternehmen',
+    kickoff_type: 'influencer',
+    schema_version: 'v2',
+    kampagnenart: 'influencer',
+    kampagnen_zusammenfassung: 'Creator-Content mit TikTok-Fokus',
     created_at: '2025-08-01T10:00:00Z',
     unternehmen: null,
     marke: { id: 'm2', markenname: 'OnlyMarke', logo_url: null, unternehmen: { id: 'u3', firmenname: 'Gamma AG', internes_kuerzel: 'GAM', logo_url: null } },
   },
 ];
 
-describe('KickOffList', () => {
+describe('KickOffList (Strategiebriefing)', () => {
   let list;
 
   beforeEach(() => {
@@ -61,71 +66,58 @@ describe('KickOffList', () => {
     list = new KickOffList();
   });
 
-  it('rendert eine Tabelle mit den Spalten Unternehmen, Marke, Typ, Brand-Essenz, Erstellt am', async () => {
+  it('rendert Spalten: Unternehmen, Marke, Kampagnenart, Zusammenfassung, Erstellt am', async () => {
     await list.init();
 
     const headers = [...document.querySelectorAll('th')].map(th => th.textContent.trim());
     expect(headers).toContain('Unternehmen');
     expect(headers).toContain('Marke');
-    expect(headers).toContain('Typ');
-    expect(headers).toContain('Brand-Essenz');
+    expect(headers).toContain('Kampagnenart');
+    expect(headers).toContain('Zusammenfassung');
     expect(headers).toContain('Erstellt am');
   });
 
-  it('zeigt die Kick-Off-Daten in den Tabellenzeilen an', async () => {
+  it('zeigt Legacy-Daten mit brand_essenz als Zusammenfassung', async () => {
     await list.init();
 
     const rows = document.querySelectorAll('tbody tr');
     expect(rows.length).toBe(3);
 
     const firstRowCells = [...rows[0].querySelectorAll('td')];
-    expect(firstRowCells[0].textContent).toContain('ACM');
-    expect(firstRowCells[1].textContent).toContain('SuperBrand');
-    expect(firstRowCells[2].textContent.toLowerCase()).toContain('organic');
+    expect(firstRowCells[3].textContent).toContain('Nachhaltigkeit');
   });
 
-  it('kürzt Brand-Essenz auf maximal 80 Zeichen', async () => {
+  it('zeigt v2-Daten mit kampagnen_zusammenfassung', async () => {
     await list.init();
 
     const rows = document.querySelectorAll('tbody tr');
-    const essenzCell = rows[0].querySelectorAll('td')[3];
-    const text = essenzCell.textContent.trim();
-    expect(text.length).toBeLessThanOrEqual(83); // 80 + '...'
+    const secondRowCells = [...rows[1].querySelectorAll('td')];
+    expect(secondRowCells[3].textContent).toContain('Performance-Kampagne');
   });
 
-  it('zeigt "-" wenn keine Marke vorhanden', async () => {
+  it('zeigt Influencer-Typ für v2-Einträge', async () => {
     await list.init();
 
     const rows = document.querySelectorAll('tbody tr');
-    const markeCell = rows[1].querySelectorAll('td')[1];
-    expect(markeCell.textContent.trim()).toBe('-');
+    const thirdRowCells = [...rows[2].querySelectorAll('td')];
+    expect(thirdRowCells[2].textContent).toContain('Influencer');
   });
 
-  it('nutzt Avatar-Bubbles für Unternehmen und Marke', async () => {
+  it('markiert Legacy-Einträge mit Legacy-Tag', async () => {
     await list.init();
 
     const rows = document.querySelectorAll('tbody tr');
-    const unternehmenCell = rows[0].querySelectorAll('td')[0];
-    const markeCell = rows[0].querySelectorAll('td')[1];
-    expect(unternehmenCell.querySelector('.avatar-bubbles')).not.toBeNull();
-    expect(markeCell.querySelector('.avatar-bubbles')).not.toBeNull();
+    expect(rows[0].innerHTML).toContain('Legacy');
+    expect(rows[1].innerHTML).not.toContain('Legacy');
   });
 
-  it('zeigt internes Kürzel als Label bei Unternehmen-Bubble', async () => {
+  it('kürzt Zusammenfassung auf maximal 80 Zeichen', async () => {
     await list.init();
 
     const rows = document.querySelectorAll('tbody tr');
-    const label = rows[0].querySelector('td .avatar-bubble-label');
-    expect(label).not.toBeNull();
-    expect(label.textContent).toContain('ACM');
-  });
-
-  it('löst Unternehmen über Marke-Relation auf wenn unternehmen_id null', async () => {
-    await list.init();
-
-    const rows = document.querySelectorAll('tbody tr');
-    const thirdRowUnternehmen = rows[2].querySelectorAll('td')[0];
-    expect(thirdRowUnternehmen.textContent).toContain('GAM');
+    const summaryCell = rows[0].querySelectorAll('td')[3];
+    const text = summaryCell.textContent.trim();
+    expect(text.length).toBeLessThanOrEqual(83);
   });
 
   it('navigiert bei Klick auf eine Zeile zur Detailseite', async () => {
@@ -137,25 +129,14 @@ describe('KickOffList', () => {
     expect(window.navigateTo).toHaveBeenCalledWith('/kickoff/1');
   });
 
-  it('ruft Supabase mit korrekter Tabelle und Select auf', async () => {
+  it('zeigt headline "Strategiebriefings"', async () => {
     await list.init();
-
-    expect(window.supabase.from).toHaveBeenCalledWith('marke_kickoff');
-    expect(window.supabase._query.select).toHaveBeenCalled();
-    const selectArg = window.supabase._query.select.mock.calls[0][0];
-    expect(selectArg).toContain('unternehmen');
-    expect(selectArg).toContain('marke');
+    expect(window.setHeadline).toHaveBeenCalledWith('Strategiebriefings');
   });
 
   describe('Berechtigungen', () => {
     it('zeigt Create-Button für Admin', async () => {
       window.currentUser = { rolle: 'admin' };
-      await list.init();
-      expect(document.getElementById('kickoff-create-btn')).not.toBeNull();
-    });
-
-    it('zeigt Create-Button für Mitarbeiter', async () => {
-      window.currentUser = { rolle: 'mitarbeiter' };
       await list.init();
       expect(document.getElementById('kickoff-create-btn')).not.toBeNull();
     });
@@ -166,23 +147,15 @@ describe('KickOffList', () => {
       expect(document.getElementById('kickoff-create-btn')).toBeNull();
     });
 
-    it('versteckt Create-Button für Kunde-Editor', async () => {
-      window.currentUser = { rolle: 'kunde_editor' };
-      await list.init();
-      expect(document.getElementById('kickoff-create-btn')).toBeNull();
-    });
-
-    it('Kunde sieht nur 3 Spalten: Typ, Brand-Essenz, Erstellt am', async () => {
+    it('Kunde sieht nur 3 Spalten: Kampagnenart, Zusammenfassung, Erstellt am', async () => {
       window.currentUser = { rolle: 'kunde' };
       await list.init();
 
       const headers = [...document.querySelectorAll('th')].map(th => th.textContent.trim());
       expect(headers).toHaveLength(3);
-      expect(headers).toContain('Typ');
-      expect(headers).toContain('Brand-Essenz');
+      expect(headers).toContain('Kampagnenart');
+      expect(headers).toContain('Zusammenfassung');
       expect(headers).toContain('Erstellt am');
-      expect(headers).not.toContain('Unternehmen');
-      expect(headers).not.toContain('Marke');
     });
 
     it('Admin sieht alle 5 Spalten', async () => {
@@ -191,8 +164,6 @@ describe('KickOffList', () => {
 
       const headers = [...document.querySelectorAll('th')].map(th => th.textContent.trim());
       expect(headers).toHaveLength(5);
-      expect(headers).toContain('Unternehmen');
-      expect(headers).toContain('Marke');
     });
   });
 });

@@ -641,7 +641,7 @@ export class KooperationDetail extends PersonDetailBase {
               </a>
               <div class="submenu" data-submenu="status">
                 <a href="#" class="submenu-item" data-action="set-field" data-field="status" data-value="produktion" data-id="${v.id}">
-                  ${actionsDropdown.getStatusIcon('Kick-Off')}
+                  ${actionsDropdown.getStatusIcon('Strategiebriefing')}
                   <span>Produktion</span>
                   ${(v.status || 'produktion') === 'produktion' ? '<span class="submenu-check">✓</span>' : ''}
                 </a>

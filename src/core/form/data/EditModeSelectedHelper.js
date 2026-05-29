@@ -22,7 +22,7 @@ export async function applyEditModeSelectedForDirectQuery(field, form, options) 
       const simpleSingleSelectFields = [
         'unternehmen_id', 'marke_id', 'auftrag_id', 'status_id', 'drehort_typ_id',
         'kampagne_typ', 'ansprechpartner_id', 'status', 'kampagne_id',
-        'briefing_id', 'creator_id', 'kooperation_id'
+        'briefing_id', 'creator_id', 'kooperation_id', 'vertrag_id'
       ];
 
       if (simpleSingleSelectFields.includes(field.name) && editData[field.name]) {

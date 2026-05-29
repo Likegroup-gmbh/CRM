@@ -1,4 +1,5 @@
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
+import { StrategiebriefingService } from './StrategiebriefingService.js';
 
 export class KickOffDetail extends PersonDetailBase {
   _abortController = null;
@@ -13,7 +14,7 @@ export class KickOffDetail extends PersonDetailBase {
 
   async init(id) {
     this.kickoffId = id;
-    window.setHeadline('Kick-Off');
+    window.setHeadline('Strategiebriefing');
 
     await this.loadData();
     this.render();
@@ -31,7 +32,7 @@ export class KickOffDetail extends PersonDetailBase {
       if (error) throw error;
       this.kickoff = data;
 
-      if (this.kickoff) {
+      if (this.kickoff && !StrategiebriefingService.isV2(this.kickoff)) {
         const { data: mw } = await window.supabase
           .from('marke_kickoff_markenwerte')
           .select('markenwert_id, markenwert:markenwert_id(id, name)')
@@ -41,11 +42,11 @@ export class KickOffDetail extends PersonDetailBase {
       }
 
       if (window.breadcrumbSystem) {
-        const label = this.kickoff?.unternehmen?.firmenname || 'Kick-Off';
+        const label = this.kickoff?.unternehmen?.firmenname || 'Strategiebriefing';
         window.breadcrumbSystem.updateDetailLabel(label);
       }
     } catch (e) {
-      console.error('Fehler beim Laden des Kick-Offs:', e);
+      console.error('Fehler beim Laden des Strategiebriefings:', e);
       this.kickoff = null;
       this.markenwerte = [];
     }
@@ -57,7 +58,7 @@ export class KickOffDetail extends PersonDetailBase {
 
   render() {
     if (!this.kickoff) {
-      window.setContentSafely(window.content, '<div class="error-message"><p>Kick-Off nicht gefunden.</p></div>');
+      window.setContentSafely(window.content, '<div class="error-message"><p>Strategiebriefing nicht gefunden.</p></div>');
       return;
     }
 
@@ -65,10 +66,11 @@ export class KickOffDetail extends PersonDetailBase {
     const firmenname = k.unternehmen?.firmenname || 'Unbekannt';
     const markenname = k.marke?.markenname || '';
     const displayName = markenname ? `${firmenname} — ${markenname}` : firmenname;
+    const typeLabel = StrategiebriefingService.getLabel(k.kampagnenart || k.kickoff_type);
 
     const person = {
       name: displayName,
-      subtitle: k.kickoff_type === 'paid' ? 'Paid' : 'Organic',
+      subtitle: typeLabel,
       avatarOnly: false,
     };
 
@@ -86,26 +88,52 @@ export class KickOffDetail extends PersonDetailBase {
           : `<a href="/marke/${k.marke.id}" onclick="event.preventDefault(); window.navigateTo('/marke/${k.marke.id}')">${this.sanitize(k.marke.markenname)}</a>`)
       : null;
 
-    const markenwerteHtml = this.markenwerte.length > 0
-      ? this.markenwerte.map(m => `<span class="tag">${this.sanitize(m.name)}</span>`).join(' ')
-      : '—';
+    let sidebarInfo;
 
-    const sidebarInfo = this.renderInfoItems([
-      { label: 'Typ', rawHtml: `<span class="tag">${this.sanitize(k.kickoff_type === 'paid' ? 'Paid' : 'Organic')}</span>` },
-      { icon: 'building', label: 'Unternehmen', rawHtml: unternehmenLink || '-' },
-      { icon: 'marke', label: 'Marke', rawHtml: markeLink || '-' },
-      { icon: 'calendar', label: 'Erstellt am', value: this.formatDate(k.created_at) },
-      { label: 'Brand-Essenz', value: k.brand_essenz },
-      { label: 'Mission', value: k.mission },
-      { label: 'Zielgruppe', value: k.zielgruppe },
-      { label: 'Mindset der Zielgruppe', value: k.zielgruppen_mindset },
-      { label: 'USP', value: k.marken_usp },
-      { label: 'Tonalität & Sprachstil', value: k.tonalitaet_sprachstil },
-      { label: 'Look & Feel', value: k.content_charakter },
-      { label: 'Dos & Donts', value: k.dos_donts },
-      { label: 'Rechtliche Leitplanken', value: k.rechtliche_leitplanken },
-      { label: 'Markenwerte', rawHtml: markenwerteHtml },
-    ]);
+    if (StrategiebriefingService.isV2(k)) {
+      sidebarInfo = this.renderInfoItems([
+        { label: 'Kampagnenart', rawHtml: `<span class="tag">${this.sanitize(typeLabel)}</span>` },
+        { icon: 'building', label: 'Unternehmen', rawHtml: unternehmenLink || '-' },
+        { icon: 'marke', label: 'Marke', rawHtml: markeLink || '-' },
+        { icon: 'calendar', label: 'Erstellt am', value: this.formatDate(k.created_at) },
+        { label: 'Zusammenfassung', value: k.kampagnen_zusammenfassung },
+        ...(k.ziel_influencer ? [{ label: 'Ziel (Influencer)', value: k.ziel_influencer }] : []),
+        ...(k.format_influencer ? [{ label: 'Format (Influencer)', value: k.format_influencer }] : []),
+        ...(k.funnel ? [{ label: 'Funnel', value: k.funnel }] : []),
+        ...(k.ziel_paid ? [{ label: 'Ziel (Paid)', value: k.ziel_paid }] : []),
+        ...(k.ziel_organic ? [{ label: 'Ziel (Organic)', value: k.ziel_organic }] : []),
+        ...(k.format_organic ? [{ label: 'Format (Organic)', value: k.format_organic }] : []),
+        { label: 'Was wird beworben?', value: k.beworben_typ },
+        { label: 'Beschreibung', value: k.beworben_beschreibung },
+        { label: 'Plattformen', value: Array.isArray(k.plattformen) ? k.plattformen.join(', ') : k.plattformen },
+        { label: 'Creator-Branche', value: k.creator_branche },
+        { label: 'Drehort', value: k.drehort },
+        { label: 'Rechtliches', value: k.rechtliches },
+        { label: 'Erfolgskriterien', value: k.erfolgskriterien },
+        { label: 'Learnings', value: k.learnings },
+      ]);
+    } else {
+      const markenwerteHtml = this.markenwerte.length > 0
+        ? this.markenwerte.map(m => `<span class="tag">${this.sanitize(m.name)}</span>`).join(' ')
+        : '—';
+
+      sidebarInfo = this.renderInfoItems([
+        { label: 'Typ', rawHtml: `<span class="tag">${this.sanitize(typeLabel)}</span> <small class="text-muted">(Legacy)</small>` },
+        { icon: 'building', label: 'Unternehmen', rawHtml: unternehmenLink || '-' },
+        { icon: 'marke', label: 'Marke', rawHtml: markeLink || '-' },
+        { icon: 'calendar', label: 'Erstellt am', value: this.formatDate(k.created_at) },
+        { label: 'Brand-Essenz', value: k.brand_essenz },
+        { label: 'Mission', value: k.mission },
+        { label: 'Zielgruppe', value: k.zielgruppe },
+        { label: 'Mindset der Zielgruppe', value: k.zielgruppen_mindset },
+        { label: 'USP', value: k.marken_usp },
+        { label: 'Tonalität & Sprachstil', value: k.tonalitaet_sprachstil },
+        { label: 'Look & Feel', value: k.content_charakter },
+        { label: 'Dos & Donts', value: k.dos_donts },
+        { label: 'Rechtliche Leitplanken', value: k.rechtliche_leitplanken },
+        { label: 'Markenwerte', rawHtml: markenwerteHtml },
+      ]);
+    }
 
     const html = this.renderTwoColumnLayout({
       person,

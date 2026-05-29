@@ -7,119 +7,84 @@ describe('RechnungVertragZuordnung', () => {
     vi.clearAllMocks();
   });
 
-  it('gibt vertragId des unterschriebenen Vertrags zurueck', async () => {
-    const mockSupabase = {
+  // Mock fuer findSignedVertragForKooperation.
+  // vertraege-Query endet auf drei .eq()-Aufrufe (creator_id, kampagne_id, is_draft)
+  // und wird direkt awaited (kein .limit() mehr).
+  function makeFindMock({ koop = { id: 'k1', creator_id: 'c1', kampagne_id: 'kamp1' }, vertraege = [], koopError = null, vertragError = null } = {}) {
+    return {
       from: vi.fn((table) => {
         if (table === 'kooperationen') {
           return {
             select: vi.fn(() => ({
               eq: vi.fn(() => ({
-                single: vi.fn(() => Promise.resolve({
-                  data: { id: 'k1', creator_id: 'c1', kampagne_id: 'kamp1' },
-                  error: null
-                }))
+                single: vi.fn(() => Promise.resolve({ data: koop, error: koopError }))
               }))
             }))
           };
         }
         if (table === 'vertraege') {
-          return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
-                  eq: vi.fn(() => ({
-                    limit: vi.fn(() => Promise.resolve({
-                      data: [{ id: 'v1', unterschriebener_vertrag_url: 'https://signed.pdf' }],
-                      error: null
-                    }))
-                  }))
-                }))
-              }))
-            }))
-          };
+          const result = Promise.resolve({ data: vertraege, error: vertragError });
+          const eq3 = vi.fn(() => result);
+          const eq2 = vi.fn(() => ({ eq: eq3 }));
+          const eq1 = vi.fn(() => ({ eq: eq2 }));
+          return { select: vi.fn(() => ({ eq: eq1 })) };
         }
       })
     };
+  }
 
-    const result = await findSignedVertragForKooperation('k1', mockSupabase);
+  it('gibt vertragId des unterschriebenen Vertrags zurueck', async () => {
+    const mock = makeFindMock({
+      vertraege: [{ id: 'v1', unterschriebener_vertrag_url: 'https://signed.pdf', kooperation_id: 'k1' }]
+    });
+
+    const result = await findSignedVertragForKooperation('k1', mock);
     expect(result.ok).toBe(true);
     expect(result.vertragId).toBe('v1');
   });
 
-  it('gibt vertragId null wenn kein unterschriebener Vertrag existiert', async () => {
-    const mockSupabase = {
-      from: vi.fn((table) => {
-        if (table === 'kooperationen') {
-          return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                single: vi.fn(() => Promise.resolve({
-                  data: { id: 'k1', creator_id: 'c1', kampagne_id: 'kamp1' },
-                  error: null
-                }))
-              }))
-            }))
-          };
-        }
-        if (table === 'vertraege') {
-          return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
-                  eq: vi.fn(() => ({
-                    limit: vi.fn(() => Promise.resolve({
-                      data: [],
-                      error: null
-                    }))
-                  }))
-                }))
-              }))
-            }))
-          };
-        }
-      })
-    };
+  it('bevorzugt den signierten Vertrag mit passender kooperation_id', async () => {
+    // Zwei signierte Vertraege fuer dieselbe creator+kampagne, aber unterschiedliche Kooperation.
+    const mock = makeFindMock({
+      koop: { id: 'k-target', creator_id: 'c1', kampagne_id: 'kamp1' },
+      vertraege: [
+        { id: 'v-other', unterschriebener_vertrag_url: 'https://a.pdf', kooperation_id: 'k-other' },
+        { id: 'v-target', dropbox_file_url: 'https://b.pdf', kooperation_id: 'k-target' }
+      ]
+    });
 
-    const result = await findSignedVertragForKooperation('k1', mockSupabase);
+    const result = await findSignedVertragForKooperation('k-target', mock);
+    expect(result.ok).toBe(true);
+    expect(result.vertragId).toBe('v-target');
+  });
+
+  it('faellt auf irgendeinen signierten Vertrag zurueck wenn kooperation_id nicht passt', async () => {
+    const mock = makeFindMock({
+      koop: { id: 'k-target', creator_id: 'c1', kampagne_id: 'kamp1' },
+      vertraege: [
+        { id: 'v-other', unterschriebener_vertrag_url: 'https://a.pdf', kooperation_id: 'k-other' }
+      ]
+    });
+
+    const result = await findSignedVertragForKooperation('k-target', mock);
+    expect(result.ok).toBe(true);
+    expect(result.vertragId).toBe('v-other');
+  });
+
+  it('gibt vertragId null wenn kein unterschriebener Vertrag existiert', async () => {
+    const mock = makeFindMock({ vertraege: [] });
+
+    const result = await findSignedVertragForKooperation('k1', mock);
     expect(result.ok).toBe(false);
     expect(result.vertragId).toBeNull();
   });
 
   it('gibt vertragId null wenn Vertrag existiert aber nicht unterschrieben ist', async () => {
-    const mockSupabase = {
-      from: vi.fn((table) => {
-        if (table === 'kooperationen') {
-          return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                single: vi.fn(() => Promise.resolve({
-                  data: { id: 'k1', creator_id: 'c1', kampagne_id: 'kamp1' },
-                  error: null
-                }))
-              }))
-            }))
-          };
-        }
-        if (table === 'vertraege') {
-          return {
-            select: vi.fn(() => ({
-              eq: vi.fn(() => ({
-                eq: vi.fn(() => ({
-                  eq: vi.fn(() => ({
-                    limit: vi.fn(() => Promise.resolve({
-                      data: [{ id: 'v1', unterschriebener_vertrag_url: null, dropbox_file_url: null }],
-                      error: null
-                    }))
-                  }))
-                }))
-              }))
-            }))
-          };
-        }
-      })
-    };
+    const mock = makeFindMock({
+      vertraege: [{ id: 'v1', unterschriebener_vertrag_url: null, dropbox_file_url: null, kooperation_id: 'k1' }]
+    });
 
-    const result = await findSignedVertragForKooperation('k1', mockSupabase);
+    const result = await findSignedVertragForKooperation('k1', mock);
     expect(result.ok).toBe(true);
     expect(result.vertragId).toBeNull();
   });

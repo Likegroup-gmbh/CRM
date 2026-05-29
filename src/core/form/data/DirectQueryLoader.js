@@ -141,7 +141,31 @@ async function loadFilteredByParent(field, form) {
     return [];
   }
 
-  const data = filteredData || [];
+  let data = filteredData || [];
+
+  // Edit-Mode: Der bereits gespeicherte Vertrag kann eine abweichende kooperation_id
+  // haben und faellt damit aus dem filterBy-Query. Ohne diese Option waere das Dropdown
+  // leer und der Wert wuerde beim Speichern auf null gesetzt -> Vertrag entknuepft.
+  // Deshalb den gespeicherten Vertrag immer als Option garantieren.
+  if (field.table === 'vertraege' && field.name === 'vertrag_id' && form.dataset.isEditMode === 'true') {
+    try {
+      const editModeData = JSON.parse(form.dataset.editModeData || '{}');
+      const existingVertragId = editModeData.vertrag_id;
+      if (existingVertragId && !data.some(v => v.id === existingVertragId)) {
+        const { data: existingVertrag } = await window.supabase
+          .from(field.table)
+          .select('*')
+          .eq('id', existingVertragId)
+          .single();
+        if (existingVertrag) {
+          data = [existingVertrag, ...data];
+        }
+      }
+    } catch (e) {
+      console.warn('⚠️ Konnte gespeicherten Vertrag nicht nachladen:', e?.message);
+    }
+  }
+
   return data;
 }
 

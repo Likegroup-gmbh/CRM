@@ -132,6 +132,13 @@ export function finalizeRechnungSubmitData(form, submitData) {
 
   // UI-only Feld entfernen
   delete submitData.ust_aktiv;
+
+  // Safety-Net: Ein leeres Vertrag-Dropdown darf eine bestehende Verknuepfung nie
+  // ueberschreiben. Leeres/null vertrag_id aus submitData entfernen, statt es auf null
+  // zu setzen. Bewusstes Aendern auf einen anderen Vertrag bleibt moeglich (Wert != leer).
+  if (submitData.vertrag_id === '' || submitData.vertrag_id === null || submitData.vertrag_id === undefined) {
+    delete submitData.vertrag_id;
+  }
 }
 
 export async function setup(form, ctx) {

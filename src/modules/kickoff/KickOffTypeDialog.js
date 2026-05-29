@@ -1,5 +1,5 @@
 // KickOffTypeDialog.js
-// Auswahl-Dialog für Kick-Off Typ (organic/paid) – Standard-Modal-Pattern
+// Auswahl-Dialog für Strategiebriefing-Typ (Influencer/Organic/Paid) – Standard-Modal-Pattern
 
 export class KickOffTypeDialog {
   static show() {
@@ -10,20 +10,24 @@ export class KickOffTypeDialog {
       const modal = document.createElement('div');
       modal.className = 'modal overlay-modal kickoff-type-modal';
       modal.innerHTML = `
-        <div class="modal-dialog" style="max-width: 440px;">
+        <div class="modal-dialog" style="max-width: 560px;">
           <div class="modal-header">
-            <h3>Kick-Off Typ wählen</h3>
+            <h3>Strategiebriefing anlegen</h3>
             <button class="modal-close" data-action="close">&times;</button>
           </div>
           <div class="modal-body">
             <div class="kickoff-type-options">
+              <button type="button" class="kickoff-type-option" data-type="influencer">
+                <span class="kickoff-type-option__label">Influencer</span>
+                <span class="kickoff-type-option__desc">Creator-Content mit klarem Ziel und Format</span>
+              </button>
               <button type="button" class="kickoff-type-option" data-type="organic">
                 <span class="kickoff-type-option__label">Organic</span>
-                <span class="kickoff-type-option__desc">Content-Strategie für organische Reichweite</span>
+                <span class="kickoff-type-option__desc">Organische Reichweite, Format und Content-Logik</span>
               </button>
               <button type="button" class="kickoff-type-option" data-type="paid">
                 <span class="kickoff-type-option__label">Paid</span>
-                <span class="kickoff-type-option__desc">Werbe-Strategie für bezahlte Kampagnen</span>
+                <span class="kickoff-type-option__desc">Bezahlte Kampagnen, Funnel und Performance-Ziel</span>
               </button>
             </div>
           </div>

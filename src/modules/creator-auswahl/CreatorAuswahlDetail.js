@@ -41,11 +41,11 @@ export class CreatorAuswahlDetail {
       if (quickMenuContainer) quickMenuContainer.style.display = 'none';
     }
 
-    this.loadColumnVisibilitySettings();
-
     try {
       this.liste = await creatorAuswahlService.getListeById(listeId);
       this.items = await creatorAuswahlService.getItems(listeId);
+
+      this.loadColumnVisibilitySettings();
 
       if (window.breadcrumbSystem && this.liste) {
         window.breadcrumbSystem.updateDetailLabel(this.liste.name);
@@ -95,13 +95,9 @@ export class CreatorAuswahlDetail {
   // --- Spalten-Sichtbarkeit ---
 
   loadColumnVisibilitySettings() {
-    try {
-      const key = `sourcing_detail_hidden_columns_${this.listeId}`;
-      const stored = localStorage.getItem(key);
-      this.hiddenColumns = stored ? JSON.parse(stored) : [];
-    } catch (error) {
-      this.hiddenColumns = [];
-    }
+    this.hiddenColumns = Array.isArray(this.liste?.hidden_columns)
+      ? this.liste.hidden_columns
+      : [];
     try {
       const callKey = `sourcing_detail_kunden_call_${this.listeId}`;
       this.kundenCallActive = localStorage.getItem(callKey) === 'true';
@@ -110,10 +106,12 @@ export class CreatorAuswahlDetail {
     }
   }
 
-  saveColumnVisibilitySettings() {
+  async saveColumnVisibilitySettings() {
     try {
-      const key = `sourcing_detail_hidden_columns_${this.listeId}`;
-      localStorage.setItem(key, JSON.stringify(this.hiddenColumns));
+      await creatorAuswahlService.updateListe(this.listeId, {
+        hidden_columns: this.hiddenColumns
+      });
+      if (this.liste) this.liste.hidden_columns = this.hiddenColumns;
     } catch (error) {
       console.error('Fehler beim Speichern der Spalten-Sichtbarkeit:', error);
     }
@@ -123,9 +121,9 @@ export class CreatorAuswahlDetail {
     if (!this.columnVisibilityDrawer) {
       this.columnVisibilityDrawer = new SourcingDetailColumnVisibilityDrawer(
         this.hiddenColumns,
-        (newHiddenColumns) => {
+        async (newHiddenColumns) => {
           this.hiddenColumns = newHiddenColumns;
-          this.saveColumnVisibilitySettings();
+          await this.saveColumnVisibilitySettings();
           this.rerenderTable();
         }
       );

@@ -143,6 +143,23 @@ async function handleSharedLink(token, path) {
   return null;
 }
 
+async function handleTemporaryLink(token, path) {
+  const resp = await fetch('https://api.dropboxapi.com/2/files/get_temporary_link', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    logHeaders(resp, 'temporary-link-FAIL');
+    throw new Error(`Temporary link failed (${resp.status}): ${text}`);
+  }
+
+  const data = await resp.json();
+  return data.link || null;
+}
+
 async function handleDiagnose() {
   const result = { timestamp: new Date().toISOString() };
   try {
@@ -233,6 +250,11 @@ exports.handler = async (event) => {
       case 'shared-link': {
         const url = await handleSharedLink(token, body.path);
         return jsonResponse(200, { url });
+      }
+
+      case 'temporary-link': {
+        const link = await handleTemporaryLink(token, body.path);
+        return jsonResponse(200, { link });
       }
 
       default:

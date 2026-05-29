@@ -3,6 +3,7 @@
 
 import { MarkeService } from './services/MarkeService.js';
 import { FormSubmitHelper } from '../../core/form/FormSubmitHelper.js';
+import { StrategiebriefingService } from '../kickoff/StrategiebriefingService.js';
 
 export class MarkeCreate {
   constructor() {
@@ -40,7 +41,7 @@ export class MarkeCreate {
             </div>
             <button type="button" class="kickoff-create-toggle-btn" id="kickoff-toggle-btn">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-              Kick-Off anlegen
+              Strategiebriefing anlegen
             </button>
           </div>
         </div>
@@ -80,20 +81,15 @@ export class MarkeCreate {
     const signal = this._abort?.signal;
     const opts = signal ? { signal } : undefined;
 
-    toggleBtn.addEventListener('click', async () => {
+    toggleBtn.addEventListener('click', () => {
       if (this._kickoffPanelOpen) {
         this.closeKickOffPanel();
         return;
       }
 
-      const { KickOffTypeDialog } = await import('../kickoff/KickOffTypeDialog.js');
-      const type = await KickOffTypeDialog.show();
-      if (!type) return;
-
-      this._kickoffType = type;
       this._kickoffPanelOpen = true;
       toggleBtn.classList.add('active');
-      toggleBtn.textContent = `Kick-Off (${type === 'organic' ? 'Organic' : 'Paid'}) ✓`;
+      toggleBtn.textContent = 'Strategiebriefing ✓';
 
       const splitContainer = document.getElementById('marke-split-container');
       const embeddedForm = document.getElementById('marke-embedded-form');
@@ -101,11 +97,11 @@ export class MarkeCreate {
 
       splitContainer.classList.remove('hidden');
 
-      const kickoffFormHtml = window.formSystem.renderFormOnly('kickoff_embedded');
+      const kickoffFormHtml = window.formSystem.renderFormOnly('strategiebriefing_embedded');
       embeddedForm.innerHTML = `
         <div class="kickoff-panel-header">
-          <h3 class="kickoff-panel-header__title">Kick-Off <span class="kickoff-panel-header__badge">${type === 'organic' ? 'Organic' : 'Paid'}</span></h3>
-          <button type="button" class="kickoff-panel-header__close" id="kickoff-panel-close" title="Kick-Off Panel schließen">
+          <h3 class="kickoff-panel-header__title">Strategiebriefing</h3>
+          <button type="button" class="kickoff-panel-header__close" id="kickoff-panel-close" title="Panel schließen">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
@@ -114,7 +110,7 @@ export class MarkeCreate {
         </div>
       `;
 
-      window.formSystem.bindFormEvents('kickoff_embedded', null);
+      window.formSystem.bindFormEvents('strategiebriefing_embedded', null);
 
       const kickoffForm = embeddedForm.querySelector('form');
       if (kickoffForm) {
@@ -143,7 +139,7 @@ export class MarkeCreate {
       toggleBtn.classList.remove('active');
       toggleBtn.innerHTML = `
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
-        Kick-Off anlegen
+        Strategiebriefing anlegen
       `;
     }
     
@@ -388,20 +384,14 @@ export class MarkeCreate {
         return;
       }
 
-      // Kick-Off-Validierung (wenn Panel offen)
+      // Strategiebriefing-Validierung (wenn Panel offen)
       if (this._kickoffPanelOpen) {
         const kickoffForm = document.querySelector('#marke-embedded-form form');
         if (kickoffForm) {
           const kickoffData = window.formSystem.collectSubmitData(kickoffForm);
-          const kickoffValidation = window.validatorSystem.validateForm(kickoffData, {
-            brand_essenz: { type: 'text', minLength: 2, required: true },
-            mission: { type: 'text', required: true },
-            zielgruppe: { type: 'text', required: true },
-            marken_usp: { type: 'text', required: true },
-            tonalitaet_sprachstil: { type: 'text', required: true }
-          });
+          const kickoffValidation = window.validatorSystem.validateForm(kickoffData, StrategiebriefingService.getValidationRules());
           if (!kickoffValidation.isValid) {
-            window.toastSystem?.show('Bitte alle Pflichtfelder im Kick-Off ausfüllen', 'error');
+            window.toastSystem?.show('Bitte alle Pflichtfelder im Strategiebriefing ausfüllen', 'error');
             if (submitBtn) {
               submitBtn.innerHTML = originalText;
               submitBtn.disabled = false;
@@ -425,13 +415,13 @@ export class MarkeCreate {
           const unternehmenId = data.unternehmen_id || null;
           await MarkeService.saveMitarbeiterToMarke(result.id, data, unternehmenId, { deleteExisting: false });
 
-          // Kick-Off speichern (wenn Panel offen)
-          if (this._kickoffPanelOpen && this._kickoffType) {
+          // Strategiebriefing speichern (wenn Panel offen)
+          if (this._kickoffPanelOpen) {
             try {
-              await this.saveKickOff(unternehmenId, result.id);
+              await this.saveStrategiebriefing(unternehmenId, result.id);
             } catch (kickoffErr) {
-              console.error('❌ Kick-Off Fehler:', kickoffErr);
-              window.toastSystem?.show('Marke erstellt, aber Kick-Off konnte nicht gespeichert werden', 'warning');
+              console.error('❌ Strategiebriefing Fehler:', kickoffErr);
+              window.toastSystem?.show('Marke erstellt, aber Strategiebriefing konnte nicht gespeichert werden', 'warning');
             }
           }
         }
@@ -459,55 +449,21 @@ export class MarkeCreate {
     }
   }
 
-  async saveKickOff(unternehmenId, markeId) {
+  async saveStrategiebriefing(unternehmenId, markeId) {
     const kickoffForm = document.querySelector('#marke-embedded-form form');
     if (!kickoffForm) return;
 
-    const kickoffData = window.formSystem.collectSubmitData(kickoffForm);
-    
-    const insertData = {
-      kickoff_type: this._kickoffType,
-      brand_essenz: kickoffData.brand_essenz || '',
-      mission: kickoffData.mission || '',
-      zielgruppe: kickoffData.zielgruppe || '',
-      zielgruppen_mindset: kickoffData.zielgruppen_mindset || '',
-      marken_usp: kickoffData.marken_usp || '',
-      tonalitaet_sprachstil: kickoffData.tonalitaet_sprachstil || '',
-      content_charakter: kickoffData.content_charakter || '',
-      dos_donts: kickoffData.dos_donts || '',
-      rechtliche_leitplanken: kickoffData.rechtliche_leitplanken || '',
-      marke_id: markeId || null,
-      unternehmen_id: markeId ? null : unternehmenId,
-      created_by: window.currentUser?.id || null
-    };
+    const formData = window.formSystem.collectSubmitData(kickoffForm);
+    const kampagnenart = formData.kampagnenart || kickoffForm.querySelector('[name="kampagnenart"]')?.value;
 
-    const { data: kickoffResult, error } = await window.supabase
-      .from('marke_kickoff')
-      .insert([insertData])
-      .select()
-      .single();
+    const result = await StrategiebriefingService.saveBriefing(formData, {
+      markeId,
+      unternehmenId,
+      kampagnenart
+    });
 
-    if (error) throw error;
-
-    // Markenwerte Junction speichern
-    const markenwerte = kickoffData.markenwerte_ids;
-    if (markenwerte && Array.isArray(markenwerte) && markenwerte.length > 0) {
-      const junctionRows = markenwerte.slice(0, 3).map(markenwertId => ({
-        kickoff_id: kickoffResult.id,
-        markenwert_id: markenwertId
-      }));
-
-      const { error: junctionError } = await window.supabase
-        .from('marke_kickoff_markenwerte')
-        .insert(junctionRows);
-
-      if (junctionError) {
-        console.error('❌ Markenwerte Junction Fehler:', junctionError);
-      }
-    }
-
-    console.log('✅ Kick-Off gespeichert:', kickoffResult.id);
-    return kickoffResult;
+    console.log('✅ Strategiebriefing gespeichert:', result.id);
+    return result;
   }
   
   // Validierungsfehler anzeigen

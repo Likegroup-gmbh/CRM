@@ -17,11 +17,10 @@ export async function findSignedVertragForKooperation(kooperationId, supabase) {
 
   const { data: vertraege, error: vertragError } = await sb
     .from('vertraege')
-    .select('id, unterschriebener_vertrag_url, dropbox_file_url')
+    .select('id, unterschriebener_vertrag_url, dropbox_file_url, kooperation_id')
     .eq('creator_id', koop.creator_id)
     .eq('kampagne_id', koop.kampagne_id)
-    .eq('is_draft', false)
-    .limit(1);
+    .eq('is_draft', false);
 
   if (vertragError) {
     return { ok: false, message: 'Vertrag konnte nicht geprueft werden. Bitte erneut versuchen.', vertragId: null };
@@ -31,12 +30,17 @@ export async function findSignedVertragForKooperation(kooperationId, supabase) {
     return { ok: false, message: 'Vor der Rechnung muss ein finaler Vertrag angelegt werden.', vertragId: null };
   }
 
-  const vertrag = vertraege[0];
-  const isSigned = vertrag.unterschriebener_vertrag_url || vertrag.dropbox_file_url;
+  const isSigned = (v) => v.unterschriebener_vertrag_url || v.dropbox_file_url;
+
+  // Deterministisch: zuerst den signierten Vertrag der exakten Kooperation bevorzugen,
+  // erst danach auf irgendeinen signierten Vertrag der creator+kampagne-Kombination ausweichen.
+  const signedForKoop = vertraege.find(v => v.kooperation_id === kooperationId && isSigned(v));
+  const anySigned = vertraege.find(v => isSigned(v));
+  const matched = signedForKoop || anySigned;
 
   return {
     ok: true,
-    vertragId: isSigned ? vertrag.id : null
+    vertragId: matched ? matched.id : null
   };
 }
 

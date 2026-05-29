@@ -342,8 +342,9 @@ export class FormRenderer {
       case 'textarea':
         const textareaDependsOn = field.dependsOn ? `data-depends-on="${field.dependsOn}"` : '';
         const textareaShowWhen = field.showWhen ? `data-show-when="${field.showWhen}"` : '';
+        const textareaHiddenStyle = field.dependsOn ? 'style="display: none;"' : '';
         return `
-          <div class="form-field form-field-full" ${textareaDependsOn} ${textareaShowWhen}>
+          <div class="form-field form-field-full" ${textareaDependsOn} ${textareaShowWhen} ${textareaHiddenStyle}>
             <label for="${fieldId}">${field.label} ${requiredMark}</label>
             <textarea id="${fieldId}" name="${field.name}" rows="4" ${required}>${this.validator.sanitizeHtml(value)}</textarea>
           </div>
@@ -411,9 +412,13 @@ export class FormRenderer {
         if (field.displayField) dataAttrs.push(`data-display-field="${field.displayField}"`);
         if (field.valueField) dataAttrs.push(`data-value-field="${field.valueField}"`);
         const dataAttrString = dataAttrs.join(' ');
+
+        const selectDependsOn = field.dependsOn ? `data-depends-on="${field.dependsOn}"` : '';
+        const selectShowWhen = field.showWhen ? `data-show-when="${field.showWhen}"` : '';
+        const selectHiddenStyle = field.dependsOn ? 'style="display: none;"' : '';
         
         return `
-          <div class="form-field">
+          <div class="form-field" ${selectDependsOn} ${selectShowWhen} ${selectHiddenStyle}>
             <label for="${fieldId}">${field.label} ${requiredMark}</label>
             <select id="${fieldId}" name="${field.name}" ${required} ${ro} ${field.readonly ? 'data-readonly="true"' : ''} ${dataAttrString}>
               ${options}
@@ -431,12 +436,19 @@ export class FormRenderer {
         const multiShowWhen = field.showWhen ? `data-show-when="${field.showWhen}"` : '';
         const multiPrefillAttr = field.prefillFromUnternehmen ? `data-prefill-from-unternehmen="true"` : '';
         const multiHiddenClass = (field.dependsOn && !field.prefillFromUnternehmen && !field.showAlways) ? 'form-field--hidden' : '';
+        const multiHiddenStyle = (field.dependsOn && !field.prefillFromUnternehmen && !field.showAlways) ? 'style="display: none;"' : '';
         
         let multiOptions = '';
         if (!field.dynamic) {
           multiOptions = field.options.map(option => {
-            const selected = selectedValues.includes(option) ? 'selected' : '';
-            return `<option value="${option}" ${selected}>${option}</option>`;
+            if (typeof option === 'string') {
+              const selected = selectedValues.includes(option) ? 'selected' : '';
+              return `<option value="${option}" ${selected}>${option}</option>`;
+            }
+            const val = option.value ?? option;
+            const label = option.label ?? val;
+            const selected = selectedValues.includes(String(val)) ? 'selected' : '';
+            return `<option value="${val}" ${selected}>${label}</option>`;
           }).join('');
         }
         
@@ -445,7 +457,7 @@ export class FormRenderer {
           const editModeData = selectedValues.length > 0 ? `data-existing-values='${JSON.stringify(selectedValues)}'` : '';
           
           return `
-            <div class="form-field ${multiHiddenClass}" ${multiDependsOn} ${multiShowWhen} ${multiPrefillAttr}>
+            <div class="form-field ${multiHiddenClass}" ${multiDependsOn} ${multiShowWhen} ${multiPrefillAttr} ${multiHiddenStyle}>
               <label for="${fieldId}">${field.label} ${requiredMark}</label>
               <select id="${fieldId}" name="${field.name}" ${required} multiple data-searchable="true" data-tag-based="${field.tagBased || 'false'}" data-placeholder="${field.placeholder || 'Bitte wählen...'}" ${editModeData}>
                 ${multiOptions}
@@ -454,12 +466,20 @@ export class FormRenderer {
           `;
         }
         
+        const checkboxItems = (field.options || []).map(option => {
+          const val = typeof option === 'string' ? option : (option.value ?? option);
+          const label = typeof option === 'string' ? option : (option.label ?? val);
+          const checked = selectedValues.includes(String(val)) ? 'checked' : '';
+          const cbId = `${fieldId}_${val}`;
+          return `<label class="checkbox-option" for="${cbId}"><input type="checkbox" id="${cbId}" name="${field.name}[]" value="${val}" ${checked}><span>${label}</span></label>`;
+        }).join('');
+
         return `
-          <div class="form-field ${multiHiddenClass}" ${multiDependsOn} ${multiShowWhen} ${multiPrefillAttr}>
-            <label for="${fieldId}">${field.label} ${requiredMark}</label>
-            <select id="${fieldId}" name="${field.name}" ${required} multiple>
-              ${multiOptions}
-            </select>
+          <div class="form-field ${multiHiddenClass}" ${multiDependsOn} ${multiShowWhen} ${multiPrefillAttr} ${multiHiddenStyle}>
+            <label>${field.label} ${requiredMark}</label>
+            <div class="checkbox-group" id="${fieldId}">
+              ${checkboxItems}
+            </div>
           </div>
         `;
 

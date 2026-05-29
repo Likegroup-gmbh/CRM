@@ -28,7 +28,7 @@ const ROUTE_CONFIG = {
   feedback:           { label: 'Feedback',          icon: 'icon-feedback' },
   education:          { label: 'Education',          icon: 'icon-dashboard' },
   'creator-lists':    { label: 'Listen',            icon: 'icon-list' },
-  kickoff:            { label: 'Kick-Off',          icon: 'icon-tag' },
+  kickoff:            { label: 'Strategiebriefing',  icon: 'icon-tag' },
   contracts:          { label: 'Contracts',          icon: 'icon-contract' },
   ausgangsrechnungen: { label: 'Kundenrechnungen', icon: 'icon-currency-euro' },
   profile:            { label: 'Profil',            icon: 'icon-user-circle' },

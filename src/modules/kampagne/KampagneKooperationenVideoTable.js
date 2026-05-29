@@ -6,6 +6,9 @@ import { VideoTableFieldHandler } from './VideoTableFieldHandler.js';
 import { VideoUploadDrawer } from './VideoUploadDrawer.js';
 import { VideoSettingsDrawer } from './VideoSettingsDrawer.js';
 import { LinkStrategieItemDrawer } from '../strategie/LinkStrategieItemDrawer.js';
+import { VideoPlayerLightbox } from '../../core/media/VideoPlayerLightbox.js';
+import { StorysViewer } from '../../core/media/StorysViewer.js';
+import { BilderGallery } from '../../core/media/BilderGallery.js';
 import { deleteVideoFile } from '../../core/VideoDeleteHelper.js';
 import { VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
 import { UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
@@ -52,6 +55,9 @@ export class KampagneKooperationenVideoTable {
     this._uploadDrawer = new VideoUploadDrawer();
     this._settingsDrawer = new VideoSettingsDrawer();
     this._linkStrategieDrawer = new LinkStrategieItemDrawer();
+    this._videoPlayer = new VideoPlayerLightbox(this);
+    this._storysViewer = new StorysViewer(this);
+    this._bilderGallery = new BilderGallery(this);
   }
 
   // Store-backed getters (Proxy zum Store, Fallback auf lokale Daten für Kompatibilität)
@@ -321,6 +327,27 @@ export class KampagneKooperationenVideoTable {
       if (settingsBtn) {
         e.preventDefault();
         this._openSettingsDrawer(settingsBtn);
+      }
+    });
+
+    container.addEventListener('click', (e) => {
+      const playBtn = e.target.closest('[data-action="play-video"]');
+      if (playBtn) {
+        e.preventDefault();
+        this._videoPlayer.open(playBtn.dataset.videoId, playBtn.dataset.kooperationId);
+        return;
+      }
+      const storysBtn = e.target.closest('[data-action="view-storys"]');
+      if (storysBtn) {
+        e.preventDefault();
+        this._storysViewer.open(storysBtn.dataset.videoId, storysBtn.dataset.kooperationId);
+        return;
+      }
+      const bilderBtn = e.target.closest('[data-action="view-bilder"]');
+      if (bilderBtn) {
+        e.preventDefault();
+        this._bilderGallery.open(bilderBtn.dataset.kooperationId);
+        return;
       }
     });
 
@@ -824,6 +851,10 @@ export class KampagneKooperationenVideoTable {
 
   destroy() {
     this._closeStatusPortal();
+
+    this._videoPlayer?.lightbox?.close();
+    this._storysViewer?.lightbox?.close();
+    this._bilderGallery?.lightbox?.close();
 
     const container = document.querySelector('.kooperation-video-grid');
     if (container) CustomDatePicker.destroy(container);

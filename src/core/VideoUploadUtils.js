@@ -96,6 +96,58 @@ export async function createFolderSharedLink(token, folderPath) {
   }
 }
 
+/**
+ * Wandelt einen Dropbox-Shared-Link in einen direkt einbettbaren Roh-Link um.
+ * Behandelt sowohl ?dl=0 als auch &dl=0 (rlkey-Links) und ergaenzt raw=1.
+ * Bereits direkte dropboxusercontent-Links bleiben unveraendert.
+ * @param {string} url
+ * @returns {string}
+ */
+export function toRawDropboxUrl(url) {
+  if (!url) return url;
+  if (/dropboxusercontent\.com/i.test(url)) return url;
+  try {
+    const u = new URL(url);
+    u.searchParams.delete('dl');
+    u.searchParams.set('raw', '1');
+    return u.toString();
+  } catch {
+    return url.replace(/([?&])dl=0\b/i, '$1raw=1');
+  }
+}
+
+/**
+ * Holt einen frischen, direkten Streaming-Link (dl.dropboxusercontent.com) fuer
+ * einen Dropbox-Pfad. Unterstuetzt Range-Requests/Seeking, gueltig ~4h.
+ * @param {string} filePath - Dropbox-Pfad (beginnt mit /)
+ * @param {string} [token]
+ * @returns {Promise<string|null>}
+ */
+let _proxyDisabled = false;
+
+/** Setzt den Proxy-Verfuegbarkeits-Latch zurueck (v.a. fuer Tests). */
+export function _resetProxyAvailability() {
+  _proxyDisabled = false;
+}
+
+export async function getTemporaryLink(filePath, token) {
+  if (!filePath || _proxyDisabled) return null;
+  try {
+    const resp = await fetch('/.netlify/functions/dropbox-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'temporary-link', path: filePath, token }),
+    });
+    // Function nicht verfuegbar (z.B. lokal ohne Netlify) -> kuenftig ueberspringen
+    if (resp.status === 404) { _proxyDisabled = true; return null; }
+    if (!resp.ok) return null;
+    const { link } = await resp.json();
+    return link || null;
+  } catch (err) {
+    return null;
+  }
+}
+
 export const IMAGE_EXTENSIONS = /\.(jpg|jpeg|png|gif|webp|svg|heic|heif|bmp|tiff|tif|avif|ico)$/i;
 export const IMAGE_MIME_PREFIX = 'image/';
 export const MAX_IMAGE_SIZE = 50 * 1024 * 1024;

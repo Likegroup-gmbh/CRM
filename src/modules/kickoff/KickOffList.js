@@ -1,4 +1,5 @@
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
+import { StrategiebriefingService } from './StrategiebriefingService.js';
 
 export class KickOffList {
   constructor() {
@@ -6,7 +7,7 @@ export class KickOffList {
   }
 
   async init() {
-    window.setHeadline('Kick-Offs');
+    window.setHeadline('Strategiebriefings');
     await this.load();
     this.render();
     this.bindEvents();
@@ -25,7 +26,7 @@ export class KickOffList {
       if (error) throw error;
       this.kickoffs = data || [];
     } catch (e) {
-      console.error('Fehler beim Laden der Kick-Offs:', e);
+      console.error('Fehler beim Laden der Strategiebriefings:', e);
       this.kickoffs = [];
     }
   }
@@ -76,21 +77,32 @@ export class KickOffList {
     }], { showLabel: true });
   }
 
+  _getSummaryColumn(k) {
+    if (StrategiebriefingService.isV2(k)) {
+      return window.validatorSystem.sanitizeHtml(this._truncate(k.kampagnen_zusammenfassung));
+    }
+    return window.validatorSystem.sanitizeHtml(this._truncate(k.brand_essenz));
+  }
+
   render() {
     const isKunde = this._isKunde();
 
-    const rows = this.kickoffs.map(k => `
+    const rows = this.kickoffs.map(k => {
+      const typeLabel = StrategiebriefingService.getLabel(k.kampagnenart || k.kickoff_type);
+      const isLegacy = !StrategiebriefingService.isV2(k);
+      return `
       <tr class="table-row-clickable" data-id="${k.id}">
         ${!isKunde ? `<td>${this._renderUnternehmen(k)}</td>` : ''}
         ${!isKunde ? `<td>${this._renderMarke(k)}</td>` : ''}
-        <td><div class="tags tags-compact"><span class="tag tag--type">${window.validatorSystem.sanitizeHtml(k.kickoff_type === 'paid' ? 'Paid' : k.kickoff_type === 'organic' ? 'Organic' : (k.kickoff_type || '—'))}</span></div></td>
-        <td>${window.validatorSystem.sanitizeHtml(this._truncate(k.brand_essenz))}</td>
+        <td><div class="tags tags-compact"><span class="tag tag--type">${window.validatorSystem.sanitizeHtml(typeLabel)}</span>${isLegacy ? '<span class="tag tag--muted" style="font-size: 0.7rem; opacity: 0.6;">Legacy</span>' : ''}</div></td>
+        <td>${this._getSummaryColumn(k)}</td>
         <td>${this._formatDate(k.created_at)}</td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
 
     const createBtn = isKunde ? '' : `
-      <button class="primary-btn" id="kickoff-create-btn" title="Kick-Off über Unternehmen oder Marke anlegen">Neuer Kick-Off</button>
+      <button class="primary-btn" id="kickoff-create-btn" title="Strategiebriefing über Unternehmen oder Marke anlegen">Neues Strategiebriefing</button>
     `;
 
     const colCount = isKunde ? 3 : 5;
@@ -107,13 +119,13 @@ export class KickOffList {
             <tr>
               ${!isKunde ? '<th>Unternehmen</th>' : ''}
               ${!isKunde ? '<th>Marke</th>' : ''}
-              <th>Typ</th>
-              <th>Brand-Essenz</th>
+              <th>Kampagnenart</th>
+              <th>Zusammenfassung</th>
               <th>Erstellt am</th>
             </tr>
           </thead>
           <tbody>
-            ${rows || `<tr><td colspan="${colCount}" style="text-align: center; padding: var(--space-lg); color: var(--text-secondary);">Keine Kick-Offs vorhanden</td></tr>`}
+            ${rows || `<tr><td colspan="${colCount}" style="text-align: center; padding: var(--space-lg); color: var(--text-secondary);">Keine Strategiebriefings vorhanden</td></tr>`}
           </tbody>
         </table>
       </div>
@@ -137,7 +149,7 @@ export class KickOffList {
         const { KickOffTypeDialog } = await import('./KickOffTypeDialog.js');
         const type = await KickOffTypeDialog.show();
         if (!type) return;
-        window.toastSystem?.show(`Kick-Off (${type === 'organic' ? 'Organic' : 'Paid'}) bitte über die Unternehmen- oder Marke-Erstellung anlegen`, 'info');
+        window.toastSystem?.show(`Strategiebriefing (${StrategiebriefingService.getLabel(type)}) bitte über die Unternehmen- oder Marke-Erstellung anlegen`, 'info');
         window.navigateTo('/unternehmen');
       });
     }

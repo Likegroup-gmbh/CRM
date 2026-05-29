@@ -61,11 +61,14 @@ export class DependentFields {
             return;
           }
           
-          const fieldContainer = field.closest('.form-field');
+          const fieldContainer = field.closest('.form-field') || field;
           if (fieldContainer) {
             if (shouldShow) {
               fieldContainer.classList.remove('form-field--hidden');
               fieldContainer.style.display = '';
+
+              const depSelect = fieldContainer.querySelector('select[disabled]');
+              if (depSelect && !depSelect.dataset.readonly) depSelect.disabled = false;
               
               // Tag-basiertes Select reinitialisieren wenn es sichtbar wird
               // NICHT für prefillFromUnternehmen-Felder
@@ -160,6 +163,9 @@ export class DependentFields {
               const isPrefillField = fieldContainer.dataset.prefillFromUnternehmen === 'true';
               if (!isPrefillField) {
                 fieldContainer.classList.add('form-field--hidden');
+                fieldContainer.style.display = 'none';
+                const depSelect = fieldContainer.querySelector('select:not([data-readonly])');
+                if (depSelect) depSelect.disabled = true;
               }
             }
             
@@ -192,7 +198,7 @@ export class DependentFields {
     
     const dependencyMap = new Map();
     config.fields.forEach(field => {
-      if (field.dependsOn) {
+      if (field.dependsOn && (field.dynamic || field.table || field.type === 'select' || field.type === 'multiselect')) {
         if (!dependencyMap.has(field.dependsOn)) {
           dependencyMap.set(field.dependsOn, []);
         }
