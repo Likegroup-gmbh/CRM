@@ -15,7 +15,8 @@ export function renderItemsTable(detail) {
   }
 
   const groupedItems = groupItemsByTeilbereich(detail.items);
-  const colCount = detail.isKunde ? 12 : 13;
+  const customCount = detail.customColumns ? detail.customColumns.visibleCount(detail.hiddenColumns, detail.isKunde) : 0;
+  const colCount = (detail.isKunde ? 12 : 13) + customCount;
 
   return `
     <div class="table-container">
@@ -34,6 +35,7 @@ export function renderItemsTable(detail) {
             <th class="col-prio">Prio 2</th>
             <th class="col-umgesetzt">Umgesetzt</th>
             <th class="col-nicht-umsetzen">Nicht umsetzen</th>
+            ${detail.customColumns ? detail.customColumns.renderHeaders(detail.hiddenColumns, detail.isKunde) : ''}
             ${!detail.isKunde ? '<th class="col-actions">Aktionen</th>' : ''}
           </tr>
         </thead>
@@ -209,6 +211,7 @@ export function renderItemRow(detail, item, index) {
           style="width: 20px; height: 20px; cursor: pointer;"
         >
       </td>
+      ${detail.customColumns ? detail.customColumns.renderCells(item.id, detail.hiddenColumns, detail.isKunde) : ''}
       ${!detail.isKunde ? `
         <td class="col-actions">
           <div class="actions-dropdown-container" data-entity-type="strategie_item">

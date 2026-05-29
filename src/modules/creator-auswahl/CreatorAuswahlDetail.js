@@ -11,6 +11,9 @@ import {
 import { CreatorAuswahlKategorienDrawer } from './CreatorAuswahlKategorienDrawer.js';
 import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
 import { autoResizeTextarea } from '../feedback/FeedbackEventHandler.js';
+import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
+import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
+import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 
 export class CreatorAuswahlDetail {
   constructor() {
@@ -28,6 +31,8 @@ export class CreatorAuswahlDetail {
     this.kategorienDrawer = new CreatorAuswahlKategorienDrawer(this);
     this.addDrawer = new CreatorAuswahlAddDrawer(this);
     this.selectedItems = new Set();
+    this.customColumns = new EntityCustomColumnsManager({ parentType: 'sourcing', parentTable: 'creator_auswahl' });
+    this._customHeaderDragCleanup = null;
   }
 
   // --- Init & Lifecycle ---
@@ -44,6 +49,9 @@ export class CreatorAuswahlDetail {
     try {
       this.liste = await creatorAuswahlService.getListeById(listeId);
       this.items = await creatorAuswahlService.getItems(listeId);
+
+      await this.customColumns.init(listeId);
+      await this.customColumns.loadValues(this.items.map(i => i.id));
 
       this.loadColumnVisibilitySettings();
 
@@ -118,18 +126,20 @@ export class CreatorAuswahlDetail {
   }
 
   showColumnVisibilityDrawer() {
-    if (!this.columnVisibilityDrawer) {
-      this.columnVisibilityDrawer = new SourcingDetailColumnVisibilityDrawer(
-        this.hiddenColumns,
-        async (newHiddenColumns) => {
-          this.hiddenColumns = newHiddenColumns;
-          await this.saveColumnVisibilitySettings();
-          this.rerenderTable();
-        }
-      );
-    } else {
-      this.columnVisibilityDrawer.hiddenColumns = this.hiddenColumns;
-    }
+    const customColumns = this.customColumns.getOrderedColumns().map(c => ({
+      className: makeCustomColumnId(c.id),
+      label: c.name
+    }));
+    // Drawer bei jedem Oeffnen neu bauen, damit neue Custom-Spalten erscheinen
+    this.columnVisibilityDrawer = new SourcingDetailColumnVisibilityDrawer(
+      this.hiddenColumns,
+      async (newHiddenColumns) => {
+        this.hiddenColumns = newHiddenColumns;
+        await this.saveColumnVisibilitySettings();
+        this.rerenderTable();
+      },
+      customColumns
+    );
     this.columnVisibilityDrawer.open();
   }
 
@@ -157,7 +167,8 @@ export class CreatorAuswahlDetail {
       isKunde: this.isKunde,
       hiddenColumns: this.hiddenColumns,
       kundenCallActive: this.kundenCallActive,
-      teilbereiche: getTeilbereicheFromListe(this.liste)
+      teilbereiche: getTeilbereicheFromListe(this.liste),
+      customManager: this.customColumns
     };
   }
 
@@ -253,6 +264,13 @@ export class CreatorAuswahlDetail {
         this._boundEventListeners.add(() => visibilityBtn.removeEventListener('click', handler));
       }
 
+      const customColumnsBtn = document.getElementById('btn-sourcing-custom-columns');
+      if (customColumnsBtn) {
+        const handler = () => this.customColumns.openManagementDrawer(() => this.rerenderTable());
+        customColumnsBtn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => customColumnsBtn.removeEventListener('click', handler));
+      }
+
       const kategorienBtn = document.getElementById('btn-manage-kategorien');
       if (kategorienBtn) {
         const handler = () => this.kategorienDrawer.open();
@@ -278,6 +296,7 @@ export class CreatorAuswahlDetail {
       this.bindSelectionEvents();
       this.bindPillEvents();
       this.bindBulkBarEvents();
+      this._bindCustomColumnEvents();
     }
 
     this.initFloatingScrollbar();
@@ -309,6 +328,60 @@ export class CreatorAuswahlDetail {
       el.addEventListener('input', handler);
       this._boundEventListeners.add(() => el.removeEventListener('input', handler));
     });
+  }
+
+  // --- Custom Columns (Eigene Spalten) ---
+
+  _bindCustomColumnEvents() {
+    if (!this.customColumns?.hasColumns) return;
+
+    // Inline-Edits der Custom-Felder
+    document.querySelectorAll('.custom-col-input').forEach(el => {
+      const handler = () => this.customColumns.handleFieldUpdate(el);
+      const isChangeOnly = el.type === 'checkbox' || el.tagName === 'SELECT' || el.classList.contains('custom-col-date');
+      if (isChangeOnly) {
+        el.addEventListener('change', handler);
+        this._boundEventListeners.add(() => el.removeEventListener('change', handler));
+      } else {
+        el.addEventListener('blur', handler);
+        el.addEventListener('change', handler);
+        this._boundEventListeners.add(() => {
+          el.removeEventListener('blur', handler);
+          el.removeEventListener('change', handler);
+        });
+      }
+    });
+
+    // Upload-Buttons
+    document.querySelectorAll('.custom-upload-btn').forEach(btn => {
+      const handler = () => this.customColumns.openUploadDrawer(btn, this._buildUploadMetadaten(), () => this.rerenderTable());
+      btn.addEventListener('click', handler);
+      this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+    });
+
+    // Header Drag&Drop (nur Custom-Spalten untereinander)
+    if (this._customHeaderDragCleanup) this._customHeaderDragCleanup();
+    const thead = document.querySelector('.creator-pool-table thead');
+    this._customHeaderDragCleanup = this.customColumns.bindHeaderDragAndDrop(thead, () => this.rerenderTable());
+    this._boundEventListeners.add(() => {
+      if (this._customHeaderDragCleanup) { this._customHeaderDragCleanup(); this._customHeaderDragCleanup = null; }
+    });
+
+    // Datepicker-Popover fuer Datums-Custom-Felder aktivieren
+    const table = document.querySelector('.creator-pool-table');
+    if (table) {
+      const cleanup = CustomDatePicker.bind(table);
+      if (cleanup) this._boundEventListeners.add(cleanup);
+    }
+  }
+
+  _buildUploadMetadaten() {
+    return {
+      unternehmen: this.liste?.unternehmen?.firmenname || '',
+      marke: this.liste?.marke?.markenname || '',
+      kampagne: this.liste?.kampagne?.kampagnenname || '',
+      kooperationName: this.liste?.name || 'Sourcing',
+    };
   }
 
   // --- Drag & Drop ---
@@ -443,6 +516,10 @@ export class CreatorAuswahlDetail {
   }
 
   async handleFieldUpdate(element) {
+    // Custom-Column-Felder werden separat behandelt (CustomDatePicker nutzt ebenfalls data-field)
+    if (element.hasAttribute('data-custom-column-id') || element.getAttribute('data-entity') === 'custom') {
+      return;
+    }
     const itemId = element.dataset.itemId;
     const field = element.dataset.field;
     let value;
@@ -668,8 +745,10 @@ export class CreatorAuswahlDetail {
   // --- Scroll & Table UX ---
 
   initFloatingScrollbar() {
-    const existingScrollbar = document.getElementById('floating-scrollbar-creator-auswahl');
-    if (existingScrollbar) existingScrollbar.remove();
+    if (this.cleanupFloatingScrollbar) {
+      this.cleanupFloatingScrollbar();
+      this.cleanupFloatingScrollbar = null;
+    }
 
     const tableWrapper = document.querySelector('.table-container');
     if (!tableWrapper) return;

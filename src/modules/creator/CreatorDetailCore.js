@@ -186,6 +186,9 @@ export class CreatorDetail extends PersonDetailBase {
     if (this.creator.hat_haustier) {
       detailItems.push({ icon: 'info', label: 'Haustier', value: this.creator.haustier_beschreibung || 'Ja' });
     }
+    if (this.creator.hat_kinder) {
+      detailItems.push({ icon: 'info', label: 'Kinder', value: this.creator.kinder_beschreibung || 'Ja' });
+    }
     if (this.creator.budget_letzte_buchung) {
       detailItems.push({ icon: 'currency', label: 'Letztes Budget', value: this.formatCurrency(this.creator.budget_letzte_buchung) });
     }

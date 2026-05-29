@@ -122,7 +122,8 @@ export async function applyEditModeSelectedForDirectQuery(field, form, options) 
       const creatorMultiSelectFields = {
         'sprachen_ids': editData.sprachen_ids || editData.sprachen || [],
         'branche_ids': editData.branche_ids || editData.branchen || [],
-        'creator_type_ids': editData.creator_type_ids || editData.creator_types || []
+        'creator_type_ids': editData.creator_type_ids || editData.creator_types || [],
+        'management_ids': editData.management_ids || editData.managements || []
       };
 
       if (creatorMultiSelectFields[field.name]) {

@@ -81,6 +81,12 @@ export function renderAddSection(ctx = {}) {
         <button type="button" class="secondary-btn" id="btn-sourcing-detail-column-visibility">
           Sichtbarkeit anpassen
         </button>
+        <button type="button" class="secondary-btn" id="btn-sourcing-custom-columns" title="Eigene Spalten verwalten">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+          </svg>
+          Eigene Spalten
+        </button>
         <button type="button" class="secondary-btn" id="btn-manage-kategorien" title="Kategorien verwalten">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
@@ -113,7 +119,8 @@ export function renderItemsTable(ctx) {
   }
 
   const vis = (col) => isColumnVisibleForCustomer(col, ctx.isKunde, ctx.hiddenColumns);
-  const visibleColCount = getVisibleColumnCount(ctx.isKunde, ctx.hiddenColumns);
+  const customCount = ctx.customManager ? ctx.customManager.visibleCount(ctx.hiddenColumns, ctx.isKunde) : 0;
+  const visibleColCount = getVisibleColumnCount(ctx.isKunde, ctx.hiddenColumns) + customCount;
   const hide = (col) => !vis(col) ? 'style="display:none;"' : '';
 
   return `
@@ -144,6 +151,7 @@ export function renderItemsTable(ctx) {
             <th class="cp-col-prio2" ${hide('cp-col-prio2')}>Prio 2</th>
             <th class="cp-col-absagen" ${hide('cp-col-absagen')}>Absagen</th>
             <th class="cp-col-check" ${hide('cp-col-check')}>Rückmeldung</th>
+            ${ctx.customManager ? ctx.customManager.renderHeaders(ctx.hiddenColumns, ctx.isKunde) : ''}
             ${!ctx.isKunde ? '<th class="col-actions cp-col-actions">Aktionen</th>' : ''}
           </tr>
         </thead>
@@ -178,7 +186,8 @@ export function renderGroupedItems(ctx) {
   }
 
   const groupedItems = groupItemsByKategorie(ctx.items);
-  const colCount = getVisibleColumnCount(ctx.isKunde, ctx.hiddenColumns);
+  const customCount = ctx.customManager ? ctx.customManager.visibleCount(ctx.hiddenColumns, ctx.isKunde) : 0;
+  const colCount = getVisibleColumnCount(ctx.isKunde, ctx.hiddenColumns) + customCount;
 
   let html = '';
   let globalIndex = 0;
@@ -423,6 +432,7 @@ export function renderItemRow(ctx, item, index) {
           ${ctx.isKunde ? 'disabled' : ''}
         >
       </td>
+      ${ctx.customManager ? ctx.customManager.renderCells(item.id, ctx.hiddenColumns, ctx.isKunde) : ''}
       ${!ctx.isKunde ? `
         <td class="col-actions">
           <div class="actions-dropdown-container" data-entity-type="creator_auswahl_item">

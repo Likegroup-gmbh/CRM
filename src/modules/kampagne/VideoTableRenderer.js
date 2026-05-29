@@ -1,4 +1,4 @@
-import { renderVertragCell } from '../../core/VertragSyncHelper.js';
+import { renderVertragCell, renderNutzungsrechteCell } from '../../core/VertragSyncHelper.js';
 import { formatVideoFeedbackValue, VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { getOrderedColumns, isColumnVisible, isCustomColumnId } from './columns/ColumnRegistry.js';
@@ -192,17 +192,8 @@ export class VideoTableRenderer {
         <td class="grid-cell cell-centered" ${!t.isColumnVisibleForCustomer('col-vertrag') ? 'style="display:none;"' : ''}>
           ${renderVertragCell(koop)}
         </td>
-        <td class="grid-cell" ${!t.isColumnVisibleForCustomer('col-nutzungsrechte') ? 'style="display:none;"' : ''}>
-          <input 
-            type="text" 
-            class="grid-input" 
-            data-entity="kooperation" 
-            data-id="${koop.id}" 
-            data-field="nutzungsrechte"
-            ${!t.isFieldEditableForUser('kooperation', 'nutzungsrechte') ? 'readonly' : ''}
-            value="${koop.nutzungsrechte || ''}"
-            placeholder="Nutzungsrechte"
-          />
+        <td class="grid-cell cell-centered" ${!t.isColumnVisibleForCustomer('col-nutzungsrechte') ? 'style="display:none;"' : ''}>
+          ${renderNutzungsrechteCell(koop)}
         </td>
         <td class="grid-cell read-only" ${!t.isColumnVisibleForCustomer('col-start-datum') ? 'style="display:none;"' : ''}>${formatDate(koop.created_at)}</td>
         <td class="grid-cell read-only" ${!t.isColumnVisibleForCustomer('col-videoanzahl') ? 'style="display:none;"' : ''}>${koop.videoanzahl || 0}</td>

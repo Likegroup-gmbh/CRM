@@ -215,6 +215,9 @@ VertraegeCreate.prototype.loadDraftFromDB = async function(draftId) {
           influencer_agentur_stadt: draft.influencer_agentur_stadt,
           influencer_agentur_land: draft.influencer_agentur_land || 'Deutschland',
           influencer_agentur_vertretung: draft.influencer_agentur_vertretung,
+          // Gewaehltes Management + Schalter "nur Management-Adresse"
+          _management_id: draft.management_id || null,
+          nur_management_adresse: draft.nur_management_adresse || false,
           influencer_land: draft.influencer_land,
           influencer_profile: draft.influencer_profile || [],
           // Handle-Felder aus gespeicherten Profil-Strings parsen (Format: "Plattform @handle")

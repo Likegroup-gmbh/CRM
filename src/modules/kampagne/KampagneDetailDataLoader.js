@@ -425,7 +425,7 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
     ),
     batchIn(
       sb.from('vertraege'),
-      'id, name, typ, kooperation_id, datei_url, dropbox_file_url, unterschriebener_vertrag_url, is_draft',
+      'id, name, typ, kooperation_id, datei_url, dropbox_file_url, unterschriebener_vertrag_url, is_draft, created_at',
       'kooperation_id', koopIds
     ),
     batchIn(

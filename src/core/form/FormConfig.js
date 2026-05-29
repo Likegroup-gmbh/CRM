@@ -26,7 +26,7 @@ export class FormConfig {
           { name: 'rechnungsadresse_stadt', label: 'Stadt', type: 'text', required: false, row: 'rechnungsadresse2', colSize: 'grow', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true', section: 'basis' },
           { name: 'rechnungsadresse_land', label: 'Land (Rechnung)', type: 'text', required: false, defaultValue: 'Deutschland', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true', section: 'basis' },
           { name: 'umsatzsteuerpflichtig', label: 'Umsatzsteuerpflichtig', type: 'toggle', required: false, defaultValue: true, section: 'basis' },
-          { name: 'management_id', label: 'Management', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Management suchen und auswählen...', table: 'management', displayField: 'firmenname', valueField: 'id', directQuery: true, section: 'basis' },
+          { name: 'management_ids', label: 'Management', type: 'multiselect', required: false, options: [], dynamic: true, searchable: true, tagBased: true, placeholder: 'Management suchen und hinzufügen...', table: 'management', displayField: 'firmenname', valueField: 'id', customField: true, section: 'basis' },
           // Social Media
           { name: 'instagram', label: 'Instagram', type: 'text', required: false, row: 'social_instagram', section: 'social' },
           { 
@@ -141,6 +141,17 @@ export class FormConfig {
             type: 'textarea', 
             required: false,
             dependsOn: 'hat_haustier',
+            showWhen: 'true',
+            section: 'profil'
+          },
+          // Kinder Toggle + Beschreibung
+          { name: 'hat_kinder', label: 'Hat Kinder', type: 'toggle', required: false, section: 'profil' },
+          { 
+            name: 'kinder_beschreibung', 
+            label: 'Kinder Beschreibung', 
+            type: 'textarea', 
+            required: false,
+            dependsOn: 'hat_kinder',
             showWhen: 'true',
             section: 'profil'
           },

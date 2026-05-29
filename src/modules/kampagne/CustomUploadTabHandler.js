@@ -221,6 +221,8 @@ export class CustomUploadTabHandler {
       metadaten: this.drawer.metadaten,
       files: [...this._files],
       folderName,
+      valueTable: meta.valueTable,
+      assetTable: meta.assetTable,
     });
 
     window.toastSystem?.show(`${this._files.length} Datei(en) werden hochgeladen…`, 'info');
@@ -237,7 +239,7 @@ export class CustomUploadTabHandler {
 
     const meta = this.drawer.customMeta || {};
     try {
-      await window.supabase.from('custom_column_values').upsert(
+      await window.supabase.from(meta.valueTable || 'custom_column_values').upsert(
         {
           custom_column_id: meta.columnId,
           entity_id: meta.entityId,

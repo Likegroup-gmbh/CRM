@@ -84,4 +84,76 @@ describe('Vertrag Creator-Adressfallback', () => {
     expect(html).toContain('Management-Adresse verwendet');
     expect(form.creatorAddressMissing).toBe(true);
   });
+
+  it('erzwingt die Management-Adresse, wenn "nur_management_adresse" aktiv ist (Creator-Adresse ignoriert)', () => {
+    const form = new VertraegeCreate();
+
+    const resolved = form.getResolvedCreatorContractAddress(creatorWithAddress, {
+      ...managementAddress,
+      nur_management_adresse: true
+    });
+
+    expect(resolved).toMatchObject({
+      source: 'management',
+      strasse: 'Agenturweg',
+      plz: '10115',
+      stadt: 'Berlin'
+    });
+  });
+
+  it('liefert null, wenn "nur_management_adresse" aktiv ist aber das Management keine gültige Adresse hat', () => {
+    const form = new VertraegeCreate();
+
+    const resolved = form.getResolvedCreatorContractAddress(creatorWithAddress, {
+      ...managementAddress,
+      nur_management_adresse: true,
+      influencer_agentur_plz: ''
+    });
+
+    expect(resolved).toBeNull();
+  });
+
+  it('rendert einen klaren Hinweis, wenn nur die Management-Adresse verwendet wird', () => {
+    const form = new VertraegeCreate();
+    form.formData = { ...managementAddress, nur_management_adresse: true };
+
+    const html = form.renderCreatorAddressPreview(creatorWithAddress);
+
+    expect(html).toContain('ausschliesslich die Management-Adresse');
+  });
+});
+
+describe('Vertrag Mehrfach-Management', () => {
+  const managements = [
+    { id: 'm1', firmenname: 'Agentur Eins', strasse: 'Weg 1', hausnummer: '1', plz: '10115', stadt: 'Berlin', land: 'Deutschland' },
+    { id: 'm2', firmenname: 'Agentur Zwei', strasse: 'Weg 2', hausnummer: '2', plz: '80331', stadt: 'München', land: 'Deutschland' }
+  ];
+
+  it('übernimmt das gewählte Management in die influencer_agentur_*-Felder', () => {
+    const form = new VertraegeCreate();
+    form.creatorManagements = managements;
+    form.creators = [];
+
+    form._applySelectedManagement('m2');
+
+    expect(form.formData.influencer_agentur_vertreten).toBe(true);
+    expect(form.formData.influencer_agentur_name).toBe('Agentur Zwei');
+    expect(form.formData.influencer_agentur_stadt).toBe('München');
+    expect(form.formData._management_id).toBe('m2');
+  });
+
+  it('selectVertragManagement wechselt die Auswahl und aktualisiert die Adresse', () => {
+    const form = new VertraegeCreate();
+    form.creatorManagements = managements;
+    form.creators = [];
+    form.formData.creator_id = null;
+
+    form.selectVertragManagement('m1');
+    expect(form.formData._management_id).toBe('m1');
+    expect(form.formData.influencer_agentur_plz).toBe('10115');
+
+    form.selectVertragManagement('m2');
+    expect(form.formData._management_id).toBe('m2');
+    expect(form.formData.influencer_agentur_plz).toBe('80331');
+  });
 });

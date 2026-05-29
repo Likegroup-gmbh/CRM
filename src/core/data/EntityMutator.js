@@ -52,8 +52,8 @@ export class EntityMutator {
       
       await this.relationManager.handleManyToManyRelations(entityType, result.id, data);
       
-      if (entityType === 'creator' && data.management_id !== undefined) {
-        await this._syncCreatorManagement(result.id, data.management_id);
+      if (entityType === 'creator' && (data.management_ids !== undefined || data.management_id !== undefined)) {
+        await this._syncCreatorManagements(result.id, this._normalizeManagementIds(data));
       }
       
       return { success: true, id: result.id, data: result };
@@ -96,8 +96,8 @@ export class EntityMutator {
       
       await this.relationManager.handleManyToManyRelations(entityType, id, data);
       
-      if (entityType === 'creator' && data.management_id !== undefined) {
-        await this._syncCreatorManagement(id, data.management_id);
+      if (entityType === 'creator' && (data.management_ids !== undefined || data.management_id !== undefined)) {
+        await this._syncCreatorManagements(id, this._normalizeManagementIds(data));
       }
       
       return { success: true, id: id, data: result };
@@ -178,40 +178,62 @@ export class EntityMutator {
     }
   }
 
-  async _syncCreatorManagement(creatorId, managementId) {
+  _normalizeManagementIds(data) {
+    const raw = data.management_ids !== undefined ? data.management_ids : data.management_id;
+    const arr = Array.isArray(raw) ? raw : (raw === null || raw === undefined ? [] : [raw]);
+    const cleaned = arr
+      .map(id => (typeof id === 'string' ? id.trim() : id))
+      .filter(id => id !== '' && id !== null && id !== undefined);
+    return [...new Set(cleaned)];
+  }
+
+  // n:m Diff-Sync: aktiviert gewünschte Zuordnungen, deaktiviert entfernte.
+  async _syncCreatorManagements(creatorId, managementIds) {
     try {
       if (!window.supabase) return;
 
-      await window.supabase
+      const desired = new Set(managementIds);
+
+      const { data: existingRows } = await window.supabase
         .from('creator_management')
-        .update({ ist_aktiv: false })
-        .eq('creator_id', creatorId)
-        .eq('ist_aktiv', true);
+        .select('id, management_id, ist_aktiv')
+        .eq('creator_id', creatorId);
 
-      if (managementId && managementId.trim && managementId.trim() !== '') {
-        const { data: existing } = await window.supabase
-          .from('creator_management')
-          .select('id')
-          .eq('creator_id', creatorId)
-          .eq('management_id', managementId)
-          .maybeSingle();
+      const existing = existingRows || [];
+      const now = new Date().toISOString();
 
-        if (existing) {
+      for (const row of existing) {
+        if (desired.has(row.management_id)) {
+          desired.delete(row.management_id);
+          if (!row.ist_aktiv) {
+            await window.supabase
+              .from('creator_management')
+              .update({ ist_aktiv: true, updated_at: now })
+              .eq('id', row.id);
+          }
+        } else if (row.ist_aktiv) {
           await window.supabase
             .from('creator_management')
-            .update({ ist_aktiv: true, updated_at: new Date().toISOString() })
-            .eq('id', existing.id);
-        } else {
-          await window.supabase
-            .from('creator_management')
-            .insert([{ creator_id: creatorId, management_id: managementId, ist_aktiv: true }]);
+            .update({ ist_aktiv: false, updated_at: now })
+            .eq('id', row.id);
         }
-        console.log(`✅ Creator-Management Zuordnung gesetzt: ${creatorId} → ${managementId}`);
-      } else {
-        console.log(`✅ Creator-Management Zuordnung entfernt für ${creatorId}`);
       }
+
+      const toInsert = [...desired].map(management_id => ({
+        creator_id: creatorId,
+        management_id,
+        ist_aktiv: true
+      }));
+
+      if (toInsert.length > 0) {
+        await window.supabase
+          .from('creator_management')
+          .insert(toInsert);
+      }
+
+      console.log(`✅ Creator-Management Zuordnungen synchronisiert: ${creatorId} → [${managementIds.join(', ')}]`);
     } catch (err) {
-      console.error('❌ Fehler bei _syncCreatorManagement:', err);
+      console.error('❌ Fehler bei _syncCreatorManagements:', err);
     }
   }
 }

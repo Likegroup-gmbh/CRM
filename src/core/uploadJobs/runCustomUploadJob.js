@@ -47,7 +47,11 @@ async function createSharedLink(token, path) {
  */
 export async function runCustomUploadJob(ctx) {
   const { job, signal, updateItem } = ctx;
-  const { columnId, entityId, metadaten, files, folderName } = job.payload;
+  const {
+    columnId, entityId, metadaten, files, folderName,
+    valueTable = 'custom_column_values',
+    assetTable = 'custom_column_assets',
+  } = job.payload;
 
   if (!columnId || !entityId) throw new Error('columnId/entityId fehlt');
   if (!files || files.length === 0) throw new Error('Keine Dateien');
@@ -96,7 +100,7 @@ export async function runCustomUploadJob(ctx) {
       folderUrl = await createFolderSharedLink(token, folderPath);
     }
 
-    await window.supabase.from('custom_column_assets').insert({
+    await window.supabase.from(assetTable).insert({
       custom_column_id: columnId,
       entity_id: entityId,
       file_url: sharedLink || actualPath,
@@ -110,7 +114,7 @@ export async function runCustomUploadJob(ctx) {
   }
 
   if (folderUrl) {
-    await window.supabase.from('custom_column_values').upsert(
+    await window.supabase.from(valueTable).upsert(
       {
         custom_column_id: columnId,
         entity_id: entityId,

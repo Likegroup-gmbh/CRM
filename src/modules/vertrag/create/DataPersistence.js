@@ -89,7 +89,10 @@ VertraegeCreate.prototype.prepareDataForDB = function() {
       korrekturschleifen: parseInt(this.formData.korrekturschleifen) || null,
       weitere_bestimmungen: this.formData.weitere_bestimmungen || null,
       kunde_po_nummer: this.formData.kunde_po_nummer || null,
-      vertragssprache: this.getContractLanguage(this.formData)
+      vertragssprache: this.getContractLanguage(this.formData),
+      // Gewaehltes Management (FK) + Schalter "nur Management-Adresse"
+      management_id: this.formData._management_id || null,
+      nur_management_adresse: !!this.formData.nur_management_adresse
     };
 
     if (typ === 'Influencer Kooperation') {
@@ -414,7 +417,10 @@ VertraegeCreate.prototype.handleSubmit = async function(e, startNewAfter = false
     if (this.formData.creator_id) {
       const creator = this.creators.find(c => c.id === this.formData.creator_id);
       if (creator && !this.getResolvedCreatorContractAddress(creator)) {
-        window.toastSystem?.show('Der Creator hat keine gueltige Adresse und kein Management mit Adresse hinterlegt.', 'error');
+        const msg = this.formData.nur_management_adresse
+          ? 'Es ist "Nur Management-Adresse verwenden" aktiv, aber das gewaehlte Management hat keine gueltige Adresse.'
+          : 'Der Creator hat keine gueltige Adresse und kein Management mit Adresse hinterlegt.';
+        window.toastSystem?.show(msg, 'error');
         return;
       }
     }

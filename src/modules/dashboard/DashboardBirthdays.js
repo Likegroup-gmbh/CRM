@@ -29,19 +29,25 @@ export async function loadUpcomingBirthdays() {
       );
     }
 
-    // Benutzer-Geburtstage (Mitarbeiter + Kunden)
+    // Benutzer-Geburtstage. Kunden dürfen nur interne Mitarbeiter sehen,
+    // keine anderen Kunden. Intern werden alle Benutzer angezeigt.
+    let benutzerQuery = window.supabase
+      .from('benutzer')
+      .select('id, vorname, nachname, geburtsdatum, profile_image_url, rolle')
+      .not('geburtsdatum', 'is', null);
+
+    if (isKunde) {
+      benutzerQuery = benutzerQuery.in('rolle', ['mitarbeiter', 'admin']);
+    }
+
     queries.push(
-      window.supabase
-        .from('benutzer')
-        .select('id, vorname, nachname, geburtsdatum, profile_image_url, rolle')
-        .not('geburtsdatum', 'is', null)
-        .then(({ data, error }) => {
-          if (error) console.error('❌ DashboardBirthdays: Benutzer-Fehler:', error);
-          return (data || []).map(b => ({
-            ...b,
-            _type: b.rolle === 'kunde' || b.rolle === 'kunde_editor' ? 'kunde' : 'mitarbeiter'
-          }));
-        })
+      benutzerQuery.then(({ data, error }) => {
+        if (error) console.error('❌ DashboardBirthdays: Benutzer-Fehler:', error);
+        return (data || []).map(b => ({
+          ...b,
+          _type: b.rolle === 'kunde' || b.rolle === 'kunde_editor' ? 'kunde' : 'mitarbeiter'
+        }));
+      })
     );
 
     const results = await Promise.all(queries);

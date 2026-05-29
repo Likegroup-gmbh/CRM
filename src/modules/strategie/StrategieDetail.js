@@ -8,6 +8,9 @@ import { bindTableEvents, cleanupTableEvents, destroyDragToScroll } from './Stra
 import { showEditItemDrawer as _showEditItemDrawer, removeEditItemDrawer, closeEditItemDrawer as _closeEditItemDrawer } from './StrategieDetailEditDrawer.js';
 import { showKategorienModal as _showKategorienModal, removeKategorienDrawer } from './StrategieDetailKategorienDrawer.js';
 import { handleDeleteItem as _handleDeleteItem, handleAddToVideo as _handleAddToVideo, handleUnlinkFromVideo as _handleUnlinkFromVideo } from './StrategieDetailItemActions.js';
+import { StrategieDetailColumnVisibilityDrawer } from './StrategieDetailColumnVisibilityDrawer.js';
+import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
+import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
 
 export class StrategieDetail {
   constructor() {
@@ -18,6 +21,9 @@ export class StrategieDetail {
     this.items = [];
     this.draggedItem = null;
     this.isKunde = false;
+    this.hiddenColumns = [];
+    this.customColumns = new EntityCustomColumnsManager({ parentType: 'strategie', parentTable: 'strategie' });
+    this._customHeaderDragCleanup = null;
   }
 
   async init(strategieId) {
@@ -27,6 +33,10 @@ export class StrategieDetail {
     try {
       this.strategie = await strategieService.getStrategieById(strategieId);
       this.items = await strategieService.getStrategieItems(strategieId);
+
+      this.hiddenColumns = Array.isArray(this.strategie?.hidden_columns) ? this.strategie.hidden_columns : [];
+      await this.customColumns.init(strategieId);
+      await this.customColumns.loadValues(this.items.map(i => i.id));
 
       if (window.breadcrumbSystem && this.strategie) {
         const crumbs = [
@@ -112,9 +122,44 @@ export class StrategieDetail {
             </svg>
             Kategorien
           </button>
+          <button type="button" class="secondary-btn" id="btn-strategie-detail-column-visibility" title="Spalten-Sichtbarkeit">
+            Sichtbarkeit anpassen
+          </button>
+          <button type="button" class="secondary-btn" id="btn-strategie-custom-columns" title="Eigene Spalten verwalten">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+            </svg>
+            Eigene Spalten
+          </button>
         </div>
       </div>
     `;
+  }
+
+  async saveColumnVisibilitySettings() {
+    try {
+      await strategieService.updateStrategie(this.strategieId, { hidden_columns: this.hiddenColumns });
+      if (this.strategie) this.strategie.hidden_columns = this.hiddenColumns;
+    } catch (error) {
+      console.error('Fehler beim Speichern der Spalten-Sichtbarkeit:', error);
+    }
+  }
+
+  showColumnVisibilityDrawer() {
+    const customColumns = this.customColumns.getOrderedColumns().map(c => ({
+      className: makeCustomColumnId(c.id),
+      label: c.name
+    }));
+    const drawer = new StrategieDetailColumnVisibilityDrawer(
+      this.hiddenColumns,
+      async (newHidden) => {
+        this.hiddenColumns = newHidden;
+        await this.saveColumnVisibilitySettings();
+        this.rerenderItemsTable();
+      },
+      customColumns
+    );
+    drawer.open();
   }
 
   getTeilbereicheFromStrategie() {
@@ -186,6 +231,20 @@ export class StrategieDetail {
         const handler = () => this.showKategorienModal();
         manageKategorienBtn.addEventListener('click', handler);
         this._boundEventListeners.add(() => manageKategorienBtn.removeEventListener('click', handler));
+      }
+
+      const visibilityBtn = document.getElementById('btn-strategie-detail-column-visibility');
+      if (visibilityBtn) {
+        const handler = () => this.showColumnVisibilityDrawer();
+        visibilityBtn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => visibilityBtn.removeEventListener('click', handler));
+      }
+
+      const customColumnsBtn = document.getElementById('btn-strategie-custom-columns');
+      if (customColumnsBtn) {
+        const handler = () => this.customColumns.openManagementDrawer(() => this.rerenderItemsTable());
+        customColumnsBtn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => customColumnsBtn.removeEventListener('click', handler));
       }
     }
 

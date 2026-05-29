@@ -294,6 +294,10 @@
   resize: none;
   min-height: 60px; /* Einheitliche Mindesthöhe */
   height: auto;
+  /* Höhe folgt automatisch dem Inhalt – nie abschneiden */
+  field-sizing: content;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* Video-Fields-Stack: Container für alle Video-Felder in einer Zelle */
@@ -352,6 +356,16 @@
 .kooperation-video-grid .stacked-video-textarea {
   padding: var(--space-md);
   box-sizing: border-box;
+}
+
+/* Feedback-/Caption-Textareas: einheitliches Padding, Höhe folgt Inhalt */
+.kooperation-video-grid .stacked-video-textarea.auto-resize-textarea,
+.kooperation-video-grid .stacked-video-textarea.auto-resize-textarea[readonly] {
+  padding: var(--space-sm);
+  min-height: 60px;
+  overflow: hidden;
+  resize: none;
+  field-sizing: content;
 }
 
 /* Anzeige-Inhalte in Stack-Zellen */
@@ -422,8 +436,8 @@
 }
 
 .stacked-video-textarea {
-  min-height: 60px; /* Einheitliche Höhe für alle Video-Textareas */
-  flex: 1;
+  min-height: 60px; /* Einheitliche Mindesthöhe für alle Video-Textareas */
+  flex: 0 0 auto; /* Höhe folgt dem Inhalt, nicht gleichmäßig gestreckt */
 }
 
 .grid-input.save-success,
@@ -519,17 +533,20 @@
   border-bottom: none;
 }
 
-/* Gestapelte Video-Textareas */
+/* Gestapelte Video-Textareas: Höhe wächst automatisch mit dem Inhalt */
 .stacked-video-textarea {
   display: block;
   width: 100%;
   margin: 0;
-  padding: var(--space-md);
-  min-height: 5rem; /* 80px */
-  overflow-y: auto;
+  padding: var(--space-sm);
+  min-height: 60px;
+  overflow: hidden;
   font-size: inherit; /* Erbt von th/td */
   font-weight: inherit; /* Erbt von th/td */
-  resize: vertical;
+  resize: none;
+  field-sizing: content;
+  white-space: pre-wrap;
+  word-break: break-word;
   border: none;
   border-bottom: 1px solid var(--gray-300);
   border-radius: 0;
@@ -2846,4 +2863,30 @@ th[draggable="true"]:active {
   margin-top: 16px;
   padding-top: 12px;
   border-top: 1px solid var(--gray-200, #e5e7eb);
+}
+
+/* ── Generische Custom Columns (Sourcing/Strategie) ───────────────── */
+.entity-custom-col-header {
+  white-space: nowrap;
+}
+.entity-custom-col-header[draggable="true"] {
+  cursor: grab;
+}
+.entity-custom-col-header.dragging {
+  opacity: 0.5;
+}
+.entity-custom-cell .custom-col-input {
+  width: 100%;
+}
+.entity-custom-cell .custom-col-checkbox {
+  cursor: pointer;
+}
+.entity-custom-date-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.entity-custom-date-display {
+  font-size: var(--text-xs, 12px);
+  color: var(--text-secondary, #6b7280);
 }

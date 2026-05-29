@@ -44,6 +44,20 @@ CreatorDetail.prototype.bindEvents = function() {
       }
     }, { signal });
 
+    document.addEventListener('click', (e) => {
+      const addBtn = e.target.closest && e.target.closest('#btn-management-zuordnen');
+      if (addBtn) {
+        e.preventDefault();
+        this._showAddManagementDialog();
+        return;
+      }
+      const removeBtn = e.target.closest && e.target.closest('[data-remove-management]');
+      if (removeBtn) {
+        e.preventDefault();
+        this._removeManagementFromCreator(removeBtn.getAttribute('data-remove-management'));
+      }
+    }, { signal });
+
     window.addEventListener('entityUpdated', async (e) => {
       if (this._destroyed) return;
       if (e.detail?.entity === 'creator_adressen' && e.detail?.creatorId === this.creatorId) {
@@ -108,9 +122,8 @@ CreatorDetail.prototype.showEditForm = async function() {
     console.log('🎯 CREATORDETAIL: Zeige Creator-Bearbeitungsformular für ID:', this.creatorId);
     window.setHeadline('Creator bearbeiten');
 
-    if (!this.managements) {
-      await this.loadManagements();
-    }
+    // Immer frisch laden, damit Re-Edit den aktuellen Stand zeigt
+    await this.loadManagements();
     
     const intToFollowerRange = (value) => {
       if (!value) return null;
@@ -141,14 +154,14 @@ CreatorDetail.prototype.showEditForm = async function() {
       sprachen_ids: this.creator.sprachen ? this.creator.sprachen.map(s => s.id) : [],
       branche_ids: this.creator.branchen ? this.creator.branchen.map(b => b.id) : [],
       creator_type_ids: this.creator.creator_types ? this.creator.creator_types.map(t => t.id) : [],
-      management_id: this.managements && this.managements.length > 0 ? this.managements[0].id : ''
+      management_ids: this.managements && this.managements.length > 0 ? this.managements.map(m => m.id) : []
     };
     
     console.log('📋 CREATORDETAIL: Edit-Daten vorbereitet:', {
       sprachen_ids: editData.sprachen_ids,
       branche_ids: editData.branche_ids,
       creator_type_ids: editData.creator_type_ids,
-      management_id: editData.management_id
+      management_ids: editData.management_ids
     });
     
     const formHtml = window.formSystem.renderFormOnly('creator', editData);
@@ -228,6 +241,19 @@ CreatorDetail.prototype.handleEditFormSubmit = async function() {
         submitData[input.name] = input.checked;
       });
 
+      // management_ids autoritativ setzen, damit Entfernen/Hinzufuegen persistiert (auch leeres Array)
+      const mgmtField = form.querySelector('select[name="management_ids"], select[name="management_ids[]"]');
+      if (mgmtField) {
+        const formField = mgmtField.closest('.form-field');
+        let mgmtValues = Array.from(formField?.querySelectorAll('.tag-based-select .tag[data-value]') || [])
+          .map(t => t.dataset.value).filter(Boolean);
+        if (mgmtValues.length === 0) {
+          const hidden = formField?.querySelector('select[style*="display: none"]');
+          if (hidden) mgmtValues = Array.from(hidden.selectedOptions).map(o => o.value).filter(Boolean);
+        }
+        submitData.management_ids = [...new Set(mgmtValues)];
+      }
+
       const validation = window.validatorSystem.validateForm(submitData, {
         vorname: { type: 'text', minLength: 2, required: true },
         nachname: { type: 'text', minLength: 2, required: true },
@@ -249,6 +275,7 @@ CreatorDetail.prototype.handleEditFormSubmit = async function() {
         setTimeout(async () => {
           tabDataCache.invalidate('creator', this.creatorId);
           await this.loadCriticalData();
+          await this.loadManagements();
           await this.render();
           window.navigateTo(`/creator/${this.creatorId}`);
         }, 1500);

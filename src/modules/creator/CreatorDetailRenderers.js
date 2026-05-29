@@ -109,6 +109,12 @@ CreatorDetail.prototype.renderInfoTab = function() {
               <span>${this.creator.haustier_beschreibung || 'Ja'}</span>
             </div>
             ` : ''}
+            ${this.creator.hat_kinder ? `
+            <div class="detail-item">
+              <label>Kinder:</label>
+              <span>${this.creator.kinder_beschreibung || 'Ja'}</span>
+            </div>
+            ` : ''}
           </div>
 
           <div class="detail-card">
@@ -474,11 +480,14 @@ CreatorDetail.prototype.renderManagementContent = function() {
 
     const actionBtn = `
       <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
-        <button class="primary-btn btn-sm" id="btn-management-anlegen" onclick="event.preventDefault(); window.navigateTo('/management/new')">
+        <button class="primary-btn btn-sm" id="btn-management-zuordnen">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; margin-right: 4px;">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
-          Management anlegen
+          Management zuordnen
+        </button>
+        <button class="secondary-btn btn-sm" id="btn-management-anlegen" onclick="event.preventDefault(); window.navigateTo('/management/new')">
+          Neues Management anlegen
         </button>
       </div>
     `;
@@ -508,6 +517,13 @@ CreatorDetail.prototype.renderManagementContent = function() {
           <td>${window.validatorSystem.sanitizeHtml(m.land || '-')}</td>
           <td>${m.email ? `<a href="mailto:${window.validatorSystem.sanitizeHtml(m.email)}">${window.validatorSystem.sanitizeHtml(m.email)}</a>` : '-'}</td>
           <td>${window.validatorSystem.sanitizeHtml(m.telefonnummer || '-')}</td>
+          <td>
+            <button class="icon-btn" title="Zuordnung entfernen" data-remove-management="${m.id}">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px;">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </td>
         </tr>
       `;
     }).join('');
@@ -524,6 +540,7 @@ CreatorDetail.prototype.renderManagementContent = function() {
               <th>Land</th>
               <th>E-Mail</th>
               <th>Telefon</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>

@@ -2,7 +2,7 @@
 // Drawer zur Verwaltung der Spalten-Sichtbarkeit für Kunden in der Sourcing Detail-Tabelle
 
 export class SourcingDetailColumnVisibilityDrawer {
-  constructor(hiddenColumns, onSave) {
+  constructor(hiddenColumns, onSave, customColumns = []) {
     this.hiddenColumns = hiddenColumns || [];
     this.onSave = onSave; // Callback wenn gespeichert wird
     this.drawerId = 'sourcing-detail-column-visibility-drawer';
@@ -30,7 +30,9 @@ export class SourcingDetailColumnVisibilityDrawer {
       { className: 'cp-col-prio1', label: 'Prio 1' },
       { className: 'cp-col-prio2', label: 'Prio 2' },
       { className: 'cp-col-absagen', label: 'Absagen' },
-      { className: 'cp-col-check', label: 'Rückmeldung' }
+      { className: 'cp-col-check', label: 'Rückmeldung' },
+      // Eigene Spalten (className = "custom:{uuid}")
+      ...(customColumns || []).map(c => ({ className: c.className, label: c.label }))
     ];
   }
 

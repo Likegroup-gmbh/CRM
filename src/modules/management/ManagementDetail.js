@@ -452,10 +452,28 @@ export class ManagementDetail extends PersonDetailBase {
     dialog.querySelector('#mgmt-add-confirm').onclick = async () => {
       const creatorId = dialog.querySelector('#mgmt-add-creator-select').value;
       if (!creatorId) return;
-      const { error } = await window.supabase
-        .from('creator_management')
-        .insert([{ management_id: this.managementId, creator_id: creatorId, ist_aktiv: true }]);
       dialog.remove();
+
+      // Reaktiviert bestehende (inaktive) Zuordnung oder legt neue an (Unique-Constraint-konform)
+      const { data: existing } = await window.supabase
+        .from('creator_management')
+        .select('id')
+        .eq('management_id', this.managementId)
+        .eq('creator_id', creatorId)
+        .maybeSingle();
+
+      let error;
+      if (existing) {
+        ({ error } = await window.supabase
+          .from('creator_management')
+          .update({ ist_aktiv: true, updated_at: new Date().toISOString() })
+          .eq('id', existing.id));
+      } else {
+        ({ error } = await window.supabase
+          .from('creator_management')
+          .insert([{ management_id: this.managementId, creator_id: creatorId, ist_aktiv: true }]));
+      }
+
       if (error) {
         window.toastSystem?.show('Fehler: ' + error.message, 'error');
       } else {

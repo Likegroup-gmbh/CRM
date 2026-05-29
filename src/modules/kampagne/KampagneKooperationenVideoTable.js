@@ -14,6 +14,7 @@ import { VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
 import { UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { ColumnDragHandler } from './columns/ColumnDragHandler.js';
+import { nutzungsrechteModal } from './NutzungsrechteModal.js';
 
 export class KampagneKooperationenVideoTable {
   constructor(kampagneId, store) {
@@ -319,6 +320,12 @@ export class KampagneKooperationenVideoTable {
       if (customUploadBtn) {
         e.preventDefault();
         this._openCustomUploadDrawer(customUploadBtn);
+      }
+
+      const nutzungsrechteBtn = e.target.closest('[data-action="open-nutzungsrechte"]');
+      if (nutzungsrechteBtn) {
+        e.preventDefault();
+        nutzungsrechteModal.open(nutzungsrechteBtn.dataset.vertragId);
       }
     });
 

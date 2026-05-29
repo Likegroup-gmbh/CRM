@@ -34,7 +34,9 @@ export default {
       alter_max: 'number',
       hat_haustier: 'boolean',
       umsatzsteuerpflichtig: 'boolean',
-      haustier_beschreibung: 'string'
+      haustier_beschreibung: 'string',
+      hat_kinder: 'boolean',
+      kinder_beschreibung: 'string'
     },
     relations: {},
     manyToMany: {
@@ -202,7 +204,7 @@ creator_sprachen(sprachen!sprache_id(id,name))`;
       console.log(`🏷️ Verarbeite ${field} für Creator:`, value);
       return true;
     }
-    if (field === 'management_id') {
+    if (field === 'management_id' || field === 'management_ids' || field === 'management_ids[]') {
       return true;
     }
     return false;

@@ -459,3 +459,98 @@ CreatorDetail.prototype.updateManagementTab = function() {
       if (btn) btn.textContent = String(this.managements?.length || 0);
     }
 };
+
+CreatorDetail.prototype._showAddManagementDialog = async function() {
+    const existingIds = (this.managements || []).map(m => m.id);
+    const { data: allManagements } = await window.supabase
+      .from('management')
+      .select('id, firmenname')
+      .order('firmenname');
+
+    const available = (allManagements || []).filter(m => !existingIds.includes(m.id));
+    if (available.length === 0) {
+      window.toastSystem?.show('Keine weiteren Managements verfügbar.', 'info');
+      return;
+    }
+
+    const options = available
+      .map(m => `<option value="${m.id}">${window.validatorSystem.sanitizeHtml(m.firmenname || '—')}</option>`)
+      .join('');
+    const dialog = document.createElement('div');
+    dialog.className = 'modal show';
+    dialog.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.4)';
+    dialog.innerHTML = `
+      <div style="background:var(--bg-primary,#fff);border-radius:12px;padding:24px;min-width:320px;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+        <h3 style="margin:0 0 16px">Management zuordnen</h3>
+        <select id="creator-add-mgmt-select" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border-color,#ddd);">
+          <option value="">Bitte wählen...</option>
+          ${options}
+        </select>
+        <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
+          <button class="secondary-btn btn-sm" id="creator-add-mgmt-cancel">Abbrechen</button>
+          <button class="primary-btn btn-sm" id="creator-add-mgmt-confirm">Zuordnen</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(dialog);
+
+    dialog.querySelector('#creator-add-mgmt-cancel').onclick = () => dialog.remove();
+    dialog.querySelector('#creator-add-mgmt-confirm').onclick = async () => {
+      const managementId = dialog.querySelector('#creator-add-mgmt-select').value;
+      if (!managementId) return;
+      dialog.remove();
+      await this._assignManagement(managementId);
+    };
+};
+
+// Reaktiviert bestehende (inaktive) Zuordnung oder legt neue an (Unique-Constraint-konform)
+CreatorDetail.prototype._assignManagement = async function(managementId) {
+    try {
+      const { data: existing } = await window.supabase
+        .from('creator_management')
+        .select('id')
+        .eq('creator_id', this.creatorId)
+        .eq('management_id', managementId)
+        .maybeSingle();
+
+      let error;
+      if (existing) {
+        ({ error } = await window.supabase
+          .from('creator_management')
+          .update({ ist_aktiv: true, updated_at: new Date().toISOString() })
+          .eq('id', existing.id));
+      } else {
+        ({ error } = await window.supabase
+          .from('creator_management')
+          .insert([{ creator_id: this.creatorId, management_id: managementId, ist_aktiv: true }]));
+      }
+
+      if (error) {
+        window.toastSystem?.show('Fehler: ' + error.message, 'error');
+        return;
+      }
+      window.toastSystem?.success('Management zugeordnet!');
+      await this.loadManagements();
+      this.updateManagementTab();
+    } catch (e) {
+      window.toastSystem?.show('Fehler beim Zuordnen: ' + e.message, 'error');
+    }
+};
+
+CreatorDetail.prototype._removeManagementFromCreator = async function(managementId) {
+    if (!confirm('Management-Zuordnung wirklich entfernen?')) return;
+    const { error } = await window.supabase
+      .from('creator_management')
+      .update({ ist_aktiv: false, updated_at: new Date().toISOString() })
+      .eq('creator_id', this.creatorId)
+      .eq('management_id', managementId)
+      .eq('ist_aktiv', true);
+
+    if (error) {
+      window.toastSystem?.show('Fehler: ' + error.message, 'error');
+    } else {
+      window.toastSystem?.success('Management-Zuordnung entfernt.');
+      await this.loadManagements();
+      this.updateManagementTab();
+    }
+};

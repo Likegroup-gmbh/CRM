@@ -2,6 +2,7 @@
 // Tabellen-Events, Drag & Drop, Feld-Updates für Strategie-Detail
 
 import { strategieService } from './StrategieService.js';
+import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 
 export function cleanupTableEvents(detail) {
   detail._tableEventListeners.forEach(cleanup => cleanup());
@@ -26,6 +27,8 @@ export function bindTableEvents(detail) {
     checkbox.addEventListener('change', handler);
     detail._tableEventListeners.add(() => checkbox.removeEventListener('change', handler));
   });
+
+  bindCustomColumnEvents(detail);
 
   if (!detail.isKunde) {
     const actionHandler = (e) => {
@@ -243,7 +246,60 @@ export async function handleCategoryChange(detail, itemId, newKategorie) {
   }
 }
 
+function buildUploadMetadaten(detail) {
+  const s = detail.strategie || {};
+  return {
+    unternehmen: s.unternehmen?.firmenname || '',
+    marke: s.marke?.markenname || '',
+    kampagne: s.kampagne?.kampagnenname || '',
+    kooperationName: s.name || 'Strategie',
+  };
+}
+
+export function bindCustomColumnEvents(detail) {
+  if (!detail.customColumns?.hasColumns) return;
+
+  document.querySelectorAll('.custom-col-input').forEach(el => {
+    const handler = () => detail.customColumns.handleFieldUpdate(el);
+    const isChangeOnly = el.type === 'checkbox' || el.tagName === 'SELECT' || el.classList.contains('custom-col-date');
+    if (isChangeOnly) {
+      el.addEventListener('change', handler);
+      detail._tableEventListeners.add(() => el.removeEventListener('change', handler));
+    } else {
+      el.addEventListener('blur', handler);
+      el.addEventListener('change', handler);
+      detail._tableEventListeners.add(() => {
+        el.removeEventListener('blur', handler);
+        el.removeEventListener('change', handler);
+      });
+    }
+  });
+
+  document.querySelectorAll('.custom-upload-btn').forEach(btn => {
+    const handler = () => detail.customColumns.openUploadDrawer(btn, buildUploadMetadaten(detail), () => detail.rerenderItemsTable());
+    btn.addEventListener('click', handler);
+    detail._tableEventListeners.add(() => btn.removeEventListener('click', handler));
+  });
+
+  if (detail._customHeaderDragCleanup) detail._customHeaderDragCleanup();
+  const thead = document.querySelector('.strategie-items-table thead');
+  detail._customHeaderDragCleanup = detail.customColumns.bindHeaderDragAndDrop(thead, () => detail.rerenderItemsTable());
+  detail._tableEventListeners.add(() => {
+    if (detail._customHeaderDragCleanup) { detail._customHeaderDragCleanup(); detail._customHeaderDragCleanup = null; }
+  });
+
+  const table = document.querySelector('.strategie-items-table');
+  if (table) {
+    const cleanup = CustomDatePicker.bind(table);
+    if (cleanup) detail._tableEventListeners.add(cleanup);
+  }
+}
+
 export async function handleFieldUpdate(detail, element) {
+  // Custom-Column-Felder werden separat behandelt (CustomDatePicker nutzt ebenfalls data-field)
+  if (element.hasAttribute('data-custom-column-id') || element.getAttribute('data-entity') === 'custom') {
+    return;
+  }
   const itemId = element.dataset.itemId;
   const field = element.dataset.field;
   let value = element.type === 'checkbox' ? element.checked : element.value;

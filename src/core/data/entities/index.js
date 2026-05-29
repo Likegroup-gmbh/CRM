@@ -59,7 +59,9 @@ export const EntityRegistry = {
       alter_max: 'number',
       hat_haustier: 'boolean',
       umsatzsteuerpflichtig: 'boolean',
-      haustier_beschreibung: 'string'
+      haustier_beschreibung: 'string',
+      hat_kinder: 'boolean',
+      kinder_beschreibung: 'string'
     },
     relations: {},
     manyToMany: {
