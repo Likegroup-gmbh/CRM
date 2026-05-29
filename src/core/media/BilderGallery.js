@@ -1,6 +1,7 @@
 import { MediaLightbox } from './MediaLightbox.js';
 import { toRawDropboxUrl, escapeHtml } from '../VideoUploadUtils.js';
 import { resolveStreamUrl } from './mediaSrc.js';
+import { downloadMediaAsset, DOWNLOAD_ICON } from './downloadMediaAsset.js';
 
 const BILDER_SELECT = 'id, file_url, file_path, file_name, created_at';
 
@@ -29,7 +30,7 @@ export class BilderGallery {
     this.loading = true;
 
     this.lightbox.open({
-      className: 'bilder-gallery-lightbox',
+      className: 'bilder-gallery-lightbox media-split-lightbox',
       onPrev: () => this._navigate(-1),
       onNext: () => this._navigate(1),
       hasPrev: () => this.index > 0,
@@ -88,30 +89,56 @@ export class BilderGallery {
     }
   }
 
+  _shell(stageHtml, panelHtml) {
+    return `
+      <div class="vpl-stage media-viewer-stage">${stageHtml}</div>
+      <div class="vpl-panel">${panelHtml}</div>
+    `;
+  }
+
   _renderBody() {
     const title = this.koop?.name || 'Bilder';
     if (this.loading) {
-      return `
-        <div class="media-viewer-header"><div class="media-viewer-title">${escapeHtml(title)} &ndash; Bilder</div></div>
-        <div class="media-viewer-stage"><div class="media-viewer-loading"><div class="media-viewer-spinner"></div><span>Bilder werden geladen...</span></div></div>`;
+      return this._shell(
+        `<div class="media-viewer-loading"><div class="media-viewer-spinner"></div><span>Bilder werden geladen...</span></div>`,
+        `<div class="vpl-panel-head"><div class="media-viewer-title">${escapeHtml(title)} &ndash; Bilder</div></div>`
+      );
     }
     if (this.images.length === 0) {
-      return `
-        <div class="media-viewer-header"><div class="media-viewer-title">${escapeHtml(title)} &ndash; Bilder</div></div>
-        <div class="media-viewer-stage"><div class="media-viewer-empty"><span>Keine Bilder hochgeladen.</span></div></div>`;
+      return this._shell(
+        `<div class="media-viewer-empty"><span>Keine Bilder hochgeladen.</span></div>`,
+        `<div class="vpl-panel-head"><div class="media-viewer-title">${escapeHtml(title)} &ndash; Bilder</div></div>`
+      );
     }
 
     const img = this.current;
     const counter = `${this.index + 1} / ${this.images.length}`;
 
-    return `
-      <div class="media-viewer-header">
-        <div class="media-viewer-title">${escapeHtml(img.file_name || 'Bild')}</div>
-        <div class="media-viewer-sub">${escapeHtml(title)} &middot; ${counter}</div>
+    const panel = `
+      <div class="vpl-panel-head">
+        <div class="vpl-info">
+          <div class="media-viewer-title">${escapeHtml(img.file_name || 'Bild')}</div>
+          <div class="media-viewer-sub">${escapeHtml(title)} &middot; ${counter}</div>
+        </div>
       </div>
-      <div class="media-viewer-stage"><div class="media-viewer-loading"><div class="media-viewer-spinner"></div></div></div>
       ${this._renderThumbs()}
-    `;
+      ${this._renderNav()}`;
+
+    return this._shell(
+      `<div class="media-viewer-loading"><div class="media-viewer-spinner"></div></div>`,
+      panel
+    );
+  }
+
+  _renderNav() {
+    const hasPrev = this.index > 0;
+    const hasNext = this.index < this.images.length - 1;
+    return `
+      <div class="vpl-nav">
+        <button type="button" class="secondary-btn vpl-download">${DOWNLOAD_ICON}<span>Download</span></button>
+        <button type="button" class="secondary-btn vpl-prev" ${hasPrev ? '' : 'disabled'}>Zurück</button>
+        <button type="button" class="primary-btn vpl-next" ${hasNext ? '' : 'disabled'}>Weiter</button>
+      </div>`;
   }
 
   _renderThumbs() {
@@ -133,5 +160,21 @@ export class BilderGallery {
         this._resolveSrc();
       });
     });
+
+    const prevBtn = root.querySelector('.vpl-prev');
+    if (prevBtn) prevBtn.addEventListener('click', () => this._navigate(-1));
+    const nextBtn = root.querySelector('.vpl-next');
+    if (nextBtn) nextBtn.addEventListener('click', () => this._navigate(1));
+    const downloadBtn = root.querySelector('.vpl-download');
+    if (downloadBtn) downloadBtn.addEventListener('click', () => this._download());
+  }
+
+  _download() {
+    const img = this.current;
+    if (!img) {
+      window.toastSystem?.show('Kein Bild zum Herunterladen.', 'error');
+      return;
+    }
+    downloadMediaAsset(img, img.file_name || 'Bild');
   }
 }

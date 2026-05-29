@@ -1,13 +1,14 @@
 import { MediaLightbox } from './MediaLightbox.js';
 import { escapeHtml } from '../VideoUploadUtils.js';
 import { resolveStreamUrl, prefetchStreamUrl } from './mediaSrc.js';
+import { downloadMediaAsset, DOWNLOAD_ICON } from './downloadMediaAsset.js';
 import {
   resolveVideoFeedbackTarget,
   formatVideoFeedbackValue,
   normalizeVideoFeedbackComments
 } from '../VideoFeedbackBuckets.js';
 
-const ASSET_SELECT = 'id, video_id, file_url, file_path, version_number, variant_name, description, is_current, created_at';
+const ASSET_SELECT = 'id, video_id, file_url, file_path, file_name, version_number, variant_name, description, is_current, created_at';
 
 const ICON_PLAY = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>`;
 const ICON_PAUSE = `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>`;
@@ -87,7 +88,7 @@ export class VideoPlayerLightbox {
     }
 
     this.lightbox.open({
-      className: 'video-player-lightbox',
+      className: 'video-player-lightbox media-split-lightbox',
       onPrev: () => this._navigate(-1),
       onNext: () => this._navigate(1),
       hasPrev: () => this.index > 0,
@@ -438,6 +439,7 @@ export class VideoPlayerLightbox {
         </div>
         <div class="vpl-feedback-wrap">${this._renderFeedback()}</div>
         <div class="vpl-nav">
+          <button type="button" class="secondary-btn vpl-download">${DOWNLOAD_ICON}<span>Download</span></button>
           <button type="button" class="secondary-btn vpl-prev" ${hasPrev ? '' : 'disabled'}>Zurück</button>
           <button type="button" class="primary-btn vpl-next" ${hasNext ? '' : 'disabled'}>Weiter</button>
         </div>
@@ -578,12 +580,39 @@ export class VideoPlayerLightbox {
     if (prevBtn) prevBtn.addEventListener('click', () => this._navigate(-1));
     const nextBtn = root.querySelector('.vpl-next');
     if (nextBtn) nextBtn.addEventListener('click', () => this._navigate(1));
+    const downloadBtn = root.querySelector('.vpl-download');
+    if (downloadBtn) downloadBtn.addEventListener('click', () => this._download());
 
     const stageVideo = root.querySelector('.media-viewer-stage video');
     if (stageVideo) {
       stageVideo.addEventListener('error', () => this._onVideoError(), { once: true });
     }
     this._mountPlayer();
+  }
+
+  _download() {
+    const asset = this._selectedAsset();
+    const video = this.current?.video;
+    const source = asset || {
+      file_path: video?.currentAsset?.file_path || null,
+      file_url: video?.file_url || video?.link_content || video?.asset_url || null,
+    };
+    if (!source.file_path && !source.file_url) {
+      window.toastSystem?.show('Kein Video zum Herunterladen.', 'error');
+      return;
+    }
+    downloadMediaAsset(source, asset?.file_name || this._buildVideoFilename(asset, video));
+  }
+
+  _buildVideoFilename(asset, video) {
+    const base = (video?.video_name || video?.thema || 'Video').trim();
+    const parts = [base];
+    if (asset?.version_number) parts.push(`v${asset.version_number}`);
+    if (asset?.variant_name) parts.push(asset.variant_name);
+    const path = asset?.file_path || video?.currentAsset?.file_path || video?.file_url || '';
+    const extMatch = /\.([a-zA-Z0-9]{2,5})(?:\?|#|$)/.exec(path);
+    const ext = extMatch ? `.${extMatch[1]}` : '.mp4';
+    return `${parts.join('_')}${ext}`;
   }
 
   async _saveFeedback(textarea) {

@@ -17898,43 +17898,56 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
 .media-lightbox-prev { left: 1.25rem; }
 .media-lightbox-next { right: 1.25rem; }
 
-/* --- Video-Player: randlos, zweispaltig (helles Design-System) --- */
-.video-player-lightbox .media-lightbox {
+/* Fusszeilen-Buttons (Download links, Zurueck/Weiter rechts) */
+.vpl-download {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.vpl-download svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* --- Zweispaltiges Medien-Layout (Video, Storys, Bilder) --- */
+.media-split-lightbox .media-lightbox {
   width: auto;
   max-width: 96vw;
   --vpl-side: 340px;
   overflow: hidden;
 }
 
-.video-player-lightbox .media-lightbox-content {
+.media-split-lightbox .media-lightbox-content {
   padding: 0;
 }
 
 /* zweispaltiger Body: Body-Wrapper ist .media-lightbox-content selbst */
-.video-player-lightbox .media-lightbox-content {
+.media-split-lightbox .media-lightbox-content {
   display: flex;
   align-items: stretch;
   height: min(86vh, 760px);
 }
 
-/* Close oben links ueber dem Video */
-.video-player-lightbox .media-lightbox-close {
+/* Close oben links ueber dem Medium */
+.media-split-lightbox .media-lightbox-close {
   left: 0.75rem;
   right: auto;
   background: rgba(0, 0, 0, 0.45);
   color: #fff;
 }
-.video-player-lightbox .media-lightbox-close:hover {
+.media-split-lightbox .media-lightbox-close:hover {
   background: rgba(0, 0, 0, 0.65);
 }
 
 /* Shell-Seitenpfeile aus -> Navigation ueber Panel-Buttons */
-.video-player-lightbox .media-lightbox-nav {
+.media-split-lightbox .media-lightbox-nav {
   display: none;
 }
 
 /* Stage links, exakt 9:16 zugeschnitten (keine seitlichen Balken) */
-.video-player-lightbox .vpl-stage {
+.media-split-lightbox .vpl-stage {
   flex: 0 0 auto;
   aspect-ratio: 9 / 16;
   height: 100%;
@@ -17950,7 +17963,9 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
   min-height: 0;
 }
 
-.video-player-lightbox .vpl-video {
+.media-split-lightbox .vpl-video,
+.media-split-lightbox .vpl-stage video,
+.media-split-lightbox .vpl-stage img {
   width: 100%;
   height: 100%;
   max-width: 100%;
@@ -18065,16 +18080,24 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
   gap: var(--space-xs);
 }
 
-.video-player-lightbox .media-viewer-control {
+/* Bilder-Thumbnails im Panel: wachsen + scrollen, Nav bleibt unten */
+.media-split-lightbox .vpl-panel .media-gallery-thumbs {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  align-content: flex-start;
+  margin-top: var(--space-sm);
+}
+
+.media-split-lightbox .media-viewer-control {
   display: flex;
   flex-direction: column;
   gap: var(--space-xxs);
 }
-.video-player-lightbox .media-viewer-control label {
+.media-split-lightbox .media-viewer-control label {
   font-size: var(--text-xs);
   color: var(--text-secondary);
 }
-.video-player-lightbox .media-viewer-control select {
+.media-split-lightbox .media-viewer-control select {
   width: 100%;
   padding: var(--space-xs) var(--space-sm);
   background: var(--bg-primary);
@@ -18136,16 +18159,16 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
 }
 
 @media (max-width: 760px) {
-  .video-player-lightbox .media-lightbox {
+  .media-split-lightbox .media-lightbox {
     width: 96vw;
   }
-  .video-player-lightbox .media-lightbox-content {
+  .media-split-lightbox .media-lightbox-content {
     flex-direction: column;
     height: auto;
     max-height: 92vh;
     overflow-y: auto;
   }
-  .video-player-lightbox .vpl-stage {
+  .media-split-lightbox .vpl-stage {
     flex: 0 0 auto;
     width: 100%;
     height: auto;

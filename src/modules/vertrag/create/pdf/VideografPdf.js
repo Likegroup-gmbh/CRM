@@ -108,6 +108,9 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
         '45_tage': '45 Tage'
       };
 
+      // Helper: Geldbeträge lokalisiert formatieren
+      const formatMoney = (v, emptyValue = '0,00') => this.formatContractMoney(v, lang, { emptyValue });
+
       // Helper: Checkbox zeichnen (echte Rechtecke mit X)
       const drawCheckbox = (x, yPos, checked, label) => {
         // Checkbox-Rechteck zeichnen (3x3mm)

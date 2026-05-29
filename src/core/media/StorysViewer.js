@@ -1,6 +1,7 @@
 import { MediaLightbox } from './MediaLightbox.js';
 import { escapeHtml } from '../VideoUploadUtils.js';
 import { resolveStreamUrl } from './mediaSrc.js';
+import { downloadMediaAsset, DOWNLOAD_ICON } from './downloadMediaAsset.js';
 
 const SLOT_SELECT = 'id, video_id, slot_index, slot_name, created_at';
 const ASSET_SELECT = 'id, story_id, video_id, file_url, file_path, file_name, version_number, variant_name, is_current, created_at';
@@ -34,7 +35,7 @@ export class StorysViewer {
     this.loading = true;
 
     this.lightbox.open({
-      className: 'storys-viewer-lightbox',
+      className: 'storys-viewer-lightbox media-split-lightbox',
       onPrev: () => this._navigate(-1),
       onNext: () => this._navigate(1),
       hasPrev: () => this.index > 0,
@@ -138,35 +139,57 @@ export class StorysViewer {
       </div>`;
   }
 
+  _shell(stageHtml, panelHtml) {
+    return `
+      <div class="vpl-stage media-viewer-stage">${stageHtml}</div>
+      <div class="vpl-panel">${panelHtml}</div>
+    `;
+  }
+
   _renderBody() {
     const creatorName = `${this.koop?.creator?.vorname || ''} ${this.koop?.creator?.nachname || ''}`.trim() || 'Unbekannt';
-    const title = this.video?.video_name || this.video?.thema || 'Storys';
+    const baseTitle = this.video?.video_name || this.video?.thema || 'Storys';
 
     if (this.loading) {
-      return `
-        <div class="media-viewer-header">
-          <div class="media-viewer-title">${escapeHtml(title)} &ndash; Storys</div>
-        </div>
-        <div class="media-viewer-stage"><div class="media-viewer-loading"><div class="media-viewer-spinner"></div><span>Storys werden geladen...</span></div></div>`;
+      return this._shell(
+        `<div class="media-viewer-loading"><div class="media-viewer-spinner"></div><span>Storys werden geladen...</span></div>`,
+        `<div class="vpl-panel-head"><div class="media-viewer-title">${escapeHtml(baseTitle)} &ndash; Storys</div></div>`
+      );
     }
 
     if (this.slots.length === 0) {
-      return `
-        <div class="media-viewer-header"><div class="media-viewer-title">${escapeHtml(title)} &ndash; Storys</div></div>
-        <div class="media-viewer-stage"><div class="media-viewer-empty"><span>Keine Storys hochgeladen.</span></div></div>`;
+      return this._shell(
+        `<div class="media-viewer-empty"><span>Keine Storys hochgeladen.</span></div>`,
+        `<div class="vpl-panel-head"><div class="media-viewer-title">${escapeHtml(baseTitle)} &ndash; Storys</div></div>`
+      );
     }
 
     const slot = this.currentSlot;
     const counter = `Story ${this.index + 1} / ${this.slots.length}`;
+    const title = slot.slot_name || `Story ${slot.slot_index || this.index + 1}`;
 
-    return `
-      <div class="media-viewer-header">
-        <div class="media-viewer-title">${escapeHtml(slot.slot_name || `Story ${slot.slot_index || this.index + 1}`)}</div>
-        <div class="media-viewer-sub">${escapeHtml(creatorName)} &middot; ${escapeHtml(this.koop?.name || '')} &middot; ${counter}</div>
+    const panel = `
+      <div class="vpl-panel-head">
+        <div class="vpl-info">
+          <div class="media-viewer-title">${escapeHtml(title)}</div>
+          <div class="media-viewer-sub">${escapeHtml(creatorName)} &middot; ${escapeHtml(this.koop?.name || '')} &middot; ${counter}</div>
+        </div>
+        <div class="vpl-selects">${this._renderControls()}</div>
       </div>
-      <div class="media-viewer-stage">${this._renderStageInner()}</div>
-      ${this._renderControls()}
-    `;
+      ${this._renderNav()}`;
+
+    return this._shell(this._renderStageInner(), panel);
+  }
+
+  _renderNav() {
+    const hasPrev = this.index > 0;
+    const hasNext = this.index < this.slots.length - 1;
+    return `
+      <div class="vpl-nav">
+        <button type="button" class="secondary-btn vpl-download">${DOWNLOAD_ICON}<span>Download</span></button>
+        <button type="button" class="secondary-btn vpl-prev" ${hasPrev ? '' : 'disabled'}>Zurück</button>
+        <button type="button" class="primary-btn vpl-next" ${hasNext ? '' : 'disabled'}>Weiter</button>
+      </div>`;
   }
 
   _renderStageInner() {
@@ -186,11 +209,9 @@ export class StorysViewer {
       `<option value="${ver}" ${ver === this.selectedVersion ? 'selected' : ''}>Feedbackschleife ${ver}</option>`
     ).join('');
     return `
-      <div class="media-viewer-controls">
-        <div class="media-viewer-control">
-          <label>Feedbackschleife</label>
-          <select class="storys-version-select">${options}</select>
-        </div>
+      <div class="media-viewer-control">
+        <label>Feedbackschleife</label>
+        <select class="storys-version-select">${options}</select>
       </div>`;
   }
 
@@ -205,5 +226,23 @@ export class StorysViewer {
     }
     const stageVideo = root.querySelector('.media-viewer-stage video');
     if (stageVideo) stageVideo.addEventListener('error', () => this._onVideoError(), { once: true });
+
+    const prevBtn = root.querySelector('.vpl-prev');
+    if (prevBtn) prevBtn.addEventListener('click', () => this._navigate(-1));
+    const nextBtn = root.querySelector('.vpl-next');
+    if (nextBtn) nextBtn.addEventListener('click', () => this._navigate(1));
+    const downloadBtn = root.querySelector('.vpl-download');
+    if (downloadBtn) downloadBtn.addEventListener('click', () => this._download());
+  }
+
+  _download() {
+    const asset = this._selectedAsset();
+    if (!asset) {
+      window.toastSystem?.show('Keine Datei zum Herunterladen.', 'error');
+      return;
+    }
+    const slot = this.currentSlot;
+    const fallback = `${slot?.slot_name || 'Story'}_v${this.selectedVersion || 1}`;
+    downloadMediaAsset(asset, asset.file_name || fallback);
   }
 }
