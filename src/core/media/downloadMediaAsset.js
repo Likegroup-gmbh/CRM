@@ -26,13 +26,11 @@ function toDownloadUrl(fileUrl) {
 
 /**
  * Ermittelt einen Force-Download-Link (www.dropbox.com ...?dl=1) fuer das Asset.
- * 1) aus vorhandenem Shared-Link (file_url)
- * 2) sonst neuen Shared-Link aus file_path erzeugen
+ * 1) wenn file_path vorhanden: frischen Shared-Link erzeugen und dl=1 erzwingen
+ *    (zuverlaessigster Force-Download, umgeht /s/-Legacy-/rlkey-Links ohne dl=1)
+ * 2) sonst vorhandenen Shared-Link (file_url) auf dl=1 umschreiben
  */
 async function resolveDownloadUrl(asset) {
-  const fromUrl = toDownloadUrl(asset?.file_url);
-  if (fromUrl) return fromUrl;
-
   if (asset?.file_path) {
     try {
       const { url } = await proxyPost({ action: 'shared-link', path: asset.file_path });
@@ -42,7 +40,13 @@ async function resolveDownloadUrl(asset) {
       console.warn('Shared-Link fuer Download konnte nicht erstellt werden:', err);
     }
   }
-  return null;
+  return toDownloadUrl(asset?.file_url);
+}
+
+const IMAGE_EXT = /\.(jpe?g|png|gif|webp|bmp|svg|heic|heif)(?:\?|#|$)/i;
+
+function looksLikeImage(asset, filename) {
+  return IMAGE_EXT.test(filename || '') || IMAGE_EXT.test(asset?.file_path || '') || IMAGE_EXT.test(asset?.file_url || '');
 }
 
 /**
@@ -56,6 +60,9 @@ function triggerHiddenDownload(url, filename) {
   a.href = url;
   if (filename) a.download = filename; // cross-origin ignoriert, aber harmlos
   a.rel = 'noopener';
+  // target=_blank verhindert, dass ein evtl. Navigations-Fallback das aktuelle
+  // Popup/die Seite verlaesst; dl=1 laedt trotzdem als Attachment.
+  a.target = '_blank';
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -83,8 +90,9 @@ export async function downloadMediaAsset(asset, filename) {
     return;
   }
 
-  // Fallback: Stream-Link aufloesen und als Blob herunterladen (falls CORS erlaubt),
-  // sonst Force-Download per dl=1 im Iframe.
+  // Fallback: Stream-Link aufloesen. Bei grossen Videos KEIN Blob-Fetch (laedt
+  // sonst die komplette Datei in den Speicher) -> direkt dl=1-Anchor erzwingen.
+  // Nur fuer Bilder lohnt der Blob-Weg (klein, sauberer Dateiname).
   const streamUrl = await resolveStreamUrl({
     file_path: asset.file_path || null,
     file_url: asset.file_url || null,
@@ -94,23 +102,27 @@ export async function downloadMediaAsset(asset, filename) {
     return;
   }
 
-  try {
-    const res = await fetch(streamUrl);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const blob = await res.blob();
-    const objUrl = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = objUrl;
-    link.download = String(filename || 'download').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'download';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(objUrl), 4000);
-    window.toastSystem?.show('Download gestartet', 'success');
-  } catch (err) {
-    console.warn('Blob-Download fehlgeschlagen, erzwinge Download per dl=1:', err);
-    const forced = streamUrl + (streamUrl.includes('?') ? '&' : '?') + 'dl=1';
-    triggerHiddenDownload(forced, filename);
-    window.toastSystem?.show('Download gestartet', 'success');
+  if (looksLikeImage(asset, filename)) {
+    try {
+      const res = await fetch(streamUrl);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objUrl;
+      link.download = String(filename || 'download').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'download';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(objUrl), 4000);
+      window.toastSystem?.show('Download gestartet', 'success');
+      return;
+    } catch (err) {
+      console.warn('Blob-Download fehlgeschlagen, erzwinge Download per dl=1:', err);
+    }
   }
+
+  const forced = streamUrl + (streamUrl.includes('?') ? '&' : '?') + 'dl=1';
+  triggerHiddenDownload(forced, filename);
+  window.toastSystem?.show('Download gestartet', 'success');
 }

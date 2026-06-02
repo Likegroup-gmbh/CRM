@@ -311,13 +311,14 @@
 }
 
 /* Video-Field-Wrapper: Jedes einzelne Video-Feld */
+/* Kein height:100% -> Wrapper folgt seinem Inhalt und laeuft nicht ueber die
+   Zeilengrenze in die naechste Kooperation. */
 .video-field-wrapper {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   width: 100%;
-  height:100%;
   padding: var(--space-sm) var(--space-md);
   border-bottom: 1px solid var(--gray-200);
 }
@@ -358,7 +359,11 @@
   box-sizing: border-box;
 }
 
-/* Feedback-/Caption-Textareas: einheitliches Padding, Höhe folgt Inhalt */
+/* Feedback-/Caption-Textareas: einheitliches Padding, Höhe folgt komplett dem
+   Inhalt (field-sizing:content) -> kein Inline-Scroll, voller Text sichtbar.
+   Kein max-height/overflow-Deckel: die Reihenhoehe wird per VideoRowHeightSync
+   ueber alle Spalten angeglichen, ein Bluten in die Nachbarzeile ist durch die
+   eigene <tr> je Kooperation ausgeschlossen. */
 .kooperation-video-grid .stacked-video-textarea.auto-resize-textarea,
 .kooperation-video-grid .stacked-video-textarea.auto-resize-textarea[readonly] {
   padding: var(--space-sm);

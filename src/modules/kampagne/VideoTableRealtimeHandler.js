@@ -358,6 +358,8 @@ export class VideoTableRealtimeHandler {
         row.classList.add('realtime-updated');
         setTimeout(() => row.classList.remove('realtime-updated'), 2000);
       }
+      // Geaenderter Feedback-Text aendert die field-sizing-Hoehe -> Reihe neu angleichen.
+      this.table._rowHeightSync?.schedule();
     }
   }
 

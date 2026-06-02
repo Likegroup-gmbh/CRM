@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { resolveVideoFeedbackTarget, getVideoFeedbackSlot } from '../core/VideoFeedbackBuckets.js';
 import { getTemporaryLink, toRawDropboxUrl, _resetProxyAvailability } from '../core/VideoUploadUtils.js';
 import { VideoPlayerLightbox } from '../core/media/VideoPlayerLightbox.js';
+import { MediaItemBuilder } from '../core/media/MediaItemBuilder.js';
+import { VideoAssetLoader } from '../core/media/VideoAssetLoader.js';
 import { resolveStreamUrl, _clearMediaSrcCache } from '../core/media/mediaSrc.js';
 
 describe('resolveVideoFeedbackTarget – Version->Runde Mapping', () => {
@@ -187,135 +189,158 @@ function makeFakeTable(koops, videosByKoop) {
   };
 }
 
-describe('VideoPlayerLightbox – Listen & Dropdown-Logik', () => {
-  it('_buildItems flacht Videos in gerenderter Reihenfolge', () => {
+describe('MediaItemBuilder – flache Item-Liste', () => {
+  it('flacht Videos in gerenderter Reihenfolge', () => {
     const koops = [{ id: 'k1', name: 'A' }, { id: 'k2', name: 'B' }];
     const videos = {
       k1: [{ id: 'v1', file_url: 'u1' }, { id: 'v2', file_url: 'u2' }],
       k2: [{ id: 'v3', file_url: 'u3' }],
     };
-    const player = new VideoPlayerLightbox(makeFakeTable(koops, videos));
-    player._buildItems();
-    expect(player.items.map(e => e.video.id)).toEqual(['v1', 'v2', 'v3']);
-    expect(player.items.every(e => e.type === 'video')).toBe(true);
-    expect(player.items[2].koop.id).toBe('k2');
+    const items = new MediaItemBuilder(makeFakeTable(koops, videos)).build();
+    expect(items.map(e => e.video.id)).toEqual(['v1', 'v2', 'v3']);
+    expect(items.every(e => e.type === 'video')).toBe(true);
+    expect(items[2].koop.id).toBe('k2');
   });
 
-  it('_buildItems ueberspringt Videos ohne hochgeladene Datei', () => {
+  it('ueberspringt Videos ohne hochgeladene Datei', () => {
     const koops = [{ id: 'k1' }, { id: 'k2' }, { id: 'k3' }];
     const videos = {
       k1: [{ id: 'v1', file_url: 'u1' }],
       k2: [{ id: 'v2' }, { id: 'v3', link_content: 'l3' }],
       k3: [{ id: 'v4', asset_url: 'a4' }, { id: 'v5' }],
     };
-    const player = new VideoPlayerLightbox(makeFakeTable(koops, videos));
-    player._buildItems();
-    expect(player.items.map(e => e.video.id)).toEqual(['v1', 'v3', 'v4']);
+    const items = new MediaItemBuilder(makeFakeTable(koops, videos)).build();
+    expect(items.map(e => e.video.id)).toEqual(['v1', 'v3', 'v4']);
   });
 
-  it('_buildItems beruecksichtigt currentAsset.file_path als Upload', () => {
+  it('beruecksichtigt currentAsset.file_path als Upload', () => {
     const koops = [{ id: 'k1' }];
     const videos = { k1: [{ id: 'v1', currentAsset: { file_path: '/x/a.mp4' } }, { id: 'v2' }] };
-    const player = new VideoPlayerLightbox(makeFakeTable(koops, videos));
-    player._buildItems();
-    expect(player.items.map(e => e.video.id)).toEqual(['v1']);
+    const items = new MediaItemBuilder(makeFakeTable(koops, videos)).build();
+    expect(items.map(e => e.video.id)).toEqual(['v1']);
   });
 
-  it('_buildItems reiht pro Koop Video -> Story -> Bild', () => {
-    const koops = [{
-      id: 'k1',
-      _bilder: [{ id: 'img1', file_url: 'iu1' }],
-    }];
+  it('verschachtelt pro Video direkt dessen Storys (Video -> Storys -> naechstes Video)', () => {
+    const koops = [{ id: 'k1', _bilder: [{ id: 'img1', file_url: 'iu1' }] }];
     const videos = {
-      k1: [{
-        id: 'v1',
-        file_url: 'u1',
-        story_slots: [{ id: 's1', video_id: 'v1', assets: [{ id: 'sa1', version_number: 1 }] }],
-      }],
+      k1: [
+        {
+          id: 'v1', file_url: 'u1',
+          story_slots: [
+            { id: 's1a', video_id: 'v1', slot_index: 1, assets: [{ id: 'a', version_number: 1 }] },
+            { id: 's1b', video_id: 'v1', slot_index: 2, assets: [{ id: 'b', version_number: 1 }] },
+          ],
+        },
+        {
+          id: 'v2', file_url: 'u2',
+          story_slots: [{ id: 's2a', video_id: 'v2', slot_index: 1, assets: [{ id: 'c', version_number: 1 }] }],
+        },
+      ],
     };
-    const player = new VideoPlayerLightbox(makeFakeTable(koops, videos));
-    player._buildItems();
-    expect(player.items.map(e => e.type)).toEqual(['video', 'story', 'bild']);
-    expect(player.items[1].slot.id).toBe('s1');
-    expect(player.items[2].image.id).toBe('img1');
+    const items = new MediaItemBuilder(makeFakeTable(koops, videos)).build();
+    // Erwartet: v1 -> s1a -> s1b -> v2 -> s2a -> Bild
+    expect(items.map(e => e.type === 'video' ? e.video.id : (e.type === 'story' ? e.slot.id : 'bild')))
+      .toEqual(['v1', 's1a', 's1b', 'v2', 's2a', 'bild']);
   });
 
-  it('_buildItems ueberspringt Storys ohne Assets', () => {
+  it('ueberspringt Storys ohne Assets', () => {
     const koops = [{ id: 'k1' }];
     const videos = {
       k1: [{
-        id: 'v1',
-        file_url: 'u1',
+        id: 'v1', file_url: 'u1',
         story_slots: [
           { id: 's1', video_id: 'v1', assets: [] },
           { id: 's2', video_id: 'v1', assets: [{ id: 'sa2', version_number: 1 }] },
         ],
       }],
     };
-    const player = new VideoPlayerLightbox(makeFakeTable(koops, videos));
-    player._buildItems();
-    const storyItems = player.items.filter(e => e.type === 'story');
+    const items = new MediaItemBuilder(makeFakeTable(koops, videos)).build();
+    const storyItems = items.filter(e => e.type === 'story');
     expect(storyItems.map(e => e.slot.id)).toEqual(['s2']);
   });
+});
 
-  it('_feedbackTarget mappt Story auf slot.video_id und Bild auf erstes Koop-Video', () => {
-    const koops = [{ id: 'k1', _bilder: [{ id: 'img1', file_url: 'iu1' }] }];
-    const videos = {
-      k1: [{
-        id: 'v1',
-        file_url: 'u1',
-        story_slots: [{ id: 's1', video_id: 'v1', assets: [{ id: 'sa1', version_number: 1 }] }],
-      }],
-    };
-    const player = new VideoPlayerLightbox(makeFakeTable(koops, videos));
-    player._buildItems();
-
-    player.index = player.items.findIndex(e => e.type === 'story');
-    player.storyVersion = 1;
-    expect(player._feedbackTarget().videoId).toBe('v1');
-
-    player.index = player.items.findIndex(e => e.type === 'bild');
-    const bildTarget = player._feedbackTarget();
-    expect(bildTarget.videoId).toBe('v1');
-    expect(bildTarget.target.runde).toBe(1);
-  });
-
-  it('_feedbackTarget ist null fuer Bild in Koop ohne Video', () => {
-    const koops = [{ id: 'k1', _bilder: [{ id: 'img1', file_url: 'iu1' }] }];
-    const videos = { k1: [] };
-    const player = new VideoPlayerLightbox(makeFakeTable(koops, videos));
-    player._buildItems();
-    player.index = 0;
-    expect(player._feedbackTarget()).toBeNull();
-  });
-
-  it('_versions liefert distinkte, sortierte version_number', () => {
-    const player = new VideoPlayerLightbox(makeFakeTable([], {}));
-    player.assets = [
+describe('VideoAssetLoader – Versionen & Varianten', () => {
+  it('versions liefert distinkte, sortierte version_number', () => {
+    const loader = new VideoAssetLoader();
+    const assets = [
       { id: 'a', version_number: 2 },
       { id: 'b', version_number: 1 },
       { id: 'c', version_number: 2 },
     ];
-    expect(player._versions()).toEqual([1, 2]);
+    expect(loader.versions(assets)).toEqual([1, 2]);
   });
 
-  it('_variantsForVersion filtert Assets der Version', () => {
-    const player = new VideoPlayerLightbox(makeFakeTable([], {}));
-    player.assets = [
+  it('variantsForVersion filtert Assets der Version', () => {
+    const loader = new VideoAssetLoader();
+    const assets = [
       { id: 'a', version_number: 1, variant_name: 'Haupt' },
       { id: 'b', version_number: 1, variant_name: 'VO Berlin' },
       { id: 'c', version_number: 2, variant_name: 'Haupt' },
     ];
-    const v1 = player._variantsForVersion(1);
-    expect(v1.map(a => a.id)).toEqual(['a', 'b']);
-    expect(player._variantsForVersion(2).map(a => a.id)).toEqual(['c']);
+    expect(loader.variantsForVersion(assets, 1).map(a => a.id)).toEqual(['a', 'b']);
+    expect(loader.variantsForVersion(assets, 2).map(a => a.id)).toEqual(['c']);
+  });
+
+  it('combinedVersions ergaenzt Feedback-Runden ohne eigenes Asset', () => {
+    const loader = new VideoAssetLoader();
+    const assets = [{ id: 'a', version_number: 1 }];
+    // Runde-2-Feedback existiert, aber kein V2-Asset -> Feedbackschleife 2 trotzdem waehlbar
+    const comments = { cjR2: [{ text: 'bitte aendern' }] };
+    expect(loader.combinedVersions(assets, comments)).toEqual([1, 2]);
+  });
+
+  it('applyDefaultSelection waehlt hoechste Version + aktuelles Asset', () => {
+    const loader = new VideoAssetLoader();
+    const assets = [
+      { id: 'a', version_number: 1, is_current: false },
+      { id: 'b', version_number: 2, is_current: false },
+      { id: 'c', version_number: 2, is_current: true },
+    ];
+    expect(loader.applyDefaultSelection(assets, null)).toEqual({ selectedVersion: 2, selectedAssetId: 'c' });
+  });
+});
+
+describe('VideoPlayerLightbox – Feedback-Ziel & Navigation', () => {
+  function playerWith(koops, videos) {
+    const table = makeFakeTable(koops, videos);
+    const player = new VideoPlayerLightbox(table);
+    player.items = new MediaItemBuilder(table).build();
+    return player;
+  }
+
+  it('feedbackTarget mappt Story auf slot.video_id und Bild auf erstes Koop-Video', () => {
+    const koops = [{ id: 'k1', _bilder: [{ id: 'img1', file_url: 'iu1' }] }];
+    const videos = {
+      k1: [{
+        id: 'v1', file_url: 'u1',
+        story_slots: [{ id: 's1', video_id: 'v1', assets: [{ id: 'sa1', version_number: 1 }] }],
+      }],
+    };
+    const player = playerWith(koops, videos);
+
+    player.index = player.items.findIndex(e => e.type === 'story');
+    player.storyVersion = 1;
+    expect(player.feedbackTarget().videoId).toBe('v1');
+
+    player.index = player.items.findIndex(e => e.type === 'bild');
+    const bildTarget = player.feedbackTarget();
+    expect(bildTarget.videoId).toBe('v1');
+    expect(bildTarget.target.runde).toBe(1);
+  });
+
+  it('feedbackTarget ist null fuer Bild in Koop ohne Video', () => {
+    const koops = [{ id: 'k1', _bilder: [{ id: 'img1', file_url: 'iu1' }] }];
+    const videos = { k1: [] };
+    const player = playerWith(koops, videos);
+    player.index = 0;
+    expect(player.feedbackTarget()).toBeNull();
   });
 
   it('Prev/Next-Grenzen via hasPrev/hasNext-Logik', () => {
     const koops = [{ id: 'k1' }];
     const videos = { k1: [{ id: 'v1', file_url: 'u1' }, { id: 'v2', file_url: 'u2' }] };
-    const player = new VideoPlayerLightbox(makeFakeTable(koops, videos));
-    player._buildItems();
+    const player = playerWith(koops, videos);
     player.index = 0;
     expect(player.index > 0).toBe(false);
     expect(player.index < player.items.length - 1).toBe(true);

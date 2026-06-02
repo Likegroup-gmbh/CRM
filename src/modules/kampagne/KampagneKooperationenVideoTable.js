@@ -13,6 +13,7 @@ import { UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { ColumnDragHandler } from './columns/ColumnDragHandler.js';
 import { nutzungsrechteModal } from './NutzungsrechteModal.js';
+import { VideoRowHeightSync } from './VideoRowHeightSync.js';
 
 export class KampagneKooperationenVideoTable {
   constructor(kampagneId, store) {
@@ -239,6 +240,13 @@ export class KampagneKooperationenVideoTable {
     CustomDatePicker.destroy(container);
     CustomDatePicker.bind(container, signal);
 
+    // Zeilen-Hoehen ueber Spalten angleichen (Feedback bestimmt die Reihenhoehe).
+    // Tabelle wird bei jedem Render neu erzeugt -> alte Sync trennen, neu binden.
+    this._rowHeightSync?.disconnect();
+    this._rowHeightSync = new VideoRowHeightSync(container);
+    this._rowHeightSync.observe();
+    this._rowHeightSync.schedule();
+
     container.addEventListener('change', async (e) => {
       if (e.target.classList.contains('custom-date-picker__input')) {
         if (e.target.dataset.entity === 'custom') {
@@ -259,7 +267,7 @@ export class KampagneKooperationenVideoTable {
       if (e.target.classList.contains('grid-input') || e.target.classList.contains('grid-textarea') || e.target.classList.contains('custom-col-input')) {
         await this.handleFieldUpdate(e.target);
       }
-    }, true);
+    }, { capture: true, signal });
 
     container.addEventListener('change', async (e) => {
       // Custom Column Checkboxes, Selects und Date-Inputs
@@ -301,7 +309,7 @@ export class KampagneKooperationenVideoTable {
           }
         }
       }
-    });
+    }, { signal });
     
     this.initAutoResizeTextareas();
 
@@ -323,7 +331,7 @@ export class KampagneKooperationenVideoTable {
         e.preventDefault();
         nutzungsrechteModal.open(nutzungsrechteBtn.dataset.vertragId);
       }
-    });
+    }, { signal });
 
     container.addEventListener('click', (e) => {
       const settingsBtn = e.target.closest('.video-settings-btn');
@@ -331,7 +339,7 @@ export class KampagneKooperationenVideoTable {
         e.preventDefault();
         this._openSettingsDrawer(settingsBtn);
       }
-    });
+    }, { signal });
 
     container.addEventListener('click', (e) => {
       const playBtn = e.target.closest('[data-action="play-video"]');
@@ -352,7 +360,7 @@ export class KampagneKooperationenVideoTable {
         this._mediaViewer.openBilder(bilderBtn.dataset.kooperationId);
         return;
       }
-    });
+    }, { signal });
 
     container.addEventListener('click', (e) => {
       const linkBtn = e.target.closest('[data-action="link-strategie-item"]');
@@ -360,7 +368,7 @@ export class KampagneKooperationenVideoTable {
         e.preventDefault();
         this._openLinkStrategieDrawer(linkBtn);
       }
-    });
+    }, { signal });
 
     container.addEventListener('click', (e) => {
       const trigger = e.target.closest('.status-select-trigger');
@@ -376,7 +384,7 @@ export class KampagneKooperationenVideoTable {
         }
         return;
       }
-    });
+    }, { signal });
 
     // Item-Click an document, da Portal an document.body haengt (nicht im container)
     document.addEventListener('click', (e) => {
@@ -855,7 +863,14 @@ export class KampagneKooperationenVideoTable {
   destroy() {
     this._closeStatusPortal();
 
+    this._rowHeightSync?.disconnect();
+    this._rowHeightSync = null;
+
     this._mediaViewer?.lightbox?.close();
+
+    // Drawer-eigene window-Listener (VIDEO_DONE/STORYS_DONE/CUSTOM_DONE,
+    // QUEUE_CHANGED) freigeben, sonst bleiben sie pro Tabellen-Instanz haengen.
+    this._uploadDrawer?.destroy();
 
     const container = document.querySelector('.kooperation-video-grid');
     if (container) CustomDatePicker.destroy(container);

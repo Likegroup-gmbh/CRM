@@ -322,4 +322,27 @@ export class VideoUploadDrawer {
     document.getElementById(`${this.drawerId}-overlay`)?.remove();
     document.getElementById(this.drawerId)?.remove();
   }
+
+  /**
+   * Vollstaendiger Teardown beim Zerstoeren der Tabelle.
+   * Entfernt die window-Listener der Tab-Handler (VIDEO_DONE/STORYS_DONE/
+   * CUSTOM_DONE) und QUEUE_CHANGED, die sonst pro neu erzeugter Tabellen-
+   * Instanz auf window haengen bleiben wuerden.
+   *
+   * Bewusst NICHT in close() aufgerufen: auf der Kampagne-Detailseite ist der
+   * Tabellen-eigene Upload-Handler nicht registriert, daher ist der DONE-
+   * Listener des Drawers die einzige UI-Aktualisierung nach einem Hintergrund-
+   * Upload. Er darf erst entfernt werden, wenn die Tabelle selbst verschwindet.
+   */
+  destroy() {
+    this.videoTab.reset();
+    this.storysTab.reset();
+    this.bilderTab.reset();
+    this.customTab.reset();
+    if (this._onJobsChangedBound) {
+      window.removeEventListener(UPLOAD_EVENTS.QUEUE_CHANGED, this._onJobsChangedBound);
+      this._onJobsChangedBound = null;
+    }
+    this.removeDrawer();
+  }
 }
