@@ -260,6 +260,36 @@ describe('MediaItemBuilder – flache Item-Liste', () => {
   });
 });
 
+describe('MediaItemBuilder.ensureStorySlotsLoaded – on-demand Story-Slots', () => {
+  it('laedt fehlende story_slots (undefined) via dataLoader.loadStorySlots nach', async () => {
+    const koops = [{ id: 'k1' }, { id: 'k2' }];
+    const videos = {
+      k1: [{ id: 'v1', file_url: 'u1' }], // story_slots undefined
+      k2: [{ id: 'v2', file_url: 'u2', story_slots: [] }], // bereits geladen (leer)
+    };
+    const table = makeFakeTable(koops, videos);
+    const calls = [];
+    table.dataLoader = {
+      loadStorySlots: async (ids) => {
+        calls.push(ids);
+        for (const id of ids) videos.k1.find(v => v.id === id) && (videos.k1.find(v => v.id === id).story_slots = []);
+      },
+    };
+    await new MediaItemBuilder(table).ensureStorySlotsLoaded();
+    expect(calls).toEqual([['v1']]); // nur v1 fehlte; v2 hat bereits []
+  });
+
+  it('ruft loadStorySlots nicht auf, wenn alle story_slots vorhanden', async () => {
+    const koops = [{ id: 'k1' }];
+    const videos = { k1: [{ id: 'v1', file_url: 'u1', story_slots: [] }] };
+    const table = makeFakeTable(koops, videos);
+    let called = false;
+    table.dataLoader = { loadStorySlots: async () => { called = true; } };
+    await new MediaItemBuilder(table).ensureStorySlotsLoaded();
+    expect(called).toBe(false);
+  });
+});
+
 describe('VideoAssetLoader – Versionen & Varianten', () => {
   it('versions liefert distinkte, sortierte version_number', () => {
     const loader = new VideoAssetLoader();
@@ -347,5 +377,83 @@ describe('VideoPlayerLightbox – Feedback-Ziel & Navigation', () => {
     player.index = 1;
     expect(player.index > 0).toBe(true);
     expect(player.index < player.items.length - 1).toBe(false);
+  });
+});
+
+describe('VideoPlayerLightbox._open – kein Sprung auf fremde Kooperation', () => {
+  function openabledPlayer(koops, videos) {
+    const table = makeFakeTable(koops, videos);
+    const player = new VideoPlayerLightbox(table);
+    player.itemBuilder.ensureBilderLoaded = async () => {};
+    player.lightbox = { open: () => {}, update: () => {}, close: () => {} };
+    player.prefetcher = { addPreconnect: () => {}, cleanup: () => {}, prefetchNeighborAssets: () => {}, scheduleNeighborPrefetch: () => {} };
+    player._loadCurrent = async () => {};
+    return player;
+  }
+
+  it('oeffnet die Story der angeklickten Koop (nicht items[0] einer fremden Koop)', async () => {
+    // k1 (Ziel) liegt VOR k2 ("Julia") und hat eine eigene Story.
+    const koops = [{ id: 'k1', name: 'Ziel' }, { id: 'k2', name: 'Julia' }];
+    const videos = {
+      k1: [{ id: 'v1', file_url: 'u1', story_slots: [{ id: 's1', video_id: 'v1', slot_index: 1, assets: [{ id: 'sa1', version_number: 1 }] }] }],
+      k2: [{ id: 'v2', file_url: 'u2', story_slots: [{ id: 's2', video_id: 'v2', slot_index: 1, assets: [{ id: 'sa2', version_number: 1 }] }] }],
+    };
+    const player = openabledPlayer(koops, videos);
+    await player.openStory('v1', 'k1');
+    expect(player.current?.type).toBe('story');
+    expect(player.current?.koop.id).toBe('k1');
+    expect(player.current?.slot.id).toBe('s1');
+  });
+
+  it('zeigt Leer-Zustand (index -1) statt fremder Koop, wenn Ziel-Koop keine Medien hat', async () => {
+    // k1 hat einen Story-Button, aber KEINE ladbaren Items (keine Assets, kein Upload, keine Bilder).
+    // k2 ("Julia") ist das erste Item der Liste -> darf NICHT geoeffnet werden.
+    const koops = [{ id: 'k1', name: 'Sony' }, { id: 'k2', name: 'Julia' }];
+    const videos = {
+      k1: [{ id: 'v1', story_slots: [{ id: 's1', video_id: 'v1', assets: [] }] }],
+      k2: [{ id: 'v2', file_url: 'u2', story_slots: [{ id: 's2', video_id: 'v2', assets: [{ id: 'sa2', version_number: 1 }] }] }],
+    };
+    const player = openabledPlayer(koops, videos);
+    await player.openStory('v1', 'k1');
+    expect(player.index).toBe(-1);
+    expect(player.current).toBeNull();
+  });
+
+  it('laedt fehlende story_slots beim Oeffnen on-demand und zeigt dann die Story', async () => {
+    // Detailansicht-Szenario: video.story_slots ist undefined (nie geladen),
+    // obwohl in der DB eine Story existiert. _open muss sie nachladen.
+    const koops = [{ id: 'k1', name: 'Sonny' }];
+    const videos = { k1: [{ id: 'v1' }] }; // kein Upload, story_slots undefined
+    const table = makeFakeTable(koops, videos);
+    table.dataLoader = {
+      loadStorySlots: async (ids) => {
+        for (const id of ids) {
+          const v = videos.k1.find(x => x.id === id);
+          if (v) v.story_slots = [{ id: 's1', video_id: 'v1', slot_index: 1, assets: [{ id: 'sa1', version_number: 1 }] }];
+        }
+      },
+    };
+    const player = new VideoPlayerLightbox(table);
+    player.itemBuilder.ensureBilderLoaded = async () => {};
+    player.lightbox = { open: () => {}, update: () => {}, close: () => {} };
+    player.prefetcher = { addPreconnect: () => {}, cleanup: () => {}, prefetchNeighborAssets: () => {}, scheduleNeighborPrefetch: () => {} };
+    player._loadCurrent = async () => {};
+
+    await player.openStory('v1', 'k1');
+    expect(player.current?.type).toBe('story');
+    expect(player.current?.koop.id).toBe('k1');
+    expect(player.current?.slot.id).toBe('s1');
+  });
+
+  it('scopt auf die richtige Koop, wenn keine Story aber anderes Medium vorhanden ist', async () => {
+    // k1 hat keine Story-Items, aber ein Video -> Fallback bleibt in k1, nicht in k2.
+    const koops = [{ id: 'k1', name: 'Katrin' }, { id: 'k2', name: 'Julia' }];
+    const videos = {
+      k1: [{ id: 'v1', file_url: 'u1' }],
+      k2: [{ id: 'v2', file_url: 'u2', story_slots: [{ id: 's2', video_id: 'v2', assets: [{ id: 'sa2', version_number: 1 }] }] }],
+    };
+    const player = openabledPlayer(koops, videos);
+    await player.openStory('v1', 'k1');
+    expect(player.current?.koop.id).toBe('k1');
   });
 });

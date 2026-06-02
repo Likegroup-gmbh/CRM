@@ -54,27 +54,28 @@ export class VideoPlayerLightbox {
     return this._open([
       it => it.type === 'video' && it.video.id === videoId && it.koop.id === kooperationId,
       it => it.type === 'video' && it.video.id === videoId,
-    ]);
+    ], kooperationId);
   }
 
   openStory(videoId, kooperationId) {
     return this._open([
       it => it.type === 'story' && it.video?.id === videoId && it.koop.id === kooperationId,
       it => it.type === 'story' && it.koop.id === kooperationId,
-      it => it.koop.id === kooperationId,
-    ]);
+    ], kooperationId);
   }
 
   openBilder(kooperationId) {
     return this._open([
       it => it.type === 'bild' && it.koop.id === kooperationId,
-      it => it.koop.id === kooperationId,
-    ]);
+    ], kooperationId);
   }
 
-  async _open(finders) {
+  async _open(finders, kooperationId = null) {
     this.prefetcher.addPreconnect();
-    await this.itemBuilder.ensureBilderLoaded();
+    await Promise.all([
+      this.itemBuilder.ensureBilderLoaded(),
+      this.itemBuilder.ensureStorySlotsLoaded(),
+    ]);
     this.items = this.itemBuilder.build();
 
     let idx = -1;
@@ -82,7 +83,13 @@ export class VideoPlayerLightbox {
       idx = this.items.findIndex(f);
       if (idx >= 0) break;
     }
-    this.index = idx >= 0 ? idx : 0;
+    // Niemals still auf items[0] (fremde Kooperation) springen. Wenn kein
+    // passendes Medium gefunden wurde, auf die richtige Koop scopen; gibt es
+    // dort gar nichts, leeren Zustand zeigen (index = -1 -> current === null).
+    if (idx < 0 && kooperationId != null) {
+      idx = this.items.findIndex(it => it.koop.id === kooperationId);
+    }
+    this.index = idx;
     this._resetItemState();
 
     // Warm-Start: Temp-Link des angeklickten Mediums sofort anfragen
@@ -94,7 +101,7 @@ export class VideoPlayerLightbox {
       onPrev: () => this._navigate(-1),
       onNext: () => this._navigate(1),
       hasPrev: () => this.index > 0,
-      hasNext: () => this.index < this.items.length - 1,
+      hasNext: () => this.index >= 0 && this.index < this.items.length - 1,
       renderBody: () => this.view.renderBody(),
       onMount: (root) => this._mount(root),
       onClose: () => {
@@ -107,6 +114,7 @@ export class VideoPlayerLightbox {
   }
 
   _navigate(dir) {
+    if (this.index < 0) return;
     const next = this.index + dir;
     if (next < 0 || next >= this.items.length) return;
     this.index = next;

@@ -323,22 +323,27 @@ export class VideoTableDataLoader {
       const batchIn = VideoTableDataLoader.batchInQuery;
       const sb = window.supabase;
 
-      const [slotsResult, assetsResult] = await Promise.allSettled([
-        batchIn(
-          sb.from('kooperation_story'),
-          'id, video_id, slot_index, slot_name, created_at',
-          'video_id', videoIds,
-          q => q.order('slot_index', { ascending: true })
-        ),
-        batchIn(
-          sb.from('kooperation_story_asset'),
-          'id, video_id, story_id, file_url, file_path, file_name, file_size, version_number, is_current',
-          'video_id', videoIds
-        )
-      ]);
+      const slotsResult = await batchIn(
+        sb.from('kooperation_story'),
+        'id, video_id, slot_index, slot_name, created_at',
+        'video_id', videoIds,
+        q => q.order('slot_index', { ascending: true })
+      ).catch(err => ({ data: [], error: err }));
 
-      const slots = slotsResult.status === 'fulfilled' ? (slotsResult.value.data || []) : [];
-      const assets = assetsResult.status === 'fulfilled' ? (assetsResult.value.data || []) : [];
+      const slots = slotsResult?.data || [];
+
+      // Assets ueber den FK story_id laden (nicht ueber video_id, das auf
+      // aelteren Story-Assets fehlen/falsch sein kann -> sonst leere Slots).
+      const slotIds = slots.map(s => s.id);
+      const assetsResult = slotIds.length > 0
+        ? await batchIn(
+            sb.from('kooperation_story_asset'),
+            'id, video_id, story_id, file_url, file_path, file_name, file_size, version_number, is_current, variant_name',
+            'story_id', slotIds
+          ).catch(err => ({ data: [], error: err }))
+        : { data: [] };
+
+      const assets = assetsResult?.data || [];
 
       const assetsByStoryId = {};
       for (const a of assets) {

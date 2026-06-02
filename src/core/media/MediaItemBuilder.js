@@ -42,6 +42,26 @@ export class MediaItemBuilder {
     }
   }
 
+  // Story-Slots der gefilterten Koops sicherstellen. In der Kampagnen-Detail-
+  // Ansicht werden Story-Slots beim initialen Laden NICHT geladen (nur Videos +
+  // Video-Assets), daher waere video.story_slots undefined -> keine Story-Items.
+  // On-demand nachladen, analog zu ensureBilderLoaded.
+  async ensureStorySlotsLoaded() {
+    // Ueber ALLE Videos im Store sammeln (nicht nur gefilterte): loadStorySlots
+    // -> store.applyStorySlots markiert ohnehin alle Videos (setzt [] fuer
+    // Videos ohne Slots). Wuerden wir nur gefilterte abfragen, wuerden Videos
+    // anderer Tabs faelschlich als geladen markiert und nie nachgeladen.
+    const missing = [];
+    for (const koopVideos of Object.values(this.table.videos || {})) {
+      for (const v of (koopVideos || [])) {
+        if (v.story_slots === undefined) missing.push(v.id);
+      }
+    }
+    if (missing.length === 0) return;
+    if (typeof this.table.dataLoader?.loadStorySlots !== 'function') return;
+    await this.table.dataLoader.loadStorySlots(missing);
+  }
+
   /** @returns {Array<object>} flache Item-Liste (type: 'video' | 'story' | 'bild') */
   build() {
     const koops = this.table.renderer.getFilteredKooperationen() || [];

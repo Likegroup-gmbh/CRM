@@ -41,7 +41,7 @@ export class VideoPlayerView {
     }
 
     const hasPrev = this.ctx.index > 0;
-    const hasNext = this.ctx.index < this.ctx.items.length - 1;
+    const hasNext = this.ctx.index >= 0 && this.ctx.index < this.ctx.items.length - 1;
 
     return `
       <div class="vpl-stage media-viewer-stage">${this.renderStageInner()}</div>
