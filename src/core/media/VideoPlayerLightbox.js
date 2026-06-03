@@ -7,6 +7,12 @@ import { VideoAssetLoader } from './VideoAssetLoader.js';
 import { MediaPrefetcher } from './MediaPrefetcher.js';
 import { VideoPlayerView } from './VideoPlayerView.js';
 import { VideoPlaybackController } from './VideoPlaybackController.js';
+import { VideoElementPool } from './VideoElementPool.js';
+import * as MediaCache from './MediaCache.js';
+
+// Container-Formate, die haeufig nicht abspielbar sind -> kein Blob-Caching
+// (laufen ohnehin ueber den Download-Fallback).
+const RISKY_VIDEO_EXT = /\.(mov|avi|mkv|m4v)(?:\?|#|$)/i;
 
 /**
  * Durchgaengiger Medien-Viewer fuer die Kampagnen-Tabelle (Orchestrator).
@@ -35,6 +41,8 @@ export class VideoPlayerLightbox {
     this.src = null;
     this.fallbackUrl = null;
     this._srcToken = 0;
+    // Key des aktuell in der Stage sichtbaren Videos (fuers Offscreen-Parken).
+    this._activeVideoKey = null;
 
     // Module
     this.itemBuilder = new MediaItemBuilder(table);
@@ -42,6 +50,7 @@ export class VideoPlayerLightbox {
     this.prefetcher = new MediaPrefetcher(this);
     this.view = new VideoPlayerView(this);
     this.playback = new VideoPlaybackController();
+    this.videoPool = new VideoElementPool();
   }
 
   get current() {
@@ -104,9 +113,13 @@ export class VideoPlayerLightbox {
       hasNext: () => this.index >= 0 && this.index < this.items.length - 1,
       renderBody: () => this.view.renderBody(),
       onMount: (root) => this._mount(root),
+      onBeforeRerender: () => this._parkStageVideo(),
       onClose: () => {
+        MediaCache.unpin();
         this.prefetcher.cleanup();
         this.playback.unmount();
+        this.videoPool.clear();
+        this._activeVideoKey = null;
       },
     });
 
@@ -222,12 +235,53 @@ export class VideoPlayerLightbox {
     return lookup.file_path || lookup.file_url || '';
   }
 
+  /**
+   * Stabiler Content-Key fuers Blob-Caching: `{typ}:{id}:{created_at}`.
+   * created_at aendert sich bei Upload UND Replace (gleiche id) -> kein Stale.
+   * @returns {string|null} null -> Caching ueberspringen
+   */
+  currentCacheKey() {
+    const item = this.current;
+    if (!item) return null;
+    if (item.type === 'video') {
+      const asset = this.assetLoader.selectedAsset(this.assets, this.selectedAssetId)
+        || item.video.currentAsset;
+      if (!asset?.id) return null;
+      return `video:${asset.id}:${asset.created_at || ''}`;
+    }
+    if (item.type === 'story') {
+      const a = this.storyAsset(item.slot, this.storyVersion);
+      if (!a?.id) return null;
+      return `story:${a.id}:${a.created_at || a.file_size || ''}`;
+    }
+    if (!item.image?.id) return null;
+    return `bild:${item.image.id}:${item.image.created_at || ''}`;
+  }
+
   async _resolveSrc() {
     const token = ++this._srcToken;
-    const resolved = await resolveStreamUrl(this.currentLookup());
+    const lookup = this.currentLookup();
+    const resolved = await resolveStreamUrl(lookup);
 
     if (token !== this._srcToken) return; // veraltet
-    this.src = resolved;
+
+    const item = this.current;
+    const key = this.currentCacheKey();
+    MediaCache.pin(key);
+
+    const cached = key ? MediaCache.getObjectUrl(key) : null;
+    if (cached) {
+      // Bereits als Blob vorhanden -> sofort, kein Netz.
+      this.src = cached;
+    } else {
+      this.src = resolved;
+      const path = lookup.file_path || lookup.file_url || '';
+      const cacheable = !!key && !!resolved && !RISKY_VIDEO_EXT.test(path);
+      // Sofort befuellen, waehrend das Medium ohnehin betrachtet wird -> beim
+      // Zurueck-/Wieder-Oeffnen ist der Blob fertig und wird ohne Netz angezeigt.
+      if (cacheable) MediaCache.ensure(key, resolved);
+    }
+
     this.fallbackUrl = resolved;
     this.loading = false;
     this._applySrc();
@@ -239,6 +293,22 @@ export class VideoPlayerLightbox {
     if (!this.lightbox.isOpen()) return;
     const stage = this.lightbox.contentEl?.querySelector('.media-viewer-stage');
     if (!stage) return;
+
+    const item = this.current;
+    const key = this.currentCacheKey();
+    const poolable = item?.type === 'video' && !!key && !RISKY_VIDEO_EXT.test(this.currentMediaPath());
+
+    // Geparktes Video mit erhaltenem Puffer/Position wiederverwenden -> kein
+    // Re-Download, Poster + gesehener Bereich sofort. Listener am Subtree sind
+    // intakt; nur der document-gebundene Fullscreen-Listener muss neu.
+    const parked = poolable ? this.videoPool.take(key) : null;
+    if (parked) {
+      stage.replaceChildren(...Array.from(parked.childNodes));
+      this.playback.rearmFullscreen(stage);
+      this._activeVideoKey = key;
+      return;
+    }
+
     stage.innerHTML = this.view.renderStageInner();
     this._bindFormatHint(stage);
     const videoEl = stage.querySelector('video');
@@ -249,6 +319,25 @@ export class VideoPlayerLightbox {
     // des vorherigen Mounts entbinden, bevor neu gemountet wird.
     this.playback.unmount();
     this.playback.mount(stage);
+    this._activeVideoKey = poolable ? key : null;
+  }
+
+  /**
+   * Rettet das aktuell sichtbare Stage-Video (mit Puffer/Position/Listenern) in
+   * den Offscreen-Pool, bevor der Body neu gerendert wird. No-op, wenn das
+   * aktuelle Medium kein cachebares Video war (_activeVideoKey === null).
+   */
+  _parkStageVideo() {
+    const key = this._activeVideoKey;
+    if (!key) return;
+    this._activeVideoKey = null;
+    const stage = this.lightbox.contentEl?.querySelector('.media-viewer-stage');
+    const video = stage?.querySelector('.vpl-video');
+    if (!video) return;
+    try { video.pause(); } catch (_) { /* still */ }
+    const wrapper = document.createElement('div');
+    wrapper.append(...Array.from(stage.childNodes));
+    this.videoPool.park(key, wrapper);
   }
 
   _bindFormatHint(stage) {

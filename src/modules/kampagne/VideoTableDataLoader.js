@@ -338,7 +338,7 @@ export class VideoTableDataLoader {
       const assetsResult = slotIds.length > 0
         ? await batchIn(
             sb.from('kooperation_story_asset'),
-            'id, video_id, story_id, file_url, file_path, file_name, file_size, version_number, is_current, variant_name',
+            'id, video_id, story_id, file_url, file_path, file_name, file_size, version_number, is_current, variant_name, created_at',
             'story_id', slotIds
           ).catch(err => ({ data: [], error: err }))
         : { data: [] };

@@ -61,14 +61,29 @@ export class VideoPlaybackController {
         if (document.fullscreenElement) document.exitFullscreen();
         else if (stage.requestFullscreen) stage.requestFullscreen();
       });
-      // Stage-Video wird bei jedem Medienwechsel neu erzeugt -> alten
-      // document-Listener entbinden, bevor ein neuer registriert wird.
-      this._fsAbort?.abort();
-      this._fsAbort = new AbortController();
-      document.addEventListener('fullscreenchange', () => {
-        fsBtn.innerHTML = document.fullscreenElement ? ICON_FS_EXIT : ICON_FS;
-      }, { signal: this._fsAbort.signal });
+      this._armFullscreen(stage);
     }
+  }
+
+  /**
+   * Setzt nur den document-`fullscreenchange`-Listener neu. Fuer wiederverwendete
+   * (geparkte) Stage-Subtrees: fsBtn-Click + Video-Listener sind dort bereits
+   * gebunden, nur der document-Listener wurde beim unmount abgebrochen.
+   */
+  rearmFullscreen(stage) {
+    if (!stage || !stage.querySelector('.vpl-fs')) return;
+    this._armFullscreen(stage);
+  }
+
+  _armFullscreen(stage) {
+    const fsBtn = stage.querySelector('.vpl-fs');
+    if (!fsBtn) return;
+    // Alten document-Listener entbinden, bevor ein neuer registriert wird.
+    this._fsAbort?.abort();
+    this._fsAbort = new AbortController();
+    document.addEventListener('fullscreenchange', () => {
+      fsBtn.innerHTML = document.fullscreenElement ? ICON_FS_EXIT : ICON_FS;
+    }, { signal: this._fsAbort.signal });
   }
 
   /** Entfernt den document-gebundenen fullscreenchange-Listener. */

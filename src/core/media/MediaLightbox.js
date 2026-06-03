@@ -27,6 +27,7 @@ export class MediaLightbox {
    * @param {string} [opts.className]
    * @param {() => string} opts.renderBody - liefert das Body-HTML
    * @param {(root: HTMLElement) => void} [opts.onMount] - nach jedem Render aufgerufen
+   * @param {() => void} [opts.onBeforeRerender] - vor jedem Re-Render (innerHTML-Reset)
    * @param {() => void} [opts.onPrev]
    * @param {() => void} [opts.onNext]
    * @param {() => boolean} [opts.hasPrev]
@@ -76,6 +77,9 @@ export class MediaLightbox {
   /** Body neu rendern (ohne Overlay neu zu erzeugen). */
   update() {
     if (!this.overlay || !this._opts) return;
+    // Hook VOR dem innerHTML-Reset: erlaubt dem Viewer, das aktuelle
+    // Stage-Video zu retten (offscreen parken) statt es zu zerstoeren.
+    this._opts.onBeforeRerender?.();
     this.contentEl.innerHTML = this._opts.renderBody ? this._opts.renderBody() : '';
     this._opts.onMount?.(this.contentEl);
     this._updateNavState();

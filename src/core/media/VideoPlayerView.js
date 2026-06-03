@@ -39,6 +39,7 @@ export class VideoPlayerView {
       title = item.image.file_name || 'Bild';
       controls = this.renderThumbs();
     }
+    title += this._typeCounter(item);
 
     const hasPrev = this.ctx.index > 0;
     const hasNext = this.ctx.index >= 0 && this.ctx.index < this.ctx.items.length - 1;
@@ -61,6 +62,17 @@ export class VideoPlayerView {
         </div>
       </div>
     `;
+  }
+
+  // Liefert ein " X/Y"-Suffix fuer den Titel: Position/Anzahl der gleichartigen
+  // Items (gleicher type, gleicher Creator) in der flachen Medienliste. Leer,
+  // wenn es nur ein Medium dieses Typs beim Creator gibt.
+  _typeCounter(item) {
+    const same = this.ctx.items.filter(
+      it => it.type === item.type && it.koop?.id === item.koop?.id
+    );
+    const pos = same.indexOf(item) + 1;
+    return same.length > 1 ? ` ${pos}/${same.length}` : '';
   }
 
   renderStageInner() {

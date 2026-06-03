@@ -4,6 +4,7 @@
 // Greift ueber einen schlanken Kontext (ctx = Player) auf Items/State zu.
 
 import { resolveStreamUrl } from './mediaSrc.js';
+import * as MediaCache from './MediaCache.js';
 
 export class MediaPrefetcher {
   constructor(ctx) {
@@ -57,25 +58,49 @@ export class MediaPrefetcher {
 
   prefetchNeighbors() {
     const { items, index, storyVersions, storyAsset } = this.ctx;
-    const lookups = [index - 1, index + 1]
-      .map(i => items[i])
-      .filter(Boolean)
-      .map(e => {
-        if (e.type === 'video') {
-          return {
-            file_path: e.video.currentAsset?.file_path || null,
-            file_url: e.video.file_url || e.video.link_content || e.video.asset_url || null
-          };
+    const videoLookups = []; // nur Metadaten (kein Voll-Download)
+    const blobTasks = [];    // Bild/Story: vollstaendig als Blob vorwaermen
+
+    [index - 1, index + 1].forEach(i => {
+      const e = items[i];
+      if (!e) return;
+      if (e.type === 'video') {
+        // Nur Metadaten-Prefetch (schnelles erstes Bild). KEIN voller Blob-
+        // Prewarm: der wuerde Bandbreite vom aktiven Video abziehen. Instantes
+        // Zurueckblaettern liefert stattdessen der Video-Element-Pool (Retention).
+        videoLookups.push({
+          file_path: e.video.currentAsset?.file_path || null,
+          file_url: e.video.file_url || e.video.link_content || e.video.asset_url || null
+        });
+      } else if (e.type === 'story') {
+        const versions = storyVersions(e.slot);
+        const a = storyAsset(e.slot, versions[versions.length - 1] || 1);
+        if (a?.id && (a.file_path || a.file_url)) {
+          blobTasks.push({
+            key: `story:${a.id}:${a.created_at || a.file_size || ''}`,
+            lookup: { file_path: a.file_path || null, file_url: a.file_url || null }
+          });
         }
-        if (e.type === 'story') {
-          const versions = storyVersions(e.slot);
-          const a = storyAsset(e.slot, versions[versions.length - 1] || 1);
-          return { file_path: a?.file_path || null, file_url: a?.file_url || null };
+      } else if (e.type === 'bild') {
+        const img = e.image;
+        if (img?.id && (img.file_path || img.file_url)) {
+          blobTasks.push({
+            key: `bild:${img.id}:${img.created_at || ''}`,
+            lookup: { file_path: img.file_path || null, file_url: img.file_url || null }
+          });
         }
-        return null;
-      })
-      .filter(Boolean);
-    Promise.all(lookups.map(l => resolveStreamUrl(l).catch(() => null)))
+      }
+    });
+
+    // Bild/Story-Nachbarn als Blob in den Cache (klein) -> instantes Oeffnen.
+    blobTasks.forEach(t => {
+      resolveStreamUrl(t.lookup)
+        .then(url => { if (url) MediaCache.ensure(t.key, url); })
+        .catch(() => {});
+    });
+
+    // Video-Nachbarn zusaetzlich mit Metadaten vorladen (schnelles erstes Bild).
+    Promise.all(videoLookups.map(l => resolveStreamUrl(l).catch(() => null)))
       .then(urls => this._prefetchBytes(urls.filter(Boolean)));
   }
 

@@ -5,6 +5,8 @@ import { VideoPlayerLightbox } from '../core/media/VideoPlayerLightbox.js';
 import { MediaItemBuilder } from '../core/media/MediaItemBuilder.js';
 import { VideoAssetLoader } from '../core/media/VideoAssetLoader.js';
 import { resolveStreamUrl, _clearMediaSrcCache } from '../core/media/mediaSrc.js';
+import * as MediaCache from '../core/media/MediaCache.js';
+import { VideoElementPool } from '../core/media/VideoElementPool.js';
 
 describe('resolveVideoFeedbackTarget – Version->Runde Mapping', () => {
   it('Version 1 -> Runde 1, CJ fuer interne Rolle', () => {
@@ -455,5 +457,262 @@ describe('VideoPlayerLightbox._open – kein Sprung auf fremde Kooperation', () 
     const player = openabledPlayer(koops, videos);
     await player.openStory('v1', 'k1');
     expect(player.current?.koop.id).toBe('k1');
+  });
+});
+
+describe('MediaCache – Blob-Object-URL-Cache', () => {
+  let urlCounter;
+  let revokeSpy;
+
+  function fetchOf(size, { contentLength } = {}) {
+    return vi.fn(async () => ({
+      ok: true,
+      headers: { get: (h) => (h === 'content-length' ? (contentLength ?? String(size)) : null) },
+      blob: async () => ({ size }),
+    }));
+  }
+
+  beforeEach(() => {
+    MediaCache._clearMediaCache();
+    urlCounter = 0;
+    URL.createObjectURL = vi.fn(() => `blob:obj-${++urlCounter}`);
+    revokeSpy = vi.fn();
+    URL.revokeObjectURL = revokeSpy;
+    // Deterministische LRU-Reihenfolge.
+    let t = 1_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => (t += 1));
+  });
+
+  it('Miss dann Hit: ensure laedt einmal, getObjectUrl liefert die Blob-URL', async () => {
+    const fetchMock = fetchOf(1000);
+    global.fetch = fetchMock;
+
+    expect(MediaCache.getObjectUrl('k')).toBeNull();
+    const url = await MediaCache.ensure('k', 'https://dl/x.mp4');
+    expect(url).toBe('blob:obj-1');
+    expect(MediaCache.getObjectUrl('k')).toBe('blob:obj-1');
+
+    // Zweiter ensure -> Cache, kein erneuter Fetch.
+    const url2 = await MediaCache.ensure('k', 'https://dl/x.mp4');
+    expect(url2).toBe('blob:obj-1');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('Inflight-Dedup: zwei parallele ensure -> nur ein Fetch', async () => {
+    const fetchMock = fetchOf(1000);
+    global.fetch = fetchMock;
+
+    const [a, b] = await Promise.all([
+      MediaCache.ensure('k', 'https://dl/x.mp4'),
+      MediaCache.ensure('k', 'https://dl/x.mp4'),
+    ]);
+    expect(a).toBe(b);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('maxBytes: zu grosse Dateien werden nicht gecacht (Content-Length)', async () => {
+    global.fetch = fetchOf(999, { contentLength: String(50 * 1024 * 1024) });
+    const url = await MediaCache.ensure('k', 'https://dl/big.mp4', { maxBytes: 10 * 1024 * 1024 });
+    expect(url).toBeNull();
+    expect(MediaCache.getObjectUrl('k')).toBeNull();
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it('CORS-/Fetch-Fehler werden still verschluckt', async () => {
+    global.fetch = vi.fn(async () => { throw new Error('CORS'); });
+    const url = await MediaCache.ensure('k', 'https://dl/x.mp4');
+    expect(url).toBeNull();
+    expect(MediaCache.getObjectUrl('k')).toBeNull();
+  });
+
+  it('LRU-Eviction gibt den aeltesten Eintrag frei (revoke)', async () => {
+    global.fetch = fetchOf(60);
+    MediaCache.configureMediaCache({ budgetBytes: 100 });
+
+    const urlA = await MediaCache.ensure('A', 'https://dl/a.mp4');
+    await MediaCache.ensure('B', 'https://dl/b.mp4');
+
+    expect(MediaCache.getObjectUrl('A')).toBeNull();      // verdraengt
+    expect(MediaCache.getObjectUrl('B')).not.toBeNull();  // bleibt
+    expect(revokeSpy).toHaveBeenCalledWith(urlA);
+  });
+
+  it('Pin schuetzt das aktive Medium vor Eviction', async () => {
+    global.fetch = fetchOf(60);
+    MediaCache.configureMediaCache({ budgetBytes: 100 });
+
+    const urlA = await MediaCache.ensure('A', 'https://dl/a.mp4');
+    MediaCache.pin('A');
+    const urlB = await MediaCache.ensure('B', 'https://dl/b.mp4');
+
+    expect(MediaCache.getObjectUrl('A')).toBe(urlA);  // gepinnt -> bleibt
+    expect(MediaCache.getObjectUrl('B')).toBeNull();  // stattdessen verdraengt
+    expect(revokeSpy).toHaveBeenCalledWith(urlB);
+  });
+
+  it('Replace-Bust: anderer created_at-Key kollidiert nicht (kein stale Hit)', async () => {
+    global.fetch = fetchOf(1000);
+    await MediaCache.ensure('video:1:t1', 'https://dl/v1.mp4');
+    expect(MediaCache.getObjectUrl('video:1:t1')).not.toBeNull();
+    expect(MediaCache.getObjectUrl('video:1:t2')).toBeNull();
+  });
+});
+
+describe('VideoPlayerLightbox.currentCacheKey – Content-Key', () => {
+  function playerWith(koops, videos) {
+    const table = makeFakeTable(koops, videos);
+    const player = new VideoPlayerLightbox(table);
+    player.items = new MediaItemBuilder(table).build();
+    return player;
+  }
+
+  it('Video-Key enthaelt Asset-id + created_at; Replace (neues created_at) ergibt neuen Key', () => {
+    const koops = [{ id: 'k1' }];
+    const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
+    const player = playerWith(koops, videos);
+    player.index = 0;
+
+    player.assets = [{ id: 'a1', created_at: 't1', version_number: 1, is_current: true }];
+    player.selectedAssetId = 'a1';
+    expect(player.currentCacheKey()).toBe('video:a1:t1');
+
+    // Replace ueberschreibt dieselbe Zeile (gleiche id), neues created_at.
+    player.assets = [{ id: 'a1', created_at: 't2', version_number: 1, is_current: true }];
+    expect(player.currentCacheKey()).toBe('video:a1:t2');
+  });
+
+  it('Bild-Key nutzt image.id + created_at', () => {
+    const koops = [{ id: 'k1', _bilder: [{ id: 'img1', file_url: 'iu1', created_at: 'c1' }] }];
+    const videos = { k1: [] };
+    const player = playerWith(koops, videos);
+    player.index = player.items.findIndex(e => e.type === 'bild');
+    expect(player.currentCacheKey()).toBe('bild:img1:c1');
+  });
+
+  it('null wenn kein Asset/keine id -> Caching wird uebersprungen', () => {
+    const koops = [{ id: 'k1' }];
+    const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
+    const player = playerWith(koops, videos);
+    player.index = 0;
+    player.assets = [];
+    player.selectedAssetId = null;
+    expect(player.currentCacheKey()).toBeNull();
+  });
+});
+
+describe('VideoElementPool – Offscreen-Retention', () => {
+  function nodeWithVideo(src = 'blob:x') {
+    const wrap = document.createElement('div');
+    const v = document.createElement('video');
+    v.className = 'vpl-video';
+    v.setAttribute('src', src);
+    wrap.appendChild(v);
+    return wrap;
+  }
+
+  it('park/take Roundtrip: liefert exakt denselben Node, danach leer', () => {
+    const pool = new VideoElementPool();
+    const node = nodeWithVideo();
+    pool.park('k1', node);
+    expect(pool.size).toBe(1);
+    expect(pool.take('k1')).toBe(node);
+    expect(pool.take('k1')).toBeNull(); // nach Entnahme weg
+    expect(pool.size).toBe(0);
+  });
+
+  it('LRU-Verdraengung gibt den aeltesten Node frei (src geloest)', () => {
+    const pool = new VideoElementPool(2);
+    const a = nodeWithVideo('blob:a');
+    pool.park('A', a);
+    pool.park('B', nodeWithVideo('blob:b'));
+    pool.park('C', nodeWithVideo('blob:c')); // A wird verdraengt
+
+    expect(pool.take('A')).toBeNull();
+    expect(pool.size).toBe(2);
+    // verdraengtes Video: src wurde entfernt -> Decoder/RAM frei
+    expect(a.querySelector('video').getAttribute('src')).toBeNull();
+  });
+
+  it('Re-Park desselben Keys gibt den alten Node frei (kein Leak)', () => {
+    const pool = new VideoElementPool();
+    const first = nodeWithVideo('blob:first');
+    pool.park('k', first);
+    pool.park('k', nodeWithVideo('blob:second'));
+    expect(pool.size).toBe(1);
+    expect(first.querySelector('video').getAttribute('src')).toBeNull();
+  });
+
+  it('clear() loest alle src und leert den Pool', () => {
+    const pool = new VideoElementPool();
+    const a = nodeWithVideo('blob:a');
+    pool.park('A', a);
+    pool.park('B', nodeWithVideo('blob:b'));
+    pool.clear();
+    expect(pool.size).toBe(0);
+    expect(a.querySelector('video').getAttribute('src')).toBeNull();
+  });
+});
+
+describe('VideoPlayerLightbox._applySrc – Element-Retention beim Zurueckblaettern', () => {
+  function makePlayer(koops, videos) {
+    const table = makeFakeTable(koops, videos);
+    const player = new VideoPlayerLightbox(table);
+    player.items = new MediaItemBuilder(table).build();
+    // Schlanke Lightbox-Attrappe: nur das, was _applySrc braucht.
+    const host = document.createElement('div');
+    host.innerHTML = '<div class="media-viewer-stage"></div>';
+    player.lightbox = { isOpen: () => true, contentEl: host };
+    player.loading = false;
+    player.src = 'blob:dummy';
+    return player;
+  }
+
+  function selectVideo(player, index, asset) {
+    player.index = index;
+    player.assets = [asset];
+    player.selectedAssetId = asset.id;
+  }
+
+  it('Zurueck zu bereits gesehenem Video verwendet dasselbe <video> wieder (kein Re-Render)', () => {
+    const koops = [{ id: 'k1' }];
+    const videos = { k1: [{ id: 'v1', file_url: 'u1' }, { id: 'v2', file_url: 'u2' }] };
+    const player = makePlayer(koops, videos);
+    const stage = () => player.lightbox.contentEl.querySelector('.media-viewer-stage');
+
+    // v1 oeffnen -> frisch gerendert, Element markieren.
+    selectVideo(player, 0, { id: 'a1', created_at: 't1', version_number: 1, is_current: true, file_path: '/x/v1.mp4' });
+    player._applySrc();
+    expect(player._activeVideoKey).toBe('video:a1:t1');
+    const v1El = stage().querySelector('.vpl-video');
+    v1El.dataset.testid = 'v1-instance';
+
+    // Weiter zu v2: erst parken (wie onBeforeRerender), dann v2 rendern.
+    player._parkStageVideo();
+    expect(player.videoPool.size).toBe(1);
+    selectVideo(player, 1, { id: 'a2', created_at: 't2', version_number: 1, is_current: true, file_path: '/x/v2.mp4' });
+    player._applySrc();
+    expect(stage().querySelector('.vpl-video').dataset.testid).toBeUndefined(); // anderes Element
+
+    // Zurueck zu v1: parken von v2, dann v1 aus dem Pool wiederverwenden.
+    player._parkStageVideo();
+    selectVideo(player, 0, { id: 'a1', created_at: 't1', version_number: 1, is_current: true, file_path: '/x/v1.mp4' });
+    const renderSpy = vi.spyOn(player.view, 'renderStageInner');
+    player._applySrc();
+
+    expect(renderSpy).not.toHaveBeenCalled(); // kein Neu-Rendern
+    expect(stage().querySelector('.vpl-video').dataset.testid).toBe('v1-instance');
+    expect(player._activeVideoKey).toBe('video:a1:t1');
+  });
+
+  it('riskante Formate (.mov) werden nicht gepoolt (_activeVideoKey bleibt null)', () => {
+    const koops = [{ id: 'k1' }];
+    const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
+    const player = makePlayer(koops, videos);
+    selectVideo(player, 0, { id: 'a1', created_at: 't1', version_number: 1, is_current: true, file_path: '/x/v1.mov' });
+    player._applySrc();
+    expect(player._activeVideoKey).toBeNull();
+
+    player._parkStageVideo();
+    expect(player.videoPool.size).toBe(0); // nichts geparkt
   });
 });
