@@ -9,6 +9,7 @@ import { VideoPlayerView } from './VideoPlayerView.js';
 import { VideoPlaybackController } from './VideoPlaybackController.js';
 import { VideoElementPool } from './VideoElementPool.js';
 import * as MediaCache from './MediaCache.js';
+import { perfLog, perfNow, mediaLog } from './mediaPerf.js';
 
 // Container-Formate, die haeufig nicht abspielbar sind -> kein Blob-Caching
 // (laufen ohnehin ueber den Download-Fallback).
@@ -235,6 +236,15 @@ export class VideoPlayerLightbox {
     return lookup.file_path || lookup.file_url || '';
   }
 
+  /** Kurzer, menschenlesbarer Name des aktuellen Mediums (fuer Konsolen-Log). */
+  _mediaLabel() {
+    const item = this.current;
+    if (!item) return 'Medium';
+    if (item.type === 'video') return item.video?.video_name || item.video?.thema || 'Video';
+    if (item.type === 'story') return item.slot?.slot_name || 'Story';
+    return item.image?.file_name || 'Bild';
+  }
+
   /**
    * Stabiler Content-Key fuers Blob-Caching: `{typ}:{id}:{created_at}`.
    * created_at aendert sich bei Upload UND Replace (gleiche id) -> kein Stale.
@@ -261,32 +271,83 @@ export class VideoPlayerLightbox {
   async _resolveSrc() {
     const token = ++this._srcToken;
     const lookup = this.currentLookup();
+    const key = this.currentCacheKey();
+    const label = this._mediaLabel();
+
+    // Blob-first: liegt das Medium bereits als Blob im Cache, sofort anwenden –
+    // KEIN Warten auf resolveStreamUrl (Temp-Link) und kein Leer-Stage-Flash.
+    const cachedUrl = key ? MediaCache.getObjectUrl(key) : null;
+    if (cachedUrl) {
+      MediaCache.pin(key);
+      this.src = cachedUrl;
+      this.fallbackUrl = cachedUrl;
+      this.loading = false;
+      this._applySrc();
+      perfLog('resolve', { hit: 'blob', key });
+      // Temp-Link nur im Hintergrund fuer Fallback/Download bereitstellen.
+      resolveStreamUrl(lookup)
+        .then(url => { if (url && token === this._srcToken) this.fallbackUrl = url; })
+        .catch(() => {});
+      this.prefetcher.prefetchNeighborAssets();
+      this.prefetcher.scheduleNeighborPrefetch();
+      return;
+    }
+
+    const t0 = perfNow();
     const resolved = await resolveStreamUrl(lookup);
+    perfLog('resolveStreamUrl', { ms: Math.round(perfNow() - t0), key });
 
     if (token !== this._srcToken) return; // veraltet
 
-    const item = this.current;
-    const key = this.currentCacheKey();
     MediaCache.pin(key);
-
-    const cached = key ? MediaCache.getObjectUrl(key) : null;
-    if (cached) {
-      // Bereits als Blob vorhanden -> sofort, kein Netz.
-      this.src = cached;
-    } else {
-      this.src = resolved;
-      const path = lookup.file_path || lookup.file_url || '';
-      const cacheable = !!key && !!resolved && !RISKY_VIDEO_EXT.test(path);
-      // Sofort befuellen, waehrend das Medium ohnehin betrachtet wird -> beim
-      // Zurueck-/Wieder-Oeffnen ist der Blob fertig und wird ohne Netz angezeigt.
-      if (cacheable) MediaCache.ensure(key, resolved);
-    }
-
+    this.src = resolved;
     this.fallbackUrl = resolved;
     this.loading = false;
     this._applySrc();
+    perfLog('resolve', { hit: 'miss', key });
+
+    const path = lookup.file_path || lookup.file_url || '';
+    const cacheable = !!key && !!resolved && !RISKY_VIDEO_EXT.test(path);
+    if (cacheable) {
+      // Befuellen, waehrend das Medium ohnehin betrachtet wird. Sobald der Blob
+      // fertig ist, wird das laufende <video> darauf umgestellt -> das (spaeter
+      // geparkte) Element haengt am Blob statt an der Dropbox-URL.
+      MediaCache.ensure(key, resolved).then(blobUrl => {
+        if (blobUrl) {
+          mediaLog(`"${label}" ist jetzt gecached - beim Zurueck/erneut Oeffnen sofort.`);
+          if (token === this._srcToken) this._upgradeActiveToBlob(key, blobUrl);
+        } else {
+          mediaLog(`"${label}" konnte nicht gecached werden (zu gross oder CORS) - laedt erneut vom Netz.`);
+        }
+      });
+    }
+
     this.prefetcher.prefetchNeighborAssets();
     this.prefetcher.scheduleNeighborPrefetch();
+  }
+
+  /**
+   * Stellt das aktuell sichtbare Stage-Video auf die fertige Blob-URL um, ohne
+   * Position/Play-Status zu verlieren. Dropbox-Stream-URLs (max-age=60) wuerden
+   * beim Parken/Reattach den Puffer verlieren und neu laden – der Blob nicht.
+   */
+  _upgradeActiveToBlob(key, blobUrl) {
+    if (!this.lightbox.isOpen() || this._activeVideoKey !== key) return;
+    const stage = this.lightbox.contentEl?.querySelector('.media-viewer-stage');
+    const video = stage?.querySelector('.vpl-video');
+    if (!video || video.src === blobUrl) return;
+
+    const t = video.currentTime;
+    const wasPaused = video.paused;
+    this.src = blobUrl;
+    video.src = blobUrl;
+    const restore = () => {
+      try { if (Number.isFinite(t) && t > 0) video.currentTime = t; } catch (_) { /* noop */ }
+      if (!wasPaused) video.play().catch(() => {});
+    };
+    if (video.readyState >= 1) restore();
+    else video.addEventListener('loadedmetadata', restore, { once: true });
+    perfLog('blob-upgrade', { key });
   }
 
   _applySrc() {
@@ -301,11 +362,27 @@ export class VideoPlayerLightbox {
     // Geparktes Video mit erhaltenem Puffer/Position wiederverwenden -> kein
     // Re-Download, Poster + gesehener Bereich sofort. Listener am Subtree sind
     // intakt; nur der document-gebundene Fullscreen-Listener muss neu.
+    const label = this._mediaLabel();
     const parked = poolable ? this.videoPool.take(key) : null;
     if (parked) {
       stage.replaceChildren(...Array.from(parked.childNodes));
       this.playback.rearmFullscreen(stage);
       this._activeVideoKey = key;
+      perfLog('pool-hit', { key });
+      mediaLog(`"${label}" sofort aus Speicher wiederverwendet (kein Laden).`);
+      // Falls inzwischen ein Blob bereitsteht, das geparkte Element aber noch an
+      // der Dropbox-URL haengt: auf Blob umstellen (Position erhalten) -> kein
+      // erneutes Netz-Laden beim Zurueckblaettern.
+      const blobUrl = MediaCache.getObjectUrl(key);
+      const video = stage.querySelector('.vpl-video');
+      if (blobUrl && video && video.src !== blobUrl) {
+        const t = video.currentTime;
+        video.src = blobUrl;
+        video.addEventListener('loadedmetadata', () => {
+          try { if (Number.isFinite(t) && t > 0) video.currentTime = t; } catch (_) { /* noop */ }
+        }, { once: true });
+        perfLog('blob-upgrade', { key, via: 'pool' });
+      }
       return;
     }
 
@@ -320,6 +397,16 @@ export class VideoPlayerLightbox {
     this.playback.unmount();
     this.playback.mount(stage);
     this._activeVideoKey = poolable ? key : null;
+
+    if (item?.type === 'video') {
+      if (this.src && this.src.startsWith('blob:')) {
+        mediaLog(`"${label}" sofort aus Cache (kein Netz).`);
+      } else if (poolable) {
+        mediaLog(`"${label}" wird vom Netz geladen (noch nicht im Cache - wird jetzt gecached).`);
+      } else {
+        mediaLog(`"${label}" wird vom Netz geladen (Format wird nicht gecached - bleibt langsam).`);
+      }
+    }
   }
 
   /**

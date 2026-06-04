@@ -6,6 +6,10 @@
 import { resolveStreamUrl } from './mediaSrc.js';
 import * as MediaCache from './MediaCache.js';
 
+// Container-Formate ohne Caching (spiegelt RISKY_VIDEO_EXT im Player) -> diese
+// Nachbarn nur mit Metadaten vorladen, nicht als Blob.
+const RISKY_VIDEO_EXT = /\.(mov|avi|mkv|m4v)(?:\?|#|$)/i;
+
 export class MediaPrefetcher {
   constructor(ctx) {
     this.ctx = ctx;
@@ -48,31 +52,26 @@ export class MediaPrefetcher {
       this._prefetchTimerId = null;
       if (token === this.ctx._srcToken) this.prefetchNeighbors();
     };
+    // Erst starten, wenn das AKTIVE Video durchgehend abspielbar ist
+    // (canplaythrough) -> der Voll-Blob-Prewarm der Nachbarn zieht keine
+    // Bandbreite vom ersten Start ab. Timeout als Fallback, falls das Event
+    // (z.B. bei sehr grossen Dateien) lange ausbleibt.
     if (video) {
-      if (video.readyState >= 2) run();
-      else video.addEventListener('loadeddata', run, { once: true });
+      if (video.readyState >= 4) run();
+      else video.addEventListener('canplaythrough', run, { once: true });
     }
     if (this._prefetchTimerId) clearTimeout(this._prefetchTimerId);
-    this._prefetchTimerId = setTimeout(run, 2500);
+    this._prefetchTimerId = setTimeout(run, 4000);
   }
 
   prefetchNeighbors() {
     const { items, index, storyVersions, storyAsset } = this.ctx;
-    const videoLookups = []; // nur Metadaten (kein Voll-Download)
-    const blobTasks = [];    // Bild/Story: vollstaendig als Blob vorwaermen
+    const blobTasks = []; // Bild/Story: vollstaendig als Blob vorwaermen
 
     [index - 1, index + 1].forEach(i => {
       const e = items[i];
       if (!e) return;
-      if (e.type === 'video') {
-        // Nur Metadaten-Prefetch (schnelles erstes Bild). KEIN voller Blob-
-        // Prewarm: der wuerde Bandbreite vom aktiven Video abziehen. Instantes
-        // Zurueckblaettern liefert stattdessen der Video-Element-Pool (Retention).
-        videoLookups.push({
-          file_path: e.video.currentAsset?.file_path || null,
-          file_url: e.video.file_url || e.video.link_content || e.video.asset_url || null
-        });
-      } else if (e.type === 'story') {
+      if (e.type === 'story') {
         const versions = storyVersions(e.slot);
         const a = storyAsset(e.slot, versions[versions.length - 1] || 1);
         if (a?.id && (a.file_path || a.file_url)) {
@@ -99,9 +98,69 @@ export class MediaPrefetcher {
         .catch(() => {});
     });
 
-    // Video-Nachbarn zusaetzlich mit Metadaten vorladen (schnelles erstes Bild).
-    Promise.all(videoLookups.map(l => resolveStreamUrl(l).catch(() => null)))
-      .then(urls => this._prefetchBytes(urls.filter(Boolean)));
+    // Video-Nachbarn (naechste Videos in beide Richtungen, da Storys/Bilder
+    // dazwischen liegen koennen): cachebare voll als Blob vorwaermen, riskante
+    // (.mov etc.) nur mit Metadaten (schnelles erstes Bild).
+    const videoIndices = this._nearestVideoIndices({ back: 1, ahead: 2 });
+    Promise.all(videoIndices.map(i => this._resolveVideoTask(items[i])))
+      .then(tasks => {
+        const metaUrls = [];
+        for (const t of tasks) {
+          if (!t) continue;
+          if (t.risky) { metaUrls.push(t.url); continue; }
+          MediaCache.ensure(t.key, t.url);
+        }
+        this._prefetchBytes(metaUrls);
+      })
+      .catch(() => {});
+  }
+
+  /** Indizes der naechsten Video-Items in beide Richtungen (vom aktuellen aus). */
+  _nearestVideoIndices({ back = 1, ahead = 2 } = {}) {
+    const { items, index } = this.ctx;
+    const result = [];
+    let n = 0;
+    for (let i = index - 1; i >= 0 && n < back; i--) {
+      if (items[i]?.type === 'video') { result.push(i); n++; }
+    }
+    n = 0;
+    for (let i = index + 1; i < items.length && n < ahead; i++) {
+      if (items[i]?.type === 'video') { result.push(i); n++; }
+    }
+    return result;
+  }
+
+  /**
+   * Loest fuer ein Video-Item den Content-Key (analog
+   * VideoPlayerLightbox.currentCacheKey: `video:{assetId}:{created_at}`) und die
+   * Stream-URL auf. Liefert null, wenn schon gecacht oder nichts aufloesbar.
+   * @returns {Promise<{key:string,url:string,risky:boolean}|null>}
+   */
+  async _resolveVideoTask(item) {
+    const video = item?.video;
+    if (!video?.id) return null;
+
+    let assets = this.ctx.assetLoader.get(video.id);
+    if (!assets) assets = await this.ctx.assetLoader.load(video.id).catch(() => null);
+    if (!assets) return null;
+
+    const comments = this.ctx.table.videoComments?.[video.id];
+    const sel = this.ctx.assetLoader.applyDefaultSelection(assets, comments);
+    const asset = this.ctx.assetLoader.selectedAsset(assets, sel.selectedAssetId) || video.currentAsset;
+    if (!asset?.id) return null;
+
+    const key = `video:${asset.id}:${asset.created_at || ''}`;
+    if (MediaCache.getObjectUrl(key)) return null; // schon vorgewaermt
+
+    const lookup = {
+      file_path: asset.file_path || null,
+      file_url: asset.file_url || video.file_url || video.link_content || video.asset_url || null,
+    };
+    const url = await resolveStreamUrl(lookup).catch(() => null);
+    if (!url) return null;
+
+    const path = lookup.file_path || lookup.file_url || '';
+    return { key, url, risky: RISKY_VIDEO_EXT.test(path) };
   }
 
   _ensureContainer() {

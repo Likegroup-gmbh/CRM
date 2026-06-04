@@ -11,6 +11,8 @@
 // `{typ}:{id}:{created_at}`. created_at aendert sich bei jedem Upload UND beim
 // Replace (gleiche id) -> nie alte Bytes, keine Invalidierung noetig.
 
+import { perfLog, perfNow } from './mediaPerf.js';
+
 const DEFAULT_BUDGET_BYTES = 600 * 1024 * 1024;   // Gesamt-RAM-Budget (LRU)
 const DEFAULT_MAX_FILE_BYTES = 300 * 1024 * 1024; // pro Datei nicht cachen, wenn groesser
 
@@ -84,6 +86,7 @@ export function ensure(key, sourceUrl, options = {}) {
   const maxFileBytes = options.maxBytes || DEFAULT_MAX_FILE_BYTES;
 
   const promise = (async () => {
+    const t0 = perfNow();
     try {
       const res = await fetch(sourceUrl);
       if (!res.ok) return null;
@@ -106,6 +109,13 @@ export function ensure(key, sourceUrl, options = {}) {
       _cache.set(key, { url, bytes: blob.size, lastAccess: Date.now() });
       _totalBytes += blob.size;
       _evictIfNeeded();
+      const ms = Math.round(perfNow() - t0);
+      perfLog('blob-download', {
+        key,
+        bytes: blob.size,
+        ms,
+        kbps: ms > 0 ? Math.round((blob.size / 1024) / (ms / 1000)) : null,
+      });
       return url;
     } catch (_) {
       return null; // CORS/Netz -> still ignorieren

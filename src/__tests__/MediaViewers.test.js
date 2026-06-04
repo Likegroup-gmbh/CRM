@@ -716,3 +716,145 @@ describe('VideoPlayerLightbox._applySrc – Element-Retention beim Zurueckblaett
     expect(player.videoPool.size).toBe(0); // nichts geparkt
   });
 });
+
+describe('VideoPlayerLightbox._resolveSrc – Blob-first & Blob-Upgrade', () => {
+  function makePlayer(koops, videos) {
+    const table = makeFakeTable(koops, videos);
+    const player = new VideoPlayerLightbox(table);
+    player.items = new MediaItemBuilder(table).build();
+    const host = document.createElement('div');
+    host.innerHTML = '<div class="media-viewer-stage"></div>';
+    player.lightbox = { isOpen: () => true, contentEl: host, update: () => {} };
+    // Prefetch hier irrelevant -> No-op.
+    player.prefetcher = { prefetchNeighborAssets() {}, scheduleNeighborPrefetch() {} };
+    return player;
+  }
+
+  function selectVideo(player, index, asset) {
+    player.index = index;
+    player.assets = [asset];
+    player.selectedAssetId = asset.id;
+  }
+
+  beforeEach(() => {
+    MediaCache._clearMediaCache();
+    _clearMediaSrcCache();
+    _resetProxyAvailability();
+    let c = 0;
+    URL.createObjectURL = vi.fn(() => `blob:obj-${++c}`);
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  it('Blob-Hit: setzt src sofort auf Blob, OHNE auf resolveStreamUrl zu warten', async () => {
+    const koops = [{ id: 'k1' }];
+    const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
+    const player = makePlayer(koops, videos);
+    selectVideo(player, 0, { id: 'a1', created_at: 't1', version_number: 1, is_current: true, file_path: '/x/v1.mp4' });
+
+    // Blob vorab in den Cache legen.
+    global.fetch = vi.fn(async () => ({ ok: true, headers: { get: () => null }, blob: async () => ({ size: 1000 }) }));
+    await MediaCache.ensure('video:a1:t1', 'https://dl/v1.mp4');
+
+    // Ab jetzt haengt jede Netz-Aufloesung (resolveStreamUrl) -> darf src NICHT blockieren.
+    global.fetch = vi.fn(() => new Promise(() => {}));
+
+    await player._resolveSrc();
+
+    expect(player.src).toBe('blob:obj-1');
+    expect(player.loading).toBe(false);
+    const v = player.lightbox.contentEl.querySelector('.vpl-video');
+    expect(v).not.toBeNull();
+    expect(v.getAttribute('src')).toContain('blob:obj-1');
+  });
+
+  it('Blob-Upgrade: stellt aktives Video nach ensure-Fertigstellung auf den Blob um', async () => {
+    const koops = [{ id: 'k1' }];
+    const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
+    const player = makePlayer(koops, videos);
+    selectVideo(player, 0, { id: 'a1', created_at: 't1', version_number: 1, is_current: true, file_path: '/x/v1.mp4' });
+
+    global.fetch = vi.fn(async (url) => {
+      if (typeof url === 'string' && url.includes('dropbox-proxy')) {
+        return { ok: true, json: async () => ({ link: 'https://dl/v1.mp4' }) };
+      }
+      return { ok: true, headers: { get: () => null }, blob: async () => ({ size: 1000 }) };
+    });
+
+    await player._resolveSrc();
+
+    // Zunaechst Dropbox-Stream-URL (Cache-Miss).
+    const v = player.lightbox.contentEl.querySelector('.vpl-video');
+    expect(v.getAttribute('src')).toContain('https://dl/v1.mp4');
+    expect(player._activeVideoKey).toBe('video:a1:t1');
+
+    // Sobald der Blob fertig ist, upgradet das aktive Element.
+    await vi.waitFor(() => {
+      const cur = player.lightbox.contentEl.querySelector('.vpl-video');
+      expect(cur.getAttribute('src')).toContain('blob:obj-1');
+    });
+    expect(player.src).toBe('blob:obj-1');
+  });
+});
+
+describe('MediaPrefetcher.prefetchNeighbors – Nachbar-Videos voll vorwaermen', () => {
+  beforeEach(() => {
+    MediaCache._clearMediaCache();
+    _clearMediaSrcCache();
+    _resetProxyAvailability();
+    let c = 0;
+    URL.createObjectURL = vi.fn(() => `blob:nb-${++c}`);
+    URL.revokeObjectURL = vi.fn();
+    global.fetch = vi.fn(async (url) => {
+      if (typeof url === 'string' && url.includes('dropbox-proxy')) {
+        return { ok: true, json: async () => ({ link: 'https://dl/stream.mp4' }) };
+      }
+      return { ok: true, headers: { get: () => null }, blob: async () => ({ size: 1000 }) };
+    });
+  });
+
+  it('blobbt naechste cachebare Videos, .mov nur Metadaten (kein Blob)', async () => {
+    const koops = [{ id: 'k1' }];
+    const videos = {
+      k1: [
+        { id: 'v1', file_url: 'u1' },
+        { id: 'v2', file_url: 'u2' },
+        { id: 'v3', file_url: 'u3' },
+      ],
+    };
+    const table = makeFakeTable(koops, videos);
+    const player = new VideoPlayerLightbox(table);
+    player.items = new MediaItemBuilder(table).build();
+    player.index = 0; // aktiv = v1, Nachbarn ahead = v2, v3
+
+    // Assets vorab cachen, damit kein Supabase-Load noetig ist.
+    player.assetLoader._cache.set('v2', [{ id: 'a2', created_at: 't2', version_number: 1, is_current: true, file_path: '/x/v2.mp4' }]);
+    player.assetLoader._cache.set('v3', [{ id: 'a3', created_at: 't3', version_number: 1, is_current: true, file_path: '/x/v3.mov' }]);
+
+    player.prefetcher.prefetchNeighbors();
+
+    await vi.waitFor(() => {
+      expect(MediaCache.getObjectUrl('video:a2:t2')).not.toBeNull(); // MP4 -> Blob
+    });
+    expect(MediaCache.getObjectUrl('video:a3:t3')).toBeNull(); // .mov -> kein Blob
+  });
+
+  it('_nearestVideoIndices findet naechste Videos ueber Storys/Bilder hinweg', () => {
+    const koops = [{ id: 'k1', _bilder: [{ id: 'img1', file_url: 'iu1' }] }];
+    const videos = {
+      k1: [
+        { id: 'v1', file_url: 'u1', story_slots: [{ id: 's1', video_id: 'v1', slot_index: 1, assets: [{ id: 'sa', version_number: 1 }] }] },
+        { id: 'v2', file_url: 'u2' },
+      ],
+    };
+    const table = makeFakeTable(koops, videos);
+    const player = new VideoPlayerLightbox(table);
+    player.items = new MediaItemBuilder(table).build(); // [v1, s1, v2, bild]
+    player.index = 0;
+
+    const idx = player.prefetcher._nearestVideoIndices({ back: 1, ahead: 2 });
+    // v2 liegt an Index 2 (hinter der Story), nicht an index+1.
+    expect(idx).toContain(2);
+    expect(player.items[2].type).toBe('video');
+    expect(player.items[2].video.id).toBe('v2');
+  });
+});
