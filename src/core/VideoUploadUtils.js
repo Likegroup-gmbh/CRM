@@ -32,6 +32,17 @@ export function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// Attribut-sicheres Escaping: escaped auch doppelte Anführungszeichen,
+// die escapeHtml (textContent->innerHTML) nicht behandelt und die sonst
+// HTML-Attributwerte vorzeitig beenden.
+export function escapeAttr(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 export function readFileAsBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

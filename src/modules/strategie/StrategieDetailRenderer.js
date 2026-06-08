@@ -1,6 +1,8 @@
 // StrategieDetailRenderer.js
 // Tabellen-Rendering für die Strategie-Detail-Ansicht
 
+import { escapeAttr } from '../../core/VideoUploadUtils.js';
+
 export function renderItemsTable(detail) {
   if (detail.items.length === 0) {
     return `
@@ -82,9 +84,9 @@ export function renderGroupedItems(detail, groupedItems, colCount) {
     const isEmpty = items.length === 0;
     
     return `
-      <tr class="category-header-row ${isEmpty ? 'category-empty' : ''}" data-kategorie="${kategorie}">
+      <tr class="category-header-row ${isEmpty ? 'category-empty' : ''}" data-kategorie="${escapeAttr(kategorie)}">
         <td colspan="${colCount}" class="category-header-cell">
-          <span class="category-name">${kategorie}</span>
+          <span class="category-name">${escapeAttr(kategorie)}</span>
           ${isEmpty ? '<span class="category-empty-hint">(leer - Videos hierher ziehen)</span>' : ''}
         </td>
       </tr>

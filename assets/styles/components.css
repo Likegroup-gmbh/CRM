@@ -10478,7 +10478,7 @@ input.readonly-field {
 }
 
 /* URL nimmt den Platz, Kategorie nur so breit wie nötig */
-.add-item-drawer-form-row .form-field:not(.form-field--grow):not(.form-field--full):not(.form-field--btn) {
+.add-item-drawer-form-row .form-field:not(.form-field--grow):not(.form-field--full) {
   flex: 0 0 auto;
   width: auto;
   max-width: none;
@@ -10496,21 +10496,14 @@ input.readonly-field {
   font-family: inherit;
 }
 
-.add-item-drawer-form-row .form-field--btn {
-  flex: 0 0 auto;
-  width: auto;
-  max-width: none;
-  align-self: flex-end;
+.add-item-drawer-form-row--actions {
+  justify-content: flex-start;
+  align-items: center;
 }
 
-.add-item-drawer-form-row .form-field--btn .mdc-btn {
+.add-item-drawer-form-row--actions .mdc-btn {
   width: auto;
-}
-
-.add-item-drawer-form-row .form-field--btn label {
-  visibility: hidden;
-  height: 0;
-  margin: 0;
+  min-width: var(--min-width-md);
 }
 
 /* Beschreibung im Queue-Item */

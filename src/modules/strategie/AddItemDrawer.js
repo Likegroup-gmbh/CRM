@@ -2,6 +2,7 @@
 // Features: Progress-Bar mit echter Zeit, Queue-Verwaltung, Live-Updates
 
 import { strategieService } from './StrategieService.js';
+import { escapeAttr } from '../../core/VideoUploadUtils.js';
 
 export class AddItemDrawer {
   constructor() {
@@ -132,25 +133,8 @@ export class AddItemDrawer {
             <label for="drawer-kategorie">Kategorie</label>
             <select id="drawer-kategorie" class="form-input">
               <option value="">Ohne Kategorie</option>
-              ${this.teilbereiche.map(tb => `<option value="${tb}">${tb}</option>`).join('')}
+              ${this.teilbereiche.map(tb => `<option value="${escapeAttr(tb)}">${escapeAttr(tb)}</option>`).join('')}
             </select>
-          </div>
-
-          <div class="form-field form-field--btn">
-            <label>&nbsp;</label>
-            <button type="submit" class="mdc-btn mdc-btn--create" id="btn-add-to-queue">
-              <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="16" height="16">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
-              </span>
-              <span class="mdc-btn__spinner" aria-hidden="true">
-                <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
-                  <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
-                </svg>
-              </span>
-              <span class="mdc-btn__label">Zur Queue hinzufügen</span>
-            </button>
           </div>
         </div>
 
@@ -164,6 +148,22 @@ export class AddItemDrawer {
               placeholder="Beschreibung (Pflicht ohne URL)..."
             ></textarea>
           </div>
+        </div>
+
+        <div class="add-item-drawer-form-row add-item-drawer-form-row--actions">
+          <button type="submit" class="mdc-btn mdc-btn--create" id="btn-add-to-queue">
+            <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="16" height="16">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+            </span>
+            <span class="mdc-btn__spinner" aria-hidden="true">
+              <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
+                <circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/>
+              </svg>
+            </span>
+            <span class="mdc-btn__label">Zur Queue hinzufügen</span>
+          </button>
         </div>
       </form>
 
@@ -229,6 +229,14 @@ export class AddItemDrawer {
     if (!url && !beschreibung) {
       window.toastSystem?.show('Ohne Video-URL bitte eine Beschreibung angeben', 'warning');
       beschreibungInput?.focus();
+      return;
+    }
+
+    // Kategorie-Validierung: gesetzte Kategorie muss eine existierende sein
+    // (leer = "Ohne Kategorie" ist erlaubt). Verhindert, dass ungültige/abgeschnittene
+    // Kategorien Screenshots erzeugen und Waisen-Items in der DB anlegen.
+    if (kategorie && !(this.teilbereiche || []).includes(kategorie)) {
+      window.toastSystem?.show('Ungültige Kategorie – bitte neu auswählen', 'warning');
       return;
     }
 
@@ -509,6 +517,20 @@ export class AddItemDrawer {
     this.renderQueue();
 
     try {
+      // Defensiv: Kategorie erneut validieren BEVOR Screenshot/Insert.
+      // Verhindert teure Screenshot-Generierung und Waisen-Items in der DB,
+      // falls eine ungültige/nicht existierende Kategorie durchrutscht.
+      if (nextItem.kategorie && !(this.teilbereiche || []).includes(nextItem.kategorie)) {
+        nextItem.status = 'error';
+        nextItem.error = 'Ungültige Kategorie';
+        this.stopTimer();
+        this.renderQueue();
+        window.toastSystem?.show('Ungültige Kategorie – nicht gespeichert', 'error');
+        this.isProcessing = false;
+        this.processQueue();
+        return;
+      }
+
       // Screenshot generieren (nur wenn URL vorhanden)
       let screenshotUrl = null;
       let platform = nextItem.platform;

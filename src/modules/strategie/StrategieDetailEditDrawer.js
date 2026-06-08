@@ -2,6 +2,7 @@
 // Edit-Drawer für Strategie-Items
 
 import { strategieService } from './StrategieService.js';
+import { escapeAttr } from '../../core/VideoUploadUtils.js';
 
 const DRAWER_ID = 'edit-item-drawer';
 
@@ -91,7 +92,7 @@ function renderEditItemDrawerBody(detail, item) {
         <label for="edit-teilbereich">Kategorie</label>
         <select id="edit-teilbereich" name="teilbereich" class="form-input">
           <option value="">Ohne Kategorie</option>
-          ${teilbereiche.map(tb => `<option value="${tb}" ${item.teilbereich === tb ? 'selected' : ''}>${tb}</option>`).join('')}
+          ${teilbereiche.map(tb => `<option value="${escapeAttr(tb)}" ${item.teilbereich === tb ? 'selected' : ''}>${escapeAttr(tb)}</option>`).join('')}
         </select>
       </div>
 
