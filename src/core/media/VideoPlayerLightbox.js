@@ -1,4 +1,6 @@
 import { MediaLightbox } from './MediaLightbox.js';
+import { ICON_DROPBOX } from './mediaPlayerIcons.js';
+import { toPreviewDropboxUrl } from '../VideoUploadUtils.js';
 import { resolveStreamUrl, prefetchStreamUrl } from './mediaSrc.js';
 import { downloadMediaAsset } from './downloadMediaAsset.js';
 import { resolveVideoFeedbackTarget } from '../VideoFeedbackBuckets.js';
@@ -108,6 +110,11 @@ export class VideoPlayerLightbox {
 
     this.lightbox.open({
       className: 'video-player-lightbox media-split-lightbox',
+      headerAction: {
+        icon: ICON_DROPBOX,
+        ariaLabel: 'Auf Dropbox ansehen',
+        getHref: () => toPreviewDropboxUrl(this.currentLookup().file_url),
+      },
       onPrev: () => this._navigate(-1),
       onNext: () => this._navigate(1),
       hasPrev: () => this.index > 0,

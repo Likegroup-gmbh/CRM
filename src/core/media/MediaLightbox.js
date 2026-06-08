@@ -38,11 +38,13 @@ export class MediaLightbox {
     this.close();
     this._opts = opts || {};
 
+    const action = this._opts.headerAction;
     const overlay = document.createElement('div');
     overlay.className = `media-lightbox-overlay ${this._opts.className || ''}`.trim();
     overlay.innerHTML = `
       <div class="media-lightbox" role="dialog" aria-modal="true">
         <button type="button" class="media-lightbox-close" aria-label="Schliessen">${CLOSE_ICON}</button>
+        ${action ? `<a class="media-lightbox-action" target="_blank" rel="noopener" aria-label="${action.ariaLabel || ''}" hidden>${action.icon || ''}</a>` : ''}
         ${this._opts.onPrev ? `<button type="button" class="media-lightbox-nav media-lightbox-prev" aria-label="Zurueck">${PREV_ICON}</button>` : ''}
         ${this._opts.onNext ? `<button type="button" class="media-lightbox-nav media-lightbox-next" aria-label="Weiter">${NEXT_ICON}</button>` : ''}
         <div class="media-lightbox-content"></div>
@@ -90,6 +92,18 @@ export class MediaLightbox {
     const nextBtn = this.overlay.querySelector('.media-lightbox-next');
     if (prevBtn && this._opts.hasPrev) prevBtn.disabled = !this._opts.hasPrev();
     if (nextBtn && this._opts.hasNext) nextBtn.disabled = !this._opts.hasNext();
+
+    const actionEl = this.overlay.querySelector('.media-lightbox-action');
+    if (actionEl && this._opts.headerAction?.getHref) {
+      const href = this._opts.headerAction.getHref();
+      if (href) {
+        actionEl.href = href;
+        actionEl.hidden = false;
+      } else {
+        actionEl.removeAttribute('href');
+        actionEl.hidden = true;
+      }
+    }
   }
 
   close() {

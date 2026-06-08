@@ -128,6 +128,26 @@ export function toRawDropboxUrl(url) {
 }
 
 /**
+ * Gegenstueck zu toRawDropboxUrl: liefert den offiziellen Dropbox-Vorschaulink
+ * (dropbox.com/...?dl=0), unter dem sich die Datei ansehen laesst. Wandelt den
+ * gespeicherten raw=1-Link zurueck. Gibt null zurueck, wenn es kein
+ * dropbox.com-Shared-Link ist (z. B. direkte dropboxusercontent-/Fremd-URLs).
+ * @param {string} url
+ * @returns {string|null}
+ */
+export function toPreviewDropboxUrl(url) {
+  if (!url || !/dropbox\.com/i.test(url)) return null;
+  try {
+    const u = new URL(url);
+    u.searchParams.delete('raw');
+    u.searchParams.set('dl', '0');
+    return u.toString();
+  } catch {
+    return url.replace(/([?&])raw=1\b/i, '$1dl=0');
+  }
+}
+
+/**
  * Holt einen frischen, direkten Streaming-Link (dl.dropboxusercontent.com) fuer
  * einen Dropbox-Pfad. Unterstuetzt Range-Requests/Seeking, gueltig ~4h.
  * @param {string} filePath - Dropbox-Pfad (beginnt mit /)

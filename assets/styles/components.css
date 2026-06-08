@@ -17926,6 +17926,37 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
   height: 18px;
 }
 
+.media-lightbox-action {
+  position: absolute;
+  top: 0.75rem;
+  left: calc(0.75rem + 34px + 0.5rem);
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.06);
+  color: #333;
+  cursor: pointer;
+  z-index: 3;
+  transition: background 0.15s;
+}
+
+.media-lightbox-action:hover {
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.media-lightbox-action[hidden] {
+  display: none;
+}
+
+.media-lightbox-action svg {
+  width: 18px;
+  height: 18px;
+}
+
 .media-lightbox-nav {
   position: fixed;
   top: 50%;
@@ -18002,6 +18033,15 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
   color: #fff;
 }
 .media-split-lightbox .media-lightbox-close:hover {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+/* Dropbox-Action gleiche Optik wie Split-Close, rechts daneben */
+.media-split-lightbox .media-lightbox-action {
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+}
+.media-split-lightbox .media-lightbox-action:hover {
   background: rgba(0, 0, 0, 0.65);
 }
 
