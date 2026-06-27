@@ -289,12 +289,17 @@ export class VideoTableRealtimeHandler {
   }
 
   updateVideoFeedbackFields(videoId) {
+    const controller = this.table.feedbackSaveController;
     VIDEO_FEEDBACK_FIELDS.forEach(slot => {
-      const field = document.querySelector(`[data-entity="video"][data-id="${videoId}"][data-field="${slot.field}"]`);
-      if (!field) return;
-      field.value = formatVideoFeedbackValue(this.table.videoComments[videoId], slot.bucket);
-      field.classList.add('field-updated');
-      setTimeout(() => field.classList.remove('field-updated'), 2000);
+      // Slot mit ungespeicherten lokalen Aenderungen nicht ueberschreiben.
+      if (controller?.isDirty(videoId, slot.field)) return;
+      document.querySelectorAll(`[data-entity="video"][data-id="${videoId}"][data-field="${slot.field}"]`).forEach(field => {
+        // Niemals das Feld ueberschreiben, in dem der Nutzer gerade tippt.
+        if (field === document.activeElement) return;
+        field.value = formatVideoFeedbackValue(this.table.videoComments[videoId], slot.bucket);
+        field.classList.add('field-updated');
+        setTimeout(() => field.classList.remove('field-updated'), 2000);
+      });
     });
   }
 
@@ -318,6 +323,9 @@ export class VideoTableRealtimeHandler {
       let shouldUpdate = false;
 
       if (feedbackSlot) {
+        // Fokussiertes oder noch nicht gespeichertes Feld nicht ueberschreiben.
+        if (field === document.activeElement) return;
+        if (this.table.feedbackSaveController?.isDirty(videoId, fieldName)) return;
         const val = formatVideoFeedbackValue(this.table.videoComments[videoId], feedbackSlot.bucket);
         if (field.value !== val) { field.value = val; shouldUpdate = true; }
       } else switch (fieldName) {

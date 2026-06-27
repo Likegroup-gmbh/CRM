@@ -18518,6 +18518,29 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
   box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.18);
 }
 
+/* Speicher-Status in Player + Detailseite: neutrales .tag in der Slot-
+   Ueberschrift (siehe FeedbackSaveStatus) -> kein eigenes CSS noetig. */
+
+/* Schwebendes Badge fuer Tabellen-Feedback (kein eigener Host pro Feld). */
+.feedback-save-status--floating {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+.feedback-save-status--floating.is-editing,
+.feedback-save-status--floating.is-saving { opacity: 1; background: var(--bg-secondary, #1f2937); color: var(--text-secondary, #e5e7eb); }
+.feedback-save-status--floating.is-saved { opacity: 1; background: #16a34a; color: #fff; }
+.feedback-save-status--floating.is-error { opacity: 1; background: #ef4444; color: #fff; pointer-events: auto; cursor: pointer; }
+
 .media-viewer-feedback-hint {
   font-size: 0.75rem;
   color: var(--text-secondary, #9ca3af);

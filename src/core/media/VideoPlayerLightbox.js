@@ -121,8 +121,18 @@ export class VideoPlayerLightbox {
       hasNext: () => this.index >= 0 && this.index < this.items.length - 1,
       renderBody: () => this.view.renderBody(),
       onMount: (root) => this._mount(root),
-      onBeforeRerender: () => this._parkStageVideo(),
-      onClose: () => {
+      onBeforeRerender: async () => {
+        // Offenes Feedback verlustsicher speichern, BEVOR das Body-DOM (inkl.
+        // Textarea) ersetzt wird -> Prev/Next/Variantenwechsel verlieren keinen
+        // getippten Text und re-rendern erst mit frischem Store-Wert.
+        await this.table?.feedbackSaveController?.flushAll();
+        this._parkStageVideo();
+      },
+      onClose: async () => {
+        // Schliessen (X/Escape/Backdrop): offenes Feedback noch flushen.
+        await this.table?.feedbackSaveController?.flushAll();
+        this._feedbackAbort?.abort();
+        this._feedbackAbort = null;
         MediaCache.unpin();
         this.prefetcher.cleanup();
         this.playback.unmount();
@@ -130,6 +140,14 @@ export class VideoPlayerLightbox {
         this._activeVideoKey = null;
       },
     });
+
+    // Feedback-Autosave/Flush einmal pro geoeffnetem Player an den Lightbox-Root
+    // delegieren (gleiche Bindung wie die Tabelle, ueberlebt Body-Re-Renders).
+    this._feedbackAbort?.abort();
+    this._feedbackAbort = new AbortController();
+    if (this.table?._feedbackBinding && this.lightbox.contentEl) {
+      this.table._feedbackBinding.bind(this.lightbox.contentEl, this._feedbackAbort.signal);
+    }
 
     await this._loadCurrent();
   }
@@ -164,19 +182,19 @@ export class VideoPlayerLightbox {
         this.assets = this.assetLoader.get(videoId);
         this.loading = false;
         this._applyDefaultSelection(videoId);
-        this.lightbox.update();
+        await this.lightbox.update();
         await this._resolveSrc();
         return;
       }
       this.assets = [];
       this.loading = true;
-      this.lightbox.update();
+      await this.lightbox.update();
       const assets = await this.assetLoader.load(videoId);
       if (this.current?.video?.id !== videoId) return;
       this.assets = assets;
       this.loading = false;
       this._applyDefaultSelection(videoId);
-      this.lightbox.update();
+      await this.lightbox.update();
       await this._resolveSrc();
       return;
     }
@@ -185,14 +203,14 @@ export class VideoPlayerLightbox {
       const versions = this.storyVersions(item.slot);
       this.storyVersion = versions.length ? versions[versions.length - 1] : 1;
       this.loading = true;
-      this.lightbox.update();
+      await this.lightbox.update();
       await this._resolveSrc();
       return;
     }
 
     // bild
     this.loading = true;
-    this.lightbox.update();
+    await this.lightbox.update();
     await this._resolveSrc();
   }
 
@@ -481,13 +499,13 @@ export class VideoPlayerLightbox {
   _mount(root) {
     const versionSelect = root.querySelector('.player-version-select');
     if (versionSelect) {
-      versionSelect.addEventListener('change', () => {
+      versionSelect.addEventListener('change', async () => {
         this.selectedVersion = Number(versionSelect.value);
         const variants = this.assetLoader.variantsForVersion(this.assets, this.selectedVersion);
         const currentAsset = variants.find(a => a.is_current) || variants[0];
         this.selectedAssetId = currentAsset?.id || null;
         this.loading = false;
-        this.lightbox.update();
+        await this.lightbox.update();
         this._resolveSrc();
       });
     }
@@ -502,10 +520,10 @@ export class VideoPlayerLightbox {
 
     const storyVersionSelect = root.querySelector('.story-version-select');
     if (storyVersionSelect) {
-      storyVersionSelect.addEventListener('change', () => {
+      storyVersionSelect.addEventListener('change', async () => {
         this.storyVersion = Number(storyVersionSelect.value);
         this.src = null;
-        this.lightbox.update();
+        await this.lightbox.update();
         this._resolveSrc();
       });
     }
@@ -521,10 +539,8 @@ export class VideoPlayerLightbox {
       });
     });
 
-    const feedbackInput = root.querySelector('.player-feedback-input:not([readonly])');
-    if (feedbackInput) {
-      feedbackInput.addEventListener('blur', () => this._saveFeedback(feedbackInput));
-    }
+    // Feedback-Autosave/Flush laeuft ueber die delegierte VideoFeedbackBinding
+    // am Lightbox-Root (in _open gebunden) -> kein per-Mount-Listener noetig.
 
     const prevBtn = root.querySelector('.vpl-prev');
     if (prevBtn) prevBtn.addEventListener('click', () => this._navigate(-1));
@@ -584,18 +600,4 @@ export class VideoPlayerLightbox {
     return `${parts.join('_')}${ext}`;
   }
 
-  async _saveFeedback(textarea) {
-    const videoId = textarea.dataset.id;
-    const field = textarea.dataset.field;
-    await this.table.handleFieldUpdate(textarea);
-
-    const gridTextarea = document.querySelector(
-      `.kooperation-video-grid [data-entity="video"][data-id="${videoId}"][data-field="${field}"]`
-    );
-    if (gridTextarea && gridTextarea !== textarea) {
-      gridTextarea.value = textarea.value;
-      // Programmatische Wertaenderung loest kein input-Event aus -> Reihe neu angleichen.
-      this.table._rowHeightSync?.schedule();
-    }
-  }
 }

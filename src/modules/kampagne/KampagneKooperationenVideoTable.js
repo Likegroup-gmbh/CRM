@@ -7,13 +7,15 @@ import { VideoUploadDrawer } from './VideoUploadDrawer.js';
 import { VideoSettingsDrawer } from './VideoSettingsDrawer.js';
 import { LinkStrategieItemDrawer } from '../strategie/LinkStrategieItemDrawer.js';
 import { VideoPlayerLightbox } from '../../core/media/VideoPlayerLightbox.js';
-import { deleteVideoFile } from '../../core/VideoDeleteHelper.js';
 import { VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
+import { VideoFeedbackSaveController } from '../../core/videoFeedback/VideoFeedbackSaveController.js';
+import { VideoFeedbackBinding } from './VideoFeedbackBinding.js';
+import { VideoTableEventBinder } from './VideoTableEventBinder.js';
+import { VideoTableStatusDropdown } from './VideoTableStatusDropdown.js';
+import { VideoTableDrawerActions } from './VideoTableDrawerActions.js';
 import { UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { ColumnDragHandler } from './columns/ColumnDragHandler.js';
-import { nutzungsrechteModal } from './NutzungsrechteModal.js';
-import { VideoRowHeightSync } from './VideoRowHeightSync.js';
 
 export class KampagneKooperationenVideoTable {
   constructor(kampagneId, store) {
@@ -51,6 +53,11 @@ export class KampagneKooperationenVideoTable {
     this.renderer = new VideoTableRenderer(this);
     this.dataLoader = new VideoTableDataLoader(this);
     this.fieldHandler = new VideoTableFieldHandler(this);
+    this.feedbackSaveController = new VideoFeedbackSaveController(this);
+    this._feedbackBinding = new VideoFeedbackBinding(this.feedbackSaveController);
+    this._eventBinder = new VideoTableEventBinder(this);
+    this._statusDropdown = new VideoTableStatusDropdown(this);
+    this._drawerActions = new VideoTableDrawerActions(this);
     this.columnDragHandler = new ColumnDragHandler(this);
     this._uploadDrawer = new VideoUploadDrawer();
     this._settingsDrawer = new VideoSettingsDrawer();
@@ -229,417 +236,26 @@ export class KampagneKooperationenVideoTable {
   // EVENTS
   // ========================================
 
-  bindEvents() {
-    if (this._abortController) this._abortController.abort();
-    this._abortController = new AbortController();
-    const signal = this._abortController.signal;
+  bindEvents() { this._eventBinder.bind(); }
 
-    const container = document.querySelector('.kooperation-video-grid');
-    if (!container) return;
-
-    CustomDatePicker.destroy(container);
-    CustomDatePicker.bind(container, signal);
-
-    // Zeilen-Hoehen ueber Spalten angleichen (Feedback bestimmt die Reihenhoehe).
-    // Tabelle wird bei jedem Render neu erzeugt -> alte Sync trennen, neu binden.
-    this._rowHeightSync?.disconnect();
-    this._rowHeightSync = new VideoRowHeightSync(container);
-    this._rowHeightSync.observe();
-    this._rowHeightSync.schedule();
-
-    container.addEventListener('change', async (e) => {
-      if (e.target.classList.contains('custom-date-picker__input')) {
-        if (e.target.dataset.entity === 'custom') {
-          await this.handleFieldUpdate(e.target);
-          return;
-        }
-        if (e.target.dataset.entity === 'video') {
-          await this.handleFieldUpdate(e.target);
-          if (e.target.dataset.field === 'posting_datum' && this._isGoLiveSortActive()) {
-            clearTimeout(this._refilterTimer);
-            this._refilterTimer = setTimeout(() => this.refilter(), 600);
-          }
-        }
-      }
-    }, { signal });
-
-    container.addEventListener('blur', async (e) => {
-      if (e.target.classList.contains('grid-input') || e.target.classList.contains('grid-textarea') || e.target.classList.contains('custom-col-input')) {
-        await this.handleFieldUpdate(e.target);
-      }
-    }, { capture: true, signal });
-
-    container.addEventListener('change', async (e) => {
-      // Custom Column Checkboxes, Selects und Date-Inputs
-      if (e.target.classList.contains('custom-col-checkbox') || e.target.classList.contains('custom-col-select') || e.target.classList.contains('custom-col-date')) {
-        await this.handleFieldUpdate(e.target);
-        return;
-      }
-      if (e.target.classList.contains('grid-checkbox') || e.target.classList.contains('grid-select')) {
-        if (e.target.classList.contains('grid-checkbox') && e.target.dataset.field === 'freigabe') {
-          this.toggleVideoRowApproval(e.target.dataset.id, e.target.checked);
-          const videoId = e.target.dataset.id;
-          if (this.store) {
-            this.store.updateVideo(videoId, { freigabe: e.target.checked });
-          }
-          this.updateTabCounts();
-        }
-        await this.handleFieldUpdate(e.target);
-
-        if (e.target.dataset.field === 'freigabe') {
-          if (this.activeFilterTab !== 'alle') {
-            const koopRow = e.target.closest('[data-kooperation-id]');
-            const koopId = koopRow?.dataset?.kooperationId || e.target.dataset.kooperationId;
-            if (koopId) {
-              const allApproved = this.areAllVideosApproved(koopId);
-              const shouldBeVisible = this.activeFilterTab === 'offen' ? !allApproved : allApproved;
-              if (!shouldBeVisible) {
-                clearTimeout(this._refilterTimer);
-                this._refilterTimer = setTimeout(() => this.refilter(), 600);
-                return;
-              }
-            }
-          }
-
-          // GoLive-Sort: Freigabe ändert die effektive Sortier-Position →
-          // immer refilter triggern (auch im "alle"-Tab)
-          if (this._isGoLiveSortActive()) {
-            clearTimeout(this._refilterTimer);
-            this._refilterTimer = setTimeout(() => this.refilter(), 600);
-          }
-        }
-      }
-    }, { signal });
-    
-    this.initAutoResizeTextareas();
-
-    container.addEventListener('click', (e) => {
-      const uploadBtn = e.target.closest('.video-upload-btn');
-      if (uploadBtn) {
-        e.preventDefault();
-        this._openUploadDrawer(uploadBtn.dataset.videoId, uploadBtn.dataset.kooperationId);
-      }
-
-      const customUploadBtn = e.target.closest('.custom-upload-btn');
-      if (customUploadBtn) {
-        e.preventDefault();
-        this._openCustomUploadDrawer(customUploadBtn);
-      }
-
-      const nutzungsrechteBtn = e.target.closest('[data-action="open-nutzungsrechte"]');
-      if (nutzungsrechteBtn) {
-        e.preventDefault();
-        nutzungsrechteModal.open(nutzungsrechteBtn.dataset.vertragId);
-      }
-    }, { signal });
-
-    container.addEventListener('click', (e) => {
-      const settingsBtn = e.target.closest('.video-settings-btn');
-      if (settingsBtn) {
-        e.preventDefault();
-        this._openSettingsDrawer(settingsBtn);
-      }
-    }, { signal });
-
-    container.addEventListener('click', (e) => {
-      const playBtn = e.target.closest('[data-action="play-video"]');
-      if (playBtn) {
-        e.preventDefault();
-        this._mediaViewer.openVideo(playBtn.dataset.videoId, playBtn.dataset.kooperationId);
-        return;
-      }
-      const storysBtn = e.target.closest('[data-action="view-storys"]');
-      if (storysBtn) {
-        e.preventDefault();
-        this._mediaViewer.openStory(storysBtn.dataset.videoId, storysBtn.dataset.kooperationId);
-        return;
-      }
-      const bilderBtn = e.target.closest('[data-action="view-bilder"]');
-      if (bilderBtn) {
-        e.preventDefault();
-        this._mediaViewer.openBilder(bilderBtn.dataset.kooperationId);
-        return;
-      }
-    }, { signal });
-
-    container.addEventListener('click', (e) => {
-      const linkBtn = e.target.closest('[data-action="link-strategie-item"]');
-      if (linkBtn) {
-        e.preventDefault();
-        this._openLinkStrategieDrawer(linkBtn);
-      }
-    }, { signal });
-
-    container.addEventListener('click', (e) => {
-      const trigger = e.target.closest('.status-select-trigger');
-      if (trigger) {
-        e.preventDefault();
-        e.stopPropagation();
-        const wrapper = trigger.closest('.status-select-wrapper');
-        const isOpen = wrapper?.classList.contains('open');
-        this._closeStatusPortal();
-        if (wrapper && !isOpen) {
-          wrapper.classList.add('open');
-          this._openStatusPortal(wrapper);
-        }
-        return;
-      }
-    }, { signal });
-
-    // Item-Click an document, da Portal an document.body haengt (nicht im container)
-    document.addEventListener('click', (e) => {
-      const item = e.target.closest('.status-dropdown-portal .status-dropdown-item, .status-select-wrapper .status-dropdown-item');
-      if (!item) return;
-      // preventDefault: <a href="#"> wuerde sonst zum Seiten-Anfang scrollen
-      e.preventDefault();
-      e.stopPropagation();
-      const portal = item.closest('.status-dropdown-portal');
-      const wrapper = item.closest('.status-select-wrapper');
-      const koopId = portal?.dataset.kooperationId || wrapper?.dataset.kooperationId;
-      const newValue = item.dataset.value || null;
-      this._closeStatusPortal();
-      if (koopId) {
-        this._handleStatusDropdownChange(koopId, newValue);
-      }
-    }, { signal });
-
-    document.addEventListener('click', (e) => {
-      if (e.target.closest('.status-select-wrapper') || e.target.closest('.status-dropdown-portal')) return;
-      this._closeStatusPortal();
-    }, { signal });
-
-    window.addEventListener('resize', () => this._closeStatusPortal(), { signal });
-    window.addEventListener('scroll', () => this._closeStatusPortal(), { signal, capture: true });
-
-    this.bindResizeEvents();
-    this.bindDragToScroll();
-    this.columnDragHandler.bind(container, signal);
-  }
-
-  // Legacy-API fuer Tests/Kompatibilitaet -- delegiert auf Portal-Logik
-  positionStatusDropdown(wrapper) {
-    const dropdown = wrapper?.querySelector('.status-dropdown');
-    const trigger = wrapper?.querySelector('.status-select-trigger');
-    if (!dropdown || !trigger) return;
-
-    const triggerRect = trigger.getBoundingClientRect();
-    const dropdownHeight = dropdown.offsetHeight || dropdown.scrollHeight || 260;
-    const spaceBelow = window.innerHeight - triggerRect.bottom;
-    const spaceAbove = triggerRect.top;
-    const shouldOpenUp = spaceBelow < dropdownHeight + 8 && spaceAbove > spaceBelow;
-
-    wrapper.classList.toggle('opens-up', shouldOpenUp);
-  }
-
-  _closeStatusPortal() {
-    document.querySelectorAll('.status-dropdown-portal').forEach(p => p.remove());
-    document.querySelectorAll('.status-select-wrapper.open')
-      .forEach(w => w.classList.remove('open', 'opens-up'));
-  }
-
-  _openStatusPortal(wrapper) {
-    const sourceDropdown = wrapper?.querySelector('.status-dropdown');
-    const trigger = wrapper?.querySelector('.status-select-trigger');
-    if (!sourceDropdown || !trigger) return null;
-
-    const portal = sourceDropdown.cloneNode(true);
-    portal.classList.remove('status-dropdown');
-    portal.classList.add('status-dropdown-portal');
-    portal.dataset.kooperationId = wrapper.dataset.kooperationId || '';
-    portal._sourceWrapper = wrapper;
-
-    document.body.appendChild(portal);
-    this._positionStatusPortal(trigger, portal);
-    return portal;
-  }
-
-  _positionStatusPortal(trigger, portal) {
-    if (!trigger || !portal) return;
-    const triggerRect = trigger.getBoundingClientRect();
-    const portalHeight = portal.offsetHeight || portal.scrollHeight || 260;
-    const portalWidth = portal.offsetWidth || 180;
-    const viewportHeight = window.innerHeight;
-    const viewportWidth = window.innerWidth;
-    const spaceBelow = viewportHeight - triggerRect.bottom;
-    const spaceAbove = triggerRect.top;
-    const openUp = spaceBelow < portalHeight + 8 && spaceAbove > spaceBelow;
-
-    if (openUp) {
-      portal.style.top = Math.max(8, triggerRect.top - portalHeight - 4) + 'px';
-    } else {
-      portal.style.top = (triggerRect.bottom + 4) + 'px';
-    }
-    const left = Math.min(triggerRect.left, viewportWidth - portalWidth - 8);
-    portal.style.left = Math.max(8, left) + 'px';
+  // Status-Dropdown delegiert an VideoTableStatusDropdown (Portal + Update).
+  positionStatusDropdown(wrapper) { return this._statusDropdown.positionStatusDropdown(wrapper); }
+  _closeStatusPortal() { return this._statusDropdown.closePortal(); }
+  _openStatusPortal(wrapper) { return this._statusDropdown.openPortal(wrapper); }
+  _positionStatusPortal(trigger, portal) { return this._statusDropdown._positionPortal(trigger, portal); }
+  _updateStatusInline(kooperationId, statusId, statusName) {
+    return this._statusDropdown.updateInline(kooperationId, statusId, statusName);
   }
 
   // ========================================
   // UPLOAD / SETTINGS / DELETE
   // ========================================
 
-  _openUploadDrawer(videoId, kooperationId, { initialTab = 'video' } = {}) {
-    const koop = this.kooperationen.find(k => k.id === kooperationId);
-    const videos = this.videos[kooperationId] || [];
-    const video = videos.find(v => v.id === videoId);
-    const creator = koop?.creator;
-    const creatorName = `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim();
-
-    const metadaten = {
-      kooperationId,
-      kooperationName: koop?.name || 'Kooperation',
-      videoTitel: video?.thema || 'Video',
-      videoName: video?.video_name || '',
-      videoPosition: video?.position || 1,
-      videoThema: video?.thema || '',
-      unternehmen: this.kampagneInfo?.unternehmen || '',
-      unternehmenId: this.kampagneInfo?.unternehmenId || null,
-      keinDropbox: this.kampagneInfo?.keinDropbox || false,
-      marke: this.kampagneInfo?.marke || '',
-      kampagne: this.kampagneInfo?.name || '',
-      creatorName,
-      bilderFolderUrl: koop?.bilder_folder_url || null
-    };
-
-    this._uploadDrawer.open(videoId, metadaten, (fileUrl, filePath, videoName, folderUrl) => {
-      this._updateContentCellAfterUpload(videoId, kooperationId, fileUrl, videoName, folderUrl);
-    }, (bilderFolderUrl) => {
-      if (koop) koop.bilder_folder_url = bilderFolderUrl;
-      this.refilter();
-    }, (storysFolderUrl) => {
-      const patch = { story_folder_url: storysFolderUrl };
-      if (this.store) {
-        this.store.updateVideo(videoId, patch);
-      } else {
-        if (video) video.story_folder_url = storysFolderUrl;
-      }
-      this.refilter();
-    }, { initialTab,
-      onBilderCleared: () => {
-        if (koop) koop.bilder_folder_url = null;
-        this.refilter();
-      },
-      onStorysCleared: () => {
-        if (this.store) this.store.updateVideo(videoId, { story_folder_url: null });
-        else if (video) video.story_folder_url = null;
-        this.refilter();
-      },
-    });
-  }
-
-  _updateContentCellAfterUpload(videoId, kooperationId, fileUrl, videoName, folderUrl) {
-    const patch = { file_url: fileUrl, link_content: fileUrl };
-    if (folderUrl) patch.folder_url = folderUrl;
-    if (videoName !== undefined) patch.video_name = videoName;
-
-    if (this.store) {
-      this.store.updateVideo(videoId, patch);
-    } else {
-      const videos = this.videos[kooperationId];
-      if (videos) {
-        const v = videos.find(vid => vid.id === videoId);
-        if (v) Object.assign(v, patch);
-      }
-    }
-    this.refilter();
-  }
-
-  _openCustomUploadDrawer(btn) {
-    const columnId = btn.dataset.customColumnId;
-    const entityId = btn.dataset.entityId;
-    const columnName = btn.dataset.columnName || 'Upload';
-
-    const row = btn.closest('tr');
-    const kooperationId = row?.dataset?.kooperationId;
-    const koop = this.kooperationen.find(k => k.id === kooperationId);
-
-    const metadaten = {
-      kooperationId,
-      kooperationName: koop?.name || 'Kooperation',
-      unternehmen: this.kampagneInfo?.unternehmen || '',
-      marke: this.kampagneInfo?.marke || '',
-      kampagne: this.kampagneInfo?.name || '',
-      keinDropbox: this.kampagneInfo?.keinDropbox || false,
-    };
-
-    this._uploadDrawer.open(null, metadaten, null, null, null, {
-      initialTab: 'custom',
-      customMeta: {
-        columnId,
-        entityId,
-        columnName,
-        folderName: columnName,
-        onSuccess: (folderUrl) => {
-          if (this.store) {
-            this.store.setCustomColumnValue(entityId, columnId, folderUrl);
-          }
-          this.refilter();
-        },
-      },
-    });
-  }
-
-  async _openSettingsDrawer(btn) {
-    const videoId = btn.dataset.videoId;
-    const kooperationId = btn.dataset.kooperationId;
-    const filePath = btn.dataset.filePath || '';
-    const videoUrl = btn.dataset.videoUrl || '';
-    const koop = this.kooperationen.find(k => k.id === kooperationId);
-    const videos = this.videos[kooperationId] || [];
-    const video = videos.find(v => v.id === videoId);
-
-    await this._settingsDrawer.open({
-      videoId,
-      kooperationId,
-      videoUrl,
-      filePath,
-      videoTitel: video?.thema || 'Video',
-      onReupload: () => this._openUploadDrawer(videoId, kooperationId),
-      onStorysReupload: () => this._openUploadDrawer(videoId, kooperationId, { initialTab: 'storys' }),
-      onBilderReupload: () => this._openUploadDrawer(videoId, kooperationId, { initialTab: 'bilder' }),
-      onDelete: () => this._executeVideoDelete(videoId, kooperationId),
-    });
-  }
-
-  async _openLinkStrategieDrawer(btn) {
-    const videoId = btn.dataset.videoId;
-    const kooperationId = btn.dataset.kooperationId;
-    const koop = this.kooperationen.find(k => k.id === kooperationId);
-    const videos = this.videos[kooperationId] || [];
-    const video = videos.find(v => v.id === videoId);
-
-    if (!video || !koop) {
-      window.toastSystem?.show('Video nicht gefunden', 'error');
-      return;
-    }
-
-    await this._linkStrategieDrawer.open({
-      video,
-      kooperation: koop,
-      kampagneId: this.kampagneId,
-      onSuccess: () => this._reloadAfterStrategieLink()
-    });
-  }
-
-  async _reloadAfterStrategieLink() {
-    await this.dataLoader.loadData();
-    this.refilter();
-  }
-
-  async _executeVideoDelete(videoId, kooperationId) {
-    const { hasRemainingAssets } = await deleteVideoFile(videoId);
-    const patch = { file_url: null, link_content: null, currentAsset: null };
-    if (!hasRemainingAssets) patch.folder_url = null;
-    if (this.store) {
-      this.store.updateVideo(videoId, patch);
-    } else {
-      const videos = this.videos[kooperationId];
-      if (videos) {
-        const v = videos.find(vid => vid.id === videoId);
-        if (v) Object.assign(v, patch);
-      }
-    }
-    this.refilter();
-  }
+  _openUploadDrawer(videoId, kooperationId, opts) { return this._drawerActions.openUploadDrawer(videoId, kooperationId, opts); }
+  _openCustomUploadDrawer(btn) { return this._drawerActions.openCustomUploadDrawer(btn); }
+  _openSettingsDrawer(btn) { return this._drawerActions.openSettingsDrawer(btn); }
+  _openLinkStrategieDrawer(btn) { return this._drawerActions.openLinkStrategieDrawer(btn); }
+  _reloadAfterStrategieLink() { return this._drawerActions.reloadAfterStrategieLink(); }
 
   // ========================================
   // UI HELPERS (delegiert)
@@ -745,100 +361,59 @@ export class KampagneKooperationenVideoTable {
     }
   }
 
-  async _handleStatusDropdownChange(kooperationId, newStatusId) {
-    const store = this.store;
-    const statusOptions = store?.statusOptions || this.statusOptions || [];
-    const statusName = statusOptions.find(s => s.id === newStatusId)?.name || '';
+  _handleStatusDropdownChange(kooperationId, newStatusId) {
+    return this._statusDropdown.handleChange(kooperationId, newStatusId);
+  }
 
-    // ID-basierter Guard: traegt den eigenen Update fuer 10s, robust gegen
-    // langsame Realtime-Echos (z.B. erster Klick mit Cold-Connection).
-    if (!this._pendingOwnUpdates) this._pendingOwnUpdates = new Map();
-    this._pendingOwnUpdates.set(kooperationId, Date.now());
-    this._lastUpdateBy = window.currentUser?.id;
-    this._lastUpdateTime = Date.now();
+  async refilter() {
+    if (!this.containerId || !document.getElementById(this.containerId)) return;
 
-    if (store) {
-      store.updateKooperation(kooperationId, {
-        status_id: newStatusId || null,
-        status_name: statusName || null,
-        status_ref: newStatusId ? { id: newStatusId, name: statusName } : null
-      });
-    }
-
-    this._updateStatusInline(kooperationId, newStatusId, statusName);
-
+    // Serialisieren: laeuft bereits ein refilter (wartet z.B. auf flushAll),
+    // wird genau ein Folge-Lauf vorgemerkt statt parallel zu rendern.
+    if (this._refilterRunning) { this._refilterQueued = true; return; }
+    this._refilterRunning = true;
     try {
-      const { error } = await window.supabase
-        .from('kooperationen')
-        .update({ status_id: newStatusId || null, status: statusName, updated_at: new Date().toISOString() })
-        .eq('id', kooperationId);
+      // Offene Feedback-Saves sichern, BEVOR das DOM (inkl. Textareas) ersetzt
+      // wird -> kein getippter Text geht beim Re-Render verloren.
+      if (this.feedbackSaveController?.hasPending()) {
+        await this.feedbackSaveController.flushAll();
+      }
 
-      if (error) throw error;
+      const container = this.containerId ? document.getElementById(this.containerId) : null;
+      if (!container) return;
 
-      this._lastUpdateTime = Date.now();
-      this._pendingOwnUpdates.set(kooperationId, Date.now());
+      this._closeStatusPortal();
 
-      window.dispatchEvent(new CustomEvent('kooperationStatusChanged', {
-        detail: { kooperationId, statusId: newStatusId, statusName }
-      }));
-      window.dispatchEvent(new CustomEvent('kooperationen-updated', {
-        detail: { kampagneId: this.kampagneId, koopId: kooperationId, newStatusId }
-      }));
-    } catch (error) {
-      console.error('❌ Fehler beim Status-Update:', error);
-      this._pendingOwnUpdates.delete(kooperationId);
+      const scrollY = window.scrollY;
+      const containerScrollTop = container.scrollTop;
+      const gridWrapper = container.querySelector('.grid-wrapper');
+      const gridScrollLeft = gridWrapper?.scrollLeft ?? 0;
+      const floatingBar = document.getElementById('floating-scrollbar-kampagne');
+      const floatingLeft = floatingBar?.scrollLeft ?? 0;
+
+      container.innerHTML = this.render();
+      this.bindEvents();
+      this.initFloatingScrollbar();
+      this.loadColumnWidths();
+      this.updateTabCounts();
+
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: scrollY, behavior: 'instant' });
+        container.scrollTop = containerScrollTop;
+        const newGrid = container.querySelector('.grid-wrapper');
+        if (newGrid) newGrid.scrollLeft = gridScrollLeft;
+        const newBar = document.getElementById('floating-scrollbar-kampagne');
+        if (newBar) newBar.scrollLeft = floatingLeft;
+      });
+
+      this.loadAssetsAndCommentsForVisible();
+    } finally {
+      this._refilterRunning = false;
+      if (this._refilterQueued) {
+        this._refilterQueued = false;
+        this.refilter();
+      }
     }
-  }
-
-  _updateStatusInline(kooperationId, statusId, statusName) {
-    // Fallback-Mutation: nur wenn Store-Update (im Aufrufer) noch nicht erfolgt ist
-    const koop = this.kooperationen.find(k => k.id === kooperationId);
-    if (koop && koop.status_id !== (statusId || null)) {
-      koop.status_id = statusId || null;
-      koop.status_name = statusName || null;
-      koop.status_ref = statusId ? { id: statusId, name: statusName } : null;
-    }
-
-    const row = document.querySelector(`tr[data-kooperation-id="${kooperationId}"]`);
-    if (!row) return;
-
-    const cell = row.querySelector('.col-status');
-    if (!cell || !this.renderer) return;
-
-    cell.innerHTML = this.renderer.renderStatusSelect(
-      koop || { id: kooperationId, status_id: statusId, status_name: statusName, status_ref: statusId ? { id: statusId, name: statusName } : null }
-    );
-  }
-
-  refilter() {
-    const container = this.containerId ? document.getElementById(this.containerId) : null;
-    if (!container) return;
-
-    this._closeStatusPortal();
-
-    const scrollY = window.scrollY;
-    const containerScrollTop = container.scrollTop;
-    const gridWrapper = container.querySelector('.grid-wrapper');
-    const gridScrollLeft = gridWrapper?.scrollLeft ?? 0;
-    const floatingBar = document.getElementById('floating-scrollbar-kampagne');
-    const floatingLeft = floatingBar?.scrollLeft ?? 0;
-
-    container.innerHTML = this.render();
-    this.bindEvents();
-    this.initFloatingScrollbar();
-    this.loadColumnWidths();
-    this.updateTabCounts();
-
-    requestAnimationFrame(() => {
-      window.scrollTo({ top: scrollY, behavior: 'instant' });
-      container.scrollTop = containerScrollTop;
-      const newGrid = container.querySelector('.grid-wrapper');
-      if (newGrid) newGrid.scrollLeft = gridScrollLeft;
-      const newBar = document.getElementById('floating-scrollbar-kampagne');
-      if (newBar) newBar.scrollLeft = floatingLeft;
-    });
-
-    this.loadAssetsAndCommentsForVisible();
   }
 
   async refresh() {
@@ -861,6 +436,9 @@ export class KampagneKooperationenVideoTable {
   }
 
   destroy() {
+    // Offene Feedback-Saves noch ausloesen, bevor State/Listener abgebaut werden.
+    this.feedbackSaveController?.flushAll();
+
     this._closeStatusPortal();
 
     this._rowHeightSync?.disconnect();

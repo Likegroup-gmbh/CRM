@@ -1,9 +1,9 @@
 import { checkAuftragBudgetStatus } from '../auftrag/logic/AuftragStatusUtils.js';
 import {
   getVideoFeedbackSlotByField,
-  replaceVideoFeedbackBucket,
-  VIDEO_FEEDBACK_SELECT
+  replaceVideoFeedbackBucket
 } from '../../core/VideoFeedbackBuckets.js';
+import { saveVideoFeedbackSlot } from '../../core/videoFeedback/VideoFeedbackRepository.js';
 import { CustomColumnFieldHandler } from './columns/CustomColumnFieldHandler.js';
 
 export class VideoTableFieldHandler {
@@ -37,12 +37,13 @@ export class VideoTableFieldHandler {
         await CustomColumnFieldHandler.handleUpdate(field, this._getStore());
         field.classList.add('save-success');
         setTimeout(() => field.classList.remove('save-success'), 1000);
+        return true;
       } catch (error) {
         console.error('❌ Custom Column Update fehlgeschlagen:', error);
         field.classList.add('save-error');
         setTimeout(() => field.classList.remove('save-error'), 2000);
+        return false;
       }
-      return;
     }
 
     const t = this.table;
@@ -113,58 +114,28 @@ export class VideoTableFieldHandler {
         const slot = getVideoFeedbackSlotByField(fieldName);
         const videoId = id;
         const commentsSource = store ? store.videoComments : t.videoComments;
-        
-        const existingComments = commentsSource[videoId]?.[slot.bucket] || [];
-        if (existingComments.length > 0) {
-          const commentIds = existingComments.map(c => c.id);
-          await window.supabase
-            .from('kooperation_video_comment')
-            .delete()
-            .in('id', commentIds);
-        }
-        
-        if (value && value.trim()) {
-          const currentUser = window.currentUser;
-          const authorName = currentUser?.name || 'Unbekannt';
-          
-          const { data, error } = await window.supabase
-            .from('kooperation_video_comment')
-            .insert({
-              video_id: videoId,
-              runde: slot.runde,
-              feedback_typ: slot.feedback_typ,
-              text: value.trim(),
-              author_benutzer_id: currentUser?.id || null,
-              author_name: authorName,
-              is_public: true
-            })
-            .select(VIDEO_FEEDBACK_SELECT)
-            .single();
 
-          if (error) throw error;
-          
-          const nextComments = replaceVideoFeedbackBucket(commentsSource[videoId], slot.bucket, [data]);
-          if (store) {
-            store.updateVideoComments(videoId, nextComments);
-          } else {
-            t.videoComments[videoId] = nextComments;
-          }
-          
-          console.log(`✅ ${slot.label} gespeichert als Kommentar von ${authorName}`);
+        // Schreiblogik (Upsert / Soft-Delete) liegt zentral im Repository.
+        const { row } = await saveVideoFeedbackSlot({
+          videoId,
+          slot,
+          text: value,
+          user: window.currentUser
+        });
+
+        const nextComments = replaceVideoFeedbackBucket(commentsSource[videoId], slot.bucket, row ? [row] : []);
+        if (store) {
+          store.updateVideoComments(videoId, nextComments);
         } else {
-          const nextComments = replaceVideoFeedbackBucket(commentsSource[videoId], slot.bucket, []);
-          if (store) {
-            store.updateVideoComments(videoId, nextComments);
-          } else {
-            t.videoComments[videoId] = nextComments;
-          }
-          console.log(`✅ ${slot.label} gelöscht`);
+          t.videoComments[videoId] = nextComments;
         }
+
+        console.log(`✅ ${slot.label} ${row ? 'gespeichert (Upsert)' : 'geleert (Soft-Delete)'}`);
       } 
       else {
         if (entity === 'kooperation' && fieldName === 'vertrag_unterschrieben') {
           console.warn('⚠️ Manuelle Änderung von vertrag_unterschrieben blockiert (system-managed)');
-          return;
+          return true;
         }
 
         if (entity === 'kooperation' && fieldName === 'status_id') {
@@ -231,12 +202,15 @@ export class VideoTableFieldHandler {
         field.dataset.previousValue = value || '';
       }
 
+      return true;
+
     } catch (error) {
       console.error(`❌ Fehler beim Speichern von ${entity}.${fieldName}:`, error);
       field.classList.add('save-error');
       setTimeout(() => field.classList.remove('save-error'), 2000);
       
       window.ErrorHandler?.handle(error, 'KampagneKooperationenVideoTable.handleFieldUpdate');
+      return false;
     }
   }
 }

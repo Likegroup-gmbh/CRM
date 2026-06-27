@@ -76,12 +76,18 @@ export class MediaLightbox {
     requestAnimationFrame(() => overlay.classList.add('show'));
   }
 
-  /** Body neu rendern (ohne Overlay neu zu erzeugen). */
-  update() {
+  /**
+   * Body neu rendern (ohne Overlay neu zu erzeugen).
+   * Async: onBeforeRerender darf offene Saves awaiten, BEVOR die Textarea aus
+   * dem DOM ersetzt wird -> kein verlorener Text bei Prev/Next/Variantenwechsel.
+   */
+  async update() {
     if (!this.overlay || !this._opts) return;
     // Hook VOR dem innerHTML-Reset: erlaubt dem Viewer, das aktuelle
-    // Stage-Video zu retten (offscreen parken) statt es zu zerstoeren.
-    this._opts.onBeforeRerender?.();
+    // Stage-Video zu retten (offscreen parken) statt es zu zerstoeren, und
+    // offenes Feedback verlustsicher zu speichern.
+    await this._opts.onBeforeRerender?.();
+    if (!this.overlay || !this._opts) return; // zwischenzeitlich geschlossen
     this.contentEl.innerHTML = this._opts.renderBody ? this._opts.renderBody() : '';
     this._opts.onMount?.(this.contentEl);
     this._updateNavState();
@@ -106,7 +112,7 @@ export class MediaLightbox {
     }
   }
 
-  close() {
+  async close() {
     if (this._onKey) {
       document.removeEventListener('keydown', this._onKey);
       this._onKey = null;
@@ -118,6 +124,7 @@ export class MediaLightbox {
     }
     const onClose = this._opts?.onClose;
     this._opts = null;
-    onClose?.();
+    // onClose darf offene Saves awaiten (Persistenz vor Teardown).
+    await onClose?.();
   }
 }

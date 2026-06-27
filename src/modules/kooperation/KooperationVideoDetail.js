@@ -1,12 +1,17 @@
-// Kooperation Video Detail – lädt Video, Kommentare (Runde 1/2), Assets und erlaubt Statuswechsel + Kommentare
+// Kooperation Video Detail – lädt Video, Feedback (Runde 1/2 je Slot), Assets und erlaubt Statuswechsel + Feedback
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import {
   getVideoFeedbackSlotByField,
+  getVideoFeedbackBucket,
   groupVideoFeedbackComments,
+  formatVideoFeedbackValue,
   isMissingFeedbackTypeError,
   VIDEO_FEEDBACK_LEGACY_SELECT,
   VIDEO_FEEDBACK_FIELDS
 } from '../../core/VideoFeedbackBuckets.js';
+import { saveVideoFeedbackSlot } from '../../core/videoFeedback/VideoFeedbackRepository.js';
+import { VideoFeedbackSaveController } from '../../core/videoFeedback/VideoFeedbackSaveController.js';
+import { VideoFeedbackBinding } from '../kampagne/VideoFeedbackBinding.js';
 import { MAX_VIDEO_SIZE } from '../../core/VideoUploadUtils.js';
 
 const DEBUG_UPLOAD = true;
@@ -19,6 +24,8 @@ export const kooperationVideoDetail = {
   assets: [],
   _abortController: null,
   _selectedFile: null,
+  _feedbackController: null,
+  _feedbackBinding: null,
 
   async init(id) {
     try {
@@ -121,7 +128,10 @@ export const kooperationVideoDetail = {
       ? `<a href="${folderUrl}" target="_blank" rel="noopener" class="primary-btn">Ordner öffnen</a>`
       : '<p class="empty-state">Kein Ordner hinterlegt.</p>';
 
-    const grouped = groupVideoFeedbackComments(this.comments || []);
+    // Nur aktive (nicht soft-geloeschte) Kommentare als Slot-Wert anzeigen.
+    const activeComments = (this.comments || []).filter(c => !c.deleted_at);
+    const grouped = groupVideoFeedbackComments(activeComments);
+    const isKunde = window.isKunde?.() || false;
 
     // Asset-Versionen rendern
     const assetsHtml = this.renderAssetVersions(this.assets, safe, fmtDateTime, canEdit);
@@ -224,36 +234,18 @@ export const kooperationVideoDetail = {
           </div>
 
           <div class="detail-grid">
-            ${VIDEO_FEEDBACK_FIELDS.map(slot => `
-            <div class="detail-card">
+            ${VIDEO_FEEDBACK_FIELDS.map(slot => {
+              const value = formatVideoFeedbackValue(grouped, slot.bucket);
+              const readonly = isKunde && slot.feedback_typ === 'cj';
+              return `
+            <div class="detail-card feedback-status-host">
               <h3>${slot.label}</h3>
-              <div id="comments-${slot.bucket}">${this.renderCommentsTable(grouped[slot.bucket])}</div>
-            </div>`).join('')}
-          </div>
-
-          <div class="detail-card">
-            <h3>Kommentar hinzufügen</h3>
-            <form id="comment-form">
-              <div class="detail-grid-2">
-                <div class="form-field">
-                  <label>Feedback</label>
-                  <select name="feedback_field" class="form-input">
-                    ${VIDEO_FEEDBACK_FIELDS.map(slot => `<option value="${slot.field}">${slot.label}</option>`).join('')}
-                  </select>
-                </div>
-                <div class="form-field" style="grid-column: span 2;">
-                  <label>Text</label>
-                  <textarea name="text" class="form-input" rows="3" placeholder="Kommentar eingeben..."></textarea>
-                </div>
-              </div>
-              <div style="margin-top:var(--space-xs);">
-                <button type="submit" class="mdc-btn mdc-btn--create" data-variant="@create-prd.mdc" data-default-text="Speichern" data-success-text="Gespeichert">
-                  <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">${window.formSystem?.formRenderer?.getCheckIcon?.() || '✔'}</span>
-                  <span class="mdc-btn__spinner" aria-hidden="true">${window.formSystem?.formRenderer?.getSpinnerIcon?.() || ''}</span>
-                  <span class="mdc-btn__label">Speichern</span>
-                </button>
-              </div>
-            </form>
+              <textarea class="form-input video-feedback-slot"
+                data-entity="video" data-id="${this.videoId}" data-field="${slot.field}"
+                rows="4" ${readonly ? 'readonly' : ''}
+                placeholder="${readonly ? 'Nur Lesezugriff für deine Rolle.' : 'Feedback eingeben…'}">${safe(value)}</textarea>
+            </div>`;
+            }).join('')}
           </div>
         </div>
       </div>
@@ -330,70 +322,6 @@ export const kooperationVideoDetail = {
     `;
   },
 
-  renderCommentsTable(list) {
-    const safe = (s) => window.validatorSystem?.sanitizeHtml?.(s) ?? s;
-    const fDateTime = (d) => (d ? new Date(d).toLocaleString('de-DE') : '-');
-    const currentUserId = window.currentUser?.id;
-    
-    if (!list || list.length === 0) {
-      return '<p class="empty-state">Keine Kommentare vorhanden.</p>';
-    }
-    
-    const rows = list.map(c => {
-      const isDeleted = !!c.deleted_at;
-      const isOwnComment = c.author_benutzer_id === currentUserId;
-      const canDelete = isOwnComment && !isDeleted;
-      
-      // Styling für gelöschte Kommentare
-      const rowStyle = isDeleted ? ' style="opacity: 0.5; background-color: #f9f9f9;"' : '';
-      const textStyle = isDeleted ? ' style="text-decoration: line-through; color: #999;"' : '';
-      
-      return `
-      <tr${rowStyle}>
-        <td>${safe(c.author_name || '-')}</td>
-        <td>${fDateTime(c.created_at)}</td>
-        <td${textStyle}>
-          ${safe(c.text || '')}
-          ${isDeleted ? `<br><small style="color: #999;">Gelöscht am: ${fDateTime(c.deleted_at)}</small>` : ''}
-        </td>
-        <td>
-          ${canDelete ? `
-          <div class="actions-dropdown-container" data-entity-type="kooperation_video_comment">
-            <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-              </svg>
-            </button>
-            <div class="actions-dropdown">
-              <a href="#" class="action-item action-danger comment-delete" data-action="comment-delete" data-id="${c.id}">
-                ${window.ActionsDropdown?.getHeroIcon ? window.ActionsDropdown.getHeroIcon('delete') : ''}
-                Entfernen
-              </a>
-            </div>
-          </div>
-          ` : '—'}
-        </td>
-      </tr>
-      `;
-    }).join('');
-    
-    return `
-      <div class="data-table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Datum</th>
-              <th>Kommentar</th>
-              <th>Aktion</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
-    `;
-  },
-
   bindEvents() {
     this._abortController?.abort();
     this._abortController = new AbortController();
@@ -408,35 +336,16 @@ export const kooperationVideoDetail = {
       }
     }, { signal });
 
-    // Kommentar löschen (Soft-Delete - Delegation mit Event-Bubbling)
-    document.addEventListener('click', async (e) => {
-      const del = e.target.closest('.comment-delete');
-      if (!del) return;
-      e.preventDefault();
-      const id = del.dataset.id;
-      if (!id) return;
-      if (!confirm('Kommentar wirklich entfernen?')) return;
-      try {
-        const { error } = await window.supabase
-          .from('kooperation_video_comment')
-          .update({
-            deleted_at: new Date().toISOString(),
-            deleted_by_benutzer_id: window.currentUser?.id || null
-          })
-          .eq('id', id);
-        if (error) throw error;
-        await this.loadData();
-        this.render();
-        this.bindLocalEvents();
-        if (window.ActionsDropdown) {
-          window.ActionsDropdown.init();
-        }
-      } catch (err) {
-        console.error('Kommentar löschen fehlgeschlagen', err);
-        alert('Kommentar konnte nicht gelöscht werden.');
-      }
-    }, { signal });
-    
+    // Feedback-Slots: Autosave beim Tippen + sofort speichern beim Verlassen.
+    // Gleiche Save-Steuerung (Debounce/Dedup/Status) wie Tabelle und Player.
+    if (!this._feedbackController) {
+      this._feedbackController = new VideoFeedbackSaveController({
+        handleFieldUpdate: (field) => this._saveFeedbackField(field)
+      });
+      this._feedbackBinding = new VideoFeedbackBinding(this._feedbackController);
+    }
+    this._feedbackBinding.bind(document, signal);
+
     // Lokale Event-Listener die bei jedem Render neu gebunden werden müssen
     this.bindLocalEvents();
 
@@ -521,69 +430,30 @@ export const kooperationVideoDetail = {
       });
     });
 
-    // Kommentar-Submit
-    const form = document.getElementById('comment-form');
-    if (form) {
-      const btn = form.querySelector('.mdc-btn');
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const fd = new FormData(form);
-        const slot = getVideoFeedbackSlotByField(fd.get('feedback_field') || 'feedback_cj_r1') || VIDEO_FEEDBACK_FIELDS[0];
-        const text = String(fd.get('text') || '').trim();
-        if (!text) return;
-        try {
-          if (btn) {
-            btn.disabled = true;
-            btn.classList.add('is-loading');
-          }
-          const payload = {
-            video_id: this.videoId,
-            runde: slot.runde,
-            feedback_typ: slot.feedback_typ,
-            text,
-            author_benutzer_id: window.currentUser?.id || null,
-            author_name: window.currentUser?.name || null,
-            created_at: new Date().toISOString()
-          };
-          const { error } = await window.supabase.from('kooperation_video_comment').insert(payload);
-          if (error) throw error;
-          
-          window.toastSystem?.success?.('Feedback gespeichert!');
-          
-          form.reset();
-          // Direkt lokal ergänzen für Live-Feeling
-          this.comments = this.comments || [];
-          this.comments.push({ ...payload });
-          if (btn) {
-            btn.classList.remove('is-loading');
-            btn.classList.add('is-success');
-            const label = btn.querySelector('.mdc-btn__label');
-            if (label) label.textContent = btn.dataset.successText || 'Gespeichert';
-            setTimeout(() => {
-              btn.classList.remove('is-success');
-              btn.disabled = false;
-              if (label) label.textContent = btn.dataset.defaultText || 'Speichern';
-            }, 600);
-          }
-          // UI Teilbereich aktualisieren
-          const grouped = groupVideoFeedbackComments(this.comments || []);
-          const content = document.querySelector(`#comments-${slot.bucket}`);
-          if (content) {
-            content.innerHTML = this.renderCommentsTable(grouped[slot.bucket]);
-            // ActionsDropdown neu initialisieren nach UI-Update
-            if (window.ActionsDropdown) {
-              window.ActionsDropdown.init();
-            }
-          }
-        } catch (err) {
-          console.error('Kommentar speichern fehlgeschlagen', err);
-          if (btn) {
-            btn.classList.remove('is-loading');
-            btn.disabled = false;
-          }
-          alert('Kommentar konnte nicht gespeichert werden.');
-        }
+  },
+
+  // Speichert genau einen Feedback-Slot ueber das gemeinsame Repository und
+  // haelt den lokalen comments-State konsistent (eine aktive Zeile pro Slot).
+  // Rueckgabe true/false steuert die Status-/Retry-Anzeige im Controller.
+  async _saveFeedbackField(field) {
+    const slot = getVideoFeedbackSlotByField(field.dataset.field);
+    if (!slot) return false;
+    try {
+      const { row } = await saveVideoFeedbackSlot({
+        videoId: this.videoId,
+        slot,
+        text: field.value,
+        user: window.currentUser
       });
+      // Aktive Zeile dieses Slots im lokalen State ersetzen.
+      this.comments = (this.comments || [])
+        .filter(c => !(getVideoFeedbackBucket(c) === slot.bucket && !c.deleted_at));
+      if (row) this.comments.push(row);
+      return true;
+    } catch (err) {
+      console.error('Feedback speichern fehlgeschlagen', err);
+      window.ErrorHandler?.handle?.(err, 'KooperationVideoDetail._saveFeedbackField');
+      return false;
     }
   },
 
@@ -950,6 +820,8 @@ export const kooperationVideoDetail = {
   },
 
   destroy() {
+    // Offene Feedback-Saves noch ausloesen, bevor Listener abgebaut werden.
+    this._feedbackController?.flushAll();
     this._abortController?.abort();
     this._abortController = null;
   }
