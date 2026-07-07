@@ -146,6 +146,7 @@ export async function showChangeRolleModal(detail) {
       detail.bind();
     } catch (err) {
       console.error('Rolle ändern fehlgeschlagen', err);
+      alert('Rolle konnte nicht geändert werden.');
     }
   });
 

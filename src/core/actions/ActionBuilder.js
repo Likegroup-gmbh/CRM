@@ -136,18 +136,7 @@ export class ActionBuilder {
     
     // Submenu-Items generieren
     let submenuItems = '';
-    
-    // Debug-Logging
-    console.log('🔍 buildSubmenu:', {
-      action: action.id,
-      entityId,
-      entityType,
-      hasOptions: !!options,
-      hasStatusOptions: !!(options && options.statusOptions),
-      statusOptionsLength: options?.statusOptions?.length || 0,
-      statusOptions: options?.statusOptions
-    });
-    
+
     if ((action.dynamicOptions || action.staticOptions) && options && options.statusOptions && options.statusOptions.length > 0) {
       submenuItems = this.buildSubmenuItems(
         options.statusOptions,

@@ -5,6 +5,9 @@ import { deleteVideoFull, deleteDropboxCascade } from './VideoDeleteHelper.js';
 import { deleteUnternehmenCascade, collectDependentIds } from '../modules/unternehmen/services/UnternehmenDeleteService.js';
 import { rechnungNotizModal } from '../modules/rechnung/RechnungNotizModal.js';
 
+// Entity-Types, die keine eigene DB-Tabelle haben und auf eine andere Entity gemappt werden
+const ENTITY_ALIASES = { mitarbeiter: 'benutzer' };
+
 function getEntityDisplayName(entityType) {
   const names = {
     creator: 'den Creator',
@@ -326,6 +329,10 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
       break;
     }
 
+    case 'freischalten':
+      await toggleFreischaltung(entityId);
+      break;
+
     case 'details':
     case 'auftrag-details':
       window.navigateTo('/projekt-erstellen');
@@ -333,6 +340,41 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
 
     default:
       console.warn(`Unbekannte Action: ${action}`);
+  }
+}
+
+// Freischalten/Sperren eines Benutzers (Mitarbeiter-Liste)
+// Gleiche Rollenlogik wie MitarbeiterDetailEvents: pending <-> mitarbeiter
+async function toggleFreischaltung(userId) {
+  try {
+    const { data: user, error: loadError } = await window.supabase
+      .from('benutzer')
+      .select('freigeschaltet, rolle')
+      .eq('id', userId)
+      .single();
+    if (loadError) throw loadError;
+
+    const freischalten = !user.freigeschaltet;
+    const updateData = { freigeschaltet: freischalten };
+    if (freischalten) {
+      if (user.rolle === 'pending') updateData.rolle = 'mitarbeiter';
+    } else {
+      updateData.rolle = 'pending';
+      updateData.zugriffsrechte = null;
+    }
+
+    const { error } = await window.supabase
+      .from('benutzer')
+      .update(updateData)
+      .eq('id', userId);
+    if (error) throw error;
+
+    window.dispatchEvent(new CustomEvent('entityUpdated', {
+      detail: { entity: 'benutzer', action: 'updated', id: userId, field: 'freigeschaltet', value: freischalten }
+    }));
+  } catch (err) {
+    console.error('Freischaltung ändern fehlgeschlagen', err);
+    alert('Freischaltung konnte nicht geändert werden.');
   }
 }
 
@@ -373,6 +415,8 @@ async function resolveAuftragIdForKampagne(kampagneId) {
 
 export async function setField(dropdown, entityType, entityId, fieldName, fieldValue) {
   try {
+    entityType = ENTITY_ALIASES[entityType] || entityType;
+
     // Rückfrage-Notiz Intercept für Rechnungen
     if (entityType === 'rechnung' && fieldName === 'status') {
       const interceptResult = await _handleRechnungNotizIntercept(entityId, fieldValue);

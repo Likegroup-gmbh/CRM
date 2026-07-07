@@ -275,31 +275,8 @@ export class MitarbeiterList {
       }
     }, { signal });
 
-    // Event-Handler für Rollen-Submenu (generiert von ActionBuilder als .submenu-item)
-    document.addEventListener('click', (e) => {
-      const submenuItem = e.target.closest('.submenu-item[data-action="set-field"]');
-      if (submenuItem) {
-        const container = submenuItem.closest('[data-entity-type="mitarbeiter"]');
-        if (!container) return;
-        e.preventDefault();
-        const userId = submenuItem.dataset.id;
-        const fieldName = submenuItem.dataset.field;
-        const fieldValue = submenuItem.dataset.value;
-        const roleName = submenuItem.dataset.statusName;
-
-        this.handleRoleChange(userId, fieldName, fieldValue, roleName);
-      }
-
-      const freischaltenItem = e.target.closest('.action-item[data-action="freischalten"]');
-      if (freischaltenItem) {
-        e.preventDefault();
-        const userId = freischaltenItem.dataset.id;
-        const user = this.rows.find(r => r.id === userId);
-        if (user) {
-          this.handleFreischaltenToggle(userId, !user.freigeschaltet);
-        }
-      }
-    }, { signal });
+    // "Rolle ändern" und "Freischalten / Sperren" werden zentral vom
+    // globalen ActionsDropdown-Handler verarbeitet (ActionsDropdownHandlers.js)
 
     // Live-Update bei entityUpdated
     window.addEventListener('entityUpdated', async (evt) => {
@@ -328,40 +305,6 @@ export class MitarbeiterList {
         }
       }
     }, { signal });
-  }
-
-  // Handler für Rollen-Änderungen
-  async handleRoleChange(userId, fieldName, fieldValue, roleName) {
-    try {
-      console.log(`🔄 Ändere Rolle für Mitarbeiter ${userId} auf "${roleName}"`);
-      await actionsDropdown.setField('benutzer', userId, fieldName, fieldValue);
-      console.log('✅ Rolle erfolgreich geändert');
-
-      // Aktualisiere die Liste
-      await this.load();
-      await this.render();
-      this.bind();
-
-    } catch (error) {
-      console.error('❌ Fehler beim Ändern der Rolle:', error);
-    }
-  }
-
-  // Handler für Freischalten/Sperren
-  async handleFreischaltenToggle(userId, newStatus) {
-    try {
-      console.log(`${newStatus ? '🔓' : '🔒'} ${newStatus ? 'Schalte' : 'Sperre'} Mitarbeiter ${userId}`);
-      await actionsDropdown.setField('benutzer', userId, 'freigeschaltet', newStatus);
-      console.log('✅ Status erfolgreich geändert');
-
-      // Aktualisiere die Liste
-      await this.load();
-      await this.render();
-      this.bind();
-
-    } catch (error) {
-      console.error('❌ Fehler beim Ändern des Status:', error);
-    }
   }
 
   destroy() {
