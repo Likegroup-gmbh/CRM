@@ -179,14 +179,15 @@ export async function setup(form, ctx) {
 
     const { data: auftrag, error } = await window.supabase
       .from('auftrag')
-      .select('id, auftragsname, titel, nettobetrag, unternehmen_id, unternehmen:unternehmen_id(id, firmenname)')
+      .select('id, auftragsname, titel, nettobetrag, creator_budget, unternehmen_id, unternehmen:unternehmen_id(id, firmenname)')
       .eq('id', auftragId)
       .single();
     if (error || !auftrag) { console.error('❌ Contract laden fehlgeschlagen:', error); return; }
 
     fillSelect(unternehmenField, auftrag.unternehmen_id, auftrag.unternehmen?.firmenname || '—');
 
-    _contractBudget = parseFloat(auftrag.nettobetrag) || 0;
+    // creator_budget = Netto abzüglich Agentur Fee/KSK; Fallback nettobetrag für Altbestände
+    _contractBudget = parseFloat(auftrag.creator_budget ?? auftrag.nettobetrag) || 0;
     _bereitsVergeben = await loadBudgetData(auftragId);
     const verfuegbar = _contractBudget - _bereitsVergeben;
 

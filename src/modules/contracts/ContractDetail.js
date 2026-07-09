@@ -184,11 +184,11 @@ export class ContractDetail {
     const c = this.contract || {};
     const rechnungen = c.rechnungen || [];
 
-    // Gesamtbudget: nettobetrag des Contracting-Auftrags (Fallback creator_budget/gesamt_budget)
+    // Gesamtbudget: creator_budget (Netto abzüglich Agentur Fee/KSK), Fallback gesamt_budget/nettobetrag
     const totalBudget = parseFloat(
-      c.nettobetrag ||
       c.creator_budget ||
       c.gesamt_budget ||
+      c.nettobetrag ||
       0
     ) || 0;
 
@@ -285,6 +285,10 @@ export class ContractDetail {
           <div class="summary-card">
             <div class="summary-value">${formatCurrency(c.bruttobetrag)}</div>
             <div class="summary-label">Bruttobetrag</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-value">${formatCurrency(totalBudget)}</div>
+            <div class="summary-label">Creatorbudget</div>
           </div>
           <div class="summary-card">
             <div class="summary-value">${formatCurrency(usedBudget)}</div>
