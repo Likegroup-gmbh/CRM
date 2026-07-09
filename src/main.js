@@ -93,6 +93,7 @@ import { vertraegeCreate } from './modules/vertrag/create/VertraegeCreate.js';
 import { projektErstellenModule } from './modules/projekt-erstellen/ProjektErstellenModule.js';
 import { kickOffList } from './modules/kickoff/KickOffList.js';
 import { kickOffDetail } from './modules/kickoff/KickOffDetail.js';
+import { transcribeTestPage } from './modules/transcribe/TranscribeTestPage.js';
 import { globalSearch } from './core/components/GlobalSearch.js';
 import { backgroundUploadPanel } from './core/components/BackgroundUploadPanel.js';
 import { backgroundUploadService } from './core/BackgroundUploadService.js';
@@ -175,6 +176,7 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('vertraege-create', vertraegeCreate);
   moduleRegistry.register('projekt-erstellen', projektErstellenModule);
   moduleRegistry.register('ausgangsrechnungen', ausgangsrechnungenList);
+  moduleRegistry.register('transcribe', transcribeTestPage);
   
   // Profile-Modul initialisieren und registrieren (V2 - neue Version mit zweispaltigem Layout)
   const profileDetailV2 = new ProfileDetailV2();

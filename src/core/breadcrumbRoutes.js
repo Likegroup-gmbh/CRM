@@ -32,6 +32,7 @@ const ROUTE_CONFIG = {
   contracts:          { label: 'Contracts',          icon: 'icon-contract' },
   ausgangsrechnungen: { label: 'Kundenrechnungen', icon: 'icon-currency-euro' },
   profile:            { label: 'Profil',            icon: 'icon-user-circle' },
+  transcribe:         { label: 'Transkription (Test)', icon: 'icon-video' },
 };
 
 const ROLE_OVERRIDES = {

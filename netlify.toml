@@ -23,6 +23,11 @@
 [functions."dropbox-proxy"]
   timeout = 300
 
+# Video-Transkription (Background Function: automatisch 15 Min Timeout, antwortet sofort 202)
+# Braucht Puppeteer/Chromium wie die Screenshot-Function (external_node_modules gilt global)
+[functions."transcribe-background"]
+  external_node_modules = ["@sparticuz/chromium"]
+
 # Auth-Seiten direkt ausliefern (NICHT auf index.html umleiten)
 [[redirects]]
   from = "/src/auth/*"
