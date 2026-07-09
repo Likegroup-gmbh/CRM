@@ -82,6 +82,13 @@ export class TranscribeTestPage {
         </div>
 
         <div class="form-group">
+          <label class="form-label">Caption</label>
+          <textarea id="transcribe-caption" class="form-input" rows="4" readonly
+                    placeholder="Video-Caption erscheint hier..." style="resize: vertical; font-family: inherit;"></textarea>
+          <button id="copy-caption-btn" class="secondary-btn" style="align-self: flex-start; padding: 4px 12px; font-size: var(--text-sm);">Kopieren</button>
+        </div>
+
+        <div class="form-group">
           <label class="form-label">Beschreibung</label>
           <textarea id="transcribe-description" class="form-input" rows="4" readonly
                     placeholder="KI-Beschreibung erscheint hier..." style="resize: vertical; font-family: inherit;"></textarea>
@@ -103,6 +110,9 @@ export class TranscribeTestPage {
     });
     document.getElementById('copy-description-btn')?.addEventListener('click', () => {
       this.copyField('transcribe-description', 'Beschreibung kopiert');
+    });
+    document.getElementById('copy-caption-btn')?.addEventListener('click', () => {
+      this.copyField('transcribe-caption', 'Caption kopiert');
     });
   }
 
@@ -129,6 +139,7 @@ export class TranscribeTestPage {
     btn.disabled = true;
     btn.textContent = 'Läuft...';
     document.getElementById('transcribe-transcript').value = '';
+    document.getElementById('transcribe-caption').value = '';
     document.getElementById('transcribe-description').value = '';
     document.getElementById('transcribe-source-badge').textContent = '';
     document.getElementById('transcribe-log').textContent = '';
@@ -227,6 +238,7 @@ export class TranscribeTestPage {
 
     if (job.status === 'done') {
       document.getElementById('transcribe-transcript').value = job.transcript || '';
+      document.getElementById('transcribe-caption').value = job.caption || '';
       document.getElementById('transcribe-description').value = job.description || '';
       const badge = document.getElementById('transcribe-source-badge');
       if (badge && job.transcript_source) {

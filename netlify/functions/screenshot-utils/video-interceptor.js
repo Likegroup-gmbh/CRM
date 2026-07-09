@@ -99,6 +99,22 @@ function stripRangeParams(url) {
 }
 
 /**
+ * Instagram og:description enthaelt oft Boilerplate wie
+ * '123 likes, 4 comments - user on July 1, 2026: "eigentliche Caption"'.
+ * Extrahiert den reinen Caption-Teil, Fallback auf den Rohtext.
+ */
+function cleanInstagramCaption(raw) {
+  if (!raw) return null;
+  const text = raw.trim();
+  const hasBoilerplate = /likes|comments|gef[aä]llt|kommentare/i.test(text.split(':')[0] || '');
+  if (hasBoilerplate) {
+    const match = text.match(/:\s*["\u201E\u201C](.+)["\u201C\u201D]\s*$/s);
+    if (match) return match[1].trim();
+  }
+  return text;
+}
+
+/**
  * Instagram: Media-URL aus gesammelten Netzwerk-Responses + DOM.
  *
  * WICHTIG: Instagram streamt Reels als DASH mit GETRENNTEN Video-/Audio-Spuren.
@@ -152,7 +168,7 @@ async function extractInstagramVideoData(page, mediaUrls) {
     videoUrl,
     isAudioOnly: !!audioTrack,
     durationSeconds,
-    caption: domData.caption,
+    caption: cleanInstagramCaption(domData.caption),
     subtitle: null // Instagram hat keine abrufbaren Untertitel-Streams (Hardsubs)
   };
 }

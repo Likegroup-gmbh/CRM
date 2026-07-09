@@ -235,6 +235,7 @@ exports.handler = async (event) => {
       progress_step: 'done',
       transcript,
       description,
+      caption: videoData.caption || null,
       transcript_source: transcriptSource,
       completed_at: new Date().toISOString()
     });
