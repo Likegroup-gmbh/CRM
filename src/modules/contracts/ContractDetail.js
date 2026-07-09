@@ -241,7 +241,7 @@ export class ContractDetail {
 
   renderSummaryCards() {
     const c = this.contract;
-    const d = c.auftragsDetails || null;
+    const d = c.auftragsDetails || c;
 
     const { totalBudget, usedBudget, openBudget } = this.calculateBudgetSummary();
 

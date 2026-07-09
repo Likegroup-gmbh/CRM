@@ -8,6 +8,7 @@ const CONTRACT_SELECT = `
   nettobetrag, bruttobetrag, gesamt_budget, creator_budget,
   angebotsnummer, po, externe_po,
   start, ende, created_at,
+  agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value,
   unternehmen:unternehmen_id (id, firmenname, logo_thumb_url),
   marke:marke_id (id, markenname, logo_thumb_url),
   ansprechpartner:ansprechpartner_id (id, vorname, nachname)
@@ -145,10 +146,27 @@ export async function loadContractDetail(auftragId) {
       creator: p.creator_id ? (creatorMap[p.creator_id] || null) : null
     }));
 
+    // Contracting speichert Agency Fee/KSK direkt auf auftrag; auftrag_details
+    // dient nur als Fallback fuer Altbestaende.
+    const auftrag = auftragResult.data;
+    const detailsFallback = auftragDetailsResult?.data || null;
+    const hasAuftragFees = auftrag.percentage_fee_enabled || auftrag.ksk_enabled
+      || parseFloat(auftrag.percentage_fee_value) > 0 || parseFloat(auftrag.ksk_value) > 0;
+
+    const auftragsDetails = hasAuftragFees
+      ? {
+          agency_services_enabled: auftrag.agency_services_enabled,
+          percentage_fee_enabled: auftrag.percentage_fee_enabled,
+          percentage_fee_value: auftrag.percentage_fee_value,
+          ksk_enabled: auftrag.ksk_enabled,
+          ksk_value: auftrag.ksk_value
+        }
+      : detailsFallback;
+
     return {
-      ...auftragResult.data,
+      ...auftrag,
       contracting_position: enrichedPositions,
-      auftragsDetails: auftragDetailsResult?.data || null,
+      auftragsDetails,
       rechnungen
     };
   } catch (e) {

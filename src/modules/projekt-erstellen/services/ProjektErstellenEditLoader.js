@@ -91,7 +91,7 @@ export class ProjektErstellenEditLoader {
   toFormData({ auftrag, details, kampagne, blocks, junctionArtNames = [], teilrechnungen = [] }) {
     return {
       auftrag: this.mapAuftrag(auftrag, teilrechnungen),
-      details: this.mapDetails(details, blocks, junctionArtNames, kampagne),
+      details: this.mapDetails(details, blocks, junctionArtNames, kampagne, auftrag),
       kampagne: this.mapKampagne(kampagne, auftrag)
     };
   }
@@ -175,7 +175,24 @@ export class ProjektErstellenEditLoader {
     }];
   }
 
-  mapDetails(details, blocks, junctionArtNames = [], kampagne = null) {
+  mapDetails(details, blocks, junctionArtNames = [], kampagne = null, auftrag = null) {
+    // Contracting speichert Agency Fee/KSK direkt auf der auftrag-Zeile,
+    // nicht in auftrag_details. auftrag_details bleibt Fallback fuer Altbestaende.
+    const isContracting = auftrag?.auftragtype === 'Contracting';
+    const hasAuftragFees = isContracting && (
+      auftrag.percentage_fee_enabled || auftrag.ksk_enabled
+      || parseFloat(auftrag.percentage_fee_value) > 0 || parseFloat(auftrag.ksk_value) > 0
+    );
+    const contractingFees = hasAuftragFees
+      ? {
+          agency_services_enabled: !!auftrag.agency_services_enabled,
+          percentage_fee_enabled: !!auftrag.percentage_fee_enabled,
+          percentage_fee_value: auftrag.percentage_fee_value ?? 0,
+          ksk_enabled: !!auftrag.ksk_enabled,
+          ksk_value: auftrag.ksk_value ?? 0
+        }
+      : null;
+
     // 1) Primaerquelle: vorhandene Blocks aus auftrag_kampagnenart_blocks
     let campaignBlocks = this.mapBlocks(blocks);
     let campaign_type = campaignBlocks.map(b => b.campaign_type).filter(Boolean);
@@ -227,7 +244,8 @@ export class ProjektErstellenEditLoader {
         percentage_fee_base: 'total_budget',
         ksk_enabled: false,
         ksk_type: 'fixed',
-        ksk_value: 0
+        ksk_value: 0,
+        ...(contractingFees || {})
       };
     }
 
@@ -247,7 +265,8 @@ export class ProjektErstellenEditLoader {
       percentage_fee_base: details.percentage_fee_base || 'total_budget',
       ksk_enabled: !!details.ksk_enabled,
       ksk_type: details.ksk_type || 'fixed',
-      ksk_value: details.ksk_value ?? 0
+      ksk_value: details.ksk_value ?? 0,
+      ...(contractingFees || {})
     };
   }
 
