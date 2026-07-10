@@ -34,17 +34,42 @@ async function verifyAuth(event, supabase) {
 /**
  * Job-Updater: schreibt Status/Progress/Logs in die transcription_jobs-Zeile.
  * Logs werden kumulativ gehalten, damit die UI einen Live-Console-Log anzeigen kann.
+ *
+ * Performance: Zwischenstands-Writes blockieren die Pipeline nicht mehr, laufen aber
+ * als serielle Queue (Reihenfolge garantiert, kein Ueberholen). Nur der finale Write
+ * (done/error) wird via flush() abgewartet, damit vor dem Lambda-Freeze alles landet.
  */
 function createJobUpdater(supabase, jobId) {
   const logs = [];
+  let queue = Promise.resolve();
+
+  const enqueue = (patch) => {
+    queue = queue
+      .then(() => supabase.from('transcription_jobs').update({ ...patch, logs }).eq('id', jobId))
+      .catch((e) => console.error(`[${jobId}] Supabase-Write fehlgeschlagen:`, e.message));
+  };
+
+  const pushLog = (msg) => {
+    logs.push({ ts: new Date().toISOString(), msg });
+    console.log(`[${jobId}] ${msg}`);
+  };
+
   return {
-    async log(msg) {
-      const entry = { ts: new Date().toISOString(), msg };
-      logs.push(entry);
-      console.log(`[${jobId}] ${msg}`);
-      await supabase.from('transcription_jobs').update({ logs }).eq('id', jobId);
+    log(msg) {
+      pushLog(msg);
+      enqueue({});
     },
-    async update(patch) {
+    // Kombinierter Progress+Log-Write: ein Roundtrip statt zwei
+    step(progressStep, msg) {
+      if (msg) pushLog(msg);
+      enqueue({ progress_step: progressStep });
+    },
+    update(patch) {
+      enqueue(patch);
+    },
+    // Finaler Write: Queue leeren, dann garantiert schreiben
+    async flushAndUpdate(patch) {
+      await queue;
       await supabase.from('transcription_jobs').update({ ...patch, logs }).eq('id', jobId);
     }
   };
@@ -133,6 +158,19 @@ exports.handler = async (event) => {
   const startTime = Date.now();
   let browser;
 
+  // Step-Timing fuer Bottleneck-Diagnose (Breakdown landet im finalen Log)
+  const stepTimings = [];
+  let lastStepName = null;
+  let lastStepStart = startTime;
+  const markStep = (name) => {
+    const now = Date.now();
+    if (lastStepName) {
+      stepTimings.push(`${lastStepName} ${((now - lastStepStart) / 1000).toFixed(1)}s`);
+    }
+    lastStepName = name;
+    lastStepStart = now;
+  };
+
   try {
     if (!accountId || !aiToken) {
       throw new Error('CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_AI_TOKEN nicht gesetzt (Netlify Env-Vars)');
@@ -143,9 +181,10 @@ exports.handler = async (event) => {
       throw new Error(`Plattform nicht unterstuetzt: ${platform} (nur TikTok/Instagram)`);
     }
 
-    await job.update({ status: 'processing', platform, progress_step: 'browser' });
-    await job.log(`Start: ${platform} - ${url}`);
-    await job.log('Browser mit Stealth Mode starten...');
+    job.update({ status: 'processing', platform });
+    job.step('browser', `Start: ${platform} - ${url}`);
+    job.log('Browser mit Stealth Mode starten...');
+    markStep('browser');
 
     // Desktop-UA erzwingen ('other'): Instagram zeigt mit Mobile-UA nur eine
     // "Open Instagram"-Wall ohne Video, TikTok liefert mit Desktop das vollere JSON
@@ -157,11 +196,11 @@ exports.handler = async (event) => {
     let navigateUrl = url;
     if (platform === 'instagram' && url.includes('/p/')) {
       navigateUrl = url.replace(/\/p\//, '/reels/').split('?')[0];
-      await job.log(`Instagram /p/ -> /reels/: ${navigateUrl}`);
+      job.log(`Instagram /p/ -> /reels/: ${navigateUrl}`);
     }
 
-    await job.update({ progress_step: 'navigation' });
-    await job.log('Seite laden...');
+    job.step('navigation', 'Seite laden...');
+    markStep('navigation');
     await page.goto(navigateUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
     let videoData;
@@ -170,15 +209,24 @@ exports.handler = async (event) => {
       videoData = await extractTikTokVideoData(page);
     } else {
       await handleInstagramPopups(page, navigateUrl);
-      // Video anspielen, damit die CDN-Requests im Netzwerk auftauchen
+      // Video anspielen, damit die CDN-Requests im Netzwerk auftauchen.
+      // Adaptiv statt fixer 4s: sobald eine Audio-Spur im Netzwerk auftaucht,
+      // geht es sofort weiter (4s bleiben als Maximum - worst case wie vorher).
       await page.evaluate(() => document.querySelector('video')?.play()?.catch(() => {}));
-      await new Promise(r => setTimeout(r, 4000));
+      const waitStart = Date.now();
+      while (Date.now() - waitStart < 4000) {
+        const hasAudio = mediaUrls.some(m =>
+          (m.tag && m.tag.includes('audio')) || m.contentType.startsWith('audio/')
+        );
+        if (hasAudio) break;
+        await new Promise(r => setTimeout(r, 300));
+      }
       videoData = await extractInstagramVideoData(page, mediaUrls);
     }
 
     if (videoData.error) throw new Error(videoData.error);
     if (videoData.durationSeconds) {
-      await job.update({ duration_seconds: videoData.durationSeconds });
+      job.update({ duration_seconds: videoData.durationSeconds });
     }
 
     let transcript = null;
@@ -186,14 +234,14 @@ exports.handler = async (event) => {
 
     // TikTok-Shortcut: native Auto-Captions vorhanden -> Whisper ueberspringen
     if (videoData.subtitle?.url) {
-      await job.update({ progress_step: 'captions' });
-      await job.log(`Native TikTok-Captions gefunden (${videoData.subtitle.lang || 'unbekannt'}), lade Untertitel...`);
+      job.step('captions', `Native TikTok-Captions gefunden (${videoData.subtitle.lang || 'unbekannt'}), lade Untertitel...`);
+      markStep('captions');
       try {
         transcript = await downloadSubtitleText(page, videoData.subtitle.url);
         transcriptSource = 'native_captions';
-        await job.log(`Captions geladen: ${transcript.length} Zeichen`);
+        job.log(`Captions geladen: ${transcript.length} Zeichen`);
       } catch (e) {
-        await job.log(`Caption-Download fehlgeschlagen (${e.message}), Fallback auf Whisper`);
+        job.log(`Caption-Download fehlgeschlagen (${e.message}), Fallback auf Whisper`);
         transcript = null;
       }
     }
@@ -202,21 +250,21 @@ exports.handler = async (event) => {
       if (!videoData.videoUrl) {
         throw new Error('Keine Video-CDN-URL gefunden (Login-Wall oder Block?)');
       }
-      await job.update({ progress_step: 'download' });
-      await job.log('Video von CDN laden (nur in Memory, keine Datei)...');
+      job.step('download', 'Video von CDN laden (nur in Memory, keine Datei)...');
+      markStep('download');
       const videoBuffer = await downloadVideoBuffer(page, videoData.videoUrl, navigateUrl);
-      await job.log(`Video geladen: ${(videoBuffer.length / 1024 / 1024).toFixed(1)} MB`);
+      job.log(`Video geladen: ${(videoBuffer.length / 1024 / 1024).toFixed(1)} MB`);
 
-      // Browser frueh schliessen - ab hier nur noch API-Calls
-      await browser.close();
+      // Browser frueh schliessen - nicht awaiten, Whisper braucht ihn nicht mehr
+      browser.close().catch(() => {});
       browser = null;
 
-      await job.update({ progress_step: 'whisper' });
-      await job.log('Whisper-Transkription (Cloudflare Workers AI)...');
+      job.step('whisper', 'Whisper-Transkription (Cloudflare Workers AI)...');
+      markStep('whisper');
       transcript = await runWhisper(videoBuffer, accountId, aiToken);
-      await job.log(`Transkript: ${transcript.length} Zeichen`);
+      job.log(`Transkript: ${transcript.length} Zeichen`);
     } else if (browser) {
-      await browser.close();
+      browser.close().catch(() => {});
       browser = null;
     }
 
@@ -224,18 +272,27 @@ exports.handler = async (event) => {
       throw new Error('Transkript ist leer (Video ohne Sprache?)');
     }
 
-    await job.update({ progress_step: 'description', transcript, transcript_source: transcriptSource });
-    await job.log('Beschreibung generieren (Llama 3.1)...');
+    job.update({ transcript, transcript_source: transcriptSource });
+    job.step('description', 'Beschreibung generieren (Llama 3.1)...');
+    markStep('description');
     const description = await runDescription(transcript, videoData.caption, accountId, aiToken);
+    markStep(null);
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    await job.log(`Fertig in ${elapsed}s`);
-    await job.update({
+    job.log(`Fertig in ${elapsed}s (${stepTimings.join(', ')})`);
+    await job.flushAndUpdate({
       status: 'done',
       progress_step: 'done',
       transcript,
       description,
       caption: videoData.caption || null,
+      author_name: videoData.authorName || null,
+      author_url: videoData.authorUrl || null,
+      posted_at: videoData.postedAt || null,
+      likes_count: videoData.likes ?? null,
+      comments_count: videoData.comments ?? null,
+      shares_count: videoData.shares ?? null,
+      saves_count: videoData.saves ?? null,
       transcript_source: transcriptSource,
       completed_at: new Date().toISOString()
     });
@@ -245,8 +302,8 @@ exports.handler = async (event) => {
   } catch (error) {
     console.error(`[${jobId}] Fehler:`, error.message);
     try {
-      await job.log(`FEHLER: ${error.message}`);
-      await job.update({
+      job.log(`FEHLER: ${error.message}`);
+      await job.flushAndUpdate({
         status: 'error',
         error_message: error.message,
         completed_at: new Date().toISOString()

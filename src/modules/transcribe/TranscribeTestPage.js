@@ -81,6 +81,17 @@ export class TranscribeTestPage {
           <button id="copy-transcript-btn" class="secondary-btn" style="align-self: flex-start; padding: 4px 12px; font-size: var(--text-sm);">Kopieren</button>
         </div>
 
+        <div id="transcribe-meta" style="display: none; flex-direction: column; gap: var(--space-xs);
+                    border: 1px solid var(--gray-200); border-radius: var(--radius-xl); padding: var(--space-sm) var(--space-md);">
+          <div style="display: flex; align-items: center; gap: 6px; font-size: var(--text-sm);">
+            <span style="color: var(--text-secondary);">Hochgeladen von</span>
+            <a id="transcribe-author-link" href="#" target="_blank" rel="noopener"
+               style="font-weight: 600; color: var(--color-primary); text-decoration: none;"></a>
+            <span id="transcribe-posted-at" style="color: var(--text-secondary);"></span>
+          </div>
+          <div id="transcribe-stats" style="display: flex; gap: var(--space-xs); flex-wrap: wrap;"></div>
+        </div>
+
         <div class="form-group">
           <label class="form-label">Caption</label>
           <textarea id="transcribe-caption" class="form-input" rows="4" readonly
@@ -143,6 +154,7 @@ export class TranscribeTestPage {
     document.getElementById('transcribe-description').value = '';
     document.getElementById('transcribe-source-badge').textContent = '';
     document.getElementById('transcribe-log').textContent = '';
+    this.renderMeta(null);
     this.renderedLogCount = 0;
     this.startTime = Date.now();
 
@@ -240,6 +252,7 @@ export class TranscribeTestPage {
       document.getElementById('transcribe-transcript').value = job.transcript || '';
       document.getElementById('transcribe-caption').value = job.caption || '';
       document.getElementById('transcribe-description').value = job.description || '';
+      this.renderMeta(job);
       const badge = document.getElementById('transcribe-source-badge');
       if (badge && job.transcript_source) {
         badge.textContent = job.transcript_source === 'native_captions'
@@ -255,6 +268,64 @@ export class TranscribeTestPage {
       window.toastSystem?.show(`Fehler: ${job.error_message || 'Unbekannt'}`, 'error');
       this.finishUi();
     }
+  }
+
+  /**
+   * Autor-Card + Stats-Chips rendern. job=null versteckt/leert alles.
+   * Werte kommen von gescrapten Fremdseiten -> nur textContent/href, kein innerHTML.
+   */
+  renderMeta(job) {
+    const wrap = document.getElementById('transcribe-meta');
+    const authorLink = document.getElementById('transcribe-author-link');
+    const postedAt = document.getElementById('transcribe-posted-at');
+    const statsEl = document.getElementById('transcribe-stats');
+    if (!wrap || !authorLink || !postedAt || !statsEl) return;
+
+    statsEl.textContent = '';
+
+    const stats = [
+      { label: 'Likes', value: job?.likes_count },
+      { label: 'Comments', value: job?.comments_count },
+      { label: 'Shares', value: job?.shares_count },
+      { label: 'Saves', value: job?.saves_count }
+    ].filter(s => s.value !== null && s.value !== undefined);
+
+    const hasAuthor = !!job?.author_name;
+    if (!job || (!hasAuthor && stats.length === 0)) {
+      wrap.style.display = 'none';
+      return;
+    }
+
+    if (hasAuthor) {
+      authorLink.textContent = `@${job.author_name}`;
+      if (job.author_url) {
+        authorLink.href = job.author_url;
+        authorLink.style.pointerEvents = '';
+      } else {
+        authorLink.removeAttribute('href');
+        authorLink.style.pointerEvents = 'none';
+      }
+      authorLink.parentElement.style.display = 'flex';
+    } else {
+      authorLink.parentElement.style.display = 'none';
+    }
+
+    postedAt.textContent = job.posted_at
+      ? `· gepostet am ${new Date(job.posted_at).toLocaleDateString('de-DE', { timeZone: 'UTC' })}`
+      : '';
+
+    for (const stat of stats) {
+      const chip = document.createElement('span');
+      chip.style.cssText = 'background: var(--gray-100); border-radius: 999px; padding: 2px 10px; font-size: var(--text-sm);';
+      const num = document.createElement('strong');
+      num.textContent = Number(stat.value).toLocaleString('de-DE');
+      chip.appendChild(num);
+      chip.appendChild(document.createTextNode(` ${stat.label}`));
+      statsEl.appendChild(chip);
+    }
+    statsEl.style.display = stats.length ? 'flex' : 'none';
+
+    wrap.style.display = 'flex';
   }
 
   setProgress(step) {
