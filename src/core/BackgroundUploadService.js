@@ -9,6 +9,7 @@ import { runVideoUploadJob } from './uploadJobs/runVideoUploadJob.js';
 import { runVideoReplaceJob } from './uploadJobs/runVideoReplaceJob.js';
 import { runStorysUploadJob } from './uploadJobs/runStorysUploadJob.js';
 import { runCustomUploadJob } from './uploadJobs/runCustomUploadJob.js';
+import { runCustomReplaceJob } from './uploadJobs/runCustomReplaceJob.js';
 
 const EVT = {
   QUEUE_CHANGED: 'upload:queue-changed',
@@ -33,6 +34,7 @@ const RUNNERS = {
   'video-replace': runVideoReplaceJob,
   storys: runStorysUploadJob,
   custom: runCustomUploadJob,
+  'custom-replace': runCustomReplaceJob,
 };
 
 class BackgroundUploadService {
@@ -60,6 +62,9 @@ class BackgroundUploadService {
   }
   enqueueCustomUploadJob(payload) {
     return this._enqueue('custom', payload);
+  }
+  enqueueCustomReplaceJob(payload) {
+    return this._enqueue('custom-replace', payload);
   }
 
   getJob(jobId) {
@@ -174,6 +179,13 @@ class BackgroundUploadService {
         meta: { columnId: payload.columnId, entityId: payload.entityId },
       }));
     }
+    if (kind === 'custom-replace') {
+      return [this._mkItem({
+        fileName: payload.file?.name || 'datei',
+        fileSize: payload.file?.size || 0,
+        meta: { columnId: payload.columnId, entityId: payload.entityId, assetId: payload.assetId },
+      })];
+    }
     return [];
   }
 
@@ -218,7 +230,7 @@ class BackgroundUploadService {
         this._emit(EVT.VIDEO_DONE, { jobId: next.id, videoId: next.videoId, result });
       } else if (next.kind === 'storys') {
         this._emit(EVT.STORYS_DONE, { jobId: next.id, videoId: next.videoId, result });
-      } else if (next.kind === 'custom') {
+      } else if (next.kind === 'custom' || next.kind === 'custom-replace') {
         this._emit(EVT.CUSTOM_DONE, { jobId: next.id, result });
       }
     } catch (err) {

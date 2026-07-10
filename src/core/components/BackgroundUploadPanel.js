@@ -240,6 +240,8 @@ export class BackgroundUploadPanel {
   _jobLabel(job) {
     if (job.kind === 'storys') return `Storys (${job.items.length})`;
     if (job.kind === 'video-replace') return 'Video ersetzen';
+    if (job.kind === 'custom') return `Datei${job.items.length > 1 ? `en (${job.items.length})` : ''}`;
+    if (job.kind === 'custom-replace') return 'Datei ersetzen';
     return `Video${job.items.length > 1 ? `s (${job.items.length})` : ''}`;
   }
 

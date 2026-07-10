@@ -10433,6 +10433,25 @@ input.readonly-field {
   z-index: 14;
 }
 
+/* Sourcing: Status-Reiter zwischen Add-Section und Tabelle (sticky) */
+/* z-index muss ueber den sticky Spalten der Tabelle liegen (col-sticky: 20-27) */
+.sourcing-tab-navigation {
+  position: sticky;
+  left: 0;
+  top: var(--sticky-addbar-height, 0px);
+  z-index: 28;
+  background: var(--bg-primary, #fff);
+}
+
+.add-item-section--compact:has(+ .sourcing-tab-navigation) {
+  z-index: 28;
+}
+
+.sourcing-tab-navigation + .table-container .strategie-items-table thead th {
+  top: var(--sticky-add-section-height, 0);
+  z-index: 14;
+}
+
 .add-item-actions-right {
   display: flex;
   gap: var(--space-sm);
@@ -11443,9 +11462,27 @@ table:has(#strategien-table-body) td.col-actions {
   min-width: 80px;
 }
 
+.creator-pool-table .cp-col-onhold {
+  width: 140px;
+  min-width: 140px;
+}
+
+.onhold-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.onhold-datum {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
 .creator-pool-table td.cp-col-prio1,
 .creator-pool-table td.cp-col-prio2,
 .creator-pool-table td.cp-col-anfragen,
+.creator-pool-table td.cp-col-onhold,
 .creator-pool-table td.cp-col-buchen,
 .creator-pool-table td.cp-col-absagen,
 .creator-pool-table td.cp-col-check {
@@ -16326,6 +16363,25 @@ table.vertraege-unternehmen-table td:last-child {
   background: var(--bg-secondary);
 }
 .video-settings-btn svg { width: var(--icon-xs); height: var(--icon-xs); }
+
+/* Settings/Gear-Button neben dem Ordner-Link in Custom-Upload-Zellen */
+.custom-upload-settings-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: var(--border-xs) solid var(--border-secondary);
+  color: var(--text-tertiary);
+  border-radius: var(--radius-md);
+  padding: var(--space-xxs) var(--space-xs);
+  cursor: pointer;
+  margin-left: var(--space-xxs);
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.custom-upload-settings-btn:hover {
+  border-color: var(--border-focus);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+.custom-upload-settings-btn svg { width: var(--icon-xs); height: var(--icon-xs); }
 
 /* Platzhalter wenn kein Content vorhanden (Kunden-Ansicht) */
 .no-content-placeholder { color: var(--text-muted); font-size: var(--text-13); }

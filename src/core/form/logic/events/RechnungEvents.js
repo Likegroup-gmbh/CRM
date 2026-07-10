@@ -75,22 +75,44 @@ function hideVertragWarning(form) {
   if (submitBtn) submitBtn.disabled = false;
 }
 
-// Wiederverwendbare Berechnungslogik fuer USt/Brutto — wird auch von RechnungContractingEvents importiert
-export function berechneRechnungFromInputs({ nettoInput, zusatzInput, skontoToggle, ustAktivToggle, ustProzentInput, nettoGesamtInput, bruttoVorSkontoInput, skontoBetragInput, nettoNachSkontoInput, ustBetragInput, bruttoInput }) {
+// Wiederverwendbare Berechnungslogik fuer USt/Brutto — wird auch von RechnungContractingEvents importiert.
+// zusatzBruttoToggle: optional, schaltet Zusatzkosten in den Brutto-Modus (durchlaufender Posten
+// inkl. USt — es wird keine weitere USt auf die Zusatzkosten berechnet).
+export function berechneRechnungFromInputs({ nettoInput, zusatzInput, skontoToggle, ustAktivToggle, ustProzentInput, zusatzBruttoToggle, nettoGesamtInput, bruttoVorSkontoInput, skontoBetragInput, nettoNachSkontoInput, ustBetragInput, bruttoInput }) {
   const netto = parseFloat(nettoInput?.value) || 0;
   const zusatz = parseFloat(zusatzInput?.value) || 0;
   const hatSkonto = skontoToggle?.checked || false;
+  const zusatzIstBrutto = zusatzBruttoToggle?.checked || false;
   const ustAktiv = ustAktivToggle ? ustAktivToggle.checked : true;
   if (!ustAktiv && ustProzentInput) ustProzentInput.value = '0';
   else if (ustAktiv && ustProzentInput && (parseFloat(ustProzentInput.value) || 0) === 0) ustProzentInput.value = '19';
   const ustProzent = ustAktiv ? (parseFloat(ustProzentInput?.value) || 0) : 0;
   const ustRate = ustProzent / 100;
-  const nettoGesamt = netto + zusatz;
-  const bruttoVorSkonto = nettoGesamt * (1 + ustRate);
-  const skontoBetrag = hatSkonto ? nettoGesamt * 0.03 : 0;
-  const nettoNachSkonto = nettoGesamt - skontoBetrag;
-  const ustBetrag = nettoNachSkonto * ustRate;
-  const brutto = nettoNachSkonto + ustBetrag;
+
+  let nettoGesamt, bruttoVorSkonto, skontoBetrag, nettoNachSkonto, ustBetrag, brutto;
+
+  if (zusatzIstBrutto) {
+    // Brutto-Modus: Zusatzkosten enthalten bereits USt, Rechnungs-USt nur auf die Leistung.
+    // Skonto (3%) wirkt auf Leistung + Zusatzkosten.
+    const skontoFaktor = hatSkonto ? 0.97 : 1;
+    nettoGesamt = netto;
+    bruttoVorSkonto = netto * (1 + ustRate) + zusatz;
+    skontoBetrag = hatSkonto ? (netto + zusatz) * 0.03 : 0;
+    const nettoLeistungNachSkonto = netto * skontoFaktor;
+    const zusatzNachSkonto = zusatz * skontoFaktor;
+    nettoNachSkonto = nettoLeistungNachSkonto;
+    ustBetrag = nettoLeistungNachSkonto * ustRate;
+    brutto = nettoLeistungNachSkonto + ustBetrag + zusatzNachSkonto;
+  } else {
+    // Netto-Modus (Standard): Zusatzkosten netto, USt auf die Gesamtsumme.
+    nettoGesamt = netto + zusatz;
+    bruttoVorSkonto = nettoGesamt * (1 + ustRate);
+    skontoBetrag = hatSkonto ? nettoGesamt * 0.03 : 0;
+    nettoNachSkonto = nettoGesamt - skontoBetrag;
+    ustBetrag = nettoNachSkonto * ustRate;
+    brutto = nettoNachSkonto + ustBetrag;
+  }
+
   if (nettoGesamtInput) nettoGesamtInput.value = nettoGesamt.toFixed(2);
   if (bruttoVorSkontoInput) bruttoVorSkontoInput.value = bruttoVorSkonto.toFixed(2);
   if (skontoBetragInput) skontoBetragInput.value = skontoBetrag.toFixed(2);
@@ -129,6 +151,8 @@ export function finalizeRechnungSubmitData(form, submitData) {
   if (geprueftToggle) submitData.geprueft = geprueftToggle.checked;
   const kskToggle = form.querySelector('input[name="ksk_pflichtig"]');
   if (kskToggle) submitData.ksk_pflichtig = kskToggle.checked;
+  const zusatzBruttoToggle = form.querySelector('input[name="zusatzkosten_brutto"]');
+  if (zusatzBruttoToggle) submitData.zusatzkosten_brutto = zusatzBruttoToggle.checked;
 
   // UI-only Feld entfernen
   delete submitData.ust_aktiv;
@@ -358,47 +382,30 @@ export async function setup(form, ctx) {
 
   // === Live-Berechnung für UST, Skonto und Brutto ===
   const skontoToggle = form.querySelector('input[name="skonto"]');
+  const zusatzBruttoToggle = form.querySelector('input[name="zusatzkosten_brutto"]');
   const nettoGesamtInput = form.querySelector('input[name="netto_gesamt"]');
   const bruttoVorSkontoInput = form.querySelector('input[name="brutto_vor_skonto"]');
   const skontoBetragInput = form.querySelector('input[name="skonto_betrag"]');
   const nettoNachSkontoInput = form.querySelector('input[name="netto_nach_skonto"]');
   const ustBetragInput = form.querySelector('input[name="ust_betrag"]');
-  
+
   const berechneRechnung = () => {
-    const netto = parseFloat(nettoInput?.value) || 0;
-    const zusatz = parseFloat(zusatzInput?.value) || 0;
-    const hatSkonto = skontoToggle?.checked || false;
-    // ust_aktiv steuert ob USt angewendet wird
-    const ustAktiv = ustAktivToggle ? ustAktivToggle.checked : true;
-    if (!ustAktiv && ustProzentInput) {
-      ustProzentInput.value = '0';
-    } else if (ustAktiv && ustProzentInput && (parseFloat(ustProzentInput.value) || 0) === 0) {
-      ustProzentInput.value = '19';
-    }
-    const ustProzent = ustAktiv ? (parseFloat(ustProzentInput?.value) || 0) : 0;
-    const ustRate = ustProzent / 100;
-    
-    const nettoGesamt = netto + zusatz;
-    const bruttoVorSkonto = nettoGesamt * (1 + ustRate);
-    const skontoBetrag = hatSkonto ? nettoGesamt * 0.03 : 0;
-    const nettoNachSkonto = nettoGesamt - skontoBetrag;
-    const ustBetrag = nettoNachSkonto * ustRate;
-    const brutto = nettoNachSkonto + ustBetrag;
-    
-    if (nettoGesamtInput) nettoGesamtInput.value = nettoGesamt.toFixed(2);
-    if (bruttoVorSkontoInput) bruttoVorSkontoInput.value = bruttoVorSkonto.toFixed(2);
-    if (skontoBetragInput) skontoBetragInput.value = skontoBetrag.toFixed(2);
-    if (nettoNachSkontoInput) nettoNachSkontoInput.value = nettoNachSkonto.toFixed(2);
-    if (ustBetragInput) ustBetragInput.value = ustBetrag.toFixed(2);
-    if (bruttoInput) bruttoInput.value = brutto.toFixed(2);
+    berechneRechnungFromInputs({
+      nettoInput, zusatzInput, skontoToggle,
+      ustAktivToggle, ustProzentInput, zusatzBruttoToggle,
+      nettoGesamtInput, bruttoVorSkontoInput,
+      skontoBetragInput, nettoNachSkontoInput,
+      ustBetragInput, bruttoInput
+    });
   };
-  
+
   const debouncedBerechne = debounce(berechneRechnung, 50);
   
   // Event-Listener für Berechnung (immer binden, auch im Edit-Mode)
   if (nettoInput) nettoInput.addEventListener('input', debouncedBerechne);
   if (zusatzInput) zusatzInput.addEventListener('input', debouncedBerechne);
   if (skontoToggle) skontoToggle.addEventListener('change', berechneRechnung);
+  if (zusatzBruttoToggle) zusatzBruttoToggle.addEventListener('change', berechneRechnung);
   if (ustProzentInput) {
     ustProzentInput.addEventListener('input', debouncedBerechne);
     ustProzentInput.addEventListener('change', berechneRechnung);

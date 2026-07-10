@@ -104,9 +104,11 @@ export class VideoTableDrawerActions {
         entityId,
         columnName,
         folderName: columnName,
+        currentValue: t.store?.getCustomColumnValue(entityId, columnId) || null,
         onSuccess: (folderUrl) => {
+          // folderUrl === null: alle Dateien geloescht -> Zelle zeigt wieder Upload-Button
           if (t.store) {
-            t.store.setCustomColumnValue(entityId, columnId, folderUrl);
+            t.store.setCustomColumnValue(entityId, columnId, folderUrl || null);
           }
           t.refilter();
         },

@@ -4,9 +4,10 @@
 // (kein DOM, kein window) damit clientseitig + testbar.
 //
 // Unterstützte Sort-Werte:
-//   - 'name_asc' / 'name_desc'           → koop.name (de, case-insensitive)
-//   - 'created_desc' / 'created_asc'     → koop.created_at
-//   - 'posting_asc' / 'posting_desc'     → rollierendes "nächstes relevantes Video"
+//   - 'name_asc' / 'name_desc'                         → koop.name (de, case-insensitive)
+//   - 'created_desc' / 'created_asc'                   → koop.created_at
+//   - 'posting_asc' / 'posting_desc'                   → rollierendes "nächstes relevantes Video" (GoLive)
+//   - 'content_deadline_asc' / 'content_deadline_desc' → rollierende Content-Deadline
 //
 // GoLive-Regel (rollierend):
 //   Videos werden in position-Reihenfolge durchlaufen. Ein Video gilt als
@@ -15,6 +16,12 @@
 //   Videos werden übersprungen, das erste nicht-erledigte Video bestimmt
 //   das effektive GoLive-Datum. Sind alle erledigt, zählt das letzte Video.
 //   Fallback: kooperation.posting_datum. Einträge ohne Datum sortieren ans Ende.
+//
+// Content-Deadline-Regel (rollierend):
+//   Videos werden in position-Reihenfolge durchlaufen. Das erste Video ohne
+//   Freigabe (freigabe !== true) bestimmt die effektive Content-Deadline.
+//   Sind alle freigegeben, zählt das letzte Video. Einträge ohne Datum
+//   sortieren ans Ende (auch bei desc).
 
 function parseDateOnly(value) {
   if (!value) return null;
@@ -73,6 +80,36 @@ export function getEffectiveGoLiveDate(koop, videosByKoopId, now = new Date()) {
 
   // Fallback: Datum direkt an der Kooperation
   return koop.posting_datum || null;
+}
+
+/**
+ * Liefert die effektive Content-Deadline (als 'YYYY-MM-DD' String oder null)
+ * einer Kooperation für die Sortierung.
+ *
+ * Rollierend: erstes nicht freigegebenes Video bestimmt den Wert; sind alle
+ * freigegeben, zählt das letzte Video.
+ *
+ * @param {object} koop                                Kooperation-Objekt
+ * @param {Record<string, object[]>} videosByKoopId    Videos je Kooperation-ID (nach position sortiert)
+ * @returns {string|null}
+ */
+export function getEffectiveContentDeadline(koop, videosByKoopId) {
+  if (!koop) return null;
+  const videos = videosByKoopId?.[koop.id] || [];
+
+  // Erstes nicht freigegebenes Video bestimmt den Sort-Wert
+  const active = videos.find(v => v?.freigabe !== true);
+  if (active) {
+    return active.content_deadline || null;
+  }
+
+  // Alle Videos freigegeben → letztes Video
+  if (videos.length > 0) {
+    const last = videos[videos.length - 1];
+    if (last?.content_deadline) return last.content_deadline;
+  }
+
+  return null;
 }
 
 function compareStringsDe(a, b) {
@@ -143,6 +180,32 @@ export function sortKooperationen(koops, sortValue, videosByKoopId = {}, now = n
       const dateCache = new Map();
       const get = (k) => {
         if (!dateCache.has(k.id)) dateCache.set(k.id, getEffectiveGoLiveDate(k, videosByKoopId, now));
+        return dateCache.get(k.id);
+      };
+      cmp = (a, b) => {
+        const da = get(a);
+        const db = get(b);
+        // null immer ans Ende, auch bei desc
+        if (da == null && db == null) return 0;
+        if (da == null) return 1;
+        if (db == null) return -1;
+        return compareDates(db, da);
+      };
+      break;
+    }
+    case 'content_deadline_asc': {
+      const dateCache = new Map();
+      const get = (k) => {
+        if (!dateCache.has(k.id)) dateCache.set(k.id, getEffectiveContentDeadline(k, videosByKoopId));
+        return dateCache.get(k.id);
+      };
+      cmp = (a, b) => compareDates(get(a), get(b));
+      break;
+    }
+    case 'content_deadline_desc': {
+      const dateCache = new Map();
+      const get = (k) => {
+        if (!dateCache.has(k.id)) dateCache.set(k.id, getEffectiveContentDeadline(k, videosByKoopId));
         return dateCache.get(k.id);
       };
       cmp = (a, b) => {

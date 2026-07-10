@@ -95,7 +95,7 @@ export async function syncEkZusatzkostenFromRechnungId(rechnungId, { supabase: s
 
   const { data: rechnung, error } = await supabase
     .from('rechnung')
-    .select('id, kooperation_id, zusatzkosten, ust_prozent')
+    .select('id, kooperation_id, zusatzkosten, zusatzkosten_brutto, ust_prozent')
     .eq('id', rechnungId)
     .single();
 
@@ -107,6 +107,7 @@ export async function syncEkZusatzkostenFromRechnungId(rechnungId, { supabase: s
   return syncEkZusatzkostenFromRechnung({
     kooperationId: rechnung?.kooperation_id,
     zusatzkosten: rechnung?.zusatzkosten,
+    zusatzkostenBrutto: rechnung?.zusatzkosten_brutto === true,
     ustProzent: rechnung?.ust_prozent,
     supabase,
     rechnungId,
@@ -116,6 +117,7 @@ export async function syncEkZusatzkostenFromRechnungId(rechnungId, { supabase: s
 export async function syncEkZusatzkostenFromRechnung({
   kooperationId,
   zusatzkosten,
+  zusatzkostenBrutto = false,
   ustProzent,
   supabase: sb,
   rechnungId = null,
@@ -152,9 +154,20 @@ export async function syncEkZusatzkostenFromRechnung({
     const updatedSides = [];
     let lastError = null;
 
+    // Brutto-Zusatzkosten (durchlaufender Posten inkl. USt) vor calcPreisBlock auf netto
+    // zurueckrechnen — calcPreisBlock schlaegt die USt wieder auf, so bleibt die
+    // Gesamtsumme konsistent mit dem eingegebenen Bruttowert. Rueckrechnung jeweils
+    // mit dem Satz der EK-/VK-Seite.
+    const zusatzFuerSatz = (ustSatz) => {
+      if (!zusatzkostenBrutto) return zusatz;
+      const rate = (ustSatz || 0) / 100;
+      return rate > 0 ? round2(zusatz / (1 + rate)) : zusatz;
+    };
+
     // EK immer ueberschreiben (Rechnung ist Source of Truth)
     const ekNetto = parseFloat(koop?.einkaufspreis_netto) || 0;
-    const ek = calcPreisBlock(ekNetto, zusatz, deriveEkUstSatz({ ustProzent, koop }));
+    const ekUstSatz = deriveEkUstSatz({ ustProzent, koop });
+    const ek = calcPreisBlock(ekNetto, zusatzFuerSatz(ekUstSatz), ekUstSatz);
     const ekResult = await applyKooperationUpdate(supabase, kooperationId, {
       einkaufspreis_zusatzkosten: ek.zusatz,
       einkaufspreis_ust: ek.ust,
@@ -175,7 +188,8 @@ export async function syncEkZusatzkostenFromRechnung({
 
     // VK immer separat schreiben, damit ein EK-Fehler VK nicht blockiert
     const vkNetto = parseFloat(koop?.verkaufspreis_netto) || 0;
-    const vk = calcPreisBlock(vkNetto, zusatz, deriveVkUstSatz(koop));
+    const vkUstSatz = deriveVkUstSatz(koop);
+    const vk = calcPreisBlock(vkNetto, zusatzFuerSatz(vkUstSatz), vkUstSatz);
     const vkResult = await applyKooperationUpdate(supabase, kooperationId, {
       verkaufspreis_zusatzkosten: vk.zusatz,
       verkaufspreis_ust: vk.ust,

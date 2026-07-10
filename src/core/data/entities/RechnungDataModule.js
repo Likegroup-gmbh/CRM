@@ -13,6 +13,7 @@ export default {
       videoanzahl: 'number',
       nettobetrag: 'number',
       zusatzkosten: 'number',
+      zusatzkosten_brutto: 'boolean',
       ust_prozent: 'number',
       ust_betrag: 'number',
       bruttobetrag: 'number',

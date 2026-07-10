@@ -310,7 +310,7 @@ export class FormSystem {
           try {
             await this.handleRechnungFiles(result.id, form);
           } catch (fileErr) {
-            this.validator.showErrorMessage(`Rechnung gespeichert, aber PDF-Verarbeitung fehlgeschlagen: ${fileErr.message}`);
+            this.validator.showErrorMessage(`Rechnung gespeichert, aber Datei-Verarbeitung fehlgeschlagen: ${fileErr.message}`);
             return { success: false };
           }
         }

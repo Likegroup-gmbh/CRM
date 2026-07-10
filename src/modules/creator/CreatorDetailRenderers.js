@@ -309,7 +309,7 @@ CreatorDetail.prototype.renderVertraegeContent = function() {
           <td><a href="/vertraege/${v.id}" onclick="event.preventDefault(); window.navigateTo('/vertraege/${v.id}')">${window.validatorSystem.sanitizeHtml(v.name || '—')}</a></td>
           <td>${window.validatorSystem.sanitizeHtml(v.typ || '-')}</td>
           <td><span class="status-badge status-${getStatusClass(v.is_draft)}">${getStatusLabel(v.is_draft)}</span></td>
-          <td>${v.kampagne ? `<a href="/kampagnen/${v.kampagne.id}" onclick="event.preventDefault(); window.navigateTo('/kampagnen/${v.kampagne.id}')">${window.validatorSystem.sanitizeHtml(kampagneName)}</a>` : '-'}</td>
+          <td>${v.kampagne ? `<a href="/kampagne/${v.kampagne.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${v.kampagne.id}')">${window.validatorSystem.sanitizeHtml(kampagneName)}</a>` : '-'}</td>
           <td>${v.kunde ? `<a href="/unternehmen/${v.kunde.id}" onclick="event.preventDefault(); window.navigateTo('/unternehmen/${v.kunde.id}')">${window.validatorSystem.sanitizeHtml(unternehmenName)}</a>` : '-'}</td>
           <td>${v.datei_url ? `<a href="${v.datei_url}" target="_blank" rel="noopener">PDF</a>` : '-'}</td>
           <td>${this.formatDate(v.created_at)}</td>

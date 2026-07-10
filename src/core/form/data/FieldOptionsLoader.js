@@ -340,7 +340,9 @@ async function loadSwitchCaseOptions(entity, field, form) {
   return options;
 }
 
-// Kooperationen ohne hinterlegte Rechnung laden (mit Mitarbeiter-Filterung)
+// Kooperationen fuer das Rechnung-Formular laden (mit Mitarbeiter-Filterung).
+// Kooperationen mit bestehender Rechnung sind normalerweise ausgeschlossen -
+// ausser ihr Vertrag hat mehrere_rechnungen_erlaubt = true (Mehrfachrechnung).
 export async function loadKooperationenOhneRechnung() {
   if (!window.supabase) return [];
   try {
@@ -359,20 +361,25 @@ export async function loadKooperationenOhneRechnung() {
       console.error('❌ Fehler beim Laden vorhandener Rechnungen:', rErr);
       return [];
     }
-    const excluded = Array.from(new Set((rechnungen || []).map(r => r.kooperation_id).filter(Boolean)));
+    const mitRechnung = new Set((rechnungen || []).map(r => r.kooperation_id).filter(Boolean));
 
-    let query = window.supabase
+    const { data: alleKoops, error: kErr } = await window.supabase
       .from('kooperationen')
       .select('id, name, kampagne_id, creator_id, created_at')
       .order('created_at', { ascending: false });
-    if (excluded.length > 0) {
-      query = query.not('id', 'in', `(${excluded.join(',')})`);
-    }
-    const { data: koops, error: kErr } = await query;
     if (kErr) {
-      console.error('❌ Fehler beim Laden der Kooperationen (ohne Rechnung):', kErr);
+      console.error('❌ Fehler beim Laden der Kooperationen:', kErr);
       return [];
     }
+
+    // Kooperationen mit Rechnung nur behalten, wenn ihr Vertrag Mehrfachrechnungen erlaubt
+    const koopsMitRechnung = (alleKoops || []).filter(k => mitRechnung.has(k.id));
+    let mehrfachErlaubt = new Set();
+    if (koopsMitRechnung.length > 0) {
+      const { getKooperationIdsMitMehrfachRechnung } = await import('../../../modules/rechnung/RechnungVertragZuordnung.js');
+      mehrfachErlaubt = await getKooperationIdsMitMehrfachRechnung(koopsMitRechnung);
+    }
+    const koops = (alleKoops || []).filter(k => !mitRechnung.has(k.id) || mehrfachErlaubt.has(k.id));
 
     let kampagneMap = {};
     let kampagneUnternehmenMap = {};
@@ -445,10 +452,15 @@ export async function loadKooperationenOhneRechnung() {
       const label = k.name && k.kampagne_id
         ? `${baseName} — ${kampagneMap[k.kampagne_id] || 'Kampagne'}`
         : baseName;
+
+      const subtitleParts = [];
+      if (tagMap[k.id]?.length) subtitleParts.push(tagMap[k.id].join(', '));
+      if (mitRechnung.has(k.id)) subtitleParts.push('Rechnung vorhanden – Mehrfachrechnung aktiv');
+
       return {
         value: k.id,
         label,
-        subtitle: tagMap[k.id]?.join(', ') || null
+        subtitle: subtitleParts.length > 0 ? subtitleParts.join(' · ') : null
       };
     });
   } catch (e) {

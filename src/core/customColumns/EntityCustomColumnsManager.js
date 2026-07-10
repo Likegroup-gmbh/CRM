@@ -187,8 +187,10 @@ export class EntityCustomColumnsManager {
         folderName: columnName,
         valueTable: this.dataLoader.valueTable,
         assetTable: this.dataLoader.assetTable,
+        currentValue: this.getValue(entityId, columnId) || null,
         onSuccess: (folderUrl) => {
-          this.setValue(entityId, columnId, folderUrl);
+          // folderUrl === null: alle Dateien geloescht -> Zelle zeigt wieder Upload-Button
+          this.setValue(entityId, columnId, folderUrl || null);
           onChange?.();
         }
       }

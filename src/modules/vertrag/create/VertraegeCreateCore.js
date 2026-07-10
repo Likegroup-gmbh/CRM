@@ -244,6 +244,8 @@ VertraegeCreate.prototype.loadDraftFromDB = async function(draftId) {
           videograf_nutzungsart: draft.videograf_nutzungsart || [],
           // PO-Nummer
           kunde_po_nummer: draft.kunde_po_nummer,
+          // Mehrfachrechnungen-Freischaltung
+          mehrere_rechnungen_erlaubt: draft.mehrere_rechnungen_erlaubt || false,
           // Contracting-spezifische Felder
           contracting_auftrag_id: draft.contracting_auftrag_id,
           contracting_plattformen_handles: draft.contracting_plattformen_handles || {},

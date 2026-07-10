@@ -89,6 +89,8 @@ VertraegeCreate.prototype.prepareDataForDB = function() {
       korrekturschleifen: parseInt(this.formData.korrekturschleifen) || null,
       weitere_bestimmungen: this.formData.weitere_bestimmungen || null,
       kunde_po_nummer: this.formData.kunde_po_nummer || null,
+      // Mehrfachrechnungen nur bei kooperationsbasierten Typen (Contracting hat eigenes Budget-Tracking)
+      mehrere_rechnungen_erlaubt: typ === 'Contracting' ? false : !!this.formData.mehrere_rechnungen_erlaubt,
       vertragssprache: this.getContractLanguage(this.formData),
       // Gewaehltes Management (FK) + Schalter "nur Management-Adresse"
       management_id: this.formData._management_id || null,

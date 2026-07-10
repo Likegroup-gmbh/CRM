@@ -41,7 +41,7 @@ export class VideoTableEventBinder {
         }
         if (e.target.dataset.entity === 'video') {
           await t.handleFieldUpdate(e.target);
-          if (e.target.dataset.field === 'posting_datum' && t._isGoLiveSortActive()) {
+          if ((e.target.dataset.field === 'posting_datum' || e.target.dataset.field === 'content_deadline') && t._isVideoBasedSortActive()) {
             clearTimeout(t._refilterTimer);
             t._refilterTimer = setTimeout(() => t.refilter(), 600);
           }
@@ -104,9 +104,9 @@ export class VideoTableEventBinder {
             }
           }
 
-          // GoLive-Sort: Freigabe ändert die effektive Sortier-Position →
-          // immer refilter triggern (auch im "alle"-Tab)
-          if (t._isGoLiveSortActive()) {
+          // GoLive-/Content-Deadline-Sort: Freigabe ändert die effektive
+          // Sortier-Position → immer refilter triggern (auch im "alle"-Tab)
+          if (t._isVideoBasedSortActive()) {
             clearTimeout(t._refilterTimer);
             t._refilterTimer = setTimeout(() => t.refilter(), 600);
           }

@@ -333,6 +333,9 @@ VertraegeCreate.prototype.renderStep5 = function() {
           </div>
         </div>
 
+        <h3>Rechnungsstellung</h3>
+        ${this.renderMehrfachRechnungToggle()}
+
         <h3>Weitere Bestimmungen</h3>
         <div class="form-field">
           <label for="weitere_bestimmungen">Zusätzliche Vereinbarungen (optional)</label>

@@ -376,7 +376,7 @@ export function renderVertraege(detail) {
         <td><a href="/vertraege/${v.id}" onclick="event.preventDefault(); window.navigateTo('/vertraege/${v.id}')">${detail.sanitize(v.name || '—')}</a></td>
         <td>${detail.sanitize(v.typ || '-')}</td>
         <td><span class="status-badge status-${getStatusClass(v.is_draft)}">${getStatusLabel(v.is_draft)}</span></td>
-        <td>${v.kampagne ? `<a href="/kampagnen/${v.kampagne.id}" onclick="event.preventDefault(); window.navigateTo('/kampagnen/${v.kampagne.id}')">${detail.sanitize(kampagneName)}</a>` : '-'}</td>
+        <td>${v.kampagne ? `<a href="/kampagne/${v.kampagne.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${v.kampagne.id}')">${detail.sanitize(kampagneName)}</a>` : '-'}</td>
         <td>${v.creator ? `<a href="/creator/${v.creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${v.creator.id}')">${detail.sanitize(creatorName)}</a>` : '-'}</td>
         <td>${v.datei_url ? `<a href="${v.datei_url}" target="_blank" rel="noopener">PDF</a>` : '-'}</td>
         <td>${detail.formatDate(v.created_at)}</td>

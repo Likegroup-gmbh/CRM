@@ -43,6 +43,9 @@ export class ModuleRegistry {
       }
     }
 
+    // Alias: /kampagnen(/...) → /kampagne(/...) (Safety-Net für alte Links/Tippfehler)
+    route = String(route || '').replace(/^(\/?)kampagnen(?=[/?#]|$)/, '$1kampagne');
+
     if (!skipPushState) {
       try {
         if (window.history && window.history.pushState) {

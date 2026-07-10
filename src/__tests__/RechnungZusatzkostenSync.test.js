@@ -160,6 +160,42 @@ describe('syncEkZusatzkostenFromRechnung', () => {
     });
   });
 
+  it('rechnet Brutto-Zusatzkosten vor dem Sync auf netto zurueck', async () => {
+    const { supabase, updateCalls } = makeSupabase({
+      koopRow: {
+        id: 'k1',
+        einkaufspreis_netto: 1000,
+        einkaufspreis_zusatzkosten: 0,
+        einkaufspreis_ust: 190,
+        verkaufspreis_netto: 1200,
+        verkaufspreis_zusatzkosten: 0,
+        verkaufspreis_ust: 228,
+      },
+    });
+
+    const result = await syncEkZusatzkostenFromRechnung({
+      kooperationId: 'k1',
+      zusatzkosten: 119,
+      zusatzkostenBrutto: true,
+      ustProzent: 19,
+      supabase,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.updatedSides).toEqual(['ek', 'vk']);
+    // 119 brutto / 1.19 = 100 netto; calcPreisBlock schlaegt die USt wieder auf
+    expect(updateCalls[0]).toEqual({
+      einkaufspreis_zusatzkosten: 100,
+      einkaufspreis_ust: 209,
+      einkaufspreis_gesamt: 1309,
+    });
+    expect(updateCalls[1]).toEqual({
+      verkaufspreis_zusatzkosten: 100,
+      verkaufspreis_ust: 247,
+      verkaufspreis_gesamt: 1547,
+    });
+  });
+
   it('ueberschreibt EK und VK wenn neue Rechnung mit anderem Betrag gespeichert wird', async () => {
     const { supabase, updateCalls } = makeSupabase({
       koopRow: {

@@ -376,6 +376,9 @@ VertraegeCreate.prototype.renderVideografStep5 = function() {
 
         <p class="form-hint">Die Zahlung erfolgt durch die LikeGroup GmbH im Auftrag des Kunden. Die Rechnungsstellung erfolgt nach finaler Abnahme.</p>
 
+        <h3 class="mt-section">Rechnungsstellung</h3>
+        ${this.renderMehrfachRechnungToggle()}
+
         <h3 class="mt-section">Weitere Bestimmungen</h3>
         <div class="form-field">
           <label for="weitere_bestimmungen">Zusätzliche Vereinbarungen (optional)</label>

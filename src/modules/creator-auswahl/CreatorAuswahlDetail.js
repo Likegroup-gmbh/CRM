@@ -5,8 +5,9 @@ import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { SourcingDetailColumnVisibilityDrawer } from './SourcingDetailColumnVisibilityDrawer.js';
 import { normalizeCreatorTyp, isAllowedCreatorTyp } from './creatorTypeOptions.js';
 import {
-  renderAddSection, renderItemsTable,
-  getTeilbereicheFromListe, isColumnVisibleForCustomer, getVisibleColumnCount
+  renderAddSection, renderItemsTable, renderTabNavigation,
+  getTeilbereicheFromListe, isColumnVisibleForCustomer, getVisibleColumnCount,
+  getSourcingTabForItem, SOURCING_TABS
 } from './CreatorAuswahlTemplates.js';
 import { CreatorAuswahlKategorienDrawer } from './CreatorAuswahlKategorienDrawer.js';
 import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
@@ -27,6 +28,7 @@ export class CreatorAuswahlDetail {
     this.scrollLeft = 0;
     this.hiddenColumns = [];
     this.kundenCallActive = false;
+    this.activeTab = 'offen';
     this.columnVisibilityDrawer = null;
     this.kategorienDrawer = new CreatorAuswahlKategorienDrawer(this);
     this.addDrawer = new CreatorAuswahlAddDrawer(this);
@@ -158,11 +160,55 @@ export class CreatorAuswahlDetail {
     });
   }
 
+  // --- Status-Reiter (Tabs) ---
+
+  getFilteredItems() {
+    if (this.activeTab === 'alle') return this.items;
+    return this.items.filter(item => getSourcingTabForItem(item) === this.activeTab);
+  }
+
+  getTabCounts() {
+    const counts = { offen: 0, on_hold: 0, gebucht: 0, nicht_buchen: 0, alle: this.items.length };
+    this.items.forEach(item => {
+      counts[getSourcingTabForItem(item)]++;
+    });
+    return counts;
+  }
+
+  switchTab(tabName) {
+    if (!SOURCING_TABS.some(t => t.key === tabName) || tabName === this.activeTab) return;
+    this.activeTab = tabName;
+
+    document.querySelectorAll('.sourcing-tab-navigation .tab-button').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.sourcingTab === tabName);
+    });
+
+    this.rerenderTable();
+  }
+
+  updateTabCounts() {
+    const counts = this.getTabCounts();
+    document.querySelectorAll('[data-sourcing-tab-count]').forEach(el => {
+      el.textContent = counts[el.dataset.sourcingTabCount] ?? 0;
+    });
+  }
+
+  // Nach dem Anlegen eines neuen Items zum "Offen"-Reiter wechseln,
+  // damit die neue Zeile sichtbar ist
+  ensureNewItemVisible() {
+    if (this.activeTab !== 'offen' && this.activeTab !== 'alle') {
+      this.switchTab('offen');
+    }
+  }
+
   // --- Rendering ---
 
   getRenderContext() {
     return {
-      items: this.items,
+      items: this.getFilteredItems(),
+      hasAnyItems: this.items.length > 0,
+      activeTab: this.activeTab,
+      tabCounts: this.getTabCounts(),
       liste: this.liste,
       isKunde: this.isKunde,
       hiddenColumns: this.hiddenColumns,
@@ -176,6 +222,7 @@ export class CreatorAuswahlDetail {
     const ctx = this.getRenderContext();
     const html = `
       ${!this.isKunde ? renderAddSection(ctx) : ''}
+      ${renderTabNavigation(ctx)}
       ${renderItemsTable(ctx)}
     `;
     window.content.innerHTML = html;
@@ -188,8 +235,11 @@ export class CreatorAuswahlDetail {
 
   _updateStickyHeights() {
     const addSection = window.content.querySelector('.add-item-section--compact');
-    const h = addSection ? addSection.offsetHeight : 0;
-    window.content.style.setProperty('--sticky-add-section-height', h + 'px');
+    const addH = addSection ? addSection.offsetHeight : 0;
+    const tabNav = window.content.querySelector('.sourcing-tab-navigation');
+    const tabH = tabNav ? tabNav.offsetHeight : 0;
+    window.content.style.setProperty('--sticky-addbar-height', addH + 'px');
+    window.content.style.setProperty('--sticky-add-section-height', (addH + tabH) + 'px');
 
     const thead = window.content.querySelector('.creator-pool-table thead');
     if (thead) {
@@ -203,6 +253,7 @@ export class CreatorAuswahlDetail {
       tableContainer.outerHTML = renderItemsTable(this.getRenderContext());
       this.bindEvents();
       this._updateStickyHeights();
+      this.updateTabCounts();
 
       movedItemIds.forEach(id => {
         const row = document.querySelector(`.item-row[data-item-id="${id}"]`);
@@ -287,7 +338,10 @@ export class CreatorAuswahlDetail {
 
       const addEmptyRowBtn = document.getElementById('btn-add-empty-row');
       if (addEmptyRowBtn) {
-        const handler = () => this.addDrawer.addEmptyRow();
+        const handler = () => {
+          this.ensureNewItemVisible();
+          this.addDrawer.addEmptyRow();
+        };
         addEmptyRowBtn.addEventListener('click', handler);
         this._boundEventListeners.add(() => addEmptyRowBtn.removeEventListener('click', handler));
       }
@@ -298,6 +352,16 @@ export class CreatorAuswahlDetail {
       this.bindBulkBarEvents();
       this._bindCustomColumnEvents();
     }
+
+    // Status-Reiter (auch fuer Kunden sichtbar)
+    document.querySelectorAll('.sourcing-tab-navigation .tab-button').forEach(btn => {
+      const handler = (e) => {
+        e.preventDefault();
+        this.switchTab(btn.dataset.sourcingTab);
+      };
+      btn.addEventListener('click', handler);
+      this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+    });
 
     this.initFloatingScrollbar();
     this.bindDragToScroll();
@@ -485,7 +549,8 @@ export class CreatorAuswahlDetail {
     const rows = Array.from(tbody.querySelectorAll('.item-row'));
     const hatKategorien = getTeilbereicheFromListe(this.liste).length > 0;
 
-    const updatedItems = rows.map((row, index) => {
+    // Sichtbare (im aktiven Reiter gefilterte) Zeilen mit neuer Reihenfolge/Kategorie aus dem DOM
+    const visibleItems = rows.map((row) => {
       const itemId = row.dataset.itemId;
       const item = this.items.find(i => i.id === itemId);
 
@@ -502,8 +567,17 @@ export class CreatorAuswahlDetail {
         }
       }
 
-      return { ...item, sortierung: index, kategorie };
+      return { ...item, kategorie };
     });
+
+    // Nicht sichtbare Items (andere Reiter) behalten ihre Position:
+    // Gesamtreihenfolge = bisherige Reihenfolge, sichtbare Items in neuer DOM-Reihenfolge eingesetzt
+    const visibleIds = new Set(visibleItems.map(i => i.id));
+    const sortedAll = [...this.items].sort((a, b) => (a.sortierung ?? 0) - (b.sortierung ?? 0));
+    let visibleIndex = 0;
+    const updatedItems = sortedAll
+      .map(item => (visibleIds.has(item.id) ? visibleItems[visibleIndex++] : item))
+      .map((item, index) => ({ ...item, sortierung: index }));
 
     try {
       await creatorAuswahlService.updateItemsSortierungWithKategorie(updatedItems);
@@ -565,17 +639,43 @@ export class CreatorAuswahlDetail {
           updates.prio_1 = false;
           updates.prio_2 = false;
           updates.gebucht = false;
+          updates.on_hold = false;
+          updates.on_hold_am = null;
         }
         await creatorAuswahlService.updateItem(itemId, updates);
         const item = this.items.find(i => i.id === itemId);
-        if (item) {
-          item.absage = value;
-          item.absage_am = updates.absage_am;
-          if (value) {
-            item.prio_1 = false;
-            item.prio_2 = false;
-            item.gebucht = false;
-          }
+        if (item) Object.assign(item, updates);
+        this.rerenderTable();
+        return;
+      }
+
+      if (field === 'on_hold') {
+        const updates = { on_hold: value };
+        updates.on_hold_am = value ? new Date().toISOString() : null;
+        if (value) {
+          updates.gebucht = false;
+        }
+        await creatorAuswahlService.updateItem(itemId, updates);
+        const item = this.items.find(i => i.id === itemId);
+        if (item) Object.assign(item, updates);
+        this.rerenderTable();
+        return;
+      }
+
+      if (field === 'gebucht') {
+        const updates = { gebucht: value };
+        if (value) {
+          updates.on_hold = false;
+          updates.on_hold_am = null;
+        }
+        await creatorAuswahlService.updateItem(itemId, updates);
+        const item = this.items.find(i => i.id === itemId);
+        if (item) Object.assign(item, updates);
+
+        if (value === true) {
+          const reorderedItems = this.promoteBookedItemWithinCategory(itemId);
+          await creatorAuswahlService.updateItemsSortierungWithKategorie(reorderedItems);
+          this.items = reorderedItems.map((entry, index) => ({ ...entry, sortierung: index }));
         }
         this.rerenderTable();
         return;
@@ -585,13 +685,6 @@ export class CreatorAuswahlDetail {
 
       const item = this.items.find(i => i.id === itemId);
       if (item) item[field] = value;
-
-      if (field === 'gebucht' && value === true) {
-        const reorderedItems = this.promoteBookedItemWithinCategory(itemId);
-        await creatorAuswahlService.updateItemsSortierungWithKategorie(reorderedItems);
-        this.items = reorderedItems.map((entry, index) => ({ ...entry, sortierung: index }));
-        this.rerenderTable();
-      }
     } catch (error) {
       console.error('Fehler beim Aktualisieren:', error);
       window.toastSystem?.show('Fehler beim Speichern', 'error');

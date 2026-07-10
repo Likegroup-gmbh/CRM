@@ -17,7 +17,9 @@ const KAMPAGNE_KOOPERATION_SORT_OPTIONS = [
   { value: 'created_desc', label: 'Neueste zuerst' },
   { value: 'created_asc', label: 'Älteste zuerst' },
   { value: 'posting_asc', label: 'GoLive früheste zuerst' },
-  { value: 'posting_desc', label: 'GoLive späteste zuerst' }
+  { value: 'posting_desc', label: 'GoLive späteste zuerst' },
+  { value: 'content_deadline_asc', label: 'Content-Deadline früheste zuerst' },
+  { value: 'content_deadline_desc', label: 'Content-Deadline späteste zuerst' }
 ];
 
 function initKooperationSortDropdown(detail) {

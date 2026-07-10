@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   isVideoGoLiveCompleted,
   getEffectiveGoLiveDate,
+  getEffectiveContentDeadline,
   sortKooperationen
 } from '../modules/kampagne/KooperationSortHelper.js';
 
@@ -189,6 +190,96 @@ describe('sortKooperationen — posting (GoLive)', () => {
     ];
     const sorted = sortKooperationen(koops, 'posting_asc', {}, NOW);
     expect(sorted.map(k => k.id)).toEqual(['b', 'c', 'a']);
+  });
+});
+
+describe('getEffectiveContentDeadline', () => {
+  it('erstes nicht freigegebenes Video zählt', () => {
+    const koop = k('a');
+    const videos = { a: [
+      { id: 'v1', freigabe: false, content_deadline: '2026-06-01' },
+      { id: 'v2', freigabe: false, content_deadline: '2026-07-01' }
+    ]};
+    expect(getEffectiveContentDeadline(koop, videos)).toBe('2026-06-01');
+  });
+
+  it('Video 1 freigegeben → Video 2 zählt', () => {
+    const koop = k('a');
+    const videos = { a: [
+      { id: 'v1', freigabe: true, content_deadline: '2026-04-01' },
+      { id: 'v2', freigabe: false, content_deadline: '2026-07-01' }
+    ]};
+    expect(getEffectiveContentDeadline(koop, videos)).toBe('2026-07-01');
+  });
+
+  it('aktives Video ohne Deadline → null (nicht überspringen)', () => {
+    const koop = k('a');
+    const videos = { a: [
+      { id: 'v1', freigabe: false, content_deadline: null },
+      { id: 'v2', freigabe: false, content_deadline: '2026-07-01' }
+    ]};
+    expect(getEffectiveContentDeadline(koop, videos)).toBe(null);
+  });
+
+  it('alle Videos freigegeben → letztes Video', () => {
+    const koop = k('a');
+    const videos = { a: [
+      { id: 'v1', freigabe: true, content_deadline: '2026-03-01' },
+      { id: 'v2', freigabe: true, content_deadline: '2026-04-01' },
+      { id: 'v3', freigabe: true, content_deadline: '2026-05-01' }
+    ]};
+    expect(getEffectiveContentDeadline(koop, videos)).toBe('2026-05-01');
+  });
+
+  it('null, wenn keine Videos vorhanden', () => {
+    const koop = k('a');
+    expect(getEffectiveContentDeadline(koop, {})).toBe(null);
+  });
+});
+
+describe('sortKooperationen — content_deadline', () => {
+  it('asc: nutzt erstes nicht freigegebenes Video', () => {
+    const koops = [k('a'), k('b'), k('c')];
+    const videos = {
+      a: [{ id: 'va1', freigabe: false, content_deadline: '2026-07-01' }],
+      b: [{ id: 'vb1', freigabe: true, content_deadline: '2026-04-01' }, { id: 'vb2', freigabe: false, content_deadline: '2026-06-01' }],
+      c: [{ id: 'vc1', freigabe: false, content_deadline: '2026-05-25' }]
+    };
+    const sorted = sortKooperationen(koops, 'content_deadline_asc', videos, NOW);
+    // c: 2026-05-25, b: 2026-06-01 (Video 2, weil Video 1 freigegeben), a: 2026-07-01
+    expect(sorted.map(k => k.id)).toEqual(['c', 'b', 'a']);
+  });
+
+  it('desc', () => {
+    const koops = [k('a'), k('b'), k('c')];
+    const videos = {
+      a: [{ id: 'va1', freigabe: false, content_deadline: '2026-07-01' }],
+      b: [{ id: 'vb1', freigabe: true, content_deadline: '2026-04-01' }, { id: 'vb2', freigabe: false, content_deadline: '2026-06-01' }],
+      c: [{ id: 'vc1', freigabe: false, content_deadline: '2026-05-25' }]
+    };
+    expect(sortKooperationen(koops, 'content_deadline_desc', videos, NOW).map(k => k.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('Einträge ohne Deadline sortieren immer ans Ende (asc)', () => {
+    const koops = [k('a'), k('b'), k('c')];
+    const videos = {
+      a: [{ id: 'va1', freigabe: false, content_deadline: null }],
+      b: [{ id: 'vb1', freigabe: false, content_deadline: '2026-06-01' }],
+      c: []
+    };
+    const sorted = sortKooperationen(koops, 'content_deadline_asc', videos, NOW);
+    expect(sorted.map(k => k.id)).toEqual(['b', 'a', 'c']);
+  });
+
+  it('Einträge ohne Deadline sortieren immer ans Ende (desc)', () => {
+    const koops = [k('a'), k('b'), k('c')];
+    const videos = {
+      a: [{ id: 'va1', freigabe: false, content_deadline: null }],
+      b: [{ id: 'vb1', freigabe: false, content_deadline: '2026-06-01' }],
+      c: [{ id: 'vc1', freigabe: false, content_deadline: '2026-08-01' }]
+    };
+    const sorted = sortKooperationen(koops, 'content_deadline_desc', videos, NOW);
+    expect(sorted.map(k => k.id)).toEqual(['c', 'b', 'a']);
   });
 });
 

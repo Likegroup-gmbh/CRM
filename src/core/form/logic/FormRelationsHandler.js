@@ -267,19 +267,19 @@ export class FormRelationsHandler {
 
         const newFiles = belegeUploader.files || [];
         for (const file of newFiles) {
-          try {
-            const result = await uploadRechnungBeleg({ metadata: pathMeta, file });
-            await window.supabase.from('rechnung_belege').insert({
-              rechnung_id: rechnungId,
-              file_name: file.name,
-              file_path: result.filePath,
-              file_url: result.fileUrl,
-              content_type: file.type,
-              size: file.size,
-              uploaded_by: window.currentUser?.auth_user_id || null
-            });
-          } catch (err) {
-            console.warn('⚠️ Beleg-Upload fehlgeschlagen:', err?.message);
+          const result = await uploadRechnungBeleg({ metadata: pathMeta, file });
+          // uploaded_by referenziert benutzer(id), nicht auth.users - daher currentUser.id
+          const { error: belegInsErr } = await window.supabase.from('rechnung_belege').insert({
+            rechnung_id: rechnungId,
+            file_name: file.name,
+            file_path: result.filePath,
+            file_url: result.fileUrl,
+            content_type: file.type,
+            size: file.size,
+            uploaded_by: window.currentUser?.id || null
+          });
+          if (belegInsErr) {
+            throw new Error(`Beleg konnte nicht gespeichert werden: ${belegInsErr.message}`);
           }
         }
       }

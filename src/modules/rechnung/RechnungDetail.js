@@ -145,7 +145,7 @@ export class RechnungDetail {
             <div class="detail-item"><label>Zahlungsziel</label><span>${formatDate(this.data?.zahlungsziel)}</span></div>
             <div class="detail-item"><label>Bezahlt am</label><span>${formatDate(this.data?.bezahlt_am)}</span></div>
             <div class="detail-item"><label>Nettobetrag</label><span>${formatCurrency(this.data?.nettobetrag)}</span></div>
-            <div class="detail-item"><label>Zusatzkosten</label><span>${formatCurrency(this.data?.zusatzkosten)}</span></div>
+            <div class="detail-item"><label>Zusatzkosten${this.data?.zusatzkosten_brutto ? ' (brutto)' : ''}</label><span>${formatCurrency(this.data?.zusatzkosten)}</span></div>
             <div class="detail-item"><label>Bruttobetrag</label><span>${formatCurrency(this.data?.bruttobetrag)}</span></div>
             ${this.data?.rechnungstyp === 'contracting' ? `<div class="detail-item"><label>KSK-pflichtig</label><span>${this.data?.ksk_pflichtig ? 'Ja' : 'Nein'}</span></div>` : ''}
             <div class="detail-item"><label>PDFs</label><span>${this.pdfs && this.pdfs.length > 0 ? this.pdfs.map((p, i) => `<a href="${p.open_url}" target="_blank" rel="noopener noreferrer">${window.validatorSystem?.sanitizeHtml?.(p.file_name) || ('PDF ' + (i + 1))}</a>`).join(' &middot; ') : (this.data?.pdf_url ? `<a href="${this.data.pdf_url}" target="_blank" rel="noopener noreferrer">Öffnen</a>` : '-')}</span></div>
@@ -220,9 +220,14 @@ export class RechnungDetail {
     const formHtml = window.formSystem.renderFormOnly(entity);
 
     window.content.innerHTML = `
-      <div class="form-page">
-        ${renderSegmentedControl(type)}
-        ${formHtml}
+      <div class="form-split-container">
+        <div class="form-split-left">
+          <div class="form-page">
+            ${renderSegmentedControl(type)}
+            ${formHtml}
+          </div>
+        </div>
+        <div class="form-split-right hidden" id="rechnung-split-right"></div>
       </div>
     `;
 
@@ -402,19 +407,24 @@ export class RechnungDetail {
                 metadata: pathMeta,
                 file,
               });
-              await window.supabase.from('rechnung_belege').insert({
+              // uploaded_by referenziert benutzer(id), nicht auth.users - daher currentUser.id
+              const { error: belegInsErr } = await window.supabase.from('rechnung_belege').insert({
                 rechnung_id: rechnungId,
                 file_name: file.name,
                 file_path: uploadResult.filePath,
                 file_url: uploadResult.fileUrl,
                 content_type: file.type,
                 size: file.size,
-                uploaded_by: window.currentUser?.auth_user_id || null
+                uploaded_by: window.currentUser?.id || null
               });
+              if (belegInsErr) {
+                throw new Error(`Beleg "${file.name}": ${belegInsErr.message}`);
+              }
             }
           }
         } catch (belegeErr) {
           console.warn('⚠️ Belege-Upload teilweise fehlgeschlagen:', belegeErr);
+          alert(`Rechnung erstellt, aber Beleg-Upload fehlgeschlagen: ${belegeErr?.message || belegeErr}`);
         }
         alert('Rechnung erstellt');
         window.navigateTo(`/rechnung/${result.id}`);
@@ -548,7 +558,12 @@ export class RechnungDetail {
           </button>
         </div>
       </div>
-      <div class="form-page">${formHtml}</div>
+      <div class="form-split-container">
+        <div class="form-split-left">
+          <div class="form-page">${formHtml}</div>
+        </div>
+        <div class="form-split-right hidden" id="rechnung-split-right"></div>
+      </div>
     `;
     await window.formSystem.bindFormEvents(entity, editData);
 

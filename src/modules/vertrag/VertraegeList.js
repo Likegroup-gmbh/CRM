@@ -297,7 +297,7 @@ export class VertraegeList {
     }
 
     // Table links (delegiert auf document)
-    document.addEventListener('click', this._tableLinkHandler = (e) => {
+    const tableLinkHandler = (e) => {
       const link = e.target.closest('.table-link[data-table]');
       if (!link) return;
       e.preventDefault();
@@ -311,10 +311,12 @@ export class VertraegeList {
           break;
         }
         case 'creator': window.navigateTo(`/creator/${id}`); break;
-        case 'kampagne': window.navigateTo(`/kampagnen/${id}`); break;
+        case 'kampagne': window.navigateTo(`/kampagne/${id}`); break;
         case 'unternehmen': window.navigateTo(`/unternehmen/${id}`); break;
       }
-    });
+    };
+    document.addEventListener('click', tableLinkHandler);
+    this._boundEventListeners.add(() => document.removeEventListener('click', tableLinkHandler));
 
     // Signed-Contract Custom Event (from ActionsDropdown dispatch)
     const signedActionHandler = async (e) => {
@@ -577,9 +579,6 @@ export class VertraegeList {
   destroy() {
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
-    if (this._tableLinkHandler) {
-      document.removeEventListener('click', this._tableLinkHandler);
-    }
     this.selectedVertraege.clear();
     this.vertraege = [];
     this.unternehmenFolders = [];

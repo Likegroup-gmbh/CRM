@@ -139,9 +139,12 @@ export class KampagneKooperationenVideoTable {
     this.refilter();
   }
 
-  _isGoLiveSortActive() {
+  // Sortierungen, deren effektiver Sort-Wert von Video-Feldern abhängt
+  // (posting_datum, content_deadline, freigabe) → Live-Refilter nötig
+  _isVideoBasedSortActive() {
     const sort = this.store?.kooperationSort;
-    return sort === 'posting_asc' || sort === 'posting_desc';
+    return sort === 'posting_asc' || sort === 'posting_desc'
+      || sort === 'content_deadline_asc' || sort === 'content_deadline_desc';
   }
 
   _applyTagFilter(list) {

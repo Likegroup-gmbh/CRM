@@ -42,7 +42,7 @@ export function getVisibleColumnCount(isKunde, hiddenColumns) {
     'cp-col-reichweite-ig', 'cp-col-reichweite-tt', 'cp-col-reichweite-garantie',
     'cp-col-cpm-ig', 'cp-col-cpm-tt',
     'cp-col-location', 'cp-col-notiz',
-    'cp-col-feedback', 'cp-col-anfragen', 'cp-col-buchen', 'cp-col-prio1', 'cp-col-prio2', 'cp-col-absagen', 'cp-col-check', 'cp-col-actions'
+    'cp-col-feedback', 'cp-col-anfragen', 'cp-col-onhold', 'cp-col-buchen', 'cp-col-prio1', 'cp-col-prio2', 'cp-col-absagen', 'cp-col-check', 'cp-col-actions'
   ];
 
   let count = 0;
@@ -63,6 +63,37 @@ const INSTAGRAM_ICON = `<svg class="platform-icon platform-icon--instagram" view
 const TIKTOK_ICON = `<svg class="platform-icon platform-icon--tiktok" viewBox="0 0 24 24" aria-label="TikTok" role="img" focusable="false"><path d="M14.5 3c.4 3.2 2.3 5.1 5.5 5.5v2.3c-1.9 0-3.6-.6-5-1.7v6.4c0 3.1-2.5 5.6-5.6 5.6S3.8 19 3.8 15.9s2.5-5.6 5.6-5.6c.5 0 1 .1 1.5.2v2.6c-.5-.2-1-.4-1.5-.4-1.8 0-3.2 1.4-3.2 3.2s1.4 3.2 3.2 3.2 3.2-1.4 3.2-3.2V3h2.9Z"/></svg>`;
 
 const NICHT_UMSETZEN_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" /></svg>`;
+
+// --- Status-Reiter (Tabs) ---
+
+export const SOURCING_TABS = [
+  { key: 'offen', label: 'Offen' },
+  { key: 'on_hold', label: 'On Hold' },
+  { key: 'gebucht', label: 'Gebucht' },
+  { key: 'nicht_buchen', label: 'Nicht buchen' },
+  { key: 'alle', label: 'Alle' }
+];
+
+export function getSourcingTabForItem(item) {
+  if (item.absage) return 'nicht_buchen';
+  if (item.gebucht) return 'gebucht';
+  if (item.on_hold) return 'on_hold';
+  return 'offen';
+}
+
+export function renderTabNavigation(ctx) {
+  const activeTab = ctx.activeTab || 'offen';
+  const counts = ctx.tabCounts || {};
+  return `
+    <div class="tab-navigation sourcing-tab-navigation">
+      ${SOURCING_TABS.map(tab => `
+        <button type="button" class="tab-button${tab.key === activeTab ? ' active' : ''}" data-sourcing-tab="${tab.key}">
+          ${tab.label} <span class="tab-count" data-sourcing-tab-count="${tab.key}">${counts[tab.key] ?? 0}</span>
+        </button>
+      `).join('')}
+    </div>
+  `;
+}
 
 // --- Render-Funktionen ---
 // ctx = { items, liste, isKunde, hiddenColumns }
@@ -106,6 +137,14 @@ export function renderAddSection(ctx = {}) {
 }
 
 export function renderItemsTable(ctx) {
+  if (ctx.items.length === 0 && ctx.hasAnyItems && ctx.activeTab && ctx.activeTab !== 'alle') {
+    const tabLabel = SOURCING_TABS.find(t => t.key === ctx.activeTab)?.label || ctx.activeTab;
+    return `
+      <div class="table-container table-container--empty" style="text-align: center; padding: var(--space-xxl); color: var(--text-secondary);">
+        <p>Keine Creator im Reiter "${tabLabel}"</p>
+      </div>
+    `;
+  }
   if (ctx.items.length === 0) {
     return `
       <div class="table-container table-container--empty" style="text-align: center; padding: var(--space-xxl); color: var(--text-secondary);">
@@ -146,6 +185,7 @@ export function renderItemsTable(ctx) {
             <th class="cp-col-notiz" ${hide('cp-col-notiz')}>Kurzbeschreibung</th>
             <th class="cp-col-feedback" ${hide('cp-col-feedback')}>Rückmeldung Kunde</th>
             <th class="cp-col-anfragen" ${hide('cp-col-anfragen')}>Anfragen</th>
+            <th class="cp-col-onhold" ${hide('cp-col-onhold')}>On Hold</th>
             <th class="cp-col-buchen" ${hide('cp-col-buchen')}>Buchen</th>
             <th class="cp-col-prio1" ${hide('cp-col-prio1')}>Prio 1</th>
             <th class="cp-col-prio2" ${hide('cp-col-prio2')}>Prio 2</th>
@@ -398,6 +438,12 @@ export function renderItemRow(ctx, item, index) {
             ${ctx.isKunde ? 'disabled' : ''}
           >
           ${item.angefragt_am ? `<span class="angefragt-datum">${new Date(item.angefragt_am).toLocaleDateString('de-DE')}</span>` : ''}
+        </div>
+      </td>
+      <td class="cp-col-onhold" style="${hide('cp-col-onhold')}">
+        <div class="onhold-cell">
+          <input type="checkbox" ${item.on_hold ? 'checked' : ''} data-field="on_hold" data-item-id="${item.id}" class="cp-checkbox${item.absage ? ' cp-checkbox--disabled' : ''}" ${item.absage ? 'disabled' : ''}>
+          ${item.on_hold_am ? `<span class="onhold-datum">${new Date(item.on_hold_am).toLocaleDateString('de-DE')}</span>` : ''}
         </div>
       </td>
       <td class="cp-col-buchen" style="${hide('cp-col-buchen')}">

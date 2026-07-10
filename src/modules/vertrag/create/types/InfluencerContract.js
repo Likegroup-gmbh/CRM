@@ -511,6 +511,9 @@ VertraegeCreate.prototype.renderInfluencerStep5 = function() {
           </div>
         </div>
 
+        <h3 class="mt-section">Rechnungsstellung</h3>
+        ${this.renderMehrfachRechnungToggle()}
+
         <h3 class="mt-section">Weitere Bestimmungen</h3>
         <div class="form-field">
           <label for="weitere_bestimmungen">Zusätzliche Vereinbarungen (optional)</label>

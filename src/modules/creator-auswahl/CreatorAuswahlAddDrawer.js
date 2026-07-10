@@ -458,6 +458,7 @@ export class CreatorAuswahlAddDrawer {
 
       window.toastSystem?.show('Creator erfolgreich hinzugefügt', 'success');
       this.close();
+      this.detail.ensureNewItemVisible?.();
       this.detail.rerenderTable();
 
     } catch (error) {

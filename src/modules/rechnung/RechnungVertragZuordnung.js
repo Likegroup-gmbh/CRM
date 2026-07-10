@@ -45,6 +45,61 @@ export async function findSignedVertragForKooperation(kooperationId, supabase) {
 }
 
 /**
+ * Ermittelt, welche Kooperationen fuer Mehrfachrechnungen freigeschaltet sind.
+ *
+ * Ein Vertrag mit mehrere_rechnungen_erlaubt = true schaltet frei:
+ * - direkt seine kooperation_id (primaeres Matching)
+ * - als Fallback alle Kooperationen mit gleicher creator_id + kampagne_id
+ *   (gleiche Logik wie findSignedVertragForKooperation, da aeltere Vertraege
+ *   teils keine kooperation_id gesetzt haben)
+ *
+ * @param {Array<{id: string, creator_id?: string, kampagne_id?: string}>} kooperationen
+ *   Kooperationen die geprueft werden sollen
+ * @param {object} [supabase] - optionaler Supabase-Client (default: window.supabase)
+ * @returns {Promise<Set<string>>} Set der freigeschalteten Kooperations-IDs
+ */
+export async function getKooperationIdsMitMehrfachRechnung(kooperationen, supabase) {
+  const sb = supabase || window.supabase;
+  const result = new Set();
+  if (!sb || !kooperationen || kooperationen.length === 0) return result;
+
+  try {
+    const { data: vertraege, error } = await sb
+      .from('vertraege')
+      .select('kooperation_id, creator_id, kampagne_id')
+      .eq('mehrere_rechnungen_erlaubt', true)
+      .eq('is_draft', false);
+
+    if (error || !vertraege || vertraege.length === 0) {
+      if (error) console.warn('getKooperationIdsMitMehrfachRechnung: Abfrage fehlgeschlagen:', error);
+      return result;
+    }
+
+    const freigeschalteteKoopIds = new Set(
+      vertraege.map(v => v.kooperation_id).filter(Boolean)
+    );
+    const freigeschalteteKombis = new Set(
+      vertraege
+        .filter(v => v.creator_id && v.kampagne_id)
+        .map(v => `${v.creator_id}__${v.kampagne_id}`)
+    );
+
+    kooperationen.forEach(k => {
+      if (freigeschalteteKoopIds.has(k.id)) {
+        result.add(k.id);
+      } else if (k.creator_id && k.kampagne_id && freigeschalteteKombis.has(`${k.creator_id}__${k.kampagne_id}`)) {
+        result.add(k.id);
+      }
+    });
+
+    return result;
+  } catch (err) {
+    console.warn('getKooperationIdsMitMehrfachRechnung: Exception:', err);
+    return result;
+  }
+}
+
+/**
  * Verknuepft nachtraeglich alle Rechnungen mit vertrag_id = NULL, die zur selben
  * creator_id + kampagne_id Kombination gehoeren wie der gerade unterschriebene Vertrag.
  *

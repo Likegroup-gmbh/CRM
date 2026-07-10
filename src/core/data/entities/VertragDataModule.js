@@ -11,6 +11,7 @@ export default {
       kooperation_id: 'uuid',
       contracting_auftrag_id: 'uuid',
       is_draft: 'boolean',
+      mehrere_rechnungen_erlaubt: 'boolean',
       created_at: 'date'
     },
     relations: {
