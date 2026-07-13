@@ -3,6 +3,7 @@ import { formatVideoFeedbackValue, VIDEO_FEEDBACK_FIELDS } from '../../core/Vide
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { getOrderedColumns, isColumnVisible, isCustomColumnId } from './columns/ColumnRegistry.js';
 import { renderCustomHeader, renderCustomCell } from './columns/CustomColumnRenderer.js';
+import { renderEmptyState, resolveEmptyState } from '../../core/components/EmptyState.js';
 
 const EXTERNAL_LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`;
 
@@ -21,6 +22,11 @@ const BILDER_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox
 const GEAR_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>`;
 
 const UPLOAD_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>`;
+
+// Auch vom VideoTableEventBinder genutzt (Copy-Feedback)
+export const COPY_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
+
+export const CHECK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`;
 
 export class VideoTableRenderer {
   constructor(table) {
@@ -75,35 +81,29 @@ export class VideoTableRenderer {
 
     if (!t.kooperationen || t.kooperationen.length === 0) {
       const isKunde = t.isKundeRole();
-      return `
-        <div class="empty-state">
-          <div class="empty-icon">🎬</div>
-          <h3>Keine Kooperationen vorhanden</h3>
-          ${!isKunde ? `
-            <p>Erstelle eine Kooperation, um sie hier mit Videos zu verwalten.</p>
-            <button class="primary-btn" onclick="window.navigateTo('/kooperation/new?kampagne_id=${t.kampagneId}')">
-              Kooperation anlegen
-            </button>
-          ` : '<p>Es wurden noch keine Kooperationen für diese Kampagne angelegt.</p>'}
-        </div>
-      `;
+      return renderEmptyState({
+        icon: 'film',
+        title: 'Keine Kooperationen vorhanden',
+        text: isKunde
+          ? 'Es wurden noch keine Kooperationen für diese Kampagne angelegt.'
+          : 'Erstelle eine Kooperation, um sie hier mit Videos zu verwalten.',
+        actionsHtml: !isKunde
+          ? `<button class="primary-btn" onclick="window.navigateTo('/kooperation/new?kampagne_id=${t.kampagneId}')">Kooperation anlegen</button>`
+          : ''
+      });
     }
 
     const filteredKooperationen = this.getFilteredKooperationen();
 
     if (filteredKooperationen.length === 0) {
-      const msg = t.activeFilterTab === 'offen'
-        ? { icon: '✅', title: 'Alle Kooperationen freigegeben', text: 'Es gibt keine offenen Kooperationen mehr.' }
-        : t.activeFilterTab === 'abgeschlossen'
-          ? { icon: '📋', title: 'Keine abgeschlossenen Kooperationen', text: 'Noch keine Kooperation hat alle Videos freigegeben.' }
-          : { icon: '📋', title: 'Keine Kooperationen', text: 'Erstelle eine Kooperation, um sie hier zu verwalten.' };
-      return `
-        <div class="empty-state">
-          <div class="empty-icon">${msg.icon}</div>
-          <h3>${msg.title}</h3>
-          <p>${msg.text}</p>
-        </div>
-      `;
+      return resolveEmptyState({
+        hasActiveFilters: t.store?.hasActiveFilters?.() || false,
+        states: {
+          offen: { icon: 'check', title: 'Alle Kooperationen freigegeben', text: 'Es gibt keine offenen Kooperationen mehr.' },
+          abgeschlossen: { icon: 'clipboard', title: 'Keine abgeschlossenen Kooperationen', text: 'Noch keine Kooperation hat alle Videos freigegeben.' },
+          alle: { icon: 'clipboard', title: 'Keine Kooperationen', text: 'Erstelle eine Kooperation, um sie hier zu verwalten.' }
+        }
+      }, t.activeFilterTab === 'offen' || t.activeFilterTab === 'abgeschlossen' ? t.activeFilterTab : 'alle');
     }
 
     this._filteredKooperationen = filteredKooperationen;
@@ -302,26 +302,48 @@ export class VideoTableRenderer {
         <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-lieferadresse') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => {
             const versandForVideo = t.getVersandForVideo(video.id);
-            let adresse = '';
+            let strasse = '';
+            let plzStadt = '';
+            let land = '';
 
             if (versandForVideo?.creator_adresse_id) {
               const ca = (t.store || t).creatorAdressen?.[versandForVideo.creator_adresse_id];
               if (ca) {
-                adresse = [ca.strasse, ca.hausnummer, ca.plz, ca.stadt].filter(Boolean).join(', ');
+                strasse = [ca.strasse, ca.hausnummer].filter(Boolean).join(' ');
+                plzStadt = [ca.plz, ca.stadt].filter(Boolean).join(' ');
+                land = ca.land || '';
               }
             } else if (versandForVideo?.strasse) {
-              adresse = [versandForVideo.strasse, versandForVideo.hausnummer, versandForVideo.plz, versandForVideo.stadt]
-                .filter(Boolean).join(', ');
+              strasse = [versandForVideo.strasse, versandForVideo.hausnummer].filter(Boolean).join(' ');
+              plzStadt = [versandForVideo.plz, versandForVideo.stadt].filter(Boolean).join(' ');
+              land = versandForVideo.land || '';
             }
 
-            if (!adresse && koop.creator) {
-              adresse = [koop.creator.lieferadresse_strasse, koop.creator.lieferadresse_hausnummer,
-                         koop.creator.lieferadresse_plz, koop.creator.lieferadresse_stadt]
-                .filter(Boolean).join(', ');
+            if (!strasse && !plzStadt && koop.creator) {
+              strasse = [koop.creator.lieferadresse_strasse, koop.creator.lieferadresse_hausnummer]
+                .filter(Boolean).join(' ');
+              plzStadt = [koop.creator.lieferadresse_plz, koop.creator.lieferadresse_stadt]
+                .filter(Boolean).join(' ');
+              land = koop.creator.lieferadresse_land || '';
             }
 
-            return `<div class="small-text address-text">${this.escapeHtml(adresse || '-')}</div>`;
+            const lines = [strasse, plzStadt].filter(Boolean);
+            const copyText = [strasse, plzStadt, land].filter(Boolean).join('\n');
+            if (lines.length === 0) lines.push('-');
+            const addressHtml = `<div class="small-text address-text">`
+                 + lines.map(l => `<div class="address-line">${this.escapeHtml(l)}</div>`).join('')
+                 + (land ? `<div class="address-line address-land-text">${this.escapeHtml(land)}</div>` : '')
+                 + `</div>`;
+            const copyBtn = copyText
+              ? `<button type="button" class="address-copy-btn" data-action="copy-address" data-address="${this.escapeHtml(copyText)}" title="Adresse kopieren">${COPY_ICON}</button>`
+              : '';
+            return `<div class="address-cell">${addressHtml}${copyBtn}</div>`;
           })}
+        </td>
+        <td class="grid-cell read-only" ${!t.isColumnVisibleForCustomer('col-telefon') ? 'style="display:none;"' : ''}>
+          ${koop.creator?.telefonnummer
+            ? `<a href="tel:${this.escapeHtml(koop.creator.telefonnummer)}" class="small-text telefon-link">${this.escapeHtml(koop.creator.telefonnummer)}</a>`
+            : '<span class="text-muted">-</span>'}
         </td>
         <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-paket-tracking') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => {
@@ -454,7 +476,11 @@ export class VideoTableRenderer {
     const videoUrl = video.file_url || video.link_content || video.asset_url;
     const hasPlayable = !!videoUrl;
     const hasStorys = !!storyFolderUrl;
-    const hasBilder = !!koop.bilder_folder_url;
+    // Bilder pro Video: eigene Bilder dieses Videos oder (noch) nicht zugeordnete
+    // Altbilder der Kooperation (video_id = NULL erscheint in allen Zeilen).
+    const koopBilder = Array.isArray(koop._bilder) ? koop._bilder : [];
+    const hasBilder = koopBilder.some(b => b.video_id === video.id || b.video_id == null)
+      || (!Array.isArray(koop._bilder) && !!koop.bilder_folder_url);
     const hasContent = hasPlayable || !!folderUrl || hasStorys;
 
     const buttons = [];
@@ -470,7 +496,7 @@ export class VideoTableRenderer {
     }
 
     if (hasBilder) {
-      buttons.push(`<button type="button" class="external-link-btn media-action-btn" data-action="view-bilder" data-kooperation-id="${koop.id}" title="Bilder ansehen">${BILDER_ICON}</button>`);
+      buttons.push(`<button type="button" class="external-link-btn media-action-btn" data-action="view-bilder" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Bilder ansehen">${BILDER_ICON}</button>`);
     }
 
     if (!isKunde) {

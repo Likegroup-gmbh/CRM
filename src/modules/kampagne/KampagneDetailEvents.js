@@ -10,6 +10,7 @@ import { tagFilterDropdown } from '../../core/components/TagFilterDropdown.js';
 
 const KOOPERATION_SORT_ENTITY = 'kampagne-kooperationen';
 const TAG_FILTER_ENTITY = 'kampagne-kooperation-tags';
+const STATUS_FILTER_ENTITY = 'kampagne-kooperation-status';
 
 const KAMPAGNE_KOOPERATION_SORT_OPTIONS = [
   { value: 'name_asc', label: 'A-Z' },
@@ -65,6 +66,28 @@ function initTagFilterDropdown(detail) {
   });
 }
 
+function initStatusFilterDropdown(detail) {
+  const container = document.getElementById('kampagne-status-filter-container');
+  if (!container || !detail.store) return;
+
+  const statuses = detail.store.getAvailableStatuses();
+  tagFilterDropdown.init(STATUS_FILTER_ENTITY, container, {
+    tags: statuses,
+    selectedTags: detail.store.selectedStatuses,
+    placeholder: 'Status filtern',
+    itemLabelSingular: 'Status',
+    itemLabelPlural: 'Status',
+    onTagsChange: (selected) => {
+      detail.store.setSelectedStatuses(selected);
+      if (detail.currentView === 'table') {
+        detail.kooperationenVideoTable?.refilter();
+      } else if (detail.currentView === 'kanban') {
+        detail.kanbanBoard?.render();
+      }
+    }
+  });
+}
+
 let _abortController = null;
 
 export function setupEvents(detail) {
@@ -73,6 +96,7 @@ export function setupEvents(detail) {
   const signal = _abortController.signal;
 
   initKooperationSortDropdown(detail);
+  initStatusFilterDropdown(detail);
   initTagFilterDropdown(detail);
 
   // Tab Navigation (Offen / Abgeschlossen / Alle)
@@ -82,6 +106,15 @@ export function setupEvents(detail) {
       e.preventDefault();
       detail.switchTab(btn.dataset.tab);
     }
+  }, { signal });
+
+  // Empty-State-Aktion: "Filter zuruecksetzen" (Status- + Tag-Filter leeren)
+  document.addEventListener('click', (e) => {
+    const resetBtn = e.target.closest('[data-empty-action="reset-filters"]');
+    if (!resetBtn) return;
+    e.preventDefault();
+    tagFilterDropdown.reset(STATUS_FILTER_ENTITY);
+    tagFilterDropdown.reset(TAG_FILTER_ENTITY);
   }, { signal });
 
   // Kooperation anlegen
@@ -183,6 +216,7 @@ export function teardownEvents() {
     _abortController = null;
   }
   tagFilterDropdown.destroy(TAG_FILTER_ENTITY);
+  tagFilterDropdown.destroy(STATUS_FILTER_ENTITY);
 }
 
 function showColumnVisibilityDrawer(detail) {

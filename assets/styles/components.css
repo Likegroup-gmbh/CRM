@@ -3331,7 +3331,7 @@ input.input-error {
   display: flex;
   align-items: center;
   gap: var(--space-xs);
-  padding: var(--space-sm) var(--space-md);
+  padding: var(--space-xs) var(--space-sm);
   color: var(--gray-800);
   text-decoration: none;
   white-space: nowrap;
@@ -16010,6 +16010,48 @@ table.vertraege-unternehmen-table td:last-child {
   transition: opacity 0.2s;
 }
 
+/* Bilder: Gruppierung nach Video + Zuordnungs-Dropdown */
+.existing-images-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-4, 4px);
+  margin-bottom: var(--space-sm);
+}
+
+.existing-images-group-title {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: var(--space-xxs) 0;
+}
+
+.existing-image-video-select {
+  font-size: var(--text-xs);
+  padding: 2px 6px;
+  max-width: 160px;
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.existing-image-video-select:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.settings-bilder-group-row td {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding-top: var(--space-sm);
+  border-bottom: none;
+}
+
 .existing-image-info {
   display: flex;
   align-items: center;
@@ -18673,4 +18715,24 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
   .media-lightbox-prev { left: 0.4rem; }
   .media-lightbox-next { right: 0.4rem; }
   .media-lightbox-content { padding: 1rem; }
+}
+/* Progressive Disclosure: steuerfreier Betrag im Rechnungsformular */
+.steuerfrei-disclosure-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-6);
+  margin-bottom: var(--space-lg);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.steuerfrei-disclosure-btn:hover {
+  color: var(--text-primary);
 }

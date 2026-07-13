@@ -420,7 +420,7 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
     ),
     batchIn(
       sb.from('creator'),
-      'id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt',
+      'id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, telefonnummer, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land',
       'id', creatorIds
     ),
     batchIn(
@@ -430,7 +430,7 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
     ),
     batchIn(
       sb.from('kooperation_versand'),
-      'id, kooperation_id, video_id, versendet, tracking_nummer, produkt_name, produkt_link, strasse, hausnummer, plz, stadt, creator_adresse_id',
+      'id, kooperation_id, video_id, versendet, tracking_nummer, produkt_name, produkt_link, strasse, hausnummer, plz, stadt, land, creator_adresse_id',
       'kooperation_id', koopIds
     ),
     sb.from('kampagne_status')
@@ -501,7 +501,7 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
     try {
       const adressenResult = await batchIn(
         sb.from('creator_adressen'),
-        'id, strasse, hausnummer, plz, stadt, adressname',
+        'id, strasse, hausnummer, plz, stadt, land, adressname',
         'id', adresseIds
       );
       (adressenResult.data || []).forEach(a => { creatorAdressenMap[a.id] = a; });

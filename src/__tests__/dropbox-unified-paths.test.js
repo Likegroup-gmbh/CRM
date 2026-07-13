@@ -3,7 +3,7 @@ import { buildUnifiedBasePath, sanitizePath } from '../../netlify/functions/_sha
 import { buildDropboxPath } from '../../netlify/functions/dropbox-upload.js';
 import { buildVertragPath } from '../../netlify/functions/dropbox-upload-vertrag.js';
 import { buildRechnungPath } from '../../netlify/functions/dropbox-upload-rechnung.js';
-import { buildBilderFolderPath } from '../../netlify/functions/dropbox-upload-bilder.js';
+import { buildBilderFolderPath, buildBilderRootFolderPath } from '../../netlify/functions/dropbox-upload-bilder.js';
 import { buildStorysBaseFolderPath, buildVideoFolderPath, buildStorysVersionFolderPath } from '../../netlify/functions/dropbox-upload-storys.js';
 
 describe('buildUnifiedBasePath (Phase 1)', () => {
@@ -133,6 +133,27 @@ describe('Video-Pfad nach Re-Root (Phase 6)', () => {
 describe('Bilder-Pfad nach Re-Root (Phase 6)', () => {
   it('hat /Bilder als Unterordner unter Kooperation', () => {
     const p = buildBilderFolderPath({ unternehmen: 'U', marke: 'M', kampagne: 'K', kooperation: 'C' });
+    expect(p).toBe('/U/M/K/C/Bilder');
+  });
+
+  it('mit videoPosition + videoThema wird ein Video-Unterordner verwendet', () => {
+    const p = buildBilderFolderPath({
+      unternehmen: 'U', marke: 'M', kampagne: 'K', kooperation: 'C',
+      videoPosition: 2, videoThema: 'Unboxing',
+    });
+    expect(p).toBe('/U/M/K/C/Bilder/Video_2_Unboxing');
+  });
+
+  it('mit videoPosition ohne Thema faellt auf Video_{pos} zurueck', () => {
+    const p = buildBilderFolderPath({
+      unternehmen: 'U', marke: 'M', kampagne: 'K', kooperation: 'C',
+      videoPosition: 3,
+    });
+    expect(p).toBe('/U/M/K/C/Bilder/Video_3');
+  });
+
+  it('Root-Pfad bleibt unabhaengig vom Video der Koop-weite /Bilder-Ordner', () => {
+    const p = buildBilderRootFolderPath({ unternehmen: 'U', marke: 'M', kampagne: 'K', kooperation: 'C' });
     expect(p).toBe('/U/M/K/C/Bilder');
   });
 });

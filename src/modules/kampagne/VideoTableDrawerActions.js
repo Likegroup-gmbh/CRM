@@ -31,14 +31,15 @@ export class VideoTableDrawerActions {
       marke: t.kampagneInfo?.marke || '',
       kampagne: t.kampagneInfo?.name || '',
       creatorName,
-      bilderFolderUrl: koop?.bilder_folder_url || null
+      bilderFolderUrl: koop?.bilder_folder_url || null,
+      videos: videos.map(v => ({ id: v.id, position: v.position || 1, thema: v.thema || '' }))
     };
 
     t._uploadDrawer.open(videoId, metadaten, (fileUrl, filePath, videoName, folderUrl) => {
       this.updateContentCellAfterUpload(videoId, kooperationId, fileUrl, videoName, folderUrl);
     }, (bilderFolderUrl) => {
       if (koop) koop.bilder_folder_url = bilderFolderUrl;
-      t.refilter();
+      this.refreshBilderForKoop(kooperationId);
     }, (storysFolderUrl) => {
       const patch = { story_folder_url: storysFolderUrl };
       if (t.store) {
@@ -50,14 +51,23 @@ export class VideoTableDrawerActions {
     }, { initialTab,
       onBilderCleared: () => {
         if (koop) koop.bilder_folder_url = null;
-        t.refilter();
+        this.refreshBilderForKoop(kooperationId);
       },
+      onBilderChanged: () => this.refreshBilderForKoop(kooperationId),
       onStorysCleared: () => {
         if (t.store) t.store.updateVideo(videoId, { story_folder_url: null });
         else if (video) video.story_folder_url = null;
         t.refilter();
       },
     });
+  }
+
+  async refreshBilderForKoop(kooperationId) {
+    const t = this.table;
+    try {
+      await t.dataLoader.loadBilder([kooperationId]);
+    } catch (_) {}
+    t.refilter();
   }
 
   updateContentCellAfterUpload(videoId, kooperationId, fileUrl, videoName, folderUrl) {
@@ -131,10 +141,12 @@ export class VideoTableDrawerActions {
       videoUrl,
       filePath,
       videoTitel: video?.thema || 'Video',
+      videos: videos.map(v => ({ id: v.id, position: v.position || 1, thema: v.thema || '' })),
       onReupload: () => this.openUploadDrawer(videoId, kooperationId),
       onStorysReupload: () => this.openUploadDrawer(videoId, kooperationId, { initialTab: 'storys' }),
       onBilderReupload: () => this.openUploadDrawer(videoId, kooperationId, { initialTab: 'bilder' }),
       onDelete: () => this.executeVideoDelete(videoId, kooperationId),
+      onBilderChanged: () => this.refreshBilderForKoop(kooperationId),
     });
   }
 

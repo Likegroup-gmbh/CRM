@@ -191,6 +191,13 @@ export class BilderTabHandler {
         if (assetId) this._deleteExistingImage(assetId, path);
       }
     });
+    existingList?.addEventListener('change', (e) => {
+      const select = e.target.closest('.existing-image-video-select');
+      if (select) {
+        const assetId = select.dataset.id;
+        if (assetId) this._assignImageToVideo(assetId, select.value || null);
+      }
+    });
   }
 
   // ─── File Selection ────────────────────────────────────────
@@ -297,6 +304,8 @@ export class BilderTabHandler {
           marke: this.drawer.metadaten.marke || '',
           kampagne: this.drawer.metadaten.kampagne || '',
           kooperation: this.drawer.metadaten.kooperationName || '',
+          videoPosition: this.drawer.metadaten.videoPosition || 1,
+          videoThema: this.drawer.metadaten.videoThema || '',
           fileName: firstFile.name,
         })
       });
@@ -309,6 +318,7 @@ export class BilderTabHandler {
       const prepareData = await prepareResp.json();
       token = prepareData.token;
       folderPath = prepareData.folderPath;
+      const rootFolderPath = prepareData.rootFolderPath || folderPath;
 
       const uploadedFiles = [];
 
@@ -335,7 +345,8 @@ export class BilderTabHandler {
       if (progressFill) progressFill.style.width = '92%';
       if (progressText) progressText.textContent = 'Erstelle Links...';
 
-      const bilderFolderUrl = await createFolderSharedLink(token, folderPath);
+      // Shared-Link immer auf den Koop-weiten /Bilder-Wurzelordner (Flag + Ordner-Link)
+      const bilderFolderUrl = await createFolderSharedLink(token, rootFolderPath);
 
       const fileLinks = [];
       for (const uf of uploadedFiles) {
@@ -360,6 +371,7 @@ export class BilderTabHandler {
       if (this.drawer.kooperationId && fileLinks.length > 0) {
         const insertRows = fileLinks.map(fl => ({
           kooperation_id: this.drawer.kooperationId,
+          video_id: this.drawer.videoId || null,
           file_url: fl.fileUrl,
           file_path: fl.path,
           file_name: fl.name,
@@ -460,6 +472,7 @@ export class BilderTabHandler {
     try {
       const insertRows = this._linkQueue.map(item => ({
         kooperation_id: this.drawer.kooperationId,
+        video_id: this.drawer.videoId || null,
         file_url: normalizeExternalUrl(item.url),
         file_path: null,
         file_name: item.url.split('/').pop() || 'Link',
@@ -477,6 +490,7 @@ export class BilderTabHandler {
       this._renderBilderLinkList();
       this._isUploadingImages = false;
       this._updateBilderSubmitState();
+      this.drawer.onBilderChanged?.();
       await this._loadExistingImages();
       window.toastSystem?.success?.('Bilder-Links gespeichert');
     } catch (err) {
@@ -504,7 +518,7 @@ export class BilderTabHandler {
 
       const { data, error } = await window.supabase
         .from('kooperation_bilder_asset')
-        .select('id, file_url, file_path, file_name, file_size, created_at')
+        .select('id, video_id, file_url, file_path, file_name, file_size, created_at')
         .eq('kooperation_id', this.drawer.kooperationId)
         .order('file_name', { ascending: true });
 
@@ -522,23 +536,124 @@ export class BilderTabHandler {
 
       const TRASH_ICON = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>';
 
-      listEl.innerHTML = this._existingImages.map(img => {
+      const videos = this._getKoopVideos();
+      const videoLabel = v => `Video ${v.position || 1}${v.thema ? ` – ${v.thema}` : ''}`;
+
+      const renderItem = (img) => {
         const sizeMB = img.file_size ? (img.file_size / 1024 / 1024).toFixed(1) + ' MB' : '';
         const name = img.file_name || img.file_path?.split('/').pop() || '?';
+        const videoSelect = videos.length > 0 ? `
+              <select class="existing-image-video-select" data-id="${img.id}" title="Video zuordnen">
+                <option value="">Nicht zugeordnet</option>
+                ${videos.map(v => `<option value="${v.id}" ${img.video_id === v.id ? 'selected' : ''}>${escapeHtml(videoLabel(v))}</option>`).join('')}
+              </select>` : '';
         return `
           <div class="existing-image-item existing-storys-asset-item">
             <div class="existing-image-info">
               <span class="existing-image-name">${escapeHtml(name)}${sizeMB ? ` · ${sizeMB}` : ''}</span>
             </div>
             <div class="existing-asset-actions">
+              ${videoSelect}
               <button type="button" class="existing-image-delete" data-id="${img.id}" data-path="${escapeHtml(img.file_path || '')}" title="Löschen">${TRASH_ICON}</button>
             </div>
           </div>`;
-      }).join('');
+      };
+
+      if (videos.length === 0) {
+        listEl.innerHTML = this._existingImages.map(renderItem).join('');
+      } else {
+        const groups = [];
+        for (const v of videos) {
+          const imgs = this._existingImages.filter(i => i.video_id === v.id);
+          if (imgs.length) groups.push({ label: videoLabel(v), imgs });
+        }
+        const unassigned = this._existingImages.filter(i => !i.video_id || !videos.some(v => v.id === i.video_id));
+        if (unassigned.length) groups.push({ label: 'Nicht zugeordnet', imgs: unassigned });
+
+        listEl.innerHTML = groups.map(g => `
+          <div class="existing-images-group">
+            <div class="existing-images-group-title">${escapeHtml(g.label)}</div>
+            ${g.imgs.map(renderItem).join('')}
+          </div>`).join('');
+      }
 
     } catch (err) {
       console.error('Bilder laden fehlgeschlagen:', err);
       if (listEl) listEl.innerHTML = '<div class="existing-images-empty">Fehler beim Laden</div>';
+    }
+  }
+
+  _getKoopVideos() {
+    const videos = this.drawer.metadaten?.videos || [];
+    return videos.slice().sort((a, b) => (a.position || 1) - (b.position || 1));
+  }
+
+  // Ordnet ein Bild einem Video zu (oder hebt die Zuordnung auf). Dropbox-Dateien
+  // werden physisch in den Ziel-Unterordner verschoben; reine Links nur per DB.
+  async _assignImageToVideo(assetId, newVideoId) {
+    const img = this._existingImages.find(i => i.id === assetId);
+    if (!img) return;
+    const currentVideoId = img.video_id || null;
+    const targetVideoId = newVideoId || null;
+    if (currentVideoId === targetVideoId) return;
+
+    const selectEl = document.querySelector(`.existing-image-video-select[data-id="${assetId}"]`);
+    if (selectEl) selectEl.disabled = true;
+    this._hideBilderError();
+
+    try {
+      let newFilePath = img.file_path || null;
+
+      if (img.file_path) {
+        const targetVideo = targetVideoId ? this._getKoopVideos().find(v => v.id === targetVideoId) : null;
+
+        const folderResp = await fetch('/.netlify/functions/dropbox-upload-bilder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'ensure-folder',
+            unternehmen: this.drawer.metadaten.unternehmen || '',
+            marke: this.drawer.metadaten.marke || '',
+            kampagne: this.drawer.metadaten.kampagne || '',
+            kooperation: this.drawer.metadaten.kooperationName || '',
+            ...(targetVideo ? { videoPosition: targetVideo.position || 1, videoThema: targetVideo.thema || '' } : {}),
+          }),
+        });
+        if (!folderResp.ok) throw new Error('Zielordner konnte nicht angelegt werden');
+        const folderData = await folderResp.json();
+
+        const fileName = img.file_path.split('/').pop();
+        const toPath = `${folderData.folderPath}/${fileName}`;
+        if (toPath !== img.file_path) {
+          const moveResp = await fetch('/.netlify/functions/dropbox-proxy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'move', fromPath: img.file_path, toPath, token: folderData.token }),
+          });
+          if (!moveResp.ok) {
+            const errData = await moveResp.json().catch(() => ({}));
+            throw new Error(errData.error || 'Verschieben in Dropbox fehlgeschlagen');
+          }
+          const moveData = await moveResp.json();
+          newFilePath = moveData.path || toPath;
+        }
+      }
+
+      const { error: updErr } = await window.supabase
+        .from('kooperation_bilder_asset')
+        .update({ video_id: targetVideoId, file_path: newFilePath })
+        .eq('id', assetId);
+      if (updErr) throw updErr;
+
+      this.drawer.onBilderChanged?.();
+      await this._loadExistingImages();
+    } catch (err) {
+      console.error('Bild-Zuordnung fehlgeschlagen:', err);
+      this._showBilderError(err.message || 'Zuordnung fehlgeschlagen');
+      if (selectEl) {
+        selectEl.disabled = false;
+        selectEl.value = currentVideoId || '';
+      }
     }
   }
 
@@ -570,7 +685,13 @@ export class BilderTabHandler {
 
       if ((count ?? 0) === 0) {
         if (filePath) {
-          const folderPath = filePath.substring(0, filePath.lastIndexOf('/'));
+          // /Bilder-Wurzelordner der Koop loeschen (nicht nur den Video-Unterordner):
+          // Pfade sind .../Kooperation/Bilder/... (alt) oder .../Bilder/Video_x_.../... (neu)
+          const marker = '/Bilder/';
+          const idx = filePath.indexOf(marker);
+          const folderPath = idx >= 0
+            ? filePath.substring(0, idx + marker.length - 1)
+            : filePath.substring(0, filePath.lastIndexOf('/'));
           fetch('/.netlify/functions/dropbox-delete', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -582,6 +703,8 @@ export class BilderTabHandler {
           .update({ bilder_folder_url: null })
           .eq('id', koopId);
         this.drawer.onBilderCleared?.();
+      } else {
+        this.drawer.onBilderChanged?.();
       }
 
       await this._loadExistingImages();

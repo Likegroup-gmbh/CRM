@@ -76,8 +76,16 @@ export class VideoPlayerLightbox {
     ], kooperationId);
   }
 
-  openBilder(kooperationId) {
+  openBilder(videoId, kooperationId) {
+    // Rueckwaertskompatibel: openBilder(kooperationId) ohne videoId
+    if (kooperationId === undefined) {
+      kooperationId = videoId;
+      videoId = null;
+    }
     return this._open([
+      ...(videoId ? [it => it.type === 'bild' && it.video?.id === videoId && it.koop.id === kooperationId] : []),
+      // Fallback: nicht zugeordnete (Alt-)Bilder der Kooperation
+      it => it.type === 'bild' && it.koop.id === kooperationId && !it.video,
       it => it.type === 'bild' && it.koop.id === kooperationId,
     ], kooperationId);
   }
@@ -484,8 +492,10 @@ export class VideoPlayerLightbox {
       videoId = item.slot.video_id || item.video?.id || null;
       version = this.storyVersion || 1;
     } else {
+      // Bild: bevorzugt das zugeordnete Video (item.video via video_id),
+      // Altbilder ohne Zuordnung fallen auf das erste Koop-Video zurueck.
       const koopVideos = this.table.videos[item.koop.id] || [];
-      videoId = koopVideos[0]?.id || null;
+      videoId = item.video?.id || item.image?.video_id || koopVideos[0]?.id || null;
       version = 1;
     }
     if (!videoId) return null;

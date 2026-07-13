@@ -36,16 +36,18 @@ export class VideoSettingsDrawer {
     this._expandedRounds = new Set();
   }
 
-  async open({ videoId, kooperationId, videoUrl, filePath, videoTitel, onReupload, onStorysReupload, onBilderReupload, onDelete }) {
+  async open({ videoId, kooperationId, videoUrl, filePath, videoTitel, videos, onReupload, onStorysReupload, onBilderReupload, onDelete, onBilderChanged }) {
     this.videoId = videoId;
     this.kooperationId = kooperationId;
     this.videoUrl = videoUrl;
     this.filePath = filePath;
     this.videoTitel = videoTitel || 'Video';
+    this.videos = (videos || []).slice().sort((a, b) => (a.position || 1) - (b.position || 1));
     this.onReupload = onReupload;
     this.onStorysReupload = onStorysReupload;
     this.onBilderReupload = onBilderReupload;
     this.onDelete = onDelete;
+    this.onBilderChanged = onBilderChanged || null;
     this._activeTab = 'videos';
     this._expandedRounds = new Set();
     this.assets = [];
@@ -71,7 +73,7 @@ export class VideoSettingsDrawer {
         this.kooperationId
           ? window.supabase
               .from('kooperation_bilder_asset')
-              .select('id, file_url, file_path, file_name, file_size, created_at')
+              .select('id, video_id, file_url, file_path, file_name, file_size, created_at')
               .eq('kooperation_id', this.kooperationId)
               .order('file_name', { ascending: true })
           : Promise.resolve({ data: [] }),
@@ -481,7 +483,28 @@ export class VideoSettingsDrawer {
     if (this.bilderAssets.length === 0) {
       contentHtml = '<p class="video-settings-no-file">Keine Bilder vorhanden</p>';
     } else {
-      const rows = this.bilderAssets.map(asset => this._renderBilderTableRow(asset)).join('');
+      // Nach Video gruppieren (wie im Upload-Drawer); Altbilder ohne video_id
+      // landen unter "Nicht zugeordnet".
+      const videos = this.videos || [];
+      const videoLabel = v => `Video ${v.position || 1}${v.thema ? ` – ${v.thema}` : ''}`;
+      let rows = '';
+
+      if (videos.length === 0) {
+        rows = this.bilderAssets.map(asset => this._renderBilderTableRow(asset)).join('');
+      } else {
+        const groups = [];
+        for (const v of videos) {
+          const assets = this.bilderAssets.filter(a => a.video_id === v.id);
+          if (assets.length) groups.push({ label: videoLabel(v), assets });
+        }
+        const unassigned = this.bilderAssets.filter(a => !a.video_id || !videos.some(v => v.id === a.video_id));
+        if (unassigned.length) groups.push({ label: 'Nicht zugeordnet', assets: unassigned });
+
+        rows = groups.map(g => `
+          <tr class="settings-bilder-group-row"><td colspan="5">${escapeHtml(g.label)}</td></tr>
+          ${g.assets.map(asset => this._renderBilderTableRow(asset)).join('')}
+        `).join('');
+      }
 
       contentHtml = `
         <table class="data-table video-versions-table">
@@ -671,6 +694,7 @@ export class VideoSettingsDrawer {
           await window.supabase.from('kooperation_bilder_asset').delete().eq('id', assetId);
           this.bilderAssets = this.bilderAssets.filter(a => a.id !== assetId);
 
+          this.onBilderChanged?.();
           this.renderContent();
           this.bindEvents();
         } catch (err) {

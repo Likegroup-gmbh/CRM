@@ -113,6 +113,26 @@ async function handleSessionFinish(token, sessionId, offset, dropboxPath, chunkB
   return resp.json();
 }
 
+async function handleMove(token, fromPath, toPath) {
+  const resp = await fetch('https://api.dropboxapi.com/2/files/move_v2', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from_path: fromPath,
+      to_path: toPath,
+      autorename: true,
+      allow_ownership_transfer: false,
+    }),
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    logHeaders(resp, 'move-FAIL');
+    throw new Error(`Dropbox move failed (${resp.status}): ${text}`);
+  }
+  const data = await resp.json();
+  return { path: data.metadata?.path_display || toPath };
+}
+
 async function handleSharedLink(token, path) {
   const resp = await fetch('https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings', {
     method: 'POST',
@@ -244,6 +264,11 @@ exports.handler = async (event) => {
         const buf = body.chunk ? Buffer.from(body.chunk, 'base64') : Buffer.alloc(0);
         if (DEBUG) console.log(`[dropbox-proxy] session-finish chunkSize=${buf.length} offset=${body.offset} sessionId=${body.sessionId} path=${body.dropboxPath}`);
         const result = await handleSessionFinish(token, body.sessionId, body.offset, body.dropboxPath, buf);
+        return jsonResponse(200, result);
+      }
+
+      case 'move': {
+        const result = await handleMove(token, body.fromPath, body.toPath);
         return jsonResponse(200, result);
       }
 

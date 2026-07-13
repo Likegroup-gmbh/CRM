@@ -137,7 +137,7 @@ export class VideoTableDataLoader {
         
         batchIn(
           sb.from('creator'),
-          'id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt',
+          'id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, telefonnummer, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land',
           'id', creatorIds
         ),
 
@@ -149,7 +149,7 @@ export class VideoTableDataLoader {
 
         batchIn(
           sb.from('kooperation_versand'),
-          'id, kooperation_id, video_id, versendet, tracking_nummer, produkt_name, produkt_link, strasse, hausnummer, plz, stadt, creator_adresse_id',
+          'id, kooperation_id, video_id, versendet, tracking_nummer, produkt_name, produkt_link, strasse, hausnummer, plz, stadt, land, creator_adresse_id',
           'kooperation_id', koopIds
         ),
 
@@ -216,7 +216,7 @@ export class VideoTableDataLoader {
         try {
           const adressenResult = await batchIn(
             sb.from('creator_adressen'),
-            'id, strasse, hausnummer, plz, stadt, adressname',
+            'id, strasse, hausnummer, plz, stadt, land, adressname',
             'id', adresseIds
           );
           (adressenResult.data || []).forEach(a => { t.creatorAdressen[a.id] = a; });
@@ -395,7 +395,7 @@ export class VideoTableDataLoader {
 
       const result = await batchIn(
         sb.from('kooperation_bilder_asset'),
-        'id, kooperation_id, file_url, file_path, file_name, created_at',
+        'id, kooperation_id, video_id, file_url, file_path, file_name, created_at',
         'kooperation_id', koopIds,
         q => q.order('file_name', { ascending: true })
       );
@@ -407,8 +407,11 @@ export class VideoTableDataLoader {
         byKoop[img.kooperation_id].push(img);
       }
 
+      // Nur die angefragten Koops aktualisieren (loadBilder wird auch fuer
+      // einzelne Koops als Refresh nach Upload/Zuordnung aufgerufen).
+      const idSet = new Set(koopIds);
       for (const koop of t.kooperationen) {
-        koop._bilder = byKoop[koop.id] || [];
+        if (idSet.has(koop.id)) koop._bilder = byKoop[koop.id] || [];
       }
 
       console.log(`✅ Bilder-Assets (${images.length}) geladen`);

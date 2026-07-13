@@ -144,6 +144,50 @@ describe('VideoSettingsDrawer', () => {
     expect(body.textContent).toContain('Story 2 · CTA');
   });
 
+  it('gruppiert Bilder nach Video und listet Altbilder unter "Nicht zugeordnet"', async () => {
+    window.supabase = createSettingsSupabase({
+      bilderAssets: [
+        {
+          id: 'ba-1',
+          video_id: 'vid-2',
+          file_url: 'https://cdn.example.com/v2.png',
+          file_path: null,
+          file_name: 'v2.png',
+          file_size: 0,
+          created_at: '2026-02-01T10:00:00Z',
+        },
+        {
+          id: 'ba-2',
+          video_id: null,
+          file_url: 'https://cdn.example.com/alt.png',
+          file_path: null,
+          file_name: 'alt.png',
+          file_size: 0,
+          created_at: '2026-01-01T10:00:00Z',
+        },
+      ],
+    });
+
+    await drawer.open({
+      videoId: 'vid-1',
+      kooperationId: 'koop-1',
+      videoTitel: 'Testvideo',
+      videos: [
+        { id: 'vid-1', position: 1, thema: 'Schnitzel' },
+        { id: 'vid-2', position: 2, thema: 'Bratwurst' },
+      ],
+    });
+
+    drawer._switchTab('bilder');
+    const body = document.getElementById('video-settings-drawer-body');
+    const groupRows = [...body.querySelectorAll('.settings-bilder-group-row')].map(r => r.textContent.trim());
+    expect(groupRows).toEqual(['Video 2 – Bratwurst', 'Nicht zugeordnet']);
+    expect(body.textContent).toContain('v2.png');
+    expect(body.textContent).toContain('alt.png');
+    // Video 1 hat keine Bilder -> keine leere Gruppe
+    expect(body.textContent).not.toContain('Video 1 – Schnitzel');
+  });
+
   it('zeigt Legacy-Video-Link wenn keine Assets aber videoUrl gesetzt', async () => {
     window.supabase = createSettingsSupabase({ videoAssets: [] });
 

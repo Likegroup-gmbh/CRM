@@ -25,6 +25,7 @@ const DEFAULT_COLUMNS = [
   { id: 'col-organic-paid', label: 'Content/Art', dataCol: '12', configurable: true },
   { id: 'col-produkt', label: 'Produkte', dataCol: '13', configurable: true },
   { id: 'col-lieferadresse', label: 'Lieferadresse', dataCol: '14', configurable: true },
+  { id: 'col-telefon', label: 'Telefonnummer', dataCol: '14b', configurable: true },
   { id: 'col-paket-tracking', label: 'Tracking', dataCol: '15', configurable: true },
   { id: 'col-drehort', label: 'Drehort', dataCol: '16', configurable: true },
   { id: 'col-link-skript', label: 'Link Skript / Briefing', dataCol: '17', configurable: true },
@@ -100,16 +101,28 @@ export function getOrderedColumns(store) {
     }
   }
 
-  // Feste Spalten die nicht in savedOrder waren (z.B. neu hinzugefuegt)
-  for (const col of DEFAULT_COLUMNS) {
-    if (!usedIds.has(col.id)) {
-      const actionsIdx = result.findIndex(c => c.id === 'col-actions');
-      if (actionsIdx >= 0) {
-        result.splice(actionsIdx, 0, { ...col, isCustom: false });
-      } else {
-        result.push({ ...col, isCustom: false });
+  // Feste Spalten die nicht in savedOrder waren (z.B. neu hinzugefuegt):
+  // an ihrer Default-Position einfuegen (direkt hinter dem naechsten
+  // vorangehenden Default-Nachbarn), damit Header und hart codierte
+  // Body-Zellen zusammenpassen.
+  for (let defIdx = 0; defIdx < DEFAULT_COLUMNS.length; defIdx++) {
+    const col = DEFAULT_COLUMNS[defIdx];
+    if (usedIds.has(col.id)) continue;
+
+    let insertIdx = -1;
+    for (let prev = defIdx - 1; prev >= 0; prev--) {
+      const prevIdx = result.findIndex(c => c.id === DEFAULT_COLUMNS[prev].id);
+      if (prevIdx >= 0) {
+        insertIdx = prevIdx + 1;
+        break;
       }
     }
+    if (insertIdx < 0) {
+      const actionsIdx = result.findIndex(c => c.id === 'col-actions');
+      insertIdx = actionsIdx >= 0 ? actionsIdx : result.length;
+    }
+    result.splice(insertIdx, 0, { ...col, isCustom: false });
+    usedIds.add(col.id);
   }
 
   // Custom Columns die nicht in savedOrder waren (neu angelegt)

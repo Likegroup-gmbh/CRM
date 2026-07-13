@@ -75,6 +75,7 @@ export function renderMainPage(state) {
           Alle <span class="tab-count" id="tab-count-alle"></span>
         </button>
         <div class="tab-actions" style="margin-left: auto; display: flex; align-items: center; gap: var(--space-sm);">
+          <div id="kampagne-status-filter-container"></div>
           <div id="kampagne-tag-filter-container"></div>
           <div id="kampagne-kooperation-sort-container"></div>
           ${!isKunde ? `

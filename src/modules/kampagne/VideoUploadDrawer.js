@@ -31,7 +31,7 @@ export class VideoUploadDrawer {
    * @param {function} [onBilderSuccess]
    * @param {function} [onStorysSuccess]
    */
-  async open(videoId, metadaten, onSuccess, onBilderSuccess, onStorysSuccess, { initialTab = 'video', onBilderCleared, onStorysCleared, customMeta } = {}) {
+  async open(videoId, metadaten, onSuccess, onBilderSuccess, onStorysSuccess, { initialTab = 'video', onBilderCleared, onStorysCleared, onBilderChanged, customMeta } = {}) {
     this.videoId = videoId;
     this.kooperationId = metadaten.kooperationId;
     this.metadaten = metadaten;
@@ -40,6 +40,7 @@ export class VideoUploadDrawer {
     this.onStorysSuccess = onStorysSuccess || null;
     this.onBilderCleared = onBilderCleared || null;
     this.onStorysCleared = onStorysCleared || null;
+    this.onBilderChanged = onBilderChanged || null;
     this.useExternalLinks = !!metadaten.keinDropbox;
     this.customMeta = customMeta || null;
 

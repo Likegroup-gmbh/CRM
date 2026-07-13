@@ -1,8 +1,18 @@
 const { getAccessToken, sanitizePath, buildUnifiedBasePath, ensureFolder } = require('./_shared/dropbox');
 
-function buildBilderFolderPath({ unternehmen, marke, kampagne, kooperation }) {
+function buildBilderRootFolderPath({ unternehmen, marke, kampagne, kooperation }) {
   const base = buildUnifiedBasePath({ unternehmen, marke, kampagne, kooperation });
   return `${base}/Bilder`;
+}
+
+// Mit videoPosition wird ein Video-Unterordner verwendet (Muster wie Storys),
+// ohne bleibt der Kooperations-Bilderordner (Altverhalten, z.B. list-Action).
+function buildBilderFolderPath(fields) {
+  const root = buildBilderRootFolderPath(fields);
+  if (!fields.videoPosition) return root;
+  const pos = fields.videoPosition;
+  const thema = sanitizePath(fields.videoThema || '');
+  return thema ? `${root}/Video_${pos}_${thema}` : `${root}/Video_${pos}`;
 }
 
 function buildBilderFilePath(fields) {
@@ -12,6 +22,7 @@ function buildBilderFilePath(fields) {
 }
 
 exports.buildBilderFolderPath = buildBilderFolderPath;
+exports.buildBilderRootFolderPath = buildBilderRootFolderPath;
 
 exports.handler = async (event) => {
   const headers = {
@@ -82,6 +93,15 @@ exports.handler = async (event) => {
       }
     }
 
+    if (action === 'ensure-folder') {
+      await ensureFolder(token, folderPath);
+      return {
+        statusCode: 200,
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, folderPath, rootFolderPath: buildBilderRootFolderPath(fields) }),
+      };
+    }
+
     // action === 'prepare' (default)
     const dropboxPath = buildBilderFilePath(fields);
     await ensureFolder(token, folderPath);
@@ -89,7 +109,7 @@ exports.handler = async (event) => {
     return {
       statusCode: 200,
       headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, dropboxPath, folderPath }),
+      body: JSON.stringify({ token, dropboxPath, folderPath, rootFolderPath: buildBilderRootFolderPath(fields) }),
     };
   } catch (err) {
     console.error('dropbox-upload-bilder error:', err);

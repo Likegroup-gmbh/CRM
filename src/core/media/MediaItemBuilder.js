@@ -1,8 +1,9 @@
 // MediaItemBuilder
 // Baut die durchgaengige, flache Item-Liste fuer den Video-Player auf.
 // Reihenfolge pro Kooperation: je Video das Video selbst gefolgt von seinen
-// eigenen Storys (nach slot_index), danach die Bilder der Kooperation.
-//   Koop -> [V1, Storys(V1)..., V2, Storys(V2)..., ...] -> [Bilder] -> naechste Koop
+// eigenen Storys (nach slot_index) und seinen Bildern (video_id), danach die
+// nicht zugeordneten Bilder (video_id = NULL, Altdaten) der Kooperation.
+//   Koop -> [V1, Storys(V1)..., Bilder(V1)..., V2, ...] -> [Bilder ohne video_id] -> naechste Koop
 
 export class MediaItemBuilder {
   /** @param {object} table - KampagneKooperationenVideoTable (Datenquelle) */
@@ -25,7 +26,7 @@ export class MediaItemBuilder {
       const ids = missing.map(k => k.id);
       const { data, error } = await window.supabase
         .from('kooperation_bilder_asset')
-        .select('id, kooperation_id, file_url, file_path, file_name, created_at')
+        .select('id, kooperation_id, video_id, file_url, file_path, file_name, created_at')
         .in('kooperation_id', ids)
         .order('file_name', { ascending: true });
       if (error) throw error;
@@ -68,6 +69,7 @@ export class MediaItemBuilder {
     const items = [];
     for (const koop of koops) {
       const videos = this.table.videos[koop.id] || [];
+      const bilder = koop._bilder || [];
       for (const video of videos) {
         if (this.hasUpload(video)) items.push({ type: 'video', video, koop });
         // Storys direkt hinter ihr Video einreihen (vollstaendige Reihe pro Video)
@@ -76,9 +78,16 @@ export class MediaItemBuilder {
             items.push({ type: 'story', slot, video, koop });
           }
         }
+        // Bilder dieses Videos direkt dahinter
+        for (const image of bilder) {
+          if (image.video_id === video.id) items.push({ type: 'bild', image, video, koop });
+        }
       }
-      for (const image of (koop._bilder || [])) {
-        items.push({ type: 'bild', image, koop });
+      // Nicht zugeordnete Bilder (Altdaten) ans Koop-Ende
+      for (const image of bilder) {
+        if (image.video_id == null || !videos.some(v => v.id === image.video_id)) {
+          items.push({ type: 'bild', image, koop });
+        }
       }
     }
     return items;

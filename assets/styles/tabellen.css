@@ -127,12 +127,25 @@
 
 
 /* --- BORDER-SYSTEM (separate + right/bottom Pattern) --- */
+/* .grid-table.kooperation-video-grid noetig, damit die generischen
+   .grid-table-Regeln (collapse, Vollrahmen im thead) nicht greifen */
+.grid-table.kooperation-video-grid {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
 /* Basis: jede Zelle hat nur border-right + border-bottom */
-.kooperation-video-grid thead th,
-.kooperation-video-grid tbody td {
+.grid-table.kooperation-video-grid thead th,
+.grid-table.kooperation-video-grid tbody td {
   border: none;
   border-right: 1px solid var(--kampagne-grid-border);
   border-bottom: 1px solid var(--kampagne-grid-border);
+}
+
+/* Header zusaetzlich mit border-top (gilt auch fuer data-col 0/1,
+   deren generische !important-Rahmen unten ausgenommen werden) */
+.grid-table.kooperation-video-grid thead th {
+  border-top: 1px solid var(--kampagne-grid-border);
 }
 
 /* Kein Doppelborder links: main-content hat bereits 1px-Rand */
@@ -334,8 +347,11 @@
   border-bottom: 1px solid var(--gray-200);
 }
 
+/* Letzter Wrapper: keine eigene Trennlinie, die Zeilen-Border des <td>
+   uebernimmt – sonst doppelte Linie am Zellenende */
 .kooperation-video-grid .video-field-wrapper:last-child {
   padding-bottom: 0;
+  border-bottom: none;
 }
 
 .kooperation-video-grid .video-stack-cell {
@@ -402,9 +418,78 @@
   min-height: 0; /* Wichtig für flex-Kinder */
 }
 
-/* Lieferadresse Text mit Zeilenumbrüchen */
+/* Lieferadresse: Straße / PLZ Stadt / Land untereinander, linksbündig */
 .address-text {
   white-space: pre-line;
+}
+
+.kooperation-video-grid .address-text {
+  width: 100%;
+  text-align: left;
+}
+
+/* Adresse + Copy-Button nebeneinander */
+.address-cell {
+  display: flex;
+  align-items: flex-start;
+  width: 100%;
+  gap: var(--space-xs);
+}
+
+.address-cell .address-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.address-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin: var(--space-sm) var(--space-sm) 0 0;
+  padding: var(--space-xxs);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--gray-500);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.address-cell:hover .address-copy-btn,
+.address-copy-btn:focus-visible {
+  opacity: 1;
+}
+
+.address-copy-btn:hover {
+  color: var(--gray-700);
+  background: var(--gray-100);
+}
+
+.address-copy-btn.copied {
+  opacity: 1;
+  color: var(--success-700);
+}
+
+.address-line {
+  text-align: left;
+}
+
+.address-land-text {
+  color: var(--gray-500);
+}
+
+/* Telefonnummer-Spalte */
+.kooperation-video-grid .telefon-link {
+  display: block;
+  color: var(--gray-600);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.kooperation-video-grid .telefon-link:hover {
+  text-decoration: underline;
 }
 
 /* Vertrag Checkbox - zentriert */
@@ -760,6 +845,18 @@
   color: var(--text-secondary);
 }
 
+.empty-state .empty-icon--svg svg {
+  width: 48px;
+  height: 48px;
+  color: var(--gray-400);
+}
+
+.empty-state .empty-state-actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
 /* === GRID EDITOR === */
 
 /* Grid-View spezifische Styles für main-content und main-wrapper */
@@ -939,8 +1036,9 @@
   top: 0;
 }
 
-/* Erste Datenspalte fixieren */
-.grid-table thead th.col-header[data-col="0"] {
+/* Erste Datenspalte fixieren (nicht fuer die Kooperationstabelle,
+   die hat ihr eigenes Border-/Sticky-System) */
+.grid-table:not(.kooperation-video-grid) thead th.col-header[data-col="0"] {
   position: sticky !important;
 
   z-index: 999 !important; /* Über normalen Spalten */
@@ -949,11 +1047,11 @@
 }
 
 /* Zweite Datenspalte fixieren - left wird dynamisch per JS gesetzt */
-.grid-table thead th.col-header[data-col="1"] {
+.grid-table:not(.kooperation-video-grid) thead th.col-header[data-col="1"] {
   position: sticky !important;
   left: 180px; /* Initial-Wert, wird per JS überschrieben */
   z-index: 999 !important;
- 
+
   border: 1px solid var(--gray-300) !important; /* Normale Borders */
   border-right: 2px solid var(--gray-400) !important; /* Dickere rechte Border für Trennung */
 }

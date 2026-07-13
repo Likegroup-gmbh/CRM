@@ -14,7 +14,9 @@ export class TagFilterDropdown {
       tags: options.tags || [],
       selectedTags: options.selectedTags || [],
       onTagsChange: options.onTagsChange || (() => {}),
-      placeholder: options.placeholder || 'Tags filtern'
+      placeholder: options.placeholder || 'Tags filtern',
+      itemLabelSingular: options.itemLabelSingular || 'Tag',
+      itemLabelPlural: options.itemLabelPlural || 'Tags'
     };
 
     const existing = this.instances.get(entityType);
@@ -40,6 +42,12 @@ export class TagFilterDropdown {
     return this.instances.get(entityType)?.selectedTags || [];
   }
 
+  // Oeffentlicher Reset (z.B. fuer "Filter zuruecksetzen"-Buttons in Empty-States).
+  // Leert die Auswahl, rendert das Dropdown neu und feuert onTagsChange([]).
+  reset(entityType) {
+    this._resetTags(entityType);
+  }
+
   _renderDropdown(entityType) {
     const instance = this.instances.get(entityType);
     if (!instance) return '';
@@ -49,7 +57,9 @@ export class TagFilterDropdown {
     if (tags.length === 0) return '';
 
     const hasActive = selectedTags.length > 0;
-    const label = hasActive ? `${selectedTags.length} Tag${selectedTags.length > 1 ? 's' : ''}` : config.placeholder;
+    const label = hasActive
+      ? `${selectedTags.length} ${selectedTags.length > 1 ? config.itemLabelPlural : config.itemLabelSingular}`
+      : config.placeholder;
 
     return `
       <div class="tag-filter-dropdown" data-tag-entity="${entityType}">
@@ -166,7 +176,7 @@ export class TagFilterDropdown {
 
     if (label) {
       label.textContent = hasActive
-        ? `${instance.selectedTags.length} Tag${instance.selectedTags.length > 1 ? 's' : ''}`
+        ? `${instance.selectedTags.length} ${instance.selectedTags.length > 1 ? instance.config.itemLabelPlural : instance.config.itemLabelSingular}`
         : instance.config.placeholder;
     }
     toggle?.classList.toggle('tag-filter-active', hasActive);

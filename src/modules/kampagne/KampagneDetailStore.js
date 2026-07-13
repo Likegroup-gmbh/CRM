@@ -27,6 +27,7 @@ export class KampagneDetailStore {
 
     this.kooperationSort = DEFAULT_KOOPERATION_SORT;
     this.selectedTags = [];
+    this.selectedStatuses = [];
     this.rechnungStatusMap = {};
 
     // Custom Columns
@@ -123,12 +124,38 @@ export class KampagneDetailStore {
         (k._tags || []).some(tag => this.selectedTags.includes(tag))
       );
     }
+    if (this.selectedStatuses.length > 0) {
+      filtered = filtered.filter(k =>
+        this.selectedStatuses.includes(k.status_name || k.status_ref?.name || '')
+      );
+    }
     return filtered;
   }
 
   setSelectedTags(tags) {
     this.selectedTags = tags || [];
     this.emit('tags-filter-changed', this.selectedTags);
+  }
+
+  hasActiveFilters() {
+    return this.selectedTags.length > 0 || this.selectedStatuses.length > 0;
+  }
+
+  setSelectedStatuses(statuses) {
+    this.selectedStatuses = statuses || [];
+    this.emit('status-filter-changed', this.selectedStatuses);
+  }
+
+  getAvailableStatuses() {
+    if (this.statusOptions.length > 0) {
+      return this.statusOptions.map(s => s.name);
+    }
+    const statusSet = new Set();
+    for (const k of this.kooperationen) {
+      const name = k.status_name || k.status_ref?.name;
+      if (name) statusSet.add(name);
+    }
+    return [...statusSet].sort((a, b) => a.localeCompare(b, 'de'));
   }
 
   getAvailableTags() {
@@ -428,6 +455,7 @@ export class KampagneDetailStore {
     this.columnOrder = null;
     this.kooperationSort = DEFAULT_KOOPERATION_SORT;
     this.selectedTags = [];
+    this.selectedStatuses = [];
     this._loadedAssetVideoIds.clear();
   }
 }

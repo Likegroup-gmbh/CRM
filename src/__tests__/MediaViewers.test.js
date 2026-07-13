@@ -260,6 +260,34 @@ describe('MediaItemBuilder – flache Item-Liste', () => {
     const storyItems = items.filter(e => e.type === 'story');
     expect(storyItems.map(e => e.slot.id)).toEqual(['s2']);
   });
+
+  it('sortiert Bilder mit video_id direkt hinter ihr Video, unzugeordnete ans Koop-Ende', () => {
+    const koops = [{
+      id: 'k1',
+      _bilder: [
+        { id: 'imgAlt', file_url: 'iu0' },                    // Altdaten ohne video_id
+        { id: 'imgV2', file_url: 'iu2', video_id: 'v2' },
+        { id: 'imgV1', file_url: 'iu1', video_id: 'v1' },
+      ],
+    }];
+    const videos = {
+      k1: [{ id: 'v1', file_url: 'u1' }, { id: 'v2', file_url: 'u2' }],
+    };
+    const items = new MediaItemBuilder(makeFakeTable(koops, videos)).build();
+    expect(items.map(e => e.type === 'video' ? e.video.id : e.image.id))
+      .toEqual(['v1', 'imgV1', 'v2', 'imgV2', 'imgAlt']);
+    // Bild-Items mit video_id tragen ihr Video, unzugeordnete nicht
+    expect(items.find(e => e.type === 'bild' && e.image.id === 'imgV1').video.id).toBe('v1');
+    expect(items.find(e => e.type === 'bild' && e.image.id === 'imgAlt').video).toBeUndefined();
+  });
+
+  it('behandelt Bilder mit video_id eines geloeschten Videos als unzugeordnet', () => {
+    const koops = [{ id: 'k1', _bilder: [{ id: 'img1', file_url: 'iu1', video_id: 'geloescht' }] }];
+    const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
+    const items = new MediaItemBuilder(makeFakeTable(koops, videos)).build();
+    expect(items.map(e => e.type === 'video' ? e.video.id : e.image.id)).toEqual(['v1', 'img1']);
+    expect(items[1].video).toBeUndefined();
+  });
 });
 
 describe('MediaItemBuilder.ensureStorySlotsLoaded – on-demand Story-Slots', () => {
@@ -369,6 +397,16 @@ describe('VideoPlayerLightbox – Feedback-Ziel & Navigation', () => {
     expect(player.feedbackTarget()).toBeNull();
   });
 
+  it('feedbackTarget mappt Bild mit video_id auf sein Video (nicht erstes Koop-Video)', () => {
+    const koops = [{ id: 'k1', _bilder: [{ id: 'img1', file_url: 'iu1', video_id: 'v2' }] }];
+    const videos = {
+      k1: [{ id: 'v1', file_url: 'u1' }, { id: 'v2', file_url: 'u2' }],
+    };
+    const player = playerWith(koops, videos);
+    player.index = player.items.findIndex(e => e.type === 'bild');
+    expect(player.feedbackTarget().videoId).toBe('v2');
+  });
+
   it('Prev/Next-Grenzen via hasPrev/hasNext-Logik', () => {
     const koops = [{ id: 'k1' }];
     const videos = { k1: [{ id: 'v1', file_url: 'u1' }, { id: 'v2', file_url: 'u2' }] };
@@ -457,6 +495,39 @@ describe('VideoPlayerLightbox._open – kein Sprung auf fremde Kooperation', () 
     const player = openabledPlayer(koops, videos);
     await player.openStory('v1', 'k1');
     expect(player.current?.koop.id).toBe('k1');
+  });
+
+  it('openBilder(videoId, koopId) springt zum Bild des Videos, nicht zum ersten Bild der Koop', async () => {
+    const koops = [{
+      id: 'k1',
+      _bilder: [
+        { id: 'imgV1', file_url: 'iu1', video_id: 'v1' },
+        { id: 'imgV2', file_url: 'iu2', video_id: 'v2' },
+      ],
+    }];
+    const videos = { k1: [{ id: 'v1', file_url: 'u1' }, { id: 'v2', file_url: 'u2' }] };
+    const player = openabledPlayer(koops, videos);
+    await player.openBilder('v2', 'k1');
+    expect(player.current?.type).toBe('bild');
+    expect(player.current?.image.id).toBe('imgV2');
+  });
+
+  it('openBilder faellt auf unzugeordnete Altbilder zurueck, wenn das Video keine eigenen hat', async () => {
+    const koops = [{ id: 'k1', _bilder: [{ id: 'imgAlt', file_url: 'iu0' }] }];
+    const videos = { k1: [{ id: 'v1', file_url: 'u1' }, { id: 'v2', file_url: 'u2' }] };
+    const player = openabledPlayer(koops, videos);
+    await player.openBilder('v2', 'k1');
+    expect(player.current?.type).toBe('bild');
+    expect(player.current?.image.id).toBe('imgAlt');
+  });
+
+  it('openBilder ohne videoId (Alt-Signatur) oeffnet Bilder der Koop', async () => {
+    const koops = [{ id: 'k1', _bilder: [{ id: 'img1', file_url: 'iu1' }] }];
+    const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
+    const player = openabledPlayer(koops, videos);
+    await player.openBilder('k1');
+    expect(player.current?.type).toBe('bild');
+    expect(player.current?.image.id).toBe('img1');
   });
 });
 

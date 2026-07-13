@@ -8,6 +8,7 @@ import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { VideoRowHeightSync } from './VideoRowHeightSync.js';
 import { getVideoFeedbackSlotByField } from '../../core/VideoFeedbackBuckets.js';
 import { nutzungsrechteModal } from './NutzungsrechteModal.js';
+import { COPY_ICON, CHECK_ICON } from './VideoTableRenderer.js';
 
 export class VideoTableEventBinder {
   constructor(table) {
@@ -160,9 +161,30 @@ export class VideoTableEventBinder {
       const bilderBtn = e.target.closest('[data-action="view-bilder"]');
       if (bilderBtn) {
         e.preventDefault();
-        t._mediaViewer.openBilder(bilderBtn.dataset.kooperationId);
+        t._mediaViewer.openBilder(bilderBtn.dataset.videoId, bilderBtn.dataset.kooperationId);
         return;
       }
+    }, { signal });
+
+    // Adresse in die Zwischenablage kopieren (Inline-Feedback: Icon -> Haken)
+    container.addEventListener('click', (e) => {
+      const copyBtn = e.target.closest('[data-action="copy-address"]');
+      if (!copyBtn) return;
+      e.preventDefault();
+      if (!navigator.clipboard) {
+        window.toastSystem?.show('Adresse konnte nicht kopiert werden', 'error');
+        return;
+      }
+      navigator.clipboard.writeText(copyBtn.dataset.address || '')
+        .then(() => {
+          copyBtn.classList.add('copied');
+          copyBtn.innerHTML = CHECK_ICON;
+          setTimeout(() => {
+            copyBtn.classList.remove('copied');
+            copyBtn.innerHTML = COPY_ICON;
+          }, 1500);
+        })
+        .catch(() => window.toastSystem?.show('Adresse konnte nicht kopiert werden', 'error'));
     }, { signal });
 
     container.addEventListener('click', (e) => {
