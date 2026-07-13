@@ -64,8 +64,17 @@ export const CAMPAIGN_FIELD_SUFFIXES = [
   ...BUDGET_FIELD_SUFFIXES
 ];
 
+// Felder die NUR in auftrag_kampagnenart_blocks existieren (keine Legacy-Spalten
+// mit Chip-Prefix in auftrag_details/kampagne). Duerfen nicht in
+// CAMPAIGN_FIELD_SUFFIXES landen, sonst wuerde mapBudgetsToDbColumns
+// nicht existierende Spalten wie `ugc_paid_umsatz_netto` erzeugen.
+export const BLOCK_ONLY_FIELD_SUFFIXES = [
+  'umsatz_netto'
+];
+
 export const CAMPAIGN_BLOCK_FIELD_SUFFIXES = [
-  ...CAMPAIGN_FIELD_SUFFIXES
+  ...CAMPAIGN_FIELD_SUFFIXES,
+  ...BLOCK_ONLY_FIELD_SUFFIXES
 ];
 
 export const DEFAULT_CAMPAIGN_BLOCK_STATUS = 'offen';
@@ -102,6 +111,7 @@ export function createCampaignBlock(campaignType = 'ugc_paid') {
     einkaufspreis_netto_bis: null,
     verkaufspreis_netto_von: null,
     verkaufspreis_netto_bis: null,
+    umsatz_netto: null,
     budget_info: '',
     status: DEFAULT_CAMPAIGN_BLOCK_STATUS
   };
@@ -123,6 +133,7 @@ export function normalizeCampaignBlock(block = {}, fallbackType = 'ugc_paid') {
   normalized.einkaufspreis_netto_bis = parseNum(block.einkaufspreis_netto_bis);
   normalized.verkaufspreis_netto_von = parseNum(block.verkaufspreis_netto_von);
   normalized.verkaufspreis_netto_bis = parseNum(block.verkaufspreis_netto_bis);
+  normalized.umsatz_netto = parseNum(block.umsatz_netto);
   normalized.budget_info = block.budget_info || '';
   normalized.status = block.status || DEFAULT_CAMPAIGN_BLOCK_STATUS;
   return normalized;
@@ -139,6 +150,21 @@ export function normalizeCampaignBlocks(details = {}) {
     campaign_type: chipValue,
     ...(legacyBudgets[chipValue] || {})
   }, chipValue));
+}
+
+/**
+ * Summiert die gepflegten Block-Umsaetze (umsatz_netto). Blocks ohne Wert
+ * zaehlen als 0; hasAny zeigt an, ob ueberhaupt ein Wert gepflegt ist.
+ */
+export function sumBlockUmsatz(blocks = []) {
+  return (blocks || []).reduce((acc, block) => {
+    const n = parseNum(block.umsatz_netto);
+    if (n != null) {
+      acc.sum += n;
+      acc.hasAny = true;
+    }
+    return acc;
+  }, { sum: 0, hasAny: false });
 }
 
 export function getCampaignTypesFromBlocks(blocks = [], { unique = false } = {}) {
@@ -244,6 +270,7 @@ export function generateBudgetBlockHtml(block, campaignTypes = [], index = 0) {
     ek_bis: domId(blockId, 'einkaufspreis_netto_bis'),
     vk_von: domId(blockId, 'verkaufspreis_netto_von'),
     vk_bis: domId(blockId, 'verkaufspreis_netto_bis'),
+    umsatz: domId(blockId, 'umsatz_netto'),
     info: domId(blockId, 'budget_info')
   };
 
@@ -287,6 +314,14 @@ export function generateBudgetBlockHtml(block, campaignTypes = [], index = 0) {
                    min="0" step="0.01" value="${v.verkaufspreis_netto_bis ?? ''}" placeholder="Bis">
           </div>
           <small class="form-hint">Preis pro Einheit</small>
+        </div>
+      </div>
+      <div class="form-two-col">
+        <div class="form-field form-field--half">
+          <label for="${ids.umsatz}">Umsatz netto (€)</label>
+          <input type="number" id="${ids.umsatz}" data-block-id="${escapeHtml(blockId)}" data-field="umsatz_netto"
+                 min="0" step="0.01" value="${v.umsatz_netto ?? ''}" placeholder="z.B. 10000">
+          <small class="form-hint">Anteil dieser Kampagnenart am Auftrags-Nettobetrag</small>
         </div>
       </div>
       <div class="form-field form-field--full">

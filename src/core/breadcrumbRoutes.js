@@ -33,6 +33,7 @@ const ROUTE_CONFIG = {
   ausgangsrechnungen: { label: 'Kundenrechnungen', icon: 'icon-currency-euro' },
   profile:            { label: 'Profil',            icon: 'icon-user-circle' },
   transcribe:         { label: 'Transkription (Test)', icon: 'icon-video' },
+  stakeholder:        { label: 'Stakeholder-Übersicht', icon: 'icon-dashboard' },
 };
 
 const ROLE_OVERRIDES = {

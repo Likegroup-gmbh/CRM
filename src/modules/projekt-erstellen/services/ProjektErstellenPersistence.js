@@ -305,6 +305,7 @@ export class ProjektErstellenPersistence {
         einkaufspreis_netto_bis: block.einkaufspreis_netto_bis ?? null,
         verkaufspreis_netto_von: block.verkaufspreis_netto_von ?? null,
         verkaufspreis_netto_bis: block.verkaufspreis_netto_bis ?? null,
+        umsatz_netto: block.umsatz_netto ?? null,
         budget_info: block.budget_info || null,
         status: block.status || DEFAULT_CAMPAIGN_BLOCK_STATUS,
         created_by_id: createdById || null

@@ -297,6 +297,7 @@ export class ProjektErstellenEditLoader {
       einkaufspreis_netto_bis: b.einkaufspreis_netto_bis ?? null,
       verkaufspreis_netto_von: b.verkaufspreis_netto_von ?? null,
       verkaufspreis_netto_bis: b.verkaufspreis_netto_bis ?? null,
+      umsatz_netto: b.umsatz_netto ?? null,
       budget_info: b.budget_info || '',
       status: b.status || 'offen'
     }));

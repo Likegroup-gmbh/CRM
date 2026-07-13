@@ -10,6 +10,7 @@ import {
   getCampaignTypesFromBlocks,
   normalizeCampaignBlocks,
   readBudgetValuesFromDom,
+  sumBlockUmsatz,
   CAMPAIGN_BLOCK_FIELD_SUFFIXES
 } from '../logic/CampaignBudgetFields.js';
 import { AgencyServicesBlock } from '../components/AgencyServicesBlock.js';
@@ -41,6 +42,7 @@ export class StepKampagnenarten {
             <button type="button" class="secondary-btn" id="pe-add-campaign-block-btn">Hinzufügen</button>
           </div>
           <div id="pe-campaign-budgets-host" class="projekt-erstellen-budget-host"></div>
+          <div id="pe-campaign-umsatz-hint" class="projekt-erstellen-umsatz-hint" style="display:none;"></div>
         </div>
 
         <div id="pe-agency-host"></div>
@@ -96,6 +98,15 @@ export class StepKampagnenarten {
           display: flex;
           justify-content: flex-end;
           margin-bottom: var(--space-sm);
+        }
+        .projekt-erstellen-umsatz-hint {
+          margin-top: var(--space-sm);
+          padding: var(--space-sm);
+          border-radius: var(--radius-sm, 6px);
+          background: var(--warning-50, #fff8e6);
+          border: 1px solid var(--warning-300, #f0c869);
+          color: var(--warning-800, #8a6100);
+          font-size: var(--text-sm);
         }
       `;
       document.head.appendChild(style);
@@ -156,6 +167,27 @@ export class StepKampagnenarten {
     this.wizard.formData.details.campaign_blocks = normalized;
     this.wizard.formData.details.campaign_type = getCampaignTypesFromBlocks(normalized);
     this.wizard.formData.details.campaign_budgets = aggregateCampaignBlocksForLegacy(normalized);
+    this.updateUmsatzHint(normalized);
+  }
+
+  // Soft-Hinweis (kein Blocker): Summe der Block-Umsaetze vs. Auftrags-Nettobetrag
+  updateUmsatzHint(blocks) {
+    const hint = document.getElementById('pe-campaign-umsatz-hint');
+    if (!hint) return;
+
+    const { sum, hasAny } = sumBlockUmsatz(blocks);
+    const nettoRaw = this.wizard.formData?.auftrag?.nettobetrag;
+    const netto = nettoRaw === '' || nettoRaw == null ? null : parseFloat(nettoRaw);
+
+    if (!hasAny || netto == null || isNaN(netto) || Math.abs(sum - netto) <= 1) {
+      hint.style.display = 'none';
+      hint.textContent = '';
+      return;
+    }
+
+    const fmt = (n) => n.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    hint.style.display = '';
+    hint.textContent = `Hinweis: Die Summe der Kampagnenart-Umsätze (${fmt(sum)} €) weicht vom Auftrags-Nettobetrag (${fmt(netto)} €) ab.`;
   }
 
   renderBudgetSections() {
