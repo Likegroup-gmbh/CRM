@@ -137,6 +137,19 @@ export function setupEvents(detail) {
     }, { signal });
   }
 
+  // Kampagne teilen (Gast-Zugang per E-Mail)
+  const btnShareKampagne = document.getElementById('btn-share-kampagne');
+  if (btnShareKampagne) {
+    btnShareKampagne.addEventListener('click', (e) => {
+      e.preventDefault();
+      window.shareListDialog?.open({
+        entityType: 'kampagne',
+        entityId: detail.kampagneId,
+        entityName: KampagneUtils.getDisplayName(detail.kampagneData) || detail.kampagneData?.kampagnenname || ''
+      });
+    }, { signal });
+  }
+
   // Bearbeiten Button → Wizard mit auftrag_id
   document.addEventListener('click', async (e) => {
     if (e.target.closest('#btn-edit-kampagne') || e.target.closest('#btn-edit-kampagne-bottom')) {

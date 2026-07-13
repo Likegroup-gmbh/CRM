@@ -256,9 +256,10 @@ export class StrategieService {
     }
 
     // Berechtigungsprüfung für Nicht-Admins
+    // Gäste (Share-Link): Zugriff wird serverseitig via RLS auf die geteilte Liste beschränkt
     const user = window.currentUser;
     
-    if (!window.isAdmin() && data?.kampagne_id) {
+    if (!window.isAdmin() && !window.isGast?.() && data?.kampagne_id) {
       const allowedKampagneIds = await this._getAllowedKampagneIds(user);
       
       if (!allowedKampagneIds.includes(data.kampagne_id)) {

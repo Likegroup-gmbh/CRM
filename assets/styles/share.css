@@ -1,0 +1,227 @@
+/* ===================================================================
+   Listen-Sharing: Gast-Shell + Share-Dialog + Gast-Onboarding
+   =================================================================== */
+
+/* --- Gast-Shell: keine Sidebar, keine Header-Aktionen --- */
+
+#app-root.guest-mode .sidebar {
+  display: none;
+}
+
+#app-root.guest-mode .main-content {
+  margin-left: 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+#app-root.guest-mode .header-actions {
+  display: none;
+}
+
+/* --- Gast-Onboarding (Name + Code) --- */
+
+.guest-onboarding {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg, #f4f4f5);
+  padding: 24px;
+}
+
+.guest-onboarding-card {
+  background: var(--color-surface, #ffffff);
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  padding: 32px;
+  max-width: 420px;
+  width: 100%;
+}
+
+.guest-onboarding-card h2 {
+  margin: 0 0 12px 0;
+  font-size: 1.25rem;
+}
+
+.guest-onboarding-info {
+  color: var(--text-secondary, #666);
+  font-size: 0.9rem;
+  margin: 0 0 20px 0;
+}
+
+.guest-onboarding-card .label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.guest-onboarding-card .input {
+  width: 100%;
+  margin-bottom: 12px;
+  box-sizing: border-box;
+}
+
+.guest-btn {
+  width: 100%;
+}
+
+.guest-link-btn {
+  display: block;
+  margin: 10px auto 0;
+  background: none;
+  border: none;
+  color: var(--color-primary, #4f46e5);
+  cursor: pointer;
+  font-size: 0.85rem;
+  text-decoration: underline;
+}
+
+.guest-onboarding-error {
+  color: #dc2626;
+  font-size: 0.85rem;
+  margin: 12px 0 0 0;
+}
+
+/* --- Share-Dialog --- */
+
+.share-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.share-dialog {
+  background: var(--color-surface, #ffffff);
+  border-radius: 12px;
+  width: 560px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.16);
+}
+
+.share-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 0 24px;
+}
+
+.share-dialog-header h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-dialog-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary, #666);
+  padding: 4px;
+}
+
+.share-dialog-body {
+  padding: 12px 24px 24px 24px;
+}
+
+.share-dialog-hint {
+  color: var(--text-secondary, #666);
+  font-size: 0.85rem;
+  margin: 0 0 16px 0;
+}
+
+.share-dialog-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.share-dialog-form #share-email-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.share-rechte-select {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.share-dialog-message {
+  font-size: 0.85rem;
+  margin: 10px 0 0 0;
+}
+
+.share-dialog-message--error { color: #dc2626; }
+.share-dialog-message--success { color: #16a34a; }
+.share-dialog-message--info { color: var(--text-secondary, #666); }
+
+.share-dialog-list {
+  margin-top: 20px;
+  border-top: 1px solid var(--color-table-border, #eee);
+  padding-top: 14px;
+}
+
+.share-dialog-list h4 {
+  margin: 0 0 10px 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary, #666);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.share-dialog-empty {
+  color: var(--text-secondary, #999);
+  font-size: 0.85rem;
+}
+
+.share-recipient-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-table-border, #f0f0f0);
+}
+
+.share-recipient-row:last-child {
+  border-bottom: none;
+}
+
+.share-recipient-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.share-recipient-email {
+  font-size: 0.9rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-recipient-meta {
+  font-size: 0.78rem;
+  color: var(--text-secondary, #888);
+}
+
+.share-recipient-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.share-recipient-rechte {
+  font-size: 0.8rem;
+  padding: 4px 8px;
+}

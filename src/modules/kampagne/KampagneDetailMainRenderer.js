@@ -48,15 +48,17 @@ export function renderMainPage(state) {
   } = state;
 
   const canCreateKooperation = window.currentUser?.permissions?.kooperation?.can_edit || false;
+  const canShare = typeof window.isInternal === 'function' && window.isInternal();
 
   const kampagneName = KampagneUtils.getDisplayName(kampagneData) || kampagneData?.kampagnenname || '';
 
   return `
     <div class="page-header">
       <h2 class="page-header-title">${window.validatorSystem?.sanitizeHtml(kampagneName) || ''}</h2>
-      ${canCreateKooperation ? `
+      ${(canCreateKooperation || canShare) ? `
       <div class="page-header-right">
-        <button id="btn-new-kooperation" class="primary-btn">Kooperation anlegen</button>
+        ${canShare ? `<button id="btn-share-kampagne" class="secondary-btn" title="Liste per E-Mail teilen">Teilen</button>` : ''}
+        ${canCreateKooperation ? `<button id="btn-new-kooperation" class="primary-btn">Kooperation anlegen</button>` : ''}
       </div>
       ` : ''}
     </div>

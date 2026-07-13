@@ -211,6 +211,7 @@ export class CreatorAuswahlDetail {
       tabCounts: this.getTabCounts(),
       liste: this.liste,
       isKunde: this.isKunde,
+      gastReadonly: window.isGastReadonly?.() || false,
       hiddenColumns: this.hiddenColumns,
       kundenCallActive: this.kundenCallActive,
       teilbereiche: getTeilbereicheFromListe(this.liste),
@@ -301,6 +302,17 @@ export class CreatorAuswahlDetail {
     }
 
     if (!this.isKunde) {
+      const shareBtn = document.getElementById('btn-share-sourcing');
+      if (shareBtn) {
+        const handler = () => window.shareListDialog?.open({
+          entityType: 'sourcing',
+          entityId: this.listeId,
+          entityName: this.liste?.name || ''
+        });
+        shareBtn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => shareBtn.removeEventListener('click', handler));
+      }
+
       const kundenCallBtn = document.getElementById('btn-kunden-call-toggle');
       if (kundenCallBtn) {
         const handler = () => this.toggleKundenCall();
@@ -681,10 +693,19 @@ export class CreatorAuswahlDetail {
         return;
       }
 
-      await creatorAuswahlService.updateItem(itemId, { [field]: value });
+      const updates = { [field]: value };
+
+      // Kunden-Feedback: Autor + Zeitstempel mitschreiben (Kunde und Gast)
+      if (field === 'feedback_kunde' && this.isKunde) {
+        const authorName = window.currentUser?.name || 'Unbekannt';
+        updates.feedback_kunde_author_name = window.isGast?.() ? `${authorName} (Gast)` : authorName;
+        updates.feedback_kunde_updated_at = new Date().toISOString();
+      }
+
+      await creatorAuswahlService.updateItem(itemId, updates);
 
       const item = this.items.find(i => i.id === itemId);
-      if (item) item[field] = value;
+      if (item) Object.assign(item, updates);
     } catch (error) {
       console.error('Fehler beim Aktualisieren:', error);
       window.toastSystem?.show('Fehler beim Speichern', 'error');

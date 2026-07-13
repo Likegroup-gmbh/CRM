@@ -149,10 +149,11 @@ export function renderItemRow(detail, item, index) {
       </td>
       <td class="cell-textarea">
         <textarea 
-          class="strategie-textarea" 
+          class="strategie-textarea${window.isGastReadonly?.() ? ' readonly-textarea' : ''}" 
           placeholder="Creator..."
           data-field="creator_name"
           data-item-id="${item.id}"
+          ${window.isGastReadonly?.() ? 'readonly' : ''}
         >${item.creator_name || ''}</textarea>
       </td>
       <td class="cell-textarea">
@@ -169,12 +170,16 @@ export function renderItemRow(detail, item, index) {
       </td>
       <td class="cell-textarea">
         <textarea 
-          class="strategie-textarea ${detail.isKunde ? '' : 'readonly-textarea'}" 
-          placeholder="${detail.isKunde ? 'Ihre Anmerkung...' : 'Anmerkung Kunde...'}"
+          class="strategie-textarea ${(detail.isKunde && !window.isGastReadonly?.()) ? '' : 'readonly-textarea'}" 
+          placeholder="${(detail.isKunde && !window.isGastReadonly?.()) ? 'Ihre Anmerkung...' : 'Anmerkung Kunde...'}"
           data-field="kunde_anmerkung"
           data-item-id="${item.id}"
-          ${detail.isKunde ? '' : 'readonly'}
+          ${(detail.isKunde && !window.isGastReadonly?.()) ? '' : 'readonly'}
         >${item.kunde_anmerkung || ''}</textarea>
+        ${item.kunde_anmerkung && item.kunde_anmerkung_author_name ? `
+          <div class="feedback-author-meta" style="font-size:0.72rem;color:var(--text-secondary,#999);padding:2px 4px;">
+            ${item.kunde_anmerkung_author_name}${item.kunde_anmerkung_updated_at ? ` · ${new Date(item.kunde_anmerkung_updated_at).toLocaleDateString('de-DE')}` : ''}
+          </div>` : ''}
       </td>
       <td style="text-align: center;">
         <input 
@@ -182,6 +187,7 @@ export function renderItemRow(detail, item, index) {
           ${item.prio_1 ? 'checked' : ''} 
           data-field="prio_1"
           data-item-id="${item.id}"
+          ${window.isGastReadonly?.() ? 'disabled' : ''}
           style="width: 20px; height: 20px; cursor: pointer;"
         >
       </td>
@@ -191,6 +197,7 @@ export function renderItemRow(detail, item, index) {
           ${item.prio_2 ? 'checked' : ''} 
           data-field="prio_2"
           data-item-id="${item.id}"
+          ${window.isGastReadonly?.() ? 'disabled' : ''}
           style="width: 20px; height: 20px; cursor: pointer;"
         >
       </td>
@@ -200,6 +207,7 @@ export function renderItemRow(detail, item, index) {
             class="strategie-umgesetzt-toggle"
             data-field="video_umgesetzt"
             data-item-id="${item.id}"
+            ${window.isGastReadonly?.() ? 'disabled' : ''}
             ${isUmgesetzt ? 'checked' : ''}>
           <span class="toggle-slider"></span>
         </label>
@@ -210,6 +218,7 @@ export function renderItemRow(detail, item, index) {
           ${item.nicht_umsetzen ? 'checked' : ''} 
           data-field="nicht_umsetzen"
           data-item-id="${item.id}"
+          ${window.isGastReadonly?.() ? 'disabled' : ''}
           style="width: 20px; height: 20px; cursor: pointer;"
         >
       </td>

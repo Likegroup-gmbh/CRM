@@ -105,7 +105,10 @@ export class KampagneKooperationenVideoTable {
 
   isFieldEditableForUser(entity, field) {
     if (window.canSeePricing()) return true;
-    
+
+    // Gast mit reinem Ansehen-Recht: nichts editierbar
+    if (window.isGastReadonly?.()) return false;
+
     if (this.isKundeRole()) {
       const readOnlyFieldsForKunden = {
         'kooperation': ['vertrag_unterschrieben', 'typ', 'nutzungsrechte'],

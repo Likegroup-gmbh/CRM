@@ -331,11 +331,20 @@ export async function handleFieldUpdate(detail, element) {
 
 export async function updateItemField(detail, itemId, field, value) {
   try {
-    await strategieService.updateStrategieItem(itemId, { [field]: value });
+    const updates = { [field]: value };
+
+    // Kunden-Anmerkung: Autor + Zeitstempel mitschreiben (Kunde und Gast)
+    if (field === 'kunde_anmerkung' && window.isKunde?.()) {
+      const authorName = window.currentUser?.name || 'Unbekannt';
+      updates.kunde_anmerkung_author_name = window.isGast?.() ? `${authorName} (Gast)` : authorName;
+      updates.kunde_anmerkung_updated_at = new Date().toISOString();
+    }
+
+    await strategieService.updateStrategieItem(itemId, updates);
     
     const item = detail.items.find(i => i.id === itemId);
     if (item) {
-      item[field] = value;
+      Object.assign(item, updates);
     }
   } catch (error) {
     console.error('Fehler beim Aktualisieren des Items:', error);

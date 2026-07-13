@@ -67,7 +67,8 @@ export class NavigationSystem {
         title: 'Admin',
         items: [
           { id: 'mitarbeiter', label: 'Mitarbeiter', icon: 'icon-users', url: '/mitarbeiter' },
-          { id: 'kunden-admin', label: 'Kunden', icon: 'icon-user-circle', url: '/admin/kunden' }
+          { id: 'kunden-admin', label: 'Kunden', icon: 'icon-user-circle', url: '/admin/kunden' },
+          { id: 'shares', label: 'Geteilte Listen', icon: 'icon-list', url: '/shares' }
         ]
       },
       {
@@ -104,6 +105,11 @@ export class NavigationSystem {
       if (id === 'projekt-erstellen') {
         if (typeof window.canCreateProject === 'function' && !window.canCreateProject()) return false;
         if (typeof window.canCreateProject !== 'function') return false;
+      }
+
+      // Geteilte Listen: nur intern (Admin + Mitarbeiter)
+      if (id === 'shares') {
+        return typeof window.isInternal === 'function' && window.isInternal();
       }
       
       // 1) Page-Scoped Check (DB-Overrides)

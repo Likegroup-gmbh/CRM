@@ -33,6 +33,19 @@ export class ModuleRegistry {
   }
 
   async _doNavigate(route, skipPushState = false) {
+    // Gast-Modus (Share-Link): strikt nur die geteilte Entität, keine anderen Routen
+    if (window.guestShare) {
+      const normalizedRoute = String(route || '').split(/[?#]/)[0];
+      const allowed = window.guestShare.allowedRoute;
+      if (normalizedRoute !== allowed && !normalizedRoute.startsWith(`${allowed}/`)) {
+        console.log('🚫 Navigation blockiert: Gast-Zugang ist auf die geteilte Liste beschränkt');
+        window.toastSystem?.show('Ihr Zugang ist auf die geteilte Liste beschränkt.', 'warning');
+        return;
+      }
+      // URL bleibt beim Share-Link (Reload-fähig)
+      skipPushState = true;
+    }
+
     if (window.currentUser?.isBlocked === true) {
       const allowedRoutes = ['/', '/dashboard', ''];
       const normalizedRoute = route.startsWith('/') ? route : `/${route}`;

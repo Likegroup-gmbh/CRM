@@ -15,6 +15,8 @@ import '../assets/styles/dashboard.css';
 import '../assets/styles/addresses.css';
 import '../assets/styles/tabellen.css';
 import '../assets/styles/toast.css';
+import '../assets/styles/share.css';
+import '../assets/styles/stakeholder.css';
 
 import { CONFIG } from './core/ConfigSystem.js';
 import { modularFilterSystem as filterSystem } from './core/filters/ModularFilterSystem.js';
@@ -94,6 +96,9 @@ import { projektErstellenModule } from './modules/projekt-erstellen/ProjektErste
 import { kickOffList } from './modules/kickoff/KickOffList.js';
 import { kickOffDetail } from './modules/kickoff/KickOffDetail.js';
 import { transcribeTestPage } from './modules/transcribe/TranscribeTestPage.js';
+import { stakeholderOverviewPage } from './modules/stakeholder/StakeholderOverviewPage.js';
+import { sharesAdminPage } from './modules/shares/SharesAdminPage.js';
+import './core/components/ShareListDialog.js';
 import { globalSearch } from './core/components/GlobalSearch.js';
 import { backgroundUploadPanel } from './core/components/BackgroundUploadPanel.js';
 import { backgroundUploadService } from './core/BackgroundUploadService.js';
@@ -177,6 +182,8 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('projekt-erstellen', projektErstellenModule);
   moduleRegistry.register('ausgangsrechnungen', ausgangsrechnungenList);
   moduleRegistry.register('transcribe', transcribeTestPage);
+  moduleRegistry.register('stakeholder', stakeholderOverviewPage);
+  moduleRegistry.register('shares', sharesAdminPage);
   
   // Profile-Modul initialisieren und registrieren (V2 - neue Version mit zweispaltigem Layout)
   const profileDetailV2 = new ProfileDetailV2();
@@ -349,6 +356,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Token im Hash beibehalten für die Reset-Seite
     window.location.href = '/src/auth/reset-password.html' + window.location.hash;
     return; // Stoppe weitere Ausführung
+  }
+
+  // Gast-Zugang über Share-Link (/share/:token) - VOR dem Auth-Gate
+  const shareMatch = window.location.pathname.match(/^\/share\/([0-9a-f]{32,})$/i);
+  if (shareMatch) {
+    console.log('🔗 Share-Link erkannt - starte Gast-Modus');
+    const { initGuestShare } = await import('./modules/share/GuestShareApp.js');
+    await initGuestShare(shareMatch[1]);
+    return; // Kein normaler Auth-Flow
   }
 
   // Auth-Check durchführen

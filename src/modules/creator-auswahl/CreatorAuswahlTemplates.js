@@ -103,6 +103,9 @@ export function renderAddSection(ctx = {}) {
   return `
     <div class="add-item-section add-item-section--compact">
       <div class="add-item-actions-right">
+        <button type="button" class="secondary-btn" id="btn-share-sourcing" title="Liste per E-Mail teilen">
+          Teilen
+        </button>
         <button type="button" class="secondary-btn${kundenCallActive ? ' active' : ''}" id="btn-kunden-call-toggle" title="EK und CPM für Kundenpräsentation ausblenden">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
             <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
@@ -420,12 +423,16 @@ export function renderItemRow(ctx, item, index) {
       </td>
       <td class="cell-textarea cp-col-feedback" style="${hide('cp-col-feedback')}">
         <textarea
-          class="strategie-textarea auto-resize-textarea ${ctx.isKunde ? '' : 'readonly-textarea'}"
+          class="strategie-textarea auto-resize-textarea ${(ctx.isKunde && !ctx.gastReadonly) ? '' : 'readonly-textarea'}"
           data-field="feedback_kunde"
           data-item-id="${item.id}"
-          placeholder="${ctx.isKunde ? 'Ihr Feedback...' : 'Rückmeldung Kunde...'}"
-          ${ctx.isKunde ? '' : 'readonly'}
+          placeholder="${(ctx.isKunde && !ctx.gastReadonly) ? 'Ihr Feedback...' : 'Rückmeldung Kunde...'}"
+          ${(ctx.isKunde && !ctx.gastReadonly) ? '' : 'readonly'}
         >${item.feedback_kunde || ''}</textarea>
+        ${item.feedback_kunde && item.feedback_kunde_author_name ? `
+          <div class="feedback-author-meta" style="font-size:0.72rem;color:var(--text-secondary,#999);padding:2px 4px;">
+            ${item.feedback_kunde_author_name}${item.feedback_kunde_updated_at ? ` · ${new Date(item.feedback_kunde_updated_at).toLocaleDateString('de-DE')}` : ''}
+          </div>` : ''}
       </td>
       <td class="cp-col-anfragen" style="${hide('cp-col-anfragen')}">
         <div class="angefragt-cell">
@@ -442,18 +449,18 @@ export function renderItemRow(ctx, item, index) {
       </td>
       <td class="cp-col-onhold" style="${hide('cp-col-onhold')}">
         <div class="onhold-cell">
-          <input type="checkbox" ${item.on_hold ? 'checked' : ''} data-field="on_hold" data-item-id="${item.id}" class="cp-checkbox${item.absage ? ' cp-checkbox--disabled' : ''}" ${item.absage ? 'disabled' : ''}>
+          <input type="checkbox" ${item.on_hold ? 'checked' : ''} data-field="on_hold" data-item-id="${item.id}" class="cp-checkbox${(item.absage || ctx.gastReadonly) ? ' cp-checkbox--disabled' : ''}" ${(item.absage || ctx.gastReadonly) ? 'disabled' : ''}>
           ${item.on_hold_am ? `<span class="onhold-datum">${new Date(item.on_hold_am).toLocaleDateString('de-DE')}</span>` : ''}
         </div>
       </td>
       <td class="cp-col-buchen" style="${hide('cp-col-buchen')}">
-        <input type="checkbox" ${item.gebucht ? 'checked' : ''} data-field="gebucht" data-item-id="${item.id}" class="cp-checkbox${item.absage ? ' cp-checkbox--disabled' : ''}" ${item.absage ? 'disabled' : ''}>
+        <input type="checkbox" ${item.gebucht ? 'checked' : ''} data-field="gebucht" data-item-id="${item.id}" class="cp-checkbox${(item.absage || ctx.gastReadonly) ? ' cp-checkbox--disabled' : ''}" ${(item.absage || ctx.gastReadonly) ? 'disabled' : ''}>
       </td>
       <td class="cp-col-prio1" style="${hide('cp-col-prio1')}">
-        <input type="checkbox" ${item.prio_1 ? 'checked' : ''} data-field="prio_1" data-item-id="${item.id}" class="cp-checkbox${item.absage ? ' cp-checkbox--disabled' : ''}" ${item.absage ? 'disabled' : ''}>
+        <input type="checkbox" ${item.prio_1 ? 'checked' : ''} data-field="prio_1" data-item-id="${item.id}" class="cp-checkbox${(item.absage || ctx.gastReadonly) ? ' cp-checkbox--disabled' : ''}" ${(item.absage || ctx.gastReadonly) ? 'disabled' : ''}>
       </td>
       <td class="cp-col-prio2" style="${hide('cp-col-prio2')}">
-        <input type="checkbox" ${item.prio_2 ? 'checked' : ''} data-field="prio_2" data-item-id="${item.id}" class="cp-checkbox${item.absage ? ' cp-checkbox--disabled' : ''}" ${item.absage ? 'disabled' : ''}>
+        <input type="checkbox" ${item.prio_2 ? 'checked' : ''} data-field="prio_2" data-item-id="${item.id}" class="cp-checkbox${(item.absage || ctx.gastReadonly) ? ' cp-checkbox--disabled' : ''}" ${(item.absage || ctx.gastReadonly) ? 'disabled' : ''}>
       </td>
       <td class="cp-col-absagen" style="${hide('cp-col-absagen')}">
         <div class="absage-cell">

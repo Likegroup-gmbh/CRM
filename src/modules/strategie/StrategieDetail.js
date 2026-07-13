@@ -109,6 +109,9 @@ export class StrategieDetail {
     return `
       <div class="add-item-section add-item-section--compact">
         <div class="add-item-actions-right">
+          <button type="button" class="secondary-btn" id="btn-share-strategie" title="Liste per E-Mail teilen">
+            Teilen
+          </button>
           <button type="button" class="primary-btn" id="btn-open-add-drawer">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -219,6 +222,17 @@ export class StrategieDetail {
     this._boundEventListeners.add(() => window.removeEventListener('strategieItemCreated', itemCreatedHandler));
 
     if (!this.isKunde) {
+      const shareBtn = document.getElementById('btn-share-strategie');
+      if (shareBtn) {
+        const handler = () => window.shareListDialog?.open({
+          entityType: 'strategie',
+          entityId: this.strategieId,
+          entityName: this.strategie?.name || ''
+        });
+        shareBtn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => shareBtn.removeEventListener('click', handler));
+      }
+
       const openDrawerBtn = document.getElementById('btn-open-add-drawer');
       if (openDrawerBtn) {
         const handler = () => this.openAddItemDrawer();

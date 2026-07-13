@@ -56,6 +56,18 @@ const BASE_PERMISSIONS = {
 // kunde_editor ist aktuell identisch mit kunde; spaeter koennen hier Abweichungen definiert werden
 BASE_PERMISSIONS.kunde_editor = { ...BASE_PERMISSIONS.kunde };
 
+// gast: Zugang nur ueber geteilte Listen (list_shares). Sieht ausschliesslich
+// die per Share-Link freigegebene Entitaet; Schreibrechte steuert der Share
+// selbst (rechte: 'ansehen' | 'feedback'), nicht diese Matrix.
+BASE_PERMISSIONS.gast = {
+  ...allOf(F),
+  kampagne:    { ...V },
+  kooperation: { ...V },
+  videos:      { ...V },
+  sourcing:    { ...V },
+  strategie:   { ...V },
+};
+
 const DEFAULT_PERMISSIONS = {
   ...allOf(F),
   dashboard: { ...V },
@@ -84,7 +96,12 @@ export class PermissionSystem {
   // ============================================
 
   get isAdmin()       { return this._normalizedRole === 'admin'; }
-  get isKunde()       { return this._normalizedRole === 'kunde' || this._normalizedRole === 'kunde_editor'; }
+  // Gast zaehlt bewusst als "Kunde" fuer Rendering-Pfade (Preise verstecken,
+  // Kunden-Feedback-Felder, ausgeblendete Admin-Aktionen). Feinsteuerung
+  // (readonly vs. feedback) laeuft ueber isGastReadonly / window.guestShare.
+  get isKunde()       { return this._normalizedRole === 'kunde' || this._normalizedRole === 'kunde_editor' || this.isGast; }
+  get isGast()        { return this._normalizedRole === 'gast'; }
+  get isGastReadonly() { return this.isGast && window.guestShare?.rechte !== 'feedback'; }
   get isKundeEditor() { return this._normalizedRole === 'kunde_editor'; }
   get isMitarbeiter() { return this._normalizedRole === 'mitarbeiter'; }
   get isPending()     { return this._normalizedRole === 'pending'; }
@@ -302,6 +319,8 @@ if (typeof window !== 'undefined') {
   // Neue Rollen-Helper
   window.isAdmin        = () => permissionSystem.isAdmin;
   window.isKunde        = () => permissionSystem.isKunde;
+  window.isGast         = () => permissionSystem.isGast;
+  window.isGastReadonly = () => permissionSystem.isGastReadonly;
   window.isKundeEditor  = () => permissionSystem.isKundeEditor;
   window.isMitarbeiter  = () => permissionSystem.isMitarbeiter;
   window.isPending      = () => permissionSystem.isPending;

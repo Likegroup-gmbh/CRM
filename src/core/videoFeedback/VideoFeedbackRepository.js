@@ -26,6 +26,10 @@ export async function saveVideoFeedbackSlot({ videoId, slot, text, user, select 
   const trimmed = (text || '').trim();
   const nowIso = new Date().toISOString();
 
+  // Gaeste (Share-Link ohne Account) werden in Kommentaren als "Name (Gast)" attribuiert
+  const baseName = user?.name || 'Unbekannt';
+  const authorName = String(user?.rolle || '').toLowerCase() === 'gast' ? `${baseName} (Gast)` : baseName;
+
   if (trimmed) {
     const { data, error } = await window.supabase
       .from('kooperation_video_comment')
@@ -35,7 +39,7 @@ export async function saveVideoFeedbackSlot({ videoId, slot, text, user, select 
         feedback_typ: slot.feedback_typ,
         text: trimmed,
         author_benutzer_id: user?.id || null,
-        author_name: user?.name || 'Unbekannt',
+        author_name: authorName,
         is_public: true,
         deleted_at: null,
         deleted_by_benutzer_id: null,

@@ -221,6 +221,14 @@ export class VideoTableRenderer {
           })}
         </td>
         <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-thema') ? 'style="display:none;"' : ''}>
+          ${this.renderVideoFieldStack(videos, (video) => `
+            <input type="text" class="grid-input stacked-video-input"
+              data-entity="video" data-id="${video.id}" data-field="thema"
+              ${!t.isFieldEditableForUser('video', 'thema') ? 'readonly' : ''}
+              value="${this.escapeHtml(video.thema || '')}" placeholder="Thema"/>
+          `)}
+        </td>
+        <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-idee-strategie') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => {
             const canLink = !t.isKundeRole();
             if (video.strategie_item && video.strategie_item.screenshot_url) {
@@ -419,8 +427,9 @@ export class VideoTableRenderer {
         <td class="grid-cell video-stack-cell checkbox-stack" ${!t.isColumnVisibleForCustomer('col-freigabe') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => `
             <div class="stacked-video-checkbox-wrapper">
-              <input type="checkbox" class="grid-checkbox stacked-video-checkbox" 
+              <input type="checkbox" class="grid-checkbox stacked-video-checkbox"
                 data-entity="video" data-id="${video.id}" data-field="freigabe"
+                ${!t.isFieldEditableForUser('video', 'freigabe') ? 'disabled' : ''}
                 ${video.freigabe ? 'checked' : ''}/>
             </div>
           `)}
