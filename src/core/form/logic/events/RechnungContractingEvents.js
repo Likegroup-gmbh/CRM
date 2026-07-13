@@ -3,7 +3,7 @@
 // Nettobetrag wird NICHT prefilled — Mitarbeiter gibt ihn manuell ein.
 // Live-Check: warnt wenn verfuegbares Budget ueberschritten wird.
 
-import { berechneRechnungFromInputs } from './RechnungEvents.js';
+import { berechneRechnungFromInputs, setupSteuerfreiDisclosure } from './RechnungEvents.js';
 
 const BUDGET_BANNER_ID = 'contracting-budget-banner';
 
@@ -119,6 +119,8 @@ export async function setup(form, ctx) {
   const unternehmenField = findSelect(form, 'unternehmen_id');
   const creatorField = findSelect(form, 'creator_id');
   const nettoInput = form.querySelector('input[name="nettobetrag"]');
+  const nettoSteuerfreiInput = form.querySelector('input[name="nettobetrag_steuerfrei"]');
+  setupSteuerfreiDisclosure(nettoSteuerfreiInput);
   const ustProzentInput = form.querySelector('input[name="ust_prozent"]');
   const ustAktivToggle = form.querySelector('input[name="ust_aktiv"]');
   const ustBetragInput = form.querySelector('input[name="ust_betrag"]');
@@ -129,7 +131,7 @@ export async function setup(form, ctx) {
 
   const berechne = () => {
     berechneRechnungFromInputs({
-      nettoInput, zusatzInput: null, skontoToggle: null,
+      nettoInput, nettoSteuerfreiInput, zusatzInput: null, skontoToggle: null,
       ustAktivToggle, ustProzentInput,
       nettoGesamtInput: null, bruttoVorSkontoInput: null,
       skontoBetragInput: null, nettoNachSkontoInput: null,
@@ -142,6 +144,7 @@ export async function setup(form, ctx) {
   const debouncedBerechne = debounce(berechne, 50);
 
   if (nettoInput) nettoInput.addEventListener('input', debouncedBerechne);
+  if (nettoSteuerfreiInput) nettoSteuerfreiInput.addEventListener('input', debouncedBerechne);
   if (ustProzentInput) {
     ustProzentInput.addEventListener('input', debouncedBerechne);
     ustProzentInput.addEventListener('change', berechne);

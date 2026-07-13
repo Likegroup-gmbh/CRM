@@ -888,6 +888,7 @@ export class FormConfig {
           // Eingabefelder
           { name: 'nettobetrag', label: 'Betrag (Netto)', type: 'number', required: true, validation: { type: 'number', min: 0 }, section: 'betraege', row: 'betragrow' },
           { name: 'zusatzkosten', label: 'Zusatzkosten', type: 'number', required: false, validation: { type: 'number', min: 0 }, section: 'betraege', row: 'betragrow' },
+          { name: 'nettobetrag_steuerfrei', label: 'Steuerfreier Betrag (0% USt)', type: 'number', required: false, validation: { type: 'number', min: 0 }, helpText: 'Für Anteile der Rechnung ohne Umsatzsteuer – wird zum Bruttobetrag addiert, aber nicht besteuert.', section: 'betraege', row: 'steuerfreirow' },
           { name: 'zusatzkosten_brutto', label: 'Zusatzkosten als Brutto (inkl. USt)', type: 'toggle', required: false, defaultValue: false, helpText: 'Aktivieren, wenn die Zusatzkosten bereits die USt enthalten (durchlaufender Posten)', section: 'betraege', row: 'togglerow' },
           { name: 'ust_aktiv', label: 'Umsatzsteuer berechnen', type: 'toggle', required: false, defaultValue: true, helpText: 'Ausschalten, wenn der Creator keine Umsatzsteuer ausweist', section: 'betraege', row: 'togglerow' },
           { name: 'ust_prozent', label: 'Umsatzsteuer (%)', type: 'number', required: false, readonly: true, defaultValue: 19, suffix: '%', section: 'betraege', row: 'ustrow' },

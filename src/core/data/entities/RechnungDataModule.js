@@ -12,6 +12,7 @@ export default {
       unternehmen_id: 'uuid',
       videoanzahl: 'number',
       nettobetrag: 'number',
+      nettobetrag_steuerfrei: 'number',
       zusatzkosten: 'number',
       zusatzkosten_brutto: 'boolean',
       ust_prozent: 'number',

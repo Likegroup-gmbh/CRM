@@ -78,8 +78,11 @@ function hideVertragWarning(form) {
 // Wiederverwendbare Berechnungslogik fuer USt/Brutto — wird auch von RechnungContractingEvents importiert.
 // zusatzBruttoToggle: optional, schaltet Zusatzkosten in den Brutto-Modus (durchlaufender Posten
 // inkl. USt — es wird keine weitere USt auf die Zusatzkosten berechnet).
-export function berechneRechnungFromInputs({ nettoInput, zusatzInput, skontoToggle, ustAktivToggle, ustProzentInput, zusatzBruttoToggle, nettoGesamtInput, bruttoVorSkontoInput, skontoBetragInput, nettoNachSkontoInput, ustBetragInput, bruttoInput }) {
+// nettoSteuerfreiInput: optional, steuerfreier Netto-Anteil (0% USt) — wird zum Brutto addiert,
+// aber nie besteuert. Skonto wirkt proportional auch auf diesen Anteil.
+export function berechneRechnungFromInputs({ nettoInput, nettoSteuerfreiInput, zusatzInput, skontoToggle, ustAktivToggle, ustProzentInput, zusatzBruttoToggle, nettoGesamtInput, bruttoVorSkontoInput, skontoBetragInput, nettoNachSkontoInput, ustBetragInput, bruttoInput }) {
   const netto = parseFloat(nettoInput?.value) || 0;
+  const nettoSteuerfrei = parseFloat(nettoSteuerfreiInput?.value) || 0;
   const zusatz = parseFloat(zusatzInput?.value) || 0;
   const hatSkonto = skontoToggle?.checked || false;
   const zusatzIstBrutto = zusatzBruttoToggle?.checked || false;
@@ -91,26 +94,31 @@ export function berechneRechnungFromInputs({ nettoInput, zusatzInput, skontoTogg
 
   let nettoGesamt, bruttoVorSkonto, skontoBetrag, nettoNachSkonto, ustBetrag, brutto;
 
+  const skontoFaktor = hatSkonto ? 0.97 : 1;
+  const steuerfreiNachSkonto = nettoSteuerfrei * skontoFaktor;
+
   if (zusatzIstBrutto) {
     // Brutto-Modus: Zusatzkosten enthalten bereits USt, Rechnungs-USt nur auf die Leistung.
-    // Skonto (3%) wirkt auf Leistung + Zusatzkosten.
-    const skontoFaktor = hatSkonto ? 0.97 : 1;
-    nettoGesamt = netto;
-    bruttoVorSkonto = netto * (1 + ustRate) + zusatz;
-    skontoBetrag = hatSkonto ? (netto + zusatz) * 0.03 : 0;
+    // Skonto (3%) wirkt auf Leistung + Zusatzkosten + steuerfreien Anteil.
+    nettoGesamt = netto + nettoSteuerfrei;
+    bruttoVorSkonto = netto * (1 + ustRate) + nettoSteuerfrei + zusatz;
+    skontoBetrag = hatSkonto ? (netto + nettoSteuerfrei + zusatz) * 0.03 : 0;
     const nettoLeistungNachSkonto = netto * skontoFaktor;
     const zusatzNachSkonto = zusatz * skontoFaktor;
-    nettoNachSkonto = nettoLeistungNachSkonto;
+    nettoNachSkonto = nettoLeistungNachSkonto + steuerfreiNachSkonto;
     ustBetrag = nettoLeistungNachSkonto * ustRate;
-    brutto = nettoLeistungNachSkonto + ustBetrag + zusatzNachSkonto;
+    brutto = nettoLeistungNachSkonto + ustBetrag + steuerfreiNachSkonto + zusatzNachSkonto;
   } else {
-    // Netto-Modus (Standard): Zusatzkosten netto, USt auf die Gesamtsumme.
-    nettoGesamt = netto + zusatz;
-    bruttoVorSkonto = nettoGesamt * (1 + ustRate);
+    // Netto-Modus (Standard): Zusatzkosten netto, USt auf Leistung + Zusatzkosten,
+    // steuerfreier Anteil bleibt unbesteuert.
+    const taxable = netto + zusatz;
+    nettoGesamt = taxable + nettoSteuerfrei;
+    bruttoVorSkonto = taxable * (1 + ustRate) + nettoSteuerfrei;
     skontoBetrag = hatSkonto ? nettoGesamt * 0.03 : 0;
+    const taxableNachSkonto = taxable * skontoFaktor;
     nettoNachSkonto = nettoGesamt - skontoBetrag;
-    ustBetrag = nettoNachSkonto * ustRate;
-    brutto = nettoNachSkonto + ustBetrag;
+    ustBetrag = taxableNachSkonto * ustRate;
+    brutto = taxableNachSkonto + ustBetrag + steuerfreiNachSkonto;
   }
 
   if (nettoGesamtInput) nettoGesamtInput.value = nettoGesamt.toFixed(2);
@@ -119,6 +127,38 @@ export function berechneRechnungFromInputs({ nettoInput, zusatzInput, skontoTogg
   if (nettoNachSkontoInput) nettoNachSkontoInput.value = nettoNachSkonto.toFixed(2);
   if (ustBetragInput) ustBetragInput.value = ustBetrag.toFixed(2);
   if (bruttoInput) bruttoInput.value = brutto.toFixed(2);
+}
+
+// Progressive Disclosure fuer den steuerfreien Betrag: Das Feld ist im Normalfall
+// (eine Steuerlogik pro Rechnung) ausgeblendet und wird erst per Klick auf
+// "+ Steuerfreien Betrag hinzufuegen" eingeblendet. Bei bereits gesetztem Wert
+// (Edit-Mode) bleibt es direkt sichtbar. Wird auch von RechnungContractingEvents genutzt.
+export function setupSteuerfreiDisclosure(nettoSteuerfreiInput) {
+  if (!nettoSteuerfreiInput) return;
+  const fieldEl = nettoSteuerfreiInput.closest('.form-field');
+  if (!fieldEl) return;
+
+  // Wenn das Feld allein in einer Row-Gruppe steht, die ganze Gruppe verstecken
+  const rowEl = fieldEl.closest('.form-row-group');
+  const wrapper = (rowEl && rowEl.querySelectorAll('.form-field').length === 1) ? rowEl : fieldEl;
+
+  const hatWert = (parseFloat(nettoSteuerfreiInput.value) || 0) > 0;
+  if (hatWert) return;
+
+  const hiddenClass = wrapper.classList.contains('form-row-group') ? 'form-row-group--hidden' : 'form-field--hidden';
+  wrapper.classList.add(hiddenClass);
+
+  const toggleBtn = document.createElement('button');
+  toggleBtn.type = 'button';
+  toggleBtn.className = 'steuerfrei-disclosure-btn';
+  toggleBtn.textContent = '+ Steuerfreien Betrag (0% USt) hinzufügen';
+  wrapper.insertAdjacentElement('beforebegin', toggleBtn);
+
+  toggleBtn.addEventListener('click', () => {
+    wrapper.classList.remove(hiddenClass);
+    toggleBtn.remove();
+    nettoSteuerfreiInput.focus();
+  });
 }
 
 /**
@@ -177,6 +217,8 @@ export async function setup(form, ctx) {
   const kampagneField = findSelect(form, 'kampagne_id');
   const videoInput = form.querySelector('input[name="videoanzahl"]');
   const nettoInput = form.querySelector('input[name="nettobetrag"]');
+  const nettoSteuerfreiInput = form.querySelector('input[name="nettobetrag_steuerfrei"]');
+  setupSteuerfreiDisclosure(nettoSteuerfreiInput);
   const zusatzInput = form.querySelector('input[name="zusatzkosten"]');
   const ustProzentInput = form.querySelector('input[name="ust_prozent"]');
   const ustAktivToggle = form.querySelector('input[name="ust_aktiv"]');
@@ -280,6 +322,7 @@ export async function setup(form, ctx) {
       
       if (videoInput) videoInput.value = '';
       if (nettoInput) nettoInput.value = '';
+      if (nettoSteuerfreiInput) nettoSteuerfreiInput.value = '';
       if (zusatzInput) zusatzInput.value = '';
       if (bruttoInput) bruttoInput.value = '';
       if (ustAktivToggle) ustAktivToggle.checked = true;
@@ -391,7 +434,7 @@ export async function setup(form, ctx) {
 
   const berechneRechnung = () => {
     berechneRechnungFromInputs({
-      nettoInput, zusatzInput, skontoToggle,
+      nettoInput, nettoSteuerfreiInput, zusatzInput, skontoToggle,
       ustAktivToggle, ustProzentInput, zusatzBruttoToggle,
       nettoGesamtInput, bruttoVorSkontoInput,
       skontoBetragInput, nettoNachSkontoInput,
@@ -403,6 +446,7 @@ export async function setup(form, ctx) {
   
   // Event-Listener für Berechnung (immer binden, auch im Edit-Mode)
   if (nettoInput) nettoInput.addEventListener('input', debouncedBerechne);
+  if (nettoSteuerfreiInput) nettoSteuerfreiInput.addEventListener('input', debouncedBerechne);
   if (zusatzInput) zusatzInput.addEventListener('input', debouncedBerechne);
   if (skontoToggle) skontoToggle.addEventListener('change', berechneRechnung);
   if (zusatzBruttoToggle) zusatzBruttoToggle.addEventListener('change', berechneRechnung);
