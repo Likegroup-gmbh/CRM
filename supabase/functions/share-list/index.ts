@@ -24,6 +24,34 @@ const ENTITY_CONFIG: Record<string, { table: string; nameColumns: string[]; labe
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// SHARE_FROM_EMAIL tolerant normalisieren: Quotes entfernen, nackte Adresse
+// in `Name <email>` verpacken. Ungültige Werte fallen auf den Default zurück.
+function normalizeFromEmail(raw: string | undefined): string {
+  const fallback = 'CreatorJobs24 <onboarding@resend.dev>';
+  let value = (raw ?? '').trim().replace(/^["']+|["']+$/g, '').trim();
+  if (!value) return fallback;
+
+  // Bereits korrektes Format: Name <email@domain.tld>
+  const nameAddr = value.match(/^(.*)<\s*([^\s@<>]+@[^\s@<>]+\.[^\s@<>]+)\s*>$/);
+  if (nameAddr) {
+    const name = nameAddr[1].trim().replace(/^["']+|["']+$/g, '').trim();
+    return name ? `${name} <${nameAddr[2]}>` : nameAddr[2];
+  }
+
+  // Nackte E-Mail-Adresse
+  if (EMAIL_REGEX.test(value)) {
+    return `CreatorJobs24 <${value}>`;
+  }
+
+  // Nur eine Domain (z.B. base.likegroup.de) → noreply@domain
+  if (/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(value)) {
+    return `CreatorJobs24 <noreply@${value}>`;
+  }
+
+  console.error(`SHARE_FROM_EMAIL hat ungültiges Format: "${raw}" — Fallback auf ${fallback}`);
+  return fallback;
+}
+
 function corsHeaders(req: Request): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': req.headers.get('origin') ?? '*',
@@ -119,6 +147,8 @@ serve(async (req: Request) => {
     return jsonRes({
       hasResendKey: Boolean(Deno.env.get('RESEND_API_KEY')),
       hasFromEmail: Boolean(Deno.env.get('SHARE_FROM_EMAIL')),
+      // Absender steht ohnehin in jeder Mail — kein Geheimnis
+      effectiveFrom: normalizeFromEmail(Deno.env.get('SHARE_FROM_EMAIL')),
     }, 200, headers);
   }
 
@@ -322,10 +352,10 @@ serve(async (req: Request) => {
     const resendKey = Deno.env.get('RESEND_API_KEY');
     if (!resendKey) {
       console.error('RESEND_API_KEY is not set');
-      return jsonRes({ error: 'E-Mail-Versand nicht konfiguriert.', link }, 500, headers);
+      return jsonRes({ error: 'E-Mail-Versand nicht konfiguriert: RESEND_API_KEY fehlt als Secret in diesem Supabase-Projekt.', link }, 500, headers);
     }
 
-    const fromEmail = Deno.env.get('SHARE_FROM_EMAIL') || 'CreatorJobs24 <onboarding@resend.dev>';
+    const fromEmail = normalizeFromEmail(Deno.env.get('SHARE_FROM_EMAIL'));
     const emailHtml = buildInviteEmail({
       entityLabel: entityConfig.label,
       entityName: String(entityName),
