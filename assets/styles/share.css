@@ -14,7 +14,8 @@
   max-width: 100%;
 }
 
-#app-root.guest-mode .header-actions {
+/* Kompletter Header inkl. Breadcrumb: Gäste sollen keine Navigationspfade sehen */
+#app-root.guest-mode .main-header {
   display: none;
 }
 
