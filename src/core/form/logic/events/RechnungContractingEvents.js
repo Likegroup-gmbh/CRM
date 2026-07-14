@@ -47,8 +47,22 @@ function fillSelect(selectEl, value, label) {
       }
     }
   }
-  const hidden = document.getElementById(`${selectEl.id}-hidden`);
-  if (hidden) hidden.value = value || '';
+  // Beide Hidden-Inputs setzen: FormRenderer legt bei readonly-Feldern
+  // `${id}-hidden` an, die Searchable-Select-Init zusätzlich `${id}_value`
+  // im Container. Nur die Hidden-Inputs landen in FormData (das <select>
+  // verliert bei der Searchable-Init sein name-Attribut).
+  setSearchableHiddenValues(selectEl, value);
+}
+
+// Alle Hidden-Inputs eines (Searchable-)Selects auf den Wert setzen
+function setSearchableHiddenValues(selectEl, value) {
+  if (!selectEl) return;
+  const v = value || '';
+  const rendererHidden = document.getElementById(`${selectEl.id}-hidden`);
+  if (rendererHidden) rendererHidden.value = v;
+  const containerHidden = document.getElementById(`${selectEl.id}_value`)
+    || selectEl.parentNode?.querySelector('.searchable-select-container input[type="hidden"]');
+  if (containerHidden) containerHidden.value = v;
 }
 
 function renderBudgetBanner(form, budget, vergeben, verfuegbar) {
@@ -228,6 +242,8 @@ export async function setup(form, ctx) {
 
   if (preContract) {
     contractSelect.value = preContract;
+    // Hidden-Input mitsetzen — nur der landet in FormData, nicht das <select>
+    setSearchableHiddenValues(contractSelect, contractSelect.value ? preContract : '');
     const container = contractSelect.parentNode.querySelector('.searchable-select-container');
     if (container) {
       const input = container.querySelector('.searchable-select-input');

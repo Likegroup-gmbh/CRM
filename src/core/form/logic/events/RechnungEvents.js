@@ -203,6 +203,14 @@ export function finalizeRechnungSubmitData(form, submitData) {
   if (submitData.vertrag_id === '' || submitData.vertrag_id === null || submitData.vertrag_id === undefined) {
     delete submitData.vertrag_id;
   }
+
+  // Gleiches Safety-Net fuer unternehmen_id (NOT NULL) und auftrag_id: leere Werte
+  // aus readonly/searchable Hidden-Inputs duerfen bestehende FKs nicht nullen.
+  ['unternehmen_id', 'auftrag_id'].forEach(key => {
+    if (submitData[key] === '' || submitData[key] === null || submitData[key] === undefined) {
+      delete submitData[key];
+    }
+  });
 }
 
 export async function setup(form, ctx) {

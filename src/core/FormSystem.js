@@ -264,17 +264,22 @@ export class FormSystem {
       // Entity erstellen/aktualisieren
       let result;
 
+      // rechnung_contracting ist nur eine Formular-Config; gespeichert wird
+      // immer in der Entität/Tabelle 'rechnung' (EntityRegistry kennt nur diese).
+      const isRechnung = entity === 'rechnung' || entity === 'rechnung_contracting';
+      const dbEntity = entity === 'rechnung_contracting' ? 'rechnung' : entity;
+
       // Rechnungen: Toggle → ust_prozent finalisieren (ust_aktiv ist UI-only)
-      if (entity === 'rechnung' || entity === 'rechnung_contracting') {
+      if (isRechnung) {
         finalizeRechnungSubmitData(form, submitData);
       }
 
       if (data && data.id) {
         // Update
-        result = await window.dataService.updateEntity(entity, data.id, submitData);
+        result = await window.dataService.updateEntity(dbEntity, data.id, submitData);
       } else {
         // Create
-        result = await window.dataService.createEntity(entity, submitData);
+        result = await window.dataService.createEntity(dbEntity, submitData);
       }
 
       if (result.success) {
@@ -298,7 +303,7 @@ export class FormSystem {
         }
 
         // Rechnungs-Dateien (Belege + PDF) beim Edit verarbeiten
-        if (entity === 'rechnung') {
+        if (isRechnung) {
           console.log('[ZusatzkostenSync] FormSystem-Hook ausgeloest fuer rechnungId=', result.id);
           try {
             const { syncEkZusatzkostenAfterRechnungSave } = await import('./RechnungZusatzkostenSync.js');
@@ -325,9 +330,9 @@ export class FormSystem {
           this.closeForm();
         }
         
-        // Event auslösen für List-Update
+        // Event auslösen für List-Update (dbEntity: Listen hören auf 'rechnung')
         window.dispatchEvent(new CustomEvent('entityUpdated', { 
-          detail: { entity, id: result.id, action: data ? 'updated' : 'created' } 
+          detail: { entity: dbEntity, id: result.id, action: data ? 'updated' : 'created' } 
         }));
       } else {
         this.validator.showErrorMessage(`Fehler beim ${data ? 'Aktualisieren' : 'Erstellen'}: ${result.error}`);

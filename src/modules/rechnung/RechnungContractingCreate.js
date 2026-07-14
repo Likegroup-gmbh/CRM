@@ -112,54 +112,32 @@ export async function handleContractingCreateSubmit(form) {
   }
 }
 
-// --- Contracting Submit (Edit) ---
-
-export async function handleContractingEditSubmit(form, existingRechnung) {
-  const formData = new FormData(form);
-  const submitData = {};
-  for (const [key, value] of formData.entries()) {
-    submitData[key] = value;
-  }
-
-  submitData.rechnungstyp = 'contracting';
-  submitData.kampagne_id = null;
-  submitData.kooperation_id = null;
-  submitData.ksk_pflichtig = submitData.ksk_pflichtig === 'on' || submitData.ksk_pflichtig === true || submitData.ksk_pflichtig === 'true';
-
-  try {
-    const { error } = await window.supabase
-      .from('rechnung')
-      .update(submitData)
-      .eq('id', existingRechnung.id);
-    if (error) throw error;
-
-    console.log('[ZusatzkostenSync] ContractingEdit-Hook ausgeloest fuer rechnungId=', existingRechnung.id);
-    try {
-      const { syncEkZusatzkostenAfterRechnungSave } = await import('../../core/RechnungZusatzkostenSync.js');
-      await syncEkZusatzkostenAfterRechnungSave(existingRechnung.id);
-    } catch (syncErr) {
-      console.warn('Zusatzkosten-Sync (Contracting edit) fehlgeschlagen:', syncErr);
-    }
-
-    alert('Rechnung aktualisiert');
-    window.navigateTo(`/rechnung/${existingRechnung.id}`);
-  } catch (e) {
-    alert(`Fehler: ${e.message}`);
-  }
-}
-
 // --- Helpers ---
 
 function fixSearchableSelectValues(form, submitData) {
   const searchableSelects = form.querySelectorAll('select[data-searchable="true"]');
   searchableSelects.forEach(select => {
+    // Die Searchable-Init entfernt das name-Attribut vom <select>;
+    // Feldname daher robust aus dataset/id ableiten.
+    const fieldName = select.name
+      || select.dataset.fieldName
+      || (select.id?.startsWith('field-') ? select.id.slice('field-'.length) : select.id)
+      || '';
+    if (!fieldName) return;
+
     const container = select.parentNode.querySelector('.searchable-select-container');
     if (container) {
       const input = container.querySelector('.searchable-select-input');
       if (input?.value) {
         const match = Array.from(select.options).find(opt => opt.textContent.trim() === input.value.trim());
-        if (match) submitData[select.name] = match.value;
+        if (match && match.value) submitData[fieldName] = match.value;
       }
+    }
+
+    // Fallback: sichtbares Label fehlt/kein Match, aber das Select selbst hat
+    // einen Wert (z. B. via Prefill gesetzt) und submitData noch keinen.
+    if (!submitData[fieldName] && select.value) {
+      submitData[fieldName] = select.value;
     }
   });
 }
@@ -168,12 +146,18 @@ async function fillPoFromAuftrag(submitData) {
   try {
     const { data: auftrag } = await window.supabase
       .from('auftrag')
-      .select('po, externe_po')
+      .select('po, externe_po, unternehmen_id')
       .eq('id', submitData.auftrag_id)
       .single();
     if (auftrag?.po) submitData.po_nummer = auftrag.po;
     if (auftrag?.externe_po && !submitData.externe_angebotsnummer) {
       submitData.externe_angebotsnummer = auftrag.externe_po;
+    }
+    // Sicherheitsnetz: unternehmen_id ist NOT NULL in der rechnung-Tabelle und
+    // im Formular readonly (vom Contract abgeleitet). Falls der Wert im
+    // Formular-Submit fehlt (Hidden-Input-Sync), aus dem Contract übernehmen.
+    if (!submitData.unternehmen_id && auftrag?.unternehmen_id) {
+      submitData.unternehmen_id = auftrag.unternehmen_id;
     }
   } catch { /* non-critical */ }
 }

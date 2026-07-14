@@ -1,6 +1,6 @@
 // RechnungDetail.js (ES6-Modul)
 import { findSignedVertragForKooperation } from './RechnungVertragZuordnung.js';
-import { renderSegmentedControl, bindSegmentSwitcher, handleContractingCreateSubmit, handleContractingEditSubmit } from './RechnungContractingCreate.js';
+import { renderSegmentedControl, bindSegmentSwitcher, handleContractingCreateSubmit } from './RechnungContractingCreate.js';
 import { uploadRechnungPdf, uploadRechnungBeleg } from '../../core/DropboxDocumentUploader.js';
 import { resolveRechnungPathMetadata } from '../../core/RechnungPathMetadata.js';
 import { finalizeRechnungSubmitData } from '../../core/form/logic/events/RechnungEvents.js';
