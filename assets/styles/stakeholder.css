@@ -21,6 +21,34 @@
   min-width: 180px;
 }
 
+/* Tabs */
+
+.stakeholder-tabs {
+  display: flex;
+  gap: var(--space-xs);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.stakeholder-tab {
+  padding: var(--space-sm) var(--space-md);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.stakeholder-tab:hover {
+  color: var(--text-primary);
+}
+
+.stakeholder-tab--active {
+  color: var(--primary-600, #2563eb);
+  border-bottom-color: var(--primary-600, #2563eb);
+}
+
 /* Summary Cards */
 
 .stakeholder-summary-grid {
@@ -52,6 +80,11 @@
 
 .stakeholder-summary-value--warn {
   color: var(--warning-700, #b45309);
+}
+
+.stakeholder-summary-sub {
+  font-size: var(--text-xs, 0.75rem);
+  color: var(--text-secondary);
 }
 
 /* Hauptbereich: Tabelle + Donut */

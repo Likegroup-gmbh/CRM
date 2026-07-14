@@ -15,6 +15,7 @@ import { autoResizeTextarea } from '../feedback/FeedbackEventHandler.js';
 import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
 import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
+import { SearchInput } from '../../core/components/SearchInput.js';
 
 export class CreatorAuswahlDetail {
   constructor() {
@@ -29,6 +30,7 @@ export class CreatorAuswahlDetail {
     this.hiddenColumns = [];
     this.kundenCallActive = false;
     this.activeTab = 'offen';
+    this.searchQuery = '';
     this.columnVisibilityDrawer = null;
     this.kategorienDrawer = new CreatorAuswahlKategorienDrawer(this);
     this.addDrawer = new CreatorAuswahlAddDrawer(this);
@@ -42,6 +44,7 @@ export class CreatorAuswahlDetail {
   async init(listeId) {
     this.listeId = listeId;
     this.isKunde = window.isKunde();
+    this.searchQuery = '';
 
     if (this.isKunde) {
       const quickMenuContainer = document.getElementById('quick-menu-container');
@@ -160,19 +163,46 @@ export class CreatorAuswahlDetail {
     });
   }
 
-  // --- Status-Reiter (Tabs) ---
+  // --- Namenssuche & Status-Reiter (Tabs) ---
+
+  getSearchFilteredItems() {
+    const query = (this.searchQuery || '').trim().toLowerCase();
+    if (!query) return this.items;
+    return this.items.filter(item => (item.name || '').toLowerCase().includes(query));
+  }
 
   getFilteredItems() {
-    if (this.activeTab === 'alle') return this.items;
-    return this.items.filter(item => getSourcingTabForItem(item) === this.activeTab);
+    const items = this.getSearchFilteredItems();
+    if (this.activeTab === 'alle') return items;
+    return items.filter(item => getSourcingTabForItem(item) === this.activeTab);
   }
 
   getTabCounts() {
-    const counts = { offen: 0, on_hold: 0, gebucht: 0, nicht_buchen: 0, alle: this.items.length };
-    this.items.forEach(item => {
+    const searchItems = this.getSearchFilteredItems();
+    const counts = { offen: 0, on_hold: 0, gebucht: 0, nicht_buchen: 0, alle: searchItems.length };
+    searchItems.forEach(item => {
       counts[getSourcingTabForItem(item)]++;
     });
     return counts;
+  }
+
+  handleSearch(value) {
+    const newQuery = value || '';
+    if (newQuery === this.searchQuery) return;
+    this.searchQuery = newQuery;
+    this.rerenderTable();
+  }
+
+  // Aktive Suche zuruecksetzen (z.B. bevor eine neue leere Zeile angelegt wird,
+  // die sonst vom Namensfilter ausgeblendet wuerde)
+  clearSearch() {
+    if (!this.searchQuery) return;
+    this.searchQuery = '';
+    const input = document.getElementById('sourcing-item-search-input');
+    if (input) input.value = '';
+    const clearBtn = document.getElementById('sourcing-item-search-clear');
+    if (clearBtn) clearBtn.style.display = 'none';
+    this.rerenderTable();
   }
 
   switchTab(tabName) {
@@ -196,6 +226,7 @@ export class CreatorAuswahlDetail {
   // Nach dem Anlegen eines neuen Items zum "Offen"-Reiter wechseln,
   // damit die neue Zeile sichtbar ist
   ensureNewItemVisible() {
+    this.clearSearch();
     if (this.activeTab !== 'offen' && this.activeTab !== 'alle') {
       this.switchTab('offen');
     }
@@ -208,6 +239,7 @@ export class CreatorAuswahlDetail {
       items: this.getFilteredItems(),
       hasAnyItems: this.items.length > 0,
       activeTab: this.activeTab,
+      searchQuery: this.searchQuery,
       tabCounts: this.getTabCounts(),
       liste: this.liste,
       isKunde: this.isKunde,
@@ -222,7 +254,7 @@ export class CreatorAuswahlDetail {
   async render() {
     const ctx = this.getRenderContext();
     const html = `
-      ${!this.isKunde ? renderAddSection(ctx) : ''}
+      ${renderAddSection(ctx)}
       ${renderTabNavigation(ctx)}
       ${renderItemsTable(ctx)}
     `;
@@ -364,6 +396,11 @@ export class CreatorAuswahlDetail {
       this.bindBulkBarEvents();
       this._bindCustomColumnEvents();
     }
+
+    // Namenssuche (auch fuer Kunden/Gaeste sichtbar)
+    const searchAbort = new AbortController();
+    SearchInput.bind('sourcing-item', (value) => this.handleSearch(value), searchAbort.signal);
+    this._boundEventListeners.add(() => searchAbort.abort());
 
     // Status-Reiter (auch fuer Kunden sichtbar)
     document.querySelectorAll('.sourcing-tab-navigation .tab-button').forEach(btn => {

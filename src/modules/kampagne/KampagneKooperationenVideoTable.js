@@ -156,20 +156,25 @@ export class KampagneKooperationenVideoTable {
     return list.filter(k => (k._tags || []).some(t => tags.includes(t)));
   }
 
+  _applySearchFilter(list) {
+    if (!this.store || !(this.store.searchQuery || '').trim()) return list;
+    return list.filter(k => this.store.matchesSearch(k));
+  }
+
   getOpenCount() {
-    return this._applyTagFilter(
+    return this._applySearchFilter(this._applyTagFilter(
       this.kooperationen.filter(koop => !this.areAllVideosApproved(koop.id))
-    ).length;
+    )).length;
   }
 
   getClosedCount() {
-    return this._applyTagFilter(
+    return this._applySearchFilter(this._applyTagFilter(
       this.kooperationen.filter(koop => this.areAllVideosApproved(koop.id))
-    ).length;
+    )).length;
   }
 
   getAllCount() {
-    return this._applyTagFilter(this.kooperationen).length;
+    return this._applySearchFilter(this._applyTagFilter(this.kooperationen)).length;
   }
 
   updateTabCounts() {

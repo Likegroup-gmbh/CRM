@@ -28,6 +28,7 @@ export class KampagneDetailStore {
     this.kooperationSort = DEFAULT_KOOPERATION_SORT;
     this.selectedTags = [];
     this.selectedStatuses = [];
+    this.searchQuery = '';
     this.rechnungStatusMap = {};
 
     // Custom Columns
@@ -112,6 +113,16 @@ export class KampagneDetailStore {
     return videos.every(v => v.freigabe === true);
   }
 
+  getKoopCreatorName(koop) {
+    return `${koop.creator?.vorname || ''} ${koop.creator?.nachname || ''}`.trim();
+  }
+
+  matchesSearch(koop) {
+    const query = (this.searchQuery || '').trim().toLowerCase();
+    if (!query) return true;
+    return this.getKoopCreatorName(koop).toLowerCase().includes(query);
+  }
+
   getFiltered(tab) {
     let filtered = this.kooperationen;
     if (tab === 'offen') {
@@ -129,6 +140,9 @@ export class KampagneDetailStore {
         this.selectedStatuses.includes(k.status_name || k.status_ref?.name || '')
       );
     }
+    if ((this.searchQuery || '').trim()) {
+      filtered = filtered.filter(k => this.matchesSearch(k));
+    }
     return filtered;
   }
 
@@ -138,12 +152,19 @@ export class KampagneDetailStore {
   }
 
   hasActiveFilters() {
-    return this.selectedTags.length > 0 || this.selectedStatuses.length > 0;
+    return this.selectedTags.length > 0
+      || this.selectedStatuses.length > 0
+      || (this.searchQuery || '').trim().length > 0;
   }
 
   setSelectedStatuses(statuses) {
     this.selectedStatuses = statuses || [];
     this.emit('status-filter-changed', this.selectedStatuses);
+  }
+
+  setSearchQuery(query) {
+    this.searchQuery = query || '';
+    this.emit('search-query-changed', this.searchQuery);
   }
 
   getAvailableStatuses() {
@@ -456,6 +477,7 @@ export class KampagneDetailStore {
     this.kooperationSort = DEFAULT_KOOPERATION_SORT;
     this.selectedTags = [];
     this.selectedStatuses = [];
+    this.searchQuery = '';
     this._loadedAssetVideoIds.clear();
   }
 }

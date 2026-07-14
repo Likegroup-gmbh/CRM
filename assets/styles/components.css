@@ -10418,7 +10418,7 @@ input.readonly-field {
 /* Kompakte Add-Item Section */
 .add-item-section--compact {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   align-items: center;
   padding: var(--space-xs);
   position: sticky;
@@ -10441,6 +10441,12 @@ input.readonly-field {
   top: var(--sticky-addbar-height, 0px);
   z-index: 28;
   background: var(--bg-primary, #fff);
+}
+
+/* Namenssuche links in der Sourcing-Aktions-Zeile */
+.add-item-actions-left {
+  display: flex;
+  align-items: center;
 }
 
 .add-item-section--compact:has(+ .sourcing-tab-navigation) {

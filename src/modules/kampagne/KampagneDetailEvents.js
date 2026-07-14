@@ -7,6 +7,7 @@ import { CustomColumnsDrawer } from './columns/CustomColumnsDrawer.js';
 import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
 import { sortDropdown } from '../../core/components/SortDropdown.js';
 import { tagFilterDropdown } from '../../core/components/TagFilterDropdown.js';
+import { SearchInput } from '../../core/components/SearchInput.js';
 
 const KOOPERATION_SORT_ENTITY = 'kampagne-kooperationen';
 const TAG_FILTER_ENTITY = 'kampagne-kooperation-tags';
@@ -66,6 +67,33 @@ function initTagFilterDropdown(detail) {
   });
 }
 
+function refreshKooperationenView(detail) {
+  if (detail.currentView === 'table') {
+    detail.kooperationenVideoTable?.refilter();
+  } else if (detail.currentView === 'kanban') {
+    detail.kanbanBoard?.render();
+  }
+}
+
+function initKooperationenSearch(detail, signal) {
+  SearchInput.bind('kampagne-koop', (value) => {
+    const newQuery = value || '';
+    if (newQuery === (detail.store?.searchQuery || '')) return;
+    detail.store?.setSearchQuery(newQuery);
+    refreshKooperationenView(detail);
+  }, signal);
+}
+
+function clearKooperationenSearch(detail) {
+  if (!(detail.store?.searchQuery || '')) return;
+  detail.store?.setSearchQuery('');
+  const input = document.getElementById('kampagne-koop-search-input');
+  if (input) input.value = '';
+  const clearBtn = document.getElementById('kampagne-koop-search-clear');
+  if (clearBtn) clearBtn.style.display = 'none';
+  refreshKooperationenView(detail);
+}
+
 function initStatusFilterDropdown(detail) {
   const container = document.getElementById('kampagne-status-filter-container');
   if (!container || !detail.store) return;
@@ -98,6 +126,7 @@ export function setupEvents(detail) {
   initKooperationSortDropdown(detail);
   initStatusFilterDropdown(detail);
   initTagFilterDropdown(detail);
+  initKooperationenSearch(detail, signal);
 
   // Tab Navigation (Offen / Abgeschlossen / Alle)
   document.addEventListener('click', (e) => {
@@ -108,13 +137,14 @@ export function setupEvents(detail) {
     }
   }, { signal });
 
-  // Empty-State-Aktion: "Filter zuruecksetzen" (Status- + Tag-Filter leeren)
+  // Empty-State-Aktion: "Filter zuruecksetzen" (Status- + Tag-Filter + Suche leeren)
   document.addEventListener('click', (e) => {
     const resetBtn = e.target.closest('[data-empty-action="reset-filters"]');
     if (!resetBtn) return;
     e.preventDefault();
     tagFilterDropdown.reset(STATUS_FILTER_ENTITY);
     tagFilterDropdown.reset(TAG_FILTER_ENTITY);
+    clearKooperationenSearch(detail);
   }, { signal });
 
   // Kooperation anlegen

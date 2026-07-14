@@ -2,8 +2,18 @@
 // Reine Render-Funktionen und Shared Helpers fuer die Creator-Auswahl Detail-Ansicht
 
 import { CREATOR_TYP_OPTIONS } from './creatorTypeOptions.js';
+import { SearchInput } from '../../core/components/SearchInput.js';
 
 // --- Shared Helpers ---
+
+function escapeHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 export function getTeilbereicheFromListe(liste) {
   if (!liste?.teilbereich) return [];
@@ -102,6 +112,13 @@ export function renderAddSection(ctx = {}) {
   const kundenCallActive = ctx.kundenCallActive || false;
   return `
     <div class="add-item-section add-item-section--compact">
+      <div class="add-item-actions-left">
+        ${SearchInput.render('sourcing-item', {
+          placeholder: 'Name suchen...',
+          currentValue: escapeHtml(ctx.searchQuery || '')
+        })}
+      </div>
+      ${!ctx.isKunde ? `
       <div class="add-item-actions-right">
         <button type="button" class="secondary-btn" id="btn-share-sourcing" title="Liste per E-Mail teilen">
           Teilen
@@ -135,11 +152,21 @@ export function renderAddSection(ctx = {}) {
           Creator hinzufügen
         </button>
       </div>
+      ` : ''}
     </div>
   `;
 }
 
 export function renderItemsTable(ctx) {
+  const searchQuery = (ctx.searchQuery || '').trim();
+  // Suche aktiv und gar kein Name matcht (unabhaengig vom Reiter)
+  if (ctx.items.length === 0 && ctx.hasAnyItems && searchQuery && (ctx.tabCounts?.alle ?? 0) === 0) {
+    return `
+      <div class="table-container table-container--empty" style="text-align: center; padding: var(--space-xxl); color: var(--text-secondary);">
+        <p>Keine Treffer für "${escapeHtml(searchQuery)}"</p>
+      </div>
+    `;
+  }
   if (ctx.items.length === 0 && ctx.hasAnyItems && ctx.activeTab && ctx.activeTab !== 'alle') {
     const tabLabel = SOURCING_TABS.find(t => t.key === ctx.activeTab)?.label || ctx.activeTab;
     return `

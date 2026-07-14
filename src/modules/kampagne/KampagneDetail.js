@@ -166,7 +166,8 @@ export class KampagneDetail {
       extraKostenVkSum: this.extraKostenVkSum,
       ekVkMarginSum: this.ekVkMarginSum,
       isKunde: this.isKunde,
-      kampagneId: this.kampagneId
+      kampagneId: this.kampagneId,
+      searchQuery: this.store?.searchQuery || ''
     });
 
     window.setContentSafely(window.content, html);

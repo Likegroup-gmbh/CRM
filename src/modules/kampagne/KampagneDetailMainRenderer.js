@@ -5,6 +5,16 @@ import { KampagneUtils } from './KampagneUtils.js';
 import { renderSummaryCards } from './KampagneDetailSummaryCards.js';
 import { renderAnsprechpartner } from './KampagneDetailTabRenderers.js';
 import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
+import { SearchInput } from '../../core/components/SearchInput.js';
+
+function escapeAttr(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 export function renderPageLoading() {
   return `
@@ -44,7 +54,7 @@ export function formatDeadlineBadge(dateStr) {
 export function renderMainPage(state) {
   const {
     kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed,
-    extraKostenVkSum, ekVkMarginSum, isKunde, kampagneId
+    extraKostenVkSum, ekVkMarginSum, isKunde, kampagneId, searchQuery
   } = state;
 
   const canCreateKooperation = window.currentUser?.permissions?.kooperation?.can_edit || false;
@@ -77,6 +87,10 @@ export function renderMainPage(state) {
           Alle <span class="tab-count" id="tab-count-alle"></span>
         </button>
         <div class="tab-actions" style="margin-left: auto; display: flex; align-items: center; gap: var(--space-sm);">
+          ${SearchInput.render('kampagne-koop', {
+            placeholder: 'Name suchen...',
+            currentValue: escapeAttr(searchQuery || '')
+          })}
           <div id="kampagne-status-filter-container"></div>
           <div id="kampagne-tag-filter-container"></div>
           <div id="kampagne-kooperation-sort-container"></div>
