@@ -113,6 +113,16 @@ serve(async (req: Request) => {
   const action = String(body.action ?? '');
 
   // -------------------------------------------------------------------
+  // diag: Konfigurations-Check (nur Booleans, keine Secrets)
+  // -------------------------------------------------------------------
+  if (action === 'diag') {
+    return jsonRes({
+      hasResendKey: Boolean(Deno.env.get('RESEND_API_KEY')),
+      hasFromEmail: Boolean(Deno.env.get('SHARE_FROM_EMAIL')),
+    }, 200, headers);
+  }
+
+  // -------------------------------------------------------------------
   // resolve: Token → Share-Infos für den Gast-Onboarding-Flow
   // -------------------------------------------------------------------
   if (action === 'resolve') {
@@ -324,24 +334,34 @@ serve(async (req: Request) => {
       link,
     });
 
-    const mailRes = await fetch(RESEND_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${resendKey}`,
-      },
-      body: JSON.stringify({
-        from: fromEmail,
-        to: [email],
-        subject: `${entityConfig.label} „${entityName}" wurde mit Ihnen geteilt`,
-        html: emailHtml,
-      }),
-    });
+    try {
+      const mailRes = await fetch(RESEND_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${resendKey}`,
+        },
+        body: JSON.stringify({
+          from: fromEmail,
+          to: [email],
+          subject: `${entityConfig.label} „${entityName}" wurde mit Ihnen geteilt`,
+          html: emailHtml,
+        }),
+      });
 
-    if (!mailRes.ok) {
-      const errBody = await mailRes.text();
-      console.error(`Resend error ${mailRes.status}: ${errBody}`);
-      return jsonRes({ error: 'Share angelegt, aber E-Mail-Versand fehlgeschlagen.', link }, 502, headers);
+      if (!mailRes.ok) {
+        const errBody = await mailRes.text();
+        console.error(`Resend error ${mailRes.status}: ${errBody}`);
+        let detail = '';
+        try { detail = JSON.parse(errBody)?.message || ''; } catch { /* raw body bleibt im Log */ }
+        return jsonRes({
+          error: `Share angelegt, aber E-Mail-Versand fehlgeschlagen${detail ? `: ${detail}` : '.'}`,
+          link,
+        }, 502, headers);
+      }
+    } catch (mailErr) {
+      console.error('Resend fetch error:', mailErr);
+      return jsonRes({ error: 'Share angelegt, aber E-Mail-Versand fehlgeschlagen (Netzwerkfehler).', link }, 502, headers);
     }
 
     return jsonRes({ success: true, link }, 200, headers);
