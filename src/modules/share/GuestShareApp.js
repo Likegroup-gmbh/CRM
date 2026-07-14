@@ -244,6 +244,68 @@ async function enterGuestApp(token, share, enteredName = '') {
 }
 
 // ---------------------------------------------------------------------
+// Sperrseite: Gast ruft normale App-URL statt Share-Link auf
+// ---------------------------------------------------------------------
+
+export async function renderGuestNoAccess() {
+  const loginRoot = document.getElementById('login-root');
+  const appRoot = document.getElementById('app-root');
+  if (appRoot) appRoot.style.display = 'none';
+  if (loginRoot) loginRoot.style.display = '';
+
+  // Aktive Shares des Gasts laden (RLS: nur eigene, nicht widerrufene)
+  let shares = [];
+  try {
+    const { data } = await window.supabase
+      .from('list_shares')
+      .select('token, entity_type, created_at')
+      .is('revoked_at', null)
+      .order('created_at', { ascending: false });
+    shares = data || [];
+  } catch (e) {
+    console.warn('Shares konnten nicht geladen werden:', e);
+  }
+
+  const shareLinks = shares.map((s) => {
+    const label = ENTITY_LABELS[s.entity_type] || 'Liste';
+    return `
+      <a class="guest-share-link" href="/share/${escapeHtml(s.token)}">
+        <span>${label} öffnen</span>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="16" height="16">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+        </svg>
+      </a>`;
+  }).join('');
+
+  loginRoot.innerHTML = `
+    <div class="guest-onboarding">
+      <div class="guest-onboarding-card">
+        <h2>Kein Zugriff auf diesen Bereich</h2>
+        <p class="guest-onboarding-info">
+          Danke für Ihr Interesse — Ihr Zugang gilt nur für die mit Ihnen geteilten Listen.
+        </p>
+        ${shares.length > 0 ? `
+          <div class="guest-share-links">${shareLinks}</div>
+        ` : `
+          <p class="guest-onboarding-info" style="margin-bottom:16px;">
+            Ihr Zugang wurde widerrufen oder es liegen keine geteilten Listen vor.
+          </p>
+        `}
+        <button id="guest-logout-btn" class="guest-link-btn">Abmelden</button>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('guest-logout-btn')?.addEventListener('click', async () => {
+    try {
+      await window.supabase.auth.signOut();
+    } finally {
+      window.location.href = '/';
+    }
+  });
+}
+
+// ---------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------
 

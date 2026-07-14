@@ -372,7 +372,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   if (isAuthenticated) {
     console.log('✅ Benutzer ist authentifiziert');
-    
+
+    // Gäste (Share-Link) haben keinen Zugang zur normalen App —
+    // Direktaufrufe von /, /kampagne etc. zeigen die Sperrseite
+    if (window.currentUser?.rolle === 'gast') {
+      console.log('🔒 Gast-Session ohne Share-Link - zeige Sperrseite');
+      const { renderGuestNoAccess } = await import('./modules/share/GuestShareApp.js');
+      await renderGuestNoAccess();
+      return;
+    }
+
     // Globale Suche (nur für Mitarbeiter/Admin) – vor Navigation, damit Sidebar-Button sichtbar ist
     window.globalSearch = globalSearch;
     document.addEventListener('keydown', (e) => {

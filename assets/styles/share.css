@@ -83,6 +83,35 @@
   margin: 12px 0 0 0;
 }
 
+/* --- Sperrseite: Links zu den geteilten Listen --- */
+
+.guest-share-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.guest-share-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-table-border, #e5e5e5);
+  border-radius: 8px;
+  color: var(--color-primary, #4f46e5);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.guest-share-link:hover {
+  background: var(--color-bg, #f7f7f8);
+  border-color: var(--color-primary, #4f46e5);
+}
+
 /* --- Share-Dialog --- */
 
 .share-dialog-overlay {
