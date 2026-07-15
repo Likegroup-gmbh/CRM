@@ -283,12 +283,17 @@ export class StakeholderOverviewPage {
     let feeMargin = 0;  // Summe EK/VK-Differenz (nur Zeilen mit EK und VK > 0)
     let kskGesamt = 0;
     let unassignedRows = 0;
+    const istIssues = []; // Auftraege mit Fee-/Margen-Datenluecken (ohne Contracting)
 
     auftraege.forEach(a => {
       const details = this.detailsByAuftrag.get(a.id);
-      if (details?.agency_services_enabled) {
-        if (details.percentage_fee_enabled) feeBase += parseFloat(details.percentage_fee_value) || 0;
-        if (details.ksk_enabled) kskGesamt += parseFloat(details.ksk_value) || 0;
+      const feeValue = parseFloat(details?.percentage_fee_value) || 0;
+      const feeActive = !!(details?.agency_services_enabled && details?.percentage_fee_enabled);
+      const auftragBaseFee = feeActive ? feeValue : 0;
+
+      if (feeActive) feeBase += feeValue;
+      if (details?.agency_services_enabled && details.ksk_enabled) {
+        kskGesamt += parseFloat(details.ksk_value) || 0;
       }
 
       if (a.auftragtype === 'Contracting') {
@@ -299,6 +304,12 @@ export class StakeholderOverviewPage {
         }
         return;
       }
+
+      let auftragMargin = 0;
+      let filledPairs = 0;
+      let positions = 0;
+      let negativePairs = 0;   // Positionen mit EK > VK
+      let negativeSum = 0;     // Summe der Verluste aus diesen Positionen
 
       const koops = koopMap.get(a.id) || [];
       koops.forEach(koop => {
@@ -315,9 +326,16 @@ export class StakeholderOverviewPage {
           const vk = parseFloat(row.vk) || 0;
           ekGesamt += ek;
           vkGesamt += vk;
+          positions++;
 
           if (isFilledPrice(row.ek) && isFilledPrice(row.vk)) {
             feeMargin += vk - ek;
+            auftragMargin += vk - ek;
+            filledPairs++;
+            if (vk < ek) {
+              negativePairs++;
+              negativeSum += vk - ek;
+            }
           }
 
           const slug = getChipFromKampagnenartName(row.art);
@@ -331,6 +349,42 @@ export class StakeholderOverviewPage {
           }
         });
       });
+
+      // Issue-Typen fuer die Datenluecken-Tabelle ableiten
+      const types = [];
+      const feeDisabledButValue = !feeActive && feeValue > 0;
+      if (feeDisabledButValue) types.push('fee_deaktiviert');
+      if (!feeActive && !feeDisabledButValue && filledPairs === 0) types.push('fee_und_marge_fehlen');
+      if (auftragMargin < 0) types.push('marge_negativ');
+      if (negativePairs > 0) types.push('ek_groesser_vk');
+      if (filledPairs > 0 && auftragMargin === 0 && auftragBaseFee <= 0) types.push('marge_null');
+      if (filledPairs > 0 && filledPairs < positions) types.push('preise_unvollstaendig');
+
+      if (types.length > 0) {
+        istIssues.push({
+          auftrag: a,
+          types,
+          baseFee: auftragBaseFee,
+          feeValue,
+          margin: auftragMargin,
+          filledPairs,
+          positions,
+          negativePairs,
+          negativeSum
+        });
+      }
+    });
+
+    // Schwere Faelle zuerst, innerhalb gleicher Schwere nach Nettobetrag absteigend
+    const severity = (issue) => {
+      if (issue.types.includes('fee_und_marge_fehlen') || issue.types.includes('marge_negativ') || issue.types.includes('ek_groesser_vk')) return 0;
+      if (issue.types.includes('fee_deaktiviert') || issue.types.includes('marge_null')) return 1;
+      return 2;
+    };
+    istIssues.sort((x, y) => {
+      const s = severity(x) - severity(y);
+      if (s !== 0) return s;
+      return (Number(y.auftrag.nettobetrag) || 0) - (Number(x.auftrag.nettobetrag) || 0);
     });
 
     const sorted = Array.from(categories.values()).sort((a, b) => b.vk - a.vk);
@@ -350,6 +404,7 @@ export class StakeholderOverviewPage {
       feeTotal: feeBase + feeMargin,
       ksk: kskGesamt,
       unassignedRows,
+      istIssues,
       categories: sorted
     };
   }
@@ -441,6 +496,123 @@ export class StakeholderOverviewPage {
           ${this.renderDonut(donutAgg, 'Umsatz')}
         </div>
       </div>
+
+      ${this.renderIstIssues(agg)}
+    `;
+  }
+
+  renderNoFeeHint(istIssues) {
+    const critical = (istIssues || []).filter(i =>
+      i.types.includes('fee_und_marge_fehlen') || i.types.includes('fee_deaktiviert')
+    );
+    if (!critical.length) return '';
+
+    const label = critical.length === 1 ? 'Auftrag' : 'Aufträge';
+    return `<span class="stakeholder-summary-sub stakeholder-summary-sub--warn">
+      ${critical.length} ${label} mit fehlender/deaktivierter Fee – siehe Datenlücken unten
+    </span>`;
+  }
+
+  istIssueBadges(issue) {
+    const badges = [];
+    if (issue.types.includes('fee_und_marge_fehlen')) {
+      badges.push('<span class="stakeholder-badge stakeholder-badge--error">Fee &amp; Marge fehlen</span>');
+    }
+    if (issue.types.includes('marge_negativ')) {
+      badges.push('<span class="stakeholder-badge stakeholder-badge--error">Marge negativ</span>');
+    }
+    if (issue.types.includes('ek_groesser_vk')) {
+      badges.push('<span class="stakeholder-badge stakeholder-badge--error">EK &gt; VK</span>');
+    }
+    if (issue.types.includes('fee_deaktiviert')) {
+      badges.push('<span class="stakeholder-badge stakeholder-badge--warn">Fee deaktiviert</span>');
+    }
+    if (issue.types.includes('marge_null')) {
+      badges.push('<span class="stakeholder-badge stakeholder-badge--warn">Marge 0 €</span>');
+    }
+    if (issue.types.includes('preise_unvollstaendig')) {
+      badges.push('<span class="stakeholder-badge stakeholder-badge--warn">Preise unvollständig</span>');
+    }
+    return badges.join('');
+  }
+
+  renderIstIssues(agg) {
+    const issues = agg.istIssues || [];
+
+    if (!issues.length) {
+      return `
+        <div class="stakeholder-issues">
+          <h3 class="stakeholder-card-title">Datenlücken Agentur-Fee &amp; Marge</h3>
+          <div class="stakeholder-empty stakeholder-empty--ok">Alle Aufträge haben eine Agentur-Fee oder
+            eine gepflegte EK/VK-Marge. Keine offenen Datenlücken im gewählten Zeitraum.</div>
+        </div>
+      `;
+    }
+
+    const rows = issues.map(issue => {
+      const a = issue.auftrag;
+
+      let feeCell = '–';
+      if (issue.baseFee > 0) {
+        feeCell = this.fmtEuro(issue.baseFee);
+      } else if (issue.types.includes('fee_deaktiviert')) {
+        feeCell = `${this.fmtEuro(issue.feeValue)} <span class="stakeholder-badge stakeholder-badge--warn">deaktiviert</span>`;
+      }
+
+      const marginClass = issue.margin < 0 ? ' stakeholder-num--neg' : '';
+
+      const negCell = issue.negativePairs > 0
+        ? `<span class="stakeholder-num--neg">${issue.negativePairs} Pos. (${this.fmtEuro(issue.negativeSum)})</span>`
+        : '–';
+
+      return `
+        <tr>
+          <td>
+            <a href="/auftrag/${this.escape(a.id)}" class="stakeholder-issue-title"
+               onclick="event.preventDefault(); window.navigateTo('/auftrag/${this.escape(a.id)}')">${this.escape(this.auftragName(a))}</a>
+          </td>
+          <td class="stakeholder-num">${this.fmtEuro(a.nettobetrag)}</td>
+          <td class="stakeholder-num">${feeCell}</td>
+          <td class="stakeholder-num${marginClass}">${this.fmtEuro(issue.margin)}</td>
+          <td class="stakeholder-num">${negCell}</td>
+          <td class="stakeholder-num">${issue.filledPairs}/${issue.positions}</td>
+          <td><div class="stakeholder-issue-badges stakeholder-issue-badges--table">${this.istIssueBadges(issue)}</div></td>
+          <td>
+            <button type="button" class="secondary-btn stakeholder-edit-btn"
+                    data-action="edit-auftrag" data-auftrag-id="${this.escape(a.id)}">Im Wizard bearbeiten</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="stakeholder-issues">
+        <h3 class="stakeholder-card-title">Datenlücken Agentur-Fee &amp; Marge (${issues.length} ${issues.length === 1 ? 'Auftrag' : 'Aufträge'})</h3>
+        <p class="stakeholder-issues-hint">
+          Aufträge ohne aktive Agentur-Fee und ohne EK/VK-Marge, mit hinterlegter aber deaktivierter Fee,
+          negativer Marge, Positionen mit EK &gt; VK oder unvollständig gepflegten Preisen.
+          Contracting-Aufträge sind ausgenommen.
+          „EK &gt; VK" = einzelne Positionen, bei denen der Einkaufspreis über dem Verkaufspreis liegt.
+          „Positionen" = Preispaare mit EK und VK &gt; 0 im Verhältnis zu allen Positionen.
+        </p>
+        <div class="stakeholder-ist-issues-scroll">
+          <table class="stakeholder-table">
+            <thead>
+              <tr>
+                <th>Auftrag</th>
+                <th class="stakeholder-num">Netto</th>
+                <th class="stakeholder-num">Fee festgelegt</th>
+                <th class="stakeholder-num">EK/VK-Marge</th>
+                <th class="stakeholder-num">EK &gt; VK</th>
+                <th class="stakeholder-num">Positionen</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
     `;
   }
 
@@ -457,14 +629,10 @@ export class StakeholderOverviewPage {
           <span class="stakeholder-summary-sub">Verbrauchtes Creatorbudget</span>
         </div>
         <div class="stakeholder-summary-card">
-          <span class="stakeholder-summary-label">Deckungsbeitrag</span>
-          <span class="stakeholder-summary-value">${this.fmtEuro(agg.db)}</span>
-          <span class="stakeholder-summary-sub">DB-Marge: ${this.fmtPct(agg.dbPct)}</span>
-        </div>
-        <div class="stakeholder-summary-card">
           <span class="stakeholder-summary-label">Agentur Fee gesamt</span>
           <span class="stakeholder-summary-value">${this.fmtEuro(agg.feeTotal)}</span>
           <span class="stakeholder-summary-sub">Festgelegt: ${this.fmtEuro(agg.feeBase)} · EK/VK-Differenz: ${this.fmtEuro(agg.feeMargin)}</span>
+          ${this.renderNoFeeHint(agg.istIssues)}
         </div>
         <div class="stakeholder-summary-card">
           <span class="stakeholder-summary-label">KSK gesamt</span>

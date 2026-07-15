@@ -87,6 +87,10 @@
   color: var(--text-secondary);
 }
 
+.stakeholder-summary-sub--warn {
+  color: var(--warning-700, #b45309);
+}
+
 /* Hauptbereich: Tabelle + Donut */
 
 .stakeholder-main-grid {
@@ -140,6 +144,10 @@
 .stakeholder-table .stakeholder-num {
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+.stakeholder-table .stakeholder-num--neg {
+  color: var(--error-700, #b91c1c);
 }
 
 .stakeholder-color-dot {
@@ -253,6 +261,14 @@
   gap: 6px;
   flex-wrap: wrap;
   margin-left: auto;
+}
+
+.stakeholder-issue-badges--table {
+  margin-left: 0;
+}
+
+.stakeholder-ist-issues-scroll {
+  overflow-x: auto;
 }
 
 .stakeholder-badge {
