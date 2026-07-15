@@ -344,7 +344,7 @@ export async function renderGuestNoAccess() {
   try {
     const { data } = await window.supabase
       .from('list_shares')
-      .select('token, entity_type, created_at')
+      .select('token, entity_type, entity_id, created_at')
       .is('revoked_at', null)
       .order('created_at', { ascending: false });
     shares = data || [];
@@ -352,11 +352,18 @@ export async function renderGuestNoAccess() {
     console.warn('Shares konnten nicht geladen werden:', e);
   }
 
+  // Namen der geteilten Entitäten nachladen (RLS: Gast sieht genau diese Zeilen)
+  const nameById = await loadShareEntityNames(shares);
+
   const shareLinks = shares.map((s) => {
     const label = ENTITY_LABELS[s.entity_type] || 'Liste';
+    const name = nameById.get(s.entity_id);
     return `
       <a class="guest-share-link" href="/share/${escapeHtml(s.token)}">
-        <span>${label} öffnen</span>
+        <span class="guest-share-link-text">
+          <span class="guest-share-link-title">${label} öffnen</span>
+          ${name ? `<span class="guest-share-link-subtitle">${escapeHtml(name)}</span>` : ''}
+        </span>
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="16" height="16">
           <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
         </svg>
@@ -400,6 +407,59 @@ export async function renderGuestNoAccess() {
 // ---------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------
+
+// Lädt die Anzeigenamen der geteilten Entitäten batchweise pro Typ.
+// Fehler sind unkritisch: ohne Namen entfällt nur der Untertext.
+async function loadShareEntityNames(shares) {
+  const idsByType = { kampagne: [], sourcing: [], strategie: [] };
+  for (const s of shares) {
+    if (idsByType[s.entity_type] && s.entity_id) idsByType[s.entity_type].push(s.entity_id);
+  }
+
+  const nameById = new Map();
+  const queries = [];
+
+  if (idsByType.kampagne.length > 0) {
+    queries.push(
+      window.supabase
+        .from('kampagne')
+        .select('id, eigener_name, kampagnenname')
+        .in('id', idsByType.kampagne)
+        .then(({ data }) => {
+          for (const k of data || []) nameById.set(k.id, k.eigener_name || k.kampagnenname);
+        })
+    );
+  }
+  if (idsByType.sourcing.length > 0) {
+    queries.push(
+      window.supabase
+        .from('creator_auswahl')
+        .select('id, name')
+        .in('id', idsByType.sourcing)
+        .then(({ data }) => {
+          for (const row of data || []) nameById.set(row.id, row.name);
+        })
+    );
+  }
+  if (idsByType.strategie.length > 0) {
+    queries.push(
+      window.supabase
+        .from('strategie')
+        .select('id, name')
+        .in('id', idsByType.strategie)
+        .then(({ data }) => {
+          for (const row of data || []) nameById.set(row.id, row.name);
+        })
+    );
+  }
+
+  try {
+    await Promise.allSettled(queries);
+  } catch (e) {
+    console.warn('Entitätsnamen konnten nicht geladen werden:', e);
+  }
+  return nameById;
+}
 
 function renderMessage(root, text, isError = false) {
   if (!root) return;

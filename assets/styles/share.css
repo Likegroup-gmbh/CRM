@@ -64,6 +64,27 @@
   border-color: var(--border-secondary);
 }
 
+.guest-share-link svg {
+  flex-shrink: 0;
+}
+
+.guest-share-link-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+}
+
+.guest-share-link-subtitle {
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* --- Share-Dialog (Shell: overlay-modal + modal-dialog aus components.css) --- */
 
 .share-list-modal .modal-dialog {
