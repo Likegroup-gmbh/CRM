@@ -73,36 +73,58 @@ export async function initGuestShare(token) {
 function renderOnboarding(root, token, share) {
   const label = ENTITY_LABELS[share.entityType] || 'Liste';
   root.innerHTML = `
-    <div class="guest-onboarding">
-      <div class="guest-onboarding-card">
-        <h2>Geteilte ${label}</h2>
-        <p class="guest-onboarding-info">
-          Dieser Zugang ist für <strong>${escapeHtml(share.email)}</strong> bestimmt.
-          Zur Bestätigung senden wir einen 6-stelligen Code an diese E-Mail-Adresse.
-        </p>
+    <div class="login-split-container">
+      <div class="login-left">
+        <div class="login-box auth-card">
+          <div class="login-logo-wrapper">
+            <img src="/assets/background/Logo-Icon-gray.svg" alt="Logo" class="login-logo">
+          </div>
+          <h1 class="auth-title">Geteilte ${label}</h1>
 
-        <div id="guest-step-name">
-          <label class="label" for="guest-name-input">Ihr Name</label>
-          <input type="text" id="guest-name-input" class="input" placeholder="Vor- und Nachname"
-                 value="${escapeHtml(share.gastName || '')}" autocomplete="name">
-          <button id="guest-send-code" class="primary-btn guest-btn">Code anfordern</button>
+          <div id="guest-step-name">
+            <p class="auth-subtitle">Dieser Zugang ist bestimmt für:</p>
+            <div class="email-address">${escapeHtml(share.email)}</div>
+            <div class="form-box guest-form">
+              <label class="label" for="guest-name-input">Ihr Name</label>
+              <input type="text" id="guest-name-input" class="input" placeholder="Vor- und Nachname"
+                     value="${escapeHtml(share.gastName || '')}" autocomplete="name">
+            </div>
+            <button id="guest-send-code" class="verify-button">Code anfordern</button>
+            <p class="guest-onboarding-note">
+              Zur Bestätigung senden wir einen 6-stelligen Code an diese E-Mail-Adresse.
+              Ein Account oder Passwort ist nicht nötig.
+            </p>
+          </div>
+
+          <div id="guest-step-code" style="display:none;">
+            <p class="auth-subtitle">Wir haben einen 6-stelligen Code gesendet an:</p>
+            <div class="email-address">${escapeHtml(share.email)}</div>
+            <div class="otp-container">
+              <div class="otp-inputs" id="guest-otp-inputs">
+                <input type="text" class="otp-input" maxlength="1" inputmode="numeric" autocomplete="off">
+                <input type="text" class="otp-input" maxlength="1" inputmode="numeric" autocomplete="off">
+                <input type="text" class="otp-input" maxlength="1" inputmode="numeric" autocomplete="off">
+                <input type="text" class="otp-input" maxlength="1" inputmode="numeric" autocomplete="off">
+                <input type="text" class="otp-input" maxlength="1" inputmode="numeric" autocomplete="off">
+                <input type="text" class="otp-input" maxlength="1" inputmode="numeric" autocomplete="off">
+              </div>
+              <button id="guest-verify-code" class="verify-button">Code bestätigen</button>
+            </div>
+            <div class="resend-container">
+              <span class="resend-text">Code nicht erhalten? </span>
+              <button id="guest-resend-code" class="resend-button">Code erneut senden</button>
+            </div>
+          </div>
+
+          <div id="guest-error" class="auth-alert auth-alert--error" style="display:none;"></div>
         </div>
-
-        <div id="guest-step-code" style="display:none;">
-          <label class="label" for="guest-code-input">Sicherheitscode</label>
-          <input type="text" id="guest-code-input" class="input" inputmode="numeric" maxlength="6"
-                 placeholder="6-stelliger Code" autocomplete="one-time-code">
-          <button id="guest-verify-code" class="primary-btn guest-btn">Bestätigen</button>
-          <button id="guest-resend-code" class="guest-link-btn">Code erneut senden</button>
-        </div>
-
-        <p id="guest-error" class="guest-onboarding-error" style="display:none;"></p>
       </div>
+      <div class="login-right"></div>
     </div>
   `;
 
   const nameInput = document.getElementById('guest-name-input');
-  const codeInput = document.getElementById('guest-code-input');
+  const otpInputs = Array.from(root.querySelectorAll('.otp-input'));
   const errorEl = document.getElementById('guest-error');
 
   const showError = (msg) => {
@@ -111,7 +133,20 @@ function renderOnboarding(root, token, share) {
   };
   const clearError = () => { errorEl.style.display = 'none'; };
 
-  const sendCode = async (btn) => {
+  const getCode = () => otpInputs.map((i) => i.value).join('');
+  const updateOtpStyling = () => {
+    otpInputs.forEach((input) => {
+      input.classList.remove('filled', 'error');
+      if (input.value) input.classList.add('filled');
+    });
+  };
+  const clearOtp = (focus = true) => {
+    otpInputs.forEach((input) => { input.value = ''; });
+    updateOtpStyling();
+    if (focus) otpInputs[0].focus();
+  };
+
+  const sendCode = async (btn, idleLabel) => {
     clearError();
     const name = nameInput.value.trim();
     if (!name) {
@@ -126,7 +161,7 @@ function renderOnboarding(root, token, share) {
       options: { shouldCreateUser: false },
     });
     btn.disabled = false;
-    btn.textContent = btn.id === 'guest-send-code' ? 'Code anfordern' : 'Code erneut senden';
+    btn.textContent = idleLabel;
     if (error) {
       console.error('OTP-Versand fehlgeschlagen:', error);
       showError('Der Code konnte nicht gesendet werden. Bitte kurz warten und erneut versuchen.');
@@ -134,23 +169,30 @@ function renderOnboarding(root, token, share) {
     }
     document.getElementById('guest-step-name').style.display = 'none';
     document.getElementById('guest-step-code').style.display = '';
-    codeInput.focus();
+    clearOtp();
   };
 
-  document.getElementById('guest-send-code').addEventListener('click', (e) => sendCode(e.currentTarget));
+  document.getElementById('guest-send-code').addEventListener('click', (e) =>
+    sendCode(e.currentTarget, 'Code anfordern'));
   document.getElementById('guest-resend-code').addEventListener('click', (e) => {
     e.preventDefault();
-    sendCode(e.currentTarget);
+    sendCode(e.currentTarget, 'Code erneut senden');
+  });
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendCode(document.getElementById('guest-send-code'), 'Code anfordern');
   });
 
+  let isVerifying = false;
   const verify = async () => {
+    if (isVerifying) return;
     clearError();
-    const code = codeInput.value.trim();
+    const code = getCode();
     if (!/^\d{6}$/.test(code)) {
       showError('Bitte geben Sie den 6-stelligen Code ein.');
       return;
     }
     const btn = document.getElementById('guest-verify-code');
+    isVerifying = true;
     btn.disabled = true;
     btn.textContent = 'Wird geprüft …';
     const { error } = await window.supabase.auth.verifyOtp({
@@ -158,18 +200,62 @@ function renderOnboarding(root, token, share) {
       token: code,
       type: 'email',
     });
+    isVerifying = false;
     btn.disabled = false;
-    btn.textContent = 'Bestätigen';
+    btn.textContent = 'Code bestätigen';
     if (error) {
       console.error('OTP-Verifikation fehlgeschlagen:', error);
       showError('Der Code ist ungültig oder abgelaufen.');
+      otpInputs.forEach((input) => { if (input.value) input.classList.add('error'); });
+      setTimeout(() => clearOtp(), 1500);
       return;
     }
     await enterGuestApp(token, share, nameInput.value.trim());
   };
 
+  // OTP-Boxen: Auto-Advance, Backspace, Pfeiltasten, Paste, Auto-Verify
+  otpInputs.forEach((input, index) => {
+    input.addEventListener('input', (e) => {
+      const value = e.target.value;
+      if (!/^\d$/.test(value) && value !== '') {
+        e.target.value = '';
+        return;
+      }
+      if (value && index < otpInputs.length - 1) {
+        setTimeout(() => {
+          otpInputs[index + 1].focus();
+          otpInputs[index + 1].select();
+        }, 10);
+      }
+      updateOtpStyling();
+      if (getCode().length === 6) {
+        setTimeout(() => verify(), 200);
+      }
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !e.target.value && index > 0) {
+        otpInputs[index - 1].focus();
+        otpInputs[index - 1].value = '';
+        updateOtpStyling();
+      }
+      if (e.key === 'ArrowLeft' && index > 0) otpInputs[index - 1].focus();
+      if (e.key === 'ArrowRight' && index < otpInputs.length - 1) otpInputs[index + 1].focus();
+      if (e.key === 'Enter') verify();
+    });
+
+    input.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const pasteData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+      if (pasteData.length === 6) {
+        otpInputs.forEach((otp, i) => { otp.value = pasteData[i] || ''; });
+        updateOtpStyling();
+        verify();
+      }
+    });
+  });
+
   document.getElementById('guest-verify-code').addEventListener('click', verify);
-  codeInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') verify(); });
 }
 
 // ---------------------------------------------------------------------
@@ -278,21 +364,27 @@ export async function renderGuestNoAccess() {
   }).join('');
 
   loginRoot.innerHTML = `
-    <div class="guest-onboarding">
-      <div class="guest-onboarding-card">
-        <h2>Kein Zugriff auf diesen Bereich</h2>
-        <p class="guest-onboarding-info">
-          Danke für Ihr Interesse — Ihr Zugang gilt nur für die mit Ihnen geteilten Listen.
-        </p>
-        ${shares.length > 0 ? `
-          <div class="guest-share-links">${shareLinks}</div>
-        ` : `
-          <p class="guest-onboarding-info" style="margin-bottom:16px;">
-            Ihr Zugang wurde widerrufen oder es liegen keine geteilten Listen vor.
+    <div class="login-split-container">
+      <div class="login-left">
+        <div class="login-box auth-card">
+          <div class="login-logo-wrapper">
+            <img src="/assets/background/Logo-Icon-gray.svg" alt="Logo" class="login-logo">
+          </div>
+          <h1 class="auth-title">Kein Zugriff auf diesen Bereich</h1>
+          <p class="auth-subtitle guest-onboarding-note">
+            Danke für Ihr Interesse — Ihr Zugang gilt nur für die mit Ihnen geteilten Listen.
           </p>
-        `}
-        <button id="guest-logout-btn" class="guest-link-btn">Abmelden</button>
+          ${shares.length > 0 ? `
+            <div class="guest-share-links">${shareLinks}</div>
+          ` : `
+            <p class="guest-onboarding-note">
+              Ihr Zugang wurde widerrufen oder es liegen keine geteilten Listen vor.
+            </p>
+          `}
+          <button id="guest-logout-btn" class="resend-button">Abmelden</button>
+        </div>
       </div>
+      <div class="login-right"></div>
     </div>
   `;
 
@@ -312,10 +404,18 @@ export async function renderGuestNoAccess() {
 function renderMessage(root, text, isError = false) {
   if (!root) return;
   root.innerHTML = `
-    <div class="guest-onboarding">
-      <div class="guest-onboarding-card">
-        <p class="${isError ? 'guest-onboarding-error' : ''}" style="margin:0;">${escapeHtml(text)}</p>
+    <div class="login-split-container">
+      <div class="login-left">
+        <div class="login-box auth-card">
+          <div class="login-logo-wrapper">
+            <img src="/assets/background/Logo-Icon-gray.svg" alt="Logo" class="login-logo">
+          </div>
+          ${isError
+            ? `<div class="auth-alert auth-alert--error" style="margin-bottom:0;">${escapeHtml(text)}</div>`
+            : `<p class="auth-subtitle" style="margin-bottom:0;">${escapeHtml(text)}</p>`}
+        </div>
       </div>
+      <div class="login-right"></div>
     </div>
   `;
 }

@@ -4,6 +4,7 @@
 import { deleteVideoFull, deleteDropboxCascade } from './VideoDeleteHelper.js';
 import { deleteUnternehmenCascade, collectDependentIds } from '../modules/unternehmen/services/UnternehmenDeleteService.js';
 import { rechnungNotizModal } from '../modules/rechnung/RechnungNotizModal.js';
+import { getSignedDocumentUrl, resolveDocumentUrl } from './DocumentUrlHelper.js';
 
 // Entity-Types, die keine eigene DB-Tabelle haben und auf eine andere Entity gemappt werden
 const ENTITY_ALIASES = { mitarbeiter: 'benutzer' };
@@ -685,14 +686,16 @@ async function handleRechnungDownload(rechnungId) {
 
     let downloadUrls = [];
     if (pdfs && pdfs.length > 0) {
-      downloadUrls = pdfs.map(p => {
+      downloadUrls = await Promise.all(pdfs.map(async (p) => {
         let url = p.file_url || '';
         if (p.file_path && !p.file_path.startsWith('/')) {
-          const { data: urlData } = window.supabase.storage.from('rechnungen').getPublicUrl(p.file_path);
-          url = urlData?.publicUrl || url;
+          // Privater Bucket: kurzlebige Signed URL statt Public URL
+          url = await getSignedDocumentUrl('rechnungen', p.file_path).catch(() => url);
+        } else {
+          url = await resolveDocumentUrl(url);
         }
         return { url, name: p.file_name };
-      });
+      }));
     } else {
       const { data: rechnung, error } = await window.supabase
         .from('rechnung')
@@ -704,7 +707,7 @@ async function handleRechnungDownload(rechnungId) {
         window.toastSystem?.show('Keine PDF für diese Rechnung hinterlegt', 'warning');
         return;
       }
-      downloadUrls = [{ url: rechnung.pdf_url, name: `Rechnung_${rechnung.rechnung_nr || rechnungId}.pdf` }];
+      downloadUrls = [{ url: await resolveDocumentUrl(rechnung.pdf_url), name: `Rechnung_${rechnung.rechnung_nr || rechnungId}.pdf` }];
     }
 
     window.toastSystem?.show('Download wird vorbereitet...', 'info');

@@ -1947,7 +1947,7 @@ h3.section-title,
 }
 
 .modal-body {
-  padding: 1rem 1.25rem;
+  padding: var(--space-md) var(--space-md);
 }
 
 .modal-footer {
@@ -3865,9 +3865,6 @@ input.input-error {
   color: #333;
 }
 
-.modal-body {
-  padding: 1.5rem;
-}
 
 /* Form Styles für Modal */
 .form-group {
@@ -16638,8 +16635,6 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
   margin: 0 0 var(--space-xs) 0;
   font-size: var(--text-xsm);
   font-weight: 500;
-  text-transform: uppercase;
-  
   color: var(--gray-500);
 }
 .nutzungsrechte-list {

@@ -11,6 +11,7 @@ import { renderVertragCell } from './RechnungVertragColumn.js';
 import { renderBezahltToggle } from './RechnungBezahltToggle.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { rechnungNotizModal } from './RechnungNotizModal.js';
+import { resolveDocumentUrl } from '../../core/DocumentUrlHelper.js';
 
 export class RechnungList {
   _abortController = null;
@@ -226,7 +227,7 @@ export class RechnungList {
   }
   
   // Rechnung PDF herunterladen
-  handleDownload(rechnungId) {
+  async handleDownload(rechnungId) {
     const rechnung = this.rechnungen.find(r => r.id === rechnungId);
     if (!rechnung) {
       window.toastSystem?.show('Rechnung nicht gefunden', 'error');
@@ -241,8 +242,10 @@ export class RechnungList {
 
     const urls = pdfs.length > 0 ? pdfs.map(p => ({ url: p.open_url, name: p.file_name })) : [{ url: rechnung.pdf_url, name: `Rechnung_${rechnung.rechnung_nr || rechnungId}.pdf` }];
     for (const { url, name } of urls) {
+      // Privater Bucket: Public URLs on-demand in Signed URLs umwandeln
+      const openUrl = await resolveDocumentUrl(url);
       const link = document.createElement('a');
-      link.href = url;
+      link.href = openUrl;
       link.target = '_blank';
       link.download = name;
       document.body.appendChild(link);
@@ -960,7 +963,9 @@ export class RechnungList {
       const pdf = allPdfs[i];
 
       try {
-        const response = await fetch(pdf.url);
+        // Privater Bucket: Public URLs on-demand in Signed URLs umwandeln
+        const fetchUrl = await resolveDocumentUrl(pdf.url);
+        const response = await fetch(fetchUrl);
         if (!response.ok) throw new Error(`Fehler beim Laden von ${pdf.name}`);
 
         const blob = await response.blob();

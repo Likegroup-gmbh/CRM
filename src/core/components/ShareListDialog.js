@@ -3,8 +3,6 @@
 // Nur für Admin/Mitarbeiter. Versand + Gast-Anlage laufen über die
 // Edge Function 'share-list'; Widerruf/Rechte direkt via RLS.
 
-const RECHTE_LABELS = { ansehen: 'Nur ansehen', feedback: 'Ansehen + Feedback' };
-
 export class ShareListDialog {
   constructor() {
     this.overlay = null;
@@ -32,34 +30,31 @@ export class ShareListDialog {
   render() {
     this.close();
     const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay share-dialog-overlay';
+    overlay.className = 'modal overlay-modal share-list-modal';
     overlay.innerHTML = `
-      <div class="share-dialog">
-        <div class="share-dialog-header">
-          <h3>Liste teilen${this.entityName ? ` – ${this.escape(this.entityName)}` : ''}</h3>
-          <button type="button" class="share-dialog-close" title="Schließen">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div class="share-dialog-body">
-          <p class="share-dialog-hint">
-            Der Empfänger erhält eine E-Mail mit einem Zugangslink — ohne Account,
-            gesichert per E-Mail-Code. Der Zugang gilt bis zum Widerruf.
-          </p>
-          <div class="share-dialog-form">
-            <input type="email" id="share-email-input" class="input" placeholder="empfaenger@firma.de" autocomplete="off">
-            <select id="share-rechte-select" class="input share-rechte-select">
-              <option value="ansehen">Nur ansehen</option>
-              <option value="feedback">Ansehen + Feedback</option>
-            </select>
-            <button id="share-submit-btn" class="primary-btn">Teilen</button>
+      <div class="modal-dialog">
+        <div class="modal-header share-list-modal-header">
+          <div class="drawer-header-left">
+            <h3>Liste teilen${this.entityName ? ` – ${this.escape(this.entityName)}` : ''}</h3>
           </div>
-          <p id="share-dialog-message" class="share-dialog-message" style="display:none;"></p>
+          <button type="button" class="modal-close" data-action="close" aria-label="Schließen">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="share-dialog-form">
+            <div class="share-dialog-form-row">
+              <input type="email" id="share-email-input" class="input" placeholder="empfaenger@firma.de" autocomplete="off">
+              <select id="share-rechte-select" class="input share-rechte-select">
+                <option value="ansehen">Nur ansehen</option>
+                <option value="feedback">Ansehen + Feedback</option>
+              </select>
+              <button id="share-submit-btn" class="primary-btn">Einladen</button>
+            </div>
+            <textarea id="share-message-input" class="input share-message-input" rows="3" maxlength="500"
+                      placeholder="Nachricht (optional) …"></textarea>
+          </div>
           <div class="share-dialog-list">
-            <h4>Bereits geteilt mit</h4>
-            <div id="share-recipients">Wird geladen …</div>
+            <h4 class="nutzungsrechte-section-title">Bereits geteilt mit</h4>
+            <div id="share-recipients" class="share-dialog-empty">Wird geladen …</div>
           </div>
         </div>
       </div>
@@ -70,29 +65,23 @@ export class ShareListDialog {
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) this.close();
     });
-    overlay.querySelector('.share-dialog-close').addEventListener('click', () => this.close());
+    overlay.querySelector('[data-action="close"]').addEventListener('click', () => this.close());
     overlay.querySelector('#share-submit-btn').addEventListener('click', () => this.submit());
     overlay.querySelector('#share-email-input').addEventListener('keydown', (e) => {
       if (e.key === 'Enter') this.submit();
     });
   }
 
-  showMessage(text, type = 'info') {
-    const el = this.overlay?.querySelector('#share-dialog-message');
-    if (!el) return;
-    el.textContent = text;
-    el.className = `share-dialog-message share-dialog-message--${type}`;
-    el.style.display = '';
-  }
-
   async submit() {
     const emailInput = this.overlay?.querySelector('#share-email-input');
     const rechteSelect = this.overlay?.querySelector('#share-rechte-select');
+    const messageInput = this.overlay?.querySelector('#share-message-input');
     const btn = this.overlay?.querySelector('#share-submit-btn');
     const email = (emailInput?.value || '').trim();
+    const message = (messageInput?.value || '').trim().slice(0, 500);
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      this.showMessage('Bitte eine gültige E-Mail-Adresse eingeben.', 'error');
+      window.toastSystem?.warning('Bitte eine gültige E-Mail-Adresse eingeben.');
       return;
     }
 
@@ -107,24 +96,26 @@ export class ShareListDialog {
           entityId: this.entityId,
           email,
           rechte: rechteSelect?.value || 'ansehen',
+          ...(message ? { message } : {}),
         },
       });
 
       if (error) {
         const detail = await this.readFunctionError(error);
-        this.showMessage(detail || 'Teilen fehlgeschlagen.', 'error');
+        window.toastSystem?.error(detail || 'Teilen fehlgeschlagen.');
         return;
       }
 
-      this.showMessage(`Einladung an ${email} versendet.`, 'success');
+      window.toastSystem?.success(`Einladung an ${email} versendet.`);
       emailInput.value = '';
+      if (messageInput) messageInput.value = '';
       this.loadShares();
     } catch (err) {
       console.error('Share fehlgeschlagen:', err);
-      this.showMessage('Teilen fehlgeschlagen. Bitte erneut versuchen.', 'error');
+      window.toastSystem?.error('Teilen fehlgeschlagen. Bitte erneut versuchen.');
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Teilen';
+      btn.textContent = 'Einladen';
     }
   }
 
@@ -141,31 +132,36 @@ export class ShareListDialog {
       .order('created_at', { ascending: false });
 
     if (error) {
-      container.innerHTML = '<p class="share-dialog-message share-dialog-message--error">Fehler beim Laden.</p>';
+      container.className = '';
+      container.innerHTML = '<p class="share-dialog-empty">Fehler beim Laden.</p>';
       return;
     }
     if (!data || data.length === 0) {
+      container.className = '';
       container.innerHTML = '<p class="share-dialog-empty">Noch mit niemandem geteilt.</p>';
       return;
     }
 
+    container.className = '';
     container.innerHTML = data.map((share) => {
       const name = share.benutzer?.name;
+      const initial = (name || share.email || '?').trim().charAt(0).toUpperCase();
       const lastAccess = share.last_access_at
         ? `zuletzt ${new Date(share.last_access_at).toLocaleDateString('de-DE')}`
         : 'noch nicht geöffnet';
       return `
         <div class="share-recipient-row" data-share-id="${share.id}">
+          <div class="share-recipient-avatar">${this.escape(initial)}</div>
           <div class="share-recipient-info">
             <span class="share-recipient-email">${this.escape(share.email)}${name ? ` (${this.escape(name)})` : ''}</span>
-            <span class="share-recipient-meta">${RECHTE_LABELS[share.rechte] || share.rechte} · ${lastAccess}</span>
+            <span class="share-recipient-meta">${lastAccess}</span>
           </div>
           <div class="share-recipient-actions">
-            <select class="input share-recipient-rechte" data-share-id="${share.id}">
+            <select class="share-recipient-rechte" data-share-id="${share.id}" title="Rechte ändern">
               <option value="ansehen" ${share.rechte === 'ansehen' ? 'selected' : ''}>Nur ansehen</option>
               <option value="feedback" ${share.rechte === 'feedback' ? 'selected' : ''}>Ansehen + Feedback</option>
             </select>
-            <button type="button" class="secondary-btn share-recipient-revoke" data-share-id="${share.id}">Widerrufen</button>
+            <button type="button" class="share-recipient-revoke" data-share-id="${share.id}" title="Zugang widerrufen">Widerrufen</button>
           </div>
         </div>
       `;
@@ -186,10 +182,10 @@ export class ShareListDialog {
       .eq('id', shareId);
 
     if (error) {
-      this.showMessage('Widerruf fehlgeschlagen.', 'error');
+      window.toastSystem?.error('Widerruf fehlgeschlagen.');
       return;
     }
-    this.showMessage('Zugang widerrufen.', 'success');
+    window.toastSystem?.success('Zugang widerrufen.');
     this.loadShares();
   }
 
@@ -200,11 +196,11 @@ export class ShareListDialog {
       .eq('id', shareId);
 
     if (error) {
-      this.showMessage('Rechte-Änderung fehlgeschlagen.', 'error');
+      window.toastSystem?.error('Rechte-Änderung fehlgeschlagen.');
       this.loadShares();
       return;
     }
-    this.showMessage('Rechte aktualisiert.', 'success');
+    window.toastSystem?.success('Rechte aktualisiert.');
   }
 
   async readFunctionError(error) {

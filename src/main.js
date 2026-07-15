@@ -21,6 +21,7 @@ import '../assets/styles/stakeholder.css';
 import { CONFIG } from './core/ConfigSystem.js';
 import { modularFilterSystem as filterSystem } from './core/filters/ModularFilterSystem.js';
 import { toastSystem } from './core/ToastSystem.js';
+import { installDocumentLinkInterceptor } from './core/DocumentUrlHelper.js';
 import { creatorList, managementCreatorList } from './modules/creator/CreatorList.js';
 import { creatorListPage } from './modules/creator/CreatorListPage.js';
 import { creatorDetail } from './modules/creator/CreatorDetail.js';
@@ -342,6 +343,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   } else {
     console.warn('⚠️ Supabase nicht verfügbar - verwende Offline-Modus');
   }
+
+  // Dokument-Links (private Vertrags-/Rechnungs-Buckets) beim Klick in
+  // kurzlebige Signed URLs umwandeln
+  installDocumentLinkInterceptor();
 
   // Password Recovery Flow abfangen - BEVOR Auth-Check
   // Wenn ein Recovery-Token in der URL ist, zur Reset-Seite weiterleiten

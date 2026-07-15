@@ -7,6 +7,7 @@ import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { modularFilterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { syncVertragCheckbox } from '../../core/VertragSyncHelper.js';
+import { openDocumentUrl } from '../../core/DocumentUrlHelper.js';
 
 import { loadUnternehmenName, loadUnternehmenFolders, loadVertraege } from './VertraegeListDataLoader.js';
 import {
@@ -448,7 +449,8 @@ export class VertraegeList {
       window.toastSystem?.show('Keine PDF-Datei vorhanden', 'warning');
       return;
     }
-    window.open(vertrag.datei_url, '_blank');
+    // Privater Bucket: on-demand Signed URL statt gespeicherter Public URL
+    openDocumentUrl(vertrag.datei_url);
   }
 
   async deleteVertrag(id) {

@@ -2,7 +2,7 @@
  * share-list — Listen-Sharing per E-Mail (Gast-Zugang ohne Account)
  *
  * Actions (POST JSON):
- *  - create:  { action: 'create', entityType, entityId, email, rechte }
+ *  - create:  { action: 'create', entityType, entityId, email, rechte, message? }
  *             Erfordert Staff-JWT (admin/mitarbeiter). Legt Gast-User + Share an
  *             und verschickt die Einladungs-Mail via Resend. Idempotent: bei
  *             bestehendem aktivem Share wird der Link erneut versendet.
@@ -87,10 +87,19 @@ function buildInviteEmail(params: {
   sharedByName: string;
   rechte: string;
   link: string;
+  message?: string;
 }): string {
   const rechteText = params.rechte === 'feedback'
     ? 'Sie können die Liste ansehen und Feedback geben.'
     : 'Sie können die Liste ansehen.';
+  const messageBlock = params.message
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;">
+            <tr><td style="padding:12px 16px;background:#f4f4f5;border-left:3px solid #d4d4d4;border-radius:4px;">
+              <p style="margin:0 0 4px 0;color:#555;font-size:12px;font-weight:600;">Nachricht von ${escapeHtml(params.sharedByName)}:</p>
+              <p style="margin:0;color:#1a1a1a;font-size:14px;white-space:pre-line;">${escapeHtml(params.message)}</p>
+            </td></tr>
+          </table>`
+    : '';
   return `<!DOCTYPE html>
 <html lang="de">
 <head><meta charset="utf-8"><title>Liste geteilt</title></head>
@@ -102,6 +111,7 @@ function buildInviteEmail(params: {
           <h2 style="margin:0 0 16px 0;font-size:20px;">Eine Liste wurde mit Ihnen geteilt</h2>
           <p style="margin:0 0 16px 0;">${escapeHtml(params.sharedByName)} hat die ${escapeHtml(params.entityLabel)} <strong>${escapeHtml(params.entityName)}</strong> mit Ihnen geteilt.</p>
           <p style="margin:0 0 24px 0;">${rechteText}</p>
+          ${messageBlock}
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;">
             <tr><td style="border-radius:6px;background:#4f46e5;">
               <a href="${params.link}" style="display:inline-block;padding:12px 28px;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;">Liste öffnen</a>
@@ -222,6 +232,7 @@ serve(async (req: Request) => {
     const entityId = String(body.entityId ?? '');
     const email = String(body.email ?? '').trim().toLowerCase();
     const rechte = String(body.rechte ?? 'ansehen');
+    const message = String(body.message ?? '').trim().slice(0, 500);
 
     const entityConfig = ENTITY_CONFIG[entityType];
     if (!entityConfig) {
@@ -362,6 +373,7 @@ serve(async (req: Request) => {
       sharedByName: staff.name || 'Ihr Ansprechpartner',
       rechte,
       link,
+      message: message || undefined,
     });
 
     try {
