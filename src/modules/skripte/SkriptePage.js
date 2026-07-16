@@ -5,12 +5,14 @@
 import { SkriptGeneratorTab } from './SkriptGeneratorTab.js';
 import { SkriptListeTab } from './SkriptListeTab.js';
 import { SkriptDnaTab } from './SkriptDnaTab.js';
+import { SkriptPersonasTab } from './SkriptPersonasTab.js';
 import { SkriptAuswertungTab } from './SkriptAuswertungTab.js';
 
 const TABS = [
   { id: 'generator', label: 'Generator' },
   { id: 'skripte', label: 'Skripte & Feedback' },
   { id: 'dna', label: 'Skript-DNA' },
+  { id: 'personas', label: 'Personas' },
   { id: 'auswertung', label: 'Auswertung' }
 ];
 
@@ -19,6 +21,7 @@ export class SkriptePage {
     this.generatorTab = new SkriptGeneratorTab(this);
     this.listeTab = new SkriptListeTab(this);
     this.dnaTab = new SkriptDnaTab(this);
+    this.personasTab = new SkriptPersonasTab(this);
     this.auswertungTab = new SkriptAuswertungTab(this);
     this.activeTab = 'generator';
   }
@@ -69,6 +72,7 @@ export class SkriptePage {
       generator: this.generatorTab,
       skripte: this.listeTab,
       dna: this.dnaTab,
+      personas: this.personasTab,
       auswertung: this.auswertungTab
     }[this.activeTab];
     await tab.render(container);
@@ -84,6 +88,7 @@ export class SkriptePage {
     this.generatorTab.cleanup?.();
     this.listeTab.cleanup?.();
     this.dnaTab.cleanup?.();
+    this.personasTab.cleanup?.();
     this.auswertungTab.cleanup?.();
   }
 

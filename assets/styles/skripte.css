@@ -124,6 +124,13 @@
   flex-wrap: wrap;
 }
 
+.skripte-result-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
 .skripte-sektion {
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-xl);

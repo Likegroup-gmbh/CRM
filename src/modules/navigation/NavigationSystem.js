@@ -50,7 +50,8 @@ export class NavigationSystem {
           // { id: 'kickoff', label: 'Kick-Off', icon: 'icon-kick-off', url: '/kickoff' },
           // { id: 'produkt', label: 'Produkte', icon: 'icon-cube', url: '/produkt' },
           { id: 'strategie', label: 'Strategie', icon: 'icon-lightbulb', url: '/strategie' },
-          { id: 'skripte', label: 'Skripte (KI)', icon: 'icon-document', url: '/skripte' },
+          // Ausgeblendet, bis der Skript-Generator fertig getestet ist:
+          // { id: 'skripte', label: 'Skripte (KI)', icon: 'icon-document', url: '/skripte' },
           { id: 'sourcing', label: 'Sourcing', icon: 'icon-users', url: '/sourcing' },
           { id: 'vertraege', label: 'Verträge', icon: 'icon-contract', url: '/vertraege' },
           { id: 'videos', label: 'Videos', icon: 'icon-video', url: '/videos' },

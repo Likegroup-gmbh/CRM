@@ -57,7 +57,7 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: 'Invalid JSON' };
   }
 
-  const { jobId, layer_typ, branche_id, persona_id, marke_id } = payload;
+  const { jobId, layer_typ, branche_id, persona_id, marke_id, name } = payload;
   if (!jobId || !layer_typ) return { statusCode: 400, body: 'jobId/layer_typ fehlt' };
 
   const job = createJobUpdater(supabase, jobId);
@@ -68,7 +68,7 @@ exports.handler = async (event) => {
     // ------------------------------------------------------------------
     job.step('laden', 'Aktive DNA und Feedback-Daten laden...');
     let dnaQuery = supabase.from('skript_dna')
-      .select('id, version, inhalt').eq('layer_typ', layer_typ).eq('status', 'aktiv')
+      .select('id, name, version, inhalt').eq('layer_typ', layer_typ).eq('status', 'aktiv')
       .order('version', { ascending: false }).limit(1);
     if (layer_typ === 'branche') dnaQuery = dnaQuery.eq('branche_id', branche_id);
     if (layer_typ === 'zielgruppe') dnaQuery = dnaQuery.eq('persona_id', persona_id);
@@ -167,6 +167,8 @@ exports.handler = async (event) => {
     // ------------------------------------------------------------------
     job.step('speichern', 'DNA-Entwurf speichern (Review noetig)...');
     const { data: neueDna, error: insertError } = await supabase.from('skript_dna').insert({
+      // Name: explizit uebergeben oder von der bisherigen DNA geerbt
+      name: name || aktuelleDna?.name || null,
       layer_typ,
       branche_id: layer_typ === 'branche' ? branche_id : null,
       persona_id: layer_typ === 'zielgruppe' ? persona_id : null,

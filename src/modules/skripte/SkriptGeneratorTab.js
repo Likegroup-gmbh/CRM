@@ -3,7 +3,7 @@
 // Ergebnis-Anzeige (Hook/Hauptteil/CTA) mit Direkt-Link zum Feedback.
 
 import { skripteService, FUNNEL_STUFEN } from './SkripteService.js';
-import { escapeHtml } from './SkripteUtils.js';
+import { escapeHtml, costBadge } from './SkripteUtils.js';
 
 export class SkriptGeneratorTab {
   constructor(page) {
@@ -36,7 +36,7 @@ export class SkriptGeneratorTab {
             </div>
             <div class="form-group">
               <label class="form-label">Persona (Zielgruppe)</label>
-              <select id="gen-persona" class="form-input" disabled><option value="">– Erst Marke wählen –</option></select>
+              <select id="gen-persona" class="form-input"><option value="">Laden...</option></select>
             </div>
           </div>
         </div>
@@ -47,6 +47,17 @@ export class SkriptGeneratorTab {
             <label class="form-label">Video-Idee *</label>
             <textarea id="gen-idee" class="form-input" rows="3"
               placeholder="Worum soll es in dem Video gehen? (z.B. 'Morgenroutine mit Produkt X, Fokus auf Zeitersparnis')"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Location</label>
+            <textarea id="gen-location" class="form-input" rows="3"
+              placeholder="Wo findet der Dreh statt? (z.B. 'Zuhause in der Küche, morgens bei Tageslicht; zweiter Teil im Auto auf dem Weg zur Arbeit')"></textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Regieanweisung</label>
+            <textarea id="gen-regie" class="form-input" rows="3"
+              placeholder="Hinweise für den Creator zur Umsetzung (z.B. 'direkt in die Kamera sprechen, Produkt erst ab Sekunde 5 zeigen'). Fließt NICHT in die Skript-Generierung ein."></textarea>
+            <span class="skripte-hint">Wird nur als Zusatzinfo am Skript gespeichert – kein Einfluss auf den generierten Text.</span>
           </div>
           <div class="skripte-form-grid">
             <div class="form-group">
@@ -61,11 +72,12 @@ export class SkriptGeneratorTab {
               <input id="gen-tonalitaet" class="form-input" type="text"
                 placeholder="z.B. locker & humorvoll, seriös, emotional" />
             </div>
+            <div class="form-group">
+              <label class="form-label">Skript-DNA</label>
+              <select id="gen-dna" class="form-input"><option value="auto">Laden...</option></select>
+              <span class="skripte-hint" id="gen-dna-hint">"Automatisch" nutzt alle zum Kontext passenden aktiven DNA-Layer.</span>
+            </div>
           </div>
-          <label class="skripte-checkbox">
-            <input type="checkbox" id="gen-ohne-dna" />
-            <span>Ohne DNA generieren (Blindvergleich – misst das rohe Können des Modells)</span>
-          </label>
         </div>
 
         <div class="skripte-actions-row">
@@ -87,7 +99,7 @@ export class SkriptGeneratorTab {
     `;
 
     this.bindEvents(container);
-    await this.loadMarken();
+    await Promise.all([this.loadMarken(), this.loadPersonas(), this.loadDnaOptionen()]);
   }
 
   bindEvents(container) {
@@ -103,24 +115,53 @@ export class SkriptGeneratorTab {
       + this.marken.map((m) => `<option value="${m.id}">${escapeHtml(m.markenname)}</option>`).join('');
   }
 
+  // Personas sind global (nicht an Marke gebunden) und werden sofort geladen
+  async loadPersonas() {
+    const personas = await skripteService.loadPersonas();
+    const select = document.getElementById('gen-persona');
+    if (!select) return;
+    select.innerHTML = '<option value="">– Keine –</option>'
+      + personas.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+  }
+
+  // DNA-Auswahl: Automatisch (Layer-Logik), Ohne (Blindvergleich) oder gezielt EIN Dokument
+  async loadDnaOptionen() {
+    const dokumente = await skripteService.loadAktiveDna();
+    const select = document.getElementById('gen-dna');
+    if (!select) return;
+
+    const scopeLabel = (d) => {
+      if (d.layer_typ === 'branche') return d.branchen?.name;
+      if (d.layer_typ === 'zielgruppe') return d.personas?.name;
+      if (d.layer_typ === 'marke') return d.marke?.markenname;
+      return null;
+    };
+
+    select.innerHTML = '<option value="auto">Automatisch (passende aktive Layer)</option>'
+      + '<option value="ohne">Ohne DNA (Blindvergleich)</option>'
+      + dokumente.map((d) => {
+        const scope = scopeLabel(d);
+        const label = d.name || `${d.layer_typ}${scope ? `: ${scope}` : ''} v${d.version}`;
+        return `<option value="${d.id}">${escapeHtml(label)}${d.name && scope ? ` (${escapeHtml(scope)})` : ''}</option>`;
+      }).join('');
+  }
+
   async onMarkeChange() {
     const markeId = document.getElementById('gen-marke').value;
     const kampagneSelect = document.getElementById('gen-kampagne');
     const produktSelect = document.getElementById('gen-produkt');
-    const personaSelect = document.getElementById('gen-persona');
 
     if (!markeId) {
-      for (const el of [kampagneSelect, produktSelect, personaSelect]) {
+      for (const el of [kampagneSelect, produktSelect]) {
         el.disabled = true;
         el.innerHTML = '<option value="">– Erst Marke wählen –</option>';
       }
       return;
     }
 
-    const [kampagnen, produkte, personas] = await Promise.all([
+    const [kampagnen, produkte] = await Promise.all([
       skripteService.loadKampagnen(markeId),
-      skripteService.loadProdukte(markeId),
-      skripteService.loadPersonas(markeId)
+      skripteService.loadProdukte(markeId)
     ]);
 
     kampagneSelect.disabled = false;
@@ -130,10 +171,6 @@ export class SkriptGeneratorTab {
     produktSelect.disabled = false;
     produktSelect.innerHTML = '<option value="">– Keins –</option>'
       + produkte.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
-
-    personaSelect.disabled = false;
-    personaSelect.innerHTML = '<option value="">– Keine –</option>'
-      + personas.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
   }
 
   async startGeneration() {
@@ -179,6 +216,7 @@ export class SkriptGeneratorTab {
         if (j) this.handleJobUpdate(j);
       }, 5000);
 
+      const dnaWahl = document.getElementById('gen-dna').value;
       await skripteService.triggerFunction('skript-generate-background', {
         jobId: job.id,
         marke_id: markeId,
@@ -186,9 +224,12 @@ export class SkriptGeneratorTab {
         produkt_id: document.getElementById('gen-produkt').value || null,
         persona_id: document.getElementById('gen-persona').value || null,
         video_idee: videoIdee,
+        location: document.getElementById('gen-location').value.trim() || null,
+        regieanweisung: document.getElementById('gen-regie').value.trim() || null,
         funnel_stufe: document.getElementById('gen-funnel').value || null,
         tonalitaet: document.getElementById('gen-tonalitaet').value.trim() || null,
-        mit_dna: !document.getElementById('gen-ohne-dna').checked
+        mit_dna: dnaWahl !== 'ohne',
+        dna_id: dnaWahl !== 'auto' && dnaWahl !== 'ohne' ? dnaWahl : null
       });
       this.appendLog('[Client] Background Function gestartet');
     } catch (err) {
@@ -227,11 +268,21 @@ export class SkriptGeneratorTab {
     const resultEl = document.getElementById('gen-result');
     if (!resultEl) return;
 
+    const dnaVersionen = skript.prompt_kontext?.dna_versionen || [];
+    const dnaInfo = !skript.mit_dna
+      ? ' · ohne DNA (Blindvergleich)'
+      : dnaVersionen.length
+        ? ` · DNA: ${dnaVersionen.map((d) => d.name || `${d.layer} v${d.version}`).join(', ')}`
+        : '';
+
     resultEl.innerHTML = `
       <div class="skripte-card skripte-result">
         <div class="skripte-result-head">
           <h3>${escapeHtml(skript.titel || 'Generiertes Skript')}</h3>
-          <span class="skripte-hint">${escapeHtml(skript.model || '')}${skript.mit_dna ? '' : ' · ohne DNA (Blindvergleich)'}</span>
+          <span class="skripte-result-meta">
+            ${costBadge(skript)}
+            <span class="skripte-hint">${escapeHtml((skript.model || '') + dnaInfo)}</span>
+          </span>
         </div>
         ${['hook', 'hauptteil', 'cta'].map((sektion) => `
           <div class="skripte-sektion">
@@ -239,6 +290,16 @@ export class SkriptGeneratorTab {
             <div class="skripte-sektion-text">${escapeHtml(skript[sektion] || '')}</div>
           </div>
         `).join('')}
+        ${skript.location ? `
+          <div class="skripte-sektion">
+            <div class="skripte-sektion-label">LOCATION</div>
+            <div class="skripte-sektion-text">${escapeHtml(skript.location)}</div>
+          </div>` : ''}
+        ${skript.regieanweisung ? `
+          <div class="skripte-sektion">
+            <div class="skripte-sektion-label">REGIEANWEISUNG</div>
+            <div class="skripte-sektion-text">${escapeHtml(skript.regieanweisung)}</div>
+          </div>` : ''}
         <div class="skripte-actions-row">
           <button class="primary-btn" id="gen-feedback-btn">Feedback geben</button>
           <button class="secondary-btn" id="gen-copy-btn">Kopieren</button>

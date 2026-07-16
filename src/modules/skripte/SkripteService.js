@@ -54,10 +54,8 @@ export class SkripteService {
     return data || [];
   }
 
-  async loadPersonas(markeId) {
-    let q = this.db.from('personas').select('id, name, marke_id, branche_id').order('name');
-    if (markeId) q = q.or(`marke_id.eq.${markeId},marke_id.is.null`);
-    const { data } = await q;
+  async loadPersonas() {
+    const { data } = await this.db.from('personas').select('*').order('name');
     return data || [];
   }
 
@@ -70,6 +68,16 @@ export class SkripteService {
     const { data, error } = await this.db.from('personas').insert(payload).select().single();
     if (error) throw new Error(error.message);
     return data;
+  }
+
+  async updatePersona(id, patch) {
+    const { error } = await this.db.from('personas').update(patch).eq('id', id);
+    if (error) throw new Error(error.message);
+  }
+
+  async deletePersona(id) {
+    const { error } = await this.db.from('personas').delete().eq('id', id);
+    if (error) throw new Error(error.message);
   }
 
   // ------------------------------------------------------------------
@@ -140,6 +148,15 @@ export class SkripteService {
   // ------------------------------------------------------------------
   // DNA
   // ------------------------------------------------------------------
+  /** Aktive DNA-Dokumente fuer die Auswahl im Generator. */
+  async loadAktiveDna() {
+    const { data } = await this.db.from('skript_dna')
+      .select('id, name, layer_typ, version, branchen(name), personas(name), marke(markenname)')
+      .eq('status', 'aktiv')
+      .order('layer_typ').order('version', { ascending: false });
+    return data || [];
+  }
+
   async loadDnaDokumente() {
     const { data } = await this.db.from('skript_dna')
       .select('*, branchen(name), personas(name), marke(markenname)')

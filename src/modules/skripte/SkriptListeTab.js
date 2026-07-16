@@ -4,7 +4,7 @@
 // inkl. Bewertungsleitfaden und Performance-Labeling.
 
 import { skripteService, PERFORMANCE_LABELS, FUNNEL_STUFEN } from './SkripteService.js';
-import { escapeHtml, formatDate, badge, PERFORMANCE_BADGE_VARIANT, STATUS_LABELS } from './SkripteUtils.js';
+import { escapeHtml, formatDate, badge, costBadge, PERFORMANCE_BADGE_VARIANT, STATUS_LABELS } from './SkripteUtils.js';
 
 const BEWERTUNGSLEITFADEN = `
   <details class="skripte-leitfaden">
@@ -225,7 +225,19 @@ export class SkriptListeTab {
         ${skript.marke?.markenname ? badge(skript.marke.markenname) : ''}
         ${skript.model ? badge(skript.model) : ''}
         ${skript.herkunft === 'generiert' ? badge(skript.mit_dna ? 'mit DNA' : 'ohne DNA (blind)', skript.mit_dna ? 'success' : 'neutral') : ''}
+        ${skript.herkunft === 'generiert' ? costBadge(skript) : ''}
       </div>
+
+      ${skript.location ? `
+        <div class="skripte-sektion">
+          <div class="skripte-sektion-label">LOCATION</div>
+          <div class="skripte-sektion-text">${escapeHtml(skript.location)}</div>
+        </div>` : ''}
+      ${skript.regieanweisung ? `
+        <div class="skripte-sektion">
+          <div class="skripte-sektion-label">REGIEANWEISUNG</div>
+          <div class="skripte-sektion-text">${escapeHtml(skript.regieanweisung)}</div>
+        </div>` : ''}
 
       <div class="skripte-form-grid">
         <div class="form-group">

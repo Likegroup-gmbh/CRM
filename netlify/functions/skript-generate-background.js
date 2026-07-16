@@ -52,7 +52,7 @@ function createJobUpdater(supabase, jobId) {
 // Kontext-Aufbau: alle Quellen per SQL (kein LLM noetig)
 // ---------------------------------------------------------------------------
 async function loadContext(supabase, params) {
-  const { marke_id, kampagne_id, produkt_id, persona_id, mit_dna } = params;
+  const { marke_id, kampagne_id, produkt_id, persona_id, mit_dna, dna_id } = params;
   const ctx = { dnaVersionen: [], beispiele: [], antiPatterns: [] };
 
   if (marke_id) {
@@ -70,7 +70,8 @@ async function loadContext(supabase, params) {
 
   if (persona_id) {
     const { data } = await supabase.from('personas')
-      .select('id, name, beschreibung, branche_id').eq('id', persona_id).single();
+      .select('id, name, beschreibung, branche_id, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, kontext, pain_points')
+      .eq('id', persona_id).single();
     ctx.persona = data;
   }
 
@@ -105,9 +106,21 @@ async function loadContext(supabase, params) {
     ctx.kickoff = data?.[0] || null;
   }
 
-  // DNA-Layer (nur aktive Versionen): global > branche > zielgruppe > marke
-  // Beim Blindvergleich (mit_dna=false) komplett weglassen.
-  if (mit_dna !== false) {
+  // DNA-Auswahl:
+  //   dna_id gesetzt   -> genau DIESES Dokument (gezielte Wahl in der UI)
+  //   mit_dna=false    -> keine DNA (Blindvergleich)
+  //   sonst            -> automatisch alle passenden aktiven Layer
+  //                       (global > branche > zielgruppe > marke)
+  if (mit_dna === false) {
+    ctx.dna = [];
+  } else if (dna_id) {
+    const { data } = await supabase.from('skript_dna')
+      .select('id, name, layer_typ, version, inhalt')
+      .eq('id', dna_id).single();
+    if (!data) throw new Error('Gewaehlte DNA nicht gefunden');
+    ctx.dna = [data];
+    ctx.dnaVersionen = [{ id: data.id, name: data.name, layer: data.layer_typ, version: data.version }];
+  } else {
     const brancheId = ctx.marke?.branche_id || ctx.persona?.branche_id || null;
     const orParts = ['layer_typ.eq.global'];
     if (brancheId) orParts.push(`and(layer_typ.eq.branche,branche_id.eq.${brancheId})`);
@@ -115,15 +128,13 @@ async function loadContext(supabase, params) {
     if (marke_id) orParts.push(`and(layer_typ.eq.marke,marke_id.eq.${marke_id})`);
 
     const { data } = await supabase.from('skript_dna')
-      .select('id, layer_typ, version, inhalt')
+      .select('id, name, layer_typ, version, inhalt')
       .eq('status', 'aktiv')
       .or(orParts.join(','));
 
     const order = { global: 0, branche: 1, zielgruppe: 2, marke: 3 };
     ctx.dna = (data || []).sort((a, b) => order[a.layer_typ] - order[b.layer_typ]);
-    ctx.dnaVersionen = ctx.dna.map((d) => ({ id: d.id, layer: d.layer_typ, version: d.version }));
-  } else {
-    ctx.dna = [];
+    ctx.dnaVersionen = ctx.dna.map((d) => ({ id: d.id, name: d.name, layer: d.layer_typ, version: d.version }));
   }
 
   // Positiv-Beispiele: erst markenspezifisch, dann global auffuellen (max 3)
@@ -187,7 +198,7 @@ function buildPrompt(ctx, params) {
   if (ctx.dna.length) {
     stable += '\n# SKRIPT-DNA (verbindliches Regelwerk, geschichtet - spaetere Layer haben Vorrang)\n';
     for (const d of ctx.dna) {
-      stable += `\n--- Layer: ${d.layer_typ} (v${d.version}) ---\n${d.inhalt}\n`;
+      stable += `\n--- ${d.name ? `"${d.name}" - ` : ''}Layer: ${d.layer_typ} (v${d.version}) ---\n${d.inhalt}\n`;
     }
   }
 
@@ -212,9 +223,23 @@ function buildPrompt(ctx, params) {
   task += fmtSection('Kampagne', ctx.kampagne);
   task += fmtSection('Briefing', ctx.briefing);
   task += fmtSection('Marken-Kickoff', ctx.kickoff);
-  task += fmtSection('Zielgruppen-Persona', ctx.persona && { name: ctx.persona.name, beschreibung: ctx.persona.beschreibung });
+  task += fmtSection('Zielgruppen-Persona', ctx.persona && {
+    name: ctx.persona.name,
+    alter: [ctx.persona.alter_von, ctx.persona.alter_bis].filter(Boolean).join('-') || null,
+    geschlecht: ctx.persona.geschlecht,
+    wohnort_region: ctx.persona.wohnort_region,
+    beruf: ctx.persona.beruf,
+    budgetrahmen: ctx.persona.budgetrahmen,
+    bildungsstand: ctx.persona.bildungsstand,
+    lebenssituation: ctx.persona.lebenssituation,
+    lebensrealitaet: ctx.persona.kontext,
+    pain_points: ctx.persona.pain_points,
+    beschreibung: ctx.persona.beschreibung
+  });
+  // Regieanweisung bewusst NICHT im Prompt - reine Zusatzinfo fuer die Umsetzung
   task += fmtSection('Vorgaben fuer dieses Video', {
     video_idee: params.video_idee,
+    location: params.location,
     funnel_stufe: params.funnel_stufe,
     tonalitaet: params.tonalitaet
   });
@@ -282,6 +307,8 @@ exports.handler = async (event) => {
       hauptteil: parsed.hauptteil,
       cta: parsed.cta,
       video_idee: payload.video_idee || null,
+      location: payload.location || null,
+      regieanweisung: payload.regieanweisung || null,
       funnel_stufe: payload.funnel_stufe || null,
       tonalitaet: payload.tonalitaet || null,
       herkunft: 'generiert',

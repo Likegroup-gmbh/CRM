@@ -41,7 +41,7 @@ export class SkriptDnaTab {
       skripteService.loadMarken(),
       skripteService.loadBranchen()
     ]);
-    this.personas = await skripteService.loadPersonas(null);
+    this.personas = await skripteService.loadPersonas();
     this.renderListe();
   }
 
@@ -65,11 +65,12 @@ export class SkriptDnaTab {
     wrap.innerHTML = `
       <table class="skripte-table">
         <thead>
-          <tr><th>Layer</th><th>Scope</th><th>Version</th><th>Status</th><th>Freigegeben</th><th>Erstellt</th><th></th></tr>
+          <tr><th>Name</th><th>Layer</th><th>Scope</th><th>Version</th><th>Status</th><th>Freigegeben</th><th>Erstellt</th><th></th></tr>
         </thead>
         <tbody>
           ${this.dokumente.map((d) => `
             <tr data-id="${d.id}">
+              <td class="skripte-table-titel">${escapeHtml(d.name || '–')}</td>
               <td>${badge(DNA_LAYER[d.layer_typ] || d.layer_typ, 'info')}</td>
               <td>${escapeHtml(this.scopeLabel(d))}</td>
               <td>v${d.version}</td>
@@ -106,10 +107,20 @@ export class SkriptDnaTab {
       <p class="skripte-hint">Inhalt vor der Freigabe reviewen und bei Bedarf direkt editieren.
       "Freigeben" aktiviert diese Version und archiviert die bisher aktive desselben Scopes.</p>
       <div class="form-group">
+        <label class="form-label">Name (für die Auswahl im Generator)</label>
+        <input id="dna-name" class="form-input" type="text" value="${escapeHtml(doc.name || '')}"
+          placeholder="z.B. 'Conversion-DNA Beauty', 'Storytelling weich'" />
+      </div>
+      <div class="form-group">
         <label class="form-label">DNA-Inhalt (Markdown)</label>
         <textarea id="dna-inhalt" class="form-input skripte-dna-editor" rows="22">${escapeHtml(doc.inhalt)}</textarea>
       </div>
     `;
+
+    const readForm = () => ({
+      name: document.getElementById('dna-name').value.trim() || null,
+      inhalt: document.getElementById('dna-inhalt').value
+    });
 
     const buttons = [];
     if (doc.status !== 'archiviert') {
@@ -122,7 +133,7 @@ export class SkriptDnaTab {
     }
     buttons.push({ label: 'Speichern', onClick: async () => {
       try {
-        await skripteService.updateDna(doc.id, { inhalt: document.getElementById('dna-inhalt').value });
+        await skripteService.updateDna(doc.id, readForm());
         window.toastSystem?.success('Gespeichert');
         await this.reload();
         return true;
@@ -134,7 +145,7 @@ export class SkriptDnaTab {
     if (doc.status !== 'aktiv') {
       buttons.push({ label: 'Freigeben & aktivieren', primary: true, onClick: async () => {
         try {
-          await skripteService.updateDna(doc.id, { inhalt: document.getElementById('dna-inhalt').value });
+          await skripteService.updateDna(doc.id, readForm());
           await skripteService.aktiviereDna(doc);
           window.toastSystem?.success(`DNA v${doc.version} ist jetzt aktiv`);
           await this.reload();
@@ -154,6 +165,11 @@ export class SkriptDnaTab {
   // ------------------------------------------------------------------
   openNeuDrawer() {
     const body = `
+      <div class="form-group">
+        <label class="form-label">Name</label>
+        <input id="dnan-name" class="form-input" type="text"
+          placeholder="z.B. 'Conversion-DNA Beauty', 'Storytelling weich'" />
+      </div>
       <div class="skripte-form-grid">
         <div class="form-group">
           <label class="form-label">Layer *</label>
@@ -187,6 +203,7 @@ export class SkriptDnaTab {
           return false;
         }
         const { error } = await window.supabase.from('skript_dna').insert({
+          name: document.getElementById('dnan-name').value.trim() || null,
           layer_typ: layer,
           branche_id: layer === 'branche' ? scope : null,
           persona_id: layer === 'zielgruppe' ? scope : null,
@@ -248,6 +265,11 @@ export class SkriptDnaTab {
           <label class="form-label">Scope *</label>
           <select id="dest-scope" class="form-input"></select>
         </div>
+        <div class="form-group">
+          <label class="form-label">Name (optional)</label>
+          <input id="dest-name" class="form-input" type="text"
+            placeholder="Leer = Name der bisherigen DNA übernehmen" />
+        </div>
       </div>
     `;
 
@@ -255,12 +277,13 @@ export class SkriptDnaTab {
       { label: 'Destillieren', primary: true, onClick: async () => {
         const layer = document.getElementById('dest-layer').value;
         const scope = document.getElementById('dest-scope').value;
+        const name = document.getElementById('dest-name').value.trim() || null;
         if (layer !== 'global' && !scope) {
           window.toastSystem?.error('Scope fehlt');
           return false;
         }
         try {
-          await this.startDestillation(layer, scope);
+          await this.startDestillation(layer, scope, name);
           return true;
         } catch (err) {
           window.toastSystem?.error(err.message);
@@ -273,7 +296,7 @@ export class SkriptDnaTab {
       () => this.updateScopeSelect('dest-layer', 'dest-scope', 'dest-scope-wrap'));
   }
 
-  async startDestillation(layer, scope) {
+  async startDestillation(layer, scope, name) {
     const job = await skripteService.createJob();
     const statusCard = document.getElementById('dna-job-status');
     const logEl = document.getElementById('dna-job-log');
@@ -310,7 +333,8 @@ export class SkriptDnaTab {
       layer_typ: layer,
       branche_id: layer === 'branche' ? scope : null,
       persona_id: layer === 'zielgruppe' ? scope : null,
-      marke_id: layer === 'marke' ? scope : null
+      marke_id: layer === 'marke' ? scope : null,
+      name: name || null
     });
   }
 
