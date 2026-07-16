@@ -179,4 +179,12 @@ describe('Storys-Pfad nach Re-Root (Phase 6)', () => {
     });
     expect(p).toBe('/U/M/K/C/Storys/Video_1/Story_3/Feedbackschleife_2');
   });
+
+  it('Finale-Upload nutzt Finale_Version statt Feedbackschleife', () => {
+    const p = buildStorysVersionFolderPath({
+      unternehmen: 'U', marke: 'M', kampagne: 'K', kooperation: 'C',
+      videoPosition: 1, slotIndex: 3, versionNumber: 2, isFinal: true,
+    });
+    expect(p).toBe('/U/M/K/C/Storys/Video_1/Story_3/Finale_Version');
+  });
 });

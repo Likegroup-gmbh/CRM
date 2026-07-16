@@ -314,6 +314,14 @@ export class KampagneDetailStore {
     }
   }
 
+  applyFinalAssets(finalsByVideoId) {
+    for (const koopVideos of Object.values(this.videos)) {
+      for (const video of koopVideos) {
+        video.finalAssets = finalsByVideoId[video.id] || video.finalAssets || [];
+      }
+    }
+  }
+
   applyComments(comments) {
     for (const comment of comments) {
       if (!this.videoComments[comment.video_id]) {

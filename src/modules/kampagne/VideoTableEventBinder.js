@@ -121,6 +121,7 @@ export class VideoTableEventBinder {
       const uploadBtn = e.target.closest('.video-upload-btn');
       if (uploadBtn) {
         e.preventDefault();
+        // Finale-Uploads laufen jetzt ueber den Video-Tab (Option "Finale Version" im Versions-Select)
         t._openUploadDrawer(uploadBtn.dataset.videoId, uploadBtn.dataset.kooperationId);
       }
 
@@ -150,6 +151,12 @@ export class VideoTableEventBinder {
       if (playBtn) {
         e.preventDefault();
         t._mediaViewer.openVideo(playBtn.dataset.videoId, playBtn.dataset.kooperationId);
+        return;
+      }
+      const playFinalBtn = e.target.closest('[data-action="play-final"]');
+      if (playFinalBtn) {
+        e.preventDefault();
+        t._mediaViewer.openVideoFinal(playFinalBtn.dataset.videoId, playFinalBtn.dataset.kooperationId, playFinalBtn.dataset.assetId);
         return;
       }
       const storysBtn = e.target.closest('[data-action="view-storys"]');

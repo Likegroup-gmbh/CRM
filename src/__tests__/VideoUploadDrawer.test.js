@@ -112,7 +112,47 @@ describe('VideoUploadDrawer', () => {
       const queueEl = document.getElementById('video-upload-queue');
       const selects = queueEl.querySelectorAll('.video-version-select');
       expect(selects.length).toBe(1);
-      expect(selects[0].options.length).toBe(3);
+      // 3 Feedbackschleifen + Finale Version
+      expect(selects[0].options.length).toBe(4);
+      expect(selects[0].options[3].value).toBe('final');
+      expect(selects[0].options[3].textContent).toBe('Finale Version');
+    });
+
+    it('zeigt keinen separaten Finale-Tab mehr', async () => {
+      window.supabase = createMockSupabase([]);
+      await drawer.open('video-1', defaultMetadaten, vi.fn());
+
+      expect(document.querySelector('[data-drawer-tab="finale"]')).toBeNull();
+      expect(document.getElementById('upload-tab-finale')).toBeNull();
+    });
+
+    it('Finale Version: Freitext wird durch Varianten-Select 9:16/4:5 ersetzt', async () => {
+      window.supabase = createMockSupabase([]);
+      await drawer.open('video-1', defaultMetadaten, vi.fn());
+
+      const file = new File(['x'], 'test.mp4', { type: 'video/mp4' });
+      drawer.videoTab._addFiles([file]);
+
+      const queueEl = document.getElementById('video-upload-queue');
+      const select = queueEl.querySelector('.video-version-select');
+      select.value = 'final';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+
+      expect(drawer.videoTab._queue[0].isFinal).toBe(true);
+      expect(drawer.videoTab._queue[0].variantName).toBe('9:16');
+
+      const variantSelect = queueEl.querySelector('.video-final-variant-select');
+      expect(variantSelect).not.toBeNull();
+      expect([...variantSelect.options].map(o => o.value)).toEqual(['9:16', '4:5']);
+      expect(queueEl.querySelector('.video-variant-name-input')).toBeNull();
+
+      // Zurueck zu Feedbackschleife -> Freitext wieder da, Flag zurueckgesetzt
+      const selectAfter = queueEl.querySelector('.video-version-select');
+      selectAfter.value = '2';
+      selectAfter.dispatchEvent(new Event('change', { bubbles: true }));
+      expect(drawer.videoTab._queue[0].isFinal).toBe(false);
+      expect(drawer.videoTab._queue[0].versionNumber).toBe(2);
+      expect(document.querySelector('.video-variant-name-input')).not.toBeNull();
     });
   });
 

@@ -267,6 +267,19 @@ describe('VideoTableFieldHandler – Feedback Upsert/Soft-Delete', () => {
     });
   });
 
+  it('Runde 3: feedback_cj_r3 wird auf runde 3 gemappt', async () => {
+    const handler = new VideoTableFieldHandler(makeTable());
+    const field = makeField({ id: 'v1', field: 'feedback_cj_r3', value: 'Runde3' });
+
+    const ok = await handler.handleFieldUpdate(field);
+
+    expect(ok).toBe(true);
+    const upsertCall = calls.find(c => c[0] === 'upsert');
+    expect(upsertCall[1]).toMatchObject({
+      video_id: 'v1', runde: 3, feedback_typ: 'cj', text: 'Runde3', deleted_at: null,
+    });
+  });
+
   it('Leerer Text -> update (Soft-Delete) statt Hard-Delete; gibt true zurueck', async () => {
     const handler = new VideoTableFieldHandler(makeTable());
     const field = makeField({ id: 'v1', field: 'feedback_kunde_r1', value: '   ' });

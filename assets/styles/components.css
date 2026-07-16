@@ -16369,6 +16369,16 @@ table.vertraege-unternehmen-table td:last-child {
 .video-upload-btn:hover { background: var(--gray-800); }
 .video-upload-btn svg { width: var(--icon-xs); height: var(--icon-xs); }
 
+/* Finale-Version-Spalte: Play-Buttons je Variante (9:16 / 4:5) */
+.finale-cell-actions { flex-wrap: wrap; }
+.finale-play-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  width: auto; padding: 0 6px;
+}
+.finale-variant-label {
+  font-size: 11px; font-weight: 600; white-space: nowrap;
+}
+
 .video-reupload-btn {
   display: inline-flex; align-items: center;
   background: none; border: 1px solid var(--gray-300, #d1d5db); color: var(--gray-600, #4b5563);

@@ -31,10 +31,19 @@ describe('resolveVideoFeedbackTarget – Version->Runde Mapping', () => {
     expect(t.readonly).toBe(false);
   });
 
-  it('Version 3 -> finale Version, read-only (runde 2)', () => {
+  it('Version 3 -> Runde 3, editierbar', () => {
     const t = resolveVideoFeedbackTarget(3, false);
-    expect(t.readonly).toBe(true);
-    expect(t.runde).toBe(2);
+    expect(t.readonly).toBe(false);
+    expect(t.runde).toBe(3);
+    expect(t.slot.field).toBe('feedback_cj_r3');
+    expect(t.counterpartSlot.field).toBe('feedback_kunde_r3');
+  });
+
+  it('Version 4+ wird auf Runde 3 gedeckelt', () => {
+    const t = resolveVideoFeedbackTarget(5, true);
+    expect(t.runde).toBe(3);
+    expect(t.slot.field).toBe('feedback_kunde_r3');
+    expect(t.readonly).toBe(false);
   });
 
   it('getVideoFeedbackSlot findet exakten Slot', () => {
@@ -350,6 +359,29 @@ describe('VideoAssetLoader – Versionen & Varianten', () => {
     expect(loader.combinedVersions(assets, comments)).toEqual([1, 2]);
   });
 
+  it('combinedVersions ergaenzt Runde 3 aus Feedback und ignoriert finale Assets', () => {
+    const loader = new VideoAssetLoader();
+    const assets = [
+      { id: 'a', version_number: 1 },
+      { id: 'f', version_number: 1, is_final: true, variant_name: '9:16' },
+    ];
+    const comments = { kundeR3: [{ text: 'runde 3' }] };
+    expect(loader.combinedVersions(assets, comments)).toEqual([1, 3]);
+  });
+
+  it('finalVariants liefert nur is_final-Assets; variantsForVersion("final") ebenso', () => {
+    const loader = new VideoAssetLoader();
+    const assets = [
+      { id: 'a', version_number: 1 },
+      { id: 'f1', version_number: 1, is_final: true, variant_name: '9:16' },
+      { id: 'f2', version_number: 1, is_final: true, variant_name: '4:5' },
+    ];
+    expect(loader.finalVariants(assets).map(a => a.id)).toEqual(['f1', 'f2']);
+    expect(loader.variantsForVersion(assets, 'final').map(a => a.id)).toEqual(['f1', 'f2']);
+    expect(loader.variantsForVersion(assets, 1).map(a => a.id)).toEqual(['a']);
+    expect(loader.versions(assets)).toEqual([1]);
+  });
+
   it('applyDefaultSelection waehlt hoechste Version + aktuelles Asset', () => {
     const loader = new VideoAssetLoader();
     const assets = [
@@ -358,6 +390,12 @@ describe('VideoAssetLoader – Versionen & Varianten', () => {
       { id: 'c', version_number: 2, is_current: true },
     ];
     expect(loader.applyDefaultSelection(assets, null)).toEqual({ selectedVersion: 2, selectedAssetId: 'c' });
+  });
+
+  it('applyDefaultSelection faellt auf finale Version zurueck, wenn nur finale Assets existieren', () => {
+    const loader = new VideoAssetLoader();
+    const assets = [{ id: 'f1', version_number: 1, is_final: true, variant_name: '9:16' }];
+    expect(loader.applyDefaultSelection(assets, null)).toEqual({ selectedVersion: 'final', selectedAssetId: 'f1' });
   });
 });
 
@@ -387,6 +425,51 @@ describe('VideoPlayerLightbox – Feedback-Ziel & Navigation', () => {
     const bildTarget = player.feedbackTarget();
     expect(bildTarget.videoId).toBe('v1');
     expect(bildTarget.target.runde).toBe(1);
+  });
+
+  it('storyVersions filtert finale Assets; storyFinalVariants liefert sie', () => {
+    const slot = {
+      id: 's1', video_id: 'v1',
+      assets: [
+        { id: 'a', version_number: 1 },
+        { id: 'b', version_number: 2, is_current: true },
+        { id: 'f1', version_number: 1, is_final: true, variant_name: '9:16' },
+        { id: 'f2', version_number: 1, is_final: true, variant_name: '4:5' },
+      ],
+    };
+    const player = playerWith([{ id: 'k1' }], { k1: [] });
+    expect(player.storyVersions(slot)).toEqual([1, 2]);
+    expect(player.storyFinalVariants(slot).map(a => a.id)).toEqual(['f1', 'f2']);
+    // storyAsset('final') liefert gewaehlte Variante bzw. erste finale
+    expect(player.storyAsset(slot, 'final')?.id).toBe('f1');
+    player.storyFinalAssetId = 'f2';
+    expect(player.storyAsset(slot, 'final')?.id).toBe('f2');
+    // Loop-Version bleibt unbeeinflusst von finalen Assets
+    expect(player.storyAsset(slot, 2)?.id).toBe('b');
+  });
+
+  it('feedbackTarget fuer finale Story-Version ist readonly ohne Feedback-Slot', () => {
+    const koops = [{ id: 'k1' }];
+    const videos = {
+      k1: [{
+        id: 'v1', file_url: 'u1',
+        story_slots: [{
+          id: 's1', video_id: 'v1',
+          assets: [
+            { id: 'sa1', version_number: 1 },
+            { id: 'f1', version_number: 1, is_final: true, variant_name: '9:16' },
+          ],
+        }],
+      }],
+    };
+    const player = playerWith(koops, videos);
+    player.index = player.items.findIndex(e => e.type === 'story');
+    player.storyVersion = 'final';
+    const target = player.feedbackTarget();
+    expect(target.videoId).toBe('v1');
+    expect(target.target.isFinal).toBe(true);
+    expect(target.target.readonly).toBe(true);
+    expect(target.target.slot).toBeNull();
   });
 
   it('feedbackTarget ist null fuer Bild in Koop ohne Video', () => {

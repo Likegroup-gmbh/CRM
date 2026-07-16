@@ -261,18 +261,25 @@ export class VideoTableDataLoader {
       const batchIn = VideoTableDataLoader.batchInQuery;
       const sb = window.supabase;
 
-      const [assetsResult, commentsResult] = await Promise.allSettled([
+      const [assetsResult, commentsResult, finalAssetsResult] = await Promise.allSettled([
         batchIn(
           sb.from('kooperation_video_asset'),
           'id, video_id, file_url, file_path, is_current',
           'video_id', videoIds,
-          q => q.eq('is_current', true)
+          q => q.eq('is_current', true).eq('is_final', false)
         ),
-        this.loadVideoFeedbackComments(videoIds)
+        this.loadVideoFeedbackComments(videoIds),
+        batchIn(
+          sb.from('kooperation_video_asset'),
+          'id, video_id, file_url, file_path, variant_name, is_final, created_at',
+          'video_id', videoIds,
+          q => q.eq('is_final', true).order('created_at', { ascending: true })
+        )
       ]);
 
       const assets = assetsResult.status === 'fulfilled' ? (assetsResult.value.data || []) : [];
       const comments = commentsResult.status === 'fulfilled' ? (commentsResult.value.data || []) : [];
+      const finalAssets = finalAssetsResult.status === 'fulfilled' ? (finalAssetsResult.value.data || []) : [];
 
       if (assetsResult.status === 'rejected') {
         console.warn('⚠️ Assets konnten nicht geladen werden:', assetsResult.reason);
@@ -280,12 +287,21 @@ export class VideoTableDataLoader {
       if (commentsResult.status === 'rejected') {
         console.warn('⚠️ Comments konnten nicht geladen werden:', commentsResult.reason);
       }
+      if (finalAssetsResult.status === 'rejected') {
+        console.warn('⚠️ Finale Assets konnten nicht geladen werden:', finalAssetsResult.reason);
+      }
 
       const assetsByVideoId = new Map(assets.map(a => [a.video_id, a]));
+      const finalsByVideoId = {};
+      for (const fa of finalAssets) {
+        if (!finalsByVideoId[fa.video_id]) finalsByVideoId[fa.video_id] = [];
+        finalsByVideoId[fa.video_id].push(fa);
+      }
 
       if (t.store) {
         t.store.applyAssets(assetsByVideoId);
         t.store.applyComments(comments);
+        t.store.applyFinalAssets(finalsByVideoId);
       } else {
         for (const koopVideos of Object.values(t.videos)) {
           for (const video of koopVideos) {
@@ -294,6 +310,7 @@ export class VideoTableDataLoader {
               video.currentAsset = asset;
               video.file_url = asset.file_url || video.asset_url || null;
             }
+            video.finalAssets = finalsByVideoId[video.id] || [];
           }
         }
 
@@ -338,7 +355,7 @@ export class VideoTableDataLoader {
       const assetsResult = slotIds.length > 0
         ? await batchIn(
             sb.from('kooperation_story_asset'),
-            'id, video_id, story_id, file_url, file_path, file_name, file_size, version_number, is_current, variant_name, created_at',
+            'id, video_id, story_id, file_url, file_path, file_name, file_size, version_number, is_current, is_final, variant_name, created_at',
             'story_id', slotIds
           ).catch(err => ({ data: [], error: err }))
         : { data: [] };
@@ -354,8 +371,9 @@ export class VideoTableDataLoader {
       const slotsByVideoId = {};
       for (const slot of slots) {
         const slotAssets = assetsByStoryId[slot.id] || [];
-        const currentAsset = slotAssets.find(a => a.is_current) || slotAssets[0] || null;
-        const versions = [...new Set(slotAssets.map(a => a.version_number))].sort((a, b) => a - b);
+        const loopAssets = slotAssets.filter(a => !a.is_final);
+        const currentAsset = loopAssets.find(a => a.is_current) || loopAssets[0] || null;
+        const versions = [...new Set(loopAssets.map(a => a.version_number))].sort((a, b) => a - b);
 
         const enrichedSlot = {
           ...slot,

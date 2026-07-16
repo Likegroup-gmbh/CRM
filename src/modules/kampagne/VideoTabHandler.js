@@ -1,5 +1,5 @@
 import {
-  buildVersionedFileName, MAX_VERSIONS,
+  buildVersionedFileName, MAX_VERSIONS, FINAL_VARIANTS,
   escapeHtml,
   MAX_VIDEO_SIZE,
   normalizeExternalUrl,
@@ -43,7 +43,8 @@ export class VideoTabHandler {
       const { data, error } = await window.supabase
         .from('kooperation_video_asset')
         .select('version_number')
-        .eq('video_id', this.drawer.videoId);
+        .eq('video_id', this.drawer.videoId)
+        .eq('is_final', false);
       if (error) return [];
       return [...new Set((data || []).map(a => a.version_number).filter(v => typeof v === 'number'))];
     } catch (err) {
@@ -56,12 +57,27 @@ export class VideoTabHandler {
 
   _buildVersionOptions(item) {
     const allVersions = Array.from({ length: MAX_VERSIONS }, (_, i) => i + 1);
-    return allVersions.map(v => {
+    let html = allVersions.map(v => {
       const exists = this._existingVersions.includes(v);
       const label = exists ? `Feedbackschleife ${v} (hinzufügen)` : `Feedbackschleife ${v}`;
-      const selected = v === item.versionNumber ? ' selected' : '';
+      const selected = !item.isFinal && v === item.versionNumber ? ' selected' : '';
       return `<option value="${v}"${selected}>${label}</option>`;
     }).join('');
+    html += `<option value="final"${item.isFinal ? ' selected' : ''}>Finale Version</option>`;
+    return html;
+  }
+
+  // Freitext-Varianten-Name (Feedbackschleifen) bzw. Preset-Select 9:16/4:5 (Finale)
+  _buildVariantField(item, idx) {
+    if (item.isFinal) {
+      const options = FINAL_VARIANTS.map(v =>
+        `<option value="${v}"${v === item.variantName ? ' selected' : ''}>${v}</option>`
+      ).join('');
+      return `<select class="form-input video-final-variant-select" data-idx="${idx}">${options}</select>`;
+    }
+    return `<input type="text" class="form-input video-variant-name-input" data-idx="${idx}"
+      value="${escapeHtml(item.variantName)}"
+      placeholder="Varianten-Name (z.B. Voice-Over Berlin)" maxlength="120"/>`;
   }
 
   renderTab(activeTab) {
@@ -223,8 +239,26 @@ export class VideoTabHandler {
       const versionSelect = e.target.closest('.video-version-select');
       if (versionSelect) {
         const idx = parseInt(versionSelect.dataset.idx, 10);
+        const item = this._queue[idx];
+        if (item) {
+          if (versionSelect.value === 'final') {
+            item.isFinal = true;
+            item.versionNumber = 1;
+            item.variantName = FINAL_VARIANTS[0];
+          } else {
+            if (item.isFinal) item.variantName = '';
+            item.isFinal = false;
+            item.versionNumber = parseInt(versionSelect.value, 10);
+          }
+          this._renderQueue();
+          this._updateSubmitButtonState();
+        }
+      }
+      const finalVariantSelect = e.target.closest('.video-final-variant-select');
+      if (finalVariantSelect) {
+        const idx = parseInt(finalVariantSelect.dataset.idx, 10);
         if (this._queue[idx]) {
-          this._queue[idx].versionNumber = parseInt(versionSelect.value, 10);
+          this._queue[idx].variantName = finalVariantSelect.value;
         }
       }
     });
@@ -235,7 +269,8 @@ export class VideoTabHandler {
       if (deleteBtn) {
         const assetId = deleteBtn.dataset.id;
         const filePath = deleteBtn.dataset.path;
-        if (assetId) this._deleteExistingAsset(assetId, filePath);
+        const isFinal = deleteBtn.dataset.final === '1';
+        if (assetId) this._deleteExistingAsset(assetId, filePath, isFinal);
         return;
       }
       const replaceBtn = e.target.closest('.existing-video-replace');
@@ -306,9 +341,7 @@ export class VideoTabHandler {
                 placeholder="https://drive.google.com/..." />
             </div>
             <div class="video-queue-variant">
-              <input type="text" class="form-input video-variant-name-input" data-idx="${i}"
-                value="${escapeHtml(item.variantName)}"
-                placeholder="Varianten-Name" maxlength="120"/>
+              ${this._buildVariantField(item, i)}
             </div>
             <div class="video-queue-selects">
               <select class="form-input video-version-select" data-idx="${i}">${versionOptions}</select>
@@ -329,9 +362,7 @@ export class VideoTabHandler {
             <span class="file-size">${(item.file.size / 1024 / 1024).toFixed(1)} MB</span>
           </div>
           <div class="video-queue-variant">
-            <input type="text" class="form-input video-variant-name-input" data-idx="${i}"
-              value="${escapeHtml(item.variantName)}"
-              placeholder="Varianten-Name (z.B. Voice-Over Berlin)" maxlength="120"/>
+            ${this._buildVariantField(item, i)}
           </div>
           <div class="video-queue-selects">
             <select class="form-input video-version-select" data-idx="${i}">${versionOptions}</select>
@@ -371,30 +402,42 @@ export class VideoTabHandler {
 
     try {
       let lastFileUrl = null;
+      let hasFinal = false;
       for (const item of this._queue) {
         const fileUrl = normalizeExternalUrl(item.url);
-        await this._saveAssetVersion(fileUrl, null, item.variantName, item.versionNumber);
-        lastFileUrl = fileUrl;
+        await this._saveAssetVersion(fileUrl, null, item.variantName, item.versionNumber, item.isFinal);
+        if (item.isFinal) {
+          hasFinal = true;
+        } else {
+          lastFileUrl = fileUrl;
+        }
       }
 
       await this._updateCurrentFlags();
 
       const videoName = this.drawer.metadaten?.videoName || null;
-      const updateData = { link_content: lastFileUrl };
+      // link_content nur aus Feedbackschleifen-Links aktualisieren
+      const updateData = {};
+      if (lastFileUrl) updateData.link_content = lastFileUrl;
       if (videoName) updateData.video_name = videoName;
 
-      await window.supabase
-        .from('kooperation_videos')
-        .update(updateData)
-        .eq('id', this.drawer.videoId);
+      if (Object.keys(updateData).length > 0) {
+        await window.supabase
+          .from('kooperation_videos')
+          .update(updateData)
+          .eq('id', this.drawer.videoId);
+      }
 
       this._queue = [];
       this._renderQueue();
       this._isUploading = false;
       this._updateSubmitButtonState();
 
-      if (typeof this.drawer.onSuccess === 'function') {
+      if (lastFileUrl && typeof this.drawer.onSuccess === 'function') {
         this.drawer.onSuccess(lastFileUrl, null, videoName, null);
+      }
+      if (hasFinal) {
+        this.drawer.onFinaleChanged?.(this.drawer.videoId);
       }
 
       this._loadExistingVideoAssets();
@@ -450,6 +493,7 @@ export class VideoTabHandler {
       file: q.file,
       variantName: q.variantName,
       versionNumber: q.versionNumber,
+      isFinal: !!q.isFinal,
     }));
 
     // Listener für Abschluss-Event (nur Refresh wenn Drawer noch offen)
@@ -482,11 +526,14 @@ export class VideoTabHandler {
       this.drawer.onSuccess(e.detail?.result?.lastFileUrl || null, null,
         e.detail?.result?.videoName || null, e.detail?.result?.folderUrl || null);
     }
+    if (e.detail?.result?.hasFinalUpload) {
+      this.drawer.onFinaleChanged?.(videoId);
+    }
   }
 
   // ─── DB ────────────────────────────────────────────────────
 
-  async _saveAssetVersion(fileUrl, filePath, variantName, versionNumber) {
+  async _saveAssetVersion(fileUrl, filePath, variantName, versionNumber, isFinal = false) {
     const version = parseInt(versionNumber, 10) || 1;
 
     const { error } = await window.supabase
@@ -497,7 +544,8 @@ export class VideoTabHandler {
         file_path: filePath,
         version_number: version,
         variant_name: variantName || null,
-        is_current: true,
+        is_current: !isFinal,
+        is_final: !!isFinal,
         description: null,
         uploaded_by: window.currentUser?.id || null,
         created_at: new Date().toISOString()
@@ -506,12 +554,14 @@ export class VideoTabHandler {
   }
 
   async _updateCurrentFlags() {
-    const { data: allAssets } = await window.supabase
+    const { data } = await window.supabase
       .from('kooperation_video_asset')
-      .select('id, version_number')
+      .select('id, version_number, is_final')
       .eq('video_id', this.drawer.videoId);
 
-    if (!allAssets || allAssets.length === 0) return;
+    // is_current nur innerhalb der Feedbackschleifen verwalten
+    const allAssets = (data || []).filter(a => !a.is_final);
+    if (allAssets.length === 0) return;
 
     const maxVersion = Math.max(...allAssets.map(a => a.version_number));
 
@@ -562,13 +612,15 @@ export class VideoTabHandler {
 
       const { data, error } = await window.supabase
         .from('kooperation_video_asset')
-        .select('id, file_url, file_path, version_number, variant_name, is_current, created_at')
+        .select('id, file_url, file_path, version_number, variant_name, is_current, is_final, created_at')
         .eq('video_id', this.drawer.videoId)
         .order('version_number', { ascending: true });
 
       if (error) throw error;
       this._existingAssets = data || [];
-      this._existingVersions = [...new Set(this._existingAssets.map(a => a.version_number).filter(v => typeof v === 'number'))];
+      this._existingVersions = [...new Set(
+        this._existingAssets.filter(a => !a.is_final).map(a => a.version_number).filter(v => typeof v === 'number')
+      )];
 
       if (countEl) countEl.textContent = `(${this._existingAssets.length})`;
       this._renderExistingVideos();
@@ -587,15 +639,18 @@ export class VideoTabHandler {
       return;
     }
 
+    const loopAssets = this._existingAssets.filter(a => !a.is_final);
+    const finalAssets = this._existingAssets.filter(a => a.is_final);
+
     const grouped = {};
-    for (const asset of this._existingAssets) {
+    for (const asset of loopAssets) {
       const v = asset.version_number || 1;
       if (!grouped[v]) grouped[v] = [];
       grouped[v].push(asset);
     }
 
     const rounds = Object.keys(grouped).map(Number).sort((a, b) => a - b);
-    const maxRound = Math.max(...rounds);
+    const maxRound = rounds.length > 0 ? Math.max(...rounds) : 0;
     const TRASH_ICON = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>';
     const REPLACE_ICON = '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182M20.016 4.36v4.992"/></svg>';
 
@@ -630,10 +685,34 @@ export class VideoTabHandler {
       }
     }
 
+    if (finalAssets.length > 0) {
+      html += `
+        <div class="existing-storys-slot-item">
+          <div class="existing-storys-slot-header">
+            <span class="existing-storys-slot-title">Finale Version</span>
+            <span class="existing-storys-slot-meta">${finalAssets.length} Datei${finalAssets.length !== 1 ? 'en' : ''}</span>
+          </div>
+        </div>`;
+
+      for (const asset of finalAssets) {
+        const name = asset.variant_name || asset.file_path?.split('/').pop() || 'Final';
+        const date = asset.created_at ? new Date(asset.created_at).toLocaleDateString('de-DE') : '';
+        html += `
+          <div class="existing-image-item existing-storys-asset-item">
+            <div class="existing-image-info">
+              <span class="existing-image-name">${escapeHtml(name)}${date ? ` · ${date}` : ''} · Finale</span>
+            </div>
+            <div class="existing-asset-actions">
+              <button type="button" class="existing-image-delete existing-video-delete" data-id="${asset.id}" data-path="${escapeHtml(asset.file_path || '')}" data-final="1" title="Löschen">${TRASH_ICON}</button>
+            </div>
+          </div>`;
+      }
+    }
+
     listEl.innerHTML = html;
   }
 
-  async _deleteExistingAsset(assetId, filePath) {
+  async _deleteExistingAsset(assetId, filePath, isFinal = false) {
     const item = document.querySelector(`.existing-video-delete[data-id="${assetId}"]`)?.closest('.existing-image-item');
     if (item) item.style.opacity = '0.5';
 
@@ -652,6 +731,7 @@ export class VideoTabHandler {
         .eq('id', assetId);
 
       await this._loadExistingVideoAssets();
+      if (isFinal) this.drawer.onFinaleChanged?.(this.drawer.videoId);
     } catch (err) {
       console.error('Video-Asset löschen fehlgeschlagen:', err);
       this.showError(err.message || 'Löschen fehlgeschlagen');

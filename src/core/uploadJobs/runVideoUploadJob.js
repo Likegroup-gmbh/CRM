@@ -3,7 +3,7 @@
 // Keine DOM-Zugriffe — alle Status-Updates über ctx.updateItem.
 
 import { uploadFileDirect } from '../DropboxDirectUploader.js';
-import { createFolderSharedLink, buildVersionedFileName } from '../VideoUploadUtils.js';
+import { createFolderSharedLink, buildVersionedFileName, buildFinalFileName } from '../VideoUploadUtils.js';
 
 function buildVersionedFileName_(file, versionNumber, metadaten) {
   const ext = (file.name.split('.').pop() || 'mp4');
@@ -16,7 +16,18 @@ function buildVersionedFileName_(file, versionNumber, metadaten) {
   );
 }
 
-async function fetchTokenAndPath({ metadaten, versionNumber, variantName, fileName }) {
+function buildFinalFileName_(file, variantName, metadaten) {
+  const ext = (file.name.split('.').pop() || 'mp4');
+  return buildFinalFileName(
+    metadaten?.creatorName || '',
+    metadaten?.unternehmen || '',
+    metadaten?.kampagne || '',
+    variantName,
+    ext
+  );
+}
+
+async function fetchTokenAndPath({ metadaten, versionNumber, variantName, fileName, isFinal }) {
   const resp = await fetch('/.netlify/functions/dropbox-upload', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -31,6 +42,7 @@ async function fetchTokenAndPath({ metadaten, versionNumber, variantName, fileNa
       versionNumber: String(versionNumber),
       variantName,
       fileName,
+      isFinal: !!isFinal,
     }),
   });
   if (!resp.ok) {
@@ -55,7 +67,7 @@ async function createSharedLink(token, dropboxPath) {
   }
 }
 
-async function saveAssetVersion({ videoId, fileUrl, filePath, variantName, versionNumber }) {
+async function saveAssetVersion({ videoId, fileUrl, filePath, variantName, versionNumber, isFinal }) {
   const version = parseInt(versionNumber, 10) || 1;
   const { error } = await window.supabase
     .from('kooperation_video_asset')
@@ -65,7 +77,9 @@ async function saveAssetVersion({ videoId, fileUrl, filePath, variantName, versi
       file_path: filePath,
       version_number: version,
       variant_name: variantName || null,
-      is_current: true,
+      // Finale Versionen laufen ausserhalb der Feedbackschleifen-Logik
+      is_current: !isFinal,
+      is_final: !!isFinal,
       description: null,
       uploaded_by: window.currentUser?.id || null,
       created_at: new Date().toISOString(),
@@ -74,12 +88,14 @@ async function saveAssetVersion({ videoId, fileUrl, filePath, variantName, versi
 }
 
 async function updateCurrentFlags(videoId) {
-  const { data: allAssets } = await window.supabase
+  const { data: assets } = await window.supabase
     .from('kooperation_video_asset')
-    .select('id, version_number')
+    .select('id, version_number, is_final')
     .eq('video_id', videoId);
 
-  if (!allAssets || allAssets.length === 0) return;
+  // is_current nur innerhalb der Feedbackschleifen verwalten
+  const allAssets = (assets || []).filter(a => !a.is_final);
+  if (allAssets.length === 0) return;
   const maxVersion = Math.max(...allAssets.map(a => a.version_number));
   const nonCurrentIds = allAssets.filter(a => a.version_number !== maxVersion).map(a => a.id);
   const currentIds = allAssets.filter(a => a.version_number === maxVersion).map(a => a.id);
@@ -113,6 +129,7 @@ export async function runVideoUploadJob(ctx) {
 
   let lastFileUrl = null;
   let folderUrl = null;
+  let hasFinalUpload = false;
 
   for (let i = 0; i < queue.length; i++) {
     if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
@@ -121,17 +138,20 @@ export async function runVideoUploadJob(ctx) {
     const file = queueItem.file;
     const variantName = (queueItem.variantName || '').trim();
     const versionNumber = String(queueItem.versionNumber || 1);
-    const fileName = buildVersionedFileName_(file, versionNumber, metadaten);
+    const isFinal = !!queueItem.isFinal;
+    const fileName = isFinal
+      ? buildFinalFileName_(file, variantName, metadaten)
+      : buildVersionedFileName_(file, versionNumber, metadaten);
     const item = job.items[i];
 
     updateItem(item.id, { status: 'uploading', loaded: 0, total: file.size, transport: 'direct' });
 
     const { token, dropboxPath, kooperationFolderPath } = await fetchTokenAndPath({
-      metadaten, versionNumber, variantName, fileName,
+      metadaten, versionNumber, variantName, fileName, isFinal,
     });
 
     const getToken = async () => {
-      const fresh = await fetchTokenAndPath({ metadaten, versionNumber, variantName, fileName });
+      const fresh = await fetchTokenAndPath({ metadaten, versionNumber, variantName, fileName, isFinal });
       return fresh.token;
     };
 
@@ -172,9 +192,15 @@ export async function runVideoUploadJob(ctx) {
     }
 
     const fileUrl = sharedLink || actualPath;
-    lastFileUrl = fileUrl;
+    // link_content bleibt an den Feedbackschleifen haengen; finale Assets
+    // duerfen den aktuellen Content-Link nicht ueberschreiben.
+    if (isFinal) {
+      hasFinalUpload = true;
+    } else {
+      lastFileUrl = fileUrl;
+    }
 
-    await saveAssetVersion({ videoId, fileUrl, filePath: actualPath, variantName, versionNumber });
+    await saveAssetVersion({ videoId, fileUrl, filePath: actualPath, variantName, versionNumber, isFinal });
 
     updateItem(item.id, { status: 'done', loaded: file.size });
   }
@@ -193,5 +219,5 @@ export async function runVideoUploadJob(ctx) {
       .eq('id', videoId);
   }
 
-  return { lastFileUrl, folderUrl, videoName };
+  return { lastFileUrl, folderUrl, videoName, hasFinalUpload };
 }

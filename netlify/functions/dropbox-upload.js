@@ -1,6 +1,6 @@
 const { getAccessToken, sanitizePath, buildUnifiedBasePath, ensureFolder } = require('./_shared/dropbox');
 
-function buildDropboxPath({ unternehmen, marke, kampagne, kooperation, videoPosition, videoThema, videoTitel, versionNumber, variantName, fileName }) {
+function buildDropboxPath({ unternehmen, marke, kampagne, kooperation, videoPosition, videoThema, videoTitel, versionNumber, variantName, fileName, isFinal }) {
   const base = buildUnifiedBasePath({ unternehmen, marke, kampagne, kooperation });
   const parts = [base, 'Videos'];
 
@@ -8,7 +8,7 @@ function buildDropboxPath({ unternehmen, marke, kampagne, kooperation, videoPosi
   const pos = videoPosition || 1;
   parts.push(thema ? `Video_${pos}_${thema}` : `Video_${pos}`);
 
-  parts.push(`Feedbackschleife_${versionNumber || 1}`);
+  parts.push(isFinal ? 'Finale_Version' : `Feedbackschleife_${versionNumber || 1}`);
 
   if (variantName) {
     parts.push(sanitizePath(variantName));
@@ -55,6 +55,7 @@ exports.handler = async (event) => {
       versionNumber: fields.versionNumber,
       variantName: fields.variantName,
       fileName: fields.fileName,
+      isFinal: !!fields.isFinal,
     });
 
     console.log('dropbox-upload path:', dropboxPath);

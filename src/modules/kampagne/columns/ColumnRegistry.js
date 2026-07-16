@@ -40,10 +40,11 @@ const DEFAULT_COLUMNS = [
     configurable: true,
     feedbackSlot: slot
   })),
-  { id: 'col-freigabe', label: 'Freigabe', dataCol: '24', configurable: true },
-  { id: 'col-caption', label: 'Caption', dataCol: '25', configurable: true },
-  { id: 'col-posting-datum', label: 'Posting Datum', dataCol: '26', configurable: true },
-  { id: 'col-actions', label: 'Aktionen', dataCol: '27', configurable: false }
+  { id: 'col-freigabe', label: 'Freigabe', dataCol: '26', configurable: true },
+  { id: 'col-caption', label: 'Caption', dataCol: '27', configurable: true },
+  { id: 'col-finale-version', label: 'Finale Version', dataCol: '28', configurable: true },
+  { id: 'col-posting-datum', label: 'Posting Datum', dataCol: '29', configurable: true },
+  { id: 'col-actions', label: 'Aktionen', dataCol: '30', configurable: false }
 ];
 
 const BUILTIN_MAP = new Map(DEFAULT_COLUMNS.map(c => [c.id, c]));

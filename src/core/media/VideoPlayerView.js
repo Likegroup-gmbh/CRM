@@ -137,10 +137,14 @@ export class VideoPlayerView {
     const item = this.ctx.current;
     const comments = this.ctx.table.videoComments[item.video.id];
     const versions = this.ctx.assetLoader.combinedVersions(this.ctx.assets, comments);
-    if (versions.length <= 1) return '';
-    const options = versions.map(ver =>
+    const hasFinal = this.ctx.assetLoader.finalVariants(this.ctx.assets).length > 0;
+    if (versions.length + (hasFinal ? 1 : 0) <= 1) return '';
+    let options = versions.map(ver =>
       `<option value="${ver}" ${ver === this.ctx.selectedVersion ? 'selected' : ''}>Feedbackschleife ${ver}</option>`
     ).join('');
+    if (hasFinal) {
+      options += `<option value="final" ${this.ctx.selectedVersion === 'final' ? 'selected' : ''}>Finale Version</option>`;
+    }
     return `
       <div class="media-viewer-control">
         <select class="player-version-select">${options}</select>
@@ -161,14 +165,34 @@ export class VideoPlayerView {
   }
 
   renderStoryVersionSelect() {
-    const versions = this.ctx.storyVersions(this.ctx.current.slot);
-    if (versions.length <= 1) return '';
-    const options = versions.map(ver =>
+    const slot = this.ctx.current.slot;
+    const versions = this.ctx.storyVersions(slot);
+    const finals = this.ctx.storyFinalVariants(slot);
+    const hasFinal = finals.length > 0;
+    if (versions.length + (hasFinal ? 1 : 0) <= 1) return '';
+    let options = versions.map(ver =>
       `<option value="${ver}" ${ver === this.ctx.storyVersion ? 'selected' : ''}>Feedbackschleife ${ver}</option>`
     ).join('');
+    if (hasFinal) {
+      options += `<option value="final" ${this.ctx.storyVersion === 'final' ? 'selected' : ''}>Finale Version</option>`;
+    }
     return `
       <div class="media-viewer-control">
         <select class="story-version-select">${options}</select>
+      </div>${this.renderStoryFinalVariantSelect(finals)}`;
+  }
+
+  // Varianten-Select (9:16 / 4:5) fuer die finale Story-Version
+  renderStoryFinalVariantSelect(finals) {
+    if (this.ctx.storyVersion !== 'final' || finals.length <= 1) return '';
+    const selectedId = this.ctx.storyFinalAssetId || finals[0]?.id;
+    const options = finals.map(a =>
+      `<option value="${a.id}" ${a.id === selectedId ? 'selected' : ''}>${escapeHtml(a.variant_name || 'Variante')}</option>`
+    ).join('');
+    return `
+      <div class="media-viewer-control">
+        <label>Variante</label>
+        <select class="story-final-variant-select">${options}</select>
       </div>`;
   }
 
@@ -196,6 +220,12 @@ export class VideoPlayerView {
     }
 
     const { videoId, target } = ft;
+    if (target.isFinal) {
+      return `
+        <div class="media-viewer-feedback">
+          <div class="media-viewer-feedback-hint">Finale Version &ndash; kein Feedback m&ouml;glich.</div>
+        </div>`;
+    }
     if (!target.slot) return '';
 
     const comments = normalizeVideoFeedbackComments(this.ctx.table.videoComments[videoId]);

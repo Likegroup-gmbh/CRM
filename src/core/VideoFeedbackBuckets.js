@@ -2,8 +2,12 @@ export const VIDEO_FEEDBACK_FIELDS = [
   { field: 'feedback_cj_r1', bucket: 'cjR1', runde: 1, feedback_typ: 'cj', label: 'CJ Feedback 1', colClass: 'col-feedback-cj-1' },
   { field: 'feedback_kunde_r1', bucket: 'kundeR1', runde: 1, feedback_typ: 'kunde', label: 'Kunde Feedback 1', colClass: 'col-feedback-kunde-1' },
   { field: 'feedback_cj_r2', bucket: 'cjR2', runde: 2, feedback_typ: 'cj', label: 'CJ Feedback 2', colClass: 'col-feedback-cj-2' },
-  { field: 'feedback_kunde_r2', bucket: 'kundeR2', runde: 2, feedback_typ: 'kunde', label: 'Kunde Feedback 2', colClass: 'col-feedback-kunde-2' }
+  { field: 'feedback_kunde_r2', bucket: 'kundeR2', runde: 2, feedback_typ: 'kunde', label: 'Kunde Feedback 2', colClass: 'col-feedback-kunde-2' },
+  { field: 'feedback_cj_r3', bucket: 'cjR3', runde: 3, feedback_typ: 'cj', label: 'CJ Feedback 3', colClass: 'col-feedback-cj-3' },
+  { field: 'feedback_kunde_r3', bucket: 'kundeR3', runde: 3, feedback_typ: 'kunde', label: 'Kunde Feedback 3', colClass: 'col-feedback-kunde-3' }
 ];
+
+export const VIDEO_FEEDBACK_MAX_RUNDE = 3;
 
 export const VIDEO_FEEDBACK_SELECT = 'id, video_id, text, runde, feedback_typ, author_name, created_at';
 export const VIDEO_FEEDBACK_LEGACY_SELECT = 'id, video_id, text, runde, author_name, created_at';
@@ -14,7 +18,7 @@ export const VIDEO_FEEDBACK_FIELD_MAP = VIDEO_FEEDBACK_FIELDS.reduce((map, slot)
 }, {});
 
 export function createEmptyVideoFeedbackComments() {
-  return { cjR1: [], kundeR1: [], cjR2: [], kundeR2: [] };
+  return { cjR1: [], kundeR1: [], cjR2: [], kundeR2: [], cjR3: [], kundeR3: [] };
 }
 
 export function normalizeVideoFeedbackComments(comments) {
@@ -37,8 +41,9 @@ export function getVideoFeedbackSlot(runde, feedbackTyp) {
 /**
  * Mappt eine Video-Version (Feedbackschleife) + Rolle auf das passende
  * Feedback-Ziel im Player.
- *  - Version 1 -> Runde 1, Version 2 -> Runde 2.
- *  - Version 3 = finale Version: Feedback read-only (kein editierbarer Slot).
+ *  - Version 1 -> Runde 1, Version 2 -> Runde 2, Version 3+ -> Runde 3.
+ *  - Alle Feedbackschleifen sind editierbar; die finale Version laeuft
+ *    separat ueber is_final-Assets (dort gibt es keinen Feedback-Slot).
  *  - feedback_typ: Kunde -> 'kunde', sonst 'cj'.
  * @param {number} version
  * @param {boolean} isKunde
@@ -46,12 +51,11 @@ export function getVideoFeedbackSlot(runde, feedbackTyp) {
  */
 export function resolveVideoFeedbackTarget(version, isKunde) {
   const v = Number(version) || 1;
-  const runde = v >= 2 ? 2 : 1;
+  const runde = Math.min(Math.max(v, 1), VIDEO_FEEDBACK_MAX_RUNDE);
   const feedbackTyp = isKunde ? 'kunde' : 'cj';
-  const readonly = v >= 3;
   const slot = getVideoFeedbackSlot(runde, feedbackTyp);
   const counterpartSlot = getVideoFeedbackSlot(runde, feedbackTyp === 'kunde' ? 'cj' : 'kunde');
-  return { runde, feedback_typ: feedbackTyp, slot, counterpartSlot, readonly };
+  return { runde, feedback_typ: feedbackTyp, slot, counterpartSlot, readonly: false };
 }
 
 export function getVideoFeedbackBucket(comment) {
@@ -60,7 +64,8 @@ export function getVideoFeedbackBucket(comment) {
     return Number(comment?.runde) === 2 ? 'kundeR1' : 'cjR1';
   }
 
-  const runde = Number(comment?.runde) === 2 ? 2 : 1;
+  const rawRunde = Number(comment?.runde);
+  const runde = rawRunde === 2 || rawRunde === 3 ? rawRunde : 1;
   return comment.feedback_typ === 'kunde' ? `kundeR${runde}` : `cjR${runde}`;
 }
 

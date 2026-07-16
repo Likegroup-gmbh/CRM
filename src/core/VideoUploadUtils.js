@@ -1,5 +1,8 @@
 export const MAX_VERSIONS = 3;
 
+// Varianten-Presets fuer Finale-Version-Uploads (Videos + Storys)
+export const FINAL_VARIANTS = ['9:16', '4:5'];
+
 function sanitizeForFilename(str) {
   if (!str) return '';
   return str
@@ -16,6 +19,13 @@ export function buildVersionedFileName(creator, unternehmen, kampagne, version, 
     .filter(Boolean);
 
   parts.push(`v${version}`);
+  return parts.join('_') + '.' + ext;
+}
+
+export function buildFinalFileName(creator, unternehmen, kampagne, variantName, ext) {
+  const parts = [creator, unternehmen, kampagne, 'final', variantName]
+    .map(sanitizeForFilename)
+    .filter(Boolean);
   return parts.join('_') + '.' + ext;
 }
 

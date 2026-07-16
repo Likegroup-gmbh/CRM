@@ -12,7 +12,8 @@ export class MediaItemBuilder {
   }
 
   hasUpload(video) {
-    return !!(video.file_url || video.link_content || video.asset_url || video.currentAsset?.file_path);
+    return !!(video.file_url || video.link_content || video.asset_url || video.currentAsset?.file_path
+      || (video.finalAssets || []).length > 0);
   }
 
   // Bilder aller gefilterten Koops sicherstellen (Preload kann fehlen/leer sein),

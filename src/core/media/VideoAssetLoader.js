@@ -7,9 +7,9 @@
 // frueher enthaltene Spalte liess die Query dauerhaft fehlschlagen, wodurch
 // gar keine Versionen/Varianten geladen wurden (kein Auswahl-Select sichtbar).
 
-import { normalizeVideoFeedbackComments } from '../VideoFeedbackBuckets.js';
+import { normalizeVideoFeedbackComments, VIDEO_FEEDBACK_FIELDS } from '../VideoFeedbackBuckets.js';
 
-const ASSET_SELECT = 'id, video_id, file_url, file_path, version_number, variant_name, description, is_current, created_at';
+const ASSET_SELECT = 'id, video_id, file_url, file_path, version_number, variant_name, description, is_current, is_final, created_at';
 
 export class VideoAssetLoader {
   constructor() {
@@ -44,28 +44,41 @@ export class VideoAssetLoader {
     return assets;
   }
 
-  /** Versionsnummern aus den Assets (aufsteigend, dedupliziert). */
+  /** Nur Feedbackschleifen-Assets (ohne finale Versionen). */
+  loopAssets(assets) {
+    return (assets || []).filter(a => !a.is_final);
+  }
+
+  /** Finale-Version-Assets (is_final), z. B. Varianten 9:16 / 4:5. */
+  finalVariants(assets) {
+    return (assets || []).filter(a => !!a.is_final);
+  }
+
+  /** Versionsnummern aus den Feedbackschleifen-Assets (aufsteigend, dedupliziert). */
   versions(assets) {
-    return [...new Set((assets || []).map(a => a.version_number || 1))].sort((a, b) => a - b);
+    return [...new Set(this.loopAssets(assets).map(a => a.version_number || 1))].sort((a, b) => a - b);
   }
 
   /**
    * Feedbackschleifen-Versionen inkl. Runden, die nur Feedback (ohne eigenes
    * Asset) besitzen. So bleibt z. B. „Feedbackschleife 2" waehlbar, wenn Runde-2-
    * Feedback existiert, aber kein zweites Video hochgeladen wurde.
+   * Finale-Assets (is_final) zaehlen nicht als Feedbackschleife.
    * @param {Array} assets
    * @param {object|null} comments - videoComments[videoId]
    */
   combinedVersions(assets, comments) {
     const set = new Set(this.versions(assets));
     const c = normalizeVideoFeedbackComments(comments);
-    if ((c.cjR1 || []).length || (c.kundeR1 || []).length) set.add(1);
-    if ((c.cjR2 || []).length || (c.kundeR2 || []).length) set.add(2);
+    VIDEO_FEEDBACK_FIELDS.forEach(slot => {
+      if ((c[slot.bucket] || []).length) set.add(slot.runde);
+    });
     return [...set].sort((a, b) => a - b);
   }
 
   variantsForVersion(assets, version) {
-    return (assets || []).filter(a => (a.version_number || 1) === version);
+    if (version === 'final') return this.finalVariants(assets);
+    return this.loopAssets(assets).filter(a => (a.version_number || 1) === version);
   }
 
   selectedAsset(assets, selectedAssetId) {
@@ -75,12 +88,17 @@ export class VideoAssetLoader {
   /**
    * Default-Auswahl: hoechste Version, dort das aktuelle Asset (oder erstes).
    * Bei Versionen ohne Asset bleibt selectedAssetId null -> Quelle faellt auf
-   * video.file_url zurueck.
-   * @returns {{ selectedVersion: number|null, selectedAssetId: string|null }}
+   * video.file_url zurueck. Gibt es nur finale Assets (keine Feedbackschleife),
+   * wird die finale Version gewaehlt.
+   * @returns {{ selectedVersion: number|string|null, selectedAssetId: string|null }}
    */
   applyDefaultSelection(assets, comments) {
     const versions = this.combinedVersions(assets, comments);
     if (versions.length === 0) {
+      const finals = this.finalVariants(assets);
+      if (finals.length > 0) {
+        return { selectedVersion: 'final', selectedAssetId: finals[0].id };
+      }
       return { selectedVersion: null, selectedAssetId: null };
     }
     const selectedVersion = versions[versions.length - 1];

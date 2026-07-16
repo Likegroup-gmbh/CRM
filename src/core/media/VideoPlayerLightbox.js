@@ -39,6 +39,7 @@ export class VideoPlayerLightbox {
     this.selectedAssetId = null;
     // Story-spezifischer Zustand
     this.storyVersion = null;
+    this.storyFinalAssetId = null;
 
     this.loading = false;
     this.src = null;
@@ -67,6 +68,13 @@ export class VideoPlayerLightbox {
       it => it.type === 'video' && it.video.id === videoId && it.koop.id === kooperationId,
       it => it.type === 'video' && it.video.id === videoId,
     ], kooperationId);
+  }
+
+  /** Oeffnet ein Video direkt in der finalen Version (optional eine bestimmte Variante). */
+  openVideoFinal(videoId, kooperationId, assetId = null) {
+    this._preferFinal = true;
+    this._preferFinalAssetId = assetId || null;
+    return this.openVideo(videoId, kooperationId);
   }
 
   openStory(videoId, kooperationId) {
@@ -174,6 +182,7 @@ export class VideoPlayerLightbox {
     this.selectedVersion = null;
     this.selectedAssetId = null;
     this.storyVersion = null;
+    this.storyFinalAssetId = null;
     this.src = null;
     this.fallbackUrl = null;
   }
@@ -209,7 +218,18 @@ export class VideoPlayerLightbox {
 
     if (item.type === 'story') {
       const versions = this.storyVersions(item.slot);
-      this.storyVersion = versions.length ? versions[versions.length - 1] : 1;
+      if (versions.length) {
+        this.storyVersion = versions[versions.length - 1];
+      } else {
+        // Nur finale Assets vorhanden -> direkt Finale anzeigen
+        const finals = this.storyFinalVariants(item.slot);
+        if (finals.length) {
+          this.storyVersion = 'final';
+          this.storyFinalAssetId = finals[0].id;
+        } else {
+          this.storyVersion = 1;
+        }
+      }
       this.loading = true;
       await this.lightbox.update();
       await this._resolveSrc();
@@ -223,6 +243,19 @@ export class VideoPlayerLightbox {
   }
 
   _applyDefaultSelection(videoId) {
+    // Direkteinstieg "Finale Version" (Tabellen-Spalte): finale Variante vorwaehlen
+    if (this._preferFinal) {
+      const finals = this.assetLoader.finalVariants(this.assets);
+      const preferredId = this._preferFinalAssetId;
+      this._preferFinal = false;
+      this._preferFinalAssetId = null;
+      if (finals.length > 0) {
+        const preferred = finals.find(a => a.id === preferredId) || finals[0];
+        this.selectedVersion = 'final';
+        this.selectedAssetId = preferred.id;
+        return;
+      }
+    }
     const comments = this.table.videoComments[videoId];
     const sel = this.assetLoader.applyDefaultSelection(this.assets, comments);
     this.selectedVersion = sel.selectedVersion;
@@ -234,11 +267,20 @@ export class VideoPlayerLightbox {
   storyVersions(slot) {
     if (slot.existingVersions?.length) return slot.existingVersions;
     if (slot.versions?.length) return slot.versions;
-    return [...new Set((slot.assets || []).map(a => a.version_number || 1))].sort((a, b) => a - b);
+    return [...new Set((slot.assets || []).filter(a => !a.is_final).map(a => a.version_number || 1))]
+      .sort((a, b) => a - b);
+  }
+
+  storyFinalVariants(slot) {
+    return (slot.assets || []).filter(a => !!a.is_final);
   }
 
   storyAsset(slot, version) {
-    const variants = (slot.assets || []).filter(a => (a.version_number || 1) === version);
+    if (version === 'final') {
+      const finals = this.storyFinalVariants(slot);
+      return finals.find(a => a.id === this.storyFinalAssetId) || finals[0] || null;
+    }
+    const variants = (slot.assets || []).filter(a => !a.is_final && (a.version_number || 1) === version);
     return variants.find(a => a.is_current) || variants[0] || null;
   }
 
@@ -487,9 +529,24 @@ export class VideoPlayerLightbox {
     let version = 1;
     if (item.type === 'video') {
       videoId = item.video.id;
+      // Finale Version: kein Feedback-Slot (Feedback nur in den Schleifen)
+      if (this.selectedVersion === 'final') {
+        return {
+          videoId: item.video.id,
+          target: { slot: null, counterpartSlot: null, readonly: true, isFinal: true }
+        };
+      }
       version = this.selectedVersion || 1;
     } else if (item.type === 'story') {
       videoId = item.slot.video_id || item.video?.id || null;
+      // Finale Story-Version: kein Feedback-Slot (Feedback nur in den Schleifen)
+      if (this.storyVersion === 'final') {
+        if (!videoId) return null;
+        return {
+          videoId,
+          target: { slot: null, counterpartSlot: null, readonly: true, isFinal: true }
+        };
+      }
       version = this.storyVersion || 1;
     } else {
       // Bild: bevorzugt das zugeordnete Video (item.video via video_id),
@@ -510,7 +567,8 @@ export class VideoPlayerLightbox {
     const versionSelect = root.querySelector('.player-version-select');
     if (versionSelect) {
       versionSelect.addEventListener('change', async () => {
-        this.selectedVersion = Number(versionSelect.value);
+        const raw = versionSelect.value;
+        this.selectedVersion = raw === 'final' ? 'final' : Number(raw);
         const variants = this.assetLoader.variantsForVersion(this.assets, this.selectedVersion);
         const currentAsset = variants.find(a => a.is_current) || variants[0];
         this.selectedAssetId = currentAsset?.id || null;
@@ -531,7 +589,25 @@ export class VideoPlayerLightbox {
     const storyVersionSelect = root.querySelector('.story-version-select');
     if (storyVersionSelect) {
       storyVersionSelect.addEventListener('change', async () => {
-        this.storyVersion = Number(storyVersionSelect.value);
+        const raw = storyVersionSelect.value;
+        if (raw === 'final') {
+          this.storyVersion = 'final';
+          const finals = this.storyFinalVariants(this.current?.slot || {});
+          this.storyFinalAssetId = finals[0]?.id || null;
+        } else {
+          this.storyVersion = Number(raw);
+          this.storyFinalAssetId = null;
+        }
+        this.src = null;
+        await this.lightbox.update();
+        this._resolveSrc();
+      });
+    }
+
+    const storyFinalVariantSelect = root.querySelector('.story-final-variant-select');
+    if (storyFinalVariantSelect) {
+      storyFinalVariantSelect.addEventListener('change', async () => {
+        this.storyFinalAssetId = storyFinalVariantSelect.value;
         this.src = null;
         await this.lightbox.update();
         this._resolveSrc();

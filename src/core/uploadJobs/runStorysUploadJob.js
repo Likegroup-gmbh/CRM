@@ -4,7 +4,7 @@
 import { uploadFileDirect } from '../DropboxDirectUploader.js';
 import { createFolderSharedLink } from '../VideoUploadUtils.js';
 
-async function prepareStorysUpload({ metadaten, slotIndex, versionNumber, variantName, fileName }) {
+async function prepareStorysUpload({ metadaten, slotIndex, versionNumber, variantName, fileName, isFinal }) {
   const payload = {
     unternehmen: metadaten.unternehmen || '',
     marke: metadaten.marke || '',
@@ -16,6 +16,7 @@ async function prepareStorysUpload({ metadaten, slotIndex, versionNumber, varian
     versionNumber,
     variantName,
     fileName,
+    isFinal: !!isFinal,
     action: 'prepare',
   };
   const resp = await fetch('/.netlify/functions/dropbox-upload-storys', {
@@ -46,11 +47,14 @@ async function createSharedLink(token, dropboxPath) {
 }
 
 async function updateCurrentFlagsForSlot(slotId) {
-  const { data: allAssets } = await window.supabase
+  const { data: assets } = await window.supabase
     .from('kooperation_story_asset')
-    .select('id, version_number')
+    .select('id, version_number, is_final')
     .eq('story_id', slotId);
-  if (!allAssets || allAssets.length === 0) return;
+
+  // is_current nur innerhalb der Feedbackschleifen verwalten
+  const allAssets = (assets || []).filter(a => !a.is_final);
+  if (allAssets.length === 0) return;
   const maxVersion = Math.max(...allAssets.map(a => a.version_number));
   const nonCurrentIds = allAssets.filter(a => a.version_number !== maxVersion).map(a => a.id);
   const currentIds = allAssets.filter(a => a.version_number === maxVersion).map(a => a.id);
@@ -85,7 +89,8 @@ export async function runStorysUploadJob(ctx) {
 
     const queueItem = queue[i];
     const file = queueItem.file;
-    const versionNumber = queueItem.versionNumber;
+    const isFinal = !!queueItem.isFinal;
+    const versionNumber = isFinal ? 1 : queueItem.versionNumber;
     let slotId = queueItem.slotId;
     let slotIndex;
     const variantName = (queueItem.variantName || '').trim();
@@ -122,7 +127,7 @@ export async function runStorysUploadJob(ctx) {
     slotsTouched.add(slotId);
 
     const prep = await prepareStorysUpload({
-      metadaten, slotIndex, versionNumber, variantName, fileName: file.name,
+      metadaten, slotIndex, versionNumber, variantName, fileName: file.name, isFinal,
     });
     const token = prep.token;
     const dropboxPath = prep.dropboxPath;
@@ -130,7 +135,7 @@ export async function runStorysUploadJob(ctx) {
 
     const getToken = async () => {
       const fresh = await prepareStorysUpload({
-        metadaten, slotIndex, versionNumber, variantName, fileName: file.name,
+        metadaten, slotIndex, versionNumber, variantName, fileName: file.name, isFinal,
       });
       return fresh.token;
     };
@@ -175,7 +180,8 @@ export async function runStorysUploadJob(ctx) {
         file_size: file.size,
         version_number: versionNumber,
         variant_name: variantName || null,
-        is_current: true,
+        is_current: !isFinal,
+        is_final: isFinal,
         uploaded_by: window.currentUser?.id || null,
         created_at: new Date().toISOString(),
       });

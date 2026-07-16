@@ -442,6 +442,9 @@ export class VideoTableRenderer {
               placeholder="Caption" rows="1">${this.escapeHtml(video.caption || '')}</textarea>
           `)}
         </td>
+        <td class="grid-cell video-stack-cell col-finale-version" ${!t.isColumnVisibleForCustomer('col-finale-version') ? 'style="display:none;"' : ''}>
+          ${this.renderVideoFieldStack(videos, (video) => this.renderFinaleVersionCell(koop, video))}
+        </td>
         <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-posting-datum') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => this._renderVideoDatePicker(video, 'posting_datum', 'Posting Datum'))}
         </td>
@@ -521,6 +524,27 @@ export class VideoTableRenderer {
     }
 
     return `<div class="content-cell-actions">${buttons.join('')}</div>`;
+  }
+
+  renderFinaleVersionCell(koop, video) {
+    const t = this.table;
+    const isKunde = t.isKundeRole();
+    const finals = video.finalAssets || [];
+
+    const buttons = finals.map(asset => {
+      const label = asset.variant_name || 'Final';
+      return `<button type="button" class="external-link-btn media-action-btn finale-play-btn" data-action="play-final" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-asset-id="${asset.id}" title="Finale Version ${this.escapeHtml(label)} abspielen">${PLAY_ICON}<span class="finale-variant-label">${this.escapeHtml(label)}</span></button>`;
+    });
+
+    if (!isKunde) {
+      buttons.push(`<button type="button" class="video-upload-btn finale-upload-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Finale Version hochladen">${UPLOAD_ICON}${finals.length === 0 ? ' Upload' : ''}</button>`);
+    }
+
+    if (buttons.length === 0) {
+      return `<span class="no-content-placeholder">—</span>`;
+    }
+
+    return `<div class="content-cell-actions finale-cell-actions">${buttons.join('')}</div>`;
   }
 
   _renderCustomColumnCells(koop, videos) {

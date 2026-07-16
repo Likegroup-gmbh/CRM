@@ -20,6 +20,9 @@ function buildSlotFolderPath(fields) {
 
 function buildStorysVersionFolderPath(fields) {
   const slotFolder = buildSlotFolderPath(fields);
+  if (fields.isFinal) {
+    return `${slotFolder}/Finale_Version`;
+  }
   const version = fields.versionNumber || 1;
   return `${slotFolder}/Feedbackschleife_${version}`;
 }

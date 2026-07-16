@@ -61,12 +61,12 @@ export class VideoSettingsDrawer {
       const [videoResult, storyResult, bilderResult] = await Promise.allSettled([
         window.supabase
           .from('kooperation_video_asset')
-          .select('id, file_url, file_path, version_number, is_current, variant_name, created_at')
+          .select('id, file_url, file_path, version_number, is_current, is_final, variant_name, created_at')
           .eq('video_id', this.videoId)
           .order('version_number', { ascending: true }),
         window.supabase
           .from('kooperation_story_asset')
-          .select('id, file_url, file_path, file_name, file_size, version_number, is_current, variant_name, created_at, story_id, kooperation_story(slot_index, slot_name)')
+          .select('id, file_url, file_path, file_name, file_size, version_number, is_current, is_final, variant_name, created_at, story_id, kooperation_story(slot_index, slot_name)')
           .eq('video_id', this.videoId)
           .order('version_number', { ascending: true })
           .order('file_name', { ascending: true }),
@@ -93,8 +93,13 @@ export class VideoSettingsDrawer {
       this._expandedRounds.add('video-legacy');
     }
     if (this.storyAssets.length > 0) {
-      const maxV = Math.max(...this.storyAssets.map(a => a.version_number));
-      this._expandedRounds.add(`story-${maxV}`);
+      const loopStoryAssets = this.storyAssets.filter(a => !a.is_final);
+      if (loopStoryAssets.length > 0) {
+        const maxV = Math.max(...loopStoryAssets.map(a => a.version_number));
+        this._expandedRounds.add(`story-${maxV}`);
+      } else {
+        this._expandedRounds.add('story-final');
+      }
     }
 
     this.renderContent();
@@ -301,8 +306,10 @@ export class VideoSettingsDrawer {
   // ─── Videos Tab (Accordion) ────────────────────────────────
 
   _renderVideosTab() {
-    const hasAssets = this.assets.length > 0;
-    const hasLegacy = !hasAssets && !!this.videoUrl;
+    const loopAssets = this.assets.filter(a => !a.is_final);
+    const finalAssets = this.assets.filter(a => a.is_final);
+    const hasAssets = loopAssets.length > 0;
+    const hasLegacy = !hasAssets && !finalAssets.length && !!this.videoUrl;
     const uploadBtnText = hasAssets || hasLegacy
       ? 'Weiteren Video-Content hinzufügen'
       : 'Video-Content hinzufügen';
@@ -310,18 +317,18 @@ export class VideoSettingsDrawer {
     let contentHtml;
     if (hasLegacy) {
       contentHtml = this._renderLegacyVideoBlock();
-    } else if (!hasAssets) {
+    } else if (!hasAssets && !finalAssets.length) {
       contentHtml = '<p class="video-settings-no-file">Noch kein Video vorhanden</p>';
     } else {
       const grouped = {};
-      for (const asset of this.assets) {
+      for (const asset of loopAssets) {
         const v = asset.version_number || 1;
         if (!grouped[v]) grouped[v] = [];
         grouped[v].push(asset);
       }
 
       const rounds = Object.keys(grouped).map(Number).sort((a, b) => a - b);
-      const maxRound = Math.max(...rounds);
+      const maxRound = rounds.length > 0 ? Math.max(...rounds) : 0;
 
       contentHtml = '<div class="settings-accordion">';
       for (const round of rounds) {
@@ -351,6 +358,29 @@ export class VideoSettingsDrawer {
           </div>
         `;
       }
+
+      if (finalAssets.length > 0) {
+        const isExpanded = this._expandedRounds.has('video-final');
+        contentHtml += `
+          <div class="settings-accordion-item">
+            <button type="button" class="settings-accordion-header ${isExpanded ? 'expanded' : ''}" data-accordion="video-final">
+              <span class="settings-accordion-chevron">${CHEVRON_ICON}</span>
+              <span>Finale Version</span>
+              <span class="settings-accordion-count">${finalAssets.length} Datei${finalAssets.length !== 1 ? 'en' : ''}</span>
+            </button>
+            <div class="settings-accordion-body" style="${isExpanded ? '' : 'display:none;'}">
+        `;
+        for (const asset of finalAssets) {
+          contentHtml += this._renderAccordionAssetRow(asset, {
+            deleteBtnClass: 'video-version-delete-btn',
+          });
+        }
+        contentHtml += `
+            </div>
+          </div>
+        `;
+      }
+
       contentHtml += '</div>';
     }
 
@@ -379,15 +409,18 @@ export class VideoSettingsDrawer {
     if (this.storyAssets.length === 0) {
       contentHtml = '<p class="video-settings-no-file">Keine Storys vorhanden</p>';
     } else {
+      const loopStoryAssets = this.storyAssets.filter(a => !a.is_final);
+      const finalStoryAssets = this.storyAssets.filter(a => a.is_final);
+
       const grouped = {};
-      for (const asset of this.storyAssets) {
+      for (const asset of loopStoryAssets) {
         const v = asset.version_number || 1;
         if (!grouped[v]) grouped[v] = [];
         grouped[v].push(asset);
       }
 
       const rounds = Object.keys(grouped).map(Number).sort((a, b) => a - b);
-      const maxRound = Math.max(...rounds);
+      const maxRound = rounds.length > 0 ? Math.max(...rounds) : 0;
 
       contentHtml = '<div class="settings-accordion">';
       for (const round of rounds) {
@@ -422,6 +455,34 @@ export class VideoSettingsDrawer {
           </div>
         `;
       }
+
+      if (finalStoryAssets.length > 0) {
+        const isExpanded = this._expandedRounds.has('story-final');
+        contentHtml += `
+          <div class="settings-accordion-item">
+            <button type="button" class="settings-accordion-header ${isExpanded ? 'expanded' : ''}" data-accordion="story-final">
+              <span class="settings-accordion-chevron">${CHEVRON_ICON}</span>
+              <span>Finale Version</span>
+              <span class="settings-accordion-count">${finalStoryAssets.length} Datei${finalStoryAssets.length !== 1 ? 'en' : ''}</span>
+            </button>
+            <div class="settings-accordion-body" style="${isExpanded ? '' : 'display:none;'}">
+        `;
+        for (const [, slotAssets] of this._groupStoryAssetsBySlot(finalStoryAssets)) {
+          contentHtml += `<div class="settings-story-slot-header">${escapeHtml(this._getStorySlotLabel(slotAssets[0]))}</div>`;
+          for (const asset of slotAssets) {
+            contentHtml += this._renderAccordionAssetRow(asset, {
+              deleteBtnClass: 'story-asset-delete-btn',
+              showSize: true,
+              showThumb: isDirectImageUrl(asset.file_url),
+            });
+          }
+        }
+        contentHtml += `
+            </div>
+          </div>
+        `;
+      }
+
       contentHtml += '</div>';
     }
 

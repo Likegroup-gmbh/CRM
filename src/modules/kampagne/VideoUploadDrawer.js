@@ -22,6 +22,7 @@ export class VideoUploadDrawer {
     this.bilderTab = new BilderTabHandler(this);
     this.customTab = new CustomUploadTabHandler(this);
     this.customMeta = null;
+    this.onFinaleChanged = null;
   }
 
   /**
@@ -31,7 +32,7 @@ export class VideoUploadDrawer {
    * @param {function} [onBilderSuccess]
    * @param {function} [onStorysSuccess]
    */
-  async open(videoId, metadaten, onSuccess, onBilderSuccess, onStorysSuccess, { initialTab = 'video', onBilderCleared, onStorysCleared, onBilderChanged, customMeta } = {}) {
+  async open(videoId, metadaten, onSuccess, onBilderSuccess, onStorysSuccess, { initialTab = 'video', onBilderCleared, onStorysCleared, onBilderChanged, onFinaleChanged, customMeta } = {}) {
     this.videoId = videoId;
     this.kooperationId = metadaten.kooperationId;
     this.metadaten = metadaten;
@@ -41,6 +42,7 @@ export class VideoUploadDrawer {
     this.onBilderCleared = onBilderCleared || null;
     this.onStorysCleared = onStorysCleared || null;
     this.onBilderChanged = onBilderChanged || null;
+    this.onFinaleChanged = onFinaleChanged || null;
     this.useExternalLinks = !!metadaten.keinDropbox;
     this.customMeta = customMeta || null;
 

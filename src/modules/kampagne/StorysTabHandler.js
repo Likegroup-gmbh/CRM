@@ -1,5 +1,5 @@
 import {
-  getAvailableVersions, MAX_VERSIONS,
+  getAvailableVersions, MAX_VERSIONS, FINAL_VARIANTS,
   escapeHtml,
   VIDEO_EXTENSIONS, VIDEO_MIME_TYPES, MAX_STORY_SIZE,
   normalizeExternalUrl, isValidExternalUrl,
@@ -51,7 +51,7 @@ export class StorysTabHandler {
       if (slotIds.length > 0) {
         const { data: assetData } = await window.supabase
           .from('kooperation_story_asset')
-          .select('id, story_id, file_url, file_path, file_name, file_size, version_number, is_current, variant_name')
+          .select('id, story_id, file_url, file_path, file_name, file_size, version_number, is_current, is_final, variant_name')
           .in('story_id', slotIds);
         assets = assetData || [];
       }
@@ -64,8 +64,9 @@ export class StorysTabHandler {
 
       return (slots || []).map(slot => {
         const slotAssets = assetsBySlot[slot.id] || [];
-        const currentAsset = slotAssets.find(a => a.is_current) || slotAssets[0] || null;
-        const existingVersions = [...new Set(slotAssets.map(a => a.version_number))].sort((a, b) => a - b);
+        const loopAssets = slotAssets.filter(a => !a.is_final);
+        const currentAsset = loopAssets.find(a => a.is_current) || loopAssets[0] || null;
+        const existingVersions = [...new Set(loopAssets.map(a => a.version_number))].sort((a, b) => a - b);
         return { ...slot, assets: slotAssets, currentAsset, currentVersion: currentAsset?.version_number || 0, existingVersions };
       });
     } catch (err) {
@@ -225,13 +226,18 @@ export class StorysTabHandler {
     previewList?.addEventListener('change', (e) => {
       const slotSelect = e.target.closest('.storys-slot-select');
       const versionSelect = e.target.closest('.storys-version-select');
+      const finalVariantSelect = e.target.closest('.storys-final-variant-select');
       if (slotSelect) {
         const idx = parseInt(slotSelect.dataset.idx, 10);
         this._onSlotChange(idx, slotSelect.value);
       }
       if (versionSelect) {
         const idx = parseInt(versionSelect.dataset.idx, 10);
-        this._onVersionChange(idx, parseInt(versionSelect.value, 10));
+        this._onVersionChange(idx, versionSelect.value);
+      }
+      if (finalVariantSelect) {
+        const idx = parseInt(finalVariantSelect.dataset.idx, 10);
+        if (this._queue[idx]) this._queue[idx].variantName = finalVariantSelect.value;
       }
     });
     previewList?.addEventListener('input', (e) => {
@@ -307,6 +313,11 @@ export class StorysTabHandler {
     const item = this._queue[idx];
     if (!item) return;
     item.slotId = value;
+    if (item.isFinal) {
+      // Finale-Auswahl bleibt beim Slot-Wechsel erhalten
+      this._renderQueue();
+      return;
+    }
     if (value === '__new__') {
       item.versionNumber = 1;
     } else {
@@ -320,7 +331,17 @@ export class StorysTabHandler {
   _onVersionChange(idx, value) {
     const item = this._queue[idx];
     if (!item) return;
-    item.versionNumber = value;
+    if (value === 'final') {
+      item.isFinal = true;
+      item.versionNumber = 1;
+      item.variantName = FINAL_VARIANTS[0];
+    } else {
+      if (item.isFinal) item.variantName = '';
+      item.isFinal = false;
+      item.versionNumber = parseInt(value, 10) || 1;
+    }
+    this._renderQueue();
+    this._updateSubmitState();
   }
 
   _getNextVersionForSlot(slot) {
@@ -352,9 +373,7 @@ export class StorysTabHandler {
                 placeholder="https://..." />
             </div>
             <div class="storys-queue-variant">
-              <input type="text" class="form-input storys-variant-name-input" data-idx="${i}"
-                value="${escapeHtml(item.variantName || '')}"
-                placeholder="Name (optional)" maxlength="120"/>
+              ${this._buildVariantField(item, i)}
             </div>
             <div class="storys-queue-selects">
               <select class="form-input storys-slot-select" data-idx="${i}">${slotOptions}</select>
@@ -377,9 +396,7 @@ export class StorysTabHandler {
             <span class="file-size">${(item.file.size / 1024 / 1024).toFixed(1)} MB</span>
           </div>
           <div class="storys-queue-variant">
-            <input type="text" class="form-input storys-variant-name-input" data-idx="${i}"
-              value="${escapeHtml(item.variantName || '')}"
-              placeholder="Varianten-Name (optional)" maxlength="120"/>
+            ${this._buildVariantField(item, i)}
           </div>
           <div class="storys-queue-selects">
             <select class="form-input storys-slot-select" data-idx="${i}">${slotOptions}</select>
@@ -403,12 +420,27 @@ export class StorysTabHandler {
   _buildVersionOptions(item) {
     const slot = item.slotId !== '__new__' ? this._storySlots.find(s => s.id === item.slotId) : null;
     const allVersions = Array.from({ length: MAX_VERSIONS }, (_, i) => i + 1);
-    return allVersions.map(v => {
+    let html = allVersions.map(v => {
       const exists = slot?.existingVersions?.includes(v);
       const label = exists ? `Feedbackschleife ${v} (hinzufügen)` : `Feedbackschleife ${v}`;
-      const selected = v === item.versionNumber ? ' selected' : '';
+      const selected = !item.isFinal && v === item.versionNumber ? ' selected' : '';
       return `<option value="${v}"${selected}>${label}</option>`;
     }).join('');
+    html += `<option value="final"${item.isFinal ? ' selected' : ''}>Finale Version</option>`;
+    return html;
+  }
+
+  // Freitext-Varianten-Name (Feedbackschleifen) bzw. Preset-Select 9:16/4:5 (Finale)
+  _buildVariantField(item, idx) {
+    if (item.isFinal) {
+      const options = FINAL_VARIANTS.map(v =>
+        `<option value="${v}"${v === item.variantName ? ' selected' : ''}>${v}</option>`
+      ).join('');
+      return `<select class="form-input storys-final-variant-select" data-idx="${idx}">${options}</select>`;
+    }
+    return `<input type="text" class="form-input storys-variant-name-input" data-idx="${idx}"
+      value="${escapeHtml(item.variantName || '')}"
+      placeholder="Varianten-Name (optional)" maxlength="120"/>`;
   }
 
   _updateSubmitState() {
@@ -442,6 +474,7 @@ export class StorysTabHandler {
       slotId: q.slotId,
       versionNumber: q.versionNumber,
       variantName: q.variantName,
+      isFinal: !!q.isFinal,
     }));
 
     window.removeEventListener(UPLOAD_EVENTS.STORYS_DONE, this._onStorysDoneBound);
@@ -524,9 +557,10 @@ export class StorysTabHandler {
             file_path: null,
             file_name: item.variantName || fileUrl.split('/').pop() || 'Link',
             file_size: 0,
-            version_number: item.versionNumber,
+            version_number: item.isFinal ? 1 : item.versionNumber,
             variant_name: item.variantName || null,
-            is_current: true,
+            is_current: !item.isFinal,
+            is_final: !!item.isFinal,
             uploaded_by: window.currentUser?.id || null,
             created_at: new Date().toISOString(),
           });
@@ -595,11 +629,12 @@ export class StorysTabHandler {
 
       for (const asset of slot.assets) {
         const sizeMB = asset.file_size ? (asset.file_size / 1024 / 1024).toFixed(1) + ' MB' : '';
-        const currentBadge = asset.is_current ? ' <span class="version-badge version-badge--current">aktuell</span>' : '';
+        const currentBadge = asset.is_current && !asset.is_final ? ' <span class="version-badge version-badge--current">aktuell</span>' : '';
+        const versionLabel = asset.is_final ? 'Finale' : `FS${asset.version_number}`;
         html += `
           <div class="existing-image-item existing-storys-asset-item">
             <div class="existing-image-info">
-              <span class="existing-image-name">${escapeHtml(asset.file_name || '?')}${asset.variant_name ? ` · ${escapeHtml(asset.variant_name)}` : ''} · FS${asset.version_number}${currentBadge}</span>
+              <span class="existing-image-name">${escapeHtml(asset.file_name || '?')}${asset.variant_name ? ` · ${escapeHtml(asset.variant_name)}` : ''} · ${versionLabel}${currentBadge}</span>
               ${sizeMB ? `<span class="existing-image-size">${sizeMB}</span>` : ''}
             </div>
           </div>
@@ -660,7 +695,8 @@ export class StorysTabHandler {
 
   async _updateCurrentFlags() {
     for (const slot of this._storySlots) {
-      const allAssets = slot.assets || [];
+      // is_current nur innerhalb der Feedbackschleifen verwalten
+      const allAssets = (slot.assets || []).filter(a => !a.is_final);
       if (allAssets.length === 0) continue;
 
       const maxVersion = Math.max(...allAssets.map(a => a.version_number));

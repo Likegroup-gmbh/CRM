@@ -59,7 +59,32 @@ export class VideoTableDrawerActions {
         else if (video) video.story_folder_url = null;
         t.refilter();
       },
+      onFinaleChanged: () => this.refreshFinalAssetsForVideo(videoId, kooperationId),
     });
+  }
+
+  async refreshFinalAssetsForVideo(videoId, kooperationId) {
+    const t = this.table;
+    try {
+      const { data } = await window.supabase
+        .from('kooperation_video_asset')
+        .select('id, video_id, file_url, file_path, variant_name, is_final, created_at')
+        .eq('video_id', videoId)
+        .eq('is_final', true)
+        .order('created_at', { ascending: true });
+
+      const finalAssets = data || [];
+      if (t.store) {
+        t.store.updateVideo(videoId, { finalAssets });
+      } else {
+        const videos = t.videos[kooperationId];
+        const v = videos?.find(vid => vid.id === videoId);
+        if (v) v.finalAssets = finalAssets;
+      }
+    } catch (err) {
+      console.warn('Finale Assets konnten nicht aktualisiert werden:', err);
+    }
+    t.refilter();
   }
 
   async refreshBilderForKoop(kooperationId) {
@@ -72,9 +97,15 @@ export class VideoTableDrawerActions {
 
   updateContentCellAfterUpload(videoId, kooperationId, fileUrl, videoName, folderUrl) {
     const t = this.table;
-    const patch = { file_url: fileUrl, link_content: fileUrl };
+    // fileUrl kann null sein (z. B. reiner Finale-Upload) -> bestehenden
+    // Content-Link nicht ueberschreiben.
+    const patch = {};
+    if (fileUrl) {
+      patch.file_url = fileUrl;
+      patch.link_content = fileUrl;
+    }
     if (folderUrl) patch.folder_url = folderUrl;
-    if (videoName !== undefined) patch.video_name = videoName;
+    if (videoName) patch.video_name = videoName;
 
     if (t.store) {
       t.store.updateVideo(videoId, patch);

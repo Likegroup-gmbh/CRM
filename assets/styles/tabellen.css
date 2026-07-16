@@ -93,10 +93,13 @@
 .kooperation-video-grid .col-feedback-cj-1,
 .kooperation-video-grid .col-feedback-kunde-1,
 .kooperation-video-grid .col-feedback-cj-2,
-.kooperation-video-grid .col-feedback-kunde-2 {
+.kooperation-video-grid .col-feedback-kunde-2,
+.kooperation-video-grid .col-feedback-cj-3,
+.kooperation-video-grid .col-feedback-kunde-3 {
   width: 16rem;
   min-width: 16rem;
 }
+.kooperation-video-grid .col-finale-version { width: 14ch; min-width: 14ch; }
 .kooperation-video-grid .col-kosten,
 .kooperation-video-grid .col-vk-video { width: 12ch; min-width: 12ch; }
 .kooperation-video-grid .col-video-nr { width: 5ch; min-width: 5ch; }
