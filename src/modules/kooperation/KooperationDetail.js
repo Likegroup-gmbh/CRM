@@ -9,6 +9,7 @@ import { renderTabButton } from '../../core/TabUtils.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { deleteVideoFull } from '../../core/VideoDeleteHelper.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
 import {
   createEmptyVideoFeedbackComments,
   getVideoFeedbackBucket,
@@ -581,7 +582,11 @@ export class KooperationDetail extends PersonDetailBase {
 
   renderRechnungen() {
     if (!this.rechnungen || this.rechnungen.length === 0) {
-      return '<p class="empty-state">Keine Rechnungen zu dieser Kooperation.</p>';
+      return renderEmptyState({
+        icon: 'invoice',
+        title: 'Keine Rechnungen vorhanden',
+        text: 'Zu dieser Kooperation wurden noch keine Rechnungen erfasst.'
+      });
     }
     const fmt = (v) => v ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v) : '-';
     const fDate = (d) => d ? new Date(d).toLocaleDateString('de-DE') : '-';
@@ -608,7 +613,11 @@ export class KooperationDetail extends PersonDetailBase {
 
   renderVideos() {
     if (!this.videos || this.videos.length === 0) {
-      return `<p class="empty-state">Keine Videos angelegt. Videos werden automatisch beim Erstellen/Bearbeiten der Kooperation generiert.</p>`;
+      return renderEmptyState({
+        icon: 'film',
+        title: 'Keine Videos angelegt',
+        text: 'Videos werden automatisch beim Erstellen/Bearbeiten der Kooperation generiert.'
+      });
     }
 
     const isKundeRole = window.isKunde();
@@ -742,13 +751,12 @@ export class KooperationDetail extends PersonDetailBase {
     const isKunde = window.isKunde();
 
     if (!this.versandDaten || this.versandDaten.length === 0) {
-      return `
-        <div class="empty-state">
-          <h3>Keine Versand-Daten vorhanden</h3>
-          <p>Es wurden noch keine Produkte für diese Kooperation versendet.</p>
-          ${!isKunde ? `<button onclick="window.kooperationVersandManager?.open('${this.kooperationId}')" class="primary-btn">Erstes Produkt versenden</button>` : ''}
-        </div>
-      `;
+      return renderEmptyState({
+        icon: 'map-pin',
+        title: 'Keine Versand-Daten vorhanden',
+        text: 'Es wurden noch keine Produkte für diese Kooperation versendet.',
+        actionsHtml: !isKunde ? `<button onclick="window.kooperationVersandManager?.open('${this.kooperationId}')" class="primary-btn">Erstes Produkt versenden</button>` : ''
+      });
     }
 
     const creator = this.kooperation?.creator || this.creator;

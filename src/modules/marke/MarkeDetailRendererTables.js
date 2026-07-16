@@ -5,15 +5,15 @@ import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
 
 export function renderKampagnen(detail) {
   if (!detail.kampagnen || detail.kampagnen.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Kampagnen vorhanden</h3>
-        <p>Es wurden noch keine Kampagnen für diese Marke erstellt.</p>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'megaphone',
+      title: 'Keine Kampagnen vorhanden',
+      text: 'Es wurden noch keine Kampagnen für diese Marke erstellt.'
+    });
   }
 
   const rows = detail.kampagnen.map(kampagne => `
@@ -56,12 +56,11 @@ export function renderKampagnen(detail) {
 
 export function renderAuftraege(detail) {
   if (!detail.auftraege || detail.auftraege.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Aufträge vorhanden</h3>
-        <p>Es wurden noch keine Aufträge für diese Marke erstellt.</p>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'clipboard',
+      title: 'Keine Aufträge vorhanden',
+      text: 'Es wurden noch keine Aufträge für diese Marke erstellt.'
+    });
   }
 
   const rows = detail.auftraege.map(auftrag => `
@@ -104,12 +103,11 @@ export function renderAuftraege(detail) {
 
 export function renderAnsprechpartner(detail) {
   if (!detail.ansprechpartner || detail.ansprechpartner.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Ansprechpartner vorhanden</h3>
-        <p>Es wurden noch keine Ansprechpartner für diese Marke zugeordnet.</p>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'users',
+      title: 'Keine Ansprechpartner vorhanden',
+      text: 'Es wurden noch keine Ansprechpartner für diese Marke zugeordnet.'
+    });
   }
 
   const rows = detail.ansprechpartner.map(ap => `
@@ -160,11 +158,11 @@ export function renderAnsprechpartner(detail) {
 
 export function renderRechnungen(detail) {
   if (!detail.rechnungen || detail.rechnungen.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Rechnungen vorhanden</h3>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'invoice',
+      title: 'Keine Rechnungen vorhanden',
+      text: 'Für diese Marke wurden noch keine Rechnungen erfasst.'
+    });
   }
 
   const rows = detail.rechnungen.map(r => `
@@ -199,12 +197,11 @@ export function renderRechnungen(detail) {
 
 export function renderBriefings(detail) {
   if (!detail.briefings || detail.briefings.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Briefings vorhanden</h3>
-        <p>Es wurden noch keine Briefings für diese Marke erstellt.</p>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'document',
+      title: 'Keine Briefings vorhanden',
+      text: 'Es wurden noch keine Briefings für diese Marke erstellt.'
+    });
   }
 
   const rows = detail.briefings.map(briefing => `
@@ -245,12 +242,11 @@ export function renderBriefings(detail) {
 
 export function renderKooperationen(detail) {
   if (!detail.kooperationen || detail.kooperationen.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Kooperationen vorhanden</h3>
-        <p>Für die Kampagnen dieser Marke wurden keine Kooperationen gefunden.</p>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'handshake',
+      title: 'Keine Kooperationen vorhanden',
+      text: 'Für die Kampagnen dieser Marke wurden keine Kooperationen gefunden.'
+    });
   }
 
   const isKunde = window.isKunde();
@@ -297,12 +293,11 @@ export function renderKooperationen(detail) {
 
 export function renderStrategien(detail) {
   if (!detail.strategien || detail.strategien.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Strategien vorhanden</h3>
-        <p>Es wurden noch keine Strategien für diese Marke erstellt.</p>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'clipboard',
+      title: 'Keine Strategien vorhanden',
+      text: 'Es wurden noch keine Strategien für diese Marke erstellt.'
+    });
   }
 
   const rows = detail.strategien.map(strategie => `

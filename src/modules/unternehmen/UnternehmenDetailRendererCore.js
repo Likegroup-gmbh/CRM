@@ -5,6 +5,7 @@ import { renderTabButton } from '../../core/TabUtils.js';
 import { UnternehmenService } from './services/UnternehmenService.js';
 import { renderAuftraege, renderAuftragsdetails, renderBriefings, renderKampagnen } from './UnternehmenDetailRendererBusiness.js';
 import { renderStrategien, renderCreatorAuswahl, renderKooperationen, renderCreators, renderAnsprechpartner, renderRechnungen, renderKundenrechnungen, renderVertraege, renderKickOff } from './UnternehmenDetailRendererRelations.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
 
 export function renderUnternehmenDetailPage(detail) {
   if (!detail.activeMainTab) {
@@ -159,12 +160,11 @@ export function renderMainContent(detail) {
 
 export function renderMarken(detail) {
   if (!detail.marken || detail.marken.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Marken vorhanden</h3>
-        <p>Es wurden noch keine Marken für dieses Unternehmen erstellt.</p>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'tag',
+      title: 'Keine Marken vorhanden',
+      text: 'Es wurden noch keine Marken für dieses Unternehmen erstellt.'
+    });
   }
 
   const rows = detail.marken.map(marke => `

@@ -1,10 +1,11 @@
 .env
 *.sql
-!supabase/migrations/20260427_add_auftrag_kampagnenart_blocks.sql
+!supabase/migrations/*.sql
 node_modules/
 dist/
 .DS_Store
 Feedback/
+supabase/.temp/
 
 # Local Netlify folder
 .netlify

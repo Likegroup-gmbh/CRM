@@ -1,0 +1,306 @@
+/* Skript-Generator (Layer 1) */
+
+.skripte-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  max-width: 1100px;
+}
+
+/* Tabs */
+.skripte-tabs {
+  display: flex;
+  gap: var(--space-xs);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.skripte-tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.skripte-tab.active {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* Cards & Layout */
+.skripte-card {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  background: var(--white, #fff);
+}
+
+.skripte-card h3 {
+  margin: 0;
+  font-size: var(--text-md, 1rem);
+}
+
+.skripte-generator {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.skripte-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-sm);
+}
+
+.skripte-hint {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.skripte-actions-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.skripte-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+/* Progress + Log */
+.skripte-progress-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.skripte-progress-track {
+  height: 8px;
+  background: var(--gray-200);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.skripte-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--color-primary);
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+.skripte-log {
+  background: var(--gray-900);
+  color: #d1fae5;
+  font-family: monospace;
+  font-size: 12px;
+  border-radius: var(--radius-xl);
+  padding: var(--space-sm) var(--space-md);
+  max-height: 180px;
+  min-height: 60px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+/* Skript-Sektionen (Hook/Hauptteil/CTA) */
+.skripte-result-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.skripte-sektion {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  padding: var(--space-sm) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.skripte-sektion-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--color-primary);
+}
+
+.skripte-sektion-text {
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+/* Tabelle */
+.skripte-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.skripte-table th {
+  text-align: left;
+  padding: var(--space-xs) var(--space-sm);
+  color: var(--text-secondary);
+  font-weight: 600;
+  border-bottom: 1px solid var(--gray-200);
+  white-space: nowrap;
+}
+
+.skripte-table td {
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--gray-100);
+  vertical-align: middle;
+}
+
+.skripte-table-titel {
+  font-weight: 600;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Badges */
+.skripte-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: var(--gray-100);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.skripte-badge--success { background: #dcfce7; color: #166534; }
+.skripte-badge--danger { background: #fee2e2; color: #991b1b; }
+.skripte-badge--info { background: #dbeafe; color: #1e40af; }
+.skripte-badge--viral { background: #fef3c7; color: #92400e; }
+
+/* Feedback */
+.skripte-leitfaden {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--text-sm);
+}
+
+.skripte-leitfaden summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: var(--space-xs) 0;
+}
+
+.skripte-score-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--text-sm);
+}
+
+.skripte-score-option {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.skripte-feedback-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding-top: var(--space-xs);
+  border-top: 1px dashed var(--gray-200);
+}
+
+.skripte-altes-feedback {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.skripte-feedback-item {
+  background: var(--gray-50, #f9fafb);
+  border-radius: var(--radius-md, 8px);
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--text-sm);
+}
+
+.skripte-korrektur {
+  margin-top: 4px;
+  padding-left: var(--space-sm);
+  border-left: 2px solid var(--color-primary);
+  white-space: pre-wrap;
+}
+
+.skripte-detail-meta {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+/* Drawer */
+.skripte-drawer {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, 95vw);
+}
+
+.skripte-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.skripte-drawer-header h2 {
+  margin: 0;
+  font-size: var(--text-lg, 1.15rem);
+}
+
+.skripte-drawer-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.skripte-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.skripte-drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  border-top: 1px solid var(--gray-200);
+}
+
+.skripte-dna-editor {
+  font-family: monospace;
+  font-size: 13px;
+  resize: vertical;
+}

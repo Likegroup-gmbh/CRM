@@ -207,6 +207,9 @@ creator_sprachen(sprachen!sprache_id(id,name))`;
     if (field === 'management_id' || field === 'management_ids' || field === 'management_ids[]') {
       return true;
     }
+    if (field === 'firma_ids' || field === 'firma_ids[]') {
+      return true;
+    }
     return false;
   },
 

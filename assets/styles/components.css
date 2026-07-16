@@ -1557,16 +1557,7 @@ h3.section-title,
   color: #666;
 }
 
-/* Empty State */
-.empty-state {
-  text-align: center;
-  padding: 2rem;
-  color: #666;
-}
-
-.empty-state p {
-  margin-bottom: 1rem;
-}
+/* Empty State: zentrale Definition in tabellen.css */
 
 /* Responsive Design */
 @media (max-width: 768px) {
@@ -7054,17 +7045,7 @@ width: 100%;
   text-align: center;
 }
 
-/* Empty State Styles */
-.empty-state {
-  text-align: center;
-  padding: var(--space-xl);
-  color: var(--text-secondary);
-}
-
-.empty-state p {
-  margin-bottom: var(--space-md);
-  font-size: var(--text-md);
-}
+/* Empty State: zentrale Definition in tabellen.css */
 
 /* Einheitlicher Not-Found-Block */
 .empty-state.not-found {

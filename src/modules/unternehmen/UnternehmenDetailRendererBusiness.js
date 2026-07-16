@@ -5,15 +5,15 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
 import { formatZahlungsziel, formatBoolean, renderMarkeBubble, renderPersonBubble, renderArtTags, renderBudgetProgress } from './UnternehmenDetailRendererHelpers.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
 
 export function renderAuftraege(detail) {
   if (!detail.auftraege || detail.auftraege.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Aufträge vorhanden</h3>
-        <p>Es wurden noch keine Aufträge für dieses Unternehmen erstellt.</p>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'clipboard',
+      title: 'Keine Aufträge vorhanden',
+      text: 'Es wurden noch keine Aufträge für dieses Unternehmen erstellt.'
+    });
   }
 
   const isKunde = window.isKunde();
@@ -78,12 +78,11 @@ export function renderAuftraege(detail) {
 
 export function renderAuftragsdetails(detail) {
   if (!detail.auftragsdetails || detail.auftragsdetails.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Auftragsdetails vorhanden</h3>
-        <p>Es wurden noch keine Auftragsdetails für die Aufträge dieses Unternehmens erstellt.</p>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'clipboard',
+      title: 'Keine Auftragsdetails vorhanden',
+      text: 'Es wurden noch keine Auftragsdetails für die Aufträge dieses Unternehmens erstellt.'
+    });
   }
 
   const isKunde = window.isKunde();
@@ -132,12 +131,11 @@ export function renderAuftragsdetails(detail) {
 
 export function renderBriefings(detail) {
   if (!detail.briefings || detail.briefings.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Briefings vorhanden</h3>
-        <p>Es wurden noch keine Briefings für dieses Unternehmen erstellt.</p>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'document',
+      title: 'Keine Briefings vorhanden',
+      text: 'Es wurden noch keine Briefings für dieses Unternehmen erstellt.'
+    });
   }
 
   const rows = detail.briefings.map(briefing => `
@@ -174,12 +172,11 @@ export function renderBriefings(detail) {
 
 export function renderKampagnen(detail) {
   if (!detail.kampagnen || detail.kampagnen.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Kampagnen vorhanden</h3>
-        <p>Es wurden noch keine Kampagnen für dieses Unternehmen erstellt.</p>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'megaphone',
+      title: 'Keine Kampagnen vorhanden',
+      text: 'Es wurden noch keine Kampagnen für dieses Unternehmen erstellt.'
+    });
   }
 
   const isKunde = window.isKunde();

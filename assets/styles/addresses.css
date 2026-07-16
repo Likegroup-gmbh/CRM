@@ -28,6 +28,7 @@
   text-align: center;
   color: #6b7280;
   font-size: 0.875rem;
+  margin-top: 1rem;
 }
 
 .table-actions {
@@ -113,16 +114,7 @@
   gap: 0.75rem;
 }
 
-.empty-state {
-  text-align: center;
-  padding: 3rem 2rem;
-  color: #6b7280;
-}
-
-.empty-icon {
-  font-size: 3rem;
-  margin-bottom: 1rem;
-}
+/* Empty State: zentrale Definition in tabellen.css */
 
 .badge {
   display: inline-block;

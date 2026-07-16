@@ -11,6 +11,7 @@ import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { ImageUploadHelper } from '../../core/ImageUploadHelper.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { magicLinkService } from '../auth/MagicLinkService.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
 
 export class AnsprechpartnerDetail extends PersonDetailBase {
   constructor() {
@@ -404,12 +405,11 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
   // Rendere Unternehmen-Tab
   renderUnternehmen() {
     if (!this.ansprechpartner?.ansprechpartner_unternehmen || this.ansprechpartner.ansprechpartner_unternehmen.length === 0) {
-      return `
-        <div class="empty-state">
-          <h3>Keine Unternehmen zugeordnet</h3>
-          <p>Diesem Ansprechpartner sind noch keine Unternehmen zugeordnet.</p>
-        </div>
-      `;
+      return renderEmptyState({
+        icon: 'building',
+        title: 'Keine Unternehmen zugeordnet',
+        text: 'Diesem Ansprechpartner sind noch keine Unternehmen zugeordnet.'
+      });
     }
 
     const items = this.ansprechpartner.ansprechpartner_unternehmen.map(item => {
@@ -431,12 +431,11 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
   // Rendere Marken-Tab
   renderMarken() {
     if (!this.ansprechpartner?.ansprechpartner_marke || this.ansprechpartner.ansprechpartner_marke.length === 0) {
-      return `
-        <div class="empty-state">
-          <h3>Keine Marken zugeordnet</h3>
-          <p>Diesem Ansprechpartner sind noch keine Marken zugeordnet.</p>
-        </div>
-      `;
+      return renderEmptyState({
+        icon: 'tag',
+        title: 'Keine Marken zugeordnet',
+        text: 'Diesem Ansprechpartner sind noch keine Marken zugeordnet.'
+      });
     }
 
     const items = this.ansprechpartner.ansprechpartner_marke.map(item => {
@@ -477,12 +476,11 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       .filter(k => !explicitIds.has(k.id));
 
     if (explicitKampagnen.length === 0 && indirectOnly.length === 0) {
-      return `
-        <div class="empty-state">
-          <h3>Keine Kampagnen zugeordnet</h3>
-          <p>Diesem Ansprechpartner sind noch keine Kampagnen zugeordnet.</p>
-        </div>
-      `;
+      return renderEmptyState({
+        icon: 'megaphone',
+        title: 'Keine Kampagnen zugeordnet',
+        text: 'Diesem Ansprechpartner sind noch keine Kampagnen zugeordnet.'
+      });
     }
 
     const renderZuordnungTag = (label) => `<span class="tag tag--branche">${this.sanitize(label)}</span>`;

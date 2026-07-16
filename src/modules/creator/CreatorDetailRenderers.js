@@ -6,6 +6,9 @@ import { renderKampagnenTable } from '../kampagne/KampagneTable.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { creatorUtils } from './CreatorUtils.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
+
+const PLUS_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>`;
 
 CreatorDetail.prototype.renderInfoTab = function() {
     return `
@@ -141,6 +144,65 @@ CreatorDetail.prototype.renderInfoTab = function() {
     `;
 };
 
+CreatorDetail.prototype.renderFirmenContent = function() {
+    const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str || '-') ?? (str || '-');
+    const items = this.firmen || [];
+
+    const anlegenBtn = `
+      <button class="primary-btn btn-sm" id="btn-firma-anlegen">
+        ${PLUS_ICON_SVG}
+        Firma anlegen
+      </button>
+    `;
+
+    if (!items.length) {
+      return renderEmptyState({
+        icon: 'building',
+        title: 'Keine Firma zugeordnet',
+        text: 'Diesem Creator ist noch keine Firma zugeordnet.',
+        actionsHtml: anlegenBtn
+      });
+    }
+
+    const rows = items.map(f => `
+      <tr>
+        <td>${safe(f.firmenname || '—')}</td>
+        <td>${safe(f.strasse || '-')}</td>
+        <td>${safe(f.hausnummer || '-')}</td>
+        <td>${safe(f.plz || '-')}</td>
+        <td>${safe(f.stadt || '-')}</td>
+        <td>${safe(f.land || '-')}</td>
+        <td>
+          <button class="icon-btn" title="Zuordnung entfernen" data-remove-firma="${f.id}">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px;">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+
+    return `
+      ${renderSectionHeader({ title: 'Firmen', actionsHtml: anlegenBtn })}
+      <div class="data-table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Firmenname</th>
+              <th>Straße</th>
+              <th>Hausnummer</th>
+              <th>PLZ</th>
+              <th>Stadt</th>
+              <th>Land</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+};
+
 CreatorDetail.prototype.renderTagList = function(items) {
     if (!items || items.length === 0) return '-';
     if (Array.isArray(items)) {
@@ -159,7 +221,11 @@ CreatorDetail.prototype.renderTagList = function(items) {
 
 CreatorDetail.prototype.renderKampagnenContent = function() {
     if (!this.kampagnen || this.kampagnen.length === 0) {
-      return `<div class="empty-state"><p>Noch keine Kampagnen zugeordnet.</p></div>`;
+      return renderEmptyState({
+        icon: 'megaphone',
+        title: 'Keine Kampagnen',
+        text: 'Dieser Creator ist noch keiner Kampagne zugeordnet.'
+      });
     }
 
     const flat = this.kampagnen.map(k => {
@@ -179,12 +245,19 @@ CreatorDetail.prototype.renderKampagnenContent = function() {
       };
     });
 
-    return renderKampagnenTable(flat, { showActions: false });
+    return `
+      ${renderSectionHeader({ title: 'Kampagnen' })}
+      ${renderKampagnenTable(flat, { showActions: false })}
+    `;
 };
 
 CreatorDetail.prototype.renderListenContent = function() {
     if (this.lists.length === 0) {
-      return `<div class="empty-state"><p>Noch keiner Liste zugeordnet.</p></div>`;
+      return renderEmptyState({
+        icon: 'list',
+        title: 'Keine Listen',
+        text: 'Dieser Creator ist noch keiner Liste zugeordnet.'
+      });
     }
 
     const listsHtml = this.lists.map(list => `
@@ -199,17 +272,19 @@ CreatorDetail.prototype.renderListenContent = function() {
       </div>
     `).join('');
 
-    return `<div class="lists-container">${listsHtml}</div>`;
+    return `
+      ${renderSectionHeader({ title: 'Listen' })}
+      <div class="lists-container">${listsHtml}</div>
+    `;
 };
 
 CreatorDetail.prototype.renderKooperationenContent = function() {
     if (this.kooperationen.length === 0) {
-      return `
-        <div class="empty-state">
-          <h3>Keine Kooperationen vorhanden</h3>
-          <p>Für diesen Creator wurden noch keine Kooperationen erstellt.</p>
-        </div>
-      `;
+      return renderEmptyState({
+        icon: 'handshake',
+        title: 'Keine Kooperationen vorhanden',
+        text: 'Für diesen Creator wurden noch keine Kooperationen erstellt.'
+      });
     }
 
     const rows = this.kooperationen.map(k => `
@@ -232,6 +307,7 @@ CreatorDetail.prototype.renderKooperationenContent = function() {
     `).join('');
 
     return `
+      ${renderSectionHeader({ title: 'Kooperationen' })}
       <div class="data-table-container">
         <table class="data-table">
           <thead>
@@ -252,7 +328,11 @@ CreatorDetail.prototype.renderKooperationenContent = function() {
 
 CreatorDetail.prototype.renderRechnungenContent = function() {
     if (!this.rechnungen || this.rechnungen.length === 0) {
-      return `<div class="empty-state"><p>Keine Rechnungen vorhanden.</p></div>`;
+      return renderEmptyState({
+        icon: 'invoice',
+        title: 'Keine Rechnungen vorhanden',
+        text: 'Für diesen Creator wurden noch keine Rechnungen erfasst.'
+      });
     }
 
     const rows = this.rechnungen.map(r => `
@@ -268,6 +348,7 @@ CreatorDetail.prototype.renderRechnungenContent = function() {
     `).join('');
 
     return `
+      ${renderSectionHeader({ title: 'Rechnungen' })}
       <div class="data-table-container">
         <table class="data-table">
           <thead>
@@ -289,12 +370,11 @@ CreatorDetail.prototype.renderRechnungenContent = function() {
 
 CreatorDetail.prototype.renderVertraegeContent = function() {
     if (!this.vertraege || this.vertraege.length === 0) {
-      return `
-        <div class="empty-state">
-          <h3>Keine Verträge vorhanden</h3>
-          <p>Für diesen Creator wurden noch keine Verträge erfasst.</p>
-        </div>
-      `;
+      return renderEmptyState({
+        icon: 'document',
+        title: 'Keine Verträge vorhanden',
+        text: 'Für diesen Creator wurden noch keine Verträge erfasst.'
+      });
     }
 
     const getStatusLabel = (isDraft) => isDraft ? 'Entwurf' : 'Final';
@@ -318,6 +398,7 @@ CreatorDetail.prototype.renderVertraegeContent = function() {
     }).join('');
 
     return `
+      ${renderSectionHeader({ title: 'Verträge' })}
       <div class="data-table-container">
         <table class="data-table vertraege-detail-table">
           <thead>
@@ -340,13 +421,18 @@ CreatorDetail.prototype.renderVertraegeContent = function() {
 CreatorDetail.prototype.renderUnternehmenContent = function() {
     const items = this.unternehmen || [];
     if (!items.length) {
-      return '<p class="empty-state">Keine Unternehmen vorhanden.</p>';
+      return renderEmptyState({
+        icon: 'building',
+        title: 'Keine Unternehmen vorhanden',
+        text: 'Dieser Creator ist noch mit keinem Unternehmen verknüpft.'
+      });
     }
     const rows = items.map(u => `
       <tr>
         <td><a href="/unternehmen/${u.id}" class="table-link" data-table="unternehmen" data-id="${u.id}">${window.validatorSystem.sanitizeHtml(u.firmenname || '—')}</a></td>
       </tr>`).join('');
     return `
+      ${renderSectionHeader({ title: 'Unternehmen' })}
       <div class="data-table-container">
         <table class="data-table">
           <thead>
@@ -401,23 +487,22 @@ CreatorDetail.prototype.renderAdresseContent = function() {
       </div>
     `;
 
+    const neueAdresseBtn = `
+      <button 
+        class="primary-btn btn-sm" 
+        onclick="window.creatorAdressenManager?.open('${this.creatorId}')"
+      >
+        ${PLUS_ICON_SVG}
+        Neue Adresse hinzufügen
+      </button>
+    `;
+
     return `
       <div class="creator-addresses-container">
         <div class="address-section">
-          <div class="section-header">
-            <h3>Adressen</h3>
-            <button 
-              class="primary-btn btn-sm" 
-              onclick="window.creatorAdressenManager?.open('${this.creatorId}')"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; margin-right: 4px;">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
-              Neue Adresse hinzufügen
-            </button>
-          </div>
+          ${renderSectionHeader({ title: 'Adressen', actionsHtml: neueAdresseBtn })}
           ${this.creatorAdressen && this.creatorAdressen.length === 0 
-            ? `${hauptAdresseTable}<p class="empty-text" style="margin-top: 1rem; color: #6b7280;">Keine zusätzlichen Adressen hinterlegt.</p>` 
+            ? `${hauptAdresseTable}<p class="empty-text">Keine zusätzlichen Adressen hinterlegt.</p>` 
             : hauptAdresseTable
           }
         </div>
@@ -478,28 +563,23 @@ CreatorDetail.prototype.formatAgeRange = function(min, max, legacy) {
 CreatorDetail.prototype.renderManagementContent = function() {
     const items = this.managements || [];
 
-    const actionBtn = `
-      <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
-        <button class="primary-btn btn-sm" id="btn-management-zuordnen">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; margin-right: 4px;">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          Management zuordnen
-        </button>
-        <button class="secondary-btn btn-sm" id="btn-management-anlegen" onclick="event.preventDefault(); window.navigateTo('/management/new')">
-          Neues Management anlegen
-        </button>
-      </div>
+    const actionButtons = `
+      <button class="primary-btn btn-sm" id="btn-management-zuordnen">
+        ${PLUS_ICON_SVG}
+        Management zuordnen
+      </button>
+      <button class="secondary-btn btn-sm" id="btn-management-anlegen" onclick="event.preventDefault(); window.navigateTo('/management/new')">
+        Neues Management anlegen
+      </button>
     `;
 
     if (!items.length) {
-      return `
-        ${actionBtn}
-        <div class="empty-state">
-          <h3>Kein Management zugeordnet</h3>
-          <p>Diesem Creator ist noch kein Management zugeordnet.</p>
-        </div>
-      `;
+      return renderEmptyState({
+        icon: 'building',
+        title: 'Kein Management zugeordnet',
+        text: 'Diesem Creator ist noch kein Management zugeordnet.',
+        actionsHtml: actionButtons
+      });
     }
 
     const rows = items.map(m => {
@@ -529,7 +609,7 @@ CreatorDetail.prototype.renderManagementContent = function() {
     }).join('');
 
     return `
-      ${actionBtn}
+      ${renderSectionHeader({ title: 'Management', actionsHtml: actionButtons })}
       <div class="data-table-container">
         <table class="data-table">
           <thead>

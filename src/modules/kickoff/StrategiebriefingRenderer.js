@@ -2,6 +2,7 @@
 // Shared renderer for Strategiebriefing tab in Marke + Unternehmen detail views
 
 import { StrategiebriefingService } from './StrategiebriefingService.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
 
 const BRIEFING_TYPES = ['influencer', 'organic', 'paid'];
 
@@ -18,13 +19,12 @@ export function renderStrategiebriefing(detail, { parentType = 'marke' } = {}) {
     if (parentType === 'marke' && !detail._kickoffLoaded) {
       return `<div class="empty-state"><p>Laden...</p></div>`;
     }
-    return `
-      <div class="empty-state">
-        <h3>Kein Strategiebriefing vorhanden</h3>
-        <p>Es wurde noch kein Strategiebriefing erstellt.</p>
-        ${!isKunde ? `<button type="button" class="btn btn-primary kickoff-detail-create-btn">Strategiebriefing anlegen</button>` : ''}
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'clipboard',
+      title: 'Kein Strategiebriefing vorhanden',
+      text: 'Es wurde noch kein Strategiebriefing erstellt.',
+      actionsHtml: !isKunde ? `<button type="button" class="btn btn-primary kickoff-detail-create-btn">Strategiebriefing anlegen</button>` : ''
+    });
   }
 
   const typeSwitcher = `
@@ -43,11 +43,12 @@ export function renderStrategiebriefing(detail, { parentType = 'marke' } = {}) {
     return `
       <div class="detail-section">
         ${typeSwitcher}
-        <div class="empty-state">
-          <h3>Kein ${typeLabel} Strategiebriefing vorhanden</h3>
-          <p>Für den Typ ${typeLabel} wurde noch kein Strategiebriefing erstellt.</p>
-          ${!isKunde ? `<button type="button" class="btn btn-primary kickoff-detail-create-btn" data-kickoff-type="${detail.activeKickoffType}">${typeLabel} Strategiebriefing anlegen</button>` : ''}
-        </div>
+        ${renderEmptyState({
+          icon: 'clipboard',
+          title: `Kein ${typeLabel} Strategiebriefing vorhanden`,
+          text: `Für den Typ ${typeLabel} wurde noch kein Strategiebriefing erstellt.`,
+          actionsHtml: !isKunde ? `<button type="button" class="btn btn-primary kickoff-detail-create-btn" data-kickoff-type="${detail.activeKickoffType}">${typeLabel} Strategiebriefing anlegen</button>` : ''
+        })}
       </div>
     `;
   }

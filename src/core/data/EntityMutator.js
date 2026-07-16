@@ -56,6 +56,10 @@ export class EntityMutator {
         await this._syncCreatorManagements(result.id, this._normalizeManagementIds(data));
       }
       
+      if (entityType === 'creator' && data.firma_ids !== undefined) {
+        await this._syncCreatorFirmen(result.id, this._normalizeIdList(data.firma_ids));
+      }
+      
       return { success: true, id: result.id, data: result };
       
     } catch (error) {
@@ -98,6 +102,10 @@ export class EntityMutator {
       
       if (entityType === 'creator' && (data.management_ids !== undefined || data.management_id !== undefined)) {
         await this._syncCreatorManagements(id, this._normalizeManagementIds(data));
+      }
+      
+      if (entityType === 'creator' && data.firma_ids !== undefined) {
+        await this._syncCreatorFirmen(id, this._normalizeIdList(data.firma_ids));
       }
       
       return { success: true, id: id, data: result };
@@ -180,6 +188,10 @@ export class EntityMutator {
 
   _normalizeManagementIds(data) {
     const raw = data.management_ids !== undefined ? data.management_ids : data.management_id;
+    return this._normalizeIdList(raw);
+  }
+
+  _normalizeIdList(raw) {
     const arr = Array.isArray(raw) ? raw : (raw === null || raw === undefined ? [] : [raw]);
     const cleaned = arr
       .map(id => (typeof id === 'string' ? id.trim() : id))
@@ -234,6 +246,56 @@ export class EntityMutator {
       console.log(`✅ Creator-Management Zuordnungen synchronisiert: ${creatorId} → [${managementIds.join(', ')}]`);
     } catch (err) {
       console.error('❌ Fehler bei _syncCreatorManagements:', err);
+    }
+  }
+
+  // n:m Diff-Sync analog zu _syncCreatorManagements, für creator_firma.
+  async _syncCreatorFirmen(creatorId, firmaIds) {
+    try {
+      if (!window.supabase) return;
+
+      const desired = new Set(firmaIds);
+
+      const { data: existingRows } = await window.supabase
+        .from('creator_firma')
+        .select('id, firma_id, ist_aktiv')
+        .eq('creator_id', creatorId);
+
+      const existing = existingRows || [];
+      const now = new Date().toISOString();
+
+      for (const row of existing) {
+        if (desired.has(row.firma_id)) {
+          desired.delete(row.firma_id);
+          if (!row.ist_aktiv) {
+            await window.supabase
+              .from('creator_firma')
+              .update({ ist_aktiv: true, updated_at: now })
+              .eq('id', row.id);
+          }
+        } else if (row.ist_aktiv) {
+          await window.supabase
+            .from('creator_firma')
+            .update({ ist_aktiv: false, updated_at: now })
+            .eq('id', row.id);
+        }
+      }
+
+      const toInsert = [...desired].map(firma_id => ({
+        creator_id: creatorId,
+        firma_id,
+        ist_aktiv: true
+      }));
+
+      if (toInsert.length > 0) {
+        await window.supabase
+          .from('creator_firma')
+          .insert(toInsert);
+      }
+
+      console.log(`✅ Creator-Firma Zuordnungen synchronisiert: ${creatorId} → [${firmaIds.join(', ')}]`);
+    } catch (err) {
+      console.error('❌ Fehler bei _syncCreatorFirmen:', err);
     }
   }
 }

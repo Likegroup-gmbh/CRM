@@ -14,7 +14,8 @@ CreatorDetail.prototype.loadCriticalData = async function() {
       sprachenResult,
       branchenResult,
       typenResult,
-      adressenResult
+      adressenResult,
+      firmenResult
     ] = await parallelLoad([
       () => window.supabase
         .from('creator')
@@ -45,7 +46,14 @@ CreatorDetail.prototype.loadCriticalData = async function() {
         .select('*')
         .eq('creator_id', this.creatorId)
         .order('created_at', { ascending: false })
-        .then(r => r.data || [])
+        .then(r => r.data || []),
+      
+      () => window.supabase
+        .from('creator_firma')
+        .select('firma_id, firma:firma_id(id, firmenname, strasse, hausnummer, plz, stadt, land)')
+        .eq('creator_id', this.creatorId)
+        .eq('ist_aktiv', true)
+        .then(r => (r.data || []).map(x => x.firma).filter(Boolean))
     ]);
     
     if (creatorResult.error) {
@@ -57,6 +65,7 @@ CreatorDetail.prototype.loadCriticalData = async function() {
     this.creator.branchen = branchenResult;
     this.creator.creator_types = typenResult;
     this.creatorAdressen = adressenResult;
+    this.firmen = firmenResult;
     
     const loadTime = (performance.now() - startTime).toFixed(0);
     console.log(`✅ CREATORDETAIL: Kritische Daten geladen in ${loadTime}ms`);
@@ -102,6 +111,11 @@ CreatorDetail.prototype.loadTabData = async function(tabName) {
           case 'management':
             await this.loadManagements();
             this.updateManagementTab();
+            break;
+
+          case 'firmen':
+            await this.loadFirmen();
+            this.updateFirmenTab();
             break;
         }
         
@@ -451,12 +465,52 @@ CreatorDetail.prototype.loadManagements = async function() {
     }
 };
 
+CreatorDetail.prototype.loadFirmen = async function() {
+    try {
+      const { data, error } = await window.supabase
+        .from('creator_firma')
+        .select(`
+          firma_id,
+          ist_aktiv,
+          firma:firma_id (
+            id, firmenname, strasse, hausnummer, plz, stadt, land
+          )
+        `)
+        .eq('creator_id', this.creatorId)
+        .eq('ist_aktiv', true);
+
+      if (error) {
+        console.warn('⚠️ CREATORDETAIL: Firmen-Daten konnten nicht geladen werden:', error);
+        this.firmen = [];
+        return;
+      }
+
+      this.firmen = (data || [])
+        .filter(item => item.firma)
+        .map(item => item.firma);
+
+      console.log(`✅ CREATORDETAIL: ${this.firmen.length} Firma/Firmen geladen`);
+    } catch (e) {
+      console.warn('⚠️ CREATORDETAIL: Fehler beim Laden der Firmen:', e);
+      this.firmen = [];
+    }
+};
+
 CreatorDetail.prototype.updateManagementTab = function() {
     const container = document.querySelector('#tab-management');
     if (container) {
       container.innerHTML = this.renderManagementContent();
       const btn = document.querySelector('.tab-button[data-tab="management"] .tab-count');
       if (btn) btn.textContent = String(this.managements?.length || 0);
+    }
+};
+
+CreatorDetail.prototype.updateFirmenTab = function() {
+    const container = document.querySelector('#tab-firmen');
+    if (container) {
+      container.innerHTML = this.renderFirmenContent();
+      const btn = document.querySelector('.tab-button[data-tab="firmen"] .tab-count');
+      if (btn) btn.textContent = String(this.firmen?.length || 0);
     }
 };
 

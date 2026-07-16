@@ -985,6 +985,23 @@ export const EntityRegistry = {
     sortBy: 'created_at',
     sortOrder: 'desc'
   },
+  firma: {
+    table: 'firma',
+    displayField: 'firmenname',
+    fields: {
+      firmenname: 'string',
+      strasse: 'string',
+      hausnummer: 'string',
+      plz: 'string',
+      stadt: 'string',
+      land: 'string'
+    },
+    relations: {},
+    manyToMany: {},
+    filters: ['firmenname', 'stadt', 'land'],
+    sortBy: 'created_at',
+    sortOrder: 'desc'
+  },
   marke_kickoff: {
     table: 'marke_kickoff',
     displayField: 'brand_essenz',

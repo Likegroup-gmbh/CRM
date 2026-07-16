@@ -216,6 +216,7 @@ export class CreatorDetail extends PersonDetailBase {
       { tab: 'vertraege', label: 'Verträge', count: this.vertraege?.length || 0, isActive: this.activeMainTab === 'vertraege' },
       { tab: 'listen', label: 'Listen', count: this.lists?.length || 0, isActive: this.activeMainTab === 'listen' },
       { tab: 'management', label: 'Management', count: this.managements?.length || 0, isActive: this.activeMainTab === 'management' },
+      { tab: 'firmen', label: 'Firmen', count: this.firmen?.length || 0, isActive: this.activeMainTab === 'firmen' },
       { tab: 'adresse', label: 'Adresse', isActive: this.activeMainTab === 'adresse' }
     ];
   }
@@ -254,6 +255,10 @@ export class CreatorDetail extends PersonDetailBase {
 
         <div class="tab-pane ${this.activeMainTab === 'management' ? 'active' : ''}" id="tab-management">
           ${this.renderManagementContent()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'firmen' ? 'active' : ''}" id="tab-firmen">
+          ${this.renderFirmenContent()}
         </div>
 
         <div class="tab-pane ${this.activeMainTab === 'adresse' ? 'active' : ''}" id="tab-adresse">

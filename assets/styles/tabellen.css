@@ -855,10 +855,38 @@
   color: var(--gray-400);
 }
 
+.empty-state .empty-icon {
+  font-size: 3rem;
+}
+
+.empty-state .empty-icon:not(.empty-icon--svg) {
+  margin-bottom: 1rem;
+}
+
 .empty-state .empty-state-actions {
   display: flex;
   gap: var(--space-sm);
   margin-top: var(--space-md);
+}
+
+/* === TAB SECTION HEADER (Titel links, Aktionen rechts, ueber data-table) === */
+.tab-section-header {
+  border-bottom: none;
+  padding: 0;
+  margin-bottom: 1rem;
+}
+
+.tab-section-header h3 {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tab-section-header .section-header-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
 }
 
 /* === GRID EDITOR === */

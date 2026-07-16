@@ -10,6 +10,7 @@ import { SearchInput } from '../../core/components/SearchInput.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { creatorUtils } from './CreatorUtils.js';
+import { injectFirmaCreateButton } from './FirmaCreateDrawer.js';
 
 export class CreatorList extends BasePaginatedList {
   constructor(opts = {}) {
@@ -420,6 +421,7 @@ export class CreatorList extends BasePaginatedList {
     `;
 
     window.formSystem.bindFormEvents('creator', null);
+    injectFirmaCreateButton();
     
     const form = document.getElementById('creator-form');
     if (form) {

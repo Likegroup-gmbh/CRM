@@ -27,6 +27,7 @@ export class FormConfig {
           { name: 'rechnungsadresse_land', label: 'Land (Rechnung)', type: 'text', required: false, defaultValue: 'Deutschland', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true', section: 'basis' },
           { name: 'umsatzsteuerpflichtig', label: 'Umsatzsteuerpflichtig', type: 'toggle', required: false, defaultValue: true, section: 'basis' },
           { name: 'management_ids', label: 'Management', type: 'multiselect', required: false, options: [], dynamic: true, searchable: true, tagBased: true, placeholder: 'Management suchen und hinzufügen...', table: 'management', displayField: 'firmenname', valueField: 'id', customField: true, section: 'basis' },
+          { name: 'firma_ids', label: 'Firmen', type: 'multiselect', required: false, options: [], dynamic: true, searchable: true, tagBased: true, placeholder: 'Firma suchen und hinzufügen...', table: 'firma', displayField: 'firmenname', valueField: 'id', customField: true, section: 'basis' },
           // Social Media
           { name: 'instagram', label: 'Instagram', type: 'text', required: false, row: 'social_instagram', section: 'social' },
           { 
@@ -1223,6 +1224,17 @@ export class FormConfig {
           { name: 'steuernummer', label: 'Steuernummer', type: 'text', required: false, section: 'finanzen', sectionTitle: 'Finanzen' },
           { name: 'ust_id', label: 'USt-IdNr.', type: 'text', required: false, section: 'finanzen' },
           { name: 'notiz', label: 'Notizen', type: 'textarea', required: false, section: 'sonstiges', sectionTitle: 'Sonstiges' }
+        ]
+      },
+      firma: {
+        title: 'Neue Firma anlegen',
+        fields: [
+          { name: 'firmenname', label: 'Firmenname', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, section: 'stammdaten', sectionTitle: 'Stammdaten' },
+          { name: 'strasse', label: 'Straße', type: 'text', required: false, section: 'adresse', sectionTitle: 'Adresse', row: 'adresse1', colSize: 8 },
+          { name: 'hausnummer', label: 'Nr.', type: 'text', required: false, section: 'adresse', row: 'adresse1', colSize: 4 },
+          { name: 'plz', label: 'PLZ', type: 'text', required: false, section: 'adresse', row: 'adresse2', colSize: 4 },
+          { name: 'stadt', label: 'Stadt', type: 'text', required: false, section: 'adresse', row: 'adresse2', colSize: 8 },
+          { name: 'land', label: 'Land', type: 'text', required: false, defaultValue: 'Deutschland', section: 'adresse' }
         ]
       }
     };

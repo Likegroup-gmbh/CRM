@@ -3,6 +3,7 @@
 
 import { CreatorDetail } from './CreatorDetailCore.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
+import { firmaCreateDrawer, injectFirmaCreateButton } from './FirmaCreateDrawer.js';
 
 CreatorDetail.prototype.bindEvents = function() {
     if (this._abortController) {
@@ -55,6 +56,26 @@ CreatorDetail.prototype.bindEvents = function() {
       if (removeBtn) {
         e.preventDefault();
         this._removeManagementFromCreator(removeBtn.getAttribute('data-remove-management'));
+      }
+    }, { signal });
+
+    document.addEventListener('click', (e) => {
+      const addFirmaBtn = e.target.closest && e.target.closest('#btn-firma-anlegen');
+      if (addFirmaBtn) {
+        e.preventDefault();
+        firmaCreateDrawer.open({
+          creatorId: this.creatorId,
+          onCreated: async () => {
+            await this.loadFirmen();
+            this.updateFirmenTab();
+          }
+        });
+        return;
+      }
+      const removeFirmaBtn = e.target.closest && e.target.closest('[data-remove-firma]');
+      if (removeFirmaBtn) {
+        e.preventDefault();
+        this._removeFirmaFromCreator(removeFirmaBtn.getAttribute('data-remove-firma'));
       }
     }, { signal });
 
@@ -124,6 +145,7 @@ CreatorDetail.prototype.showEditForm = async function() {
 
     // Immer frisch laden, damit Re-Edit den aktuellen Stand zeigt
     await this.loadManagements();
+    await this.loadFirmen();
     
     const intToFollowerRange = (value) => {
       if (!value) return null;
@@ -154,14 +176,16 @@ CreatorDetail.prototype.showEditForm = async function() {
       sprachen_ids: this.creator.sprachen ? this.creator.sprachen.map(s => s.id) : [],
       branche_ids: this.creator.branchen ? this.creator.branchen.map(b => b.id) : [],
       creator_type_ids: this.creator.creator_types ? this.creator.creator_types.map(t => t.id) : [],
-      management_ids: this.managements && this.managements.length > 0 ? this.managements.map(m => m.id) : []
+      management_ids: this.managements && this.managements.length > 0 ? this.managements.map(m => m.id) : [],
+      firma_ids: this.firmen && this.firmen.length > 0 ? this.firmen.map(f => f.id) : []
     };
     
     console.log('📋 CREATORDETAIL: Edit-Daten vorbereitet:', {
       sprachen_ids: editData.sprachen_ids,
       branche_ids: editData.branche_ids,
       creator_type_ids: editData.creator_type_ids,
-      management_ids: editData.management_ids
+      management_ids: editData.management_ids,
+      firma_ids: editData.firma_ids
     });
     
     const formHtml = window.formSystem.renderFormOnly('creator', editData);
@@ -172,6 +196,7 @@ CreatorDetail.prototype.showEditForm = async function() {
     `);
 
     window.formSystem.bindFormEvents('creator', editData);
+    injectFirmaCreateButton();
     
     const form = document.getElementById('creator-form');
     if (form) {
@@ -254,6 +279,19 @@ CreatorDetail.prototype.handleEditFormSubmit = async function() {
         submitData.management_ids = [...new Set(mgmtValues)];
       }
 
+      // firma_ids autoritativ setzen (auch leeres Array), damit Entfernen persistiert
+      const firmaField = form.querySelector('select[name="firma_ids"], select[name="firma_ids[]"]');
+      if (firmaField) {
+        const formField = firmaField.closest('.form-field');
+        let firmaValues = Array.from(formField?.querySelectorAll('.tag-based-select .tag[data-value]') || [])
+          .map(t => t.dataset.value).filter(Boolean);
+        if (firmaValues.length === 0) {
+          const hidden = formField?.querySelector('select[style*="display: none"]');
+          if (hidden) firmaValues = Array.from(hidden.selectedOptions).map(o => o.value).filter(Boolean);
+        }
+        submitData.firma_ids = [...new Set(firmaValues)];
+      }
+
       const validation = window.validatorSystem.validateForm(submitData, {
         vorname: { type: 'text', minLength: 2, required: true },
         nachname: { type: 'text', minLength: 2, required: true },
@@ -276,6 +314,7 @@ CreatorDetail.prototype.handleEditFormSubmit = async function() {
           tabDataCache.invalidate('creator', this.creatorId);
           await this.loadCriticalData();
           await this.loadManagements();
+          await this.loadFirmen();
           await this.render();
           window.navigateTo(`/creator/${this.creatorId}`);
         }, 1500);
@@ -286,6 +325,32 @@ CreatorDetail.prototype.handleEditFormSubmit = async function() {
     } catch (error) {
       console.error('❌ Edit Formular-Submit Fehler:', error);
       this.showErrorMessage(error.message);
+    }
+};
+
+CreatorDetail.prototype._removeFirmaFromCreator = async function(firmaId) {
+    const { confirmed } = await window.confirmationModal.open({
+      title: 'Firma entfernen',
+      message: 'Firmen-Zuordnung wirklich entfernen? Die Firma selbst bleibt erhalten und kann jederzeit wieder zugeordnet werden.',
+      confirmText: 'Entfernen',
+      cancelText: 'Abbrechen',
+      danger: true
+    });
+    if (!confirmed) return;
+
+    const { error } = await window.supabase
+      .from('creator_firma')
+      .update({ ist_aktiv: false, updated_at: new Date().toISOString() })
+      .eq('creator_id', this.creatorId)
+      .eq('firma_id', firmaId)
+      .eq('ist_aktiv', true);
+
+    if (error) {
+      window.toastSystem?.show('Fehler: ' + error.message, 'error');
+    } else {
+      window.toastSystem?.success('Firmen-Zuordnung entfernt.');
+      await this.loadFirmen();
+      this.updateFirmenTab();
     }
 };
 

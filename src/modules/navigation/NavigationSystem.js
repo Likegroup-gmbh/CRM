@@ -50,6 +50,7 @@ export class NavigationSystem {
           // { id: 'kickoff', label: 'Kick-Off', icon: 'icon-kick-off', url: '/kickoff' },
           // { id: 'produkt', label: 'Produkte', icon: 'icon-cube', url: '/produkt' },
           { id: 'strategie', label: 'Strategie', icon: 'icon-lightbulb', url: '/strategie' },
+          { id: 'skripte', label: 'Skripte (KI)', icon: 'icon-document', url: '/skripte' },
           { id: 'sourcing', label: 'Sourcing', icon: 'icon-users', url: '/sourcing' },
           { id: 'vertraege', label: 'Verträge', icon: 'icon-contract', url: '/vertraege' },
           { id: 'videos', label: 'Videos', icon: 'icon-video', url: '/videos' },
@@ -109,6 +110,11 @@ export class NavigationSystem {
 
       // Geteilte Listen: nur intern (Admin + Mitarbeiter)
       if (id === 'shares') {
+        return typeof window.isInternal === 'function' && window.isInternal();
+      }
+
+      // Skript-Generator: nur intern (Admin + Mitarbeiter)
+      if (id === 'skripte') {
         return typeof window.isInternal === 'function' && window.isInternal();
       }
       

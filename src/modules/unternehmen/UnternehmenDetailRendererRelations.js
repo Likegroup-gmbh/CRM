@@ -9,15 +9,15 @@ import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { renderMarkeBubble, renderPersonBubble } from './UnternehmenDetailRendererHelpers.js';
 import { renderStrategiebriefing as renderStrategiebriefingShared, bindStrategiebriefingCreateButton } from '../kickoff/StrategiebriefingRenderer.js';
 import { getPaymentRowStatusClass } from '../auftrag/logic/PaymentRowStatus.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
 
 export function renderStrategien(detail) {
   if (!detail.strategien || detail.strategien.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Strategien vorhanden</h3>
-        <p>Es wurden noch keine Strategien für dieses Unternehmen erstellt.</p>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'clipboard',
+      title: 'Keine Strategien vorhanden',
+      text: 'Es wurden noch keine Strategien für dieses Unternehmen erstellt.'
+    });
   }
 
   const rows = detail.strategien.map(s => `
@@ -54,12 +54,11 @@ export function renderStrategien(detail) {
 
 export function renderCreatorAuswahl(detail) {
   if (!detail.creatorAuswahlen || detail.creatorAuswahlen.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Creator-Auswahlen vorhanden</h3>
-        <p>Es wurden noch keine Creator-Auswahlen für dieses Unternehmen erstellt.</p>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'users',
+      title: 'Keine Creator-Auswahlen vorhanden',
+      text: 'Es wurden noch keine Creator-Auswahlen für dieses Unternehmen erstellt.'
+    });
   }
 
   const rows = detail.creatorAuswahlen.map(ca => `
@@ -92,12 +91,11 @@ export function renderCreatorAuswahl(detail) {
 
 export function renderKooperationen(detail) {
   if (!detail.kooperationen || detail.kooperationen.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Kooperationen vorhanden</h3>
-        <p>Für die Kampagnen dieses Unternehmens wurden keine Kooperationen gefunden.</p>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'handshake',
+      title: 'Keine Kooperationen vorhanden',
+      text: 'Für die Kampagnen dieses Unternehmens wurden keine Kooperationen gefunden.'
+    });
   }
 
   const creatorMap = detail._creatorMap || {};
@@ -147,24 +145,22 @@ export function renderKooperationen(detail) {
 
 export function renderCreators(detail) {
   if (!detail.creators || detail.creators.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Creator vorhanden</h3>
-        <p>Es gibt keine Creator in Kooperationen für dieses Unternehmen.</p>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'users',
+      title: 'Keine Creator vorhanden',
+      text: 'Es gibt keine Creator in Kooperationen für dieses Unternehmen.'
+    });
   }
   return renderCreatorTable(detail.creators);
 }
 
 export function renderAnsprechpartner(detail) {
   if (!detail.ansprechpartner || detail.ansprechpartner.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Ansprechpartner vorhanden</h3>
-        <p>Es wurden noch keine Ansprechpartner für dieses Unternehmen zugeordnet.</p>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'users',
+      title: 'Keine Ansprechpartner vorhanden',
+      text: 'Es wurden noch keine Ansprechpartner für dieses Unternehmen zugeordnet.'
+    });
   }
 
   const rows = detail.ansprechpartner.map(ap => `
@@ -217,12 +213,11 @@ export function renderAnsprechpartner(detail) {
 
 export function renderRechnungen(detail) {
   if (!detail.rechnungen || detail.rechnungen.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Rechnungen vorhanden</h3>
-        <p>Für dieses Unternehmen wurden noch keine Rechnungen erfasst.</p>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'invoice',
+      title: 'Keine Rechnungen vorhanden',
+      text: 'Für dieses Unternehmen wurden noch keine Rechnungen erfasst.'
+    });
   }
 
   const isKunde = window.isKunde();
@@ -290,12 +285,11 @@ export function renderRechnungen(detail) {
 
 export function renderKundenrechnungen(detail) {
   if (!detail.kundenrechnungen || detail.kundenrechnungen.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Kundenrechnungen vorhanden</h3>
-        <p>Für dieses Unternehmen wurden noch keine Kundenrechnungen erfasst.</p>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'invoice',
+      title: 'Keine Kundenrechnungen vorhanden',
+      text: 'Für dieses Unternehmen wurden noch keine Kundenrechnungen erfasst.'
+    });
   }
 
   const formatDate = (d) => detail.formatDate(d);
@@ -356,12 +350,11 @@ export function renderKundenrechnungen(detail) {
 
 export function renderVertraege(detail) {
   if (!detail.vertraege || detail.vertraege.length === 0) {
-    return `
-      <div class="empty-state">
-        <h3>Keine Verträge vorhanden</h3>
-        <p>Für dieses Unternehmen wurden noch keine Verträge erfasst.</p>
-      </div>
-    `;
+    return renderEmptyState({
+      icon: 'document',
+      title: 'Keine Verträge vorhanden',
+      text: 'Für dieses Unternehmen wurden noch keine Verträge erfasst.'
+    });
   }
 
   const getStatusLabel = (isDraft) => isDraft ? 'Entwurf' : 'Final';

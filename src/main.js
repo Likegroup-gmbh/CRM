@@ -17,6 +17,7 @@ import '../assets/styles/tabellen.css';
 import '../assets/styles/toast.css';
 import '../assets/styles/share.css';
 import '../assets/styles/stakeholder.css';
+import '../assets/styles/skripte.css';
 
 import { CONFIG } from './core/ConfigSystem.js';
 import { modularFilterSystem as filterSystem } from './core/filters/ModularFilterSystem.js';
@@ -98,6 +99,7 @@ import { kickOffList } from './modules/kickoff/KickOffList.js';
 import { kickOffDetail } from './modules/kickoff/KickOffDetail.js';
 import { transcribeTestPage } from './modules/transcribe/TranscribeTestPage.js';
 import { stakeholderOverviewPage } from './modules/stakeholder/StakeholderOverviewPage.js';
+import { skriptePage } from './modules/skripte/SkriptePage.js';
 import { sharesAdminPage } from './modules/shares/SharesAdminPage.js';
 import './core/components/ShareListDialog.js';
 import { globalSearch } from './core/components/GlobalSearch.js';
@@ -185,6 +187,7 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('transcribe', transcribeTestPage);
   moduleRegistry.register('stakeholder', stakeholderOverviewPage);
   moduleRegistry.register('shares', sharesAdminPage);
+  moduleRegistry.register('skripte', skriptePage);
   
   // Profile-Modul initialisieren und registrieren (V2 - neue Version mit zweispaltigem Layout)
   const profileDetailV2 = new ProfileDetailV2();

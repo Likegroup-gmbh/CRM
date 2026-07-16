@@ -7,6 +7,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
+import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
 
 export class ManagementDetail extends PersonDetailBase {
   constructor() {
@@ -227,36 +228,35 @@ export class ManagementDetail extends PersonDetailBase {
 
   renderCreators() {
     const addBtn = `
-      <div style="margin-bottom: 1rem;">
-        <button class="primary-btn btn-sm" id="btn-add-creator-to-management">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; margin-right: 4px;">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          Creator hinzufügen
-        </button>
-      </div>
+      <button class="primary-btn btn-sm" id="btn-add-creator-to-management">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; margin-right: 4px;">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+        Creator hinzufügen
+      </button>
     `;
 
     if (!this.creators || this.creators.length === 0) {
-      return `
-        ${addBtn}
-        <div class="empty-state">
-          <h3>Keine Creator vorhanden</h3>
-          <p>Diesem Management sind noch keine aktiven Creator zugeordnet.</p>
-        </div>
-      `;
+      return renderEmptyState({
+        icon: 'users',
+        title: 'Keine Creator vorhanden',
+        text: 'Diesem Management sind noch keine aktiven Creator zugeordnet.',
+        actionsHtml: addBtn
+      });
     }
-    return `${addBtn}${renderCreatorTable(this.creators, { showRemoveAction: true, managementId: this.managementId })}`;
+    return `
+      ${renderSectionHeader({ title: 'Creator', actionsHtml: addBtn })}
+      ${renderCreatorTable(this.creators, { showRemoveAction: true, managementId: this.managementId })}
+    `;
   }
 
   renderRechnungen() {
     if (!this.rechnungen || this.rechnungen.length === 0) {
-      return `
-        <div class="empty-state">
-          <h3>Keine Rechnungen vorhanden</h3>
-          <p>Für die Creator dieses Managements wurden noch keine Rechnungen erfasst.</p>
-        </div>
-      `;
+      return renderEmptyState({
+        icon: 'invoice',
+        title: 'Keine Rechnungen vorhanden',
+        text: 'Für die Creator dieses Managements wurden noch keine Rechnungen erfasst.'
+      });
     }
 
     const isKunde = window.isKunde();
@@ -292,6 +292,7 @@ export class ManagementDetail extends PersonDetailBase {
     `}).join('');
 
     return `
+      ${renderSectionHeader({ title: 'Rechnungen' })}
       <div class="data-table-container">
         <table class="data-table data-table--nowrap">
           <thead>
