@@ -85,7 +85,7 @@ export class SkripteService {
   // ------------------------------------------------------------------
   async loadSkripte() {
     const { data } = await this.db.from('skripte')
-      .select('id, titel, marke_id, kampagne_id, hook, hauptteil, cta, herkunft, performance_label, status, mit_dna, model, funnel_stufe, created_at, marke(markenname)')
+      .select('id, titel, marke_id, kampagne_id, branche_id, hook, hauptteil, cta, herkunft, performance_label, status, mit_dna, model, funnel_stufe, created_at, marke(markenname), branchen(name)')
       .order('created_at', { ascending: false })
       .limit(200);
     return data || [];
@@ -93,7 +93,7 @@ export class SkripteService {
 
   async loadSkript(id) {
     const { data } = await this.db.from('skripte')
-      .select('*, marke(markenname), kampagne(kampagnenname), produkt(name), personas(name)')
+      .select('*, marke(markenname), kampagne(kampagnenname, eigener_name), produkt(name), personas(name), branchen(name)')
       .eq('id', id).single();
     return data;
   }

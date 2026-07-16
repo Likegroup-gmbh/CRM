@@ -21,30 +21,104 @@ const BEWERTUNGSLEITFADEN = `
   </details>
 `;
 
+/** Original-Generator-Eingaben als einklappbarer Block (wie Bewertungsleitfaden). */
+function renderOriginalAnfrage(skript) {
+  const dnaVersionen = skript.prompt_kontext?.dna_versionen || [];
+  const dnaLabel = !skript.mit_dna
+    ? 'Ohne DNA (Blindvergleich)'
+    : dnaVersionen.length
+      ? dnaVersionen.map((d) => d.name || `${d.layer} v${d.version}`).join(', ')
+      : 'Automatisch (keine Layer gefunden)';
+
+  const row = (label, value, copyable = false) => {
+    if (value == null || String(value).trim() === '') return '';
+    const text = String(value);
+    return `
+      <div class="skripte-anfrage-row">
+        <div class="skripte-anfrage-label">
+          <span>${escapeHtml(label)}</span>
+          ${copyable ? '<button type="button" class="secondary-btn skripte-anfrage-copy">Kopieren</button>' : ''}
+        </div>
+        <div class="skripte-anfrage-value">${escapeHtml(text)}</div>
+      </div>`;
+  };
+
+  const inhalt = [
+    row('Marke', skript.marke?.markenname),
+    row('Branche', skript.branchen?.name),
+    row('Kampagne', skript.kampagne?.eigener_name || skript.kampagne?.kampagnenname),
+    row('Produkt', skript.produkt?.name),
+    row('Persona', skript.personas?.name),
+    row('Funnel-Stufe', FUNNEL_STUFEN[skript.funnel_stufe] || skript.funnel_stufe),
+    row('Tonalität', skript.tonalitaet, true),
+    row('Skript-DNA', dnaLabel),
+    row('Video-Idee', skript.video_idee, true),
+    row('Location', skript.location, true),
+    row('Regieanweisung', skript.regieanweisung, true)
+  ].join('');
+
+  if (!inhalt.trim()) {
+    return `
+      <details class="skripte-leitfaden">
+        <summary>Originalanfrage (Generator)</summary>
+        <p class="skripte-hint">Keine Generator-Eingaben hinterlegt (z.B. historischer Import).</p>
+      </details>`;
+  }
+
+  return `
+    <details class="skripte-leitfaden" open>
+      <summary>Originalanfrage (Generator) – zum Wiederverwenden beim Testen</summary>
+      <div class="skripte-anfrage">
+        ${inhalt}
+        <div class="skripte-actions-row" style="margin-top: var(--space-xs);">
+          <button type="button" class="secondary-btn" id="det-anfrage-copy-all">Gesamte Anfrage kopieren</button>
+        </div>
+      </div>
+    </details>`;
+}
+
 export class SkriptListeTab {
   constructor(page) {
     this.page = page;
     this.skripte = [];
     this.marken = [];
+    this.branchen = [];
+    this.brancheFilter = '';
   }
 
   async render(container) {
     container.innerHTML = `
       <div class="skripte-actions-row" style="margin-bottom: var(--space-md);">
         <button id="liste-import-btn" class="secondary-btn">Historisches Skript importieren</button>
+        <select id="liste-branche-filter" class="form-input" style="width:auto;">
+          <option value="">Alle Branchen</option>
+        </select>
         <span class="skripte-hint">Backfill: alte Skripte mit Performance-Label anlegen, damit die KI Beispiele hat.</span>
       </div>
       <div id="liste-wrap"></div>
     `;
     container.querySelector('#liste-import-btn').addEventListener('click', () => this.openImportDrawer());
+    container.querySelector('#liste-branche-filter').addEventListener('change', (e) => {
+      this.brancheFilter = e.target.value;
+      this.renderListe();
+    });
     await this.reload();
   }
 
   async reload() {
-    [this.skripte, this.marken] = await Promise.all([
+    [this.skripte, this.marken, this.branchen] = await Promise.all([
       skripteService.loadSkripte(),
-      skripteService.loadMarken()
+      skripteService.loadMarken(),
+      skripteService.loadBranchen()
     ]);
+
+    const filterSelect = document.getElementById('liste-branche-filter');
+    if (filterSelect) {
+      filterSelect.innerHTML = '<option value="">Alle Branchen</option>'
+        + this.branchen.map((b) =>
+          `<option value="${b.id}" ${this.brancheFilter === b.id ? 'selected' : ''}>${escapeHtml(b.name)}</option>`).join('');
+    }
+
     this.renderListe();
   }
 
@@ -57,18 +131,28 @@ export class SkriptListeTab {
       return;
     }
 
+    const gefiltert = this.brancheFilter
+      ? this.skripte.filter((s) => s.branche_id === this.brancheFilter)
+      : this.skripte;
+
+    if (!gefiltert.length) {
+      wrap.innerHTML = `<div class="empty-state"><p>Keine Skripte in dieser Branche.</p></div>`;
+      return;
+    }
+
     wrap.innerHTML = `
       <table class="skripte-table">
         <thead>
           <tr>
-            <th>Titel</th><th>Marke</th><th>Herkunft</th><th>Status</th><th>Performance</th><th>DNA</th><th>Datum</th><th></th>
+            <th>Titel</th><th>Marke</th><th>Branche</th><th>Herkunft</th><th>Status</th><th>Performance</th><th>DNA</th><th>Datum</th><th></th>
           </tr>
         </thead>
         <tbody>
-          ${this.skripte.map((s) => `
+          ${gefiltert.map((s) => `
             <tr data-id="${s.id}">
               <td class="skripte-table-titel">${escapeHtml(s.titel || s.hook?.slice(0, 60) || '(ohne Titel)')}</td>
               <td>${escapeHtml(s.marke?.markenname || '–')}</td>
+              <td>${escapeHtml(s.branchen?.name || '–')}</td>
               <td>${badge(s.herkunft === 'historisch' ? 'Historisch' : 'Generiert', s.herkunft === 'historisch' ? 'neutral' : 'info')}</td>
               <td>${badge(STATUS_LABELS[s.status] || s.status)}</td>
               <td>${badge(PERFORMANCE_LABELS[s.performance_label] || s.performance_label, PERFORMANCE_BADGE_VARIANT[s.performance_label])}</td>
@@ -106,6 +190,13 @@ export class SkriptListeTab {
           <select id="imp-marke" class="form-input">
             <option value="">– Keine –</option>
             ${this.marken.map((m) => `<option value="${m.id}">${escapeHtml(m.markenname)}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Branche</label>
+          <select id="imp-branche" class="form-input">
+            <option value="">– Keine –</option>
+            ${this.branchen.map((b) => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
@@ -157,6 +248,7 @@ export class SkriptListeTab {
             hauptteil,
             cta,
             marke_id: document.getElementById('imp-marke').value || null,
+            branche_id: document.getElementById('imp-branche').value || null,
             funnel_stufe: document.getElementById('imp-funnel').value || null,
             performance_label: document.getElementById('imp-label').value,
             performance_notiz: document.getElementById('imp-notiz').value.trim() || null
@@ -170,6 +262,12 @@ export class SkriptListeTab {
         }
       } }
     ]);
+
+    // Branche der gewaehlten Marke vorbelegen (manuell ueberschreibbar)
+    document.getElementById('imp-marke').addEventListener('change', (e) => {
+      const marke = this.marken.find((m) => m.id === e.target.value);
+      if (marke?.branche_id) document.getElementById('imp-branche').value = marke.branche_id;
+    });
   }
 
   // ------------------------------------------------------------------
@@ -223,21 +321,11 @@ export class SkriptListeTab {
       <div class="skripte-detail-meta">
         ${badge(skript.herkunft === 'historisch' ? 'Historisch' : 'Generiert', 'info')}
         ${skript.marke?.markenname ? badge(skript.marke.markenname) : ''}
+        ${skript.branchen?.name ? badge(skript.branchen.name, 'info') : ''}
         ${skript.model ? badge(skript.model) : ''}
         ${skript.herkunft === 'generiert' ? badge(skript.mit_dna ? 'mit DNA' : 'ohne DNA (blind)', skript.mit_dna ? 'success' : 'neutral') : ''}
         ${skript.herkunft === 'generiert' ? costBadge(skript) : ''}
       </div>
-
-      ${skript.location ? `
-        <div class="skripte-sektion">
-          <div class="skripte-sektion-label">LOCATION</div>
-          <div class="skripte-sektion-text">${escapeHtml(skript.location)}</div>
-        </div>` : ''}
-      ${skript.regieanweisung ? `
-        <div class="skripte-sektion">
-          <div class="skripte-sektion-label">REGIEANWEISUNG</div>
-          <div class="skripte-sektion-text">${escapeHtml(skript.regieanweisung)}</div>
-        </div>` : ''}
 
       <div class="skripte-form-grid">
         <div class="form-group">
@@ -252,8 +340,17 @@ export class SkriptListeTab {
           <input id="det-notiz" class="form-input" type="text" value="${escapeHtml(skript.performance_notiz || '')}"
             placeholder="Views, CTR, Laufzeit..." />
         </div>
+        <div class="form-group">
+          <label class="form-label">Branche</label>
+          <select id="det-branche" class="form-input">
+            <option value="">– Keine –</option>
+            ${this.branchen.map((b) =>
+              `<option value="${b.id}" ${skript.branche_id === b.id ? 'selected' : ''}>${escapeHtml(b.name)}</option>`).join('')}
+          </select>
+        </div>
       </div>
 
+      ${renderOriginalAnfrage(skript)}
       ${BEWERTUNGSLEITFADEN}
 
       ${sektionBlock('hook', 'HOOK', 2)}
@@ -293,10 +390,11 @@ export class SkriptListeTab {
       } },
       { label: 'Speichern', primary: true, onClick: async () => {
         try {
-          // Performance-Label
+          // Performance-Label + Branche (Nachkategorisierung)
           await skripteService.updateSkript(skriptId, {
             performance_label: document.getElementById('det-label').value,
-            performance_notiz: document.getElementById('det-notiz').value.trim() || null
+            performance_notiz: document.getElementById('det-notiz').value.trim() || null,
+            branche_id: document.getElementById('det-branche').value || null
           });
 
           // Feedback pro Sektion einsammeln
@@ -316,6 +414,47 @@ export class SkriptListeTab {
         }
       } }
     ]);
+
+    this.bindAnfrageCopy(skript);
+  }
+
+  bindAnfrageCopy(skript) {
+    const drawer = document.getElementById('skripte-drawer');
+    if (!drawer) return;
+
+    drawer.querySelectorAll('.skripte-anfrage-copy').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const value = btn.closest('.skripte-anfrage-row')?.querySelector('.skripte-anfrage-value')?.textContent || '';
+        navigator.clipboard.writeText(value).then(() => window.toastSystem?.success('Kopiert'));
+      });
+    });
+
+    drawer.querySelector('#det-anfrage-copy-all')?.addEventListener('click', () => {
+      const dnaVersionen = skript.prompt_kontext?.dna_versionen || [];
+      const dnaLabel = !skript.mit_dna
+        ? 'Ohne DNA (Blindvergleich)'
+        : dnaVersionen.length
+          ? dnaVersionen.map((d) => d.name || `${d.layer} v${d.version}`).join(', ')
+          : 'Automatisch';
+
+      const lines = [
+        ['Marke', skript.marke?.markenname],
+        ['Branche', skript.branchen?.name],
+        ['Kampagne', skript.kampagne?.eigener_name || skript.kampagne?.kampagnenname],
+        ['Produkt', skript.produkt?.name],
+        ['Persona', skript.personas?.name],
+        ['Funnel-Stufe', FUNNEL_STUFEN[skript.funnel_stufe] || skript.funnel_stufe],
+        ['Tonalität', skript.tonalitaet],
+        ['Skript-DNA', dnaLabel],
+        ['Video-Idee', skript.video_idee],
+        ['Location', skript.location],
+        ['Regieanweisung', skript.regieanweisung]
+      ]
+        .filter(([, v]) => v != null && String(v).trim() !== '')
+        .map(([k, v]) => `${k}:\n${v}`);
+
+      navigator.clipboard.writeText(lines.join('\n\n')).then(() => window.toastSystem?.success('Gesamte Anfrage kopiert'));
+    });
   }
 
   // ------------------------------------------------------------------

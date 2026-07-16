@@ -52,13 +52,21 @@ function createJobUpdater(supabase, jobId) {
 // Kontext-Aufbau: alle Quellen per SQL (kein LLM noetig)
 // ---------------------------------------------------------------------------
 async function loadContext(supabase, params) {
-  const { marke_id, kampagne_id, produkt_id, persona_id, mit_dna, dna_id } = params;
+  const { marke_id, kampagne_id, produkt_id, persona_id, branche_id, mit_dna, dna_id } = params;
   const ctx = { dnaVersionen: [], beispiele: [], antiPatterns: [] };
 
   if (marke_id) {
     const { data } = await supabase.from('marke')
       .select('id, markenname, webseite, branche, branche_id').eq('id', marke_id).single();
     ctx.marke = data;
+  }
+
+  // Branche: explizite Wahl aus der UI hat Vorrang vor Marke/Persona
+  ctx.brancheId = branche_id || ctx.marke?.branche_id || null;
+  if (ctx.brancheId) {
+    const { data } = await supabase.from('branchen')
+      .select('id, name').eq('id', ctx.brancheId).single();
+    ctx.branche = data;
   }
 
   if (produkt_id) {
@@ -121,7 +129,7 @@ async function loadContext(supabase, params) {
     ctx.dna = [data];
     ctx.dnaVersionen = [{ id: data.id, name: data.name, layer: data.layer_typ, version: data.version }];
   } else {
-    const brancheId = ctx.marke?.branche_id || ctx.persona?.branche_id || null;
+    const brancheId = ctx.brancheId || ctx.persona?.branche_id || null;
     const orParts = ['layer_typ.eq.global'];
     if (brancheId) orParts.push(`and(layer_typ.eq.branche,branche_id.eq.${brancheId})`);
     if (persona_id) orParts.push(`and(layer_typ.eq.zielgruppe,persona_id.eq.${persona_id})`);
@@ -218,7 +226,14 @@ function buildPrompt(ctx, params) {
 
   // Block 2 (variabel): Auftrag dieser Generierung
   let task = '# AUFTRAG\nSchreibe EIN Video-Skript auf Deutsch.\n';
-  task += fmtSection('Marke', ctx.marke && { markenname: ctx.marke.markenname, branche: ctx.marke.branche, webseite: ctx.marke.webseite });
+  task += fmtSection('Marke', ctx.marke && {
+    markenname: ctx.marke.markenname,
+    branche: ctx.branche?.name || ctx.marke.branche,
+    webseite: ctx.marke.webseite
+  });
+  if (!ctx.marke && ctx.branche) {
+    task += fmtSection('Branche', { branche: ctx.branche.name });
+  }
   task += fmtSection('Produkt', ctx.produkt);
   task += fmtSection('Kampagne', ctx.kampagne);
   task += fmtSection('Briefing', ctx.briefing);
@@ -303,6 +318,7 @@ exports.handler = async (event) => {
       kampagne_id: payload.kampagne_id || null,
       produkt_id: payload.produkt_id || null,
       persona_id: payload.persona_id || null,
+      branche_id: ctx.brancheId || null,
       hook: parsed.hook,
       hauptteil: parsed.hauptteil,
       cta: parsed.cta,

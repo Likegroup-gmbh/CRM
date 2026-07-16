@@ -90,11 +90,12 @@ exports.handler = async (event) => {
     // 2. Skripte + Feedback im Scope dieses Layers sammeln
     // ------------------------------------------------------------------
     let skriptQuery = supabase.from('skripte')
-      .select('id, titel, hook, hauptteil, cta, performance_label, funnel_stufe, tonalitaet, mit_dna, marke_id, persona_id')
+      .select('id, titel, hook, hauptteil, cta, performance_label, funnel_stufe, tonalitaet, mit_dna, marke_id, persona_id, branche_id')
       .order('created_at', { ascending: false }).limit(40);
     if (layer_typ === 'marke') skriptQuery = skriptQuery.eq('marke_id', marke_id);
     if (layer_typ === 'zielgruppe') skriptQuery = skriptQuery.eq('persona_id', persona_id);
-    // global/branche: alle Skripte betrachten (Branche haengt an der Marke)
+    if (layer_typ === 'branche') skriptQuery = skriptQuery.eq('branche_id', branche_id);
+    // global: alle Skripte betrachten
     const { data: skripte } = await skriptQuery;
 
     const skriptIds = (skripte || []).map((s) => s.id);

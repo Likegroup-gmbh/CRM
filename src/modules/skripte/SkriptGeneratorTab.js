@@ -38,6 +38,11 @@ export class SkriptGeneratorTab {
               <label class="form-label">Persona (Zielgruppe)</label>
               <select id="gen-persona" class="form-input"><option value="">Laden...</option></select>
             </div>
+            <div class="form-group">
+              <label class="form-label">Branche</label>
+              <select id="gen-branche" class="form-input"><option value="">Laden...</option></select>
+              <span class="skripte-hint">Wird bei Markenwahl automatisch gesetzt, kann überschrieben werden.</span>
+            </div>
           </div>
         </div>
 
@@ -99,7 +104,7 @@ export class SkriptGeneratorTab {
     `;
 
     this.bindEvents(container);
-    await Promise.all([this.loadMarken(), this.loadPersonas(), this.loadDnaOptionen()]);
+    await Promise.all([this.loadMarken(), this.loadPersonas(), this.loadBranchen(), this.loadDnaOptionen()]);
   }
 
   bindEvents(container) {
@@ -122,6 +127,14 @@ export class SkriptGeneratorTab {
     if (!select) return;
     select.innerHTML = '<option value="">– Keine –</option>'
       + personas.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+  }
+
+  async loadBranchen() {
+    const branchen = await skripteService.loadBranchen();
+    const select = document.getElementById('gen-branche');
+    if (!select) return;
+    select.innerHTML = '<option value="">– Keine –</option>'
+      + branchen.map((b) => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
   }
 
   // DNA-Auswahl: Automatisch (Layer-Logik), Ohne (Blindvergleich) oder gezielt EIN Dokument
@@ -150,6 +163,11 @@ export class SkriptGeneratorTab {
     const markeId = document.getElementById('gen-marke').value;
     const kampagneSelect = document.getElementById('gen-kampagne');
     const produktSelect = document.getElementById('gen-produkt');
+
+    // Branche der Marke vorbelegen (manuell ueberschreibbar)
+    const marke = this.marken.find((m) => m.id === markeId);
+    const brancheSelect = document.getElementById('gen-branche');
+    if (brancheSelect && marke?.branche_id) brancheSelect.value = marke.branche_id;
 
     if (!markeId) {
       for (const el of [kampagneSelect, produktSelect]) {
@@ -223,6 +241,7 @@ export class SkriptGeneratorTab {
         kampagne_id: document.getElementById('gen-kampagne').value || null,
         produkt_id: document.getElementById('gen-produkt').value || null,
         persona_id: document.getElementById('gen-persona').value || null,
+        branche_id: document.getElementById('gen-branche').value || null,
         video_idee: videoIdee,
         location: document.getElementById('gen-location').value.trim() || null,
         regieanweisung: document.getElementById('gen-regie').value.trim() || null,
