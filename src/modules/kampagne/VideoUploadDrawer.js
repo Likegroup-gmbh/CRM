@@ -32,7 +32,7 @@ export class VideoUploadDrawer {
    * @param {function} [onBilderSuccess]
    * @param {function} [onStorysSuccess]
    */
-  async open(videoId, metadaten, onSuccess, onBilderSuccess, onStorysSuccess, { initialTab = 'video', onBilderCleared, onStorysCleared, onBilderChanged, onFinaleChanged, customMeta } = {}) {
+  async open(videoId, metadaten, onSuccess, onBilderSuccess, onStorysSuccess, { initialTab = 'video', preselectFinal = false, onBilderCleared, onStorysCleared, onBilderChanged, onFinaleChanged, customMeta } = {}) {
     this.videoId = videoId;
     this.kooperationId = metadaten.kooperationId;
     this.metadaten = metadaten;
@@ -45,6 +45,8 @@ export class VideoUploadDrawer {
     this.onFinaleChanged = onFinaleChanged || null;
     this.useExternalLinks = !!metadaten.keinDropbox;
     this.customMeta = customMeta || null;
+    // Neue Queue-Items starten mit "Finale Version" vorausgewaehlt (Finale-Spalten-Button)
+    this.preselectFinal = !!preselectFinal;
 
     this.videoTab.reset();
     this.storysTab.reset();

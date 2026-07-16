@@ -118,6 +118,33 @@ describe('VideoUploadDrawer', () => {
       expect(selects[0].options[3].textContent).toBe('Finale Version');
     });
 
+    it('preselectFinal: neue Dateien starten mit Finale Version + 9:16', async () => {
+      window.supabase = createMockSupabase([]);
+      await drawer.open('video-1', defaultMetadaten, vi.fn(), null, null, { preselectFinal: true });
+
+      const file = new File(['x'], 'test.mp4', { type: 'video/mp4' });
+      drawer.videoTab._addFiles([file]);
+
+      expect(drawer.videoTab._queue[0].isFinal).toBe(true);
+      expect(drawer.videoTab._queue[0].variantName).toBe('9:16');
+
+      const queueEl = document.getElementById('video-upload-queue');
+      const select = queueEl.querySelector('.video-version-select');
+      expect(select.value).toBe('final');
+      expect(queueEl.querySelector('.video-final-variant-select')).not.toBeNull();
+    });
+
+    it('ohne preselectFinal starten neue Dateien als Feedbackschleife', async () => {
+      window.supabase = createMockSupabase([]);
+      await drawer.open('video-1', defaultMetadaten, vi.fn());
+
+      const file = new File(['x'], 'test.mp4', { type: 'video/mp4' });
+      drawer.videoTab._addFiles([file]);
+
+      expect(drawer.videoTab._queue[0].isFinal).toBeUndefined();
+      expect(document.querySelector('.video-variant-name-input')).not.toBeNull();
+    });
+
     it('zeigt keinen separaten Finale-Tab mehr', async () => {
       window.supabase = createMockSupabase([]);
       await drawer.open('video-1', defaultMetadaten, vi.fn());

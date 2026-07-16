@@ -10,7 +10,7 @@ export class VideoTableDrawerActions {
     this.table = table;
   }
 
-  openUploadDrawer(videoId, kooperationId, { initialTab = 'video' } = {}) {
+  openUploadDrawer(videoId, kooperationId, { initialTab = 'video', preselectFinal = false } = {}) {
     const t = this.table;
     const koop = t.kooperationen.find(k => k.id === kooperationId);
     const videos = t.videos[kooperationId] || [];
@@ -48,7 +48,7 @@ export class VideoTableDrawerActions {
         if (video) video.story_folder_url = storysFolderUrl;
       }
       t.refilter();
-    }, { initialTab,
+    }, { initialTab, preselectFinal,
       onBilderCleared: () => {
         if (koop) koop.bilder_folder_url = null;
         this.refreshBilderForKoop(kooperationId);

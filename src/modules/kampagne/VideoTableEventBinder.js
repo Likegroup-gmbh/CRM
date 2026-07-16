@@ -121,8 +121,9 @@ export class VideoTableEventBinder {
       const uploadBtn = e.target.closest('.video-upload-btn');
       if (uploadBtn) {
         e.preventDefault();
-        // Finale-Uploads laufen jetzt ueber den Video-Tab (Option "Finale Version" im Versions-Select)
-        t._openUploadDrawer(uploadBtn.dataset.videoId, uploadBtn.dataset.kooperationId);
+        // Finale-Spalte: Video-Tab mit vorausgewaehlter "Finale Version" oeffnen
+        const opts = uploadBtn.classList.contains('finale-upload-btn') ? { preselectFinal: true } : undefined;
+        t._openUploadDrawer(uploadBtn.dataset.videoId, uploadBtn.dataset.kooperationId, opts);
       }
 
       const customUploadBtn = e.target.closest('.custom-upload-btn');

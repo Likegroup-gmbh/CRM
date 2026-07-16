@@ -303,10 +303,14 @@ export class VideoTabHandler {
       }
       const alreadyQueued = this._queue.some(q => q.file.name === file.name && q.file.size === file.size);
       if (!alreadyQueued) {
-        const defaultVersion = this._existingVersions.length > 0
-          ? Math.max(...this._existingVersions)
-          : 1;
-        this._queue.push({ file, variantName: '', versionNumber: defaultVersion });
+        if (this.drawer.preselectFinal) {
+          this._queue.push({ file, variantName: FINAL_VARIANTS[0], versionNumber: 1, isFinal: true });
+        } else {
+          const defaultVersion = this._existingVersions.length > 0
+            ? Math.max(...this._existingVersions)
+            : 1;
+          this._queue.push({ file, variantName: '', versionNumber: defaultVersion });
+        }
       }
     }
 
@@ -376,10 +380,14 @@ export class VideoTabHandler {
   // ─── External Link Mode ────────────────────────────────────
 
   _addLinkEntry() {
-    const defaultVersion = this._existingVersions.length > 0
-      ? Math.max(...this._existingVersions)
-      : 1;
-    this._queue.push({ url: '', variantName: '', versionNumber: defaultVersion });
+    if (this.drawer.preselectFinal) {
+      this._queue.push({ url: '', variantName: FINAL_VARIANTS[0], versionNumber: 1, isFinal: true });
+    } else {
+      const defaultVersion = this._existingVersions.length > 0
+        ? Math.max(...this._existingVersions)
+        : 1;
+      this._queue.push({ url: '', variantName: '', versionNumber: defaultVersion });
+    }
     this._renderQueue();
     this._updateSubmitButtonState();
     const list = document.getElementById('video-upload-queue');
