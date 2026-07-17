@@ -440,6 +440,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.log('Hash-Route erkannt:', initialRoute);
     }
 
+    if (import.meta.env.DEV) {
+      console.log('🚀 Boot-Route:', initialRoute);
+    }
+
     // Dashboard-Check auf Basis des Pfads (ohne Query), sonst normale Navigation
     const initialPath = initialRoute.split(/[?#]/)[0];
     if (!initialPath || initialPath === '/' || initialPath === '/dashboard' || initialPath === '/index.html') {

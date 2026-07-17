@@ -34,6 +34,7 @@ const ROUTE_CONFIG = {
   profile:            { label: 'Profil',            icon: 'icon-user-circle' },
   transcribe:         { label: 'Transkription (Test)', icon: 'icon-video' },
   stakeholder:        { label: 'Stakeholder-Übersicht', icon: 'icon-dashboard' },
+  skripte:            { label: 'Skripte',            icon: 'icon-document' },
 };
 
 const ROLE_OVERRIDES = {

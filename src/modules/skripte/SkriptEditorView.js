@@ -73,6 +73,7 @@ export class SkriptEditorView {
     this.messages = messages;
     this.versionNr = versionen.length ? versionen[versionen.length - 1].version_nr : 1;
 
+    this.updateBreadcrumb();
     this.renderLayout();
     this.bindEvents();
     this.subscribe();
@@ -86,10 +87,6 @@ export class SkriptEditorView {
   renderLayout() {
     this.container.innerHTML = `
       <div class="skripte-editor">
-        <div class="skripte-editor-topbar">
-          <button class="secondary-btn" id="ed-back">&larr; Zurück</button>
-          <div class="skripte-editor-topbar-meta">${this.topbarMetaHtml()}</div>
-        </div>
         <div class="skripte-editor-shell">
           <aside class="skripte-editor-liste" id="ed-liste"></aside>
           <main class="skripte-editor-main">
@@ -99,8 +96,11 @@ export class SkriptEditorView {
               <div class="skripte-editor-input">
                 <textarea id="ed-input" rows="2" placeholder="${PLACEHOLDER_DEFAULT}"></textarea>
                 <div class="skripte-editor-input-footer">
-                  <span class="skripte-editor-cost" id="ed-cost"></span>
-                  <button id="ed-send" class="skripte-editor-send" title="Senden" aria-label="Senden">${SEND_ICON}</button>
+                  <div class="skripte-editor-input-meta" id="ed-meta">${this.metaBadgesHtml()}</div>
+                  <div class="skripte-editor-input-actions">
+                    <span class="skripte-editor-cost" id="ed-cost"></span>
+                    <button id="ed-send" class="skripte-editor-send" title="Senden" aria-label="Senden">${SEND_ICON}</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -117,7 +117,15 @@ export class SkriptEditorView {
     this.renderCost();
   }
 
-  topbarMetaHtml() {
+  /** Breadcrumb: "Skripte" (klickbar, fuehrt zur Hauptseite) > aktueller Skript-Titel. */
+  updateBreadcrumb() {
+    window.breadcrumbSystem?.updateBreadcrumb([
+      { label: 'Skripte', url: '/skripte', clickable: true },
+      { label: this.skript?.titel || 'Skript', clickable: false }
+    ]);
+  }
+
+  metaBadgesHtml() {
     return `
       ${this.skript.unternehmen?.firmenname ? badge(this.skript.unternehmen.firmenname) : ''}
       ${this.skript.marke?.markenname ? badge(this.skript.marke.markenname) : ''}
@@ -128,7 +136,7 @@ export class SkriptEditorView {
 
   /**
    * Skript-Wechsel in-place: Layout, Liste und Input bleiben stehen,
-   * nur Topbar-Badges, Doc und Chat werden ausgetauscht.
+   * nur Breadcrumb, Footer-Badges, Doc und Chat werden ausgetauscht.
    */
   async switchSkript(skriptId) {
     if (!this.skript || skriptId === this.skript.id) return;
@@ -173,10 +181,12 @@ export class SkriptEditorView {
       // URL fuer Reload/Teilen stabil halten
       const url = new URL(window.location.href);
       url.searchParams.set('skript', skriptId);
-      window.history.replaceState(window.history.state, '', url);
+      window.history.replaceState({ route: url.pathname + url.search }, '', url);
+      this.page._merkeKontext({ skript: skriptId });
 
-      const meta = this.container.querySelector('.skripte-editor-topbar-meta');
-      if (meta) meta.innerHTML = this.topbarMetaHtml();
+      this.updateBreadcrumb();
+      const meta = document.getElementById('ed-meta');
+      if (meta) meta.innerHTML = this.metaBadgesHtml();
       this.renderListe();
       this.renderDoc();
       this.renderChat({ forceScroll: true });
@@ -395,8 +405,6 @@ export class SkriptEditorView {
   // Events: Selektion, Menue, Chat-Input
   // ------------------------------------------------------------------
   bindEvents() {
-    document.getElementById('ed-back')?.addEventListener('click', () => this.page.closeEditor());
-
     const input = document.getElementById('ed-input');
     document.getElementById('ed-send')?.addEventListener('click', () => this.sendChat());
     input?.addEventListener('keydown', (e) => {

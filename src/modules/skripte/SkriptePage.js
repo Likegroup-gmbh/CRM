@@ -17,6 +17,20 @@ const TABS = [
   { id: 'auswertung', label: 'Auswertung' }
 ];
 
+const KONTEXT_KEY = 'skripte:kontext';
+
+// Einmaliger Fallback: nur wenn die Seite per echtem Browser-Reload (Cmd+R/F5)
+// direkt auf /skripte geladen wurde. Wird beim ersten init() verbraucht, damit
+// spaetere SPA-Navigationen (Breadcrumb, Sidebar) den Editor nicht ungewollt oeffnen.
+let reloadFallbackOffen = (() => {
+  try {
+    const nav = performance.getEntriesByType?.('navigation')?.[0];
+    return nav?.type === 'reload' && new URL(nav.name).pathname.startsWith('/skripte');
+  } catch {
+    return false;
+  }
+})();
+
 export class SkriptePage {
   constructor() {
     this.generatorTab = new SkriptGeneratorTab(this);
@@ -40,7 +54,24 @@ export class SkriptePage {
 
     // Aktiven Tab aus der URL wiederherstellen (?tab=<id>)
     const params = new URLSearchParams(window.location.search);
-    const tabParam = params.get('tab');
+    let tabParam = params.get('tab');
+    let skriptParam = params.get('skript');
+
+    // Fallback: Query ging bei einem echten Browser-Reload verloren
+    // (z.B. Extension, alte Session) -> zuletzt gemerkten Kontext nutzen
+    if (!tabParam && !skriptParam && reloadFallbackOffen) {
+      const kontext = this._leseKontext();
+      if (kontext) {
+        tabParam = kontext.tab || null;
+        skriptParam = kontext.skript || null;
+        const url = new URL(window.location.href);
+        if (tabParam) url.searchParams.set('tab', tabParam);
+        if (skriptParam) url.searchParams.set('skript', skriptParam);
+        window.history.replaceState({ route: url.pathname + url.search }, '', url);
+      }
+    }
+    reloadFallbackOffen = false;
+
     if (tabParam && TABS.some((t) => t.id === tabParam)) {
       this.activeTab = tabParam;
     }
@@ -62,7 +93,6 @@ export class SkriptePage {
     });
 
     // Deep-Link: /skripte?skript=<id> oeffnet direkt den Editor
-    const skriptParam = params.get('skript');
     if (skriptParam) {
       await this.openEditor(skriptParam);
       return;
@@ -82,7 +112,8 @@ export class SkriptePage {
     // Tab in der URL persistieren (Reload-faehig)
     const url = new URL(window.location.href);
     url.searchParams.set('tab', tabId);
-    window.history.replaceState(window.history.state, '', url);
+    window.history.replaceState({ route: url.pathname + url.search }, '', url);
+    this._merkeKontext({ tab: tabId });
 
     await this.renderActiveTab();
   }
@@ -121,22 +152,31 @@ export class SkriptePage {
     // URL fuer Reload/Teilen stabil halten
     const url = new URL(window.location.href);
     url.searchParams.set('skript', skriptId);
-    window.history.replaceState(window.history.state, '', url);
+    window.history.replaceState({ route: url.pathname + url.search }, '', url);
+    this._merkeKontext({ skript: skriptId });
 
     await this.editorView.render(container, skriptId);
   }
 
-  async closeEditor() {
-    this.editorView.cleanup();
-    document.querySelector('.skripte-page')?.classList.remove('skripte-page--editor');
-    const tabsEl = document.querySelector('.skripte-tabs');
-    if (tabsEl) tabsEl.style.display = '';
+  // ------------------------------------------------------------------
+  // Kontext-Persistenz (sessionStorage): Fallback fuer Reload ohne Query
+  // ------------------------------------------------------------------
+  _merkeKontext(update) {
+    try {
+      const alt = this._leseKontext() || {};
+      const neu = { ...alt, tab: this.activeTab, ...update };
+      if (neu.skript === null) delete neu.skript;
+      sessionStorage.setItem(KONTEXT_KEY, JSON.stringify(neu));
+    } catch { /* sessionStorage nicht verfuegbar -> Fallback entfaellt */ }
+  }
 
-    const url = new URL(window.location.href);
-    url.searchParams.delete('skript');
-    window.history.replaceState(window.history.state, '', url);
-
-    await this.renderActiveTab();
+  _leseKontext() {
+    try {
+      const raw = sessionStorage.getItem(KONTEXT_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
   }
 
   cleanupTabs() {
