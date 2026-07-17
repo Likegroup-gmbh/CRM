@@ -98,6 +98,15 @@ export class SkriptePage {
       return;
     }
 
+    // Tab-Ansicht sichtbar -> URL und Kontext darauf synchronisieren.
+    // Wichtig: gemerktes Skript loeschen, sonst wuerde ein Reload auf
+    // nackter URL faelschlich wieder den Editor oeffnen.
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', this.activeTab);
+    url.searchParams.delete('skript');
+    window.history.replaceState({ route: url.pathname + url.search }, '', url);
+    this._merkeKontext({ tab: this.activeTab, skript: null });
+
     await this.renderActiveTab();
   }
 
@@ -109,11 +118,13 @@ export class SkriptePage {
       btn.classList.toggle('active', btn.dataset.tab === tabId);
     });
 
-    // Tab in der URL persistieren (Reload-faehig)
+    // Tab in der URL persistieren (Reload-faehig); Tabs sind nur ohne
+    // offenen Editor sichtbar, daher gemerktes Skript mit entfernen
     const url = new URL(window.location.href);
     url.searchParams.set('tab', tabId);
+    url.searchParams.delete('skript');
     window.history.replaceState({ route: url.pathname + url.search }, '', url);
-    this._merkeKontext({ tab: tabId });
+    this._merkeKontext({ tab: tabId, skript: null });
 
     await this.renderActiveTab();
   }
