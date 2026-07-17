@@ -437,6 +437,13 @@
   }
 }
 
+/* Skript-Wechsel: Inhalte dimmen statt Layout neu aufzubauen */
+.skripte-editor--laedt {
+  opacity: 0.45;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
 /* Linke Spalte: Skriptliste */
 .skripte-editor-liste {
   border-right: var(--border-xs) solid var(--border-primary);

@@ -88,12 +88,7 @@ export class SkriptEditorView {
       <div class="skripte-editor">
         <div class="skripte-editor-topbar">
           <button class="secondary-btn" id="ed-back">&larr; Zurück</button>
-          <div class="skripte-editor-topbar-meta">
-            ${this.skript.unternehmen?.firmenname ? badge(this.skript.unternehmen.firmenname) : ''}
-            ${this.skript.marke?.markenname ? badge(this.skript.marke.markenname) : ''}
-            ${this.skript.personas?.name ? badge(this.skript.personas.name, 'info') : ''}
-            ${badge(this.skript.mit_dna === false ? 'ohne DNA' : 'mit DNA', this.skript.mit_dna === false ? 'neutral' : 'success')}
-          </div>
+          <div class="skripte-editor-topbar-meta">${this.topbarMetaHtml()}</div>
         </div>
         <div class="skripte-editor-shell">
           <aside class="skripte-editor-liste" id="ed-liste"></aside>
@@ -120,6 +115,84 @@ export class SkriptEditorView {
     this.renderDoc();
     this.renderChat();
     this.renderCost();
+  }
+
+  topbarMetaHtml() {
+    return `
+      ${this.skript.unternehmen?.firmenname ? badge(this.skript.unternehmen.firmenname) : ''}
+      ${this.skript.marke?.markenname ? badge(this.skript.marke.markenname) : ''}
+      ${this.skript.personas?.name ? badge(this.skript.personas.name, 'info') : ''}
+      ${badge(this.skript.mit_dna === false ? 'ohne DNA' : 'mit DNA', this.skript.mit_dna === false ? 'neutral' : 'success')}
+    `;
+  }
+
+  /**
+   * Skript-Wechsel in-place: Layout, Liste und Input bleiben stehen,
+   * nur Topbar-Badges, Doc und Chat werden ausgetauscht.
+   */
+  async switchSkript(skriptId) {
+    if (!this.skript || skriptId === this.skript.id) return;
+
+    // Verbindungen des alten Skripts beenden (DOM und Maus-Listener bleiben)
+    if (this.channel) {
+      window.supabase.removeChannel(this.channel);
+      this.channel = null;
+    }
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
+    this.clearPending();
+    const menu = document.getElementById('ed-selmenu');
+    if (menu) menu.hidden = true;
+
+    // Sofortiges Feedback: Active-State umschalten, Inhalte dimmen
+    this.container.querySelectorAll('.skripte-editor-liste-item').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.id === skriptId);
+    });
+    document.getElementById('ed-doc')?.classList.add('skripte-editor--laedt');
+    document.getElementById('ed-chat')?.classList.add('skripte-editor--laedt');
+
+    try {
+      const [skript, messages, versionen] = await Promise.all([
+        skripteService.loadSkript(skriptId),
+        skripteService.getChatMessages(skriptId),
+        skripteService.getVersionen(skriptId)
+      ]);
+
+      if (!skript) {
+        window.toastSystem?.error('Skript nicht gefunden');
+        this.renderListe(); // Active-State zuruecksetzen
+        return;
+      }
+
+      this.skript = skript;
+      this.messages = messages;
+      this.versionNr = versionen.length ? versionen[versionen.length - 1].version_nr : 1;
+
+      // URL fuer Reload/Teilen stabil halten
+      const url = new URL(window.location.href);
+      url.searchParams.set('skript', skriptId);
+      window.history.replaceState(window.history.state, '', url);
+
+      const meta = this.container.querySelector('.skripte-editor-topbar-meta');
+      if (meta) meta.innerHTML = this.topbarMetaHtml();
+      this.renderListe();
+      this.renderDoc();
+      this.renderChat({ forceScroll: true });
+      this.renderCost();
+
+      this.subscribe();
+      if (this.messages.some((m) => m.status === 'pending' || m.status === 'running')) {
+        this.ensurePolling();
+      }
+    } catch (err) {
+      window.toastSystem?.error(err.message);
+      this.renderListe();
+    } finally {
+      document.getElementById('ed-doc')?.classList.remove('skripte-editor--laedt');
+      document.getElementById('ed-chat')?.classList.remove('skripte-editor--laedt');
+    }
   }
 
   cleanup() {
@@ -160,7 +233,7 @@ export class SkriptEditorView {
     `;
     el.querySelectorAll('.skripte-editor-liste-item').forEach((btn) => {
       btn.addEventListener('click', () => {
-        if (btn.dataset.id !== this.skript.id) this.page.openEditor(btn.dataset.id);
+        if (btn.dataset.id !== this.skript.id) this.switchSkript(btn.dataset.id);
       });
     });
   }
