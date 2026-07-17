@@ -32,9 +32,17 @@ export class SkripteService {
   // ------------------------------------------------------------------
   // Stammdaten fuer Pick-and-pull
   // ------------------------------------------------------------------
-  async loadMarken() {
-    const { data } = await this.db.from('marke')
-      .select('id, markenname, branche_id').order('markenname');
+  async loadUnternehmen() {
+    const { data } = await this.db.from('unternehmen')
+      .select('id, firmenname, branche_id').order('firmenname');
+    return data || [];
+  }
+
+  async loadMarken(unternehmenId) {
+    let q = this.db.from('marke')
+      .select('id, markenname, branche_id, unternehmen_id').order('markenname');
+    if (unternehmenId) q = q.eq('unternehmen_id', unternehmenId);
+    const { data } = await q;
     return data || [];
   }
 
@@ -85,7 +93,7 @@ export class SkripteService {
   // ------------------------------------------------------------------
   async loadSkripte() {
     const { data } = await this.db.from('skripte')
-      .select('id, titel, marke_id, kampagne_id, branche_id, hook, hauptteil, cta, herkunft, performance_label, status, mit_dna, model, funnel_stufe, created_at, marke(markenname), branchen(name)')
+      .select('id, titel, unternehmen_id, marke_id, kampagne_id, branche_id, hook, hauptteil, cta, herkunft, performance_label, status, mit_dna, model, funnel_stufe, created_at, unternehmen(firmenname), marke(markenname), branchen(name)')
       .order('created_at', { ascending: false })
       .limit(200);
     return data || [];
@@ -93,7 +101,7 @@ export class SkripteService {
 
   async loadSkript(id) {
     const { data } = await this.db.from('skripte')
-      .select('*, marke(markenname), kampagne(kampagnenname, eigener_name), produkt(name), personas(name), branchen(name)')
+      .select('*, unternehmen(firmenname), marke(markenname), kampagne(kampagnenname, eigener_name), produkt(name), personas(name), branchen(name)')
       .eq('id', id).single();
     return data;
   }
@@ -115,6 +123,98 @@ export class SkripteService {
   async deleteSkript(id) {
     const { error } = await this.db.from('skripte').delete().eq('id', id);
     if (error) throw new Error(error.message);
+  }
+
+  // ------------------------------------------------------------------
+  // Editor: Chat-Messages (Assistant-Message = Job, Status via Realtime)
+  // ------------------------------------------------------------------
+  async getChatMessages(skriptId) {
+    const { data } = await this.db.from('skript_chat_messages')
+      .select('*').eq('skript_id', skriptId).order('created_at');
+    return data || [];
+  }
+
+  async createChatMessage(payload) {
+    const { data: { user } } = await this.db.auth.getUser();
+    const { data, error } = await this.db.from('skript_chat_messages')
+      .insert({ ...payload, created_by: user?.id }).select().single();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async updateChatMessage(id, patch) {
+    const { error } = await this.db.from('skript_chat_messages').update(patch).eq('id', id);
+    if (error) throw new Error(error.message);
+  }
+
+  async pollChatMessage(id) {
+    const { data } = await this.db.from('skript_chat_messages')
+      .select('*').eq('id', id).single();
+    return data;
+  }
+
+  subscribeToChat(skriptId, onChange) {
+    return this.db
+      .channel(`skript-chat-${skriptId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'skript_chat_messages',
+        filter: `skript_id=eq.${skriptId}`
+      }, (payload) => onChange(payload.new, payload.eventType))
+      .subscribe();
+  }
+
+  // ------------------------------------------------------------------
+  // Editor: Versions-Snapshots
+  // ------------------------------------------------------------------
+  async getVersionen(skriptId) {
+    const { data } = await this.db.from('skript_versionen')
+      .select('id, version_nr, titel, hook, hauptteil, cta, aenderung_beschreibung, created_at')
+      .eq('skript_id', skriptId).order('version_nr');
+    return data || [];
+  }
+
+  /**
+   * Snapshot des uebergebenen Skript-Stands als naechste Version.
+   * Legt fuer Bestandsskripte ohne Versionen lazy v1 an (Stand VOR der Aenderung).
+   */
+  async createVersion(skript, beschreibung, vorherigerStand = null) {
+    const { data: { user } } = await this.db.auth.getUser();
+    const { data: letzte } = await this.db.from('skript_versionen')
+      .select('version_nr').eq('skript_id', skript.id)
+      .order('version_nr', { ascending: false }).limit(1);
+
+    const rows = [];
+    let nr = letzte?.[0]?.version_nr || 0;
+
+    if (nr === 0 && vorherigerStand) {
+      rows.push({
+        skript_id: skript.id,
+        version_nr: ++nr,
+        titel: vorherigerStand.titel || null,
+        hook: vorherigerStand.hook || null,
+        hauptteil: vorherigerStand.hauptteil || null,
+        cta: vorherigerStand.cta || null,
+        aenderung_beschreibung: 'Ausgangsversion',
+        created_by: user?.id
+      });
+    }
+
+    rows.push({
+      skript_id: skript.id,
+      version_nr: ++nr,
+      titel: skript.titel || null,
+      hook: skript.hook || null,
+      hauptteil: skript.hauptteil || null,
+      cta: skript.cta || null,
+      aenderung_beschreibung: beschreibung || null,
+      created_by: user?.id
+    });
+
+    const { error } = await this.db.from('skript_versionen').insert(rows);
+    if (error) throw new Error(error.message);
+    return nr;
   }
 
   // ------------------------------------------------------------------

@@ -1,13 +1,17 @@
 // Anthropic Messages API Client (ohne SDK, nur fetch)
 // Modelle via Env konfigurierbar:
-//   ANTHROPIC_MODEL_WRITE   (Default: claude-opus-4-7)  - Skript-Schreiben
-//   ANTHROPIC_MODEL_DISTILL (Default: claude-haiku-4-5) - Verdichtung/Labeling
+//   ANTHROPIC_MODEL_WRITE      (Default: claude-opus-4-7)   - Skript-Schreiben
+//   ANTHROPIC_MODEL_DISTILL    (Default: claude-haiku-4-5)  - Verdichtung/Labeling
+//   ANTHROPIC_MODEL_EDIT_WRITE (Default: claude-sonnet-4-6) - Editor: Neu schreiben / Ton / Chat
+//   ANTHROPIC_MODEL_EDIT_FAST  (Default: claude-haiku-4-5)  - Editor: Kuerzen / Laenger
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
 
 const MODELS = {
   write: process.env.ANTHROPIC_MODEL_WRITE || 'claude-opus-4-7',
-  distill: process.env.ANTHROPIC_MODEL_DISTILL || 'claude-haiku-4-5'
+  distill: process.env.ANTHROPIC_MODEL_DISTILL || 'claude-haiku-4-5',
+  edit_write: process.env.ANTHROPIC_MODEL_EDIT_WRITE || 'claude-sonnet-4-6',
+  edit_fast: process.env.ANTHROPIC_MODEL_EDIT_FAST || 'claude-haiku-4-5'
 };
 
 /**

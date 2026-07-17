@@ -1,9 +1,9 @@
 // SkriptGeneratorTab.js
 // Pick-and-pull-Eingabe -> Background Function -> Live-Progress via Realtime ->
-// Ergebnis-Anzeige (Hook/Hauptteil/CTA) mit Direkt-Link zum Feedback.
+// danach direkt in den Chat-Editor (SkriptEditorView) zur Verfeinerung.
 
 import { skripteService, FUNNEL_STUFEN } from './SkripteService.js';
-import { escapeHtml, costBadge } from './SkripteUtils.js';
+import { escapeHtml } from './SkripteUtils.js';
 
 export class SkriptGeneratorTab {
   constructor(page) {
@@ -20,11 +20,15 @@ export class SkriptGeneratorTab {
       <div class="skripte-generator">
         <div class="skripte-card">
           <h3>Kontext auswählen</h3>
-          <p class="skripte-hint">Marke wählen – Briefing, Kickoff und Produktdaten werden automatisch aus dem CRM gezogen.</p>
+          <p class="skripte-hint">Unternehmen wählen – Marke ist optional (nicht jedes Unternehmen hat eine). Briefing, Kickoff und Produktdaten werden automatisch aus dem CRM gezogen.</p>
           <div class="skripte-form-grid">
             <div class="form-group">
-              <label class="form-label">Marke *</label>
-              <select id="gen-marke" class="form-input"><option value="">Laden...</option></select>
+              <label class="form-label">Unternehmen *</label>
+              <select id="gen-unternehmen" class="form-input"><option value="">Laden...</option></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Marke</label>
+              <select id="gen-marke" class="form-input" disabled><option value="">– Erst Unternehmen wählen –</option></select>
             </div>
             <div class="form-group">
               <label class="form-label">Kampagne</label>
@@ -98,25 +102,55 @@ export class SkriptGeneratorTab {
           <div class="skripte-progress-track"><div id="gen-progress-bar" class="skripte-progress-bar"></div></div>
           <div id="gen-log" class="skripte-log"></div>
         </div>
-
-        <div id="gen-result" style="display:none;"></div>
       </div>
     `;
 
     this.bindEvents(container);
-    await Promise.all([this.loadMarken(), this.loadPersonas(), this.loadBranchen(), this.loadDnaOptionen()]);
+    await Promise.all([this.loadUnternehmen(), this.loadPersonas(), this.loadBranchen(), this.loadDnaOptionen()]);
   }
 
   bindEvents(container) {
+    container.querySelector('#gen-unternehmen').addEventListener('change', () => this.onUnternehmenChange());
     container.querySelector('#gen-marke').addEventListener('change', () => this.onMarkeChange());
     container.querySelector('#gen-start').addEventListener('click', () => this.startGeneration());
   }
 
-  async loadMarken() {
-    this.marken = await skripteService.loadMarken();
-    const select = document.getElementById('gen-marke');
+  async loadUnternehmen() {
+    this.unternehmen = await skripteService.loadUnternehmen();
+    const select = document.getElementById('gen-unternehmen');
     if (!select) return;
-    select.innerHTML = '<option value="">– Marke wählen –</option>'
+    select.innerHTML = '<option value="">– Unternehmen wählen –</option>'
+      + this.unternehmen.map((u) => `<option value="${u.id}">${escapeHtml(u.firmenname)}</option>`).join('');
+  }
+
+  async onUnternehmenChange() {
+    const unternehmenId = document.getElementById('gen-unternehmen').value;
+    const markeSelect = document.getElementById('gen-marke');
+    const kampagneSelect = document.getElementById('gen-kampagne');
+    const produktSelect = document.getElementById('gen-produkt');
+
+    // Kampagne/Produkt haengen an der Marke -> bei Unternehmenswechsel zuruecksetzen
+    for (const el of [kampagneSelect, produktSelect]) {
+      el.disabled = true;
+      el.innerHTML = '<option value="">– Erst Marke wählen –</option>';
+    }
+
+    if (!unternehmenId) {
+      markeSelect.disabled = true;
+      markeSelect.innerHTML = '<option value="">– Erst Unternehmen wählen –</option>';
+      return;
+    }
+
+    // Branche des Unternehmens vorbelegen (Marke kann sie gleich ueberschreiben)
+    const unternehmen = this.unternehmen.find((u) => u.id === unternehmenId);
+    const brancheSelect = document.getElementById('gen-branche');
+    if (brancheSelect && unternehmen?.branche_id) brancheSelect.value = unternehmen.branche_id;
+
+    this.marken = await skripteService.loadMarken(unternehmenId);
+    markeSelect.disabled = false;
+    markeSelect.innerHTML = (this.marken.length
+      ? '<option value="">– Keine –</option>'
+      : '<option value="">– Keine Marke vorhanden –</option>')
       + this.marken.map((m) => `<option value="${m.id}">${escapeHtml(m.markenname)}</option>`).join('');
   }
 
@@ -192,11 +226,12 @@ export class SkriptGeneratorTab {
   }
 
   async startGeneration() {
+    const unternehmenId = document.getElementById('gen-unternehmen').value;
     const markeId = document.getElementById('gen-marke').value;
     const videoIdee = document.getElementById('gen-idee').value.trim();
 
-    if (!markeId) {
-      window.toastSystem?.error('Bitte eine Marke wählen');
+    if (!unternehmenId) {
+      window.toastSystem?.error('Bitte ein Unternehmen wählen');
       return;
     }
     if (!videoIdee) {
@@ -215,7 +250,6 @@ export class SkriptGeneratorTab {
     const progressWrap = document.getElementById('gen-progress');
     progressWrap.style.display = 'block';
     document.getElementById('gen-log').textContent = '';
-    document.getElementById('gen-result').style.display = 'none';
     this.setProgress('pending', 5);
     this.timerInterval = setInterval(() => {
       const el = document.getElementById('gen-elapsed');
@@ -237,7 +271,8 @@ export class SkriptGeneratorTab {
       const dnaWahl = document.getElementById('gen-dna').value;
       await skripteService.triggerFunction('skript-generate-background', {
         jobId: job.id,
-        marke_id: markeId,
+        unternehmen_id: unternehmenId,
+        marke_id: markeId || null,
         kampagne_id: document.getElementById('gen-kampagne').value || null,
         produkt_id: document.getElementById('gen-produkt').value || null,
         persona_id: document.getElementById('gen-persona').value || null,
@@ -274,66 +309,12 @@ export class SkriptGeneratorTab {
     if (job.status === 'done' && job.skript_id) {
       this.finishUi();
       window.toastSystem?.success('Skript generiert');
-      this.showResult(job.skript_id);
+      // Direkt in den Chat-Editor: dort wird verfeinert statt neu generiert
+      this.page.openEditor(job.skript_id);
     } else if (job.status === 'error') {
       this.finishUi();
       window.toastSystem?.error(`Fehler: ${job.error_message || 'Unbekannt'}`);
     }
-  }
-
-  async showResult(skriptId) {
-    const skript = await skripteService.loadSkript(skriptId);
-    if (!skript) return;
-    const resultEl = document.getElementById('gen-result');
-    if (!resultEl) return;
-
-    const dnaVersionen = skript.prompt_kontext?.dna_versionen || [];
-    const dnaInfo = !skript.mit_dna
-      ? ' · ohne DNA (Blindvergleich)'
-      : dnaVersionen.length
-        ? ` · DNA: ${dnaVersionen.map((d) => d.name || `${d.layer} v${d.version}`).join(', ')}`
-        : '';
-
-    resultEl.innerHTML = `
-      <div class="skripte-card skripte-result">
-        <div class="skripte-result-head">
-          <h3>${escapeHtml(skript.titel || 'Generiertes Skript')}</h3>
-          <span class="skripte-result-meta">
-            ${costBadge(skript)}
-            <span class="skripte-hint">${escapeHtml((skript.model || '') + dnaInfo)}</span>
-          </span>
-        </div>
-        ${['hook', 'hauptteil', 'cta'].map((sektion) => `
-          <div class="skripte-sektion">
-            <div class="skripte-sektion-label">${sektion.toUpperCase()}</div>
-            <div class="skripte-sektion-text">${escapeHtml(skript[sektion] || '')}</div>
-          </div>
-        `).join('')}
-        ${skript.location ? `
-          <div class="skripte-sektion">
-            <div class="skripte-sektion-label">LOCATION</div>
-            <div class="skripte-sektion-text">${escapeHtml(skript.location)}</div>
-          </div>` : ''}
-        ${skript.regieanweisung ? `
-          <div class="skripte-sektion">
-            <div class="skripte-sektion-label">REGIEANWEISUNG</div>
-            <div class="skripte-sektion-text">${escapeHtml(skript.regieanweisung)}</div>
-          </div>` : ''}
-        <div class="skripte-actions-row">
-          <button class="primary-btn" id="gen-feedback-btn">Feedback geben</button>
-          <button class="secondary-btn" id="gen-copy-btn">Kopieren</button>
-        </div>
-      </div>
-    `;
-    resultEl.style.display = 'block';
-
-    resultEl.querySelector('#gen-feedback-btn').addEventListener('click', () => {
-      this.page.openSkriptDetail(skriptId);
-    });
-    resultEl.querySelector('#gen-copy-btn').addEventListener('click', () => {
-      const text = `HOOK:\n${skript.hook}\n\nHAUPTTEIL:\n${skript.hauptteil}\n\nCTA:\n${skript.cta}`;
-      navigator.clipboard.writeText(text).then(() => window.toastSystem?.success('Skript kopiert'));
-    });
   }
 
   setProgress(step, pct) {

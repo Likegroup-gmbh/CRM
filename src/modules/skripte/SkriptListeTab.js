@@ -44,6 +44,7 @@ function renderOriginalAnfrage(skript) {
   };
 
   const inhalt = [
+    row('Unternehmen', skript.unternehmen?.firmenname),
     row('Marke', skript.marke?.markenname),
     row('Branche', skript.branchen?.name),
     row('Kampagne', skript.kampagne?.eigener_name || skript.kampagne?.kampagnenname),
@@ -144,21 +145,24 @@ export class SkriptListeTab {
       <table class="skripte-table">
         <thead>
           <tr>
-            <th>Titel</th><th>Marke</th><th>Branche</th><th>Herkunft</th><th>Status</th><th>Performance</th><th>DNA</th><th>Datum</th><th></th>
+            <th>Titel</th><th>Unternehmen / Marke</th><th>Branche</th><th>Herkunft</th><th>Status</th><th>Performance</th><th>DNA</th><th>Datum</th><th></th>
           </tr>
         </thead>
         <tbody>
           ${gefiltert.map((s) => `
             <tr data-id="${s.id}">
               <td class="skripte-table-titel">${escapeHtml(s.titel || s.hook?.slice(0, 60) || '(ohne Titel)')}</td>
-              <td>${escapeHtml(s.marke?.markenname || '–')}</td>
+              <td>${escapeHtml([s.unternehmen?.firmenname, s.marke?.markenname].filter(Boolean).join(' / ') || '–')}</td>
               <td>${escapeHtml(s.branchen?.name || '–')}</td>
               <td>${badge(s.herkunft === 'historisch' ? 'Historisch' : 'Generiert', s.herkunft === 'historisch' ? 'neutral' : 'info')}</td>
               <td>${badge(STATUS_LABELS[s.status] || s.status)}</td>
               <td>${badge(PERFORMANCE_LABELS[s.performance_label] || s.performance_label, PERFORMANCE_BADGE_VARIANT[s.performance_label])}</td>
               <td>${s.herkunft === 'generiert' ? (s.mit_dna ? 'mit' : 'ohne') : '–'}</td>
               <td>${formatDate(s.created_at)}</td>
-              <td><button class="secondary-btn skripte-row-open">Öffnen</button></td>
+              <td class="skripte-row-actions">
+                <button class="primary-btn skripte-row-open">Öffnen</button>
+                <button class="secondary-btn skripte-row-feedback" title="Score-Feedback & Performance-Label">Feedback</button>
+              </td>
             </tr>
           `).join('')}
         </tbody>
@@ -166,6 +170,13 @@ export class SkriptListeTab {
     `;
 
     wrap.querySelectorAll('.skripte-row-open').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        const id = e.target.closest('tr').dataset.id;
+        this.page.openEditor(id);
+      });
+    });
+
+    wrap.querySelectorAll('.skripte-row-feedback').forEach((btn) => {
       btn.addEventListener('click', (e) => {
         const id = e.target.closest('tr').dataset.id;
         this.openDetailDrawer(id);
@@ -320,6 +331,7 @@ export class SkriptListeTab {
     const body = `
       <div class="skripte-detail-meta">
         ${badge(skript.herkunft === 'historisch' ? 'Historisch' : 'Generiert', 'info')}
+        ${skript.unternehmen?.firmenname ? badge(skript.unternehmen.firmenname) : ''}
         ${skript.marke?.markenname ? badge(skript.marke.markenname) : ''}
         ${skript.branchen?.name ? badge(skript.branchen.name, 'info') : ''}
         ${skript.model ? badge(skript.model) : ''}
@@ -438,6 +450,7 @@ export class SkriptListeTab {
           : 'Automatisch';
 
       const lines = [
+        ['Unternehmen', skript.unternehmen?.firmenname],
         ['Marke', skript.marke?.markenname],
         ['Branche', skript.branchen?.name],
         ['Kampagne', skript.kampagne?.eigener_name || skript.kampagne?.kampagnenname],

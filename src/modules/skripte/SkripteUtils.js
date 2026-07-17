@@ -47,31 +47,31 @@ const MODEL_PRICING = [
 const USD_TO_EUR = 0.92;
 
 /**
- * Liest Tokens + Modell aus einem Skript und liefert ein Kosten-Info-Objekt:
- * { label: '12,4k Tokens · ~0,11 €', tooltip: '...' } oder null ohne Usage.
- * Anthropic-Semantik: input_tokens enthaelt KEINE Cache-Tokens, die stehen
- * separat in cache_read_input_tokens / cache_creation_input_tokens.
+ * Summiert Tokens + Kosten ueber mehrere { model, usage }-Eintraege
+ * (z.B. Erstgenerierung + alle Editor-Chat-Messages).
+ * Liefert { label: '12,4k Tokens · ~0,11 €', tooltip: '...' } oder null.
  */
-export function formatSkriptCost(skript) {
-  const usage = skript?.prompt_kontext?.usage;
-  if (!usage) return null;
+export function formatUsageCost(entries) {
+  let input = 0, output = 0, cacheRead = 0, cacheWrite = 0, usd = 0;
 
-  const input = usage.input_tokens || 0;
-  const output = usage.output_tokens || 0;
-  const cacheRead = usage.cache_read_input_tokens || 0;
-  const cacheWrite = usage.cache_creation_input_tokens || 0;
+  for (const e of entries || []) {
+    const usage = e?.usage;
+    if (!usage) continue;
+    const i = usage.input_tokens || 0;
+    const o = usage.output_tokens || 0;
+    const cr = usage.cache_read_input_tokens || 0;
+    const cw = usage.cache_creation_input_tokens || 0;
+    input += i; output += o; cacheRead += cr; cacheWrite += cw;
+
+    const modelName = (e.model || '').toLowerCase();
+    const pricing = MODEL_PRICING.find((p) => modelName.includes(p.match)) || MODEL_PRICING[0];
+    usd += (i * pricing.input + o * pricing.output + cr * pricing.cacheRead + cw * pricing.cacheWrite) / 1_000_000;
+  }
+
   const gesamt = input + output + cacheRead + cacheWrite;
   if (!gesamt) return null;
 
-  const modelName = (skript.model || '').toLowerCase();
-  const pricing = MODEL_PRICING.find((p) => modelName.includes(p.match)) || MODEL_PRICING[0];
-
-  const usd = (input * pricing.input
-    + output * pricing.output
-    + cacheRead * pricing.cacheRead
-    + cacheWrite * pricing.cacheWrite) / 1_000_000;
   const eur = usd * USD_TO_EUR;
-
   const tokenLabel = gesamt >= 1000
     ? `${(gesamt / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1 })}k`
     : String(gesamt);
@@ -85,6 +85,17 @@ export function formatSkriptCost(skript) {
     + ` · $${usd.toFixed(4)} (Schätzkurs ${USD_TO_EUR})`;
 
   return { label: `${tokenLabel} Tokens · ${eurLabel}`, tooltip };
+}
+
+/**
+ * Liest Tokens + Modell aus einem Skript und liefert ein Kosten-Info-Objekt.
+ * Anthropic-Semantik: input_tokens enthaelt KEINE Cache-Tokens, die stehen
+ * separat in cache_read_input_tokens / cache_creation_input_tokens.
+ */
+export function formatSkriptCost(skript) {
+  const usage = skript?.prompt_kontext?.usage;
+  if (!usage) return null;
+  return formatUsageCost([{ model: skript.model, usage }]);
 }
 
 /** Kosten-Badge-HTML (oder leerer String, wenn keine Usage vorliegt). */

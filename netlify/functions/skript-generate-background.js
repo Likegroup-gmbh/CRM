@@ -52,8 +52,14 @@ function createJobUpdater(supabase, jobId) {
 // Kontext-Aufbau: alle Quellen per SQL (kein LLM noetig)
 // ---------------------------------------------------------------------------
 async function loadContext(supabase, params) {
-  const { marke_id, kampagne_id, produkt_id, persona_id, branche_id, mit_dna, dna_id } = params;
+  const { unternehmen_id, marke_id, kampagne_id, produkt_id, persona_id, branche_id, mit_dna, dna_id } = params;
   const ctx = { dnaVersionen: [], beispiele: [], antiPatterns: [] };
+
+  if (unternehmen_id) {
+    const { data } = await supabase.from('unternehmen')
+      .select('id, firmenname, webseite, branche_id').eq('id', unternehmen_id).single();
+    ctx.unternehmen = data;
+  }
 
   if (marke_id) {
     const { data } = await supabase.from('marke')
@@ -61,8 +67,8 @@ async function loadContext(supabase, params) {
     ctx.marke = data;
   }
 
-  // Branche: explizite Wahl aus der UI hat Vorrang vor Marke/Persona
-  ctx.brancheId = branche_id || ctx.marke?.branche_id || null;
+  // Branche: explizite Wahl aus der UI hat Vorrang vor Marke/Unternehmen/Persona
+  ctx.brancheId = branche_id || ctx.marke?.branche_id || ctx.unternehmen?.branche_id || null;
   if (ctx.brancheId) {
     const { data } = await supabase.from('branchen')
       .select('id, name').eq('id', ctx.brancheId).single();
@@ -226,6 +232,10 @@ function buildPrompt(ctx, params) {
 
   // Block 2 (variabel): Auftrag dieser Generierung
   let task = '# AUFTRAG\nSchreibe EIN Video-Skript auf Deutsch.\n';
+  task += fmtSection('Unternehmen', ctx.unternehmen && {
+    firmenname: ctx.unternehmen.firmenname,
+    webseite: ctx.unternehmen.webseite
+  });
   task += fmtSection('Marke', ctx.marke && {
     markenname: ctx.marke.markenname,
     branche: ctx.branche?.name || ctx.marke.branche,
@@ -314,6 +324,7 @@ exports.handler = async (event) => {
 
     const { data: skript, error: insertError } = await supabase.from('skripte').insert({
       titel: parsed.titel || null,
+      unternehmen_id: payload.unternehmen_id || null,
       marke_id: payload.marke_id || null,
       kampagne_id: payload.kampagne_id || null,
       produkt_id: payload.produkt_id || null,
@@ -341,6 +352,20 @@ exports.handler = async (event) => {
     }).select('id').single();
 
     if (insertError) throw new Error(`Skript-Insert fehlgeschlagen: ${insertError.message}`);
+
+    // Ausgangsversion (v1) fuer den Chat-Editor snapshotten.
+    // Nicht kritisch fuer die Generierung -> Fehler nur loggen.
+    const { error: versionError } = await supabase.from('skript_versionen').insert({
+      skript_id: skript.id,
+      version_nr: 1,
+      titel: parsed.titel || null,
+      hook: parsed.hook,
+      hauptteil: parsed.hauptteil,
+      cta: parsed.cta,
+      aenderung_beschreibung: 'Erstgenerierung',
+      created_by: user.id
+    });
+    if (versionError) job.log(`Hinweis: v1-Snapshot fehlgeschlagen (${versionError.message})`);
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     job.log(`Fertig in ${elapsed}s (Tokens: ${result.usage?.input_tokens ?? '?'} in / ${result.usage?.output_tokens ?? '?'} out)`);

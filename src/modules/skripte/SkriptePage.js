@@ -7,6 +7,7 @@ import { SkriptListeTab } from './SkriptListeTab.js';
 import { SkriptDnaTab } from './SkriptDnaTab.js';
 import { SkriptPersonasTab } from './SkriptPersonasTab.js';
 import { SkriptAuswertungTab } from './SkriptAuswertungTab.js';
+import { SkriptEditorView } from './SkriptEditorView.js';
 
 const TABS = [
   { id: 'generator', label: 'Generator' },
@@ -23,6 +24,7 @@ export class SkriptePage {
     this.dnaTab = new SkriptDnaTab(this);
     this.personasTab = new SkriptPersonasTab(this);
     this.auswertungTab = new SkriptAuswertungTab(this);
+    this.editorView = new SkriptEditorView(this);
     this.activeTab = 'generator';
   }
 
@@ -51,6 +53,13 @@ export class SkriptePage {
     document.querySelectorAll('.skripte-tab').forEach((btn) => {
       btn.addEventListener('click', () => this.switchTab(btn.dataset.tab));
     });
+
+    // Deep-Link: /skripte?skript=<id> oeffnet direkt den Editor
+    const skriptParam = new URLSearchParams(window.location.search).get('skript');
+    if (skriptParam) {
+      await this.openEditor(skriptParam);
+      return;
+    }
 
     await this.renderActiveTab();
   }
@@ -84,12 +93,46 @@ export class SkriptePage {
     await this.listeTab.openDetailDrawer(skriptId);
   }
 
+  // ------------------------------------------------------------------
+  // Chat-Editor (3-Spalten-View, ersetzt den Tab-Inhalt)
+  // ------------------------------------------------------------------
+  async openEditor(skriptId) {
+    const container = document.getElementById('skripte-tab-content');
+    if (!container) return;
+
+    this.cleanupTabs();
+    document.querySelector('.skripte-page')?.classList.add('skripte-page--editor');
+    const tabsEl = document.querySelector('.skripte-tabs');
+    if (tabsEl) tabsEl.style.display = 'none';
+
+    // URL fuer Reload/Teilen stabil halten
+    const url = new URL(window.location.href);
+    url.searchParams.set('skript', skriptId);
+    window.history.replaceState(window.history.state, '', url);
+
+    await this.editorView.render(container, skriptId);
+  }
+
+  async closeEditor() {
+    this.editorView.cleanup();
+    document.querySelector('.skripte-page')?.classList.remove('skripte-page--editor');
+    const tabsEl = document.querySelector('.skripte-tabs');
+    if (tabsEl) tabsEl.style.display = '';
+
+    const url = new URL(window.location.href);
+    url.searchParams.delete('skript');
+    window.history.replaceState(window.history.state, '', url);
+
+    await this.renderActiveTab();
+  }
+
   cleanupTabs() {
     this.generatorTab.cleanup?.();
     this.listeTab.cleanup?.();
     this.dnaTab.cleanup?.();
     this.personasTab.cleanup?.();
     this.auswertungTab.cleanup?.();
+    this.editorView.cleanup?.();
   }
 
   destroy() {
