@@ -235,7 +235,7 @@ export class SkriptEditorView {
     // Assistant ("Liky")
     const head = `
       <div class="skripte-editor-msg-head">
-        <span class="skripte-editor-avatar">${SEND_ICON}</span>
+        <span class="skripte-editor-avatar">L</span>
         <span class="skripte-editor-msg-name">Liky</span>
       </div>
     `;
