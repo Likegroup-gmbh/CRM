@@ -428,17 +428,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.loginRoot.style.display = 'none';
     
     // Starte mit Dashboard oder aktuelle Route
-    let initialRoute = location.pathname;
+    // Query-String mitnehmen, damit Deep-Links wie /skripte?skript=<id>
+    // einen Reload ueberleben (_doNavigate strippt Query fuers Matching selbst)
+    let initialRoute = location.pathname + location.search;
     
     // Hash-Support für Deep-Links (z.B. aus Duplicate-Check oder Bookmarks)
     // Wenn Pfad "/" ist, aber ein Hash existiert, nutze den Hash als Route
-    if ((initialRoute === '/' || initialRoute === '/index.html') && location.hash) {
+    if ((location.pathname === '/' || location.pathname === '/index.html') && location.hash) {
       // Entferne das führende '#' aus dem Hash (z.B. "#/unternehmen/123" -> "/unternehmen/123")
       initialRoute = location.hash.substring(1);
       console.log('Hash-Route erkannt:', initialRoute);
     }
 
-    if (!initialRoute || initialRoute === '/' || initialRoute === '/dashboard' || initialRoute === '/index.html') {
+    // Dashboard-Check auf Basis des Pfads (ohne Query), sonst normale Navigation
+    const initialPath = initialRoute.split(/[?#]/)[0];
+    if (!initialPath || initialPath === '/' || initialPath === '/dashboard' || initialPath === '/index.html') {
       moduleRegistry.loadDashboard();
     } else {
       moduleRegistry.navigateTo(initialRoute);

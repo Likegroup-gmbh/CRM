@@ -38,6 +38,13 @@ export class SkriptePage {
       return;
     }
 
+    // Aktiven Tab aus der URL wiederherstellen (?tab=<id>)
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    if (tabParam && TABS.some((t) => t.id === tabParam)) {
+      this.activeTab = tabParam;
+    }
+
     window.setHeadline('Skript-Generator');
     window.setContentSafely(window.content, `
       <div class="skripte-page">
@@ -55,7 +62,7 @@ export class SkriptePage {
     });
 
     // Deep-Link: /skripte?skript=<id> oeffnet direkt den Editor
-    const skriptParam = new URLSearchParams(window.location.search).get('skript');
+    const skriptParam = params.get('skript');
     if (skriptParam) {
       await this.openEditor(skriptParam);
       return;
@@ -71,6 +78,12 @@ export class SkriptePage {
     document.querySelectorAll('.skripte-tab').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.tab === tabId);
     });
+
+    // Tab in der URL persistieren (Reload-faehig)
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', tabId);
+    window.history.replaceState(window.history.state, '', url);
+
     await this.renderActiveTab();
   }
 
