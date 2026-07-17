@@ -5,7 +5,8 @@
 //   rechts  Chat-Verlauf ("Liky") mit Aktions-Tag, Status und Annehmen/Ablehnen
 // Die Assistant-Message in skript_chat_messages ist der Job (Realtime + Poll).
 
-import { skripteService } from './SkripteService.js';
+import { skripteService, FUNNEL_STUFEN } from './SkripteService.js';
+import { SkriptGeneratorForm } from './SkriptGeneratorForm.js';
 import { escapeHtml, formatDate, badge, formatUsageCost } from './SkripteUtils.js';
 
 const AKTION_LABELS = {
@@ -31,6 +32,15 @@ const SEKTION_LABELS = { hook: 'HOOK', hauptteil: 'HAUPTTEIL', cta: 'CTA', gesam
 
 const PLACEHOLDER_DEFAULT = 'Feedback geben oder Frage stellen…';
 const PLACEHOLDER_AKTION = 'Anweisung ergänzen (optional) – Enter startet';
+const PLACEHOLDER_NEU = 'Erst Skript generieren – danach kannst du hier verfeinern';
+
+const GEN_STEP_LABELS = {
+  pending: 'Warte auf Start…',
+  kontext: 'Ich sammle den Kontext aus den CRM-Daten…',
+  generierung: 'Ich schreibe das Skript…',
+  speichern: 'Fast fertig – ich speichere…',
+  done: 'Fertig!'
+};
 
 export class SkriptEditorView {
   constructor(page) {
@@ -45,6 +55,15 @@ export class SkriptEditorView {
     this.pollInterval = null;
     this.onMouseUp = null;
     this.onDocMouseDown = null;
+
+    // Neu-Modus: Generator-Formular in der Mitte statt Hook/Hauptteil/CTA
+    this.neuModus = false;
+    this.genForm = null;
+    this.genStatus = null; // null | { laeuft: true, step } | { error }
+    this.genPayload = null; // fuer "Nochmal versuchen"
+    this.genJobId = null;
+    this.genChannel = null;
+    this.genPoll = null;
   }
 
   // ------------------------------------------------------------------
@@ -55,6 +74,20 @@ export class SkriptEditorView {
     this.container = container;
 
     container.innerHTML = '<div class="empty-state"><p>Skript wird geladen...</p></div>';
+
+    // Neu-Modus: Editor-Shell mit leerer Mitte (Generator) statt Skript-Load
+    if (skriptId === 'neu') {
+      this.skripte = await skripteService.loadSkripte();
+      this.skript = null;
+      this.messages = [];
+      this.neuModus = true;
+      this.genStatus = null;
+      this.updateBreadcrumb();
+      this.renderLayout();
+      this.bindEvents();
+      this.setChatInputAktiv(false);
+      return;
+    }
 
     const [skript, skripte, messages, versionen] = await Promise.all([
       skripteService.loadSkript(skriptId),
@@ -72,6 +105,7 @@ export class SkriptEditorView {
     this.skripte = skripte;
     this.messages = messages;
     this.versionNr = versionen.length ? versionen[versionen.length - 1].version_nr : 1;
+    this.neuModus = false;
 
     this.updateBreadcrumb();
     this.renderLayout();
@@ -121,11 +155,12 @@ export class SkriptEditorView {
   updateBreadcrumb() {
     window.breadcrumbSystem?.updateBreadcrumb([
       { label: 'Skripte', url: '/skripte', clickable: true },
-      { label: this.skript?.titel || 'Skript', clickable: false }
+      { label: this.neuModus ? 'Neues Skript' : (this.skript?.titel || 'Skript'), clickable: false }
     ]);
   }
 
   metaBadgesHtml() {
+    if (!this.skript) return '';
     return `
       ${this.skript.unternehmen?.firmenname ? badge(this.skript.unternehmen.firmenname) : ''}
       ${this.skript.marke?.markenname ? badge(this.skript.marke.markenname) : ''}
@@ -139,7 +174,7 @@ export class SkriptEditorView {
    * nur Breadcrumb, Footer-Badges, Doc und Chat werden ausgetauscht.
    */
   async switchSkript(skriptId) {
-    if (!this.skript || skriptId === this.skript.id) return;
+    if (this.skript && skriptId === this.skript.id) return;
 
     // Verbindungen des alten Skripts beenden (DOM und Maus-Listener bleiben)
     if (this.channel) {
@@ -153,6 +188,14 @@ export class SkriptEditorView {
     this.clearPending();
     const menu = document.getElementById('ed-selmenu');
     if (menu) menu.hidden = true;
+
+    // Ggf. Neu-Modus verlassen (laufende Generierung bleibt bewusst bestehen,
+    // ihr Ergebnis wird beim Job-Done trotzdem geladen)
+    if (this.neuModus) {
+      this.neuModus = false;
+      this.genStatus = null;
+      this.setChatInputAktiv(true);
+    }
 
     // Sofortiges Feedback: Active-State umschalten, Inhalte dimmen
     this.container.querySelectorAll('.skripte-editor-liste-item').forEach((btn) => {
@@ -205,7 +248,165 @@ export class SkriptEditorView {
     }
   }
 
+  // ------------------------------------------------------------------
+  // Neu-Modus: Generator direkt im Editor
+  // ------------------------------------------------------------------
+  startNeuModus() {
+    if (this.neuModus) return;
+
+    // Verbindungen des offenen Skripts beenden
+    if (this.channel) {
+      window.supabase.removeChannel(this.channel);
+      this.channel = null;
+    }
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
+    this.clearPending();
+    const menu = document.getElementById('ed-selmenu');
+    if (menu) menu.hidden = true;
+
+    this.skript = null;
+    this.messages = [];
+    this.neuModus = true;
+    this.genStatus = null;
+
+    // URL fuer Reload stabil halten
+    const url = new URL(window.location.href);
+    url.searchParams.set('skript', 'neu');
+    window.history.replaceState({ route: url.pathname + url.search }, '', url);
+    this.page._merkeKontext({ skript: 'neu' });
+
+    this.updateBreadcrumb();
+    const meta = document.getElementById('ed-meta');
+    if (meta) meta.innerHTML = '';
+    this.renderListe();
+    this.renderDoc();
+    this.renderChat();
+    this.renderCost();
+    this.setChatInputAktiv(false);
+  }
+
+  setChatInputAktiv(aktiv) {
+    const input = document.getElementById('ed-input');
+    const send = document.getElementById('ed-send');
+    if (input) {
+      input.disabled = !aktiv;
+      input.placeholder = aktiv ? PLACEHOLDER_DEFAULT : PLACEHOLDER_NEU;
+    }
+    if (send) send.disabled = !aktiv;
+  }
+
+  setGenButtonAktiv(aktiv) {
+    const btn = document.getElementById('ed-gen-start');
+    if (!btn) return;
+    btn.disabled = !aktiv;
+    btn.textContent = aktiv ? 'Skript generieren' : 'Läuft…';
+  }
+
+  async startGenerationImEditor({ retry = false } = {}) {
+    let payload;
+    if (retry && this.genPayload) {
+      payload = this.genPayload;
+    } else {
+      try {
+        payload = this.genForm.getPayload();
+      } catch (err) {
+        window.toastSystem?.error(err.message);
+        return;
+      }
+    }
+    this.genPayload = payload;
+
+    this.cleanupGenJob();
+    this.setGenButtonAktiv(false);
+    this.genStatus = { laeuft: true, step: 'pending' };
+    this.renderChat({ forceScroll: true });
+
+    try {
+      const job = await skripteService.createJob();
+      this.genJobId = job.id;
+
+      this.genChannel = skripteService.subscribeToJob(job.id, (j) => this.handleGenJobUpdate(j));
+      this.genPoll = setInterval(async () => {
+        if (!this.genJobId) return;
+        const j = await skripteService.pollJob(this.genJobId);
+        if (j) this.handleGenJobUpdate(j);
+      }, 5000);
+
+      await skripteService.triggerFunction('skript-generate-background', {
+        jobId: job.id,
+        ...payload
+      });
+    } catch (err) {
+      this.cleanupGenJob();
+      this.genStatus = { error: err.message };
+      this.renderChat({ forceScroll: true });
+      this.setGenButtonAktiv(true);
+    }
+  }
+
+  handleGenJobUpdate(job) {
+    if (!job || job.id !== this.genJobId) return;
+
+    if (job.status === 'done' && job.skript_id) {
+      this.finishGeneration(job.skript_id);
+      return;
+    }
+    if (job.status === 'error') {
+      this.cleanupGenJob();
+      this.genStatus = { error: job.error_message || 'Unbekannt' };
+      this.renderChat({ forceScroll: true });
+      this.setGenButtonAktiv(true);
+      return;
+    }
+
+    // Fortschritt in der Bubble aktualisieren (ohne komplettes Re-Render)
+    if (job.progress_step && this.genStatus?.laeuft) {
+      this.genStatus.step = job.progress_step;
+      const stepEl = document.getElementById('ed-gen-step');
+      if (stepEl) stepEl.textContent = GEN_STEP_LABELS[job.progress_step] || job.progress_step;
+    }
+  }
+
+  async finishGeneration(skriptId) {
+    this.cleanupGenJob();
+    this.genStatus = null;
+    this.genPayload = null;
+    window.toastSystem?.success('Skript generiert');
+
+    // Liste aktualisieren, damit das neue Skript links auftaucht
+    this.skripte = await skripteService.loadSkripte();
+
+    if (this.neuModus) {
+      // In-place ins neue Skript wechseln
+      this.neuModus = false;
+      this.setChatInputAktiv(true);
+      await this.switchSkript(skriptId);
+    } else {
+      // User hat waehrenddessen ein anderes Skript geoeffnet -> nur Liste auffrischen
+      this.renderListe();
+    }
+  }
+
+  cleanupGenJob() {
+    if (this.genChannel) {
+      window.supabase.removeChannel(this.genChannel);
+      this.genChannel = null;
+    }
+    if (this.genPoll) {
+      clearInterval(this.genPoll);
+      this.genPoll = null;
+    }
+    this.genJobId = null;
+  }
+
   cleanup() {
+    this.cleanupGenJob();
+    this.neuModus = false;
+    this.genStatus = null;
+    this.genForm = null;
     if (this.channel) {
       window.supabase.removeChannel(this.channel);
       this.channel = null;
@@ -233,17 +434,21 @@ export class SkriptEditorView {
     const el = document.getElementById('ed-liste');
     if (!el) return;
     el.innerHTML = `
-      <div class="skripte-editor-liste-head">Skripte</div>
+      <div class="skripte-editor-liste-head">
+        <span>Skripte</span>
+        <button class="skripte-editor-neu-btn" id="ed-neu" title="Neues Skript erstellen">+ Neues Skript</button>
+      </div>
       ${this.skripte.map((s) => `
-        <button class="skripte-editor-liste-item ${s.id === this.skript.id ? 'active' : ''}" data-id="${s.id}">
+        <button class="skripte-editor-liste-item ${s.id === this.skript?.id ? 'active' : ''}" data-id="${s.id}">
           <span class="skripte-editor-liste-titel">${escapeHtml(s.titel || s.hook?.slice(0, 50) || '(ohne Titel)')}</span>
           <span class="skripte-editor-liste-sub">${escapeHtml([s.marke?.markenname || s.unternehmen?.firmenname, formatDate(s.created_at)].filter(Boolean).join(' · '))}</span>
         </button>
       `).join('')}
     `;
+    el.querySelector('#ed-neu')?.addEventListener('click', () => this.startNeuModus());
     el.querySelectorAll('.skripte-editor-liste-item').forEach((btn) => {
       btn.addEventListener('click', () => {
-        if (btn.dataset.id !== this.skript.id) this.switchSkript(btn.dataset.id);
+        if (btn.dataset.id !== this.skript?.id) this.switchSkript(btn.dataset.id);
       });
     });
   }
@@ -254,11 +459,32 @@ export class SkriptEditorView {
   renderDoc() {
     const el = document.getElementById('ed-doc');
     if (!el) return;
+
+    // Neu-Modus: Generator-Formular statt Skript-Inhalt
+    if (this.neuModus) {
+      el.innerHTML = `
+        <div class="skripte-editor-doc-head">
+          <h2>Neues Skript</h2>
+        </div>
+        <div class="skripte-editor-genform" id="ed-genform"></div>
+        <div class="skripte-actions-row">
+          <button id="ed-gen-start" class="primary-btn">Skript generieren</button>
+        </div>
+      `;
+      this.genForm = new SkriptGeneratorForm({ prefix: 'edgen' });
+      // Selects laden asynchron nach – Formular steht sofort
+      this.genForm.render(el.querySelector('#ed-genform'));
+      el.querySelector('#ed-gen-start').addEventListener('click', () => this.startGenerationImEditor());
+      if (this.genStatus?.laeuft) this.setGenButtonAktiv(false);
+      return;
+    }
+
     el.innerHTML = `
       <div class="skripte-editor-doc-head">
         <h2>${escapeHtml(this.skript.titel || 'Skript')}</h2>
         <span class="skripte-badge skripte-badge--info" title="Jede angenommene Änderung erzeugt eine neue Version">v${this.versionNr}</span>
       </div>
+      ${this.vorgabenPanelHtml()}
       <div class="skripte-editor-doc-box">
         ${['hook', 'hauptteil', 'cta'].map((sektion) => `
           <div class="skripte-editor-sektion" data-sektion="${sektion}">
@@ -271,12 +497,87 @@ export class SkriptEditorView {
     `;
   }
 
+  /** Read-only Info: mit welchen Vorgaben das Skript generiert wurde. */
+  vorgabenPanelHtml() {
+    const s = this.skript;
+    if (!s) return '';
+    const zeilen = [
+      ['Unternehmen', s.unternehmen?.firmenname],
+      ['Marke', s.marke?.markenname],
+      ['Kampagne', s.kampagne?.eigener_name || s.kampagne?.kampagnenname],
+      ['Produkt', s.produkt?.name],
+      ['Persona', s.personas?.name],
+      ['Branche', s.branchen?.name],
+      ['Funnel-Stufe', s.funnel_stufe ? (FUNNEL_STUFEN[s.funnel_stufe] || s.funnel_stufe) : null],
+      ['Tonalität', s.tonalitaet],
+      ['Skript-DNA', s.mit_dna === false ? 'Ohne DNA (Blindvergleich)' : 'Mit DNA'],
+      ['Video-Idee', s.video_idee],
+      ['Location', s.location],
+      ['Regieanweisung', s.regieanweisung]
+    ].filter(([, wert]) => wert);
+
+    if (!zeilen.length) return '';
+
+    return `
+      <details class="skripte-editor-vorgaben">
+        <summary>Vorgaben aus dem Generator</summary>
+        <dl class="skripte-editor-vorgaben-grid">
+          ${zeilen.map(([label, wert]) => `
+            <div class="skripte-editor-vorgaben-zeile">
+              <dt>${escapeHtml(label)}</dt>
+              <dd>${escapeHtml(String(wert))}</dd>
+            </div>
+          `).join('')}
+        </dl>
+      </details>
+    `;
+  }
+
   // ------------------------------------------------------------------
   // Rechte Spalte: Chat-Verlauf ("Liky")
   // ------------------------------------------------------------------
   renderChat({ forceScroll = false } = {}) {
     const el = document.getElementById('ed-chat');
     if (!el) return;
+
+    // Neu-Modus: Generierungs-Fortschritt als Liky-Bubble (lokal, ohne DB-Message)
+    if (this.neuModus) {
+      const head = `
+        <div class="skripte-editor-msg-head">
+          <span class="skripte-editor-avatar">L</span>
+          <span class="skripte-editor-msg-name">Liky</span>
+        </div>
+      `;
+      if (this.genStatus?.laeuft) {
+        el.innerHTML = `
+          <div class="skripte-editor-msg skripte-editor-msg--assistant">
+            ${head}
+            <div class="skripte-editor-working"><span class="skripte-editor-dots"><i></i><i></i><i></i></span> Ich arbeite gerade…</div>
+            <div class="skripte-editor-msg-text" id="ed-gen-step">${escapeHtml(GEN_STEP_LABELS[this.genStatus.step] || 'Starte…')}</div>
+          </div>
+        `;
+      } else if (this.genStatus?.error) {
+        el.innerHTML = `
+          <div class="skripte-editor-msg skripte-editor-msg--assistant">
+            ${head}
+            <div class="skripte-editor-msg-error">Fehler: ${escapeHtml(this.genStatus.error)}</div>
+            <div class="skripte-editor-msg-actions">
+              <button class="skripte-editor-pill-btn" id="ed-gen-retry">Nochmal versuchen</button>
+            </div>
+          </div>
+        `;
+        el.querySelector('#ed-gen-retry')?.addEventListener('click', () => this.startGenerationImEditor({ retry: true }));
+      } else {
+        el.innerHTML = `
+          <div class="skripte-editor-chat-empty">
+            <p>Noch kein Skript.</p>
+            <p class="skripte-hint">Füll links die Vorgaben aus und klick auf „Skript generieren“ – ich melde mich hier, sobald ich arbeite.</p>
+          </div>
+        `;
+      }
+      if (forceScroll) el.scrollTop = el.scrollHeight;
+      return;
+    }
 
     if (!this.messages.length) {
       el.innerHTML = `
@@ -392,6 +693,11 @@ export class SkriptEditorView {
   renderCost() {
     const el = document.getElementById('ed-cost');
     if (!el) return;
+    if (!this.skript) {
+      el.textContent = '';
+      el.title = '';
+      return;
+    }
     const entries = [
       { model: this.skript.model, usage: this.skript.prompt_kontext?.usage },
       ...this.messages.map((m) => ({ model: m.model, usage: m.usage }))
