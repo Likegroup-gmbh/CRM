@@ -191,7 +191,7 @@ export class SkriptEditorView {
   // ------------------------------------------------------------------
   // Rechte Spalte: Chat-Verlauf ("Liky")
   // ------------------------------------------------------------------
-  renderChat() {
+  renderChat({ forceScroll = false } = {}) {
     const el = document.getElementById('ed-chat');
     if (!el) return;
 
@@ -205,13 +205,22 @@ export class SkriptEditorView {
       return;
     }
 
+    // Scrollposition erhalten: nur ans Ende springen, wenn der User schon
+    // (nahezu) unten war oder gerade selbst etwas abgeschickt hat
+    const warUnten = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    const vorherigerScroll = el.scrollTop;
+
     el.innerHTML = this.messages.map((m) => this.renderMessage(m)).join('');
 
     el.querySelectorAll('[data-msg-action]').forEach((btn) => {
       btn.addEventListener('click', () => this.handleMessageAction(btn.dataset.msgAction, btn.dataset.msgId));
     });
 
-    el.scrollTop = el.scrollHeight;
+    if (forceScroll || warUnten) {
+      el.scrollTop = el.scrollHeight;
+    } else {
+      el.scrollTop = vorherigerScroll;
+    }
   }
 
   renderAktionTag(m) {
@@ -501,7 +510,7 @@ export class SkriptEditorView {
         status: 'pending'
       });
       this.messages.push(assistantMsg);
-      this.renderChat();
+      this.renderChat({ forceScroll: true });
 
       this.ensurePolling();
       await skripteService.triggerFunction('skript-edit-background', { messageId: assistantMsg.id });
@@ -537,7 +546,7 @@ export class SkriptEditorView {
         status: 'pending'
       });
       this.messages.push(assistantMsg);
-      this.renderChat();
+      this.renderChat({ forceScroll: true });
       this.ensurePolling();
       await skripteService.triggerFunction('skript-edit-background', { messageId: assistantMsg.id });
     } catch (err) {
@@ -642,13 +651,21 @@ export class SkriptEditorView {
     if (!row || row.skript_id !== this.skript?.id) return;
     const idx = this.messages.findIndex((m) => m.id === row.id);
     if (idx === -1) {
-      if (eventType === 'INSERT' || eventType === 'UPDATE') this.messages.push(row);
+      if (eventType !== 'INSERT' && eventType !== 'UPDATE') return;
+      this.messages.push(row);
     } else {
       // Lokal bereits final gesetzte Status (angenommen/abgelehnt) nicht
       // durch verspaetete Realtime-Events zuruecksetzen
       const lokal = this.messages[idx];
       if (['angenommen', 'abgelehnt'].includes(lokal.status) && ['vorschlag', 'running', 'pending'].includes(row.status)) return;
+      // Kein Re-Render, wenn sich nichts Sichtbares geaendert hat
+      // (Poll-Fallback liefert alle 5s auch unveraenderte Rows)
+      const unveraendert = lokal.status === row.status
+        && lokal.inhalt === row.inhalt
+        && lokal.vorschlag_text === row.vorschlag_text
+        && lokal.error_message === row.error_message;
       this.messages[idx] = row;
+      if (unveraendert) return;
     }
     this.renderChat();
     this.renderCost();

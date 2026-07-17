@@ -1,8 +1,9 @@
 // Netlify Background Function: Skript-Editor (Chat-basierte Ueberarbeitung)
 // Die pending Assistant-Message in skript_chat_messages IST der Job:
 //   pending -> running -> vorschlag (mit vorschlag_text) | fertig (nur Antwort) | error
-// Modellwahl pro Aufgabe: Kuerzen/Laenger -> edit_fast (Haiku),
-// Neu schreiben / Anderer Ton / freier Chat -> edit_write (Sonnet).
+// Modellwahl: alle Schreib-Aktionen (Neu schreiben / Kuerzen / Laenger /
+// Anderer Ton) -> edit_write (Opus mit Extended Thinking),
+// freier Chat / Rueckfragen -> edit_fast (Haiku).
 
 const { createClient } = require('@supabase/supabase-js');
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
@@ -96,7 +97,7 @@ function buildEditPrompt(ctx, message) {
     skript.marke?.markenname ? `Marke: ${skript.marke.markenname}` : null,
     skript.unternehmen?.firmenname ? `Unternehmen: ${skript.unternehmen.firmenname}` : null,
     skript.produkt?.name ? `Produkt: ${skript.produkt.name}` : null,
-    skript.personas?.name ? `Zielgruppe: ${skript.personas.name}` : null,
+    skript.personas?.name ? `Zielgruppe: ${skript.personas.name}${skript.personas.beschreibung ? ` – ${skript.personas.beschreibung}` : ''}` : null,
     skript.branchen?.name ? `Branche: ${skript.branchen.name}` : null,
     skript.tonalitaet ? `Tonalitaet: ${skript.tonalitaet}` : null,
     skript.funnel_stufe ? `Funnel-Stufe: ${skript.funnel_stufe}` : null
@@ -129,6 +130,10 @@ function buildEditPrompt(ctx, message) {
     + '"sektion": "hook|hauptteil|cta|null", '
     + '"vorschlag_text": "neuer Text oder null"}\n'
     + 'Regeln:\n'
+    + (dna.length
+      ? '- vorschlag_text MUSS die SKRIPT-DNA einhalten (Ton, Stil, Wortwahl, No-Gos) - auch beim Kuerzen und Verlaengern. Die DNA hat Vorrang vor eigenen stilistischen Praeferenzen.\n'
+      : '')
+    + '- vorschlag_text muss zur Zielgruppe passen (siehe KONTEXT) und den Ton des restlichen Skripts erhalten.\n'
     + '- Wenn eine markierte Stelle vorliegt, ist vorschlag_text NUR der Ersatztext fuer genau diese Stelle (nicht die ganze Sektion).\n'
     + '- Ohne markierte Stelle, aber mit klarem Aenderungswunsch: vorschlag_text = komplette neue Version der betroffenen Sektion, sektion entsprechend setzen.\n'
     + '- Bei reinen Fragen/Rueckfragen: vorschlag_text = null, sektion = null.\n'
@@ -177,16 +182,17 @@ exports.handler = async (event) => {
     const ctx = await loadEditContext(supabase, message);
     const { stable, task } = buildEditPrompt(ctx, message);
 
-    // Modellwahl pro Aufgabe
-    const model = ['kuerzen', 'laenger'].includes(message.aktion)
-      ? MODELS.edit_fast
-      : MODELS.edit_write;
+    // Modellwahl: Schreiben immer mit dem starken Modell + Extended Thinking,
+    // nur freier Chat (Fragen/Feedback) mit dem guenstigen
+    const istSchreibAktion = ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton'].includes(message.aktion);
 
     const result = await callClaude({
-      model,
+      model: istSchreibAktion ? MODELS.edit_write : MODELS.edit_fast,
       systemBlocks: [{ text: stable, cache: true }],
       userPrompt: task,
-      maxTokens: 2048
+      maxTokens: 2048,
+      thinking: istSchreibAktion,
+      thinkingBudget: 2048
     });
 
     const parsed = extractJson(result.text);

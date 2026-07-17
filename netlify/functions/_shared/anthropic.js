@@ -1,16 +1,16 @@
 // Anthropic Messages API Client (ohne SDK, nur fetch)
 // Modelle via Env konfigurierbar:
-//   ANTHROPIC_MODEL_WRITE      (Default: claude-opus-4-7)   - Skript-Schreiben
-//   ANTHROPIC_MODEL_DISTILL    (Default: claude-haiku-4-5)  - Verdichtung/Labeling
-//   ANTHROPIC_MODEL_EDIT_WRITE (Default: claude-sonnet-4-6) - Editor: Neu schreiben / Ton / Chat
-//   ANTHROPIC_MODEL_EDIT_FAST  (Default: claude-haiku-4-5)  - Editor: Kuerzen / Laenger
+//   ANTHROPIC_MODEL_WRITE      (Default: claude-opus-4-7)  - Skript-Schreiben
+//   ANTHROPIC_MODEL_DISTILL    (Default: claude-haiku-4-5) - Verdichtung/Labeling
+//   ANTHROPIC_MODEL_EDIT_WRITE (Default: claude-opus-4-6)  - Editor: alle Schreib-Aktionen (mit Extended Thinking)
+//   ANTHROPIC_MODEL_EDIT_FAST  (Default: claude-haiku-4-5) - Editor: freier Chat / Rueckfragen
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
 
 const MODELS = {
   write: process.env.ANTHROPIC_MODEL_WRITE || 'claude-opus-4-7',
   distill: process.env.ANTHROPIC_MODEL_DISTILL || 'claude-haiku-4-5',
-  edit_write: process.env.ANTHROPIC_MODEL_EDIT_WRITE || 'claude-sonnet-4-6',
+  edit_write: process.env.ANTHROPIC_MODEL_EDIT_WRITE || 'claude-opus-4-6',
   edit_fast: process.env.ANTHROPIC_MODEL_EDIT_FAST || 'claude-haiku-4-5'
 };
 
@@ -18,8 +18,10 @@ const MODELS = {
  * Ruft die Anthropic Messages API auf.
  * systemBlocks: Array von { text, cache } - cache:true setzt cache_control
  * (stabile Prefixe wie DNA/Beispiele -> ~90% Rabatt ab dem 2. Call).
+ * thinking: true aktiviert Extended Thinking (Budget via thinkingBudget,
+ * Default 2048 Tokens; max_tokens muss groesser sein als das Budget).
  */
-async function callClaude({ model, systemBlocks = [], userPrompt, maxTokens = 4096 }) {
+async function callClaude({ model, systemBlocks = [], userPrompt, maxTokens = 4096, thinking = false, thinkingBudget = 2048 }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY nicht gesetzt');
 
@@ -28,6 +30,9 @@ async function callClaude({ model, systemBlocks = [], userPrompt, maxTokens = 40
     text: b.text,
     ...(b.cache ? { cache_control: { type: 'ephemeral' } } : {})
   }));
+
+  // max_tokens umfasst bei Extended Thinking auch die Thinking-Tokens
+  const effectiveMaxTokens = thinking ? Math.max(maxTokens, thinkingBudget + 2048) : maxTokens;
 
   const res = await fetch(ANTHROPIC_API, {
     method: 'POST',
@@ -38,7 +43,8 @@ async function callClaude({ model, systemBlocks = [], userPrompt, maxTokens = 40
     },
     body: JSON.stringify({
       model,
-      max_tokens: maxTokens,
+      max_tokens: effectiveMaxTokens,
+      ...(thinking ? { thinking: { type: 'enabled', budget_tokens: thinkingBudget } } : {}),
       ...(system.length ? { system } : {}),
       messages: [{ role: 'user', content: userPrompt }]
     })
@@ -51,7 +57,8 @@ async function callClaude({ model, systemBlocks = [], userPrompt, maxTokens = 40
   }
 
   return {
-    text: (data.content || []).map((c) => c.text || '').join(''),
+    // Thinking-Bloecke ueberspringen, nur Text-Bloecke zaehlen
+    text: (data.content || []).filter((c) => c.type === 'text').map((c) => c.text || '').join(''),
     usage: data.usage || null,
     model: data.model
   };
