@@ -229,20 +229,29 @@ export class SkripteService {
   async saveFeedback(skriptId, eintraege) {
     const { data: { user } } = await this.db.auth.getUser();
     const rows = eintraege
-      .filter((e) => e.score || (e.begruendung || '').trim() || (e.korrigierte_version || '').trim())
+      .filter((e) => e.score != null || (e.begruendung || '').trim() || (e.korrigierte_version || '').trim())
       .map((e) => ({
         skript_id: skriptId,
         sektion: e.sektion,
-        score: e.score || null,
+        score: e.score ?? null,
         begruendung: (e.begruendung || '').trim() || null,
         korrigierte_version: (e.korrigierte_version || '').trim() || null,
+        selektion_text: (e.selektion_text || '').trim() || null,
+        version_nr: e.version_nr ?? null,
+        chat_message_id: e.chat_message_id || null,
         created_by: user?.id
       }));
-    if (!rows.length) return 0;
-    const { error } = await this.db.from('skript_feedback').insert(rows);
+    if (!rows.length) return [];
+    const { data, error } = await this.db.from('skript_feedback').insert(rows).select();
     if (error) throw new Error(error.message);
     await this.updateSkript(skriptId, { status: 'feedback_gegeben' });
-    return rows.length;
+    return data || [];
+  }
+
+  /** Nachtraeglicher Patch an einem Feedback-Eintrag (z.B. chat_message_id). */
+  async updateFeedback(id, patch) {
+    const { error } = await this.db.from('skript_feedback').update(patch).eq('id', id);
+    if (error) throw new Error(error.message);
   }
 
   // ------------------------------------------------------------------

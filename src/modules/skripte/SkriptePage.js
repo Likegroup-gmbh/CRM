@@ -142,10 +142,9 @@ export class SkriptePage {
     await tab.render(container);
   }
 
-  /** Vom Generator aus: Skript-Detail (Feedback) im Skripte-Tab oeffnen. */
+  /** Vom Generator aus: Skript direkt im Editor oeffnen (Feedback gibt es dort). */
   async openSkriptDetail(skriptId) {
-    await this.switchTab('skripte');
-    await this.listeTab.openDetailDrawer(skriptId);
+    await this.openEditor(skriptId);
   }
 
   // ------------------------------------------------------------------

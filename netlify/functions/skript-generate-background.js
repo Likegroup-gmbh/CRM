@@ -130,8 +130,8 @@ async function loadContext(supabase, params) {
   } else if (dna_id) {
     const { data } = await supabase.from('skript_dna')
       .select('id, name, layer_typ, version, inhalt')
-      .eq('id', dna_id).single();
-    if (!data) throw new Error('Gewaehlte DNA nicht gefunden');
+      .eq('id', dna_id).eq('status', 'aktiv').single();
+    if (!data) throw new Error('Gewaehlte DNA nicht gefunden oder nicht aktiv');
     ctx.dna = [data];
     ctx.dnaVersionen = [{ id: data.id, name: data.name, layer: data.layer_typ, version: data.version }];
   } else {

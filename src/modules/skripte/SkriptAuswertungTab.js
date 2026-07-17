@@ -48,7 +48,8 @@ export class SkriptAuswertungTab {
     const byMonat = {};
     for (const f of relevant) {
       const monat = (f.created_at || '').slice(0, 7);
-      ((byMonat[monat] = byMonat[monat] || {})[f.sektion] = byMonat[monat][f.sektion] || []).push(f.score);
+      // numeric-Spalten kommen von PostgREST als String -> in Zahl wandeln
+      ((byMonat[monat] = byMonat[monat] || {})[f.sektion] = byMonat[monat][f.sektion] || []).push(Number(f.score));
     }
 
     const monate = Object.keys(byMonat).sort();
@@ -91,13 +92,13 @@ export class SkriptAuswertungTab {
 
     const sektionen = ['hook', 'hauptteil', 'cta', 'gesamt'];
     const avgFor = (list, sektion) => {
-      const scores = list.filter((f) => f.sektion === sektion).map((f) => f.score);
+      const scores = list.filter((f) => f.sektion === sektion).map((f) => Number(f.score));
       return scores.length ? (scores.reduce((a, b) => a + b, 0) / scores.length) : null;
     };
 
     return `
       <table class="skripte-table">
-        <thead><tr><th></th>${sektionen.map((s) => `<th>${SEKTION_LABELS[s]}</th>`).join('')}<th>Bewertungen</th></tr></thead>
+        <thead><tr><th></th>${sektionen.map((s) => `<th>${SEKTION_LABELS[s]}</th>`).join('')}<th>Skripte</th><th>Bewertungen</th></tr></thead>
         <tbody>
           ${[['mit', 'Mit DNA'], ['ohne', 'Ohne DNA (blind)']].map(([key, label]) => `
             <tr>
@@ -106,6 +107,7 @@ export class SkriptAuswertungTab {
                 const a = avgFor(gruppen[key], s);
                 return `<td>${a !== null ? a.toFixed(2) : '–'}</td>`;
               }).join('')}
+              <td>${new Set(gruppen[key].map((f) => f.skript_id)).size}</td>
               <td>${gruppen[key].length}</td>
             </tr>
           `).join('')}

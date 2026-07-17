@@ -90,7 +90,7 @@ exports.handler = async (event) => {
     // 2. Skripte + Feedback im Scope dieses Layers sammeln
     // ------------------------------------------------------------------
     let skriptQuery = supabase.from('skripte')
-      .select('id, titel, hook, hauptteil, cta, performance_label, funnel_stufe, tonalitaet, mit_dna, marke_id, persona_id, branche_id')
+      .select('id, titel, hook, hauptteil, cta, performance_label, performance_notiz, funnel_stufe, tonalitaet, mit_dna, marke_id, persona_id, branche_id')
       .order('created_at', { ascending: false }).limit(40);
     if (layer_typ === 'marke') skriptQuery = skriptQuery.eq('marke_id', marke_id);
     if (layer_typ === 'zielgruppe') skriptQuery = skriptQuery.eq('persona_id', persona_id);
@@ -101,8 +101,10 @@ exports.handler = async (event) => {
     const skriptIds = (skripte || []).map((s) => s.id);
     let feedback = [];
     if (skriptIds.length) {
+      // chat_message_id-Join: wurde die aus dem Feedback generierte
+      // Ueberarbeitung angenommen/abgelehnt? (starkes Lernsignal)
       const { data } = await supabase.from('skript_feedback')
-        .select('skript_id, sektion, score, begruendung, korrigierte_version')
+        .select('skript_id, sektion, score, begruendung, korrigierte_version, selektion_text, skript_chat_messages(status)')
         .in('skript_id', skriptIds);
       feedback = data || [];
     }
@@ -124,10 +126,23 @@ exports.handler = async (event) => {
     for (const s of skripte) {
       const fbs = feedbackBySkript[s.id] || [];
       if (!fbs.length && s.performance_label === 'unbewertet') continue;
-      material += `\n--- Skript "${s.titel || s.id}" (Performance: ${s.performance_label}${s.funnel_stufe ? `, Funnel: ${s.funnel_stufe}` : ''}) ---\n`;
+      const marker = [
+        `Performance: ${s.performance_label}`,
+        s.funnel_stufe ? `Funnel: ${s.funnel_stufe}` : null,
+        // Blind-Skripte kennzeichnen: ihr Feedback bewertet NICHT die DNA
+        s.mit_dna === false ? 'generiert OHNE DNA (Blindvergleich)' : null
+      ].filter(Boolean).join(', ');
+      material += `\n--- Skript "${s.titel || s.id}" (${marker}) ---\n`;
       material += `HOOK: ${s.hook || '-'}\nHAUPTTEIL: ${s.hauptteil || '-'}\nCTA: ${s.cta || '-'}\n`;
+      if (s.performance_notiz) material += `PERFORMANCE-NOTIZ: ${s.performance_notiz}\n`;
       for (const f of fbs) {
-        material += `FEEDBACK [${f.sektion}] Score ${f.score ?? '-'}/5: ${f.begruendung || '-'}\n`;
+        const bezug = f.selektion_text ? ` zu "${f.selektion_text}"` : '';
+        const outcome = f.skript_chat_messages?.status === 'angenommen'
+          ? ' -> daraus generierte Ueberarbeitung wurde ANGENOMMEN'
+          : f.skript_chat_messages?.status === 'abgelehnt'
+            ? ' -> daraus generierte Ueberarbeitung wurde ABGELEHNT'
+            : '';
+        material += `FEEDBACK [${f.sektion}]${bezug} Score ${f.score ?? '-'}/5: ${f.begruendung || '-'}${outcome}\n`;
         if (f.korrigierte_version) material += `KORRIGIERT [${f.sektion}]: ${f.korrigierte_version}\n`;
       }
     }
@@ -143,11 +158,16 @@ exports.handler = async (event) => {
     job.step('destillation', `Feedback wird zu DNA-Entwurf verdichtet (${model})...`);
 
     const systemText = 'Du bist Analyst fuer Video-Werbeskripte. Du destillierst aus Skripten, '
-      + 'menschlichem Sektions-Feedback (Hook/Hauptteil/CTA, Scores 1-5) und Performance-Labels '
+      + 'menschlichem Sektions-Feedback (Hook/Hauptteil/CTA, Scores 1-5 mit Zwischenwerten, '
+      + 'teils mit Bezug auf eine konkrete markierte Textstelle) und Performance-Labels '
       + 'ein praezises Regelwerk ("Skript-DNA"). Regeln muessen konkret und anwendbar sein - '
       + 'keine Binsenweisheiten. Erhalte bewaehrte Regeln der bisherigen DNA, verfeinere sie mit '
       + 'neuen Erkenntnissen, entferne widerlegte Regeln. Kennzeichne NICHTS als vorlaeufig; '
       + 'schreibe das Dokument so, dass es direkt als Anweisung fuer einen Skript-Autor dient. '
+      + 'Beachte die Marker im Material: Skripte "generiert OHNE DNA (Blindvergleich)" sagen nichts '
+      + 'ueber die Qualitaet der bisherigen DNA aus - ihr Feedback ist reines Text-Lernsignal. '
+      + 'Feedback mit "-> Ueberarbeitung wurde ANGENOMMEN" ist besonders verlaesslich (der Mensch hat '
+      + 'die daraus entstandene Aenderung uebernommen), bei ABGELEHNT die daraus gezogene Regel hinterfragen. '
       + 'Struktur: Markdown mit Abschnitten Hook, Hauptteil, CTA, Tonalitaet, Anti-Patterns.';
 
     const userPrompt = `# LAYER\n${layer_typ}\n\n# BISHERIGE DNA (Version ${aktuelleDna?.version || 0})\n`

@@ -7,6 +7,7 @@
 
 import { skripteService, FUNNEL_STUFEN } from './SkripteService.js';
 import { SkriptGeneratorForm } from './SkriptGeneratorForm.js';
+import { SkriptFeedbackDrawer } from './SkriptFeedbackDrawer.js';
 import { escapeHtml, formatDate, badge, formatUsageCost } from './SkripteUtils.js';
 
 const AKTION_LABELS = {
@@ -14,7 +15,8 @@ const AKTION_LABELS = {
   kuerzen: 'Kürzen',
   laenger: 'Länger',
   anderer_ton: 'Anderer Ton',
-  chat: 'Feedback'
+  feedback: 'Feedback geben',
+  chat: 'Chat'
 };
 
 // Phosphor-Icons (Inline-SVG, skalieren ueber CSS, Farbe via currentColor)
@@ -23,6 +25,7 @@ const AKTION_ICONS = {
   kuerzen: '<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" aria-hidden="true"><path d="M157.73,113.13A8,8,0,0,1,159.82,102L227.48,55.7a8,8,0,0,1,9,13.21l-67.67,46.3a7.92,7.92,0,0,1-4.51,1.4A8,8,0,0,1,157.73,113.13Zm80.87,85.09a8,8,0,0,1-11.12,2.08L136,137.7,93.49,166.78a36,36,0,1,1-9-13.19L121.83,128,84.44,102.41a35.86,35.86,0,1,1,9-13.19l143,97.87A8,8,0,0,1,238.6,198.22ZM80,180a20,20,0,1,0-5.86,14.14A19.85,19.85,0,0,0,80,180ZM74.14,90.13a20,20,0,1,0-28.28,0A19.85,19.85,0,0,0,74.14,90.13Z"></path></svg>',
   laenger: '<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" aria-hidden="true"><path d="M216,48V96a8,8,0,0,1-16,0V67.31l-50.34,50.35a8,8,0,0,1-11.32-11.32L188.69,56H160a8,8,0,0,1,0-16h48A8,8,0,0,1,216,48ZM106.34,138.34,56,188.69V160a8,8,0,0,0-16,0v48a8,8,0,0,0,8,8H96a8,8,0,0,0,0-16H67.31l50.35-50.34a8,8,0,0,0-11.32-11.32Z"></path></svg>',
   anderer_ton: '<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" aria-hidden="true"><path d="M56,96v64a8,8,0,0,1-16,0V96a8,8,0,0,1,16,0ZM88,24a8,8,0,0,0-8,8V224a8,8,0,0,0,16,0V32A8,8,0,0,0,88,24Zm40,32a8,8,0,0,0-8,8V192a8,8,0,0,0,16,0V64A8,8,0,0,0,128,56Zm40,32a8,8,0,0,0-8,8v64a8,8,0,0,0,16,0V96A8,8,0,0,0,168,88Zm40-16a8,8,0,0,0-8,8v96a8,8,0,0,0,16,0V80A8,8,0,0,0,208,72Z"></path></svg>',
+  feedback: '<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" aria-hidden="true"><path d="M216,48H40A16,16,0,0,0,24,64V224a15.85,15.85,0,0,0,9.24,14.5A16.13,16.13,0,0,0,40,240a15.89,15.89,0,0,0,10.25-3.78l.09-.07L83,208H216a16,16,0,0,0,16-16V64A16,16,0,0,0,216,48ZM40,224h0ZM216,192H80a8,8,0,0,0-5.23,1.95L40,224V64H216ZM88,112a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H96A8,8,0,0,1,88,112Zm0,32a8,8,0,0,1,8-8h64a8,8,0,1,1,0,16H96A8,8,0,0,1,88,144Z"></path></svg>',
   chat: ''
 };
 
@@ -55,6 +58,7 @@ export class SkriptEditorView {
     this.pollInterval = null;
     this.onMouseUp = null;
     this.onDocMouseDown = null;
+    this.feedbackDrawer = new SkriptFeedbackDrawer();
 
     // Neu-Modus: Generator-Formular in der Mitte statt Hook/Hauptteil/CTA
     this.neuModus = false;
@@ -176,6 +180,10 @@ export class SkriptEditorView {
   async switchSkript(skriptId) {
     if (this.skript && skriptId === this.skript.id) return;
 
+    // Offener Feedback-Drawer gehoert zum alten Skript -> schliessen,
+    // sonst wuerde Speichern/Loeschen das falsche Skript treffen
+    this.feedbackDrawer.close();
+
     // Verbindungen des alten Skripts beenden (DOM und Maus-Listener bleiben)
     if (this.channel) {
       window.supabase.removeChannel(this.channel);
@@ -253,6 +261,8 @@ export class SkriptEditorView {
   // ------------------------------------------------------------------
   startNeuModus() {
     if (this.neuModus) return;
+
+    this.feedbackDrawer.close();
 
     // Verbindungen des offenen Skripts beenden
     if (this.channel) {
@@ -403,6 +413,7 @@ export class SkriptEditorView {
   }
 
   cleanup() {
+    this.feedbackDrawer.close();
     this.cleanupGenJob();
     this.neuModus = false;
     this.genStatus = null;
@@ -483,6 +494,10 @@ export class SkriptEditorView {
       <div class="skripte-editor-doc-head">
         <h2>${escapeHtml(this.skript.titel || 'Skript')}</h2>
         <span class="skripte-badge skripte-badge--info" title="Jede angenommene Änderung erzeugt eine neue Version">v${this.versionNr}</span>
+        <button class="skripte-editor-feedback-btn" id="ed-feedback" title="Skript komplett bewerten (Score, Performance-Label)">
+          <span class="skripte-editor-tag-icon">${AKTION_ICONS.feedback}</span>
+          <span>Feedback</span>
+        </button>
       </div>
       ${this.vorgabenPanelHtml()}
       <div class="skripte-editor-doc-box">
@@ -493,8 +508,9 @@ export class SkriptEditorView {
           </div>
         `).join('')}
       </div>
-      <p class="skripte-hint">Text markieren, um eine Stelle gezielt zu überarbeiten – oder unten Feedback eingeben.</p>
+      <p class="skripte-hint">Text markieren, um eine Stelle gezielt zu überarbeiten oder Feedback zu geben – oder unten in den Chat schreiben.</p>
     `;
+    el.querySelector('#ed-feedback')?.addEventListener('click', () => this.openVollFeedback());
   }
 
   /** Read-only Info: mit welchen Vorgaben das Skript generiert wurde. */
@@ -677,6 +693,9 @@ export class SkriptEditorView {
       footer = `<div class="skripte-editor-msg-state">${badge('Angenommen', 'success')}</div>`;
     } else if (m.status === 'abgelehnt') {
       footer = `<div class="skripte-editor-msg-state">${badge('Abgelehnt', 'danger')}</div>`;
+    } else if (m.status === 'fertig' && m.vorschlag_text) {
+      // Vorschlag ohne zuordenbare Sektion: kein Annehmen moeglich
+      footer = `<p class="skripte-hint">Der Vorschlag konnte keiner Sektion zugeordnet werden und kann nicht automatisch übernommen werden – Text bei Bedarf manuell einarbeiten oder die Anfrage mit Markierung wiederholen.</p>`;
     }
 
     return `
@@ -770,7 +789,7 @@ export class SkriptEditorView {
     this.pendingAktion = null;
     this.updateChip();
 
-    menu.innerHTML = ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton'].map((aktion) => `
+    menu.innerHTML = ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton', 'feedback'].map((aktion) => `
       <button data-aktion="${aktion}">
         <span class="skripte-editor-selmenu-icon">${AKTION_ICONS[aktion]}</span>
         <span>${AKTION_LABELS[aktion]}</span>
@@ -779,7 +798,11 @@ export class SkriptEditorView {
     menu.querySelectorAll('button').forEach((btn) => {
       btn.addEventListener('click', () => {
         menu.hidden = true;
-        this.setPendingAktion(btn.dataset.aktion);
+        if (btn.dataset.aktion === 'feedback') {
+          this.openSektionsFeedback();
+        } else {
+          this.setPendingAktion(btn.dataset.aktion);
+        }
       });
     });
 
@@ -901,9 +924,109 @@ export class SkriptEditorView {
 
       this.ensurePolling();
       await skripteService.triggerFunction('skript-edit-background', { messageId: assistantMsg.id });
+      return assistantMsg;
     } catch (err) {
       window.toastSystem?.error(err.message);
+      return null;
     }
+  }
+
+  // ------------------------------------------------------------------
+  // Feedback (Drawer): Sektions-Feedback loest Ueberarbeitung aus,
+  // Voll-Feedback ist reine Bewertung (Score, Performance-Label)
+  // ------------------------------------------------------------------
+  async openSektionsFeedback() {
+    if (!this.selektion || !this.skript) return;
+    const { sektion, text: selektionText } = this.selektion;
+    this.clearPending();
+
+    await this.feedbackDrawer.openSektion({
+      skript: this.skript,
+      sektion,
+      selektionText,
+      onSubmit: ({ score, begruendung, korrektur }) =>
+        this.submitSektionsFeedback({ sektion, selektionText, score, begruendung, korrektur })
+    });
+  }
+
+  /**
+   * 1. Feedback-Zeile speichern (die Bewertung darf nie verloren gehen;
+   *    sie bezieht sich auf den Stand VOR der Aenderung, siehe version_nr),
+   * 2. Message-Paar mit aktion 'feedback' anlegen (startet die Ueberarbeitung),
+   * 3. chat_message_id am Feedback-Eintrag nachtragen (best effort).
+   */
+  async submitSektionsFeedback({ sektion, selektionText, score, begruendung, korrektur }) {
+    let gespeichert;
+    try {
+      gespeichert = await skripteService.saveFeedback(this.skript.id, [{
+        sektion,
+        score,
+        begruendung,
+        korrigierte_version: korrektur,
+        selektion_text: selektionText,
+        version_nr: this.versionNr
+      }]);
+    } catch (err) {
+      window.toastSystem?.error(`Feedback konnte nicht gespeichert werden: ${err.message}`);
+      return;
+    }
+
+    const teile = [];
+    if (score != null) teile.push(`Bewertung der markierten Stelle: ${String(score).replace('.', ',')}/5`);
+    if (begruendung) teile.push(begruendung);
+    if (korrektur) teile.push(`So sollte es sein: ${korrektur}`);
+
+    const assistantMsg = await this.sendMessagePair({
+      aktion: 'feedback',
+      sektion,
+      selektion_text: selektionText,
+      inhalt: teile.join('\n')
+    });
+
+    if (!assistantMsg) {
+      const melden = window.toastSystem?.warning || window.toastSystem?.error;
+      melden?.call(window.toastSystem, 'Feedback gespeichert – Überarbeitung konnte nicht gestartet werden. Du kannst sie unten im Chat erneut anstoßen.');
+      return;
+    }
+
+    // Verknuepfung Bewertung <-> Ueberarbeitung (fuer spaetere Auswertung,
+    // ob der aus dem Feedback generierte Vorschlag angenommen wurde)
+    const feedbackRow = gespeichert?.[0];
+    if (feedbackRow) {
+      try {
+        await skripteService.updateFeedback(feedbackRow.id, { chat_message_id: assistantMsg.id });
+      } catch (_) { /* Verknuepfung ist best effort, Feedback + Job stehen bereits */ }
+    }
+
+    window.toastSystem?.success('Feedback gespeichert – Liky überarbeitet die Stelle');
+  }
+
+  async openVollFeedback() {
+    if (!this.skript) return;
+    await this.feedbackDrawer.openVoll({
+      skript: this.skript,
+      versionNr: this.versionNr,
+      onSaved: async () => {
+        // Branche/Label/Status koennen sich geaendert haben -> Skript neu laden
+        const fresh = await skripteService.loadSkript(this.skript.id);
+        if (fresh) {
+          this.skript = fresh;
+          const meta = document.getElementById('ed-meta');
+          if (meta) meta.innerHTML = this.metaBadgesHtml();
+          this.renderDoc();
+        }
+      },
+      onDeleted: async () => {
+        this.skripte = await skripteService.loadSkripte();
+        const naechstes = this.skripte.find((s) => s.id !== this.skript.id);
+        if (naechstes) {
+          this.skript = null;
+          await this.switchSkript(naechstes.id);
+        } else {
+          this.startNeuModus();
+        }
+      }
+    });
   }
 
   /** Erneuter Versuch: gleiche Anfrage als neue pending Assistant-Message. */
@@ -970,6 +1093,9 @@ export class SkriptEditorView {
   }
 
   async acceptVorschlag(msg) {
+    // Doppelklick-Guard: parallele Accepts kollidieren auf version_nr
+    if (this.acceptLaeuft) return;
+
     const sektion = msg.sektion;
     if (!['hook', 'hauptteil', 'cta'].includes(sektion) || !msg.vorschlag_text) {
       window.toastSystem?.error('Vorschlag kann nicht zugeordnet werden');
@@ -980,6 +1106,17 @@ export class SkriptEditorView {
     let neu;
     if (msg.selektion_text && alt.includes(msg.selektion_text)) {
       neu = alt.replace(msg.selektion_text, msg.vorschlag_text);
+    } else if (msg.selektion_text) {
+      // Markierte Stelle existiert nicht mehr (Sektion wurde zwischenzeitlich
+      // geaendert) -> nicht still die ganze Sektion ueberschreiben
+      const res = await window.confirmationModal?.open({
+        title: 'Markierte Stelle nicht mehr gefunden',
+        message: `Die ursprünglich markierte Stelle kommt in der Sektion ${SEKTION_LABELS[sektion]} nicht mehr vor (wurde sie zwischenzeitlich geändert?). Soll der Vorschlag die GESAMTE Sektion ersetzen?`,
+        confirmText: 'Gesamte Sektion ersetzen',
+        danger: true
+      });
+      if (!res?.confirmed) return;
+      neu = msg.vorschlag_text;
     } else {
       neu = msg.vorschlag_text;
     }
@@ -990,6 +1127,10 @@ export class SkriptEditorView {
       hauptteil: this.skript.hauptteil,
       cta: this.skript.cta
     };
+
+    this.acceptLaeuft = true;
+    const btns = this.container?.querySelectorAll(`[data-msg-id="${msg.id}"]`) || [];
+    btns.forEach((b) => { b.disabled = true; });
 
     try {
       await skripteService.updateSkript(this.skript.id, { [sektion]: neu });
@@ -1006,6 +1147,9 @@ export class SkriptEditorView {
       window.toastSystem?.success(`Übernommen – jetzt v${this.versionNr}`);
     } catch (err) {
       window.toastSystem?.error(err.message);
+      btns.forEach((b) => { b.disabled = false; });
+    } finally {
+      this.acceptLaeuft = false;
     }
   }
 

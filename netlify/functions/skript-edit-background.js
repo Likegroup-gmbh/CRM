@@ -22,6 +22,7 @@ const AKTION_LABELS = {
   kuerzen: 'Kürzen',
   laenger: 'Länger machen',
   anderer_ton: 'Anderer Ton',
+  feedback: 'Feedback umsetzen',
   chat: 'Freies Feedback'
 };
 
@@ -30,26 +31,37 @@ const AKTION_ANWEISUNGEN = {
   kuerzen: 'Kürze die markierte Stelle deutlich. Kernaussage und Ton beibehalten, Füllwörter und Redundanz raus.',
   laenger: 'Baue die markierte Stelle aus: mehr Detail, mehr Emotion oder ein konkretes Beispiel – ohne zu labern.',
   anderer_ton: 'Schreibe die markierte Stelle in einem anderen Ton um. Beachte die Ton-Vorgabe des Users, falls vorhanden.',
+  feedback: 'Der User hat die markierte Stelle bewertet und strukturiertes Feedback gegeben (Score, Begründung, ggf. eine Vorgabe "So sollte es sein"). Überarbeite die markierte Stelle so, dass das Feedback vollständig umgesetzt wird. Eine Vorgabe "So sollte es sein" ist verbindlich: übernimm ihre Richtung, aber formuliere sie sauber im Ton des restlichen Skripts aus.',
   chat: 'Reagiere auf das Feedback des Users. Wenn eine konkrete Textänderung sinnvoll ist, schlage sie vor. Wenn dir Informationen fehlen (z.B. wie ein CTA konkret aussehen soll), stelle eine Rückfrage statt etwas zu erfinden.'
 };
 
 // ---------------------------------------------------------------------------
-// Kontext: bewusst schlank (Skript + Namen + aktive DNA), KEIN voller
-// Generierungs-Kontext wie bei skript-generate-background.
+// Kontext: Skript + volle Persona + Briefing/Kickoff (Kurzform) + aktive DNA
+// + bisheriges strukturiertes Feedback. Beispiel-Skripte/Anti-Patterns bewusst
+// NICHT (Edit bleibt lokal, sonst blaeht der Prompt auf).
 // ---------------------------------------------------------------------------
 async function loadEditContext(supabase, message) {
   const { data: skript } = await supabase.from('skripte')
-    .select('*, unternehmen(firmenname), marke(markenname), produkt(name), personas(name, beschreibung), branchen(name)')
+    .select('*, unternehmen(firmenname), marke(markenname), produkt(name), '
+      + 'personas(name, beschreibung, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, kontext, pain_points), '
+      + 'branchen(name)')
     .eq('id', message.skript_id).single();
   if (!skript) throw new Error('Skript nicht gefunden');
 
   // Chat-Verlauf (letzte 12 Messages VOR der pending Assistant-Message)
-  const { data: history } = await supabase.from('skript_chat_messages')
+  const { data: historyRaw } = await supabase.from('skript_chat_messages')
     .select('rolle, inhalt, aktion, sektion, selektion_text, vorschlag_text, status')
     .eq('skript_id', message.skript_id)
     .neq('id', message.id)
     .order('created_at', { ascending: false })
     .limit(12);
+  const history = (historyRaw || []).reverse();
+  // Die User-Message dieses Turns (Paar zur pending Assistant-Message) steht
+  // bereits unter # AUFTRAG - aus der History streichen, sonst Duplikat
+  const last = history[history.length - 1];
+  if (last && last.rolle === 'user' && last.aktion === message.aktion && last.inhalt === message.inhalt) {
+    history.pop();
+  }
 
   // Aktive DNA-Layer passend zum Skript-Kontext (fuer Ton-Konsistenz)
   let dna = [];
@@ -66,14 +78,57 @@ async function loadEditContext(supabase, message) {
     dna = (data || []).sort((a, b) => order[a.layer_typ] - order[b.layer_typ]);
   }
 
-  return { skript, history: (history || []).reverse(), dna };
+  // Briefing (Kurzform): erst kampagnen-, dann markenspezifisch
+  let briefing = null;
+  if (skript.kampagne_id || skript.marke_id) {
+    let q = supabase.from('briefings')
+      .select('usp, must_haves, rechtlicher_hinweis')
+      .order('created_at', { ascending: false }).limit(1);
+    q = skript.kampagne_id ? q.eq('kampagne_id', skript.kampagne_id) : q.eq('marke_id', skript.marke_id);
+    const { data } = await q;
+    briefing = data?.[0] || null;
+    if (!briefing && skript.kampagne_id && skript.marke_id) {
+      const { data: fallback } = await supabase.from('briefings')
+        .select('usp, must_haves, rechtlicher_hinweis')
+        .eq('marke_id', skript.marke_id).order('created_at', { ascending: false }).limit(1);
+      briefing = fallback?.[0] || null;
+    }
+  }
+
+  // Marken-Kickoff (Kurzform): Ton + Leitplanken
+  let kickoff = null;
+  if (skript.marke_id) {
+    const { data } = await supabase.from('marke_kickoff')
+      .select('tonalitaet_sprachstil, dos_donts, rechtliche_leitplanken')
+      .eq('marke_id', skript.marke_id).order('created_at', { ascending: false }).limit(1);
+    kickoff = data?.[0] || null;
+  }
+
+  // Bisheriges strukturiertes Feedback zu diesem Skript (Voll-Feedback ist
+  // sonst fuer das Modell unsichtbar, weil es keinen Chat-Eintrag hat)
+  const { data: feedbackRaw } = await supabase.from('skript_feedback')
+    .select('sektion, score, begruendung, korrigierte_version, selektion_text, created_at')
+    .eq('skript_id', message.skript_id)
+    .order('created_at', { ascending: false })
+    .limit(10);
+  const feedback = (feedbackRaw || []).reverse();
+
+  return { skript, history, dna, briefing, kickoff, feedback };
 }
 
 // ---------------------------------------------------------------------------
 // Prompt
 // ---------------------------------------------------------------------------
+/** Objekt-Felder als "- key: value"-Zeilen (leere Werte weglassen). */
+function fmtLines(obj) {
+  return Object.entries(obj)
+    .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
+    .map(([k, v]) => `- ${k}: ${v}`)
+    .join('\n');
+}
+
 function buildEditPrompt(ctx, message) {
-  const { skript, history, dna } = ctx;
+  const { skript, history, dna, briefing, kickoff, feedback } = ctx;
 
   // Block 1 (stabil, cachebar): Rolle + DNA
   let stable = 'Du bist ein erfahrener Werbetexter fuer UGC- und Creator-Videos (TikTok, Instagram Reels) '
@@ -97,12 +152,53 @@ function buildEditPrompt(ctx, message) {
     skript.marke?.markenname ? `Marke: ${skript.marke.markenname}` : null,
     skript.unternehmen?.firmenname ? `Unternehmen: ${skript.unternehmen.firmenname}` : null,
     skript.produkt?.name ? `Produkt: ${skript.produkt.name}` : null,
-    skript.personas?.name ? `Zielgruppe: ${skript.personas.name}${skript.personas.beschreibung ? ` – ${skript.personas.beschreibung}` : ''}` : null,
     skript.branchen?.name ? `Branche: ${skript.branchen.name}` : null,
     skript.tonalitaet ? `Tonalitaet: ${skript.tonalitaet}` : null,
-    skript.funnel_stufe ? `Funnel-Stufe: ${skript.funnel_stufe}` : null
+    skript.funnel_stufe ? `Funnel-Stufe: ${skript.funnel_stufe}` : null,
+    skript.video_idee ? `Video-Idee: ${skript.video_idee}` : null,
+    skript.location ? `Location: ${skript.location}` : null,
+    skript.regieanweisung ? `Regieanweisung (nur Hintergrund-Info, gehoert NICHT in den gesprochenen Text): ${skript.regieanweisung}` : null
   ].filter(Boolean);
   if (meta.length) task += `\n# KONTEXT\n${meta.join('\n')}\n`;
+
+  // Volle Persona (gleiche Tiefe wie bei der Erstgenerierung)
+  if (skript.personas) {
+    const p = skript.personas;
+    const personaLines = fmtLines({
+      name: p.name,
+      alter: [p.alter_von, p.alter_bis].filter(Boolean).join('-') || null,
+      geschlecht: p.geschlecht,
+      wohnort_region: p.wohnort_region,
+      beruf: p.beruf,
+      budgetrahmen: p.budgetrahmen,
+      bildungsstand: p.bildungsstand,
+      lebenssituation: p.lebenssituation,
+      lebensrealitaet: p.kontext,
+      pain_points: p.pain_points,
+      beschreibung: p.beschreibung
+    });
+    if (personaLines) task += `\n# ZIELGRUPPEN-PERSONA\n${personaLines}\n`;
+  }
+
+  // Briefing/Kickoff-Leitplanken: ein Rewrite darf Must-haves und
+  // rechtliche Vorgaben nicht verletzen
+  const leitplanken = [
+    briefing ? fmtLines({ usp: briefing.usp, must_haves: briefing.must_haves, rechtlicher_hinweis: briefing.rechtlicher_hinweis }) : '',
+    kickoff ? fmtLines({ tonalitaet_sprachstil: kickoff.tonalitaet_sprachstil, dos_donts: kickoff.dos_donts, rechtliche_leitplanken: kickoff.rechtliche_leitplanken }) : ''
+  ].filter(Boolean).join('\n');
+  if (leitplanken) {
+    task += `\n# LEITPLANKEN (Briefing/Kickoff - verbindlich, auch bei Ueberarbeitungen)\n${leitplanken}\n`;
+  }
+
+  // Bisheriges strukturiertes Feedback (Score-Bewertungen aus dem Drawer)
+  if (feedback.length) {
+    task += '\n# BISHERIGES FEEDBACK ZU DIESEM SKRIPT (beruecksichtigen, nicht wiederholen)\n';
+    for (const f of feedback) {
+      const bezug = f.selektion_text ? ` zu "${f.selektion_text}"` : '';
+      task += `- [${f.sektion}]${bezug} Score ${f.score ?? '-'}/5: ${f.begruendung || '-'}\n`;
+      if (f.korrigierte_version) task += `  Vom User korrigierte Version: ${f.korrigierte_version}\n`;
+    }
+  }
 
   if (history.length) {
     task += '\n# BISHERIGER CHAT-VERLAUF\n';
@@ -133,7 +229,8 @@ function buildEditPrompt(ctx, message) {
     + (dna.length
       ? '- vorschlag_text MUSS die SKRIPT-DNA einhalten (Ton, Stil, Wortwahl, No-Gos) - auch beim Kuerzen und Verlaengern. Die DNA hat Vorrang vor eigenen stilistischen Praeferenzen.\n'
       : '')
-    + '- vorschlag_text muss zur Zielgruppe passen (siehe KONTEXT) und den Ton des restlichen Skripts erhalten.\n'
+    + '- vorschlag_text muss zur Zielgruppe passen (siehe ZIELGRUPPEN-PERSONA) und den Ton des restlichen Skripts erhalten.\n'
+    + '- vorschlag_text darf die LEITPLANKEN (Must-haves, rechtliche Vorgaben) nicht verletzen.\n'
     + '- Wenn eine markierte Stelle vorliegt, ist vorschlag_text NUR der Ersatztext fuer genau diese Stelle (nicht die ganze Sektion).\n'
     + '- Ohne markierte Stelle, aber mit klarem Aenderungswunsch: vorschlag_text = komplette neue Version der betroffenen Sektion, sektion entsprechend setzen.\n'
     + '- Bei reinen Fragen/Rueckfragen: vorschlag_text = null, sektion = null.\n'
@@ -183,14 +280,16 @@ exports.handler = async (event) => {
     const { stable, task } = buildEditPrompt(ctx, message);
 
     // Modellwahl: Schreiben immer mit dem starken Modell + Extended Thinking,
-    // nur freier Chat (Fragen/Feedback) mit dem guenstigen
-    const istSchreibAktion = ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton'].includes(message.aktion);
+    // nur freier Chat (Fragen/Rueckfragen) mit dem guenstigen
+    const istSchreibAktion = ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton', 'feedback'].includes(message.aktion);
 
     const result = await callClaude({
       model: istSchreibAktion ? MODELS.edit_write : MODELS.edit_fast,
       systemBlocks: [{ text: stable, cache: true }],
       userPrompt: task,
-      maxTokens: 2048,
+      // Schreib-Aktionen brauchen Luft: max_tokens umfasst auch die
+      // Thinking-Tokens - 2048 wuerde bei langem Hauptteil truncaten
+      maxTokens: istSchreibAktion ? 8192 : 2048,
       thinking: istSchreibAktion,
       thinkingBudget: 2048
     });
