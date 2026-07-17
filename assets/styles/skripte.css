@@ -367,6 +367,7 @@
 
 .skripte-page--editor {
   max-width: none;
+  height: 100%;
 }
 
 .skripte-editor {
@@ -374,6 +375,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+  height: 100%;
 }
 
 .skripte-editor-topbar {
@@ -396,18 +398,21 @@
   white-space: nowrap;
 }
 
-.skripte-editor-grid {
+/* Shell: EINE Karte mit drei Spalten und Hairline-Trennern (wie Figma) */
+.skripte-editor-shell {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr) 340px;
-  gap: var(--space-md);
-  align-items: stretch;
-  height: calc(100vh - 220px);
+  grid-template-columns: var(--panel-md) minmax(0, 1fr) var(--panel-lg);
+  border: var(--border-xs) solid var(--border-primary);
+  
+  background: var(--bg-primary);
+  overflow: hidden;
+  height: 100%;
   min-height: 480px;
 }
 
 @media (max-width: 1200px) {
-  .skripte-editor-grid {
-    grid-template-columns: minmax(0, 1fr) 320px;
+  .skripte-editor-shell {
+    grid-template-columns: minmax(0, 1fr) var(--panel-lg);
     height: auto;
   }
   .skripte-editor-liste {
@@ -417,14 +422,12 @@
 
 /* Linke Spalte: Skriptliste */
 .skripte-editor-liste {
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-xl);
-  background: var(--bg-primary, #fff);
+  border-right: var(--border-xs) solid var(--border-primary);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  padding: var(--space-xs);
-  gap: 2px;
+  padding: var(--space-sm);
+  gap: var(--gap-2);
 }
 
 .skripte-editor-liste-head {
@@ -439,23 +442,22 @@
 .skripte-editor-liste-item {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--gap-2);
   text-align: left;
   background: none;
   border: none;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   padding: var(--space-xs) var(--space-sm);
   cursor: pointer;
   transition: background 0.15s ease;
 }
 
 .skripte-editor-liste-item:hover {
-  background: var(--gray-100);
+  background: var(--bg-secondary);
 }
 
 .skripte-editor-liste-item.active {
-  background: var(--gray-100);
-  outline: 1px solid var(--gray-300);
+  background: var(--bg-tertiary);
 }
 
 .skripte-editor-liste-titel {
@@ -473,24 +475,23 @@
   color: var(--text-secondary);
 }
 
-/* Mittlere Spalte: Skript-Dokument + Chat-Eingabe */
+/* Mittlere Spalte: Skript-Dokument + Chat-Eingabe (Input INNERHALB der Spalte) */
 .skripte-editor-main {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: var(--space-md);
   min-width: 0;
+  padding: var(--space-lg);
+  border-right: var(--border-xs) solid var(--border-primary);
 }
 
 .skripte-editor-doc {
   flex: 1;
   overflow-y: auto;
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-xl);
-  background: var(--bg-primary, #fff);
-  padding: var(--space-lg);
   display: flex;
   flex-direction: column;
   gap: var(--space-md);
+  min-height: 0;
 }
 
 .skripte-editor-doc-head {
@@ -505,6 +506,16 @@
   flex: 1;
 }
 
+/* Content-Box in Grau (wie Figma) */
+.skripte-editor-doc-box {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-xl);
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
 .skripte-editor-sektion {
   display: flex;
   flex-direction: column;
@@ -515,43 +526,61 @@
   white-space: pre-wrap;
   line-height: 1.6;
   border-radius: var(--radius-md);
-  padding: var(--space-xs) 0;
 }
 
 .skripte-editor-sektion-text::selection,
 .skripte-editor-sektion-text *::selection {
-  background: #bfdbfe;
+  background: var(--badge-blue-bg);
 }
 
-/* Selektions-Menue (Neu schreiben / Kuerzen / Laenger / Anderer Ton) */
+/* Selektions-Menue (vertikal, wie Figma) */
 .skripte-editor-selmenu {
   position: absolute;
   z-index: 50;
   display: flex;
-  gap: 2px;
-  background: var(--bg-primary, #fff);
-  border: 1px solid var(--gray-200);
+  flex-direction: column;
+  gap: var(--gap-2);
+  min-width: var(--min-width-md);
+  background: var(--bg-primary);
+  border: var(--border-xs) solid var(--border-primary);
   border-radius: var(--radius-lg);
-  padding: 4px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: var(--space-xxs);
+  box-shadow: var(--shadow-lg);
+}
+
+.skripte-editor-selmenu[hidden] {
+  display: none;
 }
 
 .skripte-editor-selmenu button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
   background: none;
   border: none;
   border-radius: var(--radius-md);
-  padding: var(--space-xxs) var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
   font-size: var(--text-sm);
   cursor: pointer;
   white-space: nowrap;
+  text-align: left;
   color: var(--text-primary);
 }
 
 .skripte-editor-selmenu button:hover {
-  background: var(--gray-100);
+  background: var(--bg-tertiary);
 }
 
-/* Chat-Eingabe unter dem Dokument */
+.skripte-editor-selmenu-icon {
+  display: inline-flex;
+}
+
+.skripte-editor-selmenu-icon svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+/* Chat-Eingabe am Ende der Mittelspalte */
 .skripte-editor-inputwrap {
   display: flex;
   flex-direction: column;
@@ -559,16 +588,21 @@
 }
 
 .skripte-editor-chip {
+  display: flex;
   align-items: center;
   gap: var(--space-xs);
   align-self: flex-start;
   font-size: var(--text-xs);
   color: var(--text-secondary);
-  background: var(--gray-100);
-  border: 1px solid var(--gray-200);
-  border-radius: 999px;
+  background: var(--bg-tertiary);
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-xxl);
   padding: var(--space-xxs) var(--space-sm);
   max-width: 100%;
+}
+
+.skripte-editor-chip[hidden] {
+  display: none;
 }
 
 .skripte-editor-chip span {
@@ -587,24 +621,23 @@
   padding: 0;
 }
 
+/* Input-Karte: Textarea oben, Footer mit Tokens + Send unten rechts (Figma) */
 .skripte-editor-input {
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
   gap: var(--space-xs);
-  border: 1px solid var(--gray-300);
+  border: var(--border-xs) solid var(--border-primary);
   border-radius: var(--radius-xl);
-  background: var(--bg-primary, #fff);
-  padding: var(--space-xs) var(--space-sm);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  background: var(--bg-primary);
+  padding: var(--space-sm) var(--space-md);
+  box-shadow: var(--shadow-sm);
 }
 
 .skripte-editor-input:focus-within {
-  border-color: var(--gray-600);
-  box-shadow: 0 0 0 3px rgba(82, 82, 82, 0.1);
+  border-color: var(--border-focus);
 }
 
 .skripte-editor-input textarea {
-  flex: 1;
   border: none;
   outline: none;
   resize: none;
@@ -615,36 +648,44 @@
   color: var(--text-primary);
 }
 
+.skripte-editor-input-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+}
+
 .skripte-editor-send {
   background: var(--gray-900);
-  color: #fff;
+  color: var(--text-inverse);
   border: none;
-  border-radius: 50%;
-  width: 32px;
-  height: 32px;
+  border-radius: var(--radius-xxl);
+  width: var(--icon-lg);
+  height: var(--icon-lg);
   flex-shrink: 0;
   cursor: pointer;
-  font-size: var(--text-sm);
   display: flex;
   align-items: center;
   justify-content: center;
   transition: opacity 0.15s ease;
 }
 
+.skripte-editor-send svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
 .skripte-editor-send:hover {
   opacity: 0.85;
 }
 
-/* Rechte Spalte: Chat-Verlauf */
+/* Rechte Spalte: Chat-Verlauf ("Liky") */
 .skripte-editor-chat {
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-xl);
-  background: var(--bg-primary, #fff);
   overflow-y: auto;
-  padding: var(--space-md);
+  padding: var(--space-lg);
   display: flex;
   flex-direction: column;
-  gap: var(--space-md);
+  gap: var(--space-lg);
 }
 
 .skripte-editor-chat-empty {
@@ -666,18 +707,47 @@
   font-size: var(--text-sm);
 }
 
+/* User-Message: rechtsbuendig, ohne Bubble (Figma) */
 .skripte-editor-msg--user {
   align-self: flex-end;
   align-items: flex-end;
-  background: var(--gray-100);
-  border-radius: var(--radius-lg);
-  padding: var(--space-xs) var(--space-sm);
+  text-align: right;
   max-width: 90%;
 }
 
 .skripte-editor-msg--assistant {
   align-self: flex-start;
   align-items: flex-start;
+}
+
+/* "Liky"-Kopfzeile mit Avatar */
+.skripte-editor-msg-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.skripte-editor-avatar {
+  width: var(--icon-md);
+  height: var(--icon-md);
+  border-radius: var(--radius-xxl);
+  background: var(--gray-900);
+  color: var(--text-inverse);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.skripte-editor-avatar svg {
+  width: var(--text-xs);
+  height: var(--text-xs);
+}
+
+.skripte-editor-msg-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .skripte-editor-msg-text {
@@ -688,33 +758,40 @@
 .skripte-editor-msg-quote {
   font-size: var(--text-xs);
   color: var(--text-secondary);
-  border-left: 2px solid var(--gray-300);
+  border-left: var(--border-sm) solid var(--border-secondary);
   padding-left: var(--space-xs);
   white-space: pre-wrap;
+  text-align: left;
 }
 
 .skripte-editor-msg-error {
-  color: #991b1b;
-  background: #fee2e2;
+  color: var(--red-800);
+  background: var(--danger-bg);
   border-radius: var(--radius-md);
   padding: var(--space-xs) var(--space-sm);
 }
 
+/* Aktions-Tag: helle Pill mit Icon (Figma) */
 .skripte-editor-tag {
   display: inline-flex;
   align-items: center;
   gap: var(--space-xxs);
   font-size: var(--text-xs);
   font-weight: 600;
-  background: var(--gray-900);
-  color: #fff;
-  border-radius: 999px;
-  padding: 2px var(--space-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-xxl);
+  padding: var(--space-xxs) var(--space-sm);
 }
 
-.skripte-editor-msg--user .skripte-editor-tag {
-  background: var(--gray-200);
-  color: var(--text-primary);
+.skripte-editor-tag-icon {
+  display: inline-flex;
+}
+
+.skripte-editor-tag-icon svg {
+  width: 1em;
+  height: 1em;
 }
 
 .skripte-editor-working {
@@ -727,13 +804,13 @@
 
 .skripte-editor-dots {
   display: inline-flex;
-  gap: 3px;
+  gap: var(--gap-2);
 }
 
 .skripte-editor-dots i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
+  width: var(--space-xxs);
+  height: var(--space-xxs);
+  border-radius: var(--radius-xxl);
   background: var(--text-secondary);
   animation: skripteEditorBlink 1.2s infinite;
 }
@@ -747,21 +824,21 @@
 }
 
 .skripte-editor-vorschlag {
-  border: 1px solid var(--gray-200);
-  border-left: 3px solid var(--color-primary);
+  border: var(--border-xs) solid var(--border-primary);
+  border-left: var(--border-md) solid var(--color-primary);
   border-radius: var(--radius-md);
   padding: var(--space-xs) var(--space-sm);
-  background: var(--gray-50, #f9fafb);
+  background: var(--bg-secondary);
   width: 100%;
   box-sizing: border-box;
 }
 
 .skripte-editor-vorschlag.is-angenommen {
-  border-left-color: #16a34a;
+  border-left-color: var(--color-success);
 }
 
 .skripte-editor-vorschlag.is-abgelehnt {
-  border-left-color: #dc2626;
+  border-left-color: var(--color-error);
   opacity: 0.6;
 }
 
@@ -779,16 +856,38 @@
   line-height: 1.5;
 }
 
+/* Vorschlags-Buttons: vertikal gestapelte Pills (Figma) */
 .skripte-editor-msg-actions {
   display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-xs);
-  flex-wrap: wrap;
 }
 
-.skripte-editor-msg-actions .primary-btn,
-.skripte-editor-msg-actions .secondary-btn {
-  font-size: var(--text-xs);
+.skripte-editor-pill-btn {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-xxl);
   padding: var(--space-xxs) var(--space-sm);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.skripte-editor-pill-btn:hover {
+  background: var(--gray-200);
+}
+
+.skripte-editor-pill-btn--primary {
+  background: var(--gray-900);
+  color: var(--text-inverse);
+  border-color: var(--gray-900);
+}
+
+.skripte-editor-pill-btn--primary:hover {
+  background: var(--gray-800);
 }
 
 /* Listen-Zeile: Oeffnen + Feedback nebeneinander */

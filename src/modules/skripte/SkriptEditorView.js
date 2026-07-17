@@ -1,8 +1,8 @@
 // SkriptEditorView.js
-// Chat-basierter Skript-Editor (3 Spalten, nach Figma-Entwurf):
+// Chat-basierter Skript-Editor (3 Spalten in einer Shell, nach Figma):
 //   links   Skriptliste zum Umschalten
 //   mitte   Skript (Hook/Hauptteil/CTA) mit Selektions-Menue + Chat-Eingabe
-//   rechts  Chat-Verlauf mit Aktions-Tag, Status und Annehmen/Ablehnen
+//   rechts  Chat-Verlauf ("Liky") mit Aktions-Tag, Status und Annehmen/Ablehnen
 // Die Assistant-Message in skript_chat_messages ist der Job (Realtime + Poll).
 
 import { skripteService } from './SkripteService.js';
@@ -16,15 +16,21 @@ const AKTION_LABELS = {
   chat: 'Feedback'
 };
 
+// Phosphor-Icons (Inline-SVG, skalieren ueber CSS, Farbe via currentColor)
 const AKTION_ICONS = {
-  neu_schreiben: '&#9998;',
-  kuerzen: '&#9986;',
-  laenger: '&#8597;',
-  anderer_ton: '&#119070;',
-  chat: '&#128172;'
+  neu_schreiben: '<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" aria-hidden="true"><path d="M48,64a8,8,0,0,1,8-8H72V40a8,8,0,0,1,16,0V56h16a8,8,0,0,1,0,16H88V88a8,8,0,0,1-16,0V72H56A8,8,0,0,1,48,64ZM184,192h-8v-8a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0v-8h8a8,8,0,0,0,0-16Zm56-48H224V128a8,8,0,0,0-16,0v16H192a8,8,0,0,0,0,16h16v16a8,8,0,0,0,16,0V160h16a8,8,0,0,0,0-16ZM219.31,80,80,219.31a16,16,0,0,1-22.62,0L36.68,198.63a16,16,0,0,1,0-22.63L176,36.69a16,16,0,0,1,22.63,0l20.68,20.68A16,16,0,0,1,219.31,80Zm-54.63,32L144,91.31l-96,96L68.68,208ZM208,68.69,187.31,48l-32,32L176,100.69Z"></path></svg>',
+  kuerzen: '<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" aria-hidden="true"><path d="M157.73,113.13A8,8,0,0,1,159.82,102L227.48,55.7a8,8,0,0,1,9,13.21l-67.67,46.3a7.92,7.92,0,0,1-4.51,1.4A8,8,0,0,1,157.73,113.13Zm80.87,85.09a8,8,0,0,1-11.12,2.08L136,137.7,93.49,166.78a36,36,0,1,1-9-13.19L121.83,128,84.44,102.41a35.86,35.86,0,1,1,9-13.19l143,97.87A8,8,0,0,1,238.6,198.22ZM80,180a20,20,0,1,0-5.86,14.14A19.85,19.85,0,0,0,80,180ZM74.14,90.13a20,20,0,1,0-28.28,0A19.85,19.85,0,0,0,74.14,90.13Z"></path></svg>',
+  laenger: '<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" aria-hidden="true"><path d="M216,48V96a8,8,0,0,1-16,0V67.31l-50.34,50.35a8,8,0,0,1-11.32-11.32L188.69,56H160a8,8,0,0,1,0-16h48A8,8,0,0,1,216,48ZM106.34,138.34,56,188.69V160a8,8,0,0,0-16,0v48a8,8,0,0,0,8,8H96a8,8,0,0,0,0-16H67.31l50.35-50.34a8,8,0,0,0-11.32-11.32Z"></path></svg>',
+  anderer_ton: '<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" aria-hidden="true"><path d="M56,96v64a8,8,0,0,1-16,0V96a8,8,0,0,1,16,0ZM88,24a8,8,0,0,0-8,8V224a8,8,0,0,0,16,0V32A8,8,0,0,0,88,24Zm40,32a8,8,0,0,0-8,8V192a8,8,0,0,0,16,0V64A8,8,0,0,0,128,56Zm40,32a8,8,0,0,0-8,8v64a8,8,0,0,0,16,0V96A8,8,0,0,0,168,88Zm40-16a8,8,0,0,0-8,8v96a8,8,0,0,0,16,0V80A8,8,0,0,0,208,72Z"></path></svg>',
+  chat: ''
 };
 
+const SEND_ICON = '<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" aria-hidden="true"><path d="M231.87,114l-168-95.89A16,16,0,0,0,40.92,37.34L71.55,128,40.92,218.67A16,16,0,0,0,56,240a16.15,16.15,0,0,0,7.93-2.1l167.92-96.05a16,16,0,0,0,.05-27.89ZM56,224a.56.56,0,0,0,0-.12L85.74,136H144a8,8,0,0,0,0-16H85.74L56.06,32.16A.46.46,0,0,0,56,32l168,95.83Z"></path></svg>';
+
 const SEKTION_LABELS = { hook: 'HOOK', hauptteil: 'HAUPTTEIL', cta: 'CTA', gesamt: 'GESAMT' };
+
+const PLACEHOLDER_DEFAULT = 'Feedback geben oder Frage stellen…';
+const PLACEHOLDER_AKTION = 'Anweisung ergänzen (optional) – Enter startet';
 
 export class SkriptEditorView {
   constructor(page) {
@@ -34,6 +40,7 @@ export class SkriptEditorView {
     this.messages = [];
     this.versionNr = 1;
     this.selektion = null; // { sektion, text }
+    this.pendingAktion = null; // 'neu_schreiben' | 'kuerzen' | 'laenger' | 'anderer_ton' | null
     this.channel = null;
     this.pollInterval = null;
     this.onMouseUp = null;
@@ -87,23 +94,25 @@ export class SkriptEditorView {
             ${this.skript.personas?.name ? badge(this.skript.personas.name, 'info') : ''}
             ${badge(this.skript.mit_dna === false ? 'ohne DNA' : 'mit DNA', this.skript.mit_dna === false ? 'neutral' : 'success')}
           </div>
-          <span class="skripte-editor-cost" id="ed-cost"></span>
         </div>
-        <div class="skripte-editor-grid">
+        <div class="skripte-editor-shell">
           <aside class="skripte-editor-liste" id="ed-liste"></aside>
           <main class="skripte-editor-main">
             <div class="skripte-editor-doc" id="ed-doc"></div>
             <div class="skripte-editor-inputwrap">
-              <div class="skripte-editor-chip" id="ed-chip" style="display:none;"></div>
+              <div class="skripte-editor-chip" id="ed-chip" hidden></div>
               <div class="skripte-editor-input">
-                <textarea id="ed-input" rows="2" placeholder="Feedback geben oder Frage stellen…"></textarea>
-                <button id="ed-send" class="skripte-editor-send" title="Senden" aria-label="Senden">&#10148;</button>
+                <textarea id="ed-input" rows="2" placeholder="${PLACEHOLDER_DEFAULT}"></textarea>
+                <div class="skripte-editor-input-footer">
+                  <span class="skripte-editor-cost" id="ed-cost"></span>
+                  <button id="ed-send" class="skripte-editor-send" title="Senden" aria-label="Senden">${SEND_ICON}</button>
+                </div>
               </div>
             </div>
           </main>
           <aside class="skripte-editor-chat" id="ed-chat"></aside>
         </div>
-        <div class="skripte-editor-selmenu" id="ed-selmenu" style="display:none;"></div>
+        <div class="skripte-editor-selmenu" id="ed-selmenu" hidden></div>
       </div>
     `;
 
@@ -131,6 +140,7 @@ export class SkriptEditorView {
       this.onDocMouseDown = null;
     }
     this.selektion = null;
+    this.pendingAktion = null;
   }
 
   // ------------------------------------------------------------------
@@ -166,18 +176,20 @@ export class SkriptEditorView {
         <h2>${escapeHtml(this.skript.titel || 'Skript')}</h2>
         <span class="skripte-badge skripte-badge--info" title="Jede angenommene Änderung erzeugt eine neue Version">v${this.versionNr}</span>
       </div>
+      <div class="skripte-editor-doc-box">
+        ${['hook', 'hauptteil', 'cta'].map((sektion) => `
+          <div class="skripte-editor-sektion" data-sektion="${sektion}">
+            <div class="skripte-sektion-label">${SEKTION_LABELS[sektion]}</div>
+            <div class="skripte-editor-sektion-text" data-sektion="${sektion}">${escapeHtml(this.skript[sektion] || '–')}</div>
+          </div>
+        `).join('')}
+      </div>
       <p class="skripte-hint">Text markieren, um eine Stelle gezielt zu überarbeiten – oder unten Feedback eingeben.</p>
-      ${['hook', 'hauptteil', 'cta'].map((sektion) => `
-        <div class="skripte-editor-sektion" data-sektion="${sektion}">
-          <div class="skripte-sektion-label">${SEKTION_LABELS[sektion]}</div>
-          <div class="skripte-editor-sektion-text" data-sektion="${sektion}">${escapeHtml(this.skript[sektion] || '–')}</div>
-        </div>
-      `).join('')}
     `;
   }
 
   // ------------------------------------------------------------------
-  // Rechte Spalte: Chat-Verlauf
+  // Rechte Spalte: Chat-Verlauf ("Liky")
   // ------------------------------------------------------------------
   renderChat() {
     const el = document.getElementById('ed-chat');
@@ -202,28 +214,37 @@ export class SkriptEditorView {
     el.scrollTop = el.scrollHeight;
   }
 
+  renderAktionTag(m) {
+    if (!m.aktion || m.aktion === 'chat') return '';
+    const icon = AKTION_ICONS[m.aktion] ? `<span class="skripte-editor-tag-icon">${AKTION_ICONS[m.aktion]}</span>` : '';
+    const sektion = m.sektion && m.sektion !== 'gesamt' ? ` · ${SEKTION_LABELS[m.sektion]}` : '';
+    return `<span class="skripte-editor-tag">${icon}${escapeHtml(AKTION_LABELS[m.aktion])}${sektion}</span>`;
+  }
+
   renderMessage(m) {
     if (m.rolle === 'user') {
-      const tag = m.aktion && m.aktion !== 'chat'
-        ? `<span class="skripte-editor-tag">${AKTION_ICONS[m.aktion] || ''} ${escapeHtml(AKTION_LABELS[m.aktion])}${m.sektion && m.sektion !== 'gesamt' ? ` · ${SEKTION_LABELS[m.sektion]}` : ''}</span>`
-        : '';
       return `
         <div class="skripte-editor-msg skripte-editor-msg--user">
-          ${tag}
+          ${this.renderAktionTag(m)}
           ${m.inhalt ? `<div class="skripte-editor-msg-text">${escapeHtml(m.inhalt)}</div>` : ''}
           ${m.selektion_text ? `<div class="skripte-editor-msg-quote">${escapeHtml(m.selektion_text)}</div>` : ''}
         </div>
       `;
     }
 
-    // Assistant
-    const tag = m.aktion
-      ? `<span class="skripte-editor-tag">${AKTION_ICONS[m.aktion] || ''} ${escapeHtml(AKTION_LABELS[m.aktion])}${m.sektion && m.sektion !== 'gesamt' ? ` · ${SEKTION_LABELS[m.sektion]}` : ''}</span>`
-      : '';
+    // Assistant ("Liky")
+    const head = `
+      <div class="skripte-editor-msg-head">
+        <span class="skripte-editor-avatar">${SEND_ICON}</span>
+        <span class="skripte-editor-msg-name">Liky</span>
+      </div>
+    `;
+    const tag = this.renderAktionTag(m);
 
     if (m.status === 'pending' || m.status === 'running') {
       return `
         <div class="skripte-editor-msg skripte-editor-msg--assistant">
+          ${head}
           ${tag}
           <div class="skripte-editor-working"><span class="skripte-editor-dots"><i></i><i></i><i></i></span> Ich arbeite gerade…</div>
         </div>
@@ -233,10 +254,11 @@ export class SkriptEditorView {
     if (m.status === 'error') {
       return `
         <div class="skripte-editor-msg skripte-editor-msg--assistant">
+          ${head}
           ${tag}
           <div class="skripte-editor-msg-error">Fehler: ${escapeHtml(m.error_message || 'Unbekannt')}</div>
           <div class="skripte-editor-msg-actions">
-            <button class="secondary-btn" data-msg-action="retry" data-msg-id="${m.id}">Nochmal versuchen</button>
+            <button class="skripte-editor-pill-btn" data-msg-action="retry" data-msg-id="${m.id}">Nochmal versuchen</button>
           </div>
         </div>
       `;
@@ -253,9 +275,9 @@ export class SkriptEditorView {
     if (m.status === 'vorschlag') {
       footer = `
         <div class="skripte-editor-msg-actions">
-          <button class="primary-btn" data-msg-action="accept" data-msg-id="${m.id}">Änderung annehmen</button>
-          <button class="secondary-btn" data-msg-action="reject" data-msg-id="${m.id}">Ablehnen</button>
-          <button class="secondary-btn" data-msg-action="retry" data-msg-id="${m.id}">Neu schreiben</button>
+          <button class="skripte-editor-pill-btn skripte-editor-pill-btn--primary" data-msg-action="accept" data-msg-id="${m.id}">Änderung annehmen</button>
+          <button class="skripte-editor-pill-btn" data-msg-action="reject" data-msg-id="${m.id}">Änderung ablehnen</button>
+          <button class="skripte-editor-pill-btn" data-msg-action="retry" data-msg-id="${m.id}">Neu schreiben</button>
         </div>
       `;
     } else if (m.status === 'angenommen') {
@@ -266,6 +288,7 @@ export class SkriptEditorView {
 
     return `
       <div class="skripte-editor-msg skripte-editor-msg--assistant">
+        ${head}
         ${tag}
         ${m.inhalt ? `<div class="skripte-editor-msg-text">${escapeHtml(m.inhalt)}</div>` : ''}
         ${vorschlagBlock}
@@ -299,6 +322,9 @@ export class SkriptEditorView {
         e.preventDefault();
         this.sendChat();
       }
+      if (e.key === 'Escape' && this.pendingAktion) {
+        this.clearPending();
+      }
     });
 
     // Selektions-Menue: nach Mouseup pruefen, ob Auswahl in einer Sektion liegt
@@ -312,8 +338,8 @@ export class SkriptEditorView {
 
     this.onDocMouseDown = (e) => {
       const menu = document.getElementById('ed-selmenu');
-      if (menu && menu.style.display !== 'none' && !menu.contains(e.target)) {
-        menu.style.display = 'none';
+      if (menu && !menu.hidden && !menu.contains(e.target)) {
+        menu.hidden = true;
       }
     };
     document.addEventListener('mousedown', this.onDocMouseDown);
@@ -327,7 +353,7 @@ export class SkriptEditorView {
     const sel = window.getSelection();
     const text = sel?.toString().trim();
     if (!sel || sel.isCollapsed || !text) {
-      menu.style.display = 'none';
+      menu.hidden = true;
       return;
     }
 
@@ -339,84 +365,107 @@ export class SkriptEditorView {
     const start = findSektion(sel.anchorNode);
     const end = findSektion(sel.focusNode);
     if (!start || start !== end) {
-      menu.style.display = 'none';
+      menu.hidden = true;
       return;
     }
 
     const sektion = start.dataset.sektion;
     this.selektion = { sektion, text };
-    this.showSelectionChip();
+    this.pendingAktion = null;
+    this.updateChip();
 
     menu.innerHTML = ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton'].map((aktion) => `
-      <button data-aktion="${aktion}">${AKTION_ICONS[aktion]} ${AKTION_LABELS[aktion]}</button>
+      <button data-aktion="${aktion}">
+        <span class="skripte-editor-selmenu-icon">${AKTION_ICONS[aktion]}</span>
+        <span>${AKTION_LABELS[aktion]}</span>
+      </button>
     `).join('');
     menu.querySelectorAll('button').forEach((btn) => {
       btn.addEventListener('click', () => {
-        menu.style.display = 'none';
-        this.startAktion(btn.dataset.aktion);
+        menu.hidden = true;
+        this.setPendingAktion(btn.dataset.aktion);
       });
     });
 
     // Position: unter dem Ende der Auswahl, relativ zum Editor-Wrapper
+    // (dynamische Koordinaten gehen nur per JS)
     const wrap = this.container.querySelector('.skripte-editor');
     const rect = sel.getRangeAt(0).getBoundingClientRect();
     const wrapRect = wrap.getBoundingClientRect();
-    menu.style.display = 'flex';
+    menu.hidden = false;
     menu.style.top = `${rect.bottom - wrapRect.top + 6}px`;
-    menu.style.left = `${Math.max(8, Math.min(rect.left - wrapRect.left, wrap.clientWidth - 340))}px`;
+    menu.style.left = `${Math.max(8, Math.min(rect.left - wrapRect.left, wrap.clientWidth - 220))}px`;
   }
 
-  showSelectionChip() {
+  /**
+   * Aktion vormerken statt sofort auszufuehren: Der User kann erst noch
+   * eine Anweisung eintippen (optional), Senden startet die Aktion.
+   */
+  setPendingAktion(aktion) {
+    if (!this.selektion) return;
+    this.pendingAktion = aktion;
+    window.getSelection()?.removeAllRanges();
+    this.updateChip();
+
+    const input = document.getElementById('ed-input');
+    if (input) {
+      input.placeholder = PLACEHOLDER_AKTION;
+      input.focus();
+    }
+  }
+
+  clearPending() {
+    this.selektion = null;
+    this.pendingAktion = null;
+    this.updateChip();
+    window.getSelection()?.removeAllRanges();
+    const input = document.getElementById('ed-input');
+    if (input) input.placeholder = PLACEHOLDER_DEFAULT;
+  }
+
+  updateChip() {
     const chip = document.getElementById('ed-chip');
     if (!chip) return;
     if (!this.selektion) {
-      chip.style.display = 'none';
+      chip.hidden = true;
       return;
     }
     const kurz = this.selektion.text.length > 60 ? `${this.selektion.text.slice(0, 60)}…` : this.selektion.text;
-    chip.style.display = 'flex';
+    const prefix = this.pendingAktion
+      ? `${AKTION_LABELS[this.pendingAktion]} · ${SEKTION_LABELS[this.selektion.sektion]}`
+      : `Auswahl · ${SEKTION_LABELS[this.selektion.sektion]}`;
+    chip.hidden = false;
     chip.innerHTML = `
-      <span>Auswahl · ${SEKTION_LABELS[this.selektion.sektion]}: „${escapeHtml(kurz)}“</span>
-      <button id="ed-chip-clear" title="Auswahl entfernen" aria-label="Auswahl entfernen">&times;</button>
+      ${this.pendingAktion && AKTION_ICONS[this.pendingAktion] ? `<span class="skripte-editor-tag-icon">${AKTION_ICONS[this.pendingAktion]}</span>` : ''}
+      <span>${escapeHtml(prefix)}: „${escapeHtml(kurz)}“</span>
+      <button id="ed-chip-clear" title="Abbrechen" aria-label="Abbrechen">&times;</button>
     `;
-    chip.querySelector('#ed-chip-clear').addEventListener('click', () => {
-      this.selektion = null;
-      chip.style.display = 'none';
-      window.getSelection()?.removeAllRanges();
-    });
+    chip.querySelector('#ed-chip-clear').addEventListener('click', () => this.clearPending());
   }
 
   // ------------------------------------------------------------------
-  // Aktionen ausloesen (Selektions-Menue oder Chat-Input)
+  // Senden (freies Feedback oder vorgemerkte Aktion)
   // ------------------------------------------------------------------
-  async startAktion(aktion, userText = null) {
-    if (!this.selektion) return;
-    const { sektion, text } = this.selektion;
-
-    let inhalt = userText;
-    if (aktion === 'anderer_ton' && !inhalt) {
-      inhalt = window.prompt('Welcher Ton soll es werden? (z.B. lockerer, emotionaler, seriöser)') || null;
-      if (inhalt === null) return;
-      inhalt = inhalt.trim() || null;
-    }
-
-    this.selektion = null;
-    this.showSelectionChip();
-    window.getSelection()?.removeAllRanges();
-
-    await this.sendMessagePair({ aktion, sektion, selektion_text: text, inhalt });
-  }
-
   async sendChat() {
     const input = document.getElementById('ed-input');
-    const text = input?.value.trim();
+    const text = input?.value.trim() || '';
+
+    // Vorgemerkte Aktion: Anweisung ist optional, leer erlaubt
+    if (this.pendingAktion && this.selektion) {
+      const { sektion, text: selektionText } = this.selektion;
+      const aktion = this.pendingAktion;
+      input.value = '';
+      this.clearPending();
+      await this.sendMessagePair({ aktion, sektion, selektion_text: selektionText, inhalt: text || null });
+      return;
+    }
+
+    // Freies Feedback braucht Text
     if (!text) return;
     input.value = '';
 
     const sel = this.selektion;
-    this.selektion = null;
-    this.showSelectionChip();
-    window.getSelection()?.removeAllRanges();
+    this.clearPending();
 
     await this.sendMessagePair({
       aktion: 'chat',
