@@ -46,25 +46,38 @@ export class SkripteService {
     return data || [];
   }
 
-  async loadKampagnen(markeId) {
+  /**
+   * Kampagnen zum Kontext: mit Marke nach marke_id gefiltert, ohne Marke
+   * (Unternehmen ohne Marken bzw. "Keine" gewaehlt) nach unternehmen_id.
+   */
+  async loadKampagnen({ markeId = null, unternehmenId = null } = {}) {
     let q = this.db.from('kampagne')
-      .select('id, kampagnenname, eigener_name, marke_id')
+      .select('id, kampagnenname, eigener_name, marke_id, unternehmen_id')
       .order('created_at', { ascending: false });
     if (markeId) q = q.eq('marke_id', markeId);
+    else if (unternehmenId) q = q.eq('unternehmen_id', unternehmenId);
     const { data } = await q;
     return data || [];
   }
 
-  async loadProdukte(markeId) {
-    let q = this.db.from('produkt').select('id, name, marke_id').order('name');
+  async loadProdukte({ markeId = null, unternehmenId = null } = {}) {
+    let q = this.db.from('produkt').select('id, name, marke_id, unternehmen_id').order('name');
     if (markeId) q = q.eq('marke_id', markeId);
+    else if (unternehmenId) q = q.eq('unternehmen_id', unternehmenId);
     const { data } = await q;
     return data || [];
   }
 
   async loadPersonas() {
-    const { data } = await this.db.from('personas').select('*').order('name');
+    const { data } = await this.db.from('personas').select('*')
+      .order('oberbegriff', { nullsFirst: false }).order('name');
     return data || [];
+  }
+
+  /** Anzeige-Label einer Persona: "Oberbegriff (Name)", Fallback nur Name. */
+  personaLabel(p) {
+    if (!p) return '';
+    return p.oberbegriff ? `${p.oberbegriff} (${p.name})` : p.name;
   }
 
   async loadBranchen() {
@@ -101,7 +114,7 @@ export class SkripteService {
 
   async loadSkript(id) {
     const { data } = await this.db.from('skripte')
-      .select('*, unternehmen(firmenname), marke(markenname), kampagne(kampagnenname, eigener_name), produkt(name), personas(name), branchen(name)')
+      .select('*, unternehmen(firmenname), marke(markenname), kampagne(kampagnenname, eigener_name), produkt(name), personas(name, oberbegriff), branchen(name)')
       .eq('id', id).single();
     return data;
   }
@@ -123,6 +136,37 @@ export class SkripteService {
   async deleteSkript(id) {
     const { error } = await this.db.from('skripte').delete().eq('id', id);
     if (error) throw new Error(error.message);
+  }
+
+  /**
+   * Stub fuer die Rueckfragen-Phase: Skript-Row mit allen Generator-Vorgaben,
+   * aber ohne Inhalt (status 'fragen'). Der volle Generator-Payload wird in
+   * prompt_kontext gemerkt, damit Rueckfragen + finale Generierung ihn auch
+   * nach einem Reload noch haben.
+   */
+  async createSkriptStub(payload) {
+    const { data: { user } } = await this.db.auth.getUser();
+    const { data, error } = await this.db.from('skripte').insert({
+      titel: payload.video_idee ? payload.video_idee.slice(0, 60) : null,
+      unternehmen_id: payload.unternehmen_id || null,
+      marke_id: payload.marke_id || null,
+      kampagne_id: payload.kampagne_id || null,
+      produkt_id: payload.produkt_id || null,
+      persona_id: payload.persona_id || null,
+      branche_id: payload.branche_id || null,
+      video_idee: payload.video_idee || null,
+      location: payload.location || null,
+      regieanweisung: payload.regieanweisung || null,
+      funnel_stufe: payload.funnel_stufe || null,
+      tonalitaet: payload.tonalitaet || null,
+      herkunft: 'generiert',
+      status: 'fragen',
+      mit_dna: payload.mit_dna !== false,
+      prompt_kontext: { generator_payload: payload },
+      created_by: user?.id
+    }).select().single();
+    if (error) throw new Error(error.message);
+    return data;
   }
 
   // ------------------------------------------------------------------
@@ -170,28 +214,44 @@ export class SkripteService {
   // ------------------------------------------------------------------
   async getVersionen(skriptId) {
     const { data } = await this.db.from('skript_versionen')
-      .select('id, version_nr, titel, hook, hauptteil, cta, aenderung_beschreibung, created_at')
-      .eq('skript_id', skriptId).order('version_nr');
+      .select('id, version_nr, sub_nr, titel, hook, hauptteil, cta, aenderung_beschreibung, created_at')
+      .eq('skript_id', skriptId).order('version_nr').order('sub_nr');
     return data || [];
+  }
+
+  /** Anzeige-Label einer Version: "v2" (Hauptversion) bzw. "v2.1" (Unterversion). */
+  versionLabel(v) {
+    if (!v) return '';
+    const nr = v.version_nr ?? v;
+    const sub = v.sub_nr ?? 0;
+    return `v${nr}${sub ? `.${sub}` : ''}`;
   }
 
   /**
    * Snapshot des uebergebenen Skript-Stands als naechste Version.
+   * - Aktive Version = neueste Hauptversion -> neue Hauptversion (v4).
+   * - Aktive Version = aeltere Version (v2 oder v2.1) -> Unterversion v2.x,
+   *   damit die spaeteren Hauptversionen nicht ueberschrieben werden.
    * Legt fuer Bestandsskripte ohne Versionen lazy v1 an (Stand VOR der Aenderung).
+   * Rueckgabe: { version_nr, sub_nr } der neuen Version.
+   *
+   * @param {object|null} aktiveVersion - { version_nr, sub_nr } der Version, an der gearbeitet wurde
    */
-  async createVersion(skript, beschreibung, vorherigerStand = null) {
+  async createVersion(skript, beschreibung, vorherigerStand = null, aktiveVersion = null) {
     const { data: { user } } = await this.db.auth.getUser();
-    const { data: letzte } = await this.db.from('skript_versionen')
-      .select('version_nr').eq('skript_id', skript.id)
-      .order('version_nr', { ascending: false }).limit(1);
+    const { data: vorhandene } = await this.db.from('skript_versionen')
+      .select('version_nr, sub_nr').eq('skript_id', skript.id)
+      .order('version_nr').order('sub_nr');
+    const versionen = vorhandene || [];
 
     const rows = [];
-    let nr = letzte?.[0]?.version_nr || 0;
+    const maxHaupt = versionen.length ? Math.max(...versionen.map((v) => v.version_nr)) : 0;
 
-    if (nr === 0 && vorherigerStand) {
+    if (maxHaupt === 0 && vorherigerStand) {
       rows.push({
         skript_id: skript.id,
-        version_nr: ++nr,
+        version_nr: 1,
+        sub_nr: 0,
         titel: vorherigerStand.titel || null,
         hook: vorherigerStand.hook || null,
         hauptteil: vorherigerStand.hauptteil || null,
@@ -201,9 +261,25 @@ export class SkripteService {
       });
     }
 
+    // Neue Nummer bestimmen: Hauptversion, wenn an der neuesten Hauptversion
+    // gearbeitet wurde (oder keine Angabe) - sonst Unterversion der aktiven Version
+    let neu;
+    const basisHaupt = rows.length ? 1 : maxHaupt;
+    const aufNeuesterHaupt = !aktiveVersion
+      || (aktiveVersion.version_nr === basisHaupt && !(aktiveVersion.sub_nr > 0));
+    if (basisHaupt === 0 || aufNeuesterHaupt) {
+      neu = { version_nr: basisHaupt + 1, sub_nr: 0 };
+    } else {
+      const maxSub = Math.max(0, ...versionen
+        .filter((v) => v.version_nr === aktiveVersion.version_nr)
+        .map((v) => v.sub_nr || 0));
+      neu = { version_nr: aktiveVersion.version_nr, sub_nr: maxSub + 1 };
+    }
+
     rows.push({
       skript_id: skript.id,
-      version_nr: ++nr,
+      version_nr: neu.version_nr,
+      sub_nr: neu.sub_nr,
       titel: skript.titel || null,
       hook: skript.hook || null,
       hauptteil: skript.hauptteil || null,
@@ -214,7 +290,30 @@ export class SkripteService {
 
     const { error } = await this.db.from('skript_versionen').insert(rows);
     if (error) throw new Error(error.message);
-    return nr;
+
+    // Neue Version ist ab jetzt die aktive (Reload-sicher am Skript gemerkt)
+    await this.updateSkript(skript.id, {
+      aktive_version_nr: neu.version_nr,
+      aktive_sub_nr: neu.sub_nr
+    });
+
+    return neu;
+  }
+
+  /**
+   * Versionswechsel im Editor: Snapshot in die Arbeitskopie (skripte-Row)
+   * zurueckschreiben und als aktive Version merken. Es geht nichts verloren,
+   * da jede angenommene Aenderung als Snapshot vorliegt.
+   */
+  async wechsleVersion(skriptId, version) {
+    await this.updateSkript(skriptId, {
+      titel: version.titel,
+      hook: version.hook,
+      hauptteil: version.hauptteil,
+      cta: version.cta,
+      aktive_version_nr: version.version_nr,
+      aktive_sub_nr: version.sub_nr || 0
+    });
   }
 
   // ------------------------------------------------------------------
@@ -260,7 +359,7 @@ export class SkripteService {
   /** Aktive DNA-Dokumente fuer die Auswahl im Generator. */
   async loadAktiveDna() {
     const { data } = await this.db.from('skript_dna')
-      .select('id, name, layer_typ, version, branchen(name), personas(name), marke(markenname)')
+      .select('id, name, layer_typ, version, branchen(name), personas(name, oberbegriff), marke(markenname)')
       .eq('status', 'aktiv')
       .order('layer_typ').order('version', { ascending: false });
     return data || [];
@@ -268,7 +367,7 @@ export class SkripteService {
 
   async loadDnaDokumente() {
     const { data } = await this.db.from('skript_dna')
-      .select('*, branchen(name), personas(name), marke(markenname)')
+      .select('*, branchen(name), personas(name, oberbegriff), marke(markenname)')
       .order('layer_typ').order('version', { ascending: false });
     return data || [];
   }

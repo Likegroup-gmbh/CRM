@@ -26,6 +26,7 @@ export const PERFORMANCE_BADGE_VARIANT = {
 };
 
 export const STATUS_LABELS = {
+  fragen: 'Rückfragen offen',
   entwurf: 'Entwurf',
   feedback_gegeben: 'Feedback gegeben',
   final: 'Final',

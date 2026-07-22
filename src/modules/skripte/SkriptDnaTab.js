@@ -48,7 +48,7 @@ export class SkriptDnaTab {
   scopeLabel(doc) {
     if (doc.layer_typ === 'global') return 'Global';
     if (doc.layer_typ === 'branche') return `Branche: ${doc.branchen?.name || '?'}`;
-    if (doc.layer_typ === 'zielgruppe') return `Persona: ${doc.personas?.name || '?'}`;
+    if (doc.layer_typ === 'zielgruppe') return `Persona: ${skripteService.personaLabel(doc.personas) || '?'}`;
     if (doc.layer_typ === 'marke') return `Marke: ${doc.marke?.markenname || '?'}`;
     return doc.layer_typ;
   }

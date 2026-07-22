@@ -16,7 +16,8 @@ const AKTION_LABELS = {
   laenger: 'Länger',
   anderer_ton: 'Anderer Ton',
   feedback: 'Feedback geben',
-  chat: 'Chat'
+  chat: 'Chat',
+  rueckfrage: 'Rückfrage'
 };
 
 // Phosphor-Icons (Inline-SVG, skalieren ueber CSS, Farbe via currentColor)
@@ -36,10 +37,12 @@ const SEKTION_LABELS = { hook: 'HOOK', hauptteil: 'HAUPTTEIL', cta: 'CTA', gesam
 const PLACEHOLDER_DEFAULT = 'Feedback geben oder Frage stellen…';
 const PLACEHOLDER_AKTION = 'Anweisung ergänzen (optional) – Enter startet';
 const PLACEHOLDER_NEU = 'Erst Skript generieren – danach kannst du hier verfeinern';
+const PLACEHOLDER_FRAGEN = 'Antwort auf die Rückfrage schreiben…';
 
 const GEN_STEP_LABELS = {
   pending: 'Warte auf Start…',
   kontext: 'Ich sammle den Kontext aus den CRM-Daten…',
+  briefing: 'Ich durchforste das PDF-Briefing…',
   generierung: 'Ich schreibe das Skript…',
   speichern: 'Fast fertig – ich speichere…',
   done: 'Fertig!'
@@ -51,7 +54,8 @@ export class SkriptEditorView {
     this.skript = null;
     this.skripte = [];
     this.messages = [];
-    this.versionNr = 1;
+    this.versionen = [];
+    this.aktiveVersion = { version_nr: 1, sub_nr: 0 };
     this.selektion = null; // { sektion, text }
     this.pendingAktion = null; // 'neu_schreiben' | 'kuerzen' | 'laenger' | 'anderer_ton' | null
     this.channel = null;
@@ -108,7 +112,7 @@ export class SkriptEditorView {
     this.skript = skript;
     this.skripte = skripte;
     this.messages = messages;
-    this.versionNr = versionen.length ? versionen[versionen.length - 1].version_nr : 1;
+    this.setVersionsState(versionen);
     this.neuModus = false;
 
     this.updateBreadcrumb();
@@ -134,7 +138,10 @@ export class SkriptEditorView {
               <div class="skripte-editor-input">
                 <textarea id="ed-input" rows="2" placeholder="${PLACEHOLDER_DEFAULT}"></textarea>
                 <div class="skripte-editor-input-footer">
-                  <div class="skripte-editor-input-meta" id="ed-meta">${this.metaBadgesHtml()}</div>
+                  <div class="skripte-editor-input-left">
+                    <div class="skripte-editor-version" id="ed-version-wrap"></div>
+                    <div class="skripte-editor-input-meta" id="ed-meta">${this.metaBadgesHtml()}</div>
+                  </div>
                   <div class="skripte-editor-input-actions">
                     <span class="skripte-editor-cost" id="ed-cost"></span>
                     <button id="ed-send" class="skripte-editor-send" title="Senden" aria-label="Senden">${SEND_ICON}</button>
@@ -153,6 +160,93 @@ export class SkriptEditorView {
     this.renderDoc();
     this.renderChat();
     this.renderCost();
+    this.renderVersionSelect();
+  }
+
+  // ------------------------------------------------------------------
+  // Versionen: aktive Version bestimmen, Auswahl-Dropdown, Wechsel
+  // ------------------------------------------------------------------
+  /** Aktive Version aus dem Skript-Merker bestimmen, Fallback: neueste Version. */
+  setVersionsState(versionen) {
+    this.versionen = versionen || [];
+    if (!this.versionen.length) {
+      this.aktiveVersion = { version_nr: 1, sub_nr: 0 };
+      return;
+    }
+    const gemerkt = this.skript?.aktive_version_nr
+      ? this.versionen.find((v) => v.version_nr === this.skript.aktive_version_nr
+        && (v.sub_nr || 0) === (this.skript.aktive_sub_nr || 0))
+      : null;
+    const v = gemerkt || this.versionen[this.versionen.length - 1];
+    this.aktiveVersion = { version_nr: v.version_nr, sub_nr: v.sub_nr || 0 };
+  }
+
+  /** Version-Dropdown ganz links im Input-Footer der mittleren Spalte. */
+  renderVersionSelect() {
+    const wrap = document.getElementById('ed-version-wrap');
+    if (!wrap) return;
+    if (this.neuModus || !this.skript || !this.versionen.length) {
+      wrap.innerHTML = '';
+      return;
+    }
+
+    const key = (v) => `${v.version_nr}.${v.sub_nr || 0}`;
+    const aktivKey = `${this.aktiveVersion.version_nr}.${this.aktiveVersion.sub_nr || 0}`;
+    wrap.innerHTML = `
+      <select id="ed-version" class="skripte-editor-version-select"
+        title="Version auswählen – der gewählte Stand wird in den Editor geladen">
+        ${this.versionen.map((v) => `
+          <option value="${key(v)}" ${key(v) === aktivKey ? 'selected' : ''}>
+            ${skripteService.versionLabel(v)}${v.aenderung_beschreibung ? ` · ${escapeHtml(v.aenderung_beschreibung)}` : ''}
+          </option>
+        `).join('')}
+      </select>
+    `;
+    wrap.querySelector('#ed-version').addEventListener('change', (e) => this.onVersionChange(e.target.value));
+  }
+
+  /** Gewaehlten Versions-Snapshot in die Arbeitskopie laden. */
+  async onVersionChange(versionKey) {
+    const [nr, sub] = versionKey.split('.').map(Number);
+    if (nr === this.aktiveVersion.version_nr && sub === (this.aktiveVersion.sub_nr || 0)) return;
+    const version = this.versionen.find((v) => v.version_nr === nr && (v.sub_nr || 0) === sub);
+    if (!version) return;
+
+    try {
+      await skripteService.wechsleVersion(this.skript.id, version);
+      Object.assign(this.skript, {
+        titel: version.titel,
+        hook: version.hook,
+        hauptteil: version.hauptteil,
+        cta: version.cta,
+        aktive_version_nr: nr,
+        aktive_sub_nr: sub
+      });
+      this.aktiveVersion = { version_nr: nr, sub_nr: sub };
+      this.clearPending();
+      this.renderDoc();
+      this.renderChat();
+      this.renderVersionSelect();
+      window.toastSystem?.success(`${skripteService.versionLabel(version)} geladen – Änderungen setzen hier auf`);
+    } catch (err) {
+      window.toastSystem?.error(err.message);
+      this.renderVersionSelect();
+    }
+  }
+
+  /** Hinweis im rechten Chat, wenn nicht auf der neuesten Hauptversion gearbeitet wird. */
+  versionsHinweisHtml() {
+    if (this.neuModus || !this.versionen.length) return '';
+    const maxHaupt = Math.max(...this.versionen.map((v) => v.version_nr));
+    const aeltere = this.aktiveVersion.version_nr < maxHaupt || (this.aktiveVersion.sub_nr || 0) > 0;
+    if (!aeltere) return '';
+    return `
+      <div class="skripte-editor-version-hinweis">
+        Du arbeitest gerade an <strong>${skripteService.versionLabel(this.aktiveVersion)}</strong>
+        (neueste: v${maxHaupt}) – angenommene Änderungen werden als Unterversion
+        v${this.aktiveVersion.version_nr}.x gespeichert.
+      </div>
+    `;
   }
 
   /** Breadcrumb: "Skripte" (klickbar, fuehrt zur Hauptseite) > aktueller Skript-Titel. */
@@ -168,7 +262,7 @@ export class SkriptEditorView {
     return `
       ${this.skript.unternehmen?.firmenname ? badge(this.skript.unternehmen.firmenname) : ''}
       ${this.skript.marke?.markenname ? badge(this.skript.marke.markenname) : ''}
-      ${this.skript.personas?.name ? badge(this.skript.personas.name, 'info') : ''}
+      ${this.skript.personas?.name ? badge(skripteService.personaLabel(this.skript.personas), 'info') : ''}
       ${badge(this.skript.mit_dna === false ? 'ohne DNA' : 'mit DNA', this.skript.mit_dna === false ? 'neutral' : 'success')}
     `;
   }
@@ -227,7 +321,7 @@ export class SkriptEditorView {
 
       this.skript = skript;
       this.messages = messages;
-      this.versionNr = versionen.length ? versionen[versionen.length - 1].version_nr : 1;
+      this.setVersionsState(versionen);
 
       // URL fuer Reload/Teilen stabil halten
       const url = new URL(window.location.href);
@@ -242,6 +336,7 @@ export class SkriptEditorView {
       this.renderDoc();
       this.renderChat({ forceScroll: true });
       this.renderCost();
+      this.renderVersionSelect();
 
       this.subscribe();
       if (this.messages.some((m) => m.status === 'pending' || m.status === 'running')) {
@@ -279,6 +374,8 @@ export class SkriptEditorView {
 
     this.skript = null;
     this.messages = [];
+    this.versionen = [];
+    this.aktiveVersion = { version_nr: 1, sub_nr: 0 };
     this.neuModus = true;
     this.genStatus = null;
 
@@ -295,6 +392,7 @@ export class SkriptEditorView {
     this.renderDoc();
     this.renderChat();
     this.renderCost();
+    this.renderVersionSelect();
     this.setChatInputAktiv(false);
   }
 
@@ -310,9 +408,108 @@ export class SkriptEditorView {
 
   setGenButtonAktiv(aktiv) {
     const btn = document.getElementById('ed-gen-start');
-    if (!btn) return;
-    btn.disabled = !aktiv;
-    btn.textContent = aktiv ? 'Skript generieren' : 'Läuft…';
+    if (btn) {
+      btn.disabled = !aktiv;
+      btn.textContent = aktiv ? 'Skript generieren' : 'Läuft…';
+    }
+    const direkt = document.getElementById('ed-gen-direkt');
+    if (direkt) direkt.disabled = !aktiv;
+  }
+
+  /** Rueckfragen-Phase: Stub existiert, Skript ist noch nicht generiert. */
+  istFragenModus() {
+    return this.skript?.status === 'fragen';
+  }
+
+  // ------------------------------------------------------------------
+  // Rueckfragen-Flow (Slot-Filling vor der Generierung)
+  // ------------------------------------------------------------------
+  /**
+   * Standard-Weg: Stub anlegen, Editor oeffnet ihn, Liky stellt Rueckfragen.
+   * Erst wenn alles geklaert ist (oder der User skippt), wird generiert.
+   */
+  async startFragenFlow() {
+    let payload;
+    try {
+      payload = await this.genForm.getPayloadMitUpload();
+    } catch (err) {
+      window.toastSystem?.error(err.message);
+      return;
+    }
+
+    this.setGenButtonAktiv(false);
+    try {
+      const stub = await skripteService.createSkriptStub(payload);
+      this.skripte = await skripteService.loadSkripte();
+      await this.switchSkript(stub.id);
+      await this.startFragenRunde();
+    } catch (err) {
+      window.toastSystem?.error(err.message);
+      this.setGenButtonAktiv(true);
+    }
+  }
+
+  /** Neue Rueckfragen-Runde: pending Assistant-Message anlegen und Function triggern. */
+  async startFragenRunde() {
+    const assistantMsg = await skripteService.createChatMessage({
+      skript_id: this.skript.id,
+      rolle: 'assistant',
+      aktion: 'rueckfrage',
+      sektion: 'gesamt',
+      status: 'pending'
+    });
+    this.messages.push(assistantMsg);
+    this.renderChat({ forceScroll: true });
+    this.ensurePolling();
+    await skripteService.triggerFunction('skript-fragen-background', { messageId: assistantMsg.id });
+  }
+
+  /** Finale Generierung in den Stub (nach geklaerten Fragen oder per Skip). */
+  async startGenerationAusFragen() {
+    if (!this.skript || this.genStatus?.laeuft) return;
+
+    const payload = this.skript.prompt_kontext?.generator_payload || {
+      unternehmen_id: this.skript.unternehmen_id,
+      marke_id: this.skript.marke_id,
+      kampagne_id: this.skript.kampagne_id,
+      produkt_id: this.skript.produkt_id,
+      persona_id: this.skript.persona_id,
+      branche_id: this.skript.branche_id,
+      mit_dna: this.skript.mit_dna,
+      video_idee: this.skript.video_idee,
+      location: this.skript.location,
+      regieanweisung: this.skript.regieanweisung,
+      funnel_stufe: this.skript.funnel_stufe,
+      tonalitaet: this.skript.tonalitaet
+    };
+
+    this.cleanupGenJob();
+    this.genStatus = { laeuft: true, step: 'pending' };
+    this.renderDoc();
+    this.renderChat({ forceScroll: true });
+
+    try {
+      const job = await skripteService.createJob();
+      this.genJobId = job.id;
+
+      this.genChannel = skripteService.subscribeToJob(job.id, (j) => this.handleGenJobUpdate(j));
+      this.genPoll = setInterval(async () => {
+        if (!this.genJobId) return;
+        const j = await skripteService.pollJob(this.genJobId);
+        if (j) this.handleGenJobUpdate(j);
+      }, 5000);
+
+      await skripteService.triggerFunction('skript-generate-background', {
+        jobId: job.id,
+        skript_id: this.skript.id,
+        ...payload
+      });
+    } catch (err) {
+      this.cleanupGenJob();
+      this.genStatus = { error: err.message };
+      this.renderDoc();
+      this.renderChat({ forceScroll: true });
+    }
   }
 
   async startGenerationImEditor({ retry = false } = {}) {
@@ -321,7 +518,7 @@ export class SkriptEditorView {
       payload = this.genPayload;
     } else {
       try {
-        payload = this.genForm.getPayload();
+        payload = await this.genForm.getPayloadMitUpload();
       } catch (err) {
         window.toastSystem?.error(err.message);
         return;
@@ -393,6 +590,10 @@ export class SkriptEditorView {
       // In-place ins neue Skript wechseln
       this.neuModus = false;
       this.setChatInputAktiv(true);
+      await this.switchSkript(skriptId);
+    } else if (this.skript?.id === skriptId) {
+      // Rueckfragen-Stub wurde befuellt -> gleiches Skript neu laden
+      this.skript = null;
       await this.switchSkript(skriptId);
     } else {
       // User hat waehrenddessen ein anderes Skript geoeffnet -> nur Liste auffrischen
@@ -479,21 +680,49 @@ export class SkriptEditorView {
         </div>
         <div class="skripte-editor-genform" id="ed-genform"></div>
         <div class="skripte-actions-row">
-          <button id="ed-gen-start" class="primary-btn">Skript generieren</button>
+          <button id="ed-gen-start" class="primary-btn" title="Liky stellt erst kluge Rückfragen zu fehlenden Infos (z.B. CTA), dann wird generiert">Skript generieren</button>
+          <button id="ed-gen-direkt" class="secondary-btn" title="Rückfragen überspringen und sofort generieren">Direkt generieren</button>
         </div>
       `;
       this.genForm = new SkriptGeneratorForm({ prefix: 'edgen' });
       // Selects laden asynchron nach – Formular steht sofort
       this.genForm.render(el.querySelector('#ed-genform'));
-      el.querySelector('#ed-gen-start').addEventListener('click', () => this.startGenerationImEditor());
+      el.querySelector('#ed-gen-start').addEventListener('click', () => this.startFragenFlow());
+      el.querySelector('#ed-gen-direkt').addEventListener('click', () => this.startGenerationImEditor());
       if (this.genStatus?.laeuft) this.setGenButtonAktiv(false);
       return;
     }
 
+    // Rueckfragen-Phase: Vorgaben + Hinweis statt (noch leerem) Skript-Inhalt
+    if (this.istFragenModus()) {
+      el.innerHTML = `
+        <div class="skripte-editor-doc-head">
+          <h2>${escapeHtml(this.skript.titel || 'Neues Skript')}</h2>
+          <span class="skripte-badge skripte-badge--info" title="Liky klärt erst offene Fragen, dann wird das Skript geschrieben">Rückfragen</span>
+        </div>
+        ${this.vorgabenPanelHtml()}
+        <div class="skripte-editor-fragen-info">
+          <p>Liky prüft die Vorgaben und stellt dir rechts Rückfragen, bevor das Skript geschrieben wird.</p>
+          <p class="skripte-hint">Antworte unten im Chat. Du kannst die Fragen auch überspringen und sofort generieren lassen.</p>
+        </div>
+        <div class="skripte-actions-row">
+          <button id="ed-fragen-gen" class="primary-btn" ${this.genStatus?.laeuft ? 'disabled' : ''}>
+            ${this.genStatus?.laeuft ? 'Läuft…' : 'Skript jetzt generieren'}
+          </button>
+        </div>
+      `;
+      el.querySelector('#ed-fragen-gen')?.addEventListener('click', () => this.startGenerationAusFragen());
+      const input = document.getElementById('ed-input');
+      if (input && !input.disabled) input.placeholder = PLACEHOLDER_FRAGEN;
+      return;
+    }
+
+    const inputEl = document.getElementById('ed-input');
+    if (inputEl && inputEl.placeholder === PLACEHOLDER_FRAGEN) inputEl.placeholder = PLACEHOLDER_DEFAULT;
+
     el.innerHTML = `
       <div class="skripte-editor-doc-head">
         <h2>${escapeHtml(this.skript.titel || 'Skript')}</h2>
-        <span class="skripte-badge skripte-badge--info" title="Jede angenommene Änderung erzeugt eine neue Version">v${this.versionNr}</span>
         <button class="skripte-editor-feedback-btn" id="ed-feedback" title="Skript komplett bewerten (Score, Performance-Label)">
           <span class="skripte-editor-tag-icon">${AKTION_ICONS.feedback}</span>
           <span>Feedback</span>
@@ -517,12 +746,17 @@ export class SkriptEditorView {
   vorgabenPanelHtml() {
     const s = this.skript;
     if (!s) return '';
+    // Nach der Generierung liegt briefing_pdf top-level in prompt_kontext,
+    // in der Rueckfragen-Phase noch im generator_payload des Stubs
+    const briefingPdf = s.prompt_kontext?.briefing_pdf
+      || s.prompt_kontext?.generator_payload?.briefing_pdf || null;
     const zeilen = [
       ['Unternehmen', s.unternehmen?.firmenname],
+      ['PDF-Briefing', briefingPdf?.name],
       ['Marke', s.marke?.markenname],
       ['Kampagne', s.kampagne?.eigener_name || s.kampagne?.kampagnenname],
       ['Produkt', s.produkt?.name],
-      ['Persona', s.personas?.name],
+      ['Persona', s.personas ? skripteService.personaLabel(s.personas) : null],
       ['Branche', s.branchen?.name],
       ['Funnel-Stufe', s.funnel_stufe ? (FUNNEL_STUFEN[s.funnel_stufe] || s.funnel_stufe) : null],
       ['Tonalität', s.tonalitaet],
@@ -558,31 +792,10 @@ export class SkriptEditorView {
 
     // Neu-Modus: Generierungs-Fortschritt als Liky-Bubble (lokal, ohne DB-Message)
     if (this.neuModus) {
-      const head = `
-        <div class="skripte-editor-msg-head">
-          <span class="skripte-editor-avatar">L</span>
-          <span class="skripte-editor-msg-name">Liky</span>
-        </div>
-      `;
-      if (this.genStatus?.laeuft) {
-        el.innerHTML = `
-          <div class="skripte-editor-msg skripte-editor-msg--assistant">
-            ${head}
-            <div class="skripte-editor-working"><span class="skripte-editor-dots"><i></i><i></i><i></i></span> Ich arbeite gerade…</div>
-            <div class="skripte-editor-msg-text" id="ed-gen-step">${escapeHtml(GEN_STEP_LABELS[this.genStatus.step] || 'Starte…')}</div>
-          </div>
-        `;
-      } else if (this.genStatus?.error) {
-        el.innerHTML = `
-          <div class="skripte-editor-msg skripte-editor-msg--assistant">
-            ${head}
-            <div class="skripte-editor-msg-error">Fehler: ${escapeHtml(this.genStatus.error)}</div>
-            <div class="skripte-editor-msg-actions">
-              <button class="skripte-editor-pill-btn" id="ed-gen-retry">Nochmal versuchen</button>
-            </div>
-          </div>
-        `;
-        el.querySelector('#ed-gen-retry')?.addEventListener('click', () => this.startGenerationImEditor({ retry: true }));
+      const bubble = this.genStatusBubbleHtml();
+      if (bubble) {
+        el.innerHTML = bubble;
+        this.bindGenRetry(el);
       } else {
         el.innerHTML = `
           <div class="skripte-editor-chat-empty">
@@ -597,11 +810,14 @@ export class SkriptEditorView {
 
     if (!this.messages.length) {
       el.innerHTML = `
+        ${this.versionsHinweisHtml()}
+        ${this.genStatusBubbleHtml()}
         <div class="skripte-editor-chat-empty">
           <p>Noch kein Verlauf.</p>
           <p class="skripte-hint">Markiere eine Stelle im Skript und wähle eine Aktion – oder schreib unten dein Feedback. Vorschläge kannst du hier annehmen oder ablehnen.</p>
         </div>
       `;
+      this.bindGenRetry(el);
       return;
     }
 
@@ -610,17 +826,59 @@ export class SkriptEditorView {
     const warUnten = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     const vorherigerScroll = el.scrollTop;
 
-    el.innerHTML = this.messages.map((m) => this.renderMessage(m)).join('');
+    el.innerHTML = this.versionsHinweisHtml()
+      + this.messages.map((m) => this.renderMessage(m)).join('')
+      + this.genStatusBubbleHtml();
 
     el.querySelectorAll('[data-msg-action]').forEach((btn) => {
       btn.addEventListener('click', () => this.handleMessageAction(btn.dataset.msgAction, btn.dataset.msgId));
     });
+    this.bindGenRetry(el);
 
     if (forceScroll || warUnten) {
       el.scrollTop = el.scrollHeight;
     } else {
       el.scrollTop = vorherigerScroll;
     }
+  }
+
+  /** Lokale Liky-Bubble fuer den Generierungs-Fortschritt (ohne DB-Message). */
+  genStatusBubbleHtml() {
+    if (!this.genStatus) return '';
+    const head = `
+      <div class="skripte-editor-msg-head">
+        <span class="skripte-editor-avatar">L</span>
+        <span class="skripte-editor-msg-name">Liky</span>
+      </div>
+    `;
+    if (this.genStatus.laeuft) {
+      return `
+        <div class="skripte-editor-msg skripte-editor-msg--assistant">
+          ${head}
+          <div class="skripte-editor-working"><span class="skripte-editor-dots"><i></i><i></i><i></i></span> Ich arbeite gerade…</div>
+          <div class="skripte-editor-msg-text" id="ed-gen-step">${escapeHtml(GEN_STEP_LABELS[this.genStatus.step] || 'Starte…')}</div>
+        </div>
+      `;
+    }
+    if (this.genStatus.error) {
+      return `
+        <div class="skripte-editor-msg skripte-editor-msg--assistant">
+          ${head}
+          <div class="skripte-editor-msg-error">Fehler: ${escapeHtml(this.genStatus.error)}</div>
+          <div class="skripte-editor-msg-actions">
+            <button class="skripte-editor-pill-btn" id="ed-gen-retry">Nochmal versuchen</button>
+          </div>
+        </div>
+      `;
+    }
+    return '';
+  }
+
+  bindGenRetry(el) {
+    el.querySelector('#ed-gen-retry')?.addEventListener('click', () => {
+      if (this.neuModus) this.startGenerationImEditor({ retry: true });
+      else this.startGenerationAusFragen();
+    });
   }
 
   renderAktionTag(m) {
@@ -681,7 +939,16 @@ export class SkriptEditorView {
     ` : '';
 
     let footer = '';
-    if (m.status === 'vorschlag') {
+    if (m.aktion === 'rueckfrage') {
+      // status 'vorschlag' = alle Fragen geklaert -> Generierung anbieten
+      if (m.status === 'vorschlag' && this.istFragenModus() && !this.genStatus?.laeuft) {
+        footer = `
+          <div class="skripte-editor-msg-actions">
+            <button class="skripte-editor-pill-btn skripte-editor-pill-btn--primary" data-msg-action="generieren" data-msg-id="${m.id}">Skript jetzt generieren</button>
+          </div>
+        `;
+      }
+    } else if (m.status === 'vorschlag') {
       footer = `
         <div class="skripte-editor-msg-actions">
           <button class="skripte-editor-pill-btn skripte-editor-pill-btn--primary" data-msg-action="accept" data-msg-id="${m.id}">Änderung annehmen</button>
@@ -869,6 +1136,15 @@ export class SkriptEditorView {
     const input = document.getElementById('ed-input');
     const text = input?.value.trim() || '';
 
+    // Rueckfragen-Phase: Antwort geht an die Fragen-Function, nicht an den Editor
+    if (this.istFragenModus()) {
+      if (!text) return;
+      input.value = '';
+      this.clearPending();
+      await this.sendMessagePair({ aktion: 'rueckfrage', sektion: 'gesamt', selektion_text: null, inhalt: text });
+      return;
+    }
+
     // Vorgemerkte Aktion: Anweisung ist optional, leer erlaubt
     if (this.pendingAktion && this.selektion) {
       const { sektion, text: selektionText } = this.selektion;
@@ -923,7 +1199,8 @@ export class SkriptEditorView {
       this.renderChat({ forceScroll: true });
 
       this.ensurePolling();
-      await skripteService.triggerFunction('skript-edit-background', { messageId: assistantMsg.id });
+      const fn = aktion === 'rueckfrage' ? 'skript-fragen-background' : 'skript-edit-background';
+      await skripteService.triggerFunction(fn, { messageId: assistantMsg.id });
       return assistantMsg;
     } catch (err) {
       window.toastSystem?.error(err.message);
@@ -964,7 +1241,7 @@ export class SkriptEditorView {
         begruendung,
         korrigierte_version: korrektur,
         selektion_text: selektionText,
-        version_nr: this.versionNr
+        version_nr: this.aktiveVersion.version_nr
       }]);
     } catch (err) {
       window.toastSystem?.error(`Feedback konnte nicht gespeichert werden: ${err.message}`);
@@ -1005,7 +1282,7 @@ export class SkriptEditorView {
     if (!this.skript) return;
     await this.feedbackDrawer.openVoll({
       skript: this.skript,
-      versionNr: this.versionNr,
+      versionNr: this.aktiveVersion.version_nr,
       onSaved: async () => {
         // Branche/Label/Status koennen sich geaendert haben -> Skript neu laden
         const fresh = await skripteService.loadSkript(this.skript.id);
@@ -1058,7 +1335,8 @@ export class SkriptEditorView {
       this.messages.push(assistantMsg);
       this.renderChat({ forceScroll: true });
       this.ensurePolling();
-      await skripteService.triggerFunction('skript-edit-background', { messageId: assistantMsg.id });
+      const fn = msg.aktion === 'rueckfrage' ? 'skript-fragen-background' : 'skript-edit-background';
+      await skripteService.triggerFunction(fn, { messageId: assistantMsg.id });
     } catch (err) {
       window.toastSystem?.error(err.message);
     }
@@ -1073,6 +1351,12 @@ export class SkriptEditorView {
 
     if (action === 'retry') {
       await this.retryMessage(msg);
+      return;
+    }
+
+    // Rueckfragen-Phase abgeschlossen -> finale Generierung starten
+    if (action === 'generieren') {
+      await this.startGenerationAusFragen();
       return;
     }
 
@@ -1137,14 +1421,19 @@ export class SkriptEditorView {
       this.skript[sektion] = neu;
 
       const beschreibung = `${AKTION_LABELS[msg.aktion] || 'Änderung'} · ${SEKTION_LABELS[sektion]}`;
-      this.versionNr = await skripteService.createVersion(this.skript, beschreibung, vorherigerStand);
+      const neu = await skripteService.createVersion(this.skript, beschreibung, vorherigerStand, this.aktiveVersion);
+      this.aktiveVersion = neu;
+      this.skript.aktive_version_nr = neu.version_nr;
+      this.skript.aktive_sub_nr = neu.sub_nr;
+      this.versionen = await skripteService.getVersionen(this.skript.id);
 
       await skripteService.updateChatMessage(msg.id, { status: 'angenommen' });
       msg.status = 'angenommen';
 
       this.renderDoc();
       this.renderChat();
-      window.toastSystem?.success(`Übernommen – jetzt v${this.versionNr}`);
+      this.renderVersionSelect();
+      window.toastSystem?.success(`Übernommen – jetzt ${skripteService.versionLabel(neu)}`);
     } catch (err) {
       window.toastSystem?.error(err.message);
       btns.forEach((b) => { b.disabled = false; });

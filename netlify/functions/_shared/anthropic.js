@@ -20,8 +20,10 @@ const MODELS = {
  * (stabile Prefixe wie DNA/Beispiele -> ~90% Rabatt ab dem 2. Call).
  * thinking: true aktiviert Extended Thinking (Budget via thinkingBudget,
  * Default 2048 Tokens; max_tokens muss groesser sein als das Budget).
+ * documents: optionale Datei-Anhaenge [{ base64, mediaType }] (z.B. PDFs) -
+ * werden als document-Content-Blocks VOR dem Text-Prompt mitgeschickt.
  */
-async function callClaude({ model, systemBlocks = [], userPrompt, maxTokens = 4096, thinking = false, thinkingBudget = 2048 }) {
+async function callClaude({ model, systemBlocks = [], userPrompt, maxTokens = 4096, thinking = false, thinkingBudget = 2048, documents = [] }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY nicht gesetzt');
 
@@ -33,6 +35,17 @@ async function callClaude({ model, systemBlocks = [], userPrompt, maxTokens = 40
 
   // max_tokens umfasst bei Extended Thinking auch die Thinking-Tokens
   const effectiveMaxTokens = thinking ? Math.max(maxTokens, thinkingBudget + 2048) : maxTokens;
+
+  // Mit Anhaengen wird der User-Content zum Block-Array, sonst bleibt er String
+  const userContent = documents.length
+    ? [
+      ...documents.map((d) => ({
+        type: 'document',
+        source: { type: 'base64', media_type: d.mediaType || 'application/pdf', data: d.base64 }
+      })),
+      { type: 'text', text: userPrompt }
+    ]
+    : userPrompt;
 
   const res = await fetch(ANTHROPIC_API, {
     method: 'POST',
@@ -46,7 +59,7 @@ async function callClaude({ model, systemBlocks = [], userPrompt, maxTokens = 40
       max_tokens: effectiveMaxTokens,
       ...(thinking ? { thinking: { type: 'enabled', budget_tokens: thinkingBudget } } : {}),
       ...(system.length ? { system } : {}),
-      messages: [{ role: 'user', content: userPrompt }]
+      messages: [{ role: 'user', content: userContent }]
     })
   });
 

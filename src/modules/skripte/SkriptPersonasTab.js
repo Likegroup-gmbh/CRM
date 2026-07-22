@@ -58,14 +58,15 @@ export class SkriptPersonasTab {
       <table class="skripte-table">
         <thead>
           <tr>
-            <th>Name</th><th>Alter</th><th>Geschlecht</th><th>Region</th>
+            <th>Oberbegriff</th><th>Name</th><th>Alter</th><th>Geschlecht</th><th>Region</th>
             <th>Budget</th><th>Lebenssituation</th><th>Erstellt</th><th></th>
           </tr>
         </thead>
         <tbody>
           ${this.personas.map((p) => `
             <tr data-id="${p.id}">
-              <td class="skripte-table-titel">${escapeHtml(p.name)}</td>
+              <td class="skripte-table-titel">${escapeHtml(p.oberbegriff || '–')}</td>
+              <td>${escapeHtml(p.name)}</td>
               <td>${escapeHtml(this.alterLabel(p))}</td>
               <td>${escapeHtml(p.geschlecht || '–')}</td>
               <td>${escapeHtml(p.wohnort_region || '–')}</td>
@@ -101,10 +102,18 @@ export class SkriptPersonasTab {
     }
 
     const body = `
-      <div class="form-group">
-        <label class="form-label">Name *</label>
-        <input id="per-name" class="form-input" type="text" value="${val(p.name)}"
-          placeholder="z.B. 'Sparsame Studentin Sarah'" />
+      <div class="skripte-form-grid">
+        <div class="form-group">
+          <label class="form-label">Oberbegriff</label>
+          <input id="per-oberbegriff" class="form-input" type="text" value="${val(p.oberbegriff)}"
+            placeholder="z.B. 'Sparsame Studentin'" />
+          <span class="skripte-hint">Kategorie zur Zuordnung – wird überall mit angezeigt.</span>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Name *</label>
+          <input id="per-name" class="form-input" type="text" value="${val(p.name)}"
+            placeholder="z.B. 'Sarah'" />
+        </div>
       </div>
       <div class="skripte-form-grid">
         <div class="form-group">
@@ -213,6 +222,7 @@ export class SkriptPersonasTab {
 
       const payload = {
         name,
+        oberbegriff: document.getElementById('per-oberbegriff').value.trim() || null,
         alter_von: parseAlter('per-alter-von'),
         alter_bis: parseAlter('per-alter-bis'),
         geschlecht: document.getElementById('per-geschlecht').value || null,
@@ -242,7 +252,10 @@ export class SkriptPersonasTab {
       }
     } });
 
-    this.page.listeTab.createDrawer(persona ? persona.name : 'Neue Persona', body, buttons);
+    this.page.listeTab.createDrawer(
+      persona ? [persona.oberbegriff, persona.name].filter(Boolean).join(' · ') : 'Neue Persona',
+      body, buttons
+    );
 
     // Freitext-Feld fuer "Andere" Lebenssituation ein-/ausblenden
     document.getElementById('per-lebenssituation').addEventListener('change', (e) => {

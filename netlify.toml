@@ -28,6 +28,10 @@
 [functions."transcribe-background"]
   external_node_modules = ["@sparticuz/chromium"]
 
+# Rueckfragen vor der Skript-Generierung: Leitfaden-Markdown mit ausliefern
+[functions."skript-fragen-background"]
+  included_files = ["netlify/functions/_shared/prompts/**"]
+
 # Auth-Seiten direkt ausliefern (NICHT auf index.html umleiten)
 [[redirects]]
   from = "/src/auth/*"

@@ -7,6 +7,8 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
+const { loadContext, fmtSkript, buildKontextText } = require('./_shared/skript-context');
+const { ladeBriefingExtrakt } = require('./_shared/skript-briefing');
 
 async function verifyAuth(event, supabase) {
   const authHeader = (event.headers || {}).authorization || (event.headers || {}).Authorization || '';
@@ -49,161 +51,9 @@ function createJobUpdater(supabase, jobId) {
 }
 
 // ---------------------------------------------------------------------------
-// Kontext-Aufbau: alle Quellen per SQL (kein LLM noetig)
+// Prompt-Bau (Kontext-Aufbau + Sektions-Formatierung: _shared/skript-context)
 // ---------------------------------------------------------------------------
-async function loadContext(supabase, params) {
-  const { unternehmen_id, marke_id, kampagne_id, produkt_id, persona_id, branche_id, mit_dna, dna_id } = params;
-  const ctx = { dnaVersionen: [], beispiele: [], antiPatterns: [] };
-
-  if (unternehmen_id) {
-    const { data } = await supabase.from('unternehmen')
-      .select('id, firmenname, webseite, branche_id').eq('id', unternehmen_id).single();
-    ctx.unternehmen = data;
-  }
-
-  if (marke_id) {
-    const { data } = await supabase.from('marke')
-      .select('id, markenname, webseite, branche, branche_id').eq('id', marke_id).single();
-    ctx.marke = data;
-  }
-
-  // Branche: explizite Wahl aus der UI hat Vorrang vor Marke/Unternehmen/Persona
-  ctx.brancheId = branche_id || ctx.marke?.branche_id || ctx.unternehmen?.branche_id || null;
-  if (ctx.brancheId) {
-    const { data } = await supabase.from('branchen')
-      .select('id, name').eq('id', ctx.brancheId).single();
-    ctx.branche = data;
-  }
-
-  if (produkt_id) {
-    const { data } = await supabase.from('produkt')
-      .select('name, url, kernbotschaft, hauptproblem, kernnutzen, usp_1, usp_2, usp_3, kauf_conversion_trigger, zielnutzer_anwendungskontext')
-      .eq('id', produkt_id).single();
-    ctx.produkt = data;
-  }
-
-  if (persona_id) {
-    const { data } = await supabase.from('personas')
-      .select('id, name, beschreibung, branche_id, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, kontext, pain_points')
-      .eq('id', persona_id).single();
-    ctx.persona = data;
-  }
-
-  if (kampagne_id) {
-    const { data } = await supabase.from('kampagne')
-      .select('kampagnenname, ziele, art_der_kampagne, kampagne_typ').eq('id', kampagne_id).single();
-    ctx.kampagne = data;
-  }
-
-  // Neuestes Briefing: bevorzugt zur Kampagne, sonst zur Marke
-  if (kampagne_id || marke_id) {
-    let query = supabase.from('briefings')
-      .select('product_service_offer, creator_aufgabe, usp, zielgruppe, zieldetails, must_haves, rechtlicher_hinweis')
-      .order('created_at', { ascending: false }).limit(1);
-    query = kampagne_id ? query.eq('kampagne_id', kampagne_id) : query.eq('marke_id', marke_id);
-    const { data } = await query;
-    ctx.briefing = data?.[0] || null;
-
-    if (!ctx.briefing && kampagne_id && marke_id) {
-      const { data: fallback } = await supabase.from('briefings')
-        .select('product_service_offer, creator_aufgabe, usp, zielgruppe, zieldetails, must_haves, rechtlicher_hinweis')
-        .eq('marke_id', marke_id).order('created_at', { ascending: false }).limit(1);
-      ctx.briefing = fallback?.[0] || null;
-    }
-  }
-
-  // Neuester Kickoff (Marken-DNA aus dem Onboarding)
-  if (marke_id) {
-    const { data } = await supabase.from('marke_kickoff')
-      .select('brand_essenz, mission, zielgruppe, zielgruppen_mindset, marken_usp, tonalitaet_sprachstil, content_charakter, dos_donts, rechtliche_leitplanken, erfolgskriterien, learnings')
-      .eq('marke_id', marke_id).order('created_at', { ascending: false }).limit(1);
-    ctx.kickoff = data?.[0] || null;
-  }
-
-  // DNA-Auswahl:
-  //   dna_id gesetzt   -> genau DIESES Dokument (gezielte Wahl in der UI)
-  //   mit_dna=false    -> keine DNA (Blindvergleich)
-  //   sonst            -> automatisch alle passenden aktiven Layer
-  //                       (global > branche > zielgruppe > marke)
-  if (mit_dna === false) {
-    ctx.dna = [];
-  } else if (dna_id) {
-    const { data } = await supabase.from('skript_dna')
-      .select('id, name, layer_typ, version, inhalt')
-      .eq('id', dna_id).eq('status', 'aktiv').single();
-    if (!data) throw new Error('Gewaehlte DNA nicht gefunden oder nicht aktiv');
-    ctx.dna = [data];
-    ctx.dnaVersionen = [{ id: data.id, name: data.name, layer: data.layer_typ, version: data.version }];
-  } else {
-    const brancheId = ctx.brancheId || ctx.persona?.branche_id || null;
-    const orParts = ['layer_typ.eq.global'];
-    if (brancheId) orParts.push(`and(layer_typ.eq.branche,branche_id.eq.${brancheId})`);
-    if (persona_id) orParts.push(`and(layer_typ.eq.zielgruppe,persona_id.eq.${persona_id})`);
-    if (marke_id) orParts.push(`and(layer_typ.eq.marke,marke_id.eq.${marke_id})`);
-
-    const { data } = await supabase.from('skript_dna')
-      .select('id, name, layer_typ, version, inhalt')
-      .eq('status', 'aktiv')
-      .or(orParts.join(','));
-
-    const order = { global: 0, branche: 1, zielgruppe: 2, marke: 3 };
-    ctx.dna = (data || []).sort((a, b) => order[a.layer_typ] - order[b.layer_typ]);
-    ctx.dnaVersionen = ctx.dna.map((d) => ({ id: d.id, name: d.name, layer: d.layer_typ, version: d.version }));
-  }
-
-  // Positiv-Beispiele: erst markenspezifisch, dann global auffuellen (max 3)
-  const exampleCols = 'id, titel, hook, hauptteil, cta, performance_label, marke_id';
-  const beispiele = [];
-  if (marke_id) {
-    const { data } = await supabase.from('skripte').select(exampleCols)
-      .in('performance_label', ['erfolgreich', 'viral']).eq('marke_id', marke_id)
-      .order('created_at', { ascending: false }).limit(3);
-    beispiele.push(...(data || []));
-  }
-  if (beispiele.length < 3) {
-    const { data } = await supabase.from('skripte').select(exampleCols)
-      .in('performance_label', ['erfolgreich', 'viral'])
-      .order('created_at', { ascending: false }).limit(6);
-    for (const s of data || []) {
-      if (beispiele.length >= 3) break;
-      if (!beispiele.some((b) => b.id === s.id)) beispiele.push(s);
-    }
-  }
-  ctx.beispiele = beispiele;
-
-  // Anti-Patterns: max 2 nicht-erfolgreiche
-  {
-    const { data } = await supabase.from('skripte').select(exampleCols)
-      .eq('performance_label', 'nicht_erfolgreich')
-      .order('created_at', { ascending: false }).limit(2);
-    ctx.antiPatterns = data || [];
-  }
-
-  return ctx;
-}
-
-// ---------------------------------------------------------------------------
-// Prompt-Bau
-// ---------------------------------------------------------------------------
-function fmtSection(title, obj) {
-  if (!obj) return '';
-  const lines = Object.entries(obj)
-    .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
-    .map(([k, v]) => `- ${k}: ${v}`);
-  if (!lines.length) return '';
-  return `\n## ${title}\n${lines.join('\n')}\n`;
-}
-
-function fmtSkript(s) {
-  return [
-    s.titel ? `Titel: ${s.titel}` : null,
-    s.hook ? `HOOK: ${s.hook}` : null,
-    s.hauptteil ? `HAUPTTEIL: ${s.hauptteil}` : null,
-    s.cta ? `CTA: ${s.cta}` : null
-  ].filter(Boolean).join('\n');
-}
-
-function buildPrompt(ctx, params) {
+function buildPrompt(ctx, params, rueckfragenDialog = '', briefingExtrakt = null) {
   // Block 1 (stabil, cachebar): Rolle + DNA + Beispiele + Anti-Patterns
   let stable = 'Du bist ein erfahrener Werbetexter fuer UGC- und Creator-Videos (TikTok, Instagram Reels). '
     + 'Du schreibst deutsche Video-Skripte, die klingen wie von echten Creators gesprochen - nicht wie Werbung. '
@@ -232,46 +82,28 @@ function buildPrompt(ctx, params) {
 
   // Block 2 (variabel): Auftrag dieser Generierung
   let task = '# AUFTRAG\nSchreibe EIN Video-Skript auf Deutsch.\n';
-  task += fmtSection('Unternehmen', ctx.unternehmen && {
-    firmenname: ctx.unternehmen.firmenname,
-    webseite: ctx.unternehmen.webseite
-  });
-  task += fmtSection('Marke', ctx.marke && {
-    markenname: ctx.marke.markenname,
-    branche: ctx.branche?.name || ctx.marke.branche,
-    webseite: ctx.marke.webseite
-  });
-  if (!ctx.marke && ctx.branche) {
-    task += fmtSection('Branche', { branche: ctx.branche.name });
+
+  // Hochgeladenes PDF-Briefing: verbindlichste Faktenquelle
+  if (briefingExtrakt) {
+    task += '\n# PDF-BRIEFING (verbindliche Faktenbasis - hat Vorrang vor den CRM-Daten unten)\n'
+      + briefingExtrakt + '\n';
   }
-  task += fmtSection('Produkt', ctx.produkt);
-  task += fmtSection('Kampagne', ctx.kampagne);
-  task += fmtSection('Briefing', ctx.briefing);
-  task += fmtSection('Marken-Kickoff', ctx.kickoff);
-  task += fmtSection('Zielgruppen-Persona', ctx.persona && {
-    name: ctx.persona.name,
-    alter: [ctx.persona.alter_von, ctx.persona.alter_bis].filter(Boolean).join('-') || null,
-    geschlecht: ctx.persona.geschlecht,
-    wohnort_region: ctx.persona.wohnort_region,
-    beruf: ctx.persona.beruf,
-    budgetrahmen: ctx.persona.budgetrahmen,
-    bildungsstand: ctx.persona.bildungsstand,
-    lebenssituation: ctx.persona.lebenssituation,
-    lebensrealitaet: ctx.persona.kontext,
-    pain_points: ctx.persona.pain_points,
-    beschreibung: ctx.persona.beschreibung
-  });
-  // Regieanweisung bewusst NICHT im Prompt - reine Zusatzinfo fuer die Umsetzung
-  task += fmtSection('Vorgaben fuer dieses Video', {
-    video_idee: params.video_idee,
-    location: params.location,
-    funnel_stufe: params.funnel_stufe,
-    tonalitaet: params.tonalitaet
-  });
+
+  task += buildKontextText(ctx, params);
+
+  // Vorab geklaerte Rueckfragen (Slot-Filling-Dialog vor der Generierung)
+  if (rueckfragenDialog) {
+    task += '\n# GEKLAERTE RUECKFRAGEN (verbindliche Antworten des Users - haben Vorrang vor widerspruechlichen CRM-Daten)\n'
+      + rueckfragenDialog + '\n';
+  }
 
   task += '\n# AUSGABEFORMAT\nAntworte AUSSCHLIESSLICH mit einem JSON-Objekt in dieser Form:\n'
     + '{"titel": "kurzer Arbeitstitel", "hook": "...", "hauptteil": "...", "cta": "..."}\n'
-    + 'Der Text ist gesprochener Creator-Text (keine Regieanweisungen in eckigen Klammern, ausser wo unbedingt noetig).';
+    + 'Der Text ist gesprochener Creator-Text (keine Regieanweisungen in eckigen Klammern, ausser wo unbedingt noetig).\n'
+    + 'WICHTIG - nichts erfinden: Behaupte im Skript NICHTS ueber Angebote, Features, Aktionen oder Konditionen '
+    + '(z.B. Partnerkarten, Rabatte, Gratis-Extras), das nicht ausdruecklich '
+    + (briefingExtrakt ? 'im PDF-BRIEFING, ' : '')
+    + 'in den CRM-Daten oben oder in den GEKLAERTEN RUECKFRAGEN steht.';
 
   return { stable, task };
 }
@@ -305,7 +137,29 @@ exports.handler = async (event) => {
     job.log(`Kontext: ${ctx.dna.length} DNA-Layer, ${ctx.beispiele.length} Beispiele, ${ctx.antiPatterns.length} Anti-Patterns`
       + `${ctx.briefing ? ', Briefing' : ''}${ctx.kickoff ? ', Kickoff' : ''}${ctx.produkt ? ', Produkt' : ''}`);
 
-    const { stable, task } = buildPrompt(ctx, payload);
+    // Hochgeladenes PDF-Briefing durchforsten (Cache am Stub greift, wenn die
+    // Rueckfragen-Phase es schon extrahiert hat)
+    let briefingExtrakt = null;
+    if (payload.briefing_pdf?.pfad) {
+      job.step('briefing', `PDF-Briefing "${payload.briefing_pdf.name || 'Dokument'}" wird durchforstet...`);
+      briefingExtrakt = await ladeBriefingExtrakt(supabase, payload, payload.skript_id || null, (msg) => job.log(msg));
+    }
+
+    // Rueckfragen-Stub: geklaerten Frage/Antwort-Dialog in den Prompt aufnehmen
+    let rueckfragenDialog = '';
+    if (payload.skript_id) {
+      const { data: dialog } = await supabase.from('skript_chat_messages')
+        .select('rolle, inhalt')
+        .eq('skript_id', payload.skript_id).eq('aktion', 'rueckfrage')
+        .order('created_at');
+      rueckfragenDialog = (dialog || [])
+        .filter((m) => (m.inhalt || '').trim())
+        .map((m) => `${m.rolle === 'user' ? 'User' : 'Liky'}: ${m.inhalt.trim()}`)
+        .join('\n');
+      if (rueckfragenDialog) job.log('Geklaerte Rueckfragen fliessen in den Prompt ein');
+    }
+
+    const { stable, task } = buildPrompt(ctx, payload, rueckfragenDialog, briefingExtrakt);
     const model = MODELS.write;
 
     job.step('generierung', `Skript wird geschrieben (${model})...`);
@@ -322,7 +176,7 @@ exports.handler = async (event) => {
       throw new Error('Antwort unvollstaendig (hook/hauptteil/cta fehlt)');
     }
 
-    const { data: skript, error: insertError } = await supabase.from('skripte').insert({
+    const skriptDaten = {
       titel: parsed.titel || null,
       unternehmen_id: payload.unternehmen_id || null,
       marke_id: payload.marke_id || null,
@@ -346,12 +200,25 @@ exports.handler = async (event) => {
         dna_versionen: ctx.dnaVersionen,
         beispiel_ids: ctx.beispiele.map((s) => s.id),
         anti_pattern_ids: ctx.antiPatterns.map((s) => s.id),
-        usage: result.usage
-      },
-      created_by: user.id
-    }).select('id').single();
+        usage: result.usage,
+        ...(payload.briefing_pdf ? { briefing_pdf: payload.briefing_pdf } : {}),
+        ...(briefingExtrakt ? { briefing_extrakt: briefingExtrakt } : {})
+      }
+    };
 
-    if (insertError) throw new Error(`Skript-Insert fehlgeschlagen: ${insertError.message}`);
+    // Rueckfragen-Flow: Stub-Row aktualisieren statt neu anlegen
+    let skript;
+    if (payload.skript_id) {
+      const { data, error: updateError } = await supabase.from('skripte')
+        .update(skriptDaten).eq('id', payload.skript_id).select('id').single();
+      if (updateError) throw new Error(`Skript-Update fehlgeschlagen: ${updateError.message}`);
+      skript = data;
+    } else {
+      const { data, error: insertError } = await supabase.from('skripte')
+        .insert({ ...skriptDaten, created_by: user.id }).select('id').single();
+      if (insertError) throw new Error(`Skript-Insert fehlgeschlagen: ${insertError.message}`);
+      skript = data;
+    }
 
     // Ausgangsversion (v1) fuer den Chat-Editor snapshotten.
     // Nicht kritisch fuer die Generierung -> Fehler nur loggen.

@@ -7,12 +7,15 @@
 import { skripteService, FUNNEL_STUFEN } from './SkripteService.js';
 import { escapeHtml } from './SkripteUtils.js';
 
+const BRIEFING_MAX_BYTES = 10 * 1024 * 1024; // Bucket-Limit 'documents': 10 MB
+
 export class SkriptGeneratorForm {
   constructor({ prefix = 'gen' } = {}) {
     this.prefix = prefix;
     this.container = null;
     this.unternehmen = [];
     this.marken = [];
+    this.briefingFile = null; // gewaehltes PDF (File), Upload erst beim Generieren
   }
 
   el(name) {
@@ -37,11 +40,11 @@ export class SkriptGeneratorForm {
           </div>
           <div class="form-group">
             <label class="form-label">Kampagne</label>
-            <select id="${p}-kampagne" class="form-input" disabled><option value="">– Erst Marke wählen –</option></select>
+            <select id="${p}-kampagne" class="form-input" disabled><option value="">– Erst Unternehmen wählen –</option></select>
           </div>
           <div class="form-group">
             <label class="form-label">Produkt</label>
-            <select id="${p}-produkt" class="form-input" disabled><option value="">– Erst Marke wählen –</option></select>
+            <select id="${p}-produkt" class="form-input" disabled><option value="">– Erst Unternehmen wählen –</option></select>
           </div>
           <div class="form-group">
             <label class="form-label">Persona (Zielgruppe)</label>
@@ -52,6 +55,16 @@ export class SkriptGeneratorForm {
             <select id="${p}-branche" class="form-input"><option value="">Laden...</option></select>
             <span class="skripte-hint">Wird bei Markenwahl automatisch gesetzt, kann überschrieben werden.</span>
           </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">PDF-Briefing (optional)</label>
+          <input id="${p}-briefing-pdf" type="file" accept="application/pdf,.pdf" hidden />
+          <div class="skripte-briefing-upload" id="${p}-briefing-wrap">
+            <button type="button" id="${p}-briefing-btn" class="secondary-btn">PDF auswählen</button>
+            <span class="skripte-briefing-name" id="${p}-briefing-name" hidden></span>
+            <button type="button" id="${p}-briefing-clear" class="skripte-briefing-clear" title="PDF entfernen" aria-label="PDF entfernen" hidden>&times;</button>
+          </div>
+          <span class="skripte-hint">Liky durchforstet das Briefing und nutzt die Fakten als verbindliche Basis für das Skript (max. 10 MB).</span>
         </div>
       </div>
 
@@ -97,8 +110,80 @@ export class SkriptGeneratorForm {
 
     this.el('unternehmen').addEventListener('change', () => this.onUnternehmenChange());
     this.el('marke').addEventListener('change', () => this.onMarkeChange());
+    this.bindBriefingUpload();
 
     await Promise.all([this.loadUnternehmen(), this.loadPersonas(), this.loadBranchen(), this.loadDnaOptionen()]);
+  }
+
+  // ------------------------------------------------------------------
+  // PDF-Briefing: Auswahl im Formular, Upload erst beim Generieren
+  // ------------------------------------------------------------------
+  bindBriefingUpload() {
+    const input = this.el('briefing-pdf');
+    const btn = this.el('briefing-btn');
+    const clear = this.el('briefing-clear');
+    if (!input || !btn) return;
+
+    btn.addEventListener('click', () => input.click());
+    input.addEventListener('change', () => {
+      const file = input.files?.[0] || null;
+      if (!file) return;
+      if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+        window.toastSystem?.error('Bitte eine PDF-Datei wählen');
+        input.value = '';
+        return;
+      }
+      if (file.size > BRIEFING_MAX_BYTES) {
+        window.toastSystem?.error('PDF ist zu groß (max. 10 MB)');
+        input.value = '';
+        return;
+      }
+      this.briefingFile = file;
+      this.renderBriefingState();
+    });
+    clear?.addEventListener('click', () => {
+      this.briefingFile = null;
+      input.value = '';
+      this.renderBriefingState();
+    });
+  }
+
+  renderBriefingState() {
+    const name = this.el('briefing-name');
+    const clear = this.el('briefing-clear');
+    const btn = this.el('briefing-btn');
+    if (!name || !btn) return;
+    const hatDatei = !!this.briefingFile;
+    name.hidden = !hatDatei;
+    name.textContent = hatDatei ? this.briefingFile.name : '';
+    if (clear) clear.hidden = !hatDatei;
+    btn.textContent = hatDatei ? 'Anderes PDF wählen' : 'PDF auswählen';
+  }
+
+  /**
+   * Gewaehltes PDF in den Storage-Bucket 'documents' hochladen.
+   * Pfad MUSS unter 'briefings/' liegen (Storage-INSERT-Policy erlaubt nur
+   * die Top-Level-Ordner 'briefings' und 'kampagnen').
+   */
+  async uploadBriefingPdf() {
+    if (!this.briefingFile) return null;
+    const safeName = this.briefingFile.name.replace(/[^a-zA-Z0-9äöüÄÖÜß._-]/g, '_');
+    const pfad = `briefings/skript-generator/${Date.now()}-${safeName}`;
+    const { error } = await window.supabase.storage.from('documents')
+      .upload(pfad, this.briefingFile, { contentType: 'application/pdf', upsert: false });
+    if (error) throw new Error(`PDF-Upload fehlgeschlagen: ${error.message}`);
+    return { pfad, name: this.briefingFile.name };
+  }
+
+  /**
+   * Wie getPayload(), laedt aber zusaetzlich ein gewaehltes PDF-Briefing hoch
+   * und haengt es als briefing_pdf { pfad, name } an den Payload.
+   */
+  async getPayloadMitUpload() {
+    const payload = this.getPayload();
+    const briefingPdf = await this.uploadBriefingPdf();
+    if (briefingPdf) payload.briefing_pdf = briefingPdf;
+    return payload;
   }
 
   async loadUnternehmen() {
@@ -115,7 +200,7 @@ export class SkriptGeneratorForm {
     const select = this.el('persona');
     if (!select) return;
     select.innerHTML = '<option value="">– Keine –</option>'
-      + personas.map((p) => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+      + personas.map((p) => `<option value="${p.id}">${escapeHtml(skripteService.personaLabel(p))}</option>`).join('');
   }
 
   async loadBranchen() {
@@ -134,7 +219,7 @@ export class SkriptGeneratorForm {
 
     const scopeLabel = (d) => {
       if (d.layer_typ === 'branche') return d.branchen?.name;
-      if (d.layer_typ === 'zielgruppe') return d.personas?.name;
+      if (d.layer_typ === 'zielgruppe') return d.personas ? skripteService.personaLabel(d.personas) : null;
       if (d.layer_typ === 'marke') return d.marke?.markenname;
       return null;
     };
@@ -154,10 +239,10 @@ export class SkriptGeneratorForm {
     const kampagneSelect = this.el('kampagne');
     const produktSelect = this.el('produkt');
 
-    // Kampagne/Produkt haengen an der Marke -> bei Unternehmenswechsel zuruecksetzen
+    // Kampagne/Produkt bei Unternehmenswechsel zuruecksetzen
     for (const el of [kampagneSelect, produktSelect]) {
       el.disabled = true;
-      el.innerHTML = '<option value="">– Erst Marke wählen –</option>';
+      el.innerHTML = '<option value="">– Erst Unternehmen wählen –</option>';
     }
 
     if (!unternehmenId) {
@@ -177,29 +262,46 @@ export class SkriptGeneratorForm {
       ? '<option value="">– Keine –</option>'
       : '<option value="">– Keine Marke vorhanden –</option>')
       + this.marken.map((m) => `<option value="${m.id}">${escapeHtml(m.markenname)}</option>`).join('');
+
+    // Ohne (gewaehlte) Marke haengen Kampagne/Produkt direkt am Unternehmen
+    await this.loadKampagnenUndProdukte();
   }
 
   async onMarkeChange() {
     const markeId = this.el('marke').value;
-    const kampagneSelect = this.el('kampagne');
-    const produktSelect = this.el('produkt');
 
     // Branche der Marke vorbelegen (manuell ueberschreibbar)
     const marke = this.marken.find((m) => m.id === markeId);
     const brancheSelect = this.el('branche');
     if (brancheSelect && marke?.branche_id) brancheSelect.value = marke.branche_id;
 
-    if (!markeId) {
+    await this.loadKampagnenUndProdukte();
+  }
+
+  /**
+   * Kampagnen/Produkte passend zum Kontext laden: mit Marke nach Marke
+   * gefiltert, ohne Marke faellt die Filterung aufs Unternehmen zurueck
+   * (z.B. wenn das Unternehmen gar keine Marke hat).
+   */
+  async loadKampagnenUndProdukte() {
+    const unternehmenId = this.el('unternehmen')?.value || null;
+    const markeId = this.el('marke')?.value || null;
+    const kampagneSelect = this.el('kampagne');
+    const produktSelect = this.el('produkt');
+    if (!kampagneSelect || !produktSelect) return;
+
+    if (!unternehmenId) {
       for (const el of [kampagneSelect, produktSelect]) {
         el.disabled = true;
-        el.innerHTML = '<option value="">– Erst Marke wählen –</option>';
+        el.innerHTML = '<option value="">– Erst Unternehmen wählen –</option>';
       }
       return;
     }
 
+    const filter = { markeId, unternehmenId };
     const [kampagnen, produkte] = await Promise.all([
-      skripteService.loadKampagnen(markeId),
-      skripteService.loadProdukte(markeId)
+      skripteService.loadKampagnen(filter),
+      skripteService.loadProdukte(filter)
     ]);
 
     kampagneSelect.disabled = false;

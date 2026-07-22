@@ -43,7 +43,7 @@ const AKTION_ANWEISUNGEN = {
 async function loadEditContext(supabase, message) {
   const { data: skript } = await supabase.from('skripte')
     .select('*, unternehmen(firmenname), marke(markenname), produkt(name), '
-      + 'personas(name, beschreibung, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, kontext, pain_points), '
+      + 'personas(name, oberbegriff, beschreibung, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, kontext, pain_points), '
       + 'branchen(name)')
     .eq('id', message.skript_id).single();
   if (!skript) throw new Error('Skript nicht gefunden');
@@ -166,6 +166,7 @@ function buildEditPrompt(ctx, message) {
     const p = skript.personas;
     const personaLines = fmtLines({
       name: p.name,
+      oberbegriff: p.oberbegriff,
       alter: [p.alter_von, p.alter_bis].filter(Boolean).join('-') || null,
       geschlecht: p.geschlecht,
       wohnort_region: p.wohnort_region,
