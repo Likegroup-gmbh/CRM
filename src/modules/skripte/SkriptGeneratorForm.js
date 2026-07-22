@@ -4,7 +4,7 @@
 // und vom Chat-Editor (Neu-Modus) genutzt. Liefert den Payload fuer die
 // Background Function skript-generate-background.
 
-import { skripteService, FUNNEL_STUFEN } from './SkripteService.js';
+import { skripteService, FUNNEL_STUFEN, VIDEO_LAENGEN } from './SkripteService.js';
 import { escapeHtml } from './SkripteUtils.js';
 
 const BRIEFING_MAX_BYTES = 10 * 1024 * 1024; // Bucket-Limit 'documents': 10 MB
@@ -87,6 +87,14 @@ export class SkriptGeneratorForm {
           <span class="skripte-hint">Wird nur als Zusatzinfo am Skript gespeichert – kein Einfluss auf den generierten Text.</span>
         </div>
         <div class="skripte-form-grid">
+          <div class="form-group">
+            <label class="form-label">Video-Länge (gesamt)</label>
+            <select id="${p}-laenge" class="form-input">
+              <option value="">– Keine Vorgabe –</option>
+              ${Object.entries(VIDEO_LAENGEN).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
+            </select>
+            <span class="skripte-hint">Das Skript wird auf diese gesprochene Länge dimensioniert.</span>
+          </div>
           <div class="form-group">
             <label class="form-label">Funnel-Stufe</label>
             <select id="${p}-funnel" class="form-input">
@@ -332,6 +340,7 @@ export class SkriptGeneratorForm {
       video_idee: videoIdee,
       location: this.el('location').value.trim() || null,
       regieanweisung: this.el('regie').value.trim() || null,
+      video_laenge: this.el('laenge').value || null,
       funnel_stufe: this.el('funnel').value || null,
       tonalitaet: this.el('tonalitaet').value.trim() || null,
       mit_dna: dnaWahl !== 'ohne',

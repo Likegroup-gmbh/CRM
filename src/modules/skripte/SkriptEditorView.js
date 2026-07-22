@@ -5,7 +5,7 @@
 //   rechts  Chat-Verlauf ("Liky") mit Aktions-Tag, Status und Annehmen/Ablehnen
 // Die Assistant-Message in skript_chat_messages ist der Job (Realtime + Poll).
 
-import { skripteService, FUNNEL_STUFEN } from './SkripteService.js';
+import { skripteService, FUNNEL_STUFEN, VIDEO_LAENGEN } from './SkripteService.js';
 import { SkriptGeneratorForm } from './SkriptGeneratorForm.js';
 import { SkriptFeedbackDrawer } from './SkriptFeedbackDrawer.js';
 import { escapeHtml, formatDate, badge, formatUsageCost } from './SkripteUtils.js';
@@ -479,6 +479,7 @@ export class SkriptEditorView {
       video_idee: this.skript.video_idee,
       location: this.skript.location,
       regieanweisung: this.skript.regieanweisung,
+      video_laenge: this.skript.video_laenge,
       funnel_stufe: this.skript.funnel_stufe,
       tonalitaet: this.skript.tonalitaet
     };
@@ -758,6 +759,7 @@ export class SkriptEditorView {
       ['Produkt', s.produkt?.name],
       ['Persona', s.personas ? skripteService.personaLabel(s.personas) : null],
       ['Branche', s.branchen?.name],
+      ['Video-Länge', s.video_laenge ? (VIDEO_LAENGEN[s.video_laenge] || s.video_laenge) : null],
       ['Funnel-Stufe', s.funnel_stufe ? (FUNNEL_STUFEN[s.funnel_stufe] || s.funnel_stufe) : null],
       ['Tonalität', s.tonalitaet],
       ['Skript-DNA', s.mit_dna === false ? 'Ohne DNA (Blindvergleich)' : 'Mit DNA'],

@@ -7,6 +7,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
+const { videoLaengeHinweis } = require('./_shared/skript-context');
 
 async function verifyAuth(event, supabase) {
   const authHeader = (event.headers || {}).authorization || (event.headers || {}).Authorization || '';
@@ -154,6 +155,7 @@ function buildEditPrompt(ctx, message) {
     skript.produkt?.name ? `Produkt: ${skript.produkt.name}` : null,
     skript.branchen?.name ? `Branche: ${skript.branchen.name}` : null,
     skript.tonalitaet ? `Tonalitaet: ${skript.tonalitaet}` : null,
+    skript.video_laenge ? `Video-Laenge: ${videoLaengeHinweis(skript.video_laenge)}` : null,
     skript.funnel_stufe ? `Funnel-Stufe: ${skript.funnel_stufe}` : null,
     skript.video_idee ? `Video-Idee: ${skript.video_idee}` : null,
     skript.location ? `Location: ${skript.location}` : null,
@@ -235,7 +237,11 @@ function buildEditPrompt(ctx, message) {
     + '- Wenn eine markierte Stelle vorliegt, ist vorschlag_text NUR der Ersatztext fuer genau diese Stelle (nicht die ganze Sektion).\n'
     + '- Ohne markierte Stelle, aber mit klarem Aenderungswunsch: vorschlag_text = komplette neue Version der betroffenen Sektion, sektion entsprechend setzen.\n'
     + '- Bei reinen Fragen/Rueckfragen: vorschlag_text = null, sektion = null.\n'
-    + '- Schlage pro Antwort maximal EINE Aenderung vor.';
+    + '- Schlage pro Antwort maximal EINE Aenderung vor.'
+    + (skript.video_laenge
+      ? '\n- HARTES WORT-BUDGET: Das Gesamt-Skript (Hook + Hauptteil + CTA) muss zur Video-Laenge passen '
+        + `(${videoLaengeHinweis(skript.video_laenge)}). Auch bei "Laenger schreiben" darf das Gesamt-Budget nicht gesprengt werden - im Zweifel lieber knapp bleiben.`
+      : '');
 
   return { stable, task };
 }

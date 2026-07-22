@@ -7,7 +7,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
-const { loadContext, fmtSkript, buildKontextText } = require('./_shared/skript-context');
+const { loadContext, fmtSkript, buildKontextText, videoLaengeHinweis } = require('./_shared/skript-context');
 const { ladeBriefingExtrakt } = require('./_shared/skript-briefing');
 
 async function verifyAuth(event, supabase) {
@@ -105,6 +105,14 @@ function buildPrompt(ctx, params, rueckfragenDialog = '', briefingExtrakt = null
     + (briefingExtrakt ? 'im PDF-BRIEFING, ' : '')
     + 'in den CRM-Daten oben oder in den GEKLAERTEN RUECKFRAGEN steht.';
 
+  // Harte Laengen-Regel: Wort-Budget aus der gewaehlten Video-Laenge
+  const laengenHinweis = videoLaengeHinweis(params.video_laenge);
+  if (laengenHinweis) {
+    task += `\nHARTES WORT-BUDGET: Ziel-Laenge ist ${laengenHinweis}. `
+      + 'Dieses Budget ist verbindlich - dimensioniere vor allem den Hauptteil entsprechend. '
+      + 'Im Zweifel lieber knapp unter dem Budget bleiben als darueber.';
+  }
+
   return { stable, task };
 }
 
@@ -190,6 +198,7 @@ exports.handler = async (event) => {
       video_idee: payload.video_idee || null,
       location: payload.location || null,
       regieanweisung: payload.regieanweisung || null,
+      video_laenge: payload.video_laenge || null,
       funnel_stufe: payload.funnel_stufe || null,
       tonalitaet: payload.tonalitaet || null,
       herkunft: 'generiert',

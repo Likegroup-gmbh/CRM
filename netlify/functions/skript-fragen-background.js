@@ -148,6 +148,7 @@ exports.handler = async (event) => {
       mit_dna: skript.mit_dna,
       video_idee: skript.video_idee,
       location: skript.location,
+      video_laenge: skript.video_laenge,
       funnel_stufe: skript.funnel_stufe,
       tonalitaet: skript.tonalitaet
     };

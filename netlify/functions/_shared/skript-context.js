@@ -156,6 +156,23 @@ function fmtSkript(s) {
   ].filter(Boolean).join('\n');
 }
 
+// Gesprochenes Deutsch: ca. 2,3 Woerter pro Sekunde (auf 5er gerundet)
+const WOERTER_PRO_SEKUNDE = 2.3;
+
+/**
+ * Menschlich lesbarer Laengen-Hinweis inkl. Wort-Budget aus einer
+ * Sekunden-Spanne wie "30-45". Liefert null bei fehlender/kaputter Angabe.
+ */
+function videoLaengeHinweis(spanne) {
+  if (!spanne) return null;
+  const [von, bis] = String(spanne).split('-').map((n) => parseInt(n, 10));
+  if (!Number.isFinite(von) || !Number.isFinite(bis) || bis <= 0) return null;
+  const rund5 = (n) => Math.max(5, Math.round(n / 5) * 5);
+  const minWoerter = rund5(von * WOERTER_PRO_SEKUNDE);
+  const maxWoerter = rund5(bis * WOERTER_PRO_SEKUNDE);
+  return `${von}-${bis} Sekunden gesprochen, das sind ca. ${minWoerter}-${maxWoerter} Woerter GESAMT (Hook + Hauptteil + CTA zusammen)`;
+}
+
 /**
  * Alle Kontext-Sektionen (Unternehmen ... Vorgaben) als Prompt-Text.
  * Wird von der Generierung UND der Rueckfragen-Function genutzt, damit beide
@@ -197,10 +214,11 @@ function buildKontextText(ctx, params) {
   text += fmtSection('Vorgaben fuer dieses Video', {
     video_idee: params.video_idee,
     location: params.location,
+    video_laenge: videoLaengeHinweis(params.video_laenge),
     funnel_stufe: params.funnel_stufe,
     tonalitaet: params.tonalitaet
   });
   return text;
 }
 
-module.exports = { loadContext, fmtSection, fmtSkript, buildKontextText };
+module.exports = { loadContext, fmtSection, fmtSkript, buildKontextText, videoLaengeHinweis };
