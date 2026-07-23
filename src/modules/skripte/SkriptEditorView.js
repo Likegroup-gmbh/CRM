@@ -1458,10 +1458,12 @@ export class SkriptEditorView {
       this.skript[sektion] = neu;
 
       const beschreibung = `${AKTION_LABELS[msg.aktion] || 'Änderung'} · ${SEKTION_LABELS[sektion]}`;
-      const neu = await skripteService.createVersion(this.skript, beschreibung, vorherigerStand, this.aktiveVersion);
-      this.aktiveVersion = neu;
-      this.skript.aktive_version_nr = neu.version_nr;
-      this.skript.aktive_sub_nr = neu.sub_nr;
+      // WICHTIG: eigener Name - ein "const neu" wuerde die Ersatztext-Variable
+      // oben shadowen und den ganzen try-Block in die TDZ legen
+      const neueVersion = await skripteService.createVersion(this.skript, beschreibung, vorherigerStand, this.aktiveVersion);
+      this.aktiveVersion = neueVersion;
+      this.skript.aktive_version_nr = neueVersion.version_nr;
+      this.skript.aktive_sub_nr = neueVersion.sub_nr;
       this.versionen = await skripteService.getVersionen(this.skript.id);
 
       await skripteService.updateChatMessage(msg.id, { status: 'angenommen' });
@@ -1470,7 +1472,7 @@ export class SkriptEditorView {
       this.renderDoc();
       this.renderChat();
       this.renderVersionSelect();
-      window.toastSystem?.success(`Übernommen – jetzt ${skripteService.versionLabel(neu)}`);
+      window.toastSystem?.success(`Übernommen – jetzt ${skripteService.versionLabel(neueVersion)}`);
     } catch (err) {
       window.toastSystem?.error(err.message);
       btns.forEach((b) => { b.disabled = false; });

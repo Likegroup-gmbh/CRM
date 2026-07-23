@@ -13,6 +13,9 @@ const { videoLaengeHinweis, kuerzeTranskript } = require('./_shared/skript-conte
 // weil das fertige Skript + Verlauf schon viel Kontext belegen
 const EDIT_REFERENZ_TRANSKRIPT_MAX = 4000;
 
+// PDF-Briefing-Extrakt im Edit-Prompt: gleiches Budget wie das Transkript
+const EDIT_BRIEFING_EXTRAKT_MAX = 4000;
+
 async function verifyAuth(event, supabase) {
   const authHeader = (event.headers || {}).authorization || (event.headers || {}).Authorization || '';
   const token = authHeader.replace(/^Bearer\s+/i, '');
@@ -197,6 +200,15 @@ function buildEditPrompt(ctx, message) {
     task += `\n# LEITPLANKEN (Briefing/Kickoff - verbindlich, auch bei Ueberarbeitungen)\n${leitplanken}\n`;
   }
 
+  // PDF-Briefing: das bei der Generierung erstellte Fakten-Extrakt liegt
+  // gecacht am Skript (prompt_kontext.briefing_extrakt) - Ueberarbeitungen
+  // sollen dieselbe Faktenbasis sehen wie die Erstgenerierung
+  const briefingExtrakt = (skript.prompt_kontext?.briefing_extrakt || '').trim();
+  if (briefingExtrakt) {
+    task += '\n# PDF-BRIEFING (Fakten-Extrakt - verbindliche Quelle, auch bei Ueberarbeitungen)\n'
+      + `${kuerzeTranskript(briefingExtrakt, EDIT_BRIEFING_EXTRAKT_MAX)}\n`;
+  }
+
   // Videovorlage: die kreative Basis der Erstgenerierung bleibt auch bei
   // Ueberarbeitungen erhalten (Aufbau/Machart), ist aber KEINE Kopier- oder
   // Faktenquelle. Legacy-Skripte ohne Referenz bleiben normal editierbar.
@@ -254,6 +266,7 @@ function buildEditPrompt(ctx, message) {
       : '')
     + '- vorschlag_text muss zur Zielgruppe passen (siehe ZIELGRUPPEN-PERSONA) und den Ton des restlichen Skripts erhalten.\n'
     + '- vorschlag_text darf die LEITPLANKEN (Must-haves, rechtliche Vorgaben) nicht verletzen.\n'
+    + '- Nichts erfinden: Behaupte NICHTS ueber Angebote, Features, Aktionen oder Konditionen, das nicht im PDF-BRIEFING, den LEITPLANKEN oder dem bestehenden Skript steht. Vorschlaege duerfen den PDF-Fakten nicht widersprechen.\n'
     + '- Wenn eine markierte Stelle vorliegt, ist vorschlag_text NUR der Ersatztext fuer genau diese Stelle (nicht die ganze Sektion).\n'
     + '- Ohne markierte Stelle, aber mit klarem Aenderungswunsch: vorschlag_text = komplette neue Version der betroffenen Sektion, sektion entsprechend setzen.\n'
     + '- Bei reinen Fragen/Rueckfragen: vorschlag_text = null, sektion = null.\n'
