@@ -18,6 +18,7 @@ import '../assets/styles/toast.css';
 import '../assets/styles/share.css';
 import '../assets/styles/stakeholder.css';
 import '../assets/styles/skripte.css';
+import '../assets/styles/instagram.css';
 
 import { CONFIG } from './core/ConfigSystem.js';
 import { modularFilterSystem as filterSystem } from './core/filters/ModularFilterSystem.js';
@@ -99,6 +100,7 @@ import { kickOffList } from './modules/kickoff/KickOffList.js';
 import { kickOffDetail } from './modules/kickoff/KickOffDetail.js';
 import { transcribeTestPage } from './modules/transcribe/TranscribeTestPage.js';
 import { stakeholderOverviewPage } from './modules/stakeholder/StakeholderOverviewPage.js';
+import { instagramDiscoveryPage } from './modules/instagram/InstagramDiscoveryPage.js';
 import { skriptePage } from './modules/skripte/SkriptePage.js';
 import { sharesAdminPage } from './modules/shares/SharesAdminPage.js';
 import './core/components/ShareListDialog.js';
@@ -186,6 +188,7 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('ausgangsrechnungen', ausgangsrechnungenList);
   moduleRegistry.register('transcribe', transcribeTestPage);
   moduleRegistry.register('stakeholder', stakeholderOverviewPage);
+  moduleRegistry.register('instagram', instagramDiscoveryPage);
   moduleRegistry.register('shares', sharesAdminPage);
   moduleRegistry.register('skripte', skriptePage);
   

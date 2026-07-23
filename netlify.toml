@@ -32,6 +32,10 @@
 [functions."skript-fragen-background"]
   included_files = ["netlify/functions/_shared/prompts/**"]
 
+# Instagram Business Discovery: bis zu 20 Graph-Calls pro Request
+[functions."instagram-graph"]
+  timeout = 26
+
 # Auth-Seiten direkt ausliefern (NICHT auf index.html umleiten)
 [[redirects]]
   from = "/src/auth/*"
