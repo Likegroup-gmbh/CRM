@@ -83,7 +83,7 @@ function extractBrandMentions(mediaData) {
     .map(([handle]) => handle);
 }
 
-/** Claude Haiku: Bio + Captions -> topics[] + estimated_age_range */
+/** Claude Haiku: Bio + Captions -> topics[] + estimated_age_range + estimated_gender */
 async function tagWithClaude(profile, mediaData) {
   const captions = (mediaData || [])
     .map((m) => m.caption)
@@ -100,6 +100,10 @@ async function tagWithClaude(profile, mediaData) {
       + 'gut filterbare Begriffe, keine Hashtags, keine Markennamen.\n'
       + '- "estimated_age_range": grobe Alters-Schaetzung des Creators als String '
       + '("18-24", "25-34", "35-44", "45+") oder null wenn nicht ableitbar. '
+      + 'Das ist eine unsichere Schaetzung.\n'
+      + '- "estimated_gender": geschaetztes Geschlecht der Person hinter dem Account '
+      + '("weiblich" oder "maennlich", abgeleitet aus Name/Bio/Captions). '
+      + 'null wenn unklar, Paar-Account oder Brand-/Firmen-Account. '
       + 'Das ist eine unsichere Schaetzung.\n'
       + 'Antworte ausschliesslich mit dem JSON-Objekt, ohne Erklaerung.'
   }];
@@ -119,10 +123,11 @@ async function tagWithClaude(profile, mediaData) {
       ? json.topics.map((t) => String(t).toLowerCase().trim()).filter(Boolean).slice(0, 8)
       : [];
     const age = typeof json.estimated_age_range === 'string' ? json.estimated_age_range : null;
-    return { topics, estimated_age_range: age };
+    const gender = ['weiblich', 'maennlich'].includes(json.estimated_gender) ? json.estimated_gender : null;
+    return { topics, estimated_age_range: age, estimated_gender: gender };
   } catch (err) {
     console.warn(`⚠️ Claude-Tagging fehlgeschlagen fuer @${profile.username}:`, err.message);
-    return { topics: [], estimated_age_range: null };
+    return { topics: [], estimated_age_range: null, estimated_gender: null };
   }
 }
 
@@ -236,7 +241,7 @@ async function enrichAndUpsert(supabase, rawUsername, extra = {}) {
   const media = res.media;
   const engagement_rate = computeEngagementRate(media, p.followers_count);
   const brand_mentions = extractBrandMentions(media);
-  const { topics, estimated_age_range } = await tagWithClaude(p, media);
+  const { topics, estimated_age_range, estimated_gender } = await tagWithClaude(p, media);
 
   const recent_media = media.slice(0, 12).map((m) => ({
     caption: m.caption || null,
@@ -261,6 +266,7 @@ async function enrichAndUpsert(supabase, rawUsername, extra = {}) {
     topics,
     brand_mentions,
     estimated_age_range,
+    estimated_gender,
     profile_picture_url: p.profile_picture_url || null,
     recent_media,
     enrich_error: null,

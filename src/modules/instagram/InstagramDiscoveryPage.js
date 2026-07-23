@@ -8,6 +8,7 @@
 
 import { InstagramDiscoveryService } from './InstagramDiscoveryService.js';
 import { AvatarBubbles } from '../../core/components/AvatarBubbles.js';
+import { formatUsageCost } from '../skripte/SkripteUtils.js';
 
 const LIMIT_OPTIONS = [25, 50, 100];
 const FILTER_DEBOUNCE_MS = 350;
@@ -40,7 +41,7 @@ function formatCount(n) {
 const EMPTY_FILTERS = {
   topics: [], followers_min: null, followers_max: null,
   posts_min: null, posts_max: null, engagement_min: null,
-  brands: [], min_brand_count: null, age_range: null, search_text: null
+  brands: [], min_brand_count: null, age_range: null, gender: null, search_text: null
 };
 
 export class InstagramDiscoveryPage {
@@ -103,8 +104,9 @@ export class InstagramDiscoveryPage {
             <details class="ig-admin">
               <summary>Pool-Verwaltung (Admin)</summary>
               <div class="ig-admin-body">
+                <div id="ig-pool-status" class="ig-muted"></div>
                 <div class="ig-admin-actions">
-                  <button id="ig-backfill" class="ghost-btn">CRM-Backfill starten</button>
+                  <button id="ig-backfill" class="ghost-btn" title="Alle Instagram-Handles aus dem CRM in den Pool aufnehmen und mit Posts, ER und Kooperationen füllen. Wiederholtes Klicken arbeitet Fehlschläge ab (max. 100 pro Lauf).">CRM-Creator in Pool laden</button>
                   <button id="ig-harvest" class="ghost-btn">Harvest jetzt starten</button>
                   <button id="ig-refresh" class="ghost-btn" title="Alle Pool-Creator neu anreichern: aktuelle Posts, Engagement Rate und Kooperationen">Pool aktualisieren</button>
                   <span id="ig-admin-info" class="ig-muted"></span>
@@ -166,9 +168,30 @@ export class InstagramDiscoveryPage {
     document.getElementById('ig-seed-add')?.addEventListener('click', () => this.addSeed());
 
     this.loadSeeds();
+    this.loadPoolStatus();
     // Falls beim Seitenaufruf schon ein Lauf aktiv ist, direkt live mitverfolgen
     this.stopRunPolling();
     this.loadRuns().then((running) => { if (running) this.startRunPolling(); });
+  }
+
+  /** Pool-Statuszeile: wie viele Creator sind vollstaendig / ausstehend / nicht auffindbar */
+  async loadPoolStatus() {
+    const el = document.getElementById('ig-pool-status');
+    if (!el) return;
+    const { data, error } = await window.supabase
+      .from('instagram_creators')
+      .select('enrich_error');
+    if (error || !data) { el.textContent = ''; return; }
+
+    const PERMANENT = /invalid user id|ungueltiger username|cannot be found/i;
+    let ok = 0; let pending = 0; let permanent = 0;
+    for (const row of data) {
+      if (!row.enrich_error) ok += 1;
+      else if (PERMANENT.test(row.enrich_error)) permanent += 1;
+      else pending += 1;
+    }
+    el.textContent = `Pool: ${data.length} Creator · ${ok} vollständig · `
+      + `${pending} ausstehend (werden beim nächsten Lauf erneut versucht) · ${permanent} nicht auffindbar`;
   }
 
   async checkStatus() {
@@ -220,6 +243,7 @@ export class InstagramDiscoveryPage {
     if (this.filters.topics?.length) chips.push(...this.filters.topics.map((t) => `Thema: ${t}`));
     if (this.filters.brands?.length) chips.push(...this.filters.brands.map((b) => `Marke: ${b}`));
     if (this.filters.age_range) chips.push(`Alter: ${this.filters.age_range}`);
+    if (this.filters.gender) chips.push(`Geschlecht: ${this.filters.gender} (Schätzung)`);
     el.innerHTML = chips.map((c) => `<span class="ig-chip">${esc(c)}</span>`).join('');
   }
 
@@ -239,7 +263,7 @@ export class InstagramDiscoveryPage {
       this.writeFilterInputs();
       this.renderGrid();
       if (info) info.textContent = `${this.results.length} Creator`;
-      return res.reply;
+      return res;
     } catch (err) {
       if (info) info.textContent = '';
       if (grid) grid.innerHTML = `<div class="empty-state"><p>Fehler: ${esc(err.message)}</p></div>`;
@@ -295,6 +319,7 @@ export class InstagramDiscoveryPage {
       : '';
     const er = p.engagement_rate != null ? `${p.engagement_rate}%` : '–';
     const age = p.estimated_age_range ? `<span class="ig-card-age" title="LLM-Schätzung">~${esc(p.estimated_age_range)}</span>` : '';
+    const gender = p.estimated_gender ? `<span class="ig-card-age" title="LLM-Schätzung">~${esc(p.estimated_gender)}</span>` : '';
     const sourceBadge = `<span class="ig-source ig-source-${esc(p.source)}">${p.source === 'harvest' ? 'Harvest' : 'CRM'}</span>`;
 
     return `
@@ -312,6 +337,7 @@ export class InstagramDiscoveryPage {
           <span><strong>${formatCount(p.media_count)}</strong> Posts</span>
           <span><strong>${er}</strong> ER</span>
           ${age}
+          ${gender}
         </div>
         ${topics ? `<div class="ig-card-tags">${topics}</div>` : ''}
         ${brandBubbles}
@@ -333,13 +359,26 @@ export class InstagramDiscoveryPage {
       </div>`;
       return;
     }
-    const msgs = this.messages.map((m) => `
+    // Session-Summe ueber alle KI-Anfragen (wie Kosten-Badge im Skript-Editor)
+    const sessionCost = formatUsageCost(this.messages.filter((m) => m.usage));
+    const sessionLine = sessionCost
+      ? `<div class="ig-chat-session-cost" title="${esc(sessionCost.tooltip)}">Session: ${esc(sessionCost.label)}</div>`
+      : '';
+
+    const msgs = this.messages.map((m) => {
+      const cost = m.usage ? formatUsageCost([m]) : null;
+      const badge = cost
+        ? `<div class="ig-msg-cost" title="${esc(cost.tooltip)}">${esc(cost.label)}</div>`
+        : '';
+      return `
       <div class="ig-msg ig-msg--${m.role}">
         <div class="ig-msg-text">${esc(m.text)}</div>
+        ${badge}
       </div>
-    `).join('');
+    `;
+    }).join('');
     const working = this.loading ? '<div class="ig-msg ig-msg--assistant"><div class="ig-working">Suche läuft…</div></div>' : '';
-    log.innerHTML = msgs + working;
+    log.innerHTML = sessionLine + msgs + working;
     log.scrollTop = log.scrollHeight;
   }
 
@@ -352,8 +391,13 @@ export class InstagramDiscoveryPage {
     this.loading = true;
     this.renderChat();
     try {
-      const reply = await this.runQuery(text);
-      this.messages.push({ role: 'assistant', text: reply || 'Fertig.' });
+      const res = await this.runQuery(text);
+      this.messages.push({
+        role: 'assistant',
+        text: res.reply || 'Fertig.',
+        usage: res.usage || null,
+        model: res.model || null
+      });
     } catch (err) {
       this.messages.push({ role: 'assistant', text: `Fehler: ${err.message}` });
     } finally {
@@ -544,6 +588,7 @@ export class InstagramDiscoveryPage {
       if (!stillRunning || timedOut) {
         this.stopRunPolling();
         this.setAdminButtonsDisabled(false);
+        this.loadPoolStatus();
         if (info && timedOut) info.textContent = 'Lauf dauert ungewöhnlich lange – siehe Läufe unten.';
       }
     }, 2000);

@@ -36,24 +36,59 @@ async function verifyAuth(event, supabase) {
 const EMPTY_FILTERS = {
   topics: [], followers_min: null, followers_max: null,
   posts_min: null, posts_max: null, engagement_min: null,
-  brands: [], min_brand_count: null, age_range: null, search_text: null
+  brands: [], min_brand_count: null, age_range: null, gender: null, search_text: null
 };
 
-/** Chat-Nachricht -> Filter-JSON (Claude). currentFilters ist die Basis. */
-async function parseMessageToFilters(message, currentFilters) {
+const MAX_POOL_TOPICS = 300;
+
+/**
+ * Distinct Topics aus dem Pool laden (fuer die Topic-Expansion im Prompt).
+ * Bei aktueller Poolgroesse eine billige Query; nach Haeufigkeit sortiert, Cap 300.
+ */
+async function loadPoolTopics(supabase) {
+  const { data, error } = await supabase
+    .from('instagram_creators')
+    .select('topics')
+    .is('enrich_error', null);
+  if (error || !data) return [];
+  const counts = new Map();
+  for (const row of data) {
+    for (const t of row.topics || []) counts.set(t, (counts.get(t) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, MAX_POOL_TOPICS)
+    .map(([t]) => t);
+}
+
+/**
+ * Chat-Nachricht -> Filter-JSON (Claude). currentFilters ist die Basis.
+ * poolTopics: real vergebene Tags im Pool -> Claude expandiert Oberbegriffe dagegen.
+ * @returns {{filters: object, usage: object|null, model: string|null}}
+ */
+async function parseMessageToFilters(message, currentFilters, poolTopics) {
+  const topicRule = poolTopics.length
+    ? `- topics: Waehle AUSSCHLIESSLICH aus dieser Liste real vergebener Tags: ${JSON.stringify(poolTopics)}. `
+      + 'Expandiere Oberbegriffe auf ALLE passenden Tags der Liste (z.B. "Tiere" -> hunde, katzen, '
+      + 'pferde, tierliebe sofern vorhanden; "Sport" -> fitness, fussball, ...). '
+      + 'Passt kein Tag der Liste, lasse topics leer und nutze search_text.\n'
+    : '- topics: deutsche Themen-Tags kleingeschrieben (z.B. "hunde","fitness","beauty").\n';
+
   const systemBlocks = [{
     text: 'Du wandelst Suchanfragen fuer Instagram-Creator in ein JSON-Filterobjekt um. '
       + 'Gib NUR JSON zurueck, exakt mit diesen Keys:\n'
       + '{"topics":[],"followers_min":null,"followers_max":null,"posts_min":null,'
       + '"posts_max":null,"engagement_min":null,"brands":[],"min_brand_count":null,'
-      + '"age_range":null,"search_text":null}\n'
+      + '"age_range":null,"gender":null,"search_text":null}\n'
       + 'Regeln:\n'
-      + '- topics: deutsche Themen-Tags kleingeschrieben (z.B. "hunde","fitness","beauty").\n'
+      + topicRule
       + '- followers_min/max: Zahlen (2M = 2000000, "500k" = 500000).\n'
       + '- engagement_min: Prozent als Zahl (3% -> 3).\n'
       + '- brands: genannte Markennamen/Handles kleingeschrieben; min_brand_count: Zahl wenn '
       + 'gefordert ("mit mind. 3 Marken gearbeitet" -> min_brand_count 3).\n'
       + '- age_range: eines von "18-24","25-34","35-44","45+" oder null.\n'
+      + '- gender: "weiblich" oder "maennlich" wenn explizit gefordert ("weibliche Creator", '
+      + '"maennliche Influencer"), sonst null.\n'
       + '- search_text: freier Rest-Suchbegriff oder null.\n'
       + 'Uebernimm die uebergebenen aktuellen Filter als Basis und aendere nur, was in der '
       + 'Nachricht vorkommt. Nicht genannte Felder unveraendert lassen.'
@@ -61,14 +96,14 @@ async function parseMessageToFilters(message, currentFilters) {
 
   const userPrompt = `Aktuelle Filter:\n${JSON.stringify(currentFilters)}\n\nNachricht:\n${message}`;
 
-  const { text } = await callClaude({
+  const { text, usage, model } = await callClaude({
     model: MODELS.edit_fast,
     systemBlocks,
     userPrompt,
-    maxTokens: 512
+    maxTokens: 1024
   });
   const parsed = extractJson(text);
-  return { ...EMPTY_FILTERS, ...currentFilters, ...parsed };
+  return { filters: { ...EMPTY_FILTERS, ...currentFilters, ...parsed }, usage, model };
 }
 
 /** Filter -> Supabase-Query auf instagram_creators */
@@ -76,7 +111,7 @@ async function queryPool(supabase, filters, limit) {
   let q = supabase
     .from('instagram_creators')
     .select('username,name,biography,website,followers_count,media_count,engagement_rate,'
-      + 'topics,brand_mentions,estimated_age_range,profile_picture_url,recent_media,source,found_via_hashtag')
+      + 'topics,brand_mentions,estimated_age_range,estimated_gender,profile_picture_url,recent_media,source,found_via_hashtag')
     .is('enrich_error', null);
 
   if (Array.isArray(filters.topics) && filters.topics.length) q = q.overlaps('topics', filters.topics);
@@ -87,6 +122,7 @@ async function queryPool(supabase, filters, limit) {
   if (filters.engagement_min != null) q = q.gte('engagement_rate', filters.engagement_min);
   if (Array.isArray(filters.brands) && filters.brands.length) q = q.overlaps('brand_mentions', filters.brands);
   if (filters.age_range) q = q.eq('estimated_age_range', filters.age_range);
+  if (filters.gender) q = q.eq('estimated_gender', filters.gender);
   if (filters.search_text) {
     const s = `%${filters.search_text}%`;
     q = q.or(`name.ilike.${s},username.ilike.${s},biography.ilike.${s}`);
@@ -132,6 +168,7 @@ function buildReply(filters, count) {
   if (filters.engagement_min != null) parts.push(`ER >= ${filters.engagement_min}%`);
   if (filters.min_brand_count != null) parts.push(`>= ${filters.min_brand_count} Marken`);
   if (filters.age_range) parts.push(`Alter ${filters.age_range} (Schaetzung)`);
+  if (filters.gender) parts.push(`${filters.gender} (Schaetzung)`);
   const crit = parts.length ? ` (${parts.join(', ')})` : '';
   return `${count} Treffer${crit}.`;
 }
@@ -153,9 +190,15 @@ exports.handler = async (event) => {
 
   try {
     let filters = currentFilters;
+    let usage = null;
+    let model = null;
     // Nur wenn eine Chat-Nachricht da ist, Claude bemuehen (manuelle Filteraenderung -> kostenlos)
     if (body.message && body.message.trim()) {
-      filters = await parseMessageToFilters(body.message.trim(), currentFilters);
+      const poolTopics = await loadPoolTopics(supabase);
+      const parsed = await parseMessageToFilters(body.message.trim(), currentFilters, poolTopics);
+      filters = parsed.filters;
+      usage = parsed.usage;
+      model = parsed.model;
     }
     const results = await queryPool(supabase, filters, limit);
     const brands = await brandsForResults(supabase, results);
@@ -163,7 +206,9 @@ exports.handler = async (event) => {
       filters,
       reply: buildReply(filters, results.length),
       results,
-      brands
+      brands,
+      usage,
+      model
     });
   } catch (err) {
     console.error('❌ instagram-query:', err.message);

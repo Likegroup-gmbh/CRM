@@ -10,7 +10,7 @@
 .ig-disco-shell {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--panel-lg, 340px);
-  gap: var(--space-lg);
+  
   flex: 1;
   min-height: 0;
 }
@@ -145,6 +145,27 @@
 .ig-msg--user { align-self: flex-end; align-items: flex-end; text-align: right; max-width: 90%; }
 .ig-msg--assistant { align-self: flex-start; align-items: flex-start; }
 .ig-msg-text { white-space: pre-wrap; line-height: 1.5; }
+.ig-msg-cost {
+  margin-top: 2px;
+  font-size: var(--text-xs, 12px);
+  color: var(--text-secondary, #6b7280);
+  background: var(--bg-tertiary, #f3f4f6);
+  border-radius: var(--radius-full, 999px);
+  padding: 1px 8px;
+  cursor: default;
+}
+.ig-chat-session-cost {
+  position: sticky;
+  top: 0;
+  align-self: stretch;
+  text-align: center;
+  font-size: var(--text-xs, 12px);
+  color: var(--text-secondary, #6b7280);
+  background: var(--bg-secondary, #fff);
+  border-bottom: 1px solid var(--gray-200, #e5e7eb);
+  padding: var(--space-2xs, 4px) 0;
+  cursor: default;
+}
 .ig-msg--user .ig-msg-text { background: var(--bg-tertiary, #eef2ff); border-radius: var(--radius-xl, 12px); padding: var(--space-xs) var(--space-sm); }
 .ig-working { color: var(--text-secondary, #6b7280); }
 

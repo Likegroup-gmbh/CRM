@@ -17,6 +17,13 @@ const REFRESH_AFTER_MS = 7 * 24 * 60 * 60 * 1000; // 7 Tage
 const DELAY_BETWEEN_CALLS_MS = 1100; // ~1 Call/s, Meta-Rate-Limits schonen
 const MAX_BRAND_LOOKUPS_PER_RUN = 100; // Brand-Cache-Nachzug pro Lauf deckeln
 const MAX_REFRESH_PER_RUN = 250; // Pool-Refresh: max Profile pro Lauf (15-Min-Budget)
+const MAX_BACKFILL_PER_RUN = 100; // kleinere Batches schonen das App-Rate-Limit (#4)
+
+// Dauerhafte Fehler: erneuter Versuch bringt nichts (kein Business-Account, kaputter Handle).
+// Rate-Limits u.ae. sind dagegen transient und werden beim naechsten Lauf neu versucht.
+function isPermanentError(err) {
+  return /invalid user id|ungueltiger username|cannot be found/i.test(err || '');
+}
 
 // Netlify killt Background Functions hart nach 15 Min — vorher sauber aufhoeren,
 // damit der finale Status-Write noch durchkommt. Rest erledigt der naechste Lauf.
@@ -92,14 +99,18 @@ exports.handler = async (event) => {
 
     if (isRefresh) {
       // Refresh: ALLE Pool-Creator (CRM + Harvest), aelteste zuerst, ohne 7-Tage-Skip.
+      // Dauerhaft fehlgeschlagene Profile (kein Business-Account) fliegen raus.
       // Kein source/crm_creator_id im Upsert -> bestehende Werte bleiben erhalten.
       const { data: pool, error: poolErr } = await supabase
         .from('instagram_creators')
-        .select('username')
-        .order('last_enriched_at', { ascending: true, nullsFirst: true })
-        .limit(MAX_REFRESH_PER_RUN);
+        .select('username, enrich_error')
+        .order('last_enriched_at', { ascending: true, nullsFirst: true });
       if (poolErr) throw new Error(`Pool-Load: ${poolErr.message}`);
-      candidates = (pool || []).map((p) => ({ username: p.username, crmId: null }));
+      candidates = (pool || [])
+        .filter((p) => !isPermanentError(p.enrich_error))
+        .slice(0, MAX_REFRESH_PER_RUN)
+        .map((p) => ({ username: p.username, crmId: null }));
+      stats.skipped_permanent = (pool || []).filter((p) => isPermanentError(p.enrich_error)).length;
     } else {
       // 1. CRM-Handles laden
       const { data: creators, error: crmErr } = await supabase
@@ -116,21 +127,39 @@ exports.handler = async (event) => {
       }
       stats.crm_handles = handleMap.size;
 
-      // 3. Bestehende Pool-Eintraege laden (username + last_enriched_at)
+      // 3. Bestehende Pool-Eintraege laden (inkl. Fehlerstatus)
       const { data: existing } = await supabase
         .from('instagram_creators')
-        .select('username, last_enriched_at');
-      const existingMap = new Map((existing || []).map((e) => [e.username, e.last_enriched_at]));
+        .select('username, last_enriched_at, enrich_error');
+      const existingMap = new Map((existing || []).map((e) => [e.username, e]));
 
-      // 4. Kandidaten bestimmen: fehlend oder zu alt
+      // 4. Kandidaten bestimmen mit Prioritaet:
+      //    (1) noch nicht im Pool, (2) transienter Fehlschlag (Retry, z.B. Rate-Limit),
+      //    (3) erfolgreich aber aelter als 7 Tage.
+      //    Dauerhafte Fehler (Invalid user id) werden nicht mehr versucht.
       const now = Date.now();
+      const missing = [];
+      const retry = [];
+      const stale = [];
+      stats.skipped_permanent = 0;
       for (const [username, crmId] of handleMap.entries()) {
-        const last = existingMap.get(username);
-        if (last && (now - new Date(last).getTime()) < REFRESH_AFTER_MS) {
+        const row = existingMap.get(username);
+        if (!row) { missing.push({ username, crmId }); continue; }
+        if (row.enrich_error) {
+          if (isPermanentError(row.enrich_error)) stats.skipped_permanent += 1;
+          else retry.push({ username, crmId });
+          continue;
+        }
+        if (row.last_enriched_at && (now - new Date(row.last_enriched_at).getTime()) < REFRESH_AFTER_MS) {
           stats.skipped_existing += 1;
           continue;
         }
-        candidates.push({ username, crmId });
+        stale.push({ username, crmId });
+      }
+      candidates = [...missing, ...retry, ...stale];
+      if (candidates.length > MAX_BACKFILL_PER_RUN) {
+        stats.note = `${candidates.length} Kandidaten – dieser Lauf verarbeitet ${MAX_BACKFILL_PER_RUN}, Rest beim naechsten Klick`;
+        candidates = candidates.slice(0, MAX_BACKFILL_PER_RUN);
       }
     }
     stats.candidates = candidates.length;
