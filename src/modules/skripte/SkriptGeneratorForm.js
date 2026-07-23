@@ -1,13 +1,91 @@
 // SkriptGeneratorForm.js
-// Wiederverwendbares Generator-Formular (Kontext + Video-Vorgaben) mit
-// Kaskade Unternehmen -> Marke -> Kampagne/Produkt. Wird vom Generator-Tab
+// Wiederverwendbares Generator-Formular (Kontext + Videovorlage + Video-Vorgaben)
+// mit Kaskade Unternehmen -> Marke -> Kampagne/Produkt. Wird vom Generator-Tab
 // und vom Chat-Editor (Neu-Modus) genutzt. Liefert den Payload fuer die
 // Background Function skript-generate-background.
 
 import { skripteService, FUNNEL_STUFEN, VIDEO_LAENGEN } from './SkripteService.js';
 import { escapeHtml } from './SkripteUtils.js';
+import { TranscribeService, isSupportedVideoUrl } from '../transcribe/TranscribeService.js';
 
 const BRIEFING_MAX_BYTES = 10 * 1024 * 1024; // Bucket-Limit 'documents': 10 MB
+const REF_MANUELL_MIN_ZEICHEN = 50; // manuelles Transkript: Mindestlaenge
+
+// Kompakte Labels fuer den Transcribe-Fortschritt (ohne Console-Log)
+const REF_PROGRESS = {
+  pending: { pct: 5, label: 'Warte auf Start…' },
+  browser: { pct: 15, label: 'Video wird geöffnet…' },
+  navigation: { pct: 30, label: 'Video wird geladen…' },
+  captions: { pct: 55, label: 'Untertitel werden geladen…' },
+  download: { pct: 50, label: 'Video wird heruntergeladen…' },
+  whisper: { pct: 70, label: 'Transkription läuft…' },
+  description: { pct: 90, label: 'Beschreibung wird erstellt…' },
+  done: { pct: 100, label: 'Fertig' }
+};
+
+/**
+ * Referenz-Payload aus dem UI-Zustand bauen (pure Funktion, testbar).
+ * Wirft bei fehlender/unfertiger Videovorlage - die Vorlage ist PFLICHT
+ * fuer jede neue KI-Generierung.
+ */
+export function buildReferenzVideoPayload({ status, url, job, transkript, beschreibung, caption }) {
+  const cleanUrl = (url || '').trim();
+  const cleanTranskript = (transkript || '').trim();
+
+  if (!cleanUrl) {
+    throw new Error('Bitte eine Videovorlage angeben (TikTok- oder Instagram-URL)');
+  }
+  if (!isSupportedVideoUrl(cleanUrl)) {
+    throw new Error('Die Videovorlage muss eine TikTok- oder Instagram-URL sein');
+  }
+  if (status === 'transcribing') {
+    throw new Error('Die Videovorlage wird noch analysiert – bitte kurz warten');
+  }
+
+  if (status === 'ready' && job) {
+    if (!cleanTranskript) {
+      throw new Error('Das Transkript der Videovorlage ist leer – bitte prüfen oder manuell ergänzen');
+    }
+    return {
+      url: cleanUrl,
+      transcription_job_id: job.id,
+      quelle: 'job',
+      transkript_verwendet: cleanTranskript,
+      beschreibung: (beschreibung || '').trim() || null,
+      caption: (caption || '').trim() || null,
+      platform: job.platform || null,
+      duration_seconds: job.duration_seconds ?? null,
+      author_name: job.author_name || null,
+      metrics: {
+        likes: job.likes_count ?? null,
+        comments: job.comments_count ?? null,
+        shares: job.shares_count ?? null,
+        saves: job.saves_count ?? null
+      }
+    };
+  }
+
+  // Fehlgeschlagene Analyse: manuelles Transkript zur URL ist der Fallback
+  if (status === 'error') {
+    if (cleanTranskript.length < REF_MANUELL_MIN_ZEICHEN) {
+      throw new Error('Analyse fehlgeschlagen – bitte erneut versuchen oder das Transkript manuell einfügen (min. 50 Zeichen)');
+    }
+    return {
+      url: cleanUrl,
+      transcription_job_id: null,
+      quelle: 'manual',
+      transkript_verwendet: cleanTranskript,
+      beschreibung: (beschreibung || '').trim() || null,
+      caption: (caption || '').trim() || null,
+      platform: null,
+      duration_seconds: null,
+      author_name: null,
+      metrics: { likes: null, comments: null, shares: null, saves: null }
+    };
+  }
+
+  throw new Error('Bitte die Videovorlage zuerst analysieren (Button „Analysieren“)');
+}
 
 export class SkriptGeneratorForm {
   constructor({ prefix = 'gen' } = {}) {
@@ -16,6 +94,10 @@ export class SkriptGeneratorForm {
     this.unternehmen = [];
     this.marken = [];
     this.briefingFile = null; // gewaehltes PDF (File), Upload erst beim Generieren
+
+    // Videovorlage (Pflicht): Transcribe-Job-Zustand dieser Form-Instanz
+    this.transcribe = new TranscribeService({ onUpdate: (job) => this.onTranscribeUpdate(job) });
+    this.referenz = { status: 'idle', url: '', job: null };
   }
 
   el(name) {
@@ -65,6 +147,47 @@ export class SkriptGeneratorForm {
             <button type="button" id="${p}-briefing-clear" class="skripte-briefing-clear" title="PDF entfernen" aria-label="PDF entfernen" hidden>&times;</button>
           </div>
           <span class="skripte-hint">Liky durchforstet das Briefing und nutzt die Fakten als verbindliche Basis für das Skript (max. 10 MB).</span>
+        </div>
+      </div>
+
+      <div class="skripte-card">
+        <h3>Videovorlage *</h3>
+        <p class="skripte-hint">Jedes Skript basiert auf einer Videovorlage: Liky übernimmt Aufbau und Machart (Hook-Typ, Dramaturgie, Pace, CTA-Mechanik) – aber keine Formulierungen oder Produktaussagen. Fakten kommen weiter aus CRM und Briefing.</p>
+        <div class="skripte-ref-row">
+          <input type="url" id="${p}-ref-url" class="form-input"
+            placeholder="TikTok- oder Instagram-URL der Vorlage (z.B. https://www.tiktok.com/@user/video/...)" />
+          <button type="button" id="${p}-ref-start" class="secondary-btn">Analysieren</button>
+        </div>
+        <div id="${p}-ref-progress" class="skripte-ref-progress" hidden>
+          <div class="skripte-progress-head">
+            <span id="${p}-ref-progress-label">Starte…</span>
+          </div>
+          <div class="skripte-progress-track"><div id="${p}-ref-progress-bar" class="skripte-progress-bar"></div></div>
+        </div>
+        <div id="${p}-ref-error" class="skripte-ref-error" hidden>
+          <span id="${p}-ref-error-text"></span>
+          <button type="button" id="${p}-ref-retry" class="secondary-btn">Erneut versuchen</button>
+        </div>
+        <div id="${p}-ref-result" hidden>
+          <div id="${p}-ref-meta" class="skripte-ref-meta"></div>
+          <div class="form-group">
+            <label class="form-label">Transkript der Vorlage <span id="${p}-ref-source" class="skripte-hint"></span></label>
+            <textarea id="${p}-ref-transkript" class="form-input" rows="6"
+              placeholder="Transkript erscheint hier nach der Analyse – oder bei Fehlern manuell einfügen"></textarea>
+          </div>
+          <div class="skripte-form-grid">
+            <div class="form-group">
+              <label class="form-label">Beschreibung (KI)</label>
+              <textarea id="${p}-ref-beschreibung" class="form-input" rows="3"
+                placeholder="Automatische Beschreibung des Vorlage-Videos"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Caption</label>
+              <textarea id="${p}-ref-caption" class="form-input" rows="3"
+                placeholder="Caption des Original-Posts"></textarea>
+            </div>
+          </div>
+          <button type="button" id="${p}-ref-clear" class="secondary-btn">Vorlage entfernen</button>
         </div>
       </div>
 
@@ -119,8 +242,182 @@ export class SkriptGeneratorForm {
     this.el('unternehmen').addEventListener('change', () => this.onUnternehmenChange());
     this.el('marke').addEventListener('change', () => this.onMarkeChange());
     this.bindBriefingUpload();
+    this.bindReferenzEvents();
 
     await Promise.all([this.loadUnternehmen(), this.loadPersonas(), this.loadBranchen(), this.loadDnaOptionen()]);
+  }
+
+  // ------------------------------------------------------------------
+  // Videovorlage (Pflicht): Transcribe direkt im Formular
+  // ------------------------------------------------------------------
+  bindReferenzEvents() {
+    this.el('ref-start')?.addEventListener('click', () => this.startTranscribe());
+    this.el('ref-retry')?.addEventListener('click', () => this.startTranscribe());
+    this.el('ref-clear')?.addEventListener('click', () => this.resetReferenz());
+    this.el('ref-url')?.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); this.startTranscribe(); }
+    });
+    // URL-Wechsel verwirft den bisherigen Snapshot (er gehoert zur alten URL)
+    this.el('ref-url')?.addEventListener('input', () => {
+      const url = this.el('ref-url')?.value.trim() || '';
+      if (this.referenz.status !== 'idle' && url !== this.referenz.url) {
+        this.resetReferenz({ behalteUrl: true });
+      }
+    });
+  }
+
+  async startTranscribe() {
+    const url = this.el('ref-url')?.value.trim() || '';
+    if (!isSupportedVideoUrl(url)) {
+      window.toastSystem?.error('Bitte eine gültige TikTok- oder Instagram-URL eingeben');
+      return;
+    }
+
+    this.referenz = { status: 'transcribing', url, job: null };
+    this.renderReferenzState();
+
+    try {
+      await this.transcribe.start(url);
+    } catch (err) {
+      this.referenz = { status: 'error', url, job: null, fehler: err.message };
+      this.renderReferenzState();
+      window.toastSystem?.error(err.message);
+    }
+  }
+
+  onTranscribeUpdate(job) {
+    if (this.referenz.status !== 'transcribing') return;
+
+    if (job.status === 'done') {
+      this.referenz = { status: 'ready', url: this.referenz.url, job };
+      this.renderReferenzState();
+      const setzen = (name, wert) => { const el = this.el(name); if (el) el.value = wert || ''; };
+      setzen('ref-transkript', job.transcript);
+      setzen('ref-beschreibung', job.description);
+      setzen('ref-caption', job.caption);
+      const source = this.el('ref-source');
+      if (source) {
+        source.textContent = job.transcript_source === 'native_captions'
+          ? '(Quelle: native Captions – prüfen/anpassen möglich)'
+          : '(Quelle: Whisper – prüfen/anpassen möglich)';
+      }
+      this.renderReferenzMeta(job);
+      window.toastSystem?.success('Videovorlage analysiert');
+      return;
+    }
+
+    if (job.status === 'error') {
+      this.referenz = { status: 'error', url: this.referenz.url, job: null, fehler: job.error_message || 'Unbekannter Fehler' };
+      this.renderReferenzState();
+      return;
+    }
+
+    // Fortschritt aktualisieren
+    if (job.progress_step) {
+      const config = REF_PROGRESS[job.progress_step] || REF_PROGRESS.pending;
+      const bar = this.el('ref-progress-bar');
+      const label = this.el('ref-progress-label');
+      if (bar) bar.style.width = `${config.pct}%`;
+      if (label) label.textContent = config.label;
+    }
+  }
+
+  /** Sichtbarkeit der Referenz-Bereiche anhand des Status umschalten. */
+  renderReferenzState() {
+    const { status, fehler } = this.referenz;
+    const progress = this.el('ref-progress');
+    const errorBox = this.el('ref-error');
+    const result = this.el('ref-result');
+    const startBtn = this.el('ref-start');
+
+    if (progress) {
+      progress.hidden = status !== 'transcribing';
+      if (status === 'transcribing') {
+        const bar = this.el('ref-progress-bar');
+        const label = this.el('ref-progress-label');
+        if (bar) bar.style.width = '5%';
+        if (label) label.textContent = REF_PROGRESS.pending.label;
+      }
+    }
+    if (errorBox) {
+      errorBox.hidden = status !== 'error';
+      const text = this.el('ref-error-text');
+      if (text && status === 'error') {
+        text.textContent = `Analyse fehlgeschlagen: ${fehler || 'Unbekannter Fehler'} – erneut versuchen oder Transkript unten manuell einfügen.`;
+      }
+    }
+    // Ergebnisbereich: bei ready (Job-Daten) UND bei error (manuelle Eingabe)
+    if (result) result.hidden = !(status === 'ready' || status === 'error');
+    if (startBtn) {
+      startBtn.disabled = status === 'transcribing';
+      startBtn.textContent = status === 'transcribing' ? 'Läuft…' : 'Analysieren';
+    }
+    if (status !== 'ready') {
+      const source = this.el('ref-source');
+      if (source) source.textContent = status === 'error' ? '(manuell einfügbar)' : '';
+      if (status !== 'error') this.renderReferenzMeta(null);
+    }
+  }
+
+  /** Meta-Chips: Autor, Plattform, Dauer + Engagement (reine Zusatzinfo). */
+  renderReferenzMeta(job) {
+    const el = this.el('ref-meta');
+    if (!el) return;
+    el.textContent = '';
+    if (!job) { el.hidden = true; return; }
+
+    const dauer = job.duration_seconds ? `${Math.round(job.duration_seconds)}s` : null;
+    const chips = [
+      job.author_name ? `@${job.author_name}` : null,
+      job.platform === 'tiktok' ? 'TikTok' : job.platform === 'instagram' ? 'Instagram' : null,
+      dauer,
+      job.likes_count != null ? `${Number(job.likes_count).toLocaleString('de-DE')} Likes` : null,
+      job.comments_count != null ? `${Number(job.comments_count).toLocaleString('de-DE')} Kommentare` : null,
+      job.shares_count != null ? `${Number(job.shares_count).toLocaleString('de-DE')} Shares` : null,
+      job.saves_count != null ? `${Number(job.saves_count).toLocaleString('de-DE')} Saves` : null
+    ].filter(Boolean);
+
+    if (!chips.length) { el.hidden = true; return; }
+    for (const text of chips) {
+      const chip = document.createElement('span');
+      chip.className = 'skripte-ref-chip';
+      chip.textContent = text;
+      el.appendChild(chip);
+    }
+    el.hidden = false;
+  }
+
+  /** Vorlage komplett zuruecksetzen (Clear-Button / URL-Wechsel). */
+  resetReferenz({ behalteUrl = false } = {}) {
+    this.transcribe.cancel();
+    const url = behalteUrl ? (this.el('ref-url')?.value.trim() || '') : '';
+    this.referenz = { status: 'idle', url, job: null };
+    if (!behalteUrl) {
+      const urlEl = this.el('ref-url');
+      if (urlEl) urlEl.value = '';
+    }
+    for (const name of ['ref-transkript', 'ref-beschreibung', 'ref-caption']) {
+      const el = this.el(name);
+      if (el) el.value = '';
+    }
+    this.renderReferenzState();
+  }
+
+  /** Referenz-Block fuer den Payload (wirft bei fehlender/unfertiger Vorlage). */
+  getReferenzPayload() {
+    return buildReferenzVideoPayload({
+      status: this.referenz.status,
+      url: this.el('ref-url')?.value || this.referenz.url,
+      job: this.referenz.job,
+      transkript: this.el('ref-transkript')?.value,
+      beschreibung: this.el('ref-beschreibung')?.value,
+      caption: this.el('ref-caption')?.value
+    });
+  }
+
+  /** Realtime/Polling der Videovorlage beenden (Tab-Wechsel, Re-Render). */
+  destroy() {
+    this.transcribe.cancel();
   }
 
   // ------------------------------------------------------------------
@@ -329,8 +626,13 @@ export class SkriptGeneratorForm {
     if (!unternehmenId) throw new Error('Bitte ein Unternehmen wählen');
     if (!videoIdee) throw new Error('Bitte eine Video-Idee eingeben');
 
+    // Videovorlage ist Pflicht - wirft mit klarer Meldung, wenn sie fehlt,
+    // noch analysiert wird oder kein verwendbares Transkript vorliegt
+    const referenzVideo = this.getReferenzPayload();
+
     const dnaWahl = this.el('dna').value;
     return {
+      referenz_video: referenzVideo,
       unternehmen_id: unternehmenId,
       marke_id: this.el('marke').value || null,
       kampagne_id: this.el('kampagne').value || null,

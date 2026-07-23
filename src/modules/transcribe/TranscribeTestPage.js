@@ -1,8 +1,10 @@
 // TranscribeTestPage.js
 // Test-Seite fuer Video-Transkription (TikTok/Instagram) via Cloudflare Workers AI.
 // Erreichbar unter /transcribe (kein Nav-Eintrag, Deep-Link only).
-// Flow: URL eingeben -> Job in transcription_jobs anlegen -> Background Function triggern ->
+// Flow: URL eingeben -> TranscribeService (Job + Background Function) ->
 //       Live-Progress + Logs via Supabase Realtime -> Transkript + Beschreibung anzeigen.
+
+import { TranscribeService, isSupportedVideoUrl } from './TranscribeService.js';
 
 const PROGRESS_STEPS = {
   pending: { pct: 5, label: 'Warte auf Start...' },
@@ -17,10 +19,8 @@ const PROGRESS_STEPS = {
 
 export class TranscribeTestPage {
   constructor() {
-    this.jobId = null;
-    this.channel = null;
+    this.service = new TranscribeService({ onUpdate: (job) => this.handleJobUpdate(job) });
     this.timerInterval = null;
-    this.pollInterval = null;
     this.startTime = null;
     this.renderedLogCount = 0;
   }
@@ -140,7 +140,7 @@ export class TranscribeTestPage {
     const btn = document.getElementById('transcribe-start-btn');
     const url = (input?.value || '').trim();
 
-    if (!url || (!url.includes('tiktok.com') && !url.includes('instagram.com'))) {
+    if (!isSupportedVideoUrl(url)) {
       window.toastSystem?.show('Bitte eine gültige TikTok- oder Instagram-URL eingeben', 'error');
       return;
     }
@@ -165,75 +165,15 @@ export class TranscribeTestPage {
     this.appendLog(`[Client] Job wird angelegt für: ${url}`);
 
     try {
-      // 1. Job-Zeile anlegen
-      const { data: { user } } = await window.supabase.auth.getUser();
-      const { data: job, error } = await window.supabase
-        .from('transcription_jobs')
-        .insert({ url, created_by: user.id })
-        .select()
-        .single();
-      if (error) throw new Error(`Job-Insert fehlgeschlagen: ${error.message}`);
-
-      this.jobId = job.id;
+      const job = await this.service.start(url);
       this.appendLog(`[Client] Job-ID: ${job.id}`);
-
-      // 2. Realtime-Subscription auf diese Job-Zeile
-      this.subscribeToJob(job.id);
-
-      // 3. Fallback-Polling (falls Realtime-Event verloren geht)
-      this.pollInterval = setInterval(() => this.pollJob(), 5000);
-
-      // 4. Background Function triggern (antwortet sofort mit 202)
-      const session = await window.supabase.auth.getSession();
-      const token = session?.data?.session?.access_token || '';
-      const response = await fetch('/.netlify/functions/transcribe-background', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ jobId: job.id, url })
-      });
-
-      if (response.status !== 202 && !response.ok) {
-        throw new Error(`Function-Trigger fehlgeschlagen: HTTP ${response.status}`);
-      }
-      this.appendLog(`[Client] Background Function gestartet (HTTP ${response.status})`);
-
+      this.appendLog('[Client] Background Function gestartet – warte auf Server-Updates...');
     } catch (err) {
       console.error('Transcribe-Start fehlgeschlagen:', err);
       this.appendLog(`[Client] FEHLER: ${err.message}`);
       window.toastSystem?.show(err.message, 'error');
       this.finishUi();
     }
-  }
-
-  subscribeToJob(jobId) {
-    this.channel = window.supabase
-      .channel(`transcription-job-${jobId}`)
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'transcription_jobs',
-        filter: `id=eq.${jobId}`
-      }, (payload) => {
-        this.handleJobUpdate(payload.new);
-      })
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          this.appendLog('[Client] Realtime verbunden – warte auf Server-Updates...');
-        }
-      });
-  }
-
-  async pollJob() {
-    if (!this.jobId) return;
-    const { data } = await window.supabase
-      .from('transcription_jobs')
-      .select('*')
-      .eq('id', this.jobId)
-      .single();
-    if (data) this.handleJobUpdate(data);
   }
 
   handleJobUpdate(job) {
@@ -360,16 +300,11 @@ export class TranscribeTestPage {
       btn.textContent = 'Transkribieren';
     }
     if (this.timerInterval) { clearInterval(this.timerInterval); this.timerInterval = null; }
-    if (this.pollInterval) { clearInterval(this.pollInterval); this.pollInterval = null; }
   }
 
   cleanup() {
     this.finishUi();
-    if (this.channel) {
-      window.supabase.removeChannel(this.channel);
-      this.channel = null;
-    }
-    this.jobId = null;
+    this.service.cancel();
   }
 
   destroy() {

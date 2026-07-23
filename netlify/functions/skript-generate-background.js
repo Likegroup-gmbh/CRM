@@ -10,6 +10,58 @@ const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { loadContext, fmtSkript, buildKontextText, videoLaengeHinweis } = require('./_shared/skript-context');
 const { ladeBriefingExtrakt } = require('./_shared/skript-briefing');
 
+// ---------------------------------------------------------------------------
+// Videovorlage (Pflicht): Client-Angaben serverseitig validieren und mit der
+// Job-Row aus transcription_jobs anreichern. Metadaten kommen IMMER aus der
+// DB (nicht faelschbar); das ggf. vom User korrigierte Transkript bleibt
+// bewusst die Client-Fassung ("transkript_verwendet" = Prompt-Snapshot).
+// ---------------------------------------------------------------------------
+async function loadReferenzVideo(supabase, payload) {
+  const ref = payload.referenz_video;
+  const transkript = String(ref?.transkript_verwendet || '').trim();
+  if (!ref || !String(ref.url || '').trim() || !transkript) {
+    throw new Error('Videovorlage fehlt - jedes neue Skript braucht eine Referenz (URL + Transkript)');
+  }
+
+  const referenz = {
+    url: String(ref.url).trim(),
+    transcription_job_id: ref.transcription_job_id || null,
+    quelle: ref.transcription_job_id ? 'job' : 'manual',
+    transkript_verwendet: transkript,
+    beschreibung: String(ref.beschreibung || '').trim() || null,
+    caption: String(ref.caption || '').trim() || null,
+    platform: null,
+    duration_seconds: null,
+    author_name: null,
+    metrics: { likes: null, comments: null, shares: null, saves: null }
+  };
+
+  if (referenz.quelle === 'job') {
+    const { data: job } = await supabase.from('transcription_jobs')
+      .select('id, url, status, platform, duration_seconds, author_name, description, caption, likes_count, comments_count, shares_count, saves_count')
+      .eq('id', referenz.transcription_job_id).single();
+    if (!job) throw new Error('Transkriptions-Job der Videovorlage nicht gefunden');
+    if (job.status !== 'done') throw new Error('Transkription der Videovorlage ist noch nicht abgeschlossen');
+    if (job.url !== referenz.url) throw new Error('URL der Videovorlage passt nicht zum Transkriptions-Job');
+
+    referenz.platform = job.platform || null;
+    referenz.duration_seconds = job.duration_seconds ?? null;
+    referenz.author_name = job.author_name || null;
+    referenz.beschreibung = referenz.beschreibung || job.description || null;
+    referenz.caption = referenz.caption || job.caption || null;
+    referenz.metrics = {
+      likes: job.likes_count ?? null,
+      comments: job.comments_count ?? null,
+      shares: job.shares_count ?? null,
+      saves: job.saves_count ?? null
+    };
+  } else if (transkript.length < 50) {
+    throw new Error('Manuelles Transkript der Videovorlage ist zu kurz (min. 50 Zeichen)');
+  }
+
+  return referenz;
+}
+
 async function verifyAuth(event, supabase) {
   const authHeader = (event.headers || {}).authorization || (event.headers || {}).Authorization || '';
   const token = authHeader.replace(/^Bearer\s+/i, '');
@@ -103,7 +155,16 @@ function buildPrompt(ctx, params, rueckfragenDialog = '', briefingExtrakt = null
     + 'WICHTIG - nichts erfinden: Behaupte im Skript NICHTS ueber Angebote, Features, Aktionen oder Konditionen '
     + '(z.B. Partnerkarten, Rabatte, Gratis-Extras), das nicht ausdruecklich '
     + (briefingExtrakt ? 'im PDF-BRIEFING, ' : '')
-    + 'in den CRM-Daten oben oder in den GEKLAERTEN RUECKFRAGEN steht.';
+    + 'in den CRM-Daten oben oder in den GEKLAERTEN RUECKFRAGEN steht. '
+    + 'Das gilt AUSDRUECKLICH auch fuer Aussagen aus der VIDEOVORLAGE - deren Inhalte sind fremde Inhalte, keine Fakten ueber unser Produkt.';
+
+  // Harte Anti-Copy-Regel zur Videovorlage (Pflicht-Referenz jedes Skripts)
+  if (params.referenz_video) {
+    task += '\nVIDEOVORLAGE-REGEL (verbindlich): Uebernimm von der Vorlage NUR die abstrakte Bauweise '
+      + '(Hook-Typ, Dramaturgie, Pace, Szenenfolge, CTA-Mechanik). '
+      + 'KEINE Hook-Formulierung, KEINE Satzstruktur im Wortlaut, KEINE CTA-Formulierung '
+      + 'und KEINE Behauptung aus der Vorlage woertlich oder nah paraphrasiert uebernehmen.';
+  }
 
   // Harte Laengen-Regel: Wort-Budget aus der gewaehlten Video-Laenge
   const laengenHinweis = videoLaengeHinweis(params.video_laenge);
@@ -141,6 +202,13 @@ exports.handler = async (event) => {
 
   try {
     job.step('kontext', 'Kontext aus CRM-Daten sammeln (SQL, kein LLM)...');
+
+    // Videovorlage (Pflicht): serverseitig validieren + aus der Job-Row
+    // anreichern. Der validierte Snapshot ersetzt die Client-Angaben.
+    const referenzVideo = await loadReferenzVideo(supabase, payload);
+    payload.referenz_video = referenzVideo;
+    job.log(`Videovorlage: ${referenzVideo.quelle === 'job' ? `Transkriptions-Job (${referenzVideo.platform || 'unbekannt'})` : 'manuelles Transkript'}, ${referenzVideo.transkript_verwendet.length} Zeichen`);
+
     const ctx = await loadContext(supabase, payload);
     job.log(`Kontext: ${ctx.dna.length} DNA-Layer, ${ctx.beispiele.length} Beispiele, ${ctx.antiPatterns.length} Anti-Patterns`
       + `${ctx.briefing ? ', Briefing' : ''}${ctx.kickoff ? ', Kickoff' : ''}${ctx.produkt ? ', Produkt' : ''}`);
@@ -184,6 +252,17 @@ exports.handler = async (event) => {
       throw new Error('Antwort unvollstaendig (hook/hauptteil/cta fehlt)');
     }
 
+    // Bestehendes prompt_kontext (Stub) fuer den Merge laden: der
+    // generator_payload und evtl. Caches duerfen nicht verloren gehen
+    let bestehenderKontext = {};
+    if (payload.skript_id) {
+      const { data: stub } = await supabase.from('skripte')
+        .select('prompt_kontext').eq('id', payload.skript_id).single();
+      bestehenderKontext = stub?.prompt_kontext || {};
+    }
+    // Generator-Payload ohne interne Steuerfelder persistieren
+    const { jobId: _jobId, skript_id: _skriptId, ...generatorPayload } = payload;
+
     const skriptDaten = {
       titel: parsed.titel || null,
       unternehmen_id: payload.unternehmen_id || null,
@@ -205,7 +284,12 @@ exports.handler = async (event) => {
       status: 'entwurf',
       mit_dna: payload.mit_dna !== false,
       model: result.model,
+      // Merge statt Replace: generator_payload (Retry/Anzeige) und der
+      // Referenz-Snapshot muessen die Generierung ueberleben
       prompt_kontext: {
+        ...bestehenderKontext,
+        generator_payload: generatorPayload,
+        referenz_video: referenzVideo,
         dna_versionen: ctx.dnaVersionen,
         beispiel_ids: ctx.beispiele.map((s) => s.id),
         anti_pattern_ids: ctx.antiPatterns.map((s) => s.id),

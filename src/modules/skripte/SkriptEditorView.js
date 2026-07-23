@@ -68,7 +68,8 @@ export class SkriptEditorView {
     this.neuModus = false;
     this.genForm = null;
     this.genStatus = null; // null | { laeuft: true, step } | { error }
-    this.genPayload = null; // fuer "Nochmal versuchen"
+    this.genPayload = null; // RAM-Kopie fuer "Nochmal versuchen"
+    this.genStubId = null; // persistenter Stub (Payload ueberlebt Fehler/Reload)
     this.genJobId = null;
     this.genChannel = null;
     this.genPoll = null;
@@ -296,6 +297,8 @@ export class SkriptEditorView {
     if (this.neuModus) {
       this.neuModus = false;
       this.genStatus = null;
+      this.genForm?.destroy?.();
+      this.genForm = null;
       this.setChatInputAktiv(true);
     }
 
@@ -533,6 +536,16 @@ export class SkriptEditorView {
     this.renderChat({ forceScroll: true });
 
     try {
+      // Persistenter Stub: Payload inkl. Videovorlage ueberlebt Fehler und
+      // Reload (der Stub taucht in der Liste auf und kann dort weiter
+      // generiert werden). Retry aktualisiert denselben Stub.
+      if (this.genStubId) {
+        await skripteService.updateSkriptStub(this.genStubId, payload);
+      } else {
+        const stub = await skripteService.createSkriptStub(payload);
+        this.genStubId = stub.id;
+      }
+
       const job = await skripteService.createJob();
       this.genJobId = job.id;
 
@@ -545,6 +558,7 @@ export class SkriptEditorView {
 
       await skripteService.triggerFunction('skript-generate-background', {
         jobId: job.id,
+        skript_id: this.genStubId,
         ...payload
       });
     } catch (err) {
@@ -582,6 +596,7 @@ export class SkriptEditorView {
     this.cleanupGenJob();
     this.genStatus = null;
     this.genPayload = null;
+    this.genStubId = null;
     window.toastSystem?.success('Skript generiert');
 
     // Liste aktualisieren, damit das neue Skript links auftaucht
@@ -619,6 +634,7 @@ export class SkriptEditorView {
     this.cleanupGenJob();
     this.neuModus = false;
     this.genStatus = null;
+    this.genForm?.destroy?.();
     this.genForm = null;
     if (this.channel) {
       window.supabase.removeChannel(this.channel);
@@ -685,6 +701,9 @@ export class SkriptEditorView {
           <button id="ed-gen-direkt" class="secondary-btn" title="Rückfragen überspringen und sofort generieren">Direkt generieren</button>
         </div>
       `;
+      // Alte Instanz sauber abbauen (Transcribe-Subscriptions!), sonst
+      // leaken Channels/Polls bei jedem Re-Render im Neu-Modus
+      this.genForm?.destroy?.();
       this.genForm = new SkriptGeneratorForm({ prefix: 'edgen' });
       // Selects laden asynchron nach – Formular steht sofort
       this.genForm.render(el.querySelector('#ed-genform'));
@@ -751,9 +770,25 @@ export class SkriptEditorView {
     // in der Rueckfragen-Phase noch im generator_payload des Stubs
     const briefingPdf = s.prompt_kontext?.briefing_pdf
       || s.prompt_kontext?.generator_payload?.briefing_pdf || null;
+    // Videovorlage: nach der Generierung top-level Snapshot, davor im Payload
+    const referenz = s.prompt_kontext?.referenz_video
+      || s.prompt_kontext?.generator_payload?.referenz_video || null;
+    const referenzInfo = referenz ? [
+      referenz.platform === 'tiktok' ? 'TikTok' : referenz.platform === 'instagram' ? 'Instagram' : null,
+      referenz.author_name ? `@${referenz.author_name}` : null,
+      referenz.duration_seconds ? `${Math.round(referenz.duration_seconds)}s` : null,
+      referenz.url
+    ].filter(Boolean).join(' · ') : null;
+    const transkriptAuszug = referenz?.transkript_verwendet
+      ? (referenz.transkript_verwendet.length > 220
+        ? `${referenz.transkript_verwendet.slice(0, 220)}…`
+        : referenz.transkript_verwendet)
+      : null;
     const zeilen = [
       ['Unternehmen', s.unternehmen?.firmenname],
       ['PDF-Briefing', briefingPdf?.name],
+      ['Videovorlage', referenzInfo],
+      ['Vorlage-Transkript', transkriptAuszug],
       ['Marke', s.marke?.markenname],
       ['Kampagne', s.kampagne?.eigener_name || s.kampagne?.kampagnenname],
       ['Produkt', s.produkt?.name],

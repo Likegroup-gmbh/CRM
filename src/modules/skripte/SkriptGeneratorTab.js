@@ -13,6 +13,7 @@ export class SkriptGeneratorTab {
     this.channel = null;
     this.pollInterval = null;
     this.jobId = null;
+    this.stubId = null; // persistenter Skript-Stub (Payload ueberlebt Fehler/Reload)
     this.renderedLogCount = 0;
   }
 
@@ -68,6 +69,17 @@ export class SkriptGeneratorTab {
     }, 100);
 
     try {
+      // Persistenter Stub: Payload inkl. Videovorlage ueberlebt Fehler und
+      // Reload (Retry laeuft dann ueber den Stub im Editor). Bei erneutem
+      // Start nach Fehler wird derselbe Stub aktualisiert statt neu angelegt.
+      if (this.stubId) {
+        await skripteService.updateSkriptStub(this.stubId, payload);
+      } else {
+        const stub = await skripteService.createSkriptStub(payload);
+        this.stubId = stub.id;
+      }
+      this.appendLog(`[Client] Skript-Stub angelegt: ${this.stubId}`);
+
       const job = await skripteService.createJob();
       this.jobId = job.id;
       this.appendLog(`[Client] Job angelegt: ${job.id}`);
@@ -81,6 +93,7 @@ export class SkriptGeneratorTab {
 
       await skripteService.triggerFunction('skript-generate-background', {
         jobId: job.id,
+        skript_id: this.stubId,
         ...payload
       });
       this.appendLog('[Client] Background Function gestartet');
@@ -106,6 +119,7 @@ export class SkriptGeneratorTab {
 
     if (job.status === 'done' && job.skript_id) {
       this.finishUi();
+      this.stubId = null;
       window.toastSystem?.success('Skript generiert');
       // Direkt in den Chat-Editor: dort wird verfeinert statt neu generiert
       this.page.openEditor(job.skript_id);
@@ -154,5 +168,7 @@ export class SkriptGeneratorTab {
       this.channel = null;
     }
     this.jobId = null;
+    // Transcribe-Subscriptions der Videovorlage mit abbauen
+    this.form.destroy?.();
   }
 }

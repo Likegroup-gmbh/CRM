@@ -154,6 +154,24 @@ exports.handler = async (event) => {
     return { statusCode: 400, body: 'jobId und url erforderlich' };
   }
 
+  // Ownership/Konsistenz: Nur der Ersteller darf SEINEN pending Job starten,
+  // und nur mit der URL, die beim Insert hinterlegt wurde. Verhindert das
+  // Triggern fremder Jobs und das Unterschieben abweichender URLs.
+  const { data: jobRow } = await supabase.from('transcription_jobs')
+    .select('id, url, status, created_by').eq('id', jobId).single();
+  if (!jobRow) {
+    return { statusCode: 404, body: 'Job nicht gefunden' };
+  }
+  if (jobRow.created_by !== user.id) {
+    return { statusCode: 403, body: 'Job gehoert einem anderen Benutzer' };
+  }
+  if (jobRow.url !== url) {
+    return { statusCode: 400, body: 'URL passt nicht zum Job' };
+  }
+  if (jobRow.status !== 'pending') {
+    return { statusCode: 409, body: 'Job wurde bereits gestartet' };
+  }
+
   const job = createJobUpdater(supabase, jobId);
   const startTime = Date.now();
   let browser;

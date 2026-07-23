@@ -186,6 +186,35 @@ export class SkripteService {
     return data;
   }
 
+  /**
+   * Stub mit frischem Generator-Payload aktualisieren (Retry/erneuter Start
+   * mit geaenderten Vorgaben). prompt_kontext wird gemergt, damit z.B. ein
+   * gecachter briefing_extrakt aus der Rueckfragen-Phase erhalten bleibt.
+   */
+  async updateSkriptStub(id, payload) {
+    const { data: existing } = await this.db.from('skripte')
+      .select('prompt_kontext').eq('id', id).single();
+    const { data, error } = await this.db.from('skripte').update({
+      titel: payload.video_idee ? payload.video_idee.slice(0, 60) : null,
+      unternehmen_id: payload.unternehmen_id || null,
+      marke_id: payload.marke_id || null,
+      kampagne_id: payload.kampagne_id || null,
+      produkt_id: payload.produkt_id || null,
+      persona_id: payload.persona_id || null,
+      branche_id: payload.branche_id || null,
+      video_idee: payload.video_idee || null,
+      location: payload.location || null,
+      regieanweisung: payload.regieanweisung || null,
+      video_laenge: payload.video_laenge || null,
+      funnel_stufe: payload.funnel_stufe || null,
+      tonalitaet: payload.tonalitaet || null,
+      mit_dna: payload.mit_dna !== false,
+      prompt_kontext: { ...(existing?.prompt_kontext || {}), generator_payload: payload }
+    }).eq('id', id).select().single();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
   // ------------------------------------------------------------------
   // Editor: Chat-Messages (Assistant-Message = Job, Status via Realtime)
   // ------------------------------------------------------------------
