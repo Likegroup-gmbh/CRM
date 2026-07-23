@@ -1,11 +1,17 @@
 // StakeholderOverviewPage.js
-// Stakeholder-Umsatzuebersicht mit zwei Tabs:
+// Stakeholder-Umsatzuebersicht mit vier Tabs:
 // - "Plan": Verteilung des Auftrags-Nettoumsatzes auf Kampagnenarten
 //   (auftrag_kampagnenart_blocks.umsatz_netto) inkl. Donut-Chart und
 //   Datenluecken-Liste (read-only, Pflege ueber den Projekt-Bearbeiten-Wizard).
 // - "Stand heute": Ist-Werte aus Kooperationen/Videos (EK = Fremdkosten /
 //   verbrauchtes Creatorbudget, VK = Umsatz, DB = VK - EK) pro Kampagnenart,
 //   plus Agentur-Fee gesamt (Festgelegt + EK/VK-Differenz) und KSK-Summe.
+// - "DB Leistungsbereich": Monatspivot VK/EK/DB je Leistungsbereich
+//   (= Kampagnenart), plus Pipeline-2026-Block (gebuchte Auftraege).
+// - "DB Kunde": Monatspivot je Unternehmen, aufklappbar nach Leistungsbereich,
+//   plus Konzentrations-Hinweis (Top-Kunden-Anteil).
+// Durchgeleitete Umsaetze (Proxy: Koop-Zusatzkosten aus Rechnungen, NICHT in
+// den Netto-Preisen enthalten) koennen in den DB-Tabs zugeschaltet werden.
 // Erreichbar unter /stakeholder (kein Nav-Eintrag, Deep-Link only, Admin-only).
 
 import { CAMPAIGN_TYPES } from '../projekt-erstellen/constants.js';
@@ -23,7 +29,11 @@ const CHART_COLORS = [
 
 const CONTRACTING_KEY = '__contracting__';
 const UNASSIGNED_KEY = '__unassigned__';
+const PASSTHROUGH_KEY = '__passthrough__';
+const NO_CUSTOMER_KEY = '__no_customer__';
 const DIFF_TOLERANCE = 1; // Euro
+const MIN_MONTH = '2025-01'; // Auswertungsbeginn laut Anforderung
+const MONTH_LABELS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
 export class StakeholderOverviewPage {
   constructor() {
@@ -33,8 +43,12 @@ export class StakeholderOverviewPage {
     this.kooperationen = [];
     this.videos = [];
     this.detailsByAuftrag = new Map();
+    this.unternehmenById = new Map();
     this.selectedYear = 'all';
-    this.activeTab = 'plan'; // 'plan' | 'ist'
+    this.activeTab = 'plan'; // 'plan' | 'ist' | 'db-lb' | 'db-kunde'
+    this.dbMetric = 'db'; // 'vk' | 'ek' | 'db' | 'dbpct'
+    this.includePassthrough = false; // Durchgeleitete Umsaetze (Zusatzkosten) einbeziehen
+    this.expandedCustomers = new Set(); // Drilldown im Kunde-Tab
   }
 
   async init() {
@@ -67,10 +81,10 @@ export class StakeholderOverviewPage {
     const supabase = SUPABASE();
     if (!supabase) throw new Error('Supabase nicht verfügbar');
 
-    const [auftragRes, blocksRes, kampagnenRes, koopsRes, videosRes, detailsRes] = await Promise.all([
+    const [auftragRes, blocksRes, kampagnenRes, koopsRes, videosRes, detailsRes, unternehmenRes] = await Promise.all([
       supabase
         .from('auftrag')
-        .select('id, titel, auftragsname, nettobetrag, auftragtype, start, created_at, is_draft'),
+        .select('id, titel, auftragsname, nettobetrag, auftragtype, start, created_at, is_draft, unternehmen_id'),
       supabase
         .from('auftrag_kampagnenart_blocks')
         .select('id, auftrag_id, campaign_type, campaign_type_label, umsatz_netto, sort_order'),
@@ -79,13 +93,16 @@ export class StakeholderOverviewPage {
         .select('id, auftrag_id'),
       supabase
         .from('kooperationen')
-        .select('id, kampagne_id, einkaufspreis_netto, verkaufspreis_netto'),
+        .select('id, kampagne_id, einkaufspreis_netto, verkaufspreis_netto, einkaufspreis_zusatzkosten, verkaufspreis_zusatzkosten'),
       supabase
         .from('kooperation_videos')
         .select('id, kooperation_id, einkaufspreis_netto, verkaufspreis_netto, kampagnenart'),
       supabase
         .from('auftrag_details')
-        .select('auftrag_id, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value')
+        .select('auftrag_id, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value'),
+      supabase
+        .from('unternehmen')
+        .select('id, firmenname')
     ]);
 
     if (auftragRes.error) throw auftragRes.error;
@@ -94,6 +111,7 @@ export class StakeholderOverviewPage {
     if (koopsRes.error) throw koopsRes.error;
     if (videosRes.error) throw videosRes.error;
     if (detailsRes.error) throw detailsRes.error;
+    if (unternehmenRes.error) throw unternehmenRes.error;
 
     this.auftraege = (auftragRes.data || []).filter(a => a.is_draft !== true);
     this.blocks = blocksRes.data || [];
@@ -101,6 +119,7 @@ export class StakeholderOverviewPage {
     this.kooperationen = koopsRes.data || [];
     this.videos = videosRes.data || [];
     this.detailsByAuftrag = new Map((detailsRes.data || []).map(d => [d.auftrag_id, d]));
+    this.unternehmenById = new Map((unternehmenRes.data || []).map(u => [u.id, u]));
   }
 
   // ---------- Helpers ----------
@@ -128,6 +147,67 @@ export class StakeholderOverviewPage {
     if (!dateStr) return null;
     const y = new Date(dateStr).getFullYear();
     return Number.isFinite(y) ? y : null;
+  }
+
+  // Monatsbucket "YYYY-MM" (gleiche Datumsquelle wie auftragYear)
+  auftragMonth(a) {
+    const dateStr = a.start || a.created_at;
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (!Number.isFinite(d.getTime())) return null;
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  currentMonth() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  monthLabel(monthKey) {
+    const [y, m] = monthKey.split('-');
+    return `${MONTH_LABELS[parseInt(m, 10) - 1]} ${y.slice(2)}`;
+  }
+
+  // Monatsraster: max(MIN_MONTH, fruehester Auftrag) bis heute,
+  // optional per Jahr-Filter auf ein Jahr eingeschraenkt.
+  monthRange() {
+    const current = this.currentMonth();
+    let earliest = null;
+    this.auftraege.forEach(a => {
+      const m = this.auftragMonth(a);
+      if (m && m <= current && (!earliest || m < earliest)) earliest = m;
+    });
+    let start = earliest && earliest > MIN_MONTH ? earliest : MIN_MONTH;
+
+    if (this.selectedYear !== 'all') {
+      const y = String(this.selectedYear);
+      const yearStart = `${y}-01`;
+      const yearEnd = `${y}-12`;
+      if (yearStart > start) start = yearStart;
+      if (yearEnd < current) {
+        return this.buildMonths(start, yearEnd);
+      }
+      return this.buildMonths(start, current > yearEnd ? yearEnd : current);
+    }
+
+    return this.buildMonths(start, current);
+  }
+
+  buildMonths(startKey, endKey) {
+    const months = [];
+    let [y, m] = startKey.split('-').map(n => parseInt(n, 10));
+    const [ey, em] = endKey.split('-').map(n => parseInt(n, 10));
+    while (y < ey || (y === ey && m <= em)) {
+      months.push(`${y}-${String(m).padStart(2, '0')}`);
+      m++;
+      if (m > 12) { m = 1; y++; }
+    }
+    return months;
+  }
+
+  customerName(unternehmenId) {
+    if (!unternehmenId) return 'Ohne Unternehmen';
+    return this.unternehmenById.get(unternehmenId)?.firmenname || 'Unbekanntes Unternehmen';
   }
 
   auftragName(a) {
@@ -415,10 +495,223 @@ export class StakeholderOverviewPage {
     return CHART_COLORS[index % (CHART_COLORS.length - 1)];
   }
 
+  // ---------- Aggregation DB-Tabs (Monat x Leistungsbereich x Kunde) ----------
+
+  // Flache Ist-Positionen: { month, unternehmenId, catKey, catLabel, vk, ek, passthrough }
+  // Monat/Kunde kommen vom Auftrag, VK/EK von Videos (Fallback Kooperation).
+  // Zusatzkosten der Kooperation (= Durchleitungs-Proxy, nicht in den Netto-Preisen
+  // enthalten) werden als eigene Positionen mit passthrough=true angehaengt.
+  collectDbRows() {
+    const koopMap = this.koopsByAuftrag();
+    const videoMap = this.videosByKoop();
+    const current = this.currentMonth();
+    const rows = [];
+
+    this.auftraege.forEach(a => {
+      const month = this.auftragMonth(a);
+      if (!month || month > current) return; // Zukunft (Pipeline) nicht im Ist-Pivot
+
+      if (a.auftragtype === 'Contracting') {
+        const netto = Number(a.nettobetrag) || 0;
+        if (netto > 0) {
+          rows.push({
+            month, unternehmenId: a.unternehmen_id || null,
+            catKey: CONTRACTING_KEY, catLabel: 'Contracting',
+            vk: netto, ek: 0, passthrough: false
+          });
+        }
+        return;
+      }
+
+      const koops = koopMap.get(a.id) || [];
+      koops.forEach(koop => {
+        const koopVideos = videoMap.get(koop.id) || [];
+        const priceRows = koopVideos.length > 0
+          ? koopVideos.map(v => ({ ek: v.einkaufspreis_netto, vk: v.verkaufspreis_netto, art: v.kampagnenart }))
+          : [{ ek: koop.einkaufspreis_netto, vk: koop.verkaufspreis_netto, art: null }];
+
+        priceRows.forEach(row => {
+          const ek = parseFloat(row.ek) || 0;
+          const vk = parseFloat(row.vk) || 0;
+          if (ek === 0 && vk === 0) return;
+
+          const slug = getChipFromKampagnenartName(row.art);
+          const catKey = slug || row.art || UNASSIGNED_KEY;
+          const catLabel = row.art || (slug ? this.campaignLabel(slug) : 'Ohne Zuordnung');
+
+          rows.push({
+            month, unternehmenId: a.unternehmen_id || null,
+            catKey, catLabel, vk, ek, passthrough: false
+          });
+        });
+
+        // Durchleitungs-Proxy: Zusatzkosten (aus Rechnungen gesynct)
+        const ptEk = parseFloat(koop.einkaufspreis_zusatzkosten) || 0;
+        const ptVk = parseFloat(koop.verkaufspreis_zusatzkosten) || 0;
+        if (ptEk !== 0 || ptVk !== 0) {
+          rows.push({
+            month, unternehmenId: a.unternehmen_id || null,
+            catKey: PASSTHROUGH_KEY, catLabel: 'Durchleitung (Zusatzkosten)',
+            vk: ptVk, ek: ptEk, passthrough: true
+          });
+        }
+      });
+    });
+
+    return rows;
+  }
+
+  // Pivot: groupBy 'category' | 'customer'
+  // Ergebnis: { months, rows: [{ key, label, cells: Map(month -> {vk,ek}), total: {vk,ek},
+  //             children: [...] (nur customer, je Leistungsbereich) }], totals }
+  aggregateDbPivot(groupBy) {
+    const months = this.monthRange();
+    const monthSet = new Set(months);
+    const allRows = this.collectDbRows().filter(r => monthSet.has(r.month));
+    const rows = this.includePassthrough ? allRows : allRows.filter(r => !r.passthrough);
+
+    const emptyCell = () => ({ vk: 0, ek: 0 });
+    const groups = new Map();
+
+    const groupInfo = (r) => {
+      if (groupBy === 'customer') {
+        const key = r.unternehmenId || NO_CUSTOMER_KEY;
+        return { key, label: this.customerName(r.unternehmenId) };
+      }
+      return { key: r.catKey, label: r.catLabel };
+    };
+
+    rows.forEach(r => {
+      const { key, label } = groupInfo(r);
+      if (!groups.has(key)) {
+        groups.set(key, { key, label, cells: new Map(), total: emptyCell(), children: new Map() });
+      }
+      const g = groups.get(key);
+      if (!g.cells.has(r.month)) g.cells.set(r.month, emptyCell());
+      const cell = g.cells.get(r.month);
+      cell.vk += r.vk;
+      cell.ek += r.ek;
+      g.total.vk += r.vk;
+      g.total.ek += r.ek;
+
+      // Drilldown Kunde -> Leistungsbereich
+      if (groupBy === 'customer') {
+        if (!g.children.has(r.catKey)) {
+          g.children.set(r.catKey, { key: r.catKey, label: r.catLabel, cells: new Map(), total: emptyCell() });
+        }
+        const c = g.children.get(r.catKey);
+        if (!c.cells.has(r.month)) c.cells.set(r.month, emptyCell());
+        const ccell = c.cells.get(r.month);
+        ccell.vk += r.vk;
+        ccell.ek += r.ek;
+        c.total.vk += r.vk;
+        c.total.ek += r.ek;
+      }
+    });
+
+    const sortedRows = Array.from(groups.values()).sort((a, b) => b.total.vk - a.total.vk);
+    sortedRows.forEach(g => {
+      g.children = Array.from(g.children.values()).sort((a, b) => b.total.vk - a.total.vk);
+    });
+
+    const totals = { total: { vk: 0, ek: 0 }, byMonth: new Map() };
+    sortedRows.forEach(g => {
+      totals.total.vk += g.total.vk;
+      totals.total.ek += g.total.ek;
+      g.cells.forEach((cell, month) => {
+        if (!totals.byMonth.has(month)) totals.byMonth.set(month, emptyCell());
+        const t = totals.byMonth.get(month);
+        t.vk += cell.vk;
+        t.ek += cell.ek;
+      });
+    });
+
+    return { months, rows: sortedRows, totals };
+  }
+
+  // Pipeline 2026: gebuchte Auftraege mit Start in 2026, Plan-Umsatz nach Kampagnenart
+  aggregatePipeline2026() {
+    const blockMap = this.blocksByAuftrag();
+    const categories = new Map();
+    let gesamt = 0;
+    let count = 0;
+
+    this.auftraege.forEach(a => {
+      if (this.auftragYear(a) !== 2026) return;
+      const netto = Number(a.nettobetrag) || 0;
+      if (netto <= 0) return;
+      gesamt += netto;
+      count++;
+
+      const add = (key, label, sum) => {
+        if (!categories.has(key)) categories.set(key, { key, label, sum: 0 });
+        categories.get(key).sum += sum;
+      };
+
+      if (a.auftragtype === 'Contracting') {
+        add(CONTRACTING_KEY, 'Contracting', netto);
+        return;
+      }
+
+      const blocks = blockMap.get(a.id) || [];
+      let blockSum = 0;
+      blocks.forEach(b => {
+        const umsatz = b.umsatz_netto == null ? null : Number(b.umsatz_netto);
+        if (umsatz == null) return;
+        blockSum += umsatz;
+        add(b.campaign_type, b.campaign_type_label || this.campaignLabel(b.campaign_type), umsatz);
+      });
+
+      const rest = netto - blockSum;
+      if (rest > DIFF_TOLERANCE) add(UNASSIGNED_KEY, 'Ohne Zuordnung', rest);
+    });
+
+    return {
+      gesamt,
+      count,
+      categories: Array.from(categories.values()).sort((a, b) => b.sum - a.sum)
+    };
+  }
+
+  metricValue(cell) {
+    if (!cell) return null;
+    switch (this.dbMetric) {
+      case 'vk': return cell.vk;
+      case 'ek': return cell.ek;
+      case 'dbpct': return cell.vk > 0 ? ((cell.vk - cell.ek) / cell.vk) * 100 : null;
+      default: return cell.vk - cell.ek;
+    }
+  }
+
+  fmtMetric(value) {
+    if (value == null) return '–';
+    return this.dbMetric === 'dbpct' ? this.fmtPct(value) : this.fmtEuro(value);
+  }
+
   // ---------- Rendering ----------
 
   render() {
     const years = this.availableYears();
+
+    const tabs = [
+      { tab: 'plan', label: 'Plan' },
+      { tab: 'ist', label: 'Stand heute' },
+      { tab: 'db-lb', label: 'DB Leistungsbereich' },
+      { tab: 'db-kunde', label: 'DB Kunde' }
+    ];
+
+    const tabButtons = tabs.map(t => `
+      <button type="button" class="tab-button${this.activeTab === t.tab ? ' active' : ''}"
+              data-tab="${t.tab}" role="tab" aria-selected="${this.activeTab === t.tab}">${t.label}</button>
+    `).join('');
+
+    let view;
+    switch (this.activeTab) {
+      case 'ist': view = this.renderIstView(); break;
+      case 'db-lb': view = this.renderDbLbView(); break;
+      case 'db-kunde': view = this.renderDbKundeView(); break;
+      default: view = this.renderPlanView();
+    }
 
     const html = `
       <div class="stakeholder-page">
@@ -432,19 +725,261 @@ export class StakeholderOverviewPage {
           </div>
         </div>
 
-        <div class="stakeholder-tabs" role="tablist">
-          <button type="button" class="stakeholder-tab${this.activeTab === 'plan' ? ' stakeholder-tab--active' : ''}"
-                  data-tab="plan" role="tab" aria-selected="${this.activeTab === 'plan'}">Plan</button>
-          <button type="button" class="stakeholder-tab${this.activeTab === 'ist' ? ' stakeholder-tab--active' : ''}"
-                  data-tab="ist" role="tab" aria-selected="${this.activeTab === 'ist'}">Stand heute</button>
+        <div class="tab-navigation" role="tablist">
+          ${tabButtons}
         </div>
 
-        ${this.activeTab === 'ist' ? this.renderIstView() : this.renderPlanView()}
+        ${view}
       </div>
     `;
 
     window.setContentSafely(window.content, html);
     this.bindEvents();
+  }
+
+  // ---------- Rendering DB-Tabs ----------
+
+  renderDbToolbar() {
+    const metrics = [
+      { key: 'vk', label: 'Umsatz (VK)' },
+      { key: 'ek', label: 'Cost-of-Sales (EK)' },
+      { key: 'db', label: 'DB' },
+      { key: 'dbpct', label: 'DB %' }
+    ];
+    return `
+      <div class="stakeholder-db-toolbar">
+        <div class="stakeholder-metric-toggle" role="group" aria-label="Kennzahl">
+          ${metrics.map(m => `
+            <button type="button" class="secondary-btn${this.dbMetric === m.key ? ' active' : ''}"
+                    data-action="set-metric" data-metric="${m.key}">${m.label}</button>
+          `).join('')}
+        </div>
+        <label class="stakeholder-passthrough-toggle">
+          <input type="checkbox" id="stakeholder-passthrough-toggle"${this.includePassthrough ? ' checked' : ''}>
+          Durchgeleitete Umsätze einbeziehen
+        </label>
+      </div>
+    `;
+  }
+
+  renderPassthroughHint() {
+    return `
+      <div class="stakeholder-issues">
+        <h3 class="stakeholder-card-title">Hinweis: Durchgeleitete Umsätze</h3>
+        <p class="stakeholder-issues-hint">
+          Durchgeleitete Umsätze (z.&nbsp;B. übernommener Muster-Versand wie im Fall Ninja/LikeGroup)
+          verfälschen die Rohmarge und verzerren die relative Abhängigkeit von einzelnen Kunden.
+          Sie sind hier standardmäßig ausgeblendet, damit DB und DB&nbsp;% die bereinigte Marge zeigen.
+          Aktuelle Näherung: Zusatzkosten aus Rechnungen (durchlaufende Posten, EK-&nbsp;und VK-seitig
+          an den Kooperationen gesynct). Ein explizites Durchleitungs-Flag pro Position folgt später.
+        </p>
+      </div>
+    `;
+  }
+
+  renderDbPivotTable(pivot, { firstColLabel, expandable = false } = {}) {
+    if (!pivot.rows.length) {
+      return '<div class="stakeholder-empty">Keine Ist-Daten im gewählten Zeitraum.</div>';
+    }
+
+    const headCells = pivot.months.map(m => `<th class="stakeholder-num">${this.monthLabel(m)}</th>`).join('');
+
+    const renderCells = (entry) => pivot.months.map(m => {
+      const value = this.metricValue(entry.cells.get(m) || null);
+      const negClass = value != null && value < 0 ? ' stakeholder-num--neg' : '';
+      return `<td class="stakeholder-num${negClass}">${this.fmtMetric(value)}</td>`;
+    }).join('');
+
+    const renderTotalCell = (entry) => {
+      const value = this.metricValue(entry.total);
+      const negClass = value != null && value < 0 ? ' stakeholder-num--neg' : '';
+      return `<td class="stakeholder-num stakeholder-num--total${negClass}">${this.fmtMetric(value)}</td>`;
+    };
+
+    const bodyRows = pivot.rows.map(row => {
+      const expanded = expandable && this.expandedCustomers.has(row.key);
+      const toggle = expandable
+        ? `<button type="button" class="stakeholder-expand-btn" data-action="toggle-customer"
+                   data-customer-key="${this.escape(row.key)}" aria-expanded="${expanded}"
+                   title="${expanded ? 'Leistungsbereiche einklappen' : 'Nach Leistungsbereich aufschlüsseln'}">${expanded ? '−' : '+'}</button>`
+        : '';
+
+      const mainRow = `
+        <tr${expandable ? ' class="stakeholder-row--expandable"' : ''}>
+          <td class="stakeholder-row-label">${toggle}${this.escape(row.label)}</td>
+          ${renderCells(row)}
+          ${renderTotalCell(row)}
+        </tr>
+      `;
+
+      if (!expanded || !row.children?.length) return mainRow;
+
+      const childRows = row.children.map(child => `
+        <tr class="stakeholder-row--child">
+          <td class="stakeholder-row-label stakeholder-row-label--child">${this.escape(child.label)}</td>
+          ${renderCells(child)}
+          ${renderTotalCell(child)}
+        </tr>
+      `).join('');
+
+      return mainRow + childRows;
+    }).join('');
+
+    const totalsEntry = { cells: pivot.totals.byMonth, total: pivot.totals.total };
+    const footRow = `
+      <tr class="stakeholder-row--total">
+        <td class="stakeholder-row-label">Gesamt</td>
+        ${renderCells(totalsEntry)}
+        ${renderTotalCell(totalsEntry)}
+      </tr>
+    `;
+
+    return `
+      <div class="stakeholder-pivot-scroll">
+        <table class="stakeholder-table stakeholder-table--pivot">
+          <thead>
+            <tr>
+              <th>${this.escape(firstColLabel)}</th>
+              ${headCells}
+              <th class="stakeholder-num stakeholder-num--total">Gesamt</th>
+            </tr>
+          </thead>
+          <tbody>${bodyRows}${footRow}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  renderDbSummaryCards(pivot) {
+    const t = pivot.totals.total;
+    const db = t.vk - t.ek;
+    const dbPct = t.vk > 0 ? (db / t.vk) * 100 : 0;
+    const dbClass = db < 0 ? ' stakeholder-summary-value--warn' : '';
+    return `
+      <div class="stakeholder-summary-grid">
+        <div class="stakeholder-summary-card">
+          <span class="stakeholder-summary-label">Umsatz (VK, netto)</span>
+          <span class="stakeholder-summary-value">${this.fmtEuro(t.vk)}</span>
+        </div>
+        <div class="stakeholder-summary-card">
+          <span class="stakeholder-summary-label">Cost-of-Sales (EK, netto)</span>
+          <span class="stakeholder-summary-value">${this.fmtEuro(t.ek)}</span>
+        </div>
+        <div class="stakeholder-summary-card">
+          <span class="stakeholder-summary-label">Deckungsbeitrag</span>
+          <span class="stakeholder-summary-value${dbClass}">${this.fmtEuro(db)}</span>
+          <span class="stakeholder-summary-sub">DB %: ${this.fmtPct(dbPct)}</span>
+        </div>
+        <div class="stakeholder-summary-card">
+          <span class="stakeholder-summary-label">Durchleitung</span>
+          <span class="stakeholder-summary-value">${this.includePassthrough ? 'einbezogen' : 'ausgeblendet'}</span>
+          <span class="stakeholder-summary-sub">Proxy: Zusatzkosten aus Rechnungen</span>
+        </div>
+      </div>
+    `;
+  }
+
+  renderPipeline2026() {
+    const pipeline = this.aggregatePipeline2026();
+    if (pipeline.count === 0) {
+      return `
+        <div class="stakeholder-issues">
+          <h3 class="stakeholder-card-title">Pipeline 2026 (Plan)</h3>
+          <div class="stakeholder-empty">Keine gebuchten Aufträge mit Start in 2026.</div>
+        </div>
+      `;
+    }
+
+    const rows = pipeline.categories.map((cat, i) => {
+      const pct = pipeline.gesamt > 0 ? (cat.sum / pipeline.gesamt) * 100 : 0;
+      return `
+        <tr>
+          <td>
+            <span class="stakeholder-color-dot" style="background:${this.categoryColor(cat.key, i)}"></span>
+            ${this.escape(cat.label)}
+          </td>
+          <td class="stakeholder-num">${this.fmtEuro(cat.sum)}</td>
+          <td class="stakeholder-num">${this.fmtPct(pct)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="stakeholder-issues">
+        <h3 class="stakeholder-card-title">Pipeline 2026 (Plan)</h3>
+        <p class="stakeholder-issues-hint">
+          Gebuchte Aufträge mit Start in 2026 nach Leistungsbereich (Plan-Umsatz, kein Sales-Forecast) –
+          ${pipeline.count} ${pipeline.count === 1 ? 'Auftrag' : 'Aufträge'}, gesamt ${this.fmtEuro(pipeline.gesamt)}.
+        </p>
+        <table class="stakeholder-table">
+          <thead>
+            <tr>
+              <th>Leistungsbereich</th>
+              <th class="stakeholder-num">Umsatz (Plan)</th>
+              <th class="stakeholder-num">Anteil</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  renderDbLbView() {
+    const pivot = this.aggregateDbPivot('category');
+    return `
+      ${this.renderDbToolbar()}
+      ${this.renderDbSummaryCards(pivot)}
+
+      <div class="stakeholder-table-card">
+        <h3 class="stakeholder-card-title">Monatswerte nach Leistungsbereich</h3>
+        <p class="stakeholder-issues-hint">
+          Leistungsbereiche = Kampagnenarten. Monat = Auftragsstart (Fallback Erstellungsdatum).
+          Ist-Werte aus Kooperationen/Videos; Auswertung ab Januar 2025 – Monate vor der ersten
+          CRM-Auftragshistorie bleiben leer.
+        </p>
+        ${this.renderDbPivotTable(pivot, { firstColLabel: 'Leistungsbereich' })}
+      </div>
+
+      ${this.renderPipeline2026()}
+      ${this.renderPassthroughHint()}
+    `;
+  }
+
+  renderCustomerConcentration(pivot) {
+    const t = pivot.totals.total;
+    if (t.vk <= 0 || !pivot.rows.length) return '';
+    const top = pivot.rows[0];
+    const top3 = pivot.rows.slice(0, 3).reduce((s, r) => s + r.total.vk, 0);
+    const topPct = (top.total.vk / t.vk) * 100;
+    const top3Pct = (top3 / t.vk) * 100;
+    return `
+      <p class="stakeholder-issues-hint">
+        Kundenkonzentration: ${this.escape(top.label)} = ${this.fmtPct(topPct)} des Umsatzes,
+        Top&nbsp;3 gemeinsam ${this.fmtPct(top3Pct)}.
+        ${this.includePassthrough ? 'Durchgeleitete Umsätze sind einbezogen und können die Abhängigkeit überzeichnen.' : 'Durchgeleitete Umsätze sind ausgeblendet (bereinigte Sicht).'}
+      </p>
+    `;
+  }
+
+  renderDbKundeView() {
+    const pivot = this.aggregateDbPivot('customer');
+    return `
+      ${this.renderDbToolbar()}
+      ${this.renderDbSummaryCards(pivot)}
+
+      <div class="stakeholder-table-card">
+        <h3 class="stakeholder-card-title">Monatswerte nach Kunde</h3>
+        <p class="stakeholder-issues-hint">
+          Kunde = Unternehmen des Auftrags. Über „+" lässt sich jeder Kunde nach
+          Leistungsbereich aufschlüsseln. Monat = Auftragsstart (Fallback Erstellungsdatum).
+        </p>
+        ${this.renderCustomerConcentration(pivot)}
+        ${this.renderDbPivotTable(pivot, { firstColLabel: 'Kunde', expandable: true })}
+      </div>
+
+      ${this.renderPassthroughHint()}
+    `;
   }
 
   renderPlanView() {
@@ -578,7 +1113,7 @@ export class StakeholderOverviewPage {
           <td class="stakeholder-num">${issue.filledPairs}/${issue.positions}</td>
           <td><div class="stakeholder-issue-badges stakeholder-issue-badges--table">${this.istIssueBadges(issue)}</div></td>
           <td>
-            <button type="button" class="secondary-btn stakeholder-edit-btn"
+            <button type="button" class="secondary-btn"
                     data-action="edit-auftrag" data-auftrag-id="${this.escape(a.id)}">Im Wizard bearbeiten</button>
           </td>
         </tr>
@@ -823,7 +1358,7 @@ export class StakeholderOverviewPage {
                onclick="event.preventDefault(); window.navigateTo('/auftrag/${this.escape(a.id)}')">${this.escape(this.auftragName(a))}</a>
             <span class="stakeholder-issue-netto">Nettobetrag: ${this.fmtEuro(a.nettobetrag)}</span>
             <div class="stakeholder-issue-badges">${badges.join('')}</div>
-            <button type="button" class="secondary-btn stakeholder-edit-btn"
+            <button type="button" class="secondary-btn"
                     data-action="edit-auftrag" data-auftrag-id="${this.escape(a.id)}">Im Wizard bearbeiten</button>
           </div>
           ${blockRows ? `<div class="stakeholder-issue-blocks">${blockRows}</div>` : ''}
@@ -852,10 +1387,38 @@ export class StakeholderOverviewPage {
       this.render();
     });
 
-    document.querySelectorAll('.stakeholder-tab').forEach(btn => {
+    document.querySelectorAll('.stakeholder-page .tab-navigation .tab-button').forEach(btn => {
       btn.addEventListener('click', () => {
         if (btn.dataset.tab === this.activeTab) return;
         this.activeTab = btn.dataset.tab;
+        this.render();
+      });
+    });
+
+    // DB-Tabs: Kennzahl umschalten
+    document.querySelectorAll('[data-action="set-metric"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.metric === this.dbMetric) return;
+        this.dbMetric = btn.dataset.metric;
+        this.render();
+      });
+    });
+
+    // DB-Tabs: Durchleitung einbeziehen/ausblenden
+    document.getElementById('stakeholder-passthrough-toggle')?.addEventListener('change', (e) => {
+      this.includePassthrough = e.target.checked;
+      this.render();
+    });
+
+    // DB Kunde: Drilldown nach Leistungsbereich
+    document.querySelectorAll('[data-action="toggle-customer"]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.customerKey;
+        if (this.expandedCustomers.has(key)) {
+          this.expandedCustomers.delete(key);
+        } else {
+          this.expandedCustomers.add(key);
+        }
         this.render();
       });
     });

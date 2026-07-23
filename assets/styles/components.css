@@ -18469,6 +18469,7 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
 .media-viewer-unplayable .media-viewer-fallback-actions .media-viewer-fallback-link {
   margin-top: 0;
   text-decoration: none;
+  color: var(--text-primary);
 }
 
 /* Proaktiver Hinweis unter dem Player bei riskanten Containerformaten */
