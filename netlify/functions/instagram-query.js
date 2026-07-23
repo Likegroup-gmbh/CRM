@@ -104,6 +104,26 @@ async function queryPool(supabase, filters, limit) {
   return results;
 }
 
+/** Brand-Infos (Name + Logo) fuer alle brand_mentions der Treffer aus dem Cache laden */
+async function brandsForResults(supabase, results) {
+  const handles = [...new Set(results.flatMap((r) => r.brand_mentions || []))];
+  if (handles.length === 0) return {};
+  const { data, error } = await supabase
+    .from('instagram_brands')
+    .select('username, name, profile_picture_url')
+    .in('username', handles)
+    .is('lookup_error', null);
+  if (error) {
+    console.warn('⚠️ Brand-Cache-Query fehlgeschlagen:', error.message);
+    return {};
+  }
+  const map = {};
+  for (const b of data || []) {
+    map[b.username] = { name: b.name, profile_picture_url: b.profile_picture_url };
+  }
+  return map;
+}
+
 function buildReply(filters, count) {
   const parts = [];
   if (filters.topics?.length) parts.push(`Thema ${filters.topics.join(', ')}`);
@@ -138,10 +158,12 @@ exports.handler = async (event) => {
       filters = await parseMessageToFilters(body.message.trim(), currentFilters);
     }
     const results = await queryPool(supabase, filters, limit);
+    const brands = await brandsForResults(supabase, results);
     return jsonResponse(200, {
       filters,
       reply: buildReply(filters, results.length),
-      results
+      results,
+      brands
     });
   } catch (err) {
     console.error('❌ instagram-query:', err.message);

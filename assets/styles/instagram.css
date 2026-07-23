@@ -112,7 +112,16 @@
 
 .ig-card-tags { display: flex; flex-wrap: wrap; gap: 4px; }
 .ig-tag { font-size: var(--text-xs); background: var(--gray-100, #f3f4f6); border-radius: var(--radius-xxl, 999px); padding: 2px 8px; }
-.ig-tag-brand { background: #fdf2f8; color: #9d174d; }
+
+/* Kooperations-Bubbles (Avatar-Bubbles aus components.css) */
+.ig-card-brands { display: flex; align-items: center; gap: var(--space-sm); }
+.ig-card-brands-label {
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary, #6b7280);
+  flex-shrink: 0;
+}
 
 .ig-card-bio { margin: 0; font-size: var(--text-sm); color: var(--text-secondary, #6b7280); line-height: 1.4; }
 .ig-card-posts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: auto; }

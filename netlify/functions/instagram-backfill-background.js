@@ -5,11 +5,12 @@
 // instagram_harvest_runs (trigger_type='backfill').
 
 const { createClient } = require('@supabase/supabase-js');
-const { enrichAndUpsert, normalizeUsername, isValidUsername } = require('./_shared/instagram-enrich');
+const { enrichAndUpsert, cacheBrands, normalizeUsername, isValidUsername } = require('./_shared/instagram-enrich');
 
 // Nur Profile neu anfassen, die aelter als das hier sind (spart API-Calls bei Re-Runs)
 const REFRESH_AFTER_MS = 7 * 24 * 60 * 60 * 1000; // 7 Tage
 const DELAY_BETWEEN_CALLS_MS = 1100; // ~1 Call/s, Meta-Rate-Limits schonen
+const MAX_BRAND_LOOKUPS_PER_RUN = 100; // Brand-Cache-Nachzug pro Lauf deckeln
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -45,7 +46,7 @@ exports.handler = async (event) => {
     .select().single();
   const runId = run?.id;
 
-  const stats = { crm_handles: 0, candidates: 0, enriched: 0, failed: 0, skipped_existing: 0 };
+  const stats = { crm_handles: 0, candidates: 0, enriched: 0, failed: 0, skipped_existing: 0, brands_cached: 0 };
 
   try {
     // 1. CRM-Handles laden
@@ -96,6 +97,27 @@ exports.handler = async (event) => {
         await supabase.from('instagram_harvest_runs').update({ stats }).eq('id', runId);
       }
       await sleep(DELAY_BETWEEN_CALLS_MS);
+    }
+
+    // 6. Brand-Cache fuer bestehende Pool-Creator nachziehen (Bubbles auf der Seite).
+    // cacheBrands ueberspringt frische/als nicht-aufloesbar markierte Handles selbst.
+    const { data: poolBrands } = await supabase
+      .from('instagram_creators')
+      .select('brand_mentions')
+      .not('brand_mentions', 'eq', '{}');
+    const allHandles = [...new Set((poolBrands || []).flatMap((r) => r.brand_mentions || []))];
+    if (allHandles.length) {
+      // Erst gegen den Cache diffen, dann cappen — sonst blockieren gecachte Handles den Nachzug
+      const { data: cachedBrands } = await supabase
+        .from('instagram_brands')
+        .select('username')
+        .in('username', allHandles);
+      const cachedSet = new Set((cachedBrands || []).map((b) => b.username));
+      const missing = allHandles.filter((h) => !cachedSet.has(h)).slice(0, MAX_BRAND_LOOKUPS_PER_RUN);
+      if (missing.length) {
+        const brandResult = await cacheBrands(supabase, missing);
+        stats.brands_cached = brandResult.cached;
+      }
     }
 
     if (runId) {

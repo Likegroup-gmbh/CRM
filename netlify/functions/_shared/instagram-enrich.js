@@ -143,6 +143,66 @@ async function fetchProfile(username) {
   }
 }
 
+// Brand-Cache: Logos aelter als 14 Tage neu holen (Instagram-CDN-Links laufen ab)
+const BRAND_REFRESH_AFTER_MS = 14 * 24 * 60 * 60 * 1000;
+const BRAND_LOOKUP_DELAY_MS = 1100;
+
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Brand-Handles in instagram_brands cachen (Name + Profilbild via Business Discovery).
+ * Ueberspringt frische Eintraege und bereits als nicht-aufloesbar markierte Handles.
+ * @param {object} supabase Service-Role-Client
+ * @param {string[]} handles Brand-Usernames (lowercase)
+ * @returns {Promise<{looked_up: number, cached: number, failed: number}>}
+ */
+async function cacheBrands(supabase, handles) {
+  const result = { looked_up: 0, cached: 0, failed: 0 };
+  const unique = [...new Set((handles || []).map(normalizeUsername).filter(isValidUsername))];
+  if (unique.length === 0) return result;
+
+  const { data: existing } = await supabase
+    .from('instagram_brands')
+    .select('username, last_fetched_at, lookup_error')
+    .in('username', unique);
+  const existingMap = new Map((existing || []).map((b) => [b.username, b]));
+
+  const now = Date.now();
+  for (const handle of unique) {
+    const cached = existingMap.get(handle);
+    if (cached) {
+      // Nicht aufloesbare Handles nicht endlos neu versuchen
+      if (cached.lookup_error) continue;
+      // Frisch genug -> ueberspringen
+      if (cached.last_fetched_at && (now - new Date(cached.last_fetched_at).getTime()) < BRAND_REFRESH_AFTER_MS) continue;
+    }
+
+    result.looked_up += 1;
+    const res = await fetchProfile(handle);
+    if (res.ok) {
+      const p = res.profile;
+      await supabase.from('instagram_brands').upsert({
+        username: handle,
+        name: p.name || null,
+        profile_picture_url: p.profile_picture_url || null,
+        followers_count: p.followers_count ?? null,
+        lookup_error: null,
+        last_fetched_at: new Date().toISOString()
+      }, { onConflict: 'username' });
+      result.cached += 1;
+    } else {
+      await supabase.from('instagram_brands').upsert({
+        username: handle,
+        lookup_error: res.error,
+        last_fetched_at: new Date().toISOString()
+      }, { onConflict: 'username' });
+      result.failed += 1;
+    }
+    await sleepMs(BRAND_LOOKUP_DELAY_MS);
+  }
+  return result;
+}
+
 /**
  * Ein Profil vollstaendig anreichern und in instagram_creators upserten.
  * @param {object} supabase Service-Role-Client
@@ -210,11 +270,22 @@ async function enrichAndUpsert(supabase, rawUsername, extra = {}) {
 
   const { error } = await supabase.from('instagram_creators').upsert(row, { onConflict: 'username' });
   if (error) return { ok: false, username, error: error.message };
+
+  // Brand-Logos fuer die Kooperations-Bubbles nachziehen (gecacht, nur neue/veraltete Handles)
+  if (brand_mentions.length) {
+    try {
+      await cacheBrands(supabase, brand_mentions);
+    } catch (err) {
+      console.warn(`⚠️ Brand-Cache fuer @${username} fehlgeschlagen:`, err.message);
+    }
+  }
+
   return { ok: true, username };
 }
 
 module.exports = {
   enrichAndUpsert,
+  cacheBrands,
   fetchProfile,
   normalizeUsername,
   isValidUsername,

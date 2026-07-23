@@ -7,6 +7,7 @@
 // Admin-Bereich: Hashtag-Seeds pflegen, Backfill/Harvest triggern, Lauf-Historie.
 
 import { InstagramDiscoveryService } from './InstagramDiscoveryService.js';
+import { AvatarBubbles } from '../../core/components/AvatarBubbles.js';
 
 const LIMIT_OPTIONS = [25, 50, 100];
 const FILTER_DEBOUNCE_MS = 350;
@@ -36,6 +37,7 @@ export class InstagramDiscoveryPage {
     this.filters = { ...EMPTY_FILTERS };
     this.limit = 25;
     this.results = [];
+    this.brands = {}; // handle -> { name, profile_picture_url } aus instagram_brands
     this.messages = []; // {role, text}
     this.loading = false;
     this._filterTimer = null;
@@ -214,6 +216,7 @@ export class InstagramDiscoveryPage {
       });
       this.filters = { ...EMPTY_FILTERS, ...res.filters };
       this.results = res.results || [];
+      this.brands = res.brands || {};
       this.writeFilterInputs();
       this.renderGrid();
       if (info) info.textContent = `${this.results.length} Creator`;
@@ -251,7 +254,23 @@ export class InstagramDiscoveryPage {
     }).join('');
 
     const topics = (p.topics || []).slice(0, 6).map((t) => `<span class="ig-tag">${esc(t)}</span>`).join('');
-    const brands = (p.brand_mentions || []).slice(0, 4).map((b) => `<span class="ig-tag ig-tag-brand">@${esc(b)}</span>`).join('');
+
+    // Kooperations-Bubbles: Logo + Firmenname (Tooltip) aus dem Brand-Cache,
+    // Fallback @handle als Initialen-Bubble
+    const brandItems = (p.brand_mentions || []).map((handle) => {
+      const brand = this.brands[handle] || {};
+      return {
+        name: brand.name || `@${handle}`,
+        logo_url: brand.profile_picture_url || null,
+        type: 'org'
+      };
+    });
+    const brandBubbles = brandItems.length
+      ? `<div class="ig-card-brands">
+          <span class="ig-card-brands-label">Kooperationen</span>
+          ${AvatarBubbles.renderBubbles(brandItems, { maxVisible: 4 })}
+        </div>`
+      : '';
     const bio = p.biography
       ? `<p class="ig-card-bio">${esc(p.biography.length > 110 ? `${p.biography.slice(0, 110)}…` : p.biography)}</p>`
       : '';
@@ -276,7 +295,7 @@ export class InstagramDiscoveryPage {
           ${age}
         </div>
         ${topics ? `<div class="ig-card-tags">${topics}</div>` : ''}
-        ${brands ? `<div class="ig-card-tags">${brands}</div>` : ''}
+        ${brandBubbles}
         ${bio}
         ${posts ? `<div class="ig-card-posts">${posts}</div>` : ''}
       </div>
