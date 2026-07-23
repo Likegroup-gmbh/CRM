@@ -12,6 +12,18 @@ import { AvatarBubbles } from '../../core/components/AvatarBubbles.js';
 const LIMIT_OPTIONS = [25, 50, 100];
 const FILTER_DEBOUNCE_MS = 350;
 
+// Lesbare Labels fuer stats.phase aus den Background-Functions
+const PHASE_LABELS = {
+  starting: 'Start',
+  seeds: 'Seeds laden',
+  hashtags: 'Hashtag-Suche',
+  scrape: 'Posts scrapen',
+  enrich: 'Profile anreichern',
+  crm_load: 'CRM-Handles laden',
+  brands: 'Brand-Logos laden',
+  done: 'Fertig'
+};
+
 function esc(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -41,6 +53,7 @@ export class InstagramDiscoveryPage {
     this.messages = []; // {role, text}
     this.loading = false;
     this._filterTimer = null;
+    this._runPollTimer = null;
   }
 
   async init() {
@@ -92,6 +105,7 @@ export class InstagramDiscoveryPage {
                 <div class="ig-admin-actions">
                   <button id="ig-backfill" class="ghost-btn">CRM-Backfill starten</button>
                   <button id="ig-harvest" class="ghost-btn">Harvest jetzt starten</button>
+                  <button id="ig-refresh" class="ghost-btn" title="Alle Pool-Creator neu anreichern: aktuelle Posts, Engagement Rate und Kooperationen">Pool aktualisieren</button>
                   <span id="ig-admin-info" class="ig-muted"></span>
                 </div>
                 <div class="ig-admin-seeds">
@@ -146,10 +160,13 @@ export class InstagramDiscoveryPage {
 
     document.getElementById('ig-backfill')?.addEventListener('click', () => this.triggerBackfill());
     document.getElementById('ig-harvest')?.addEventListener('click', () => this.triggerHarvest());
+    document.getElementById('ig-refresh')?.addEventListener('click', () => this.triggerRefresh());
     document.getElementById('ig-seed-add')?.addEventListener('click', () => this.addSeed());
 
     this.loadSeeds();
-    this.loadRuns();
+    // Falls beim Seitenaufruf schon ein Lauf aktiv ist, direkt live mitverfolgen
+    this.stopRunPolling();
+    this.loadRuns().then((running) => { if (running) this.startRunPolling(); });
   }
 
   async checkStatus() {
@@ -383,50 +400,138 @@ export class InstagramDiscoveryPage {
 
   // --- Admin: Runs + Trigger ---
 
+  /**
+   * Letzte Läufe rendern (inkl. Phase, Stats, vollem Fehlertext).
+   * @returns {boolean} true wenn mindestens ein Lauf noch running ist
+   */
   async loadRuns() {
     const el = document.getElementById('ig-runs');
-    if (!el) return;
+    if (!el) return false;
     const { data } = await window.supabase
       .from('instagram_harvest_runs')
-      .select('trigger_type, status, stats, error, started_at')
+      .select('trigger_type, status, stats, error, started_at, finished_at')
       .order('started_at', { ascending: false })
-      .limit(5);
-    if (!data?.length) { el.innerHTML = ''; return; }
-    el.innerHTML = '<div class="ig-runs-title">Letzte Läufe</div>' + data.map((r) => {
-      const when = new Date(r.started_at).toLocaleString('de-DE');
-      const s = r.stats || {};
-      const summary = r.trigger_type === 'backfill'
-        ? `enriched ${s.enriched ?? 0}, failed ${s.failed ?? 0}`
-        : `neu ${s.new_profiles ?? 0}, enriched ${s.enriched ?? 0}`;
-      return `<div class="ig-run ig-run-${esc(r.status)}">
-        <span>${esc(r.trigger_type)}</span><span>${esc(r.status)}</span>
-        <span>${esc(summary)}</span><span class="ig-muted">${esc(when)}</span>
-      </div>`;
-    }).join('');
+      .limit(8);
+    if (!data?.length) { el.innerHTML = ''; return false; }
+
+    el.innerHTML = '<div class="ig-runs-title">Letzte Läufe</div>'
+      + data.map((r) => this.renderRun(r)).join('');
+    return data.some((r) => r.status === 'running');
+  }
+
+  renderRun(r) {
+    const s = r.stats || {};
+    const when = new Date(r.started_at).toLocaleString('de-DE');
+    const typeLabel = r.trigger_type === 'backfill' ? 'Backfill'
+      : r.trigger_type === 'refresh' ? 'Pool-Refresh'
+        : r.trigger_type === 'schedule' ? 'Harvest (Cron)' : 'Harvest';
+
+    const statParts = (r.trigger_type === 'backfill' || r.trigger_type === 'refresh')
+      ? [
+        s.crm_handles != null ? `${s.crm_handles} CRM-Handles` : null,
+        s.candidates != null ? `${s.candidates} Kandidaten` : null,
+        `${s.enriched ?? 0} angereichert`,
+        s.failed ? `${s.failed} fehlgeschlagen` : null,
+        s.skipped_existing ? `${s.skipped_existing} übersprungen (frisch)` : null,
+        s.brands_cached ? `${s.brands_cached} Brand-Logos` : null
+      ]
+      : [
+        s.seeds_used?.length ? `Seeds: ${s.seeds_used.map((h) => `#${h}`).join(' ')}` : null,
+        s.permalinks != null ? `${s.permalinks} Permalinks` : null,
+        s.usernames_found != null ? `${s.usernames_found} Usernames` : null,
+        `${s.new_profiles ?? 0} neue Profile`,
+        `${s.enriched ?? 0} angereichert`,
+        s.failed ? `${s.failed} fehlgeschlagen` : null
+      ];
+    const statsLine = statParts.filter(Boolean).join(' · ');
+
+    const phase = r.status === 'running' && s.phase
+      ? `<span class="ig-run-phase">${esc(PHASE_LABELS[s.phase] || s.phase)}…</span>`
+      : '';
+    const errorHtml = r.error
+      ? `<div class="ig-run-error-text">${esc(r.error)}</div>`
+      : '';
+    const seedErrorsHtml = s.seed_errors?.length
+      ? `<div class="ig-run-error-text">${s.seed_errors.map((e) => `#${esc(e.hashtag)}: ${esc(e.error)}`).join('<br>')}</div>`
+      : '';
+
+    return `<div class="ig-run ig-run-${esc(r.status)}">
+      <div class="ig-run-head">
+        <span class="ig-run-badge ig-run-badge-${esc(r.status)}">${esc(r.status)}</span>
+        <strong>${esc(typeLabel)}</strong>
+        ${phase}
+        <span class="ig-muted">${esc(when)}</span>
+      </div>
+      ${statsLine ? `<div class="ig-run-stats">${esc(statsLine)}</div>` : ''}
+      ${errorHtml}
+      ${seedErrorsHtml}
+    </div>`;
+  }
+
+  /** Alle 2s Läufe neu laden, bis nichts mehr running ist (max. ~15 Min) */
+  startRunPolling() {
+    this.stopRunPolling();
+    const startedAt = Date.now();
+    const info = document.getElementById('ig-admin-info');
+    this.setAdminButtonsDisabled(true);
+
+    this._runPollTimer = setInterval(async () => {
+      const stillRunning = await this.loadRuns();
+      if (info) info.textContent = stillRunning ? 'Lauf aktiv – Anzeige aktualisiert sich automatisch…' : '';
+      const timedOut = Date.now() - startedAt > 15 * 60 * 1000;
+      if (!stillRunning || timedOut) {
+        this.stopRunPolling();
+        this.setAdminButtonsDisabled(false);
+        if (info && timedOut) info.textContent = 'Lauf dauert ungewöhnlich lange – siehe Läufe unten.';
+      }
+    }, 2000);
+  }
+
+  stopRunPolling() {
+    if (this._runPollTimer) {
+      clearInterval(this._runPollTimer);
+      this._runPollTimer = null;
+    }
+  }
+
+  setAdminButtonsDisabled(disabled) {
+    for (const id of ['ig-backfill', 'ig-harvest', 'ig-refresh']) {
+      const btn = document.getElementById(id);
+      if (btn) btn.disabled = disabled;
+    }
   }
 
   async triggerBackfill() {
-    const info = document.getElementById('ig-admin-info');
-    if (info) info.textContent = 'Backfill gestartet (läuft im Hintergrund)…';
     try {
       await this.service.startBackfill();
-      window.toastSystem?.show('CRM-Backfill gestartet. Läuft im Hintergrund, prüfe später die Läufe.', 'success');
+      window.toastSystem?.show('CRM-Backfill gestartet.', 'success');
+      this.startRunPolling();
     } catch (err) {
       window.toastSystem?.show(`Backfill-Fehler: ${err.message}`, 'error');
+      this.loadRuns();
     }
-    setTimeout(() => this.loadRuns(), 3000);
   }
 
   async triggerHarvest() {
-    const info = document.getElementById('ig-admin-info');
-    if (info) info.textContent = 'Harvest gestartet (läuft im Hintergrund)…';
     try {
       await this.service.startHarvest();
-      window.toastSystem?.show('Harvest gestartet. Läuft im Hintergrund, prüfe später die Läufe.', 'success');
+      window.toastSystem?.show('Harvest gestartet.', 'success');
+      this.startRunPolling();
     } catch (err) {
       window.toastSystem?.show(`Harvest-Fehler: ${err.message}`, 'error');
+      this.loadRuns();
     }
-    setTimeout(() => this.loadRuns(), 3000);
+  }
+
+  async triggerRefresh() {
+    try {
+      await this.service.startRefresh();
+      window.toastSystem?.show('Pool-Refresh gestartet – alle Creator werden neu angereichert.', 'success');
+      this.startRunPolling();
+    } catch (err) {
+      window.toastSystem?.show(`Refresh-Fehler: ${err.message}`, 'error');
+      this.loadRuns();
+    }
   }
 }
 

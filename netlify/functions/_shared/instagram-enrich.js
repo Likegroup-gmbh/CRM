@@ -218,15 +218,17 @@ async function enrichAndUpsert(supabase, rawUsername, extra = {}) {
 
   const res = await fetchProfile(username);
   if (!res.ok) {
-    // Fehler protokollieren, aber Zeile trotzdem anlegen/aktualisieren (damit wir es nicht endlos neu versuchen)
-    await supabase.from('instagram_creators').upsert({
+    // Fehler protokollieren, aber Zeile trotzdem anlegen/aktualisieren (damit wir es nicht endlos neu versuchen).
+    // source/crm_creator_id nur setzen, wenn explizit uebergeben (Refresh soll bestehende Werte nicht ueberschreiben).
+    const errRow = {
       username,
-      source: extra.source || 'crm',
-      crm_creator_id: extra.crm_creator_id || null,
-      found_via_hashtag: extra.found_via_hashtag || null,
       enrich_error: res.error,
       last_enriched_at: new Date().toISOString()
-    }, { onConflict: 'username' });
+    };
+    if (extra.source) errRow.source = extra.source;
+    if (extra.crm_creator_id) errRow.crm_creator_id = extra.crm_creator_id;
+    if (extra.found_via_hashtag) errRow.found_via_hashtag = extra.found_via_hashtag;
+    await supabase.from('instagram_creators').upsert(errRow, { onConflict: 'username' });
     return { ok: false, username, error: res.error };
   }
 

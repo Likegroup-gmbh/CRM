@@ -42,6 +42,11 @@ export class InstagramDiscoveryService {
     return postFunction('instagram-backfill-background', {});
   }
 
+  /** Pool-Refresh: alle vorhandenen Pool-Creator neu anreichern (Posts, ER, Kooperationen) */
+  async startRefresh() {
+    return postFunction('instagram-backfill-background', { mode: 'refresh' });
+  }
+
   /** Harvest manuell anstossen (Background-Function, antwortet 202) */
   async startHarvest() {
     return postFunction('instagram-harvest-background', {});

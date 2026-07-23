@@ -78,7 +78,7 @@
 .ig-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: var(--space-md);
+  
 }
 
 .ig-card {
@@ -87,7 +87,7 @@
   gap: var(--space-xs);
   padding: var(--space-md);
   border: 1px solid var(--gray-200, #e5e7eb);
-  border-radius: var(--radius-xl, 12px);
+  
   background: var(--white, #fff);
 }
 .ig-card-head { display: flex; align-items: center; gap: var(--space-sm); }
@@ -168,7 +168,30 @@
 .ig-seed-off { opacity: 0.5; }
 .ig-seed-toggle { border: none; background: var(--gray-300, #d1d5db); border-radius: var(--radius-xxl, 999px); font-size: 10px; padding: 1px 8px; cursor: pointer; }
 
-.ig-runs { display: flex; flex-direction: column; gap: 4px; }
+.ig-runs { display: flex; flex-direction: column; gap: var(--space-xs); }
 .ig-runs-title { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary, #6b7280); }
-.ig-run { display: grid; grid-template-columns: 90px 70px 1fr auto; gap: var(--space-sm); font-size: var(--text-xs); padding: 2px 0; }
-.ig-run-error { color: #991b1b; }
+
+.ig-run {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--text-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--gray-200, #e5e7eb);
+  border-radius: var(--radius-md, 8px);
+}
+.ig-run-running { border-color: #93c5fd; background: #eff6ff; }
+.ig-run-error { border-color: #fecaca; background: #fef2f2; }
+
+.ig-run-head { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; }
+.ig-run-badge {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
+  padding: 1px 6px; border-radius: var(--radius-md, 6px);
+}
+.ig-run-badge-running { background: #dbeafe; color: #1e40af; }
+.ig-run-badge-done { background: #ecfdf5; color: #065f46; }
+.ig-run-badge-error { background: #fee2e2; color: #991b1b; }
+.ig-run-phase { color: #1e40af; }
+
+.ig-run-stats { color: var(--text-secondary, #6b7280); }
+.ig-run-error-text { color: #991b1b; white-space: pre-wrap; word-break: break-word; }

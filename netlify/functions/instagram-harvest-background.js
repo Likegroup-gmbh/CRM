@@ -63,6 +63,7 @@ async function permalinksForHashtag(hashtag) {
   if (!hashtagId) return [];
 
   const permalinks = new Set();
+  const edgeErrors = [];
   for (const edge of ['top_media', 'recent_media']) {
     try {
       const media = await graphGet(`${hashtagId}/${edge}`, {
@@ -74,7 +75,12 @@ async function permalinksForHashtag(hashtag) {
       }
     } catch (err) {
       console.warn(`⚠️ ${edge} fuer #${hashtag} fehlgeschlagen:`, err.message);
+      edgeErrors.push(err.meta?.message || err.message);
     }
+  }
+  // Beide Edges gescheitert -> Fehler hochreichen, damit er in seed_errors sichtbar wird
+  if (permalinks.size === 0 && edgeErrors.length === 2) {
+    throw new Error(edgeErrors[0]);
   }
   return [...permalinks].slice(0, MAX_PERMALINKS_PER_TAG);
 }
@@ -135,15 +141,27 @@ exports.handler = async (event) => {
   }
 
   const { data: run } = await supabase.from('instagram_harvest_runs')
-    .insert({ status: 'running', trigger_type: triggerType })
+    .insert({ status: 'running', trigger_type: triggerType, stats: { phase: 'starting' } })
     .select().single();
   const runId = run?.id;
 
-  const stats = { seeds_used: [], permalinks: 0, usernames_found: 0, new_profiles: 0, enriched: 0, failed: 0 };
+  const stats = {
+    phase: 'starting',
+    seeds_used: [], seed_errors: [],
+    permalinks: 0, usernames_found: 0, new_profiles: 0, enriched: 0, failed: 0
+  };
+
+  // Zwischenstand in den Run schreiben (Phase + Stats, fuer die Live-Anzeige)
+  const updateRun = async (phase) => {
+    if (phase) stats.phase = phase;
+    if (runId) await supabase.from('instagram_harvest_runs').update({ stats }).eq('id', runId);
+  };
+
   let browser;
 
   try {
     // 1. Seeds rotieren: aktive, aeltester last_run_at zuerst
+    await updateRun('seeds');
     const { data: seeds } = await supabase
       .from('instagram_hashtag_seeds')
       .select('id, hashtag')
@@ -152,29 +170,43 @@ exports.handler = async (event) => {
       .limit(HASHTAGS_PER_RUN);
 
     if (!seeds || seeds.length === 0) {
+      stats.phase = 'done';
       if (runId) {
         await supabase.from('instagram_harvest_runs')
-          .update({ status: 'done', stats, finished_at: new Date().toISOString() }).eq('id', runId);
+          .update({ status: 'done', stats, error: 'Keine aktiven Hashtag-Seeds', finished_at: new Date().toISOString() }).eq('id', runId);
       }
       return { statusCode: 202, body: JSON.stringify({ ok: true, note: 'keine aktiven Seeds', stats }) };
     }
 
-    // 2. Permalinks pro Seed sammeln (permalink -> hashtag)
+    // 2. Permalinks pro Seed sammeln (permalink -> hashtag).
+    // Einzelne Seed-Fehler brechen den Lauf nicht ab, sondern landen in seed_errors.
+    await updateRun('hashtags');
     const permalinkMap = new Map();
     for (const seed of seeds) {
       stats.seeds_used.push(seed.hashtag);
-      const links = await permalinksForHashtag(seed.hashtag);
-      for (const l of links) if (!permalinkMap.has(l)) permalinkMap.set(l, seed.hashtag);
+      try {
+        const links = await permalinksForHashtag(seed.hashtag);
+        for (const l of links) if (!permalinkMap.has(l)) permalinkMap.set(l, seed.hashtag);
+      } catch (err) {
+        stats.seed_errors.push({ hashtag: seed.hashtag, error: err.meta?.message || err.message });
+      }
       await supabase.from('instagram_hashtag_seeds')
         .update({ last_run_at: new Date().toISOString() }).eq('id', seed.id);
+      await updateRun();
     }
     stats.permalinks = permalinkMap.size;
+
+    // Alle Seeds gescheitert (z.B. fehlende Public-Content-Access-Permission) -> harter Fehler
+    if (permalinkMap.size === 0 && stats.seed_errors.length === seeds.length) {
+      throw new Error(stats.seed_errors[0].error);
+    }
 
     // 3. Bekannte Usernames laden (nicht neu scrapen/enrichen)
     const { data: existing } = await supabase.from('instagram_creators').select('username');
     const known = new Set((existing || []).map((e) => e.username));
 
     // 4. Browser starten + Permalinks scrapen
+    await updateRun('scrape');
     browser = await puppeteerExtra.launch({
       args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
       defaultViewport: { width: 430, height: 932 },
@@ -193,6 +225,7 @@ exports.handler = async (event) => {
       stats.usernames_found += 1;
       if (known.has(username) || newUsernames.has(username)) continue;
       newUsernames.set(username, hashtag);
+      if (stats.usernames_found % 5 === 0) await updateRun();
       await sleep(SCRAPE_DELAY_MS);
     }
     stats.new_profiles = newUsernames.size;
@@ -201,6 +234,7 @@ exports.handler = async (event) => {
     browser = null;
 
     // 5. Neue Usernames anreichern
+    await updateRun('enrich');
     for (const [username, hashtag] of newUsernames.entries()) {
       const result = await enrichAndUpsert(supabase, username, {
         source: 'harvest',
@@ -214,6 +248,7 @@ exports.handler = async (event) => {
       await sleep(1100);
     }
 
+    stats.phase = 'done';
     if (runId) {
       await supabase.from('instagram_harvest_runs')
         .update({ status: 'done', stats, finished_at: new Date().toISOString() }).eq('id', runId);
