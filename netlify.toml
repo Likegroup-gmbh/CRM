@@ -36,6 +36,15 @@
 [functions."instagram-graph"]
   timeout = 26
 
+# Instagram KI-Query: Claude-Parsing + Pool-Query
+[functions."instagram-query"]
+  timeout = 26
+
+# Instagram Hashtag-Harvester: naechtlich + manuell (Background, 15 Min)
+# Puppeteer/Chromium wie Screenshot/Transcribe (external_node_modules gilt global)
+[functions."instagram-harvest-background"]
+  schedule = "@daily"
+
 # Auth-Seiten direkt ausliefern (NICHT auf index.html umleiten)
 [[redirects]]
   from = "/src/auth/*"
