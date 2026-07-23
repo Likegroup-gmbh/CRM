@@ -26,10 +26,26 @@ const MAX_PERMALINKS_PER_TAG = 30;
 const MAX_NEW_PROFILES_PER_RUN = 30;
 const SCRAPE_DELAY_MS = 1500;
 
+// Netlify killt Background Functions hart nach 15 Min — vorher sauber aufhoeren
+const TIME_BUDGET_MS = 13 * 60 * 1000;
+const STALE_RUN_AFTER_MS = 20 * 60 * 1000;
+
 const MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 '
   + '(KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Runs, die laenger als 20 Min auf running stehen, wurden von Netlify gekillt -> schliessen */
+async function closeStaleRuns(supabase) {
+  await supabase.from('instagram_harvest_runs')
+    .update({
+      status: 'error',
+      error: 'Abgebrochen (15-Min-Limit ueberschritten)',
+      finished_at: new Date().toISOString()
+    })
+    .eq('status', 'running')
+    .lt('started_at', new Date(Date.now() - STALE_RUN_AFTER_MS).toISOString());
+}
 
 async function verifyAuth(event, supabase) {
   const authHeader = (event.headers || {}).authorization || (event.headers || {}).Authorization || '';
@@ -129,6 +145,9 @@ exports.handler = async (event) => {
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
+  // Von Netlify gekillte Vorgaenger-Laeufe schliessen (selbstheilend)
+  await closeStaleRuns(supabase);
+
   // Schedule-Aufrufe (Netlify Cron) senden ein next_run im Body und keine User-Auth.
   // Manuelle POSTs von der Seite brauchen einen gueltigen Supabase-User.
   let parsedBody = {};
@@ -139,6 +158,17 @@ exports.handler = async (event) => {
     const user = await verifyAuth(event, supabase);
     if (!user) return { statusCode: 401, body: JSON.stringify({ error: 'Nicht autorisiert' }) };
   }
+
+  // Manuelle Laeufe koennen die Hashtags fuer GENAU diesen Lauf mitgeben (max 4).
+  // Ohne hashtags (Cron) rotiert der Lauf ueber die gespeicherten Seeds.
+  const requestedHashtags = !isScheduled && Array.isArray(parsedBody.hashtags)
+    ? [...new Set(parsedBody.hashtags
+        .map((h) => String(h).trim().replace(/^#/, '').toLowerCase())
+        .filter((h) => /^[a-z0-9_äöüß]+$/i.test(h)))]
+      .slice(0, HASHTAGS_PER_RUN)
+    : null;
+
+  const startedAtMs = Date.now();
 
   const { data: run } = await supabase.from('instagram_harvest_runs')
     .insert({ status: 'running', trigger_type: triggerType, stats: { phase: 'starting' } })
@@ -160,22 +190,35 @@ exports.handler = async (event) => {
   let browser;
 
   try {
-    // 1. Seeds rotieren: aktive, aeltester last_run_at zuerst
+    // 1. Seeds bestimmen: explizit uebergebene Hashtags (manueller Lauf mit Auswahl)
+    // oder Rotation ueber gespeicherte Seeds (Cron), aeltester last_run_at zuerst
     await updateRun('seeds');
-    const { data: seeds } = await supabase
-      .from('instagram_hashtag_seeds')
-      .select('id, hashtag')
-      .eq('aktiv', true)
-      .order('last_run_at', { ascending: true, nullsFirst: true })
-      .limit(HASHTAGS_PER_RUN);
+    let seeds;
+    if (requestedHashtags?.length) {
+      // In die Seed-Tabelle upserten (Historie + last_run_at fuer das 30/Woche-Limit)
+      const { data: upserted, error: seedErr } = await supabase
+        .from('instagram_hashtag_seeds')
+        .upsert(requestedHashtags.map((hashtag) => ({ hashtag })), { onConflict: 'hashtag' })
+        .select('id, hashtag');
+      if (seedErr) throw new Error(`Seed-Upsert: ${seedErr.message}`);
+      seeds = upserted;
+    } else {
+      const { data } = await supabase
+        .from('instagram_hashtag_seeds')
+        .select('id, hashtag')
+        .eq('aktiv', true)
+        .order('last_run_at', { ascending: true, nullsFirst: true })
+        .limit(HASHTAGS_PER_RUN);
+      seeds = data;
+    }
 
     if (!seeds || seeds.length === 0) {
       stats.phase = 'done';
       if (runId) {
         await supabase.from('instagram_harvest_runs')
-          .update({ status: 'done', stats, error: 'Keine aktiven Hashtag-Seeds', finished_at: new Date().toISOString() }).eq('id', runId);
+          .update({ status: 'done', stats, error: 'Keine Hashtags fuer diesen Lauf', finished_at: new Date().toISOString() }).eq('id', runId);
       }
-      return { statusCode: 202, body: JSON.stringify({ ok: true, note: 'keine aktiven Seeds', stats }) };
+      return { statusCode: 202, body: JSON.stringify({ ok: true, note: 'keine Hashtags', stats }) };
     }
 
     // 2. Permalinks pro Seed sammeln (permalink -> hashtag).
@@ -220,6 +263,10 @@ exports.handler = async (event) => {
     const newUsernames = new Map(); // username -> hashtag
     for (const [permalink, hashtag] of permalinkMap.entries()) {
       if (newUsernames.size >= MAX_NEW_PROFILES_PER_RUN) break;
+      if (Date.now() - startedAtMs > TIME_BUDGET_MS * 0.6) {
+        stats.note = 'Zeitbudget beim Scrapen erreicht';
+        break;
+      }
       const username = await usernameFromPermalink(page, permalink);
       if (!username) continue;
       stats.usernames_found += 1;
@@ -236,6 +283,10 @@ exports.handler = async (event) => {
     // 5. Neue Usernames anreichern
     await updateRun('enrich');
     for (const [username, hashtag] of newUsernames.entries()) {
+      if (Date.now() - startedAtMs > TIME_BUDGET_MS) {
+        stats.note = `Zeitbudget erreicht – ${stats.enriched + stats.failed}/${newUsernames.size} angereichert`;
+        break;
+      }
       const result = await enrichAndUpsert(supabase, username, {
         source: 'harvest',
         found_via_hashtag: hashtag

@@ -47,8 +47,11 @@ export class InstagramDiscoveryService {
     return postFunction('instagram-backfill-background', { mode: 'refresh' });
   }
 
-  /** Harvest manuell anstossen (Background-Function, antwortet 202) */
-  async startHarvest() {
-    return postFunction('instagram-harvest-background', {});
+  /**
+   * Harvest manuell anstossen (Background-Function, antwortet 202).
+   * @param {string[]} hashtags Tags fuer GENAU diesen Lauf (max 4)
+   */
+  async startHarvest(hashtags = []) {
+    return postFunction('instagram-harvest-background', { hashtags });
   }
 }

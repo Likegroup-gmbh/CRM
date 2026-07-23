@@ -54,6 +54,7 @@ export class InstagramDiscoveryPage {
     this.loading = false;
     this._filterTimer = null;
     this._runPollTimer = null;
+    this.selectedSeeds = new Set(); // Hashtag-Auswahl fuer den NAECHSTEN Harvest-Lauf (ephemer)
   }
 
   async init() {
@@ -109,9 +110,10 @@ export class InstagramDiscoveryPage {
                   <span id="ig-admin-info" class="ig-muted"></span>
                 </div>
                 <div class="ig-admin-seeds">
+                  <div class="ig-seed-hint ig-muted">Hashtags für den nächsten Harvest-Lauf ankreuzen (max. 4). Die Auswahl gilt nur für diesen Lauf.</div>
                   <div class="ig-admin-seedadd">
-                    <input type="text" id="ig-seed-input" class="form-input" placeholder="Hashtag ohne # (z.B. hundeliebe)">
-                    <button id="ig-seed-add" class="ghost-btn">Seed hinzufügen</button>
+                    <input type="text" id="ig-seed-input" class="form-input" placeholder="Hashtag ohne # (z.B. fitnessdeutschland)">
+                    <button id="ig-seed-add" class="ghost-btn">Hashtag speichern</button>
                   </div>
                   <div id="ig-seed-list" class="ig-seed-list"></div>
                 </div>
@@ -367,20 +369,43 @@ export class InstagramDiscoveryPage {
     if (!el) return;
     const { data, error } = await window.supabase
       .from('instagram_hashtag_seeds')
-      .select('id, hashtag, aktiv, last_run_at')
+      .select('id, hashtag, last_run_at')
       .order('hashtag');
     if (error) { el.innerHTML = `<span class="ig-muted">Seeds-Fehler: ${esc(error.message)}</span>`; return; }
-    if (!data?.length) { el.innerHTML = '<span class="ig-muted">Noch keine Hashtag-Seeds.</span>'; return; }
-    el.innerHTML = data.map((s) => `
-      <span class="ig-seed ${s.aktiv ? '' : 'ig-seed-off'}">
+    if (!data?.length) { el.innerHTML = '<span class="ig-muted">Noch keine gespeicherten Hashtags.</span>'; return; }
+
+    el.innerHTML = data.map((s) => {
+      const checked = this.selectedSeeds.has(s.hashtag) ? 'checked' : '';
+      const lastRun = s.last_run_at
+        ? ` title="zuletzt geharvestet: ${new Date(s.last_run_at).toLocaleString('de-DE')}"`
+        : '';
+      return `<label class="ig-seed"${lastRun}>
+        <input type="checkbox" class="ig-seed-check" value="${esc(s.hashtag)}" ${checked}>
         #${esc(s.hashtag)}
-        <button data-id="${s.id}" data-aktiv="${s.aktiv}" class="ig-seed-toggle">${s.aktiv ? 'aus' : 'an'}</button>
-      </span>
-    `).join('');
-    el.querySelectorAll('.ig-seed-toggle').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        await window.supabase.from('instagram_hashtag_seeds')
-          .update({ aktiv: btn.dataset.aktiv !== 'true' }).eq('id', btn.dataset.id);
+        <button data-id="${s.id}" data-hashtag="${esc(s.hashtag)}" class="ig-seed-delete" title="Hashtag löschen">&times;</button>
+      </label>`;
+    }).join('');
+
+    el.querySelectorAll('.ig-seed-check').forEach((cb) => {
+      cb.addEventListener('change', () => {
+        if (cb.checked) {
+          if (this.selectedSeeds.size >= 4) {
+            cb.checked = false;
+            window.toastSystem?.show('Maximal 4 Hashtags pro Lauf (Meta-Limit: 30 Hashtags/Woche).', 'error');
+            return;
+          }
+          this.selectedSeeds.add(cb.value);
+        } else {
+          this.selectedSeeds.delete(cb.value);
+        }
+      });
+    });
+
+    el.querySelectorAll('.ig-seed-delete').forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        await window.supabase.from('instagram_hashtag_seeds').delete().eq('id', btn.dataset.id);
+        this.selectedSeeds.delete(btn.dataset.hashtag);
         this.loadSeeds();
       });
     });
@@ -392,9 +417,11 @@ export class InstagramDiscoveryPage {
     if (!raw) return;
     const { error } = await window.supabase
       .from('instagram_hashtag_seeds')
-      .insert({ hashtag: raw });
+      .upsert({ hashtag: raw }, { onConflict: 'hashtag' });
     if (error) { window.toastSystem?.show(`Seed-Fehler: ${error.message}`, 'error'); return; }
     input.value = '';
+    // Neu gespeicherte Hashtags direkt fuer den naechsten Lauf anhaken (wenn noch Platz)
+    if (this.selectedSeeds.size < 4) this.selectedSeeds.add(raw);
     this.loadSeeds();
   }
 
@@ -409,14 +436,36 @@ export class InstagramDiscoveryPage {
     if (!el) return false;
     const { data } = await window.supabase
       .from('instagram_harvest_runs')
-      .select('trigger_type, status, stats, error, started_at, finished_at')
+      .select('id, trigger_type, status, stats, error, started_at, finished_at')
       .order('started_at', { ascending: false })
       .limit(8);
     if (!data?.length) { el.innerHTML = ''; return false; }
 
     el.innerHTML = '<div class="ig-runs-title">Letzte Läufe</div>'
       + data.map((r) => this.renderRun(r)).join('');
-    return data.some((r) => r.status === 'running');
+
+    el.querySelectorAll('.ig-run-abort').forEach((btn) => {
+      btn.addEventListener('click', () => this.abortRun(btn.dataset.id));
+    });
+
+    // Haengende Runs (> 20 Min running = von Netlify gekillt) blockieren nichts mehr
+    return data.some((r) => r.status === 'running' && !this.isStaleRun(r));
+  }
+
+  isStaleRun(r) {
+    return r.status === 'running' && (Date.now() - new Date(r.started_at).getTime()) > 20 * 60 * 1000;
+  }
+
+  async abortRun(runId) {
+    const { error } = await window.supabase
+      .from('instagram_harvest_runs')
+      .update({ status: 'error', error: 'Manuell abgebrochen', finished_at: new Date().toISOString() })
+      .eq('id', runId);
+    if (error) { window.toastSystem?.show(`Abbrechen fehlgeschlagen: ${error.message}`, 'error'); return; }
+    window.toastSystem?.show('Lauf als abgebrochen markiert.', 'success');
+    this.stopRunPolling();
+    this.setAdminButtonsDisabled(false);
+    this.loadRuns();
   }
 
   renderRun(r) {
@@ -445,11 +494,21 @@ export class InstagramDiscoveryPage {
       ];
     const statsLine = statParts.filter(Boolean).join(' · ');
 
-    const phase = r.status === 'running' && s.phase
+    const stale = this.isStaleRun(r);
+    const phase = r.status === 'running' && !stale && s.phase
       ? `<span class="ig-run-phase">${esc(PHASE_LABELS[s.phase] || s.phase)}…</span>`
+      : '';
+    const staleHtml = stale
+      ? '<span class="ig-run-error-text">hängt (Timeout?) – bitte abbrechen</span>'
+      : '';
+    const abortBtn = r.status === 'running'
+      ? `<button class="ig-run-abort ghost-btn" data-id="${esc(r.id)}">Abbrechen</button>`
       : '';
     const errorHtml = r.error
       ? `<div class="ig-run-error-text">${esc(r.error)}</div>`
+      : '';
+    const noteHtml = s.note
+      ? `<div class="ig-run-stats">${esc(s.note)}</div>`
       : '';
     const seedErrorsHtml = s.seed_errors?.length
       ? `<div class="ig-run-error-text">${s.seed_errors.map((e) => `#${esc(e.hashtag)}: ${esc(e.error)}`).join('<br>')}</div>`
@@ -460,9 +519,12 @@ export class InstagramDiscoveryPage {
         <span class="ig-run-badge ig-run-badge-${esc(r.status)}">${esc(r.status)}</span>
         <strong>${esc(typeLabel)}</strong>
         ${phase}
+        ${staleHtml}
         <span class="ig-muted">${esc(when)}</span>
+        ${abortBtn}
       </div>
       ${statsLine ? `<div class="ig-run-stats">${esc(statsLine)}</div>` : ''}
+      ${noteHtml}
       ${errorHtml}
       ${seedErrorsHtml}
     </div>`;
@@ -513,9 +575,17 @@ export class InstagramDiscoveryPage {
   }
 
   async triggerHarvest() {
+    const hashtags = [...this.selectedSeeds];
+    if (hashtags.length === 0) {
+      window.toastSystem?.show('Bitte erst 1–4 Hashtags für diesen Lauf ankreuzen.', 'error');
+      return;
+    }
     try {
-      await this.service.startHarvest();
-      window.toastSystem?.show('Harvest gestartet.', 'success');
+      await this.service.startHarvest(hashtags);
+      window.toastSystem?.show(`Harvest gestartet: ${hashtags.map((h) => `#${h}`).join(' ')}`, 'success');
+      // Auswahl gilt nur fuer diesen Lauf – beim naechsten Mal neu waehlen
+      this.selectedSeeds.clear();
+      this.loadSeeds();
       this.startRunPolling();
     } catch (err) {
       window.toastSystem?.show(`Harvest-Fehler: ${err.message}`, 'error');

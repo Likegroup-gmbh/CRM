@@ -18,7 +18,24 @@ const DELAY_BETWEEN_CALLS_MS = 1100; // ~1 Call/s, Meta-Rate-Limits schonen
 const MAX_BRAND_LOOKUPS_PER_RUN = 100; // Brand-Cache-Nachzug pro Lauf deckeln
 const MAX_REFRESH_PER_RUN = 250; // Pool-Refresh: max Profile pro Lauf (15-Min-Budget)
 
+// Netlify killt Background Functions hart nach 15 Min — vorher sauber aufhoeren,
+// damit der finale Status-Write noch durchkommt. Rest erledigt der naechste Lauf.
+const TIME_BUDGET_MS = 13 * 60 * 1000;
+const STALE_RUN_AFTER_MS = 20 * 60 * 1000;
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Runs, die laenger als 20 Min auf running stehen, wurden von Netlify gekillt -> schliessen */
+async function closeStaleRuns(supabase) {
+  await supabase.from('instagram_harvest_runs')
+    .update({
+      status: 'error',
+      error: 'Abgebrochen (15-Min-Limit ueberschritten)',
+      finished_at: new Date().toISOString()
+    })
+    .eq('status', 'running')
+    .lt('started_at', new Date(Date.now() - STALE_RUN_AFTER_MS).toISOString());
+}
 
 async function verifyAuth(event, supabase) {
   const authHeader = (event.headers || {}).authorization || (event.headers || {}).Authorization || '';
@@ -46,11 +63,15 @@ exports.handler = async (event) => {
     return { statusCode: 401, body: JSON.stringify({ error: 'Nicht autorisiert' }) };
   }
 
+  // Von Netlify gekillte Vorgaenger-Laeufe schliessen (selbstheilend)
+  await closeStaleRuns(supabase);
+
   // Modus: 'backfill' (Default, CRM-Handles) oder 'refresh' (alle Pool-Creator neu)
   let body = {};
   try { body = JSON.parse(event.body || '{}'); } catch { /* ignore */ }
   const isRefresh = body.mode === 'refresh';
   const triggerType = isRefresh ? 'refresh' : 'backfill';
+  const startedAtMs = Date.now();
 
   // Run-Log anlegen
   const { data: run } = await supabase.from('instagram_harvest_runs')
@@ -115,8 +136,12 @@ exports.handler = async (event) => {
     stats.candidates = candidates.length;
     await updateRun('enrich');
 
-    // 5. Sequentiell anreichern (Rate-Limit-schonend)
+    // 5. Sequentiell anreichern (Rate-Limit-schonend, mit Zeitbudget)
     for (const { username, crmId } of candidates) {
+      if (Date.now() - startedAtMs > TIME_BUDGET_MS) {
+        stats.note = `Zeitbudget erreicht – ${stats.enriched + stats.failed}/${candidates.length} verarbeitet, Rest beim naechsten Lauf`;
+        break;
+      }
       const result = await enrichAndUpsert(
         supabase,
         username,
@@ -134,23 +159,26 @@ exports.handler = async (event) => {
 
     // 6. Brand-Cache fuer bestehende Pool-Creator nachziehen (Bubbles auf der Seite).
     // cacheBrands ueberspringt frische/als nicht-aufloesbar markierte Handles selbst.
-    await updateRun('brands');
-    const { data: poolBrands } = await supabase
-      .from('instagram_creators')
-      .select('brand_mentions')
-      .not('brand_mentions', 'eq', '{}');
-    const allHandles = [...new Set((poolBrands || []).flatMap((r) => r.brand_mentions || []))];
-    if (allHandles.length) {
-      // Erst gegen den Cache diffen, dann cappen — sonst blockieren gecachte Handles den Nachzug
-      const { data: cachedBrands } = await supabase
-        .from('instagram_brands')
-        .select('username')
-        .in('username', allHandles);
-      const cachedSet = new Set((cachedBrands || []).map((b) => b.username));
-      const missing = allHandles.filter((h) => !cachedSet.has(h)).slice(0, MAX_BRAND_LOOKUPS_PER_RUN);
-      if (missing.length) {
-        const brandResult = await cacheBrands(supabase, missing);
-        stats.brands_cached = brandResult.cached;
+    // Nur wenn noch Zeitbudget da ist (Lookups koennen ~2s/Handle dauern).
+    if (Date.now() - startedAtMs < TIME_BUDGET_MS) {
+      await updateRun('brands');
+      const { data: poolBrands } = await supabase
+        .from('instagram_creators')
+        .select('brand_mentions')
+        .not('brand_mentions', 'eq', '{}');
+      const allHandles = [...new Set((poolBrands || []).flatMap((r) => r.brand_mentions || []))];
+      if (allHandles.length) {
+        // Erst gegen den Cache diffen, dann cappen — sonst blockieren gecachte Handles den Nachzug
+        const { data: cachedBrands } = await supabase
+          .from('instagram_brands')
+          .select('username')
+          .in('username', allHandles);
+        const cachedSet = new Set((cachedBrands || []).map((b) => b.username));
+        const missing = allHandles.filter((h) => !cachedSet.has(h)).slice(0, MAX_BRAND_LOOKUPS_PER_RUN);
+        if (missing.length) {
+          const brandResult = await cacheBrands(supabase, missing);
+          stats.brands_cached = brandResult.cached;
+        }
       }
     }
 
