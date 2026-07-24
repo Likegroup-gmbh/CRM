@@ -13,6 +13,7 @@ import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { creatorUtils } from './CreatorUtils.js';
 import { CreatorGridView } from './CreatorGridView.js';
 import { injectFirmaCreateButton } from './FirmaCreateDrawer.js';
+import { connectInstagramSilent } from '../../core/ActionsDropdownHandlers.js';
 
 export class CreatorList extends BasePaginatedList {
   constructor(opts = {}) {
@@ -35,6 +36,10 @@ export class CreatorList extends BasePaginatedList {
 
     this.mode = mode;
     this._managementCreatorIds = null;
+
+    // Bulk-Connect-Status
+    this._bulkConnectRunning = false;
+    this._bulkConnectAbort = false;
 
     // Zusätzliche Creator-spezifische Properties
     this.selectedCreator = this.selectedItems; // Alias für Kompatibilität
@@ -229,10 +234,6 @@ export class CreatorList extends BasePaginatedList {
     if (!creator.instagram) actionOptions.disabledActions = ['connect'];
     if (creator.ig_connected_at) actionOptions.igConnected = true;
 
-    const igConnectedBadge = creator.ig_connected_at
-      ? `<span class="ig-connected-badge" title="Instagram verbunden (${new Date(creator.ig_connected_at).toLocaleDateString('de-DE')})"></span>`
-      : '';
-
     const safeAvatarUrl = creator.profilbild_url ? window.validatorSystem?.sanitizeUrl(creator.profilbild_url) : null;
     const avatarHtml = safeAvatarUrl
       ? `<img src="${safeAvatarUrl}" alt="${sanitize(`${creator.vorname || ''} ${creator.nachname || ''}`.trim())}" class="table-avatar table-avatar-img" loading="lazy" />`
@@ -254,7 +255,7 @@ export class CreatorList extends BasePaginatedList {
         <td>${this.formatAgeRange(creator.alter_min, creator.alter_max, creator.alter_jahre)}</td>
         <td>${this.renderCreatorTypeTags(creator.creator_types)}</td>
         <td>${this.renderBrancheTags(creator.branchen)}</td>
-        <td class="table-cell-center">${formatLink(creator.instagram)}${igConnectedBadge}</td>
+        <td class="table-cell-center">${formatLink(creator.instagram)}</td>
         <td>${creatorUtils.formatFollowerRange(creator.instagram_follower)}</td>
         <td class="table-cell-center">${formatLink(creator.tiktok)}</td>
         <td>${creatorUtils.formatFollowerRange(creator.tiktok_follower)}</td>
@@ -295,6 +296,7 @@ export class CreatorList extends BasePaginatedList {
       <div class="table-filter-wrapper">
         ${filterHtml}
         <div class="table-actions">
+          ${this.isAdmin ? '<button id="btn-connect-all" class="secondary-btn">Connect</button>' : ''}
           ${canBulkDelete ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
           <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
@@ -404,6 +406,121 @@ export class CreatorList extends BasePaginatedList {
         this.showDeleteSelectedConfirmation();
       }
     }, { signal });
+
+    // Bulk Instagram Connect
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('#btn-connect-all')) {
+        e.preventDefault();
+        this.runBulkConnect();
+      }
+    }, { signal });
+
+    this._updateConnectAllCount();
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // BULK INSTAGRAM CONNECT
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Basis-Query für nicht verbundene Creator (Instagram-Handle gesetzt,
+   * ig_connected_at leer).
+   */
+  _notConnectedQuery(select, options = {}) {
+    return window.supabase
+      .from('creator')
+      .select(select, options)
+      .not('instagram', 'is', null)
+      .neq('instagram', '')
+      .is('ig_connected_at', null);
+  }
+
+  /**
+   * Zeigt im Button die Gesamtanzahl der nicht verbundenen Creator.
+   */
+  async _updateConnectAllCount() {
+    const btn = document.getElementById('btn-connect-all');
+    if (!btn || this._bulkConnectRunning || !window.supabase) return;
+
+    try {
+      const { count, error } = await this._notConnectedQuery('id', { count: 'exact', head: true });
+      if (error) throw error;
+      btn.textContent = `Connect (${count ?? 0})`;
+    } catch (err) {
+      console.warn('Connect-Count konnte nicht geladen werden:', err);
+      btn.textContent = 'Connect';
+    }
+  }
+
+  /**
+   * Lädt alle IDs der nicht verbundenen Creator (seitenweise, um das
+   * Supabase-Limit von 1000 Zeilen zu umgehen).
+   */
+  async _loadNotConnectedIds() {
+    const ids = [];
+    const pageSize = 1000;
+
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await this._notConnectedQuery('id')
+        .order('id')
+        .range(from, from + pageSize - 1);
+
+      if (error) {
+        console.error('Fehler beim Laden der nicht verbundenen Creator:', error);
+        break;
+      }
+
+      ids.push(...(data || []).map(r => r.id));
+      if (!data || data.length < pageSize) break;
+    }
+
+    return ids;
+  }
+
+  /**
+   * Connected alle nicht verbundenen Creator sequentiell. Fehler werden
+   * übersprungen, jede Karte aktualisiert sich einzeln via entityUpdated.
+   * Erneuter Klick während des Laufs stoppt nach dem aktuellen Creator.
+   */
+  async runBulkConnect() {
+    const btn = document.getElementById('btn-connect-all');
+
+    if (this._bulkConnectRunning) {
+      this._bulkConnectAbort = true;
+      if (btn) btn.textContent = 'Wird gestoppt…';
+      return;
+    }
+
+    this._bulkConnectRunning = true;
+    this._bulkConnectAbort = false;
+
+    try {
+      if (btn) btn.textContent = 'Lade Liste…';
+
+      const ids = await this._loadNotConnectedIds();
+      const total = ids.length;
+      let connected = 0;
+
+      if (btn) btn.textContent = `Connect · ${connected}/${total} ✓`;
+
+      for (const id of ids) {
+        if (this._bulkConnectAbort) break;
+
+        const ok = await connectInstagramSilent(id);
+        if (ok) connected++;
+
+        const liveBtn = document.getElementById('btn-connect-all');
+        if (liveBtn && !this._bulkConnectAbort) {
+          liveBtn.textContent = `Connect · ${connected}/${total} ✓`;
+        }
+      }
+
+      console.log(`✅ Bulk-Connect beendet: ${connected}/${total} verbunden`);
+    } finally {
+      this._bulkConnectRunning = false;
+      this._bulkConnectAbort = false;
+      await this._updateConnectAllCount();
+    }
   }
   
   /**

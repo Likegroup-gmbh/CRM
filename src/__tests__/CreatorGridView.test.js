@@ -118,33 +118,34 @@ describe('CreatorGridView', () => {
 
   // ── Links / Priorität ──────────────────────────────────────────────────────
   describe('Links', () => {
-    it('rendert alle vorhandenen Links (Instagram, TikTok, Portfolio)', () => {
+    it('rendert Social-Icons im Header und Portfolio separat', () => {
       const grid = new CreatorGridView(makeList());
       const card = parseCard(grid.renderCard({
         id: 'c1', vorname: 'A',
         instagram: 'maxmuster', tiktok: 'maxtok', portfolio_link: 'https://portfolio.test'
       }));
-      const chips = card.querySelectorAll('.creator-card__link-chip');
-      expect(chips.length).toBe(3);
-      const ig = card.querySelector('.creator-card__link-chip[aria-label="Instagram"]');
-      const tt = card.querySelector('.creator-card__link-chip[aria-label="TikTok"]');
+      const header = card.querySelector('.creator-card__header');
+      const ig = header.querySelector('.creator-card__social[aria-label="Instagram"]');
+      const tt = header.querySelector('.creator-card__social[aria-label="TikTok"]');
       expect(ig).toBeTruthy();
       expect(tt).toBeTruthy();
-      expect(ig.querySelector('.creator-card__link-icon')).toBeTruthy();
-      expect(tt.querySelector('.creator-card__link-icon')).toBeTruthy();
-      expect(card.querySelector('.creator-card__link-chip:not(.creator-card__link-chip--icon)').textContent.trim()).toBe('Portfolio');
+      expect(ig.querySelector('.creator-card__social-icon')).toBeTruthy();
+      expect(tt.querySelector('.creator-card__social-icon')).toBeTruthy();
+      expect(card.querySelector('.creator-card__link-chip').textContent.trim()).toBe('Portfolio');
+      expect(card.querySelector('.ig-connected-badge')).toBeNull();
     });
 
     it('baut Instagram-URL aus Handle', () => {
       const grid = new CreatorGridView(makeList());
       const card = parseCard(grid.renderCard({ id: 'c1', vorname: 'A', instagram: 'maxmuster' }));
-      const ig = card.querySelector('.creator-card__link-chip[aria-label="Instagram"]');
+      const ig = card.querySelector('.creator-card__social[aria-label="Instagram"]');
       expect(ig.getAttribute('href')).toBe('https://instagram.com/maxmuster');
     });
 
-    it('zeigt keine Link-Zeile ohne Links', () => {
+    it('zeigt keine Socials/Links ohne Daten', () => {
       const grid = new CreatorGridView(makeList());
       const card = parseCard(grid.renderCard({ id: 'c1', vorname: 'A' }));
+      expect(card.querySelector('.creator-card__socials')).toBeNull();
       expect(card.querySelector('.creator-card__links')).toBeNull();
     });
   });
@@ -419,7 +420,7 @@ describe('CreatorGridView', () => {
       expect(ok).toBe(true);
       expect(container.querySelectorAll('.creator-card')).toHaveLength(2);
       expect(container.querySelector('[data-id="c1"] .creator-card__name').textContent).toContain('Neu Connected');
-      expect(container.querySelector('[data-id="c1"] .ig-connected-badge')).toBeTruthy();
+      expect(container.querySelector('[data-id="c1"] .ig-connected-badge')).toBeNull();
       expect(container.querySelector('[data-id="c1"] .creator-card__posts')).toBeTruthy();
       expect(container.querySelector('[data-id="c2"] .creator-card__name').textContent).toContain('Nachbar');
       expect(window.dataService.loadEntitiesWithPagination).toHaveBeenCalledWith(

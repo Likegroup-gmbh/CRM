@@ -350,6 +350,39 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
   }
 }
 
+// Stiller Instagram-Connect für Bulk-Läufe: keine Toasts, Fehler nur in Konsole.
+// Feuert bei Erfolg entityUpdated (→ Grid-Karte refresht sich einzeln).
+export async function connectInstagramSilent(creatorId) {
+  try {
+    const { data: { session } } = await window.supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('Keine aktive Sitzung');
+
+    const response = await fetch('/.netlify/functions/instagram-connect', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({ creator_id: creatorId })
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || !result.ok) {
+      console.warn(`Bulk-Connect fehlgeschlagen für ${creatorId}:`, result.hint || result.error || 'Unbekannter Fehler');
+      return false;
+    }
+
+    window.dispatchEvent(new CustomEvent('entityUpdated', {
+      detail: { entity: 'creator', action: 'updated', id: creatorId }
+    }));
+    return true;
+  } catch (err) {
+    console.warn(`Bulk-Connect fehlgeschlagen für ${creatorId}:`, err);
+    return false;
+  }
+}
+
 // Instagram Connect/Refresh: holt Profil-Daten via Netlify Function in die creator-Tabelle
 async function handleInstagramConnect(creatorId) {
   window.toastSystem?.show('Instagram-Daten werden geladen...', 'info');
