@@ -126,14 +126,19 @@ describe('CreatorGridView', () => {
       }));
       const chips = card.querySelectorAll('.creator-card__link-chip');
       expect(chips.length).toBe(3);
-      const labels = Array.from(chips).map((c) => c.textContent.trim());
-      expect(labels).toEqual(['Instagram', 'TikTok', 'Portfolio']);
+      const ig = card.querySelector('.creator-card__link-chip[aria-label="Instagram"]');
+      const tt = card.querySelector('.creator-card__link-chip[aria-label="TikTok"]');
+      expect(ig).toBeTruthy();
+      expect(tt).toBeTruthy();
+      expect(ig.querySelector('.creator-card__link-icon')).toBeTruthy();
+      expect(tt.querySelector('.creator-card__link-icon')).toBeTruthy();
+      expect(card.querySelector('.creator-card__link-chip:not(.creator-card__link-chip--icon)').textContent.trim()).toBe('Portfolio');
     });
 
     it('baut Instagram-URL aus Handle', () => {
       const grid = new CreatorGridView(makeList());
       const card = parseCard(grid.renderCard({ id: 'c1', vorname: 'A', instagram: 'maxmuster' }));
-      const ig = card.querySelector('.creator-card__link-chip');
+      const ig = card.querySelector('.creator-card__link-chip[aria-label="Instagram"]');
       expect(ig.getAttribute('href')).toBe('https://instagram.com/maxmuster');
     });
 
