@@ -426,10 +426,8 @@ CreatorDetail.prototype.setupCacheInvalidation = function() {
         
         if (e.detail.action === 'updated') {
           this.loadCriticalData().then(() => {
-            const infoTab = document.querySelector('#tab-info');
-            if (infoTab && infoTab.classList.contains('active')) {
-              infoTab.innerHTML = this.renderInfoTab();
-            }
+            if (this._destroyed) return;
+            this.render();
           });
         }
       }

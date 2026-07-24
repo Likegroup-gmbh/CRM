@@ -2481,6 +2481,12 @@ width: 18em;
   vertical-align: middle;
 }
 
+.table-avatar-img {
+  object-fit: cover;
+  background: var(--gray-100);
+  padding: 0;
+}
+
 .table-avatar--round {
   border-radius: 50%;
 }

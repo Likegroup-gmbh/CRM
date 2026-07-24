@@ -53,6 +53,12 @@ export class CreatorDetail extends PersonDetailBase {
     
     try {
       await this.loadCriticalData();
+
+      // Bei verbundenem Instagram direkt den IG-Tab vorselektieren
+      if (this.creator?.ig_connected_at) {
+        this.activeMainTab = 'instagram';
+      }
+
       await this.loadKooperationen();
       await this.loadProfileCounts();
       
@@ -149,6 +155,15 @@ export class CreatorDetail extends PersonDetailBase {
       if (this.creator.instagram_follower) {
         detailItems.push({ icon: 'instagram', label: 'IG Follower', value: this.formatNumber(this.creator.instagram_follower) });
       }
+      if (this.creator.ig_connected_at) {
+        if (this.creator.ig_engagement_rate != null && !isNaN(this.creator.ig_engagement_rate)) {
+          detailItems.push({ icon: 'instagram', label: 'Engagement-Rate', value: `${Number(this.creator.ig_engagement_rate).toLocaleString('de-DE', { maximumFractionDigits: 2 })} %` });
+        }
+        if (this.creator.ig_media_count != null) {
+          detailItems.push({ icon: 'instagram', label: 'IG Posts', value: this.formatNumber(this.creator.ig_media_count) });
+        }
+        detailItems.push({ icon: 'clock', label: 'IG verbunden', value: this.formatDate(this.creator.ig_connected_at) });
+      }
     }
     if (tiktokUrl) {
       detailItems.push({ icon: 'tiktok', label: 'TikTok', rawHtml: `<a href="${tiktokUrl}" target="_blank" rel="noopener noreferrer">@${this.sanitize(tiktokHandle.replace('@', ''))}</a>` });
@@ -209,6 +224,7 @@ export class CreatorDetail extends PersonDetailBase {
 
   getTabsConfig() {
     return [
+      { tab: 'instagram', label: 'Instagram', isActive: this.activeMainTab === 'instagram' },
       { tab: 'unternehmen', label: 'Unternehmen', count: this.unternehmen?.length || 0, isActive: this.activeMainTab === 'unternehmen' },
       { tab: 'kampagnen', label: 'Kampagnen', count: this.kampagnen?.length || 0, isActive: this.activeMainTab === 'kampagnen' },
       { tab: 'kooperationen', label: 'Kooperationen', count: this.kooperationen?.length || 0, isActive: this.activeMainTab === 'kooperationen' },
@@ -229,6 +245,10 @@ export class CreatorDetail extends PersonDetailBase {
   renderMainContent() {
     return `
       <div class="tab-content">
+        <div class="tab-pane ${this.activeMainTab === 'instagram' ? 'active' : ''}" id="tab-instagram">
+          ${this.renderInstagramSection()}
+        </div>
+
         <div class="tab-pane ${this.activeMainTab === 'kampagnen' ? 'active' : ''}" id="tab-kampagnen">
           ${this.renderKampagnenContent()}
         </div>

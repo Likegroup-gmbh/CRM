@@ -4,151 +4,24 @@
 import { CreatorDetail } from './CreatorDetailCore.js';
 import { renderKampagnenTable } from '../kampagne/KampagneTable.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
-import { creatorUtils } from './CreatorUtils.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
 
 const PLUS_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>`;
 
-CreatorDetail.prototype.renderInfoTab = function() {
-    return `
-      <div class="detail-section">
-        <div class="detail-grid">
-          <div class="detail-card">
-            <h3 class="section-title">Kontakt</h3>
-            <div class="detail-item">
-              <label>E-Mail:</label>
-              <span>${this.creator.mail || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Telefon:</label>
-              <span>            ${this.creator.telefonnummer || '-'}</span>
-            </div>
-          </div>
-
-          <div class="detail-card">
-            <h3 class="section-title">Lieferadresse</h3>
-            <div class="detail-item">
-              <label>Straße:</label>
-              <span>${this.creator.lieferadresse_strasse ? `${this.creator.lieferadresse_strasse} ${this.creator.lieferadresse_hausnummer || ''}`.trim() : '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>PLZ / Stadt:</label>
-              <span>${this.creator.lieferadresse_plz || this.creator.lieferadresse_stadt ? `${this.creator.lieferadresse_plz || ''} ${this.creator.lieferadresse_stadt || ''}`.trim() : '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Land:</label>
-              <span>${this.creator.lieferadresse_land || '-'}</span>
-            </div>
-          </div>
-
-          ${this.creator.rechnungsadresse_abweichend ? `
-          <div class="detail-card">
-            <h3 class="section-title">Rechnungsadresse</h3>
-            <div class="detail-item">
-              <label>Straße:</label>
-              <span>${this.creator.rechnungsadresse_strasse ? `${this.creator.rechnungsadresse_strasse} ${this.creator.rechnungsadresse_hausnummer || ''}`.trim() : '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>PLZ / Stadt:</label>
-              <span>${this.creator.rechnungsadresse_plz || this.creator.rechnungsadresse_stadt ? `${this.creator.rechnungsadresse_plz || ''} ${this.creator.rechnungsadresse_stadt || ''}`.trim() : '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Land:</label>
-              <span>${this.creator.rechnungsadresse_land || '-'}</span>
-            </div>
-          </div>
-          ` : ''}
-
-          <div class="detail-card">
-            <h3 class="section-title">Social Media</h3>
-            <div class="detail-item">
-              <label>Instagram:</label>
-              <span>${this.creator.instagram ? `@${this.creator.instagram}` : '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Instagram Follower:</label>
-              <span>${creatorUtils.formatFollowerRange(this.creator.instagram_follower)}</span>
-            </div>
-            <div class="detail-item">
-              <label>TikTok:</label>
-              <span>${this.creator.tiktok ? `@${this.creator.tiktok}` : '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>TikTok Follower:</label>
-              <span>${creatorUtils.formatFollowerRange(this.creator.tiktok_follower)}</span>
-            </div>
-          </div>
-
-          <div class="detail-card">
-            <h3 class="section-title">Profil</h3>
-            <div class="detail-item">
-              <label>Typen:</label>
-              <span>${this.renderTagList(this.creator.creator_types)}</span>
-            </div>
-            <div class="detail-item">
-              <label>Sprachen:</label>
-              <span>${this.renderTagList(this.creator.sprachen)}</span>
-            </div>
-            <div class="detail-item">
-              <label>Branchen:</label>
-              <span>${this.renderTagList(this.creator.branchen)}</span>
-            </div>
-            <div class="detail-item">
-              <label>Portfolio:</label>
-              <span>${this.creator.portfolio_link ? `<a href="${this.creator.portfolio_link}" target="_blank">Link</a>` : '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Geschlecht:</label>
-              <span>${this.creator.geschlecht || '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Alter:</label>
-              <span>${this.formatAgeRange(this.creator.alter_min, this.creator.alter_max, this.creator.alter_jahre)}</span>
-            </div>
-            ${this.creator.hat_haustier ? `
-            <div class="detail-item">
-              <label>Haustier:</label>
-              <span>${this.creator.haustier_beschreibung || 'Ja'}</span>
-            </div>
-            ` : ''}
-            ${this.creator.hat_kinder ? `
-            <div class="detail-item">
-              <label>Kinder:</label>
-              <span>${this.creator.kinder_beschreibung || 'Ja'}</span>
-            </div>
-            ` : ''}
-          </div>
-
-          <div class="detail-card">
-            <h3 class="section-title">Finanzen</h3>
-            <div class="detail-item">
-              <label>Letztes Budget:</label>
-              <span>${this.creator.budget_letzte_buchung ? this.formatCurrency(this.creator.budget_letzte_buchung) : '-'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Umsatzsteuerpflichtig:</label>
-              <span>${this.creator.umsatzsteuerpflichtig ? 'Ja' : 'Nein'}</span>
-            </div>
-            <div class="detail-item">
-              <label>Erstellt:</label>
-              <span>${this.formatDate(this.creator.created_at)}</span>
-            </div>
-            <div class="detail-item">
-              <label>Aktualisiert:</label>
-              <span>${this.formatDate(this.creator.updated_at)}</span>
-            </div>
-          </div>
-        </div>
-        ${this.renderInstagramSection()}
-      </div>
-    `;
-};
-
 // Instagram-Sektion: Daten aus dem Connect (nur wenn erfolgreich verbunden)
 CreatorDetail.prototype.renderInstagramSection = function() {
     const c = this.creator || {};
-    if (!c.ig_connected_at) return '';
+    if (!c.ig_connected_at) {
+      const hasLink = !!c.instagram;
+      return renderEmptyState({
+        icon: 'instagram',
+        title: 'Noch nicht mit Instagram verbunden',
+        text: hasLink
+          ? 'Ueber die Connect-Aktion im Aktionsmenue der Creator-Liste koennen die Instagram-Daten (Follower, Engagement, letzte Posts) geladen werden.'
+          : 'Fuer diesen Creator ist kein Instagram-Link hinterlegt. Ohne Link kann kein Connect ausgefuehrt werden.'
+      });
+    }
 
     const safe = (val) => window.validatorSystem?.sanitizeHtml?.(String(val ?? '')) ?? String(val ?? '');
     const safeUrl = (url) => window.validatorSystem?.sanitizeUrl?.(url) || '';

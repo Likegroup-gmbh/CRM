@@ -122,12 +122,17 @@ export class CreatorList extends BasePaginatedList {
     const igConnectedBadge = creator.ig_connected_at
       ? `<span class="ig-connected-badge" title="Instagram verbunden (${new Date(creator.ig_connected_at).toLocaleDateString('de-DE')})"></span>`
       : '';
+
+    const safeAvatarUrl = creator.profilbild_url ? window.validatorSystem?.sanitizeUrl(creator.profilbild_url) : null;
+    const avatarHtml = safeAvatarUrl
+      ? `<img src="${safeAvatarUrl}" alt="${sanitize(`${creator.vorname || ''} ${creator.nachname || ''}`.trim())}" class="table-avatar table-avatar-img" loading="lazy" />`
+      : `<span class="table-avatar">${(creator.vorname || '?')[0].toUpperCase()}</span>`;
     
     return `
       <tr data-id="${creator.id}">
         ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="creator-check" data-id="${creator.id}"></td>` : ''}
         <td class="col-name col-name-with-icon">
-          <span class="table-avatar">${(creator.vorname || '?')[0].toUpperCase()}</span>
+          ${avatarHtml}
           <a href="#" class="table-link" data-table="creator" data-id="${creator.id}">
             ${sanitize(`${creator.vorname || ''} ${creator.nachname || ''}`.trim() || '-')}
           </a>

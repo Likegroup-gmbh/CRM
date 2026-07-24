@@ -32,6 +32,11 @@ export function renderCreatorTable(creators, options = {}) {
     const stadt = c.lieferadresse_stadt || '-';
     const land = c.lieferadresse_land || '-';
 
+    const safeAvatarUrl = c.profilbild_url ? window.validatorSystem?.sanitizeUrl(c.profilbild_url) : null;
+    const avatarHtml = safeAvatarUrl
+      ? `<img src="${safeAvatarUrl}" alt="${name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}" class="table-avatar table-avatar-img" loading="lazy" />`
+      : `<span class="table-avatar">${(c.vorname || '?')[0].toUpperCase()}</span>`;
+
     const actionsCell = canShowActions && showRemoveAction
       ? `
         <td>
@@ -104,7 +109,7 @@ export function renderCreatorTable(creators, options = {}) {
       <tr data-id="${id || ''}">
         ${showSelection ? `<td><input type=\"checkbox\" class=\"creator-check\" data-id=\"${id}\"></td>` : ''}
         <td class="col-name-with-icon">
-          <span class="table-avatar">${(c.vorname || '?')[0].toUpperCase()}</span>
+          ${avatarHtml}
           ${id && canViewCreator ? `<a href="#" class="table-link" data-table="creator" data-id="${id}">${name}</a>` : name}
         </td>
         <td>${typen}</td>
