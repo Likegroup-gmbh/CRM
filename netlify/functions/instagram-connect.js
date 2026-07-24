@@ -191,6 +191,16 @@ async function resolveBrands(supabase, handles) {
   return results;
 }
 
+// Meta-Fehlercodes, die auf Rate-Limiting/transiente Probleme hindeuten
+// (4 = App-Limit, 17 = User-Limit, 32 = Page-Limit, 613 = Custom Rate Limit)
+const RATE_LIMIT_CODES = new Set([4, 17, 32, 613]);
+
+function isRateLimitError(meta) {
+  if (!meta) return false;
+  if (RATE_LIMIT_CODES.has(Number(meta.code))) return true;
+  return meta.is_transient === true;
+}
+
 /** Ein Instagram-Profil via Business Discovery laden */
 async function fetchProfile(username) {
   const igUserId = process.env.META_IG_USER_ID;
@@ -201,7 +211,12 @@ async function fetchProfile(username) {
     const bd = data.business_discovery || {};
     return { ok: true, profile: bd, media: bd.media?.data || [] };
   } catch (err) {
-    return { ok: false, error: err.meta?.message || err.message, error_code: err.meta?.code ?? null };
+    return {
+      ok: false,
+      error: err.meta?.message || err.message,
+      error_code: err.meta?.code ?? null,
+      rate_limited: isRateLimitError(err.meta)
+    };
   }
 }
 
@@ -286,17 +301,28 @@ exports.handler = async (event) => {
 
   const res = await fetchProfile(username);
   if (!res.ok) {
-    // Fehler am Creator vermerken (z.B. privates Profil / kein Business-Account)
+    // Fehler am Creator vermerken (z.B. Rate-Limit / kein Business-Account)
     await supabase
       .from('creator')
       .update({ ig_username: username, ig_last_error: res.error })
       .eq('id', creatorId);
+
+    // Rate-Limit: transient, Client darf spaeter erneut versuchen
+    if (res.rate_limited) {
+      return jsonResponse(429, {
+        error: res.error,
+        error_code: res.error_code,
+        retryable: true,
+        hint: 'Meta-Rate-Limit erreicht – später erneut versuchen.'
+      });
+    }
+
     return jsonResponse(502, {
       error: res.error,
       error_code: res.error_code,
       hint: res.error_code === 190
         ? 'META_ACCESS_TOKEN ist abgelaufen oder ungültig – neuen Long-Lived Token hinterlegen.'
-        : 'Profil nicht abrufbar – vermutlich privat oder kein Business-/Creator-Account.'
+        : 'Profil nicht via API abrufbar – kein Business-/Creator-Account oder Handle falsch.'
     });
   }
 
@@ -304,8 +330,12 @@ exports.handler = async (event) => {
   const media = res.media;
   const engagementRate = computeEngagementRate(media, p.followers_count);
   const brandHandles = extractBrandMentions(media);
-  // Werbepartner zu Name + Logo aufloesen (Cache + Business Discovery)
-  const brandMentions = await resolveBrands(supabase, brandHandles);
+  // Werbepartner zu Name + Logo aufloesen (Cache + Business Discovery).
+  // Bulk-Laeufe senden skip_brands, um bis zu 8 zusaetzliche Graph-Calls
+  // pro Creator zu sparen (Rate-Limit-Budget); Refresh laedt Brands voll.
+  const brandMentions = body.skip_brands
+    ? brandHandles // reine Handles (Alt-Format), UI normalisiert beides
+    : await resolveBrands(supabase, brandHandles);
 
   // Profilbild + Thumbnails der letzten 5 Posts nach Storage kopieren
   const profilbildUrl = await storeImage(

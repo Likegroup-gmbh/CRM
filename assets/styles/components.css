@@ -7003,7 +7003,6 @@ width: 100%;
 
 /* Interaktive Elemente ueber dem Stretched Link */
 .creator-card__actions,
-.creator-card__socials,
 .creator-card__links,
 .creator-card__posts,
 .creator-card__coops,
@@ -7051,17 +7050,9 @@ width: 100%;
 
 .creator-card__header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-sm);
-}
-
-.creator-card__title {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  min-width: 0;
-  flex: 1 1 auto;
 }
 
 .creator-card__name {
@@ -7070,17 +7061,6 @@ width: 100%;
   font-weight: 500;
   color: var(--text-primary);
   line-height: 1.3;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.creator-card__socials {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xxs);
-  flex-shrink: 0;
 }
 
 .creator-card__social {

@@ -269,10 +269,7 @@ export class CreatorGridView {
         ${this._renderMedia(c)}
         <div class="creator-card__body">
           <div class="creator-card__header">
-            <div class="creator-card__title">
-              <h3 class="creator-card__name">${esc(name)}</h3>
-              ${this._renderSocialIcons(c)}
-            </div>
+            <h3 class="creator-card__name">${esc(name)}</h3>
             <div class="creator-card__actions">
               ${this._renderActions(c)}
             </div>
@@ -281,7 +278,7 @@ export class CreatorGridView {
           ${this._renderTagRow(c)}
           ${this._renderInstagramBlock(c)}
           ${this._renderStats(c, num)}
-          ${this._renderPortfolioLink(c)}
+          ${this._renderLinks(c)}
           <div class="creator-card__coops" data-creator-id="${id}"></div>
           ${this._renderPosts(c, num)}
         </div>
@@ -378,9 +375,10 @@ export class CreatorGridView {
     return `<div class="creator-card__stats">${stats.join('')}</div>`;
   }
 
-  _renderSocialIcons(c) {
+  _renderLinks(c) {
+    const esc = (v) => window.validatorSystem?.sanitizeHtml?.(String(v ?? '')) ?? String(v ?? '');
     const safeUrl = (u) => window.validatorSystem?.sanitizeUrl?.(u) || '';
-    const icons = [];
+    const parts = [];
 
     const igIcon = '<svg class="creator-card__social-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160ZM176,24H80A56.06,56.06,0,0,0,24,80v96a56.06,56.06,0,0,0,56,56h96a56.06,56.06,0,0,0,56-56V80A56.06,56.06,0,0,0,176,24Zm40,152a40,40,0,0,1-40,40H80a40,40,0,0,1-40-40V80A40,40,0,0,1,80,40h96a40,40,0,0,1,40,40ZM192,76a12,12,0,1,1-12-12A12,12,0,0,1,192,76Z"></path></svg>';
     const ttIcon = '<svg class="creator-card__social-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224,72a48.05,48.05,0,0,1-48-48,8,8,0,0,0-8-8H128a8,8,0,0,0-8,8V156a20,20,0,1,1-28.57-18.08A8,8,0,0,0,96,130.69V88a8,8,0,0,0-9.4-7.88C50.91,86.48,24,119.1,24,156a76,76,0,0,0,152,0V116.29A103.25,103.25,0,0,0,224,128a8,8,0,0,0,8-8V80A8,8,0,0,0,224,72Zm-8,39.64a87.19,87.19,0,0,1-43.33-16.15A8,8,0,0,0,160,102v54a60,60,0,0,1-120,0c0-25.9,16.64-49.13,40-57.6v27.67A36,36,0,1,0,136,156V32h24.5A64.14,64.14,0,0,0,216,87.5Z"></path></svg>';
@@ -389,27 +387,25 @@ export class CreatorGridView {
       const raw = c.instagram.startsWith('http') ? c.instagram : `https://instagram.com/${String(c.instagram).replace('@', '')}`;
       const url = safeUrl(raw);
       if (url) {
-        icons.push(`<a class="creator-card__social" href="${url}" target="_blank" rel="noopener noreferrer" title="Instagram" aria-label="Instagram">${igIcon}</a>`);
+        parts.push(`<a class="creator-card__social" href="${url}" target="_blank" rel="noopener noreferrer" title="Instagram" aria-label="Instagram">${igIcon}</a>`);
       }
     }
     if (c.tiktok) {
       const raw = c.tiktok.startsWith('http') ? c.tiktok : `https://tiktok.com/@${String(c.tiktok).replace('@', '')}`;
       const url = safeUrl(raw);
       if (url) {
-        icons.push(`<a class="creator-card__social" href="${url}" target="_blank" rel="noopener noreferrer" title="TikTok" aria-label="TikTok">${ttIcon}</a>`);
+        parts.push(`<a class="creator-card__social" href="${url}" target="_blank" rel="noopener noreferrer" title="TikTok" aria-label="TikTok">${ttIcon}</a>`);
+      }
+    }
+    if (c.portfolio_link) {
+      const url = safeUrl(c.portfolio_link);
+      if (url) {
+        parts.push(`<a class="creator-card__link-chip" href="${url}" target="_blank" rel="noopener noreferrer" title="${esc(c.portfolio_link)}">Portfolio</a>`);
       }
     }
 
-    if (!icons.length) return '';
-    return `<div class="creator-card__socials">${icons.join('')}</div>`;
-  }
-
-  _renderPortfolioLink(c) {
-    const esc = (v) => window.validatorSystem?.sanitizeHtml?.(String(v ?? '')) ?? String(v ?? '');
-    if (!c.portfolio_link) return '';
-    const url = window.validatorSystem?.sanitizeUrl?.(c.portfolio_link) || '';
-    if (!url) return '';
-    return `<div class="creator-card__links"><a class="creator-card__link-chip" href="${url}" target="_blank" rel="noopener noreferrer" title="${esc(c.portfolio_link)}">Portfolio</a></div>`;
+    if (!parts.length) return '';
+    return `<div class="creator-card__links">${parts.join('')}</div>`;
   }
 
   _renderPosts(c, num) {

@@ -118,34 +118,35 @@ describe('CreatorGridView', () => {
 
   // ── Links / Priorität ──────────────────────────────────────────────────────
   describe('Links', () => {
-    it('rendert Social-Icons im Header und Portfolio separat', () => {
+    it('rendert Social-Icons und Portfolio im Content', () => {
       const grid = new CreatorGridView(makeList());
       const card = parseCard(grid.renderCard({
         id: 'c1', vorname: 'A',
         instagram: 'maxmuster', tiktok: 'maxtok', portfolio_link: 'https://portfolio.test'
       }));
-      const header = card.querySelector('.creator-card__header');
-      const ig = header.querySelector('.creator-card__social[aria-label="Instagram"]');
-      const tt = header.querySelector('.creator-card__social[aria-label="TikTok"]');
+      const links = card.querySelector('.creator-card__links');
+      expect(links).toBeTruthy();
+      expect(card.querySelector('.creator-card__header .creator-card__social')).toBeNull();
+      const ig = links.querySelector('.creator-card__social[aria-label="Instagram"]');
+      const tt = links.querySelector('.creator-card__social[aria-label="TikTok"]');
       expect(ig).toBeTruthy();
       expect(tt).toBeTruthy();
       expect(ig.querySelector('.creator-card__social-icon')).toBeTruthy();
       expect(tt.querySelector('.creator-card__social-icon')).toBeTruthy();
-      expect(card.querySelector('.creator-card__link-chip').textContent.trim()).toBe('Portfolio');
+      expect(links.querySelector('.creator-card__link-chip').textContent.trim()).toBe('Portfolio');
       expect(card.querySelector('.ig-connected-badge')).toBeNull();
     });
 
     it('baut Instagram-URL aus Handle', () => {
       const grid = new CreatorGridView(makeList());
       const card = parseCard(grid.renderCard({ id: 'c1', vorname: 'A', instagram: 'maxmuster' }));
-      const ig = card.querySelector('.creator-card__social[aria-label="Instagram"]');
+      const ig = card.querySelector('.creator-card__links .creator-card__social[aria-label="Instagram"]');
       expect(ig.getAttribute('href')).toBe('https://instagram.com/maxmuster');
     });
 
-    it('zeigt keine Socials/Links ohne Daten', () => {
+    it('zeigt keine Links ohne Daten', () => {
       const grid = new CreatorGridView(makeList());
       const card = parseCard(grid.renderCard({ id: 'c1', vorname: 'A' }));
-      expect(card.querySelector('.creator-card__socials')).toBeNull();
       expect(card.querySelector('.creator-card__links')).toBeNull();
     });
   });

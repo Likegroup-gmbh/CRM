@@ -478,9 +478,23 @@ export class CreatorList extends BasePaginatedList {
   }
 
   /**
-   * Connected alle nicht verbundenen Creator sequentiell. Fehler werden
-   * übersprungen, jede Karte aktualisiert sich einzeln via entityUpdated.
-   * Erneuter Klick während des Laufs stoppt nach dem aktuellen Creator.
+   * Abbruch-freundliches Warten: schläft in 500ms-Schritten und bricht ab,
+   * sobald das Abort-Flag gesetzt wird.
+   */
+  async _bulkConnectWait(ms) {
+    const step = 500;
+    for (let waited = 0; waited < ms; waited += step) {
+      if (this._bulkConnectAbort) return;
+      await new Promise(resolve => setTimeout(resolve, Math.min(step, ms - waited)));
+    }
+  }
+
+  /**
+   * Connected alle nicht verbundenen Creator sequentiell (~2s Throttle).
+   * Bei Meta-Rate-Limit wird pausiert (60s, eskalierend bis 10min) und der
+   * gleiche Creator erneut versucht; andere Fehler werden übersprungen.
+   * Jede Karte aktualisiert sich einzeln via entityUpdated.
+   * Erneuter Klick während des Laufs (auch in einer Pause) stoppt.
    */
   async runBulkConnect() {
     const btn = document.getElementById('btn-connect-all');
@@ -494,24 +508,49 @@ export class CreatorList extends BasePaginatedList {
     this._bulkConnectRunning = true;
     this._bulkConnectAbort = false;
 
+    const THROTTLE_MS = 2000;
+    const BACKOFF_START_MS = 60 * 1000;
+    const BACKOFF_MAX_MS = 10 * 60 * 1000;
+
+    const setLabel = (text) => {
+      const liveBtn = document.getElementById('btn-connect-all');
+      if (liveBtn) liveBtn.textContent = text;
+    };
+
     try {
-      if (btn) btn.textContent = 'Lade Liste…';
+      setLabel('Lade Liste…');
 
       const ids = await this._loadNotConnectedIds();
       const total = ids.length;
       let connected = 0;
+      let backoffMs = BACKOFF_START_MS;
 
-      if (btn) btn.textContent = `Connect · ${connected}/${total} ✓`;
+      const progress = () => `${connected}/${total} ✓`;
+      setLabel(`Connect · ${progress()}`);
 
-      for (const id of ids) {
+      for (let i = 0; i < ids.length; i += 1) {
         if (this._bulkConnectAbort) break;
 
-        const ok = await connectInstagramSilent(id);
-        if (ok) connected++;
+        const result = await connectInstagramSilent(ids[i]);
 
-        const liveBtn = document.getElementById('btn-connect-all');
-        if (liveBtn && !this._bulkConnectAbort) {
-          liveBtn.textContent = `Connect · ${connected}/${total} ✓`;
+        if (result.ok) {
+          connected++;
+          backoffMs = BACKOFF_START_MS;
+        } else if (result.retryable) {
+          // Rate-Limit: warten und denselben Creator erneut versuchen
+          if (!this._bulkConnectAbort) {
+            setLabel(`Rate-Limit – Pause ${Math.round(backoffMs / 1000)}s · ${progress()}`);
+            await this._bulkConnectWait(backoffMs);
+            backoffMs = Math.min(backoffMs * 2, BACKOFF_MAX_MS);
+            i -= 1;
+          }
+          continue;
+        }
+        // nicht-retryable Fehler: einfach weiter zum nächsten Creator
+
+        if (!this._bulkConnectAbort) {
+          setLabel(`Connect · ${progress()}`);
+          await this._bulkConnectWait(THROTTLE_MS);
         }
       }
 

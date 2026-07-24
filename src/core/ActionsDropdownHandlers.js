@@ -352,6 +352,8 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
 
 // Stiller Instagram-Connect für Bulk-Läufe: keine Toasts, Fehler nur in Konsole.
 // Feuert bei Erfolg entityUpdated (→ Grid-Karte refresht sich einzeln).
+// skip_brands spart bis zu 8 Graph-Calls pro Creator (Rate-Limit-Budget).
+// @returns {Promise<{ok: boolean, retryable: boolean}>} retryable = Meta-Rate-Limit
 export async function connectInstagramSilent(creatorId) {
   try {
     const { data: { session } } = await window.supabase.auth.getSession();
@@ -363,23 +365,24 @@ export async function connectInstagramSilent(creatorId) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`
       },
-      body: JSON.stringify({ creator_id: creatorId })
+      body: JSON.stringify({ creator_id: creatorId, skip_brands: true })
     });
 
     const result = await response.json().catch(() => ({}));
 
     if (!response.ok || !result.ok) {
+      const retryable = response.status === 429 || result.retryable === true;
       console.warn(`Bulk-Connect fehlgeschlagen für ${creatorId}:`, result.hint || result.error || 'Unbekannter Fehler');
-      return false;
+      return { ok: false, retryable };
     }
 
     window.dispatchEvent(new CustomEvent('entityUpdated', {
       detail: { entity: 'creator', action: 'updated', id: creatorId }
     }));
-    return true;
+    return { ok: true, retryable: false };
   } catch (err) {
     console.warn(`Bulk-Connect fehlgeschlagen für ${creatorId}:`, err);
-    return false;
+    return { ok: false, retryable: false };
   }
 }
 
