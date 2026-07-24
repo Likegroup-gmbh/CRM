@@ -9,7 +9,9 @@ import { sortDropdown } from '../../core/components/SortDropdown.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
+import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { creatorUtils } from './CreatorUtils.js';
+import { CreatorGridView } from './CreatorGridView.js';
 import { injectFirmaCreateButton } from './FirmaCreateDrawer.js';
 
 export class CreatorList extends BasePaginatedList {
@@ -36,6 +38,37 @@ export class CreatorList extends BasePaginatedList {
 
     // Zusätzliche Creator-spezifische Properties
     this.selectedCreator = this.selectedItems; // Alias für Kompatibilität
+
+    // View-Switch (Liste/Grid) mit separater Persistenz pro Modus
+    this._viewStorageKey = `creator-view-mode-${this.mode}`;
+    this.viewMode = this._readStoredViewMode(); // 'grid' (Default) | 'list'
+    this.gridView = new CreatorGridView(this);
+
+    // Getrennte Zustände: welche Ansicht wurde mit welchen Kriterien geladen
+    this._listLoadedOnce = false;
+    this._gridLoadedOnce = false;
+    this._listSignature = null;
+
+    // Referenz auf Basis-loadData, um aus der Override heraus die Tabellen-Logik
+    // aufrufen zu können.
+    this._superLoadData = BasePaginatedList.prototype.loadData.bind(this);
+  }
+
+  _readStoredViewMode() {
+    try {
+      const stored = window.localStorage?.getItem(this._viewStorageKey);
+      return stored === 'list' ? 'list' : 'grid';
+    } catch {
+      return 'grid';
+    }
+  }
+
+  _computeSignature() {
+    try {
+      return JSON.stringify(this.buildFilters());
+    } catch {
+      return String(Date.now());
+    }
   }
   
   // ══════════════════════════════════════════════════════════════════════════
@@ -96,6 +129,66 @@ export class CreatorList extends BasePaginatedList {
 
   resetEntityCaches() {
     this._managementCreatorIds = null;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // VIEW-SWITCH (LISTE / GRID)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Override: lädt die aktuell aktive Ansicht. Die jeweils inaktive Ansicht
+   * wird dadurch veraltet und beim nächsten Wechsel neu synchronisiert.
+   */
+  async loadData() {
+    if (this.viewMode === 'grid') {
+      this._gridLoadedOnce = true;
+      await this.gridView.reload();
+      return;
+    }
+    this._listLoadedOnce = true;
+    await this._superLoadData();
+    this._listSignature = this._computeSignature();
+  }
+
+  switchView(mode) {
+    if (mode !== 'grid' && mode !== 'list') return;
+    if (mode === this.viewMode) return;
+
+    this.viewMode = mode;
+    try { window.localStorage?.setItem(this._viewStorageKey, mode); } catch { /* ignore */ }
+
+    this._applyViewVisibility();
+    this._updateViewToggleButtons();
+
+    const needsLoad = mode === 'grid'
+      ? (!this._gridLoadedOnce || this.gridView.isStale())
+      : (!this._listLoadedOnce || this._listSignature !== this._computeSignature());
+
+    if (needsLoad) {
+      this.loadData();
+    }
+  }
+
+  _applyViewVisibility() {
+    const root = document.getElementById(`creator-views-${this.mode}`);
+    if (root) {
+      root.classList.toggle('view-grid', this.viewMode === 'grid');
+      root.classList.toggle('view-list', this.viewMode === 'list');
+    }
+  }
+
+  _updateViewToggleButtons() {
+    const listBtn = document.getElementById('btn-view-list');
+    const gridBtn = document.getElementById('btn-view-grid');
+    listBtn?.classList.toggle('active', this.viewMode === 'list');
+    gridBtn?.classList.toggle('active', this.viewMode === 'grid');
+  }
+
+  destroy() {
+    this.gridView?.destroy();
+    this._listLoadedOnce = false;
+    this._gridLoadedOnce = false;
+    super.destroy();
   }
   
   /**
@@ -162,6 +255,11 @@ export class CreatorList extends BasePaginatedList {
     const canEdit = this.canEdit;
     const canBulkDelete = this.canBulkDelete;
     
+    const viewToggleHtml = ViewModeToggle.render([
+      { buttonId: 'btn-view-list', label: 'Liste', icon: 'list', active: this.viewMode === 'list' },
+      { buttonId: 'btn-view-grid', label: 'Grid', icon: 'grid', active: this.viewMode === 'grid' }
+    ]);
+
     const filterHtml = `<div class="filter-bar">
       <div class="filter-left">
         ${SearchInput.render('creator', { 
@@ -170,6 +268,9 @@ export class CreatorList extends BasePaginatedList {
         })}
         <div id="sort-dropdown-container"></div>
         <div id="filter-dropdown-container"></div>
+      </div>
+      <div class="filter-right">
+        ${viewToggleHtml}
       </div>
     </div>`;
     
@@ -185,36 +286,40 @@ export class CreatorList extends BasePaginatedList {
         </div>
       </div>
 
-      <div class="table-container">
-        <table class="data-table">
-          <thead>
-            <tr>
-              ${canBulkDelete ? `<th class="col-checkbox"><input type="checkbox" id="select-all-creators"></th>` : ''}
-              <th class="col-name">Name</th>
-              <th>Stadt</th>
-              <th>Land</th>
-              <th>E-Mail</th>
-              <th>Telefon</th>
-              <th>Alter</th>
-              <th>Typ</th>
-              <th>Branche</th>
-              <th class="table-cell-center">Insta-Link</th>
-              <th>Insta-Follower</th>
-              <th class="table-cell-center">TikTok-Link</th>
-              <th>TikTok-Follower</th>
-              <th class="col-actions">Aktionen</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td colspan="${canBulkDelete ? '14' : '13'}" class="no-data">Lade Creator...</td>
-            </tr>
-          </tbody>
-        </table>
+      <div class="creator-views view-${this.viewMode}" id="creator-views-${this.mode}">
+        <div class="table-container creator-list-container">
+          <table class="data-table">
+            <thead>
+              <tr>
+                ${canBulkDelete ? `<th class="col-checkbox"><input type="checkbox" id="select-all-creators"></th>` : ''}
+                <th class="col-name">Name</th>
+                <th>Stadt</th>
+                <th>Land</th>
+                <th>E-Mail</th>
+                <th>Telefon</th>
+                <th>Alter</th>
+                <th>Typ</th>
+                <th>Branche</th>
+                <th class="table-cell-center">Insta-Link</th>
+                <th>Insta-Follower</th>
+                <th class="table-cell-center">TikTok-Link</th>
+                <th>TikTok-Follower</th>
+                <th class="col-actions">Aktionen</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td colspan="${canBulkDelete ? '14' : '13'}" class="no-data">Lade Creator...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        ${this.gridView.renderShell()}
+
+        <!-- Pagination Container (nur Listenansicht) -->
+        <div class="pagination-container" id="pagination-container-creator"></div>
       </div>
-      
-      <!-- Pagination Container -->
-      <div class="pagination-container" id="pagination-container-creator"></div>
     `;
   }
   
@@ -252,6 +357,20 @@ export class CreatorList extends BasePaginatedList {
   bindAdditionalEvents(signal) {
     // Suchfeld Events über globale Komponente
     SearchInput.bind('creator', (value) => this.handleSearch(value), signal);
+
+    // View-Switch (Liste/Grid)
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('#btn-view-list')) {
+        e.preventDefault();
+        this.switchView('list');
+      } else if (e.target.closest('#btn-view-grid')) {
+        e.preventDefault();
+        this.switchView('grid');
+      }
+    }, { signal });
+
+    // Grid-spezifische Events (Bio-Toggle, Connect-CTA, Retry)
+    this.gridView.bindEvents(signal);
     
     // Neuen Creator anlegen Button
     document.addEventListener('click', (e) => {

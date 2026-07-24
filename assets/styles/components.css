@@ -6939,6 +6939,350 @@ width: 100%;
   color: var(--gray-400);
 }
 
+/* ============================================
+   CREATOR GRID (Liste/Grid-Switch, Karten)
+   ============================================ */
+
+/* Sichtbarkeit je Ansicht */
+.creator-views.view-grid .creator-list-container,
+.creator-views.view-grid #pagination-container-creator {
+  display: none;
+}
+
+.creator-views.view-list .creator-grid-wrapper {
+  display: none;
+}
+
+.creator-grid-wrapper {
+  width: 100%;
+  /* Clipped die rechte Karten-Border der letzten Spalte,
+     damit sie nicht mit dem Wrapper-Border doppelt wirkt. */
+  overflow: hidden;
+}
+
+/* Responsives Grid: gapless, dynamische Kartenbreite, max. 7 Spalten.
+   Aussen L/R kommt vom Wrapper; Karten nur right/bottom (right der
+   letzten Spalte wird per overflow am Wrapper geclippt). */
+.creator-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(max(320px, calc(100% / 7)), 1fr));
+  gap: 0;
+  max-width: calc(7 * 420px);
+  margin-inline: auto;
+  width: calc(100% + 1px); /* rechte Border der letzten Spalte ausserhalb clippen */
+  border-top: 1px solid var(--gray-200);
+}
+
+.creator-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary, #fff);
+  border: 0;
+  border-right: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--gray-200);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+
+
+.creator-card:focus-within {
+  outline: 2px solid var(--primary-400, #60a5fa);
+  outline-offset: 2px;
+}
+
+/* Stretched Link: gesamte Karte oeffnet das Profil */
+.creator-card__link {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.creator-card__link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+/* Interaktive Elemente ueber dem Stretched Link */
+.creator-card__actions,
+.creator-card__links,
+.creator-card__posts,
+.creator-card__bio-toggle,
+.creator-card__connect {
+  position: relative;
+  z-index: 2;
+}
+
+/* Grosses Profilbild 4:3 */
+.creator-card__media {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: var(--gray-100);
+}
+
+.creator-card__cover {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.creator-card__cover--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gray-100);
+}
+
+.creator-card__cover--placeholder span {
+  font-size: 3rem;
+  font-weight: 700;
+  color: var(--gray-400);
+}
+
+.creator-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+}
+
+.creator-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.creator-card__name {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.creator-card__actions {
+  flex-shrink: 0;
+}
+
+.creator-card__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.creator-card__age {
+  color: var(--text-secondary);
+}
+
+.creator-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xxs);
+}
+
+/* Instagram-Bio mit 3-Zeilen-Clamp + Toggle */
+.creator-card__bio-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.creator-card__bio {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  white-space: pre-line;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.creator-card__bio--expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.creator-card__bio-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: var(--space-xxs);
+  color: var(--primary-600, #4f46e5);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.creator-card__bio-toggle:hover {
+  text-decoration: underline;
+}
+
+.creator-card__ig-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+/* Kennzahlen */
+.creator-card__stats {
+  display: flex;
+  gap: var(--space-lg);
+  flex-wrap: wrap;
+}
+
+.creator-card__stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.creator-card__stat-value {
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.creator-card__stat-label {
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* Links */
+.creator-card__links {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.creator-card__link-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl, 999px);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.creator-card__link-chip:hover {
+  border-color: var(--gray-400);
+  color: var(--text-primary);
+}
+
+/* Letzte Posts/Reels */
+.creator-card__posts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-xs);
+}
+
+.creator-card__post {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.creator-card__post-thumb {
+  position: relative;
+  display: block;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+  background: var(--gray-100);
+}
+
+.creator-card__post-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.creator-card__post-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.creator-card__post-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+}
+
+.creator-card__post-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.creator-card__post-icon {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+/* Status / Infinite Scroll */
+.creator-grid-status {
+  min-height: 1px;
+}
+
+.creator-grid-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  padding: var(--space-lg);
+  color: var(--gray-600);
+}
+
+.creator-grid-empty,
+.creator-grid-error {
+  text-align: center;
+  padding: var(--space-2xl, 40px) var(--space-lg);
+  color: var(--text-secondary);
+}
+
+.creator-grid-error .creator-grid-retry {
+  margin-left: var(--space-sm);
+}
+
+.creator-grid-sentinel {
+  width: 100%;
+  height: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .creator-card {
+    transition: none;
+  }
+}
+
 .action-item i {
   width: var(--icon-xs);
   height: var(--icon-xs);
