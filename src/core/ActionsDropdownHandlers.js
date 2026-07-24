@@ -181,6 +181,12 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
       dropdown.openAddToListModal(entityId);
       break;
 
+    case 'connect':
+      if (entityType === 'creator') {
+        await handleInstagramConnect(entityId);
+      }
+      break;
+
     case 'add-signed':
     case 'edit-signed':
     case 'replace-signed':
@@ -341,6 +347,45 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
 
     default:
       console.warn(`Unbekannte Action: ${action}`);
+  }
+}
+
+// Instagram Connect/Refresh: holt Profil-Daten via Netlify Function in die creator-Tabelle
+async function handleInstagramConnect(creatorId) {
+  window.toastSystem?.show('Instagram-Daten werden geladen...', 'info');
+
+  try {
+    const { data: { session } } = await window.supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('Keine aktive Sitzung');
+
+    const response = await fetch('/.netlify/functions/instagram-connect', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({ creator_id: creatorId })
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || !result.ok) {
+      const message = result.hint || result.error || 'Unbekannter Fehler';
+      window.toastSystem?.show(`Instagram-Connect fehlgeschlagen: ${message}`, 'error');
+      return;
+    }
+
+    const follower = result.followers_count != null
+      ? ` (${Number(result.followers_count).toLocaleString('de-DE')} Follower)`
+      : '';
+    window.toastSystem?.show(`@${result.username} verbunden${follower}`, 'success');
+
+    window.dispatchEvent(new CustomEvent('entityUpdated', {
+      detail: { entity: 'creator', action: 'updated', id: creatorId }
+    }));
+  } catch (err) {
+    console.error('Instagram-Connect fehlgeschlagen:', err);
+    window.toastSystem?.show(`Instagram-Connect fehlgeschlagen: ${err.message}`, 'error');
   }
 }
 

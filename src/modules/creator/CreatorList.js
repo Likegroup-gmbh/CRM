@@ -113,6 +113,15 @@ export class CreatorList extends BasePaginatedList {
       if (!safeUrl) return '-';
       return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="table-link-external" title="${sanitize(url)}">${externalLinkIcon}</a>`;
     };
+
+    // Instagram-Connect: ohne Link ausgegraut, nach Connect als Refresh
+    const actionOptions = {};
+    if (!creator.instagram) actionOptions.disabledActions = ['connect'];
+    if (creator.ig_connected_at) actionOptions.igConnected = true;
+
+    const igConnectedBadge = creator.ig_connected_at
+      ? `<span class="ig-connected-badge" title="Instagram verbunden (${new Date(creator.ig_connected_at).toLocaleDateString('de-DE')})"></span>`
+      : '';
     
     return `
       <tr data-id="${creator.id}">
@@ -130,12 +139,12 @@ export class CreatorList extends BasePaginatedList {
         <td>${this.formatAgeRange(creator.alter_min, creator.alter_max, creator.alter_jahre)}</td>
         <td>${this.renderCreatorTypeTags(creator.creator_types)}</td>
         <td>${this.renderBrancheTags(creator.branchen)}</td>
-        <td class="table-cell-center">${formatLink(creator.instagram)}</td>
+        <td class="table-cell-center">${formatLink(creator.instagram)}${igConnectedBadge}</td>
         <td>${creatorUtils.formatFollowerRange(creator.instagram_follower)}</td>
         <td class="table-cell-center">${formatLink(creator.tiktok)}</td>
         <td>${creatorUtils.formatFollowerRange(creator.tiktok_follower)}</td>
         <td class="col-actions">
-          ${actionBuilder.create('creator', creator.id)}
+          ${actionBuilder.create('creator', creator.id, null, actionOptions)}
         </td>
       </tr>
     `;

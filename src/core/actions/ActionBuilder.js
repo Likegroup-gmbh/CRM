@@ -93,7 +93,7 @@ export class ActionBuilder {
         return this.buildSubmenu(action, entityId, entityType, options);
       }
       
-      return this.buildActionItem(action, entityId);
+      return this.buildActionItem(action, entityId, options);
     }).join('');
   }
 
@@ -101,16 +101,30 @@ export class ActionBuilder {
    * Baut ein einzelnes Action-Item
    * @param {object} action - Die Action-Definition
    * @param {string|number} entityId - Die Entity-ID
+   * @param {object} options - Zusätzliche Optionen (disabledActions, igConnected)
    * @returns {string} HTML-String
    */
-  buildActionItem(action, entityId) {
+  buildActionItem(action, entityId, options = {}) {
     const dangerClass = action.danger ? 'action-danger' : '';
-    const icon = this.iconRegistry.get(action.icon);
+
+    // Connect-Action: nach erfolgreichem Connect als "Refresh" darstellen
+    let label = action.label;
+    let iconName = action.icon;
+    if (action.id === 'connect' && options.igConnected) {
+      label = 'Refresh';
+      iconName = 'ig-refresh';
+    }
+
+    const isDisabled = Array.isArray(options.disabledActions) && options.disabledActions.includes(action.id);
+    const disabledClass = isDisabled ? 'action-disabled' : '';
+    const disabledAttr = isDisabled ? 'aria-disabled="true"' : '';
+
+    const icon = this.iconRegistry.get(iconName);
     
     return `
-      <a href="#" class="action-item ${dangerClass}" data-action="${action.id}" data-id="${entityId}">
+      <a href="#" class="action-item ${dangerClass} ${disabledClass}" data-action="${action.id}" data-id="${entityId}" ${disabledAttr}>
         ${icon}
-        ${action.label}
+        ${label}
       </a>
     `;
   }

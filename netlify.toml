@@ -9,7 +9,8 @@
   directory = "netlify/functions"
   node_bundler = "esbuild"
   # WICHTIG: @sparticuz/chromium MUSS external sein (zu groß für Bundling)
-  external_node_modules = ["@sparticuz/chromium"]
+  # sharp: native Binaries, kann esbuild nicht bundlen (instagram-connect)
+  external_node_modules = ["@sparticuz/chromium", "sharp"]
 
 # Screenshot Function mit 60s Timeout
 [functions."screenshot"]
@@ -32,18 +33,9 @@
 [functions."skript-fragen-background"]
   included_files = ["netlify/functions/_shared/prompts/**"]
 
-# Instagram Business Discovery: bis zu 20 Graph-Calls pro Request
-[functions."instagram-graph"]
+# Instagram Connect: Graph-Call + bis zu 6 Bild-Downloads/WebP-Konvertierungen
+[functions."instagram-connect"]
   timeout = 26
-
-# Instagram KI-Query: Claude-Parsing + Pool-Query
-[functions."instagram-query"]
-  timeout = 26
-
-# Instagram Hashtag-Harvester: naechtlich + manuell (Background, 15 Min)
-# Puppeteer/Chromium wie Screenshot/Transcribe (external_node_modules gilt global)
-[functions."instagram-harvest-background"]
-  schedule = "@daily"
 
 # Auth-Seiten direkt ausliefern (NICHT auf index.html umleiten)
 [[redirects]]

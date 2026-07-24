@@ -267,6 +267,13 @@ export class ActionsDropdown {
       const action = actionItem.dataset?.action;
       if (!action) return;
 
+      // Ausgegraute Actions (z.B. Connect ohne Instagram-Link) ignorieren
+      if (actionItem.classList.contains('action-disabled')) {
+        e.preventDefault();
+        if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+        return;
+      }
+
       const customActions = ['comment-delete', 'video-view', 'video-edit', 'video-delete', 'remove-zuordnung', 'add-to-video', 'unlink-from-video', 'edit-item', 'delete-item'];
       if (customActions.includes(action)) {
         this.closeAllDropdowns();

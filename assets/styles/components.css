@@ -6767,6 +6767,178 @@ width: 100%;
   background-color: var(--gray-100);
 }
 
+/* Fill-basierte Icons (z.B. Instagram Connect/Refresh) nicht zusätzlich stroken */
+.action-item svg.icon-fill {
+  stroke: none;
+  stroke-width: 0;
+}
+
+/* Ausgegraute Actions (z.B. Connect ohne Instagram-Link) */
+.action-item.action-disabled,
+.action-item.action-disabled:hover,
+.action-item.action-disabled:active {
+  color: var(--gray-400);
+  background-color: transparent;
+  cursor: not-allowed;
+}
+
+/* Instagram-Connected-Indikator in der Creator-Liste */
+.ig-connected-badge {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: var(--space-xs);
+  border-radius: 50%;
+  background-color: var(--green-500, #22c55e);
+  vertical-align: middle;
+}
+
+/* ============================================
+   INSTAGRAM-SEKTION (Creator-Detailseite)
+   ============================================ */
+
+.ig-section {
+  margin-top: var(--space-lg);
+}
+
+.ig-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.ig-connected-info {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-sm);
+  color: var(--gray-600);
+}
+
+.ig-stats-row {
+  display: flex;
+  gap: var(--space-xl);
+  flex-wrap: wrap;
+  margin: var(--space-md) 0;
+}
+
+.ig-stat {
+  display: flex;
+  flex-direction: column;
+}
+
+.ig-stat-value {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.ig-stat-label {
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.ig-bio span {
+  white-space: pre-line;
+}
+
+.ig-muted {
+  color: var(--gray-500);
+  font-size: var(--text-sm);
+}
+
+.tag--brand {
+  text-decoration: none;
+}
+
+.ig-posts-block {
+  margin-top: var(--space-md);
+}
+
+.ig-posts-block > label {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--gray-600);
+  margin-bottom: var(--space-sm);
+}
+
+.ig-posts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--space-md);
+  max-width: 900px;
+}
+
+.ig-post-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md, 8px);
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+  background: var(--white, #fff);
+}
+
+.ig-post-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  transform: translateY(-2px);
+}
+
+.ig-post-thumb {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  background: var(--gray-100);
+}
+
+.ig-post-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ig-post-thumb-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--gray-400);
+  font-size: var(--text-xs);
+}
+
+.ig-post-type-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.ig-post-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--text-xs);
+  color: var(--gray-600);
+}
+
+.ig-post-date {
+  margin-left: auto;
+  color: var(--gray-400);
+}
+
 .action-item i {
   width: var(--icon-xs);
   height: var(--icon-xs);
