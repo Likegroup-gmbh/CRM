@@ -593,10 +593,19 @@ export class BasePaginatedList {
     }, { signal });
     
     // Entity Updated Event
-    window.addEventListener('entityUpdated', (e) => {
-      if (e.detail.entity === this.entityType) {
-        this.loadDataDebounced(100);
+    // Unterklassen können handleEntityUpdated(detail) implementieren und true
+    // zurückgeben, um den Full-Reload zu unterdrücken (z.B. Soft-Update einer Karte).
+    window.addEventListener('entityUpdated', async (e) => {
+      if (e.detail?.entity !== this.entityType) return;
+      if (typeof this.handleEntityUpdated === 'function') {
+        try {
+          const handled = await this.handleEntityUpdated(e.detail);
+          if (handled) return;
+        } catch (err) {
+          console.error(`❌ ${this.entityType.toUpperCase()}LIST: handleEntityUpdated fehlgeschlagen`, err);
+        }
       }
+      this.loadDataDebounced(100);
     }, { signal });
     
     // Permissions Changed Event (von AuthService bei Zuordnungs-Änderungen)

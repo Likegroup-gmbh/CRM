@@ -150,6 +150,23 @@ export class CreatorList extends BasePaginatedList {
     this._listSignature = this._computeSignature();
   }
 
+  /**
+   * Soft-Update nach Connect/Refresh: nur die betroffene Grid-Karte ersetzen,
+   * damit die Scroll-Position nicht nach oben springt.
+   * @returns {Promise<boolean>} true = Full-Reload unterdrücken
+   */
+  async handleEntityUpdated(detail) {
+    if (this.viewMode !== 'grid') return false;
+    if (!detail?.id) return false;
+
+    const action = detail.action || '';
+    if (action === 'deleted' || action === 'bulk-deleted' || action === 'created') {
+      return false;
+    }
+
+    return this.gridView.refreshCard(detail.id);
+  }
+
   switchView(mode) {
     if (mode !== 'grid' && mode !== 'list') return;
     if (mode === this.viewMode) return;

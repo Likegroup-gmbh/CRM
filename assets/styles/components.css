@@ -7009,6 +7009,7 @@ width: 100%;
 .creator-card__actions,
 .creator-card__links,
 .creator-card__posts,
+.creator-card__coops,
 .creator-card__bio-toggle,
 .creator-card__connect {
   position: relative;
@@ -7048,6 +7049,7 @@ width: 100%;
   flex-direction: column;
   gap: var(--space-sm);
   padding: var(--space-md);
+  flex: 1 1 auto;
 }
 
 .creator-card__header {
@@ -7188,6 +7190,7 @@ width: 100%;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--space-xs);
+  margin-top: auto;
 }
 
 .creator-card__post {
@@ -7233,6 +7236,40 @@ width: 100%;
   gap: var(--space-sm);
   font-size: var(--text-xs);
   color: var(--gray-500);
+}
+
+/* Letzte Kooperationen (gemischte Avatar-Bubbles) */
+.creator-card__coops:empty {
+  display: none;
+}
+
+.creator-card__coops {
+  overflow: visible;
+  margin-top: var(--space-xs);
+}
+
+.creator-card__coops-label {
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: var(--space-xs);
+}
+
+.creator-card__coops-bubbles {
+  --avatar-size: 40px;
+}
+
+.creator-card__coops-bubbles .avatar-bubble {
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  font-size: 13px;
+}
+
+.creator-card__coops-bubbles .avatar-bubble-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .creator-card__post-stat {

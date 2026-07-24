@@ -88,7 +88,7 @@
 /* --- Share-Dialog (Shell: overlay-modal + modal-dialog aus components.css) --- */
 
 .share-list-modal .modal-dialog {
-  max-width: 560px;
+  max-width: 600px;
   width: 100%;
 }
 
@@ -114,7 +114,8 @@
 }
 
 .share-dialog-form-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) auto auto;
   align-items: stretch;
   gap: var(--space-xs);
 }
@@ -124,19 +125,19 @@
 }
 
 .share-dialog-form-row #share-email-input {
-  flex: 1 1 auto;
+  width: auto;
   min-width: 0;
 }
 
 .share-rechte-select {
   width: auto;
-  flex: 0 0 auto;
+  max-width: 11rem;
+  min-width: 0;
 }
 
 .share-dialog-form-row #share-submit-btn {
-  flex: 0 0 auto;
   padding: var(--space-xs) var(--space-sm);
-  align-items: center;
+  white-space: nowrap;
 }
 
 .share-message-input {

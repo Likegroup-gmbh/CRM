@@ -27,6 +27,11 @@ const SAVED_POSTS = 5;
 const THUMB_WIDTH = 640;
 const WEBP_QUALITY = 78;
 
+// Brand-Aufloesung (Werbepartner-Erwaehnungen -> Name + Logo)
+const MAX_BRANDS_RESOLVE = 8;     // Limit wegen 26s Function-Timeout
+const BRAND_THUMB_WIDTH = 320;    // Logos sind klein -> kleinere WebP
+const BRAND_CACHE_MAX_AGE_DAYS = 30;
+
 // Profil + letzte 25 Posts (mit Engagement-Zahlen fuer die ER-Berechnung)
 const DISCOVERY_FIELDS = 'username,name,followers_count,media_count,'
   + 'profile_picture_url,biography,website,'
@@ -114,6 +119,78 @@ function extractBrandMentions(mediaData) {
     .map(([handle]) => handle);
 }
 
+/**
+ * Loest Brand-Handles zu { handle, name, profile_pic } auf.
+ * Nutzt den instagram_brands-Cache (frisch < 30 Tage) und faellt sonst auf
+ * Business Discovery zurueck. Aufgeloeste Logos werden als WebP nach
+ * brands/{username}.webp im Storage kopiert (creator-unabhaengig, teilbar).
+ * Fehlerhafte/nicht auffindbare Handles bleiben mit name/profile_pic = null.
+ */
+async function resolveBrands(supabase, handles) {
+  const limited = handles.slice(0, MAX_BRANDS_RESOLVE);
+  if (limited.length === 0) return [];
+
+  // Cache in einem Rutsch laden
+  const cacheByHandle = new Map();
+  const { data: cached } = await supabase
+    .from('instagram_brands')
+    .select('username, name, profile_picture_url, last_fetched_at')
+    .in('username', limited);
+  for (const row of cached || []) cacheByHandle.set(row.username, row);
+
+  const maxAgeMs = BRAND_CACHE_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const results = [];
+
+  for (const handle of limited) {
+    const hit = cacheByHandle.get(handle);
+    const isFresh = hit?.last_fetched_at
+      && (now - new Date(hit.last_fetched_at).getTime()) < maxAgeMs;
+
+    if (isFresh && hit.profile_picture_url) {
+      results.push({ handle, name: hit.name || null, profile_pic: hit.profile_picture_url });
+      continue;
+    }
+
+    try {
+      const res = await fetchProfile(handle);
+      if (!res.ok) {
+        await supabase.from('instagram_brands').upsert({
+          username: handle,
+          lookup_error: res.error || 'unbekannt',
+          last_fetched_at: new Date().toISOString()
+        }, { onConflict: 'username' });
+        results.push({ handle, name: hit?.name || null, profile_pic: hit?.profile_picture_url || null });
+        continue;
+      }
+
+      const bp = res.profile;
+      const storedLogo = await storeImage(
+        supabase,
+        bp.profile_picture_url,
+        `brands/${handle}.webp`,
+        BRAND_THUMB_WIDTH
+      );
+
+      await supabase.from('instagram_brands').upsert({
+        username: handle,
+        name: bp.name || null,
+        profile_picture_url: storedLogo || null,
+        followers_count: bp.followers_count ?? null,
+        lookup_error: null,
+        last_fetched_at: new Date().toISOString()
+      }, { onConflict: 'username' });
+
+      results.push({ handle, name: bp.name || null, profile_pic: storedLogo || null });
+    } catch (err) {
+      console.warn(`⚠️ instagram-connect: Brand ${handle} nicht aufloesbar:`, err.message);
+      results.push({ handle, name: hit?.name || null, profile_pic: hit?.profile_picture_url || null });
+    }
+  }
+
+  return results;
+}
+
 /** Ein Instagram-Profil via Business Discovery laden */
 async function fetchProfile(username) {
   const igUserId = process.env.META_IG_USER_ID;
@@ -133,7 +210,7 @@ async function fetchProfile(username) {
  * Storage-Bucket hochladen. Gibt die public URL (mit Cache-Buster) zurueck,
  * oder null wenn irgendwas schiefgeht (Connect soll daran nicht scheitern).
  */
-async function storeImage(supabase, sourceUrl, storagePath) {
+async function storeImage(supabase, sourceUrl, storagePath, width = THUMB_WIDTH) {
   if (!sourceUrl) return null;
   try {
     const res = await fetch(sourceUrl);
@@ -141,7 +218,7 @@ async function storeImage(supabase, sourceUrl, storagePath) {
     const original = Buffer.from(await res.arrayBuffer());
 
     const webp = await sharp(original)
-      .resize({ width: THUMB_WIDTH, withoutEnlargement: true })
+      .resize({ width, withoutEnlargement: true })
       .webp({ quality: WEBP_QUALITY })
       .toBuffer();
 
@@ -226,7 +303,9 @@ exports.handler = async (event) => {
   const p = res.profile;
   const media = res.media;
   const engagementRate = computeEngagementRate(media, p.followers_count);
-  const brandMentions = extractBrandMentions(media);
+  const brandHandles = extractBrandMentions(media);
+  // Werbepartner zu Name + Logo aufloesen (Cache + Business Discovery)
+  const brandMentions = await resolveBrands(supabase, brandHandles);
 
   // Profilbild + Thumbnails der letzten 5 Posts nach Storage kopieren
   const profilbildUrl = await storeImage(

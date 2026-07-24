@@ -55,7 +55,15 @@ export class AvatarBubbles {
       .map(item => {
         const initials = this.getInitials(item.name, item.type || 'org');
         const isClickable = item.id && item.entityType;
-        const clickableClass = isClickable ? 'avatar-bubble--clickable' : '';
+
+        // Optionaler externer Link (z.B. Instagram-Profil). Interne Navigation
+        // (id + entityType) hat Vorrang.
+        const safeHref = (!isClickable && item.href)
+          ? (window.validatorSystem?.sanitizeUrl?.(item.href) || '')
+          : '';
+        const hasHref = !!safeHref;
+
+        const clickableClass = (isClickable || hasHref) ? 'avatar-bubble--clickable' : '';
         
         // Unterstütze beide: logo_url (für Orgs) UND profile_image_url (für Mitarbeiter)
         // Bevorzuge thumb_url wenn verfügbar (128px WebP, deutlich kleiner)
@@ -66,7 +74,7 @@ export class AvatarBubbles {
         // Sanitize name für title attribute
         const safeName = window.validatorSystem?.sanitizeHtml?.(item.name) || item.name;
         
-        // Data-Attribute für Click-Handler
+        // Data-Attribute für internen Click-Handler
         const dataAttrs = isClickable 
           ? `data-entity="${item.entityType}" data-id="${item.id}"` 
           : '';
@@ -80,13 +88,14 @@ export class AvatarBubbles {
         const labelText = showLabel 
           ? `<span class="avatar-bubble-label ${isClickable ? 'avatar-bubble-label--clickable' : ''}" ${dataAttrs}>${window.validatorSystem?.sanitizeHtml?.(item.label || item.name) || item.label || item.name}</span>` 
           : '';
+
+        // Bubble entweder als externer Link (<a>) oder als <div>
+        const bubbleInner = hasHref
+          ? `<a class="avatar-bubble ${clickableClass} ${imageClass}" href="${safeHref}" target="_blank" rel="noopener noreferrer" ${showLabel ? '' : `title="${safeName}"`}>${content}</a>`
+          : `<div class="avatar-bubble ${clickableClass} ${imageClass}" ${showLabel ? '' : `title="${safeName}"`} ${dataAttrs}>${content}</div>`;
         
         return `<div class="avatar-bubble-item ${showLabel ? 'avatar-bubble-item--labeled' : ''}" ${dataAttrs}>
-          <div class="avatar-bubble ${clickableClass} ${imageClass}" 
-                       ${showLabel ? '' : `title="${safeName}"`} 
-                       ${dataAttrs}>
-            ${content}
-          </div>${labelText}
+          ${bubbleInner}${labelText}
         </div>`;
       })
       .join('');

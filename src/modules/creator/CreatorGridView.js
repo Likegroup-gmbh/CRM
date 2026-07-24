@@ -8,11 +8,13 @@
 // Filter und Berechtigungen kommen von der uebergebenen CreatorList-Instanz.
 
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { creatorUtils } from './CreatorUtils.js';
 
 const GRID_CHUNK_SIZE = 25;
 const MAX_MEDIA = 3;
 const BIO_TOGGLE_THRESHOLD = 140;
+const MAX_COOPS_PER_CARD = 6; // Marken pro Kooperations-Reihe (Plattform + Instagram)
 
 export class CreatorGridView {
   constructor(list) {
@@ -103,6 +105,8 @@ export class CreatorGridView {
       this._page = nextPage;
       this._loadedCount += items.length;
       this._appendCards(items);
+      // Plattform-Kooperationen (Marken-Logos) asynchron nachladen
+      this._hydrateKooperationen(items, reqId);
 
       if (items.length < GRID_CHUNK_SIZE || (this._total > 0 && this._loadedCount >= this._total)) {
         this._reachedEnd = true;
@@ -125,6 +129,59 @@ export class CreatorGridView {
     const container = this.getContainer();
     if (!container || !items.length) return;
     container.insertAdjacentHTML('beforeend', items.map(c => this.renderCard(c)).join(''));
+  }
+
+  /**
+   * Soft-Update einer einzelnen Karte (z.B. nach Instagram Connect/Refresh).
+   * Ersetzt nur das betroffene DOM-Element – Scroll-Position bleibt erhalten.
+   * @returns {Promise<boolean>} true wenn die Karte gefunden und ersetzt wurde
+   */
+  _findCard(container, id) {
+    const sid = String(id);
+    return Array.from(container.querySelectorAll('.creator-card'))
+      .find((el) => el.dataset.id === sid) || null;
+  }
+
+  async refreshCard(id) {
+    if (!id) return false;
+    const container = this.getContainer();
+    if (!container) return false;
+
+    const existing = this._findCard(container, id);
+    if (!existing) return false;
+
+    const creator = await this._loadCreatorById(id);
+    if (!creator || this.list._destroyed) return false;
+
+    // Karte könnte während des Fetches entfernt worden sein
+    const stillThere = this._findCard(container, id);
+    if (!stillThere) return false;
+
+    const wrap = document.createElement('div');
+    wrap.innerHTML = this.renderCard(creator).trim();
+    const next = wrap.firstElementChild;
+    if (!next) return false;
+
+    stillThere.replaceWith(next);
+    // Kooperations-Reihe der neu gerenderten Karte wieder befuellen
+    this._hydrateKooperationen([creator], this._requestId);
+    return true;
+  }
+
+  async _loadCreatorById(id) {
+    if (!window.dataService?.loadEntitiesWithPagination) return null;
+    try {
+      const result = await window.dataService.loadEntitiesWithPagination(
+        'creator',
+        { _allowedIds: [String(id)] },
+        1,
+        1
+      );
+      return result?.data?.[0] || null;
+    } catch (err) {
+      console.error('❌ CREATORGRID: Einzelkarte laden fehlgeschlagen', err);
+      return null;
+    }
   }
 
   // Grosse Viewports: Sentinel evtl. weiterhin sichtbar -> naechsten Chunk nachladen
@@ -223,6 +280,7 @@ export class CreatorGridView {
           ${this._renderInstagramBlock(c)}
           ${this._renderStats(c, num)}
           ${this._renderLinks(c)}
+          <div class="creator-card__coops" data-creator-id="${id}"></div>
           ${this._renderPosts(c, num)}
         </div>
       </article>
@@ -374,6 +432,119 @@ export class CreatorGridView {
     }).join('');
 
     return `<div class="creator-card__posts">${cards}</div>`;
+  }
+
+  // ── Kooperationen (Plattform-Marken + Instagram-Werbepartner) ──────────────
+
+  /**
+   * Normalisiert ig_brand_mentions: Eintrag kann String (alt) oder
+   * Objekt {handle,name,profile_pic} (neu) sein.
+   * @returns {Array<{handle:string,name:string|null,profile_pic:string|null}>}
+   */
+  _normalizeBrandMentions(c) {
+    const raw = Array.isArray(c.ig_brand_mentions) ? c.ig_brand_mentions : [];
+    return raw
+      .map((entry) => {
+        if (!entry) return null;
+        if (typeof entry === 'string') {
+          return { handle: entry, name: null, profile_pic: null };
+        }
+        if (typeof entry === 'object' && entry.handle) {
+          return {
+            handle: String(entry.handle),
+            name: entry.name || null,
+            profile_pic: entry.profile_pic || null
+          };
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }
+
+  /**
+   * Laedt die Plattform-Kooperationen (Marke+Logo) fuer den geladenen Chunk in
+   * einem Batch-Query und rendert pro Karte die gemischte Bubble-Reihe
+   * (Plattform-Marken zuerst, dann Instagram-Werbepartner).
+   */
+  async _hydrateKooperationen(items, reqId) {
+    if (!Array.isArray(items) || items.length === 0) return;
+    const ids = items.map((c) => c.id).filter(Boolean);
+    if (!ids.length || !window.supabase) return;
+
+    let byCreator = new Map();
+    try {
+      const { data, error } = await window.supabase
+        .from('kooperationen')
+        .select('creator_id, created_at, kampagne:kampagne_id(marke:marke_id(id,markenname,logo_url,logo_thumb_url))')
+        .in('creator_id', ids)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+
+      // Pro Creator die Marken dedupen (nach marke.id), Reihenfolge = neueste zuerst
+      for (const row of data || []) {
+        const marke = row.kampagne?.marke;
+        if (!marke?.id) continue;
+        if (!byCreator.has(row.creator_id)) byCreator.set(row.creator_id, new Map());
+        const marks = byCreator.get(row.creator_id);
+        if (!marks.has(marke.id)) marks.set(marke.id, marke);
+      }
+    } catch (err) {
+      // Batch-Load-Fehler still ignorieren – Karte bleibt ohne Coop-Reihe
+      console.warn('⚠️ CREATORGRID: Kooperationen-Batch fehlgeschlagen', err?.message || err);
+    }
+
+    // Veralteten/abgebrochenen Request verwerfen
+    if (reqId !== this._requestId || this.list._destroyed) return;
+    const container = this.getContainer();
+    if (!container) return;
+
+    for (const c of items) {
+      const el = container.querySelector(`.creator-card__coops[data-creator-id="${c.id}"]`);
+      if (!el) continue;
+      const platformMarks = Array.from((byCreator.get(c.id) || new Map()).values());
+      const igBrands = this._normalizeBrandMentions(c);
+      el.innerHTML = this._renderCoopsRow(platformMarks, igBrands);
+    }
+  }
+
+  /**
+   * Baut die gemischte Avatar-Bubble-Reihe. Plattform-Marken (intern klickbar)
+   * zuerst, dann Instagram-Werbepartner (externer Link, sonst Initialen).
+   * Dedupe Plattform vs. Instagram ueber den Namen (case-insensitive).
+   */
+  _renderCoopsRow(platformMarks, igBrands) {
+    const items = [];
+    const seenNames = new Set();
+
+    for (const m of platformMarks) {
+      const name = m.markenname || 'Marke';
+      seenNames.add(name.trim().toLowerCase());
+      items.push({
+        name,
+        type: 'org',
+        id: m.id,
+        entityType: 'marke',
+        logo_url: m.logo_url || null,
+        thumb_url: m.logo_thumb_url || null
+      });
+    }
+
+    for (const b of igBrands) {
+      const displayName = b.name || `@${b.handle}`;
+      if (seenNames.has(displayName.trim().toLowerCase())) continue; // Dedupe vs. Plattform
+      seenNames.add(displayName.trim().toLowerCase());
+      items.push({
+        name: displayName,
+        type: 'org',
+        logo_url: b.profile_pic || null,
+        href: `https://instagram.com/${String(b.handle).replace('@', '')}`
+      });
+    }
+
+    if (!items.length) return '';
+
+    const bubbles = avatarBubbles.renderBubbles(items, { maxVisible: MAX_COOPS_PER_CARD });
+    return `<div class="creator-card__coops-label">Letzte Kooperationen</div><div class="creator-card__coops-bubbles">${bubbles}</div>`;
   }
 
   // ── Events ───────────────────────────────────────────────────────────────
