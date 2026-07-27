@@ -1,14 +1,14 @@
 // ExtractReviewLayer.js
-// Markiert Felder, die aus einer Webseite gefuellt wurden, und macht die
-// Uebernahme pro Feld rueckgaengig. Unterscheidet belegbare Fakten von
-// interpretierten Vorschlaegen, damit niemand eine erfundene Angabe
-// ungeprueft mitspeichert.
+// Markiert Felder, die aus einer Webseite gefuellt wurden. Unterscheidet
+// belegbare Fakten von interpretierten Vorschlaegen, damit niemand eine
+// erfundene Angabe ungeprueft mitspeichert: die Feldfarbe zeigt den
+// Unterschied, der Tooltip nennt ihn.
 
-const NOTE_CLASS = 'ai-field-note';
+const BADGE_CLASS = 'tag--extract';
 
 const KINDS = {
-  fact: { className: 'ai-filled--fact', label: 'Aus Webseite' },
-  guess: { className: 'ai-filled--guess', label: 'KI-Vorschlag, bitte prüfen' }
+  fact: { className: 'ai-filled--fact', title: 'Aus der Webseite übernommen' },
+  guess: { className: 'ai-filled--guess', title: 'KI-Vorschlag, bitte prüfen' }
 };
 
 export class ExtractReviewLayer {
@@ -20,7 +20,8 @@ export class ExtractReviewLayer {
   }
 
   /**
-   * Setzt einen Wert und markiert das Feld.
+   * Setzt einen Wert und markiert das Feld. Das Tag landet in der Label-Zeile,
+   * damit es in Feld-Reihen (PLZ/Stadt) nicht mit dem Nachbarfeld kollidiert.
    * @param {string} fieldName
    * @param {Object} entry - { value, kind, from }
    * @returns {boolean} true, wenn das Feld gefunden und gesetzt wurde
@@ -44,7 +45,7 @@ export class ExtractReviewLayer {
     this.unmark(fieldName, { restore: false });
 
     wrapper.classList.add('ai-filled', KINDS[kind].className);
-    wrapper.appendChild(this.buildNote(fieldName, kind, entry.from));
+    (this.labelOf(wrapper) || wrapper).appendChild(this.buildBadge(kind, entry.from));
 
     const onManualEdit = () => {
       if (this.applying) return;
@@ -56,24 +57,18 @@ export class ExtractReviewLayer {
     return true;
   }
 
-  buildNote(fieldName, kind, from) {
-    const note = document.createElement('div');
-    note.className = `${NOTE_CLASS} ${NOTE_CLASS}--${kind}`;
-    if (from) note.title = `Quelle: ${from}`;
+  /** Graues Tag aus dem bestehenden Tag-System, Details im Tooltip. */
+  buildBadge(kind, from) {
+    const badge = document.createElement('span');
+    badge.className = `tag ${BADGE_CLASS}`;
+    badge.textContent = 'Vorschlag';
+    badge.title = from ? `${KINDS[kind].title} · Quelle: ${from}` : KINDS[kind].title;
+    return badge;
+  }
 
-    const label = document.createElement('span');
-    label.className = `${NOTE_CLASS}__label`;
-    label.textContent = KINDS[kind].label;
-
-    const undo = document.createElement('button');
-    undo.type = 'button';
-    undo.className = `${NOTE_CLASS}__undo`;
-    undo.textContent = 'Zurücksetzen';
-    undo.addEventListener('click', () => this.unmark(fieldName, { restore: true }));
-
-    note.appendChild(label);
-    note.appendChild(undo);
-    return note;
+  /** Nur das direkte Label des Feldes, nicht Labels aus inneren Widgets. */
+  labelOf(wrapper) {
+    return wrapper.querySelector(':scope > label');
   }
 
   /** Markierung entfernen, optional den vorherigen Wert wiederherstellen. */
@@ -92,7 +87,7 @@ export class ExtractReviewLayer {
     }
 
     wrapper.classList.remove('ai-filled', KINDS.fact.className, KINDS.guess.className);
-    wrapper.querySelectorAll(`.${NOTE_CLASS}`).forEach((el) => el.remove());
+    wrapper.querySelectorAll(`.${BADGE_CLASS}`).forEach((el) => el.remove());
 
     this.marked.delete(fieldName);
   }

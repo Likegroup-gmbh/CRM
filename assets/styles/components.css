@@ -8346,8 +8346,18 @@ width: 100%;
   color: var(--gray-500);
 }
 
+/* Beim Laden tritt der Kreis-Spinner an die Stelle des Icons. */
+.url-extract-btn__spinner {
+  display: none;
+  margin: 0;
+}
+
 .url-extract-btn.is-loading svg {
-  animation: mdc-spin 1s linear infinite;
+  display: none;
+}
+
+.url-extract-btn.is-loading .url-extract-btn__spinner {
+  display: inline-block;
 }
 
 /* Markierung der uebernommenen Felder: gruen = belegbar, orange = Vorschlag */
@@ -8363,40 +8373,28 @@ width: 100%;
   background-color: var(--orange-25);
 }
 
-.ai-field-note {
+/* Das "Vorschlag"-Tag sitzt in der Label-Zeile am rechten Rand des Feldes.
+   margin-left:auto statt space-between, damit der Pflicht-Stern am Labeltext
+   klebt und nicht in die Mitte der Zeile rutscht. */
+.form-field.ai-filled > label {
   display: flex;
   align-items: center;
-  gap: var(--gap-8);
-  margin-top: 4px;
-  font-size: var(--text-xs);
+  flex-wrap: wrap;
+  gap: var(--space-xxs);
 }
 
-.ai-field-note__label {
-  padding: 1px var(--space-xs);
-  border-radius: var(--radius-md);
-  border: 1px solid var(--green-300);
-  background: var(--green-100);
-  color: var(--green-800);
+.tag--extract {
+  margin-left: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
+  cursor: default;
 }
 
-.ai-field-note--guess .ai-field-note__label {
-  border-color: var(--orange-200);
-  background: var(--orange-50);
-  color: var(--orange-800);
-}
-
-.ai-field-note__undo {
-  background: transparent;
-  border: none;
-  padding: 0;
-  color: var(--gray-500);
-  font-size: var(--text-xs);
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.ai-field-note__undo:hover {
-  color: var(--gray-900);
+/* In schmalen Spalten (Nr., PLZ) ist kein Platz: ein Umbruch wuerde das Feld
+   gegen sein Nachbarfeld in der Reihe verschieben. Dort reicht die Feldfarbe,
+   das breite Feld derselben Reihe traegt das Tag. */
+.form-field--small.ai-filled > label .tag--extract {
+  display: none;
 }
 
 /* Kosten-Badges nach dem Auslesen. Basis ist das Tag-System (.tags/.tag),

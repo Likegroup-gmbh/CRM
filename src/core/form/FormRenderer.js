@@ -296,6 +296,7 @@ export class FormRenderer {
         const extractBtn = field.aiExtract ? `
               <button type="button" class="url-extract-btn" data-ai-extract="${field.name}" title="Daten aus der Webseite auslesen">
                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 15.9 9 18.8l-.8-2.9a4.5 4.5 0 0 0-3.1-3.1L2.3 12l2.8-.8a4.5 4.5 0 0 0 3.1-3.1L9 5.3l.8 2.8a4.5 4.5 0 0 0 3.1 3.1l2.8.8-2.8.8a4.5 4.5 0 0 0-3.1 3.1ZM18.3 8.7 18 9.8l-.3-1a3.4 3.4 0 0 0-2.4-2.5L14.3 6l1-.3a3.4 3.4 0 0 0 2.4-2.4L18 2.3l.3 1a3.4 3.4 0 0 0 2.4 2.4l1 .3-1 .3a3.4 3.4 0 0 0-2.4 2.4Z"/></svg>
+                <span class="spinner-small url-extract-btn__spinner"></span>
                 <span class="url-extract-btn__label">Auslesen</span>
               </button>` : '';
 
