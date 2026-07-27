@@ -42,6 +42,11 @@
 [functions."site-extract"]
   timeout = 60
 
+# Raeumt taeglich die Temp-Produktbilder, die die KI-Extraktion angelegt hat,
+# die aber in keinem Produkt gelandet sind
+[functions."cleanup-temp-produktbilder"]
+  schedule = "@daily"
+
 # Auth-Seiten direkt ausliefern (NICHT auf index.html umleiten)
 [[redirects]]
   from = "/src/auth/*"

@@ -3,8 +3,9 @@
 // Erstellungsformulars. Generisch: welche Felder gefuellt werden, steht
 // ausschliesslich in _shared/extract-specs.js.
 //
-// POST { url, entityType } -> { success, source, cached, fields, logo, notes, cost }
+// POST { url, entityType } -> { success, source, cached, fields, logo, images, varianten, notes, cost }
 
+const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { calculateCost } = require('./_shared/claude-cost');
@@ -12,12 +13,15 @@ const { SPEC_VERSION, getSpec, hasSpec, buildFieldInstructions, getFieldKinds } 
 const { createPageFetcher } = require('./site-extract-utils/page-fetcher');
 const { distill, toPromptBlock } = require('./site-extract-utils/html-distill');
 const { pickLogo } = require('./site-extract-utils/logo');
+const { findProductImageCandidates, collectProductImages } = require('./site-extract-utils/product-images');
 const { readCache, writeCache } = require('./site-extract-utils/cache');
 
 // Netlify-Timeout ist auf 60s gesetzt; darunter bleiben wir mit Reserve
 const TOTAL_BUDGET_MS = 50000;
 const SUBPAGE_MIN_REMAINING_MS = 25000;
 const LOGO_MIN_REMAINING_MS = 9000;
+// Bilder sind Beigabe: reisst das Budget, gewinnen die Textfelder
+const IMAGES_MIN_REMAINING_MS = 12000;
 
 function getAllowedOrigin(requestOrigin) {
   const siteUrl = process.env.URL || '';
@@ -43,7 +47,7 @@ async function verifyAuth(event) {
   return user;
 }
 
-const SYSTEM_RULES = `Du liest Informationen von Firmen-Webseiten aus und ordnest sie Formularfeldern zu.
+const SYSTEM_RULES = `Du liest Informationen von Firmen- und Produktseiten aus und ordnest sie Formularfeldern zu.
 
 Regeln:
 - Antworte ausschliesslich mit einem JSON-Objekt, ohne erklaerenden Text.
@@ -51,7 +55,8 @@ Regeln:
 - Felder mit der Kennzeichnung BELEGBAR nur fuellen, wenn der Wert tatsaechlich auf der Seite steht. Niemals raten, niemals plausibel ergaenzen.
 - Felder mit der Kennzeichnung ABGELEITET darfst du aus dem Inhalt erschliessen, aber nur wenn es eine nachvollziehbare Grundlage gibt.
 - Wenn ein Wert nicht bestimmbar ist: "wert": null. Ein leeres Feld ist deutlich besser als ein erfundener Wert.
-- Werte sauber formatieren: keine Labels ("Telefon:"), keine Anfuehrungszeichen, keine Zeilenumbrueche.
+- Werte sauber formatieren: keine Labels ("Telefon:"), keine Anfuehrungszeichen, keine Bulletpoint-Zeichen.
+- Zeilenumbrueche nur dort, wo die Feldbeschreibung ausdruecklich "ein X pro Zeile" verlangt. Alle anderen Werte einzeilig.
 - Optional zusaetzlich "_hinweise": Array kurzer deutscher Saetze zu auffaelligen Luecken.`;
 
 function buildPrompt(spec, pages) {
@@ -80,7 +85,12 @@ function normalizeFields(raw, spec) {
     const rawValue = typeof entry === 'object' ? entry.wert : entry;
     if (rawValue === null || rawValue === undefined) continue;
 
-    let value = String(rawValue).replace(/\s+/g, ' ').trim();
+    // Mehrzeilige Felder (USP, Claims) behalten ihre Zeilenstruktur,
+    // einzeilige werden auf eine Zeile eingedampft
+    const collapsed = String(rawValue).replace(/[ \t]+/g, ' ');
+    let value = field.type === 'number'
+      ? collapsed.replace(/\s+/g, ' ').trim()
+      : collapsed.split('\n').map((l) => l.trim()).filter(Boolean).join('\n').trim();
     if (!value || /^(null|n\/a|unbekannt|keine angabe|nicht angegeben)$/i.test(value)) continue;
 
     if (field.name === 'webseite') {
@@ -88,6 +98,10 @@ function normalizeFields(raw, spec) {
       if (!value) continue;
     }
     if (field.name === 'invoice_email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) continue;
+    if (field.type === 'number') {
+      value = normalizeNumber(value);
+      if (!value) continue;
+    }
 
     fields[field.name] = {
       value,
@@ -106,6 +120,67 @@ function normalizeWebsite(value) {
   } catch {
     return '';
   }
+}
+
+/**
+ * "29,90 €" oder "ab 1.299,00 EUR" zu "29.90" bzw. "1299.00". Das number-Input
+ * im Formular akzeptiert nur Punkt als Dezimaltrenner.
+ */
+function normalizeNumber(value) {
+  const match = String(value).match(/-?\d[\d.,\s]*/);
+  if (!match) return '';
+
+  let raw = match[0].replace(/\s/g, '');
+  const lastComma = raw.lastIndexOf(',');
+  const lastDot = raw.lastIndexOf('.');
+
+  if (lastComma > lastDot) {
+    // Deutsches Format: Punkte sind Tausendertrenner
+    raw = raw.replace(/\./g, '').replace(',', '.');
+  } else if (lastComma !== -1) {
+    // Englisches Format: Kommas sind Tausendertrenner
+    raw = raw.replace(/,/g, '');
+  }
+
+  const parsed = Number.parseFloat(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) return '';
+  return String(Math.round(parsed * 100) / 100);
+}
+
+/** Varianten-Vorschlaege des Modells saeubern. */
+function normalizeVarianten(raw, spec) {
+  if (!spec.varianten || !Array.isArray(raw)) return [];
+
+  const text = (value) => {
+    if (value === null || value === undefined) return null;
+    const str = String(value).replace(/\s+/g, ' ').trim();
+    if (!str || /^(null|n\/a|keine angabe)$/i.test(str)) return null;
+    return str.slice(0, 120);
+  };
+
+  const seen = new Set();
+  const out = [];
+
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const name = text(entry.name);
+    if (!name) continue;
+
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    out.push({
+      name,
+      farbe: text(entry.farbe),
+      modell_kompatibilitaet: text(entry.modell_kompatibilitaet || entry.modell),
+      preis: normalizeNumber(entry.preis ?? '') || null,
+      merkmal: text(entry.merkmal)
+    });
+    if (out.length >= 10) break;
+  }
+
+  return out;
 }
 
 exports.handler = async (event) => {
@@ -162,12 +237,33 @@ exports.handler = async (event) => {
         ? { svg: cached.logoSvg, score: 100, reason: 'cache (inline-svg)' }
         : cached.logoSourceUrl && { url: cached.logoSourceUrl, score: 100, reason: 'cache' };
       const logo = logoSource ? await pickLogo([logoSource]) : null;
+
+      // Temp-Bilder sind nach 24h weg, deshalb liegen im Cache nur die
+      // Quell-URLs. Sie neu zu holen kostet Zeit, aber kein Geld.
+      let images = [];
+      if (spec.images && Array.isArray(cached.imageSourceUrls) && cached.imageSourceUrls.length) {
+        images = await collectProductImages(
+          cached.imageSourceUrls.map((u) => ({ url: u, score: 100, reason: 'cache' })),
+          { supabase, extractId: crypto.randomUUID(), limit: spec.images, remaining, minRemainingMs: IMAGES_MIN_REMAINING_MS }
+        );
+      }
+
       // Ein Cache-Treffer kostet nichts. Was er gespart hat, zeigen wir an.
       const cost = { usd: 0, eur: 0, cached: true, saved: cached.cost || null };
       return {
         statusCode: 200,
         headers,
-        body: JSON.stringify({ success: true, cached: true, source: cached.source || 'cache', fields: cached.fields || {}, logo, notes: cached.notes || [], cost })
+        body: JSON.stringify({
+          success: true,
+          cached: true,
+          source: cached.source || 'cache',
+          fields: cached.fields || {},
+          logo,
+          images,
+          varianten: cached.varianten || [],
+          notes: cached.notes || [],
+          cost
+        })
       };
     }
 
@@ -182,6 +278,9 @@ exports.handler = async (event) => {
       followLinks: spec.followLinks || [],
       withLogo: Boolean(spec.logo)
     });
+
+    // Kandidaten jetzt sammeln, solange das HTML noch im Speicher liegt
+    const imageCandidates = spec.images ? findProductImageCandidates(main.html, main.finalUrl) : [];
 
     const pages = [{ url: main.finalUrl, role: 'Startseite', ...mainDistilled }];
 
@@ -210,13 +309,13 @@ exports.handler = async (event) => {
 
     // --- Felder bestimmen --------------------------------------------------
     const completion = await callClaude({
-      model: MODELS.extract,
+      model: MODELS[spec.model] || MODELS.extract,
       systemBlocks: [
         { text: SYSTEM_RULES, cache: true },
         { text: `Feldkatalog fuer "${entityType}":\n${buildFieldInstructions(spec)}`, cache: true }
       ],
       userPrompt: buildPrompt(spec, pages),
-      maxTokens: 2048
+      maxTokens: spec.maxTokens || 2048
     });
 
     let parsed;
@@ -227,6 +326,7 @@ exports.handler = async (event) => {
     }
 
     const fields = normalizeFields(parsed, spec);
+    const varianten = normalizeVarianten(parsed._varianten, spec);
     if (Array.isArray(parsed._hinweise)) {
       notes.push(...parsed._hinweise.filter((n) => typeof n === 'string').slice(0, 5));
     }
@@ -243,6 +343,25 @@ exports.handler = async (event) => {
       notes.push('Kein Logo gefunden');
     }
 
+    // --- Produktbilder -----------------------------------------------------
+    let images = [];
+    if (spec.images) {
+      if (!imageCandidates.length) {
+        notes.push('Keine Produktbilder auf der Seite gefunden');
+      } else if (remaining() < IMAGES_MIN_REMAINING_MS) {
+        notes.push('Produktbilder wegen Zeitlimit uebersprungen');
+      } else {
+        images = await collectProductImages(imageCandidates, {
+          supabase,
+          extractId: crypto.randomUUID(),
+          limit: spec.images,
+          remaining,
+          minRemainingMs: IMAGES_MIN_REMAINING_MS
+        });
+        if (!images.length) notes.push('Kein verwertbares Produktbild gefunden');
+      }
+    }
+
     // Ein degradiertes Ergebnis (durchgereichte Bot-Wall) waere 30 Tage lang
     // falsch - beim naechsten Versuch klappt der Browser vielleicht.
     if (main.degraded) {
@@ -253,15 +372,17 @@ exports.handler = async (event) => {
         entityType,
         specVersion: SPEC_VERSION,
         source: main.source,
-        // Absichtlich ohne Logo-Bytes: nur die Quelle, das Bild wird bei einem
-        // Cache-Treffer neu geladen. Haelt die jsonb-Spalte klein.
+        // Absichtlich ohne Bild-Bytes: nur die Quellen, die Bilder werden bei
+        // einem Cache-Treffer neu geladen. Haelt die jsonb-Spalte klein.
         result: {
           fields,
+          varianten,
           notes,
           source: main.source,
           cost,
           logoSourceUrl: logo?.sourceUrl || null,
-          logoSvg: logo?.sourceSvg || null
+          logoSvg: logo?.sourceSvg || null,
+          imageSourceUrls: images.map((i) => i.quelle_url).filter(Boolean)
         }
       });
     }
@@ -269,7 +390,7 @@ exports.handler = async (event) => {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ success: true, cached: false, source: main.source, fields, logo, notes, cost })
+      body: JSON.stringify({ success: true, cached: false, source: main.source, fields, logo, images, varianten, notes, cost })
     };
   } catch (error) {
     console.error('❌ site-extract:', error.message);

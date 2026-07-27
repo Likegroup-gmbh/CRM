@@ -556,7 +556,10 @@ export class FormRenderer {
               const uploader = new UploaderField({ 
                 multiple: !!field.multiple, 
                 accept: field.accept || '*/*',
-                maxFileSize: field.maxFileSize || null
+                maxFileSize: field.maxFileSize || null,
+                maxFiles: field.maxFiles || null,
+                sortable: !!field.sortable,
+                primarySelectable: !!field.primarySelectable
               });
               uploader.mount(root.querySelector('.uploader'));
             }

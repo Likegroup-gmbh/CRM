@@ -105,6 +105,7 @@ export class SiteExtractHandler {
       costBadge.show(result);
 
       if (result.logo) applyExtractedLogo(this.form, result.logo);
+      this.announce(result);
       if (Array.isArray(result.notes) && result.notes.length) {
         console.log('ℹ️ SITE-EXTRACT Hinweise:', result.notes);
       }
@@ -140,6 +141,21 @@ export class SiteExtractHandler {
       throw new Error(payload?.error || `HTTP ${response.status}`);
     }
     return payload;
+  }
+
+  /**
+   * Ergebnisse, die kein Formularfeld sind (Produktbilder, Varianten), gehen
+   * per Event an das aufrufende Modul. So bleibt der Handler generisch und
+   * muss keine entitaetsspezifische Logik kennen.
+   */
+  announce(result) {
+    const images = Array.isArray(result.images) ? result.images : [];
+    const varianten = Array.isArray(result.varianten) ? result.varianten : [];
+    if (!images.length && !varianten.length) return;
+
+    document.dispatchEvent(new CustomEvent('siteExtractApplied', {
+      detail: { entity: this.entity, form: this.form, images, varianten }
+    }));
   }
 
   /**

@@ -5,6 +5,8 @@ import { renderTabButton } from '../../core/TabUtils.js';
 import { getBranchenDisplay } from './MarkeDetailRendererHelpers.js';
 import { renderKampagnen, renderAuftraege, renderAnsprechpartner, renderBriefings, renderKooperationen, renderRechnungen, renderStrategien } from './MarkeDetailRendererTables.js';
 import { renderKickOff } from './MarkeDetailRendererKickOff.js';
+import { renderPersonas } from './MarkeDetailRendererPersonas.js';
+import { renderProdukte } from './MarkeDetailRendererProdukte.js';
 
 export function getTabsConfig(detail) {
   return [
@@ -20,7 +22,9 @@ export function getTabsConfig(detail) {
     { tab: 'briefings', label: 'Briefings', count: detail.briefings.length, isActive: detail.activeMainTab === 'briefings' },
     { tab: 'strategien', label: 'Strategien', count: detail.strategien.length, isActive: detail.activeMainTab === 'strategien' },
     { tab: 'kooperationen', label: 'Kooperationen', count: detail.kooperationen.length, isActive: detail.activeMainTab === 'kooperationen' },
-    { tab: 'rechnungen', label: 'Rechnungen', count: detail.rechnungen.length, isActive: detail.activeMainTab === 'rechnungen' }
+    { tab: 'rechnungen', label: 'Rechnungen', count: detail.rechnungen.length, isActive: detail.activeMainTab === 'rechnungen' },
+    { tab: 'personas', label: 'Personas', count: detail.personas.length, isActive: detail.activeMainTab === 'personas' },
+    { tab: 'produkte', label: 'Produkte', count: detail.produkte.length, isActive: detail.activeMainTab === 'produkte' }
   ];
 }
 
@@ -62,6 +66,14 @@ export function renderMainContent(detail) {
 
       <div class="tab-pane ${detail.activeMainTab === 'rechnungen' ? 'active' : ''}" id="tab-rechnungen">
         ${renderRechnungen(detail)}
+      </div>
+
+      <div class="tab-pane ${detail.activeMainTab === 'personas' ? 'active' : ''}" id="tab-personas">
+        ${renderPersonas(detail)}
+      </div>
+
+      <div class="tab-pane ${detail.activeMainTab === 'produkte' ? 'active' : ''}" id="tab-produkte">
+        ${renderProdukte(detail)}
       </div>
     </div>
   `;

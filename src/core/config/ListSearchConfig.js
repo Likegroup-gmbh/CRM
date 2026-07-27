@@ -32,7 +32,7 @@ export const LIST_SEARCH_CONFIG = {
     fields: ['vorname', 'nachname', 'email', 'telefonnummer', 'linkedin']
   },
   produkt: {
-    fields: ['name', 'url', 'kernbotschaft']
+    fields: ['name', 'url', 'kurzbeschreibung', 'usp']
   },
   contracts: {
     fields: ['auftragsname', 'angebotsnummer', 'po', 'externe_po'],

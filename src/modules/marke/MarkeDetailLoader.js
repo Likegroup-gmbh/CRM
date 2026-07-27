@@ -3,7 +3,9 @@
 
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
-import { updateKampagnenTab, updateAuftraegeTab, updateBriefingsTab, updateKooperationenTab, updateRechnungenTab, updateStrategienTab, updateKickOffTab } from './MarkeDetailTabUpdates.js';
+import { updateKampagnenTab, updateAuftraegeTab, updateBriefingsTab, updateKooperationenTab, updateRechnungenTab, updateStrategienTab, updateKickOffTab, updatePersonasTab, updateProdukteTab } from './MarkeDetailTabUpdates.js';
+import { MarkePersonaService } from './services/MarkePersonaService.js';
+import { MarkeProduktService } from './services/MarkeProduktService.js';
 
 export async function loadCriticalData(detail) {
   try {
@@ -176,6 +178,22 @@ export async function loadMarkeTabData(detail, tabName) {
           detail.strategien = strategien || [];
           updateStrategienTab(detail);
           return strategien;
+        }
+
+        case 'personas': {
+          const personas = await MarkePersonaService.loadForMarke(detail.markeId);
+          if (!isStillActive()) return personas;
+          detail.personas = personas;
+          updatePersonasTab(detail);
+          return personas;
+        }
+
+        case 'produkte': {
+          const produkte = await MarkeProduktService.loadForMarke(detail.markeId);
+          if (!isStillActive()) return produkte;
+          detail.produkte = produkte;
+          updateProdukteTab(detail);
+          return produkte;
         }
 
         case 'kickoff': {

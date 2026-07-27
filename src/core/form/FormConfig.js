@@ -12,6 +12,7 @@ import { kooperationConfig } from './config/KooperationFormConfig.js';
 import { ansprechpartnerConfig } from './config/AnsprechpartnerFormConfig.js';
 import { briefingConfig } from './config/BriefingFormConfig.js';
 import { produktConfig } from './config/ProduktFormConfig.js';
+import { personaConfig } from './config/PersonaFormConfig.js';
 import { rechnungConfig } from './config/RechnungFormConfig.js';
 import { sourcingConfig } from './config/SourcingFormConfig.js';
 import { strategieConfig } from './config/StrategieFormConfig.js';
@@ -31,6 +32,7 @@ const FORM_CONFIGS = {
   ansprechpartner: ansprechpartnerConfig,
   briefing: briefingConfig,
   produkt: produktConfig,
+  persona: personaConfig,
   rechnung: rechnungConfig,
   sourcing: sourcingConfig,
   strategie: strategieConfig,

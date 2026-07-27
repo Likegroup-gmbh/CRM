@@ -5,7 +5,6 @@ import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { loadMarkeTabData } from './MarkeDetailLoader.js';
 import { updateKickOffTab } from './MarkeDetailTabUpdates.js';
 import { bindKickOffCreateButton } from './MarkeDetailRendererKickOff.js';
-
 export function bindMarkeDetailEvents(detail) {
   detail.bindSidebarTabs();
 
@@ -52,6 +51,36 @@ export function bindMarkeDetailEvents(detail) {
           await loadMarkeTabData(detail, tab);
         }
       }
+      return;
+    }
+
+    // Persona anlegen (eigene Seite)
+    if (e.target.closest('.persona-create-btn')) {
+      e.preventDefault();
+      window.navigateTo(`/marke/${detail.markeId}/persona`);
+      return;
+    }
+
+    // Persona bearbeiten - muss vor dem generischen table-link-Handler stehen
+    const personaRow = e.target.closest('.persona-row-open');
+    if (personaRow) {
+      e.preventDefault();
+      window.navigateTo(`/marke/${detail.markeId}/persona?persona=${personaRow.dataset.personaId}`);
+      return;
+    }
+
+    // Produkt anlegen (eigene Seite)
+    if (e.target.closest('.produkt-create-btn')) {
+      e.preventDefault();
+      window.navigateTo(`/marke/${detail.markeId}/produkt`);
+      return;
+    }
+
+    // Produkt bearbeiten - ebenfalls vor dem generischen table-link-Handler
+    const produktRow = e.target.closest('.produkt-row-open');
+    if (produktRow) {
+      e.preventDefault();
+      window.navigateTo(`/marke/${detail.markeId}/produkt?produkt=${produktRow.dataset.produktId}`);
       return;
     }
 

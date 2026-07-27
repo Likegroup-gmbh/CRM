@@ -5,14 +5,28 @@
 export const EXTRACT_SOURCE_MARKER = '__extractSource';
 
 export class UploaderField {
-  constructor({ multiple = false, accept = '*/*', maxFileSize = null, onFilesChanged = () => {} } = {}) {
+  constructor({
+    multiple = false,
+    accept = '*/*',
+    maxFileSize = null,
+    maxFiles = null,
+    sortable = false,
+    primarySelectable = false,
+    onFilesChanged = () => {}
+  } = {}) {
     this.multiple = multiple;
     this.accept = accept;
     this.maxFileSize = maxFileSize;
+    this.maxFiles = maxFiles;
+    // Sortierung und Hauptbild-Auswahl brauchen nur Galerien (z.B. Produktbilder)
+    this.sortable = sortable;
+    this.primarySelectable = primarySelectable;
     this.onFilesChanged = onFilesChanged;
     this.files = [];
     this.existingFiles = [];
     this.deletedFileIds = [];
+    // "existing:{id}" oder "new:{index}" - null bedeutet: erstes Bild ist Hauptbild
+    this.primaryKey = null;
     this.root = null;
     this.input = null;
     this.listEl = null;
@@ -97,19 +111,28 @@ export class UploaderField {
       validFiles.push(file);
     }
     
-    if (errors.length > 0) {
-      this.setError(errors.join(', '));
-    }
-    
     if (validFiles.length > 0) {
       if (!this.multiple) {
         this.files = [validFiles[0]];
       } else {
-        this.files = [...this.files, ...validFiles];
+        const frei = this.maxFiles ? Math.max(0, this.maxFiles - this.totalCount()) : validFiles.length;
+        if (validFiles.length > frei) {
+          errors.push(`Maximal ${this.maxFiles} Dateien – ${validFiles.length - frei} wurden nicht übernommen`);
+        }
+        this.files = [...this.files, ...validFiles.slice(0, frei)];
       }
       this.renderList();
       this.onFilesChanged(this.files);
     }
+
+    if (errors.length > 0) {
+      this.setError(errors.join(', '));
+    }
+  }
+
+  /** Bestehende (nicht geloeschte) plus neue Dateien. */
+  totalCount() {
+    return this.getKeptExistingFiles().length + this.files.length;
   }
 
   isAcceptedType(file) {
@@ -186,19 +209,24 @@ export class UploaderField {
     let html = '';
 
     // Existing files (already uploaded)
-    keptExisting.forEach(f => {
+    keptExisting.forEach((f, idx) => {
       const sizeStr = f.size != null ? this.formatSize(f.size) : '';
       const linkHtml = f.url
         ? `<a href="${f.url}" target="_blank" rel="noopener noreferrer" class="uploader-name uploader-name--link">${this.escapeHtml(f.name)}</a>`
         : `<span class="uploader-name">${this.escapeHtml(f.name)}</span>`;
+      const badge = f.isTemporary
+        ? '<span class="uploader-badge uploader-badge--extracted">Von der Webseite</span>'
+        : '<span class="uploader-badge">Gespeichert</span>';
       html += `
         <div class="uploader-item uploader-item--existing">
           ${this.renderThumb(this.existingPreviewUrl(f), f.name)}
           <div class="uploader-meta">
             ${linkHtml}
             ${sizeStr ? `<span class="uploader-size">${sizeStr}</span>` : ''}
-            <span class="uploader-badge">Gespeichert</span>
+            ${badge}
+            ${this.renderPrimary(`existing:${f.id}`)}
           </div>
+          ${this.renderSort('existing', idx, keptExisting.length)}
           <button type="button" class="uploader-remove" data-existing-id="${f.id}">Entfernen</button>
         </div>
       `;
@@ -222,7 +250,9 @@ export class UploaderField {
             <span class="uploader-size">${this.formatSize(f.size)}</span>
             ${badge}
             ${hint}
+            ${this.renderPrimary(`new:${idx}`)}
           </div>
+          ${this.renderSort('new', idx, this.files.length)}
           <button type="button" class="uploader-remove" data-index="${idx}">Entfernen</button>
         </div>
       `;
@@ -243,6 +273,78 @@ export class UploaderField {
           this.onFilesChanged(this.files);
         }
       });
+    });
+
+    this.bindSortAndPrimary(keptExisting);
+  }
+
+  // --- Sortierung und Hauptbild (nur wenn aktiviert) ---
+
+  renderSort(group, index, total) {
+    if (!this.sortable || total < 2) return '';
+    return `
+      <div class="uploader-sort">
+        <button type="button" class="uploader-move" data-group="${group}" data-index="${index}" data-dir="up" ${index === 0 ? 'disabled' : ''} title="Nach vorne">↑</button>
+        <button type="button" class="uploader-move" data-group="${group}" data-index="${index}" data-dir="down" ${index === total - 1 ? 'disabled' : ''} title="Nach hinten">↓</button>
+      </div>
+    `;
+  }
+
+  renderPrimary(key) {
+    if (!this.primarySelectable) return '';
+    const checked = this.effectivePrimaryKey() === key ? 'checked' : '';
+    return `
+      <label class="uploader-primary">
+        <input type="radio" class="uploader-primary-radio" data-primary-key="${key}" ${checked}>
+        <span>Hauptbild</span>
+      </label>
+    `;
+  }
+
+  /** Ohne explizite Wahl gilt das erste Bild als Hauptbild. */
+  effectivePrimaryKey() {
+    if (this.primaryKey) return this.primaryKey;
+    const first = this.getKeptExistingFiles()[0];
+    if (first) return `existing:${first.id}`;
+    return this.files.length ? 'new:0' : null;
+  }
+
+  bindSortAndPrimary(keptExisting) {
+    this.listEl.querySelectorAll('.uploader-move').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const index = parseInt(btn.dataset.index, 10);
+        const ziel = btn.dataset.dir === 'up' ? index - 1 : index + 1;
+
+        if (btn.dataset.group === 'new') {
+          if (ziel < 0 || ziel >= this.files.length) return;
+          const [moved] = this.files.splice(index, 1);
+          this.files.splice(ziel, 0, moved);
+        } else {
+          if (ziel < 0 || ziel >= keptExisting.length) return;
+          const [moved] = keptExisting.splice(index, 1);
+          keptExisting.splice(ziel, 0, moved);
+          // geloeschte Eintraege bleiben erhalten, damit sie nicht wieder auftauchen
+          const geloescht = this.existingFiles.filter(f => this.deletedFileIds.includes(f.id));
+          this.existingFiles = [...keptExisting, ...geloescht];
+        }
+
+        this.renderList();
+        this.onFilesChanged(this.files);
+      });
+    });
+
+    this.listEl.querySelectorAll('.uploader-primary-radio').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        e.stopPropagation();
+        this.primaryKey = radio.dataset.primaryKey;
+        this.renderList();
+      });
+    });
+
+    // Klick auf die Labels darf nicht den Datei-Dialog oeffnen
+    this.listEl.querySelectorAll('.uploader-primary, .uploader-sort').forEach(el => {
+      el.addEventListener('click', (e) => e.stopPropagation());
     });
   }
 

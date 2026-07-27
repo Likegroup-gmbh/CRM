@@ -197,11 +197,19 @@ export class ModuleRegistry {
       module = this.modules.get(moduleKey);
       console.log(`🎯 Marken-Details erkannt, verwende Modul: ${moduleKey}`);
     }
-    
-    if (id && segment === 'produkt' && id !== 'new') {
-      moduleKey = 'produkt-detail';
+
+    // /marke/:markeId/persona (Anlegen) bzw. ?persona=:id (Bearbeiten)
+    if (id && segment === 'marke' && id !== 'new' && action === 'persona') {
+      moduleKey = 'marke-persona';
       module = this.modules.get(moduleKey);
-      console.log(`🎯 Produkt-Details erkannt, verwende Modul: ${moduleKey}`);
+      console.log(`🎯 Persona-Formular erkannt, verwende Modul: ${moduleKey}`);
+    }
+
+    // /marke/:markeId/produkt (Anlegen) bzw. ?produkt=:id (Bearbeiten)
+    if (id && segment === 'marke' && id !== 'new' && action === 'produkt') {
+      moduleKey = 'marke-produkt';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Produkt-Formular erkannt, verwende Modul: ${moduleKey}`);
     }
     
     if (id && segment === 'unternehmen' && id !== 'new') {

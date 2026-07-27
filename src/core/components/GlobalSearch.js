@@ -57,10 +57,12 @@ const SEARCH_CONFIG = [
   {
     key: 'produkt',
     table: 'produkt',
-    routePrefix: '/produkt',
+    // Produkte leben unter ihrer Marke, es gibt keine eigene Detailroute
+    routeFields: ['marke_id'],
+    buildRoute: (row) => (row.marke_id ? `/marke/${row.marke_id}/produkt?produkt=${row.id}` : null),
     labelField: 'name',
-    searchFields: ['name', 'url', 'kernbotschaft', 'usp_1', 'usp_2', 'usp_3'],
-    fieldLabels: { name: 'Name', url: 'URL', kernbotschaft: 'Kernbotschaft', usp_1: 'USP 1', usp_2: 'USP 2', usp_3: 'USP 3' },
+    searchFields: ['name', 'url', 'kurzbeschreibung', 'usp'],
+    fieldLabels: { name: 'Name', url: 'Shop-URL', kurzbeschreibung: 'Kurzbeschreibung', usp: 'USP' },
     icon: 'icon-cube',
     category: 'Stammdaten',
     permKey: 'produkt'
@@ -183,8 +185,23 @@ function findMatchedField(row, config, query) {
 
 function getDisplayForTargetKey(targetKey) {
   const fromSearch = SEARCH_CONFIG.find((c) => c.key === targetKey);
-  if (fromSearch) return { routePrefix: fromSearch.routePrefix, icon: fromSearch.icon, category: fromSearch.category, permKey: fromSearch.permKey };
+  if (fromSearch) {
+    return {
+      routePrefix: fromSearch.routePrefix, buildRoute: fromSearch.buildRoute,
+      icon: fromSearch.icon, category: fromSearch.category, permKey: fromSearch.permKey
+    };
+  }
   return REF_ENTITY_DISPLAY[targetKey] || null;
+}
+
+/**
+ * Route zu einem Treffer. Entitaeten ohne eigene Detailroute (Produkte) liefern
+ * ihre Route ueber buildRoute und fallen ohne Elterndaten auf null zurueck -
+ * solche Treffer werden verworfen statt auf eine tote URL zu zeigen.
+ */
+function buildResultRoute(config, row) {
+  if (config.buildRoute) return config.buildRoute(row);
+  return config.routePrefix ? `${config.routePrefix}/${row.id}` : null;
 }
 
 function getTargetLabel(row, labelField) {
@@ -426,12 +443,14 @@ export class GlobalSearch {
             const { data: rows, error } = await crossQuery;
             if (error) throw error;
             for (const row of (rows || [])) {
+              const route = buildResultRoute(display, row);
+              if (!route) continue;
               const viaLabel = sourceLabelById[row[ref.fk]] != null ? `via ${sourceTypeLabel} ${sourceLabelById[row[ref.fk]]}` : '';
               all.push({
                 id: row.id,
                 label: getTargetLabel(row, ref.labelField),
                 sublabel: '',
-                route: `${display.routePrefix}/${row.id}`,
+                route,
                 icon: display.icon,
                 category: display.category,
                 key: ref.targetKey,
@@ -467,12 +486,14 @@ export class GlobalSearch {
             for (const j of jRows) {
               const target = targetById[j[ref.targetIdColumn]];
               if (!target) continue;
+              const route = buildResultRoute(display, target);
+              if (!route) continue;
               const viaLabel = sourceLabelById[j[ref.sourceIdColumn]] != null ? `via ${sourceTypeLabel} ${sourceLabelById[j[ref.sourceIdColumn]]}` : '';
               all.push({
                 id: target.id,
                 label: getTargetLabel(target, ref.targetLabelField),
                 sublabel: '',
-                route: `${display.routePrefix}/${target.id}`,
+                route,
                 icon: display.icon,
                 category: display.category,
                 key: ref.targetKey,
@@ -592,7 +613,7 @@ export class GlobalSearch {
       const tokens = q.split(/\s+/).filter((t) => t.length >= 2);
 
       const promises = configs.map(async (config) => {
-        const selectFields = ['id', ...config.searchFields];
+        const selectFields = [...new Set(['id', ...config.searchFields, ...(config.routeFields || [])])];
         try {
           // Daten-Level-Filter: Erlaubte IDs prüfen
           if (this._allowedIdsCache) {
@@ -643,13 +664,15 @@ export class GlobalSearch {
           if (out.status !== 'fulfilled' || !out.value) return;
           const { config, rows } = out.value;
           rows.forEach((row) => {
+            const route = buildResultRoute(config, row);
+            if (!route) return;
             const label = getLabel(row, config);
             const sublabel = findMatchedField(row, config, q);
             flat.push({
               id: row.id,
               label,
               sublabel: sublabel || '',
-              route: `${config.routePrefix}/${row.id}`,
+              route,
               icon: config.icon,
               category: config.category,
               key: config.key,
