@@ -1,3 +1,9 @@
+/**
+ * Marker, den automatisch uebernommene Dateien am File-Objekt tragen (z. B. ein
+ * von einer Webseite geholtes Logo). Steuert nur die Kennzeichnung in der Liste.
+ */
+export const EXTRACT_SOURCE_MARKER = '__extractSource';
+
 export class UploaderField {
   constructor({ multiple = false, accept = '*/*', maxFileSize = null, onFilesChanged = () => {} } = {}) {
     this.multiple = multiple;
@@ -13,6 +19,8 @@ export class UploaderField {
     this.errorEl = null;
     this.dropEl = null;
     this.errorMessage = null;
+    // Blob-URLs der Thumbnails, werden bei jedem Rendern neu erzeugt
+    this.objectUrls = [];
   }
 
   mount(root) {
@@ -165,7 +173,9 @@ export class UploaderField {
 
   renderList() {
     if (!this.listEl) return;
-    
+
+    this.releaseObjectUrls();
+
     const keptExisting = this.existingFiles.filter(f => !this.deletedFileIds.includes(f.id));
     
     if (!keptExisting.length && !this.files.length) {
@@ -183,6 +193,7 @@ export class UploaderField {
         : `<span class="uploader-name">${this.escapeHtml(f.name)}</span>`;
       html += `
         <div class="uploader-item uploader-item--existing">
+          ${this.renderThumb(this.existingPreviewUrl(f), f.name)}
           <div class="uploader-meta">
             ${linkHtml}
             ${sizeStr ? `<span class="uploader-size">${sizeStr}</span>` : ''}
@@ -195,12 +206,22 @@ export class UploaderField {
 
     // New files (pending upload)
     this.files.forEach((f, idx) => {
+      const fromExtraction = Boolean(f[EXTRACT_SOURCE_MARKER]);
+      const badge = fromExtraction
+        ? '<span class="uploader-badge uploader-badge--extracted">Von der Webseite</span>'
+        : '<span class="uploader-badge uploader-badge--new">Neu</span>';
+      const hint = fromExtraction
+        ? '<span class="uploader-hint">Wird beim Anlegen gespeichert</span>'
+        : '';
+
       html += `
         <div class="uploader-item">
+          ${this.renderThumb(this.previewUrlFor(f), f.name)}
           <div class="uploader-meta">
-            <span class="uploader-name">${f.name}</span>
+            <span class="uploader-name">${this.escapeHtml(f.name)}</span>
             <span class="uploader-size">${this.formatSize(f.size)}</span>
-            <span class="uploader-badge uploader-badge--new">Neu</span>
+            ${badge}
+            ${hint}
           </div>
           <button type="button" class="uploader-remove" data-index="${idx}">Entfernen</button>
         </div>
@@ -223,6 +244,41 @@ export class UploaderField {
         }
       });
     });
+  }
+
+  // --- Thumbnails ---
+
+  renderThumb(src, name) {
+    if (!src) return '';
+    return `<img class="uploader-thumb" src="${this.escapeHtml(src)}" alt="${this.escapeHtml(name || '')}" loading="lazy">`;
+  }
+
+  /** Blob-URL fuer Bilddateien; alles andere bekommt kein Thumbnail. */
+  previewUrlFor(file) {
+    if (!file || !file.type || !file.type.startsWith('image/')) return null;
+    const url = URL.createObjectURL(file);
+    this.objectUrls.push(url);
+    return url;
+  }
+
+  /**
+   * Bereits gespeicherte Dateien haben nur Name und URL, keinen MIME-Type -
+   * daher Entscheidung ueber die Endung. Verhindert kaputte Thumbnails bei
+   * Dokumenten-Uploadern (Vertraege, Rechnungen).
+   */
+  existingPreviewUrl(file) {
+    if (!file?.url) return null;
+    const name = `${file.name || ''} ${file.url}`;
+    return /\.(png|jpe?g|webp|gif|avif|svg)(\?|#|$)/i.test(name) ? file.url : null;
+  }
+
+  releaseObjectUrls() {
+    this.objectUrls.forEach(url => URL.revokeObjectURL(url));
+    this.objectUrls = [];
+  }
+
+  destroy() {
+    this.releaseObjectUrls();
   }
 
   escapeHtml(str) {

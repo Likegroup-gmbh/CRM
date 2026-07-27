@@ -82,7 +82,11 @@ export class ModuleRegistry {
     const path = pathOnly.replace(/^\//, '');
     const pathParts = path.split('/');
     const [segment, idRaw, actionRaw] = pathParts;
-    const id = idRaw ? idRaw.split('?')[0] : idRaw;
+    const idFromPath = idRaw ? idRaw.split('?')[0] : idRaw;
+    // Alias fuer Alt-Links: /unternehmen/neu war der einzige Pfad mit deutschem
+    // "neu", alle anderen Entitaeten nutzen "new". Normalisiert, damit die
+    // ID-basierten Weichen unten nicht "neu" fuer eine Entity-ID halten.
+    const id = idFromPath === 'neu' ? 'new' : idFromPath;
     const action = actionRaw ? actionRaw.split('?')[0] : actionRaw;
 
     if (segment === 'creator' && id && id !== 'new') {
@@ -200,12 +204,7 @@ export class ModuleRegistry {
       console.log(`🎯 Produkt-Details erkannt, verwende Modul: ${moduleKey}`);
     }
     
-    if (id === 'neu' && segment === 'unternehmen') {
-      moduleKey = 'unternehmen-create';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Unternehmen-Erstellung erkannt, verwende Modul: ${moduleKey}`);
-    }
-    else if (id && segment === 'unternehmen' && id !== 'new' && id !== 'neu') {
+    if (id && segment === 'unternehmen' && id !== 'new') {
       moduleKey = 'unternehmen-detail';
       module = this.modules.get(moduleKey);
       console.log(`🎯 Unternehmen-Details erkannt, verwende Modul: ${moduleKey}`);

@@ -1,6 +1,6 @@
 // UnternehmenService.js
 // Gemeinsame Business-Logic für Unternehmen-Module
-// Vermeidet Code-Duplizierung zwischen UnternehmenDetail, UnternehmenList und UnternehmenCreate
+// Vermeidet Code-Duplizierung zwischen UnternehmenDetail und UnternehmenList
 
 import { compressImage } from '../../../core/ImageCompressor.js';
 
@@ -161,7 +161,7 @@ export class UnternehmenService {
       // Validierung: Dateityp (vor Komprimierung)
       if (!ALLOWED_TYPES.includes(file.type)) {
         const error = new Error(`Nur PNG, JPG und WebP Dateien sind erlaubt`);
-        alert(error.message);
+        UnternehmenService.handleError(error, 'UnternehmenService.uploadLogo');
         if (options.throwOnError) throw error;
         return null;
       }
@@ -178,7 +178,7 @@ export class UnternehmenService {
       // Validierung: Dateigröße (nach Komprimierung)
       if (file.size > MAX_FILE_SIZE) {
         const error = new Error(`Logo ist zu groß (max. 200 KB)`);
-        alert(error.message);
+        UnternehmenService.handleError(error, 'UnternehmenService.uploadLogo');
         if (options.throwOnError) throw error;
         return null;
       }
@@ -243,8 +243,10 @@ export class UnternehmenService {
       return logo_url;
       
     } catch (error) {
-      console.error('❌ Fehler beim Logo-Upload:', error);
-      alert(`⚠️ Logo konnte nicht hochgeladen werden: ${error.message}`);
+      UnternehmenService.handleError(
+        new Error(`Logo konnte nicht hochgeladen werden: ${error.message}`),
+        'UnternehmenService.uploadLogo'
+      );
       if (options.throwOnError) throw error;
       return null;
     }
@@ -277,99 +279,6 @@ export class UnternehmenService {
     } catch (error) {
       console.error('❌ Fehler beim Laden der Branche-Namen:', error);
       return branchenIds;
-    }
-  }
-
-  /**
-   * @deprecated Nicht manuell aufrufen! DataService.handleManyToManyRelations() verwaltet
-   * Branchen automatisch. Ein manueller Aufruf parallel zum DataService führt zu Race Conditions
-   * und doppelten Schreibvorgängen auf die Junction Table `unternehmen_branchen`.
-   * @param {string} unternehmenId - UUID des Unternehmens
-   * @param {string[]|string|null} brancheIds - Branchen-IDs oder null
-   * @param {HTMLElement|null} form - Optional: Formular-Context für Fallback-Selektion
-   */
-  static async saveUnternehmenBranchen(unternehmenId, brancheIds = null, form = null) {
-    console.warn('⚠️ UnternehmenService.saveUnternehmenBranchen() ist deprecated. Verwende DataService.handleManyToManyRelations() stattdessen.');
-    try {
-      if (!unternehmenId) return;
-
-      let ids = [];
-
-      if (Array.isArray(brancheIds)) {
-        ids = brancheIds.filter(Boolean);
-      } else if (typeof brancheIds === 'string' && brancheIds) {
-        ids = [brancheIds];
-      }
-
-      // Fallback: Hidden Select (FormSystem Tag-basiert)
-      if (ids.length === 0 && form) {
-        const hiddenSelect = form.querySelector('select[name="branche_id[]"]');
-        if (hiddenSelect) {
-          ids = Array.from(hiddenSelect.selectedOptions).map(option => option.value).filter(Boolean);
-        }
-      }
-
-      // Duplikate entfernen
-      ids = [...new Set(ids)];
-      
-      console.log(`🔄 Speichere Branchen für Unternehmen ${unternehmenId}:`, ids);
-
-      // Bestehende Zuordnungen löschen
-      const { error: deleteError } = await window.supabase
-        .from('unternehmen_branchen')
-        .delete()
-        .eq('unternehmen_id', unternehmenId);
-
-      if (deleteError) {
-        console.error('❌ Fehler beim Löschen bestehender Branchen-Zuordnungen:', deleteError);
-        throw deleteError;
-      }
-
-      if (ids.length === 0) {
-        // Primäre Branche auf null setzen
-        await window.supabase
-          .from('unternehmen')
-          .update({ branche_id: null, branche: null })
-          .eq('id', unternehmenId);
-        console.log('ℹ️ Keine Branchen ausgewählt – Primärbranche zurückgesetzt');
-        return;
-      }
-
-      const insertData = ids.map(id => ({
-        unternehmen_id: unternehmenId,
-        branche_id: id
-      }));
-
-      const { error: insertError } = await window.supabase
-        .from('unternehmen_branchen')
-        .insert(insertData);
-
-      if (insertError) {
-        console.error('❌ Fehler beim Speichern der Branchen-Zuordnungen:', insertError);
-        throw insertError;
-      }
-
-      // Primäre Branche + Legacy-String aktualisieren
-      const branchNames = await UnternehmenService.getBranchenNamen(ids);
-      const brancheNameString = branchNames.filter(Boolean).join(', ') || null;
-
-      const { error: updateError } = await window.supabase
-        .from('unternehmen')
-        .update({
-          branche_id: ids[0] || null,
-          branche: brancheNameString
-        })
-        .eq('id', unternehmenId);
-
-      if (updateError) {
-        console.error('❌ Fehler beim Aktualisieren der Primärbranche:', updateError);
-      } else {
-        console.log(`✅ Primärbranche aktualisiert (${ids[0]}) und Legacy-String gesetzt: ${brancheNameString}`);
-      }
-
-    } catch (error) {
-      console.error('❌ Fehler beim Speichern der Unternehmen-Branchen:', error);
-      throw error;
     }
   }
 

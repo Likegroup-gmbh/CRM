@@ -37,6 +37,11 @@
 [functions."instagram-connect"]
   timeout = 26
 
+# Webseiten-Extraktion: fetch, im Fallback Chromium, dazu Claude-Aufruf
+# und Logo-Konvertierung via sharp
+[functions."site-extract"]
+  timeout = 60
+
 # Auth-Seiten direkt ausliefern (NICHT auf index.html umleiten)
 [[redirects]]
   from = "/src/auth/*"

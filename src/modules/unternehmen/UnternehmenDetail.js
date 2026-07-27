@@ -5,7 +5,7 @@ import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { loadUnternehmenData } from './UnternehmenDetailLoader.js';
 import { renderUnternehmenDetailPage } from './UnternehmenDetailRendererCore.js';
 import { bindUnternehmenDetailEvents, bindUnternehmenDetailDragScroll } from './UnternehmenDetailEvents.js';
-import { showEditForm, removeAnsprechpartner, getBranchenNamen, uploadLogo, saveUnternehmenBranchen } from './UnternehmenDetailEdit.js';
+import { showEditForm, removeAnsprechpartner, getBranchenNamen, uploadLogo } from './UnternehmenDetailEdit.js';
 import { UnternehmenService } from './services/UnternehmenService.js';
 
 export class UnternehmenDetail extends PersonDetailBase {
@@ -115,10 +115,6 @@ export class UnternehmenDetail extends PersonDetailBase {
 
   async saveMitarbeiterRoles(unternehmenId, data) {
     return UnternehmenService.saveMitarbeiterRoles(unternehmenId, data);
-  }
-
-  async saveUnternehmenBranchen(unternehmenId, brancheIds = null, form = null) {
-    return saveUnternehmenBranchen(this, unternehmenId, brancheIds, form);
   }
 
   _removeAllEventListeners() {

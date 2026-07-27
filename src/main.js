@@ -29,7 +29,6 @@ import { creatorDetail } from './modules/creator/CreatorDetail.js';
 import { creatorListDetail } from './modules/creator/CreatorListDetail.js';
 import { CreatorAdressenManager } from './modules/creator/CreatorAdressenManager.js';
 import { unternehmenList } from './modules/unternehmen/UnternehmenList.js';
-import { unternehmenCreate } from './modules/unternehmen/UnternehmenCreate.js';
 import { auftragList } from './modules/auftrag/AuftragList.js';
 import { auftragsdetailsList } from './modules/auftrag/AuftragsdetailsList.js';
 import { auftragsdetailsDetail } from './modules/auftrag/AuftragsdetailsDetail.js';
@@ -128,7 +127,6 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('creator-lists', creatorListPage);
   moduleRegistry.register('creator-list-detail', creatorListDetail);
   moduleRegistry.register('unternehmen', unternehmenList);
-  moduleRegistry.register('unternehmen-create', unternehmenCreate);
   moduleRegistry.register('auftrag', auftragList);
   moduleRegistry.register('auftragsdetails', auftragsdetailsList);
   moduleRegistry.register('auftragsdetails-detail', auftragsdetailsDetail);
@@ -213,7 +211,6 @@ window.filterSystem = filterSystem;
 window.creatorList = creatorList;
 window.creatorDetail = creatorDetail;
 window.unternehmenList = unternehmenList;
-window.unternehmenCreate = unternehmenCreate;
 window.auftragList = auftragList;
 window.markeList = markeList;
 window.markeDetail = markeDetail;
@@ -633,7 +630,7 @@ window.setupHeaderUI = () => {
         if (!entity) return;
         switch (entity) {
           case 'unternehmen':
-            window.navigateTo('/unternehmen/neu');
+            window.navigateTo('/unternehmen/new');
             break;
           case 'marke':
             window.navigateTo('/marke/new');

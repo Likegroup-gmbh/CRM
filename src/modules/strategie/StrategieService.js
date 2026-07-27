@@ -636,35 +636,6 @@ export class StrategieService {
   }
 
   /**
-   * Debug-Screenshot: Fullpage + DOM-Analyse (Produktion unberührt)
-   */
-  async generateDebugScreenshot(videoUrl) {
-    try {
-      const session = await window.supabase.auth.getSession();
-      const token = session?.data?.session?.access_token || '';
-      const response = await fetch('/.netlify/functions/screenshot', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ url: videoUrl, debug: true })
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Debug-Screenshot fehlgeschlagen');
-      }
-
-      return result;
-    } catch (error) {
-      console.error('Fehler bei Debug-Screenshot:', error);
-      throw error;
-    }
-  }
-
-  /**
    * Alle Unternehmen für Dropdown abrufen
    */
   async getAllUnternehmen() {
@@ -755,28 +726,4 @@ export class StrategieService {
 
 // Singleton-Instanz exportieren
 export const strategieService = new StrategieService();
-
-// Debug-Screenshot per Browser-Konsole: debugScreenshot('https://instagram.com/reel/...')
-window.debugScreenshot = async (url) => {
-  if (!url) {
-    console.error('Usage: debugScreenshot("https://www.instagram.com/reel/...")');
-    return;
-  }
-  console.log(`🔍 Debug-Screenshot für: ${url}`);
-  console.log('⏳ Bitte warten (kann 15-30s dauern)...');
-  try {
-    const result = await strategieService.generateDebugScreenshot(url);
-    console.log('✅ Ergebnis:', result);
-    if (result.debug_info) {
-      console.log('📋 DOM-Analyse:', result.debug_info);
-    }
-    if (result.debug_screenshot_url) {
-      console.log('🖼️ Screenshot:', result.debug_screenshot_url);
-      window.open(result.debug_screenshot_url, '_blank');
-    }
-    return result;
-  } catch (e) {
-    console.error('❌ Fehler:', e.message);
-  }
-};
 

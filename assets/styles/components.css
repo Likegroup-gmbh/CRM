@@ -6642,6 +6642,34 @@ width: 100%;
 .uploader-drop.has-error { border-color: var(--orange-800); background: var(--orange-50); }
 .uploader-error { color: var(--orange-600); font-size: var(--text-sm); margin-top: 6px; display: none; }
 
+/* Thumbnail direkt an der Datei - ersetzt die frueheren separaten Logo-Vorschauen */
+.uploader-thumb {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  margin-right: var(--gap-10);
+  object-fit: contain;
+  background: #ffffff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  padding: 2px;
+}
+.uploader-item .uploader-meta { flex: 1; min-width: 0; flex-wrap: wrap; }
+.uploader-badge--extracted {
+  background: var(--green-100);
+  color: var(--green-800);
+  border: 1px solid var(--green-300);
+  border-radius: var(--radius-md);
+  padding: 1px var(--space-xs);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.uploader-hint {
+  flex-basis: 100%;
+  color: var(--gray-500);
+  font-size: var(--text-xs);
+}
+
 .actions-toggle {
   background: none;
   border: none;
@@ -8288,6 +8316,150 @@ width: 100%;
 
 .url-input-field .url-input::placeholder {
   color: #9ca3af;
+}
+
+/* ===== Webseiten-Auslesen (site-extract) ===== */
+
+.url-extract-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--space-sm);
+  border: none;
+  border-left: 1px solid #d1d5db;
+  background: var(--gray-50);
+  color: var(--gray-700);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.url-extract-btn:hover:not(:disabled) {
+  background: var(--gray-900);
+  color: var(--text-inverse);
+}
+
+.url-extract-btn:disabled {
+  cursor: default;
+  color: var(--gray-500);
+}
+
+.url-extract-btn.is-loading svg {
+  animation: mdc-spin 1s linear infinite;
+}
+
+/* Markierung der uebernommenen Felder: gruen = belegbar, orange = Vorschlag */
+.form-field.ai-filled input,
+.form-field.ai-filled textarea,
+.form-field.ai-filled .url-input-field {
+  background-color: var(--green-50);
+}
+
+.form-field.ai-filled--guess input,
+.form-field.ai-filled--guess textarea,
+.form-field.ai-filled--guess .url-input-field {
+  background-color: var(--orange-25);
+}
+
+.ai-field-note {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-8);
+  margin-top: 4px;
+  font-size: var(--text-xs);
+}
+
+.ai-field-note__label {
+  padding: 1px var(--space-xs);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--green-300);
+  background: var(--green-100);
+  color: var(--green-800);
+}
+
+.ai-field-note--guess .ai-field-note__label {
+  border-color: var(--orange-200);
+  background: var(--orange-50);
+  color: var(--orange-800);
+}
+
+.ai-field-note__undo {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--gray-500);
+  font-size: var(--text-xs);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ai-field-note__undo:hover {
+  color: var(--gray-900);
+}
+
+/* Kosten-Badges nach dem Auslesen. Basis ist das Tag-System (.tags/.tag),
+   hier kommen nur Position und zwei Farbvarianten dazu. */
+.extract-meta {
+  margin-top: var(--space-xs);
+  align-items: center;
+}
+
+.extract-meta .tag svg {
+  margin-right: var(--space-xxs);
+  flex-shrink: 0;
+  opacity: 0.65;
+}
+
+.extract-meta .tag {
+  cursor: default;
+}
+
+.tag--extract-cost {
+  background: var(--gray-100);
+  border-color: var(--gray-200);
+  color: var(--gray-900);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.tag--extract-cache {
+  background: var(--green-50);
+  border-color: var(--green-300);
+  color: var(--green-800);
+}
+
+/* Erklaerender Untertitel unter einer Section-Ueberschrift */
+.form-section__description {
+  margin: 0 0 var(--space-md) 0;
+  max-width: 62ch;
+  color: var(--gray-600);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}
+
+/* Einstiegs-Section "Mit der Webseite starten": als Karte abgesetzt, damit sie
+   als Hilfestellung gelesen wird und nicht als weiteres Datenfeld.
+   Doppelte Klasse, weil die generische .form-section-Regel spaeter in dieser
+   Datei steht und sonst den gestrichelten Unterstrich zurueckholt. */
+.form-section.form-section--auslesen {
+  margin-bottom: var(--space-lg);
+  padding: var(--space-md);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  background: var(--gray-50);
+}
+
+.form-section.form-section--auslesen h3 {
+  margin-bottom: var(--space-xs);
+  border-bottom: none;
+  padding-bottom: 0;
+  font-weight: 600;
+}
+
+.form-section.form-section--auslesen .form-field:last-child {
+  margin-bottom: 0;
 }
 
 /* PhoneNumberField Styling */

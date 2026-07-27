@@ -4,6 +4,7 @@
 //   ANTHROPIC_MODEL_DISTILL    (Default: claude-haiku-4-5) - Verdichtung/Labeling
 //   ANTHROPIC_MODEL_EDIT_WRITE (Default: claude-opus-4-6)  - Editor: alle Schreib-Aktionen (mit Extended Thinking)
 //   ANTHROPIC_MODEL_EDIT_FAST  (Default: claude-haiku-4-5) - Editor: freier Chat / Rueckfragen
+//   ANTHROPIC_MODEL_EXTRACT    (Default: claude-haiku-4-5) - Webseiten-Extraktion (site-extract)
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
 
@@ -11,7 +12,8 @@ const MODELS = {
   write: process.env.ANTHROPIC_MODEL_WRITE || 'claude-opus-4-7',
   distill: process.env.ANTHROPIC_MODEL_DISTILL || 'claude-haiku-4-5',
   edit_write: process.env.ANTHROPIC_MODEL_EDIT_WRITE || 'claude-opus-4-6',
-  edit_fast: process.env.ANTHROPIC_MODEL_EDIT_FAST || 'claude-haiku-4-5'
+  edit_fast: process.env.ANTHROPIC_MODEL_EDIT_FAST || 'claude-haiku-4-5',
+  extract: process.env.ANTHROPIC_MODEL_EXTRACT || 'claude-haiku-4-5'
 };
 
 /**
