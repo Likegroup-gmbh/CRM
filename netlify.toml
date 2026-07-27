@@ -38,9 +38,13 @@
   timeout = 26
 
 # Webseiten-Extraktion: fetch, im Fallback Chromium, dazu Claude-Aufruf
-# und Logo-Konvertierung via sharp
+# und Logo-Konvertierung via sharp.
+# 60s ist das harte synchrone Limit von Netlify, die Function haelt sich
+# ueber TOTAL_BUDGET_MS selbst darunter. Mehr Speicher, weil Chromium
+# zusammen mit sharp die Standard-1024 MB reisst (fuehrte zu 502ern).
 [functions."site-extract"]
   timeout = 60
+  memory = 2048
 
 # Raeumt taeglich die Temp-Produktbilder, die die KI-Extraktion angelegt hat,
 # die aber in keinem Produkt gelandet sind

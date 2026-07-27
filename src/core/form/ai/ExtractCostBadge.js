@@ -62,10 +62,15 @@ export class ExtractCostBadge {
     const host = this.ensureHost();
     if (!host) return;
 
-    const { cost, source, cached } = result || {};
+    const { cost, source, cached, diagnostics } = result || {};
     const parts = [];
 
-    if (cached) {
+    if (diagnostics?.abbruch) {
+      parts.push(tag('Abgebrochen', {
+        variant: 'extract-abbruch',
+        title: 'Der Vorgang lief in das Zeitlimit. Details in der Browser-Console.'
+      }));
+    } else if (cached) {
       parts.push(tag('Aus Cache, kostenlos', { icon: 'cache', variant: 'extract-cache', title: 'Diese Webseite wurde in den letzten 30 Tagen schon ausgelesen' }));
       const saved = cost?.saved?.eur;
       if (saved) parts.push(tag(`spart ${formatCost(saved)}`, { title: 'Was ein erneutes Auslesen gekostet haette' }));

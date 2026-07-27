@@ -457,5 +457,9 @@ module.exports = {
   findLogoCandidates,
   decodeEntities,
   resolveUrl,
+  // Generische Parser-Helfer, damit page-classify sie nicht nachbauen muss
+  parseAttributes,
+  stripTags,
+  collapse,
   MAX_TEXT_LENGTH
 };

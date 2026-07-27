@@ -8491,6 +8491,13 @@ width: 100%;
   color: var(--green-800);
 }
 
+/* Extraktion lief in ihr Zeitlimit - kein Fehler, aber auch kein Ergebnis */
+.tag--extract-abbruch {
+  background: var(--orange-50);
+  border-color: var(--orange-300);
+  color: var(--orange-800);
+}
+
 /* Erklaerender Untertitel unter einer Section-Ueberschrift */
 .form-section__description {
   margin: 0 0 var(--space-md) 0;

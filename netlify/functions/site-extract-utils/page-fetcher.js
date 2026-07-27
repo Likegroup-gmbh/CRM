@@ -8,8 +8,11 @@
 
 const { htmlToText } = require('./html-distill');
 
-const FETCH_TIMEOUT_MS = 12000;
-const BROWSER_TIMEOUT_MS = 25000;
+const FETCH_TIMEOUT_MS = 8000;
+const BROWSER_TIMEOUT_MS = 18000;
+// Chromium-Cold-Start plus goto: darunter lohnt der Versuch nicht mehr und
+// wuerde nur das Zeitlimit der Function reissen
+const BROWSER_MIN_REMAINING_MS = 24000;
 const MIN_TEXT_LENGTH = 400;
 const MAX_HTML_BYTES = 5 * 1024 * 1024;
 
@@ -23,6 +26,28 @@ const BROWSER_HEADERS = {
   'Sec-Fetch-Site': 'none',
   'Sec-Fetch-User': '?1'
 };
+
+// Nachwartezeit, wenn nach dem Laden noch zu wenig Text im DOM steht
+const CONTENT_WAIT_MAX_MS = 3000;
+const CONTENT_WAIT_STEP_MS = 400;
+
+// Bekannte Zustimm-Buttons der verbreiteten Consent-Tools. Hinter so einem
+// Overlay steht der Seiteninhalt haeufig noch nicht im DOM.
+const CONSENT_SELECTORS = [
+  '#onetrust-accept-btn-handler',
+  '#didomi-notice-agree-button',
+  '#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll',
+  '#CybotCookiebotDialogBodyButtonAccept',
+  '[data-testid="uc-accept-all-button"]',
+  '.cmpboxbtnyes',
+  '.sp_choice_type_11',
+  '#consent-page button[type="submit"]'
+];
+
+// Fallback ueber die Beschriftung. Nur innerhalb eines Consent-Containers, sonst
+// wuerde ein beliebiges "OK" auf der Seite geklickt.
+const CONSENT_TEXT = /^(alle\s+)?(cookies\s+)?(akzeptieren|annehmen|zustimmen|einverstanden|verstanden|erlauben|accept(\s+all)?(\s+cookies)?|allow\s+all|i\s+agree|agree|got\s+it|ok)$/i;
+const CONSENT_CONTAINER = /consent|cookie|gdpr|dsgvo|cmp|privacy|usercentrics|didomi|onetrust|cookiebot|klaro|borlabs/i;
 
 // Typische Marker von Challenge-Seiten und Bot-Walls
 const BOT_WALL_MARKERS = [
@@ -121,6 +146,66 @@ async function plainFetch(url) {
   }
 }
 
+function warte(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Versucht, ein Consent-Overlay zu bestaetigen.
+ * @returns {Promise<string|null>} was geklickt wurde, fuer die Diagnose
+ */
+async function dismissConsent(p) {
+  try {
+    return await p.evaluate((selectors, textQuelle, containerQuelle) => {
+      for (const sel of selectors) {
+        const el = document.querySelector(sel);
+        if (el && el.offsetParent !== null) {
+          el.click();
+          return sel;
+        }
+      }
+
+      // Beschriftungs-Fallback, aber nur innerhalb eines Consent-Containers:
+      // ein freistehendes "OK" koennte sonst irgendwohin navigieren
+      const textRe = new RegExp(textQuelle, 'i');
+      const containerRe = new RegExp(containerQuelle, 'i');
+      const imConsentContainer = (el) => {
+        let node = el;
+        for (let tiefe = 0; node && tiefe < 6; tiefe += 1) {
+          const kennung = `${node.id || ''} ${typeof node.className === 'string' ? node.className : ''}`;
+          if (containerRe.test(kennung)) return true;
+          node = node.parentElement;
+        }
+        return false;
+      };
+
+      for (const el of document.querySelectorAll('button, [role="button"]')) {
+        const text = (el.innerText || el.textContent || '').trim();
+        if (text.length > 30 || !textRe.test(text)) continue;
+        if (!imConsentContainer(el)) continue;
+        el.click();
+        return `Text "${text}"`;
+      }
+      return null;
+    }, CONSENT_SELECTORS, CONSENT_TEXT.source, CONSENT_CONTAINER.source);
+  } catch (err) {
+    // Ein fehlgeschlagener Klickversuch darf die Extraktion nicht kippen
+    console.log(`🍪 site-extract: Consent-Versuch fehlgeschlagen (${err.message})`);
+    return null;
+  }
+}
+
+/** Wartet nur so lange, bis genug Text im DOM steht - hoechstens maxMs. */
+async function warteAufInhalt(p, maxMs) {
+  const bis = Date.now() + maxMs;
+  let laenge = 0;
+  for (;;) {
+    laenge = await p.evaluate(() => document.body?.innerText?.length || 0).catch(() => 0);
+    if (laenge >= MIN_TEXT_LENGTH || Date.now() >= bis) return laenge;
+    await warte(Math.min(CONTENT_WAIT_STEP_MS, Math.max(0, bis - Date.now())));
+  }
+}
+
 function createPageFetcher() {
   let browser = null;
   let page = null;
@@ -136,54 +221,93 @@ function createPageFetcher() {
   }
 
   async function browserFetch(url) {
+    // Ein Budget fuer den gesamten Browser-Schritt, Cold Start eingerechnet.
+    // Sonst summieren sich Start, goto und Nachwarten ueber das Limit.
+    const deadline = Date.now() + BROWSER_TIMEOUT_MS;
+    const rest = () => Math.max(0, deadline - Date.now());
+
     const p = await getPage();
-    await p.goto(url, { waitUntil: 'domcontentloaded', timeout: BROWSER_TIMEOUT_MS });
-    // Kurz nachlaufen lassen, damit client-gerenderte Inhalte im DOM landen
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await p.goto(url, { waitUntil: 'domcontentloaded', timeout: Math.max(3000, rest()) });
+
+    const consent = await dismissConsent(p);
+    if (consent) {
+      console.log(`🍪 site-extract: Consent-Banner bestaetigt (${consent})`);
+      await warte(Math.min(800, rest()));
+    }
+
+    // Adaptiv statt pauschal: nur nachwarten, wenn im DOM noch zu wenig steht
+    const textLaenge = await warteAufInhalt(p, Math.min(CONTENT_WAIT_MAX_MS, rest()));
+
     const html = await p.content();
-    return { html, finalUrl: p.url() };
+    return { html, finalUrl: p.url(), consent, textLaenge };
   }
 
   /**
    * `degraded` heisst: das Gate hat angeschlagen, der Browser konnte es aber
    * nicht auffangen. Der Inhalt ist dann meist eine Bot-Wall. Der Aufrufer soll
    * so ein Ergebnis nicht cachen.
-   * @returns {Promise<{ html: string, finalUrl: string, source: 'fetch'|'browser', degraded: boolean, notes: string[] }>}
+   * @param {string} rawUrl
+   * @param {Object} [options]
+   * @param {number} [options.remainingMs] - Restbudget der Function. Reicht es
+   *   nicht fuer den Browser, bleibt es beim fetch-Ergebnis statt das
+   *   Zeitlimit zu reissen.
+   * @returns {Promise<{ html: string, finalUrl: string, source: 'fetch'|'browser', degraded: boolean, notes: string[], timings: Object }>}
    */
-  async function load(rawUrl) {
+  async function load(rawUrl, options = {}) {
     const url = assertPublicUrl(rawUrl);
+    const { remainingMs = Infinity } = options;
     const notes = [];
+    const timings = {};
 
     let direct = null;
+    const fetchStart = Date.now();
     try {
       direct = await plainFetch(url);
+      timings.fetchMs = Date.now() - fetchStart;
       const verdict = assessHtml(direct.html, direct.status);
       if (verdict.ok) {
-        console.log(`✅ site-extract: fetch ok (${url})`);
-        return { html: direct.html, finalUrl: direct.finalUrl, source: 'fetch', degraded: false, notes };
+        console.log(`✅ site-extract: fetch ok in ${timings.fetchMs}ms (${url})`);
+        return { html: direct.html, finalUrl: direct.finalUrl, source: 'fetch', degraded: false, notes, timings };
       }
-      console.log(`⚠️ site-extract: fetch unbrauchbar (${verdict.reason}) -> Browser`);
+      console.log(`⚠️ site-extract: fetch unbrauchbar nach ${timings.fetchMs}ms (${verdict.reason}) -> Browser`);
       notes.push(`fetch verworfen: ${verdict.reason}`);
     } catch (err) {
-      console.log(`⚠️ site-extract: fetch fehlgeschlagen (${err.message}) -> Browser`);
+      timings.fetchMs = Date.now() - fetchStart;
+      console.log(`⚠️ site-extract: fetch fehlgeschlagen nach ${timings.fetchMs}ms (${err.message}) -> Browser`);
       notes.push(`fetch fehlgeschlagen: ${err.message}`);
     }
 
+    const degradedFetch = () => ({
+      html: direct.html, finalUrl: direct.finalUrl, source: 'fetch', degraded: true, notes, timings
+    });
+
     if (browserFailed) {
-      if (direct?.html) return { html: direct.html, finalUrl: direct.finalUrl, source: 'fetch', degraded: true, notes };
+      if (direct?.html) return degradedFetch();
       throw new Error('Seite konnte nicht geladen werden');
     }
 
+    // Nur starten, wenn das Restbudget den Cold Start plus goto traegt
+    if (remainingMs < BROWSER_MIN_REMAINING_MS) {
+      const grund = `Browser wegen Zeitlimit uebersprungen (${Math.round(remainingMs / 1000)}s Rest)`;
+      console.log(`⏱️ site-extract: ${grund}`);
+      notes.push(grund);
+      if (direct?.html) return degradedFetch();
+      throw new Error('Seite konnte nicht geladen werden: Zeitlimit erreicht');
+    }
+
+    const browserStart = Date.now();
     try {
       const viaBrowser = await browserFetch(url);
-      console.log(`✅ site-extract: Browser ok (${viaBrowser.finalUrl})`);
-      return { ...viaBrowser, source: 'browser', degraded: false, notes };
+      timings.browserMs = Date.now() - browserStart;
+      console.log(`✅ site-extract: Browser ok in ${timings.browserMs}ms (${viaBrowser.finalUrl})`);
+      return { ...viaBrowser, source: 'browser', degraded: false, notes, timings };
     } catch (err) {
+      timings.browserMs = Date.now() - browserStart;
       browserFailed = true;
-      console.error(`❌ site-extract: Browser fehlgeschlagen (${err.message})`);
+      console.error(`❌ site-extract: Browser fehlgeschlagen nach ${timings.browserMs}ms (${err.message})`);
       notes.push(`Browser fehlgeschlagen: ${err.message}`);
       // Lieber ein schwaches fetch-Ergebnis als gar keins
-      if (direct?.html) return { html: direct.html, finalUrl: direct.finalUrl, source: 'fetch', degraded: true, notes };
+      if (direct?.html) return degradedFetch();
       throw new Error(`Seite konnte nicht geladen werden: ${err.message}`);
     }
   }

@@ -9,12 +9,18 @@
 import { ExtractReviewLayer } from './ExtractReviewLayer.js';
 import { applyExtractedLogo, clearExtractedLogo } from './ExtractLogoApplier.js';
 import { ExtractCostBadge } from './ExtractCostBadge.js';
+import { logExtractDiagnostics, nullergebnisHinweis } from './ExtractDiagnostics.js';
 
 const ENDPOINT = '/.netlify/functions/site-extract';
 
 function notifyError(message) {
-  if (window.toast?.error) window.toast.error(message);
-  else console.error(`❌ SITE-EXTRACT: ${message}`);
+  console.error(`❌ SITE-EXTRACT: ${message}`);
+  window.toastSystem?.error?.(message);
+}
+
+function notifyWarning(message) {
+  console.warn(`⚠️ SITE-EXTRACT: ${message}`);
+  window.toastSystem?.warning?.(message);
 }
 
 /** Eingabe des Nutzers zu einer vollstaendigen URL machen. */
@@ -106,11 +112,9 @@ export class SiteExtractHandler {
 
       if (result.logo) applyExtractedLogo(this.form, result.logo);
       this.announce(result);
-      if (Array.isArray(result.notes) && result.notes.length) {
-        console.log('ℹ️ SITE-EXTRACT Hinweise:', result.notes);
-      }
-      const preis = result.cached ? 'aus Cache' : `${((result.cost?.eur || 0) * 100).toFixed(3)} ct`;
-      console.log(`✅ SITE-EXTRACT: ${Object.keys(result.fields || {}).length} Felder von ${url} (${result.source}, ${preis})`);
+
+      const felder = Object.keys(result.fields || {}).length;
+      if (!felder && !result.logo) notifyWarning(nullergebnisHinweis(result));
     } catch (error) {
       notifyError(`Webseite konnte nicht ausgelesen werden: ${error.message}`);
     } finally {
@@ -134,8 +138,12 @@ export class SiteExtractHandler {
     try {
       payload = await response.json();
     } catch {
+      logExtractDiagnostics({ url, entity: this.entity, payload: null, httpStatus: response.status });
       throw new Error(`Unerwartete Antwort (HTTP ${response.status})`);
     }
+
+    // Vor jedem throw: die Diagnose ist im Fehlerfall am wertvollsten
+    logExtractDiagnostics({ url, entity: this.entity, payload, httpStatus: response.status });
 
     if (!response.ok || !payload?.success) {
       throw new Error(payload?.error || `HTTP ${response.status}`);
