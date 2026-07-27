@@ -4,5 +4,6 @@ export const CONTENT_ART_OPTIONS = [
   'Influencer',
   'Videograph',
   'Whitelisting',
-  'Spark-Ad'
+  'Spark-Ad',
+  'Partnership Ad'
 ];
