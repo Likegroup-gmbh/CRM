@@ -1,62 +1,36 @@
-// site-extract.js
-// Liest eine Webseite aus und mappt den Inhalt auf die Felder eines
-// Erstellungsformulars. Generisch: welche Felder gefuellt werden, steht
+// extract-core.js
+// Kern der Webseiten-Extraktion: Seiten laden, einordnen, per Claude auf die
+// Formularfelder mappen. Generisch - welche Felder gefuellt werden, steht
 // ausschliesslich in _shared/extract-specs.js.
 //
-// POST { url, entityType } -> { success, source, cached, fields, logo, images, varianten, notes, cost, diagnostics }
+// Laeuft in der Background Function site-extract-background (15-Min-Limit).
+// Das Zeitbudget hier ist deshalb kein Ueberlebenskampf mehr, sondern ein
+// Kosten- und Haenger-Deckel: jeder Schritt behaelt sein hartes Timeout,
+// aber Browser-Fallback und Unterseiten haben endlich Luft.
 
 const crypto = require('crypto');
-const { createClient } = require('@supabase/supabase-js');
-const { callClaude, extractJson, MODELS, ClaudeTimeoutError } = require('./_shared/anthropic');
-const { calculateCost } = require('./_shared/claude-cost');
-const { SPEC_VERSION, getSpec, hasSpec, buildFieldInstructions, buildSeitentypInstruction, getFieldKinds } = require('./_shared/extract-specs');
-const { createPageFetcher } = require('./site-extract-utils/page-fetcher');
-const { distill, toPromptBlock } = require('./site-extract-utils/html-distill');
-const { classifyPage, TYPEN } = require('./site-extract-utils/page-classify');
-const { pickLogo } = require('./site-extract-utils/logo');
-const { findProductImageCandidates, collectProductImages } = require('./site-extract-utils/product-images');
-const { readCache, writeCache } = require('./site-extract-utils/cache');
+const { callClaude, extractJson, MODELS, ClaudeTimeoutError } = require('../_shared/anthropic');
+const { calculateCost } = require('../_shared/claude-cost');
+const { SPEC_VERSION, getSpec, buildFieldInstructions, buildSeitentypInstruction, getFieldKinds } = require('../_shared/extract-specs');
+const { createPageFetcher } = require('./page-fetcher');
+const { distill, toPromptBlock } = require('./html-distill');
+const { classifyPage, TYPEN } = require('./page-classify');
+const { pickLogo } = require('./logo');
+const { findProductImageCandidates, collectProductImages } = require('./product-images');
+const { readCache, writeCache } = require('./cache');
 
-// Netlify-Timeout ist auf 60s gesetzt; darunter bleiben wir mit Reserve
-const TOTAL_BUDGET_MS = 52000;
-const SUBPAGE_MIN_REMAINING_MS = 25000;
-// Eine Produkt-Unterseite nachladen lohnt nur, wenn danach noch genug fuer
-// den Modell-Call bleibt
-const PRODUKT_SUBPAGE_MIN_REMAINING_MS = 30000;
+// Weicher Gesamtdeckel: schuetzt vor haengenden Seiten und Kosten-Ausreissern,
+// nicht vor einem Plattform-Limit (Background Function: 15 Minuten)
+const TOTAL_BUDGET_MS = 120000;
+const SUBPAGE_MIN_REMAINING_MS = 40000;
 const LOGO_MIN_REMAINING_MS = 9000;
 // Bilder sind Beigabe: reisst das Budget, gewinnen die Textfelder
-const IMAGES_MIN_REMAINING_MS = 12000;
-// Der Modell-Call ist der teuerste Schritt und muss ein hartes Timeout haben,
-// sonst laeuft die Function in den 504 und der Client sieht keinen Grund.
-// Darunter waere das verbleibende Timeout so knapp, dass der Call fast sicher
-// abbricht - dann lieber gar nicht bezahlen und sauber melden
-const MODELL_MIN_REMAINING_MS = 18000;
-const MODELL_RESERVE_MS = 10000;
-const MODELL_MAX_MS = 35000;
-
-function getAllowedOrigin(requestOrigin) {
-  const siteUrl = process.env.URL || '';
-  const deployPrimeUrl = process.env.DEPLOY_PRIME_URL || '';
-  const allowed = [siteUrl, deployPrimeUrl].filter(Boolean);
-  if (allowed.includes(requestOrigin)) return requestOrigin;
-  if (requestOrigin && /^https:\/\/[a-z0-9-]+--[a-z0-9-]+\.netlify\.app$/.test(requestOrigin)) return requestOrigin;
-  return siteUrl || 'null';
-}
-
-async function verifyAuth(event) {
-  const authHeader = (event.headers || {}).authorization || (event.headers || {}).Authorization || '';
-  const token = authHeader.replace(/^Bearer\s+/i, '');
-  if (!token) return null;
-
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-  if (!supabaseUrl || !supabaseKey) return null;
-
-  const supabase = createClient(supabaseUrl, supabaseKey);
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return null;
-  return user;
-}
+const IMAGES_MIN_REMAINING_MS = 15000;
+// Harte Grenze fuer den Claude-Call - grosszuegig, aber kein Freibrief
+const MODELL_TIMEOUT_MS = 90000;
+const MODELL_MIN_REMAINING_MS = 20000;
+// Bei einer Shop-Uebersicht: so viele Beispiel-Produktseiten nachladen
+const MAX_PRODUKT_UNTERSEITEN = 2;
 
 const SYSTEM_RULES = `Du liest Informationen von Webseiten aus und ordnest sie Formularfeldern zu - von Firmenseiten, einzelnen Produktseiten, Sortiments- und Kategorieseiten und Dienstleistungsangeboten.
 
@@ -74,6 +48,15 @@ Regeln:
 - Werte sauber formatieren: keine Labels ("Telefon:"), keine Anfuehrungszeichen, keine Bulletpoint-Zeichen.
 - Zeilenumbrueche nur dort, wo die Feldbeschreibung ausdruecklich "ein X pro Zeile" verlangt. Alle anderen Werte einzeilig.
 - Optional zusaetzlich "_hinweise": Array kurzer deutscher Saetze zu auffaelligen Luecken. Kein Hinweis darauf, dass die Seite keine Einzelproduktseite ist - das ist bekannt und steht in der Einordnung.`;
+
+/** Rolle einer Seite im Prompt - das Modell soll wissen, was es da liest. */
+const SEITEN_ROLLEN = {
+  [TYPEN.PRODUKTSEITE]: 'Produktseite',
+  [TYPEN.SHOP_UEBERSICHT]: 'Sortiments- oder Uebersichtsseite',
+  [TYPEN.DIENSTLEISTUNG]: 'Angebotsseite (Dienstleistung)',
+  [TYPEN.BLOCKIERT]: 'Seite, nur eingeschraenkt lesbar',
+  [TYPEN.UNKLAR]: 'Seite'
+};
 
 function buildPrompt(spec, pages, seitentyp) {
   const fieldList = spec.fields.map((f) => `"${f.name}"`).join(', ');
@@ -212,16 +195,19 @@ function normalizeVarianten(raw, spec) {
   return out;
 }
 
-/** Rolle einer Seite im Prompt - das Modell soll wissen, was es da liest. */
-const SEITEN_ROLLEN = {
-  [TYPEN.PRODUKTSEITE]: 'Produktseite',
-  [TYPEN.SHOP_UEBERSICHT]: 'Sortiments- oder Uebersichtsseite',
-  [TYPEN.DIENSTLEISTUNG]: 'Angebotsseite (Dienstleistung)',
-  [TYPEN.BLOCKIERT]: 'Seite, nur eingeschraenkt lesbar',
-  [TYPEN.UNKLAR]: 'Seite'
-};
-
-exports.handler = async (event) => {
+/**
+ * Fuehrt die komplette Extraktion aus.
+ *
+ * @param {Object} params
+ * @param {string} params.url
+ * @param {string} params.entityType - Schluessel der Spec in extract-specs.js
+ * @param {Object} params.supabase - Client mit Service Role (Cache, Storage)
+ * @param {Function} [params.onStep] - (step, msg) => void, fuer den Job-Fortschritt
+ * @returns {Promise<Object>} { success, cached, source, fields, logo, images, varianten, notes, cost, diagnostics }
+ * @throws {Error} mit angehaengtem `error.diagnostics`, damit der Aufrufer die
+ *   Diagnose auch im Fehlerfall persistieren kann
+ */
+async function runExtraction({ url, entityType, supabase, onStep = () => {} }) {
   const startedAt = Date.now();
   const remaining = () => TOTAL_BUDGET_MS - (Date.now() - startedAt);
 
@@ -229,6 +215,8 @@ exports.handler = async (event) => {
   // diese Diagnose ist im Browser nicht nachvollziehbar, WARUM eine
   // Extraktion leer bleibt oder abbricht.
   const diagnostics = {
+    entityType,
+    url,
     seitentyp: null,
     signale: [],
     seiten: [],
@@ -253,50 +241,14 @@ exports.handler = async (event) => {
     return diagnostics;
   };
 
-  const requestOrigin = (event.headers || {}).origin || '';
-  const origin = getAllowedOrigin(requestOrigin);
-  const headers = {
-    'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    Vary: 'Origin',
-    'Content-Type': 'application/json'
-  };
-
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 204, headers, body: '' };
-  }
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers, body: JSON.stringify({ error: 'POST only' }) };
-  }
-
-  const user = await verifyAuth(event);
-  if (!user) {
-    return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
-  }
-
   let fetcher;
 
   try {
-    const { url, entityType } = JSON.parse(event.body || '{}');
-    if (!url) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: 'URL fehlt' }) };
-    }
-    if (!entityType || !hasSpec(entityType)) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: `Kein Extraktions-Profil fuer "${entityType}"` }) };
-    }
-
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-    if (!supabaseUrl || !supabaseKey) throw new Error('Supabase-Konfiguration fehlt');
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
     const spec = getSpec(entityType);
-    diagnostics.entityType = entityType;
-    diagnostics.url = url;
     console.log(`🔎 site-extract: ${entityType} <- ${url}`);
 
     // --- Cache -------------------------------------------------------------
+    onStep('cache', 'Zwischenspeicher pruefen...');
     const cached = await messen('cache', () => readCache(supabase, { url, entityType, specVersion: SPEC_VERSION }));
     if (cached) {
       // Das Logo-Bild selbst liegt nicht im Cache, nur seine Quelle - bei einer
@@ -310,6 +262,7 @@ exports.handler = async (event) => {
       // Quell-URLs. Sie neu zu holen kostet Zeit, aber kein Geld.
       let images = [];
       if (spec.images && Array.isArray(cached.imageSourceUrls) && cached.imageSourceUrls.length) {
+        onStep('bilder', 'Produktbilder aus dem Cache neu laden...');
         images = await collectProductImages(
           cached.imageSourceUrls.map((u) => ({ url: u, score: 100, reason: 'cache' })),
           { supabase, extractId: crypto.randomUUID(), limit: spec.images, remaining, minRemainingMs: IMAGES_MIN_REMAINING_MS }
@@ -317,28 +270,24 @@ exports.handler = async (event) => {
       }
 
       // Ein Cache-Treffer kostet nichts. Was er gespart hat, zeigen wir an.
-      const cost = { usd: 0, eur: 0, cached: true, saved: cached.cost || null };
       diagnostics.cacheTreffer = true;
       diagnostics.seitentyp = cached.seitentyp || null;
       return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          success: true,
-          cached: true,
-          source: cached.source || 'cache',
-          fields: cached.fields || {},
-          logo,
-          images,
-          varianten: cached.varianten || [],
-          notes: cached.notes || [],
-          cost,
-          diagnostics: abschluss()
-        })
+        success: true,
+        cached: true,
+        source: cached.source || 'cache',
+        fields: cached.fields || {},
+        logo,
+        images,
+        varianten: cached.varianten || [],
+        notes: cached.notes || [],
+        cost: { usd: 0, eur: 0, cached: true, saved: cached.cost || null },
+        diagnostics: abschluss()
       };
     }
 
     // --- Seiten laden ------------------------------------------------------
+    onStep('laden', 'Webseite laden...');
     const notes = [];
     fetcher = createPageFetcher();
 
@@ -361,7 +310,7 @@ exports.handler = async (event) => {
 
     // --- Einordnen ---------------------------------------------------------
     // Reine Heuristik, kein Modell-Call: entscheidet, welche Frage der Prompt
-    // stellt und ob eine Produkt-Unterseite nachgeladen wird.
+    // stellt und ob Produkt-Unterseiten nachgeladen werden.
     const klassStart = Date.now();
     const klassifikation = classifyPage({
       html: main.html,
@@ -397,6 +346,7 @@ exports.handler = async (event) => {
         continue;
       }
       try {
+        onStep('laden', `${kind}-Seite laden...`);
         const sub = await fetcher.load(subUrl, { remainingMs: remaining() });
         pages.push({ url: sub.finalUrl, role: kind, ...distill(sub.html, sub.finalUrl) });
         diagnostics.seiten.push({ url: sub.finalUrl, rolle: kind, quelle: sub.source, zeichenHtml: sub.html.length, ...sub.timings });
@@ -405,30 +355,31 @@ exports.handler = async (event) => {
       }
     }
 
-    // --- Produkt-Unterseite bei einer Uebersichtsseite ---------------------
+    // --- Produkt-Unterseiten bei einer Uebersichtsseite ---------------------
     // Eine Sortimentsseite allein reicht dem Modell nicht fuer Details wie
-    // Inhaltsstoffe oder Preise. Genau eine Beispielseite, sonst reisst das
-    // Budget vor dem Modell-Call.
+    // Inhaltsstoffe oder Preise. Zwei Beispielseiten geben ein Gefuehl fuer
+    // die Preisspanne und die Machart des Sortiments.
     if (spec.seitentyp && klassifikation.typ === TYPEN.SHOP_UEBERSICHT && klassifikation.produktLinks.length) {
-      const kandidat = klassifikation.produktLinks[0];
-      if (remaining() < PRODUKT_SUBPAGE_MIN_REMAINING_MS) {
-        notes.push('Beispiel-Produktseite wegen Zeitlimit uebersprungen');
-        diagnostics.unterseiteUebersprungen = 'zeitlimit';
-      } else {
+      const kandidaten = klassifikation.produktLinks.slice(0, MAX_PRODUKT_UNTERSEITEN);
+      for (const [index, kandidat] of kandidaten.entries()) {
+        if (remaining() < SUBPAGE_MIN_REMAINING_MS) {
+          notes.push('Weitere Beispiel-Produktseiten wegen Zeitlimit uebersprungen');
+          diagnostics.unterseiteUebersprungen = 'zeitlimit';
+          break;
+        }
         try {
-          // Bewusst knappes Budget: der Browser-Fallback bleibt hier aus, eine
-          // Produktseite eines erreichbaren Shops laesst sich normal fetchen
-          const sub = await messen('unterseite', () => fetcher.load(kandidat.url, { remainingMs: remaining() - MODELL_MIN_REMAINING_MS }));
-          pages.push({ url: sub.finalUrl, role: 'Beispiel-Produktseite', ...distill(sub.html, sub.finalUrl) });
+          onStep('unterseite', `Beispiel-Produktseite ${index + 1} laden...`);
+          const sub = await messen(`unterseite${index + 1}`, () => fetcher.load(kandidat.url, { remainingMs: remaining() - MODELL_MIN_REMAINING_MS }));
+          pages.push({ url: sub.finalUrl, role: `Beispiel-Produktseite ${index + 1}`, ...distill(sub.html, sub.finalUrl) });
           diagnostics.seiten.push({
             url: sub.finalUrl,
-            rolle: 'Beispiel-Produktseite',
+            rolle: `Beispiel-Produktseite ${index + 1}`,
             quelle: sub.source,
             grund: kandidat.reason,
             zeichenHtml: sub.html.length,
             ...sub.timings
           });
-          // Bilder der konkreten Produktseite schlagen die Kacheln der
+          // Bilder der konkreten Produktseiten schlagen die Kacheln der
           // Uebersicht, deshalb nach vorn. Doppelte URLs wuerden sonst einen
           // der wenigen Bild-Slots verbrauchen.
           if (spec.images) {
@@ -453,36 +404,32 @@ exports.handler = async (event) => {
       notes.push(hinweis);
       console.warn(`⏱️ site-extract: Abbruch "${grund}" nach ${Date.now() - startedAt}ms`);
       return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          success: true,
-          cached: false,
-          source: main.source,
-          fields: {},
-          logo: null,
-          images: [],
-          varianten: [],
-          notes,
-          cost: null,
-          diagnostics: abschluss()
-        })
+        success: true,
+        cached: false,
+        source: main.source,
+        fields: {},
+        logo: null,
+        images: [],
+        varianten: [],
+        notes,
+        cost: null,
+        diagnostics: abschluss()
       };
     };
 
     if (remaining() < MODELL_MIN_REMAINING_MS) {
       return teilergebnis(
         'zeitlimit-vor-auswertung',
-        'Das Laden der Seite hat das Zeitbudget aufgebraucht, die Auswertung konnte nicht mehr starten. Ein zweiter Versuch ist meist schneller, weil die Seite dann im Cache des Anbieters liegt.'
+        'Das Laden der Seiten hat das Zeitbudget aufgebraucht, die Auswertung konnte nicht mehr starten. Bitte erneut versuchen.'
       );
     }
 
     const modellName = MODELS[spec.model] || MODELS.extract;
-    // Restbudget minus Reserve fuer Bilder, Cache-Schreiben und Antwort
-    const modellTimeoutMs = Math.min(MODELL_MAX_MS, remaining() - MODELL_RESERVE_MS);
+    const modellTimeoutMs = Math.min(MODELL_TIMEOUT_MS, remaining() - 5000);
     const userPrompt = buildPrompt(spec, pages, klassifikation.typ);
     diagnostics.modell = { name: modellName, timeoutMs: modellTimeoutMs, promptZeichen: userPrompt.length };
 
+    onStep('auswerten', `KI wertet ${pages.length} Seite(n) aus...`);
     let completion;
     try {
       completion = await messen('modell', () => callClaude({
@@ -499,7 +446,7 @@ exports.handler = async (event) => {
       if (!(err instanceof ClaudeTimeoutError)) throw err;
       return teilergebnis(
         'modell-timeout',
-        `Die Auswertung wurde nach ${Math.round(modellTimeoutMs / 1000)}s abgebrochen, damit die Funktion nicht in ihr Zeitlimit laeuft. Bei sehr umfangreichen Seiten hilft eine konkretere URL, etwa direkt die Produktseite.`
+        `Die Auswertung wurde nach ${Math.round(modellTimeoutMs / 1000)}s abgebrochen. Bitte erneut versuchen; bei sehr umfangreichen Seiten hilft eine konkretere URL.`
       );
     }
 
@@ -542,6 +489,7 @@ exports.handler = async (event) => {
       } else if (remaining() < IMAGES_MIN_REMAINING_MS) {
         notes.push('Produktbilder wegen Zeitlimit uebersprungen');
       } else {
+        onStep('bilder', 'Produktbilder uebernehmen...');
         images = await collectProductImages(imageCandidates, {
           supabase,
           extractId: crypto.randomUUID(),
@@ -586,17 +534,15 @@ exports.handler = async (event) => {
       diagnostics.cacheGeschrieben = true;
     }
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ success: true, cached: false, source: main.source, fields, logo, images, varianten, notes, cost, diagnostics: abschluss() })
-    };
+    return { success: true, cached: false, source: main.source, fields, logo, images, varianten, notes, cost, diagnostics: abschluss() };
   } catch (error) {
-    console.error('❌ site-extract:', error.message);
     diagnostics.abbruch = 'fehler';
     diagnostics.fehler = error.message;
-    return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: error.message, diagnostics: abschluss() }) };
+    error.diagnostics = abschluss();
+    throw error;
   } finally {
     if (fetcher) await fetcher.close();
   }
-};
+}
+
+module.exports = { runExtraction };

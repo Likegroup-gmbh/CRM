@@ -1,7 +1,13 @@
 // SiteExtractHandler.js
-// Verbindet den "Auslesen"-Button am URL-Feld mit der Netlify Function
-// site-extract. Voellig generisch: welche Felder zurueckkommen, bestimmt
-// ausschliesslich netlify/functions/_shared/extract-specs.js.
+// Verbindet den "Auslesen"-Button am URL-Feld mit der Netlify Background
+// Function site-extract-background. Voellig generisch: welche Felder
+// zurueckkommen, bestimmt ausschliesslich netlify/functions/_shared/extract-specs.js.
+//
+// Ablauf: Job-Zeile in extract_jobs anlegen, Function mit der jobId anstossen
+// (antwortet sofort 202), danach die Job-Zeile pollen. Der Fortschritt aus
+// progress_step steht waehrenddessen am Button. Noetig, weil synchrone
+// Netlify Functions hart nach 30s gekillt werden - eine Extraktion mit
+// Browser-Fallback und Claude-Call braucht real oft laenger.
 //
 // Freischalten eines weiteren Formulars: `aiExtract: true` am URL-Feld im
 // FormConfig plus ein Spec-Eintrag im Backend.
@@ -11,7 +17,19 @@ import { applyExtractedLogo, clearExtractedLogo } from './ExtractLogoApplier.js'
 import { ExtractCostBadge } from './ExtractCostBadge.js';
 import { logExtractDiagnostics, nullergebnisHinweis } from './ExtractDiagnostics.js';
 
-const ENDPOINT = '/.netlify/functions/site-extract';
+const ENDPOINT = '/.netlify/functions/site-extract-background';
+const POLL_INTERVAL_MS = 2000;
+const POLL_TIMEOUT_MS = 3 * 60 * 1000;
+
+// progress_step aus der Job-Zeile -> Beschriftung am Button
+const STEP_LABELS = {
+  start: 'Startet…',
+  cache: 'Liest…',
+  laden: 'Seite laden…',
+  unterseite: 'Unterseiten…',
+  auswerten: 'KI wertet aus…',
+  bilder: 'Bilder…'
+};
 
 function notifyError(message) {
   console.error(`❌ SITE-EXTRACT: ${message}`);
@@ -36,9 +54,13 @@ function toAbsoluteUrl(rawValue) {
   }
 }
 
-async function getAccessToken() {
+async function getSession() {
   const session = await window.supabase?.auth?.getSession();
-  return session?.data?.session?.access_token || '';
+  return session?.data?.session || null;
+}
+
+function warte(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 class ButtonState {
@@ -52,6 +74,10 @@ class ButtonState {
     this.button.disabled = true;
     this.button.classList.add('is-loading');
     if (this.label) this.label.textContent = 'Liest…';
+  }
+
+  step(text) {
+    if (this.label && text) this.label.textContent = text;
   }
 
   idle() {
@@ -106,7 +132,7 @@ export class SiteExtractHandler {
       clearExtractedLogo(this.form);
       costBadge.clear();
 
-      const result = await this.request(url);
+      const result = await this.request(url, state);
       this.applyFields(result.fields || {}, triggerField);
       costBadge.show(result);
 
@@ -123,32 +149,71 @@ export class SiteExtractHandler {
     }
   }
 
-  async request(url) {
-    const token = await getAccessToken();
+  /**
+   * Job anlegen, Background Function anstossen, Ergebnis aus extract_jobs
+   * pollen. Liefert dasselbe Antwortobjekt wie frueher die synchrone Function.
+   */
+  async request(url, state) {
+    const db = window.supabase;
+    const session = await getSession();
+    if (!db || !session) throw new Error('Keine aktive Sitzung');
+
+    // 1. Job-Zeile anlegen (RLS: nur eigene Jobs lesbar). URL und Entitaet
+    //    stehen in der Zeile - die Function liest sie von dort, nicht aus
+    //    dem POST-Body.
+    const { data: job, error: insertError } = await db.from('extract_jobs')
+      .insert({ url, entity_type: this.entity, created_by: session.user.id })
+      .select('id').single();
+    if (insertError) throw new Error(`Job konnte nicht angelegt werden: ${insertError.message}`);
+
+    // 2. Background Function anstossen - sie antwortet sofort mit 202,
+    //    der eigentliche Lauf schreibt asynchron in die Job-Zeile
     const response = await fetch(ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`
+        Authorization: `Bearer ${session.access_token}`
       },
-      body: JSON.stringify({ url, entityType: this.entity })
+      body: JSON.stringify({ jobId: job.id })
     });
-
-    let payload = null;
-    try {
-      payload = await response.json();
-    } catch {
-      logExtractDiagnostics({ url, entity: this.entity, payload: null, httpStatus: response.status });
-      throw new Error(`Unerwartete Antwort (HTTP ${response.status})`);
+    if (response.status !== 202 && !response.ok) {
+      throw new Error(`Extraktion konnte nicht gestartet werden (HTTP ${response.status})`);
     }
 
-    // Vor jedem throw: die Diagnose ist im Fehlerfall am wertvollsten
-    logExtractDiagnostics({ url, entity: this.entity, payload, httpStatus: response.status });
+    // 3. Job-Zeile pollen, bis done oder error
+    const deadline = Date.now() + POLL_TIMEOUT_MS;
+    let letzterStep = null;
 
-    if (!response.ok || !payload?.success) {
-      throw new Error(payload?.error || `HTTP ${response.status}`);
+    while (Date.now() < deadline) {
+      await warte(POLL_INTERVAL_MS);
+
+      const { data: row, error: pollError } = await db.from('extract_jobs')
+        .select('status, progress_step, result, error_message')
+        .eq('id', job.id).maybeSingle();
+      // Voruebergehende Poll-Fehler (Netz, Zeile noch nicht sichtbar)
+      // aussitzen - der naechste Umlauf kommt in 2s
+      if (pollError || !row) continue;
+
+      if (row.status === 'done') {
+        const payload = row.result || {};
+        logExtractDiagnostics({ url, entity: this.entity, payload });
+        if (!payload.success) throw new Error(payload.error || 'Extraktion ohne Ergebnis beendet');
+        return payload;
+      }
+
+      if (row.status === 'error') {
+        // Diagnose ist im Fehlerfall am wertvollsten
+        logExtractDiagnostics({ url, entity: this.entity, payload: row.result || null });
+        throw new Error(row.error_message || 'Extraktion fehlgeschlagen');
+      }
+
+      if (row.progress_step && row.progress_step !== letzterStep) {
+        letzterStep = row.progress_step;
+        state?.step(STEP_LABELS[row.progress_step] || 'Liest…');
+      }
     }
-    return payload;
+
+    throw new Error('Zeitlimit erreicht - die Extraktion laeuft ungewoehnlich lange. Bitte spaeter erneut versuchen.');
   }
 
   /**

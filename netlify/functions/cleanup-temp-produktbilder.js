@@ -13,6 +13,23 @@ const BUCKET = 'produkte';
 const TEMP_PREFIX = '_temp';
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const PAGE_SIZE = 100;
+// Extraktions-Jobs sind nach dem Abholen des Ergebnisses wertlos; grosszuegige
+// Frist, damit man bei Problemen noch in alte Jobs schauen kann
+const JOB_MAX_AGE_TAGE = 7;
+
+/** Abgeschlossene oder verwaiste Extraktions-Jobs entsorgen. */
+async function cleanupExtractJobs(supabase) {
+  const stichtag = new Date(Date.now() - JOB_MAX_AGE_TAGE * 24 * 60 * 60 * 1000).toISOString();
+  const { error, count } = await supabase
+    .from('extract_jobs')
+    .delete({ count: 'exact' })
+    .lt('created_at', stichtag);
+  if (error) {
+    console.warn(`⚠️ cleanup-temp-produktbilder: extract_jobs nicht raeumbar: ${error.message}`);
+    return 0;
+  }
+  return count || 0;
+}
 
 /** Ein Storage-Objekt gilt als alt, wenn sein jüngster Zeitstempel alt ist. */
 function isExpired(entry, now) {
@@ -73,8 +90,10 @@ exports.handler = async () => {
       entfernt += zuLoeschen.length;
     }
 
-    console.log(`🧹 cleanup-temp-produktbilder: ${entfernt} von ${geprueft} Temp-Bildern entfernt`);
-    return { statusCode: 200, body: JSON.stringify({ geprueft, entfernt }) };
+    const jobsEntfernt = await cleanupExtractJobs(supabase);
+
+    console.log(`🧹 cleanup-temp-produktbilder: ${entfernt} von ${geprueft} Temp-Bildern entfernt, ${jobsEntfernt} alte Extraktions-Jobs geloescht`);
+    return { statusCode: 200, body: JSON.stringify({ geprueft, entfernt, jobsEntfernt }) };
   } catch (err) {
     console.error('❌ cleanup-temp-produktbilder:', err.message);
     return { statusCode: 500, body: JSON.stringify({ error: err.message }) };

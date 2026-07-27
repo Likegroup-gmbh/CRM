@@ -8,10 +8,12 @@
 
 const { htmlToText } = require('./html-distill');
 
-const FETCH_TIMEOUT_MS = 8000;
-const BROWSER_TIMEOUT_MS = 18000;
+// Harte Timeouts pro Schritt: kein Plattform-Ueberlebenskampf mehr (Background
+// Function), sondern Schutz vor haengenden Seiten
+const FETCH_TIMEOUT_MS = 10000;
+const BROWSER_TIMEOUT_MS = 25000;
 // Chromium-Cold-Start plus goto: darunter lohnt der Versuch nicht mehr und
-// wuerde nur das Zeitlimit der Function reissen
+// wuerde nur das Gesamtbudget der Extraktion reissen
 const BROWSER_MIN_REMAINING_MS = 24000;
 const MIN_TEXT_LENGTH = 400;
 const MAX_HTML_BYTES = 5 * 1024 * 1024;
@@ -28,7 +30,7 @@ const BROWSER_HEADERS = {
 };
 
 // Nachwartezeit, wenn nach dem Laden noch zu wenig Text im DOM steht
-const CONTENT_WAIT_MAX_MS = 3000;
+const CONTENT_WAIT_MAX_MS = 5000;
 const CONTENT_WAIT_STEP_MS = 400;
 
 // Bekannte Zustimm-Buttons der verbreiteten Consent-Tools. Hinter so einem
