@@ -67,6 +67,21 @@ const SPECS = {
         hint: 'E-Mail-Adresse fuer Rechnungen. Falls keine explizite Rechnungs- oder Buchhaltungsadresse genannt wird, die allgemeine Kontaktadresse aus dem Impressum verwenden. Keine Adresse erfinden.'
       }
     ]
+  },
+
+  marke: {
+    // Bewusst ohne Impressum: dort steht der Firmenname mit Rechtsform, nicht
+    // der Markenname. Spart den zweiten Seitenabruf.
+    followLinks: [],
+    logo: true,
+    fields: [
+      {
+        name: 'markenname',
+        label: 'Markenname',
+        kind: 'fact',
+        hint: 'Der Name, unter dem die Marke nach aussen auftritt - so wie im Logo, im Seitentitel, in og:site_name oder im JSON-LD. OHNE Rechtsform: aus "true fruits GmbH" wird "true fruits", aus "Muster Handels AG" wird "Muster". Auch Shop-Zusaetze weglassen: aus "Veganz Shop" wird "Veganz", aus "Muster Online-Store" wird "Muster". Keine Slogans oder Claims (nicht "Veganer Genuss aus Berlin"), keine Domain. Eigenschreibweise der Marke beibehalten, auch Kleinschreibung.'
+      }
+    ]
   }
 };
 

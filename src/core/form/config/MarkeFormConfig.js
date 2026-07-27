@@ -4,13 +4,26 @@
 export const markeConfig = {
   title: 'Neue Marke anlegen',
   fields: [
+    // Section: Auslesen - steht bewusst ganz oben, damit die Webseite vor dem
+    // manuellen Tippen eingegeben wird und die Felder darunter fuellen kann.
+    {
+      name: 'webseite',
+      label: 'Webseite',
+      type: 'url',
+      required: false,
+      validation: { type: 'url' },
+      placeholder: 'muster-marke.de',
+      aiExtract: true,
+      section: 'auslesen',
+      sectionTitle: 'Mit der Webseite starten',
+      sectionDescription: 'Adresse eintragen und "Auslesen" klicken: Markenname und Logo kommen aus der Webseite. Nur leere Felder werden gefüllt, eigene Eingaben bleiben unangetastet.'
+    },
     // 1. Markenname
     { name: 'markenname', label: 'Markenname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
     // 2. Unternehmen in eigener Section
     { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...', table: 'unternehmen', displayField: 'firmenname', valueField: 'id', section: 'unternehmen' },
-    // 3. Logo und Webseite in Section
+    // 3. Logo in Section (Webseite steht oben in der Auslesen-Section)
     { name: 'logo_file', label: 'Logo', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg,image/webp', multiple: false, required: false, maxFileSize: 200 * 1024, section: 'online' },
-    { name: 'webseite', label: 'Webseite', type: 'url', required: false, validation: { type: 'url' }, section: 'online' },
     // 4. Branchen + Mitarbeiter (letzte Inhalte, keine Section nötig)
     { name: 'branche_id', label: 'Branchen', type: 'multiselect', required: false, dynamic: true, searchable: true, tagBased: true, placeholder: 'Branchen suchen und hinzufügen...', table: 'branchen', displayField: 'name', valueField: 'id', relationTable: 'marke_branchen', relationField: 'branche_id' },
     {
