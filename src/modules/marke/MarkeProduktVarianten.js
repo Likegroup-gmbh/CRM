@@ -14,7 +14,10 @@ const nextKey = () => `v${++idCounter}`;
 
 const ICONS = {
   trash: '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.35 9m-4.78 0L9.26 9m9.97-3.21c.34.05.68.1 1.02.16m-1.02-.16L18.16 19.67a2.25 2.25 0 0 1-2.24 2.08H8.08a2.25 2.25 0 0 1-2.24-2.08L4.77 5.79m14.46 0a48 48 0 0 0-3.48-.4m-12 .56c.34-.06.68-.11 1.02-.16m0 0a48 48 0 0 1 3.48-.4v-.91c0-1.18.91-2.16 2.09-2.2a52 52 0 0 1 3.32 0c1.18.04 2.09 1.02 2.09 2.2v.92m-7.5 0a48.7 48.7 0 0 1 7.5 0"/></svg>',
-  image: '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.16-5.16a2.25 2.25 0 0 1 3.18 0l5.16 5.16m-1.5-1.5 1.41-1.41a2.25 2.25 0 0 1 3.18 0l2.16 2.16m-16.5 2.25h13.5a2.25 2.25 0 0 0 2.25-2.25V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v10.5a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>'
+  image: '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.16-5.16a2.25 2.25 0 0 1 3.18 0l5.16 5.16m-1.5-1.5 1.41-1.41a2.25 2.25 0 0 1 3.18 0l2.16 2.16m-16.5 2.25h13.5a2.25 2.25 0 0 0 2.25-2.25V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v10.5a2.25 2.25 0 0 0 2.25 2.25Z"/></svg>',
+  // Zeigt nach unten; die Aufwaerts-Variante entsteht per Drehung im CSS.
+  // Ohne width/height, damit die Groesse aus var(--icon-xs) kommt.
+  caret: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg>'
 };
 
 export class ProduktVariantenPanel {
@@ -115,14 +118,14 @@ export class ProduktVariantenPanel {
         <table class="data-table data-table--varianten">
           <thead>
             <tr>
-              <th class="col-thumb"></th>
+              <th class="col-thumb">Bild</th>
               <th class="col-name">Variante</th>
               <th class="col-modell">Modell / Kompatibilität</th>
               <th class="col-farbe">Farbe</th>
               <th class="col-preis">Preis</th>
               <th class="col-merkmal">Merkmal</th>
               ${mehrere ? '<th class="col-sort">Reihenfolge</th>' : ''}
-              <th class="col-actions"></th>
+              <th class="col-actions">Löschen</th>
             </tr>
           </thead>
           <tbody>${this.entries.map((e, i) => this.renderEntry(e, i, mehrere)).join('')}</tbody>
@@ -219,8 +222,8 @@ export class ProduktVariantenPanel {
         ${mehrere ? `
         <td class="col-sort">
           <div class="uploader-sort">
-            <button type="button" class="uploader-move variante-move" data-dir="up" ${index === 0 ? 'disabled' : ''} title="Nach oben">↑</button>
-            <button type="button" class="uploader-move variante-move" data-dir="down" ${index === this.entries.length - 1 ? 'disabled' : ''} title="Nach unten">↓</button>
+            <button type="button" class="uploader-move variante-move" data-dir="up" ${index === 0 ? 'disabled' : ''} title="Nach oben" aria-label="Nach oben">${ICONS.caret}</button>
+            <button type="button" class="uploader-move variante-move" data-dir="down" ${index === this.entries.length - 1 ? 'disabled' : ''} title="Nach unten" aria-label="Nach unten">${ICONS.caret}</button>
           </div>
         </td>` : ''}
         <td class="col-actions">

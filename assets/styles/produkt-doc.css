@@ -69,23 +69,24 @@
 
 .produkt-doc .produkt-doc__title-field {
   position: relative;
-  margin: 0 0 var(--space-xxl);
+  margin: 0 0 var(--space-lg);
   padding-left: var(--space-md);
   border-left: var(--border-sm) solid transparent;
 }
 
 .produkt-doc .produkt-doc__title {
   width: 100%;
-  padding: 0;
+  padding: 0 0 var(--space-xs) 0;
   border: none;
   background: transparent;
   box-shadow: none;
   font-family: inherit;
   font-size: var(--text-xl);
-  font-weight: 600;
-  line-height: 1.3;
+  font-weight: 500;
+  line-height: 1.4;
+  border-radius: 0;
   color: var(--gray-900);
-  letter-spacing: -0.01em;
+  
 }
 
 .produkt-doc .produkt-doc__title:focus {
@@ -150,7 +151,7 @@
   font-family: inherit;
   font-size: var(--text-sm);
   line-height: 1.65;
-  color: var(--gray-700);
+  color: var(--gray-600);
   resize: none;
   overflow: hidden;
 }
@@ -323,6 +324,15 @@
   background: transparent;
 }
 
+/* Bei table-layout: auto ist eine Breitenangabe nur ein Wunsch, die Restbreite
+   verteilt sich auf alle Spalten - die Bild-Spalte lief dadurch weit ueber ihre
+   56px. Nimmt die Bezeichnung den Ueberschuss, fallen die anderen zurueck.
+   Nur hier: die Varianten-Tabelle hat fuenf Textspalten, die sich den Platz
+   teilen sollen. */
+.produkt-doc .data-table--uploader .col-name {
+  width: 100%;
+}
+
 .produkt-doc .data-table--uploader .uploader-thumb {
   width: 40px;
   height: 40px;
@@ -350,9 +360,21 @@
   margin: 0;
 }
 
+/* Im Dokument ohne Kaestchen, damit sie neben dem Loeschen-Button nicht
+   auffallen wie Formular-Buttons. Der Kaestchen-Look bleibt fuer die
+   Listenansicht auf den uebrigen Seiten. */
 .produkt-doc .data-table .uploader-move {
-  padding: 0 var(--space-xxs);
-  line-height: 1.4;
+  padding: var(--space-xxs);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--gray-400);
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.produkt-doc .data-table .uploader-move:hover:not(:disabled) {
+  background: var(--gray-100);
+  color: var(--gray-900);
 }
 
 .produkt-doc .uploader-primary--compact {

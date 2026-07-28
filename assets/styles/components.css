@@ -6697,6 +6697,9 @@ width: 100%;
   margin-right: var(--space-xs);
 }
 .uploader-move {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: white;
   border: 1px solid var(--gray-200);
   border-radius: var(--radius-sm);
@@ -6705,6 +6708,17 @@ width: 100%;
   line-height: 1;
   padding: 1px 5px;
   font-size: var(--text-xs);
+}
+
+/* Ein Caret fuer beide Richtungen: nach oben wird es gedreht. */
+.uploader-move svg {
+  display: block;
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.uploader-move[data-dir="up"] svg {
+  transform: rotate(180deg);
 }
 .uploader-move:hover:not(:disabled) {
   background: var(--gray-100);
