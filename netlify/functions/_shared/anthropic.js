@@ -77,9 +77,55 @@ async function callClaude({ model, systemBlocks = [], userPrompt, maxTokens = 40
   };
 }
 
+// Ein " beendet einen JSON-String nur, wenn danach etwas strukturell Gueltiges
+// kommt. Alles andere ist ein Zitat mitten im Text, das das Modell vergessen
+// hat zu escapen. Der ",\"key\":"-Zweig verhindert, dass 'sagte "Hallo", und'
+// faelschlich als Wertende gilt.
+const STRUCTURAL_AFTER_STRING = /^\s*(?::|[}\]]|,\s*(?:"[^"\\]*"\s*:|[}\]])|$)/;
+
+/**
+ * Repariert die typischen Fehler, die Modelle beim Schreiben von JSON-Text
+ * machen: unescapte Anfuehrungszeichen und rohe Zeilenumbrueche in Werten.
+ */
+function repairJsonStrings(src) {
+  let out = '';
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+
+    if (!inString) {
+      out += ch;
+      if (ch === '"') inString = true;
+      continue;
+    }
+    if (escaped) { out += ch; escaped = false; continue; }
+    if (ch === '\\') { out += ch; escaped = true; continue; }
+
+    if (ch === '"') {
+      if (STRUCTURAL_AFTER_STRING.test(src.slice(i + 1))) {
+        out += ch;
+        inString = false;
+      } else {
+        out += '\\"';
+      }
+      continue;
+    }
+    if (ch === '\n') { out += '\\n'; continue; }
+    if (ch === '\r') { out += '\\r'; continue; }
+    if (ch === '\t') { out += '\\t'; continue; }
+    out += ch;
+  }
+
+  return out;
+}
+
 /**
  * Extrahiert ein JSON-Objekt aus einer Modell-Antwort
  * (tolerant gegenueber ```json-Fences und Text drumherum).
+ * Scheitert das strikte Parsen, wird ein Reparaturlauf versucht - Modelle
+ * escapen Anfuehrungszeichen in laengeren deutschen Texten regelmaessig nicht.
  */
 function extractJson(text) {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -87,7 +133,20 @@ function extractJson(text) {
   const start = candidate.indexOf('{');
   const end = candidate.lastIndexOf('}');
   if (start === -1 || end === -1) throw new Error('Keine JSON-Struktur in der Antwort gefunden');
-  return JSON.parse(candidate.slice(start, end + 1));
+  const raw = candidate.slice(start, end + 1);
+
+  try {
+    return JSON.parse(raw);
+  } catch (strictError) {
+    try {
+      const parsed = JSON.parse(repairJsonStrings(raw));
+      console.warn(`[extractJson] Antwort war kein valides JSON, repariert: ${strictError.message}`);
+      return parsed;
+    } catch (_) {
+      console.error(`[extractJson] Antwort nicht parsebar (${strictError.message}). Rohantwort: ${raw.slice(0, 600)}`);
+      throw strictError;
+    }
+  }
 }
 
-module.exports = { callClaude, extractJson, MODELS };
+module.exports = { callClaude, extractJson, repairJsonStrings, MODELS };

@@ -88,6 +88,7 @@ function buildFragenPrompt(ctx, params, history, briefingExtrakt = null) {
   task += '\n# AUSGABEFORMAT\nAntworte AUSSCHLIESSLICH mit einem JSON-Objekt in dieser Form:\n'
     + '{"nachricht": "deine Nachricht an den User (Deutsch, locker, kurz)", "fertig": true|false}\n'
     + 'Regeln:\n'
+    + '- Innerhalb der Werte KEINE geraden Anfuehrungszeichen ("), sondern typografische (\u201e\u2026\u201c) verwenden - sonst bricht das JSON.\n'
     + '- fertig=false: nachricht enthaelt deine naechste(n) Rueckfrage(n) (max. 2, die wichtigste zuerst).\n'
     + '- fertig=true: alle kritischen Punkte sind geklaert (oder es gab nichts zu klaeren). '
     + 'nachricht fasst in 1-2 Saetzen zusammen, was du aus den Antworten mitnimmst, und sagt, dass du bereit bist.\n'

@@ -151,6 +151,7 @@ function buildPrompt(ctx, params, rueckfragenDialog = '', briefingExtrakt = null
 
   task += '\n# AUSGABEFORMAT\nAntworte AUSSCHLIESSLICH mit einem JSON-Objekt in dieser Form:\n'
     + '{"titel": "kurzer Arbeitstitel", "hook": "...", "hauptteil": "...", "cta": "..."}\n'
+    + 'Innerhalb der Werte KEINE geraden Anfuehrungszeichen ("), sondern typografische (\u201e\u2026\u201c) verwenden - sonst bricht das JSON.\n'
     + 'Der Text ist gesprochener Creator-Text (keine Regieanweisungen in eckigen Klammern, ausser wo unbedingt noetig).\n'
     + 'WICHTIG - nichts erfinden: Behaupte im Skript NICHTS ueber Angebote, Features, Aktionen oder Konditionen '
     + '(z.B. Partnerkarten, Rabatte, Gratis-Extras), das nicht ausdruecklich '
