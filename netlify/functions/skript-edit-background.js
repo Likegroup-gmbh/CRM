@@ -261,6 +261,7 @@ function buildEditPrompt(ctx, message) {
     + '"sektion": "hook|hauptteil|cta|null", '
     + '"vorschlag_text": "neuer Text oder null"}\n'
     + 'Regeln:\n'
+    + '- Innerhalb der Werte KEINE geraden Anfuehrungszeichen ("), sondern typografische (\u201e\u2026\u201c) verwenden - sonst bricht das JSON.\n'
     + (dna.length
       ? '- vorschlag_text MUSS die SKRIPT-DNA einhalten (Ton, Stil, Wortwahl, No-Gos) - auch beim Kuerzen und Verlaengern. Die DNA hat Vorrang vor eigenen stilistischen Praeferenzen.\n'
       : '')
