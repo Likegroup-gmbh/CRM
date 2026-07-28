@@ -1,11 +1,19 @@
 // MarkeProduktForm.js
 // Eigene Seite zum Anlegen und Bearbeiten eines Produkts einer Marke.
 // Routen: /marke/:markeId/produkt (anlegen), /marke/:markeId/produkt?produkt=:id (bearbeiten)
-// Layout wie das Persona-Formular, aber mit genutzter rechter Split-Haelfte:
-// links die Kollektion, rechts die Varianten.
+//
+// Die Seite ist ein Worksheet: mittig ein Schreibdokument mit festen
+// Ueberschriften und frei beschreibbaren Abschnitten (MarkeProduktDoc.js),
+// rechts das Auslesen der Shop-URL samt Liky-Verlauf
+// (MarkeProduktExtractPanel.js). Bilder und Varianten stehen als Tabellen
+// mitten im Dokument.
 
 import { MarkeProduktService, MAX_BILDER } from './services/MarkeProduktService.js';
 import { ProduktVariantenPanel } from './MarkeProduktVarianten.js';
+import { ProduktExtractPanel } from './MarkeProduktExtractPanel.js';
+import { renderProduktDoc, bindProduktDoc, refreshDocHeights } from './MarkeProduktDoc.js';
+import { UploaderField } from '../../core/form/fields/UploaderField.js';
+import { produktConfig } from '../../core/form/config/ProduktFormConfig.js';
 
 export class MarkeProduktForm {
   constructor() {
@@ -16,6 +24,8 @@ export class MarkeProduktForm {
     this.varianten = [];
     this.bilder = [];
     this.variantenPanel = null;
+    this.extractPanel = null;
+    this.uploader = null;
     this._abort = null;
   }
 
@@ -86,18 +96,17 @@ export class MarkeProduktForm {
     const formData = this.isEdit
       ? { ...this.produkt, _isEditMode: true, _entityId: this.produkt.id }
       : null;
-    const formHtml = window.formSystem.renderFormOnly('produkt', formData);
 
-    window.content.innerHTML = `
-      <div class="form-split-container">
-        <div class="form-split-left">
-          <div class="form-page">${formHtml}</div>
-        </div>
-        <div class="form-split-right" id="produkt-varianten-panel"></div>
-      </div>
-    `;
+    window.content.innerHTML = renderProduktDoc(formData);
 
+    const form = document.getElementById('produkt-form');
+    bindProduktDoc(form, formData);
+
+    // Setzt unter anderem setupSiteExtract auf; der eigene Submit-Handler in
+    // bindEvents() ersetzt danach den generischen.
     window.formSystem.bindFormEvents('produkt', formData);
+
+    this.mountBilderUploader(form);
 
     this.variantenPanel = new ProduktVariantenPanel();
     this.variantenPanel.mount(
@@ -106,8 +115,31 @@ export class MarkeProduktForm {
       this.bilder
     );
 
-    // Der Uploader wird von renderFormOnly erst im naechsten Tick aufgebaut
-    setTimeout(() => this.fillBilderUploader(), 0);
+    this.extractPanel = new ProduktExtractPanel();
+    this.extractPanel.mount(form);
+  }
+
+  /**
+   * Der Uploader wird hier statt im FormRenderer aufgebaut, weil das Dokument
+   * sein eigenes Markup rendert. Die Optionen bleiben in der Feld-Config.
+   */
+  mountBilderUploader(form) {
+    const field = produktConfig.fields.find(f => f.name === 'bilder_files');
+    const root = form?.querySelector('.uploader[data-name="bilder_files"]');
+    if (!field || !root) return;
+
+    this.uploader = new UploaderField({
+      multiple: !!field.multiple,
+      accept: field.accept || '*/*',
+      maxFileSize: field.maxFileSize || null,
+      maxFiles: field.maxFiles || null,
+      sortable: !!field.sortable,
+      primarySelectable: !!field.primarySelectable,
+      variant: 'table'
+    });
+    this.uploader.mount(root);
+
+    this.fillBilderUploader();
   }
 
   /** Bereits gespeicherte Kollektionsbilder in den Uploader spiegeln. */
@@ -179,11 +211,9 @@ export class MarkeProduktForm {
       await this.handleSubmit();
     };
 
-    // Der Abbrechen-Button aus renderFormOnly zeigt fest auf /produkt - die
-    // Route existiert nicht mehr, deshalb zurueck auf den Produkte-Tab.
+    // Abbrechen fuehrt zurueck auf den Produkte-Tab der Marke
     const cancelBtn = form.querySelector('.mdc-btn--cancel');
     if (cancelBtn) {
-      cancelBtn.removeAttribute('onclick');
       cancelBtn.addEventListener('click', () => window.navigateTo(this.returnRoute), opts);
     }
 
@@ -193,6 +223,13 @@ export class MarkeProduktForm {
       if (e.detail?.entity !== 'produkt') return;
       this.applyExtractedBilder(e.detail.images || []);
       this.applyExtractedVarianten(e.detail.varianten || []);
+    }, opts);
+
+    // Die uebernommenen Texte sind laenger als die leeren Felder - die
+    // Abschnitte muessen danach auf ihre neue Hoehe wachsen.
+    document.addEventListener('siteExtractFinished', (e) => {
+      if (e.detail?.entity !== 'produkt') return;
+      refreshDocHeights(form);
     }, opts);
 
     if (this.isEdit) {
@@ -375,7 +412,9 @@ export class MarkeProduktForm {
       const error = document.createElement('div');
       error.className = 'field-error';
       error.textContent = message;
-      el.parentNode.appendChild(error);
+      // Der Abschnitt statt des direkten Elternteils: bei Preisfeldern liegt
+      // das Input in einem Flex-Container, dort wuerde die Meldung umbrechen.
+      (el.closest('.form-field') || el.parentNode).appendChild(error);
     }
   }
 
@@ -386,6 +425,10 @@ export class MarkeProduktForm {
     }
     this.variantenPanel?.destroy?.();
     this.variantenPanel = null;
+    this.extractPanel?.destroy?.();
+    this.extractPanel = null;
+    this.uploader?.destroy?.();
+    this.uploader = null;
   }
 }
 

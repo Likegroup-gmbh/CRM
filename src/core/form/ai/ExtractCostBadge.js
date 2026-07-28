@@ -43,6 +43,15 @@ export class ExtractCostBadge {
   ensureHost() {
     if (this.host?.isConnected) return this.host;
 
+    // Ein vom Formular vorbereiteter Platz hat Vorrang - so kann ein Layout
+    // die Badges genau dort haben, wo sie hingehoeren, statt am Section-Ende.
+    const slot = this.form?.querySelector('[data-extract-meta-slot]');
+    if (slot) {
+      slot.classList.add(HOST_CLASS, 'tags', 'tags-compact');
+      this.host = slot;
+      return this.host;
+    }
+
     const container = this.anchor?.closest('.form-section') || this.anchor?.closest('.form-field');
     if (!container) return null;
 

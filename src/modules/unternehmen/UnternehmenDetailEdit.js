@@ -2,6 +2,7 @@
 // Edit-Form, Logo-Upload, Branchen, Ansprechpartner-Entfernung
 
 import { UnternehmenService } from './services/UnternehmenService.js';
+import { normalizeFormUrlFields } from '../../core/UrlHelper.js';
 
 export async function showEditForm(detail) {
   try {
@@ -137,6 +138,9 @@ export async function handleEditFormSubmit(detail, form) {
       else if (typeof value === 'boolean') data[key] = value;
       else data[key] = typeof value === 'string' ? value.trim() : value;
     }
+
+    // URL-Felder werden ohne Schema eingegeben (visueller https://-Prefix im Input)
+    normalizeFormUrlFields(form, data);
 
     // Unternehmen aktualisieren
     const result = await window.dataService.updateEntity('unternehmen', detail.unternehmenId, data);

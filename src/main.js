@@ -18,6 +18,7 @@ import '../assets/styles/toast.css';
 import '../assets/styles/share.css';
 import '../assets/styles/stakeholder.css';
 import '../assets/styles/skripte.css';
+import '../assets/styles/produkt-doc.css';
 
 import { CONFIG } from './core/ConfigSystem.js';
 import { modularFilterSystem as filterSystem } from './core/filters/ModularFilterSystem.js';

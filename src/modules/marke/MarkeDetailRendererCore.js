@@ -2,6 +2,7 @@
 // Seiten-Render, Tabs, renderMainContent
 
 import { renderTabButton } from '../../core/TabUtils.js';
+import { safeExternalUrl } from '../../core/UrlHelper.js';
 import { getBranchenDisplay } from './MarkeDetailRendererHelpers.js';
 import { renderKampagnen, renderAuftraege, renderAnsprechpartner, renderBriefings, renderKooperationen, renderRechnungen, renderStrategien } from './MarkeDetailRendererTables.js';
 import { renderKickOff } from './MarkeDetailRendererKickOff.js';
@@ -95,7 +96,7 @@ export function renderMarkeDetailPage(detail) {
   const sidebarInfo = detail.renderInfoItems([
     { icon: 'building', label: 'Unternehmen', value: detail.marke?.unternehmen?.firmenname || '-' },
     { icon: 'tag', label: 'Branchen', value: getBranchenDisplay(detail) },
-    { icon: 'link', label: 'Webseite', rawHtml: detail.marke?.webseite ? `<a href="${detail.marke.webseite}" target="_blank" rel="noopener">${detail.sanitize(detail.marke.webseite)}</a>` : '-' },
+    { icon: 'link', label: 'Webseite', rawHtml: detail.marke?.webseite ? `<a href="${safeExternalUrl(detail.marke.webseite)}" target="_blank" rel="noopener">${detail.sanitize(detail.marke.webseite)}</a>` : '-' },
     { icon: 'clock', label: 'Erstellt', value: detail.formatDate(detail.marke?.created_at) },
     { icon: 'clock', label: 'Aktualisiert', value: detail.formatDate(detail.marke?.updated_at) }
   ]);

@@ -3,6 +3,7 @@
 // Vermeidet Code-Duplizierung zwischen UnternehmenDetail und UnternehmenList
 
 import { compressImage } from '../../../core/ImageCompressor.js';
+import { safeExternalUrl } from '../../../core/UrlHelper.js';
 
 export class UnternehmenService {
   
@@ -283,24 +284,14 @@ export class UnternehmenService {
   }
 
   /**
-   * Sanitized eine URL für sichere Verwendung in href-Attributen
-   * Verhindert javascript: und andere gefährliche Protokolle
+   * Sanitized eine URL für sichere Verwendung in href-Attributen.
+   * Ergänzt ein fehlendes https:// (Bestandsdaten enthalten oft nur die Domain)
+   * und verhindert javascript: und andere gefährliche Protokolle.
    * @param {string} url - Die zu prüfende URL
-   * @returns {string} - Sichere URL oder '#' bei ungültiger URL
+   * @returns {string} - Sichere absolute URL oder '#' bei ungültiger URL
    */
   static sanitizeUrl(url) {
-    if (!url) return '#';
-    try {
-      const parsed = new URL(url);
-      if (!['http:', 'https:'].includes(parsed.protocol)) {
-        console.warn('⚠️ Unsichere URL blockiert:', url);
-        return '#';
-      }
-      return url;
-    } catch {
-      // Keine gültige URL
-      return '#';
-    }
+    return safeExternalUrl(url);
   }
 }
 

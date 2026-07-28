@@ -31,6 +31,15 @@ const STEP_LABELS = {
   bilder: 'Bilder…'
 };
 
+/**
+ * Fortschritt nach draussen geben, damit ein Modul ihn anders darstellen kann
+ * als am Button (siehe MarkeProduktExtractPanel). Rein additiv - wer nicht
+ * zuhoert, merkt nichts davon.
+ */
+function emit(name, detail) {
+  document.dispatchEvent(new CustomEvent(name, { detail }));
+}
+
 function notifyError(message) {
   console.error(`❌ SITE-EXTRACT: ${message}`);
   window.toastSystem?.error?.(message);
@@ -124,6 +133,8 @@ export class SiteExtractHandler {
     const costBadge = new ExtractCostBadge(this.form, button);
     this.running = true;
     state.busy();
+    emit('siteExtractStarted', { entity: this.entity, form: this.form, url });
+    emit('siteExtractProgress', { entity: this.entity, step: 'start' });
 
     try {
       // Ergebnis eines vorherigen Laufs zurueckziehen, damit neue Werte
@@ -141,8 +152,23 @@ export class SiteExtractHandler {
 
       const felder = Object.keys(result.fields || {}).length;
       if (!felder && !result.logo) notifyWarning(nullergebnisHinweis(result));
+
+      emit('siteExtractFinished', {
+        entity: this.entity,
+        form: this.form,
+        ok: true,
+        felder,
+        cached: !!result.cached,
+        source: result.source || null
+      });
     } catch (error) {
       notifyError(`Webseite konnte nicht ausgelesen werden: ${error.message}`);
+      emit('siteExtractFinished', {
+        entity: this.entity,
+        form: this.form,
+        ok: false,
+        error: error.message
+      });
     } finally {
       state.idle();
       this.running = false;
@@ -210,6 +236,7 @@ export class SiteExtractHandler {
       if (row.progress_step && row.progress_step !== letzterStep) {
         letzterStep = row.progress_step;
         state?.step(STEP_LABELS[row.progress_step] || 'Liest…');
+        emit('siteExtractProgress', { entity: this.entity, step: row.progress_step });
       }
     }
 

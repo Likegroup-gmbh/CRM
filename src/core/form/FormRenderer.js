@@ -559,7 +559,8 @@ export class FormRenderer {
                 maxFileSize: field.maxFileSize || null,
                 maxFiles: field.maxFiles || null,
                 sortable: !!field.sortable,
-                primarySelectable: !!field.primarySelectable
+                primarySelectable: !!field.primarySelectable,
+                variant: field.uploaderVariant || 'list'
               });
               uploader.mount(root.querySelector('.uploader'));
             }

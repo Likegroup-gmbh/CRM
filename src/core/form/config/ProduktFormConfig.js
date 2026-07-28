@@ -8,6 +8,14 @@
 //
 // marke_id und unternehmen_id sind bewusst keine Felder: die Zuordnung kommt
 // aus dem Kontext (Marke-Detailseite) und wird beim Speichern gesetzt.
+//
+// Die doc*-Angaben steuern das Worksheet-Layout in MarkeProduktDoc.js:
+//   docSlot   'side' holt das Feld aus dem Dokument in die rechte Spalte
+//   docRole   'title' = Dokumenttitel, 'inline' = schmales Feld in einer Zeile,
+//             'uploader' = Tabelle, sonst frei beschreibbarer Textabschnitt
+//   docLabel  kuerzere Ueberschrift fuers Dokument, falls label zu technisch ist
+//   docChapter beginnt an diesem Feld ein neues Kapitel mit Trennlinie
+// Ohne diese Angaben rendert das klassische FormRenderer-Formular unveraendert.
 
 export const produktConfig = {
   title: 'Neues Produkt anlegen',
@@ -22,6 +30,7 @@ export const produktConfig = {
       validation: { type: 'url' },
       placeholder: 'muster-shop.de/products/produktname',
       aiExtract: true,
+      docSlot: 'side',
       section: 'auslesen',
       sectionTitle: 'Mit der Produktseite starten',
       sectionDescription: 'Adresse eintragen und "Auslesen" klicken: Beschreibung, USP, Preis und Produktbilder kommen aus der Shop-Seite. Nur leere Felder werden gefüllt, eigene Eingaben bleiben unangetastet.'
@@ -35,6 +44,7 @@ export const produktConfig = {
       required: true,
       validation: { type: 'text', minLength: 2 },
       placeholder: "z.B. 'Clear Case Kollektion'",
+      docRole: 'title',
       section: 'basis',
       sectionTitle: 'Was ist das Produkt?',
       sectionDescription: 'Die Kollektion trägt die gemeinsame Basis. Unterschiede wie Farbe oder Modell kommen als Varianten dazu.'
@@ -99,6 +109,8 @@ export const produktConfig = {
       placeholder: '29.90',
       row: 'preis',
       colSize: 'small',
+      docRole: 'inline',
+      docLabel: 'von',
       section: 'preis',
       sectionTitle: 'Preis-Range',
       sectionDescription: 'Spanne über alle Varianten. Bei einem einzelnen Preis nur "Preis von" füllen.'
@@ -112,6 +124,8 @@ export const produktConfig = {
       placeholder: '49.90',
       row: 'preis',
       colSize: 'small',
+      docRole: 'inline',
+      docLabel: 'bis',
       section: 'preis'
     },
 
@@ -128,6 +142,8 @@ export const produktConfig = {
       maxFiles: 5,
       sortable: true,
       primarySelectable: true,
+      docRole: 'uploader',
+      docLabel: 'Produktbilder',
       section: 'assets',
       sectionTitle: 'Produkt-Assets',
       sectionDescription: 'Bis zu fünf Bilder. Beim Auslesen der Shop-URL werden Bilder automatisch vorgeschlagen und können einzeln verworfen werden.'
@@ -141,6 +157,7 @@ export const produktConfig = {
       required: false,
       rows: 3,
       placeholder: 'Falls relevant: Zusammensetzung, Materialien, Wirkstoffe...',
+      docChapter: 'Rechtliches und Compliance',
       section: 'compliance',
       sectionTitle: 'Rechtliches und Compliance',
       sectionDescription: 'Was der Creator sagen darf und was nicht. Fließt später direkt ins Briefing.'
