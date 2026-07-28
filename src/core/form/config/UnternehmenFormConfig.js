@@ -20,6 +20,15 @@ export const unternehmenConfig = {
     // Section: Stammdaten - Firmenname, Kürzel, Adresse
     { name: 'firmenname', label: 'Firmenname', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, section: 'stammdaten' },
     { name: 'internes_kuerzel', label: 'Internes Kürzel', type: 'text', required: false, placeholder: 'z.B. ABC', section: 'stammdaten' },
+    {
+      name: 'beschreibung',
+      label: 'Kurzbeschreibung',
+      type: 'textarea',
+      required: false,
+      rows: 4,
+      placeholder: 'Was macht das Unternehmen, welche Produkte, welcher Markt?',
+      section: 'stammdaten'
+    },
     { name: 'rechnungsadresse_strasse', label: 'Straße', type: 'text', required: false, row: 'adresse1', colSize: 'grow', section: 'stammdaten' },
     { name: 'rechnungsadresse_hausnummer', label: 'Nr.', type: 'text', required: false, row: 'adresse1', colSize: 'small', section: 'stammdaten' },
     { name: 'rechnungsadresse_plz', label: 'PLZ', type: 'text', required: false, row: 'adresse2', colSize: 'small', section: 'stammdaten' },

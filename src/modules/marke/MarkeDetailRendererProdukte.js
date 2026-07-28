@@ -10,8 +10,8 @@ const CREATE_BTN_HTML = '<button type="button" class="mdc-btn mdc-btn--create pr
 function renderThumb(detail, produkt) {
   const bild = MarkeProduktService.hauptbild(produkt);
   const url = bild ? MarkeProduktService.publicUrl(bild.storage_pfad) : null;
-  if (!url) return '<span class="produkt-thumb produkt-thumb--empty" aria-hidden="true"></span>';
-  return `<img class="produkt-thumb" src="${detail.sanitize(url)}" alt="" loading="lazy">`;
+  if (!url) return '-';
+  return `<img src="${detail.sanitize(url)}" class="table-logo" width="24" height="24" alt="" loading="lazy">`;
 }
 
 export function renderProdukte(detail) {
@@ -31,7 +31,7 @@ export function renderProdukte(detail) {
     const variantenAnzahl = (produkt.varianten || []).length;
     return `
     <tr>
-      <td class="produkt-thumb-cell">${renderThumb(detail, produkt)}</td>
+      <td>${renderThumb(detail, produkt)}</td>
       <td>
         <a href="#" class="table-link produkt-row-open" data-produkt-id="${produkt.id}">
           ${detail.sanitize(produkt.name)}

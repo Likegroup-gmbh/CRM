@@ -74,37 +74,60 @@ export function renderProduktDoc(data = null) {
 function renderDocFields(fields) {
   const parts = [];
   const handled = new Set();
+  let openGroup = null;
+  let groupParts = [];
 
-  fields.forEach((field, index) => {
+  const flushGroup = () => {
+    if (!openGroup) return;
+    parts.push(
+      `<div class="produkt-doc__group" data-doc-group="${attr(openGroup)}">${groupParts.join('')}</div>`
+    );
+    openGroup = null;
+    groupParts = [];
+  };
+
+  /** Ohne docGroup direkt auf paper, mit docGroup in die passende Sektion. */
+  const push = (html, group = null) => {
+    if (!group) {
+      flushGroup();
+      parts.push(html);
+      return;
+    }
+    if (openGroup && openGroup !== group) flushGroup();
+    openGroup = group;
+    groupParts.push(html);
+  };
+
+  fields.forEach((field) => {
     if (handled.has(field.name)) return;
 
-    if (field.docChapter) {
-      parts.push(`<div class="produkt-doc__chapter"><span>${text(field.docChapter)}</span></div>`);
-    }
-
     if (field.docRole === 'title') {
-      parts.push(renderTitle(field));
+      push(renderTitle(field), field.docGroup);
       return;
     }
 
     if (field.docRole === 'inline') {
       const rowFields = fields.filter(f => f.row && f.row === field.row);
       rowFields.forEach(f => handled.add(f.name));
-      parts.push(renderInlineRow(field, rowFields));
+      push(renderInlineRow(field, rowFields), field.docGroup);
       return;
     }
 
     if (field.docRole === 'uploader') {
-      parts.push(renderUploaderBlock(field));
-      // Die Varianten haengen inhaltlich an den Bildern und stehen deshalb
-      // direkt darunter. Gefuellt wird der Slot von ProduktVariantenPanel.
-      parts.push('<section class="produkt-doc__block" id="produkt-varianten-panel"></section>');
+      push(renderUploaderBlock(field), field.docGroup || 'bilder');
+      // Eigene Sektion: Abstand zu Bildern unabhaengig vom Inhaltsblock.
+      // Gefuellt wird der Slot von ProduktVariantenPanel.
+      push(
+        '<section class="produkt-doc__block" id="produkt-varianten-panel"></section>',
+        'varianten'
+      );
       return;
     }
 
-    parts.push(renderTextSection(field, index));
+    push(renderTextSection(field), field.docGroup);
   });
 
+  flushGroup();
   return parts.join('');
 }
 
@@ -136,20 +159,27 @@ function renderTextSection(field) {
   `;
 }
 
-/** Preis-Range: Ueberschrift plus schmale Felder in einer Zeile. */
+/**
+ * Preis-Zeile als Karten nebeneinander: je Betrag eine umrandete Kachel mit
+ * kleinem Label und grosser Zahl. Der Wrapper bleibt ein .form-field mit
+ * direktem <label>, weil ExtractReviewLayer.mark() dort das Vorschlag-Tag
+ * ablegt.
+ */
 function renderInlineRow(first, rowFields) {
-  const inputs = rowFields.map(field => {
+  const cards = rowFields.map(field => {
     const id = `field-${field.name}`;
     const min = field.validation?.min !== undefined ? ` min="${attr(field.validation.min)}"` : '';
     const step = field.validation?.step !== undefined ? ` step="${attr(field.validation.step)}"` : ' step="0.01"';
     return `
-      <div class="form-field form-field--small produkt-doc__inline-field" data-doc-field="${attr(field.name)}">
+      <div class="form-field produkt-doc__price-card" data-doc-field="${attr(field.name)}">
         <label for="${attr(id)}">${text(field.docLabel || field.label)}</label>
-        <div class="produkt-doc__amount">
-          <input type="number" id="${attr(id)}" name="${attr(field.name)}"
-                 class="produkt-doc__number" placeholder="${attr(field.placeholder || '')}"${min}${step}>
+        <div class="produkt-doc__price-value">
           <span class="produkt-doc__unit" aria-hidden="true">€</span>
+          <input type="number" id="${attr(id)}" name="${attr(field.name)}"
+                 class="produkt-doc__number" placeholder="${attr(field.placeholder || '')}"
+                 aria-label="${attr(field.label)}"${min}${step}>
         </div>
+        ${field.docHint ? `<p class="produkt-doc__price-note">${text(field.docHint)}</p>` : ''}
       </div>
     `;
   }).join('');
@@ -158,7 +188,7 @@ function renderInlineRow(first, rowFields) {
     <section class="produkt-doc__section produkt-doc__section--inline" data-doc-row="${attr(first.row || 'inline')}">
       <h3 class="produkt-doc__heading">${text(first.sectionTitle || 'Preis')}</h3>
       ${first.sectionDescription ? `<p class="produkt-doc__hint">${text(first.sectionDescription)}</p>` : ''}
-      <div class="produkt-doc__inline-row">${inputs}</div>
+      <div class="produkt-doc__price-cards">${cards}</div>
     </section>
   `;
 }

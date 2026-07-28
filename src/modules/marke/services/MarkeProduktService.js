@@ -132,6 +132,7 @@ export class MarkeProduktService {
         modell_kompatibilitaet: variante.modell_kompatibilitaet || null,
         farbe: variante.farbe || null,
         preis: this.toNumber(variante.preis),
+        uvp: this.toNumber(variante.uvp),
         merkmal: variante.merkmal || null,
         position: index
       };

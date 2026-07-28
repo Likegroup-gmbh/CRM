@@ -4,7 +4,7 @@
 
 export const LIST_SEARCH_CONFIG = {
   unternehmen: {
-    fields: ['firmenname', 'internes_kuerzel', 'webseite', 'invoice_email'],
+    fields: ['firmenname', 'internes_kuerzel', 'webseite', 'invoice_email', 'beschreibung'],
     relations: [
       { table: 'marke', fk: 'unternehmen_id', fields: ['markenname'] }
     ]
@@ -23,7 +23,7 @@ export const LIST_SEARCH_CONFIG = {
     fields: ['vorname', 'nachname', 'instagram', 'tiktok', 'mail']
   },
   marke: {
-    fields: ['markenname', 'webseite'],
+    fields: ['markenname', 'webseite', 'beschreibung'],
     relations: [
       { table: 'unternehmen', via: 'unternehmen_id', fields: ['firmenname'] }
     ]

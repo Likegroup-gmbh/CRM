@@ -14,7 +14,9 @@
 //   docRole   'title' = Dokumenttitel, 'inline' = schmales Feld in einer Zeile,
 //             'uploader' = Tabelle, sonst frei beschreibbarer Textabschnitt
 //   docLabel  kuerzere Ueberschrift fuers Dokument, falls label zu technisch ist
-//   docChapter beginnt an diesem Feld ein neues Kapitel mit Trennlinie
+//   docHint   kurze Erlaeuterung unter dem Feld (nur bei docRole 'inline')
+//   docGroup  buendelt Felder in eine Sektion (Hairline-Band; Abstand zwischen
+//             Sektionen und innerhalb der Sektion sind getrennt steuerbar)
 // Ohne diese Angaben rendert das klassische FormRenderer-Formular unveraendert.
 
 export const produktConfig = {
@@ -55,7 +57,7 @@ export const produktConfig = {
       type: 'textarea',
       required: false,
       rows: 3,
-      placeholder: 'Was ist es, in zwei bis drei Sätzen?',
+      docGroup: 'inhalt',
       section: 'basis'
     },
 
@@ -66,7 +68,7 @@ export const produktConfig = {
       type: 'textarea',
       required: false,
       rows: 3,
-      placeholder: 'Warum kauft man es? Ein USP pro Zeile.',
+      docGroup: 'inhalt',
       section: 'nutzen',
       sectionTitle: 'Warum kauft man es?',
       sectionDescription: 'Diese Felder sind die Substanz für Skripte und Briefings. Ein Eintrag pro Zeile.'
@@ -77,7 +79,7 @@ export const produktConfig = {
       type: 'textarea',
       required: false,
       rows: 3,
-      placeholder: 'Welche Probleme löst es? Ein Pain Point pro Zeile.',
+      docGroup: 'inhalt',
       section: 'nutzen'
     },
     {
@@ -86,7 +88,7 @@ export const produktConfig = {
       type: 'textarea',
       required: false,
       rows: 3,
-      placeholder: 'Wie löst das Produkt diese Probleme konkret?',
+      docGroup: 'inhalt',
       section: 'nutzen'
     },
     {
@@ -95,7 +97,7 @@ export const produktConfig = {
       type: 'textarea',
       required: false,
       rows: 3,
-      placeholder: 'Wer nutzt es wann und wo? z.B. unterwegs im Alltag, abends zur Routine...',
+      docGroup: 'inhalt',
       section: 'nutzen'
     },
 
@@ -111,9 +113,10 @@ export const produktConfig = {
       colSize: 'small',
       docRole: 'inline',
       docLabel: 'von',
+      docGroup: 'preis',
       section: 'preis',
-      sectionTitle: 'Preis-Range',
-      sectionDescription: 'Spanne über alle Varianten. Bei einem einzelnen Preis nur "Preis von" füllen.'
+      sectionTitle: 'Preis',
+      sectionDescription: 'Spanne über alle Varianten. Bei einem einzelnen Preis nur "von" füllen. Der UVP ist der reguläre Preis, wenn das Angebot reduziert ist – also der durchgestrichene Betrag im Shop.'
     },
     {
       name: 'preis_bis',
@@ -126,6 +129,22 @@ export const produktConfig = {
       colSize: 'small',
       docRole: 'inline',
       docLabel: 'bis',
+      docGroup: 'preis',
+      section: 'preis'
+    },
+    {
+      name: 'preis_uvp',
+      label: 'UVP / regulärer Preis (€)',
+      type: 'number',
+      required: false,
+      validation: { type: 'number', min: 0, step: 0.01 },
+      placeholder: '399.00',
+      row: 'preis',
+      colSize: 'small',
+      docRole: 'inline',
+      docLabel: 'UVP',
+      docHint: 'Nur bei Rabatt',
+      docGroup: 'preis',
       section: 'preis'
     },
 
@@ -144,6 +163,7 @@ export const produktConfig = {
       primarySelectable: true,
       docRole: 'uploader',
       docLabel: 'Produktbilder',
+      docGroup: 'bilder',
       section: 'assets',
       sectionTitle: 'Produkt-Assets',
       sectionDescription: 'Bis zu fünf Bilder. Beim Auslesen der Shop-URL werden Bilder automatisch vorgeschlagen und können einzeln verworfen werden.'
@@ -156,8 +176,7 @@ export const produktConfig = {
       type: 'textarea',
       required: false,
       rows: 3,
-      placeholder: 'Falls relevant: Zusammensetzung, Materialien, Wirkstoffe...',
-      docChapter: 'Rechtliches und Compliance',
+      docGroup: 'compliance',
       section: 'compliance',
       sectionTitle: 'Rechtliches und Compliance',
       sectionDescription: 'Was der Creator sagen darf und was nicht. Fließt später direkt ins Briefing.'
@@ -168,7 +187,7 @@ export const produktConfig = {
       type: 'textarea',
       required: false,
       rows: 3,
-      placeholder: 'Aussagen, die getroffen werden dürfen. Ein Claim pro Zeile.',
+      docGroup: 'compliance',
       section: 'compliance'
     },
     {
@@ -177,7 +196,7 @@ export const produktConfig = {
       type: 'textarea',
       required: false,
       rows: 3,
-      placeholder: 'Aussagen, die nicht getroffen werden dürfen. Ein Claim pro Zeile.',
+      docGroup: 'compliance',
       section: 'compliance'
     },
     {
@@ -186,7 +205,7 @@ export const produktConfig = {
       type: 'textarea',
       required: false,
       rows: 3,
-      placeholder: 'Pflichtangaben, Disclaimer, Kennzeichnungspflichten...',
+      docGroup: 'compliance',
       section: 'compliance'
     }
   ]

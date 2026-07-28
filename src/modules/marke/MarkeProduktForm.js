@@ -277,8 +277,8 @@ export class MarkeProduktForm {
 
     const preisFehler = this.validatePreisRange(data);
     if (preisFehler) {
-      this.showFieldErrors(form, { preis_bis: preisFehler });
-      window.toastSystem?.error?.(preisFehler);
+      this.showFieldErrors(form, { [preisFehler.feld]: preisFehler.text });
+      window.toastSystem?.error?.(preisFehler.text);
       this.releaseSubmitBtn(submitBtn);
       return;
     }
@@ -308,11 +308,19 @@ export class MarkeProduktForm {
     }
   }
 
+  /** @returns {{feld: string, text: string}|null} */
   validatePreisRange(data) {
     const von = MarkeProduktService.toNumber(data.preis_von);
     const bis = MarkeProduktService.toNumber(data.preis_bis);
+    const uvp = MarkeProduktService.toNumber(data.preis_uvp);
+
     if (von != null && bis != null && bis < von) {
-      return 'Der Preis "bis" darf nicht unter dem Preis "von" liegen';
+      return { feld: 'preis_bis', text: 'Der Preis "bis" darf nicht unter dem Preis "von" liegen' };
+    }
+    // Ein UVP unter dem Verkaufspreis waere im Skript eine falsche Ersparnis
+    const hoechster = bis != null ? bis : von;
+    if (uvp != null && hoechster != null && uvp < hoechster) {
+      return { feld: 'preis_uvp', text: 'Der UVP darf nicht unter dem Verkaufspreis liegen' };
     }
     return null;
   }

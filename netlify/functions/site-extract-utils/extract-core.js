@@ -159,6 +159,10 @@ function normalizeNumber(value) {
   return String(Math.round(parsed * 100) / 100);
 }
 
+// Muss zur Obergrenze in VARIANTEN_INSTRUCTION passen: eine Farbpalette mit
+// zwoelf Ausfuehrungen darf hier nicht auf die Haelfte gekuerzt werden.
+const MAX_VARIANTEN = 20;
+
 /** Varianten-Vorschlaege des Modells saeubern. */
 function normalizeVarianten(raw, spec) {
   if (!spec.varianten || !Array.isArray(raw)) return [];
@@ -178,18 +182,25 @@ function normalizeVarianten(raw, spec) {
     const name = text(entry.name);
     if (!name) continue;
 
-    const key = name.toLowerCase();
+    const farbe = text(entry.farbe);
+    const modell = text(entry.modell_kompatibilitaet || entry.modell);
+
+    // Der Name allein reicht als Kennung nicht: bei zwei Optionsachsen heissen
+    // "Sand / iPhone 15" und "Sand / iPhone 16" beide schlicht "Sand", und die
+    // zweite waere sonst als Dublette rausgeflogen.
+    const key = [name, farbe, modell].map((v) => (v || '').toLowerCase()).join('|');
     if (seen.has(key)) continue;
     seen.add(key);
 
     out.push({
       name,
-      farbe: text(entry.farbe),
-      modell_kompatibilitaet: text(entry.modell_kompatibilitaet || entry.modell),
+      farbe,
+      modell_kompatibilitaet: modell,
       preis: normalizeNumber(entry.preis ?? '') || null,
+      uvp: normalizeNumber(entry.uvp ?? entry.preis_uvp ?? '') || null,
       merkmal: text(entry.merkmal)
     });
-    if (out.length >= 10) break;
+    if (out.length >= MAX_VARIANTEN) break;
   }
 
   return out;
@@ -305,7 +316,8 @@ async function runExtraction({ url, entityType, supabase, onStep = () => {} }) {
 
     const mainDistilled = distill(main.html, main.finalUrl, {
       followLinks: spec.followLinks || [],
-      withLogo: Boolean(spec.logo)
+      withLogo: Boolean(spec.logo),
+      withVarianten: Boolean(spec.varianten)
     });
 
     // --- Einordnen ---------------------------------------------------------
@@ -370,7 +382,11 @@ async function runExtraction({ url, entityType, supabase, onStep = () => {} }) {
         try {
           onStep('unterseite', `Beispiel-Produktseite ${index + 1} laden...`);
           const sub = await messen(`unterseite${index + 1}`, () => fetcher.load(kandidat.url, { remainingMs: remaining() - MODELL_MIN_REMAINING_MS }));
-          pages.push({ url: sub.finalUrl, role: `Beispiel-Produktseite ${index + 1}`, ...distill(sub.html, sub.finalUrl) });
+          pages.push({
+            url: sub.finalUrl,
+            role: `Beispiel-Produktseite ${index + 1}`,
+            ...distill(sub.html, sub.finalUrl, { withVarianten: Boolean(spec.varianten) })
+          });
           diagnostics.seiten.push({
             url: sub.finalUrl,
             rolle: `Beispiel-Produktseite ${index + 1}`,

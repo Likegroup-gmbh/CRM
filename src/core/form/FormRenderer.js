@@ -350,10 +350,12 @@ export class FormRenderer {
         const textareaDependsOn = field.dependsOn ? `data-depends-on="${field.dependsOn}"` : '';
         const textareaShowWhen = field.showWhen ? `data-show-when="${field.showWhen}"` : '';
         const textareaHiddenStyle = field.dependsOn ? 'style="display: none;"' : '';
+        const textareaPlaceholder = field.placeholder ? `placeholder="${field.placeholder}"` : '';
+        const textareaRows = field.rows || 4;
         return `
           <div class="form-field form-field-full" ${textareaDependsOn} ${textareaShowWhen} ${textareaHiddenStyle}>
             <label for="${fieldId}">${field.label} ${requiredMark}</label>
-            <textarea id="${fieldId}" name="${field.name}" rows="4" ${required}>${this.validator.sanitizeHtml(value)}</textarea>
+            <textarea id="${fieldId}" name="${field.name}" rows="${textareaRows}" ${required} ${textareaPlaceholder}>${this.validator.sanitizeHtml(value)}</textarea>
           </div>
         `;
 

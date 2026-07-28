@@ -96,6 +96,9 @@ export function renderMarkeDetailPage(detail) {
   const sidebarInfo = detail.renderInfoItems([
     { icon: 'building', label: 'Unternehmen', value: detail.marke?.unternehmen?.firmenname || '-' },
     { icon: 'tag', label: 'Branchen', value: getBranchenDisplay(detail) },
+    ...(detail.marke?.beschreibung
+      ? [{ icon: 'info', label: 'Kurzbeschreibung', value: detail.marke.beschreibung }]
+      : []),
     { icon: 'link', label: 'Webseite', rawHtml: detail.marke?.webseite ? `<a href="${safeExternalUrl(detail.marke.webseite)}" target="_blank" rel="noopener">${detail.sanitize(detail.marke.webseite)}</a>` : '-' },
     { icon: 'clock', label: 'Erstellt', value: detail.formatDate(detail.marke?.created_at) },
     { icon: 'clock', label: 'Aktualisiert', value: detail.formatDate(detail.marke?.updated_at) }

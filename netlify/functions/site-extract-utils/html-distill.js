@@ -400,22 +400,240 @@ function firstFromSrcset(srcset) {
   return first ? first.trim().split(/\s+/)[0] : null;
 }
 
+// ---------------------------------------------------------------------------
+// Varianten
+// ---------------------------------------------------------------------------
+// Der sichtbare Text einer Produktseite nennt fast nie alle Ausfuehrungen:
+// Farb-Swatches stehen als Markup im Bestellformular (das htmlToText verwirft),
+// und die vollstaendige Liste liegt in einem JSON-Block im <script>. Beides
+// wird hier aus dem ROHEN HTML gezogen, bevor irgendetwas gestrippt wird.
+
+const SHOP_JSON_BUDGET = 6000;
+const MAX_VARIANTEN_JSON = 40;
+// Selects, die nichts mit Produktvarianten zu tun haben
+const SELECT_NOISE = /country|^land$|region|currency|waehrung|währung|language|sprache|locale|sort|sortier|quantity|\bqty\b|anzahl|menge|anrede|salutation|month|monat|year|jahr|\bday\b|newsletter/i;
+const OPTION_GROUP_HINT = /option|variant|varian|farbe|colou?r|size|groesse|größe|modell|model|ausfuehrung|ausführung|style|material|geschmack|flavou?r|duft|scent|sorte|design|motiv/i;
+const OPTION_PLACEHOLDER = /^(bitte|please|choose|select|auswahl|wähle|waehle|--|-$)/i;
+// Attribute, in denen JS-getriebene Swatch-UIs ihren Wert mitschreiben
+const SWATCH_ATTR = /\b(?:data-value|data-option-value|data-option-name|data-swatch|data-colou?r|data-variant-title)\s*=\s*["']([^"']{1,60})["']/gi;
+
+/**
+ * Shopify und die meisten Headless-Shops legen die komplette Variantenliste
+ * als JSON in die Seite. Genau dort steht auch der Streichpreis
+ * (compare_at_price) - die verlaesslichste UVP-Quelle ueberhaupt.
+ */
+function extractShopJson(html) {
+  const found = [];
+  const re = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
+  let m;
+
+  while ((m = re.exec(html)) !== null) {
+    const type = (parseAttributes(m[1]).type || '').toLowerCase();
+    if (!type.includes('application/json')) continue;
+    if (type.includes('ld+json')) continue;
+
+    const raw = m[2].trim();
+    if (!raw || !/"variants"\s*:/.test(raw)) continue;
+
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+
+    const produkt = findVariantHolder(parsed);
+    if (produkt) found.push(condenseProduct(produkt));
+    if (found.length >= 2) break;
+  }
+
+  if (!found.length) return '';
+  const text = JSON.stringify(found.length === 1 ? found[0] : found);
+  return text.length > SHOP_JSON_BUDGET ? `${text.slice(0, SHOP_JSON_BUDGET)} [...gekuerzt]` : text;
+}
+
+/** Erstes Objekt mit einem nicht-leeren `variants`-Array, max. drei Ebenen tief. */
+function findVariantHolder(node, tiefe = 0) {
+  if (!node || typeof node !== 'object' || tiefe > 3) return null;
+  if (Array.isArray(node)) {
+    for (const item of node) {
+      const hit = findVariantHolder(item, tiefe + 1);
+      if (hit) return hit;
+    }
+    return null;
+  }
+  if (Array.isArray(node.variants) && node.variants.length) return node;
+  for (const value of Object.values(node)) {
+    const hit = findVariantHolder(value, tiefe + 1);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/**
+ * Shopify-Preise sind Integer in Cent. Erkennbar an den snake_case-Keys des
+ * Variantenobjekts - ohne diese Umrechnung liest das Modell "19900 Euro".
+ */
+function istCentFormat(variante) {
+  return 'compare_at_price' in variante || 'option1' in variante || 'featured_image' in variante;
+}
+
+function money(value, cent) {
+  if (value === null || value === undefined || value === '') return null;
+  const num = typeof value === 'number' ? value : Number.parseFloat(String(value).replace(',', '.'));
+  if (!Number.isFinite(num) || num <= 0) return null;
+  const betrag = cent && Number.isInteger(num) ? num / 100 : num;
+  return betrag.toFixed(2);
+}
+
+/** Nur die Felder, die fuer Varianten und Preise zaehlen - der Rest ist Ballast. */
+function condenseProduct(produkt) {
+  const kurz = (v) => (typeof v === 'string' ? collapse(v).slice(0, 120) : null);
+
+  const optionen = Array.isArray(produkt.options)
+    ? produkt.options.map((o) => (typeof o === 'string'
+      ? o
+      : { name: kurz(o?.name), werte: (o?.values || []).map(kurz).filter(Boolean).slice(0, 40) }))
+    : undefined;
+
+  const varianten = produkt.variants.slice(0, MAX_VARIANTEN_JSON).map((v) => {
+    if (!v || typeof v !== 'object') return null;
+    const cent = istCentFormat(v);
+    const eintrag = {
+      titel: kurz(v.title || v.name || v.public_title),
+      optionen: [v.option1, v.option2, v.option3].map(kurz).filter(Boolean),
+      preis: money(v.price ?? v.amount, cent),
+      uvp: money(v.compare_at_price ?? v.compareAtPrice ?? v.listPrice, cent)
+    };
+    if (v.available === false) eintrag.ausverkauft = true;
+    if (!eintrag.optionen.length) delete eintrag.optionen;
+    return eintrag;
+  }).filter((v) => v && (v.titel || v.optionen));
+
+  return {
+    titel: kurz(produkt.title || produkt.name),
+    optionen,
+    varianten
+  };
+}
+
+/**
+ * Auswaehlbare Optionen aus dem Markup: Dropdowns, Radio-Swatches und die
+ * data-Attribute JS-getriebener Farbwaehler. Liefert [{ label, values }].
+ */
+function extractVariantOptions(html) {
+  const gruppen = [];
+  const push = (label, values) => {
+    const sauber = [];
+    for (const value of values) {
+      const v = collapse(decodeEntities(String(value)));
+      if (!v || v.length > 80 || OPTION_PLACEHOLDER.test(v)) continue;
+      if (!sauber.includes(v)) sauber.push(v);
+      if (sauber.length >= 40) break;
+    }
+    if (sauber.length) gruppen.push({ label: collapse(label).slice(0, 60) || 'Auswahl', values: sauber });
+  };
+
+  // 1. <select> mit <option>
+  const selectRe = /<select\b([^>]*)>([\s\S]*?)<\/select>/gi;
+  let m;
+  while ((m = selectRe.exec(html)) !== null) {
+    const a = parseAttributes(m[1]);
+    const label = a['data-option-name'] || a.name || a['aria-label'] || a.id || '';
+    if (SELECT_NOISE.test(`${label} ${a.class || ''}`)) continue;
+
+    const values = [];
+    const optionRe = /<option\b([^>]*)>([\s\S]*?)<\/option>/gi;
+    let o;
+    while ((o = optionRe.exec(m[2])) !== null) {
+      const text = collapse(decodeEntities(stripTags(o[2])));
+      values.push(text || parseAttributes(o[1]).value || '');
+    }
+    // Reine Zahlenlisten sind Mengenauswahlen, keine Varianten
+    if (values.filter(Boolean).every((v) => /^\d+$/.test(v))) continue;
+    push(label || 'Auswahl', values);
+  }
+
+  // 2. Radio-/Checkbox-Swatches, nach Gruppenname gebuendelt
+  const radios = new Map();
+  const inputRe = /<input\b([^>]*)>/gi;
+  while ((m = inputRe.exec(html)) !== null) {
+    const a = parseAttributes(m[1]);
+    const type = (a.type || '').toLowerCase();
+    if (type !== 'radio' && type !== 'checkbox') continue;
+
+    const gruppe = a['data-option-name'] || a.name || '';
+    const kennung = `${gruppe} ${a.class || ''} ${a.id || ''}`;
+    if (!OPTION_GROUP_HINT.test(kennung)) continue;
+
+    const value = a.value || a['data-value'] || a['aria-label'] || a.title;
+    if (!value) continue;
+    const key = gruppe || 'Auswahl';
+    if (!radios.has(key)) radios.set(key, []);
+    radios.get(key).push(value);
+  }
+  for (const [label, values] of radios) push(label, values);
+
+  // 3. Auffangnetz fuer Swatch-UIs ohne echtes Formularelement
+  if (!gruppen.length) {
+    const werte = [];
+    let s;
+    SWATCH_ATTR.lastIndex = 0;
+    while ((s = SWATCH_ATTR.exec(html)) !== null) werte.push(s[1]);
+    if (werte.length) push('Swatch-Werte', werte);
+  }
+
+  return gruppen.slice(0, 8);
+}
+
 /**
  * Alles in einem Durchgang.
  * @param {string} html
  * @param {string} baseUrl - Finale URL nach Redirects, Basis fuer relative Pfade
- * @param {Object} options - { followLinks: string[], withLogo: boolean }
+ * @param {Object} options - { followLinks: string[], withLogo: boolean, withVarianten: boolean }
  */
 function distill(html, baseUrl, options = {}) {
-  const { followLinks = [], withLogo = false } = options;
+  const { followLinks = [], withLogo = false, withVarianten = false } = options;
   return {
     title: extractTitle(html),
     meta: extractMeta(html),
     jsonLd: extractJsonLd(html),
     text: htmlToText(html),
     links: findLinks(html, baseUrl, followLinks),
-    logoCandidates: withLogo ? findLogoCandidates(html, baseUrl) : []
+    logoCandidates: withLogo ? findLogoCandidates(html, baseUrl) : [],
+    shopJson: withVarianten ? extractShopJson(html) : '',
+    variantOptions: withVarianten ? extractVariantOptions(html) : []
   };
+}
+
+// Ein Product-Node mit einem Offer je Variante sprengt vier Kilozeichen muehelos -
+// und ausgerechnet die hinteren Offers sind die Varianten, die bisher fehlten.
+const JSONLD_BUDGET = 8000;
+
+const JSONLD_RELEVANT = /organization|corporation|localbusiness|store|product|website|person/;
+const JSONLD_PREFERRED = /product|offer|variant/;
+
+/**
+ * JSON-LD fuer den Prompt: Product- und Offer-Knoten zuerst, dann der Rest,
+ * und ganze Knoten statt eines mitten im Objekt abgeschnittenen Strings.
+ */
+function jsonLdForPrompt(nodes) {
+  const relevant = nodes.filter((n) => JSONLD_RELEVANT.test(String(n['@type'] || '').toLowerCase()));
+  const pool = relevant.length ? relevant : nodes;
+  const rang = (n) => (JSONLD_PREFERRED.test(String(n['@type'] || '').toLowerCase()) ? 0 : 1);
+
+  const out = [];
+  let used = 0;
+  for (const node of [...pool].sort((a, b) => rang(a) - rang(b))) {
+    const text = JSON.stringify(node);
+    if (used + text.length > JSONLD_BUDGET) {
+      if (!out.length) out.push(`${text.slice(0, JSONLD_BUDGET)} [...gekuerzt]`);
+      break;
+    }
+    out.push(text);
+    used += text.length;
+  }
+  return out.join('\n');
 }
 
 /** Formt die eingedampften Seiten zu dem Textblock, der an Claude geht. */
@@ -432,12 +650,16 @@ function toPromptBlock(pages) {
       if (metaLines.length) parts.push(`Meta:\n${metaLines.join('\n')}`);
 
       if (page.jsonLd && page.jsonLd.length) {
-        const relevant = page.jsonLd.filter((n) => {
-          const type = String(n['@type'] || '').toLowerCase();
-          return /organization|corporation|localbusiness|store|product|website|person/.test(type);
-        });
-        const useful = relevant.length ? relevant : page.jsonLd;
-        parts.push(`Strukturierte Daten (JSON-LD):\n${JSON.stringify(useful).slice(0, 4000)}`);
+        parts.push(`Strukturierte Daten (JSON-LD):\n${jsonLdForPrompt(page.jsonLd)}`);
+      }
+
+      if (page.shopJson) {
+        parts.push(`Varianten-Rohdaten des Shops (vollstaendige Variantenliste, Preise in Euro; "uvp" ist der Streichpreis):\n${page.shopJson}`);
+      }
+
+      if (page.variantOptions && page.variantOptions.length) {
+        const zeilen = page.variantOptions.map((g) => `${g.label}: ${g.values.join(' | ')}`);
+        parts.push(`Auswaehlbare Optionen im Bestellformular (jeder Wert ist eine eigene Variante):\n${zeilen.join('\n')}`);
       }
 
       if (page.text) parts.push(`Text:\n${page.text}`);
@@ -455,6 +677,8 @@ module.exports = {
   extractJsonLd,
   findLinks,
   findLogoCandidates,
+  extractShopJson,
+  extractVariantOptions,
   decodeEntities,
   resolveUrl,
   // Generische Parser-Helfer, damit page-classify sie nicht nachbauen muss

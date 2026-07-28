@@ -20,6 +20,14 @@ export const markeConfig = {
     },
     // 1. Markenname
     { name: 'markenname', label: 'Markenname', type: 'text', required: true, validation: { type: 'text', minLength: 2 } },
+    {
+      name: 'beschreibung',
+      label: 'Kurzbeschreibung',
+      type: 'textarea',
+      required: false,
+      rows: 4,
+      placeholder: 'Was macht die Marke, für wen, was ist ihre Positionierung?'
+    },
     // 2. Unternehmen in eigener Section
     { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...', table: 'unternehmen', displayField: 'firmenname', valueField: 'id', section: 'unternehmen' },
     // 3. Logo in Section (Webseite steht oben in der Auslesen-Section)

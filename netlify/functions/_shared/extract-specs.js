@@ -20,7 +20,7 @@
 
 // Wird in den Cache-Key gehasht: Aenderungen an den Specs invalidieren
 // automatisch alte Extraktionen, statt veraltete Ergebnisse auszuliefern.
-const SPEC_VERSION = 3;
+const SPEC_VERSION = 5;
 
 const SPECS = {
   unternehmen: {
@@ -75,6 +75,12 @@ const SPECS = {
         label: 'Rechnungs-Email',
         kind: 'guess',
         hint: 'E-Mail-Adresse fuer Rechnungen. Falls keine explizite Rechnungs- oder Buchhaltungsadresse genannt wird, die allgemeine Kontaktadresse aus dem Impressum verwenden. Keine Adresse erfinden.'
+      },
+      {
+        name: 'beschreibung',
+        label: 'Kurzbeschreibung',
+        kind: 'guess',
+        hint: 'Zwei bis vier Saetze: was das Unternehmen tut, welche Produkte oder Leistungen es anbietet, in welchem Markt es taetig ist und welche Marken dazugehoeren, sofern die Seite das nennt. Sachlich zusammenfassen, keine Werbesprache. Nur was die Seite hergibt, nichts erfinden.'
       }
     ]
   },
@@ -90,14 +96,20 @@ const SPECS = {
         label: 'Markenname',
         kind: 'fact',
         hint: 'Der Name, unter dem die Marke nach aussen auftritt - so wie im Logo, im Seitentitel, in og:site_name oder im JSON-LD. OHNE Rechtsform: aus "true fruits GmbH" wird "true fruits", aus "Muster Handels AG" wird "Muster". Auch Shop-Zusaetze weglassen: aus "Veganz Shop" wird "Veganz", aus "Muster Online-Store" wird "Muster". Keine Slogans oder Claims (nicht "Veganer Genuss aus Berlin"), keine Domain. Eigenschreibweise der Marke beibehalten, auch Kleinschreibung.'
+      },
+      {
+        name: 'beschreibung',
+        label: 'Kurzbeschreibung',
+        kind: 'guess',
+        hint: 'Zwei bis vier Saetze: was die Marke anbietet, fuer wen, und wie sie sich positioniert. Sachlich zusammenfassen, keine Werbesprache und keine Claims der Seite uebernehmen. Nichts zur Rechtsform oder zum Firmensitz - das gehoert zum Unternehmen, nicht zur Marke. Nur was die Seite hergibt, nichts erfinden.'
       }
     ]
   },
 
   // Produktseiten tragen deutlich mehr Substanz als eine Startseite: Sonnet
   // statt Haiku, weil hier interpretiert werden muss (USP, Pain Points).
-  // maxTokens bewusst knapp: der Output braucht real unter 1500 Tokens, ein
-  // hoher Wert bringt nichts und verlaengert im Zweifel nur die Antwortzeit.
+  // maxTokens mit Reserve fuer die Varianten: 20 Eintraege kosten allein rund
+  // 1000 Tokens, und eine abgeschnittene Antwort ist gar keine Antwort.
   produkt: {
     followLinks: [],
     logo: false,
@@ -105,7 +117,7 @@ const SPECS = {
     varianten: true,
     seitentyp: true,
     model: 'extract_produkt',
-    maxTokens: 3000,
+    maxTokens: 4000,
     fields: [
       {
         name: 'name',
@@ -158,6 +170,13 @@ const SPECS = {
         hint: 'Teuerster Preis in Euro als Dezimalzahl mit Punkt, nur wenn es eine echte Preisspanne gibt - ueber Varianten, Tarifstufen oder das sichtbare Sortiment (JSON-LD offers.highPrice oder "ab X bis Y"). Bei einem einzigen Preis null.'
       },
       {
+        name: 'preis_uvp',
+        label: 'UVP / Retail-Preis',
+        kind: 'fact',
+        type: 'number',
+        hint: 'Der regulaere Preis, wenn das Angebot reduziert ist - also der durchgestrichene Betrag neben dem Verkaufspreis, "statt 399 Euro", "UVP 399 Euro", "regulaer 399 Euro", JSON-LD listPrice oder "compare_at_price"/"uvp" aus den Varianten-Rohdaten. Immer der HOEHERE der beiden Preise; preis_von bleibt der Preis, den der Kunde tatsaechlich zahlt. Gibt es mehrere UVPs ueber die Varianten, den hoechsten. Wenn nichts reduziert ist und kein UVP genannt wird: null. Kein Waehrungszeichen.'
+      },
+      {
         name: 'inhaltsstoffe',
         label: 'Inhaltsstoffe',
         kind: 'fact',
@@ -185,8 +204,16 @@ const SPECS = {
   }
 };
 
-const VARIANTEN_INSTRUCTION = `Zusaetzlich das Feld "_varianten": Array der auf der Seite auswaehlbaren Produktvarianten, maximal 10 Eintraege. Jeder Eintrag: { "name": <Anzeigename der Variante>, "farbe": <Farbe oder Ausfuehrung oder null>, "modell_kompatibilitaet": <bei Zubehoer das passende Geraet, sonst null>, "preis": <Dezimalzahl mit Punkt oder null, nur wenn abweichend>, "merkmal": <weiteres Unterscheidungsmerkmal oder null> }.
-Nur echte Varianten desselben Produkts aufnehmen - keine Mengenrabatte. Auf einer Sortiments- oder Kategorieseite sind die sichtbaren Produktlinien die Varianten. Bei einer Dienstleistung sind es die Tarif- oder Paketstufen. Wenn die Seite nichts dergleichen anbietet: leeres Array.`;
+const VARIANTEN_INSTRUCTION = `Zusaetzlich das Feld "_varianten": Array der auf der Seite auswaehlbaren Produktvarianten, maximal 20 Eintraege. Jeder Eintrag: { "name": <Anzeigename der Variante>, "farbe": <Farbe oder Ausfuehrung oder null>, "modell_kompatibilitaet": <bei Zubehoer das passende Geraet, sonst null>, "preis": <Dezimalzahl mit Punkt oder null, nur wenn abweichend>, "uvp": <Streichpreis dieser Variante als Dezimalzahl oder null>, "merkmal": <weiteres Unterscheidungsmerkmal oder null> }.
+
+VOLLSTAENDIGKEIT IST HIER DAS WICHTIGSTE:
+- JEDE auswaehlbare Auspraegung wird ein EIGENER Eintrag. Vier Farben sind vier Eintraege, nicht einer.
+- Fasse NIEMALS zusammen ("in mehreren Farben", "Sand/Schwarz/Blau" in einem Eintrag) und kuerze NIEMALS mit "u.a." oder "...".
+- Die Quellen in dieser Reihenfolge auswerten und miteinander abgleichen, bevor du antwortest: die "Varianten-Rohdaten des Shops" (die sind vollstaendig), die "Auswaehlbaren Optionen im Bestellformular", die Offers im JSON-LD, erst zuletzt der Fliesstext.
+- Gibt es zwei Optionsachsen (z.B. Farbe x Modell), liste die tatsaechlich angebotenen Kombinationen; sind es mehr als 20, nimm die 20 wichtigsten und decke dabei jede Farbe mindestens einmal ab.
+- "preis" nur setzen, wenn er von der Preisspanne der Kollektion abweicht. "uvp" nur, wenn fuer diese Variante ein Streichpreis genannt wird.
+
+Nur echte Varianten desselben Produkts aufnehmen - keine Mengenrabatte, keine Zubehoer-Empfehlungen, keine "Kunden kauften auch". Auf einer Sortiments- oder Kategorieseite sind die sichtbaren Produktlinien die Varianten. Bei einer Dienstleistung sind es die Tarif- oder Paketstufen. Wenn die Seite nichts dergleichen anbietet: leeres Array.`;
 
 const SELBSTAUSKUNFT_INSTRUCTION = `Zusaetzlich diese zwei Meta-Felder, die nur der Diagnose dienen und nicht ins Formular wandern:
 - "_seitentyp": eines von "produktseite", "sortiment", "dienstleistung", "unternehmensseite", "blockiert" - was die Seite deiner Einschaetzung nach tatsaechlich ist.

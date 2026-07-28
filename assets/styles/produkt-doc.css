@@ -48,12 +48,42 @@
   flex: 1;
   overflow-y: auto;
   min-height: 0;
-  padding: var(--space-lg);
 }
 
 /* Nutzt die ganze Spalte: die Texte sollen nicht vorzeitig umbrechen */
 .produkt-doc__paper {
   width: 100%;
+  /* Vertikale Luft je Sektion (2x davon = Abstand zwischen den Hairlines)
+     und Abstand zwischen den Feldern innerhalb einer Sektion */
+  --produkt-doc-group-pad: var(--space-lg);
+  --produkt-doc-field-gap: var(--space-md);
+  padding-top: var(--space-lg);
+}
+
+/* ===== Sektionen: Inhalt | Preis | Bilder | Varianten | Compliance ===== */
+
+.produkt-doc__group {
+  padding: var(--produkt-doc-group-pad) var(--space-lg);
+  border-bottom: var(--border-xs) solid var(--gray-100);
+}
+
+/* Den unteren Abschluss zeichnet schon die Shell */
+.produkt-doc__group:last-child {
+  border-bottom: none;
+}
+
+.produkt-doc__group > .produkt-doc__section,
+.produkt-doc__group > .produkt-doc__block {
+  margin: 0 0 var(--produkt-doc-field-gap);
+}
+
+.produkt-doc__group > :last-child {
+  margin-bottom: 0;
+}
+
+/* Varianten-Slot vor dem Mount: kein Geister-Abstand zwischen den Sektionen */
+.produkt-doc__group:has(> :only-child:empty) {
+  display: none;
 }
 
 .produkt-doc__side {
@@ -67,11 +97,11 @@
 
 /* ===== Dokumenttitel ===== */
 
+/* Gleiche Seitenraender wie die Sektionen, damit alles buendig steht */
 .produkt-doc .produkt-doc__title-field {
   position: relative;
-  margin: 0 0 var(--space-lg);
-  padding-left: var(--space-md);
-  border-left: var(--border-sm) solid transparent;
+  margin: 0;
+  padding: 0 var(--space-lg);
 }
 
 .produkt-doc .produkt-doc__title {
@@ -86,7 +116,6 @@
   line-height: 1.4;
   border-radius: 0;
   color: var(--gray-900);
-  
 }
 
 .produkt-doc .produkt-doc__title:focus {
@@ -104,17 +133,13 @@
 .produkt-doc .produkt-doc__title-field > .tag--extract {
   position: absolute;
   top: 0;
-  right: 0;
+  right: var(--space-lg);
   margin: 0;
 }
 
 /* ===== Textabschnitte ===== */
 
 .produkt-doc .produkt-doc__section {
-  margin: 0 0 var(--space-lg);
-  padding-left: var(--space-md);
-  /* Immer vorhanden, damit die Vorschlag-Markierung nichts verschiebt */
-  border-left: var(--border-sm) solid transparent;
   scroll-margin-top: var(--space-lg);
 }
 
@@ -168,75 +193,76 @@
   font-style: italic;
 }
 
-/* ===== Kapitel-Trenner ===== */
+/* ===== Preis-Karten ===== */
 
-.produkt-doc__chapter {
+/* Je Betrag eine umrandete Kachel. Ab drei Karten (von, bis, UVP) wird eine
+   Reihe schmaler Unterstrich-Felder unleserlich - die Karten tragen das
+   Label mit und bleiben auch nebeneinander eindeutig. */
+.produkt-doc__price-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+/* Basis so breit, dass das "Vorschlag"-Tag neben das Label passt statt darunter */
+.produkt-doc .produkt-doc__price-card {
+  flex: 1 1 10rem;
+  min-width: 9rem;
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border: var(--border-xs) solid var(--border-secondary);
+  border-radius: var(--radius-xl);
+  background: var(--bg-primary);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.produkt-doc .produkt-doc__price-card:focus-within {
+  border-color: var(--gray-900);
+  box-shadow: inset 0 0 0 1px var(--gray-900);
+}
+
+/* Flex auch ohne .ai-filled, damit das "Vorschlag"-Tag per margin-left:auto
+   rechts andockt, sobald die Extraktion es anhaengt. */
+.produkt-doc .produkt-doc__price-card > label {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-  margin: var(--space-xxl) 0 var(--space-lg);
-  /* Bündig mit den Ueberschriften, die Rand und Innenabstand tragen */
-  padding-left: calc(var(--space-md) + var(--border-sm));
+  flex-wrap: wrap;
+  gap: var(--space-xxs);
+  margin-bottom: var(--space-xxs);
   color: var(--gray-500);
   font-size: var(--text-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-weight: 500;
 }
 
-.produkt-doc__chapter::after {
-  content: '';
-  flex: 1;
-  height: var(--border-xs);
-  background: var(--gray-200);
-}
-
-/* ===== Preis-Range ===== */
-
-.produkt-doc .produkt-doc__section--inline {
-  margin-bottom: var(--space-lg);
-}
-
-.produkt-doc__inline-row {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-lg);
-}
-
-.produkt-doc .produkt-doc__inline-field {
-  width: auto;
-  margin: 0;
-}
-
-.produkt-doc .produkt-doc__inline-field > label {
-  margin-bottom: 2px;
-  color: var(--gray-500);
-  font-size: var(--text-xs);
-}
-
-.produkt-doc__amount {
+.produkt-doc__price-value {
   display: flex;
   align-items: baseline;
   gap: var(--space-xxs);
-  border-bottom: var(--border-xs) solid var(--gray-300);
-  transition: border-color 0.15s ease;
-}
-
-.produkt-doc__amount:focus-within {
-  border-bottom-color: var(--gray-900);
 }
 
 .produkt-doc .produkt-doc__number {
-  width: 5.5rem;
-  padding: 0 0 2px;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
   border: none;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
   font-family: inherit;
-  font-size: var(--text-sm);
+  font-size: var(--text-xl);
+  font-weight: 500;
+  line-height: 1.2;
   color: var(--gray-900);
   font-variant-numeric: tabular-nums;
+  /* Spinner weg: die Pfeile zerschiessen die Karte und niemand klickt sich in
+     Cent-Schritten zu einem Preis. */
+  appearance: textfield;
+}
+
+.produkt-doc .produkt-doc__number::-webkit-outer-spin-button,
+.produkt-doc .produkt-doc__number::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
 }
 
 .produkt-doc .produkt-doc__number:focus {
@@ -245,18 +271,28 @@
   box-shadow: none;
 }
 
+.produkt-doc .produkt-doc__number::placeholder {
+  color: var(--gray-300);
+  font-weight: 400;
+}
+
 .produkt-doc__unit {
-  color: var(--gray-500);
-  font-size: var(--text-sm);
+  color: var(--gray-400);
+  font-size: var(--text-lg);
+  line-height: 1.2;
+}
+
+.produkt-doc .produkt-doc__price-note {
+  margin: var(--space-xxs) 0 0;
+  color: var(--gray-400);
+  font-size: var(--text-xs);
+  line-height: 1.4;
 }
 
 /* ===== Bloecke (Bilder, Varianten) ===== */
 
 .produkt-doc .produkt-doc__block {
   display: block;
-  margin: 0 0 var(--space-xl);
-  padding-left: var(--space-md);
-  border-left: var(--border-sm) solid transparent;
 }
 
 .produkt-doc .produkt-doc__block:empty {
@@ -474,16 +510,21 @@
 
 /* ===== Varianten-Tabelle ===== */
 
-/* Acht Spalten sind eng: Merkmal bekommt den Rest, und unter der Mindestbreite
+/* Neun Spalten sind eng: Merkmal bekommt den Rest, und unter der Mindestbreite
    scrollt die Tabelle waagerecht statt die Felder unlesbar zu quetschen. */
 .produkt-doc .data-table--varianten {
-  min-width: 46rem;
+  min-width: 51rem;
 }
 
-.produkt-doc .data-table--varianten .col-name { width: 19%; }
-.produkt-doc .data-table--varianten .col-modell { width: 17%; }
-.produkt-doc .data-table--varianten .col-farbe { width: 12%; }
+.produkt-doc .data-table--varianten .col-name { width: 18%; }
+.produkt-doc .data-table--varianten .col-modell { width: 16%; }
+.produkt-doc .data-table--varianten .col-farbe { width: 11%; }
 .produkt-doc .data-table--varianten .col-preis { width: 5rem; }
+
+/* Der Streichpreis bleibt sekundaer - er wird selten gepflegt */
+.produkt-doc .data-table--varianten .col-uvp {
+  color: var(--gray-500);
+}
 
 /* Rahmenlose Eingaben in den Zellen - die Zeile ist der Rahmen */
 .produkt-doc .cell-input {
@@ -599,16 +640,6 @@
 .produkt-doc .form-field.ai-filled textarea,
 .produkt-doc .form-field.ai-filled .url-input-field {
   background-color: transparent;
-}
-
-
-
-
-.produkt-doc .produkt-doc__section > label {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-xxs);
 }
 
 /* ===== Aktionen ===== */

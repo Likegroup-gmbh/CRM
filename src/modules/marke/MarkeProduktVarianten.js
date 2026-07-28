@@ -41,6 +41,7 @@ export class ProduktVariantenPanel {
       modell_kompatibilitaet: v.modell_kompatibilitaet || '',
       farbe: v.farbe || '',
       preis: v.preis ?? '',
+      uvp: v.uvp ?? '',
       merkmal: v.merkmal || '',
       bildFile: null,
       bildId: bilder.find(b => b.variante_id === v.id)?.id || null,
@@ -66,6 +67,7 @@ export class ProduktVariantenPanel {
         modell_kompatibilitaet: e.modell_kompatibilitaet.trim() || null,
         farbe: e.farbe.trim() || null,
         preis: e.preis === '' ? null : e.preis,
+        uvp: e.uvp === '' ? null : e.uvp,
         merkmal: e.merkmal.trim() || null
       }));
   }
@@ -77,17 +79,27 @@ export class ProduktVariantenPanel {
       .map(e => ({ varianteName: e.name.trim(), varianteId: e.id || null, file: e.bildFile, altesBildId: e.bildId }));
   }
 
+  /**
+   * Kennung einer Variante. Der Name allein reicht nicht: bei zwei
+   * Optionsachsen heissen "Sand / iPhone 15" und "Sand / iPhone 16" beide
+   * "Sand", und die zweite waere sonst als Dublette verschwunden.
+   */
+  variantenKey({ name, farbe, modell_kompatibilitaet: modell }) {
+    return [name, farbe, modell].map(v => String(v ?? '').trim().toLowerCase()).join('|');
+  }
+
   /** KI-Vorschlaege zur Auswahl anbieten, statt sie direkt zu uebernehmen. */
   setSuggestions(varianten = []) {
-    const vorhandene = new Set(this.entries.map(e => e.name.trim().toLowerCase()));
+    const vorhandene = new Set(this.entries.map(e => this.variantenKey(e)));
     this.suggestions = varianten
-      .filter(v => v?.name && !vorhandene.has(String(v.name).trim().toLowerCase()))
+      .filter(v => v?.name && !vorhandene.has(this.variantenKey(v)))
       .map(v => ({
         key: nextKey(),
         name: String(v.name).trim(),
         modell_kompatibilitaet: v.modell_kompatibilitaet || v.modell || '',
         farbe: v.farbe || '',
         preis: v.preis ?? '',
+        uvp: v.uvp ?? '',
         merkmal: v.merkmal || '',
         checked: true
       }));
@@ -123,6 +135,7 @@ export class ProduktVariantenPanel {
               <th class="col-modell">Modell / Kompatibilität</th>
               <th class="col-farbe">Farbe</th>
               <th class="col-preis">Preis</th>
+              <th class="col-preis col-uvp">UVP</th>
               <th class="col-merkmal">Merkmal</th>
               ${mehrere ? '<th class="col-sort">Reihenfolge</th>' : ''}
               <th class="col-actions">Löschen</th>
@@ -143,6 +156,7 @@ export class ProduktVariantenPanel {
         <span class="variante-suggestion__name">${this.escape(s.name)}</span>
         ${s.farbe ? `<span class="variante-suggestion__meta">${this.escape(s.farbe)}</span>` : ''}
         ${s.preis !== '' && s.preis != null ? `<span class="variante-suggestion__meta">${this.escape(String(s.preis))} €</span>` : ''}
+        ${s.uvp !== '' && s.uvp != null ? `<span class="variante-suggestion__meta">UVP ${this.escape(String(s.uvp))} €</span>` : ''}
       </label>
     `).join('');
 
@@ -216,6 +230,9 @@ export class ProduktVariantenPanel {
         <td class="col-preis">
           <input type="number" step="0.01" min="0" class="cell-input cell-input--num" data-field="preis" placeholder="–">
         </td>
+        <td class="col-preis col-uvp">
+          <input type="number" step="0.01" min="0" class="cell-input cell-input--num" data-field="uvp" placeholder="–" title="Streichpreis dieser Variante">
+        </td>
         <td class="col-merkmal">
           <input type="text" class="cell-input" data-field="merkmal" placeholder="z.B. mit MagSafe">
         </td>
@@ -246,6 +263,7 @@ export class ProduktVariantenPanel {
         modell_kompatibilitaet: '',
         farbe: '',
         preis: '',
+        uvp: '',
         merkmal: '',
         bildFile: null,
         bildId: null,
@@ -319,6 +337,7 @@ export class ProduktVariantenPanel {
           modell_kompatibilitaet: s.modell_kompatibilitaet,
           farbe: s.farbe,
           preis: s.preis ?? '',
+          uvp: s.uvp ?? '',
           merkmal: s.merkmal,
           bildFile: null,
           bildId: null,

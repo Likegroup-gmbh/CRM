@@ -30,6 +30,7 @@ export function renderUnternehmenDetailPage(detail) {
 
   const sidebarInfo = detail.renderInfoItems([
     ...(detail.unternehmen?.internes_kuerzel ? [{ icon: 'info', label: 'Internes Kürzel', value: detail.unternehmen.internes_kuerzel }] : []),
+    ...(detail.unternehmen?.beschreibung ? [{ icon: 'info', label: 'Kurzbeschreibung', value: detail.unternehmen.beschreibung }] : []),
     { icon: 'tag', label: 'Branchen', value: detail.unternehmen?.branchen_names?.join(', ') || '-' },
     ...(webseiteLinkHtml ? [{ icon: 'link', label: 'Webseite', rawHtml: webseiteLinkHtml }] : []),
     { icon: 'mail', label: 'E-Mail', value: detail.unternehmen?.mail, mailto: true },

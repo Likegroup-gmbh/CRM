@@ -10,13 +10,13 @@ async function loadContext(supabase, params) {
 
   if (unternehmen_id) {
     const { data } = await supabase.from('unternehmen')
-      .select('id, firmenname, webseite, branche_id').eq('id', unternehmen_id).single();
+      .select('id, firmenname, webseite, beschreibung, branche_id').eq('id', unternehmen_id).single();
     ctx.unternehmen = data;
   }
 
   if (marke_id) {
     const { data } = await supabase.from('marke')
-      .select('id, markenname, webseite, branche, branche_id').eq('id', marke_id).single();
+      .select('id, markenname, webseite, beschreibung, branche, branche_id').eq('id', marke_id).single();
     ctx.marke = data;
   }
 
@@ -32,12 +32,12 @@ async function loadContext(supabase, params) {
   // separat geladen, damit im Skript die richtige Ausfuehrung gemeint ist.
   if (produkt_id) {
     const { data } = await supabase.from('produkt')
-      .select('name, url, kurzbeschreibung, usp, pain_points, loesung, einsatzsituation, preis_von, preis_bis, inhaltsstoffe, erlaubte_claims, verbotene_claims, rechtliche_hinweise')
+      .select('name, url, kurzbeschreibung, usp, pain_points, loesung, einsatzsituation, preis_von, preis_bis, preis_uvp, inhaltsstoffe, erlaubte_claims, verbotene_claims, rechtliche_hinweise')
       .eq('id', produkt_id).single();
     ctx.produkt = data;
 
     const { data: varianten } = await supabase.from('produkt_variante')
-      .select('name, farbe, modell_kompatibilitaet, preis, merkmal')
+      .select('name, farbe, modell_kompatibilitaet, preis, uvp, merkmal')
       .eq('produkt_id', produkt_id).order('position');
     ctx.produktVarianten = varianten || [];
   }
@@ -154,13 +154,27 @@ function fmtSection(title, obj) {
   return `\n## ${title}\n${lines.join('\n')}\n`;
 }
 
-/** "29,90 EUR" oder "29,90-49,90 EUR" - null, wenn kein Preis gepflegt ist. */
+const fmtEuro = (n) => Number(n).toFixed(2).replace('.', ',');
+
+/**
+ * "29,90 EUR", "29,90-49,90 EUR" oder "199,00 EUR (UVP 399,00 EUR)".
+ * Der UVP gehoert dazu: die Ersparnis ist im Skript oft das Argument.
+ * null, wenn kein Preis gepflegt ist.
+ */
 function produktPreis(produkt) {
-  const fmt = (n) => Number(n).toFixed(2).replace('.', ',');
-  const von = produkt.preis_von != null ? fmt(produkt.preis_von) : null;
-  const bis = produkt.preis_bis != null ? fmt(produkt.preis_bis) : null;
-  if (von && bis && von !== bis) return `${von}-${bis} EUR`;
-  return von ? `${von} EUR` : bis ? `bis ${bis} EUR` : null;
+  const von = produkt.preis_von != null ? fmtEuro(produkt.preis_von) : null;
+  const bis = produkt.preis_bis != null ? fmtEuro(produkt.preis_bis) : null;
+
+  const basis = von && bis && von !== bis
+    ? `${von}-${bis} EUR`
+    : von ? `${von} EUR` : bis ? `bis ${bis} EUR` : null;
+  if (!basis) return null;
+
+  // Ein UVP unterhalb des Verkaufspreises ist ein Datenfehler und waere im
+  // Skript eine falsche Behauptung - dann lieber weglassen.
+  const uvp = produkt.preis_uvp != null ? Number(produkt.preis_uvp) : null;
+  const zeigtUvp = uvp != null && (produkt.preis_von == null || uvp > Number(produkt.preis_von));
+  return zeigtUvp ? `${basis} (regulaer/UVP ${fmtEuro(uvp)} EUR)` : basis;
 }
 
 /**
@@ -173,7 +187,8 @@ function fmtVarianten(varianten) {
     const details = [
       v.farbe ? `Farbe: ${v.farbe}` : null,
       v.modell_kompatibilitaet ? `passend fuer: ${v.modell_kompatibilitaet}` : null,
-      v.preis != null ? `Preis: ${Number(v.preis).toFixed(2).replace('.', ',')} EUR` : null,
+      v.preis != null ? `Preis: ${fmtEuro(v.preis)} EUR` : null,
+      v.uvp != null ? `UVP: ${fmtEuro(v.uvp)} EUR` : null,
       v.merkmal
     ].filter(Boolean).join(', ');
     return `- ${v.name}${details ? ` (${details})` : ''}`;
@@ -265,10 +280,12 @@ function buildKontextText(ctx, params) {
   let text = '';
   text += fmtSection('Unternehmen', ctx.unternehmen && {
     firmenname: ctx.unternehmen.firmenname,
+    beschreibung: ctx.unternehmen.beschreibung,
     webseite: ctx.unternehmen.webseite
   });
   text += fmtSection('Marke', ctx.marke && {
     markenname: ctx.marke.markenname,
+    beschreibung: ctx.marke.beschreibung,
     branche: ctx.branche?.name || ctx.marke.branche,
     webseite: ctx.marke.webseite
   });
