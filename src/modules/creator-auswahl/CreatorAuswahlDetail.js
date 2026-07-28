@@ -5,9 +5,9 @@ import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { SourcingDetailColumnVisibilityDrawer } from './SourcingDetailColumnVisibilityDrawer.js';
 import { normalizeCreatorTyp, isAllowedCreatorTyp } from './creatorTypeOptions.js';
 import {
-  renderAddSection, renderItemsTable, renderTabNavigation,
+  renderAddSection, renderItemsTable, renderTabNavigation, renderItemRow,
   getTeilbereicheFromListe, isColumnVisibleForCustomer, getVisibleColumnCount,
-  getSourcingTabForItem, SOURCING_TABS
+  getSourcingTabForItem, SOURCING_TABS, migrateHiddenColumns
 } from './CreatorAuswahlTemplates.js';
 import { CreatorAuswahlKategorienDrawer } from './CreatorAuswahlKategorienDrawer.js';
 import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
@@ -108,9 +108,7 @@ export class CreatorAuswahlDetail {
   // --- Spalten-Sichtbarkeit ---
 
   loadColumnVisibilitySettings() {
-    this.hiddenColumns = Array.isArray(this.liste?.hidden_columns)
-      ? this.liste.hidden_columns
-      : [];
+    this.hiddenColumns = migrateHiddenColumns(this.liste?.hidden_columns);
     try {
       const callKey = `sourcing_detail_kunden_call_${this.listeId}`;
       this.kundenCallActive = localStorage.getItem(callKey) === 'true';
@@ -390,6 +388,12 @@ export class CreatorAuswahlDetail {
         this._boundEventListeners.add(() => addEmptyRowBtn.removeEventListener('click', handler));
       }
 
+      document.querySelectorAll('[data-ig-fetch]').forEach(btn => {
+        const handler = () => this.handleInstagramFetch(btn);
+        btn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+      });
+
       this.bindDragAndDropEvents();
       this.bindSelectionEvents();
       this.bindPillEvents();
@@ -635,6 +639,79 @@ export class CreatorAuswahlDetail {
     } catch (error) {
       console.error('Fehler beim Speichern der Sortierung:', error);
       window.toastSystem?.show('Fehler beim Speichern der Sortierung', 'error');
+    }
+  }
+
+  /**
+   * Haekchen-Button neben dem IG-Link: Profil, Follower und CPM-Werte
+   * ueber die Graph API nachladen und die Zeile aktualisieren.
+   */
+  async handleInstagramFetch(button) {
+    if (button.disabled) return;
+
+    const itemId = button.dataset.itemId;
+    const item = this.items.find(i => i.id === itemId);
+    if (!item) return;
+
+    const linkInput = document.querySelector(`input[data-field="link_instagram"][data-item-id="${itemId}"]`);
+    const link = linkInput?.value?.trim();
+    if (!link) {
+      window.toastSystem?.show('Bitte zuerst einen Instagram-Link eintragen', 'error');
+      return;
+    }
+
+    // Noch nicht gespeicherte Eingabe zuerst persistieren, sonst liest die
+    // Function den alten Wert aus der DB
+    if (link !== item.link_instagram) {
+      try {
+        await creatorAuswahlService.updateItem(itemId, { link_instagram: link });
+        item.link_instagram = link;
+      } catch (error) {
+        console.error('Fehler beim Speichern des Instagram-Links:', error);
+        window.toastSystem?.show('Instagram-Link konnte nicht gespeichert werden', 'error');
+        return;
+      }
+    }
+
+    button.disabled = true;
+    button.classList.remove('is-error', 'is-success');
+    button.classList.add('is-loading');
+
+    try {
+      const updated = await creatorAuswahlService.fetchInstagramStats(itemId);
+      Object.assign(item, updated);
+      this.refreshItemRow(itemId, { flashSuccess: true });
+
+      const views = updated.ig_views_trimmed;
+      window.toastSystem?.show(
+        views != null
+          ? `Instagram-Daten aktualisiert (${Number(views).toLocaleString('de-DE')} Views im Schnitt)`
+          : 'Instagram-Daten aktualisiert – zu wenige Reels für eine CPM-Berechnung',
+        views != null ? 'success' : 'info'
+      );
+    } catch (error) {
+      console.error('Fehler beim Instagram-Abruf:', error);
+      item.ig_fetch_error = error.message;
+      this.refreshItemRow(itemId);
+      window.toastSystem?.show(error.hint || error.message, error.retryable ? 'info' : 'error');
+    }
+  }
+
+  /** Eine einzelne Tabellenzeile neu rendern, ohne die ganze Tabelle anzufassen */
+  refreshItemRow(itemId, { flashSuccess = false } = {}) {
+    const row = document.querySelector(`.item-row[data-item-id="${itemId}"]`);
+    const item = this.items.find(i => i.id === itemId);
+    if (!row || !item) return;
+
+    row.outerHTML = renderItemRow(this.getRenderContext(), item, 0);
+    this.bindEvents();
+
+    if (flashSuccess) {
+      const btn = document.querySelector(`[data-ig-fetch][data-item-id="${itemId}"]`);
+      if (btn) {
+        btn.classList.add('is-success');
+        setTimeout(() => btn.classList.remove('is-success'), 2000);
+      }
     }
   }
 

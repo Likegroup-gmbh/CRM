@@ -13,19 +13,18 @@
 // Auth: Supabase Bearer-Token. Meta-Token bleibt serverseitig.
 
 const { createClient } = require('@supabase/supabase-js');
-const sharp = require('sharp');
+const {
+  normalizeUsername,
+  isValidUsername,
+  fetchProfile: fetchDiscoveryProfile,
+  storeImage
+} = require('./_shared/instagram-graph');
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const AUTH_KEY = SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
-const GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v21.0';
-const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
-
-const STORAGE_BUCKET = 'instagram-media';
 const SAVED_POSTS = 5;
-const THUMB_WIDTH = 640;
-const WEBP_QUALITY = 78;
 
 // Brand-Aufloesung (Werbepartner-Erwaehnungen -> Name + Logo)
 const MAX_BRANDS_RESOLVE = 8;     // Limit wegen 26s Function-Timeout
@@ -55,34 +54,9 @@ async function verifyAuth(event) {
   return user;
 }
 
-/** Graph-GET mit Access Token; wirft bei Meta-Fehlern ein Error mit .meta */
-async function graphGet(path, params = {}) {
-  const url = new URL(`${GRAPH_BASE}/${path}`);
-  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  url.searchParams.set('access_token', process.env.META_ACCESS_TOKEN);
-
-  const res = await fetch(url.toString());
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.error) {
-    const err = new Error(data.error?.message || `Graph API HTTP ${res.status}`);
-    err.meta = data.error || null;
-    throw err;
-  }
-  return data;
-}
-
-/** Username normalisieren: @, URL-Reste weg, lowercase */
-function normalizeUsername(input) {
-  return String(input || '')
-    .trim()
-    .replace(/^@/, '')
-    .replace(/^https?:\/\/(www\.)?instagram\.com\//i, '')
-    .replace(/[/?#].*$/, '')
-    .toLowerCase();
-}
-
-function isValidUsername(u) {
-  return /^[a-z0-9._]{1,30}$/.test(u);
+/** Ein Instagram-Profil via Business Discovery laden */
+function fetchProfile(username) {
+  return fetchDiscoveryProfile(username, DISCOVERY_FIELDS);
 }
 
 /** Engagement Rate = Durchschnitt (Likes + Kommentare) / Follower ueber die geladenen Posts, in Prozent */
@@ -189,70 +163,6 @@ async function resolveBrands(supabase, handles) {
   }
 
   return results;
-}
-
-// Meta-Fehlercodes, die auf Rate-Limiting/transiente Probleme hindeuten
-// (4 = App-Limit, 17 = User-Limit, 32 = Page-Limit, 613 = Custom Rate Limit)
-const RATE_LIMIT_CODES = new Set([4, 17, 32, 613]);
-
-function isRateLimitError(meta) {
-  if (!meta) return false;
-  if (RATE_LIMIT_CODES.has(Number(meta.code))) return true;
-  return meta.is_transient === true;
-}
-
-/** Ein Instagram-Profil via Business Discovery laden */
-async function fetchProfile(username) {
-  const igUserId = process.env.META_IG_USER_ID;
-  try {
-    const data = await graphGet(igUserId, {
-      fields: `business_discovery.username(${username}){${DISCOVERY_FIELDS}}`
-    });
-    const bd = data.business_discovery || {};
-    return { ok: true, profile: bd, media: bd.media?.data || [] };
-  } catch (err) {
-    return {
-      ok: false,
-      error: err.meta?.message || err.message,
-      error_code: err.meta?.code ?? null,
-      rate_limited: isRateLimitError(err.meta)
-    };
-  }
-}
-
-/**
- * Bild von Metas CDN laden, zu WebP (~640px) komprimieren und in den
- * Storage-Bucket hochladen. Gibt die public URL (mit Cache-Buster) zurueck,
- * oder null wenn irgendwas schiefgeht (Connect soll daran nicht scheitern).
- */
-async function storeImage(supabase, sourceUrl, storagePath, width = THUMB_WIDTH) {
-  if (!sourceUrl) return null;
-  try {
-    const res = await fetch(sourceUrl);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const original = Buffer.from(await res.arrayBuffer());
-
-    const webp = await sharp(original)
-      .resize({ width, withoutEnlargement: true })
-      .webp({ quality: WEBP_QUALITY })
-      .toBuffer();
-
-    const { error } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .upload(storagePath, webp, {
-        contentType: 'image/webp',
-        cacheControl: '3600',
-        upsert: true
-      });
-    if (error) throw new Error(error.message);
-
-    const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(storagePath);
-    // Cache-Buster: gleicher Pfad wird beim Refresh ueberschrieben
-    return `${data.publicUrl}?v=${Date.now()}`;
-  } catch (err) {
-    console.warn(`⚠️ instagram-connect: Bild ${storagePath} fehlgeschlagen:`, err.message);
-    return null;
-  }
 }
 
 exports.handler = async (event) => {

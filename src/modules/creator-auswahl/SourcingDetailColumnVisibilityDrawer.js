@@ -11,7 +11,8 @@ export class SourcingDetailColumnVisibilityDrawer {
     // Name und Aktionen sind immer sichtbar und können nicht deaktiviert werden
     this.columns = [
       { className: 'cp-col-typ', label: 'Creator Art' },
-      { className: 'cp-col-links', label: 'Links (IG/TT)' },
+      { className: 'cp-col-link-ig', label: 'Link Instagram' },
+      { className: 'cp-col-link-tt', label: 'Link TikTok' },
       { className: 'cp-col-follower-ig', label: 'Follower Instagram' },
       { className: 'cp-col-follower-tt', label: 'Follower TikTok' },
       { className: 'cp-col-ek', label: 'EK (Einkaufspreis)' },
@@ -20,8 +21,11 @@ export class SourcingDetailColumnVisibilityDrawer {
       { className: 'cp-col-reichweite-ig', label: 'Reichweite Instagram' },
       { className: 'cp-col-reichweite-tt', label: 'Reichweite TikTok' },
       { className: 'cp-col-reichweite-garantie', label: 'Reichweitengarantie' },
-      { className: 'cp-col-cpm-ig', label: 'CPM Instagram' },
+      { className: 'cp-col-cpm-ig', label: 'CPM Instagram (manuell)' },
       { className: 'cp-col-cpm-tt', label: 'CPM TikTok' },
+      { className: 'cp-col-cpm-ig-8', label: 'CPM Instagram (letzte 8 Reels)' },
+      { className: 'cp-col-cpm-ig-30', label: 'CPM Instagram (letzte 30 Reels)' },
+      { className: 'cp-col-cpm-ig-trimmed', label: 'CPM Instagram (getrimmter Schnitt)' },
       { className: 'cp-col-location', label: 'Location' },
       { className: 'cp-col-notiz', label: 'Kurzbeschreibung' },
       { className: 'cp-col-feedback', label: 'Rückmeldung Kunde' },

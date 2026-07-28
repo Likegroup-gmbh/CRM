@@ -35,6 +35,22 @@ export function groupItemsByKategorie(items) {
   return groups;
 }
 
+/**
+ * Die frueher kombinierte Links-Spalte wurde in IG und TT aufgeteilt.
+ * Listen, die "cp-col-links" noch ausgeblendet haben, sollen weiterhin
+ * beide Link-Spalten ausgeblendet sehen.
+ */
+export function migrateHiddenColumns(hiddenColumns) {
+  const cols = Array.isArray(hiddenColumns) ? [...hiddenColumns] : [];
+  if (!cols.includes('cp-col-links')) return cols;
+
+  return [...new Set(
+    cols
+      .filter(c => c !== 'cp-col-links')
+      .concat('cp-col-link-ig', 'cp-col-link-tt')
+  )];
+}
+
 export function isColumnVisibleForCustomer(columnClass, isKunde, hiddenColumns) {
   if (columnClass === 'cp-col-name' || columnClass === 'cp-col-actions' || columnClass === 'cp-col-drag') {
     return true;
@@ -47,10 +63,12 @@ export function isColumnVisibleForCustomer(columnClass, isKunde, hiddenColumns) 
 
 export function getVisibleColumnCount(isKunde, hiddenColumns) {
   const allColumns = [
-    'cp-col-drag', 'cp-col-name', 'cp-col-typ', 'cp-col-links', 'cp-col-follower-ig',
+    'cp-col-drag', 'cp-col-name', 'cp-col-typ', 'cp-col-link-ig', 'cp-col-link-tt',
+    'cp-col-follower-ig',
     'cp-col-follower-tt', 'cp-col-ek', 'cp-col-vk', 'cp-col-pricing',
     'cp-col-reichweite-ig', 'cp-col-reichweite-tt', 'cp-col-reichweite-garantie',
     'cp-col-cpm-ig', 'cp-col-cpm-tt',
+    'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-cpm-ig-trimmed',
     'cp-col-location', 'cp-col-notiz',
     'cp-col-feedback', 'cp-col-anfragen', 'cp-col-onhold', 'cp-col-buchen', 'cp-col-prio1', 'cp-col-prio2', 'cp-col-absagen', 'cp-col-check', 'cp-col-actions'
   ];
@@ -73,6 +91,31 @@ const INSTAGRAM_ICON = `<svg class="platform-icon platform-icon--instagram" view
 const TIKTOK_ICON = `<svg class="platform-icon platform-icon--tiktok" viewBox="0 0 24 24" aria-label="TikTok" role="img" focusable="false"><path d="M14.5 3c.4 3.2 2.3 5.1 5.5 5.5v2.3c-1.9 0-3.6-.6-5-1.7v6.4c0 3.1-2.5 5.6-5.6 5.6S3.8 19 3.8 15.9s2.5-5.6 5.6-5.6c.5 0 1 .1 1.5.2v2.6c-.5-.2-1-.4-1.5-.4-1.8 0-3.2 1.4-3.2 3.2s1.4 3.2 3.2 3.2 3.2-1.4 3.2-3.2V3h2.9Z"/></svg>`;
 
 const NICHT_UMSETZEN_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" /></svg>`;
+
+export const IG_FETCH_CHECK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>`;
+
+const IG_FETCH_WARN_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008M10.34 3.94 2.7 17.1A1.5 1.5 0 0 0 4 19.35h16a1.5 1.5 0 0 0 1.3-2.25L13.66 3.94a1.5 1.5 0 0 0-2.62 0Z" /></svg>`;
+
+/** Haekchen-Button neben dem IG-Link: holt Profil, Follower und CPM ueber die Graph API */
+export function renderIgFetchButton(item) {
+  const hasError = !!item.ig_fetch_error;
+  const title = hasError
+    ? `Abruf fehlgeschlagen: ${item.ig_fetch_error}`
+    : item.ig_fetched_at
+      ? `Zuletzt abgerufen: ${new Date(item.ig_fetched_at).toLocaleString('de-DE')}`
+      : 'Instagram-Daten abrufen';
+
+  return `
+    <button type="button"
+            class="ig-fetch-btn${hasError ? ' is-error' : ''}"
+            data-ig-fetch
+            data-item-id="${item.id}"
+            title="${escapeHtml(title)}"
+            aria-label="Instagram-Daten abrufen">
+      ${hasError ? IG_FETCH_WARN_ICON : IG_FETCH_CHECK_ICON}
+    </button>
+  `;
+}
 
 // --- Status-Reiter (Tabs) ---
 
@@ -203,7 +246,8 @@ export function renderItemsTable(ctx) {
             ${!ctx.isKunde ? '<th class="col-drag col-sticky-1 cp-col-drag"><input type="checkbox" class="sourcing-select-all" title="Alle auswählen"></th>' : ''}
             <th class="${ctx.isKunde ? 'col-sticky-1' : 'col-sticky-2'} cp-col-name">Name</th>
             <th class="cp-col-typ" ${hide('cp-col-typ')}>Creator Art</th>
-            <th class="cp-col-links" ${hide('cp-col-links')}>Links</th>
+            <th class="cp-col-link-ig" ${hide('cp-col-link-ig')}>Link ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-link-tt" ${hide('cp-col-link-tt')}>Link ${TIKTOK_ICON}</th>
             <th class="cp-col-follower-ig" ${hide('cp-col-follower-ig')}>Follower ${INSTAGRAM_ICON}</th>
             <th class="cp-col-follower-tt" ${hide('cp-col-follower-tt')}>Follower ${TIKTOK_ICON}</th>
             <th class="cp-col-ek" ${hide('cp-col-ek')}>EK</th>
@@ -214,6 +258,9 @@ export function renderItemsTable(ctx) {
             <th class="cp-col-reichweite-garantie" ${hide('cp-col-reichweite-garantie')}>RW Garantie</th>
             <th class="cp-col-cpm-ig" ${hide('cp-col-cpm-ig')}>CPM ${INSTAGRAM_ICON}</th>
             <th class="cp-col-cpm-tt" ${hide('cp-col-cpm-tt')}>CPM ${TIKTOK_ICON}</th>
+            <th class="cp-col-cpm-ig-8" ${hide('cp-col-cpm-ig-8')} title="Preis aus dem Views-Schnitt der letzten 8 Reels">CPM 8 ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-cpm-ig-30" ${hide('cp-col-cpm-ig-30')} title="Preis aus dem Views-Schnitt der letzten 30 Reels">CPM 30 ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-cpm-ig-trimmed" ${hide('cp-col-cpm-ig-trimmed')} title="Preis aus dem getrimmten Views-Schnitt (Ausreißer gekappt)">CPM ⌀ ${INSTAGRAM_ICON}</th>
             <th class="cp-col-location" ${hide('cp-col-location')}>Location</th>
             <th class="cp-col-notiz" ${hide('cp-col-notiz')}>Kurzbeschreibung</th>
             <th class="cp-col-feedback" ${hide('cp-col-feedback')}>Rückmeldung Kunde</th>
@@ -324,6 +371,27 @@ export function renderGroupedItems(ctx) {
   return html;
 }
 
+/**
+ * Automatisch berechnete CPM-Zelle (read-only). Der Tooltip zeigt den
+ * zugrunde liegenden Views-Schnitt, damit der Preis nachvollziehbar bleibt.
+ */
+function renderAutoCpmCell(ctx, item, columnClass, cpm, views, hide) {
+  const value = cpm != null
+    ? `${Number(cpm).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+    : '-';
+  const title = views != null
+    ? `${Number(views).toLocaleString('de-DE')} Views im Schnitt`
+    : 'Noch nicht abgerufen';
+
+  return `
+    <td class="cell-textarea ${columnClass}" style="${hide(columnClass)}">
+      <div class="cell-text-readonly cpm-auto-value${ctx.kundenCallActive ? ' kunden-call-blur' : ''}"
+           data-blur-target
+           title="${escapeHtml(title)}">${value}</div>
+    </td>
+  `;
+}
+
 export function renderItemRow(ctx, item, index) {
   const isLinkedToCRM = !!item.creator_id;
   const vis = (col) => isColumnVisibleForCustomer(col, ctx.isKunde, ctx.hiddenColumns);
@@ -369,25 +437,28 @@ export function renderItemRow(ctx, item, index) {
           </select>
         ` : `<div class="cell-text-readonly">${item.typ || '-'}</div>`}
       </td>
-      <td class="cp-col-links" style="${hide('cp-col-links')}">
+      <td class="cp-col-link-ig" style="${hide('cp-col-link-ig')}">
         ${!ctx.isKunde ? `
-          <div class="links-compact-cell">
-            <div class="links-compact-row">
-              ${INSTAGRAM_ICON}
-              <input type="text" class="links-compact-input" data-field="link_instagram" data-item-id="${item.id}" placeholder="IG Link..." value="${item.link_instagram || ''}">
-              ${item.link_instagram ? `<a href="${item.link_instagram}" target="_blank" class="link-icon-btn" title="${item.link_instagram}">${EXTERNAL_LINK_ICON}</a>` : ''}
-            </div>
-            <div class="links-compact-row">
-              ${TIKTOK_ICON}
-              <input type="text" class="links-compact-input" data-field="link_tiktok" data-item-id="${item.id}" placeholder="TT Link..." value="${item.link_tiktok || ''}">
-              ${item.link_tiktok ? `<a href="${item.link_tiktok}" target="_blank" class="link-icon-btn" title="${item.link_tiktok}">${EXTERNAL_LINK_ICON}</a>` : ''}
-            </div>
+          <div class="links-compact-row">
+            <input type="text" class="links-compact-input" data-field="link_instagram" data-item-id="${item.id}" placeholder="IG Link..." value="${item.link_instagram || ''}">
+            ${renderIgFetchButton(item)}
+            ${item.link_instagram ? `<a href="${item.link_instagram}" target="_blank" class="link-icon-btn" title="${item.link_instagram}">${EXTERNAL_LINK_ICON}</a>` : ''}
           </div>
         ` : `
           <div class="links-compact-cell links-compact-cell--readonly">
-            ${item.link_instagram ? `<a href="${item.link_instagram}" target="_blank" class="link-icon-btn" title="Instagram">${INSTAGRAM_ICON}</a>` : ''}
-            ${item.link_tiktok ? `<a href="${item.link_tiktok}" target="_blank" class="link-icon-btn" title="TikTok">${TIKTOK_ICON}</a>` : ''}
-            ${!item.link_instagram && !item.link_tiktok ? '<span class="cell-text-readonly">-</span>' : ''}
+            ${item.link_instagram ? `<a href="${item.link_instagram}" target="_blank" class="link-icon-btn" title="Instagram">${INSTAGRAM_ICON}</a>` : '<span class="cell-text-readonly">-</span>'}
+          </div>
+        `}
+      </td>
+      <td class="cp-col-link-tt" style="${hide('cp-col-link-tt')}">
+        ${!ctx.isKunde ? `
+          <div class="links-compact-row">
+            <input type="text" class="links-compact-input" data-field="link_tiktok" data-item-id="${item.id}" placeholder="TT Link..." value="${item.link_tiktok || ''}">
+            ${item.link_tiktok ? `<a href="${item.link_tiktok}" target="_blank" class="link-icon-btn" title="${item.link_tiktok}">${EXTERNAL_LINK_ICON}</a>` : ''}
+          </div>
+        ` : `
+          <div class="links-compact-cell links-compact-cell--readonly">
+            ${item.link_tiktok ? `<a href="${item.link_tiktok}" target="_blank" class="link-icon-btn" title="TikTok">${TIKTOK_ICON}</a>` : '<span class="cell-text-readonly">-</span>'}
           </div>
         `}
       </td>
@@ -441,6 +512,9 @@ export function renderItemRow(ctx, item, index) {
           <input type="number" class="strategie-textarea${ctx.kundenCallActive ? ' kunden-call-blur' : ''}" data-field="cpm_tiktok" data-item-id="${item.id}" data-blur-target placeholder="0" value="${item.cpm_tiktok ?? ''}" step="0.01">
         ` : `<div class="cell-text-readonly">${item.cpm_tiktok != null ? Number(item.cpm_tiktok).toLocaleString('de-DE', {minimumFractionDigits: 2}) + ' €' : '-'}</div>`}
       </td>
+      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-8', item.cpm_ig_8, item.ig_views_8, hide)}
+      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-30', item.cpm_ig_30, item.ig_views_30, hide)}
+      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-trimmed', item.cpm_ig_trimmed, item.ig_views_trimmed, hide)}
       <td class="cell-textarea cp-col-location" style="${hide('cp-col-location')}">
         ${!ctx.isKunde ? `
           <textarea class="strategie-textarea" data-field="wohnort" data-item-id="${item.id}" placeholder="Location...">${item.wohnort || ''}</textarea>

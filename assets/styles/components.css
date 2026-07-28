@@ -12321,7 +12321,12 @@ table:has(#strategien-table-body) td.col-actions {
   min-width: 100px;
 }
 
-.creator-pool-table .cp-col-links {
+.creator-pool-table .cp-col-link-ig {
+  width: 170px;
+  min-width: 170px;
+}
+
+.creator-pool-table .cp-col-link-tt {
   width: 140px;
   min-width: 140px;
 }
@@ -12345,7 +12350,76 @@ table:has(#strategien-table-body) td.col-actions {
   min-width: 80px;
 }
 
-/* Kompakte Links-Spalte (IG + TT kombiniert) */
+.creator-pool-table .cp-col-cpm-ig-8,
+.creator-pool-table .cp-col-cpm-ig-30,
+.creator-pool-table .cp-col-cpm-ig-trimmed {
+  width: 90px;
+  min-width: 90px;
+}
+
+.creator-pool-table .cpm-auto-value {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Instagram-Abruf: Haekchen-Button neben dem IG-Link */
+.ig-fetch-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.ig-fetch-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.ig-fetch-btn:hover:not(:disabled) {
+  background: var(--gray-100);
+  color: var(--color-primary);
+}
+
+.ig-fetch-btn:disabled {
+  cursor: default;
+}
+
+.ig-fetch-btn.is-loading svg {
+  display: none;
+}
+
+.ig-fetch-btn.is-loading::after {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--gray-300, #d1d5db);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: ig-fetch-spin 0.7s linear infinite;
+}
+
+.ig-fetch-btn.is-success {
+  color: var(--color-success, #16a34a);
+}
+
+.ig-fetch-btn.is-error {
+  color: var(--color-danger, #dc2626);
+}
+
+@keyframes ig-fetch-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Kompakte Links-Spalte (IG + TT) */
 .links-compact-cell {
   display: flex;
   flex-direction: column;
