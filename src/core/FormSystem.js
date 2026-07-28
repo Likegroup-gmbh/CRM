@@ -429,7 +429,7 @@ export class FormSystem {
       }
     });
 
-    // URL-Felder werden ohne Schema eingegeben (visueller https://-Prefix im Input)
+    // URL-Felder duerfen ohne Schema eingegeben werden, in der DB landen sie absolut
     normalizeFormUrlFields(form, submitData);
 
     return submitData;

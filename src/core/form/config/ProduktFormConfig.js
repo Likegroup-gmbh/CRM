@@ -28,7 +28,7 @@ export const produktConfig = {
       type: 'url',
       required: false,
       validation: { type: 'url' },
-      placeholder: 'muster-shop.de/products/produktname',
+      placeholder: 'https://muster-shop.de/products/produktname',
       aiExtract: true,
       docSlot: 'side',
       section: 'auslesen',

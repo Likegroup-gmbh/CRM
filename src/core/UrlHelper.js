@@ -1,7 +1,7 @@
 // UrlHelper.js (ES6-Modul)
-// Webseiten werden im Formular ohne Schema eingegeben (der FormRenderer zeigt
-// "https://" nur als visuellen Prefix). Damit landen Werte wie "www.canon.de/"
-// in der DB, die als href zu einer App-internen Navigation führen.
+// Webseiten dürfen im Formular ohne Schema eingegeben werden. Ohne Schema
+// landen Werte wie "www.canon.de/" in der DB, die als href zu einer
+// App-internen Navigation führen statt zur Zielseite.
 // normalizeUrl() macht daraus eine absolute URL, safeExternalUrl() liefert
 // zusätzlich den '#'-Fallback für Render-Stellen.
 

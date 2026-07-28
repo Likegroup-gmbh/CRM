@@ -34,7 +34,7 @@ export class ExtractReviewLayer {
     const previousValue = input.value;
 
     this.applying = true;
-    input.value = this.formatForInput(input, entry.value);
+    input.value = this.formatForInput(entry.value);
     input.dispatchEvent(new Event('input', { bubbles: true }));
     this.applying = false;
 
@@ -115,13 +115,13 @@ export class ExtractReviewLayer {
     return this.form.querySelector(`[name="${fieldName}"]:not([type="hidden"])`);
   }
 
-  /** URL-Felder zeigen den Wert ohne https://-Prefix an (siehe FormRenderer). */
-  formatForInput(input, value) {
-    const str = value == null ? '' : String(value);
-    if (input.dataset.urlField === 'true') {
-      return str.replace(/^https?:\/\//i, '');
-    }
-    return str;
+  /**
+   * Einzige Stelle, an der ein Wert fuer die Anzeige aufbereitet wird. Der
+   * Vergleich in SiteExtractHandler.applyFields() haengt daran, dass er
+   * dieselbe Umformung nutzt wie das Setzen des Feldes.
+   */
+  formatForInput(value) {
+    return value == null ? '' : String(value);
   }
 
   hasMarks() {

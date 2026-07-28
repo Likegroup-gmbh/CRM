@@ -296,7 +296,6 @@ export class UploaderField {
         <tr>
           <th class="col-thumb"></th>
           <th class="col-name">Bild</th>
-          <th class="col-quelle">Quelle</th>
           ${showPrimary ? '<th class="col-haupt">Hauptbild</th>' : ''}
           ${showSort ? '<th class="col-sort">Reihenfolge</th>' : ''}
           <th class="col-actions"></th>
@@ -310,14 +309,10 @@ export class UploaderField {
       const name = f.url
         ? `<a href="${this.escapeHtml(f.url)}" target="_blank" rel="noopener noreferrer" class="table-link">${this.escapeHtml(f.name)}</a>`
         : `<span class="uploader-name">${this.escapeHtml(f.name)}</span>`;
-      const badge = f.isTemporary
-        ? '<span class="uploader-badge uploader-badge--extracted">Von der Webseite</span>'
-        : '<span class="uploader-badge">Gespeichert</span>';
 
       zeilen.push(this.renderRow({
         thumb: this.renderThumb(this.existingPreviewUrl(f), f.name),
         name,
-        badge,
         primary: showPrimary ? this.renderPrimary(`existing:${f.id}`, true) : null,
         sort: showSort ? this.renderSort('existing', idx, keptExisting.length) : null,
         removeAttr: `data-existing-id="${this.escapeHtml(String(f.id))}"`
@@ -325,16 +320,10 @@ export class UploaderField {
     });
 
     this.files.forEach((f, idx) => {
-      const fromExtraction = Boolean(f[EXTRACT_SOURCE_MARKER]);
-      const badge = fromExtraction
-        ? '<span class="uploader-badge uploader-badge--extracted">Von der Webseite</span>'
-        : '<span class="uploader-badge uploader-badge--new">Neu</span>';
-
       zeilen.push(this.renderRow({
         thumb: this.renderThumb(this.previewUrlFor(f), f.name),
         name: `<span class="uploader-name">${this.escapeHtml(f.name)}</span>
                <span class="uploader-size">${this.formatSize(f.size)}</span>`,
-        badge,
         primary: showPrimary ? this.renderPrimary(`new:${idx}`, true) : null,
         sort: showSort ? this.renderSort('new', idx, this.files.length) : null,
         removeAttr: `data-index="${idx}"`
@@ -354,12 +343,11 @@ export class UploaderField {
     this.bindSortAndPrimary(keptExisting);
   }
 
-  renderRow({ thumb, name, badge, primary, sort, removeAttr }) {
+  renderRow({ thumb, name, primary, sort, removeAttr }) {
     return `
       <tr>
         <td class="col-thumb">${thumb}</td>
         <td class="col-name">${name}</td>
-        <td class="col-quelle">${badge}</td>
         ${primary !== null ? `<td class="col-haupt">${primary}</td>` : ''}
         ${sort !== null ? `<td class="col-sort">${sort}</td>` : ''}
         <td class="col-actions">

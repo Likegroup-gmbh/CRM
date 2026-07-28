@@ -139,7 +139,7 @@ export async function handleEditFormSubmit(detail, form) {
       else data[key] = typeof value === 'string' ? value.trim() : value;
     }
 
-    // URL-Felder werden ohne Schema eingegeben (visueller https://-Prefix im Input)
+    // URL-Felder duerfen ohne Schema eingegeben werden, in der DB landen sie absolut
     normalizeFormUrlFields(form, data);
 
     // Unternehmen aktualisieren

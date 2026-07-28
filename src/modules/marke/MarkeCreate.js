@@ -329,7 +329,7 @@ export class MarkeCreate {
         data[key] = Array.isArray(value) ? value : (typeof value === 'string' ? value.trim() : value);
       }
       
-      // URL-Felder werden ohne Schema eingegeben (visueller https://-Prefix im Input)
+      // URL-Felder duerfen ohne Schema eingegeben werden, in der DB landen sie absolut
       normalizeFormUrlFields(form, data);
 
       console.log('📤 Finale Marke-Daten:', data);

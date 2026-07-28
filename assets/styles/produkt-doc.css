@@ -51,10 +51,9 @@
   padding: var(--space-lg);
 }
 
-/* Lesebreite wie in einem Textdokument, mittig in der Spalte */
+/* Nutzt die ganze Spalte: die Texte sollen nicht vorzeitig umbrechen */
 .produkt-doc__paper {
-  max-width: 54rem;
-  margin: 0 auto;
+  width: 100%;
 }
 
 .produkt-doc__side {
@@ -70,7 +69,7 @@
 
 .produkt-doc .produkt-doc__title-field {
   position: relative;
-  margin: 0 0 var(--space-lg);
+  margin: 0 0 var(--space-xxl);
   padding-left: var(--space-md);
   border-left: var(--border-sm) solid transparent;
 }
@@ -122,9 +121,9 @@
 .produkt-doc .produkt-doc__section > label,
 .produkt-doc .produkt-doc__block > label,
 .produkt-doc .produkt-doc__heading {
-  margin: 0 0 var(--space-xxs);
-  font-size: var(--text-sm);
-  font-weight: 600;
+  margin: 0 0 var(--space-xs);
+  font-size: var(--text-md);
+  font-weight: 500;
   line-height: 1.4;
   color: var(--gray-900);
   cursor: text;
@@ -263,18 +262,28 @@
   display: none;
 }
 
-/* Im Dokument bleibt der Tabellenkopf beim Scrollen nicht kleben */
-.produkt-doc .table-container .data-table thead th {
-  position: static;
-}
-
+/* Der Rahmen kommt vom Container: die globalen Regeln nehmen der ersten und
+   letzten Zelle die Seitenkante, dadurch fehlt der Tabelle sonst der Abschluss. */
 .produkt-doc .table-container {
   margin-bottom: var(--space-xs);
+  border: var(--border-xs) solid var(--gray-200);
+  border-radius: var(--radius-lg);
   overflow-x: auto;
 }
 
 .produkt-doc .data-table {
   width: 100%;
+}
+
+/* Im Dokument klebt der Kopf beim Scrollen nicht. Der Standard legt ihm dabei
+   einen inset-Schatten unter die Zelle, der zusammen mit dem eigenen
+   border-bottom als doppelte Linie erscheint - deshalb hier beides klaeren.
+   Ohne border-top haette der Kopf zudem eine zweite Linie am Container-Rand. */
+.produkt-doc .table-container .data-table thead th {
+  position: static;
+  box-shadow: none;
+  border-top: none;
+  border-bottom: var(--border-xs) solid var(--gray-200);
 }
 
 .produkt-doc .data-table th {
@@ -352,6 +361,54 @@
   justify-content: center;
   margin: 0;
   cursor: pointer;
+}
+
+/* Fuer Radios fehlt der System-Look, den die Checkboxen in components.css
+   haben - hier nach demselben Muster, nur rund und mit Innenpunkt. Bewusst
+   auf diese Seite begrenzt, damit die Radios der uebrigen Formulare bleiben. */
+.produkt-doc .uploader-primary-radio {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  width: var(--space-md);
+  height: var(--space-md);
+  margin: 0;
+  border: 1.5px solid var(--border-secondary);
+  border-radius: 50%;
+  background: var(--bg-primary);
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.produkt-doc .uploader-primary-radio:hover {
+  border-color: var(--border-focus);
+}
+
+.produkt-doc .uploader-primary-radio:focus-visible {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px rgba(64, 64, 64, 0.15);
+}
+
+.produkt-doc .uploader-primary-radio::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-inverse);
+  transform: scale(0);
+  transition: transform 120ms ease-in-out;
+}
+
+.produkt-doc .uploader-primary-radio:checked {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+.produkt-doc .uploader-primary-radio:checked::after {
+  transform: scale(1);
 }
 
 .produkt-doc .uploader-remove--icon {
@@ -522,13 +579,8 @@
   background-color: transparent;
 }
 
-.produkt-doc .form-field.ai-filled {
-  border-left-color: var(--green-400);
-}
 
-.produkt-doc .form-field.ai-filled--guess {
-  border-left-color: var(--orange-300);
-}
+
 
 .produkt-doc .produkt-doc__section > label {
   display: flex;
@@ -596,15 +648,8 @@
   box-shadow: none;
 }
 
-.produkt-doc .produkt-chat__input .url-prefix {
-  padding: 0;
-  border-right: none;
-  background: transparent;
-  color: var(--gray-400);
-}
-
 .produkt-doc .produkt-chat__input .url-input {
-  padding: 0 0 0 var(--space-xxs);
+  padding: 0;
   font-size: var(--text-sm);
 }
 
@@ -846,10 +891,6 @@
   .produkt-doc__scroll {
     overflow: visible;
     padding: 0;
-  }
-
-  .produkt-doc__paper {
-    max-width: none;
   }
 
   /* Die URL-Eingabe steht dann als erstes ueber dem Dokument */

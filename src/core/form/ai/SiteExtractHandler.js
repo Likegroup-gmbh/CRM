@@ -271,7 +271,7 @@ export class SiteExtractHandler {
       if (!input) continue;
 
       if (name === triggerField) {
-        const normalized = this.review.formatForInput(input, entry.value);
+        const normalized = this.review.formatForInput(entry.value);
         if (normalized !== input.value) this.review.mark(name, entry);
         continue;
       }

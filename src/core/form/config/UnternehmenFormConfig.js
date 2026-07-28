@@ -11,7 +11,7 @@ export const unternehmenConfig = {
       label: 'Webseite',
       type: 'url',
       required: false,
-      placeholder: 'muster-gmbh.de',
+      placeholder: 'https://muster-gmbh.de',
       aiExtract: true,
       section: 'auslesen',
       sectionTitle: 'Mit der Webseite starten',

@@ -12,7 +12,7 @@ export const markeConfig = {
       type: 'url',
       required: false,
       validation: { type: 'url' },
-      placeholder: 'muster-marke.de',
+      placeholder: 'https://muster-marke.de',
       aiExtract: true,
       section: 'auslesen',
       sectionTitle: 'Mit der Webseite starten',

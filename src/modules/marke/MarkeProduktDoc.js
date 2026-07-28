@@ -194,7 +194,6 @@ function renderExtractPanel(sideFields) {
       <div class="form-field produkt-chat__field" data-doc-field="${attr(urlField.name)}">
         <label for="${attr(id)}">${text(urlField.docLabel || 'URL')}</label>
         <div class="url-input-field produkt-chat__input">
-          <span class="url-prefix">https://</span>
           <input type="text" id="${attr(id)}" name="${attr(urlField.name)}" class="url-input"
                  data-url-field="true" autocomplete="off" spellcheck="false"
                  placeholder="${attr(urlField.placeholder || '')}">
@@ -267,11 +266,6 @@ function fillValues(form, data) {
 
     let value = data[field.name];
     if (value === null || value === undefined) value = '';
-
-    // URL-Felder zeigen den Wert ohne Schema, siehe UrlHelper.normalizeUrl
-    if (input.dataset.urlField === 'true') {
-      value = String(value).replace(/^https?:\/\//i, '');
-    }
 
     input.value = value;
   });

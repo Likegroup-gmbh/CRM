@@ -72,7 +72,10 @@ export class ProduktExtractPanel {
     if (this.root) this.root.innerHTML = '';
   }
 
-  /** Die eingegebene Adresse, rechtsbuendig - ohne Schema, wie im Eingabefeld. */
+  /**
+   * Die eingegebene Adresse, rechtsbuendig. Das Schema faellt weg, damit in der
+   * schmalen Spalte mehr vom aussagekraeftigen Teil der Adresse sichtbar ist.
+   */
   addUserTurn(url) {
     if (!this.root || !url) return;
 

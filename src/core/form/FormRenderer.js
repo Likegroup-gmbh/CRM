@@ -279,18 +279,15 @@ export class FormRenderer {
         `;
 
       case 'url':
-        // URL-Wert ohne https:// Prefix anzeigen (wird automatisch hinzugefügt)
-        let urlValue = value || '';
-        if (urlValue.startsWith('https://')) {
-          urlValue = urlValue.substring(8);
-        } else if (urlValue.startsWith('http://')) {
-          urlValue = urlValue.substring(7);
-        }
-        
+        // Der Wert steht vollstaendig im Feld: Adressen werden aus dem Browser
+        // kopiert und bringen ihr Schema mit. Fehlt es, ergaenzt es
+        // UrlHelper.normalizeUrl() beim Speichern.
+        const urlValue = value || '';
+
         const urlDependsOn = field.dependsOn ? `data-depends-on="${field.dependsOn}"` : '';
         const urlShowWhen = field.showWhen ? `data-show-when="${field.showWhen}"` : '';
         const urlInitialStyle = field.dependsOn ? 'style="display: none;"' : '';
-        const urlPlaceholder = field.placeholder || 'beispiel.de';
+        const urlPlaceholder = field.placeholder || 'https://beispiel.de';
 
         // aiExtract schaltet das Auslesen der Webseite frei (siehe SiteExtractHandler)
         const extractBtn = field.aiExtract ? `
@@ -304,7 +301,6 @@ export class FormRenderer {
           <div class="form-field" ${urlDependsOn} ${urlShowWhen} ${urlInitialStyle}>
             <label for="${fieldId}">${field.label} ${requiredMark}</label>
             <div class="url-input-field">
-              <span class="url-prefix">https://</span>
               <input type="text" 
                      id="${fieldId}" 
                      name="${field.name}" 
