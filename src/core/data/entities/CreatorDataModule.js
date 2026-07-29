@@ -73,7 +73,7 @@ export default {
     }
     if (context === 'pagination') {
       return `id,vorname,nachname,mail,telefonnummer,alter_jahre,alter_min,alter_max,
-instagram,instagram_follower,tiktok,tiktok_follower,ig_connected_at,profilbild_url,
+instagram,instagram_follower,tiktok,tiktok_follower,ig_connected_at,profilbild_url,profilbild_thumb_url,
 portfolio_link,ig_biography,ig_engagement_rate,ig_media_count,ig_recent_posts,ig_brand_mentions,
 lieferadresse_stadt,lieferadresse_land,
 creator_creator_type(creator_type_id(id,name)),

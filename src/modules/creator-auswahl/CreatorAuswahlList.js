@@ -2,7 +2,7 @@
 // Hierarchische Sourcing-Ansicht: Unternehmen -> Marken -> Inhalte
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
-import { TIKTOK_SPALTEN } from './CreatorAuswahlTemplates.js';
+import { berechneHiddenColumns } from './sourcingSpaltenPreset.js';
 import { AutoGeneration } from '../../core/form/logic/AutoGeneration.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
@@ -862,7 +862,7 @@ export class CreatorAuswahlList {
   async handleCreateFormSubmit(form) {
     try {
       const submitData = window.formSystem.collectSubmitData(form);
-      this.applyTiktokSpaltenOption(form, submitData);
+      this.applySpaltenPreset(submitData);
 
       if (!submitData.name || submitData.name.trim() === '') {
         const generatedName = await this.autoGeneration.autoGenerateSourcingName(
@@ -888,19 +888,20 @@ export class CreatorAuswahlList {
   }
 
   /**
-   * TikTok-Spalten sind in neuen Listen standardmaessig aus - die meisten
-   * Kampagnen laufen rein auf Instagram. Der Toggle im Anlege-Formular ist kein
-   * DB-Feld, sondern belegt nur die hidden_columns vor; spaeter laesst sich das
-   * pro Liste ueber "Sichtbarkeit anpassen" aendern.
+   * Listentyp, Plattform und Instagram-Format legen die Startsichtbarkeit der
+   * Spalten fest. Die drei Werte werden mitgespeichert und sind spaeter im
+   * Drawer "Tabelle anpassen" der Detailseite aenderbar.
    */
-  applyTiktokSpaltenOption(form, submitData) {
-    const toggle = form.querySelector('input[name="tiktok_spalten"]');
-    const tiktokAnzeigen = toggle ? toggle.checked : false;
-    delete submitData.tiktok_spalten;
+  applySpaltenPreset(submitData) {
+    submitData.hidden_columns = berechneHiddenColumns(submitData);
 
-    if (!tiktokAnzeigen) {
-      submitData.hidden_columns = TIKTOK_SPALTEN;
-    }
+    // Nur bei Influencer-Listen abgefragt: leere Strings wuerden sonst als ''
+    // in der DB landen und die Matrix beim Bearbeiten verfaelschen.
+    if (!submitData.plattformen) submitData.plattformen = null;
+    if (!submitData.ig_formate) submitData.ig_formate = null;
+
+    const tkp = Number(submitData.tkp);
+    submitData.tkp = Number.isFinite(tkp) && tkp >= 0 ? tkp : 25;
   }
 
   showCreateForm() {

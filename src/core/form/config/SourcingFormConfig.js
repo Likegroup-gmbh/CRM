@@ -1,6 +1,12 @@
 // Formular-Konfiguration fuer "sourcing"
 // Reine Datendatei, wird von FormConfig.js eingesammelt.
 
+import {
+  LISTE_TYP_OPTIONEN,
+  PLATTFORM_OPTIONEN,
+  IG_FORMAT_OPTIONEN
+} from '../../../modules/creator-auswahl/sourcingSpaltenPreset.js';
+
 export const sourcingConfig = {
   title: 'Neue Creator-Auswahl anlegen',
   fields: [
@@ -57,12 +63,46 @@ export const sourcingConfig = {
       filterByMarke: true
     },
     {
-      // Kein DB-Feld: steuert nur die hidden_columns der neuen Liste,
-      // ausgewertet in CreatorAuswahlList.handleCreateFormSubmit
-      name: 'tiktok_spalten',
-      label: 'TikTok-Spalten anzeigen',
-      type: 'checkbox',
-      required: false
+      // Bestimmt zusammen mit plattformen und ig_formate die hidden_columns
+      // der neuen Liste, siehe sourcingSpaltenPreset.js. Nachtraeglich
+      // aenderbar ueber den Drawer "Tabelle anpassen".
+      name: 'liste_typ',
+      label: 'Art der Liste',
+      type: 'select',
+      required: true,
+      placeholder: 'UGC, Influencer oder Mix...',
+      options: LISTE_TYP_OPTIONEN
+    },
+    {
+      // DependentFields prueft beim Anzeigen von ig_formate, ob der
+      // Options-Text "instagram" enthaelt - daher "Instagram + TikTok".
+      name: 'plattformen',
+      label: 'Plattform',
+      type: 'select',
+      required: false,
+      defaultValue: 'instagram,tiktok',
+      options: PLATTFORM_OPTIONEN,
+      dependsOn: 'liste_typ',
+      showWhen: 'influencer'
+    },
+    {
+      name: 'ig_formate',
+      label: 'Instagram-Format',
+      type: 'select',
+      required: false,
+      defaultValue: 'reel,story',
+      options: IG_FORMAT_OPTIONEN,
+      dependsOn: 'plattformen',
+      showWhen: 'instagram'
+    },
+    {
+      name: 'tkp',
+      label: 'TKP (€ pro 1.000 Views)',
+      type: 'number',
+      required: true,
+      defaultValue: 25,
+      validation: { type: 'number', min: 0 },
+      placeholder: 'Basis für Preis 8/30/Ø Reels'
     }
   ]
 };

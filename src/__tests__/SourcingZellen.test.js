@@ -63,7 +63,7 @@ describe('Sourcing – IG-Abruf-Button', () => {
 
     expect(btn.classList.contains('is-refresh')).toBe(false);
     expect(btn.classList.contains('is-error')).toBe(false);
-    expect(btn.title).toBe('Instagram-Daten abrufen');
+    expect(btn.title).toContain('Instagram-Daten abrufen');
   });
 
   it('wechselt nach einem erfolgreichen Abruf auf das Refresh-Icon', () => {
@@ -73,8 +73,8 @@ describe('Sourcing – IG-Abruf-Button', () => {
     });
 
     expect(btn.classList.contains('is-refresh')).toBe(true);
-    expect(btn.getAttribute('aria-label')).toBe('Instagram-Daten erneut abrufen');
-    expect(btn.title).toContain('erneut abrufen');
+    expect(btn.getAttribute('aria-label')).toBe('Instagram-Daten frisch abrufen');
+    expect(btn.title).toContain('frisch bei Instagram abrufen');
   });
 
   it('zeigt bei einem Fehler das Warn-Icon statt des Refresh-Icons', () => {

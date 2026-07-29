@@ -43,7 +43,12 @@ export function groupItemsByKategorie(items) {
 }
 
 /** Spalten, die es in der Tabelle nicht mehr gibt, aber noch in hidden_columns stehen koennen */
-const ENTFERNTE_SPALTEN = ['cp-col-cpm-ig', 'cp-col-cpm-tt'];
+const ENTFERNTE_SPALTEN = [
+  'cp-col-cpm-ig', 'cp-col-cpm-tt',
+  // Die manuellen Reichweite-Spalten sind entfallen: die Views stehen jetzt
+  // unter Preis 8 / 30 / Ø direkt in der Zelle.
+  'cp-col-reichweite-ig', 'cp-col-reichweite-tt'
+];
 
 /** Die fuenf Status-Checkbox-Spalten, die zur Select-Spalte cp-col-status wurden */
 const ALTE_STATUS_SPALTEN = ['cp-col-onhold', 'cp-col-buchen', 'cp-col-prio1', 'cp-col-prio2', 'cp-col-absagen'];
@@ -82,8 +87,8 @@ export const DEAKTIVIERTE_SPALTEN = ['cp-col-ek', 'cp-col-vk'];
 /** Spalten mit internen Daten, die Kunden und Gaeste nie sehen duerfen */
 const NUR_INTERN = ['cp-col-vk', 'cp-col-mail', 'cp-col-telefon'];
 
-/** TikTok-Spalten, in neuen Listen standardmaessig ausgeblendet */
-export const TIKTOK_SPALTEN = ['cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-reichweite-tt'];
+/** TikTok-Spalten, in reinen Instagram- und UGC-Listen ausgeblendet */
+export const TIKTOK_SPALTEN = ['cp-col-link-tt', 'cp-col-follower-tt'];
 
 export function isColumnVisibleForCustomer(columnClass, isKunde, hiddenColumns) {
   if (DEAKTIVIERTE_SPALTEN.includes(columnClass)) return false;
@@ -97,14 +102,18 @@ export function isColumnVisibleForCustomer(columnClass, isKunde, hiddenColumns) 
   return !hiddenColumns.includes(columnClass);
 }
 
-/** Alle Standardspalten in Renderreihenfolge */
+/**
+ * Alle Standardspalten in Renderreihenfolge. Nach Plattform gebuendelt: erst
+ * der komplette Instagram-Block (Reels, dann Story), danach TikTok - vorher
+ * wechselten sich IG und TT spaltenweise ab.
+ */
 export const SOURCING_SPALTEN = [
   'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-typ', 'cp-col-location',
   'cp-col-mail', 'cp-col-telefon',
-  'cp-col-link-ig', 'cp-col-link-tt',
-  'cp-col-follower-ig', 'cp-col-follower-tt',
-  'cp-col-reichweite-ig', 'cp-col-reichweite-tt',
+  'cp-col-link-ig', 'cp-col-follower-ig',
   'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-cpm-ig-trimmed',
+  'cp-col-reichweite-story', 'cp-col-preis-story',
+  'cp-col-link-tt', 'cp-col-follower-tt',
   'cp-col-pricing', 'cp-col-reichweite-garantie',
   'cp-col-ek', 'cp-col-vk',
   'cp-col-notiz', 'cp-col-feedback', 'cp-col-anfragen', 'cp-col-status',
@@ -139,6 +148,8 @@ export function getStickyClasses(ctx) {
 
 const EXTERNAL_LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>`;
 
+const MAIL_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" /></svg>`;
+
 const INSTAGRAM_ICON = `<svg class="platform-icon platform-icon--instagram" viewBox="0 0 24 24" aria-label="Instagram" role="img" focusable="false"><path d="M12 7.2a4.8 4.8 0 1 0 0 9.6 4.8 4.8 0 0 0 0-9.6Zm0 7.8a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z"/><path d="M16.95 6.45a1.05 1.05 0 1 0 0 2.1 1.05 1.05 0 0 0 0-2.1Z"/><path d="M12 2.8c2.53 0 2.83.01 3.83.06 1 .05 1.68.21 2.28.44.62.24 1.15.56 1.66 1.07.51.51.83 1.04 1.07 1.66.23.6.39 1.28.44 2.28.05 1 .06 1.3.06 3.83s-.01 2.83-.06 3.83c-.05 1-.21 1.68-.44 2.28-.24.62-.56 1.15-1.07 1.66-.51.51-1.04.83-1.66 1.07-.6.23-1.28.39-2.28.44-1 .05-1.3.06-3.83.06s-2.83-.01-3.83-.06c-1-.05-1.68-.21-2.28-.44a4.54 4.54 0 0 1-2.73-2.73c-.23-.6-.39-1.28-.44-2.28C2.81 14.83 2.8 14.53 2.8 12s.01-2.83.06-3.83c.05-1 .21-1.68.44-2.28.24-.62.56-1.15 1.07-1.66.51-.51 1.04-.83 1.66-1.07.6-.23 1.28-.39 2.28-.44 1-.05 1.3-.06 3.83-.06Zm0 1.8c-2.48 0-2.77.01-3.75.06-.9.04-1.39.19-1.71.31-.43.17-.74.37-1.07.7-.33.33-.53.64-.7 1.07-.12.32-.27.81-.31 1.71-.05.98-.06 1.27-.06 3.75s.01 2.77.06 3.75c.04.9.19 1.39.31 1.71.17.43.37.74.7 1.07.33.33.64.53 1.07.7.32.12.81.27 1.71.31.98.05 1.27.06 3.75.06s2.77-.01 3.75-.06c.9-.04 1.39-.19 1.71-.31.43-.17.74-.37 1.07-.7.33-.33.53-.64.7-1.07.12-.32.27-.81.31-1.71.05-.98.06-1.27.06-3.75s-.01-2.77-.06-3.75c-.04-.9-.19-1.39-.31-1.71-.17-.43-.37-.74-.7-1.07-.33-.33-.64-.53-1.07-.7-.32-.12-.81-.27-1.71-.31-.98-.05-1.27-.06-3.75-.06Z"/></svg>`;
 
 const TIKTOK_ICON = `<svg class="platform-icon platform-icon--tiktok" viewBox="0 0 24 24" aria-label="TikTok" role="img" focusable="false"><path d="M14.5 3c.4 3.2 2.3 5.1 5.5 5.5v2.3c-1.9 0-3.6-.6-5-1.7v6.4c0 3.1-2.5 5.6-5.6 5.6S3.8 19 3.8 15.9s2.5-5.6 5.6-5.6c.5 0 1 .1 1.5.2v2.6c-.5-.2-1-.4-1.5-.4-1.8 0-3.2 1.4-3.2 3.2s1.4 3.2 3.2 3.2 3.2-1.4 3.2-3.2V3h2.9Z"/></svg>`;
@@ -151,14 +162,18 @@ const IG_FETCH_WARN_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" 
 
 const IG_FETCH_REFRESH_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" aria-hidden="true"><path d="M88,104H40a8,8,0,0,1-8-8V48a8,8,0,0,1,16,0V76.69L62.63,62.06A95.43,95.43,0,0,1,130,33.94h.53a95.36,95.36,0,0,1,67.07,27.33,8,8,0,0,1-11.18,11.44,79.52,79.52,0,0,0-55.89-22.77h-.45A79.56,79.56,0,0,0,73.94,73.37L59.31,88H88a8,8,0,0,1,0,16Zm128,48H168a8,8,0,0,0,0,16h28.69l-14.63,14.63a79.56,79.56,0,0,1-56.13,23.43h-.45a79.52,79.52,0,0,1-55.89-22.77,8,8,0,1,0-11.18,11.44,95.36,95.36,0,0,0,67.07,27.33H126a95.43,95.43,0,0,0,67.36-28.12L208,179.31V208a8,8,0,0,0,16,0V160A8,8,0,0,0,216,152Z"></path></svg>`;
 
-/** Haekchen-Button neben dem IG-Link: holt Profil, Follower und CPM ueber die Graph API */
+/**
+ * Haekchen-Button neben dem IG-Link: holt Profil, Follower und CPM.
+ * Der erste Klick nimmt bekannte Creator aus dem Pool (sourcing_creator),
+ * der Refresh-Zustand holt frisch bei Instagram.
+ */
 export function renderIgFetchButton(item) {
   const hasError = !!item.ig_fetch_error;
   const hasFetched = !hasError && !!item.ig_fetched_at;
 
   let icon = IG_FETCH_CHECK_ICON;
   let stateClass = '';
-  let title = 'Instagram-Daten abrufen';
+  let title = 'Instagram-Daten abrufen (bekannte Creator kommen aus dem Pool)';
   let label = 'Instagram-Daten abrufen';
 
   if (hasError) {
@@ -168,8 +183,8 @@ export function renderIgFetchButton(item) {
   } else if (hasFetched) {
     icon = IG_FETCH_REFRESH_ICON;
     stateClass = ' is-refresh';
-    title = `Zuletzt abgerufen: ${new Date(item.ig_fetched_at).toLocaleString('de-DE')} · erneut abrufen`;
-    label = 'Instagram-Daten erneut abrufen';
+    title = `Stand: ${new Date(item.ig_fetched_at).toLocaleString('de-DE')} · frisch bei Instagram abrufen`;
+    label = 'Instagram-Daten frisch abrufen';
   }
 
   return `
@@ -243,8 +258,11 @@ export function renderAddSection(ctx = {}) {
           </svg>
           Kunden Call
         </button>
-        <button type="button" class="secondary-btn" id="btn-sourcing-detail-column-visibility">
-          Sichtbarkeit anpassen
+        <button type="button" class="secondary-btn" id="btn-sourcing-tabelle-anpassen" title="TKP, Art der Liste und Spalten-Sichtbarkeit">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
+          </svg>
+          Tabelle anpassen
         </button>
         <button type="button" class="secondary-btn" id="btn-sourcing-custom-columns" title="Eigene Spalten verwalten">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
@@ -317,6 +335,7 @@ export function renderItemsTable(ctx) {
   const visibleColCount = getVisibleColumnCount(ctx.isKunde, ctx.hiddenColumns) + customCount;
   const hide = (col) => !vis(col) ? 'style="display:none;"' : '';
   const sticky = getStickyClasses(ctx);
+  const tkpLabel = getListenTkp(ctx.liste).toLocaleString('de-DE');
 
   return `
     <div class="table-container creator-pool-table-container">
@@ -331,14 +350,14 @@ export function renderItemsTable(ctx) {
             <th class="cp-col-mail" ${hide('cp-col-mail')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Mail</th>
             <th class="cp-col-telefon" ${hide('cp-col-telefon')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Telefon</th>
             <th class="cp-col-link-ig" ${hide('cp-col-link-ig')}>Link ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-link-tt" ${hide('cp-col-link-tt')}>Link ${TIKTOK_ICON}</th>
             <th class="cp-col-follower-ig" ${hide('cp-col-follower-ig')}>Follower ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-cpm-ig-8" ${hide('cp-col-cpm-ig-8')} title="Geschätzter Preis bei ${tkpLabel} € TKP – Views-Schnitt der letzten 8 Reels">Preis 8 Reels ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-cpm-ig-30" ${hide('cp-col-cpm-ig-30')} title="Geschätzter Preis bei ${tkpLabel} € TKP – Views-Schnitt der letzten 30 Reels">Preis 30 Reels ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-cpm-ig-trimmed" ${hide('cp-col-cpm-ig-trimmed')} title="Geschätzter Preis bei ${tkpLabel} € TKP – getrimmter Views-Schnitt, Ausreißer gekürzt">Preis Ø Reels ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-reichweite-story" ${hide('cp-col-reichweite-story')} title="Manuell gepflegt – Story-Reichweite liefert die Instagram-API für fremde Accounts nicht">Reichweite Story ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-preis-story" ${hide('cp-col-preis-story')} title="Manuell gepflegt">Preis Story ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-link-tt" ${hide('cp-col-link-tt')}>Link ${TIKTOK_ICON}</th>
             <th class="cp-col-follower-tt" ${hide('cp-col-follower-tt')}>Follower ${TIKTOK_ICON}</th>
-            <th class="cp-col-reichweite-ig" ${hide('cp-col-reichweite-ig')} title="Manuell gepflegt – nicht der automatisch berechnete Views-Schnitt">Reichweite ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-reichweite-tt" ${hide('cp-col-reichweite-tt')}>Reichweite ${TIKTOK_ICON}</th>
-            <th class="cp-col-cpm-ig-8" ${hide('cp-col-cpm-ig-8')} title="Geschätzter Preis bei 25 € CPM – Views-Schnitt der letzten 8 Reels">Preis 8 ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-cpm-ig-30" ${hide('cp-col-cpm-ig-30')} title="Geschätzter Preis bei 25 € CPM – Views-Schnitt der letzten 30 Reels">Preis 30 ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-cpm-ig-trimmed" ${hide('cp-col-cpm-ig-trimmed')} title="Geschätzter Preis bei 25 € CPM – getrimmter Views-Schnitt (Ausreißer gekappt)">Preis Ø ${INSTAGRAM_ICON}</th>
             <th class="cp-col-pricing" ${hide('cp-col-pricing')}>Tatsächlicher Preis</th>
             <th class="cp-col-reichweite-garantie" ${hide('cp-col-reichweite-garantie')}>RW Garantie</th>
             <th class="cp-col-ek" ${hide('cp-col-ek')}>EK</th>
@@ -458,17 +477,40 @@ function formatReachShort(views) {
   return Math.round(n).toLocaleString('de-DE');
 }
 
+/** TKP fuer Listen ohne eigenen Wert - entspricht dem alten festen Satz */
+export const DEFAULT_TKP = 25;
+
+/** Preis pro 1.000 Views dieser Liste */
+export function getListenTkp(liste) {
+  const tkp = Number(liste?.tkp);
+  return Number.isFinite(tkp) && tkp > 0 ? tkp : DEFAULT_TKP;
+}
+
+/** Views-Schnitt -> Preis in Euro, auf Cent gerundet */
+export function berechnePreisAusViews(views, tkp) {
+  // Number(null) waere 0 und wuerde einen Preis von 0,00 € statt "-" ergeben
+  if (views == null || views === '') return null;
+  const n = Number(views);
+  if (!Number.isFinite(n)) return null;
+  return Math.round((n / 1000) * tkp * 100) / 100;
+}
+
 /**
- * Automatisch berechnete Preis-Zelle (read-only). Mit showViews steht unter
- * dem Preis die View-Basis, aus der er berechnet wurde - sonst waere in der
+ * Automatisch berechnete Preis-Zelle (read-only). Der Preis entsteht hier aus
+ * Views x Listen-TKP, nicht aus den gespeicherten cpm_ig_* - so wirkt eine
+ * TKP-Aenderung sofort, ohne die Instagram-Daten neu abzurufen.
+ * Mit showViews steht unter dem Preis die View-Basis, sonst waere in der
  * Tabelle nicht erkennbar, worauf sich der 8er- bzw. 30er-Wert bezieht.
  */
-function renderAutoCpmCell(ctx, item, columnClass, cpm, views, hide, showViews = false) {
+function renderAutoCpmCell(ctx, item, columnClass, views, hide, showViews = false) {
+  const tkp = getListenTkp(ctx.liste);
+  const cpm = berechnePreisAusViews(views, tkp);
+
   const value = cpm != null
-    ? `${Number(cpm).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+    ? `${cpm.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
     : '-';
   const title = views != null
-    ? `${Number(views).toLocaleString('de-DE')} Views im Schnitt`
+    ? `${Number(views).toLocaleString('de-DE')} Views im Schnitt × ${tkp.toLocaleString('de-DE')} € TKP`
     : 'Noch nicht abgerufen';
 
   const reach = showViews && views != null ? formatReachShort(views) : null;
@@ -559,8 +601,9 @@ const KONTAKT_FELDER = {
  * bleibt die Zelle leer, damit der Wert nicht ueber das Markup abfliesst -
  * ausgeblendet wird sie ohnehin schon von isColumnVisibleForCustomer.
  *
- * Der Wert wird beim Instagram-Fetch aus der Bio vorbefuellt und ist danach
- * frei editierbar; ein manuell gesetzter Wert wird nie ueberschrieben.
+ * Der Wert wird beim Instagram-Fetch aus der Bio vorbefuellt. Telefon bleibt
+ * in der Tabelle editierbar, die Mail-Spalte zeigt nur noch das Mail-Icon:
+ * die Adresse braucht in der Tabelle keine eigene Spaltenbreite.
  */
 function renderKontaktCell(ctx, item, columnClass, field, hide) {
   const meta = KONTAKT_FELDER[field];
@@ -572,9 +615,18 @@ function renderKontaktCell(ctx, item, columnClass, field, hide) {
   const value = item[field] || '';
   // Das Schema steht fest, escapeHtml sichert das Attribut - encodeURIComponent
   // wuerde hier das @ der Adresse zerlegen
+  const schema = meta.typ === 'email' ? 'mailto:' : 'tel:';
   const link = value
-    ? `<a href="${meta.typ === 'email' ? 'mailto:' : 'tel:'}${escapeHtml(value)}" class="link-icon-btn" title="${escapeHtml(value)}">${EXTERNAL_LINK_ICON}</a>`
+    ? `<a href="${schema}${escapeHtml(value)}" class="link-icon-btn" title="${escapeHtml(value)}">${field === 'email' ? MAIL_ICON : EXTERNAL_LINK_ICON}</a>`
     : '';
+
+  if (field === 'email') {
+    return `
+      <td class="cell-textarea ${columnClass} cell-icon-only" style="${hide(columnClass)}">
+        ${link || '<span class="cell-text-readonly">-</span>'}
+      </td>
+    `;
+  }
 
   return `
     <td class="cell-textarea ${columnClass}" style="${hide(columnClass)}">
@@ -593,18 +645,21 @@ function renderKontaktCell(ctx, item, columnClass, field, hide) {
 }
 
 /**
- * Profilbild-Zelle. Das Bild kommt beim Instagram-Fetch als WebP in den Storage
- * (profile_image_url), sonst steht der Initial des Namens als Platzhalter -
- * gleiches Muster wie in der CRM-Creator-Tabelle.
+ * Profilbild-Zelle. Das Bild kommt beim Instagram-Fetch als AVIF in den Storage,
+ * sonst steht der Initial des Namens als Platzhalter - gleiches Muster wie in
+ * der CRM-Creator-Tabelle.
+ *
+ * Fuer den kleinen Avatar reicht das 128px-Thumbnail; Zeilen, die vor der
+ * Umstellung abgerufen wurden, haben nur das Hauptbild.
  */
 function renderBildCell(ctx, item, sticky, hide) {
-  const rawUrl = item.profile_image_url;
+  const rawUrl = item.profile_image_thumb_url || item.profile_image_url;
   const safeUrl = rawUrl ? (window.validatorSystem?.sanitizeUrl(rawUrl) ?? rawUrl) : null;
   const initial = (item.name || '?').trim().charAt(0).toUpperCase() || '?';
 
   const inner = safeUrl
-    ? `<img src="${escapeHtml(safeUrl)}" alt="${escapeHtml(item.name || 'Profilbild')}" class="table-avatar table-avatar-img" loading="lazy" />`
-    : `<span class="table-avatar">${escapeHtml(initial)}</span>`;
+    ? `<img src="${escapeHtml(safeUrl)}" alt="${escapeHtml(item.name || 'Profilbild')}" class="table-avatar table-avatar-img table-avatar--sourcing" loading="lazy" />`
+    : `<span class="table-avatar table-avatar--sourcing">${escapeHtml(initial)}</span>`;
 
   return `<td class="cp-col-bild ${sticky.bild}" style="${hide('cp-col-bild')}">${inner}</td>`;
 }
@@ -666,6 +721,20 @@ export function renderItemRow(ctx, item, index) {
           </div>
         `}
       </td>
+      ${renderFollowerCell(ctx, item, 'cp-col-follower-ig', 'follower_instagram', hide)}
+      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-8', item.ig_views_8, hide, true)}
+      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-30', item.ig_views_30, hide, true)}
+      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-trimmed', item.ig_views_trimmed, hide, true)}
+      <td class="cell-textarea cp-col-reichweite-story" style="${hide('cp-col-reichweite-story')}">
+        ${!ctx.isKunde ? `
+          <input type="text" class="strategie-textarea" data-field="reichweite_story" data-item-id="${item.id}" placeholder="z.B. 10K" value="${item.reichweite_story || ''}">
+        ` : `<div class="cell-text-readonly">${item.reichweite_story || '-'}</div>`}
+      </td>
+      <td class="cell-textarea cp-col-preis-story" style="${hide('cp-col-preis-story')}">
+        ${!ctx.isKunde ? `
+          <input type="text" class="strategie-textarea" data-field="preis_story" data-item-id="${item.id}" placeholder="Preis..." value="${item.preis_story || ''}">
+        ` : `<div class="cell-text-readonly">${item.preis_story || '-'}</div>`}
+      </td>
       <td class="cp-col-link-tt" style="${hide('cp-col-link-tt')}">
         ${!ctx.isKunde ? `
           <div class="links-compact-row">
@@ -678,21 +747,7 @@ export function renderItemRow(ctx, item, index) {
           </div>
         `}
       </td>
-      ${renderFollowerCell(ctx, item, 'cp-col-follower-ig', 'follower_instagram', hide)}
       ${renderFollowerCell(ctx, item, 'cp-col-follower-tt', 'follower_tiktok', hide)}
-      <td class="cell-textarea cp-col-reichweite-ig" style="${hide('cp-col-reichweite-ig')}">
-        ${!ctx.isKunde ? `
-          <input type="text" class="strategie-textarea" data-field="reichweite_instagram" data-item-id="${item.id}" placeholder="z.B. 10K" value="${item.reichweite_instagram || ''}">
-        ` : `<div class="cell-text-readonly">${item.reichweite_instagram || '-'}</div>`}
-      </td>
-      <td class="cell-textarea cp-col-reichweite-tt" style="${hide('cp-col-reichweite-tt')}">
-        ${!ctx.isKunde ? `
-          <input type="text" class="strategie-textarea" data-field="reichweite_tiktok" data-item-id="${item.id}" placeholder="z.B. 10K" value="${item.reichweite_tiktok || ''}">
-        ` : `<div class="cell-text-readonly">${item.reichweite_tiktok || '-'}</div>`}
-      </td>
-      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-8', item.cpm_ig_8, item.ig_views_8, hide, true)}
-      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-30', item.cpm_ig_30, item.ig_views_30, hide, true)}
-      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-trimmed', item.cpm_ig_trimmed, item.ig_views_trimmed, hide, true)}
       <td class="cell-textarea cp-col-pricing" style="${hide('cp-col-pricing')}">
         ${!ctx.isKunde ? `
           <textarea class="strategie-textarea" data-field="pricing" data-item-id="${item.id}" placeholder="Preis...">${item.pricing || ''}</textarea>

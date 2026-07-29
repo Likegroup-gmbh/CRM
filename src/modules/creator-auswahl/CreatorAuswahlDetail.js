@@ -2,7 +2,7 @@
 // Orchestrierungs-Klasse fuer die Creator-Auswahl Detail-Ansicht
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
-import { SourcingDetailColumnVisibilityDrawer } from './SourcingDetailColumnVisibilityDrawer.js';
+import { SourcingTabelleAnpassenDrawer } from './SourcingTabelleAnpassenDrawer.js';
 import { normalizeCreatorTyp, isAllowedCreatorTyp } from './creatorTypeOptions.js';
 import {
   renderAddSection, renderItemsTable, renderTabNavigation, renderItemRow,
@@ -41,7 +41,7 @@ export class CreatorAuswahlDetail {
     this.activeTab = 'offen';
     this.searchQuery = '';
     this.statusFilter = [];
-    this.columnVisibilityDrawer = null;
+    this.tabelleAnpassenDrawer = null;
     this.kategorienDrawer = new CreatorAuswahlKategorienDrawer(this);
     this.addDrawer = new CreatorAuswahlAddDrawer(this);
     this.selectedItems = new Set();
@@ -141,22 +141,43 @@ export class CreatorAuswahlDetail {
     }
   }
 
-  showColumnVisibilityDrawer() {
+  /**
+   * Listeneinstellungen aus dem Drawer speichern: TKP schlaegt direkt auf die
+   * Reels-Preise durch, Typ/Plattform/Format kommen mit neu vorbelegten
+   * hidden_columns. Deshalb in beiden Faellen die Tabelle neu rendern.
+   */
+  async saveListenEinstellungen(updates) {
+    try {
+      await creatorAuswahlService.updateListe(this.listeId, updates);
+      Object.assign(this.liste, updates);
+      if (updates.hidden_columns) {
+        this.hiddenColumns = updates.hidden_columns;
+      }
+      this.rerenderTable();
+    } catch (error) {
+      console.error('Fehler beim Speichern der Listeneinstellungen:', error);
+      window.toastSystem?.show('Einstellung konnte nicht gespeichert werden', 'error');
+    }
+  }
+
+  showTabelleAnpassenDrawer() {
     const customColumns = this.customColumns.getOrderedColumns().map(c => ({
       className: makeCustomColumnId(c.id),
       label: c.name
     }));
     // Drawer bei jedem Oeffnen neu bauen, damit neue Custom-Spalten erscheinen
-    this.columnVisibilityDrawer = new SourcingDetailColumnVisibilityDrawer(
-      this.hiddenColumns,
-      async (newHiddenColumns) => {
+    this.tabelleAnpassenDrawer = new SourcingTabelleAnpassenDrawer({
+      liste: this.liste,
+      hiddenColumns: this.hiddenColumns,
+      customColumns,
+      onHiddenColumnsChange: async (newHiddenColumns) => {
         this.hiddenColumns = newHiddenColumns;
         await this.saveColumnVisibilitySettings();
         this.rerenderTable();
       },
-      customColumns
-    );
-    this.columnVisibilityDrawer.open();
+      onListeChange: (updates) => this.saveListenEinstellungen(updates)
+    });
+    this.tabelleAnpassenDrawer.open();
   }
 
   toggleKundenCall() {
@@ -388,11 +409,11 @@ export class CreatorAuswahlDetail {
         this._boundEventListeners.add(() => kundenCallBtn.removeEventListener('click', handler));
       }
 
-      const visibilityBtn = document.getElementById('btn-sourcing-detail-column-visibility');
-      if (visibilityBtn) {
-        const handler = () => this.showColumnVisibilityDrawer();
-        visibilityBtn.addEventListener('click', handler);
-        this._boundEventListeners.add(() => visibilityBtn.removeEventListener('click', handler));
+      const tabelleAnpassenBtn = document.getElementById('btn-sourcing-tabelle-anpassen');
+      if (tabelleAnpassenBtn) {
+        const handler = () => this.showTabelleAnpassenDrawer();
+        tabelleAnpassenBtn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => tabelleAnpassenBtn.removeEventListener('click', handler));
       }
 
       const customColumnsBtn = document.getElementById('btn-sourcing-custom-columns');
@@ -694,7 +715,11 @@ export class CreatorAuswahlDetail {
 
   /**
    * Haekchen-Button neben dem IG-Link: Profil, Follower und CPM-Werte
-   * ueber die Graph API nachladen und die Zeile aktualisieren.
+   * nachladen und die Zeile aktualisieren.
+   *
+   * Erster Klick fragt den Creator-Pool: steckt der Handle schon in einer
+   * anderen Liste, kommen die Werte von dort. Steht die Zeile danach im
+   * Refresh-Zustand, erzwingt der naechste Klick einen echten Meta-Abruf.
    */
   async handleInstagramFetch(button) {
     if (button.disabled) return;
@@ -723,22 +748,39 @@ export class CreatorAuswahlDetail {
       }
     }
 
+    // Zeile hat schon Daten -> der Button zeigt Refresh, dieser Klick soll
+    // also frisch bei Meta holen statt den Pool-Stand zu wiederholen
+    const force = !!item.ig_fetched_at && !item.ig_fetch_error;
+
     button.disabled = true;
     button.classList.remove('is-error', 'is-success');
     button.classList.add('is-loading');
 
     try {
-      const updated = await creatorAuswahlService.fetchInstagramStats(itemId);
+      const { item: updated, source, poolFetchedAt } = await creatorAuswahlService
+        .fetchInstagramStats(itemId, { force });
       Object.assign(item, updated);
       this.refreshItemRow(itemId, { flashSuccess: true });
 
-      const views = updated.ig_views_trimmed;
-      window.toastSystem?.show(
-        views != null
-          ? `Instagram-Daten aktualisiert (${Number(views).toLocaleString('de-DE')} Views im Schnitt)`
-          : 'Instagram-Daten aktualisiert – zu wenige Reels für eine CPM-Berechnung',
-        views != null ? 'success' : 'info'
-      );
+      if (source === 'pool') {
+        const stand = poolFetchedAt ? new Date(poolFetchedAt).toLocaleDateString('de-DE') : null;
+        window.toastSystem?.show(
+          stand
+            ? `Aus dem Creator-Pool übernommen (Stand ${stand}) – nochmal klicken für frische Instagram-Daten`
+            : 'Aus dem Creator-Pool übernommen – nochmal klicken für frische Instagram-Daten',
+          'info'
+        );
+      } else {
+        const views = updated.ig_views_trimmed;
+        window.toastSystem?.show(
+          views != null
+            ? `Instagram-Daten aktualisiert (${Number(views).toLocaleString('de-DE')} Views im Schnitt)`
+            : 'Instagram-Daten aktualisiert – zu wenige Reels für eine CPM-Berechnung',
+          views != null ? 'success' : 'info'
+        );
+      }
+
+      this.warnBeiDoppeltemCreator(item);
     } catch (error) {
       console.error('Fehler beim Instagram-Abruf:', error);
       // Bei toter Session hat authorizedFetch schon Hinweis und Logout uebernommen;
@@ -752,6 +794,22 @@ export class CreatorAuswahlDetail {
       this.refreshItemRow(itemId);
       window.toastSystem?.show(error.hint || error.message, error.retryable ? 'info' : 'error');
     }
+  }
+
+  /**
+   * Hinweis, wenn derselbe Creator (gleicher Pool-Eintrag) schon in dieser
+   * Liste steht. Blockiert nichts - manchmal ist die Dublette gewollt.
+   */
+  warnBeiDoppeltemCreator(item) {
+    if (!item.sourcing_creator_id) return;
+
+    const doppelt = this.items.filter(i =>
+      i.id !== item.id && i.sourcing_creator_id === item.sourcing_creator_id
+    );
+    if (!doppelt.length) return;
+
+    const name = item.name?.trim() || 'Dieser Creator';
+    window.toastSystem?.show(`${name} steht in dieser Liste bereits ein weiteres Mal`, 'warning');
   }
 
   /** Eine einzelne Tabellenzeile neu rendern, ohne die ganze Tabelle anzufassen */

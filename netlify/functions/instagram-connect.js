@@ -6,9 +6,10 @@
 //   -> laedt Profil + letzte 25 Posts (Engagement-Berechnung),
 //      speichert Bio, Follower (exakt), Post-Anzahl, Engagement-Rate,
 //      Brand-Mentions (#werbung/#ad-Heuristik) und die letzten 5 Posts.
-//      Profilbild + Post-Thumbnails werden als WebP (~640px) nach
-//      Supabase Storage (instagram-media/{creator_id}/) kopiert, da Metas
-//      CDN-URLs nach wenigen Tagen ablaufen. Refresh ueberschreibt die Dateien.
+//      Profilbild + Post-Thumbnails werden in zwei AVIF-Groessen (640px als
+//      Hauptbild, 128px als Thumbnail fuer Avatare und Listen) nach Supabase
+//      Storage (instagram-media/{creator_id}/) kopiert, da Metas CDN-URLs nach
+//      wenigen Tagen ablaufen. Refresh ueberschreibt die Dateien.
 //
 // Auth: Supabase Bearer-Token. Meta-Token bleibt serverseitig.
 
@@ -17,7 +18,7 @@ const {
   normalizeUsername,
   isValidUsername,
   fetchProfile: fetchDiscoveryProfile,
-  storeImage
+  storeImagePair
 } = require('./_shared/instagram-graph');
 const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 
@@ -28,7 +29,7 @@ const SAVED_POSTS = 5;
 
 // Brand-Aufloesung (Werbepartner-Erwaehnungen -> Name + Logo)
 const MAX_BRANDS_RESOLVE = 8;     // Limit wegen 26s Function-Timeout
-const BRAND_THUMB_WIDTH = 320;    // Logos sind klein -> kleinere WebP
+const BRAND_IMAGE_WIDTH = 320;    // Logos sind klein -> kleineres Hauptbild
 const BRAND_CACHE_MAX_AGE_DAYS = 30;
 
 // Profil + letzte 25 Posts (mit Engagement-Zahlen fuer die ER-Berechnung)
@@ -84,10 +85,11 @@ function extractBrandMentions(mediaData) {
 }
 
 /**
- * Loest Brand-Handles zu { handle, name, profile_pic } auf.
+ * Loest Brand-Handles zu { handle, name, profile_pic, profile_pic_thumb } auf.
  * Nutzt den instagram_brands-Cache (frisch < 30 Tage) und faellt sonst auf
- * Business Discovery zurueck. Aufgeloeste Logos werden als WebP nach
- * brands/{username}.webp im Storage kopiert (creator-unabhaengig, teilbar).
+ * Business Discovery zurueck. Aufgeloeste Logos werden als AVIF nach
+ * brands/{username}.avif plus _thumb-Variante im Storage kopiert
+ * (creator-unabhaengig, teilbar).
  * Fehlerhafte/nicht auffindbare Handles bleiben mit name/profile_pic = null.
  */
 async function resolveBrands(supabase, handles) {
@@ -98,7 +100,7 @@ async function resolveBrands(supabase, handles) {
   const cacheByHandle = new Map();
   const { data: cached } = await supabase
     .from('instagram_brands')
-    .select('username, name, profile_picture_url, last_fetched_at')
+    .select('username, name, profile_picture_url, profile_picture_thumb_url, last_fetched_at')
     .in('username', limited);
   for (const row of cached || []) cacheByHandle.set(row.username, row);
 
@@ -112,7 +114,12 @@ async function resolveBrands(supabase, handles) {
       && (now - new Date(hit.last_fetched_at).getTime()) < maxAgeMs;
 
     if (isFresh && hit.profile_picture_url) {
-      results.push({ handle, name: hit.name || null, profile_pic: hit.profile_picture_url });
+      results.push({
+        handle,
+        name: hit.name || null,
+        profile_pic: hit.profile_picture_url,
+        profile_pic_thumb: hit.profile_picture_thumb_url || null
+      });
       continue;
     }
 
@@ -124,31 +131,47 @@ async function resolveBrands(supabase, handles) {
           lookup_error: res.error || 'unbekannt',
           last_fetched_at: new Date().toISOString()
         }, { onConflict: 'username' });
-        results.push({ handle, name: hit?.name || null, profile_pic: hit?.profile_picture_url || null });
+        results.push({
+          handle,
+          name: hit?.name || null,
+          profile_pic: hit?.profile_picture_url || null,
+          profile_pic_thumb: hit?.profile_picture_thumb_url || null
+        });
         continue;
       }
 
       const bp = res.profile;
-      const storedLogo = await storeImage(
+      const logo = await storeImagePair(
         supabase,
         bp.profile_picture_url,
-        `brands/${handle}.webp`,
-        BRAND_THUMB_WIDTH
+        `brands/${handle}`,
+        { width: BRAND_IMAGE_WIDTH }
       );
 
       await supabase.from('instagram_brands').upsert({
         username: handle,
         name: bp.name || null,
-        profile_picture_url: storedLogo || null,
+        profile_picture_url: logo?.url || null,
+        profile_picture_thumb_url: logo?.thumbUrl || null,
         followers_count: bp.followers_count ?? null,
         lookup_error: null,
         last_fetched_at: new Date().toISOString()
       }, { onConflict: 'username' });
 
-      results.push({ handle, name: bp.name || null, profile_pic: storedLogo || null });
+      results.push({
+        handle,
+        name: bp.name || null,
+        profile_pic: logo?.url || null,
+        profile_pic_thumb: logo?.thumbUrl || null
+      });
     } catch (err) {
       console.warn(`⚠️ instagram-connect: Brand ${handle} nicht aufloesbar:`, err.message);
-      results.push({ handle, name: hit?.name || null, profile_pic: hit?.profile_picture_url || null });
+      results.push({
+        handle,
+        name: hit?.name || null,
+        profile_pic: hit?.profile_picture_url || null,
+        profile_pic_thumb: hit?.profile_picture_thumb_url || null
+      });
     }
   }
 
@@ -237,33 +260,31 @@ exports.handler = async (event) => {
     ? brandHandles // reine Handles (Alt-Format), UI normalisiert beides
     : await resolveBrands(supabase, brandHandles);
 
-  // Profilbild + Thumbnails der letzten 5 Posts nach Storage kopieren
-  const profilbildUrl = await storeImage(
-    supabase,
-    p.profile_picture_url,
-    `${creatorId}/profil.webp`
-  );
+  // Profilbild + Bilder der letzten 5 Posts nach Storage kopieren, jeweils als
+  // Hauptbild und Thumbnail. Die Posts laufen parallel: sechs Bilder mal zwei
+  // Encodes waeren sequenziell zu nah am 26s-Timeout.
+  const [profilbild, postBilder] = await Promise.all([
+    storeImagePair(supabase, p.profile_picture_url, `${creatorId}/profil`),
+    Promise.all(media.slice(0, SAVED_POSTS).map((m, i) => {
+      // Bei Videos/Reels liefert media_url die Videodatei -> Thumbnail nehmen
+      const imageSource = m.media_type === 'VIDEO'
+        ? (m.thumbnail_url || null)
+        : (m.media_url || m.thumbnail_url || null);
+      return storeImagePair(supabase, imageSource, `${creatorId}/post-${i}`);
+    }))
+  ]);
 
-  const postsToSave = media.slice(0, SAVED_POSTS);
-  const recentPosts = [];
-  for (let i = 0; i < postsToSave.length; i += 1) {
-    const m = postsToSave[i];
-    // Bei Videos/Reels liefert media_url die Videodatei -> Thumbnail nehmen
-    const imageSource = m.media_type === 'VIDEO'
-      ? (m.thumbnail_url || null)
-      : (m.media_url || m.thumbnail_url || null);
-    const thumbnailPath = await storeImage(supabase, imageSource, `${creatorId}/post-${i}.webp`);
-
-    recentPosts.push({
-      caption: m.caption || null,
-      media_type: m.media_type || null,
-      permalink: m.permalink || null,
-      like_count: m.like_count ?? null,
-      comments_count: m.comments_count ?? null,
-      timestamp: m.timestamp || null,
-      thumbnail_path: thumbnailPath
-    });
-  }
+  const recentPosts = media.slice(0, SAVED_POSTS).map((m, i) => ({
+    caption: m.caption || null,
+    media_type: m.media_type || null,
+    permalink: m.permalink || null,
+    like_count: m.like_count ?? null,
+    comments_count: m.comments_count ?? null,
+    timestamp: m.timestamp || null,
+    // thumbnail_path bleibt das Hauptbild, damit vorhandene Daten weiter passen
+    thumbnail_path: postBilder[i]?.url || null,
+    thumbnail_thumb_path: postBilder[i]?.thumbUrl || null
+  }));
 
   const update = {
     ig_username: username,
@@ -276,7 +297,10 @@ exports.handler = async (event) => {
     ig_connected_at: new Date().toISOString(),
     ig_last_error: null
   };
-  if (profilbildUrl) update.profilbild_url = profilbildUrl;
+  if (profilbild) {
+    update.profilbild_url = profilbild.url;
+    update.profilbild_thumb_url = profilbild.thumbUrl;
+  }
 
   const { error: updateError } = await supabase
     .from('creator')
@@ -295,6 +319,6 @@ exports.handler = async (event) => {
     engagement_rate: engagementRate,
     brand_mentions: brandMentions,
     posts_saved: recentPosts.length,
-    profilbild_url: profilbildUrl
+    profilbild_url: profilbild?.url || null
   });
 };

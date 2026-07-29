@@ -9,7 +9,7 @@ import {
   TIKTOK_SPALTEN,
   SOURCING_SPALTEN
 } from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
-import { SourcingDetailColumnVisibilityDrawer } from '../modules/creator-auswahl/SourcingDetailColumnVisibilityDrawer.js';
+import { SourcingTabelleAnpassenDrawer } from '../modules/creator-auswahl/SourcingTabelleAnpassenDrawer.js';
 
 function baseCtx(overrides = {}) {
   return { isKunde: false, hiddenColumns: [], ...overrides };
@@ -46,13 +46,34 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     ]);
   });
 
-  it('setzt den tatsaechlichen Preis hinter den Instagram-Schnitt, danach die Garantie', () => {
+  it('buendelt erst den ganzen Instagram-Block, dann TikTok', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
-    const ab = spalten.indexOf('cp-col-cpm-ig-trimmed');
+    const ab = spalten.indexOf('cp-col-link-ig');
+
+    expect(spalten.slice(ab, ab + 9)).toEqual([
+      'cp-col-link-ig', 'cp-col-follower-ig',
+      'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-cpm-ig-trimmed',
+      'cp-col-reichweite-story', 'cp-col-preis-story',
+      'cp-col-link-tt', 'cp-col-follower-tt'
+    ]);
+  });
+
+  it('setzt den tatsaechlichen Preis hinter TikTok, danach die Garantie', () => {
+    const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
+    const ab = spalten.indexOf('cp-col-follower-tt');
 
     expect(spalten.slice(ab, ab + 3)).toEqual([
-      'cp-col-cpm-ig-trimmed', 'cp-col-pricing', 'cp-col-reichweite-garantie'
+      'cp-col-follower-tt', 'cp-col-pricing', 'cp-col-reichweite-garantie'
     ]);
+  });
+
+  it('kennt die manuellen Reichweite-Spalten nicht mehr', () => {
+    const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
+
+    expect(spalten).not.toContain('cp-col-reichweite-ig');
+    expect(spalten).not.toContain('cp-col-reichweite-tt');
+    expect(SOURCING_SPALTEN).not.toContain('cp-col-reichweite-ig');
+    expect(SOURCING_SPALTEN).not.toContain('cp-col-reichweite-tt');
   });
 
   it('rendert Kopf und Zeile in derselben Reihenfolge', () => {
@@ -67,6 +88,30 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     const th = tableDoc([{ id: 'i1' }]).querySelector('thead th.cp-col-pricing');
 
     expect(th.textContent.trim()).toBe('Tatsächlicher Preis');
+  });
+
+  it('schreibt Reels in die Preis-Ueberschriften, damit der Bezug klar ist', () => {
+    const doc = tableDoc([{ id: 'i1' }]);
+
+    expect(doc.querySelector('thead th.cp-col-cpm-ig-8').textContent.trim()).toContain('Preis 8 Reels');
+    expect(doc.querySelector('thead th.cp-col-cpm-ig-30').textContent.trim()).toContain('Preis 30 Reels');
+    expect(doc.querySelector('thead th.cp-col-cpm-ig-trimmed').textContent.trim()).toContain('Preis Ø Reels');
+  });
+
+  it('nennt im Tooltip den TKP der Liste statt der festen 25', () => {
+    const doc = tableDoc([{ id: 'i1' }], { liste: { tkp: 40 } });
+
+    expect(doc.querySelector('thead th.cp-col-cpm-ig-8').getAttribute('title'))
+      .toContain('40 € TKP');
+  });
+
+  it('benennt die Story-Spalten', () => {
+    const doc = tableDoc([{ id: 'i1' }]);
+
+    expect(doc.querySelector('thead th.cp-col-reichweite-story').textContent.trim())
+      .toContain('Reichweite Story');
+    expect(doc.querySelector('thead th.cp-col-preis-story').textContent.trim())
+      .toContain('Preis Story');
   });
 });
 
@@ -92,8 +137,8 @@ describe('Sourcing – deaktivierte Spalten (EK/VK)', () => {
     expect(ek.querySelector('input[data-field="preis_ek"]').value).toBe('300');
   });
 
-  it('bietet sie nicht im Sichtbarkeits-Drawer an', () => {
-    const drawer = new SourcingDetailColumnVisibilityDrawer([], () => {});
+  it('bietet sie nicht im Drawer "Tabelle anpassen" an', () => {
+    const drawer = new SourcingTabelleAnpassenDrawer({ liste: {}, hiddenColumns: [] });
     const klassen = drawer.columns.map(c => c.className);
 
     expect(klassen).not.toContain('cp-col-ek');
@@ -107,16 +152,28 @@ describe('Sourcing – deaktivierte Spalten (EK/VK)', () => {
 });
 
 describe('Sourcing – Mail und Telefon nur intern', () => {
-  it('zeigt intern editierbare Felder', () => {
+  it('zeigt die Mail nur als Icon-Link, nicht als Text', () => {
     const mail = cell('cp-col-mail', { email: 'booking@creator.de' });
+    const link = mail.querySelector('a');
 
-    expect(mail.querySelector('input[data-field="email"]').value).toBe('booking@creator.de');
-    expect(mail.querySelector('a').getAttribute('href')).toBe('mailto:booking@creator.de');
+    expect(link.getAttribute('href')).toBe('mailto:booking@creator.de');
+    expect(link.getAttribute('title')).toBe('booking@creator.de');
+    expect(link.querySelector('svg')).not.toBeNull();
+    expect(mail.querySelector('input')).toBeNull();
+    expect(mail.textContent).not.toContain('booking@creator.de');
   });
 
-  it('verlinkt Telefonnummern per tel-Schema', () => {
+  it('zeigt ohne Mail nur einen Platzhalter', () => {
+    const mail = cell('cp-col-mail', { email: null });
+
+    expect(mail.querySelector('a')).toBeNull();
+    expect(mail.textContent.trim()).toBe('-');
+  });
+
+  it('laesst Telefonnummern in der Tabelle editierbar und verlinkt sie per tel-Schema', () => {
     const tel = cell('cp-col-telefon', { telefon: '+49 170 1234567' });
 
+    expect(tel.querySelector('input[data-field="telefon"]').value).toBe('+49 170 1234567');
     expect(tel.querySelector('a').getAttribute('href')).toBe('tel:+49 170 1234567');
   });
 
@@ -141,12 +198,23 @@ describe('Sourcing – Mail und Telefon nur intern', () => {
 
 describe('Sourcing – Bild-Spalte', () => {
   it('zeigt das Profilbild aus dem Storage', () => {
-    const bild = cell('cp-col-bild', { name: 'Mia', profile_image_url: 'https://cdn.test/p.webp' });
+    const bild = cell('cp-col-bild', { name: 'Mia', profile_image_url: 'https://cdn.test/p.avif' });
     const img = bild.querySelector('img.table-avatar-img');
 
-    expect(img.getAttribute('src')).toBe('https://cdn.test/p.webp');
+    expect(img.getAttribute('src')).toBe('https://cdn.test/p.avif');
     expect(img.getAttribute('alt')).toBe('Mia');
     expect(img.getAttribute('loading')).toBe('lazy');
+    expect(img.classList.contains('table-avatar--sourcing')).toBe(true);
+  });
+
+  it('nimmt fuer den kleinen Avatar das Thumbnail, wenn es vorhanden ist', () => {
+    const bild = cell('cp-col-bild', {
+      name: 'Mia',
+      profile_image_url: 'https://cdn.test/p.avif',
+      profile_image_thumb_url: 'https://cdn.test/p_thumb.avif'
+    });
+
+    expect(bild.querySelector('img').getAttribute('src')).toBe('https://cdn.test/p_thumb.avif');
   });
 
   it('faellt ohne Bild auf den Initial des Namens zurueck', () => {
@@ -204,24 +272,22 @@ describe('Sourcing – Sticky-Positionen', () => {
 });
 
 describe('Sourcing – TikTok-Spalten', () => {
-  it('umfasst Link, Follower und Reichweite', () => {
-    expect(TIKTOK_SPALTEN).toEqual([
-      'cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-reichweite-tt'
-    ]);
+  it('umfasst Link und Follower', () => {
+    expect(TIKTOK_SPALTEN).toEqual(['cp-col-link-tt', 'cp-col-follower-tt']);
   });
 
-  it('blendet genau diese drei aus, wenn sie vorbelegt sind', () => {
+  it('blendet genau diese beiden aus, wenn sie vorbelegt sind', () => {
     for (const col of TIKTOK_SPALTEN) {
       expect(isColumnVisibleForCustomer(col, false, TIKTOK_SPALTEN)).toBe(false);
     }
     expect(isColumnVisibleForCustomer('cp-col-link-ig', false, TIKTOK_SPALTEN)).toBe(true);
   });
 
-  it('reduziert die Spaltenanzahl um drei', () => {
+  it('reduziert die Spaltenanzahl um zwei', () => {
     const mit = getVisibleColumnCount(false, []);
     const ohne = getVisibleColumnCount(false, TIKTOK_SPALTEN);
 
-    expect(mit - ohne).toBe(3);
+    expect(mit - ohne).toBe(2);
   });
 });
 
