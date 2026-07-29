@@ -4,6 +4,7 @@
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
+import { renderPaginatedText, renderZusatzBestimmung } from './PdfTextFlow.js';
 
 VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang = this.getContractLanguage(vertrag)) {
   try {
@@ -57,15 +58,30 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
     const logoBase64 = await svgToPngDataUrl(logoSvg, 120, 66);
 
     let pageNumber = 1;
+    // Fußzeile (stellt Font-Zustand danach wieder her)
     const addFooter = () => {
+      const prevSize = doc.getFontSize();
+      const prevFont = doc.getFont();
       doc.setFontSize(8);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(100);
       doc.text('LikeGroup GmbH | Jakob-Latscha-Str. 3 | 60314 Frankfurt am Main | Deutschland', 14, FOOTER_Y);
       doc.text(`Seite ${pageNumber}`, 196, FOOTER_Y, { align: 'right' });
       doc.setTextColor(0);
+      doc.setFontSize(prevSize);
+      doc.setFont(prevFont.fontName, prevFont.fontStyle);
       pageNumber++;
     };
+
+    // Helper: Seitenumbruch für paginierten Freitext (Footer + neue Seite)
+    const onPageBreak = () => {
+      addFooter();
+      doc.addPage();
+      return 20;
+    };
+
+    // Zusätzliche Bestimmungen pro Paragraph (optional)
+    const zusaetze = vertrag.paragraph_zusaetze || {};
 
     // Daten holen
     const kunde = this.unternehmen.find(u => u.id === vertrag.kunde_unternehmen_id);
@@ -88,9 +104,7 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
 
     const addWrappedText = (text, x, yStart, maxWidth) => {
       const localizedText = this.localizeContractText(text, lang);
-      const lines = doc.splitTextToSize(localizedText, maxWidth);
-      doc.text(lines, x, yStart);
-      return yStart + (lines.length * 5);
+      return renderPaginatedText(doc, localizedText, { x, y: yStart, maxWidth, maxContentY: MAX_CONTENT_Y, onPageBreak });
     };
 
     const checkPageBreak = (neededSpace) => {
@@ -267,8 +281,8 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
     y += 4;
     y = addWrappedText('(4) Die gesamte Abwicklung der Kooperation, insbesondere Vergütung, erfolgt über den Auftraggeber LikeGroup GmbH.', 14, y, 180);
 
-    // §2 Plattformen & Veroeffentlichung
-    checkPageBreak(40);
+    // §2 Plattformen & Veroeffentlichung (Überschrift + Intro + 5 Checkboxen ≈ 55mm)
+    checkPageBreak(55);
     y += 10;
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
@@ -291,9 +305,10 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
       ? `Weitere Kanäle: ${vertrag.plattformen_sonstige || handles.weitere || ''}`
       : 'Weitere Kanäle: __________________________________';
     drawCheckbox(14, y, plattformen.includes('sonstige'), sonstigeText);
+    y = renderZusatzBestimmung(doc, zusaetze.p2, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
-    // §2a Inhalte & Kooperationsdetails
-    checkPageBreak(60);
+    // §2a Inhalte & Kooperationsdetails (Plattformen + Formate + Details ≈ 70mm)
+    checkPageBreak(70);
     y += 12;
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
@@ -339,6 +354,7 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
     doc.text(`Anzahl Inhalte: ${vertrag.contracting_anzahl_inhalte || 'XXX'}`, 14, y);
     y += 6;
     doc.text(`Datum / Zeitraum der Veröffentlichung: ${vertrag.contracting_veroeffentlichung_zeitraum || 'XXX'}`, 14, y);
+    y = renderZusatzBestimmung(doc, zusaetze.p2a, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
     // §3 Media Buyout
     checkPageBreak(70);
@@ -405,6 +421,7 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
       y += 6;
       y = addWrappedText(vertrag.contracting_buyout_besonderheiten, 14, y, 180);
     }
+    y = renderZusatzBestimmung(doc, zusaetze.p3, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
     // §4 Rechteübertragung
     checkPageBreak(60);
@@ -446,6 +463,7 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
       ? `(4) Es werden maximal ${vertrag.korrekturschleifen} Korrekturschleife${vertrag.korrekturschleifen > 1 ? 'n' : ''} vereinbart.`
       : '(4) Es werden maximal zwei Korrekturschleifen vereinbart.';
     y = addWrappedText(korrekturText, 14, y, 180);
+    y = renderZusatzBestimmung(doc, zusaetze.p5, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
     // §6 Verguetung
     checkPageBreak(50);
@@ -464,6 +482,7 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
     y = addWrappedText(`(3) Die Zahlung erfolgt innerhalb von ${zahlungszielText} nach Leistungserbringung und Rechnungsstellung.`, 14, y, 180);
     y += 4;
     y = addWrappedText('(4) Der Auftraggeber führt die gesetzlich vorgeschriebene Künstlersozialabgabe gemäß § 24 KSVG ab, soweit erforderlich.', 14, y, 180);
+    y = renderZusatzBestimmung(doc, zusaetze.p6, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
     // §7 Bereitstellung von Produkten
     checkPageBreak(70);
@@ -556,6 +575,7 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
       exklSatz = `Der Influencer verpflichtet sich für die Dauer von zwei Wochen nach Veröffentlichung des Contents, keine Kooperationen mit unmittelbaren Wettbewerbern im Bereich "${exklBereich}" einzugehen.`;
     }
     y = addWrappedText(exklSatz, 14, y, 180);
+    y = renderZusatzBestimmung(doc, zusaetze.p10, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
     // §11 Leistungsstoerungen
     checkPageBreak(40);
@@ -633,8 +653,8 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
       y = addWrappedText(vertrag.weitere_bestimmungen, 14, y, 180);
     }
 
-    // Unterschriften
-    checkPageBreak(60);
+    // Unterschriften (Block benötigt ~71mm ab Start, daher 90 anfordern)
+    checkPageBreak(90);
     y += 15;
     doc.text('Ort: __________________________', 14, y);
     y += 7;

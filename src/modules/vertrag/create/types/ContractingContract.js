@@ -4,6 +4,7 @@
 // statt Kampagne/Kooperation-Kaskade.
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
+import { renderParagraphZusatz } from '../paragraphZusatz.js';
 
 VertraegeCreate.prototype.renderContractingStep2 = function() {
     if (!this._filtersInitialized) {
@@ -149,6 +150,7 @@ VertraegeCreate.prototype.renderContractingStep3 = function() {
           <input type="text" id="handle_weitere" name="contracting_handle_weitere"
                  value="${handles.weitere || ''}" placeholder="z.B. LinkedIn-URL">
         </div>
+        ${renderParagraphZusatz(this.formData, 'p2', '§2 Plattformen & Veröffentlichung')}
 
         <h3 class="mt-section">§2a Inhalte & Kooperationsdetails</h3>
 
@@ -202,6 +204,7 @@ VertraegeCreate.prototype.renderContractingStep3 = function() {
                    placeholder="z.B. KW 24 oder 15.06.2025">
           </div>
         </div>
+        ${renderParagraphZusatz(this.formData, 'p2a', '§2a Inhalte & Kooperationsdetails')}
       </div>
     `;
 };
@@ -337,6 +340,7 @@ VertraegeCreate.prototype.renderContractingStep4 = function() {
           <textarea id="contracting_buyout_besonderheiten" name="contracting_buyout_besonderheiten" rows="3"
                     placeholder="Optional: Besonderheiten zur Nutzung">${this.formData.contracting_buyout_besonderheiten || ''}</textarea>
         </div>
+        ${renderParagraphZusatz(this.formData, 'p3', '§3 Media Buyout')}
 
         <h3 class="mt-section">§5 Produktion & Freigabe</h3>
         <p class="form-hint">Es werden maximal zwei Korrekturschleifen vereinbart. Inhalte sind vor Veröffentlichung zur Freigabe vorzulegen.</p>
@@ -364,6 +368,7 @@ VertraegeCreate.prototype.renderContractingStep4 = function() {
                    placeholder="z.B. 15.06.2025 oder KW 24">
           </div>
         </div>
+        ${renderParagraphZusatz(this.formData, 'p5', '§5 Produktion & Freigabe')}
       </div>
     `;
 };
@@ -410,6 +415,7 @@ VertraegeCreate.prototype.renderContractingStep5 = function() {
             </label>
           </div>
         </div>
+        ${renderParagraphZusatz(this.formData, 'p6', '§6 Vergütung')}
 
         <h3 class="mt-section">§10 Exklusivität</h3>
         <p class="form-hint">Der Influencer verpflichtet sich im angegebenen Zeitraum keine Kooperationen mit unmittelbaren Wettbewerbern im angegebenen Bereich einzugehen. Ohne Zeitraum gilt: zwei Wochen nach Veröffentlichung.</p>
@@ -433,6 +439,7 @@ VertraegeCreate.prototype.renderContractingStep5 = function() {
                  value="${this.formData.contracting_exklusivitaet_bereich || ''}"
                  placeholder="z.B. Haushaltselektronik, Beauty, Fashion">
         </div>
+        ${renderParagraphZusatz(this.formData, 'p10', '§10 Exklusivität')}
 
         <h3 class="mt-section">Weitere Bestimmungen</h3>
         <div class="form-field">

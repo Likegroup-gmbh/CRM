@@ -12,6 +12,7 @@
 
 import { KampagneUtils } from '../../kampagne/KampagneUtils.js';
 import CONFIG from '../../../core/ConfigSystem.js';
+import { expandParagraphZusaetze } from './paragraphZusatz.js';
 
 export class VertraegeCreate {
   constructor() {
@@ -262,7 +263,9 @@ VertraegeCreate.prototype.loadDraftFromDB = async function(draftId) {
           contracting_veroeffentlichungsdatum: draft.contracting_veroeffentlichungsdatum,
           contracting_exklusivitaet_bereich: draft.contracting_exklusivitaet_bereich,
           contracting_exklusivitaet_von: draft.contracting_exklusivitaet_von,
-          contracting_exklusivitaet_bis: draft.contracting_exklusivitaet_bis
+          contracting_exklusivitaet_bis: draft.contracting_exklusivitaet_bis,
+          // Zusätzliche Bestimmungen pro Paragraph: JSONB -> flache paragraph_zusatz_*-Felder
+          ...expandParagraphZusaetze(draft.paragraph_zusaetze)
         };
         this.selectedTyp = draft.typ;
         this.isGenerated = true;

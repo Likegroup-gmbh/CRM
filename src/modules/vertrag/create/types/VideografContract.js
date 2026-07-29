@@ -2,6 +2,7 @@
 // Videografen- & Fotografen-Produktionsvertrag: Steps 2-5 + Produktionsplan-Helper.
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
+import { renderParagraphZusatz } from '../paragraphZusatz.js';
 VertraegeCreate.prototype.renderVideografStep2 = function() {
     if (!this._filtersInitialized) {
       this.updateFilteredKampagnen();
@@ -160,6 +161,7 @@ VertraegeCreate.prototype.renderVideografStep3 = function() {
         </button>
 
         <p class="form-hint mt-sm">Der Auftragnehmer verpflichtet sich, zum vereinbarten Zeitpunkt vollständig einsatzbereit zu erscheinen und die Produktion fachgerecht durchzuführen.</p>
+        ${renderParagraphZusatz(this.formData, 'p2', '§2 Leistungsumfang')}
       </div>
     `;
 };
@@ -270,6 +272,7 @@ VertraegeCreate.prototype.renderVideografStep4 = function() {
           </div>
           <p class="form-hint">Die finale Version ist spätestens X Werktage nach Abschluss der letzten Korrekturschleife bereitzustellen.</p>
         </div>
+        ${renderParagraphZusatz(this.formData, 'p3', '§3 Output, Abgabe & Versionierung')}
       </div>
     `;
 };
@@ -304,6 +307,7 @@ VertraegeCreate.prototype.renderVideografStep5 = function() {
         </div>
 
         <p class="form-hint">Eine Urheberbenennung ist nicht erforderlich, sofern nicht ausdrücklich vereinbart.</p>
+        ${renderParagraphZusatz(this.formData, 'p7', '§7 Nutzungsrechte')}
 
         <h3 class="mt-section">§9 Vergütung</h3>
         
@@ -375,6 +379,7 @@ VertraegeCreate.prototype.renderVideografStep5 = function() {
         </div>
 
         <p class="form-hint">Die Zahlung erfolgt durch die LikeGroup GmbH im Auftrag des Kunden. Die Rechnungsstellung erfolgt nach finaler Abnahme.</p>
+        ${renderParagraphZusatz(this.formData, 'p9', '§9 Vergütung')}
 
         <h3 class="mt-section">Rechnungsstellung</h3>
         ${this.renderMehrfachRechnungToggle()}

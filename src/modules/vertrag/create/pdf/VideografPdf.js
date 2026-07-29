@@ -3,6 +3,7 @@
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
+import { ensureSpace, renderPaginatedText, renderZusatzBestimmung } from './PdfTextFlow.js';
 
 VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = this.getContractLanguage(vertrag)) {
     try {
@@ -63,16 +64,30 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
       // Seitenzähler für Fußzeile
       let pageNumber = 1;
 
-      // Helper: Fußzeile hinzufügen
+      // Helper: Fußzeile hinzufügen (stellt Font-Zustand danach wieder her)
       const addFooter = () => {
+        const prevSize = doc.getFontSize();
+        const prevFont = doc.getFont();
         doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(100);
         doc.text('LikeGroup GmbH | Jakob-Latscha-Str. 3 | 60314 Frankfurt am Main | Deutschland', 14, FOOTER_Y);
         doc.text(`Seite ${pageNumber}`, 196, FOOTER_Y, { align: 'right' });
         doc.setTextColor(0);
+        doc.setFontSize(prevSize);
+        doc.setFont(prevFont.fontName, prevFont.fontStyle);
         pageNumber++;
       };
+
+      // Helper: Seitenumbruch für paginierten Freitext (Footer + neue Seite)
+      const onPageBreak = () => {
+        addFooter();
+        doc.addPage();
+        return 20;
+      };
+
+      // Zusätzliche Bestimmungen pro Paragraph (optional)
+      const zusaetze = vertrag.paragraph_zusaetze || {};
 
       // Hole Kunden- und Creator-Daten
       const kunde = this.unternehmen.find(u => u.id === vertrag.kunde_unternehmen_id);
@@ -124,20 +139,10 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
         doc.text(label, x + 5, yPos);
       };
 
-      // Helper für Textumbruch
+      // Helper für Textumbruch (zeilenweise paginiert)
       const addWrappedText = (text, x, y, maxWidth) => {
         const localizedText = this.localizeContractText(text, lang);
-        const lines = doc.splitTextToSize(localizedText, maxWidth);
-        lines.forEach(line => {
-          if (y > MAX_CONTENT_Y) {
-            addFooter();
-            doc.addPage();
-            y = 20;
-          }
-          doc.text(line, x, y);
-          y += 5;
-        });
-        return y;
+        return renderPaginatedText(doc, localizedText, { x, y, maxWidth, maxContentY: MAX_CONTENT_Y, onPageBreak });
       };
 
       // Seitenzahlen Helper
@@ -317,14 +322,10 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
       
       y += 2;
       y = addWrappedText('Der Auftragnehmer verpflichtet sich, zum vereinbarten Zeitpunkt vollständig einsatzbereit zu erscheinen und die Produktion fachgerecht durchzuführen.', 14, y, 180);
+      y = renderZusatzBestimmung(doc, zusaetze.p2, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
-      // §3 Output, Abgabe & Versionierung
-      y += 10;
-      if (y > MAX_CONTENT_Y) {
-        addFooter();
-        doc.addPage();
-        y = 20;
-      }
+      // §3 Output, Abgabe & Versionierung - Überschrift + 3.1-Block (~50mm) muss passen
+      y = ensureSpace(y + 10, 50, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§3 Output, Abgabe & Versionierung', 14, y);
@@ -338,14 +339,15 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
       doc.setFont('helvetica', 'normal');
       y += 6;
       const lieferumfang = vertrag.videograf_lieferumfang || [];
-      // Alle Optionen als Checkboxen anzeigen
+      // Alle Optionen als Checkboxen anzeigen (zeilenweise gegen Fußzeile abgesichert)
       Object.entries(lieferumfangLabels).forEach(([key, label]) => {
+        if (y > MAX_CONTENT_Y) y = onPageBreak();
         drawCheckbox(14, y, lieferumfang.includes(key), label);
         y += 6;
       });
 
       // 3.2 Abgabe V1
-      y += 5;
+      y = ensureSpace(y + 5, 18, MAX_CONTENT_Y, onPageBreak);
       doc.setFont('helvetica', 'bold');
       doc.text('3.2 Abgabe der ersten Version (V1)', 14, y);
       doc.setFont('helvetica', 'normal');
@@ -354,7 +356,7 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
       y = addWrappedText(`Die erste inhaltliche Version (Preview / V1) ist spätestens bis: ${v1Deadline} digital zur Verfügung zu stellen.`, 14, y, 180);
 
       // 3.3 Korrekturschleifen
-      y += 5;
+      y = ensureSpace(y + 5, 18, MAX_CONTENT_Y, onPageBreak);
       doc.setFont('helvetica', 'bold');
       doc.text('3.3 Korrekturschleifen', 14, y);
       doc.setFont('helvetica', 'normal');
@@ -364,20 +366,16 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
       y = addWrappedText('Eine Korrekturschleife umfasst jeweils eine überarbeitete Version nach Feedback.', 14, y, 180);
 
       // 3.4 Finale Version
-      y += 5;
+      y = ensureSpace(y + 5, 18, MAX_CONTENT_Y, onPageBreak);
       doc.setFont('helvetica', 'bold');
       doc.text('3.4 Abgabe der finalen Version', 14, y);
       doc.setFont('helvetica', 'normal');
       y += 6;
       y = addWrappedText(`Die finale Version ist spätestens ${vertrag.videograf_finale_werktage || 5} Werktage nach Abschluss der letzten Korrekturschleife bereitzustellen.`, 14, y, 180);
+      y = renderZusatzBestimmung(doc, zusaetze.p3, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
-      // §4 Qualitätsanforderungen
-      y += 10;
-      if (y > MAX_CONTENT_Y) {
-        addFooter();
-        doc.addPage();
-        y = 20;
-      }
+      // §4 Qualitätsanforderungen - Block (~55mm) muss komplett passen
+      y = ensureSpace(y + 10, 55, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§4 Qualitätsanforderungen', 14, y);
@@ -395,19 +393,15 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
         '• markenkonform gemäß Briefing umgesetzt sein'
       ];
       qualitaetsanforderungen.forEach(req => {
+        if (y > MAX_CONTENT_Y) y = onPageBreak();
         doc.text(req, 14, y);
         y += 5;
       });
       y += 3;
       y = addWrappedText('Technisch oder inhaltlich nicht verwertbares Material gilt als nicht vertragsgemäß.', 14, y, 180);
 
-      // §5 Nachbesserung & Neuerstellung
-      y += 10;
-      if (y > MAX_CONTENT_Y) {
-        addFooter();
-        doc.addPage();
-        y = 20;
-      }
+      // §5 Nachbesserung & Neuerstellung - Überschrift + 5.1-Block (~35mm) muss passen
+      y = ensureSpace(y + 10, 35, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§5 Nachbesserung & Neuerstellung', 14, y);
@@ -421,20 +415,15 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
       y += 6;
       y = addWrappedText('Als Nachbesserungen gelten insbesondere: Schnittanpassungen, Farbkorrekturen, Tonanpassungen, Austausch einzelner Szenen, Bildauswahl bei Fotos, kleinere inhaltliche Anpassungen. Diese sind im Rahmen der vereinbarten Korrekturschleifen kostenfrei vorzunehmen.', 14, y, 180);
 
-      y += 8;
+      y = ensureSpace(y + 8, 20, MAX_CONTENT_Y, onPageBreak);
       doc.setFont('helvetica', 'bold');
       doc.text('5.2 Neuerstellung (Neudreh)', 14, y);
       doc.setFont('helvetica', 'normal');
       y += 6;
       y = addWrappedText('Ein Anspruch auf kostenfreie Neuerstellung (Neudreh) besteht insbesondere bei: erheblichen technischen Mängeln, unbrauchbarem Bild- oder Tonmaterial, grober Abweichung vom Briefing, Missachtung professioneller Standards. Sofern die Mängel nicht durch Nachbesserung behoben werden können, ist der Auftragnehmer verpflichtet, die Leistung neu zu erbringen. Wenn es sich hierbei um ein einmaliges Event gehandelt hat, entfällt die Vergütung.', 14, y, 180);
 
-      // §7 Nutzungsrechte
-      y += 10;
-      if (y > MAX_CONTENT_Y) {
-        addFooter();
-        doc.addPage();
-        y = 20;
-      }
+      // §7 Nutzungsrechte - Block (~50mm) muss komplett passen
+      y = ensureSpace(y + 10, 50, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§7 Nutzungsrechte', 14, y);
@@ -444,16 +433,18 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
       y = addWrappedText('Der Auftragnehmer überträgt dem Auftraggeber ausschließliche, zeitlich und räumlich unbegrenzte Nutzungsrechte an sämtlichen erstellten Inhalten.', 14, y, 180);
       y += 3;
       const nutzungsart = vertrag.videograf_nutzungsart || [];
-      // Alle Optionen als Checkboxen anzeigen
+      // Alle Optionen als Checkboxen anzeigen (zeilenweise gegen Fußzeile abgesichert)
       Object.entries(nutzungsartLabels).forEach(([key, label]) => {
+        if (y > MAX_CONTENT_Y) y = onPageBreak();
         drawCheckbox(14, y, nutzungsart.includes(key), label);
         y += 6;
       });
       y += 3;
       y = addWrappedText('Eine Urheberbenennung ist nicht erforderlich, sofern nicht ausdrücklich vereinbart.', 14, y, 180);
+      y = renderZusatzBestimmung(doc, zusaetze.p7, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
-      // §8 Rechte Dritter
-      y += 10;
+      // §8 Rechte Dritter - Block (~25mm) muss komplett passen
+      y = ensureSpace(y + 10, 25, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§8 Rechte Dritter', 14, y);
@@ -462,13 +453,8 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
       y += 8;
       y = addWrappedText('Der Auftragnehmer garantiert, dass sämtliche Inhalte frei von Rechten Dritter sind. Er haftet für alle daraus resultierenden Rechtsverletzungen.', 14, y, 180);
 
-      // §9 Vergütung
-      y += 10;
-      if (y > MAX_CONTENT_Y) {
-        addFooter();
-        doc.addPage();
-        y = 20;
-      }
+      // §9 Vergütung - Überschrift + 9.1-Block (~40mm) muss passen
+      y = ensureSpace(y + 10, 40, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§9 Vergütung', 14, y);
@@ -492,7 +478,7 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
         drawCheckbox(14, y, true, 'Keine Zusatzkosten');
       }
 
-      y += 8;
+      y = ensureSpace(y + 8, 30, MAX_CONTENT_Y, onPageBreak);
       doc.setFont('helvetica', 'bold');
       doc.text('9.2 Zahlungsbedingungen', 14, y);
       doc.setFont('helvetica', 'normal');
@@ -502,14 +488,10 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
       doc.text(`Skonto: ${(vertrag.skonto === true || vertrag.skonto === 'true') ? 'Ja (3% bei Zahlung innerhalb 7 Tage)' : 'Nein'}`, 14, y);
       y += 5;
       y = addWrappedText('Die Zahlung erfolgt durch die LikeGroup GmbH im Auftrag des Kunden. Die Rechnungsstellung erfolgt nach finaler Abnahme.', 14, y, 180);
+      y = renderZusatzBestimmung(doc, zusaetze.p9, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
-      // §10 Verschwiegenheit
-      y += 10;
-      if (y > MAX_CONTENT_Y) {
-        addFooter();
-        doc.addPage();
-        y = 20;
-      }
+      // §10 Verschwiegenheit - Block (~30mm) muss komplett passen
+      y = ensureSpace(y + 10, 30, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§10 Verschwiegenheit', 14, y);
@@ -518,8 +500,8 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
       y += 8;
       y = addWrappedText('Der Auftragnehmer verpflichtet sich zur vollständigen Verschwiegenheit über Inhalte, Material und Ergebnisse dieses Auftrags. Eine Eigenverwendung oder Veröffentlichung ist nur mit vorheriger schriftlicher Zustimmung zulässig.', 14, y, 180);
 
-      // §11 Rücktritt
-      y += 10;
+      // §11 Rücktritt - Block (~30mm) muss komplett passen
+      y = ensureSpace(y + 10, 30, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§11 Rücktritt', 14, y);
@@ -528,8 +510,8 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
       y += 8;
       y = addWrappedText('Erfüllt der Auftragnehmer die vereinbarten Leistungen auch nach Nachbesserung oder Neuerstellung nicht, ist der Auftraggeber berechtigt, vom Vertrag zurückzutreten. Bereits gezahlte Vergütungen können anteilig oder vollständig zurückgefordert werden.', 14, y, 180);
 
-      // §12 Vertragsschluss
-      y += 10;
+      // §12 Vertragsschluss - Block (~25mm) muss komplett passen
+      y = ensureSpace(y + 10, 25, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§12 Vertragsschluss', 14, y);
@@ -540,12 +522,8 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
 
       // §13 Weitere Bestimmungen (nur wenn ausgefüllt)
       if (vertrag.weitere_bestimmungen) {
-        y += 10;
-        if (y > MAX_CONTENT_Y) {
-          addFooter();
-          doc.addPage();
-          y = 20;
-        }
+        // Überschrift + erste Textzeile zusammenhalten
+        y = ensureSpace(y + 10, 20, MAX_CONTENT_Y, onPageBreak);
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.text('§13 Weitere Bestimmungen', 14, y);
@@ -555,13 +533,8 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
         y = addWrappedText(vertrag.weitere_bestimmungen, 14, y, 180);
       }
 
-      // Unterschrift
-      y += 20;
-      if (y > MAX_CONTENT_Y) {
-        addFooter();
-        doc.addPage();
-        y = 20;
-      }
+      // Unterschrift - garantiert genug Platz vor der Fußzeile
+      y = ensureSpace(y + 20, 22, MAX_CONTENT_Y, onPageBreak);
       doc.text('Ort, Datum: ___________________________', 14, y);
       y += 15;
       doc.text('Auftragnehmer: ___________________________', 14, y);
