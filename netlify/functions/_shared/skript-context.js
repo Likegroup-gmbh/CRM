@@ -223,7 +223,7 @@ function videoLaengeHinweis(spanne) {
 }
 
 // ---------------------------------------------------------------------------
-// Videovorlage (Referenzvideo): kreative Pflicht-Basis jedes neuen Skripts
+// Videovorlage (Referenzvideo): optionale kreative Basis eines neuen Skripts
 // ---------------------------------------------------------------------------
 // Transkript-Budget im Prompt: bei sehr langen Vorlagen bleiben Anfang UND
 // Ende erhalten (Hook + CTA), die Mitte wird gekuerzt - die Llama-Beschreibung

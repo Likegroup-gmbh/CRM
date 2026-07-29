@@ -7,7 +7,7 @@ import { normalizeCreatorTyp, isAllowedCreatorTyp } from './creatorTypeOptions.j
 import {
   renderAddSection, renderItemsTable, renderTabNavigation, renderItemRow,
   getTeilbereicheFromListe, isColumnVisibleForCustomer, getVisibleColumnCount,
-  getSourcingTabForItem, SOURCING_TABS, migrateHiddenColumns
+  getSourcingTabForItem, SOURCING_TABS, migrateHiddenColumns, IG_FETCH_CHECK_ICON
 } from './CreatorAuswahlTemplates.js';
 import { CreatorAuswahlKategorienDrawer } from './CreatorAuswahlKategorienDrawer.js';
 import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
@@ -759,8 +759,18 @@ export class CreatorAuswahlDetail {
     if (flashSuccess) {
       const btn = document.querySelector(`[data-ig-fetch][data-item-id="${itemId}"]`);
       if (btn) {
+        // Kurz das gruene Haekchen zeigen, danach zurueck auf das gerenderte
+        // Refresh-Icon, damit der erneute Abruf sichtbar bleibt
+        const finalIcon = btn.innerHTML;
+        const wasRefresh = btn.classList.contains('is-refresh');
+        btn.innerHTML = IG_FETCH_CHECK_ICON;
+        btn.classList.remove('is-refresh');
         btn.classList.add('is-success');
-        setTimeout(() => btn.classList.remove('is-success'), 2000);
+        setTimeout(() => {
+          btn.classList.remove('is-success');
+          if (wasRefresh) btn.classList.add('is-refresh');
+          btn.innerHTML = finalIcon;
+        }, 2000);
       }
     }
   }

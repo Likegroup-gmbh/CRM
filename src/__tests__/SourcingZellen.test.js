@@ -53,6 +53,43 @@ describe('Sourcing – Follower-Zellen', () => {
   });
 });
 
+describe('Sourcing – IG-Abruf-Button', () => {
+  function renderFetchButton(item) {
+    return renderCell('cp-col-link-ig', item).querySelector('[data-ig-fetch]');
+  }
+
+  it('zeigt vor dem ersten Abruf das Haekchen', () => {
+    const btn = renderFetchButton({ link_instagram: 'https://www.instagram.com/test/' });
+
+    expect(btn.classList.contains('is-refresh')).toBe(false);
+    expect(btn.classList.contains('is-error')).toBe(false);
+    expect(btn.title).toBe('Instagram-Daten abrufen');
+  });
+
+  it('wechselt nach einem erfolgreichen Abruf auf das Refresh-Icon', () => {
+    const btn = renderFetchButton({
+      link_instagram: 'https://www.instagram.com/test/',
+      ig_fetched_at: '2026-07-20T10:00:00.000Z'
+    });
+
+    expect(btn.classList.contains('is-refresh')).toBe(true);
+    expect(btn.getAttribute('aria-label')).toBe('Instagram-Daten erneut abrufen');
+    expect(btn.title).toContain('erneut abrufen');
+  });
+
+  it('zeigt bei einem Fehler das Warn-Icon statt des Refresh-Icons', () => {
+    const btn = renderFetchButton({
+      link_instagram: 'https://www.instagram.com/test/',
+      ig_fetched_at: '2026-07-20T10:00:00.000Z',
+      ig_fetch_error: 'Profil nicht gefunden'
+    });
+
+    expect(btn.classList.contains('is-error')).toBe(true);
+    expect(btn.classList.contains('is-refresh')).toBe(false);
+    expect(btn.title).toBe('Abruf fehlgeschlagen: Profil nicht gefunden');
+  });
+});
+
 describe('Sourcing – Creator Art als TableSelect', () => {
   it('bietet alle Creator-Arten plus eine Leer-Option', () => {
     expect(CREATOR_TYP_SELECT_OPTIONS).toHaveLength(CREATOR_TYP_OPTIONS.length + 1);

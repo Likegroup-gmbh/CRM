@@ -12565,6 +12565,12 @@ table:has(#strategien-table-body) td.col-actions {
   height: 13px;
 }
 
+/* Das Refresh-Icon ist fill-basiert und wirkt bei 13px kleiner als das stroke-Haekchen */
+.ig-fetch-btn.is-refresh svg {
+  width: 14px;
+  height: 14px;
+}
+
 .ig-fetch-btn:hover:not(:disabled) {
   background: var(--gray-100);
   color: var(--color-primary);

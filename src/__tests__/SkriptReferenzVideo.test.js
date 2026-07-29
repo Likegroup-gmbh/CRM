@@ -1,4 +1,4 @@
-// Tests fuer die Videovorlage (Pflicht-Referenz) im Skript-Generator:
+// Tests fuer die Videovorlage (optionale Referenz) im Skript-Generator:
 //   1. Client-Validierung des Referenz-Payloads (buildReferenzVideoPayload)
 //   2. Prompt-Sektion + Transkript-Kuerzung (_shared/skript-context, CJS)
 //   3. TranscribeService: Race-Schutz gegen stale Job-Updates
