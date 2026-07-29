@@ -60,7 +60,7 @@ export async function initGuestShare(token) {
       return;
     }
     // Session eines anderen Nutzers → abmelden, Gast-Onboarding starten
-    await window.supabase.auth.signOut();
+    await window.supabase.auth.signOut({ scope: 'local' });
   }
 
   renderOnboarding(loginRoot, token, share);
@@ -397,7 +397,7 @@ export async function renderGuestNoAccess() {
 
   document.getElementById('guest-logout-btn')?.addEventListener('click', async () => {
     try {
-      await window.supabase.auth.signOut();
+      await window.supabase.auth.signOut({ scope: 'local' });
     } finally {
       window.location.href = '/';
     }

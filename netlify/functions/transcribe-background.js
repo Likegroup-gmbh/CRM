@@ -17,19 +17,11 @@ const {
   downloadVideoBuffer,
   downloadSubtitleText
 } = require('./screenshot-utils/video-interceptor');
+const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 
 const CF_API_BASE = 'https://api.cloudflare.com/client/v4/accounts';
 const WHISPER_MODEL = '@cf/openai/whisper-large-v3-turbo';
 const LLM_MODEL = '@cf/meta/llama-3.1-8b-instruct';
-
-async function verifyAuth(event, supabase) {
-  const authHeader = (event.headers || {}).authorization || (event.headers || {}).Authorization || '';
-  const token = authHeader.replace(/^Bearer\s+/i, '');
-  if (!token) return null;
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return null;
-  return user;
-}
 
 /**
  * Job-Updater: schreibt Status/Progress/Logs in die transcription_jobs-Zeile.
@@ -141,9 +133,13 @@ exports.handler = async (event) => {
   }
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  const user = await verifyAuth(event, supabase);
-  if (!user) {
-    return { statusCode: 401, body: 'Unauthorized' };
+  const auth = await verifyAuth(event, supabase);
+  if (!auth.user) {
+    return {
+      statusCode: 401,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(authErrorBody(auth))
+    };
   }
 
   let jobId, url;

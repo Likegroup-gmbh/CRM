@@ -5,6 +5,7 @@ import { deleteVideoFull, deleteDropboxCascade } from './VideoDeleteHelper.js';
 import { deleteUnternehmenCascade, collectDependentIds } from '../modules/unternehmen/services/UnternehmenDeleteService.js';
 import { rechnungNotizModal } from '../modules/rechnung/RechnungNotizModal.js';
 import { getSignedDocumentUrl, resolveDocumentUrl } from './DocumentUrlHelper.js';
+import { authorizedFetch } from './auth/getAccessToken.js';
 
 // Entity-Types, die keine eigene DB-Tabelle haben und auf eine andere Entity gemappt werden
 const ENTITY_ALIASES = { mitarbeiter: 'benutzer' };
@@ -356,15 +357,8 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
 // @returns {Promise<{ok: boolean, retryable: boolean}>} retryable = Meta-Rate-Limit
 export async function connectInstagramSilent(creatorId) {
   try {
-    const { data: { session } } = await window.supabase.auth.getSession();
-    if (!session?.access_token) throw new Error('Keine aktive Sitzung');
-
-    const response = await fetch('/.netlify/functions/instagram-connect', {
+    const response = await authorizedFetch('/.netlify/functions/instagram-connect', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`
-      },
       body: JSON.stringify({ creator_id: creatorId, skip_brands: true })
     });
 
@@ -391,15 +385,8 @@ async function handleInstagramConnect(creatorId) {
   window.toastSystem?.show('Instagram-Daten werden geladen...', 'info');
 
   try {
-    const { data: { session } } = await window.supabase.auth.getSession();
-    if (!session?.access_token) throw new Error('Keine aktive Sitzung');
-
-    const response = await fetch('/.netlify/functions/instagram-connect', {
+    const response = await authorizedFetch('/.netlify/functions/instagram-connect', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`
-      },
       body: JSON.stringify({ creator_id: creatorId })
     });
 
@@ -421,6 +408,8 @@ async function handleInstagramConnect(creatorId) {
     }));
   } catch (err) {
     console.error('Instagram-Connect fehlgeschlagen:', err);
+    // Bei toter Session hat authorizedFetch schon Hinweis und Logout uebernommen
+    if (err.sessionDead) return;
     window.toastSystem?.show(`Instagram-Connect fehlgeschlagen: ${err.message}`, 'error');
   }
 }

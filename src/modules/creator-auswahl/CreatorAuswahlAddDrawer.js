@@ -3,7 +3,7 @@
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { CREATOR_TYP_OPTIONS, isAllowedCreatorTyp, normalizeCreatorTyp } from './creatorTypeOptions.js';
-import { getTeilbereicheFromListe } from './CreatorAuswahlTemplates.js';
+import { getTeilbereicheFromListe, DEAKTIVIERTE_SPALTEN } from './CreatorAuswahlTemplates.js';
 
 export class CreatorAuswahlAddDrawer {
   constructor(detail) {
@@ -124,6 +124,26 @@ export class CreatorAuswahlAddDrawer {
           </div>
     ` : '';
 
+    // EK/VK folgen demselben Schalter wie die Tabelle, sonst laesst der Drawer
+    // Werte in Spalten laufen, die niemand mehr sieht
+    const ekVkAktiv = !DEAKTIVIERTE_SPALTEN.includes('cp-col-ek') || !DEAKTIVIERTE_SPALTEN.includes('cp-col-vk');
+    const preisFelder = ekVkAktiv ? `
+          <div class="form-row">
+            ${!DEAKTIVIERTE_SPALTEN.includes('cp-col-ek') ? `
+            <div class="form-field">
+              <label class="form-label">EK (€)</label>
+              <input type="number" name="preis_ek" class="form-input" placeholder="z.B. 300" step="0.01">
+            </div>
+            ` : ''}
+            ${!DEAKTIVIERTE_SPALTEN.includes('cp-col-vk') ? `
+            <div class="form-field">
+              <label class="form-label">VK (€)</label>
+              <input type="number" name="preis_vk" class="form-input" placeholder="z.B. 500" step="0.01">
+            </div>
+            ` : ''}
+          </div>
+    ` : '';
+
     return `
       <form id="add-creator-form">
         ${searchSection}
@@ -171,24 +191,26 @@ export class CreatorAuswahlAddDrawer {
             <input type="text" name="wohnort" class="form-input" placeholder="z.B. Berlin">
           </div>
 
+          <div class="form-row">
+            <div class="form-field">
+              <label class="form-label">Mail</label>
+              <input type="text" name="email" class="form-input" placeholder="mail@...">
+            </div>
+            <div class="form-field">
+              <label class="form-label">Telefon</label>
+              <input type="text" name="telefon" class="form-input" placeholder="+49...">
+            </div>
+          </div>
+
           <div class="form-field">
             <label class="form-label">Kurzbeschreibung</label>
             <textarea name="notiz" class="form-input" rows="2" placeholder="Kurzbeschreibung..."></textarea>
           </div>
 
-          <div class="form-row">
-            <div class="form-field">
-              <label class="form-label">EK (€)</label>
-              <input type="number" name="preis_ek" class="form-input" placeholder="z.B. 300" step="0.01">
-            </div>
-            <div class="form-field">
-              <label class="form-label">VK (€)</label>
-              <input type="number" name="preis_vk" class="form-input" placeholder="z.B. 500" step="0.01">
-            </div>
-          </div>
+          ${preisFelder}
 
           <div class="form-field">
-            <label class="form-label">Pricing (Freitext)</label>
+            <label class="form-label">Tatsächlicher Preis</label>
             <input type="text" name="pricing" class="form-input" placeholder="z.B. 500€ pro Video">
           </div>
 
@@ -429,6 +451,8 @@ export class CreatorAuswahlAddDrawer {
         rueckmeldung_creator: formData.get('rueckmeldung_creator') === 'true',
         kategorie: formData.get('kategorie')?.trim() || null,
         wohnort: formData.get('wohnort')?.trim() || null,
+        email: formData.get('email')?.trim() || null,
+        telefon: formData.get('telefon')?.trim() || null,
         notiz: formData.get('notiz')?.trim() || null,
         pricing: formData.get('pricing')?.trim() || null,
         preis_ek: formData.get('preis_ek') ? parseFloat(formData.get('preis_ek')) : null,

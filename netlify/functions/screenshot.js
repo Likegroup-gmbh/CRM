@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 const { detectPlatform } = require('./screenshot-utils/constants');
 const { launchBrowser, setupPage } = require('./screenshot-utils/browser-setup');
 const { handleInstagramPopups, takeInstagramScreenshot } = require('./screenshot-utils/platform-instagram');
@@ -12,21 +13,6 @@ function getAllowedOrigin(requestOrigin) {
   if (allowed.includes(requestOrigin)) return requestOrigin;
   if (requestOrigin && /^https:\/\/[a-z0-9-]+--[a-z0-9-]+\.netlify\.app$/.test(requestOrigin)) return requestOrigin;
   return siteUrl || 'null';
-}
-
-async function verifyAuth(event) {
-  const authHeader = (event.headers || {}).authorization || (event.headers || {}).Authorization || '';
-  const token = authHeader.replace(/^Bearer\s+/i, '');
-  if (!token) return null;
-
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-  if (!supabaseUrl || !supabaseKey) return null;
-
-  const supabase = createClient(supabaseUrl, supabaseKey);
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return null;
-  return user;
 }
 
 exports.handler = async (event, context) => {
@@ -47,9 +33,9 @@ exports.handler = async (event, context) => {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'POST only' }) };
   }
 
-  const user = await verifyAuth(event);
-  if (!user) {
-    return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
+  const auth = await verifyAuth(event);
+  if (!auth.user) {
+    return { statusCode: 401, headers, body: JSON.stringify(authErrorBody(auth)) };
   }
 
   let browser;

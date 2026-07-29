@@ -12,15 +12,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const { hasSpec } = require('./_shared/extract-specs');
 const { runExtraction } = require('./site-extract-utils/extract-core');
-
-async function verifyAuth(event, supabase) {
-  const authHeader = (event.headers || {}).authorization || (event.headers || {}).Authorization || '';
-  const token = authHeader.replace(/^Bearer\s+/i, '');
-  if (!token) return null;
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return null;
-  return user;
-}
+const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405 };
@@ -33,8 +25,14 @@ exports.handler = async (event) => {
   }
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  const user = await verifyAuth(event, supabase);
-  if (!user) return { statusCode: 401 };
+  const auth = await verifyAuth(event, supabase);
+  if (!auth.user) {
+    return {
+      statusCode: 401,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(authErrorBody(auth))
+    };
+  }
 
   let jobId;
   try {

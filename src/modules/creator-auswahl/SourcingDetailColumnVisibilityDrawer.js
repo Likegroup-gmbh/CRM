@@ -1,30 +1,35 @@
 // SourcingDetailColumnVisibilityDrawer.js (ES6-Modul)
 // Drawer zur Verwaltung der Spalten-Sichtbarkeit für Kunden in der Sourcing Detail-Tabelle
 
+import { DEAKTIVIERTE_SPALTEN } from './CreatorAuswahlTemplates.js';
+
 export class SourcingDetailColumnVisibilityDrawer {
   constructor(hiddenColumns, onSave, customColumns = []) {
     this.hiddenColumns = hiddenColumns || [];
     this.onSave = onSave; // Callback wenn gespeichert wird
     this.drawerId = 'sourcing-detail-column-visibility-drawer';
     
-    // Alle verfügbaren Spalten mit benutzerfreundlichen Namen
+    // Alle verfügbaren Spalten mit benutzerfreundlichen Namen, in Renderreihenfolge.
     // Name und Aktionen sind immer sichtbar und können nicht deaktiviert werden
     this.columns = [
+      { className: 'cp-col-bild', label: 'Bild' },
       { className: 'cp-col-typ', label: 'Creator Art' },
+      { className: 'cp-col-location', label: 'Location' },
+      { className: 'cp-col-mail', label: 'Mail (nur intern)' },
+      { className: 'cp-col-telefon', label: 'Telefon (nur intern)' },
       { className: 'cp-col-link-ig', label: 'Link Instagram' },
       { className: 'cp-col-link-tt', label: 'Link TikTok' },
       { className: 'cp-col-follower-ig', label: 'Follower Instagram' },
       { className: 'cp-col-follower-tt', label: 'Follower TikTok' },
-      { className: 'cp-col-ek', label: 'EK (Einkaufspreis)' },
-      { className: 'cp-col-vk', label: 'VK (Verkaufspreis)' },
-      { className: 'cp-col-pricing', label: 'Pricing (Freitext)' },
       { className: 'cp-col-reichweite-ig', label: 'Reichweite Instagram (manuell)' },
       { className: 'cp-col-reichweite-tt', label: 'Reichweite TikTok' },
-      { className: 'cp-col-reichweite-garantie', label: 'Reichweitengarantie' },
       { className: 'cp-col-cpm-ig-8', label: 'Preis Instagram (letzte 8 Reels)' },
       { className: 'cp-col-cpm-ig-30', label: 'Preis Instagram (letzte 30 Reels)' },
       { className: 'cp-col-cpm-ig-trimmed', label: 'Preis Instagram (getrimmter Schnitt)' },
-      { className: 'cp-col-location', label: 'Location' },
+      { className: 'cp-col-pricing', label: 'Tatsächlicher Preis' },
+      { className: 'cp-col-reichweite-garantie', label: 'Reichweitengarantie' },
+      { className: 'cp-col-ek', label: 'EK (Einkaufspreis)' },
+      { className: 'cp-col-vk', label: 'VK (Verkaufspreis)' },
       { className: 'cp-col-notiz', label: 'Kurzbeschreibung' },
       { className: 'cp-col-feedback', label: 'Rückmeldung Kunde' },
       { className: 'cp-col-anfragen', label: 'Anfragen' },
@@ -32,7 +37,7 @@ export class SourcingDetailColumnVisibilityDrawer {
       { className: 'cp-col-check', label: 'Rückmeldung' },
       // Eigene Spalten (className = "custom:{uuid}")
       ...(customColumns || []).map(c => ({ className: c.className, label: c.label }))
-    ];
+    ].filter(c => !DEAKTIVIERTE_SPALTEN.includes(c.className));
   }
 
   // Öffne den Drawer
