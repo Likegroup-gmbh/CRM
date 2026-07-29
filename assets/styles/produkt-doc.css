@@ -1,0 +1,1062 @@
+/* ============================================================
+   Produkt-Dokument (Worksheet)
+   Mitte: Schreibdokument mit festen Ueberschriften und freien
+   Textabschnitten. Rechts: Shop-URL auslesen mit Liky-Verlauf.
+   Tokens kommen aus variables.css, die Tabellen erben .data-table
+   aus components.css.
+   ============================================================ */
+
+/* ===== Layout ===== */
+
+/* Eine flache Shell ueber die volle Hoehe mit Hairline-Trennern, genau wie
+   .skripte-editor-shell. Gescrollt wird nur innerhalb der Spalten - deshalb
+   gibt der Wrapper seinen eigenen Scroll ab. */
+.main-wrapper:has(> .produkt-doc) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.produkt-doc {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.produkt-doc__shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--panel-lg);
+  grid-template-rows: minmax(0, 1fr);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+  background: var(--bg-primary);
+  overflow: hidden;
+  flex: 1;
+  min-height: 0;
+}
+
+.produkt-doc__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: var(--border-xs) solid var(--border-primary);
+}
+
+/* Scrollt als einziges in der Mittelspalte, damit die Fussleiste stehen bleibt */
+.produkt-doc__scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* Nutzt die ganze Spalte: die Texte sollen nicht vorzeitig umbrechen */
+.produkt-doc__paper {
+  width: 100%;
+  /* Vertikale Luft je Sektion (2x davon = Abstand zwischen den Hairlines)
+     und Abstand zwischen den Feldern innerhalb einer Sektion */
+  --produkt-doc-group-pad: var(--space-lg);
+  --produkt-doc-field-gap: var(--space-md);
+  padding-top: var(--space-lg);
+}
+
+/* ===== Sektionen: Inhalt | Preis | Bilder | Varianten | Compliance ===== */
+
+.produkt-doc__group {
+  padding: var(--produkt-doc-group-pad) var(--space-lg);
+  border-bottom: var(--border-xs) solid var(--gray-100);
+}
+
+/* Den unteren Abschluss zeichnet schon die Shell */
+.produkt-doc__group:last-child {
+  border-bottom: none;
+}
+
+.produkt-doc__group > .produkt-doc__section,
+.produkt-doc__group > .produkt-doc__block {
+  margin: 0 0 var(--produkt-doc-field-gap);
+}
+
+.produkt-doc__group > :last-child {
+  margin-bottom: 0;
+}
+
+/* Varianten-Slot vor dem Mount: kein Geister-Abstand zwischen den Sektionen */
+.produkt-doc__group:has(> :only-child:empty) {
+  display: none;
+}
+
+.produkt-doc__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  min-width: 0;
+  overflow-y: auto;
+  padding: var(--space-lg);
+}
+
+/* ===== Dokumenttitel ===== */
+
+/* Gleiche Seitenraender wie die Sektionen, damit alles buendig steht */
+.produkt-doc .produkt-doc__title-field {
+  position: relative;
+  margin: 0;
+  padding: 0 var(--space-lg);
+}
+
+.produkt-doc .produkt-doc__title {
+  width: 100%;
+  padding: 0 0 var(--space-xs) 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  font-family: inherit;
+  font-size: var(--text-xl);
+  font-weight: 500;
+  line-height: 1.4;
+  border-radius: 0;
+  color: var(--gray-900);
+}
+
+.produkt-doc .produkt-doc__title:focus {
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+
+.produkt-doc .produkt-doc__title::placeholder {
+  color: var(--gray-300);
+  font-weight: 600;
+}
+
+/* Der Titel hat kein Label, deshalb sitzt das Vorschlag-Tag frei rechts oben */
+.produkt-doc .produkt-doc__title-field > .tag--extract {
+  position: absolute;
+  top: 0;
+  right: var(--space-lg);
+  margin: 0;
+}
+
+/* ===== Textabschnitte ===== */
+
+.produkt-doc .produkt-doc__section {
+  scroll-margin-top: var(--space-lg);
+}
+
+/* Feste Ueberschrift - strukturiert das Dokument, nicht editierbar */
+.produkt-doc .produkt-doc__section > label,
+.produkt-doc .produkt-doc__block > label,
+.produkt-doc .produkt-doc__heading {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--text-md);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--gray-900);
+  cursor: text;
+}
+
+.produkt-doc .produkt-doc__hint {
+  margin: 0 0 var(--space-xs);
+  max-width: 62ch;
+  color: var(--gray-500);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+/* Frei beschreibbar, ohne jedes Formular-Chrome */
+.produkt-doc .produkt-doc__text {
+  display: block;
+  width: 100%;
+  min-height: 1.65em;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--gray-600);
+  resize: none;
+  overflow: hidden;
+}
+
+/* Eine Zeile pro Eintrag: enger setzen, sonst wirkt jede Zeile wie ein Absatz */
+.produkt-doc .produkt-doc__text--list {
+  min-height: 1.45em;
+  line-height: 1.45;
+}
+
+.produkt-doc .produkt-doc__text:focus {
+  border: none;
+  outline: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.produkt-doc .produkt-doc__text::placeholder {
+  color: var(--gray-400);
+  font-style: italic;
+}
+
+/* ===== Preis-Karten ===== */
+
+/* Je Betrag eine umrandete Kachel. Ab drei Karten (von, bis, UVP) wird eine
+   Reihe schmaler Unterstrich-Felder unleserlich - die Karten tragen das
+   Label mit und bleiben auch nebeneinander eindeutig. */
+.produkt-doc__price-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+/* Basis so breit, dass das "Vorschlag"-Tag neben das Label passt statt darunter */
+.produkt-doc .produkt-doc__price-card {
+  flex: 1 1 10rem;
+  min-width: 9rem;
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  border: var(--border-xs) solid var(--border-secondary);
+  border-radius: var(--radius-xl);
+  background: var(--bg-primary);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.produkt-doc .produkt-doc__price-card:focus-within {
+  border-color: var(--gray-900);
+  box-shadow: inset 0 0 0 1px var(--gray-900);
+}
+
+/* Flex auch ohne .ai-filled, damit das "Vorschlag"-Tag per margin-left:auto
+   rechts andockt, sobald die Extraktion es anhaengt. */
+.produkt-doc .produkt-doc__price-card > label {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-xxs);
+  margin-bottom: var(--space-xxs);
+  color: var(--gray-500);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.produkt-doc__price-value {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xxs);
+}
+
+.produkt-doc .produkt-doc__number {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-family: inherit;
+  font-size: var(--text-xl);
+  font-weight: 500;
+  line-height: 1.2;
+  color: var(--gray-900);
+  font-variant-numeric: tabular-nums;
+  /* Spinner weg: die Pfeile zerschiessen die Karte und niemand klickt sich in
+     Cent-Schritten zu einem Preis. */
+  appearance: textfield;
+}
+
+.produkt-doc .produkt-doc__number::-webkit-outer-spin-button,
+.produkt-doc .produkt-doc__number::-webkit-inner-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.produkt-doc .produkt-doc__number:focus {
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+
+.produkt-doc .produkt-doc__number::placeholder {
+  color: var(--gray-300);
+  font-weight: 400;
+}
+
+.produkt-doc__unit {
+  color: var(--gray-400);
+  font-size: var(--text-lg);
+  line-height: 1.2;
+}
+
+.produkt-doc .produkt-doc__price-note {
+  margin: var(--space-xxs) 0 0;
+  color: var(--gray-400);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+/* ===== Bloecke (Bilder, Varianten) ===== */
+
+.produkt-doc .produkt-doc__block {
+  display: block;
+}
+
+.produkt-doc .produkt-doc__block:empty {
+  display: none;
+}
+
+/* Der Rahmen kommt vom Container: die globalen Regeln nehmen der ersten und
+   letzten Zelle die Seitenkante, dadurch fehlt der Tabelle sonst der Abschluss. */
+.produkt-doc .table-container {
+  margin-bottom: var(--space-xs);
+  border: var(--border-xs) solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  overflow-x: auto;
+}
+
+.produkt-doc .data-table {
+  width: 100%;
+}
+
+/* Im Dokument klebt der Kopf beim Scrollen nicht. Der Standard legt ihm dabei
+   einen inset-Schatten unter die Zelle, der zusammen mit dem eigenen
+   border-bottom als doppelte Linie erscheint - deshalb hier beides klaeren.
+   Ohne border-top haette der Kopf zudem eine zweite Linie am Container-Rand. */
+.produkt-doc .table-container .data-table thead th {
+  position: static;
+  box-shadow: none;
+  border-top: none;
+  border-bottom: var(--border-xs) solid var(--gray-200);
+}
+
+.produkt-doc .data-table th {
+  padding: var(--space-xxs) var(--space-xs);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--gray-500);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.produkt-doc .data-table td {
+  padding: var(--space-xxs) var(--space-xs);
+  vertical-align: middle;
+  border-bottom: var(--border-xs) solid var(--gray-200);
+}
+
+.produkt-doc .data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.produkt-doc .data-table .col-thumb {
+  width: 56px;
+}
+
+.produkt-doc .data-table .col-actions,
+.produkt-doc .data-table .col-sort,
+.produkt-doc .data-table .col-haupt {
+  width: 1%;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.produkt-doc .data-table .col-dimension,
+.produkt-doc .data-table .col-size {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* ===== Produktbilder-Tabelle ===== */
+
+.produkt-doc .uploader {
+  background: transparent;
+}
+
+/* Bei table-layout: auto ist eine Breitenangabe nur ein Wunsch, die Restbreite
+   verteilt sich auf alle Spalten - die Bild-Spalte lief dadurch weit ueber ihre
+   56px. Nimmt die Bezeichnung den Ueberschuss, fallen die anderen zurueck.
+   Nur hier: die Varianten-Tabelle hat fuenf Textspalten, die sich den Platz
+   teilen sollen. */
+.produkt-doc .data-table--uploader .col-name {
+  width: 100%;
+}
+
+.produkt-doc .data-table--uploader .uploader-thumb {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  margin: 0;
+  object-fit: cover;
+  display: block;
+}
+
+.produkt-doc .data-table--uploader .uploader-name {
+  font-weight: 400;
+}
+
+.produkt-doc .data-table--uploader .uploader-size {
+  margin-left: var(--space-xs);
+  color: var(--gray-500);
+  font-size: var(--text-xs);
+}
+
+/* Thumbnail und Dateiname oeffnen die Lightbox - beide sind Buttons und
+   duerfen darum nichts vom Button-Chrome erben. */
+.produkt-doc .data-table--uploader .uploader-thumb-btn,
+.produkt-doc .data-table--uploader .uploader-name-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.produkt-doc .data-table--uploader .uploader-thumb-btn {
+  display: block;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.produkt-doc .data-table--uploader .uploader-name-btn {
+  color: var(--gray-900);
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--gray-300);
+  text-underline-offset: 2px;
+}
+
+.produkt-doc .data-table--uploader .uploader-name-btn:hover {
+  text-decoration-color: var(--gray-500);
+}
+
+/* --- Masse und Dateigroesse --- */
+
+.produkt-doc .data-table--uploader .col-dimension,
+.produkt-doc .data-table--uploader .uploader-meta-pending {
+  color: var(--gray-500);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.produkt-doc .data-table--uploader .uploader-size-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxs);
+}
+
+.produkt-doc .data-table--uploader .uploader-size-cell .uploader-size {
+  margin-left: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.produkt-doc .data-table--uploader .uploader-size--warn {
+  color: var(--orange-700);
+  font-weight: 500;
+}
+
+.produkt-doc .data-table--uploader .uploader-badge--warn {
+  padding: 1px var(--space-xxs);
+  border-radius: var(--radius-sm);
+  background: var(--orange-100);
+  color: var(--orange-700);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.produkt-doc .data-table--uploader .uploader-shrink {
+  padding: 1px var(--space-xs);
+  border: var(--border-xs) solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--gray-700);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.produkt-doc .data-table--uploader .uploader-shrink:hover:not(:disabled) {
+  border-color: var(--gray-500);
+  color: var(--gray-900);
+}
+
+.produkt-doc .data-table--uploader .uploader-shrink:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.produkt-doc .data-table--uploader .uploader-hint {
+  color: var(--gray-500);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+/* Pfeile liegen in der Tabelle nebeneinander, nicht uebereinander */
+.produkt-doc .data-table .uploader-sort {
+  flex-direction: row;
+  justify-content: center;
+  gap: 2px;
+  margin: 0;
+}
+
+/* Im Dokument ohne Kaestchen, damit sie neben dem Loeschen-Button nicht
+   auffallen wie Formular-Buttons. Der Kaestchen-Look bleibt fuer die
+   Listenansicht auf den uebrigen Seiten. */
+.produkt-doc .data-table .uploader-move {
+  padding: var(--space-xxs);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--gray-400);
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.produkt-doc .data-table .uploader-move:hover:not(:disabled) {
+  background: var(--gray-100);
+  color: var(--gray-900);
+}
+
+.produkt-doc .uploader-primary--compact {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  cursor: pointer;
+}
+
+/* Fuer Radios fehlt der System-Look, den die Checkboxen in components.css
+   haben - hier nach demselben Muster, nur rund und mit Innenpunkt. Bewusst
+   auf diese Seite begrenzt, damit die Radios der uebrigen Formulare bleiben. */
+.produkt-doc .uploader-primary-radio {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  width: var(--space-md);
+  height: var(--space-md);
+  margin: 0;
+  border: 1.5px solid var(--border-secondary);
+  border-radius: 50%;
+  background: var(--bg-primary);
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
+}
+
+.produkt-doc .uploader-primary-radio:hover {
+  border-color: var(--border-focus);
+}
+
+.produkt-doc .uploader-primary-radio:focus-visible {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px rgba(64, 64, 64, 0.15);
+}
+
+.produkt-doc .uploader-primary-radio::after {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-inverse);
+  transform: scale(0);
+  transition: transform 120ms ease-in-out;
+}
+
+.produkt-doc .uploader-primary-radio:checked {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+}
+
+.produkt-doc .uploader-primary-radio:checked::after {
+  transform: scale(1);
+}
+
+.produkt-doc .uploader-remove--icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xxs);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--gray-400);
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.produkt-doc .uploader-remove--icon:hover {
+  background: var(--red-50);
+  color: var(--color-error);
+}
+
+/* Ablageflaeche unter der Tabelle: schmaler als im Standard-Uploader */
+.produkt-doc .uploader-drop {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-lg);
+  background: transparent;
+}
+
+.produkt-doc .uploader-drop:hover {
+  border-color: var(--gray-400);
+  background: var(--gray-50);
+}
+
+.produkt-doc .uploader-instructions {
+  font-size: var(--text-xs);
+}
+
+.produkt-doc .uploader-btn {
+  font-size: var(--text-xs);
+  padding: var(--space-xxs) var(--space-xs);
+}
+
+/* ===== Varianten-Tabelle ===== */
+
+/* Neun Spalten sind eng: Merkmal bekommt den Rest, und unter der Mindestbreite
+   scrollt die Tabelle waagerecht statt die Felder unlesbar zu quetschen. */
+.produkt-doc .data-table--varianten {
+  min-width: 51rem;
+}
+
+.produkt-doc .data-table--varianten .col-name { width: 18%; }
+.produkt-doc .data-table--varianten .col-modell { width: 16%; }
+.produkt-doc .data-table--varianten .col-farbe { width: 11%; }
+.produkt-doc .data-table--varianten .col-preis { width: 5rem; }
+
+/* Der Streichpreis bleibt sekundaer - er wird selten gepflegt */
+.produkt-doc .data-table--varianten .col-uvp {
+  color: var(--gray-500);
+}
+
+/* Rahmenlose Eingaben in den Zellen - die Zeile ist der Rahmen */
+.produkt-doc .cell-input {
+  width: 100%;
+  padding: var(--space-xxs) 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  box-shadow: none;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  color: var(--gray-900);
+  transition: box-shadow 0.15s ease;
+}
+
+/* Ein Unterstrich statt einer grauen Flaeche - keine Kaestchen im Dokument */
+.produkt-doc .cell-input:hover {
+  box-shadow: inset 0 -1px 0 0 var(--gray-200);
+}
+
+.produkt-doc .cell-input:focus {
+  border: none;
+  outline: none;
+  box-shadow: inset 0 -1px 0 0 var(--gray-900);
+  background: transparent;
+}
+
+.produkt-doc .cell-input::placeholder {
+  color: var(--gray-400);
+}
+
+.produkt-doc .cell-input--num {
+  font-variant-numeric: tabular-nums;
+}
+
+.produkt-doc .variante-bild {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.produkt-doc .variante-bild-pick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: var(--border-xs) solid var(--gray-200);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--gray-400);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.produkt-doc .variante-bild-pick:hover {
+  border-color: var(--gray-400);
+  color: var(--gray-700);
+}
+
+.produkt-doc .variante-bild-pick--empty {
+  border-style: dashed;
+}
+
+.produkt-doc .variante-bild__thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.produkt-doc .variante-bild-clear {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: var(--border-xs) solid var(--gray-200);
+  border-radius: 50%;
+  background: var(--bg-primary);
+  color: var(--gray-500);
+  font-size: var(--text-11);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.produkt-doc .variante-bild-clear:hover {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+.produkt-doc .variante-add-btn {
+  margin-top: var(--space-xxs);
+}
+
+/* Die gruene Vorschlags-Box aus components.css passt hier unveraendert, sie
+   braucht im Dokument nur etwas weniger Luft nach unten. */
+.produkt-doc .varianten-suggestions {
+  margin-bottom: var(--space-sm);
+}
+
+/* ===== Vorschlag-Markierung ===== */
+
+/* Im Dokument wuerde ein farbiger Feld-Hintergrund den Textfluss zerschneiden.
+   Stattdessen markiert ein Randstrich links den uebernommenen Abschnitt. */
+.produkt-doc .form-field.ai-filled input,
+.produkt-doc .form-field.ai-filled textarea,
+.produkt-doc .form-field.ai-filled .url-input-field {
+  background-color: transparent;
+}
+
+/* ===== Aktionen ===== */
+
+/* Fussleiste der Mittelspalte. Kein sticky und kein Schatten: sie liegt neben
+   dem Scrollbereich, nicht darueber, und steht deshalb von sich aus. */
+.produkt-doc .produkt-doc__actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-xs);
+  flex: none;
+  margin: 0;
+  padding: var(--space-sm) var(--space-lg);
+  border-top: var(--border-xs) solid var(--border-primary);
+  background: var(--bg-primary);
+}
+
+.produkt-doc .produkt-doc__actions .produkt-delete-btn {
+  margin-right: auto;
+}
+
+/* ===== Chat-Spalte: URL-Eingabe ===== */
+
+/* Werte wie .skripte-editor-input: die einzige echte Karte in der Spalte.
+   Feld oben, darunter ein Footer mit den Kosten links und Senden rechts. */
+.produkt-chat__composer {
+  flex: none;
+  padding: var(--space-sm) var(--space-md);
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-xl);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.produkt-chat__composer:focus-within {
+  border-color: var(--border-focus);
+}
+
+.produkt-doc .produkt-chat__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: 0;
+}
+
+.produkt-doc .produkt-chat__field > label {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+/* Die Karte ist der Rahmen, deshalb tritt das Feld selbst komplett zurueck */
+.produkt-doc .produkt-chat__input,
+.produkt-doc .produkt-chat__input:focus-within {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.produkt-doc .produkt-chat__input .url-input {
+  padding: 0;
+  font-size: var(--text-sm);
+}
+
+.produkt-chat__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+/* Kosten und Tokens wie die Meta-Badges im Skript-Editor: links unten */
+.produkt-chat__meta {
+  flex-wrap: wrap;
+  gap: var(--space-xxs);
+  min-width: 0;
+  margin: 0;
+}
+
+.produkt-chat__meta:empty {
+  display: none;
+}
+
+/* Runder Absende-Button, Werte wie .skripte-editor-send */
+.produkt-doc .produkt-chat__send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-xxl);
+  background: var(--gray-900);
+  color: var(--text-inverse);
+  transition: opacity 0.15s ease;
+}
+
+.produkt-doc .produkt-chat__send svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.produkt-doc .produkt-chat__send:hover:not(:disabled) {
+  background: var(--gray-900);
+  color: var(--text-inverse);
+  opacity: 0.85;
+}
+
+.produkt-doc .produkt-chat__send:disabled {
+  background: var(--gray-300);
+  color: var(--text-inverse);
+}
+
+/* ===== Chat-Spalte: Liky-Verlauf ===== */
+
+.produkt-chat__feed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  font-size: var(--text-sm);
+}
+
+.produkt-chat__msg {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  max-width: 100%;
+  animation: produktChatIn 0.2s ease;
+}
+
+/* Die eingegebene Adresse: rechtsbuendig ohne Bubble, wie im Skript-Editor */
+.produkt-chat__msg--user {
+  align-self: flex-end;
+  align-items: flex-end;
+  max-width: 90%;
+  color: var(--text-primary);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.produkt-chat__msg--liky {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.produkt-chat__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+/* Gleicher Gradient-Kreis wie .skripte-editor-avatar */
+.produkt-chat__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--icon-md);
+  height: var(--icon-md);
+  border-radius: var(--radius-xxl);
+  background:
+    radial-gradient(circle at 25% 20%, var(--gray-400) 0%, transparent 55%),
+    radial-gradient(circle at 80% 30%, var(--gray-600) 0%, transparent 60%),
+    radial-gradient(circle at 65% 85%, var(--gray-500) 0%, transparent 55%),
+    radial-gradient(circle at 15% 80%, var(--gray-800) 0%, transparent 60%),
+    var(--gray-900);
+  color: var(--text-inverse);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+}
+
+.produkt-chat__name {
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.produkt-chat__text {
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+.produkt-chat__steps {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Erledigter Schritt: helle Pill wie .skripte-editor-tag */
+.produkt-chat__step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  padding: var(--space-xxs) var(--space-sm);
+  border-radius: var(--radius-xxl);
+  background: var(--gray-100);
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+  animation: produktChatIn 0.2s ease;
+}
+
+/* Laufender Schritt: rahmenlose Zeile wie .skripte-editor-working */
+.produkt-chat__step.is-active {
+  padding-left: 0;
+  padding-right: 0;
+  background: none;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.produkt-chat__mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-2);
+  flex: none;
+  color: var(--gray-500);
+}
+
+.produkt-chat__step.is-active .produkt-chat__mark {
+  color: var(--text-secondary);
+}
+
+/* Drei pulsierende Punkte, solange der Schritt laeuft */
+.produkt-chat__mark i {
+  width: var(--space-xxs);
+  height: var(--space-xxs);
+  border-radius: var(--radius-xxl);
+  background: currentColor;
+  animation: produktChatBlink 1.2s infinite;
+}
+
+.produkt-chat__mark i:nth-child(2) { animation-delay: 0.2s; }
+.produkt-chat__mark i:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes produktChatBlink {
+  0%, 80%, 100% { opacity: 0.25; }
+  40% { opacity: 1; }
+}
+
+@keyframes produktChatIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Der einzige farbige Block im Verlauf, wie .skripte-editor-msg-error */
+.produkt-chat__error {
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-md);
+  background: var(--danger-bg);
+  color: var(--red-800);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .produkt-chat__msg,
+  .produkt-chat__step,
+  .produkt-chat__mark i {
+    animation: none;
+  }
+}
+
+/* ===== Schmale Viewports ===== */
+
+/* Grenze mit Blick auf die linke Navigation: darunter bliebe fuer das
+   Dokument neben dem Panel zu wenig Platz fuer die Tabellen. Einspaltig
+   verliert die Shell ihre Vollhoehe, gescrollt wird wieder die ganze Seite. */
+@media (max-width: 1280px) {
+  .main-wrapper:has(> .produkt-doc) {
+    display: block;
+    overflow-y: auto;
+  }
+
+  .produkt-doc {
+    display: block;
+    min-height: 0;
+  }
+
+  /* Flex-Spalte statt Grid, damit die URL-Eingabe per order nach oben kann */
+  .produkt-doc__shell {
+    display: flex;
+    flex-direction: column;
+    overflow: visible;
+    min-height: 0;
+    border-bottom: none;
+  }
+
+  .produkt-doc__main {
+    display: block;
+    border-right: none;
+  }
+
+  .produkt-doc__scroll {
+    overflow: visible;
+    padding: 0;
+  }
+
+  /* Die URL-Eingabe steht dann als erstes ueber dem Dokument */
+  .produkt-doc__side {
+    order: -1;
+    overflow: visible;
+    padding: 0 0 var(--space-lg);
+  }
+
+  .produkt-doc .produkt-doc__actions {
+    padding-left: 0;
+    padding-right: 0;
+  }
+}

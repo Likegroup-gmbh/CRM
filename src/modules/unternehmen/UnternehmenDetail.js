@@ -5,7 +5,7 @@ import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { loadUnternehmenData } from './UnternehmenDetailLoader.js';
 import { renderUnternehmenDetailPage } from './UnternehmenDetailRendererCore.js';
 import { bindUnternehmenDetailEvents, bindUnternehmenDetailDragScroll } from './UnternehmenDetailEvents.js';
-import { showEditForm, removeAnsprechpartner, getBranchenNamen, uploadLogo, saveUnternehmenBranchen } from './UnternehmenDetailEdit.js';
+import { showEditForm, removeAnsprechpartner, getBranchenNamen, uploadLogo } from './UnternehmenDetailEdit.js';
 import { UnternehmenService } from './services/UnternehmenService.js';
 
 export class UnternehmenDetail extends PersonDetailBase {
@@ -14,6 +14,8 @@ export class UnternehmenDetail extends PersonDetailBase {
     this.unternehmenId = null;
     this.unternehmen = null;
     this.marken = [];
+    this.personas = [];
+    this.produkte = [];
     this.auftraege = [];
     this.auftragsdetails = [];
     this.ansprechpartner = [];
@@ -50,6 +52,12 @@ export class UnternehmenDetail extends PersonDetailBase {
     try {
       this._isLoading = true;
       this.unternehmenId = unternehmenId;
+
+      // ?tab=... macht einzelne Tabs deeplink-faehig und laesst die Rueckkehr
+      // von Unterseiten (z.B. Persona-Formular) auf dem richtigen Tab landen.
+      const tabParam = new URLSearchParams(window.location.search).get('tab');
+      this.activeMainTab = tabParam || 'informationen';
+
       await this.loadUnternehmenData();
 
       if (window.breadcrumbSystem && this.unternehmen) {
@@ -115,10 +123,6 @@ export class UnternehmenDetail extends PersonDetailBase {
 
   async saveMitarbeiterRoles(unternehmenId, data) {
     return UnternehmenService.saveMitarbeiterRoles(unternehmenId, data);
-  }
-
-  async saveUnternehmenBranchen(unternehmenId, brancheIds = null, form = null) {
-    return saveUnternehmenBranchen(this, unternehmenId, brancheIds, form);
   }
 
   _removeAllEventListeners() {

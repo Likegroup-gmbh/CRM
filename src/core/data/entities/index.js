@@ -170,6 +170,7 @@ export const EntityRegistry = {
       { name: 'rechnungsadresse_land', type: 'string' },
       { name: 'webseite', type: 'string' },
       { name: 'status', type: 'string' },
+      { name: 'beschreibung', type: 'string' },
       { name: 'notiz', type: 'string' },
       { name: 'logo_url', type: 'string' },
       { name: 'logo_path', type: 'string' },
@@ -476,6 +477,7 @@ export const EntityRegistry = {
       markenname: 'string',
       unternehmen_id: 'uuid',
       webseite: 'string',
+      beschreibung: 'string',
       branche: 'string',
       branche_id: 'uuid',
       created_at: 'date',
@@ -508,46 +510,74 @@ export const EntityRegistry = {
     sortBy: 'created_at',
     sortOrder: 'desc'
   },
+  // Produkt = Kollektion. Varianten, Bilder und die Marken-Zuordnung haengen in
+  // eigenen Tabellen daran und werden von ProduktService verwaltet, nicht ueber
+  // diese Registry - sie brauchen Sortierung und Storage-Handling.
   produkt: {
     table: 'produkt',
     displayField: 'name',
     fields: {
       name: 'string',
-      marke_id: 'uuid',
       unternehmen_id: 'uuid',
       url: 'string',
-      kernbotschaft: 'string',
-      hauptproblem: 'string',
-      kernnutzen: 'string',
-      usp_1: 'string',
-      usp_2: 'string',
-      usp_3: 'string',
-      kauf_conversion_trigger: 'string',
-      zielnutzer_anwendungskontext: 'string',
+      kurzbeschreibung: 'string',
+      usp: 'string',
+      pain_points: 'string',
+      loesung: 'string',
+      einsatzsituation: 'string',
+      preis_von: 'number',
+      preis_bis: 'number',
+      preis_uvp: 'number',
+      inhaltsstoffe: 'string',
+      erlaubte_claims: 'string',
+      verbotene_claims: 'string',
+      rechtliche_hinweise: 'string',
       created_at: 'date',
       updated_at: 'date'
     },
     relations: {
-      marke: { table: 'marke', foreignKey: 'marke_id', displayField: 'markenname' },
       unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' }
     },
-    manyToMany: {
-      pflicht_elemente: {
-        table: 'pflicht_elemente_typen',
-        junctionTable: 'produkt_pflicht_elemente',
-        localKey: 'produkt_id',
-        foreignKey: 'pflicht_element_id',
-        displayField: 'name'
-      },
-      no_gos: {
-        table: 'no_go_typen',
-        junctionTable: 'produkt_no_gos',
-        localKey: 'produkt_id',
-        foreignKey: 'no_go_id',
-        displayField: 'name'
-      }
+    filters: ['name', 'unternehmen_id'],
+    sortBy: 'created_at',
+    sortOrder: 'desc'
+  },
+  persona: {
+    table: 'personas',
+    displayField: 'name',
+    fields: {
+      name: 'string',
+      oberbegriff: 'string',
+      unternehmen_id: 'uuid',
+      branche_id: 'uuid',
+      alter_von: 'number',
+      alter_bis: 'number',
+      geschlecht: 'string',
+      wohnort_region: 'string',
+      beruf: 'string',
+      budgetrahmen: 'string',
+      bildungsstand: 'string',
+      lebenssituation: 'string',
+      kontext: 'string',
+      pain_points: 'string',
+      interessen: 'string',
+      beduerfnisse: 'string',
+      kaufmotive: 'string',
+      einwaende: 'string',
+      tonalitaet: 'string',
+      plattformen: 'string',
+      content_praeferenzen: 'string',
+      produkt_loesung: 'string',
+      produktvorteile: 'string',
+      beschreibung: 'string',
+      created_at: 'date',
+      updated_at: 'date'
     },
-    filters: ['name', 'marke_id', 'unternehmen_id'],
+    relations: {
+      unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' },
+      branche: { table: 'branchen', foreignKey: 'branche_id', displayField: 'name' }
+    },
+    filters: ['name', 'oberbegriff', 'unternehmen_id'],
     sortBy: 'created_at',
     sortOrder: 'desc'
   },

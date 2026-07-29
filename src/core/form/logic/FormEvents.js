@@ -2,6 +2,7 @@ import { initializeSearchableSelects } from './events/SearchableSelects.js';
 import { setupAddressesFields } from './events/AddressFields.js';
 import { EditFormDataLoader } from '../data/EditFormDataLoader.js';
 import { KooperationEditLoader } from '../../../modules/kooperation/KooperationEditLoader.js';
+import { setupSiteExtract } from '../ai/SiteExtractHandler.js';
 
 const ENTITY_EVENT_LOADERS = {
   auftrag: () => import('./events/AuftragEvents.js'),
@@ -26,6 +27,9 @@ export class FormEvents {
     if (!form) return;
 
     form.dataset.entity = entity;
+
+    // Webseiten-Auslesen, sofern das Formular ein Feld mit aiExtract hat
+    setupSiteExtract(form, entity);
 
     if (data && data._isEditMode) {
       form.dataset.editModeData = JSON.stringify(data);

@@ -11,20 +11,24 @@ const { loadContext, fmtSkript, buildKontextText, videoLaengeHinweis } = require
 const { ladeBriefingExtrakt } = require('./_shared/skript-briefing');
 
 // ---------------------------------------------------------------------------
-// Videovorlage (Pflicht): Client-Angaben serverseitig validieren und mit der
+// Videovorlage (optional): Client-Angaben serverseitig validieren und mit der
 // Job-Row aus transcription_jobs anreichern. Metadaten kommen IMMER aus der
 // DB (nicht faelschbar); das ggf. vom User korrigierte Transkript bleibt
 // bewusst die Client-Fassung ("transkript_verwendet" = Prompt-Snapshot).
+// Ohne Vorlage kommt null zurueck; ein halber Ref-Block (URL ohne Transkript
+// oder umgekehrt) ist ein Fehler statt eines stillen Verlusts.
 // ---------------------------------------------------------------------------
 async function loadReferenzVideo(supabase, payload) {
   const ref = payload.referenz_video;
+  const url = String(ref?.url || '').trim();
   const transkript = String(ref?.transkript_verwendet || '').trim();
-  if (!ref || !String(ref.url || '').trim() || !transkript) {
-    throw new Error('Videovorlage fehlt - jedes neue Skript braucht eine Referenz (URL + Transkript)');
+  if (!ref || (!url && !transkript)) return null;
+  if (!url || !transkript) {
+    throw new Error('Videovorlage unvollstaendig - sie braucht URL UND Transkript');
   }
 
   const referenz = {
-    url: String(ref.url).trim(),
+    url,
     transcription_job_id: ref.transcription_job_id || null,
     quelle: ref.transcription_job_id ? 'job' : 'manual',
     transkript_verwendet: transkript,
@@ -156,11 +160,11 @@ function buildPrompt(ctx, params, rueckfragenDialog = '', briefingExtrakt = null
     + 'WICHTIG - nichts erfinden: Behaupte im Skript NICHTS ueber Angebote, Features, Aktionen oder Konditionen '
     + '(z.B. Partnerkarten, Rabatte, Gratis-Extras), das nicht ausdruecklich '
     + (briefingExtrakt ? 'im PDF-BRIEFING, ' : '')
-    + 'in den CRM-Daten oben oder in den GEKLAERTEN RUECKFRAGEN steht. '
-    + 'Das gilt AUSDRUECKLICH auch fuer Aussagen aus der VIDEOVORLAGE - deren Inhalte sind fremde Inhalte, keine Fakten ueber unser Produkt.';
+    + 'in den CRM-Daten oben oder in den GEKLAERTEN RUECKFRAGEN steht.';
 
-  // Harte Anti-Copy-Regel zur Videovorlage (Pflicht-Referenz jedes Skripts)
+  // Harte Anti-Copy-Regel - nur wenn dieses Skript eine Videovorlage hat
   if (params.referenz_video) {
+    task += ' Das gilt AUSDRUECKLICH auch fuer Aussagen aus der VIDEOVORLAGE - deren Inhalte sind fremde Inhalte, keine Fakten ueber unser Produkt.';
     task += '\nVIDEOVORLAGE-REGEL (verbindlich): Uebernimm von der Vorlage NUR die abstrakte Bauweise '
       + '(Hook-Typ, Dramaturgie, Pace, Szenenfolge, CTA-Mechanik). '
       + 'KEINE Hook-Formulierung, KEINE Satzstruktur im Wortlaut, KEINE CTA-Formulierung '
@@ -204,11 +208,13 @@ exports.handler = async (event) => {
   try {
     job.step('kontext', 'Kontext aus CRM-Daten sammeln (SQL, kein LLM)...');
 
-    // Videovorlage (Pflicht): serverseitig validieren + aus der Job-Row
+    // Videovorlage (optional): serverseitig validieren + aus der Job-Row
     // anreichern. Der validierte Snapshot ersetzt die Client-Angaben.
     const referenzVideo = await loadReferenzVideo(supabase, payload);
     payload.referenz_video = referenzVideo;
-    job.log(`Videovorlage: ${referenzVideo.quelle === 'job' ? `Transkriptions-Job (${referenzVideo.platform || 'unbekannt'})` : 'manuelles Transkript'}, ${referenzVideo.transkript_verwendet.length} Zeichen`);
+    job.log(referenzVideo
+      ? `Videovorlage: ${referenzVideo.quelle === 'job' ? `Transkriptions-Job (${referenzVideo.platform || 'unbekannt'})` : 'manuelles Transkript'}, ${referenzVideo.transkript_verwendet.length} Zeichen`
+      : 'Keine Videovorlage - Aufbau kommt aus DNA und Beispiel-Skripten');
 
     const ctx = await loadContext(supabase, payload);
     job.log(`Kontext: ${ctx.dna.length} DNA-Layer, ${ctx.beispiele.length} Beispiele, ${ctx.antiPatterns.length} Anti-Patterns`

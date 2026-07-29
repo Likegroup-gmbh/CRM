@@ -2,6 +2,7 @@
 // Edit-Form, Logo-Upload, Branchen, Ansprechpartner-Entfernung
 
 import { UnternehmenService } from './services/UnternehmenService.js';
+import { normalizeFormUrlFields } from '../../core/UrlHelper.js';
 
 export async function showEditForm(detail) {
   try {
@@ -34,10 +35,6 @@ export async function showEditForm(detail) {
       <div class="form-page">
         ${currentLogoHtml}
         ${formHtml}
-        <div id="logo-preview-container" class="form-logo-preview" style="display: none;">
-          <label class="form-logo-label">Neues Logo Vorschau:</label>
-          <img id="logo-preview-image" class="form-logo-image" alt="Logo Vorschau" />
-        </div>
       </div>
     `;
 
@@ -51,36 +48,9 @@ export async function showEditForm(detail) {
       };
     }
 
-    setupLogoPreview(form);
-
-  } catch (error) {
+    } catch (error) {
     console.error('Fehler beim Anzeigen des Edit-Formulars:', error);
     showErrorMessage('Fehler beim Laden des Formulars: ' + error.message);
-  }
-}
-
-export function setupLogoPreview(form) {
-  if (!form) return;
-  const uploaderRoot = form.querySelector('.uploader[data-name="logo_file"]');
-  if (!uploaderRoot) return;
-
-  const fileInput = uploaderRoot.querySelector('input[type="file"]');
-  if (fileInput) {
-    fileInput.addEventListener('change', (e) => {
-      const file = e.target.files?.[0];
-      if (file && file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const previewContainer = document.getElementById('logo-preview-container');
-          const previewImage = document.getElementById('logo-preview-image');
-          if (previewContainer && previewImage) {
-            previewImage.src = event.target.result;
-            previewContainer.style.display = 'block';
-          }
-        };
-        reader.readAsDataURL(file);
-      }
-    });
   }
 }
 
@@ -169,6 +139,9 @@ export async function handleEditFormSubmit(detail, form) {
       else data[key] = typeof value === 'string' ? value.trim() : value;
     }
 
+    // URL-Felder duerfen ohne Schema eingegeben werden, in der DB landen sie absolut
+    normalizeFormUrlFields(form, data);
+
     // Unternehmen aktualisieren
     const result = await window.dataService.updateEntity('unternehmen', detail.unternehmenId, data);
 
@@ -248,8 +221,4 @@ export async function getBranchenNamen(branchenIds) {
 
 export async function uploadLogo(detail, unternehmenId, form) {
   return UnternehmenService.uploadLogo(unternehmenId, form, { throwOnError: true });
-}
-
-export async function saveUnternehmenBranchen(detail, unternehmenId, brancheIds = null, form = null) {
-  return UnternehmenService.saveUnternehmenBranchen(unternehmenId, brancheIds, form);
 }

@@ -494,6 +494,35 @@ export class CreatorAuswahlService {
     }
   }
 
+  /**
+   * Instagram-Profil, Follower und CPM-Werte fuer eine Zeile abrufen.
+   * Die Netlify Function schreibt direkt in creator_auswahl_items und
+   * liefert das aktualisierte Item zurueck.
+   */
+  async fetchInstagramStats(itemId) {
+    const session = await window.supabase.auth.getSession();
+    const token = session?.data?.session?.access_token || '';
+    const response = await fetch('/.netlify/functions/sourcing-instagram-stats', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ item_id: itemId })
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || !result.ok) {
+      const error = new Error(result.error || 'Instagram-Abruf fehlgeschlagen');
+      error.retryable = response.status === 429;
+      error.hint = result.hint || null;
+      throw error;
+    }
+
+    return result.item;
+  }
+
   // =====================================================
   // CRM-ÜBERNAHME
   // =====================================================

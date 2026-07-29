@@ -21,6 +21,8 @@ export class MarkeDetail extends PersonDetailBase {
     this.ansprechpartner = [];
     this.rechnungen = [];
     this.strategien = [];
+    this.personas = [];
+    this.produkte = [];
     this.kickoff = null;
     this.kickoffMarkenwerte = [];
     this.kickoffsByType = { paid: null, organic: null };
@@ -52,6 +54,12 @@ export class MarkeDetail extends PersonDetailBase {
       this.kickoffsByType = { paid: null, organic: null };
       this.kickoffMarkenwerteByType = { paid: [], organic: [] };
       this._kickoffLoaded = false;
+
+      // ?tab=... macht einzelne Tabs deeplink-faehig und laesst die Rueckkehr
+      // von Unterseiten (z.B. Persona-Formular) auf dem richtigen Tab landen.
+      const tabParam = new URLSearchParams(window.location.search).get('tab');
+      if (tabParam) this.activeMainTab = tabParam;
+
       tabDataCache.invalidate('marke', markeId);
       await this.loadCriticalData();
 

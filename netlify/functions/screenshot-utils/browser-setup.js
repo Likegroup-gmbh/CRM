@@ -77,14 +77,20 @@ async function setupPage(browser, platform) {
   await injectAntiBotScripts(page);
 
   if (platform !== 'youtube') {
+    // Beim Auslesen von HTML (platform 'website') zaehlt nur das DOM: Bilder,
+    // Videos und CSS kosten mehrere Sekunden und den Speicher, der Chromium
+    // sonst ueber das Function-Limit treibt. Die src-Attribute bleiben im DOM
+    // erhalten, die Produktbild-Kandidaten also auffindbar.
+    // Fuer Screenshots muessen sie geladen werden, dort bleibt es beim
+    // bisherigen Verhalten.
+    const blocked = platform === 'website'
+      ? ['font', 'websocket', 'image', 'media', 'stylesheet']
+      : ['font', 'websocket'];
+
     await page.setRequestInterception(true);
     page.on('request', (req) => {
-      const resourceType = req.resourceType();
-      if (['font', 'websocket'].includes(resourceType)) {
-        req.abort();
-      } else {
-        req.continue();
-      }
+      if (blocked.includes(req.resourceType())) req.abort();
+      else req.continue();
     });
   }
 

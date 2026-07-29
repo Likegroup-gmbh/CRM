@@ -37,6 +37,20 @@
 [functions."instagram-connect"]
   timeout = 26
 
+# Webseiten-Extraktion: fetch, im Fallback Chromium, dazu Claude-Aufruf
+# und Logo-Konvertierung via sharp.
+# Background Function (Suffix -background): 15 Min Limit, antwortet sofort 202;
+# Fortschritt und Ergebnis laufen ueber die Tabelle extract_jobs.
+# Mehr Speicher, weil Chromium zusammen mit sharp die Standard-1024 MB reisst
+# (fuehrte frueher zu 502ern).
+[functions."site-extract-background"]
+  memory = 2048
+
+# Raeumt taeglich die Temp-Produktbilder, die die KI-Extraktion angelegt hat,
+# die aber in keinem Produkt gelandet sind
+[functions."cleanup-temp-produktbilder"]
+  schedule = "@daily"
+
 # Auth-Seiten direkt ausliefern (NICHT auf index.html umleiten)
 [[redirects]]
   from = "/src/auth/*"

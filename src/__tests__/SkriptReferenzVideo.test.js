@@ -1,4 +1,4 @@
-// Tests fuer die Videovorlage (Pflicht-Referenz) im Skript-Generator:
+// Tests fuer die Videovorlage (optionale Referenz) im Skript-Generator:
 //   1. Client-Validierung des Referenz-Payloads (buildReferenzVideoPayload)
 //   2. Prompt-Sektion + Transkript-Kuerzung (_shared/skript-context, CJS)
 //   3. TranscribeService: Race-Schutz gegen stale Job-Updates
@@ -29,12 +29,18 @@ const DONE_JOB = {
 };
 
 // ---------------------------------------------------------------------------
-// 1. Referenz-Payload: Videovorlage ist Pflicht
+// 1. Referenz-Payload: Videovorlage ist optional, aber nie halbfertig
 // ---------------------------------------------------------------------------
-describe('buildReferenzVideoPayload (Pflicht-Videovorlage)', () => {
-  it('wirft ohne URL', () => {
-    expect(() => buildReferenzVideoPayload({ status: 'idle', url: '', transkript: '' }))
-      .toThrow(/Videovorlage angeben/);
+describe('buildReferenzVideoPayload (optionale Videovorlage)', () => {
+  it('liefert null ohne URL und ohne Transkript', () => {
+    expect(buildReferenzVideoPayload({ status: 'idle', url: '', transkript: '' })).toBeNull();
+    expect(buildReferenzVideoPayload({ status: 'idle', url: '   ' })).toBeNull();
+  });
+
+  it('wirft bei Transkript ohne URL (halbfertige Vorlage)', () => {
+    expect(() => buildReferenzVideoPayload({
+      status: 'error', url: '', transkript: 'Ein manuell eingefuegtes Transkript ohne zugehoerige URL.'
+    })).toThrow(/URL ergänzen/);
   });
 
   it('wirft bei nicht unterstuetzter Plattform', () => {

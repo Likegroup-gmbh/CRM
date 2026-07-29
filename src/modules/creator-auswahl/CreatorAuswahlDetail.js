@@ -5,9 +5,9 @@ import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { SourcingDetailColumnVisibilityDrawer } from './SourcingDetailColumnVisibilityDrawer.js';
 import { normalizeCreatorTyp, isAllowedCreatorTyp } from './creatorTypeOptions.js';
 import {
-  renderAddSection, renderItemsTable, renderTabNavigation,
+  renderAddSection, renderItemsTable, renderTabNavigation, renderItemRow,
   getTeilbereicheFromListe, isColumnVisibleForCustomer, getVisibleColumnCount,
-  getSourcingTabForItem, SOURCING_TABS
+  getSourcingTabForItem, SOURCING_TABS, migrateHiddenColumns, IG_FETCH_CHECK_ICON
 } from './CreatorAuswahlTemplates.js';
 import { CreatorAuswahlKategorienDrawer } from './CreatorAuswahlKategorienDrawer.js';
 import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
@@ -16,6 +16,15 @@ import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCusto
 import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
+import { tableSelect } from '../../core/components/TableSelect.js';
+import { tagFilterDropdown } from '../../core/components/TagFilterDropdown.js';
+import {
+  buildSourcingStatusUpdates, isSourcingStatus,
+  SOURCING_STATUS_FILTER_TAGS, matchesStatusFilter
+} from './sourcingStatusOptions.js';
+import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
+
+const STATUS_FILTER_ENTITY = 'sourcing-status';
 
 export class CreatorAuswahlDetail {
   constructor() {
@@ -31,6 +40,7 @@ export class CreatorAuswahlDetail {
     this.kundenCallActive = false;
     this.activeTab = 'offen';
     this.searchQuery = '';
+    this.statusFilter = [];
     this.columnVisibilityDrawer = null;
     this.kategorienDrawer = new CreatorAuswahlKategorienDrawer(this);
     this.addDrawer = new CreatorAuswahlAddDrawer(this);
@@ -45,6 +55,7 @@ export class CreatorAuswahlDetail {
     this.listeId = listeId;
     this.isKunde = window.isKunde();
     this.searchQuery = '';
+    this.statusFilter = [];
 
     if (this.isKunde) {
       const quickMenuContainer = document.getElementById('quick-menu-container');
@@ -87,6 +98,8 @@ export class CreatorAuswahlDetail {
     this.addDrawer.remove();
     this.kategorienDrawer.remove();
     this.selectedItems.clear();
+    // Ohne Abraeumen uebernimmt init() die Auswahl in die naechste Liste
+    tagFilterDropdown.destroy(STATUS_FILTER_ENTITY);
 
     const bulkBar = document.getElementById('sourcing-bulk-bar');
     if (bulkBar) bulkBar.remove();
@@ -108,9 +121,7 @@ export class CreatorAuswahlDetail {
   // --- Spalten-Sichtbarkeit ---
 
   loadColumnVisibilitySettings() {
-    this.hiddenColumns = Array.isArray(this.liste?.hidden_columns)
-      ? this.liste.hidden_columns
-      : [];
+    this.hiddenColumns = migrateHiddenColumns(this.liste?.hidden_columns);
     try {
       const callKey = `sourcing_detail_kunden_call_${this.listeId}`;
       this.kundenCallActive = localStorage.getItem(callKey) === 'true';
@@ -171,16 +182,22 @@ export class CreatorAuswahlDetail {
     return this.items.filter(item => (item.name || '').toLowerCase().includes(query));
   }
 
+  // Namenssuche und Statusfilter greifen reiteruebergreifend – die Reiter-Zahlen
+  // beziehen sich deshalb auf diese Menge, nicht auf alle Items.
+  getBaseFilteredItems() {
+    return this.getSearchFilteredItems().filter(item => matchesStatusFilter(item, this.statusFilter));
+  }
+
   getFilteredItems() {
-    const items = this.getSearchFilteredItems();
+    const items = this.getBaseFilteredItems();
     if (this.activeTab === 'alle') return items;
     return items.filter(item => getSourcingTabForItem(item) === this.activeTab);
   }
 
   getTabCounts() {
-    const searchItems = this.getSearchFilteredItems();
-    const counts = { offen: 0, on_hold: 0, gebucht: 0, nicht_buchen: 0, alle: searchItems.length };
-    searchItems.forEach(item => {
+    const baseItems = this.getBaseFilteredItems();
+    const counts = { offen: 0, on_hold: 0, gebucht: 0, nicht_buchen: 0, alle: baseItems.length };
+    baseItems.forEach(item => {
       counts[getSourcingTabForItem(item)]++;
     });
     return counts;
@@ -240,6 +257,7 @@ export class CreatorAuswahlDetail {
       hasAnyItems: this.items.length > 0,
       activeTab: this.activeTab,
       searchQuery: this.searchQuery,
+      statusFilter: this.statusFilter,
       tabCounts: this.getTabCounts(),
       liste: this.liste,
       isKunde: this.isKunde,
@@ -260,10 +278,28 @@ export class CreatorAuswahlDetail {
     `;
     window.content.innerHTML = html;
     this._updateStickyHeights();
+    this._initStatusFilter();
 
     if (!this.isKunde) {
       this.renderBulkBar();
     }
+  }
+
+  _initStatusFilter() {
+    const container = document.getElementById('sourcing-status-filter-container');
+    if (!container) return;
+
+    tagFilterDropdown.init(STATUS_FILTER_ENTITY, container, {
+      tags: [...SOURCING_STATUS_FILTER_TAGS],
+      selectedTags: this.statusFilter,
+      placeholder: 'Status filtern',
+      itemLabelSingular: 'Status',
+      itemLabelPlural: 'Status',
+      onTagsChange: (selected) => {
+        this.statusFilter = selected;
+        this.rerenderTable();
+      }
+    });
   }
 
   _updateStickyHeights() {
@@ -390,6 +426,12 @@ export class CreatorAuswahlDetail {
         this._boundEventListeners.add(() => addEmptyRowBtn.removeEventListener('click', handler));
       }
 
+      document.querySelectorAll('[data-ig-fetch]').forEach(btn => {
+        const handler = () => this.handleInstagramFetch(btn);
+        btn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
+      });
+
       this.bindDragAndDropEvents();
       this.bindSelectionEvents();
       this.bindPillEvents();
@@ -430,6 +472,18 @@ export class CreatorAuswahlDetail {
         });
       }
     });
+
+    // Select-Spalten der Tabelle (Portal-Dropdown ist global, nur der Change interessiert hier)
+    tableSelect.init();
+    const selectHandler = (e) => {
+      const { field, itemId, value, element } = e.detail || {};
+      if (!element?.closest('.creator-pool-table')) return;
+
+      if (field === 'sourcing_status') this.handleStatusChange(itemId, value);
+      else if (field === 'creator_typ') this.handleTypChange(itemId, value);
+    };
+    document.addEventListener('table-select-change', selectHandler);
+    this._boundEventListeners.add(() => document.removeEventListener('table-select-change', selectHandler));
 
     if (window.ActionsDropdown) {
       window.ActionsDropdown.init();
@@ -638,6 +692,89 @@ export class CreatorAuswahlDetail {
     }
   }
 
+  /**
+   * Haekchen-Button neben dem IG-Link: Profil, Follower und CPM-Werte
+   * ueber die Graph API nachladen und die Zeile aktualisieren.
+   */
+  async handleInstagramFetch(button) {
+    if (button.disabled) return;
+
+    const itemId = button.dataset.itemId;
+    const item = this.items.find(i => i.id === itemId);
+    if (!item) return;
+
+    const linkInput = document.querySelector(`input[data-field="link_instagram"][data-item-id="${itemId}"]`);
+    const link = linkInput?.value?.trim();
+    if (!link) {
+      window.toastSystem?.show('Bitte zuerst einen Instagram-Link eintragen', 'error');
+      return;
+    }
+
+    // Noch nicht gespeicherte Eingabe zuerst persistieren, sonst liest die
+    // Function den alten Wert aus der DB
+    if (link !== item.link_instagram) {
+      try {
+        await creatorAuswahlService.updateItem(itemId, { link_instagram: link });
+        item.link_instagram = link;
+      } catch (error) {
+        console.error('Fehler beim Speichern des Instagram-Links:', error);
+        window.toastSystem?.show('Instagram-Link konnte nicht gespeichert werden', 'error');
+        return;
+      }
+    }
+
+    button.disabled = true;
+    button.classList.remove('is-error', 'is-success');
+    button.classList.add('is-loading');
+
+    try {
+      const updated = await creatorAuswahlService.fetchInstagramStats(itemId);
+      Object.assign(item, updated);
+      this.refreshItemRow(itemId, { flashSuccess: true });
+
+      const views = updated.ig_views_trimmed;
+      window.toastSystem?.show(
+        views != null
+          ? `Instagram-Daten aktualisiert (${Number(views).toLocaleString('de-DE')} Views im Schnitt)`
+          : 'Instagram-Daten aktualisiert – zu wenige Reels für eine CPM-Berechnung',
+        views != null ? 'success' : 'info'
+      );
+    } catch (error) {
+      console.error('Fehler beim Instagram-Abruf:', error);
+      item.ig_fetch_error = error.message;
+      this.refreshItemRow(itemId);
+      window.toastSystem?.show(error.hint || error.message, error.retryable ? 'info' : 'error');
+    }
+  }
+
+  /** Eine einzelne Tabellenzeile neu rendern, ohne die ganze Tabelle anzufassen */
+  refreshItemRow(itemId, { flashSuccess = false } = {}) {
+    const row = document.querySelector(`.item-row[data-item-id="${itemId}"]`);
+    const item = this.items.find(i => i.id === itemId);
+    if (!row || !item) return;
+
+    row.outerHTML = renderItemRow(this.getRenderContext(), item, 0);
+    this.bindEvents();
+
+    if (flashSuccess) {
+      const btn = document.querySelector(`[data-ig-fetch][data-item-id="${itemId}"]`);
+      if (btn) {
+        // Kurz das gruene Haekchen zeigen, danach zurueck auf das gerenderte
+        // Refresh-Icon, damit der erneute Abruf sichtbar bleibt
+        const finalIcon = btn.innerHTML;
+        const wasRefresh = btn.classList.contains('is-refresh');
+        btn.innerHTML = IG_FETCH_CHECK_ICON;
+        btn.classList.remove('is-refresh');
+        btn.classList.add('is-success');
+        setTimeout(() => {
+          btn.classList.remove('is-success');
+          if (wasRefresh) btn.classList.add('is-refresh');
+          btn.innerHTML = finalIcon;
+        }, 2000);
+      }
+    }
+  }
+
   async handleFieldUpdate(element) {
     // Custom-Column-Felder werden separat behandelt (CustomDatePicker nutzt ebenfalls data-field)
     if (element.hasAttribute('data-custom-column-id') || element.getAttribute('data-entity') === 'custom') {
@@ -649,18 +786,9 @@ export class CreatorAuswahlDetail {
 
     if (element.type === 'checkbox') {
       value = element.checked;
-    } else if (field === 'typ') {
-      value = normalizeCreatorTyp(element.value);
-      if (!isAllowedCreatorTyp(value)) {
-        const currentItem = this.items.find(i => i.id === itemId);
-        element.value = currentItem?.typ || '';
-        window.toastSystem?.show('Ungültige Creator Art. Bitte einen gültigen Wert auswählen.', 'error');
-        return;
-      }
     } else if (field === 'follower_instagram' || field === 'follower_tiktok') {
-      const numValue = element.value?.trim();
-      value = numValue ? parseInt(numValue.replace(/[^\d]/g, ''), 10) : null;
-    } else if (field === 'preis_ek' || field === 'preis_vk' || field === 'cpm_instagram' || field === 'cpm_tiktok') {
+      value = parseCompactNumber(element.value);
+    } else if (field === 'preis_ek' || field === 'preis_vk') {
       const numValue = element.value?.trim();
       value = numValue ? parseFloat(numValue) : null;
     } else {
@@ -681,55 +809,6 @@ export class CreatorAuswahlDetail {
         return;
       }
 
-      if (field === 'absage') {
-        const updates = { absage: value };
-        updates.absage_am = value ? new Date().toISOString() : null;
-        if (value) {
-          updates.prio_1 = false;
-          updates.prio_2 = false;
-          updates.gebucht = false;
-          updates.on_hold = false;
-          updates.on_hold_am = null;
-        }
-        await creatorAuswahlService.updateItem(itemId, updates);
-        const item = this.items.find(i => i.id === itemId);
-        if (item) Object.assign(item, updates);
-        this.rerenderTable();
-        return;
-      }
-
-      if (field === 'on_hold') {
-        const updates = { on_hold: value };
-        updates.on_hold_am = value ? new Date().toISOString() : null;
-        if (value) {
-          updates.gebucht = false;
-        }
-        await creatorAuswahlService.updateItem(itemId, updates);
-        const item = this.items.find(i => i.id === itemId);
-        if (item) Object.assign(item, updates);
-        this.rerenderTable();
-        return;
-      }
-
-      if (field === 'gebucht') {
-        const updates = { gebucht: value };
-        if (value) {
-          updates.on_hold = false;
-          updates.on_hold_am = null;
-        }
-        await creatorAuswahlService.updateItem(itemId, updates);
-        const item = this.items.find(i => i.id === itemId);
-        if (item) Object.assign(item, updates);
-
-        if (value === true) {
-          const reorderedItems = this.promoteBookedItemWithinCategory(itemId);
-          await creatorAuswahlService.updateItemsSortierungWithKategorie(reorderedItems);
-          this.items = reorderedItems.map((entry, index) => ({ ...entry, sortierung: index }));
-        }
-        this.rerenderTable();
-        return;
-      }
-
       const updates = { [field]: value };
 
       // Kunden-Feedback: Autor + Zeitstempel mitschreiben (Kunde und Gast)
@@ -743,8 +822,76 @@ export class CreatorAuswahlDetail {
 
       const item = this.items.find(i => i.id === itemId);
       if (item) Object.assign(item, updates);
+
+      if (field === 'follower_instagram' || field === 'follower_tiktok') {
+        this.refreshNumberCell(element, value);
+      }
     } catch (error) {
       console.error('Fehler beim Aktualisieren:', error);
+      window.toastSystem?.show('Fehler beim Speichern', 'error');
+    }
+  }
+
+  /**
+   * Overlay der Follower-Zelle nachziehen: der Input haelt den Rohwert, das
+   * Overlay die kompakte Anzeige. Guenstiger als die ganze Zeile neu zu rendern.
+   */
+  refreshNumberCell(element, value) {
+    element.value = value ?? '';
+
+    const display = element.parentElement?.querySelector('[data-number-display]');
+    if (!display) return;
+
+    display.textContent = formatCompactNumber(value) || '–';
+    display.title = formatExactNumber(value);
+  }
+
+  /**
+   * Status-Select der Tabelle: setzt genau eines der Flags on_hold / gebucht /
+   * prio_1 / prio_2 / absage und nimmt alle anderen inklusive Zeitstempel zurueck.
+   */
+  async handleStatusChange(itemId, status) {
+    if (!itemId || !isSourcingStatus(status)) return;
+
+    const updates = buildSourcingStatusUpdates(status);
+
+    try {
+      await creatorAuswahlService.updateItem(itemId, updates);
+
+      const item = this.items.find(i => i.id === itemId);
+      if (item) Object.assign(item, updates);
+
+      // Frisch gebuchte Creator wandern an den Anfang ihrer Kategorie
+      if (status === 'gebucht') {
+        const reorderedItems = this.promoteBookedItemWithinCategory(itemId);
+        await creatorAuswahlService.updateItemsSortierungWithKategorie(reorderedItems);
+        this.items = reorderedItems.map((entry, index) => ({ ...entry, sortierung: index }));
+      }
+
+      this.rerenderTable();
+    } catch (error) {
+      console.error('Fehler beim Status-Update:', error);
+      window.toastSystem?.show('Fehler beim Speichern', 'error');
+    }
+  }
+
+  /** Creator-Art-Select der Tabelle */
+  async handleTypChange(itemId, rawValue) {
+    const value = normalizeCreatorTyp(rawValue);
+    if (!isAllowedCreatorTyp(value)) {
+      window.toastSystem?.show('Ungültige Creator Art. Bitte einen gültigen Wert auswählen.', 'error');
+      return;
+    }
+
+    try {
+      await creatorAuswahlService.updateItem(itemId, { typ: value });
+
+      const item = this.items.find(i => i.id === itemId);
+      if (item) item.typ = value;
+
+      this.refreshItemRow(itemId);
+    } catch (error) {
+      console.error('Fehler beim Aktualisieren der Creator Art:', error);
       window.toastSystem?.show('Fehler beim Speichern', 'error');
     }
   }

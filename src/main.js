@@ -18,6 +18,7 @@ import '../assets/styles/toast.css';
 import '../assets/styles/share.css';
 import '../assets/styles/stakeholder.css';
 import '../assets/styles/skripte.css';
+import '../assets/styles/produkt-doc.css';
 
 import { CONFIG } from './core/ConfigSystem.js';
 import { modularFilterSystem as filterSystem } from './core/filters/ModularFilterSystem.js';
@@ -29,7 +30,6 @@ import { creatorDetail } from './modules/creator/CreatorDetail.js';
 import { creatorListDetail } from './modules/creator/CreatorListDetail.js';
 import { CreatorAdressenManager } from './modules/creator/CreatorAdressenManager.js';
 import { unternehmenList } from './modules/unternehmen/UnternehmenList.js';
-import { unternehmenCreate } from './modules/unternehmen/UnternehmenCreate.js';
 import { auftragList } from './modules/auftrag/AuftragList.js';
 import { auftragsdetailsList } from './modules/auftrag/AuftragsdetailsList.js';
 import { auftragsdetailsDetail } from './modules/auftrag/AuftragsdetailsDetail.js';
@@ -37,9 +37,8 @@ import { auftragsdetailsCreate } from './modules/auftrag/AuftragsdetailsCreate.j
 import { markeList } from './modules/marke/MarkeList.js';
 import { markeDetail } from './modules/marke/MarkeDetail.js';
 import { markeCreate } from './modules/marke/MarkeCreate.js';
-import { produktList } from './modules/produkt/ProduktList.js';
-import { produktDetail } from './modules/produkt/ProduktDetail.js';
-import { produktCreate } from './modules/produkt/ProduktCreate.js';
+import { personaForm } from './modules/persona/PersonaForm.js';
+import { produktForm } from './modules/produkt/ProduktForm.js';
 import { authService } from './modules/auth/AuthService.js';
 import { authUtils } from './modules/auth/AuthUtils.js';
 import { navigationSystem } from './modules/navigation/NavigationSystem.js';
@@ -67,6 +66,7 @@ import { ansprechpartnerCreate, managementAnsprechpartnerCreate } from './module
 import { rechnungList } from './modules/rechnung/RechnungList.js';
 import { rechnungDetail } from './modules/rechnung/RechnungDetail.js';
 import { actionsDropdown } from './core/ActionsDropdown.js';
+import { tableSelect } from './core/components/TableSelect.js';
 import { mitarbeiterList } from './modules/admin/MitarbeiterList.js';
 import { mitarbeiterDetail } from './modules/admin/MitarbeiterDetail.js';
 import { kundenList } from './modules/admin/KundenList.js';
@@ -128,7 +128,6 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('creator-lists', creatorListPage);
   moduleRegistry.register('creator-list-detail', creatorListDetail);
   moduleRegistry.register('unternehmen', unternehmenList);
-  moduleRegistry.register('unternehmen-create', unternehmenCreate);
   moduleRegistry.register('auftrag', auftragList);
   moduleRegistry.register('auftragsdetails', auftragsdetailsList);
   moduleRegistry.register('auftragsdetails-detail', auftragsdetailsDetail);
@@ -136,11 +135,11 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('marke', markeList);
   moduleRegistry.register('marke-detail', markeDetail);
   moduleRegistry.register('marke-create', markeCreate);
+  // Ein Formular fuer beide Besitzer: /marke/:id/persona und /unternehmen/:id/persona
+  moduleRegistry.register('persona-form', personaForm);
+  moduleRegistry.register('produkt-form', produktForm);
   moduleRegistry.register('kickoff', kickOffList);
   moduleRegistry.register('kickoff-detail', kickOffDetail);
-  moduleRegistry.register('produkt', produktList);
-  moduleRegistry.register('produkt-detail', produktDetail);
-  moduleRegistry.register('produkt-create', produktCreate);
   moduleRegistry.register('unternehmen-detail', unternehmenDetail);
   moduleRegistry.register('auftrag-detail', auftragDetail);
   moduleRegistry.register('kooperation', kooperationList);
@@ -213,14 +212,10 @@ window.filterSystem = filterSystem;
 window.creatorList = creatorList;
 window.creatorDetail = creatorDetail;
 window.unternehmenList = unternehmenList;
-window.unternehmenCreate = unternehmenCreate;
 window.auftragList = auftragList;
 window.markeList = markeList;
 window.markeDetail = markeDetail;
 window.markeCreate = markeCreate;
-window.produktList = produktList;
-window.produktDetail = produktDetail;
-window.produktCreate = produktCreate;
 window.unternehmenDetail = unternehmenDetail;
 window.auftragDetail = auftragDetail;
 window.kooperationList = kooperationList;
@@ -408,6 +403,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // ActionsDropdown initialisieren
     actionsDropdown.init();
+
+    // Table-Select (Spaltentyp "Select" in Tabellenzellen)
+    tableSelect.init();
     
     // BulkActionSystem initialisieren
     bulkActionSystem.init();
@@ -633,7 +631,7 @@ window.setupHeaderUI = () => {
         if (!entity) return;
         switch (entity) {
           case 'unternehmen':
-            window.navigateTo('/unternehmen/neu');
+            window.navigateTo('/unternehmen/new');
             break;
           case 'marke':
             window.navigateTo('/marke/new');

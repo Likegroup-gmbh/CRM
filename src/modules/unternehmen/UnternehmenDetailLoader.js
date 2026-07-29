@@ -1,6 +1,9 @@
 // UnternehmenDetailLoader.js
 // Daten-Laden für Unternehmen-Detailseite (Batch 1–3)
 
+import { PersonaService } from '../persona/PersonaService.js';
+import { ProduktService } from '../produkt/ProduktService.js';
+
 export async function loadUnternehmenData(detail) {
   try {
     // ========== BATCH 1: Alle unabhängigen Abfragen parallel ==========
@@ -16,7 +19,9 @@ export async function loadUnternehmenData(detail) {
       strategienResult,
       creatorAuswahlenResult,
       kickoffResult,
-      ansprechpartnerResult
+      ansprechpartnerResult,
+      personasResult,
+      produkteResult
     ] = await Promise.all([
       window.supabase.from('unternehmen').select('*').eq('id', detail.unternehmenId).single(),
       window.supabase.from('unternehmen_branchen').select('branche_id, branchen:branche_id (id, name)').eq('unternehmen_id', detail.unternehmenId),
@@ -39,7 +44,11 @@ export async function loadUnternehmenData(detail) {
           telefonnummer_office_land:eu_laender!telefonnummer_office_land_id (id, name, name_de, iso_code, vorwahl),
           kunde_ansprechpartner(kunde_id)
         )
-      `).eq('unternehmen_id', detail.unternehmenId)
+      `).eq('unternehmen_id', detail.unternehmenId),
+      // Beide liefern auch die marken-gebundenen Datensaetze mit, weil die
+      // Junction nur die Zuordnung haelt und unternehmen_id der Besitzer ist.
+      PersonaService.loadForContext({ unternehmenId: detail.unternehmenId }).catch(() => []),
+      ProduktService.loadForContext({ unternehmenId: detail.unternehmenId }).catch(() => [])
     ]);
 
     if (unternehmenResult.error) throw unternehmenResult.error;
@@ -51,6 +60,8 @@ export async function loadUnternehmenData(detail) {
     }
 
     detail.marken = markenResult.data || [];
+    detail.personas = personasResult || [];
+    detail.produkte = produkteResult || [];
     detail.auftraege = auftraegeResult.data || [];
     detail.briefings = briefingsResult.data || [];
     detail.kampagnen = kampagnenResult.data || [];

@@ -125,6 +125,9 @@ export class FormRenderer {
           if (field.sectionTitle) {
             parts.push(`<h3>${this.validator.sanitizeHtml(field.sectionTitle)}</h3>`);
           }
+          if (field.sectionDescription) {
+            parts.push(`<p class="form-section__description">${this.validator.sanitizeHtml(field.sectionDescription)}</p>`);
+          }
           currentSection = field.section;
         }
       }
@@ -276,24 +279,28 @@ export class FormRenderer {
         `;
 
       case 'url':
-        // URL-Wert ohne https:// Prefix anzeigen (wird automatisch hinzugefügt)
-        let urlValue = value || '';
-        if (urlValue.startsWith('https://')) {
-          urlValue = urlValue.substring(8);
-        } else if (urlValue.startsWith('http://')) {
-          urlValue = urlValue.substring(7);
-        }
-        
+        // Der Wert steht vollstaendig im Feld: Adressen werden aus dem Browser
+        // kopiert und bringen ihr Schema mit. Fehlt es, ergaenzt es
+        // UrlHelper.normalizeUrl() beim Speichern.
+        const urlValue = value || '';
+
         const urlDependsOn = field.dependsOn ? `data-depends-on="${field.dependsOn}"` : '';
         const urlShowWhen = field.showWhen ? `data-show-when="${field.showWhen}"` : '';
         const urlInitialStyle = field.dependsOn ? 'style="display: none;"' : '';
-        const urlPlaceholder = field.placeholder || 'beispiel.de';
-        
+        const urlPlaceholder = field.placeholder || 'https://beispiel.de';
+
+        // aiExtract schaltet das Auslesen der Webseite frei (siehe SiteExtractHandler)
+        const extractBtn = field.aiExtract ? `
+              <button type="button" class="url-extract-btn" data-ai-extract="${field.name}" title="Daten aus der Webseite auslesen">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 15.9 9 18.8l-.8-2.9a4.5 4.5 0 0 0-3.1-3.1L2.3 12l2.8-.8a4.5 4.5 0 0 0 3.1-3.1L9 5.3l.8 2.8a4.5 4.5 0 0 0 3.1 3.1l2.8.8-2.8.8a4.5 4.5 0 0 0-3.1 3.1ZM18.3 8.7 18 9.8l-.3-1a3.4 3.4 0 0 0-2.4-2.5L14.3 6l1-.3a3.4 3.4 0 0 0 2.4-2.4L18 2.3l.3 1a3.4 3.4 0 0 0 2.4 2.4l1 .3-1 .3a3.4 3.4 0 0 0-2.4 2.4Z"/></svg>
+                <span class="spinner-small url-extract-btn__spinner"></span>
+                <span class="url-extract-btn__label">Auslesen</span>
+              </button>` : '';
+
         return `
           <div class="form-field" ${urlDependsOn} ${urlShowWhen} ${urlInitialStyle}>
             <label for="${fieldId}">${field.label} ${requiredMark}</label>
             <div class="url-input-field">
-              <span class="url-prefix">https://</span>
               <input type="text" 
                      id="${fieldId}" 
                      name="${field.name}" 
@@ -301,7 +308,7 @@ export class FormRenderer {
                      value="${this.validator.sanitizeHtml(urlValue)}" 
                      placeholder="${urlPlaceholder}"
                      data-url-field="true"
-                     ${required}>
+                     ${required}>${extractBtn}
             </div>
           </div>
         `;
@@ -343,10 +350,12 @@ export class FormRenderer {
         const textareaDependsOn = field.dependsOn ? `data-depends-on="${field.dependsOn}"` : '';
         const textareaShowWhen = field.showWhen ? `data-show-when="${field.showWhen}"` : '';
         const textareaHiddenStyle = field.dependsOn ? 'style="display: none;"' : '';
+        const textareaPlaceholder = field.placeholder ? `placeholder="${field.placeholder}"` : '';
+        const textareaRows = field.rows || 4;
         return `
           <div class="form-field form-field-full" ${textareaDependsOn} ${textareaShowWhen} ${textareaHiddenStyle}>
             <label for="${fieldId}">${field.label} ${requiredMark}</label>
-            <textarea id="${fieldId}" name="${field.name}" rows="4" ${required}>${this.validator.sanitizeHtml(value)}</textarea>
+            <textarea id="${fieldId}" name="${field.name}" rows="${textareaRows}" ${required} ${textareaPlaceholder}>${this.validator.sanitizeHtml(value)}</textarea>
           </div>
         `;
 
@@ -545,7 +554,11 @@ export class FormRenderer {
               const uploader = new UploaderField({ 
                 multiple: !!field.multiple, 
                 accept: field.accept || '*/*',
-                maxFileSize: field.maxFileSize || null
+                maxFileSize: field.maxFileSize || null,
+                maxFiles: field.maxFiles || null,
+                sortable: !!field.sortable,
+                primarySelectable: !!field.primarySelectable,
+                variant: field.uploaderVariant || 'list'
               });
               uploader.mount(root.querySelector('.uploader'));
             }

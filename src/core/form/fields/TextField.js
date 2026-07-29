@@ -44,7 +44,7 @@ export class TextField extends BaseField {
 
       case 'url':
         try {
-          // URL-Felder haben visuellen https:// Prefix - füge diesen zur Validierung hinzu
+          // Eingabe darf ohne Schema kommen - fürs Prüfen eines ergänzen
           let urlToValidate = value.trim();
           if (!urlToValidate.match(/^https?:\/\//i)) {
             urlToValidate = 'https://' + urlToValidate;

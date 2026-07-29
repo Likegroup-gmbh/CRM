@@ -4,6 +4,9 @@
 import { renderKampagnen, renderAuftraege, renderBriefings, renderKooperationen, renderRechnungen, renderStrategien } from './MarkeDetailRendererTables.js';
 import { renderKickOff, bindKickOffCreateButton } from './MarkeDetailRendererKickOff.js';
 
+export { updatePersonasTab } from '../persona/PersonaTabRenderer.js';
+export { updateProdukteTab } from '../produkt/ProduktTabRenderer.js';
+
 export function updateKampagnenTab(detail) {
   const container = document.querySelector('#tab-kampagnen .data-table-container');
   if (container) {

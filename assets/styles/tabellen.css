@@ -1282,7 +1282,7 @@
   font-size: var(--text-sm);
   font-family: inherit;
   background: white;
-  box-shadow: inset 0 0 0 2px var(--primary-500);
+  
 }
 
 /* Merged Cells */

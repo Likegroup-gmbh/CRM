@@ -12,6 +12,7 @@ import { FormVideoHandler } from './form/logic/FormVideoHandler.js';
 import { FormRelationsHandler } from './form/logic/FormRelationsHandler.js';
 import { FormSearchableSelect } from './form/logic/FormSearchableSelect.js';
 import { finalizeRechnungSubmitData } from './form/logic/events/RechnungEvents.js';
+import { normalizeFormUrlFields } from './UrlHelper.js';
 // Neue Architektur
 import { SmartFormInitializer } from './form/initialization/SmartFormInitializer.js';
 
@@ -427,6 +428,9 @@ export class FormSystem {
         submitData[key] = null;
       }
     });
+
+    // URL-Felder duerfen ohne Schema eingegeben werden, in der DB landen sie absolut
+    normalizeFormUrlFields(form, submitData);
 
     return submitData;
   }

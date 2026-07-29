@@ -10,13 +10,13 @@ async function loadContext(supabase, params) {
 
   if (unternehmen_id) {
     const { data } = await supabase.from('unternehmen')
-      .select('id, firmenname, webseite, branche_id').eq('id', unternehmen_id).single();
+      .select('id, firmenname, webseite, beschreibung, branche_id').eq('id', unternehmen_id).single();
     ctx.unternehmen = data;
   }
 
   if (marke_id) {
     const { data } = await supabase.from('marke')
-      .select('id, markenname, webseite, branche, branche_id').eq('id', marke_id).single();
+      .select('id, markenname, webseite, beschreibung, branche, branche_id').eq('id', marke_id).single();
     ctx.marke = data;
   }
 
@@ -28,16 +28,23 @@ async function loadContext(supabase, params) {
     ctx.branche = data;
   }
 
+  // Produkt = Kollektion. Varianten tragen nur das Unterscheidende und werden
+  // separat geladen, damit im Skript die richtige Ausfuehrung gemeint ist.
   if (produkt_id) {
     const { data } = await supabase.from('produkt')
-      .select('name, url, kernbotschaft, hauptproblem, kernnutzen, usp_1, usp_2, usp_3, kauf_conversion_trigger, zielnutzer_anwendungskontext')
+      .select('name, url, kurzbeschreibung, usp, pain_points, loesung, einsatzsituation, preis_von, preis_bis, preis_uvp, inhaltsstoffe, erlaubte_claims, verbotene_claims, rechtliche_hinweise')
       .eq('id', produkt_id).single();
     ctx.produkt = data;
+
+    const { data: varianten } = await supabase.from('produkt_variante')
+      .select('name, farbe, modell_kompatibilitaet, preis, uvp, merkmal')
+      .eq('produkt_id', produkt_id).order('position');
+    ctx.produktVarianten = varianten || [];
   }
 
   if (persona_id) {
     const { data } = await supabase.from('personas')
-      .select('id, name, oberbegriff, beschreibung, branche_id, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, kontext, pain_points')
+      .select('id, name, oberbegriff, beschreibung, branche_id, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, kontext, pain_points, interessen, beduerfnisse, kaufmotive, einwaende, tonalitaet, plattformen, content_praeferenzen, produkt_loesung, produktvorteile')
       .eq('id', persona_id).single();
     ctx.persona = data;
   }
@@ -147,6 +154,48 @@ function fmtSection(title, obj) {
   return `\n## ${title}\n${lines.join('\n')}\n`;
 }
 
+const fmtEuro = (n) => Number(n).toFixed(2).replace('.', ',');
+
+/**
+ * "29,90 EUR", "29,90-49,90 EUR" oder "199,00 EUR (UVP 399,00 EUR)".
+ * Der UVP gehoert dazu: die Ersparnis ist im Skript oft das Argument.
+ * null, wenn kein Preis gepflegt ist.
+ */
+function produktPreis(produkt) {
+  const von = produkt.preis_von != null ? fmtEuro(produkt.preis_von) : null;
+  const bis = produkt.preis_bis != null ? fmtEuro(produkt.preis_bis) : null;
+
+  const basis = von && bis && von !== bis
+    ? `${von}-${bis} EUR`
+    : von ? `${von} EUR` : bis ? `bis ${bis} EUR` : null;
+  if (!basis) return null;
+
+  // Ein UVP unterhalb des Verkaufspreises ist ein Datenfehler und waere im
+  // Skript eine falsche Behauptung - dann lieber weglassen.
+  const uvp = produkt.preis_uvp != null ? Number(produkt.preis_uvp) : null;
+  const zeigtUvp = uvp != null && (produkt.preis_von == null || uvp > Number(produkt.preis_von));
+  return zeigtUvp ? `${basis} (regulaer/UVP ${fmtEuro(uvp)} EUR)` : basis;
+}
+
+/**
+ * Varianten als Liste. Wichtig fuers Skript: eine Kollektion kann mehrere
+ * Ausfuehrungen haben, das Video zeigt aber eine konkrete.
+ */
+function fmtVarianten(varianten) {
+  if (!varianten?.length) return '';
+  const lines = varianten.map((v) => {
+    const details = [
+      v.farbe ? `Farbe: ${v.farbe}` : null,
+      v.modell_kompatibilitaet ? `passend fuer: ${v.modell_kompatibilitaet}` : null,
+      v.preis != null ? `Preis: ${fmtEuro(v.preis)} EUR` : null,
+      v.uvp != null ? `UVP: ${fmtEuro(v.uvp)} EUR` : null,
+      v.merkmal
+    ].filter(Boolean).join(', ');
+    return `- ${v.name}${details ? ` (${details})` : ''}`;
+  });
+  return `\n## Produktvarianten\n${lines.join('\n')}\n`;
+}
+
 function fmtSkript(s) {
   return [
     s.titel ? `Titel: ${s.titel}` : null,
@@ -174,7 +223,7 @@ function videoLaengeHinweis(spanne) {
 }
 
 // ---------------------------------------------------------------------------
-// Videovorlage (Referenzvideo): kreative Pflicht-Basis jedes neuen Skripts
+// Videovorlage (Referenzvideo): optionale kreative Basis eines neuen Skripts
 // ---------------------------------------------------------------------------
 // Transkript-Budget im Prompt: bei sehr langen Vorlagen bleiben Anfang UND
 // Ende erhalten (Hook + CTA), die Mitte wird gekuerzt - die Llama-Beschreibung
@@ -231,17 +280,33 @@ function buildKontextText(ctx, params) {
   let text = '';
   text += fmtSection('Unternehmen', ctx.unternehmen && {
     firmenname: ctx.unternehmen.firmenname,
+    beschreibung: ctx.unternehmen.beschreibung,
     webseite: ctx.unternehmen.webseite
   });
   text += fmtSection('Marke', ctx.marke && {
     markenname: ctx.marke.markenname,
+    beschreibung: ctx.marke.beschreibung,
     branche: ctx.branche?.name || ctx.marke.branche,
     webseite: ctx.marke.webseite
   });
   if (!ctx.marke && ctx.branche) {
     text += fmtSection('Branche', { branche: ctx.branche.name });
   }
-  text += fmtSection('Produkt', ctx.produkt);
+  text += fmtSection('Produkt', ctx.produkt && {
+    name: ctx.produkt.name,
+    kurzbeschreibung: ctx.produkt.kurzbeschreibung,
+    usp: ctx.produkt.usp,
+    pain_points: ctx.produkt.pain_points,
+    loesung: ctx.produkt.loesung,
+    einsatzsituation: ctx.produkt.einsatzsituation,
+    preis: produktPreis(ctx.produkt),
+    inhaltsstoffe: ctx.produkt.inhaltsstoffe,
+    erlaubte_claims: ctx.produkt.erlaubte_claims,
+    verbotene_claims: ctx.produkt.verbotene_claims,
+    rechtliche_hinweise: ctx.produkt.rechtliche_hinweise,
+    shop_url: ctx.produkt.url
+  });
+  text += fmtVarianten(ctx.produktVarianten);
   text += fmtSection('Kampagne', ctx.kampagne);
   text += fmtSection('Briefing', ctx.briefing);
   text += fmtSection('Marken-Kickoff', ctx.kickoff);
@@ -257,6 +322,15 @@ function buildKontextText(ctx, params) {
     lebenssituation: ctx.persona.lebenssituation,
     lebensrealitaet: ctx.persona.kontext,
     pain_points: ctx.persona.pain_points,
+    interessen: ctx.persona.interessen,
+    beduerfnisse: ctx.persona.beduerfnisse,
+    kaufmotive: ctx.persona.kaufmotive,
+    einwaende: ctx.persona.einwaende,
+    tonalitaet_der_ansprache: ctx.persona.tonalitaet,
+    relevante_plattformen: ctx.persona.plattformen,
+    content_praeferenzen: ctx.persona.content_praeferenzen,
+    was_das_produkt_loest: ctx.persona.produkt_loesung,
+    relevante_produktvorteile: ctx.persona.produktvorteile,
     beschreibung: ctx.persona.beschreibung
   });
   // Videovorlage VOR den Vorgaben: kreative Basis, klar delimitiert
@@ -273,6 +347,6 @@ function buildKontextText(ctx, params) {
 }
 
 module.exports = {
-  loadContext, fmtSection, fmtSkript, buildKontextText, videoLaengeHinweis,
-  buildReferenzText, kuerzeTranskript, REFERENZ_TRANSKRIPT_MAX
+  loadContext, fmtSection, fmtSkript, fmtVarianten, produktPreis, buildKontextText,
+  videoLaengeHinweis, buildReferenzText, kuerzeTranskript, REFERENZ_TRANSKRIPT_MAX
 };

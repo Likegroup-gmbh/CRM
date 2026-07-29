@@ -207,17 +207,6 @@ export class CreatorAuswahlAddDrawer {
             <label class="form-label">Reichweitengarantie</label>
             <input type="text" name="reichweite_garantie" class="form-input" placeholder="z.B. 100K">
           </div>
-
-          <div class="form-row">
-            <div class="form-field">
-              <label class="form-label">CPM Instagram</label>
-              <input type="number" name="cpm_instagram" class="form-input" placeholder="z.B. 15" step="0.01">
-            </div>
-            <div class="form-field">
-              <label class="form-label">CPM TikTok</label>
-              <input type="number" name="cpm_tiktok" class="form-input" placeholder="z.B. 10" step="0.01">
-            </div>
-          </div>
         </div>
 
         <div class="drawer-footer">
@@ -447,8 +436,6 @@ export class CreatorAuswahlAddDrawer {
         reichweite_instagram: formData.get('reichweite_instagram')?.trim() || null,
         reichweite_tiktok: formData.get('reichweite_tiktok')?.trim() || null,
         reichweite_garantie: formData.get('reichweite_garantie')?.trim() || null,
-        cpm_instagram: formData.get('cpm_instagram') ? parseFloat(formData.get('cpm_instagram')) : null,
-        cpm_tiktok: formData.get('cpm_tiktok') ? parseFloat(formData.get('cpm_tiktok')) : null,
         sortierung: this.detail.items.length,
         creator_id: this.selectedCreatorFromDb?.id || null
       };
@@ -489,8 +476,6 @@ export class CreatorAuswahlAddDrawer {
         reichweite_instagram: null,
         reichweite_tiktok: null,
         reichweite_garantie: null,
-        cpm_instagram: null,
-        cpm_tiktok: null,
         sortierung: 0,
         creator_id: null
       };
@@ -523,8 +508,6 @@ export class CreatorAuswahlAddDrawer {
         reichweite_instagram: null,
         reichweite_tiktok: null,
         reichweite_garantie: null,
-        cpm_instagram: null,
-        cpm_tiktok: null,
         sortierung: this.detail.items.length,
         creator_id: null
       };

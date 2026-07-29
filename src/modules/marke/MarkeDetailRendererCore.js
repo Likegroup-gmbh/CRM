@@ -2,9 +2,12 @@
 // Seiten-Render, Tabs, renderMainContent
 
 import { renderTabButton } from '../../core/TabUtils.js';
+import { safeExternalUrl } from '../../core/UrlHelper.js';
 import { getBranchenDisplay } from './MarkeDetailRendererHelpers.js';
 import { renderKampagnen, renderAuftraege, renderAnsprechpartner, renderBriefings, renderKooperationen, renderRechnungen, renderStrategien } from './MarkeDetailRendererTables.js';
 import { renderKickOff } from './MarkeDetailRendererKickOff.js';
+import { renderPersonas } from '../persona/PersonaTabRenderer.js';
+import { renderProdukte } from '../produkt/ProduktTabRenderer.js';
 
 export function getTabsConfig(detail) {
   return [
@@ -20,7 +23,9 @@ export function getTabsConfig(detail) {
     { tab: 'briefings', label: 'Briefings', count: detail.briefings.length, isActive: detail.activeMainTab === 'briefings' },
     { tab: 'strategien', label: 'Strategien', count: detail.strategien.length, isActive: detail.activeMainTab === 'strategien' },
     { tab: 'kooperationen', label: 'Kooperationen', count: detail.kooperationen.length, isActive: detail.activeMainTab === 'kooperationen' },
-    { tab: 'rechnungen', label: 'Rechnungen', count: detail.rechnungen.length, isActive: detail.activeMainTab === 'rechnungen' }
+    { tab: 'rechnungen', label: 'Rechnungen', count: detail.rechnungen.length, isActive: detail.activeMainTab === 'rechnungen' },
+    { tab: 'personas', label: 'Personas', count: detail.personas.length, isActive: detail.activeMainTab === 'personas' },
+    { tab: 'produkte', label: 'Produkte', count: detail.produkte.length, isActive: detail.activeMainTab === 'produkte' }
   ];
 }
 
@@ -63,6 +68,14 @@ export function renderMainContent(detail) {
       <div class="tab-pane ${detail.activeMainTab === 'rechnungen' ? 'active' : ''}" id="tab-rechnungen">
         ${renderRechnungen(detail)}
       </div>
+
+      <div class="tab-pane ${detail.activeMainTab === 'personas' ? 'active' : ''}" id="tab-personas">
+        ${renderPersonas(detail)}
+      </div>
+
+      <div class="tab-pane ${detail.activeMainTab === 'produkte' ? 'active' : ''}" id="tab-produkte">
+        ${renderProdukte(detail)}
+      </div>
     </div>
   `;
 }
@@ -83,7 +96,10 @@ export function renderMarkeDetailPage(detail) {
   const sidebarInfo = detail.renderInfoItems([
     { icon: 'building', label: 'Unternehmen', value: detail.marke?.unternehmen?.firmenname || '-' },
     { icon: 'tag', label: 'Branchen', value: getBranchenDisplay(detail) },
-    { icon: 'link', label: 'Webseite', rawHtml: detail.marke?.webseite ? `<a href="${detail.marke.webseite}" target="_blank" rel="noopener">${detail.sanitize(detail.marke.webseite)}</a>` : '-' },
+    ...(detail.marke?.beschreibung
+      ? [{ icon: 'info', label: 'Kurzbeschreibung', value: detail.marke.beschreibung }]
+      : []),
+    { icon: 'link', label: 'Webseite', rawHtml: detail.marke?.webseite ? `<a href="${safeExternalUrl(detail.marke.webseite)}" target="_blank" rel="noopener">${detail.sanitize(detail.marke.webseite)}</a>` : '-' },
     { icon: 'clock', label: 'Erstellt', value: detail.formatDate(detail.marke?.created_at) },
     { icon: 'clock', label: 'Aktualisiert', value: detail.formatDate(detail.marke?.updated_at) }
   ]);

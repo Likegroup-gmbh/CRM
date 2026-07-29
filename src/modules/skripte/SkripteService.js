@@ -76,11 +76,20 @@ export class SkripteService {
     return data || [];
   }
 
+  /**
+   * Produkte zum Kontext. Die Marken-Zuordnung liegt in produkt_marke, deshalb
+   * filtert der Marken-Fall ueber einen Inner-Join statt ueber eine Spalte.
+   */
   async loadProdukte({ markeId = null, unternehmenId = null } = {}) {
-    let q = this.db.from('produkt').select('id, name, marke_id, unternehmen_id').order('name');
-    if (markeId) q = q.eq('marke_id', markeId);
-    else if (unternehmenId) q = q.eq('unternehmen_id', unternehmenId);
-    const { data } = await q;
+    let q = markeId
+      ? this.db.from('produkt')
+          .select('id, name, unternehmen_id, treffer:produkt_marke!inner(marke_id)')
+          .eq('treffer.marke_id', markeId)
+      : this.db.from('produkt').select('id, name, unternehmen_id');
+
+    if (!markeId && unternehmenId) q = q.eq('unternehmen_id', unternehmenId);
+
+    const { data } = await q.order('name');
     return data || [];
   }
 

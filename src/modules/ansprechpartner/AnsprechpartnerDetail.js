@@ -811,49 +811,13 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       <div class="form-page">
         ${currentProfileImageHtml}
         ${formHtml}
-        <div id="profile-image-preview-container" class="form-logo-preview" style="display: none;">
-          <label class="form-logo-label">Neues Profilbild Vorschau:</label>
-          <img id="profile-image-preview-image" class="form-logo-image" alt="Profilbild Vorschau" />
-        </div>
       </div>
     `;
 
     // Formular-Events binden
     window.formSystem.bindFormEvents('ansprechpartner', formData);
-    
-    // Profilbild-Preview Setup
-    const form = document.getElementById('ansprechpartner-form');
-    if (form) {
-      this.setupProfileImagePreview(form);
-    }
-    
+
     console.log('✅ ANSPRECHPARTNERDETAIL: Edit-Form mit Profilbild-Upload initialisiert');
-  }
-
-  // Setup Profilbild Preview für Upload
-  setupProfileImagePreview(form) {
-    const uploaderRoot = form.querySelector('.uploader[data-name="profile_image_file"]');
-    if (!uploaderRoot) return;
-
-    // Event für File-Input (falls vorhanden)
-    const fileInput = uploaderRoot.querySelector('input[type="file"]');
-    if (fileInput) {
-      fileInput.addEventListener('change', (e) => {
-        const file = e.target.files?.[0];
-        if (file && file.type.startsWith('image/')) {
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            const previewContainer = document.getElementById('profile-image-preview-container');
-            const previewImage = document.getElementById('profile-image-preview-image');
-            if (previewContainer && previewImage) {
-              previewImage.src = event.target.result;
-              previewContainer.style.display = 'block';
-            }
-          };
-          reader.readAsDataURL(file);
-        }
-      });
-    }
   }
 
   // Profilbild-Upload - delegiert an ImageUploadHelper

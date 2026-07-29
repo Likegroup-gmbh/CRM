@@ -4,6 +4,7 @@
 import { MarkeService } from './services/MarkeService.js';
 import { FormSubmitHelper } from '../../core/form/FormSubmitHelper.js';
 import { StrategiebriefingService } from '../kickoff/StrategiebriefingService.js';
+import { normalizeFormUrlFields } from '../../core/UrlHelper.js';
 
 export class MarkeCreate {
   constructor() {
@@ -35,10 +36,6 @@ export class MarkeCreate {
         <div class="form-split-left">
           <div class="form-page">
             ${formHtml}
-            <div id="logo-preview-container" class="form-logo-preview" style="display: none;">
-              <label class="form-logo-label">Logo Vorschau:</label>
-              <img id="logo-preview-image" class="form-logo-image" alt="Logo Vorschau" />
-            </div>
             <button type="button" class="kickoff-create-toggle-btn" id="kickoff-toggle-btn">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
               Strategiebriefing anlegen
@@ -61,9 +58,6 @@ export class MarkeCreate {
         e.preventDefault();
         await this.handleFormSubmit();
       };
-      
-      // Logo-Preview-Funktion
-      this.setupLogoPreview(form);
       
       // Duplikat-Validierung auf Markenname
       this.setupDuplicateValidation(form);
@@ -312,35 +306,7 @@ export class MarkeCreate {
     }
   }
 
-  // Setup Logo Preview für Upload
-  setupLogoPreview(form) {
-    const uploaderRoot = form.querySelector('.uploader[data-name="logo_file"]');
-    if (!uploaderRoot) return;
-
-    // Event für File-Input (falls vorhanden)
-    const fileInput = uploaderRoot.querySelector('input[type="file"]');
-    if (fileInput) {
-      const signal = this._abort?.signal;
-      const opts = signal ? { signal } : undefined;
-      fileInput.addEventListener('change', (e) => {
-        const file = e.target.files?.[0];
-        if (file && file.type.startsWith('image/')) {
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            const previewContainer = document.getElementById('logo-preview-container');
-            const previewImage = document.getElementById('logo-preview-image');
-            if (previewContainer && previewImage) {
-              previewImage.src = event.target.result;
-              previewContainer.style.display = 'block';
-            }
-          };
-          reader.readAsDataURL(file);
-        }
-      }, opts);
-    }
-  }
-
-  // Handle Form Submit für Seiten-Formular (kopiert von UnternehmenCreate)
+  // Handle Form Submit für Seiten-Formular
   async handleFormSubmit() {
     try {
       console.log('🎯 MARKECREATE: Verarbeite Formular-Submit');
@@ -363,15 +329,9 @@ export class MarkeCreate {
         data[key] = Array.isArray(value) ? value : (typeof value === 'string' ? value.trim() : value);
       }
       
-      // URL-Felder: https:// automatisch hinzufügen
-      if (data.webseite && data.webseite.trim() !== '') {
-        let urlValue = data.webseite.trim();
-        if (!urlValue.match(/^https?:\/\//i)) {
-          data.webseite = 'https://' + urlValue;
-          console.log('🔗 Webseite: https:// Präfix hinzugefügt ->', data.webseite);
-        }
-      }
-      
+      // URL-Felder duerfen ohne Schema eingegeben werden, in der DB landen sie absolut
+      normalizeFormUrlFields(form, data);
+
       console.log('📤 Finale Marke-Daten:', data);
 
       // Validierung (wie bei Unternehmen)

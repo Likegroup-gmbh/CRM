@@ -9,6 +9,12 @@ export const CREATOR_TYP_OPTIONS = Object.freeze([
   'Model'
 ]);
 
+/** Optionsliste fuer das TableSelect in der Sourcing-Tabelle */
+export const CREATOR_TYP_SELECT_OPTIONS = Object.freeze([
+  { value: '', label: '–' },
+  ...CREATOR_TYP_OPTIONS.map(typ => ({ value: typ, label: typ }))
+]);
+
 export function normalizeCreatorTyp(value) {
   if (value === null || value === undefined) return null;
   const normalized = String(value).trim();
