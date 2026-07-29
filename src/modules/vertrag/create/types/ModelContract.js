@@ -2,6 +2,7 @@
 // Modelvertrag: Steps 2-5.
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
+import { renderParagraphZusatz } from '../paragraphZusatz.js';
 VertraegeCreate.prototype.renderModelStep2 = function() {
     if (!this._filtersInitialized) {
       this.updateFilteredKampagnen();
@@ -212,6 +213,7 @@ VertraegeCreate.prototype.renderModelStep3 = function() {
                  value="${this.formData.model_optionstage || ''}">
           <p class="form-hint">Die Buchung eines Optionstages bedarf der rechtzeitigen Bestätigung durch den Auftraggeber.</p>
         </div>
+        ${renderParagraphZusatz(this.formData, 'p2', '§2 Produktion & Einsatz')}
 
         <h3 class="mt-section">§3 Produktionsrahmen</h3>
 
@@ -298,6 +300,7 @@ VertraegeCreate.prototype.renderModelStep3 = function() {
           <input type="date" id="model_fitting_datum" name="model_fitting_datum"
                  value="${this.formData.model_fitting_datum || ''}">
         </div>
+        ${renderParagraphZusatz(this.formData, 'p3', '§3 Produktionsrahmen')}
       </div>
     `;
 };
@@ -493,6 +496,7 @@ VertraegeCreate.prototype.renderModelStep4 = function() {
             </label>
           </div>
         </div>
+        ${renderParagraphZusatz(this.formData, 'p4', '§4 Nutzungsrechte')}
       </div>
     `;
 };
@@ -613,6 +617,7 @@ VertraegeCreate.prototype.renderModelStep5 = function() {
           </div>
         </div>
         <p class="form-hint">Rechnungsstellung durch das Model nach Abschluss der Produktion.</p>
+        ${renderParagraphZusatz(this.formData, 'p5', '§5 Vergütung')}
 
         <h3 class="mt-section">§6 Absage & Ausfall</h3>
 
@@ -651,6 +656,7 @@ VertraegeCreate.prototype.renderModelStep5 = function() {
           <textarea id="model_absage_individuell" name="model_absage_individuell" rows="3"
                     placeholder="Beschreibung der individuellen Regelung...">${this.formData.model_absage_individuell || ''}</textarea>
         </div>
+        ${renderParagraphZusatz(this.formData, 'p6', '§6 Absage & Ausfall')}
 
         <h3 class="mt-section">Rechnungsstellung</h3>
         ${this.renderMehrfachRechnungToggle()}

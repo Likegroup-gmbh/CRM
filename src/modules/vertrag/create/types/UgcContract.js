@@ -2,6 +2,7 @@
 // UGC-Produktionsvertrag: Steps 2-5.
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
+import { renderParagraphZusatz } from '../paragraphZusatz.js';
 
 VertraegeCreate.prototype.renderStep2 = function() {
     // Filter nur initialisieren wenn noch nicht geschehen (z.B. bei Draft-Load bereits erledigt)
@@ -119,6 +120,7 @@ VertraegeCreate.prototype.renderStep3 = function() {
             </label>
           </div>
         </div>
+        ${renderParagraphZusatz(this.formData, 'p2', '§2 Leistungsumfang')}
 
         <h3>§3 Output & Lieferumfang</h3>
         
@@ -159,6 +161,7 @@ VertraegeCreate.prototype.renderStep3 = function() {
             </label>
           </div>
         </div>
+        ${renderParagraphZusatz(this.formData, 'p3', '§3 Output & Lieferumfang')}
       </div>
     `;
 };
@@ -254,6 +257,7 @@ VertraegeCreate.prototype.renderStep4 = function() {
             </div>
           </div>
         </div>
+        ${renderParagraphZusatz(this.formData, 'p4', '§4 Nutzungsrechte')}
       </div>
     `;
 };
@@ -309,6 +313,7 @@ VertraegeCreate.prototype.renderStep5 = function() {
             <span>Skonto (3% bei Zahlung innerhalb von 7 Tagen)</span>
           </label>
         </div>
+        ${renderParagraphZusatz(this.formData, 'p5', '§5 Vergütung')}
 
         <h3>§6 Deadlines & Korrekturen</h3>
         
@@ -332,6 +337,7 @@ VertraegeCreate.prototype.renderStep5 = function() {
                    value="${this.formData.abnahmedatum || ''}">
           </div>
         </div>
+        ${renderParagraphZusatz(this.formData, 'p6', '§6 Deadlines & Korrekturen')}
 
         <h3>Rechnungsstellung</h3>
         ${this.renderMehrfachRechnungToggle()}

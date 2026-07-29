@@ -3,6 +3,7 @@
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
+import { renderPaginatedText, renderZusatzBestimmung } from './PdfTextFlow.js';
 
 VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this.getContractLanguage(vertrag)) {
     try {
@@ -57,13 +58,18 @@ VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this
 
       let pageNumber = 1;
 
+      // Fußzeile (stellt Font-Zustand danach wieder her)
       const addFooter = () => {
+        const prevSize = doc.getFontSize();
+        const prevFont = doc.getFont();
         doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(100);
         doc.text('LikeGroup GmbH | Jakob-Latscha-Str. 3 | 60314 Frankfurt am Main | Deutschland', 14, FOOTER_Y);
         doc.text(`Seite ${pageNumber}`, 196, FOOTER_Y, { align: 'right' });
         doc.setTextColor(0);
+        doc.setFontSize(prevSize);
+        doc.setFont(prevFont.fontName, prevFont.fontStyle);
         pageNumber++;
       };
 
@@ -74,6 +80,16 @@ VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this
           y = 20;
         }
       };
+
+      // Helper: Seitenumbruch für paginierten Freitext (Footer + neue Seite)
+      const onPageBreak = () => {
+        addFooter();
+        doc.addPage();
+        return 20;
+      };
+
+      // Zusätzliche Bestimmungen pro Paragraph (optional)
+      const zusaetze = vertrag.paragraph_zusaetze || {};
 
       const drawCheckbox = (x, yPos, checked, label) => {
         doc.rect(x, yPos - 2.5, 3, 3);
@@ -327,7 +343,7 @@ VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this
       doc.text(`Maximale tägliche Einsatzdauer: ${vertrag.model_max_tagesstunden || '-'} Stunden`, 14, y);
 
       y += 8;
-      checkPageBreak(30);
+      checkPageBreak(40);
       doc.setFont('helvetica', 'bold');
       doc.text('2.4 Einsatzort', 14, y);
       doc.setFont('helvetica', 'normal');
@@ -353,6 +369,7 @@ VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this
       } else {
         drawCheckbox(18, y, true, 'Keine Optionstage vereinbart');
       }
+      y = renderZusatzBestimmung(doc, zusaetze.p2, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
       // §3 Produktionsrahmen
       y += 14;
@@ -377,7 +394,7 @@ VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this
       doc.text('Anspruch auf eine bestimmte Veröffentlichungsmenge dar.', 14, y);
 
       y += 8;
-      checkPageBreak(40);
+      checkPageBreak(50);
       doc.setFont('helvetica', 'bold');
       doc.text('3.2 Rolle des Models', 14, y);
       doc.setFont('helvetica', 'normal');
@@ -393,7 +410,7 @@ VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this
       });
 
       y += 4;
-      checkPageBreak(20);
+      checkPageBreak(30);
       doc.setFont('helvetica', 'bold');
       doc.text('3.3 Styling', 14, y);
       doc.setFont('helvetica', 'normal');
@@ -406,6 +423,7 @@ VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this
         drawCheckbox(18, y, vertrag.model_styling === key, displayLabel);
         y += 6;
       });
+      y = renderZusatzBestimmung(doc, zusaetze.p3, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
       addFooter();
 
@@ -495,6 +513,7 @@ VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this
         drawCheckbox(18, y, kiNutzung.includes(key), label);
         y += 6;
       });
+      y = renderZusatzBestimmung(doc, zusaetze.p4, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
       addFooter();
 
@@ -537,7 +556,7 @@ VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this
       }
 
       y += 4;
-      checkPageBreak(20);
+      checkPageBreak(25);
       doc.setFont('helvetica', 'bold');
       doc.text('5.3 Reise- und Nebenkosten', 14, y);
       doc.setFont('helvetica', 'normal');
@@ -556,6 +575,7 @@ VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this
       doc.text(`Zahlungsziel: ${zahlungszielLabels[vertrag.zahlungsziel] || '-'}`, 14, y);
       y += 5;
       doc.text('Rechnungsstellung durch das Model nach Abschluss der Produktion.', 14, y);
+      y = renderZusatzBestimmung(doc, zusaetze.p5, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
       // §6 Absage & Ausfall
       y += 14;
@@ -576,7 +596,7 @@ VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this
       drawCheckbox(18, y, !vertrag.model_wetterabhaengig, 'Produktion ist nicht wetterabhängig');
 
       y += 8;
-      checkPageBreak(30);
+      checkPageBreak(40);
       doc.setFont('helvetica', 'bold');
       doc.text('6.2 Absagebedingungen', 14, y);
       doc.setFont('helvetica', 'normal');
@@ -593,6 +613,7 @@ VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this
         y += 6;
         doc.text(`   ${vertrag.model_absage_individuell}`, 18, y);
       }
+      y = renderZusatzBestimmung(doc, zusaetze.p6, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
       // §7 Persönlichkeitsrechte
       y += 14;
@@ -632,12 +653,7 @@ VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
         y += 8;
-        const lines = doc.splitTextToSize(vertrag.weitere_bestimmungen, 180);
-        lines.forEach(line => {
-          checkPageBreak(8);
-          doc.text(line, 14, y);
-          y += 5;
-        });
+        y = renderPaginatedText(doc, vertrag.weitere_bestimmungen, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
       }
 
       // Unterschriften

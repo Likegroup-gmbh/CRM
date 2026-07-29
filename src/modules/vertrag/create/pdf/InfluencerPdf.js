@@ -3,6 +3,7 @@
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
+import { renderPaginatedText, renderZusatzBestimmung } from './PdfTextFlow.js';
 
 VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang = this.getContractLanguage(vertrag)) {
     try {
@@ -61,16 +62,30 @@ VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang =
       // Seitenzähler für Fußzeile
       let pageNumber = 1;
 
-      // Helper: Fußzeile hinzufügen
+      // Helper: Fußzeile hinzufügen (stellt Font-Zustand danach wieder her)
       const addFooter = () => {
+        const prevSize = doc.getFontSize();
+        const prevFont = doc.getFont();
         doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(100);
         doc.text('LikeGroup GmbH | Jakob-Latscha-Str. 3 | 60314 Frankfurt am Main | Deutschland', 14, FOOTER_Y);
         doc.text(`Seite ${pageNumber}`, 196, FOOTER_Y, { align: 'right' });
         doc.setTextColor(0);
+        doc.setFontSize(prevSize);
+        doc.setFont(prevFont.fontName, prevFont.fontStyle);
         pageNumber++;
       };
+
+      // Helper: Seitenumbruch für paginierten Freitext (Footer + neue Seite)
+      const onPageBreak = () => {
+        addFooter();
+        doc.addPage();
+        return 20;
+      };
+
+      // Zusätzliche Bestimmungen pro Paragraph (optional)
+      const zusaetze = vertrag.paragraph_zusaetze || {};
 
       // Hole Kunden- und Creator-Daten
       const kunde = this.unternehmen.find(u => u.id === vertrag.kunde_unternehmen_id);
@@ -97,12 +112,10 @@ VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang =
         drawCheckbox(x + 20, yPos, value === false || value === undefined || value === null, 'Nein');
       };
 
-      // Helper: Text mit Umbruch
+      // Helper: Text mit Umbruch (zeilenweise paginiert, läuft nie in die Fußzeile)
       const addWrappedText = (text, x, yStart, maxWidth) => {
         const localizedText = this.localizeContractText(text, lang);
-        const lines = doc.splitTextToSize(localizedText, maxWidth);
-        doc.text(lines, x, yStart);
-        return yStart + (lines.length * 5);
+        return renderPaginatedText(doc, localizedText, { x, y: yStart, maxWidth, maxContentY: MAX_CONTENT_Y, onPageBreak });
       };
 
       // Labels
@@ -313,6 +326,7 @@ VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang =
       doc.text(`Feed-Posts: ${vertrag.anzahl_feed_posts || 0}`, 14, y);
       y += 5;
       doc.text(`Story-Slides: ${vertrag.anzahl_storys || 0}`, 14, y);
+      y = renderZusatzBestimmung(doc, zusaetze.p2, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
       // §3 Konzept, Freigabe & Veröffentlichungsplan
       y += 12;
@@ -367,6 +381,7 @@ VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang =
           y += 4;
         });
       }
+      y = renderZusatzBestimmung(doc, zusaetze.p3, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
       // Helper: Seitenumbruch prüfen - wenn nicht genug Platz, neue Seite
       const checkPageBreak = (neededSpace) => {
@@ -428,6 +443,7 @@ VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang =
       drawCheckbox(14, y, !vertrag.exklusivitaet, 'Keine Exklusivität');
       y += 5;
       drawCheckbox(14, y, vertrag.exklusivitaet, `Exklusivität für ${exklusivitaetMonate} ${exklusivitaetEinheit}`);
+      y = renderZusatzBestimmung(doc, zusaetze.p5, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
       // §6 Vergütung
       checkPageBreak(55);
@@ -452,6 +468,7 @@ VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang =
       drawCheckbox(14, y, skontoValue, 'Ja (3% bei Zahlung innerhalb 7 Tage)');
       y += 5;
       drawCheckbox(14, y, !skontoValue, 'Nein');
+      y = renderZusatzBestimmung(doc, zusaetze.p6, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
       // §7 Qualitätsanforderungen
       checkPageBreak(35);
@@ -463,6 +480,7 @@ VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang =
       doc.setFontSize(10);
       y += 8;
       y = addWrappedText('Der Content muss insbesondere: technisch sauber (Ton, Licht, Bild), natürlich und nicht übermäßig werblich, markenkonform, visuell hochwertig, kreativ, lebendig und mit ästhetisch geeignetem Hintergrund umgesetzt sein.', 14, y, 180);
+      y = renderZusatzBestimmung(doc, zusaetze.p7, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
       // §8 Anpassungen
       checkPageBreak(55);
@@ -485,6 +503,7 @@ VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang =
         drawCheckbox(14, y, anpassungen.includes(key), label);
         y += 5;
       });
+      y = renderZusatzBestimmung(doc, zusaetze.p8, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
       // §9 Neuerstellung (Neudreh)
       checkPageBreak(30);
@@ -509,9 +528,10 @@ VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang =
       drawCheckbox(14, y, !vertrag.reichweiten_garantie, 'Keine Garantie');
       y += 5;
       drawCheckbox(14, y, vertrag.reichweiten_garantie, `Mindestreichweite: ${vertrag.reichweiten_garantie_wert || '-'}`);
+      y = renderZusatzBestimmung(doc, zusaetze.p10, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
       // §11 Mindest-Online-Dauer
-      checkPageBreak(35);
+      checkPageBreak(40);
       y += 10;
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
@@ -520,9 +540,15 @@ VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang =
       doc.setFontSize(10);
       y += 6;
       Object.entries(mindestOnlineDauerLabels).forEach(([key, label]) => {
+        if (y + 5 > MAX_CONTENT_Y) {
+          addFooter();
+          doc.addPage();
+          y = 20;
+        }
         drawCheckbox(14, y, vertrag.mindest_online_dauer === key, label);
         y += 5;
       });
+      y = renderZusatzBestimmung(doc, zusaetze.p11, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
       // §12 Rechte Dritter
       checkPageBreak(25);

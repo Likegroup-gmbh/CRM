@@ -3,6 +3,7 @@
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
+import { ensureSpace, renderPaginatedText, renderZusatzBestimmung } from './PdfTextFlow.js';
 
 VertraegeCreate.prototype.generatePDF = async function(vertrag) {
     const lang = this.getContractLanguage(vertrag);
@@ -101,8 +102,10 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       // Seitenzähler für Fußzeile
       let pageNumber = 1;
 
-      // Helper: Fußzeile hinzufügen
+      // Helper: Fußzeile hinzufügen (stellt Font-Zustand danach wieder her)
       const addFooter = () => {
+        const prevSize = doc.getFontSize();
+        const prevFont = doc.getFont();
         doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(100);
@@ -111,8 +114,20 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
         // Rechts: Seitenzahl
         doc.text(`Seite ${pageNumber}`, 196, FOOTER_Y, { align: 'right' });
         doc.setTextColor(0);
+        doc.setFontSize(prevSize);
+        doc.setFont(prevFont.fontName, prevFont.fontStyle);
         pageNumber++;
       };
+
+      // Helper: Seitenumbruch für paginierten Freitext (Footer + neue Seite)
+      const onPageBreak = () => {
+        addFooter();
+        doc.addPage();
+        return 20;
+      };
+
+      // Zusätzliche Bestimmungen pro Paragraph (optional)
+      const zusaetze = vertrag.paragraph_zusaetze || {};
 
       // Hole Kunden- und Creator-Daten
       const kunde = this.unternehmen.find(u => u.id === vertrag.kunde_unternehmen_id);
@@ -322,6 +337,7 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       doc.setFont('helvetica', 'normal');
       y += 6;
       doc.text(`${contentErstellungLabels[vertrag.content_erstellung_art] || '-'}`, 14, y);
+      y = renderZusatzBestimmung(doc, zusaetze.p2, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
       // §3 Output & Lieferumfang
       y += 14;
@@ -348,6 +364,7 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       doc.setFont('helvetica', 'normal');
       y += 6;
       drawYesNoCheckboxes(14, y, vertrag.untertitel);
+      y = renderZusatzBestimmung(doc, zusaetze.p3, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
       // §4 Nutzungsrechte
       y += 14;
@@ -389,6 +406,7 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
         const ugcMonate = vertrag.exklusivitaet_monate || parseInt(this.formData.exklusivitaet_monate) || '-';
         doc.text(`Exklusivität für ${ugcMonate} ${ugcEinheit}`, 14, y);
       }
+      y = renderZusatzBestimmung(doc, zusaetze.p4, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
       // §5 Vergütung
       y += 14;
@@ -414,14 +432,8 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
         y += 6;
         doc.text(`Bei Zusatzkosten: ${formatMoney(vertrag.zusatzkosten_betrag)} € netto`, 14, y);
       }
-      // 5.2 Zahlungsbedingungen - benötigt ~30mm, daher Seitenumbruch wenn nötig
-      if (y > 220) {
-        addFooter();
-        doc.addPage();
-        y = 20;
-      } else {
-        y += 8;
-      }
+      // 5.2 Zahlungsbedingungen - Block (~44mm) muss komplett passen
+      y = ensureSpace(y + 8, 44, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.text('5.2 Zahlungsbedingungen', 14, y);
@@ -440,15 +452,10 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       doc.text('Bei Skonto gilt: Bei Zahlung innerhalb von 7 Kalendertagen ab Rechnungsdatum gewährt der', 14, y);
       y += 4;
       doc.text('Creator 3% Skonto auf den Nettorechnungsbetrag. Der Skonto-Hinweis ist auf der Rechnung auszuweisen.', 14, y);
+      y = renderZusatzBestimmung(doc, zusaetze.p5, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
-      // §6 Deadlines & Korrekturen - Seitenumbruch wenn nötig
-      if (y > MAX_CONTENT_Y) {
-        addFooter();
-        doc.addPage();
-        y = 20;
-      } else {
-        y += 14;
-      }
+      // §6 Deadlines & Korrekturen - Block (~36mm) muss komplett passen
+      y = ensureSpace(y + 14, 36, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§6 Deadlines & Korrekturen', 14, y);
@@ -466,18 +473,13 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       doc.setFont('helvetica', 'normal');
       y += 6;
       doc.text(`${vertrag.korrekturschleifen || '-'}`, 14, y);
+      y = renderZusatzBestimmung(doc, zusaetze.p6, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
 
       // ============================================
       // SEITE 3+: Statische Paragraphen §7-§13
       // ============================================
-      // Nur neue Seite wenn nicht genug Platz für §7
-      if (y > MAX_CONTENT_Y) {
-        addFooter();
-        doc.addPage();
-        y = 20;
-      } else {
-        y += 14;
-      }
+      // Nur neue Seite wenn nicht genug Platz für den kompletten §7-Block (~30mm)
+      y = ensureSpace(y + 14, 30, MAX_CONTENT_Y, onPageBreak);
 
       // §7 Rechte Dritter
       doc.setFontSize(12);
@@ -494,8 +496,8 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       y += 4;
       doc.text('Rechtsverletzungen.', 14, y);
 
-      // §8 Verschwiegenheit
-      y += 14;
+      // §8 Verschwiegenheit - Block (~30mm) muss komplett passen
+      y = ensureSpace(y + 14, 30, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§8 Verschwiegenheit', 14, y);
@@ -510,8 +512,8 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       y += 4;
       doc.text('geltend gemacht werden.', 14, y);
 
-      // §9 Qualitätsrichtlinien & Briefings
-      y += 14;
+      // §9 Qualitätsrichtlinien & Briefings - Block (~38mm) muss komplett passen
+      y = ensureSpace(y + 14, 38, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§9 Qualitätsrichtlinien & Briefings', 14, y);
@@ -530,8 +532,8 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       y += 5;
       doc.text('Diese Unterlagen konkretisieren die qualitativen und inhaltlichen Anforderungen an den Content.', 14, y);
 
-      // §10 Neudreh, Anpassungen & Rücktrittsrecht
-      y += 14;
+      // §10 Neudreh, Anpassungen & Rücktrittsrecht - 10.1-Block (~60mm) muss komplett passen
+      y = ensureSpace(y + 14, 60, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§10 Neudreh, Anpassungen & Rücktrittsrecht', 14, y);
@@ -562,14 +564,8 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       y += 5;
       doc.text('• Inhaltlich oder qualitativ nicht verwertbarem Content', 18, y);
 
-      // 10.2 Anpassungen - benötigt ~35mm, daher Seitenumbruch wenn nötig
-      if (y > 215) {
-        addFooter();
-        doc.addPage();
-        y = 20;
-      } else {
-        y += 8;
-      }
+      // 10.2 Anpassungen - Block (~35mm) muss komplett passen
+      y = ensureSpace(y + 8, 35, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.text('10.2 Anpassungen (Korrekturschleifen)', 14, y);
@@ -586,14 +582,8 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       y += 5;
       doc.text('• Nachfilmen einzelner Szenen, allgemeiner Performance-Feinschliff', 18, y);
 
-      // Seitenumbruch prüfen
-      if (y > MAX_CONTENT_Y) {
-        addFooter();
-        doc.addPage();
-        y = 20;
-      }
-
-      y += 8;
+      // 10.3 Rücktrittsrecht - Block (~25mm) muss komplett passen
+      y = ensureSpace(y + 8, 25, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
       doc.text('10.3 Rücktrittsrecht', 14, y);
@@ -606,14 +596,8 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       y += 5;
       doc.text('anteilig oder vollständig zurückzufordern.', 14, y);
 
-      // §11 Agenturbeauftragung & Stellvertretung - Seitenumbruch wenn nötig
-      if (y > MAX_CONTENT_Y) {
-        addFooter();
-        doc.addPage();
-        y = 20;
-      } else {
-        y += 14;
-      }
+      // §11 Agenturbeauftragung & Stellvertretung - Block (~50mm) muss komplett passen
+      y = ensureSpace(y + 14, 50, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§11 Agenturbeauftragung & Stellvertretung', 14, y);
@@ -634,16 +618,8 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       y += 5;
       doc.text('Nutzungsrechte einzuräumen.', 14, y);
 
-      // Seitenumbruch prüfen für §12
-      if (y > MAX_CONTENT_Y) {
-        addFooter();
-        doc.addPage();
-        y = 20;
-      } else {
-        y += 14;
-      }
-
-      // §12 Schlussbestimmungen
+      // §12 Schlussbestimmungen - Block (~25mm) muss komplett passen
+      y = ensureSpace(y + 14, 25, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§12 Schlussbestimmungen', 14, y);
@@ -654,8 +630,8 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       y += 4;
       doc.text('Vertrag im Übrigen wirksam.', 14, y);
 
-      // §13 Vertragsschluss
-      y += 14;
+      // §13 Vertragsschluss - Block (~25mm) muss komplett passen
+      y = ensureSpace(y + 14, 25, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(12);
       doc.setFont('helvetica', 'bold');
       doc.text('§13 Vertragsschluss', 14, y);
@@ -668,25 +644,20 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
 
       // §14 Weitere Bestimmungen (nur wenn ausgefüllt)
       if (vertrag.weitere_bestimmungen) {
-        y += 14;
-        if (y > MAX_CONTENT_Y) {
-          addFooter();
-          doc.addPage();
-          y = 20;
-        }
+        // Überschrift + erste Zeile zusammenhalten
+        y = ensureSpace(y + 14, 20, MAX_CONTENT_Y, onPageBreak);
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.text('§14 Weitere Bestimmungen', 14, y);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(10);
         y += 8;
-        const weitereLines = doc.splitTextToSize(vertrag.weitere_bestimmungen, 180);
-        doc.text(weitereLines, 14, y);
-        y += weitereLines.length * 5;
+        // Zeilenweise paginieren, damit langer Freitext nie in Fußzeile/Seitenrand läuft
+        y = renderPaginatedText(doc, vertrag.weitere_bestimmungen, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
       }
 
-      // Unterschrift (nur Creator erforderlich)
-      y += 25;
+      // Unterschrift (nur Creator erforderlich) - garantiert genug Platz vor der Fußzeile
+      y = ensureSpace(y + 25, 22, MAX_CONTENT_Y, onPageBreak);
       doc.setFontSize(10);
       doc.text('Ort, Datum: ___________________________', 14, y);
       y += 15;

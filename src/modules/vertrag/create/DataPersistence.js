@@ -2,6 +2,7 @@
 // Datenbank-Persistierung: Draft speichern, Submit, DB-Payload, Validierung.
 
 import { VertraegeCreate } from './VertraegeCreateCore.js';
+import { collectParagraphZusaetze } from './paragraphZusatz.js';
 
 VertraegeCreate.prototype.saveDraftToDB = async function() {
     // Erst aktuelle Formulardaten sammeln!
@@ -88,6 +89,8 @@ VertraegeCreate.prototype.prepareDataForDB = function() {
       skonto: this.formData.skonto === true || this.formData.skonto === 'true',
       korrekturschleifen: parseInt(this.formData.korrekturschleifen) || null,
       weitere_bestimmungen: this.formData.weitere_bestimmungen || null,
+      // Zusätzliche Bestimmungen pro Paragraph (JSONB, null wenn leer)
+      paragraph_zusaetze: collectParagraphZusaetze(this.formData),
       kunde_po_nummer: this.formData.kunde_po_nummer || null,
       // Mehrfachrechnungen nur bei kooperationsbasierten Typen (Contracting hat eigenes Budget-Tracking)
       mehrere_rechnungen_erlaubt: typ === 'Contracting' ? false : !!this.formData.mehrere_rechnungen_erlaubt,

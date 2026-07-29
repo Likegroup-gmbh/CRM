@@ -9646,6 +9646,21 @@ span.profile-name {
   cursor: not-allowed;
 }
 
+/* "Extra Bestimmung hinzufügen" pro Paragraph (Vertragsformular) */
+.paragraph-zusatz {
+  margin: var(--space-xs) 0 var(--space-md);
+}
+
+.btn-paragraph-zusatz {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-paragraph-zusatz svg {
+  flex-shrink: 0;
+}
+
 .info-mailto-link {
   color: var(--gray-900);
   text-decoration: underline;

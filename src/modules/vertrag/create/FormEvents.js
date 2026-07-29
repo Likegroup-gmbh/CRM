@@ -122,6 +122,22 @@ VertraegeCreate.prototype.bindDynamicFieldEvents = function() {
       });
     }
 
+    // "Extra Bestimmung hinzufügen" pro Paragraph (Event Delegation)
+    if (form) {
+      form.addEventListener('click', (e) => {
+        const btn = e.target.closest('.btn-paragraph-zusatz');
+        if (!btn) return;
+        const wrapper = btn.closest('.paragraph-zusatz');
+        if (!wrapper) return;
+        btn.classList.add('hidden');
+        const field = wrapper.querySelector('.paragraph-zusatz-field');
+        if (field) {
+          field.classList.remove('hidden');
+          field.querySelector('textarea')?.focus();
+        }
+      });
+    }
+
     const kooperationSelect = document.getElementById('kooperation_id');
     if (kooperationSelect) {
       kooperationSelect.addEventListener('change', (e) => {

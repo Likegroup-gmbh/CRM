@@ -2,6 +2,7 @@
 // Influencer-Kooperationsvertrag: Steps 2-5 + Helper fuer Veroeffentlichungsdaten.
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
+import { renderParagraphZusatz } from '../paragraphZusatz.js';
 
 VertraegeCreate.prototype.renderInfluencerStep2 = function() {
     if (!this._filtersInitialized) {
@@ -136,6 +137,7 @@ VertraegeCreate.prototype.renderInfluencerStep3 = function() {
                    value="${this.formData.anzahl_storys || 0}">
           </div>
         </div>
+        ${renderParagraphZusatz(this.formData, 'p2', '§2 Plattformen & Inhalte')}
 
         <h3>§3 Konzept, Freigabe & Veröffentlichungsplan</h3>
         <p class="form-hint">Der Content ist der LikeGroup GmbH vor Veröffentlichung zur Freigabe vorzulegen.</p>
@@ -180,6 +182,7 @@ VertraegeCreate.prototype.renderInfluencerStep3 = function() {
             </div>
           </div>
         </div>
+        ${renderParagraphZusatz(this.formData, 'p3', '§3 Konzept, Freigabe & Veröffentlichungsplan')}
       </div>
     `;
 };
@@ -344,6 +347,7 @@ VertraegeCreate.prototype.renderInfluencerStep4 = function() {
           </div>
         </div>
         <p class="form-hint">Am Veröffentlichungstag darf keine Werbung für konkurrierende Marken erfolgen.</p>
+        ${renderParagraphZusatz(this.formData, 'p5', '§5 Nutzungsrechte & Media Buyout')}
 
         <h3 class="mt-section">§10 Reichweiten-Garantie</h3>
         <div class="form-two-col">
@@ -367,6 +371,7 @@ VertraegeCreate.prototype.renderInfluencerStep4 = function() {
                    value="${this.formData.reichweiten_garantie_wert || ''}">
           </div>
         </div>
+        ${renderParagraphZusatz(this.formData, 'p10', '§10 Reichweiten-Garantie')}
 
         <h3 class="mt-section">§11 Mindest-Online-Dauer</h3>
         <div class="form-field">
@@ -393,6 +398,7 @@ VertraegeCreate.prototype.renderInfluencerStep4 = function() {
             </label>
           </div>
         </div>
+        ${renderParagraphZusatz(this.formData, 'p11', '§11 Mindest-Online-Dauer')}
       </div>
     `;
 };
@@ -470,9 +476,11 @@ VertraegeCreate.prototype.renderInfluencerStep5 = function() {
         </div>
 
         <p class="form-hint">Die Zahlung erfolgt durch den Auftraggeber oder die LikeGroup GmbH im Auftrag des Kunden. Die Rechnungsstellung erfolgt nach Veröffentlichung bzw. Erreichung der Ziele.</p>
+        ${renderParagraphZusatz(this.formData, 'p6', '§6 Vergütung')}
 
         <h3 class="mt-section">§7 Qualitätsanforderungen</h3>
         <p class="form-hint">Der Content muss technisch sauber (Ton, Licht, Bild), natürlich und nicht übermäßig werblich, markenkonform, visuell hochwertig, kreativ, lebendig und mit ästhetisch geeignetem Hintergrund umgesetzt sein.</p>
+        ${renderParagraphZusatz(this.formData, 'p7', '§7 Qualitätsanforderungen')}
 
         <h3 class="mt-section">§8 Anpassungen</h3>
         <p class="form-hint">Kostenfreie Anpassungen umfassen u.a.:</p>
@@ -510,6 +518,7 @@ VertraegeCreate.prototype.renderInfluencerStep5 = function() {
             </label>
           </div>
         </div>
+        ${renderParagraphZusatz(this.formData, 'p8', '§8 Anpassungen')}
 
         <h3 class="mt-section">Rechnungsstellung</h3>
         ${this.renderMehrfachRechnungToggle()}

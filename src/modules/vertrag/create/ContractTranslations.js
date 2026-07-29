@@ -12,6 +12,7 @@ const CONTRACT_TEXT_TRANSLATIONS = {
     'LikeGroup GmbH | Jakob-Latscha-Str. 3 | 60314 Frankfurt am Main | Deutschland': 'LikeGroup GmbH | Jakob-Latscha-Str. 3 | 60314 Frankfurt am Main | Germany',
     'Ja': 'Yes',
     'Nein': 'No',
+    'Zusätzliche Bestimmung:': 'Additional provision:',
     'Ja (3% bei Zahlung innerhalb 7 Tage)': 'Yes (3% for payment within 7 days)',
     'Skonto:': 'Cash discount:',
     'Sonstige': 'Other',
