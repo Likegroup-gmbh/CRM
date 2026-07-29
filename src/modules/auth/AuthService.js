@@ -1,6 +1,6 @@
 import { permissionSystem } from '../../core/PermissionSystem.js';
-import { isDevModeEmail } from '../../core/dev/DevModeAccess.js';
-import { ensureListenerMonitor } from '../../core/dev/ListenerMonitor.js';
+import { isDevModeEmail, isDevEnv } from '../../core/dev/DevModeAccess.js';
+import { ensureListenerMonitor, hideListenerMonitor } from '../../core/dev/ListenerMonitor.js';
 // AuthService.js (ES6-Modul)
 // Authentifizierung und Benutzer-Management
 
@@ -94,6 +94,10 @@ export class AuthService {
         if (isDevModeEmail(data.email)) {
           localStorage.setItem('devMode', '1');
           ensureListenerMonitor();
+        } else if (!isDevEnv()) {
+          // Aufräumen: devMode kann aus einer früheren Whitelist-Session im Browser kleben
+          localStorage.removeItem('devMode');
+          hideListenerMonitor();
         }
         
         // 1) Rollen-/Entity-Rechte (inkl. JSON-Overrides)

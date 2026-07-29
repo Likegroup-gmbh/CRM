@@ -7,6 +7,10 @@ export function isDevModeEmail(email) {
   return Boolean(email && DEV_MODE_EMAILS.has(String(email).toLowerCase()));
 }
 
+export function isDevEnv() {
+  return Boolean(typeof import.meta !== 'undefined' && import.meta.env?.DEV);
+}
+
 export function getSessionEmailFromStorage() {
   try {
     for (let i = 0; i < localStorage.length; i++) {

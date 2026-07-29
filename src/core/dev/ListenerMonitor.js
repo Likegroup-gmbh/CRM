@@ -171,6 +171,17 @@ export function initListenerMonitor() {
 }
 
 /**
+ * Entfernt das Overlay aus dem DOM. Der addEventListener-Patch bleibt bestehen
+ * (nicht rückbaubar ohne Referenzverlust), zaehlt aber nur noch unsichtbar weiter.
+ */
+export function hideListenerMonitor() {
+  if (!state.overlay) return;
+  state.overlay.remove();
+  state.overlay = null;
+  state.active = false;
+}
+
+/**
  * Resettet den Element-Counter. Sinnvoll bei Routenwechsel, da Element-Listener
  * durch DOM-Removal (innerHTML =) ohnehin inaktiv sind, der Counter aber nicht
  * automatisch dekrementiert wird (kein removeEventListener-Call).
