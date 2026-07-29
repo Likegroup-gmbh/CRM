@@ -1,6 +1,6 @@
 /** Accounts mit automatischem Dev-Mode (ListenerMonitor etc.) in Production. */
 export const DEV_MODE_EMAILS = new Set([
-  'philip@creatorjobs.com',
+  // 'philip@creatorjobs.com', // temporär deaktiviert
 ]);
 
 export function isDevModeEmail(email) {
