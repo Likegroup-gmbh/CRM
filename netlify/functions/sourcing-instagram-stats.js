@@ -1,14 +1,24 @@
 // Netlify Function: sourcing-instagram-stats
-// Holt Instagram-Daten fuer eine Sourcing-Zeile via Meta Business Discovery
-// und schreibt Name, Follower, Reichweite und die CPM-Werte direkt in
-// public.creator_auswahl_items (Haekchen-Button neben dem Instagram-Link).
+// Holt Instagram-Daten fuer eine Sourcing-Zeile und schreibt Name, Follower,
+// Views-Schnitte und die CPM-Werte in public.creator_auswahl_items
+// (Haekchen-Button neben dem Instagram-Link).
 //
-// POST { item_id: '<uuid>' }
-//   -> laedt Profil + bis zu 100 Medien (zwei Seiten a 50), filtert auf Reels
-//      die aelter als 4 Tage sind und berechnet daraus den 8er-, 30er- und
-//      getrimmten Views-Schnitt sowie den jeweiligen CPM-Preis.
-//      Das Profilbild wird als WebP nach Supabase Storage kopiert, da Metas
-//      CDN-URLs nach wenigen Tagen ablaufen.
+// Die Tabelle zeigt nicht cpm_ig_*, sondern rechnet ig_views_* mit dem TKP der
+// Liste (creator_auswahl.tkp). cpm_ig_* bleiben als Referenzwert bei 25 EUR.
+//
+// POST { item_id: '<uuid>', force?: boolean }
+//   -> Vor dem Meta-Abruf wird public.sourcing_creator gefragt: derselbe
+//      Creator steckt oft in mehreren Listen. Ist der Handle dort bekannt,
+//      werden die Werte aus dem Pool in die Zeile kopiert und Meta bleibt
+//      unangetastet (kein Quota-Verbrauch, keine Dubletten-Pflege).
+//   -> force: true erzwingt den Meta-Abruf und aktualisiert den Pool. Das
+//      Frontend schickt das beim zweiten Klick (Refresh-Zustand des Buttons).
+//   -> Meta-Abruf: Profil + bis zu 100 Medien (zwei Seiten a 50), filtert auf
+//      Reels die aelter als 4 Tage sind und berechnet daraus den 8er-, 30er-
+//      und getrimmten Views-Schnitt sowie den jeweiligen CPM-Preis.
+//      Das Profilbild wird in zwei AVIF-Groessen (640px + 128px Thumbnail)
+//      nach Supabase Storage kopiert, da Metas CDN-URLs nach wenigen Tagen
+//      ablaufen.
 //   -> zusaetzlich werden E-Mail, Telefon und Standort aus der Bio gelesen
 //      (siehe _shared/bio-extract.js). Die API kennt diese Felder nicht,
 //      Creator hinterlegen sie aber oft im Bio-Freitext.
@@ -21,7 +31,7 @@ const {
   normalizeUsername,
   isValidUsername,
   isRateLimitError,
-  storeImage
+  storeImagePair
 } = require('./_shared/instagram-graph');
 const { computeInstagramCpm, WINDOW_LONG } = require('./_shared/instagram-cpm');
 const { extractEmail, extractPhone, extractCity } = require('./_shared/bio-extract');
@@ -108,15 +118,61 @@ function formatReach(views) {
   return String(Math.round(views));
 }
 
+function leer(value) {
+  return !String(value ?? '').trim();
+}
+
+/**
+ * Pool-Eintrag auf die Sourcing-Zeile mappen. Beide Wege (Pool-Treffer und
+ * frischer Meta-Abruf) schreiben ueber diese Funktion, damit eine Zeile aus
+ * dem Cache genau so aussieht wie eine frisch abgerufene.
+ *
+ * Objektive Instagram-Werte werden ueberschrieben, von Hand gepflegte
+ * Kontaktdaten und Namen nur gefuellt wenn sie leer sind.
+ */
+function buildItemUpdate(pool, item) {
+  const update = {
+    sourcing_creator_id: pool.id,
+    link_instagram: pool.link_instagram,
+    follower_instagram: pool.follower_instagram,
+    ig_views_8: pool.ig_views_8,
+    ig_views_30: pool.ig_views_30,
+    ig_views_trimmed: pool.ig_views_trimmed,
+    cpm_ig_8: pool.cpm_ig_8,
+    cpm_ig_30: pool.cpm_ig_30,
+    cpm_ig_trimmed: pool.cpm_ig_trimmed,
+    ig_stats: pool.ig_stats || {},
+    ig_fetched_at: pool.ig_fetched_at,
+    ig_fetch_error: null
+  };
+
+  if (leer(item.name) && pool.name) update.name = pool.name;
+  if (pool.profile_image_url) update.profile_image_url = pool.profile_image_url;
+  if (pool.profile_image_thumb_url) update.profile_image_thumb_url = pool.profile_image_thumb_url;
+  if (leer(item.email) && pool.email) update.email = pool.email;
+  if (leer(item.telefon) && pool.telefon) update.telefon = pool.telefon;
+  if (leer(item.wohnort) && pool.wohnort) update.wohnort = pool.wohnort;
+
+  return update;
+}
+
+/** benutzer.id zum eingeloggten Auth-User (created_by ist ein FK auf benutzer) */
+async function resolveBenutzerId(supabase, authUserId) {
+  if (!authUserId) return null;
+  const { data } = await supabase
+    .from('benutzer')
+    .select('id')
+    .eq('auth_user_id', authUserId)
+    .maybeSingle();
+  return data?.id || null;
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return jsonResponse(405, { error: 'Method not allowed' });
   }
   if (!SUPABASE_URL || !SERVICE_KEY) {
     return jsonResponse(500, { error: 'Supabase-Env fehlt (SUPABASE_URL / SUPABASE_SERVICE_KEY)' });
-  }
-  if (!process.env.META_ACCESS_TOKEN || !process.env.META_IG_USER_ID) {
-    return jsonResponse(500, { error: 'Meta-Env fehlt (META_ACCESS_TOKEN / META_IG_USER_ID)' });
   }
 
   const auth = await verifyAuth(event);
@@ -135,12 +191,13 @@ exports.handler = async (event) => {
   if (!itemId) {
     return jsonResponse(400, { error: 'item_id fehlt' });
   }
+  const force = body.force === true;
 
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
   const { data: item, error: loadError } = await supabase
     .from('creator_auswahl_items')
-    .select('id, name, link_instagram, email, telefon, wohnort')
+    .select('id, name, link_instagram, email, telefon, wohnort, sourcing_creator_id')
     .eq('id', itemId)
     .single();
   if (loadError || !item) {
@@ -152,12 +209,59 @@ exports.handler = async (event) => {
     return jsonResponse(400, { error: 'Kein gültiger Instagram-Link in der Zeile hinterlegt' });
   }
 
+  const { data: pool } = await supabase
+    .from('sourcing_creator')
+    .select('*')
+    .eq('ig_username', username)
+    .maybeSingle();
+
+  // Creator schon im Pool: Werte uebernehmen statt Meta zu fragen. Erst ein
+  // ausdruecklicher Refresh (force) holt neue Zahlen.
+  if (pool?.ig_fetched_at && !force) {
+    const { data: updated, error: copyError } = await supabase
+      .from('creator_auswahl_items')
+      .update(buildItemUpdate(pool, item))
+      .eq('id', itemId)
+      .select()
+      .single();
+    if (copyError) {
+      return jsonResponse(500, { error: `Speichern fehlgeschlagen: ${copyError.message}` });
+    }
+
+    return jsonResponse(200, {
+      ok: true,
+      item_id: itemId,
+      username,
+      source: 'pool',
+      pool_fetched_at: pool.ig_fetched_at,
+      item: updated,
+      stats: {
+        views_8: pool.ig_views_8,
+        views_30: pool.ig_views_30,
+        views_trimmed: pool.ig_views_trimmed
+      }
+    });
+  }
+
+  if (!process.env.META_ACCESS_TOKEN || !process.env.META_IG_USER_ID) {
+    return jsonResponse(500, { error: 'Meta-Env fehlt (META_ACCESS_TOKEN / META_IG_USER_ID)' });
+  }
+
   const res = await fetchProfileWithMedia(username);
   if (!res.ok) {
     await supabase
       .from('creator_auswahl_items')
       .update({ ig_fetch_error: res.error, ig_fetched_at: new Date().toISOString() })
       .eq('id', itemId);
+
+    // Fehler auch am Pool vermerken, damit ein abgelaufenes Profil nicht in
+    // jeder Liste erneut probiert werden muss
+    if (pool) {
+      await supabase
+        .from('sourcing_creator')
+        .update({ ig_fetch_error: res.error, updated_at: new Date().toISOString() })
+        .eq('id', pool.id);
+    }
 
     if (res.rate_limited) {
       return jsonResponse(429, {
@@ -180,14 +284,23 @@ exports.handler = async (event) => {
   const p = res.profile;
   const stats = computeInstagramCpm(res.media);
 
-  const profilbildUrl = await storeImage(
+  // Pfad haengt am Handle, nicht an der Zeile: so liegt das Bildpaar pro
+  // Creator nur einmal im Storage und Pool-Treffer kommen ohne Meta an ein Bild
+  const bild = await storeImagePair(
     supabase,
     p.profile_picture_url,
-    `sourcing/${itemId}/profil.webp`
+    `sourcing/pool/${username}/profil`
   );
 
-  const update = {
+  const jetzt = new Date().toISOString();
+  const bio = p.biography || '';
+
+  const poolRecord = {
+    ig_username: username,
     link_instagram: `https://www.instagram.com/${username}/`,
+    name: p.name || pool?.name || null,
+    profile_image_url: bild?.url || pool?.profile_image_url || null,
+    profile_image_thumb_url: bild?.thumbUrl || pool?.profile_image_thumb_url || null,
     follower_instagram: p.followers_count ?? null,
     reichweite_instagram: formatReach(stats.views_trimmed),
     ig_views_8: stats.views_8,
@@ -196,8 +309,9 @@ exports.handler = async (event) => {
     cpm_ig_8: stats.cpm_8,
     cpm_ig_30: stats.cpm_30,
     cpm_ig_trimmed: stats.cpm_trimmed,
-    ig_fetched_at: new Date().toISOString(),
+    ig_fetched_at: jetzt,
     ig_fetch_error: null,
+    updated_at: jetzt,
     ig_stats: {
       username,
       biography: p.biography || null,
@@ -211,31 +325,31 @@ exports.handler = async (event) => {
       videos: stats.videos
     }
   };
-  // Manuell gepflegte Namen nicht ueberschreiben
-  if (!item.name?.trim() && p.name) update.name = p.name;
-  if (profilbildUrl) update.profile_image_url = profilbildUrl;
 
   // Kontaktdaten aus der Bio: Business Discovery liefert weder E-Mail noch
   // Telefon oder Standort als Feld, viele Creator schreiben sie aber in die
-  // Bio. Nur leere Felder werden gefuellt - was jemand von Hand eingetragen
-  // hat, ist verlaesslicher als die Heuristik.
-  const bio = p.biography || '';
-  if (!item.email?.trim()) {
-    const mail = extractEmail(bio);
-    if (mail) update.email = mail;
+  // Bio. Was im Pool oder von Hand in der Zeile steht, ist verlaesslicher als
+  // die Heuristik und bleibt darum stehen.
+  poolRecord.email = pool?.email || (leer(item.email) ? extractEmail(bio) : item.email) || null;
+  poolRecord.telefon = pool?.telefon || (leer(item.telefon) ? extractPhone(bio) : item.telefon) || null;
+  poolRecord.wohnort = pool?.wohnort || (leer(item.wohnort) ? extractCity(bio) : item.wohnort) || null;
+
+  if (!pool) {
+    poolRecord.created_by = await resolveBenutzerId(supabase, auth.user.id);
   }
-  if (!item.telefon?.trim()) {
-    const telefon = extractPhone(bio);
-    if (telefon) update.telefon = telefon;
-  }
-  if (!item.wohnort?.trim()) {
-    const stadt = extractCity(bio);
-    if (stadt) update.wohnort = stadt;
+
+  const { data: poolRow, error: poolError } = await supabase
+    .from('sourcing_creator')
+    .upsert(poolRecord, { onConflict: 'ig_username' })
+    .select()
+    .single();
+  if (poolError) {
+    return jsonResponse(500, { error: `Creator-Pool konnte nicht geschrieben werden: ${poolError.message}` });
   }
 
   const { data: updated, error: updateError } = await supabase
     .from('creator_auswahl_items')
-    .update(update)
+    .update(buildItemUpdate(poolRow, item))
     .eq('id', itemId)
     .select()
     .single();
@@ -247,6 +361,8 @@ exports.handler = async (event) => {
     ok: true,
     item_id: itemId,
     username,
+    source: 'meta',
+    pool_fetched_at: poolRow.ig_fetched_at,
     item: updated,
     stats: {
       views_8: stats.views_8,

@@ -32,7 +32,9 @@ export function renderCreatorTable(creators, options = {}) {
     const stadt = c.lieferadresse_stadt || '-';
     const land = c.lieferadresse_land || '-';
 
-    const safeAvatarUrl = c.profilbild_url ? window.validatorSystem?.sanitizeUrl(c.profilbild_url) : null;
+    // Kleiner Tabellen-Avatar: 128px-Thumb reicht, Fallback fuer Altbestand
+    const avatarSource = c.profilbild_thumb_url || c.profilbild_url;
+    const safeAvatarUrl = avatarSource ? window.validatorSystem?.sanitizeUrl(avatarSource) : null;
     const avatarHtml = safeAvatarUrl
       ? `<img src="${safeAvatarUrl}" alt="${name.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}" class="table-avatar table-avatar-img" loading="lazy" />`
       : `<span class="table-avatar">${(c.vorname || '?')[0].toUpperCase()}</span>`;

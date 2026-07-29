@@ -493,11 +493,15 @@ export class CreatorAuswahlService {
    * Instagram-Profil, Follower und CPM-Werte fuer eine Zeile abrufen.
    * Die Netlify Function schreibt direkt in creator_auswahl_items und
    * liefert das aktualisierte Item zurueck.
+   *
+   * Ohne force wird der Creator-Pool (sourcing_creator) bevorzugt: kennt er
+   * den Handle schon, kommen die Werte von dort und Meta bleibt verschont.
+   * @returns {Promise<{ item: object, source: 'pool'|'meta', poolFetchedAt: string|null }>}
    */
-  async fetchInstagramStats(itemId) {
+  async fetchInstagramStats(itemId, { force = false } = {}) {
     const response = await authorizedFetch('/.netlify/functions/sourcing-instagram-stats', {
       method: 'POST',
-      body: JSON.stringify({ item_id: itemId })
+      body: JSON.stringify({ item_id: itemId, force })
     });
 
     const result = await response.json().catch(() => ({}));
@@ -509,7 +513,11 @@ export class CreatorAuswahlService {
       throw error;
     }
 
-    return result.item;
+    return {
+      item: result.item,
+      source: result.source || 'meta',
+      poolFetchedAt: result.pool_fetched_at || null
+    };
   }
 
   // =====================================================

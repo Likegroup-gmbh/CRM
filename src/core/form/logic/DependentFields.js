@@ -198,7 +198,10 @@ export class DependentFields {
     
     const dependencyMap = new Map();
     config.fields.forEach(field => {
-      if (field.dependsOn && (field.dynamic || field.table || field.type === 'select' || field.type === 'multiselect')) {
+      // Nur Felder mit nachladbaren Optionen: statische Selects haben nichts zu
+      // laden, wuerden aber von clearDependentField ihre fest definierten
+      // Options verlieren und blieben dann dauerhaft leer.
+      if (field.dependsOn && (field.dynamic || field.table)) {
         if (!dependencyMap.has(field.dependsOn)) {
           dependencyMap.set(field.dependsOn, []);
         }

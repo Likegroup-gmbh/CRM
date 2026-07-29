@@ -409,7 +409,7 @@ export class DuplicateChecker {
     try {
       const { data, error } = await window.supabase
         .from('creator')
-        .select('id, vorname, nachname, instagram, mail, profilbild_url')
+        .select('id, vorname, nachname, instagram, mail, profilbild_url, profilbild_thumb_url')
         .order('vorname');
 
       if (error) throw error;

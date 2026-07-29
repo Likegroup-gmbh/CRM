@@ -296,6 +296,7 @@ export class CreatorGridView {
   _renderMedia(c) {
     const esc = (v) => window.validatorSystem?.sanitizeHtml?.(String(v ?? '')) ?? String(v ?? '');
     const name = `${c.vorname || ''} ${c.nachname || ''}`.trim() || 'Unbekannt';
+    // Cover fuellt die Kartenbreite im 4:3-Format - hier das Hauptbild, kein Thumb
     const safeAvatar = c.profilbild_url ? window.validatorSystem?.sanitizeUrl?.(c.profilbild_url) : null;
 
     const inner = safeAvatar
@@ -423,7 +424,8 @@ export class CreatorGridView {
     const commentIcon = '<svg class="creator-card__post-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M140,128a12,12,0,1,1-12-12A12,12,0,0,1,140,128ZM84,116a12,12,0,1,0,12,12A12,12,0,0,0,84,116Zm88,0a12,12,0,1,0,12,12A12,12,0,0,0,172,116Zm60,12A104,104,0,0,1,79.12,219.82L45.07,231.17a16,16,0,0,1-20.24-20.24l11.35-34.05A104,104,0,1,1,232,128Zm-16,0A88,88,0,1,0,51.81,172.06a8,8,0,0,1,.66,6.54L40,216,77.4,203.53a7.85,7.85,0,0,1,2.53-.42,8,8,0,0,1,4,1.08A88,88,0,0,0,216,128Z"></path></svg>';
 
     const cards = usable.map(p => {
-      const thumb = safeUrl(p.thumbnail_path);
+      // Kleine Kachel in der Karte: Thumb bevorzugen, Altbestand hat nur das Hauptbild
+      const thumb = safeUrl(p.thumbnail_thumb_path) || safeUrl(p.thumbnail_path);
       const link = safeUrl(p.permalink);
       const isVideo = p.media_type === 'VIDEO';
       const meta = `<span class="creator-card__post-meta"><span class="creator-card__post-stat">${likeIcon}${num(p.like_count)}</span><span class="creator-card__post-stat">${commentIcon}${num(p.comments_count)}</span></span>`;
@@ -446,8 +448,8 @@ export class CreatorGridView {
 
   /**
    * Normalisiert ig_brand_mentions: Eintrag kann String (alt) oder
-   * Objekt {handle,name,profile_pic} (neu) sein.
-   * @returns {Array<{handle:string,name:string|null,profile_pic:string|null}>}
+   * Objekt {handle,name,profile_pic,profile_pic_thumb} (neu) sein.
+   * @returns {Array<{handle:string,name:string|null,profile_pic:string|null,profile_pic_thumb:string|null}>}
    */
   _normalizeBrandMentions(c) {
     const raw = Array.isArray(c.ig_brand_mentions) ? c.ig_brand_mentions : [];
@@ -455,13 +457,14 @@ export class CreatorGridView {
       .map((entry) => {
         if (!entry) return null;
         if (typeof entry === 'string') {
-          return { handle: entry, name: null, profile_pic: null };
+          return { handle: entry, name: null, profile_pic: null, profile_pic_thumb: null };
         }
         if (typeof entry === 'object' && entry.handle) {
           return {
             handle: String(entry.handle),
             name: entry.name || null,
-            profile_pic: entry.profile_pic || null
+            profile_pic: entry.profile_pic || null,
+            profile_pic_thumb: entry.profile_pic_thumb || null
           };
         }
         return null;
@@ -545,6 +548,7 @@ export class CreatorGridView {
         name: displayName,
         type: 'org',
         logo_url: b.profile_pic || null,
+        thumb_url: b.profile_pic_thumb || null,
         href: `https://instagram.com/${String(b.handle).replace('@', '')}`
       });
     }

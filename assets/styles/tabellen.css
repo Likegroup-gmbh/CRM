@@ -2491,6 +2491,15 @@ width: 18em;
   border-radius: 50%;
 }
 
+/* Sourcing-Liste: groessere Avatare (4px-Grid: 44) */
+.table-avatar--sourcing {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  font-size: 16px;
+  margin-right: 0;
+}
+
 .table-logo--round {
   border-radius: 50%;
   object-fit: cover;

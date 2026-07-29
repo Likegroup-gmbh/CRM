@@ -109,10 +109,22 @@ describe('CreatorGridView', () => {
 
     it('zeigt Profilbild wenn vorhanden', () => {
       const grid = new CreatorGridView(makeList());
-      const card = parseCard(grid.renderCard({ id: 'c1', vorname: 'A', profilbild_url: 'http://img/a.webp' }));
+      const card = parseCard(grid.renderCard({ id: 'c1', vorname: 'A', profilbild_url: 'http://img/a.avif' }));
       const img = card.querySelector('img.creator-card__cover');
       expect(img).toBeTruthy();
-      expect(img.getAttribute('src')).toBe('http://img/a.webp');
+      expect(img.getAttribute('src')).toBe('http://img/a.avif');
+    });
+
+    it('nimmt fuer das grosse Cover das Hauptbild, nicht das Thumbnail', () => {
+      const grid = new CreatorGridView(makeList());
+      const card = parseCard(grid.renderCard({
+        id: 'c1',
+        vorname: 'A',
+        profilbild_url: 'http://img/a.avif',
+        profilbild_thumb_url: 'http://img/a_thumb.avif'
+      }));
+
+      expect(card.querySelector('img.creator-card__cover').getAttribute('src')).toBe('http://img/a.avif');
     });
   });
 
@@ -213,6 +225,26 @@ describe('CreatorGridView', () => {
       const grid = new CreatorGridView(makeList());
       const card = parseCard(grid.renderCard({ ...connectedWithPosts, ig_connected_at: null }));
       expect(card.querySelector('.creator-card__posts')).toBeNull();
+    });
+
+    it('nimmt fuer die kleinen Kacheln das Thumbnail, sonst das Hauptbild', () => {
+      const grid = new CreatorGridView(makeList());
+      const card = parseCard(grid.renderCard({
+        id: 'c1', vorname: 'A', ig_connected_at: '2026-01-01',
+        ig_recent_posts: [
+          {
+            thumbnail_path: 'http://x/1.avif',
+            thumbnail_thumb_path: 'http://x/1_thumb.avif',
+            permalink: 'http://p/1',
+            media_type: 'IMAGE'
+          },
+          { thumbnail_path: 'http://x/2.avif', permalink: 'http://p/2', media_type: 'IMAGE' }
+        ]
+      }));
+      const quellen = Array.from(card.querySelectorAll('.creator-card__post-thumb img'))
+        .map((img) => img.getAttribute('src'));
+
+      expect(quellen).toEqual(['http://x/1_thumb.avif', 'http://x/2.avif']);
     });
   });
 
@@ -463,14 +495,14 @@ describe('CreatorGridView', () => {
       const res = grid._normalizeBrandMentions({
         ig_brand_mentions: [
           'nike',
-          { handle: 'adidas', name: 'Adidas', profile_pic: 'http://x/a.webp' },
+          { handle: 'adidas', name: 'Adidas', profile_pic: 'http://x/a.avif', profile_pic_thumb: 'http://x/a_thumb.avif' },
           null,
           { name: 'ohneHandle' }
         ]
       });
       expect(res).toEqual([
-        { handle: 'nike', name: null, profile_pic: null },
-        { handle: 'adidas', name: 'Adidas', profile_pic: 'http://x/a.webp' }
+        { handle: 'nike', name: null, profile_pic: null, profile_pic_thumb: null },
+        { handle: 'adidas', name: 'Adidas', profile_pic: 'http://x/a.avif', profile_pic_thumb: 'http://x/a_thumb.avif' }
       ]);
     });
 
@@ -504,11 +536,24 @@ describe('CreatorGridView', () => {
 
     it('IG-Brand mit Logo -> Bild-Bubble mit externem Link', () => {
       const grid = new CreatorGridView(makeList());
-      const html = grid._renderCoopsRow([], [{ handle: 'adidas', name: 'Adidas', profile_pic: 'http://x/a.webp' }]);
+      const html = grid._renderCoopsRow([], [{ handle: 'adidas', name: 'Adidas', profile_pic: 'http://x/a.avif' }]);
       const el = parseCard(html);
       const img = el.querySelector('a.avatar-bubble img.avatar-bubble-logo');
       expect(img).toBeTruthy();
-      expect(img.getAttribute('src')).toBe('http://x/a.webp');
+      expect(img.getAttribute('src')).toBe('http://x/a.avif');
+    });
+
+    it('nimmt fuer die Brand-Bubble das Logo-Thumbnail wenn vorhanden', () => {
+      const grid = new CreatorGridView(makeList());
+      const html = grid._renderCoopsRow([], [{
+        handle: 'adidas',
+        name: 'Adidas',
+        profile_pic: 'http://x/a.avif',
+        profile_pic_thumb: 'http://x/a_thumb.avif'
+      }]);
+      const img = parseCard(html).querySelector('a.avatar-bubble img.avatar-bubble-logo');
+
+      expect(img.getAttribute('src')).toBe('http://x/a_thumb.avif');
     });
 
     it('gibt leere Reihe zurueck ohne Marken/Brands', () => {

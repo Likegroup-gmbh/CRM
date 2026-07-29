@@ -8,8 +8,13 @@ const GRAPH_VERSION = process.env.META_GRAPH_VERSION || 'v21.0';
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 const STORAGE_BUCKET = 'instagram-media';
-const THUMB_WIDTH = 640;
-const WEBP_QUALITY = 78;
+const IMAGE_WIDTH = 640;   // Hauptbild
+const THUMB_WIDTH = 128;   // Projekt-Standard, siehe backfill-thumbnails.js
+const AVIF_QUALITY = 55;   // visuell etwa aequivalent zu WebP q78
+// effort 2 statt des sharp-Defaults 4: bei 640px kostet effort 4 rund das
+// Fuenffache an Encode-Zeit, und instagram-connect verarbeitet bis zu
+// 14 Bilder in einem Lauf gegen ein 26s-Timeout
+const AVIF_EFFORT = 2;
 
 // Meta-Fehlercodes, die auf Rate-Limiting/transiente Probleme hindeuten
 // (4 = App-Limit, 17 = User-Limit, 32 = Page-Limit, 613 = Custom Rate Limit)
@@ -73,37 +78,59 @@ async function fetchProfile(username, fields) {
   }
 }
 
+async function uploadAvif(supabase, storagePath, buffer, cacheBuster) {
+  const { error } = await supabase.storage
+    .from(STORAGE_BUCKET)
+    .upload(storagePath, buffer, {
+      contentType: 'image/avif',
+      cacheControl: '3600',
+      upsert: true
+    });
+  if (error) throw new Error(error.message);
+
+  const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(storagePath);
+  // Cache-Buster: gleicher Pfad wird beim Refresh ueberschrieben
+  return `${data.publicUrl}?v=${cacheBuster}`;
+}
+
 /**
- * Bild von Metas CDN laden, zu WebP komprimieren und in den Storage-Bucket
- * hochladen. Gibt die public URL (mit Cache-Buster) zurueck, oder null wenn
- * irgendwas schiefgeht (der Abruf soll daran nicht scheitern).
+ * Bild von Metas CDN laden und in zwei AVIF-Groessen in den Storage legen:
+ * das Hauptbild (640px) und ein Thumbnail (128px) fuer Avatare und Listen.
+ *
+ * `basePath` kommt ohne Endung herein, die Endungen setzt diese Funktion
+ * (`<basePath>.avif` und `<basePath>_thumb.avif`). Beide Groessen entstehen aus
+ * einem einzigen Download und werden parallel encodiert und hochgeladen.
+ *
+ * @returns {Promise<{url: string, path: string, thumbUrl: string, thumbPath: string}|null>}
+ *   null, wenn irgendwas schiefgeht - ein fehlendes Bild darf den Abruf nie kippen.
  */
-async function storeImage(supabase, sourceUrl, storagePath, width = THUMB_WIDTH) {
+async function storeImagePair(supabase, sourceUrl, basePath, options = {}) {
   if (!sourceUrl) return null;
+  const { width = IMAGE_WIDTH, thumbWidth = THUMB_WIDTH } = options;
+
   try {
     const res = await fetch(sourceUrl);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const original = Buffer.from(await res.arrayBuffer());
 
-    const webp = await sharp(original)
-      .resize({ width, withoutEnlargement: true })
-      .webp({ quality: WEBP_QUALITY })
+    const encode = (w) => sharp(original)
+      .resize({ width: w, withoutEnlargement: true })
+      .avif({ quality: AVIF_QUALITY, effort: AVIF_EFFORT })
       .toBuffer();
 
-    const { error } = await supabase.storage
-      .from(STORAGE_BUCKET)
-      .upload(storagePath, webp, {
-        contentType: 'image/webp',
-        cacheControl: '3600',
-        upsert: true
-      });
-    if (error) throw new Error(error.message);
+    const [full, thumb] = await Promise.all([encode(width), encode(thumbWidth)]);
 
-    const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(storagePath);
-    // Cache-Buster: gleicher Pfad wird beim Refresh ueberschrieben
-    return `${data.publicUrl}?v=${Date.now()}`;
+    const path = `${basePath}.avif`;
+    const thumbPath = `${basePath}_thumb.avif`;
+    const cacheBuster = Date.now();
+    const [url, thumbUrl] = await Promise.all([
+      uploadAvif(supabase, path, full, cacheBuster),
+      uploadAvif(supabase, thumbPath, thumb, cacheBuster)
+    ]);
+
+    return { url, path, thumbUrl, thumbPath };
   } catch (err) {
-    console.warn(`⚠️ instagram-graph: Bild ${storagePath} fehlgeschlagen:`, err.message);
+    console.warn(`⚠️ instagram-graph: Bild ${basePath} fehlgeschlagen:`, err.message);
     return null;
   }
 }
@@ -111,11 +138,12 @@ async function storeImage(supabase, sourceUrl, storagePath, width = THUMB_WIDTH)
 module.exports = {
   GRAPH_BASE,
   STORAGE_BUCKET,
+  IMAGE_WIDTH,
   THUMB_WIDTH,
   graphGet,
   normalizeUsername,
   isValidUsername,
   isRateLimitError,
   fetchProfile,
-  storeImage
+  storeImagePair
 };

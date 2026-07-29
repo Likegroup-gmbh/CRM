@@ -234,7 +234,9 @@ export class CreatorList extends BasePaginatedList {
     if (!creator.instagram) actionOptions.disabledActions = ['connect'];
     if (creator.ig_connected_at) actionOptions.igConnected = true;
 
-    const safeAvatarUrl = creator.profilbild_url ? window.validatorSystem?.sanitizeUrl(creator.profilbild_url) : null;
+    // Kleiner Tabellen-Avatar: 128px-Thumb reicht, Fallback fuer Altbestand
+    const avatarSource = creator.profilbild_thumb_url || creator.profilbild_url;
+    const safeAvatarUrl = avatarSource ? window.validatorSystem?.sanitizeUrl(avatarSource) : null;
     const avatarHtml = safeAvatarUrl
       ? `<img src="${safeAvatarUrl}" alt="${sanitize(`${creator.vorname || ''} ${creator.nachname || ''}`.trim())}" class="table-avatar table-avatar-img" loading="lazy" />`
       : `<span class="table-avatar">${(creator.vorname || '?')[0].toUpperCase()}</span>`;
@@ -814,7 +816,8 @@ export class CreatorList extends BasePaginatedList {
         ${entries.length > 0 ? `
           <ul class="duplicate-list">
             ${entries.map(entry => {
-              const safeImgUrl = entry.profilbild_url ? sanitizeImgUrl(entry.profilbild_url) : null;
+              const imgSource = entry.profilbild_thumb_url || entry.profilbild_url;
+              const safeImgUrl = imgSource ? sanitizeImgUrl(imgSource) : null;
               return `
               <li class="duplicate-list-item">
                 <a href="javascript:void(0)" class="duplicate-link" data-entity-id="${sanitize(entry.id)}">
@@ -840,7 +843,8 @@ export class CreatorList extends BasePaginatedList {
         <strong>Folgende ähnliche Einträge gefunden:</strong>
         <ul class="duplicate-list">
           ${entries.map(entry => {
-            const safeImgUrl = entry.profilbild_url ? sanitizeImgUrl(entry.profilbild_url) : null;
+            const imgSource = entry.profilbild_thumb_url || entry.profilbild_url;
+            const safeImgUrl = imgSource ? sanitizeImgUrl(imgSource) : null;
             return `
             <li class="duplicate-list-item">
               <a href="javascript:void(0)" class="duplicate-link" data-entity-id="${sanitize(entry.id)}">

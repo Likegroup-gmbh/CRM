@@ -3012,7 +3012,44 @@ input.input-error {
 .drawer-subtitle {
   font-size: var(--text-sm);
   color: var(--gray-600);
-  
+
+}
+
+/* Abschnittsueberschrift innerhalb eines Drawers */
+.drawer-section-title {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.drawer-section-title + * {
+  margin-top: 0;
+}
+
+.data-table-container + .drawer-section-title,
+.drawer-info-text + .drawer-section-title {
+  margin-top: var(--space-lg);
+}
+
+.drawer-info-text {
+  margin: var(--space-sm) 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+/* Listeneinstellungen im Drawer "Tabelle anpassen" */
+.sourcing-listen-einstellungen {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+.sourcing-listen-einstellungen .form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .selected-kooperation-display {
@@ -11479,6 +11516,7 @@ input.readonly-field {
 .add-item-actions-left {
   display: flex;
   align-items: center;
+  gap: var(--space-sm);
 }
 
 /* Muss ueber der Reiter-Leiste liegen, sonst schneidet sie offene Dropdowns ab */
@@ -12274,7 +12312,7 @@ table:has(#strategien-table-body) td.col-actions {
    Die left-Offsets ergeben sich hier kumulativ aus den Spaltenbreiten. */
 .creator-pool-table {
   --cp-w-drag: 32px;
-  --cp-w-bild: 44px;
+  --cp-w-bild: 62px;
   --cp-sticky-2-left: var(--cp-w-drag);
   --cp-sticky-3-left: calc(var(--cp-w-drag) + var(--cp-w-bild));
 }
@@ -12432,8 +12470,8 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-location,
 .creator-pool-table td.cp-col-mail,
 .creator-pool-table td.cp-col-telefon,
-.creator-pool-table td.cp-col-reichweite-ig,
-.creator-pool-table td.cp-col-reichweite-tt,
+.creator-pool-table td.cp-col-reichweite-story,
+.creator-pool-table td.cp-col-preis-story,
 .creator-pool-table td.cp-col-reichweite-garantie,
 .creator-pool-table td.cp-col-pricing,
 .creator-pool-table td.cp-col-cpm-ig-8,
@@ -12446,16 +12484,16 @@ table:has(#strategien-table-body) td.col-actions {
 
 .creator-pool-table td.cp-col-name .strategie-textarea,
 .creator-pool-table td.cp-col-location .strategie-textarea,
-.creator-pool-table td.cp-col-reichweite-ig .strategie-textarea,
-.creator-pool-table td.cp-col-reichweite-tt .strategie-textarea,
+.creator-pool-table td.cp-col-reichweite-story .strategie-textarea,
+.creator-pool-table td.cp-col-preis-story .strategie-textarea,
 .creator-pool-table td.cp-col-reichweite-garantie .strategie-textarea,
 .creator-pool-table td.cp-col-pricing .strategie-textarea,
 .creator-pool-table td.cp-col-ek .strategie-textarea,
 .creator-pool-table td.cp-col-vk .strategie-textarea,
 .creator-pool-table td.cp-col-name .cell-text-readonly,
 .creator-pool-table td.cp-col-location .cell-text-readonly,
-.creator-pool-table td.cp-col-reichweite-ig .cell-text-readonly,
-.creator-pool-table td.cp-col-reichweite-tt .cell-text-readonly,
+.creator-pool-table td.cp-col-reichweite-story .cell-text-readonly,
+.creator-pool-table td.cp-col-preis-story .cell-text-readonly,
 .creator-pool-table td.cp-col-reichweite-garantie .cell-text-readonly,
 .creator-pool-table td.cp-col-pricing .cell-text-readonly,
 .creator-pool-table td.cp-col-cpm-ig-8 .cell-text-readonly,
@@ -12494,9 +12532,20 @@ table:has(#strategien-table-body) td.col-actions {
   min-width: 100px;
 }
 
+/* Mail zeigt nur das Icon, die Adresse steht im title */
 .creator-pool-table .cp-col-mail {
-  width: 190px;
-  min-width: 190px;
+  width: 56px;
+  min-width: 56px;
+  text-align: center;
+}
+
+.creator-pool-table td.cell-icon-only {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.creator-pool-table td.cell-icon-only .link-icon-btn {
+  display: inline-flex;
 }
 
 .creator-pool-table .cp-col-telefon {
@@ -12594,8 +12643,8 @@ table:has(#strategien-table-body) td.col-actions {
   min-width: 80px;
 }
 
-.creator-pool-table .cp-col-reichweite-ig,
-.creator-pool-table .cp-col-reichweite-tt,
+.creator-pool-table .cp-col-reichweite-story,
+.creator-pool-table .cp-col-preis-story,
 .creator-pool-table .cp-col-reichweite-garantie {
   width: 100px;
   min-width: 100px;
@@ -12610,8 +12659,8 @@ table:has(#strategien-table-body) td.col-actions {
 
 /* Kurze Zahlenwerte mittig wie die Follower-Spalten, statt am linken Rand zu
    kleben - betrifft Reichweiten, Garantie und alle Preisspalten */
-.creator-pool-table .cp-col-reichweite-ig,
-.creator-pool-table .cp-col-reichweite-tt,
+.creator-pool-table .cp-col-reichweite-story,
+.creator-pool-table .cp-col-preis-story,
 .creator-pool-table .cp-col-reichweite-garantie,
 .creator-pool-table .cp-col-pricing,
 .creator-pool-table .cp-col-cpm-ig-8,
@@ -12622,14 +12671,14 @@ table:has(#strategien-table-body) td.col-actions {
   text-align: center;
 }
 
-.creator-pool-table td.cp-col-reichweite-ig .strategie-textarea,
-.creator-pool-table td.cp-col-reichweite-tt .strategie-textarea,
+.creator-pool-table td.cp-col-reichweite-story .strategie-textarea,
+.creator-pool-table td.cp-col-preis-story .strategie-textarea,
 .creator-pool-table td.cp-col-reichweite-garantie .strategie-textarea,
 .creator-pool-table td.cp-col-pricing .strategie-textarea,
 .creator-pool-table td.cp-col-ek .strategie-textarea,
 .creator-pool-table td.cp-col-vk .strategie-textarea,
-.creator-pool-table td.cp-col-reichweite-ig .cell-text-readonly,
-.creator-pool-table td.cp-col-reichweite-tt .cell-text-readonly,
+.creator-pool-table td.cp-col-reichweite-story .cell-text-readonly,
+.creator-pool-table td.cp-col-preis-story .cell-text-readonly,
 .creator-pool-table td.cp-col-reichweite-garantie .cell-text-readonly,
 .creator-pool-table td.cp-col-pricing .cell-text-readonly,
 .creator-pool-table td.cp-col-cpm-ig-8 .cell-text-readonly,
@@ -12652,6 +12701,59 @@ table:has(#strategien-table-body) td.col-actions {
 /* Blur setzt color nur auf dem Wrapper - die Views-Zeile braucht sie explizit */
 .creator-pool-table .cpm-auto-value.kunden-call-blur .cpm-auto-reach {
   color: transparent;
+}
+
+/* Spaltenbloecke einfaerben: Reels, Story und TikTok stehen nebeneinander und
+   sind ohne Farbe kaum auseinanderzuhalten.
+
+   Die Toenung laeuft ueber background-image, nicht background-color: Zeilen
+   bringen ihre eigene Hintergrundfarbe mit (Hover, gebucht, Absage). Ein
+   halbtransparenter Layer legt sich darueber, statt sie zu ersetzen. */
+.creator-pool-table .cp-col-cpm-ig-8,
+.creator-pool-table .cp-col-cpm-ig-30,
+.creator-pool-table .cp-col-cpm-ig-trimmed {
+  --cp-block-tint: 129 140 248;  /* Gedaempftes Indigo - Reels */
+}
+
+.creator-pool-table .cp-col-reichweite-story,
+.creator-pool-table .cp-col-preis-story {
+  --cp-block-tint: 159 122 134;  /* Gedaempftes Rose - Story */
+}
+
+.creator-pool-table .cp-col-link-tt,
+.creator-pool-table .cp-col-follower-tt {
+  --cp-block-tint: 71 85 105;    /* Slate - TikTok */
+}
+
+.creator-pool-table th.cp-col-cpm-ig-8,
+.creator-pool-table th.cp-col-cpm-ig-30,
+.creator-pool-table th.cp-col-cpm-ig-trimmed,
+.creator-pool-table th.cp-col-reichweite-story,
+.creator-pool-table th.cp-col-preis-story,
+.creator-pool-table th.cp-col-link-tt,
+.creator-pool-table th.cp-col-follower-tt {
+  background-image: linear-gradient(rgb(var(--cp-block-tint) / 0.1), rgb(var(--cp-block-tint) / 0.1));
+  color: rgb(var(--cp-block-tint));
+}
+
+.creator-pool-table td.cp-col-cpm-ig-8,
+.creator-pool-table td.cp-col-cpm-ig-30,
+.creator-pool-table td.cp-col-cpm-ig-trimmed,
+.creator-pool-table td.cp-col-reichweite-story,
+.creator-pool-table td.cp-col-preis-story,
+.creator-pool-table td.cp-col-link-tt,
+.creator-pool-table td.cp-col-follower-tt {
+  background-image: linear-gradient(rgb(var(--cp-block-tint) / 0.04), rgb(var(--cp-block-tint) / 0.04));
+}
+
+/* Blockanfang markieren, damit die Grenze zwischen den Bloecken sichtbar ist */
+.creator-pool-table th.cp-col-cpm-ig-8,
+.creator-pool-table td.cp-col-cpm-ig-8,
+.creator-pool-table th.cp-col-reichweite-story,
+.creator-pool-table td.cp-col-reichweite-story,
+.creator-pool-table th.cp-col-link-tt,
+.creator-pool-table td.cp-col-link-tt {
+  border-left: 2px solid rgb(var(--cp-block-tint) / 0.35) !important;
 }
 
 /* Instagram-Abruf: Haekchen-Button neben dem IG-Link */

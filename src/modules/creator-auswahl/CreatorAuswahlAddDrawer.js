@@ -216,12 +216,12 @@ export class CreatorAuswahlAddDrawer {
 
           <div class="form-row">
             <div class="form-field">
-              <label class="form-label">Reichweite IG</label>
-              <input type="text" name="reichweite_instagram" class="form-input" placeholder="z.B. 10K">
+              <label class="form-label">Reichweite Story</label>
+              <input type="text" name="reichweite_story" class="form-input" placeholder="z.B. 10K">
             </div>
             <div class="form-field">
-              <label class="form-label">Reichweite TT</label>
-              <input type="text" name="reichweite_tiktok" class="form-input" placeholder="z.B. 50K">
+              <label class="form-label">Preis Story</label>
+              <input type="text" name="preis_story" class="form-input" placeholder="z.B. 250€">
             </div>
           </div>
 
@@ -457,8 +457,8 @@ export class CreatorAuswahlAddDrawer {
         pricing: formData.get('pricing')?.trim() || null,
         preis_ek: formData.get('preis_ek') ? parseFloat(formData.get('preis_ek')) : null,
         preis_vk: formData.get('preis_vk') ? parseFloat(formData.get('preis_vk')) : null,
-        reichweite_instagram: formData.get('reichweite_instagram')?.trim() || null,
-        reichweite_tiktok: formData.get('reichweite_tiktok')?.trim() || null,
+        reichweite_story: formData.get('reichweite_story')?.trim() || null,
+        preis_story: formData.get('preis_story')?.trim() || null,
         reichweite_garantie: formData.get('reichweite_garantie')?.trim() || null,
         sortierung: this.detail.items.length,
         creator_id: this.selectedCreatorFromDb?.id || null
@@ -497,8 +497,8 @@ export class CreatorAuswahlAddDrawer {
         pricing: null,
         preis_ek: null,
         preis_vk: null,
-        reichweite_instagram: null,
-        reichweite_tiktok: null,
+        reichweite_story: null,
+        preis_story: null,
         reichweite_garantie: null,
         sortierung: 0,
         creator_id: null
@@ -529,8 +529,8 @@ export class CreatorAuswahlAddDrawer {
         pricing: null,
         preis_ek: null,
         preis_vk: null,
-        reichweite_instagram: null,
-        reichweite_tiktok: null,
+        reichweite_story: null,
+        preis_story: null,
         reichweite_garantie: null,
         sortierung: this.detail.items.length,
         creator_id: null
