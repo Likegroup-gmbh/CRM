@@ -57,9 +57,9 @@ const SEARCH_CONFIG = [
   {
     key: 'produkt',
     table: 'produkt',
-    // Produkte leben unter ihrer Marke, es gibt keine eigene Detailroute
-    routeFields: ['marke_id'],
-    buildRoute: (row) => (row.marke_id ? `/marke/${row.marke_id}/produkt?produkt=${row.id}` : null),
+    // Produkte leben unter ihrem Unternehmen, es gibt keine eigene Detailroute
+    routeFields: ['unternehmen_id'],
+    buildRoute: (row) => (row.unternehmen_id ? `/unternehmen/${row.unternehmen_id}/produkt?produkt=${row.id}` : null),
     labelField: 'name',
     searchFields: ['name', 'url', 'kurzbeschreibung', 'usp'],
     fieldLabels: { name: 'Name', url: 'Shop-URL', kurzbeschreibung: 'Kurzbeschreibung', usp: 'USP' },
@@ -111,11 +111,12 @@ const CROSS_REF_CONFIG = {
   unternehmen: [
     { targetKey: 'marke', type: 'fk', table: 'marke', fk: 'unternehmen_id', labelField: 'markenname' },
     { targetKey: 'auftrag', type: 'fk', table: 'auftrag', fk: 'unternehmen_id', labelField: 'auftragsname' },
-    { targetKey: 'kampagne', type: 'fk', table: 'kampagne', fk: 'unternehmen_id', labelField: 'kampagnenname' }
+    { targetKey: 'kampagne', type: 'fk', table: 'kampagne', fk: 'unternehmen_id', labelField: 'kampagnenname' },
+    { targetKey: 'produkt', type: 'fk', table: 'produkt', fk: 'unternehmen_id', labelField: 'name' }
   ],
   marke: [
     { targetKey: 'kampagne', type: 'fk', table: 'kampagne', fk: 'marke_id', labelField: 'kampagnenname' },
-    { targetKey: 'produkt', type: 'fk', table: 'produkt', fk: 'marke_id', labelField: 'name' }
+    { targetKey: 'produkt', type: 'junction', junctionTable: 'produkt_marke', sourceIdColumn: 'marke_id', targetIdColumn: 'produkt_id', targetTable: 'produkt', targetLabelField: 'name' }
   ],
   ansprechpartner: [
     { targetKey: 'unternehmen', type: 'junction', junctionTable: 'ansprechpartner_unternehmen', sourceIdColumn: 'ansprechpartner_id', targetIdColumn: 'unternehmen_id', targetTable: 'unternehmen', targetLabelField: 'firmenname' },
@@ -270,7 +271,7 @@ export class GlobalSearch {
       // Phase 2: Abgeleitete IDs parallel laden
       const [ansprechpartnerIds, produktIds, rechnungIds] = await Promise.all([
         this._loadAllowedAnsprechpartnerIds(unternehmenIds, markenIds),
-        this._loadAllowedProduktIds(markenIds),
+        this._loadAllowedProduktIds(unternehmenIds, markenIds),
         this._loadAllowedRechnungIds(kampagneIds, unternehmenIds)
       ]);
 
@@ -334,17 +335,41 @@ export class GlobalSearch {
     }
   }
 
-  /** Produkt-IDs basierend auf erlaubten Marken laden. */
-  async _loadAllowedProduktIds(markenIds) {
+  /**
+   * Produkt-IDs aus erlaubten Unternehmen und Marken laden.
+   * unternehmen_id ist der Besitzer, die Marken-Zuordnung steht in produkt_marke.
+   */
+  async _loadAllowedProduktIds(unternehmenIds, markenIds) {
     try {
-      if (!Array.isArray(markenIds)) return null; // null = keine Filterung
-      if (markenIds.length === 0) return [];
+      const ohneUnternehmenFilter = !Array.isArray(unternehmenIds);
+      const ohneMarkenFilter = !Array.isArray(markenIds);
+      if (ohneUnternehmenFilter && ohneMarkenFilter) return null; // keine Filterung
 
-      const { data } = await window.supabase
-        .from('produkt')
-        .select('id')
-        .in('marke_id', markenIds);
-      return (data || []).map(r => r.id);
+      const ids = new Set();
+      const promises = [];
+
+      if (Array.isArray(unternehmenIds) && unternehmenIds.length > 0) {
+        promises.push(
+          window.supabase
+            .from('produkt')
+            .select('id')
+            .in('unternehmen_id', unternehmenIds)
+            .then(({ data }) => (data || []).forEach(r => ids.add(r.id)))
+        );
+      }
+
+      if (Array.isArray(markenIds) && markenIds.length > 0) {
+        promises.push(
+          window.supabase
+            .from('produkt_marke')
+            .select('produkt_id')
+            .in('marke_id', markenIds)
+            .then(({ data }) => (data || []).forEach(r => { if (r.produkt_id) ids.add(r.produkt_id); }))
+        );
+      }
+
+      await Promise.all(promises);
+      return [...ids];
     } catch (error) {
       console.warn('GlobalSearch: Fehler bei Produkt-IDs:', error);
       return [];

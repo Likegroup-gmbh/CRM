@@ -25,8 +25,10 @@ export const TAB_PERMISSION_MAP = {
   'vertraege': 'vertraege',
   'videos': 'briefing',    // nutzt briefing-Berechtigung (wie Navigation)
   'marken': 'marke',
-  'personas': 'marke',   // Personas haengen an der Marke
-  'produkte': 'marke',   // Produkte haengen ebenfalls an der Marke
+  // Personas und Produkte gehoeren dem Unternehmen und stehen auch auf dessen
+  // Detailseite - die Marke-Berechtigung waere dort der falsche Massstab.
+  'personas': 'unternehmen',
+  'produkte': 'produkt',
   'ansprechpartner': 'ansprechpartner',
   
   // Tabs die IMMER sichtbar sind (keine spezifische Berechtigung)

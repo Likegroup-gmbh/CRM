@@ -1,26 +1,31 @@
-// MarkeProduktForm.js
-// Eigene Seite zum Anlegen und Bearbeiten eines Produkts einer Marke.
-// Routen: /marke/:markeId/produkt (anlegen), /marke/:markeId/produkt?produkt=:id (bearbeiten)
+// ProduktForm.js
+// Eigene Seite zum Anlegen und Bearbeiten eines Produkts.
+// Routen: /marke/:markeId/produkt und /unternehmen/:unternehmenId/produkt
+//         (Bearbeiten jeweils mit ?produkt=:id)
 //
 // Die Seite ist ein Worksheet: mittig ein Schreibdokument mit festen
-// Ueberschriften und frei beschreibbaren Abschnitten (MarkeProduktDoc.js),
+// Ueberschriften und frei beschreibbaren Abschnitten (ProduktDoc.js),
 // rechts das Auslesen der Shop-URL samt Liky-Verlauf
-// (MarkeProduktExtractPanel.js). Bilder und Varianten stehen als Tabellen
+// (ProduktExtractPanel.js). Bilder und Varianten stehen als Tabellen
 // mitten im Dokument.
+//
+// Im Unternehmens-Kontext traegt das Dokument zusaetzlich ein Marken-
+// Multiselect. Aus einer Marke heraus ist die Zuordnung fix.
 
-import { MarkeProduktService, MAX_BILDER } from './services/MarkeProduktService.js';
-import { ProduktVariantenPanel } from './MarkeProduktVarianten.js';
-import { ProduktExtractPanel } from './MarkeProduktExtractPanel.js';
-import { renderProduktDoc, bindProduktDoc, refreshDocHeights } from './MarkeProduktDoc.js';
+import { ProduktService, MAX_BILDER } from './ProduktService.js';
+import { ProduktVariantenPanel } from './ProduktVarianten.js';
+import { ProduktExtractPanel } from './ProduktExtractPanel.js';
+import { renderProduktDoc, bindProduktDoc, refreshDocHeights } from './ProduktDoc.js';
 import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import { produktConfig } from '../../core/form/config/ProduktFormConfig.js';
+import { resolveOwnerContext } from '../../core/OwnerContext.js';
 
-export class MarkeProduktForm {
+export class ProduktForm {
   constructor() {
-    this.markeId = null;
+    this.ctx = null;
     this.produktId = null;
-    this.marke = null;
     this.produkt = null;
+    this.markenIds = [];
     this.varianten = [];
     this.bilder = [];
     this.variantenPanel = null;
@@ -34,45 +39,43 @@ export class MarkeProduktForm {
   }
 
   get returnRoute() {
-    return `/marke/${this.markeId}?tab=produkte`;
+    return `${this.ctx.basePath}?tab=produkte`;
   }
 
-  async init(markeId) {
+  get zeigtMarkenFeld() {
+    return !this.ctx.markeId && this.ctx.markenAnzahl > 0;
+  }
+
+  async init(ownerId) {
     this._abort?.abort();
     this._abort = new AbortController();
 
-    this.markeId = markeId;
     this.produktId = new URLSearchParams(window.location.search).get('produkt');
-    this.marke = null;
     this.produkt = null;
+    this.markenIds = [];
     this.varianten = [];
     this.bilder = [];
 
     try {
-      const { data: marke, error } = await window.supabase
-        .from('marke')
-        .select('id, markenname, unternehmen_id')
-        .eq('id', markeId)
-        .single();
-      if (error) throw error;
-      this.marke = marke;
+      this.ctx = await resolveOwnerContext(ownerId);
 
       if (this.produktId) {
-        this.produkt = await MarkeProduktService.loadOne(this.produktId, markeId);
+        this.produkt = await ProduktService.loadOne(this.produktId, this.ctx);
         if (!this.produkt) {
           window.toastSystem?.error?.('Produkt nicht gefunden');
           window.navigateTo(this.returnRoute);
           return;
         }
-        [this.varianten, this.bilder] = await Promise.all([
-          MarkeProduktService.loadVarianten(this.produktId),
-          MarkeProduktService.loadBilder(this.produktId)
+        [this.varianten, this.bilder, this.markenIds] = await Promise.all([
+          ProduktService.loadVarianten(this.produktId),
+          ProduktService.loadBilder(this.produktId),
+          ProduktService.loadMarkenIds(this.produktId)
         ]);
       }
     } catch (err) {
       console.error('Produkt-Formular konnte nicht geladen werden:', err);
-      window.ErrorHandler?.handle?.(err, 'MarkeProduktForm.init');
-      window.navigateTo(this.returnRoute);
+      window.ErrorHandler?.handle?.(err, 'ProduktForm.init');
+      window.navigateTo(this.ctx?.basePath || '/marke');
       return;
     }
 
@@ -82,22 +85,25 @@ export class MarkeProduktForm {
 
   render() {
     const title = this.isEdit
-      ? MarkeProduktService.label(this.produkt)
+      ? ProduktService.label(this.produkt)
       : 'Neues Produkt anlegen';
 
     window.setHeadline(title);
 
     window.breadcrumbSystem?.updateBreadcrumb([
-      { label: 'Marken', url: '/marke', clickable: true },
-      { label: this.marke.markenname || 'Marke', url: this.returnRoute, clickable: true },
-      { label: this.isEdit ? MarkeProduktService.label(this.produkt) : 'Produkt anlegen', clickable: false }
+      { label: this.ctx.listLabel, url: this.ctx.listPath, clickable: true },
+      { label: this.ctx.ownerLabel, url: this.returnRoute, clickable: true },
+      { label: this.isEdit ? ProduktService.label(this.produkt) : 'Produkt anlegen', clickable: false }
     ]);
 
     const formData = this.isEdit
-      ? { ...this.produkt, _isEditMode: true, _entityId: this.produkt.id }
+      ? { ...this.produkt, marke_ids: this.markenIds, _isEditMode: true, _entityId: this.produkt.id }
       : null;
 
-    window.content.innerHTML = renderProduktDoc(formData);
+    window.content.innerHTML = renderProduktDoc(formData, {
+      mitMarkenFeld: this.zeigtMarkenFeld,
+      unternehmenId: this.ctx.unternehmenId
+    });
 
     const form = document.getElementById('produkt-form');
     bindProduktDoc(form, formData);
@@ -133,6 +139,8 @@ export class MarkeProduktForm {
       accept: field.accept || '*/*',
       maxFileSize: field.maxFileSize || null,
       maxFiles: field.maxFiles || null,
+      warnFileSize: field.warnFileSize || null,
+      shrinkOptions: field.shrink || null,
       sortable: !!field.sortable,
       primarySelectable: !!field.primarySelectable,
       variant: 'table'
@@ -154,7 +162,7 @@ export class MarkeProduktForm {
     uploader.setExistingFiles(kollektionsBilder.map((b, i) => ({
       id: b.id,
       name: `Produktbild ${i + 1}`,
-      url: MarkeProduktService.publicUrl(b.storage_pfad)
+      url: ProduktService.publicUrl(b.storage_pfad)
     })));
 
     const haupt = kollektionsBilder.find(b => b.ist_hauptbild);
@@ -289,13 +297,14 @@ export class MarkeProduktForm {
       let produktId = this.produktId;
 
       if (this.isEdit) {
-        await MarkeProduktService.update(this.produktId, data);
+        await ProduktService.update(this.produktId, data);
       } else {
-        const result = await MarkeProduktService.create(data, this.markeId, this.marke?.unternehmen_id);
+        const result = await ProduktService.create(data, this.ctx);
         produktId = result.id;
       }
 
-      await MarkeProduktService.saveVarianten(produktId, this.variantenPanel?.getVarianten() || []);
+      await ProduktService.saveMarken(produktId, this.collectMarkenIds(data));
+      await ProduktService.saveVarianten(produktId, this.variantenPanel?.getVarianten() || []);
       await this.saveBilder(produktId);
       await this.saveVariantenBilder(produktId);
 
@@ -308,11 +317,24 @@ export class MarkeProduktForm {
     }
   }
 
+  /**
+   * Ohne sichtbares Feld bleibt die bestehende Zuordnung erhalten - aus einer
+   * Marke heraus kommt sie nur dazu. Sonst zaehlt genau die Auswahl im Tag-Feld.
+   */
+  collectMarkenIds(data) {
+    if (!this.zeigtMarkenFeld) {
+      return [...new Set([...this.markenIds, this.ctx.markeId].filter(Boolean))];
+    }
+    const werte = data.marke_ids;
+    if (Array.isArray(werte)) return werte;
+    return werte ? [werte] : [];
+  }
+
   /** @returns {{feld: string, text: string}|null} */
   validatePreisRange(data) {
-    const von = MarkeProduktService.toNumber(data.preis_von);
-    const bis = MarkeProduktService.toNumber(data.preis_bis);
-    const uvp = MarkeProduktService.toNumber(data.preis_uvp);
+    const von = ProduktService.toNumber(data.preis_von);
+    const bis = ProduktService.toNumber(data.preis_bis);
+    const uvp = ProduktService.toNumber(data.preis_uvp);
 
     if (von != null && bis != null && bis < von) {
       return { feld: 'preis_bis', text: 'Der Preis "bis" darf nicht unter dem Preis "von" liegen' };
@@ -335,10 +357,21 @@ export class MarkeProduktForm {
 
     const bestehende = [];
     const temp = [];
+    const neue = [];
 
     behalten.forEach((f, index) => {
       const istHaupt = primary === `existing:${f.id}`;
-      if (f.isTemporary) {
+
+      // Verkleinertes Extraktionsbild: die Temp-Datei im Storage laesst der
+      // Cron-Job verfallen, hochgeladen wird die kleinere Fassung.
+      if (f.isTemporary && f.replacementFile) {
+        neue.push({
+          file: f.replacementFile,
+          quelle_url: f.quelleUrl,
+          position: index,
+          ist_hauptbild: istHaupt
+        });
+      } else if (f.isTemporary) {
         temp.push({
           storage_pfad: f.storagePfad,
           quelle_url: f.quelleUrl,
@@ -346,7 +379,12 @@ export class MarkeProduktForm {
           ist_hauptbild: istHaupt
         });
       } else {
-        bestehende.push({ id: f.id, position: index, ist_hauptbild: istHaupt });
+        bestehende.push({
+          id: f.id,
+          position: index,
+          ist_hauptbild: istHaupt,
+          ersatzFile: f.replacementFile || null
+        });
       }
     });
 
@@ -354,13 +392,15 @@ export class MarkeProduktForm {
     // "geloescht" an den Service gehen - ihre Storage-Datei raeumt der Cron-Job.
     const geloeschteIds = uploader.getDeletedFileIds().filter(id => !String(id).startsWith('temp:'));
 
-    const neue = uploader.files.map((file, i) => ({
-      file,
-      position: behalten.length + i,
-      ist_hauptbild: primary === `new:${i}`
-    }));
+    uploader.files.forEach((file, i) => {
+      neue.push({
+        file,
+        position: behalten.length + i,
+        ist_hauptbild: primary === `new:${i}`
+      });
+    });
 
-    await MarkeProduktService.saveBilder(produktId, { bestehende, geloeschteIds, temp, neue });
+    await ProduktService.saveBilder(produktId, { bestehende, geloeschteIds, temp, neue });
   }
 
   /** Variantenbilder brauchen die IDs, die erst beim Speichern der Varianten entstehen. */
@@ -368,7 +408,7 @@ export class MarkeProduktForm {
     const aufgaben = this.variantenPanel?.getBildAufgaben() || [];
     if (!aufgaben.length) return;
 
-    const gespeicherte = await MarkeProduktService.loadVarianten(produktId);
+    const gespeicherte = await ProduktService.loadVarianten(produktId);
 
     for (const aufgabe of aufgaben) {
       const variante = gespeicherte.find(v => v.id === aufgabe.varianteId)
@@ -376,7 +416,7 @@ export class MarkeProduktForm {
       if (!variante) continue;
 
       try {
-        await MarkeProduktService.saveVarianteBild(produktId, variante.id, aufgabe.file, aufgabe.altesBildId);
+        await ProduktService.saveVarianteBild(produktId, variante.id, aufgabe.file, aufgabe.altesBildId);
       } catch (err) {
         console.warn(`⚠️ Variantenbild für "${aufgabe.varianteName}" konnte nicht gespeichert werden:`, err);
       }
@@ -392,7 +432,7 @@ export class MarkeProduktForm {
   async handleDelete() {
     const res = await window.confirmationModal?.open({
       title: 'Produkt löschen?',
-      message: `"${MarkeProduktService.label(this.produkt)}" wird endgültig gelöscht – samt Varianten und Bildern. Kampagnen, die dieses Produkt nutzen, verlieren die Zuordnung.`,
+      message: `"${ProduktService.label(this.produkt)}" wird endgültig gelöscht – samt Varianten und Bildern. Kampagnen, die dieses Produkt nutzen, verlieren die Zuordnung.`,
       confirmText: 'Löschen',
       cancelText: 'Abbrechen',
       danger: true
@@ -400,7 +440,7 @@ export class MarkeProduktForm {
     if (!res?.confirmed) return;
 
     try {
-      await MarkeProduktService.remove(this.produktId);
+      await ProduktService.remove(this.produktId);
       window.toastSystem?.success?.('Produkt gelöscht');
       window.navigateTo(this.returnRoute);
     } catch (err) {
@@ -440,4 +480,4 @@ export class MarkeProduktForm {
   }
 }
 
-export const markeProduktForm = new MarkeProduktForm();
+export const produktForm = new ProduktForm();

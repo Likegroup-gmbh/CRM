@@ -6,8 +6,8 @@ import { safeExternalUrl } from '../../core/UrlHelper.js';
 import { getBranchenDisplay } from './MarkeDetailRendererHelpers.js';
 import { renderKampagnen, renderAuftraege, renderAnsprechpartner, renderBriefings, renderKooperationen, renderRechnungen, renderStrategien } from './MarkeDetailRendererTables.js';
 import { renderKickOff } from './MarkeDetailRendererKickOff.js';
-import { renderPersonas } from './MarkeDetailRendererPersonas.js';
-import { renderProdukte } from './MarkeDetailRendererProdukte.js';
+import { renderPersonas } from '../persona/PersonaTabRenderer.js';
+import { renderProdukte } from '../produkt/ProduktTabRenderer.js';
 
 export function getTabsConfig(detail) {
   return [

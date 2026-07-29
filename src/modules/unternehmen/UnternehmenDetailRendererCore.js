@@ -6,6 +6,8 @@ import { UnternehmenService } from './services/UnternehmenService.js';
 import { renderAuftraege, renderAuftragsdetails, renderBriefings, renderKampagnen } from './UnternehmenDetailRendererBusiness.js';
 import { renderStrategien, renderCreatorAuswahl, renderKooperationen, renderCreators, renderAnsprechpartner, renderRechnungen, renderKundenrechnungen, renderVertraege, renderKickOff } from './UnternehmenDetailRendererRelations.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { renderPersonas } from '../persona/PersonaTabRenderer.js';
+import { renderProdukte } from '../produkt/ProduktTabRenderer.js';
 
 export function renderUnternehmenDetailPage(detail) {
   if (!detail.activeMainTab) {
@@ -93,6 +95,8 @@ export function renderTabNavigation(detail) {
       isActive: detail.activeMainTab === 'kickoff'
     }] : []),
     { tab: 'marken', label: 'Marken', count: detail.marken.length, isActive: detail.activeMainTab === 'marken' },
+    { tab: 'personas', label: 'Personas', count: detail.personas.length, isActive: detail.activeMainTab === 'personas' },
+    { tab: 'produkte', label: 'Produkte', count: detail.produkte.length, isActive: detail.activeMainTab === 'produkte' },
     { tab: 'ansprechpartner', label: 'Ansprechpartner', count: detail.ansprechpartner.length, isActive: detail.activeMainTab === 'ansprechpartner' },
     { tab: 'auftraege', label: 'Aufträge', count: detail.auftraege.length, isActive: detail.activeMainTab === 'auftraege' },
     { tab: 'auftragsdetails', label: 'Auftragsdetails', count: detail.auftragsdetails.length, isActive: detail.activeMainTab === 'auftragsdetails' },
@@ -118,6 +122,12 @@ export function renderMainContent(detail) {
       </div>
       <div class="tab-pane ${detail.activeMainTab === 'marken' ? 'active' : ''}" id="tab-marken">
         ${renderMarken(detail)}
+      </div>
+      <div class="tab-pane ${detail.activeMainTab === 'personas' ? 'active' : ''}" id="tab-personas">
+        ${renderPersonas(detail)}
+      </div>
+      <div class="tab-pane ${detail.activeMainTab === 'produkte' ? 'active' : ''}" id="tab-produkte">
+        ${renderProdukte(detail)}
       </div>
       <div class="tab-pane ${detail.activeMainTab === 'ansprechpartner' ? 'active' : ''}" id="tab-ansprechpartner">
         ${renderAnsprechpartner(detail)}

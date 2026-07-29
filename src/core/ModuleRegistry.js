@@ -198,24 +198,27 @@ export class ModuleRegistry {
       console.log(`🎯 Marken-Details erkannt, verwende Modul: ${moduleKey}`);
     }
 
-    // /marke/:markeId/persona (Anlegen) bzw. ?persona=:id (Bearbeiten)
-    if (id && segment === 'marke' && id !== 'new' && action === 'persona') {
-      moduleKey = 'marke-persona';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Persona-Formular erkannt, verwende Modul: ${moduleKey}`);
-    }
-
-    // /marke/:markeId/produkt (Anlegen) bzw. ?produkt=:id (Bearbeiten)
-    if (id && segment === 'marke' && id !== 'new' && action === 'produkt') {
-      moduleKey = 'marke-produkt';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Produkt-Formular erkannt, verwende Modul: ${moduleKey}`);
-    }
-    
     if (id && segment === 'unternehmen' && id !== 'new') {
       moduleKey = 'unternehmen-detail';
       module = this.modules.get(moduleKey);
       console.log(`🎯 Unternehmen-Details erkannt, verwende Modul: ${moduleKey}`);
+    }
+
+    // Personas und Produkte gehoeren dem Unternehmen, lassen sich aber auch aus
+    // einer Marke heraus anlegen. Beide Routen fuehren auf dasselbe Formular,
+    // das seinen Besitzer-Kontext aus dem Pfad ableitet (OwnerContext.js).
+    // /:segment/:ownerId/persona bzw. ?persona=:id zum Bearbeiten
+    if (id && id !== 'new' && (segment === 'marke' || segment === 'unternehmen') && action === 'persona') {
+      moduleKey = 'persona-form';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Persona-Formular erkannt (${segment}), verwende Modul: ${moduleKey}`);
+    }
+
+    // /:segment/:ownerId/produkt bzw. ?produkt=:id zum Bearbeiten
+    if (id && id !== 'new' && (segment === 'marke' || segment === 'unternehmen') && action === 'produkt') {
+      moduleKey = 'produkt-form';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Produkt-Formular erkannt (${segment}), verwende Modul: ${moduleKey}`);
     }
     
     if (id === 'new' && segment === 'auftragsdetails') {

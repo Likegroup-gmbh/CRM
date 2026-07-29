@@ -1,5 +1,5 @@
 // product-images.js
-// Zieht Produktbilder aus einer Shop-Seite, konvertiert sie zu WebP und legt
+// Zieht Produktbilder aus einer Shop-Seite, konvertiert sie zu AVIF und legt
 // sie im Storage-Bucket "produkte" unter _temp/{extractId}/ ab.
 //
 // Warum ueber den Storage und nicht als base64 in der Response: fuenf Fotos
@@ -15,8 +15,14 @@ const { downloadImage } = require('./logo');
 const BUCKET = 'produkte';
 const TEMP_PREFIX = '_temp';
 const MAX_EDGE = 1200;
-const WEBP_QUALITY = 82;
-const MAX_WEBP_BYTES = 900 * 1024;
+// AVIF-Qualitaet ist nicht mit der WebP-Skala vergleichbar: 58 entspricht in
+// etwa WebP 82, bei rund einem Drittel weniger Bytes.
+const AVIF_QUALITY = 58;
+// effort steuert die Suchtiefe des Encoders. libaom ist deutlich langsamer als
+// libwebp, und die Function teilt sich ihr Zeitbudget mit der Textextraktion -
+// hoehere Stufen kosten Sekunden und bringen nur wenige Prozent.
+const AVIF_EFFORT = 2;
+const MAX_IMAGE_BYTES = 900 * 1024;
 const MIN_EDGE = 200;
 // Mehr Kandidaten als Zielbilder: erfahrungsgemaess fallen einige durch
 const MAX_CANDIDATES = 14;
@@ -126,8 +132,14 @@ function bestSource(attrs) {
   return attrs.src || attrs['data-src'] || attrs['data-original'] || null;
 }
 
-/** Beliebige Bilddaten zu WebP unter MAX_WEBP_BYTES. */
-async function toWebp(buffer) {
+/**
+ * Beliebige Bilddaten zu AVIF unter MAX_IMAGE_BYTES.
+ *
+ * Zwei Stufen statt drei: AVIF unterschreitet das Byte-Limit bei Produktfotos
+ * praktisch immer schon im ersten Anlauf, und jeder weitere Encode kostet hier
+ * spuerbar mehr Zeit als frueher mit WebP.
+ */
+async function toAvif(buffer) {
   const meta = await sharp(buffer, { failOn: 'none' }).metadata();
   const width = meta.width || 0;
   const height = meta.height || 0;
@@ -136,21 +148,20 @@ async function toWebp(buffer) {
   }
 
   const variants = [
-    { edge: MAX_EDGE, quality: WEBP_QUALITY },
-    { edge: 900, quality: 75 },
-    { edge: 700, quality: 68 }
+    { edge: MAX_EDGE, quality: AVIF_QUALITY },
+    { edge: 900, quality: 45 }
   ];
 
   let last = null;
   for (const variant of variants) {
     last = await sharp(buffer, { failOn: 'none' })
       .resize({ width: variant.edge, height: variant.edge, fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: variant.quality })
+      .avif({ quality: variant.quality, effort: AVIF_EFFORT })
       .toBuffer();
-    if (last.length <= MAX_WEBP_BYTES) return { buffer: last, width, height, format: meta.format };
+    if (last.length <= MAX_IMAGE_BYTES) return { buffer: last, width, height, format: meta.format };
   }
 
-  throw new Error(`WebP zu gross (${Math.round(last.length / 1024)} KB)`);
+  throw new Error(`AVIF zu gross (${Math.round(last.length / 1024)} KB)`);
 }
 
 /**
@@ -180,18 +191,18 @@ async function collectProductImages(candidates = [], options) {
 
     try {
       const source = await downloadImage(candidate.url);
-      const webp = await toWebp(source);
+      const bild = await toAvif(source);
 
-      const pfad = `${TEMP_PREFIX}/${extractId}/${result.length + 1}.webp`;
+      const pfad = `${TEMP_PREFIX}/${extractId}/${result.length + 1}.avif`;
       const { error } = await supabase.storage
         .from(BUCKET)
-        .upload(pfad, webp.buffer, { contentType: 'image/webp', upsert: true });
+        .upload(pfad, bild.buffer, { contentType: 'image/avif', upsert: true });
       if (error) throw new Error(error.message);
 
       const { data } = supabase.storage.from(BUCKET).getPublicUrl(pfad);
       result.push({ storage_pfad: pfad, url: data?.publicUrl || null, quelle_url: candidate.url });
 
-      console.log(`🖼️ site-extract: Produktbild ${result.length} (${candidate.reason}, ${webp.format} ${webp.width}x${webp.height} -> ${Math.round(webp.buffer.length / 1024)} KB)`);
+      console.log(`🖼️ site-extract: Produktbild ${result.length} (${candidate.reason}, ${bild.format} ${bild.width}x${bild.height} -> ${Math.round(bild.buffer.length / 1024)} KB)`);
     } catch (err) {
       console.log(`⚠️ site-extract: Produktbild verworfen (${err.message}) ${candidate.url}`);
     }
@@ -203,7 +214,7 @@ async function collectProductImages(candidates = [], options) {
 module.exports = {
   findProductImageCandidates,
   collectProductImages,
-  toWebp,
+  toAvif,
   BUCKET,
   TEMP_PREFIX
 };

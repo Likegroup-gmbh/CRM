@@ -3347,6 +3347,226 @@ input.input-error {
   stroke-width: 2;
 }
 
+/* ==========================================================================
+   Table Select – generischer Spaltentyp "Select" fuer Tabellenzellen
+   Optik an .actions-dropdown-portal angelehnt. Das sichtbare Panel ist immer
+   das Portal an document.body, damit Table-Container es nicht wegclippen.
+   ========================================================================== */
+
+.table-select {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.table-select__trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  width: 100%;
+  padding: var(--space-xxs) var(--space-xs);
+  background: var(--bg-primary);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.table-select__trigger:hover {
+  background: var(--gray-50);
+  border-color: var(--gray-300);
+  box-shadow: var(--shadow-sm);
+}
+
+.table-select__trigger:focus-visible {
+  outline: none;
+  border-color: var(--gray-400);
+  box-shadow: 0 0 0 3px var(--gray-100);
+}
+
+.table-select.open .table-select__trigger {
+  background: var(--gray-50);
+  border-color: var(--gray-300);
+  box-shadow: var(--shadow-sm);
+}
+
+.table-select__trigger--empty {
+  color: var(--text-secondary);
+}
+
+.table-select__trigger--disabled {
+  background: var(--gray-50);
+  color: var(--text-secondary);
+  box-shadow: none;
+  cursor: default;
+}
+
+.table-select__dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.table-select__label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-select__chevron {
+  flex-shrink: 0;
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  opacity: 0.4;
+  transition: transform 0.15s ease;
+}
+
+.table-select.open .table-select__chevron {
+  transform: rotate(180deg);
+}
+
+.table-select__meta {
+  margin-top: var(--space-xxxs);
+  padding-left: var(--space-xxs);
+  font-size: var(--text-xxs);
+  color: var(--text-secondary);
+}
+
+/* Inline-Panel dient nur als Vorlage fuer den Portal-Clone */
+.table-select__panel {
+  display: none;
+}
+
+.table-select__portal {
+  position: fixed;
+  z-index: 99999;
+  min-width: 180px;
+  background: var(--bg-primary);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-xxs) 0;
+  opacity: 0;
+  transform: scale(0.95);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.table-select__portal.show {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.table-select__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  background: none;
+  border: none;
+  color: var(--gray-800);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.table-select__item:hover {
+  background: var(--gray-50);
+  color: var(--text-primary);
+}
+
+.table-select__item.is-active {
+  font-weight: 600;
+}
+
+.table-select__item.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.table-select__item.is-disabled:hover {
+  background: none;
+}
+
+.table-select__item-label {
+  flex: 1;
+  min-width: 0;
+}
+
+.table-select__check {
+  flex-shrink: 0;
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  margin-left: auto;
+  color: var(--success);
+}
+
+/* ==========================================================================
+   Zahlen-Zelle mit kompakter Anzeige (5,5K / 1,39M)
+   Der Input haelt den Rohwert und ist unfokussiert unsichtbar, darueber liegt
+   das Overlay mit der kompakten Zahl. Beim Fokus verschwindet das Overlay, so
+   wird immer der exakte Wert bearbeitet und beim Speichern nichts gerundet.
+   ========================================================================== */
+
+.cell-number {
+  position: relative;
+  display: block;
+}
+
+.cell-number__input {
+  width: 100%;
+  padding: var(--space-xxs);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: transparent;
+  font-family: inherit;
+  font-size: var(--text-xs);
+  text-align: center;
+}
+
+.cell-number__input:focus {
+  outline: none;
+  color: var(--text-primary);
+  background: var(--gray-50);
+  box-shadow: inset 0 0 0 1px var(--gray-300);
+}
+
+.cell-number__display {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.cell-number__input:focus ~ .cell-number__display {
+  display: none;
+}
+
+.cell-number__static {
+  text-align: center;
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
 .kooperation-card-tags {
   display: flex;
   flex-wrap: wrap;
@@ -10665,13 +10885,21 @@ input.readonly-field {
 }
 
 /* Sourcing: Kategorie-Header vertikal sticky unter dem Table-Header */
+/* Hintergrund und z-index gehoeren an die Zelle: sticky td verliert den
+   tr-Hintergrund und muss ueber den sticky Spalten (z-index 20) liegen */
 .creator-pool-table .kategorie-header-row > td {
   position: sticky;
   top: calc(var(--sticky-add-section-height, 0px) + var(--sticky-thead-height, 37px));
-  z-index: 12;
+  z-index: 21;
+  background: var(--gray-100);
+  box-shadow: inset 0 -1px 0 0 var(--gray-300);
 }
 
-.creator-pool-table .kategorie-header-row--rejected > td {
+.creator-pool-table .kategorie-header-row > td.kategorie-header--default {
+  background: var(--gray-50);
+}
+
+.creator-pool-table .kategorie-header-row > td.kategorie-header--rejected {
   background: var(--red-50, #fef2f2);
 }
 
@@ -11253,8 +11481,9 @@ input.readonly-field {
   align-items: center;
 }
 
+/* Muss ueber der Reiter-Leiste liegen, sonst schneidet sie offene Dropdowns ab */
 .add-item-section--compact:has(+ .sourcing-tab-navigation) {
-  z-index: 28;
+  z-index: 29;
 }
 
 .sourcing-tab-navigation + .table-container .strategie-items-table thead th {
@@ -12170,30 +12399,25 @@ table:has(#strategien-table-body) td.col-actions {
 }
 
 .creator-pool-table .cp-col-typ {
-  width: 130px;
-  min-width: 130px;
-  vertical-align: top;
+  width: 150px;
+  min-width: 150px;
 }
 
-.creator-pool-table .cp-col-typ select.strategie-textarea {
-  min-height: auto;
-  padding: var(--space-sm) var(--space-xs);
-}
-
-.creator-pool-table .cp-col-link {
-  width: 60px;
-  min-width:60px;
-}
-
-.creator-pool-table .cp-col-follower {
-  width: 220px;
-  min-width:220px;
-  height: auto;
+.creator-pool-table .cp-col-follower-ig,
+.creator-pool-table .cp-col-follower-tt {
+  width: 92px;
+  min-width: 92px;
+  text-align: center;
 }
 
 .creator-pool-table .cp-col-check {
   width: 95px;
   min-width: 95px;
+  text-align: center;
+}
+
+.creator-pool-table td.cp-col-check .cp-checkbox {
+  margin: 0 auto;
 }
 
 .creator-pool-table .cp-col-location {
@@ -12219,18 +12443,15 @@ table:has(#strategien-table-body) td.col-actions {
 }
 
 .creator-pool-table .cp-col-anfragen {
-  width: 140px;
-  min-width: 140px;
-}
-
-.creator-pool-table td.cp-col-anfragen {
-  padding: var(--space-xs) var(--space-sm) !important;
-  vertical-align: top;
+  width: 110px;
+  min-width: 110px;
+  text-align: center;
 }
 
 .angefragt-cell {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   white-space: nowrap;
 }
@@ -12240,64 +12461,19 @@ table:has(#strategien-table-body) td.col-actions {
   color: var(--text-secondary);
 }
 
-.creator-pool-table .cp-col-absagen {
-  width: 140px;
-  min-width: 140px;
+.creator-pool-table .cp-col-status {
+  width: 150px;
+  min-width: 150px;
 }
 
-.creator-pool-table td.cp-col-absagen {
-  padding: var(--space-xs) var(--space-sm) !important;
-  vertical-align: top;
-}
-
-.absage-cell {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.absage-datum {
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-}
-
-.creator-pool-table .cp-col-prio {
-  width: 60px;
-  min-width: 60px;
-}
-
-.creator-pool-table .cp-col-buchen {
-  width: 80px;
-  min-width: 80px;
-}
-
-.creator-pool-table .cp-col-onhold {
-  width: 140px;
-  min-width: 140px;
-}
-
-.onhold-cell {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.onhold-datum {
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-}
-
-.creator-pool-table td.cp-col-prio1,
-.creator-pool-table td.cp-col-prio2,
 .creator-pool-table td.cp-col-anfragen,
-.creator-pool-table td.cp-col-onhold,
-.creator-pool-table td.cp-col-buchen,
-.creator-pool-table td.cp-col-absagen,
-.creator-pool-table td.cp-col-check {
+.creator-pool-table td.cp-col-status,
+.creator-pool-table td.cp-col-check,
+.creator-pool-table td.cp-col-typ,
+.creator-pool-table td.cp-col-follower-ig,
+.creator-pool-table td.cp-col-follower-tt {
   padding: var(--space-xs) var(--space-sm) !important;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .creator-pool-table .cp-checkbox {
@@ -12322,13 +12498,13 @@ table:has(#strategien-table-body) td.col-actions {
 }
 
 .creator-pool-table .cp-col-link-ig {
-  width: 170px;
-  min-width: 170px;
+  width: 190px;
+  min-width: 190px;
 }
 
 .creator-pool-table .cp-col-link-tt {
-  width: 140px;
-  min-width: 140px;
+  width: 155px;
+  min-width: 155px;
 }
 
 .creator-pool-table .cp-col-ek,
@@ -12344,22 +12520,27 @@ table:has(#strategien-table-body) td.col-actions {
   min-width: 100px;
 }
 
-.creator-pool-table .cp-col-cpm-ig,
-.creator-pool-table .cp-col-cpm-tt {
-  width: 80px;
-  min-width: 80px;
-}
-
 .creator-pool-table .cp-col-cpm-ig-8,
 .creator-pool-table .cp-col-cpm-ig-30,
 .creator-pool-table .cp-col-cpm-ig-trimmed {
-  width: 90px;
-  min-width: 90px;
+  width: 108px;
+  min-width: 108px;
 }
 
 .creator-pool-table .cpm-auto-value {
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
+
+.creator-pool-table .cpm-auto-reach {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+/* Blur setzt color nur auf dem Wrapper - die Views-Zeile braucht sie explizit */
+.creator-pool-table .cpm-auto-value.kunden-call-blur .cpm-auto-reach {
+  color: transparent;
 }
 
 /* Instagram-Abruf: Haekchen-Button neben dem IG-Link */
@@ -19050,6 +19231,48 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
 .vpl-download svg {
   width: 16px;
   height: 16px;
+}
+
+/* --- Einspaltiger Bild-Viewer (Produktbilder, ImageLightbox) --- */
+.image-lightbox .media-lightbox {
+  width: auto;
+  max-width: 92vw;
+}
+
+.image-lightbox .media-lightbox-content {
+  padding: 2.5rem 1.5rem 1.25rem;
+}
+
+.image-lightbox__stage {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.image-lightbox__img {
+  display: block;
+  max-width: 100%;
+  /* Kopfzeile, Padding und Bildunterschrift gehen vom Overlay-Platz ab */
+  max-height: 74vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  background: var(--gray-50);
+}
+
+.image-lightbox__caption {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+}
+
+.image-lightbox__counter {
+  font-variant-numeric: tabular-nums;
 }
 
 /* --- Zweispaltiges Medien-Layout (Video, Storys, Bilder) --- */

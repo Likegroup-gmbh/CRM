@@ -1,3 +1,6 @@
+import { compressImage } from '../../ImageCompressor.js';
+import { openImageLightbox } from '../../media/ImageLightbox.js';
+
 /**
  * Marker, den automatisch uebernommene Dateien am File-Objekt tragen (z. B. ein
  * von einer Webseite geholtes Logo). Steuert nur die Kennzeichnung in der Liste.
@@ -10,12 +13,26 @@ const TRASH_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="1
 // Ohne width/height, damit die Groesse aus var(--icon-xs) kommt.
 const CARET_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg>';
 
+/**
+ * Voreinstellung fuers manuelle Verkleinern, siehe Option shrinkOptions.
+ * AVIF spart am meisten; wo der Browser es nicht encodieren kann, greift WebP.
+ */
+const SHRINK_DEFAULTS = {
+  maxWidth: 1600,
+  maxHeight: 1600,
+  quality: 0.7,
+  format: 'image/avif',
+  fallbackFormat: 'image/webp'
+};
+
 export class UploaderField {
   constructor({
     multiple = false,
     accept = '*/*',
     maxFileSize = null,
     maxFiles = null,
+    warnFileSize = null,
+    shrinkOptions = null,
     sortable = false,
     primarySelectable = false,
     variant = 'list',
@@ -25,6 +42,10 @@ export class UploaderField {
     this.accept = accept;
     this.maxFileSize = maxFileSize;
     this.maxFiles = maxFiles;
+    // Ab dieser Groesse bekommt die Zeile einen Warn-Badge und den
+    // Reduzieren-Button. null blendet Badge und Button komplett aus.
+    this.warnFileSize = warnFileSize;
+    this.shrinkOptions = { ...SHRINK_DEFAULTS, ...(shrinkOptions || {}) };
     // 'table' rendert die Dateien im CRM-Tabellenlook statt als Karten-Liste
     this.variant = variant;
     // Sortierung und Hauptbild-Auswahl brauchen nur Galerien (z.B. Produktbilder)
@@ -44,6 +65,11 @@ export class UploaderField {
     this.errorMessage = null;
     // Blob-URLs der Thumbnails, werden bei jedem Rendern neu erzeugt
     this.objectUrls = [];
+    // Masse und Bytes je Datei. Key ist das File-Objekt bzw. "e:{id}" - beides
+    // ueberlebt Sortieren und Neu-Rendern, ein Index waere dafuer zu wackelig.
+    this.meta = new Map();
+    // Bilder der aktuellen Tabelle in Anzeigereihenfolge, Quelle der Lightbox
+    this.previewItems = [];
   }
 
   mount(root) {
@@ -72,6 +98,7 @@ export class UploaderField {
     this.errorEl = this.root.querySelector('.uploader-error');
     this.dropEl = this.root.querySelector('.uploader-drop');
     this.bind();
+    this.bindDelegated();
     this.root.__uploaderInstance = this;
     this.renderList();
   }
@@ -213,6 +240,7 @@ export class UploaderField {
     if (!this.listEl) return;
 
     this.releaseObjectUrls();
+    this.previewItems = [];
 
     const keptExisting = this.existingFiles.filter(f => !this.deletedFileIds.includes(f.id));
 
@@ -300,6 +328,8 @@ export class UploaderField {
         <tr>
           <th class="col-thumb">Bild</th>
           <th class="col-name">Bezeichnung</th>
+          <th class="col-dimension">Maße</th>
+          <th class="col-size">Größe</th>
           ${showPrimary ? '<th class="col-haupt">Hauptbild</th>' : ''}
           ${showSort ? '<th class="col-sort">Reihenfolge</th>' : ''}
           <th class="col-actions">Löschen</th>
@@ -307,16 +337,21 @@ export class UploaderField {
       </thead>
     `;
 
+    // Reihenfolge der Lightbox-Eintraege = Reihenfolge der Zeilen
     const zeilen = [];
 
     keptExisting.forEach((f, idx) => {
-      const name = f.url
-        ? `<a href="${this.escapeHtml(f.url)}" target="_blank" rel="noopener noreferrer" class="table-link">${this.escapeHtml(f.name)}</a>`
+      const previewUrl = this.existingPreviewUrl(f);
+      const previewIndex = this.registerPreview(previewUrl, f.name);
+      const name = previewIndex !== null
+        ? `<button type="button" class="uploader-name-btn table-link" data-preview-index="${previewIndex}">${this.escapeHtml(f.name)}</button>`
         : `<span class="uploader-name">${this.escapeHtml(f.name)}</span>`;
 
       zeilen.push(this.renderRow({
-        thumb: this.renderThumb(this.existingPreviewUrl(f), f.name),
+        rowKey: `existing:${f.id}`,
+        thumb: this.renderThumb(previewUrl, f.name, previewIndex),
         name,
+        meta: this.metaCells(f, `existing:${f.id}`),
         primary: showPrimary ? this.renderPrimary(`existing:${f.id}`, true) : null,
         sort: showSort ? this.renderSort('existing', idx, keptExisting.length) : null,
         removeAttr: `data-existing-id="${this.escapeHtml(String(f.id))}"`
@@ -324,10 +359,16 @@ export class UploaderField {
     });
 
     this.files.forEach((f, idx) => {
+      const previewUrl = this.previewUrlFor(f);
+      const previewIndex = this.registerPreview(previewUrl, f.name);
+
       zeilen.push(this.renderRow({
-        thumb: this.renderThumb(this.previewUrlFor(f), f.name),
-        name: `<span class="uploader-name">${this.escapeHtml(f.name)}</span>
-               <span class="uploader-size">${this.formatSize(f.size)}</span>`,
+        rowKey: `new:${idx}`,
+        thumb: this.renderThumb(previewUrl, f.name, previewIndex),
+        name: previewIndex !== null
+          ? `<button type="button" class="uploader-name-btn table-link" data-preview-index="${previewIndex}">${this.escapeHtml(f.name)}</button>`
+          : `<span class="uploader-name">${this.escapeHtml(f.name)}</span>`,
+        meta: this.metaCells(f, `new:${idx}`),
         primary: showPrimary ? this.renderPrimary(`new:${idx}`, true) : null,
         sort: showSort ? this.renderSort('new', idx, this.files.length) : null,
         removeAttr: `data-index="${idx}"`
@@ -345,13 +386,16 @@ export class UploaderField {
 
     this.bindRemove();
     this.bindSortAndPrimary(keptExisting);
+    this.resolvePendingMeta(keptExisting);
   }
 
-  renderRow({ thumb, name, primary, sort, removeAttr }) {
+  renderRow({ rowKey, thumb, name, meta, primary, sort, removeAttr }) {
     return `
-      <tr>
+      <tr data-row-key="${this.escapeHtml(rowKey || '')}">
         <td class="col-thumb">${thumb}</td>
         <td class="col-name">${name}</td>
+        <td class="col-dimension">${meta.dimension}</td>
+        <td class="col-size">${meta.size}</td>
         ${primary !== null ? `<td class="col-haupt">${primary}</td>` : ''}
         ${sort !== null ? `<td class="col-sort">${sort}</td>` : ''}
         <td class="col-actions">
@@ -360,6 +404,234 @@ export class UploaderField {
         </td>
       </tr>
     `;
+  }
+
+  // --- Masse, Dateigroesse, Vorschau ---
+
+  /**
+   * Nimmt ein Bild in die Lightbox-Liste auf und liefert seinen Index.
+   * null bedeutet: keine anzeigbare Vorschau (z.B. PDF im Dokumenten-Uploader).
+   */
+  registerPreview(url, name) {
+    if (!url) return null;
+    this.previewItems.push({ url, name: name || '' });
+    return this.previewItems.length - 1;
+  }
+
+  /**
+   * Cache-Schluessel je Datei. Bestehende Bilder haengen an ihrer ID, neue am
+   * File-Objekt selbst - so ueberlebt der Cache Sortieren und Neu-Rendern.
+   */
+  metaKey(entry) {
+    return entry && entry.id !== undefined ? `e:${entry.id}` : entry;
+  }
+
+  /** Die Datei, aus der Masse und Groesse zu lesen sind - inklusive Ersatz. */
+  fileFor(entry) {
+    if (!entry) return null;
+    if (entry.replacementFile) return entry.replacementFile;
+    return entry.id !== undefined ? null : entry;
+  }
+
+  metaCells(entry, rowKey) {
+    const info = this.meta.get(this.metaKey(entry));
+
+    if (!info || info.status === 'loading') {
+      const pending = '<span class="uploader-meta-pending">…</span>';
+      return { dimension: pending, size: pending };
+    }
+
+    const dimension = info.width && info.height
+      ? `<span class="uploader-dimension">${info.width}×${info.height}</span>`
+      : '–';
+
+    return { dimension, size: this.sizeCell(info, entry, rowKey) };
+  }
+
+  sizeCell(info, entry, rowKey) {
+    if (info.bytes == null) return '–';
+
+    const zuGross = this.warnFileSize != null && info.bytes > this.warnFileSize;
+    const teile = [
+      `<span class="uploader-size${zuGross ? ' uploader-size--warn' : ''}">${this.formatSize(info.bytes)}</span>`
+    ];
+
+    if (zuGross) {
+      teile.push('<span class="uploader-badge uploader-badge--warn">Große Datei</span>');
+      teile.push(`<button type="button" class="uploader-shrink" data-shrink-key="${this.escapeHtml(rowKey || '')}">Reduzieren</button>`);
+    }
+    if (entry?.replacementFile) {
+      teile.push('<span class="uploader-hint">wird beim Speichern ersetzt</span>');
+    }
+
+    return `<div class="uploader-size-cell">${teile.join('')}</div>`;
+  }
+
+  /** Stoesst das Nachladen fuer alle Zeilen ohne Cache-Eintrag an. */
+  resolvePendingMeta(keptExisting) {
+    [...keptExisting, ...this.files].forEach(entry => {
+      if (this.meta.has(this.metaKey(entry))) return;
+      this.loadMeta(entry);
+    });
+  }
+
+  /**
+   * Masse und Bytes ermitteln. Bei neuen Dateien liegt beides lokal vor, bei
+   * gespeicherten kommt die Groesse per HEAD (content-length ist CORS-safe)
+   * und die Masse aus einem Image-Objekt, das denselben HTTP-Cache nutzt wie
+   * das Thumbnail - also ohne zweiten Download.
+   */
+  async loadMeta(entry) {
+    const key = this.metaKey(entry);
+    this.meta.set(key, { status: 'loading' });
+
+    const info = { status: 'ready', width: null, height: null, bytes: null };
+    const file = this.fileFor(entry);
+
+    try {
+      if (file) {
+        info.bytes = file.size;
+        const masse = await this.readDimensionsFromFile(file);
+        Object.assign(info, masse);
+      } else {
+        const url = this.existingPreviewUrl(entry);
+        if (url) {
+          const [bytes, masse] = await Promise.all([
+            this.readContentLength(url),
+            this.readDimensionsFromUrl(url)
+          ]);
+          info.bytes = bytes;
+          Object.assign(info, masse);
+        }
+      }
+    } catch (err) {
+      console.warn('⚠️ Bildinfos konnten nicht gelesen werden:', err);
+    }
+
+    this.meta.set(key, info);
+    this.refreshMetaCells();
+  }
+
+  async readDimensionsFromFile(file) {
+    if (!file.type?.startsWith('image/') || typeof createImageBitmap !== 'function') return {};
+    const bitmap = await createImageBitmap(file);
+    const masse = { width: bitmap.width, height: bitmap.height };
+    bitmap.close?.();
+    return masse;
+  }
+
+  readDimensionsFromUrl(url) {
+    return new Promise(resolve => {
+      const img = new Image();
+      img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      img.onerror = () => resolve({});
+      img.src = url;
+    });
+  }
+
+  async readContentLength(url) {
+    try {
+      const res = await fetch(url, { method: 'HEAD' });
+      const laenge = res.headers.get('content-length');
+      return laenge ? Number(laenge) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Schreibt die beiden Meta-Spalten neu, ohne die Tabelle zu ersetzen - ein
+   * voller Re-Render wuerde die Blob-URLs der Thumbnails verwerfen.
+   */
+  refreshMetaCells() {
+    if (!this.listEl) return;
+
+    const zeilen = [
+      ...this.getKeptExistingFiles().map(f => [`existing:${f.id}`, f]),
+      ...this.files.map((f, i) => [`new:${i}`, f])
+    ];
+
+    const vorhandene = [...this.listEl.querySelectorAll('tr[data-row-key]')];
+    zeilen.forEach(([rowKey, entry]) => {
+      const tr = vorhandene.find(el => el.dataset.rowKey === rowKey);
+      if (!tr) return;
+      const zellen = this.metaCells(entry, rowKey);
+      const dim = tr.querySelector('.col-dimension');
+      const size = tr.querySelector('.col-size');
+      if (dim) dim.innerHTML = zellen.dimension;
+      if (size) size.innerHTML = zellen.size;
+    });
+  }
+
+  /**
+   * Vorschau und Reduzieren laufen ueber Delegation, weil beide Buttons auch
+   * nachtraeglich in die Tabelle wandern (refreshMetaCells).
+   */
+  bindDelegated() {
+    this.listEl.addEventListener('click', (e) => {
+      const preview = e.target.closest('[data-preview-index]');
+      if (preview) {
+        e.preventDefault();
+        e.stopPropagation();
+        openImageLightbox(this.previewItems, Number(preview.dataset.previewIndex));
+        return;
+      }
+
+      const shrink = e.target.closest('.uploader-shrink');
+      if (shrink) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.shrinkRow(shrink.dataset.shrinkKey, shrink);
+      }
+    });
+  }
+
+  /** Verkleinert eine Datei aus der Tabelle. rowKey ist "existing:{id}" oder "new:{index}". */
+  async shrinkRow(rowKey, btn) {
+    const [gruppe, rest] = String(rowKey || '').split(/:(.*)/);
+    const entry = gruppe === 'new'
+      ? this.files[Number(rest)]
+      : this.getKeptExistingFiles().find(f => String(f.id) === rest);
+    if (!entry) return;
+
+    btn.disabled = true;
+    btn.textContent = 'Reduziere…';
+    this.clearError();
+
+    try {
+      const original = this.fileFor(entry) || await this.fetchAsFile(entry);
+      const kleiner = await compressImage(original, this.shrinkOptions);
+
+      if (kleiner.size >= original.size) {
+        this.setError(`"${original.name}": lässt sich nicht weiter verkleinern`);
+        btn.disabled = false;
+        btn.textContent = 'Reduzieren';
+        return;
+      }
+
+      if (gruppe === 'new') {
+        this.files[Number(rest)] = kleiner;
+      } else {
+        entry.replacementFile = kleiner;
+      }
+
+      this.meta.delete(this.metaKey(entry));
+      this.renderList();
+      this.onFilesChanged(this.files);
+    } catch (err) {
+      console.warn('⚠️ Bild konnte nicht verkleinert werden:', err);
+      this.setError('Bild konnte nicht verkleinert werden');
+      btn.disabled = false;
+      btn.textContent = 'Reduzieren';
+    }
+  }
+
+  /** Laedt ein gespeichertes Bild zurueck, damit es neu komprimiert werden kann. */
+  async fetchAsFile(entry) {
+    const res = await fetch(entry.url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    return new File([blob], entry.name || 'bild', { type: blob.type || 'image/*' });
   }
 
   bindRemove() {
@@ -458,9 +730,13 @@ export class UploaderField {
 
   // --- Thumbnails ---
 
-  renderThumb(src, name) {
+  /** Mit previewIndex wird das Thumbnail zum Ausloeser der Lightbox. */
+  renderThumb(src, name, previewIndex = null) {
     if (!src) return '';
-    return `<img class="uploader-thumb" src="${this.escapeHtml(src)}" alt="${this.escapeHtml(name || '')}" loading="lazy">`;
+    const img = `<img class="uploader-thumb" src="${this.escapeHtml(src)}" alt="${this.escapeHtml(name || '')}" loading="lazy">`;
+    if (previewIndex === null) return img;
+    return `<button type="button" class="uploader-thumb-btn" data-preview-index="${previewIndex}"
+                    title="Vorschau öffnen" aria-label="Vorschau öffnen">${img}</button>`;
   }
 
   /** Blob-URL fuer Bilddateien; alles andere bekommt kein Thumbnail. */

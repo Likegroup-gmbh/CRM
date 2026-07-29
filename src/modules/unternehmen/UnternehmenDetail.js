@@ -14,6 +14,8 @@ export class UnternehmenDetail extends PersonDetailBase {
     this.unternehmenId = null;
     this.unternehmen = null;
     this.marken = [];
+    this.personas = [];
+    this.produkte = [];
     this.auftraege = [];
     this.auftragsdetails = [];
     this.ansprechpartner = [];
@@ -50,6 +52,12 @@ export class UnternehmenDetail extends PersonDetailBase {
     try {
       this._isLoading = true;
       this.unternehmenId = unternehmenId;
+
+      // ?tab=... macht einzelne Tabs deeplink-faehig und laesst die Rueckkehr
+      // von Unterseiten (z.B. Persona-Formular) auf dem richtigen Tab landen.
+      const tabParam = new URLSearchParams(window.location.search).get('tab');
+      this.activeMainTab = tabParam || 'informationen';
+
       await this.loadUnternehmenData();
 
       if (window.breadcrumbSystem && this.unternehmen) {

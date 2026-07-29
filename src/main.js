@@ -37,8 +37,8 @@ import { auftragsdetailsCreate } from './modules/auftrag/AuftragsdetailsCreate.j
 import { markeList } from './modules/marke/MarkeList.js';
 import { markeDetail } from './modules/marke/MarkeDetail.js';
 import { markeCreate } from './modules/marke/MarkeCreate.js';
-import { markePersonaForm } from './modules/marke/MarkePersonaForm.js';
-import { markeProduktForm } from './modules/marke/MarkeProduktForm.js';
+import { personaForm } from './modules/persona/PersonaForm.js';
+import { produktForm } from './modules/produkt/ProduktForm.js';
 import { authService } from './modules/auth/AuthService.js';
 import { authUtils } from './modules/auth/AuthUtils.js';
 import { navigationSystem } from './modules/navigation/NavigationSystem.js';
@@ -66,6 +66,7 @@ import { ansprechpartnerCreate, managementAnsprechpartnerCreate } from './module
 import { rechnungList } from './modules/rechnung/RechnungList.js';
 import { rechnungDetail } from './modules/rechnung/RechnungDetail.js';
 import { actionsDropdown } from './core/ActionsDropdown.js';
+import { tableSelect } from './core/components/TableSelect.js';
 import { mitarbeiterList } from './modules/admin/MitarbeiterList.js';
 import { mitarbeiterDetail } from './modules/admin/MitarbeiterDetail.js';
 import { kundenList } from './modules/admin/KundenList.js';
@@ -134,8 +135,9 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('marke', markeList);
   moduleRegistry.register('marke-detail', markeDetail);
   moduleRegistry.register('marke-create', markeCreate);
-  moduleRegistry.register('marke-persona', markePersonaForm);
-  moduleRegistry.register('marke-produkt', markeProduktForm);
+  // Ein Formular fuer beide Besitzer: /marke/:id/persona und /unternehmen/:id/persona
+  moduleRegistry.register('persona-form', personaForm);
+  moduleRegistry.register('produkt-form', produktForm);
   moduleRegistry.register('kickoff', kickOffList);
   moduleRegistry.register('kickoff-detail', kickOffDetail);
   moduleRegistry.register('unternehmen-detail', unternehmenDetail);
@@ -401,6 +403,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // ActionsDropdown initialisieren
     actionsDropdown.init();
+
+    // Table-Select (Spaltentyp "Select" in Tabellenzellen)
+    tableSelect.init();
     
     // BulkActionSystem initialisieren
     bulkActionSystem.init();

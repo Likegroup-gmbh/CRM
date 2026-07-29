@@ -25,15 +25,19 @@ const REF_PROGRESS = {
 
 /**
  * Referenz-Payload aus dem UI-Zustand bauen (pure Funktion, testbar).
- * Wirft bei fehlender/unfertiger Videovorlage - die Vorlage ist PFLICHT
- * fuer jede neue KI-Generierung.
+ * Die Videovorlage ist optional: ohne Eingabe kommt null zurueck. Eine
+ * angefangene, aber unfertige Vorlage wirft - sie soll nicht stillschweigend
+ * verloren gehen.
  */
 export function buildReferenzVideoPayload({ status, url, job, transkript, beschreibung, caption }) {
   const cleanUrl = (url || '').trim();
   const cleanTranskript = (transkript || '').trim();
 
   if (!cleanUrl) {
-    throw new Error('Bitte eine Videovorlage angeben (TikTok- oder Instagram-URL)');
+    if (cleanTranskript) {
+      throw new Error('Transkript ohne Videovorlage-URL – bitte URL ergänzen oder mit „Vorlage entfernen“ ohne Vorlage generieren');
+    }
+    return null;
   }
   if (!isSupportedVideoUrl(cleanUrl)) {
     throw new Error('Die Videovorlage muss eine TikTok- oder Instagram-URL sein');
@@ -68,7 +72,7 @@ export function buildReferenzVideoPayload({ status, url, job, transkript, beschr
   // Fehlgeschlagene Analyse: manuelles Transkript zur URL ist der Fallback
   if (status === 'error') {
     if (cleanTranskript.length < REF_MANUELL_MIN_ZEICHEN) {
-      throw new Error('Analyse fehlgeschlagen – bitte erneut versuchen oder das Transkript manuell einfügen (min. 50 Zeichen)');
+      throw new Error('Analyse fehlgeschlagen – bitte erneut versuchen, das Transkript manuell einfügen (min. 50 Zeichen) oder mit „Vorlage entfernen“ ohne Vorlage generieren');
     }
     return {
       url: cleanUrl,
@@ -84,7 +88,7 @@ export function buildReferenzVideoPayload({ status, url, job, transkript, beschr
     };
   }
 
-  throw new Error('Bitte die Videovorlage zuerst analysieren (Button „Analysieren“)');
+  throw new Error('Bitte die Videovorlage zuerst analysieren (Button „Analysieren“) – oder mit „Vorlage entfernen“ ohne Vorlage generieren');
 }
 
 export class SkriptGeneratorForm {
@@ -95,7 +99,7 @@ export class SkriptGeneratorForm {
     this.marken = [];
     this.briefingFile = null; // gewaehltes PDF (File), Upload erst beim Generieren
 
-    // Videovorlage (Pflicht): Transcribe-Job-Zustand dieser Form-Instanz
+    // Videovorlage (optional): Transcribe-Job-Zustand dieser Form-Instanz
     this.transcribe = new TranscribeService({ onUpdate: (job) => this.onTranscribeUpdate(job) });
     this.referenz = { status: 'idle', url: '', job: null };
   }
@@ -151,8 +155,8 @@ export class SkriptGeneratorForm {
       </div>
 
       <div class="skripte-card">
-        <h3>Videovorlage *</h3>
-        <p class="skripte-hint">Jedes Skript basiert auf einer Videovorlage: Liky übernimmt Aufbau und Machart (Hook-Typ, Dramaturgie, Pace, CTA-Mechanik) – aber keine Formulierungen oder Produktaussagen. Fakten kommen weiter aus CRM und Briefing.</p>
+        <h3>Videovorlage (optional)</h3>
+        <p class="skripte-hint">Mit Vorlage übernimmt Liky deren Aufbau und Machart (Hook-Typ, Dramaturgie, Pace, CTA-Mechanik) – aber keine Formulierungen oder Produktaussagen. Ohne Vorlage baut Liky das Skript frei aus Skript-DNA und Beispiel-Skripten. Fakten kommen in beiden Fällen aus CRM und Briefing.</p>
         <div class="skripte-ref-row">
           <input type="url" id="${p}-ref-url" class="form-input"
             placeholder="TikTok- oder Instagram-URL der Vorlage (z.B. https://www.tiktok.com/@user/video/...)" />
@@ -248,7 +252,7 @@ export class SkriptGeneratorForm {
   }
 
   // ------------------------------------------------------------------
-  // Videovorlage (Pflicht): Transcribe direkt im Formular
+  // Videovorlage (optional): Transcribe direkt im Formular
   // ------------------------------------------------------------------
   bindReferenzEvents() {
     this.el('ref-start')?.addEventListener('click', () => this.startTranscribe());
@@ -403,7 +407,7 @@ export class SkriptGeneratorForm {
     this.renderReferenzState();
   }
 
-  /** Referenz-Block fuer den Payload (wirft bei fehlender/unfertiger Vorlage). */
+  /** Referenz-Block fuer den Payload (null ohne Vorlage, wirft bei unfertiger). */
   getReferenzPayload() {
     return buildReferenzVideoPayload({
       status: this.referenz.status,
@@ -626,8 +630,8 @@ export class SkriptGeneratorForm {
     if (!unternehmenId) throw new Error('Bitte ein Unternehmen wählen');
     if (!videoIdee) throw new Error('Bitte eine Video-Idee eingeben');
 
-    // Videovorlage ist Pflicht - wirft mit klarer Meldung, wenn sie fehlt,
-    // noch analysiert wird oder kein verwendbares Transkript vorliegt
+    // Videovorlage ist optional (null ohne Eingabe) - wirft nur, wenn sie
+    // angefangen, aber unfertig ist (noch in Analyse, kein Transkript)
     const referenzVideo = this.getReferenzPayload();
 
     const dnaWahl = this.el('dna').value;

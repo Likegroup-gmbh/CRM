@@ -1,4 +1,4 @@
-// MarkeProduktExtractPanel.js
+// ProduktExtractPanel.js
 // Der Verlauf unter der URL-Eingabe in der rechten Spalte. Aufgebaut wie der
 // Chat im Skript-Editor: Liky begruesst, die eingegebene Adresse erscheint als
 // eigener Beitrag rechts, darunter arbeitet Liky die Schritte ab.

@@ -33,7 +33,7 @@ const STEP_LABELS = {
 
 /**
  * Fortschritt nach draussen geben, damit ein Modul ihn anders darstellen kann
- * als am Button (siehe MarkeProduktExtractPanel). Rein additiv - wer nicht
+ * als am Button (siehe ProduktExtractPanel). Rein additiv - wer nicht
  * zuhoert, merkt nichts davon.
  */
 function emit(name, detail) {

@@ -1,4 +1,4 @@
-// MarkeProduktVarianten.js
+// ProduktVarianten.js
 // Varianten-Abschnitt im Produkt-Dokument, dargestellt als Tabelle im
 // CRM-Look mit rahmenlosen Eingaben in den Zellen.
 //
@@ -7,7 +7,7 @@
 // this.entries, nicht im DOM - sonst gehen beim Umsortieren Eingaben verloren.
 // Aus demselben Grund loest Tippen kein Neu-Rendern aus.
 
-import { MarkeProduktService } from './services/MarkeProduktService.js';
+import { ProduktService } from './ProduktService.js';
 
 let idCounter = 0;
 const nextKey = () => `v${++idCounter}`;
@@ -52,7 +52,7 @@ export class ProduktVariantenPanel {
 
   bildUrlFor(bilder, varianteId) {
     const bild = bilder.find(b => b.variante_id === varianteId);
-    return bild ? MarkeProduktService.publicUrl(bild.storage_pfad) : null;
+    return bild ? ProduktService.publicUrl(bild.storage_pfad) : null;
   }
 
   // --- Oeffentliche API fuers Formular ---
@@ -113,7 +113,6 @@ export class ProduktVariantenPanel {
 
     this.root.innerHTML = `
       <label>Varianten</label>
-      <p class="produkt-doc__hint">Farbe, Modell oder Ausführung. Alles andere erbt die Variante von der Kollektion. Varianten sind optional.</p>
       ${this.renderSuggestions()}
       ${this.entries.length ? this.renderTable() : ''}
       <button type="button" class="secondary-btn btn-sm variante-add-btn">Variante hinzufügen</button>
@@ -215,7 +214,7 @@ export class ProduktVariantenPanel {
         <td class="col-thumb">
           <div class="variante-bild">
             ${bildZelle}
-            <input type="file" accept="image/png,image/jpeg,image/webp" class="variante-bild__input" hidden>
+            <input type="file" accept="image/png,image/jpeg,image/webp,image/avif" class="variante-bild__input" hidden>
           </div>
         </td>
         <td class="col-name">

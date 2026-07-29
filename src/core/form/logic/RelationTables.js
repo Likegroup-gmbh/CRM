@@ -37,8 +37,12 @@ export class RelationTables {
       // Korrekte Entity-Feld-Namen für verschiedene Verknüpfungstabellen
       let entityField;
       
+      // Explizite Angabe hat Vorrang vor den historischen Sonderfaellen
+      if (field.relationEntityField) {
+        entityField = field.relationEntityField;
+      }
       // Unternehmen-Mitarbeiter mit Rollen
-      if (relationTable === 'mitarbeiter_unternehmen') {
+      else if (relationTable === 'mitarbeiter_unternehmen') {
         entityField = 'unternehmen_id';
       } else if (relationTable === 'marke_mitarbeiter') {
         entityField = 'marke_id';

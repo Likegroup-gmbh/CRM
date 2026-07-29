@@ -1,13 +1,22 @@
-// MarkeProduktService.js
-// Datenzugriff fuer Produkte einer Marke. Ein Produkt ist eine Kollektion:
+// ProduktService.js
+// Datenzugriff fuer Produkte. Ein Produkt ist eine Kollektion:
 // Varianten (produkt_variante) und Bilder (produkt_bilder) haengen daran.
+//
+// Besitzer ist das Unternehmen (unternehmen_id), die Marken-Zuordnung liegt in
+// der Junction produkt_marke. Der Kontext entscheidet ueber den Filter:
+//   { markeId }        -> nur Produkte dieser Marke (Marke-Detailseite)
+//   { unternehmenId }  -> alle Produkte des Unternehmens, auch die einer Marke
 //
 // Bilder liegen im Storage-Bucket "produkte". Drei Quellen laufen zusammen:
 //   1. bereits gespeicherte Bilder (Edit-Modus)
-//   2. manuell hochgeladene Dateien   -> werden zu WebP komprimiert
+//   2. manuell hochgeladene Dateien   -> werden zu AVIF komprimiert
 //   3. von der KI extrahierte Bilder  -> liegen unter _temp/ und werden verschoben
+//
+// AVIF nur, wo der Browser es encodieren kann (Chromium). Firefox und Safari
+// liefern WebP - deshalb steht die Endung nie fest, sondern kommt aus dem
+// tatsaechlichen Typ der komprimierten Datei.
 
-import { compressImage } from '../../../core/ImageCompressor.js';
+import { compressImage, extensionForType } from '../../core/ImageCompressor.js';
 
 export const PRODUKT_BUCKET = 'produkte';
 export const PRODUKT_TEMP_PREFIX = '_temp';
@@ -15,38 +24,71 @@ export const MAX_BILDER = 5;
 
 // Groesser als der Uploader-Standard (800px): Creator und KI muessen am
 // Produktbild Details erkennen, nicht nur die Silhouette.
-const BILD_KOMPRESSION = { maxWidth: 1200, maxHeight: 1200, quality: 0.85 };
+const BILD_KOMPRESSION = {
+  maxWidth: 1200,
+  maxHeight: 1200,
+  quality: 0.85,
+  format: 'image/avif',
+  fallbackFormat: 'image/webp'
+};
 
-export class MarkeProduktService {
+const MARKEN_SELECT = 'marken:produkt_marke(marke_id, marke:marke_id(id, markenname))';
+
+const TABELLEN_SELECT = `
+  varianten:produkt_variante(id),
+  bilder:produkt_bilder(id, storage_pfad, position, ist_hauptbild, variante_id)
+`;
+
+export class ProduktService {
   // --- Lesen ---
 
-  /** Produkte der Marke inklusive Varianten-IDs und Bildern fuer die Tabelle. */
-  static async loadForMarke(markeId) {
-    const { data, error } = await window.supabase
-      .from('produkt')
-      .select(`
-        *,
-        varianten:produkt_variante(id),
-        bilder:produkt_bilder(id, storage_pfad, position, ist_hauptbild, variante_id)
-      `)
-      .eq('marke_id', markeId)
-      .order('name');
+  /** Produkte des Kontexts inklusive Varianten-IDs und Bildern fuer die Tabelle. */
+  static async loadForContext({ unternehmenId = null, markeId = null } = {}) {
+    let query = window.supabase.from('produkt');
+
+    if (markeId) {
+      query = query
+        .select(`*, treffer:produkt_marke!inner(marke_id), ${MARKEN_SELECT}, ${TABELLEN_SELECT}`)
+        .eq('treffer.marke_id', markeId);
+    } else {
+      query = query
+        .select(`*, ${MARKEN_SELECT}, ${TABELLEN_SELECT}`)
+        .eq('unternehmen_id', unternehmenId);
+    }
+
+    const { data, error } = await query.order('name');
 
     if (error) throw error;
     return data || [];
   }
 
-  /** Laedt ein einzelnes Produkt. markeId schuetzt gegen Deeplinks auf fremde Marken. */
-  static async loadOne(produktId, markeId) {
-    const { data, error } = await window.supabase
-      .from('produkt')
-      .select('*')
-      .eq('id', produktId)
-      .eq('marke_id', markeId)
-      .maybeSingle();
+  /** Laedt ein einzelnes Produkt. Der Kontext schuetzt gegen fremde Deeplinks. */
+  static async loadOne(produktId, { unternehmenId = null, markeId = null } = {}) {
+    let query = window.supabase.from('produkt');
+
+    if (markeId) {
+      query = query
+        .select('*, treffer:produkt_marke!inner(marke_id)')
+        .eq('treffer.marke_id', markeId);
+    } else {
+      query = query.select('*').eq('unternehmen_id', unternehmenId);
+    }
+
+    const { data, error } = await query.eq('id', produktId).maybeSingle();
 
     if (error) throw error;
     return data;
+  }
+
+  /** Marken-IDs eines Produkts, fuer die Vorbelegung des Multiselects. */
+  static async loadMarkenIds(produktId) {
+    const { data, error } = await window.supabase
+      .from('produkt_marke')
+      .select('marke_id')
+      .eq('produkt_id', produktId);
+
+    if (error) throw error;
+    return (data || []).map(row => row.marke_id);
   }
 
   static async loadVarianten(produktId) {
@@ -74,10 +116,9 @@ export class MarkeProduktService {
 
   // --- Schreiben: Kollektion ---
 
-  static async create(data, markeId, unternehmenId = null) {
-    const payload = { ...data, marke_id: markeId };
-    // unternehmen_id ist kein Formularfeld, wird aus der Marke uebernommen
-    if (unternehmenId) payload.unternehmen_id = unternehmenId;
+  static async create(data, { unternehmenId = null } = {}) {
+    const payload = { ...data, unternehmen_id: unternehmenId };
+    delete payload.marke_ids;
 
     const result = await window.dataService.createEntity('produkt', payload);
     if (!result.success) throw new Error(result.error || 'Produkt konnte nicht angelegt werden');
@@ -85,9 +126,31 @@ export class MarkeProduktService {
   }
 
   static async update(id, data) {
-    const result = await window.dataService.updateEntity('produkt', id, data);
+    const payload = { ...data };
+    delete payload.marke_ids;
+    // unternehmen_id steht als Hidden-Feld im Formular und darf nicht wandern
+    delete payload.unternehmen_id;
+
+    const result = await window.dataService.updateEntity('produkt', id, payload);
     if (!result.success) throw new Error(result.error || 'Produkt konnte nicht gespeichert werden');
     return result;
+  }
+
+  /** Setzt die Marken-Zuordnung auf genau diese Liste. */
+  static async saveMarken(produktId, markeIds = []) {
+    const { error: deleteError } = await window.supabase
+      .from('produkt_marke')
+      .delete()
+      .eq('produkt_id', produktId);
+    if (deleteError) throw deleteError;
+
+    const eindeutige = [...new Set(markeIds.filter(Boolean))];
+    if (!eindeutige.length) return;
+
+    const { error } = await window.supabase
+      .from('produkt_marke')
+      .insert(eindeutige.map(marke_id => ({ produkt_id: produktId, marke_id })));
+    if (error) throw error;
   }
 
   /**
@@ -184,15 +247,29 @@ export class MarkeProduktService {
 
     for (const bild of bestehende) {
       if (!bild.id) continue;
+      const felder = { position: bild.position ?? 0, ist_hauptbild: !!bild.ist_hauptbild };
+
+      // Verkleinerte Fassung: neuer Pfad (die Endung kann sich aendern), danach
+      // die alte Datei raeumen. Die DB-Zeile bleibt dieselbe.
+      if (bild.ersatzFile) {
+        const alt = await this.storagePfadFuer(bild.id);
+        felder.storage_pfad = await this.uploadBild(produktId, bild.ersatzFile);
+        if (alt && alt !== felder.storage_pfad) {
+          await window.supabase.storage.from(PRODUKT_BUCKET).remove([alt]);
+        }
+      }
+
       const { error } = await window.supabase
         .from('produkt_bilder')
-        .update({ position: bild.position ?? 0, ist_hauptbild: !!bild.ist_hauptbild })
+        .update(felder)
         .eq('id', bild.id);
       if (error) throw error;
     }
 
     for (const bild of temp) {
-      const zielPfad = `${produktId}/${crypto.randomUUID()}.webp`;
+      // move() konvertiert nicht - die Endung der Quelle bleibt gueltig.
+      const endung = bild.storage_pfad.split('.').pop() || 'webp';
+      const zielPfad = `${produktId}/${crypto.randomUUID()}.${endung}`;
       const { error: moveError } = await window.supabase.storage
         .from(PRODUKT_BUCKET)
         .move(bild.storage_pfad, zielPfad);
@@ -214,29 +291,49 @@ export class MarkeProduktService {
     }
 
     for (const bild of neue) {
-      let file = bild.file;
-      if (!file) continue;
+      if (!bild.file) continue;
 
-      try {
-        file = await compressImage(file, BILD_KOMPRESSION);
-      } catch (err) {
-        console.warn('⚠️ Produktbild konnte nicht komprimiert werden, nutze Original:', err);
-      }
-
-      const zielPfad = `${produktId}/${crypto.randomUUID()}.webp`;
-      const { error: upError } = await window.supabase.storage
-        .from(PRODUKT_BUCKET)
-        .upload(zielPfad, file, { cacheControl: '3600', upsert: true, contentType: file.type || 'image/webp' });
-      if (upError) throw upError;
+      const zielPfad = await this.uploadBild(produktId, bild.file);
 
       const { error } = await window.supabase.from('produkt_bilder').insert([{
         produkt_id: produktId,
         storage_pfad: zielPfad,
+        quelle_url: bild.quelle_url || null,
         position: bild.position ?? 0,
         ist_hauptbild: !!bild.ist_hauptbild
       }]);
       if (error) throw error;
     }
+  }
+
+  /**
+   * Komprimiert und legt eine Bilddatei unter einem neuen Pfad ab.
+   * @returns {Promise<string>} storage_pfad
+   */
+  static async uploadBild(produktId, datei) {
+    let file = datei;
+    try {
+      file = await compressImage(file, BILD_KOMPRESSION);
+    } catch (err) {
+      console.warn('⚠️ Produktbild konnte nicht komprimiert werden, nutze Original:', err);
+    }
+
+    const zielPfad = `${produktId}/${crypto.randomUUID()}.${extensionForType(file.type)}`;
+    const { error } = await window.supabase.storage
+      .from(PRODUKT_BUCKET)
+      .upload(zielPfad, file, { cacheControl: '3600', upsert: true, contentType: file.type });
+    if (error) throw error;
+
+    return zielPfad;
+  }
+
+  static async storagePfadFuer(bildId) {
+    const { data } = await window.supabase
+      .from('produkt_bilder')
+      .select('storage_pfad')
+      .eq('id', bildId)
+      .maybeSingle();
+    return data?.storage_pfad || null;
   }
 
   /**
@@ -251,13 +348,20 @@ export class MarkeProduktService {
       console.warn('⚠️ Variantenbild konnte nicht komprimiert werden, nutze Original:', err);
     }
 
-    const zielPfad = `${produktId}/varianten/${varianteId}.webp`;
+    // Fester Name je Variante, aber die Endung folgt dem Format. Wechselt sie,
+    // wuerde upsert die alte Datei stehen lassen - daher unten das remove().
+    const zielPfad = `${produktId}/varianten/${varianteId}.${extensionForType(datei.type)}`;
     const { error: upError } = await window.supabase.storage
       .from(PRODUKT_BUCKET)
-      .upload(zielPfad, datei, { cacheControl: '3600', upsert: true, contentType: datei.type || 'image/webp' });
+      .upload(zielPfad, datei, { cacheControl: '3600', upsert: true, contentType: datei.type });
     if (upError) throw upError;
 
     if (altesBildId) {
+      const alt = await this.storagePfadFuer(altesBildId);
+      if (alt && alt !== zielPfad) {
+        await window.supabase.storage.from(PRODUKT_BUCKET).remove([alt]);
+      }
+
       const { error } = await window.supabase
         .from('produkt_bilder')
         .update({ storage_pfad: zielPfad })
@@ -267,6 +371,14 @@ export class MarkeProduktService {
     }
 
     // Fremde Zeile derselben Variante entfernen, falls der Aufrufer sie nicht kannte
+    const { data: fremde } = await window.supabase
+      .from('produkt_bilder')
+      .select('storage_pfad')
+      .eq('variante_id', varianteId);
+    const verwaist = (fremde || []).map(r => r.storage_pfad).filter(p => p && p !== zielPfad);
+    if (verwaist.length) {
+      await window.supabase.storage.from(PRODUKT_BUCKET).remove(verwaist);
+    }
     await window.supabase.from('produkt_bilder').delete().eq('variante_id', varianteId);
 
     const { error } = await window.supabase.from('produkt_bilder').insert([{
@@ -337,5 +449,13 @@ export class MarkeProduktService {
 
   static label(produkt) {
     return produkt?.name || 'Produkt';
+  }
+
+  /** Markennamen aus dem eingebetteten Junction-Select, fuer die Tabelle. */
+  static markenNamen(produkt) {
+    return (produkt?.marken || [])
+      .map(eintrag => eintrag?.marke?.markenname)
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, 'de'));
   }
 }

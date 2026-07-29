@@ -4,8 +4,8 @@
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { updateKampagnenTab, updateAuftraegeTab, updateBriefingsTab, updateKooperationenTab, updateRechnungenTab, updateStrategienTab, updateKickOffTab, updatePersonasTab, updateProdukteTab } from './MarkeDetailTabUpdates.js';
-import { MarkePersonaService } from './services/MarkePersonaService.js';
-import { MarkeProduktService } from './services/MarkeProduktService.js';
+import { PersonaService } from '../persona/PersonaService.js';
+import { ProduktService } from '../produkt/ProduktService.js';
 
 export async function loadCriticalData(detail) {
   try {
@@ -181,7 +181,7 @@ export async function loadMarkeTabData(detail, tabName) {
         }
 
         case 'personas': {
-          const personas = await MarkePersonaService.loadForMarke(detail.markeId);
+          const personas = await PersonaService.loadForContext({ markeId: detail.markeId });
           if (!isStillActive()) return personas;
           detail.personas = personas;
           updatePersonasTab(detail);
@@ -189,7 +189,7 @@ export async function loadMarkeTabData(detail, tabName) {
         }
 
         case 'produkte': {
-          const produkte = await MarkeProduktService.loadForMarke(detail.markeId);
+          const produkte = await ProduktService.loadForContext({ markeId: detail.markeId });
           if (!isStillActive()) return produkte;
           detail.produkte = produkte;
           updateProdukteTab(detail);

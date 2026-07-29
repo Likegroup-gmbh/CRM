@@ -253,7 +253,9 @@ export async function applyRelationTableSelected(field, form, options) {
   const entityId = form.dataset.entityId;
   let entityField;
 
-  if (form.dataset.entityType === 'unternehmen' && field.relationTable === 'mitarbeiter_unternehmen') {
+  if (field.relationEntityField) {
+    entityField = field.relationEntityField;
+  } else if (form.dataset.entityType === 'unternehmen' && field.relationTable === 'mitarbeiter_unternehmen') {
     entityField = 'unternehmen_id';
   } else if (form.dataset.entityType === 'marke' && field.relationTable === 'marke_mitarbeiter') {
     entityField = 'marke_id';

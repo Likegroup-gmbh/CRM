@@ -1,22 +1,36 @@
-// MarkeDetailRendererProdukte.js
-// Produkte-Tab der Marke: Tabelle und Empty State. Anlegen und Bearbeiten
-// passieren auf einer eigenen Seite, siehe MarkeProduktForm.js.
+// ProduktTabRenderer.js
+// Produkte-Tab: Tabelle und Empty State. Wird von der Marke- und von der
+// Unternehmen-Detailseite genutzt - im Unternehmens-Kontext kommt eine Spalte
+// mit den zugeordneten Marken dazu. Anlegen und Bearbeiten passieren auf einer
+// eigenen Seite, siehe ProduktForm.js.
 
 import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
-import { MarkeProduktService } from './services/MarkeProduktService.js';
+import { ProduktService } from './ProduktService.js';
 
 const CREATE_BTN_HTML = '<button type="button" class="mdc-btn mdc-btn--create produkt-create-btn">Produkt anlegen</button>';
 
+/** Ohne markeId sind wir auf der Unternehmensseite und zeigen die Marken-Spalte. */
+function zeigtMarkenSpalte(detail) {
+  return !detail.markeId;
+}
+
 function renderThumb(detail, produkt) {
-  const bild = MarkeProduktService.hauptbild(produkt);
-  const url = bild ? MarkeProduktService.publicUrl(bild.storage_pfad) : null;
+  const bild = ProduktService.hauptbild(produkt);
+  const url = bild ? ProduktService.publicUrl(bild.storage_pfad) : null;
   if (!url) return '-';
   return `<img src="${detail.sanitize(url)}" class="table-logo" width="24" height="24" alt="" loading="lazy">`;
+}
+
+function renderMarkenZellen(detail, produkt) {
+  const namen = ProduktService.markenNamen(produkt);
+  if (!namen.length) return '<span class="text-muted">Nur Unternehmen</span>';
+  return namen.map(name => `<span class="status-badge">${detail.sanitize(name)}</span>`).join(' ');
 }
 
 export function renderProdukte(detail) {
   const isKunde = window.isKunde?.();
   const produkte = detail.produkte || [];
+  const mitMarken = zeigtMarkenSpalte(detail);
 
   if (produkte.length === 0) {
     return renderEmptyState({
@@ -37,7 +51,8 @@ export function renderProdukte(detail) {
           ${detail.sanitize(produkt.name)}
         </a>
       </td>
-      <td>${detail.sanitize(MarkeProduktService.preisLabel(produkt))}</td>
+      ${mitMarken ? `<td>${renderMarkenZellen(detail, produkt)}</td>` : ''}
+      <td>${detail.sanitize(ProduktService.preisLabel(produkt))}</td>
       <td>${variantenAnzahl > 0 ? variantenAnzahl : '-'}</td>
       <td>${detail.formatDate(produkt.created_at)}</td>
       <td>
@@ -55,6 +70,7 @@ export function renderProdukte(detail) {
           <tr>
             <th>Bild</th>
             <th>Produkt</th>
+            ${mitMarken ? '<th>Marken</th>' : ''}
             <th>Preis</th>
             <th>Varianten</th>
             <th>Erstellt</th>

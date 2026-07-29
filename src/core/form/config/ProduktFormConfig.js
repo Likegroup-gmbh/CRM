@@ -4,17 +4,21 @@
 // Ein Produkt ist eine Kollektion: sie traegt die Substanz, die spaeter in
 // Strategie, Skripte und Creator-Matching fliesst. Varianten (Farbe, Modell,
 // abweichender Preis) haengen daran und werden im Panel rechts gepflegt,
-// siehe MarkeProduktVarianten.js.
+// siehe ProduktVarianten.js.
 //
-// marke_id und unternehmen_id sind bewusst keine Felder: die Zuordnung kommt
-// aus dem Kontext (Marke-Detailseite) und wird beim Speichern gesetzt.
+// unternehmen_id ist bewusst kein sichtbares Feld: der Besitzer kommt aus dem
+// Kontext und wird von ProduktForm als Hidden-Input eingehaengt. marke_ids
+// rendert nur im Unternehmens-Kontext - aus einer Marke heraus ist die
+// Zuordnung fix.
 //
-// Die doc*-Angaben steuern das Worksheet-Layout in MarkeProduktDoc.js:
+// Die doc*-Angaben steuern das Worksheet-Layout in ProduktDoc.js:
 //   docSlot   'side' holt das Feld aus dem Dokument in die rechte Spalte
 //   docRole   'title' = Dokumenttitel, 'inline' = schmales Feld in einer Zeile,
-//             'uploader' = Tabelle, sonst frei beschreibbarer Textabschnitt
+//             'uploader' = Tabelle, 'relations' = Tag-Multiselect,
+//             sonst frei beschreibbarer Textabschnitt
 //   docLabel  kuerzere Ueberschrift fuers Dokument, falls label zu technisch ist
 //   docHint   kurze Erlaeuterung unter dem Feld (nur bei docRole 'inline')
+//   docList   ein Eintrag pro Zeile - setzt die Zeilen enger als Fliesstext
 //   docGroup  buendelt Felder in eine Sektion (Hairline-Band; Abstand zwischen
 //             Sektionen und innerhalb der Sektion sind getrennt steuerbar)
 // Ohne diese Angaben rendert das klassische FormRenderer-Formular unveraendert.
@@ -52,6 +56,28 @@ export const produktConfig = {
       sectionDescription: 'Die Kollektion trägt die gemeinsame Basis. Unterschiede wie Farbe oder Modell kommen als Varianten dazu.'
     },
     {
+      name: 'marke_ids',
+      label: 'Marken',
+      type: 'multiselect',
+      required: false,
+      dynamic: true,
+      searchable: true,
+      tagBased: true,
+      table: 'marke',
+      displayField: 'markenname',
+      valueField: 'id',
+      filterBy: 'unternehmen_id',
+      relationTable: 'produkt_marke',
+      relationField: 'marke_id',
+      relationEntityField: 'produkt_id',
+      placeholder: 'Marken suchen und hinzufügen...',
+      docRole: 'relations',
+      docLabel: 'Marken',
+      docHint: 'Optional. Ohne Marke gehört das Produkt nur dem Unternehmen.',
+      docGroup: 'inhalt',
+      section: 'basis'
+    },
+    {
       name: 'kurzbeschreibung',
       label: 'Kurzbeschreibung',
       type: 'textarea',
@@ -68,6 +94,7 @@ export const produktConfig = {
       type: 'textarea',
       required: false,
       rows: 3,
+      docList: true,
       docGroup: 'inhalt',
       section: 'nutzen',
       sectionTitle: 'Warum kauft man es?',
@@ -79,6 +106,7 @@ export const produktConfig = {
       type: 'textarea',
       required: false,
       rows: 3,
+      docList: true,
       docGroup: 'inhalt',
       section: 'nutzen'
     },
@@ -115,8 +143,7 @@ export const produktConfig = {
       docLabel: 'von',
       docGroup: 'preis',
       section: 'preis',
-      sectionTitle: 'Preis',
-      sectionDescription: 'Spanne über alle Varianten. Bei einem einzelnen Preis nur "von" füllen. Der UVP ist der reguläre Preis, wenn das Angebot reduziert ist – also der durchgestrichene Betrag im Shop.'
+      sectionTitle: 'Preis'
     },
     {
       name: 'preis_bis',
@@ -154,10 +181,14 @@ export const produktConfig = {
       label: 'Produktbilder',
       type: 'custom',
       customType: 'uploader',
-      accept: 'image/png,image/jpeg,image/webp',
+      accept: 'image/png,image/jpeg,image/webp,image/avif',
       multiple: true,
       required: false,
       maxFileSize: 2 * 1024 * 1024,
+      // Ab hier meldet die Tabelle "Große Datei" und bietet Reduzieren an.
+      // Deutlich unter maxFileSize: 200 KB reichen fuer ein Produktbild.
+      warnFileSize: 200 * 1024,
+      shrink: { maxWidth: 1200, maxHeight: 1200, quality: 0.6, format: 'image/avif', fallbackFormat: 'image/webp' },
       maxFiles: 5,
       sortable: true,
       primarySelectable: true,
@@ -176,6 +207,7 @@ export const produktConfig = {
       type: 'textarea',
       required: false,
       rows: 3,
+      docList: true,
       docGroup: 'compliance',
       section: 'compliance',
       sectionTitle: 'Rechtliches und Compliance',
@@ -187,6 +219,7 @@ export const produktConfig = {
       type: 'textarea',
       required: false,
       rows: 3,
+      docList: true,
       docGroup: 'compliance',
       section: 'compliance'
     },
@@ -196,6 +229,7 @@ export const produktConfig = {
       type: 'textarea',
       required: false,
       rows: 3,
+      docList: true,
       docGroup: 'compliance',
       section: 'compliance'
     },

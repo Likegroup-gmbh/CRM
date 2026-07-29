@@ -510,15 +510,14 @@ export const EntityRegistry = {
     sortBy: 'created_at',
     sortOrder: 'desc'
   },
-  // Produkt = Kollektion. Varianten und Bilder haengen in eigenen Tabellen
-  // daran und werden von MarkeProduktService verwaltet, nicht ueber diese
-  // Registry - sie brauchen Sortierung und Storage-Handling.
+  // Produkt = Kollektion. Varianten, Bilder und die Marken-Zuordnung haengen in
+  // eigenen Tabellen daran und werden von ProduktService verwaltet, nicht ueber
+  // diese Registry - sie brauchen Sortierung und Storage-Handling.
   produkt: {
     table: 'produkt',
     displayField: 'name',
     fields: {
       name: 'string',
-      marke_id: 'uuid',
       unternehmen_id: 'uuid',
       url: 'string',
       kurzbeschreibung: 'string',
@@ -537,10 +536,9 @@ export const EntityRegistry = {
       updated_at: 'date'
     },
     relations: {
-      marke: { table: 'marke', foreignKey: 'marke_id', displayField: 'markenname' },
       unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' }
     },
-    filters: ['name', 'marke_id', 'unternehmen_id'],
+    filters: ['name', 'unternehmen_id'],
     sortBy: 'created_at',
     sortOrder: 'desc'
   },
@@ -550,7 +548,7 @@ export const EntityRegistry = {
     fields: {
       name: 'string',
       oberbegriff: 'string',
-      marke_id: 'uuid',
+      unternehmen_id: 'uuid',
       branche_id: 'uuid',
       alter_von: 'number',
       alter_bis: 'number',
@@ -576,10 +574,10 @@ export const EntityRegistry = {
       updated_at: 'date'
     },
     relations: {
-      marke: { table: 'marke', foreignKey: 'marke_id', displayField: 'markenname' },
+      unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' },
       branche: { table: 'branchen', foreignKey: 'branche_id', displayField: 'name' }
     },
-    filters: ['name', 'oberbegriff', 'marke_id'],
+    filters: ['name', 'oberbegriff', 'unternehmen_id'],
     sortBy: 'created_at',
     sortOrder: 'desc'
   },

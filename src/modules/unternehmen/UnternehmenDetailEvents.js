@@ -64,12 +64,46 @@ export function bindUnternehmenDetailEvents(detail) {
   };
   document.addEventListener('click', detail._ansprechpartnerClickHandler, { signal });
 
+  // Personas und Produkte: eigene Seiten, gleiche Formulare wie bei der Marke.
+  // Muss vor dem generischen table-link-Handler stehen.
+  detail._personaProduktClickHandler = (e) => {
+    const basis = `/unternehmen/${detail.unternehmenId}`;
+
+    if (e.target.closest('.persona-create-btn')) {
+      e.preventDefault();
+      window.navigateTo(`${basis}/persona`);
+      return;
+    }
+
+    const personaRow = e.target.closest('.persona-row-open');
+    if (personaRow) {
+      e.preventDefault();
+      window.navigateTo(`${basis}/persona?persona=${personaRow.dataset.personaId}`);
+      return;
+    }
+
+    if (e.target.closest('.produkt-create-btn')) {
+      e.preventDefault();
+      window.navigateTo(`${basis}/produkt`);
+      return;
+    }
+
+    const produktRow = e.target.closest('.produkt-row-open');
+    if (produktRow) {
+      e.preventDefault();
+      window.navigateTo(`${basis}/produkt?produkt=${produktRow.dataset.produktId}`);
+    }
+  };
+  document.addEventListener('click', detail._personaProduktClickHandler, { signal });
+
   // Navigation zu verknüpften Entitäten
   detail._tableLinkClickHandler = (e) => {
     if (e.target.classList.contains('table-link')) {
+      const { table, id } = e.target.dataset;
+      // Persona- und Produkt-Links tragen dieselbe Klasse, haben aber ihren
+      // eigenen Handler - ohne data-table gehoert der Klick nicht hierher.
+      if (!table || !id) return;
       e.preventDefault();
-      const table = e.target.dataset.table;
-      const id = e.target.dataset.id;
       window.navigateTo(`/${table}/${id}`);
     }
   };

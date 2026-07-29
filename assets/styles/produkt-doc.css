@@ -181,6 +181,12 @@
   overflow: hidden;
 }
 
+/* Eine Zeile pro Eintrag: enger setzen, sonst wirkt jede Zeile wie ein Absatz */
+.produkt-doc .produkt-doc__text--list {
+  min-height: 1.45em;
+  line-height: 1.45;
+}
+
 .produkt-doc .produkt-doc__text:focus {
   border: none;
   outline: none;
@@ -354,6 +360,12 @@
   text-align: center;
 }
 
+.produkt-doc .data-table .col-dimension,
+.produkt-doc .data-table .col-size {
+  width: 1%;
+  white-space: nowrap;
+}
+
 /* ===== Produktbilder-Tabelle ===== */
 
 .produkt-doc .uploader {
@@ -386,6 +398,96 @@
   margin-left: var(--space-xs);
   color: var(--gray-500);
   font-size: var(--text-xs);
+}
+
+/* Thumbnail und Dateiname oeffnen die Lightbox - beide sind Buttons und
+   duerfen darum nichts vom Button-Chrome erben. */
+.produkt-doc .data-table--uploader .uploader-thumb-btn,
+.produkt-doc .data-table--uploader .uploader-name-btn {
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.produkt-doc .data-table--uploader .uploader-thumb-btn {
+  display: block;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.produkt-doc .data-table--uploader .uploader-name-btn {
+  color: var(--gray-900);
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--gray-300);
+  text-underline-offset: 2px;
+}
+
+.produkt-doc .data-table--uploader .uploader-name-btn:hover {
+  text-decoration-color: var(--gray-500);
+}
+
+/* --- Masse und Dateigroesse --- */
+
+.produkt-doc .data-table--uploader .col-dimension,
+.produkt-doc .data-table--uploader .uploader-meta-pending {
+  color: var(--gray-500);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.produkt-doc .data-table--uploader .uploader-size-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxs);
+}
+
+.produkt-doc .data-table--uploader .uploader-size-cell .uploader-size {
+  margin-left: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.produkt-doc .data-table--uploader .uploader-size--warn {
+  color: var(--orange-700);
+  font-weight: 500;
+}
+
+.produkt-doc .data-table--uploader .uploader-badge--warn {
+  padding: 1px var(--space-xxs);
+  border-radius: var(--radius-sm);
+  background: var(--orange-100);
+  color: var(--orange-700);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.produkt-doc .data-table--uploader .uploader-shrink {
+  padding: 1px var(--space-xs);
+  border: var(--border-xs) solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  background: var(--white);
+  color: var(--gray-700);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.produkt-doc .data-table--uploader .uploader-shrink:hover:not(:disabled) {
+  border-color: var(--gray-500);
+  color: var(--gray-900);
+}
+
+.produkt-doc .data-table--uploader .uploader-shrink:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.produkt-doc .data-table--uploader .uploader-hint {
+  color: var(--gray-500);
+  font-size: var(--text-xs);
+  white-space: nowrap;
 }
 
 /* Pfeile liegen in der Tabelle nebeneinander, nicht uebereinander */

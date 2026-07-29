@@ -125,7 +125,7 @@
   white-space: pre-wrap;
 }
 
-/* Videovorlage (Pflicht-Card im Generator) */
+/* Videovorlage (optionale Card im Generator) */
 .skripte-ref-row {
   display: flex;
   gap: var(--space-xs);

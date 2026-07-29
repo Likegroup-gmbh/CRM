@@ -1,8 +1,15 @@
 // CreatorAuswahlTemplates.js
 // Reine Render-Funktionen und Shared Helpers fuer die Creator-Auswahl Detail-Ansicht
 
-import { CREATOR_TYP_OPTIONS } from './creatorTypeOptions.js';
+import { CREATOR_TYP_SELECT_OPTIONS } from './creatorTypeOptions.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
+import { renderTableSelect } from '../../core/components/TableSelect.js';
+import { formatCompactNumber, formatExactNumber } from '../../core/format/compactNumber.js';
+import {
+  SOURCING_STATUS_OPTIONS,
+  getSourcingStatus,
+  getSourcingStatusMeta
+} from './sourcingStatusOptions.js';
 
 // --- Shared Helpers ---
 
@@ -35,20 +42,34 @@ export function groupItemsByKategorie(items) {
   return groups;
 }
 
+/** Spalten, die es in der Tabelle nicht mehr gibt, aber noch in hidden_columns stehen koennen */
+const ENTFERNTE_SPALTEN = ['cp-col-cpm-ig', 'cp-col-cpm-tt'];
+
+/** Die fuenf Status-Checkbox-Spalten, die zur Select-Spalte cp-col-status wurden */
+const ALTE_STATUS_SPALTEN = ['cp-col-onhold', 'cp-col-buchen', 'cp-col-prio1', 'cp-col-prio2', 'cp-col-absagen'];
+
 /**
- * Die frueher kombinierte Links-Spalte wurde in IG und TT aufgeteilt.
- * Listen, die "cp-col-links" noch ausgeblendet haben, sollen weiterhin
- * beide Link-Spalten ausgeblendet sehen.
+ * Bringt gespeicherte hidden_columns auf den aktuellen Spaltenstand:
+ * - die frueher kombinierte Links-Spalte wurde in IG und TT aufgeteilt
+ * - die fuenf Status-Checkboxen wurden zur Select-Spalte cp-col-status
+ *   (nur wenn vorher alle fuenf versteckt waren, bleibt der Status versteckt)
+ * - die manuellen CPM-Spalten gibt es nicht mehr
  */
 export function migrateHiddenColumns(hiddenColumns) {
-  const cols = Array.isArray(hiddenColumns) ? [...hiddenColumns] : [];
-  if (!cols.includes('cp-col-links')) return cols;
+  let cols = Array.isArray(hiddenColumns) ? [...hiddenColumns] : [];
 
-  return [...new Set(
-    cols
+  if (cols.includes('cp-col-links')) {
+    cols = cols
       .filter(c => c !== 'cp-col-links')
-      .concat('cp-col-link-ig', 'cp-col-link-tt')
-  )];
+      .concat('cp-col-link-ig', 'cp-col-link-tt');
+  }
+
+  const alleStatusVersteckt = ALTE_STATUS_SPALTEN.every(c => cols.includes(c));
+  if (alleStatusVersteckt) cols.push('cp-col-status');
+
+  cols = cols.filter(c => !ALTE_STATUS_SPALTEN.includes(c) && !ENTFERNTE_SPALTEN.includes(c));
+
+  return [...new Set(cols)];
 }
 
 export function isColumnVisibleForCustomer(columnClass, isKunde, hiddenColumns) {
@@ -67,10 +88,9 @@ export function getVisibleColumnCount(isKunde, hiddenColumns) {
     'cp-col-follower-ig',
     'cp-col-follower-tt', 'cp-col-ek', 'cp-col-vk', 'cp-col-pricing',
     'cp-col-reichweite-ig', 'cp-col-reichweite-tt', 'cp-col-reichweite-garantie',
-    'cp-col-cpm-ig', 'cp-col-cpm-tt',
     'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-cpm-ig-trimmed',
     'cp-col-location', 'cp-col-notiz',
-    'cp-col-feedback', 'cp-col-anfragen', 'cp-col-onhold', 'cp-col-buchen', 'cp-col-prio1', 'cp-col-prio2', 'cp-col-absagen', 'cp-col-check', 'cp-col-actions'
+    'cp-col-feedback', 'cp-col-anfragen', 'cp-col-status', 'cp-col-check', 'cp-col-actions'
   ];
 
   let count = 0;
@@ -163,6 +183,7 @@ export function renderAddSection(ctx = {}) {
       </div>
       ${!ctx.isKunde ? `
       <div class="add-item-actions-right">
+        <div id="sourcing-status-filter-container"></div>
         <button type="button" class="secondary-btn" id="btn-share-sourcing" title="Liste per E-Mail teilen">
           <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" style="width: 16px; height: 16px;">
             <path d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H165a88,88,0,0,0-85.23,66,8,8,0,0,1-15.5-4A103.94,103.94,0,0,1,165,96h39.71L170.34,61.66a8,8,0,0,1,11.32-11.32l48,48A8,8,0,0,1,229.66,109.66ZM192,208H40V88a8,8,0,0,0-16,0V216a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16Z"></path>
@@ -213,6 +234,17 @@ export function renderItemsTable(ctx) {
       </div>
     `;
   }
+  const statusFilter = ctx.statusFilter || [];
+  if (ctx.items.length === 0 && ctx.hasAnyItems && statusFilter.length > 0) {
+    const imReiter = ctx.activeTab && ctx.activeTab !== 'alle'
+      ? ` im Reiter "${SOURCING_TABS.find(t => t.key === ctx.activeTab)?.label || ctx.activeTab}"`
+      : '';
+    return `
+      <div class="table-container table-container--empty" style="text-align: center; padding: var(--space-xxl); color: var(--text-secondary);">
+        <p>Keine Creator mit Status ${escapeHtml(statusFilter.join(' oder '))}${imReiter}</p>
+      </div>
+    `;
+  }
   if (ctx.items.length === 0 && ctx.hasAnyItems && ctx.activeTab && ctx.activeTab !== 'alle') {
     const tabLabel = SOURCING_TABS.find(t => t.key === ctx.activeTab)?.label || ctx.activeTab;
     return `
@@ -253,23 +285,17 @@ export function renderItemsTable(ctx) {
             <th class="cp-col-ek" ${hide('cp-col-ek')}>EK</th>
             <th class="cp-col-vk" ${hide('cp-col-vk')}>VK</th>
             <th class="cp-col-pricing" ${hide('cp-col-pricing')}>Pricing</th>
-            <th class="cp-col-reichweite-ig" ${hide('cp-col-reichweite-ig')}>Reichweite ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-reichweite-ig" ${hide('cp-col-reichweite-ig')} title="Manuell gepflegt – nicht der automatisch berechnete Views-Schnitt">Reichweite ${INSTAGRAM_ICON}</th>
             <th class="cp-col-reichweite-tt" ${hide('cp-col-reichweite-tt')}>Reichweite ${TIKTOK_ICON}</th>
             <th class="cp-col-reichweite-garantie" ${hide('cp-col-reichweite-garantie')}>RW Garantie</th>
-            <th class="cp-col-cpm-ig" ${hide('cp-col-cpm-ig')}>CPM ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-cpm-tt" ${hide('cp-col-cpm-tt')}>CPM ${TIKTOK_ICON}</th>
-            <th class="cp-col-cpm-ig-8" ${hide('cp-col-cpm-ig-8')} title="Preis aus dem Views-Schnitt der letzten 8 Reels">CPM 8 ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-cpm-ig-30" ${hide('cp-col-cpm-ig-30')} title="Preis aus dem Views-Schnitt der letzten 30 Reels">CPM 30 ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-cpm-ig-trimmed" ${hide('cp-col-cpm-ig-trimmed')} title="Preis aus dem getrimmten Views-Schnitt (Ausreißer gekappt)">CPM ⌀ ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-cpm-ig-8" ${hide('cp-col-cpm-ig-8')} title="Geschätzter Preis bei 25 € CPM – Views-Schnitt der letzten 8 Reels">Preis 8 ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-cpm-ig-30" ${hide('cp-col-cpm-ig-30')} title="Geschätzter Preis bei 25 € CPM – Views-Schnitt der letzten 30 Reels">Preis 30 ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-cpm-ig-trimmed" ${hide('cp-col-cpm-ig-trimmed')} title="Geschätzter Preis bei 25 € CPM – getrimmter Views-Schnitt (Ausreißer gekappt)">Preis Ø ${INSTAGRAM_ICON}</th>
             <th class="cp-col-location" ${hide('cp-col-location')}>Location</th>
             <th class="cp-col-notiz" ${hide('cp-col-notiz')}>Kurzbeschreibung</th>
             <th class="cp-col-feedback" ${hide('cp-col-feedback')}>Rückmeldung Kunde</th>
             <th class="cp-col-anfragen" ${hide('cp-col-anfragen')}>Anfragen</th>
-            <th class="cp-col-onhold" ${hide('cp-col-onhold')}>On Hold</th>
-            <th class="cp-col-buchen" ${hide('cp-col-buchen')}>Buchen</th>
-            <th class="cp-col-prio1" ${hide('cp-col-prio1')}>Prio 1</th>
-            <th class="cp-col-prio2" ${hide('cp-col-prio2')}>Prio 2</th>
-            <th class="cp-col-absagen" ${hide('cp-col-absagen')}>Absagen</th>
+            <th class="cp-col-status" ${hide('cp-col-status')}>Status</th>
             <th class="cp-col-check" ${hide('cp-col-check')}>Rückmeldung</th>
             ${ctx.customManager ? ctx.customManager.renderHeaders(ctx.hiddenColumns, ctx.isKunde) : ''}
             ${!ctx.isKunde ? '<th class="col-actions cp-col-actions">Aktionen</th>' : ''}
@@ -371,11 +397,22 @@ export function renderGroupedItems(ctx) {
   return html;
 }
 
+/** 740500 -> "740,5K", 6000 -> "6,0K", 850 -> "850" */
+function formatReachShort(views) {
+  const n = Number(views);
+  if (!Number.isFinite(n)) return null;
+  const oneDecimal = { minimumFractionDigits: 1, maximumFractionDigits: 1 };
+  if (n >= 1000000) return `${(n / 1000000).toLocaleString('de-DE', oneDecimal)}M`;
+  if (n >= 1000) return `${(n / 1000).toLocaleString('de-DE', oneDecimal)}K`;
+  return Math.round(n).toLocaleString('de-DE');
+}
+
 /**
- * Automatisch berechnete CPM-Zelle (read-only). Der Tooltip zeigt den
- * zugrunde liegenden Views-Schnitt, damit der Preis nachvollziehbar bleibt.
+ * Automatisch berechnete Preis-Zelle (read-only). Mit showViews steht unter
+ * dem Preis die View-Basis, aus der er berechnet wurde - sonst waere in der
+ * Tabelle nicht erkennbar, worauf sich der 8er- bzw. 30er-Wert bezieht.
  */
-function renderAutoCpmCell(ctx, item, columnClass, cpm, views, hide) {
+function renderAutoCpmCell(ctx, item, columnClass, cpm, views, hide, showViews = false) {
   const value = cpm != null
     ? `${Number(cpm).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
     : '-';
@@ -383,30 +420,88 @@ function renderAutoCpmCell(ctx, item, columnClass, cpm, views, hide) {
     ? `${Number(views).toLocaleString('de-DE')} Views im Schnitt`
     : 'Noch nicht abgerufen';
 
+  const reach = showViews && views != null ? formatReachShort(views) : null;
+
   return `
     <td class="cell-textarea ${columnClass}" style="${hide(columnClass)}">
       <div class="cell-text-readonly cpm-auto-value${ctx.kundenCallActive ? ' kunden-call-blur' : ''}"
            data-blur-target
-           title="${escapeHtml(title)}">${value}</div>
+           title="${escapeHtml(title)}">
+        <div class="cpm-auto-price">${value}</div>
+        ${reach ? `<div class="cpm-auto-reach">Ø ${reach} Views</div>` : ''}
+      </div>
     </td>
   `;
 }
+
+/**
+ * Status-Zelle: fasst die frueheren Checkboxen On Hold / Buchen / Prio 1 / Prio 2 /
+ * Absage in einem Select zusammen. Kunden duerfen wie bisher keine Absage setzen
+ * und eine bestehende Absage nicht zuruecknehmen.
+ */
+function renderSourcingStatusCell(ctx, item) {
+  const status = getSourcingStatus(item);
+  const disabled = !!ctx.gastReadonly || (!!ctx.isKunde && !!item.absage);
+
+  const options = SOURCING_STATUS_OPTIONS.map(option => (
+    ctx.isKunde && option.value === 'absage'
+      ? { ...option, disabled: true }
+      : option
+  ));
+
+  return renderTableSelect({
+    field: 'sourcing_status',
+    itemId: item.id,
+    value: status,
+    options,
+    disabled,
+    meta: getSourcingStatusMeta(item, status)
+  });
+}
+
+/**
+ * Follower-Zelle: der Rohwert steckt im Input, darueber liegt die kompakte
+ * Anzeige (5,5K / 1,39M). Beim Fokussieren blendet CSS das Overlay aus, sodass
+ * immer die exakte Zahl bearbeitet wird und beim Speichern nichts gerundet wird.
+ */
+function renderFollowerCell(ctx, item, columnClass, field, hide) {
+  const value = item[field];
+  const compact = formatCompactNumber(value);
+  const exact = formatExactNumber(value);
+
+  if (ctx.isKunde) {
+    return `
+      <td class="${columnClass}" style="${hide(columnClass)}">
+        <div class="cell-number__static" title="${exact}">${compact || '-'}</div>
+      </td>
+    `;
+  }
+
+  return `
+    <td class="${columnClass}" style="${hide(columnClass)}">
+      <div class="cell-number">
+        <input type="text"
+               inputmode="numeric"
+               class="cell-number__input"
+               data-field="${field}"
+               data-item-id="${item.id}"
+               value="${value ?? ''}"
+               aria-label="${escapeHtml(FOLLOWER_LABELS[field] || field)}">
+        <span class="cell-number__display" data-number-display title="${exact}">${compact || '–'}</span>
+      </div>
+    </td>
+  `;
+}
+
+const FOLLOWER_LABELS = {
+  follower_instagram: 'Follower Instagram',
+  follower_tiktok: 'Follower TikTok'
+};
 
 export function renderItemRow(ctx, item, index) {
   const isLinkedToCRM = !!item.creator_id;
   const vis = (col) => isColumnVisibleForCustomer(col, ctx.isKunde, ctx.hiddenColumns);
   const hide = (col) => !vis(col) ? ' display:none;' : '';
-
-  const formatFollower = (count) => {
-    if (!count) return '';
-    if (count >= 1000000) return (count / 1000000).toFixed(1) + 'M';
-    if (count >= 1000) return (count / 1000).toFixed(1) + 'K';
-    return count.toLocaleString('de-DE');
-  };
-
-  const typOptionsHtml = CREATOR_TYP_OPTIONS
-    .map(typ => `<option value="${typ}" ${item.typ === typ ? 'selected' : ''}>${typ}</option>`)
-    .join('');
 
   const isBooked = !!item.gebucht;
 
@@ -429,13 +524,14 @@ export function renderItemRow(ctx, item, index) {
           </div>
         ` : `<div class="cell-text-readonly">${item.name || '-'}</div>`}
       </td>
-      <td class="cell-textarea cp-col-typ" style="${hide('cp-col-typ')}">
-        ${!ctx.isKunde ? `
-          <select class="strategie-textarea" data-field="typ" data-item-id="${item.id}" style="border: none; background: transparent; cursor: pointer;">
-            <option value="">-</option>
-            ${typOptionsHtml}
-          </select>
-        ` : `<div class="cell-text-readonly">${item.typ || '-'}</div>`}
+      <td class="cp-col-typ" style="${hide('cp-col-typ')}">
+        ${!ctx.isKunde ? renderTableSelect({
+          field: 'creator_typ',
+          itemId: item.id,
+          value: item.typ || '',
+          options: CREATOR_TYP_SELECT_OPTIONS,
+          disabled: !!ctx.gastReadonly
+        }) : `<div class="cell-text-readonly">${item.typ || '-'}</div>`}
       </td>
       <td class="cp-col-link-ig" style="${hide('cp-col-link-ig')}">
         ${!ctx.isKunde ? `
@@ -462,16 +558,8 @@ export function renderItemRow(ctx, item, index) {
           </div>
         `}
       </td>
-      <td class="cell-textarea cp-col-follower-ig" style="${hide('cp-col-follower-ig')}">
-        ${!ctx.isKunde ? `
-          <textarea class="strategie-textarea" data-field="follower_instagram" data-item-id="${item.id}" placeholder="0">${item.follower_instagram || ''}</textarea>
-        ` : `<div class="cell-text-readonly">${formatFollower(item.follower_instagram) || '-'}</div>`}
-      </td>
-      <td class="cell-textarea cp-col-follower-tt" style="${hide('cp-col-follower-tt')}">
-        ${!ctx.isKunde ? `
-          <textarea class="strategie-textarea" data-field="follower_tiktok" data-item-id="${item.id}" placeholder="0">${item.follower_tiktok || ''}</textarea>
-        ` : `<div class="cell-text-readonly">${formatFollower(item.follower_tiktok) || '-'}</div>`}
-      </td>
+      ${renderFollowerCell(ctx, item, 'cp-col-follower-ig', 'follower_instagram', hide)}
+      ${renderFollowerCell(ctx, item, 'cp-col-follower-tt', 'follower_tiktok', hide)}
       <td class="cell-textarea cp-col-ek" style="${hide('cp-col-ek')}">
         ${!ctx.isKunde ? `
           <input type="number" class="strategie-textarea${ctx.kundenCallActive ? ' kunden-call-blur' : ''}" data-field="preis_ek" data-item-id="${item.id}" data-blur-target placeholder="0" value="${item.preis_ek ?? ''}" step="0.01">
@@ -502,19 +590,9 @@ export function renderItemRow(ctx, item, index) {
           <input type="text" class="strategie-textarea" data-field="reichweite_garantie" data-item-id="${item.id}" placeholder="z.B. 50K" value="${item.reichweite_garantie || ''}">
         ` : `<div class="cell-text-readonly">${item.reichweite_garantie || '-'}</div>`}
       </td>
-      <td class="cell-textarea cp-col-cpm-ig" style="${hide('cp-col-cpm-ig')}">
-        ${!ctx.isKunde ? `
-          <input type="number" class="strategie-textarea${ctx.kundenCallActive ? ' kunden-call-blur' : ''}" data-field="cpm_instagram" data-item-id="${item.id}" data-blur-target placeholder="0" value="${item.cpm_instagram ?? ''}" step="0.01">
-        ` : `<div class="cell-text-readonly">${item.cpm_instagram != null ? Number(item.cpm_instagram).toLocaleString('de-DE', {minimumFractionDigits: 2}) + ' €' : '-'}</div>`}
-      </td>
-      <td class="cell-textarea cp-col-cpm-tt" style="${hide('cp-col-cpm-tt')}">
-        ${!ctx.isKunde ? `
-          <input type="number" class="strategie-textarea${ctx.kundenCallActive ? ' kunden-call-blur' : ''}" data-field="cpm_tiktok" data-item-id="${item.id}" data-blur-target placeholder="0" value="${item.cpm_tiktok ?? ''}" step="0.01">
-        ` : `<div class="cell-text-readonly">${item.cpm_tiktok != null ? Number(item.cpm_tiktok).toLocaleString('de-DE', {minimumFractionDigits: 2}) + ' €' : '-'}</div>`}
-      </td>
-      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-8', item.cpm_ig_8, item.ig_views_8, hide)}
-      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-30', item.cpm_ig_30, item.ig_views_30, hide)}
-      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-trimmed', item.cpm_ig_trimmed, item.ig_views_trimmed, hide)}
+      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-8', item.cpm_ig_8, item.ig_views_8, hide, true)}
+      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-30', item.cpm_ig_30, item.ig_views_30, hide, true)}
+      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-trimmed', item.cpm_ig_trimmed, item.ig_views_trimmed, hide, true)}
       <td class="cell-textarea cp-col-location" style="${hide('cp-col-location')}">
         ${!ctx.isKunde ? `
           <textarea class="strategie-textarea" data-field="wohnort" data-item-id="${item.id}" placeholder="Location...">${item.wohnort || ''}</textarea>
@@ -551,33 +629,8 @@ export function renderItemRow(ctx, item, index) {
           ${item.angefragt_am ? `<span class="angefragt-datum">${new Date(item.angefragt_am).toLocaleDateString('de-DE')}</span>` : ''}
         </div>
       </td>
-      <td class="cp-col-onhold" style="${hide('cp-col-onhold')}">
-        <div class="onhold-cell">
-          <input type="checkbox" ${item.on_hold ? 'checked' : ''} data-field="on_hold" data-item-id="${item.id}" class="cp-checkbox${(item.absage || ctx.gastReadonly) ? ' cp-checkbox--disabled' : ''}" ${(item.absage || ctx.gastReadonly) ? 'disabled' : ''}>
-          ${item.on_hold_am ? `<span class="onhold-datum">${new Date(item.on_hold_am).toLocaleDateString('de-DE')}</span>` : ''}
-        </div>
-      </td>
-      <td class="cp-col-buchen" style="${hide('cp-col-buchen')}">
-        <input type="checkbox" ${item.gebucht ? 'checked' : ''} data-field="gebucht" data-item-id="${item.id}" class="cp-checkbox${(item.absage || ctx.gastReadonly) ? ' cp-checkbox--disabled' : ''}" ${(item.absage || ctx.gastReadonly) ? 'disabled' : ''}>
-      </td>
-      <td class="cp-col-prio1" style="${hide('cp-col-prio1')}">
-        <input type="checkbox" ${item.prio_1 ? 'checked' : ''} data-field="prio_1" data-item-id="${item.id}" class="cp-checkbox${(item.absage || ctx.gastReadonly) ? ' cp-checkbox--disabled' : ''}" ${(item.absage || ctx.gastReadonly) ? 'disabled' : ''}>
-      </td>
-      <td class="cp-col-prio2" style="${hide('cp-col-prio2')}">
-        <input type="checkbox" ${item.prio_2 ? 'checked' : ''} data-field="prio_2" data-item-id="${item.id}" class="cp-checkbox${(item.absage || ctx.gastReadonly) ? ' cp-checkbox--disabled' : ''}" ${(item.absage || ctx.gastReadonly) ? 'disabled' : ''}>
-      </td>
-      <td class="cp-col-absagen" style="${hide('cp-col-absagen')}">
-        <div class="absage-cell">
-          <input
-            type="checkbox"
-            ${item.absage ? 'checked' : ''}
-            data-field="absage"
-            data-item-id="${item.id}"
-            class="cp-checkbox${ctx.isKunde ? ' cp-checkbox--readonly' : ''}"
-            ${ctx.isKunde ? 'disabled' : ''}
-          >
-          ${item.absage_am ? `<span class="absage-datum">${new Date(item.absage_am).toLocaleDateString('de-DE')}</span>` : ''}
-        </div>
+      <td class="cp-col-status" style="${hide('cp-col-status')}">
+        ${renderSourcingStatusCell(ctx, item)}
       </td>
       <td class="cp-col-check" style="${hide('cp-col-check')}">
         <input

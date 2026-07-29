@@ -1,4 +1,4 @@
-// MarkeProduktDoc.js
+// ProduktDoc.js
 // Rendert das Produkt-Formular als Schreibdokument: mittig ein Worksheet mit
 // festen Ueberschriften und frei beschreibbaren Abschnitten, rechts das
 // Extract-Panel mit der Shop-URL.
@@ -41,10 +41,14 @@ const ICONS = {
 /**
  * Baut das komplette Formular-Markup.
  * @param {Object|null} data - Produktdaten im Edit-Modus, sonst null
+ * @param {Object} [ctx]
+ * @param {boolean} [ctx.mitMarkenFeld] - Marken-Multiselect zeigen (Unternehmens-Kontext)
+ * @param {string|null} [ctx.unternehmenId] - Besitzer, geht als Hidden-Feld mit
  * @returns {string}
  */
-export function renderProduktDoc(data = null) {
-  const fields = produktConfig.fields;
+export function renderProduktDoc(data = null, { mitMarkenFeld = false, unternehmenId = null } = {}) {
+  const fields = produktConfig.fields
+    .filter(f => mitMarkenFeld || f.docRole !== 'relations');
   const isEdit = !!data?._isEditMode;
 
   const sideFields = fields.filter(f => f.docSlot === 'side');
@@ -54,6 +58,7 @@ export function renderProduktDoc(data = null) {
     <form id="${FORM_ID}" class="produkt-doc" data-entity="produkt"
           data-entity-id="${attr(data?.id || data?._entityId || '')}"
           data-is-edit-mode="${isEdit ? 'true' : 'false'}">
+      <input type="hidden" name="unternehmen_id" value="${attr(unternehmenId || '')}">
       <div class="produkt-doc__shell">
         <main class="produkt-doc__main">
           <div class="produkt-doc__scroll">
@@ -113,6 +118,11 @@ function renderDocFields(fields) {
       return;
     }
 
+    if (field.docRole === 'relations') {
+      push(renderRelationsBlock(field), field.docGroup);
+      return;
+    }
+
     if (field.docRole === 'uploader') {
       push(renderUploaderBlock(field), field.docGroup || 'bilder');
       // Eigene Sektion: Abstand zu Bildern unabhaengig vom Inhaltsblock.
@@ -146,14 +156,19 @@ function renderTitle(field) {
 /**
  * Frei beschreibbarer Abschnitt: feste Ueberschrift, darunter Text ohne
  * Rahmen. rows="1" plus Autogrow laesst den Block mitwachsen.
+ *
+ * docList-Felder tragen einen Eintrag pro Zeile. Der Zeilenabstand fuer
+ * Fliesstext laesst solche Listen wie einzelne Absaetze wirken, deshalb der
+ * eigene Modifier.
  */
 function renderTextSection(field) {
   const id = `field-${field.name}`;
+  const cls = field.docList ? 'produkt-doc__text produkt-doc__text--list' : 'produkt-doc__text';
   return `
     <section class="form-field produkt-doc__section" data-doc-field="${attr(field.name)}">
       <label for="${attr(id)}">${text(field.docLabel || field.label)}</label>
       <textarea id="${attr(id)}" name="${attr(field.name)}" rows="1"
-                class="produkt-doc__text" spellcheck="true"
+                class="${cls}" spellcheck="true"
                 placeholder="${attr(field.placeholder || '')}"></textarea>
     </section>
   `;
@@ -194,8 +209,30 @@ function renderInlineRow(first, rowFields) {
 }
 
 /**
+ * Tag-Multiselect im Dokument. Das leere <select> wird von
+ * FormSystem.bindFormEvents() ueber die Feld-Config befuellt und danach durch
+ * das Auto-Suggestion-Widget ersetzt - die Attribute muessen deshalb exakt zu
+ * denen aus dem FormRenderer passen.
+ */
+function renderRelationsBlock(field) {
+  const id = `field-${field.name}`;
+  return `
+    <section class="form-field produkt-doc__section" data-doc-field="${attr(field.name)}">
+      <label for="${attr(id)}">${text(field.docLabel || field.label)}</label>
+      <select id="${attr(id)}" name="${attr(field.name)}" multiple
+              data-searchable="true" data-tag-based="true"
+              data-placeholder="${attr(field.placeholder || 'Bitte wählen...')}"
+              data-table="${attr(field.table || '')}"
+              data-display-field="${attr(field.displayField || '')}"
+              data-value-field="${attr(field.valueField || 'id')}"></select>
+      ${field.docHint ? `<p class="produkt-doc__hint">${text(field.docHint)}</p>` : ''}
+    </section>
+  `;
+}
+
+/**
  * Bilder-Block. Der Container traegt data-name, weil
- * MarkeProduktForm.getBilderUploader() darueber an die Instanz kommt.
+ * ProduktForm.getBilderUploader() darueber an die Instanz kommt.
  */
 function renderUploaderBlock(field) {
   return `
@@ -293,6 +330,8 @@ function fillValues(form, data) {
   produktConfig.fields.forEach(field => {
     const input = form.querySelector(`[name="${field.name}"]`);
     if (!input || input.type === 'file') return;
+    // Multiselects befuellt der DynamicDataLoader ueber die Relationstabelle
+    if (input.multiple) return;
 
     let value = data[field.name];
     if (value === null || value === undefined) value = '';

@@ -1,7 +1,9 @@
 // Formular-Konfiguration fuer "persona"
 // Reine Datendatei, wird von FormConfig.js eingesammelt.
-// marke_id ist bewusst kein Feld: die Zuordnung kommt aus dem Kontext
-// (Marke-Detailseite) und wird beim Speichern gesetzt.
+// unternehmen_id ist bewusst kein sichtbares Feld: der Besitzer kommt aus dem
+// Kontext und wird von PersonaForm als Hidden-Input eingehaengt.
+// marke_ids wird nur im Unternehmens-Kontext gerendert - aus einer Marke heraus
+// entfernt PersonaForm das Feld, weil die Zuordnung dort fix ist.
 
 export const personaConfig = {
   title: 'Neue Persona anlegen',
@@ -25,6 +27,25 @@ export const personaConfig = {
       required: true,
       validation: { type: 'text', minLength: 2 },
       placeholder: "z.B. 'Sarah'",
+      section: 'identitaet'
+    },
+    {
+      name: 'marke_ids',
+      label: 'Marken',
+      type: 'multiselect',
+      required: false,
+      dynamic: true,
+      searchable: true,
+      tagBased: true,
+      table: 'marke',
+      displayField: 'markenname',
+      valueField: 'id',
+      filterBy: 'unternehmen_id',
+      relationTable: 'persona_marke',
+      relationField: 'marke_id',
+      relationEntityField: 'persona_id',
+      placeholder: 'Marken suchen und hinzufügen...',
+      helpText: 'Optional. Ohne Marke gehört die Persona nur dem Unternehmen.',
       section: 'identitaet'
     },
 
