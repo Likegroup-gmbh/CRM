@@ -19,10 +19,10 @@ const {
   fetchProfile: fetchDiscoveryProfile,
   storeImage
 } = require('./_shared/instagram-graph');
+const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-const AUTH_KEY = SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
 const SAVED_POSTS = 5;
 
@@ -42,16 +42,6 @@ function jsonResponse(statusCode, body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   };
-}
-
-async function verifyAuth(event) {
-  const authHeader = (event.headers || {}).authorization || (event.headers || {}).Authorization || '';
-  const token = authHeader.replace(/^Bearer\s+/i, '');
-  if (!token) return null;
-  const supabase = createClient(SUPABASE_URL, AUTH_KEY);
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return null;
-  return user;
 }
 
 /** Ein Instagram-Profil via Business Discovery laden */
@@ -176,9 +166,9 @@ exports.handler = async (event) => {
     return jsonResponse(500, { error: 'Meta-Env fehlt (META_ACCESS_TOKEN / META_IG_USER_ID)' });
   }
 
-  const user = await verifyAuth(event);
-  if (!user) {
-    return jsonResponse(401, { error: 'Nicht autorisiert' });
+  const auth = await verifyAuth(event);
+  if (!auth.user) {
+    return jsonResponse(401, authErrorBody(auth));
   }
 
   let body;

@@ -6,6 +6,7 @@ const chromium = require('@sparticuz/chromium');
 const puppeteerExtra = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const { createClient } = require('@supabase/supabase-js');
+const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 
 // Stealth Plugin mit allen Evasions
 const stealth = StealthPlugin({
@@ -560,24 +561,6 @@ function getAllowedOrigin(requestOrigin) {
 }
 
 /**
- * JWT aus Authorization-Header verifizieren
- */
-async function verifyAuth(event) {
-  const authHeader = (event.headers || {}).authorization || (event.headers || {}).Authorization || '';
-  const token = authHeader.replace(/^Bearer\s+/i, '');
-  if (!token) return null;
-
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-  if (!supabaseUrl || !supabaseKey) return null;
-
-  const supabase = createClient(supabaseUrl, supabaseKey);
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return null;
-  return user;
-}
-
-/**
  * Netlify Function Handler
  */
 exports.handler = async (event, context) => {
@@ -599,9 +582,9 @@ exports.handler = async (event, context) => {
     return { statusCode: 405, headers, body: JSON.stringify({ error: 'POST only' }) };
   }
 
-  const user = await verifyAuth(event);
-  if (!user) {
-    return { statusCode: 401, headers, body: JSON.stringify({ error: 'Unauthorized' }) };
+  const auth = await verifyAuth(event);
+  if (!auth.user) {
+    return { statusCode: 401, headers, body: JSON.stringify(authErrorBody(auth)) };
   }
 
   let browser;

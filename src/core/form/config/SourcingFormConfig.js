@@ -55,6 +55,14 @@ export const sourcingConfig = {
       displayField: 'kampagnenname', 
       valueField: 'id',
       filterByMarke: true
+    },
+    {
+      // Kein DB-Feld: steuert nur die hidden_columns der neuen Liste,
+      // ausgewertet in CreatorAuswahlList.handleCreateFormSubmit
+      name: 'tiktok_spalten',
+      label: 'TikTok-Spalten anzeigen',
+      type: 'checkbox',
+      required: false
     }
   ]
 };

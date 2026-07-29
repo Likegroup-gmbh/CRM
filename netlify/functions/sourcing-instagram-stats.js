@@ -9,6 +9,9 @@
 //      getrimmten Views-Schnitt sowie den jeweiligen CPM-Preis.
 //      Das Profilbild wird als WebP nach Supabase Storage kopiert, da Metas
 //      CDN-URLs nach wenigen Tagen ablaufen.
+//   -> zusaetzlich werden E-Mail, Telefon und Standort aus der Bio gelesen
+//      (siehe _shared/bio-extract.js). Die API kennt diese Felder nicht,
+//      Creator hinterlegen sie aber oft im Bio-Freitext.
 //
 // Auth: Supabase Bearer-Token. Meta-Token bleibt serverseitig.
 
@@ -21,15 +24,16 @@ const {
   storeImage
 } = require('./_shared/instagram-graph');
 const { computeInstagramCpm, WINDOW_LONG } = require('./_shared/instagram-cpm');
+const { extractEmail, extractPhone, extractCity } = require('./_shared/bio-extract');
+const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-const AUTH_KEY = SERVICE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
 const PAGE_SIZE = 50;
 const MAX_PAGES = 2;   // 26s Function-Timeout, mehr ist nicht drin
 
-const PROFILE_FIELDS = 'username,name,followers_count,media_count,profile_picture_url,biography';
+const PROFILE_FIELDS = 'username,name,followers_count,media_count,profile_picture_url,biography,website';
 // Bewusst ohne media_product_type: fuer Business Discovery ist das Feld nicht
 // als public dokumentiert und ein abgelehntes Feld laesst den ganzen Call
 // scheitern. Zum Trennen von Reels und Bildern reicht media_type.
@@ -42,16 +46,6 @@ function jsonResponse(statusCode, body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   };
-}
-
-async function verifyAuth(event) {
-  const authHeader = (event.headers || {}).authorization || (event.headers || {}).Authorization || '';
-  const token = authHeader.replace(/^Bearer\s+/i, '');
-  if (!token) return null;
-  const supabase = createClient(SUPABASE_URL, AUTH_KEY);
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return null;
-  return user;
 }
 
 /**
@@ -125,9 +119,9 @@ exports.handler = async (event) => {
     return jsonResponse(500, { error: 'Meta-Env fehlt (META_ACCESS_TOKEN / META_IG_USER_ID)' });
   }
 
-  const user = await verifyAuth(event);
-  if (!user) {
-    return jsonResponse(401, { error: 'Nicht autorisiert' });
+  const auth = await verifyAuth(event);
+  if (!auth.user) {
+    return jsonResponse(401, authErrorBody(auth));
   }
 
   let body;
@@ -146,7 +140,7 @@ exports.handler = async (event) => {
 
   const { data: item, error: loadError } = await supabase
     .from('creator_auswahl_items')
-    .select('id, name, link_instagram')
+    .select('id, name, link_instagram, email, telefon, wohnort')
     .eq('id', itemId)
     .single();
   if (loadError || !item) {
@@ -207,6 +201,7 @@ exports.handler = async (event) => {
     ig_stats: {
       username,
       biography: p.biography || null,
+      website: p.website || null,
       media_count: p.media_count ?? null,
       sample_8: stats.sample_8,
       sample_30: stats.sample_30,
@@ -219,6 +214,24 @@ exports.handler = async (event) => {
   // Manuell gepflegte Namen nicht ueberschreiben
   if (!item.name?.trim() && p.name) update.name = p.name;
   if (profilbildUrl) update.profile_image_url = profilbildUrl;
+
+  // Kontaktdaten aus der Bio: Business Discovery liefert weder E-Mail noch
+  // Telefon oder Standort als Feld, viele Creator schreiben sie aber in die
+  // Bio. Nur leere Felder werden gefuellt - was jemand von Hand eingetragen
+  // hat, ist verlaesslicher als die Heuristik.
+  const bio = p.biography || '';
+  if (!item.email?.trim()) {
+    const mail = extractEmail(bio);
+    if (mail) update.email = mail;
+  }
+  if (!item.telefon?.trim()) {
+    const telefon = extractPhone(bio);
+    if (telefon) update.telefon = telefon;
+  }
+  if (!item.wohnort?.trim()) {
+    const stadt = extractCity(bio);
+    if (stadt) update.wohnort = stadt;
+  }
 
   const { data: updated, error: updateError } = await supabase
     .from('creator_auswahl_items')

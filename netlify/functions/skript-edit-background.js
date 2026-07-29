@@ -8,6 +8,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { videoLaengeHinweis, kuerzeTranskript } = require('./_shared/skript-context');
+const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 
 // Transkript-Budget im Edit-Prompt: kompakter als bei der Erstgenerierung,
 // weil das fertige Skript + Verlauf schon viel Kontext belegen
@@ -15,15 +16,6 @@ const EDIT_REFERENZ_TRANSKRIPT_MAX = 4000;
 
 // PDF-Briefing-Extrakt im Edit-Prompt: gleiches Budget wie das Transkript
 const EDIT_BRIEFING_EXTRAKT_MAX = 4000;
-
-async function verifyAuth(event, supabase) {
-  const authHeader = (event.headers || {}).authorization || (event.headers || {}).Authorization || '';
-  const token = authHeader.replace(/^Bearer\s+/i, '');
-  if (!token) return null;
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return null;
-  return user;
-}
 
 const AKTION_LABELS = {
   neu_schreiben: 'Neu schreiben',
@@ -287,8 +279,14 @@ exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405 };
 
   const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-  const user = await verifyAuth(event, supabase);
-  if (!user) return { statusCode: 401, body: 'Unauthorized' };
+  const auth = await verifyAuth(event, supabase);
+  if (!auth.user) {
+    return {
+      statusCode: 401,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(authErrorBody(auth))
+    };
+  }
 
   let payload;
   try {

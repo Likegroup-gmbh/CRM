@@ -72,34 +72,67 @@ export function migrateHiddenColumns(hiddenColumns) {
   return [...new Set(cols)];
 }
 
+/**
+ * Spalten, die projektweit abgeschaltet sind: sie werden weder gerendert noch
+ * im Sichtbarkeits-Drawer angeboten. Zell-Markup und DB-Felder bleiben
+ * erhalten - einen Eintrag hier entfernen und die Spalte ist wieder da.
+ */
+export const DEAKTIVIERTE_SPALTEN = ['cp-col-ek', 'cp-col-vk'];
+
+/** Spalten mit internen Daten, die Kunden und Gaeste nie sehen duerfen */
+const NUR_INTERN = ['cp-col-vk', 'cp-col-mail', 'cp-col-telefon'];
+
+/** TikTok-Spalten, in neuen Listen standardmaessig ausgeblendet */
+export const TIKTOK_SPALTEN = ['cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-reichweite-tt'];
+
 export function isColumnVisibleForCustomer(columnClass, isKunde, hiddenColumns) {
+  if (DEAKTIVIERTE_SPALTEN.includes(columnClass)) return false;
+
   if (columnClass === 'cp-col-name' || columnClass === 'cp-col-actions' || columnClass === 'cp-col-drag') {
     return true;
   }
 
-  if (isKunde && columnClass === 'cp-col-vk') return false;
+  if (isKunde && NUR_INTERN.includes(columnClass)) return false;
 
   return !hiddenColumns.includes(columnClass);
 }
 
-export function getVisibleColumnCount(isKunde, hiddenColumns) {
-  const allColumns = [
-    'cp-col-drag', 'cp-col-name', 'cp-col-typ', 'cp-col-link-ig', 'cp-col-link-tt',
-    'cp-col-follower-ig',
-    'cp-col-follower-tt', 'cp-col-ek', 'cp-col-vk', 'cp-col-pricing',
-    'cp-col-reichweite-ig', 'cp-col-reichweite-tt', 'cp-col-reichweite-garantie',
-    'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-cpm-ig-trimmed',
-    'cp-col-location', 'cp-col-notiz',
-    'cp-col-feedback', 'cp-col-anfragen', 'cp-col-status', 'cp-col-check', 'cp-col-actions'
-  ];
+/** Alle Standardspalten in Renderreihenfolge */
+export const SOURCING_SPALTEN = [
+  'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-typ', 'cp-col-location',
+  'cp-col-mail', 'cp-col-telefon',
+  'cp-col-link-ig', 'cp-col-link-tt',
+  'cp-col-follower-ig', 'cp-col-follower-tt',
+  'cp-col-reichweite-ig', 'cp-col-reichweite-tt',
+  'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-cpm-ig-trimmed',
+  'cp-col-pricing', 'cp-col-reichweite-garantie',
+  'cp-col-ek', 'cp-col-vk',
+  'cp-col-notiz', 'cp-col-feedback', 'cp-col-anfragen', 'cp-col-status',
+  'cp-col-check', 'cp-col-actions'
+];
 
+export function getVisibleColumnCount(isKunde, hiddenColumns) {
   let count = 0;
-  for (const col of allColumns) {
+  for (const col of SOURCING_SPALTEN) {
     if (col === 'cp-col-drag' && isKunde) continue;
     if (col === 'cp-col-actions' && isKunde) continue;
     if (isColumnVisibleForCustomer(col, isKunde, hiddenColumns)) count++;
   }
   return count;
+}
+
+/**
+ * Die linken Spalten bleiben beim Querscrollen stehen. Welche Position Bild und
+ * Name dabei einnehmen, haengt davon ab, ob die Drag-Spalte existiert (nur
+ * intern) und ob die Bild-Spalte eingeblendet ist. Die passenden left-Offsets
+ * leitet das CSS aus den Klassen ab, siehe .col-sticky-* in components.css.
+ */
+export function getStickyClasses(ctx) {
+  const bildSichtbar = isColumnVisibleForCustomer('cp-col-bild', ctx.isKunde, ctx.hiddenColumns);
+  let position = ctx.isKunde ? 1 : 2;   // intern belegt die Drag-Spalte die 1
+
+  const bild = bildSichtbar ? `col-sticky-${position++}` : '';
+  return { bild, name: `col-sticky-${position}` };
 }
 
 // --- SVG Icons ---
@@ -283,6 +316,7 @@ export function renderItemsTable(ctx) {
   const customCount = ctx.customManager ? ctx.customManager.visibleCount(ctx.hiddenColumns, ctx.isKunde) : 0;
   const visibleColCount = getVisibleColumnCount(ctx.isKunde, ctx.hiddenColumns) + customCount;
   const hide = (col) => !vis(col) ? 'style="display:none;"' : '';
+  const sticky = getStickyClasses(ctx);
 
   return `
     <div class="table-container creator-pool-table-container">
@@ -290,22 +324,25 @@ export function renderItemsTable(ctx) {
         <thead>
           <tr>
             ${!ctx.isKunde ? '<th class="col-drag col-sticky-1 cp-col-drag"><input type="checkbox" class="sourcing-select-all" title="Alle auswählen"></th>' : ''}
-            <th class="${ctx.isKunde ? 'col-sticky-1' : 'col-sticky-2'} cp-col-name">Name</th>
+            <th class="cp-col-bild ${sticky.bild}" ${hide('cp-col-bild')}></th>
+            <th class="${sticky.name} cp-col-name">Name</th>
             <th class="cp-col-typ" ${hide('cp-col-typ')}>Creator Art</th>
+            <th class="cp-col-location" ${hide('cp-col-location')}>Location</th>
+            <th class="cp-col-mail" ${hide('cp-col-mail')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Mail</th>
+            <th class="cp-col-telefon" ${hide('cp-col-telefon')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Telefon</th>
             <th class="cp-col-link-ig" ${hide('cp-col-link-ig')}>Link ${INSTAGRAM_ICON}</th>
             <th class="cp-col-link-tt" ${hide('cp-col-link-tt')}>Link ${TIKTOK_ICON}</th>
             <th class="cp-col-follower-ig" ${hide('cp-col-follower-ig')}>Follower ${INSTAGRAM_ICON}</th>
             <th class="cp-col-follower-tt" ${hide('cp-col-follower-tt')}>Follower ${TIKTOK_ICON}</th>
-            <th class="cp-col-ek" ${hide('cp-col-ek')}>EK</th>
-            <th class="cp-col-vk" ${hide('cp-col-vk')}>VK</th>
-            <th class="cp-col-pricing" ${hide('cp-col-pricing')}>Pricing</th>
             <th class="cp-col-reichweite-ig" ${hide('cp-col-reichweite-ig')} title="Manuell gepflegt – nicht der automatisch berechnete Views-Schnitt">Reichweite ${INSTAGRAM_ICON}</th>
             <th class="cp-col-reichweite-tt" ${hide('cp-col-reichweite-tt')}>Reichweite ${TIKTOK_ICON}</th>
-            <th class="cp-col-reichweite-garantie" ${hide('cp-col-reichweite-garantie')}>RW Garantie</th>
             <th class="cp-col-cpm-ig-8" ${hide('cp-col-cpm-ig-8')} title="Geschätzter Preis bei 25 € CPM – Views-Schnitt der letzten 8 Reels">Preis 8 ${INSTAGRAM_ICON}</th>
             <th class="cp-col-cpm-ig-30" ${hide('cp-col-cpm-ig-30')} title="Geschätzter Preis bei 25 € CPM – Views-Schnitt der letzten 30 Reels">Preis 30 ${INSTAGRAM_ICON}</th>
             <th class="cp-col-cpm-ig-trimmed" ${hide('cp-col-cpm-ig-trimmed')} title="Geschätzter Preis bei 25 € CPM – getrimmter Views-Schnitt (Ausreißer gekappt)">Preis Ø ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-location" ${hide('cp-col-location')}>Location</th>
+            <th class="cp-col-pricing" ${hide('cp-col-pricing')}>Tatsächlicher Preis</th>
+            <th class="cp-col-reichweite-garantie" ${hide('cp-col-reichweite-garantie')}>RW Garantie</th>
+            <th class="cp-col-ek" ${hide('cp-col-ek')}>EK</th>
+            <th class="cp-col-vk" ${hide('cp-col-vk')}>VK</th>
             <th class="cp-col-notiz" ${hide('cp-col-notiz')}>Kurzbeschreibung</th>
             <th class="cp-col-feedback" ${hide('cp-col-feedback')}>Rückmeldung Kunde</th>
             <th class="cp-col-anfragen" ${hide('cp-col-anfragen')}>Anfragen</th>
@@ -512,17 +549,78 @@ const FOLLOWER_LABELS = {
   follower_tiktok: 'Follower TikTok'
 };
 
+const KONTAKT_FELDER = {
+  email: { label: 'E-Mail', placeholder: 'mail@...', typ: 'email' },
+  telefon: { label: 'Telefon', placeholder: '+49...', typ: 'tel' }
+};
+
+/**
+ * Mail- und Telefon-Zelle. Beide Felder sind intern: bei Kunden und Gaesten
+ * bleibt die Zelle leer, damit der Wert nicht ueber das Markup abfliesst -
+ * ausgeblendet wird sie ohnehin schon von isColumnVisibleForCustomer.
+ *
+ * Der Wert wird beim Instagram-Fetch aus der Bio vorbefuellt und ist danach
+ * frei editierbar; ein manuell gesetzter Wert wird nie ueberschrieben.
+ */
+function renderKontaktCell(ctx, item, columnClass, field, hide) {
+  const meta = KONTAKT_FELDER[field];
+
+  if (ctx.isKunde) {
+    return `<td class="cell-textarea ${columnClass}" style="${hide(columnClass)}"><div class="cell-text-readonly">-</div></td>`;
+  }
+
+  const value = item[field] || '';
+  // Das Schema steht fest, escapeHtml sichert das Attribut - encodeURIComponent
+  // wuerde hier das @ der Adresse zerlegen
+  const link = value
+    ? `<a href="${meta.typ === 'email' ? 'mailto:' : 'tel:'}${escapeHtml(value)}" class="link-icon-btn" title="${escapeHtml(value)}">${EXTERNAL_LINK_ICON}</a>`
+    : '';
+
+  return `
+    <td class="cell-textarea ${columnClass}" style="${hide(columnClass)}">
+      <div class="links-compact-row">
+        <input type="text"
+               class="links-compact-input"
+               data-field="${field}"
+               data-item-id="${item.id}"
+               placeholder="${meta.placeholder}"
+               value="${escapeHtml(value)}"
+               aria-label="${meta.label}">
+        ${link}
+      </div>
+    </td>
+  `;
+}
+
+/**
+ * Profilbild-Zelle. Das Bild kommt beim Instagram-Fetch als WebP in den Storage
+ * (profile_image_url), sonst steht der Initial des Namens als Platzhalter -
+ * gleiches Muster wie in der CRM-Creator-Tabelle.
+ */
+function renderBildCell(ctx, item, sticky, hide) {
+  const rawUrl = item.profile_image_url;
+  const safeUrl = rawUrl ? (window.validatorSystem?.sanitizeUrl(rawUrl) ?? rawUrl) : null;
+  const initial = (item.name || '?').trim().charAt(0).toUpperCase() || '?';
+
+  const inner = safeUrl
+    ? `<img src="${escapeHtml(safeUrl)}" alt="${escapeHtml(item.name || 'Profilbild')}" class="table-avatar table-avatar-img" loading="lazy" />`
+    : `<span class="table-avatar">${escapeHtml(initial)}</span>`;
+
+  return `<td class="cp-col-bild ${sticky.bild}" style="${hide('cp-col-bild')}">${inner}</td>`;
+}
+
 export function renderItemRow(ctx, item, index) {
   const isLinkedToCRM = !!item.creator_id;
   const vis = (col) => isColumnVisibleForCustomer(col, ctx.isKunde, ctx.hiddenColumns);
   const hide = (col) => !vis(col) ? ' display:none;' : '';
+  const sticky = getStickyClasses(ctx);
 
   const isBooked = !!item.gebucht;
 
   return `
     <tr class="item-row ${!ctx.isKunde ? 'draggable' : ''} ${isBooked ? 'item-gebucht' : ''}" data-item-id="${item.id}" draggable="false">
       ${!ctx.isKunde ? `
-        <td class="col-drag drag-handle col-sticky-1">
+        <td class="col-drag drag-handle col-sticky-1 cp-col-drag">
           <div class="drag-cell-content">
             <input type="checkbox" class="sourcing-item-check" data-item-id="${item.id}">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="drag-icon" style="width: 16px; height: 16px;">
@@ -531,7 +629,8 @@ export function renderItemRow(ctx, item, index) {
           </div>
         </td>
       ` : ''}
-      <td class="cell-textarea cp-col-name ${ctx.isKunde ? 'col-sticky-1' : 'col-sticky-2'}">
+      ${renderBildCell(ctx, item, sticky, hide)}
+      <td class="cell-textarea cp-col-name ${sticky.name}">
         ${!ctx.isKunde ? `
           <div class="cp-name-cell-inner">
             <textarea class="strategie-textarea" data-field="name" data-item-id="${item.id}" placeholder="Name...">${item.name || ''}</textarea>
@@ -547,6 +646,13 @@ export function renderItemRow(ctx, item, index) {
           disabled: !!ctx.gastReadonly
         }) : `<div class="cell-text-readonly">${item.typ || '-'}</div>`}
       </td>
+      <td class="cell-textarea cp-col-location" style="${hide('cp-col-location')}">
+        ${!ctx.isKunde ? `
+          <textarea class="strategie-textarea" data-field="wohnort" data-item-id="${item.id}" placeholder="Location...">${item.wohnort || ''}</textarea>
+        ` : `<div class="cell-text-readonly">${item.wohnort || '-'}</div>`}
+      </td>
+      ${renderKontaktCell(ctx, item, 'cp-col-mail', 'email', hide)}
+      ${renderKontaktCell(ctx, item, 'cp-col-telefon', 'telefon', hide)}
       <td class="cp-col-link-ig" style="${hide('cp-col-link-ig')}">
         ${!ctx.isKunde ? `
           <div class="links-compact-row">
@@ -574,21 +680,6 @@ export function renderItemRow(ctx, item, index) {
       </td>
       ${renderFollowerCell(ctx, item, 'cp-col-follower-ig', 'follower_instagram', hide)}
       ${renderFollowerCell(ctx, item, 'cp-col-follower-tt', 'follower_tiktok', hide)}
-      <td class="cell-textarea cp-col-ek" style="${hide('cp-col-ek')}">
-        ${!ctx.isKunde ? `
-          <input type="number" class="strategie-textarea${ctx.kundenCallActive ? ' kunden-call-blur' : ''}" data-field="preis_ek" data-item-id="${item.id}" data-blur-target placeholder="0" value="${item.preis_ek ?? ''}" step="0.01">
-        ` : `<div class="cell-text-readonly">${item.preis_ek != null ? Number(item.preis_ek).toLocaleString('de-DE', {minimumFractionDigits: 0}) + ' €' : '-'}</div>`}
-      </td>
-      <td class="cell-textarea cp-col-vk" style="${hide('cp-col-vk')}">
-        ${!ctx.isKunde ? `
-          <input type="number" class="strategie-textarea" data-field="preis_vk" data-item-id="${item.id}" placeholder="0" value="${item.preis_vk ?? ''}" step="0.01">
-        ` : `<div class="cell-text-readonly">-</div>`}
-      </td>
-      <td class="cell-textarea cp-col-pricing" style="${hide('cp-col-pricing')}">
-        ${!ctx.isKunde ? `
-          <textarea class="strategie-textarea" data-field="pricing" data-item-id="${item.id}" placeholder="Preis...">${item.pricing || ''}</textarea>
-        ` : `<div class="cell-text-readonly">${item.pricing || '-'}</div>`}
-      </td>
       <td class="cell-textarea cp-col-reichweite-ig" style="${hide('cp-col-reichweite-ig')}">
         ${!ctx.isKunde ? `
           <input type="text" class="strategie-textarea" data-field="reichweite_instagram" data-item-id="${item.id}" placeholder="z.B. 10K" value="${item.reichweite_instagram || ''}">
@@ -599,18 +690,28 @@ export function renderItemRow(ctx, item, index) {
           <input type="text" class="strategie-textarea" data-field="reichweite_tiktok" data-item-id="${item.id}" placeholder="z.B. 10K" value="${item.reichweite_tiktok || ''}">
         ` : `<div class="cell-text-readonly">${item.reichweite_tiktok || '-'}</div>`}
       </td>
+      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-8', item.cpm_ig_8, item.ig_views_8, hide, true)}
+      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-30', item.cpm_ig_30, item.ig_views_30, hide, true)}
+      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-trimmed', item.cpm_ig_trimmed, item.ig_views_trimmed, hide, true)}
+      <td class="cell-textarea cp-col-pricing" style="${hide('cp-col-pricing')}">
+        ${!ctx.isKunde ? `
+          <textarea class="strategie-textarea" data-field="pricing" data-item-id="${item.id}" placeholder="Preis...">${item.pricing || ''}</textarea>
+        ` : `<div class="cell-text-readonly">${item.pricing || '-'}</div>`}
+      </td>
       <td class="cell-textarea cp-col-reichweite-garantie" style="${hide('cp-col-reichweite-garantie')}">
         ${!ctx.isKunde ? `
           <input type="text" class="strategie-textarea" data-field="reichweite_garantie" data-item-id="${item.id}" placeholder="z.B. 50K" value="${item.reichweite_garantie || ''}">
         ` : `<div class="cell-text-readonly">${item.reichweite_garantie || '-'}</div>`}
       </td>
-      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-8', item.cpm_ig_8, item.ig_views_8, hide, true)}
-      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-30', item.cpm_ig_30, item.ig_views_30, hide, true)}
-      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-trimmed', item.cpm_ig_trimmed, item.ig_views_trimmed, hide, true)}
-      <td class="cell-textarea cp-col-location" style="${hide('cp-col-location')}">
+      <td class="cell-textarea cp-col-ek" style="${hide('cp-col-ek')}">
         ${!ctx.isKunde ? `
-          <textarea class="strategie-textarea" data-field="wohnort" data-item-id="${item.id}" placeholder="Location...">${item.wohnort || ''}</textarea>
-        ` : `<div class="cell-text-readonly">${item.wohnort || '-'}</div>`}
+          <input type="number" class="strategie-textarea${ctx.kundenCallActive ? ' kunden-call-blur' : ''}" data-field="preis_ek" data-item-id="${item.id}" data-blur-target placeholder="0" value="${item.preis_ek ?? ''}" step="0.01">
+        ` : `<div class="cell-text-readonly">${item.preis_ek != null ? Number(item.preis_ek).toLocaleString('de-DE', {minimumFractionDigits: 0}) + ' €' : '-'}</div>`}
+      </td>
+      <td class="cell-textarea cp-col-vk" style="${hide('cp-col-vk')}">
+        ${!ctx.isKunde ? `
+          <input type="number" class="strategie-textarea" data-field="preis_vk" data-item-id="${item.id}" placeholder="0" value="${item.preis_vk ?? ''}" step="0.01">
+        ` : `<div class="cell-text-readonly">-</div>`}
       </td>
       <td class="cell-textarea cp-col-notiz" style="${hide('cp-col-notiz')}">
         ${!ctx.isKunde ? `
@@ -658,7 +759,7 @@ export function renderItemRow(ctx, item, index) {
       </td>
       ${ctx.customManager ? ctx.customManager.renderCells(item.id, ctx.hiddenColumns, ctx.isKunde) : ''}
       ${!ctx.isKunde ? `
-        <td class="col-actions">
+        <td class="col-actions cp-col-actions">
           <div class="actions-dropdown-container" data-entity-type="creator_auswahl_item">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">

@@ -2,6 +2,7 @@
 // Hierarchische Sourcing-Ansicht: Unternehmen -> Marken -> Inhalte
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
+import { TIKTOK_SPALTEN } from './CreatorAuswahlTemplates.js';
 import { AutoGeneration } from '../../core/form/logic/AutoGeneration.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
@@ -861,6 +862,8 @@ export class CreatorAuswahlList {
   async handleCreateFormSubmit(form) {
     try {
       const submitData = window.formSystem.collectSubmitData(form);
+      this.applyTiktokSpaltenOption(form, submitData);
+
       if (!submitData.name || submitData.name.trim() === '') {
         const generatedName = await this.autoGeneration.autoGenerateSourcingName(
           submitData.kampagne_id,
@@ -881,6 +884,22 @@ export class CreatorAuswahlList {
     } catch (error) {
       console.error('❌ Fehler beim Erstellen:', error);
       window.toastSystem?.show(`Fehler beim Erstellen: ${error.message}`, 'error');
+    }
+  }
+
+  /**
+   * TikTok-Spalten sind in neuen Listen standardmaessig aus - die meisten
+   * Kampagnen laufen rein auf Instagram. Der Toggle im Anlege-Formular ist kein
+   * DB-Feld, sondern belegt nur die hidden_columns vor; spaeter laesst sich das
+   * pro Liste ueber "Sichtbarkeit anpassen" aendern.
+   */
+  applyTiktokSpaltenOption(form, submitData) {
+    const toggle = form.querySelector('input[name="tiktok_spalten"]');
+    const tiktokAnzeigen = toggle ? toggle.checked : false;
+    delete submitData.tiktok_spalten;
+
+    if (!tiktokAnzeigen) {
+      submitData.hidden_columns = TIKTOK_SPALTEN;
     }
   }
 

@@ -741,6 +741,13 @@ export class CreatorAuswahlDetail {
       );
     } catch (error) {
       console.error('Fehler beim Instagram-Abruf:', error);
+      // Bei toter Session hat authorizedFetch schon Hinweis und Logout uebernommen;
+      // der Abbruch gehoert dann nicht als Abruf-Fehler an die Zeile
+      if (error.sessionDead) {
+        button.disabled = false;
+        button.classList.remove('is-loading');
+        return;
+      }
       item.ig_fetch_error = error.message;
       this.refreshItemRow(itemId);
       window.toastSystem?.show(error.hint || error.message, error.retryable ? 'info' : 'error');

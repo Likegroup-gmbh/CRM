@@ -29,14 +29,26 @@ export class AuthService {
         return false;
       }
 
-      if (session) {
-        console.log('✅ Session gefunden:', session.user.email);
-        await this.loadCurrentUser(session.user.id);
-        return true;
-      } else {
+      if (!session) {
         console.log('❌ Keine Session gefunden');
         return false;
       }
+
+      // getSession() liest nur den localStorage. Wurde die Session serverseitig
+      // entfernt (z. B. globaler Logout in einem anderen Tab), bleibt der Token
+      // bis zum Ablauf signaturgueltig und der Nutzer landet in einer App, in
+      // der jede Netlify Function 401 liefert. getUser() geht an GoTrue und
+      // entlarvt genau das.
+      const { error: userError } = await window.supabase.auth.getUser();
+      if (userError) {
+        console.warn(`❌ Session serverseitig ungültig (${userError.code || 'unbekannt'}): ${userError.message}`);
+        await window.supabase.auth.signOut({ scope: 'local' });
+        return false;
+      }
+
+      console.log('✅ Session gefunden:', session.user.email);
+      await this.loadCurrentUser(session.user.id);
+      return true;
     } catch (error) {
       console.error('❌ Auth check failed:', error);
       return false;
@@ -537,7 +549,11 @@ export class AuthService {
       this._permissionsSubscription = null;
       
       if (window.supabase) {
-        await window.supabase.auth.signOut();
+        // scope 'local': ohne das loescht GoTrue ALLE Sessions des Users, auch
+        // die in anderen Tabs/Umgebungen. Deren Access-Token bleibt gueltig
+        // (RLS prueft nur die Signatur), aber auth.getUser() in den Netlify
+        // Functions laeuft dort danach in session_not_found -> 401.
+        await window.supabase.auth.signOut({ scope: 'local' });
       }
       
       window.currentUser = null;

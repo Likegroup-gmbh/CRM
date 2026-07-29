@@ -12268,15 +12268,46 @@ table:has(#strategien-table-body) td.col-actions {
 
 /* Sticky-Spalten: Echte Borders werden durch box-shadow ersetzt (bleiben beim Scrollen sichtbar) */
 
-/* Erste Spalte (Drag) - Sticky */
+/* Die linke Spaltengruppe bleibt beim Querscrollen stehen. Welche Spalte welche
+   Position einnimmt, entscheidet getStickyClasses() in CreatorAuswahlTemplates.js:
+   intern Checkbox > Bild > Name, in der Kundenansicht faellt die Checkbox weg.
+   Die left-Offsets ergeben sich hier kumulativ aus den Spaltenbreiten. */
+.creator-pool-table {
+  --cp-w-drag: 32px;
+  --cp-w-bild: 44px;
+  --cp-sticky-2-left: var(--cp-w-drag);
+  --cp-sticky-3-left: calc(var(--cp-w-drag) + var(--cp-w-bild));
+}
+
+/* Ohne Bulk-Select (Kunden-/Gastansicht) gibt es keine Checkbox-Spalte:
+   Bild rutscht auf Position 1, Name auf Position 2 */
+.creator-pool-table:not(.has-bulk-select) {
+  --cp-sticky-2-left: var(--cp-w-bild);
+}
+
+.creator-pool-table .cp-col-drag {
+  width: var(--cp-w-drag);
+  min-width: var(--cp-w-drag);
+}
+
+.creator-pool-table .cp-col-bild {
+  width: var(--cp-w-bild);
+  min-width: var(--cp-w-bild);
+  text-align: center;
+}
+
+.creator-pool-table td.cp-col-bild {
+  padding: var(--space-xs) !important;
+  vertical-align: middle;
+}
+
+/* Position 1 - Sticky */
 .creator-pool-table th.col-sticky-1,
 .creator-pool-table td.col-sticky-1 {
   position: sticky !important;
   left: 0 !important;
   z-index: 20;
   background: white;
-  min-width: 32px;
-  width: 32px;
   padding: 0 var(--space-xs) !important;
   border: none !important;
   box-shadow: 
@@ -12285,14 +12316,13 @@ table:has(#strategien-table-body) td.col-actions {
     inset -1px 0 0 0 var(--gray-100);
 }
 
-/* Zweite Spalte (Name) - Sticky */
+/* Position 2 - Sticky */
 .creator-pool-table th.col-sticky-2,
 .creator-pool-table td.col-sticky-2 {
   position: sticky !important;
-  left: 32px !important;
+  left: var(--cp-sticky-2-left) !important;
   z-index: 20;
   background: white;
-  min-width: 140px;
   border: none !important;
   box-shadow: 
     inset 0 -1px 0 0 var(--gray-100),
@@ -12301,14 +12331,13 @@ table:has(#strategien-table-body) td.col-actions {
     inset -1px 0 0 0 var(--gray-100);
 }
 
-/* Dritte Spalte (Creator Art) - Sticky mit rechter Trennkante */
+/* Position 3 - Sticky, letzte fixierte Spalte */
 .creator-pool-table th.col-sticky-3,
 .creator-pool-table td.col-sticky-3 {
   position: sticky !important;
-  left: 172px !important; /* 32px + 140px */
+  left: var(--cp-sticky-3-left) !important;
   z-index: 20;
   background: white;
-  min-width: 130px;
   border: none !important;
   box-shadow: 
     inset 0 -1px 0 0 var(--gray-100),
@@ -12394,8 +12423,48 @@ table:has(#strategien-table-body) td.col-actions {
   min-width: 140px;
 }
 
-.creator-pool-table td.cp-col-name {
-  vertical-align: top;
+/* Zellen mit einzeiligem Wert. Die Zeilenhoehe kommt vom Profilbild und von der
+   Kurzbeschreibung, ein Eingabefeld ist deutlich flacher - ohne Zentrierung
+   klebt der Wert an der oberen Zellkante, waehrend Follower, Links und Selects
+   daneben mittig sitzen. Das Feld behaelt seine volle Hoehe, damit die ganze
+   Zelle klickbar bleibt; align-content zentriert nur den Text darin. */
+.creator-pool-table td.cp-col-name,
+.creator-pool-table td.cp-col-location,
+.creator-pool-table td.cp-col-mail,
+.creator-pool-table td.cp-col-telefon,
+.creator-pool-table td.cp-col-reichweite-ig,
+.creator-pool-table td.cp-col-reichweite-tt,
+.creator-pool-table td.cp-col-reichweite-garantie,
+.creator-pool-table td.cp-col-pricing,
+.creator-pool-table td.cp-col-cpm-ig-8,
+.creator-pool-table td.cp-col-cpm-ig-30,
+.creator-pool-table td.cp-col-cpm-ig-trimmed,
+.creator-pool-table td.cp-col-ek,
+.creator-pool-table td.cp-col-vk {
+  vertical-align: middle;
+}
+
+.creator-pool-table td.cp-col-name .strategie-textarea,
+.creator-pool-table td.cp-col-location .strategie-textarea,
+.creator-pool-table td.cp-col-reichweite-ig .strategie-textarea,
+.creator-pool-table td.cp-col-reichweite-tt .strategie-textarea,
+.creator-pool-table td.cp-col-reichweite-garantie .strategie-textarea,
+.creator-pool-table td.cp-col-pricing .strategie-textarea,
+.creator-pool-table td.cp-col-ek .strategie-textarea,
+.creator-pool-table td.cp-col-vk .strategie-textarea,
+.creator-pool-table td.cp-col-name .cell-text-readonly,
+.creator-pool-table td.cp-col-location .cell-text-readonly,
+.creator-pool-table td.cp-col-reichweite-ig .cell-text-readonly,
+.creator-pool-table td.cp-col-reichweite-tt .cell-text-readonly,
+.creator-pool-table td.cp-col-reichweite-garantie .cell-text-readonly,
+.creator-pool-table td.cp-col-pricing .cell-text-readonly,
+.creator-pool-table td.cp-col-cpm-ig-8 .cell-text-readonly,
+.creator-pool-table td.cp-col-cpm-ig-30 .cell-text-readonly,
+.creator-pool-table td.cp-col-cpm-ig-trimmed .cell-text-readonly {
+  align-content: center;
+  /* Als Inline-Element wuerde die Baseline das Feld ein paar Pixel nach oben
+     ziehen, sodass es trotz vertical-align nicht exakt mittig sitzt */
+  display: block;
 }
 
 .creator-pool-table .cp-col-typ {
@@ -12423,6 +12492,16 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table .cp-col-location {
   width: 100px;
   min-width: 100px;
+}
+
+.creator-pool-table .cp-col-mail {
+  width: 190px;
+  min-width: 190px;
+}
+
+.creator-pool-table .cp-col-telefon {
+  width: 150px;
+  min-width: 150px;
 }
 
 .creator-pool-table .cp-col-notiz {
@@ -12492,9 +12571,11 @@ table:has(#strategien-table-body) td.col-actions {
   cursor: not-allowed;
 }
 
+/* Etwas breiter als die anderen Freitextfelder, sonst bricht der Header
+   "Tatsächlicher Preis" auf drei Zeilen */
 .creator-pool-table .cp-col-pricing {
-  width: 100px;
-  min-width: 100px;
+  width: 120px;
+  min-width: 120px;
 }
 
 .creator-pool-table .cp-col-link-ig {
@@ -12525,6 +12606,36 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table .cp-col-cpm-ig-trimmed {
   width: 108px;
   min-width: 108px;
+}
+
+/* Kurze Zahlenwerte mittig wie die Follower-Spalten, statt am linken Rand zu
+   kleben - betrifft Reichweiten, Garantie und alle Preisspalten */
+.creator-pool-table .cp-col-reichweite-ig,
+.creator-pool-table .cp-col-reichweite-tt,
+.creator-pool-table .cp-col-reichweite-garantie,
+.creator-pool-table .cp-col-pricing,
+.creator-pool-table .cp-col-cpm-ig-8,
+.creator-pool-table .cp-col-cpm-ig-30,
+.creator-pool-table .cp-col-cpm-ig-trimmed,
+.creator-pool-table .cp-col-ek,
+.creator-pool-table .cp-col-vk {
+  text-align: center;
+}
+
+.creator-pool-table td.cp-col-reichweite-ig .strategie-textarea,
+.creator-pool-table td.cp-col-reichweite-tt .strategie-textarea,
+.creator-pool-table td.cp-col-reichweite-garantie .strategie-textarea,
+.creator-pool-table td.cp-col-pricing .strategie-textarea,
+.creator-pool-table td.cp-col-ek .strategie-textarea,
+.creator-pool-table td.cp-col-vk .strategie-textarea,
+.creator-pool-table td.cp-col-reichweite-ig .cell-text-readonly,
+.creator-pool-table td.cp-col-reichweite-tt .cell-text-readonly,
+.creator-pool-table td.cp-col-reichweite-garantie .cell-text-readonly,
+.creator-pool-table td.cp-col-pricing .cell-text-readonly,
+.creator-pool-table td.cp-col-cpm-ig-8 .cell-text-readonly,
+.creator-pool-table td.cp-col-cpm-ig-30 .cell-text-readonly,
+.creator-pool-table td.cp-col-cpm-ig-trimmed .cell-text-readonly {
+  text-align: center;
 }
 
 .creator-pool-table .cpm-auto-value {
@@ -18381,18 +18492,46 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
     inset 0 -1px 0 0 var(--gray-200) !important;
 }
 
-/* Spalte 2 (Name): left = Breite Spalte 1, rechte Kante als Trenner */
-.creator-pool-table.has-bulk-select th.col-sticky-2,
-.creator-pool-table.has-bulk-select td.col-sticky-2 {
-  
+/* Die Kanten haengen an den Spalten, nicht an der Sticky-Position: die
+   Bild-Spalte laesst sich ausblenden, dann rutscht der Name eine Position nach
+   links. Links steht die Kante zur Checkbox-Spalte, rechts der Trenner zum
+   scrollenden Bereich - zwischen Bild und Name bleibt es kantenlos. */
+
+/* Kante links an der Spalte, die direkt an der Checkbox sitzt. Ist die
+   Bild-Spalte ausgeblendet, hat sie keine Sticky-Klasse und der Name steht auf
+   Position 2 - dann traegt er die Kante. */
+.creator-pool-table.has-bulk-select th.cp-col-bild,
+.creator-pool-table.has-bulk-select td.cp-col-bild,
+.creator-pool-table.has-bulk-select th.cp-col-name.col-sticky-2,
+.creator-pool-table.has-bulk-select td.cp-col-name.col-sticky-2 {
   border-left: 1px solid var(--gray-200) !important;
+}
+
+/* Bild-Spalte: keine rechte Kante, sie gehoert optisch zum Namen */
+.creator-pool-table th.cp-col-bild,
+.creator-pool-table td.cp-col-bild {
+  box-shadow:
+    inset 0 1px 0 0 var(--gray-100),
+    inset 0 -1px 0 0 var(--gray-100) !important;
+}
+
+.creator-pool-table thead th.cp-col-bild {
+  z-index: 26 !important;
+  box-shadow:
+    inset 0 1px 0 0 var(--gray-100),
+    inset 0 -1px 0 0 var(--gray-200) !important;
+}
+
+/* Name ist immer die letzte fixierte Spalte: rechte Kante als Trenner */
+.creator-pool-table th.cp-col-name,
+.creator-pool-table td.cp-col-name {
   box-shadow:
     inset 0 1px 0 0 var(--gray-100),
     inset -1px 0 0 0 var(--gray-200),
     inset 0 -1px 0 0 var(--gray-100) !important;
 }
 
-.creator-pool-table.has-bulk-select thead th.col-sticky-2 {
+.creator-pool-table thead th.cp-col-name {
   z-index: 26 !important;
   box-shadow:
     inset 0 1px 0 0 var(--gray-100),

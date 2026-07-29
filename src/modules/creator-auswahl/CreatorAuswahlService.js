@@ -2,6 +2,7 @@
 // Service für Creator-Auswahl Datenbank-Operationen
 
 import { CREATOR_TYP_OPTIONS, isAllowedCreatorTyp, normalizeCreatorTyp } from './creatorTypeOptions.js';
+import { authorizedFetch } from '../../core/auth/getAccessToken.js';
 
 export class CreatorAuswahlService {
   constructor() {
@@ -470,14 +471,8 @@ export class CreatorAuswahlService {
    */
   async scrapeCreator(url) {
     try {
-      const session = await window.supabase.auth.getSession();
-      const token = session?.data?.session?.access_token || '';
-      const response = await fetch('/.netlify/functions/creator-scrape', {
+      const response = await authorizedFetch('/.netlify/functions/creator-scrape', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
         body: JSON.stringify({ url })
       });
 
@@ -500,14 +495,8 @@ export class CreatorAuswahlService {
    * liefert das aktualisierte Item zurueck.
    */
   async fetchInstagramStats(itemId) {
-    const session = await window.supabase.auth.getSession();
-    const token = session?.data?.session?.access_token || '';
-    const response = await fetch('/.netlify/functions/sourcing-instagram-stats', {
+    const response = await authorizedFetch('/.netlify/functions/sourcing-instagram-stats', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
       body: JSON.stringify({ item_id: itemId })
     });
 
