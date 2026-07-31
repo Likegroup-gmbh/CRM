@@ -15,6 +15,20 @@ const { loadContext, buildKontextText } = require('./_shared/skript-context');
 const { ladeBriefingExtrakt } = require('./_shared/skript-briefing');
 const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 
+// Erzwungener Tool-Call: strukturell garantiertes JSON statt Text-Parsing
+const FRAGEN_TOOL = {
+  name: 'rueckfrage_abgeben',
+  description: 'Gibt die naechste Rueckfragen-Runde oder die Abschluss-Zusammenfassung strukturiert ab.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      nachricht: { type: 'string', description: 'Nachricht an den User (Deutsch, locker, kurz)' },
+      fertig: { type: 'boolean', description: 'true, wenn alle kritischen Punkte geklaert sind' }
+    },
+    required: ['nachricht', 'fertig']
+  }
+};
+
 // ---------------------------------------------------------------------------
 // Leitfaden aus Markdown-Datei (mehrere Kandidaten, da esbuild __dirname
 // verschieben kann; included_files in netlify.toml liefert die Datei mit aus)
@@ -77,10 +91,10 @@ function buildFragenPrompt(ctx, params, history, briefingExtrakt = null) {
     ? 'Werte die Antworten des Users aus. Pruefe anhand des Leitfadens, ob noch kritische Punkte offen sind.\n'
     : 'Das ist die erste Runde. Pruefe den Auftrag anhand des Leitfadens auf kritische Luecken.\n';
 
-  task += '\n# AUSGABEFORMAT\nAntworte AUSSCHLIESSLICH mit einem JSON-Objekt in dieser Form:\n'
-    + '{"nachricht": "deine Nachricht an den User (Deutsch, locker, kurz)", "fertig": true|false}\n'
+  task += '\n# AUSGABEFORMAT\nAntworte AUSSCHLIESSLICH ueber das Tool "rueckfrage_abgeben" '
+    + '(Felder: nachricht, fertig).\n'
     + 'Regeln:\n'
-    + '- Innerhalb der Werte KEINE geraden Anfuehrungszeichen ("), sondern typografische (\u201e\u2026\u201c) verwenden - sonst bricht das JSON.\n'
+    + '- Innerhalb der Texte typografische Anfuehrungszeichen (\u201e\u2026\u201c) statt gerader (") verwenden.\n'
     + '- fertig=false: nachricht enthaelt deine naechste(n) Rueckfrage(n) (max. 2, die wichtigste zuerst).\n'
     + '- fertig=true: alle kritischen Punkte sind geklaert (oder es gab nichts zu klaeren). '
     + 'nachricht fasst in 1-2 Saetzen zusammen, was du aus den Antworten mitnimmst, und sagt, dass du bereit bist.\n'
@@ -171,10 +185,11 @@ exports.handler = async (event) => {
       model: MODELS.edit_fast,
       systemBlocks: [{ text: stable, cache: true }],
       userPrompt: task,
-      maxTokens: 2048
+      maxTokens: 2048,
+      tool: FRAGEN_TOOL
     });
 
-    const parsed = extractJson(result.text);
+    const parsed = result.json || extractJson(result.text, { keys: ['nachricht', 'fertig'] });
 
     await supabase.from('skript_chat_messages').update({
       // 'vorschlag' = alles geklaert, UI zeigt "Skript jetzt generieren"

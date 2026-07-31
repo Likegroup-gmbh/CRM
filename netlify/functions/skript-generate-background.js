@@ -11,6 +11,23 @@ const { loadContext, fmtSkript, buildKontextText, videoLaengeHinweis } = require
 const { ladeBriefingExtrakt } = require('./_shared/skript-briefing');
 const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 
+// Erzwungener Tool-Call: die API serialisiert das JSON selbst, unescapte
+// Anfuehrungszeichen im Skript-Text koennen das Parsen nicht mehr brechen
+const SKRIPT_TOOL = {
+  name: 'skript_abgeben',
+  description: 'Gibt das fertige Video-Skript strukturiert ab.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      titel: { type: 'string', description: 'Kurzer Arbeitstitel' },
+      hook: { type: 'string', description: 'Gesprochener Hook-Text' },
+      hauptteil: { type: 'string', description: 'Gesprochener Hauptteil' },
+      cta: { type: 'string', description: 'Gesprochener Call-to-Action' }
+    },
+    required: ['titel', 'hook', 'hauptteil', 'cta']
+  }
+};
+
 // ---------------------------------------------------------------------------
 // Videovorlage (optional): Client-Angaben serverseitig validieren und mit der
 // Job-Row aus transcription_jobs anreichern. Metadaten kommen IMMER aus der
@@ -145,9 +162,9 @@ function buildPrompt(ctx, params, rueckfragenDialog = '', briefingExtrakt = null
       + rueckfragenDialog + '\n';
   }
 
-  task += '\n# AUSGABEFORMAT\nAntworte AUSSCHLIESSLICH mit einem JSON-Objekt in dieser Form:\n'
-    + '{"titel": "kurzer Arbeitstitel", "hook": "...", "hauptteil": "...", "cta": "..."}\n'
-    + 'Innerhalb der Werte KEINE geraden Anfuehrungszeichen ("), sondern typografische (\u201e\u2026\u201c) verwenden - sonst bricht das JSON.\n'
+  task += '\n# AUSGABEFORMAT\nGib das Skript AUSSCHLIESSLICH ueber das Tool "skript_abgeben" ab '
+    + '(Felder: titel, hook, hauptteil, cta).\n'
+    + 'Innerhalb der Texte typografische Anfuehrungszeichen (\u201e\u2026\u201c) statt gerader (") verwenden.\n'
     + 'Der Text ist gesprochener Creator-Text (keine Regieanweisungen in eckigen Klammern, ausser wo unbedingt noetig).\n'
     + 'WICHTIG - nichts erfinden: Behaupte im Skript NICHTS ueber Angebote, Features, Aktionen oder Konditionen '
     + '(z.B. Partnerkarten, Rabatte, Gratis-Extras), das nicht ausdruecklich '
@@ -249,11 +266,15 @@ exports.handler = async (event) => {
       model,
       systemBlocks: [{ text: stable, cache: true }],
       userPrompt: task,
-      maxTokens: 4096
+      maxTokens: 4096,
+      tool: SKRIPT_TOOL
     });
 
     job.step('speichern', 'Antwort parsen und speichern...');
-    const parsed = extractJson(result.text);
+    const parsed = result.json || extractJson(result.text, {
+      keys: ['titel', 'hook', 'hauptteil', 'cta'],
+      onWarn: (msg) => job.log(msg)
+    });
     if (!parsed.hook || !parsed.hauptteil || !parsed.cta) {
       throw new Error('Antwort unvollstaendig (hook/hauptteil/cta fehlt)');
     }

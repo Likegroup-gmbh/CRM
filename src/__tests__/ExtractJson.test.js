@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { extractJson } from '../../netlify/functions/_shared/anthropic.js';
+import { extractJson, extractByKeys } from '../../netlify/functions/_shared/anthropic.js';
 
 describe('extractJson', () => {
   beforeEach(() => {
@@ -60,6 +60,52 @@ describe('extractJson', () => {
     expect(extractJson(text)).toEqual({ antwort: 'Er nannte es "Hook" und blieb dabei.' });
   });
 
+  it('repariert ein Zitat vor einer eckigen Klammer im Objekt-Value (Overlay-Text)', () => {
+    const text = '{"hauptteil": "Text [Overlay: "Nur heute"] und weiter.", "cta": "Jetzt"}';
+    expect(extractJson(text)).toEqual({
+      hauptteil: 'Text [Overlay: "Nur heute"] und weiter.',
+      cta: 'Jetzt'
+    });
+  });
+
+  it('repariert ein Zitat, auf das ein Doppelpunkt folgt', () => {
+    const text = '{"hauptteil": "Sie fragte "Warum": keiner wusste es.", "cta": "Jetzt"}';
+    expect(extractJson(text)).toEqual({
+      hauptteil: 'Sie fragte "Warum": keiner wusste es.',
+      cta: 'Jetzt'
+    });
+  });
+
+  it('loest das mehrdeutige Komma-Zitat mit bekannten Keys auf', () => {
+    const text = '{"hauptteil": "Er sagte "Hallo", "Tschuess": das war es.", "cta": "Jetzt"}';
+    expect(extractJson(text, { keys: ['titel', 'hook', 'hauptteil', 'cta'] })).toEqual({
+      hauptteil: 'Er sagte "Hallo", "Tschuess": das war es.',
+      cta: 'Jetzt'
+    });
+  });
+
+  it('laesst Arrays intakt (site-extract Regression)', () => {
+    const text = '{"_varianten": ["a", "b"], "_hinweise": ["x"], "name": "Firma"}';
+    expect(extractJson(text)).toEqual({
+      _varianten: ['a', 'b'],
+      _hinweise: ['x'],
+      name: 'Firma'
+    });
+  });
+
+  it('repariert unescapte Quotes in einem Array-Element', () => {
+    const text = '{"_hinweise": ["Der Slogan "Jetzt neu" steht gross auf der Seite"]}';
+    expect(extractJson(text)).toEqual({
+      _hinweise: ['Der Slogan "Jetzt neu" steht gross auf der Seite']
+    });
+  });
+
+  it('meldet Reparaturen ueber onWarn', () => {
+    const onWarn = vi.fn();
+    extractJson('{"hook": "Er sagte "Stopp" und ging."}', { onWarn });
+    expect(onWarn).toHaveBeenCalledWith(expect.stringContaining('repariert'));
+  });
+
   it('wirft, wenn gar keine JSON-Struktur enthalten ist', () => {
     expect(() => extractJson('Tut mir leid, das kann ich nicht.')).toThrow(/Keine JSON-Struktur/);
   });
@@ -71,5 +117,40 @@ describe('extractJson', () => {
   it('loggt die Rohantwort, wenn nichts mehr zu retten ist', () => {
     expect(() => extractJson('{antwort: "abc"}')).toThrow();
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining('{antwort: "abc"}'));
+  });
+});
+
+describe('extractByKeys (letzte Fallback-Schicht)', () => {
+  it('birgt Felder aus hoffnungslos kaputtem Quoting', () => {
+    const raw = '{"titel": "Test", "hook": "Er: "geht "nicht" mehr", echt", "cta": "Jetzt "hier" klicken"}';
+    expect(extractByKeys(raw, ['titel', 'hook', 'hauptteil', 'cta'])).toEqual({
+      titel: 'Test',
+      hook: 'Er: "geht "nicht" mehr", echt',
+      cta: 'Jetzt "hier" klicken'
+    });
+  });
+
+  it('mappt null/boolean/Zahl-Werte korrekt', () => {
+    const raw = '{"nachricht": "Alles klar", "fertig": true, "sektion": null}';
+    expect(extractByKeys(raw, ['nachricht', 'fertig', 'sektion'])).toEqual({
+      nachricht: 'Alles klar',
+      fertig: true,
+      sektion: null
+    });
+  });
+
+  it('gibt null zurueck, wenn keiner der Keys vorkommt', () => {
+    expect(extractByKeys('voellig anderer Text', ['hook', 'cta'])).toBeNull();
+    expect(extractByKeys('{"a": 1}', [])).toBeNull();
+  });
+
+  it('greift in extractJson, wenn auch die Reparatur scheitert', () => {
+    // Kaputter Key (unquoted) macht das JSON irreparabel, aber die
+    // restlichen Marker sind intakt -> Feld-Extraktion birgt die Werte
+    const raw = '{titel: kaputt, "hook": "Der Einstieg", "cta": "Jetzt klicken"}';
+    expect(extractJson(raw, { keys: ['titel', 'hook', 'hauptteil', 'cta'] })).toEqual({
+      hook: 'Der Einstieg',
+      cta: 'Jetzt klicken'
+    });
   });
 });

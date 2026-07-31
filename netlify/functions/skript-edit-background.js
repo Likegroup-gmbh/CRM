@@ -10,6 +10,23 @@ const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { videoLaengeHinweis, kuerzeTranskript } = require('./_shared/skript-context');
 const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 
+// Tool-Call fuer strukturierte Antworten. Bei Schreib-Aktionen laeuft
+// Extended Thinking - dann erlaubt Anthropic nur tool_choice 'auto'
+// (callClaude degradiert selbst), deshalb bleibt extractJson als Fallback.
+const EDIT_TOOL = {
+  name: 'aenderung_abgeben',
+  description: 'Gibt die Antwort an den User und optional einen Textvorschlag strukturiert ab.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      antwort: { type: 'string', description: 'Kurze Erklaerung fuer den User (1-3 Saetze, Deutsch)' },
+      sektion: { type: ['string', 'null'], enum: ['hook', 'hauptteil', 'cta', null], description: 'Betroffene Sektion oder null' },
+      vorschlag_text: { type: ['string', 'null'], description: 'Neuer Text oder null' }
+    },
+    required: ['antwort', 'sektion', 'vorschlag_text']
+  }
+};
+
 // Transkript-Budget im Edit-Prompt: kompakter als bei der Erstgenerierung,
 // weil das fertige Skript + Verlauf schon viel Kontext belegen
 const EDIT_REFERENZ_TRANSKRIPT_MAX = 4000;
@@ -248,12 +265,10 @@ function buildEditPrompt(ctx, message) {
   if (message.inhalt) task += `Anweisung des Users: ${message.inhalt}\n`;
   task += `\n${AKTION_ANWEISUNGEN[message.aktion] || AKTION_ANWEISUNGEN.chat}\n`;
 
-  task += '\n# AUSGABEFORMAT\nAntworte AUSSCHLIESSLICH mit einem JSON-Objekt in dieser Form:\n'
-    + '{"antwort": "kurze Erklaerung fuer den User (1-3 Saetze, Deutsch)", '
-    + '"sektion": "hook|hauptteil|cta|null", '
-    + '"vorschlag_text": "neuer Text oder null"}\n'
+  task += '\n# AUSGABEFORMAT\nAntworte AUSSCHLIESSLICH ueber das Tool "aenderung_abgeben" '
+    + '(Felder: antwort, sektion, vorschlag_text).\n'
     + 'Regeln:\n'
-    + '- Innerhalb der Werte KEINE geraden Anfuehrungszeichen ("), sondern typografische (\u201e\u2026\u201c) verwenden - sonst bricht das JSON.\n'
+    + '- Innerhalb der Texte typografische Anfuehrungszeichen (\u201e\u2026\u201c) statt gerader (") verwenden.\n'
     + (dna.length
       ? '- vorschlag_text MUSS die SKRIPT-DNA einhalten (Ton, Stil, Wortwahl, No-Gos) - auch beim Kuerzen und Verlaengern. Die DNA hat Vorrang vor eigenen stilistischen Praeferenzen.\n'
       : '')
@@ -330,10 +345,11 @@ exports.handler = async (event) => {
       // Thinking-Tokens - 2048 wuerde bei langem Hauptteil truncaten
       maxTokens: istSchreibAktion ? 8192 : 2048,
       thinking: istSchreibAktion,
-      thinkingBudget: 2048
+      thinkingBudget: 2048,
+      tool: EDIT_TOOL
     });
 
-    const parsed = extractJson(result.text);
+    const parsed = result.json || extractJson(result.text, { keys: ['antwort', 'sektion', 'vorschlag_text'] });
     const vorschlag = (parsed.vorschlag_text || '').trim() || null;
     const sektion = ['hook', 'hauptteil', 'cta'].includes(parsed.sektion) ? parsed.sektion : message.sektion;
 
