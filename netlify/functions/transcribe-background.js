@@ -141,6 +141,7 @@ exports.handler = async (event) => {
       body: JSON.stringify(authErrorBody(auth))
     };
   }
+  const { user } = auth;
 
   let jobId, url;
   try {
