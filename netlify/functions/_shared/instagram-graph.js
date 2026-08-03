@@ -101,8 +101,11 @@ async function uploadAvif(supabase, storagePath, buffer, cacheBuster) {
  * (`<basePath>.avif` und `<basePath>_thumb.avif`). Beide Groessen entstehen aus
  * einem einzigen Download und werden parallel encodiert und hochgeladen.
  *
- * @returns {Promise<{url: string, path: string, thumbUrl: string, thumbPath: string}|null>}
- *   null, wenn irgendwas schiefgeht - ein fehlendes Bild darf den Abruf nie kippen.
+ * @returns {Promise<{url: string, path: string, thumbUrl: string, thumbPath: string}
+ *   |{error: string}|null>}
+ *   null ohne Quell-URL, sonst im Fehlerfall { error } - ein fehlendes Bild darf
+ *   den Abruf nie kippen. Aufrufer pruefen auf `.url`; wer den Grund braucht
+ *   (z.B. fuer Logs oder einen Retry-Merker), liest `.error`.
  */
 async function storeImagePair(supabase, sourceUrl, basePath, options = {}) {
   if (!sourceUrl) return null;
@@ -131,7 +134,7 @@ async function storeImagePair(supabase, sourceUrl, basePath, options = {}) {
     return { url, path, thumbUrl, thumbPath };
   } catch (err) {
     console.warn(`⚠️ instagram-graph: Bild ${basePath} fehlgeschlagen:`, err.message);
-    return null;
+    return { error: err.message };
   }
 }
 

@@ -772,6 +772,7 @@ export class CreatorAuswahlDetail {
         else console.log('Included: keine');
         console.log('Fenster / Preis', debug.summary);
         if (debug.pool_fetched_at) console.log('Pool-Stand', debug.pool_fetched_at);
+        if (debug.image_error) console.warn('Profilbild', debug.image_error);
         console.groupEnd();
       }
 

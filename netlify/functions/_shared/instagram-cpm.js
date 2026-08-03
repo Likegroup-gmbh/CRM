@@ -163,7 +163,7 @@ function computeInstagramCpm(media, opts = {}) {
  * Strukturierter Debug-Payload fuer Server-/Browser-Konsole.
  * @param {string} username
  * @param {object} stats  Ergebnis von computeInstagramCpm oder Pool-Spiegel
- * @param {object} [meta] { source, pool_fetched_at }
+ * @param {object} [meta] { source, pool_fetched_at, image_error }
  */
 function formatCpmDebug(username, stats, meta = {}) {
   const included = (stats.videos || []).map((v, i) => ({
@@ -185,6 +185,7 @@ function formatCpmDebug(username, stats, meta = {}) {
     username: username || null,
     source: meta.source || null,
     pool_fetched_at: meta.pool_fetched_at || null,
+    image_error: meta.image_error || null,
     rules: {
       MIN_AGE_HOURS,
       CPM_RATE,

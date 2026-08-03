@@ -154,7 +154,8 @@ function emitCpmDebug(username, stats, meta) {
     skipped: debug.skipped,
     included: debug.included,
     summary: debug.summary,
-    pool_fetched_at: debug.pool_fetched_at
+    pool_fetched_at: debug.pool_fetched_at,
+    image_error: debug.image_error
   });
   return debug;
 }
@@ -252,9 +253,15 @@ exports.handler = async (event) => {
     .eq('ig_username', username)
     .maybeSingle();
 
+  // Fehlt im Pool das Profilbild, ist der Eintrag unvollstaendig: einmal bei
+  // Meta nachfassen statt den lueckenhaften Cache weiterzureichen. Hat Meta
+  // schon mal keins geliefert, haelt ig_image_failed_at weitere Versuche auf,
+  // sonst kostet jeder Klick auf so einen Creator erneut Quota.
+  const bildNachholen = !pool?.profile_image_url && !pool?.ig_image_failed_at;
+
   // Creator schon im Pool: Werte uebernehmen statt Meta zu fragen. Erst ein
   // ausdruecklicher Refresh (force) holt neue Zahlen.
-  if (pool?.ig_fetched_at && !force) {
+  if (pool?.ig_fetched_at && !force && !bildNachholen) {
     const { data: updated, error: copyError } = await supabase
       .from('creator_auswahl_items')
       .update(buildItemUpdate(pool, item))
@@ -267,7 +274,10 @@ exports.handler = async (event) => {
 
     const debug = emitCpmDebug(username, statsFromPool(pool), {
       source: 'pool',
-      pool_fetched_at: pool.ig_fetched_at
+      pool_fetched_at: pool.ig_fetched_at,
+      image_error: pool.profile_image_url
+        ? null
+        : 'kein Bild im Pool, letzter Versuch erfolglos (force erzwingt neuen Versuch)'
     });
 
     return jsonResponse(200, {
@@ -292,6 +302,39 @@ exports.handler = async (event) => {
 
   const res = await fetchProfileWithMedia(username);
   if (!res.ok) {
+    // Der Abruf lief nur wegen des fehlenden Bildes: die Zahlen im Pool sind
+    // brauchbar, also lieber ohne Bild ausliefern als den Klick scheitern lassen
+    if (bildNachholen && pool?.ig_fetched_at && !force) {
+      console.warn(`⚠️ sourcing-instagram-stats: Bild-Nachzug @${username} fehlgeschlagen:`, res.error);
+      const { data: updated } = await supabase
+        .from('creator_auswahl_items')
+        .update(buildItemUpdate(pool, item))
+        .eq('id', itemId)
+        .select()
+        .single();
+
+      const debug = emitCpmDebug(username, statsFromPool(pool), {
+        source: 'pool',
+        pool_fetched_at: pool.ig_fetched_at,
+        image_error: `Bild-Nachzug fehlgeschlagen: ${res.error}`
+      });
+
+      return jsonResponse(200, {
+        ok: true,
+        item_id: itemId,
+        username,
+        source: 'pool',
+        pool_fetched_at: pool.ig_fetched_at,
+        item: updated,
+        stats: {
+          views_8: pool.ig_views_8,
+          views_30: pool.ig_views_30,
+          views_trimmed: pool.ig_views_trimmed
+        },
+        ...(debug ? { debug } : {})
+      });
+    }
+
     await supabase
       .from('creator_auswahl_items')
       .update({ ig_fetch_error: res.error, ig_fetched_at: new Date().toISOString() })
@@ -335,6 +378,15 @@ exports.handler = async (event) => {
     `sourcing/pool/${username}/profil`
   );
 
+  // Ein fehlendes Bild kippt den Abruf nicht, blieb bisher aber voellig
+  // unsichtbar - deshalb Grund festhalten und mit ausgeben.
+  const bildFehler = bild?.url
+    ? null
+    : (bild?.error || (p.profile_picture_url ? 'Upload lieferte keine URL' : 'Meta lieferte kein Profilbild'));
+  if (bildFehler) {
+    console.warn(`⚠️ sourcing-instagram-stats: Profilbild @${username} fehlt:`, bildFehler);
+  }
+
   const jetzt = new Date().toISOString();
   const bio = p.biography || '';
 
@@ -344,6 +396,9 @@ exports.handler = async (event) => {
     name: p.name || pool?.name || null,
     profile_image_url: bild?.url || pool?.profile_image_url || null,
     profile_image_thumb_url: bild?.thumbUrl || pool?.profile_image_thumb_url || null,
+    // Merker nur setzen, solange wirklich kein Bild vorliegt - ein Altbestand
+    // aus einem frueheren Lauf zaehlt als Erfolg und darf nicht blockiert werden
+    ig_image_failed_at: (bild?.url || pool?.profile_image_url) ? null : jetzt,
     follower_instagram: p.followers_count ?? null,
     reichweite_instagram: formatReach(stats.views_trimmed),
     ig_views_8: stats.views_8,
@@ -404,7 +459,8 @@ exports.handler = async (event) => {
 
   const debug = emitCpmDebug(username, stats, {
     source: 'meta',
-    pool_fetched_at: poolRow.ig_fetched_at
+    pool_fetched_at: poolRow.ig_fetched_at,
+    image_error: bildFehler
   });
 
   return jsonResponse(200, {
