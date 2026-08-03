@@ -87,44 +87,39 @@ describe('computeInstagramCpm – 4-Tage-Regel', () => {
   });
 });
 
-describe('computeInstagramCpm – Feed-Filter', () => {
-  it('sortiert Reels aus, die nur im Reels-Tab hängen', () => {
-    const media = [
-      video(5, 999999, { is_shared_to_feed: false }),   // Testvideo, nicht im Feed
-      ...videoSeries(8, 10000, 6)
-    ];
+describe('computeInstagramCpm – manueller Ausschluss', () => {
+  it('sortiert manuell ausgeschlossene Reels aus und lässt ältere nachrücken', () => {
+    const testvideo = video(5, 999999);
+    const media = [testvideo, ...videoSeries(8, 10000, 6)];
 
-    const stats = computeInstagramCpm(media, { now: NOW });
+    const stats = computeInstagramCpm(media, {
+      now: NOW,
+      excluded: [testvideo.permalink]
+    });
 
-    expect(stats.skipped_not_in_feed).toBe(1);
-    expect(stats.skipped_videos[0].reason).toBe('not_in_feed');
+    expect(stats.skipped_excluded).toBe(1);
+    expect(stats.skipped_videos[0].reason).toBe('manually_excluded');
     expect(stats.videos_available).toBe(8);
     expect(stats.views_8).toBe(10000);
   });
 
-  it('zählt Reels mit is_shared_to_feed true normal mit', () => {
-    const stats = computeInstagramCpm(
-      videoSeries(8, 10000).map((v) => ({ ...v, is_shared_to_feed: true })),
-      { now: NOW }
-    );
+  it('ändert nichts bei leerer oder fehlender excluded-Liste', () => {
+    const ohne = computeInstagramCpm(videoSeries(8, 10000), { now: NOW });
+    const leer = computeInstagramCpm(videoSeries(8, 10000), { now: NOW, excluded: [] });
 
-    expect(stats.skipped_not_in_feed).toBe(0);
-    expect(stats.views_8).toBe(10000);
+    expect(ohne.skipped_excluded).toBe(0);
+    expect(leer.skipped_excluded).toBe(0);
+    expect(ohne.views_8).toBe(10000);
+    expect(leer.views_8).toBe(10000);
   });
 
-  it('zählt Reels ohne das Feld mit – Meta liefert es nicht immer', () => {
-    const stats = computeInstagramCpm(videoSeries(8, 10000), { now: NOW });
+  it('sortiert den Ausschluss vor der Altersregel aus', () => {
+    // Ein zu frisches Video, das zusaetzlich ausgeschlossen ist, zaehlt als
+    // manually_excluded - sonst wuerde es beim naechsten Abruf ploetzlich mitzaehlen
+    const frisch = video(1, 500);
+    const stats = computeInstagramCpm([frisch], { now: NOW, excluded: [frisch.permalink] });
 
-    expect(stats.skipped_not_in_feed).toBe(0);
-    expect(stats.views_8).toBe(10000);
-  });
-
-  it('sortiert nicht im Feed vor der Altersregel aus', () => {
-    // Ein zu frisches Video, das zusaetzlich nicht im Feed steht, zaehlt als
-    // not_in_feed - sonst wuerde es beim naechsten Abruf ploetzlich mitzaehlen
-    const stats = computeInstagramCpm([video(1, 500, { is_shared_to_feed: false })], { now: NOW });
-
-    expect(stats.skipped_not_in_feed).toBe(1);
+    expect(stats.skipped_excluded).toBe(1);
     expect(stats.skipped_too_recent).toBe(0);
   });
 });
@@ -314,14 +309,15 @@ describe('computeInstagramCpm – Ausreißer im Fenster', () => {
     expect(stats.views_30_clean).toBe(50000);
   });
 
-  it('rechnet den Feed-Filter vor der Ausreißer-Erkennung', () => {
-    // Das Testvideo mit 1M Views ist nicht im Feed - es darf gar nicht erst
-    // als Ausreisser auftauchen, sondern faellt vorher raus
+  it('rechnet den manuellen Ausschluss vor der Ausreißer-Erkennung', () => {
+    // Das ausgeschlossene Testvideo mit 1M Views darf gar nicht erst als
+    // Ausreisser auftauchen, sondern faellt vorher raus
+    const testvideo = video(5, 1000000);
     const media = [
-      video(5, 1000000, { is_shared_to_feed: false }),
+      testvideo,
       ...videosAus([60000, 55000, 52000, 50000, 48000, 45000, 42000, 40000], 6)
     ];
-    const stats = computeInstagramCpm(media, { now: NOW });
+    const stats = computeInstagramCpm(media, { now: NOW, excluded: [testvideo.permalink] });
 
     expect(stats.outliers_8).toEqual([]);
     expect(stats.views_8).toBe(49000);
@@ -375,20 +371,22 @@ describe('computeInstagramCpm – Randfälle', () => {
 
     expect(stats.videos[0]).toEqual({
       permalink: 'https://instagram.com/reel/5-7000',
+      thumbnail_url: null,
       views: 7000,
-      timestamp: new Date(NOW - 5 * DAY).toISOString(),
-      is_shared_to_feed: null
+      timestamp: new Date(NOW - 5 * DAY).toISOString()
     });
   });
 
-  it('reicht is_shared_to_feed in videos und skipped_videos durch', () => {
-    const stats = computeInstagramCpm([
-      video(5, 10000, { is_shared_to_feed: true }),
-      video(6, 999999, { is_shared_to_feed: false })
-    ], { now: NOW });
+  it('reicht thumbnail_url in videos und skipped_videos durch', () => {
+    const eingeschlossen = video(5, 10000, { thumbnail_url: 'https://cdn.example/a.jpg' });
+    const ausgeschlossen = video(6, 999999, { thumbnail_url: 'https://cdn.example/b.jpg' });
+    const stats = computeInstagramCpm([eingeschlossen, ausgeschlossen], {
+      now: NOW,
+      excluded: [ausgeschlossen.permalink]
+    });
 
-    expect(stats.videos[0].is_shared_to_feed).toBe(true);
-    expect(stats.skipped_videos[0].is_shared_to_feed).toBe(false);
+    expect(stats.videos[0].thumbnail_url).toBe('https://cdn.example/a.jpg');
+    expect(stats.skipped_videos[0].thumbnail_url).toBe('https://cdn.example/b.jpg');
   });
 
   it('stempelt die Version der Rechenlogik mit', () => {
@@ -412,9 +410,7 @@ describe('formatCpmDebug', () => {
     expect(debug.rules.CALC_VERSION).toBe(CALC_VERSION);
     expect(debug.skipped).toHaveLength(1);
     expect(debug.skipped[0].views).toBe(500000);
-    expect(debug.skipped[0]).toHaveProperty('is_shared_to_feed');
     expect(debug.included).toHaveLength(8);
-    expect(debug.included[0]).toHaveProperty('is_shared_to_feed');
     expect(debug.summary.views_8).toBe(10000);
     expect(debug.summary.views_8_clean).toBe(10000);
     expect(debug.summary.formula).toContain(String(CPM_RATE));
@@ -426,27 +422,23 @@ describe('formatCpmDebug', () => {
       { now: NOW }
     );
 
-    const debug = formatCpmDebug('demo_user', stats, {
-      source: 'meta',
-      feed_flag_available: true
-    });
+    const debug = formatCpmDebug('demo_user', stats, { source: 'meta' });
 
-    expect(debug.feed_flag_available).toBe(true);
     expect(debug.outliers.window_8).toHaveLength(1);
     expect(debug.outliers.window_30).toEqual([]);
   });
 
-  it('zeigt is_shared_to_feed in included und skipped', () => {
+  it('zeigt den Grund manually_excluded in skipped', () => {
+    const testvideo = video(6, 999999);
     const stats = computeInstagramCpm([
-      video(5, 10000, { is_shared_to_feed: true }),
-      video(6, 999999, { is_shared_to_feed: false }),
+      video(5, 10000),
+      testvideo,
       ...videoSeries(7, 10000, 7)
-    ], { now: NOW });
+    ], { now: NOW, excluded: [testvideo.permalink] });
 
     const debug = formatCpmDebug('demo_user', stats, { source: 'meta' });
 
-    expect(debug.included[0].is_shared_to_feed).toBe(true);
-    expect(debug.skipped[0].is_shared_to_feed).toBe(false);
-    expect(debug.skipped[0].reason).toBe('not_in_feed');
+    expect(debug.skipped[0].reason).toBe('manually_excluded');
+    expect(debug.summary.skipped_excluded).toBe(1);
   });
 });

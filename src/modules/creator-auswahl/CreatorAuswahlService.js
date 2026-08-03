@@ -521,6 +521,36 @@ export class CreatorAuswahlService {
     };
   }
 
+  /**
+   * Ausschlussliste fuer die CPM-Rechnung eines Creators speichern.
+   * Die Netlify Function schreibt die Permalinks in den Creator-Pool und holt
+   * anschliessend frische Instagram-Daten, damit aeltere Reels nachruecken.
+   * @param {string} itemId
+   * @param {string[]} permalinks Reel-Permalinks, die nicht mitzaehlen sollen
+   */
+  async setExcludedReels(itemId, permalinks) {
+    const response = await authorizedFetch('/.netlify/functions/sourcing-instagram-stats', {
+      method: 'POST',
+      body: JSON.stringify({ item_id: itemId, set_excluded: permalinks })
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || !result.ok) {
+      const error = new Error(result.error || 'Speichern der Reels-Auswahl fehlgeschlagen');
+      error.retryable = response.status === 429;
+      error.hint = result.hint || null;
+      throw error;
+    }
+
+    return {
+      item: result.item,
+      source: result.source || 'meta',
+      poolFetchedAt: result.pool_fetched_at || null,
+      debug: result.debug || null
+    };
+  }
+
   // =====================================================
   // CRM-ÜBERNAHME
   // =====================================================

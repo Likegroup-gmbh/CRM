@@ -5,10 +5,11 @@
 // Nur Videos/Reels tragen einen view_count. Bild-Posts und Karussells
 // liefern das Feld nicht und werden vollstaendig ignoriert.
 //
-// Ein Reel mit is_shared_to_feed === false haengt nur im Reels-Tab und ist im
-// Feed des Creators nicht zu sehen (typisch fuer Testvideos). Solche Reels
-// zaehlen nicht mit. Fehlt das Feld, wird das Reel einbezogen - Meta liefert
-// es nicht bei jeder Media-Art und ein fehlendes Feld darf nicht alles kippen.
+// Testvideos, die nur im Reels-Tab haengen (nicht im Feed), kennzeichnet die
+// Business Discovery API nicht - is_shared_to_feed wird dort abgelehnt.
+// Deshalb gibt es den manuellen Ausschluss: Permalinks aus
+// sourcing_creator.ig_excluded_media fallen mit reason 'manually_excluded'
+// aus der Rechnung, das naechstaeltere Reel rueckt nach.
 //
 // Das zuletzt hochgeladene Video ist noch nicht "ausgereift": in den ersten
 // Tagen laufen die Views weiter hoch. Alles juenger als MIN_AGE_HOURS faellt
@@ -40,11 +41,15 @@ const MAD_SCALE = 0.6745;
 
 /**
  * Videos klassifizieren: auswertbar vs. aussortiert.
- * Aussortiert wird, was nur im Reels-Tab haengt (not_in_feed) oder juenger als
- * MIN_AGE_HOURS ist (too_recent). Videos ohne view_count und Nicht-Videos
- * werden nicht in skipped gefuehrt.
+ * Aussortiert wird, was von Hand ausgeschlossen wurde (manually_excluded)
+ * oder juenger als MIN_AGE_HOURS ist (too_recent). Videos ohne view_count
+ * und Nicht-Videos werden nicht in skipped gefuehrt.
+ *
+ * @param {Array} media
+ * @param {number} now
+ * @param {Set<string>} [excluded] Permalinks, die nie mitzaehlen
  */
-function classifyVideos(media, now) {
+function classifyVideos(media, now, excluded) {
   const cutoff = now - MIN_AGE_HOURS * HOUR_MS;
   const included = [];
   const skipped = [];
@@ -64,37 +69,24 @@ function classifyVideos(media, now) {
     }
 
     const ageHours = Math.round((now - postedAt) / HOUR_MS);
-    // true/false wenn Meta das Flag liefert, sonst null - fehlt es, zaehlt das
-    // Reel mit, darf aber im Debug sichtbar bleiben
-    const sharedToFeed = typeof m.is_shared_to_feed === 'boolean'
-      ? m.is_shared_to_feed
-      : null;
     const entry = {
       id: m.id || null,
       permalink: m.permalink || null,
+      thumbnail_url: m.thumbnail_url || null,
       timestamp: m.timestamp || null,
       postedAt,
       views,
-      age_hours: ageHours,
-      is_shared_to_feed: sharedToFeed
+      age_hours: ageHours
     };
 
-    // Nur explizites false zaehlt als "nicht im Feed" - undefined bedeutet,
-    // dass Meta das Feld fuer dieses Medium nicht liefert.
-    const reason = sharedToFeed === false
-      ? 'not_in_feed'
+    // Manueller Ausschluss schlaegt die Altersregel: ein ausgeschlossenes Reel
+    // soll auch dann als solches erscheinen, wenn es zusaetzlich zu frisch ist.
+    const reason = (entry.permalink && excluded?.has(entry.permalink))
+      ? 'manually_excluded'
       : (postedAt > cutoff ? 'too_recent' : null);
 
     if (reason) {
-      skipped.push({
-        permalink: entry.permalink,
-        views: entry.views,
-        timestamp: entry.timestamp,
-        postedAt,
-        age_hours: entry.age_hours,
-        is_shared_to_feed: sharedToFeed,
-        reason
-      });
+      skipped.push({ ...entry, reason });
     } else {
       included.push(entry);
     }
@@ -242,7 +234,8 @@ function evaluateWindow(videos, size) {
  * Kennzahlen aus einer Media-Liste der Business Discovery API.
  *
  * @param {Array} media   Rohe media.data-Eintraege
- * @param {object} [opts] { now: number } - Zeitbasis fuer die 4-Tage-Regel
+ * @param {object} [opts] { now: number, excluded: string[] } - Zeitbasis fuer
+ *   die 4-Tage-Regel und manuell ausgeschlossene Reel-Permalinks
  * @returns {{
  *   views_8: number|null, views_8_clean: number|null,
  *   views_30: number|null, views_30_clean: number|null,
@@ -251,13 +244,16 @@ function evaluateWindow(videos, size) {
  *   sample_8: number, sample_30: number,
  *   outliers_8: Array, outliers_30: Array,
  *   videos_available: number, skipped_too_recent: number,
- *   skipped_not_in_feed: number, non_video_skipped: number,
+ *   skipped_excluded: number, non_video_skipped: number,
  *   videos: Array, skipped_videos: Array, calc_version: number
  * }}
  */
 function computeInstagramCpm(media, opts = {}) {
   const now = opts.now ?? Date.now();
-  const { included: videos, skipped, nonVideoSkipped } = classifyVideos(media, now);
+  const excluded = Array.isArray(opts.excluded)
+    ? new Set(opts.excluded.filter((p) => typeof p === 'string' && p))
+    : undefined;
+  const { included: videos, skipped, nonVideoSkipped } = classifyVideos(media, now, excluded);
 
   const window8 = evaluateWindow(videos.slice(0, WINDOW_SHORT), WINDOW_SHORT);
   const window30 = evaluateWindow(videos.slice(0, WINDOW_LONG), WINDOW_LONG);
@@ -277,20 +273,20 @@ function computeInstagramCpm(media, opts = {}) {
     outliers_30: window30.outliers,
     videos_available: videos.length,
     skipped_too_recent: skipped.filter((s) => s.reason === 'too_recent').length,
-    skipped_not_in_feed: skipped.filter((s) => s.reason === 'not_in_feed').length,
+    skipped_excluded: skipped.filter((s) => s.reason === 'manually_excluded').length,
     non_video_skipped: nonVideoSkipped,
     videos: videos.slice(0, WINDOW_LONG).map((v) => ({
       permalink: v.permalink,
+      thumbnail_url: v.thumbnail_url,
       views: v.views,
-      timestamp: v.timestamp,
-      is_shared_to_feed: v.is_shared_to_feed
+      timestamp: v.timestamp
     })),
     skipped_videos: skipped.map((s) => ({
       permalink: s.permalink,
+      thumbnail_url: s.thumbnail_url,
       views: s.views,
       timestamp: s.timestamp,
       age_hours: s.age_hours,
-      is_shared_to_feed: s.is_shared_to_feed,
       reason: s.reason
     })),
     calc_version: CALC_VERSION
@@ -301,20 +297,18 @@ function computeInstagramCpm(media, opts = {}) {
  * Strukturierter Debug-Payload fuer Server-/Browser-Konsole.
  * @param {string} username
  * @param {object} stats  Ergebnis von computeInstagramCpm oder Pool-Spiegel
- * @param {object} [meta] { source, pool_fetched_at, image_error, feed_flag_available }
+ * @param {object} [meta] { source, pool_fetched_at, image_error }
  */
 function formatCpmDebug(username, stats, meta = {}) {
   const included = (stats.videos || []).map((v, i) => ({
     index: i,
     views: v.views,
-    is_shared_to_feed: v.is_shared_to_feed ?? null,
     timestamp: v.timestamp,
     permalink: v.permalink
   }));
 
   const skipped = (stats.skipped_videos || []).map((v) => ({
     views: v.views,
-    is_shared_to_feed: v.is_shared_to_feed ?? null,
     age_hours: v.age_hours,
     timestamp: v.timestamp,
     permalink: v.permalink,
@@ -326,7 +320,6 @@ function formatCpmDebug(username, stats, meta = {}) {
     source: meta.source || null,
     pool_fetched_at: meta.pool_fetched_at || null,
     image_error: meta.image_error || null,
-    feed_flag_available: meta.feed_flag_available ?? null,
     rules: {
       MIN_AGE_HOURS,
       CPM_RATE,
@@ -346,7 +339,7 @@ function formatCpmDebug(username, stats, meta = {}) {
     summary: {
       non_video_skipped: stats.non_video_skipped ?? null,
       skipped_too_recent: stats.skipped_too_recent ?? null,
-      skipped_not_in_feed: stats.skipped_not_in_feed ?? null,
+      skipped_excluded: stats.skipped_excluded ?? null,
       videos_available: stats.videos_available ?? null,
       sample_8: stats.sample_8 ?? null,
       sample_30: stats.sample_30 ?? null,

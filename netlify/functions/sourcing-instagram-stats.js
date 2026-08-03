@@ -6,7 +6,7 @@
 // Die Tabelle zeigt nicht cpm_ig_*, sondern rechnet ig_views_* mit dem TKP der
 // Liste (creator_auswahl.tkp). cpm_ig_* bleiben als Referenzwert bei 25 EUR.
 //
-// POST { item_id: '<uuid>', force?: boolean }
+// POST { item_id: '<uuid>', force?: boolean, set_excluded?: string[] }
 //   -> Vor dem Meta-Abruf wird public.sourcing_creator gefragt: derselbe
 //      Creator steckt oft in mehreren Listen. Ist der Handle dort bekannt,
 //      werden die Werte aus dem Pool in die Zeile kopiert und Meta bleibt
@@ -14,10 +14,14 @@
 //   -> force: true erzwingt den Meta-Abruf und aktualisiert den Pool. Das
 //      Frontend schickt das beim zweiten Klick (Refresh-Zustand des Buttons).
 //      Ebenso erzwingt eine veraltete ig_stats.calc_version einen neuen Abruf.
+//   -> set_excluded: Reel-Permalinks, die die CPM-Rechnung dauerhaft ignoriert
+//      (z.B. Testvideos, die nur im Reels-Tab haengen - die API kennzeichnet
+//      das nicht). Wird am Pool gespeichert und erzwingt einen frischen
+//      Meta-Abruf, damit aeltere Reels ins Fenster nachruecken.
 //   -> Meta-Abruf: Profil + bis zu 150 Medien (drei Seiten a 50), filtert auf
-//      Reels die im Feed stehen und aelter als 4 Tage sind und berechnet daraus
-//      den 8er- und 30er-Views-Schnitt, jeweils mit und ohne Ausreisser, sowie
-//      den zugehoerigen CPM-Preis.
+//      Reels die aelter als 4 Tage und nicht manuell ausgeschlossen sind und
+//      berechnet daraus den 8er- und 30er-Views-Schnitt, jeweils mit und ohne
+//      Ausreisser, sowie den zugehoerigen CPM-Preis.
 //      Das Profilbild wird in zwei AVIF-Groessen (640px + 128px Thumbnail)
 //      nach Supabase Storage kopiert, da Metas CDN-URLs nach wenigen Tagen
 //      ablaufen.
@@ -54,19 +58,15 @@ const PAGE_SIZE = 50;
 const MAX_PAGES = 3;   // 26s Function-Timeout, mehr ist nicht drin
 
 const PROFILE_FIELDS = 'username,name,followers_count,media_count,profile_picture_url,biography,website';
-// Bewusst ohne media_product_type: fuer Business Discovery ist das Feld nicht
-// als public dokumentiert und ein abgelehntes Feld laesst den ganzen Call
-// scheitern. Zum Trennen von Reels und Bildern reicht media_type.
-const MEDIA_FIELDS_BASE = 'id,media_type,view_count,like_count,'
+// Bewusst ohne media_product_type und is_shared_to_feed: fuer Business
+// Discovery sind diese Felder nicht verfuegbar (Fehlercode 100) und ein
+// abgelehntes Feld laesst den ganzen Call scheitern. Zum Trennen von Reels
+// und Bildern reicht media_type.
+const MEDIA_FIELDS = 'id,media_type,view_count,like_count,'
   + 'comments_count,timestamp,permalink,thumbnail_url';
-// is_shared_to_feed trennt Reels, die im Feed des Creators stehen, von denen,
-// die nur im Reels-Tab haengen. Das Feld ist auf IG Media als public
-// dokumentiert, fuer Business Discovery aber nicht ausdruecklich gelistet -
-// darum der Retry ohne das Feld weiter unten.
-const MEDIA_FIELDS = `${MEDIA_FIELDS_BASE},is_shared_to_feed`;
 
-// Meta-Fehlercode 100 = unbekanntes/abgelehntes Feld
-const UNKNOWN_FIELD_CODE = 100;
+// Obergrenze fuer manuell ausgeschlossene Reels pro Creator
+const MAX_EXCLUDED = 50;
 
 function jsonResponse(statusCode, body) {
   return {
@@ -78,57 +78,34 @@ function jsonResponse(statusCode, body) {
 
 /** Reels, die es ueberhaupt in die Rechnung schaffen koennen (ohne Altersregel) */
 function zaehleVerwertbar(media) {
-  return media.filter((m) => m?.media_type === 'VIDEO' && m.is_shared_to_feed !== false).length;
+  return media.filter((m) => m?.media_type === 'VIDEO').length;
 }
 
 /**
- * Profil + Medien laden. Da zwischen den Reels auch Bilder, Karussells und
- * Nur-Reels-Tab-Videos liegen, reicht eine Seite oft nicht fuer 30 auswertbare
- * Videos - dann wird ueber den after-Cursor nachgeladen.
- *
- * Der erste Call fragt is_shared_to_feed mit ab. Lehnt Meta das Feld ab
- * (Fehlercode 100), wird einmalig ohne das Feld wiederholt und feedFlag auf
- * false gesetzt: dann kann der Feed-Filter nicht greifen, der Abruf laeuft aber
- * durch statt komplett zu scheitern.
+ * Profil + Medien laden. Da zwischen den Reels auch Bilder und Karussells
+ * liegen, reicht eine Seite oft nicht fuer 30 auswertbare Videos - dann wird
+ * ueber den after-Cursor nachgeladen.
  */
 async function fetchProfileWithMedia(username) {
   const igUserId = process.env.META_IG_USER_ID;
   let profile = null;
   let media = [];
   let after = null;
-  let mediaFields = MEDIA_FIELDS;
-  let feedFlagAvailable = true;
 
   for (let page = 0; page < MAX_PAGES; page += 1) {
-    const baueEdge = (fields) => (after
-      ? `media.limit(${PAGE_SIZE}).after(${after}){${fields}}`
-      : `media.limit(${PAGE_SIZE}){${fields}}`);
+    const edge = after
+      ? `media.limit(${PAGE_SIZE}).after(${after}){${MEDIA_FIELDS}}`
+      : `media.limit(${PAGE_SIZE}){${MEDIA_FIELDS}}`;
 
     // Profilfelder nur auf der ersten Seite - danach zaehlt nur noch media
-    const baueFields = (fields) => (page === 0
-      ? `${PROFILE_FIELDS},${baueEdge(fields)}`
-      : baueEdge(fields));
+    const fields = page === 0 ? `${PROFILE_FIELDS},${edge}` : edge;
 
     let data;
     try {
       data = await graphGet(igUserId, {
-        fields: `business_discovery.username(${username}){${baueFields(mediaFields)}}`
+        fields: `business_discovery.username(${username}){${fields}}`
       });
     } catch (err) {
-      const unbekanntesFeld = Number(err.meta?.code) === UNKNOWN_FIELD_CODE
-        && mediaFields !== MEDIA_FIELDS_BASE;
-
-      if (unbekanntesFeld) {
-        console.warn(
-          `⚠️ sourcing-instagram-stats: is_shared_to_feed von Meta abgelehnt (@${username}),`
-          + ' Abruf laeuft ohne Feed-Filter weiter:', err.message
-        );
-        mediaFields = MEDIA_FIELDS_BASE;
-        feedFlagAvailable = false;
-        page -= 1;   // dieselbe Seite noch einmal, jetzt ohne das Feld
-        continue;
-      }
-
       // Fehler auf Folgeseiten sind nicht fatal: mit dem was da ist rechnen
       if (page > 0) {
         console.warn(`⚠️ sourcing-instagram-stats: Seite ${page} fehlgeschlagen:`, err.message);
@@ -153,7 +130,7 @@ async function fetchProfileWithMedia(username) {
   if (!profile) {
     return { ok: false, error: 'Profil konnte nicht geladen werden', error_code: null, rate_limited: false };
   }
-  return { ok: true, profile, media, feed_flag_available: feedFlagAvailable };
+  return { ok: true, profile, media };
 }
 
 /** 12437 -> "12.4K" (Anzeigeformat fuer die Reichweite-Spalte) */
@@ -186,7 +163,7 @@ function statsFromPool(pool) {
     outliers_30: ig.outliers_30 || [],
     videos_available: ig.videos_available,
     skipped_too_recent: ig.skipped_too_recent,
-    skipped_not_in_feed: ig.skipped_not_in_feed ?? null,
+    skipped_excluded: ig.skipped_excluded ?? null,
     non_video_skipped: ig.non_video_skipped ?? null,
     videos: ig.videos || [],
     skipped_videos: ig.skipped_videos || []
@@ -203,8 +180,7 @@ function emitCpmDebug(username, stats, meta) {
     outliers: debug.outliers,
     summary: debug.summary,
     pool_fetched_at: debug.pool_fetched_at,
-    image_error: debug.image_error,
-    feed_flag_available: debug.feed_flag_available
+    image_error: debug.image_error
   });
   return debug;
 }
@@ -280,7 +256,23 @@ exports.handler = async (event) => {
   if (!itemId) {
     return jsonResponse(400, { error: 'item_id fehlt' });
   }
-  const force = body.force === true;
+
+  // set_excluded: neue Ausschlussliste (Reel-Permalinks) fuer den Creator.
+  // Erzwingt einen frischen Meta-Abruf, weil ig_stats nur die Fenster-Videos
+  // haelt und nach einem Ausschluss aeltere Reels nachruecken muessen.
+  let setExcluded = null;
+  if (body.set_excluded !== undefined) {
+    if (!Array.isArray(body.set_excluded)
+      || body.set_excluded.some((p) => typeof p !== 'string' || !p.trim())) {
+      return jsonResponse(400, { error: 'set_excluded muss ein Array von Permalinks sein' });
+    }
+    if (body.set_excluded.length > MAX_EXCLUDED) {
+      return jsonResponse(400, { error: `set_excluded: maximal ${MAX_EXCLUDED} Reels` });
+    }
+    setExcluded = [...new Set(body.set_excluded.map((p) => p.trim()))];
+  }
+
+  const force = body.force === true || setExcluded !== null;
 
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
@@ -303,6 +295,19 @@ exports.handler = async (event) => {
     .select('*')
     .eq('ig_username', username)
     .maybeSingle();
+
+  // Ausschlussliste sofort am Pool sichern - selbst wenn der anschliessende
+  // Meta-Abruf scheitert, gilt sie beim naechsten Refresh.
+  const excludedList = setExcluded ?? (Array.isArray(pool?.ig_excluded_media) ? pool.ig_excluded_media : []);
+  if (setExcluded !== null && pool) {
+    const { error: exclError } = await supabase
+      .from('sourcing_creator')
+      .update({ ig_excluded_media: setExcluded, updated_at: new Date().toISOString() })
+      .eq('id', pool.id);
+    if (exclError) {
+      return jsonResponse(500, { error: `Ausschlussliste konnte nicht gespeichert werden: ${exclError.message}` });
+    }
+  }
 
   // Fehlt im Pool das Profilbild, ist der Eintrag unvollstaendig: einmal bei
   // Meta nachfassen statt den lueckenhaften Cache weiterzureichen. Hat Meta
@@ -332,7 +337,6 @@ exports.handler = async (event) => {
     const debug = emitCpmDebug(username, statsFromPool(pool), {
       source: 'pool',
       pool_fetched_at: pool.ig_fetched_at,
-      feed_flag_available: pool.ig_stats?.feed_flag_available ?? null,
       image_error: pool.profile_image_url
         ? null
         : 'kein Bild im Pool, letzter Versuch erfolglos (force erzwingt neuen Versuch)'
@@ -375,7 +379,6 @@ exports.handler = async (event) => {
       const debug = emitCpmDebug(username, statsFromPool(pool), {
         source: 'pool',
         pool_fetched_at: pool.ig_fetched_at,
-        feed_flag_available: pool.ig_stats?.feed_flag_available ?? null,
         image_error: `Bild-Nachzug fehlgeschlagen: ${res.error}`
       });
 
@@ -429,7 +432,7 @@ exports.handler = async (event) => {
   }
 
   const p = res.profile;
-  const stats = computeInstagramCpm(res.media);
+  const stats = computeInstagramCpm(res.media, { excluded: excludedList });
 
   // Pfad haengt am Handle, nicht an der Zeile: so liegt das Bildpaar pro
   // Creator nur einmal im Storage und Pool-Treffer kommen ohne Meta an ein Bild
@@ -475,21 +478,25 @@ exports.handler = async (event) => {
     ig_fetched_at: jetzt,
     ig_fetch_error: null,
     updated_at: jetzt,
+    ig_excluded_media: excludedList,
+    // excluded_media wird in ig_stats gespiegelt, damit das Frontend die Liste
+    // ohne eigenen Pool-Zugriff sieht (RLS erlaubt Kunden keinen
+    // sourcing_creator-Read; ig_stats wandert via buildItemUpdate in die Zeile)
     ig_stats: {
       username,
       biography: p.biography || null,
       website: p.website || null,
       media_count: p.media_count ?? null,
       calc_version: stats.calc_version,
-      feed_flag_available: res.feed_flag_available !== false,
       sample_8: stats.sample_8,
       sample_30: stats.sample_30,
       outliers_8: stats.outliers_8,
       outliers_30: stats.outliers_30,
       videos_available: stats.videos_available,
       skipped_too_recent: stats.skipped_too_recent,
-      skipped_not_in_feed: stats.skipped_not_in_feed,
+      skipped_excluded: stats.skipped_excluded,
       non_video_skipped: stats.non_video_skipped,
+      excluded_media: excludedList,
       videos: stats.videos,
       skipped_videos: stats.skipped_videos
     }
@@ -529,8 +536,7 @@ exports.handler = async (event) => {
   const debug = emitCpmDebug(username, stats, {
     source: 'meta',
     pool_fetched_at: poolRow.ig_fetched_at,
-    image_error: bildFehler,
-    feed_flag_available: res.feed_flag_available !== false
+    image_error: bildFehler
   });
 
   return jsonResponse(200, {
@@ -547,7 +553,7 @@ exports.handler = async (event) => {
       views_30_clean: stats.views_30_clean,
       videos_available: stats.videos_available,
       skipped_too_recent: stats.skipped_too_recent,
-      skipped_not_in_feed: stats.skipped_not_in_feed
+      skipped_excluded: stats.skipped_excluded
     },
     ...(debug ? { debug } : {})
   });
