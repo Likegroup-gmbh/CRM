@@ -169,6 +169,14 @@ export class VideoTableColumnVisibilityDrawer {
     }, 300);
   }
 
+  destroy() {
+    this._openRequestId += 1;
+    clearTimeout(this._closeTimer);
+    this.removeDrawer();
+    this._settingsLoaded = false;
+    this.hiddenColumns = [];
+  }
+
   // Rendere den Inhalt des Drawers
   renderContent() {
     const rows = this.columns.map(col => {

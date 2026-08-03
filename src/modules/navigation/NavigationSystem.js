@@ -70,7 +70,8 @@ export class NavigationSystem {
         items: [
           { id: 'mitarbeiter', label: 'Mitarbeiter', icon: 'icon-users', url: '/mitarbeiter' },
           { id: 'kunden-admin', label: 'Kunden', icon: 'icon-user-circle', url: '/admin/kunden' },
-          { id: 'shares', label: 'Geteilte Listen', icon: 'icon-list', url: '/shares' }
+          { id: 'shares', label: 'Geteilte Listen', icon: 'icon-list', url: '/shares' },
+          { id: 'ki-usage', label: 'KI-Nutzung', icon: 'icon-currency-euro', url: '/ki-usage' }
         ]
       },
       {
@@ -112,6 +113,11 @@ export class NavigationSystem {
       // Geteilte Listen: nur intern (Admin + Mitarbeiter)
       if (id === 'shares') {
         return typeof window.isInternal === 'function' && window.isInternal();
+      }
+
+      // KI-Nutzung: nur Admins (RLS laesst ohnehin nur Admins lesen)
+      if (id === 'ki-usage') {
+        return typeof window.isAdmin === 'function' && window.isAdmin();
       }
 
       // Skript-Generator: nur intern (Admin + Mitarbeiter)

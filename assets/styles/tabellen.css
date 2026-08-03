@@ -73,6 +73,10 @@
 .kooperation-video-grid .col-organic-paid { width: 14ch; min-width: 14ch; }
 .kooperation-video-grid .col-kampagne { width: 16ch; min-width: 16ch; }
 .kooperation-video-grid .col-posting-datum { width: 14ch; min-width: 14ch; }
+.kooperation-video-grid .col-link-live { width: 24ch; min-width: 24ch; }
+.kooperation-video-grid .col-stats-views,
+.kooperation-video-grid .col-stats-likes,
+.kooperation-video-grid .col-stats-comments { width: 10ch; min-width: 10ch; }
 .kooperation-video-grid .col-vertrag { width: 4.5rem; min-width: 4.5rem; }
 .kooperation-video-grid .col-nutzungsrechte { width: 18ch; min-width: 18ch; }
 .kooperation-video-grid .col-lieferadresse { width: 24ch; min-width: 24ch; }
@@ -110,6 +114,64 @@
   min-width: calc(var(--_col-base) * var(--_col-factor));
 }
 .kooperation-video-grid .col-actions { width: 4.5rem; min-width: 4.5rem; }
+
+/* Live-Link-Zelle: das Eingabefeld nimmt den Rest, Haekchen und Extern-Link
+   bleiben in fester Breite daneben stehen. */
+.kooperation-video-grid .video-live-link-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.kooperation-video-grid .video-live-link-row .grid-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.kooperation-video-grid .video-live-link-row .ig-fetch-btn,
+.kooperation-video-grid .video-live-link-row .external-link-btn {
+  flex: 0 0 auto;
+}
+
+/* Views/Likes/Kommentare: zentriert in der Spalte. Wie die Follower-Zelle im
+   Sourcing haelt der Input den Rohwert und das Overlay darueber die Kurzform
+   (21,6K) - beim Fokussieren verschwindet das Overlay, editiert wird also
+   immer die exakte Zahl. */
+.kooperation-video-grid .video-stats-cell {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.kooperation-video-grid .video-stats-cell .cell-number__input {
+  color: transparent;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.kooperation-video-grid .video-stats-cell .cell-number__input:focus {
+  color: var(--text-primary);
+}
+
+.kooperation-video-grid .video-stats-cell .cell-number__display {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-md);
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.kooperation-video-grid .video-stats-cell .cell-number__input:focus ~ .cell-number__display {
+  display: none;
+}
+
+.kooperation-video-grid .video-stats-text {
+  width: 100%;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
 
 /* Aktions-Spalte: sticky rechts */
 .kooperation-video-grid thead th.col-actions,
@@ -400,6 +462,7 @@
 .kooperation-video-grid .video-typ-text,
 .kooperation-video-grid .address-text,
 .kooperation-video-grid .no-strategie-hint,
+.kooperation-video-grid .video-stats-text,
 .kooperation-video-grid .stacked-video-empty {
   padding: var(--space-md);
 }

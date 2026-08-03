@@ -6,6 +6,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const { callClaude, MODELS } = require('./_shared/anthropic');
 const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
+const { starteKiRequest } = require('./_shared/ki-log');
 
 function createJobUpdater(supabase, jobId) {
   const logs = [];
@@ -59,8 +60,12 @@ exports.handler = async (event) => {
   if (!jobId || !layer_typ) return { statusCode: 400, body: 'jobId/layer_typ fehlt' };
 
   const job = createJobUpdater(supabase, jobId);
+  let ki = null;
 
   try {
+    // Frequenz-Limit pruefen + Protokoll-Zeile anlegen
+    ki = await starteKiRequest(supabase, { userId: auth.user.id, feature: 'dna_destillat' });
+
     // ------------------------------------------------------------------
     // 1. Aktuelle DNA dieses Layers laden (Basis der Ueberarbeitung)
     // ------------------------------------------------------------------
@@ -180,6 +185,7 @@ exports.handler = async (event) => {
       userPrompt,
       maxTokens: 8192
     });
+    await ki.abschliessen(result);
 
     // ------------------------------------------------------------------
     // 5. Als ENTWURF speichern (Freigabe erfolgt durch Menschen in der UI)
@@ -204,6 +210,7 @@ exports.handler = async (event) => {
     return { statusCode: 200 };
   } catch (error) {
     console.error(`[${jobId}] Fehler:`, error.message);
+    if (ki) await ki.fehlgeschlagen(error);
     try {
       job.log(`FEHLER: ${error.message}`);
       await job.flushAndUpdate({ status: 'error', error_message: error.message });

@@ -71,6 +71,34 @@ describe('AuftragList', () => {
     expect(headers).not.toContain('Rechnungskontakte');
   });
 
+  it('synchronisiert den Header beim Tab-Wechsel in beide Richtungen', () => {
+    const list = new AuftragList();
+    document.body.innerHTML = list.renderListView('auftraege');
+
+    list.syncListHead('contracts');
+    let headers = [...document.querySelectorAll('thead th')];
+    expect(headers).toHaveLength(list.getListColumnCount('contracts'));
+    expect(headers.map(header => header.textContent.trim())).toContain('Rechnungsnummer');
+
+    list.syncListHead('auftraege');
+    headers = [...document.querySelectorAll('thead th')];
+    expect(headers).toHaveLength(list.getListColumnCount('auftraege'));
+    expect(headers.map(header => header.textContent.trim())).toContain('Leistungszeitraum');
+    expect(headers.map(header => header.textContent.trim())).not.toContain('Rechnungsnummer');
+  });
+
+  it('ignoriert ein Tabellen-Update für einen nicht mehr aktiven Tab', async () => {
+    const list = new AuftragList();
+    list.activeTab = 'auftraege';
+    document.body.innerHTML = list.renderListView('auftraege');
+    const tbody = document.getElementById('auftraege-table-body');
+    const previousHtml = tbody.innerHTML;
+
+    await list.updateTable([{ id: 'contract-1' }], 'contracts');
+
+    expect(tbody.innerHTML).toBe(previousHtml);
+  });
+
   it('laedt Erstellt-von per auth_user_id nach, wenn die Relation leer ist', async () => {
     const list = new AuftragList();
     const byBenutzerId = [];
@@ -105,7 +133,7 @@ describe('AuftragList', () => {
 
   it('zeigt den Auftragsnamen in der Details-Spalte als Link zu den Auftragsdetails', async () => {
     const list = new AuftragList();
-    document.body.innerHTML = '<table class="data-table auftrag-table"><tbody></tbody></table>';
+    document.body.innerHTML = '<table class="data-table auftrag-table"><tbody id="auftraege-table-body"></tbody></table>';
 
     await list.updateTable([{
       id: 'auftrag-1',

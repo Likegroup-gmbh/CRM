@@ -44,6 +44,10 @@ const DEFAULT_COLUMNS = [
   { id: 'col-caption', label: 'Caption', dataCol: '27', configurable: true },
   { id: 'col-finale-version', label: 'Finale Version', dataCol: '28', configurable: true },
   { id: 'col-posting-datum', label: 'Posting Datum', dataCol: '29', configurable: true },
+  { id: 'col-link-live', label: 'Live Link', dataCol: '29b', configurable: true },
+  { id: 'col-stats-views', label: 'Views', dataCol: '29c', configurable: true },
+  { id: 'col-stats-likes', label: 'Likes', dataCol: '29d', configurable: true },
+  { id: 'col-stats-comments', label: 'Kommentare', dataCol: '29e', configurable: true },
   { id: 'col-actions', label: 'Aktionen', dataCol: '30', configurable: false }
 ];
 

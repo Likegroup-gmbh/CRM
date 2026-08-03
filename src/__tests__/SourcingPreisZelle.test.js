@@ -37,12 +37,50 @@ describe('Sourcing – Preis-Zellen mit View-Basis', () => {
     expect(cell.querySelector('.cpm-auto-reach')).toBeNull();
   });
 
-  it('zeigt auch fuer Preis Ø die getrimmte View-Basis', () => {
-    const cell = renderCell('cp-col-cpm-ig-trimmed', { ig_views_trimmed: 3980 });
+  it('zeigt auch fuer die bereinigten Spalten die View-Basis', () => {
+    const cell = renderCell('cp-col-cpm-ig-30-clean', { ig_views_30_clean: 3980 });
 
     expect(cell.querySelector('.cpm-auto-price').textContent.trim()).toBe('99,50 €');
     expect(cell.querySelector('.cpm-auto-reach').textContent.trim()).toBe('Ø 4,0K Views');
     expect(cell.querySelector('.cpm-auto-value').title).toBe('3.980 Views im Schnitt × 25 € TKP');
+  });
+});
+
+describe('Sourcing – Ausreißer-Hinweis im Tooltip', () => {
+  it('nennt Anzahl und Richtung der entfernten Ausreißer', () => {
+    const cell = renderCell('cp-col-cpm-ig-8-clean', {
+      ig_views_8_clean: 50000,
+      ig_stats: {
+        outliers_8: [
+          { views: 1000000, side: 'high' },
+          { views: 10, side: 'low' }
+        ]
+      }
+    });
+
+    expect(cell.querySelector('.cpm-auto-value').title)
+      .toBe('50.000 Views im Schnitt × 25 € TKP\n2 Ausreißer entfernt (1× nach oben, 1× nach unten)');
+  });
+
+  it('sagt es auch, wenn nichts entfernt wurde', () => {
+    const cell = renderCell('cp-col-cpm-ig-30-clean', {
+      ig_views_30_clean: 50000,
+      ig_stats: { outliers_30: [] }
+    });
+
+    expect(cell.querySelector('.cpm-auto-value').title).toContain('Keine Ausreißer erkannt');
+  });
+
+  it('laesst den Hinweis weg, solange keine Statistik vorliegt', () => {
+    const cell = renderCell('cp-col-cpm-ig-8-clean', { ig_views_8_clean: 50000 });
+
+    expect(cell.querySelector('.cpm-auto-value').title).toBe('50.000 Views im Schnitt × 25 € TKP');
+  });
+
+  it('haengt den Hinweis nicht an eine leere Zelle', () => {
+    const cell = renderCell('cp-col-cpm-ig-8-clean', { ig_stats: { outliers_8: [] } });
+
+    expect(cell.querySelector('.cpm-auto-value').title).toBe('Noch nicht abgerufen');
   });
 
   it('blurrt im Kunden-Call Preis und View-Basis gemeinsam', () => {

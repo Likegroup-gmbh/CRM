@@ -137,6 +137,20 @@ export class VideoTableEventBinder {
         e.preventDefault();
         nutzungsrechteModal.open(nutzungsrechteBtn.dataset.vertragId);
       }
+
+      // Haekchen neben dem Live-Link: Views/Likes/Kommentare nachladen
+      const statsBtn = e.target.closest('[data-video-stats-fetch]');
+      if (statsBtn) {
+        e.preventDefault();
+        t._statsFetcher.handleFetch(statsBtn);
+      }
+
+      // X neben dem Live-Link: Link und abgerufene Zahlen zuruecksetzen
+      const clearBtn = e.target.closest('[data-video-link-clear]');
+      if (clearBtn) {
+        e.preventDefault();
+        t._statsFetcher.handleClear(clearBtn);
+      }
     }, { signal });
 
     container.addEventListener('click', (e) => {

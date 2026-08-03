@@ -542,6 +542,18 @@ export const EntityRegistry = {
     sortBy: 'created_at',
     sortOrder: 'desc'
   },
+  auftrag_teilrechnung: {
+    table: 'auftrag_teilrechnung',
+    displayField: 're_nr',
+    fields: {
+      rechnung_gestellt: 'boolean',
+      rechnung_gestellt_am: 'date',
+      ueberwiesen: 'boolean',
+      ueberwiesen_am: 'date',
+      erwarteter_monat_zahlungseingang: 'date'
+    },
+    relations: {}
+  },
   persona: {
     table: 'personas',
     displayField: 'name',

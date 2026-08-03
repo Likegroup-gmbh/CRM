@@ -92,7 +92,12 @@ AuftragList.prototype.loadRechnungskontakteMap = async function(unternehmenIds) 
   return map;
 };
 
+AuftragList.prototype._isCurrentTableLoad = function(requestId, mode) {
+  return requestId === this._tableLoadRequestId && this.activeTab === mode;
+};
+
 AuftragList.prototype.loadAuftraegeData = async function() {
+  const requestId = ++this._tableLoadRequestId;
   const filters = filterSystem.getFilters('auftrag');
 
   if (this.searchQuery && this.searchQuery.trim().length > 0) {
@@ -105,22 +110,28 @@ AuftragList.prototype.loadAuftraegeData = async function() {
     this.pagination.itemsPerPage,
     'auftraege'
   );
+  if (!this._isCurrentTableLoad(requestId, 'auftraege')) return;
 
   const unternehmenIds = [...new Set(
     (auftraege || []).map(a => a.unternehmen?.id).filter(Boolean)
   )];
   const rkMap = await this.loadRechnungskontakteMap(unternehmenIds);
+  if (!this._isCurrentTableLoad(requestId, 'auftraege')) return;
+
   (auftraege || []).forEach(a => {
     a._rechnungskontakte = rkMap.get(a.unternehmen?.id) || [];
   });
 
-  this.pagination.updateTotal(count);
   await this.updateTable(auftraege, 'auftraege');
+  if (!this._isCurrentTableLoad(requestId, 'auftraege')) return;
+
+  this.pagination.updateTotal(count);
   this.pagination.render();
   this.updateTabCount('auftraege', count);
 };
 
 AuftragList.prototype.loadContractsData = async function() {
+  const requestId = ++this._tableLoadRequestId;
   try {
     const filters = {};
     if (this.searchQuery && this.searchQuery.trim().length > 0) {
@@ -133,9 +144,12 @@ AuftragList.prototype.loadContractsData = async function() {
       this.contractsPagination.itemsPerPage,
       'contracts'
     );
+    if (!this._isCurrentTableLoad(requestId, 'contracts')) return;
+
+    await this.updateTable(data, 'contracts');
+    if (!this._isCurrentTableLoad(requestId, 'contracts')) return;
 
     this.contractsPagination.updateTotal(count);
-    await this.updateTable(data, 'contracts');
     this.contractsPagination.render();
     this.updateTabCount('contracts', count);
   } catch (error) {

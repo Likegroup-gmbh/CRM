@@ -7,7 +7,7 @@ import { KooperationenKanbanBoard } from './KooperationenKanbanBoard.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { loadCriticalData as _loadCriticalData, loadFullTableData } from './KampagneDetailDataLoader.js';
 import { renderPageLoading, renderNotFound, renderMainPage } from './KampagneDetailMainRenderer.js';
-import { updateSummaryCardsDOM } from './KampagneDetailSummaryCards.js';
+import { updateSummaryCardsDOM, updateVideoStatsCardDOM } from './KampagneDetailSummaryCards.js';
 import { setupEvents, teardownEvents } from './KampagneDetailEvents.js';
 import { showEditForm as _showEditForm } from './KampagneDetailEditHandler.js';
 import { KampagneDetailStore } from './KampagneDetailStore.js';
@@ -24,6 +24,7 @@ export class KampagneDetail {
     this.koopCreatorsUsed = 0;
     this.extraKostenVkSum = 0;
     this.ekVkMarginSum = 0;
+    this.videoStats = { views: 0, likes: 0, comments: 0 };
     this.sourcingCreators = [];
     this.favoriten = [];
     this.rechnungen = [];
@@ -32,6 +33,7 @@ export class KampagneDetail {
     this.kanbanBoard = null;
     this.currentView = 'table';
     this.videoColumnVisibilityDrawer = null;
+    this._customColumnsDrawer = null;
     this.strategien = [];
     this.briefings = [];
     this.isKunde = false;
@@ -53,6 +55,7 @@ export class KampagneDetail {
     }
 
     this._isMounted = true;
+    this._destroyDrawers();
 
     if (this.kooperationenVideoTable) {
       if (typeof this.kooperationenVideoTable.destroy === 'function') {
@@ -165,6 +168,7 @@ export class KampagneDetail {
       koopCreatorsUsed: this.koopCreatorsUsed,
       extraKostenVkSum: this.extraKostenVkSum,
       ekVkMarginSum: this.ekVkMarginSum,
+      videoStats: this.videoStats,
       isKunde: this.isKunde,
       kampagneId: this.kampagneId,
       searchQuery: this.store?.searchQuery || ''
@@ -191,6 +195,27 @@ export class KampagneDetail {
     this.koopCreatorsUsed = summary.koopCreatorsUsed;
     this.extraKostenVkSum = summary.extraKostenVkSum;
     this.ekVkMarginSum = summary.ekVkMarginSum;
+    this.videoStats = summary.videoStats;
+
+    this._bindVideoStatsCard();
+  }
+
+  /**
+   * Live-Performance-Karte an den Store haengen: Stats-Abruf, manuelle Korrektur
+   * und Realtime laufen alle ueber updateVideo, die Karte zieht dann mit.
+   * Die Listener sterben mit store.destroy() beim naechsten init().
+   */
+  _bindVideoStatsCard() {
+    if (!this.store) return;
+
+    const refresh = () => {
+      this.videoStats = this.store.calculateVideoStats();
+      updateVideoStatsCardDOM(this.videoStats);
+    };
+
+    for (const event of ['video-updated', 'video-added', 'videos-changed', 'kooperation-removed']) {
+      this.store.on(event, refresh);
+    }
   }
 
   _mountVideoTable() {
@@ -233,6 +258,7 @@ export class KampagneDetail {
     }
 
     updateSummaryCardsDOM(this.kampagneData, this.koopBudgetSum, this.koopVideosUsed, this.koopCreatorsUsed, this.extraKostenVkSum, this.ekVkMarginSum);
+    updateVideoStatsCardDOM(this.videoStats);
 
     const videoIds = this._pendingTableData?.videoIds;
     if (videoIds && videoIds.length > 0) {
@@ -332,6 +358,14 @@ export class KampagneDetail {
     _showEditForm(this);
   }
 
+  _destroyDrawers() {
+    this.videoColumnVisibilityDrawer?.destroy?.();
+    this.videoColumnVisibilityDrawer = null;
+
+    this._customColumnsDrawer?.destroy?.();
+    this._customColumnsDrawer = null;
+  }
+
   destroy() {
     console.log('🗑️ KAMPAGNEDETAIL: Destroy aufgerufen');
 
@@ -339,6 +373,7 @@ export class KampagneDetail {
     this._initPromise = null;
 
     teardownEvents();
+    this._destroyDrawers();
 
     if (this._visibilityHandler) {
       window.removeEventListener('video-column-visibility-changed', this._visibilityHandler);

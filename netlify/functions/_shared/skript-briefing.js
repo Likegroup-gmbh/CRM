@@ -5,6 +5,7 @@
 // finale Generierung nutzen denselben Extrakt).
 
 const { callClaude, MODELS } = require('./anthropic');
+const { starteKiRequest } = require('./ki-log');
 
 const BUCKET = 'documents';
 
@@ -29,9 +30,10 @@ const EXTRAKT_PROMPT = 'Das angehaengte PDF ist ein Kunden-Briefing fuer ein Cre
  * @param {object} payload    Generator-Payload (erwartet payload.briefing_pdf = { pfad, name })
  * @param {string|null} skriptId  Skript/Stub, an dem der Extrakt gecacht wird
  * @param {function|null} log     optionaler Logger (msg) => void
+ * @param {string|null} userId    auth-User-ID fuer das KI-Nutzungsprotokoll
  * @returns {Promise<string|null>} Extrakt-Text
  */
-async function ladeBriefingExtrakt(supabase, payload, skriptId = null, log = null) {
+async function ladeBriefingExtrakt(supabase, payload, skriptId = null, log = null, userId = null) {
   const pfad = payload?.briefing_pdf?.pfad;
   if (!pfad) return null;
 
@@ -55,16 +57,30 @@ async function ladeBriefingExtrakt(supabase, payload, skriptId = null, log = nul
   const base64 = Buffer.from(await file.arrayBuffer()).toString('base64');
   if (log) log(`PDF-Briefing geladen (${Math.round(base64.length * 0.75 / 1024)} KB), Fakten werden extrahiert...`);
 
+  // Protokoll ohne eigenes Limit: der aufrufende Request (Generierung/
+  // Rueckfragen) ist bereits gegated, hier zaehlt nur die Kostentransparenz
+  const ki = await starteKiRequest(supabase, { userId, feature: 'pdf_briefing', pruefeLimit: false });
+
   // Fakten-Extrakt mit dem guenstigen Modell
-  const result = await callClaude({
-    model: MODELS.distill,
-    userPrompt: EXTRAKT_PROMPT,
-    documents: [{ base64, mediaType: 'application/pdf' }],
-    maxTokens: 4096
-  });
+  let result;
+  try {
+    result = await callClaude({
+      model: MODELS.distill,
+      userPrompt: EXTRAKT_PROMPT,
+      documents: [{ base64, mediaType: 'application/pdf' }],
+      maxTokens: 4096
+    });
+  } catch (err) {
+    await ki.fehlgeschlagen(err);
+    throw err;
+  }
 
   const extrakt = (result.text || '').trim();
-  if (!extrakt) throw new Error('PDF-Briefing: Extrakt ist leer');
+  if (!extrakt) {
+    await ki.fehlgeschlagen(new Error('Extrakt ist leer'));
+    throw new Error('PDF-Briefing: Extrakt ist leer');
+  }
+  await ki.abschliessen(result);
 
   // Am Skript cachen (best effort - Extrakt steht auch ohne Cache bereit)
   if (skriptId) {

@@ -54,7 +54,7 @@ export function formatDeadlineBadge(dateStr) {
 export function renderMainPage(state) {
   const {
     kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed,
-    extraKostenVkSum, ekVkMarginSum, isKunde, kampagneId, searchQuery
+    extraKostenVkSum, ekVkMarginSum, videoStats, isKunde, kampagneId, searchQuery
   } = state;
 
   const canCreateKooperation = window.currentUser?.permissions?.kooperation?.can_edit || false;
@@ -74,7 +74,7 @@ export function renderMainPage(state) {
     </div>
 
     <div class="content-section">
-      ${renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum)}
+      ${renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, videoStats)}
 
       <div class="tab-navigation">
         <button class="tab-button active" data-tab="offen">

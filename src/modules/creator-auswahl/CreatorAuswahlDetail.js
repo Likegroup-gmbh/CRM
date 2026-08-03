@@ -760,10 +760,26 @@ export class CreatorAuswahlDetail {
     button.classList.add('is-loading');
 
     try {
-      const { item: updated, source, poolFetchedAt } = await creatorAuswahlService
+      const { item: updated, source, poolFetchedAt, debug } = await creatorAuswahlService
         .fetchInstagramStats(itemId, { force });
       Object.assign(item, updated);
       this.refreshItemRow(itemId, { flashSuccess: true });
+
+      if (debug) {
+        const handle = debug.username || 'unknown';
+        console.group(`[IG-CPM] @${handle} (${debug.source || source})`);
+        console.log('Regeln', debug.rules);
+        if (debug.skipped?.length) console.table(debug.skipped);
+        else console.log('Skipped (zu frisch / manuell ausgeschlossen): keine');
+        if (debug.included?.length) console.table(debug.included);
+        else console.log('Included: keine');
+        if (debug.outliers?.window_8?.length) console.table(debug.outliers.window_8);
+        if (debug.outliers?.window_30?.length) console.table(debug.outliers.window_30);
+        console.log('Fenster / Preis', debug.summary);
+        if (debug.pool_fetched_at) console.log('Pool-Stand', debug.pool_fetched_at);
+        if (debug.image_error) console.warn('Profilbild', debug.image_error);
+        console.groupEnd();
+      }
 
       if (source === 'pool') {
         const stand = poolFetchedAt ? new Date(poolFetchedAt).toLocaleDateString('de-DE') : null;
@@ -774,7 +790,9 @@ export class CreatorAuswahlDetail {
           'info'
         );
       } else {
-        const views = updated.ig_views_trimmed;
+        // 30er-Schnitt ohne Ausreisser ist der belastbarste Wert; hat der
+        // Creator dafuer zu wenige Feed-Reels, greift der 8er-Schnitt
+        const views = updated.ig_views_30_clean ?? updated.ig_views_8_clean;
         window.toastSystem?.show(
           views != null
             ? `Instagram-Daten aktualisiert (${Number(views).toLocaleString('de-DE')} Views im Schnitt)`

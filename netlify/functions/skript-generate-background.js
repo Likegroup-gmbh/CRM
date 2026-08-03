@@ -10,6 +10,7 @@ const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { loadContext, fmtSkript, buildKontextText, videoLaengeHinweis } = require('./_shared/skript-context');
 const { ladeBriefingExtrakt } = require('./_shared/skript-briefing');
 const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
+const { starteKiRequest } = require('./_shared/ki-log');
 
 // Erzwungener Tool-Call: die API serialisiert das JSON selbst, unescapte
 // Anfuehrungszeichen im Skript-Text koennen das Parsen nicht mehr brechen
@@ -220,8 +221,13 @@ exports.handler = async (event) => {
 
   const job = createJobUpdater(supabase, jobId);
   const startTime = Date.now();
+  let ki = null;
 
   try {
+    // Frequenz-Limit pruefen + Protokoll-Zeile anlegen (wirft KiLimitError
+    // mit UI-tauglicher Meldung, die ueber den catch im Job-Log landet)
+    ki = await starteKiRequest(supabase, { userId: user.id, feature: 'skript_generierung' });
+
     job.step('kontext', 'Kontext aus CRM-Daten sammeln (SQL, kein LLM)...');
 
     // Videovorlage (optional): serverseitig validieren + aus der Job-Row
@@ -241,7 +247,7 @@ exports.handler = async (event) => {
     let briefingExtrakt = null;
     if (payload.briefing_pdf?.pfad) {
       job.step('briefing', `PDF-Briefing "${payload.briefing_pdf.name || 'Dokument'}" wird durchforstet...`);
-      briefingExtrakt = await ladeBriefingExtrakt(supabase, payload, payload.skript_id || null, (msg) => job.log(msg));
+      briefingExtrakt = await ladeBriefingExtrakt(supabase, payload, payload.skript_id || null, (msg) => job.log(msg), user.id);
     }
 
     // Rueckfragen-Stub: geklaerten Frage/Antwort-Dialog in den Prompt aufnehmen
@@ -269,6 +275,7 @@ exports.handler = async (event) => {
       maxTokens: 4096,
       tool: SKRIPT_TOOL
     });
+    await ki.abschliessen(result);
 
     job.step('speichern', 'Antwort parsen und speichern...');
     const parsed = result.json || extractJson(result.text, {
@@ -361,6 +368,7 @@ exports.handler = async (event) => {
     return { statusCode: 200 };
   } catch (error) {
     console.error(`[${jobId}] Fehler:`, error.message);
+    if (ki) await ki.fehlgeschlagen(error);
     try {
       job.log(`FEHLER: ${error.message}`);
       await job.flushAndUpdate({ status: 'error', error_message: error.message });

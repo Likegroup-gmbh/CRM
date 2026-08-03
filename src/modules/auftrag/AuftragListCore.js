@@ -41,6 +41,7 @@ export class AuftragList {
     this._searchDebounceTimer = null;
     this._contractsSearchDebounceTimer = null;
     this._shellRendered = false;
+    this._tableLoadRequestId = 0;
   }
 
   get isAdmin() {
@@ -77,7 +78,7 @@ export class AuftragList {
       onPageChange: (page) => this.handlePageChange(page),
       onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page),
       dynamicResize: true,
-      tbodySelector: '.data-table tbody'
+      tbodySelector: '#auftraege-table-body'
     });
 
     try {
@@ -113,7 +114,7 @@ export class AuftragList {
         return;
       }
 
-      const tbody = document.querySelector('.data-table tbody');
+      const tbody = document.getElementById('auftraege-table-body');
       TableAnimationHelper.showLoadingOverlay(tbody);
 
       if (this.activeTab === 'contracts') {
@@ -122,7 +123,7 @@ export class AuftragList {
           onPageChange: () => this.loadContractsData(),
           onItemsPerPageChange: () => this.loadContractsData(),
           dynamicResize: true,
-          tbodySelector: '.data-table tbody'
+          tbodySelector: '#auftraege-table-body'
         });
         await this.loadContractsData();
         return;
@@ -249,6 +250,7 @@ export class AuftragList {
     if (this.activeTab === tab) return;
 
     this.activeTab = tab;
+    this.syncListHead(tab);
 
     document.querySelectorAll('.auftrag-tabs .tab-button').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.tab === tab);
@@ -297,7 +299,7 @@ export class AuftragList {
         onPageChange: () => this.loadContractsData(),
         onItemsPerPageChange: () => this.loadContractsData(),
         dynamicResize: true,
-        tbodySelector: '.data-table tbody'
+        tbodySelector: '#auftraege-table-body'
       });
       await this.loadContractsData();
     } else {
@@ -306,7 +308,7 @@ export class AuftragList {
         onPageChange: (page) => this.handlePageChange(page),
         onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page),
         dynamicResize: true,
-        tbodySelector: '.data-table tbody'
+        tbodySelector: '#auftraege-table-body'
       });
       await this.loadAuftraegeData();
     }

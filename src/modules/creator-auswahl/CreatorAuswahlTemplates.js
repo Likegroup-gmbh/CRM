@@ -46,8 +46,11 @@ export function groupItemsByKategorie(items) {
 const ENTFERNTE_SPALTEN = [
   'cp-col-cpm-ig', 'cp-col-cpm-tt',
   // Die manuellen Reichweite-Spalten sind entfallen: die Views stehen jetzt
-  // unter Preis 8 / 30 / Ø direkt in der Zelle.
-  'cp-col-reichweite-ig', 'cp-col-reichweite-tt'
+  // direkt in den Preis-Zellen.
+  'cp-col-reichweite-ig', 'cp-col-reichweite-tt',
+  // Der getrimmte Schnitt ("Preis Ø Reels") ist durch die beiden
+  // Ausreisser-bereinigten Spalten ersetzt.
+  'cp-col-cpm-ig-trimmed'
 ];
 
 /** Die fuenf Status-Checkbox-Spalten, die zur Select-Spalte cp-col-status wurden */
@@ -111,7 +114,8 @@ export const SOURCING_SPALTEN = [
   'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-typ', 'cp-col-location',
   'cp-col-mail', 'cp-col-telefon',
   'cp-col-link-ig', 'cp-col-follower-ig',
-  'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-cpm-ig-trimmed',
+  'cp-col-cpm-ig-8', 'cp-col-cpm-ig-8-clean',
+  'cp-col-cpm-ig-30', 'cp-col-cpm-ig-30-clean',
   'cp-col-reichweite-story', 'cp-col-preis-story',
   'cp-col-link-tt', 'cp-col-follower-tt',
   'cp-col-pricing', 'cp-col-reichweite-garantie',
@@ -351,9 +355,10 @@ export function renderItemsTable(ctx) {
             <th class="cp-col-telefon" ${hide('cp-col-telefon')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Telefon</th>
             <th class="cp-col-link-ig" ${hide('cp-col-link-ig')}>Link ${INSTAGRAM_ICON}</th>
             <th class="cp-col-follower-ig" ${hide('cp-col-follower-ig')}>Follower ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-cpm-ig-8" ${hide('cp-col-cpm-ig-8')} title="Geschätzter Preis bei ${tkpLabel} € TKP – Views-Schnitt der letzten 8 Reels">Preis 8 Reels ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-cpm-ig-30" ${hide('cp-col-cpm-ig-30')} title="Geschätzter Preis bei ${tkpLabel} € TKP – Views-Schnitt der letzten 30 Reels">Preis 30 Reels ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-cpm-ig-trimmed" ${hide('cp-col-cpm-ig-trimmed')} title="Geschätzter Preis bei ${tkpLabel} € TKP – getrimmter Views-Schnitt, Ausreißer gekürzt">Preis Ø Reels ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-cpm-ig-8" ${hide('cp-col-cpm-ig-8')} title="Geschätzter Preis bei ${tkpLabel} € TKP – Views-Schnitt der letzten 8 Feed-Reels, Ausreißer inklusive">Preis 8 Reels ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-cpm-ig-8-clean" ${hide('cp-col-cpm-ig-8-clean')} title="Geschätzter Preis bei ${tkpLabel} € TKP – Views-Schnitt der letzten 8 Feed-Reels ohne Ausreißer nach oben und unten">Preis 8 Reels o. A. ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-cpm-ig-30" ${hide('cp-col-cpm-ig-30')} title="Geschätzter Preis bei ${tkpLabel} € TKP – Views-Schnitt der letzten 30 Feed-Reels, Ausreißer inklusive">Preis 30 Reels ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-cpm-ig-30-clean" ${hide('cp-col-cpm-ig-30-clean')} title="Geschätzter Preis bei ${tkpLabel} € TKP – Views-Schnitt der letzten 30 Feed-Reels ohne Ausreißer nach oben und unten">Preis 30 Reels o. A. ${INSTAGRAM_ICON}</th>
             <th class="cp-col-reichweite-story" ${hide('cp-col-reichweite-story')} title="Manuell gepflegt – Story-Reichweite liefert die Instagram-API für fremde Accounts nicht">Reichweite Story ${INSTAGRAM_ICON}</th>
             <th class="cp-col-preis-story" ${hide('cp-col-preis-story')} title="Manuell gepflegt">Preis Story ${INSTAGRAM_ICON}</th>
             <th class="cp-col-link-tt" ${hide('cp-col-link-tt')}>Link ${TIKTOK_ICON}</th>
@@ -496,22 +501,43 @@ export function berechnePreisAusViews(views, tkp) {
 }
 
 /**
+ * Zusatz fuer den Tooltip der bereinigten Spalten: welche und wie viele Reels
+ * die Ausreisser-Erkennung aussortiert hat. Ohne diesen Hinweis waere nicht
+ * nachvollziehbar, warum "mit" und "ohne Ausreißer" auseinanderlaufen - oder
+ * warum sie identisch sind.
+ */
+function beschreibeAusreisser(item, fenster) {
+  const outliers = item?.ig_stats?.[`outliers_${fenster}`];
+  if (!Array.isArray(outliers)) return null;
+  if (!outliers.length) return 'Keine Ausreißer erkannt';
+
+  const hoch = outliers.filter(o => o?.side === 'high').length;
+  const niedrig = outliers.length - hoch;
+  const teile = [];
+  if (hoch) teile.push(`${hoch}× nach oben`);
+  if (niedrig) teile.push(`${niedrig}× nach unten`);
+
+  return `${outliers.length} Ausreißer entfernt (${teile.join(', ')})`;
+}
+
+/**
  * Automatisch berechnete Preis-Zelle (read-only). Der Preis entsteht hier aus
  * Views x Listen-TKP, nicht aus den gespeicherten cpm_ig_* - so wirkt eine
  * TKP-Aenderung sofort, ohne die Instagram-Daten neu abzurufen.
  * Mit showViews steht unter dem Preis die View-Basis, sonst waere in der
  * Tabelle nicht erkennbar, worauf sich der 8er- bzw. 30er-Wert bezieht.
  */
-function renderAutoCpmCell(ctx, item, columnClass, views, hide, showViews = false) {
+function renderAutoCpmCell(ctx, item, columnClass, views, hide, showViews = false, hinweis = null) {
   const tkp = getListenTkp(ctx.liste);
   const cpm = berechnePreisAusViews(views, tkp);
 
   const value = cpm != null
     ? `${cpm.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
     : '-';
-  const title = views != null
+  const basis = views != null
     ? `${Number(views).toLocaleString('de-DE')} Views im Schnitt × ${tkp.toLocaleString('de-DE')} € TKP`
     : 'Noch nicht abgerufen';
+  const title = views != null && hinweis ? `${basis}\n${hinweis}` : basis;
 
   const reach = showViews && views != null ? formatReachShort(views) : null;
 
@@ -723,8 +749,9 @@ export function renderItemRow(ctx, item, index) {
       </td>
       ${renderFollowerCell(ctx, item, 'cp-col-follower-ig', 'follower_instagram', hide)}
       ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-8', item.ig_views_8, hide, true)}
+      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-8-clean', item.ig_views_8_clean, hide, true, beschreibeAusreisser(item, 8))}
       ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-30', item.ig_views_30, hide, true)}
-      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-trimmed', item.ig_views_trimmed, hide, true)}
+      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-30-clean', item.ig_views_30_clean, hide, true, beschreibeAusreisser(item, 30))}
       <td class="cell-textarea cp-col-reichweite-story" style="${hide('cp-col-reichweite-story')}">
         ${!ctx.isKunde ? `
           <input type="text" class="strategie-textarea" data-field="reichweite_story" data-item-id="${item.id}" placeholder="z.B. 10K" value="${item.reichweite_story || ''}">

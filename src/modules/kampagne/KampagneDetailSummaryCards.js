@@ -3,6 +3,21 @@
 
 import { KampagneUtils } from './KampagneUtils.js';
 import { getCampaignTargetTotals } from '../projekt-erstellen/logic/CampaignBudgetFields.js';
+import { formatCompactNumber, formatExactNumber } from '../../core/format/compactNumber.js';
+
+const VIDEO_STATS_METRIKEN = [
+  { key: 'views', slug: 'stats-views', label: 'Views' },
+  { key: 'likes', slug: 'stats-likes', label: 'Likes' },
+  { key: 'comments', slug: 'stats-comments', label: 'Kommentare' }
+];
+
+function normalizeVideoStats(videoStats) {
+  return {
+    views: Number(videoStats?.views) || 0,
+    likes: Number(videoStats?.likes) || 0,
+    comments: Number(videoStats?.comments) || 0
+  };
+}
 
 
 function resolveTargets(kampagneData) {
@@ -77,7 +92,22 @@ export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUse
   if (extraKostenVal) extraKostenVal.textContent = KampagneUtils.formatCurrency(extraKostenVkSum || 0);
 }
 
-export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum) {
+/**
+ * Live-Performance-Karte nachziehen. Laeuft nach jedem Stats-Abruf und jeder
+ * manuellen Korrektur in der Tabelle, deshalb kein Re-Render der Seite.
+ */
+export function updateVideoStatsCardDOM(videoStats) {
+  const werte = normalizeVideoStats(videoStats);
+
+  for (const metrik of VIDEO_STATS_METRIKEN) {
+    const el = document.querySelector(`[data-summary-value="${metrik.slug}"]`);
+    if (!el) continue;
+    el.textContent = formatCompactNumber(werte[metrik.key]) || '0';
+    el.title = formatExactNumber(werte[metrik.key]);
+  }
+}
+
+export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, videoStats) {
   const gesamtNettoBetrag = parseFloat(kampagneData?.auftrag?.nettobetrag) || 0;
   const totalBudget = parseFloat(
     kampagneData?.auftrag?.creator_budget ||
@@ -115,6 +145,14 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
     : [];
 
   const fmt = KampagneUtils.formatCurrency;
+
+  const statsWerte = normalizeVideoStats(videoStats);
+  const viewsExact = formatExactNumber(statsWerte.views);
+  const likesExact = formatExactNumber(statsWerte.likes);
+  const commentsExact = formatExactNumber(statsWerte.comments);
+  const viewsDisplay = formatCompactNumber(statsWerte.views) || '0';
+  const likesDisplay = formatCompactNumber(statsWerte.likes) || '0';
+  const commentsDisplay = formatCompactNumber(statsWerte.comments) || '0';
 
   const zusatzleistungenCardsHtml = validExtraServices.map(s => `
         <div class="summary-card">
@@ -164,6 +202,23 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
         <div class="summary-card" data-summary-card="videos">
           <div class="summary-value" data-summary-value="videos">${KampagneUtils.num(usedVideos)} von ${KampagneUtils.num(totalVideos)}</div>
           <div class="summary-label">Gebuchte Videos</div>
+        </div>
+        <div class="summary-card summary-card--performance" data-summary-card="video-stats">
+          <div class="summary-card__overline">Live-Performance</div>
+          <div class="performance-hero">
+            <span class="performance-hero__value" data-summary-value="stats-views" title="${viewsExact}">${viewsDisplay}</span>
+            <span class="performance-hero__unit">Views</span>
+          </div>
+          <div class="performance-split">
+            <div class="performance-split__item">
+              <span class="performance-split__value" data-summary-value="stats-likes" title="${likesExact}">${likesDisplay}</span>
+              <span class="performance-split__label">Likes</span>
+            </div>
+            <div class="performance-split__item">
+              <span class="performance-split__value" data-summary-value="stats-comments" title="${commentsExact}">${commentsDisplay}</span>
+              <span class="performance-split__label">Kommentare</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

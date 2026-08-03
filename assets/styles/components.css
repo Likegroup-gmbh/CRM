@@ -5067,6 +5067,68 @@ input.input-error {
   line-height: 1.6;
 }
 
+/* Live-Performance: klare Hierarchie mit Views als Hero, Likes und Kommentare
+   als Split darunter. Overline schafft Kontext ohne Icon-Beiwerk. */
+.summary-card--performance {
+  flex: 2.2 1 0%;
+  gap: var(--space-md);
+  justify-content: flex-start;
+}
+
+.summary-card__overline {
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+  font-weight: 500;
+}
+
+.performance-hero {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+
+.performance-hero__value {
+  font-size: 2rem;
+  font-weight: 500;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.performance-hero__unit {
+  font-size: var(--text-sm);
+  color: var(--gray-500);
+  font-weight: 400;
+}
+
+.performance-split {
+  display: flex;
+  gap: var(--space-lg);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--gray-100);
+}
+
+.performance-split__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.performance-split__value {
+  font-size: var(--text-lg);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.performance-split__label {
+  font-size: var(--text-xs);
+  color: var(--gray-400);
+}
+
 .summary-planned {
   padding: var(--space-xxs) var(--space-xs);
   font-size: 0.8rem;
@@ -12490,8 +12552,9 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-reichweite-garantie,
 .creator-pool-table td.cp-col-pricing,
 .creator-pool-table td.cp-col-cpm-ig-8,
+.creator-pool-table td.cp-col-cpm-ig-8-clean,
 .creator-pool-table td.cp-col-cpm-ig-30,
-.creator-pool-table td.cp-col-cpm-ig-trimmed,
+.creator-pool-table td.cp-col-cpm-ig-30-clean,
 .creator-pool-table td.cp-col-ek,
 .creator-pool-table td.cp-col-vk {
   vertical-align: middle;
@@ -12512,8 +12575,9 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-reichweite-garantie .cell-text-readonly,
 .creator-pool-table td.cp-col-pricing .cell-text-readonly,
 .creator-pool-table td.cp-col-cpm-ig-8 .cell-text-readonly,
+.creator-pool-table td.cp-col-cpm-ig-8-clean .cell-text-readonly,
 .creator-pool-table td.cp-col-cpm-ig-30 .cell-text-readonly,
-.creator-pool-table td.cp-col-cpm-ig-trimmed .cell-text-readonly {
+.creator-pool-table td.cp-col-cpm-ig-30-clean .cell-text-readonly {
   align-content: center;
   /* Als Inline-Element wuerde die Baseline das Feld ein paar Pixel nach oben
      ziehen, sodass es trotz vertical-align nicht exakt mittig sitzt */
@@ -12666,8 +12730,9 @@ table:has(#strategien-table-body) td.col-actions {
 }
 
 .creator-pool-table .cp-col-cpm-ig-8,
+.creator-pool-table .cp-col-cpm-ig-8-clean,
 .creator-pool-table .cp-col-cpm-ig-30,
-.creator-pool-table .cp-col-cpm-ig-trimmed {
+.creator-pool-table .cp-col-cpm-ig-30-clean {
   width: 108px;
   min-width: 108px;
 }
@@ -12679,8 +12744,9 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table .cp-col-reichweite-garantie,
 .creator-pool-table .cp-col-pricing,
 .creator-pool-table .cp-col-cpm-ig-8,
+.creator-pool-table .cp-col-cpm-ig-8-clean,
 .creator-pool-table .cp-col-cpm-ig-30,
-.creator-pool-table .cp-col-cpm-ig-trimmed,
+.creator-pool-table .cp-col-cpm-ig-30-clean,
 .creator-pool-table .cp-col-ek,
 .creator-pool-table .cp-col-vk {
   text-align: center;
@@ -12697,8 +12763,9 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-reichweite-garantie .cell-text-readonly,
 .creator-pool-table td.cp-col-pricing .cell-text-readonly,
 .creator-pool-table td.cp-col-cpm-ig-8 .cell-text-readonly,
+.creator-pool-table td.cp-col-cpm-ig-8-clean .cell-text-readonly,
 .creator-pool-table td.cp-col-cpm-ig-30 .cell-text-readonly,
-.creator-pool-table td.cp-col-cpm-ig-trimmed .cell-text-readonly {
+.creator-pool-table td.cp-col-cpm-ig-30-clean .cell-text-readonly {
   text-align: center;
 }
 
@@ -12725,8 +12792,9 @@ table:has(#strategien-table-body) td.col-actions {
    bringen ihre eigene Hintergrundfarbe mit (Hover, gebucht, Absage). Ein
    halbtransparenter Layer legt sich darueber, statt sie zu ersetzen. */
 .creator-pool-table .cp-col-cpm-ig-8,
+.creator-pool-table .cp-col-cpm-ig-8-clean,
 .creator-pool-table .cp-col-cpm-ig-30,
-.creator-pool-table .cp-col-cpm-ig-trimmed {
+.creator-pool-table .cp-col-cpm-ig-30-clean {
   --cp-block-tint: 129 140 248;  /* Gedaempftes Indigo - Reels */
 }
 
@@ -12741,8 +12809,9 @@ table:has(#strategien-table-body) td.col-actions {
 }
 
 .creator-pool-table th.cp-col-cpm-ig-8,
+.creator-pool-table th.cp-col-cpm-ig-8-clean,
 .creator-pool-table th.cp-col-cpm-ig-30,
-.creator-pool-table th.cp-col-cpm-ig-trimmed,
+.creator-pool-table th.cp-col-cpm-ig-30-clean,
 .creator-pool-table th.cp-col-reichweite-story,
 .creator-pool-table th.cp-col-preis-story,
 .creator-pool-table th.cp-col-link-tt,
@@ -12752,8 +12821,9 @@ table:has(#strategien-table-body) td.col-actions {
 }
 
 .creator-pool-table td.cp-col-cpm-ig-8,
+.creator-pool-table td.cp-col-cpm-ig-8-clean,
 .creator-pool-table td.cp-col-cpm-ig-30,
-.creator-pool-table td.cp-col-cpm-ig-trimmed,
+.creator-pool-table td.cp-col-cpm-ig-30-clean,
 .creator-pool-table td.cp-col-reichweite-story,
 .creator-pool-table td.cp-col-preis-story,
 .creator-pool-table td.cp-col-link-tt,
@@ -12771,7 +12841,9 @@ table:has(#strategien-table-body) td.col-actions {
   border-left: 2px solid rgb(var(--cp-block-tint) / 0.35) !important;
 }
 
-/* Instagram-Abruf: Haekchen-Button neben dem IG-Link */
+/* Instagram-Abruf: Haekchen-Button neben dem IG-Link.
+   Bewusst global: die Kampagnen-Video-Tabelle nutzt dieselben Zustaende fuer
+   den Stats-Abruf neben dem Live-Link (.video-stats-fetch-btn). */
 .ig-fetch-btn {
   display: inline-flex;
   align-items: center;
@@ -12827,6 +12899,12 @@ table:has(#strategien-table-body) td.col-actions {
 }
 
 .ig-fetch-btn.is-error {
+  color: var(--color-danger, #dc2626);
+}
+
+/* X neben dem Live-Link: gleiche Groesse wie das Haekchen, Hover in Rot,
+   weil der Klick Link und Zahlen verwirft. */
+.video-link-clear-btn:hover:not(:disabled) {
   color: var(--color-danger, #dc2626);
 }
 

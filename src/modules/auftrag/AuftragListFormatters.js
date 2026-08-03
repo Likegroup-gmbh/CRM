@@ -101,10 +101,9 @@ AuftragList.prototype.syncInlineBillingUpdate = function(rowId, dateField, value
   }
   this.updateAuftragRowStatusClass(row);
 
-  const inputSelector = dateField === 'rechnung_gestellt_am'
-    ? '.col-rechnung-gestellt .auftrag-inline-date-input'
-    : '.col-ueberwiesen .auftrag-inline-date-input';
-  const input = row.querySelector(inputSelector);
+  const input = row.querySelector(
+    `.auftrag-inline-date-input[data-date-field="${dateField}"]`
+  );
   if (!input) return;
 
   CustomDatePicker.setValue(input, value || '');

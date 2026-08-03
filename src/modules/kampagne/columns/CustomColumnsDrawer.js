@@ -558,6 +558,14 @@ export class CustomColumnsDrawer {
     this._closeTimer = setTimeout(() => this.removeDrawer(), 300);
   }
 
+  destroy() {
+    this._openRequestId += 1;
+    clearTimeout(this._closeTimer);
+    this.removeDrawer();
+    this._expandedDropdownColId = null;
+    this._newColumnDropdownOptions = [];
+  }
+
   _esc(text) {
     if (!text) return '';
     const d = document.createElement('div');
