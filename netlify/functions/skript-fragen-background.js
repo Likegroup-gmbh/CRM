@@ -14,6 +14,7 @@ const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { loadContext, buildKontextText } = require('./_shared/skript-context');
 const { ladeBriefingExtrakt } = require('./_shared/skript-briefing');
 const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
+const { starteKiRequest } = require('./_shared/ki-log');
 
 // Erzwungener Tool-Call: strukturell garantiertes JSON statt Text-Parsing
 const FRAGEN_TOOL = {
@@ -135,6 +136,8 @@ exports.handler = async (event) => {
       .eq('id', messageId);
   };
 
+  let ki = null;
+
   try {
     const { data: message } = await supabase.from('skript_chat_messages')
       .select('*').eq('id', messageId).single();
@@ -142,6 +145,10 @@ exports.handler = async (event) => {
     if (message.rolle !== 'assistant' || message.status !== 'pending') {
       return { statusCode: 409, body: 'Message ist kein pending Assistant-Job' };
     }
+
+    // Frequenz-Limit pruefen + Protokoll-Zeile anlegen (Fehlermeldung
+    // landet ueber den catch als error_message in der Chat-Message)
+    ki = await starteKiRequest(supabase, { userId: auth.user.id, feature: 'skript_rueckfragen' });
 
     await supabase.from('skript_chat_messages')
       .update({ status: 'running' }).eq('id', messageId);
@@ -169,7 +176,7 @@ exports.handler = async (event) => {
     const ctx = await loadContext(supabase, params);
 
     // PDF-Briefing durchforsten (nur 1. Runde teuer, danach Cache am Skript)
-    const briefingExtrakt = await ladeBriefingExtrakt(supabase, params, skript.id);
+    const briefingExtrakt = await ladeBriefingExtrakt(supabase, params, skript.id, null, auth.user.id);
 
     // Bisheriger Rueckfragen-Dialog (ohne die pending Assistant-Message)
     const { data: historyRaw } = await supabase.from('skript_chat_messages')
@@ -188,6 +195,7 @@ exports.handler = async (event) => {
       maxTokens: 2048,
       tool: FRAGEN_TOOL
     });
+    await ki.abschliessen(result);
 
     const parsed = result.json || extractJson(result.text, { keys: ['nachricht', 'fertig'] });
 
@@ -202,6 +210,7 @@ exports.handler = async (event) => {
     return { statusCode: 200 };
   } catch (error) {
     console.error(`[skript-fragen ${messageId}] Fehler:`, error.message);
+    if (ki) await ki.fehlgeschlagen(error);
     try { await fail(error.message); } catch (_) { /* noop */ }
     return { statusCode: 500 };
   }

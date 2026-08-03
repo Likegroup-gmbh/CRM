@@ -101,6 +101,7 @@ import { transcribeTestPage } from './modules/transcribe/TranscribeTestPage.js';
 import { stakeholderOverviewPage } from './modules/stakeholder/StakeholderOverviewPage.js';
 import { skriptePage } from './modules/skripte/SkriptePage.js';
 import { sharesAdminPage } from './modules/shares/SharesAdminPage.js';
+import { kiUsagePage } from './modules/ki-usage/KiUsagePage.js';
 import './core/components/ShareListDialog.js';
 import { globalSearch } from './core/components/GlobalSearch.js';
 import { backgroundUploadPanel } from './core/components/BackgroundUploadPanel.js';
@@ -186,6 +187,7 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('transcribe', transcribeTestPage);
   moduleRegistry.register('stakeholder', stakeholderOverviewPage);
   moduleRegistry.register('shares', sharesAdminPage);
+  moduleRegistry.register('ki-usage', kiUsagePage);
   moduleRegistry.register('skripte', skriptePage);
   
   // Profile-Modul initialisieren und registrieren (V2 - neue Version mit zweispaltigem Layout)

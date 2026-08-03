@@ -35,6 +35,7 @@ const ROUTE_CONFIG = {
   transcribe:         { label: 'Transkription (Test)', icon: 'icon-video' },
   stakeholder:        { label: 'Stakeholder-Übersicht', icon: 'icon-dashboard' },
   skripte:            { label: 'Skripte',            icon: 'icon-document' },
+  'ki-usage':         { label: 'KI-Nutzung',         icon: 'icon-currency-euro' },
 };
 
 const ROLE_OVERRIDES = {

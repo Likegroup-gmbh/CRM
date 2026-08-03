@@ -100,15 +100,29 @@ AuftragList.prototype._renderAuftraegeListHead = function() {
   `;
 };
 
+AuftragList.prototype.renderListHead = function(mode = 'auftraege') {
+  return mode === 'contracts'
+    ? this._renderLegacyListHead()
+    : this._renderAuftraegeListHead();
+};
+
+AuftragList.prototype.syncListHead = function(mode = 'auftraege') {
+  const theadRow = document.querySelector(
+    '#auftrag-table-container .data-table[data-mode-specific-head] thead tr'
+  );
+  if (!theadRow) return;
+  theadRow.innerHTML = this.renderListHead(mode);
+};
+
 AuftragList.prototype.renderListView = function(mode = 'auftraege') {
   const isContracts = mode === 'contracts';
   const loadingText = isContracts ? 'Lade Contracts...' : 'Lade Aufträge...';
   const tableClass = isContracts ? 'auftrag-table contracts-table' : 'auftrag-table';
-  const headContent = isContracts ? this._renderLegacyListHead() : this._renderAuftraegeListHead();
+  const headContent = this.renderListHead(mode);
 
   return `
     <div class="table-container" id="auftrag-table-container">
-        <table class="data-table ${tableClass}">
+        <table class="data-table ${tableClass}" data-mode-specific-head>
           <thead>
             <tr>${headContent}</tr>
           </thead>
@@ -185,7 +199,9 @@ AuftragList.prototype._renderAuftraegeRow = function(auftrag) {
 };
 
 AuftragList.prototype.updateTable = async function(auftraege, mode = 'auftraege') {
-  const tbody = document.querySelector('.data-table tbody');
+  if (mode !== this.activeTab) return;
+
+  const tbody = document.getElementById('auftraege-table-body');
   if (!tbody) return;
 
   const isContracts = mode === 'contracts';

@@ -13,6 +13,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { hasSpec } = require('./_shared/extract-specs');
 const { runExtraction } = require('./site-extract-utils/extract-core');
 const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
+const { starteKiRequest } = require('./_shared/ki-log');
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405 };
@@ -75,13 +76,23 @@ exports.handler = async (event) => {
 
   schreibeStep('start', `Extraktion startet: ${job.entity_type} <- ${job.url}`);
 
+  let ki = null;
   try {
+    // Frequenz-Limit pruefen + KI-Nutzungsprotokoll (Feature pro Entitaet,
+    // damit die Admin-Seite Unternehmen/Marke/Produkt getrennt zeigt)
+    ki = await starteKiRequest(supabase, {
+      userId: user.id,
+      feature: `site_extract_${job.entity_type}`
+    });
+
     const result = await runExtraction({
       url: job.url,
       entityType: job.entity_type,
       supabase,
       onStep: schreibeStep
     });
+    // Kosten/Tokens rechnet extract-core selbst (result.cost aus claude-cost)
+    await ki.abschliessen({ cost: result.cost || null });
 
     await queue;
     await supabase.from('extract_jobs')
@@ -90,6 +101,7 @@ exports.handler = async (event) => {
     return { statusCode: 200 };
   } catch (error) {
     console.error(`❌ site-extract-background [${jobId}]:`, error.message);
+    if (ki) await ki.fehlgeschlagen(error);
     try {
       await queue;
       await supabase.from('extract_jobs')
