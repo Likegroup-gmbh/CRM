@@ -229,7 +229,30 @@ export class KampagneDetailStore {
     const extraKostenVkSum = this.kooperationen.reduce((sum, k) => sum + (parseFloat(k.verkaufspreis_zusatzkosten) || 0), 0);
     const koopCreatorsUsed = this.kooperationen.filter(k => k.creator_id).length;
 
-    return { koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum: 0 };
+    return {
+      koopBudgetSum,
+      koopVideosUsed,
+      koopCreatorsUsed,
+      extraKostenVkSum,
+      ekVkMarginSum: 0,
+      videoStats: this.calculateVideoStats()
+    };
+  }
+
+  /**
+   * Live-Performance der gesamten Kampagne: Summe ueber alle Videos, bei denen
+   * Zahlen hinterlegt sind (abgerufen oder von Hand eingetragen).
+   */
+  calculateVideoStats() {
+    const allVideos = Object.values(this.videos).flat();
+    const sum = (field) => allVideos.reduce((acc, v) => acc + (Number(v?.[field]) || 0), 0);
+
+    return {
+      views: sum('stats_views'),
+      likes: sum('stats_likes'),
+      comments: sum('stats_comments'),
+      videosMitDaten: allVideos.filter(v => v?.stats_views != null || v?.stats_likes != null || v?.stats_comments != null).length
+    };
   }
 
   // ========================================

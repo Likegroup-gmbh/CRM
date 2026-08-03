@@ -4,6 +4,7 @@ import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { getOrderedColumns, isColumnVisible, isCustomColumnId } from './columns/ColumnRegistry.js';
 import { renderCustomHeader, renderCustomCell } from './columns/CustomColumnRenderer.js';
 import { renderEmptyState, resolveEmptyState } from '../../core/components/EmptyState.js';
+import { formatCompactNumber, formatExactNumber } from '../../core/format/compactNumber.js';
 
 const EXTERNAL_LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`;
 
@@ -122,19 +123,29 @@ export class VideoTableRenderer {
    * Views/Likes/Kommentare. Editierbar, weil der Abruf nicht immer greift
    * (Creator ohne Business-Account, Collab-Post unter dem Marken-Handle) -
    * dann traegt man die Zahl von Hand ein.
+   *
+   * Wie die Follower-Zelle im Sourcing: der Rohwert steckt im Input, darueber
+   * liegt die kompakte Anzeige (21,6K / 1,39M). Beim Fokussieren blendet CSS
+   * das Overlay aus, editiert wird also immer die exakte Zahl.
    */
   _renderStatsNumberCell(video, fieldName, label) {
     const t = this.table;
     const value = video[fieldName];
-    const display = value != null && value !== '' ? Number(value).toLocaleString('de-DE') : '—';
+    const compact = formatCompactNumber(value);
+    const exact = formatExactNumber(value);
 
     if (t.isKundeRole() || !t.isFieldEditableForUser('video', fieldName)) {
-      return `<div class="video-stats-text">${display}</div>`;
+      return `<div class="video-stats-text" title="${exact}">${compact || '—'}</div>`;
     }
 
-    return `<input type="text" inputmode="numeric" class="grid-input stacked-video-input video-stats-input"
-      data-entity="video" data-id="${video.id}" data-field="${fieldName}" data-value-type="integer"
-      value="${value != null ? value : ''}" placeholder="${label}"/>`;
+    return `
+      <div class="video-stats-cell">
+        <input type="text" inputmode="numeric" class="grid-input stacked-video-input cell-number__input"
+          data-entity="video" data-id="${video.id}" data-field="${fieldName}" data-value-type="compact-integer"
+          value="${value != null ? value : ''}" aria-label="${this.escapeHtml(label)}"/>
+        <span class="cell-number__display" data-number-display title="${exact}">${compact || '—'}</span>
+      </div>
+    `;
   }
 
   renderSkeletonLoading() {

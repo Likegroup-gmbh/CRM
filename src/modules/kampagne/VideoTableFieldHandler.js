@@ -5,17 +5,18 @@ import {
 } from '../../core/VideoFeedbackBuckets.js';
 import { saveVideoFeedbackSlot } from '../../core/videoFeedback/VideoFeedbackRepository.js';
 import { CustomColumnFieldHandler } from './columns/CustomColumnFieldHandler.js';
+import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
 
 /**
- * Eingabe fuer eine integer-Spalte auf eine Zahl bringen.
- * Leer wird zu null (sonst lehnt Postgres den Leerstring ab), Tausenderpunkte
- * und Leerzeichen fallen weg - Views werden gern kopiert statt getippt.
+ * Overlay einer kompakt formatierten Zahlenzelle nachziehen. Der Input haelt
+ * den Rohwert, das Overlay die Kurzform - guenstiger als ein Re-Render.
  */
-function parseIntegerInput(raw) {
-  const digits = String(raw ?? '').replace(/[^\d-]/g, '');
-  if (!digits || digits === '-') return null;
-  const n = Number.parseInt(digits, 10);
-  return Number.isFinite(n) ? n : null;
+function refreshCompactDisplay(input, value) {
+  input.value = value ?? '';
+  const display = input.parentElement?.querySelector('[data-number-display]');
+  if (!display) return;
+  display.textContent = formatCompactNumber(value) || '—';
+  display.title = formatExactNumber(value);
 }
 
 export class VideoTableFieldHandler {
@@ -71,8 +72,10 @@ export class VideoTableFieldHandler {
       value = CustomDatePicker.getValue(field) || null;
     } else if (field.type === 'checkbox') {
       value = field.checked;
-    } else if (field.dataset?.valueType === 'integer') {
-      value = parseIntegerInput(field.value);
+    } else if (field.dataset?.valueType === 'compact-integer') {
+      // Versteht "21569", "21.569" und "21,6K"; leer wird null, sonst lehnt
+      // Postgres den Leerstring fuer die integer-Spalte ab.
+      value = parseCompactNumber(field.value);
     } else {
       value = field.value;
     }
@@ -211,6 +214,10 @@ export class VideoTableFieldHandler {
 
       field.classList.add('save-success');
       setTimeout(() => field.classList.remove('save-success'), 1000);
+
+      if (field.dataset?.valueType === 'compact-integer') {
+        refreshCompactDisplay(field, value);
+      }
 
       if (field.classList?.contains('custom-date-picker__input')) {
         field.dataset.previousValue = value || '';

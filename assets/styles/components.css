@@ -5067,6 +5067,25 @@ input.input-error {
   line-height: 1.6;
 }
 
+/* Live-Performance: drei Kennzahlen in einer Karte. Sonst identisch zu den
+   uebrigen Summary-Karten, nur etwas breiter, weil drei Werte reinmuessen. */
+.summary-card--metrics {
+  flex: 1.8 1 0%;
+}
+
+.summary-metrics {
+  display: flex;
+  gap: var(--space-lg);
+}
+
+.summary-metric {
+  min-width: 0;
+}
+
+.summary-metric .summary-label {
+  font-size: var(--text-xs);
+}
+
 .summary-planned {
   padding: var(--space-xxs) var(--space-xs);
   font-size: 0.8rem;

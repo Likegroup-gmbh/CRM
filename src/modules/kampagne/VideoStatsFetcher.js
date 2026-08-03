@@ -9,6 +9,7 @@
 // gerade bearbeiteten Feld verlieren.
 
 import { authorizedFetch } from '../../core/auth/getAccessToken.js';
+import { formatCompactNumber, formatExactNumber } from '../../core/format/compactNumber.js';
 
 const SUCCESS_FLASH_MS = 2000;
 
@@ -35,10 +36,17 @@ export class VideoStatsFetcher {
     for (const feld of felder) {
       const wert = video[feld];
       const input = grid.querySelector(`input[data-entity="video"][data-id="${videoId}"][data-field="${feld}"]`);
-      if (input) {
-        input.value = wert != null ? wert : '';
-        input.classList.add('save-success');
-        setTimeout(() => input.classList.remove('save-success'), 1000);
+      if (!input) continue;
+
+      input.value = wert != null ? wert : '';
+      input.classList.add('save-success');
+      setTimeout(() => input.classList.remove('save-success'), 1000);
+
+      // Der Input haelt den Rohwert, sichtbar ist das kompakte Overlay
+      const display = input.parentElement?.querySelector('[data-number-display]');
+      if (display) {
+        display.textContent = formatCompactNumber(wert) || '—';
+        display.title = formatExactNumber(wert);
       }
     }
   }

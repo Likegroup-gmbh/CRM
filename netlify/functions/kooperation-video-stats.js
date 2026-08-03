@@ -31,7 +31,10 @@ const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const PAGE_SIZE = 50;
-const MAX_PAGES = 3;   // 26s Function-Timeout, mehr ist nicht drin
+// 300 Beitraege: die media-Edge liefert chronologisch, gepinnte Posts stehen im
+// Grid oben, koennen aber deutlich aelter sein. Sechs sequentielle Graph-Calls
+// bleiben klar unter dem 26s-Function-Timeout.
+const MAX_PAGES = 6;
 
 // Identisch zu sourcing-instagram-stats: media_product_type und
 // is_shared_to_feed sind fuer Business Discovery nicht verfuegbar und lassen
@@ -205,7 +208,7 @@ exports.handler = async (event) => {
       error: res.error,
       error_code: res.error_code,
       hint: res.not_found
-        ? `Liegt das Video unter einem anderen Profil (z.B. Collab mit der Marke)? Bei @${username} taucht es nicht auf.`
+        ? `Bei @${username} taucht es nicht auf: entweder liegt es unter einem anderen Profil (z.B. Collab mit der Marke) oder es ist ein gepinnter, chronologisch aelterer Beitrag. Zahlen dann von Hand eintragen.`
         : (res.error_code === 190
           ? 'META_ACCESS_TOKEN ist abgelaufen oder ungültig – neuen Long-Lived Token hinterlegen.'
           : 'Profil nicht via API abrufbar – kein Business-/Creator-Account oder Handle falsch.')

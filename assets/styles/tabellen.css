@@ -132,9 +132,43 @@
   flex: 0 0 auto;
 }
 
-/* Views/Likes/Kommentare rechtsbuendig, damit Groessenordnungen vergleichbar sind */
-.kooperation-video-grid .video-stats-input,
+/* Views/Likes/Kommentare: rechtsbuendig fuer vergleichbare Groessenordnungen.
+   Wie die Follower-Zelle im Sourcing haelt der Input den Rohwert und das
+   Overlay darueber die Kurzform (21,6K) - beim Fokussieren verschwindet das
+   Overlay, editiert wird also immer die exakte Zahl. */
+.kooperation-video-grid .video-stats-cell {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+
+.kooperation-video-grid .video-stats-cell .cell-number__input {
+  color: transparent;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.kooperation-video-grid .video-stats-cell .cell-number__input:focus {
+  color: var(--text-primary);
+}
+
+.kooperation-video-grid .video-stats-cell .cell-number__display {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 var(--space-md);
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.kooperation-video-grid .video-stats-cell .cell-number__input:focus ~ .cell-number__display {
+  display: none;
+}
+
 .kooperation-video-grid .video-stats-text {
+  width: 100%;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -428,6 +462,7 @@
 .kooperation-video-grid .video-typ-text,
 .kooperation-video-grid .address-text,
 .kooperation-video-grid .no-strategie-hint,
+.kooperation-video-grid .video-stats-text,
 .kooperation-video-grid .stacked-video-empty {
   padding: var(--space-md);
 }
