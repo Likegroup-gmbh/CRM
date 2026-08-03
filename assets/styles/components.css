@@ -12859,6 +12859,12 @@ table:has(#strategien-table-body) td.col-actions {
   color: var(--color-danger, #dc2626);
 }
 
+/* X neben dem Live-Link: gleiche Groesse wie das Haekchen, Hover in Rot,
+   weil der Klick Link und Zahlen verwirft. */
+.video-link-clear-btn:hover:not(:disabled) {
+  color: var(--color-danger, #dc2626);
+}
+
 @keyframes ig-fetch-spin {
   to { transform: rotate(360deg); }
 }

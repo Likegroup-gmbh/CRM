@@ -1,8 +1,8 @@
 // VideoStatsFetcher
-// Haekchen-Button neben dem Live-Link der Kooperationen-Video-Tabelle: holt
-// Views, Likes und Kommentare zum veroeffentlichten Reel und schreibt sie in
-// die Zeile. Gleiche Mechanik wie der Instagram-Abruf im Sourcing
-// (CreatorAuswahlDetail.handleInstagramFetch).
+// Die beiden Buttons neben dem Live-Link der Kooperationen-Video-Tabelle:
+// das Haekchen holt Views, Likes und Kommentare zum veroeffentlichten Reel,
+// das X setzt Link und Zahlen wieder zurueck. Gleiche Mechanik wie der
+// Instagram-Abruf im Sourcing (CreatorAuswahlDetail.handleInstagramFetch).
 //
 // Aktualisiert wird gezielt im DOM statt ueber ein Re-Render der Tabelle: ein
 // render() wuerde Scroll-Position, offene Dropdowns und den Fokus in einem
@@ -12,6 +12,17 @@ import { authorizedFetch } from '../../core/auth/getAccessToken.js';
 import { formatCompactNumber, formatExactNumber } from '../../core/format/compactNumber.js';
 
 const SUCCESS_FLASH_MS = 2000;
+
+// Kompletter Reset der Live-Performance einer Zeile
+const CLEAR_PATCH = {
+  link_live: null,
+  stats_views: null,
+  stats_likes: null,
+  stats_comments: null,
+  stats_fetched_at: null,
+  stats_error: null,
+  stats_raw: null
+};
 
 export class VideoStatsFetcher {
   constructor(table) {
@@ -77,6 +88,77 @@ export class VideoStatsFetcher {
       : 'Views, Likes und Kommentare bei Instagram abrufen';
   }
 
+  /**
+   * Eigenen Schreibvorgang markieren, damit der Realtime-Handler das Echo
+   * ueberspringt und das gezielte DOM-Update nicht durch ein Re-Render ersetzt.
+   */
+  _markOwnUpdate(videoId) {
+    const t = this.table;
+    if (!t._pendingOwnUpdates) t._pendingOwnUpdates = new Map();
+    t._pendingOwnUpdates.set(videoId, Date.now());
+    t._lastUpdateBy = window.currentUser?.id;
+    t._lastUpdateTime = Date.now();
+  }
+
+  /**
+   * X-Button: Link und abgerufene Zahlen in einem Schritt zuruecksetzen.
+   * Bewusst mit Rueckfrage, weil auch von Hand eingetragene Zahlen wegfallen.
+   */
+  async handleClear(button) {
+    if (button.disabled) return;
+
+    const videoId = button.dataset.videoId;
+    const video = this._findVideo(videoId);
+    if (!video) return;
+
+    const meldung = 'Der Link und die abgerufenen Zahlen (Views, Likes, Kommentare) werden entfernt.';
+    if (window.confirmationModal) {
+      const res = await window.confirmationModal.open({
+        title: 'Live-Link entfernen',
+        message: meldung,
+        confirmText: 'Entfernen',
+        cancelText: 'Abbrechen',
+        danger: true
+      });
+      if (!res?.confirmed) return;
+    } else if (!confirm(meldung)) {
+      return;
+    }
+
+    button.disabled = true;
+    this._markOwnUpdate(videoId);
+
+    try {
+      const { error } = await window.supabase
+        .from('kooperation_videos')
+        .update(CLEAR_PATCH)
+        .eq('id', videoId);
+
+      if (error) throw error;
+
+      Object.assign(video, CLEAR_PATCH);
+      this.table.store?.updateVideo(videoId, { ...CLEAR_PATCH });
+
+      const row = button.closest('.video-live-link-row');
+      const linkInput = row?.querySelector('input[data-field="link_live"]');
+      if (linkInput) linkInput.value = '';
+
+      this._applyStatsToDom(videoId, video);
+
+      const fetchBtn = row?.querySelector('[data-video-stats-fetch]');
+      if (fetchBtn) this._applyButtonState(fetchBtn, video);
+
+      // Extern-Link und X gehoeren zu einem gesetzten Link - beide gehen mit
+      row?.querySelector('.external-link-btn')?.remove();
+      button.remove();
+    } catch (error) {
+      console.error('Fehler beim Entfernen des Live-Links:', error);
+      this.table._pendingOwnUpdates?.delete(videoId);
+      button.disabled = false;
+      window.toastSystem?.show('Live-Link konnte nicht entfernt werden', 'error');
+    }
+  }
+
   async handleFetch(button) {
     if (button.disabled) return;
 
@@ -110,8 +192,7 @@ export class VideoStatsFetcher {
     // nicht ueber handleFieldUpdate und wuerde die Zeile neu rendern - damit
     // waeren gezieltes DOM-Update und Erfolgs-Flash wieder weg.
     const t = this.table;
-    if (!t._pendingOwnUpdates) t._pendingOwnUpdates = new Map();
-    t._pendingOwnUpdates.set(videoId, Date.now());
+    this._markOwnUpdate(videoId);
 
     try {
       const response = await authorizedFetch('/.netlify/functions/kooperation-video-stats', {

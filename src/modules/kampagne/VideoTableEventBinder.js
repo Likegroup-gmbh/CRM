@@ -144,6 +144,13 @@ export class VideoTableEventBinder {
         e.preventDefault();
         t._statsFetcher.handleFetch(statsBtn);
       }
+
+      // X neben dem Live-Link: Link und abgerufene Zahlen zuruecksetzen
+      const clearBtn = e.target.closest('[data-video-link-clear]');
+      if (clearBtn) {
+        e.preventDefault();
+        t._statsFetcher.handleClear(clearBtn);
+      }
     }, { signal });
 
     container.addEventListener('click', (e) => {
