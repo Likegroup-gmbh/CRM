@@ -263,6 +263,11 @@ export function teardownEvents() {
 }
 
 function showColumnVisibilityDrawer(detail) {
+  const drawer = detail.videoColumnVisibilityDrawer;
+  if (drawer && (drawer.kampagneId !== detail.kampagneId || drawer.store !== detail.store)) {
+    drawer.destroy();
+    detail.videoColumnVisibilityDrawer = null;
+  }
   if (!detail.videoColumnVisibilityDrawer) {
     detail.videoColumnVisibilityDrawer = new VideoTableColumnVisibilityDrawer(detail.kampagneId, detail.store);
   }
@@ -271,6 +276,11 @@ function showColumnVisibilityDrawer(detail) {
 
 function showCustomColumnsDrawer(detail) {
   if (window.isKunde()) return;
+  const drawer = detail._customColumnsDrawer;
+  if (drawer && (drawer.kampagneId !== detail.kampagneId || drawer.store !== detail.store)) {
+    drawer.destroy();
+    detail._customColumnsDrawer = null;
+  }
   if (!detail._customColumnsDrawer) {
     detail._customColumnsDrawer = new CustomColumnsDrawer(
       detail.kampagneId,

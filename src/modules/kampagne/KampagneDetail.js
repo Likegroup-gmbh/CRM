@@ -32,6 +32,7 @@ export class KampagneDetail {
     this.kanbanBoard = null;
     this.currentView = 'table';
     this.videoColumnVisibilityDrawer = null;
+    this._customColumnsDrawer = null;
     this.strategien = [];
     this.briefings = [];
     this.isKunde = false;
@@ -53,6 +54,7 @@ export class KampagneDetail {
     }
 
     this._isMounted = true;
+    this._destroyDrawers();
 
     if (this.kooperationenVideoTable) {
       if (typeof this.kooperationenVideoTable.destroy === 'function') {
@@ -332,6 +334,14 @@ export class KampagneDetail {
     _showEditForm(this);
   }
 
+  _destroyDrawers() {
+    this.videoColumnVisibilityDrawer?.destroy?.();
+    this.videoColumnVisibilityDrawer = null;
+
+    this._customColumnsDrawer?.destroy?.();
+    this._customColumnsDrawer = null;
+  }
+
   destroy() {
     console.log('🗑️ KAMPAGNEDETAIL: Destroy aufgerufen');
 
@@ -339,6 +349,7 @@ export class KampagneDetail {
     this._initPromise = null;
 
     teardownEvents();
+    this._destroyDrawers();
 
     if (this._visibilityHandler) {
       window.removeEventListener('video-column-visibility-changed', this._visibilityHandler);
