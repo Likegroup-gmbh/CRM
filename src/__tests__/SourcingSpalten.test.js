@@ -50,9 +50,10 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
     const ab = spalten.indexOf('cp-col-link-ig');
 
-    expect(spalten.slice(ab, ab + 9)).toEqual([
+    expect(spalten.slice(ab, ab + 10)).toEqual([
       'cp-col-link-ig', 'cp-col-follower-ig',
-      'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-cpm-ig-trimmed',
+      'cp-col-cpm-ig-8', 'cp-col-cpm-ig-8-clean',
+      'cp-col-cpm-ig-30', 'cp-col-cpm-ig-30-clean',
       'cp-col-reichweite-story', 'cp-col-preis-story',
       'cp-col-link-tt', 'cp-col-follower-tt'
     ]);
@@ -95,7 +96,24 @@ describe('Sourcing – Spaltenreihenfolge', () => {
 
     expect(doc.querySelector('thead th.cp-col-cpm-ig-8').textContent.trim()).toContain('Preis 8 Reels');
     expect(doc.querySelector('thead th.cp-col-cpm-ig-30').textContent.trim()).toContain('Preis 30 Reels');
-    expect(doc.querySelector('thead th.cp-col-cpm-ig-trimmed').textContent.trim()).toContain('Preis Ø Reels');
+  });
+
+  it('unterscheidet die bereinigten Preis-Spalten im Kopf', () => {
+    const doc = tableDoc([{ id: 'i1' }]);
+
+    expect(doc.querySelector('thead th.cp-col-cpm-ig-8-clean').textContent.trim())
+      .toContain('Preis 8 Reels o. A.');
+    expect(doc.querySelector('thead th.cp-col-cpm-ig-30-clean').textContent.trim())
+      .toContain('Preis 30 Reels o. A.');
+    expect(doc.querySelector('thead th.cp-col-cpm-ig-30-clean').getAttribute('title'))
+      .toContain('ohne Ausreißer');
+  });
+
+  it('kennt die getrimmte Preis-Spalte nicht mehr', () => {
+    const doc = tableDoc([{ id: 'i1' }]);
+
+    expect(doc.querySelector('thead th.cp-col-cpm-ig-trimmed')).toBeNull();
+    expect(SOURCING_SPALTEN).not.toContain('cp-col-cpm-ig-trimmed');
   });
 
   it('nennt im Tooltip den TKP der Liste statt der festen 25', () => {

@@ -12490,8 +12490,9 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-reichweite-garantie,
 .creator-pool-table td.cp-col-pricing,
 .creator-pool-table td.cp-col-cpm-ig-8,
+.creator-pool-table td.cp-col-cpm-ig-8-clean,
 .creator-pool-table td.cp-col-cpm-ig-30,
-.creator-pool-table td.cp-col-cpm-ig-trimmed,
+.creator-pool-table td.cp-col-cpm-ig-30-clean,
 .creator-pool-table td.cp-col-ek,
 .creator-pool-table td.cp-col-vk {
   vertical-align: middle;
@@ -12512,8 +12513,9 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-reichweite-garantie .cell-text-readonly,
 .creator-pool-table td.cp-col-pricing .cell-text-readonly,
 .creator-pool-table td.cp-col-cpm-ig-8 .cell-text-readonly,
+.creator-pool-table td.cp-col-cpm-ig-8-clean .cell-text-readonly,
 .creator-pool-table td.cp-col-cpm-ig-30 .cell-text-readonly,
-.creator-pool-table td.cp-col-cpm-ig-trimmed .cell-text-readonly {
+.creator-pool-table td.cp-col-cpm-ig-30-clean .cell-text-readonly {
   align-content: center;
   /* Als Inline-Element wuerde die Baseline das Feld ein paar Pixel nach oben
      ziehen, sodass es trotz vertical-align nicht exakt mittig sitzt */
@@ -12666,8 +12668,9 @@ table:has(#strategien-table-body) td.col-actions {
 }
 
 .creator-pool-table .cp-col-cpm-ig-8,
+.creator-pool-table .cp-col-cpm-ig-8-clean,
 .creator-pool-table .cp-col-cpm-ig-30,
-.creator-pool-table .cp-col-cpm-ig-trimmed {
+.creator-pool-table .cp-col-cpm-ig-30-clean {
   width: 108px;
   min-width: 108px;
 }
@@ -12679,8 +12682,9 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table .cp-col-reichweite-garantie,
 .creator-pool-table .cp-col-pricing,
 .creator-pool-table .cp-col-cpm-ig-8,
+.creator-pool-table .cp-col-cpm-ig-8-clean,
 .creator-pool-table .cp-col-cpm-ig-30,
-.creator-pool-table .cp-col-cpm-ig-trimmed,
+.creator-pool-table .cp-col-cpm-ig-30-clean,
 .creator-pool-table .cp-col-ek,
 .creator-pool-table .cp-col-vk {
   text-align: center;
@@ -12697,8 +12701,9 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-reichweite-garantie .cell-text-readonly,
 .creator-pool-table td.cp-col-pricing .cell-text-readonly,
 .creator-pool-table td.cp-col-cpm-ig-8 .cell-text-readonly,
+.creator-pool-table td.cp-col-cpm-ig-8-clean .cell-text-readonly,
 .creator-pool-table td.cp-col-cpm-ig-30 .cell-text-readonly,
-.creator-pool-table td.cp-col-cpm-ig-trimmed .cell-text-readonly {
+.creator-pool-table td.cp-col-cpm-ig-30-clean .cell-text-readonly {
   text-align: center;
 }
 
@@ -12725,8 +12730,9 @@ table:has(#strategien-table-body) td.col-actions {
    bringen ihre eigene Hintergrundfarbe mit (Hover, gebucht, Absage). Ein
    halbtransparenter Layer legt sich darueber, statt sie zu ersetzen. */
 .creator-pool-table .cp-col-cpm-ig-8,
+.creator-pool-table .cp-col-cpm-ig-8-clean,
 .creator-pool-table .cp-col-cpm-ig-30,
-.creator-pool-table .cp-col-cpm-ig-trimmed {
+.creator-pool-table .cp-col-cpm-ig-30-clean {
   --cp-block-tint: 129 140 248;  /* Gedaempftes Indigo - Reels */
 }
 
@@ -12741,8 +12747,9 @@ table:has(#strategien-table-body) td.col-actions {
 }
 
 .creator-pool-table th.cp-col-cpm-ig-8,
+.creator-pool-table th.cp-col-cpm-ig-8-clean,
 .creator-pool-table th.cp-col-cpm-ig-30,
-.creator-pool-table th.cp-col-cpm-ig-trimmed,
+.creator-pool-table th.cp-col-cpm-ig-30-clean,
 .creator-pool-table th.cp-col-reichweite-story,
 .creator-pool-table th.cp-col-preis-story,
 .creator-pool-table th.cp-col-link-tt,
@@ -12752,8 +12759,9 @@ table:has(#strategien-table-body) td.col-actions {
 }
 
 .creator-pool-table td.cp-col-cpm-ig-8,
+.creator-pool-table td.cp-col-cpm-ig-8-clean,
 .creator-pool-table td.cp-col-cpm-ig-30,
-.creator-pool-table td.cp-col-cpm-ig-trimmed,
+.creator-pool-table td.cp-col-cpm-ig-30-clean,
 .creator-pool-table td.cp-col-reichweite-story,
 .creator-pool-table td.cp-col-preis-story,
 .creator-pool-table td.cp-col-link-tt,

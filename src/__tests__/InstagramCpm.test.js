@@ -2,10 +2,11 @@ import { describe, it, expect } from 'vitest';
 import {
   computeInstagramCpm,
   formatCpmDebug,
-  trimmedAverage,
+  detectOutliers,
   toCpm,
   CPM_RATE,
-  MIN_AGE_HOURS
+  MIN_AGE_HOURS,
+  CALC_VERSION
 } from '../../netlify/functions/_shared/instagram-cpm.js';
 
 const NOW = Date.parse('2026-07-28T12:00:00.000Z');
@@ -37,6 +38,11 @@ function image(daysAgo, extra = {}) {
 /** n Videos mit konstanter View-Zahl, beginnend bei `startDaysAgo` */
 function videoSeries(n, views, startDaysAgo = 5) {
   return Array.from({ length: n }, (_, i) => video(startDaysAgo + i, views));
+}
+
+/** Videos aus einer View-Liste, neuestes zuerst */
+function videosAus(viewsListe, startDaysAgo = 5) {
+  return viewsListe.map((views, i) => video(startDaysAgo + i, views));
 }
 
 describe('computeInstagramCpm – 4-Tage-Regel', () => {
@@ -81,6 +87,48 @@ describe('computeInstagramCpm – 4-Tage-Regel', () => {
   });
 });
 
+describe('computeInstagramCpm – Feed-Filter', () => {
+  it('sortiert Reels aus, die nur im Reels-Tab hängen', () => {
+    const media = [
+      video(5, 999999, { is_shared_to_feed: false }),   // Testvideo, nicht im Feed
+      ...videoSeries(8, 10000, 6)
+    ];
+
+    const stats = computeInstagramCpm(media, { now: NOW });
+
+    expect(stats.skipped_not_in_feed).toBe(1);
+    expect(stats.skipped_videos[0].reason).toBe('not_in_feed');
+    expect(stats.videos_available).toBe(8);
+    expect(stats.views_8).toBe(10000);
+  });
+
+  it('zählt Reels mit is_shared_to_feed true normal mit', () => {
+    const stats = computeInstagramCpm(
+      videoSeries(8, 10000).map((v) => ({ ...v, is_shared_to_feed: true })),
+      { now: NOW }
+    );
+
+    expect(stats.skipped_not_in_feed).toBe(0);
+    expect(stats.views_8).toBe(10000);
+  });
+
+  it('zählt Reels ohne das Feld mit – Meta liefert es nicht immer', () => {
+    const stats = computeInstagramCpm(videoSeries(8, 10000), { now: NOW });
+
+    expect(stats.skipped_not_in_feed).toBe(0);
+    expect(stats.views_8).toBe(10000);
+  });
+
+  it('sortiert nicht im Feed vor der Altersregel aus', () => {
+    // Ein zu frisches Video, das zusaetzlich nicht im Feed steht, zaehlt als
+    // not_in_feed - sonst wuerde es beim naechsten Abruf ploetzlich mitzaehlen
+    const stats = computeInstagramCpm([video(1, 500, { is_shared_to_feed: false })], { now: NOW });
+
+    expect(stats.skipped_not_in_feed).toBe(1);
+    expect(stats.skipped_too_recent).toBe(0);
+  });
+});
+
 describe('computeInstagramCpm – Medientypen', () => {
   it('ignoriert Bild-Posts und Karussells', () => {
     const media = [
@@ -109,7 +157,6 @@ describe('computeInstagramCpm – Medientypen', () => {
   it('zählt Videos mit 0 Views mit', () => {
     const stats = computeInstagramCpm([video(5, 0), video(6, 1000)], { now: NOW });
     expect(stats.videos_available).toBe(2);
-    expect(stats.views_trimmed).toBe(500);
   });
 });
 
@@ -118,19 +165,22 @@ describe('computeInstagramCpm – Fenster', () => {
     const stats = computeInstagramCpm(videoSeries(7, 10000), { now: NOW });
 
     expect(stats.views_8).toBeNull();
+    expect(stats.views_8_clean).toBeNull();
     expect(stats.cpm_8).toBeNull();
+    expect(stats.cpm_8_clean).toBeNull();
     expect(stats.views_30).toBeNull();
-    // Der getrimmte Wert braucht kein volles Fenster
-    expect(stats.views_trimmed).toBe(10000);
+    expect(stats.views_30_clean).toBeNull();
   });
 
-  it('gibt cpm_30 erst bei 30 auswertbaren Videos aus', () => {
+  it('gibt die 30er-Werte erst bei 30 auswertbaren Videos aus', () => {
     const knapp = computeInstagramCpm(videoSeries(29, 10000), { now: NOW });
     expect(knapp.views_30).toBeNull();
+    expect(knapp.views_30_clean).toBeNull();
     expect(knapp.views_8).toBe(10000);
 
     const voll = computeInstagramCpm(videoSeries(30, 10000), { now: NOW });
     expect(voll.views_30).toBe(10000);
+    expect(voll.views_30_clean).toBe(10000);
   });
 
   it('begrenzt das 30er-Fenster auf die 30 neuesten Videos', () => {
@@ -151,29 +201,131 @@ describe('computeInstagramCpm – Fenster', () => {
   });
 });
 
-describe('trimmedAverage – Ausreißer', () => {
-  it('kappt bei 30 Werten je 3 oben und unten', () => {
-    // 27x 1000 plus drei extreme Ausreisser nach oben
-    const values = [...Array(27).fill(1000), 5000000, 6000000, 7000000];
-    expect(trimmedAverage(values)).toBe(1000);
+describe('detectOutliers', () => {
+  it('erkennt einen Ausreißer nach oben', () => {
+    const { indices, details } = detectOutliers([40000, 45000, 48000, 50000, 52000, 55000, 60000, 1000000]);
+
+    expect([...indices]).toEqual([7]);
+    expect(details[0].side).toBe('high');
+    expect(details[0].views).toBe(1000000);
   });
 
-  it('kappt bei kleinen Stichproben mindestens einen Wert je Seite', () => {
-    // 5 Werte: floor(5 * 0.1) = 0 -> Minimum 1 greift
-    expect(trimmedAverage([1, 10, 20, 30, 1000])).toBe(20);
+  it('erkennt einen Ausreißer nach unten', () => {
+    const { indices, details } = detectOutliers([40000, 45000, 48000, 50000, 52000, 55000, 60000, 10]);
+
+    expect([...indices]).toEqual([7]);
+    expect(details[0].side).toBe('low');
   });
 
-  it('kappt unterhalb von 5 Werten nicht', () => {
-    expect(trimmedAverage([10, 20, 1000, 30])).toBe(265);
+  it('lässt eine normale Streuung unangetastet', () => {
+    const values = [30000, 38000, 45000, 51000, 55000, 62000, 70000, 90000];
+    expect(detectOutliers(values).indices.size).toBe(0);
   });
 
-  it('gibt null für eine leere Liste zurück', () => {
-    expect(trimmedAverage([])).toBeNull();
+  it('greift bei einem engen Account nicht, solange der Faktor zum Median klein bleibt', () => {
+    // MAD ist hier winzig, der Z-Score allein wuerde 80000 kippen - der
+    // Mindestabstand von Faktor 2.5 zum Median (~50000) haelt dagegen
+    const values = [48000, 49000, 49500, 50000, 50500, 51000, 52000, 80000];
+    expect(detectOutliers(values).indices.size).toBe(0);
   });
 
-  it('meldet die tatsächlich verwendete Stichprobengröße', () => {
-    const stats = computeInstagramCpm(videoSeries(30, 10000), { now: NOW });
-    expect(stats.trimmed_count).toBe(24); // 30 - 2 * 3
+  it('erkennt unterhalb von 5 Werten keine Ausreißer', () => {
+    expect(detectOutliers([10, 20, 30, 1000000]).indices.size).toBe(0);
+  });
+
+  it('bleibt bei identischen Werten ruhig', () => {
+    expect(detectOutliers(Array(30).fill(1000)).indices.size).toBe(0);
+  });
+
+  it('erkennt Ausreißer nach oben und unten gleichzeitig', () => {
+    const values = [10, 40000, 45000, 48000, 50000, 52000, 55000, 1000000];
+    const { indices, details } = detectOutliers(values);
+
+    expect(indices.size).toBe(2);
+    expect(details.find(d => d.side === 'high').views).toBe(1000000);
+    expect(details.find(d => d.side === 'low').views).toBe(10);
+  });
+
+  it('entfernt im 8er-Fenster höchstens einen Wert je Seite', () => {
+    const values = [50000, 50000, 50000, 50000, 50000, 500000, 900000, 1000000];
+    const { indices, details } = detectOutliers(values);
+
+    expect(indices.size).toBe(1);
+    expect(details[0].views).toBe(1000000);
+  });
+
+  it('lässt einen zweigipfligen Account in Ruhe', () => {
+    // Die Haelfte der Reels liegt oben, die andere unten - das ist keine
+    // Reihe mit Ausreissern mehr, sondern schlicht ein anderes Profil
+    const values = [5, 10, 20, 40000, 50000, 55000, 900000, 1000000];
+    expect(detectOutliers(values).indices.size).toBe(0);
+  });
+
+  it('entfernt im 30er-Fenster höchstens drei Werte je Seite', () => {
+    const values = [
+      ...Array(24).fill(50000),
+      2000000, 3000000, 4000000, 5000000, 6000000, 7000000
+    ];
+    const { indices, details } = detectOutliers(values);
+
+    expect(indices.size).toBe(3);
+    expect(details.every(d => d.side === 'high')).toBe(true);
+    expect(details.map(d => d.views)).toEqual([7000000, 6000000, 5000000]);
+  });
+
+  it('kommt mit leeren Eingaben klar', () => {
+    expect(detectOutliers([]).indices.size).toBe(0);
+    expect(detectOutliers(null).indices.size).toBe(0);
+  });
+});
+
+describe('computeInstagramCpm – Ausreißer im Fenster', () => {
+  it('liefert 8er-Schnitt mit und ohne Ausreißer', () => {
+    const media = videosAus([1000000, 60000, 55000, 52000, 50000, 48000, 45000, 40000]);
+    const stats = computeInstagramCpm(media, { now: NOW });
+
+    // mit: (1000000 + 350000) / 8 = 168750
+    expect(stats.views_8).toBe(168750);
+    // ohne: 350000 / 7 = 50000
+    expect(stats.views_8_clean).toBe(50000);
+    expect(stats.outliers_8).toHaveLength(1);
+    expect(stats.outliers_8[0]).toMatchObject({ views: 1000000, side: 'high' });
+    expect(stats.outliers_8[0].permalink).toBe('https://instagram.com/reel/5-1000000');
+  });
+
+  it('gibt ohne erkannte Ausreißer denselben Wert wie mit zurück', () => {
+    const media = videosAus([90000, 70000, 62000, 55000, 51000, 45000, 38000, 30000]);
+    const stats = computeInstagramCpm(media, { now: NOW });
+
+    expect(stats.views_8_clean).toBe(stats.views_8);
+    expect(stats.outliers_8).toEqual([]);
+  });
+
+  it('erkennt Ausreißer im 8er- und 30er-Fenster getrennt', () => {
+    // Der 1M-Reel liegt im 8er-Fenster, der 10-Views-Reel weiter hinten nur im 30er
+    const media = videosAus([
+      1000000, ...Array(7).fill(50000),
+      ...Array(21).fill(50000), 10
+    ]);
+    const stats = computeInstagramCpm(media, { now: NOW });
+
+    expect(stats.outliers_8.map(o => o.views)).toEqual([1000000]);
+    expect(stats.outliers_30.map(o => o.views).sort((a, b) => b - a)).toEqual([1000000, 10]);
+    expect(stats.views_30_clean).toBe(50000);
+  });
+
+  it('rechnet den Feed-Filter vor der Ausreißer-Erkennung', () => {
+    // Das Testvideo mit 1M Views ist nicht im Feed - es darf gar nicht erst
+    // als Ausreisser auftauchen, sondern faellt vorher raus
+    const media = [
+      video(5, 1000000, { is_shared_to_feed: false }),
+      ...videosAus([60000, 55000, 52000, 50000, 48000, 45000, 42000, 40000], 6)
+    ];
+    const stats = computeInstagramCpm(media, { now: NOW });
+
+    expect(stats.outliers_8).toEqual([]);
+    expect(stats.views_8).toBe(49000);
+    expect(stats.views_8_clean).toBe(49000);
   });
 });
 
@@ -188,12 +340,21 @@ describe('CPM-Preis', () => {
     expect(toCpm(1234)).toBe(30.85);
   });
 
-  it('leitet alle drei CPM-Werte aus den Views ab', () => {
+  it('leitet alle vier CPM-Werte aus den Views ab', () => {
     const stats = computeInstagramCpm(videoSeries(30, 20000), { now: NOW });
 
     expect(stats.cpm_8).toBe(500);
+    expect(stats.cpm_8_clean).toBe(500);
     expect(stats.cpm_30).toBe(500);
-    expect(stats.cpm_trimmed).toBe(500);
+    expect(stats.cpm_30_clean).toBe(500);
+  });
+
+  it('rechnet den bereinigten Preis aus dem bereinigten Schnitt', () => {
+    const media = videosAus([1000000, 60000, 55000, 52000, 50000, 48000, 45000, 40000]);
+    const stats = computeInstagramCpm(media, { now: NOW });
+
+    expect(stats.cpm_8_clean).toBe(toCpm(50000));
+    expect(stats.cpm_8).toBe(toCpm(168750));
   });
 });
 
@@ -202,9 +363,9 @@ describe('computeInstagramCpm – Randfälle', () => {
     for (const input of [[], null, undefined]) {
       const stats = computeInstagramCpm(input, { now: NOW });
       expect(stats.views_8).toBeNull();
+      expect(stats.views_8_clean).toBeNull();
       expect(stats.views_30).toBeNull();
-      expect(stats.views_trimmed).toBeNull();
-      expect(stats.cpm_trimmed).toBeNull();
+      expect(stats.views_30_clean).toBeNull();
       expect(stats.videos_available).toBe(0);
     }
   });
@@ -215,8 +376,24 @@ describe('computeInstagramCpm – Randfälle', () => {
     expect(stats.videos[0]).toEqual({
       permalink: 'https://instagram.com/reel/5-7000',
       views: 7000,
-      timestamp: new Date(NOW - 5 * DAY).toISOString()
+      timestamp: new Date(NOW - 5 * DAY).toISOString(),
+      is_shared_to_feed: null
     });
+  });
+
+  it('reicht is_shared_to_feed in videos und skipped_videos durch', () => {
+    const stats = computeInstagramCpm([
+      video(5, 10000, { is_shared_to_feed: true }),
+      video(6, 999999, { is_shared_to_feed: false })
+    ], { now: NOW });
+
+    expect(stats.videos[0].is_shared_to_feed).toBe(true);
+    expect(stats.skipped_videos[0].is_shared_to_feed).toBe(false);
+  });
+
+  it('stempelt die Version der Rechenlogik mit', () => {
+    const stats = computeInstagramCpm(videoSeries(8, 10000), { now: NOW });
+    expect(stats.calc_version).toBe(CALC_VERSION);
   });
 });
 
@@ -232,11 +409,44 @@ describe('formatCpmDebug', () => {
     expect(debug.username).toBe('demo_user');
     expect(debug.source).toBe('meta');
     expect(debug.rules.MIN_AGE_HOURS).toBe(MIN_AGE_HOURS);
+    expect(debug.rules.CALC_VERSION).toBe(CALC_VERSION);
     expect(debug.skipped).toHaveLength(1);
     expect(debug.skipped[0].views).toBe(500000);
+    expect(debug.skipped[0]).toHaveProperty('is_shared_to_feed');
     expect(debug.included).toHaveLength(8);
+    expect(debug.included[0]).toHaveProperty('is_shared_to_feed');
     expect(debug.summary.views_8).toBe(10000);
+    expect(debug.summary.views_8_clean).toBe(10000);
     expect(debug.summary.formula).toContain(String(CPM_RATE));
   });
-});
 
+  it('führt die erkannten Ausreißer je Fenster auf', () => {
+    const stats = computeInstagramCpm(
+      videosAus([1000000, 60000, 55000, 52000, 50000, 48000, 45000, 40000]),
+      { now: NOW }
+    );
+
+    const debug = formatCpmDebug('demo_user', stats, {
+      source: 'meta',
+      feed_flag_available: true
+    });
+
+    expect(debug.feed_flag_available).toBe(true);
+    expect(debug.outliers.window_8).toHaveLength(1);
+    expect(debug.outliers.window_30).toEqual([]);
+  });
+
+  it('zeigt is_shared_to_feed in included und skipped', () => {
+    const stats = computeInstagramCpm([
+      video(5, 10000, { is_shared_to_feed: true }),
+      video(6, 999999, { is_shared_to_feed: false }),
+      ...videoSeries(7, 10000, 7)
+    ], { now: NOW });
+
+    const debug = formatCpmDebug('demo_user', stats, { source: 'meta' });
+
+    expect(debug.included[0].is_shared_to_feed).toBe(true);
+    expect(debug.skipped[0].is_shared_to_feed).toBe(false);
+    expect(debug.skipped[0].reason).toBe('not_in_feed');
+  });
+});

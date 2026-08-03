@@ -33,8 +33,11 @@ export const IG_FORMAT_OPTIONEN = [
 /** Instagram-Basisspalten: Link und Follower */
 export const IG_BASIS_SPALTEN = ['cp-col-link-ig', 'cp-col-follower-ig'];
 
-/** Die drei automatisch berechneten Reels-Preise */
-export const IG_REELS_SPALTEN = ['cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-cpm-ig-trimmed'];
+/** Die vier automatisch berechneten Reels-Preise (8/30 Reels, mit und ohne Ausreisser) */
+export const IG_REELS_SPALTEN = [
+  'cp-col-cpm-ig-8', 'cp-col-cpm-ig-8-clean',
+  'cp-col-cpm-ig-30', 'cp-col-cpm-ig-30-clean'
+];
 
 /** Manuell gepflegte Story-Spalten */
 export const IG_STORY_SPALTEN = ['cp-col-reichweite-story', 'cp-col-preis-story'];
