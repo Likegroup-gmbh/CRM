@@ -6,6 +6,18 @@ import {
 import { saveVideoFeedbackSlot } from '../../core/videoFeedback/VideoFeedbackRepository.js';
 import { CustomColumnFieldHandler } from './columns/CustomColumnFieldHandler.js';
 
+/**
+ * Eingabe fuer eine integer-Spalte auf eine Zahl bringen.
+ * Leer wird zu null (sonst lehnt Postgres den Leerstring ab), Tausenderpunkte
+ * und Leerzeichen fallen weg - Views werden gern kopiert statt getippt.
+ */
+function parseIntegerInput(raw) {
+  const digits = String(raw ?? '').replace(/[^\d-]/g, '');
+  if (!digits || digits === '-') return null;
+  const n = Number.parseInt(digits, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
 export class VideoTableFieldHandler {
   constructor(table) {
     this.table = table;
@@ -59,6 +71,8 @@ export class VideoTableFieldHandler {
       value = CustomDatePicker.getValue(field) || null;
     } else if (field.type === 'checkbox') {
       value = field.checked;
+    } else if (field.dataset?.valueType === 'integer') {
+      value = parseIntegerInput(field.value);
     } else {
       value = field.value;
     }

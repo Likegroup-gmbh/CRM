@@ -12779,7 +12779,9 @@ table:has(#strategien-table-body) td.col-actions {
   border-left: 2px solid rgb(var(--cp-block-tint) / 0.35) !important;
 }
 
-/* Instagram-Abruf: Haekchen-Button neben dem IG-Link */
+/* Instagram-Abruf: Haekchen-Button neben dem IG-Link.
+   Bewusst global: die Kampagnen-Video-Tabelle nutzt dieselben Zustaende fuer
+   den Stats-Abruf neben dem Live-Link (.video-stats-fetch-btn). */
 .ig-fetch-btn {
   display: inline-flex;
   align-items: center;

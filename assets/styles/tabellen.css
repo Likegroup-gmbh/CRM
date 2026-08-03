@@ -73,6 +73,10 @@
 .kooperation-video-grid .col-organic-paid { width: 14ch; min-width: 14ch; }
 .kooperation-video-grid .col-kampagne { width: 16ch; min-width: 16ch; }
 .kooperation-video-grid .col-posting-datum { width: 14ch; min-width: 14ch; }
+.kooperation-video-grid .col-link-live { width: 20ch; min-width: 20ch; }
+.kooperation-video-grid .col-stats-views,
+.kooperation-video-grid .col-stats-likes,
+.kooperation-video-grid .col-stats-comments { width: 10ch; min-width: 10ch; }
 .kooperation-video-grid .col-vertrag { width: 4.5rem; min-width: 4.5rem; }
 .kooperation-video-grid .col-nutzungsrechte { width: 18ch; min-width: 18ch; }
 .kooperation-video-grid .col-lieferadresse { width: 24ch; min-width: 24ch; }
@@ -110,6 +114,30 @@
   min-width: calc(var(--_col-base) * var(--_col-factor));
 }
 .kooperation-video-grid .col-actions { width: 4.5rem; min-width: 4.5rem; }
+
+/* Live-Link-Zelle: das Eingabefeld nimmt den Rest, Haekchen und Extern-Link
+   bleiben in fester Breite daneben stehen. */
+.kooperation-video-grid .video-live-link-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.kooperation-video-grid .video-live-link-row .grid-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.kooperation-video-grid .video-live-link-row .ig-fetch-btn,
+.kooperation-video-grid .video-live-link-row .external-link-btn {
+  flex: 0 0 auto;
+}
+
+/* Views/Likes/Kommentare rechtsbuendig, damit Groessenordnungen vergleichbar sind */
+.kooperation-video-grid .video-stats-input,
+.kooperation-video-grid .video-stats-text {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 
 /* Aktions-Spalte: sticky rechts */
 .kooperation-video-grid thead th.col-actions,

@@ -1,0 +1,160 @@
+// VideoStatsFetcher
+// Haekchen-Button neben dem Live-Link der Kooperationen-Video-Tabelle: holt
+// Views, Likes und Kommentare zum veroeffentlichten Reel und schreibt sie in
+// die Zeile. Gleiche Mechanik wie der Instagram-Abruf im Sourcing
+// (CreatorAuswahlDetail.handleInstagramFetch).
+//
+// Aktualisiert wird gezielt im DOM statt ueber ein Re-Render der Tabelle: ein
+// render() wuerde Scroll-Position, offene Dropdowns und den Fokus in einem
+// gerade bearbeiteten Feld verlieren.
+
+import { authorizedFetch } from '../../core/auth/getAccessToken.js';
+
+const SUCCESS_FLASH_MS = 2000;
+
+export class VideoStatsFetcher {
+  constructor(table) {
+    this.table = table;
+  }
+
+  _findVideo(videoId) {
+    const source = this.table.store?.videos || this.table.videos || {};
+    for (const koopId in source) {
+      const treffer = (source[koopId] || []).find(v => v.id === videoId);
+      if (treffer) return treffer;
+    }
+    return null;
+  }
+
+  /** Abgerufene Zahlen in die drei Stats-Inputs schreiben */
+  _applyStatsToDom(videoId, video) {
+    const felder = ['stats_views', 'stats_likes', 'stats_comments'];
+    const grid = document.querySelector('.kooperation-video-grid');
+    if (!grid) return;
+
+    for (const feld of felder) {
+      const wert = video[feld];
+      const input = grid.querySelector(`input[data-entity="video"][data-id="${videoId}"][data-field="${feld}"]`);
+      if (input) {
+        input.value = wert != null ? wert : '';
+        input.classList.add('save-success');
+        setTimeout(() => input.classList.remove('save-success'), 1000);
+      }
+    }
+  }
+
+  /** Button auf den Zustand bringen, den der Renderer nach einem Reload zeigen wuerde */
+  _applyButtonState(button, video, { flashSuccess = false } = {}) {
+    button.disabled = false;
+    button.classList.remove('is-loading', 'is-error', 'is-refresh', 'is-success');
+
+    if (video.stats_error) {
+      button.classList.add('is-error');
+      button.title = `Abruf fehlgeschlagen: ${video.stats_error}`;
+      return;
+    }
+
+    if (flashSuccess) {
+      button.classList.add('is-success');
+      setTimeout(() => {
+        button.classList.remove('is-success');
+        button.classList.add('is-refresh');
+      }, SUCCESS_FLASH_MS);
+    } else if (video.stats_fetched_at) {
+      button.classList.add('is-refresh');
+    }
+
+    button.title = video.stats_fetched_at
+      ? `Stand: ${new Date(video.stats_fetched_at).toLocaleString('de-DE')} · frisch abrufen`
+      : 'Views, Likes und Kommentare bei Instagram abrufen';
+  }
+
+  async handleFetch(button) {
+    if (button.disabled) return;
+
+    const videoId = button.dataset.videoId;
+    const video = this._findVideo(videoId);
+    if (!video) return;
+
+    const grid = document.querySelector('.kooperation-video-grid');
+    const linkInput = grid?.querySelector(`input[data-entity="video"][data-id="${videoId}"][data-field="link_live"]`);
+    const link = linkInput?.value?.trim();
+    if (!link) {
+      window.toastSystem?.show('Bitte zuerst den Link zum veröffentlichten Video eintragen', 'error');
+      return;
+    }
+
+    // Noch nicht gespeicherte Eingabe zuerst persistieren, sonst liest die
+    // Function den alten Wert aus der DB
+    if (link !== video.link_live) {
+      const gespeichert = await this.table.handleFieldUpdate(linkInput);
+      if (!gespeichert) {
+        window.toastSystem?.show('Link konnte nicht gespeichert werden', 'error');
+        return;
+      }
+    }
+
+    button.disabled = true;
+    button.classList.remove('is-error', 'is-success', 'is-refresh');
+    button.classList.add('is-loading');
+
+    // Die Function schreibt mit dem Service-Key, das Realtime-Echo kommt also
+    // nicht ueber handleFieldUpdate und wuerde die Zeile neu rendern - damit
+    // waeren gezieltes DOM-Update und Erfolgs-Flash wieder weg.
+    const t = this.table;
+    if (!t._pendingOwnUpdates) t._pendingOwnUpdates = new Map();
+    t._pendingOwnUpdates.set(videoId, Date.now());
+
+    try {
+      const response = await authorizedFetch('/.netlify/functions/kooperation-video-stats', {
+        method: 'POST',
+        body: JSON.stringify({ video_id: videoId })
+      });
+      const result = await response.json().catch(() => ({}));
+
+      if (!response.ok || !result.ok) {
+        const error = new Error(result.error || 'Abruf fehlgeschlagen');
+        error.retryable = response.status === 429;
+        error.hint = result.hint || null;
+        throw error;
+      }
+
+      const patch = {
+        stats_views: result.video.stats_views,
+        stats_likes: result.video.stats_likes,
+        stats_comments: result.video.stats_comments,
+        stats_fetched_at: result.video.stats_fetched_at,
+        stats_error: null
+      };
+      Object.assign(video, patch);
+      t.store?.updateVideo(videoId, patch);
+
+      this._applyStatsToDom(videoId, video);
+      this._applyButtonState(button, video, { flashSuccess: true });
+
+      const views = patch.stats_views;
+      window.toastSystem?.show(
+        views != null
+          ? `Statistiken aktualisiert (${Number(views).toLocaleString('de-DE')} Views)`
+          : 'Statistiken aktualisiert – Instagram liefert für diesen Beitrag keine Views',
+        views != null ? 'success' : 'info'
+      );
+    } catch (error) {
+      console.error('Fehler beim Abruf der Video-Statistiken:', error);
+      // Bei toter Session hat authorizedFetch schon Hinweis und Logout uebernommen;
+      // der Abbruch gehoert dann nicht als Abruf-Fehler an die Zeile
+      if (error.sessionDead) {
+        button.disabled = false;
+        button.classList.remove('is-loading');
+        return;
+      }
+
+      const patch = { stats_error: error.message };
+      Object.assign(video, patch);
+      t.store?.updateVideo(videoId, patch);
+
+      this._applyButtonState(button, video);
+      window.toastSystem?.show(error.hint || error.message, error.retryable ? 'info' : 'error');
+    }
+  }
+}

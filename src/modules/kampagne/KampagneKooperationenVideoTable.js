@@ -13,6 +13,7 @@ import { VideoFeedbackBinding } from './VideoFeedbackBinding.js';
 import { VideoTableEventBinder } from './VideoTableEventBinder.js';
 import { VideoTableStatusDropdown } from './VideoTableStatusDropdown.js';
 import { VideoTableDrawerActions } from './VideoTableDrawerActions.js';
+import { VideoStatsFetcher } from './VideoStatsFetcher.js';
 import { UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { ColumnDragHandler } from './columns/ColumnDragHandler.js';
@@ -58,6 +59,7 @@ export class KampagneKooperationenVideoTable {
     this._eventBinder = new VideoTableEventBinder(this);
     this._statusDropdown = new VideoTableStatusDropdown(this);
     this._drawerActions = new VideoTableDrawerActions(this);
+    this._statsFetcher = new VideoStatsFetcher(this);
     this.columnDragHandler = new ColumnDragHandler(this);
     this._uploadDrawer = new VideoUploadDrawer();
     this._settingsDrawer = new VideoSettingsDrawer();
@@ -116,7 +118,9 @@ export class KampagneKooperationenVideoTable {
         'video': [
           'thema', 'link_produkte', 'link_skript',
           ...VIDEO_FEEDBACK_FIELDS.filter(slot => slot.feedback_typ === 'cj').map(slot => slot.field),
-          'caption', 'posting_datum', 'drehort', 'content_art', 'video_name'
+          'caption', 'posting_datum', 'drehort', 'content_art', 'video_name',
+          // Live-Performance ist Reporting: Kunden sehen die Zahlen, pflegen sie aber nicht
+          'link_live', 'stats_views', 'stats_likes', 'stats_comments'
         ]
       };
       return !readOnlyFieldsForKunden[entity]?.includes(field);

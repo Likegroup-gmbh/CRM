@@ -137,6 +137,13 @@ export class VideoTableEventBinder {
         e.preventDefault();
         nutzungsrechteModal.open(nutzungsrechteBtn.dataset.vertragId);
       }
+
+      // Haekchen neben dem Live-Link: Views/Likes/Kommentare nachladen
+      const statsBtn = e.target.closest('[data-video-stats-fetch]');
+      if (statsBtn) {
+        e.preventDefault();
+        t._statsFetcher.handleFetch(statsBtn);
+      }
     }, { signal });
 
     container.addEventListener('click', (e) => {
