@@ -5067,23 +5067,66 @@ input.input-error {
   line-height: 1.6;
 }
 
-/* Live-Performance: drei Kennzahlen in einer Karte. Sonst identisch zu den
-   uebrigen Summary-Karten, nur etwas breiter, weil drei Werte reinmuessen. */
-.summary-card--metrics {
-  flex: 1.8 1 0%;
+/* Live-Performance: klare Hierarchie mit Views als Hero, Likes und Kommentare
+   als Split darunter. Overline schafft Kontext ohne Icon-Beiwerk. */
+.summary-card--performance {
+  flex: 2.2 1 0%;
+  gap: var(--space-md);
+  justify-content: flex-start;
 }
 
-.summary-metrics {
+.summary-card__overline {
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gray-400);
+  font-weight: 500;
+}
+
+.performance-hero {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-xs);
+}
+
+.performance-hero__value {
+  font-size: 2rem;
+  font-weight: 500;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.performance-hero__unit {
+  font-size: var(--text-sm);
+  color: var(--gray-500);
+  font-weight: 400;
+}
+
+.performance-split {
   display: flex;
   gap: var(--space-lg);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--gray-100);
 }
 
-.summary-metric {
+.performance-split__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   min-width: 0;
 }
 
-.summary-metric .summary-label {
+.performance-split__value {
+  font-size: var(--text-lg);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.performance-split__label {
   font-size: var(--text-xs);
+  color: var(--gray-400);
 }
 
 .summary-planned {

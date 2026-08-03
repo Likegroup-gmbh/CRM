@@ -147,12 +147,12 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
   const fmt = KampagneUtils.formatCurrency;
 
   const statsWerte = normalizeVideoStats(videoStats);
-  const videoStatsMetrikenHtml = VIDEO_STATS_METRIKEN.map(metrik => `
-          <div class="summary-metric">
-            <div class="summary-value" data-summary-value="${metrik.slug}" title="${formatExactNumber(statsWerte[metrik.key])}">${formatCompactNumber(statsWerte[metrik.key]) || '0'}</div>
-            <div class="summary-label">${metrik.label}</div>
-          </div>
-        `).join('');
+  const viewsExact = formatExactNumber(statsWerte.views);
+  const likesExact = formatExactNumber(statsWerte.likes);
+  const commentsExact = formatExactNumber(statsWerte.comments);
+  const viewsDisplay = formatCompactNumber(statsWerte.views) || '0';
+  const likesDisplay = formatCompactNumber(statsWerte.likes) || '0';
+  const commentsDisplay = formatCompactNumber(statsWerte.comments) || '0';
 
   const zusatzleistungenCardsHtml = validExtraServices.map(s => `
         <div class="summary-card">
@@ -203,11 +203,22 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
           <div class="summary-value" data-summary-value="videos">${KampagneUtils.num(usedVideos)} von ${KampagneUtils.num(totalVideos)}</div>
           <div class="summary-label">Gebuchte Videos</div>
         </div>
-        <div class="summary-card summary-card--metrics" data-summary-card="video-stats">
-          <div class="summary-metrics">
-            ${videoStatsMetrikenHtml}
+        <div class="summary-card summary-card--performance" data-summary-card="video-stats">
+          <div class="summary-card__overline">Live-Performance</div>
+          <div class="performance-hero">
+            <span class="performance-hero__value" data-summary-value="stats-views" title="${viewsExact}">${viewsDisplay}</span>
+            <span class="performance-hero__unit">Views</span>
           </div>
-          <div class="summary-label">Live-Performance gesamt</div>
+          <div class="performance-split">
+            <div class="performance-split__item">
+              <span class="performance-split__value" data-summary-value="stats-likes" title="${likesExact}">${likesDisplay}</span>
+              <span class="performance-split__label">Likes</span>
+            </div>
+            <div class="performance-split__item">
+              <span class="performance-split__value" data-summary-value="stats-comments" title="${commentsExact}">${commentsDisplay}</span>
+              <span class="performance-split__label">Kommentare</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
