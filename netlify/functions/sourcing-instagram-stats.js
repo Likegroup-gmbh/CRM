@@ -33,12 +33,15 @@ const {
   isRateLimitError,
   storeImagePair
 } = require('./_shared/instagram-graph');
-const { computeInstagramCpm, WINDOW_LONG } = require('./_shared/instagram-cpm');
+const { computeInstagramCpm, formatCpmDebug, WINDOW_LONG } = require('./_shared/instagram-cpm');
 const { extractEmail, extractPhone, extractCity } = require('./_shared/bio-extract');
 const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// Kill-Switch: nach dem Testen auf false – kein Server-Log, kein debug in Response
+const IG_CPM_DEBUG = true;
 
 const PAGE_SIZE = 50;
 const MAX_PAGES = 2;   // 26s Function-Timeout, mehr ist nicht drin
@@ -120,6 +123,40 @@ function formatReach(views) {
 
 function leer(value) {
   return !String(value ?? '').trim();
+}
+
+/** Stats-Objekt aus Pool-Zeile fuer formatCpmDebug (gleiche Form wie computeInstagramCpm) */
+function statsFromPool(pool) {
+  const ig = pool.ig_stats || {};
+  return {
+    views_8: pool.ig_views_8,
+    views_30: pool.ig_views_30,
+    views_trimmed: pool.ig_views_trimmed,
+    cpm_8: pool.cpm_ig_8,
+    cpm_30: pool.cpm_ig_30,
+    cpm_trimmed: pool.cpm_ig_trimmed,
+    sample_8: ig.sample_8,
+    sample_30: ig.sample_30,
+    trimmed_count: ig.trimmed_count,
+    videos_available: ig.videos_available,
+    skipped_too_recent: ig.skipped_too_recent,
+    non_video_skipped: ig.non_video_skipped ?? null,
+    videos: ig.videos || [],
+    skipped_videos: ig.skipped_videos || []
+  };
+}
+
+function emitCpmDebug(username, stats, meta) {
+  if (!IG_CPM_DEBUG) return null;
+  const debug = formatCpmDebug(username, stats, meta);
+  console.log(`[IG-CPM] @${username} (${meta.source})`, {
+    rules: debug.rules,
+    skipped: debug.skipped,
+    included: debug.included,
+    summary: debug.summary,
+    pool_fetched_at: debug.pool_fetched_at
+  });
+  return debug;
 }
 
 /**
@@ -228,6 +265,11 @@ exports.handler = async (event) => {
       return jsonResponse(500, { error: `Speichern fehlgeschlagen: ${copyError.message}` });
     }
 
+    const debug = emitCpmDebug(username, statsFromPool(pool), {
+      source: 'pool',
+      pool_fetched_at: pool.ig_fetched_at
+    });
+
     return jsonResponse(200, {
       ok: true,
       item_id: itemId,
@@ -239,7 +281,8 @@ exports.handler = async (event) => {
         views_8: pool.ig_views_8,
         views_30: pool.ig_views_30,
         views_trimmed: pool.ig_views_trimmed
-      }
+      },
+      ...(debug ? { debug } : {})
     });
   }
 
@@ -322,7 +365,9 @@ exports.handler = async (event) => {
       trimmed_count: stats.trimmed_count,
       videos_available: stats.videos_available,
       skipped_too_recent: stats.skipped_too_recent,
-      videos: stats.videos
+      non_video_skipped: stats.non_video_skipped,
+      videos: stats.videos,
+      skipped_videos: stats.skipped_videos
     }
   };
 
@@ -357,6 +402,11 @@ exports.handler = async (event) => {
     return jsonResponse(500, { error: `Speichern fehlgeschlagen: ${updateError.message}` });
   }
 
+  const debug = emitCpmDebug(username, stats, {
+    source: 'meta',
+    pool_fetched_at: poolRow.ig_fetched_at
+  });
+
   return jsonResponse(200, {
     ok: true,
     item_id: itemId,
@@ -370,6 +420,7 @@ exports.handler = async (event) => {
       views_trimmed: stats.views_trimmed,
       videos_available: stats.videos_available,
       skipped_too_recent: stats.skipped_too_recent
-    }
+    },
+    ...(debug ? { debug } : {})
   });
 };

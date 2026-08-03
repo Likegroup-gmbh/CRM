@@ -496,7 +496,7 @@ export class CreatorAuswahlService {
    *
    * Ohne force wird der Creator-Pool (sourcing_creator) bevorzugt: kennt er
    * den Handle schon, kommen die Werte von dort und Meta bleibt verschont.
-   * @returns {Promise<{ item: object, source: 'pool'|'meta', poolFetchedAt: string|null }>}
+   * @returns {Promise<{ item: object, source: 'pool'|'meta', poolFetchedAt: string|null, debug: object|null }>}
    */
   async fetchInstagramStats(itemId, { force = false } = {}) {
     const response = await authorizedFetch('/.netlify/functions/sourcing-instagram-stats', {
@@ -516,7 +516,8 @@ export class CreatorAuswahlService {
     return {
       item: result.item,
       source: result.source || 'meta',
-      poolFetchedAt: result.pool_fetched_at || null
+      poolFetchedAt: result.pool_fetched_at || null,
+      debug: result.debug || null
     };
   }
 

@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   computeInstagramCpm,
+  formatCpmDebug,
   trimmedAverage,
   toCpm,
-  CPM_RATE
+  CPM_RATE,
+  MIN_AGE_HOURS
 } from '../../netlify/functions/_shared/instagram-cpm.js';
 
 const NOW = Date.parse('2026-07-28T12:00:00.000Z');
@@ -48,6 +50,10 @@ describe('computeInstagramCpm – 4-Tage-Regel', () => {
     const stats = computeInstagramCpm(media, { now: NOW });
 
     expect(stats.skipped_too_recent).toBe(2);
+    expect(stats.skipped_videos).toHaveLength(2);
+    expect(stats.skipped_videos.every((v) => v.reason === 'too_recent')).toBe(true);
+    expect(stats.skipped_videos.map((v) => v.views).sort((a, b) => b - a)).toEqual([999999, 888888]);
+    expect(stats.skipped_videos[0].age_hours).toBeLessThan(MIN_AGE_HOURS);
     expect(stats.sample_8).toBe(8);
     expect(stats.views_8).toBe(10000);
   });
@@ -213,3 +219,24 @@ describe('computeInstagramCpm – Randfälle', () => {
     });
   });
 });
+
+describe('formatCpmDebug', () => {
+  it('baut skipped/included/summary fuer die Konsole', () => {
+    const stats = computeInstagramCpm([
+      video(1, 500000),
+      ...videoSeries(8, 10000, 5)
+    ], { now: NOW });
+
+    const debug = formatCpmDebug('demo_user', stats, { source: 'meta' });
+
+    expect(debug.username).toBe('demo_user');
+    expect(debug.source).toBe('meta');
+    expect(debug.rules.MIN_AGE_HOURS).toBe(MIN_AGE_HOURS);
+    expect(debug.skipped).toHaveLength(1);
+    expect(debug.skipped[0].views).toBe(500000);
+    expect(debug.included).toHaveLength(8);
+    expect(debug.summary.views_8).toBe(10000);
+    expect(debug.summary.formula).toContain(String(CPM_RATE));
+  });
+});
+

@@ -757,10 +757,23 @@ export class CreatorAuswahlDetail {
     button.classList.add('is-loading');
 
     try {
-      const { item: updated, source, poolFetchedAt } = await creatorAuswahlService
+      const { item: updated, source, poolFetchedAt, debug } = await creatorAuswahlService
         .fetchInstagramStats(itemId, { force });
       Object.assign(item, updated);
       this.refreshItemRow(itemId, { flashSuccess: true });
+
+      if (debug) {
+        const handle = debug.username || 'unknown';
+        console.group(`[IG-CPM] @${handle} (${debug.source || source})`);
+        console.log('Regeln', debug.rules);
+        if (debug.skipped?.length) console.table(debug.skipped);
+        else console.log('Skipped (zu frisch): keine');
+        if (debug.included?.length) console.table(debug.included);
+        else console.log('Included: keine');
+        console.log('Fenster / Preis', debug.summary);
+        if (debug.pool_fetched_at) console.log('Pool-Stand', debug.pool_fetched_at);
+        console.groupEnd();
+      }
 
       if (source === 'pool') {
         const stand = poolFetchedAt ? new Date(poolFetchedAt).toLocaleDateString('de-DE') : null;
