@@ -6,7 +6,7 @@
 // Die Tabelle zeigt nicht cpm_ig_*, sondern rechnet ig_views_* mit dem TKP der
 // Liste (creator_auswahl.tkp). cpm_ig_* bleiben als Referenzwert bei 25 EUR.
 //
-// POST { item_id: '<uuid>', force?: boolean, set_excluded?: string[] }
+// POST { item_id: '<uuid>', force?: boolean }
 //   -> Vor dem Meta-Abruf wird public.sourcing_creator gefragt: derselbe
 //      Creator steckt oft in mehreren Listen. Ist der Handle dort bekannt,
 //      werden die Werte aus dem Pool in die Zeile kopiert und Meta bleibt
@@ -14,14 +14,10 @@
 //   -> force: true erzwingt den Meta-Abruf und aktualisiert den Pool. Das
 //      Frontend schickt das beim zweiten Klick (Refresh-Zustand des Buttons).
 //      Ebenso erzwingt eine veraltete ig_stats.calc_version einen neuen Abruf.
-//   -> set_excluded: Reel-Permalinks, die die CPM-Rechnung dauerhaft ignoriert
-//      (z.B. Testvideos, die nur im Reels-Tab haengen - die API kennzeichnet
-//      das nicht). Wird am Pool gespeichert und erzwingt einen frischen
-//      Meta-Abruf, damit aeltere Reels ins Fenster nachruecken.
 //   -> Meta-Abruf: Profil + bis zu 150 Medien (drei Seiten a 50), filtert auf
-//      Reels die aelter als 4 Tage und nicht manuell ausgeschlossen sind und
-//      berechnet daraus den 8er- und 30er-Views-Schnitt, jeweils mit und ohne
-//      Ausreisser, sowie den zugehoerigen CPM-Preis.
+//      Reels die aelter als 4 Tage sind und berechnet daraus den 8er- und
+//      30er-Views-Schnitt, jeweils mit und ohne Ausreisser, sowie den
+//      zugehoerigen CPM-Preis.
 //      Das Profilbild wird in zwei AVIF-Groessen (640px + 128px Thumbnail)
 //      nach Supabase Storage kopiert, da Metas CDN-URLs nach wenigen Tagen
 //      ablaufen.
@@ -63,10 +59,7 @@ const PROFILE_FIELDS = 'username,name,followers_count,media_count,profile_pictur
 // abgelehntes Feld laesst den ganzen Call scheitern. Zum Trennen von Reels
 // und Bildern reicht media_type.
 const MEDIA_FIELDS = 'id,media_type,view_count,like_count,'
-  + 'comments_count,timestamp,permalink,thumbnail_url';
-
-// Obergrenze fuer manuell ausgeschlossene Reels pro Creator
-const MAX_EXCLUDED = 50;
+  + 'comments_count,timestamp,permalink';
 
 function jsonResponse(statusCode, body) {
   return {
@@ -163,7 +156,6 @@ function statsFromPool(pool) {
     outliers_30: ig.outliers_30 || [],
     videos_available: ig.videos_available,
     skipped_too_recent: ig.skipped_too_recent,
-    skipped_excluded: ig.skipped_excluded ?? null,
     non_video_skipped: ig.non_video_skipped ?? null,
     videos: ig.videos || [],
     skipped_videos: ig.skipped_videos || []
@@ -257,22 +249,7 @@ exports.handler = async (event) => {
     return jsonResponse(400, { error: 'item_id fehlt' });
   }
 
-  // set_excluded: neue Ausschlussliste (Reel-Permalinks) fuer den Creator.
-  // Erzwingt einen frischen Meta-Abruf, weil ig_stats nur die Fenster-Videos
-  // haelt und nach einem Ausschluss aeltere Reels nachruecken muessen.
-  let setExcluded = null;
-  if (body.set_excluded !== undefined) {
-    if (!Array.isArray(body.set_excluded)
-      || body.set_excluded.some((p) => typeof p !== 'string' || !p.trim())) {
-      return jsonResponse(400, { error: 'set_excluded muss ein Array von Permalinks sein' });
-    }
-    if (body.set_excluded.length > MAX_EXCLUDED) {
-      return jsonResponse(400, { error: `set_excluded: maximal ${MAX_EXCLUDED} Reels` });
-    }
-    setExcluded = [...new Set(body.set_excluded.map((p) => p.trim()))];
-  }
-
-  const force = body.force === true || setExcluded !== null;
+  const force = body.force === true;
 
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
@@ -295,19 +272,6 @@ exports.handler = async (event) => {
     .select('*')
     .eq('ig_username', username)
     .maybeSingle();
-
-  // Ausschlussliste sofort am Pool sichern - selbst wenn der anschliessende
-  // Meta-Abruf scheitert, gilt sie beim naechsten Refresh.
-  const excludedList = setExcluded ?? (Array.isArray(pool?.ig_excluded_media) ? pool.ig_excluded_media : []);
-  if (setExcluded !== null && pool) {
-    const { error: exclError } = await supabase
-      .from('sourcing_creator')
-      .update({ ig_excluded_media: setExcluded, updated_at: new Date().toISOString() })
-      .eq('id', pool.id);
-    if (exclError) {
-      return jsonResponse(500, { error: `Ausschlussliste konnte nicht gespeichert werden: ${exclError.message}` });
-    }
-  }
 
   // Fehlt im Pool das Profilbild, ist der Eintrag unvollstaendig: einmal bei
   // Meta nachfassen statt den lueckenhaften Cache weiterzureichen. Hat Meta
@@ -432,7 +396,7 @@ exports.handler = async (event) => {
   }
 
   const p = res.profile;
-  const stats = computeInstagramCpm(res.media, { excluded: excludedList });
+  const stats = computeInstagramCpm(res.media);
 
   // Pfad haengt am Handle, nicht an der Zeile: so liegt das Bildpaar pro
   // Creator nur einmal im Storage und Pool-Treffer kommen ohne Meta an ein Bild
@@ -478,10 +442,6 @@ exports.handler = async (event) => {
     ig_fetched_at: jetzt,
     ig_fetch_error: null,
     updated_at: jetzt,
-    ig_excluded_media: excludedList,
-    // excluded_media wird in ig_stats gespiegelt, damit das Frontend die Liste
-    // ohne eigenen Pool-Zugriff sieht (RLS erlaubt Kunden keinen
-    // sourcing_creator-Read; ig_stats wandert via buildItemUpdate in die Zeile)
     ig_stats: {
       username,
       biography: p.biography || null,
@@ -494,9 +454,7 @@ exports.handler = async (event) => {
       outliers_30: stats.outliers_30,
       videos_available: stats.videos_available,
       skipped_too_recent: stats.skipped_too_recent,
-      skipped_excluded: stats.skipped_excluded,
       non_video_skipped: stats.non_video_skipped,
-      excluded_media: excludedList,
       videos: stats.videos,
       skipped_videos: stats.skipped_videos
     }
@@ -552,8 +510,7 @@ exports.handler = async (event) => {
       views_30: stats.views_30,
       views_30_clean: stats.views_30_clean,
       videos_available: stats.videos_available,
-      skipped_too_recent: stats.skipped_too_recent,
-      skipped_excluded: stats.skipped_excluded
+      skipped_too_recent: stats.skipped_too_recent
     },
     ...(debug ? { debug } : {})
   });

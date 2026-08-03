@@ -5,12 +5,6 @@
 // Nur Videos/Reels tragen einen view_count. Bild-Posts und Karussells
 // liefern das Feld nicht und werden vollstaendig ignoriert.
 //
-// Testvideos, die nur im Reels-Tab haengen (nicht im Feed), kennzeichnet die
-// Business Discovery API nicht - is_shared_to_feed wird dort abgelehnt.
-// Deshalb gibt es den manuellen Ausschluss: Permalinks aus
-// sourcing_creator.ig_excluded_media fallen mit reason 'manually_excluded'
-// aus der Rechnung, das naechstaeltere Reel rueckt nach.
-//
 // Das zuletzt hochgeladene Video ist noch nicht "ausgereift": in den ersten
 // Tagen laufen die Views weiter hoch. Alles juenger als MIN_AGE_HOURS faellt
 // deshalb raus, gezaehlt wird ab dem naechstaelteren Video.
@@ -41,15 +35,14 @@ const MAD_SCALE = 0.6745;
 
 /**
  * Videos klassifizieren: auswertbar vs. aussortiert.
- * Aussortiert wird, was von Hand ausgeschlossen wurde (manually_excluded)
- * oder juenger als MIN_AGE_HOURS ist (too_recent). Videos ohne view_count
- * und Nicht-Videos werden nicht in skipped gefuehrt.
+ * Aussortiert werden nur Videos, die juenger als MIN_AGE_HOURS sind
+ * (too_recent). Videos ohne view_count und Nicht-Videos werden nicht in
+ * skipped gefuehrt.
  *
  * @param {Array} media
  * @param {number} now
- * @param {Set<string>} [excluded] Permalinks, die nie mitzaehlen
  */
-function classifyVideos(media, now, excluded) {
+function classifyVideos(media, now) {
   const cutoff = now - MIN_AGE_HOURS * HOUR_MS;
   const included = [];
   const skipped = [];
@@ -72,18 +65,13 @@ function classifyVideos(media, now, excluded) {
     const entry = {
       id: m.id || null,
       permalink: m.permalink || null,
-      thumbnail_url: m.thumbnail_url || null,
       timestamp: m.timestamp || null,
       postedAt,
       views,
       age_hours: ageHours
     };
 
-    // Manueller Ausschluss schlaegt die Altersregel: ein ausgeschlossenes Reel
-    // soll auch dann als solches erscheinen, wenn es zusaetzlich zu frisch ist.
-    const reason = (entry.permalink && excluded?.has(entry.permalink))
-      ? 'manually_excluded'
-      : (postedAt > cutoff ? 'too_recent' : null);
+    const reason = postedAt > cutoff ? 'too_recent' : null;
 
     if (reason) {
       skipped.push({ ...entry, reason });
@@ -234,8 +222,7 @@ function evaluateWindow(videos, size) {
  * Kennzahlen aus einer Media-Liste der Business Discovery API.
  *
  * @param {Array} media   Rohe media.data-Eintraege
- * @param {object} [opts] { now: number, excluded: string[] } - Zeitbasis fuer
- *   die 4-Tage-Regel und manuell ausgeschlossene Reel-Permalinks
+ * @param {object} [opts] { now: number } - Zeitbasis fuer die 4-Tage-Regel
  * @returns {{
  *   views_8: number|null, views_8_clean: number|null,
  *   views_30: number|null, views_30_clean: number|null,
@@ -243,17 +230,13 @@ function evaluateWindow(videos, size) {
  *   cpm_30: number|null, cpm_30_clean: number|null,
  *   sample_8: number, sample_30: number,
  *   outliers_8: Array, outliers_30: Array,
- *   videos_available: number, skipped_too_recent: number,
- *   skipped_excluded: number, non_video_skipped: number,
+ *   videos_available: number, skipped_too_recent: number, non_video_skipped: number,
  *   videos: Array, skipped_videos: Array, calc_version: number
  * }}
  */
 function computeInstagramCpm(media, opts = {}) {
   const now = opts.now ?? Date.now();
-  const excluded = Array.isArray(opts.excluded)
-    ? new Set(opts.excluded.filter((p) => typeof p === 'string' && p))
-    : undefined;
-  const { included: videos, skipped, nonVideoSkipped } = classifyVideos(media, now, excluded);
+  const { included: videos, skipped, nonVideoSkipped } = classifyVideos(media, now);
 
   const window8 = evaluateWindow(videos.slice(0, WINDOW_SHORT), WINDOW_SHORT);
   const window30 = evaluateWindow(videos.slice(0, WINDOW_LONG), WINDOW_LONG);
@@ -273,17 +256,14 @@ function computeInstagramCpm(media, opts = {}) {
     outliers_30: window30.outliers,
     videos_available: videos.length,
     skipped_too_recent: skipped.filter((s) => s.reason === 'too_recent').length,
-    skipped_excluded: skipped.filter((s) => s.reason === 'manually_excluded').length,
     non_video_skipped: nonVideoSkipped,
     videos: videos.slice(0, WINDOW_LONG).map((v) => ({
       permalink: v.permalink,
-      thumbnail_url: v.thumbnail_url,
       views: v.views,
       timestamp: v.timestamp
     })),
     skipped_videos: skipped.map((s) => ({
       permalink: s.permalink,
-      thumbnail_url: s.thumbnail_url,
       views: s.views,
       timestamp: s.timestamp,
       age_hours: s.age_hours,
@@ -339,7 +319,6 @@ function formatCpmDebug(username, stats, meta = {}) {
     summary: {
       non_video_skipped: stats.non_video_skipped ?? null,
       skipped_too_recent: stats.skipped_too_recent ?? null,
-      skipped_excluded: stats.skipped_excluded ?? null,
       videos_available: stats.videos_available ?? null,
       sample_8: stats.sample_8 ?? null,
       sample_30: stats.sample_30 ?? null,

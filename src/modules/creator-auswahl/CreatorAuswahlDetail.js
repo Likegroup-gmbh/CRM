@@ -3,7 +3,6 @@
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { SourcingTabelleAnpassenDrawer } from './SourcingTabelleAnpassenDrawer.js';
-import { SourcingReelsDrawer } from './SourcingReelsDrawer.js';
 import { normalizeCreatorTyp, isAllowedCreatorTyp } from './creatorTypeOptions.js';
 import {
   renderAddSection, renderItemsTable, renderTabNavigation, renderItemRow,
@@ -454,12 +453,6 @@ export class CreatorAuswahlDetail {
         this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
       });
 
-      document.querySelectorAll('[data-ig-reels]').forEach(btn => {
-        const handler = () => this.handleReelsAuswahl(btn);
-        btn.addEventListener('click', handler);
-        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
-      });
-
       this.bindDragAndDropEvents();
       this.bindSelectionEvents();
       this.bindPillEvents();
@@ -822,43 +815,6 @@ export class CreatorAuswahlDetail {
       this.refreshItemRow(itemId);
       window.toastSystem?.show(error.hint || error.message, error.retryable ? 'info' : 'error');
     }
-  }
-
-  /**
-   * Button "Reels-Auswahl" neben dem Abruf-Button: Drawer oeffnen, in dem
-   * einzelne Reels von der CPM-Rechnung ausgeschlossen werden. Speichern
-   * zieht frische Instagram-Daten und aktualisiert die Zeile.
-   */
-  handleReelsAuswahl(button) {
-    const itemId = button.dataset.itemId;
-    const item = this.items.find(i => i.id === itemId);
-    if (!item) return;
-
-    const drawer = new SourcingReelsDrawer({
-      item,
-      onSave: async (permalinks) => {
-        window.toastSystem?.show('Reels-Auswahl gespeichert – frische Instagram-Daten werden geholt...', 'info');
-        try {
-          const { item: updated } = await creatorAuswahlService.setExcludedReels(itemId, permalinks);
-          Object.assign(item, updated);
-          this.refreshItemRow(itemId, { flashSuccess: true });
-
-          const views = updated.ig_views_30_clean ?? updated.ig_views_8_clean;
-          window.toastSystem?.show(
-            views != null
-              ? `CPM neu berechnet (${Number(views).toLocaleString('de-DE')} Views im Schnitt)`
-              : 'CPM neu berechnet – zu wenige Reels für eine Berechnung',
-            views != null ? 'success' : 'info'
-          );
-        } catch (error) {
-          console.error('Fehler beim Speichern der Reels-Auswahl:', error);
-          window.toastSystem?.show(error.hint || error.message, error.retryable ? 'info' : 'error');
-          throw error;
-        }
-      }
-    });
-
-    drawer.open();
   }
 
   /**

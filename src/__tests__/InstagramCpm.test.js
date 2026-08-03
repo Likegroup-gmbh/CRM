@@ -87,43 +87,6 @@ describe('computeInstagramCpm – 4-Tage-Regel', () => {
   });
 });
 
-describe('computeInstagramCpm – manueller Ausschluss', () => {
-  it('sortiert manuell ausgeschlossene Reels aus und lässt ältere nachrücken', () => {
-    const testvideo = video(5, 999999);
-    const media = [testvideo, ...videoSeries(8, 10000, 6)];
-
-    const stats = computeInstagramCpm(media, {
-      now: NOW,
-      excluded: [testvideo.permalink]
-    });
-
-    expect(stats.skipped_excluded).toBe(1);
-    expect(stats.skipped_videos[0].reason).toBe('manually_excluded');
-    expect(stats.videos_available).toBe(8);
-    expect(stats.views_8).toBe(10000);
-  });
-
-  it('ändert nichts bei leerer oder fehlender excluded-Liste', () => {
-    const ohne = computeInstagramCpm(videoSeries(8, 10000), { now: NOW });
-    const leer = computeInstagramCpm(videoSeries(8, 10000), { now: NOW, excluded: [] });
-
-    expect(ohne.skipped_excluded).toBe(0);
-    expect(leer.skipped_excluded).toBe(0);
-    expect(ohne.views_8).toBe(10000);
-    expect(leer.views_8).toBe(10000);
-  });
-
-  it('sortiert den Ausschluss vor der Altersregel aus', () => {
-    // Ein zu frisches Video, das zusaetzlich ausgeschlossen ist, zaehlt als
-    // manually_excluded - sonst wuerde es beim naechsten Abruf ploetzlich mitzaehlen
-    const frisch = video(1, 500);
-    const stats = computeInstagramCpm([frisch], { now: NOW, excluded: [frisch.permalink] });
-
-    expect(stats.skipped_excluded).toBe(1);
-    expect(stats.skipped_too_recent).toBe(0);
-  });
-});
-
 describe('computeInstagramCpm – Medientypen', () => {
   it('ignoriert Bild-Posts und Karussells', () => {
     const media = [
@@ -309,20 +272,6 @@ describe('computeInstagramCpm – Ausreißer im Fenster', () => {
     expect(stats.views_30_clean).toBe(50000);
   });
 
-  it('rechnet den manuellen Ausschluss vor der Ausreißer-Erkennung', () => {
-    // Das ausgeschlossene Testvideo mit 1M Views darf gar nicht erst als
-    // Ausreisser auftauchen, sondern faellt vorher raus
-    const testvideo = video(5, 1000000);
-    const media = [
-      testvideo,
-      ...videosAus([60000, 55000, 52000, 50000, 48000, 45000, 42000, 40000], 6)
-    ];
-    const stats = computeInstagramCpm(media, { now: NOW, excluded: [testvideo.permalink] });
-
-    expect(stats.outliers_8).toEqual([]);
-    expect(stats.views_8).toBe(49000);
-    expect(stats.views_8_clean).toBe(49000);
-  });
 });
 
 describe('CPM-Preis', () => {
@@ -371,22 +320,9 @@ describe('computeInstagramCpm – Randfälle', () => {
 
     expect(stats.videos[0]).toEqual({
       permalink: 'https://instagram.com/reel/5-7000',
-      thumbnail_url: null,
       views: 7000,
       timestamp: new Date(NOW - 5 * DAY).toISOString()
     });
-  });
-
-  it('reicht thumbnail_url in videos und skipped_videos durch', () => {
-    const eingeschlossen = video(5, 10000, { thumbnail_url: 'https://cdn.example/a.jpg' });
-    const ausgeschlossen = video(6, 999999, { thumbnail_url: 'https://cdn.example/b.jpg' });
-    const stats = computeInstagramCpm([eingeschlossen, ausgeschlossen], {
-      now: NOW,
-      excluded: [ausgeschlossen.permalink]
-    });
-
-    expect(stats.videos[0].thumbnail_url).toBe('https://cdn.example/a.jpg');
-    expect(stats.skipped_videos[0].thumbnail_url).toBe('https://cdn.example/b.jpg');
   });
 
   it('stempelt die Version der Rechenlogik mit', () => {
@@ -428,17 +364,4 @@ describe('formatCpmDebug', () => {
     expect(debug.outliers.window_30).toEqual([]);
   });
 
-  it('zeigt den Grund manually_excluded in skipped', () => {
-    const testvideo = video(6, 999999);
-    const stats = computeInstagramCpm([
-      video(5, 10000),
-      testvideo,
-      ...videoSeries(7, 10000, 7)
-    ], { now: NOW, excluded: [testvideo.permalink] });
-
-    const debug = formatCpmDebug('demo_user', stats, { source: 'meta' });
-
-    expect(debug.skipped[0].reason).toBe('manually_excluded');
-    expect(debug.summary.skipped_excluded).toBe(1);
-  });
 });

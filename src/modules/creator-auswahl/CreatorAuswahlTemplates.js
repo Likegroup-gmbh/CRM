@@ -203,29 +203,6 @@ export function renderIgFetchButton(item) {
   `;
 }
 
-const IG_REELS_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 5.25h16.5a1.5 1.5 0 0 1 1.5 1.5v10.5a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V6.75a1.5 1.5 0 0 1 1.5-1.5Zm0 0 3 4.5m3-4.5 3 4.5m3-4.5 3 4.5M2.25 9.75h19.5" /></svg>`;
-
-/**
- * Button "Reels-Auswahl" neben dem Abruf-Button: oeffnet den Drawer, in dem
- * einzelne Reels von der CPM-Rechnung ausgeschlossen werden koennen.
- * Nur sinnvoll, wenn schon Instagram-Daten mit Videos vorliegen.
- */
-export function renderIgReelsButton(item) {
-  const videos = item.ig_stats?.videos;
-  if (!Array.isArray(videos) || !videos.length) return '';
-
-  return `
-    <button type="button"
-            class="ig-fetch-btn"
-            data-ig-reels
-            data-item-id="${item.id}"
-            title="Reels-Auswahl: einzelne Reels von der CPM-Rechnung ausschließen"
-            aria-label="Reels-Auswahl öffnen">
-      ${IG_REELS_ICON}
-    </button>
-  `;
-}
-
 // --- Status-Reiter (Tabs) ---
 
 export const SOURCING_TABS = [
@@ -762,7 +739,6 @@ export function renderItemRow(ctx, item, index) {
           <div class="links-compact-row">
             <input type="text" class="links-compact-input" data-field="link_instagram" data-item-id="${item.id}" placeholder="IG Link..." value="${item.link_instagram || ''}">
             ${renderIgFetchButton(item)}
-            ${renderIgReelsButton(item)}
             ${item.link_instagram ? `<a href="${item.link_instagram}" target="_blank" class="link-icon-btn" title="${item.link_instagram}">${EXTERNAL_LINK_ICON}</a>` : ''}
           </div>
         ` : `
