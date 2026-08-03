@@ -510,12 +510,15 @@ export class CreatorAuswahlDetail {
       window.ActionsDropdown.init();
     }
 
-    document.querySelectorAll('.cp-col-feedback textarea.auto-resize-textarea').forEach(el => {
-      autoResizeTextarea(el);
-      const handler = () => autoResizeTextarea(el);
-      el.addEventListener('input', handler);
-      this._boundEventListeners.add(() => el.removeEventListener('input', handler));
-    });
+    const supportsContentSizing = globalThis.CSS?.supports?.('field-sizing', 'content') === true;
+    if (!supportsContentSizing) {
+      document.querySelectorAll('.cp-col-feedback textarea.auto-resize-textarea').forEach(el => {
+        autoResizeTextarea(el);
+        const handler = () => autoResizeTextarea(el);
+        el.addEventListener('input', handler);
+        this._boundEventListeners.add(() => el.removeEventListener('input', handler));
+      });
+    }
   }
 
   // --- Custom Columns (Eigene Spalten) ---

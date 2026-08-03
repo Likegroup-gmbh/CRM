@@ -451,9 +451,8 @@ async function onDrop(ctx, e) {
 // === UI Helpers ===
 
 export function autoResizeTextarea(textarea) {
-  if (!textarea) return;
-  textarea.style.height = 'auto';
-  textarea.style.height = textarea.scrollHeight + 'px';
+  if (!textarea || textarea.scrollHeight <= textarea.clientHeight) return;
+  textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
 export function startEditComment(ctx, commentId, feedbackId) {
