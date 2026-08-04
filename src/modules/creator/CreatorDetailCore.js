@@ -213,6 +213,7 @@ export class CreatorDetail extends PersonDetailBase {
       detailItems.push({ icon: 'currency', label: 'Letztes Budget', value: this.formatCurrency(this.creator.budget_letzte_buchung) });
     }
     detailItems.push({ icon: 'check', label: 'USt-pflichtig', value: this.creator.umsatzsteuerpflichtig ? 'Ja' : 'Nein' });
+    detailItems.push({ icon: 'check', label: 'KSK-Selbstzahler', value: this.creator.ksk_selbstzahler ? 'Ja' : 'Nein' });
     detailItems.push({ icon: 'clock', label: 'Erstellt', value: this.formatDate(this.creator.created_at) });
 
     return `

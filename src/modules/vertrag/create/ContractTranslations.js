@@ -3,6 +3,10 @@
 // Methoden werden per Prototype-Extension an VertraegeCreate gehangen.
 
 import { VertraegeCreate } from './VertraegeCreateCore.js';
+import {
+  KSK_SELBSTZAHLER_VERTRAGSTEXT_DE,
+  KSK_SELBSTZAHLER_VERTRAGSTEXT_EN
+} from '../../../core/budget/kskSelbstzahler.js';
 
 const CONTRACT_TEXT_TRANSLATIONS = {
   en: {
@@ -216,6 +220,7 @@ const CONTRACT_TEXT_TRANSLATIONS = {
     'Weicht der Content erheblich vom Briefing oder den Qualitätsanforderungen ab und ist nicht anpassbar, ist er vor Veröffentlichung kostenfrei neu zu erstellen.': 'If the content significantly deviates from the briefing or quality requirements and cannot be adjusted, it must be recreated free of charge before publication.',
     'Der Influencer garantiert, dass der Content frei von Rechten Dritter ist und haftet für Rechtsverletzungen.': 'The influencer guarantees that the content is free of third-party rights and is liable for legal infringements.',
     'Die KSK-Abgabe wird – sofern relevant – vom Auftraggeber abgeführt und nicht gesondert auf der Rechnung des Influencers ausgewiesen.': 'The KSK levy, where applicable, is paid by the client and is not listed separately on the influencer invoice.',
+    [KSK_SELBSTZAHLER_VERTRAGSTEXT_DE]: KSK_SELBSTZAHLER_VERTRAGSTEXT_EN,
     'Bei Nichterfüllung, wiederholter Qualitätsabweichung oder Nichtveröffentlichung ist ein Rücktritt zulässig. Ein Vergütungsanspruch besteht dann nicht.': 'In case of non-performance, repeated quality deviations, or non-publication, withdrawal is permitted. There is then no entitlement to compensation.',
     'Der Vertrag wird mit Unterschrift des Influencers oder seines Vertretungsberechtigten wirksam. Eine Gegenzeichnung der LikeGroup GmbH ist nicht erforderlich.': 'The agreement becomes effective upon signature by the influencer or authorized representative. A countersignature by LikeGroup GmbH is not required.',
     'Der Auftragnehmer verpflichtet sich zur professionellen Erstellung von Foto- und/oder Videomaterial zu Marketing- und Kommunikationszwecken des Auftraggebers bzw. eines von der LikeGroup GmbH betreuten Kunden. Es handelt sich um einen einmaligen Produktionsauftrag.': 'The contractor commits to professionally producing photo and/or video material for the client\'s marketing and communication purposes or for a customer managed by LikeGroup GmbH. This is a one-time production assignment.',

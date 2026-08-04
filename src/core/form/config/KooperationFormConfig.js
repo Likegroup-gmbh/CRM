@@ -2,6 +2,7 @@
 // Reine Datendatei, wird von FormConfig.js eingesammelt.
 
 import { CONTENT_ART_OPTIONS } from '../../../modules/kooperation/contentArtOptions.js';
+import { KSK_SATZ_PROZENT } from '../../budget/kskSelbstzahler.js';
 
 export const kooperationConfig = {
   title: 'Neue Kooperation anlegen',
@@ -25,6 +26,10 @@ export const kooperationConfig = {
     { name: 'einkaufspreis_netto', label: 'EK Netto', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, placeholder: 'Aus Videos', row: 'ek1', colSize: 'grow', section: 'preise', sectionTitle: 'Preise' },
     { name: 'einkaufspreis_zusatzkosten', label: 'EK Zusatzkosten', type: 'number', required: false, validation: { type: 'number', min: 0 }, row: 'ek1', colSize: 'grow', section: 'preise' },
     { name: 'einkaufspreis_ust_prozent', type: 'hidden', defaultValue: 19, section: 'preise' },
+    // KSK-Selbstzahler: Aufschlag (KSK_SATZ_PROZENT vom EK-Netto), wird dem Creator on top gezahlt
+    { name: 'ksk_selbstzahler', label: 'Creator zahlt KSK selbst', type: 'toggle', required: false, defaultValue: false, section: 'preise' },
+    { name: 'ksk_prozent', type: 'hidden', defaultValue: KSK_SATZ_PROZENT, section: 'preise' },
+    { name: 'ksk_betrag', label: `KSK-Aufschlag (${String(KSK_SATZ_PROZENT).replace('.', ',')}%)`, type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['einkaufspreis_netto', 'ksk_selbstzahler', 'ksk_prozent'], dependsOn: 'ksk_selbstzahler', showWhen: 'true', section: 'preise' },
     { name: 'einkaufspreis_ust', label: 'EK USt (19%)', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['einkaufspreis_netto', 'einkaufspreis_zusatzkosten', 'einkaufspreis_ust_prozent'], row: 'ek2', colSize: 'grow', section: 'preise' },
     { name: 'einkaufspreis_gesamt', label: 'EK Gesamt', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['einkaufspreis_netto', 'einkaufspreis_zusatzkosten', 'einkaufspreis_ust'], row: 'ek2', colSize: 'grow', section: 'preise' },
     // Sektion 3: Preise -- Verkauf

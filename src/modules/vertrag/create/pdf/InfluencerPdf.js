@@ -4,6 +4,7 @@
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
 import { renderPaginatedText, renderZusatzBestimmung } from './PdfTextFlow.js';
+import { KSK_SELBSTZAHLER_VERTRAGSTEXT_DE } from '../../../../core/budget/kskSelbstzahler.js';
 
 VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang = this.getContractLanguage(vertrag)) {
     try {
@@ -570,7 +571,11 @@ VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang =
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(10);
       y += 8;
-      y = addWrappedText('Die KSK-Abgabe wird – sofern relevant – vom Auftraggeber abgeführt und nicht gesondert auf der Rechnung des Influencers ausgewiesen.', 14, y, 180);
+      // KSK-Selbstzahler: Creator fuehrt die Abgabe selbst ab und erhaelt den Ausgleich on top
+      const kskParagraphText = vertrag.ksk_selbstzahler
+        ? KSK_SELBSTZAHLER_VERTRAGSTEXT_DE
+        : 'Die KSK-Abgabe wird – sofern relevant – vom Auftraggeber abgeführt und nicht gesondert auf der Rechnung des Influencers ausgewiesen.';
+      y = addWrappedText(kskParagraphText, 14, y, 180);
 
       // §14 Rücktritt
       checkPageBreak(25);

@@ -10,16 +10,21 @@
 
 const VK_UST_SATZ_DEFAULT = 19;
 
+function getKoopKsk(koop) {
+  return koop?.ksk_selbstzahler ? (parseFloat(koop?.ksk_betrag) || 0) : 0;
+}
+
 function deriveEkUstSatz({ ustProzent, koop }) {
   const direct = parseFloat(ustProzent);
   if (Number.isFinite(direct) && direct >= 0) {
     return direct;
   }
 
-  const koopNetto = parseFloat(koop?.einkaufspreis_netto) || 0;
+  // Basis inkl. KSK-Aufschlag, da einkaufspreis_ust den KSK-Anteil enthaelt
+  const koopBasis = (parseFloat(koop?.einkaufspreis_netto) || 0) + getKoopKsk(koop);
   const koopUst = parseFloat(koop?.einkaufspreis_ust);
-  if (koopNetto > 0 && Number.isFinite(koopUst)) {
-    return (koopUst / koopNetto) * 100;
+  if (koopBasis > 0 && Number.isFinite(koopUst)) {
+    return (koopUst / koopBasis) * 100;
   }
 
   return VK_UST_SATZ_DEFAULT;
@@ -39,10 +44,12 @@ function round2(value) {
   return Math.round(value * 100) / 100;
 }
 
-function calcPreisBlock(netto, zusatz, ustSatz) {
+function calcPreisBlock(netto, zusatz, ustSatz, ksk = 0) {
+  // ksk = KSK-Selbstzahler-Aufschlag (nur EK-Seite): Teil des Entgelts,
+  // gehoert in USt-Basis und Gesamtsumme
   const ustRate = (ustSatz || 0) / 100;
-  const ust = round2((netto + zusatz) * ustRate);
-  const gesamt = round2(netto + zusatz + ust);
+  const ust = round2((netto + zusatz + ksk) * ustRate);
+  const gesamt = round2(netto + zusatz + ksk + ust);
   return { zusatz, ust, gesamt, ustSatz };
 }
 
@@ -140,7 +147,7 @@ export async function syncEkZusatzkostenFromRechnung({
     const { data: koop, error: loadErr } = await supabase
       .from('kooperationen')
       .select(
-        'id, einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_ust, verkaufspreis_netto, verkaufspreis_zusatzkosten, verkaufspreis_ust'
+        'id, einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_ust, verkaufspreis_netto, verkaufspreis_zusatzkosten, verkaufspreis_ust, ksk_selbstzahler, ksk_betrag'
       )
       .eq('id', kooperationId)
       .single();
@@ -165,9 +172,11 @@ export async function syncEkZusatzkostenFromRechnung({
     };
 
     // EK immer ueberschreiben (Rechnung ist Source of Truth)
+    // KSK-Selbstzahler-Aufschlag bleibt erhalten (nur EK-Seite)
     const ekNetto = parseFloat(koop?.einkaufspreis_netto) || 0;
+    const ekKsk = getKoopKsk(koop);
     const ekUstSatz = deriveEkUstSatz({ ustProzent, koop });
-    const ek = calcPreisBlock(ekNetto, zusatzFuerSatz(ekUstSatz), ekUstSatz);
+    const ek = calcPreisBlock(ekNetto, zusatzFuerSatz(ekUstSatz), ekUstSatz, ekKsk);
     const ekResult = await applyKooperationUpdate(supabase, kooperationId, {
       einkaufspreis_zusatzkosten: ek.zusatz,
       einkaufspreis_ust: ek.ust,

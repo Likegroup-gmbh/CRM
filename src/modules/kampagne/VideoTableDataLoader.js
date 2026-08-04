@@ -78,7 +78,7 @@ export class VideoTableDataLoader {
         const statusJoin = 'status_ref:status_id(id, name)';
         const koopSelect = isKunde
           ? `id, name, status_id, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, bilder_folder_url, ${statusJoin}, ${kampagneJoin}`
-          : `id, name, status_id, einkaufspreis_netto, einkaufspreis_gesamt, verkaufspreis_zusatzkosten, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, bilder_folder_url, ${statusJoin}, ${kampagneJoin}`;
+          : `id, name, status_id, einkaufspreis_netto, einkaufspreis_gesamt, verkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, bilder_folder_url, ${statusJoin}, ${kampagneJoin}`;
 
         const kooperationenResult = await window.supabase
           .from('kooperationen')

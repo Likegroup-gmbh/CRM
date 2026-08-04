@@ -810,6 +810,10 @@ export class KooperationList {
         }
       }
 
+      // Toggle explizit setzen: unchecked Checkboxen fehlen in FormData
+      const kskToggleEl = form.querySelector('input[name="ksk_selbstzahler"]');
+      if (kskToggleEl) submitData.ksk_selbstzahler = kskToggleEl.checked;
+
       // Prefill-Fallback: disabled selects landen nicht in FormData
       if (form?.dataset?.prefillFromKampagne === 'true' && form.dataset.prefillData) {
         try {

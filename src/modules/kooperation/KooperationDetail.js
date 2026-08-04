@@ -1025,6 +1025,10 @@ export class KooperationDetail extends PersonDetailBase {
         }
       }
 
+      // Toggle explizit setzen: unchecked Checkboxen fehlen in FormData
+      const kskToggleEl = form.querySelector('input[name="ksk_selbstzahler"]');
+      if (kskToggleEl) submitData.ksk_selbstzahler = kskToggleEl.checked;
+
       const validationResult = window.validatorSystem.validateForm(submitData, 'kooperation');
       if (!validationResult.isValid) {
         this.showValidationErrors(validationResult.errors);

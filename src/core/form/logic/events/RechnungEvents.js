@@ -80,10 +80,13 @@ function hideVertragWarning(form) {
 // inkl. USt — es wird keine weitere USt auf die Zusatzkosten berechnet).
 // nettoSteuerfreiInput: optional, steuerfreier Netto-Anteil (0% USt) — wird zum Brutto addiert,
 // aber nie besteuert. Skonto wirkt proportional auch auf diesen Anteil.
-export function berechneRechnungFromInputs({ nettoInput, nettoSteuerfreiInput, zusatzInput, skontoToggle, ustAktivToggle, ustProzentInput, zusatzBruttoToggle, nettoGesamtInput, bruttoVorSkontoInput, skontoBetragInput, nettoNachSkontoInput, ustBetragInput, bruttoInput }) {
+export function berechneRechnungFromInputs({ nettoInput, nettoSteuerfreiInput, zusatzInput, kskInput, skontoToggle, ustAktivToggle, ustProzentInput, zusatzBruttoToggle, nettoGesamtInput, bruttoVorSkontoInput, skontoBetragInput, nettoNachSkontoInput, ustBetragInput, bruttoInput }) {
   const netto = parseFloat(nettoInput?.value) || 0;
   const nettoSteuerfrei = parseFloat(nettoSteuerfreiInput?.value) || 0;
   const zusatz = parseFloat(zusatzInput?.value) || 0;
+  // KSK-Selbstzahler-Aufschlag: verhaelt sich wie der Nettobetrag
+  // (Teil des Entgelts, USt-pflichtig, wird mitskontiert)
+  const ksk = parseFloat(kskInput?.value) || 0;
   const hatSkonto = skontoToggle?.checked || false;
   const zusatzIstBrutto = zusatzBruttoToggle?.checked || false;
   const ustAktiv = ustAktivToggle ? ustAktivToggle.checked : true;
@@ -98,20 +101,21 @@ export function berechneRechnungFromInputs({ nettoInput, nettoSteuerfreiInput, z
   const steuerfreiNachSkonto = nettoSteuerfrei * skontoFaktor;
 
   if (zusatzIstBrutto) {
-    // Brutto-Modus: Zusatzkosten enthalten bereits USt, Rechnungs-USt nur auf die Leistung.
-    // Skonto (3%) wirkt auf Leistung + Zusatzkosten + steuerfreien Anteil.
-    nettoGesamt = netto + nettoSteuerfrei;
-    bruttoVorSkonto = netto * (1 + ustRate) + nettoSteuerfrei + zusatz;
-    skontoBetrag = hatSkonto ? (netto + nettoSteuerfrei + zusatz) * 0.03 : 0;
-    const nettoLeistungNachSkonto = netto * skontoFaktor;
+    // Brutto-Modus: Zusatzkosten enthalten bereits USt, Rechnungs-USt nur auf die Leistung (+KSK).
+    // Skonto (3%) wirkt auf Leistung + KSK + Zusatzkosten + steuerfreien Anteil.
+    const leistung = netto + ksk;
+    nettoGesamt = leistung + nettoSteuerfrei;
+    bruttoVorSkonto = leistung * (1 + ustRate) + nettoSteuerfrei + zusatz;
+    skontoBetrag = hatSkonto ? (leistung + nettoSteuerfrei + zusatz) * 0.03 : 0;
+    const nettoLeistungNachSkonto = leistung * skontoFaktor;
     const zusatzNachSkonto = zusatz * skontoFaktor;
     nettoNachSkonto = nettoLeistungNachSkonto + steuerfreiNachSkonto;
     ustBetrag = nettoLeistungNachSkonto * ustRate;
     brutto = nettoLeistungNachSkonto + ustBetrag + steuerfreiNachSkonto + zusatzNachSkonto;
   } else {
-    // Netto-Modus (Standard): Zusatzkosten netto, USt auf Leistung + Zusatzkosten,
+    // Netto-Modus (Standard): Zusatzkosten netto, USt auf Leistung + KSK + Zusatzkosten,
     // steuerfreier Anteil bleibt unbesteuert.
-    const taxable = netto + zusatz;
+    const taxable = netto + zusatz + ksk;
     nettoGesamt = taxable + nettoSteuerfrei;
     bruttoVorSkonto = taxable * (1 + ustRate) + nettoSteuerfrei;
     skontoBetrag = hatSkonto ? nettoGesamt * 0.03 : 0;
@@ -184,6 +188,9 @@ export function finalizeRechnungSubmitData(form, submitData) {
   };
   submitData.ust_betrag = readField('ust_betrag');
   submitData.bruttobetrag = readField('bruttobetrag');
+  // KSK-Selbstzahler-Aufschlag (readonly-Feld, aus Kooperation prefilled)
+  const kskBetragValue = readField('ksk_betrag');
+  if (kskBetragValue !== null) submitData.ksk_betrag = kskBetragValue;
 
   // Checkboxen/Toggles die FormData evtl. nicht enthält (unchecked)
   if (skontoToggle) submitData.skonto = skontoToggle.checked;
@@ -228,9 +235,19 @@ export async function setup(form, ctx) {
   const nettoSteuerfreiInput = form.querySelector('input[name="nettobetrag_steuerfrei"]');
   setupSteuerfreiDisclosure(nettoSteuerfreiInput);
   const zusatzInput = form.querySelector('input[name="zusatzkosten"]');
+  const kskInput = form.querySelector('input[name="ksk_betrag"]');
   const ustProzentInput = form.querySelector('input[name="ust_prozent"]');
   const ustAktivToggle = form.querySelector('input[name="ust_aktiv"]');
   const bruttoInput = form.querySelector('input[name="bruttobetrag"]');
+
+  // KSK-Feld nur zeigen, wenn ein Aufschlag existiert (Selbstzahler-Kooperation)
+  const updateKskVisibility = () => {
+    if (!kskInput) return;
+    const wrapper = kskInput.closest('.form-field');
+    if (!wrapper) return;
+    const sichtbar = (parseFloat(kskInput.value) || 0) > 0;
+    wrapper.style.display = sichtbar ? '' : 'none';
+  };
 
   // Im Edit-Modus: Kooperation + abhängige Selects komplett sperren
   if (isEditMode) {
@@ -332,6 +349,8 @@ export async function setup(form, ctx) {
       if (nettoInput) nettoInput.value = '';
       if (nettoSteuerfreiInput) nettoSteuerfreiInput.value = '';
       if (zusatzInput) zusatzInput.value = '';
+      if (kskInput) kskInput.value = '';
+      updateKskVisibility();
       if (bruttoInput) bruttoInput.value = '';
       if (ustAktivToggle) ustAktivToggle.checked = true;
       if (ustProzentInput) ustProzentInput.value = '19';
@@ -341,7 +360,7 @@ export async function setup(form, ctx) {
 
     const { data: koop, error } = await window.supabase
       .from('kooperationen')
-      .select('id, name, unternehmen_id, kampagne_id, einkaufspreis_netto, einkaufspreis_gesamt, einkaufspreis_zusatzkosten, videoanzahl, creator_id')
+      .select('id, name, unternehmen_id, kampagne_id, einkaufspreis_netto, einkaufspreis_gesamt, einkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag, videoanzahl, creator_id')
       .eq('id', koopId)
       .single();
     if (error) {
@@ -424,9 +443,12 @@ export async function setup(form, ctx) {
     if (videoInput) videoInput.value = koop?.videoanzahl || '';
     const netto = parseFloat(koop?.einkaufspreis_netto || 0) || 0;
     const zusatz = parseFloat(koop?.einkaufspreis_zusatzkosten || 0) || 0;
-    const brutto = (koop?.einkaufspreis_gesamt != null) ? koop.einkaufspreis_gesamt : (netto + zusatz);
+    const ksk = koop?.ksk_selbstzahler ? (parseFloat(koop?.ksk_betrag) || 0) : 0;
+    const brutto = (koop?.einkaufspreis_gesamt != null) ? koop.einkaufspreis_gesamt : (netto + zusatz + ksk);
     if (nettoInput) nettoInput.value = netto ? String(netto) : '';
     if (zusatzInput) zusatzInput.value = zusatz ? String(zusatz) : '';
+    if (kskInput) kskInput.value = ksk ? String(ksk) : '';
+    updateKskVisibility();
     if (bruttoInput) bruttoInput.value = isNaN(brutto) ? '' : String(brutto);
     berechneRechnung();
   };
@@ -442,7 +464,7 @@ export async function setup(form, ctx) {
 
   const berechneRechnung = () => {
     berechneRechnungFromInputs({
-      nettoInput, nettoSteuerfreiInput, zusatzInput, skontoToggle,
+      nettoInput, nettoSteuerfreiInput, zusatzInput, kskInput, skontoToggle,
       ustAktivToggle, ustProzentInput, zusatzBruttoToggle,
       nettoGesamtInput, bruttoVorSkontoInput,
       skontoBetragInput, nettoNachSkontoInput,
@@ -483,5 +505,8 @@ export async function setup(form, ctx) {
   }
   
   // Initiale Berechnung aus gespeicherten Werten (auch im Edit-Mode)
-  setTimeout(berechneRechnung, 200);
+  setTimeout(() => {
+    updateKskVisibility();
+    berechneRechnung();
+  }, 200);
 }

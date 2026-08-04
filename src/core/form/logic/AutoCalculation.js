@@ -1,6 +1,8 @@
 // AutoCalculation.js - Automatische Berechnung für Formularfelder
 // ES6-Modul für die Berechnung von abhängigen Feldern
 
+import { KSK_SATZ_PROZENT, berechneKskBetrag } from '../../budget/kskSelbstzahler.js';
+
 export class AutoCalculation {
   constructor() {
     this.calculationRules = {
@@ -172,10 +174,32 @@ export class AutoCalculation {
   }
 
   /**
-   * Berechne KSK (5% von Netto)
+   * KSK-Selbstzahler-Aufschlag im Kooperations-Formular:
+   * ksk_prozent (Snapshot, default KSK_SATZ_PROZENT) vom EK-Netto,
+   * nur wenn der Toggle ksk_selbstzahler aktiv ist.
+   * Gibt null zurueck, wenn das Formular kein Selbstzahler-Formular ist.
+   */
+  getKooperationKsk(form) {
+    const toggle = form.querySelector('[name="ksk_selbstzahler"]');
+    if (!toggle) return null;
+    if (!toggle.checked) return 0;
+    const netto = parseFloat(form.querySelector('[name="einkaufspreis_netto"]')?.value) || 0;
+    const parsedSatz = parseFloat(form.querySelector('[name="ksk_prozent"]')?.value);
+    const satz = Number.isFinite(parsedSatz) && parsedSatz > 0 ? parsedSatz : KSK_SATZ_PROZENT;
+    return berechneKskBetrag(netto, satz);
+  }
+
+  /**
+   * Berechne KSK:
+   * - Kooperations-Formular (Toggle ksk_selbstzahler vorhanden): Selbstzahler-Aufschlag
+   * - Legacy (Auftrag): 5% von Netto
    */
   calculateKskBetrag(form, targetField) {
     try {
+      const kooperationKsk = this.getKooperationKsk(form);
+      if (kooperationKsk !== null) {
+        return kooperationKsk;
+      }
       const nettoField = form.querySelector('[name="nettobetrag"]');
       if (!nettoField) return 0;
       const netto = parseFloat(nettoField.value) || 0;
@@ -253,9 +277,11 @@ export class AutoCalculation {
       const ustProzentField = form.querySelector('[name="einkaufspreis_ust_prozent"]');
       const netto = nettoField ? (parseFloat(nettoField.value) || 0) : 0;
       const zusatz = zusatzField ? (parseFloat(zusatzField.value) || 0) : 0;
+      // KSK-Selbstzahler-Aufschlag ist Teil des Entgelts und damit der USt-Basis
+      const ksk = this.getKooperationKsk(form) || 0;
       const parsedSatz = parseFloat(ustProzentField?.value);
       const ustSatz = Number.isFinite(parsedSatz) ? parsedSatz : 19;
-      const ust = (netto + zusatz) * (ustSatz / 100);
+      const ust = (netto + zusatz + ksk) * (ustSatz / 100);
       return Math.round(ust * 100) / 100;
     } catch (error) {
       console.error('❌ Fehler bei Einkaufspreis-USt-Berechnung:', error);
@@ -264,7 +290,7 @@ export class AutoCalculation {
   }
 
   /**
-   * Berechne Einkaufspreis Gesamt (Netto + Zusatzkosten + USt)
+   * Berechne Einkaufspreis Gesamt (Netto + Zusatzkosten + KSK + USt)
    */
   calculateEinkaufspreisGesamt(form, targetField) {
     try {
@@ -273,8 +299,9 @@ export class AutoCalculation {
       const ustField = form.querySelector('[name="einkaufspreis_ust"]');
       const netto = nettoField ? (parseFloat(nettoField.value) || 0) : 0;
       const zusatz = zusatzField ? (parseFloat(zusatzField.value) || 0) : 0;
+      const ksk = this.getKooperationKsk(form) || 0;
       const ust = ustField ? (parseFloat(ustField.value) || this.calculateEinkaufspreisUst(form)) : this.calculateEinkaufspreisUst(form);
-      const gesamt = netto + zusatz + ust;
+      const gesamt = netto + zusatz + ksk + ust;
       return Math.round(gesamt * 100) / 100;
     } catch (error) {
       console.error('❌ Fehler bei Einkaufspreis-Gesamt-Berechnung:', error);

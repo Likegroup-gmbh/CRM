@@ -308,14 +308,16 @@ export const cascadeStrategies = {
           if (!ustProzentField) return;
 
           let ustProzent = 19;
+          let kskSelbstzahler = false;
           if (creatorId) {
             try {
               const { data: creator } = await window.supabase
                 .from('creator')
-                .select('umsatzsteuerpflichtig')
+                .select('umsatzsteuerpflichtig, ksk_selbstzahler')
                 .eq('id', creatorId)
                 .single();
               ustProzent = creator?.umsatzsteuerpflichtig === false ? 0 : 19;
+              kskSelbstzahler = creator?.ksk_selbstzahler === true;
             } catch (e) {
               // Konnte Creator-USt-Status nicht laden
             }
@@ -325,6 +327,13 @@ export const cascadeStrategies = {
 
           const ustLabel = form.querySelector('[name="einkaufspreis_ust"]')?.closest('.form-field')?.querySelector('label');
           if (ustLabel) ustLabel.textContent = `Einkaufspreis USt (${ustProzent}%)`;
+
+          // KSK-Selbstzahler aus dem Creator-Profil vorbelegen (pro Kooperation uebersteuerbar)
+          const kskToggle = form.querySelector('[name="ksk_selbstzahler"]');
+          if (kskToggle && kskToggle.checked !== kskSelbstzahler) {
+            kskToggle.checked = kskSelbstzahler;
+            kskToggle.dispatchEvent(new Event('change', { bubbles: true }));
+          }
 
           if (window.formSystem?.autoCalculation) {
             window.formSystem.autoCalculation.recalculateAllDependentFields(form);

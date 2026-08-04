@@ -1,9 +1,22 @@
 // EkVkAgencyFeeHelper.js
 // Shared helper for Agency Fee calculation incl. EK/VK margin aggregation.
 
+import { summeKskSelbstzahler } from './kskSelbstzahler.js';
+
 export function isFilledPrice(value) {
   const n = parseFloat(value);
   return Number.isFinite(n) && n > 0;
+}
+
+/**
+ * Verfuegbares Creator-Budget (read-derived, wird nie persistiert):
+ * Basis ist das gespeicherte creator_budget; KSK-Selbstzahler-Aufschlaege
+ * werden aus dem KSK-Topf ins Creator-Budget umgebucht und erhoehen die Basis.
+ */
+export function berechneVerfuegbaresBudget(auftrag, kooperationen = []) {
+  const basis = parseFloat(auftrag?.creator_budget ?? auftrag?.gesamt_budget ?? auftrag?.nettobetrag) || 0;
+  const umgebucht = summeKskSelbstzahler(kooperationen);
+  return { basis, umgebucht, verfuegbar: basis + umgebucht };
 }
 
 /**
@@ -82,10 +95,13 @@ export function calculateAgencyFeeSummary(details, kooperationen, videos) {
 
   const total = baseFee + marginSum;
 
+  // KSK-Selbstzahler: umgebuchter Anteil aus dem KSK-Topf ins Creator-Budget
+  const kskUmgebucht = summeKskSelbstzahler(kooperationen);
+
   const showAgencyFeeCard = true;
   const showKskCard = d.agency_services_enabled && d.ksk_enabled && kskValue > 0;
 
-  return { baseFee, ekVkMargin: marginSum, total, kskValue, showAgencyFeeCard, showKskCard, ekSum, vkSum };
+  return { baseFee, ekVkMargin: marginSum, total, kskValue, kskUmgebucht, showAgencyFeeCard, showKskCard, ekSum, vkSum };
 }
 
 /**
@@ -165,13 +181,33 @@ export function filterPaidKooperationen(kooperationen, videos, rechnungStatusMap
 
 /**
  * Renders the KSK summary card HTML.
+ * Zeigt bei KSK-Selbstzahler-Kooperationen den ins Creator-Budget
+ * umgebuchten Anteil und warnt, wenn der Topf ueberschritten ist.
  */
 export function renderKskCardHtml(summary, formatCurrency) {
   if (!summary.showKskCard) return '';
+
+  const umgebucht = parseFloat(summary.kskUmgebucht) || 0;
+  const verbleibend = (parseFloat(summary.kskValue) || 0) - umgebucht;
+  const ueberschritten = verbleibend < 0;
+
+  const breakdown = umgebucht > 0 ? `
+      <div class="summary-card-breakdown">
+        <div class="summary-card-breakdown-line">
+          <span>Umgebucht (Selbstzahler)</span>
+          <span>${formatCurrency(umgebucht)}</span>
+        </div>
+        <div class="summary-card-breakdown-line"${ueberschritten ? ' style="color: #dc2626; font-weight: 600;"' : ''}>
+          <span>Verbleibend</span>
+          <span>${formatCurrency(verbleibend)}</span>
+        </div>
+        ${ueberschritten ? '<div class="summary-card-breakdown-line" style="color: #dc2626;"><span>⚠ KSK-Topf überschritten</span><span></span></div>' : ''}
+      </div>` : '';
 
   return `
     <div class="summary-card">
       <div class="summary-value">${formatCurrency(summary.kskValue)}</div>
       <div class="summary-label">KSK</div>
+      ${breakdown}
     </div>`;
 }

@@ -778,7 +778,7 @@ export class RechnungList {
           <td class="col-videos">${r.videoanzahl || '-'}</td>
           <td class="col-preis-video">${r.videoanzahl && r.nettobetrag ? formatCurrency(r.nettobetrag / r.videoanzahl) : '-'}</td>
           <td class="col-brutto">${formatCurrency(r.bruttobetrag)}</td>
-          <td class="col-ksk">${r.rechnungstyp === 'contracting' ? (r.ksk_pflichtig ? '<span class="status-badge status-erfolg">Ja</span>' : '<span class="status-badge status-inactive">Nein</span>') : '—'}</td>
+          <td class="col-ksk">${r.rechnungstyp === 'contracting' ? (r.ksk_pflichtig ? '<span class="status-badge status-erfolg">Ja</span>' : '<span class="status-badge status-inactive">Nein</span>') : ((parseFloat(r.ksk_betrag) || 0) > 0 ? formatCurrency(r.ksk_betrag) : '—')}</td>
           <td class="col-beleg">${r.rechnung_pdfs && r.rechnung_pdfs.length > 0 ? r.rechnung_pdfs.map((p, i) => `<a href="${p.open_url}" target="_blank" rel="noopener noreferrer">PDF${r.rechnung_pdfs.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' ') : (r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener noreferrer">PDF</a>` : '-')}</td>
           <td class="col-vertrag">${renderVertragCell(r)}</td>
           <td class="col-status" data-col="status">${r.status || '-'}</td>

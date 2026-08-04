@@ -321,13 +321,16 @@ export class FormRenderer {
         const min = field.validation?.min !== undefined ? `min="${field.validation.min}"` : '';
         const max = field.validation?.max !== undefined ? `max="${field.validation.max}"` : '';
         const step = field.validation?.step !== undefined ? `step="${field.validation.step}"` : 'step="0.01"';
+        const numberDependsOn = field.dependsOn ? `data-depends-on="${field.dependsOn}"` : '';
+        const numberShowWhen = field.showWhen ? `data-show-when="${field.showWhen}"` : '';
+        const numberInitialStyle = field.dependsOn ? 'style="display: none;"' : '';
         // Fix: null und undefined als leeres Feld behandeln, nicht als String "null"
         const numericValue = (value === null || value === undefined || value === '') ? '' : value;
         const defaultValue = field.defaultValue !== undefined && numericValue === ''
           ? `value="${field.defaultValue}"` : `value="${numericValue}"`;
         
         return `
-          <div class="form-field">
+          <div class="form-field" ${numberDependsOn} ${numberShowWhen} ${numberInitialStyle}>
             <label for="${fieldId}">${field.label} ${requiredMark}</label>
             <input type="number" id="${fieldId}" name="${field.name}" ${defaultValue} ${required} ${readonly} ${autoCalculate} ${calculatedFrom} ${numberPlaceholder} ${min} ${max} ${step}>
             ${field.readonly && field.calculatedFrom ? '<small style="color: #6b7280; font-size: 12px;">Wird automatisch berechnet</small>' : ''}

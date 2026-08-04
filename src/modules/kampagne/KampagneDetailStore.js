@@ -9,6 +9,7 @@ import {
   normalizeVideoFeedbackComments
 } from '../../core/VideoFeedbackBuckets.js';
 import { sortKooperationen } from './KooperationSortHelper.js';
+import { summeKskSelbstzahler } from '../../core/budget/kskSelbstzahler.js';
 
 
 const DEFAULT_KOOPERATION_SORT = 'created_desc';
@@ -228,12 +229,15 @@ export class KampagneDetailStore {
     const koopVideosUsed = this.kooperationen.reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
     const extraKostenVkSum = this.kooperationen.reduce((sum, k) => sum + (parseFloat(k.verkaufspreis_zusatzkosten) || 0), 0);
     const koopCreatorsUsed = this.kooperationen.filter(k => k.creator_id).length;
+    // KSK-Selbstzahler: aus dem KSK-Topf ins Creator-Budget umgebuchter Anteil
+    const kskUmgebucht = summeKskSelbstzahler(this.kooperationen);
 
     return {
       koopBudgetSum,
       koopVideosUsed,
       koopCreatorsUsed,
       extraKostenVkSum,
+      kskUmgebucht,
       ekVkMarginSum: 0,
       videoStats: this.calculateVideoStats()
     };

@@ -25,6 +25,7 @@ export const rechnungConfig = {
     // Eingabefelder
     { name: 'nettobetrag', label: 'Betrag (Netto)', type: 'number', required: true, validation: { type: 'number', min: 0 }, section: 'betraege', row: 'betragrow' },
     { name: 'zusatzkosten', label: 'Zusatzkosten', type: 'number', required: false, validation: { type: 'number', min: 0 }, section: 'betraege', row: 'betragrow' },
+    { name: 'ksk_betrag', label: 'KSK-Aufschlag (Selbstzahler)', type: 'number', required: false, readonly: true, validation: { type: 'number', min: 0 }, helpText: 'Aus der Kooperation übernommen – der Creator zahlt die KSK selbst. Teil der USt-Basis.', section: 'betraege' },
     { name: 'nettobetrag_steuerfrei', label: 'Steuerfreier Betrag (0% USt)', type: 'number', required: false, validation: { type: 'number', min: 0 }, helpText: 'Für Anteile der Rechnung ohne Umsatzsteuer – wird zum Bruttobetrag addiert, aber nicht besteuert.', section: 'betraege', row: 'steuerfreirow' },
     { name: 'zusatzkosten_brutto', label: 'Zusatzkosten als Brutto (inkl. USt)', type: 'toggle', required: false, defaultValue: false, helpText: 'Aktivieren, wenn die Zusatzkosten bereits die USt enthalten (durchlaufender Posten)', section: 'betraege', row: 'togglerow' },
     { name: 'ust_aktiv', label: 'Umsatzsteuer berechnen', type: 'toggle', required: false, defaultValue: true, helpText: 'Ausschalten, wenn der Creator keine Umsatzsteuer ausweist', section: 'betraege', row: 'togglerow' },

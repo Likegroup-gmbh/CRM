@@ -206,8 +206,13 @@ VertraegeCreate.prototype.applyKooperationVerguetung = function(kooperationId) {
 
     const ekNetto = parseFloat(koop.einkaufspreis_netto) || 0;
     const ekZusatz = parseFloat(koop.einkaufspreis_zusatzkosten) || 0;
+    // KSK-Selbstzahler: Aufschlag ist Teil der vertraglichen Verguetung
+    const kskBetrag = koop.ksk_selbstzahler ? (parseFloat(koop.ksk_betrag) || 0) : 0;
+    const verguetung = ekNetto + kskBetrag;
 
-    this.formData.verguetung_netto = ekNetto || '';
+    this.formData.verguetung_netto = verguetung || '';
+    this.formData.ksk_selbstzahler = koop.ksk_selbstzahler === true;
+    this.formData.ksk_betrag = kskBetrag;
     this.formData.zusatzkosten = ekZusatz > 0;
     this.formData.zusatzkosten_betrag = ekZusatz > 0 ? ekZusatz : '';
 
@@ -296,7 +301,7 @@ VertraegeCreate.prototype.updateFilteredCreators = async function() {
     try {
       const { data: kooperationen } = await window.supabase
         .from('kooperationen')
-        .select('id, creator_id, name, einkaufspreis_netto, einkaufspreis_zusatzkosten, created_at')
+        .select('id, creator_id, name, einkaufspreis_netto, einkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag, created_at')
         .eq('kampagne_id', this.formData.kampagne_id);
 
       this.filteredKooperationen = kooperationen || [];
