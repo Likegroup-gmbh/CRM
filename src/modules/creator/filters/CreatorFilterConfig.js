@@ -6,6 +6,7 @@ import {
   COMMON_FILTER_OPTIONS,
   BASE_FORMATTERS 
 } from '../../../core/filters/BaseFilterConfig.js';
+import { GESCHLECHT_OPTIONS } from '../../../core/form/config/CreatorFormConfig.js';
 
 /**
  * Creator-spezifische Filter-Konfiguration
@@ -54,6 +55,15 @@ export const CREATOR_FILTERS = [
     dynamic: true,
     placeholder: 'Branche auswählen...',
     priority: 4
+  }),
+
+  // Geschlecht Filter
+  createFilterConfig('select', {
+    id: 'geschlecht',
+    label: 'Geschlecht',
+    options: GESCHLECHT_OPTIONS,
+    placeholder: 'Geschlecht auswählen...',
+    priority: 5
   }),
 
   // Alter Range (filtert auf alter_min und alter_max)
@@ -167,7 +177,7 @@ export const CREATOR_FILTER_GROUPS = [
   {
     id: 'basic',
     label: 'Grundlagen',
-    filters: ['name', 'creator_type_id', 'sprache_id', 'branche_id', 'alter'],
+    filters: ['name', 'creator_type_id', 'sprache_id', 'branche_id', 'geschlecht', 'alter'],
     expanded: true
   },
   {

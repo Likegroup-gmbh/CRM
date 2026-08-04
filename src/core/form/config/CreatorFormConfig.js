@@ -1,6 +1,18 @@
 // Formular-Konfiguration fuer "creator"
 // Reine Datendatei, wird von FormConfig.js eingesammelt.
 
+// Auch von CreatorFilterConfig.js genutzt, damit Formular und Filter dieselben
+// Werte anbieten. Paar/Familie/Tier bilden Accounts ab, hinter denen keine
+// einzelne Person steht.
+export const GESCHLECHT_OPTIONS = [
+  { value: 'männlich', label: 'Männlich' },
+  { value: 'weiblich', label: 'Weiblich' },
+  { value: 'divers', label: 'Divers' },
+  { value: 'paar', label: 'Paar' },
+  { value: 'familie', label: 'Familie' },
+  { value: 'tier', label: 'Tier-Account' }
+];
+
 export const creatorConfig = {
   title: 'Neuen Creator anlegen',
   fields: [
@@ -122,11 +134,7 @@ export const creatorConfig = {
       type: 'select', 
       required: false,
       section: 'profil',
-      options: [
-        { value: 'männlich', label: 'Männlich' },
-        { value: 'weiblich', label: 'Weiblich' },
-        { value: 'divers', label: 'Divers' }
-      ]
+      options: GESCHLECHT_OPTIONS
     },
     { name: 'alter_min', label: 'Alter von', type: 'number', required: false, row: 'alter', colSize: 'grow', section: 'profil' },
     { name: 'alter_max', label: 'Alter bis', type: 'number', required: false, row: 'alter', colSize: 'grow', section: 'profil' },
