@@ -37,6 +37,10 @@
 [functions."instagram-connect"]
   timeout = 26
 
+# Geschlecht-Backfill: mehrere Claude-Batches nacheinander (25 Creator je Call)
+[functions."backfill-geschlecht"]
+  timeout = 120
+
 # Webseiten-Extraktion: fetch, im Fallback Chromium, dazu Claude-Aufruf
 # und Logo-Konvertierung via sharp.
 # Background Function (Suffix -background): 15 Min Limit, antwortet sofort 202;

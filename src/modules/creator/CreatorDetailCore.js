@@ -190,7 +190,12 @@ export class CreatorDetail extends PersonDetailBase {
       if (types.length > 0) detailItems.push({ icon: 'user', label: 'Typen', value: types, tags: true });
     }
     if (this.creator.geschlecht) {
-      detailItems.push({ icon: 'user', label: 'Geschlecht', value: this.creator.geschlecht });
+      // Abgeleitete Werte als Vermutung kennzeichnen, damit niemand sie fuer
+      // gepflegte Daten haelt (siehe geschlecht_quelle in der creator-Tabelle)
+      const geschlechtText = this.creator.geschlecht_quelle === 'ki'
+        ? `${this.creator.geschlecht} (KI-Vermutung)`
+        : this.creator.geschlecht;
+      detailItems.push({ icon: 'user', label: 'Geschlecht', value: geschlechtText });
     }
     if (this.creator.alter_min || this.creator.alter_max || this.creator.alter_jahre) {
       detailItems.push({ icon: 'calendar', label: 'Alter', value: this.formatAgeRange(this.creator.alter_min, this.creator.alter_max, this.creator.alter_jahre) });

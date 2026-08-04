@@ -21,11 +21,17 @@ const {
   storeImagePair
 } = require('./_shared/instagram-graph');
 const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
+const { erkenneGeschlecht } = require('./_shared/geschlecht-erkennen');
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const SAVED_POSTS = 5;
+
+// Zeitbudget fuer die Geschlechts-Ableitung. Bewusst knapp: sie laeuft zwar
+// parallel zu den Bild-Uploads, darf das 26s-Limit der Function aber selbst
+// dann nicht gefaehrden, wenn Anthropic haengt.
+const GESCHLECHT_TIMEOUT_MS = 5000;
 
 // Brand-Aufloesung (Werbepartner-Erwaehnungen -> Name + Logo)
 const MAX_BRANDS_RESOLVE = 8;     // Limit wegen 26s Function-Timeout
@@ -178,6 +184,37 @@ async function resolveBrands(supabase, handles) {
   return results;
 }
 
+/**
+ * Ergaenzt das Geschlecht, wenn am Creator noch keins steht - Instagram selbst
+ * liefert es nicht, es wird aus Vorname, IG-Name und Bio geschaetzt.
+ * Vorhandene Werte bleiben unangetastet, Fehler werden geschluckt: ein
+ * Vorschlag ist nie wichtig genug, um den Connect scheitern zu lassen.
+ */
+async function ermittleGeschlecht(supabase, creator, profil, username, userId) {
+  if (creator.geschlecht) return null;
+
+  try {
+    const { treffer } = await erkenneGeschlecht([{
+      id: creator.id,
+      vorname: creator.vorname,
+      nachname: creator.nachname,
+      ig_username: username,
+      ig_name: profil.name,
+      ig_biography: profil.biography
+    }], {
+      supabase,
+      userId,
+      feature: 'geschlecht_instagram_connect',
+      timeoutMs: GESCHLECHT_TIMEOUT_MS
+    });
+
+    return treffer[0]?.geschlecht ? treffer[0] : null;
+  } catch (err) {
+    console.warn(`⚠️ instagram-connect: Geschlecht nicht ableitbar: ${err.message}`);
+    return null;
+  }
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') {
     return jsonResponse(405, { error: 'Method not allowed' });
@@ -210,7 +247,7 @@ exports.handler = async (event) => {
 
   const { data: creator, error: loadError } = await supabase
     .from('creator')
-    .select('id, instagram')
+    .select('id, instagram, vorname, nachname, geschlecht')
     .eq('id', creatorId)
     .single();
   if (loadError || !creator) {
@@ -262,8 +299,9 @@ exports.handler = async (event) => {
 
   // Profilbild + Bilder der letzten 5 Posts nach Storage kopieren, jeweils als
   // Hauptbild und Thumbnail. Die Posts laufen parallel: sechs Bilder mal zwei
-  // Encodes waeren sequenziell zu nah am 26s-Timeout.
-  const [profilbild, postBilder] = await Promise.all([
+  // Encodes waeren sequenziell zu nah am 26s-Timeout. Die Geschlechts-Ableitung
+  // haengt sich hier mit rein, weil sie auf nichts davon wartet.
+  const [profilbild, postBilder, geschlecht] = await Promise.all([
     storeImagePair(supabase, p.profile_picture_url, `${creatorId}/profil`),
     Promise.all(media.slice(0, SAVED_POSTS).map((m, i) => {
       // Bei Videos/Reels liefert media_url die Videodatei -> Thumbnail nehmen
@@ -271,7 +309,8 @@ exports.handler = async (event) => {
         ? (m.thumbnail_url || null)
         : (m.media_url || m.thumbnail_url || null);
       return storeImagePair(supabase, imageSource, `${creatorId}/post-${i}`);
-    }))
+    })),
+    ermittleGeschlecht(supabase, creator, p, username, auth.user.id)
   ]);
 
   const recentPosts = media.slice(0, SAVED_POSTS).map((m, i) => ({
@@ -301,6 +340,12 @@ exports.handler = async (event) => {
     update.profilbild_url = profilbild.url;
     update.profilbild_thumb_url = profilbild.thumbUrl;
   }
+  if (geschlecht) {
+    // Quelle mitschreiben, sonst stempelt der DB-Trigger den Wert als 'manuell'
+    update.geschlecht = geschlecht.geschlecht;
+    update.geschlecht_quelle = 'ki';
+    update.geschlecht_konfidenz = geschlecht.konfidenz;
+  }
 
   const { error: updateError } = await supabase
     .from('creator')
@@ -319,6 +364,7 @@ exports.handler = async (event) => {
     engagement_rate: engagementRate,
     brand_mentions: brandMentions,
     posts_saved: recentPosts.length,
-    profilbild_url: profilbild?.url || null
+    profilbild_url: profilbild?.url || null,
+    geschlecht: update.geschlecht || null
   });
 };
