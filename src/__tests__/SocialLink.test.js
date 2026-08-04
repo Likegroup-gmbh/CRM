@@ -7,6 +7,7 @@ describe('parseSocialLink', () => {
       platform: 'instagram',
       type: 'reel',
       shortcode: 'DABC123',
+      handle: null,
       host: 'instagram.com'
     });
   });
@@ -33,15 +34,54 @@ describe('parseSocialLink', () => {
       platform: 'tiktok',
       type: 'video',
       shortcode: '7412345678901234567',
+      handle: null,
       host: 'tiktok.com'
     });
   });
 
-  it('liefert bei Instagram-Links ohne Beitragspfad wenigstens die Plattform', () => {
-    const result = parseSocialLink('https://www.instagram.com/paulinemary/');
-    expect(result.platform).toBe('instagram');
+  it('erkennt Instagram-Profile samt Handle', () => {
+    expect(parseSocialLink('https://www.instagram.com/paulinemary/')).toEqual({
+      platform: 'instagram',
+      type: 'profile',
+      shortcode: null,
+      handle: 'paulinemary',
+      host: 'instagram.com'
+    });
+  });
+
+  it('erkennt Profile ohne Schraegstrich und mit Query', () => {
+    expect(parseSocialLink('https://instagram.com/pauline.mary').handle).toBe('pauline.mary');
+    expect(parseSocialLink('https://www.instagram.com/paulinemary?hl=de').handle).toBe('paulinemary');
+    expect(parseSocialLink('https://www.instagram.com/paulinemary/?igsh=abc').handle).toBe('paulinemary');
+  });
+
+  it('erkennt TikTok-Profile', () => {
+    const result = parseSocialLink('https://www.tiktok.com/@creator');
+    expect(result.type).toBe('profile');
+    expect(result.handle).toBe('creator');
+  });
+
+  it('haelt Beitrags-Muster vor dem Profil-Muster', () => {
+    // /paulinemary/reel/CODE erfuellt beide Muster - das Reel muss gewinnen
+    const result = parseSocialLink('https://www.instagram.com/paulinemary/reel/DGHI999/');
+    expect(result.type).toBe('reel');
+    expect(result.handle).toBeNull();
+  });
+
+  it('haelt Instagram-eigene Pfade fuer keine Profile', () => {
+    ['explore', 'stories', 'direct', 'accounts', 'reels'].forEach((pfad) => {
+      const result = parseSocialLink(`https://www.instagram.com/${pfad}/`);
+      expect(result.type, pfad).toBeNull();
+      expect(result.handle, pfad).toBeNull();
+      expect(result.platform, pfad).toBe('instagram');
+    });
+  });
+
+  it('behandelt Unterseiten eines Profils nicht als Profil', () => {
+    const result = parseSocialLink('https://www.instagram.com/paulinemary/tagged/');
     expect(result.type).toBeNull();
-    expect(result.shortcode).toBeNull();
+    expect(result.handle).toBeNull();
+    expect(result.platform).toBe('instagram');
   });
 
   it('gibt bei Fremd-URLs nur den Host zurueck', () => {
@@ -49,12 +89,13 @@ describe('parseSocialLink', () => {
       platform: null,
       type: null,
       shortcode: null,
+      handle: null,
       host: 'youtube.com'
     });
   });
 
   it('liefert fuer leere und ungueltige Eingaben leere Felder', () => {
-    const empty = { platform: null, type: null, shortcode: null, host: null };
+    const empty = { platform: null, type: null, shortcode: null, handle: null, host: null };
     expect(parseSocialLink('')).toEqual(empty);
     expect(parseSocialLink(null)).toEqual(empty);
     expect(parseSocialLink(undefined)).toEqual(empty);
@@ -77,8 +118,17 @@ describe('formatLinkLabel', () => {
     expect(formatLinkLabel('https://www.instagram.com/p/CXY789/', '')).toBe('Post · CXY789');
   });
 
+  it('zeigt Profil-Links als reinen Handle', () => {
+    expect(formatLinkLabel('https://www.instagram.com/paulinemary/', '')).toBe('@paulinemary');
+    expect(formatLinkLabel('https://www.tiktok.com/@creator', '')).toBe('@creator');
+  });
+
+  it('laesst den uebergebenen Handle vor dem aus der URL gehen', () => {
+    expect(formatLinkLabel('https://www.instagram.com/altername/', 'neuname')).toBe('@neuname');
+  });
+
   it('nutzt bei unbekanntem Pfad den Host', () => {
-    expect(formatLinkLabel('https://www.instagram.com/paulinemary/', '')).toBe('instagram.com');
+    expect(formatLinkLabel('https://www.instagram.com/explore/', '')).toBe('instagram.com');
     expect(formatLinkLabel('https://youtube.com/watch?v=abc', 'x')).toBe('youtube.com · @x');
   });
 

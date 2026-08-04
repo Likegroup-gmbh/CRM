@@ -14,7 +14,10 @@ import { VideoTableEventBinder } from './VideoTableEventBinder.js';
 import { VideoTableStatusDropdown } from './VideoTableStatusDropdown.js';
 import { VideoTableDrawerActions } from './VideoTableDrawerActions.js';
 import { VideoStatsFetcher } from './VideoStatsFetcher.js';
-import { LiveLinkToolbar } from './LiveLinkToolbar.js';
+import { hoverToolbar } from '../../core/hoverToolbar/HoverToolbar.js';
+import { registerHoverToolbar, unregisterHoverToolbar } from '../../core/hoverToolbar/HoverToolbarRegistry.js';
+import { createLiveLinkToolbarConfig } from './liveLinkToolbarConfig.js';
+import { LIVE_LINK_TOOLBAR } from './liveLinkCell.js';
 import { UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { ColumnDragHandler } from './columns/ColumnDragHandler.js';
@@ -61,12 +64,16 @@ export class KampagneKooperationenVideoTable {
     this._statusDropdown = new VideoTableStatusDropdown(this);
     this._drawerActions = new VideoTableDrawerActions(this);
     this._statsFetcher = new VideoStatsFetcher(this);
-    this._liveLinkToolbar = new LiveLinkToolbar(this);
     this.columnDragHandler = new ColumnDragHandler(this);
     this._uploadDrawer = new VideoUploadDrawer();
     this._settingsDrawer = new VideoSettingsDrawer();
     this._linkStrategieDrawer = new LinkStrategieItemDrawer();
     this._mediaViewer = new VideoPlayerLightbox(this);
+
+    // Die Hover-Toolbar der Live-Link-Spalte laeuft ueber die zentrale Engine.
+    // Ihre Aktionen brauchen den StatsFetcher dieser Instanz, also wird die
+    // Config hier mit Kontext angemeldet statt global deklariert.
+    registerHoverToolbar(LIVE_LINK_TOOLBAR, createLiveLinkToolbarConfig(this));
   }
 
   // Store-backed getters (Proxy zum Store, Fallback auf lokale Daten für Kompatibilität)
@@ -457,9 +464,10 @@ export class KampagneKooperationenVideoTable {
     this.feedbackSaveController?.flushAll();
 
     this._closeStatusPortal();
-    // Die Leiste haengt an document.body mit eigenen window-Listenern, der
-    // AbortController der Tabelle erreicht sie nicht.
-    this._liveLinkToolbar?.destroy();
+    // Die Engine selbst bleibt stehen, sie gehoert der Anwendung. Nur diese
+    // Config verweist auf eine Tabelle, die es gleich nicht mehr gibt.
+    unregisterHoverToolbar(LIVE_LINK_TOOLBAR);
+    hoverToolbar.close();
 
     this._rowHeightSync?.disconnect();
     this._rowHeightSync = null;

@@ -5,6 +5,7 @@ import { CREATOR_TYP_SELECT_OPTIONS } from './creatorTypeOptions.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { renderTableSelect } from '../../core/components/TableSelect.js';
 import { formatCompactNumber, formatExactNumber } from '../../core/format/compactNumber.js';
+import { renderSourcingIgCell } from './sourcingIgCell.js';
 import {
   SOURCING_STATUS_OPTIONS,
   getSourcingStatus,
@@ -159,49 +160,6 @@ const INSTAGRAM_ICON = `<svg class="platform-icon platform-icon--instagram" view
 const TIKTOK_ICON = `<svg class="platform-icon platform-icon--tiktok" viewBox="0 0 24 24" aria-label="TikTok" role="img" focusable="false"><path d="M14.5 3c.4 3.2 2.3 5.1 5.5 5.5v2.3c-1.9 0-3.6-.6-5-1.7v6.4c0 3.1-2.5 5.6-5.6 5.6S3.8 19 3.8 15.9s2.5-5.6 5.6-5.6c.5 0 1 .1 1.5.2v2.6c-.5-.2-1-.4-1.5-.4-1.8 0-3.2 1.4-3.2 3.2s1.4 3.2 3.2 3.2 3.2-1.4 3.2-3.2V3h2.9Z"/></svg>`;
 
 const NICHT_UMSETZEN_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" /></svg>`;
-
-export const IG_FETCH_CHECK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>`;
-
-const IG_FETCH_WARN_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008M10.34 3.94 2.7 17.1A1.5 1.5 0 0 0 4 19.35h16a1.5 1.5 0 0 0 1.3-2.25L13.66 3.94a1.5 1.5 0 0 0-2.62 0Z" /></svg>`;
-
-const IG_FETCH_REFRESH_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" aria-hidden="true"><path d="M88,104H40a8,8,0,0,1-8-8V48a8,8,0,0,1,16,0V76.69L62.63,62.06A95.43,95.43,0,0,1,130,33.94h.53a95.36,95.36,0,0,1,67.07,27.33,8,8,0,0,1-11.18,11.44,79.52,79.52,0,0,0-55.89-22.77h-.45A79.56,79.56,0,0,0,73.94,73.37L59.31,88H88a8,8,0,0,1,0,16Zm128,48H168a8,8,0,0,0,0,16h28.69l-14.63,14.63a79.56,79.56,0,0,1-56.13,23.43h-.45a79.52,79.52,0,0,1-55.89-22.77,8,8,0,1,0-11.18,11.44,95.36,95.36,0,0,0,67.07,27.33H126a95.43,95.43,0,0,0,67.36-28.12L208,179.31V208a8,8,0,0,0,16,0V160A8,8,0,0,0,216,152Z"></path></svg>`;
-
-/**
- * Haekchen-Button neben dem IG-Link: holt Profil, Follower und CPM.
- * Der erste Klick nimmt bekannte Creator aus dem Pool (sourcing_creator),
- * der Refresh-Zustand holt frisch bei Instagram.
- */
-export function renderIgFetchButton(item) {
-  const hasError = !!item.ig_fetch_error;
-  const hasFetched = !hasError && !!item.ig_fetched_at;
-
-  let icon = IG_FETCH_CHECK_ICON;
-  let stateClass = '';
-  let title = 'Instagram-Daten abrufen (bekannte Creator kommen aus dem Pool)';
-  let label = 'Instagram-Daten abrufen';
-
-  if (hasError) {
-    icon = IG_FETCH_WARN_ICON;
-    stateClass = ' is-error';
-    title = `Abruf fehlgeschlagen: ${item.ig_fetch_error}`;
-  } else if (hasFetched) {
-    icon = IG_FETCH_REFRESH_ICON;
-    stateClass = ' is-refresh';
-    title = `Stand: ${new Date(item.ig_fetched_at).toLocaleString('de-DE')} · frisch bei Instagram abrufen`;
-    label = 'Instagram-Daten frisch abrufen';
-  }
-
-  return `
-    <button type="button"
-            class="ig-fetch-btn${stateClass}"
-            data-ig-fetch
-            data-item-id="${item.id}"
-            title="${escapeHtml(title)}"
-            aria-label="${escapeHtml(label)}">
-      ${icon}
-    </button>
-  `;
-}
 
 // --- Status-Reiter (Tabs) ---
 
@@ -735,13 +693,7 @@ export function renderItemRow(ctx, item, index) {
       ${renderKontaktCell(ctx, item, 'cp-col-mail', 'email', hide)}
       ${renderKontaktCell(ctx, item, 'cp-col-telefon', 'telefon', hide)}
       <td class="cp-col-link-ig" style="${hide('cp-col-link-ig')}">
-        ${!ctx.isKunde ? `
-          <div class="links-compact-row">
-            <input type="text" class="links-compact-input" data-field="link_instagram" data-item-id="${item.id}" placeholder="IG Link..." value="${item.link_instagram || ''}">
-            ${renderIgFetchButton(item)}
-            ${item.link_instagram ? `<a href="${item.link_instagram}" target="_blank" class="link-icon-btn" title="${item.link_instagram}">${EXTERNAL_LINK_ICON}</a>` : ''}
-          </div>
-        ` : `
+        ${!ctx.isKunde ? renderSourcingIgCell(item) : `
           <div class="links-compact-cell links-compact-cell--readonly">
             ${item.link_instagram ? `<a href="${item.link_instagram}" target="_blank" class="link-icon-btn" title="Instagram">${INSTAGRAM_ICON}</a>` : '<span class="cell-text-readonly">-</span>'}
           </div>

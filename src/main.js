@@ -66,6 +66,7 @@ import { ansprechpartnerCreate, managementAnsprechpartnerCreate } from './module
 import { rechnungList } from './modules/rechnung/RechnungList.js';
 import { rechnungDetail } from './modules/rechnung/RechnungDetail.js';
 import { actionsDropdown } from './core/ActionsDropdown.js';
+import { hoverToolbar } from './core/hoverToolbar/HoverToolbar.js';
 import { tableSelect } from './core/components/TableSelect.js';
 import { mitarbeiterList } from './modules/admin/MitarbeiterList.js';
 import { mitarbeiterDetail } from './modules/admin/MitarbeiterDetail.js';
@@ -405,6 +406,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // ActionsDropdown initialisieren
     actionsDropdown.init();
+
+    // Hover-Toolbars in Tabellenzellen (data-hover-toolbar)
+    hoverToolbar.init();
 
     // Table-Select (Spaltentyp "Select" in Tabellenzellen)
     tableSelect.init();

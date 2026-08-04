@@ -115,39 +115,44 @@
 }
 .kooperation-video-grid .col-actions { width: 4.5rem; min-width: 4.5rem; }
 
-/* Live-Link-Zelle. Sichtbar ist der Chip ("Reel · @handle"), der als Overlay
-   ueber dem Eingabefeld liegt - gleiches Prinzip wie bei den Stats-Zahlen
-   darunter. Die Roh-URL steckt im Input und erscheint beim Fokussieren.
-   Die Aktionen sitzen in der schwebenden .live-link-toolbar, damit die
-   Zellenbreite konstant bleibt. */
-.kooperation-video-grid .live-link-cell {
+/* Chip-Zelle fuer Social-Links (src/core/components/chipCell.js). Sichtbar ist
+   der Chip ("Reel · @handle" oder "@handle"), der als Overlay ueber dem
+   Eingabefeld liegt - gleiches Prinzip wie bei den Stats-Zahlen darunter. Die
+   Roh-URL steckt im Input und erscheint beim Fokussieren. Die Aktionen sitzen
+   in der schwebenden .hover-toolbar, damit die Zellenbreite konstant bleibt.
+
+   Praefixfrei, weil zwei Tabellen sie nutzen: die Live-Link-Spalte der
+   Kooperationen-Videos und die Instagram-Spalte im Sourcing. --chip-cell-pad-left
+   haelt den Chip deckungsgleich ueber dem Text des Inputs - die beiden Spalten
+   bringen unterschiedliche Input-Klassen und damit unterschiedliche Paddings mit. */
+.chip-cell {
+  --chip-cell-pad-left: var(--space-xs);
   position: relative;
   display: block;
   width: 100%;
 }
 
-.kooperation-video-grid .live-link-cell .live-link-input {
+.chip-cell .chip-cell__input {
+  width: 100%;
   padding-right: 18px;
 }
 
 /* Solange der Chip liegt, wuerde die URL darunter durchscheinen */
-.kooperation-video-grid .live-link-cell .live-link-input:not(:focus) {
+.chip-cell .chip-cell__input:not(:focus) {
   color: transparent;
 }
 
-.kooperation-video-grid .live-link-cell .live-link-input:focus {
+.chip-cell .chip-cell__input:focus {
   color: var(--text-primary);
 }
 
-.kooperation-video-grid .live-link-cell .live-link-input:focus ~ .live-link-chip {
+.chip-cell .chip-cell__input:focus ~ .chip-cell__chip {
   opacity: 0;
 }
 
-/* Nicht auf .kooperation-video-grid eingeschraenkt, damit der Modifier
-   --static unten mit einer Klasse dagegen ankommt. */
-.live-link-chip {
+.chip-cell__chip {
   position: absolute;
-  inset: 0 18px 1px var(--space-xs);
+  inset: 0 18px 1px var(--chip-cell-pad-left);
   display: flex;
   align-items: center;
   gap: 5px;
@@ -157,7 +162,7 @@
   transition: opacity 0.12s ease;
 }
 
-.live-link-chip__icon {
+.chip-cell__icon {
   flex: 0 0 auto;
   width: 13px;
   height: 13px;
@@ -165,14 +170,14 @@
   color: var(--gray-500);
 }
 
-.live-link-chip__label {
+.chip-cell__label {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
 /* Kunden-/Readonly-Ansicht: derselbe Chip, aber als anklickbarer Link */
-.live-link-chip--static {
+.chip-cell__chip--static {
   position: static;
   inset: auto;
   display: inline-flex;
@@ -181,14 +186,14 @@
   text-decoration: none;
 }
 
-.live-link-chip--static:hover {
+.chip-cell__chip--static:hover {
   color: var(--color-primary);
   text-decoration: underline;
 }
 
-/* Status-Punkt: zeigt, ob Statistiken abgerufen wurden, und ist gleichzeitig
-   der Hinweis, dass an dieser Zelle Aktionen haengen. */
-.kooperation-video-grid .live-link-dot {
+/* Status-Punkt: zeigt, ob Daten abgerufen wurden, und ist gleichzeitig der
+   Hinweis, dass an dieser Zelle Aktionen haengen. */
+.chip-cell__dot {
   position: absolute;
   top: 50%;
   right: 4px;
@@ -201,52 +206,52 @@
   transition: background 0.15s ease, transform 0.15s ease;
 }
 
-.kooperation-video-grid .live-link-dot.is-empty {
+.chip-cell__dot.is-empty {
   display: none;
 }
 
-.kooperation-video-grid .live-link-dot.is-idle {
+.chip-cell__dot.is-idle {
   background: var(--gray-400);
 }
 
-.kooperation-video-grid .live-link-dot.is-fetched {
+.chip-cell__dot.is-fetched {
   background: var(--color-success, #059669);
 }
 
-.kooperation-video-grid .live-link-dot.is-error {
+.chip-cell__dot.is-error {
   background: var(--color-error, #dc2626);
 }
 
-.kooperation-video-grid .live-link-cell:hover .live-link-dot,
-.kooperation-video-grid .live-link-cell.has-toolbar .live-link-dot {
+.chip-cell:hover .chip-cell__dot,
+.chip-cell.has-toolbar .chip-cell__dot {
   transform: scale(1.4);
 }
 
-.kooperation-video-grid .live-link-dot.is-loading {
+.chip-cell__dot.is-loading {
   background: transparent;
   width: 10px;
   height: 10px;
   margin-top: -5px;
   border: 1.5px solid var(--gray-300);
   border-top-color: var(--color-primary);
-  animation: live-link-dot-spin 0.7s linear infinite;
+  animation: chip-cell-dot-spin 0.7s linear infinite;
 }
 
-@keyframes live-link-dot-spin {
+@keyframes chip-cell-dot-spin {
   to { transform: rotate(360deg); }
 }
 
 /* Zweiter Hinweis neben dem Punkt: der Chip hebt sich beim Hover ab, damit die
    Zelle nicht wie reiner Text wirkt. */
-.kooperation-video-grid .live-link-cell:hover .live-link-input:not(:focus),
-.kooperation-video-grid .live-link-cell.has-toolbar .live-link-input:not(:focus) {
+.chip-cell:hover .chip-cell__input:not(:focus),
+.chip-cell.has-toolbar .chip-cell__input:not(:focus) {
   background: var(--gray-100);
 }
 
 /* Ohne Hover (Touch) ist der Tap auf den Punkt der einzige Weg zur Leiste - er
    braucht dann eine Trefferflaeche, die man auch treffen kann. */
 @media (hover: none) {
-  .kooperation-video-grid .live-link-dot::after {
+  .chip-cell__dot::after {
     content: '';
     position: absolute;
     top: 50%;
@@ -255,6 +260,12 @@
     height: 24px;
     transform: translate(-50%, -50%);
   }
+}
+
+/* Sourcing bringt .links-compact-input mit (padding: 2px 4px) statt der
+   Video-Tabelle mit var(--space-xs). */
+.cp-col-link-ig .chip-cell {
+  --chip-cell-pad-left: 4px;
 }
 
 /* Views/Likes/Kommentare: zentriert in der Spalte. Wie die Follower-Zelle im

@@ -7,7 +7,7 @@ import { normalizeCreatorTyp, isAllowedCreatorTyp } from './creatorTypeOptions.j
 import {
   renderAddSection, renderItemsTable, renderTabNavigation, renderItemRow,
   getTeilbereicheFromListe, isColumnVisibleForCustomer, getVisibleColumnCount,
-  getSourcingTabForItem, SOURCING_TABS, migrateHiddenColumns, IG_FETCH_CHECK_ICON
+  getSourcingTabForItem, SOURCING_TABS, migrateHiddenColumns
 } from './CreatorAuswahlTemplates.js';
 import { CreatorAuswahlKategorienDrawer } from './CreatorAuswahlKategorienDrawer.js';
 import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
@@ -18,6 +18,13 @@ import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { tableSelect } from '../../core/components/TableSelect.js';
 import { tagFilterDropdown } from '../../core/components/TagFilterDropdown.js';
+import { hoverToolbar } from '../../core/hoverToolbar/HoverToolbar.js';
+import { registerHoverToolbar, unregisterHoverToolbar } from '../../core/hoverToolbar/HoverToolbarRegistry.js';
+import { setChipCellLoading } from '../../core/components/chipCell.js';
+import { createSourcingIgToolbarConfig } from './sourcingIgToolbarConfig.js';
+import {
+  applySourcingIgCellState, findSourcingIgCell, SOURCING_IG_TOOLBAR
+} from './sourcingIgCell.js';
 import {
   buildSourcingStatusUpdates, isSourcingStatus,
   SOURCING_STATUS_FILTER_TAGS, matchesStatusFilter
@@ -25,6 +32,7 @@ import {
 import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
 
 const STATUS_FILTER_ENTITY = 'sourcing-status';
+const IG_FETCH_FLASH_MS = 2000;
 
 export class CreatorAuswahlDetail {
   constructor() {
@@ -56,6 +64,11 @@ export class CreatorAuswahlDetail {
     this.isKunde = window.isKunde();
     this.searchQuery = '';
     this.statusFilter = [];
+
+    // Die Hover-Toolbar der Instagram-Spalte laeuft ueber die zentrale Engine.
+    // Ihre Abruf-Aktion braucht diese Instanz, also wird die Config hier mit
+    // Kontext angemeldet statt global deklariert.
+    registerHoverToolbar(SOURCING_IG_TOOLBAR, createSourcingIgToolbarConfig(this));
 
     if (this.isKunde) {
       const quickMenuContainer = document.getElementById('quick-menu-container');
@@ -100,6 +113,11 @@ export class CreatorAuswahlDetail {
     this.selectedItems.clear();
     // Ohne Abraeumen uebernimmt init() die Auswahl in die naechste Liste
     tagFilterDropdown.destroy(STATUS_FILTER_ENTITY);
+
+    // Die Engine selbst bleibt stehen, sie gehoert der Anwendung. Nur diese
+    // Config verweist auf eine Instanz, die es gleich nicht mehr gibt.
+    unregisterHoverToolbar(SOURCING_IG_TOOLBAR);
+    hoverToolbar.close();
 
     const bulkBar = document.getElementById('sourcing-bulk-bar');
     if (bulkBar) bulkBar.remove();
@@ -447,12 +465,6 @@ export class CreatorAuswahlDetail {
         this._boundEventListeners.add(() => addEmptyRowBtn.removeEventListener('click', handler));
       }
 
-      document.querySelectorAll('[data-ig-fetch]').forEach(btn => {
-        const handler = () => this.handleInstagramFetch(btn);
-        btn.addEventListener('click', handler);
-        this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
-      });
-
       this.bindDragAndDropEvents();
       this.bindSelectionEvents();
       this.bindPillEvents();
@@ -717,26 +729,27 @@ export class CreatorAuswahlDetail {
   }
 
   /**
-   * Haekchen-Button neben dem IG-Link: Profil, Follower und CPM-Werte
+   * Hauptaktion der Instagram-Hover-Toolbar: Profil, Follower und CPM-Werte
    * nachladen und die Zeile aktualisieren.
    *
    * Erster Klick fragt den Creator-Pool: steckt der Handle schon in einer
    * anderen Liste, kommen die Werte von dort. Steht die Zeile danach im
    * Refresh-Zustand, erzwingt der naechste Klick einen echten Meta-Abruf.
+   *
+   * Die itemId kommt als Argument, weil der Button in der Leiste an
+   * document.body haengt - von dort findet closest() keine Zeile mehr.
    */
-  async handleInstagramFetch(button) {
+  async handleInstagramFetch(itemId, button) {
     if (button.disabled) return;
 
-    const itemId = button.dataset.itemId;
     const item = this.items.find(i => i.id === itemId);
     if (!item) return;
 
     const linkInput = document.querySelector(`input[data-field="link_instagram"][data-item-id="${itemId}"]`);
     const link = linkInput?.value?.trim();
-    if (!link) {
-      window.toastSystem?.show('Bitte zuerst einen Instagram-Link eintragen', 'error');
-      return;
-    }
+    // canOpen der Config laesst die Leiste ohne Link nicht aufgehen; kommt hier
+    // trotzdem keiner an, ist die Zeile inzwischen weg.
+    if (!link) return;
 
     // Noch nicht gespeicherte Eingabe zuerst persistieren, sonst liest die
     // Function den alten Wert aus der DB
@@ -756,14 +769,22 @@ export class CreatorAuswahlDetail {
     const force = !!item.ig_fetched_at && !item.ig_fetch_error;
 
     button.disabled = true;
-    button.classList.remove('is-error', 'is-success');
+    button.classList.remove('is-error', 'is-success', 'is-refresh');
     button.classList.add('is-loading');
+    // Der Abruf dauert; die Leiste muss offen bleiben, auch wenn der Zeiger sie
+    // in der Zwischenzeit verlaesst.
+    hoverToolbar.pin();
+    setChipCellLoading(findSourcingIgCell(itemId), true);
 
     try {
       const { item: updated, source, poolFetchedAt, debug } = await creatorAuswahlService
         .fetchInstagramStats(itemId, { force });
       Object.assign(item, updated);
-      this.refreshItemRow(itemId, { flashSuccess: true });
+      this.refreshItemRow(itemId);
+      // Die Zeile ist per outerHTML ersetzt, die Zelle unter der Leiste also
+      // eine andere. rebind() verankert sie neu und zeigt jetzt "Frisch abrufen".
+      hoverToolbar.rebind();
+      this._flashIgFetchSuccess();
 
       if (debug) {
         const handle = debug.username || 'unknown';
@@ -809,12 +830,37 @@ export class CreatorAuswahlDetail {
       if (error.sessionDead) {
         button.disabled = false;
         button.classList.remove('is-loading');
+        setChipCellLoading(findSourcingIgCell(itemId), false);
+        hoverToolbar.unpin();
         return;
       }
       item.ig_fetch_error = error.message;
       this.refreshItemRow(itemId);
+      // Die Leiste zeigt danach "Erneut versuchen" plus den Fehlertext als Zeile
+      hoverToolbar.rebind();
+      hoverToolbar.unpin();
       window.toastSystem?.show(error.hint || error.message, error.retryable ? 'info' : 'error');
     }
+  }
+
+  /**
+   * Kurz gruen quittieren. Der Button aus dem Klick ist nach dem Zeilen-Neuaufbau
+   * ein toter Knoten - der Flash muss den treffen, den rebind() gerade neu
+   * gerendert hat. Das unpin() haengt hinten dran, damit die Leiste den Flash
+   * ueberdauert, auch wenn der Zeiger inzwischen weitergewandert ist.
+   */
+  _flashIgFetchSuccess() {
+    const button = document.querySelector('.hover-toolbar [data-hover-action="ig-fetch"]');
+    if (!button) {
+      hoverToolbar.unpin();
+      return;
+    }
+
+    button.classList.add('is-success');
+    setTimeout(() => {
+      button.classList.remove('is-success');
+      hoverToolbar.unpin();
+    }, IG_FETCH_FLASH_MS);
   }
 
   /**
@@ -833,32 +879,19 @@ export class CreatorAuswahlDetail {
     window.toastSystem?.show(`${name} steht in dieser Liste bereits ein weiteres Mal`, 'warning');
   }
 
-  /** Eine einzelne Tabellenzeile neu rendern, ohne die ganze Tabelle anzufassen */
-  refreshItemRow(itemId, { flashSuccess = false } = {}) {
+  /**
+   * Eine einzelne Tabellenzeile neu rendern, ohne die ganze Tabelle anzufassen.
+   * Die Rueckmeldung eines Abrufs uebernimmt die Hover-Toolbar (siehe
+   * _flashIgFetchSuccess) - sie liegt ausserhalb der Zeile und uebersteht den
+   * Austausch.
+   */
+  refreshItemRow(itemId) {
     const row = document.querySelector(`.item-row[data-item-id="${itemId}"]`);
     const item = this.items.find(i => i.id === itemId);
     if (!row || !item) return;
 
     row.outerHTML = renderItemRow(this.getRenderContext(), item, 0);
     this.bindEvents();
-
-    if (flashSuccess) {
-      const btn = document.querySelector(`[data-ig-fetch][data-item-id="${itemId}"]`);
-      if (btn) {
-        // Kurz das gruene Haekchen zeigen, danach zurueck auf das gerenderte
-        // Refresh-Icon, damit der erneute Abruf sichtbar bleibt
-        const finalIcon = btn.innerHTML;
-        const wasRefresh = btn.classList.contains('is-refresh');
-        btn.innerHTML = IG_FETCH_CHECK_ICON;
-        btn.classList.remove('is-refresh');
-        btn.classList.add('is-success');
-        setTimeout(() => {
-          btn.classList.remove('is-success');
-          if (wasRefresh) btn.classList.add('is-refresh');
-          btn.innerHTML = finalIcon;
-        }, 2000);
-      }
-    }
   }
 
   async handleFieldUpdate(element) {
@@ -911,6 +944,13 @@ export class CreatorAuswahlDetail {
 
       if (field === 'follower_instagram' || field === 'follower_tiktok') {
         this.refreshNumberCell(element, value);
+      }
+
+      // Chip und Status-Punkt gehoeren zum eingetragenen Link. Ohne das bleibt
+      // die Zelle nach dem Einfuegen optisch leer und der Punkt, der auf die
+      // Aktionen hinweist, unsichtbar.
+      if (field === 'link_instagram') {
+        applySourcingIgCellState(element.closest('.chip-cell'), item || { link_instagram: value });
       }
     } catch (error) {
       console.error('Fehler beim Aktualisieren:', error);

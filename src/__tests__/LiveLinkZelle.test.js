@@ -1,7 +1,9 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { VideoTableRenderer } from '../modules/kampagne/VideoTableRenderer.js';
-import { LiveLinkToolbar } from '../modules/kampagne/LiveLinkToolbar.js';
-import { applyLiveLinkCellState, liveLinkDotState } from '../modules/kampagne/liveLinkCell.js';
+import { applyLiveLinkCellState, liveLinkDotState, LIVE_LINK_TOOLBAR } from '../modules/kampagne/liveLinkCell.js';
+import { createLiveLinkToolbarConfig } from '../modules/kampagne/liveLinkToolbarConfig.js';
+import { hoverToolbar } from '../core/hoverToolbar/HoverToolbar.js';
+import { registerHoverToolbar, clearHoverToolbarConfigs } from '../core/hoverToolbar/HoverToolbarRegistry.js';
 
 const REEL_URL = 'https://www.instagram.com/reel/DABC123/?igsh=xyz';
 
@@ -30,21 +32,21 @@ describe('Live-Link-Zelle', () => {
     const cell = renderCell({ id: 'v1', link_live: REEL_URL });
 
     expect(cell.querySelector('input[data-field="link_live"]').value).toBe(REEL_URL);
-    expect(cell.querySelector('.live-link-chip__label').textContent)
+    expect(cell.querySelector('.chip-cell__label').textContent)
       .toBe('Reel · @paulinemary');
   });
 
   it('faellt ohne Creator-Handle auf den Shortcode zurueck', () => {
     const cell = renderCell({ id: 'v1', link_live: REEL_URL }, { koop: { creator: {} } });
 
-    expect(cell.querySelector('.live-link-chip__label').textContent).toBe('Reel · DABC123');
+    expect(cell.querySelector('.chip-cell__label').textContent).toBe('Reel · DABC123');
   });
 
   it('haelt die Zelle ohne Link ruhig: Chip versteckt, Punkt ausgeblendet', () => {
     const cell = renderCell({ id: 'v1', link_live: null });
 
-    expect(cell.querySelector('[data-live-link-chip]').hasAttribute('hidden')).toBe(true);
-    expect(cell.querySelector('[data-live-link-dot]').className).toContain('is-empty');
+    expect(cell.querySelector('[data-chip-cell-chip]').hasAttribute('hidden')).toBe(true);
+    expect(cell.querySelector('[data-chip-cell-dot]').className).toContain('is-empty');
   });
 
   it('rendert unabhaengig vom Link-Zustand denselben Zellenaufbau', () => {
@@ -53,7 +55,7 @@ describe('Live-Link-Zelle', () => {
     // die direkten Kinder der Zelle immer dieselben.
     // Zustands-Modifier (is-idle/is-empty am Punkt) bleiben aussen vor, die
     // beeinflussen nur die Farbe.
-    const aufbau = (video) => [...renderCell(video).querySelector('.live-link-cell').children]
+    const aufbau = (video) => [...renderCell(video).querySelector('.chip-cell').children]
       .map(el => `${el.tagName}.${el.className.replace(/\s*is-[a-z]+/g, '')}`);
 
     expect(aufbau({ id: 'v1', link_live: REEL_URL }))
@@ -73,7 +75,7 @@ describe('Live-Link-Zelle', () => {
     const cell = renderCell({ id: 'v1', link_live: REEL_URL }, { table });
 
     expect(cell.querySelector('input')).toBeNull();
-    const link = cell.querySelector('a.live-link-chip--static');
+    const link = cell.querySelector('a.chip-cell__chip--static');
     expect(link.getAttribute('href')).toBe(REEL_URL);
     expect(link.textContent).toContain('Reel · @paulinemary');
   });
@@ -82,7 +84,7 @@ describe('Live-Link-Zelle', () => {
     // Derselbe Text steht als Hinweiszeile in der Leiste.
     const cell = renderCell({ id: 'v1', link_live: REEL_URL });
 
-    expect(cell.querySelector('[data-live-link-dot]').getAttribute('aria-hidden')).toBe('true');
+    expect(cell.querySelector('[data-chip-cell-dot]').getAttribute('aria-hidden')).toBe('true');
   });
 });
 
@@ -105,24 +107,24 @@ describe('Status-Punkt', () => {
 describe('applyLiveLinkCellState', () => {
   it('zieht Chip, Punkt und Input nach einem Clear nach', () => {
     const host = renderCell({ id: 'v1', link_live: REEL_URL, stats_fetched_at: '2026-08-01T10:00:00Z' });
-    const cell = host.querySelector('.live-link-cell');
+    const cell = host.querySelector('.chip-cell');
     document.body.appendChild(host);
 
     applyLiveLinkCellState(cell, { id: 'v1', link_live: null });
 
     expect(cell.querySelector('input[data-field="link_live"]').value).toBe('');
-    expect(cell.querySelector('[data-live-link-chip]').hidden).toBe(true);
-    expect(cell.querySelector('[data-live-link-dot]').className).toContain('is-empty');
+    expect(cell.querySelector('[data-chip-cell-chip]').hidden).toBe(true);
+    expect(cell.querySelector('[data-chip-cell-dot]').className).toContain('is-empty');
     host.remove();
   });
 
   it('faerbt den Punkt nach einem erfolgreichen Abruf um', () => {
     const host = renderCell({ id: 'v1', link_live: REEL_URL });
-    const cell = host.querySelector('.live-link-cell');
+    const cell = host.querySelector('.chip-cell');
 
     applyLiveLinkCellState(cell, { id: 'v1', link_live: REEL_URL, stats_fetched_at: '2026-08-01T10:00:00Z' });
 
-    const dot = cell.querySelector('[data-live-link-dot]');
+    const dot = cell.querySelector('[data-chip-cell-dot]');
     expect(dot.className).toContain('is-fetched');
     expect(dot.className).not.toContain('is-idle');
   });
@@ -134,181 +136,127 @@ describe('applyLiveLinkCellState', () => {
     input.value = 'gerade getippt';
     input.focus();
 
-    applyLiveLinkCellState(host.querySelector('.live-link-cell'), { id: 'v1', link_live: REEL_URL });
+    applyLiveLinkCellState(host.querySelector('.chip-cell'), { id: 'v1', link_live: REEL_URL });
 
     expect(input.value).toBe('gerade getippt');
     host.remove();
   });
 });
 
-describe('LiveLinkToolbar', () => {
-  let table;
-  let toolbar;
+// Die Mechanik der Leiste (Timing, Portal, Escape, pin/unpin) steckt in
+// HoverToolbar.test.js. Hier steht nur, was die Live-Link-Config daraus macht.
+describe('Live-Link-Toolbar-Config', () => {
   let cell;
+  let statsFetcher;
 
   beforeEach(() => {
     document.body.innerHTML = '';
     vi.useRealTimers();
+    hoverToolbar.close();
+    clearHoverToolbarConfigs();
+  });
+
+  afterEach(() => {
+    hoverToolbar.destroy();
+    clearHoverToolbarConfigs();
+    document.body.innerHTML = '';
   });
 
   function setup(video) {
-    table = makeTable({ k1: [video] });
+    statsFetcher = { handleFetch: vi.fn(), handleClear: vi.fn() };
+    const table = makeTable({ k1: [video] });
+    table._statsFetcher = statsFetcher;
+
     const host = renderCell(video, { table });
     document.body.appendChild(host);
-    cell = host.querySelector('.live-link-cell');
-    toolbar = new LiveLinkToolbar(table);
-    return toolbar;
+    cell = host.querySelector('.chip-cell');
+
+    registerHoverToolbar(LIVE_LINK_TOOLBAR, createLiveLinkToolbarConfig(table));
+    return cell;
   }
 
-  it('oeffnet als Portal an document.body, nicht in der Zelle', () => {
-    setup({ id: 'v1', link_live: REEL_URL }).open(cell);
+  const portal = () => document.querySelector('.hover-toolbar');
 
-    const portal = document.querySelector('.live-link-toolbar');
-    expect(portal).not.toBeNull();
-    expect(portal.parentElement).toBe(document.body);
-    expect(cell.querySelector('.live-link-toolbar')).toBeNull();
-    expect(cell.classList.contains('has-toolbar')).toBe(true);
-  });
+  it('bietet Abrufen, Oeffnen und Entfernen in dieser Reihenfolge an', () => {
+    hoverToolbar.open(setup({ id: 'v1', link_live: REEL_URL }));
 
-  it('bietet Abrufen, Oeffnen und Entfernen an', () => {
-    setup({ id: 'v1', link_live: REEL_URL }).open(cell);
-    const portal = document.querySelector('.live-link-toolbar');
+    const ids = [...portal().querySelectorAll('[data-hover-action]')]
+      .map(el => el.dataset.hoverAction);
+    expect(ids).toEqual(['stats-fetch', 'open', 'link-clear']);
 
-    expect(portal.querySelector('[data-video-stats-fetch]').dataset.videoId).toBe('v1');
-    expect(portal.querySelector('a[href]').getAttribute('href')).toBe(REEL_URL);
-    expect(portal.querySelector('[data-video-link-clear]').dataset.videoId).toBe('v1');
+    expect(portal().querySelector('[data-hover-action="open"]').getAttribute('href'))
+      .toBe(REEL_URL);
+    expect(portal().querySelector('[data-hover-action="link-clear"]').className)
+      .toContain('hover-toolbar__btn--danger');
   });
 
   it('oeffnet nicht, solange kein Link eingetragen ist', () => {
-    setup({ id: 'v1', link_live: null }).open(cell);
+    hoverToolbar.open(setup({ id: 'v1', link_live: null }));
 
-    expect(document.querySelector('.live-link-toolbar')).toBeNull();
+    expect(portal()).toBeNull();
   });
 
   it('oeffnet auch fuer einen noch nicht gespeicherten Link im Input', () => {
-    const t = setup({ id: 'v1', link_live: null });
-    cell.querySelector('input[data-field="link_live"]').value = REEL_URL;
+    const c = setup({ id: 'v1', link_live: null });
+    c.querySelector('input[data-field="link_live"]').value = REEL_URL;
 
-    t.open(cell);
-    expect(document.querySelector('.live-link-toolbar')).not.toBeNull();
+    hoverToolbar.open(c);
+    expect(portal()).not.toBeNull();
   });
 
   it('beschriftet die Hauptaktion nach dem Abruf-Zustand', () => {
-    setup({ id: 'v1', link_live: REEL_URL }).open(cell);
-    expect(document.querySelector('[data-video-stats-fetch]').textContent)
-      .toContain('Statistiken abrufen');
+    const label = () => portal().querySelector('[data-hover-action="stats-fetch"]').textContent;
 
-    document.body.innerHTML = '';
-    setup({ id: 'v2', link_live: REEL_URL, stats_fetched_at: '2026-08-01T10:00:00Z' }).open(cell);
-    expect(document.querySelector('[data-video-stats-fetch]').textContent)
-      .toContain('Aktualisieren');
+    hoverToolbar.open(setup({ id: 'v1', link_live: REEL_URL }));
+    expect(label()).toContain('Statistiken abrufen');
 
-    document.body.innerHTML = '';
-    setup({ id: 'v3', link_live: REEL_URL, stats_error: 'Beitrag nicht gefunden' }).open(cell);
-    expect(document.querySelector('[data-video-stats-fetch]').textContent)
-      .toContain('Erneut versuchen');
+    hoverToolbar.close();
+    hoverToolbar.open(setup({ id: 'v2', link_live: REEL_URL, stats_fetched_at: '2026-08-01T10:00:00Z' }));
+    expect(label()).toContain('Aktualisieren');
+
+    hoverToolbar.close();
+    hoverToolbar.open(setup({ id: 'v3', link_live: REEL_URL, stats_error: 'Beitrag nicht gefunden' }));
+    expect(label()).toContain('Erneut versuchen');
   });
 
   it('macht den Abruf-Fehler sichtbar statt ihn im Tooltip zu verstecken', () => {
-    setup({ id: 'v1', link_live: REEL_URL, stats_error: 'Beitrag nicht gefunden' }).open(cell);
+    hoverToolbar.open(setup({ id: 'v1', link_live: REEL_URL, stats_error: 'Beitrag nicht gefunden' }));
 
-    expect(document.querySelector('.live-link-toolbar__error').textContent)
+    expect(document.querySelector('.hover-toolbar__error').textContent)
       .toContain('Beitrag nicht gefunden');
-    expect(document.querySelector('.live-link-toolbar__hint')).toBeNull();
+    expect(document.querySelector('.hover-toolbar__hint')).toBeNull();
   });
 
   it('zeigt den Zeitstempel nur, wenn wirklich abgerufen wurde', () => {
-    setup({ id: 'v1', link_live: REEL_URL }).open(cell);
-    expect(document.querySelector('.live-link-toolbar__hint')).toBeNull();
+    hoverToolbar.open(setup({ id: 'v1', link_live: REEL_URL }));
+    expect(document.querySelector('.hover-toolbar__hint')).toBeNull();
 
-    document.body.innerHTML = '';
-    setup({ id: 'v2', link_live: REEL_URL, stats_fetched_at: '2026-08-01T10:00:00Z' }).open(cell);
-    expect(document.querySelector('.live-link-toolbar__hint').textContent).toContain('Stand:');
+    hoverToolbar.close();
+    hoverToolbar.open(setup({ id: 'v2', link_live: REEL_URL, stats_fetched_at: '2026-08-01T10:00:00Z' }));
+    expect(document.querySelector('.hover-toolbar__hint').textContent).toContain('Stand:');
   });
 
-  it('schliesst bei Escape', () => {
-    setup({ id: 'v1', link_live: REEL_URL }).open(cell);
+  it('gibt dem StatsFetcher die Video-ID mit, weil die Leiste ausserhalb der Zeile sitzt', () => {
+    hoverToolbar.init();
+    hoverToolbar.open(setup({ id: 'v1', link_live: REEL_URL }));
 
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    const fetchBtn = portal().querySelector('[data-hover-action="stats-fetch"]');
+    fetchBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(statsFetcher.handleFetch).toHaveBeenCalledWith('v1', fetchBtn);
 
-    expect(document.querySelector('.live-link-toolbar')).toBeNull();
-    expect(cell.classList.contains('has-toolbar')).toBe(false);
-  });
-
-  it('schliesst beim Scrollen, weil eine fixe Position sonst stehenbliebe', () => {
-    setup({ id: 'v1', link_live: REEL_URL }).open(cell);
-
-    window.dispatchEvent(new Event('scroll'));
-
-    expect(document.querySelector('.live-link-toolbar')).toBeNull();
-  });
-
-  it('haelt beim Verlassen kurz nach, damit der Weg zur Leiste nicht abreisst', async () => {
-    const t = setup({ id: 'v1', link_live: REEL_URL });
-    t.open(cell);
-
-    t.scheduleClose();
-    expect(document.querySelector('.live-link-toolbar')).not.toBeNull();
-
-    await new Promise(r => setTimeout(r, 250));
-    expect(document.querySelector('.live-link-toolbar')).toBeNull();
-  });
-
-  it('bleibt waehrend eines laufenden Abrufs offen', async () => {
-    const t = setup({ id: 'v1', link_live: REEL_URL });
-    t.open(cell);
-    t.pin();
-
-    t.scheduleClose();
-    await new Promise(r => setTimeout(r, 250));
-
-    expect(document.querySelector('.live-link-toolbar')).not.toBeNull();
-  });
-
-  it('schliesst nach dem Abruf selbst, wenn der Zeiger inzwischen weg ist', async () => {
-    // Ohne diesen Weg bliebe die Leiste haengen: waehrend des Abrufs ist sie
-    // gepinnt, und ein weiteres mouseout kommt nie.
-    const t = setup({ id: 'v1', link_live: REEL_URL });
-    t.open(cell);
-    t.pin();
-    t.scheduleClose();
-
-    t.unpin();
-    await new Promise(r => setTimeout(r, 250));
-
-    expect(document.querySelector('.live-link-toolbar')).toBeNull();
-  });
-
-  it('bleibt offen, solange der Fokus in der Zelle steht', async () => {
-    const t = setup({ id: 'v1', link_live: REEL_URL });
-    t.open(cell);
-    cell.querySelector('input[data-field="link_live"]').focus();
-
-    // Ein focusout beim Klick auf einen Button der Leiste darf den Klick nicht
-    // wegziehen, auf den er reagiert.
-    t.scheduleClose();
-    await new Promise(r => setTimeout(r, 250));
-
-    expect(document.querySelector('.live-link-toolbar')).not.toBeNull();
-  });
-
-  it('laesst nie zwei Leisten gleichzeitig stehen', () => {
-    const t = setup({ id: 'v1', link_live: REEL_URL });
-    t.open(cell);
-    t.open(cell);
-
-    expect(document.querySelectorAll('.live-link-toolbar').length).toBe(1);
+    const clearBtn = portal().querySelector('[data-hover-action="link-clear"]');
+    clearBtn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(statsFetcher.handleClear).toHaveBeenCalledWith('v1', clearBtn);
   });
 
   it('schliesst beim Refresh, wenn der Link inzwischen weg ist', () => {
     const video = { id: 'v1', link_live: REEL_URL };
-    const t = setup(video);
-    t.open(cell);
+    hoverToolbar.open(setup(video));
 
     video.link_live = null;
     cell.querySelector('input[data-field="link_live"]').value = '';
-    t.refresh();
+    hoverToolbar.refresh();
 
-    expect(document.querySelector('.live-link-toolbar')).toBeNull();
+    expect(portal()).toBeNull();
   });
 });

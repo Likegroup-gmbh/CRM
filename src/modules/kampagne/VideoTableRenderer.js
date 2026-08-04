@@ -5,7 +5,8 @@ import { getOrderedColumns, isColumnVisible, isCustomColumnId } from './columns/
 import { renderCustomHeader, renderCustomCell } from './columns/CustomColumnRenderer.js';
 import { renderEmptyState, resolveEmptyState } from '../../core/components/EmptyState.js';
 import { formatCompactNumber, formatExactNumber } from '../../core/format/compactNumber.js';
-import { renderLiveLinkChip, renderLiveLinkDot } from './liveLinkCell.js';
+import { renderChipCell, renderPlatformChip, renderStaticChip } from '../../core/components/chipCell.js';
+import { liveLinkDotState, LIVE_LINK_TOOLBAR } from './liveLinkCell.js';
 
 const EXTERNAL_LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`;
 
@@ -61,38 +62,46 @@ export class VideoTableRenderer {
   /**
    * Live-Link-Zelle: sichtbar ist nur der Chip ("Reel · @handle") plus ein
    * kleiner Status-Punkt. Die drei Aktionen (Statistiken abrufen, Video
-   * oeffnen, Link entfernen) liegen in der schwebenden LiveLinkToolbar, die
-   * bei Hover ueber der Zelle erscheint.
+   * oeffnen, Link entfernen) liegen in einer schwebenden Hover-Toolbar, die
+   * bei Hover ueber der Zelle erscheint. data-hover-toolbar genuegt dafuer -
+   * die Engine bindet global, die Aktionen stehen in liveLinkToolbarConfig.
    *
-   * Der Chip ist ein Overlay ueber dem Input - dasselbe Muster wie bei den
-   * Stats-Zahlen (_renderStatsNumberCell): der Input haelt die Roh-URL,
-   * beim Fokussieren blendet CSS den Chip aus. Vorher standen Input, Haekchen,
-   * Extern-Link und X in einer Flex-Row; der Input wurde dabei zerdrueckt und
-   * sprang in der Breite, sobald ein Link gespeichert war.
+   * Das Geruest kommt aus chipCell (src/core/components), die Sourcing-Tabelle
+   * nutzt dasselbe fuer ihre Instagram-Spalte. Der Chip ist ein Overlay ueber
+   * dem Input - dasselbe Muster wie bei den Stats-Zahlen
+   * (_renderStatsNumberCell): der Input haelt die Roh-URL, beim Fokussieren
+   * blendet CSS den Chip aus. Vorher standen Input, Haekchen, Extern-Link und X
+   * in einer Flex-Row; der Input wurde dabei zerdrueckt und sprang in der
+   * Breite, sobald ein Link gespeichert war.
    */
   _renderLiveLinkCell(koop, video) {
     const t = this.table;
     const url = video.link_live || '';
     const handle = koop?.creator?.instagram || koop?.creator?.tiktok || '';
-    const chip = renderLiveLinkChip(url, handle);
+    const chip = renderPlatformChip(url, handle);
 
     if (t.isKundeRole() || !t.isFieldEditableForUser('video', 'link_live')) {
-      return url
-        ? `<a href="${this.escapeHtml(url)}" target="_blank" rel="noopener noreferrer"
-             class="live-link-chip live-link-chip--static" title="Video öffnen">${chip}</a>`
-        : `<span class="stacked-video-empty">-</span>`;
+      return renderStaticChip({ href: url, chip, title: 'Video öffnen' })
+        || `<span class="stacked-video-empty">-</span>`;
     }
 
-    return `
-      <div class="live-link-cell" data-live-link-cell data-video-id="${video.id}">
-        <input type="text" class="grid-input stacked-video-input live-link-input"
-          data-entity="video" data-id="${video.id}" data-field="link_live"
-          data-live-link-handle="${this.escapeHtml(handle)}"
-          value="${this.escapeHtml(url)}" placeholder="Reel-Link"/>
-        <span class="live-link-chip" data-live-link-chip ${url ? '' : 'hidden'}>${chip}</span>
-        ${renderLiveLinkDot(video)}
-      </div>
-    `;
+    return renderChipCell({
+      toolbar: LIVE_LINK_TOOLBAR,
+      id: video.id,
+      input: {
+        className: 'grid-input stacked-video-input',
+        value: url,
+        placeholder: 'Reel-Link',
+        attrs: {
+          'data-entity': 'video',
+          'data-id': video.id,
+          'data-field': 'link_live',
+          'data-live-link-handle': handle
+        }
+      },
+      chip,
+      dot: liveLinkDotState(video)
+    });
   }
 
   /**
