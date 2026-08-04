@@ -1,7 +1,8 @@
 // AuftragsdetailsDetail.js (ES6-Modul)
 // Auftragsdetails-Detailseite ohne Tabs - direkte Anzeige der Informationen
 
-import { calculateEkVkTotals, calculateAgencyFeeSummary, renderAgencyFeeCardHtml, renderKskCardHtml } from '../../core/budget/EkVkAgencyFeeHelper.js';
+import { calculateEkVkTotals, calculateAgencyFeeSummary, renderAgencyFeeCardHtml, renderKskCardHtml, berechneVerfuegbaresBudget } from '../../core/budget/EkVkAgencyFeeHelper.js';
+import { summeKskSelbstzahler } from '../../core/budget/kskSelbstzahler.js';
 
 export class AuftragsdetailsDetail {
   constructor() {
@@ -156,6 +157,8 @@ export class AuftragsdetailsDetail {
           verkaufspreis_netto,
           verkaufspreis_gesamt,
           verkaufspreis_zusatzkosten,
+          ksk_selbstzahler,
+          ksk_betrag,
           kampagne_id,
           creator:creator_id (
             id,
@@ -218,18 +221,15 @@ export class AuftragsdetailsDetail {
 
   // Berechne Budget-Zusammenfassung
   calculateBudgetSummary() {
-    // Gesamt-Budget aus Auftrag - mehrere Fallbacks (Netto)
-    this.budgetSummary.totalBudget = parseFloat(
-      this.auftrag?.creator_budget || 
-      this.auftrag?.gesamt_budget || 
-      this.auftrag?.nettobetrag || 
-      0
-    );
+    // Verfuegbares Budget (read-derived): creator_budget + KSK-Umbuchungen der Selbstzahler
+    const verfuegbaresBudget = berechneVerfuegbaresBudget(this.auftrag, this.kooperationen);
+    this.budgetSummary.totalBudget = verfuegbaresBudget.verfuegbar;
+    this.budgetSummary.kskUmgebucht = verfuegbaresBudget.umgebucht;
     
-    // Verbrauchtes Budget = Summe aller Video-EK-Netto
+    // Verbrauchtes Budget = Summe aller Video-EK-Netto + KSK-Aufschlaege (Selbstzahler)
     this.budgetSummary.usedBudget = (this.videos || []).reduce((sum, v) => {
       return sum + (parseFloat(v.einkaufspreis_netto) || 0);
-    }, 0);
+    }, 0) + verfuegbaresBudget.umgebucht;
     
     // Gesamtanzahl Videos = Summe aller videoanzahl aus Kooperationen
     this.budgetSummary.totalVideos = this.kooperationen.reduce((sum, koop) => {
@@ -433,7 +433,8 @@ export class AuftragsdetailsDetail {
       const koops = this.kooperationen.filter(k => k.kampagne_id === kampagne.id);
       const koopCount = koops.length;
       const videoCount = koops.reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
-      const ekGesamt = koops.reduce((sum, k) => sum + (parseFloat(k.einkaufspreis_netto) || 0), 0);
+      // EK inkl. KSK-Selbstzahler-Aufschlag (echte Creator-Kosten)
+      const ekGesamt = koops.reduce((sum, k) => sum + (parseFloat(k.einkaufspreis_netto) || 0), 0) + summeKskSelbstzahler(koops);
       const vkGesamt = koops.reduce((sum, k) => sum + (parseFloat(k.verkaufspreis_netto) || 0), 0);
 
       totalEk += ekGesamt;

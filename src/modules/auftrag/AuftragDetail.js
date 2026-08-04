@@ -7,6 +7,8 @@ import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
+import { berechneVerfuegbaresBudget } from '../../core/budget/EkVkAgencyFeeHelper.js';
+import { summeKskSelbstzahler } from '../../core/budget/kskSelbstzahler.js';
 
 export class AuftragDetail extends PersonDetailBase {
   constructor() {
@@ -337,6 +339,8 @@ export class AuftragDetail extends PersonDetailBase {
           einkaufspreis_netto,
           verkaufspreis_netto,
           einkaufspreis_gesamt,
+          ksk_selbstzahler,
+          ksk_betrag,
           kampagne_id,
           creator:creator_id (
             id,
@@ -377,7 +381,9 @@ export class AuftragDetail extends PersonDetailBase {
       });
       this.realCreatorCount = uniqueCreatorIds.size;
       
-      this.usedBudget = this.kooperationen.reduce((sum, koop) => sum + (parseFloat(koop.einkaufspreis_netto) || 0), 0);
+      // EK-Verbrauch inkl. KSK-Selbstzahler-Aufschlaege
+      this.usedBudget = this.kooperationen.reduce((sum, koop) => sum + (parseFloat(koop.einkaufspreis_netto) || 0), 0)
+        + summeKskSelbstzahler(this.kooperationen);
       this.usedVideoCount = this.kooperationen.reduce((sum, koop) => sum + (parseInt(koop.videoanzahl, 10) || 0), 0);
       
       console.log(`✅ AUFTRAGDETAIL: ${this.kooperationen.length} Kooperationen, ${this.realCreatorCount} Creator und ${this.realVideoCount} Videos geladen`);
@@ -447,9 +453,11 @@ export class AuftragDetail extends PersonDetailBase {
       if (kampagneIds.length > 0) {
         const { data: koops } = await window.supabase
           .from('kooperationen')
-          .select('einkaufspreis_netto, einkaufspreis_gesamt')
+          .select('einkaufspreis_netto, einkaufspreis_gesamt, ksk_selbstzahler, ksk_betrag')
           .in('kampagne_id', kampagneIds);
-        const sumNetto = (koops || []).reduce((s, k) => s + (parseFloat(k.einkaufspreis_netto) || 0), 0);
+        // Netto inkl. KSK-Selbstzahler-Aufschlag; einkaufspreis_gesamt enthaelt die KSK bereits
+        const sumNetto = (koops || []).reduce((s, k) => s + (parseFloat(k.einkaufspreis_netto) || 0), 0)
+          + summeKskSelbstzahler(koops || []);
         const sumGesamt = (koops || []).reduce((s, k) => s + (parseFloat(k.einkaufspreis_gesamt) || 0), 0);
         this.koopSummary = { count: (koops || []).length, sumNetto, sumGesamt };
       } else {
@@ -639,11 +647,8 @@ export class AuftragDetail extends PersonDetailBase {
   }
 
   renderAuftragSummaryCards() {
-    const totalBudget = parseFloat(
-      this.auftrag?.creator_budget ||
-      this.auftrag?.gesamt_budget ||
-      this.auftrag?.nettobetrag || 0
-    );
+    // Verfuegbares Budget (read-derived): creator_budget + KSK-Umbuchungen der Selbstzahler
+    const totalBudget = berechneVerfuegbaresBudget(this.auftrag, this.kooperationen).verfuegbar;
     const usedBudget = this.usedBudget || 0;
     const openBudget = Math.max(0, totalBudget - usedBudget);
 
@@ -1569,18 +1574,13 @@ export class AuftragDetail extends PersonDetailBase {
 
   // Formatiere Budget-Verbrauch (Netto-Beträge)
   formatBudgetUsage() {
-    // Fallback-Kette: creator_budget -> gesamt_budget -> nettobetrag
-    const totalBudget = parseFloat(
-      this.auftrag?.creator_budget || 
-      this.auftrag?.gesamt_budget || 
-      this.auftrag?.nettobetrag || 
-      0
-    );
+    // Verfuegbares Budget (read-derived): creator_budget + KSK-Umbuchungen der Selbstzahler
+    const totalBudget = berechneVerfuegbaresBudget(this.auftrag, this.kooperationen).verfuegbar;
     
-    // Netto-Beträge aus Kooperationen summieren
+    // Netto-Beträge aus Kooperationen summieren (inkl. KSK-Aufschlaege)
     const usedBudget = this.kooperationen.reduce((sum, koop) => {
       return sum + (parseFloat(koop.einkaufspreis_netto) || 0);
-    }, 0);
+    }, 0) + summeKskSelbstzahler(this.kooperationen);
     
     console.log('💰 Budget Debug (Netto):', {
       creator_budget: this.auftrag?.creator_budget,
@@ -1597,18 +1597,13 @@ export class AuftragDetail extends PersonDetailBase {
 
   // Berechne Budget-Prozentsatz (Netto-Beträge)
   getBudgetPercentage() {
-    // Fallback-Kette: creator_budget -> gesamt_budget -> nettobetrag
-    const totalBudget = parseFloat(
-      this.auftrag?.creator_budget || 
-      this.auftrag?.gesamt_budget || 
-      this.auftrag?.nettobetrag || 
-      0
-    );
+    // Verfuegbares Budget (read-derived): creator_budget + KSK-Umbuchungen der Selbstzahler
+    const totalBudget = berechneVerfuegbaresBudget(this.auftrag, this.kooperationen).verfuegbar;
     
-    // Netto-Beträge aus Kooperationen summieren
+    // Netto-Beträge aus Kooperationen summieren (inkl. KSK-Aufschlaege)
     const usedBudget = this.kooperationen.reduce((sum, koop) => {
       return sum + (parseFloat(koop.einkaufspreis_netto) || 0);
-    }, 0);
+    }, 0) + summeKskSelbstzahler(this.kooperationen);
     
     if (totalBudget <= 0) return 0;
     return Math.round((usedBudget / totalBudget) * 100);

@@ -34,6 +34,7 @@ export const creatorConfig = {
     { name: 'rechnungsadresse_stadt', label: 'Stadt', type: 'text', required: false, row: 'rechnungsadresse2', colSize: 'grow', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true', section: 'basis' },
     { name: 'rechnungsadresse_land', label: 'Land (Rechnung)', type: 'text', required: false, defaultValue: 'Deutschland', dependsOn: 'rechnungsadresse_abweichend', showWhen: 'true', section: 'basis' },
     { name: 'umsatzsteuerpflichtig', label: 'Umsatzsteuerpflichtig', type: 'toggle', required: false, defaultValue: true, section: 'basis' },
+    { name: 'ksk_selbstzahler', label: 'KSK zahlt der Creator selbst', type: 'toggle', required: false, defaultValue: false, section: 'basis' },
     { name: 'management_ids', label: 'Management', type: 'multiselect', required: false, options: [], dynamic: true, searchable: true, tagBased: true, placeholder: 'Management suchen und hinzufügen...', table: 'management', displayField: 'firmenname', valueField: 'id', customField: true, section: 'basis' },
     { name: 'firma_ids', label: 'Firmen', type: 'multiselect', required: false, options: [], dynamic: true, searchable: true, tagBased: true, placeholder: 'Firma suchen und hinzufügen...', table: 'firma', displayField: 'firmenname', valueField: 'id', customField: true, section: 'basis' },
     // Social Media

@@ -11,6 +11,15 @@ export async function setup(form, ctx) {
       return videosContainer?.dataset?.options ? JSON.parse(videosContainer.dataset.options) : [];
     } catch(_) { return []; }
   })();
+  // KSK-Selbstzahler-Toggle: Neuberechnung von ksk_betrag / EK-USt / EK-Gesamt anstossen
+  const kskToggle = form.querySelector('input[name="ksk_selbstzahler"]');
+  if (kskToggle && kskToggle.dataset.kskListenerAttached !== 'true') {
+    kskToggle.dataset.kskListenerAttached = 'true';
+    kskToggle.addEventListener('change', () => {
+      window.formSystem?.autoCalculation?.recalculateAllDependentFields(form);
+    });
+  }
+
   if (!kampagneSelect || !videoInput || !window.supabase) return;
 
   let kampagnenartenOptions = [];

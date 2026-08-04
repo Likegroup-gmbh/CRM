@@ -34,6 +34,7 @@ export default {
       alter_max: 'number',
       hat_haustier: 'boolean',
       umsatzsteuerpflichtig: 'boolean',
+      ksk_selbstzahler: 'boolean',
       haustier_beschreibung: 'string',
       hat_kinder: 'boolean',
       kinder_beschreibung: 'string'

@@ -38,12 +38,13 @@ export function calculateSummaryCards(kooperationen, videos) {
   return { koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum };
 }
 
-export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum) {
-  const totalBudget = parseFloat(
+export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, kskUmgebucht = 0) {
+  // Verfuegbares Budget (read-derived): creator_budget + KSK-Umbuchungen der Selbstzahler
+  const totalBudget = (parseFloat(
     kampagneData?.auftrag?.creator_budget ||
     kampagneData?.auftrag?.gesamt_budget ||
     kampagneData?.auftrag?.nettobetrag || 0
-  );
+  ) || 0) + (parseFloat(kskUmgebucht) || 0);
   const usedBudget = koopBudgetSum || 0;
   const openBudget = Math.max(0, totalBudget - usedBudget);
   const targets = resolveTargets(kampagneData);
@@ -107,13 +108,14 @@ export function updateVideoStatsCardDOM(videoStats) {
   }
 }
 
-export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, videoStats) {
+export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, videoStats, kskUmgebucht = 0) {
   const gesamtNettoBetrag = parseFloat(kampagneData?.auftrag?.nettobetrag) || 0;
-  const totalBudget = parseFloat(
+  // Verfuegbares Budget (read-derived): creator_budget + KSK-Umbuchungen der Selbstzahler
+  const totalBudget = (parseFloat(
     kampagneData?.auftrag?.creator_budget ||
     kampagneData?.auftrag?.gesamt_budget ||
     kampagneData?.auftrag?.nettobetrag || 0
-  );
+  ) || 0) + (parseFloat(kskUmgebucht) || 0);
   const usedBudget = koopBudgetSum || 0;
   const openBudget = Math.max(0, totalBudget - usedBudget);
   const targets = resolveTargets(kampagneData);

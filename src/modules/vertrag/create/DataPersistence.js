@@ -475,6 +475,23 @@ VertraegeCreate.prototype.handleSubmit = async function(e, startNewAfter = false
         console.log('✅ Vertrag erstellt:', vertrag);
       }
 
+      // KSK-Selbstzahler-Flag fuer die Paragraph-13-Textwahl anreichern
+      // (keine Vertrags-Spalte; verguetung_netto traegt den Betrag bereits)
+      if (this.formData.ksk_selbstzahler !== undefined) {
+        vertrag.ksk_selbstzahler = this.formData.ksk_selbstzahler === true;
+      } else if (vertrag.kooperation_id) {
+        try {
+          const { data: koop } = await window.supabase
+            .from('kooperationen')
+            .select('ksk_selbstzahler')
+            .eq('id', vertrag.kooperation_id)
+            .single();
+          vertrag.ksk_selbstzahler = koop?.ksk_selbstzahler === true;
+        } catch (_) {
+          vertrag.ksk_selbstzahler = false;
+        }
+      }
+
       // PDF generieren
       await this.generatePDF(vertrag);
 

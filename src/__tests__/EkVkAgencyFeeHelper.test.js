@@ -112,10 +112,11 @@ describe('calculateAgencyFeeSummary', () => {
     expect(result.showAgencyFeeCard).toBe(true);
   });
 
-  it('hides card when nothing contributes', () => {
+  it('shows card even when nothing contributes (immer sichtbar seit 436312c)', () => {
     const details = {};
     const result = calculateAgencyFeeSummary(details, [], []);
-    expect(result.showAgencyFeeCard).toBe(false);
+    expect(result.showAgencyFeeCard).toBe(true);
+    expect(result.total).toBe(0);
   });
 
   it('shows KSK card when enabled and value > 0', () => {
@@ -147,11 +148,12 @@ describe('resolveAgencyFeeForViewer', () => {
     expect(result.showAgencyFeeCard).toBe(true);
   });
 
-  it('hides card for Kunden when baseFee is 0', () => {
+  it('zeigt Karte fuer Kunden auch bei baseFee 0 (nur reduziert auf baseFee)', () => {
     const summary = { baseFee: 0, ekVkMargin: 200, total: 200, showAgencyFeeCard: true };
     const result = resolveAgencyFeeForViewer(summary, false);
     expect(result.total).toBe(0);
-    expect(result.showAgencyFeeCard).toBe(false);
+    expect(result.ekVkMargin).toBe(0);
+    expect(result.showAgencyFeeCard).toBe(true);
   });
 });
 
@@ -201,10 +203,12 @@ describe('renderAgencyFeeCardHtml', () => {
     expect(html).not.toContain('EK/VK-Differenz');
   });
 
-  it('returns empty for Kunden when baseFee is 0 (even with margin)', () => {
+  it('zeigt fuer Kunden bei baseFee 0 die Karte mit 0 ohne Breakdown', () => {
     const summary = { showAgencyFeeCard: true, baseFee: 0, ekVkMargin: 200, total: 200 };
     const html = renderAgencyFeeCardHtml(summary, fmt, { canSeePricing: false });
-    expect(html).toBe('');
+    expect(html).toContain('0 €');
+    expect(html).toContain('Agentur Fee');
+    expect(html).not.toContain('EK/VK-Differenz');
   });
 });
 

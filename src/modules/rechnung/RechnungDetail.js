@@ -146,6 +146,7 @@ export class RechnungDetail {
             <div class="detail-item"><label>Bezahlt am</label><span>${formatDate(this.data?.bezahlt_am)}</span></div>
             <div class="detail-item"><label>Nettobetrag</label><span>${formatCurrency(this.data?.nettobetrag)}</span></div>
             ${(parseFloat(this.data?.nettobetrag_steuerfrei) || 0) > 0 ? `<div class="detail-item"><label>Steuerfreier Betrag (0% USt)</label><span>${formatCurrency(this.data?.nettobetrag_steuerfrei)}</span></div>` : ''}
+            ${(parseFloat(this.data?.ksk_betrag) || 0) > 0 ? `<div class="detail-item"><label>KSK-Aufschlag (Selbstzahler)</label><span>${formatCurrency(this.data?.ksk_betrag)}</span></div>` : ''}
             <div class="detail-item"><label>Zusatzkosten${this.data?.zusatzkosten_brutto ? ' (brutto)' : ''}</label><span>${formatCurrency(this.data?.zusatzkosten)}</span></div>
             <div class="detail-item"><label>Bruttobetrag</label><span>${formatCurrency(this.data?.bruttobetrag)}</span></div>
             ${this.data?.rechnungstyp === 'contracting' ? `<div class="detail-item"><label>KSK-pflichtig</label><span>${this.data?.ksk_pflichtig ? 'Ja' : 'Nein'}</span></div>` : ''}

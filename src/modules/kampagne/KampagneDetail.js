@@ -24,6 +24,7 @@ export class KampagneDetail {
     this.koopCreatorsUsed = 0;
     this.extraKostenVkSum = 0;
     this.ekVkMarginSum = 0;
+    this.kskUmgebucht = 0;
     this.videoStats = { views: 0, likes: 0, comments: 0 };
     this.sourcingCreators = [];
     this.favoriten = [];
@@ -168,6 +169,7 @@ export class KampagneDetail {
       koopCreatorsUsed: this.koopCreatorsUsed,
       extraKostenVkSum: this.extraKostenVkSum,
       ekVkMarginSum: this.ekVkMarginSum,
+      kskUmgebucht: this.kskUmgebucht,
       videoStats: this.videoStats,
       isKunde: this.isKunde,
       kampagneId: this.kampagneId,
@@ -195,6 +197,7 @@ export class KampagneDetail {
     this.koopCreatorsUsed = summary.koopCreatorsUsed;
     this.extraKostenVkSum = summary.extraKostenVkSum;
     this.ekVkMarginSum = summary.ekVkMarginSum;
+    this.kskUmgebucht = summary.kskUmgebucht;
     this.videoStats = summary.videoStats;
 
     this._bindVideoStatsCard();
@@ -257,7 +260,7 @@ export class KampagneDetail {
       this.kooperationenVideoTable.updateTabCounts();
     }
 
-    updateSummaryCardsDOM(this.kampagneData, this.koopBudgetSum, this.koopVideosUsed, this.koopCreatorsUsed, this.extraKostenVkSum, this.ekVkMarginSum);
+    updateSummaryCardsDOM(this.kampagneData, this.koopBudgetSum, this.koopVideosUsed, this.koopCreatorsUsed, this.extraKostenVkSum, this.ekVkMarginSum, this.kskUmgebucht);
     updateVideoStatsCardDOM(this.videoStats);
 
     const videoIds = this._pendingTableData?.videoIds;
