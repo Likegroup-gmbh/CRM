@@ -12841,9 +12841,9 @@ table:has(#strategien-table-body) td.col-actions {
   border-left: 2px solid rgb(var(--cp-block-tint) / 0.35) !important;
 }
 
-/* Instagram-Abruf: Haekchen-Button neben dem IG-Link.
-   Bewusst global: die Kampagnen-Video-Tabelle nutzt dieselben Zustaende fuer
-   den Stats-Abruf neben dem Live-Link (.video-stats-fetch-btn). */
+/* Instagram-Abruf im Sourcing: Haekchen-Button neben dem IG-Link.
+   Die Kampagnen-Video-Tabelle teilt nur noch die Spinner-Animation
+   (ig-fetch-spin), ihre Aktionen sitzen in der .live-link-toolbar weiter unten. */
 .ig-fetch-btn {
   display: inline-flex;
   align-items: center;
@@ -12902,14 +12902,143 @@ table:has(#strategien-table-body) td.col-actions {
   color: var(--color-danger, #dc2626);
 }
 
-/* X neben dem Live-Link: gleiche Groesse wie das Haekchen, Hover in Rot,
-   weil der Klick Link und Zahlen verwirft. */
-.video-link-clear-btn:hover:not(:disabled) {
-  color: var(--color-danger, #dc2626);
-}
-
 @keyframes ig-fetch-spin {
   to { transform: rotate(360deg); }
+}
+
+/* ===== LIVE-LINK-TOOLBAR =====
+   Schwebende Aktionsleiste der Live-Link-Zelle, vom Prinzip wie die
+   Formatierungsleiste eines Rich-Text-Editors: erscheint bei Hover ueber der
+   Zelle und verschwindet wieder.
+
+   Fixed und an document.body, weil .grid-wrapper mit overflow-y: clip arbeitet
+   und ein Overlay innerhalb der Zelle am Zellenrand abgeschnitten wuerde. */
+.live-link-toolbar {
+  position: fixed;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 22rem;
+  padding: 4px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  transform: translateY(3px) scale(0.97);
+  transform-origin: bottom left;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.live-link-toolbar.opens-down {
+  transform-origin: top left;
+  transform: translateY(-3px) scale(0.97);
+}
+
+.live-link-toolbar.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.live-link-toolbar__row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.live-link-toolbar__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 var(--space-xs);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.live-link-toolbar__btn svg {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+}
+
+.live-link-toolbar__btn--icon {
+  width: 26px;
+  padding: 0;
+  justify-content: center;
+}
+
+.live-link-toolbar__btn:hover:not(:disabled) {
+  background: var(--gray-100);
+  color: var(--color-primary);
+}
+
+.live-link-toolbar__btn--danger:hover:not(:disabled) {
+  background: var(--danger-bg);
+  color: var(--color-error, #dc2626);
+}
+
+.live-link-toolbar__btn:disabled {
+  cursor: default;
+}
+
+.live-link-toolbar__btn--primary.is-error {
+  color: var(--color-error, #dc2626);
+}
+
+.live-link-toolbar__btn--primary.is-success {
+  color: var(--color-success, #059669);
+}
+
+/* Spinner ersetzt das Icon, damit die Beschriftung nicht springt */
+.live-link-toolbar__btn.is-loading svg {
+  display: none;
+}
+
+.live-link-toolbar__btn.is-loading::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--gray-300);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: ig-fetch-spin 0.7s linear infinite;
+}
+
+.live-link-toolbar__divider {
+  width: 1px;
+  height: 16px;
+  margin: 0 2px;
+  background: var(--border-primary);
+}
+
+/* Der Fehlertext des letzten Abrufs stand vorher nur im title-Attribut und war
+   damit praktisch unsichtbar. */
+.live-link-toolbar__error,
+.live-link-toolbar__hint {
+  padding: 2px var(--space-xs) 3px;
+  font-size: var(--text-xxs);
+  line-height: 1.35;
+  white-space: normal;
+}
+
+.live-link-toolbar__error {
+  color: var(--color-error, #dc2626);
+}
+
+.live-link-toolbar__hint {
+  color: var(--text-muted);
 }
 
 /* Kompakte Links-Spalte (IG + TT) */

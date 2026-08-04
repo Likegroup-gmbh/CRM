@@ -14,6 +14,7 @@ import { VideoTableEventBinder } from './VideoTableEventBinder.js';
 import { VideoTableStatusDropdown } from './VideoTableStatusDropdown.js';
 import { VideoTableDrawerActions } from './VideoTableDrawerActions.js';
 import { VideoStatsFetcher } from './VideoStatsFetcher.js';
+import { LiveLinkToolbar } from './LiveLinkToolbar.js';
 import { UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { ColumnDragHandler } from './columns/ColumnDragHandler.js';
@@ -60,6 +61,7 @@ export class KampagneKooperationenVideoTable {
     this._statusDropdown = new VideoTableStatusDropdown(this);
     this._drawerActions = new VideoTableDrawerActions(this);
     this._statsFetcher = new VideoStatsFetcher(this);
+    this._liveLinkToolbar = new LiveLinkToolbar(this);
     this.columnDragHandler = new ColumnDragHandler(this);
     this._uploadDrawer = new VideoUploadDrawer();
     this._settingsDrawer = new VideoSettingsDrawer();
@@ -455,6 +457,9 @@ export class KampagneKooperationenVideoTable {
     this.feedbackSaveController?.flushAll();
 
     this._closeStatusPortal();
+    // Die Leiste haengt an document.body mit eigenen window-Listenern, der
+    // AbortController der Tabelle erreicht sie nicht.
+    this._liveLinkToolbar?.destroy();
 
     this._rowHeightSync?.disconnect();
     this._rowHeightSync = null;

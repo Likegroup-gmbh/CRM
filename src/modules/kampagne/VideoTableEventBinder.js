@@ -9,6 +9,7 @@ import { VideoRowHeightSync } from './VideoRowHeightSync.js';
 import { getVideoFeedbackSlotByField } from '../../core/VideoFeedbackBuckets.js';
 import { nutzungsrechteModal } from './NutzungsrechteModal.js';
 import { COPY_ICON, CHECK_ICON } from './VideoTableRenderer.js';
+import { applyLiveLinkCellState, findVideoInTable } from './liveLinkCell.js';
 
 export class VideoTableEventBinder {
   constructor(table) {
@@ -56,6 +57,14 @@ export class VideoTableEventBinder {
       if (e.target.dataset?.entity === 'video' && getVideoFeedbackSlotByField(e.target.dataset.field)) return;
       if (e.target.classList.contains('grid-input') || e.target.classList.contains('grid-textarea') || e.target.classList.contains('custom-col-input')) {
         await t.handleFieldUpdate(e.target);
+
+        // Chip der Live-Link-Zelle nachziehen: die Tabelle rendert einzelne
+        // Zellen nicht neu, sonst stuende dort noch der alte Link.
+        if (e.target.dataset?.field === 'link_live') {
+          const videoId = e.target.dataset.id;
+          const video = findVideoInTable(t, videoId) || { link_live: e.target.value.trim() };
+          applyLiveLinkCellState(e.target.closest('.live-link-cell'), video);
+        }
       }
     }, { capture: true, signal });
 
@@ -137,21 +146,9 @@ export class VideoTableEventBinder {
         e.preventDefault();
         nutzungsrechteModal.open(nutzungsrechteBtn.dataset.vertragId);
       }
-
-      // Haekchen neben dem Live-Link: Views/Likes/Kommentare nachladen
-      const statsBtn = e.target.closest('[data-video-stats-fetch]');
-      if (statsBtn) {
-        e.preventDefault();
-        t._statsFetcher.handleFetch(statsBtn);
-      }
-
-      // X neben dem Live-Link: Link und abgerufene Zahlen zuruecksetzen
-      const clearBtn = e.target.closest('[data-video-link-clear]');
-      if (clearBtn) {
-        e.preventDefault();
-        t._statsFetcher.handleClear(clearBtn);
-      }
     }, { signal });
+
+    this._bindLiveLinkToolbar(container, signal);
 
     container.addEventListener('click', (e) => {
       const settingsBtn = e.target.closest('.video-settings-btn');
@@ -261,5 +258,85 @@ export class VideoTableEventBinder {
     t.bindResizeEvents();
     t.bindDragToScroll();
     t.columnDragHandler.bind(container, signal);
+  }
+
+  /**
+   * Schwebende Aktionsleiste der Live-Link-Zelle.
+   *
+   * mouseover/mouseout statt mouseenter/mouseleave, weil nur die delegierenden
+   * Varianten am Container funktionieren - die Zellen entstehen bei jedem
+   * Render neu. relatedTarget filtert die Bewegungen innerhalb der Zelle
+   * (Input -> Chip -> Punkt) heraus, die sonst laufend schliessen wuerden.
+   *
+   * Die Klicks haengen an document, weil die Leiste an document.body sitzt und
+   * damit ausserhalb des Grid-Containers liegt.
+   */
+  _bindLiveLinkToolbar(container, signal) {
+    const t = this.table;
+    const toolbar = t._liveLinkToolbar;
+    if (!toolbar) return;
+
+    // Nach einem Re-Render zeigt die alte Leiste auf eine Zelle, die es nicht
+    // mehr gibt.
+    toolbar.close();
+
+    container.addEventListener('mouseover', (e) => {
+      const cell = e.target.closest('.live-link-cell');
+      if (!cell) return;
+      if (cell.contains(e.relatedTarget)) return;
+      toolbar.scheduleOpen(cell);
+    }, { signal });
+
+    container.addEventListener('mouseout', (e) => {
+      const cell = e.target.closest('.live-link-cell');
+      if (!cell) return;
+      if (cell.contains(e.relatedTarget)) return;
+      toolbar.scheduleClose();
+    }, { signal });
+
+    // Tastatur-Zugang: wer sich in das Feld tabbt, bekommt die Aktionen auch -
+    // und wer weitertabbt, wird sie wieder los.
+    container.addEventListener('focusin', (e) => {
+      const cell = e.target.closest('.live-link-cell');
+      if (cell) toolbar.scheduleOpen(cell);
+      else if (toolbar.portal) toolbar.scheduleClose();
+    }, { signal });
+
+    container.addEventListener('focusout', (e) => {
+      const cell = e.target.closest('.live-link-cell');
+      if (cell && !cell.contains(e.relatedTarget)) toolbar.scheduleClose();
+    }, { signal });
+
+    // Ohne Hover (Touch) ist der Punkt der Ausloeser.
+    container.addEventListener('click', (e) => {
+      const dot = e.target.closest('[data-live-link-dot]');
+      if (!dot) return;
+      e.preventDefault();
+      const cell = dot.closest('.live-link-cell');
+      if (toolbar.cell === cell && toolbar.portal) toolbar.close();
+      else toolbar.open(cell);
+    }, { signal });
+
+    document.addEventListener('click', (e) => {
+      const statsBtn = e.target.closest('[data-video-stats-fetch]');
+      if (statsBtn) {
+        e.preventDefault();
+        t._statsFetcher.handleFetch(statsBtn);
+        return;
+      }
+
+      const clearBtn = e.target.closest('[data-video-link-clear]');
+      if (clearBtn) {
+        e.preventDefault();
+        t._statsFetcher.handleClear(clearBtn);
+        return;
+      }
+
+      // Klick ins Leere schliesst die Leiste - sonst haengt sie nach einem Tap
+      // auf dem Punkt dauerhaft im Bild.
+      if (!e.target.closest('.live-link-toolbar') && !e.target.closest('.live-link-cell')) {
+        toolbar.close();
+      }
+    }, { signal });
   }
 }
