@@ -1,15 +1,22 @@
 // VideoStatsFetcher
-// Die beiden Buttons neben dem Live-Link der Kooperationen-Video-Tabelle:
-// das Haekchen holt Views, Likes und Kommentare zum veroeffentlichten Reel,
-// das X setzt Link und Zahlen wieder zurueck. Gleiche Mechanik wie der
-// Instagram-Abruf im Sourcing (CreatorAuswahlDetail.handleInstagramFetch).
+// Die beiden Aktionen der Live-Link-Zelle: Views, Likes und Kommentare zum
+// veroeffentlichten Reel holen, oder Link und Zahlen wieder zuruecksetzen.
+// Gleiche Mechanik wie der Instagram-Abruf im Sourcing
+// (CreatorAuswahlDetail.handleInstagramFetch).
 //
 // Aktualisiert wird gezielt im DOM statt ueber ein Re-Render der Tabelle: ein
 // render() wuerde Scroll-Position, offene Dropdowns und den Fokus in einem
 // gerade bearbeiteten Feld verlieren.
+//
+// Die Buttons sitzen in der Hover-Toolbar an document.body, nicht mehr in der
+// Zeile - closest() findet von dort keine Zelle mehr, die Video-ID kommt daher
+// als Argument vom Aufrufer (liveLinkToolbarConfig).
 
 import { authorizedFetch } from '../../core/auth/getAccessToken.js';
 import { formatCompactNumber, formatExactNumber } from '../../core/format/compactNumber.js';
+import { hoverToolbar } from '../../core/hoverToolbar/HoverToolbar.js';
+import { setChipCellLoading } from '../../core/components/chipCell.js';
+import { applyLiveLinkCellState, findLiveLinkCell, findVideoInTable } from './liveLinkCell.js';
 
 const SUCCESS_FLASH_MS = 2000;
 
@@ -30,12 +37,7 @@ export class VideoStatsFetcher {
   }
 
   _findVideo(videoId) {
-    const source = this.table.store?.videos || this.table.videos || {};
-    for (const koopId in source) {
-      const treffer = (source[koopId] || []).find(v => v.id === videoId);
-      if (treffer) return treffer;
-    }
-    return null;
+    return findVideoInTable(this.table, videoId);
   }
 
   /** Abgerufene Zahlen in die drei Stats-Inputs schreiben */
@@ -62,7 +64,20 @@ export class VideoStatsFetcher {
     }
   }
 
-  /** Button auf den Zustand bringen, den der Renderer nach einem Reload zeigen wuerde */
+  /**
+   * Chip, Status-Punkt und Input der Zelle auf den aktuellen Stand bringen.
+   * Auch vom Realtime-Handler und nach manueller Link-Eingabe genutzt, weil die
+   * Tabelle einzelne Zellen nie neu rendert.
+   */
+  _applyLinkStateToDom(videoId, video) {
+    applyLiveLinkCellState(findLiveLinkCell(videoId), video);
+  }
+
+  /**
+   * Button auf den Zustand bringen, den ein frischer Toolbar-Render zeigen
+   * wuerde. Der Erfolgs-Flash laeuft bewusst auf dem Button und nicht ueber
+   * einen Neuaufbau der Leiste, sonst waere er sofort wieder weg.
+   */
   _applyButtonState(button, video, { flashSuccess = false } = {}) {
     button.disabled = false;
     button.classList.remove('is-loading', 'is-error', 'is-refresh', 'is-success');
@@ -70,6 +85,8 @@ export class VideoStatsFetcher {
     if (video.stats_error) {
       button.classList.add('is-error');
       button.title = `Abruf fehlgeschlagen: ${video.stats_error}`;
+      hoverToolbar.unpin();
+      hoverToolbar.refresh();
       return;
     }
 
@@ -78,6 +95,8 @@ export class VideoStatsFetcher {
       setTimeout(() => {
         button.classList.remove('is-success');
         button.classList.add('is-refresh');
+        hoverToolbar.unpin();
+        hoverToolbar.refresh();
       }, SUCCESS_FLASH_MS);
     } else if (video.stats_fetched_at) {
       button.classList.add('is-refresh');
@@ -101,17 +120,21 @@ export class VideoStatsFetcher {
   }
 
   /**
-   * X-Button: Link und abgerufene Zahlen in einem Schritt zuruecksetzen.
-   * Bewusst mit Rueckfrage, weil auch von Hand eingetragene Zahlen wegfallen.
+   * Papierkorb in der Toolbar: Link und abgerufene Zahlen in einem Schritt
+   * zuruecksetzen. Bewusst mit Rueckfrage, weil auch von Hand eingetragene
+   * Zahlen wegfallen.
    */
-  async handleClear(button) {
+  async handleClear(videoId, button) {
     if (button.disabled) return;
 
-    const videoId = button.dataset.videoId;
     const video = this._findVideo(videoId);
     if (!video) return;
 
     const meldung = 'Der Link und die abgerufenen Zahlen (Views, Likes, Kommentare) werden entfernt.';
+    // Die Rueckfrage liegt ueber der Leiste; ohne pin() wuerde sie durch das
+    // mouseleave beim Wechsel zum Modal verschwinden.
+    hoverToolbar.pin();
+
     if (window.confirmationModal) {
       const res = await window.confirmationModal.open({
         title: 'Live-Link entfernen',
@@ -120,8 +143,12 @@ export class VideoStatsFetcher {
         cancelText: 'Abbrechen',
         danger: true
       });
-      if (!res?.confirmed) return;
+      if (!res?.confirmed) {
+        hoverToolbar.unpin();
+        return;
+      }
     } else if (!confirm(meldung)) {
+      hoverToolbar.unpin();
       return;
     }
 
@@ -139,30 +166,23 @@ export class VideoStatsFetcher {
       Object.assign(video, CLEAR_PATCH);
       this.table.store?.updateVideo(videoId, { ...CLEAR_PATCH });
 
-      const row = button.closest('.video-live-link-row');
-      const linkInput = row?.querySelector('input[data-field="link_live"]');
-      if (linkInput) linkInput.value = '';
-
+      this._applyLinkStateToDom(videoId, video);
       this._applyStatsToDom(videoId, video);
 
-      const fetchBtn = row?.querySelector('[data-video-stats-fetch]');
-      if (fetchBtn) this._applyButtonState(fetchBtn, video);
-
-      // Extern-Link und X gehoeren zu einem gesetzten Link - beide gehen mit
-      row?.querySelector('.external-link-btn')?.remove();
-      button.remove();
+      // Ohne Link hat die Leiste keine sinnvolle Aktion mehr
+      hoverToolbar.close();
     } catch (error) {
       console.error('Fehler beim Entfernen des Live-Links:', error);
       this.table._pendingOwnUpdates?.delete(videoId);
       button.disabled = false;
+      hoverToolbar.unpin();
       window.toastSystem?.show('Live-Link konnte nicht entfernt werden', 'error');
     }
   }
 
-  async handleFetch(button) {
+  async handleFetch(videoId, button) {
     if (button.disabled) return;
 
-    const videoId = button.dataset.videoId;
     const video = this._findVideo(videoId);
     if (!video) return;
 
@@ -187,6 +207,10 @@ export class VideoStatsFetcher {
     button.disabled = true;
     button.classList.remove('is-error', 'is-success', 'is-refresh');
     button.classList.add('is-loading');
+    // Der Abruf dauert; die Leiste muss offen bleiben, auch wenn der Zeiger sie
+    // in der Zwischenzeit verlaesst.
+    hoverToolbar.pin();
+    setChipCellLoading(findLiveLinkCell(videoId), true);
 
     // Die Function schreibt mit dem Service-Key, das Realtime-Echo kommt also
     // nicht ueber handleFieldUpdate und wuerde die Zeile neu rendern - damit
@@ -219,6 +243,7 @@ export class VideoStatsFetcher {
       t.store?.updateVideo(videoId, patch);
 
       this._applyStatsToDom(videoId, video);
+      this._applyLinkStateToDom(videoId, video);
       this._applyButtonState(button, video, { flashSuccess: true });
 
       const views = patch.stats_views;
@@ -235,6 +260,8 @@ export class VideoStatsFetcher {
       if (error.sessionDead) {
         button.disabled = false;
         button.classList.remove('is-loading');
+        hoverToolbar.unpin();
+        this._applyLinkStateToDom(videoId, video);
         return;
       }
 
@@ -242,6 +269,7 @@ export class VideoStatsFetcher {
       Object.assign(video, patch);
       t.store?.updateVideo(videoId, patch);
 
+      this._applyLinkStateToDom(videoId, video);
       this._applyButtonState(button, video);
       window.toastSystem?.show(error.hint || error.message, error.retryable ? 'info' : 'error');
     }

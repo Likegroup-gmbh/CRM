@@ -115,21 +115,157 @@
 }
 .kooperation-video-grid .col-actions { width: 4.5rem; min-width: 4.5rem; }
 
-/* Live-Link-Zelle: das Eingabefeld nimmt den Rest, Haekchen und Extern-Link
-   bleiben in fester Breite daneben stehen. */
-.kooperation-video-grid .video-live-link-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+/* Chip-Zelle fuer Social-Links (src/core/components/chipCell.js). Sichtbar ist
+   der Chip ("Reel · @handle" oder "@handle"), der als Overlay ueber dem
+   Eingabefeld liegt - gleiches Prinzip wie bei den Stats-Zahlen darunter. Die
+   Roh-URL steckt im Input und erscheint beim Fokussieren. Die Aktionen sitzen
+   in der schwebenden .hover-toolbar, damit die Zellenbreite konstant bleibt.
+
+   Praefixfrei, weil zwei Tabellen sie nutzen: die Live-Link-Spalte der
+   Kooperationen-Videos und die Instagram-Spalte im Sourcing. --chip-cell-pad-left
+   haelt den Chip deckungsgleich ueber dem Text des Inputs - die beiden Spalten
+   bringen unterschiedliche Input-Klassen und damit unterschiedliche Paddings mit. */
+.chip-cell {
+  --chip-cell-pad-left: var(--space-xs);
+  position: relative;
+  display: block;
   width: 100%;
 }
-.kooperation-video-grid .video-live-link-row .grid-input {
-  flex: 1 1 auto;
-  min-width: 0;
+
+.chip-cell .chip-cell__input {
+  width: 100%;
+  padding-right: 18px;
 }
-.kooperation-video-grid .video-live-link-row .ig-fetch-btn,
-.kooperation-video-grid .video-live-link-row .external-link-btn {
+
+/* Solange der Chip liegt, wuerde die URL darunter durchscheinen */
+.chip-cell .chip-cell__input:not(:focus) {
+  color: transparent;
+}
+
+.chip-cell .chip-cell__input:focus {
+  color: var(--text-primary);
+}
+
+.chip-cell .chip-cell__input:focus ~ .chip-cell__chip {
+  opacity: 0;
+}
+
+.chip-cell__chip {
+  position: absolute;
+  inset: 0 18px 1px var(--chip-cell-pad-left);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  pointer-events: none;
+  color: var(--text-primary);
+  transition: opacity 0.12s ease;
+}
+
+.chip-cell__icon {
   flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  fill: currentColor;
+  color: var(--gray-500);
+}
+
+.chip-cell__label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Kunden-/Readonly-Ansicht: derselbe Chip, aber als anklickbarer Link */
+.chip-cell__chip--static {
+  position: static;
+  inset: auto;
+  display: inline-flex;
+  pointer-events: auto;
+  max-width: 100%;
+  text-decoration: none;
+}
+
+.chip-cell__chip--static:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+/* Status-Punkt: zeigt, ob Daten abgerufen wurden, und ist gleichzeitig der
+   Hinweis, dass an dieser Zelle Aktionen haengen. */
+.chip-cell__dot {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  margin-top: -3px;
+  border-radius: 50%;
+  background: var(--gray-300);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.chip-cell__dot.is-empty {
+  display: none;
+}
+
+.chip-cell__dot.is-idle {
+  background: var(--gray-400);
+}
+
+.chip-cell__dot.is-fetched {
+  background: var(--color-success, #059669);
+}
+
+.chip-cell__dot.is-error {
+  background: var(--color-error, #dc2626);
+}
+
+.chip-cell:hover .chip-cell__dot,
+.chip-cell.has-toolbar .chip-cell__dot {
+  transform: scale(1.4);
+}
+
+.chip-cell__dot.is-loading {
+  background: transparent;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border: 1.5px solid var(--gray-300);
+  border-top-color: var(--color-primary);
+  animation: chip-cell-dot-spin 0.7s linear infinite;
+}
+
+@keyframes chip-cell-dot-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Zweiter Hinweis neben dem Punkt: der Chip hebt sich beim Hover ab, damit die
+   Zelle nicht wie reiner Text wirkt. */
+.chip-cell:hover .chip-cell__input:not(:focus),
+.chip-cell.has-toolbar .chip-cell__input:not(:focus) {
+  background: var(--gray-100);
+}
+
+/* Ohne Hover (Touch) ist der Tap auf den Punkt der einzige Weg zur Leiste - er
+   braucht dann eine Trefferflaeche, die man auch treffen kann. */
+@media (hover: none) {
+  .chip-cell__dot::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 24px;
+    height: 24px;
+    transform: translate(-50%, -50%);
+  }
+}
+
+/* Sourcing bringt .links-compact-input mit (padding: 2px 4px) statt der
+   Video-Tabelle mit var(--space-xs). */
+.cp-col-link-ig .chip-cell {
+  --chip-cell-pad-left: 4px;
 }
 
 /* Views/Likes/Kommentare: zentriert in der Spalte. Wie die Follower-Zelle im

@@ -12841,75 +12841,147 @@ table:has(#strategien-table-body) td.col-actions {
   border-left: 2px solid rgb(var(--cp-block-tint) / 0.35) !important;
 }
 
-/* Instagram-Abruf: Haekchen-Button neben dem IG-Link.
-   Bewusst global: die Kampagnen-Video-Tabelle nutzt dieselben Zustaende fuer
-   den Stats-Abruf neben dem Live-Link (.video-stats-fetch-btn). */
-.ig-fetch-btn {
+/* Spinner der Hover-Toolbar. Der Name stammt vom Instagram-Abruf im Sourcing,
+   dessen Haekchen-Button hier stand, bevor seine Aktionen in die Leiste
+   gewandert sind. */
+@keyframes ig-fetch-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ===== HOVER-TOOLBAR =====
+   Schwebende Aktionsleiste fuer Tabellenzellen, vom Prinzip wie die
+   Formatierungsleiste eines Rich-Text-Editors: erscheint bei Hover ueber der
+   Zelle und verschwindet wieder. Was drinsteht, bestimmt die jeweilige Config
+   (src/core/hoverToolbar), das Aussehen ist fuer alle Anwendungsfaelle gleich.
+
+   Fixed und an document.body, weil .grid-wrapper mit overflow-y: clip arbeitet
+   und ein Overlay innerhalb der Zelle am Zellenrand abgeschnitten wuerde. */
+.hover-toolbar {
+  position: fixed;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 22rem;
+  padding: 4px;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  transform: translateY(3px) scale(0.97);
+  transform-origin: bottom left;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.hover-toolbar.opens-down {
+  transform-origin: top left;
+  transform: translateY(-3px) scale(0.97);
+}
+
+.hover-toolbar.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.hover-toolbar__row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.hover-toolbar__btn {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 20px;
-  height: 20px;
-  padding: 0;
+  gap: 5px;
+  height: 26px;
+  padding: 0 var(--space-xs);
   border: none;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background 0.12s ease, color 0.12s ease;
 }
 
-.ig-fetch-btn svg {
-  width: 13px;
-  height: 13px;
-}
-
-/* Das Refresh-Icon ist fill-basiert und wirkt bei 13px kleiner als das stroke-Haekchen */
-.ig-fetch-btn.is-refresh svg {
+.hover-toolbar__btn svg {
+  flex: 0 0 auto;
   width: 14px;
   height: 14px;
 }
 
-.ig-fetch-btn:hover:not(:disabled) {
+.hover-toolbar__btn--icon {
+  width: 26px;
+  padding: 0;
+  justify-content: center;
+}
+
+.hover-toolbar__btn:hover:not(:disabled) {
   background: var(--gray-100);
   color: var(--color-primary);
 }
 
-.ig-fetch-btn:disabled {
+.hover-toolbar__btn--danger:hover:not(:disabled) {
+  background: var(--danger-bg);
+  color: var(--color-error, #dc2626);
+}
+
+.hover-toolbar__btn:disabled {
   cursor: default;
 }
 
-.ig-fetch-btn.is-loading svg {
+.hover-toolbar__btn--primary.is-error {
+  color: var(--color-error, #dc2626);
+}
+
+.hover-toolbar__btn--primary.is-success {
+  color: var(--color-success, #059669);
+}
+
+/* Spinner ersetzt das Icon, damit die Beschriftung nicht springt */
+.hover-toolbar__btn.is-loading svg {
   display: none;
 }
 
-.ig-fetch-btn.is-loading::after {
+.hover-toolbar__btn.is-loading::before {
   content: '';
+  flex: 0 0 auto;
   width: 12px;
   height: 12px;
-  border: 2px solid var(--gray-300, #d1d5db);
+  border: 2px solid var(--gray-300);
   border-top-color: var(--color-primary);
   border-radius: 50%;
   animation: ig-fetch-spin 0.7s linear infinite;
 }
 
-.ig-fetch-btn.is-success {
-  color: var(--color-success, #16a34a);
+.hover-toolbar__divider {
+  width: 1px;
+  height: 16px;
+  margin: 0 2px;
+  background: var(--border-primary);
 }
 
-.ig-fetch-btn.is-error {
-  color: var(--color-danger, #dc2626);
+/* Der Fehlertext des letzten Abrufs stand vorher nur im title-Attribut und war
+   damit praktisch unsichtbar. */
+.hover-toolbar__error,
+.hover-toolbar__hint {
+  padding: 2px var(--space-xs) 3px;
+  font-size: var(--text-xxs);
+  line-height: 1.35;
+  white-space: normal;
 }
 
-/* X neben dem Live-Link: gleiche Groesse wie das Haekchen, Hover in Rot,
-   weil der Klick Link und Zahlen verwirft. */
-.video-link-clear-btn:hover:not(:disabled) {
-  color: var(--color-danger, #dc2626);
+.hover-toolbar__error {
+  color: var(--color-error, #dc2626);
 }
 
-@keyframes ig-fetch-spin {
-  to { transform: rotate(360deg); }
+.hover-toolbar__hint {
+  color: var(--text-muted);
 }
 
 /* Kompakte Links-Spalte (IG + TT) */

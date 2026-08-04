@@ -5,6 +5,8 @@ import { getOrderedColumns, isColumnVisible, isCustomColumnId } from './columns/
 import { renderCustomHeader, renderCustomCell } from './columns/CustomColumnRenderer.js';
 import { renderEmptyState, resolveEmptyState } from '../../core/components/EmptyState.js';
 import { formatCompactNumber, formatExactNumber } from '../../core/format/compactNumber.js';
+import { renderChipCell, renderPlatformChip, renderStaticChip } from '../../core/components/chipCell.js';
+import { liveLinkDotState, LIVE_LINK_TOOLBAR } from './liveLinkCell.js';
 
 const EXTERNAL_LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`;
 
@@ -28,17 +30,6 @@ const UPLOAD_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox
 export const COPY_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`;
 
 export const CHECK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>`;
-
-// Zustaende des Stats-Buttons neben dem Live-Link, analog zum Haekchen im
-// Sourcing (renderIgFetchButton): Haken = noch nichts geholt, Pfeil = erneut
-// abrufen, Dreieck = letzter Abruf fehlgeschlagen.
-const STATS_CHECK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>`;
-
-const STATS_WARN_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m0 3.75h.008M10.34 3.94 2.7 17.1A1.5 1.5 0 0 0 4 19.35h16a1.5 1.5 0 0 0 1.3-2.25L13.66 3.94a1.5 1.5 0 0 0-2.62 0Z" /></svg>`;
-
-const STATS_REFRESH_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" aria-hidden="true"><path d="M88,104H40a8,8,0,0,1-8-8V48a8,8,0,0,1,16,0V76.69L62.63,62.06A95.43,95.43,0,0,1,130,33.94h.53a95.36,95.36,0,0,1,67.07,27.33,8,8,0,0,1-11.18,11.44,79.52,79.52,0,0,0-55.89-22.77h-.45A79.56,79.56,0,0,0,73.94,73.37L59.31,88H88a8,8,0,0,1,0,16Zm128,48H168a8,8,0,0,0,0,16h28.69l-14.63,14.63a79.56,79.56,0,0,1-56.13,23.43h-.45a79.52,79.52,0,0,1-55.89-22.77,8,8,0,1,0-11.18,11.44,95.36,95.36,0,0,0,67.07,27.33H126a95.43,95.43,0,0,0,67.36-28.12L208,179.31V208a8,8,0,0,0,16,0V160A8,8,0,0,0,216,152Z"></path></svg>`;
-
-const STATS_CLEAR_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>`;
 
 export class VideoTableRenderer {
   constructor(table) {
@@ -69,62 +60,48 @@ export class VideoTableRenderer {
   }
 
   /**
-   * Haekchen-Button neben dem Live-Link: holt Views, Likes und Kommentare
-   * ueber netlify/functions/kooperation-video-stats.
+   * Live-Link-Zelle: sichtbar ist nur der Chip ("Reel · @handle") plus ein
+   * kleiner Status-Punkt. Die drei Aktionen (Statistiken abrufen, Video
+   * oeffnen, Link entfernen) liegen in einer schwebenden Hover-Toolbar, die
+   * bei Hover ueber der Zelle erscheint. data-hover-toolbar genuegt dafuer -
+   * die Engine bindet global, die Aktionen stehen in liveLinkToolbarConfig.
+   *
+   * Das Geruest kommt aus chipCell (src/core/components), die Sourcing-Tabelle
+   * nutzt dasselbe fuer ihre Instagram-Spalte. Der Chip ist ein Overlay ueber
+   * dem Input - dasselbe Muster wie bei den Stats-Zahlen
+   * (_renderStatsNumberCell): der Input haelt die Roh-URL, beim Fokussieren
+   * blendet CSS den Chip aus. Vorher standen Input, Haekchen, Extern-Link und X
+   * in einer Flex-Row; der Input wurde dabei zerdrueckt und sprang in der
+   * Breite, sobald ein Link gespeichert war.
    */
-  _renderStatsFetchButton(video) {
-    const hasError = !!video.stats_error;
-    const hasFetched = !hasError && !!video.stats_fetched_at;
-
-    let icon = STATS_CHECK_ICON;
-    let stateClass = '';
-    let title = 'Views, Likes und Kommentare bei Instagram abrufen';
-    let label = 'Video-Statistiken abrufen';
-
-    if (hasError) {
-      icon = STATS_WARN_ICON;
-      stateClass = ' is-error';
-      title = `Abruf fehlgeschlagen: ${video.stats_error}`;
-    } else if (hasFetched) {
-      icon = STATS_REFRESH_ICON;
-      stateClass = ' is-refresh';
-      title = `Stand: ${new Date(video.stats_fetched_at).toLocaleString('de-DE')} · frisch abrufen`;
-      label = 'Video-Statistiken frisch abrufen';
-    }
-
-    return `<button type="button"
-              class="ig-fetch-btn video-stats-fetch-btn${stateClass}"
-              data-video-stats-fetch
-              data-video-id="${video.id}"
-              title="${this.escapeHtml(title)}"
-              aria-label="${this.escapeHtml(label)}">${icon}</button>`;
-  }
-
-  _renderLiveLinkCell(video) {
+  _renderLiveLinkCell(koop, video) {
     const t = this.table;
     const url = video.link_live || '';
+    const handle = koop?.creator?.instagram || koop?.creator?.tiktok || '';
+    const chip = renderPlatformChip(url, handle);
 
     if (t.isKundeRole() || !t.isFieldEditableForUser('video', 'link_live')) {
-      return url
-        ? `<a href="${this.escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="external-link-btn stacked-video-link-btn" title="Video öffnen">${EXTERNAL_LINK_ICON}</a>`
-        : `<span class="stacked-video-empty">-</span>`;
+      return renderStaticChip({ href: url, chip, title: 'Video öffnen' })
+        || `<span class="stacked-video-empty">-</span>`;
     }
 
-    return `
-      <div class="video-live-link-row">
-        <input type="text" class="grid-input stacked-video-input"
-          data-entity="video" data-id="${video.id}" data-field="link_live"
-          value="${this.escapeHtml(url)}" placeholder="Reel-Link"/>
-        ${this._renderStatsFetchButton(video)}
-        ${url ? `<a href="${this.escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="external-link-btn stacked-video-link-btn" title="Video öffnen">${EXTERNAL_LINK_ICON}</a>` : ''}
-        ${url ? `<button type="button"
-          class="ig-fetch-btn video-link-clear-btn"
-          data-video-link-clear
-          data-video-id="${video.id}"
-          title="Live-Link und Statistiken entfernen"
-          aria-label="Live-Link entfernen">${STATS_CLEAR_ICON}</button>` : ''}
-      </div>
-    `;
+    return renderChipCell({
+      toolbar: LIVE_LINK_TOOLBAR,
+      id: video.id,
+      input: {
+        className: 'grid-input stacked-video-input',
+        value: url,
+        placeholder: 'Reel-Link',
+        attrs: {
+          'data-entity': 'video',
+          'data-id': video.id,
+          'data-field': 'link_live',
+          'data-live-link-handle': handle
+        }
+      },
+      chip,
+      dot: liveLinkDotState(video)
+    });
   }
 
   /**
@@ -549,7 +526,7 @@ export class VideoTableRenderer {
           ${this.renderVideoFieldStack(videos, (video) => this._renderVideoDatePicker(video, 'posting_datum', 'Posting Datum'))}
         </td>
         <td class="grid-cell video-stack-cell col-link-live" ${!t.isColumnVisibleForCustomer('col-link-live') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => this._renderLiveLinkCell(video))}
+          ${this.renderVideoFieldStack(videos, (video) => this._renderLiveLinkCell(koop, video))}
         </td>
         <td class="grid-cell video-stack-cell col-stats-views" ${!t.isColumnVisibleForCustomer('col-stats-views') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => this._renderStatsNumberCell(video, 'stats_views', 'Views'))}

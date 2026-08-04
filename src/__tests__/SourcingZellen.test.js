@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { renderItemRow } from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
 import { CREATOR_TYP_OPTIONS, CREATOR_TYP_SELECT_OPTIONS } from '../modules/creator-auswahl/creatorTypeOptions.js';
+import { createSourcingIgToolbarConfig } from '../modules/creator-auswahl/sourcingIgToolbarConfig.js';
+import {
+  applySourcingIgCellState, SOURCING_IG_TOOLBAR
+} from '../modules/creator-auswahl/sourcingIgCell.js';
 
 function renderCell(columnClass, item, ctx = {}) {
   const html = renderItemRow({ isKunde: false, hiddenColumns: [], ...ctx }, { id: 'i1', ...item }, 0);
@@ -53,40 +57,132 @@ describe('Sourcing – Follower-Zellen', () => {
   });
 });
 
-describe('Sourcing – IG-Abruf-Button', () => {
-  function renderFetchButton(item) {
-    return renderCell('cp-col-link-ig', item).querySelector('[data-ig-fetch]');
+const IG_URL = 'https://www.instagram.com/paulinemary/';
+
+describe('Sourcing – IG-Zelle', () => {
+  const zelle = (item) => renderCell('cp-col-link-ig', item).querySelector('.chip-cell');
+
+  it('meldet die Zelle bei der Hover-Toolbar an', () => {
+    const cell = zelle({ link_instagram: IG_URL });
+
+    expect(cell.dataset.hoverToolbar).toBe(SOURCING_IG_TOOLBAR);
+    expect(cell.dataset.id).toBe('i1');
+  });
+
+  it('haelt die Roh-URL im Input und zeigt den Handle als Chip', () => {
+    const cell = zelle({ link_instagram: IG_URL });
+
+    expect(cell.querySelector('input[data-field="link_instagram"]').value).toBe(IG_URL);
+    expect(cell.querySelector('.chip-cell__label').textContent).toBe('@paulinemary');
+  });
+
+  it('laesst den Handle aus dem Abruf vor dem aus der URL gehen', () => {
+    // creator_auswahl_items hat keine Username-Spalte; der bestaetigte Handle
+    // steckt in ig_stats und ist verlaesslicher als der Pfad einer getippten URL.
+    const cell = zelle({
+      link_instagram: 'https://www.instagram.com/altername/',
+      ig_stats: { username: 'echtername' }
+    });
+
+    expect(cell.querySelector('.chip-cell__label').textContent).toBe('@echtername');
+  });
+
+  it('legt keine Aktions-Buttons mehr in die Zelle', () => {
+    const cell = zelle({ link_instagram: IG_URL });
+
+    expect(cell.querySelector('button')).toBeNull();
+    expect(cell.querySelector('a')).toBeNull();
+  });
+
+  it('rendert unabhaengig vom Link-Zustand denselben Zellenaufbau', () => {
+    // Der frueher springende Teil: Extern-Link existierte nur bei gesetzter URL
+    // und hat den Input in der Breite verschoben.
+    const aufbau = (item) => [...zelle(item).children]
+      .map(el => `${el.tagName}.${el.className.replace(/\s*is-[a-z]+/g, '')}`);
+
+    expect(aufbau({ link_instagram: IG_URL })).toEqual(aufbau({}));
+  });
+
+  it('faerbt den Status-Punkt nach dem Abruf-Zustand', () => {
+    const dot = (item) => zelle(item).querySelector('[data-chip-cell-dot]').className;
+
+    expect(dot({})).toContain('is-empty');
+    expect(dot({ link_instagram: IG_URL })).toContain('is-idle');
+    expect(dot({ link_instagram: IG_URL, ig_fetched_at: '2026-07-20T10:00:00.000Z' }))
+      .toContain('is-fetched');
+    expect(dot({ link_instagram: IG_URL, ig_fetch_error: 'Profil nicht gefunden' }))
+      .toContain('is-error');
+  });
+
+  it('zeigt Kunden weiter nur das anklickbare Icon', () => {
+    const cell = renderCell('cp-col-link-ig', { link_instagram: IG_URL }, { isKunde: true });
+
+    expect(cell.querySelector('.chip-cell')).toBeNull();
+    expect(cell.querySelector('a.link-icon-btn').getAttribute('href')).toBe(IG_URL);
+  });
+
+  it('zieht Chip und Punkt nach einer Eingabe im Feld nach', () => {
+    // Ohne das bleibt die Zelle nach dem Einfuegen eines Links optisch leer
+    const cell = zelle({});
+
+    applySourcingIgCellState(cell, { id: 'i1', link_instagram: IG_URL });
+
+    expect(cell.querySelector('[data-chip-cell-chip]').hidden).toBe(false);
+    expect(cell.querySelector('.chip-cell__label').textContent).toBe('@paulinemary');
+    expect(cell.querySelector('[data-chip-cell-dot]').className).toContain('is-idle');
+  });
+});
+
+describe('Sourcing – IG-Toolbar-Config', () => {
+  const detail = { items: [{ id: 'i1', link_instagram: IG_URL }], handleInstagramFetch: () => {} };
+  const config = createSourcingIgToolbarConfig(detail);
+
+  function contextFor(item) {
+    const cell = renderCell('cp-col-link-ig', item).querySelector('.chip-cell');
+    detail.items = [{ id: 'i1', ...item }];
+    return config.resolveContext(cell);
   }
 
-  it('zeigt vor dem ersten Abruf das Haekchen', () => {
-    const btn = renderFetchButton({ link_instagram: 'https://www.instagram.com/test/' });
-
-    expect(btn.classList.contains('is-refresh')).toBe(false);
-    expect(btn.classList.contains('is-error')).toBe(false);
-    expect(btn.title).toContain('Instagram-Daten abrufen');
+  it('oeffnet nur mit Link', () => {
+    expect(config.canOpen(contextFor({ link_instagram: IG_URL }))).toBe(true);
+    expect(config.canOpen(contextFor({}))).toBe(false);
   });
 
-  it('wechselt nach einem erfolgreichen Abruf auf das Refresh-Icon', () => {
-    const btn = renderFetchButton({
-      link_instagram: 'https://www.instagram.com/test/',
-      ig_fetched_at: '2026-07-20T10:00:00.000Z'
-    });
+  it('nimmt einen noch nicht gespeicherten Link aus dem Input', () => {
+    const cell = renderCell('cp-col-link-ig', {}).querySelector('.chip-cell');
+    cell.querySelector('input[data-field="link_instagram"]').value = IG_URL;
+    detail.items = [{ id: 'i1' }];
 
-    expect(btn.classList.contains('is-refresh')).toBe(true);
-    expect(btn.getAttribute('aria-label')).toBe('Instagram-Daten frisch abrufen');
-    expect(btn.title).toContain('frisch bei Instagram abrufen');
+    expect(config.resolveContext(cell).url).toBe(IG_URL);
   });
 
-  it('zeigt bei einem Fehler das Warn-Icon statt des Refresh-Icons', () => {
-    const btn = renderFetchButton({
-      link_instagram: 'https://www.instagram.com/test/',
-      ig_fetched_at: '2026-07-20T10:00:00.000Z',
-      ig_fetch_error: 'Profil nicht gefunden'
-    });
+  it('beschriftet die Hauptaktion nach dem Abruf-Zustand', () => {
+    const label = (item) => config.actions[0].label(contextFor(item));
 
-    expect(btn.classList.contains('is-error')).toBe(true);
-    expect(btn.classList.contains('is-refresh')).toBe(false);
-    expect(btn.title).toBe('Abruf fehlgeschlagen: Profil nicht gefunden');
+    expect(label({ link_instagram: IG_URL })).toBe('Instagram-Daten abrufen');
+    expect(label({ link_instagram: IG_URL, ig_fetched_at: '2026-07-20T10:00:00.000Z' }))
+      .toBe('Frisch abrufen');
+    expect(label({ link_instagram: IG_URL, ig_fetch_error: 'Profil nicht gefunden' }))
+      .toBe('Erneut versuchen');
+  });
+
+  it('macht den Abruf-Fehler als Zeile sichtbar statt nur im Tooltip', () => {
+    const ctx = contextFor({ link_instagram: IG_URL, ig_fetch_error: 'Profil nicht gefunden' });
+
+    expect(config.rows[0](ctx)).toEqual({ kind: 'error', text: 'Profil nicht gefunden' });
+    expect(config.rows[1](ctx)).toBeFalsy();
+  });
+
+  it('gibt dem Handler die Item-ID mit, weil die Leiste ausserhalb der Zeile sitzt', () => {
+    const aufrufe = [];
+    const cfg = createSourcingIgToolbarConfig({
+      items: [{ id: 'i1', link_instagram: IG_URL }],
+      handleInstagramFetch: (id, btn) => aufrufe.push([id, btn])
+    });
+    const button = { tagName: 'BUTTON' };
+
+    cfg.actions[0].onClick({ id: 'i1' }, button);
+    expect(aufrufe).toEqual([['i1', button]]);
   });
 });
 

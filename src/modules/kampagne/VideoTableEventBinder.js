@@ -9,6 +9,7 @@ import { VideoRowHeightSync } from './VideoRowHeightSync.js';
 import { getVideoFeedbackSlotByField } from '../../core/VideoFeedbackBuckets.js';
 import { nutzungsrechteModal } from './NutzungsrechteModal.js';
 import { COPY_ICON, CHECK_ICON } from './VideoTableRenderer.js';
+import { applyLiveLinkCellState, findVideoInTable } from './liveLinkCell.js';
 
 export class VideoTableEventBinder {
   constructor(table) {
@@ -56,6 +57,14 @@ export class VideoTableEventBinder {
       if (e.target.dataset?.entity === 'video' && getVideoFeedbackSlotByField(e.target.dataset.field)) return;
       if (e.target.classList.contains('grid-input') || e.target.classList.contains('grid-textarea') || e.target.classList.contains('custom-col-input')) {
         await t.handleFieldUpdate(e.target);
+
+        // Chip der Live-Link-Zelle nachziehen: die Tabelle rendert einzelne
+        // Zellen nicht neu, sonst stuende dort noch der alte Link.
+        if (e.target.dataset?.field === 'link_live') {
+          const videoId = e.target.dataset.id;
+          const video = findVideoInTable(t, videoId) || { link_live: e.target.value.trim() };
+          applyLiveLinkCellState(e.target.closest('.chip-cell'), video);
+        }
       }
     }, { capture: true, signal });
 
@@ -136,20 +145,6 @@ export class VideoTableEventBinder {
       if (nutzungsrechteBtn) {
         e.preventDefault();
         nutzungsrechteModal.open(nutzungsrechteBtn.dataset.vertragId);
-      }
-
-      // Haekchen neben dem Live-Link: Views/Likes/Kommentare nachladen
-      const statsBtn = e.target.closest('[data-video-stats-fetch]');
-      if (statsBtn) {
-        e.preventDefault();
-        t._statsFetcher.handleFetch(statsBtn);
-      }
-
-      // X neben dem Live-Link: Link und abgerufene Zahlen zuruecksetzen
-      const clearBtn = e.target.closest('[data-video-link-clear]');
-      if (clearBtn) {
-        e.preventDefault();
-        t._statsFetcher.handleClear(clearBtn);
       }
     }, { signal });
 
