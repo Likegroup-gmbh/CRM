@@ -11738,11 +11738,25 @@ input.readonly-field {
 /* Logo des Unternehmens links in der Sourcing-Kopfzeile. Feste Box mit
    object-fit, damit breite Wortmarken die Zeile nicht auseinanderziehen. */
 .sourcing-unternehmen-logo {
-  width: var(--space-xl);
-  height: var(--space-xl);
+  width: 2.4rem;
+  height: 2.4rem;
   object-fit: contain;
   border-radius: var(--radius-md);
   flex-shrink: 0;
+}
+
+.sourcing-listen-kopf {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.sourcing-listen-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Muss ueber der Reiter-Leiste liegen, sonst schneidet sie offene Dropdowns ab */
@@ -11757,6 +11771,7 @@ input.readonly-field {
 
 .add-item-actions-right {
   display: flex;
+  align-items: center;
   gap: var(--space-sm);
 }
 
@@ -12703,7 +12718,7 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-cpm-ig-8,
 .creator-pool-table td.cp-col-cpm-ig-30,
 .creator-pool-table td.cp-col-preis-reels,
-.creator-pool-table td.cp-col-gesamtpreis,
+.creator-pool-table td.cp-col-nutzungsrechte,
 .creator-pool-table td.cp-col-ek,
 .creator-pool-table td.cp-col-vk {
   vertical-align: middle;
@@ -12714,7 +12729,7 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-reichweite-story .strategie-textarea,
 .creator-pool-table td.cp-col-preis-story .strategie-textarea,
 .creator-pool-table td.cp-col-preis-reels .strategie-textarea,
-.creator-pool-table td.cp-col-gesamtpreis .strategie-textarea,
+.creator-pool-table td.cp-col-nutzungsrechte .strategie-textarea,
 .creator-pool-table td.cp-col-reichweite-garantie .strategie-textarea,
 .creator-pool-table td.cp-col-pricing .strategie-textarea,
 .creator-pool-table td.cp-col-ek .strategie-textarea,
@@ -12728,7 +12743,7 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-pricing .cell-text-readonly,
 .creator-pool-table td.cp-col-cpm-ig-8 .cell-text-readonly,
 .creator-pool-table td.cp-col-cpm-ig-30 .cell-text-readonly,
-.creator-pool-table td.cp-col-gesamtpreis .cell-text-readonly {
+.creator-pool-table td.cp-col-nutzungsrechte .cell-text-readonly {
   align-content: center;
   /* Als Inline-Element wuerde die Baseline das Feld ein paar Pixel nach oben
      ziehen, sodass es trotz vertical-align nicht exakt mittig sitzt */
@@ -12819,11 +12834,15 @@ table:has(#strategien-table-body) td.col-actions {
   cursor: not-allowed;
 }
 
-/* Etwas breiter als die anderen Freitextfelder, sonst bricht der Header
-   "Tatsächlicher Preis" auf drei Zeilen */
 .creator-pool-table .cp-col-pricing {
   width: 120px;
   min-width: 120px;
+}
+
+/* Freitext mit Laufzeit und Kanaelen - braucht mehr Platz als die Preisfelder */
+.creator-pool-table .cp-col-nutzungsrechte {
+  width: 180px;
+  min-width: 180px;
 }
 
 .creator-pool-table .cp-col-link-ig {
@@ -12851,8 +12870,7 @@ table:has(#strategien-table-body) td.col-actions {
 
 .creator-pool-table .cp-col-cpm-ig-8,
 .creator-pool-table .cp-col-cpm-ig-30,
-.creator-pool-table .cp-col-preis-reels,
-.creator-pool-table .cp-col-gesamtpreis {
+.creator-pool-table .cp-col-preis-reels {
   width: 108px;
   min-width: 108px;
 }
@@ -12866,7 +12884,6 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table .cp-col-cpm-ig-8,
 .creator-pool-table .cp-col-cpm-ig-30,
 .creator-pool-table .cp-col-preis-reels,
-.creator-pool-table .cp-col-gesamtpreis,
 .creator-pool-table .cp-col-ek,
 .creator-pool-table .cp-col-vk {
   text-align: center;
@@ -12875,7 +12892,6 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-reichweite-story .strategie-textarea,
 .creator-pool-table td.cp-col-preis-story .strategie-textarea,
 .creator-pool-table td.cp-col-preis-reels .strategie-textarea,
-.creator-pool-table td.cp-col-gesamtpreis .strategie-textarea,
 .creator-pool-table td.cp-col-reichweite-garantie .strategie-textarea,
 .creator-pool-table td.cp-col-pricing .strategie-textarea,
 .creator-pool-table td.cp-col-ek .strategie-textarea,
@@ -12886,9 +12902,29 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-reichweite-garantie .cell-text-readonly,
 .creator-pool-table td.cp-col-pricing .cell-text-readonly,
 .creator-pool-table td.cp-col-cpm-ig-8 .cell-text-readonly,
-.creator-pool-table td.cp-col-cpm-ig-30 .cell-text-readonly,
-.creator-pool-table td.cp-col-gesamtpreis .cell-text-readonly {
+.creator-pool-table td.cp-col-cpm-ig-30 .cell-text-readonly {
   text-align: center;
+}
+
+/* Preisfelder: das Euro-Zeichen steht fest am Feldende, im Wert selbst steht
+   nur der Betrag. Sonst wuerde beim naechsten Bearbeiten "250 € €" entstehen. */
+.cell-euro {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.cell-euro__input {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.cell-euro__suffix {
+  flex: 0 0 auto;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  pointer-events: none;
 }
 
 .creator-pool-table .cpm-auto-value {
@@ -12924,9 +12960,9 @@ table:has(#strategien-table-body) td.col-actions {
   --cp-block-tint: 159 122 134;  /* Gedaempftes Rose - Story */
 }
 
-/* Der Gesamtpreis bekommt bewusst keinen Tint: er gehoert zu keinem
-   Plattform-Block, sondern ist ein manuell gepflegtes Feld wie Name, Creator
-   Art oder Status - und sieht deshalb aus wie die regulaeren Spalten. */
+/* Gesamtpreis und Nutzungsrechte bekommen bewusst keinen Tint: sie gehoeren zu
+   keinem Plattform-Block, sondern sind manuell gepflegte Felder wie Name oder
+   Status - und sehen deshalb aus wie die regulaeren Spalten. */
 
 .creator-pool-table .cp-col-link-tt,
 .creator-pool-table .cp-col-follower-tt {

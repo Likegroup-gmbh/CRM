@@ -4,7 +4,6 @@ import {
   wendePresetAn,
   IG_REELS_SPALTEN,
   IG_STORY_SPALTEN,
-  IG_GESAMTPREIS_SPALTEN,
   TT_SPALTEN
 } from '../modules/creator-auswahl/sourcingSpaltenPreset.js';
 
@@ -127,7 +126,7 @@ describe('Drawer "Tabelle anpassen" – Typwechsel', () => {
       plattformen: null,
       ig_formate: null,
       hidden_columns: [
-        ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN, ...IG_GESAMTPREIS_SPALTEN, ...TT_SPALTEN
+        ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN, ...TT_SPALTEN
       ]
     });
     expect(istSichtbar('plattformen')).toBe(false);

@@ -7,7 +7,8 @@ import { normalizeCreatorTyp, isAllowedCreatorTyp } from './creatorTypeOptions.j
 import {
   renderAddSection, renderItemsTable, renderTabNavigation, renderItemRow,
   getTeilbereicheFromListe, isColumnVisibleForCustomer, getVisibleColumnCount,
-  getSourcingTabForItem, SOURCING_TABS, migrateHiddenColumns
+  getSourcingTabForItem, SOURCING_TABS, migrateHiddenColumns,
+  SOURCING_ANKER_SPALTEN, SOURCING_SPALTEN_LABELS, DEAKTIVIERTE_SPALTEN
 } from './CreatorAuswahlTemplates.js';
 import { CreatorAuswahlKategorienDrawer } from './CreatorAuswahlKategorienDrawer.js';
 import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
@@ -53,7 +54,13 @@ export class CreatorAuswahlDetail {
     this.kategorienDrawer = new CreatorAuswahlKategorienDrawer(this);
     this.addDrawer = new CreatorAuswahlAddDrawer(this);
     this.selectedItems = new Set();
-    this.customColumns = new EntityCustomColumnsManager({ parentType: 'sourcing', parentTable: 'creator_auswahl' });
+    this.customColumns = new EntityCustomColumnsManager({
+      parentType: 'sourcing',
+      parentTable: 'creator_auswahl',
+      anchorColumns: SOURCING_ANKER_SPALTEN,
+      anchorLabels: SOURCING_SPALTEN_LABELS,
+      disabledAnchors: DEAKTIVIERTE_SPALTEN
+    });
     this._customHeaderDragCleanup = null;
   }
 
@@ -562,10 +569,13 @@ export class CreatorAuswahlDetail {
       this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
     });
 
-    // Header Drag&Drop (nur Custom-Spalten untereinander)
+    // Header Drag&Drop ueber Hand-Griff (nur Custom-Spalten)
     if (this._customHeaderDragCleanup) this._customHeaderDragCleanup();
     const thead = document.querySelector('.creator-pool-table thead');
-    this._customHeaderDragCleanup = this.customColumns.bindHeaderDragAndDrop(thead, () => this.rerenderTable());
+    this._customHeaderDragCleanup = this.customColumns.bindHeaderDragAndDrop(
+      thead,
+      () => this.rerenderTable()
+    );
     this._boundEventListeners.add(() => {
       if (this._customHeaderDragCleanup) { this._customHeaderDragCleanup(); this._customHeaderDragCleanup = null; }
     });
@@ -967,7 +977,7 @@ export class CreatorAuswahlDetail {
 
   /**
    * Status-Select der Tabelle: setzt genau eines der Flags angefragt /
-   * in_verhandlung / on_hold / gebucht / prio_1 / prio_2 / absage und nimmt alle
+   * in_verhandlung / zusage / on_hold / gebucht / prio_1 / prio_2 / absage und nimmt alle
    * anderen zurueck.
    */
   async handleStatusChange(itemId, status) {
@@ -1265,7 +1275,9 @@ export class CreatorAuswahlDetail {
         e.target.tagName === 'A' ||
         e.target.closest('a') ||
         e.target.closest('.actions-dropdown-container') ||
-        e.target.closest('.drag-handle')
+        e.target.closest('.drag-handle') ||
+        // Hand-Griff eigener Spalten: sonst blockiert preventDefault den HTML5-Drag
+        e.target.closest('.entity-custom-col-grip')
       ) {
         return;
       }

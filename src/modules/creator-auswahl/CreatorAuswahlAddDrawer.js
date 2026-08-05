@@ -210,8 +210,13 @@ export class CreatorAuswahlAddDrawer {
           ${preisFelder}
 
           <div class="form-field">
-            <label class="form-label">Tatsächlicher Preis</label>
-            <input type="text" name="pricing" class="form-input" placeholder="z.B. 500€ pro Video">
+            <label class="form-label">Gesamtpreis</label>
+            <input type="text" name="pricing" class="form-input" placeholder="z.B. 500">
+          </div>
+
+          <div class="form-field">
+            <label class="form-label">Nutzungsrechte</label>
+            <textarea name="nutzungsrechte" class="form-input" rows="2" placeholder="z.B. 6 Monate Paid Social, IG + TikTok"></textarea>
           </div>
 
           <div class="form-row">
@@ -454,6 +459,7 @@ export class CreatorAuswahlAddDrawer {
         telefon: formData.get('telefon')?.trim() || null,
         notiz: formData.get('notiz')?.trim() || null,
         pricing: formData.get('pricing')?.trim() || null,
+        nutzungsrechte: formData.get('nutzungsrechte')?.trim() || null,
         preis_ek: formData.get('preis_ek') ? parseFloat(formData.get('preis_ek')) : null,
         preis_vk: formData.get('preis_vk') ? parseFloat(formData.get('preis_vk')) : null,
         reichweite_story: formData.get('reichweite_story')?.trim() || null,

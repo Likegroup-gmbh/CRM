@@ -10,7 +10,12 @@
 // oder Format, werden die zugehoerigen Spalten neu vorbelegt; von Hand
 // abgeschaltete Spalten wie Mail oder eigene Spalten bleiben erhalten.
 
-import { DEAKTIVIERTE_SPALTEN, getListenTkp } from './CreatorAuswahlTemplates.js';
+import {
+  DEAKTIVIERTE_SPALTEN,
+  getListenTkp,
+  SOURCING_SPALTEN,
+  SOURCING_SPALTEN_LABELS
+} from './CreatorAuswahlTemplates.js';
 import {
   LISTE_TYP_OPTIONEN,
   PLATTFORM_OPTIONEN,
@@ -18,31 +23,10 @@ import {
   wendePresetAn
 } from './sourcingSpaltenPreset.js';
 
-/** Spaltenreihenfolge im Drawer, passend zu SOURCING_SPALTEN */
-const SPALTEN_LABELS = [
-  { className: 'cp-col-bild', label: 'Bild' },
-  { className: 'cp-col-notiz', label: 'Kurzbeschreibung' },
-  { className: 'cp-col-typ', label: 'Creator Art' },
-  { className: 'cp-col-status', label: 'Status' },
-  { className: 'cp-col-location', label: 'Location' },
-  { className: 'cp-col-mail', label: 'Mail (nur intern)' },
-  { className: 'cp-col-telefon', label: 'Telefon (nur intern)' },
-  { className: 'cp-col-link-ig', label: 'Link Instagram' },
-  { className: 'cp-col-follower-ig', label: 'Follower Instagram' },
-  { className: 'cp-col-cpm-ig-8', label: 'Preis 8 Reels (Instagram)' },
-  { className: 'cp-col-cpm-ig-30', label: 'Preis 30 Reels (Instagram)' },
-  { className: 'cp-col-preis-reels', label: 'Preis Reels (Instagram)' },
-  { className: 'cp-col-reichweite-story', label: 'Reichweite Story (Instagram)' },
-  { className: 'cp-col-preis-story', label: 'Preis Story (Instagram)' },
-  { className: 'cp-col-gesamtpreis', label: 'Gesamtpreis' },
-  { className: 'cp-col-link-tt', label: 'Link TikTok' },
-  { className: 'cp-col-follower-tt', label: 'Follower TikTok' },
-  { className: 'cp-col-pricing', label: 'Tatsächlicher Preis' },
-  { className: 'cp-col-reichweite-garantie', label: 'Reichweitengarantie' },
-  { className: 'cp-col-ek', label: 'EK (Einkaufspreis)' },
-  { className: 'cp-col-vk', label: 'VK (Verkaufspreis)' },
-  { className: 'cp-col-feedback', label: 'Rückmeldung Kunde' }
-];
+/** Spaltenreihenfolge im Drawer, abgeleitet aus SOURCING_SPALTEN */
+const SPALTEN_LABELS = SOURCING_SPALTEN
+  .filter(c => SOURCING_SPALTEN_LABELS[c])
+  .map(c => ({ className: c, label: SOURCING_SPALTEN_LABELS[c] }));
 
 function escapeHtml(value) {
   return String(value ?? '')

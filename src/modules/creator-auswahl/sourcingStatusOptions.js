@@ -15,6 +15,7 @@ export const SOURCING_STATUS_OPTIONS = Object.freeze([
   { value: 'angefragt', label: 'Angefragt', color: 'var(--color-info)' },
   { value: 'in_verhandlung', label: 'In Verhandlung', color: 'var(--color-info-dark)' },
   { value: 'on_hold', label: 'On Hold', color: 'var(--warning)' },
+  { value: 'zusage', label: 'Zusage', color: 'var(--green-500)' },
   { value: 'gebucht', label: 'Buchen', color: 'var(--success)' },
   { value: 'prio_1', label: 'Prio 1', color: 'var(--color-info-dark)' },
   { value: 'prio_2', label: 'Prio 2', color: 'var(--color-info)' },
@@ -26,12 +27,12 @@ export const SOURCING_STATUS_OPTIONS = Object.freeze([
  * koennen: der weiter fortgeschrittene Status gewinnt. Ein Creator, der Prio 1
  * und gleichzeitig On Hold ist, zeigt On Hold.
  *
- * Die Prozess-Stufen Angefragt und In Verhandlung stehen vor den Prio-Stufen:
- * Prio ist eine Bewertung, keine Etappe - ein angefragter Prio-1-Creator zeigt
- * "Angefragt".
+ * Die Prozess-Stufen Angefragt, In Verhandlung und Zusage stehen vor den
+ * Prio-Stufen: Prio ist eine Bewertung, keine Etappe - ein angefragter
+ * Prio-1-Creator zeigt "Angefragt".
  */
 const STATUS_PRIORITY = Object.freeze([
-  'absage', 'gebucht', 'on_hold', 'in_verhandlung', 'angefragt', 'prio_1', 'prio_2'
+  'absage', 'gebucht', 'on_hold', 'zusage', 'in_verhandlung', 'angefragt', 'prio_1', 'prio_2'
 ]);
 
 export function getSourcingStatus(item) {
@@ -61,6 +62,7 @@ export function buildSourcingStatusUpdates(value, now = new Date()) {
   const updates = {
     angefragt: false,
     in_verhandlung: false,
+    zusage: false,
     on_hold: false,
     on_hold_am: null,
     gebucht: false,
@@ -78,6 +80,10 @@ export function buildSourcingStatusUpdates(value, now = new Date()) {
     case 'in_verhandlung':
       updates.in_verhandlung = true;
       updates.in_verhandlung_am = timestamp;
+      break;
+    case 'zusage':
+      updates.zusage = true;
+      updates.zusage_am = timestamp;
       break;
     case 'on_hold':
       updates.on_hold = true;
@@ -99,6 +105,7 @@ export function buildSourcingStatusUpdates(value, now = new Date()) {
     case 'offen':
       updates.angefragt_am = null;
       updates.in_verhandlung_am = null;
+      updates.zusage_am = null;
       break;
     default:
       break;
@@ -116,7 +123,7 @@ export function buildSourcingStatusUpdates(value, now = new Date()) {
  * aus SOURCING_STATUS_OPTIONS abgeleitet und bleiben mit dem Select synchron.
  */
 const STATUS_FILTER_FELDER = Object.freeze([
-  'angefragt', 'in_verhandlung', 'on_hold', 'gebucht', 'prio_1', 'prio_2', 'absage'
+  'angefragt', 'in_verhandlung', 'zusage', 'on_hold', 'gebucht', 'prio_1', 'prio_2', 'absage'
 ]);
 
 export const SOURCING_STATUS_FILTER_TAGS = Object.freeze(
@@ -137,6 +144,7 @@ export function matchesStatusFilter(item, selectedTags) {
 const STATUS_DATUM_FELD = Object.freeze({
   angefragt: 'angefragt_am',
   in_verhandlung: 'in_verhandlung_am',
+  zusage: 'zusage_am',
   on_hold: 'on_hold_am',
   absage: 'absage_am'
 });

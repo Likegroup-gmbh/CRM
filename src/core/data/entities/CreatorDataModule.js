@@ -132,6 +132,20 @@ creator_sprachen(sprachen!sprache_id(id,name))`;
         }
         delete filters.creator_type_id;
       }
+      // Kunde: Creator, die mind. eine Kooperation fuer dieses Unternehmen
+      // haben. kooperationen.unternehmen_id ist zu 100% befuellt, deshalb
+      // reicht der direkte Join, kein Fallback ueber kampagne.unternehmen_id
+      if (filters && filters.kunde_id) {
+        const selectedId = getIdFromFilter(filters.kunde_id);
+        const { data: links, error: lerr } = await supabase
+          .from('kooperationen')
+          .select('creator_id')
+          .eq('unternehmen_id', selectedId);
+        if (!lerr) {
+          idSets.push(new Set((links || []).map(r => r.creator_id)));
+        }
+        delete filters.kunde_id;
+      }
       // Schnittmenge bilden
       if (idSets.length > 0) {
         let intersection = idSets[0];
@@ -242,11 +256,12 @@ creator_sprachen(sprachen!sprache_id(id,name))`;
     const filterOptions = {};
 
     try {
-      const [creatorResult, ctResult, spResult, brResult] = await Promise.all([
+      const [creatorResult, ctResult, spResult, brResult, unResult] = await Promise.all([
         supabase.from('creator').select('lieferadresse_stadt,lieferadresse_land,instagram_follower'),
         supabase.from('creator_type').select('id, name').order('name'),
         supabase.from('sprachen').select('id, name').order('name'),
         supabase.from('branchen_creator').select('id, name').order('name'),
+        supabase.from('unternehmen').select('id, firmenname').order('firmenname'),
       ]);
 
       if (!ctResult.error && ctResult.data) {
@@ -263,6 +278,11 @@ creator_sprachen(sprachen!sprache_id(id,name))`;
         const options = brResult.data.map(b => ({ id: b.id, name: b.name }));
         filterOptions.branche = options;
         filterOptions.branche_id = options;
+      }
+      if (!unResult.error && unResult.data) {
+        // Analog zu Sprache/Branche: der Filter-Dropdown liest opt.name.
+        // firmenname wird deshalb als name abgelegt.
+        filterOptions.kunde_id = unResult.data.map(u => ({ id: u.id, name: u.firmenname }));
       }
 
       const data = creatorResult.data || [];

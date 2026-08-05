@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   renderItemRow,
+  renderItemsTable,
   renderAddSection,
   berechnePreisAusViews,
   getListenTkp,
+  ohneEuroZeichen,
   DEFAULT_TKP
 } from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
 
@@ -11,6 +13,13 @@ function renderCell(columnClass, item, ctx = {}) {
   const html = renderItemRow({ isKunde: false, hiddenColumns: [], ...ctx }, { id: 'i1', ...item }, 0);
   const doc = new DOMParser().parseFromString(`<table><tbody>${html}</tbody></table>`, 'text/html');
   return doc.querySelector(`td.${columnClass}`);
+}
+
+function tabelle(ctx = {}) {
+  const html = renderItemsTable({
+    isKunde: false, hiddenColumns: [], items: [{ id: 'i1' }], hasAnyItems: true, ...ctx
+  });
+  return new DOMParser().parseFromString(html, 'text/html');
 }
 
 describe('Sourcing – Preis-Zellen mit View-Basis', () => {
@@ -166,7 +175,7 @@ describe('Sourcing – Kopfzeile der Detailtabelle', () => {
     expect(doc.querySelector('#sourcing-tkp-input')).toBeNull();
   });
 
-  it('zeigt das Logo des Unternehmens links neben der Suche', () => {
+  it('zeigt das Logo des Unternehmens im linken Block', () => {
     const doc = kopf({
       liste: { unternehmen: { firmenname: 'Meta Glasses', logo_url: 'https://cdn.test/logo.png' } }
     });
@@ -175,6 +184,7 @@ describe('Sourcing – Kopfzeile der Detailtabelle', () => {
     expect(logo.getAttribute('src')).toBe('https://cdn.test/logo.png');
     expect(logo.getAttribute('alt')).toBe('Meta Glasses');
     expect(logo.getAttribute('title')).toBe('Meta Glasses');
+    expect(logo.closest('.add-item-actions-left')).not.toBeNull();
   });
 
   it('laesst den Logo-Platz weg, wenn kein Logo hinterlegt ist', () => {
@@ -183,22 +193,44 @@ describe('Sourcing – Kopfzeile der Detailtabelle', () => {
     expect(kopf({ liste: {} }).querySelector('.sourcing-unternehmen-logo')).toBeNull();
     expect(kopf().querySelector('.sourcing-unternehmen-logo')).toBeNull();
   });
+
+  it('zeigt den Listennamen auch ohne Logo neben dem Logo-Platz', () => {
+    const doc = kopf({ liste: { name: 'Sommer <Kampagne>' } });
+    const name = doc.querySelector('.sourcing-listen-name');
+
+    expect(name.textContent).toBe('Sommer <Kampagne>');
+    expect(name.closest('.sourcing-listen-kopf')).not.toBeNull();
+    expect(name.closest('.add-item-actions-left')).not.toBeNull();
+  });
+
+  it('stellt die Suche vor den Status-Filter und zeigt sie auch Kunden', () => {
+    const doc = kopf();
+    const rechts = doc.querySelector('.add-item-actions-right');
+    const kinder = Array.from(rechts.children);
+
+    expect(kinder[0].querySelector('#sourcing-item-search-input')).not.toBeNull();
+    expect(kinder[1].id).toBe('sourcing-status-filter-container');
+
+    const kundenDoc = kopf({ isKunde: true });
+    expect(kundenDoc.querySelector('#sourcing-item-search-input')).not.toBeNull();
+    expect(kundenDoc.querySelector('#sourcing-status-filter-container')).toBeNull();
+  });
 });
 
 describe('Sourcing – Story-Spalten', () => {
   it('nimmt Story-Reichweite und Story-Preis als Freitext auf', () => {
     const reichweite = renderCell('cp-col-reichweite-story', { reichweite_story: '8K' });
-    const preis = renderCell('cp-col-preis-story', { preis_story: '250€' });
+    const preis = renderCell('cp-col-preis-story', { preis_story: '250' });
 
     expect(reichweite.querySelector('input[data-field="reichweite_story"]').value).toBe('8K');
-    expect(preis.querySelector('input[data-field="preis_story"]').value).toBe('250€');
+    expect(preis.querySelector('input[data-field="preis_story"]').value).toBe('250');
   });
 
   it('zeigt Kunden die Story-Werte nur lesend', () => {
-    const cell = renderCell('cp-col-preis-story', { preis_story: '250€' }, { isKunde: true });
+    const cell = renderCell('cp-col-preis-story', { preis_story: '250' }, { isKunde: true });
 
     expect(cell.querySelector('input')).toBeNull();
-    expect(cell.querySelector('.cell-text-readonly').textContent.trim()).toBe('250€');
+    expect(cell.querySelector('.cell-text-readonly').textContent.trim()).toBe('250 €');
   });
 
   it('blurrt die Story-Spalten im Kunden-Call nicht', () => {
@@ -210,36 +242,111 @@ describe('Sourcing – Story-Spalten', () => {
 
 describe('Sourcing – Preis Reels (manuell)', () => {
   it('nimmt den Reel-Preis als Freitext auf', () => {
-    const cell = renderCell('cp-col-preis-reels', { preis_reels: 'ca. 1.200 €' });
+    const cell = renderCell('cp-col-preis-reels', { preis_reels: 'ca. 1.200' });
 
-    expect(cell.querySelector('input[data-field="preis_reels"]').value).toBe('ca. 1.200 €');
+    expect(cell.querySelector('input[data-field="preis_reels"]').value).toBe('ca. 1.200');
   });
 
   it('zeigt Kunden den Wert nur lesend', () => {
-    const cell = renderCell('cp-col-preis-reels', { preis_reels: '900 €' }, { isKunde: true });
+    const cell = renderCell('cp-col-preis-reels', { preis_reels: '900' }, { isKunde: true });
 
     expect(cell.querySelector('input')).toBeNull();
     expect(cell.querySelector('.cell-text-readonly').textContent.trim()).toBe('900 €');
   });
 });
 
-describe('Sourcing – Gesamtpreis (manuell)', () => {
-  it('nimmt den Gesamtpreis als Freitext auf', () => {
-    const cell = renderCell('cp-col-gesamtpreis', { gesamtpreis: 'ca. 1.500 €' });
+describe('Sourcing – Gesamtpreis', () => {
+  it('nennt die frueher "Tatsächlicher Preis" genannte Spalte Gesamtpreis', () => {
+    const doc = tabelle();
 
-    expect(cell.querySelector('input[data-field="gesamtpreis"]').value).toBe('ca. 1.500 €');
+    expect(doc.querySelector('thead th.cp-col-pricing').textContent.trim()).toBe('Gesamtpreis');
+    expect(doc.querySelector('thead th.cp-col-gesamtpreis')).toBeNull();
   });
 
-  it('bleibt leer, statt sich aus Reel- und Story-Preis zu befuellen', () => {
-    const cell = renderCell('cp-col-gesamtpreis', { preis_reels: '1.200', preis_story: '300' });
+  it('nimmt den Gesamtpreis als Freitext im Feld pricing auf', () => {
+    const cell = renderCell('cp-col-pricing', { pricing: '1.500' });
 
-    expect(cell.querySelector('input[data-field="gesamtpreis"]').value).toBe('');
+    expect(cell.querySelector('input[data-field="pricing"]').value).toBe('1.500');
+  });
+
+  it('zeigt die alte Gesamtpreis-Spalte nicht mehr in der Zeile', () => {
+    expect(renderCell('cp-col-gesamtpreis', { gesamtpreis: '1.500' })).toBeNull();
+  });
+});
+
+describe('Sourcing – Euro-Zeichen in den Preisfeldern', () => {
+  const PREIS_FELDER = [
+    ['cp-col-preis-reels', 'preis_reels'],
+    ['cp-col-preis-story', 'preis_story'],
+    ['cp-col-pricing', 'pricing'],
+    ['cp-col-ek', 'preis_ek'],
+    ['cp-col-vk', 'preis_vk']
+  ];
+
+  it('haengt an jedes Preisfeld ein festes Euro-Zeichen', () => {
+    for (const [spalte, feld] of PREIS_FELDER) {
+      const cell = renderCell(spalte, { [feld]: '250' });
+      const suffix = cell.querySelector('.cell-euro__suffix');
+
+      expect(suffix, spalte).not.toBeNull();
+      expect(suffix.textContent.trim()).toBe('€');
+      expect(cell.querySelector(`[data-field="${feld}"]`).classList.contains('cell-euro__input')).toBe(true);
+    }
+  });
+
+  it('zeigt das Zeichen auch bei leerem Feld', () => {
+    expect(renderCell('cp-col-pricing', {}).querySelector('.cell-euro__suffix')).not.toBeNull();
+  });
+
+  it('schneidet ein bereits gespeichertes Euro-Zeichen vom Wert ab', () => {
+    const cell = renderCell('cp-col-preis-reels', { preis_reels: '1.200 €' });
+
+    expect(cell.querySelector('input[data-field="preis_reels"]').value).toBe('1.200');
+    expect(ohneEuroZeichen('900€')).toBe('900');
+    expect(ohneEuroZeichen(null)).toBe('');
+  });
+
+  it('haengt das Zeichen in der Kundenansicht an den Wert', () => {
+    const cell = renderCell('cp-col-pricing', { pricing: '1.500' }, { isKunde: true });
+
+    expect(cell.querySelector('.cell-text-readonly').textContent.trim()).toBe('1.500 €');
+  });
+
+  it('zeigt in der Kundenansicht ohne Wert einen Strich statt eines einsamen Euro', () => {
+    const cell = renderCell('cp-col-pricing', {}, { isKunde: true });
+
+    expect(cell.querySelector('.cell-text-readonly').textContent.trim()).toBe('-');
+  });
+
+  it('blurrt den EK im Kunden-Call weiterhin', () => {
+    const input = renderCell('cp-col-ek', { preis_ek: 500 }, { kundenCallActive: true })
+      .querySelector('input[data-field="preis_ek"]');
+
+    expect(input.classList.contains('kunden-call-blur')).toBe(true);
+    expect(input.hasAttribute('data-blur-target')).toBe(true);
+  });
+});
+
+describe('Sourcing – Nutzungsrechte', () => {
+  it('steht als Freitext direkt hinter dem Status', () => {
+    const kopf = Array.from(tabelle().querySelectorAll('thead th'))
+      .map(th => Array.from(th.classList).find(c => c.startsWith('cp-col-')))
+      .filter(Boolean);
+
+    expect(kopf[kopf.indexOf('cp-col-status') + 1]).toBe('cp-col-nutzungsrechte');
+  });
+
+  it('speichert in das Feld nutzungsrechte', () => {
+    const cell = renderCell('cp-col-nutzungsrechte', { nutzungsrechte: '6 Monate Paid Social' });
+
+    expect(cell.querySelector('textarea[data-field="nutzungsrechte"]').value)
+      .toBe('6 Monate Paid Social');
   });
 
   it('zeigt Kunden den Wert nur lesend', () => {
-    const cell = renderCell('cp-col-gesamtpreis', { gesamtpreis: '1.500 €' }, { isKunde: true });
+    const cell = renderCell('cp-col-nutzungsrechte', { nutzungsrechte: 'IG + TikTok' }, { isKunde: true });
 
-    expect(cell.querySelector('input')).toBeNull();
-    expect(cell.querySelector('.cell-text-readonly').textContent.trim()).toBe('1.500 €');
+    expect(cell.querySelector('textarea')).toBeNull();
+    expect(cell.querySelector('.cell-text-readonly').textContent.trim()).toBe('IG + TikTok');
   });
 });
