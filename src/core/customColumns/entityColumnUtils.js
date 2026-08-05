@@ -25,9 +25,24 @@ export function escapeHtml(text) {
 }
 
 /**
+ * Normalisiert einen Eintrag aus dem Reihenfolge-Array auf { id, after }.
+ * Erlaubt sind reine Strings ("custom:{uuid}", ohne Anker) und Objekte
+ * ({ id, after }), bei denen `after` die Standardspalte davor benennt.
+ * @returns {{id: string, after: string|null}|null}
+ */
+export function parseOrderEntry(entry) {
+  if (isCustomColumnId(entry)) return { id: entry, after: null };
+  if (entry && typeof entry === 'object' && isCustomColumnId(entry.id)) {
+    const after = typeof entry.after === 'string' && entry.after ? entry.after : null;
+    return { id: entry.id, after };
+  }
+  return null;
+}
+
+/**
  * Liefert Custom-Spalten in der gespeicherten Reihenfolge.
- * Reihenfolge-Array enthaelt Eintraege "custom:{uuid}". Nicht enthaltene
- * Spalten werden nach position hinten angehaengt.
+ * Nicht enthaltene Spalten werden nach position hinten angehaengt.
+ * Der Anker aus Objekt-Eintraegen landet als `_anchor` an der Spalte.
  */
 export function orderCustomColumns(columns, order) {
   const cols = Array.isArray(columns) ? [...columns] : [];
@@ -40,18 +55,50 @@ export function orderCustomColumns(columns, order) {
   const used = new Set();
 
   for (const entry of order) {
-    if (!isCustomColumnId(entry)) continue;
-    const uuid = extractCustomColumnUuid(entry);
+    const parsed = parseOrderEntry(entry);
+    if (!parsed) continue;
+    const uuid = extractCustomColumnUuid(parsed.id);
     const col = byUuid.get(uuid);
-    if (col) {
-      result.push(col);
+    if (col && !used.has(uuid)) {
+      result.push({ ...col, _anchor: parsed.after });
       used.add(uuid);
     }
   }
 
   const remaining = cols
     .filter(c => !used.has(c.id))
-    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+    .map(c => ({ ...c, _anchor: null }));
 
   return [...result, ...remaining];
+}
+
+/**
+ * Gruppiert geordnete Spalten nach ihrem Anker.
+ * @param {Array} orderedCols  Ergebnis von orderCustomColumns
+ * @param {string[]} [knownAnchors]  gueltige Standardspalten. Unbekannte Anker
+ *   fallen ans Tabellenende zurueck, damit entfernte Spalten nichts verstecken.
+ * @returns {{byAnchor: Map<string, Array>, trailing: Array}}
+ */
+export function groupCustomColumnsByAnchor(orderedCols, knownAnchors) {
+  const byAnchor = new Map();
+  const trailing = [];
+  const valid = Array.isArray(knownAnchors) ? new Set(knownAnchors) : null;
+
+  for (const col of orderedCols || []) {
+    const anchor = col?._anchor;
+    if (!anchor || (valid && !valid.has(anchor))) {
+      trailing.push(col);
+      continue;
+    }
+    if (!byAnchor.has(anchor)) byAnchor.set(anchor, []);
+    byAnchor.get(anchor).push(col);
+  }
+
+  return { byAnchor, trailing };
+}
+
+/** Serialisiert eine Spalte zurueck in einen Eintrag fuer custom_column_order. */
+export function toOrderEntry(colId, anchor) {
+  return anchor ? { id: colId, after: anchor } : colId;
 }

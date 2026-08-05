@@ -3,7 +3,7 @@
 // Anlegen, Umbenennen, Loeschen, Typ, Kunden-Sichtbarkeit, Dropdown-Optionen.
 // Einstufig (keine Ebenen-Auswahl wie bei der Kampagne).
 
-import { makeCustomColumnId, escapeHtml } from './entityColumnUtils.js';
+import { makeCustomColumnId, escapeHtml, parseOrderEntry } from './entityColumnUtils.js';
 
 const FIELD_TYPES = [
   { value: 'text', label: 'Text' },
@@ -347,7 +347,8 @@ export class EntityCustomColumnsDrawer {
       await this.dataLoader.deleteColumn(columnId);
       const idx = this.columns.findIndex(c => c.id === columnId);
       if (idx >= 0) this.columns.splice(idx, 1);
-      const orderIdx = this.order.indexOf(makeCustomColumnId(columnId));
+      const deletedId = makeCustomColumnId(columnId);
+      const orderIdx = this.order.findIndex(e => parseOrderEntry(e)?.id === deletedId);
       if (orderIdx >= 0) this.order.splice(orderIdx, 1);
       await this.dataLoader.saveColumnOrder(this.order);
       this._refreshContent();

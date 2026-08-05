@@ -21,6 +21,7 @@ describe('getSourcingStatus – Rangfolge bei Mehrfach-Flags', () => {
   it('liefert den einzeln gesetzten Status', () => {
     expect(getSourcingStatus({ angefragt: true })).toBe('angefragt');
     expect(getSourcingStatus({ in_verhandlung: true })).toBe('in_verhandlung');
+    expect(getSourcingStatus({ zusage: true })).toBe('zusage');
     expect(getSourcingStatus({ on_hold: true })).toBe('on_hold');
     expect(getSourcingStatus({ gebucht: true })).toBe('gebucht');
     expect(getSourcingStatus({ prio_1: true })).toBe('prio_1');
@@ -40,6 +41,13 @@ describe('getSourcingStatus – Rangfolge bei Mehrfach-Flags', () => {
     expect(getSourcingStatus({ in_verhandlung: true, angefragt: true })).toBe('in_verhandlung');
   });
 
+  it('stellt die Zusage zwischen Verhandlung und Buchung', () => {
+    expect(getSourcingStatus({ zusage: true, in_verhandlung: true })).toBe('zusage');
+    expect(getSourcingStatus({ zusage: true, prio_1: true })).toBe('zusage');
+    expect(getSourcingStatus({ gebucht: true, zusage: true })).toBe('gebucht');
+    expect(getSourcingStatus({ on_hold: true, zusage: true })).toBe('on_hold');
+  });
+
   it('bevorzugt Absage vor allem und Gebucht vor On Hold', () => {
     expect(getSourcingStatus({ absage: true, gebucht: true, on_hold: true, prio_1: true })).toBe('absage');
     expect(getSourcingStatus({ gebucht: true, on_hold: true, prio_1: true })).toBe('gebucht');
@@ -48,7 +56,7 @@ describe('getSourcingStatus – Rangfolge bei Mehrfach-Flags', () => {
 });
 
 describe('buildSourcingStatusUpdates', () => {
-  const FLAGS = ['angefragt', 'in_verhandlung', 'on_hold', 'gebucht', 'prio_1', 'prio_2', 'absage'];
+  const FLAGS = ['angefragt', 'in_verhandlung', 'zusage', 'on_hold', 'gebucht', 'prio_1', 'prio_2', 'absage'];
 
   it('setzt je Status genau ein Flag auf true', () => {
     for (const status of FLAGS) {
@@ -64,6 +72,8 @@ describe('buildSourcingStatusUpdates', () => {
       angefragt_am: null,
       in_verhandlung: false,
       in_verhandlung_am: null,
+      zusage: false,
+      zusage_am: null,
       on_hold: false,
       on_hold_am: null,
       gebucht: false,
@@ -74,11 +84,12 @@ describe('buildSourcingStatusUpdates', () => {
     });
   });
 
-  it('schreibt den Zeitstempel fuer Angefragt, In Verhandlung, On Hold und Absage', () => {
+  it('schreibt den Zeitstempel fuer Angefragt, In Verhandlung, Zusage, On Hold und Absage', () => {
     const now = new Date('2026-07-29T06:00:00.000Z');
 
     expect(buildSourcingStatusUpdates('angefragt', now).angefragt_am).toBe(now.toISOString());
     expect(buildSourcingStatusUpdates('in_verhandlung', now).in_verhandlung_am).toBe(now.toISOString());
+    expect(buildSourcingStatusUpdates('zusage', now).zusage_am).toBe(now.toISOString());
 
     const onHold = buildSourcingStatusUpdates('on_hold', now);
     expect(onHold.on_hold_am).toBe(now.toISOString());
@@ -109,11 +120,19 @@ describe('buildSourcingStatusUpdates', () => {
     expect(updates.gebucht).toBe(true);
   });
 
+  it('laesst zusage_am beim Weiterziehen stehen, raeumt es aber bei "offen" ab', () => {
+    for (const status of ['gebucht', 'absage']) {
+      expect('zusage_am' in buildSourcingStatusUpdates(status)).toBe(false);
+    }
+    expect(buildSourcingStatusUpdates('offen').zusage_am).toBeNull();
+  });
+
   it('erkennt gueltige Status-Werte', () => {
     expect(isSourcingStatus('on_hold')).toBe(true);
     expect(isSourcingStatus('offen')).toBe(true);
     expect(isSourcingStatus('angefragt')).toBe(true);
     expect(isSourcingStatus('in_verhandlung')).toBe(true);
+    expect(isSourcingStatus('zusage')).toBe(true);
     expect(isSourcingStatus('quatsch')).toBe(false);
   });
 });
@@ -125,6 +144,7 @@ describe('getSourcingStatusMeta', () => {
     expect(getSourcingStatusMeta({ angefragt: true, angefragt_am: '2026-07-29T06:00:00.000Z' })).toBe('29.7.2026');
     expect(getSourcingStatusMeta({ in_verhandlung: true, in_verhandlung_am: '2026-07-29T06:00:00.000Z' }))
       .toBe('29.7.2026');
+    expect(getSourcingStatusMeta({ zusage: true, zusage_am: '2026-07-29T06:00:00.000Z' })).toBe('29.7.2026');
   });
 
   it('zeigt kein Datum bei Status ohne eigenen Zeitstempel', () => {
@@ -154,13 +174,33 @@ describe('Sourcing-Zeile – Status-Spalte', () => {
     expect(spalten[spalten.indexOf('cp-col-typ') + 1]).toBe('cp-col-status');
   });
 
-  it('bietet Angefragt und In Verhandlung als Option an', () => {
+  it('bietet Angefragt, In Verhandlung und Zusage als Option an', () => {
     const select = renderRow({}).querySelector('td.cp-col-status .table-select');
 
     expect(select.querySelector('.table-select__item[data-value="angefragt"]').textContent.trim())
       .toBe('Angefragt');
     expect(select.querySelector('.table-select__item[data-value="in_verhandlung"]').textContent.trim())
       .toBe('In Verhandlung');
+    expect(select.querySelector('.table-select__item[data-value="zusage"]').textContent.trim())
+      .toBe('Zusage');
+  });
+
+  it('reiht die Zusage zwischen On Hold und Buchen ein', () => {
+    const werte = Array.from(
+      renderRow({}).querySelectorAll('td.cp-col-status .table-select__item')
+    ).map(el => el.dataset.value);
+
+    expect(werte.slice(werte.indexOf('on_hold'), werte.indexOf('on_hold') + 3))
+      .toEqual(['on_hold', 'zusage', 'gebucht']);
+  });
+
+  it('zeigt die Zusage samt Datum im Trigger', () => {
+    const select = renderRow({ zusage: true, zusage_am: '2026-08-05T06:00:00.000Z' })
+      .querySelector('td.cp-col-status .table-select');
+
+    expect(select.dataset.value).toBe('zusage');
+    expect(select.querySelector('.table-select__label').textContent.trim()).toBe('Zusage');
+    expect(select.querySelector('.table-select__meta').textContent.trim()).toBe('5.8.2026');
   });
 
   it('haengt das Anfragedatum als Meta-Zeile unter den Trigger', () => {

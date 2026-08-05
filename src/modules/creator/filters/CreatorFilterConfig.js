@@ -57,6 +57,19 @@ export const CREATOR_FILTERS = [
     priority: 4
   }),
 
+  // Kunden-Filter: zeigt Creator, die mindestens eine Kooperation fuer das
+  // gewaehlte Unternehmen haben (Aufloesung ueber kooperationen im DataModule)
+  createFilterConfig('select', {
+    id: 'kunde_id',
+    label: 'Kunde',
+    table: 'unternehmen',
+    displayField: 'firmenname',
+    valueField: 'id',
+    dynamic: true,
+    placeholder: 'Kunde auswählen...',
+    priority: 4
+  }),
+
   // Geschlecht Filter
   createFilterConfig('select', {
     id: 'geschlecht',
@@ -177,7 +190,7 @@ export const CREATOR_FILTER_GROUPS = [
   {
     id: 'basic',
     label: 'Grundlagen',
-    filters: ['name', 'creator_type_id', 'sprache_id', 'branche_id', 'geschlecht', 'alter'],
+    filters: ['name', 'creator_type_id', 'sprache_id', 'branche_id', 'kunde_id', 'geschlecht', 'alter'],
     expanded: true
   },
   {

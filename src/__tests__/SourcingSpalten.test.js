@@ -40,25 +40,53 @@ describe('Sourcing – Spaltenreihenfolge', () => {
   it('stellt Bild zwischen Checkbox und Namen, Status direkt hinter die Creator Art', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
 
-    expect(spalten.slice(0, 8)).toEqual([
-      'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-typ', 'cp-col-status',
+    expect(spalten.slice(0, 10)).toEqual([
+      'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-notiz',
+      'cp-col-typ', 'cp-col-status', 'cp-col-nutzungsrechte',
       'cp-col-location', 'cp-col-mail', 'cp-col-telefon'
     ]);
+  });
+
+  it('stellt die Kurzbeschreibung direkt hinter den Namen, vor die Creator Art', () => {
+    const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
+    const ab = spalten.indexOf('cp-col-name');
+
+    expect(spalten.slice(ab, ab + 3)).toEqual([
+      'cp-col-name', 'cp-col-notiz', 'cp-col-typ'
+    ]);
+    expect(SOURCING_SPALTEN[SOURCING_SPALTEN.indexOf('cp-col-name') + 1])
+      .toBe('cp-col-notiz');
+  });
+
+  it('zieht die Kurzbeschreibung auch im Kopf nach vorne', () => {
+    const kopf = reihenfolge(tableDoc([{ id: 'i1' }]).querySelectorAll('thead th'));
+    const ab = kopf.indexOf('cp-col-name');
+
+    expect(kopf.slice(ab, ab + 3)).toEqual([
+      'cp-col-name', 'cp-col-notiz', 'cp-col-typ'
+    ]);
+  });
+
+  it('haelt die Kurzbeschreibung nicht mehr am Ende bei der Rueckmeldung', () => {
+    const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
+
+    expect(spalten.filter(c => c === 'cp-col-notiz')).toHaveLength(1);
+    expect(spalten[spalten.indexOf('cp-col-vk') + 1]).toBe('cp-col-feedback');
   });
 
   it('buendelt erst den ganzen Instagram-Block, dann TikTok', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
     const ab = spalten.indexOf('cp-col-link-ig');
 
-    expect(spalten.slice(ab, ab + 10)).toEqual([
+    expect(spalten.slice(ab, ab + 9)).toEqual([
       'cp-col-link-ig', 'cp-col-follower-ig',
       'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-preis-reels',
-      'cp-col-reichweite-story', 'cp-col-preis-story', 'cp-col-gesamtpreis',
+      'cp-col-reichweite-story', 'cp-col-preis-story',
       'cp-col-link-tt', 'cp-col-follower-tt'
     ]);
   });
 
-  it('setzt den tatsaechlichen Preis hinter TikTok, danach die Garantie', () => {
+  it('setzt den Gesamtpreis hinter TikTok, danach die Garantie', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
     const ab = spalten.indexOf('cp-col-follower-tt');
 
@@ -84,10 +112,12 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     expect(zeile).toEqual(kopf);
   });
 
-  it('benennt die Pricing-Spalte in "Tatsächlicher Preis" um', () => {
-    const th = tableDoc([{ id: 'i1' }]).querySelector('thead th.cp-col-pricing');
+  it('nennt die Pricing-Spalte Gesamtpreis und kennt keine zweite Gesamtpreis-Spalte', () => {
+    const doc = tableDoc([{ id: 'i1' }]);
 
-    expect(th.textContent.trim()).toBe('Tatsächlicher Preis');
+    expect(doc.querySelector('thead th.cp-col-pricing').textContent.trim()).toBe('Gesamtpreis');
+    expect(doc.querySelector('thead th.cp-col-gesamtpreis')).toBeNull();
+    expect(SOURCING_SPALTEN).not.toContain('cp-col-gesamtpreis');
   });
 
   it('schreibt Reels in die Preis-Ueberschriften, damit der Bezug klar ist', () => {
@@ -131,8 +161,8 @@ describe('Sourcing – Spaltenreihenfolge', () => {
 
     expect(doc.querySelector('thead th.cp-col-preis-reels').textContent.trim())
       .toContain('Preis Reels');
-    expect(doc.querySelector('thead th.cp-col-gesamtpreis').textContent.trim())
-      .toBe('Gesamtpreis');
+    expect(doc.querySelector('thead th.cp-col-preis-story').textContent.trim())
+      .toContain('Preis Story');
   });
 
   it('nennt im Tooltip den TKP der Liste statt der festen 25', () => {

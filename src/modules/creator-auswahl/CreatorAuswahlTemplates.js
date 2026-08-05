@@ -57,7 +57,10 @@ const ENTFERNTE_SPALTEN = [
   'cp-col-cpm-ig-8-clean', 'cp-col-cpm-ig-30-clean',
   // Angefragt und Rueckmeldung waren Checkbox-Spalten, ihre Information steckt
   // jetzt in den Status-Optionen "Angefragt" und "In Verhandlung".
-  'cp-col-anfragen', 'cp-col-check'
+  'cp-col-anfragen', 'cp-col-check',
+  // Der eigene Gesamtpreis im Instagram-Block ist entfallen; den Gesamtpreis
+  // fuehrt jetzt die frueher "Tatsächlicher Preis" genannte Spalte cp-col-pricing.
+  'cp-col-gesamtpreis'
 ];
 
 /** Die fuenf Status-Checkbox-Spalten, die zur Select-Spalte cp-col-status wurden */
@@ -120,19 +123,64 @@ export function isColumnVisibleForCustomer(columnClass, isKunde, hiddenColumns) 
  * Der Status steht direkt hinter der Creator Art: er entscheidet, wie es mit
  * einem Creator weitergeht, und war hinten in der Tabelle nur mit Querscrollen
  * erreichbar.
+ *
+ * Die Kurzbeschreibung steht direkt hinter dem Namen: sie sagt, wer der
+ * Creator ueberhaupt ist, und gehoert damit neben den Namen statt ans Ende
+ * hinter alle Preisspalten.
  */
 export const SOURCING_SPALTEN = [
-  'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-typ', 'cp-col-status',
+  'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-notiz',
+  'cp-col-typ', 'cp-col-status', 'cp-col-nutzungsrechte',
   'cp-col-location', 'cp-col-mail', 'cp-col-telefon',
   'cp-col-link-ig', 'cp-col-follower-ig',
   'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-preis-reels',
-  'cp-col-reichweite-story', 'cp-col-preis-story', 'cp-col-gesamtpreis',
+  'cp-col-reichweite-story', 'cp-col-preis-story',
   'cp-col-link-tt', 'cp-col-follower-tt',
   'cp-col-pricing', 'cp-col-reichweite-garantie',
   'cp-col-ek', 'cp-col-vk',
-  'cp-col-notiz', 'cp-col-feedback',
+  'cp-col-feedback',
   'cp-col-actions'
 ];
+
+/**
+ * Standardspalten, hinter denen eine eigene Spalte verankert werden darf.
+ * Die drei linken Sticky-Spalten fehlen bewusst: dort wuerden die festen
+ * left-Offsets aus dem CSS brechen. Die Aktionen bleiben immer ganz rechts.
+ */
+export const SOURCING_ANKER_SPALTEN = SOURCING_SPALTEN.filter(
+  col => !['cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-actions'].includes(col)
+);
+
+/**
+ * Anzeigenamen der Standardspalten. Eine Quelle fuer Drawer, Positionsmenue
+ * und Tooltips – Reihenfolge kommt aus SOURCING_SPALTEN.
+ * Drag, Name und Aktionen fehlen bewusst: die sind immer sichtbar bzw. nicht
+ * als Anker nutzbar.
+ */
+export const SOURCING_SPALTEN_LABELS = {
+  'cp-col-bild': 'Bild',
+  'cp-col-notiz': 'Kurzbeschreibung',
+  'cp-col-typ': 'Creator Art',
+  'cp-col-status': 'Status',
+  'cp-col-nutzungsrechte': 'Nutzungsrechte',
+  'cp-col-location': 'Location',
+  'cp-col-mail': 'Mail (nur intern)',
+  'cp-col-telefon': 'Telefon (nur intern)',
+  'cp-col-link-ig': 'Link Instagram',
+  'cp-col-follower-ig': 'Follower Instagram',
+  'cp-col-cpm-ig-8': 'Preis 8 Reels (Instagram)',
+  'cp-col-cpm-ig-30': 'Preis 30 Reels (Instagram)',
+  'cp-col-preis-reels': 'Preis Reels (Instagram)',
+  'cp-col-reichweite-story': 'Reichweite Story (Instagram)',
+  'cp-col-preis-story': 'Preis Story (Instagram)',
+  'cp-col-link-tt': 'Link TikTok',
+  'cp-col-follower-tt': 'Follower TikTok',
+  'cp-col-pricing': 'Gesamtpreis',
+  'cp-col-reichweite-garantie': 'Reichweitengarantie',
+  'cp-col-ek': 'EK (Einkaufspreis)',
+  'cp-col-vk': 'VK (Verkaufspreis)',
+  'cp-col-feedback': 'Rückmeldung Kunde'
+};
 
 export function getVisibleColumnCount(isKunde, hiddenColumns) {
   let count = 0;
@@ -204,18 +252,53 @@ export function renderTabNavigation(ctx) {
 // --- Render-Funktionen ---
 // ctx = { items, liste, isKunde, hiddenColumns }
 
+/**
+ * Logo des Unternehmens, zu dem die Liste gehoert. Ohne Logo faellt nur das
+ * Bild weg, der Listenname daneben bleibt stehen.
+ */
+function renderUnternehmenLogo(ctx) {
+  const unternehmen = ctx.liste?.unternehmen;
+  const rawUrl = unternehmen?.logo_url;
+  if (!rawUrl) return '';
+
+  const safeUrl = window.validatorSystem?.sanitizeUrl(rawUrl) ?? rawUrl;
+  if (!safeUrl) return '';
+
+  const firmenname = unternehmen.firmenname || 'Unternehmen';
+
+  return `
+    <img src="${escapeHtml(safeUrl)}"
+         alt="${escapeHtml(firmenname)}"
+         title="${escapeHtml(firmenname)}"
+         class="sourcing-unternehmen-logo"
+         loading="lazy" />
+  `;
+}
+
+/** Logo und Name der Liste - der linke Teil der Kopfzeile */
+function renderListenKopf(ctx) {
+  const name = ctx.liste?.name;
+  return `
+    <div class="sourcing-listen-kopf">
+      ${renderUnternehmenLogo(ctx)}
+      ${name ? `<span class="sourcing-listen-name">${escapeHtml(name)}</span>` : ''}
+    </div>
+  `;
+}
+
 export function renderAddSection(ctx = {}) {
   const kundenCallActive = ctx.kundenCallActive || false;
   return `
     <div class="add-item-section add-item-section--compact">
       <div class="add-item-actions-left">
+        ${renderListenKopf(ctx)}
+      </div>
+      <div class="add-item-actions-right">
         ${SearchInput.render('sourcing-item', {
           placeholder: 'Name suchen...',
           currentValue: escapeHtml(ctx.searchQuery || '')
         })}
-      </div>
-      ${!ctx.isKunde ? `
-      <div class="add-item-actions-right">
+        ${!ctx.isKunde ? `
         <div id="sourcing-status-filter-container"></div>
         <button type="button" class="secondary-btn" id="btn-share-sourcing" title="Liste per E-Mail teilen">
           <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" style="width: 16px; height: 16px;">
@@ -254,8 +337,8 @@ export function renderAddSection(ctx = {}) {
           </svg>
           Creator hinzufügen
         </button>
+        ` : ''}
       </div>
-      ` : ''}
     </div>
   `;
 }
@@ -307,6 +390,11 @@ export function renderItemsTable(ctx) {
   const hide = (col) => !vis(col) ? 'style="display:none;"' : '';
   const sticky = getStickyClasses(ctx);
   const tkpLabel = getListenTkp(ctx.liste).toLocaleString('de-DE');
+  // Einfuegepunkt fuer eigene Spalten, die hinter dieser Standardspalte
+  // verankert sind. Muss in Kopf und Datenzeile an denselben Stellen stehen.
+  const customAt = (anchor) => ctx.customManager
+    ? ctx.customManager.renderHeadersAt(anchor, ctx.hiddenColumns, ctx.isKunde)
+    : '';
 
   return `
     <div class="table-container creator-pool-table-container">
@@ -316,27 +404,48 @@ export function renderItemsTable(ctx) {
             ${!ctx.isKunde ? '<th class="col-drag col-sticky-1 cp-col-drag"><input type="checkbox" class="sourcing-select-all" title="Alle auswählen"></th>' : ''}
             <th class="cp-col-bild ${sticky.bild}" ${hide('cp-col-bild')}></th>
             <th class="${sticky.name} cp-col-name">Name</th>
-            <th class="cp-col-typ" ${hide('cp-col-typ')}>Creator Art</th>
-            <th class="cp-col-status" ${hide('cp-col-status')}>Status</th>
-            <th class="cp-col-location" ${hide('cp-col-location')}>Location</th>
-            <th class="cp-col-mail" ${hide('cp-col-mail')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Mail</th>
-            <th class="cp-col-telefon" ${hide('cp-col-telefon')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Telefon</th>
-            <th class="cp-col-link-ig" ${hide('cp-col-link-ig')}>Link ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-follower-ig" ${hide('cp-col-follower-ig')}>Follower ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-cpm-ig-8" ${hide('cp-col-cpm-ig-8')} title="${escapeHtml(reelsPreisTooltip(tkpLabel, 8))}">Preis 8 Reels ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-cpm-ig-30" ${hide('cp-col-cpm-ig-30')} title="${escapeHtml(reelsPreisTooltip(tkpLabel, 30))}">Preis 30 Reels ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-preis-reels" ${hide('cp-col-preis-reels')} title="Manuell gepflegt – der tatsächlich verhandelte Reel-Preis">Preis Reels ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-reichweite-story" ${hide('cp-col-reichweite-story')} title="Manuell gepflegt – Story-Reichweite liefert die Instagram-API für fremde Accounts nicht">Reichweite Story ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-preis-story" ${hide('cp-col-preis-story')} title="Manuell gepflegt">Preis Story ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-gesamtpreis" ${hide('cp-col-gesamtpreis')} title="Preis Reels + Preis Story">Gesamtpreis</th>
-            <th class="cp-col-link-tt" ${hide('cp-col-link-tt')}>Link ${TIKTOK_ICON}</th>
-            <th class="cp-col-follower-tt" ${hide('cp-col-follower-tt')}>Follower ${TIKTOK_ICON}</th>
-            <th class="cp-col-pricing" ${hide('cp-col-pricing')}>Tatsächlicher Preis</th>
-            <th class="cp-col-reichweite-garantie" ${hide('cp-col-reichweite-garantie')}>RW Garantie</th>
-            <th class="cp-col-ek" ${hide('cp-col-ek')}>EK</th>
-            <th class="cp-col-vk" ${hide('cp-col-vk')}>VK</th>
             <th class="cp-col-notiz" ${hide('cp-col-notiz')} title="Startet mit der Instagram-Bio, sobald der Creator abgerufen wurde">Kurzbeschreibung</th>
+            ${customAt('cp-col-notiz')}
+            <th class="cp-col-typ" ${hide('cp-col-typ')}>Creator Art</th>
+            ${customAt('cp-col-typ')}
+            <th class="cp-col-status" ${hide('cp-col-status')}>Status</th>
+            ${customAt('cp-col-status')}
+            <th class="cp-col-nutzungsrechte" ${hide('cp-col-nutzungsrechte')} title="Laufzeit, Kanäle und Sonderabsprachen">Nutzungsrechte</th>
+            ${customAt('cp-col-nutzungsrechte')}
+            <th class="cp-col-location" ${hide('cp-col-location')}>Location</th>
+            ${customAt('cp-col-location')}
+            <th class="cp-col-mail" ${hide('cp-col-mail')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Mail</th>
+            ${customAt('cp-col-mail')}
+            <th class="cp-col-telefon" ${hide('cp-col-telefon')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Telefon</th>
+            ${customAt('cp-col-telefon')}
+            <th class="cp-col-link-ig" ${hide('cp-col-link-ig')}>Link ${INSTAGRAM_ICON}</th>
+            ${customAt('cp-col-link-ig')}
+            <th class="cp-col-follower-ig" ${hide('cp-col-follower-ig')}>Follower ${INSTAGRAM_ICON}</th>
+            ${customAt('cp-col-follower-ig')}
+            <th class="cp-col-cpm-ig-8" ${hide('cp-col-cpm-ig-8')} title="${escapeHtml(reelsPreisTooltip(tkpLabel, 8))}">Preis 8 Reels ${INSTAGRAM_ICON}</th>
+            ${customAt('cp-col-cpm-ig-8')}
+            <th class="cp-col-cpm-ig-30" ${hide('cp-col-cpm-ig-30')} title="${escapeHtml(reelsPreisTooltip(tkpLabel, 30))}">Preis 30 Reels ${INSTAGRAM_ICON}</th>
+            ${customAt('cp-col-cpm-ig-30')}
+            <th class="cp-col-preis-reels" ${hide('cp-col-preis-reels')} title="Manuell gepflegt – der tatsächlich verhandelte Reel-Preis">Preis Reels ${INSTAGRAM_ICON}</th>
+            ${customAt('cp-col-preis-reels')}
+            <th class="cp-col-reichweite-story" ${hide('cp-col-reichweite-story')} title="Manuell gepflegt – Story-Reichweite liefert die Instagram-API für fremde Accounts nicht">Reichweite Story ${INSTAGRAM_ICON}</th>
+            ${customAt('cp-col-reichweite-story')}
+            <th class="cp-col-preis-story" ${hide('cp-col-preis-story')} title="Manuell gepflegt">Preis Story ${INSTAGRAM_ICON}</th>
+            ${customAt('cp-col-preis-story')}
+            <th class="cp-col-link-tt" ${hide('cp-col-link-tt')}>Link ${TIKTOK_ICON}</th>
+            ${customAt('cp-col-link-tt')}
+            <th class="cp-col-follower-tt" ${hide('cp-col-follower-tt')}>Follower ${TIKTOK_ICON}</th>
+            ${customAt('cp-col-follower-tt')}
+            <th class="cp-col-pricing" ${hide('cp-col-pricing')} title="Der verhandelte Gesamtpreis">Gesamtpreis</th>
+            ${customAt('cp-col-pricing')}
+            <th class="cp-col-reichweite-garantie" ${hide('cp-col-reichweite-garantie')}>RW Garantie</th>
+            ${customAt('cp-col-reichweite-garantie')}
+            <th class="cp-col-ek" ${hide('cp-col-ek')}>EK</th>
+            ${customAt('cp-col-ek')}
+            <th class="cp-col-vk" ${hide('cp-col-vk')}>VK</th>
+            ${customAt('cp-col-vk')}
             <th class="cp-col-feedback" ${hide('cp-col-feedback')}>Rückmeldung Kunde</th>
+            ${customAt('cp-col-feedback')}
             ${ctx.customManager ? ctx.customManager.renderHeaders(ctx.hiddenColumns, ctx.isKunde) : ''}
             ${!ctx.isKunde ? '<th class="col-actions cp-col-actions">Aktionen</th>' : ''}
           </tr>
@@ -512,42 +621,31 @@ function beschreibeAusreisser(item, fenster) {
 }
 
 /**
- * Freitext-Preis in eine Zahl uebersetzen. Die Preisfelder sind bewusst
- * Freitext ("ca. 1.200 €", "1200-1500"), fuer den Gesamtpreis braucht es
- * daraus trotzdem eine Zahl: erste Zahl im Text gewinnt, deutsches Format
- * (Punkt als Tausender, Komma als Dezimaltrenner).
+ * Nachgestelltes Euro-Zeichen abschneiden. Die Preisfelder zeigen das Zeichen
+ * fest in der Zelle an; Altbestand wie "250 €" wuerde sonst doppelt erscheinen.
  */
-export function parsePreisFreitext(value) {
-  if (value == null || value === '') return null;
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
-
-  const treffer = String(value).match(/\d[\d.,]*/);
-  if (!treffer) return null;
-
-  // Trennzeichen am Ende ist Satzzeichen, keine Zahl mehr ("1200," -> "1200")
-  let roh = treffer[0].replace(/[.,]+$/, '');
-
-  if (roh.includes(',')) {
-    // Komma ist im deutschen Format immer der Dezimaltrenner
-    roh = roh.replace(/\./g, '').replace(',', '.');
-  } else if (/^\d{1,3}(\.\d{3})+$/.test(roh)) {
-    // 1.200 ist tausendzweihundert, 1.5 dagegen eineinhalb
-    roh = roh.replace(/\./g, '');
-  }
-
-  const zahl = Number(roh);
-  return Number.isFinite(zahl) ? zahl : null;
+export function ohneEuroZeichen(wert) {
+  return String(wert ?? '').replace(/\s*€\s*$/, '').trim();
 }
 
 /**
- * Gesamtpreis = Preis Reels + Preis Story. Beides sind manuell gepflegte
- * Freitextfelder; ist keins davon als Zahl lesbar, gibt es keinen Gesamtpreis.
+ * Preis-Zelle als Freitext mit festem Euro-Zeichen am Feldende. Gespeichert
+ * wird nur der eingetippte Betrag, damit beim naechsten Bearbeiten nicht
+ * "250 € €" im Feld steht.
  */
-export function berechneGesamtpreis(item) {
-  const reels = parsePreisFreitext(item?.preis_reels);
-  const story = parsePreisFreitext(item?.preis_story);
-  if (reels == null && story == null) return null;
-  return (reels || 0) + (story || 0);
+function renderPreisFreitextCell(ctx, item, columnClass, field, hide) {
+  const wert = ohneEuroZeichen(item[field]);
+
+  return `
+    <td class="cell-textarea ${columnClass}" style="${hide(columnClass)}">
+      ${!ctx.isKunde ? `
+        <div class="cell-euro">
+          <input type="text" class="strategie-textarea cell-euro__input" data-field="${field}" data-item-id="${item.id}" placeholder="Preis..." value="${escapeHtml(wert)}">
+          <span class="cell-euro__suffix" aria-hidden="true">€</span>
+        </div>
+      ` : `<div class="cell-text-readonly">${wert ? `${escapeHtml(wert)} €` : '-'}</div>`}
+    </td>
+  `;
 }
 
 /**
@@ -578,30 +676,6 @@ function renderAutoCpmCell(ctx, item, columnClass, views, hide, showViews = fals
            title="${escapeHtml(title)}">
         <div class="cpm-auto-price">${value}</div>
         ${reach ? `<div class="cpm-auto-reach">Ø ${reach} Views</div>` : ''}
-      </div>
-    </td>
-  `;
-}
-
-/**
- * Gesamtpreis-Zelle (read-only): Preis Reels + Preis Story. Read-only, weil ein
- * eigenes Feld sofort von den beiden Einzelpreisen abweichen wuerde, sobald
- * jemand nur einen davon anpasst.
- */
-function renderGesamtpreisCell(ctx, item, hide) {
-  const summe = berechneGesamtpreis(item);
-  const value = summe != null
-    ? `${summe.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-    : '-';
-
-  const title = summe != null
-    ? 'Preis Reels + Preis Story'
-    : 'Kein Gesamtpreis – Preis Reels und Preis Story sind beide leer oder enthalten keine Zahl';
-
-  return `
-    <td class="cell-textarea cp-col-gesamtpreis" style="${hide('cp-col-gesamtpreis')}">
-      <div class="cell-text-readonly cpm-auto-value" title="${escapeHtml(title)}">
-        <div class="cpm-auto-price">${value}</div>
       </div>
     </td>
   `;
@@ -750,6 +824,10 @@ export function renderItemRow(ctx, item, index) {
   const vis = (col) => isColumnVisibleForCustomer(col, ctx.isKunde, ctx.hiddenColumns);
   const hide = (col) => !vis(col) ? ' display:none;' : '';
   const sticky = getStickyClasses(ctx);
+  // Gegenstueck zu customAt() im Tabellenkopf - dieselben Anker, dieselbe Stelle.
+  const customAt = (anchor) => ctx.customManager
+    ? ctx.customManager.renderCellsAt(anchor, item.id, ctx.hiddenColumns, ctx.isKunde)
+    : '';
 
   const isBooked = !!item.gebucht;
 
@@ -773,6 +851,12 @@ export function renderItemRow(ctx, item, index) {
           </div>
         ` : `<div class="cell-text-readonly">${item.name || '-'}</div>`}
       </td>
+      <td class="cell-textarea cp-col-notiz" style="${hide('cp-col-notiz')}">
+        ${!ctx.isKunde ? `
+          <textarea class="strategie-textarea" data-field="notiz" data-item-id="${item.id}" placeholder="Kurzbeschreibung...">${item.notiz || ''}</textarea>
+        ` : `<div class="cell-text-readonly">${item.notiz || '-'}</div>`}
+      </td>
+      ${customAt('cp-col-notiz')}
       <td class="cp-col-typ" style="${hide('cp-col-typ')}">
         ${!ctx.isKunde ? renderTableSelect({
           field: 'creator_typ',
@@ -782,16 +866,27 @@ export function renderItemRow(ctx, item, index) {
           disabled: !!ctx.gastReadonly
         }) : `<div class="cell-text-readonly">${item.typ || '-'}</div>`}
       </td>
+      ${customAt('cp-col-typ')}
       <td class="cp-col-status" style="${hide('cp-col-status')}">
         ${renderSourcingStatusCell(ctx, item)}
       </td>
+      ${customAt('cp-col-status')}
+      <td class="cell-textarea cp-col-nutzungsrechte" style="${hide('cp-col-nutzungsrechte')}">
+        ${!ctx.isKunde ? `
+          <textarea class="strategie-textarea" data-field="nutzungsrechte" data-item-id="${item.id}" placeholder="Nutzungsrechte...">${escapeHtml(item.nutzungsrechte || '')}</textarea>
+        ` : `<div class="cell-text-readonly">${escapeHtml(item.nutzungsrechte || '-')}</div>`}
+      </td>
+      ${customAt('cp-col-nutzungsrechte')}
       <td class="cell-textarea cp-col-location" style="${hide('cp-col-location')}">
         ${!ctx.isKunde ? `
           <textarea class="strategie-textarea" data-field="wohnort" data-item-id="${item.id}" placeholder="Location...">${item.wohnort || ''}</textarea>
         ` : `<div class="cell-text-readonly">${item.wohnort || '-'}</div>`}
       </td>
+      ${customAt('cp-col-location')}
       ${renderKontaktCell(ctx, item, 'cp-col-mail', 'email', hide)}
+      ${customAt('cp-col-mail')}
       ${renderKontaktCell(ctx, item, 'cp-col-telefon', 'telefon', hide)}
+      ${customAt('cp-col-telefon')}
       <td class="cp-col-link-ig" style="${hide('cp-col-link-ig')}">
         ${!ctx.isKunde ? renderSourcingIgCell(item) : `
           <div class="links-compact-cell links-compact-cell--readonly">
@@ -799,25 +894,23 @@ export function renderItemRow(ctx, item, index) {
           </div>
         `}
       </td>
+      ${customAt('cp-col-link-ig')}
       ${renderFollowerCell(ctx, item, 'cp-col-follower-ig', 'follower_instagram', hide)}
+      ${customAt('cp-col-follower-ig')}
       ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-8', item.ig_views_8, hide, true, beschreibeAusreisser(item, 8))}
+      ${customAt('cp-col-cpm-ig-8')}
       ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-30', item.ig_views_30, hide, true, beschreibeAusreisser(item, 30))}
-      <td class="cell-textarea cp-col-preis-reels" style="${hide('cp-col-preis-reels')}">
-        ${!ctx.isKunde ? `
-          <input type="text" class="strategie-textarea" data-field="preis_reels" data-item-id="${item.id}" placeholder="Preis..." value="${escapeHtml(item.preis_reels || '')}">
-        ` : `<div class="cell-text-readonly">${escapeHtml(item.preis_reels || '-')}</div>`}
-      </td>
+      ${customAt('cp-col-cpm-ig-30')}
+      ${renderPreisFreitextCell(ctx, item, 'cp-col-preis-reels', 'preis_reels', hide)}
+      ${customAt('cp-col-preis-reels')}
       <td class="cell-textarea cp-col-reichweite-story" style="${hide('cp-col-reichweite-story')}">
         ${!ctx.isKunde ? `
           <input type="text" class="strategie-textarea" data-field="reichweite_story" data-item-id="${item.id}" placeholder="z.B. 10K" value="${item.reichweite_story || ''}">
         ` : `<div class="cell-text-readonly">${item.reichweite_story || '-'}</div>`}
       </td>
-      <td class="cell-textarea cp-col-preis-story" style="${hide('cp-col-preis-story')}">
-        ${!ctx.isKunde ? `
-          <input type="text" class="strategie-textarea" data-field="preis_story" data-item-id="${item.id}" placeholder="Preis..." value="${item.preis_story || ''}">
-        ` : `<div class="cell-text-readonly">${item.preis_story || '-'}</div>`}
-      </td>
-      ${renderGesamtpreisCell(ctx, item, hide)}
+      ${customAt('cp-col-reichweite-story')}
+      ${renderPreisFreitextCell(ctx, item, 'cp-col-preis-story', 'preis_story', hide)}
+      ${customAt('cp-col-preis-story')}
       <td class="cp-col-link-tt" style="${hide('cp-col-link-tt')}">
         ${!ctx.isKunde ? `
           <div class="links-compact-row">
@@ -830,32 +923,35 @@ export function renderItemRow(ctx, item, index) {
           </div>
         `}
       </td>
+      ${customAt('cp-col-link-tt')}
       ${renderFollowerCell(ctx, item, 'cp-col-follower-tt', 'follower_tiktok', hide)}
-      <td class="cell-textarea cp-col-pricing" style="${hide('cp-col-pricing')}">
-        ${!ctx.isKunde ? `
-          <textarea class="strategie-textarea" data-field="pricing" data-item-id="${item.id}" placeholder="Preis...">${item.pricing || ''}</textarea>
-        ` : `<div class="cell-text-readonly">${item.pricing || '-'}</div>`}
-      </td>
+      ${customAt('cp-col-follower-tt')}
+      ${renderPreisFreitextCell(ctx, item, 'cp-col-pricing', 'pricing', hide)}
+      ${customAt('cp-col-pricing')}
       <td class="cell-textarea cp-col-reichweite-garantie" style="${hide('cp-col-reichweite-garantie')}">
         ${!ctx.isKunde ? `
           <input type="text" class="strategie-textarea" data-field="reichweite_garantie" data-item-id="${item.id}" placeholder="z.B. 50K" value="${item.reichweite_garantie || ''}">
         ` : `<div class="cell-text-readonly">${item.reichweite_garantie || '-'}</div>`}
       </td>
+      ${customAt('cp-col-reichweite-garantie')}
       <td class="cell-textarea cp-col-ek" style="${hide('cp-col-ek')}">
         ${!ctx.isKunde ? `
-          <input type="number" class="strategie-textarea${ctx.kundenCallActive ? ' kunden-call-blur' : ''}" data-field="preis_ek" data-item-id="${item.id}" data-blur-target placeholder="0" value="${item.preis_ek ?? ''}" step="0.01">
+          <div class="cell-euro">
+            <input type="number" class="strategie-textarea cell-euro__input${ctx.kundenCallActive ? ' kunden-call-blur' : ''}" data-field="preis_ek" data-item-id="${item.id}" data-blur-target placeholder="0" value="${item.preis_ek ?? ''}" step="0.01">
+            <span class="cell-euro__suffix" aria-hidden="true">€</span>
+          </div>
         ` : `<div class="cell-text-readonly">${item.preis_ek != null ? Number(item.preis_ek).toLocaleString('de-DE', {minimumFractionDigits: 0}) + ' €' : '-'}</div>`}
       </td>
+      ${customAt('cp-col-ek')}
       <td class="cell-textarea cp-col-vk" style="${hide('cp-col-vk')}">
         ${!ctx.isKunde ? `
-          <input type="number" class="strategie-textarea" data-field="preis_vk" data-item-id="${item.id}" placeholder="0" value="${item.preis_vk ?? ''}" step="0.01">
+          <div class="cell-euro">
+            <input type="number" class="strategie-textarea cell-euro__input" data-field="preis_vk" data-item-id="${item.id}" placeholder="0" value="${item.preis_vk ?? ''}" step="0.01">
+            <span class="cell-euro__suffix" aria-hidden="true">€</span>
+          </div>
         ` : `<div class="cell-text-readonly">-</div>`}
       </td>
-      <td class="cell-textarea cp-col-notiz" style="${hide('cp-col-notiz')}">
-        ${!ctx.isKunde ? `
-          <textarea class="strategie-textarea" data-field="notiz" data-item-id="${item.id}" placeholder="Kurzbeschreibung...">${item.notiz || ''}</textarea>
-        ` : `<div class="cell-text-readonly">${item.notiz || '-'}</div>`}
-      </td>
+      ${customAt('cp-col-vk')}
       <td class="cell-textarea cp-col-feedback" style="${hide('cp-col-feedback')}">
         <textarea
           class="strategie-textarea auto-resize-textarea ${(ctx.isKunde && !ctx.gastReadonly) ? '' : 'readonly-textarea'}"
@@ -869,6 +965,7 @@ export function renderItemRow(ctx, item, index) {
             ${item.feedback_kunde_author_name}${item.feedback_kunde_updated_at ? ` · ${new Date(item.feedback_kunde_updated_at).toLocaleDateString('de-DE')}` : ''}
           </div>` : ''}
       </td>
+      ${customAt('cp-col-feedback')}
       ${ctx.customManager ? ctx.customManager.renderCells(item.id, ctx.hiddenColumns, ctx.isKunde) : ''}
       ${!ctx.isKunde ? `
         <td class="col-actions cp-col-actions">

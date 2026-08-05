@@ -2,7 +2,7 @@
 // Hierarchische Sourcing-Ansicht: Unternehmen -> Marken -> Inhalte
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
-import { berechneHiddenColumns } from './sourcingSpaltenPreset.js';
+import { berechneHiddenColumns, STANDARD_VERSTECKTE_SPALTEN } from './sourcingSpaltenPreset.js';
 import { AutoGeneration } from '../../core/form/logic/AutoGeneration.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
@@ -893,7 +893,13 @@ export class CreatorAuswahlList {
    * Drawer "Tabelle anpassen" der Detailseite aenderbar.
    */
   applySpaltenPreset(submitData) {
-    submitData.hidden_columns = berechneHiddenColumns(submitData);
+    // Creator Art startet ausgeblendet. Bewusst hier und nicht im Preset: das
+    // Preset laeuft bei jeder Typ-Aenderung im Drawer erneut und wuerde die
+    // Spalte sonst wieder ausblenden, nachdem jemand sie eingeschaltet hat.
+    submitData.hidden_columns = [
+      ...berechneHiddenColumns(submitData),
+      ...STANDARD_VERSTECKTE_SPALTEN
+    ];
 
     // Nur bei Influencer-Listen abgefragt: leere Strings wuerden sonst als ''
     // in der DB landen und die Matrix beim Bearbeiten verfaelschen.

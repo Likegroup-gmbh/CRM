@@ -103,6 +103,7 @@ export class CreatorFilterLogic {
         case 'branche_id':
         case 'branche':
         case 'creator_type_id':
+        case 'kunde_id':
           // M:N-Filter werden in DataService über Junction-Tabellen aufgelöst
           break;
 

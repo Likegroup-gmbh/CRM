@@ -145,24 +145,25 @@ describe('CreatorAuswahlTemplates – Suche im UI', () => {
     expect(html).not.toContain('Keine Treffer');
   });
 
-  it('rendert das Suchfeld links in der Aktions-Zeile für alle Rollen', () => {
+  it('rendert das Suchfeld im rechten Aktions-Block für alle Rollen', () => {
     const htmlIntern = renderAddSection({ ...baseCtx, isKunde: false });
     const htmlKunde = renderAddSection({ ...baseCtx, isKunde: true });
 
     for (const html of [htmlIntern, htmlKunde]) {
-      expect(html).toContain('add-item-actions-left');
-      expect(html).toContain('sourcing-item-search-input');
-      expect(html).toContain('Name suchen...');
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const input = doc.getElementById('sourcing-item-search-input');
+
+      expect(input).not.toBeNull();
+      expect(input.getAttribute('placeholder')).toBe('Name suchen...');
+      expect(input.closest('.add-item-actions-right')).not.toBeNull();
     }
   });
 
   it('zeigt die Aktions-Buttons nur für interne Nutzer', () => {
     const htmlIntern = renderAddSection({ ...baseCtx, isKunde: false });
-    expect(htmlIntern).toContain('add-item-actions-right');
     expect(htmlIntern).toContain('btn-open-add-drawer');
 
     const htmlKunde = renderAddSection({ ...baseCtx, isKunde: true });
-    expect(htmlKunde).not.toContain('add-item-actions-right');
     expect(htmlKunde).not.toContain('btn-open-add-drawer');
   });
 

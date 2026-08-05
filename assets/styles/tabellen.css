@@ -3218,11 +3218,53 @@ th[draggable="true"]:active {
 .entity-custom-col-header {
   white-space: nowrap;
 }
-.entity-custom-col-header[draggable="true"] {
-  cursor: grab;
+.entity-custom-col-header-inner {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
 }
-.entity-custom-col-header.dragging {
+.entity-custom-col-header.dragging,
+.entity-custom-col-header.column-dragging {
   opacity: 0.5;
+}
+.entity-custom-col-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.entity-custom-col-grip {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  color: var(--text-secondary, #6b7280);
+  cursor: grab;
+  opacity: 0.4;
+  transition: opacity 0.15s ease, background 0.15s ease, color 0.15s ease;
+  user-select: none;
+  -webkit-user-drag: element;
+}
+.entity-custom-col-header:hover .entity-custom-col-grip,
+.entity-custom-col-grip:focus-visible {
+  opacity: 1;
+}
+.entity-custom-col-grip:hover {
+  background: var(--bg-secondary, #f3f4f6);
+  color: var(--text-primary, #111827);
+}
+.entity-custom-col-grip:active,
+.entity-custom-col-header.column-dragging .entity-custom-col-grip {
+  cursor: grabbing;
+  opacity: 1;
+}
+.entity-custom-col-grip svg {
+  display: block;
+  pointer-events: none;
 }
 .entity-custom-cell .custom-col-input {
   width: 100%;

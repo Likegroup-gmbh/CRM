@@ -44,19 +44,20 @@ export const IG_REELS_SPALTEN = [
 /** Manuell gepflegte Story-Spalten */
 export const IG_STORY_SPALTEN = ['cp-col-reichweite-story', 'cp-col-preis-story'];
 
-/**
- * Der Gesamtpreis summiert Reel- und Story-Preis. Er gehoert deshalb zu beiden
- * Bloecken und wird nur versteckt, wenn Instagram komplett aus ist.
- */
-export const IG_GESAMTPREIS_SPALTEN = ['cp-col-gesamtpreis'];
-
 /** TikTok-Spalten: Link und Follower */
 export const TT_SPALTEN = ['cp-col-link-tt', 'cp-col-follower-tt'];
 
+/**
+ * Spalten, die eine neue Liste ausgeblendet startet, obwohl das Preset sie
+ * nicht steuert. Bewusst getrennt von PRESET_SPALTEN: wendePresetAn() setzt
+ * nur die Preset-Spalten neu, diese hier bleiben eingeschaltet, sobald sie
+ * jemand im Drawer eingeblendet hat.
+ */
+export const STANDARD_VERSTECKTE_SPALTEN = ['cp-col-typ'];
+
 /** Alle Spalten, die das Preset ueberhaupt steuert */
 export const PRESET_SPALTEN = [
-  ...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN,
-  ...IG_GESAMTPREIS_SPALTEN, ...TT_SPALTEN
+  ...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN, ...TT_SPALTEN
 ];
 
 function toListe(value) {
@@ -75,9 +76,7 @@ export function berechneHiddenColumns(auswahl = {}) {
   // UGC braucht keine Reichweiten-Preislogik: der Preis ist eine Pauschale.
   // Link und Follower bleiben, damit der Instagram-Abruf weiter nutzbar ist.
   if (typ === 'ugc') {
-    return [
-      ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN, ...IG_GESAMTPREIS_SPALTEN, ...TT_SPALTEN
-    ];
+    return [...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN, ...TT_SPALTEN];
   }
 
   // Mix zeigt alles - dort landen UGC- und Influencer-Creator in einer Liste.
@@ -96,10 +95,7 @@ export function berechneHiddenColumns(auswahl = {}) {
   const hidden = [];
 
   if (!hatInstagram) {
-    hidden.push(
-      ...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN,
-      ...IG_GESAMTPREIS_SPALTEN
-    );
+    hidden.push(...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN);
   } else {
     if (!hatReel) hidden.push(...IG_REELS_SPALTEN);
     if (!hatStory) hidden.push(...IG_STORY_SPALTEN);
