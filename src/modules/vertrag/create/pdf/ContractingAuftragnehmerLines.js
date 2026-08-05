@@ -66,7 +66,7 @@ export function buildContractingAuftragnehmerLines({ vertrag, creator, address }
       `Name: ${creatorName}`,
       ...creatorAddressLines,
       '',
-      `Agentur: ${vertrag.influencer_agentur_name || '-'}`,
+      `Vertreten durch Agentur: ${vertrag.influencer_agentur_name || '-'}`,
       ...formatAddressLines(
         {
           strasse: vertrag.influencer_agentur_strasse || address?.strasse,

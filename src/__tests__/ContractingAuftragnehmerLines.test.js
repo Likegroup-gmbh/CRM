@@ -54,7 +54,7 @@ describe('buildContractingAuftragnehmerLines', () => {
       '48455 Bad Bentheim',
       'Deutschland',
       '',
-      'Agentur: ALL IMPACT GmbH',
+      'Vertreten durch Agentur: ALL IMPACT GmbH',
       'Köhlstraße 10b',
       '50827 Köln',
       'Deutschland'
@@ -141,7 +141,7 @@ describe('buildContractingAuftragnehmerLines', () => {
     expect(lines[0]).toBe('Name: Leonie Weiß');
     expect(lines).toContain('Imstiege 24');
     expect(lines).toContain('48455 Bad Bentheim');
-    expect(lines).toContain('Agentur: ALL IMPACT GmbH');
+    expect(lines).toContain('Vertreten durch Agentur: ALL IMPACT GmbH');
     expect(lines).toContain('Köhlstraße 10b');
     expect(lines).toContain('50827 Köln');
     expect(lines.some((l) => l.startsWith('Influencer:'))).toBe(false);
