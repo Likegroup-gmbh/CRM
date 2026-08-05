@@ -7,7 +7,7 @@ import { normalizeCreatorTyp, isAllowedCreatorTyp } from './creatorTypeOptions.j
 import {
   renderAddSection, renderItemsTable, renderTabNavigation, renderItemRow,
   getTeilbereicheFromListe, isColumnVisibleForCustomer, getVisibleColumnCount,
-  getSourcingTabForItem, SOURCING_TABS, migrateHiddenColumns, berechneGesamtpreis
+  getSourcingTabForItem, SOURCING_TABS, migrateHiddenColumns
 } from './CreatorAuswahlTemplates.js';
 import { CreatorAuswahlKategorienDrawer } from './CreatorAuswahlKategorienDrawer.js';
 import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
@@ -945,12 +945,6 @@ export class CreatorAuswahlDetail {
       if (field === 'link_instagram') {
         applySourcingIgCellState(element.closest('.chip-cell'), item || { link_instagram: value });
       }
-
-      // Der Gesamtpreis ist eine reine Summe der beiden Preisfelder und muss
-      // mitziehen, sobald eines davon bearbeitet wird
-      if (field === 'preis_reels' || field === 'preis_story') {
-        this.refreshGesamtpreisCell(element, item);
-      }
     } catch (error) {
       console.error('Fehler beim Aktualisieren:', error);
       window.toastSystem?.show('Fehler beim Speichern', 'error');
@@ -969,17 +963,6 @@ export class CreatorAuswahlDetail {
 
     display.textContent = formatCompactNumber(value) || '–';
     display.title = formatExactNumber(value);
-  }
-
-  /** Gesamtpreis-Zelle derselben Zeile neu berechnen (Preis Reels + Preis Story) */
-  refreshGesamtpreisCell(element, item) {
-    const anzeige = element.closest('tr')?.querySelector('.cp-col-gesamtpreis .cpm-auto-price');
-    if (!anzeige || !item) return;
-
-    const summe = berechneGesamtpreis(item);
-    anzeige.textContent = summe != null
-      ? `${summe.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-      : '-';
   }
 
   /**

@@ -11735,6 +11735,16 @@ input.readonly-field {
   gap: var(--space-sm);
 }
 
+/* Logo des Unternehmens links in der Sourcing-Kopfzeile. Feste Box mit
+   object-fit, damit breite Wortmarken die Zeile nicht auseinanderziehen. */
+.sourcing-unternehmen-logo {
+  width: var(--space-xl);
+  height: var(--space-xl);
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+}
+
 /* Muss ueber der Reiter-Leiste liegen, sonst schneidet sie offene Dropdowns ab */
 .add-item-section--compact:has(+ .sourcing-tab-navigation) {
   z-index: 29;
@@ -12704,6 +12714,7 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-reichweite-story .strategie-textarea,
 .creator-pool-table td.cp-col-preis-story .strategie-textarea,
 .creator-pool-table td.cp-col-preis-reels .strategie-textarea,
+.creator-pool-table td.cp-col-gesamtpreis .strategie-textarea,
 .creator-pool-table td.cp-col-reichweite-garantie .strategie-textarea,
 .creator-pool-table td.cp-col-pricing .strategie-textarea,
 .creator-pool-table td.cp-col-ek .strategie-textarea,
@@ -12864,6 +12875,7 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-reichweite-story .strategie-textarea,
 .creator-pool-table td.cp-col-preis-story .strategie-textarea,
 .creator-pool-table td.cp-col-preis-reels .strategie-textarea,
+.creator-pool-table td.cp-col-gesamtpreis .strategie-textarea,
 .creator-pool-table td.cp-col-reichweite-garantie .strategie-textarea,
 .creator-pool-table td.cp-col-pricing .strategie-textarea,
 .creator-pool-table td.cp-col-ek .strategie-textarea,
@@ -12912,11 +12924,9 @@ table:has(#strategien-table-body) td.col-actions {
   --cp-block-tint: 159 122 134;  /* Gedaempftes Rose - Story */
 }
 
-/* Der Gesamtpreis fasst Reels und Story zusammen und bekommt einen eigenen
-   neutralen Ton, damit er nicht wie Teil des Story-Blocks wirkt */
-.creator-pool-table .cp-col-gesamtpreis {
-  --cp-block-tint: 100 116 139;  /* Slate, heller als TikTok - Summe */
-}
+/* Der Gesamtpreis bekommt bewusst keinen Tint: er gehoert zu keinem
+   Plattform-Block, sondern ist ein manuell gepflegtes Feld wie Name, Creator
+   Art oder Status - und sieht deshalb aus wie die regulaeren Spalten. */
 
 .creator-pool-table .cp-col-link-tt,
 .creator-pool-table .cp-col-follower-tt {
@@ -12928,7 +12938,6 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table th.cp-col-preis-reels,
 .creator-pool-table th.cp-col-reichweite-story,
 .creator-pool-table th.cp-col-preis-story,
-.creator-pool-table th.cp-col-gesamtpreis,
 .creator-pool-table th.cp-col-link-tt,
 .creator-pool-table th.cp-col-follower-tt {
   background-image: linear-gradient(rgb(var(--cp-block-tint) / 0.1), rgb(var(--cp-block-tint) / 0.1));
@@ -12940,7 +12949,6 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-preis-reels,
 .creator-pool-table td.cp-col-reichweite-story,
 .creator-pool-table td.cp-col-preis-story,
-.creator-pool-table td.cp-col-gesamtpreis,
 .creator-pool-table td.cp-col-link-tt,
 .creator-pool-table td.cp-col-follower-tt {
   background-image: linear-gradient(rgb(var(--cp-block-tint) / 0.04), rgb(var(--cp-block-tint) / 0.04));
@@ -12951,8 +12959,6 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-cpm-ig-8,
 .creator-pool-table th.cp-col-reichweite-story,
 .creator-pool-table td.cp-col-reichweite-story,
-.creator-pool-table th.cp-col-gesamtpreis,
-.creator-pool-table td.cp-col-gesamtpreis,
 .creator-pool-table th.cp-col-link-tt,
 .creator-pool-table td.cp-col-link-tt {
   border-left: 2px solid rgb(var(--cp-block-tint) / 0.35) !important;

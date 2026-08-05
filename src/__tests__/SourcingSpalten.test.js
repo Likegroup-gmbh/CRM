@@ -40,10 +40,38 @@ describe('Sourcing – Spaltenreihenfolge', () => {
   it('stellt Bild zwischen Checkbox und Namen, Status direkt hinter die Creator Art', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
 
-    expect(spalten.slice(0, 8)).toEqual([
-      'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-typ', 'cp-col-status',
+    expect(spalten.slice(0, 9)).toEqual([
+      'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-notiz',
+      'cp-col-typ', 'cp-col-status',
       'cp-col-location', 'cp-col-mail', 'cp-col-telefon'
     ]);
+  });
+
+  it('stellt die Kurzbeschreibung direkt hinter den Namen, vor die Creator Art', () => {
+    const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
+    const ab = spalten.indexOf('cp-col-name');
+
+    expect(spalten.slice(ab, ab + 3)).toEqual([
+      'cp-col-name', 'cp-col-notiz', 'cp-col-typ'
+    ]);
+    expect(SOURCING_SPALTEN[SOURCING_SPALTEN.indexOf('cp-col-name') + 1])
+      .toBe('cp-col-notiz');
+  });
+
+  it('zieht die Kurzbeschreibung auch im Kopf nach vorne', () => {
+    const kopf = reihenfolge(tableDoc([{ id: 'i1' }]).querySelectorAll('thead th'));
+    const ab = kopf.indexOf('cp-col-name');
+
+    expect(kopf.slice(ab, ab + 3)).toEqual([
+      'cp-col-name', 'cp-col-notiz', 'cp-col-typ'
+    ]);
+  });
+
+  it('haelt die Kurzbeschreibung nicht mehr am Ende bei der Rueckmeldung', () => {
+    const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
+
+    expect(spalten.filter(c => c === 'cp-col-notiz')).toHaveLength(1);
+    expect(spalten[spalten.indexOf('cp-col-vk') + 1]).toBe('cp-col-feedback');
   });
 
   it('buendelt erst den ganzen Instagram-Block, dann TikTok', () => {

@@ -3,8 +3,6 @@ import {
   renderItemRow,
   renderAddSection,
   berechnePreisAusViews,
-  parsePreisFreitext,
-  berechneGesamtpreis,
   getListenTkp,
   DEFAULT_TKP
 } from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
@@ -167,6 +165,24 @@ describe('Sourcing – Kopfzeile der Detailtabelle', () => {
       .toBe('Tabelle anpassen');
     expect(doc.querySelector('#sourcing-tkp-input')).toBeNull();
   });
+
+  it('zeigt das Logo des Unternehmens links neben der Suche', () => {
+    const doc = kopf({
+      liste: { unternehmen: { firmenname: 'Meta Glasses', logo_url: 'https://cdn.test/logo.png' } }
+    });
+    const logo = doc.querySelector('.sourcing-unternehmen-logo');
+
+    expect(logo.getAttribute('src')).toBe('https://cdn.test/logo.png');
+    expect(logo.getAttribute('alt')).toBe('Meta Glasses');
+    expect(logo.getAttribute('title')).toBe('Meta Glasses');
+  });
+
+  it('laesst den Logo-Platz weg, wenn kein Logo hinterlegt ist', () => {
+    expect(kopf({ liste: { unternehmen: { firmenname: 'Ohne Logo' } } })
+      .querySelector('.sourcing-unternehmen-logo')).toBeNull();
+    expect(kopf({ liste: {} }).querySelector('.sourcing-unternehmen-logo')).toBeNull();
+    expect(kopf().querySelector('.sourcing-unternehmen-logo')).toBeNull();
+  });
 });
 
 describe('Sourcing – Story-Spalten', () => {
@@ -207,65 +223,23 @@ describe('Sourcing – Preis Reels (manuell)', () => {
   });
 });
 
-describe('parsePreisFreitext', () => {
-  it('liest deutsche Zahlenformate', () => {
-    expect(parsePreisFreitext('1.200')).toBe(1200);
-    expect(parsePreisFreitext('1.200,50')).toBe(1200.5);
-    expect(parsePreisFreitext('1200')).toBe(1200);
-    expect(parsePreisFreitext('1200,50')).toBe(1200.5);
-    expect(parsePreisFreitext('1.200.000')).toBe(1200000);
+describe('Sourcing – Gesamtpreis (manuell)', () => {
+  it('nimmt den Gesamtpreis als Freitext auf', () => {
+    const cell = renderCell('cp-col-gesamtpreis', { gesamtpreis: 'ca. 1.500 €' });
+
+    expect(cell.querySelector('input[data-field="gesamtpreis"]').value).toBe('ca. 1.500 €');
   });
 
-  it('behandelt einen Punkt vor weniger als drei Ziffern als Dezimaltrenner', () => {
-    expect(parsePreisFreitext('1.5')).toBe(1.5);
-  });
-
-  it('zieht die erste Zahl aus einem Freitext', () => {
-    expect(parsePreisFreitext('ca. 1.200 € netto')).toBe(1200);
-    expect(parsePreisFreitext('1200-1500 €')).toBe(1200);
-    expect(parsePreisFreitext('€ 850')).toBe(850);
-    expect(parsePreisFreitext('Preis 1200.')).toBe(1200);
-  });
-
-  it('gibt null zurueck, wenn keine Zahl drinsteht', () => {
-    for (const value of ['', null, undefined, 'auf Anfrage', 'tbd']) {
-      expect(parsePreisFreitext(value)).toBeNull();
-    }
-  });
-
-  it('nimmt Zahlen direkt an', () => {
-    expect(parsePreisFreitext(1200)).toBe(1200);
-    expect(parsePreisFreitext(NaN)).toBeNull();
-  });
-});
-
-describe('Sourcing – Gesamtpreis', () => {
-  it('summiert Reel- und Story-Preis', () => {
-    expect(berechneGesamtpreis({ preis_reels: '1.200', preis_story: '300' })).toBe(1500);
-  });
-
-  it('rechnet auch, wenn nur einer der beiden gefuellt ist', () => {
-    expect(berechneGesamtpreis({ preis_reels: '1.200' })).toBe(1200);
-    expect(berechneGesamtpreis({ preis_story: '300' })).toBe(300);
-  });
-
-  it('gibt null zurueck, wenn keiner der beiden als Zahl lesbar ist', () => {
-    expect(berechneGesamtpreis({})).toBeNull();
-    expect(berechneGesamtpreis({ preis_reels: 'auf Anfrage', preis_story: '' })).toBeNull();
-  });
-
-  it('rendert die Summe als read-only Zelle', () => {
+  it('bleibt leer, statt sich aus Reel- und Story-Preis zu befuellen', () => {
     const cell = renderCell('cp-col-gesamtpreis', { preis_reels: '1.200', preis_story: '300' });
 
-    expect(cell.querySelector('input')).toBeNull();
-    expect(cell.querySelector('.cpm-auto-price').textContent.trim()).toBe('1.500,00 €');
-    expect(cell.querySelector('.cpm-auto-value').title).toBe('Preis Reels + Preis Story');
+    expect(cell.querySelector('input[data-field="gesamtpreis"]').value).toBe('');
   });
 
-  it('zeigt einen Strich und erklaert warum, wenn nichts lesbar ist', () => {
-    const cell = renderCell('cp-col-gesamtpreis', { preis_reels: 'auf Anfrage' });
+  it('zeigt Kunden den Wert nur lesend', () => {
+    const cell = renderCell('cp-col-gesamtpreis', { gesamtpreis: '1.500 €' }, { isKunde: true });
 
-    expect(cell.querySelector('.cpm-auto-price').textContent.trim()).toBe('-');
-    expect(cell.querySelector('.cpm-auto-value').title).toContain('keine Zahl');
+    expect(cell.querySelector('input')).toBeNull();
+    expect(cell.querySelector('.cell-text-readonly').textContent.trim()).toBe('1.500 €');
   });
 });

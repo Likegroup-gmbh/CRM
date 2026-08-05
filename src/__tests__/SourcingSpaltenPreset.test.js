@@ -1,10 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
   berechneHiddenColumns,
+  wendePresetAn,
   IG_BASIS_SPALTEN,
   IG_REELS_SPALTEN,
   IG_STORY_SPALTEN,
-  TT_SPALTEN
+  TT_SPALTEN,
+  PRESET_SPALTEN,
+  STANDARD_VERSTECKTE_SPALTEN
 } from '../modules/creator-auswahl/sourcingSpaltenPreset.js';
 import { SOURCING_SPALTEN } from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
 
@@ -90,6 +93,21 @@ describe('Sourcing-Spalten-Preset – Randfaelle', () => {
   it('ignoriert Gross-/Kleinschreibung im Listentyp', () => {
     expect(berechneHiddenColumns({ liste_typ: 'UGC' }))
       .toEqual(berechneHiddenColumns({ liste_typ: 'ugc' }));
+  });
+
+  it('blendet die Creator Art bei neuen Listen aus, ohne sie ins Preset zu nehmen', () => {
+    expect(STANDARD_VERSTECKTE_SPALTEN).toContain('cp-col-typ');
+    expect(SOURCING_SPALTEN).toContain('cp-col-typ');
+    expect(PRESET_SPALTEN).not.toContain('cp-col-typ');
+  });
+
+  it('behaelt eine wieder eingeblendete Creator Art ueber einen Typwechsel hinweg', () => {
+    expect(wendePresetAn([], { liste_typ: 'ugc' })).not.toContain('cp-col-typ');
+    expect(wendePresetAn([], { liste_typ: 'mix' })).not.toContain('cp-col-typ');
+  });
+
+  it('haelt eine ausgeblendete Creator Art beim Typwechsel ausgeblendet', () => {
+    expect(wendePresetAn(['cp-col-typ'], { liste_typ: 'mix' })).toContain('cp-col-typ');
   });
 
   it('nennt nur Spalten, die es in der Tabelle wirklich gibt', () => {

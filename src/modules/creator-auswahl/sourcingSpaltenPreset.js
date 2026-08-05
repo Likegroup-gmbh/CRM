@@ -53,6 +53,14 @@ export const IG_GESAMTPREIS_SPALTEN = ['cp-col-gesamtpreis'];
 /** TikTok-Spalten: Link und Follower */
 export const TT_SPALTEN = ['cp-col-link-tt', 'cp-col-follower-tt'];
 
+/**
+ * Spalten, die eine neue Liste ausgeblendet startet, obwohl das Preset sie
+ * nicht steuert. Bewusst getrennt von PRESET_SPALTEN: wendePresetAn() setzt
+ * nur die Preset-Spalten neu, diese hier bleiben eingeschaltet, sobald sie
+ * jemand im Drawer eingeblendet hat.
+ */
+export const STANDARD_VERSTECKTE_SPALTEN = ['cp-col-typ'];
+
 /** Alle Spalten, die das Preset ueberhaupt steuert */
 export const PRESET_SPALTEN = [
   ...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN,

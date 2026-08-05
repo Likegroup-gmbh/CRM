@@ -21,6 +21,7 @@ import {
 /** Spaltenreihenfolge im Drawer, passend zu SOURCING_SPALTEN */
 const SPALTEN_LABELS = [
   { className: 'cp-col-bild', label: 'Bild' },
+  { className: 'cp-col-notiz', label: 'Kurzbeschreibung' },
   { className: 'cp-col-typ', label: 'Creator Art' },
   { className: 'cp-col-status', label: 'Status' },
   { className: 'cp-col-location', label: 'Location' },
@@ -40,7 +41,6 @@ const SPALTEN_LABELS = [
   { className: 'cp-col-reichweite-garantie', label: 'Reichweitengarantie' },
   { className: 'cp-col-ek', label: 'EK (Einkaufspreis)' },
   { className: 'cp-col-vk', label: 'VK (Verkaufspreis)' },
-  { className: 'cp-col-notiz', label: 'Kurzbeschreibung' },
   { className: 'cp-col-feedback', label: 'Rückmeldung Kunde' }
 ];
 
