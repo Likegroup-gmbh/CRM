@@ -11775,6 +11775,133 @@ input.readonly-field {
   gap: var(--space-sm);
 }
 
+/* Sourcing-Toolbar: Plus-Dropdown neben „Creator hinzufügen“ */
+.sourcing-toolbar-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.sourcing-toolbar-menu-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--height-avatar-sm);
+  height: var(--height-avatar-sm);
+  padding: 0;
+  background: var(--bg-primary, #fff);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.sourcing-toolbar-menu-toggle svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.sourcing-toolbar-menu-toggle:hover,
+.sourcing-toolbar-menu-toggle[aria-expanded="true"] {
+  background: var(--gray-50);
+  color: var(--text-primary);
+  border-color: var(--gray-300);
+}
+
+.sourcing-toolbar-menu-toggle:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-primary);
+}
+
+.sourcing-toolbar-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-xs) 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.95);
+  transform-origin: top right;
+  transition: opacity 150ms ease, transform 150ms ease, visibility 150ms ease;
+  z-index: 30;
+}
+
+.sourcing-toolbar-dropdown.show {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1);
+}
+
+.sourcing-toolbar-dropdown .action-item {
+  width: 100%;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.sourcing-toolbar-dropdown .action-item.active {
+  background: var(--gray-100);
+  color: var(--text-primary);
+}
+
+.sourcing-toolbar-dropdown .action-submenu {
+  position: relative;
+}
+
+.sourcing-toolbar-dropdown .action-item.has-submenu::after {
+  content: '›';
+  margin-left: auto;
+  opacity: 0.7;
+  transform: rotate(180deg);
+}
+
+.sourcing-toolbar-dropdown .submenu {
+  position: absolute;
+  top: 0;
+  right: 100%;
+  margin-right: 8px;
+  min-width: var(--panel-md);
+  background: #fff;
+  border: 1px solid var(--border-subtle, #e5e7eb);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+  border-radius: var(--radius-lg);
+  padding: 6px 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity .12s ease, transform .12s ease, visibility .12s ease;
+  z-index: 31;
+}
+
+.sourcing-toolbar-dropdown .action-submenu:hover > .submenu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.sourcing-toolbar-dropdown .submenu-item {
+  width: 100%;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.sourcing-toolbar-dropdown .sourcing-status-filter-reset {
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--gray-100);
+  margin-bottom: 2px;
+  border-radius: 0;
+}
+
 /* Drawer Form Grid (zwei Spalten nebeneinander) */
 .drawer-form-grid {
   display: grid;

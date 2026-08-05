@@ -162,9 +162,11 @@ describe('CreatorAuswahlTemplates – Suche im UI', () => {
   it('zeigt die Aktions-Buttons nur für interne Nutzer', () => {
     const htmlIntern = renderAddSection({ ...baseCtx, isKunde: false });
     expect(htmlIntern).toContain('btn-open-add-drawer');
+    expect(htmlIntern).toContain('btn-sourcing-toolbar-menu');
 
     const htmlKunde = renderAddSection({ ...baseCtx, isKunde: true });
     expect(htmlKunde).not.toContain('btn-open-add-drawer');
+    expect(htmlKunde).not.toContain('btn-sourcing-toolbar-menu');
   });
 
   it('übernimmt den aktuellen Suchwert escaped ins Input', () => {

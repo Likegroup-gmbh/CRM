@@ -18,7 +18,6 @@ import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.j
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { tableSelect } from '../../core/components/TableSelect.js';
-import { tagFilterDropdown } from '../../core/components/TagFilterDropdown.js';
 import { hoverToolbar } from '../../core/hoverToolbar/HoverToolbar.js';
 import { registerHoverToolbar, unregisterHoverToolbar } from '../../core/hoverToolbar/HoverToolbarRegistry.js';
 import { setChipCellLoading } from '../../core/components/chipCell.js';
@@ -28,11 +27,10 @@ import {
 } from './sourcingIgCell.js';
 import {
   buildSourcingStatusUpdates, isSourcingStatus,
-  SOURCING_STATUS_FILTER_TAGS, matchesStatusFilter
+  matchesStatusFilter
 } from './sourcingStatusOptions.js';
 import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
 
-const STATUS_FILTER_ENTITY = 'sourcing-status';
 const IG_FETCH_FLASH_MS = 2000;
 
 export class CreatorAuswahlDetail {
@@ -118,8 +116,6 @@ export class CreatorAuswahlDetail {
     this.addDrawer.remove();
     this.kategorienDrawer.remove();
     this.selectedItems.clear();
-    // Ohne Abraeumen uebernimmt init() die Auswahl in die naechste Liste
-    tagFilterDropdown.destroy(STATUS_FILTER_ENTITY);
 
     // Die Engine selbst bleibt stehen, sie gehoert der Anwendung. Nur diese
     // Config verweist auf eine Instanz, die es gleich nicht mehr gibt.
@@ -324,28 +320,10 @@ export class CreatorAuswahlDetail {
     `;
     window.content.innerHTML = html;
     this._updateStickyHeights();
-    this._initStatusFilter();
 
     if (!this.isKunde) {
       this.renderBulkBar();
     }
-  }
-
-  _initStatusFilter() {
-    const container = document.getElementById('sourcing-status-filter-container');
-    if (!container) return;
-
-    tagFilterDropdown.init(STATUS_FILTER_ENTITY, container, {
-      tags: [...SOURCING_STATUS_FILTER_TAGS],
-      selectedTags: this.statusFilter,
-      placeholder: 'Status filtern',
-      itemLabelSingular: 'Status',
-      itemLabelPlural: 'Status',
-      onTagsChange: (selected) => {
-        this.statusFilter = selected;
-        this.rerenderTable();
-      }
-    });
   }
 
   _updateStickyHeights() {
@@ -416,6 +394,8 @@ export class CreatorAuswahlDetail {
     }
 
     if (!this.isKunde) {
+      this.bindToolbarMenu();
+
       const shareBtn = document.getElementById('btn-share-sourcing');
       if (shareBtn) {
         const handler = () => window.shareListDialog?.open({
@@ -1462,6 +1442,121 @@ export class CreatorAuswahlDetail {
 
     const countEl = document.getElementById('sourcing-bulk-count');
     if (countEl) countEl.textContent = `${count} Creator ausgewählt`;
+  }
+
+  bindToolbarMenu() {
+    const menu = document.querySelector('.sourcing-toolbar-menu');
+    const toggle = document.getElementById('btn-sourcing-toolbar-menu');
+    const dropdown = menu?.querySelector('.sourcing-toolbar-dropdown');
+    if (!menu || !toggle || !dropdown) return;
+
+    const setOpen = (open) => {
+      dropdown.classList.toggle('show', open);
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      dropdown.setAttribute('aria-hidden', open ? 'false' : 'true');
+    };
+
+    const toggleHandler = (e) => {
+      e.stopPropagation();
+      setOpen(!dropdown.classList.contains('show'));
+    };
+    toggle.addEventListener('click', toggleHandler);
+    this._boundEventListeners.add(() => toggle.removeEventListener('click', toggleHandler));
+
+    const itemHandler = (e) => {
+      if (e.target.closest('.action-submenu') || e.target.closest('.submenu')) return;
+      if (e.target.closest('.action-item')) setOpen(false);
+    };
+    dropdown.addEventListener('click', itemHandler);
+    this._boundEventListeners.add(() => dropdown.removeEventListener('click', itemHandler));
+
+    const statusFilterHandler = (e) => {
+      const reset = e.target.closest('[data-status-filter-reset]');
+      if (reset) {
+        e.preventDefault();
+        e.stopPropagation();
+        this.statusFilter = [];
+        this._syncStatusFilterSubmenu();
+        this.rerenderTable();
+        return;
+      }
+
+      const item = e.target.closest('.submenu-item[data-status-tag]');
+      if (!item) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      const tag = item.dataset.statusTag;
+      if (!tag) return;
+
+      if (this.statusFilter.includes(tag)) {
+        this.statusFilter = this.statusFilter.filter(t => t !== tag);
+      } else {
+        this.statusFilter = [...this.statusFilter, tag];
+      }
+      this._syncStatusFilterSubmenu();
+      this.rerenderTable();
+    };
+    dropdown.addEventListener('click', statusFilterHandler);
+    this._boundEventListeners.add(() => dropdown.removeEventListener('click', statusFilterHandler));
+
+    const outsideHandler = (e) => {
+      if (!menu.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('click', outsideHandler);
+    this._boundEventListeners.add(() => document.removeEventListener('click', outsideHandler));
+
+    const escapeHandler = (e) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', escapeHandler);
+    this._boundEventListeners.add(() => document.removeEventListener('keydown', escapeHandler));
+  }
+
+  _syncStatusFilterSubmenu() {
+    const submenu = document.querySelector('.sourcing-status-filter-submenu');
+    if (!submenu) return;
+
+    const trigger = submenu.querySelector('.action-item.has-submenu');
+    if (trigger) trigger.classList.toggle('active', this.statusFilter.length > 0);
+
+    const panel = submenu.querySelector('.submenu');
+    if (!panel) return;
+
+    let resetBtn = panel.querySelector('[data-status-filter-reset]');
+    if (this.statusFilter.length > 0) {
+      if (!resetBtn) {
+        resetBtn = document.createElement('button');
+        resetBtn.type = 'button';
+        resetBtn.className = 'submenu-item sourcing-status-filter-reset';
+        resetBtn.setAttribute('data-status-filter-reset', '');
+        resetBtn.setAttribute('role', 'menuitem');
+        resetBtn.textContent = 'Alle zurücksetzen';
+        panel.prepend(resetBtn);
+      }
+    } else if (resetBtn) {
+      resetBtn.remove();
+    }
+
+    const checkHtml = `
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+      </svg>`;
+
+    panel.querySelectorAll('.submenu-item[data-status-tag]').forEach(item => {
+      const tag = item.dataset.statusTag;
+      const isActive = this.statusFilter.includes(tag);
+      item.setAttribute('aria-checked', isActive ? 'true' : 'false');
+      let check = item.querySelector('.submenu-check');
+      if (isActive && !check) {
+        check = document.createElement('span');
+        check.className = 'submenu-check';
+        check.innerHTML = checkHtml;
+        item.appendChild(check);
+      } else if (!isActive && check) {
+        check.remove();
+      }
+    });
   }
 
   bindBulkBarEvents() {
