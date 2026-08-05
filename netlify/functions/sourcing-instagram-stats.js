@@ -14,16 +14,18 @@
 //   -> force: true erzwingt den Meta-Abruf und aktualisiert den Pool. Das
 //      Frontend schickt das beim zweiten Klick (Refresh-Zustand des Buttons).
 //      Ebenso erzwingt eine veraltete ig_stats.calc_version einen neuen Abruf.
-//   -> Meta-Abruf: Profil + bis zu 150 Medien (drei Seiten a 50), filtert auf
-//      Reels die aelter als 4 Tage sind und berechnet daraus den 8er- und
-//      30er-Views-Schnitt, jeweils mit und ohne Ausreisser, sowie den
-//      zugehoerigen CPM-Preis.
+//   -> Meta-Abruf: Profil + bis zu 150 Medien (drei Seiten a 50), filtert Reels
+//      mit Werbe-Kennzeichnung und alles juenger als 4 Tage weg und berechnet
+//      daraus den Views-Schnitt aus genau 8 bzw. 30 sauberen Reels plus den
+//      zugehoerigen CPM-Preis. Ausreisser werden nicht abgezogen, sondern durch
+//      den naechst-aelteren organischen Reel ersetzt.
 //      Das Profilbild wird in zwei AVIF-Groessen (640px + 128px Thumbnail)
 //      nach Supabase Storage kopiert, da Metas CDN-URLs nach wenigen Tagen
 //      ablaufen.
 //   -> zusaetzlich werden E-Mail, Telefon und Standort aus der Bio gelesen
 //      (siehe _shared/bio-extract.js). Die API kennt diese Felder nicht,
-//      Creator hinterlegen sie aber oft im Bio-Freitext.
+//      Creator hinterlegen sie aber oft im Bio-Freitext. Die Bio selbst landet
+//      als Startpunkt in der Kurzbeschreibung, solange die noch leer ist.
 //
 // Auth: Supabase Bearer-Token. Meta-Token bleibt serverseitig.
 
@@ -38,7 +40,9 @@ const {
 const {
   computeInstagramCpm,
   formatCpmDebug,
+  istWerbePost,
   WINDOW_LONG,
+  MIN_AGE_HOURS,
   CALC_VERSION
 } = require('./_shared/instagram-cpm');
 const { extractEmail, extractPhone, extractCity } = require('./_shared/bio-extract');
@@ -53,13 +57,21 @@ const IG_CPM_DEBUG = true;
 const PAGE_SIZE = 50;
 const MAX_PAGES = 3;   // 26s Function-Timeout, mehr ist nicht drin
 
+// Reserve ueber das 30er-Fenster hinaus. Faellt ein Reel als Ausreisser durch,
+// rueckt der naechste nach - ohne Reserve bliebe das Fenster unterbesetzt. Zehn
+// deckt auch Creator mit mehreren Ausreissern ab und kostet meist keinen
+// zusaetzlichen Request, weil PAGE_SIZE bei 50 liegt.
+const PUFFER_NACHRUECKER = 10;
+
 const PROFILE_FIELDS = 'username,name,followers_count,media_count,profile_picture_url,biography,website';
 // Bewusst ohne media_product_type und is_shared_to_feed: fuer Business
 // Discovery sind diese Felder nicht verfuegbar (Fehlercode 100) und ein
 // abgelehntes Feld laesst den ganzen Call scheitern. Zum Trennen von Reels
 // und Bildern reicht media_type.
+// caption ist dagegen oeffentlich und die einzige Quelle fuer die
+// Werbe-Erkennung, siehe istWerbePost in _shared/instagram-cpm.js.
 const MEDIA_FIELDS = 'id,media_type,view_count,like_count,'
-  + 'comments_count,timestamp,permalink';
+  + 'comments_count,timestamp,permalink,caption';
 
 function jsonResponse(statusCode, body) {
   return {
@@ -69,15 +81,31 @@ function jsonResponse(statusCode, body) {
   };
 }
 
-/** Reels, die es ueberhaupt in die Rechnung schaffen koennen (ohne Altersregel) */
-function zaehleVerwertbar(media) {
-  return media.filter((m) => m?.media_type === 'VIDEO').length;
+/**
+ * Reels, die es wirklich in die Rechnung schaffen koennen.
+ *
+ * Werbe-Reels und zu frische Reels zaehlen nicht mit: sonst bricht das Paging zu
+ * frueh ab und dem Fenster fehlen Nachruecker fuer die Ausreisser-Ersetzung,
+ * obwohl weiter hinten genug organische Reels liegen.
+ */
+function zaehleVerwertbar(media, now = Date.now()) {
+  const cutoff = now - MIN_AGE_HOURS * 60 * 60 * 1000;
+  return media.filter((m) => {
+    if (m?.media_type !== 'VIDEO') return false;
+    // istWerbePost liefert einen Marker-String oder null; ein Marker macht !… zu false.
+    if (istWerbePost(m.caption)) return false;
+    const postedAt = Date.parse(m.timestamp);
+    return Number.isFinite(postedAt) && postedAt <= cutoff;
+  }).length;
 }
 
 /**
  * Profil + Medien laden. Da zwischen den Reels auch Bilder und Karussells
  * liegen, reicht eine Seite oft nicht fuer 30 auswertbare Videos - dann wird
  * ueber den after-Cursor nachgeladen.
+ *
+ * Geladen wird bis WINDOW_LONG + PUFFER_NACHRUECKER verwertbare Reels
+ * zusammenkommen, damit pickWindow genug Ersatz fuer Ausreisser hat.
  */
 async function fetchProfileWithMedia(username) {
   const igUserId = process.env.META_IG_USER_ID;
@@ -117,7 +145,7 @@ async function fetchProfileWithMedia(username) {
     media = media.concat(bd.media?.data || []);
 
     after = bd.media?.paging?.cursors?.after || null;
-    if (!after || zaehleVerwertbar(media) >= WINDOW_LONG + 2) break;
+    if (!after || zaehleVerwertbar(media) >= WINDOW_LONG + PUFFER_NACHRUECKER) break;
   }
 
   if (!profile) {
@@ -143,19 +171,21 @@ function statsFromPool(pool) {
   const ig = pool.ig_stats || {};
   return {
     views_8: pool.ig_views_8,
-    views_8_clean: pool.ig_views_8_clean,
     views_30: pool.ig_views_30,
-    views_30_clean: pool.ig_views_30_clean,
     cpm_8: pool.cpm_ig_8,
-    cpm_8_clean: pool.cpm_ig_8_clean,
     cpm_30: pool.cpm_ig_30,
-    cpm_30_clean: pool.cpm_ig_30_clean,
     sample_8: ig.sample_8,
     sample_30: ig.sample_30,
+    // Bewusst ohne Default: fehlt das Feld (alter Pool-Eintrag), soll
+    // formatCpmDebug in den permalink-Fallback laufen statt ein leeres
+    // Fenster zu melden.
+    used_8: ig.used_8,
+    used_30: ig.used_30,
     outliers_8: ig.outliers_8 || [],
     outliers_30: ig.outliers_30 || [],
     videos_available: ig.videos_available,
     skipped_too_recent: ig.skipped_too_recent,
+    skipped_ads: ig.skipped_ads ?? null,
     non_video_skipped: ig.non_video_skipped ?? null,
     videos: ig.videos || [],
     skipped_videos: ig.skipped_videos || []
@@ -168,7 +198,8 @@ function emitCpmDebug(username, stats, meta) {
   console.log(`[IG-CPM] @${username} (${meta.source})`, {
     rules: debug.rules,
     skipped: debug.skipped,
-    included: debug.included,
+    included_8: debug.included_8,
+    included_30: debug.included_30,
     outliers: debug.outliers,
     summary: debug.summary,
     pool_fetched_at: debug.pool_fetched_at,
@@ -191,13 +222,9 @@ function buildItemUpdate(pool, item) {
     link_instagram: pool.link_instagram,
     follower_instagram: pool.follower_instagram,
     ig_views_8: pool.ig_views_8,
-    ig_views_8_clean: pool.ig_views_8_clean,
     ig_views_30: pool.ig_views_30,
-    ig_views_30_clean: pool.ig_views_30_clean,
     cpm_ig_8: pool.cpm_ig_8,
-    cpm_ig_8_clean: pool.cpm_ig_8_clean,
     cpm_ig_30: pool.cpm_ig_30,
-    cpm_ig_30_clean: pool.cpm_ig_30_clean,
     ig_stats: pool.ig_stats || {},
     ig_fetched_at: pool.ig_fetched_at,
     ig_fetch_error: null
@@ -209,6 +236,11 @@ function buildItemUpdate(pool, item) {
   if (leer(item.email) && pool.email) update.email = pool.email;
   if (leer(item.telefon) && pool.telefon) update.telefon = pool.telefon;
   if (leer(item.wohnort) && pool.wohnort) update.wohnort = pool.wohnort;
+
+  // Die Instagram-Bio als Startpunkt fuer die Kurzbeschreibung. Nur wenn dort
+  // noch nichts steht - ein Refresh darf keine Handarbeit ueberschreiben.
+  const bio = pool.ig_stats?.biography;
+  if (leer(item.notiz) && !leer(bio)) update.notiz = bio;
 
   return update;
 }
@@ -315,9 +347,7 @@ exports.handler = async (event) => {
       item: updated,
       stats: {
         views_8: pool.ig_views_8,
-        views_8_clean: pool.ig_views_8_clean,
-        views_30: pool.ig_views_30,
-        views_30_clean: pool.ig_views_30_clean
+        views_30: pool.ig_views_30
       },
       ...(debug ? { debug } : {})
     });
@@ -355,9 +385,7 @@ exports.handler = async (event) => {
         item: updated,
         stats: {
           views_8: pool.ig_views_8,
-          views_8_clean: pool.ig_views_8_clean,
-          views_30: pool.ig_views_30,
-          views_30_clean: pool.ig_views_30_clean
+          views_30: pool.ig_views_30
         },
         ...(debug ? { debug } : {})
       });
@@ -428,17 +456,13 @@ exports.handler = async (event) => {
     // aus einem frueheren Lauf zaehlt als Erfolg und darf nicht blockiert werden
     ig_image_failed_at: (bild?.url || pool?.profile_image_url) ? null : jetzt,
     follower_instagram: p.followers_count ?? null,
-    // Der 30er-Wert ohne Ausreisser ist die belastbarste Groesse; hat der
-    // Creator dafuer zu wenige Reels, greift der 8er-Wert
-    reichweite_instagram: formatReach(stats.views_30_clean ?? stats.views_8_clean),
+    // Der 30er-Wert ist die belastbarste Groesse; hat der Creator dafuer zu
+    // wenige Reels, greift der 8er-Wert
+    reichweite_instagram: formatReach(stats.views_30 ?? stats.views_8),
     ig_views_8: stats.views_8,
-    ig_views_8_clean: stats.views_8_clean,
     ig_views_30: stats.views_30,
-    ig_views_30_clean: stats.views_30_clean,
     cpm_ig_8: stats.cpm_8,
-    cpm_ig_8_clean: stats.cpm_8_clean,
     cpm_ig_30: stats.cpm_30,
-    cpm_ig_30_clean: stats.cpm_30_clean,
     ig_fetched_at: jetzt,
     ig_fetch_error: null,
     updated_at: jetzt,
@@ -450,10 +474,13 @@ exports.handler = async (event) => {
       calc_version: stats.calc_version,
       sample_8: stats.sample_8,
       sample_30: stats.sample_30,
+      used_8: stats.used_8,
+      used_30: stats.used_30,
       outliers_8: stats.outliers_8,
       outliers_30: stats.outliers_30,
       videos_available: stats.videos_available,
       skipped_too_recent: stats.skipped_too_recent,
+      skipped_ads: stats.skipped_ads,
       non_video_skipped: stats.non_video_skipped,
       videos: stats.videos,
       skipped_videos: stats.skipped_videos
@@ -506,11 +533,10 @@ exports.handler = async (event) => {
     item: updated,
     stats: {
       views_8: stats.views_8,
-      views_8_clean: stats.views_8_clean,
       views_30: stats.views_30,
-      views_30_clean: stats.views_30_clean,
       videos_available: stats.videos_available,
-      skipped_too_recent: stats.skipped_too_recent
+      skipped_too_recent: stats.skipped_too_recent,
+      skipped_ads: stats.skipped_ads
     },
     ...(debug ? { debug } : {})
   });

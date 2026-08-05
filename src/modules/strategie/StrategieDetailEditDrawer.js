@@ -6,6 +6,12 @@ import { escapeAttr } from '../../core/VideoUploadUtils.js';
 
 const DRAWER_ID = 'edit-item-drawer';
 
+/** Nur aus TikTok und Instagram laesst sich eine Tonspur bzw. Untertitel ziehen. */
+function isTranscribableUrl(url) {
+  const u = (url || '').toLowerCase();
+  return u.includes('tiktok.com') || u.includes('instagram.com');
+}
+
 export function showEditItemDrawer(detail, itemId) {
   const item = detail.items.find(i => i.id === itemId);
   if (!item) {
@@ -84,7 +90,7 @@ function renderEditItemDrawerBody(detail, item) {
           name="video_link" 
           class="form-input" 
           value="${item.video_link || ''}"
-          placeholder="https://youtube.com/... oder leer für Idee"
+          placeholder="https://tiktok.com/... oder https://instagram.com/reel/... – leer für Idee"
         >
       </div>
 
@@ -173,6 +179,20 @@ async function handleEditItemSubmit(detail, itemId, formData) {
     const creatorName = formData.get('creator_name')?.trim() || null;
     const beschreibung = formData.get('beschreibung')?.trim() || null;
 
+    const item = detail.items.find(i => i.id === itemId);
+    const urlGeaendert = (videoUrl || null) !== (item?.video_link || null);
+
+    // Nur neue Links werden geprueft - bestehende YouTube-Eintraege aus der Zeit
+    // vor der Transkription bleiben unangetastet, solange man sie nicht anfasst.
+    if (videoUrl && urlGeaendert && !isTranscribableUrl(videoUrl)) {
+      window.toastSystem?.show('Nur TikTok- und Instagram-Links sind erlaubt', 'warning');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+      }
+      return;
+    }
+
     let platform = null;
     if (videoUrl) {
       if (videoUrl.includes('tiktok.com')) platform = 'tiktok';
@@ -181,21 +201,39 @@ async function handleEditItemSubmit(detail, itemId, formData) {
       else platform = 'other';
     }
 
-    await strategieService.updateStrategieItem(itemId, {
+    const updates = {
       video_link: videoUrl,
       teilbereich: teilbereich,
       creator_name: creatorName,
       beschreibung: beschreibung,
       plattform: platform
-    });
+    };
 
-    const item = detail.items.find(i => i.id === itemId);
-    if (item) {
-      item.video_link = videoUrl;
-      item.teilbereich = teilbereich;
-      item.creator_name = creatorName;
-      item.beschreibung = beschreibung;
-      item.plattform = platform;
+    // Wer hier tippt, pflegt von Hand - der KI-Tag verschwindet
+    if (beschreibung !== (item?.beschreibung || null)) {
+      updates.beschreibung_quelle = beschreibung ? 'user' : null;
+    }
+
+    // Neues Video: alte Ergebnisse gehoeren nicht mehr dazu
+    if (urlGeaendert) {
+      updates.transkript = null;
+      updates.transkript_quelle = null;
+      updates.caption = null;
+      updates.verarbeitung_fehler = null;
+      updates.verarbeitung_step = null;
+      updates.verarbeitung_status = videoUrl ? 'pending' : null;
+    }
+
+    await strategieService.updateStrategieItem(itemId, updates);
+
+    if (item) Object.assign(item, updates);
+
+    if (urlGeaendert && videoUrl) {
+      try {
+        await strategieService.enqueueItemProcessing(detail.strategieId, itemId);
+      } catch (e) {
+        console.warn('Verarbeitung konnte nicht gestartet werden:', e);
+      }
     }
 
     window.toastSystem?.show('Änderungen gespeichert', 'success');

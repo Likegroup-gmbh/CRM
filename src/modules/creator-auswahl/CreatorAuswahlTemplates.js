@@ -51,7 +51,13 @@ const ENTFERNTE_SPALTEN = [
   'cp-col-reichweite-ig', 'cp-col-reichweite-tt',
   // Der getrimmte Schnitt ("Preis Ø Reels") ist durch die beiden
   // Ausreisser-bereinigten Spalten ersetzt.
-  'cp-col-cpm-ig-trimmed'
+  'cp-col-cpm-ig-trimmed',
+  // Die "o. A."-Spalten sind weg: Preis 8/30 Reels sind jetzt selbst bereinigt,
+  // eine ungefilterte Variante gibt es nicht mehr.
+  'cp-col-cpm-ig-8-clean', 'cp-col-cpm-ig-30-clean',
+  // Angefragt und Rueckmeldung waren Checkbox-Spalten, ihre Information steckt
+  // jetzt in den Status-Optionen "Angefragt" und "In Verhandlung".
+  'cp-col-anfragen', 'cp-col-check'
 ];
 
 /** Die fuenf Status-Checkbox-Spalten, die zur Select-Spalte cp-col-status wurden */
@@ -110,19 +116,22 @@ export function isColumnVisibleForCustomer(columnClass, isKunde, hiddenColumns) 
  * Alle Standardspalten in Renderreihenfolge. Nach Plattform gebuendelt: erst
  * der komplette Instagram-Block (Reels, dann Story), danach TikTok - vorher
  * wechselten sich IG und TT spaltenweise ab.
+ *
+ * Der Status steht direkt hinter der Creator Art: er entscheidet, wie es mit
+ * einem Creator weitergeht, und war hinten in der Tabelle nur mit Querscrollen
+ * erreichbar.
  */
 export const SOURCING_SPALTEN = [
-  'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-typ', 'cp-col-location',
-  'cp-col-mail', 'cp-col-telefon',
+  'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-typ', 'cp-col-status',
+  'cp-col-location', 'cp-col-mail', 'cp-col-telefon',
   'cp-col-link-ig', 'cp-col-follower-ig',
-  'cp-col-cpm-ig-8', 'cp-col-cpm-ig-8-clean',
-  'cp-col-cpm-ig-30', 'cp-col-cpm-ig-30-clean',
-  'cp-col-reichweite-story', 'cp-col-preis-story',
+  'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-preis-reels',
+  'cp-col-reichweite-story', 'cp-col-preis-story', 'cp-col-gesamtpreis',
   'cp-col-link-tt', 'cp-col-follower-tt',
   'cp-col-pricing', 'cp-col-reichweite-garantie',
   'cp-col-ek', 'cp-col-vk',
-  'cp-col-notiz', 'cp-col-feedback', 'cp-col-anfragen', 'cp-col-status',
-  'cp-col-check', 'cp-col-actions'
+  'cp-col-notiz', 'cp-col-feedback',
+  'cp-col-actions'
 ];
 
 export function getVisibleColumnCount(isKunde, hiddenColumns) {
@@ -308,28 +317,26 @@ export function renderItemsTable(ctx) {
             <th class="cp-col-bild ${sticky.bild}" ${hide('cp-col-bild')}></th>
             <th class="${sticky.name} cp-col-name">Name</th>
             <th class="cp-col-typ" ${hide('cp-col-typ')}>Creator Art</th>
+            <th class="cp-col-status" ${hide('cp-col-status')}>Status</th>
             <th class="cp-col-location" ${hide('cp-col-location')}>Location</th>
             <th class="cp-col-mail" ${hide('cp-col-mail')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Mail</th>
             <th class="cp-col-telefon" ${hide('cp-col-telefon')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Telefon</th>
             <th class="cp-col-link-ig" ${hide('cp-col-link-ig')}>Link ${INSTAGRAM_ICON}</th>
             <th class="cp-col-follower-ig" ${hide('cp-col-follower-ig')}>Follower ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-cpm-ig-8" ${hide('cp-col-cpm-ig-8')} title="Geschätzter Preis bei ${tkpLabel} € TKP – Views-Schnitt der letzten 8 Feed-Reels, Ausreißer inklusive">Preis 8 Reels ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-cpm-ig-8-clean" ${hide('cp-col-cpm-ig-8-clean')} title="Geschätzter Preis bei ${tkpLabel} € TKP – Views-Schnitt der letzten 8 Feed-Reels ohne Ausreißer nach oben und unten">Preis 8 Reels o. A. ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-cpm-ig-30" ${hide('cp-col-cpm-ig-30')} title="Geschätzter Preis bei ${tkpLabel} € TKP – Views-Schnitt der letzten 30 Feed-Reels, Ausreißer inklusive">Preis 30 Reels ${INSTAGRAM_ICON}</th>
-            <th class="cp-col-cpm-ig-30-clean" ${hide('cp-col-cpm-ig-30-clean')} title="Geschätzter Preis bei ${tkpLabel} € TKP – Views-Schnitt der letzten 30 Feed-Reels ohne Ausreißer nach oben und unten">Preis 30 Reels o. A. ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-cpm-ig-8" ${hide('cp-col-cpm-ig-8')} title="${escapeHtml(reelsPreisTooltip(tkpLabel, 8))}">Preis 8 Reels ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-cpm-ig-30" ${hide('cp-col-cpm-ig-30')} title="${escapeHtml(reelsPreisTooltip(tkpLabel, 30))}">Preis 30 Reels ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-preis-reels" ${hide('cp-col-preis-reels')} title="Manuell gepflegt – der tatsächlich verhandelte Reel-Preis">Preis Reels ${INSTAGRAM_ICON}</th>
             <th class="cp-col-reichweite-story" ${hide('cp-col-reichweite-story')} title="Manuell gepflegt – Story-Reichweite liefert die Instagram-API für fremde Accounts nicht">Reichweite Story ${INSTAGRAM_ICON}</th>
             <th class="cp-col-preis-story" ${hide('cp-col-preis-story')} title="Manuell gepflegt">Preis Story ${INSTAGRAM_ICON}</th>
+            <th class="cp-col-gesamtpreis" ${hide('cp-col-gesamtpreis')} title="Preis Reels + Preis Story">Gesamtpreis</th>
             <th class="cp-col-link-tt" ${hide('cp-col-link-tt')}>Link ${TIKTOK_ICON}</th>
             <th class="cp-col-follower-tt" ${hide('cp-col-follower-tt')}>Follower ${TIKTOK_ICON}</th>
             <th class="cp-col-pricing" ${hide('cp-col-pricing')}>Tatsächlicher Preis</th>
             <th class="cp-col-reichweite-garantie" ${hide('cp-col-reichweite-garantie')}>RW Garantie</th>
             <th class="cp-col-ek" ${hide('cp-col-ek')}>EK</th>
             <th class="cp-col-vk" ${hide('cp-col-vk')}>VK</th>
-            <th class="cp-col-notiz" ${hide('cp-col-notiz')}>Kurzbeschreibung</th>
+            <th class="cp-col-notiz" ${hide('cp-col-notiz')} title="Startet mit der Instagram-Bio, sobald der Creator abgerufen wurde">Kurzbeschreibung</th>
             <th class="cp-col-feedback" ${hide('cp-col-feedback')}>Rückmeldung Kunde</th>
-            <th class="cp-col-anfragen" ${hide('cp-col-anfragen')}>Anfragen</th>
-            <th class="cp-col-status" ${hide('cp-col-status')}>Status</th>
-            <th class="cp-col-check" ${hide('cp-col-check')}>Rückmeldung</th>
             ${ctx.customManager ? ctx.customManager.renderHeaders(ctx.hiddenColumns, ctx.isKunde) : ''}
             ${!ctx.isKunde ? '<th class="col-actions cp-col-actions">Aktionen</th>' : ''}
           </tr>
@@ -449,6 +456,19 @@ export function getListenTkp(liste) {
   return Number.isFinite(tkp) && tkp > 0 ? tkp : DEFAULT_TKP;
 }
 
+/**
+ * Kopf-Tooltip der berechneten Reels-Preise. Beschreibt die Rechenregel in der
+ * Form, in der sie auch dem Kunden erklaert wird - die Spalte ist sonst eine
+ * Blackbox aus Views und TKP.
+ */
+function reelsPreisTooltip(tkpLabel, fenster) {
+  return `Geschätzter Preis bei ${tkpLabel} € TKP\n`
+    + `Durchschnitt der letzten ${fenster} Feed-Reels, ohne Reels mit Werbe-Kennzeichnung.\n`
+    + 'Ausgeschlossen wird zusätzlich das stärkste Reel, wenn es mindestens doppelt so viele '
+    + 'Aufrufe hat wie das zweitstärkste, und das schwächste Reel, wenn das zweitschwächste '
+    + 'mindestens doppelt so viele Aufrufe hat.';
+}
+
 /** Views-Schnitt -> Preis in Euro, auf Cent gerundet */
 export function berechnePreisAusViews(views, tkp) {
   // Number(null) waere 0 und wuerde einen Preis von 0,00 € statt "-" ergeben
@@ -459,23 +479,75 @@ export function berechnePreisAusViews(views, tkp) {
 }
 
 /**
- * Zusatz fuer den Tooltip der bereinigten Spalten: welche und wie viele Reels
- * die Ausreisser-Erkennung aussortiert hat. Ohne diesen Hinweis waere nicht
- * nachvollziehbar, warum "mit" und "ohne Ausreißer" auseinanderlaufen - oder
- * warum sie identisch sind.
+ * Zusatz fuer den Tooltip der Preis-Spalten: was aus der Rechnung geflogen ist.
+ * Beides muss nachvollziehbar sein, sonst wirkt der Preis wie eine Blackbox -
+ * die konkreten Reichweiten der Ausreisser und die Zahl der Werbe-Reels.
  */
 function beschreibeAusreisser(item, fenster) {
   const outliers = item?.ig_stats?.[`outliers_${fenster}`];
+  const werbung = Number(item?.ig_stats?.skipped_ads) || 0;
   if (!Array.isArray(outliers)) return null;
-  if (!outliers.length) return 'Keine Ausreißer erkannt';
 
-  const hoch = outliers.filter(o => o?.side === 'high').length;
-  const niedrig = outliers.length - hoch;
-  const teile = [];
-  if (hoch) teile.push(`${hoch}× nach oben`);
-  if (niedrig) teile.push(`${niedrig}× nach unten`);
+  const zeilen = [];
 
-  return `${outliers.length} Ausreißer entfernt (${teile.join(', ')})`;
+  if (outliers.length) {
+    const beschreibe = (seite, label) => outliers
+      .filter(o => o?.side === seite)
+      .map(o => `${label}: ${formatExactNumber(o.views)} Views`);
+
+    zeilen.push(
+      `${outliers.length} Ausreißer entfernt`,
+      ...beschreibe('high', 'nach oben'),
+      ...beschreibe('low', 'nach unten')
+    );
+  } else {
+    zeilen.push('Keine Ausreißer erkannt');
+  }
+
+  if (werbung) {
+    zeilen.push(`${werbung} Reel${werbung === 1 ? '' : 's'} mit Werbe-Kennzeichnung ausgeschlossen`);
+  }
+
+  return zeilen.join('\n');
+}
+
+/**
+ * Freitext-Preis in eine Zahl uebersetzen. Die Preisfelder sind bewusst
+ * Freitext ("ca. 1.200 €", "1200-1500"), fuer den Gesamtpreis braucht es
+ * daraus trotzdem eine Zahl: erste Zahl im Text gewinnt, deutsches Format
+ * (Punkt als Tausender, Komma als Dezimaltrenner).
+ */
+export function parsePreisFreitext(value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+
+  const treffer = String(value).match(/\d[\d.,]*/);
+  if (!treffer) return null;
+
+  // Trennzeichen am Ende ist Satzzeichen, keine Zahl mehr ("1200," -> "1200")
+  let roh = treffer[0].replace(/[.,]+$/, '');
+
+  if (roh.includes(',')) {
+    // Komma ist im deutschen Format immer der Dezimaltrenner
+    roh = roh.replace(/\./g, '').replace(',', '.');
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(roh)) {
+    // 1.200 ist tausendzweihundert, 1.5 dagegen eineinhalb
+    roh = roh.replace(/\./g, '');
+  }
+
+  const zahl = Number(roh);
+  return Number.isFinite(zahl) ? zahl : null;
+}
+
+/**
+ * Gesamtpreis = Preis Reels + Preis Story. Beides sind manuell gepflegte
+ * Freitextfelder; ist keins davon als Zahl lesbar, gibt es keinen Gesamtpreis.
+ */
+export function berechneGesamtpreis(item) {
+  const reels = parsePreisFreitext(item?.preis_reels);
+  const story = parsePreisFreitext(item?.preis_story);
+  if (reels == null && story == null) return null;
+  return (reels || 0) + (story || 0);
 }
 
 /**
@@ -512,9 +584,34 @@ function renderAutoCpmCell(ctx, item, columnClass, views, hide, showViews = fals
 }
 
 /**
- * Status-Zelle: fasst die frueheren Checkboxen On Hold / Buchen / Prio 1 / Prio 2 /
- * Absage in einem Select zusammen. Kunden duerfen wie bisher keine Absage setzen
- * und eine bestehende Absage nicht zuruecknehmen.
+ * Gesamtpreis-Zelle (read-only): Preis Reels + Preis Story. Read-only, weil ein
+ * eigenes Feld sofort von den beiden Einzelpreisen abweichen wuerde, sobald
+ * jemand nur einen davon anpasst.
+ */
+function renderGesamtpreisCell(ctx, item, hide) {
+  const summe = berechneGesamtpreis(item);
+  const value = summe != null
+    ? `${summe.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+    : '-';
+
+  const title = summe != null
+    ? 'Preis Reels + Preis Story'
+    : 'Kein Gesamtpreis – Preis Reels und Preis Story sind beide leer oder enthalten keine Zahl';
+
+  return `
+    <td class="cell-textarea cp-col-gesamtpreis" style="${hide('cp-col-gesamtpreis')}">
+      <div class="cell-text-readonly cpm-auto-value" title="${escapeHtml(title)}">
+        <div class="cpm-auto-price">${value}</div>
+      </div>
+    </td>
+  `;
+}
+
+/**
+ * Status-Zelle: fasst die frueheren Checkboxen Angefragt / In Verhandlung /
+ * On Hold / Buchen / Prio 1 / Prio 2 / Absage in einem Select zusammen. Kunden
+ * duerfen wie bisher keine Absage setzen und eine bestehende Absage nicht
+ * zuruecknehmen.
  */
 function renderSourcingStatusCell(ctx, item) {
   const status = getSourcingStatus(item);
@@ -685,6 +782,9 @@ export function renderItemRow(ctx, item, index) {
           disabled: !!ctx.gastReadonly
         }) : `<div class="cell-text-readonly">${item.typ || '-'}</div>`}
       </td>
+      <td class="cp-col-status" style="${hide('cp-col-status')}">
+        ${renderSourcingStatusCell(ctx, item)}
+      </td>
       <td class="cell-textarea cp-col-location" style="${hide('cp-col-location')}">
         ${!ctx.isKunde ? `
           <textarea class="strategie-textarea" data-field="wohnort" data-item-id="${item.id}" placeholder="Location...">${item.wohnort || ''}</textarea>
@@ -700,10 +800,13 @@ export function renderItemRow(ctx, item, index) {
         `}
       </td>
       ${renderFollowerCell(ctx, item, 'cp-col-follower-ig', 'follower_instagram', hide)}
-      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-8', item.ig_views_8, hide, true)}
-      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-8-clean', item.ig_views_8_clean, hide, true, beschreibeAusreisser(item, 8))}
-      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-30', item.ig_views_30, hide, true)}
-      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-30-clean', item.ig_views_30_clean, hide, true, beschreibeAusreisser(item, 30))}
+      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-8', item.ig_views_8, hide, true, beschreibeAusreisser(item, 8))}
+      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-30', item.ig_views_30, hide, true, beschreibeAusreisser(item, 30))}
+      <td class="cell-textarea cp-col-preis-reels" style="${hide('cp-col-preis-reels')}">
+        ${!ctx.isKunde ? `
+          <input type="text" class="strategie-textarea" data-field="preis_reels" data-item-id="${item.id}" placeholder="Preis..." value="${escapeHtml(item.preis_reels || '')}">
+        ` : `<div class="cell-text-readonly">${escapeHtml(item.preis_reels || '-')}</div>`}
+      </td>
       <td class="cell-textarea cp-col-reichweite-story" style="${hide('cp-col-reichweite-story')}">
         ${!ctx.isKunde ? `
           <input type="text" class="strategie-textarea" data-field="reichweite_story" data-item-id="${item.id}" placeholder="z.B. 10K" value="${item.reichweite_story || ''}">
@@ -714,6 +817,7 @@ export function renderItemRow(ctx, item, index) {
           <input type="text" class="strategie-textarea" data-field="preis_story" data-item-id="${item.id}" placeholder="Preis..." value="${item.preis_story || ''}">
         ` : `<div class="cell-text-readonly">${item.preis_story || '-'}</div>`}
       </td>
+      ${renderGesamtpreisCell(ctx, item, hide)}
       <td class="cp-col-link-tt" style="${hide('cp-col-link-tt')}">
         ${!ctx.isKunde ? `
           <div class="links-compact-row">
@@ -764,32 +868,6 @@ export function renderItemRow(ctx, item, index) {
           <div class="feedback-author-meta" style="font-size:0.72rem;color:var(--text-secondary,#999);padding:2px 4px;">
             ${item.feedback_kunde_author_name}${item.feedback_kunde_updated_at ? ` · ${new Date(item.feedback_kunde_updated_at).toLocaleDateString('de-DE')}` : ''}
           </div>` : ''}
-      </td>
-      <td class="cp-col-anfragen" style="${hide('cp-col-anfragen')}">
-        <div class="angefragt-cell">
-          <input
-            type="checkbox"
-            ${item.angefragt ? 'checked' : ''}
-            data-field="angefragt"
-            data-item-id="${item.id}"
-            class="cp-checkbox${ctx.isKunde ? ' cp-checkbox--readonly' : ''}"
-            ${ctx.isKunde ? 'disabled' : ''}
-          >
-          ${item.angefragt_am ? `<span class="angefragt-datum">${new Date(item.angefragt_am).toLocaleDateString('de-DE')}</span>` : ''}
-        </div>
-      </td>
-      <td class="cp-col-status" style="${hide('cp-col-status')}">
-        ${renderSourcingStatusCell(ctx, item)}
-      </td>
-      <td class="cp-col-check" style="${hide('cp-col-check')}">
-        <input
-          type="checkbox"
-          ${item.rueckmeldung_creator ? 'checked' : ''}
-          data-field="rueckmeldung_creator"
-          data-item-id="${item.id}"
-          class="cp-checkbox${ctx.isKunde ? ' cp-checkbox--readonly' : ''}"
-          ${ctx.isKunde ? 'disabled' : ''}
-        >
       </td>
       ${ctx.customManager ? ctx.customManager.renderCells(item.id, ctx.hiddenColumns, ctx.isKunde) : ''}
       ${!ctx.isKunde ? `

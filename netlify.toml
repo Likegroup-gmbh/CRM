@@ -12,9 +12,11 @@
   # sharp: native Binaries, kann esbuild nicht bundlen (instagram-connect)
   external_node_modules = ["@sparticuz/chromium", "sharp"]
 
-# Screenshot Function mit 60s Timeout
-[functions."screenshot"]
-  timeout = 60
+# Strategie-Items: Screenshot + Transkription in einem Chromium-Lauf.
+# Background Function (Suffix -background): 15 Min Limit, antwortet sofort 202;
+# Fortschritt und Ergebnis laufen ueber strategie_items (Realtime).
+[functions."strategie-item-background"]
+  external_node_modules = ["@sparticuz/chromium"]
 
 # Dropbox Upload Function – Videos können groß sein
 [functions."dropbox-upload"]
@@ -24,8 +26,8 @@
 [functions."dropbox-proxy"]
   timeout = 300
 
-# Video-Transkription (Background Function: automatisch 15 Min Timeout, antwortet sofort 202)
-# Braucht Puppeteer/Chromium wie die Screenshot-Function (external_node_modules gilt global)
+# Video-Transkription der Testseite /transcribe und des Skript-Generators
+# (Background Function: automatisch 15 Min Timeout, antwortet sofort 202)
 [functions."transcribe-background"]
   external_node_modules = ["@sparticuz/chromium"]
 

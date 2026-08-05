@@ -7,7 +7,7 @@ import { normalizeCreatorTyp, isAllowedCreatorTyp } from './creatorTypeOptions.j
 import {
   renderAddSection, renderItemsTable, renderTabNavigation, renderItemRow,
   getTeilbereicheFromListe, isColumnVisibleForCustomer, getVisibleColumnCount,
-  getSourcingTabForItem, SOURCING_TABS, migrateHiddenColumns
+  getSourcingTabForItem, SOURCING_TABS, migrateHiddenColumns, berechneGesamtpreis
 } from './CreatorAuswahlTemplates.js';
 import { CreatorAuswahlKategorienDrawer } from './CreatorAuswahlKategorienDrawer.js';
 import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
@@ -792,8 +792,14 @@ export class CreatorAuswahlDetail {
         console.log('Regeln', debug.rules);
         if (debug.skipped?.length) console.table(debug.skipped);
         else console.log('Skipped (zu frisch / manuell ausgeschlossen): keine');
-        if (debug.included?.length) console.table(debug.included);
-        else console.log('Included: keine');
+        if (debug.included_8?.length) {
+          console.log(`Included 8er (${debug.included_8.length} Reels im Schnitt)`);
+          console.table(debug.included_8);
+        } else console.log('Included 8er: keine');
+        if (debug.included_30?.length) {
+          console.log(`Included 30er (${debug.included_30.length} Reels im Schnitt)`);
+          console.table(debug.included_30);
+        } else console.log('Included 30er: keine');
         if (debug.outliers?.window_8?.length) console.table(debug.outliers.window_8);
         if (debug.outliers?.window_30?.length) console.table(debug.outliers.window_30);
         console.log('Fenster / Preis', debug.summary);
@@ -811,9 +817,9 @@ export class CreatorAuswahlDetail {
           'info'
         );
       } else {
-        // 30er-Schnitt ohne Ausreisser ist der belastbarste Wert; hat der
-        // Creator dafuer zu wenige Feed-Reels, greift der 8er-Schnitt
-        const views = updated.ig_views_30_clean ?? updated.ig_views_8_clean;
+        // Der 30er-Schnitt ist der belastbarste Wert; hat der Creator dafuer zu
+        // wenige Feed-Reels, greift der 8er-Schnitt
+        const views = updated.ig_views_30 ?? updated.ig_views_8;
         window.toastSystem?.show(
           views != null
             ? `Instagram-Daten aktualisiert (${Number(views).toLocaleString('de-DE')} Views im Schnitt)`
@@ -915,19 +921,6 @@ export class CreatorAuswahlDetail {
     }
 
     try {
-      if (field === 'angefragt') {
-        const updates = { angefragt: value };
-        if (value) updates.angefragt_am = new Date().toISOString();
-        await creatorAuswahlService.updateItem(itemId, updates);
-        const item = this.items.find(i => i.id === itemId);
-        if (item) {
-          item.angefragt = value;
-          if (value) item.angefragt_am = updates.angefragt_am;
-        }
-        this.rerenderTable();
-        return;
-      }
-
       const updates = { [field]: value };
 
       // Kunden-Feedback: Autor + Zeitstempel mitschreiben (Kunde und Gast)
@@ -952,6 +945,12 @@ export class CreatorAuswahlDetail {
       if (field === 'link_instagram') {
         applySourcingIgCellState(element.closest('.chip-cell'), item || { link_instagram: value });
       }
+
+      // Der Gesamtpreis ist eine reine Summe der beiden Preisfelder und muss
+      // mitziehen, sobald eines davon bearbeitet wird
+      if (field === 'preis_reels' || field === 'preis_story') {
+        this.refreshGesamtpreisCell(element, item);
+      }
     } catch (error) {
       console.error('Fehler beim Aktualisieren:', error);
       window.toastSystem?.show('Fehler beim Speichern', 'error');
@@ -972,9 +971,21 @@ export class CreatorAuswahlDetail {
     display.title = formatExactNumber(value);
   }
 
+  /** Gesamtpreis-Zelle derselben Zeile neu berechnen (Preis Reels + Preis Story) */
+  refreshGesamtpreisCell(element, item) {
+    const anzeige = element.closest('tr')?.querySelector('.cp-col-gesamtpreis .cpm-auto-price');
+    if (!anzeige || !item) return;
+
+    const summe = berechneGesamtpreis(item);
+    anzeige.textContent = summe != null
+      ? `${summe.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
+      : '-';
+  }
+
   /**
-   * Status-Select der Tabelle: setzt genau eines der Flags on_hold / gebucht /
-   * prio_1 / prio_2 / absage und nimmt alle anderen inklusive Zeitstempel zurueck.
+   * Status-Select der Tabelle: setzt genau eines der Flags angefragt /
+   * in_verhandlung / on_hold / gebucht / prio_1 / prio_2 / absage und nimmt alle
+   * anderen zurueck.
    */
   async handleStatusChange(itemId, status) {
     if (!itemId || !isSourcingStatus(status)) return;

@@ -37,11 +37,11 @@ describe('Sourcing – Spaltenreihenfolge', () => {
       .filter(Boolean);
   }
 
-  it('stellt Bild zwischen Checkbox und Namen, Location direkt hinter die Creator Art', () => {
+  it('stellt Bild zwischen Checkbox und Namen, Status direkt hinter die Creator Art', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
 
-    expect(spalten.slice(0, 7)).toEqual([
-      'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-typ',
+    expect(spalten.slice(0, 8)).toEqual([
+      'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-typ', 'cp-col-status',
       'cp-col-location', 'cp-col-mail', 'cp-col-telefon'
     ]);
   });
@@ -52,9 +52,8 @@ describe('Sourcing – Spaltenreihenfolge', () => {
 
     expect(spalten.slice(ab, ab + 10)).toEqual([
       'cp-col-link-ig', 'cp-col-follower-ig',
-      'cp-col-cpm-ig-8', 'cp-col-cpm-ig-8-clean',
-      'cp-col-cpm-ig-30', 'cp-col-cpm-ig-30-clean',
-      'cp-col-reichweite-story', 'cp-col-preis-story',
+      'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-preis-reels',
+      'cp-col-reichweite-story', 'cp-col-preis-story', 'cp-col-gesamtpreis',
       'cp-col-link-tt', 'cp-col-follower-tt'
     ]);
   });
@@ -98,22 +97,42 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     expect(doc.querySelector('thead th.cp-col-cpm-ig-30').textContent.trim()).toContain('Preis 30 Reels');
   });
 
-  it('unterscheidet die bereinigten Preis-Spalten im Kopf', () => {
-    const doc = tableDoc([{ id: 'i1' }]);
+  it('erklaert im Kopf-Tooltip die Werbe- und die Ausreisser-Regel', () => {
+    const titel = tableDoc([{ id: 'i1' }])
+      .querySelector('thead th.cp-col-cpm-ig-8')
+      .getAttribute('title');
 
-    expect(doc.querySelector('thead th.cp-col-cpm-ig-8-clean').textContent.trim())
-      .toContain('Preis 8 Reels o. A.');
-    expect(doc.querySelector('thead th.cp-col-cpm-ig-30-clean').textContent.trim())
-      .toContain('Preis 30 Reels o. A.');
-    expect(doc.querySelector('thead th.cp-col-cpm-ig-30-clean').getAttribute('title'))
-      .toContain('ohne Ausreißer');
+    expect(titel).toContain('Werbe-Kennzeichnung');
+    expect(titel).toContain('doppelt so viele');
   });
 
-  it('kennt die getrimmte Preis-Spalte nicht mehr', () => {
+  it('kennt die getrimmte und die o.-A.-Preis-Spalten nicht mehr', () => {
     const doc = tableDoc([{ id: 'i1' }]);
 
     expect(doc.querySelector('thead th.cp-col-cpm-ig-trimmed')).toBeNull();
+    expect(doc.querySelector('thead th.cp-col-cpm-ig-8-clean')).toBeNull();
+    expect(doc.querySelector('thead th.cp-col-cpm-ig-30-clean')).toBeNull();
     expect(SOURCING_SPALTEN).not.toContain('cp-col-cpm-ig-trimmed');
+    expect(SOURCING_SPALTEN).not.toContain('cp-col-cpm-ig-8-clean');
+    expect(SOURCING_SPALTEN).not.toContain('cp-col-cpm-ig-30-clean');
+  });
+
+  it('kennt die Checkbox-Spalten Anfragen und Rueckmeldung nicht mehr', () => {
+    const doc = tableDoc([{ id: 'i1' }]);
+
+    expect(doc.querySelector('thead th.cp-col-anfragen')).toBeNull();
+    expect(doc.querySelector('thead th.cp-col-check')).toBeNull();
+    expect(SOURCING_SPALTEN).not.toContain('cp-col-anfragen');
+    expect(SOURCING_SPALTEN).not.toContain('cp-col-check');
+  });
+
+  it('benennt die neuen Preis-Spalten', () => {
+    const doc = tableDoc([{ id: 'i1' }]);
+
+    expect(doc.querySelector('thead th.cp-col-preis-reels').textContent.trim())
+      .toContain('Preis Reels');
+    expect(doc.querySelector('thead th.cp-col-gesamtpreis').textContent.trim())
+      .toBe('Gesamtpreis');
   });
 
   it('nennt im Tooltip den TKP der Liste statt der festen 25', () => {

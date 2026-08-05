@@ -3,6 +3,8 @@ import {
   renderItemRow,
   renderAddSection,
   berechnePreisAusViews,
+  parsePreisFreitext,
+  berechneGesamtpreis,
   getListenTkp,
   DEFAULT_TKP
 } from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
@@ -37,8 +39,8 @@ describe('Sourcing – Preis-Zellen mit View-Basis', () => {
     expect(cell.querySelector('.cpm-auto-reach')).toBeNull();
   });
 
-  it('zeigt auch fuer die bereinigten Spalten die View-Basis', () => {
-    const cell = renderCell('cp-col-cpm-ig-30-clean', { ig_views_30_clean: 3980 });
+  it('zeigt die View-Basis auch im 30er-Fenster', () => {
+    const cell = renderCell('cp-col-cpm-ig-30', { ig_views_30: 3980 });
 
     expect(cell.querySelector('.cpm-auto-price').textContent.trim()).toBe('99,50 €');
     expect(cell.querySelector('.cpm-auto-reach').textContent.trim()).toBe('Ø 4,0K Views');
@@ -47,9 +49,9 @@ describe('Sourcing – Preis-Zellen mit View-Basis', () => {
 });
 
 describe('Sourcing – Ausreißer-Hinweis im Tooltip', () => {
-  it('nennt Anzahl und Richtung der entfernten Ausreißer', () => {
-    const cell = renderCell('cp-col-cpm-ig-8-clean', {
-      ig_views_8_clean: 50000,
+  it('nennt Anzahl, Richtung und Reichweite der entfernten Ausreißer', () => {
+    const cell = renderCell('cp-col-cpm-ig-8', {
+      ig_views_8: 50000,
       ig_stats: {
         outliers_8: [
           { views: 1000000, side: 'high' },
@@ -58,27 +60,49 @@ describe('Sourcing – Ausreißer-Hinweis im Tooltip', () => {
       }
     });
 
-    expect(cell.querySelector('.cpm-auto-value').title)
-      .toBe('50.000 Views im Schnitt × 25 € TKP\n2 Ausreißer entfernt (1× nach oben, 1× nach unten)');
+    expect(cell.querySelector('.cpm-auto-value').title).toBe(
+      '50.000 Views im Schnitt × 25 € TKP\n2 Ausreißer entfernt'
+      + '\nnach oben: 1.000.000 Views\nnach unten: 10 Views'
+    );
   });
 
   it('sagt es auch, wenn nichts entfernt wurde', () => {
-    const cell = renderCell('cp-col-cpm-ig-30-clean', {
-      ig_views_30_clean: 50000,
+    const cell = renderCell('cp-col-cpm-ig-30', {
+      ig_views_30: 50000,
       ig_stats: { outliers_30: [] }
     });
 
     expect(cell.querySelector('.cpm-auto-value').title).toContain('Keine Ausreißer erkannt');
   });
 
+  it('weist die ausgeschlossenen Werbe-Reels aus', () => {
+    const cell = renderCell('cp-col-cpm-ig-8', {
+      ig_views_8: 50000,
+      ig_stats: { outliers_8: [], skipped_ads: 3 }
+    });
+
+    expect(cell.querySelector('.cpm-auto-value').title)
+      .toContain('3 Reels mit Werbe-Kennzeichnung ausgeschlossen');
+  });
+
+  it('setzt den Singular bei genau einem Werbe-Reel', () => {
+    const cell = renderCell('cp-col-cpm-ig-8', {
+      ig_views_8: 50000,
+      ig_stats: { outliers_8: [], skipped_ads: 1 }
+    });
+
+    expect(cell.querySelector('.cpm-auto-value').title)
+      .toContain('1 Reel mit Werbe-Kennzeichnung ausgeschlossen');
+  });
+
   it('laesst den Hinweis weg, solange keine Statistik vorliegt', () => {
-    const cell = renderCell('cp-col-cpm-ig-8-clean', { ig_views_8_clean: 50000 });
+    const cell = renderCell('cp-col-cpm-ig-8', { ig_views_8: 50000 });
 
     expect(cell.querySelector('.cpm-auto-value').title).toBe('50.000 Views im Schnitt × 25 € TKP');
   });
 
   it('haengt den Hinweis nicht an eine leere Zelle', () => {
-    const cell = renderCell('cp-col-cpm-ig-8-clean', { ig_stats: { outliers_8: [] } });
+    const cell = renderCell('cp-col-cpm-ig-8', { ig_stats: { outliers_8: [] } });
 
     expect(cell.querySelector('.cpm-auto-value').title).toBe('Noch nicht abgerufen');
   });
@@ -165,5 +189,83 @@ describe('Sourcing – Story-Spalten', () => {
     const cell = renderCell('cp-col-preis-story', { preis_story: '250€' }, { kundenCallActive: true });
 
     expect(cell.querySelector('.kunden-call-blur')).toBeNull();
+  });
+});
+
+describe('Sourcing – Preis Reels (manuell)', () => {
+  it('nimmt den Reel-Preis als Freitext auf', () => {
+    const cell = renderCell('cp-col-preis-reels', { preis_reels: 'ca. 1.200 €' });
+
+    expect(cell.querySelector('input[data-field="preis_reels"]').value).toBe('ca. 1.200 €');
+  });
+
+  it('zeigt Kunden den Wert nur lesend', () => {
+    const cell = renderCell('cp-col-preis-reels', { preis_reels: '900 €' }, { isKunde: true });
+
+    expect(cell.querySelector('input')).toBeNull();
+    expect(cell.querySelector('.cell-text-readonly').textContent.trim()).toBe('900 €');
+  });
+});
+
+describe('parsePreisFreitext', () => {
+  it('liest deutsche Zahlenformate', () => {
+    expect(parsePreisFreitext('1.200')).toBe(1200);
+    expect(parsePreisFreitext('1.200,50')).toBe(1200.5);
+    expect(parsePreisFreitext('1200')).toBe(1200);
+    expect(parsePreisFreitext('1200,50')).toBe(1200.5);
+    expect(parsePreisFreitext('1.200.000')).toBe(1200000);
+  });
+
+  it('behandelt einen Punkt vor weniger als drei Ziffern als Dezimaltrenner', () => {
+    expect(parsePreisFreitext('1.5')).toBe(1.5);
+  });
+
+  it('zieht die erste Zahl aus einem Freitext', () => {
+    expect(parsePreisFreitext('ca. 1.200 € netto')).toBe(1200);
+    expect(parsePreisFreitext('1200-1500 €')).toBe(1200);
+    expect(parsePreisFreitext('€ 850')).toBe(850);
+    expect(parsePreisFreitext('Preis 1200.')).toBe(1200);
+  });
+
+  it('gibt null zurueck, wenn keine Zahl drinsteht', () => {
+    for (const value of ['', null, undefined, 'auf Anfrage', 'tbd']) {
+      expect(parsePreisFreitext(value)).toBeNull();
+    }
+  });
+
+  it('nimmt Zahlen direkt an', () => {
+    expect(parsePreisFreitext(1200)).toBe(1200);
+    expect(parsePreisFreitext(NaN)).toBeNull();
+  });
+});
+
+describe('Sourcing – Gesamtpreis', () => {
+  it('summiert Reel- und Story-Preis', () => {
+    expect(berechneGesamtpreis({ preis_reels: '1.200', preis_story: '300' })).toBe(1500);
+  });
+
+  it('rechnet auch, wenn nur einer der beiden gefuellt ist', () => {
+    expect(berechneGesamtpreis({ preis_reels: '1.200' })).toBe(1200);
+    expect(berechneGesamtpreis({ preis_story: '300' })).toBe(300);
+  });
+
+  it('gibt null zurueck, wenn keiner der beiden als Zahl lesbar ist', () => {
+    expect(berechneGesamtpreis({})).toBeNull();
+    expect(berechneGesamtpreis({ preis_reels: 'auf Anfrage', preis_story: '' })).toBeNull();
+  });
+
+  it('rendert die Summe als read-only Zelle', () => {
+    const cell = renderCell('cp-col-gesamtpreis', { preis_reels: '1.200', preis_story: '300' });
+
+    expect(cell.querySelector('input')).toBeNull();
+    expect(cell.querySelector('.cpm-auto-price').textContent.trim()).toBe('1.500,00 €');
+    expect(cell.querySelector('.cpm-auto-value').title).toBe('Preis Reels + Preis Story');
+  });
+
+  it('zeigt einen Strich und erklaert warum, wenn nichts lesbar ist', () => {
+    const cell = renderCell('cp-col-gesamtpreis', { preis_reels: 'auf Anfrage' });
+
+    expect(cell.querySelector('.cpm-auto-price').textContent.trim()).toBe('-');
+    expect(cell.querySelector('.cpm-auto-value').title).toContain('keine Zahl');
   });
 });
