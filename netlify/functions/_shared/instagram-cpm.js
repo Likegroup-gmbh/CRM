@@ -321,12 +321,26 @@ function computeInstagramCpm(media, opts = {}) {
  * @param {object} [meta] { source, pool_fetched_at, image_error }
  */
 function formatCpmDebug(username, stats, meta = {}) {
-  const included = (stats.videos || []).map((v, i) => ({
+  // Zwei getrennte Bloecke: was tatsaechlich in den 8er- und 30er-Schnitt
+  // eingeflossen ist. Ausreisser werden ueber ihren permalink herausgezogen,
+  // damit ist z.B. der 1,64M-Reel im 8er nicht mehr in included_8 sichtbar.
+  const alle = stats.videos || [];
+  const outlier8 = new Set((stats.outliers_8 || []).map((o) => o.permalink));
+  const outlier30 = new Set((stats.outliers_30 || []).map((o) => o.permalink));
+  const mapVideo = (v, i) => ({
     index: i,
     views: v.views,
     timestamp: v.timestamp,
     permalink: v.permalink
-  }));
+  });
+  const included_8 = alle
+    .slice(0, WINDOW_SHORT)
+    .filter((v) => !outlier8.has(v.permalink))
+    .map(mapVideo);
+  const included_30 = alle
+    .slice(0, WINDOW_LONG)
+    .filter((v) => !outlier30.has(v.permalink))
+    .map(mapVideo);
 
   const skipped = (stats.skipped_videos || []).map((v) => ({
     views: v.views,
@@ -354,7 +368,8 @@ function formatCpmDebug(username, stats, meta = {}) {
       note: 'UI-Preis = views × Listen-TKP; cpm_* hier immer × CPM_RATE'
     },
     skipped,
-    included,
+    included_8,
+    included_30,
     outliers: {
       window_8: stats.outliers_8 || [],
       window_30: stats.outliers_30 || []

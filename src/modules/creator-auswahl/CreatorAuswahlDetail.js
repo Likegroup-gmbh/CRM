@@ -792,8 +792,14 @@ export class CreatorAuswahlDetail {
         console.log('Regeln', debug.rules);
         if (debug.skipped?.length) console.table(debug.skipped);
         else console.log('Skipped (zu frisch / manuell ausgeschlossen): keine');
-        if (debug.included?.length) console.table(debug.included);
-        else console.log('Included: keine');
+        if (debug.included_8?.length) {
+          console.log(`Included 8er (${debug.included_8.length} Reels im Schnitt)`);
+          console.table(debug.included_8);
+        } else console.log('Included 8er: keine');
+        if (debug.included_30?.length) {
+          console.log(`Included 30er (${debug.included_30.length} Reels im Schnitt)`);
+          console.table(debug.included_30);
+        } else console.log('Included 30er: keine');
         if (debug.outliers?.window_8?.length) console.table(debug.outliers.window_8);
         if (debug.outliers?.window_30?.length) console.table(debug.outliers.window_30);
         console.log('Fenster / Preis', debug.summary);

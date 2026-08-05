@@ -496,7 +496,8 @@ describe('formatCpmDebug', () => {
     expect(debug.rules.AD_HASHTAGS).toContain('werbung');
     expect(debug.skipped).toHaveLength(1);
     expect(debug.skipped[0].views).toBe(500000);
-    expect(debug.included).toHaveLength(8);
+    expect(debug.included_8).toHaveLength(8);
+    expect(debug.included_30).toHaveLength(8);
     expect(debug.summary.views_8).toBe(10000);
     expect(debug.summary.formula).toContain(String(CPM_RATE));
   });
@@ -524,6 +525,22 @@ describe('formatCpmDebug', () => {
 
     expect(debug.outliers.window_8).toHaveLength(1);
     expect(debug.outliers.window_30).toEqual([]);
+  });
+
+  it('nimmt Ausreißer aus included_8 raus, laesst sie im 30er drin wenn dort keiner erkannt wurde', () => {
+    const stats = computeInstagramCpm(
+      videosAus([1000000, 60000, 55000, 52000, 50000, 48000, 45000, 40000]),
+      { now: NOW }
+    );
+
+    const debug = formatCpmDebug('demo_user', stats, { source: 'meta' });
+    const ausreisserPermalink = debug.outliers.window_8[0].permalink;
+
+    expect(debug.included_8.map((v) => v.permalink)).not.toContain(ausreisserPermalink);
+    expect(debug.included_8).toHaveLength(7);
+    // 30er hat keinen Ausreisser -> die 1M ist dort weiterhin dabei
+    expect(debug.included_30).toHaveLength(8);
+    expect(debug.included_30.map((v) => v.permalink)).toContain(ausreisserPermalink);
   });
 
 });
