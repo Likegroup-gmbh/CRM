@@ -16,8 +16,9 @@
 //      Ebenso erzwingt eine veraltete ig_stats.calc_version einen neuen Abruf.
 //   -> Meta-Abruf: Profil + bis zu 150 Medien (drei Seiten a 50), filtert Reels
 //      mit Werbe-Kennzeichnung und alles juenger als 4 Tage weg und berechnet
-//      daraus den 8er- und 30er-Views-Schnitt ohne Ausreisser plus den
-//      zugehoerigen CPM-Preis.
+//      daraus den Views-Schnitt aus genau 8 bzw. 30 sauberen Reels plus den
+//      zugehoerigen CPM-Preis. Ausreisser werden nicht abgezogen, sondern durch
+//      den naechst-aelteren organischen Reel ersetzt.
 //      Das Profilbild wird in zwei AVIF-Groessen (640px + 128px Thumbnail)
 //      nach Supabase Storage kopiert, da Metas CDN-URLs nach wenigen Tagen
 //      ablaufen.
@@ -41,6 +42,7 @@ const {
   formatCpmDebug,
   istWerbePost,
   WINDOW_LONG,
+  MIN_AGE_HOURS,
   CALC_VERSION
 } = require('./_shared/instagram-cpm');
 const { extractEmail, extractPhone, extractCity } = require('./_shared/bio-extract');
@@ -54,6 +56,12 @@ const IG_CPM_DEBUG = true;
 
 const PAGE_SIZE = 50;
 const MAX_PAGES = 3;   // 26s Function-Timeout, mehr ist nicht drin
+
+// Reserve ueber das 30er-Fenster hinaus. Faellt ein Reel als Ausreisser durch,
+// rueckt der naechste nach - ohne Reserve bliebe das Fenster unterbesetzt. Zehn
+// deckt auch Creator mit mehreren Ausreissern ab und kostet meist keinen
+// zusaetzlichen Request, weil PAGE_SIZE bei 50 liegt.
+const PUFFER_NACHRUECKER = 10;
 
 const PROFILE_FIELDS = 'username,name,followers_count,media_count,profile_picture_url,biography,website';
 // Bewusst ohne media_product_type und is_shared_to_feed: fuer Business
@@ -74,19 +82,30 @@ function jsonResponse(statusCode, body) {
 }
 
 /**
- * Reels, die es ueberhaupt in die Rechnung schaffen koennen (ohne Altersregel).
- * Werbe-Reels zaehlen nicht mit: sonst bricht das Paging zu frueh ab und das
- * 30er-Fenster bleibt leer, obwohl weiter hinten genug organische Reels liegen.
+ * Reels, die es wirklich in die Rechnung schaffen koennen.
+ *
+ * Werbe-Reels und zu frische Reels zaehlen nicht mit: sonst bricht das Paging zu
+ * frueh ab und dem Fenster fehlen Nachruecker fuer die Ausreisser-Ersetzung,
+ * obwohl weiter hinten genug organische Reels liegen.
  */
-function zaehleVerwertbar(media) {
-  // istWerbePost liefert einen Marker-String oder null; ein Marker macht !… zu false.
-  return media.filter((m) => m?.media_type === 'VIDEO' && !istWerbePost(m.caption)).length;
+function zaehleVerwertbar(media, now = Date.now()) {
+  const cutoff = now - MIN_AGE_HOURS * 60 * 60 * 1000;
+  return media.filter((m) => {
+    if (m?.media_type !== 'VIDEO') return false;
+    // istWerbePost liefert einen Marker-String oder null; ein Marker macht !… zu false.
+    if (istWerbePost(m.caption)) return false;
+    const postedAt = Date.parse(m.timestamp);
+    return Number.isFinite(postedAt) && postedAt <= cutoff;
+  }).length;
 }
 
 /**
  * Profil + Medien laden. Da zwischen den Reels auch Bilder und Karussells
  * liegen, reicht eine Seite oft nicht fuer 30 auswertbare Videos - dann wird
  * ueber den after-Cursor nachgeladen.
+ *
+ * Geladen wird bis WINDOW_LONG + PUFFER_NACHRUECKER verwertbare Reels
+ * zusammenkommen, damit pickWindow genug Ersatz fuer Ausreisser hat.
  */
 async function fetchProfileWithMedia(username) {
   const igUserId = process.env.META_IG_USER_ID;
@@ -126,7 +145,7 @@ async function fetchProfileWithMedia(username) {
     media = media.concat(bd.media?.data || []);
 
     after = bd.media?.paging?.cursors?.after || null;
-    if (!after || zaehleVerwertbar(media) >= WINDOW_LONG + 2) break;
+    if (!after || zaehleVerwertbar(media) >= WINDOW_LONG + PUFFER_NACHRUECKER) break;
   }
 
   if (!profile) {
@@ -157,6 +176,11 @@ function statsFromPool(pool) {
     cpm_30: pool.cpm_ig_30,
     sample_8: ig.sample_8,
     sample_30: ig.sample_30,
+    // Bewusst ohne Default: fehlt das Feld (alter Pool-Eintrag), soll
+    // formatCpmDebug in den permalink-Fallback laufen statt ein leeres
+    // Fenster zu melden.
+    used_8: ig.used_8,
+    used_30: ig.used_30,
     outliers_8: ig.outliers_8 || [],
     outliers_30: ig.outliers_30 || [],
     videos_available: ig.videos_available,
@@ -174,7 +198,8 @@ function emitCpmDebug(username, stats, meta) {
   console.log(`[IG-CPM] @${username} (${meta.source})`, {
     rules: debug.rules,
     skipped: debug.skipped,
-    included: debug.included,
+    included_8: debug.included_8,
+    included_30: debug.included_30,
     outliers: debug.outliers,
     summary: debug.summary,
     pool_fetched_at: debug.pool_fetched_at,
@@ -449,6 +474,8 @@ exports.handler = async (event) => {
       calc_version: stats.calc_version,
       sample_8: stats.sample_8,
       sample_30: stats.sample_30,
+      used_8: stats.used_8,
+      used_30: stats.used_30,
       outliers_8: stats.outliers_8,
       outliers_30: stats.outliers_30,
       videos_available: stats.videos_available,

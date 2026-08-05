@@ -27,7 +27,12 @@ const WINDOW_LONG = 30;
 // geprueft. Hat der hoechste Wert mindestens doppelt so viele Views wie der
 // zweithoechste, faellt er; hat der zweitniedrigste mindestens doppelt so viele
 // wie der niedrigste, faellt der niedrigste. Mehr als ein Reel je Seite faellt
-// nie.
+// pro Durchlauf nie.
+//
+// Ein durchgefallener Reel wird nicht einfach abgezogen, sondern durch den
+// naechst-aelteren organischen Reel ersetzt (pickWindow). Damit bleibt die
+// Stichprobe konstant bei 8 bzw. 30 Reels, statt bei jedem Ausreisser zu
+// schrumpfen.
 //
 // Der Vorgaenger (modifizierter Z-Score ueber Median/MAD auf log10) war
 // mathematisch saubere Ausreisser-Erkennung, hat aber bei realen Accounts
@@ -53,7 +58,7 @@ const GESCHENK_HASHTAGS = ['gifted', 'geschenkt', 'prsample', 'pr'];
 
 // Version der Rechenlogik. Landet in ig_stats.calc_version; eine aeltere
 // Version im Creator-Pool gilt als veraltet und erzwingt einen neuen Abruf.
-const CALC_VERSION = 3;
+const CALC_VERSION = 4;
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -228,31 +233,99 @@ function roundViews(views) {
 }
 
 /**
- * Ein Fenster auswerten: arithmetischer Schnitt der Reels ohne Ausreisser.
- * Der Wert kommt nur zustande, wenn das Fenster wirklich voll ist - ein
- * "8er-Schnitt" aus 3 Videos waere irrefuehrend.
+ * Fenster mit genau `size` sauberen Reels zusammenstellen.
+ *
+ * Startet mit den ersten `size` Reels. Faellt ein Reel als Ausreisser durch,
+ * bleibt er dauerhaft draussen und der naechst-aeltere Reel rueckt nach. Danach
+ * wird erneut geprueft, denn der Nachruecker kann selbst ein neues Rand-Extrem
+ * sein. So bleibt die Stichprobengroesse konstant, statt bei jedem Ausreisser
+ * zu schrumpfen.
+ *
+ * Das Fenster wird als Liste von Indizes in `videos` gefuehrt: detectOutliers
+ * kennt nur Positionen innerhalb des Fensters, fuer die Ausreisser-Liste
+ * brauchen wir aber den Reel im Original.
+ *
+ * Bewusst kein Verbreitern des Kandidatenpools: wuerde detectOutliers auf einem
+ * gewachsenen Pool laufen, koennte ein bereits verworfener Ausreisser
+ * zurueckkommen, weil der Nachruecker ihn deckt (1,64M / 669k = 2,46 faellt,
+ * 1,64M / 771k = 2,13 faellt auch, aber irgendwann deckt einer den anderen).
+ *
+ * @param {Array} videos Organische Reels, neueste zuerst
+ * @param {number} size  Zielgroesse des Fensters
+ * @returns {{indices: number[], outliers: Array<{videoIndex:number,views:number,side:'high'|'low',ratio:number}>}}
  */
-function evaluateWindow(videos, size) {
-  if (videos.length !== size) {
-    return { views: null, outliers: [] };
+function pickWindow(videos, size) {
+  if (!Array.isArray(videos) || videos.length < size) {
+    return { indices: [], outliers: [] };
   }
 
-  const values = videos.map((v) => v.views);
-  const { indices, details } = detectOutliers(values);
-  const bereinigt = values.filter((_, i) => !indices.has(i));
+  let fenster = [];
+  for (let i = 0; i < size; i += 1) fenster.push(i);
+  let naechster = size;
+  const outliers = [];
+
+  // Terminiert immer: jede Runde ohne break verbraucht mindestens einen
+  // Nachruecker, und `naechster` ist durch videos.length begrenzt.
+  for (;;) {
+    const { indices, details } = detectOutliers(fenster.map((i) => videos[i].views));
+    if (indices.size === 0) break;
+
+    for (const d of details) {
+      outliers.push({
+        videoIndex: fenster[d.index],
+        views: d.views,
+        side: d.side,
+        ratio: d.ratio
+      });
+    }
+    fenster = fenster.filter((_, position) => !indices.has(position));
+
+    while (fenster.length < size && naechster < videos.length) {
+      fenster.push(naechster);
+      naechster += 1;
+    }
+    // Vorrat erschoepft: mit dem kleineren Fenster rechnen ist ehrlicher, als
+    // den Ausreisser wieder hereinzuholen.
+    if (fenster.length < size) break;
+  }
+
+  return { indices: fenster, outliers };
+}
+
+/**
+ * Ein Fenster auswerten: arithmetischer Schnitt aus `size` sauberen Reels.
+ *
+ * Liegen von Anfang an weniger als `size` Reels vor, gibt es keinen Wert - ein
+ * "8er-Schnitt" aus 3 Videos waere irrefuehrend. Gehen erst beim Nachruecken
+ * die Kandidaten aus, wird mit dem kleineren Fenster gerechnet und `sample`
+ * weist die tatsaechliche Groesse aus.
+ *
+ * @param {Array} videos Organische Reels, neueste zuerst (vollstaendige Liste)
+ * @param {number} size  Zielgroesse des Fensters
+ */
+function evaluateWindow(videos, size) {
+  const { indices, outliers } = pickWindow(videos, size);
+  if (!indices.length) {
+    return { views: null, sample: 0, used: [], outliers: [], maxIndex: -1 };
+  }
 
   return {
-    views: average(bereinigt.length ? bereinigt : values),
-    outliers: details.map((d) => {
-      const video = videos[d.index];
+    views: average(indices.map((i) => videos[i].views)),
+    sample: indices.length,
+    used: indices,
+    // Bis hierhin wurde in die Zeitleiste geschaut - inklusive Nachruecker, die
+    // selbst wieder durchgefallen sind. formatCpmDebug braucht die Reels dazu.
+    maxIndex: Math.max(...indices, ...outliers.map((o) => o.videoIndex)),
+    outliers: outliers.map((o) => {
+      const video = videos[o.videoIndex];
       return {
-        views: d.views,
+        views: o.views,
         timestamp: video?.timestamp || null,
         permalink: video?.permalink || null,
-        side: d.side,
+        side: o.side,
         // Infinity entsteht bei einem Nachbarn mit 0 Views und wuerde in JSON
         // zu null werden - dann lieber gleich null speichern
-        ratio: Number.isFinite(d.ratio) ? Math.round(d.ratio * 100) / 100 : null
+        ratio: Number.isFinite(o.ratio) ? Math.round(o.ratio * 100) / 100 : null
       };
     })
   };
@@ -261,9 +334,10 @@ function evaluateWindow(videos, size) {
 /**
  * Kennzahlen aus einer Media-Liste der Business Discovery API.
  *
- * views_8 und views_30 sind bereits um die Ausreisser bereinigt - eine
- * ungefilterte Variante gibt es nicht mehr. Was ausgeschlossen wurde, steht in
- * outliers_8 / outliers_30 und in skipped_videos.
+ * views_8 und views_30 sind der Schnitt aus genau 8 bzw. 30 sauberen Reels:
+ * Ausreisser werden nicht einfach abgezogen, sondern durch den naechst-aelteren
+ * organischen Reel ersetzt (siehe pickWindow). Was rausgefallen ist, steht in
+ * outliers_8 / outliers_30, was verwendet wurde in used_8 / used_30.
  *
  * @param {Array} media   Rohe media.data-Eintraege
  * @param {object} [opts] { now: number } - Zeitbasis fuer die 4-Tage-Regel
@@ -271,6 +345,7 @@ function evaluateWindow(videos, size) {
  *   views_8: number|null, views_30: number|null,
  *   cpm_8: number|null, cpm_30: number|null,
  *   sample_8: number, sample_30: number,
+ *   used_8: number[], used_30: number[],
  *   outliers_8: Array, outliers_30: Array,
  *   videos_available: number, skipped_too_recent: number,
  *   skipped_ads: number, non_video_skipped: number,
@@ -281,23 +356,32 @@ function computeInstagramCpm(media, opts = {}) {
   const now = opts.now ?? Date.now();
   const { included: videos, skipped, nonVideoSkipped } = classifyVideos(media, now);
 
-  const window8 = evaluateWindow(videos.slice(0, WINDOW_SHORT), WINDOW_SHORT);
-  const window30 = evaluateWindow(videos.slice(0, WINDOW_LONG), WINDOW_LONG);
+  // Die vollstaendige Liste uebergeben, nicht vorschneiden: pickWindow muss
+  // ueber das Fenster hinaus nachruecken koennen.
+  const window8 = evaluateWindow(videos, WINDOW_SHORT);
+  const window30 = evaluateWindow(videos, WINDOW_LONG);
+
+  // Die Debug-Liste muss jeden je betrachteten Reel enthalten, sonst findet
+  // formatCpmDebug einen Nachruecker jenseits von Index 30 nicht wieder.
+  const debugBis = Math.max(WINDOW_LONG, window8.maxIndex + 1, window30.maxIndex + 1);
 
   return {
     views_8: roundViews(window8.views),
     views_30: roundViews(window30.views),
     cpm_8: toCpm(window8.views),
     cpm_30: toCpm(window30.views),
-    sample_8: Math.min(videos.length, WINDOW_SHORT),
-    sample_30: Math.min(videos.length, WINDOW_LONG),
+    sample_8: window8.sample,
+    sample_30: window30.sample,
+    // Indizes in videos statt permalinks: haelt ig_stats klein
+    used_8: window8.used,
+    used_30: window30.used,
     outliers_8: window8.outliers,
     outliers_30: window30.outliers,
     videos_available: videos.length,
     skipped_too_recent: skipped.filter((s) => s.reason === 'too_recent').length,
     skipped_ads: skipped.filter((s) => s.reason === 'ad_post').length,
     non_video_skipped: nonVideoSkipped,
-    videos: videos.slice(0, WINDOW_LONG).map((v) => ({
+    videos: videos.slice(0, debugBis).map((v) => ({
       permalink: v.permalink,
       views: v.views,
       timestamp: v.timestamp
@@ -321,26 +405,38 @@ function computeInstagramCpm(media, opts = {}) {
  * @param {object} [meta] { source, pool_fetched_at, image_error }
  */
 function formatCpmDebug(username, stats, meta = {}) {
-  // Zwei getrennte Bloecke: was tatsaechlich in den 8er- und 30er-Schnitt
-  // eingeflossen ist. Ausreisser werden ueber ihren permalink herausgezogen,
-  // damit ist z.B. der 1,64M-Reel im 8er nicht mehr in included_8 sichtbar.
+  // Zwei getrennte Bloecke: exakt die Reels, die in den 8er- bzw. 30er-Schnitt
+  // eingeflossen sind. used_8 / used_30 sind Indizes in stats.videos, damit sind
+  // auch Nachruecker jenseits des Fensters korrekt aufgeloest.
   const alle = stats.videos || [];
-  const outlier8 = new Set((stats.outliers_8 || []).map((o) => o.permalink));
-  const outlier30 = new Set((stats.outliers_30 || []).map((o) => o.permalink));
   const mapVideo = (v, i) => ({
     index: i,
     views: v.views,
     timestamp: v.timestamp,
     permalink: v.permalink
   });
-  const included_8 = alle
-    .slice(0, WINDOW_SHORT)
-    .filter((v) => !outlier8.has(v.permalink))
-    .map(mapVideo);
-  const included_30 = alle
-    .slice(0, WINDOW_LONG)
-    .filter((v) => !outlier30.has(v.permalink))
-    .map(mapVideo);
+
+  // Fallback nur fuer Pool-Eintraege aus einer Zeit ohne used_*: Fenster ueber
+  // den permalink der Ausreisser rekonstruieren. Nachruecker fehlen dort, das
+  // ist hinnehmbar - CALC_VERSION erzwingt sowieso einen frischen Abruf.
+  // Ein leeres used_* ist dagegen eine echte Aussage ("Fenster nicht voll"),
+  // darf also nicht in den Fallback laufen.
+  const fensterAus = (used, size, outliers) => {
+    if (Array.isArray(used)) {
+      return used
+        .map((i) => alle[i])
+        .filter(Boolean)
+        .map(mapVideo);
+    }
+    const raus = new Set((outliers || []).map((o) => o.permalink));
+    return alle
+      .slice(0, size)
+      .filter((v) => !raus.has(v.permalink))
+      .map(mapVideo);
+  };
+
+  const included_8 = fensterAus(stats.used_8, WINDOW_SHORT, stats.outliers_8);
+  const included_30 = fensterAus(stats.used_30, WINDOW_LONG, stats.outliers_30);
 
   const skipped = (stats.skipped_videos || []).map((v) => ({
     views: v.views,
@@ -406,6 +502,7 @@ module.exports = {
   selectVideos,
   average,
   detectOutliers,
+  pickWindow,
   istWerbePost,
   toCpm,
   computeInstagramCpm,

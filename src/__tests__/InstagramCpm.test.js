@@ -288,6 +288,94 @@ describe('computeInstagramCpm – Ausreißer im Fenster', () => {
   });
 });
 
+describe('computeInstagramCpm – Ausreißer werden ersetzt, nicht abgezogen', () => {
+  it('zieht den nächsten Reel nach, damit das 8er-Fenster bei 8 bleibt', () => {
+    // Erste 8: [1M, 60k, 55k, 52k, 50k, 48k, 45k, 40k] -> 1M/60k = 16,7 faellt.
+    // Nachruecker ist der 9. Reel mit 42k, danach ist das Fenster stabil.
+    const media = videosAus([1000000, 60000, 55000, 52000, 50000, 48000, 45000, 40000, 42000]);
+
+    const stats = computeInstagramCpm(media, { now: NOW });
+
+    expect(stats.sample_8).toBe(8);
+    expect(stats.outliers_8.map(o => o.views)).toEqual([1000000]);
+    // 60+55+52+50+48+45+40+42 = 392k / 8 = 49000
+    // Ohne Nachruecken waeren es 350k / 7 = 50000 gewesen
+    expect(stats.views_8).toBe(49000);
+  });
+
+  it('nimmt den Nachrücker in used_8 auf und lässt den Ausreißer draußen', () => {
+    const media = videosAus([1000000, 60000, 55000, 52000, 50000, 48000, 45000, 40000, 42000]);
+
+    const stats = computeInstagramCpm(media, { now: NOW });
+
+    // Index 0 ist der Ausreisser, Index 8 der Nachruecker
+    expect(stats.used_8).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  it('prüft erneut, wenn der Nachrücker selbst ein Ausreißer ist', () => {
+    // Runde 1: 1M faellt oben. Nachruecker ist 2000 -> Runde 2: 40k/2000 = 20
+    // faellt unten. Nachruecker ist 44k -> Runde 3 ist stabil.
+    const media = videosAus([
+      1000000, 60000, 55000, 52000, 50000, 48000, 45000, 40000, 2000, 44000
+    ]);
+
+    const stats = computeInstagramCpm(media, { now: NOW });
+
+    expect(stats.sample_8).toBe(8);
+    // Beide Runden landen in der Liste, absteigend nach Views
+    expect(stats.outliers_8.map(o => o.views)).toEqual([1000000, 2000]);
+    expect(stats.used_8).toEqual([1, 2, 3, 4, 5, 6, 7, 9]);
+    // 60+55+52+50+48+45+40+44 = 394k / 8 = 49250
+    expect(stats.views_8).toBe(49250);
+  });
+
+  it('füllt auch das 30er-Fenster auf', () => {
+    // 31 Reels: der neueste ist ein 1M-Ausreisser, der Rest liegt bei 50k
+    const media = [video(5, 1000000), ...videoSeries(30, 50000, 6)];
+
+    const stats = computeInstagramCpm(media, { now: NOW });
+
+    expect(stats.sample_30).toBe(30);
+    expect(stats.outliers_30.map(o => o.views)).toEqual([1000000]);
+    expect(stats.views_30).toBe(50000);
+    // Der Ausreisser an Index 0 ist raus, dafuer ist Index 30 dabei
+    expect(stats.used_30).toEqual(
+      Array.from({ length: 30 }, (_, i) => i + 1)
+    );
+  });
+
+  it('rechnet mit kleinerem Fenster, wenn keine Nachrücker mehr da sind', () => {
+    // Genau 8 Reels, oben und unten je ein Ausreisser, kein Nachschub
+    const media = videosAus([1000000, 60000, 55000, 52000, 50000, 48000, 45000, 2000]);
+
+    const stats = computeInstagramCpm(media, { now: NOW });
+
+    expect(stats.outliers_8.map(o => o.views)).toEqual([1000000, 2000]);
+    expect(stats.sample_8).toBe(6);
+    // 60+55+52+50+48+45 = 310k / 6 = 51666,67
+    expect(stats.views_8).toBe(51667);
+  });
+
+  it('liefert keinen Wert, wenn von Anfang an zu wenige Reels vorliegen', () => {
+    const stats = computeInstagramCpm(videoSeries(7, 50000), { now: NOW });
+
+    expect(stats.views_8).toBeNull();
+    expect(stats.sample_8).toBe(0);
+    expect(stats.used_8).toEqual([]);
+  });
+
+  it('nimmt Nachrücker jenseits des 30er-Fensters in die Debug-Liste auf', () => {
+    // 31 Reels, der Nachruecker fuer das 30er-Fenster liegt auf Index 30 und
+    // waere in einer auf 30 begrenzten videos-Liste nicht auffindbar
+    const media = [video(5, 1000000), ...videoSeries(30, 50000, 6)];
+
+    const stats = computeInstagramCpm(media, { now: NOW });
+
+    expect(stats.videos).toHaveLength(31);
+    expect(stats.videos[30]).toBeDefined();
+  });
+});
+
 describe('istWerbePost', () => {
   it('erkennt die gängigen Werbe-Hashtags und gibt den Treffer zurück', () => {
     const faelle = [
@@ -388,9 +476,11 @@ describe('computeInstagramCpm – Werbe-Reels', () => {
 
     const stats = computeInstagramCpm(media, { now: NOW });
 
-    expect(stats.sample_8).toBe(8);
-    // 7x 50000 + 10000 = 360000, minus Ausreisser unten (50000 / 10000 = 5)
+    // Das 10000er-Reel ist nach dem Werbe-Filter im Fenster, faellt dort aber
+    // als Ausreisser unten durch (50000 / 10000 = 5). Ersatz gibt es nicht mehr,
+    // also bleibt das Fenster bei 7 Reels.
     expect(stats.outliers_8.map(o => o.views)).toEqual([10000]);
+    expect(stats.sample_8).toBe(7);
     expect(stats.views_8).toBe(50000);
   });
 
@@ -497,7 +587,8 @@ describe('formatCpmDebug', () => {
     expect(debug.skipped).toHaveLength(1);
     expect(debug.skipped[0].views).toBe(500000);
     expect(debug.included_8).toHaveLength(8);
-    expect(debug.included_30).toHaveLength(8);
+    // Nur 8 organische Reels -> kein 30er-Fenster
+    expect(debug.included_30).toEqual([]);
     expect(debug.summary.views_8).toBe(10000);
     expect(debug.summary.formula).toContain(String(CPM_RATE));
   });
@@ -527,20 +618,57 @@ describe('formatCpmDebug', () => {
     expect(debug.outliers.window_30).toEqual([]);
   });
 
-  it('nimmt Ausreißer aus included_8 raus, laesst sie im 30er drin wenn dort keiner erkannt wurde', () => {
+  it('zeigt in included_8 das aufgefüllte Fenster ohne den Ausreißer', () => {
     const stats = computeInstagramCpm(
-      videosAus([1000000, 60000, 55000, 52000, 50000, 48000, 45000, 40000]),
+      videosAus([1000000, 60000, 55000, 52000, 50000, 48000, 45000, 40000, 42000]),
       { now: NOW }
     );
 
     const debug = formatCpmDebug('demo_user', stats, { source: 'meta' });
     const ausreisserPermalink = debug.outliers.window_8[0].permalink;
 
+    expect(debug.included_8).toHaveLength(8);
     expect(debug.included_8.map((v) => v.permalink)).not.toContain(ausreisserPermalink);
+    // Der Nachruecker mit 42000 Views ist stattdessen dabei
+    expect(debug.included_8.map((v) => v.views)).toContain(42000);
+  });
+
+  it('laesst included_30 leer, wenn kein 30er-Fenster zustande kommt', () => {
+    const stats = computeInstagramCpm(videoSeries(8, 50000), { now: NOW });
+
+    const debug = formatCpmDebug('demo_user', stats, { source: 'meta' });
+
+    expect(debug.included_8).toHaveLength(8);
+    expect(debug.included_30).toEqual([]);
+  });
+
+  it('loest Nachruecker jenseits von Index 30 in included_30 auf', () => {
+    const stats = computeInstagramCpm(
+      [video(5, 1000000), ...videoSeries(30, 50000, 6)],
+      { now: NOW }
+    );
+
+    const debug = formatCpmDebug('demo_user', stats, { source: 'meta' });
+
+    expect(debug.included_30).toHaveLength(30);
+    expect(debug.included_30.every((v) => v.views === 50000)).toBe(true);
+  });
+
+  it('faellt fuer alte Pool-Eintraege ohne used_* auf die permalink-Logik zurueck', () => {
+    const stats = computeInstagramCpm(
+      videosAus([1000000, 60000, 55000, 52000, 50000, 48000, 45000, 40000, 42000]),
+      { now: NOW }
+    );
+    // Pool-Spiegel aus einer Zeit vor used_8 / used_30
+    delete stats.used_8;
+    delete stats.used_30;
+
+    const debug = formatCpmDebug('demo_user', stats, { source: 'pool' });
+    const ausreisserPermalink = debug.outliers.window_8[0].permalink;
+
+    // Ohne used_8 kein Nachruecker, aber der Ausreisser bleibt draussen
     expect(debug.included_8).toHaveLength(7);
-    // 30er hat keinen Ausreisser -> die 1M ist dort weiterhin dabei
-    expect(debug.included_30).toHaveLength(8);
-    expect(debug.included_30.map((v) => v.permalink)).toContain(ausreisserPermalink);
+    expect(debug.included_8.map((v) => v.permalink)).not.toContain(ausreisserPermalink);
   });
 
 });
