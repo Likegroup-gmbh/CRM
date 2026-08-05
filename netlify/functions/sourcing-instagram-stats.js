@@ -14,16 +14,17 @@
 //   -> force: true erzwingt den Meta-Abruf und aktualisiert den Pool. Das
 //      Frontend schickt das beim zweiten Klick (Refresh-Zustand des Buttons).
 //      Ebenso erzwingt eine veraltete ig_stats.calc_version einen neuen Abruf.
-//   -> Meta-Abruf: Profil + bis zu 150 Medien (drei Seiten a 50), filtert auf
-//      Reels die aelter als 4 Tage sind und berechnet daraus den 8er- und
-//      30er-Views-Schnitt, jeweils mit und ohne Ausreisser, sowie den
+//   -> Meta-Abruf: Profil + bis zu 150 Medien (drei Seiten a 50), filtert Reels
+//      mit Werbe-Kennzeichnung und alles juenger als 4 Tage weg und berechnet
+//      daraus den 8er- und 30er-Views-Schnitt ohne Ausreisser plus den
 //      zugehoerigen CPM-Preis.
 //      Das Profilbild wird in zwei AVIF-Groessen (640px + 128px Thumbnail)
 //      nach Supabase Storage kopiert, da Metas CDN-URLs nach wenigen Tagen
 //      ablaufen.
 //   -> zusaetzlich werden E-Mail, Telefon und Standort aus der Bio gelesen
 //      (siehe _shared/bio-extract.js). Die API kennt diese Felder nicht,
-//      Creator hinterlegen sie aber oft im Bio-Freitext.
+//      Creator hinterlegen sie aber oft im Bio-Freitext. Die Bio selbst landet
+//      als Startpunkt in der Kurzbeschreibung, solange die noch leer ist.
 //
 // Auth: Supabase Bearer-Token. Meta-Token bleibt serverseitig.
 
@@ -38,6 +39,7 @@ const {
 const {
   computeInstagramCpm,
   formatCpmDebug,
+  istWerbePost,
   WINDOW_LONG,
   CALC_VERSION
 } = require('./_shared/instagram-cpm');
@@ -58,8 +60,10 @@ const PROFILE_FIELDS = 'username,name,followers_count,media_count,profile_pictur
 // Discovery sind diese Felder nicht verfuegbar (Fehlercode 100) und ein
 // abgelehntes Feld laesst den ganzen Call scheitern. Zum Trennen von Reels
 // und Bildern reicht media_type.
+// caption ist dagegen oeffentlich und die einzige Quelle fuer die
+// Werbe-Erkennung, siehe istWerbePost in _shared/instagram-cpm.js.
 const MEDIA_FIELDS = 'id,media_type,view_count,like_count,'
-  + 'comments_count,timestamp,permalink';
+  + 'comments_count,timestamp,permalink,caption';
 
 function jsonResponse(statusCode, body) {
   return {
@@ -69,9 +73,13 @@ function jsonResponse(statusCode, body) {
   };
 }
 
-/** Reels, die es ueberhaupt in die Rechnung schaffen koennen (ohne Altersregel) */
+/**
+ * Reels, die es ueberhaupt in die Rechnung schaffen koennen (ohne Altersregel).
+ * Werbe-Reels zaehlen nicht mit: sonst bricht das Paging zu frueh ab und das
+ * 30er-Fenster bleibt leer, obwohl weiter hinten genug organische Reels liegen.
+ */
 function zaehleVerwertbar(media) {
-  return media.filter((m) => m?.media_type === 'VIDEO').length;
+  return media.filter((m) => m?.media_type === 'VIDEO' && !istWerbePost(m.caption)).length;
 }
 
 /**
@@ -143,19 +151,16 @@ function statsFromPool(pool) {
   const ig = pool.ig_stats || {};
   return {
     views_8: pool.ig_views_8,
-    views_8_clean: pool.ig_views_8_clean,
     views_30: pool.ig_views_30,
-    views_30_clean: pool.ig_views_30_clean,
     cpm_8: pool.cpm_ig_8,
-    cpm_8_clean: pool.cpm_ig_8_clean,
     cpm_30: pool.cpm_ig_30,
-    cpm_30_clean: pool.cpm_ig_30_clean,
     sample_8: ig.sample_8,
     sample_30: ig.sample_30,
     outliers_8: ig.outliers_8 || [],
     outliers_30: ig.outliers_30 || [],
     videos_available: ig.videos_available,
     skipped_too_recent: ig.skipped_too_recent,
+    skipped_ads: ig.skipped_ads ?? null,
     non_video_skipped: ig.non_video_skipped ?? null,
     videos: ig.videos || [],
     skipped_videos: ig.skipped_videos || []
@@ -191,13 +196,9 @@ function buildItemUpdate(pool, item) {
     link_instagram: pool.link_instagram,
     follower_instagram: pool.follower_instagram,
     ig_views_8: pool.ig_views_8,
-    ig_views_8_clean: pool.ig_views_8_clean,
     ig_views_30: pool.ig_views_30,
-    ig_views_30_clean: pool.ig_views_30_clean,
     cpm_ig_8: pool.cpm_ig_8,
-    cpm_ig_8_clean: pool.cpm_ig_8_clean,
     cpm_ig_30: pool.cpm_ig_30,
-    cpm_ig_30_clean: pool.cpm_ig_30_clean,
     ig_stats: pool.ig_stats || {},
     ig_fetched_at: pool.ig_fetched_at,
     ig_fetch_error: null
@@ -209,6 +210,11 @@ function buildItemUpdate(pool, item) {
   if (leer(item.email) && pool.email) update.email = pool.email;
   if (leer(item.telefon) && pool.telefon) update.telefon = pool.telefon;
   if (leer(item.wohnort) && pool.wohnort) update.wohnort = pool.wohnort;
+
+  // Die Instagram-Bio als Startpunkt fuer die Kurzbeschreibung. Nur wenn dort
+  // noch nichts steht - ein Refresh darf keine Handarbeit ueberschreiben.
+  const bio = pool.ig_stats?.biography;
+  if (leer(item.notiz) && !leer(bio)) update.notiz = bio;
 
   return update;
 }
@@ -315,9 +321,7 @@ exports.handler = async (event) => {
       item: updated,
       stats: {
         views_8: pool.ig_views_8,
-        views_8_clean: pool.ig_views_8_clean,
-        views_30: pool.ig_views_30,
-        views_30_clean: pool.ig_views_30_clean
+        views_30: pool.ig_views_30
       },
       ...(debug ? { debug } : {})
     });
@@ -355,9 +359,7 @@ exports.handler = async (event) => {
         item: updated,
         stats: {
           views_8: pool.ig_views_8,
-          views_8_clean: pool.ig_views_8_clean,
-          views_30: pool.ig_views_30,
-          views_30_clean: pool.ig_views_30_clean
+          views_30: pool.ig_views_30
         },
         ...(debug ? { debug } : {})
       });
@@ -428,17 +430,13 @@ exports.handler = async (event) => {
     // aus einem frueheren Lauf zaehlt als Erfolg und darf nicht blockiert werden
     ig_image_failed_at: (bild?.url || pool?.profile_image_url) ? null : jetzt,
     follower_instagram: p.followers_count ?? null,
-    // Der 30er-Wert ohne Ausreisser ist die belastbarste Groesse; hat der
-    // Creator dafuer zu wenige Reels, greift der 8er-Wert
-    reichweite_instagram: formatReach(stats.views_30_clean ?? stats.views_8_clean),
+    // Der 30er-Wert ist die belastbarste Groesse; hat der Creator dafuer zu
+    // wenige Reels, greift der 8er-Wert
+    reichweite_instagram: formatReach(stats.views_30 ?? stats.views_8),
     ig_views_8: stats.views_8,
-    ig_views_8_clean: stats.views_8_clean,
     ig_views_30: stats.views_30,
-    ig_views_30_clean: stats.views_30_clean,
     cpm_ig_8: stats.cpm_8,
-    cpm_ig_8_clean: stats.cpm_8_clean,
     cpm_ig_30: stats.cpm_30,
-    cpm_ig_30_clean: stats.cpm_30_clean,
     ig_fetched_at: jetzt,
     ig_fetch_error: null,
     updated_at: jetzt,
@@ -454,6 +452,7 @@ exports.handler = async (event) => {
       outliers_30: stats.outliers_30,
       videos_available: stats.videos_available,
       skipped_too_recent: stats.skipped_too_recent,
+      skipped_ads: stats.skipped_ads,
       non_video_skipped: stats.non_video_skipped,
       videos: stats.videos,
       skipped_videos: stats.skipped_videos
@@ -506,11 +505,10 @@ exports.handler = async (event) => {
     item: updated,
     stats: {
       views_8: stats.views_8,
-      views_8_clean: stats.views_8_clean,
       views_30: stats.views_30,
-      views_30_clean: stats.views_30_clean,
       videos_available: stats.videos_available,
-      skipped_too_recent: stats.skipped_too_recent
+      skipped_too_recent: stats.skipped_too_recent,
+      skipped_ads: stats.skipped_ads
     },
     ...(debug ? { debug } : {})
   });

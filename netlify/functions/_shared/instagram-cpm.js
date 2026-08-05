@@ -8,36 +8,73 @@
 // Das zuletzt hochgeladene Video ist noch nicht "ausgereift": in den ersten
 // Tagen laufen die Views weiter hoch. Alles juenger als MIN_AGE_HOURS faellt
 // deshalb raus, gezaehlt wird ab dem naechstaelteren Video.
+//
+// Reels mit Werbe-Kennzeichnung in der Caption fallen ebenfalls raus: bezahlte
+// Kooperationen laufen ueber Anzeigenbudget und Collab-Reichweite und sagen
+// nichts ueber die organische Reichweite des Creators aus. Ein offizielles
+// Flag gibt Meta fuer fremde Profile nicht her (collaborators und
+// is_paid_partnership brauchen einen Owner-Token, is_shared_to_feed und
+// media_product_type lehnt Business Discovery mit Fehlercode 100 ab), deshalb
+// bleibt nur die Caption.
 
 const CPM_RATE = 25;        // EUR pro 1000 Views
 const MIN_AGE_HOURS = 96;   // Videos juenger als 4 Tage ignorieren
 const WINDOW_SHORT = 8;
 const WINDOW_LONG = 30;
 
-// Ausreisser-Erkennung: modifizierter Z-Score (Iglewicz-Hoaglin) ueber Median
-// und MAD, gerechnet auf log10. Views sind naeherungsweise log-normal verteilt;
-// auf linearer Skala reisst ein einzelner Millionen-Wert Mittelwert und Streuung
-// so weit hoch, dass er sich selbst tarnt.
-const OUTLIER_Z = 3.5;
-// Zusaetzliche Huerde, damit nur echte Ausreisser fallen: bei einem sehr
-// gleichmaessigen Account (alle Reels 48k-52k) ist der MAD winzig und ein
-// 80k-Reel bekaeme rein rechnerisch einen riesigen Z-Score, obwohl es nur ein
-// guter Reel ist.
-const OUTLIER_MIN_FACTOR = 2.5;
+// Ausreisser-Erkennung als Prozessregel statt als Statistik: die Reihe wird
+// sortiert, dann werden nur die beiden Randwerte gegen ihren direkten Nachbarn
+// geprueft. Hat der hoechste Wert mindestens doppelt so viele Views wie der
+// zweithoechste, faellt er; hat der zweitniedrigste mindestens doppelt so viele
+// wie der niedrigste, faellt der niedrigste. Mehr als ein Reel je Seite faellt
+// nie.
+//
+// Der Vorgaenger (modifizierter Z-Score ueber Median/MAD auf log10) war
+// mathematisch saubere Ausreisser-Erkennung, hat aber bei realen Accounts
+// praktisch nie ausgeloest: bei breit gestreuten Views liegt selbst ein
+// Millionen-Reel noch unter Z = 2,5. Die Nachbarschaftsregel greift dafuer
+// nachvollziehbar und laesst sich Kunden in zwei Saetzen erklaeren.
+const OUTLIER_RATIO = 2.0;
 const OUTLIER_MIN_SAMPLE = 5;
+
+// Werbe-Kennzeichnungen in der Caption. \b haelt #ad von #adidas und
+// #adventskalender fern.
+const AD_HASHTAGS = [
+  'werbung', 'anzeige', 'ad', 'ads', 'sponsored', 'sponsoredpost',
+  'paidpartnership', 'bezahltepartnerschaft', 'werbepartner', 'werbevideo',
+  'kooperation', 'collab', 'collabpost', 'affiliate'
+];
+const AD_HASHTAG_RE = new RegExp(`#(${AD_HASHTAGS.join('|')})\\b`, 'i');
+const AD_PHRASE_RE = /paid partnership|bezahlte partnerschaft|in kooperation mit|anzeige\s*\||werbung\s*\|/i;
+
+// Geschenkte Produkte ohne Bezahlung. Bewusst nicht aktiv: die Reichweite so
+// eines Reels ist organisch. Zum Zuschalten in istWerbePost aufnehmen.
+const GESCHENK_HASHTAGS = ['gifted', 'geschenkt', 'prsample', 'pr'];
 
 // Version der Rechenlogik. Landet in ig_stats.calc_version; eine aeltere
 // Version im Creator-Pool gilt als veraltet und erzwingt einen neuen Abruf.
-const CALC_VERSION = 2;
+const CALC_VERSION = 3;
 
 const HOUR_MS = 60 * 60 * 1000;
-const MAD_SCALE = 0.6745;
+
+/**
+ * Werbe-Kennzeichnung in einer Caption erkennen.
+ * @param {string|null|undefined} caption
+ */
+function istWerbePost(caption) {
+  const text = typeof caption === 'string' ? caption : '';
+  if (!text) return false;
+  return AD_HASHTAG_RE.test(text) || AD_PHRASE_RE.test(text);
+}
 
 /**
  * Videos klassifizieren: auswertbar vs. aussortiert.
- * Aussortiert werden nur Videos, die juenger als MIN_AGE_HOURS sind
- * (too_recent). Videos ohne view_count und Nicht-Videos werden nicht in
- * skipped gefuehrt.
+ * Aussortiert werden Videos, die juenger als MIN_AGE_HOURS sind (too_recent)
+ * und Videos mit Werbe-Kennzeichnung in der Caption (ad_post). Videos ohne
+ * view_count und Nicht-Videos werden nicht in skipped gefuehrt.
+ *
+ * Die Werbe-Pruefung laeuft vor der Altersregel: ein zu frischer Werbe-Reel
+ * soll als Werbung auftauchen, nicht als "kommt spaeter noch dazu".
  *
  * @param {Array} media
  * @param {number} now
@@ -71,7 +108,9 @@ function classifyVideos(media, now) {
       age_hours: ageHours
     };
 
-    const reason = postedAt > cutoff ? 'too_recent' : null;
+    const reason = istWerbePost(m.caption) ? 'ad_post'
+      : postedAt > cutoff ? 'too_recent'
+        : null;
 
     if (reason) {
       skipped.push({ ...entry, reason });
@@ -96,82 +135,71 @@ function average(values) {
   return sum / values.length;
 }
 
-function median(sortedValues) {
-  const n = sortedValues.length;
-  if (!n) return null;
-  const mid = Math.floor(n / 2);
-  return n % 2 ? sortedValues[mid] : (sortedValues[mid - 1] + sortedValues[mid]) / 2;
-}
-
-/** Wie viele Werte je Seite maximal fallen duerfen */
-function perSideCap(n) {
-  return n < 12 ? 1 : Math.floor(n * 0.1);
-}
-
 /**
  * Ausreisser in einer Views-Reihe finden.
  *
- * Ein Wert gilt nur als Ausreisser, wenn beides zutrifft:
- *   1. modifizierter Z-Score auf log10 ueber OUTLIER_Z
- *   2. mindestens Faktor OUTLIER_MIN_FACTOR ueber bzw. unter dem Median
+ * Die Reihe wird aufsteigend sortiert, danach werden nur die beiden Randwerte
+ * gegen ihren direkten Nachbarn geprueft:
+ *   - hoechster Wert / zweithoechster Wert >= OUTLIER_RATIO -> hoechster faellt
+ *   - zweitniedrigster Wert / niedrigster Wert >= OUTLIER_RATIO -> niedrigster faellt
  *
- * Sonderfall MAD = 0: sobald mehr als die Haelfte der Reels praktisch gleich
- * viele Views hat, ist die Streuung im Median null und der Z-Score nicht
- * definiert - dann entscheidet allein der Faktor zum Median. Ohne diesen
- * Zweig wuerde ausgerechnet der eindeutigste Fall (24x 50k, dazu ein 1M-Reel)
- * durchrutschen.
+ * Es faellt hoechstens ein Wert oben und einer unten. Normale Schwankungen
+ * gehoeren zur Performance eines Creators und bleiben Teil der Rechnung -
+ * ausgeschlossen wird nur der offensichtliche Einzelfall.
  *
- * Pro Seite fallen hoechstens perSideCap(n) Werte, die extremsten zuerst -
- * sonst koennte ein zweigipfliger Account halb leergeraeumt werden.
+ * Bewusste Eigenschaft: zwei aehnlich hohe Spitzen decken sich gegenseitig
+ * (900k und 1M haben Verhaeltnis 1,11), dann faellt nichts. Das ist der Preis
+ * fuer eine Regel, die sich ohne Statistikkenntnisse nachrechnen laesst.
  *
  * @param {number[]} values Views, Reihenfolge egal
- * @returns {{indices: Set<number>, details: Array<{index:number,views:number,side:'high'|'low',z:number|null}>}}
+ * @returns {{indices: Set<number>, details: Array<{index:number,views:number,side:'high'|'low',ratio:number}>}}
  */
 function detectOutliers(values) {
   const empty = { indices: new Set(), details: [] };
   if (!Array.isArray(values) || values.length < OUTLIER_MIN_SAMPLE) return empty;
 
-  const logs = values.map((v) => Math.log10(v + 1));
-  const logMedian = median([...logs].sort((a, b) => a - b));
-  const mad = median(logs.map((l) => Math.abs(l - logMedian)).sort((a, b) => a - b));
+  // Auf den sortierten Kopien rechnen, aber die Original-Indizes zurueckgeben:
+  // evaluateWindow braucht sie, um den Reel zum Wert zu finden.
+  const sortiert = values
+    .map((views, index) => ({ views, index }))
+    .sort((a, b) => a.views - b.views);
 
-  const viewsMedian = median([...values].sort((a, b) => a - b));
-  const obenAb = viewsMedian * OUTLIER_MIN_FACTOR;
-  const untenAb = viewsMedian / OUTLIER_MIN_FACTOR;
+  const n = sortiert.length;
+  const niedrigster = sortiert[0];
+  const zweitniedrigster = sortiert[1];
+  const hoechster = sortiert[n - 1];
+  const zweithoechster = sortiert[n - 2];
 
-  const kandidaten = [];
-  for (let i = 0; i < values.length; i += 1) {
-    const abstand = logs[i] - logMedian;
-    const z = mad ? MAD_SCALE * abstand / mad : null;
-    if (z !== null && Math.abs(z) <= OUTLIER_Z) continue;
-
-    const hoch = abstand > 0 && values[i] >= obenAb;
-    const niedrig = abstand < 0 && values[i] <= untenAb;
-    if (!hoch && !niedrig) continue;
-
-    kandidaten.push({
-      index: i,
-      views: values[i],
-      side: hoch ? 'high' : 'low',
-      z,
-      staerke: Math.abs(z ?? abstand)
-    });
-  }
-  if (!kandidaten.length) return empty;
-
-  const cap = perSideCap(values.length);
   const indices = new Set();
   const details = [];
 
-  for (const side of ['high', 'low']) {
-    kandidaten
-      .filter((k) => k.side === side)
-      .sort((a, b) => b.staerke - a.staerke)
-      .slice(0, cap)
-      .forEach(({ staerke, ...k }) => {
-        indices.add(k.index);
-        details.push(k);
-      });
+  // Division durch 0 abfangen: ein Reel mit 0 Views ist gegenueber jedem
+  // Nachbarn mit Views ein Ausreisser nach unten.
+  const verhaeltnis = (oben, unten) => {
+    if (unten > 0) return oben / unten;
+    return oben > 0 ? Infinity : 1;
+  };
+
+  const ratioHigh = verhaeltnis(hoechster.views, zweithoechster.views);
+  if (ratioHigh >= OUTLIER_RATIO) {
+    indices.add(hoechster.index);
+    details.push({
+      index: hoechster.index,
+      views: hoechster.views,
+      side: 'high',
+      ratio: ratioHigh
+    });
+  }
+
+  const ratioLow = verhaeltnis(zweitniedrigster.views, niedrigster.views);
+  if (ratioLow >= OUTLIER_RATIO) {
+    indices.add(niedrigster.index);
+    details.push({
+      index: niedrigster.index,
+      views: niedrigster.views,
+      side: 'low',
+      ratio: ratioLow
+    });
   }
 
   details.sort((a, b) => b.views - a.views);
@@ -189,13 +217,13 @@ function roundViews(views) {
 }
 
 /**
- * Ein Fenster auswerten: Schnitt mit und ohne Ausreisser.
+ * Ein Fenster auswerten: arithmetischer Schnitt der Reels ohne Ausreisser.
  * Der Wert kommt nur zustande, wenn das Fenster wirklich voll ist - ein
  * "8er-Schnitt" aus 3 Videos waere irrefuehrend.
  */
 function evaluateWindow(videos, size) {
   if (videos.length !== size) {
-    return { views: null, viewsClean: null, outliers: [] };
+    return { views: null, outliers: [] };
   }
 
   const values = videos.map((v) => v.views);
@@ -203,8 +231,7 @@ function evaluateWindow(videos, size) {
   const bereinigt = values.filter((_, i) => !indices.has(i));
 
   return {
-    views: average(values),
-    viewsClean: average(bereinigt.length ? bereinigt : values),
+    views: average(bereinigt.length ? bereinigt : values),
     outliers: details.map((d) => {
       const video = videos[d.index];
       return {
@@ -212,7 +239,9 @@ function evaluateWindow(videos, size) {
         timestamp: video?.timestamp || null,
         permalink: video?.permalink || null,
         side: d.side,
-        z: d.z == null ? null : Math.round(d.z * 100) / 100
+        // Infinity entsteht bei einem Nachbarn mit 0 Views und wuerde in JSON
+        // zu null werden - dann lieber gleich null speichern
+        ratio: Number.isFinite(d.ratio) ? Math.round(d.ratio * 100) / 100 : null
       };
     })
   };
@@ -221,16 +250,19 @@ function evaluateWindow(videos, size) {
 /**
  * Kennzahlen aus einer Media-Liste der Business Discovery API.
  *
+ * views_8 und views_30 sind bereits um die Ausreisser bereinigt - eine
+ * ungefilterte Variante gibt es nicht mehr. Was ausgeschlossen wurde, steht in
+ * outliers_8 / outliers_30 und in skipped_videos.
+ *
  * @param {Array} media   Rohe media.data-Eintraege
  * @param {object} [opts] { now: number } - Zeitbasis fuer die 4-Tage-Regel
  * @returns {{
- *   views_8: number|null, views_8_clean: number|null,
- *   views_30: number|null, views_30_clean: number|null,
- *   cpm_8: number|null, cpm_8_clean: number|null,
- *   cpm_30: number|null, cpm_30_clean: number|null,
+ *   views_8: number|null, views_30: number|null,
+ *   cpm_8: number|null, cpm_30: number|null,
  *   sample_8: number, sample_30: number,
  *   outliers_8: Array, outliers_30: Array,
- *   videos_available: number, skipped_too_recent: number, non_video_skipped: number,
+ *   videos_available: number, skipped_too_recent: number,
+ *   skipped_ads: number, non_video_skipped: number,
  *   videos: Array, skipped_videos: Array, calc_version: number
  * }}
  */
@@ -243,19 +275,16 @@ function computeInstagramCpm(media, opts = {}) {
 
   return {
     views_8: roundViews(window8.views),
-    views_8_clean: roundViews(window8.viewsClean),
     views_30: roundViews(window30.views),
-    views_30_clean: roundViews(window30.viewsClean),
     cpm_8: toCpm(window8.views),
-    cpm_8_clean: toCpm(window8.viewsClean),
     cpm_30: toCpm(window30.views),
-    cpm_30_clean: toCpm(window30.viewsClean),
     sample_8: Math.min(videos.length, WINDOW_SHORT),
     sample_30: Math.min(videos.length, WINDOW_LONG),
     outliers_8: window8.outliers,
     outliers_30: window30.outliers,
     videos_available: videos.length,
     skipped_too_recent: skipped.filter((s) => s.reason === 'too_recent').length,
+    skipped_ads: skipped.filter((s) => s.reason === 'ad_post').length,
     non_video_skipped: nonVideoSkipped,
     videos: videos.slice(0, WINDOW_LONG).map((v) => ({
       permalink: v.permalink,
@@ -305,8 +334,9 @@ function formatCpmDebug(username, stats, meta = {}) {
       CPM_RATE,
       WINDOW_SHORT,
       WINDOW_LONG,
-      OUTLIER_Z,
-      OUTLIER_MIN_FACTOR,
+      OUTLIER_RATIO,
+      OUTLIER_MIN_SAMPLE,
+      AD_HASHTAGS,
       CALC_VERSION,
       note: 'UI-Preis = views × Listen-TKP; cpm_* hier immer × CPM_RATE'
     },
@@ -319,19 +349,16 @@ function formatCpmDebug(username, stats, meta = {}) {
     summary: {
       non_video_skipped: stats.non_video_skipped ?? null,
       skipped_too_recent: stats.skipped_too_recent ?? null,
+      skipped_ads: stats.skipped_ads ?? null,
       videos_available: stats.videos_available ?? null,
       sample_8: stats.sample_8 ?? null,
       sample_30: stats.sample_30 ?? null,
       window_8_full: stats.sample_8 === WINDOW_SHORT,
       window_30_full: stats.sample_30 === WINDOW_LONG,
       views_8: stats.views_8 ?? null,
-      views_8_clean: stats.views_8_clean ?? null,
       views_30: stats.views_30 ?? null,
-      views_30_clean: stats.views_30_clean ?? null,
       cpm_8: stats.cpm_8 ?? null,
-      cpm_8_clean: stats.cpm_8_clean ?? null,
       cpm_30: stats.cpm_30 ?? null,
-      cpm_30_clean: stats.cpm_30_clean ?? null,
       formula: `views / 1000 * ${CPM_RATE}`
     }
   };
@@ -340,9 +367,10 @@ function formatCpmDebug(username, stats, meta = {}) {
 module.exports = {
   CPM_RATE,
   MIN_AGE_HOURS,
-  OUTLIER_Z,
-  OUTLIER_MIN_FACTOR,
+  OUTLIER_RATIO,
   OUTLIER_MIN_SAMPLE,
+  AD_HASHTAGS,
+  GESCHENK_HASHTAGS,
   WINDOW_SHORT,
   WINDOW_LONG,
   CALC_VERSION,
@@ -350,6 +378,7 @@ module.exports = {
   selectVideos,
   average,
   detectOutliers,
+  istWerbePost,
   toCpm,
   computeInstagramCpm,
   formatCpmDebug

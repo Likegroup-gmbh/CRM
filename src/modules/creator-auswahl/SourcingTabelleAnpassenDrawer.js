@@ -22,17 +22,18 @@ import {
 const SPALTEN_LABELS = [
   { className: 'cp-col-bild', label: 'Bild' },
   { className: 'cp-col-typ', label: 'Creator Art' },
+  { className: 'cp-col-status', label: 'Status' },
   { className: 'cp-col-location', label: 'Location' },
   { className: 'cp-col-mail', label: 'Mail (nur intern)' },
   { className: 'cp-col-telefon', label: 'Telefon (nur intern)' },
   { className: 'cp-col-link-ig', label: 'Link Instagram' },
   { className: 'cp-col-follower-ig', label: 'Follower Instagram' },
   { className: 'cp-col-cpm-ig-8', label: 'Preis 8 Reels (Instagram)' },
-  { className: 'cp-col-cpm-ig-8-clean', label: 'Preis 8 Reels ohne Ausreißer (Instagram)' },
   { className: 'cp-col-cpm-ig-30', label: 'Preis 30 Reels (Instagram)' },
-  { className: 'cp-col-cpm-ig-30-clean', label: 'Preis 30 Reels ohne Ausreißer (Instagram)' },
+  { className: 'cp-col-preis-reels', label: 'Preis Reels (Instagram)' },
   { className: 'cp-col-reichweite-story', label: 'Reichweite Story (Instagram)' },
   { className: 'cp-col-preis-story', label: 'Preis Story (Instagram)' },
+  { className: 'cp-col-gesamtpreis', label: 'Gesamtpreis' },
   { className: 'cp-col-link-tt', label: 'Link TikTok' },
   { className: 'cp-col-follower-tt', label: 'Follower TikTok' },
   { className: 'cp-col-pricing', label: 'Tatsächlicher Preis' },
@@ -40,10 +41,7 @@ const SPALTEN_LABELS = [
   { className: 'cp-col-ek', label: 'EK (Einkaufspreis)' },
   { className: 'cp-col-vk', label: 'VK (Verkaufspreis)' },
   { className: 'cp-col-notiz', label: 'Kurzbeschreibung' },
-  { className: 'cp-col-feedback', label: 'Rückmeldung Kunde' },
-  { className: 'cp-col-anfragen', label: 'Anfragen' },
-  { className: 'cp-col-status', label: 'Status' },
-  { className: 'cp-col-check', label: 'Rückmeldung' }
+  { className: 'cp-col-feedback', label: 'Rückmeldung Kunde' }
 ];
 
 function escapeHtml(value) {

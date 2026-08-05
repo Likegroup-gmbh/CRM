@@ -12691,9 +12691,9 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-reichweite-garantie,
 .creator-pool-table td.cp-col-pricing,
 .creator-pool-table td.cp-col-cpm-ig-8,
-.creator-pool-table td.cp-col-cpm-ig-8-clean,
 .creator-pool-table td.cp-col-cpm-ig-30,
-.creator-pool-table td.cp-col-cpm-ig-30-clean,
+.creator-pool-table td.cp-col-preis-reels,
+.creator-pool-table td.cp-col-gesamtpreis,
 .creator-pool-table td.cp-col-ek,
 .creator-pool-table td.cp-col-vk {
   vertical-align: middle;
@@ -12703,6 +12703,7 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-location .strategie-textarea,
 .creator-pool-table td.cp-col-reichweite-story .strategie-textarea,
 .creator-pool-table td.cp-col-preis-story .strategie-textarea,
+.creator-pool-table td.cp-col-preis-reels .strategie-textarea,
 .creator-pool-table td.cp-col-reichweite-garantie .strategie-textarea,
 .creator-pool-table td.cp-col-pricing .strategie-textarea,
 .creator-pool-table td.cp-col-ek .strategie-textarea,
@@ -12711,12 +12712,12 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-location .cell-text-readonly,
 .creator-pool-table td.cp-col-reichweite-story .cell-text-readonly,
 .creator-pool-table td.cp-col-preis-story .cell-text-readonly,
+.creator-pool-table td.cp-col-preis-reels .cell-text-readonly,
 .creator-pool-table td.cp-col-reichweite-garantie .cell-text-readonly,
 .creator-pool-table td.cp-col-pricing .cell-text-readonly,
 .creator-pool-table td.cp-col-cpm-ig-8 .cell-text-readonly,
-.creator-pool-table td.cp-col-cpm-ig-8-clean .cell-text-readonly,
 .creator-pool-table td.cp-col-cpm-ig-30 .cell-text-readonly,
-.creator-pool-table td.cp-col-cpm-ig-30-clean .cell-text-readonly {
+.creator-pool-table td.cp-col-gesamtpreis .cell-text-readonly {
   align-content: center;
   /* Als Inline-Element wuerde die Baseline das Feld ein paar Pixel nach oben
      ziehen, sodass es trotz vertical-align nicht exakt mittig sitzt */
@@ -12733,16 +12734,6 @@ table:has(#strategien-table-body) td.col-actions {
   width: 92px;
   min-width: 92px;
   text-align: center;
-}
-
-.creator-pool-table .cp-col-check {
-  width: 95px;
-  min-width: 95px;
-  text-align: center;
-}
-
-.creator-pool-table td.cp-col-check .cp-checkbox {
-  margin: 0 auto;
 }
 
 .creator-pool-table .cp-col-location {
@@ -12788,33 +12779,12 @@ table:has(#strategien-table-body) td.col-actions {
   word-break: break-word;
 }
 
-.creator-pool-table .cp-col-anfragen {
-  width: 110px;
-  min-width: 110px;
-  text-align: center;
-}
-
-.angefragt-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.angefragt-datum {
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-}
-
 .creator-pool-table .cp-col-status {
   width: 150px;
   min-width: 150px;
 }
 
-.creator-pool-table td.cp-col-anfragen,
 .creator-pool-table td.cp-col-status,
-.creator-pool-table td.cp-col-check,
 .creator-pool-table td.cp-col-typ,
 .creator-pool-table td.cp-col-follower-ig,
 .creator-pool-table td.cp-col-follower-tt {
@@ -12869,9 +12839,9 @@ table:has(#strategien-table-body) td.col-actions {
 }
 
 .creator-pool-table .cp-col-cpm-ig-8,
-.creator-pool-table .cp-col-cpm-ig-8-clean,
 .creator-pool-table .cp-col-cpm-ig-30,
-.creator-pool-table .cp-col-cpm-ig-30-clean {
+.creator-pool-table .cp-col-preis-reels,
+.creator-pool-table .cp-col-gesamtpreis {
   width: 108px;
   min-width: 108px;
 }
@@ -12883,9 +12853,9 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table .cp-col-reichweite-garantie,
 .creator-pool-table .cp-col-pricing,
 .creator-pool-table .cp-col-cpm-ig-8,
-.creator-pool-table .cp-col-cpm-ig-8-clean,
 .creator-pool-table .cp-col-cpm-ig-30,
-.creator-pool-table .cp-col-cpm-ig-30-clean,
+.creator-pool-table .cp-col-preis-reels,
+.creator-pool-table .cp-col-gesamtpreis,
 .creator-pool-table .cp-col-ek,
 .creator-pool-table .cp-col-vk {
   text-align: center;
@@ -12893,18 +12863,19 @@ table:has(#strategien-table-body) td.col-actions {
 
 .creator-pool-table td.cp-col-reichweite-story .strategie-textarea,
 .creator-pool-table td.cp-col-preis-story .strategie-textarea,
+.creator-pool-table td.cp-col-preis-reels .strategie-textarea,
 .creator-pool-table td.cp-col-reichweite-garantie .strategie-textarea,
 .creator-pool-table td.cp-col-pricing .strategie-textarea,
 .creator-pool-table td.cp-col-ek .strategie-textarea,
 .creator-pool-table td.cp-col-vk .strategie-textarea,
 .creator-pool-table td.cp-col-reichweite-story .cell-text-readonly,
 .creator-pool-table td.cp-col-preis-story .cell-text-readonly,
+.creator-pool-table td.cp-col-preis-reels .cell-text-readonly,
 .creator-pool-table td.cp-col-reichweite-garantie .cell-text-readonly,
 .creator-pool-table td.cp-col-pricing .cell-text-readonly,
 .creator-pool-table td.cp-col-cpm-ig-8 .cell-text-readonly,
-.creator-pool-table td.cp-col-cpm-ig-8-clean .cell-text-readonly,
 .creator-pool-table td.cp-col-cpm-ig-30 .cell-text-readonly,
-.creator-pool-table td.cp-col-cpm-ig-30-clean .cell-text-readonly {
+.creator-pool-table td.cp-col-gesamtpreis .cell-text-readonly {
   text-align: center;
 }
 
@@ -12931,9 +12902,8 @@ table:has(#strategien-table-body) td.col-actions {
    bringen ihre eigene Hintergrundfarbe mit (Hover, gebucht, Absage). Ein
    halbtransparenter Layer legt sich darueber, statt sie zu ersetzen. */
 .creator-pool-table .cp-col-cpm-ig-8,
-.creator-pool-table .cp-col-cpm-ig-8-clean,
 .creator-pool-table .cp-col-cpm-ig-30,
-.creator-pool-table .cp-col-cpm-ig-30-clean {
+.creator-pool-table .cp-col-preis-reels {
   --cp-block-tint: 129 140 248;  /* Gedaempftes Indigo - Reels */
 }
 
@@ -12942,17 +12912,23 @@ table:has(#strategien-table-body) td.col-actions {
   --cp-block-tint: 159 122 134;  /* Gedaempftes Rose - Story */
 }
 
+/* Der Gesamtpreis fasst Reels und Story zusammen und bekommt einen eigenen
+   neutralen Ton, damit er nicht wie Teil des Story-Blocks wirkt */
+.creator-pool-table .cp-col-gesamtpreis {
+  --cp-block-tint: 100 116 139;  /* Slate, heller als TikTok - Summe */
+}
+
 .creator-pool-table .cp-col-link-tt,
 .creator-pool-table .cp-col-follower-tt {
   --cp-block-tint: 71 85 105;    /* Slate - TikTok */
 }
 
 .creator-pool-table th.cp-col-cpm-ig-8,
-.creator-pool-table th.cp-col-cpm-ig-8-clean,
 .creator-pool-table th.cp-col-cpm-ig-30,
-.creator-pool-table th.cp-col-cpm-ig-30-clean,
+.creator-pool-table th.cp-col-preis-reels,
 .creator-pool-table th.cp-col-reichweite-story,
 .creator-pool-table th.cp-col-preis-story,
+.creator-pool-table th.cp-col-gesamtpreis,
 .creator-pool-table th.cp-col-link-tt,
 .creator-pool-table th.cp-col-follower-tt {
   background-image: linear-gradient(rgb(var(--cp-block-tint) / 0.1), rgb(var(--cp-block-tint) / 0.1));
@@ -12960,11 +12936,11 @@ table:has(#strategien-table-body) td.col-actions {
 }
 
 .creator-pool-table td.cp-col-cpm-ig-8,
-.creator-pool-table td.cp-col-cpm-ig-8-clean,
 .creator-pool-table td.cp-col-cpm-ig-30,
-.creator-pool-table td.cp-col-cpm-ig-30-clean,
+.creator-pool-table td.cp-col-preis-reels,
 .creator-pool-table td.cp-col-reichweite-story,
 .creator-pool-table td.cp-col-preis-story,
+.creator-pool-table td.cp-col-gesamtpreis,
 .creator-pool-table td.cp-col-link-tt,
 .creator-pool-table td.cp-col-follower-tt {
   background-image: linear-gradient(rgb(var(--cp-block-tint) / 0.04), rgb(var(--cp-block-tint) / 0.04));
@@ -12975,6 +12951,8 @@ table:has(#strategien-table-body) td.col-actions {
 .creator-pool-table td.cp-col-cpm-ig-8,
 .creator-pool-table th.cp-col-reichweite-story,
 .creator-pool-table td.cp-col-reichweite-story,
+.creator-pool-table th.cp-col-gesamtpreis,
+.creator-pool-table td.cp-col-gesamtpreis,
 .creator-pool-table th.cp-col-link-tt,
 .creator-pool-table td.cp-col-link-tt {
   border-left: 2px solid rgb(var(--cp-block-tint) / 0.35) !important;

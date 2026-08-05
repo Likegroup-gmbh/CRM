@@ -19,6 +19,8 @@ describe('getSourcingStatus – Rangfolge bei Mehrfach-Flags', () => {
   });
 
   it('liefert den einzeln gesetzten Status', () => {
+    expect(getSourcingStatus({ angefragt: true })).toBe('angefragt');
+    expect(getSourcingStatus({ in_verhandlung: true })).toBe('in_verhandlung');
     expect(getSourcingStatus({ on_hold: true })).toBe('on_hold');
     expect(getSourcingStatus({ gebucht: true })).toBe('gebucht');
     expect(getSourcingStatus({ prio_1: true })).toBe('prio_1');
@@ -31,14 +33,22 @@ describe('getSourcingStatus – Rangfolge bei Mehrfach-Flags', () => {
     expect(getSourcingStatus({ on_hold: true, prio_2: true })).toBe('on_hold');
   });
 
+  it('bevorzugt die Prozess-Stufen gegenueber der Prio-Bewertung', () => {
+    // Prio ist eine Einschaetzung, Angefragt eine Etappe - die Etappe gewinnt
+    expect(getSourcingStatus({ angefragt: true, prio_1: true })).toBe('angefragt');
+    expect(getSourcingStatus({ in_verhandlung: true, prio_1: true })).toBe('in_verhandlung');
+    expect(getSourcingStatus({ in_verhandlung: true, angefragt: true })).toBe('in_verhandlung');
+  });
+
   it('bevorzugt Absage vor allem und Gebucht vor On Hold', () => {
     expect(getSourcingStatus({ absage: true, gebucht: true, on_hold: true, prio_1: true })).toBe('absage');
     expect(getSourcingStatus({ gebucht: true, on_hold: true, prio_1: true })).toBe('gebucht');
+    expect(getSourcingStatus({ gebucht: true, angefragt: true })).toBe('gebucht');
   });
 });
 
 describe('buildSourcingStatusUpdates', () => {
-  const FLAGS = ['on_hold', 'gebucht', 'prio_1', 'prio_2', 'absage'];
+  const FLAGS = ['angefragt', 'in_verhandlung', 'on_hold', 'gebucht', 'prio_1', 'prio_2', 'absage'];
 
   it('setzt je Status genau ein Flag auf true', () => {
     for (const status of FLAGS) {
@@ -50,6 +60,10 @@ describe('buildSourcingStatusUpdates', () => {
 
   it('raeumt bei "offen" alle Flags und Zeitstempel ab', () => {
     expect(buildSourcingStatusUpdates('offen')).toEqual({
+      angefragt: false,
+      angefragt_am: null,
+      in_verhandlung: false,
+      in_verhandlung_am: null,
       on_hold: false,
       on_hold_am: null,
       gebucht: false,
@@ -60,8 +74,11 @@ describe('buildSourcingStatusUpdates', () => {
     });
   });
 
-  it('schreibt den Zeitstempel nur fuer On Hold und Absage', () => {
+  it('schreibt den Zeitstempel fuer Angefragt, In Verhandlung, On Hold und Absage', () => {
     const now = new Date('2026-07-29T06:00:00.000Z');
+
+    expect(buildSourcingStatusUpdates('angefragt', now).angefragt_am).toBe(now.toISOString());
+    expect(buildSourcingStatusUpdates('in_verhandlung', now).in_verhandlung_am).toBe(now.toISOString());
 
     const onHold = buildSourcingStatusUpdates('on_hold', now);
     expect(onHold.on_hold_am).toBe(now.toISOString());
@@ -72,6 +89,16 @@ describe('buildSourcingStatusUpdates', () => {
     expect(absage.on_hold_am).toBeNull();
 
     expect(buildSourcingStatusUpdates('gebucht', now).on_hold_am).toBeNull();
+  });
+
+  it('laesst angefragt_am beim Weiterziehen stehen', () => {
+    // Dass am 5. August angefragt wurde, bleibt wahr, auch wenn der Creator
+    // inzwischen gebucht ist - nur das Boolean wandert weiter
+    for (const status of ['in_verhandlung', 'gebucht', 'absage']) {
+      const updates = buildSourcingStatusUpdates(status);
+      expect(updates.angefragt).toBe(false);
+      expect('angefragt_am' in updates).toBe(false);
+    }
   });
 
   it('nimmt beim Wechsel von Absage auf Gebucht die Absage inklusive Datum zurueck', () => {
@@ -85,21 +112,29 @@ describe('buildSourcingStatusUpdates', () => {
   it('erkennt gueltige Status-Werte', () => {
     expect(isSourcingStatus('on_hold')).toBe(true);
     expect(isSourcingStatus('offen')).toBe(true);
+    expect(isSourcingStatus('angefragt')).toBe(true);
+    expect(isSourcingStatus('in_verhandlung')).toBe(true);
     expect(isSourcingStatus('quatsch')).toBe(false);
   });
 });
 
 describe('getSourcingStatusMeta', () => {
-  it('zeigt das Datum nur bei On Hold und Absage', () => {
+  it('zeigt das Datum bei allen Status, die einen Zeitstempel fuehren', () => {
     expect(getSourcingStatusMeta({ on_hold: true, on_hold_am: '2026-07-29T06:00:00.000Z' })).toBe('29.7.2026');
     expect(getSourcingStatusMeta({ absage: true, absage_am: '2026-07-29T06:00:00.000Z' })).toBe('29.7.2026');
+    expect(getSourcingStatusMeta({ angefragt: true, angefragt_am: '2026-07-29T06:00:00.000Z' })).toBe('29.7.2026');
+    expect(getSourcingStatusMeta({ in_verhandlung: true, in_verhandlung_am: '2026-07-29T06:00:00.000Z' }))
+      .toBe('29.7.2026');
+  });
+
+  it('zeigt kein Datum bei Status ohne eigenen Zeitstempel', () => {
     expect(getSourcingStatusMeta({ gebucht: true, on_hold_am: '2026-07-29T06:00:00.000Z' })).toBe('');
     expect(getSourcingStatusMeta({ on_hold: true })).toBe('');
   });
 });
 
 describe('Sourcing-Zeile – Status-Spalte', () => {
-  it('rendert genau eine Status-Zelle statt der fuenf Checkbox-Spalten', () => {
+  it('rendert genau eine Status-Zelle statt der sieben Checkbox-Spalten', () => {
     const doc = renderRow({ on_hold: true });
 
     expect(doc.querySelectorAll('td.cp-col-status')).toHaveLength(1);
@@ -108,6 +143,33 @@ describe('Sourcing-Zeile – Status-Spalte', () => {
     expect(doc.querySelector('td.cp-col-prio1')).toBeNull();
     expect(doc.querySelector('td.cp-col-prio2')).toBeNull();
     expect(doc.querySelector('td.cp-col-absagen')).toBeNull();
+    expect(doc.querySelector('td.cp-col-anfragen')).toBeNull();
+    expect(doc.querySelector('td.cp-col-check')).toBeNull();
+  });
+
+  it('steht direkt hinter der Creator Art', () => {
+    const spalten = Array.from(renderRow({}).querySelectorAll('tr > td'))
+      .map(el => Array.from(el.classList).find(c => c.startsWith('cp-col-')));
+
+    expect(spalten[spalten.indexOf('cp-col-typ') + 1]).toBe('cp-col-status');
+  });
+
+  it('bietet Angefragt und In Verhandlung als Option an', () => {
+    const select = renderRow({}).querySelector('td.cp-col-status .table-select');
+
+    expect(select.querySelector('.table-select__item[data-value="angefragt"]').textContent.trim())
+      .toBe('Angefragt');
+    expect(select.querySelector('.table-select__item[data-value="in_verhandlung"]').textContent.trim())
+      .toBe('In Verhandlung');
+  });
+
+  it('haengt das Anfragedatum als Meta-Zeile unter den Trigger', () => {
+    // Das Datum stand vorher in der Checkbox-Spalte "Anfragen"
+    const select = renderRow({ angefragt: true, angefragt_am: '2026-08-05T06:00:00.000Z' })
+      .querySelector('td.cp-col-status .table-select');
+
+    expect(select.querySelector('.table-select__label').textContent.trim()).toBe('Angefragt');
+    expect(select.querySelector('.table-select__meta').textContent.trim()).toBe('5.8.2026');
   });
 
   it('rendert die manuellen CPM-Spalten nicht mehr', () => {
@@ -179,6 +241,15 @@ describe('migrateHiddenColumns', () => {
 
   it('entfernt die abgeschafften CPM-Spalten', () => {
     expect(migrateHiddenColumns(['cp-col-cpm-ig', 'cp-col-cpm-tt', 'cp-col-vk'])).toEqual(['cp-col-vk']);
+  });
+
+  it('entfernt die o.-A.-Spalten und die beiden Checkbox-Spalten', () => {
+    const alt = [
+      'cp-col-cpm-ig-8-clean', 'cp-col-cpm-ig-30-clean',
+      'cp-col-anfragen', 'cp-col-check', 'cp-col-notiz'
+    ];
+
+    expect(migrateHiddenColumns(alt)).toEqual(['cp-col-notiz']);
   });
 
   it('teilt die alte Links-Spalte weiterhin in IG und TT auf', () => {

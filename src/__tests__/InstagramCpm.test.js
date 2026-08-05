@@ -3,9 +3,11 @@ import {
   computeInstagramCpm,
   formatCpmDebug,
   detectOutliers,
+  istWerbePost,
   toCpm,
   CPM_RATE,
   MIN_AGE_HOURS,
+  OUTLIER_RATIO,
   CALC_VERSION
 } from '../../netlify/functions/_shared/instagram-cpm.js';
 
@@ -66,18 +68,19 @@ describe('computeInstagramCpm – 4-Tage-Regel', () => {
 
   it('lässt das 9. Video ins 8er-Fenster nachrücken, wenn das neueste zu frisch ist', () => {
     // Ohne die 4-Tage-Regel waere das Fenster [500000, 7x 10000],
-    // mit ihr rueckt das aelteste Video mit 2000 Views nach.
+    // mit ihr rueckt das aelteste Video mit 8000 Views nach.
     const media = [
       video(1, 500000),
       ...videoSeries(7, 10000, 5),
-      video(20, 2000)
+      video(20, 8000)
     ];
 
     const stats = computeInstagramCpm(media, { now: NOW });
 
-    // 7x 10000 + 1x 2000 = 72000 / 8 = 9000
+    // 7x 10000 + 1x 8000 = 78000 / 8 = 9750; das Verhaeltnis unten ist nur
+    // 1,25, der 8000er-Reel bleibt also drin
     expect(stats.sample_8).toBe(8);
-    expect(stats.views_8).toBe(9000);
+    expect(stats.views_8).toBe(9750);
   });
 
   it('behandelt exakt 4 Tage alte Videos als auswertbar', () => {
@@ -123,22 +126,18 @@ describe('computeInstagramCpm – Fenster', () => {
     const stats = computeInstagramCpm(videoSeries(7, 10000), { now: NOW });
 
     expect(stats.views_8).toBeNull();
-    expect(stats.views_8_clean).toBeNull();
     expect(stats.cpm_8).toBeNull();
-    expect(stats.cpm_8_clean).toBeNull();
     expect(stats.views_30).toBeNull();
-    expect(stats.views_30_clean).toBeNull();
+    expect(stats.cpm_30).toBeNull();
   });
 
   it('gibt die 30er-Werte erst bei 30 auswertbaren Videos aus', () => {
     const knapp = computeInstagramCpm(videoSeries(29, 10000), { now: NOW });
     expect(knapp.views_30).toBeNull();
-    expect(knapp.views_30_clean).toBeNull();
     expect(knapp.views_8).toBe(10000);
 
     const voll = computeInstagramCpm(videoSeries(30, 10000), { now: NOW });
     expect(voll.views_30).toBe(10000);
-    expect(voll.views_30_clean).toBe(10000);
   });
 
   it('begrenzt das 30er-Fenster auf die 30 neuesten Videos', () => {
@@ -166,6 +165,8 @@ describe('detectOutliers', () => {
     expect([...indices]).toEqual([7]);
     expect(details[0].side).toBe('high');
     expect(details[0].views).toBe(1000000);
+    // 1000000 / 60000 - das Verhaeltnis zum zweithoechsten Wert, nicht zum Median
+    expect(details[0].ratio).toBeCloseTo(1000000 / 60000, 5);
   });
 
   it('erkennt einen Ausreißer nach unten', () => {
@@ -180,9 +181,9 @@ describe('detectOutliers', () => {
     expect(detectOutliers(values).indices.size).toBe(0);
   });
 
-  it('greift bei einem engen Account nicht, solange der Faktor zum Median klein bleibt', () => {
-    // MAD ist hier winzig, der Z-Score allein wuerde 80000 kippen - der
-    // Mindestabstand von Faktor 2.5 zum Median (~50000) haelt dagegen
+  it('lässt bei einem engen Account auch den besten Reel stehen', () => {
+    // 80000 ist der beste Reel eines sehr gleichmaessigen Accounts, aber nur
+    // Faktor 1,54 zum zweitbesten - ein guter Lauf ist kein Ausreisser
     const values = [48000, 49000, 49500, 50000, 50500, 51000, 52000, 80000];
     expect(detectOutliers(values).indices.size).toBe(0);
   });
@@ -204,31 +205,39 @@ describe('detectOutliers', () => {
     expect(details.find(d => d.side === 'low').views).toBe(10);
   });
 
-  it('entfernt im 8er-Fenster höchstens einen Wert je Seite', () => {
-    const values = [50000, 50000, 50000, 50000, 50000, 500000, 900000, 1000000];
+  it('entfernt nie mehr als einen Wert je Seite', () => {
+    // Beide Extreme sind doppelt besetzt: nur der aeussere Wert faellt, der
+    // zweite bleibt drin und stuetzt danach den Schnitt
+    const values = [10, 5, 50000, 50000, 50000, 50000, 2000000, 4000000];
     const { indices, details } = detectOutliers(values);
 
-    expect(indices.size).toBe(1);
-    expect(details[0].views).toBe(1000000);
+    expect(indices.size).toBe(2);
+    expect(details.find(d => d.side === 'high').views).toBe(4000000);
+    expect(details.find(d => d.side === 'low').views).toBe(5);
   });
 
-  it('lässt einen zweigipfligen Account in Ruhe', () => {
-    // Die Haelfte der Reels liegt oben, die andere unten - das ist keine
-    // Reihe mit Ausreissern mehr, sondern schlicht ein anderes Profil
-    const values = [5, 10, 20, 40000, 50000, 55000, 900000, 1000000];
+  it('lässt zwei fast gleich hohe Spitzen stehen, weil sie sich gegenseitig decken', () => {
+    // 1000000 / 900000 = 1,11 - die Regel vergleicht nur Nachbarn, deshalb
+    // maskiert die zweite Spitze die erste. Bewusst so: mehrere hohe Reels sind
+    // Performance, kein Einzelausreisser
+    const values = [50000, 50000, 50000, 50000, 50000, 500000, 900000, 1000000];
     expect(detectOutliers(values).indices.size).toBe(0);
   });
 
-  it('entfernt im 30er-Fenster höchstens drei Werte je Seite', () => {
-    const values = [
-      ...Array(24).fill(50000),
-      2000000, 3000000, 4000000, 5000000, 6000000, 7000000
-    ];
+  it('greift bei einem Verhältnis von genau 2,0', () => {
+    const values = [50000, 50000, 50000, 50000, 50000, 50000, 50000, 100000];
     const { indices, details } = detectOutliers(values);
 
-    expect(indices.size).toBe(3);
-    expect(details.every(d => d.side === 'high')).toBe(true);
-    expect(details.map(d => d.views)).toEqual([7000000, 6000000, 5000000]);
+    expect(indices.size).toBe(1);
+    expect(details[0].views).toBe(100000);
+    expect(details[0].ratio).toBe(OUTLIER_RATIO);
+  });
+
+  it('behandelt einen Reel mit 0 Views als Ausreißer nach unten', () => {
+    const { indices, details } = detectOutliers([0, 48000, 50000, 52000, 55000]);
+
+    expect([...indices]).toEqual([0]);
+    expect(details[0]).toMatchObject({ side: 'low', views: 0, ratio: Infinity });
   });
 
   it('kommt mit leeren Eingaben klar', () => {
@@ -238,24 +247,23 @@ describe('detectOutliers', () => {
 });
 
 describe('computeInstagramCpm – Ausreißer im Fenster', () => {
-  it('liefert 8er-Schnitt mit und ohne Ausreißer', () => {
+  it('liefert den 8er-Schnitt bereits ohne den Ausreißer', () => {
     const media = videosAus([1000000, 60000, 55000, 52000, 50000, 48000, 45000, 40000]);
     const stats = computeInstagramCpm(media, { now: NOW });
 
-    // mit: (1000000 + 350000) / 8 = 168750
-    expect(stats.views_8).toBe(168750);
-    // ohne: 350000 / 7 = 50000
-    expect(stats.views_8_clean).toBe(50000);
+    // 350000 / 7 = 50000 - ungefiltert waeren es 168750 gewesen
+    expect(stats.views_8).toBe(50000);
     expect(stats.outliers_8).toHaveLength(1);
     expect(stats.outliers_8[0]).toMatchObject({ views: 1000000, side: 'high' });
     expect(stats.outliers_8[0].permalink).toBe('https://instagram.com/reel/5-1000000');
   });
 
-  it('gibt ohne erkannte Ausreißer denselben Wert wie mit zurück', () => {
+  it('nimmt ohne Ausreißer alle Reels des Fensters', () => {
     const media = videosAus([90000, 70000, 62000, 55000, 51000, 45000, 38000, 30000]);
     const stats = computeInstagramCpm(media, { now: NOW });
 
-    expect(stats.views_8_clean).toBe(stats.views_8);
+    // 441000 / 8
+    expect(stats.views_8).toBe(55125);
     expect(stats.outliers_8).toEqual([]);
   });
 
@@ -269,9 +277,121 @@ describe('computeInstagramCpm – Ausreißer im Fenster', () => {
 
     expect(stats.outliers_8.map(o => o.views)).toEqual([1000000]);
     expect(stats.outliers_30.map(o => o.views).sort((a, b) => b - a)).toEqual([1000000, 10]);
-    expect(stats.views_30_clean).toBe(50000);
+    expect(stats.views_8).toBe(50000);
+    expect(stats.views_30).toBe(50000);
   });
 
+  it('speichert das Verhältnis statt eines Z-Scores und ersetzt Infinity durch null', () => {
+    const stats = computeInstagramCpm(videosAus([0, 48000, 50000, 52000, 55000, 56000, 58000, 60000]), { now: NOW });
+
+    expect(stats.outliers_8[0]).toMatchObject({ views: 0, side: 'low', ratio: null });
+  });
+});
+
+describe('istWerbePost', () => {
+  it('erkennt die gängigen Werbe-Hashtags', () => {
+    for (const caption of [
+      'Neues Video #werbung', '#anzeige – mein Alltag', 'Schaut mal #ad',
+      '#sponsored by someone', '#paidpartnership mit XY', '#bezahltepartnerschaft',
+      'Danke fürs #kooperation', '#collab mit @marke', 'Link in Bio #affiliate'
+    ]) {
+      expect(istWerbePost(caption), caption).toBe(true);
+    }
+  });
+
+  it('erkennt Werbe-Phrasen im Freitext', () => {
+    for (const caption of [
+      'Paid partnership with Nike', 'Bezahlte Partnerschaft mit XY',
+      'In Kooperation mit meinem Lieblingsladen', 'Anzeige | Meine Routine',
+      'Werbung | Neues Produkt'
+    ]) {
+      expect(istWerbePost(caption), caption).toBe(true);
+    }
+  });
+
+  it('löst bei Hashtags nicht aus, die nur mit einem Marker anfangen', () => {
+    // Ohne Wortgrenze wuerde #ad hier dreimal falsch anschlagen
+    for (const caption of [
+      'Neue Schuhe #adidas', 'Tag 3 #adventskalender', '#adventure time',
+      '#kooperationsanfrage bitte per Mail', '#advent'
+    ]) {
+      expect(istWerbePost(caption), caption).toBe(false);
+    }
+  });
+
+  it('lässt organische Captions und leere Werte durch', () => {
+    for (const caption of ['Schöner Tag am See', '', null, undefined]) {
+      expect(istWerbePost(caption)).toBe(false);
+    }
+  });
+
+  it('ignoriert Groß- und Kleinschreibung', () => {
+    expect(istWerbePost('#WERBUNG')).toBe(true);
+    expect(istWerbePost('#Anzeige')).toBe(true);
+  });
+});
+
+describe('computeInstagramCpm – Werbe-Reels', () => {
+  it('sortiert Werbe-Reels als ad_post aus und zählt sie', () => {
+    const media = [
+      video(5, 900000, { caption: 'Neue Kollektion #werbung' }),
+      ...videoSeries(8, 50000, 6)
+    ];
+
+    const stats = computeInstagramCpm(media, { now: NOW });
+
+    expect(stats.skipped_ads).toBe(1);
+    expect(stats.skipped_videos.filter(v => v.reason === 'ad_post')).toHaveLength(1);
+    expect(stats.videos_available).toBe(8);
+    expect(stats.views_8).toBe(50000);
+  });
+
+  it('lässt ein älteres Reel nachrücken, wenn ein Werbe-Reel wegfällt', () => {
+    // Ohne den Filter waere das Fenster [900000, 7x 50000], mit ihm rueckt das
+    // aelteste Reel mit 10000 Views nach
+    const media = [
+      video(5, 900000, { caption: 'Anzeige | Neue Kollektion' }),
+      ...videoSeries(7, 50000, 6),
+      video(40, 10000)
+    ];
+
+    const stats = computeInstagramCpm(media, { now: NOW });
+
+    expect(stats.sample_8).toBe(8);
+    // 7x 50000 + 10000 = 360000, minus Ausreisser unten (50000 / 10000 = 5)
+    expect(stats.outliers_8.map(o => o.views)).toEqual([10000]);
+    expect(stats.views_8).toBe(50000);
+  });
+
+  it('zählt Werbe-Reels getrennt von zu frischen Reels', () => {
+    const media = [
+      video(1, 700000),
+      video(5, 800000, { caption: '#sponsored' }),
+      ...videoSeries(8, 50000, 6)
+    ];
+
+    const stats = computeInstagramCpm(media, { now: NOW });
+
+    expect(stats.skipped_too_recent).toBe(1);
+    expect(stats.skipped_ads).toBe(1);
+  });
+
+  it('führt ein zu frisches Werbe-Reel als Werbung, nicht als zu frisch', () => {
+    const stats = computeInstagramCpm(
+      [video(1, 700000, { caption: '#werbung' })],
+      { now: NOW }
+    );
+
+    expect(stats.skipped_ads).toBe(1);
+    expect(stats.skipped_too_recent).toBe(0);
+  });
+
+  it('rechnet Reels ohne caption normal mit', () => {
+    const stats = computeInstagramCpm(videoSeries(8, 50000), { now: NOW });
+
+    expect(stats.skipped_ads).toBe(0);
+    expect(stats.views_8).toBe(50000);
+  });
 });
 
 describe('CPM-Preis', () => {
@@ -285,21 +405,19 @@ describe('CPM-Preis', () => {
     expect(toCpm(1234)).toBe(30.85);
   });
 
-  it('leitet alle vier CPM-Werte aus den Views ab', () => {
+  it('leitet beide CPM-Werte aus den Views ab', () => {
     const stats = computeInstagramCpm(videoSeries(30, 20000), { now: NOW });
 
     expect(stats.cpm_8).toBe(500);
-    expect(stats.cpm_8_clean).toBe(500);
     expect(stats.cpm_30).toBe(500);
-    expect(stats.cpm_30_clean).toBe(500);
   });
 
-  it('rechnet den bereinigten Preis aus dem bereinigten Schnitt', () => {
+  it('rechnet den Preis aus dem bereinigten Schnitt', () => {
     const media = videosAus([1000000, 60000, 55000, 52000, 50000, 48000, 45000, 40000]);
     const stats = computeInstagramCpm(media, { now: NOW });
 
-    expect(stats.cpm_8_clean).toBe(toCpm(50000));
-    expect(stats.cpm_8).toBe(toCpm(168750));
+    // Der ungefilterte Schnitt waere 168750 gewesen
+    expect(stats.cpm_8).toBe(toCpm(50000));
   });
 });
 
@@ -308,10 +426,9 @@ describe('computeInstagramCpm – Randfälle', () => {
     for (const input of [[], null, undefined]) {
       const stats = computeInstagramCpm(input, { now: NOW });
       expect(stats.views_8).toBeNull();
-      expect(stats.views_8_clean).toBeNull();
       expect(stats.views_30).toBeNull();
-      expect(stats.views_30_clean).toBeNull();
       expect(stats.videos_available).toBe(0);
+      expect(stats.skipped_ads).toBe(0);
     }
   });
 
@@ -344,12 +461,25 @@ describe('formatCpmDebug', () => {
     expect(debug.source).toBe('meta');
     expect(debug.rules.MIN_AGE_HOURS).toBe(MIN_AGE_HOURS);
     expect(debug.rules.CALC_VERSION).toBe(CALC_VERSION);
+    expect(debug.rules.OUTLIER_RATIO).toBe(OUTLIER_RATIO);
+    expect(debug.rules.AD_HASHTAGS).toContain('werbung');
     expect(debug.skipped).toHaveLength(1);
     expect(debug.skipped[0].views).toBe(500000);
     expect(debug.included).toHaveLength(8);
     expect(debug.summary.views_8).toBe(10000);
-    expect(debug.summary.views_8_clean).toBe(10000);
     expect(debug.summary.formula).toContain(String(CPM_RATE));
+  });
+
+  it('weist die aussortierten Werbe-Reels in summary aus', () => {
+    const stats = computeInstagramCpm([
+      video(5, 900000, { caption: '#werbung' }),
+      ...videoSeries(8, 50000, 6)
+    ], { now: NOW });
+
+    const debug = formatCpmDebug('demo_user', stats, { source: 'meta' });
+
+    expect(debug.summary.skipped_ads).toBe(1);
+    expect(debug.skipped[0].reason).toBe('ad_post');
   });
 
   it('führt die erkannten Ausreißer je Fenster auf', () => {

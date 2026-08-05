@@ -12,8 +12,10 @@ function parse(html) {
 }
 
 describe('SOURCING_STATUS_FILTER_TAGS', () => {
-  it('bietet die fuenf frueheren Checkbox-Spalten an, ohne "Offen"', () => {
-    expect([...SOURCING_STATUS_FILTER_TAGS]).toEqual(['On Hold', 'Buchen', 'Prio 1', 'Prio 2', 'Absage']);
+  it('bietet alle Status ausser "Offen" an', () => {
+    expect([...SOURCING_STATUS_FILTER_TAGS]).toEqual([
+      'Angefragt', 'In Verhandlung', 'On Hold', 'Buchen', 'Prio 1', 'Prio 2', 'Absage'
+    ]);
   });
 
   it('nutzt exakt die Beschriftungen aus dem Status-Select', () => {
@@ -34,6 +36,8 @@ describe('matchesStatusFilter', () => {
   });
 
   it('bildet jeden Tag auf sein Boolean-Feld ab', () => {
+    expect(matchesStatusFilter({ angefragt: true }, ['Angefragt'])).toBe(true);
+    expect(matchesStatusFilter({ in_verhandlung: true }, ['In Verhandlung'])).toBe(true);
     expect(matchesStatusFilter({ on_hold: true }, ['On Hold'])).toBe(true);
     expect(matchesStatusFilter({ gebucht: true }, ['Buchen'])).toBe(true);
     expect(matchesStatusFilter({ prio_1: true }, ['Prio 1'])).toBe(true);
