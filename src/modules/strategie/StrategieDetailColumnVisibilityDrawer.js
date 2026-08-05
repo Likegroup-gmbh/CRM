@@ -1,10 +1,17 @@
 // StrategieDetailColumnVisibilityDrawer.js
 // Drawer zur Spalten-Sichtbarkeit der Strategie-Detail-Tabelle.
-// Steuert das Ein-/Ausblenden der eigenen (Custom-) Spalten via hidden_columns.
+// Steuert die festen Spalten (Beschreibung, Transkript, Caption, Prio, ...) und
+// die eigenen (Custom-) Spalten ueber dieselbe hidden_columns-Liste.
+
+import {
+  STRATEGIE_FIXED_COLUMNS,
+  isFixedColumnVisible,
+  setFixedColumnVisibility
+} from './strategieColumns.js';
 
 export class StrategieDetailColumnVisibilityDrawer {
   /**
-   * @param {Array} hiddenColumns  Array mit "custom:{uuid}" der versteckten Spalten
+   * @param {Array} hiddenColumns  Eintraege "custom:{uuid}", "fixed:{key}" und "show:fixed:{key}"
    * @param {(hidden:Array)=>void} onSave
    * @param {Array<{className:string,label:string}>} customColumns
    */
@@ -67,36 +74,47 @@ export class StrategieDetailColumnVisibilityDrawer {
     this.bindEvents();
   }
 
-  renderContent() {
-    if (this.columns.length === 0) {
-      return `
-        <div class="empty-state-small"><p>Noch keine eigenen Spalten angelegt.</p></div>
-        <div class="drawer-footer">
-          <button type="button" class="primary-btn" id="btn-close-strategie-detail-visibility-drawer">Fertig</button>
-        </div>`;
-    }
+  renderToggleRow(label, dataAttr, isVisible) {
+    return `
+      <tr>
+        <td style="text-align: left;">${label}</td>
+        <td style="text-align: right;">
+          <label class="toggle-switch">
+            <input type="checkbox" class="column-visibility-toggle" ${dataAttr} ${isVisible ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </td>
+      </tr>`;
+  }
 
-    const rows = this.columns.map(col => {
-      const isVisible = !this.hiddenColumns.includes(col.className);
-      return `
-        <tr>
-          <td style="text-align: left;">${col.label}</td>
-          <td style="text-align: right;">
-            <label class="toggle-switch">
-              <input type="checkbox" class="column-visibility-toggle" data-column="${col.className}" ${isVisible ? 'checked' : ''}>
-              <span class="toggle-slider"></span>
-            </label>
-          </td>
-        </tr>`;
-    }).join('');
+  renderContent() {
+    const fixedRows = STRATEGIE_FIXED_COLUMNS.map(col => this.renderToggleRow(
+      col.label,
+      `data-fixed-column="${col.key}"`,
+      isFixedColumnVisible(this.hiddenColumns, col.key)
+    )).join('');
+
+    const customRows = this.columns.map(col => this.renderToggleRow(
+      col.label,
+      `data-column="${col.className}"`,
+      !this.hiddenColumns.includes(col.className)
+    )).join('');
 
     return `
       <div class="data-table-container">
         <table class="data-table">
-          <thead><tr><th style="text-align: left;">Eigene Spalte</th><th style="text-align: right;">Sichtbar</th></tr></thead>
-          <tbody>${rows}</tbody>
+          <thead><tr><th style="text-align: left;">Spalte</th><th style="text-align: right;">Sichtbar</th></tr></thead>
+          <tbody>${fixedRows}</tbody>
         </table>
       </div>
+      ${this.columns.length > 0 ? `
+        <div class="data-table-container" style="margin-top: var(--space-lg);">
+          <table class="data-table">
+            <thead><tr><th style="text-align: left;">Eigene Spalte</th><th style="text-align: right;">Sichtbar</th></tr></thead>
+            <tbody>${customRows}</tbody>
+          </table>
+        </div>
+      ` : '<div class="empty-state-small"><p>Noch keine eigenen Spalten angelegt.</p></div>'}
       <div class="drawer-footer">
         <button type="button" class="primary-btn" id="btn-close-strategie-detail-visibility-drawer">Fertig</button>
       </div>`;
@@ -111,13 +129,20 @@ export class StrategieDetailColumnVisibilityDrawer {
   }
 
   handleToggle(event) {
-    const columnClass = event.target.dataset.column;
     const isVisible = event.target.checked;
-    if (isVisible) {
-      this.hiddenColumns = this.hiddenColumns.filter(col => col !== columnClass);
-    } else if (!this.hiddenColumns.includes(columnClass)) {
-      this.hiddenColumns.push(columnClass);
+    const fixedKey = event.target.dataset.fixedColumn;
+
+    if (fixedKey) {
+      this.hiddenColumns = setFixedColumnVisibility(this.hiddenColumns, fixedKey, isVisible);
+    } else {
+      const columnClass = event.target.dataset.column;
+      if (isVisible) {
+        this.hiddenColumns = this.hiddenColumns.filter(col => col !== columnClass);
+      } else if (!this.hiddenColumns.includes(columnClass)) {
+        this.hiddenColumns.push(columnClass);
+      }
     }
+
     this.onSave?.(this.hiddenColumns);
   }
 

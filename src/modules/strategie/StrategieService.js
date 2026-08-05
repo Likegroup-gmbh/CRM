@@ -2,6 +2,12 @@
 // Service für Strategie-Datenbank-Operationen
 
 export class StrategieService {
+  /**
+   * Jeder Lauf startet ein eigenes Chromium. Mehr als zwei parallel treiben die
+   * Netlify-Function-Last unnoetig hoch, ohne dass es spuerbar schneller wird.
+   */
+  static MAX_PARALLELE_VERARBEITUNGEN = 2;
+
   constructor() {
     // Supabase Client wird bei jedem Aufruf direkt verwendet
   }
@@ -607,32 +613,57 @@ export class StrategieService {
   }
 
   /**
-   * Screenshot über Netlify Function generieren
+   * Verarbeitung eines Items anstossen: Screenshot + Transkription laufen in
+   * einer Netlify Background Function, die sofort 202 antwortet. Fortschritt und
+   * Ergebnis kommen ueber Realtime auf strategie_items zurueck.
    */
-  async generateScreenshot(videoUrl) {
-    try {
-      const session = await window.supabase.auth.getSession();
-      const token = session?.data?.session?.access_token || '';
-      const response = await fetch('/.netlify/functions/screenshot', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ url: videoUrl })
-      });
+  async triggerItemProcessing(itemId) {
+    const session = await window.supabase.auth.getSession();
+    const token = session?.data?.session?.access_token || '';
 
-      const result = await response.json();
+    const response = await fetch('/.netlify/functions/strategie-item-background', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ itemId })
+    });
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Screenshot-Generierung fehlgeschlagen');
-      }
-
-      return result;
-    } catch (error) {
-      console.error('Fehler bei Screenshot-Generierung:', error);
-      throw error;
+    // 202 = Background Function angenommen, 409 = laeuft bereits (kein Fehler)
+    if (response.status !== 202 && response.status !== 409 && !response.ok) {
+      throw new Error(`Verarbeitung konnte nicht gestartet werden: HTTP ${response.status}`);
     }
+  }
+
+  /**
+   * Item zur Verarbeitung einreihen. Es laufen hoechstens
+   * MAX_PARALLELE_VERARBEITUNGEN Chromium-Instanzen gleichzeitig; alles weitere
+   * bleibt auf 'pending' und wird vom jeweils fertigen Lauf nachgezogen.
+   */
+  async enqueueItemProcessing(strategieId, itemId) {
+    const { count } = await window.supabase
+      .from('strategie_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('strategie_id', strategieId)
+      .eq('verarbeitung_status', 'processing');
+
+    if ((count || 0) >= StrategieService.MAX_PARALLELE_VERARBEITUNGEN) return false;
+
+    await this.triggerItemProcessing(itemId);
+    return true;
+  }
+
+  /**
+   * Item erneut verarbeiten (Screenshot und Transkript neu holen).
+   */
+  async reprocessItem(itemId) {
+    await this.updateStrategieItem(itemId, {
+      verarbeitung_status: 'pending',
+      verarbeitung_step: null,
+      verarbeitung_fehler: null
+    });
+    await this.triggerItemProcessing(itemId);
   }
 
   /**

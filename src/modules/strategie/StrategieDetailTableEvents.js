@@ -3,6 +3,9 @@
 
 import { strategieService } from './StrategieService.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
+import { tableSelect } from '../../core/components/TableSelect.js';
+import { buildStrategiePrioUpdates, isStrategiePrio } from './strategiePrioOptions.js';
+import { showLongTextDrawer } from './StrategieLongTextDrawer.js';
 
 export function cleanupTableEvents(detail) {
   detail._tableEventListeners.forEach(cleanup => cleanup());
@@ -29,6 +32,8 @@ export function bindTableEvents(detail) {
   });
 
   bindCustomColumnEvents(detail);
+  bindPrioSelect(detail);
+  bindLongTextCells(detail);
 
   if (!detail.isKunde) {
     const actionHandler = (e) => {
@@ -42,6 +47,10 @@ export function bindTableEvents(detail) {
         case 'edit-item':
           e.preventDefault();
           detail.showEditItemDrawer(id);
+          break;
+        case 'reprocess-item':
+          e.preventDefault();
+          handleReprocessItem(detail, id);
           break;
         case 'delete-item':
           e.preventDefault();
@@ -226,6 +235,82 @@ export function bindDragAndDropEvents(detail) {
   });
 }
 
+/**
+ * Prio-Select: In der DB bleiben es drei Booleans, in der Tabelle ist es eine
+ * Spalte. Der Listener haengt an document (die Optionsliste rendert TableSelect
+ * als Portal an body) und filtert deshalb auf die Strategie-Tabelle.
+ */
+export function bindPrioSelect(detail) {
+  tableSelect.init();
+
+  const handler = (e) => {
+    const { field, itemId, value, element } = e.detail || {};
+    if (field !== 'strategie_prio') return;
+    if (!element?.closest('.strategie-items-table')) return;
+    if (!isStrategiePrio(value)) return;
+
+    handlePrioChange(detail, itemId, value);
+  };
+
+  document.addEventListener('table-select-change', handler);
+  detail._tableEventListeners.add(() => document.removeEventListener('table-select-change', handler));
+}
+
+export async function handlePrioChange(detail, itemId, value) {
+  const item = detail.items.find(i => i.id === itemId);
+
+  if (value === 'nicht_umsetzen' && item?.video_umgesetzt) {
+    window.toastSystem?.show('Zuerst „Umgesetzt" deaktivieren', 'warning');
+    detail.rerenderItemsTable();
+    return;
+  }
+
+  const updates = buildStrategiePrioUpdates(value);
+
+  try {
+    await strategieService.updateStrategieItem(itemId, updates);
+    if (item) Object.assign(item, updates);
+    detail.rerenderItemsTable();
+  } catch (error) {
+    console.error('Fehler beim Speichern der Prio:', error);
+    window.toastSystem?.show('Fehler beim Speichern', 'error');
+    detail.rerenderItemsTable();
+  }
+}
+
+/** Transkript/Caption zeigen in der Zelle nur eine Vorschau. */
+export function bindLongTextCells(detail) {
+  document.querySelectorAll('.strategie-items-table [data-action="show-longtext"]').forEach(btn => {
+    const handler = (e) => {
+      e.preventDefault();
+      const item = detail.items.find(i => i.id === btn.dataset.itemId);
+      if (item) showLongTextDrawer(item, btn.dataset.field);
+    };
+    btn.addEventListener('click', handler);
+    detail._tableEventListeners.add(() => btn.removeEventListener('click', handler));
+  });
+}
+
+/** Screenshot und Transkript neu holen - auch fuer Items aus der Zeit davor. */
+export async function handleReprocessItem(detail, itemId) {
+  const item = detail.items.find(i => i.id === itemId);
+  if (!item?.video_link) return;
+
+  try {
+    await strategieService.reprocessItem(itemId);
+    Object.assign(item, {
+      verarbeitung_status: 'pending',
+      verarbeitung_step: null,
+      verarbeitung_fehler: null
+    });
+    detail.rerenderItemsTable();
+    window.toastSystem?.show('Verarbeitung gestartet', 'success');
+  } catch (error) {
+    console.error('Fehler beim Neu-Verarbeiten:', error);
+    window.toastSystem?.show('Verarbeitung konnte nicht gestartet werden', 'error');
+  }
+}
+
 export async function handleCategoryChange(detail, itemId, newKategorie) {
   try {
     const teilbereich = newKategorie === 'Ohne Kategorie' ? null : newKategorie;
@@ -312,20 +397,10 @@ export async function handleFieldUpdate(detail, element) {
     return;
   }
 
-  if (field === 'nicht_umsetzen' && value && item?.video_umgesetzt) {
-    element.checked = false;
-    window.toastSystem?.show('Zuerst „Umgesetzt" deaktivieren', 'warning');
-    return;
-  }
-
   await updateItemField(detail, itemId, field, value);
 
-  if (field === 'video_umgesetzt' || field === 'nicht_umsetzen') {
-    const row = element.closest('tr.item-row');
-    if (row) {
-      row.classList.toggle('strategie-item-umgesetzt', field === 'video_umgesetzt' ? value : !!item?.video_umgesetzt);
-      row.classList.toggle('item-nicht-umsetzen', field === 'nicht_umsetzen' ? value : !!item?.nicht_umsetzen);
-    }
+  if (field === 'video_umgesetzt') {
+    element.closest('tr.item-row')?.classList.toggle('strategie-item-umgesetzt', !!value);
   }
 }
 
@@ -340,11 +415,18 @@ export async function updateItemField(detail, itemId, field, value) {
       updates.kunde_anmerkung_updated_at = new Date().toISOString();
     }
 
+    // Von Hand geschrieben schlaegt KI: der Tag in der Spalte verschwindet
+    if (field === 'beschreibung') {
+      updates.beschreibung_quelle = value ? 'user' : null;
+    }
+
     await strategieService.updateStrategieItem(itemId, updates);
     
     const item = detail.items.find(i => i.id === itemId);
     if (item) {
+      const kiTagFaelltWeg = field === 'beschreibung' && item.beschreibung_quelle === 'ki';
       Object.assign(item, updates);
+      if (kiTagFaelltWeg) detail.rerenderItemsTable();
     }
   } catch (error) {
     console.error('Fehler beim Aktualisieren des Items:', error);

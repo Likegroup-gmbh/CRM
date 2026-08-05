@@ -3,7 +3,7 @@
 
 import { strategieService } from './StrategieService.js';
 import { AddItemDrawer } from './AddItemDrawer.js';
-import { renderItemsTable, rerenderItemsTable as _rerenderItemsTable } from './StrategieDetailRenderer.js';
+import { renderItemsTable, rerenderItemsTable as _rerenderItemsTable, updateItemRow } from './StrategieDetailRenderer.js';
 import { bindTableEvents, cleanupTableEvents, destroyDragToScroll } from './StrategieDetailTableEvents.js';
 import { showEditItemDrawer as _showEditItemDrawer, removeEditItemDrawer, closeEditItemDrawer as _closeEditItemDrawer } from './StrategieDetailEditDrawer.js';
 import { showKategorienModal as _showKategorienModal, removeKategorienDrawer } from './StrategieDetailKategorienDrawer.js';
@@ -17,6 +17,7 @@ export class StrategieDetail {
     this._boundEventListeners = new Set();
     this._tableEventListeners = new Set();
     this._dragScrollAbort = null;
+    this._itemChannel = null;
     this.strategie = null;
     this.items = [];
     this.draggedItem = null;
@@ -266,6 +267,45 @@ export class StrategieDetail {
     }
 
     this._bindTableEvents();
+    this.subscribeToItemUpdates();
+  }
+
+  /**
+   * Screenshot, Transkript und KI-Beschreibung kommen aus einer Background
+   * Function und treffen Sekunden bis Minuten nach dem Anlegen ein. Statt zu
+   * pollen lauscht die Tabelle auf die UPDATEs ihrer eigenen Items.
+   */
+  subscribeToItemUpdates() {
+    this.unsubscribeFromItemUpdates();
+    if (!this.strategieId) return;
+
+    this._itemChannel = window.supabase
+      .channel(`strategie-items-${this.strategieId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'strategie_items',
+        filter: `strategie_id=eq.${this.strategieId}`
+      }, (payload) => this.handleItemRealtimeUpdate(payload.new))
+      .subscribe();
+
+    this._boundEventListeners.add(() => this.unsubscribeFromItemUpdates());
+  }
+
+  unsubscribeFromItemUpdates() {
+    if (!this._itemChannel) return;
+    window.supabase.removeChannel(this._itemChannel);
+    this._itemChannel = null;
+  }
+
+  handleItemRealtimeUpdate(row) {
+    if (!row?.id) return;
+    const item = this.items.find(i => i.id === row.id);
+    if (!item) return;
+
+    // linked_video und andere angereicherte Felder haengen nicht an der Zeile
+    Object.assign(item, row);
+    updateItemRow(this, row.id);
   }
 
   destroy() {
@@ -273,6 +313,7 @@ export class StrategieDetail {
     this._boundEventListeners.clear();
     this._cleanupTableEvents();
     this._destroyDragToScroll();
+    this.unsubscribeFromItemUpdates();
     this.removeKategorienDrawer();
     this.removeEditItemDrawer();
   }

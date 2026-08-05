@@ -1,5 +1,8 @@
 // AddItemDrawer.js - Drawer zum Hinzufügen von Videos/Ideen mit Queue-System
-// Features: Progress-Bar mit echter Zeit, Queue-Verwaltung, Live-Updates
+//
+// Der Drawer legt Items nur noch an und stoesst die Verarbeitung an. Screenshot
+// und Transkription laufen danach in einer Netlify Background Function und
+// erscheinen per Realtime in der Tabelle - der Drawer darf sofort zu.
 
 import { strategieService } from './StrategieService.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
@@ -10,20 +13,11 @@ export class AddItemDrawer {
     this.strategie = null;
     this.strategieId = null;
     this.teilbereiche = [];
-    
-    // Queue System
-    this.queue = []; // { id, url, kategorie, status: 'pending'|'processing'|'done'|'error', screenshot_url, error, startTime, elapsed }
+
+    // Queue System: { id, url, kategorie, beschreibung, platform,
+    //                 status: 'pending'|'processing'|'done'|'error', error }
+    this.queue = [];
     this.isProcessing = false;
-    this.timerInterval = null;
-    
-    // Geschätzte Zeiten pro Plattform (in Sekunden)
-    this.estimatedTimes = {
-      youtube: 20,
-      tiktok: 15,
-      instagram: 15,
-      other: 12,
-      idea: 2
-    };
   }
 
   /**
@@ -69,7 +63,7 @@ export class AddItemDrawer {
     
     const subtitle = document.createElement('p');
     subtitle.className = 'drawer-subtitle';
-    subtitle.textContent = 'Video-URL oder Beschreibung hinzufügen – Screenshots werden automatisch erstellt';
+    subtitle.textContent = 'Video-URL oder Idee hinzufügen – Screenshot, Transkript und Beschreibung entstehen automatisch im Hintergrund';
     
     headerLeft.appendChild(title);
     headerLeft.appendChild(subtitle);
@@ -124,7 +118,7 @@ export class AddItemDrawer {
               type="url" 
               id="drawer-video-url" 
               class="form-input" 
-              placeholder="https://youtube.com/shorts/... oder leer lassen"
+              placeholder="https://tiktok.com/... oder https://instagram.com/reel/... – leer lassen für eine Idee"
               autocomplete="off"
             >
           </div>
@@ -138,14 +132,15 @@ export class AddItemDrawer {
           </div>
         </div>
 
-        <div class="add-item-drawer-form-row add-item-drawer-form-row--full">
+        <!-- Nur für Ideen: bei einer Video-URL schreibt die KI die Beschreibung -->
+        <div class="add-item-drawer-form-row add-item-drawer-form-row--full" id="drawer-beschreibung-row">
           <div class="form-field form-field--full">
-            <label for="drawer-beschreibung">Beschreibung</label>
+            <label for="drawer-beschreibung">Beschreibung der Idee</label>
             <textarea
               id="drawer-beschreibung"
               class="form-input"
               rows="2"
-              placeholder="Beschreibung (Pflicht ohne URL)..."
+              placeholder="Worum soll es in dem Video gehen?"
             ></textarea>
           </div>
         </div>
@@ -198,13 +193,28 @@ export class AddItemDrawer {
   bindEvents() {
     const form = document.getElementById('add-item-form');
     const closeBtn = document.getElementById('btn-close-drawer');
+    const urlInput = document.getElementById('drawer-video-url');
 
     form?.addEventListener('submit', (e) => {
       e.preventDefault();
       this.handleAddToQueue();
     });
 
+    urlInput?.addEventListener('input', () => this.syncBeschreibungVisibility());
+    this.syncBeschreibungVisibility();
+
     closeBtn?.addEventListener('click', () => this.handleClose());
+  }
+
+  /**
+   * Beschreibung ist nur bei Ideen ein Eingabefeld. Sobald eine Video-URL
+   * dasteht, uebernimmt die KI-Beschreibung aus der Transkription.
+   */
+  syncBeschreibungVisibility() {
+    const row = document.getElementById('drawer-beschreibung-row');
+    const urlInput = document.getElementById('drawer-video-url');
+    if (!row || !urlInput) return;
+    row.hidden = !!urlInput.value.trim();
   }
 
   /**
@@ -217,11 +227,12 @@ export class AddItemDrawer {
     
     const url = urlInput?.value?.trim() || null;
     const kategorie = kategorieSelect?.value || null;
-    const beschreibung = beschreibungInput?.value?.trim() || null;
+    // Bei einer Video-URL ist das Feld ausgeblendet - dann zaehlt nur die KI
+    const beschreibung = url ? null : (beschreibungInput?.value?.trim() || null);
 
-    // URL-Validierung: Nur YouTube, TikTok, Instagram oder leer (Idee)
+    // URL-Validierung: Nur TikTok, Instagram oder leer (Idee)
     if (url && !this.isAllowedUrl(url)) {
-      window.toastSystem?.show('Nur YouTube, TikTok und Instagram Links sind erlaubt', 'warning');
+      window.toastSystem?.show('Nur TikTok- und Instagram-Links sind erlaubt', 'warning');
       return;
     }
 
@@ -242,30 +253,21 @@ export class AddItemDrawer {
 
     // Eindeutige ID generieren
     const id = `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Plattform erkennen
-    const platform = this.detectPlatform(url);
-    const estimatedTime = url ? this.estimatedTimes[platform] : this.estimatedTimes.idea;
 
-    // Zur Queue hinzufügen
     this.queue.push({
       id,
       url,
       kategorie,
       beschreibung,
-      platform,
+      platform: this.detectPlatform(url),
       status: 'pending',
-      phase: null, // 'screenshot' | 'saving'
-      estimatedTime,
-      elapsed: 0,
-      screenshot_url: null,
-      error: null,
-      startTime: null
+      error: null
     });
 
     // Inputs leeren
     urlInput.value = '';
     if (beschreibungInput) beschreibungInput.value = '';
+    this.syncBeschreibungVisibility();
     urlInput.focus();
 
     // Queue rendern
@@ -278,21 +280,13 @@ export class AddItemDrawer {
   }
 
   /**
-   * Prüft ob URL erlaubt ist (nur YouTube, TikTok, Instagram)
+   * Prüft ob URL erlaubt ist. Nur TikTok und Instagram: aus beiden laesst sich
+   * eine Tonspur bzw. Untertitel ziehen, YouTube nicht.
    */
   isAllowedUrl(url) {
     if (!url) return true; // Leere URL = Idee, erlaubt
     const urlLower = url.toLowerCase();
-    
-    // Erlaubte Plattformen
-    const allowedDomains = [
-      'youtube.com',
-      'youtu.be',
-      'tiktok.com',
-      'instagram.com'
-    ];
-    
-    return allowedDomains.some(domain => urlLower.includes(domain));
+    return ['tiktok.com', 'instagram.com'].some(domain => urlLower.includes(domain));
   }
 
   /**
@@ -378,7 +372,6 @@ export class AddItemDrawer {
     // Wenn Item gerade verarbeitet wird, als cancelled markieren
     if (item.status === 'processing') {
       item.status = 'cancelled';
-      this.stopTimer();
     }
 
     // Aus Queue entfernen
@@ -398,8 +391,6 @@ export class AddItemDrawer {
     // Status zurücksetzen
     item.status = 'pending';
     item.error = null;
-    item.elapsed = 0;
-    item.startTime = null;
 
     // Queue neu rendern
     this.renderQueue();
@@ -441,21 +432,15 @@ export class AddItemDrawer {
       ? (item.url.length > 50 ? item.url.substring(0, 50) + '...' : item.url)
       : 'Idee (ohne URL)';
 
-    // Progress in Prozent
-    const progressPercent = Math.min(Math.round((item.elapsed / item.estimatedTime) * 100), 99);
+    // Die eigentliche Arbeit passiert danach in der Background Function; hier
+    // wird nur angelegt und angestossen, deshalb kein Zeit-Balken mehr.
+    const statusText = item.status === 'done'
+      ? (item.url ? 'Angelegt – Screenshot & Transkript laufen im Hintergrund' : 'Idee angelegt')
+      : item.status === 'error' ? (item.error || 'Fehlgeschlagen')
+        : item.status === 'processing' ? 'Wird angelegt...' : 'Wartet...';
 
-    // Progress-Bar (bei processing)
-    let progressHtml = '';
-    if (item.status === 'processing') {
-      progressHtml = `
-        <div class="queue-item-progress-row">
-          <div class="queue-item-progress">
-            <div class="queue-item-progress-bar" style="width: ${progressPercent}%"></div>
-          </div>
-          <span class="queue-item-percent" id="queue-percent-${item.id}">${progressPercent}%</span>
-        </div>
-      `;
-    }
+    const statusClass = item.status === 'error' ? 'queue-item-error-text' : 'queue-item-hint';
+    const progressHtml = `<span class="${statusClass}">${this.escapeHtml(statusText)}</span>`;
 
     // Retry-Button nur bei error
     let retryHtml = '';
@@ -480,7 +465,6 @@ export class AddItemDrawer {
             ${item.kategorie ? `<span class="queue-item-kategorie">${this.escapeHtml(item.kategorie)}</span>` : ''}
             ${item.beschreibung ? `<span class="queue-item-beschreibung">${this.escapeHtml(item.beschreibung)}</span>` : ''}
             ${progressHtml}
-            ${item.status === 'error' ? `<span class="queue-item-error-text">Fehlgeschlagen</span>` : ''}
           </div>
           <div class="queue-item-right">
             ${retryHtml}
@@ -495,7 +479,9 @@ export class AddItemDrawer {
   }
 
   /**
-   * Queue verarbeiten
+   * Queue verarbeiten: Item anlegen und die Verarbeitung anstossen. Screenshot
+   * und Transkription laufen danach serverseitig weiter - dieser Schritt dauert
+   * nur so lange wie der Insert.
    */
   async processQueue() {
     if (this.isProcessing) return;
@@ -508,22 +494,15 @@ export class AddItemDrawer {
 
     this.isProcessing = true;
     nextItem.status = 'processing';
-    nextItem.phase = nextItem.url ? 'screenshot' : 'saving';
-    nextItem.startTime = Date.now();
-    nextItem.elapsed = 0;
-
-    // Timer starten für Echtzeit-Anzeige
-    this.startTimer(nextItem);
     this.renderQueue();
 
     try {
-      // Defensiv: Kategorie erneut validieren BEVOR Screenshot/Insert.
-      // Verhindert teure Screenshot-Generierung und Waisen-Items in der DB,
-      // falls eine ungültige/nicht existierende Kategorie durchrutscht.
+      // Defensiv: Kategorie erneut validieren BEVOR das Item entsteht.
+      // Verhindert Waisen-Items in der DB, falls eine ungültige/nicht
+      // existierende Kategorie durchrutscht.
       if (nextItem.kategorie && !(this.teilbereiche || []).includes(nextItem.kategorie)) {
         nextItem.status = 'error';
         nextItem.error = 'Ungültige Kategorie';
-        this.stopTimer();
         this.renderQueue();
         window.toastSystem?.show('Ungültige Kategorie – nicht gespeichert', 'error');
         this.isProcessing = false;
@@ -531,64 +510,29 @@ export class AddItemDrawer {
         return;
       }
 
-      // Screenshot generieren (nur wenn URL vorhanden)
-      let screenshotUrl = null;
-      let platform = nextItem.platform;
+      const existingItems = await strategieService.getStrategieItems(this.strategieId);
+      const created = await strategieService.createStrategieItem({
+        strategie_id: this.strategieId,
+        video_link: nextItem.url,
+        plattform: nextItem.url ? nextItem.platform : null,
+        sortierung: existingItems.length,
+        teilbereich: nextItem.kategorie,
+        beschreibung: nextItem.beschreibung,
+        // Nur Videos brauchen einen Lauf; eine Idee ist mit dem Insert fertig
+        verarbeitung_status: nextItem.url ? 'pending' : null
+      });
 
       if (nextItem.url) {
-        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        
-        if (!isLocalhost) {
-          console.log('📸 Starte Screenshot-Generierung für:', nextItem.url);
-          const screenshotResult = await strategieService.generateScreenshot(nextItem.url);
-          screenshotUrl = screenshotResult.screenshot_url;
-          platform = screenshotResult.platform || platform;
-          console.log('✅ Screenshot erstellt:', screenshotUrl);
-        } else {
-          console.log('⚠️ Screenshot übersprungen (localhost)');
+        // Schlaegt der Trigger fehl, bleibt das Item auf 'pending' und laesst
+        // sich ueber "Neu verarbeiten" nachziehen - das Item selbst ist da.
+        try {
+          await strategieService.enqueueItemProcessing(this.strategieId, created.id);
+        } catch (e) {
+          console.warn('Verarbeitung konnte nicht gestartet werden:', e);
         }
       }
 
-      // Prüfen ob Item noch existiert (könnte gelöscht worden sein)
-      if (!this.queue.find(i => i.id === nextItem.id)) {
-        console.log('⏭️ Item während Verarbeitung gelöscht, überspringe...');
-        this.stopTimer();
-        this.isProcessing = false;
-        this.processQueue();
-        return;
-      }
-
-      // Phase wechseln zu "speichern"
-      nextItem.phase = 'saving';
-      this.renderQueue();
-
-      // Item erstellen
-      const existingItems = await strategieService.getStrategieItems(this.strategieId);
-      const itemData = {
-        strategie_id: this.strategieId,
-        video_link: nextItem.url,
-        screenshot_url: screenshotUrl,
-        plattform: nextItem.url ? platform : null,
-        sortierung: existingItems.length,
-        teilbereich: nextItem.kategorie,
-        beschreibung: nextItem.beschreibung
-      };
-
-      await strategieService.createStrategieItem(itemData);
-
-      // Nochmal prüfen ob Item noch existiert
-      if (!this.queue.find(i => i.id === nextItem.id)) {
-        console.log('⏭️ Item während Speichern gelöscht');
-        this.stopTimer();
-        this.isProcessing = false;
-        this.processQueue();
-        return;
-      }
-
-      // Erfolg
       nextItem.status = 'done';
-      nextItem.screenshot_url = screenshotUrl;
-      this.stopTimer();
       this.renderQueue();
 
       // Live-Update der Tabelle dispatchen
@@ -596,15 +540,13 @@ export class AddItemDrawer {
         detail: { strategieId: this.strategieId }
       }));
 
-      // Toast
-      const msg = nextItem.url ? 'Video hinzugefügt' : 'Idee hinzugefügt';
+      const msg = nextItem.url ? 'Video hinzugefügt – Verarbeitung läuft' : 'Idee hinzugefügt';
       window.toastSystem?.show(msg, 'success');
 
     } catch (error) {
       console.error('Fehler beim Verarbeiten:', error);
       nextItem.status = 'error';
       nextItem.error = error.message || 'Unbekannter Fehler';
-      this.stopTimer();
       this.renderQueue();
 
       window.toastSystem?.show('Fehler beim Hinzufügen', 'error');
@@ -617,52 +559,14 @@ export class AddItemDrawer {
   }
 
   /**
-   * Timer für Echtzeit-Anzeige starten (Prozent)
-   */
-  startTimer(item) {
-    this.stopTimer();
-    
-    this.timerInterval = setInterval(() => {
-      if (item.status !== 'processing') {
-        this.stopTimer();
-        return;
-      }
-
-      item.elapsed = Math.floor((Date.now() - item.startTime) / 1000);
-      const progressPercent = Math.min(Math.round((item.elapsed / item.estimatedTime) * 100), 99);
-      
-      // Prozent-Element aktualisieren
-      const percentEl = document.getElementById(`queue-percent-${item.id}`);
-      if (percentEl) {
-        percentEl.textContent = `${progressPercent}%`;
-      }
-
-      // Progress-Bar aktualisieren
-      const progressBar = document.querySelector(`.queue-item[data-item-id="${item.id}"] .queue-item-progress-bar`);
-      if (progressBar) {
-        progressBar.style.width = `${progressPercent}%`;
-      }
-    }, 500);
-  }
-
-  /**
-   * Timer stoppen
-   */
-  stopTimer() {
-    if (this.timerInterval) {
-      clearInterval(this.timerInterval);
-      this.timerInterval = null;
-    }
-  }
-
-  /**
    * Drawer schließen
    */
   handleClose() {
-    // Prüfen ob noch Items in Verarbeitung
+    // Nur der Insert darf nicht abgeschnitten werden; Screenshot und Transkript
+    // laufen serverseitig weiter, dafuer muss der Drawer nicht offen bleiben.
     const processing = this.queue.find(i => i.status === 'processing');
     if (processing) {
-      window.toastSystem?.show('Warte bis alle Einträge verarbeitet sind', 'warning');
+      window.toastSystem?.show('Eintrag wird noch angelegt – einen Moment', 'warning');
       return;
     }
 
@@ -673,8 +577,6 @@ export class AddItemDrawer {
    * Drawer schließen (ohne Prüfung)
    */
   close() {
-    this.stopTimer();
-    
     const panel = document.getElementById(this.drawerId);
     if (panel) {
       panel.classList.remove('show');
