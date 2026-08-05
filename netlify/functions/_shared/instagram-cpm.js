@@ -59,12 +59,22 @@ const HOUR_MS = 60 * 60 * 1000;
 
 /**
  * Werbe-Kennzeichnung in einer Caption erkennen.
+ *
+ * Rueckgabe ist der konkret gefundene Marker (`"#werbung"`, `"paid partnership"`
+ * usw.), damit im Debug-Log direkt sichtbar ist warum ein Reel als Werbung
+ * eingestuft wurde. Bei nichts gefunden -> null.
+ *
  * @param {string|null|undefined} caption
+ * @returns {string|null}
  */
 function istWerbePost(caption) {
   const text = typeof caption === 'string' ? caption : '';
-  if (!text) return false;
-  return AD_HASHTAG_RE.test(text) || AD_PHRASE_RE.test(text);
+  if (!text) return null;
+  const hashtagMatch = text.match(AD_HASHTAG_RE);
+  if (hashtagMatch) return hashtagMatch[0].toLowerCase();
+  const phraseMatch = text.match(AD_PHRASE_RE);
+  if (phraseMatch) return phraseMatch[0].toLowerCase();
+  return null;
 }
 
 /**
@@ -108,12 +118,13 @@ function classifyVideos(media, now) {
       age_hours: ageHours
     };
 
-    const reason = istWerbePost(m.caption) ? 'ad_post'
+    const adMarker = istWerbePost(m.caption);
+    const reason = adMarker ? 'ad_post'
       : postedAt > cutoff ? 'too_recent'
         : null;
 
     if (reason) {
-      skipped.push({ ...entry, reason });
+      skipped.push({ ...entry, reason, ad_marker: adMarker || null });
     } else {
       included.push(entry);
     }
@@ -296,7 +307,8 @@ function computeInstagramCpm(media, opts = {}) {
       views: s.views,
       timestamp: s.timestamp,
       age_hours: s.age_hours,
-      reason: s.reason
+      reason: s.reason,
+      ad_marker: s.ad_marker || null
     })),
     calc_version: CALC_VERSION
   };
@@ -321,7 +333,8 @@ function formatCpmDebug(username, stats, meta = {}) {
     age_hours: v.age_hours,
     timestamp: v.timestamp,
     permalink: v.permalink,
-    reason: v.reason || 'too_recent'
+    reason: v.reason || 'too_recent',
+    ad_marker: v.ad_marker || null
   }));
 
   return {

@@ -79,6 +79,7 @@ function jsonResponse(statusCode, body) {
  * 30er-Fenster bleibt leer, obwohl weiter hinten genug organische Reels liegen.
  */
 function zaehleVerwertbar(media) {
+  // istWerbePost liefert einen Marker-String oder null; ein Marker macht !… zu false.
   return media.filter((m) => m?.media_type === 'VIDEO' && !istWerbePost(m.caption)).length;
 }
 

@@ -289,45 +289,54 @@ describe('computeInstagramCpm – Ausreißer im Fenster', () => {
 });
 
 describe('istWerbePost', () => {
-  it('erkennt die gängigen Werbe-Hashtags', () => {
-    for (const caption of [
-      'Neues Video #werbung', '#anzeige – mein Alltag', 'Schaut mal #ad',
-      '#sponsored by someone', '#paidpartnership mit XY', '#bezahltepartnerschaft',
-      'Danke fürs #kooperation', '#collab mit @marke', 'Link in Bio #affiliate'
-    ]) {
-      expect(istWerbePost(caption), caption).toBe(true);
+  it('erkennt die gängigen Werbe-Hashtags und gibt den Treffer zurück', () => {
+    const faelle = [
+      ['Neues Video #werbung', '#werbung'],
+      ['#anzeige – mein Alltag', '#anzeige'],
+      ['Schaut mal #ad', '#ad'],
+      ['#sponsored by someone', '#sponsored'],
+      ['#paidpartnership mit XY', '#paidpartnership'],
+      ['#bezahltepartnerschaft', '#bezahltepartnerschaft'],
+      ['Danke fürs #kooperation', '#kooperation'],
+      ['#collab mit @marke', '#collab'],
+      ['Link in Bio #affiliate', '#affiliate']
+    ];
+    for (const [caption, marker] of faelle) {
+      expect(istWerbePost(caption), caption).toBe(marker);
     }
   });
 
-  it('erkennt Werbe-Phrasen im Freitext', () => {
-    for (const caption of [
-      'Paid partnership with Nike', 'Bezahlte Partnerschaft mit XY',
-      'In Kooperation mit meinem Lieblingsladen', 'Anzeige | Meine Routine',
-      'Werbung | Neues Produkt'
-    ]) {
-      expect(istWerbePost(caption), caption).toBe(true);
+  it('erkennt Werbe-Phrasen im Freitext und gibt die Phrase zurück', () => {
+    const faelle = [
+      ['Paid partnership with Nike', 'paid partnership'],
+      ['Bezahlte Partnerschaft mit XY', 'bezahlte partnerschaft'],
+      ['In Kooperation mit meinem Lieblingsladen', 'in kooperation mit'],
+      ['Anzeige | Meine Routine', 'anzeige |'],
+      ['Werbung | Neues Produkt', 'werbung |']
+    ];
+    for (const [caption, marker] of faelle) {
+      expect(istWerbePost(caption), caption).toBe(marker);
     }
   });
 
   it('löst bei Hashtags nicht aus, die nur mit einem Marker anfangen', () => {
-    // Ohne Wortgrenze wuerde #ad hier dreimal falsch anschlagen
     for (const caption of [
       'Neue Schuhe #adidas', 'Tag 3 #adventskalender', '#adventure time',
       '#kooperationsanfrage bitte per Mail', '#advent'
     ]) {
-      expect(istWerbePost(caption), caption).toBe(false);
+      expect(istWerbePost(caption), caption).toBeNull();
     }
   });
 
   it('lässt organische Captions und leere Werte durch', () => {
     for (const caption of ['Schöner Tag am See', '', null, undefined]) {
-      expect(istWerbePost(caption)).toBe(false);
+      expect(istWerbePost(caption)).toBeNull();
     }
   });
 
-  it('ignoriert Groß- und Kleinschreibung', () => {
-    expect(istWerbePost('#WERBUNG')).toBe(true);
-    expect(istWerbePost('#Anzeige')).toBe(true);
+  it('ignoriert Groß- und Kleinschreibung, gibt den Marker normalisiert zurück', () => {
+    expect(istWerbePost('#WERBUNG')).toBe('#werbung');
+    expect(istWerbePost('#Anzeige')).toBe('#anzeige');
   });
 });
 
@@ -341,9 +350,31 @@ describe('computeInstagramCpm – Werbe-Reels', () => {
     const stats = computeInstagramCpm(media, { now: NOW });
 
     expect(stats.skipped_ads).toBe(1);
-    expect(stats.skipped_videos.filter(v => v.reason === 'ad_post')).toHaveLength(1);
+    const werbe = stats.skipped_videos.filter(v => v.reason === 'ad_post');
+    expect(werbe).toHaveLength(1);
+    expect(werbe[0].ad_marker).toBe('#werbung');
     expect(stats.videos_available).toBe(8);
     expect(stats.views_8).toBe(50000);
+  });
+
+  it('speichert den Werbe-Marker auch für Phrasen', () => {
+    const stats = computeInstagramCpm([
+      video(5, 800000, { caption: 'In Kooperation mit @marke' }),
+      ...videoSeries(8, 30000, 6)
+    ], { now: NOW });
+
+    const werbe = stats.skipped_videos.find(v => v.reason === 'ad_post');
+    expect(werbe.ad_marker).toBe('in kooperation mit');
+  });
+
+  it('setzt ad_marker bei zu frischen Reels auf null', () => {
+    const stats = computeInstagramCpm([
+      video(1, 700000),
+      ...videoSeries(8, 30000, 6)
+    ], { now: NOW });
+
+    const frisch = stats.skipped_videos.find(v => v.reason === 'too_recent');
+    expect(frisch.ad_marker).toBeNull();
   });
 
   it('lässt ein älteres Reel nachrücken, wenn ein Werbe-Reel wegfällt', () => {
@@ -470,7 +501,7 @@ describe('formatCpmDebug', () => {
     expect(debug.summary.formula).toContain(String(CPM_RATE));
   });
 
-  it('weist die aussortierten Werbe-Reels in summary aus', () => {
+  it('weist die aussortierten Werbe-Reels in summary aus und zeigt den Marker', () => {
     const stats = computeInstagramCpm([
       video(5, 900000, { caption: '#werbung' }),
       ...videoSeries(8, 50000, 6)
@@ -480,6 +511,7 @@ describe('formatCpmDebug', () => {
 
     expect(debug.summary.skipped_ads).toBe(1);
     expect(debug.skipped[0].reason).toBe('ad_post');
+    expect(debug.skipped[0].ad_marker).toBe('#werbung');
   });
 
   it('führt die erkannten Ausreißer je Fenster auf', () => {
