@@ -69,18 +69,26 @@ describe('matchesStatusFilter', () => {
 });
 
 describe('Statusfilter in der Toolbar', () => {
-  it('rendert den Container vor dem Teilen-Button', () => {
-    const doc = parse(renderAddSection({ isKunde: false }));
-    const container = doc.getElementById('sourcing-status-filter-container');
+  it('legt Status filtern als Submenu ins Plus-Dropdown', () => {
+    const doc = parse(renderAddSection({ isKunde: false, statusFilter: ['Angefragt'] }));
+    const submenu = doc.querySelector('.sourcing-status-filter-submenu');
+    const dropdown = doc.querySelector('.sourcing-toolbar-dropdown');
 
-    expect(container).not.toBeNull();
-    expect(container.parentElement.classList.contains('add-item-actions-right')).toBe(true);
-    expect(container.nextElementSibling.id).toBe('btn-share-sourcing');
+    expect(submenu).not.toBeNull();
+    expect(submenu.closest('.sourcing-toolbar-dropdown')).toBe(dropdown);
+    expect(submenu.querySelector('.action-item.has-submenu').textContent).toContain('Status filtern');
+    expect(submenu.querySelector('[data-status-tag="Angefragt"] .submenu-check')).not.toBeNull();
+    expect(submenu.querySelector('[data-status-filter-reset]')).not.toBeNull();
+
+    const shareBtn = doc.getElementById('btn-share-sourcing');
+    expect(shareBtn.closest('.sourcing-toolbar-dropdown')).not.toBeNull();
   });
 
-  it('rendert fuer Kunden keinen Filter-Container', () => {
+  it('rendert fuer Kunden kein Status-Submenu und kein Plus-Menü', () => {
     const doc = parse(renderAddSection({ isKunde: true }));
 
+    expect(doc.querySelector('.sourcing-status-filter-submenu')).toBeNull();
+    expect(doc.querySelector('.sourcing-toolbar-menu')).toBeNull();
     expect(doc.getElementById('sourcing-status-filter-container')).toBeNull();
   });
 });

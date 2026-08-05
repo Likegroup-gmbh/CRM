@@ -8,6 +8,7 @@ import { formatCompactNumber, formatExactNumber } from '../../core/format/compac
 import { renderSourcingIgCell } from './sourcingIgCell.js';
 import {
   SOURCING_STATUS_OPTIONS,
+  SOURCING_STATUS_FILTER_TAGS,
   getSourcingStatus,
   getSourcingStatusMeta
 } from './sourcingStatusOptions.js';
@@ -286,6 +287,42 @@ function renderListenKopf(ctx) {
   `;
 }
 
+const STATUS_FILTER_ICON = `
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>`;
+
+const STATUS_FILTER_CHECK_ICON = `
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+  </svg>`;
+
+function renderStatusFilterSubmenu(ctx = {}) {
+  const selected = ctx.statusFilter || [];
+  const hasActive = selected.length > 0;
+  const items = SOURCING_STATUS_FILTER_TAGS.map(tag => {
+    const isActive = selected.includes(tag);
+    return `
+      <button type="button" class="submenu-item" data-status-tag="${escapeHtml(tag)}" role="menuitemcheckbox" aria-checked="${isActive}">
+        <span>${escapeHtml(tag)}</span>
+        ${isActive ? `<span class="submenu-check">${STATUS_FILTER_CHECK_ICON}</span>` : ''}
+      </button>`;
+  }).join('');
+
+  return `
+    <div class="action-submenu sourcing-status-filter-submenu">
+      <button type="button" class="action-item has-submenu${hasActive ? ' active' : ''}" data-submenu="status-filter" role="menuitem" aria-haspopup="true">
+        ${STATUS_FILTER_ICON}
+        <span>Status filtern</span>
+      </button>
+      <div class="submenu" data-submenu="status-filter" role="menu">
+        ${hasActive ? `
+          <button type="button" class="submenu-item sourcing-status-filter-reset" data-status-filter-reset role="menuitem">
+            Alle zurücksetzen
+          </button>` : ''}
+        ${items}
+      </div>
+    </div>`;
+}
+
 export function renderAddSection(ctx = {}) {
   const kundenCallActive = ctx.kundenCallActive || false;
   return `
@@ -299,44 +336,53 @@ export function renderAddSection(ctx = {}) {
           currentValue: escapeHtml(ctx.searchQuery || '')
         })}
         ${!ctx.isKunde ? `
-        <div id="sourcing-status-filter-container"></div>
-        <button type="button" class="secondary-btn" id="btn-share-sourcing" title="Liste per E-Mail teilen">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" style="width: 16px; height: 16px;">
-            <path d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H165a88,88,0,0,0-85.23,66,8,8,0,0,1-15.5-4A103.94,103.94,0,0,1,165,96h39.71L170.34,61.66a8,8,0,0,1,11.32-11.32l48,48A8,8,0,0,1,229.66,109.66ZM192,208H40V88a8,8,0,0,0-16,0V216a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16Z"></path>
-          </svg>
-          Teilen
-        </button>
-        <button type="button" class="secondary-btn${kundenCallActive ? ' active' : ''}" id="btn-kunden-call-toggle" title="EK und CPM für Kundenpräsentation ausblenden">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
-          </svg>
-          Kunden Call
-        </button>
-        <button type="button" class="secondary-btn" id="btn-sourcing-tabelle-anpassen" title="TKP, Art der Liste und Spalten-Sichtbarkeit">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
-          </svg>
-          Tabelle anpassen
-        </button>
-        <button type="button" class="secondary-btn" id="btn-sourcing-custom-columns" title="Eigene Spalten verwalten">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-          </svg>
-          Eigene Spalten
-        </button>
-        <button type="button" class="secondary-btn" id="btn-manage-kategorien" title="Kategorien verwalten">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z" />
-          </svg>
-          Kategorien
-        </button>
         <button type="button" class="primary-btn" id="btn-open-add-drawer">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
           Creator hinzufügen
         </button>
+        <div class="sourcing-toolbar-menu">
+          <button type="button" class="sourcing-toolbar-menu-toggle" id="btn-sourcing-toolbar-menu" aria-expanded="false" aria-haspopup="true" title="Weitere Aktionen" aria-label="Weitere Aktionen">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+          </button>
+          <div class="sourcing-toolbar-dropdown" role="menu" aria-hidden="true">
+            ${renderStatusFilterSubmenu(ctx)}
+            <button type="button" class="action-item" id="btn-share-sourcing" role="menuitem" title="Liste per E-Mail teilen">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256">
+                <path d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H165a88,88,0,0,0-85.23,66,8,8,0,0,1-15.5-4A103.94,103.94,0,0,1,165,96h39.71L170.34,61.66a8,8,0,0,1,11.32-11.32l48,48A8,8,0,0,1,229.66,109.66ZM192,208H40V88a8,8,0,0,0-16,0V216a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16Z"></path>
+              </svg>
+              Teilen
+            </button>
+            <button type="button" class="action-item${kundenCallActive ? ' active' : ''}" id="btn-kunden-call-toggle" role="menuitem" title="EK und CPM für Kundenpräsentation ausblenden">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
+              </svg>
+              Kunden Call
+            </button>
+            <button type="button" class="action-item" id="btn-sourcing-tabelle-anpassen" role="menuitem" title="TKP, Art der Liste und Spalten-Sichtbarkeit">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
+              </svg>
+              Tabelle anpassen
+            </button>
+            <button type="button" class="action-item" id="btn-sourcing-custom-columns" role="menuitem" title="Eigene Spalten verwalten">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+              </svg>
+              Eigene Spalten
+            </button>
+            <button type="button" class="action-item" id="btn-manage-kategorien" role="menuitem" title="Kategorien verwalten">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z" />
+              </svg>
+              Kategorien
+            </button>
+          </div>
+        </div>
         ` : ''}
       </div>
     </div>

@@ -203,17 +203,36 @@ describe('Sourcing – Kopfzeile der Detailtabelle', () => {
     expect(name.closest('.add-item-actions-left')).not.toBeNull();
   });
 
-  it('stellt die Suche vor den Status-Filter und zeigt sie auch Kunden', () => {
+  it('stellt die Suche vor Creator hinzufügen und Plus-Menü; Kunden sehen nur die Suche', () => {
     const doc = kopf();
     const rechts = doc.querySelector('.add-item-actions-right');
     const kinder = Array.from(rechts.children);
 
     expect(kinder[0].querySelector('#sourcing-item-search-input')).not.toBeNull();
-    expect(kinder[1].id).toBe('sourcing-status-filter-container');
+    expect(kinder[1].id).toBe('btn-open-add-drawer');
+    expect(kinder[2].classList.contains('sourcing-toolbar-menu')).toBe(true);
 
     const kundenDoc = kopf({ isKunde: true });
     expect(kundenDoc.querySelector('#sourcing-item-search-input')).not.toBeNull();
-    expect(kundenDoc.querySelector('#sourcing-status-filter-container')).toBeNull();
+    expect(kundenDoc.querySelector('.sourcing-toolbar-menu')).toBeNull();
+    expect(kundenDoc.querySelector('.sourcing-status-filter-submenu')).toBeNull();
+  });
+
+  it('legt Status-Filter und Toolbar-Actions ins Plus-Dropdown', () => {
+    const doc = kopf({ kundenCallActive: true, statusFilter: ['Zusage', 'Buchen'] });
+    const dropdown = doc.querySelector('.sourcing-toolbar-dropdown');
+    const statusSub = dropdown.querySelector('.sourcing-status-filter-submenu');
+
+    expect(doc.getElementById('btn-sourcing-toolbar-menu')).not.toBeNull();
+    expect(statusSub.querySelector('[data-status-tag="Zusage"] .submenu-check')).not.toBeNull();
+    expect(statusSub.querySelector('[data-status-tag="Buchen"] .submenu-check')).not.toBeNull();
+    expect(statusSub.querySelector('[data-status-tag="Angefragt"] .submenu-check')).toBeNull();
+    expect(dropdown.querySelector('#btn-share-sourcing')).not.toBeNull();
+    expect(dropdown.querySelector('#btn-kunden-call-toggle').classList.contains('active')).toBe(true);
+    expect(dropdown.querySelector('#btn-sourcing-tabelle-anpassen')).not.toBeNull();
+    expect(dropdown.querySelector('#btn-sourcing-custom-columns')).not.toBeNull();
+    expect(dropdown.querySelector('#btn-manage-kategorien')).not.toBeNull();
+    expect(dropdown.querySelector('#btn-open-add-drawer')).toBeNull();
   });
 });
 
