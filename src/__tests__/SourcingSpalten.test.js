@@ -40,9 +40,9 @@ describe('Sourcing – Spaltenreihenfolge', () => {
   it('stellt Bild zwischen Checkbox und Namen, Status direkt hinter die Creator Art', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
 
-    expect(spalten.slice(0, 10)).toEqual([
+    expect(spalten.slice(0, 9)).toEqual([
       'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-notiz',
-      'cp-col-typ', 'cp-col-status', 'cp-col-nutzungsrechte',
+      'cp-col-typ', 'cp-col-status',
       'cp-col-location', 'cp-col-mail', 'cp-col-telefon'
     ]);
   });
@@ -86,12 +86,13 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     ]);
   });
 
-  it('setzt den Gesamtpreis hinter TikTok, danach die Garantie', () => {
+  it('setzt den Gesamtpreis hinter TikTok, danach Nutzungsrechte und Garantie', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
     const ab = spalten.indexOf('cp-col-follower-tt');
 
-    expect(spalten.slice(ab, ab + 3)).toEqual([
-      'cp-col-follower-tt', 'cp-col-pricing', 'cp-col-reichweite-garantie'
+    expect(spalten.slice(ab, ab + 4)).toEqual([
+      'cp-col-follower-tt', 'cp-col-pricing', 'cp-col-nutzungsrechte',
+      'cp-col-reichweite-garantie'
     ]);
   });
 
