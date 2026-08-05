@@ -12789,9 +12789,9 @@ table:has(#strategien-table-body) td.col-actions {
 }
 
 .creator-pool-table .cp-col-notiz {
-  width: clamp(120px, 14vw, 182px);
-  min-width: 120px;
-  max-width: 182px;
+  width: clamp(150px, 17.5vw, 228px);
+  min-width: 150px;
+  max-width: 228px;
 }
 
 .creator-pool-table td.cp-col-notiz {

@@ -130,13 +130,13 @@ export function isColumnVisibleForCustomer(columnClass, isKunde, hiddenColumns) 
  */
 export const SOURCING_SPALTEN = [
   'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-notiz',
-  'cp-col-typ', 'cp-col-status', 'cp-col-nutzungsrechte',
+  'cp-col-typ', 'cp-col-status',
   'cp-col-location', 'cp-col-mail', 'cp-col-telefon',
   'cp-col-link-ig', 'cp-col-follower-ig',
   'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-preis-reels',
   'cp-col-reichweite-story', 'cp-col-preis-story',
   'cp-col-link-tt', 'cp-col-follower-tt',
-  'cp-col-pricing', 'cp-col-reichweite-garantie',
+  'cp-col-pricing', 'cp-col-nutzungsrechte', 'cp-col-reichweite-garantie',
   'cp-col-ek', 'cp-col-vk',
   'cp-col-feedback',
   'cp-col-actions'
@@ -410,8 +410,6 @@ export function renderItemsTable(ctx) {
             ${customAt('cp-col-typ')}
             <th class="cp-col-status" ${hide('cp-col-status')}>Status</th>
             ${customAt('cp-col-status')}
-            <th class="cp-col-nutzungsrechte" ${hide('cp-col-nutzungsrechte')} title="Laufzeit, Kanäle und Sonderabsprachen">Nutzungsrechte</th>
-            ${customAt('cp-col-nutzungsrechte')}
             <th class="cp-col-location" ${hide('cp-col-location')}>Location</th>
             ${customAt('cp-col-location')}
             <th class="cp-col-mail" ${hide('cp-col-mail')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Mail</th>
@@ -438,6 +436,8 @@ export function renderItemsTable(ctx) {
             ${customAt('cp-col-follower-tt')}
             <th class="cp-col-pricing" ${hide('cp-col-pricing')} title="Der verhandelte Gesamtpreis">Gesamtpreis</th>
             ${customAt('cp-col-pricing')}
+            <th class="cp-col-nutzungsrechte" ${hide('cp-col-nutzungsrechte')} title="Laufzeit, Kanäle und Sonderabsprachen">Nutzungsrechte</th>
+            ${customAt('cp-col-nutzungsrechte')}
             <th class="cp-col-reichweite-garantie" ${hide('cp-col-reichweite-garantie')}>RW Garantie</th>
             ${customAt('cp-col-reichweite-garantie')}
             <th class="cp-col-ek" ${hide('cp-col-ek')}>EK</th>
@@ -871,12 +871,6 @@ export function renderItemRow(ctx, item, index) {
         ${renderSourcingStatusCell(ctx, item)}
       </td>
       ${customAt('cp-col-status')}
-      <td class="cell-textarea cp-col-nutzungsrechte" style="${hide('cp-col-nutzungsrechte')}">
-        ${!ctx.isKunde ? `
-          <textarea class="strategie-textarea" data-field="nutzungsrechte" data-item-id="${item.id}" placeholder="Nutzungsrechte...">${escapeHtml(item.nutzungsrechte || '')}</textarea>
-        ` : `<div class="cell-text-readonly">${escapeHtml(item.nutzungsrechte || '-')}</div>`}
-      </td>
-      ${customAt('cp-col-nutzungsrechte')}
       <td class="cell-textarea cp-col-location" style="${hide('cp-col-location')}">
         ${!ctx.isKunde ? `
           <textarea class="strategie-textarea" data-field="wohnort" data-item-id="${item.id}" placeholder="Location...">${item.wohnort || ''}</textarea>
@@ -928,6 +922,12 @@ export function renderItemRow(ctx, item, index) {
       ${customAt('cp-col-follower-tt')}
       ${renderPreisFreitextCell(ctx, item, 'cp-col-pricing', 'pricing', hide)}
       ${customAt('cp-col-pricing')}
+      <td class="cell-textarea cp-col-nutzungsrechte" style="${hide('cp-col-nutzungsrechte')}">
+        ${!ctx.isKunde ? `
+          <textarea class="strategie-textarea" data-field="nutzungsrechte" data-item-id="${item.id}" placeholder="Nutzungsrechte...">${escapeHtml(item.nutzungsrechte || '')}</textarea>
+        ` : `<div class="cell-text-readonly">${escapeHtml(item.nutzungsrechte || '-')}</div>`}
+      </td>
+      ${customAt('cp-col-nutzungsrechte')}
       <td class="cell-textarea cp-col-reichweite-garantie" style="${hide('cp-col-reichweite-garantie')}">
         ${!ctx.isKunde ? `
           <input type="text" class="strategie-textarea" data-field="reichweite_garantie" data-item-id="${item.id}" placeholder="z.B. 50K" value="${item.reichweite_garantie || ''}">
