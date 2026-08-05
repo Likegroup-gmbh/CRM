@@ -5,6 +5,7 @@
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
 import { renderPaginatedText, renderZusatzBestimmung } from './PdfTextFlow.js';
+import { buildContractingAuftragnehmerLines } from './ContractingAuftragnehmerLines.js';
 
 VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang = this.getContractLanguage(vertrag)) {
   try {
@@ -86,6 +87,7 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
     // Daten holen
     const kunde = this.unternehmen.find(u => u.id === vertrag.kunde_unternehmen_id);
     const creator = this.creators.find(c => c.id === vertrag.creator_id);
+    const creatorName = `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim();
     const creatorContractAddress = this.getResolvedCreatorContractAddress(creator, vertrag);
     const auftrag = (this.contractingAuftraege || []).find(a => a.id === vertrag.contracting_auftrag_id);
 
@@ -194,36 +196,20 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
     y += 5;
     doc.text('Deutschland', 105, y, { align: 'center' });
 
-    // Auftragnehmer / Influencer
+    // Auftragnehmer / Influencer (Toggle nur_management_adresse steuert Name/Layout)
     y += 12;
     doc.setFont('helvetica', 'bold');
     doc.text('Auftragnehmer / Influencer:', 105, y, { align: 'center' });
     doc.setFont('helvetica', 'normal');
     y += 6;
-    const creatorName = `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim();
-    doc.text(`Name: ${creatorName || '-'}`, 105, y, { align: 'center' });
-    y += 5;
-
-    if (vertrag.influencer_agentur_vertreten) {
-      doc.text(`Für Influencer (Agentur): ${vertrag.influencer_agentur_name || '-'}`, 105, y, { align: 'center' });
+    const auftragnehmerLines = buildContractingAuftragnehmerLines({
+      vertrag,
+      creator,
+      address: creatorContractAddress
+    });
+    for (const line of auftragnehmerLines) {
+      doc.text(line, 105, y, { align: 'center' });
       y += 5;
-      const aStrasse = `${vertrag.influencer_agentur_strasse || ''} ${vertrag.influencer_agentur_hausnummer || ''}`.trim();
-      const aPlzStadt = `${vertrag.influencer_agentur_plz || ''} ${vertrag.influencer_agentur_stadt || ''}`.trim();
-      doc.text(aStrasse || '-', 105, y, { align: 'center' });
-      y += 5;
-      doc.text(aPlzStadt || '-', 105, y, { align: 'center' });
-      y += 5;
-      doc.text(vertrag.influencer_agentur_land || 'Deutschland', 105, y, { align: 'center' });
-      y += 5;
-      doc.text(`Vertreten durch: ${vertrag.influencer_agentur_vertretung || '-'}`, 105, y, { align: 'center' });
-    } else {
-      const cStrasse = `${creatorContractAddress?.strasse || ''} ${creatorContractAddress?.hausnummer || ''}`.trim();
-      const cPlzStadt = `${creatorContractAddress?.plz || ''} ${creatorContractAddress?.stadt || ''}`.trim();
-      doc.text(cStrasse || '-', 105, y, { align: 'center' });
-      y += 5;
-      doc.text(cPlzStadt || '-', 105, y, { align: 'center' });
-      y += 5;
-      doc.text(creatorContractAddress?.land || vertrag.influencer_land || 'Deutschland', 105, y, { align: 'center' });
     }
 
     // Beguenstigter Dritter (Unternehmen aus dem Contracting-Auftrag)
