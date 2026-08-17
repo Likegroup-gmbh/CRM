@@ -165,6 +165,17 @@ export function setupSteuerfreiDisclosure(nettoSteuerfreiInput) {
   });
 }
 
+// Land fuer die Rechnung aus der Creator-Adresse ableiten:
+// abweichende Rechnungsadresse gewinnt, sonst Lieferadresse, sonst leer.
+export function resolveCreatorRechnungsland(creator) {
+  if (!creator) return '';
+  if (creator.rechnungsadresse_abweichend) {
+    const billing = (creator.rechnungsadresse_land || '').trim();
+    if (billing) return billing;
+  }
+  return (creator.lieferadresse_land || '').trim();
+}
+
 /**
  * Finalisiert submitData vor dem Speichern einer Rechnung.
  * Stellt sicher, dass ust_prozent korrekt aus dem Toggle abgeleitet wird
@@ -239,6 +250,7 @@ export async function setup(form, ctx) {
   const ustProzentInput = form.querySelector('input[name="ust_prozent"]');
   const ustAktivToggle = form.querySelector('input[name="ust_aktiv"]');
   const bruttoInput = form.querySelector('input[name="bruttobetrag"]');
+  const landInput = form.querySelector('input[name="land"]');
 
   // KSK-Feld nur zeigen, wenn ein Aufschlag existiert (Selbstzahler-Kooperation)
   const updateKskVisibility = () => {
@@ -354,6 +366,7 @@ export async function setup(form, ctx) {
       if (bruttoInput) bruttoInput.value = '';
       if (ustAktivToggle) ustAktivToggle.checked = true;
       if (ustProzentInput) ustProzentInput.value = '19';
+      if (landInput) landInput.value = '';
       
       return;
     }
@@ -385,7 +398,7 @@ export async function setup(form, ctx) {
         ? window.supabase.from('kampagne').select('id, kampagnenname, eigener_name, auftrag_id, auftrag:auftrag_id(id, auftragsname)').eq('id', koop.kampagne_id).single()
         : Promise.resolve({ data: null }),
       koop?.creator_id
-        ? window.supabase.from('creator').select('id, vorname, nachname, umsatzsteuerpflichtig').eq('id', koop.creator_id).single()
+        ? window.supabase.from('creator').select('id, vorname, nachname, umsatzsteuerpflichtig, lieferadresse_land, rechnungsadresse_abweichend, rechnungsadresse_land').eq('id', koop.creator_id).single()
         : Promise.resolve({ data: null })
     ]);
 
@@ -433,10 +446,14 @@ export async function setup(form, ctx) {
       if (ustProzentInput) {
         ustProzentInput.value = String(isUstPflichtig ? 19 : 0);
       }
+      if (landInput) {
+        landInput.value = resolveCreatorRechnungsland(creatorData);
+      }
       fillSelect(creatorField, creatorId, creatorLabel);
     } else {
       if (ustAktivToggle) ustAktivToggle.checked = true;
       if (ustProzentInput) ustProzentInput.value = '19';
+      if (landInput) landInput.value = '';
     }
 
     // Videoanzahl + Beträge aus Kooperation

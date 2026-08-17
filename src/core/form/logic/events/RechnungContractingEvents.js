@@ -3,7 +3,7 @@
 // Nettobetrag wird NICHT prefilled — Mitarbeiter gibt ihn manuell ein.
 // Live-Check: warnt wenn verfuegbares Budget ueberschritten wird.
 
-import { berechneRechnungFromInputs, setupSteuerfreiDisclosure } from './RechnungEvents.js';
+import { berechneRechnungFromInputs, setupSteuerfreiDisclosure, resolveCreatorRechnungsland } from './RechnungEvents.js';
 
 const BUDGET_BANNER_ID = 'contracting-budget-banner';
 
@@ -139,6 +139,7 @@ export async function setup(form, ctx) {
   const ustAktivToggle = form.querySelector('input[name="ust_aktiv"]');
   const ustBetragInput = form.querySelector('input[name="ust_betrag"]');
   const bruttoInput = form.querySelector('input[name="bruttobetrag"]');
+  const landInput = form.querySelector('input[name="land"]');
 
   let _contractBudget = 0;
   let _bereitsVergeben = 0;
@@ -217,20 +218,21 @@ export async function setup(form, ctx) {
 
   contractSelect.addEventListener('change', onContractChange);
 
-  // Creator-Wechsel: USt aus Creator ableiten
+  // Creator-Wechsel: USt + Land aus Creator ableiten
   if (creatorField) {
     creatorField.addEventListener('change', async () => {
       const creatorId = creatorField.value;
       if (!creatorId) return;
       const { data: creator } = await window.supabase
         .from('creator')
-        .select('umsatzsteuerpflichtig')
+        .select('umsatzsteuerpflichtig, lieferadresse_land, rechnungsadresse_abweichend, rechnungsadresse_land')
         .eq('id', creatorId)
         .single();
       if (creator) {
         const isUstPflichtig = creator.umsatzsteuerpflichtig !== false;
         if (ustAktivToggle) ustAktivToggle.checked = isUstPflichtig;
         if (ustProzentInput) ustProzentInput.value = String(isUstPflichtig ? 19 : 0);
+        if (landInput) landInput.value = resolveCreatorRechnungsland(creator);
         berechne();
       }
     });

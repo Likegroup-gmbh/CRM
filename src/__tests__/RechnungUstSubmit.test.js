@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { finalizeRechnungSubmitData } from '../core/form/logic/events/RechnungEvents.js';
+import { finalizeRechnungSubmitData, resolveCreatorRechnungsland } from '../core/form/logic/events/RechnungEvents.js';
 import { AutoCalculation } from '../core/form/logic/AutoCalculation.js';
 
 function makeForm({ ustAktivChecked = true, ustProzentValue = '19', skontoChecked = false, geprueftChecked = false, kskChecked = false, nettoValue = '1000', ustBetragValue = '190', bruttobetragValue = '1190' } = {}) {
@@ -111,6 +111,45 @@ describe('finalizeRechnungSubmitData', () => {
     finalizeRechnungSubmitData(form, submitData);
 
     expect(submitData.vertrag_id).toBe('v-123');
+  });
+});
+
+describe('resolveCreatorRechnungsland', () => {
+  it('bevorzugt abweichende Rechnungsadresse', () => {
+    const creator = {
+      rechnungsadresse_abweichend: true,
+      rechnungsadresse_land: 'Österreich',
+      lieferadresse_land: 'Deutschland',
+    };
+    expect(resolveCreatorRechnungsland(creator)).toBe('Österreich');
+  });
+
+  it('faellt auf Lieferadresse zurueck, wenn Rechnungsland leer ist', () => {
+    const creator = {
+      rechnungsadresse_abweichend: true,
+      rechnungsadresse_land: '  ',
+      lieferadresse_land: 'Deutschland',
+    };
+    expect(resolveCreatorRechnungsland(creator)).toBe('Deutschland');
+  });
+
+  it('nutzt Lieferadresse, wenn keine abweichende Rechnungsadresse aktiv ist', () => {
+    const creator = {
+      rechnungsadresse_abweichend: false,
+      rechnungsadresse_land: 'Österreich',
+      lieferadresse_land: 'Schweiz',
+    };
+    expect(resolveCreatorRechnungsland(creator)).toBe('Schweiz');
+  });
+
+  it('liefert leeren String, wenn kein Land hinterlegt ist', () => {
+    expect(resolveCreatorRechnungsland({})).toBe('');
+    expect(resolveCreatorRechnungsland(null)).toBe('');
+  });
+
+  it('trimmt Whitespace', () => {
+    const creator = { lieferadresse_land: '  Deutschland  ' };
+    expect(resolveCreatorRechnungsland(creator)).toBe('Deutschland');
   });
 });
 
