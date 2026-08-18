@@ -4,6 +4,7 @@
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { CREATOR_TYP_OPTIONS, isAllowedCreatorTyp, normalizeCreatorTyp } from './creatorTypeOptions.js';
 import { getTeilbereicheFromListe, DEAKTIVIERTE_SPALTEN } from './CreatorAuswahlTemplates.js';
+import { escapeAttr } from '../../core/VideoUploadUtils.js';
 
 export class CreatorAuswahlAddDrawer {
   constructor(detail) {
@@ -99,7 +100,7 @@ export class CreatorAuswahlAddDrawer {
     const teilbereiche = getTeilbereicheFromListe(this.detail.liste)
       .filter(tb => tb !== 'Nicht umsetzen');
     const kategorieOptionsHtml = teilbereiche
-      .map(tb => `<option value="${tb}">${tb}</option>`)
+      .map(tb => `<option value="${escapeAttr(tb)}">${escapeAttr(tb)}</option>`)
       .join('');
 
     const searchSection = isDatabaseMode ? `

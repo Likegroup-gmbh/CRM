@@ -8,8 +8,10 @@ import {
   renderAddSection, renderItemsTable, renderTabNavigation, renderItemRow,
   getTeilbereicheFromListe, isColumnVisibleForCustomer, getVisibleColumnCount,
   getSourcingTabForItem, SOURCING_TABS, migrateHiddenColumns,
-  SOURCING_ANKER_SPALTEN, SOURCING_SPALTEN_LABELS, DEAKTIVIERTE_SPALTEN
+  SOURCING_ANKER_SPALTEN, SOURCING_SPALTEN_LABELS, DEAKTIVIERTE_SPALTEN,
+  repairSourcingItemKategorien
 } from './CreatorAuswahlTemplates.js';
+import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { CreatorAuswahlKategorienDrawer } from './CreatorAuswahlKategorienDrawer.js';
 import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
 import { autoResizeTextarea } from '../feedback/FeedbackEventHandler.js';
@@ -83,6 +85,7 @@ export class CreatorAuswahlDetail {
     try {
       this.liste = await creatorAuswahlService.getListeById(listeId);
       this.items = await creatorAuswahlService.getItems(listeId);
+      await this.persistRepairedKategorien();
 
       await this.customColumns.init(listeId);
       await this.customColumns.loadValues(this.items.map(i => i.id));
@@ -107,6 +110,31 @@ export class CreatorAuswahlDetail {
           <p>Fehler beim Laden der Creator-Auswahl</p>
         </div>
       `;
+    }
+  }
+
+  async persistRepairedKategorien() {
+    const defined = getTeilbereicheFromListe(this.liste);
+    const { items, changed } = repairSourcingItemKategorien(this.items, defined);
+    this.items = items;
+    if (!changed.length) return;
+
+    const byKategorie = new Map();
+    for (const entry of changed) {
+      const key = entry.kategorie ?? '__null__';
+      if (!byKategorie.has(key)) byKategorie.set(key, []);
+      byKategorie.get(key).push(entry.id);
+    }
+
+    try {
+      for (const [key, ids] of byKategorie) {
+        await creatorAuswahlService.updateItemsKategorie(
+          ids,
+          key === '__null__' ? null : key
+        );
+      }
+    } catch (error) {
+      console.error('Kategorie-Repair fehlgeschlagen:', error);
     }
   }
 
@@ -1303,7 +1331,7 @@ export class CreatorAuswahlDetail {
     const teilbereiche = getTeilbereicheFromListe(this.liste);
     const kategorieOptions = [
       '<option value="">Kategorie zuweisen…</option>',
-      ...teilbereiche.filter(k => k !== 'Nicht umsetzen').map(k => `<option value="${k}">${k}</option>`),
+      ...teilbereiche.filter(k => k !== 'Nicht umsetzen').map(k => `<option value="${escapeAttr(k)}">${escapeAttr(k)}</option>`),
       '<option value="Ohne Kategorie">Ohne Kategorie</option>',
       '<option value="Nicht umsetzen">Nicht umsetzen</option>'
     ].join('');
@@ -1663,7 +1691,7 @@ export class CreatorAuswahlDetail {
     const dropdown = document.createElement('div');
     dropdown.className = 'kategorie-pill-dropdown';
     dropdown.innerHTML = categories.map(k =>
-      `<div class="kategorie-pill-option${k === currentKat ? ' active' : ''}" data-kategorie="${k}">${k}</div>`
+      `<div class="kategorie-pill-option${k === currentKat ? ' active' : ''}" data-kategorie="${escapeAttr(k)}">${escapeAttr(k)}</div>`
     ).join('');
 
     const rect = pillElement.getBoundingClientRect();

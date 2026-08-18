@@ -3,6 +3,7 @@
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { getTeilbereicheFromListe } from './CreatorAuswahlTemplates.js';
+import { escapeAttr } from '../../core/VideoUploadUtils.js';
 
 export class CreatorAuswahlKategorienDrawer {
   constructor(detail) {
@@ -15,9 +16,9 @@ export class CreatorAuswahlKategorienDrawer {
     return `
       <div class="kategorien-list" id="kategorien-list">
         ${teilbereiche.length > 0 ? teilbereiche.map(tb => `
-          <div class="kategorie-item" data-kategorie="${tb}">
-            <span class="kategorie-name">${tb}</span>
-            <button type="button" class="kategorie-delete-btn" data-kategorie="${tb}" title="Kategorie löschen">
+          <div class="kategorie-item" data-kategorie="${escapeAttr(tb)}">
+            <span class="kategorie-name">${escapeAttr(tb)}</span>
+            <button type="button" class="kategorie-delete-btn" data-kategorie="${escapeAttr(tb)}" title="Kategorie löschen">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
               </svg>

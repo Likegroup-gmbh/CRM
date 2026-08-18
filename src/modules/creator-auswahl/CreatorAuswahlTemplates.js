@@ -12,6 +12,7 @@ import {
   getSourcingStatus,
   getSourcingStatusMeta
 } from './sourcingStatusOptions.js';
+import { escapeAttr } from '../../core/VideoUploadUtils.js';
 
 // --- Shared Helpers ---
 
@@ -29,12 +30,46 @@ export function getTeilbereicheFromListe(liste) {
   return liste.teilbereich.split(',').map(tb => tb.trim()).filter(tb => tb);
 }
 
-export function groupItemsByKategorie(items) {
+/**
+ * Mappt abgeschnittene Kategorie-Werte (HTML-Attribut vor dem ersten ")
+ * zurueck auf den vollen Namen. Bei mehreren Treffern bleibt der stored-Wert.
+ */
+export function resolveSourcingKategorie(stored, defined = []) {
+  if (stored == null || stored === '') return stored ?? null;
+  if (!defined.length) return stored;
+  if (defined.includes(stored)) return stored;
+
+  const trimmed = String(stored).trim();
+  if (defined.includes(trimmed)) return trimmed;
+
+  const matches = defined.filter(d => {
+    if (d.startsWith(stored) || (trimmed && d.startsWith(trimmed))) return true;
+    const beforeQuote = d.split('"')[0].trim();
+    return beforeQuote !== '' && beforeQuote === trimmed;
+  });
+  return matches.length === 1 ? matches[0] : stored;
+}
+
+export function repairSourcingItemKategorien(items, defined = []) {
+  const changed = [];
+  const next = items.map(item => {
+    const resolved = resolveSourcingKategorie(item.kategorie, defined);
+    if (resolved !== item.kategorie) {
+      changed.push({ id: item.id, kategorie: resolved });
+      return { ...item, kategorie: resolved };
+    }
+    return item;
+  });
+  return { items: next, changed };
+}
+
+export function groupItemsByKategorie(items, defined = []) {
   const groups = {};
   let globalIndex = 0;
 
   items.forEach(item => {
-    const kategorie = item.kategorie || 'Ohne Kategorie';
+    const resolved = resolveSourcingKategorie(item.kategorie, defined);
+    const kategorie = resolved || 'Ohne Kategorie';
     if (!groups[kategorie]) {
       groups[kategorie] = [];
     }
@@ -517,6 +552,37 @@ export function renderItemsTable(ctx) {
   `;
 }
 
+function renderKategorieHeaderRow(kategorie, items, colCount, ctx, { variant = '' } = {}) {
+  const escaped = escapeAttr(kategorie);
+  const rowExtra = variant === 'rejected' ? ' kategorie-header-row--rejected' : '';
+  const headerExtra = variant === 'rejected'
+    ? ' kategorie-header--rejected'
+    : variant === 'default'
+      ? ' kategorie-header--default'
+      : '';
+  const label = variant === 'rejected'
+    ? `${NICHT_UMSETZEN_ICON} ${escapeAttr(kategorie)}`
+    : escapeAttr(kategorie);
+  const checkboxTitle = variant === 'default'
+    ? 'Alle ohne Kategorie auswählen'
+    : `Alle in '${kategorie}' auswählen`;
+  const checkbox = !ctx.isKunde
+    ? `<input type="checkbox" class="sourcing-group-select" data-kategorie="${escaped}" title="${escapeAttr(checkboxTitle)}">`
+    : '';
+
+  return `
+      <tr class="kategorie-header-row${rowExtra}" data-kategorie="${escaped}">
+        <td colspan="${colCount}" class="kategorie-header${headerExtra}">
+          <div class="kategorie-header-content">
+            ${checkbox}
+            <span class="kategorie-label">${label}</span>
+            <span class="kategorie-count">(${items.length})</span>
+          </div>
+        </td>
+      </tr>
+    `;
+}
+
 export function renderGroupedItems(ctx) {
   const NICHT_UMSETZEN_KATEGORIE = 'Nicht umsetzen';
   const definierteKategorien = getTeilbereicheFromListe(ctx.liste);
@@ -526,7 +592,7 @@ export function renderGroupedItems(ctx) {
     return ctx.items.map((item, index) => renderItemRow(ctx, item, index)).join('');
   }
 
-  const groupedItems = groupItemsByKategorie(ctx.items);
+  const groupedItems = groupItemsByKategorie(ctx.items, definierteKategorien);
   const customCount = ctx.customManager ? ctx.customManager.visibleCount(ctx.hiddenColumns, ctx.isKunde) : 0;
   const colCount = getVisibleColumnCount(ctx.isKunde, ctx.hiddenColumns) + customCount;
 
@@ -534,59 +600,31 @@ export function renderGroupedItems(ctx) {
   let globalIndex = 0;
 
   const normaleKategorien = definierteKategorien.filter(k => k !== NICHT_UMSETZEN_KATEGORIE);
+  const knownKeys = new Set([...definierteKategorien, 'Ohne Kategorie', NICHT_UMSETZEN_KATEGORIE]);
 
-  for (const kategorie of normaleKategorien) {
-    const items = groupedItems[kategorie] || [];
-    html += `
-      <tr class="kategorie-header-row" data-kategorie="${kategorie}">
-        <td colspan="${colCount}" class="kategorie-header">
-          <div class="kategorie-header-content">
-            ${!ctx.isKunde ? `<input type="checkbox" class="sourcing-group-select" data-kategorie="${kategorie}" title="Alle in '${kategorie}' auswählen">` : ''}
-            <span class="kategorie-label">${kategorie}</span>
-            <span class="kategorie-count">(${items.length})</span>
-          </div>
-        </td>
-      </tr>
-    `;
+  const appendGroup = (kategorie, items, variant) => {
+    html += renderKategorieHeaderRow(kategorie, items, colCount, ctx, { variant });
     for (const item of items) {
       html += renderItemRow(ctx, item, globalIndex++);
     }
+  };
+
+  for (const kategorie of normaleKategorien) {
+    appendGroup(kategorie, groupedItems[kategorie] || []);
+  }
+
+  for (const kategorie of Object.keys(groupedItems).filter(k => !knownKeys.has(k))) {
+    appendGroup(kategorie, groupedItems[kategorie]);
   }
 
   const ohneKategorie = groupedItems['Ohne Kategorie'] || [];
   if (ohneKategorie.length > 0 || normaleKategorien.length > 0) {
-    html += `
-      <tr class="kategorie-header-row" data-kategorie="Ohne Kategorie">
-        <td colspan="${colCount}" class="kategorie-header kategorie-header--default">
-          <div class="kategorie-header-content">
-            ${!ctx.isKunde ? `<input type="checkbox" class="sourcing-group-select" data-kategorie="Ohne Kategorie" title="Alle ohne Kategorie auswählen">` : ''}
-            <span class="kategorie-label">Ohne Kategorie</span>
-            <span class="kategorie-count">(${ohneKategorie.length})</span>
-          </div>
-        </td>
-      </tr>
-    `;
-    for (const item of ohneKategorie) {
-      html += renderItemRow(ctx, item, globalIndex++);
-    }
+    appendGroup('Ohne Kategorie', ohneKategorie, 'default');
   }
 
   const nichtUmsetzenItems = groupedItems[NICHT_UMSETZEN_KATEGORIE] || [];
   if (nichtUmsetzenItems.length > 0 || definierteKategorien.includes(NICHT_UMSETZEN_KATEGORIE)) {
-    html += `
-      <tr class="kategorie-header-row kategorie-header-row--rejected" data-kategorie="${NICHT_UMSETZEN_KATEGORIE}">
-        <td colspan="${colCount}" class="kategorie-header kategorie-header--rejected">
-          <div class="kategorie-header-content">
-            ${!ctx.isKunde ? `<input type="checkbox" class="sourcing-group-select" data-kategorie="${NICHT_UMSETZEN_KATEGORIE}" title="Alle in 'Nicht umsetzen' auswählen">` : ''}
-            <span class="kategorie-label">${NICHT_UMSETZEN_ICON} ${NICHT_UMSETZEN_KATEGORIE}</span>
-            <span class="kategorie-count">(${nichtUmsetzenItems.length})</span>
-          </div>
-        </td>
-      </tr>
-    `;
-    for (const item of nichtUmsetzenItems) {
-      html += renderItemRow(ctx, item, globalIndex++);
-    }
+    appendGroup(NICHT_UMSETZEN_KATEGORIE, nichtUmsetzenItems, 'rejected');
   }
 
   return html;
