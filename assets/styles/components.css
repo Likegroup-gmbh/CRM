@@ -4891,6 +4891,19 @@ input.input-error {
 .auftrag-table th.col-externe-po,
 .auftrag-table td.col-externe-po { min-width: 8em; }
 
+.auftrag-table td.col-rechnungsnr:has(.grid-input),
+.auftrag-table td.col-externe-po:has(.grid-input) {
+  padding: 0;
+}
+
+.auftrag-table td.col-rechnungsnr .grid-input,
+.auftrag-table td.col-externe-po .grid-input {
+  display: block;
+  min-width: 0;
+  min-height: 100%;
+  border-radius: 0;
+}
+
 .auftrag-table th.col-rechnung-gestellt,
 .auftrag-table td.col-rechnung-gestellt { min-width: 9em; }
 
