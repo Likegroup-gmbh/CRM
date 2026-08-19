@@ -123,10 +123,10 @@ describe('renderItemRow – Prio-Select statt drei Checkboxen', () => {
     }
   });
 
-  it('rendert fuer Kunden einen nicht klickbaren Trigger', () => {
+  it('bleibt fuer Kunden klickbar - die Prio ist Kundenfeedback', () => {
     const doc = renderRow({ prio_2: true }, { isKunde: true });
-    expect(doc.querySelector('td.col-prio button.table-select__trigger')).toBeNull();
-    expect(doc.querySelector('td.col-prio .table-select__trigger--disabled')).toBeTruthy();
+    expect(doc.querySelector('td.col-prio button.table-select__trigger')).not.toBeNull();
+    expect(doc.querySelector('td.col-prio .table-select__trigger--disabled')).toBeNull();
   });
 });
 

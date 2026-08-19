@@ -48,6 +48,17 @@ function renderOption(option, activeValue) {
 }
 
 /**
+ * Ob ein Select fuer den aktuellen Nutzer klickbar ist. Nicht pauschal per
+ * Rolle sperren: die Call-Site sagt mit kundeDarfWaehlen explizit, ob der
+ * Kunde das Feld setzen darf (z.B. Prio, Kundenfeedback). Default false.
+ */
+export function tableSelectDisabled({ gastReadonly = false, isKunde = false, kundeDarfWaehlen = false } = {}) {
+  if (gastReadonly) return true;
+  if (isKunde && !kundeDarfWaehlen) return true;
+  return false;
+}
+
+/**
  * Zellen-HTML fuer ein Select-Feld.
  *
  * @param {object}   config

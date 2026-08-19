@@ -2,7 +2,7 @@
 // Tabellen-Rendering für die Strategie-Detail-Ansicht
 
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
-import { renderTableSelect } from '../../core/components/TableSelect.js';
+import { renderTableSelect, tableSelectDisabled } from '../../core/components/TableSelect.js';
 import { STRATEGIE_PRIO_OPTIONS, getStrategiePrio } from './strategiePrioOptions.js';
 import { isFixedColumnVisible } from './strategieColumns.js';
 
@@ -309,7 +309,11 @@ export function renderItemRow(detail, item, index) {
             itemId: item.id,
             value: getStrategiePrio(item),
             options: STRATEGIE_PRIO_OPTIONS,
-            disabled: readonly || detail.isKunde
+            disabled: tableSelectDisabled({
+              gastReadonly: readonly,
+              isKunde: detail.isKunde,
+              kundeDarfWaehlen: true
+            })
           })}
         </td>
       ` : ''}

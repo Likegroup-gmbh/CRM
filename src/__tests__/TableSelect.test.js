@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { TableSelect, renderTableSelect } from '../core/components/TableSelect.js';
+import { TableSelect, renderTableSelect, tableSelectDisabled } from '../core/components/TableSelect.js';
 
 const OPTIONS = [
   { value: 'a', label: 'Alpha', color: 'var(--gray-300)' },
@@ -126,5 +126,22 @@ describe('TableSelect', () => {
 
     expect(spy).toHaveBeenCalledTimes(1);
     document.removeEventListener('table-select-change', spy);
+  });
+});
+
+describe('tableSelectDisabled', () => {
+  it('sperrt immer fuer Gaeste im Readonly-Modus', () => {
+    expect(tableSelectDisabled({ gastReadonly: true })).toBe(true);
+    expect(tableSelectDisabled({ gastReadonly: true, isKunde: true, kundeDarfWaehlen: true })).toBe(true);
+  });
+
+  it('sperrt Kunden nur, wenn das Feld nicht freigegeben ist', () => {
+    expect(tableSelectDisabled({ isKunde: true })).toBe(true);
+    expect(tableSelectDisabled({ isKunde: true, kundeDarfWaehlen: true })).toBe(false);
+  });
+
+  it('laesst interne Nutzer immer waehlen', () => {
+    expect(tableSelectDisabled({})).toBe(false);
+    expect(tableSelectDisabled({ isKunde: false })).toBe(false);
   });
 });
