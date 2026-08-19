@@ -5,6 +5,7 @@ import { AuftragList } from './AuftragListCore.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { getPaymentRowStatusClass } from './logic/PaymentRowStatus.js';
+import { defaultReNrPrefix, isBareReNrPrefix } from './logic/PrefixedNumberSort.js';
 
 const currencyFormatter = new Intl.NumberFormat('de-DE', {
   style: 'currency', currency: 'EUR',
@@ -101,13 +102,92 @@ AuftragList.prototype.syncInlineBillingUpdate = function(rowId, dateField, value
   }
   this.updateAuftragRowStatusClass(row);
 
-  const input = row.querySelector(
+  const inputs = row.querySelectorAll(
     `.auftrag-inline-date-input[data-date-field="${dateField}"]`
   );
-  if (!input) return;
+  if (!inputs.length) return;
 
-  CustomDatePicker.setValue(input, value || '');
-  input.dataset.previousValue = value || '';
+  inputs.forEach(input => {
+    CustomDatePicker.setValue(input, value || '');
+    input.dataset.previousValue = value || '';
+  });
+};
+
+AuftragList.prototype._hasDuplicateReNr = async function(reNr, excludeId, entity) {
+  if (!reNr || !window.supabase) return false;
+  try {
+    const [{ data: auftragHits }, { data: trHits }] = await Promise.all([
+      window.supabase.from('auftrag').select('id').eq('re_nr', reNr).limit(2),
+      window.supabase.from('auftrag_teilrechnung').select('id').eq('re_nr', reNr).limit(2)
+    ]);
+    const otherAuftrag = (auftragHits || []).some(row => !(entity === 'auftrag' && row.id === excludeId));
+    const otherTr = (trHits || []).some(row => !(entity === 'auftrag_teilrechnung' && row.id === excludeId));
+    return otherAuftrag || otherTr;
+  } catch (error) {
+    console.warn('⚠️ Duplikat-Prüfung für re_nr fehlgeschlagen:', error);
+    return false;
+  }
+};
+
+AuftragList.prototype.handleInlineReNrChange = async function(input) {
+  if (!this.isAdmin || !input) return;
+
+  const id = input.dataset.id;
+  const entity = input.dataset.entity || 'auftrag';
+  const field = input.dataset.field || 're_nr';
+  if (!id || !field) return;
+
+  const previousValue = input.dataset.previousValue ?? '';
+  const nextValue = input.value?.trim() || '';
+  if (nextValue === previousValue) return;
+
+  const isReNr = field === 're_nr';
+  const payloadValue = isReNr && isBareReNrPrefix(nextValue)
+    ? null
+    : (nextValue || null);
+  input.disabled = true;
+  try {
+    const result = await window.dataService.updateEntity(entity, id, { [field]: payloadValue });
+    if (!result?.success) {
+      throw new Error(result?.error || 'Update fehlgeschlagen');
+    }
+
+    if (isReNr && payloadValue) {
+      const duplicate = await this._hasDuplicateReNr(payloadValue, id, entity);
+      if (duplicate) {
+        window.toastSystem?.show('Diese Rechnungsnummer existiert bereits', 'warning');
+      }
+    }
+
+    if (isReNr && payloadValue == null) {
+      const prefix = defaultReNrPrefix();
+      input.value = prefix;
+      input.dataset.previousValue = prefix;
+    } else {
+      input.dataset.previousValue = nextValue;
+    }
+    input.classList.remove('save-error');
+    input.classList.add('save-success');
+    setTimeout(() => input.classList.remove('save-success'), 1000);
+
+    window.dispatchEvent(new CustomEvent('entityUpdated', {
+      detail: {
+        entity,
+        action: 'updated',
+        id,
+        field,
+        value: payloadValue
+      }
+    }));
+  } catch (error) {
+    console.error('❌ Fehler beim Inline-Update:', error);
+    input.value = previousValue;
+    input.classList.add('save-error');
+    setTimeout(() => input.classList.remove('save-error'), 2000);
+    window.toastSystem?.show('Aktualisierung fehlgeschlagen', 'error');
+  } finally {
+    input.disabled = false;
+  }
 };
 
 AuftragList.prototype.handleInlineBillingDateChange = async function(input) {

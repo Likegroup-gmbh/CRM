@@ -42,6 +42,7 @@ export class AuftragList {
     this._contractsSearchDebounceTimer = null;
     this._shellRendered = false;
     this._tableLoadRequestId = 0;
+    this.usesPagination = true;
   }
 
   get isAdmin() {
@@ -73,13 +74,15 @@ export class AuftragList {
       this._pendingTab = null;
     }
 
-    this.pagination.init('pagination-auftrag', {
-      itemsPerPage: 25,
-      onPageChange: (page) => this.handlePageChange(page),
-      onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page),
-      dynamicResize: true,
-      tbodySelector: '#auftraege-table-body'
-    });
+    if (this.usesPagination !== false) {
+      this.pagination.init('pagination-auftrag', {
+        itemsPerPage: 25,
+        onPageChange: (page) => this.handlePageChange(page),
+        onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page),
+        dynamicResize: true,
+        tbodySelector: '#auftraege-table-body'
+      });
+    }
 
     try {
       window.bulkActionSystem?.registerList('auftrag', this);
@@ -118,13 +121,15 @@ export class AuftragList {
       TableAnimationHelper.showLoadingOverlay(tbody);
 
       if (this.activeTab === 'contracts') {
-        this.contractsPagination.init('pagination-auftrag', {
-          itemsPerPage: 25,
-          onPageChange: () => this.loadContractsData(),
-          onItemsPerPageChange: () => this.loadContractsData(),
-          dynamicResize: true,
-          tbodySelector: '#auftraege-table-body'
-        });
+        if (this.usesPagination !== false) {
+          this.contractsPagination.init('pagination-auftrag', {
+            itemsPerPage: 25,
+            onPageChange: () => this.loadContractsData(),
+            onItemsPerPageChange: () => this.loadContractsData(),
+            dynamicResize: true,
+            tbodySelector: '#auftraege-table-body'
+          });
+        }
         await this.loadContractsData();
         return;
       }
@@ -294,22 +299,26 @@ export class AuftragList {
         this.cashFlowCalendar.destroy();
         this.cashFlowCalendar = null;
       }
-      this.contractsPagination.init('pagination-auftrag', {
-        itemsPerPage: 25,
-        onPageChange: () => this.loadContractsData(),
-        onItemsPerPageChange: () => this.loadContractsData(),
-        dynamicResize: true,
-        tbodySelector: '#auftraege-table-body'
-      });
+      if (this.usesPagination !== false) {
+        this.contractsPagination.init('pagination-auftrag', {
+          itemsPerPage: 25,
+          onPageChange: () => this.loadContractsData(),
+          onItemsPerPageChange: () => this.loadContractsData(),
+          dynamicResize: true,
+          tbodySelector: '#auftraege-table-body'
+        });
+      }
       await this.loadContractsData();
     } else {
-      this.pagination.init('pagination-auftrag', {
-        itemsPerPage: 25,
-        onPageChange: (page) => this.handlePageChange(page),
-        onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page),
-        dynamicResize: true,
-        tbodySelector: '#auftraege-table-body'
-      });
+      if (this.usesPagination !== false) {
+        this.pagination.init('pagination-auftrag', {
+          itemsPerPage: 25,
+          onPageChange: (page) => this.handlePageChange(page),
+          onItemsPerPageChange: (limit, page) => this.handleItemsPerPageChange(limit, page),
+          dynamicResize: true,
+          tbodySelector: '#auftraege-table-body'
+        });
+      }
       await this.loadAuftraegeData();
     }
   }
@@ -353,6 +362,10 @@ export class AuftragList {
     if (this._globalChangeHandler) {
       document.removeEventListener('change', this._globalChangeHandler);
       this._globalChangeHandler = null;
+    }
+    if (this._globalFocusInHandler) {
+      document.removeEventListener('focusin', this._globalFocusInHandler);
+      this._globalFocusInHandler = null;
     }
     if (this._entityUpdatedHandler) {
       window.removeEventListener('entityUpdated', this._entityUpdatedHandler);

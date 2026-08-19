@@ -2,11 +2,24 @@
 // Zeigt pro Auftrag je eine Zeile pro Teilrechnung, sortiert nach Rechnungsnummer (re_nr)
 
 import { AuftragList } from '../auftrag/AuftragList.js';
-import { sortRowsByPrefixedNumberDesc } from '../auftrag/logic/PrefixedNumberSort.js';
+import { defaultReNrPrefix, sortRowsByPrefixedNumberDesc } from '../auftrag/logic/PrefixedNumberSort.js';
+import {
+  MONTH_LABELS,
+  NO_RENR_TAB,
+  UNDATED_TAB,
+  countRowsByMonth,
+  filterRowsByMonthYear,
+  findInvoiceCacheRow,
+  formatMonthEmptyText,
+  parseMonthTab,
+  resolveDefaultMonth
+} from '../auftrag/logic/InvoiceMonthFilter.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { getPaymentRowStatusClass } from '../auftrag/logic/PaymentRowStatus.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { renderTabButton } from '../../core/TabUtils.js';
 
 const TR_FIELDS = [
   're_nr', 'externe_po', 'nettobetrag', 'ust_betrag', 'bruttobetrag',
@@ -15,9 +28,23 @@ const TR_FIELDS = [
   'ueberwiesen', 'ueberwiesen_am'
 ];
 
+function escapeAttr(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 export class AusgangsrechnungenList extends AuftragList {
   constructor() {
     super();
+    this.usesPagination = false;
+    const now = new Date();
+    this.currentYear = now.getFullYear();
+    this.currentMonth = now.getMonth();
+    this._allInvoiceRows = [];
+    this._monthInitialized = false;
   }
 
   async render() {
@@ -43,6 +70,7 @@ export class AusgangsrechnungenList extends AuftragList {
     `;
 
     window.setContentSafely(window.content, html);
+    this._shellRendered = true;
 
     this.renderAuftraegeContent();
     if (!isContracts && this.currentView === 'calendar') {
@@ -72,19 +100,19 @@ export class AusgangsrechnungenList extends AuftragList {
               <th class="col-unternehmen">Unternehmen</th>
               <th class="col-marke">Marke</th>
               <th class="col-angebotsnr">Angebotsnummer</th>
-              <th class="col-rechnungsnr">Rechnungsnummer</th>
+              <th class="col-rechnungsnr">RE-Nr.</th>
               <th class="col-teilrechnung">Teilrechnung</th>
               <th class="col-externe-po">Externe PO</th>
-              <th class="col-rechnung-gestellt">Rechnungsdatum</th>
+              <th class="col-rechnung-gestellt">RE-Datum</th>
               <th class="col-zahlungsziel">Zahlungsziel</th>
-              <th class="col-re-faelligkeit">Rechnungsfälligkeit</th>
-              <th class="col-erwarteter-ze table-cell-center">Erwarteter Zahlungseingang</th>
+              <th class="col-re-faelligkeit">Fällig am</th>
+              <th class="col-erwarteter-ze table-cell-center">Zahlungseingang</th>
               <th class="col-netto">Netto</th>
-              <th class="col-mwst-prozent">Mehrwertsteuer</th>
+              <th class="col-mwst-prozent">MwSt</th>
               <th class="col-ust">MwSt-Betrag</th>
               <th class="col-brutto">Bruttobetrag</th>
-              <th class="col-re-gestellt table-cell-center">Rechnung gestellt</th>
-              <th class="col-ueberwiesen-bool table-cell-center">Überwiesen</th>
+              <th class="col-re-gestellt table-cell-center">RE gestellt</th>
+              <th class="col-ueberwiesen-bool table-cell-center">Bezahlt</th>
               <th class="col-erstellt-am">Erstellt am</th>
               <th class="col-erstellt-von">Erstellt von</th>
               ${!this.isKunde ? '<th class="col-actions">Aktionen</th>' : ''}
@@ -98,8 +126,91 @@ export class AusgangsrechnungenList extends AuftragList {
         </table>
     </div>
 
-    <div class="pagination-container" id="pagination-auftrag"></div>
+    ${isContracts ? '' : this.renderMonthSheet()}
   `;
+  }
+
+  renderMonthSheet() {
+    const nowYear = new Date().getFullYear();
+    const yearOptions = [];
+    for (let year = nowYear - 5; year <= nowYear + 5; year += 1) {
+      yearOptions.push(`<option value="${year}" ${year === this.currentYear ? 'selected' : ''}>${year}</option>`);
+    }
+
+    const monthTabs = MONTH_LABELS.map((label, index) => renderTabButton({
+      tab: String(index),
+      label: `${label}<span class="tab-count" data-month-count="${index}">0</span>`,
+      isActive: this.currentMonth === index,
+      skipPermissionCheck: true
+    })).join('');
+
+    const undatedTab = renderTabButton({
+      tab: UNDATED_TAB,
+      label: `Ohne Datum<span class="tab-count" data-month-count="${UNDATED_TAB}">0</span>`,
+      isActive: this.currentMonth === UNDATED_TAB,
+      skipPermissionCheck: true
+    });
+
+    const noRenrTab = renderTabButton({
+      tab: NO_RENR_TAB,
+      label: `Ohne Rechnungsnummer<span class="tab-count" data-month-count="${NO_RENR_TAB}">0</span>`,
+      isActive: this.currentMonth === NO_RENR_TAB,
+      skipPermissionCheck: true
+    });
+
+    return `
+      <div class="tab-navigation ausgangsrechnungen-month-tabs" id="ausgangsrechnungen-month-tabs">
+        <select id="ausgangsrechnungen-year-select" class="form-select" aria-label="Jahr">
+          ${yearOptions.join('')}
+        </select>
+        ${monthTabs}
+        ${undatedTab}
+        ${noRenrTab}
+      </div>
+    `;
+  }
+
+  renderRechnungsnummerCell(auftrag) {
+    const stored = auftrag.re_nr || '';
+    if (!this.isAdmin) {
+      return window.validatorSystem.sanitizeHtml(stored || '-');
+    }
+    const display = stored || defaultReNrPrefix();
+    const { id, entity } = this._inlineTarget(auftrag);
+    return `<input type="text" class="grid-input auftrag-inline-re-nr-input"
+      data-entity="${entity}" data-id="${id}" data-field="re_nr"
+      data-previous-value="${escapeAttr(display)}"
+      value="${escapeAttr(display)}"
+      placeholder="Rechnungsnummer">`;
+  }
+
+  renderExternePoCell(auftrag) {
+    const value = auftrag.externe_po || '';
+    if (!this.isAdmin) {
+      return window.validatorSystem.sanitizeHtml(value || '-');
+    }
+    const { id, entity } = this._inlineTarget(auftrag);
+    return `<input type="text" class="grid-input auftrag-inline-text-input"
+      data-entity="${entity}" data-id="${id}" data-field="externe_po"
+      data-previous-value="${escapeAttr(value)}"
+      value="${escapeAttr(value)}"
+      placeholder="Externe PO">`;
+  }
+
+  renderInvoiceDateCell(auftrag) {
+    if (!this.isAdmin) {
+      return this.formatDate(auftrag.rechnung_gestellt_am);
+    }
+    const { id, entity } = this._inlineTarget(auftrag);
+    return CustomDatePicker.render({
+      id,
+      entity,
+      field: 'rechnung_gestellt',
+      dateField: 'rechnung_gestellt_am',
+      value: auftrag.rechnung_gestellt_am,
+      label: 'Rechnungsdatum',
+      inputClass: 'auftrag-inline-date-input'
+    });
   }
 
   async updateTable(auftraege, mode = 'auftraege') {
@@ -111,17 +222,14 @@ export class AusgangsrechnungenList extends AuftragList {
 
     await TableAnimationHelper.animatedUpdate(tbody, () => {
       if (!auftraege || auftraege.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="${this.getListColumnCount()}" class="no-data">
-              <div style="text-align: center; padding: 40px 20px;">
-                <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📋</div>
-                <h3 style="color: #666; margin-bottom: 8px;">Keine Kundenrechnungen vorhanden</h3>
-                <p style="color: #999; margin-bottom: 20px;">Es wurden noch keine Kundenrechnungen erstellt.</p>
-              </div>
-            </td>
-          </tr>
-        `;
+        const html = renderEmptyState({
+          icon: 'invoice',
+          title: 'Keine Kundenrechnungen vorhanden',
+          text: isContracts
+            ? 'Es wurden noch keine Kundenrechnungen erstellt.'
+            : formatMonthEmptyText(this.currentMonth, this.currentYear)
+        });
+        tbody.innerHTML = `<tr><td colspan="${this.getListColumnCount()}" class="empty-state-cell">${html}</td></tr>`;
         return;
       }
 
@@ -134,10 +242,10 @@ export class AusgangsrechnungenList extends AuftragList {
           <td class="col-unternehmen">${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
           <td class="col-marke">${this.formatMarkeTag(auftrag.marke)}</td>
           <td class="col-angebotsnr">${window.validatorSystem.sanitizeHtml(auftrag.angebotsnummer || '-')}</td>
-          <td class="col-rechnungsnr">${window.validatorSystem.sanitizeHtml(auftrag.re_nr || '-')}</td>
+          <td class="col-rechnungsnr">${this.renderRechnungsnummerCell(auftrag)}</td>
           <td class="col-teilrechnung">${trLabel}</td>
-          <td class="col-externe-po">${window.validatorSystem.sanitizeHtml(auftrag.externe_po || '-')}</td>
-          <td class="col-rechnung-gestellt">${this.formatDate(auftrag.rechnung_gestellt_am)}</td>
+          <td class="col-externe-po">${this.renderExternePoCell(auftrag)}</td>
+          <td class="col-rechnung-gestellt table-cell-center">${this.renderInvoiceDateCell(auftrag)}</td>
           <td class="col-zahlungsziel">${this.formatZahlungsziel(auftrag.zahlungsziel_tage)}</td>
           <td class="col-re-faelligkeit">${this.formatDate(auftrag.re_faelligkeit)}</td>
           <td class="col-erwarteter-ze table-cell-center">${this.renderExpectedPaymentDateCell(auftrag)}</td>
@@ -154,7 +262,8 @@ export class AusgangsrechnungenList extends AuftragList {
             currentStatus: { id: auftrag.status || 'Beauftragt', name: auftrag.status || 'Beauftragt' }
           })}</td>` : ''}
         </tr>
-      `}).join('');
+      `;
+      }).join('');
     });
   }
 
@@ -199,12 +308,110 @@ export class AusgangsrechnungenList extends AuftragList {
     });
   }
 
+  applyMonthFilter() {
+    const filtered = filterRowsByMonthYear(this._allInvoiceRows, {
+      year: this.currentYear,
+      month: this.currentMonth
+    });
+    this.updateTable(filtered, 'auftraege');
+    this.updateMonthTabUI();
+  }
+
+  afterInvoiceRowsLoaded() {
+    this.updateMonthTabUI();
+  }
+
+  updateMonthTabUI() {
+    const counts = countRowsByMonth(this._allInvoiceRows, this.currentYear);
+    MONTH_LABELS.forEach((_, index) => {
+      const el = document.querySelector(`[data-month-count="${index}"]`);
+      if (el) el.textContent = counts.months[index] || 0;
+    });
+    const undatedEl = document.querySelector(`[data-month-count="${UNDATED_TAB}"]`);
+    if (undatedEl) undatedEl.textContent = counts[UNDATED_TAB] || 0;
+    const noRenrEl = document.querySelector(`[data-month-count="${NO_RENR_TAB}"]`);
+    if (noRenrEl) noRenrEl.textContent = counts[NO_RENR_TAB] || 0;
+
+    const yearSelect = document.getElementById('ausgangsrechnungen-year-select');
+    if (yearSelect && String(yearSelect.value) !== String(this.currentYear)) {
+      yearSelect.value = String(this.currentYear);
+    }
+
+    document.querySelectorAll('#ausgangsrechnungen-month-tabs .tab-button[data-tab]').forEach(btn => {
+      const tab = parseMonthTab(btn.dataset.tab);
+      btn.classList.toggle('active', tab === this.currentMonth);
+    });
+  }
+
+  selectInvoiceMonth(tab) {
+    const next = parseMonthTab(tab);
+    if (Number.isNaN(next) && next !== UNDATED_TAB && next !== NO_RENR_TAB) return;
+    if (next === this.currentMonth) return;
+    this.currentMonth = next;
+    this.applyMonthFilter();
+  }
+
+  selectInvoiceYear(year) {
+    const nextYear = parseInt(year, 10);
+    if (Number.isNaN(nextYear) || nextYear === this.currentYear) return;
+    this.currentYear = nextYear;
+    this.applyMonthFilter();
+  }
+
+  onInlineBillingUpdated({ id, field, value }) {
+    const row = findInvoiceCacheRow(this._allInvoiceRows, id);
+    if (!row) return;
+    row[field] = value || null;
+    if (field === 'rechnung_gestellt_am') row.rechnung_gestellt = Boolean(value);
+    if (field === 'ueberwiesen_am') row.ueberwiesen = Boolean(value);
+    this.applyMonthFilter();
+  }
+
+  onInlineReNrUpdated({ id, field = 're_nr', value }) {
+    const row = findInvoiceCacheRow(this._allInvoiceRows, id);
+    if (!row) return;
+    row[field] = value;
+    if (field === 're_nr') this.applyMonthFilter();
+  }
+
+  async _mergeTeilrechnungSearchIds(auftragIds, searchTerm, mode) {
+    if (!searchTerm || !window.supabase) return auftragIds;
+
+    const { data: trHits, error } = await window.supabase
+      .from('auftrag_teilrechnung')
+      .select('auftrag_id')
+      .ilike('re_nr', `%${searchTerm}%`);
+
+    if (error) {
+      console.warn('⚠️ Teilrechnungs-Suche nach re_nr fehlgeschlagen:', error);
+      return auftragIds;
+    }
+
+    const known = new Set(auftragIds);
+    const extraIds = [...new Set((trHits || []).map(row => row.auftrag_id).filter(Boolean))]
+      .filter(id => !known.has(id));
+    if (extraIds.length === 0) return auftragIds;
+
+    let extraQuery = window.supabase.from('auftrag').select('id').in('id', extraIds);
+    extraQuery = mode === 'contracts'
+      ? extraQuery.eq('auftragtype', 'Contracting')
+      : extraQuery.neq('auftragtype', 'Contracting');
+    const { data: extraRows, error: extraError } = await extraQuery;
+    if (extraError) {
+      console.warn('⚠️ Extra-IDs der Teilrechnungs-Suche konnten nicht geladen werden:', extraError);
+      return auftragIds;
+    }
+
+    return auftragIds.concat((extraRows || []).map(row => row.id));
+  }
+
   async loadAuftraegeWithPagination(filters = {}, page = 1, limit = 25, mode = 'auftraege') {
     try {
       if (!window.supabase) {
         return { data: [], count: 0 };
       }
 
+      const searchTerm = typeof filters.auftragsname === 'string' ? filters.auftragsname.trim() : '';
       const filterCopy = { ...filters };
 
       // 1) Alle passenden Auftrag-IDs laden
@@ -216,8 +423,10 @@ export class AusgangsrechnungenList extends AuftragList {
         throw idError;
       }
 
-      const auftragIds = (idRows || []).map(r => r.id);
+      let auftragIds = (idRows || []).map(r => r.id);
+      auftragIds = await this._mergeTeilrechnungSearchIds(auftragIds, searchTerm, mode);
       if (auftragIds.length === 0) {
+        this._allInvoiceRows = [];
         return { data: [], count: 0 };
       }
 
@@ -330,18 +539,34 @@ export class AusgangsrechnungenList extends AuftragList {
 
       // 4) Sortieren nach re_nr (neueste/hoechste zuerst)
       const sorted = sortRowsByPrefixedNumberDesc(exploded, 're_nr');
+      this._allInvoiceRows = sorted;
 
-      // 5) Clientseitige Pagination
-      const totalCount = sorted.length;
-      const from = (page - 1) * limit;
-      const pageSlice = sorted.slice(from, from + limit);
+      if (mode !== 'auftraege') {
+        const from = (page - 1) * limit;
+        return { data: sorted.slice(from, from + limit), count: sorted.length };
+      }
 
-      return { data: pageSlice, count: totalCount };
+      if (!this._monthInitialized) {
+        this.currentMonth = resolveDefaultMonth(sorted, this.currentYear, this.currentMonth);
+        this._monthInitialized = true;
+      }
+
+      const filtered = filterRowsByMonthYear(sorted, {
+        year: this.currentYear,
+        month: this.currentMonth
+      });
+      return { data: filtered, count: sorted.length };
 
     } catch (error) {
       console.error('❌ Fehler beim Laden der Kundenrechnungen:', error);
       throw error;
     }
+  }
+
+  destroy() {
+    this._allInvoiceRows = [];
+    this._monthInitialized = false;
+    super.destroy();
   }
 }
 

@@ -125,9 +125,12 @@ AuftragList.prototype.loadAuftraegeData = async function() {
   await this.updateTable(auftraege, 'auftraege');
   if (!this._isCurrentTableLoad(requestId, 'auftraege')) return;
 
-  this.pagination.updateTotal(count);
-  this.pagination.render();
+  if (this.usesPagination !== false) {
+    this.pagination.updateTotal(count);
+    this.pagination.render();
+  }
   this.updateTabCount('auftraege', count);
+  this.afterInvoiceRowsLoaded?.();
 };
 
 AuftragList.prototype.loadContractsData = async function() {
@@ -149,8 +152,10 @@ AuftragList.prototype.loadContractsData = async function() {
     await this.updateTable(data, 'contracts');
     if (!this._isCurrentTableLoad(requestId, 'contracts')) return;
 
-    this.contractsPagination.updateTotal(count);
-    this.contractsPagination.render();
+    if (this.usesPagination !== false) {
+      this.contractsPagination.updateTotal(count);
+      this.contractsPagination.render();
+    }
     this.updateTabCount('contracts', count);
   } catch (error) {
     if (error.name === 'AbortError') return;

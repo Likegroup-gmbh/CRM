@@ -550,6 +550,8 @@ export const EntityRegistry = {
     table: 'auftrag_teilrechnung',
     displayField: 're_nr',
     fields: {
+      re_nr: 'string',
+      externe_po: 'string',
       rechnung_gestellt: 'boolean',
       rechnung_gestellt_am: 'date',
       ueberwiesen: 'boolean',

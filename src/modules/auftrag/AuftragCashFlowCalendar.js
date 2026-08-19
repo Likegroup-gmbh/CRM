@@ -5,6 +5,7 @@ import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { tableExport } from '../../core/TableExport.js';
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
+import { getInvoiceDisplayDate } from './logic/InvoiceDisplayDate.js';
 
 export class AuftragCashFlowCalendar {
   constructor() {
@@ -162,28 +163,8 @@ export class AuftragCashFlowCalendar {
     const statusPriority = { 'paid': 3, 'invoiced': 2, 'pending': 1 };
 
     for (const tr of teilrechnungen) {
-      const ueberweisenDatum = tr.ueberwiesen_am ? new Date(tr.ueberwiesen_am) : null;
-      const rechnungDatum = tr.rechnung_gestellt_am ? new Date(tr.rechnung_gestellt_am) : null;
-      const erwarteterZahlungseingangDatum = tr.erwarteter_monat_zahlungseingang ? new Date(tr.erwarteter_monat_zahlungseingang) : null;
-      const reFaelligkeitDatum = tr.re_faelligkeit ? new Date(tr.re_faelligkeit) : null;
+      const { date: anzeigeDatum, status: anzeigeStatus } = getInvoiceDisplayDate(tr);
       const betrag = parseFloat(tr.nettobetrag) || 0;
-
-      let anzeigeStatus = null;
-      let anzeigeDatum = null;
-
-      if (ueberweisenDatum) {
-        anzeigeStatus = 'paid';
-        anzeigeDatum = ueberweisenDatum;
-      } else if (rechnungDatum) {
-        anzeigeStatus = 'invoiced';
-        anzeigeDatum = rechnungDatum;
-      } else if (erwarteterZahlungseingangDatum) {
-        anzeigeStatus = 'pending';
-        anzeigeDatum = erwarteterZahlungseingangDatum;
-      } else if (reFaelligkeitDatum) {
-        anzeigeStatus = 'pending';
-        anzeigeDatum = reFaelligkeitDatum;
-      }
 
       if (!anzeigeDatum || anzeigeDatum.getFullYear() !== this.currentYear) continue;
 

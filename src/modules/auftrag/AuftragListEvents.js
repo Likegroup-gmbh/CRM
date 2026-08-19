@@ -97,7 +97,14 @@ AuftragList.prototype.initDragToScroll = function() {
 
 AuftragList.prototype.bindGlobalDelegatedEvents = function() {
   this._globalClickHandler = (e) => {
-    const tabBtn = e.target.closest('.tab-button[data-tab]');
+    const monthTabBtn = e.target.closest('#ausgangsrechnungen-month-tabs .tab-button[data-tab]');
+    if (monthTabBtn) {
+      e.preventDefault();
+      this.selectInvoiceMonth?.(monthTabBtn.dataset.tab);
+      return;
+    }
+
+    const tabBtn = e.target.closest('.auftrag-tabs .tab-button[data-tab]');
     if (tabBtn) {
       e.preventDefault();
       this.switchTab(tabBtn.dataset.tab);
@@ -151,6 +158,13 @@ AuftragList.prototype.bindGlobalDelegatedEvents = function() {
     if (e.target.id === 'btn-auftrag-new' || e.target.id === 'btn-auftrag-new-filter') {
       e.preventDefault();
       window.navigateTo('/projekt-erstellen');
+      return;
+    }
+
+    // Empty-State-Action "Filter zurücksetzen"
+    if (e.target.closest('[data-empty-action="reset-filters"]')) {
+      e.preventDefault();
+      this.onFiltersReset();
       return;
     }
 
@@ -209,6 +223,19 @@ AuftragList.prototype.bindGlobalDelegatedEvents = function() {
   };
 
   this._globalChangeHandler = (e) => {
+    if (e.target.id === 'ausgangsrechnungen-year-select') {
+      this.selectInvoiceYear?.(e.target.value);
+      return;
+    }
+
+    if (
+      e.target.classList.contains('auftrag-inline-re-nr-input') ||
+      e.target.classList.contains('auftrag-inline-text-input')
+    ) {
+      this.handleInlineReNrChange?.(e.target);
+      return;
+    }
+
     if (e.target.classList.contains('auftrag-inline-date-input')) {
       this.handleInlineBillingDateChange(e.target);
       return;
@@ -250,8 +277,19 @@ AuftragList.prototype.bindGlobalDelegatedEvents = function() {
       e.detail.id;
 
     if (isInlineBillingUpdate) {
-      if (e.detail.field === 'erwarteter_monat_zahlungseingang') return;
-      this.syncInlineBillingUpdate(e.detail.id, e.detail.field, e.detail.value);
+      if (e.detail.field !== 'erwarteter_monat_zahlungseingang') {
+        this.syncInlineBillingUpdate(e.detail.id, e.detail.field, e.detail.value);
+      }
+      this.onInlineBillingUpdated?.(e.detail);
+      return;
+    }
+
+    if (
+      (entity === 'auftrag' || entity === 'auftrag_teilrechnung') &&
+      e.detail.action === 'updated' &&
+      (e.detail.field === 're_nr' || e.detail.field === 'externe_po')
+    ) {
+      this.onInlineReNrUpdated?.(e.detail);
       return;
     }
 
@@ -262,8 +300,20 @@ AuftragList.prototype.bindGlobalDelegatedEvents = function() {
     }
   };
 
+  this._globalFocusInHandler = (e) => {
+    if (!e.target.classList.contains('auftrag-inline-re-nr-input')) return;
+    const input = e.target;
+    const len = input.value?.length ?? 0;
+    requestAnimationFrame(() => {
+      try {
+        input.setSelectionRange(len, len);
+      } catch (_) { /* input type without selection */ }
+    });
+  };
+
   document.addEventListener('click', this._globalClickHandler);
   document.addEventListener('change', this._globalChangeHandler);
+  document.addEventListener('focusin', this._globalFocusInHandler);
   this._inlineDatePickerCleanup = CustomDatePicker.bind(document);
   window.addEventListener('entityUpdated', this._entityUpdatedHandler);
 };

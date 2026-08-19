@@ -55,3 +55,13 @@ export function sortRowsByPrefixedNumberDesc(rows, field) {
     comparePrefixedNumbersDesc(a?.[field], b?.[field])
   );
 }
+
+export function defaultReNrPrefix(year = new Date().getFullYear()) {
+  return `RE-${year}`;
+}
+
+export function isBareReNrPrefix(value, year = new Date().getFullYear()) {
+  const raw = (value == null ? '' : String(value)).trim();
+  const prefix = defaultReNrPrefix(year);
+  return raw === prefix || raw === `${prefix}-`;
+}

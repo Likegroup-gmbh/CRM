@@ -16,6 +16,8 @@ describe('Billing-Datumsfelder für Teilrechnungen', () => {
   it('registriert nur die erlaubten Inline-Felder', () => {
     expect(EntityRegistry.auftrag_teilrechnung.table).toBe('auftrag_teilrechnung');
     expect(EntityRegistry.auftrag_teilrechnung.fields).toEqual({
+      re_nr: 'string',
+      externe_po: 'string',
       rechnung_gestellt: 'boolean',
       rechnung_gestellt_am: 'date',
       ueberwiesen: 'boolean',
@@ -123,5 +125,48 @@ describe('Billing-Datumsfelder für Teilrechnungen', () => {
     const input = document.querySelector('.auftrag-inline-date-input');
     expect(input.dataset.isoValue).toBe('2026-08-03');
     expect(input.dataset.previousValue).toBe('2026-08-03');
+  });
+
+  it('synchronisiert alle Picker mit demselben date-field', () => {
+    const list = new AuftragList();
+    document.body.innerHTML = `
+      <table class="data-table">
+        <tbody>
+          <tr data-tr-id="teilrechnung-1">
+            <td>
+              ${CustomDatePicker.render({
+                id: 'teilrechnung-1',
+                entity: 'auftrag_teilrechnung',
+                field: 'rechnung_gestellt',
+                dateField: 'rechnung_gestellt_am',
+                inputClass: 'auftrag-inline-date-input'
+              })}
+            </td>
+            <td>
+              ${CustomDatePicker.render({
+                id: 'teilrechnung-1',
+                entity: 'auftrag_teilrechnung',
+                field: 'rechnung_gestellt',
+                dateField: 'rechnung_gestellt_am',
+                inputClass: 'auftrag-inline-date-input'
+              })}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+
+    list.syncInlineBillingUpdate(
+      'teilrechnung-1',
+      'rechnung_gestellt_am',
+      '2026-08-03'
+    );
+
+    const inputs = document.querySelectorAll('.auftrag-inline-date-input');
+    expect(inputs).toHaveLength(2);
+    inputs.forEach(input => {
+      expect(input.dataset.isoValue).toBe('2026-08-03');
+      expect(input.dataset.previousValue).toBe('2026-08-03');
+    });
   });
 });

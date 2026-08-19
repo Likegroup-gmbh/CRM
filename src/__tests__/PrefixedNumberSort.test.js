@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   comparePrefixedNumbersDesc,
+  defaultReNrPrefix,
+  isBareReNrPrefix,
   sortRowsByPrefixedNumberDesc
 } from '../modules/auftrag/logic/PrefixedNumberSort.js';
 
@@ -39,5 +41,15 @@ describe('PrefixedNumberSort', () => {
     const sorted = sortRowsByPrefixedNumberDesc(rows, 're_nr');
     expect(sorted[0].re_nr).toBe('RE-10');
     expect(sorted.slice(1).every(r => !r.re_nr)).toBe(true);
+  });
+});
+
+describe('ReNr-Display-Prefix', () => {
+  it('bildet RE-{Jahr} und erkennt den bloßen Prefix', () => {
+    expect(defaultReNrPrefix(2026)).toBe('RE-2026');
+    expect(isBareReNrPrefix('RE-2026', 2026)).toBe(true);
+    expect(isBareReNrPrefix('RE-2026-', 2026)).toBe(true);
+    expect(isBareReNrPrefix('RE-2026-001', 2026)).toBe(false);
+    expect(isBareReNrPrefix('RE-2025', 2026)).toBe(false);
   });
 });
