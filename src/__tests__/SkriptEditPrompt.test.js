@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const { buildEditPrompt } = require('../../netlify/functions/skript-edit-background.js');
+const { buildEditPrompt, stripToolXml, letzterZeitstempel } = require('../../netlify/functions/skript-edit-background.js');
 
 function baseCtx(overrides = {}) {
   return {
@@ -86,5 +86,106 @@ describe('buildEditPrompt aktion visuell', () => {
     expect(task).toContain('Der gesprochene Text bleibt unverändert');
     expect(task).toContain('vorschlag_text = visuelle Regie fuer "Was zu sehen ist"');
     expect(task).toContain('KEIN gesprochener Text, keine Sprecher-Anweisungen');
+    expect(task).toContain('# ZEITPLAN UND KONTINUITAET');
+    expect(task).toContain('Beginne bei 0:00.');
+    expect(task).toContain('M:SS–M:SS');
+    expect(task).toContain('Stil, Orte und Props konsistent halten');
+  });
+
+  it('visuell Hauptteil: Start = letzter Hook-Zeitstempel', () => {
+    const { task } = buildEditPrompt(baseCtx({
+      skript: { hook_visuell: '0:00–0:03 Close-up Gesicht' }
+    }), {
+      aktion: 'visuell',
+      sektion: 'hauptteil',
+      selektion_text: 'Ich nutze das Serum.',
+      inhalt: 'Visual zu Hauptteil'
+    });
+
+    expect(task).toContain('# ZEITPLAN UND KONTINUITAET');
+    expect(task).toContain('Die Sektion davor (Hook) endet bei 0:03.');
+    expect(task).toContain('Dein erster Shot MUSS bei 0:03 beginnen');
+    expect(task).not.toContain('Beginne bei 0:00.');
+  });
+
+  it('visuell CTA: Start = Ende Hauptteil, letzter Shot = Video-Ende', () => {
+    const { task } = buildEditPrompt(baseCtx({
+      skript: {
+        hook_visuell: '0:00–0:03 Close-up',
+        hauptteil_visuell: '0:03–0:12 B-Roll Studio',
+        video_laenge: '15-30'
+      }
+    }), {
+      aktion: 'visuell',
+      sektion: 'cta',
+      selektion_text: 'Link in Bio.',
+      inhalt: 'Visual zu CTA'
+    });
+
+    expect(task).toContain('Die Sektion davor (Hauptteil) endet bei 0:12.');
+    expect(task).toContain('Dein erster Shot MUSS bei 0:12 beginnen');
+    expect(task).toContain('Der letzte Shot soll bei 0:30 enden');
+  });
+});
+
+describe('letzterZeitstempel', () => {
+  it('nimmt das Maximum aus M:SS-Ranges', () => {
+    expect(letzterZeitstempel('0:00–0:03 Close-up\n0:03–0:08 Wide')).toBe('0:08');
+  });
+
+  it('versteht deutsche [0–0,5 Sek]-Ranges', () => {
+    expect(letzterZeitstempel('[0–0,5 Sek] Ruehren\n[2,5–3 Sek] Garten')).toBe('0:03');
+  });
+
+  it('liefert null ohne Zeitstempel', () => {
+    expect(letzterZeitstempel('Close-up Gesicht, B-Roll Studio')).toBeNull();
+    expect(letzterZeitstempel('')).toBeNull();
+    expect(letzterZeitstempel(null)).toBeNull();
+  });
+});
+
+describe('buildEditPrompt ist_visuell Rewrite', () => {
+  it('Visual-Rewrite: Regie-Anweisung, kein Spoken-Wortbudget', () => {
+    const { task } = buildEditPrompt(baseCtx({
+      skript: {
+        hook_visuell: 'Close-up Gesicht',
+        hauptteil_visuell: 'B-Roll Studio',
+        video_laenge: '15-30'
+      }
+    }), {
+      aktion: 'kuerzen',
+      sektion: 'hook',
+      ist_visuell: true,
+      selektion_text: 'Close-up Gesicht'
+    });
+
+    expect(task).toContain('HOOK (was zu sehen ist)');
+    expect(task).toContain('Close-up Gesicht');
+    expect(task).toContain('stammt aus "Was zu sehen ist"');
+    expect(task).toContain('KEINEN Sprechertext');
+    expect(task).not.toContain('HARTES WORT-BUDGET');
+  });
+
+  it('Spoken-Rewrite ohne Flag bleibt Spoken', () => {
+    const { task } = buildEditPrompt(baseCtx({
+      skript: { hook_visuell: 'Shot', video_laenge: '15-30' }
+    }), {
+      aktion: 'kuerzen',
+      sektion: 'hook',
+      selektion_text: 'Kennst du das?'
+    });
+
+    expect(task).toContain('HOOK (was zu sehen ist)');
+    expect(task).toContain('Kürze die markierte Stelle deutlich');
+    expect(task).not.toContain('stammt aus "Was zu sehen ist"');
+    expect(task).toContain('HARTES WORT-BUDGET');
+  });
+});
+
+describe('stripToolXml', () => {
+  it('schneidet </antwort> und parameter-Leak ab, laesst Vorschlag stehen', () => {
+    const antwort = 'Visuelle Regie für den Hauptteil – zeigt die Studio-Entdeckung live.</antwort>\n<parameter name="sektion">hauptteil';
+    expect(stripToolXml(antwort)).toBe('Visuelle Regie für den Hauptteil – zeigt die Studio-Entdeckung live.');
+    expect(stripToolXml('VISUELLE REGIE – HAUPTTEIL\n- POV-Shot')).toBe('VISUELLE REGIE – HAUPTTEIL\n- POV-Shot');
   });
 });

@@ -1,0 +1,107 @@
+/* Skripte: Generator-Formular (Kontext, Videovorlage, Vorgaben)
+   und Fortschritts-/Log-Anzeigen (auch DNA-Destillation). */
+
+.skripte-generator {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.skripte-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-md);
+}
+
+/* Progress + Log */
+.skripte-progress-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.skripte-progress-track {
+  height: 8px;
+  background: var(--gray-200);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.skripte-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: var(--color-primary);
+  border-radius: var(--radius-sm);
+  transition: width 0.4s ease;
+}
+
+.skripte-log {
+  background: var(--gray-900);
+  color: var(--success-bg);
+  font-family: monospace;
+  font-size: var(--text-xs);
+  border-radius: var(--radius-xl);
+  padding: var(--space-sm) var(--space-md);
+  max-height: 180px;
+  min-height: 60px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+
+/* Videovorlage (optionale Card im Generator) */
+.skripte-ref-row {
+  display: flex;
+  gap: var(--space-xs);
+  align-items: stretch;
+  margin-bottom: var(--space-sm);
+}
+
+.skripte-ref-row .form-input {
+  flex: 1;
+}
+
+.skripte-ref-row .secondary-btn {
+  white-space: nowrap;
+}
+
+.skripte-ref-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--space-sm);
+}
+
+.skripte-ref-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  background: var(--red-50);
+  color: var(--red-700);
+  border: 1px solid var(--red-200);
+  border-radius: var(--radius-md);
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.skripte-ref-error .secondary-btn {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.skripte-ref-meta {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-sm);
+}
+
+.skripte-ref-chip {
+  background: var(--gray-100);
+  border-radius: 999px;
+  padding: var(--space-xxs) 10px;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}

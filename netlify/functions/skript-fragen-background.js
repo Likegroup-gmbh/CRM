@@ -9,10 +9,9 @@
 
 const fs = require('fs');
 const path = require('path');
-const { createClient } = require('@supabase/supabase-js');
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { loadContext, buildKontextText } = require('./_shared/skript-context');
-const { verifyAuth, requireInternal, authErrorBody } = require('./_shared/verify-auth');
+const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
 
 // Erzwungener Tool-Call: strukturell garantiertes JSON statt Text-Parsing
@@ -102,28 +101,7 @@ function buildFragenPrompt(ctx, params, history) {
 // ---------------------------------------------------------------------------
 // Handler
 // ---------------------------------------------------------------------------
-exports.handler = async (event) => {
-  if (event.httpMethod !== 'POST') return { statusCode: 405 };
-
-  const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-  const auth = await verifyAuth(event, supabase);
-  if (!auth.user) {
-    return {
-      statusCode: 401,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(authErrorBody(auth))
-    };
-  }
-  const intern = await requireInternal(supabase, auth.user);
-  if (!intern.ok) return intern.response;
-
-  let payload;
-  try {
-    payload = JSON.parse(event.body || '{}');
-  } catch (_) {
-    return { statusCode: 400, body: 'Invalid JSON' };
-  }
-
+exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
   const { messageId } = payload;
   if (!messageId) return { statusCode: 400, body: 'messageId fehlt' };
 
@@ -145,7 +123,7 @@ exports.handler = async (event) => {
 
     // Frequenz-Limit pruefen + Protokoll-Zeile anlegen (Fehlermeldung
     // landet ueber den catch als error_message in der Chat-Message)
-    ki = await starteKiRequest(supabase, { userId: auth.user.id, feature: 'skript_rueckfragen' });
+    ki = await starteKiRequest(supabase, { userId: user.id, feature: 'skript_rueckfragen' });
 
     await supabase.from('skript_chat_messages')
       .update({ status: 'running' }).eq('id', messageId);
@@ -188,7 +166,10 @@ exports.handler = async (event) => {
       systemBlocks: [{ text: stable, cache: true }],
       userPrompt: task,
       maxTokens: 2048,
-      tool: FRAGEN_TOOL
+      tool: FRAGEN_TOOL,
+      // Konservativ: ein haengender Claude-Call soll nicht bis zum
+      // Netlify-Limit blockieren, sondern als Chat-Fehler sichtbar werden
+      timeoutMs: 480000
     });
     await ki.abschliessen(result);
 
@@ -209,4 +190,4 @@ exports.handler = async (event) => {
     try { await fail(error.message); } catch (_) { /* noop */ }
     return { statusCode: 500 };
   }
-};
+});

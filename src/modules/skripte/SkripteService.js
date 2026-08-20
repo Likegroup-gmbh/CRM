@@ -3,44 +3,10 @@
 // Alle Queries laufen ueber window.supabase (RLS: intern voll, Kunden nur eigener Scope).
 
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { PERFORMANCE_LABELS, FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER } from './skripteKonstanten.js';
+import { planeVersionsRows } from './versionsNummerierung.js';
 
-export const SEKTIONEN = ['hook', 'hauptteil', 'cta', 'gesamt'];
-
-export const PERFORMANCE_LABELS = {
-  unbewertet: 'Unbewertet',
-  erfolgreich: 'Erfolgreich',
-  nicht_erfolgreich: 'Nicht erfolgreich',
-  viral: 'Viral'
-};
-
-export const FUNNEL_STUFEN = {
-  top: 'Top (Awareness)',
-  mid: 'Mid (Consideration)',
-  bottom: 'Bottom (Conversion)'
-};
-
-// Video-Gesamtlaenge in 15-Sekunden-Spannen (Wert = Sekunden "von-bis")
-export const VIDEO_LAENGEN = {
-  '0-15': '0–15 Sek.',
-  '15-30': '15–30 Sek.',
-  '30-45': '30–45 Sek.',
-  '45-60': '45–60 Sek.',
-  '60-75': '1:00–1:15 Min.',
-  '75-90': '1:15–1:30 Min.',
-  '90-105': '1:30–1:45 Min.',
-  '105-120': '1:45–2:00 Min.',
-  '120-135': '2:00–2:15 Min.',
-  '135-150': '2:15–2:30 Min.',
-  '150-165': '2:30–2:45 Min.',
-  '165-180': '2:45–3:00 Min.'
-};
-
-export const DNA_LAYER = {
-  global: 'Global',
-  branche: 'Branche',
-  zielgruppe: 'Zielgruppe',
-  marke: 'Marke'
-};
+export { PERFORMANCE_LABELS, FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER };
 
 export class SkripteService {
   get db() {
@@ -340,56 +306,14 @@ export class SkripteService {
     const { data: vorhandene } = await this.db.from('skript_versionen')
       .select('version_nr, sub_nr').eq('skript_id', skript.id)
       .order('version_nr').order('sub_nr');
-    const versionen = vorhandene || [];
 
-    const rows = [];
-    const maxHaupt = versionen.length ? Math.max(...versionen.map((v) => v.version_nr)) : 0;
-
-    if (maxHaupt === 0 && vorherigerStand) {
-      rows.push({
-        skript_id: skript.id,
-        version_nr: 1,
-        sub_nr: 0,
-        titel: vorherigerStand.titel || null,
-        hook: vorherigerStand.hook || null,
-        hauptteil: vorherigerStand.hauptteil || null,
-        cta: vorherigerStand.cta || null,
-        hook_visuell: vorherigerStand.hook_visuell ?? null,
-        hauptteil_visuell: vorherigerStand.hauptteil_visuell ?? null,
-        cta_visuell: vorherigerStand.cta_visuell ?? null,
-        aenderung_beschreibung: 'Ausgangsversion',
-        created_by: user?.id
-      });
-    }
-
-    // Neue Nummer bestimmen: Hauptversion, wenn an der neuesten Hauptversion
-    // gearbeitet wurde (oder keine Angabe) - sonst Unterversion der aktiven Version
-    let neu;
-    const basisHaupt = rows.length ? 1 : maxHaupt;
-    const aufNeuesterHaupt = !aktiveVersion
-      || (aktiveVersion.version_nr === basisHaupt && !(aktiveVersion.sub_nr > 0));
-    if (basisHaupt === 0 || aufNeuesterHaupt) {
-      neu = { version_nr: basisHaupt + 1, sub_nr: 0 };
-    } else {
-      const maxSub = Math.max(0, ...versionen
-        .filter((v) => v.version_nr === aktiveVersion.version_nr)
-        .map((v) => v.sub_nr || 0));
-      neu = { version_nr: aktiveVersion.version_nr, sub_nr: maxSub + 1 };
-    }
-
-    rows.push({
-      skript_id: skript.id,
-      version_nr: neu.version_nr,
-      sub_nr: neu.sub_nr,
-      titel: skript.titel || null,
-      hook: skript.hook || null,
-      hauptteil: skript.hauptteil || null,
-      cta: skript.cta || null,
-      hook_visuell: skript.hook_visuell ?? null,
-      hauptteil_visuell: skript.hauptteil_visuell ?? null,
-      cta_visuell: skript.cta_visuell ?? null,
-      aenderung_beschreibung: beschreibung || null,
-      created_by: user?.id
+    const { rows, neu } = planeVersionsRows({
+      versionen: vorhandene || [],
+      skript,
+      beschreibung,
+      vorherigerStand,
+      aktiveVersion,
+      userId: user?.id
     });
 
     const { error } = await this.db.from('skript_versionen').insert(rows);
@@ -541,17 +465,6 @@ export class SkripteService {
     const { data } = await this.db.from('skript_generation_jobs')
       .select('*').eq('id', jobId).single();
     return data;
-  }
-
-  // ------------------------------------------------------------------
-  // Auswertung: Score-Trend + Blindvergleich
-  // ------------------------------------------------------------------
-  async loadAuswertung() {
-    const { data: feedback } = await this.db.from('skript_feedback')
-      .select('sektion, score, created_at, skript_id').not('score', 'is', null);
-    const { data: skripte } = await this.db.from('skripte')
-      .select('id, mit_dna, herkunft');
-    return { feedback: feedback || [], skripte: skripte || [] };
   }
 }
 

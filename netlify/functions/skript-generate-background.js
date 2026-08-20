@@ -5,10 +5,10 @@
 // Background Function: antwortet sofort 202, Fortschritt kommt asynchron
 // ueber die skript_generation_jobs-Tabelle (Realtime in der UI).
 
-const { createClient } = require('@supabase/supabase-js');
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { loadContext, fmtSkript, buildKontextText, videoLaengeHinweis, briefingSkriptSprache } = require('./_shared/skript-context');
-const { verifyAuth, requireInternal, authErrorBody } = require('./_shared/verify-auth');
+const { withSkriptHandler } = require('./_shared/skript-handler');
+const { createJobUpdater } = require('./_shared/job-updater');
 const { starteKiRequest } = require('./_shared/ki-log');
 
 // Erzwungener Tool-Call: die API serialisiert das JSON selbst, unescapte
@@ -82,37 +82,6 @@ async function loadReferenzVideo(supabase, payload) {
   }
 
   return referenz;
-}
-
-function createJobUpdater(supabase, jobId) {
-  const logs = [];
-  let queue = Promise.resolve();
-
-  const enqueue = (patch) => {
-    queue = queue
-      .then(() => supabase.from('skript_generation_jobs').update({ ...patch, logs }).eq('id', jobId))
-      .catch((e) => console.error(`[${jobId}] Supabase-Write fehlgeschlagen:`, e.message));
-  };
-
-  const pushLog = (msg) => {
-    logs.push({ ts: new Date().toISOString(), msg });
-    console.log(`[${jobId}] ${msg}`);
-  };
-
-  return {
-    step(progressStep, msg) {
-      if (msg) pushLog(msg);
-      enqueue({ progress_step: progressStep, status: 'running' });
-    },
-    log(msg) {
-      pushLog(msg);
-      enqueue({});
-    },
-    async flushAndUpdate(patch) {
-      await queue;
-      await supabase.from('skript_generation_jobs').update({ ...patch, logs }).eq('id', jobId);
-    }
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -200,29 +169,7 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
 // ---------------------------------------------------------------------------
 // Handler
 // ---------------------------------------------------------------------------
-exports.handler = async (event) => {
-  if (event.httpMethod !== 'POST') return { statusCode: 405 };
-
-  const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-  const auth = await verifyAuth(event, supabase);
-  if (!auth.user) {
-    return {
-      statusCode: 401,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(authErrorBody(auth))
-    };
-  }
-  const intern = await requireInternal(supabase, auth.user);
-  if (!intern.ok) return intern.response;
-  const { user } = auth;
-
-  let payload;
-  try {
-    payload = JSON.parse(event.body || '{}');
-  } catch (_) {
-    return { statusCode: 400, body: 'Invalid JSON' };
-  }
-
+exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
   const { jobId } = payload;
   if (!jobId) return { statusCode: 400, body: 'jobId fehlt' };
 
@@ -272,7 +219,10 @@ exports.handler = async (event) => {
       systemBlocks: [{ text: stable, cache: true }],
       userPrompt: task,
       maxTokens: 4096,
-      tool: SKRIPT_TOOL
+      tool: SKRIPT_TOOL,
+      // Konservativ: ein haengender Claude-Call soll nicht bis zum
+      // Netlify-Limit blockieren, sondern als Job-Fehler sichtbar werden
+      timeoutMs: 480000
     });
     await ki.abschliessen(result);
 
@@ -377,6 +327,6 @@ exports.handler = async (event) => {
     } catch (_) { /* Job-Update selbst fehlgeschlagen */ }
     return { statusCode: 500 };
   }
-};
+});
 
 exports.buildPrompt = buildPrompt;

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { extractJson, extractByKeys } from '../../netlify/functions/_shared/anthropic.js';
+import { extractJson, extractByKeys, extractXmlParameters } from '../../netlify/functions/_shared/anthropic.js';
 
 describe('extractJson', () => {
   beforeEach(() => {
@@ -151,6 +151,24 @@ describe('extractByKeys (letzte Fallback-Schicht)', () => {
     expect(extractJson(raw, { keys: ['titel', 'hook', 'hauptteil', 'cta'] })).toEqual({
       hook: 'Der Einstieg',
       cta: 'Jetzt klicken'
+    });
+  });
+});
+
+describe('extractXmlParameters', () => {
+  it('birgt Tool-XML-Parameter ohne JSON', () => {
+    const raw = '<parameter name="antwort">Kurze Bestaetigung</parameter>'
+      + '<parameter name="sektion">hauptteil</parameter>'
+      + '<parameter name="vorschlag_text">POV-Shot Studio</parameter>';
+    expect(extractXmlParameters(raw, ['antwort', 'sektion', 'vorschlag_text'])).toEqual({
+      antwort: 'Kurze Bestaetigung',
+      sektion: 'hauptteil',
+      vorschlag_text: 'POV-Shot Studio'
+    });
+    expect(extractJson(raw, { keys: ['antwort', 'sektion', 'vorschlag_text'] })).toEqual({
+      antwort: 'Kurze Bestaetigung',
+      sektion: 'hauptteil',
+      vorschlag_text: 'POV-Shot Studio'
     });
   });
 });

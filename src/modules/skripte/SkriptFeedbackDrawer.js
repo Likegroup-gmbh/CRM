@@ -10,6 +10,9 @@
 
 import { skripteService, PERFORMANCE_LABELS } from './SkripteService.js';
 import { escapeHtml, formatDate, badge } from './SkripteUtils.js';
+import { createSkriptDrawer, removeSkriptDrawer } from './SkriptDrawer.js';
+
+const DRAWER_ID = 'skripte-feedback-drawer';
 
 const SEKTION_LABELS = { hook: 'HOOK', hauptteil: 'HAUPTTEIL', cta: 'CTA', gesamt: 'GESAMT' };
 
@@ -270,51 +273,13 @@ export class SkriptFeedbackDrawer {
   }
 
   // ------------------------------------------------------------------
-  // Drawer-Helfer (Pattern wie SkriptListeTab)
+  // Drawer-Helfer (zentral in SkriptDrawer.js)
   // ------------------------------------------------------------------
   createDrawer(title, bodyHtml, buttons) {
-    this.close();
-
-    const overlay = document.createElement('div');
-    overlay.className = 'drawer-overlay show';
-    overlay.id = 'skripte-feedback-drawer-overlay';
-
-    const panel = document.createElement('div');
-    panel.setAttribute('role', 'dialog');
-    panel.className = 'drawer-panel show skripte-drawer';
-    panel.id = 'skripte-feedback-drawer';
-    panel.innerHTML = `
-      <div class="skripte-drawer-header">
-        <h2>${escapeHtml(title)}</h2>
-        <button class="skripte-drawer-close" aria-label="Schließen">&times;</button>
-      </div>
-      <div class="skripte-drawer-body">${bodyHtml}</div>
-      <div class="skripte-drawer-footer"></div>
-    `;
-
-    const footer = panel.querySelector('.skripte-drawer-footer');
-    for (const btn of buttons) {
-      const el = document.createElement('button');
-      el.className = btn.primary ? 'primary-btn' : (btn.danger ? 'danger-btn' : 'secondary-btn');
-      el.textContent = btn.label;
-      el.addEventListener('click', async () => {
-        el.disabled = true;
-        const close = await btn.onClick();
-        el.disabled = false;
-        if (close !== false) this.close();
-      });
-      footer.appendChild(el);
-    }
-
-    overlay.addEventListener('click', () => this.close());
-    panel.querySelector('.skripte-drawer-close').addEventListener('click', () => this.close());
-
-    document.body.appendChild(overlay);
-    document.body.appendChild(panel);
+    createSkriptDrawer(DRAWER_ID, title, bodyHtml, buttons);
   }
 
   close() {
-    document.getElementById('skripte-feedback-drawer-overlay')?.remove();
-    document.getElementById('skripte-feedback-drawer')?.remove();
+    removeSkriptDrawer(DRAWER_ID);
   }
 }

@@ -246,6 +246,28 @@ function extractByKeys(raw, keys) {
 }
 
 /**
+ * Fallback fuer Anthropic-Tool-XML, wenn das Modell trotz tool_choice
+ * als Text dump't: <parameter name="feld">…</parameter> oder <feld>…</feld>.
+ */
+function extractXmlParameters(raw, keys) {
+  if (!raw || !keys?.length) return null;
+  const result = {};
+  for (const key of keys) {
+    const param = raw.match(new RegExp(
+      `<parameter\\s+name="${key}"\\s*>([\\s\\S]*?)(?:</parameter>|<(?:parameter|function)\\b)`,
+      'i'
+    ));
+    if (param) {
+      result[key] = param[1].trim();
+      continue;
+    }
+    const tag = raw.match(new RegExp(`<${key}>([\\s\\S]*?)</${key}>`, 'i'));
+    if (tag) result[key] = tag[1].trim();
+  }
+  return Object.keys(result).length ? result : null;
+}
+
+/**
  * Extrahiert ein JSON-Objekt aus einer Modell-Antwort
  * (tolerant gegenueber ```json-Fences und Text drumherum).
  * Scheitert das strikte Parsen, wird ein Reparaturlauf versucht - Modelle
@@ -266,7 +288,14 @@ function extractJson(text, { keys = [], onWarn } = {}) {
   const candidate = fenced ? fenced[1] : text;
   const start = candidate.indexOf('{');
   const end = candidate.lastIndexOf('}');
-  if (start === -1 || end === -1) throw new Error('Keine JSON-Struktur in der Antwort gefunden');
+  if (start === -1 || end === -1) {
+    const xml = extractXmlParameters(candidate, keys);
+    if (xml) {
+      warn('Hinweis: KI-Antwort als Tool-XML geborgen');
+      return xml;
+    }
+    throw new Error('Keine JSON-Struktur in der Antwort gefunden');
+  }
   const raw = candidate.slice(start, end + 1);
 
   try {
@@ -282,6 +311,11 @@ function extractJson(text, { keys = [], onWarn } = {}) {
         warn(`Hinweis: KI-Antwort per Feld-Extraktion geborgen (${strictError.message})`);
         return geborgen;
       }
+      const xml = extractXmlParameters(candidate, keys);
+      if (xml) {
+        warn(`Hinweis: KI-Antwort als Tool-XML geborgen (${strictError.message})`);
+        return xml;
+      }
       console.error(`[extractJson] Antwort nicht parsebar (${strictError.message}). Rohantwort: ${raw.slice(0, 600)}`);
       if (onWarn) {
         try { onWarn(`Rohantwort (gekuerzt): ${raw.slice(0, 800)}`); } catch (_) { /* noop */ }
@@ -291,4 +325,4 @@ function extractJson(text, { keys = [], onWarn } = {}) {
   }
 }
 
-module.exports = { callClaude, extractJson, repairJsonStrings, extractByKeys, MODELS, ClaudeTimeoutError };
+module.exports = { callClaude, extractJson, repairJsonStrings, extractByKeys, extractXmlParameters, MODELS, ClaudeTimeoutError };

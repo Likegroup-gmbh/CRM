@@ -18,13 +18,6 @@ export function badge(text, variant = 'neutral') {
   return `<span class="skripte-badge skripte-badge--${variant}">${escapeHtml(text)}</span>`;
 }
 
-export const PERFORMANCE_BADGE_VARIANT = {
-  unbewertet: 'neutral',
-  erfolgreich: 'success',
-  nicht_erfolgreich: 'danger',
-  viral: 'viral'
-};
-
 export const STATUS_LABELS = {
   fragen: 'Rückfragen offen',
   entwurf: 'Entwurf',
@@ -66,8 +59,9 @@ const MODEL_PRICING = [
   { match: 'haiku', input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 }
 ];
 
-// Fester Schaetzkurs USD -> EUR (kein Live-FX, nur Groessenordnung)
-const USD_TO_EUR = 0.92;
+// Fester Schaetzkurs USD -> EUR (kein Live-FX, nur Groessenordnung).
+// Muss zum Backend-Wert in netlify/functions/_shared/claude-cost.js passen.
+const USD_TO_EUR = 0.86;
 
 /**
  * Summiert Tokens + Kosten ueber mehrere { model, usage }-Eintraege
@@ -108,22 +102,4 @@ export function formatUsageCost(entries) {
     + ` · $${usd.toFixed(4)} (Schätzkurs ${USD_TO_EUR})`;
 
   return { label: `${tokenLabel} Tokens · ${eurLabel}`, tooltip };
-}
-
-/**
- * Liest Tokens + Modell aus einem Skript und liefert ein Kosten-Info-Objekt.
- * Anthropic-Semantik: input_tokens enthaelt KEINE Cache-Tokens, die stehen
- * separat in cache_read_input_tokens / cache_creation_input_tokens.
- */
-export function formatSkriptCost(skript) {
-  const usage = skript?.prompt_kontext?.usage;
-  if (!usage) return null;
-  return formatUsageCost([{ model: skript.model, usage }]);
-}
-
-/** Kosten-Badge-HTML (oder leerer String, wenn keine Usage vorliegt). */
-export function costBadge(skript) {
-  const cost = formatSkriptCost(skript);
-  if (!cost) return '';
-  return `<span class="skripte-badge skripte-badge--info" title="${escapeHtml(cost.tooltip)}">${escapeHtml(cost.label)}</span>`;
 }

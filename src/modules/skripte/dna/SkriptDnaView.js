@@ -1,15 +1,17 @@
-// SkriptDnaTab.js
+// SkriptDnaView.js
 // Geschichtete Skript-DNA verwalten: Entwuerfe reviewen/editieren, freigeben
 // (aktivieren, archiviert Vorgaenger), neue Layer anlegen und Destillation triggern.
+// Eigene Route /skripte/dna (vormals SkriptDnaTab).
 
-import { skripteService, DNA_LAYER } from './SkripteService.js';
-import { escapeHtml, formatDate, badge } from './SkripteUtils.js';
+import { skripteService, DNA_LAYER } from '../SkripteService.js';
+import { escapeHtml, formatDate, badge } from '../SkripteUtils.js';
+import { createSkriptDrawer, removeSkriptDrawer } from '../SkriptDrawer.js';
 
 const STATUS_VARIANT = { entwurf: 'info', aktiv: 'success', archiviert: 'neutral' };
+const DRAWER_ID = 'skripte-dna-drawer';
 
-export class SkriptDnaTab {
-  constructor(page) {
-    this.page = page;
+export class SkriptDnaView {
+  constructor() {
     this.dokumente = [];
     this.marken = [];
     this.branchen = [];
@@ -157,7 +159,7 @@ export class SkriptDnaTab {
       } });
     }
 
-    this.page.listeTab.createDrawer(`DNA ${this.scopeLabel(doc)} v${doc.version}`, body, buttons);
+    createSkriptDrawer(DRAWER_ID, `DNA ${this.scopeLabel(doc)} v${doc.version}`, body, buttons);
   }
 
   // ------------------------------------------------------------------
@@ -189,7 +191,7 @@ export class SkriptDnaTab {
       </div>
     `;
 
-    this.page.listeTab.createDrawer('DNA manuell anlegen', body, [
+    createSkriptDrawer(DRAWER_ID, 'DNA manuell anlegen', body, [
       { label: 'Als Entwurf speichern', primary: true, onClick: async () => {
         const layer = document.getElementById('dnan-layer').value;
         const scope = document.getElementById('dnan-scope').value;
@@ -273,7 +275,7 @@ export class SkriptDnaTab {
       </div>
     `;
 
-    this.page.listeTab.createDrawer('DNA-Destillation starten', body, [
+    createSkriptDrawer(DRAWER_ID, 'DNA-Destillation starten', body, [
       { label: 'Destillieren', primary: true, onClick: async () => {
         const layer = document.getElementById('dest-layer').value;
         const scope = document.getElementById('dest-scope').value;
@@ -351,5 +353,6 @@ export class SkriptDnaTab {
 
   cleanup() {
     this.stopJobWatch();
+    removeSkriptDrawer(DRAWER_ID);
   }
 }

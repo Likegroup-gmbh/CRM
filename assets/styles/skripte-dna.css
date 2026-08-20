@@ -1,0 +1,7 @@
+/* Skripte: DNA-Verwaltung (/skripte/dna) */
+
+.skripte-dna-editor {
+  font-family: monospace;
+  font-size: var(--text-sm);
+  resize: vertical;
+}

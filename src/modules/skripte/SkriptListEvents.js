@@ -89,6 +89,13 @@ export function bindEvents(list) {
       return;
     }
 
+    const dnaLink = e.target.closest('a[href="/skripte/dna"]');
+    if (dnaLink) {
+      e.preventDefault();
+      window.navigateTo('/skripte/dna');
+      return;
+    }
+
     if (e.target.classList.contains('table-link') && e.target.dataset.table === 'skripte') {
       e.preventDefault();
       window.navigateTo(`/skripte/${e.target.dataset.id}`);

@@ -4,10 +4,11 @@
 // und vom Chat-Editor (Neu-Modus) genutzt. Liefert den Payload fuer die
 // Background Function skript-generate-background.
 
-import { skripteService, FUNNEL_STUFEN, VIDEO_LAENGEN } from './SkripteService.js';
+import { skripteService } from './SkripteService.js';
 import { escapeHtml } from './SkripteUtils.js';
 import { TranscribeService, isSupportedVideoUrl } from '../transcribe/TranscribeService.js';
 import { BEREICH_LABELS } from '../briefing/create/fieldConfig.js';
+import { generatorFormMarkup } from './SkriptGeneratorFormMarkup.js';
 
 const REF_MANUELL_MIN_ZEICHEN = 50; // manuelles Transkript: Mindestlaenge
 
@@ -109,133 +110,7 @@ export class SkriptGeneratorForm {
 
   async render(container) {
     this.container = container;
-    const p = this.prefix;
-    container.innerHTML = `
-      <div class="skripte-card">
-        <h3>Kontext auswählen</h3>
-        <p class="skripte-hint">Unternehmen wählen – Marke ist optional (nicht jedes Unternehmen hat eine). Kickoff und Produktdaten werden automatisch aus dem CRM gezogen; das Briefing wählst du unten.</p>
-        <div class="skripte-form-grid">
-          <div class="form-group">
-            <label class="form-label">Unternehmen *</label>
-            <select id="${p}-unternehmen" class="form-input"><option value="">Laden...</option></select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Marke</label>
-            <select id="${p}-marke" class="form-input" disabled><option value="">– Erst Unternehmen wählen –</option></select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Kampagne</label>
-            <select id="${p}-kampagne" class="form-input" disabled><option value="">– Erst Unternehmen wählen –</option></select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Produkt</label>
-            <select id="${p}-produkt" class="form-input" disabled><option value="">– Erst Unternehmen wählen –</option></select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Persona (Zielgruppe)</label>
-            <select id="${p}-persona" class="form-input"><option value="">Laden...</option></select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Branche</label>
-            <select id="${p}-branche" class="form-input"><option value="">Laden...</option></select>
-            <span class="skripte-hint">Wird bei Markenwahl automatisch gesetzt, kann überschrieben werden.</span>
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Briefing</label>
-          <select id="${p}-briefing" class="form-input" disabled><option value="">– Erst Unternehmen wählen –</option></select>
-          <span class="skripte-hint" id="${p}-briefing-hint">Wähle ein Campaign-Briefing – Liky nutzt die Angaben als verbindliche Basis für das Skript.</span>
-        </div>
-      </div>
-
-      <div class="skripte-card">
-        <h3>Videovorlage (optional)</h3>
-        <p class="skripte-hint">Mit Vorlage übernimmt Liky deren Aufbau und Machart (Hook-Typ, Dramaturgie, Pace, CTA-Mechanik) – aber keine Formulierungen oder Produktaussagen. Ohne Vorlage baut Liky das Skript frei aus Skript-DNA und Beispiel-Skripten. Fakten kommen in beiden Fällen aus CRM und Briefing.</p>
-        <div class="skripte-ref-row">
-          <input type="url" id="${p}-ref-url" class="form-input"
-            placeholder="TikTok- oder Instagram-URL der Vorlage (z.B. https://www.tiktok.com/@user/video/...)" />
-          <button type="button" id="${p}-ref-start" class="mdc-btn mdc-btn--secondary">Analysieren</button>
-        </div>
-        <div id="${p}-ref-progress" class="skripte-ref-progress" hidden>
-          <div class="skripte-progress-head">
-            <span id="${p}-ref-progress-label">Starte…</span>
-          </div>
-          <div class="skripte-progress-track"><div id="${p}-ref-progress-bar" class="skripte-progress-bar"></div></div>
-        </div>
-        <div id="${p}-ref-error" class="skripte-ref-error" hidden>
-          <span id="${p}-ref-error-text"></span>
-          <button type="button" id="${p}-ref-retry" class="mdc-btn mdc-btn--secondary">Erneut versuchen</button>
-        </div>
-        <div id="${p}-ref-result" hidden>
-          <div id="${p}-ref-meta" class="skripte-ref-meta"></div>
-          <div class="form-group">
-            <label class="form-label">Transkript der Vorlage <span id="${p}-ref-source" class="skripte-hint"></span></label>
-            <textarea id="${p}-ref-transkript" class="form-input" rows="6"
-              placeholder="Transkript erscheint hier nach der Analyse – oder bei Fehlern manuell einfügen"></textarea>
-          </div>
-          <div class="skripte-form-grid">
-            <div class="form-group">
-              <label class="form-label">Beschreibung (KI)</label>
-              <textarea id="${p}-ref-beschreibung" class="form-input" rows="3"
-                placeholder="Automatische Beschreibung des Vorlage-Videos"></textarea>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Caption</label>
-              <textarea id="${p}-ref-caption" class="form-input" rows="3"
-                placeholder="Caption des Original-Posts"></textarea>
-            </div>
-          </div>
-          <button type="button" id="${p}-ref-clear" class="mdc-btn mdc-btn--secondary">Vorlage entfernen</button>
-        </div>
-      </div>
-
-      <div class="skripte-card">
-        <h3>Vorgaben für dieses Video</h3>
-        <div class="form-group">
-          <label class="form-label">Video-Idee *</label>
-          <textarea id="${p}-idee" class="form-input" rows="3"
-            placeholder="Worum soll es in dem Video gehen? (z.B. 'Morgenroutine mit Produkt X, Fokus auf Zeitersparnis')"></textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Location</label>
-          <textarea id="${p}-location" class="form-input" rows="3"
-            placeholder="Wo findet der Dreh statt? (z.B. 'Zuhause in der Küche, morgens bei Tageslicht; zweiter Teil im Auto auf dem Weg zur Arbeit')"></textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Regieanweisung</label>
-          <textarea id="${p}-regie" class="form-input" rows="3"
-            placeholder="Hinweise für den Creator zur Umsetzung (z.B. 'direkt in die Kamera sprechen, Produkt erst ab Sekunde 5 zeigen'). Fließt NICHT in die Skript-Generierung ein."></textarea>
-          <span class="skripte-hint">Wird nur als Zusatzinfo am Skript gespeichert – kein Einfluss auf den generierten Text.</span>
-        </div>
-        <div class="skripte-form-grid">
-          <div class="form-group">
-            <label class="form-label">Video-Länge (gesamt)</label>
-            <select id="${p}-laenge" class="form-input">
-              <option value="">– Keine Vorgabe –</option>
-              ${Object.entries(VIDEO_LAENGEN).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
-            </select>
-            <span class="skripte-hint">Das Skript wird auf diese gesprochene Länge dimensioniert.</span>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Funnel-Stufe</label>
-            <select id="${p}-funnel" class="form-input">
-              <option value="">– Keine Vorgabe –</option>
-              ${Object.entries(FUNNEL_STUFEN).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Tonalität</label>
-            <input id="${p}-tonalitaet" class="form-input" type="text"
-              placeholder="z.B. locker & humorvoll, seriös, emotional" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Skript-DNA</label>
-            <select id="${p}-dna" class="form-input"><option value="auto">Laden...</option></select>
-            <span class="skripte-hint">"Automatisch" nutzt alle zum Kontext passenden aktiven DNA-Layer.</span>
-          </div>
-        </div>
-      </div>
-    `;
+    container.innerHTML = generatorFormMarkup(this.prefix);
 
     this.el('unternehmen').addEventListener('change', () => this.onUnternehmenChange());
     this.el('marke').addEventListener('change', () => this.onMarkeChange());

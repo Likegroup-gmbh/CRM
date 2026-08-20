@@ -1,10 +1,10 @@
 // SkriptePage.js
-// /skripte = Table-Liste, /skripte/new und /skripte/:id = 3-Spalten-Editor.
-// Tab-Module (Generator, DNA, Personas, Auswertung) bleiben im Repo,
-// werden hier aber nicht mehr gerendert.
+// /skripte = Table-Liste, /skripte/new und /skripte/:id = 3-Spalten-Editor,
+// /skripte/dna = DNA-Verwaltung.
 
 import { SkriptEditorView } from './SkriptEditorView.js';
 import { SkriptList } from './SkriptList.js';
+import { SkriptDnaView } from './dna/SkriptDnaView.js';
 import { replaceSkriptUrl } from './SkripteUtils.js';
 
 const KONTEXT_KEY = 'skripte:kontext';
@@ -13,6 +13,7 @@ export class SkriptePage {
   constructor() {
     this.list = new SkriptList();
     this.editorView = new SkriptEditorView(this);
+    this.dnaView = new SkriptDnaView();
   }
 
   async init(id) {
@@ -29,6 +30,25 @@ export class SkriptePage {
 
     await this.editorView.cleanup?.();
     this.list.destroy?.();
+    this.dnaView.cleanup?.();
+
+    // DNA-Verwaltung: eigene Route, nur intern
+    if (id === 'dna') {
+      if (window.isKunde?.()) {
+        window.history.replaceState({ route: '/skripte' }, '', '/skripte');
+        id = null;
+      } else {
+        window.setHeadline('Skript-DNA');
+        window.setContentSafely(window.content, `
+          <div class="skripte-page">
+            <div id="skripte-dna-content"></div>
+          </div>
+        `);
+        const container = document.getElementById('skripte-dna-content');
+        if (container) await this.dnaView.render(container);
+        return;
+      }
+    }
 
     // Kunden: nur lesen, kein Generator
     if (window.isKunde?.() && (id === 'new' || id === 'neu')) {
@@ -102,6 +122,7 @@ export class SkriptePage {
 
   destroy() {
     this.list.destroy?.();
+    this.dnaView.cleanup?.();
     return this.editorView.cleanup?.();
   }
 }

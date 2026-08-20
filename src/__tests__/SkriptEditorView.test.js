@@ -19,8 +19,8 @@ const { mockService } = vi.hoisted(() => ({
     createVersion: vi.fn(),
     wechsleVersion: vi.fn(),
     triggerFunction: vi.fn(),
-    personaLabel: vi.fn(() => ''),
-    versionLabel: vi.fn(() => 'v1')
+    personaLabel: vi.fn((p) => p?.name || ''),
+    versionLabel: vi.fn((v) => `v${v?.version_nr || 1}`)
   }
 }));
 
@@ -43,7 +43,7 @@ vi.mock('../modules/skripte/SkriptFeedbackDrawer.js', () => ({
 vi.mock('../modules/skripte/SkripteUtils.js', () => ({
   escapeHtml: (v) => String(v ?? ''),
   formatDate: () => '',
-  badge: () => '',
+  badge: (text, variant = 'neutral') => `<span class="skripte-badge skripte-badge--${variant}">${text}</span>`,
   formatUsageCost: () => null,
   replaceSkriptUrl: () => {},
   skriptEditorPath: (id) => (!id || id === 'neu' || id === 'new') ? '/skripte/new' : `/skripte/${id}`
@@ -147,8 +147,8 @@ describe('SkriptEditorView Layout', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
 
-    mockService.loadSkript.mockResolvedValue(skript);
-    mockService.loadSkripte.mockResolvedValue([skript]);
+    mockService.loadSkript.mockResolvedValue({ ...skript });
+    mockService.loadSkripte.mockResolvedValue([{ ...skript }]);
     mockService.getChatMessages.mockResolvedValue([]);
     mockService.getVersionen.mockResolvedValue([]);
   });
@@ -205,10 +205,47 @@ describe('SkriptEditorView Layout', () => {
     expect(chat.querySelector('.skripte-editor-inputwrap')).not.toBeNull();
     expect(chat.querySelector('#ed-input')).not.toBeNull();
     expect(chat.querySelector('#ed-send')).not.toBeNull();
+    expect(chat.querySelector('#ed-cost')).not.toBeNull();
+    expect(chat.querySelector('#ed-meta')).toBeNull();
+    expect(chat.querySelector('#ed-version-wrap')).toBeNull();
 
     const main = container.querySelector('.skripte-editor-main');
     expect(main.querySelector('.skripte-editor-inputwrap')).toBeNull();
     expect(main.querySelector('#ed-input')).toBeNull();
+  });
+
+  it('Doc-Kopf: Tags links, Feedback, Version rechts', async () => {
+    mockService.loadSkript.mockResolvedValue({
+      ...skript,
+      marke: { markenname: 'Acme' },
+      personas: { name: 'Lisa' },
+      mit_dna: true
+    });
+    mockService.getVersionen.mockResolvedValue([
+      { version_nr: 1, sub_nr: 0 }
+    ]);
+    mockService.personaLabel.mockImplementation((p) => p?.name || '');
+
+    await view.render(container, 's1');
+
+    const head = container.querySelector('.skripte-editor-doc-head');
+    expect(head).not.toBeNull();
+    const meta = head.querySelector('#ed-meta');
+    const feedback = head.querySelector('#ed-feedback');
+    const version = head.querySelector('#ed-version-wrap');
+    expect(meta).not.toBeNull();
+    expect(feedback).not.toBeNull();
+    expect(version).not.toBeNull();
+
+    const kids = [...head.children];
+    expect(kids.indexOf(meta)).toBeLessThan(kids.indexOf(feedback));
+    expect(kids.indexOf(feedback)).toBeLessThan(kids.indexOf(version));
+
+    expect(meta.textContent).toContain('Muster GmbH');
+    expect(meta.textContent).toContain('Acme');
+    expect(meta.textContent).toContain('Lisa');
+    expect(meta.textContent).toContain('mit DNA');
+    expect(version.querySelector('#ed-version')).not.toBeNull();
   });
 
   it('Liste rendert Mini-Cards mit pinker Badge und Datum', async () => {
@@ -282,6 +319,49 @@ describe('SkriptEditorView Layout', () => {
     expect(mockService.createVersion).toHaveBeenCalled();
     expect(mockService.updateChatMessage).toHaveBeenCalledWith('m1', { status: 'angenommen' });
     expect(view.skript.hook_visuell).toBe('Neuer Visual-Text');
+  });
+
+  it('Hauptteil-Button disabled ohne Hook-Visual, enabled sobald gefuellt', async () => {
+    await view.render(container, 's1');
+    const haupt = container.querySelector('.skripte-editor-visual-btn[data-sektion="hauptteil"]');
+    expect(haupt.disabled).toBe(true);
+    expect(haupt.title).toContain('Hook');
+
+    view.skript.hook_visuell = '[0–3 Sek] Close-up';
+    view.renderDoc();
+    const hauptNach = container.querySelector('.skripte-editor-visual-btn[data-sektion="hauptteil"]');
+    expect(hauptNach.disabled).toBe(false);
+    expect(hauptNach.title).toBe('Was zu sehen ist per KI generieren');
+  });
+
+  it('CTA-Button disabled ohne Hauptteil-Visual, enabled sobald gefuellt', async () => {
+    mockService.loadSkript.mockResolvedValue({
+      ...skript,
+      hook_visuell: '[0–3 Sek]',
+      hauptteil_visuell: null
+    });
+    await view.render(container, 's1');
+    const cta = container.querySelector('.skripte-editor-visual-btn[data-sektion="cta"]');
+    expect(cta.disabled).toBe(true);
+    expect(cta.title).toContain('Hauptteil');
+
+    view.skript.hauptteil_visuell = '[3–8 Sek] B-Roll';
+    view.renderDoc();
+    const ctaNach = container.querySelector('.skripte-editor-visual-btn[data-sektion="cta"]');
+    expect(ctaNach.disabled).toBe(false);
+  });
+
+  it('startVisuell(hauptteil) ohne Hook-Visual: Warning, kein sendMessagePair', async () => {
+    window.toastSystem = { success: vi.fn(), error: vi.fn(), warning: vi.fn() };
+    await view.render(container, 's1');
+    const spy = vi.spyOn(view, 'sendMessagePair').mockResolvedValue(null);
+
+    await view.startVisuell('hauptteil');
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(window.toastSystem.warning).toHaveBeenCalledWith(
+      expect.stringContaining('Hook')
+    );
   });
 });
 
@@ -358,7 +438,7 @@ describe('SkriptEditorView Inline-Edit', () => {
     });
   });
 
-  it('Markierung in Spoken zeigt Aktionsmenue, Visual nicht', async () => {
+  it('Markierung in Spoken und Visual zeigt Aktionsmenue', async () => {
     await view.render(container, 's1');
     const spoken = container.querySelector('.skripte-editor-sektion-text[data-sektion="hook"]');
     const visual = container.querySelector('.skripte-editor-sektion-visual[data-sektion="hauptteil"]');
@@ -368,10 +448,33 @@ describe('SkriptEditorView Inline-Edit', () => {
     view.checkSelection();
     expect(menu.hidden).toBe(false);
     expect(menu.querySelector('[data-aktion="neu_schreiben"]')).not.toBeNull();
+    expect(view.selektion).toEqual({ sektion: 'hook', text: 'Hook-Text', istVisuell: false });
 
     selectText(visual);
     view.checkSelection();
-    expect(menu.hidden).toBe(true);
+    expect(menu.hidden).toBe(false);
+    expect(menu.querySelector('[data-aktion="kuerzen"]')).not.toBeNull();
+    expect(view.selektion).toEqual({ sektion: 'hauptteil', text: 'Visual-Text', istVisuell: true });
+  });
+
+  it('acceptVorschlag mit ist_visuell schreibt ins Visual-Feld', async () => {
+    window.toastSystem = { success: vi.fn(), error: vi.fn() };
+    await view.render(container, 's1');
+    view.skript.hook_visuell = 'Alter Shot';
+
+    await view.acceptVorschlag({
+      id: 'm2',
+      sektion: 'hook',
+      ist_visuell: true,
+      aktion: 'kuerzen',
+      selektion_text: 'Alter Shot',
+      vorschlag_text: 'Neuer Shot'
+    });
+
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', { hook_visuell: 'Neuer Shot' });
+    expect(view.skript.hook_visuell).toBe('Neuer Shot');
+    expect(view.skript.hook).toBe('Hook-Text');
+    expect(mockService.createVersion.mock.calls[0][1]).toBe('Kürzen · Hook Visual');
   });
 
   it('Tippen in Zelle loescht pending Selektion', async () => {

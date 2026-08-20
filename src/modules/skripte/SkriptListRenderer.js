@@ -11,7 +11,8 @@ import { STATUS_LABELS, STATUS_TAG_VARIANT, OHNE_MARKE_LABEL, OHNE_KAMPAGNE_LABE
 
 export function createButtonHtml() {
   if (window.isKunde?.()) return '';
-  return '<button id="btn-skript-new" class="mdc-btn">Neues Skript erstellen</button>';
+  return '<button id="btn-skript-new" class="mdc-btn">Neues Skript erstellen</button>'
+    + ' <a href="/skripte/dna" class="mdc-btn mdc-btn--secondary">DNA verwalten</a>';
 }
 
 function emptyCreateText() {

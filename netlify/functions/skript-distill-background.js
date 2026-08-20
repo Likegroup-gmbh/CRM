@@ -3,61 +3,12 @@
 // NEUEN DNA-Entwurf fuer einen Layer (global/branche/zielgruppe/marke).
 // Der Entwurf wird NICHT aktiviert - ein Mensch reviewt und gibt frei (UI).
 
-const { createClient } = require('@supabase/supabase-js');
 const { callClaude, MODELS } = require('./_shared/anthropic');
-const { verifyAuth, requireInternal, authErrorBody } = require('./_shared/verify-auth');
+const { withSkriptHandler } = require('./_shared/skript-handler');
+const { createJobUpdater } = require('./_shared/job-updater');
 const { starteKiRequest } = require('./_shared/ki-log');
 
-function createJobUpdater(supabase, jobId) {
-  const logs = [];
-  let queue = Promise.resolve();
-  const enqueue = (patch) => {
-    queue = queue
-      .then(() => supabase.from('skript_generation_jobs').update({ ...patch, logs }).eq('id', jobId))
-      .catch((e) => console.error(`[${jobId}] Supabase-Write fehlgeschlagen:`, e.message));
-  };
-  const pushLog = (msg) => {
-    logs.push({ ts: new Date().toISOString(), msg });
-    console.log(`[${jobId}] ${msg}`);
-  };
-  return {
-    step(progressStep, msg) {
-      if (msg) pushLog(msg);
-      enqueue({ progress_step: progressStep, status: 'running' });
-    },
-    log(msg) {
-      pushLog(msg);
-      enqueue({});
-    },
-    async flushAndUpdate(patch) {
-      await queue;
-      await supabase.from('skript_generation_jobs').update({ ...patch, logs }).eq('id', jobId);
-    }
-  };
-}
-
-exports.handler = async (event) => {
-  if (event.httpMethod !== 'POST') return { statusCode: 405 };
-
-  const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_KEY);
-  const auth = await verifyAuth(event, supabase);
-  if (!auth.user) {
-    return {
-      statusCode: 401,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(authErrorBody(auth))
-    };
-  }
-  const intern = await requireInternal(supabase, auth.user);
-  if (!intern.ok) return intern.response;
-
-  let payload;
-  try {
-    payload = JSON.parse(event.body || '{}');
-  } catch (_) {
-    return { statusCode: 400, body: 'Invalid JSON' };
-  }
-
+exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
   const { jobId, layer_typ, branche_id, persona_id, marke_id, name } = payload;
   if (!jobId || !layer_typ) return { statusCode: 400, body: 'jobId/layer_typ fehlt' };
 
@@ -66,7 +17,7 @@ exports.handler = async (event) => {
 
   try {
     // Frequenz-Limit pruefen + Protokoll-Zeile anlegen
-    ki = await starteKiRequest(supabase, { userId: auth.user.id, feature: 'dna_destillat' });
+    ki = await starteKiRequest(supabase, { userId: user.id, feature: 'dna_destillat' });
 
     // ------------------------------------------------------------------
     // 1. Aktuelle DNA dieses Layers laden (Basis der Ueberarbeitung)
@@ -185,7 +136,10 @@ exports.handler = async (event) => {
       model,
       systemBlocks: [{ text: systemText, cache: false }],
       userPrompt,
-      maxTokens: 8192
+      maxTokens: 8192,
+      // Konservativ: ein haengender Claude-Call soll nicht bis zum
+      // Netlify-Limit blockieren, sondern als Job-Fehler sichtbar werden
+      timeoutMs: 480000
     });
     await ki.abschliessen(result);
 
@@ -219,4 +173,4 @@ exports.handler = async (event) => {
     } catch (_) { /* noop */ }
     return { statusCode: 500 };
   }
-};
+});
