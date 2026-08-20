@@ -66,6 +66,8 @@ export class SkriptEditorView {
     this.genChannel = null;
     this.genPoll = null;
     this.visuellApplyLaeuft = false;
+    this.modi = [];
+    this._modiGeladen = false;
 
     // Controller (Fachlogik), jeweils mit Blick auf diese Fassade
     this._generation = new SkriptEditorGeneration(this);
@@ -110,11 +112,12 @@ export class SkriptEditorView {
 
     const readonly = this.isReadonly;
     try {
-      const [skript, skripte, messages, versionen] = await Promise.all([
+      const [skript, skripte, messages, versionen, modi] = await Promise.all([
         skripteService.loadSkript(skriptId),
         skripteService.loadSkripte(),
         readonly ? Promise.resolve([]) : skripteService.getChatMessages(skriptId),
-        skripteService.getVersionen(skriptId)
+        skripteService.getVersionen(skriptId),
+        readonly ? Promise.resolve([]) : this.loadModiCached()
       ]);
 
       if (!skript) {
@@ -126,6 +129,7 @@ export class SkriptEditorView {
       this.skripte = skripte;
       this.messages = messages;
       this.setVersionsState(versionen);
+      if (!readonly) this.modi = modi || [];
       this.neuModus = false;
 
       this.updateBreadcrumb();
@@ -179,7 +183,10 @@ export class SkriptEditorView {
           </aside>
           `}
         </div>
-        ${readonly ? '' : `<div class="skripte-editor-selmenu" id="ed-selmenu" hidden></div>`}
+        ${readonly ? '' : `
+        <div class="crm-fmenu skripte-editor-selmenu" id="ed-selmenu" hidden></div>
+        <div class="crm-fmenu skripte-editor-selmenu" id="ed-modmenu" hidden></div>
+        `}
       </div>
     `;
 
@@ -224,8 +231,10 @@ export class SkriptEditorView {
       this.pollInterval = null;
     }
     this.clearPending();
-    const menu = document.getElementById('ed-selmenu');
-    if (menu) menu.hidden = true;
+    const selmenu = document.getElementById('ed-selmenu');
+    if (selmenu) selmenu.hidden = true;
+    const modmenu = document.getElementById('ed-modmenu');
+    if (modmenu) modmenu.hidden = true;
 
     // Ggf. Neu-Modus verlassen (laufende Generierung bleibt bewusst bestehen,
     // ihr Ergebnis wird beim Job-Done trotzdem geladen)
@@ -248,7 +257,8 @@ export class SkriptEditorView {
       const [skript, messages, versionen] = await Promise.all([
         skripteService.loadSkript(skriptId),
         skripteService.getChatMessages(skriptId),
-        skripteService.getVersionen(skriptId)
+        skripteService.getVersionen(skriptId),
+        this.loadModiCached()
       ]);
 
       if (!skript) {
@@ -418,7 +428,7 @@ export class SkriptEditorView {
     });
     el.querySelector('#ed-feedback')?.addEventListener('click', () => this.openVollFeedback());
     el.querySelectorAll('.skripte-editor-visual-btn').forEach((btn) => {
-      btn.addEventListener('click', () => this.startVisuell(btn.dataset.sektion));
+      btn.addEventListener('click', () => this.openVisuellModusMenu(btn));
     });
     this.inlineEdit.attach(el, { readonly: this.isReadonly });
     this.renderVersionSelect();
@@ -554,8 +564,12 @@ export class SkriptEditorView {
         e.preventDefault();
         this.sendChat();
       }
-      if (e.key === 'Escape' && this.pendingAktion) {
-        this.clearPending();
+      if (e.key === 'Escape') {
+        const mod = document.getElementById('ed-modmenu');
+        if (mod) mod.hidden = true;
+        const sel = document.getElementById('ed-selmenu');
+        if (sel) sel.hidden = true;
+        if (this.pendingAktion) this.clearPending();
       }
     });
 
@@ -569,9 +583,11 @@ export class SkriptEditorView {
     document.addEventListener('mouseup', this.onMouseUp);
 
     this.onDocMouseDown = (e) => {
-      const menu = document.getElementById('ed-selmenu');
-      if (menu && !menu.hidden && !menu.contains(e.target)) {
-        menu.hidden = true;
+      for (const id of ['ed-selmenu', 'ed-modmenu']) {
+        const menu = document.getElementById(id);
+        if (menu && !menu.hidden && !menu.contains(e.target)) {
+          menu.hidden = true;
+        }
       }
     };
     document.addEventListener('mousedown', this.onDocMouseDown);
@@ -625,9 +641,21 @@ export class SkriptEditorView {
   clearPending() { this._selection.clearPending(); }
   updateChip() { this._selection.updateChip(); }
 
-  startVisuell(sektion) { return this._visuell.startVisuell(sektion); }
+  startVisuell(sektion, modus) { return this._visuell.startVisuell(sektion, modus); }
+  openVisuellModusMenu(btn) { return this._visuell.openModusMenu(btn); }
   applyVisuellVorschlag(msg) { return this._visuell.applyVisuellVorschlag(msg); }
   applyOffeneVisuellvorschlaege() { return this._visuell.applyOffene(); }
+
+  async loadModiCached() {
+    if (this.isReadonly || this._modiGeladen) return this.modi;
+    try {
+      this.modi = await skripteService.loadAktiveModi() || [];
+    } catch (_) {
+      this.modi = [];
+    }
+    this._modiGeladen = true;
+    return this.modi;
+  }
 
   subscribe() { this._realtime.subscribe(); }
   ensurePolling() { this._realtime.ensurePolling(); }

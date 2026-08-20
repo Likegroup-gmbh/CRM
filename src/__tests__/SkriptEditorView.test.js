@@ -20,7 +20,11 @@ const { mockService } = vi.hoisted(() => ({
     wechsleVersion: vi.fn(),
     triggerFunction: vi.fn(),
     personaLabel: vi.fn((p) => p?.name || ''),
-    versionLabel: vi.fn((v) => `v${v?.version_nr || 1}`)
+    versionLabel: vi.fn((v) => `v${v?.version_nr || 1}`),
+    loadAktiveModi: vi.fn(async () => [
+      { id: 'mod-k', slug: 'klassisch', name: 'Klassisch', beschreibung: 'Ruhige Shots, klare Schnitte', icon: 'clapperboard', item_layout: 'icon-label-sub' },
+      { id: 'mod-d', slug: 'dynamisch', name: 'Dynamisch', beschreibung: 'Schnelle Wechsel, mehr Szenen', icon: 'spark-doc', item_layout: 'icon-label-sub' }
+    ])
   }
 }));
 
@@ -275,19 +279,75 @@ describe('SkriptEditorView Layout', () => {
     expect(neuBtn.querySelector('.mdc-btn__icon')).not.toBeNull();
   });
 
-  it('Visual-Button triggert sendMessagePair mit aktion visuell', async () => {
+  it('Visual-Button oeffnet Modus-Menue statt Direktstart', async () => {
     await view.render(container, 's1');
     const spy = vi.spyOn(view, 'sendMessagePair').mockResolvedValue(null);
 
     const btn = container.querySelector('.skripte-editor-visual-btn[data-sektion="hook"]');
     btn.click();
+
+    const menu = container.querySelector('#ed-modmenu');
+    expect(menu.hidden).toBe(false);
+    expect(menu.querySelector('[data-modus="klassisch"]')).not.toBeNull();
+    expect(menu.querySelector('[data-modus="dynamisch"]')).not.toBeNull();
+    expect(menu.textContent).toContain('Klassisch');
+    expect(menu.textContent).toContain('Ruhige Shots, klare Schnitte');
+    expect(menu.textContent).toContain('Dynamisch');
+    expect(menu.textContent).toContain('Schnelle Wechsel, mehr Szenen');
+    expect(menu.querySelector('.crm-fmenu-sub')).not.toBeNull();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('Modus-Klick Klassisch startet visuell mit modus', async () => {
+    await view.render(container, 's1');
+    const spy = vi.spyOn(view, 'sendMessagePair').mockResolvedValue(null);
+
+    container.querySelector('.skripte-editor-visual-btn[data-sektion="hook"]').click();
+    container.querySelector('#ed-modmenu [data-modus="klassisch"]').click();
     await new Promise((r) => setTimeout(r, 0));
 
     expect(spy).toHaveBeenCalledWith({
       aktion: 'visuell',
       sektion: 'hook',
       selektion_text: 'Hook-Text',
-      inhalt: 'Visual zu Hook'
+      inhalt: 'Visual zu Hook · Klassisch',
+      modus: 'klassisch'
+    });
+    expect(container.querySelector('#ed-modmenu').hidden).toBe(true);
+  });
+
+  it('Modus-Klick Dynamisch startet visuell mit modus', async () => {
+    await view.render(container, 's1');
+    const spy = vi.spyOn(view, 'sendMessagePair').mockResolvedValue(null);
+
+    container.querySelector('.skripte-editor-visual-btn[data-sektion="hook"]').click();
+    container.querySelector('#ed-modmenu [data-modus="dynamisch"]').click();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(spy).toHaveBeenCalledWith({
+      aktion: 'visuell',
+      sektion: 'hook',
+      selektion_text: 'Hook-Text',
+      inhalt: 'Visual zu Hook · Dynamisch',
+      modus: 'dynamisch'
+    });
+  });
+
+  it('ohne geladene Modi: Visual-Button startet direkt klassisch', async () => {
+    mockService.loadAktiveModi.mockResolvedValueOnce([]);
+    await view.render(container, 's1');
+    const spy = vi.spyOn(view, 'sendMessagePair').mockResolvedValue(null);
+
+    container.querySelector('.skripte-editor-visual-btn[data-sektion="hook"]').click();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(container.querySelector('#ed-modmenu').hidden).toBe(true);
+    expect(spy).toHaveBeenCalledWith({
+      aktion: 'visuell',
+      sektion: 'hook',
+      selektion_text: 'Hook-Text',
+      inhalt: 'Visual zu Hook · Klassisch',
+      modus: 'klassisch'
     });
   });
 

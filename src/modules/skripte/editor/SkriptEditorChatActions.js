@@ -58,7 +58,7 @@ export class SkriptEditorChatActions {
   }
 
   /** User-Message + pending Assistant-Message anlegen, dann Function triggern. */
-  async sendMessagePair({ aktion, sektion, selektion_text, inhalt, ist_visuell = false }) {
+  async sendMessagePair({ aktion, sektion, selektion_text, inhalt, ist_visuell = false, modus = null }) {
     const v = this.view;
     try {
       const userMsg = await skripteService.createChatMessage({
@@ -69,6 +69,7 @@ export class SkriptEditorChatActions {
         selektion_text,
         inhalt,
         ist_visuell: !!ist_visuell,
+        modus: modus || null,
         status: 'fertig'
       });
       v.messages.push(userMsg);
@@ -83,6 +84,7 @@ export class SkriptEditorChatActions {
         selektion_text,
         inhalt,
         ist_visuell: !!ist_visuell,
+        modus: modus || null,
         status: 'pending'
       });
       v.messages.push(assistantMsg);
@@ -124,6 +126,7 @@ export class SkriptEditorChatActions {
         selektion_text: msg.selektion_text,
         inhalt: userInhalt,
         ist_visuell: !!msg.ist_visuell,
+        modus: msg.modus || null,
         status: 'pending'
       });
       v.messages.push(assistantMsg);

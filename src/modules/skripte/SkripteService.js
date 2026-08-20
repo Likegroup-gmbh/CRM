@@ -426,6 +426,19 @@ export class SkripteService {
   }
 
   // ------------------------------------------------------------------
+  // Modi (visuelle Regie: klassisch / dynamisch)
+  // ------------------------------------------------------------------
+  /** Aktive Regie-Modi fuer das Visual-Menue im Editor. */
+  async loadAktiveModi() {
+    const { data, error } = await this.db.from('skript_modi')
+      .select('id, slug, name, beschreibung, icon, item_layout')
+      .eq('status', 'aktiv')
+      .order('sort_order');
+    if (error) throw new Error(error.message);
+    return data || [];
+  }
+
+  // ------------------------------------------------------------------
   // Jobs (Background Functions)
   // ------------------------------------------------------------------
   async createJob() {

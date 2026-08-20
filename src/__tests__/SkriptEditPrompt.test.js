@@ -21,7 +21,8 @@ function baseCtx(overrides = {}) {
     dna: [],
     briefing: overrides.briefing ?? null,
     kickoff: overrides.kickoff ?? null,
-    feedback: []
+    feedback: [],
+    modus: overrides.modus ?? null
   };
 }
 
@@ -125,6 +126,34 @@ describe('buildEditPrompt aktion visuell', () => {
     expect(task).toContain('Die Sektion davor (Hauptteil) endet bei 0:12.');
     expect(task).toContain('Dein erster Shot MUSS bei 0:12 beginnen');
     expect(task).toContain('Der letzte Shot soll bei 0:30 enden');
+  });
+
+  it('visuell mit Modus: REGIE-MODUS-Block', () => {
+    const { task } = buildEditPrompt(baseCtx({
+      modus: { slug: 'dynamisch', name: 'Dynamisch', inhalt: 'Schnelle Wechsel, mehr Szenen.' }
+    }), {
+      aktion: 'visuell',
+      sektion: 'hook',
+      selektion_text: 'Kennst du das?',
+      inhalt: 'Visual zu Hook · Dynamisch',
+      modus: 'dynamisch'
+    });
+
+    expect(task).toContain('# REGIE-MODUS: Dynamisch');
+    expect(task).toContain('Schnelle Wechsel, mehr Szenen.');
+    expect(task.indexOf('# REGIE-MODUS')).toBeLessThan(task.indexOf('# AUSGABEFORMAT'));
+  });
+
+  it('visuell ohne Modus: kein REGIE-MODUS-Block', () => {
+    const { task } = buildEditPrompt(baseCtx(), {
+      aktion: 'visuell',
+      sektion: 'hook',
+      selektion_text: 'Kennst du das?',
+      inhalt: 'Visual zu Hook'
+    });
+
+    expect(task).not.toContain('# REGIE-MODUS');
+    expect(task).toContain('# AUSGABEFORMAT');
   });
 });
 

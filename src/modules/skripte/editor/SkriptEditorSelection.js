@@ -5,6 +5,7 @@
 import { escapeHtml } from '../SkripteUtils.js';
 import { AKTION_LABELS, AKTION_ICONS, PLACEHOLDER_AKTION, PLACEHOLDER_DEFAULT } from './skriptEditorKonstanten.js';
 import { sektionAnzeige } from './skriptEditorVisuellHelfer.js';
+import { openFloatingMenu } from '../../../core/components/FloatingMenu.js';
 
 export class SkriptEditorSelection {
   constructor(view) {
@@ -44,31 +45,25 @@ export class SkriptEditorSelection {
     v.pendingAktion = null;
     this.updateChip();
 
-    menu.innerHTML = ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton', 'feedback'].map((aktion) => `
-      <button data-aktion="${aktion}">
-        <span class="skripte-editor-selmenu-icon">${AKTION_ICONS[aktion]}</span>
-        <span>${AKTION_LABELS[aktion]}</span>
-      </button>
-    `).join('');
-    menu.querySelectorAll('button').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        menu.hidden = true;
-        if (btn.dataset.aktion === 'feedback') {
-          v.openSektionsFeedback();
-        } else {
-          this.setPendingAktion(btn.dataset.aktion);
-        }
-      });
-    });
+    const modmenu = document.getElementById('ed-modmenu');
+    if (modmenu) modmenu.hidden = true;
 
-    // Position: unter dem Ende der Auswahl, relativ zum Editor-Wrapper
-    // (dynamische Koordinaten gehen nur per JS)
-    const wrap = v.container.querySelector('.skripte-editor');
-    const rect = sel.getRangeAt(0).getBoundingClientRect();
-    const wrapRect = wrap.getBoundingClientRect();
-    menu.hidden = false;
-    menu.style.top = `${rect.bottom - wrapRect.top + 6}px`;
-    menu.style.left = `${Math.max(8, Math.min(rect.left - wrapRect.left, wrap.clientWidth - 220))}px`;
+    openFloatingMenu({
+      el: menu,
+      anchor: sel.getRangeAt(0),
+      wrap: v.container.querySelector('.skripte-editor'),
+      layout: 'icon-label',
+      items: ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton', 'feedback'].map((aktion) => ({
+        id: aktion,
+        iconHtml: AKTION_ICONS[aktion],
+        label: AKTION_LABELS[aktion],
+        data: { aktion }
+      })),
+      onSelect: (aktion) => {
+        if (aktion === 'feedback') v.openSektionsFeedback();
+        else this.setPendingAktion(aktion);
+      }
+    });
   }
 
   /**

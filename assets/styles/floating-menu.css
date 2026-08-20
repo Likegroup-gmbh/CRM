@@ -1,0 +1,73 @@
+/* Wiederverwendbares Floating-Menue (Click, vertikal) */
+.crm-fmenu {
+  position: absolute;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-2);
+  min-width: var(--min-width-md);
+  background: var(--bg-primary);
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xxs);
+  box-shadow: var(--shadow-lg);
+}
+
+.crm-fmenu[hidden] {
+  display: none;
+}
+
+.crm-fmenu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--text-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  text-align: left;
+  color: var(--text-primary);
+}
+
+.crm-fmenu-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.crm-fmenu-item--icon-label-sub {
+  align-items: flex-start;
+  white-space: normal;
+  min-width: 220px;
+}
+
+.crm-fmenu-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.crm-fmenu-icon svg,
+.crm-fmenu-icon .crm-icon {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.crm-fmenu-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.crm-fmenu-label {
+  line-height: 1.25;
+}
+
+.crm-fmenu-sub {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  line-height: 1.3;
+  white-space: normal;
+}

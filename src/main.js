@@ -35,6 +35,7 @@ import '../assets/styles/skripte.css';
 import '../assets/styles/produkt-doc.css';
 import '../assets/styles/utilities.css';
 import '../assets/styles/icons.css';
+import '../assets/styles/floating-menu.css';
 
 import { CONFIG } from './core/ConfigSystem.js';
 import { modularFilterSystem as filterSystem } from './core/filters/ModularFilterSystem.js';

@@ -204,10 +204,22 @@ async function loadEditContext(supabase, message) {
     return data?.[0] || null;
   })();
 
-  const [dna, briefing, kickoff] = await Promise.all([dnaPromise, briefingPromise, kickoffPromise]);
+  const modusPromise = (async () => {
+    if (message.aktion !== 'visuell' || !message.modus) return null;
+    const { data } = await supabase.from('skript_modi')
+      .select('slug, name, inhalt')
+      .eq('slug', message.modus)
+      .eq('status', 'aktiv')
+      .maybeSingle();
+    return data || null;
+  })();
+
+  const [dna, briefing, kickoff, modus] = await Promise.all([
+    dnaPromise, briefingPromise, kickoffPromise, modusPromise
+  ]);
   const feedback = (feedbackRaw || []).reverse();
 
-  return { skript, history, dna, briefing, kickoff, feedback };
+  return { skript, history, dna, briefing, kickoff, feedback, modus };
 }
 
 // ---------------------------------------------------------------------------
@@ -222,7 +234,7 @@ function fmtLines(obj) {
 }
 
 function buildEditPrompt(ctx, message) {
-  const { skript, history, dna, briefing, kickoff, feedback } = ctx;
+  const { skript, history, dna, briefing, kickoff, feedback, modus } = ctx;
 
   // Block 1 (stabil, cachebar): Rolle + DNA
   let stable = 'Du bist ein erfahrener Werbetexter fuer UGC- und Creator-Videos (TikTok, Instagram Reels) '
@@ -360,6 +372,9 @@ function buildEditPrompt(ctx, message) {
 
   if (message.aktion === 'visuell') {
     task += buildVisuellZeitplan(skript, message.sektion);
+    if (modus?.inhalt) {
+      task += `\n# REGIE-MODUS: ${modus.name}\n${modus.inhalt}\n`;
+    }
     task += '\n# AUSGABEFORMAT\nAntworte AUSSCHLIESSLICH ueber das Tool "aenderung_abgeben" '
       + '(Felder: antwort, sektion, vorschlag_text).\n'
       + 'Regeln:\n'

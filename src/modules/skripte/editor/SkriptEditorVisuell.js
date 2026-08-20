@@ -1,38 +1,89 @@
 // SkriptEditorVisuell.js
 // Visual-Generierung ("Was zu sehen ist"): KI-Vorschlag pro Sektion,
 // Auto-Apply direkt in die Zelle (kein Annehmen/Ablehnen).
+// Button oeffnet ein Modus-Menue (selmenu-Stil), danach startet die Generierung.
 
 import { skripteService } from '../SkripteService.js';
 import { SEKTION_LABELS_KURZ, VISUELL_FIELD } from './skriptEditorKonstanten.js';
 import { visuellVorgaengerFehlt, visuellVorgaengerTitle, visuellHatFolgeSektionen, skriptStand } from './skriptEditorVisuellHelfer.js';
+import { openFloatingMenu } from '../../../core/components/FloatingMenu.js';
 
 export class SkriptEditorVisuell {
   constructor(view) {
     this.view = view;
   }
 
-  async startVisuell(sektion) {
+  /** Guards + Toasts. true = Generierung darf starten / Menue darf aufgehen. */
+  pruefeGuards(sektion) {
     const v = this.view;
-    if (v.isReadonly || !v.skript) return;
-    if (!['hook', 'hauptteil', 'cta'].includes(sektion)) return;
+    if (v.isReadonly || !v.skript) return false;
+    if (!['hook', 'hauptteil', 'cta'].includes(sektion)) return false;
     const gesprochen = (v.skript[sektion] || '').trim();
     if (!gesprochen) {
       window.toastSystem?.warning('Erst gesprochenen Text generieren – dann kann ich das Visual dazu bauen.');
-      return;
+      return false;
     }
     if (visuellVorgaengerFehlt(v.skript, sektion)) {
       window.toastSystem?.warning(visuellVorgaengerTitle(sektion));
-      return;
+      return false;
     }
     const laeuft = v.messages.some((m) => m.aktion === 'visuell'
       && m.sektion === sektion && (m.status === 'pending' || m.status === 'running'));
-    if (laeuft) return;
+    if (laeuft) return false;
+    return true;
+  }
+
+  /** Visual-Button: Guards, dann Modus-Menue – oder Direktstart wenn keine Modi. */
+  openModusMenu(btn) {
+    const v = this.view;
+    const sektion = btn?.dataset?.sektion;
+    if (!this.pruefeGuards(sektion)) return;
+
+    const modi = v.modi || [];
+    if (!modi.length) {
+      this.startVisuell(sektion, 'klassisch');
+      return;
+    }
+
+    const menu = document.getElementById('ed-modmenu');
+    if (!menu) {
+      this.startVisuell(sektion, 'klassisch');
+      return;
+    }
+
+    const selmenu = document.getElementById('ed-selmenu');
+    if (selmenu) selmenu.hidden = true;
+
+    openFloatingMenu({
+      el: menu,
+      anchor: btn,
+      wrap: v.container?.querySelector('.skripte-editor'),
+      layout: 'icon-label-sub',
+      items: modi.map((m) => ({
+        id: m.slug,
+        icon: m.icon || { klassisch: 'clapperboard', dynamisch: 'spark-doc' }[m.slug],
+        label: m.name,
+        subtext: m.beschreibung,
+        layout: m.item_layout,
+        data: { modus: m.slug }
+      })),
+      onSelect: (slug) => this.startVisuell(sektion, slug)
+    });
+  }
+
+  async startVisuell(sektion, modus = 'klassisch') {
+    const v = this.view;
+    if (!this.pruefeGuards(sektion)) return;
+    const gesprochen = (v.skript[sektion] || '').trim();
+    const modusName = (v.modi || []).find((m) => m.slug === modus)?.name
+      || (modus === 'dynamisch' ? 'Dynamisch' : 'Klassisch');
 
     const msg = await v.sendMessagePair({
       aktion: 'visuell',
       sektion,
       selektion_text: gesprochen,
-      inhalt: `Visual zu ${SEKTION_LABELS_KURZ[sektion]}`
+      inhalt: `Visual zu ${SEKTION_LABELS_KURZ[sektion]} · ${modusName}`,
+      modus
     });
     if (msg) v.renderDoc();
   }
