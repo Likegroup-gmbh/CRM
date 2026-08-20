@@ -110,6 +110,14 @@ describe('PermissionSystem', () => {
       expect(ps.checkPermission('kampagne', 'delete')).toBe(false);
     });
 
+    it('Kunde kann Skripte nur sehen', () => {
+      ps.setUserPermissions(makeUser('kunde'));
+      expect(ps.checkPermission('skripte', 'view')).toBe(true);
+      expect(ps.checkPermission('skripte', 'edit')).toBe(false);
+      expect(ps.checkPermission('skripte', 'delete')).toBe(false);
+      expect(ps.canViewPage('skripte')).toBe(true);
+    });
+
     it('kunde_editor hat identische Matrix wie kunde', () => {
       const psKunde = new PermissionSystem();
       psKunde.setUserPermissions(makeUser('kunde'));

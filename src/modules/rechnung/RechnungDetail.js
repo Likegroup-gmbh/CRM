@@ -5,6 +5,8 @@ import { uploadRechnungPdf, uploadRechnungBeleg } from '../../core/DropboxDocume
 import { resolveRechnungPathMetadata } from '../../core/RechnungPathMetadata.js';
 import { finalizeRechnungSubmitData } from '../../core/form/logic/events/RechnungEvents.js';
 import { rechnungNotizModal } from './RechnungNotizModal.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
 
 // Pfade die mit "/" anfangen sind Dropbox-Pfade (neue Uploads), alle anderen
 // sind Legacy Supabase Storage-Pfade. Für Dropbox-Pfade reicht die
@@ -150,7 +152,7 @@ export class RechnungDetail {
             <div class="detail-item"><label>Zusatzkosten${this.data?.zusatzkosten_brutto ? ' (brutto)' : ''}</label><span>${formatCurrency(this.data?.zusatzkosten)}</span></div>
             <div class="detail-item"><label>Bruttobetrag</label><span>${formatCurrency(this.data?.bruttobetrag)}</span></div>
             ${this.data?.rechnungstyp === 'contracting' ? `<div class="detail-item"><label>KSK-pflichtig</label><span>${this.data?.ksk_pflichtig ? 'Ja' : 'Nein'}</span></div>` : ''}
-            <div class="detail-item"><label>PDFs</label><span>${this.pdfs && this.pdfs.length > 0 ? this.pdfs.map((p, i) => `<a href="${p.open_url}" target="_blank" rel="noopener noreferrer">${window.validatorSystem?.sanitizeHtml?.(p.file_name) || ('PDF ' + (i + 1))}</a>`).join(' &middot; ') : (this.data?.pdf_url ? `<a href="${this.data.pdf_url}" target="_blank" rel="noopener noreferrer">Öffnen</a>` : '-')}</span></div>
+            <div class="detail-item"><label>PDFs</label><span>${renderPdfLinks(this.pdfs, this.data?.pdf_url)}</span></div>
           </div>
 
           ${this.notiz ? `
@@ -163,14 +165,14 @@ export class RechnungDetail {
                 <span>${new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(this.notiz.erstellt_am))}</span>
               </div>
             </div>
-            ${this._canEditNotiz() ? `<button class="secondary-btn notiz-detail-edit-btn" id="btn-edit-notiz">Bearbeiten</button>` : ''}
+            ${this._canEditNotiz() ? `<button class="mdc-btn mdc-btn--secondary notiz-detail-edit-btn" id="btn-edit-notiz">Bearbeiten</button>` : ''}
           </div>
           ` : ''}
 
           <div class="detail-card">
             <h3>Belege</h3>
             ${(!this.belege || this.belege.length === 0) ? `
-              <p class="empty-state">Keine Belege vorhanden</p>
+              ${renderEmptyState({ icon: 'file-text', title: 'Keine Belege vorhanden' })}
             ` : `
               <div class="data-table-container">
                 <table class="data-table">
@@ -188,7 +190,7 @@ export class RechnungDetail {
                         <td>${window.validatorSystem.sanitizeHtml(b.file_name || '')}</td>
                         <td>${b.size != null ? (Math.round((b.size/1024)*10)/10)+' KB' : '-'}</td>
                         <td>${formatDate(b.uploaded_at)}</td>
-                        <td>${b.open_url ? `<a href="${b.open_url}" target="_blank" rel="noopener noreferrer">Öffnen</a>` : '-'}</td>
+                        <td>${renderPdfLinks(null, b.open_url)}</td>
                       </tr>
                     `).join('')}
                   </tbody>
@@ -552,9 +554,7 @@ export class RechnungDetail {
         <div class="page-header-right">
           <button onclick="window.navigateTo('/rechnung/${this.id}')" class="mdc-btn mdc-btn--cancel">
             <span class="mdc-btn__icon" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
-              </svg>
+              ${icon('x-circle-filled')}
             </span>
             <span class="mdc-btn__label">Abbrechen</span>
           </button>

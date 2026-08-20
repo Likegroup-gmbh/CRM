@@ -11,7 +11,7 @@ export const kooperationConfig = {
     { name: 'unternehmen_id', label: 'Unternehmen', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Unternehmen suchen und auswählen...', section: 'zuordnung', sectionTitle: 'Zuordnung' },
     { name: 'marke_id', label: 'Marke', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Marke auswählen (optional)...', dependsOn: 'unternehmen_id', section: 'zuordnung' },
     { name: 'kampagne_id', label: 'Kampagne', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Kampagne suchen und auswählen...', dependsOn: 'unternehmen_id', section: 'zuordnung' },
-    { name: 'briefing_id', label: 'Briefing', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Briefing wählen...', dependsOn: 'kampagne_id', table: 'briefings', displayField: 'product_service_offer', valueField: 'id', section: 'zuordnung' },
+    { name: 'briefing_id', label: 'Briefing', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Briefing wählen...', dependsOn: 'kampagne_id', table: 'campaign_briefings', displayField: 'aktivierung_name', valueField: 'id', section: 'zuordnung' },
     { name: 'creator_id', label: 'Creator', type: 'select', required: true, options: [], dynamic: true, searchable: true, placeholder: 'Creator suchen und auswählen...', dependsOn: 'kampagne_id', section: 'zuordnung' },
     { name: 'name', label: 'Name', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, autoGenerate: true, readonly: true, placeholder: 'Wird automatisch generiert...', section: 'zuordnung' },
 

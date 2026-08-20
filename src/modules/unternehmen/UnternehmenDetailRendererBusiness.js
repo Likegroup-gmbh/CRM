@@ -6,6 +6,7 @@ import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
 import { formatZahlungsziel, formatBoolean, renderMarkeBubble, renderPersonBubble, renderArtTags, renderBudgetProgress } from './UnternehmenDetailRendererHelpers.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { BEREICH_LABELS } from '../briefing/create/fieldConfig.js';
 
 export function renderAuftraege(detail) {
   if (!detail.auftraege || detail.auftraege.length === 0) {
@@ -18,11 +19,18 @@ export function renderAuftraege(detail) {
 
   const isKunde = window.isKunde();
 
-  const rows = detail.auftraege.map(auftrag => `
+  const sumNetto = detail.auftraege.reduce((s, a) => s + (parseFloat(a.nettobetrag) || 0), 0);
+  const sumUst = detail.auftraege.reduce((s, a) => s + (parseFloat(a.ust_betrag) || 0), 0);
+  const sumBrutto = detail.auftraege.reduce((s, a) => s + (parseFloat(a.bruttobetrag) || 0), 0);
+
+  const rows = detail.auftraege.map(auftrag => {
+    const isContracting = auftrag.auftragtype === 'Contracting';
+    const table = isContracting ? 'contracts' : 'auftrag';
+    return `
     <tr>
       <td>${renderMarkeBubble(detail, auftrag.marke)}</td>
       <td>
-        <a href="#" class="table-link" data-table="auftrag" data-id="${auftrag.id}">
+        <a href="#" class="table-link" data-table="${table}" data-id="${auftrag.id}">
           ${detail.sanitize(auftrag.auftragsname) || 'Unbekannter Auftrag'}
         </a>
       </td>
@@ -41,9 +49,10 @@ export function renderAuftraege(detail) {
       ${!isKunde ? `<td>${renderPersonBubble(detail, auftrag.ansprechpartner, 'ansprechpartner')}</td>` : ''}
       <td>${renderPersonBubble(detail, auftrag.created_by)}</td>
       <td>${renderAuftragAmpel(auftrag.status)}</td>
-      ${!isKunde ? `<td>${actionBuilder.create('auftrag', auftrag.id)}</td>` : ''}
+      ${!isKunde ? `<td>${actionBuilder.create(isContracting ? 'contract' : 'auftrag', auftrag.id)}</td>` : ''}
     </tr>
-  `).join('');
+    `;
+  }).join('');
 
   return `
     <div class="data-table-container">
@@ -71,6 +80,28 @@ export function renderAuftraege(detail) {
           </tr>
         </thead>
         <tbody>${rows}</tbody>
+        <tfoot>
+          <tr>
+            <td></td>
+            <td>GESAMT</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td>${detail.formatCurrency(sumNetto)}</td>
+            <td>${detail.formatCurrency(sumUst)}</td>
+            <td>${detail.formatCurrency(sumBrutto)}</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            ${!isKunde ? '<td></td>' : ''}
+            <td></td>
+            <td></td>
+            ${!isKunde ? '<td></td>' : ''}
+          </tr>
+        </tfoot>
       </table>
     </div>
   `;
@@ -142,11 +173,12 @@ export function renderBriefings(detail) {
     <tr>
       <td>
         <a href="#" class="table-link" data-table="briefing" data-id="${briefing.id}">
-          ${detail.sanitize(briefing.product_service_offer) || 'Unbekanntes Briefing'}
+          ${detail.sanitize(briefing.aktivierung_name) || 'Unbekanntes Briefing'}
         </a>
       </td>
       <td>${renderMarkeBubble(detail, briefing.marke)}</td>
-      <td>${briefing.kampagne?.id ? `<span class="tag tag--type">${detail.sanitize(KampagneUtils.getDisplayName(briefing.kampagne))}</span>` : '-'}</td>
+      <td>${briefing.bereich ? `<span class="tag tag--type">${detail.sanitize(BEREICH_LABELS[briefing.bereich] || briefing.bereich)}</span>` : '-'}</td>
+      <td><span class="status-badge ${briefing.is_draft ? 'status-entwurf' : 'status-final'}">${briefing.is_draft ? 'Entwurf' : 'Final'}</span></td>
       <td>${renderPersonBubble(detail, briefing.assignee)}</td>
       <td>${actionBuilder.create('briefing', briefing.id)}</td>
     </tr>
@@ -157,9 +189,10 @@ export function renderBriefings(detail) {
       <table class="data-table">
         <thead>
           <tr>
-            <th>Produkt/Angebot</th>
+            <th>Aktivierung</th>
             <th>Marke</th>
-            <th>Kampagne</th>
+            <th>Bereich</th>
+            <th>Status</th>
             <th>Zugewiesen</th>
             <th>Aktionen</th>
           </tr>

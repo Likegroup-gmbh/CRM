@@ -5,7 +5,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { callClaude, MODELS } = require('./_shared/anthropic');
-const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
+const { verifyAuth, requireInternal, authErrorBody } = require('./_shared/verify-auth');
 const { starteKiRequest } = require('./_shared/ki-log');
 
 function createJobUpdater(supabase, jobId) {
@@ -48,6 +48,8 @@ exports.handler = async (event) => {
       body: JSON.stringify(authErrorBody(auth))
     };
   }
+  const intern = await requireInternal(supabase, auth.user);
+  if (!intern.ok) return intern.response;
 
   let payload;
   try {

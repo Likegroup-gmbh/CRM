@@ -17,9 +17,9 @@ export class SkriptListeTab {
 
   async render(container) {
     container.innerHTML = `
-      <div class="skripte-actions-row" style="margin-bottom: var(--space-md);">
-        <button id="liste-import-btn" class="secondary-btn">Historisches Skript importieren</button>
-        <select id="liste-branche-filter" class="form-input" style="width:auto;">
+      <div class="skripte-actions-row u-mb-md">
+        <button id="liste-import-btn" class="mdc-btn mdc-btn--secondary">Historisches Skript importieren</button>
+        <select id="liste-branche-filter" class="form-input skripte-liste-filter">
           <option value="">Alle Branchen</option>
         </select>
         <span class="skripte-hint">Backfill: alte Skripte mit Performance-Label anlegen, damit die KI Beispiele hat.</span>
@@ -88,7 +88,7 @@ export class SkriptListeTab {
               <td>${s.herkunft === 'generiert' ? (s.mit_dna ? 'mit' : 'ohne') : '–'}</td>
               <td>${formatDate(s.created_at)}</td>
               <td class="skripte-row-actions">
-                <button class="primary-btn skripte-row-open">Öffnen</button>
+                <button class="mdc-btn skripte-row-open">Öffnen</button>
               </td>
             </tr>
           `).join('')}

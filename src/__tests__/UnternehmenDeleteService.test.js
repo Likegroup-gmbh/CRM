@@ -52,7 +52,7 @@ describe('UnternehmenDeleteService', () => {
       const sb = createTrackingSupabase({
         entities: {
           vertraege: [{ id: 'v1' }],
-          briefings: [{ id: 'b1' }],
+          campaign_briefings: [{ id: 'b1' }],
           kampagne: [{ id: 'k1' }],
           auftrag: [{ id: 'a1' }],
           produkt: [{ id: 'p1' }],
@@ -65,7 +65,7 @@ describe('UnternehmenDeleteService', () => {
       const deleteOps = sb._log.filter(e => e.op === 'delete' || e.op === 'delete.in');
       const deletedTables = deleteOps.map(e => e.table);
 
-      const expectedOrder = ['vertraege', 'briefings', 'kampagne', 'auftrag', 'produkt', 'marke', 'unternehmen'];
+      const expectedOrder = ['vertraege', 'campaign_briefings', 'kampagne', 'auftrag', 'produkt', 'marke', 'unternehmen'];
       const actualOrder = expectedOrder.filter(t => deletedTables.includes(t));
 
       expect(actualOrder).toEqual(expectedOrder);
@@ -81,7 +81,7 @@ describe('UnternehmenDeleteService', () => {
       const sb = createTrackingSupabase({
         entities: {
           vertraege: [{ id: 'v1' }],
-          briefings: [{ id: 'b1' }],
+          campaign_briefings: [{ id: 'b1' }],
           kampagne: [{ id: 'k1' }],
           auftrag: [{ id: 'a1' }],
           produkt: [{ id: 'p1' }],
@@ -98,7 +98,7 @@ describe('UnternehmenDeleteService', () => {
       const deletedTables = deleteOps.map(e => e.table);
 
       expect(deletedTables).toContain('vertraege');
-      expect(deletedTables).toContain('briefings');
+      expect(deletedTables).toContain('campaign_briefings');
       expect(deletedTables).toContain('kampagne');
       expect(deletedTables).toContain('auftrag');
       expect(deletedTables).toContain('produkt');
@@ -163,7 +163,7 @@ describe('UnternehmenDeleteService', () => {
       const selectOps = sb._log.filter(e => e.op === 'select');
       const queriedTables = selectOps.map(e => e.table);
       expect(queriedTables).toContain('vertraege');
-      expect(queriedTables).toContain('briefings');
+      expect(queriedTables).toContain('campaign_briefings');
       expect(queriedTables).toContain('kampagne');
       expect(queriedTables).toContain('auftrag');
       expect(queriedTables).toContain('produkt');

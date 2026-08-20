@@ -1,17 +1,16 @@
 // BriefingFilterConfig.js (ES6-Modul)
-// Briefing-spezifische Filter-Konfiguration
+// Filter-Konfiguration fuer Campaign Briefings (campaign_briefings)
 
-import { 
+import {
   createFilterConfig,
   BASE_FORMATTERS
 } from '../../../core/filters/BaseFilterConfig.js';
 
 export const BRIEFING_FILTERS = [
-  // Volltext auf Produkt/Angebot
   createFilterConfig('text', {
-    id: 'product_service_offer',
-    label: 'Produkt/Angebot',
-    placeholder: 'Nach Produkt/Angebot suchen...',
+    id: 'aktivierung_name',
+    label: 'Aktivierung',
+    placeholder: 'Nach Aktivierung suchen...',
     priority: 1
   }),
 
@@ -36,31 +35,40 @@ export const BRIEFING_FILTERS = [
   }),
 
   createFilterConfig('select', {
+    id: 'bereich',
+    label: 'Bereich',
+    options: [
+      { value: 'influencer_marketing', label: 'Influencer Marketing' },
+      { value: 'paid_creator_ads', label: 'Paid Creator Ads' },
+      { value: 'owned_social', label: 'Owned Social' }
+    ],
+    priority: 4
+  }),
+
+  createFilterConfig('select', {
+    id: 'is_draft',
+    label: 'Status',
+    options: [
+      { value: 'true', label: 'Entwurf' },
+      { value: 'false', label: 'Final' }
+    ],
+    priority: 5
+  }),
+
+  createFilterConfig('select', {
     id: 'assignee_id',
     label: 'Zugewiesen an',
     table: 'benutzer',
     displayField: 'name',
     valueField: 'id',
     dynamic: true,
-    priority: 4
-  }),
-
-  createFilterConfig('select', {
-    id: 'status',
-    label: 'Status',
-    options: [
-      { value: 'active', label: 'Aktiv' },
-      { value: 'inactive', label: 'Inaktiv' },
-      { value: 'completed', label: 'Abgeschlossen' },
-      { value: 'cancelled', label: 'Abgebrochen' }
-    ],
-    priority: 5
+    priority: 6
   }),
 
   createFilterConfig('dateRange', {
-    id: 'deadline',
-    label: 'Deadline',
-    priority: 6
+    id: 'content_deadline',
+    label: 'Content Deadline',
+    priority: 7
   })
 ];
 
@@ -68,7 +76,7 @@ export const BRIEFING_FILTER_GROUPS = [
   {
     id: 'basic',
     label: 'Grundlagen',
-    filters: ['product_service_offer', 'unternehmen_id', 'marke_id', 'status'],
+    filters: ['aktivierung_name', 'unternehmen_id', 'marke_id', 'bereich', 'is_draft'],
     expanded: true
   },
   {
@@ -80,7 +88,7 @@ export const BRIEFING_FILTER_GROUPS = [
   {
     id: 'timing',
     label: 'Zeit',
-    filters: ['deadline'],
+    filters: ['content_deadline'],
     expanded: false
   }
 ];
@@ -88,8 +96,9 @@ export const BRIEFING_FILTER_GROUPS = [
 export const BRIEFING_FILTER_PRESETS = [];
 
 export const BRIEFING_SORT_OPTIONS = [
-  { value: 'deadline', label: 'Deadline (nah zuerst)', direction: 'asc' },
-  { value: 'deadline', label: 'Deadline (fern zuerst)', direction: 'desc' }
+  { value: 'content_deadline', label: 'Deadline (nah zuerst)', direction: 'asc' },
+  { value: 'content_deadline', label: 'Deadline (fern zuerst)', direction: 'desc' },
+  { value: 'created_at', label: 'Erstellt (neu zuerst)', direction: 'desc' }
 ];
 
 export default {
@@ -99,6 +108,3 @@ export default {
   sortOptions: BRIEFING_SORT_OPTIONS,
   entityType: 'briefing'
 };
-
-
-

@@ -4,10 +4,6 @@ function getKampagneTotalVideosSimple(k) {
   const subfieldsSum =
     (parseInt(k.ugc_paid_video_anzahl, 10) || 0) +
     (parseInt(k.ugc_organic_video_anzahl, 10) || 0) +
-    (parseInt(k.ugc_pro_paid_video_anzahl, 10) || 0) +
-    (parseInt(k.ugc_pro_organic_video_anzahl, 10) || 0) +
-    (parseInt(k.ugc_video_paid_video_anzahl, 10) || 0) +
-    (parseInt(k.ugc_video_organic_video_anzahl, 10) || 0) +
     (parseInt(k.influencer_video_anzahl, 10) || 0) +
     (parseInt(k.story_video_anzahl, 10) || 0) +
     (parseInt(k.vor_ort_video_anzahl, 10) || 0);
@@ -18,10 +14,6 @@ function getKampagneTotalVideosFull(k) {
   const newSum =
     (parseInt(k.ugc_paid_video_anzahl, 10) || 0) +
     (parseInt(k.ugc_organic_video_anzahl, 10) || 0) +
-    (parseInt(k.ugc_pro_paid_video_anzahl, 10) || 0) +
-    (parseInt(k.ugc_pro_organic_video_anzahl, 10) || 0) +
-    (parseInt(k.ugc_video_paid_video_anzahl, 10) || 0) +
-    (parseInt(k.ugc_video_organic_video_anzahl, 10) || 0) +
     (parseInt(k.influencer_video_anzahl, 10) || 0) +
     (parseInt(k.story_video_anzahl, 10) || 0) +
     (parseInt(k.vor_ort_video_anzahl, 10) || 0);
@@ -156,7 +148,7 @@ export const cascadeStrategies = {
   'kampagne_id:marke_id': async (parentValue, form, field, fieldConfig, ctx) => {
     const { data: kampagnen, error } = await window.supabase
       .from('kampagne')
-      .select('id, kampagnenname, eigener_name, marke_id, videoanzahl, ugc_paid_video_anzahl, ugc_organic_video_anzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, story_video_anzahl, vor_ort_video_anzahl')
+      .select('id, kampagnenname, eigener_name, marke_id, videoanzahl, ugc_paid_video_anzahl, ugc_organic_video_anzahl, influencer_video_anzahl, story_video_anzahl, vor_ort_video_anzahl')
       .eq('marke_id', parentValue)
       .order('kampagnenname');
 
@@ -209,7 +201,7 @@ export const cascadeStrategies = {
 
     const { data: kampagnen, error } = await window.supabase
       .from('kampagne')
-      .select('id, kampagnenname, eigener_name, unternehmen_id, marke_id, videoanzahl, ugc_paid_video_anzahl, ugc_organic_video_anzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, story_video_anzahl, vor_ort_video_anzahl, ugc_video_anzahl, igc_video_anzahl')
+      .select('id, kampagnenname, eigener_name, unternehmen_id, marke_id, videoanzahl, ugc_paid_video_anzahl, ugc_organic_video_anzahl, influencer_video_anzahl, story_video_anzahl, vor_ort_video_anzahl, ugc_video_anzahl, igc_video_anzahl')
       .eq('unternehmen_id', parentValue)
       .order('kampagnenname');
 
@@ -347,10 +339,19 @@ export const cascadeStrategies = {
 
   'briefing_id:kampagne_id': async (parentValue, form, field, fieldConfig, ctx) => {
     try {
+      const { data: kampagne, error: kampagneError } = await window.supabase
+        .from('kampagne')
+        .select('unternehmen_id')
+        .eq('id', parentValue)
+        .single();
+      if (kampagneError || !kampagne?.unternehmen_id) {
+        if (kampagneError) console.error('❌ Fehler beim Laden der Kampagne für Briefings:', kampagneError);
+        return;
+      }
       const { data: briefings, error } = await window.supabase
-        .from('briefings')
-        .select('id, product_service_offer, kampagne_id')
-        .eq('kampagne_id', parentValue)
+        .from('campaign_briefings')
+        .select('id, aktivierung_name')
+        .eq('unternehmen_id', kampagne.unternehmen_id)
         .order('created_at', { ascending: false });
       if (error) {
         console.error('❌ Fehler beim Laden der Briefings für Kampagne:', error);
@@ -358,7 +359,7 @@ export const cascadeStrategies = {
       }
       const options = (briefings || []).map(b => ({
         value: b.id,
-        label: b.product_service_offer || `Briefing ${b.id.slice(0, 6)}`
+        label: b.aktivierung_name || `Briefing ${b.id.slice(0, 6)}`
       }));
       field.disabled = false;
       ctx.updateDependentFieldOptions(field, fieldConfig, options);

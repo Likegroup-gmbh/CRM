@@ -1,3 +1,4 @@
+import { icon } from '../icons/IconSystem.js';
 // SearchInput.js (ES6-Modul)
 // Wiederverwendbare Suchfeld-Komponente mit Clear-Button für Listen
 
@@ -27,9 +28,7 @@ export class SearchInput {
                 class="clear-input-btn" 
                 title="Suche löschen"
                 style="display: ${displayClear};">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
+          ${icon('x-mark')}
         </button>
       </div>
     `;

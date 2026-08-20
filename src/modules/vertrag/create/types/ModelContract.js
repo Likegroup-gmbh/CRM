@@ -10,8 +10,10 @@ VertraegeCreate.prototype.renderModelStep2 = function() {
 
     return `
       <div class="step-section">
-        <h3>Vertragsparteien</h3>
-        <p class="step-description">Vertragstyp: <strong>Modelvertrag</strong></p>
+        <div class="step-section__header">
+          <h3>Vertragsparteien</h3>
+          <p class="step-description">Vertragstyp: <strong>Modelvertrag</strong></p>
+        </div>
 
         <!-- Auftraggeber (Unternehmen) -->
         <div class="form-field">
@@ -40,7 +42,11 @@ VertraegeCreate.prototype.renderModelStep2 = function() {
           </select>
         </div>
 
-        <h3 class="mt-section">Model</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>Model</h3>
+        </div>
 
         <!-- Model (Creator) -->
         <div class="form-field">
@@ -107,7 +113,9 @@ VertraegeCreate.prototype.renderModelStep3 = function() {
 
     return `
       <div class="step-section">
-        <h3>§2 Produktion & Einsatz</h3>
+        <div class="step-section__header">
+          <h3>§2 Produktion & Einsatz</h3>
+        </div>
 
         <h4>2.1 Produktionsart</h4>
         <div class="form-field">
@@ -214,8 +222,11 @@ VertraegeCreate.prototype.renderModelStep3 = function() {
           <p class="form-hint">Die Buchung eines Optionstages bedarf der rechtzeitigen Bestätigung durch den Auftraggeber.</p>
         </div>
         ${renderParagraphZusatz(this.formData, 'p2', '§2 Produktion & Einsatz')}
-
-        <h3 class="mt-section">§3 Produktionsrahmen</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>§3 Produktionsrahmen</h3>
+        </div>
 
         <h4>3.1 Geplanter Output</h4>
         <div class="form-two-col">
@@ -311,7 +322,9 @@ VertraegeCreate.prototype.renderModelStep4 = function() {
 
     return `
       <div class="step-section">
-        <h3>§4 Nutzungsrechte</h3>
+        <div class="step-section__header">
+          <h3>§4 Nutzungsrechte</h3>
+        </div>
 
         <h4>4.1 Nutzungsarten</h4>
         <div class="form-field">
@@ -506,7 +519,9 @@ VertraegeCreate.prototype.renderModelStep5 = function() {
 
     return `
       <div class="step-section">
-        <h3>§5 Vergütung</h3>
+        <div class="step-section__header">
+          <h3>§5 Vergütung</h3>
+        </div>
 
         <h4>5.1 Honorar</h4>
         <div class="form-two-col">
@@ -618,8 +633,11 @@ VertraegeCreate.prototype.renderModelStep5 = function() {
         </div>
         <p class="form-hint">Rechnungsstellung durch das Model nach Abschluss der Produktion.</p>
         ${renderParagraphZusatz(this.formData, 'p5', '§5 Vergütung')}
-
-        <h3 class="mt-section">§6 Absage & Ausfall</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>§6 Absage & Ausfall</h3>
+        </div>
 
         <h4>6.1 Wetterabhängigkeit</h4>
         <div class="form-field">
@@ -657,11 +675,17 @@ VertraegeCreate.prototype.renderModelStep5 = function() {
                     placeholder="Beschreibung der individuellen Regelung...">${this.formData.model_absage_individuell || ''}</textarea>
         </div>
         ${renderParagraphZusatz(this.formData, 'p6', '§6 Absage & Ausfall')}
-
-        <h3 class="mt-section">Rechnungsstellung</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>Rechnungsstellung</h3>
+        </div>
         ${this.renderMehrfachRechnungToggle()}
-
-        <h3 class="mt-section">Weitere Bestimmungen</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>Weitere Bestimmungen</h3>
+        </div>
         <div class="form-field">
           <label for="weitere_bestimmungen">Zusätzliche Vereinbarungen (optional)</label>
           <textarea id="weitere_bestimmungen" name="weitere_bestimmungen" rows="4"

@@ -1,3 +1,4 @@
+import { icon } from '../../core/icons/IconSystem.js';
 // KickOffPage.js
 // Seite für Brand Kick-Off / Brand-Essenz Erfassung (wie MarkeCreate)
 
@@ -234,9 +235,7 @@ export class KickOffPage {
             </button>
             <button type="submit" class="mdc-btn mdc-btn--create" id="kickoff_submit">
               <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                  <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
-                </svg>
+                ${icon('check-filled')}
               </span>
               <span class="mdc-btn__spinner" aria-hidden="true">
                 <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">
@@ -432,9 +431,7 @@ export class KickOffPage {
         const updatedAt = new Date(kickoff.updated_at).toLocaleDateString('de-DE');
         statusDiv.innerHTML = `
           <div class="kickoff-status-badge kickoff-status-badge--exists">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-            </svg>
+            ${icon('check-circle')}
             Kick-Off existiert (zuletzt aktualisiert: ${updatedAt})
           </div>
         `;
@@ -694,9 +691,7 @@ export class KickOffPage {
 
     if (filter && !this.allMarkenwerte.find(m => m.name.toLowerCase() === lowerFilter)) {
       html += `<div class="suggestion-item suggestion-item--new" data-name="${filter}">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
+        ${icon('plus-lg')}
         "${filter}" neu anlegen
       </div>`;
     }

@@ -5,7 +5,6 @@ import { strategieService } from './StrategieService.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { tableSelect } from '../../core/components/TableSelect.js';
 import { buildStrategiePrioUpdates, isStrategiePrio } from './strategiePrioOptions.js';
-import { showLongTextDrawer } from './StrategieLongTextDrawer.js';
 
 export function cleanupTableEvents(detail) {
   detail._tableEventListeners.forEach(cleanup => cleanup());
@@ -33,7 +32,6 @@ export function bindTableEvents(detail) {
 
   bindCustomColumnEvents(detail);
   bindPrioSelect(detail);
-  bindLongTextCells(detail);
 
   if (!detail.isKunde) {
     const actionHandler = (e) => {
@@ -278,19 +276,6 @@ export async function handlePrioChange(detail, itemId, value) {
   }
 }
 
-/** Transkript/Caption zeigen in der Zelle nur eine Vorschau. */
-export function bindLongTextCells(detail) {
-  document.querySelectorAll('.strategie-items-table [data-action="show-longtext"]').forEach(btn => {
-    const handler = (e) => {
-      e.preventDefault();
-      const item = detail.items.find(i => i.id === btn.dataset.itemId);
-      if (item) showLongTextDrawer(item, btn.dataset.field);
-    };
-    btn.addEventListener('click', handler);
-    detail._tableEventListeners.add(() => btn.removeEventListener('click', handler));
-  });
-}
-
 /** Screenshot und Transkript neu holen - auch fuer Items aus der Zeit davor. */
 export async function handleReprocessItem(detail, itemId) {
   const item = detail.items.find(i => i.id === itemId);
@@ -415,19 +400,15 @@ export async function updateItemField(detail, itemId, field, value) {
       updates.kunde_anmerkung_updated_at = new Date().toISOString();
     }
 
-    // Von Hand geschrieben schlaegt KI: der Tag in der Spalte verschwindet
+    // Von Hand geschriebene Beschreibungen werden als solche markiert
     if (field === 'beschreibung') {
       updates.beschreibung_quelle = value ? 'user' : null;
     }
 
     await strategieService.updateStrategieItem(itemId, updates);
-    
+
     const item = detail.items.find(i => i.id === itemId);
-    if (item) {
-      const kiTagFaelltWeg = field === 'beschreibung' && item.beschreibung_quelle === 'ki';
-      Object.assign(item, updates);
-      if (kiTagFaelltWeg) detail.rerenderItemsTable();
-    }
+    if (item) Object.assign(item, updates);
   } catch (error) {
     console.error('Fehler beim Aktualisieren des Items:', error);
     window.toastSystem?.show('Fehler beim Speichern', 'error');

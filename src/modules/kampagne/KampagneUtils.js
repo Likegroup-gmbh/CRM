@@ -303,15 +303,19 @@ export class KampagneUtils {
       'ugc_paid': 'UGC Paid',
       'ugc_organic': 'UGC Organic',
       'influencer': 'Influencer Kampagne',
+      'story': 'Influencer Story',
+      'event': 'Influencer Events',
       'vor_ort_produktion': 'Vor-Ort-Produktion',
-      'story': 'Story',
-      'ugc_pro_paid': 'UGC Pro Paid',
-      'ugc_pro_organic': 'UGC Pro Organic',
-      'ugc_video_paid': 'UGC Video Paid',
-      'ugc_video_organic': 'UGC Video Organic',
-      // Legacy-Werte
-      'ugc': 'UGC Video Organic',
-      'igc': 'UGC Pro Organic',
+      'vorort_produktion': 'Vor-Ort-Produktion',
+      'whitelisting': 'Whitelisting',
+      'darkposting': 'Darkposting',
+      // Legacy-Slugs (vor der Zusammenführung 2026-08)
+      'ugc_pro_paid': 'UGC Paid',
+      'ugc_pro_organic': 'UGC Organic',
+      'ugc_video_paid': 'UGC Paid',
+      'ugc_video_organic': 'UGC Organic',
+      'ugc': 'UGC Organic',
+      'igc': 'UGC Organic',
       'ai': 'AI'
     };
     
@@ -472,10 +476,6 @@ export class KampagneUtils {
     const subfieldsSum =
       (parseInt(k.ugc_paid_video_anzahl, 10) || 0) +
       (parseInt(k.ugc_organic_video_anzahl, 10) || 0) +
-      (parseInt(k.ugc_pro_paid_video_anzahl, 10) || 0) +
-      (parseInt(k.ugc_pro_organic_video_anzahl, 10) || 0) +
-      (parseInt(k.ugc_video_paid_video_anzahl, 10) || 0) +
-      (parseInt(k.ugc_video_organic_video_anzahl, 10) || 0) +
       (parseInt(k.influencer_video_anzahl, 10) || 0) +
       (parseInt(k.story_video_anzahl, 10) || 0) +
       (parseInt(k.vor_ort_video_anzahl, 10) || 0);
@@ -487,10 +487,6 @@ export class KampagneUtils {
     const newSum =
       (parseInt(k.ugc_paid_video_anzahl, 10) || 0) +
       (parseInt(k.ugc_organic_video_anzahl, 10) || 0) +
-      (parseInt(k.ugc_pro_paid_video_anzahl, 10) || 0) +
-      (parseInt(k.ugc_pro_organic_video_anzahl, 10) || 0) +
-      (parseInt(k.ugc_video_paid_video_anzahl, 10) || 0) +
-      (parseInt(k.ugc_video_organic_video_anzahl, 10) || 0) +
       (parseInt(k.influencer_video_anzahl, 10) || 0) +
       (parseInt(k.story_video_anzahl, 10) || 0) +
       (parseInt(k.vor_ort_video_anzahl, 10) || 0);
@@ -534,12 +530,13 @@ export class KampagneUtils {
         { value: 'pending', label: 'Ausstehend' }
       ],
       art_der_kampagne: [
-        { value: 'UGC Pro Paid', label: 'UGC Pro Paid' },
-        { value: 'UGC Pro Organic', label: 'UGC Pro Organic' },
-        { value: 'UGC Video Paid', label: 'UGC Video Paid' },
-        { value: 'UGC Video Organic', label: 'UGC Video Organic' },
+        { value: 'UGC Paid', label: 'UGC Paid' },
+        { value: 'UGC Organic', label: 'UGC Organic' },
         { value: 'Influencer Kampagne', label: 'Influencer Kampagne' },
-        { value: 'Vor Ort Produktionen', label: 'Vor Ort Produktionen' }
+        { value: 'Influencer Story', label: 'Influencer Story' },
+        { value: 'Vor-Ort-Produktion', label: 'Vor-Ort-Produktion' },
+        { value: 'Whitelisting', label: 'Whitelisting' },
+        { value: 'Darkposting', label: 'Darkposting' }
       ]
     };
   }

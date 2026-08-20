@@ -14,8 +14,10 @@ VertraegeCreate.prototype.renderStep2 = function() {
     
     return `
       <div class="step-section">
-        <h3>Vertragsparteien</h3>
-        <p class="step-description">Vertragstyp: <strong>${this.selectedTyp}</strong></p>
+        <div class="step-section__header">
+          <h3>Vertragsparteien</h3>
+          <p class="step-description">Vertragstyp: <strong>${this.selectedTyp}</strong></p>
+        </div>
         
         <!-- Kunde -->
         <div class="form-field">
@@ -60,8 +62,6 @@ VertraegeCreate.prototype.renderStep2 = function() {
 
         ${this.renderKooperationSelect()}
 
-        ${this.renderAgenturSection()}
-
         <div class="form-field">
           <label for="name">Vertragsname (automatisch generiert)</label>
           <input type="text" id="name" name="name" readonly 
@@ -69,13 +69,16 @@ VertraegeCreate.prototype.renderStep2 = function() {
                  placeholder="Wird automatisch generiert..." class="readonly-field">
         </div>
       </div>
+      ${this.renderAgenturSection()}
     `;
 };
 
 VertraegeCreate.prototype.renderStep3 = function() {
     return `
       <div class="step-section">
-        <h3>§2 Leistungsumfang</h3>
+        <div class="step-section__header">
+          <h3>§2 Leistungsumfang</h3>
+        </div>
         
         <div class="form-three-col">
           <div class="form-field">
@@ -121,8 +124,11 @@ VertraegeCreate.prototype.renderStep3 = function() {
           </div>
         </div>
         ${renderParagraphZusatz(this.formData, 'p2', '§2 Leistungsumfang')}
-
-        <h3>§3 Output & Lieferumfang</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>§3 Output & Lieferumfang</h3>
+        </div>
         
         <div class="form-field">
           <label>Art der Lieferung</label>
@@ -169,7 +175,9 @@ VertraegeCreate.prototype.renderStep3 = function() {
 VertraegeCreate.prototype.renderStep4 = function() {
     return `
       <div class="step-section">
-        <h3>§4 Nutzungsrechte</h3>
+        <div class="step-section__header">
+          <h3>§4 Nutzungsrechte</h3>
+        </div>
         
         <div class="form-field">
           <label>Nutzungsart</label>
@@ -265,7 +273,9 @@ VertraegeCreate.prototype.renderStep4 = function() {
 VertraegeCreate.prototype.renderStep5 = function() {
     return `
       <div class="step-section">
-        <h3>§5 Vergütung</h3>
+        <div class="step-section__header">
+          <h3>§5 Vergütung</h3>
+        </div>
         
         <div class="form-two-col">
           <div class="form-field">
@@ -314,8 +324,11 @@ VertraegeCreate.prototype.renderStep5 = function() {
           </label>
         </div>
         ${renderParagraphZusatz(this.formData, 'p5', '§5 Vergütung')}
-
-        <h3>§6 Deadlines & Korrekturen</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>§6 Deadlines & Korrekturen</h3>
+        </div>
         
         <div class="form-three-col">
           <div class="form-field">
@@ -338,11 +351,17 @@ VertraegeCreate.prototype.renderStep5 = function() {
           </div>
         </div>
         ${renderParagraphZusatz(this.formData, 'p6', '§6 Deadlines & Korrekturen')}
-
-        <h3>Rechnungsstellung</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>Rechnungsstellung</h3>
+        </div>
         ${this.renderMehrfachRechnungToggle()}
-
-        <h3>Weitere Bestimmungen</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>Weitere Bestimmungen</h3>
+        </div>
         <div class="form-field">
           <label for="weitere_bestimmungen">Zusätzliche Vereinbarungen (optional)</label>
           <textarea id="weitere_bestimmungen" name="weitere_bestimmungen" rows="4"

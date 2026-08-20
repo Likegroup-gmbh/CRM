@@ -4,6 +4,8 @@
 // Einstufig (keine Ebenen-Auswahl wie bei der Kampagne).
 
 import { makeCustomColumnId, escapeHtml, parseOrderEntry } from './entityColumnUtils.js';
+import { renderEmptyState } from '../components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 const FIELD_TYPES = [
   { value: 'text', label: 'Text' },
@@ -93,11 +95,11 @@ export class EntityCustomColumnsDrawer {
               <thead><tr><th>Name</th><th>Typ</th><th>Kunde</th><th></th></tr></thead>
               <tbody>${rows}</tbody>
             </table>`
-          : '<div class="empty-state-small"><p>Noch keine eigenen Spalten angelegt.</p></div>'}
+          : renderEmptyState({ title: 'Noch keine eigenen Spalten angelegt', size: 'small' })}
       </div>
       <div class="cc-add-section">
-        <button type="button" class="secondary-btn" id="btn-add-custom-column">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        <button type="button" class="mdc-btn mdc-btn--secondary" id="btn-add-custom-column">
+          ${icon('plus')}
           Spalte hinzufügen
         </button>
       </div>
@@ -105,7 +107,7 @@ export class EntityCustomColumnsDrawer {
         ${this._renderAddForm()}
       </div>
       <div class="drawer-footer">
-        <button type="button" class="primary-btn" id="btn-close-entity-custom-columns">Fertig</button>
+        <button type="button" class="mdc-btn" id="btn-close-entity-custom-columns">Fertig</button>
       </div>
     `;
   }
@@ -139,7 +141,7 @@ export class EntityCustomColumnsDrawer {
         </td>
         <td>
           <button type="button" class="btn-icon btn-danger-icon custom-col-delete-btn" data-column-id="${col.id}" data-column-name="${escapeHtml(col.name)}" title="Spalte löschen">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673A2.25 2.25 0 0 1 15.916 21H8.084a2.25 2.25 0 0 1-2.244-2.327L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916A2.25 2.25 0 0 0 13.5 2.25h-3a2.25 2.25 0 0 0-2.25 2.25v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
+            ${icon('trash-alt')}
           </button>
         </td>
       </tr>
@@ -197,8 +199,8 @@ export class EntityCustomColumnsDrawer {
           </label>
         </label>
         <div class="cc-add-form-actions">
-          <button type="button" class="secondary-btn" id="btn-entity-cancel-add-column">Abbrechen</button>
-          <button type="button" class="primary-btn" id="btn-entity-confirm-add-column">Anlegen</button>
+          <button type="button" class="mdc-btn mdc-btn--secondary" id="btn-entity-cancel-add-column">Abbrechen</button>
+          <button type="button" class="mdc-btn" id="btn-entity-confirm-add-column">Anlegen</button>
         </div>
       </div>`;
   }

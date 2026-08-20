@@ -32,7 +32,7 @@ export async function setup(form, ctx) {
   
   const initDynamicFields = async () => {
     try {
-        const { KAMPAGNENARTEN_MAPPING, generateFieldsHtml } = await import('../../../../modules/auftrag/logic/KampagnenartenMapping.js');
+        const { getKampagnenartConfig, resolveKampagnenartName, generateFieldsHtml } = await import('../../../../modules/auftrag/logic/KampagnenartenMapping.js');
       
       const loadKampagnenartenForAuftrag = async (auftragId) => {
         if (!auftragId || !window.supabase) return [];
@@ -88,25 +88,30 @@ export async function setup(form, ctx) {
         fieldsContainer.innerHTML = '';
         
         if (!selectedAuftragId) {
-          fieldsContainer.innerHTML = '<p class="form-hint" style="padding: 1rem; color: var(--text-secondary); font-style: italic;">Bitte wählen Sie einen Auftrag aus, um die Produktionsdetails anzuzeigen.</p>';
+          fieldsContainer.innerHTML = '<p class="form-hint form-hint--info">Bitte wählen Sie einen Auftrag aus, um die Produktionsdetails anzuzeigen.</p>';
           return;
         }
-        
-        fieldsContainer.innerHTML = '<p class="form-hint" style="padding: 1rem; color: var(--text-secondary);"><span class="loading-spinner" style="display: inline-block; width: 16px; height: 16px; border: 2px solid #ddd; border-top-color: var(--color-primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px;"></span>Lade Produktionsdetails...</p>';
-        
+
+        fieldsContainer.innerHTML = '<p class="form-hint form-hint--loading"><span class="form-hint-spinner"></span>Lade Produktionsdetails...</p>';
+
         const artenNamen = await loadKampagnenartenForAuftrag(selectedAuftragId);
-        
+
         if (artenNamen.length === 0) {
-          fieldsContainer.innerHTML = '<p class="form-hint" style="padding: 1rem; color: var(--color-warning); background: rgba(255,193,7,0.1); border-radius: 8px;">Für diesen Auftrag wurden noch keine Kampagnenarten hinterlegt. Bitte zuerst im Auftrag die "Art der Kampagne" auswählen.</p>';
+          fieldsContainer.innerHTML = '<p class="form-hint form-hint--warning">Für diesen Auftrag wurden noch keine Kampagnenarten hinterlegt. Bitte zuerst im Auftrag die "Art der Kampagne" auswählen.</p>';
           return;
         }
+
+        let fieldsHtml = '<div class="kampagnenart-fields-wrapper u-mt-md">';
+        fieldsHtml += '<h4 class="kampagnenart-fields-title">Produktionsdetails</h4>';
         
-        let fieldsHtml = '<div class="kampagnenart-fields-wrapper" style="margin-top: 1rem;">';
-        fieldsHtml += '<h4 style="margin-bottom: 1rem; color: var(--text-primary); font-weight: 600;">Produktionsdetails</h4>';
-        
+        const renderedPrefixes = new Set();
         artenNamen.forEach(artName => {
-          if (KAMPAGNENARTEN_MAPPING[artName]) {
-            fieldsHtml += generateFieldsHtml(artName, existingValues, false);
+          const config = getKampagnenartConfig(artName);
+          if (config) {
+            // Legacy-Namen können auf dieselbe kanonische Art zeigen – Felder deduplizieren
+            if (renderedPrefixes.has(config.prefix)) return;
+            renderedPrefixes.add(config.prefix);
+            fieldsHtml += generateFieldsHtml(resolveKampagnenartName(artName), existingValues, false);
           }
         });
         
@@ -128,7 +133,7 @@ export async function setup(form, ctx) {
       if (auftragSelect.value) {
         setTimeout(renderDynamicFields, 200);
       } else {
-        fieldsContainer.innerHTML = '<p class="form-hint" style="padding: 1rem; color: var(--text-secondary); font-style: italic;">Bitte wählen Sie einen Auftrag aus, um die Produktionsdetails anzuzeigen.</p>';
+        fieldsContainer.innerHTML = '<p class="form-hint form-hint--info">Bitte wählen Sie einen Auftrag aus, um die Produktionsdetails anzuzeigen.</p>';
       }
       
     } catch (error) {

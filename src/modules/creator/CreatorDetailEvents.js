@@ -24,10 +24,15 @@ CreatorDetail.prototype.bindEvents = function() {
     document.addEventListener('click', (e) => {
       const link = e.target.closest && e.target.closest('.table-link');
       if (!link) return;
-      if (link.dataset.table === 'unternehmen') {
+      const { table, id } = link.dataset;
+      if (link.dataset.vertragOpen === 'edit' && id) {
         e.preventDefault();
-        window.navigateTo(`/unternehmen/${link.dataset.id}`);
+        window.navigateTo(`/vertraege/${id}/edit`);
+        return;
       }
+      if (!table || !id) return;
+      e.preventDefault();
+      window.navigateTo(`/${table}/${id}`);
     }, { signal });
 
     document.addEventListener('click', (e) => {

@@ -1,6 +1,6 @@
 const DELETE_ORDER = [
   { table: 'vertraege', fk: 'kunde_unternehmen_id' },
-  { table: 'briefings', fk: 'unternehmen_id' },
+  { table: 'campaign_briefings', fk: 'unternehmen_id' },
   { table: 'kampagne', fk: 'unternehmen_id' },
   { table: 'auftrag', fk: 'unternehmen_id' },
   { table: 'produkt', fk: 'unternehmen_id' },

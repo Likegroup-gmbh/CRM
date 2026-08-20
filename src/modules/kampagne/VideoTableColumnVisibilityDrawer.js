@@ -214,7 +214,7 @@ export class VideoTableColumnVisibilityDrawer {
         </table>
       </div>
       <div class="drawer-footer">
-        <button type="button" class="primary-btn" id="btn-close-visibility-drawer">
+        <button type="button" class="mdc-btn" id="btn-close-visibility-drawer">
           Fertig
         </button>
       </div>

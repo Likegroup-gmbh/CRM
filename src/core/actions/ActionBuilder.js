@@ -3,6 +3,7 @@
 
 import { iconRegistry } from './IconRegistry.js';
 import { ActionConfig } from './ActionConfig.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 /**
  * ActionBuilder - Generiert HTML für Action-Dropdowns basierend auf Konfiguration
@@ -54,9 +55,7 @@ export class ActionBuilder {
     return `
       <div class="actions-dropdown-container" data-entity-type="${entityType}">
         <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-            <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-          </svg>
+          ${icon('dots-grid', { className: 'w-5 h-5' })}
         </button>
         <div class="actions-dropdown">
           ${actionsHtml}
@@ -164,7 +163,7 @@ export class ActionBuilder {
         entityId,
         options
       });
-      submenuItems = '<div style="padding: 8px 12px; color: #999;">Keine Status-Optionen verfügbar</div>';
+      submenuItems = '<div class="submenu-empty">Keine Status-Optionen verfügbar</div>';
     }
 
     return `
@@ -223,9 +222,7 @@ export class ActionBuilder {
     return `
       <div class="actions-dropdown-container">
         <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-            <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-          </svg>
+          ${icon('dots-grid', { className: 'w-5 h-5' })}
         </button>
         <div class="actions-dropdown">
           <a href="#" class="action-item" data-action="view" data-id="${entityId}">
@@ -284,9 +281,7 @@ export class ActionBuilder {
     return `
       <div class="actions-dropdown-container">
         <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
-            <path d="M10 3a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM10 8.5a1.5 1.5 0 110 3 1.5 1.5 0 010-3zM11.5 15.5a1.5 1.5 0 10-3 0 1.5 1.5 0 003 0z" />
-          </svg>
+          ${icon('dots-grid', { className: 'w-5 h-5' })}
         </button>
         <div class="actions-dropdown">
           <a href="#" class="action-item" data-action="view" data-id="${entityId}">

@@ -4,17 +4,17 @@
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 export function renderKampagnenTable(detail) {
   const rows = (detail.assignments.kampagnen || []).map(k => `
     <tr>
-      <td><a href="/kampagne/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.id}')">${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k))}</a></td>
-      <td style="text-align:right;">
+      <td><a href="/kampagne/${k.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.id}')">${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k))}</a></td>
+      <td class="u-text-right">
         <div class="actions-dropdown-container" data-entity-type="kampagne">
           <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-            </svg>
+            ${icon('dots-vertical-filled')}
           </button>
           <div class="actions-dropdown">
             <div class="action-submenu">
@@ -29,7 +29,7 @@ export function renderKampagnenTable(detail) {
               </div>
             </div>
             <a href="#" class="action-item" data-action="view" data-id="${k.id}">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5"><path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z" /><path fill-rule="evenodd" d="M.661 10c1.743-2.372 4.761-5 9.339-5 4.578 0 7.601 2.628 9.339 5-1.738 2.372-4.761 5-9.339 5-4.578 0-7.601-2.628-9.339-5zM10 15a5 5 0 100-10 5 5 0 000 10z" clip-rule="evenodd" /></svg>
+              ${icon('eye-outline', { className: 'w-5 h-5' })}
               Details anzeigen
             </a>
             <a href="#" class="action-item action-danger" data-action="unassign-kampagne" data-id="${k.id}" data-mitarbeiter-id="${detail.userId}">
@@ -41,7 +41,7 @@ export function renderKampagnenTable(detail) {
       </td>
     </tr>
   `).join('');
-  if (!rows) return '<div class="empty-state"><p>Keine Kampagnen zugewiesen</p></div>';
+  if (!rows) return renderEmptyState({ icon: 'megaphone', title: 'Keine Kampagnen zugewiesen' });
   return `
     <div class="data-table-container">
       <table class="data-table">
@@ -55,11 +55,11 @@ export function renderKampagnenTable(detail) {
 export function renderKooperationenTable(detail) {
   const rows = (detail.assignments.kooperationen || []).map(r => `
     <tr>
-      <td><a href="/kooperation/${r.id}" onclick="event.preventDefault(); window.navigateTo('/kooperation/${r.id}')">${window.validatorSystem.sanitizeHtml(r.name || r.id)}</a></td>
+      <td><a href="/kooperation/${r.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/kooperation/${r.id}')">${window.validatorSystem.sanitizeHtml(r.name || r.id)}</a></td>
       <td>${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(r.kampagne))}</td>
     </tr>
   `).join('');
-  if (!rows) return '<div class="empty-state"><p>Keine Kooperationen zugewiesen</p></div>';
+  if (!rows) return renderEmptyState({ icon: 'handshake', title: 'Keine Kooperationen zugewiesen' });
   return `
     <div class="data-table-container">
       <table class="data-table">
@@ -73,11 +73,11 @@ export function renderKooperationenTable(detail) {
 export function renderBriefingsTable(detail) {
   const rows = (detail.assignments.briefings || []).map(b => `
     <tr>
-      <td><a href="/briefing/${b.id}" onclick="event.preventDefault(); window.navigateTo('/briefing/${b.id}')">${window.validatorSystem.sanitizeHtml(b.product_service_offer || b.id)}</a></td>
-      <td><span class="status-badge status-${(b.status||'').toLowerCase().replace(/\s+/g,'-')}">${b.status || '-'}</span></td>
+      <td><a href="/briefing/${b.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/briefing/${b.id}')">${window.validatorSystem.sanitizeHtml(b.aktivierung_name || b.id)}</a></td>
+      <td><span class="status-badge ${b.is_draft ? 'status-entwurf' : 'status-final'}">${b.is_draft ? 'Entwurf' : 'Final'}</span></td>
     </tr>
   `).join('');
-  if (!rows) return '<div class="empty-state"><p>Keine Briefings zugewiesen</p></div>';
+  if (!rows) return renderEmptyState({ icon: 'document', title: 'Keine Briefings zugewiesen' });
   return `
     <div class="data-table-container">
       <table class="data-table">
@@ -92,7 +92,7 @@ export function renderAuftragsdetailsTable(detail) {
   const rows = (detail.assignments.auftragsdetails || []).map(d => `
     <tr>
       <td>
-        <a href="/auftragsdetails/${d.id}" onclick="event.preventDefault(); window.navigateTo('/auftragsdetails/${d.id}')">
+        <a href="/auftragsdetails/${d.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/auftragsdetails/${d.id}')">
           ${window.validatorSystem.sanitizeHtml(d.auftrag?.auftragsname || 'Unbekannter Auftrag')}
         </a>
       </td>
@@ -103,7 +103,7 @@ export function renderAuftragsdetailsTable(detail) {
     </tr>
   `).join('');
 
-  if (!rows) return '<div class="empty-state"><p>Keine Auftragsdetails vorhanden</p></div>';
+  if (!rows) return renderEmptyState({ icon: 'clipboard', title: 'Keine Auftragsdetails vorhanden' });
 
   return `
     <div class="data-table-container">
@@ -125,7 +125,7 @@ export function renderAuftragsdetailsTable(detail) {
 
 export function renderUnternehmenTable(detail) {
   if (!detail.zugeordnet.unternehmen || detail.zugeordnet.unternehmen.length === 0) {
-    return '<div class="empty-state"><p>Keine Unternehmen zugeordnet</p></div>';
+    return renderEmptyState({ icon: 'building', title: 'Keine Unternehmen zugeordnet' });
   }
 
   return `
@@ -134,8 +134,8 @@ export function renderUnternehmenTable(detail) {
         <thead>
           <tr>
             <th>Firmenname</th>
-            <th style="width: 180px;">Rolle</th>
-            <th style="width: 120px; text-align: center;">Aktionen</th>
+            <th class="col-w180">Rolle</th>
+            <th class="col-w120-center">Aktionen</th>
           </tr>
         </thead>
         <tbody>
@@ -147,14 +147,14 @@ export function renderUnternehmenTable(detail) {
                 </a>
               </td>
               <td>
-                <select class="form-select role-select" data-unternehmen-id="${u.id}" style="padding: 6px 10px; font-size: 13px;">
+                <select class="form-select form-select--compact role-select" data-unternehmen-id="${u.id}">
                   <option value="management" ${u.role === 'management' ? 'selected' : ''}>Management</option>
                   <option value="lead_mitarbeiter" ${u.role === 'lead_mitarbeiter' ? 'selected' : ''}>Lead Mitarbeiter</option>
                   <option value="mitarbeiter" ${u.role === 'mitarbeiter' ? 'selected' : ''}>Mitarbeiter</option>
                 </select>
               </td>
-              <td style="text-align: center;">
-                <button class="secondary-btn btn-remove-unternehmen" data-id="${u.id}" data-name="${window.validatorSystem.sanitizeHtml(u.firmenname)}">
+              <td class="u-text-center">
+                <button class="mdc-btn mdc-btn--secondary btn-remove-unternehmen" data-id="${u.id}" data-name="${window.validatorSystem.sanitizeHtml(u.firmenname)}">
                   Entfernen
                 </button>
               </td>
@@ -169,18 +169,18 @@ export function renderBudget(detail) {
   const koopRows = (detail.assignments.kooperationen || []).map(k => {
     const invoices = detail.budget.invoicesByKoop[k.id] || [];
     const invHtml = invoices.length
-      ? invoices.map(r => `<div><a href="/rechnung/${r.id}" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${window.validatorSystem.sanitizeHtml(r.rechnung_nr || r.id)}</a> — ${detail.formatCurrency(r.bruttobetrag)} <span class="status-badge status-${(r.status||'').toLowerCase().replace(/\s+/g,'-')}">${r.status || '-'}</span></div>`).join('')
+      ? invoices.map(r => `<div><a href="/rechnung/${r.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${window.validatorSystem.sanitizeHtml(r.rechnung_nr || r.id)}</a> — ${detail.formatCurrency(r.bruttobetrag)} <span class="status-badge status-${(r.status||'').toLowerCase().replace(/\s+/g,'-')}">${r.status || '-'}</span></div>`).join('')
       : '<span class="muted">Keine Rechnung</span>';
     const netto = Number(k.einkaufspreis_netto || 0);
     const zusatz = Number(k.einkaufspreis_zusatzkosten || 0);
     const gesamt = (k.einkaufspreis_gesamt != null) ? Number(k.einkaufspreis_gesamt) : (netto + zusatz);
     return `
       <tr>
-        <td><a href="/kooperation/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kooperation/${k.id}')">${window.validatorSystem.sanitizeHtml(k.name || k.id)}</a></td>
+        <td><a href="/kooperation/${k.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/kooperation/${k.id}')">${window.validatorSystem.sanitizeHtml(k.name || k.id)}</a></td>
         <td>${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k.kampagne))}</td>
-        <td style="text-align:right;">${detail.formatCurrency(netto)}</td>
-        <td style="text-align:right;">${detail.formatCurrency(zusatz)}</td>
-        <td style="text-align:right;">${detail.formatCurrency(gesamt)}</td>
+        <td class="u-text-right">${detail.formatCurrency(netto)}</td>
+        <td class="u-text-right">${detail.formatCurrency(zusatz)}</td>
+        <td class="u-text-right">${detail.formatCurrency(gesamt)}</td>
         <td>${invHtml}</td>
       </tr>
     `;
@@ -188,12 +188,12 @@ export function renderBudget(detail) {
 
   const totals = detail.budget.totals || { netto: 0, zusatz: 0, gesamt: 0, invoice_netto: 0, invoice_brutto: 0 };
   const summary = `
-    <div class="stats-cards-grid" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="stats-cards-grid stats-cards-grid--3">
       <div class="stat-card"><div class="stat-content"><div class="stat-value">${detail.formatCurrency(totals.netto)}</div><div class="stat-label">Summe Netto (Koops)</div></div></div>
       <div class="stat-card"><div class="stat-content"><div class="stat-value">${detail.formatCurrency(totals.zusatz)}</div><div class="stat-label">Summe Zusatzkosten</div></div></div>
       <div class="stat-card"><div class="stat-content"><div class="stat-value">${detail.formatCurrency(totals.gesamt)}</div><div class="stat-label">Summe Gesamtkosten</div></div></div>
     </div>
-    <div class="stats-cards-grid" style="grid-template-columns: repeat(2, 1fr); margin-top:12px;">
+    <div class="stats-cards-grid stats-cards-grid--2 u-mt-sm">
       <div class="stat-card"><div class="stat-content"><div class="stat-value">${detail.formatCurrency(totals.invoice_netto)}</div><div class="stat-label">Summe Rechnungen Netto</div></div></div>
       <div class="stat-card"><div class="stat-content"><div class="stat-value">${detail.formatCurrency(totals.invoice_brutto)}</div><div class="stat-label">Summe Rechnungen Brutto</div></div></div>
     </div>
@@ -201,15 +201,15 @@ export function renderBudget(detail) {
 
   const table = koopRows
     ? `
-      <div class="data-table-container" style="margin-top:12px;">
+      <div class="data-table-container u-mt-sm">
         <table class="data-table">
           <thead>
             <tr>
               <th>Kooperation</th>
               <th>Kampagne</th>
-              <th style="text-align:right;">Netto</th>
-              <th style="text-align:right;">Zusatz</th>
-              <th style="text-align:right;">Gesamt</th>
+              <th class="u-text-right">Netto</th>
+              <th class="u-text-right">Zusatz</th>
+              <th class="u-text-right">Gesamt</th>
               <th>Rechnungen</th>
             </tr>
           </thead>
@@ -217,7 +217,7 @@ export function renderBudget(detail) {
         </table>
       </div>
     `
-    : '<div class="empty-state"><p>Keine Kooperationen zugewiesen</p></div>';
+    : renderEmptyState({ icon: 'handshake', title: 'Keine Kooperationen zugewiesen' });
 
   return `${summary}${table}`;
 }

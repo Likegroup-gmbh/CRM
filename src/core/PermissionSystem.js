@@ -8,7 +8,7 @@ const ENTITIES = [
   'auftrag', 'auftragsdetails', 'kampagne', 'kooperation', 'briefing',
   'videos', 'rechnung', 'ansprechpartner', 'dashboard', 'tasks',
   'strategie', 'kickoff', 'sourcing', 'feedback', 'mitarbeiter',
-  'vertraege', 'kunden-admin', 'contracts'
+  'vertraege', 'kunden-admin', 'contracts', 'skripte'
 ];
 
 const T = { can_view: true, can_edit: true, can_delete: true };
@@ -43,6 +43,7 @@ const BASE_PERMISSIONS = {
     kampagne:    { ...V },
     kooperation: { ...V },
     briefing:    { ...V },
+    skripte:     { ...V },
     videos:      { ...V },
     dashboard:   { ...V },
     tasks:       { can_view: true, can_edit: true, can_delete: false },

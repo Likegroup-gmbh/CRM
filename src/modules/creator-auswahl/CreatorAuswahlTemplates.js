@@ -3,15 +3,21 @@
 
 import { CREATOR_TYP_SELECT_OPTIONS } from './creatorTypeOptions.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
-import { renderTableSelect } from '../../core/components/TableSelect.js';
+import { renderTableSelect, tableSelectDisabled } from '../../core/components/TableSelect.js';
+import { renderToolbarMenu, renderToolbarMenuItem, renderToolbarListenKopf } from '../../core/components/ToolbarMenu.js';
 import { formatCompactNumber, formatExactNumber } from '../../core/format/compactNumber.js';
 import { renderSourcingIgCell } from './sourcingIgCell.js';
 import {
   SOURCING_STATUS_OPTIONS,
   SOURCING_STATUS_FILTER_TAGS,
+  KUNDEN_FEEDBACK_OPTIONS,
   getSourcingStatus,
-  getSourcingStatusMeta
+  getSourcingStatusMeta,
+  getKundenFeedback,
+  getKundenFeedbackMeta
 } from './sourcingStatusOptions.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 
 // --- Shared Helpers ---
@@ -137,7 +143,9 @@ export const DEAKTIVIERTE_SPALTEN = ['cp-col-ek', 'cp-col-vk'];
 const NUR_INTERN = ['cp-col-vk', 'cp-col-mail', 'cp-col-telefon'];
 
 /** TikTok-Spalten, in reinen Instagram- und UGC-Listen ausgeblendet */
-export const TIKTOK_SPALTEN = ['cp-col-link-tt', 'cp-col-follower-tt'];
+export const TIKTOK_SPALTEN = [
+  'cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-preis-tt-video', 'cp-col-preis-tt-story'
+];
 
 export function isColumnVisibleForCustomer(columnClass, isKunde, hiddenColumns) {
   if (DEAKTIVIERTE_SPALTEN.includes(columnClass)) return false;
@@ -166,12 +174,13 @@ export function isColumnVisibleForCustomer(columnClass, isKunde, hiddenColumns) 
  */
 export const SOURCING_SPALTEN = [
   'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-notiz',
-  'cp-col-typ', 'cp-col-status',
+  'cp-col-typ', 'cp-col-status', 'cp-col-kunden-feedback',
   'cp-col-location', 'cp-col-mail', 'cp-col-telefon',
   'cp-col-link-ig', 'cp-col-follower-ig',
   'cp-col-cpm-ig-8', 'cp-col-cpm-ig-30', 'cp-col-preis-reels',
   'cp-col-reichweite-story', 'cp-col-preis-story',
   'cp-col-link-tt', 'cp-col-follower-tt',
+  'cp-col-preis-tt-video', 'cp-col-preis-tt-story',
   'cp-col-pricing', 'cp-col-nutzungsrechte', 'cp-col-reichweite-garantie',
   'cp-col-ek', 'cp-col-vk',
   'cp-col-feedback',
@@ -198,6 +207,7 @@ export const SOURCING_SPALTEN_LABELS = {
   'cp-col-notiz': 'Kurzbeschreibung',
   'cp-col-typ': 'Creator Art',
   'cp-col-status': 'Status',
+  'cp-col-kunden-feedback': 'Kundenfeedback',
   'cp-col-nutzungsrechte': 'Nutzungsrechte',
   'cp-col-location': 'Location',
   'cp-col-mail': 'Mail (nur intern)',
@@ -211,6 +221,8 @@ export const SOURCING_SPALTEN_LABELS = {
   'cp-col-preis-story': 'Preis Story (Instagram)',
   'cp-col-link-tt': 'Link TikTok',
   'cp-col-follower-tt': 'Follower TikTok',
+  'cp-col-preis-tt-video': 'Preis Video (TikTok)',
+  'cp-col-preis-tt-story': 'Preis Story (TikTok)',
   'cp-col-pricing': 'Gesamtpreis',
   'cp-col-reichweite-garantie': 'Reichweitengarantie',
   'cp-col-ek': 'EK (Einkaufspreis)',
@@ -244,35 +256,39 @@ export function getStickyClasses(ctx) {
 
 // --- SVG Icons ---
 
-const EXTERNAL_LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>`;
+const EXTERNAL_LINK_ICON = `${icon('external-link')}`;
 
-const MAIL_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px;"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" /></svg>`;
+const MAIL_ICON = `${icon('envelope-open')}`;
 
-const INSTAGRAM_ICON = `<svg class="platform-icon platform-icon--instagram" viewBox="0 0 24 24" aria-label="Instagram" role="img" focusable="false"><path d="M12 7.2a4.8 4.8 0 1 0 0 9.6 4.8 4.8 0 0 0 0-9.6Zm0 7.8a3 3 0 1 1 0-6 3 3 0 0 1 0 6Z"/><path d="M16.95 6.45a1.05 1.05 0 1 0 0 2.1 1.05 1.05 0 0 0 0-2.1Z"/><path d="M12 2.8c2.53 0 2.83.01 3.83.06 1 .05 1.68.21 2.28.44.62.24 1.15.56 1.66 1.07.51.51.83 1.04 1.07 1.66.23.6.39 1.28.44 2.28.05 1 .06 1.3.06 3.83s-.01 2.83-.06 3.83c-.05 1-.21 1.68-.44 2.28-.24.62-.56 1.15-1.07 1.66-.51.51-1.04.83-1.66 1.07-.6.23-1.28.39-2.28.44-1 .05-1.3.06-3.83.06s-2.83-.01-3.83-.06c-1-.05-1.68-.21-2.28-.44a4.54 4.54 0 0 1-2.73-2.73c-.23-.6-.39-1.28-.44-2.28C2.81 14.83 2.8 14.53 2.8 12s.01-2.83.06-3.83c.05-1 .21-1.68.44-2.28.24-.62.56-1.15 1.07-1.66.51-.51 1.04-.83 1.66-1.07.6-.23 1.28-.39 2.28-.44 1-.05 1.3-.06 3.83-.06Zm0 1.8c-2.48 0-2.77.01-3.75.06-.9.04-1.39.19-1.71.31-.43.17-.74.37-1.07.7-.33.33-.53.64-.7 1.07-.12.32-.27.81-.31 1.71-.05.98-.06 1.27-.06 3.75s.01 2.77.06 3.75c.04.9.19 1.39.31 1.71.17.43.37.74.7 1.07.33.33.64.53 1.07.7.32.12.81.27 1.71.31.98.05 1.27.06 3.75.06s2.77-.01 3.75-.06c.9-.04 1.39-.19 1.71-.31.43-.17.74-.37 1.07-.7.33-.33.53-.64.7-1.07.12-.32.27-.81.31-1.71.05-.98.06-1.27.06-3.75s-.01-2.77-.06-3.75c-.04-.9-.19-1.39-.31-1.71-.17-.43-.37-.74-.7-1.07-.33-.33-.64-.53-1.07-.7-.32-.12-.81-.27-1.71-.31-.98-.05-1.27-.06-3.75-.06Z"/></svg>`;
+const INSTAGRAM_ICON = `${icon('instagram')}`;
 
-const TIKTOK_ICON = `<svg class="platform-icon platform-icon--tiktok" viewBox="0 0 24 24" aria-label="TikTok" role="img" focusable="false"><path d="M14.5 3c.4 3.2 2.3 5.1 5.5 5.5v2.3c-1.9 0-3.6-.6-5-1.7v6.4c0 3.1-2.5 5.6-5.6 5.6S3.8 19 3.8 15.9s2.5-5.6 5.6-5.6c.5 0 1 .1 1.5.2v2.6c-.5-.2-1-.4-1.5-.4-1.8 0-3.2 1.4-3.2 3.2s1.4 3.2 3.2 3.2 3.2-1.4 3.2-3.2V3h2.9Z"/></svg>`;
+const TIKTOK_ICON = `${icon('tiktok')}`;
 
-const NICHT_UMSETZEN_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; vertical-align: middle; margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" /></svg>`;
+const NICHT_UMSETZEN_ICON = `${icon('x-circle-filled', { className: 'icon-16' })}`;
 
 // --- Status-Reiter (Tabs) ---
 
+// "Alle" ist der Einstiegspunkt; die uebrigen Reiter spiegeln den internen
+// Prozessstatus. Das Kundenfeedback (Prio/Abgelehnt) hat keinen eigenen
+// Reiter - es steht in der eigenen Spalte und im Toolbar-Filter.
 export const SOURCING_TABS = [
+  { key: 'alle', label: 'Alle' },
   { key: 'offen', label: 'Offen' },
+  { key: 'angefragt', label: 'Angefragt' },
   { key: 'on_hold', label: 'On Hold' },
-  { key: 'gebucht', label: 'Gebucht' },
-  { key: 'nicht_buchen', label: 'Nicht buchen' },
-  { key: 'alle', label: 'Alle' }
+  { key: 'in_verhandlung', label: 'In Verhandlung' },
+  { key: 'absage', label: 'Abgesagt' },
+  { key: 'zusage', label: 'Zusage' },
+  { key: 'gebucht', label: 'Gebucht' }
 ];
 
+/** Der Reiter eines Items ist sein Prozess-Status; Feedback-Flags spielen keine Rolle. */
 export function getSourcingTabForItem(item) {
-  if (item.absage) return 'nicht_buchen';
-  if (item.gebucht) return 'gebucht';
-  if (item.on_hold) return 'on_hold';
-  return 'offen';
+  return getSourcingStatus(item);
 }
 
 export function renderTabNavigation(ctx) {
-  const activeTab = ctx.activeTab || 'offen';
+  const activeTab = ctx.activeTab || 'alle';
   const counts = ctx.tabCounts || {};
   return `
     <div class="tab-navigation sourcing-tab-navigation">
@@ -288,47 +304,21 @@ export function renderTabNavigation(ctx) {
 // --- Render-Funktionen ---
 // ctx = { items, liste, isKunde, hiddenColumns }
 
-/**
- * Logo des Unternehmens, zu dem die Liste gehoert. Ohne Logo faellt nur das
- * Bild weg, der Listenname daneben bleibt stehen.
- */
-function renderUnternehmenLogo(ctx) {
-  const unternehmen = ctx.liste?.unternehmen;
-  const rawUrl = unternehmen?.logo_url;
-  if (!rawUrl) return '';
-
-  const safeUrl = window.validatorSystem?.sanitizeUrl(rawUrl) ?? rawUrl;
-  if (!safeUrl) return '';
-
-  const firmenname = unternehmen.firmenname || 'Unternehmen';
-
-  return `
-    <img src="${escapeHtml(safeUrl)}"
-         alt="${escapeHtml(firmenname)}"
-         title="${escapeHtml(firmenname)}"
-         class="sourcing-unternehmen-logo"
-         loading="lazy" />
-  `;
-}
-
 /** Logo und Name der Liste - der linke Teil der Kopfzeile */
 function renderListenKopf(ctx) {
-  const name = ctx.liste?.name;
-  return `
-    <div class="sourcing-listen-kopf">
-      ${renderUnternehmenLogo(ctx)}
-      ${name ? `<span class="sourcing-listen-name">${escapeHtml(name)}</span>` : ''}
-    </div>
-  `;
+  const unternehmen = ctx.liste?.unternehmen;
+  return renderToolbarListenKopf({
+    name: ctx.liste?.name || '',
+    logoUrl: unternehmen?.logo_url || '',
+    logoAlt: unternehmen?.firmenname || 'Unternehmen'
+  });
 }
 
 const STATUS_FILTER_ICON = `
-  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>`;
+  ${icon('filter-alt')}`;
 
 const STATUS_FILTER_CHECK_ICON = `
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-  </svg>`;
+  ${icon('check-bold')}`;
 
 function renderStatusFilterSubmenu(ctx = {}) {
   const selected = ctx.statusFilter || [];
@@ -358,6 +348,23 @@ function renderStatusFilterSubmenu(ctx = {}) {
     </div>`;
 }
 
+const SHARE_ICON = `
+  <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256">
+    <path d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H165a88,88,0,0,0-85.23,66,8,8,0,0,1-15.5-4A103.94,103.94,0,0,1,165,96h39.71L170.34,61.66a8,8,0,0,1,11.32-11.32l48,48A8,8,0,0,1,229.66,109.66ZM192,208H40V88a8,8,0,0,0-16,0V216a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16Z"></path>
+  </svg>`;
+
+const KUNDEN_CALL_ICON = `
+  ${icon('phone')}`;
+
+const TABELLE_ANPASSEN_ICON = `
+  ${icon('adjustments-horizontal')}`;
+
+const CUSTOM_COLUMNS_ICON = `
+  ${icon('bars-3')}`;
+
+const KATEGORIEN_ICON = `
+  ${icon('tag')}`;
+
 export function renderAddSection(ctx = {}) {
   const kundenCallActive = ctx.kundenCallActive || false;
   return `
@@ -371,53 +378,21 @@ export function renderAddSection(ctx = {}) {
           currentValue: escapeHtml(ctx.searchQuery || '')
         })}
         ${!ctx.isKunde ? `
-        <button type="button" class="primary-btn" id="btn-open-add-drawer">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
+        <button type="button" class="mdc-btn" id="btn-open-add-drawer">
+          ${icon('plus-lg')}
           Creator hinzufügen
         </button>
-        <div class="sourcing-toolbar-menu">
-          <button type="button" class="sourcing-toolbar-menu-toggle" id="btn-sourcing-toolbar-menu" aria-expanded="false" aria-haspopup="true" title="Weitere Aktionen" aria-label="Weitere Aktionen">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-          </button>
-          <div class="sourcing-toolbar-dropdown" role="menu" aria-hidden="true">
+        ${renderToolbarMenu({
+          toggleId: 'btn-sourcing-toolbar-menu',
+          itemsHtml: `
             ${renderStatusFilterSubmenu(ctx)}
-            <button type="button" class="action-item" id="btn-share-sourcing" role="menuitem" title="Liste per E-Mail teilen">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256">
-                <path d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H165a88,88,0,0,0-85.23,66,8,8,0,0,1-15.5-4A103.94,103.94,0,0,1,165,96h39.71L170.34,61.66a8,8,0,0,1,11.32-11.32l48,48A8,8,0,0,1,229.66,109.66ZM192,208H40V88a8,8,0,0,0-16,0V216a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16Z"></path>
-              </svg>
-              Teilen
-            </button>
-            <button type="button" class="action-item${kundenCallActive ? ' active' : ''}" id="btn-kunden-call-toggle" role="menuitem" title="EK und CPM für Kundenpräsentation ausblenden">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
-              </svg>
-              Kunden Call
-            </button>
-            <button type="button" class="action-item" id="btn-sourcing-tabelle-anpassen" role="menuitem" title="TKP, Art der Liste und Spalten-Sichtbarkeit">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
-              </svg>
-              Tabelle anpassen
-            </button>
-            <button type="button" class="action-item" id="btn-sourcing-custom-columns" role="menuitem" title="Eigene Spalten verwalten">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-              </svg>
-              Eigene Spalten
-            </button>
-            <button type="button" class="action-item" id="btn-manage-kategorien" role="menuitem" title="Kategorien verwalten">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z" />
-              </svg>
-              Kategorien
-            </button>
-          </div>
-        </div>
+            ${renderToolbarMenuItem({ id: 'btn-share-sourcing', title: 'Liste per E-Mail teilen', icon: SHARE_ICON, label: 'Teilen' })}
+            ${renderToolbarMenuItem({ id: 'btn-kunden-call-toggle', title: 'EK und CPM für Kundenpräsentation ausblenden', icon: KUNDEN_CALL_ICON, label: 'Kunden Call', active: kundenCallActive })}
+            ${renderToolbarMenuItem({ id: 'btn-sourcing-tabelle-anpassen', title: 'TKP, Art der Liste und Spalten-Sichtbarkeit', icon: TABELLE_ANPASSEN_ICON, label: 'Tabelle anpassen' })}
+            ${renderToolbarMenuItem({ id: 'btn-sourcing-custom-columns', title: 'Eigene Spalten verwalten', icon: CUSTOM_COLUMNS_ICON, label: 'Eigene Spalten' })}
+            ${renderToolbarMenuItem({ id: 'btn-manage-kategorien', title: 'Kategorien verwalten', icon: KATEGORIEN_ICON, label: 'Kategorien' })}
+          `
+        })}
         ` : ''}
       </div>
     </div>
@@ -429,8 +404,8 @@ export function renderItemsTable(ctx) {
   // Suche aktiv und gar kein Name matcht (unabhaengig vom Reiter)
   if (ctx.items.length === 0 && ctx.hasAnyItems && searchQuery && (ctx.tabCounts?.alle ?? 0) === 0) {
     return `
-      <div class="table-container table-container--empty" style="text-align: center; padding: var(--space-xxl); color: var(--text-secondary);">
-        <p>Keine Treffer für "${escapeHtml(searchQuery)}"</p>
+      <div class="table-container table-container--empty">
+        ${renderEmptyState({ icon: 'search', title: `Keine Treffer für "${searchQuery}"` })}
       </div>
     `;
   }
@@ -440,27 +415,27 @@ export function renderItemsTable(ctx) {
       ? ` im Reiter "${SOURCING_TABS.find(t => t.key === ctx.activeTab)?.label || ctx.activeTab}"`
       : '';
     return `
-      <div class="table-container table-container--empty" style="text-align: center; padding: var(--space-xxl); color: var(--text-secondary);">
-        <p>Keine Creator mit Status ${escapeHtml(statusFilter.join(' oder '))}${imReiter}</p>
+      <div class="table-container table-container--empty">
+        ${renderEmptyState({ icon: 'filter', title: `Keine Creator mit Status ${statusFilter.join(' oder ')}${imReiter}` })}
       </div>
     `;
   }
   if (ctx.items.length === 0 && ctx.hasAnyItems && ctx.activeTab && ctx.activeTab !== 'alle') {
     const tabLabel = SOURCING_TABS.find(t => t.key === ctx.activeTab)?.label || ctx.activeTab;
     return `
-      <div class="table-container table-container--empty" style="text-align: center; padding: var(--space-xxl); color: var(--text-secondary);">
-        <p>Keine Creator im Reiter "${tabLabel}"</p>
+      <div class="table-container table-container--empty">
+        ${renderEmptyState({ icon: 'creator', title: `Keine Creator im Reiter "${tabLabel}"` })}
       </div>
     `;
   }
   if (ctx.items.length === 0) {
     return `
-      <div class="table-container table-container--empty" style="text-align: center; padding: var(--space-xxl); color: var(--text-secondary);">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" style="width: 64px; height: 64px; margin: 0 auto var(--space-md); opacity: 0.5;">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
-        </svg>
-        <p>Noch keine Creator hinzugefügt</p>
-        ${!ctx.isKunde ? '<p style="font-size: var(--text-sm);">Fügen Sie oben einen Creator hinzu</p>' : ''}
+      <div class="table-container table-container--empty">
+        ${renderEmptyState({
+          icon: 'creator',
+          title: 'Noch keine Creator hinzugefügt',
+          text: !ctx.isKunde ? 'Fügen Sie oben einen Creator hinzu' : ''
+        })}
       </div>
     `;
   }
@@ -491,6 +466,8 @@ export function renderItemsTable(ctx) {
             ${customAt('cp-col-typ')}
             <th class="cp-col-status" ${hide('cp-col-status')}>Status</th>
             ${customAt('cp-col-status')}
+            <th class="cp-col-kunden-feedback" ${hide('cp-col-kunden-feedback')} title="Die Bewertung des Kunden: Prio oder Abgelehnt">Kundenfeedback</th>
+            ${customAt('cp-col-kunden-feedback')}
             <th class="cp-col-location" ${hide('cp-col-location')}>Location</th>
             ${customAt('cp-col-location')}
             <th class="cp-col-mail" ${hide('cp-col-mail')} title="Aus der Instagram-Bio gelesen, sofern dort hinterlegt">Mail</th>
@@ -515,6 +492,10 @@ export function renderItemsTable(ctx) {
             ${customAt('cp-col-link-tt')}
             <th class="cp-col-follower-tt" ${hide('cp-col-follower-tt')}>Follower ${TIKTOK_ICON}</th>
             ${customAt('cp-col-follower-tt')}
+            <th class="cp-col-preis-tt-video" ${hide('cp-col-preis-tt-video')} title="Manuell gepflegt – der verhandelte Preis pro TikTok-Video">Preis Video ${TIKTOK_ICON}</th>
+            ${customAt('cp-col-preis-tt-video')}
+            <th class="cp-col-preis-tt-story" ${hide('cp-col-preis-tt-story')} title="Manuell gepflegt">Preis Story ${TIKTOK_ICON}</th>
+            ${customAt('cp-col-preis-tt-story')}
             <th class="cp-col-pricing" ${hide('cp-col-pricing')} title="Der verhandelte Gesamtpreis">Gesamtpreis</th>
             ${customAt('cp-col-pricing')}
             <th class="cp-col-nutzungsrechte" ${hide('cp-col-nutzungsrechte')} title="Laufzeit, Kanäle und Sonderabsprachen">Nutzungsrechte</th>
@@ -539,9 +520,7 @@ export function renderItemsTable(ctx) {
           <tr class="add-row-footer">
             <td colspan="${visibleColCount}">
               <button type="button" class="add-row-btn" id="btn-add-empty-row" title="Neue Zeile hinzufügen">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                </svg>
+                ${icon('plus-lg')}
               </button>
             </td>
           </tr>
@@ -766,28 +745,39 @@ function renderAutoCpmCell(ctx, item, columnClass, views, hide, showViews = fals
 }
 
 /**
- * Status-Zelle: fasst die frueheren Checkboxen Angefragt / In Verhandlung /
- * On Hold / Buchen / Prio 1 / Prio 2 / Absage in einem Select zusammen. Kunden
- * duerfen wie bisher keine Absage setzen und eine bestehende Absage nicht
- * zuruecknehmen.
+ * Status-Zelle: der interne Prozess (Offen / Angefragt / In Verhandlung /
+ * On Hold / Zusage / Gebucht / Abgesagt). Der Status ist intern - Kunden
+ * sehen ihn nur, waehlen duerfen sie nicht. Ihr Feedback laeuft ueber die
+ * eigene Spalte daneben.
  */
 function renderSourcingStatusCell(ctx, item) {
   const status = getSourcingStatus(item);
-  const disabled = !!ctx.gastReadonly || (!!ctx.isKunde && !!item.absage);
-
-  const options = SOURCING_STATUS_OPTIONS.map(option => (
-    ctx.isKunde && option.value === 'absage'
-      ? { ...option, disabled: true }
-      : option
-  ));
 
   return renderTableSelect({
     field: 'sourcing_status',
     itemId: item.id,
     value: status,
-    options,
-    disabled,
+    options: SOURCING_STATUS_OPTIONS,
+    disabled: tableSelectDisabled({ gastReadonly: !!ctx.gastReadonly, isKunde: !!ctx.isKunde }),
     meta: getSourcingStatusMeta(item, status)
+  });
+}
+
+/**
+ * Kundenfeedback-Zelle: Prio 1 / Prio 2 / Abgelehnt als eigener Select neben
+ * dem Prozess-Status. Das ist die Bewertung durch den Kunden - Kunden duerfen
+ * sie deshalb selbst setzen, nur Gaeste im Readonly-Modus nicht.
+ */
+function renderKundenFeedbackCell(ctx, item) {
+  const feedback = getKundenFeedback(item);
+
+  return renderTableSelect({
+    field: 'kunden_feedback',
+    itemId: item.id,
+    value: feedback,
+    options: KUNDEN_FEEDBACK_OPTIONS,
+    disabled: tableSelectDisabled({ gastReadonly: !!ctx.gastReadonly, isKunde: !!ctx.isKunde, kundeDarfWaehlen: true }),
+    meta: getKundenFeedbackMeta(item, feedback)
   });
 }
 
@@ -921,9 +911,7 @@ export function renderItemRow(ctx, item, index) {
         <td class="col-drag drag-handle col-sticky-1 cp-col-drag">
           <div class="drag-cell-content">
             <input type="checkbox" class="sourcing-item-check" data-item-id="${item.id}">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="drag-icon" style="width: 16px; height: 16px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-            </svg>
+            ${icon('bars-3')}
           </div>
         </td>
       ` : ''}
@@ -947,7 +935,7 @@ export function renderItemRow(ctx, item, index) {
           itemId: item.id,
           value: item.typ || '',
           options: CREATOR_TYP_SELECT_OPTIONS,
-          disabled: !!ctx.gastReadonly
+          disabled: tableSelectDisabled({ gastReadonly: !!ctx.gastReadonly })
         }) : `<div class="cell-text-readonly">${item.typ || '-'}</div>`}
       </td>
       ${customAt('cp-col-typ')}
@@ -955,6 +943,10 @@ export function renderItemRow(ctx, item, index) {
         ${renderSourcingStatusCell(ctx, item)}
       </td>
       ${customAt('cp-col-status')}
+      <td class="cp-col-kunden-feedback" style="${hide('cp-col-kunden-feedback')}">
+        ${renderKundenFeedbackCell(ctx, item)}
+      </td>
+      ${customAt('cp-col-kunden-feedback')}
       <td class="cell-textarea cp-col-location" style="${hide('cp-col-location')}">
         ${!ctx.isKunde ? `
           <textarea class="strategie-textarea" data-field="wohnort" data-item-id="${item.id}" placeholder="Location...">${item.wohnort || ''}</textarea>
@@ -1004,6 +996,10 @@ export function renderItemRow(ctx, item, index) {
       ${customAt('cp-col-link-tt')}
       ${renderFollowerCell(ctx, item, 'cp-col-follower-tt', 'follower_tiktok', hide)}
       ${customAt('cp-col-follower-tt')}
+      ${renderPreisFreitextCell(ctx, item, 'cp-col-preis-tt-video', 'preis_tiktok_video', hide)}
+      ${customAt('cp-col-preis-tt-video')}
+      ${renderPreisFreitextCell(ctx, item, 'cp-col-preis-tt-story', 'preis_tiktok_story', hide)}
+      ${customAt('cp-col-preis-tt-story')}
       ${renderPreisFreitextCell(ctx, item, 'cp-col-pricing', 'pricing', hide)}
       ${customAt('cp-col-pricing')}
       <td class="cell-textarea cp-col-nutzungsrechte" style="${hide('cp-col-nutzungsrechte')}">
@@ -1045,7 +1041,7 @@ export function renderItemRow(ctx, item, index) {
           ${(ctx.isKunde && !ctx.gastReadonly) ? '' : 'readonly'}
         >${item.feedback_kunde || ''}</textarea>
         ${item.feedback_kunde && item.feedback_kunde_author_name ? `
-          <div class="feedback-author-meta" style="font-size:0.72rem;color:var(--text-secondary,#999);padding:2px 4px;">
+          <div class="feedback-author-meta">
             ${item.feedback_kunde_author_name}${item.feedback_kunde_updated_at ? ` · ${new Date(item.feedback_kunde_updated_at).toLocaleDateString('de-DE')}` : ''}
           </div>` : ''}
       </td>
@@ -1055,9 +1051,7 @@ export function renderItemRow(ctx, item, index) {
         <td class="col-actions cp-col-actions">
           <div class="actions-dropdown-container" data-entity-type="creator_auswahl_item">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-              </svg>
+              ${icon('dots-vertical-filled')}
             </button>
             <div class="actions-dropdown">
               ${''}

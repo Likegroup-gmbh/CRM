@@ -5,6 +5,7 @@ import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { tableExport } from '../../core/TableExport.js';
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
+import { renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { getInvoiceDisplayDate } from './logic/InvoiceDisplayDate.js';
 
 export class AuftragCashFlowCalendar {
@@ -252,17 +253,11 @@ export class AuftragCashFlowCalendar {
   // Rendere Tabellenzeilen
   renderRows() {
     if (this.groupedData.length === 0) {
-      return `
-        <tr>
-          <td colspan="${14}" class="empty-state-cell">
-            <div class="empty-state">
-              <div class="empty-icon">📅</div>
-              <h3>Keine Daten für ${this.currentYear}</h3>
-              <p>Für dieses Jahr gibt es noch keine Aufträge mit relevanten Zahlungsdaten.</p>
-            </div>
-          </td>
-        </tr>
-      `;
+      return renderEmptyStateRow({
+        icon: 'calendar',
+        title: `Keine Daten für ${this.currentYear}`,
+        text: 'Für dieses Jahr gibt es noch keine Aufträge mit relevanten Zahlungsdaten.'
+      }, 14);
     }
     
     let rows = [];

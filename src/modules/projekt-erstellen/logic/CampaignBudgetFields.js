@@ -4,25 +4,22 @@
 // Persistenz-Mapping: Wizard-Block -> neue Block-Tabelle und aggregiert in alte
 // auftrag_details/kampagne-Spalten, damit bestehende Ansichten weiter Daten sehen.
 
-import { KAMPAGNENARTEN_MAPPING } from '../../auftrag/logic/KampagnenartenMapping.js';
+import { getKampagnenartConfig } from '../../auftrag/logic/KampagnenartenMapping.js';
 
 export const CHIP_PREFIX_MAP = {
   ugc_paid: 'ugc_paid',
   ugc_organic: 'ugc_organic',
-  ugc_pro_paid: 'ugc_pro_paid',
-  ugc_pro_organic: 'ugc_pro_organic',
-  ugc_video_paid: 'ugc_video_paid',
-  ugc_video_organic: 'ugc_video_organic',
   influencer: 'influencer',
   vorort_produktion: 'vor_ort',
   story: 'story',
+  event: 'event',
   whitelisting: 'whitelisting',
   darkposting: 'darkposting'
 };
 
 // Chips die KEINE Legacy-Spalten in auftrag_details / kampagne haben.
 // Deren Daten werden ausschliesslich in auftrag_kampagnenart_blocks persistiert.
-export const CHIPS_WITHOUT_LEGACY_COLUMNS = new Set(['whitelisting', 'darkposting']);
+export const CHIPS_WITHOUT_LEGACY_COLUMNS = new Set(['whitelisting', 'darkposting', 'event']);
 
 // Reverse-Map: prefix -> chipValue (z.B. 'vor_ort' -> 'vorort_produktion')
 export const PREFIX_TO_CHIP_MAP = Object.entries(CHIP_PREFIX_MAP).reduce((acc, [chip, prefix]) => {
@@ -41,7 +38,7 @@ export const PREFIX_TO_CHIP_MAP = Object.entries(CHIP_PREFIX_MAP).reduce((acc, [
  */
 export function getChipFromKampagnenartName(name) {
   if (!name) return null;
-  const config = KAMPAGNENARTEN_MAPPING[name];
+  const config = getKampagnenartConfig(name);
   if (!config?.prefix) return null;
   return PREFIX_TO_CHIP_MAP[config.prefix] || null;
 }

@@ -7,8 +7,8 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
-const { videoLaengeHinweis, kuerzeTranskript } = require('./_shared/skript-context');
-const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
+const { videoLaengeHinweis, kuerzeTranskript, fmtCampaignBriefing } = require('./_shared/skript-context');
+const { verifyAuth, requireInternal, authErrorBody } = require('./_shared/verify-auth');
 const { starteKiRequest } = require('./_shared/ki-log');
 
 // Tool-Call fuer strukturierte Antworten. Bei Schreib-Aktionen laeuft
@@ -32,7 +32,8 @@ const EDIT_TOOL = {
 // weil das fertige Skript + Verlauf schon viel Kontext belegen
 const EDIT_REFERENZ_TRANSKRIPT_MAX = 4000;
 
-// PDF-Briefing-Extrakt im Edit-Prompt: gleiches Budget wie das Transkript
+// Briefing-Budget im Edit-Prompt: kompakter als bei der Erstgenerierung
+const EDIT_BRIEFING_MAX = 4000;
 const EDIT_BRIEFING_EXTRAKT_MAX = 4000;
 
 const AKTION_LABELS = {
@@ -41,7 +42,8 @@ const AKTION_LABELS = {
   laenger: 'Länger machen',
   anderer_ton: 'Anderer Ton',
   feedback: 'Feedback umsetzen',
-  chat: 'Freies Feedback'
+  chat: 'Freies Feedback',
+  visuell: 'Visual'
 };
 
 const AKTION_ANWEISUNGEN = {
@@ -50,7 +52,8 @@ const AKTION_ANWEISUNGEN = {
   laenger: 'Baue die markierte Stelle aus: mehr Detail, mehr Emotion oder ein konkretes Beispiel – ohne zu labern.',
   anderer_ton: 'Schreibe die markierte Stelle in einem anderen Ton um. Beachte die Ton-Vorgabe des Users, falls vorhanden.',
   feedback: 'Der User hat die markierte Stelle bewertet und strukturiertes Feedback gegeben (Score, Begründung, ggf. eine Vorgabe "So sollte es sein"). Überarbeite die markierte Stelle so, dass das Feedback vollständig umgesetzt wird. Eine Vorgabe "So sollte es sein" ist verbindlich: übernimm ihre Richtung, aber formuliere sie sauber im Ton des restlichen Skripts aus.',
-  chat: 'Reagiere auf das Feedback des Users. Wenn eine konkrete Textänderung sinnvoll ist, schlage sie vor. Wenn dir Informationen fehlen (z.B. wie ein CTA konkret aussehen soll), stelle eine Rückfrage statt etwas zu erfinden.'
+  chat: 'Reagiere auf das Feedback des Users. Wenn eine konkrete Textänderung sinnvoll ist, schlage sie vor. Wenn dir Informationen fehlen (z.B. wie ein CTA konkret aussehen soll), stelle eine Rückfrage statt etwas zu erfinden.',
+  visuell: 'Der gesamte gesprochene Text der Sektion steht unter "Markierte Stelle". Schreibe dazu die VISUELLE REGIE für "Was zu sehen ist": konkrete Shots, B-Roll, Overlays, On-Screen-Texte, Schnitte. KEINEN zweiten Sprechertext, keine gesprochenen Worte. Der gesprochene Text bleibt unverändert. Leitplanken und Briefing-Fakten gelten auch für On-Screen-Texte und Claims.'
 };
 
 // ---------------------------------------------------------------------------
@@ -96,21 +99,12 @@ async function loadEditContext(supabase, message) {
     dna = (data || []).sort((a, b) => order[a.layer_typ] - order[b.layer_typ]);
   }
 
-  // Briefing (Kurzform): erst kampagnen-, dann markenspezifisch
+  // Campaign-Briefing (gleiche Formatter-Logik wie Generate, kleineres Budget)
   let briefing = null;
-  if (skript.kampagne_id || skript.marke_id) {
-    let q = supabase.from('briefings')
-      .select('usp, must_haves, rechtlicher_hinweis')
-      .order('created_at', { ascending: false }).limit(1);
-    q = skript.kampagne_id ? q.eq('kampagne_id', skript.kampagne_id) : q.eq('marke_id', skript.marke_id);
-    const { data } = await q;
-    briefing = data?.[0] || null;
-    if (!briefing && skript.kampagne_id && skript.marke_id) {
-      const { data: fallback } = await supabase.from('briefings')
-        .select('usp, must_haves, rechtlicher_hinweis')
-        .eq('marke_id', skript.marke_id).order('created_at', { ascending: false }).limit(1);
-      briefing = fallback?.[0] || null;
-    }
+  if (skript.briefing_id) {
+    const { data } = await supabase.from('campaign_briefings')
+      .select('*').eq('id', skript.briefing_id).single();
+    briefing = data || null;
   }
 
   // Marken-Kickoff (Kurzform): Ton + Leitplanken
@@ -200,22 +194,26 @@ function buildEditPrompt(ctx, message) {
     if (personaLines) task += `\n# ZIELGRUPPEN-PERSONA\n${personaLines}\n`;
   }
 
-  // Briefing/Kickoff-Leitplanken: ein Rewrite darf Must-haves und
+  // Campaign-Briefing + Kickoff-Leitplanken: ein Rewrite darf Must-haves und
   // rechtliche Vorgaben nicht verletzen
-  const leitplanken = [
-    briefing ? fmtLines({ usp: briefing.usp, must_haves: briefing.must_haves, rechtlicher_hinweis: briefing.rechtlicher_hinweis }) : '',
-    kickoff ? fmtLines({ tonalitaet_sprachstil: kickoff.tonalitaet_sprachstil, dos_donts: kickoff.dos_donts, rechtliche_leitplanken: kickoff.rechtliche_leitplanken }) : ''
-  ].filter(Boolean).join('\n');
-  if (leitplanken) {
-    task += `\n# LEITPLANKEN (Briefing/Kickoff - verbindlich, auch bei Ueberarbeitungen)\n${leitplanken}\n`;
+  const briefingText = fmtCampaignBriefing(briefing, { max: EDIT_BRIEFING_MAX });
+  if (briefingText) task += briefingText;
+
+  const kickoffLines = kickoff
+    ? fmtLines({
+      tonalitaet_sprachstil: kickoff.tonalitaet_sprachstil,
+      dos_donts: kickoff.dos_donts,
+      rechtliche_leitplanken: kickoff.rechtliche_leitplanken
+    })
+    : '';
+  if (kickoffLines) {
+    task += `\n# LEITPLANKEN (Kickoff - verbindlich, auch bei Ueberarbeitungen)\n${kickoffLines}\n`;
   }
 
-  // PDF-Briefing: das bei der Generierung erstellte Fakten-Extrakt liegt
-  // gecacht am Skript (prompt_kontext.briefing_extrakt) - Ueberarbeitungen
-  // sollen dieselbe Faktenbasis sehen wie die Erstgenerierung
+  // Legacy: gecachter PDF-Extrakt alter Skripte ohne briefing_id
   const briefingExtrakt = (skript.prompt_kontext?.briefing_extrakt || '').trim();
   if (briefingExtrakt) {
-    task += '\n# PDF-BRIEFING (Fakten-Extrakt - verbindliche Quelle, auch bei Ueberarbeitungen)\n'
+    task += '\n# BRIEFING-EXTRAKT (Fakten-Extrakt aus altem PDF - verbindliche Quelle, auch bei Ueberarbeitungen)\n'
       + `${kuerzeTranskript(briefingExtrakt, EDIT_BRIEFING_EXTRAKT_MAX)}\n`;
   }
 
@@ -266,6 +264,19 @@ function buildEditPrompt(ctx, message) {
   if (message.inhalt) task += `Anweisung des Users: ${message.inhalt}\n`;
   task += `\n${AKTION_ANWEISUNGEN[message.aktion] || AKTION_ANWEISUNGEN.chat}\n`;
 
+  if (message.aktion === 'visuell') {
+    task += '\n# AUSGABEFORMAT\nAntworte AUSSCHLIESSLICH ueber das Tool "aenderung_abgeben" '
+      + '(Felder: antwort, sektion, vorschlag_text).\n'
+      + 'Regeln:\n'
+      + '- vorschlag_text = visuelle Regie fuer "Was zu sehen ist" (Shots, B-Roll, Overlays, On-Screen-Texte, Schnitte).\n'
+      + '- KEIN gesprochener Text, keine Sprecher-Anweisungen, keine woertliche Rede.\n'
+      + '- sektion = die Sektion aus dem Auftrag.\n'
+      + '- antwort = kurze Bestaetigung (1 Satz, Deutsch).\n'
+      + '- Innerhalb der Texte typografische Anfuehrungszeichen (\u201e\u2026\u201c) statt gerader (") verwenden.\n'
+      + '- vorschlag_text darf die LEITPLANKEN (Must-haves, rechtliche Vorgaben) nicht verletzen.\n';
+    return { stable, task };
+  }
+
   task += '\n# AUSGABEFORMAT\nAntworte AUSSCHLIESSLICH ueber das Tool "aenderung_abgeben" '
     + '(Felder: antwort, sektion, vorschlag_text).\n'
     + 'Regeln:\n'
@@ -275,7 +286,7 @@ function buildEditPrompt(ctx, message) {
       : '')
     + '- vorschlag_text muss zur Zielgruppe passen (siehe ZIELGRUPPEN-PERSONA) und den Ton des restlichen Skripts erhalten.\n'
     + '- vorschlag_text darf die LEITPLANKEN (Must-haves, rechtliche Vorgaben) nicht verletzen.\n'
-    + '- Nichts erfinden: Behaupte NICHTS ueber Angebote, Features, Aktionen oder Konditionen, das nicht im PDF-BRIEFING, den LEITPLANKEN oder dem bestehenden Skript steht. Vorschlaege duerfen den PDF-Fakten nicht widersprechen.\n'
+    + '- Nichts erfinden: Behaupte NICHTS ueber Angebote, Features, Aktionen oder Konditionen, das nicht im CAMPAIGN-BRIEFING bzw. Briefing-Extrakt, den LEITPLANKEN oder dem bestehenden Skript steht. Vorschlaege duerfen den Briefing-Fakten nicht widersprechen.\n'
     + '- Wenn eine markierte Stelle vorliegt, ist vorschlag_text NUR der Ersatztext fuer genau diese Stelle (nicht die ganze Sektion).\n'
     + '- Ohne markierte Stelle, aber mit klarem Aenderungswunsch: vorschlag_text = komplette neue Version der betroffenen Sektion, sektion entsprechend setzen.\n'
     + '- Bei reinen Fragen/Rueckfragen: vorschlag_text = null, sektion = null.\n'
@@ -303,6 +314,8 @@ exports.handler = async (event) => {
       body: JSON.stringify(authErrorBody(auth))
     };
   }
+  const intern = await requireInternal(supabase, auth.user);
+  if (!intern.ok) return intern.response;
 
   let payload;
   try {
@@ -379,3 +392,6 @@ exports.handler = async (event) => {
     return { statusCode: 500 };
   }
 };
+
+exports.buildEditPrompt = buildEditPrompt;
+exports.EDIT_BRIEFING_MAX = EDIT_BRIEFING_MAX;

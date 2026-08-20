@@ -249,8 +249,8 @@ describe('VideoUploadDrawer', () => {
       await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true }, vi.fn());
 
       const submitBtn = document.getElementById('video-upload-submit-btn');
-      expect(submitBtn?.innerHTML).toContain('M9 16.17');
-      expect(submitBtn?.innerHTML).not.toContain('M13.19 8.688');
+      expect(submitBtn?.innerHTML).toContain('#crm-icon-check-filled');
+      expect(submitBtn?.innerHTML).not.toContain('#crm-icon-link');
       expect(submitBtn?.querySelector('.mdc-btn__icon')).not.toBeNull();
     });
 
@@ -259,7 +259,7 @@ describe('VideoUploadDrawer', () => {
       await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true }, vi.fn());
 
       const addBtn = document.getElementById('video-link-add-btn');
-      expect(addBtn?.innerHTML).toContain('M12 4.5v15');
+      expect(addBtn?.innerHTML).toContain('#crm-icon-plus-lg');
       expect(addBtn?.classList.contains('upload-drawer-btn--secondary')).toBe(true);
     });
   });

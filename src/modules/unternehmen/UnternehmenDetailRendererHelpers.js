@@ -3,6 +3,7 @@
 
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 export function formatZahlungsziel(tage) {
   if (tage === null || tage === undefined) return '-';
@@ -12,8 +13,8 @@ export function formatZahlungsziel(tage) {
 
 export function formatBoolean(value) {
   return value
-    ? `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: var(--icon-xs); height: var(--icon-xs);"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>`
-    : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: var(--icon-xs); height: var(--icon-xs);"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>`;
+    ? `${icon('check-bold', { className: 'icon-16' })}`
+    : `${icon('x-mark', { className: 'icon-16' })}`;
 }
 
 export function renderMarkeBubble(detail, marke) {

@@ -5,6 +5,7 @@
 import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import { uploadAuftragsbestaetigungen } from '../../core/AuftragsbestaetigungUploader.js';
 import { getCurrentBenutzerId } from '../auth/CurrentUser.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 const DOK_ACCEPT = '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png';
 const DOK_MAX_SIZE = 25 * 1024 * 1024;
@@ -79,9 +80,7 @@ export class ContractDokumentDrawer {
       <div class="drawer-footer">
         <button type="button" class="mdc-btn mdc-btn--cancel" id="${this.drawerId}-cancel-btn">Abbrechen</button>
         <button type="button" class="mdc-btn mdc-btn--primary" id="${this.drawerId}-submit-btn" disabled>
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/>
-          </svg>
+          ${icon('upload')}
           Speichern
         </button>
       </div>

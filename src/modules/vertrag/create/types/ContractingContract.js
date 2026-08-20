@@ -15,8 +15,10 @@ VertraegeCreate.prototype.renderContractingStep2 = function() {
 
     return `
       <div class="step-section">
-        <h3>Vertragsparteien</h3>
-        <p class="step-description">Vertragstyp: <strong>Contracting (Influencer-Marketing-Vertrag)</strong></p>
+        <div class="step-section__header">
+          <h3>Vertragsparteien</h3>
+          <p class="step-description">Vertragstyp: <strong>Contracting (Influencer-Marketing-Vertrag)</strong></p>
+        </div>
 
         <!-- Kunde (Unternehmen = beguenstigter Dritter) -->
         <div class="form-field">
@@ -59,9 +61,12 @@ VertraegeCreate.prototype.renderContractingStep2 = function() {
           <div id="creator-adresse" class="address-preview"></div>
         </div>
 
-        ${this.renderAgenturSection()}
-
-        <h3 class="mt-section">Influencer-Daten</h3>
+      </div>
+      ${this.renderAgenturSection()}
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>Influencer-Daten</h3>
+        </div>
 
         <div class="form-field">
           <label for="influencer_land">Land</label>
@@ -86,7 +91,9 @@ VertraegeCreate.prototype.renderContractingStep3 = function() {
 
     return `
       <div class="step-section">
-        <h3>§2 Plattformen & Veröffentlichung</h3>
+        <div class="step-section__header">
+          <h3>§2 Plattformen & Veröffentlichung</h3>
+        </div>
 
         <div class="form-field">
           <label>Plattformen</label>
@@ -126,7 +133,7 @@ VertraegeCreate.prototype.renderContractingStep3 = function() {
                  placeholder="z.B. LinkedIn, Pinterest">
         </div>
 
-        <h4 class="mt-section">Plattform-Handles</h4>
+        <h4>Plattform-Handles</h4>
         <p class="form-hint">Diese werden im Vertrag als Veröffentlichungsprofile angegeben (XXX-Stellen in §2).</p>
         <div class="form-three-col">
           <div class="form-field">
@@ -151,8 +158,11 @@ VertraegeCreate.prototype.renderContractingStep3 = function() {
                  value="${handles.weitere || ''}" placeholder="z.B. LinkedIn-URL">
         </div>
         ${renderParagraphZusatz(this.formData, 'p2', '§2 Plattformen & Veröffentlichung')}
-
-        <h3 class="mt-section">§2a Inhalte & Kooperationsdetails</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>§2a Inhalte & Kooperationsdetails</h3>
+        </div>
 
         <div class="form-field">
           <label>Content-Formate</label>
@@ -218,7 +228,9 @@ VertraegeCreate.prototype.renderContractingStep4 = function() {
 
     return `
       <div class="step-section">
-        <h3>§3 Nutzung für zusätzliche Ad-Ausspielung / Werbung (Media Buyout)</h3>
+        <div class="step-section__header">
+          <h3>§3 Nutzung für zusätzliche Ad-Ausspielung / Werbung (Media Buyout)</h3>
+        </div>
 
         <div class="form-field">
           <label>Media Buyout aktiv?</label>
@@ -341,8 +353,11 @@ VertraegeCreate.prototype.renderContractingStep4 = function() {
                     placeholder="Optional: Besonderheiten zur Nutzung">${this.formData.contracting_buyout_besonderheiten || ''}</textarea>
         </div>
         ${renderParagraphZusatz(this.formData, 'p3', '§3 Media Buyout')}
-
-        <h3 class="mt-section">§5 Produktion & Freigabe</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>§5 Produktion & Freigabe</h3>
+        </div>
         <p class="form-hint">Es werden maximal zwei Korrekturschleifen vereinbart. Inhalte sind vor Veröffentlichung zur Freigabe vorzulegen.</p>
 
         <div class="form-two-col">
@@ -377,7 +392,9 @@ VertraegeCreate.prototype.renderContractingStep5 = function() {
     const zahlungsziel = this.formData.zahlungsziel || '45_tage';
     return `
       <div class="step-section">
-        <h3>§6 Vergütung</h3>
+        <div class="step-section__header">
+          <h3>§6 Vergütung</h3>
+        </div>
         <p class="form-hint">Zahlung erfolgt nach Leistungserbringung und Rechnungsstellung über LikeGroup GmbH.</p>
 
         <div class="form-field">
@@ -416,8 +433,11 @@ VertraegeCreate.prototype.renderContractingStep5 = function() {
           </div>
         </div>
         ${renderParagraphZusatz(this.formData, 'p6', '§6 Vergütung')}
-
-        <h3 class="mt-section">§10 Exklusivität</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>§10 Exklusivität</h3>
+        </div>
         <p class="form-hint">Der Influencer verpflichtet sich im angegebenen Zeitraum keine Kooperationen mit unmittelbaren Wettbewerbern im angegebenen Bereich einzugehen. Ohne Zeitraum gilt: zwei Wochen nach Veröffentlichung.</p>
 
         <div class="form-two-col">
@@ -440,8 +460,11 @@ VertraegeCreate.prototype.renderContractingStep5 = function() {
                  placeholder="z.B. Haushaltselektronik, Beauty, Fashion">
         </div>
         ${renderParagraphZusatz(this.formData, 'p10', '§10 Exklusivität')}
-
-        <h3 class="mt-section">Weitere Bestimmungen</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>Weitere Bestimmungen</h3>
+        </div>
         <div class="form-field">
           <label for="weitere_bestimmungen">Zusätzliche Vereinbarungen (optional)</label>
           <textarea id="weitere_bestimmungen" name="weitere_bestimmungen" rows="4"

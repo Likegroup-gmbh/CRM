@@ -144,21 +144,21 @@ describe('BreadcrumbSystem Rework', () => {
       const { getRouteConfig } = await import('../core/breadcrumbRoutes.js');
       const config = getRouteConfig('kampagne');
       expect(config.label).toBe('Kampagne');
-      expect(config.icon).toBe('icon-campaign');
+      expect(config.entity).toBe('kampagne');
     });
 
     it('gibt korrektes Label und Icon für creator', async () => {
       const { getRouteConfig } = await import('../core/breadcrumbRoutes.js');
       const config = getRouteConfig('creator');
       expect(config.label).toBe('Creator');
-      expect(config.icon).toBe('icon-users');
+      expect(config.entity).toBe('creator');
     });
 
     it('gibt korrektes Label und Icon für auftrag', async () => {
       const { getRouteConfig } = await import('../core/breadcrumbRoutes.js');
       const config = getRouteConfig('auftrag');
       expect(config.label).toBe('Aufträge');
-      expect(config.icon).toBe('icon-briefcase');
+      expect(config.entity).toBe('auftrag');
     });
 
     it('gibt korrektes Label für dashboard', async () => {
@@ -203,14 +203,14 @@ describe('BreadcrumbSystem Rework', () => {
       const { getRouteConfig } = await import('../core/breadcrumbRoutes.js');
       const config = getRouteConfig('gibts-nicht');
       expect(config.label).toBe('Gibts-nicht');
-      expect(config.icon).toBeNull();
+      expect(config.entity).toBeNull();
     });
 
     it('gibt kapitalisierten Fallback für undefined', async () => {
       const { getRouteConfig } = await import('../core/breadcrumbRoutes.js');
       const config = getRouteConfig(undefined);
       expect(config.label).toBe('');
-      expect(config.icon).toBeNull();
+      expect(config.entity).toBeNull();
     });
   });
 });

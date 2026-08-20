@@ -56,9 +56,9 @@ export class VideoPlayerView {
         </div>
         <div class="vpl-feedback-wrap">${this.renderFeedback()}</div>
         <div class="vpl-nav">
-          <button type="button" class="secondary-btn vpl-download">${DOWNLOAD_ICON}<span>Download</span></button>
-          <button type="button" class="secondary-btn vpl-prev" ${hasPrev ? '' : 'disabled'}>Zurück</button>
-          <button type="button" class="primary-btn vpl-next" ${hasNext ? '' : 'disabled'}>Weiter</button>
+          <button type="button" class="mdc-btn mdc-btn--secondary vpl-download">${DOWNLOAD_ICON}<span>Download</span></button>
+          <button type="button" class="mdc-btn mdc-btn--secondary vpl-prev" ${hasPrev ? '' : 'disabled'}>Zurück</button>
+          <button type="button" class="mdc-btn vpl-next" ${hasNext ? '' : 'disabled'}>Weiter</button>
         </div>
       </div>
     `;
@@ -127,8 +127,8 @@ export class VideoPlayerView {
       <div class="media-viewer-empty media-viewer-unplayable">
         <span>Dieses Format kann im Browser nicht abgespielt werden.</span>
         <div class="media-viewer-fallback-actions">
-          <button type="button" class="primary-btn vpl-fallback-download">${DOWNLOAD_ICON}<span>Herunterladen</span></button>
-          ${link ? `<a class="secondary-btn media-viewer-fallback-link" href="${escapeHtml(link)}" target="_blank" rel="noopener">Extern öffnen</a>` : ''}
+          <button type="button" class="mdc-btn vpl-fallback-download">${DOWNLOAD_ICON}<span>Herunterladen</span></button>
+          ${link ? `<a class="mdc-btn mdc-btn--secondary media-viewer-fallback-link" href="${escapeHtml(link)}" target="_blank" rel="noopener">Extern öffnen</a>` : ''}
         </div>
       </div>`;
   }

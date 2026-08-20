@@ -6,6 +6,8 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
+import { BEREICH_LABELS } from '../briefing/create/fieldConfig.js';
 
 export function renderKampagnen(detail) {
   if (!detail.kampagnen || detail.kampagnen.length === 0) {
@@ -119,7 +121,7 @@ export function renderAnsprechpartner(detail) {
         <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
           ${detail.sanitize(ap.vorname)} ${detail.sanitize(ap.nachname)}
         </a>
-        ${ap.ist_verknuepft ? `<span class="tag tag--verknuepft" title="verknüpft"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="tag--verknuepft-icon"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></svg></span>` : ''}
+        ${ap.ist_verknuepft ? `<span class="tag tag--verknuepft" title="verknüpft">${icon('link')}</span>` : ''}
       </td>
       <td>${detail.sanitize(ap.position?.name) || '-'}</td>
       <td>${ap.email ? `<a href="mailto:${ap.email}">${detail.sanitize(ap.email)}</a>` : '-'}</td>
@@ -167,12 +169,12 @@ export function renderRechnungen(detail) {
 
   const rows = detail.rechnungen.map(r => `
     <tr>
-      <td><a href="/rechnung/${r.id}" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${detail.sanitize(r.rechnung_nr || '—')}</a></td>
+      <td><a href="/rechnung/${r.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${detail.sanitize(r.rechnung_nr || '—')}</a></td>
       <td>${r.status || '-'}</td>
       <td>${detail.formatCurrency(r.nettobetrag)}</td>
       <td>${detail.formatCurrency(r.bruttobetrag)}</td>
       <td>${detail.formatDate(r.gestellt_am)}</td>
-      <td>${r.rechnung_pdfs && r.rechnung_pdfs.length > 0 ? r.rechnung_pdfs.map((p, i) => `<a href="${p.file_url}" target="_blank" rel="noopener">PDF${r.rechnung_pdfs.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' ') : (r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener">PDF</a>` : '-')}</td>
+      <td>${renderPdfLinks(r.rechnung_pdfs, r.pdf_url)}</td>
     </tr>
   `).join('');
 
@@ -208,11 +210,12 @@ export function renderBriefings(detail) {
     <tr>
       <td>
         <a href="#" class="table-link" data-table="briefing" data-id="${briefing.id}">
-          ${detail.sanitize(briefing.product_service_offer) || 'Unbekanntes Briefing'}
+          ${detail.sanitize(briefing.aktivierung_name) || 'Unbekanntes Briefing'}
         </a>
       </td>
-      <td><span class="status-badge status-${briefing.status?.toLowerCase() || 'unknown'}">${briefing.status || '-'}</span></td>
-      <td>${detail.formatDate(briefing.deadline)}</td>
+      <td>${briefing.bereich ? `<span class="tag tag--type">${detail.sanitize(BEREICH_LABELS[briefing.bereich] || briefing.bereich)}</span>` : '-'}</td>
+      <td><span class="status-badge ${briefing.is_draft ? 'status-entwurf' : 'status-final'}">${briefing.is_draft ? 'Entwurf' : 'Final'}</span></td>
+      <td>${detail.formatDate(briefing.content_deadline)}</td>
       <td>${detail.formatDate(briefing.created_at)}</td>
       <td>
         ${actionBuilder.create('briefing', briefing.id)}
@@ -225,7 +228,8 @@ export function renderBriefings(detail) {
       <table class="data-table">
         <thead>
           <tr>
-            <th>Produkt/Angebot</th>
+            <th>Aktivierung</th>
+            <th>Bereich</th>
             <th>Status</th>
             <th>Deadline</th>
             <th>Erstellt am</th>

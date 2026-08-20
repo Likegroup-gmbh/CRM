@@ -1,6 +1,7 @@
 // CreatorListDetail.js (ES6-Modul)
 // Detailseite einer Creator-Liste: zeigt alle zugeordneten Creator
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
+import { icon } from '../../core/icons/IconSystem.js';
 export class CreatorListDetail {
   constructor() {
     this.listId = null;
@@ -88,7 +89,7 @@ export class CreatorListDetail {
     const added = m.added_at ? new Intl.DateTimeFormat('de-DE').format(new Date(m.added_at)) : '-';
     return `
       <tr>
-        <td><a href="/creator/${c.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${c.id}')">${window.validatorSystem.sanitizeHtml(fullName)}</a></td>
+        <td><a href="/creator/${c.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/creator/${c.id}')">${window.validatorSystem.sanitizeHtml(fullName)}</a></td>
         <td>${window.validatorSystem.sanitizeHtml(ig)}</td>
         <td>${window.validatorSystem.sanitizeHtml(tt)}</td>
         <td>${window.validatorSystem.sanitizeHtml(mail)}</td>
@@ -97,7 +98,7 @@ export class CreatorListDetail {
         <td>
           <div class="actions-dropdown-container" data-entity-type="creator">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+              ${icon('dots-vertical-filled')}
             </button>
             <div class="actions-dropdown">
               <a href="#" class="action-item" data-action="view" data-id="${c.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${c.id}')">Details anzeigen</a>

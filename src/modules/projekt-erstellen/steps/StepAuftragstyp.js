@@ -3,6 +3,7 @@
 // Visuelle Auftragstyp-Auswahl mit Radio-Cards.
 
 import { AUFTRAG_TYPES } from '../constants.js';
+import { icon } from '../../../core/icons/IconSystem.js';
 
 const TYPE_DESCRIPTIONS = {
   'Vorortproduktion': 'Vor-Ort-Produktionen mit Videographen und Fotografen.',
@@ -37,11 +38,9 @@ export class StepAuftragstyp {
           ${cards}
         </div>
         <div class="pe-type-selection__actions">
-          <button type="button" class="primary-btn" id="pe-type-next-btn" ${current ? '' : 'disabled'}>
+          <button type="button" class="mdc-btn" id="pe-type-next-btn" ${current ? '' : 'disabled'}>
             <span>Weiter</span>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-            </svg>
+            ${icon('arrow-right')}
           </button>
         </div>
       </div>

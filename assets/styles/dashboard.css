@@ -251,7 +251,7 @@
   font-size: var(--text-xs);
   font-weight: 400;
   color: var(--text-tertiary);
-  margin-left: 4px;
+  margin-left: var(--space-xs);
 }
 
 .dashboard-birthdays__date {

@@ -4,6 +4,7 @@
 
 import { VertraegeCreate } from './VertraegeCreateCore.js';
 import { PageTransitionHelper } from '../../../core/PageTransitionHelper.js';
+import { icon } from '../../../core/icons/IconSystem.js';
 
 VertraegeCreate.prototype.render = function() {
     // Verhindere doppeltes Rendern
@@ -59,7 +60,7 @@ VertraegeCreate.prototype.renderStep1 = function() {
             <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.navigateTo('/vertraege')">
               <span class="mdc-btn__label">Abbrechen</span>
             </button>
-            <button type="button" id="btn-generate" class="primary-btn" ${this.selectedTyp ? '' : 'disabled'}>
+            <button type="button" id="btn-generate" class="mdc-btn" ${this.selectedTyp ? '' : 'disabled'}>
               Generieren
             </button>
           </div>
@@ -175,46 +176,38 @@ VertraegeCreate.prototype.renderProgressBar = function() {
         <button type="button" class="mdc-btn mdc-btn--cancel" id="btn-cancel">
           <span class="mdc-btn__label">Abbrechen</span>
         </button>
-        <button type="button" id="btn-save-draft" class="secondary-btn" title="Als Entwurf in der Datenbank speichern">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 3.75H6.912a2.25 2.25 0 0 0-2.15 1.588L2.35 13.177a2.25 2.25 0 0 0-.1.661V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18v-4.162c0-.224-.034-.447-.1-.661L19.24 5.338a2.25 2.25 0 0 0-2.15-1.588H15M2.25 13.5h3.86a2.25 2.25 0 0 1 2.012 1.244l.256.512a2.25 2.25 0 0 0 2.013 1.244h3.218a2.25 2.25 0 0 0 2.013-1.244l.256-.512a2.25 2.25 0 0 1 2.013-1.244h3.859M12 3v8.25m0 0-3-3m3 3 3-3" />
-          </svg>
+        <button type="button" id="btn-save-draft" class="mdc-btn mdc-btn--secondary" title="Als Entwurf in der Datenbank speichern">
+          ${icon('inbox')}
           <span class="btn-label">Als Entwurf speichern</span>
         </button>
         ${this.currentStep >= 2 ? `
-          <button type="button" id="btn-prev" class="secondary-btn">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-            </svg>
+          <button type="button" id="btn-prev" class="mdc-btn mdc-btn--secondary">
+            ${icon('arrow-left')}
             Zurück
           </button>
         ` : ''}
         ${this.currentStep === this.totalSteps ? `
           <div class="contract-language-switch" role="group" aria-label="Vertragssprache">
             <span class="contract-language-switch__label">Sprache:</span>
-            <button type="button" class="secondary-btn ${selectedLanguage === 'de' ? 'btn-active' : ''}" data-contract-lang="de">
+            <button type="button" class="mdc-btn mdc-btn--secondary ${selectedLanguage === 'de' ? 'btn-active' : ''}" data-contract-lang="de">
               Deutsch
             </button>
-            <button type="button" class="secondary-btn ${selectedLanguage === 'en' ? 'btn-active' : ''}" data-contract-lang="en">
+            <button type="button" class="mdc-btn mdc-btn--secondary ${selectedLanguage === 'en' ? 'btn-active' : ''}" data-contract-lang="en">
               English
             </button>
           </div>
         ` : ''}
         ${this.currentStep < this.totalSteps ? `
-          <button type="button" id="btn-next" class="primary-btn">
+          <button type="button" id="btn-next" class="mdc-btn">
             Weiter
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-            </svg>
+            ${icon('arrow-right')}
           </button>
         ` : `
-          <button type="button" id="btn-submit" class="primary-btn">
+          <button type="button" id="btn-submit" class="mdc-btn">
             ${isEdit ? 'Finalisieren & PDF' : 'Erstellen & PDF'}
           </button>
-          <button type="button" id="btn-submit-and-new" class="secondary-btn" title="Vertrag erstellen und mit gleichen Daten neuen starten">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-            </svg>
+          <button type="button" id="btn-submit-and-new" class="mdc-btn mdc-btn--secondary" title="Vertrag erstellen und mit gleichen Daten neuen starten">
+            ${icon('arrow-path')}
             Erstellen & Neu mit gleichen Daten
           </button>
         `}

@@ -1,0 +1,558 @@
+/* ==========================================================================
+   PROFILE-Modul (aus components.css extrahiert, Phase 7)
+   ========================================================================== */
+
+/* Logo-Preview (neu hochgeladenes Bild) */
+
+/* ========================================
+   PROFILE DETAIL V2 STYLES
+   ======================================== */
+
+/* Spezielle Container-Klasse für Profilseite (ersetzt main-wrapper) */
+
+.profile-page-container {
+  flex: 1;
+  padding: 0; /* Kein Padding wie main-wrapper */
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Wrapper für das gesamte Profil-Layout mit Tabs oben */
+
+.profile-page-wrapper {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+}
+
+/* Main Layout - Split-Screen: Sidebar links, Tabs+Content rechts */
+
+.profile-detail-layout {
+  display: grid;
+  grid-template-columns: 14em 1fr;
+  width: 100%;
+}
+
+@media (max-width: 1024px) {
+  .profile-detail-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Sidebar Header (z.B. "Information") */
+
+.profile-sidebar-header {
+  display: flex;
+  align-items: center;
+  padding: var(--space-xxs) var(--space-md);
+  min-height: 45px;
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--gray-100);
+ 
+  box-sizing: border-box;
+}
+
+/* Sidebar */
+
+.profile-sidebar {
+  display: flex;
+  flex-direction: column;
+ 
+  height: 100%;
+}
+
+/* Avatar Wrapper */
+
+.profile-avatar-wrapper {
+  border-bottom: 1px solid var(--gray-100);
+  padding: var(--space-md);
+
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-sm);
+}
+
+/* Avatar Section */
+
+.profile-avatar-section {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-md);
+  width: 100%;
+}
+
+.profile-avatar-section .profile-avatar-large {
+  flex-shrink: 0;
+  width: 5rem;
+  height: 5rem;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.profile-avatar-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 0;
+}
+
+.profile-avatar-info .profile-name {
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.profile-avatar-info .profile-subtitle {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.profile-avatar-info .profile-email {
+  margin: 0;
+}
+
+.profile-avatar-large {
+  position: relative;
+}
+
+.profile-avatar-clickable {
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.profile-avatar-clickable:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-lg);
+}
+
+.profile-avatar-large img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-initials-large {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-hover) 100%);
+  color: var(--color-white);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.profile-name {
+  font-size: 1 rem;
+  font-weight: 500;
+  color: var(--text-primary);
+ 
+}
+
+span.profile-name {
+  width: fit-content;
+}
+
+.profile-email {
+  font-size: var(--text-sm);
+  color: var(--gray-500);
+  margin: 0 0 var(--space-md) 0;
+  word-break: break-word;
+}
+
+/* Action Buttons */
+
+.profile-actions {
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: center;
+  margin-bottom: var(--space-md);
+}
+
+/* Last Activity */
+
+/* Sidebar Tabs */
+
+.profile-sidebar-tab {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+
+.profile-sidebar-tab:hover {
+  color: var(--text-primary);
+  background: var(--gray-50);
+}
+
+.profile-sidebar-tab.active {
+  color: var(--accent-primary);
+  border-bottom-color: var(--accent-primary);
+  background: transparent;
+}
+
+/* Sidebar Content - direkt angezeigt (kein Tab-Toggle mehr) */
+
+.profile-sidebar-content {
+  
+}
+
+/* Info Section */
+
+.profile-info-section {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.profile-info-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--gray-100);
+  min-height: 44px;
+}
+
+.profile-info-item:last-child {
+  border-bottom: none;
+}
+
+.profile-info-item .info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--space-lm);
+  height: var(--space-lm);
+  color: var(--text-secondary);
+}
+
+.profile-info-item .info-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.profile-info-item .info-label {
+  font-size: var(--text-xsm);
+  color: var(--gray-500);
+  font-weight: 400;
+  white-space: nowrap;
+  min-width: 100px;
+}
+
+.profile-info-item .info-value {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  font-weight: 400;
+  margin-left: auto;
+  text-align: right;
+}
+
+/* Main Content - rechte Spalte mit Tabs + Content */
+
+.profile-main-content {
+  background: var(--color-white);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+/* Secondary Navigation Layout (Unternehmen Detail - Test) */
+
+.profile-detail-layout--secondary-nav {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.profile-sidebar--secondary-fixed {
+  border-right: 1px solid var(--gray-100);
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow: hidden;
+}
+
+.profile-sidebar--secondary-fixed .profile-sidebar-header {
+  min-height: var(--space-xxl);
+  height: var(--space-xxl);
+  padding: 0 var(--space-md);
+ 
+}
+
+.profile-main-content--secondary-scroll {
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.secondary-tab-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  width: 100%;
+}
+
+.secondary-tab-nav .tabs-header-container {
+  display: block;
+  width: 100%;
+}
+
+.secondary-tab-nav .tabs-header-container .tabs-left {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  overflow: visible;
+}
+
+.secondary-tab-nav .tab-button {
+  width: 100%;
+  justify-content: flex-start;
+  padding: var(--space-xs)  var(--space-xs);
+  border: none;
+  border-radius: var(--radius-md);
+  text-align: left;
+}
+
+.secondary-tab-nav .tab-button .tab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-lm);
+  height: var(--space-lm);
+  flex-shrink: 0;
+}
+
+.secondary-tab-nav .tab-button .tab-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.secondary-tab-nav .tab-button.active {
+  background: var(--gray-100);
+  color: var(--gray-900);
+  font-weight: 500;
+}
+
+.secondary-tab-nav .tab-button.active::after {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .profile-detail-layout--secondary-nav {
+    height: auto;
+    overflow: visible;
+  }
+
+  .profile-sidebar--secondary-fixed {
+    position: static;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--gray-100);
+  }
+
+  .profile-main-content--secondary-scroll {
+    height: auto;
+    overflow-y: visible;
+  }
+
+  .secondary-tab-nav {
+    border-right: none;
+    border-bottom: 1px solid var(--gray-100);
+    overflow-x: auto;
+    flex-direction: row;
+    padding: 0 var(--space-md);
+  }
+
+  .secondary-tab-nav .tabs-header-container .tabs-left {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .secondary-tab-nav .tab-button {
+    width: auto;
+    border-bottom: var(--border-xs) solid transparent;
+    padding: var(--space-sm) var(--space-xs);
+  }
+
+  .secondary-tab-nav .tab-button.active {
+    background: transparent;
+    border-bottom-color: var(--gray-900);
+  }
+}
+
+/* Profile Subtitle */
+
+.profile-subtitle {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-xs) 0;
+}
+
+.profile-image-preview {
+  flex-shrink: 0;
+}
+
+.profile-image-current {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--gray-200);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.profile-image-upload-area {
+  flex: 1;
+  min-width: 0;
+}
+
+/* =====================================================
+   KICK-OFF PAGE STYLES
+   ===================================================== */
+
+/* Kick-Off Page */
+
+.kickoff-page {
+  max-width: 800px;
+}
+
+/* Kick-Off Status Badge */
+
+.kickoff-status {
+  margin-top: var(--space-md);
+}
+
+/* =====================================================
+   KICK-OFF TABLE STYLES
+   ===================================================== */
+
+/* Kick-Off Header in Marke-Detail: bündig zur linken Navigation */
+
+#tab-kickoff .kickoff-type-switcher {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0 var(--space-md);
+  min-height: var(--space-xxl);
+  height: var(--space-xxl);
+  border: none;
+  border-bottom: 1px solid var(--gray-100);
+  gap: var(--space-md);
+  box-sizing: border-box;
+}
+
+#tab-kickoff .kickoff-type-switcher .tab-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+}
+
+#tab-kickoff .kickoff-type-switcher .tab-button.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: var(--gray-600);
+}
+
+.kickoff-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--gray-100);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Kick-Off Type Dialog – Option Cards (innerhalb Standard-Modal)
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.kickoff-type-options {
+  display: flex;
+  gap: var(--space-md);
+}
+
+.kickoff-type-option {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 1.25rem var(--space-lg);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  background: var(--bg-primary);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.kickoff-type-option:hover {
+  border-color: var(--gray-900);
+  background: var(--bg-secondary);
+}
+
+.kickoff-type-option__label {
+  font-weight: 600;
+  font-size: 0.9375rem;
+  color: var(--text-primary);
+}
+
+.kickoff-type-option__desc {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.3;
+}
+
+/* Kick-Off Panel Header mit Close-Button */
+
+.kickoff-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-lg) var(--space-xl);
+  border-bottom: 1px solid var(--border-primary);
+  margin-bottom: var(--space-lg);
+}
+
+.kickoff-panel-header__title {
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.kickoff-panel-header__close {
+  padding: 0.375rem;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: background 0.15s;
+}
+
+.kickoff-panel-header__close:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}

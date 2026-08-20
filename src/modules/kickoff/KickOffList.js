@@ -94,7 +94,7 @@ export class KickOffList {
       <tr class="table-row-clickable" data-id="${k.id}">
         ${!isKunde ? `<td>${this._renderUnternehmen(k)}</td>` : ''}
         ${!isKunde ? `<td>${this._renderMarke(k)}</td>` : ''}
-        <td><div class="tags tags-compact"><span class="tag tag--type">${window.validatorSystem.sanitizeHtml(typeLabel)}</span>${isLegacy ? '<span class="tag tag--muted" style="font-size: 0.7rem; opacity: 0.6;">Legacy</span>' : ''}</div></td>
+        <td><div class="tags tags-compact"><span class="tag tag--type">${window.validatorSystem.sanitizeHtml(typeLabel)}</span>${isLegacy ? '<span class="tag tag--muted kickoff-legacy-tag">Legacy</span>' : ''}</div></td>
         <td>${this._getSummaryColumn(k)}</td>
         <td>${this._formatDate(k.created_at)}</td>
       </tr>
@@ -102,7 +102,7 @@ export class KickOffList {
     }).join('');
 
     const createBtn = isKunde ? '' : `
-      <button class="primary-btn" id="kickoff-create-btn" title="Strategiebriefing über Unternehmen oder Marke anlegen">Neues Strategiebriefing</button>
+      <button class="mdc-btn" id="kickoff-create-btn" title="Strategiebriefing über Unternehmen oder Marke anlegen">Neues Strategiebriefing</button>
     `;
 
     const colCount = isKunde ? 3 : 5;
@@ -125,7 +125,7 @@ export class KickOffList {
             </tr>
           </thead>
           <tbody>
-            ${rows || `<tr><td colspan="${colCount}" style="text-align: center; padding: var(--space-lg); color: var(--text-secondary);">Keine Strategiebriefings vorhanden</td></tr>`}
+            ${rows || `<tr><td colspan="${colCount}" class="table-empty-cell">Keine Strategiebriefings vorhanden</td></tr>`}
           </tbody>
         </table>
       </div>

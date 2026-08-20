@@ -8,6 +8,7 @@ import {
   isFixedColumnVisible,
   setFixedColumnVisibility
 } from './strategieColumns.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
 
 export class StrategieDetailColumnVisibilityDrawer {
   /**
@@ -77,8 +78,8 @@ export class StrategieDetailColumnVisibilityDrawer {
   renderToggleRow(label, dataAttr, isVisible) {
     return `
       <tr>
-        <td style="text-align: left;">${label}</td>
-        <td style="text-align: right;">
+        <td class="u-text-left">${label}</td>
+        <td class="u-text-right">
           <label class="toggle-switch">
             <input type="checkbox" class="column-visibility-toggle" ${dataAttr} ${isVisible ? 'checked' : ''}>
             <span class="toggle-slider"></span>
@@ -103,20 +104,20 @@ export class StrategieDetailColumnVisibilityDrawer {
     return `
       <div class="data-table-container">
         <table class="data-table">
-          <thead><tr><th style="text-align: left;">Spalte</th><th style="text-align: right;">Sichtbar</th></tr></thead>
+          <thead><tr><th class="u-text-left">Spalte</th><th class="u-text-right">Sichtbar</th></tr></thead>
           <tbody>${fixedRows}</tbody>
         </table>
       </div>
       ${this.columns.length > 0 ? `
-        <div class="data-table-container" style="margin-top: var(--space-lg);">
+        <div class="data-table-container u-mt-lg">
           <table class="data-table">
-            <thead><tr><th style="text-align: left;">Eigene Spalte</th><th style="text-align: right;">Sichtbar</th></tr></thead>
+            <thead><tr><th class="u-text-left">Eigene Spalte</th><th class="u-text-right">Sichtbar</th></tr></thead>
             <tbody>${customRows}</tbody>
           </table>
         </div>
-      ` : '<div class="empty-state-small"><p>Noch keine eigenen Spalten angelegt.</p></div>'}
+      ` : renderEmptyState({ title: 'Noch keine eigenen Spalten angelegt', size: 'small' })}
       <div class="drawer-footer">
-        <button type="button" class="primary-btn" id="btn-close-strategie-detail-visibility-drawer">Fertig</button>
+        <button type="button" class="mdc-btn" id="btn-close-strategie-detail-visibility-drawer">Fertig</button>
       </div>`;
   }
 

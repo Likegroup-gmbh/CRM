@@ -5,6 +5,8 @@ import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { renderTableSelect, tableSelectDisabled } from '../../core/components/TableSelect.js';
 import { STRATEGIE_PRIO_OPTIONS, getStrategiePrio } from './strategiePrioOptions.js';
 import { isFixedColumnVisible } from './strategieColumns.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 /** Klartext zu verarbeitung_step fuer die Fortschrittsanzeige in der Zeile. */
 const VERARBEITUNG_LABELS = {
@@ -16,11 +18,6 @@ const VERARBEITUNG_LABELS = {
   whisper: 'Transkription...',
   description: 'Beschreibung...',
   done: 'Fertig'
-};
-
-const TRANSKRIPT_QUELLE_LABELS = {
-  whisper: 'Whisper',
-  native_captions: 'Untertitel'
 };
 
 function escapeHtml(value) {
@@ -49,12 +46,12 @@ function visibleFixedColumns(detail) {
 export function renderItemsTable(detail) {
   if (detail.items.length === 0) {
     return `
-      <div class="table-container table-container--empty" style="text-align: center; padding: var(--space-xxl); color: var(--text-secondary);">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" style="width: 64px; height: 64px; margin: 0 auto var(--space-md); opacity: 0.5;">
-          <path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
-        </svg>
-        <p>Noch keine Videos hinzugefügt</p>
-        ${!detail.isKunde ? '<p style="font-size: var(--text-sm);">Fügen Sie oben eine Video-URL ein, um zu starten</p>' : ''}
+      <div class="table-container table-container--empty">
+        ${renderEmptyState({
+          icon: 'film',
+          title: 'Noch keine Videos hinzugefügt',
+          text: !detail.isKunde ? 'Fügen Sie oben eine Video-URL ein, um zu starten' : ''
+        })}
       </div>
     `;
   }
@@ -191,35 +188,34 @@ function renderBildCell(item, isIdea, ideaIcon) {
 }
 
 /**
- * Lange Texte (Transkript, Caption) als zweizeilige Vorschau. Der Volltext waere
- * in einer Tabellenzelle unlesbar und oeffnet sich per Klick in einem Drawer.
+ * Lange Texte (Transkript, Caption) voll in der Zelle - gleiches Muster wie die
+ * Beschreibung. Der Quellen-Tag zeigt, ob Whisper transkribiert oder die
+ * Untertitel des Posts mitgenommen wurden.
  */
-function renderLongTextCell(item, field, cssClass) {
-  const value = (item[field] || '').trim();
-  if (!value) {
-    return `<td class="${cssClass}"><span class="cell-empty">–</span></td>`;
-  }
-
-  const quelle = field === 'transkript' ? TRANSKRIPT_QUELLE_LABELS[item.transkript_quelle] : null;
+function renderFullTextCell(detail, item, field, cssClass, placeholder, readonly) {
+  const value = item[field] || '';
 
   return `
-    <td class="${cssClass}">
-      <button type="button" class="cell-longtext" data-action="show-longtext"
-              data-item-id="${item.id}" data-field="${field}"
-              title="Volltext anzeigen">
-        <span class="cell-longtext__preview">${escapeHtml(value)}</span>
-        <span class="cell-longtext__meta">
-          ${value.length} Zeichen${quelle ? ` · ${quelle}` : ''}
-        </span>
-      </button>
+    <td class="cell-textarea ${cssClass}">
+      ${!detail.isKunde ? `
+        <textarea
+          class="strategie-textarea${readonly ? ' readonly-textarea' : ''}"
+          placeholder="${placeholder}"
+          data-field="${field}"
+          data-item-id="${item.id}"
+          ${readonly ? 'readonly' : ''}
+        >${escapeHtml(value)}</textarea>
+      ` : `
+        <div class="cell-text-readonly">${escapeHtml(value) || '-'}</div>
+      `}
     </td>
   `;
 }
 
 export function renderItemRow(detail, item, index) {
   const platformIcon = getPlatformIcon(item.plattform);
-  const externalLinkIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>`;
-  const ideaIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 24px; height: 24px; color: var(--amber-500);"><path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" /></svg>`;
+  const externalLinkIcon = `${icon('external-link', { className: 'icon-20' })}`;
+  const ideaIcon = `${icon('light-bulb')}`;
   const isIdea = !item.video_link;
   const isLinked = !!item.linked_video;
   const isUmgesetzt = !!item.video_umgesetzt;
@@ -241,21 +237,19 @@ export function renderItemRow(detail, item, index) {
       </td>
       ${!detail.isKunde ? `
         <td class="col-drag drag-handle">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="drag-icon">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-          </svg>
+          ${icon('bars-3')}
         </td>
       ` : ''}
       ${renderBildCell(item, isIdea, ideaIcon)}
-      <td style="text-align: center;">
-        ${isIdea ? `<span style="font-size: var(--text-xs); color: var(--text-muted);">-</span>` : platformIcon}
+      <td class="u-text-center">
+        ${isIdea ? `<span class="strategie-cell-muted">-</span>` : platformIcon}
       </td>
-      <td style="text-align: center;">
+      <td class="u-text-center">
         ${item.video_link ? `
-          <a href="${item.video_link}" target="_blank" rel="noopener noreferrer" style="color: var(--color-primary); display: inline-flex;" title="${item.video_link}">
+          <a href="${item.video_link}" target="_blank" rel="noopener noreferrer" class="strategie-ext-link" title="${item.video_link}">
             ${externalLinkIcon}
           </a>
-        ` : `<span style="font-size: var(--text-xs); color: var(--text-muted);">-</span>`}
+        ` : `<span class="strategie-cell-muted">-</span>`}
       </td>
       ${cols.creator ? `
         <td class="cell-textarea">
@@ -270,9 +264,6 @@ export function renderItemRow(detail, item, index) {
       ` : ''}
       ${cols.beschreibung ? `
         <td class="cell-textarea">
-          ${item.beschreibung_quelle === 'ki' && item.beschreibung ? `
-            <span class="ki-tag" title="Automatisch aus dem Transkript erzeugt – beim Bearbeiten verschwindet die Markierung">KI</span>
-          ` : ''}
           ${!detail.isKunde ? `
             <textarea 
               class="strategie-textarea" 
@@ -285,8 +276,8 @@ export function renderItemRow(detail, item, index) {
           `}
         </td>
       ` : ''}
-      ${cols.transkript ? renderLongTextCell(item, 'transkript', 'col-transkript') : ''}
-      ${cols.caption ? renderLongTextCell(item, 'caption', 'col-caption') : ''}
+      ${cols.transkript ? renderFullTextCell(detail, item, 'transkript', 'col-transkript', 'Transkript...', readonly) : ''}
+      ${cols.caption ? renderFullTextCell(detail, item, 'caption', 'col-caption', 'Caption...', readonly) : ''}
       ${cols.anmerkung ? `
         <td class="cell-textarea">
           <textarea 
@@ -297,7 +288,7 @@ export function renderItemRow(detail, item, index) {
             ${(detail.isKunde && !readonly) ? '' : 'readonly'}
           >${item.kunde_anmerkung || ''}</textarea>
           ${item.kunde_anmerkung && item.kunde_anmerkung_author_name ? `
-            <div class="feedback-author-meta" style="font-size:0.72rem;color:var(--text-secondary,#999);padding:2px 4px;">
+            <div class="feedback-author-meta strategie-feedback-meta">
               ${item.kunde_anmerkung_author_name}${item.kunde_anmerkung_updated_at ? ` · ${new Date(item.kunde_anmerkung_updated_at).toLocaleDateString('de-DE')}` : ''}
             </div>` : ''}
         </td>
@@ -318,7 +309,7 @@ export function renderItemRow(detail, item, index) {
         </td>
       ` : ''}
       ${cols.umgesetzt ? `
-        <td class="col-umgesetzt" style="text-align: center;">
+        <td class="col-umgesetzt u-text-center">
           <label class="toggle-switch strategie-umgesetzt-toggle-wrapper">
             <input type="checkbox"
               class="strategie-umgesetzt-toggle"
@@ -335,9 +326,7 @@ export function renderItemRow(detail, item, index) {
         <td class="col-actions">
           <div class="actions-dropdown-container" data-entity-type="strategie_item">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-              </svg>
+              ${icon('dots-vertical-filled')}
             </button>
             <div class="actions-dropdown">
               <a href="#" class="action-item" data-action="edit-item" data-id="${item.id}">
@@ -376,9 +365,9 @@ export function renderItemRow(detail, item, index) {
 
 export function getPlatformIcon(platform) {
   const icons = {
-    youtube: `<svg style="width: 20px; height: 20px; color: #FF0000;" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>`,
-    tiktok: `<svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>`,
-    instagram: `<svg style="width: 20px; height: 20px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>`
+    youtube: `${icon('youtube', { className: 'icon-20' })}`,
+    tiktok: `${icon('tiktok', { className: 'icon-20' })}`,
+    instagram: `${icon('instagram', { className: 'icon-20' })}`
   };
   return icons[platform] || '';
 }

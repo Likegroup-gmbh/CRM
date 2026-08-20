@@ -129,12 +129,14 @@ export const COMMON_FILTER_OPTIONS = {
 
   // Kampagnen-Arten
   campaignTypes: [
-    { value: 'UGC Pro Paid', label: 'UGC Pro Paid' },
-    { value: 'UGC Pro Organic', label: 'UGC Pro Organic' },
-    { value: 'UGC Video Paid', label: 'UGC Video Paid' },
-    { value: 'UGC Video Organic', label: 'UGC Video Organic' },
+    { value: 'UGC Paid', label: 'UGC Paid' },
+    { value: 'UGC Organic', label: 'UGC Organic' },
     { value: 'Influencer Kampagne', label: 'Influencer Kampagne' },
-    { value: 'Vor Ort Produktionen', label: 'Vor Ort Produktionen' }
+    { value: 'Influencer Story', label: 'Influencer Story' },
+    { value: 'Influencer Events', label: 'Influencer Events' },
+    { value: 'Vor-Ort-Produktion', label: 'Vor-Ort-Produktion' },
+    { value: 'Whitelisting', label: 'Whitelisting' },
+    { value: 'Darkposting', label: 'Darkposting' }
   ]
 };
 

@@ -49,10 +49,10 @@ export class RechnungNotizModal {
             <textarea class="notiz-textarea" placeholder="Notiz zur Rückfrage eingeben..." rows="4">${existing?.notiz || ''}</textarea>
           </div>
           <div class="modal-footer">
-            ${canDelete ? `<button type="button" class="danger-btn notiz-btn-delete" data-action="delete">Löschen</button>` : ''}
+            ${canDelete ? `<button type="button" class="mdc-btn mdc-btn--delete notiz-btn-delete" data-action="delete">Löschen</button>` : ''}
             <div class="notiz-footer-right">
-              <button type="button" class="secondary-btn" data-action="cancel">Abbrechen</button>
-              <button type="button" class="primary-btn" data-action="save">Speichern</button>
+              <button type="button" class="mdc-btn mdc-btn--secondary" data-action="cancel">Abbrechen</button>
+              <button type="button" class="mdc-btn" data-action="save">Speichern</button>
             </div>
           </div>
         </div>`;

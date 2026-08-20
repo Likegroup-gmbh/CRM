@@ -1,7 +1,7 @@
 // CreatorAuswahlService.js
 // Service für Creator-Auswahl Datenbank-Operationen
 
-import { CREATOR_TYP_OPTIONS, isAllowedCreatorTyp, normalizeCreatorTyp } from './creatorTypeOptions.js';
+import { CREATOR_TYP_OPTIONS, canonicalizeCreatorTyp, isAllowedCreatorTyp, normalizeCreatorTyp } from './creatorTypeOptions.js';
 import { authorizedFetch } from '../../core/auth/getAccessToken.js';
 
 export class CreatorAuswahlService {
@@ -10,11 +10,11 @@ export class CreatorAuswahlService {
   }
 
   _assertValidCreatorTyp(typValue) {
-    const normalized = normalizeCreatorTyp(typValue);
-    if (!isAllowedCreatorTyp(normalized)) {
+    const canonical = canonicalizeCreatorTyp(typValue);
+    if (!isAllowedCreatorTyp(canonical)) {
       throw new Error(`Ungültige Creator Art: "${typValue}". Erlaubte Werte: ${CREATOR_TYP_OPTIONS.join(', ')}`);
     }
-    return normalized;
+    return canonical;
   }
 
   /**
@@ -526,7 +526,9 @@ export class CreatorAuswahlService {
   // =====================================================
 
   /**
-   * Creator ins CRM übernehmen
+   * Creator ins CRM übernehmen. Die Handles kommen aus den Link-Feldern der
+   * Zeile (link_instagram / link_tiktok) - die Legacy-Felder creator_handle
+   * und plattform dienen nur noch als Fallback fuer Altdaten.
    */
   async transferToCRM(itemId) {
     // Item laden
@@ -540,20 +542,19 @@ export class CreatorAuswahlService {
     if (!item) throw new Error('Item nicht gefunden');
 
     // Namen splitten
-    const nameParts = (item.name || '').split(' ');
+    const nameParts = (item.name || '').trim().split(' ');
     const vorname = nameParts[0] || '';
     const nachname = nameParts.slice(1).join(' ') || '';
 
-    // Handle bereinigen
-    let tiktokHandle = null;
-    let instagramHandle = null;
-    
-    if (item.plattform === 'tiktok' || item.plattform === 'both') {
-      tiktokHandle = (item.creator_handle || '').replace('@', '');
-    }
-    if (item.plattform === 'instagram' || item.plattform === 'both') {
-      instagramHandle = (item.creator_handle || '').replace('@', '');
-    }
+    // Handles aus den Profil-Links, Fallback: Legacy-Felder der Altdaten
+    const instagramHandle = handleAusLink(item.link_instagram)
+      || ((item.plattform === 'instagram' || item.plattform === 'both')
+        ? (item.creator_handle || '').replace('@', '') || null
+        : null);
+    const tiktokHandle = handleAusLink(item.link_tiktok)
+      || ((item.plattform === 'tiktok' || item.plattform === 'both')
+        ? (item.creator_handle || '').replace('@', '') || null
+        : null);
 
     // Creator erstellen
     const { data: creator, error: createError } = await window.supabase
@@ -561,11 +562,15 @@ export class CreatorAuswahlService {
       .insert({
         vorname,
         nachname,
-        email: item.email,
-        tiktok: tiktokHandle,
+        mail: item.email || null,
+        telefonnummer: item.telefon || null,
         instagram: instagramHandle,
-        notizen: item.beschreibung,
-        created_by: window.currentUser?.id
+        tiktok: tiktokHandle,
+        instagram_follower: item.follower_instagram ?? null,
+        tiktok_follower: item.follower_tiktok ?? null,
+        lieferadresse_stadt: item.wohnort || null,
+        notiz: item.notiz || item.beschreibung || null,
+        profilbild_url: item.profile_image_url || null
       })
       .select()
       .single();
@@ -576,6 +581,107 @@ export class CreatorAuswahlService {
     await this.updateItem(itemId, { creator_id: creator.id });
 
     return creator;
+  }
+
+  // =====================================================
+  // BUCHUNGS-WORKFLOW (Management + Kooperation)
+  // =====================================================
+
+  /**
+   * Aktive Management-Zuordnung eines Creators, inkl. Name des Managements.
+   * @returns {Promise<{ id: string, management: { id: string, firmenname: string } }|null>}
+   */
+  async getAktivesManagement(creatorId) {
+    const { data, error } = await window.supabase
+      .from('creator_management')
+      .select('id, management:management_id(id, firmenname)')
+      .eq('creator_id', creatorId)
+      .eq('ist_aktiv', true)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Fehler beim Laden der Management-Zuordnung:', error);
+      throw error;
+    }
+
+    return data || null;
+  }
+
+  /** Alle Managements fuer die Auswahl im Buchungs-Drawer */
+  async getAlleManagements() {
+    const { data, error } = await window.supabase
+      .from('management')
+      .select('id, firmenname')
+      .order('firmenname', { ascending: true });
+
+    if (error) {
+      console.error('Fehler beim Laden der Managements:', error);
+      throw error;
+    }
+
+    return data || [];
+  }
+
+  /** Weist einem Creator ein Management zu (aktiv) */
+  async assignManagement(creatorId, managementId) {
+    const { data, error } = await window.supabase
+      .from('creator_management')
+      .insert({
+        creator_id: creatorId,
+        management_id: managementId,
+        ist_aktiv: true
+      })
+      .select('id, management:management_id(id, firmenname)')
+      .single();
+
+    if (error) {
+      console.error('Fehler beim Zuweisen des Managements:', error);
+      throw error;
+    }
+
+    return data;
+  }
+
+  /**
+   * Existiert fuer diesen Creator in dieser Kampagne schon eine Kooperation?
+   * Der Duplikat-Check laeuft ueber das Paar kampagne_id + creator_id.
+   */
+  async findKooperation(kampagneId, creatorId) {
+    const { data, error } = await window.supabase
+      .from('kooperationen')
+      .select('id')
+      .eq('kampagne_id', kampagneId)
+      .eq('creator_id', creatorId)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Fehler beim Prüfen der Kooperation:', error);
+      throw error;
+    }
+
+    return data || null;
+  }
+
+  /** Legt die Kooperation eines gebuchten Creators in der Kampagne an */
+  async createKooperation({ name, kampagne_id, creator_id, unternehmen_id }) {
+    const { data, error } = await window.supabase
+      .from('kooperationen')
+      .insert({
+        name,
+        kampagne_id,
+        creator_id,
+        unternehmen_id,
+        status: 'aktiv'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Fehler beim Anlegen der Kooperation:', error);
+      throw error;
+    }
+
+    return data;
   }
 
   // =====================================================
@@ -612,6 +718,23 @@ export class CreatorAuswahlService {
     if (error) throw error;
     return data;
   }
+}
+
+/**
+ * Handle aus einem Profil-Link ziehen: aus "https://tiktok.com/@name/" oder
+ * "https://www.instagram.com/name" wird "name". Funktioniert auch, wenn
+ * statt einer URL direkt ein Handle eingetragen wurde.
+ */
+export function handleAusLink(url) {
+  if (!url) return null;
+  const clean = String(url).trim().replace(/[?#].*$/, '').replace(/\/+$/, '');
+  if (!clean) return null;
+  const segments = clean.split('/').filter(Boolean);
+  const handle = (segments.pop() || '').replace(/^@/, '').trim();
+  if (!handle) return null;
+  // Nackte Domain ohne Pfad ("https://www.instagram.com") ist kein Handle
+  if (segments.length > 0 && segments.every(s => s.endsWith(':'))) return null;
+  return handle;
 }
 
 // Singleton-Instanz exportieren

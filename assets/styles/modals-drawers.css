@@ -1,0 +1,1162 @@
+/* ==========================================================================
+   MODALS-DRAWERS (aus components.css extrahiert, Phase 7)
+   ========================================================================== */
+
+/* Modal Styles */
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 12000;
+}
+
+.modal.show {
+  display: flex;
+}
+
+.modal-large .modal-content {
+  max-width: 900px;
+  width: 90vw;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 12000;
+  padding: var(--space-lg);
+}
+
+/* New modal class aliases used by action menu modal */
+
+.overlay-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  animation: modalOverlayIn 0.2s ease-out;
+  justify-content: center;
+  z-index: 2000;
+  padding: var(--space-lg);
+}
+
+.modal-dialog {
+  background: var(--bg-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  width: 100%;
+  max-width: 520px;
+  animation: modalDialogIn 0.2s ease-out;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-body {
+  padding: var(--space-md) var(--space-md);
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  padding: var(--space-md) 1.25rem;
+  border-top: 1px solid var(--border-primary);
+}
+
+/* Modal Größenvarianten */
+
+.modal-sm .modal-content {
+  max-width: 500px;
+}
+
+/* Role-Modal (Mitarbeiter-Rolle ändern) */
+
+.role-modal .modal-content {
+  width: min(92vw, 760px);
+  max-width: none;
+  height: 50vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.role-modal .modal-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.role-modal .form-group {
+  position: relative;
+}
+
+.role-modal #rolle-dropdown {
+  max-height: 320px;
+  z-index: 13000;
+}
+
+/* Form Group für Modals */
+
+.modal-body .form-group {
+  margin-bottom: var(--space-md);
+}
+
+/* Inputs inside modal */
+
+.modal-body .form-label {
+  display: block;
+  font-size: 0.9rem;
+  color: #555;
+  margin-bottom: var(--space-sm);
+}
+
+.modal-body .form-input {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  border: var(--border-xs) solid #dee2e6;
+  
+  font-size: 0.95rem;
+}
+
+/* Large Modal für Tabellen-Ansichten */
+
+.modal-large .modal-dialog {
+  max-width: 900px;
+  width: 90vw;
+}
+
+/* Modal Description */
+
+.modal-description {
+  margin-bottom: var(--space-lg);
+  color: var(--text-tertiary);
+  font-size: 0.95rem;
+}
+
+/* Modal body relative positioning ist nicht mehr nötig - Dropdown verwendet relative positioning */
+
+/* Drawer/Slide-In (Quickview, generisch) */
+
+.drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 1400;
+  
+}
+
+.drawer-panel {
+  position: fixed;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  bottom: var(--space-sm);
+  height: auto;
+  width: 35%;
+  max-width: 95vw;
+  background: var(--bg-primary);
+  
+  border-radius: var(--radius-xl);
+  transform: translateX(calc(100% + var(--space-md)));
+  transition: transform 0.25s ease-out;
+  z-index: 1500;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  contain: layout paint;
+  will-change: transform;
+}
+
+/* Breitere Drawer-Variante für Tabellen/Listen */
+
+.drawer-panel--xwide {
+  width: 60%;
+  max-width: 1200px;
+}
+
+/* Feedback Drawer - schmaler */
+
+#feedback-create-drawer {
+  width: 25%;
+  min-width: 320px;
+}
+
+.drawer-panel.show { transform: translateX(0); }
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--border-primary);
+  flex-shrink: 0;
+}
+
+.drawer-header-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.drawer-header-right {
+  flex-shrink: 0;
+}
+
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-md);
+}
+
+.drawer-close {
+  background: var(--gray-100);
+  border: 1px solid var(--gray-200);
+  color: var(--gray-700);
+  padding: var(--space-xs) 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+}
+
+/* Drawer Toggle Container */
+
+.drawer-toggle-container {
+  padding: 0 var(--space-md) var(--space-md);
+  border-bottom: 1px solid var(--gray-200);
+  flex-shrink: 0;
+}
+
+/* Sourcing Drawer Styles */
+
+#add-creator-drawer {
+  width: 50%;
+  min-width: 500px;
+  max-width: 800px;
+}
+
+/* Form Grid für Sourcing */
+
+/* Auto-Suggestion Dropdown */
+
+/* Teilbereiche dynamische Rows */
+
+/* Video Create Drawer - Spezifische Styles */
+
+.drawer-close-btn {
+  background: transparent;
+  border: none;
+  color: var(--gray-700);
+  font-size: var(--text-xl);
+  line-height: 1;
+  cursor: pointer;
+  width: var(--space-xl);
+  height: var(--space-xl);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+  font-weight: 300;
+}
+
+.drawer-close-btn:hover {
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+
+.drawer-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--gray-900);
+  display: block;
+}
+
+.drawer-subtitle {
+  font-size: var(--text-sm);
+  color: var(--gray-600);
+
+}
+
+/* Abschnittsueberschrift innerhalb eines Drawers */
+
+.drawer-section-title {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.drawer-section-title + * {
+  margin-top: 0;
+}
+
+.data-table-container + .drawer-section-title,
+.drawer-info-text + .drawer-section-title {
+  margin-top: var(--space-lg);
+}
+
+.drawer-info-text {
+  margin: var(--space-sm) 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.drawer-loading-state {
+  padding: var(--space-xl);
+  text-align: center;
+  color: var(--gray-600);
+}
+
+/* Quick Add Form */
+
+/* Drawer Actions - Sticky at bottom */
+
+.drawer-footer,
+  .drawer-actions,
+  .form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+
+  margin-top: auto;
+}
+
+.modal-content {
+  position: relative;
+  z-index: 12001;
+  background: white;
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.modal-close {
+  line-height: 1;
+  background: none;
+  border: none;
+  font-size: var(--text-md);
+  font-weight: 400;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: var(--space-xs);
+  border-radius: var(--radius-4);
+  transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+  background: var(--bg-secondary);
+  color: var(--gray-800);
+}
+
+/* Drawer Loading Styles */
+
+.drawer-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-xxxl) var(--space-xxl);
+  color: var(--text-tertiary);
+  font-size: var(--text-md);
+}
+
+/* Responsive Modal */
+
+@media (max-width: 768px) {
+  .modal-content {
+    margin: var(--space-lg);
+    max-width: none;
+  }
+  
+  .modal-header,
+  .modal-body {
+    padding: var(--space-lg);
+  }
+  
+  .drawer-actions {
+    flex-direction: column;
+  }
+  
+  .drawer-actions button {
+    width: 100%;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+  }
+  
+  .form-actions button {
+    width: 100%;
+  }
+
+  .summary-cards {
+    flex-wrap: wrap;
+    gap: var(--space-md);
+  }
+
+  .summary-cards .summary-card {
+    min-width: calc(50% - 0.75rem);
+  }
+}
+
+/* Modal-Variante: fließt im Dokument statt absolut zu überlagern */
+
+.auto-suggest-dropdown--modal {
+  position: relative;
+  margin-top: var(--space-sm);
+  max-height: 220px;
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-md);
+}
+
+.profile-avatar-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  color: var(--color-white);
+}
+
+.profile-avatar-clickable:hover .profile-avatar-overlay {
+  opacity: 1;
+}
+
+/* Volltext-Drawer: breiter als die Formular-Drawer, damit lange Absaetze
+   nicht zu schmalen Kolumnen werden */
+
+.drawer-panel--wide {
+  width: min(720px, 92vw);
+  max-width: min(720px, 92vw);
+}
+
+/* Drawer Form Grid (zwei Spalten nebeneinander) */
+
+.drawer-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+}
+
+@media (max-width: 480px) {
+  .drawer-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Drawer Form Wrapper */
+
+.add-item-drawer-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding-bottom: var(--space-lg);
+  border-bottom: 1px solid var(--gray-200);
+  margin-bottom: var(--space-lg);
+}
+
+/* Drawer Form (eine Zeile) */
+
+.add-item-drawer-form-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-md);
+}
+
+.add-item-drawer-form-row .form-field {
+  margin-bottom: 0;
+}
+
+.add-item-drawer-form-row .form-field--grow {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* URL nimmt den Platz, Kategorie nur so breit wie nötig */
+
+.add-item-drawer-form-row .form-field:not(.form-field--grow):not(.form-field--full) {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none;
+}
+
+.add-item-drawer-form-row .form-field--full {
+  flex: 1;
+  width: 100%;
+}
+
+.add-item-drawer-form-row .form-field--full textarea.form-input {
+  width: 100%;
+  min-height: 60px;
+  resize: vertical;
+  font-family: inherit;
+}
+
+.add-item-drawer-form-row--actions {
+  justify-content: flex-start;
+  align-items: center;
+}
+
+/* Drawer Body für Add-Item - flex column für volle Höhe */
+
+#add-item-drawer .drawer-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.drawer-error {
+  background: var(--danger-bg);
+  border-radius: var(--radius-md);
+  border: var(--border-xs) solid #fca5a5;
+  padding: var(--space-xl);
+  color: var(--error-600);
+}
+
+/* Day Events Drawer */
+
+.day-events-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.day-events-drawer {
+  background: var(--surface-color);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 400px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-xl);
+}
+
+.day-events-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.day-events-drawer-header h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.day-events-drawer-close {
+  background: none;
+  border: none;
+  font-size: var(--text-xxl);
+  cursor: pointer;
+  color: var(--gray-500);
+  line-height: 1;
+}
+
+.day-events-drawer-close:hover {
+  color: var(--gray-900);
+}
+
+.day-events-drawer-content {
+  padding: var(--space-md);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.day-events-drawer-item {
+  padding: var(--space-sm);
+  background: var(--gray-50);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+}
+
+.day-events-drawer-item:hover {
+  background: var(--gray-100);
+}
+
+.day-events-drawer-item-name {
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.day-events-drawer-item-type {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+/* --- Video Upload Drawer --- */
+
+.video-upload-drawer-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.video-upload-drawer-footer { padding: var(--space-md) 0 0; }
+
+/* ============================================
+   DRAWER MODE CHIP (Kein Dropbox)
+   ============================================ */
+
+.drawer-mode-chip {
+  flex-shrink: 0;
+  padding: var(--space-xs) var(--space-sm);
+  border: var(--border-xs) solid var(--gray-300);
+  border-radius: 999px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  user-select: none;
+  background: var(--bg-primary);
+  color: var(--gray-700);
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.drawer-mode-chip:hover:not(:disabled) {
+  border-color: var(--gray-500);
+}
+
+.drawer-mode-chip.is-active {
+  background: var(--color-primary);
+  color: var(--text-inverse);
+  border-color: var(--color-primary);
+}
+
+.drawer-mode-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ============================================
+   UPLOAD DRAWER (scoped layout – nur #video-upload-drawer)
+   ============================================ */
+
+#video-upload-drawer.drawer-panel--upload .drawer-body {
+  padding: 0;
+}
+
+#video-upload-drawer .video-upload-active-banner {
+  padding: var(--space-md);
+  margin-bottom: 0;
+}
+
+#video-upload-drawer .drawer-tab-nav {
+  width: 100%;
+  margin-bottom: 0;
+  padding: 0 var(--space-md);
+  box-sizing: border-box;
+}
+
+#video-upload-drawer .video-upload-drawer-content,
+#video-upload-drawer .storys-upload-drawer-content,
+#video-upload-drawer .bilder-upload-drawer-content {
+  padding: var(--space-md);
+}
+
+#video-upload-drawer .upload-drawer-btn--secondary {
+  background: var(--bg-primary);
+  border: 1px solid var(--gray-300);
+  color: var(--gray-900);
+}
+
+#video-upload-drawer .upload-drawer-btn--secondary:hover {
+  border-color: var(--gray-500);
+}
+
+/* ============================================
+   DRAWER TAB NAVIGATION (Upload-Drawer)
+   ============================================ */
+
+.drawer-tab-nav {
+  display: flex;
+  gap: 0;
+  border-bottom: var(--border-xs) solid var(--border-primary);
+  margin-bottom: var(--space-md);
+}
+
+.drawer-tab-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: var(--space-10) var(--space-sm);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  text-align: center;
+}
+
+.drawer-tab-btn:hover {
+  color: var(--text-secondary);
+}
+
+.drawer-tab-btn.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--text-primary);
+  font-weight: 600;
+}
+
+.drawer-tab-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.drawer-tab-btn:disabled:hover {
+  color: inherit;
+}
+
+/* ============================================
+   BILDER UPLOAD TAB
+   ============================================ */
+
+.bilder-upload-drawer-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.bilder-upload-drawer-footer {
+  padding: var(--space-md) 0 0;
+}
+
+/* Video-Settings-Drawer */
+
+.video-settings-drawer-content { display: flex; flex-direction: column; gap: var(--space-lg); }
+
+.nutzungsrechte-modal .modal-dialog {
+  max-width: 560px;
+  width: 100%;
+}
+
+.nutzungsrechte-modal .nutzungsrechte-typ {
+  margin-left: var(--space-sm);
+  font-size: var(--text-13);
+  font-weight: 500;
+  color: var(--gray-500);
+}
+
+/* ==========================================================================
+   Rechnung Notiz Modal + Indikator
+   ========================================================================== */
+
+.rechnung-notiz-modal .notiz-modal-dialog {
+  max-width: 480px;
+  width: 90vw;
+}
+
+.rechnung-notiz-modal .modal-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* ============================================================
+   MEDIA LIGHTBOX (Video-Player / Storys-Viewer / Bilder-Galerie)
+   ============================================================ */
+
+.media-lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 18, 25, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2600;
+  padding: var(--space-xl);
+  opacity: 0;
+  transition: opacity 0.18s ease-out;
+}
+
+.media-lightbox-overlay.show {
+  opacity: 1;
+}
+
+.media-lightbox {
+  position: relative;
+  background: var(--bg-primary);
+  border-radius: var(--radius-xxl);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.4);
+  width: 100%;
+  max-width: 760px;
+  max-height: 92vh;
+  overflow-y: auto;
+  transform: scale(0.97);
+  transition: transform 0.18s ease-out;
+}
+
+.media-lightbox-overlay.show .media-lightbox {
+  transform: scale(1);
+}
+
+.media-lightbox-content {
+  padding: 1.25rem var(--space-xl) var(--space-xl);
+}
+
+.media-lightbox-close {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--gray-800);
+  cursor: pointer;
+  z-index: 3;
+  transition: background 0.15s;
+}
+
+.media-lightbox-close:hover {
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.media-lightbox-close svg {
+  width: 18px;
+  height: 18px;
+}
+
+.media-lightbox-action {
+  position: absolute;
+  top: var(--space-md);
+  left: calc(0.75rem + 34px + 0.5rem);
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--gray-800);
+  cursor: pointer;
+  z-index: 3;
+  transition: background 0.15s;
+}
+
+.media-lightbox-action:hover {
+  background: rgba(0, 0, 0, 0.14);
+}
+
+.media-lightbox-action[hidden] {
+  display: none;
+}
+
+.media-lightbox-action svg {
+  width: 18px;
+  height: 18px;
+}
+
+.media-lightbox-nav {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  color: #222;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  z-index: 4;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.media-lightbox-nav:hover {
+  background: var(--bg-primary);
+}
+
+.media-lightbox-nav:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.media-lightbox-nav svg {
+  width: 22px;
+  height: 22px;
+}
+
+.media-lightbox-prev { left: 1.25rem; }
+
+.media-lightbox-next { right: 1.25rem; }
+
+/* --- Einspaltiger Bild-Viewer (Produktbilder, ImageLightbox) --- */
+
+.image-lightbox .media-lightbox {
+  width: auto;
+  max-width: 92vw;
+}
+
+.image-lightbox .media-lightbox-content {
+  padding: 2.5rem var(--space-xl) 1.25rem;
+}
+
+.image-lightbox__stage {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.image-lightbox__img {
+  display: block;
+  max-width: 100%;
+  /* Kopfzeile, Padding und Bildunterschrift gehen vom Overlay-Platz ab */
+  max-height: 74vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+  background: var(--gray-50);
+}
+
+.image-lightbox__caption {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+}
+
+.image-lightbox__counter {
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Zweispaltiges Medien-Layout (Video, Storys, Bilder) --- */
+
+.media-split-lightbox .media-lightbox {
+  width: auto;
+  max-width: 96vw;
+  --vpl-side: 340px;
+  overflow: hidden;
+}
+
+/* zweispaltiger Body: Body-Wrapper ist .media-lightbox-content selbst */
+
+.media-split-lightbox .media-lightbox-content {
+  padding: 0;
+  display: flex;
+  align-items: stretch;
+  height: min(86vh, 760px);
+}
+
+/* Close oben links ueber dem Medium */
+
+.media-split-lightbox .media-lightbox-close {
+  left: var(--space-md);
+  right: auto;
+  background: rgba(0, 0, 0, 0.45);
+  color: var(--text-inverse);
+}
+
+.media-split-lightbox .media-lightbox-close:hover {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+/* Dropbox-Action gleiche Optik wie Split-Close, rechts daneben */
+
+.media-split-lightbox .media-lightbox-action {
+  background: rgba(0, 0, 0, 0.45);
+  color: var(--text-inverse);
+}
+
+.media-split-lightbox .media-lightbox-action:hover {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+/* Shell-Seitenpfeile aus -> Navigation ueber Panel-Buttons */
+
+.media-split-lightbox .media-lightbox-nav {
+  display: none;
+}
+
+/* Stage links, exakt 9:16 zugeschnitten (keine seitlichen Balken) */
+
+.media-split-lightbox .vpl-stage {
+  flex: 0 0 auto;
+  aspect-ratio: 9 / 16;
+  height: 100%;
+  width: auto;
+  min-width: 0;
+  position: relative;
+  background: #000;
+  border-radius: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-height: none;
+  min-height: 0;
+}
+
+.media-split-lightbox .vpl-video,
+.media-split-lightbox .vpl-stage video,
+.media-split-lightbox .vpl-stage img {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: none;
+  object-fit: contain;
+  display: block;
+  background: var(--gray-50);
+  cursor: pointer;
+}
+
+/* Bilder-Thumbnails im Panel: wachsen + scrollen, Nav bleibt unten */
+
+.media-split-lightbox .vpl-panel .media-gallery-thumbs {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  align-content: flex-start;
+  margin-top: var(--space-sm);
+}
+
+.media-split-lightbox .media-viewer-control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+}
+
+.media-split-lightbox .media-viewer-control label {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.media-split-lightbox .media-viewer-control select {
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-xl);
+  font-size: var(--text-sm);
+}
+
+.video-player-lightbox .media-viewer-feedback h4 {
+  color: var(--text-primary);
+  margin: 0 0 var(--space-xs);
+}
+
+.video-player-lightbox .player-feedback-input {
+  flex: 0 0 auto;
+  min-height: 120px;
+  field-sizing: content;
+  resize: none;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-secondary);
+  border-radius: var(--radius-xl);
+  padding: var(--space-sm);
+  line-height: 1.3;
+  color: var(--gray-700);
+}
+
+.video-player-lightbox .player-feedback-input::placeholder {
+  color: var(--text-muted);
+}
+
+.video-player-lightbox .media-viewer-feedback-hint {
+  color: var(--text-secondary);
+}
+
+.video-player-lightbox .media-viewer-feedback-context .ctx-label {
+  color: var(--text-muted);
+}
+
+@media (max-width: 760px) {
+  .media-split-lightbox .media-lightbox {
+    width: 96vw;
+  }
+  .media-split-lightbox .media-lightbox-content {
+    flex-direction: column;
+    height: auto;
+    max-height: 92vh;
+    overflow-y: auto;
+  }
+  .media-split-lightbox .vpl-stage {
+    flex: 0 0 auto;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 9 / 16;
+    max-height: 60vh;
+  }
+  .vpl-panel {
+    flex-basis: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .media-lightbox-nav { width: 38px; height: 38px; }
+  .media-lightbox-prev { left: 0.4rem; }
+  .media-lightbox-next { right: 0.4rem; }
+  .media-lightbox-content { padding: var(--space-lg); }
+}
+/* ==========================================================================
+   Inline-Style-Migration Phase 1
+   ========================================================================== */
+
+/* KickOffTypeDialog: schmaler Dialog */
+.kickoff-type-dialog {
+  max-width: 560px;
+}

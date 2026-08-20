@@ -11,6 +11,8 @@ import {
   bindEvents, bindSingleCardEvents,
   isCommentsHidden, isMergedItemsExpanded
 } from './FeedbackEventHandler.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 export const feedbackPage = {
   feedbacks: [],
@@ -65,12 +67,11 @@ export const feedbackPage = {
   },
 
   renderBlocked() {
-    window.setContentSafely(window.content, `
-      <div class="empty-state">
-        <h2>Zugriff verweigert</h2>
-        <p>Diese Seite ist nur für Mitarbeiter zugänglich.</p>
-      </div>
-    `);
+    window.setContentSafely(window.content, renderEmptyState({
+      icon: 'info',
+      title: 'Zugriff verweigert',
+      text: 'Diese Seite ist nur für Mitarbeiter zugänglich.'
+    }));
   },
 
   async refresh() {
@@ -126,10 +127,8 @@ export const feedbackPage = {
               ${creatorOptionsHtml}
             </select>
           </div>
-          <button class="primary-btn" id="new-feedback-btn">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
+          <button class="mdc-btn" id="new-feedback-btn">
+            ${icon('plus-lg')}
             Neues Feedback
           </button>
         </div>

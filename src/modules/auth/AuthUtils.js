@@ -3,6 +3,7 @@
 
 import { authService } from './AuthService.js';
 import { initPasswordHints } from '../../auth/password-hints.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 export class AuthUtils {
   constructor() {
@@ -41,17 +42,14 @@ export class AuthUtils {
                 <div class="password-input-container">
                   <input type="password" id="loginPassword" class="input" placeholder="Passwort" required>
                   <button type="button" class="password-toggle" onclick="window.authUtils.togglePassword('loginPassword')">
-                    <svg class="eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                    </svg>
+                    ${icon('eye-outline')}
                   </button>
                 </div>
                 <a href="javascript:void(0)" onclick="window.authUtils.showForgotPassword()" class="forgot-password-link">Passwort vergessen?</a>
               </div>
               <div class="login-actions">
                 <div class="form-box">
-                  <button type="submit" class="btn primary-btn" style="width: 100%;">Anmelden</button>
+                  <button type="submit" class="mdc-btn u-w-full">Anmelden</button>
                 </div>
                 <div class="register-links-row">
                   <a href="javascript:void(0)" onclick="window.authUtils.showRegister()" class="register-link-btn">
@@ -192,16 +190,13 @@ export class AuthUtils {
                 <div class="password-input-container">
                   <input type="password" id="registerPassword" class="input" placeholder="Passwort" required>
                   <button type="button" class="password-toggle" onclick="window.authUtils.togglePassword('registerPassword')">
-                    <svg class="eye-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                    </svg>
+                    ${icon('eye-outline')}
                   </button>
                 </div>
               </div>
               <div class="login-actions">
                 <div class="form-box">
-                  <button type="submit" class="btn primary-btn" style="width: 100%;">Registrieren</button>
+                  <button type="submit" class="mdc-btn u-w-full">Registrieren</button>
                 </div>
                 <p class="login-consent">
                   Mit der Registrierung akzeptierst du unsere
@@ -346,9 +341,7 @@ export class AuthUtils {
         <div class="login-left">
           <div class="login-box">
             <div class="login-box-icon success">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-              </svg>
+              ${icon('check-circle')}
             </div>
             <h2 class="success">Registrierung erfolgreich!</h2>
             <p class="login-box-message">
@@ -359,12 +352,12 @@ export class AuthUtils {
               Sie werden in <span id="countdown">3</span> Sekunden zur Bestätigungsseite weitergeleitet...
             </p>
             <div class="form-box text-center">
-              <button type="button" class="btn primary-btn" onclick="window.location.href='${redirectUrl}'">
+              <button type="button" class="mdc-btn" onclick="window.location.href='${redirectUrl}'">
                 Jetzt bestätigen
               </button>
             </div>
             <div class="form-box text-center mt-md">
-              <button type="button" class="btn secondary-btn" onclick="window.authUtils.showLogin()">
+              <button type="button" class="mdc-btn mdc-btn--secondary" onclick="window.authUtils.showLogin()">
                 Zurück zum Login
               </button>
             </div>
@@ -418,7 +411,7 @@ export class AuthUtils {
               </div>
               <div class="login-actions">
                 <div class="form-box">
-                  <button type="submit" class="btn primary-btn" style="width: 100%;">Link senden</button>
+                  <button type="submit" class="mdc-btn u-w-full">Link senden</button>
                 </div>
                 <div class="register-links-row">
                   <a href="javascript:void(0)" onclick="window.authUtils.showLogin()" class="register-link-btn">
@@ -487,7 +480,7 @@ export class AuthUtils {
               Bitte überprüfen Sie auch Ihren Spam-Ordner.
             </p>
             <div class="form-box text-center">
-              <button type="button" class="btn primary-btn" onclick="window.authUtils.showLogin()" style="width: 100%;">
+              <button type="button" class="mdc-btn u-w-full" onclick="window.authUtils.showLogin()">
                 Zurück zum Login
               </button>
             </div>

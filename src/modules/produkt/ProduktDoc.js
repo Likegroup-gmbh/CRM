@@ -13,6 +13,7 @@
 // weil ExtractReviewLayer.mark() darin das "Vorschlag"-Tag ablegt.
 
 import { produktConfig } from '../../core/form/config/ProduktFormConfig.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 const FORM_ID = 'produkt-form';
 
@@ -32,9 +33,9 @@ function text(value) {
 }
 
 const ICONS = {
-  send: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.3 4.6a.6.6 0 0 1 .8-.75l16.4 7.6a.6.6 0 0 1 0 1.1L4.1 20.15a.6.6 0 0 1-.8-.75L6 12Zm0 0h6"/></svg>',
-  check: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>',
-  cancel: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/></svg>',
+  send: icon('paper-airplane'),
+  check: icon('check-bold'),
+  cancel: icon('x-mark'),
   spinner: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9" stroke-opacity="0.25"/><path d="M21 12a9 9 0 0 0-9-9" stroke-linecap="round"/></svg>'
 };
 

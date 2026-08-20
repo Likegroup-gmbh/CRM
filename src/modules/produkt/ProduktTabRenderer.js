@@ -56,7 +56,7 @@ export function renderProdukte(detail) {
       <td>${variantenAnzahl > 0 ? variantenAnzahl : '-'}</td>
       <td>${detail.formatDate(produkt.created_at)}</td>
       <td>
-        <button type="button" class="secondary-btn btn-sm produkt-row-open" data-produkt-id="${produkt.id}">Öffnen</button>
+        <button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm produkt-row-open" data-produkt-id="${produkt.id}">Öffnen</button>
       </td>
     </tr>
   `;

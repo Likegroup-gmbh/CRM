@@ -5,6 +5,7 @@ import { MarkeService } from './services/MarkeService.js';
 import { FormSubmitHelper } from '../../core/form/FormSubmitHelper.js';
 import { StrategiebriefingService } from '../kickoff/StrategiebriefingService.js';
 import { normalizeFormUrlFields } from '../../core/UrlHelper.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 export class MarkeCreate {
   constructor() {
@@ -37,7 +38,7 @@ export class MarkeCreate {
           <div class="form-page">
             ${formHtml}
             <button type="button" class="kickoff-create-toggle-btn" id="kickoff-toggle-btn">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+              ${icon('plus')}
               Strategiebriefing anlegen
             </button>
           </div>
@@ -96,7 +97,7 @@ export class MarkeCreate {
         <div class="kickoff-panel-header">
           <h3 class="kickoff-panel-header__title">Strategiebriefing</h3>
           <button type="button" class="kickoff-panel-header__close" id="kickoff-panel-close" title="Panel schließen">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            ${icon('x-mark')}
           </button>
         </div>
         <div>
@@ -132,7 +133,7 @@ export class MarkeCreate {
     if (toggleBtn) {
       toggleBtn.classList.remove('active');
       toggleBtn.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        ${icon('plus')}
         Strategiebriefing anlegen
       `;
     }

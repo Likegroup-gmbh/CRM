@@ -1,3 +1,4 @@
+import { icon } from '../../core/icons/IconSystem.js';
 // ProduktExtractPanel.js
 // Der Verlauf unter der URL-Eingabe in der rechten Spalte. Aufgebaut wie der
 // Chat im Skript-Editor: Liky begruesst, die eingegebene Adresse erscheint als
@@ -20,7 +21,7 @@ const GRUSS = 'Schick mir die Produktseite, dann fülle ich Beschreibung, USPs, 
   + 'Preis und Bilder aus. Was du selbst geschrieben hast, bleibt stehen.';
 
 const ICONS = {
-  done: '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>'
+  done: icon('check-bold')
 };
 
 export class ProduktExtractPanel {

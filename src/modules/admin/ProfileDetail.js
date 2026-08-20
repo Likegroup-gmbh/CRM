@@ -1,6 +1,9 @@
 // ProfileDetail.js (ES6-Modul)
 // Benutzer-Profil anzeigen und bearbeiten
 
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
+
 export class ProfileDetail {
   constructor() {
     this.user = null;
@@ -52,10 +55,8 @@ export class ProfileDetail {
           <p>Persönliche Informationen und Einstellungen</p>
         </div>
         <div class="page-actions">
-          <button id="edit-profile-btn" class="btn btn-primary">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-            </svg>
+          <button id="edit-profile-btn" class="mdc-btn">
+            ${icon('pencil-square', { className: 'w-5 h-5' })}
             Profil bearbeiten
           </button>
         </div>
@@ -105,13 +106,11 @@ export class ProfileDetail {
             
             ${this.isEditing ? `
               <div class="form-actions">
-                <button id="save-profile-btn" class="btn btn-primary">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                  </svg>
+                <button id="save-profile-btn" class="mdc-btn">
+                  ${icon('check-bold', { className: 'w-5 h-5' })}
                   Speichern
                 </button>
-                <button id="cancel-edit-btn" class="btn btn-secondary">Abbrechen</button>
+                <button id="cancel-edit-btn" class="mdc-btn mdc-btn--secondary">Abbrechen</button>
               </div>
             ` : ''}
           </div>
@@ -190,16 +189,12 @@ export class ProfileDetail {
         </div>
         
         <div class="form-actions">
-          <button id="save-profile-btn" class="btn btn-primary">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-            </svg>
+          <button id="save-profile-btn" class="mdc-btn">
+            ${icon('check-bold', { className: 'w-5 h-5' })}
             Speichern
           </button>
-          <button id="cancel-edit-btn" class="btn btn-secondary">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
+          <button id="cancel-edit-btn" class="mdc-btn mdc-btn--secondary">
+            ${icon('x-mark', { className: 'w-5 h-5' })}
             Abbrechen
           </button>
         </div>
@@ -212,9 +207,7 @@ export class ProfileDetail {
       return `
         <div class="detail-section">
           <h2>Meine Berechtigungen</h2>
-          <div class="empty-state">
-            <p>Keine Berechtigungen definiert.</p>
-          </div>
+          ${renderEmptyState({ icon: 'info', title: 'Keine Berechtigungen definiert' })}
         </div>
       `;
     }
@@ -243,9 +236,9 @@ export class ProfileDetail {
             <thead>
               <tr>
                 <th>Bereich</th>
-                <th style="width:100px; text-align:center;">Lesen</th>
-                <th style="width:100px; text-align:center;">Bearbeiten</th>
-                <th style="width:100px; text-align:center;">Löschen</th>
+                <th class="col-w100-center">Lesen</th>
+                <th class="col-w100-center">Bearbeiten</th>
+                <th class="col-w100-center">Löschen</th>
               </tr>
             </thead>
             <tbody>
@@ -258,17 +251,17 @@ export class ProfileDetail {
                 return `
                   <tr>
                     <td>${module.label}</td>
-                    <td style="text-align:center;">
+                    <td class="u-text-center">
                       <span class="permission-indicator ${canView ? 'granted' : 'denied'}">
                         ${canView ? '✓' : '✗'}
                       </span>
                     </td>
-                    <td style="text-align:center;">
+                    <td class="u-text-center">
                       <span class="permission-indicator ${canEdit ? 'granted' : 'denied'}">
                         ${canEdit ? '✓' : '✗'}
                       </span>
                     </td>
-                    <td style="text-align:center;">
+                    <td class="u-text-center">
                       <span class="permission-indicator ${canDelete ? 'granted' : 'denied'}">
                         ${canDelete ? '✓' : '✗'}
                       </span>

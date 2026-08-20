@@ -5,20 +5,17 @@ import {
   isExternalAsset,
   isDirectImageUrl,
 } from '../../core/VideoUploadUtils.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
-const DELETE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="15" height="15">
-  <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-</svg>`;
+const DELETE_ICON = `${icon('trash-alt')}`;
 
-const LINK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-  <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-</svg>`;
+const LINK_ICON = `${icon('external-link')}`;
 
-const STORY_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>`;
+const STORY_ICON = `${icon('device-phone')}`;
 
-const IMAGE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z"/></svg>`;
+const IMAGE_ICON = `${icon('photo')}`;
 
-const CHEVRON_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>`;
+const CHEVRON_ICON = `${icon('chevron-down')}`;
 
 export class VideoSettingsDrawer {
   constructor() {
@@ -112,13 +109,13 @@ export class VideoSettingsDrawer {
     body.innerHTML = `
       <div class="video-settings-drawer-content">
         <div class="video-settings-section">
-          <div class="skeleton skeleton-text" style="max-width:80px;margin-bottom:8px;"></div>
-          <div class="skeleton skeleton-text" style="max-width:100%;height:36px;"></div>
+          <div class="skeleton skeleton-text skeleton-text--settings-label"></div>
+          <div class="skeleton skeleton-text skeleton-text--settings-input"></div>
         </div>
         <div class="video-settings-section">
-          <div class="skeleton skeleton-text" style="max-width:60px;margin-bottom:8px;"></div>
-          <div class="skeleton skeleton-text" style="max-width:100%;height:20px;margin-bottom:6px;"></div>
-          <div class="skeleton skeleton-text" style="max-width:100%;height:20px;"></div>
+          <div class="skeleton skeleton-text skeleton-text--settings-label-sm"></div>
+          <div class="skeleton skeleton-text skeleton-text--settings-line-spaced"></div>
+          <div class="skeleton skeleton-text skeleton-text--settings-line"></div>
         </div>
       </div>
     `;
@@ -391,9 +388,7 @@ export class VideoSettingsDrawer {
         </div>
         <div class="video-settings-actions">
           <button type="button" class="mdc-btn mdc-btn--primary" id="video-settings-reupload-btn">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/>
-            </svg>
+            ${icon('upload')}
             ${uploadBtnText}
           </button>
         </div>
@@ -519,9 +514,9 @@ export class VideoSettingsDrawer {
     let html = `<tr>
       <td class="settings-asset-name">${escapeHtml(name)}${externalBadge}</td>
       <td>${sizeMB}</td>
-      <td style="text-align:center;">${linkIcon}</td>
+      <td class="u-text-center">${linkIcon}</td>
       <td>${uploadDate}</td>
-      <td style="text-align:center;">
+      <td class="u-text-center">
         <button type="button" class="bilder-asset-delete-btn" data-asset-id="${asset.id}" data-file-path="${escapeHtml(asset.file_path || '')}" title="Löschen">${DELETE_ICON}</button>
       </td>
     </tr>`;
@@ -604,7 +599,7 @@ export class VideoSettingsDrawer {
         ${this._renderVideosTab()}
         ${this._renderStorysTab()}
         ${this._renderBilderTab()}
-        <div class="drawer-footer" style="padding:16px 0 0;">
+        <div class="drawer-footer">
           <button type="button" class="mdc-btn mdc-btn--cancel" id="video-settings-close-btn">Schließen</button>
         </div>
       </div>

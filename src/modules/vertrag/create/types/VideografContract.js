@@ -10,8 +10,10 @@ VertraegeCreate.prototype.renderVideografStep2 = function() {
     
     return `
       <div class="step-section">
-        <h3>Vertragsparteien</h3>
-        <p class="step-description">Vertragstyp: <strong>Videografen- & Fotografen-Produktionsvertrag</strong></p>
+        <div class="step-section__header">
+          <h3>Vertragsparteien</h3>
+          <p class="step-description">Vertragstyp: <strong>Videografen- & Fotografen-Produktionsvertrag</strong></p>
+        </div>
         
         <!-- Kunde (Unternehmen) -->
         <div class="form-field">
@@ -47,7 +49,11 @@ VertraegeCreate.prototype.renderVideografStep2 = function() {
           </select>
         </div>
 
-        <h3 class="mt-section">Auftragnehmer (Videograf / Fotograf)</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>Auftragnehmer (Videograf / Fotograf)</h3>
+        </div>
 
         <!-- Auftragnehmer (Creator) -->
         <div class="form-field">
@@ -89,7 +95,9 @@ VertraegeCreate.prototype.renderVideografStep2 = function() {
 VertraegeCreate.prototype.renderVideografStep3 = function() {
     return `
       <div class="step-section">
-        <h3>§2 Leistungsumfang</h3>
+        <div class="step-section__header">
+          <h3>§2 Leistungsumfang</h3>
+        </div>
         
         <h4>2.1 Art der Leistung</h4>
         <div class="form-field">
@@ -201,7 +209,9 @@ VertraegeCreate.prototype.renderVideografStep4 = function() {
     
     return `
       <div class="step-section">
-        <h3>§3 Output, Abgabe & Versionierung</h3>
+        <div class="step-section__header">
+          <h3>§3 Output, Abgabe & Versionierung</h3>
+        </div>
         
         <h4>3.1 Lieferumfang</h4>
         <div class="form-field">
@@ -282,7 +292,9 @@ VertraegeCreate.prototype.renderVideografStep5 = function() {
     
     return `
       <div class="step-section">
-        <h3>§7 Nutzungsrechte</h3>
+        <div class="step-section__header">
+          <h3>§7 Nutzungsrechte</h3>
+        </div>
         <p class="form-hint">Der Auftragnehmer überträgt dem Auftraggeber ausschließliche, zeitlich und räumlich unbegrenzte Nutzungsrechte an sämtlichen erstellten Inhalten.</p>
         
         <div class="form-field">
@@ -308,8 +320,11 @@ VertraegeCreate.prototype.renderVideografStep5 = function() {
 
         <p class="form-hint">Eine Urheberbenennung ist nicht erforderlich, sofern nicht ausdrücklich vereinbart.</p>
         ${renderParagraphZusatz(this.formData, 'p7', '§7 Nutzungsrechte')}
-
-        <h3 class="mt-section">§9 Vergütung</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>§9 Vergütung</h3>
+        </div>
         
         <div class="form-two-col">
           <div class="form-field">
@@ -380,11 +395,17 @@ VertraegeCreate.prototype.renderVideografStep5 = function() {
 
         <p class="form-hint">Die Zahlung erfolgt durch die LikeGroup GmbH im Auftrag des Kunden. Die Rechnungsstellung erfolgt nach finaler Abnahme.</p>
         ${renderParagraphZusatz(this.formData, 'p9', '§9 Vergütung')}
-
-        <h3 class="mt-section">Rechnungsstellung</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>Rechnungsstellung</h3>
+        </div>
         ${this.renderMehrfachRechnungToggle()}
-
-        <h3 class="mt-section">Weitere Bestimmungen</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>Weitere Bestimmungen</h3>
+        </div>
         <div class="form-field">
           <label for="weitere_bestimmungen">Zusätzliche Vereinbarungen (optional)</label>
           <textarea id="weitere_bestimmungen" name="weitere_bestimmungen" rows="4"

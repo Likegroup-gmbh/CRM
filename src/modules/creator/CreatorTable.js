@@ -1,6 +1,7 @@
 // CreatorTable.js (ES6-Modul)
 // Wiederverwendbare Tabellen-Ausgabe für Creator
 import { creatorUtils } from './CreatorUtils.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 function renderTags(items, tagClass) {
   if (!items || !items.length) return '-';
@@ -42,10 +43,8 @@ export function renderCreatorTable(creators, options = {}) {
     const actionsCell = canShowActions && showRemoveAction
       ? `
         <td>
-          <button class="secondary-btn btn-sm btn-danger" data-action="remove-creator-from-management" data-creator-id="${id}" title="Zuordnung entfernen">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:14px;height:14px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
+          <button class="mdc-btn mdc-btn--secondary mdc-btn--sm mdc-btn--delete" data-action="remove-creator-from-management" data-creator-id="${id}" title="Zuordnung entfernen">
+            ${icon('x-mark', { className: 'icon-14' })}
           </button>
         </td>
       `
@@ -54,22 +53,16 @@ export function renderCreatorTable(creators, options = {}) {
         <td>
           <div class="actions-dropdown-container" data-entity-type="creator">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
-              </svg>
+              ${icon('ellipsis-vertical')}
             </button>
             <div class="actions-dropdown">
               <a href="#" class="action-item" data-action="view" data-id="${id}">Details anzeigen</a>
               <a href="#" class="action-item" data-action="add_to_list" data-id="${id}">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
-                </svg>
+                ${icon('view-list', { className: 'size-6' })}
                 Zur Liste hinzufügen
               </a>
               <a href="#" class="action-item" data-action="favorite" data-creator-id="${id}" data-kampagne-id="${kampagneId}">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" />
-                </svg>
+                ${icon('bookmark', { className: 'size-6' })}
                 Favorit speichern
               </a>
               <div class="action-separator"></div>
@@ -83,22 +76,16 @@ export function renderCreatorTable(creators, options = {}) {
         <td>
           <div class="actions-dropdown-container" data-entity-type="creator">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 12.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5ZM12 18.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z" />
-              </svg>
+              ${icon('ellipsis-vertical')}
             </button>
             <div class="actions-dropdown">
               <a href="#" class="action-item assign-to-campaign" data-creator-id="${id}" data-kampagne-id="${kampagneId}">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
-                </svg>
+                ${icon('user-plus', { className: 'size-6' })}
                 Zu Kampagne hinzufügen
               </a>
               <div class="action-separator"></div>
               <a href="#" class="action-item action-danger remove-favorite" data-creator-id="${id}" data-kampagne-id="${kampagneId}">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="size-6">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="m3 3 1.664 1.664M21 21l-1.5-1.5m-5.485-1.242L12 17.25 4.5 21V8.742m.164-4.078a2.15 2.15 0 0 1 1.743-1.342 48.507 48.507 0 0 1 11.186 0c1.1.128 1.907 1.077 1.907 2.185V19.5M4.664 4.664 19.5 19.5" />
-                </svg>
+                ${icon('bookmark-slash', { className: 'size-6' })}
                 Aus Favoriten entfernen
               </a>
             </div>

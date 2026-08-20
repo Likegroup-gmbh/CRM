@@ -68,7 +68,10 @@ describe('CreatorAuswahlDetail – Namenssuche', () => {
   it('berechnet Tab-Counts auf Basis der Suchtreffer', () => {
     detail.searchQuery = 'anna';
     const counts = detail.getTabCounts();
-    expect(counts).toEqual({ offen: 1, on_hold: 1, gebucht: 0, nicht_buchen: 0, alle: 2 });
+    expect(counts).toEqual({
+      alle: 2, offen: 1, angefragt: 0, on_hold: 1,
+      in_verhandlung: 0, absage: 0, zusage: 0, gebucht: 0
+    });
   });
 
   it('rendert bei aktiver Suche neu und ignoriert identische Eingaben', () => {

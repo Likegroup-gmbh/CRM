@@ -1,7 +1,7 @@
 // AuftragDetail.js (ES6-Modul)
 // Auftrags-Detailseite mit Tabs für Informationen und Creator
 
-import { KAMPAGNENARTEN_MAPPING } from './logic/KampagnenartenMapping.js';
+import { getKampagnenartConfig } from './logic/KampagnenartenMapping.js';
 import { renderAuftragAmpel } from './logic/AuftragStatusUtils.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
@@ -9,6 +9,8 @@ import { renderTabButton } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { berechneVerfuegbaresBudget } from '../../core/budget/EkVkAgencyFeeHelper.js';
 import { summeKskSelbstzahler } from '../../core/budget/kskSelbstzahler.js';
+import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
+import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
 
 export class AuftragDetail extends PersonDetailBase {
   constructor() {
@@ -574,8 +576,8 @@ export class AuftragDetail extends PersonDetailBase {
   getSidebarInfo() {
     const status = this.auftrag?.status;
     const stornierButton = status !== 'Storniert'
-      ? `<button class="btn-stornieren" id="btn-auftrag-stornieren" style="margin-top:12px;width:100%;padding:8px 12px;border:1px solid #ef4444;color:#ef4444;background:transparent;border-radius:6px;cursor:pointer;font-size:13px;transition:all 0.2s;">Auftrag stornieren</button>`
-      : `<button class="btn-stornieren" id="btn-auftrag-reaktivieren" style="margin-top:12px;width:100%;padding:8px 12px;border:1px solid #22c55e;color:#22c55e;background:transparent;border-radius:6px;cursor:pointer;font-size:13px;transition:all 0.2s;">Stornierung aufheben</button>`;
+      ? `<button class="btn-stornieren" id="btn-auftrag-stornieren">Auftrag stornieren</button>`
+      : `<button class="btn-stornieren btn-stornieren--success" id="btn-auftrag-reaktivieren">Stornierung aufheben</button>`;
 
     return this.renderInfoItems([
       { icon: 'tag', label: 'Status', value: renderAuftragAmpel(status) },
@@ -674,7 +676,7 @@ export class AuftragDetail extends PersonDetailBase {
     const canViewInternalBudget = window.canSeePricing();
 
     return `
-      <div class="auftragsdetails-summary" style="margin-bottom: var(--space-xl);">
+      <div class="auftragsdetails-summary u-mb-xl">
         <div class="summary-cards">
           ${canViewInternalBudget ? `
           <div class="summary-card" data-summary-card="total-budget">
@@ -692,7 +694,7 @@ export class AuftragDetail extends PersonDetailBase {
           </div>
           <div class="summary-card" data-summary-card="open-budget">
             <div class="summary-value">${fmt(openBudget)}</div>
-            <div class="summary-label">Offenes Budget</div>
+            <div class="summary-label">Offenes Creator Budget</div>
             <div class="summary-progress">
               <div class="summary-progress-fill ${getOpenBudgetColorClass(openPct)}"
                    style="width: ${openPct}%">
@@ -944,15 +946,14 @@ export class AuftragDetail extends PersonDetailBase {
   renderAuftragsdetails() {
     if (!this.auftragsDetails) {
       const isMitarbeiter = window.isMitarbeiter();
-      return `
-        <div class="empty-state">
-          <h3>Keine Auftragsdetails vorhanden</h3>
-          <p>Es wurden noch keine detaillierten Produktionsinformationen für diesen Auftrag hinterlegt.</p>
-          ${!isMitarbeiter ? `<button onclick="window.navigateTo('/projekt-erstellen/edit/${this.auftragId}')" class="primary-btn">
-            Auftragsdetails anlegen
-          </button>` : ''}
-        </div>
-      `;
+      return renderEmptyState({
+        icon: 'document',
+        title: 'Keine Auftragsdetails vorhanden',
+        text: 'Es wurden noch keine detaillierten Produktionsinformationen für diesen Auftrag hinterlegt.',
+        actionsHtml: !isMitarbeiter
+          ? `<button onclick="window.navigateTo('/projekt-erstellen/edit/${this.auftragId}')" class="mdc-btn">Auftragsdetails anlegen</button>`
+          : ''
+      });
     }
 
     const details = this.auftragsDetails;
@@ -964,7 +965,7 @@ export class AuftragDetail extends PersonDetailBase {
     // Daten für die Tabelle dynamisch aus Kampagnenarten generieren
     const colorPalette = ['#28a745', '#6f42c1', '#fd7e14', '#20c997', '#007bff', '#dc3545'];
     const sections = kampagnenarten.map((artName, index) => {
-      const config = KAMPAGNENARTEN_MAPPING[artName];
+      const config = getKampagnenartConfig(artName);
       if (!config) return null;
       return {
         title: config.displayName || artName,
@@ -974,18 +975,21 @@ export class AuftragDetail extends PersonDetailBase {
         hasBilder: config.hasBilder,
         hasVideographen: config.hasVideographen
       };
-    }).filter(s => s !== null);
+    }).filter(s => s !== null)
+      // Dedupe nach Prefix: Legacy-Namen können auf dieselbe kanonische Art zeigen
+      .filter((s, i, arr) => arr.findIndex(x => x.prefix === s.prefix) === i);
     
     // Fallback auf alle Sections wenn keine Kampagnenarten gefunden wurden
     // (für Abwärtskompatibilität mit bestehenden Daten)
+    let usingFallbackSections = false;
     if (sections.length === 0) {
+      usingFallbackSections = true;
       sections.push(
-        { title: 'UGC Pro Paid', prefix: 'ugc_pro_paid', color: '#28a745', hasCreator: true, hasBilder: false, hasVideographen: false },
-        { title: 'UGC Pro Organic', prefix: 'ugc_pro_organic', color: '#6f42c1', hasCreator: true, hasBilder: false, hasVideographen: false },
-        { title: 'UGC Video Paid', prefix: 'ugc_video_paid', color: '#fd7e14', hasCreator: true, hasBilder: false, hasVideographen: false },
-        { title: 'UGC Video Organic', prefix: 'ugc_video_organic', color: '#20c997', hasCreator: true, hasBilder: false, hasVideographen: false },
+        { title: 'UGC Paid', prefix: 'ugc_paid', color: '#28a745', hasCreator: true, hasBilder: false, hasVideographen: false },
+        { title: 'UGC Organic', prefix: 'ugc_organic', color: '#6f42c1', hasCreator: true, hasBilder: false, hasVideographen: false },
         { title: 'Influencer Kampagne', prefix: 'influencer', color: '#007bff', hasCreator: true, hasBilder: false, hasVideographen: false },
-        { title: 'Vor Ort Produktion', prefix: 'vor_ort', color: '#dc3545', hasCreator: true, hasBilder: false, hasVideographen: true }
+        { title: 'Influencer Story', prefix: 'story', color: '#e83e8c', hasCreator: true, hasBilder: false, hasVideographen: false },
+        { title: 'Vor-Ort-Produktion', prefix: 'vor_ort', color: '#dc3545', hasCreator: true, hasBilder: false, hasVideographen: true }
       );
     }
 
@@ -995,8 +999,9 @@ export class AuftragDetail extends PersonDetailBase {
       const creatorAnzahl = details[`${section.prefix}_creator_anzahl`];
       const budgetInfo = details[`${section.prefix}_budget_info`];
 
-      // Zeige nur Zeilen mit Daten
-      if (!videoAnzahl && !bilderAnzahl && !creatorAnzahl && !budgetInfo) {
+      // Gewählte Kampagnenarten immer zeigen; nur im Fallback (keine Arten
+      // bekannt) auf Zeilen mit Daten begrenzen
+      if (usingFallbackSections && !videoAnzahl && !bilderAnzahl && !creatorAnzahl && !budgetInfo) {
         return '';
       }
 
@@ -1052,13 +1057,7 @@ export class AuftragDetail extends PersonDetailBase {
               </tr>
             </thead>
             <tbody>
-              ${tableRows || `
-                <tr>
-                  <td colspan="5" class="no-data">
-                    Keine Produktionsdetails vorhanden
-                  </td>
-                </tr>
-              `}
+              ${tableRows || renderEmptyStateRow({ icon: 'cube', title: 'Keine Produktionsdetails vorhanden' }, 5)}
             </tbody>
           </table>
         </div>
@@ -1084,12 +1083,9 @@ export class AuftragDetail extends PersonDetailBase {
           <a href="${this.auftrag.auftragsbestaetigung_url}" 
              target="_blank" 
              rel="noopener noreferrer" 
-             class="mdc-btn mdc-btn--secondary mdc-btn--sm" 
-             style="margin-top: 8px;">
+             class="mdc-btn mdc-btn--secondary mdc-btn--sm u-mt-xs">
             <span class="mdc-btn__label">Öffnen</span>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; margin-left: 4px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-            </svg>
+            ${icon('external-link', { className: 'icon-16' })}
           </a>
         </div>
       `;
@@ -1097,8 +1093,8 @@ export class AuftragDetail extends PersonDetailBase {
     
     return `
       <div class="summary-card summary-card--document summary-card--empty">
-        <div class="summary-icon" style="opacity: 0.5;">📄</div>
-        <div class="summary-label" style="color: var(--gray-500);">Keine Auftragsbestätigung</div>
+        <div class="summary-icon u-opacity-50">📄</div>
+        <div class="summary-label u-text-tertiary">Keine Auftragsbestätigung</div>
       </div>
     `;
   }
@@ -1163,12 +1159,11 @@ export class AuftragDetail extends PersonDetailBase {
   // Rendere Creator
   renderCreator() {
     if (!this.creator || this.creator.length === 0) {
-      return `
-        <div class="empty-state">
-          <h3>Keine Creator zugewiesen</h3>
-          <p>Es wurden noch keine Creator diesem Auftrag zugewiesen.</p>
-        </div>
-      `;
+      return renderEmptyState({
+        icon: 'creator',
+        title: 'Keine Creator zugewiesen',
+        text: 'Es wurden noch keine Creator diesem Auftrag zugewiesen.'
+      });
     }
 
     const creatorHtml = this.creator.map(creator => `
@@ -1197,23 +1192,23 @@ export class AuftragDetail extends PersonDetailBase {
   // Rendere Rechnungen
   renderRechnungen() {
     if (!this.rechnungen || this.rechnungen.length === 0) {
-      return `
-        <div class="empty-state">
-          <h3>Keine Rechnungen vorhanden</h3>
-        </div>
-      `;
+      return renderEmptyState({
+        icon: 'invoice',
+        title: 'Keine Rechnungen vorhanden',
+        text: 'Für diesen Auftrag wurden noch keine Rechnungen erstellt.'
+      });
     }
     const fmt = (v) => v ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v) : '-';
     const fDate = (d) => d ? new Date(d).toLocaleDateString('de-DE') : '-';
     const rows = this.rechnungen.map(r => `
       <tr>
-        <td><a href="/rechnung/${r.id}" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${window.validatorSystem.sanitizeHtml(r.rechnung_nr || '—')}</a></td>
+        <td><a href="/rechnung/${r.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${window.validatorSystem.sanitizeHtml(r.rechnung_nr || '—')}</a></td>
         <td>${r.status || '-'}</td>
         <td>${fmt(r.nettobetrag)}</td>
         <td>${fmt(r.bruttobetrag)}</td>
         <td>${fDate(r.gestellt_am)}</td>
         <td>${fDate(r.bezahlt_am)}</td>
-        <td>${r.rechnung_pdfs && r.rechnung_pdfs.length > 0 ? r.rechnung_pdfs.map((p, i) => `<a href="${p.file_url}" target="_blank" rel="noopener">PDF${r.rechnung_pdfs.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' ') : (r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener">PDF</a>` : '-')}</td>
+        <td>${renderPdfLinks(r.rechnung_pdfs, r.pdf_url)}</td>
       </tr>
     `).join('');
     return `
@@ -1631,12 +1626,11 @@ export class AuftragDetail extends PersonDetailBase {
   // Rendere Kooperationen & Videos Tabelle
   renderKooperationenVideosTable() {
     if (!this.kooperationen || this.kooperationen.length === 0) {
-      return `
-        <div class="empty-state">
-          <h3>Keine Kooperationen vorhanden</h3>
-          <p>Für diesen Auftrag wurden noch keine Kooperationen angelegt.</p>
-        </div>
-      `;
+      return renderEmptyState({
+        icon: 'handshake',
+        title: 'Keine Kooperationen vorhanden',
+        text: 'Für diesen Auftrag wurden noch keine Kooperationen angelegt.'
+      });
     }
 
     const formatCurrency = (value) => value ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(value) : '-';
@@ -1668,9 +1662,7 @@ export class AuftragDetail extends PersonDetailBase {
             return `
               <div class="video-field-wrapper">
                 <a href="${videoUrl}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="Link in neuem Tab öffnen">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                  </svg>
+                  ${icon('external-link', { className: 'icon-20' })}
                 </a>
               </div>
             `;
@@ -1689,7 +1681,7 @@ export class AuftragDetail extends PersonDetailBase {
         return `<div class="video-fields-stack">${videos.map(video => `
           <div class="video-field-wrapper">
             ${window.validatorSystem.sanitizeHtml(video.titel || video.thema || 'Video')}
-            ${video.content_art ? `<span style="color: #666; font-size: 0.9em;"> (${video.content_art})</span>` : ''}
+            ${video.content_art ? `<span class="content-art-hint"> (${video.content_art})</span>` : ''}
           </div>
         `).join('')}</div>`;
       };

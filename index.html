@@ -137,7 +137,7 @@
         </div>
       </header>
       <div class="main-wrapper" id="dashboard-content">
-        <div style="text-align:center;color:#bdbdbd;">Lade Daten ...</div>
+        <div class="dashboard-loading">Lade Daten ...</div>
       </div>
     </main>
   </div>
@@ -148,7 +148,7 @@
     <div class="mitarbeiter-panel-header">
       <h3>Mitarbeiter zuweisen</h3>
       <button class="mitarbeiter-panel-close" onclick="closeMitarbeiterPanel()">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="icon-20">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
@@ -156,7 +156,7 @@
     <div class="mitarbeiter-panel-content">
       <div class="form-box">
         <label class="label">Kooperation</label>
-        <div id="selectedKooperationName" style="padding: 12px; background-color: var(--color-table-border); border-radius: 6px; margin-bottom: 16px;"></div>
+        <div id="selectedKooperationName"></div>
       </div>
       <div class="form-box">
         <label class="label">Mitarbeiter auswählen</label>

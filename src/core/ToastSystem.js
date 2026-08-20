@@ -1,6 +1,8 @@
 // ToastSystem.js (ES6-Modul)
 // Globales Toast-Notification-System für User-Feedback
 
+import { icon } from './icons/IconSystem.js';
+
 export class ToastSystem {
   constructor() {
     this.toasts = [];
@@ -134,12 +136,12 @@ export class ToastSystem {
   // Icon je nach Toast-Typ
   getIcon(type) {
     const icons = {
-      success: '✓',
-      error: '✕',
-      warning: '⚠',
-      info: 'ℹ'
+      success: 'check-circle',
+      error: 'x-circle',
+      warning: 'exclamation-triangle',
+      info: 'information-circle'
     };
-    return icons[type] || icons.info;
+    return icon(icons[type] || 'information-circle', { stroke: 1.5 });
   }
 
   // HTML escapen für XSS-Schutz

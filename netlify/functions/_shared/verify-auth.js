@@ -74,6 +74,31 @@ async function verifyAuth(event, supabase) {
 }
 
 /**
+ * Service-Role-Functions: nach verifyAuth intern-only ablehnen.
+ * Sonst koennte ein Kunde mit offener Page den Service-Role-Bypass nutzen.
+ */
+async function requireInternal(supabase, authUser) {
+  const { data: benutzer } = await supabase
+    .from('benutzer')
+    .select('id, rolle')
+    .eq('auth_user_id', authUser.id)
+    .maybeSingle();
+
+  if (!benutzer || !['admin', 'mitarbeiter'].includes(benutzer.rolle)) {
+    return {
+      ok: false,
+      benutzer,
+      response: {
+        statusCode: 403,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Nur interne Mitarbeiter' })
+      }
+    };
+  }
+  return { ok: true, benutzer };
+}
+
+/**
  * Response-Body fuer einen fehlgeschlagenen verifyAuth-Aufruf.
  * `code` und `session_dead` steuern im Client, ob refresh oder Logout folgt.
  */
@@ -87,4 +112,4 @@ function authErrorBody(result) {
   };
 }
 
-module.exports = { verifyAuth, authErrorBody, AUTH_MESSAGES, SESSION_DEAD_CODES };
+module.exports = { verifyAuth, requireInternal, authErrorBody, AUTH_MESSAGES, SESSION_DEAD_CODES };

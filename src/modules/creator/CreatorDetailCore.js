@@ -157,12 +157,12 @@ export class CreatorDetail extends PersonDetailBase {
       }
       if (this.creator.ig_connected_at) {
         if (this.creator.ig_engagement_rate != null && !isNaN(this.creator.ig_engagement_rate)) {
-          detailItems.push({ icon: 'instagram', label: 'Engagement-Rate', value: `${Number(this.creator.ig_engagement_rate).toLocaleString('de-DE', { maximumFractionDigits: 2 })} %` });
+          detailItems.push({ icon: 'engagement', label: 'Engagement-Rate', value: `${Number(this.creator.ig_engagement_rate).toLocaleString('de-DE', { maximumFractionDigits: 2 })} %` });
         }
         if (this.creator.ig_media_count != null) {
           detailItems.push({ icon: 'instagram', label: 'IG Posts', value: this.formatNumber(this.creator.ig_media_count) });
         }
-        detailItems.push({ icon: 'clock', label: 'IG verbunden', value: this.formatDate(this.creator.ig_connected_at) });
+        detailItems.push({ icon: 'plug', label: 'Instagram verbunden', value: this.formatDate(this.creator.ig_connected_at) });
       }
     }
     if (tiktokUrl) {
@@ -174,7 +174,7 @@ export class CreatorDetail extends PersonDetailBase {
 
     detailItems.push(
       { icon: 'mail', label: 'E-Mail', value: this.creator.mail || '-', mailto: true },
-      { icon: 'phone', label: 'Telefon', value: this.creator.telefonnummer || '-' },
+      { icon: 'phone-mobile', label: 'Telefon', value: this.creator.telefonnummer || '-' },
       { icon: 'city', label: 'Stadt', value: this.creator.lieferadresse_stadt || '-' },
       { icon: 'globe', label: 'Land', value: this.creator.lieferadresse_land || '-' },
     );
@@ -204,7 +204,7 @@ export class CreatorDetail extends PersonDetailBase {
       detailItems.push({ icon: 'link', label: 'Portfolio', rawHtml: `<a href="${this.creator.portfolio_link}" target="_blank" rel="noopener">Link</a>` });
     }
     if (this.creator.hat_haustier) {
-      detailItems.push({ icon: 'info', label: 'Haustier', value: this.creator.haustier_beschreibung || 'Ja' });
+      detailItems.push({ icon: 'pet', label: 'Haustier', value: this.creator.haustier_beschreibung || 'Ja' });
     }
     if (this.creator.hat_kinder) {
       detailItems.push({ icon: 'info', label: 'Kinder', value: this.creator.kinder_beschreibung || 'Ja' });
@@ -212,7 +212,7 @@ export class CreatorDetail extends PersonDetailBase {
     if (this.creator.budget_letzte_buchung) {
       detailItems.push({ icon: 'currency', label: 'Letztes Budget', value: this.formatCurrency(this.creator.budget_letzte_buchung) });
     }
-    detailItems.push({ icon: 'check', label: 'USt-pflichtig', value: this.creator.umsatzsteuerpflichtig ? 'Ja' : 'Nein' });
+    detailItems.push({ icon: 'ust', label: 'USt-pflichtig', value: this.creator.umsatzsteuerpflichtig ? 'Ja' : 'Nein' });
     detailItems.push({ icon: 'check', label: 'KSK-Selbstzahler', value: this.creator.ksk_selbstzahler ? 'Ja' : 'Nein' });
     detailItems.push({ icon: 'clock', label: 'Erstellt', value: this.formatDate(this.creator.created_at) });
 

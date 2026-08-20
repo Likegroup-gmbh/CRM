@@ -7,7 +7,7 @@
   align-items: center;
   gap: var(--gap-8);
   
-  color: var(--color-text, #1f2937);
+  color: var(--color-text);
 }
 
 .phone-display .fi {
@@ -24,14 +24,14 @@
 }
 
 .phone-display-empty {
-  color: var(--color-text-light, #9ca3af);
+  color: var(--color-text-light);
   font-style: italic;
 }
 
 /* Clickable Phone Link */
 .phone-display-clickable {
   text-decoration: none;
-  color: var(--color-primary, #2563eb);
+  color: var(--color-primary);
   transition: all 0.2s ease;
   padding: var(--space-xxs) var(--space-xs);
   border-radius: var(--radius-4);
@@ -53,9 +53,9 @@
   flex-direction: column;
   gap: var(--gap-6);
   padding: var(--space-sm);
-  background-color: var(--color-bg-subtle, #f9fafb);
+  background-color: var(--color-bg-subtle);
   border-radius: var(--radius-md);
-  border: 1px solid var(--color-border, #e5e7eb);
+  border: 1px solid var(--color-border);
 }
 
 .phone-display-detailed .phone-country {
@@ -63,7 +63,7 @@
   align-items: center;
   gap: var(--gap-8);
   font-size: var(--text-13);
-  color: var(--color-text-light, #6b7280);
+  color: var(--color-text-light);
 }
 
 .phone-display-detailed .phone-country .fi {
@@ -83,12 +83,12 @@
   gap: var(--gap-6);
   font-size: var(--text-md);
   font-weight: 600;
-  color: var(--color-text, #1f2937);
+  color: var(--color-text);
   font-variant-numeric: tabular-nums;
 }
 
 .phone-display-detailed .dial-code {
-  color: var(--color-text-light, #6b7280);
+  color: var(--color-text-light);
   font-weight: 500;
 }
 
@@ -108,7 +108,7 @@
 .phone-display-both .phone-label {
   font-size: var(--text-xs);
   font-weight: 600;
-  color: var(--color-text-light, #6b7280);
+  color: var(--color-text-light);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   min-width: var(--min-width-icon-label);
@@ -119,8 +119,7 @@
 }
 
 /* Table Cell Styling */
-td .phone-display,
-.table-cell .phone-display {
+td .phone-display {
   justify-content: flex-start;
 }
 
@@ -154,11 +153,11 @@ td .phone-display,
 /* Dark Mode Support (optional) */
 @media (prefers-color-scheme: dark) {
   .phone-display {
-    color: #e5e7eb;
+    color: var(--gray-200);
   }
   
   .phone-display-empty {
-    color: #6b7280;
+    color: var(--text-tertiary);
   }
   
   .phone-display-clickable {
@@ -170,16 +169,16 @@ td .phone-display,
   }
   
   .phone-display-detailed {
-    background-color: #1f2937;
+    background-color: var(--gray-800);
     border-color: #374151;
   }
   
   .phone-display-detailed .phone-country {
-    color: #9ca3af;
+    color: var(--text-tertiary);
   }
   
   .phone-display-detailed .phone-number-full {
-    color: #e5e7eb;
+    color: var(--gray-200);
   }
 }
 

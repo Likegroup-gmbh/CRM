@@ -42,7 +42,7 @@ export class KooperationEditLoader {
       this._loadUnternehmen(unternehmenId),
       this._loadMarke(markeId),
       this._loadKampagne(kampagneId),
-      this._loadBriefings(kampagneId),
+      this._loadBriefings(unternehmenId),
       this._loadCreators(),
       this._loadCurrentCreator(creatorId),
       this._loadAuftragKampagneArt(kampagneId),
@@ -67,7 +67,7 @@ export class KooperationEditLoader {
     this._setReadonlyField(form, 'marke_id', markeId, readonlyLabels.marke, !markeId);
     this._setReadonlyField(form, 'kampagne_id', kampagneId, readonlyLabels.kampagne);
 
-    this._fillSelectField(form, 'briefing_id', briefings, data?.briefing_id, { displayField: 'product_service_offer' });
+    this._fillSelectField(form, 'briefing_id', briefings, data?.briefing_id, { displayField: 'aktivierung_name' });
     this._fillCreatorField(form, creators, creatorId, currentCreator);
 
     const totalVideos = await this._getKampagneTotalVideosWithBlocks(kampagne);
@@ -183,19 +183,19 @@ export class KooperationEditLoader {
     if (!kampagneId || !window.supabase) return null;
     const { data } = await window.supabase
       .from('kampagne')
-      .select('id, kampagnenname, eigener_name, auftrag_id, videoanzahl, ugc_paid_video_anzahl, ugc_organic_video_anzahl, ugc_pro_paid_video_anzahl, ugc_pro_organic_video_anzahl, ugc_video_paid_video_anzahl, ugc_video_organic_video_anzahl, influencer_video_anzahl, story_video_anzahl, vor_ort_video_anzahl, ugc_video_anzahl, igc_video_anzahl')
+      .select('id, kampagnenname, eigener_name, auftrag_id, videoanzahl, ugc_paid_video_anzahl, ugc_organic_video_anzahl, influencer_video_anzahl, story_video_anzahl, vor_ort_video_anzahl, ugc_video_anzahl, igc_video_anzahl')
       .eq('id', kampagneId)
       .single();
     return data;
   }
 
-  async _loadBriefings(kampagneId) {
-    if (!kampagneId || !window.supabase) return [];
+  async _loadBriefings(unternehmenId) {
+    if (!unternehmenId || !window.supabase) return [];
     const { data } = await window.supabase
-      .from('briefings')
-      .select('id, product_service_offer')
-      .eq('kampagne_id', kampagneId)
-      .order('product_service_offer');
+      .from('campaign_briefings')
+      .select('id, aktivierung_name')
+      .eq('unternehmen_id', unternehmenId)
+      .order('aktivierung_name');
     return data || [];
   }
 
@@ -426,10 +426,6 @@ export class KooperationEditLoader {
     const newSum =
       (parseInt(kampagne.ugc_paid_video_anzahl, 10) || 0) +
       (parseInt(kampagne.ugc_organic_video_anzahl, 10) || 0) +
-      (parseInt(kampagne.ugc_pro_paid_video_anzahl, 10) || 0) +
-      (parseInt(kampagne.ugc_pro_organic_video_anzahl, 10) || 0) +
-      (parseInt(kampagne.ugc_video_paid_video_anzahl, 10) || 0) +
-      (parseInt(kampagne.ugc_video_organic_video_anzahl, 10) || 0) +
       (parseInt(kampagne.influencer_video_anzahl, 10) || 0) +
       (parseInt(kampagne.story_video_anzahl, 10) || 0) +
       (parseInt(kampagne.vor_ort_video_anzahl, 10) || 0);

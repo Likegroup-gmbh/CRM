@@ -1,41 +1,44 @@
+// breadcrumbRoutes.js
+// Route-Segment -> Label + Entity-Key. Das Icon wird ueber entityIcons.js aufgeloest.
+
 const ROUTE_CONFIG = {
-  dashboard:          { label: 'Dashboard',         icon: 'icon-dashboard' },
-  tasks:              { label: 'Aufgaben',          icon: 'icon-tasks' },
-  unternehmen:        { label: 'Unternehmen',       icon: 'icon-building' },
-  marke:              { label: 'Marken',             icon: 'icon-tag' },
-  ansprechpartner:    { label: 'Ansprechpartner',   icon: 'icon-user-circle' },
-  'management-ansprechpartner': { label: 'Management-Ansprechpartner', icon: 'icon-user-circle' },
-  'management-creator': { label: 'Management-Creator', icon: 'icon-users' },
-  management:         { label: 'Management',        icon: 'icon-building' },
-  produkt:            { label: 'Produkte',           icon: 'icon-cube' },
-  creator:            { label: 'Creator',            icon: 'icon-users' },
-  auftrag:            { label: 'Aufträge',          icon: 'icon-briefcase' },
-  'projekt-erstellen': { label: 'Projekt anlegen',   icon: 'icon-briefcase' },
-  auftragsdetails:    { label: 'Auftragsdetails',   icon: 'icon-auftragsdetails' },
-  kampagne:           { label: 'Kampagne',          icon: 'icon-campaign' },
-  strategie:          { label: 'Strategien',        icon: 'icon-lightbulb' },
-  sourcing:           { label: 'Sourcing',          icon: 'icon-users' },
-  vertraege:          { label: 'Verträge',          icon: 'icon-contract' },
-  videos:             { label: 'Videos',             icon: 'icon-video' },
-  rechnung:           { label: 'Rechnung',          icon: 'icon-currency-euro' },
-  kooperation:        { label: 'Kooperation',       icon: 'icon-campaign' },
-  briefing:           { label: 'Briefing',          icon: 'icon-campaign' },
-  mitarbeiter:        { label: 'Mitarbeiter',       icon: 'icon-users' },
-  'kunden-admin':     { label: 'Kunden',            icon: 'icon-user-circle' },
-  'admin/kunden':     { label: 'Kunden',            icon: 'icon-user-circle' },
-  kunden:             { label: 'Übersicht',         icon: 'icon-dashboard' },
-  tabellen:           { label: 'Tabellen',          icon: 'icon-dashboard' },
-  feedback:           { label: 'Feedback',          icon: 'icon-feedback' },
-  education:          { label: 'Education',          icon: 'icon-dashboard' },
-  'creator-lists':    { label: 'Listen',            icon: 'icon-list' },
-  kickoff:            { label: 'Strategiebriefing',  icon: 'icon-tag' },
-  contracts:          { label: 'Contracts',          icon: 'icon-contract' },
-  ausgangsrechnungen: { label: 'Kundenrechnungen', icon: 'icon-currency-euro' },
-  profile:            { label: 'Profil',            icon: 'icon-user-circle' },
-  transcribe:         { label: 'Transkription (Test)', icon: 'icon-video' },
-  stakeholder:        { label: 'Stakeholder-Übersicht', icon: 'icon-dashboard' },
-  skripte:            { label: 'Skripte',            icon: 'icon-document' },
-  'ki-usage':         { label: 'KI-Nutzung',         icon: 'icon-currency-euro' },
+  dashboard:          { label: 'Dashboard',         entity: 'dashboard' },
+  tasks:              { label: 'Aufgaben',          entity: 'tasks' },
+  unternehmen:        { label: 'Unternehmen',       entity: 'unternehmen' },
+  marke:              { label: 'Marken',             entity: 'marke' },
+  ansprechpartner:    { label: 'Ansprechpartner',   entity: 'ansprechpartner' },
+  'management-ansprechpartner': { label: 'Management-Ansprechpartner', entity: 'ansprechpartner' },
+  'management-creator': { label: 'Management-Creator', entity: 'creator' },
+  management:         { label: 'Management',        entity: 'management' },
+  produkt:            { label: 'Produkte',           entity: 'produkt' },
+  creator:            { label: 'Creator',            entity: 'creator' },
+  auftrag:            { label: 'Aufträge',          entity: 'auftrag' },
+  'projekt-erstellen': { label: 'Projekt anlegen',   entity: 'projekt-erstellen' },
+  auftragsdetails:    { label: 'Auftragsdetails',   entity: 'auftragsdetails' },
+  kampagne:           { label: 'Kampagne',          entity: 'kampagne' },
+  strategie:          { label: 'Strategien',        entity: 'strategie' },
+  sourcing:           { label: 'Sourcing',          entity: 'sourcing' },
+  vertraege:          { label: 'Verträge',          entity: 'vertraege' },
+  videos:             { label: 'Videos',             entity: 'videos' },
+  rechnung:           { label: 'Rechnung',          entity: 'rechnung' },
+  kooperation:        { label: 'Kooperation',       entity: 'kooperation' },
+  briefing:           { label: 'Briefing',          entity: 'briefing' },
+  mitarbeiter:        { label: 'Mitarbeiter',       entity: 'mitarbeiter' },
+  'kunden-admin':     { label: 'Kunden',            entity: 'kunden-admin' },
+  'admin/kunden':     { label: 'Kunden',            entity: 'kunden-admin' },
+  kunden:             { label: 'Übersicht',         entity: 'kunden' },
+  tabellen:           { label: 'Tabellen',          entity: 'tabellen' },
+  feedback:           { label: 'Feedback',          entity: 'feedback' },
+  education:          { label: 'Education',          entity: 'education' },
+  'creator-lists':    { label: 'Listen',            entity: 'creator-lists' },
+  kickoff:            { label: 'Strategiebriefing',  entity: 'kickoff' },
+  contracts:          { label: 'Contracts',          entity: 'vertraege' },
+  ausgangsrechnungen: { label: 'Kundenrechnungen', entity: 'ausgangsrechnungen' },
+  profile:            { label: 'Profil',            entity: 'profile' },
+  transcribe:         { label: 'Transkription (Test)', entity: 'transcribe' },
+  stakeholder:        { label: 'Stakeholder-Übersicht', entity: 'stakeholder' },
+  skripte:            { label: 'Skripte',            entity: 'skripte' },
+  'ki-usage':         { label: 'KI-Nutzung',         entity: 'ki-usage' },
 };
 
 const ROLE_OVERRIDES = {
@@ -50,7 +53,7 @@ const ROLE_OVERRIDES = {
 };
 
 export function getRouteConfig(segment, rolle) {
-  if (!segment) return { label: '', icon: null };
+  if (!segment) return { label: '', entity: null };
 
   const base = ROUTE_CONFIG[segment];
 
@@ -59,14 +62,14 @@ export function getRouteConfig(segment, rolle) {
     if (override) {
       return {
         label: override.label ?? base?.label ?? capitalize(segment),
-        icon: override.icon ?? base?.icon ?? null,
+        entity: override.entity ?? base?.entity ?? null,
       };
     }
   }
 
   if (base) return { ...base };
 
-  return { label: capitalize(segment), icon: null };
+  return { label: capitalize(segment), entity: null };
 }
 
 export function getRouteLabel(segment, rolle) {

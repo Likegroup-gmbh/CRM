@@ -6,9 +6,7 @@
 //   "fixed:{key}"       -> Spalte ist ausgeblendet
 //   "show:fixed:{key}"  -> Spalte ist eingeblendet (nur fuer Spalten noetig, die
 //                          standardmaessig aus sind)
-// Ohne Eintrag gilt der Default. Transkript und Caption sind lange Texte und
-// starten deshalb ausgeblendet, ohne dass bestehende Strategien migriert werden
-// muessen.
+// Ohne Eintrag gilt der Default: alle festen Spalten sind sichtbar.
 
 export const STRATEGIE_FIXED_COLUMNS = Object.freeze([
   { key: 'creator', label: 'Creator' },
@@ -20,7 +18,8 @@ export const STRATEGIE_FIXED_COLUMNS = Object.freeze([
   { key: 'umgesetzt', label: 'Umgesetzt' }
 ]);
 
-const DEFAULT_HIDDEN = new Set(['transkript', 'caption']);
+// Keys hier eintragen, wenn eine feste Spalte standardmaessig aus sein soll.
+const DEFAULT_HIDDEN = new Set();
 
 export function fixedColumnHiddenKey(key) {
   return `fixed:${key}`;

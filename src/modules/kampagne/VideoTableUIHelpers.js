@@ -134,9 +134,9 @@ export class VideoTableUIHelpers {
       container.appendChild(msgEl);
     }
     msgEl.innerHTML = `
-      <div style="display:flex;align-items:center;gap:12px;">
-        <div style="width:20px;height:20px;border:2px solid #e5e7eb;border-top-color:#2563eb;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
-        <div><div style="font-weight:600;">${message}</div><div style="font-size:12px;color:#6b7280;margin-top:4px;">${percent}%</div></div>
+      <div class="koops-videos-loading">
+        <div class="koops-videos-loading-spinner"></div>
+        <div><div class="koops-videos-loading-title">${message}</div><div class="koops-videos-loading-percent">${percent}%</div></div>
       </div>`;
   }
 

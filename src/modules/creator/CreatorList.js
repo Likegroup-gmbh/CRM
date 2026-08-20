@@ -14,6 +14,7 @@ import { creatorUtils } from './CreatorUtils.js';
 import { CreatorGridView } from './CreatorGridView.js';
 import { injectFirmaCreateButton } from './FirmaCreateDrawer.js';
 import { connectInstagramSilent } from '../../core/ActionsDropdownHandlers.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 export class CreatorList extends BasePaginatedList {
   constructor(opts = {}) {
@@ -220,7 +221,7 @@ export class CreatorList extends BasePaginatedList {
     const canBulkDelete = this.canBulkDelete;
     const sanitize = this.sanitize.bind(this);
     
-    const externalLinkIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="external-link-icon"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>`;
+    const externalLinkIcon = `${icon('external-link')}`;
     
     const formatLink = (url) => {
       if (!url) return '-';
@@ -298,12 +299,12 @@ export class CreatorList extends BasePaginatedList {
       <div class="table-filter-wrapper">
         ${filterHtml}
         <div class="table-actions">
-          ${this.isAdmin ? '<button id="btn-connect-all" class="secondary-btn">Connect</button>' : ''}
-          ${canBulkDelete ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
-          <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
+          ${this.isAdmin ? '<button id="btn-connect-all" class="mdc-btn mdc-btn--secondary">Connect</button>' : ''}
+          ${canBulkDelete ? `<button id="btn-select-all" class="mdc-btn mdc-btn--secondary">Alle auswählen</button>
+          <button id="btn-deselect-all" class="mdc-btn mdc-btn--secondary" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
-          <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>` : ''}
-          ${canEdit ? '<button id="btn-creator-new" class="primary-btn">Neuen Creator anlegen</button>' : ''}
+          <button id="btn-delete-selected" class="mdc-btn mdc-btn--delete" style="display:none;">Ausgewählte löschen</button>` : ''}
+          ${canEdit ? '<button id="btn-creator-new" class="mdc-btn">Neuen Creator anlegen</button>' : ''}
         </div>
       </div>
 

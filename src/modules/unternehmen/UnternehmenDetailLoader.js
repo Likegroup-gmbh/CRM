@@ -27,10 +27,10 @@ export async function loadUnternehmenData(detail) {
       window.supabase.from('unternehmen_branchen').select('branche_id, branchen:branche_id (id, name)').eq('unternehmen_id', detail.unternehmenId),
       window.supabase.from('marke').select('*').eq('unternehmen_id', detail.unternehmenId),
       window.supabase.from('auftrag').select('*, marke:marke_id(id, markenname, logo_url), ansprechpartner:ansprechpartner_id(id, vorname, nachname, profile_image_url), created_by:created_by_id(id, name, profile_image_url)').eq('unternehmen_id', detail.unternehmenId).order('created_at', { ascending: false }),
-      window.supabase.from('briefings').select('id, product_service_offer, status, deadline, unternehmen_id, marke_id, kampagne_id, created_at, marke:marke_id(id, markenname, logo_url), kampagne:kampagne_id(id, kampagnenname, eigener_name), assignee:assignee_id(id, name, profile_image_url)').eq('unternehmen_id', detail.unternehmenId).order('created_at', { ascending: false }),
+      window.supabase.from('campaign_briefings').select('id, aktivierung_name, bereich, is_draft, content_deadline, unternehmen_id, marke_id, created_at, marke:marke_id(id, markenname, logo_url), assignee:assignee_id(id, name, profile_image_url)').eq('unternehmen_id', detail.unternehmenId).order('created_at', { ascending: false }),
       window.supabase.from('kampagne').select('id, kampagnenname, eigener_name, status, start, deadline, art_der_kampagne, creatoranzahl, videoanzahl, unternehmen_id, auftrag_id, marke:marke_id(id, markenname, logo_url)').eq('unternehmen_id', detail.unternehmenId).order('created_at', { ascending: false }),
       window.supabase.from('rechnung').select('id, rechnung_nr, rechnungstyp, status, nettobetrag, bruttobetrag, gestellt_am, zahlungsziel, bezahlt_am, po_nummer, land, videoanzahl, created_at, pdf_url, auftrag:auftrag_id(id, auftragsname), kampagne:kampagne_id(id, kampagnenname, eigener_name), creator:creator_id(id, vorname, nachname), created_by:created_by_id(id, name, profile_image_url), rechnung_pdfs(id, file_name, file_path, file_url)').eq('unternehmen_id', detail.unternehmenId).order('gestellt_am', { ascending: false }),
-      window.supabase.from('vertraege').select('id, name, typ, is_draft, datei_url, datei_path, created_at, kampagne:kampagne_id(id, kampagnenname, eigener_name), creator:creator_id(id, vorname, nachname)').eq('kunde_unternehmen_id', detail.unternehmenId).order('created_at', { ascending: false }),
+      window.supabase.from('vertraege').select('id, name, typ, is_draft, datei_url, datei_path, created_at, dropbox_file_url, unterschriebener_vertrag_url, creator_id, kampagne:kampagne_id(id, kampagnenname, eigener_name), creator:creator_id(id, vorname, nachname), contracting_auftrag:contracting_auftrag_id(id, auftragsname, titel)').eq('kunde_unternehmen_id', detail.unternehmenId).order('created_at', { ascending: false }),
       window.supabase.from('strategie').select('id, name, teilbereich, created_at, created_by_user:created_by(id, name)').eq('unternehmen_id', detail.unternehmenId).order('created_at', { ascending: false }),
       window.supabase.from('creator_auswahl').select('id, name, created_at').eq('unternehmen_id', detail.unternehmenId).order('created_at', { ascending: false }),
       window.supabase.from('marke_kickoff').select('*').eq('unternehmen_id', detail.unternehmenId).is('marke_id', null),
@@ -207,7 +207,10 @@ export async function loadUnternehmenData(detail) {
     detail.kundenrechnungen = exploded;
 
     // ========== BATCH 3: Creator + Kampagnenart-Typen parallel laden ==========
-    const creatorIds = Array.from(new Set(detail.kooperationen.map(k => k.creator_id).filter(Boolean)));
+    const creatorIds = Array.from(new Set([
+      ...detail.kooperationen.map(k => k.creator_id).filter(Boolean),
+      ...(detail.vertraege || []).map(v => v.creator_id || v.creator?.id).filter(Boolean)
+    ]));
     const allArtIds = Array.from(new Set(
       detail.kampagnen.flatMap(k => Array.isArray(k.art_der_kampagne) ? k.art_der_kampagne : []).filter(Boolean)
     ));

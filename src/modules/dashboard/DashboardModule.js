@@ -5,6 +5,7 @@ import { getGreeting } from './DashboardGreetings.js';
 import { loadUpcomingBirthdays, renderBirthdaysList } from './DashboardBirthdays.js';
 import { loadUpcomingKampagnen, loadUpcomingKooperationen, renderKampagnenBlock, renderKooperationenBlock } from './DashboardUpcoming.js';
 import { renderKundeTutorialBlock } from './DashboardKundeTutorial.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 export class DashboardModule {
   constructor() {
@@ -72,9 +73,7 @@ export class DashboardModule {
       <div class="dashboard-search">
         <div class="dashboard-search__input-wrap">
           <span class="dashboard-search__icon">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
-              <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-            </svg>
+            ${icon('search')}
           </span>
           <input
             type="text"
@@ -94,9 +93,7 @@ export class DashboardModule {
       <div class="dashboard-container dashboard-container--centered">
         <div class="pending-user-message">
           <div class="pending-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-            </svg>
+            ${icon('clock')}
           </div>
           <h3>Account wartet auf Freischaltung</h3>
           <p>Ihr Account wurde erfolgreich erstellt und wartet nun auf die Freischaltung durch einen Administrator.</p>

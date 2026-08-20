@@ -3,6 +3,9 @@
  * Wird geöffnet beim Klick auf eine Zelle im Cash Flow Kalender
  */
 
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
+
 export class CashFlowDetailsDrawer {
   constructor() {
     this.drawer = null;
@@ -39,7 +42,7 @@ export class CashFlowDetailsDrawer {
     const overlay = document.createElement('div');
     overlay.className = 'drawer-overlay';
     overlay.innerHTML = `
-      <div class="drawer-panel drawer-panel-wide">
+      <div class="drawer-panel drawer-panel--xwide">
         ${this.renderHeader()}
         ${this.renderBody()}
         ${this.renderFooter()}
@@ -73,9 +76,7 @@ export class CashFlowDetailsDrawer {
     if (this.entries.length === 0) {
       return `
         <div class="drawer-body">
-          <div class="empty-state">
-            <p>Keine Rechnungen gefunden.</p>
-          </div>
+          ${renderEmptyState({ icon: 'invoice', title: 'Keine Rechnungen gefunden' })}
         </div>
       `;
     }
@@ -88,12 +89,12 @@ export class CashFlowDetailsDrawer {
           <table class="data-table cash-flow-details-table">
             <thead>
               <tr>
-                <th style="width: 30%;">Auftragsname</th>
-                <th style="width: 15%;">RE-Nr</th>
-                <th style="width: 15%;">Nettobetrag</th>
-                <th style="width: 12%;">Status</th>
-                <th style="width: 14%;">Rechnung gestellt</th>
-                <th style="width: 14%;">Überwiesen</th>
+                <th class="w-pct-30">Auftragsname</th>
+                <th class="w-pct-15">RE-Nr</th>
+                <th class="w-pct-15">Nettobetrag</th>
+                <th class="w-pct-12">Status</th>
+                <th class="w-pct-14">Rechnung gestellt</th>
+                <th class="w-pct-14">Überwiesen</th>
               </tr>
             </thead>
             <tbody>
@@ -101,9 +102,9 @@ export class CashFlowDetailsDrawer {
             </tbody>
             <tfoot>
               <tr>
-                <td style="text-align: left; font-weight: 600;">Gesamt:</td>
+                <td class="u-text-left fw-600">Gesamt:</td>
                 <td></td>
-                <td style="font-weight: 600;">${this.formatCurrency(gesamtNetto)}</td>
+                <td class="fw-600">${this.formatCurrency(gesamtNetto)}</td>
                 <td colspan="3"></td>
               </tr>
             </tfoot>
@@ -118,9 +119,7 @@ export class CashFlowDetailsDrawer {
    */
   renderEntryRow(entry) {
     const checkIcon = `<span class="status-badge status-success">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-      </svg>
+      ${icon('check-bold')}
     </span>`;
     const dashIcon = `<span class="status-badge status-inactive">—</span>`;
 
@@ -128,10 +127,10 @@ export class CashFlowDetailsDrawer {
     const ueberwiesen = entry.ueberwiesen ? checkIcon : dashIcon;
 
     const rechnungDatum = entry.rechnung_gestellt_am
-      ? `<br><small style="color: var(--text-secondary);">${this.formatDate(entry.rechnung_gestellt_am)}</small>`
+      ? `<br><small class="u-text-secondary">${this.formatDate(entry.rechnung_gestellt_am)}</small>`
       : '';
     const ueberwiesenDatum = entry.ueberwiesen_am
-      ? `<br><small style="color: var(--text-secondary);">${this.formatDate(entry.ueberwiesen_am)}</small>`
+      ? `<br><small class="u-text-secondary">${this.formatDate(entry.ueberwiesen_am)}</small>`
       : '';
 
     const statusMap = { paid: 'Bezahlt', invoiced: 'Gestellt', pending: 'Offen' };
@@ -141,9 +140,9 @@ export class CashFlowDetailsDrawer {
 
     return `
       <tr>
-        <td style="text-align: left;">${this.escapeHtml(entry.auftragsname || 'Unbenannt')}</td>
+        <td class="u-text-left">${this.escapeHtml(entry.auftragsname || 'Unbenannt')}</td>
         <td>${this.escapeHtml(entry.reNr || '—')}</td>
-        <td style="font-weight: 500;">${this.formatCurrency(entry.betrag)}</td>
+        <td class="fw-500">${this.formatCurrency(entry.betrag)}</td>
         <td><span class="status-badge ${statusCls}">${statusLabel}</span></td>
         <td>${rechnungGestellt}${rechnungDatum}</td>
         <td>${ueberwiesen}${ueberwiesenDatum}</td>
@@ -158,7 +157,7 @@ export class CashFlowDetailsDrawer {
   renderFooter() {
     return `
       <div class="drawer-footer">
-        <button class="primary-btn" data-action="close">Schließen</button>
+        <button class="mdc-btn" data-action="close">Schließen</button>
       </div>
     `;
   }

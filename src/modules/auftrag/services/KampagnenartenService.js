@@ -1,4 +1,4 @@
-import { KAMPAGNENARTEN_MAPPING, generateBudgetOnlyFieldsHtml } from '../logic/KampagnenartenMapping.js';
+import { getKampagnenartConfig, resolveKampagnenartName, generateBudgetOnlyFieldsHtml } from '../logic/KampagnenartenMapping.js';
 
 export class KampagnenartenService {
   getSelectedKampagnenartIds() {
@@ -45,10 +45,14 @@ export class KampagnenartenService {
     }
 
     let sectionsHtml = '';
+    const renderedPrefixes = new Set();
     kampagnenarten.forEach(artName => {
-      const config = KAMPAGNENARTEN_MAPPING[artName];
+      const config = getKampagnenartConfig(artName);
       if (config) {
-        sectionsHtml += generateBudgetOnlyFieldsHtml(artName, existingValues);
+        // Legacy-Namen können auf dieselbe kanonische Art zeigen – Sections deduplizieren
+        if (renderedPrefixes.has(config.prefix)) return;
+        renderedPrefixes.add(config.prefix);
+        sectionsHtml += generateBudgetOnlyFieldsHtml(resolveKampagnenartName(artName), existingValues);
       } else {
         console.warn(`⚠️ Unbekannte Kampagnenart: "${artName}"`);
       }

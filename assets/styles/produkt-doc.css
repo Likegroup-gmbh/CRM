@@ -494,7 +494,7 @@
 .produkt-doc .data-table .uploader-sort {
   flex-direction: row;
   justify-content: center;
-  gap: 2px;
+  gap: var(--space-xxs);
   margin: 0;
 }
 

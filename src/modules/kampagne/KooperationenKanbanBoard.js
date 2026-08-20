@@ -1,4 +1,5 @@
 import { SafeTimers } from '../../core/utils/SafeTimers.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
 
 // KooperationenKanbanBoard.js
 // Kanban Board für Kooperationen auf der Kampagnen-Detail-Seite
@@ -89,6 +90,22 @@ export class KooperationenKanbanBoard {
 
     const readonlyClass = this.isKunde ? ' kanban-readonly' : '';
 
+    // Board-Level Empty State bei 0 Kooperationen
+    if (kooperationen.length === 0) {
+      this.container.innerHTML = `
+        <div class="kanban-board-wrapper kooperationen-kanban-wrapper${readonlyClass}">
+          ${renderEmptyState({
+            icon: 'handshake',
+            title: 'Keine Kooperationen',
+            text: this.isKunde
+              ? 'Für diese Kampagne gibt es aktuell keine Kooperationen.'
+              : 'Sobald Kooperationen angelegt sind, erscheinen sie hier im Board.'
+          })}
+        </div>
+      `;
+      return;
+    }
+
     const html = `
       <div class="kanban-board-wrapper kooperationen-kanban-wrapper${readonlyClass}">
         <div class="kanban-board kooperationen-kanban-board">
@@ -114,7 +131,7 @@ export class KooperationenKanbanBoard {
     return `
       <div class="kanban-column" data-status-id="${statusId}">
         <div class="kanban-column-header">
-          <div style="display: flex; align-items: center; gap: var(--space-xs);">
+          <div class="kanban-column-header-left">
             <span class="kanban-column-title">${safe(statusName)}</span>
             <span class="kanban-count">${koops.length}</span>
           </div>

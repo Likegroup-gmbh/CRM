@@ -27,7 +27,7 @@ export class VideoTableStatusDropdown {
   closePortal() {
     document.querySelectorAll('.status-dropdown-portal').forEach(p => p.remove());
     document.querySelectorAll('.status-select-wrapper.open')
-      .forEach(w => w.classList.remove('open', 'opens-up'));
+      .forEach(w => w.classList.remove('show', 'opens-up'));
   }
 
   openPortal(wrapper) {

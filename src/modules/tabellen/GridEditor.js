@@ -5,6 +5,7 @@ import { GridRenderer } from './GridRenderer.js';
 import { GridController } from './GridController.js';
 import { GridResizeController } from './GridResizeController.js';
 import { AutoSaveManager } from './AutoSaveManager.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 export class GridEditor {
   constructor(documentId, documentName, metadata = {}) {
@@ -28,9 +29,7 @@ export class GridEditor {
         <div class="grid-editor-header">
           <div class="grid-editor-title">
             <button class="back-btn" id="back-to-list">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-              </svg>
+              ${icon('arrow-left', { className: 'icon-20' })}
               Zurück
             </button>
             <h2 class="document-name">${this.escapeHtml(this.documentName)}</h2>
@@ -38,15 +37,11 @@ export class GridEditor {
           </div>
           <div class="grid-toolbar">
             <button class="toolbar-btn" id="add-row-btn" title="Zeile hinzufügen">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
+              ${icon('plus-lg', { className: 'icon-20' })}
               Zeile hinzufügen
             </button>
             <button class="toolbar-btn" id="add-col-btn" title="Spalte hinzufügen">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
+              ${icon('plus-lg', { className: 'icon-20' })}
               Spalte hinzufügen
             </button>
           </div>

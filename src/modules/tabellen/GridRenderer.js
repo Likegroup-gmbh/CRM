@@ -70,7 +70,7 @@ export class GridRenderer {
     const height = this.rowHeights.get(row) || 32;
     let html = `
       <tr data-row="${row}" style="height: ${height}px;">
-        <td class="row-header" style="position: relative;">
+        <td class="row-header grid-row-header">
           <div class="row-header-content">
             <span class="row-number">${row + 1}</span>
             <button class="row-menu-btn" data-row="${row}" title="Zeilenmenü">⋮</button>

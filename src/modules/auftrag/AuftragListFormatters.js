@@ -6,6 +6,7 @@ import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { getPaymentRowStatusClass } from './logic/PaymentRowStatus.js';
 import { defaultReNrPrefix, isBareReNrPrefix } from './logic/PrefixedNumberSort.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 const currencyFormatter = new Intl.NumberFormat('de-DE', {
   style: 'currency', currency: 'EUR',
@@ -17,21 +18,33 @@ const numberFormatter = new Intl.NumberFormat('de-DE', {
 });
 
 const KAMPAGNE_ART_ABBR = {
-  'UGC Pro Paid': 'UPP',
-  'UGC Pro Organic': 'UPO',
-  'UGC Video Paid': 'UVP',
-  'UGC Video Organic': 'UVO',
+  'UGC Paid': 'UP',
+  'UGC Organic': 'UO',
   'Influencer Kampagne': 'IK',
+  'Influencer Story': 'IS',
+  'Influencer Events': 'IE',
+  'Vor-Ort-Produktion': 'VOP',
+  'Whitelisting': 'WL',
+  'Darkposting': 'DP',
+  // Legacy-Namen (vor der Zusammenführung 2026-08)
+  'UGC Pro Paid': 'UP',
+  'UGC Pro Organic': 'UO',
+  'UGC Video Paid': 'UP',
+  'UGC Video Organic': 'UO',
+  'UGC Kampagne': 'UO',
+  'UGC-Kampagne': 'UO',
+  'UGC': 'UO',
+  'IGC': 'UO',
+  'IGC Kampagnen': 'UO',
+  'Story': 'IS',
   'Vor Ort Produktionen': 'VOP',
-  'UGC Kampagne': 'UVO',
-  'UGC': 'UVO',
-  'IGC': 'UPO',
+  'Vorort-Produktion': 'VOP',
   'Influencer': 'IN',
   'Content Creation': 'CC'
 };
 
-const CHECK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: var(--icon-xs); height: var(--icon-xs); display: inline-block; vertical-align: middle;"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>`;
-const CROSS_ICON = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: var(--icon-xs); height: var(--icon-xs); display: inline-block; vertical-align: middle;"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>`;
+const CHECK_ICON = `${icon('check-bold')}`;
+const CROSS_ICON = `${icon('x-mark')}`;
 
 AuftragList.prototype.formatCurrency = function(value) {
   return value ? currencyFormatter.format(value) : '-';

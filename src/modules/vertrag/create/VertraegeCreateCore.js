@@ -157,10 +157,39 @@ VertraegeCreate.prototype.init = async function(draftId = null) {
     // Wenn Draft-ID übergeben, lade den Draft aus der DB
     if (draftId) {
       await this.loadDraftFromDB(draftId);
+    } else {
+      this.applyQueryPrefill();
     }
     
     // Rendere Formular
     this.render();
+};
+
+VertraegeCreate.prototype.applyQueryPrefill = function() {
+    const params = new URLSearchParams(window.location.search);
+    const typ = params.get('typ');
+    const unternehmen = params.get('unternehmen');
+    const auftrag = params.get('auftrag');
+
+    if (unternehmen) {
+      this.formData.kunde_unternehmen_id = unternehmen;
+    }
+
+    if (typ === 'Contracting') {
+      this.selectedTyp = 'Contracting';
+      this.formData.typ = 'Contracting';
+      if (auftrag) {
+        this.formData.contracting_auftrag_id = auftrag;
+        if (typeof this.applyContractingAuftragData === 'function') {
+          this.applyContractingAuftragData(auftrag);
+        }
+      }
+      if (typeof this.updateFilteredContractingAuftraege === 'function') {
+        this.updateFilteredContractingAuftraege();
+      }
+      this.isGenerated = true;
+      this.currentStep = 2;
+    }
 };
 
 VertraegeCreate.prototype.loadDraftFromDB = async function(draftId) {

@@ -8,6 +8,7 @@ import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
+import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
 
 export class ManagementDetail extends PersonDetailBase {
   constructor() {
@@ -165,7 +166,7 @@ export class ManagementDetail extends PersonDetailBase {
     };
 
     const webseiteLinkHtml = this.management?.webseite
-      ? `<a href="${this.sanitizeUrl(this.management.webseite)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${this.sanitize(this.management.webseite)}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>`
+      ? `<a href="${this.sanitizeUrl(this.management.webseite)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${this.sanitize(this.management.webseite)}">${icon('external-link')}</a>`
       : null;
 
     const sidebarInfo = this.renderInfoItems([
@@ -174,7 +175,7 @@ export class ManagementDetail extends PersonDetailBase {
       { icon: 'phone', label: 'Telefon', value: this.management?.telefonnummer },
       ...(webseiteLinkHtml ? [{ icon: 'link', label: 'Webseite', rawHtml: webseiteLinkHtml }] : []),
       ...(this.management?.instagram ? [{ icon: 'instagram', label: 'Instagram', rawHtml: `<a href="${this.management.instagram.startsWith('http') ? this.sanitize(this.management.instagram) : `https://instagram.com/${this.sanitize(this.management.instagram.replace('@', ''))}`}" target="_blank" rel="noopener">@${this.sanitize(this.management.instagram)}</a>` }] : []),
-      ...(this.management?.linkedin ? [{ icon: 'link', label: 'LinkedIn', rawHtml: `<a href="${this.sanitizeUrl(this.management.linkedin)}" target="_blank" rel="noopener">${this.sanitize(this.management.linkedin)}</a>` }] : []),
+      ...(this.management?.linkedin ? [{ icon: 'linkedin', label: 'LinkedIn', rawHtml: `<a href="${this.sanitizeUrl(this.management.linkedin)}" target="_blank" rel="noopener">${this.sanitize(this.management.linkedin)}</a>` }] : []),
       ...(this.management?.status ? [{ icon: 'check', label: 'Status', value: this.management.status, badge: true, badgeType: this.management.status === 'aktiv' ? 'success' : 'secondary' }] : []),
       { icon: 'clock', label: 'Erstellt', value: this.formatDate(this.management?.created_at) },
       { icon: 'clock', label: 'Aktualisiert', value: this.formatDate(this.management?.updated_at) }
@@ -228,17 +229,15 @@ export class ManagementDetail extends PersonDetailBase {
 
   renderCreators() {
     const addBtn = `
-      <button class="primary-btn btn-sm" id="btn-add-creator-to-management">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; margin-right: 4px;">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
+      <button class="mdc-btn mdc-btn--sm" id="btn-add-creator-to-management">
+        ${icon('plus-lg', { className: 'icon-16' })}
         Creator hinzufügen
       </button>
     `;
 
     if (!this.creators || this.creators.length === 0) {
       return renderEmptyState({
-        icon: 'users',
+        icon: 'creator',
         title: 'Keine Creator vorhanden',
         text: 'Diesem Management sind noch keine aktiven Creator zugeordnet.',
         actionsHtml: addBtn
@@ -270,7 +269,7 @@ export class ManagementDetail extends PersonDetailBase {
       }]) : '-';
       return `
       <tr>
-        <td><a href="/rechnung/${r.id}" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${this.sanitize(r.rechnung_nr || '—')}</a></td>
+        <td><a href="/rechnung/${r.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${this.sanitize(r.rechnung_nr || '—')}</a></td>
         <td><span class="status-badge ${r.rechnungstyp === 'contracting' ? 'status-gestellt' : 'status-beauftragt'}">${r.rechnungstyp === 'contracting' ? 'Contracting' : 'Kampagne'}</span></td>
         <td>${r.auftrag ? `<a href="#" class="table-link" data-table="auftrag" data-id="${r.auftrag.id}">${this.sanitize(r.auftrag.auftragsname || '-')}</a>` : '-'}</td>
         <td>${this.sanitize(r.po_nummer) || '-'}</td>
@@ -284,7 +283,7 @@ export class ManagementDetail extends PersonDetailBase {
         <td>${r.videoanzahl || '-'}</td>
         <td>${preisProVideo}</td>
         <td>${this.formatCurrency(r.bruttobetrag)}</td>
-        <td>${r.rechnung_pdfs && r.rechnung_pdfs.length > 0 ? r.rechnung_pdfs.map((p, i) => `<a href="${p.file_url || p.open_url}" target="_blank" rel="noopener">PDF${r.rechnung_pdfs.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' ') : (r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener">PDF</a>` : '-')}</td>
+        <td>${renderPdfLinks(r.rechnung_pdfs, r.pdf_url)}</td>
         <td>${r.status || '-'}</td>
         ${!isKunde ? `<td>${this.renderPersonBubble(r.created_by)}</td>` : ''}
         ${!isKunde ? `<td>${actionBuilder.create('rechnung', r.id)}</td>` : ''}
@@ -435,15 +434,15 @@ export class ManagementDetail extends PersonDetailBase {
     dialog.className = 'modal show';
     dialog.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.4)';
     dialog.innerHTML = `
-      <div style="background:var(--bg-primary,#fff);border-radius:12px;padding:24px;min-width:320px;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
-        <h3 style="margin:0 0 16px">Creator hinzufügen</h3>
-        <select id="mgmt-add-creator-select" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border-color,#ddd);">
+      <div class="mgmt-add-creator-dialog">
+        <h3 class="mgmt-add-creator-title">Creator hinzufügen</h3>
+        <select id="mgmt-add-creator-select" class="mgmt-add-creator-select">
           <option value="">Bitte wählen...</option>
           ${options}
         </select>
-        <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
-          <button class="secondary-btn btn-sm" id="mgmt-add-cancel">Abbrechen</button>
-          <button class="primary-btn btn-sm" id="mgmt-add-confirm">Hinzufügen</button>
+        <div class="mgmt-add-creator-actions">
+          <button class="mdc-btn mdc-btn--secondary mdc-btn--sm" id="mgmt-add-cancel">Abbrechen</button>
+          <button class="mdc-btn mdc-btn--sm" id="mgmt-add-confirm">Hinzufügen</button>
         </div>
       </div>
     `;

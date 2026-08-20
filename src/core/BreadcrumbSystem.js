@@ -1,8 +1,9 @@
 // BreadcrumbSystem.js (ES6-Modul)
 // Zentrale Breadcrumb-Navigation für das CRM
 
-import { navigationSystem } from '../modules/navigation/NavigationSystem.js';
 import { getRouteConfig } from './breadcrumbRoutes.js';
+import { entityIcon } from './icons/entityIcons.js';
+import { icon } from '../core/icons/IconSystem.js';
 
 export class BreadcrumbSystem {
   constructor() {
@@ -21,34 +22,19 @@ export class BreadcrumbSystem {
 
   // Edit-Icon SVG
   getEditIcon() {
-    return `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="breadcrumb-edit-icon">
-      <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-    </svg>`;
+    return `${icon('pencil-square')}`;
   }
 
-  // Finde das Icon für eine gegebene URL aus der Navigation
+  // Finde das Icon für eine gegebene URL über die Route-Config
   getIconForUrl(url) {
     if (!url) return null;
-    
-    // Extrahiere den Basis-Pfad (z.B. /auftrag aus /auftrag/123)
-    const basePath = '/' + url.split('/').filter(Boolean)[0];
-    
-    // Durchsuche alle Nav-Sections inkl. children
-    for (const section of navigationSystem.navSections) {
-      for (const item of section.items) {
-        if (item.url === basePath || item.url === url) {
-          return navigationSystem.getIcon(item.icon);
-        }
-        if (Array.isArray(item.children)) {
-          for (const child of item.children) {
-            if (child.url === basePath || child.url === url) {
-              return navigationSystem.getIcon(child.icon);
-            }
-          }
-        }
-      }
-    }
-    return null;
+
+    // Extrahiere das Segment (z.B. auftrag aus /auftrag/123)
+    const segment = url.split('/').filter(Boolean)[0];
+    if (!segment) return null;
+
+    const entity = getRouteConfig(segment, window.currentUser?.rolle?.toLowerCase()).entity;
+    return entity ? entityIcon(entity, { stroke: 1.5 }) : null;
   }
 
   init() {
@@ -149,9 +135,7 @@ export class BreadcrumbSystem {
             ${iconPrefix}${sanitizedLabel}
           </a>
           <span class="breadcrumb-separator">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 14px; height: 14px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-            </svg>
+            ${icon('chevron-right', { className: 'icon-14' })}
           </span>
         `;
       }

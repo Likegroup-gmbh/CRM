@@ -20,9 +20,9 @@ export class SkriptDnaTab {
 
   async render(container) {
     container.innerHTML = `
-      <div class="skripte-actions-row" style="margin-bottom: var(--space-md);">
-        <button id="dna-destill-btn" class="primary-btn">Destillation starten</button>
-        <button id="dna-neu-btn" class="secondary-btn">DNA manuell anlegen</button>
+      <div class="skripte-actions-row u-mb-md">
+        <button id="dna-destill-btn" class="mdc-btn">Destillation starten</button>
+        <button id="dna-neu-btn" class="mdc-btn mdc-btn--secondary">DNA manuell anlegen</button>
         <span class="skripte-hint">Destillation verdichtet Feedback zu einem neuen DNA-Entwurf – Freigabe bleibt bei euch.</span>
       </div>
       <div id="dna-job-status" class="skripte-card" style="display:none;">
@@ -77,7 +77,7 @@ export class SkriptDnaTab {
               <td>${badge(d.status, STATUS_VARIANT[d.status])}</td>
               <td>${d.freigegeben_am ? formatDate(d.freigegeben_am) : '–'}</td>
               <td>${formatDate(d.created_at)}</td>
-              <td><button class="secondary-btn dna-row-open">Öffnen</button></td>
+              <td><button class="mdc-btn mdc-btn--secondary dna-row-open">Öffnen</button></td>
             </tr>
           `).join('')}
         </tbody>

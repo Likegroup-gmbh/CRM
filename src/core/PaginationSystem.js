@@ -2,6 +2,7 @@
 // Wiederverwendbares Pagination-System für alle Tabellen
 
 import { TableAnimationHelper } from './TableAnimationHelper.js';
+import { icon } from '../core/icons/IconSystem.js';
 
 export class PaginationSystem {
   constructor() {
@@ -139,9 +140,7 @@ export class PaginationSystem {
         data-page="${this.currentPage - 1}"
         ${backDisabled ? 'disabled' : ''}
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M10 12L6 8L10 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+        ${icon('chevron-left')}
         Zurück
       </button>
       
@@ -174,9 +173,7 @@ export class PaginationSystem {
         ${nextDisabled ? 'disabled' : ''}
       >
         Weiter
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M6 12L10 8L6 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
+        ${icon('chevron-right')}
       </button>
     `;
 

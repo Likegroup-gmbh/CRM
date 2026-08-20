@@ -1,0 +1,552 @@
+/* ==========================================================================
+   DROPDOWNS (aus components.css extrahiert, Phase 7)
+   ========================================================================== */
+
+/* ===== BUTTONS ===== */
+
+/* ==========================================================================
+   Sort Dropdown Component
+   ========================================================================== */
+
+.sort-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.sort-dropdown-label {
+  font-weight: 400;
+  font-size: var(--text-xsm);
+}
+
+.sort-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 160px;
+  background: var(--bg-primary);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+}
+
+.sort-dropdown-menu.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* Responsive */
+
+@media (max-width: 768px) {
+  .sort-dropdown-menu {
+    min-width: 140px;
+  }
+}
+
+.status-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 1000;
+  min-width: 180px;
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-xxs) 0;
+}
+
+/* Status-Dropdown Portal (an document.body, position: fixed) */
+
+.status-dropdown-portal {
+  position: fixed;
+  z-index: 99999;
+  min-width: 180px;
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-xxs) 0;
+}
+
+.data-table td:last-child .actions-dropdown-container { display: flex; justify-content: flex-end; }
+
+/* Prefer targeted override using :has when supported */
+
+.data-table th:has(.actions-dropdown-container),
+.data-table td:has(.actions-dropdown-container) {
+  overflow: visible;
+}
+
+.auftrag-table td:last-child .actions-dropdown-container {
+  overflow: visible;
+}
+
+/* Actions Dropdown Styles */
+
+.actions-dropdown-container {
+  position: relative;
+  display: inline-block;
+}
+
+.filter-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: var(--space-xs);
+  min-width: 280px;
+  max-width: 320px;
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-8px);
+  transition: all 0.2s ease;
+  z-index: 1000;
+}
+
+.filter-dropdown.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.filter-dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.filter-dropdown-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.filter-dropdown-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--gray-500);
+  transition: all 0.2s ease;
+}
+
+.filter-dropdown-close:hover {
+  background: var(--gray-100);
+  color: var(--gray-700);
+}
+
+.filter-dropdown-body {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: var(--space-xs) 0;
+  /* Overflow visible damit Submenu raus kann */
+  overflow-x: visible;
+}
+
+.filter-dropdown-empty {
+  padding: var(--space-lg) var(--space-md);
+  text-align: center;
+  color: var(--gray-500);
+  font-size: var(--text-sm);
+}
+
+.filter-option .submenu-arrow {
+  margin-left: auto;
+  color: var(--gray-400);
+}
+
+/* Filter Submenu */
+
+.filter-submenu {
+  position: fixed; /* Fixed statt absolute damit es aus dem Dropdown raus kann */
+  min-width: 280px;
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 1002; /* Höher als Dropdown */
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.filter-submenu-header {
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.filter-submenu-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.filter-submenu-body {
+  padding: var(--space-md);
+}
+
+.filter-submenu-footer {
+  padding: var(--space-sm) var(--space-md);
+  border-top: 1px solid var(--gray-200);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.filter-submenu-apply {
+  padding: var(--space-xs) var(--space-md);
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.filter-submenu-apply:hover {
+  background: var(--color-primary-dark);
+}
+
+/* Filter Dropdown Container */
+
+.filter-dropdown-container {
+  position: relative;
+  display: inline-block;
+}
+
+/* .filter-reset-all verwendet jetzt secondary-btn Styles */
+
+/* Responsive Filter Dropdown */
+
+@media (max-width: 768px) {
+  .filter-dropdown {
+    min-width: 260px;
+    max-width: calc(100vw - 40px);
+  }
+
+  .filter-submenu {
+    min-width: 260px;
+    max-width: calc(100vw - 80px);
+  }
+}
+
+.actions-dropdown {
+  display: none;
+}
+
+/* Portal: am body angehängt, fixed positioniert */
+
+.actions-dropdown-portal {
+  position: fixed;
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  min-width: 260px;
+  z-index: 99999;
+  padding: var(--space-xs) 0;
+  opacity: 0;
+  transform: scale(0.95);
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.actions-dropdown-portal.show {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Submenu Styles */
+
+.actions-dropdown-portal .action-submenu { position: relative; }
+
+.actions-dropdown-portal .action-item.has-submenu::after {
+  content: '›';
+  margin-left: auto;
+  opacity: 0.7;
+  transform: rotate(180deg);
+}
+
+.actions-dropdown-portal .submenu {
+  position: absolute;
+  top: 0;
+  right: 100%;
+  margin-right: var(--space-sm);
+  min-width: var(--panel-md);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.08);
+  border-radius: var(--radius-lg);
+  padding: 6px 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity .12s ease, transform .12s ease, visibility .12s ease;
+  z-index: 100000;
+}
+
+.actions-dropdown-portal .action-submenu:hover > .submenu { opacity: 1; visibility: visible; transform: translateY(0); }
+
+.submenu-item { 
+  display: 
+  flex; align-items: 
+  center; 
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  color: var(--gray-800); 
+  text-decoration: none; white-space: nowrap;
+  font-weight: 500;
+  font-size: var(--text-sm); }
+
+.submenu-item svg { width: var(--icon-sm); height: var(--icon-sm); stroke-width: 2; }
+
+.submenu-item:hover { background: #f5f7fb; }
+
+.submenu-check { margin-left: auto; color: var(--success); display: inline-flex; }
+
+.action-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  color: var(--gray-800);
+  text-decoration: none;
+  transition: background-color 0.2s ease;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+/* Einheitlicher Look für Heroicons in Actions */
+
+.action-item svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.action-item:hover {
+  background-color: var(--gray-50);
+  color: var(--text-primary);
+}
+
+.action-item:active {
+  background-color: var(--gray-100);
+}
+
+/* Fill-basierte Icons (z.B. Instagram Connect/Refresh) nicht zusätzlich stroken */
+
+.action-item svg.icon-fill {
+  stroke: none;
+  stroke-width: 0;
+}
+
+/* Ausgegraute Actions (z.B. Connect ohne Instagram-Link) */
+
+.action-item.action-disabled,
+.action-item.action-disabled:hover,
+.action-item.action-disabled:active {
+  color: var(--gray-400);
+  background-color: transparent;
+  cursor: not-allowed;
+}
+
+.action-item i {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-sm);
+}
+
+/* Responsive Design für Actions */
+
+@media (max-width: 768px) {
+  .actions-dropdown-portal {
+    min-width: var(--panel-md);
+  }
+  
+  .action-item {
+    padding: var(--space-md);
+    font-size: var(--text-md);
+  }
+}
+
+/* ============================================
+   TABLE FOOTER & EXPORT DROPDOWN
+   ============================================ */
+
+/* Export Dropdown */
+
+.export-dropdown {
+  position: relative;
+}
+
+.export-dropdown-menu {
+  position: absolute;
+  bottom: 100%;
+  right: 0;
+  margin-bottom: var(--space-xs);
+  min-width: 180px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px);
+  transition: all 0.15s ease;
+  z-index: 100;
+}
+
+.export-dropdown.show .export-dropdown-menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* Selected Item Badge */
+
+/* Warning Action Style (für Unlink) */
+
+.action-item.action-warning {
+  color: var(--amber-600);
+}
+
+.action-item.action-warning:hover {
+  background: var(--amber-50);
+  color: var(--amber-700);
+}
+
+/* Danger Action Style (für Löschen) */
+
+.action-item.action-danger {
+  color: var(--red-700);
+}
+
+.action-item.action-danger:hover {
+  background: var(--red-50);
+  color: var(--red-700);
+}
+
+.toolbar-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  background: var(--bg-primary);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-xs) 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.95);
+  transform-origin: top right;
+  transition: opacity 150ms ease, transform 150ms ease, visibility 150ms ease;
+  z-index: 30;
+}
+
+.toolbar-menu-dropdown.show {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1);
+}
+
+.toolbar-menu-dropdown .action-item {
+  width: 100%;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.toolbar-menu-dropdown .action-item.active {
+  background: var(--gray-100);
+  color: var(--text-primary);
+}
+
+.toolbar-menu-dropdown .action-submenu {
+  position: relative;
+}
+
+.toolbar-menu-dropdown .action-item.has-submenu::after {
+  content: '›';
+  margin-left: auto;
+  opacity: 0.7;
+  transform: rotate(180deg);
+}
+
+.toolbar-menu-dropdown .submenu {
+  position: absolute;
+  top: 0;
+  right: 100%;
+  margin-right: var(--space-sm);
+  min-width: var(--panel-md);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-subtle);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+  border-radius: var(--radius-lg);
+  padding: 6px 0;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity .12s ease, transform .12s ease, visibility .12s ease;
+  z-index: 31;
+}
+
+.toolbar-menu-dropdown .action-submenu:hover > .submenu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.toolbar-menu-dropdown .submenu-item {
+  width: 100%;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.toolbar-menu-dropdown .sourcing-status-filter-reset,
+.toolbar-menu-dropdown .submenu-reset {
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--gray-100);
+  margin-bottom: var(--space-xxs);
+  border-radius: 0;
+}
+
+/* --- Pill-Dropdown --- */
+
+.kategorie-pill-dropdown {
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  min-width: 160px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: var(--space-xs) 0;
+}

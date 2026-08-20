@@ -11,6 +11,8 @@ import { handleDeleteItem as _handleDeleteItem, handleAddToVideo as _handleAddTo
 import { StrategieDetailColumnVisibilityDrawer } from './StrategieDetailColumnVisibilityDrawer.js';
 import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
 import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
+import { renderToolbarMenu, renderToolbarMenuItem, renderToolbarListenKopf, bindToolbarMenu } from '../../core/components/ToolbarMenu.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 export class StrategieDetail {
   constructor() {
@@ -107,37 +109,46 @@ export class StrategieDetail {
   }
 
   renderAddItemSection() {
+    const shareIcon = `
+      <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256">
+        <path d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H165a88,88,0,0,0-85.23,66,8,8,0,0,1-15.5-4A103.94,103.94,0,0,1,165,96h39.71L170.34,61.66a8,8,0,0,1,11.32-11.32l48,48A8,8,0,0,1,229.66,109.66ZM192,208H40V88a8,8,0,0,0-16,0V216a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16Z"></path>
+      </svg>`;
+    const kategorienIcon = `
+      ${icon('tag')}`;
+    const sichtbarkeitIcon = `
+      ${icon('eye-outline')}`;
+    const customColumnsIcon = `
+      ${icon('bars-3')}`;
+
+    const marke = this.strategie?.marke;
+    const unternehmen = this.strategie?.unternehmen;
+    // Marke hat Vorrang, wenn die Strategie einer Marke haengt – sonst Unternehmen.
+    const logoUrl = marke?.logo_url || unternehmen?.logo_url || '';
+    const logoAlt = marke?.markenname || unternehmen?.firmenname || 'Logo';
+
     return `
       <div class="add-item-section add-item-section--compact">
+        <div class="add-item-actions-left">
+          ${renderToolbarListenKopf({
+            name: this.strategie?.name || '',
+            logoUrl,
+            logoAlt
+          })}
+        </div>
         <div class="add-item-actions-right">
-          <button type="button" class="secondary-btn" id="btn-share-strategie" title="Liste per E-Mail teilen">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" style="width: 16px; height: 16px;">
-              <path d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H165a88,88,0,0,0-85.23,66,8,8,0,0,1-15.5-4A103.94,103.94,0,0,1,165,96h39.71L170.34,61.66a8,8,0,0,1,11.32-11.32l48,48A8,8,0,0,1,229.66,109.66ZM192,208H40V88a8,8,0,0,0-16,0V216a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16Z"></path>
-            </svg>
-            Teilen
-          </button>
-          <button type="button" class="primary-btn" id="btn-open-add-drawer">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
+          <button type="button" class="mdc-btn" id="btn-open-add-drawer">
+            ${icon('plus-lg', { className: 'icon-16' })}
             Hinzufügen
           </button>
-          <button type="button" class="secondary-btn" id="btn-manage-kategorien" title="Kategorien verwalten">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z" />
-            </svg>
-            Kategorien
-          </button>
-          <button type="button" class="secondary-btn" id="btn-strategie-detail-column-visibility" title="Spalten-Sichtbarkeit">
-            Sichtbarkeit anpassen
-          </button>
-          <button type="button" class="secondary-btn" id="btn-strategie-custom-columns" title="Eigene Spalten verwalten">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-            </svg>
-            Eigene Spalten
-          </button>
+          ${renderToolbarMenu({
+            toggleId: 'btn-strategie-toolbar-menu',
+            itemsHtml: `
+              ${renderToolbarMenuItem({ id: 'btn-share-strategie', title: 'Liste per E-Mail teilen', icon: shareIcon, label: 'Teilen' })}
+              ${renderToolbarMenuItem({ id: 'btn-manage-kategorien', title: 'Kategorien verwalten', icon: kategorienIcon, label: 'Kategorien' })}
+              ${renderToolbarMenuItem({ id: 'btn-strategie-detail-column-visibility', title: 'Spalten-Sichtbarkeit', icon: sichtbarkeitIcon, label: 'Sichtbarkeit anpassen' })}
+              ${renderToolbarMenuItem({ id: 'btn-strategie-custom-columns', title: 'Eigene Spalten verwalten', icon: customColumnsIcon, label: 'Eigene Spalten' })}
+            `
+          })}
         </div>
       </div>
     `;
@@ -226,6 +237,11 @@ export class StrategieDetail {
     this._boundEventListeners.add(() => window.removeEventListener('strategieItemCreated', itemCreatedHandler));
 
     if (!this.isKunde) {
+      const toolbarMenu = window.content.querySelector('.toolbar-menu');
+      if (toolbarMenu) {
+        this._boundEventListeners.add(bindToolbarMenu(toolbarMenu));
+      }
+
       const shareBtn = document.getElementById('btn-share-strategie');
       if (shareBtn) {
         const handler = () => window.shareListDialog?.open({

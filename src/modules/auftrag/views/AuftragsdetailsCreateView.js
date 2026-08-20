@@ -1,3 +1,4 @@
+import { icon } from '../../../core/icons/IconSystem.js';
 export class AuftragsdetailsCreateView {
   renderForm({ isEditMode, unternehmen, allKampagnenartTypen }) {
     return `
@@ -13,7 +14,7 @@ export class AuftragsdetailsCreateView {
                 }
               </select>
               ${unternehmen.length === 0
-                ? '<small class="form-hint" style="color: var(--color-error);">Sie haben keine Unternehmen zugeordnet.</small>'
+                ? '<small class="form-hint form-hint--error">Sie haben keine Unternehmen zugeordnet.</small>'
                 : '<small class="form-hint">Wählen Sie zuerst ein Unternehmen, um die verfügbaren Aufträge zu sehen.</small>'
               }
             </div>
@@ -49,7 +50,7 @@ export class AuftragsdetailsCreateView {
               </select>
             </div>
             <div class="kampagnenart-activate-actions">
-              <button type="button" id="activate-kampagnenarten-btn" class="primary-btn">
+              <button type="button" id="activate-kampagnenarten-btn" class="mdc-btn">
                 Aktivieren
               </button>
             </div>
@@ -64,17 +65,13 @@ export class AuftragsdetailsCreateView {
           <div class="form-actions">
             <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.navigateTo('/auftragsdetails')">
               <span class="mdc-btn__icon" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
-                </svg>
+                ${icon('x-circle-filled')}
               </span>
               <span class="mdc-btn__label">Abbrechen</span>
             </button>
             <button type="submit" class="mdc-btn ${isEditMode ? 'mdc-btn--save' : 'mdc-btn--create'}" id="submit-btn" data-variant="@create-prd.mdc" data-entity-label="Auftragsdetails" data-mode="${isEditMode ? 'edit' : 'create'}" disabled>
               <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                  <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
-                </svg>
+                ${icon('check-filled')}
               </span>
               <span class="mdc-btn__spinner" aria-hidden="true">
                 <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">

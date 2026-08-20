@@ -1,6 +1,8 @@
 // SkripteService.js
 // Datenzugriff fuer den Skript-Generator (Layer 1).
-// Alle Queries laufen ueber window.supabase (RLS: intern only).
+// Alle Queries laufen ueber window.supabase (RLS: intern voll, Kunden nur eigener Scope).
+
+import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export const SEKTIONEN = ['hook', 'hauptteil', 'cta', 'gesamt'];
 
@@ -49,15 +51,24 @@ export class SkripteService {
   // Stammdaten fuer Pick-and-pull
   // ------------------------------------------------------------------
   async loadUnternehmen() {
-    const { data } = await this.db.from('unternehmen')
+    const allowedIds = await window.getAllowedUnternehmenIds();
+    if (allowedIds !== null && allowedIds.length === 0) return [];
+
+    let q = this.db.from('unternehmen')
       .select('id, firmenname, branche_id').order('firmenname');
+    if (allowedIds !== null) q = q.in('id', allowedIds);
+    const { data } = await q;
     return data || [];
   }
 
   async loadMarken(unternehmenId) {
+    const allowedIds = await window.getAllowedMarkenIds();
+    if (allowedIds !== null && allowedIds.length === 0) return [];
+
     let q = this.db.from('marke')
       .select('id, markenname, branche_id, unternehmen_id').order('markenname');
     if (unternehmenId) q = q.eq('unternehmen_id', unternehmenId);
+    if (allowedIds !== null) q = q.in('id', allowedIds);
     const { data } = await q;
     return data || [];
   }
@@ -67,11 +78,15 @@ export class SkripteService {
    * (Unternehmen ohne Marken bzw. "Keine" gewaehlt) nach unternehmen_id.
    */
   async loadKampagnen({ markeId = null, unternehmenId = null } = {}) {
+    const allowedIds = await KampagneUtils.loadAllowedKampagneIds();
+    if (allowedIds !== null && allowedIds.length === 0) return [];
+
     let q = this.db.from('kampagne')
       .select('id, kampagnenname, eigener_name, marke_id, unternehmen_id')
       .order('created_at', { ascending: false });
     if (markeId) q = q.eq('marke_id', markeId);
     else if (unternehmenId) q = q.eq('unternehmen_id', unternehmenId);
+    if (allowedIds !== null) q = q.in('id', allowedIds);
     const { data } = await q;
     return data || [];
   }
@@ -96,6 +111,26 @@ export class SkripteService {
   async loadPersonas() {
     const { data } = await this.db.from('personas').select('*')
       .order('oberbegriff', { nullsFirst: false }).order('name');
+    return data || [];
+  }
+
+  /**
+   * Campaign-Briefings zum Kontext: immer am Unternehmen, bei Markenwahl
+   * zusaetzlich markenspezifische ODER unternehmensweite (marke_id IS NULL).
+   * Drafts (inkl. migrierter Huellen) bleiben draussen.
+   */
+  async loadBriefings(unternehmenId, markeId = null) {
+    if (!unternehmenId) return [];
+
+    let q = this.db.from('campaign_briefings')
+      .select('id, aktivierung_name, bereich, is_draft')
+      .eq('unternehmen_id', unternehmenId)
+      .eq('is_draft', false);
+
+    if (markeId) q = q.or(`marke_id.eq.${markeId},marke_id.is.null`);
+
+    const { data, error } = await q.order('updated_at', { ascending: false });
+    if (error) throw new Error(error.message);
     return data || [];
   }
 
@@ -130,18 +165,22 @@ export class SkripteService {
   // Skripte
   // ------------------------------------------------------------------
   async loadSkripte() {
-    const { data } = await this.db.from('skripte')
-      .select('id, titel, unternehmen_id, marke_id, kampagne_id, branche_id, hook, hauptteil, cta, herkunft, performance_label, status, mit_dna, model, funnel_stufe, created_at, unternehmen(firmenname), marke(markenname), branchen(name)')
+    const { data, error } = await this.db.from('skripte')
+      .select('id, titel, unternehmen_id, marke_id, kampagne_id, branche_id, hook, hauptteil, cta, herkunft, performance_label, status, mit_dna, model, funnel_stufe, created_at, unternehmen(id, firmenname, internes_kuerzel, logo_url), marke(id, markenname, logo_url), kampagne(id, kampagnenname, eigener_name), branchen(name)')
       .order('created_at', { ascending: false })
       .limit(200);
+
+    if (error) throw new Error(error.message);
     return data || [];
   }
 
   async loadSkript(id) {
-    const { data } = await this.db.from('skripte')
-      .select('*, unternehmen(firmenname), marke(markenname), kampagne(kampagnenname, eigener_name), produkt(name), personas(name, oberbegriff), branchen(name)')
-      .eq('id', id).single();
-    return data;
+    const { data, error } = await this.db.from('skripte')
+      .select('*, unternehmen(firmenname), marke(markenname), kampagne(kampagnenname, eigener_name), produkt(name), personas(name, oberbegriff), branchen(name), briefing:campaign_briefings(aktivierung_name, bereich)')
+      .eq('id', id).maybeSingle();
+
+    if (error) throw new Error(error.message);
+    return data || null;
   }
 
   async updateSkript(id, patch) {
@@ -179,6 +218,7 @@ export class SkripteService {
       produkt_id: payload.produkt_id || null,
       persona_id: payload.persona_id || null,
       branche_id: payload.branche_id || null,
+      briefing_id: payload.briefing_id || null,
       video_idee: payload.video_idee || null,
       location: payload.location || null,
       regieanweisung: payload.regieanweisung || null,
@@ -198,7 +238,7 @@ export class SkripteService {
   /**
    * Stub mit frischem Generator-Payload aktualisieren (Retry/erneuter Start
    * mit geaenderten Vorgaben). prompt_kontext wird gemergt, damit z.B. ein
-   * gecachter briefing_extrakt aus der Rueckfragen-Phase erhalten bleibt.
+   * bestehender prompt_kontext (z.B. Job-Caches) erhalten bleibt.
    */
   async updateSkriptStub(id, payload) {
     const { data: existing } = await this.db.from('skripte')
@@ -211,6 +251,7 @@ export class SkripteService {
       produkt_id: payload.produkt_id || null,
       persona_id: payload.persona_id || null,
       branche_id: payload.branche_id || null,
+      briefing_id: payload.briefing_id || null,
       video_idee: payload.video_idee || null,
       location: payload.location || null,
       regieanweisung: payload.regieanweisung || null,
@@ -228,8 +269,9 @@ export class SkripteService {
   // Editor: Chat-Messages (Assistant-Message = Job, Status via Realtime)
   // ------------------------------------------------------------------
   async getChatMessages(skriptId) {
-    const { data } = await this.db.from('skript_chat_messages')
+    const { data, error } = await this.db.from('skript_chat_messages')
       .select('*').eq('skript_id', skriptId).order('created_at');
+    if (error) throw new Error(error.message);
     return data || [];
   }
 
@@ -268,9 +310,10 @@ export class SkripteService {
   // Editor: Versions-Snapshots
   // ------------------------------------------------------------------
   async getVersionen(skriptId) {
-    const { data } = await this.db.from('skript_versionen')
-      .select('id, version_nr, sub_nr, titel, hook, hauptteil, cta, aenderung_beschreibung, created_at')
+    const { data, error } = await this.db.from('skript_versionen')
+      .select('id, version_nr, sub_nr, titel, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, aenderung_beschreibung, created_at')
       .eq('skript_id', skriptId).order('version_nr').order('sub_nr');
+    if (error) throw new Error(error.message);
     return data || [];
   }
 
@@ -311,6 +354,9 @@ export class SkripteService {
         hook: vorherigerStand.hook || null,
         hauptteil: vorherigerStand.hauptteil || null,
         cta: vorherigerStand.cta || null,
+        hook_visuell: vorherigerStand.hook_visuell ?? null,
+        hauptteil_visuell: vorherigerStand.hauptteil_visuell ?? null,
+        cta_visuell: vorherigerStand.cta_visuell ?? null,
         aenderung_beschreibung: 'Ausgangsversion',
         created_by: user?.id
       });
@@ -339,6 +385,9 @@ export class SkripteService {
       hook: skript.hook || null,
       hauptteil: skript.hauptteil || null,
       cta: skript.cta || null,
+      hook_visuell: skript.hook_visuell ?? null,
+      hauptteil_visuell: skript.hauptteil_visuell ?? null,
+      cta_visuell: skript.cta_visuell ?? null,
       aenderung_beschreibung: beschreibung || null,
       created_by: user?.id
     });
@@ -366,6 +415,9 @@ export class SkripteService {
       hook: version.hook,
       hauptteil: version.hauptteil,
       cta: version.cta,
+      hook_visuell: version.hook_visuell ?? null,
+      hauptteil_visuell: version.hauptteil_visuell ?? null,
+      cta_visuell: version.cta_visuell ?? null,
       aktive_version_nr: version.version_nr,
       aktive_sub_nr: version.sub_nr || 0
     });
@@ -375,8 +427,9 @@ export class SkripteService {
   // Feedback
   // ------------------------------------------------------------------
   async loadFeedback(skriptId) {
-    const { data } = await this.db.from('skript_feedback')
+    const { data, error } = await this.db.from('skript_feedback')
       .select('*').eq('skript_id', skriptId).order('created_at');
+    if (error) throw new Error(error.message);
     return data || [];
   }
 

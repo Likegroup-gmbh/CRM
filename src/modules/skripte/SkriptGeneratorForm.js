@@ -7,8 +7,8 @@
 import { skripteService, FUNNEL_STUFEN, VIDEO_LAENGEN } from './SkripteService.js';
 import { escapeHtml } from './SkripteUtils.js';
 import { TranscribeService, isSupportedVideoUrl } from '../transcribe/TranscribeService.js';
+import { BEREICH_LABELS } from '../briefing/create/fieldConfig.js';
 
-const BRIEFING_MAX_BYTES = 10 * 1024 * 1024; // Bucket-Limit 'documents': 10 MB
 const REF_MANUELL_MIN_ZEICHEN = 50; // manuelles Transkript: Mindestlaenge
 
 // Kompakte Labels fuer den Transcribe-Fortschritt (ohne Console-Log)
@@ -97,7 +97,6 @@ export class SkriptGeneratorForm {
     this.container = null;
     this.unternehmen = [];
     this.marken = [];
-    this.briefingFile = null; // gewaehltes PDF (File), Upload erst beim Generieren
 
     // Videovorlage (optional): Transcribe-Job-Zustand dieser Form-Instanz
     this.transcribe = new TranscribeService({ onUpdate: (job) => this.onTranscribeUpdate(job) });
@@ -114,7 +113,7 @@ export class SkriptGeneratorForm {
     container.innerHTML = `
       <div class="skripte-card">
         <h3>Kontext auswählen</h3>
-        <p class="skripte-hint">Unternehmen wählen – Marke ist optional (nicht jedes Unternehmen hat eine). Briefing, Kickoff und Produktdaten werden automatisch aus dem CRM gezogen.</p>
+        <p class="skripte-hint">Unternehmen wählen – Marke ist optional (nicht jedes Unternehmen hat eine). Kickoff und Produktdaten werden automatisch aus dem CRM gezogen; das Briefing wählst du unten.</p>
         <div class="skripte-form-grid">
           <div class="form-group">
             <label class="form-label">Unternehmen *</label>
@@ -143,14 +142,9 @@ export class SkriptGeneratorForm {
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">PDF-Briefing (optional)</label>
-          <input id="${p}-briefing-pdf" type="file" accept="application/pdf,.pdf" hidden />
-          <div class="skripte-briefing-upload" id="${p}-briefing-wrap">
-            <button type="button" id="${p}-briefing-btn" class="secondary-btn">PDF auswählen</button>
-            <span class="skripte-briefing-name" id="${p}-briefing-name" hidden></span>
-            <button type="button" id="${p}-briefing-clear" class="skripte-briefing-clear" title="PDF entfernen" aria-label="PDF entfernen" hidden>&times;</button>
-          </div>
-          <span class="skripte-hint">Liky durchforstet das Briefing und nutzt die Fakten als verbindliche Basis für das Skript (max. 10 MB).</span>
+          <label class="form-label">Briefing</label>
+          <select id="${p}-briefing" class="form-input" disabled><option value="">– Erst Unternehmen wählen –</option></select>
+          <span class="skripte-hint" id="${p}-briefing-hint">Wähle ein Campaign-Briefing – Liky nutzt die Angaben als verbindliche Basis für das Skript.</span>
         </div>
       </div>
 
@@ -160,7 +154,7 @@ export class SkriptGeneratorForm {
         <div class="skripte-ref-row">
           <input type="url" id="${p}-ref-url" class="form-input"
             placeholder="TikTok- oder Instagram-URL der Vorlage (z.B. https://www.tiktok.com/@user/video/...)" />
-          <button type="button" id="${p}-ref-start" class="secondary-btn">Analysieren</button>
+          <button type="button" id="${p}-ref-start" class="mdc-btn mdc-btn--secondary">Analysieren</button>
         </div>
         <div id="${p}-ref-progress" class="skripte-ref-progress" hidden>
           <div class="skripte-progress-head">
@@ -170,7 +164,7 @@ export class SkriptGeneratorForm {
         </div>
         <div id="${p}-ref-error" class="skripte-ref-error" hidden>
           <span id="${p}-ref-error-text"></span>
-          <button type="button" id="${p}-ref-retry" class="secondary-btn">Erneut versuchen</button>
+          <button type="button" id="${p}-ref-retry" class="mdc-btn mdc-btn--secondary">Erneut versuchen</button>
         </div>
         <div id="${p}-ref-result" hidden>
           <div id="${p}-ref-meta" class="skripte-ref-meta"></div>
@@ -191,7 +185,7 @@ export class SkriptGeneratorForm {
                 placeholder="Caption des Original-Posts"></textarea>
             </div>
           </div>
-          <button type="button" id="${p}-ref-clear" class="secondary-btn">Vorlage entfernen</button>
+          <button type="button" id="${p}-ref-clear" class="mdc-btn mdc-btn--secondary">Vorlage entfernen</button>
         </div>
       </div>
 
@@ -245,7 +239,6 @@ export class SkriptGeneratorForm {
 
     this.el('unternehmen').addEventListener('change', () => this.onUnternehmenChange());
     this.el('marke').addEventListener('change', () => this.onMarkeChange());
-    this.bindBriefingUpload();
     this.bindReferenzEvents();
 
     await Promise.all([this.loadUnternehmen(), this.loadPersonas(), this.loadBranchen(), this.loadDnaOptionen()]);
@@ -425,74 +418,42 @@ export class SkriptGeneratorForm {
   }
 
   // ------------------------------------------------------------------
-  // PDF-Briefing: Auswahl im Formular, Upload erst beim Generieren
+  // Campaign-Briefing: kaskadiert nach Unternehmen / Marke
   // ------------------------------------------------------------------
-  bindBriefingUpload() {
-    const input = this.el('briefing-pdf');
-    const btn = this.el('briefing-btn');
-    const clear = this.el('briefing-clear');
-    if (!input || !btn) return;
+  async loadBriefings() {
+    const unternehmenId = this.el('unternehmen')?.value || null;
+    const markeId = this.el('marke')?.value || null;
+    const select = this.el('briefing');
+    const hint = this.el('briefing-hint');
+    if (!select) return;
 
-    btn.addEventListener('click', () => input.click());
-    input.addEventListener('change', () => {
-      const file = input.files?.[0] || null;
-      if (!file) return;
-      if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-        window.toastSystem?.error('Bitte eine PDF-Datei wählen');
-        input.value = '';
-        return;
+    if (!unternehmenId) {
+      select.disabled = true;
+      select.innerHTML = '<option value="">– Erst Unternehmen wählen –</option>';
+      if (hint) hint.textContent = 'Wähle zuerst ein Unternehmen, dann ein Campaign-Briefing.';
+      return;
+    }
+
+    const briefings = await skripteService.loadBriefings(unternehmenId, markeId || null);
+    select.disabled = false;
+    select.innerHTML = '<option value="">– Keins –</option>'
+      + briefings.map((b) => {
+        const bereich = BEREICH_LABELS[b.bereich] || '';
+        const name = b.aktivierung_name || 'Unbenanntes Briefing';
+        return `<option value="${b.id}">${escapeHtml(name)}${bereich ? ` (${escapeHtml(bereich)})` : ''}</option>`;
+      }).join('');
+
+    if (hint) {
+      if (!briefings.length) {
+        hint.innerHTML = 'Noch kein Briefing – <a href="/briefing">im Briefing-Generator anlegen</a>.';
+        hint.querySelector('a')?.addEventListener('click', (e) => {
+          e.preventDefault();
+          window.navigateTo?.('/briefing');
+        });
+      } else {
+        hint.textContent = 'Liky nutzt die Angaben als verbindliche Basis für das Skript.';
       }
-      if (file.size > BRIEFING_MAX_BYTES) {
-        window.toastSystem?.error('PDF ist zu groß (max. 10 MB)');
-        input.value = '';
-        return;
-      }
-      this.briefingFile = file;
-      this.renderBriefingState();
-    });
-    clear?.addEventListener('click', () => {
-      this.briefingFile = null;
-      input.value = '';
-      this.renderBriefingState();
-    });
-  }
-
-  renderBriefingState() {
-    const name = this.el('briefing-name');
-    const clear = this.el('briefing-clear');
-    const btn = this.el('briefing-btn');
-    if (!name || !btn) return;
-    const hatDatei = !!this.briefingFile;
-    name.hidden = !hatDatei;
-    name.textContent = hatDatei ? this.briefingFile.name : '';
-    if (clear) clear.hidden = !hatDatei;
-    btn.textContent = hatDatei ? 'Anderes PDF wählen' : 'PDF auswählen';
-  }
-
-  /**
-   * Gewaehltes PDF in den Storage-Bucket 'documents' hochladen.
-   * Pfad MUSS unter 'briefings/' liegen (Storage-INSERT-Policy erlaubt nur
-   * die Top-Level-Ordner 'briefings' und 'kampagnen').
-   */
-  async uploadBriefingPdf() {
-    if (!this.briefingFile) return null;
-    const safeName = this.briefingFile.name.replace(/[^a-zA-Z0-9äöüÄÖÜß._-]/g, '_');
-    const pfad = `briefings/skript-generator/${Date.now()}-${safeName}`;
-    const { error } = await window.supabase.storage.from('documents')
-      .upload(pfad, this.briefingFile, { contentType: 'application/pdf', upsert: false });
-    if (error) throw new Error(`PDF-Upload fehlgeschlagen: ${error.message}`);
-    return { pfad, name: this.briefingFile.name };
-  }
-
-  /**
-   * Wie getPayload(), laedt aber zusaetzlich ein gewaehltes PDF-Briefing hoch
-   * und haengt es als briefing_pdf { pfad, name } an den Payload.
-   */
-  async getPayloadMitUpload() {
-    const payload = this.getPayload();
-    const briefingPdf = await this.uploadBriefingPdf();
-    if (briefingPdf) payload.briefing_pdf = briefingPdf;
-    return payload;
+    }
   }
 
   async loadUnternehmen() {
@@ -557,6 +518,7 @@ export class SkriptGeneratorForm {
     if (!unternehmenId) {
       markeSelect.disabled = true;
       markeSelect.innerHTML = '<option value="">– Erst Unternehmen wählen –</option>';
+      await this.loadBriefings();
       return;
     }
 
@@ -573,7 +535,7 @@ export class SkriptGeneratorForm {
       + this.marken.map((m) => `<option value="${m.id}">${escapeHtml(m.markenname)}</option>`).join('');
 
     // Ohne (gewaehlte) Marke haengen Kampagne/Produkt direkt am Unternehmen
-    await this.loadKampagnenUndProdukte();
+    await Promise.all([this.loadKampagnenUndProdukte(), this.loadBriefings()]);
   }
 
   async onMarkeChange() {
@@ -584,7 +546,7 @@ export class SkriptGeneratorForm {
     const brancheSelect = this.el('branche');
     if (brancheSelect && marke?.branche_id) brancheSelect.value = marke.branche_id;
 
-    await this.loadKampagnenUndProdukte();
+    await Promise.all([this.loadKampagnenUndProdukte(), this.loadBriefings()]);
   }
 
   /**
@@ -643,6 +605,7 @@ export class SkriptGeneratorForm {
       produkt_id: this.el('produkt').value || null,
       persona_id: this.el('persona').value || null,
       branche_id: this.el('branche').value || null,
+      briefing_id: this.el('briefing')?.value || null,
       video_idee: videoIdee,
       location: this.el('location').value.trim() || null,
       regieanweisung: this.el('regie').value.trim() || null,

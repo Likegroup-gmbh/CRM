@@ -3,6 +3,7 @@
 
 import { strategieService } from '../strategie/StrategieService.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { renderEmptyStateRow } from '../../core/components/EmptyState.js';
 
 export class KundenLanding {
   constructor() {
@@ -69,7 +70,7 @@ export class KundenLanding {
         <tr class="table-row-clickable" onclick="window.navigateTo('/strategie/${s.id}')">
           <td>
             <strong>${window.validatorSystem.sanitizeHtml(s.name || 'Ohne Namen')}</strong>
-            ${s.beschreibung ? `<br><span style="font-size: var(--text-xs); color: var(--text-secondary);">${window.validatorSystem.sanitizeHtml(s.beschreibung)}</span>` : ''}
+            ${s.beschreibung ? `<br><span class="kunden-landing-desc">${window.validatorSystem.sanitizeHtml(s.beschreibung)}</span>` : ''}
           </td>
           <td>${window.validatorSystem.sanitizeHtml(verknuepfung || '—')}</td>
           <td>${createdAt}</td>
@@ -80,8 +81,8 @@ export class KundenLanding {
     const html = `
       <div class="kunden-portal">
         <!-- Kampagnen Section -->
-        <div style="margin-bottom: var(--space-xxl);">
-          <h2 style="margin-bottom: var(--space-md);">Meine Kampagnen</h2>
+        <div class="kunden-landing-section">
+          <h2 class="u-mb-md">Meine Kampagnen</h2>
       <div class="data-table-container">
         <table class="data-table">
           <thead>
@@ -93,7 +94,7 @@ export class KundenLanding {
             </tr>
           </thead>
               <tbody>
-                ${kampagnenRows || '<tr><td colspan="4" style="text-align: center; padding: var(--space-lg); color: var(--text-secondary);">Keine Kampagnen</td></tr>'}
+                ${kampagnenRows || renderEmptyStateRow({ icon: 'megaphone', title: 'Keine Kampagnen' }, 4)}
               </tbody>
             </table>
           </div>
@@ -101,7 +102,7 @@ export class KundenLanding {
 
         <!-- Strategien Section -->
         <div>
-          <h2 style="margin-bottom: var(--space-md);">Content-Strategien</h2>
+          <h2 class="u-mb-md">Content-Strategien</h2>
           <div class="data-table-container">
             <table class="data-table">
               <thead>
@@ -112,7 +113,7 @@ export class KundenLanding {
                 </tr>
               </thead>
               <tbody>
-                ${strategienRows || '<tr><td colspan="3" style="text-align: center; padding: var(--space-lg); color: var(--text-secondary);">Keine Strategien</td></tr>'}
+                ${strategienRows || renderEmptyStateRow({ icon: 'list', title: 'Keine Strategien' }, 3)}
               </tbody>
         </table>
           </div>

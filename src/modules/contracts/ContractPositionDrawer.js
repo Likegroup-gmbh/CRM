@@ -104,9 +104,9 @@ export class ContractPositionDrawer {
               </div>
             </div>
 
-            <div class="form-actions" style="margin-top: var(--space-lg);">
-              <button type="submit" class="primary-btn">${this.isEdit ? 'Speichern' : 'Anlegen'}</button>
-              <button type="button" class="secondary-btn" id="cp-drawer-cancel">Abbrechen</button>
+            <div class="form-actions u-mt-lg">
+              <button type="submit" class="mdc-btn">${this.isEdit ? 'Speichern' : 'Anlegen'}</button>
+              <button type="button" class="mdc-btn mdc-btn--secondary" id="cp-drawer-cancel">Abbrechen</button>
             </div>
           </form>
         </div>

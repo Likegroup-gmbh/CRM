@@ -3,6 +3,8 @@
 
 import { KampagnePreviewDrawer } from './KampagnePreviewDrawer.js';
 import { KampagneUtils } from './KampagneUtils.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 // Debug-Flag für Logging (Production: false)
 const DEBUG_CALENDAR = false;
@@ -350,18 +352,14 @@ export class KampagneCalendarView {
         <main class="calendar-main">
           <div class="calendar-header">
             <button class="calendar-nav-btn" id="btn-prev">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-              </svg>
+              ${icon('chevron-left')}
             </button>
             <h2 class="calendar-title">${this.currentView === 'week' ? this.formatWeekTitle() : this.formatMonthTitle()}</h2>
             <button class="calendar-nav-btn" id="btn-next">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-              </svg>
+              ${icon('chevron-right')}
             </button>
-            <button class="secondary-btn calendar-today-btn" id="btn-today">Heute</button>
-            <button class="secondary-btn calendar-view-toggle-btn ${this.currentView === 'month' ? 'active' : ''}" id="btn-toggle-view">
+            <button class="mdc-btn mdc-btn--secondary calendar-today-btn" id="btn-today">Heute</button>
+            <button class="mdc-btn mdc-btn--secondary calendar-view-toggle-btn ${this.currentView === 'month' ? 'active' : ''}" id="btn-toggle-view">
               ${this.currentView === 'week' ? 'Monat' : 'Woche'}
             </button>
           </div>
@@ -395,7 +393,7 @@ export class KampagneCalendarView {
     const safe = (str) => window.validatorSystem?.sanitizeHtml?.(str) ?? str;
 
     if (events.length === 0) {
-      return `<div class="sidebar-empty">Keine Deadlines</div>`;
+      return renderEmptyState({ icon: 'calendar', title: 'Keine Deadlines', size: 'small' });
     }
 
     return `

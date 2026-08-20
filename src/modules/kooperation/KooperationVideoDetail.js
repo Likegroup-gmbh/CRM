@@ -13,6 +13,8 @@ import { saveVideoFeedbackSlot } from '../../core/videoFeedback/VideoFeedbackRep
 import { VideoFeedbackSaveController } from '../../core/videoFeedback/VideoFeedbackSaveController.js';
 import { VideoFeedbackBinding } from '../kampagne/VideoFeedbackBinding.js';
 import { MAX_VIDEO_SIZE } from '../../core/VideoUploadUtils.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 const DEBUG_UPLOAD = true;
 
@@ -32,7 +34,7 @@ export const kooperationVideoDetail = {
       this.videoId = (id && id !== 'new') ? id : null;
       if (!this.videoId) {
         window.setHeadline('Video');
-        window.content.innerHTML = '<p class="empty-state">Videos werden automatisch über die Kooperation erstellt.</p>';
+        window.content.innerHTML = renderEmptyState({ icon: 'info', title: 'Videos werden automatisch über die Kooperation erstellt' });
         return;
       }
 
@@ -125,8 +127,8 @@ export const kooperationVideoDetail = {
     // Ordner-Link anzeigen statt Video-Player
     const folderUrl = v.folder_url || '';
     const mediaHtml = folderUrl
-      ? `<a href="${folderUrl}" target="_blank" rel="noopener" class="primary-btn">Ordner öffnen</a>`
-      : '<p class="empty-state">Kein Ordner hinterlegt.</p>';
+      ? `<a href="${folderUrl}" target="_blank" rel="noopener" class="mdc-btn">Ordner öffnen</a>`
+      : renderEmptyState({ icon: 'folder', title: 'Kein Ordner hinterlegt' });
 
     // Nur aktive (nicht soft-geloeschte) Kommentare als Slot-Wert anzeigen.
     const activeComments = (this.comments || []).filter(c => !c.deleted_at);
@@ -161,9 +163,9 @@ export const kooperationVideoDetail = {
               <div class="detail-item"><label>Erstellt</label><span>${fmtDateTime(v.created_at)}</span></div>
             </div>
             ${canEdit ? `
-            <div class="form-inline" style="margin-top:var(--space-sm);gap:var(--space-xs);display:flex;align-items:center;">
+            <div class="form-inline koop-video-status-row">
               <label>Status ändern:</label>
-              <select id="video-status" class="form-input" style="max-width:220px;">
+              <select id="video-status" class="form-input koop-video-status-select">
                 <option value="produktion" ${v.status !== 'abgeschlossen' ? 'selected' : ''}>Produktion</option>
                 <option value="abgeschlossen" ${v.status === 'abgeschlossen' ? 'selected' : ''}>Abgeschlossen</option>
               </select>
@@ -182,10 +184,10 @@ export const kooperationVideoDetail = {
             <h3>Video-Versionen</h3>
             ${assetsHtml}
             ${canUpload ? `
-            <div class="asset-upload-section" style="margin-top:var(--space-md);padding-top:var(--space-md);border-top:var(--border-xs) solid var(--border-primary);">
-              <h4 style="margin:0 0 var(--space-sm) 0;">Neue Video-Variante hochladen</h4>
-              <div style="margin-bottom:var(--space-xs);">
-                <label style="display:inline-flex;align-items:center;gap:var(--space-xxs);cursor:pointer;font-size:var(--font-size-sm);color:var(--text-secondary);">
+            <div class="asset-upload-section koop-asset-upload-section">
+              <h4 class="koop-asset-upload-title">Neue Video-Variante hochladen</h4>
+              <div class="koop-asset-field">
+                <label class="koop-upload-mode-label">
                   <input type="checkbox" id="toggle-upload-mode" />
                   Stattdessen URL eingeben
                 </label>
@@ -193,18 +195,16 @@ export const kooperationVideoDetail = {
               <form id="asset-upload-form">
                 <!-- Datei-Upload (Standard) -->
                 <div id="file-upload-section">
-                  <div class="dropzone" id="video-dropzone" style="border:2px dashed var(--border-primary);border-radius:var(--radius-md);padding:var(--space-lg);text-align:center;cursor:pointer;transition:all 0.2s ease;background:var(--bg-secondary);">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="40" height="40" style="margin:0 auto var(--space-xs);display:block;color:var(--text-tertiary);">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-                    </svg>
-                    <p style="margin:0;color:var(--text-secondary);font-size:var(--font-size-sm);">Video hierher ziehen oder <strong>klicken</strong> zum Auswählen</p>
-                    <p style="margin:var(--space-xxs) 0 0;color:var(--text-tertiary);font-size:var(--font-size-xs);">MP4, WebM, MOV – max. 500 MB</p>
+                  <div class="dropzone" id="video-dropzone">
+                    ${icon('upload')}
+                    <p class="dropzone-text">Video hierher ziehen oder <strong>klicken</strong> zum Auswählen</p>
+                    <p class="dropzone-hint--spaced">MP4, WebM, MOV – max. 500 MB</p>
                     <input type="file" id="video-file-input" accept="video/*,.mov,.mp4,.webm,.avi" style="display:none;" />
                   </div>
                   <div id="file-preview" style="display:none;margin-top:var(--space-xs);padding:var(--space-xs) var(--space-sm);background:var(--bg-tertiary);border-radius:var(--radius-sm);font-size:var(--font-size-sm);display:none;align-items:center;gap:var(--space-xs);">
-                    <span id="file-name" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-                    <span id="file-size" style="color:var(--text-tertiary);flex-shrink:0;"></span>
-                    <button type="button" id="file-remove" style="background:none;border:none;cursor:pointer;color:var(--text-tertiary);padding:2px;" title="Entfernen">✕</button>
+                    <span id="file-name" class="koop-file-name"></span>
+                    <span id="file-size" class="koop-file-size"></span>
+                    <button type="button" id="file-remove" class="koop-file-remove" title="Entfernen">✕</button>
                   </div>
                 </div>
                 <!-- URL-Fallback (hidden by default) -->
@@ -214,21 +214,21 @@ export const kooperationVideoDetail = {
                     <input type="url" name="file_url" class="form-input" placeholder="https://..." />
                   </div>
                 </div>
-                <div class="form-field" style="margin-top:var(--space-xs);">
+                <div class="form-field koop-form-field-spaced">
                   <label>Beschreibung (optional)</label>
                   <textarea name="description" class="form-input" rows="2" placeholder="z.B. Feedback aus Runde 1 eingearbeitet"></textarea>
                 </div>
                 <!-- Progress Bar -->
                 <div id="upload-progress-container" style="display:none;margin-top:var(--space-xs);">
-                  <div style="display:flex;justify-content:space-between;font-size:var(--font-size-xs);color:var(--text-secondary);margin-bottom:var(--space-xxs);">
+                  <div class="koop-upload-progress-header">
                     <span id="upload-progress-label">Wird hochgeladen...</span>
                     <span id="upload-progress-percent">0%</span>
                   </div>
-                  <div style="width:100%;height:6px;background:var(--bg-tertiary);border-radius:3px;overflow:hidden;">
+                  <div class="koop-upload-progress-track">
                     <div id="upload-progress-bar" style="width:0%;height:100%;background:var(--color-primary);border-radius:3px;transition:width 0.3s ease;"></div>
                   </div>
                 </div>
-                <button type="submit" id="asset-upload-btn" class="primary-btn" style="margin-top:var(--space-sm);" disabled>Hochladen</button>
+                <button type="submit" id="asset-upload-btn" class="mdc-btn koop-upload-btn" disabled>Hochladen</button>
               </form>
             </div>` : ''}
           </div>
@@ -256,7 +256,7 @@ export const kooperationVideoDetail = {
 
   renderAssetVersions(assets, safe, fmtDateTime, canEdit) {
     if (!assets || assets.length === 0) {
-      return '<p class="empty-state">Keine Assets vorhanden.</p>';
+      return renderEmptyState({ icon: 'folder', title: 'Keine Assets vorhanden' });
     }
 
     const sortedAssets = [...assets].sort((a, b) => 
@@ -266,7 +266,7 @@ export const kooperationVideoDetail = {
     const rows = sortedAssets.map(asset => `
       <tr>
         <td>
-          <span style="font-weight:600;color:var(--color-primary);">V${asset.version_number || 1}</span>
+          <span class="koop-version-label">V${asset.version_number || 1}</span>
         </td>
         <td>${asset.description ? safe(asset.description) : '—'}</td>
         <td>${fmtDateTime(asset.created_at)}</td>
@@ -278,23 +278,16 @@ export const kooperationVideoDetail = {
         <td>
           <div class="actions-dropdown-container" data-entity-type="kooperation_video_asset">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-              </svg>
+              ${icon('dots-vertical-filled')}
             </button>
             <div class="actions-dropdown">
               <a href="${asset.file_url}" target="_blank" rel="noopener" class="action-item">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                </svg>
-                Öffnen
+                ${icon('eye')}
+                Anzeigen
               </a>
               ${!asset.is_current && canEdit ? `
               <a href="#" class="action-item set-current-version" data-asset-id="${asset.id}">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                </svg>
+                ${icon('check-circle')}
                 Als aktuell markieren
               </a>
               ` : ''}

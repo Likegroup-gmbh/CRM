@@ -10,6 +10,8 @@
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { creatorUtils } from './CreatorUtils.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 const GRID_CHUNK_SIZE = 25;
 const MAX_MEDIA = 3;
@@ -242,10 +244,10 @@ export class CreatorGridView {
         el.innerHTML = spinner('Lade weitere Creator...');
         break;
       case 'empty':
-        el.innerHTML = '<div class="creator-grid-empty">Keine Creator gefunden.</div>';
+        el.innerHTML = renderEmptyState({ icon: 'creator', title: 'Keine Creator gefunden' });
         break;
       case 'error':
-        el.innerHTML = '<div class="creator-grid-error">Fehler beim Laden der Creator. <button type="button" class="secondary-btn creator-grid-retry">Erneut versuchen</button></div>';
+        el.innerHTML = '<div class="creator-grid-error">Fehler beim Laden der Creator. <button type="button" class="mdc-btn mdc-btn--secondary creator-grid-retry">Erneut versuchen</button></div>';
         break;
       case 'end':
       case 'idle':
@@ -346,7 +348,7 @@ export class CreatorGridView {
 
     // Nicht verbunden: Status; fuer Admins zusaetzlich CTA
     const cta = this.list.isAdmin && c.instagram
-      ? `<button type="button" class="secondary-btn btn-sm creator-card__connect" data-id="${c.id}">Instagram verbinden</button>`
+      ? `<button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm creator-card__connect" data-id="${c.id}">Instagram verbinden</button>`
       : '';
     return `
       <div class="creator-card__ig-empty">
@@ -369,7 +371,8 @@ export class CreatorGridView {
     }
     if (c.ig_connected_at && c.ig_engagement_rate != null && !isNaN(c.ig_engagement_rate)) {
       const er = `${Number(c.ig_engagement_rate).toLocaleString('de-DE', { maximumFractionDigits: 2 })} %`;
-      stats.push(`<div class="creator-card__stat"><span class="creator-card__stat-value">${er}</span><span class="creator-card__stat-label">Instagram Engagement</span></div>`);
+      const erIcon = icon('engagement', { className: 'creator-card__stat-icon' });
+      stats.push(`<div class="creator-card__stat"><span class="creator-card__stat-value">${erIcon}${er}</span><span class="creator-card__stat-label">Instagram Engagement</span></div>`);
     }
 
     if (!stats.length) return '';
@@ -381,8 +384,8 @@ export class CreatorGridView {
     const safeUrl = (u) => window.validatorSystem?.sanitizeUrl?.(u) || '';
     const parts = [];
 
-    const igIcon = '<svg class="creator-card__social-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160ZM176,24H80A56.06,56.06,0,0,0,24,80v96a56.06,56.06,0,0,0,56,56h96a56.06,56.06,0,0,0,56-56V80A56.06,56.06,0,0,0,176,24Zm40,152a40,40,0,0,1-40,40H80a40,40,0,0,1-40-40V80A40,40,0,0,1,80,40h96a40,40,0,0,1,40,40ZM192,76a12,12,0,1,1-12-12A12,12,0,0,1,192,76Z"></path></svg>';
-    const ttIcon = '<svg class="creator-card__social-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M224,72a48.05,48.05,0,0,1-48-48,8,8,0,0,0-8-8H128a8,8,0,0,0-8,8V156a20,20,0,1,1-28.57-18.08A8,8,0,0,0,96,130.69V88a8,8,0,0,0-9.4-7.88C50.91,86.48,24,119.1,24,156a76,76,0,0,0,152,0V116.29A103.25,103.25,0,0,0,224,128a8,8,0,0,0,8-8V80A8,8,0,0,0,224,72Zm-8,39.64a87.19,87.19,0,0,1-43.33-16.15A8,8,0,0,0,160,102v54a60,60,0,0,1-120,0c0-25.9,16.64-49.13,40-57.6v27.67A36,36,0,1,0,136,156V32h24.5A64.14,64.14,0,0,0,216,87.5Z"></path></svg>';
+    const igIcon = icon('instagram', { className: 'creator-card__social-icon' });
+    const ttIcon = icon('tiktok', { className: 'creator-card__social-icon crm-icon--filled' });
 
     if (c.instagram) {
       const raw = c.instagram.startsWith('http') ? c.instagram : `https://instagram.com/${String(c.instagram).replace('@', '')}`;
@@ -420,8 +423,8 @@ export class CreatorGridView {
 
     if (!usable.length) return '';
 
-    const likeIcon = '<svg class="creator-card__post-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M178,40c-20.65,0-38.73,8.88-50,23.89C116.73,48.88,98.65,40,78,40a62.07,62.07,0,0,0-62,62c0,70,103.79,126.66,108.21,129a8,8,0,0,0,7.58,0C136.21,228.66,240,172,240,102A62.07,62.07,0,0,0,178,40ZM128,214.8C109.74,204.16,32,155.69,32,102A46.06,46.06,0,0,1,78,56c19.45,0,35.78,10.36,42.6,27a8,8,0,0,0,14.8,0c6.82-16.67,23.15-27,42.6-27a46.06,46.06,0,0,1,46,46C224,155.61,146.24,204.15,128,214.8Z"></path></svg>';
-    const commentIcon = '<svg class="creator-card__post-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M140,128a12,12,0,1,1-12-12A12,12,0,0,1,140,128ZM84,116a12,12,0,1,0,12,12A12,12,0,0,0,84,116Zm88,0a12,12,0,1,0,12,12A12,12,0,0,0,172,116Zm60,12A104,104,0,0,1,79.12,219.82L45.07,231.17a16,16,0,0,1-20.24-20.24l11.35-34.05A104,104,0,1,1,232,128Zm-16,0A88,88,0,1,0,51.81,172.06a8,8,0,0,1,.66,6.54L40,216,77.4,203.53a7.85,7.85,0,0,1,2.53-.42,8,8,0,0,1,4,1.08A88,88,0,0,0,216,128Z"></path></svg>';
+    const likeIcon = icon('heart', { className: 'creator-card__social-icon' });
+    const commentIcon = icon('chat-bubble-left-ellipsis', { className: 'creator-card__social-icon' });
 
     const cards = usable.map(p => {
       // Kleine Kachel in der Karte: Thumb bevorzugen, Altbestand hat nur das Hauptbild

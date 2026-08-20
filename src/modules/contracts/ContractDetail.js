@@ -2,12 +2,15 @@
 // Detailseite fuer einen Contracting-Auftrag
 // Flaches Layout (AuftragsdetailsDetail-Stil): Summary Cards + Eckdaten + Rechnungen
 
-import { loadContractDetail } from './ContractListDataLoader.js';
+import { loadContractDetail, loadContractVertraege } from './ContractListDataLoader.js';
 import {
   deleteAuftragsbestaetigung,
   loadAuftragsbestaetigungen
 } from '../../core/AuftragsbestaetigungUploader.js';
 import { ContractDokumentDrawer } from './ContractDokumentDrawer.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
+import { VertragUtils } from '../vertrag/VertragUtils.js';
 
 function formatFileSize(bytes) {
   if (!bytes && bytes !== 0) return '';
@@ -44,6 +47,7 @@ export class ContractDetail {
     this._isMounted = false;
     this.contract = null;
     this.dokumente = [];
+    this.vertraege = [];
     this.dokumentDrawer = null;
   }
 
@@ -54,7 +58,7 @@ export class ContractDetail {
 
     window.setHeadline('Contract Details');
     window.content.innerHTML = `
-      <div class="table-loading-container" style="min-height: 300px;">
+      <div class="table-loading-container table-loading-container--minh">
         <div class="table-loading-spinner"></div>
       </div>
     `;
@@ -83,6 +87,9 @@ export class ContractDetail {
     await this.loadDokumente();
     if (!this._isMounted) return;
 
+    await this.loadVertraege();
+    if (!this._isMounted) return;
+
     this.render();
     this.bindEvents();
   }
@@ -96,13 +103,31 @@ export class ContractDetail {
     }
   }
 
+  async loadVertraege() {
+    try {
+      this.vertraege = await loadContractVertraege(this.contract.id);
+    } catch (e) {
+      console.warn('[ContractDetail] Verträge laden fehlgeschlagen:', e);
+      this.vertraege = [];
+    }
+  }
+
+  canCreateVertrag() {
+    return window.isAdmin?.() || window.currentUser?.permissions?.vertraege?.can_edit === true;
+  }
+
   render() {
     const isAdmin = window.isAdmin?.();
+    const unternehmenId = this.contract.unternehmen?.id || this.contract.unternehmen_id || '';
+    const createVertragUrl = `/vertraege/new?typ=Contracting&unternehmen=${unternehmenId}&auftrag=${this.contract.id}`;
 
-    const headerActions = isAdmin ? `
-      <a href="/rechnung/new?type=contracting&contract=${this.contract.id}" class="secondary-btn btn-create-rechnung">Rechnung erstellen</a>
-      <button type="button" class="primary-btn" id="btn-add-dokument">Neues Dokument hochladen</button>
-    ` : '';
+    const headerActions = `
+      ${this.canCreateVertrag() ? `<a href="${createVertragUrl}" class="mdc-btn mdc-btn--secondary btn-create-vertrag">Vertrag erstellen</a>` : ''}
+      ${isAdmin ? `
+      <a href="/rechnung/new?type=contracting&contract=${this.contract.id}" class="mdc-btn mdc-btn--secondary btn-create-rechnung">Rechnung erstellen</a>
+      <button type="button" class="mdc-btn" id="btn-add-dokument">Neues Dokument hochladen</button>
+      ` : ''}
+    `;
 
     const pageHeader = `
       <div class="page-header">
@@ -118,12 +143,17 @@ export class ContractDetail {
         <div class="detail-section">
           ${this.renderSummaryCards()}
 
-          <div class="detail-section" style="margin-top: var(--space-lg);">
+          <div class="detail-section u-mt-lg">
             <h3 class="section-title section-title--spaced">Auftragsbestätigungen</h3>
             ${this.renderDokumenteSection()}
           </div>
 
-          <div class="detail-section" style="margin-top: var(--space-lg);">
+          <div class="detail-section u-mt-lg">
+            <h3 class="section-title section-title--spaced">Verträge</h3>
+            ${this.renderVertraegeTable()}
+          </div>
+
+          <div class="detail-section u-mt-lg">
             <h3 class="section-title section-title--spaced">Rechnungen</h3>
             ${this.renderRechnungenTable()}
           </div>
@@ -139,7 +169,7 @@ export class ContractDetail {
     const docs = this.dokumente || [];
 
     if (docs.length === 0) {
-      return '<div class="empty-state"><p>Noch keine Dokumente vorhanden.</p></div>';
+      return renderEmptyState({ icon: 'document', title: 'Noch keine Dokumente vorhanden' });
     }
 
     return `
@@ -163,12 +193,10 @@ export class ContractDetail {
                 </td>
                 <td>${formatFileSize(d.dateigroesse)}</td>
                 <td>${formatDate(d.created_at)}</td>
-                <td style="text-align:right;">
+                <td class="u-text-right">
                   ${isAdmin ? `
                     <button type="button" class="btn-icon btn-delete-dokument" data-id="${d.id}" data-path="${escapeHtml(d.dropbox_file_path || '')}" title="Löschen">
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
-                      </svg>
+                      ${icon('trash-alt')}
                     </button>
                   ` : ''}
                 </td>
@@ -217,23 +245,19 @@ export class ContractDetail {
       ? `<a href="#" class="table-link" data-table="ansprechpartner" data-id="${c.ansprechpartner.id}">${escapeHtml(ap)}</a>`
       : escapeHtml(ap);
 
-    const rowStyle = 'display:flex; justify-content:space-between; gap:var(--space-sm); align-items:baseline; font-size:0.875rem; line-height:1.4;';
-    const labelStyle = 'color:var(--gray-500); flex-shrink:0;';
-    const valueStyle = 'font-weight:500; text-align:right; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0;';
-
     return `
-      <div class="summary-card summary-card--kunde" style="display:flex; flex-direction:column; gap:var(--space-xs); justify-content:center;">
-        <div style="${rowStyle}">
-          <span style="${labelStyle}">Unternehmen</span>
-          <span style="${valueStyle}">${unternehmenHtml}</span>
+      <div class="summary-card summary-card--kunde summary-card--stack">
+        <div class="kv-row">
+          <span class="kv-row__label">Unternehmen</span>
+          <span class="kv-row__value">${unternehmenHtml}</span>
         </div>
-        <div style="${rowStyle}">
-          <span style="${labelStyle}">Marke</span>
-          <span style="${valueStyle}">${markeHtml}</span>
+        <div class="kv-row">
+          <span class="kv-row__label">Marke</span>
+          <span class="kv-row__value">${markeHtml}</span>
         </div>
-        <div style="${rowStyle}">
-          <span style="${labelStyle}">Ansprechpartner</span>
-          <span style="${valueStyle}">${ansprechpartnerHtml}</span>
+        <div class="kv-row">
+          <span class="kv-row__label">Ansprechpartner</span>
+          <span class="kv-row__value">${ansprechpartnerHtml}</span>
         </div>
       </div>
     `;
@@ -266,7 +290,7 @@ export class ContractDetail {
 
     if (!canViewPricing) {
       return `
-        <div class="auftragsdetails-summary" style="margin-bottom: var(--space-xl);">
+        <div class="auftragsdetails-summary u-mb-xl">
           <div class="summary-cards">
             ${this.renderKundeTile()}
           </div>
@@ -275,7 +299,7 @@ export class ContractDetail {
     }
 
     return `
-      <div class="auftragsdetails-summary" style="margin-bottom: var(--space-xl);">
+      <div class="auftragsdetails-summary u-mb-xl">
         <div class="summary-cards">
           ${this.renderKundeTile()}
           <div class="summary-card">
@@ -321,15 +345,57 @@ export class ContractDetail {
     `;
   }
 
+  renderVertraegeTable() {
+    const vertraege = this.vertraege || [];
+    if (vertraege.length === 0) {
+      return renderEmptyState({ icon: 'document', title: 'Noch keine Verträge für diesen Contract vorhanden' });
+    }
+
+    const getStatusLabel = (isDraft) => isDraft ? 'Entwurf' : 'Final';
+    const getStatusClass = (isDraft) => isDraft ? 'draft' : 'aktiv';
+
+    const rows = vertraege.map(v => {
+      const creatorName = v.creator
+        ? [v.creator.vorname, v.creator.nachname].filter(Boolean).join(' ')
+        : '—';
+      return `
+        <tr>
+          <td>${VertragUtils.renderVertragNameHtml(v, escapeHtml)}</td>
+          <td>${v.creator?.id
+            ? `<a href="/creator/${v.creator.id}" class="table-link" data-table="creator" data-id="${v.creator.id}">${escapeHtml(creatorName)}</a>`
+            : escapeHtml(creatorName)}</td>
+          <td><span class="status-badge status-${getStatusClass(v.is_draft)}">${getStatusLabel(v.is_draft)}</span></td>
+          <td>${v.datei_url
+            ? `<a href="${escapeHtml(v.datei_url)}" target="_blank" rel="noopener noreferrer" class="table-link datei-link">${icon('pdf')}</a>`
+            : '—'}</td>
+          <td>${formatDate(v.created_at)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="data-table-container">
+        <table class="data-table data-table--nowrap">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Creator</th>
+              <th>Status</th>
+              <th>PDF</th>
+              <th>Erstellt am</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
   renderRechnungenTable() {
     const rechnungen = this.contract.rechnungen || [];
 
     if (rechnungen.length === 0) {
-      return `
-        <div class="empty-state">
-          <p>Noch keine Rechnungen für diesen Contract vorhanden.</p>
-        </div>
-      `;
+      return renderEmptyState({ icon: 'file-text', title: 'Noch keine Rechnungen für diesen Contract vorhanden' });
     }
 
     const rows = rechnungen.map(r => {
@@ -389,10 +455,24 @@ export class ContractDetail {
         return;
       }
 
+      const createVertragBtn = e.target.closest('.btn-create-vertrag');
+      if (createVertragBtn) {
+        e.preventDefault();
+        window.navigateTo(createVertragBtn.getAttribute('href'));
+        return;
+      }
+
       const createBtn = e.target.closest('.btn-create-rechnung');
       if (createBtn) {
         e.preventDefault();
         window.navigateTo(createBtn.getAttribute('href'));
+        return;
+      }
+
+      const editVertragLink = e.target.closest('[data-vertrag-open="edit"]');
+      if (editVertragLink) {
+        e.preventDefault();
+        window.navigateTo(`/vertraege/${editVertragLink.dataset.id}/edit`);
         return;
       }
 
@@ -467,6 +547,7 @@ export class ContractDetail {
     }
     this.contract = null;
     this.dokumente = [];
+    this.vertraege = [];
   }
 }
 

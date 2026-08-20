@@ -143,13 +143,13 @@
 .global-search-result-sublabel {
   font-size: var(--text-xs);
   color: var(--gray-500);
-  margin-top: 2px;
+  margin-top: var(--space-xxs);
 }
 
 .global-search-result-via {
   font-size: var(--text-xs);
   color: var(--gray-500);
-  margin-top: 2px;
+  margin-top: var(--space-xxs);
   opacity: 0.9;
 }
 

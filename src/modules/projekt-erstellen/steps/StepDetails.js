@@ -122,7 +122,7 @@ export class StepDetails {
           </div>
 
           <div class="form-field">
-            <span class="section-subtitle" style="font-size: var(--text-xs); margin-bottom: var(--space-xs); display: block;">Leistungszeitraum</span>
+            <span class="section-subtitle pe-leistungszeitraum-subtitle">Leistungszeitraum</span>
             <div class="form-two-col">
               <div class="form-field form-field--half">
                 <label for="field-pe-start">von</label>

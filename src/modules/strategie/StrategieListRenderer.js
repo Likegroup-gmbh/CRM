@@ -3,6 +3,19 @@
 
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
+import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
+import { fillFoldersGrid } from '../../core/components/GridFiller.js';
+
+function canCreateStrategie() {
+  return !window.isKunde() && (window.isAdmin() || window.currentUser?.permissions?.strategie?.can_edit);
+}
+
+function strategieCreateButtonHtml() {
+  return canCreateStrategie()
+    ? '<button class="mdc-btn" data-action="create-strategie">Neue Strategie anlegen</button>'
+    : '';
+}
 
 export function renderCompaniesView(list) {
   const isKunde = window.isKunde();
@@ -19,13 +32,11 @@ export function renderCompaniesView(list) {
           </div>
         </div>
         <div class="table-actions">
-          ${!isKunde ? `<button class="secondary-btn" data-action="how-to-strategie">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 7.74-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Zm0 0v-3.675A55.378 55.378 0 0 1 12 8.443m-7.007 11.55A5.981 5.981 0 0 0 6.75 15.75v-1.5" />
-            </svg>
+          ${!isKunde ? `<button class="mdc-btn mdc-btn--secondary" data-action="how-to-strategie">
+            ${icon('globe')}
             How to
           </button>` : ''}
-          ${canCreate ? `<button class="primary-btn" data-action="create-strategie">Neue Strategie anlegen</button>` : ''}
+          ${canCreate ? `<button class="mdc-btn" data-action="create-strategie">Neue Strategie anlegen</button>` : ''}
         </div>
       </div>
 
@@ -57,7 +68,12 @@ export function updateCompaniesGrid(list) {
   if (!grid) return;
 
   if (list.companyFolders.length === 0) {
-    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><p>Keine Strategien vorhanden.</p></div>`;
+    grid.innerHTML = `<div class="grid-span-all">${renderEmptyState({
+      icon: 'clipboard',
+      title: 'Keine Strategien vorhanden',
+      text: canCreateStrategie() ? 'Legen Sie Ihre erste Strategie an, um loszulegen.' : 'Es wurden noch keine Strategien für Sie freigegeben.',
+      actionsHtml: strategieCreateButtonHtml()
+    })}</div>`;
     return;
   }
 
@@ -66,9 +82,7 @@ export function updateCompaniesGrid(list) {
       <div class="folder-icon">
         ${folder.logo_url
           ? `<img src="${list.sanitize(folder.logo_url)}" alt="${list.sanitize(folder.firmenname)}" class="folder-logo">`
-          : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="folder-svg">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
-            </svg>`
+          : `${icon('folder-open')}`
         }
       </div>
       <div class="folder-info">
@@ -77,6 +91,7 @@ export function updateCompaniesGrid(list) {
       </div>
     </div>
   `).join('');
+  fillFoldersGrid(grid);
 }
 
 export function updateCompaniesTable(list) {
@@ -84,7 +99,12 @@ export function updateCompaniesTable(list) {
   if (!tbody) return;
 
   if (list.companyFolders.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="2" class="no-data">Keine Strategien vorhanden.</td></tr>`;
+    tbody.innerHTML = renderEmptyStateRow({
+      icon: 'clipboard',
+      title: 'Keine Strategien vorhanden',
+      text: canCreateStrategie() ? 'Legen Sie Ihre erste Strategie an, um loszulegen.' : 'Es wurden noch keine Strategien für Sie freigegeben.',
+      actionsHtml: strategieCreateButtonHtml()
+    }, 2);
     return;
   }
 
@@ -112,17 +132,15 @@ export function renderBrandsView(list) {
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div class="filter-left">
-            <button id="btn-back-to-companies" class="secondary-btn">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-              </svg>
+            <button id="btn-back-to-companies" class="mdc-btn mdc-btn--secondary">
+              ${icon('arrow-left')}
               Zurück
             </button>
           </div>
         </div>
         <div class="table-actions">
-          ${!isKunde ? `<button class="secondary-btn" data-action="how-to-strategie">How to</button>` : ''}
-          ${canCreate ? `<button class="primary-btn" data-action="create-strategie">Neue Strategie anlegen</button>` : ''}
+          ${!isKunde ? `<button class="mdc-btn mdc-btn--secondary" data-action="how-to-strategie">How to</button>` : ''}
+          ${canCreate ? `<button class="mdc-btn" data-action="create-strategie">Neue Strategie anlegen</button>` : ''}
         </div>
       </div>
 
@@ -166,7 +184,11 @@ export function updateBrandsTable(list) {
   if (!tbody) return;
 
   if (list.brandFolders.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="2" class="no-data">Keine markenbezogenen Strategien vorhanden.</td></tr>`;
+    tbody.innerHTML = renderEmptyStateRow({
+      icon: 'tag',
+      title: 'Keine markenbezogenen Strategien vorhanden',
+      actionsHtml: strategieCreateButtonHtml()
+    }, 2);
     return;
   }
 
@@ -199,9 +221,7 @@ export function renderItemsRows(list, items) {
         <td class="col-actions">
           <div class="actions-dropdown-container" data-entity-type="strategie">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-              </svg>
+              ${icon('dots-vertical-filled')}
             </button>
             <div class="actions-dropdown">
               <a href="#" class="action-item" data-action="view-strategie" data-id="${strategie.id}">
@@ -234,7 +254,11 @@ export function updateCompanyOnlyTable(list) {
   if (!tbody) return;
 
   if (list.companyOnlyItems.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" class="no-data">Keine unternehmensweiten Strategien ohne Marke.</td></tr>`;
+    tbody.innerHTML = renderEmptyStateRow({
+      icon: 'building',
+      title: 'Keine unternehmensweiten Strategien ohne Marke',
+      actionsHtml: strategieCreateButtonHtml()
+    }, 4);
     return;
   }
 
@@ -249,21 +273,19 @@ export function renderItemsView(list) {
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div class="filter-left">
-            <button id="btn-back-to-brands" class="secondary-btn">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-              </svg>
+            <button id="btn-back-to-brands" class="mdc-btn mdc-btn--secondary">
+              ${icon('arrow-left')}
               Zurück
             </button>
           </div>
         </div>
         <div class="table-actions">
-          ${!isKunde ? `<button class="secondary-btn" data-action="how-to-strategie">How to</button>` : ''}
-          ${canCreate ? `<button class="primary-btn" data-action="create-strategie">Neue Strategie anlegen</button>` : ''}
+          ${!isKunde ? `<button class="mdc-btn mdc-btn--secondary" data-action="how-to-strategie">How to</button>` : ''}
+          ${canCreate ? `<button class="mdc-btn" data-action="create-strategie">Neue Strategie anlegen</button>` : ''}
         </div>
       </div>
       <div class="table-container">
-        <table class="data-table">
+        <table class="data-table strategien-table">
           <thead>
             <tr>
               <th class="col-name">Name</th>
@@ -273,7 +295,7 @@ export function renderItemsView(list) {
             </tr>
           </thead>
           <tbody id="strategien-table-body">
-            <tr><td colspan="4" style="text-align:center;padding:var(--space-lg);">Lade Strategien...</td></tr>
+            <tr><td colspan="4" class="table-empty-cell">Lade Strategien...</td></tr>
           </tbody>
         </table>
       </div>
@@ -287,7 +309,11 @@ export function updateItemsTable(list) {
   if (!tbody) return;
 
   if (list.currentItems.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4" class="no-data">Keine Strategien für diese Marke vorhanden.</td></tr>`;
+    tbody.innerHTML = renderEmptyStateRow({
+      icon: 'clipboard',
+      title: 'Keine Strategien für diese Marke vorhanden',
+      actionsHtml: strategieCreateButtonHtml()
+    }, 4);
     list.pagination.updateTotal(0);
     list.pagination.render();
     return;

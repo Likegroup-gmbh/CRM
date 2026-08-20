@@ -1,3 +1,4 @@
+import { icon } from '../../../icons/IconSystem.js';
 // Optional: preloaded = { allTags: [{id,name}...], selectedTags: [{id,name}...] }
 // Wenn übergeben, werden die beiden Supabase-Calls übersprungen (Edit-Fast-Path).
 export async function setup(form, preloaded = null) {
@@ -97,9 +98,7 @@ export async function setup(form, preloaded = null) {
     });
     if (filter && !allTags.find(t => t.name.toLowerCase() === lf)) {
       html += `<div class="suggestion-item suggestion-item--new" data-name="${filter}">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
+        ${icon('plus-lg')}
         "${filter}" neu anlegen
       </div>`;
     }

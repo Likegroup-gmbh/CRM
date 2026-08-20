@@ -31,7 +31,7 @@ export class ConfirmationModal {
             <p class="confirm-message">${message}</p>
           </div>
           <div class="modal-footer">
-            <button type="button" class="secondary-btn" data-action="cancel">${cancelText}</button>
+            <button type="button" class="mdc-btn mdc-btn--secondary" data-action="cancel">${cancelText}</button>
             <button type="button" class="${danger ? 'danger-btn' : 'primary-btn'}" data-action="confirm">${confirmText}</button>
           </div>
         </div>`;

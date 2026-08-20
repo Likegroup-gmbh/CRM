@@ -25,8 +25,8 @@ describe('AuftragsdetailsRepository', () => {
     const payload = {
       auftrag_id: 'a1',
       kampagnenanzahl: 3,
-      ugc_pro_paid_video_anzahl: null,
-      ugc_pro_organic_video_anzahl: 4
+      ugc_paid_video_anzahl: null,
+      ugc_organic_video_anzahl: 4
     };
     const result = await repository.upsertAuftragsdetails(payload);
 

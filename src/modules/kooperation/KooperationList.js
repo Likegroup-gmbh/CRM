@@ -8,6 +8,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { KooperationFilterLogic } from './filters/KooperationFilterLogic.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
+import { resolveEmptyState, bindEmptyStateActions } from '../../core/components/EmptyState.js';
 
 export class KooperationList {
   constructor() {
@@ -256,16 +257,16 @@ export class KooperationList {
     let html = `
       <div class="page-header">
         <div class="page-header-right">
-          ${canEdit ? '<button id="btn-kooperation-new" class="primary-btn">Neue Kooperation anlegen</button>' : ''}
+          ${canEdit ? '<button id="btn-kooperation-new" class="mdc-btn">Neue Kooperation anlegen</button>' : ''}
         </div>
       </div>
 
       <div class="table-filter-wrapper">
         ${filterHtml}
         <div class="table-actions">
-          ${canBulkDelete ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
-          ${canBulkDelete ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
-          ${canBulkDelete ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
+          ${canBulkDelete ? '<button id="btn-select-all" class="mdc-btn mdc-btn--secondary">Alle auswählen</button>' : ''}
+          ${canBulkDelete ? '<button id="btn-deselect-all" class="mdc-btn mdc-btn--secondary" style="display:none;">Auswahl aufheben</button>' : ''}
+          ${canBulkDelete ? '<button id="btn-delete-selected" class="mdc-btn mdc-btn--delete" style="display:none;">Ausgewählte löschen</button>' : ''}
         </div>
       </div>
 
@@ -335,6 +336,11 @@ export class KooperationList {
         e.preventDefault();
         window.navigateTo('/kooperation/new');
       }
+    }, { signal });
+
+    // Empty-State-Actions (z.B. "Filter zurücksetzen")
+    bindEmptyStateActions(document, {
+      'reset-filters': () => this.onFiltersReset()
     }, { signal });
 
     // Alle auswählen Button
@@ -467,8 +473,22 @@ export class KooperationList {
     if (!tbody) return;
 
     if (!kooperationen || kooperationen.length === 0) {
-      const { renderEmptyState } = await import('../../core/FilterUI.js');
-      renderEmptyState(tbody);
+      const colspan = tbody.closest('table')?.querySelector('thead tr')?.children?.length || 10;
+      const isKunde = window.isKunde?.() || false;
+      const html = resolveEmptyState({
+        hasActiveFilters: this.hasActiveFilters(),
+        states: {
+          default: isKunde
+            ? { icon: 'handshake', title: 'Keine Kooperationen vorhanden', text: 'Es wurden noch keine Kooperationen für Sie angelegt.' }
+            : {
+                icon: 'handshake',
+                title: 'Keine Kooperationen vorhanden',
+                text: 'Legen Sie eine Kooperation an, um sie hier zu verwalten.',
+                actionsHtml: '<button id="btn-kooperation-new" class="mdc-btn">Neue Kooperation anlegen</button>'
+              }
+        }
+      }, 'default');
+      tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state-cell">${html}</td></tr>`;
       return;
     }
 

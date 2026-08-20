@@ -9,6 +9,7 @@ import {
   VIDEO_FEEDBACK_LEGACY_SELECT,
   VIDEO_FEEDBACK_FIELDS
 } from './VideoFeedbackBuckets.js';
+import { icon } from '../core/icons/IconSystem.js';
 
 export async function openKooperationQuickView(dropdown, kooperationId) {
   try {
@@ -113,7 +114,7 @@ export async function openKooperationQuickView(dropdown, kooperationId) {
 
     const rows = videoList.map(v => {
       const fb = commentsByVideo[v.id] || createEmptyVideoFeedbackComments();
-      const linkBtn = v.asset_url ? `<a class="kvq-link-btn" href="${v.asset_url}" target="_blank" rel="noopener">${dropdown.getHeroIcon('view')}<span>Öffnen</span></a>` : '-';
+      const linkBtn = v.asset_url ? `<a class="kvq-link-btn" href="${v.asset_url}" target="_blank" rel="noopener">${dropdown.getHeroIcon('view')}<span>Anzeigen</span></a>` : '-';
       return `
         <tr>
           <td>${v.position || '-'}</td>
@@ -173,18 +174,18 @@ export async function openAssignStaffModal(dropdown, kampagneId) {
       <div class="modal-body">
         <label class="form-label">Mitarbeiter wählen</label>
         <input type="text" id="staff-search" class="form-input auto-suggest-input" placeholder="Mitarbeiter suchen..." />
-        <div id="staff-dropdown" class="auto-suggest-dropdown"></div>
+        <div id="staff-dropdown" class="auto-suggest-dropdown auto-suggest-dropdown--modal"></div>
       </div>
       <div class="modal-footer">
         <button class="mdc-btn mdc-btn--cancel" id="assign-staff-cancel">
           <span class="mdc-btn__icon" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+            ${icon('x-circle-filled')}
           </span>
           <span class="mdc-btn__label">Abbrechen</span>
         </button>
         <button class="mdc-btn mdc-btn--create" id="assign-staff-confirm" disabled>
           <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/></svg>
+            ${icon('check-filled')}
           </span>
           <span class="mdc-btn__spinner" aria-hidden="true">
             <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16"><circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/></svg>
@@ -295,18 +296,18 @@ export async function openAssignMarkeStaffModal(dropdown, markeId) {
       <div class="modal-body">
         <label class="form-label">Mitarbeiter wählen</label>
         <input type="text" id="mitarbeiter-search" class="form-input auto-suggest-input" placeholder="Mitarbeiter suchen..." />
-        <div id="mitarbeiter-dropdown" class="auto-suggest-dropdown"></div>
+        <div id="mitarbeiter-dropdown" class="auto-suggest-dropdown auto-suggest-dropdown--modal"></div>
       </div>
       <div class="modal-footer">
         <button class="mdc-btn mdc-btn--cancel" id="add-mitarbeiter-cancel">
           <span class="mdc-btn__icon" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+            ${icon('x-circle-filled')}
           </span>
           <span class="mdc-btn__label">Abbrechen</span>
         </button>
         <button class="mdc-btn mdc-btn--create" id="add-mitarbeiter-confirm" disabled>
           <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/></svg>
+            ${icon('check-filled')}
           </span>
           <span class="mdc-btn__spinner" aria-hidden="true">
             <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16"><circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/></svg>
@@ -441,18 +442,18 @@ export async function openAddToCampaignModal(dropdown, creatorId) {
       <div class="modal-body">
         <label class="form-label">Kampagne wählen</label>
         <input type="text" id="campaign-search" class="form-input auto-suggest-input" placeholder="Kampagne suchen..." />
-        <div id="campaign-dropdown" class="auto-suggest-dropdown"></div>
+        <div id="campaign-dropdown" class="auto-suggest-dropdown auto-suggest-dropdown--modal"></div>
       </div>
       <div class="modal-footer">
         <button class="mdc-btn mdc-btn--cancel" id="add-to-campaign-cancel">
           <span class="mdc-btn__icon" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+            ${icon('x-circle-filled')}
           </span>
           <span class="mdc-btn__label">Abbrechen</span>
         </button>
         <button class="mdc-btn mdc-btn--create" id="add-to-campaign-confirm" disabled>
           <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/></svg>
+            ${icon('check-filled')}
           </span>
           <span class="mdc-btn__spinner" aria-hidden="true">
             <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16"><circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/></svg>
@@ -549,18 +550,18 @@ export async function openAddToListModal(dropdown, creatorId) {
       <div class="modal-body">
         <label class="form-label">Liste wählen</label>
         <input type="text" id="list-search" class="form-input auto-suggest-input" placeholder="Liste suchen..." />
-        <div id="list-dropdown" class="auto-suggest-dropdown"></div>
+        <div id="list-dropdown" class="auto-suggest-dropdown auto-suggest-dropdown--modal"></div>
       </div>
       <div class="modal-footer">
         <button class="mdc-btn mdc-btn--cancel" id="add-to-list-cancel">
           <span class="mdc-btn__icon" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+            ${icon('x-circle-filled')}
           </span>
           <span class="mdc-btn__label">Abbrechen</span>
         </button>
         <button class="mdc-btn mdc-btn--create" id="add-to-list-confirm" disabled>
           <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/></svg>
+            ${icon('check-filled')}
           </span>
           <span class="mdc-btn__spinner" aria-hidden="true">
             <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16"><circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/></svg>
@@ -648,18 +649,18 @@ export async function openAddAnsprechpartnerToKampagneModal(dropdown, kampagneId
       <div class="modal-body">
         <label class="form-label">Ansprechpartner wählen</label>
         <input type="text" id="ansprechpartner-kampagne-search" class="form-input auto-suggest-input" placeholder="Ansprechpartner suchen..." />
-        <div id="ansprechpartner-kampagne-dropdown" class="auto-suggest-dropdown"></div>
+        <div id="ansprechpartner-kampagne-dropdown" class="auto-suggest-dropdown auto-suggest-dropdown--modal"></div>
       </div>
       <div class="modal-footer">
         <button class="mdc-btn mdc-btn--cancel" id="add-ansprechpartner-kampagne-cancel">
           <span class="mdc-btn__icon" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+            ${icon('x-circle-filled')}
           </span>
           <span class="mdc-btn__label">Abbrechen</span>
         </button>
         <button class="mdc-btn mdc-btn--create" id="add-ansprechpartner-kampagne-confirm" disabled>
           <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/></svg>
+            ${icon('check-filled')}
           </span>
           <span class="mdc-btn__spinner" aria-hidden="true">
             <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16"><circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/></svg>

@@ -4,6 +4,8 @@
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { renderEmptyStateRow } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 export class KundenList {
   constructor() {
@@ -127,7 +129,7 @@ export class KundenList {
             </tr>
           </thead>
           <tbody>
-            ${tbody || '<tr><td colspan="7" class="loading">Keine Kunden gefunden</td></tr>'}
+            ${tbody || renderEmptyStateRow({ icon: 'users', title: 'Keine Kunden vorhanden' }, 7)}
           </tbody>
         </table>
       </div>
@@ -304,37 +306,37 @@ export class KundenList {
             </select>
           </div>
 
-          <div class="form-group tag-based-select" style="grid-column: 1 / -1;">
+          <div class="form-group tag-based-select grid-span-all">
             <label class="form-label">Unternehmen</label>
             <input type="text" id="as-unternehmen" class="form-input auto-suggest-input" placeholder="Unternehmen suchen..." />
             <div id="asdd-unternehmen" class="auto-suggest-dropdown"></div>
             <div id="tags-unternehmen" class="tags-container"></div>
           </div>
 
-          <div class="form-group tag-based-select" style="grid-column: 1 / -1;">
+          <div class="form-group tag-based-select grid-span-all">
             <label class="form-label">Marken (Multi-Select)</label>
             <input type="text" id="as-marke" class="form-input auto-suggest-input" placeholder="Marke suchen..." />
             <div id="asdd-marke" class="auto-suggest-dropdown"></div>
             <div id="tags-marke" class="tags-container"></div>
           </div>
 
-          <div class="form-group tag-based-select" style="grid-column: 1 / -1;">
+          <div class="form-group tag-based-select grid-span-all">
             <label class="form-label">Kampagnen (Multi-Select)</label>
             <input type="text" id="as-kampagne" class="form-input auto-suggest-input" placeholder="Kampagne suchen..." />
             <div id="asdd-kampagne" class="auto-suggest-dropdown"></div>
             <div id="tags-kampagne" class="tags-container"></div>
           </div>
 
-          <div class="form-group tag-based-select" style="grid-column: 1 / -1;">
+          <div class="form-group tag-based-select grid-span-all">
             <label class="form-label">Kooperationen (Multi-Select)</label>
             <input type="text" id="as-kooperation" class="form-input auto-suggest-input" placeholder="Kooperation suchen..." />
             <div id="asdd-kooperation" class="auto-suggest-dropdown"></div>
             <div id="tags-kooperation" class="tags-container"></div>
           </div>
 
-          <div class="form-group" style="grid-column: 1 / -1; display:flex; gap:8px; align-items:center;">
-            <button type="submit" class="primary-btn" id="btn-kunde-speichern">Kunde speichern</button>
-            <button type="button" class="secondary-btn" id="btn-invite-copy">Einladungslink kopieren</button>
+          <div class="form-group form-grid-span-flex">
+            <button type="submit" class="mdc-btn" id="btn-kunde-speichern">Kunde speichern</button>
+            <button type="button" class="mdc-btn mdc-btn--secondary" id="btn-invite-copy">Einladungslink kopieren</button>
             <span class="muted" id="invite-hint">Kunde nicht vorhanden? Link kopieren und versenden.</span>
           </div>
         </form>
@@ -622,7 +624,7 @@ export class KundenList {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
-      <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-content">
         <div class="modal-header">
           <h3>Unternehmen zuordnen</h3>
           <button id="close-modal" class="modal-close">&times;</button>
@@ -638,17 +640,13 @@ export class KundenList {
         <div class="modal-footer">
           <button id="cancel-zuordnung" class="mdc-btn mdc-btn--cancel">
             <span class="mdc-btn__icon" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
-              </svg>
+              ${icon('x-circle-filled')}
             </span>
             <span class="mdc-btn__label">Abbrechen</span>
           </button>
           <button id="save-zuordnung" class="mdc-btn mdc-btn--create" disabled>
             <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
-              </svg>
+              ${icon('check-filled')}
             </span>
             <span class="mdc-btn__spinner" aria-hidden="true">
               <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">

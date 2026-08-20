@@ -98,14 +98,17 @@ export function bindUnternehmenDetailEvents(detail) {
 
   // Navigation zu verknüpften Entitäten
   detail._tableLinkClickHandler = (e) => {
-    if (e.target.classList.contains('table-link')) {
-      const { table, id } = e.target.dataset;
-      // Persona- und Produkt-Links tragen dieselbe Klasse, haben aber ihren
-      // eigenen Handler - ohne data-table gehoert der Klick nicht hierher.
-      if (!table || !id) return;
+    const link = e.target.closest?.('.table-link');
+    if (!link) return;
+    const { table, id } = link.dataset;
+    if (link.dataset.vertragOpen === 'edit' && id) {
       e.preventDefault();
-      window.navigateTo(`/${table}/${id}`);
+      window.navigateTo(`/vertraege/${id}/edit`);
+      return;
     }
+    if (!table || !id) return;
+    e.preventDefault();
+    window.navigateTo(`/${table}/${id}`);
   };
   document.addEventListener('click', detail._tableLinkClickHandler, { signal });
 

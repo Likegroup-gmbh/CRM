@@ -15,11 +15,11 @@ export async function showChangeRolleModal(detail) {
       <div class="modal-body">
         <div class="form-group">
           <label class="form-label">Rolle / Klasse</label>
-          <p class="form-help" style="margin-bottom: 10px;">Definiert die Hauptaufgaben und Zuständigkeiten des Mitarbeiters</p>
+          <p class="form-help u-mb-10">Definiert die Hauptaufgaben und Zuständigkeiten des Mitarbeiters</p>
           <input id="rolle-search" class="form-input" type="text" placeholder="Rolle suchen..." autocomplete="off" />
           <div id="rolle-dropdown" class="auto-suggest-dropdown" style="display: none;"></div>
         </div>
-        <div id="selected-rolle" class="selected-items" style="margin-top: 10px;"></div>
+        <div id="selected-rolle" class="selected-items"></div>
       </div>
       <div class="modal-footer">
         <button id="cancel-rolle" class="mdc-btn mdc-btn--cancel">
@@ -165,7 +165,7 @@ export async function showAddUnternehmenModal(detail) {
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
   modal.innerHTML = `
-    <div class="modal-content" style="max-width: 500px;">
+    <div class="modal-content">
       <div class="modal-header">
         <h3>Unternehmen zuordnen</h3>
         <button id="close-modal" class="modal-close">&times;</button>
@@ -176,9 +176,9 @@ export async function showAddUnternehmenModal(detail) {
           <input id="unternehmen-search" class="form-input" type="text" placeholder="Firmenname eingeben..." autocomplete="off" />
           <div id="unternehmen-dropdown" class="auto-suggest-dropdown" style="display: none;"></div>
         </div>
-        <div id="selected-unternehmen" class="selected-items" style="margin-top: 10px;"></div>
+        <div id="selected-unternehmen" class="selected-items"></div>
         
-        <div class="form-group" style="margin-top: 16px;">
+        <div class="form-group u-mt-md">
           <label class="form-label">Rolle</label>
           <select id="role-select" class="form-select">
             <option value="mitarbeiter">Mitarbeiter</option>

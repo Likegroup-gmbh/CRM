@@ -123,4 +123,34 @@ describe('VertraegeList Unified Upload', () => {
       expect(mockList.openVertragUploadDrawer).toHaveBeenCalled();
     });
   });
+
+  describe('Kontext-Spalte', () => {
+    it('zeigt Kampagne für Standard-Verträge', () => {
+      const html = renderVertraegeTableBody([baseVertrag], { canBulkDelete: false, canEdit: true, isAdmin: false });
+      expect(html).toContain('data-table="kampagne"');
+      expect(html).toContain('Test-Kampagne');
+    });
+
+    it('zeigt Contracting-Auftrag statt Kampagne', () => {
+      const contracting = {
+        ...baseVertrag,
+        typ: 'Contracting',
+        kampagne: null,
+        kampagne_id: null,
+        contracting_auftrag_id: 'a1',
+        contracting_auftrag: { id: 'a1', titel: 'SharkNinja Q2', auftragsname: 'SN' }
+      };
+      const html = renderVertraegeTableBody([contracting], { canBulkDelete: false, canEdit: true, isAdmin: false });
+      expect(html).toContain('/contracts/a1');
+      expect(html).toContain('data-table="contracts"');
+      expect(html).toContain('SharkNinja Q2');
+      expect(html).not.toContain('data-table="kampagne"');
+    });
+
+    it('Final-Name ist PDF-Link, kein /vertraege/:id', () => {
+      const html = renderVertraegeTableBody([baseVertrag], { canBulkDelete: false, canEdit: true, isAdmin: false });
+      expect(html).toContain('https://example.com/test.pdf');
+      expect(html).not.toContain('data-table="vertrag"');
+    });
+  });
 });

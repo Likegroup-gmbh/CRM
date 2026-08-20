@@ -71,7 +71,7 @@
 .guest-share-link-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-xxs);
   min-width: 0;
   text-align: left;
 }
@@ -243,4 +243,28 @@
 
 .share-row--revoked td {
   color: var(--text-muted);
+}
+
+/* ==========================================================================
+   Inline-Style-Migration Phase 1
+   ========================================================================== */
+
+/* Rechte-Select in der Shares-Admin-Tabelle */
+.share-admin-rechte-select {
+  font-size: 0.82rem;
+  padding: 3px var(--space-6);
+}
+
+/* "Archivierte anzeigen"-Checkbox in SharesAdminPage */
+.share-admin-archived-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+/* GuestShareApp: Meldungen ohne Bottom-Abstand */
+.guest-flush {
+  margin-bottom: 0;
 }

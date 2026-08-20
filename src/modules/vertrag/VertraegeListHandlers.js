@@ -1,5 +1,7 @@
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { syncVertragCheckbox } from '../../core/VertragSyncHelper.js';
+import { openDocumentUrl } from '../../core/DocumentUrlHelper.js';
+import { VertragUtils } from './VertragUtils.js';
 
 export function bindTableDelegation(list) {
   const tbody = document.getElementById('vertraege-table-body');
@@ -14,6 +16,15 @@ export function bindTableDelegation(list) {
       e.preventDefault();
       e.stopPropagation();
       list.openVertragUploadDrawer(uploadBtn.dataset.id);
+      return;
+    }
+
+    // Draft-Name → Edit-Wizard
+    const editLink = target.closest('[data-vertrag-open="edit"]');
+    if (editLink) {
+      e.preventDefault();
+      e.stopPropagation();
+      window.navigateTo(`/vertraege/${editLink.dataset.id}/edit`);
       return;
     }
 
@@ -34,9 +45,7 @@ export function bindTableDelegation(list) {
 
     const row = target.closest('tr[data-vertrag-id]');
     if (row) {
-      const vertragId = row.dataset.vertragId;
-      const isDraft = row.dataset.vertragDraft === '1';
-      window.navigateTo(isDraft ? `/vertraege/${vertragId}/edit` : `/vertraege/${vertragId}`);
+      openVertragRecord(list, row.dataset.vertragId);
     }
   };
 
@@ -44,16 +53,25 @@ export function bindTableDelegation(list) {
   list._boundEventListeners.add(() => tbody.removeEventListener('click', handler));
 }
 
+function openVertragRecord(list, id) {
+  const vertrag = list.vertraege?.find(v => v.id === id);
+  const action = VertragUtils.getVertragOpenAction(vertrag);
+  if (action.kind === 'edit') {
+    window.navigateTo(action.href);
+    return;
+  }
+  if (action.kind === 'pdf') {
+    openDocumentUrl(action.url);
+    return;
+  }
+  window.toastSystem?.show('Keine PDF-Datei vorhanden', 'warning');
+}
+
 async function handleAction(list, action, id) {
   switch (action) {
-    case 'view': {
-      const tbody = document.getElementById('vertraege-table-body');
-      const item = tbody?.querySelector(`[data-action="view"][data-id="${id}"]`);
-      const row = item?.closest('tr[data-vertrag-draft]');
-      const isDraft = row?.dataset?.vertragDraft === '1';
-      window.navigateTo(isDraft ? `/vertraege/${id}/edit` : `/vertraege/${id}`);
+    case 'view':
+      openVertragRecord(list, id);
       break;
-    }
     case 'edit':
     case 'continue':
       if (!list.getVertragPermissions().canEdit) {

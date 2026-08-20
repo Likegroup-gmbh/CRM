@@ -3,6 +3,7 @@
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { getTeilbereicheFromListe } from './CreatorAuswahlTemplates.js';
+import { icon } from '../../core/icons/IconSystem.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 
 export class CreatorAuswahlKategorienDrawer {
@@ -19,16 +20,14 @@ export class CreatorAuswahlKategorienDrawer {
           <div class="kategorie-item" data-kategorie="${escapeAttr(tb)}">
             <span class="kategorie-name">${escapeAttr(tb)}</span>
             <button type="button" class="kategorie-delete-btn" data-kategorie="${escapeAttr(tb)}" title="Kategorie löschen">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" style="width: 16px; height: 16px;">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
+              ${icon('x-mark', { className: 'icon-16' })}
             </button>
           </div>
-        `).join('') : '<p style="color: var(--text-secondary); text-align: center;">Noch keine Kategorien definiert</p>'}
+        `).join('') : '<p class="u-text-center u-text-secondary">Noch keine Kategorien definiert</p>'}
       </div>
-      <div class="kategorien-add-form" style="margin-top: var(--space-md); display: flex; gap: var(--space-sm);">
-        <input type="text" id="new-kategorie-input" class="form-input" placeholder="Neue Kategorie..." style="flex: 1;">
-        <button type="button" id="btn-add-kategorie" class="primary-btn">Hinzufügen</button>
+      <div class="kategorien-add-form">
+        <input type="text" id="new-kategorie-input" class="form-input flex-1" placeholder="Neue Kategorie...">
+        <button type="button" id="btn-add-kategorie" class="mdc-btn">Hinzufügen</button>
       </div>
     `;
   }

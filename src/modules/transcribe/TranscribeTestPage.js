@@ -41,69 +41,65 @@ export class TranscribeTestPage {
 
   render() {
     const html = `
-      <div style="max-width: 860px; display: flex; flex-direction: column; gap: var(--space-md);">
+      <div class="transcribe-test-page">
 
-        <div style="display: flex; gap: var(--space-xs); align-items: stretch;">
+        <div class="transcribe-input-row">
           <input
             type="url"
             id="transcribe-url-input"
-            class="form-input"
+            class="form-input flex-1"
             placeholder="TikTok- oder Instagram-URL einfügen (z.B. https://www.tiktok.com/@user/video/...)"
-            style="flex: 1;"
           />
-          <button id="transcribe-start-btn" class="primary-btn" style="white-space: nowrap; padding: var(--space-xs) var(--space-md);">
+          <button id="transcribe-start-btn" class="mdc-btn transcribe-start-btn">
             Transkribieren
           </button>
         </div>
 
         <div id="transcribe-progress-wrap" style="display: none; flex-direction: column; gap: 6px;">
-          <div style="display: flex; justify-content: space-between; font-size: var(--text-sm); color: var(--text-secondary);">
+          <div class="transcribe-progress-header">
             <span id="transcribe-progress-label">Starte...</span>
             <span id="transcribe-elapsed">0.0s</span>
           </div>
-          <div style="height: 8px; background: var(--gray-200); border-radius: 4px; overflow: hidden;">
+          <div class="transcribe-progress-track">
             <div id="transcribe-progress-bar" style="height: 100%; width: 0%; background: var(--color-primary); border-radius: 4px; transition: width 0.4s ease;"></div>
           </div>
         </div>
 
         <div class="form-group">
           <label class="form-label">Console-Log</label>
-          <div id="transcribe-log"
-               style="background: var(--gray-900); color: #d1fae5; font-family: monospace; font-size: 12px;
-                      border-radius: var(--radius-xl); padding: var(--space-md); height: 220px;
-                      overflow-y: auto; white-space: pre-wrap;">Bereit. URL eingeben und Button drücken.</div>
+          <div id="transcribe-log" class="transcribe-log">Bereit. URL eingeben und Button drücken.</div>
         </div>
 
         <div class="form-group">
-          <label class="form-label">Transkript <span id="transcribe-source-badge" style="font-weight: 400; color: var(--text-secondary);"></span></label>
-          <textarea id="transcribe-transcript" class="form-input" rows="8" readonly
-                    placeholder="Transkript erscheint hier..." style="resize: vertical; font-family: inherit;"></textarea>
-          <button id="copy-transcript-btn" class="secondary-btn" style="align-self: flex-start; padding: 4px 12px; font-size: var(--text-sm);">Kopieren</button>
+          <label class="form-label">Transkript <span id="transcribe-source-badge" class="transcribe-source-badge"></span></label>
+          <textarea id="transcribe-transcript" class="form-input transcribe-textarea" rows="8" readonly
+                    placeholder="Transkript erscheint hier..."></textarea>
+          <button id="copy-transcript-btn" class="mdc-btn mdc-btn--secondary transcribe-copy-btn">Kopieren</button>
         </div>
 
         <div id="transcribe-meta" style="display: none; flex-direction: column; gap: var(--space-xs);
                     border: 1px solid var(--gray-200); border-radius: var(--radius-xl); padding: var(--space-sm) var(--space-md);">
-          <div style="display: flex; align-items: center; gap: 6px; font-size: var(--text-sm);">
-            <span style="color: var(--text-secondary);">Hochgeladen von</span>
+          <div class="transcribe-meta-row">
+            <span class="transcribe-meta-muted">Hochgeladen von</span>
             <a id="transcribe-author-link" href="#" target="_blank" rel="noopener"
-               style="font-weight: 600; color: var(--color-primary); text-decoration: none;"></a>
-            <span id="transcribe-posted-at" style="color: var(--text-secondary);"></span>
+               class="transcribe-author-link"></a>
+            <span id="transcribe-posted-at" class="transcribe-meta-muted"></span>
           </div>
-          <div id="transcribe-stats" style="display: flex; gap: var(--space-xs); flex-wrap: wrap;"></div>
+          <div id="transcribe-stats" class="transcribe-stats"></div>
         </div>
 
         <div class="form-group">
           <label class="form-label">Caption</label>
-          <textarea id="transcribe-caption" class="form-input" rows="4" readonly
-                    placeholder="Video-Caption erscheint hier..." style="resize: vertical; font-family: inherit;"></textarea>
-          <button id="copy-caption-btn" class="secondary-btn" style="align-self: flex-start; padding: 4px 12px; font-size: var(--text-sm);">Kopieren</button>
+          <textarea id="transcribe-caption" class="form-input transcribe-textarea" rows="4" readonly
+                    placeholder="Video-Caption erscheint hier..."></textarea>
+          <button id="copy-caption-btn" class="mdc-btn mdc-btn--secondary transcribe-copy-btn">Kopieren</button>
         </div>
 
         <div class="form-group">
           <label class="form-label">Beschreibung</label>
-          <textarea id="transcribe-description" class="form-input" rows="4" readonly
-                    placeholder="KI-Beschreibung erscheint hier..." style="resize: vertical; font-family: inherit;"></textarea>
-          <button id="copy-description-btn" class="secondary-btn" style="align-self: flex-start; padding: 4px 12px; font-size: var(--text-sm);">Kopieren</button>
+          <textarea id="transcribe-description" class="form-input transcribe-textarea" rows="4" readonly
+                    placeholder="KI-Beschreibung erscheint hier..."></textarea>
+          <button id="copy-description-btn" class="mdc-btn mdc-btn--secondary transcribe-copy-btn">Kopieren</button>
         </div>
 
       </div>

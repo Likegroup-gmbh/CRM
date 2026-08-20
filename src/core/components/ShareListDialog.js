@@ -47,7 +47,7 @@ export class ShareListDialog {
                 <option value="ansehen">Nur ansehen</option>
                 <option value="feedback">Ansehen + Feedback</option>
               </select>
-              <button id="share-submit-btn" class="primary-btn">Einladen</button>
+              <button id="share-submit-btn" class="mdc-btn">Einladen</button>
             </div>
             <textarea id="share-message-input" class="input share-message-input" rows="3" maxlength="500"
                       placeholder="Nachricht (optional) …"></textarea>

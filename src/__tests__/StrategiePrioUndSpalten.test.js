@@ -81,20 +81,22 @@ describe('Sichtbarkeit der festen Spalten', () => {
     expect(isFixedColumnVisible(['fixed:beschreibung'], 'beschreibung')).toBe(false);
   });
 
-  it('haelt Transkript und Caption ohne Eintrag ausgeblendet', () => {
-    expect(isFixedColumnVisible([], 'transkript')).toBe(false);
-    expect(isFixedColumnVisible([], 'caption')).toBe(false);
-    expect(isFixedColumnVisible(['show:fixed:transkript'], 'transkript')).toBe(true);
+  it('zeigt Transkript und Caption ohne Eintrag standardmaessig', () => {
+    expect(isFixedColumnVisible([], 'transkript')).toBe(true);
+    expect(isFixedColumnVisible([], 'caption')).toBe(true);
+    expect(isFixedColumnVisible(['fixed:transkript'], 'transkript')).toBe(false);
   });
 
   it('laesst nach dem Umschalten nie widerspruechliche Eintraege zurueck', () => {
     let hidden = ['custom:abc'];
 
-    hidden = setFixedColumnVisibility(hidden, 'transkript', true);
-    expect(isFixedColumnVisible(hidden, 'transkript')).toBe(true);
-
     hidden = setFixedColumnVisibility(hidden, 'transkript', false);
     expect(isFixedColumnVisible(hidden, 'transkript')).toBe(false);
+    // Pro Spalte hoechstens ein Eintrag - nie "fixed:" und "show:fixed:" zugleich
+    expect(hidden.filter(e => e.includes('transkript'))).toHaveLength(1);
+
+    hidden = setFixedColumnVisibility(hidden, 'transkript', true);
+    expect(isFixedColumnVisible(hidden, 'transkript')).toBe(true);
     expect(hidden.filter(e => e.includes('transkript'))).toHaveLength(0);
 
     hidden = setFixedColumnVisibility(hidden, 'prio', false);
@@ -131,33 +133,30 @@ describe('renderItemRow – Prio-Select statt drei Checkboxen', () => {
 });
 
 describe('renderItemRow – Transkript, Caption und KI-Tag', () => {
-  const sichtbar = { hiddenColumns: ['show:fixed:transkript', 'show:fixed:caption'] };
+  it('zeigt den Volltext in einer Textarea', () => {
+    const doc = renderRow({ transkript: 'Hallo Welt', transkript_quelle: 'whisper' });
+    const zelle = doc.querySelector('td.col-transkript');
+    const textarea = zelle.querySelector('textarea[data-field="transkript"]');
 
-  it('zeigt eine Vorschau mit Quelle, die den Volltext oeffnet', () => {
-    const doc = renderRow(
-      { transkript: 'Hallo Welt', transkript_quelle: 'whisper' },
-      sichtbar
-    );
-    const btn = doc.querySelector('td.col-transkript [data-action="show-longtext"]');
-
-    expect(btn.dataset.field).toBe('transkript');
-    expect(btn.dataset.itemId).toBe('i1');
-    expect(btn.querySelector('.cell-longtext__preview').textContent).toBe('Hallo Welt');
-    expect(btn.querySelector('.cell-longtext__meta').textContent).toContain('Whisper');
+    expect(textarea.dataset.itemId).toBe('i1');
+    expect(textarea.textContent).toBe('Hallo Welt');
   });
 
-  it('laesst leere Zellen ohne Button', () => {
-    const doc = renderRow({ transkript: null, caption: '' }, sichtbar);
-    expect(doc.querySelector('[data-action="show-longtext"]')).toBeNull();
-    expect(doc.querySelectorAll('.cell-empty')).toHaveLength(2);
+  it('rendert leere Felder als leere Textareas', () => {
+    const doc = renderRow({ transkript: null, caption: '' });
+
+    expect(doc.querySelector('td.col-transkript textarea[data-field="transkript"]').textContent).toBe('');
+    expect(doc.querySelector('td.col-caption textarea[data-field="caption"]')).toBeTruthy();
   });
 
-  it('markiert nur KI-Beschreibungen', () => {
-    expect(renderRow({ beschreibung: 'Text', beschreibung_quelle: 'ki' }).querySelector('.ki-tag')).toBeTruthy();
-    expect(renderRow({ beschreibung: 'Text', beschreibung_quelle: 'user' }).querySelector('.ki-tag')).toBeNull();
-    // Altbestand ohne Quelle bleibt ungetaggt
-    expect(renderRow({ beschreibung: 'Text' }).querySelector('.ki-tag')).toBeNull();
+  it('stellt Transkript und Caption fuer Kunden readonly dar', () => {
+    const doc = renderRow({ transkript: 'Hallo', caption: 'Welt' }, { isKunde: true });
+
+    expect(doc.querySelector('td.col-transkript textarea')).toBeNull();
+    expect(doc.querySelector('td.col-transkript .cell-text-readonly').textContent).toBe('Hallo');
+    expect(doc.querySelector('td.col-caption .cell-text-readonly').textContent).toBe('Welt');
   });
+
 });
 
 describe('renderItemRow – Fortschritt der Hintergrund-Verarbeitung', () => {

@@ -174,3 +174,26 @@ export async function loadContractDetail(auftragId) {
     return null;
   }
 }
+
+export async function loadContractVertraege(auftragId) {
+  const supabase = SUPABASE();
+  if (!supabase || !auftragId) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('vertraege')
+      .select(`
+        id, name, typ, is_draft, datei_url, datei_path, created_at,
+        dropbox_file_url, unterschriebener_vertrag_url,
+        creator:creator_id(id, vorname, nachname),
+        contracting_auftrag:contracting_auftrag_id(id, auftragsname, titel)
+      `)
+      .eq('contracting_auftrag_id', auftragId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  } catch (e) {
+    console.error('❌ loadContractVertraege Fehler:', e);
+    return [];
+  }
+}

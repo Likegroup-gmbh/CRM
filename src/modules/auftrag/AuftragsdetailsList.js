@@ -9,6 +9,7 @@ import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { renderAuftragAmpel } from './logic/AuftragStatusUtils.js';
+import { resolveEmptyState } from '../../core/components/EmptyState.js';
 
 export class AuftragsdetailsList {
   constructor() {
@@ -140,11 +141,11 @@ export class AuftragsdetailsList {
           </div>
         </div>
         <div class="table-actions">
-          ${canBulkDelete ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
-          ${canBulkDelete ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
+          ${canBulkDelete ? '<button id="btn-select-all" class="mdc-btn mdc-btn--secondary">Alle auswählen</button>' : ''}
+          ${canBulkDelete ? '<button id="btn-deselect-all" class="mdc-btn mdc-btn--secondary" style="display:none;">Auswahl aufheben</button>' : ''}
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
-          ${canBulkDelete ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
-          ${!this.isKunde && !this.isMitarbeiter ? '<button id="btn-auftragsdetails-new" class="primary-btn">Neue Auftragsdetails anlegen</button>' : ''}
+          ${canBulkDelete ? '<button id="btn-delete-selected" class="mdc-btn mdc-btn--delete" style="display:none;">Ausgewählte löschen</button>' : ''}
+          ${!this.isKunde && !this.isMitarbeiter ? '<button id="btn-auftragsdetails-new" class="mdc-btn">Neue Auftragsdetails anlegen</button>' : ''}
         </div>
       </div>
 
@@ -455,6 +456,11 @@ export class AuftragsdetailsList {
         e.preventDefault();
         window.navigateTo('/projekt-erstellen');
       }
+      // Empty-State-Action "Filter zurücksetzen"
+      if (e.target.closest('[data-empty-action="reset-filters"]')) {
+        e.preventDefault();
+        this.onFiltersReset();
+      }
     });
 
     // Alle auswählen Button
@@ -668,28 +674,23 @@ export class AuftragsdetailsList {
 
     await TableAnimationHelper.animatedUpdate(tbody, () => {
       if (!details || details.length === 0) {
-        tbody.innerHTML = `
-          <tr>
-            <td colspan="${this.isKunde ? '8' : canBulkDelete ? '11' : '10'}" class="no-data">
-              <div style="text-align: center; padding: 40px 20px;">
-                <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📄</div>
-                <h3 style="color: #666; margin-bottom: 8px;">Keine Auftragsdetails vorhanden</h3>
-                <p style="color: #999; margin-bottom: 20px;">Es wurden noch keine Auftragsdetails erstellt.</p>
-                <button id="btn-create-first-details" class="primary-btn">
-                  Erste Auftragsdetails anlegen
-                </button>
-              </div>
-            </td>
-          </tr>
-        `;
-        
-        const createBtn = document.getElementById('btn-create-first-details');
-        if (createBtn) {
-          createBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            window.navigateTo('/projekt-erstellen');
-          });
-        }
+        const filters = filterSystem.getFilters('auftragsdetails') || {};
+        const hasActiveFilters = Object.values(filters).some(v => v && (Array.isArray(v) ? v.length > 0 : v !== ''))
+          || (this.searchQuery || '').trim().length > 0;
+        const html = resolveEmptyState({
+          hasActiveFilters,
+          states: {
+            default: {
+              icon: 'document',
+              title: 'Keine Auftragsdetails vorhanden',
+              text: 'Es wurden noch keine Auftragsdetails erstellt.',
+              actionsHtml: this.isKunde
+                ? ''
+                : '<button id="btn-auftragsdetails-new" class="mdc-btn">Erste Auftragsdetails anlegen</button>'
+            }
+          }
+        }, 'default');
+        tbody.innerHTML = `<tr><td colspan="${this.isKunde ? '8' : canBulkDelete ? '11' : '10'}" class="empty-state-cell">${html}</td></tr>`;
         return;
       }
 

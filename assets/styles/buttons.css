@@ -1,0 +1,453 @@
+/* ==========================================================================
+   BUTTONS (aus components.css extrahiert, Phase 7)
+   ========================================================================== */
+
+/* ==========================================================================
+   Button Components
+   ========================================================================== */
+
+.mdc-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap:var(--space-xs);
+  padding: var(--space-xs);
+  border: none;
+  border-radius: var(--radius-xl);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--gray-100);
+  background: var(--gray-900);
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform .06s ease, box-shadow .2s ease, background .2s ease, color .2s ease, border-color .2s ease;
+}
+
+.mdc-btn:active { transform: translateY(0); }
+
+.mdc-btn[disabled] { opacity: .6; cursor: not-allowed; }
+
+.mdc-btn__icon { display: inline-flex; opacity: .9; }
+
+.mdc-btn__icon--check { display: inline-flex; }
+
+.mdc-btn__spinner { display: none; }
+
+.mdc-btn__label { white-space: nowrap; }
+
+/* State: loading */
+
+.mdc-btn.is-loading .mdc-btn__icon--check { display: none; }
+
+.mdc-btn.is-loading .mdc-btn__spinner { display: inline-flex; }
+
+.mdc-btn.is-loading { pointer-events: none; background: var(--bg-secondary); color: var(--text-primary); border-color: var(--gray-300); }
+
+/* State: success */
+
+.mdc-btn.is-success { background: var(--bg-primary); color: var(--text-primary); border-color: var(--gray-300); }
+
+.mdc-btn.is-success .mdc-btn__spinner { display: none; }
+
+.mdc-btn.is-success .mdc-btn__icon--check { display: inline-flex; }
+
+/* State: submit-locked (globaler Doppelklick-Schutz) */
+
+.mdc-btn.is-submit-locked,
+button.is-submit-locked,
+[data-submit-locked="true"] {
+  pointer-events: none;
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.mdc-btn.is-submit-locked .mdc-btn__icon--check { display: none; }
+
+.mdc-btn.is-submit-locked .mdc-btn__spinner { display: inline-flex; }
+
+/* ===== MDC CANCEL BUTTON ===== */
+
+.mdc-btn--cancel {
+  background: var(--bg-primary);
+  border: 1px solid var(--gray-300);
+  color: var(--gray-900);
+}
+
+.mdc-btn--cancel .mdc-btn__icon {
+  opacity: 0.7;
+}
+
+.mdc-btn--cancel:hover .mdc-btn__icon {
+  opacity: 1;
+}
+
+/* ===== MDC CREATE BUTTON ===== */
+
+.mdc-btn--create {
+  background: var(--gray-900);
+  border: 1px solid var(--gray-900);
+  color: var(--text-inverse);
+}
+
+.mdc-btn--create:hover {
+  background: var(--gray-800);
+}
+
+/* ===== MDC DELETE BUTTON ===== */
+
+.mdc-btn--delete {
+  background: var(--color-error);
+  border: 1px solid var(--color-error);
+  color: var(--text-inverse);
+}
+
+.mdc-btn--delete:hover {
+  background: var(--color-error);
+  border-color: var(--color-error);
+}
+
+/* ===== MDC SECONDARY BUTTON ===== */
+
+.mdc-btn--secondary {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  color: var(--gray-900);
+}
+
+.mdc-btn--secondary:hover {
+  border: 1px solid var(--gray-400);
+}
+
+/* ===== MDC PRIMARY BUTTON ===== */
+
+.mdc-btn--primary {
+  background: var(--primary-600);
+  border: 1px solid var(--primary-600);
+  color: var(--text-inverse);
+}
+
+.mdc-btn--primary:hover {
+  background: var(--primary-700);
+  border-color: var(--primary-700);
+}
+
+/* ===== MDC SMALL BUTTON ===== */
+
+.mdc-btn--sm {
+  padding: var(--space-xxs) var(--space-xs);
+  font-size: var(--text-xs);
+  border-radius: var(--radius-lg);
+}
+
+/* Icon-Sizing (uebernommen von altem .btn-System) */
+
+.mdc-btn svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+/* Aktiv-State (uebernommen von .secondary-btn.btn-active) */
+
+.mdc-btn.btn-active {
+  background: var(--gray-900);
+  color: var(--text-inverse);
+  border-color: var(--gray-900);
+}
+
+.mdc-btn.btn-active:hover {
+  background: var(--gray-700);
+}
+
+/* ===== LEGACY BUTTONS (aus components.css uebernommen) ===== */
+
+.primary-btn {
+  background-color: var(--color-primary);
+  color: var(--text-inverse);
+  padding: var(--space-xs);
+  border: none;
+  border-radius: var(--radius-xl);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  gap: var(--space-xxs);
+}
+
+.primary-btn:hover {
+  background-color: var(--color-primary-light);
+}
+
+.secondary-btn {
+  border: 1px solid var(--gray-200);
+  padding: var(--space-xs);
+  background-color: var(--bg-primary);
+  border-radius: var(--radius-xl);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-primary);
+  gap: var(--space-xxs);
+}
+
+.secondary-btn:hover {
+  background-color: var(--gray-50);
+}
+
+.secondary-btn.btn-active {
+  background-color: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.secondary-btn.btn-active:hover {
+  background-color: var(--color-primary-light);
+}
+
+.danger-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs);
+  background: var(--error-500, #EF4444);
+  color: white;
+  border: none;
+  border-radius: var(--radius-xl);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.danger-btn:hover {
+  background: var(--error-600, #DC2626);
+}
+
+/* Loeschen steht links abgesetzt, Abbrechen und Speichern bleiben rechts */
+
+.form-actions .mdc-btn--delete {
+  margin-right: auto;
+}
+
+.profile-action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-white);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.profile-action-btn svg {
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+}
+
+.profile-action-btn:hover {
+  background: var(--gray-50);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  transform: translateY(-1px);
+}
+
+/* Disabled Action Button */
+
+.profile-action-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Social Media Links in Sidebar */
+
+/* Icon Button Styles */
+
+.btn-icon {
+  text-decoration: none;
+  font-size: var(--text-xl);
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-xs);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--text-secondary);
+}
+
+.btn-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke: currentColor;
+}
+
+.btn-icon:hover {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: var(--color-white);
+  transform: translateY(-1px);
+}
+
+.add-item-drawer-form-row--actions .mdc-btn {
+  width: auto;
+  min-width: var(--min-width-md);
+}
+
+.creator-pool-table td.cell-icon-only .link-icon-btn {
+  display: inline-flex;
+}
+
+.links-compact-row .link-icon-btn {
+  padding: var(--space-xxs);
+  flex-shrink: 0;
+}
+
+.links-compact-row .link-icon-btn svg {
+  width: 12px;
+  height: 12px;
+}
+
+.links-compact-cell--readonly .link-icon-btn {
+  padding: var(--space-xs);
+  border-radius: var(--radius-sm);
+}
+
+.links-compact-cell--readonly .link-icon-btn:hover {
+  background: var(--gray-100);
+}
+
+/* Link-Zellen mit Icon */
+
+.creator-pool-table .link-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary);
+  padding: var(--space-sm);
+  border-radius: var(--radius-sm);
+  transition: background-color 0.15s ease;
+  z-index: 2;
+}
+
+.creator-pool-table .link-icon-btn:hover {
+  background: var(--blue-50);
+}
+
+.creator-pool-table .link-icon-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.video-upload-drawer-content .mdc-btn:hover {
+  transform: none;
+}
+
+#video-upload-drawer .mdc-btn__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+#video-upload-drawer .mdc-btn__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.bilder-upload-drawer-content .mdc-btn:hover {
+  transform: none;
+}
+
+.video-settings-actions .mdc-btn {
+  justify-content: center;
+  gap: var(--gap-8);
+  flex: 1;
+  min-width: 0;
+}
+
+.video-settings-actions .mdc-btn:hover {
+  transform: none;
+}
+
+.video-settings-actions .mdc-btn--danger {
+  background: var(--danger);
+  color: var(--text-inverse);
+  border: none;
+  border-radius: var(--radius-lg);
+  padding: var(--space-10) var(--space-md);
+  font-size: var(--text-13);
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex; align-items: center;
+  transition: background 0.15s;
+}
+
+.video-settings-actions .mdc-btn--danger:hover { background: var(--danger); }
+
+.video-settings-actions .mdc-btn--danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* === Nutzungsrechte Spalte + Modal === */
+
+.nutzungsrechte-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--gray-500);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.nutzungsrechte-icon-btn:hover {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.bg-upload-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-xs);
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bg-upload-icon-btn:hover { background: var(--gray-100); color: var(--text-primary); }
+
+/* --- Content-Zelle Action-Buttons --- */
+
+.content-cell-actions .media-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  border-color: var(--border-secondary);
+}
+
+.content-cell-actions .media-action-btn:hover {
+  color: var(--gray-700);
+  border-color: var(--border-focus);
+  background: var(--bg-secondary);
+}

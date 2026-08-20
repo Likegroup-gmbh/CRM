@@ -3,7 +3,7 @@
 
 // Prefixe die KEINE Spalten in auftrag_details / kampagne haben.
 // Deren Daten werden nur in auftrag_kampagnenart_blocks persistiert.
-export const PREFIXES_WITHOUT_LEGACY_COLUMNS = new Set(['whitelisting', 'darkposting']);
+export const PREFIXES_WITHOUT_LEGACY_COLUMNS = new Set(['whitelisting', 'darkposting', 'event']);
 
 export const KAMPAGNENARTEN_MAPPING = {
   'UGC Paid': {
@@ -20,68 +20,33 @@ export const KAMPAGNENARTEN_MAPPING = {
     hasVideographen: false,
     displayName: 'UGC Organic'
   },
-  'UGC Pro Paid': {
-    prefix: 'ugc_pro_paid',
+  'Influencer Kampagne': {
+    prefix: 'influencer',
     hasCreator: true,
-    hasBilder: false,
-    hasVideographen: false,
-    displayName: 'UGC Pro Paid'
-  },
-  'UGC Pro Organic': {
-    prefix: 'ugc_pro_organic',
-    hasCreator: true,
-    hasBilder: false,
-    hasVideographen: false,
-    displayName: 'UGC Pro Organic'
-  },
-  'UGC Video Paid': {
-    prefix: 'ugc_video_paid',
-    hasCreator: true,
-    hasBilder: false,
-    hasVideographen: false,
-    displayName: 'UGC Video Paid'
-  },
-  'UGC Video Organic': {
-    prefix: 'ugc_video_organic',
-    hasCreator: true,
-    hasBilder: false,
-    hasVideographen: false,
-    displayName: 'UGC Video Organic'
-  },
-  'Influencer Kampagne': { 
-    prefix: 'influencer', 
-    hasCreator: true, 
     hasBilder: false,  // Influencer hat keine Bilder
     hasVideographen: false,
     displayName: 'Influencer'
   },
-  'Story': {
+  'Influencer Story': {
     prefix: 'story',
     hasCreator: true,
     hasBilder: false,
     hasVideographen: false,
-    displayName: 'Story'
+    displayName: 'Influencer Story'
   },
-  'Vorort-Produktion': {
-    prefix: 'vor_ort',
+  'Influencer Events': {
+    prefix: 'event',
     hasCreator: true,
     hasBilder: false,
-    hasVideographen: true,
-    displayName: 'Vor-Ort-Produktion'
+    hasVideographen: false,
+    displayName: 'Influencer Events'
   },
   'Vor-Ort-Produktion': {
     prefix: 'vor_ort',
     hasCreator: true,
-    hasBilder: false,
-    hasVideographen: true,
-    displayName: 'Vor-Ort-Produktion'
-  },
-  'Vor Ort Produktionen': { 
-    prefix: 'vor_ort', 
-    hasCreator: true, 
     hasBilder: false,  // Vor Ort hat KEINE Bilder
     hasVideographen: true,  // Nur Vor Ort hat Videographen
-    displayName: 'Vor Ort'
+    displayName: 'Vor-Ort-Produktion'
   },
   'Whitelisting': {
     prefix: 'whitelisting',
@@ -96,37 +61,33 @@ export const KAMPAGNENARTEN_MAPPING = {
     hasBilder: false,
     hasVideographen: false,
     displayName: 'Darkposting'
-  },
-  // Legacy-Kompatibilität (kann entfernt werden, sobald Altwerte nicht mehr vorkommen)
-  'UGC-Kampagne': {
-    prefix: 'ugc_video_organic',
-    hasCreator: true,
-    hasBilder: false,
-    hasVideographen: false,
-    displayName: 'UGC Video Organic'
-  },
-  'UGC Kampagne': {
-    prefix: 'ugc_video_organic',
-    hasCreator: true,
-    hasBilder: false,
-    hasVideographen: false,
-    displayName: 'UGC Video Organic'
-  },
-  'IGC Kampagnen': {
-    prefix: 'ugc_pro_organic',
-    hasCreator: true,
-    hasBilder: false,
-    hasVideographen: false,
-    displayName: 'UGC Pro Organic'
-  },
-  'IGC Kampagne': {
-    prefix: 'ugc_pro_organic',
-    hasCreator: true,
-    hasBilder: false,
-    hasVideographen: false,
-    displayName: 'UGC Pro Organic'
   }
 };
+
+// Legacy-Aliase -> kanonischer Name (Lese-Kompatibilität für Alt-Daten,
+// seit der Zusammenführung 2026-08 nicht mehr in kampagne_art_typen vorhanden)
+export const KAMPAGNENART_LEGACY_ALIASES = {
+  'UGC Pro Paid': 'UGC Paid',
+  'UGC Video Paid': 'UGC Paid',
+  'UGC Pro Organic': 'UGC Organic',
+  'UGC Video Organic': 'UGC Organic',
+  'UGC-Kampagne': 'UGC Organic',
+  'UGC Kampagne': 'UGC Organic',
+  'IGC Kampagnen': 'UGC Organic',
+  'IGC Kampagne': 'UGC Organic',
+  'Story': 'Influencer Story',
+  'Vorort-Produktion': 'Vor-Ort-Produktion',
+  'Vor Ort Produktionen': 'Vor-Ort-Produktion'
+};
+
+/**
+ * Löst einen (ggf. veralteten) Kampagnenarten-Namen auf den kanonischen Namen auf.
+ * @param {string} artName
+ * @returns {string}
+ */
+export function resolveKampagnenartName(artName) {
+  return KAMPAGNENART_LEGACY_ALIASES[artName] || artName;
+}
 
 /**
  * Generiert Feldnamen für eine Kampagnenart
@@ -134,7 +95,7 @@ export const KAMPAGNENARTEN_MAPPING = {
  * @returns {object|null} - Objekt mit Feldnamen oder null wenn nicht gefunden
  */
 export function getFieldsForKampagnenart(artName) {
-  const config = KAMPAGNENARTEN_MAPPING[artName];
+  const config = KAMPAGNENARTEN_MAPPING[resolveKampagnenartName(artName)];
   if (!config) return null;
   
   const { prefix, hasCreator, hasBilder, hasVideographen } = config;
@@ -165,7 +126,7 @@ export function getFieldsForKampagnenart(artName) {
  * @returns {boolean}
  */
 export function isKnownKampagnenart(artName) {
-  return artName in KAMPAGNENARTEN_MAPPING;
+  return resolveKampagnenartName(artName) in KAMPAGNENARTEN_MAPPING;
 }
 
 /**
@@ -182,7 +143,7 @@ export function getAllKampagnenartenNames() {
  * @returns {object|null}
  */
 export function getKampagnenartConfig(artName) {
-  return KAMPAGNENARTEN_MAPPING[artName] || null;
+  return KAMPAGNENARTEN_MAPPING[resolveKampagnenartName(artName)] || null;
 }
 
 /**
@@ -207,8 +168,8 @@ function generateStepperFieldHtml(id, name, label, singularLabel, pluralLabel, v
       <label for="${id}">${label}</label>
       <div class="number-stepper">
         <input type="hidden" id="${id}" name="${name}" min="0" value="${currentValue}" data-singular="${singularLabel}" data-plural="${pluralLabel}">
-        <button type="button" class="stepper-btn stepper-minus secondary-btn" data-target="${id}" ${disabledAttr}>−</button>
-        <button type="button" class="stepper-btn stepper-plus secondary-btn" data-target="${id}" ${disabledAttr}>+</button>
+        <button type="button" class="mdc-btn stepper-btn stepper-minus mdc-btn--secondary" data-target="${id}" ${disabledAttr}>−</button>
+        <button type="button" class="mdc-btn stepper-btn stepper-plus mdc-btn--secondary" data-target="${id}" ${disabledAttr}>+</button>
         <span class="stepper-info">${currentValue} ${displayLabel}</span>
       </div>
     </div>`;
@@ -223,7 +184,7 @@ function generateStepperFieldHtml(id, name, label, singularLabel, pluralLabel, v
  * @returns {string} - HTML String
  */
 export function generateFieldsHtml(artName, values = {}, readonly = false) {
-  const config = KAMPAGNENARTEN_MAPPING[artName];
+  const config = KAMPAGNENARTEN_MAPPING[resolveKampagnenartName(artName)];
   if (!config) return '';
   
   const { prefix, hasCreator, hasBilder, hasVideographen, displayName } = config;
@@ -296,12 +257,12 @@ export function generateFieldsHtml(artName, values = {}, readonly = false) {
  * @returns {string} - HTML String
  */
 export function generateFieldsWithBudgetHtml(artName, values = {}, anzahlReadonly = true) {
-  const config = KAMPAGNENARTEN_MAPPING[artName];
+  const config = KAMPAGNENARTEN_MAPPING[resolveKampagnenartName(artName)];
   if (!config) return '';
   
   const { prefix, hasCreator, hasBilder, hasVideographen, displayName } = config;
   const readonlyAttr = anzahlReadonly ? 'readonly' : '';
-  const readonlyStyle = anzahlReadonly ? 'style="background-color: #f5f5f5;"' : '';
+  const readonlyClass = anzahlReadonly ? 'class="input-readonly-bg"' : '';
   
   let fieldsHtml = `
     <fieldset class="kampagnenart-fields form-section-fieldset" data-art="${artName}" data-prefix="${prefix}">
@@ -311,7 +272,7 @@ export function generateFieldsWithBudgetHtml(artName, values = {}, anzahlReadonl
           <label for="${prefix}_video_anzahl">Anzahl Videos</label>
           <input type="number" id="${prefix}_video_anzahl" name="${prefix}_video_anzahl" 
                  min="0" value="${values[`${prefix}_video_anzahl`] || ''}" 
-                 ${readonlyAttr} ${readonlyStyle}>
+                 ${readonlyAttr} ${readonlyClass}>
         </div>`;
   
   if (hasCreator) {
@@ -320,7 +281,7 @@ export function generateFieldsWithBudgetHtml(artName, values = {}, anzahlReadonl
           <label for="${prefix}_creator_anzahl">Anzahl Creator</label>
           <input type="number" id="${prefix}_creator_anzahl" name="${prefix}_creator_anzahl" 
                  min="0" value="${values[`${prefix}_creator_anzahl`] || ''}" 
-                 ${readonlyAttr} ${readonlyStyle}>
+                 ${readonlyAttr} ${readonlyClass}>
         </div>`;
   }
   
@@ -334,7 +295,7 @@ export function generateFieldsWithBudgetHtml(artName, values = {}, anzahlReadonl
           <label for="${prefix}_bilder_anzahl">Anzahl Bilder</label>
           <input type="number" id="${prefix}_bilder_anzahl" name="${prefix}_bilder_anzahl" 
                  min="0" value="${values[`${prefix}_bilder_anzahl`] || ''}" 
-                 ${readonlyAttr} ${readonlyStyle}>
+                 ${readonlyAttr} ${readonlyClass}>
         </div>`;
   }
   
@@ -344,7 +305,7 @@ export function generateFieldsWithBudgetHtml(artName, values = {}, anzahlReadonl
           <label for="${prefix}_videographen_anzahl">Anzahl Videographen</label>
           <input type="number" id="${prefix}_videographen_anzahl" name="${prefix}_videographen_anzahl" 
                  min="0" value="${values[`${prefix}_videographen_anzahl`] || ''}" 
-                 ${readonlyAttr} ${readonlyStyle}>
+                 ${readonlyAttr} ${readonlyClass}>
         </div>`;
   }
   
@@ -369,7 +330,7 @@ export function generateFieldsWithBudgetHtml(artName, values = {}, anzahlReadonl
  * @returns {string} - HTML String
  */
 export function generateBudgetOnlyFieldsHtml(artName, values = {}) {
-  const config = KAMPAGNENARTEN_MAPPING[artName];
+  const config = KAMPAGNENARTEN_MAPPING[resolveKampagnenartName(artName)];
   if (!config) return '';
   
   const { prefix, displayName } = config;

@@ -7,9 +7,10 @@
 // CustomEvent 'table-select-change' mit { field, itemId, value, element } -
 // jede Tabellenansicht haengt ihre eigene Speicherlogik daran.
 
-const CHEVRON_ICON = `<svg class="table-select__chevron" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd" /></svg>`;
+import { icon } from '../icons/IconSystem.js';
 
-const CHECK_ICON = `<svg class="table-select__check" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clip-rule="evenodd" /></svg>`;
+const CHEVRON_ICON = icon('chevron-down-filled');
+const CHECK_ICON = icon('check-filled');
 
 function escapeHtml(str) {
   return String(str ?? '')
@@ -161,13 +162,13 @@ export class TableSelect {
   closeAll() {
     document.querySelectorAll('.table-select__portal').forEach(p => p.remove());
     document.querySelectorAll('.table-select.open').forEach(w => {
-      w.classList.remove('open');
+      w.classList.remove('show');
       w.querySelector('.table-select__trigger')?.setAttribute('aria-expanded', 'false');
     });
   }
 
   toggle(wrapper) {
-    const isOpen = wrapper?.classList.contains('open');
+    const isOpen = wrapper?.classList.contains('show');
     this.closeAll();
     if (!wrapper || isOpen) return;
     this.open(wrapper);
@@ -186,7 +187,7 @@ export class TableSelect {
     document.body.appendChild(portal);
     this.position(trigger, portal);
 
-    wrapper.classList.add('open');
+    wrapper.classList.add('show');
     trigger.setAttribute('aria-expanded', 'true');
     requestAnimationFrame(() => portal.classList.add('show'));
     return portal;

@@ -2,6 +2,7 @@
 // Kunden-Portal: Kampagne-Detail (Kooperationenliste)
 
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { renderEmptyStateRow } from '../../core/components/EmptyState.js';
 
 export class KundenKampagneDetail {
   _abortController = null;
@@ -43,7 +44,7 @@ export class KundenKampagneDetail {
   async render() {
     const rows = (this.koops || []).map(r => `
       <tr>
-        <td><a href="/kunden-kooperation/${r.id}" onclick="event.preventDefault(); window.navigateTo('/kunden-kooperation/${r.id}')">${window.validatorSystem.sanitizeHtml(r.name || r.id)}</a></td>
+        <td><a href="/kunden-kooperation/${r.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/kunden-kooperation/${r.id}')">${window.validatorSystem.sanitizeHtml(r.name || r.id)}</a></td>
       </tr>
     `).join('');
 
@@ -51,7 +52,7 @@ export class KundenKampagneDetail {
       <div class="data-table-container">
         <table class="data-table">
           <thead><tr><th>Kooperation</th></tr></thead>
-          <tbody>${rows || '<tr><td class="loading">Keine Kooperationen</td></tr>'}</tbody>
+          <tbody>${rows || renderEmptyStateRow({ icon: 'handshake', title: 'Keine Kooperationen' }, 1)}</tbody>
         </table>
       </div>
     `;

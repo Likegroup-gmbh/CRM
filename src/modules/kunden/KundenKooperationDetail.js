@@ -1,6 +1,8 @@
 // KundenKooperationDetail.js (ES6-Modul)
 // Kunden-Portal: Kooperation-Detail (Uploads read-only)
 
+import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
+
 export class KundenKooperationDetail {
   _abortController = null;
 
@@ -73,21 +75,21 @@ export class KundenKooperationDetail {
       <tr>
         <td>${safe(u.filename || u.id)}</td>
         <td>${safe(u.filetype || '—')}</td>
-        <td style="text-align:right;">${this.formatSize(u.filesize)}</td>
+        <td class="u-text-right">${this.formatSize(u.filesize)}</td>
         <td>${new Date(u.created_at).toLocaleString('de-DE')}</td>
-        <td style="text-align:right;">
-          <a href="#" class="secondary-btn small" data-action="download" data-path="${u.storage_path}" data-id="${u.id}">Download</a>
+        <td class="u-text-right">
+          <a href="#" class="mdc-btn mdc-btn--secondary small" data-action="download" data-path="${u.storage_path}" data-id="${u.id}">Download</a>
         </td>
       </tr>
     `).join('');
     
     const videosHtml = this.videos.length > 0 
       ? this.videos.map(video => this.renderVideoSection(video, safe, fmtDateTime)).join('')
-      : '<p class="empty-state">Keine Videos vorhanden.</p>';
+      : renderEmptyState({ icon: 'video', title: 'Keine Videos vorhanden' });
 
     const html = `
       ${this.videos.length > 0 ? `
-        <div class="detail-card" style="margin-bottom:24px;">
+        <div class="detail-card kunden-koop-card">
           <h2>Videos</h2>
           ${videosHtml}
         </div>
@@ -97,8 +99,8 @@ export class KundenKooperationDetail {
         <h2>Uploads</h2>
         <div class="data-table-container">
           <table class="data-table">
-            <thead><tr><th>Datei</th><th>Typ</th><th style="text-align:right;">Größe</th><th>Hochgeladen</th><th style="text-align:right;">Aktion</th></tr></thead>
-            <tbody>${uploadRows || '<tr><td colspan="5" class="loading">Keine Uploads</td></tr>'}</tbody>
+            <thead><tr><th>Datei</th><th>Typ</th><th class="u-text-right">Größe</th><th>Hochgeladen</th><th class="u-text-right">Aktion</th></tr></thead>
+            <tbody>${uploadRows || renderEmptyStateRow({ icon: 'inbox', title: 'Keine Uploads' }, 5)}</tbody>
           </table>
         </div>
       </div>
@@ -119,16 +121,16 @@ export class KundenKooperationDetail {
       contentHtml = currentAssets.map(a => {
         if (!a.file_url) return '';
         const label = a.description || a.variant_name || `Version ${a.version_number || 1}`;
-        return `<a href="${a.file_url}" target="_blank" rel="noopener" class="link-btn" style="margin-right:8px;margin-bottom:4px;">${safe(label)}</a>`;
+        return `<a href="${a.file_url}" target="_blank" rel="noopener" class="link-btn kunden-koop-link-btn">${safe(label)}</a>`;
       }).join('');
     } else {
-      contentHtml = '<p class="empty-state">Kein Content hinterlegt.</p>';
+      contentHtml = renderEmptyState({ icon: 'folder', title: 'Kein Content hinterlegt' });
     }
 
     return `
-      <div class="video-section" style="margin-bottom:24px;padding-bottom:24px;border-bottom:1px solid var(--border-primary);">
+      <div class="video-section kunden-koop-video-section">
         <h3>${safe(video.titel || 'Video #' + video.id)}</h3>
-        <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <div class="kunden-koop-video-header">
           <span class="status-badge status-${(video.status || 'produktion').toLowerCase()}">${video.status === 'abgeschlossen' ? 'Abgeschlossen' : 'Produktion'}</span>
           ${video.content_art ? `<span class="badge">${safe(video.content_art)}</span>` : ''}
         </div>

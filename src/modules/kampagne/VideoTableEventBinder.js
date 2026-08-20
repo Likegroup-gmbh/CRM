@@ -218,10 +218,10 @@ export class VideoTableEventBinder {
         e.preventDefault();
         e.stopPropagation();
         const wrapper = trigger.closest('.status-select-wrapper');
-        const isOpen = wrapper?.classList.contains('open');
+        const isOpen = wrapper?.classList.contains('show');
         t._closeStatusPortal();
         if (wrapper && !isOpen) {
-          wrapper.classList.add('open');
+          wrapper.classList.add('show');
           t._openStatusPortal(wrapper);
         }
         return;

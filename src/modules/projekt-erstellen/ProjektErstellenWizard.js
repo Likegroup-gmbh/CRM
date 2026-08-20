@@ -16,6 +16,7 @@ import {
   generatePoNummer,
   reservePoGesamtNummer
 } from '../auftrag/logic/PoNummerGenerator.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 export class ProjektErstellenWizard {
   constructor(container) {
@@ -271,17 +272,13 @@ export class ProjektErstellenWizard {
     container.innerHTML = `
       <div id="projekt-progress-steps"></div>
       <div class="progress-actions">
-        <button type="button" class="secondary-btn" id="wizard-prev-btn">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-          </svg>
+        <button type="button" class="mdc-btn mdc-btn--secondary" id="wizard-prev-btn">
+          ${icon('arrow-left')}
           Zurück
         </button>
-        <button type="button" class="primary-btn" id="wizard-next-btn">
+        <button type="button" class="mdc-btn" id="wizard-next-btn">
           <span id="wizard-next-btn-label">Weiter</span>
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
-          </svg>
+          ${icon('arrow-right')}
         </button>
       </div>
     `;

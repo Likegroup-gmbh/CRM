@@ -1,0 +1,38 @@
+/* ==========================================================================
+   UTILITIES
+   Kleine Helfer-Klassen als Ersatz fuer Inline-Styles.
+   .hidden (display: none !important) liegt bereits in components.css.
+   ========================================================================== */
+
+/* Text-Ausrichtung */
+.u-text-right { text-align: right; }
+.u-text-center { text-align: center; }
+.u-text-left { text-align: left; }
+
+/* Abstaende */
+.u-mt-xxs { margin-top: var(--space-xxs); }
+.u-mt-md { margin-top: var(--space-md); }
+.u-mt-lg { margin-top: var(--space-lg); }
+.u-mb-md { margin-bottom: var(--space-md); }
+
+/* Icon-Groessen (ersetzen SVG style="width/height") */
+.icon-14 { width: var(--space-14); height: var(--space-14); }
+.icon-16 { width: var(--space-md); height: var(--space-md); }
+.icon-18 { width: var(--space-18); height: var(--space-18); }
+.icon-20 { width: var(--space-20); height: var(--space-20); }
+
+/* Flex/Layout */
+.flex-1 { flex: 1; }
+.u-w-full { width: 100%; }
+.grid-span-all { grid-column: 1 / -1; }
+
+/* Weitere Abstaende */
+.u-mr-xxs { margin-right: var(--space-xxs); }
+.u-mb-xl { margin-bottom: var(--space-xl); }
+
+/* Sonstiges */
+.u-align-middle { vertical-align: middle; }
+.u-text-secondary { color: var(--text-secondary); }
+
+/* Icon-Utilities im .mdc-btn-Kontext (schlagen .mdc-btn svg aus buttons.css) */
+.mdc-btn svg.icon-14 { width: var(--space-14); height: var(--space-14); }

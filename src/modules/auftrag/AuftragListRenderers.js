@@ -7,6 +7,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { renderAuftragAmpel } from './logic/AuftragStatusUtils.js';
 import { getPaymentRowStatusClass } from './logic/PaymentRowStatus.js';
+import { resolveEmptyState } from '../../core/components/EmptyState.js';
 
 AuftragList.prototype.renderCreatedBy = function(user) {
   if (!user || !user.name) return '-';
@@ -213,17 +214,21 @@ AuftragList.prototype.updateTable = async function(auftraege, mode = 'auftraege'
 
   await TableAnimationHelper.animatedUpdate(tbody, () => {
     if (!auftraege || auftraege.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="${this.getListColumnCount(mode)}" class="no-data">
-            <div style="text-align: center; padding: 40px 20px;">
-              <div style="font-size: 48px; color: #ccc; margin-bottom: 16px;">📋</div>
-              <h3 style="color: #666; margin-bottom: 8px;">${emptyTitle}</h3>
-              <p style="color: #999; margin-bottom: 20px;">${emptySubtitle}</p>
-            </div>
-          </td>
-        </tr>
-      `;
+      const isKunde = window.isKunde?.() || false;
+      const html = resolveEmptyState({
+        hasActiveFilters: this.hasActiveFilters?.() || false,
+        states: {
+          default: {
+            icon: isContracts ? 'file-text' : 'clipboard',
+            title: emptyTitle,
+            text: emptySubtitle,
+            actionsHtml: (!isContracts && !isKunde)
+              ? '<button id="btn-auftrag-new" class="mdc-btn">Neuen Auftrag anlegen</button>'
+              : ''
+          }
+        }
+      }, 'default');
+      tbody.innerHTML = `<tr><td colspan="${this.getListColumnCount(mode)}" class="empty-state-cell">${html}</td></tr>`;
       return;
     }
 

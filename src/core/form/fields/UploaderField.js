@@ -1,5 +1,6 @@
 import { compressImage } from '../../ImageCompressor.js';
 import { openImageLightbox } from '../../media/ImageLightbox.js';
+import { icon } from '../../../core/icons/IconSystem.js';
 
 /**
  * Marker, den automatisch uebernommene Dateien am File-Objekt tragen (z. B. ein
@@ -7,11 +8,11 @@ import { openImageLightbox } from '../../media/ImageLightbox.js';
  */
 export const EXTRACT_SOURCE_MARKER = '__extractSource';
 
-const TRASH_ICON = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.35 9m-4.78 0L9.26 9m9.97-3.21c.34.05.68.1 1.02.16m-1.02-.16L18.16 19.67a2.25 2.25 0 0 1-2.24 2.08H8.08a2.25 2.25 0 0 1-2.24-2.08L4.77 5.79m14.46 0a48 48 0 0 0-3.48-.4m-12 .56c.34-.06.68-.11 1.02-.16m0 0a48 48 0 0 1 3.48-.4v-.91c0-1.18.91-2.16 2.09-2.2a52 52 0 0 1 3.32 0c1.18.04 2.09 1.02 2.09 2.2v.92m-7.5 0a48.7 48.7 0 0 1 7.5 0"/></svg>';
+const TRASH_ICON = icon('trash-alt');
 
 // Zeigt nach unten; die Aufwaerts-Variante entsteht per Drehung im CSS.
 // Ohne width/height, damit die Groesse aus var(--icon-xs) kommt.
-const CARET_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true"><path d="M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"/></svg>';
+const CARET_ICON = icon('chevron-down-bold');
 
 /**
  * Voreinstellung fuers manuelle Verkleinern, siehe Option shrinkOptions.

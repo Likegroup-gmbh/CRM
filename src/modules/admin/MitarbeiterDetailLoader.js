@@ -44,8 +44,8 @@ export async function loadMitarbeiterData(detail) {
         .select('id, name, kampagne:kampagne_id(kampagnenname, eigener_name), einkaufspreis_netto, einkaufspreis_zusatzkosten, einkaufspreis_gesamt')
         .eq('assignee_id', detail.userId),
       window.supabase
-        .from('briefings')
-        .select('id, product_service_offer, status')
+        .from('campaign_briefings')
+        .select('id, aktivierung_name, is_draft')
         .eq('assignee_id', detail.userId),
       staticDataCache.get('kampagne_status', 'id, name, sort_order', 'sort_order'),
       window.supabase

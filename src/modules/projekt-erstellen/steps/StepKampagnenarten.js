@@ -31,7 +31,7 @@ export class StepKampagnenarten {
     host.innerHTML = `
       <div class="projekt-erstellen-subsection">
         <div>
-          <h5 class="section-subtitle" style="margin-bottom: var(--space-sm);">Kampagnenarten</h5>
+          <h5 class="section-subtitle pe-kampagnenarten-subtitle">Kampagnenarten</h5>
           <div class="projekt-erstellen-campaign-add-row">
             <div class="form-field">
               <label for="pe-campaign-type-add">Kampagnenart hinzufügen</label>
@@ -39,7 +39,7 @@ export class StepKampagnenarten {
                 ${CAMPAIGN_TYPES.map(ct => `<option value="${ct.value}">${ct.label}</option>`).join('')}
               </select>
             </div>
-            <button type="button" class="secondary-btn" id="pe-add-campaign-block-btn">Hinzufügen</button>
+            <button type="button" class="mdc-btn mdc-btn--secondary" id="pe-add-campaign-block-btn">Hinzufügen</button>
           </div>
           <div id="pe-campaign-budgets-host" class="projekt-erstellen-budget-host"></div>
           <div id="pe-campaign-umsatz-hint" class="projekt-erstellen-umsatz-hint" style="display:none;"></div>

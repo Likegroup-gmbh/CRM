@@ -35,11 +35,11 @@ describe('AuftragsdetailsCreateController Lifecycle', () => {
       <form id="auftragsdetails-form">
         <input type="text" name="auftrag_id" value="auftrag-1">
         <input type="checkbox"
-               id="ugc_pro_paid_video_anzahl_enabled"
-               name="ugc_pro_paid_video_anzahl_enabled"
+               id="ugc_paid_video_anzahl_enabled"
+               name="ugc_paid_video_anzahl_enabled"
                data-video-toggle="true"
-               data-target="ugc_pro_paid_video_anzahl">
-        <input type="number" name="ugc_pro_paid_video_anzahl" value="9">
+               data-target="ugc_paid_video_anzahl">
+        <input type="number" name="ugc_paid_video_anzahl" value="9">
         <button type="submit">Speichern</button>
       </form>
     `;
@@ -52,7 +52,7 @@ describe('AuftragsdetailsCreateController Lifecycle', () => {
 
     const savedPayload = upsertSpy.mock.calls[0][0];
     expect(savedPayload.auftrag_id).toBe('auftrag-1');
-    expect(savedPayload.ugc_pro_paid_video_anzahl).toBeNull();
-    expect(savedPayload).not.toHaveProperty('ugc_pro_paid_video_anzahl_enabled');
+    expect(savedPayload.ugc_paid_video_anzahl).toBeNull();
+    expect(savedPayload).not.toHaveProperty('ugc_paid_video_anzahl_enabled');
   });
 });

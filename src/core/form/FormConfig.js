@@ -10,7 +10,6 @@ import { markeConfig } from './config/MarkeFormConfig.js';
 import { auftragConfig } from './config/AuftragFormConfig.js';
 import { kooperationConfig } from './config/KooperationFormConfig.js';
 import { ansprechpartnerConfig } from './config/AnsprechpartnerFormConfig.js';
-import { briefingConfig } from './config/BriefingFormConfig.js';
 import { produktConfig } from './config/ProduktFormConfig.js';
 import { personaConfig } from './config/PersonaFormConfig.js';
 import { rechnungConfig } from './config/RechnungFormConfig.js';
@@ -30,7 +29,6 @@ const FORM_CONFIGS = {
   auftrag: auftragConfig,
   kooperation: kooperationConfig,
   ansprechpartner: ansprechpartnerConfig,
-  briefing: briefingConfig,
   produkt: produktConfig,
   persona: personaConfig,
   rechnung: rechnungConfig,

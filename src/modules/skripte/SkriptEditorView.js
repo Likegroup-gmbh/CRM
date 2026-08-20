@@ -8,7 +8,9 @@
 import { skripteService, FUNNEL_STUFEN, VIDEO_LAENGEN } from './SkripteService.js';
 import { SkriptGeneratorForm } from './SkriptGeneratorForm.js';
 import { SkriptFeedbackDrawer } from './SkriptFeedbackDrawer.js';
-import { escapeHtml, formatDate, badge, formatUsageCost } from './SkripteUtils.js';
+import { SkriptInlineEdit } from './SkriptInlineEdit.js';
+import { escapeHtml, formatDate, badge, formatUsageCost, replaceSkriptUrl, skriptEditorPath } from './SkripteUtils.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 const AKTION_LABELS = {
   neu_schreiben: 'Neu schreiben',
@@ -17,7 +19,8 @@ const AKTION_LABELS = {
   anderer_ton: 'Anderer Ton',
   feedback: 'Feedback geben',
   chat: 'Chat',
-  rueckfrage: 'Rückfrage'
+  rueckfrage: 'Rückfrage',
+  visuell: 'Visual'
 };
 
 // Phosphor-Icons (Inline-SVG, skalieren ueber CSS, Farbe via currentColor)
@@ -33,6 +36,27 @@ const AKTION_ICONS = {
 const SEND_ICON = '<svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" aria-hidden="true"><path d="M231.87,114l-168-95.89A16,16,0,0,0,40.92,37.34L71.55,128,40.92,218.67A16,16,0,0,0,56,240a16.15,16.15,0,0,0,7.93-2.1l167.92-96.05a16,16,0,0,0,.05-27.89ZM56,224a.56.56,0,0,0,0-.12L85.74,136H144a8,8,0,0,0,0-16H85.74L56.06,32.16A.46.46,0,0,0,56,32l168,95.83Z"></path></svg>';
 
 const SEKTION_LABELS = { hook: 'HOOK', hauptteil: 'HAUPTTEIL', cta: 'CTA', gesamt: 'GESAMT' };
+const SEKTION_LABELS_KURZ = { hook: 'Hook', hauptteil: 'Hauptteil', cta: 'CTA' };
+const VISUELL_FIELD = { hook: 'hook_visuell', hauptteil: 'hauptteil_visuell', cta: 'cta_visuell' };
+
+function skriptStand(s) {
+  if (!s) return null;
+  return {
+    titel: s.titel,
+    hook: s.hook,
+    hauptteil: s.hauptteil,
+    cta: s.cta,
+    hook_visuell: s.hook_visuell,
+    hauptteil_visuell: s.hauptteil_visuell,
+    cta_visuell: s.cta_visuell
+  };
+}
+
+function manuellBeschreibung(feld) {
+  const sektion = feld.replace('_visuell', '');
+  const kurz = SEKTION_LABELS_KURZ[sektion] || sektion;
+  return feld.endsWith('_visuell') ? `Manuell · ${kurz} Visual` : `Manuell · ${kurz}`;
+}
 
 const PLACEHOLDER_DEFAULT = 'Feedback geben oder Frage stellen…';
 const PLACEHOLDER_AKTION = 'Anweisung ergänzen (optional) – Enter startet';
@@ -42,7 +66,6 @@ const PLACEHOLDER_FRAGEN = 'Antwort auf die Rückfrage schreiben…';
 const GEN_STEP_LABELS = {
   pending: 'Warte auf Start…',
   kontext: 'Ich sammle den Kontext aus den CRM-Daten…',
-  briefing: 'Ich durchforste das PDF-Briefing…',
   generierung: 'Ich schreibe das Skript…',
   speichern: 'Fast fertig – ich speichere…',
   done: 'Fertig!'
@@ -63,6 +86,13 @@ export class SkriptEditorView {
     this.onMouseUp = null;
     this.onDocMouseDown = null;
     this.feedbackDrawer = new SkriptFeedbackDrawer();
+    this.inlineEdit = new SkriptInlineEdit({
+      onChange: (feld, text) => {
+        if (this.skript) this.skript[feld] = text || null;
+      },
+      onInput: () => this.clearPending(),
+      onSave: (feld, text, vorher) => this.saveManuell(feld, text, vorher)
+    });
 
     // Neu-Modus: Generator-Formular in der Mitte statt Hook/Hauptteil/CTA
     this.neuModus = false;
@@ -73,19 +103,28 @@ export class SkriptEditorView {
     this.genJobId = null;
     this.genChannel = null;
     this.genPoll = null;
+    this.visuellApplyLaeuft = false;
+  }
+
+  get isReadonly() {
+    return Boolean(window.isKunde?.());
   }
 
   // ------------------------------------------------------------------
   // Lifecycle
   // ------------------------------------------------------------------
   async render(container, skriptId) {
-    this.cleanup();
+    await this.cleanup();
     this.container = container;
 
     container.innerHTML = '<div class="empty-state"><p>Skript wird geladen...</p></div>';
 
     // Neu-Modus: Editor-Shell mit leerer Mitte (Generator) statt Skript-Load
     if (skriptId === 'neu') {
+      if (this.isReadonly) {
+        container.innerHTML = '<div class="empty-state"><p>Kein Zugriff – Skripte können nur gelesen werden.</p></div>';
+        return;
+      }
       this.skripte = await skripteService.loadSkripte();
       this.skript = null;
       this.messages = [];
@@ -98,42 +137,61 @@ export class SkriptEditorView {
       return;
     }
 
-    const [skript, skripte, messages, versionen] = await Promise.all([
-      skripteService.loadSkript(skriptId),
-      skripteService.loadSkripte(),
-      skripteService.getChatMessages(skriptId),
-      skripteService.getVersionen(skriptId)
-    ]);
+    const readonly = this.isReadonly;
+    try {
+      const [skript, skripte, messages, versionen] = await Promise.all([
+        skripteService.loadSkript(skriptId),
+        skripteService.loadSkripte(),
+        readonly ? Promise.resolve([]) : skripteService.getChatMessages(skriptId),
+        skripteService.getVersionen(skriptId)
+      ]);
 
-    if (!skript) {
-      container.innerHTML = '<div class="empty-state"><p>Skript nicht gefunden.</p></div>';
-      return;
-    }
+      if (!skript) {
+        container.innerHTML = '<div class="empty-state"><p>Kein Zugriff auf dieses Skript.</p></div>';
+        return;
+      }
 
-    this.skript = skript;
-    this.skripte = skripte;
-    this.messages = messages;
-    this.setVersionsState(versionen);
-    this.neuModus = false;
+      this.skript = skript;
+      this.skripte = skripte;
+      this.messages = messages;
+      this.setVersionsState(versionen);
+      this.neuModus = false;
 
-    this.updateBreadcrumb();
-    this.renderLayout();
-    this.bindEvents();
-    this.subscribe();
-
-    // Nach Reload waehrend laufender Anfrage: Poll-Fallback direkt starten
-    if (this.messages.some((m) => m.status === 'pending' || m.status === 'running')) {
-      this.ensurePolling();
+      this.updateBreadcrumb();
+      this.renderLayout();
+      this.bindEvents();
+      if (!readonly) {
+        this.subscribe();
+        if (this.messages.some((m) => m.status === 'pending' || m.status === 'running')) {
+          this.ensurePolling();
+        }
+      }
+    } catch (err) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <p>Skript konnte nicht geladen werden.</p>
+          <p class="empty-state-detail" style="font-size: var(--text-sm); opacity: 0.7;">${escapeHtml(err.message)}</p>
+          <button type="button" class="mdc-btn mdc-btn--secondary" data-retry="${escapeHtml(skriptId)}">Erneut versuchen</button>
+        </div>
+      `;
+      container.querySelector('[data-retry]')?.addEventListener('click', () => {
+        this.render(container, skriptId);
+      });
     }
   }
 
   renderLayout() {
+    const readonly = this.isReadonly;
     this.container.innerHTML = `
-      <div class="skripte-editor">
+      <div class="skripte-editor${readonly ? ' skripte-editor--readonly' : ''}">
         <div class="skripte-editor-shell">
-          <aside class="skripte-editor-liste" id="ed-liste"></aside>
+          <nav class="skripte-editor-liste" id="ed-liste" aria-label="Skripte"></nav>
           <main class="skripte-editor-main">
             <div class="skripte-editor-doc" id="ed-doc"></div>
+          </main>
+          ${readonly ? '' : `
+          <aside class="skripte-editor-chat" id="ed-chat">
+            <div class="skripte-editor-chat-log" id="ed-chat-log"></div>
             <div class="skripte-editor-inputwrap">
               <div class="skripte-editor-chip" id="ed-chip" hidden></div>
               <div class="skripte-editor-input">
@@ -150,18 +208,20 @@ export class SkriptEditorView {
                 </div>
               </div>
             </div>
-          </main>
-          <aside class="skripte-editor-chat" id="ed-chat"></aside>
+          </aside>
+          `}
         </div>
-        <div class="skripte-editor-selmenu" id="ed-selmenu" hidden></div>
+        ${readonly ? '' : `<div class="skripte-editor-selmenu" id="ed-selmenu" hidden></div>`}
       </div>
     `;
 
     this.renderListe();
     this.renderDoc();
-    this.renderChat();
-    this.renderCost();
-    this.renderVersionSelect();
+    if (!readonly) {
+      this.renderChat();
+      this.renderCost();
+      this.renderVersionSelect();
+    }
   }
 
   // ------------------------------------------------------------------
@@ -214,12 +274,16 @@ export class SkriptEditorView {
     if (!version) return;
 
     try {
+      await this.inlineEdit.flush();
       await skripteService.wechsleVersion(this.skript.id, version);
       Object.assign(this.skript, {
         titel: version.titel,
         hook: version.hook,
         hauptteil: version.hauptteil,
         cta: version.cta,
+        hook_visuell: version.hook_visuell ?? null,
+        hauptteil_visuell: version.hauptteil_visuell ?? null,
+        cta_visuell: version.cta_visuell ?? null,
         aktive_version_nr: nr,
         aktive_sub_nr: sub
       });
@@ -252,9 +316,11 @@ export class SkriptEditorView {
 
   /** Breadcrumb: "Skripte" (klickbar, fuehrt zur Hauptseite) > aktueller Skript-Titel. */
   updateBreadcrumb() {
+    const label = this.neuModus ? 'Neues Skript' : (this.skript?.titel || 'Skript');
+    window.setHeadline(this.neuModus ? 'Neues Skript' : 'Skripte');
     window.breadcrumbSystem?.updateBreadcrumb([
       { label: 'Skripte', url: '/skripte', clickable: true },
-      { label: this.neuModus ? 'Neues Skript' : (this.skript?.titel || 'Skript'), clickable: false }
+      { label, clickable: false }
     ]);
   }
 
@@ -278,6 +344,8 @@ export class SkriptEditorView {
     // Offener Feedback-Drawer gehoert zum alten Skript -> schliessen,
     // sonst wuerde Speichern/Loeschen das falsche Skript treffen
     this.feedbackDrawer.close();
+
+    try { await this.inlineEdit.flush(); } catch (_) { /* Wechsel trotzdem */ }
 
     // Verbindungen des alten Skripts beenden (DOM und Maus-Listener bleiben)
     if (this.channel) {
@@ -307,7 +375,7 @@ export class SkriptEditorView {
       btn.classList.toggle('active', btn.dataset.id === skriptId);
     });
     document.getElementById('ed-doc')?.classList.add('skripte-editor--laedt');
-    document.getElementById('ed-chat')?.classList.add('skripte-editor--laedt');
+    document.getElementById('ed-chat-log')?.classList.add('skripte-editor--laedt');
 
     try {
       const [skript, messages, versionen] = await Promise.all([
@@ -317,7 +385,7 @@ export class SkriptEditorView {
       ]);
 
       if (!skript) {
-        window.toastSystem?.error('Skript nicht gefunden');
+        window.toastSystem?.error('Kein Zugriff auf dieses Skript');
         this.renderListe(); // Active-State zuruecksetzen
         return;
       }
@@ -326,10 +394,7 @@ export class SkriptEditorView {
       this.messages = messages;
       this.setVersionsState(versionen);
 
-      // URL fuer Reload/Teilen stabil halten
-      const url = new URL(window.location.href);
-      url.searchParams.set('skript', skriptId);
-      window.history.replaceState({ route: url.pathname + url.search }, '', url);
+      replaceSkriptUrl(skriptId);
       this.page._merkeKontext({ skript: skriptId });
 
       this.updateBreadcrumb();
@@ -350,7 +415,7 @@ export class SkriptEditorView {
       this.renderListe();
     } finally {
       document.getElementById('ed-doc')?.classList.remove('skripte-editor--laedt');
-      document.getElementById('ed-chat')?.classList.remove('skripte-editor--laedt');
+      document.getElementById('ed-chat-log')?.classList.remove('skripte-editor--laedt');
     }
   }
 
@@ -358,7 +423,7 @@ export class SkriptEditorView {
   // Neu-Modus: Generator direkt im Editor
   // ------------------------------------------------------------------
   startNeuModus() {
-    if (this.neuModus) return;
+    if (this.isReadonly || this.neuModus) return;
 
     this.feedbackDrawer.close();
 
@@ -382,10 +447,7 @@ export class SkriptEditorView {
     this.neuModus = true;
     this.genStatus = null;
 
-    // URL fuer Reload stabil halten
-    const url = new URL(window.location.href);
-    url.searchParams.set('skript', 'neu');
-    window.history.replaceState({ route: url.pathname + url.search }, '', url);
+    replaceSkriptUrl('neu');
     this.page._merkeKontext({ skript: 'neu' });
 
     this.updateBreadcrumb();
@@ -434,7 +496,7 @@ export class SkriptEditorView {
   async startFragenFlow() {
     let payload;
     try {
-      payload = await this.genForm.getPayloadMitUpload();
+      payload = this.genForm.getPayload();
     } catch (err) {
       window.toastSystem?.error(err.message);
       return;
@@ -478,6 +540,7 @@ export class SkriptEditorView {
       produkt_id: this.skript.produkt_id,
       persona_id: this.skript.persona_id,
       branche_id: this.skript.branche_id,
+      briefing_id: this.skript.briefing_id,
       mit_dna: this.skript.mit_dna,
       video_idee: this.skript.video_idee,
       location: this.skript.location,
@@ -522,7 +585,7 @@ export class SkriptEditorView {
       payload = this.genPayload;
     } else {
       try {
-        payload = await this.genForm.getPayloadMitUpload();
+        payload = this.genForm.getPayload();
       } catch (err) {
         window.toastSystem?.error(err.message);
         return;
@@ -629,7 +692,9 @@ export class SkriptEditorView {
     this.genJobId = null;
   }
 
-  cleanup() {
+  async cleanup() {
+    try { await this.inlineEdit.flush(); } catch (_) { /* Abbau trotzdem */ }
+    this.inlineEdit.detach();
     this.feedbackDrawer.close();
     this.cleanupGenJob();
     this.neuModus = false;
@@ -654,6 +719,7 @@ export class SkriptEditorView {
     }
     this.selektion = null;
     this.pendingAktion = null;
+    this.visuellApplyLaeuft = false;
   }
 
   // ------------------------------------------------------------------
@@ -665,21 +731,48 @@ export class SkriptEditorView {
     el.innerHTML = `
       <div class="skripte-editor-liste-head">
         <span>Skripte</span>
-        <button class="skripte-editor-neu-btn" id="ed-neu" title="Neues Skript erstellen">+ Neues Skript</button>
+        ${this.isReadonly ? '' : `
+        <a href="${skriptEditorPath('new')}" class="mdc-btn mdc-btn--secondary" id="ed-neu" title="Neues Skript erstellen">
+          <span class="mdc-btn__icon">${icon('ai-visual')}</span>
+          <span class="mdc-btn__label">Neues Skript</span>
+        </a>
+        `}
       </div>
-      ${this.skripte.map((s) => `
-        <button class="skripte-editor-liste-item ${s.id === this.skript?.id ? 'active' : ''}" data-id="${s.id}">
+      ${this.skripte.map((s) => {
+        const badgeText = s.unternehmen?.internes_kuerzel
+          || s.unternehmen?.firmenname
+          || s.marke?.markenname
+          || 'Skripte';
+        const aktiv = s.id === this.skript?.id;
+        return `
+        <a href="${skriptEditorPath(s.id)}" class="skripte-editor-liste-item ${aktiv ? 'active' : ''}"
+          data-id="${s.id}"${aktiv ? ' aria-current="page"' : ''}>
+          <span class="skripte-editor-liste-top">
+            <span class="skripte-badge skripte-badge--pink">${escapeHtml(badgeText)}</span>
+            <span class="skripte-editor-liste-datum">${escapeHtml(formatDate(s.created_at))}</span>
+          </span>
           <span class="skripte-editor-liste-titel">${escapeHtml(s.titel || s.hook?.slice(0, 50) || '(ohne Titel)')}</span>
-          <span class="skripte-editor-liste-sub">${escapeHtml([s.marke?.markenname || s.unternehmen?.firmenname, formatDate(s.created_at)].filter(Boolean).join(' · '))}</span>
-        </button>
-      `).join('')}
+        </a>
+      `;
+      }).join('')}
     `;
-    el.querySelector('#ed-neu')?.addEventListener('click', () => this.startNeuModus());
-    el.querySelectorAll('.skripte-editor-liste-item').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        if (btn.dataset.id !== this.skript?.id) this.switchSkript(btn.dataset.id);
+    el.querySelector('#ed-neu')?.addEventListener('click', (e) => {
+      if (this.isModifiedClick(e)) return;
+      e.preventDefault();
+      this.startNeuModus();
+    });
+    el.querySelectorAll('.skripte-editor-liste-item').forEach((link) => {
+      link.addEventListener('click', (e) => {
+        if (this.isModifiedClick(e)) return;
+        e.preventDefault();
+        if (link.dataset.id !== this.skript?.id) this.switchSkript(link.dataset.id);
       });
     });
+  }
+
+  /** Cmd/Ctrl/Shift/Mittelklick: Browser-Default (neuer Tab), kein In-Place-Switch. */
+  isModifiedClick(e) {
+    return e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1;
   }
 
   // ------------------------------------------------------------------
@@ -689,6 +782,8 @@ export class SkriptEditorView {
     const el = document.getElementById('ed-doc');
     if (!el) return;
 
+    this.inlineEdit.detach();
+
     // Neu-Modus: Generator-Formular statt Skript-Inhalt
     if (this.neuModus) {
       el.innerHTML = `
@@ -697,8 +792,8 @@ export class SkriptEditorView {
         </div>
         <div class="skripte-editor-genform" id="ed-genform"></div>
         <div class="skripte-actions-row">
-          <button id="ed-gen-start" class="primary-btn" title="Liky stellt erst kluge Rückfragen zu fehlenden Infos (z.B. CTA), dann wird generiert">Skript generieren</button>
-          <button id="ed-gen-direkt" class="secondary-btn" title="Rückfragen überspringen und sofort generieren">Direkt generieren</button>
+          <button id="ed-gen-start" class="mdc-btn" title="Liky stellt erst kluge Rückfragen zu fehlenden Infos (z.B. CTA), dann wird generiert">Skript generieren</button>
+          <button id="ed-gen-direkt" class="mdc-btn mdc-btn--secondary" title="Rückfragen überspringen und sofort generieren">Direkt generieren</button>
         </div>
       `;
       // Alte Instanz sauber abbauen (Transcribe-Subscriptions!), sonst
@@ -726,7 +821,7 @@ export class SkriptEditorView {
           <p class="skripte-hint">Antworte unten im Chat. Du kannst die Fragen auch überspringen und sofort generieren lassen.</p>
         </div>
         <div class="skripte-actions-row">
-          <button id="ed-fragen-gen" class="primary-btn" ${this.genStatus?.laeuft ? 'disabled' : ''}>
+          <button id="ed-fragen-gen" class="mdc-btn" ${this.genStatus?.laeuft ? 'disabled' : ''}>
             ${this.genStatus?.laeuft ? 'Läuft…' : 'Skript jetzt generieren'}
           </button>
         </div>
@@ -743,33 +838,76 @@ export class SkriptEditorView {
     el.innerHTML = `
       <div class="skripte-editor-doc-head">
         <h2>${escapeHtml(this.skript.titel || 'Skript')}</h2>
+        ${this.isReadonly ? '' : `
         <button class="skripte-editor-feedback-btn" id="ed-feedback" title="Skript komplett bewerten (Score, Performance-Label)">
           <span class="skripte-editor-tag-icon">${AKTION_ICONS.feedback}</span>
           <span>Feedback</span>
         </button>
+        `}
       </div>
       ${this.vorgabenPanelHtml()}
       <div class="skripte-editor-doc-box">
-        ${['hook', 'hauptteil', 'cta'].map((sektion) => `
-          <div class="skripte-editor-sektion" data-sektion="${sektion}">
-            <div class="skripte-sektion-label">${SEKTION_LABELS[sektion]}</div>
-            <div class="skripte-editor-sektion-text" data-sektion="${sektion}">${escapeHtml(this.skript[sektion] || '–')}</div>
-          </div>
-        `).join('')}
+        <table class="skripte-editor-tabelle">
+          <colgroup>
+            <col class="skripte-editor-tabelle-col--label">
+            <col>
+            <col>
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col"></th>
+              <th scope="col">Was gesagt wird</th>
+              <th scope="col">Was zu sehen ist</th>
+            </tr>
+          </thead>
+          <tbody>
+          ${['hook', 'hauptteil', 'cta'].map((sektion) => {
+            const visuellFeld = VISUELL_FIELD[sektion];
+            const visuellText = this.skript[visuellFeld] || '';
+            const visuellLaeuft = this.messages.some((m) => m.aktion === 'visuell'
+              && m.sektion === sektion && (m.status === 'pending' || m.status === 'running'));
+            const gesprochen = this.skript[sektion] || '';
+            const visuellDisabled = this.isReadonly || !gesprochen.trim() || visuellLaeuft;
+            return `
+            <tr data-sektion="${sektion}">
+              <th scope="row">${SEKTION_LABELS_KURZ[sektion]}</th>
+              <td>
+                <div class="skripte-editor-sektion-text" data-sektion="${sektion}" data-feld="${sektion}">${escapeHtml(gesprochen)}</div>
+              </td>
+              <td class="skripte-editor-tabelle-zelle--visual">
+                ${this.isReadonly ? '' : `
+                <button class="skripte-editor-visual-btn" data-sektion="${sektion}"
+                  title="Was zu sehen ist per KI generieren"
+                  ${visuellDisabled ? 'disabled' : ''}>
+                  ${icon('ai-visual')}
+                </button>
+                `}
+                <div class="skripte-editor-sektion-visual" data-sektion="${sektion}" data-feld="${visuellFeld}">${escapeHtml(visuellText)}</div>
+              </td>
+            </tr>
+          `;
+          }).join('')}
+          </tbody>
+        </table>
       </div>
-      <p class="skripte-hint">Text markieren, um eine Stelle gezielt zu überarbeiten oder Feedback zu geben – oder unten in den Chat schreiben.</p>
     `;
     el.querySelector('#ed-feedback')?.addEventListener('click', () => this.openVollFeedback());
+    el.querySelectorAll('.skripte-editor-visual-btn').forEach((btn) => {
+      btn.addEventListener('click', () => this.startVisuell(btn.dataset.sektion));
+    });
+    this.inlineEdit.attach(el, { readonly: this.isReadonly });
   }
 
   /** Read-only Info: mit welchen Vorgaben das Skript generiert wurde. */
   vorgabenPanelHtml() {
     const s = this.skript;
     if (!s) return '';
-    // Nach der Generierung liegt briefing_pdf top-level in prompt_kontext,
-    // in der Rueckfragen-Phase noch im generator_payload des Stubs
-    const briefingPdf = s.prompt_kontext?.briefing_pdf
-      || s.prompt_kontext?.generator_payload?.briefing_pdf || null;
+    const briefingName = s.briefing?.aktivierung_name
+      || s.prompt_kontext?.briefing_name
+      || s.prompt_kontext?.generator_payload?.briefing_name
+      || s.prompt_kontext?.briefing_pdf?.name
+      || s.prompt_kontext?.generator_payload?.briefing_pdf?.name
+      || null;
     // Videovorlage: nach der Generierung top-level Snapshot, davor im Payload
     const referenz = s.prompt_kontext?.referenz_video
       || s.prompt_kontext?.generator_payload?.referenz_video || null;
@@ -786,7 +924,7 @@ export class SkriptEditorView {
       : null;
     const zeilen = [
       ['Unternehmen', s.unternehmen?.firmenname],
-      ['PDF-Briefing', briefingPdf?.name],
+      ['Briefing', briefingName],
       ['Videovorlage', referenzInfo],
       ['Vorlage-Transkript', transkriptAuszug],
       ['Marke', s.marke?.markenname],
@@ -806,17 +944,19 @@ export class SkriptEditorView {
     if (!zeilen.length) return '';
 
     return `
-      <details class="skripte-editor-vorgaben">
-        <summary>Vorgaben aus dem Generator</summary>
-        <dl class="skripte-editor-vorgaben-grid">
-          ${zeilen.map(([label, wert]) => `
-            <div class="skripte-editor-vorgaben-zeile">
-              <dt>${escapeHtml(label)}</dt>
-              <dd>${escapeHtml(String(wert))}</dd>
-            </div>
-          `).join('')}
-        </dl>
-      </details>
+      <div class="skripte-editor-vorgaben-wrap">
+        <details class="skripte-editor-vorgaben">
+          <summary>Vorgaben aus dem Generator</summary>
+          <dl class="skripte-editor-vorgaben-grid">
+            ${zeilen.map(([label, wert]) => `
+              <div class="skripte-editor-vorgaben-zeile">
+                <dt>${escapeHtml(label)}</dt>
+                <dd>${escapeHtml(String(wert))}</dd>
+              </div>
+            `).join('')}
+          </dl>
+        </details>
+      </div>
     `;
   }
 
@@ -824,7 +964,7 @@ export class SkriptEditorView {
   // Rechte Spalte: Chat-Verlauf ("Liky")
   // ------------------------------------------------------------------
   renderChat({ forceScroll = false } = {}) {
-    const el = document.getElementById('ed-chat');
+    const el = document.getElementById('ed-chat-log');
     if (!el) return;
 
     // Neu-Modus: Generierungs-Fortschritt als Liky-Bubble (lokal, ohne DB-Message)
@@ -1034,6 +1174,7 @@ export class SkriptEditorView {
   // Events: Selektion, Menue, Chat-Input
   // ------------------------------------------------------------------
   bindEvents() {
+    if (this.isReadonly) return;
     const input = document.getElementById('ed-input');
     document.getElementById('ed-send')?.addEventListener('click', () => this.sendChat());
     input?.addEventListener('keydown', (e) => {
@@ -1442,12 +1583,9 @@ export class SkriptEditorView {
       neu = msg.vorschlag_text;
     }
 
-    const vorherigerStand = {
-      titel: this.skript.titel,
-      hook: this.skript.hook,
-      hauptteil: this.skript.hauptteil,
-      cta: this.skript.cta
-    };
+    const vorherigerStand = skriptStand(this.skript);
+
+    await this.inlineEdit.flush();
 
     this.acceptLaeuft = true;
     const btns = this.container?.querySelectorAll(`[data-msg-id="${msg.id}"]`) || [];
@@ -1478,6 +1616,95 @@ export class SkriptEditorView {
       btns.forEach((b) => { b.disabled = false; });
     } finally {
       this.acceptLaeuft = false;
+    }
+  }
+
+  async saveManuell(feld, text, vorherText) {
+    if (!this.skript) return;
+    const vorherigerStand = skriptStand(this.skript);
+    vorherigerStand[feld] = vorherText || null;
+    const wert = text || null;
+    this.skript[feld] = wert;
+    try {
+      await skripteService.updateSkript(this.skript.id, { [feld]: wert });
+      const neueVersion = await skripteService.createVersion(
+        this.skript, manuellBeschreibung(feld), vorherigerStand, this.aktiveVersion
+      );
+      this.aktiveVersion = neueVersion;
+      this.skript.aktive_version_nr = neueVersion.version_nr;
+      this.skript.aktive_sub_nr = neueVersion.sub_nr;
+      this.versionen = await skripteService.getVersionen(this.skript.id);
+      this.renderVersionSelect();
+    } catch (err) {
+      window.toastSystem?.error(err.message);
+      throw err;
+    }
+  }
+
+  // ------------------------------------------------------------------
+  // Visual-Generierung ("Was zu sehen ist")
+  // ------------------------------------------------------------------
+  async startVisuell(sektion) {
+    if (this.isReadonly || !this.skript) return;
+    if (!['hook', 'hauptteil', 'cta'].includes(sektion)) return;
+    const gesprochen = (this.skript[sektion] || '').trim();
+    if (!gesprochen) {
+      window.toastSystem?.warning('Erst gesprochenen Text generieren – dann kann ich das Visual dazu bauen.');
+      return;
+    }
+    const laeuft = this.messages.some((m) => m.aktion === 'visuell'
+      && m.sektion === sektion && (m.status === 'pending' || m.status === 'running'));
+    if (laeuft) return;
+
+    const msg = await this.sendMessagePair({
+      aktion: 'visuell',
+      sektion,
+      selektion_text: gesprochen,
+      inhalt: `Visual zu ${SEKTION_LABELS_KURZ[sektion]}`
+    });
+    if (msg) this.renderDoc();
+  }
+
+  /** Auto-Apply: Visual-Vorschlag direkt in die Zelle schreiben (kein Annehmen/Ablehnen). */
+  async applyVisuellVorschlag(msg) {
+    if (this.visuellApplyLaeuft) return;
+    const sektion = msg.sektion;
+    const feld = VISUELL_FIELD[sektion];
+    if (!feld || !msg.vorschlag_text) return;
+
+    this.visuellApplyLaeuft = true;
+    try {
+      await this.inlineEdit.flush();
+      const vorherigerStand = skriptStand(this.skript);
+
+      await skripteService.updateSkript(this.skript.id, { [feld]: msg.vorschlag_text });
+      this.skript[feld] = msg.vorschlag_text;
+
+      const beschreibung = `Visual · ${SEKTION_LABELS_KURZ[sektion]}`;
+      const neueVersion = await skripteService.createVersion(this.skript, beschreibung, vorherigerStand, this.aktiveVersion);
+      this.aktiveVersion = neueVersion;
+      this.skript.aktive_version_nr = neueVersion.version_nr;
+      this.skript.aktive_sub_nr = neueVersion.sub_nr;
+      this.versionen = await skripteService.getVersionen(this.skript.id);
+
+      await skripteService.updateChatMessage(msg.id, { status: 'angenommen' });
+      msg.status = 'angenommen';
+
+      const focused = this.inlineEdit.focusedFeld();
+      if (focused && focused !== feld) {
+        const zelle = this.container?.querySelector(`[data-feld="${feld}"]`);
+        if (zelle) zelle.textContent = msg.vorschlag_text;
+        this.inlineEdit.syncSaved(feld, msg.vorschlag_text);
+      } else {
+        this.renderDoc();
+      }
+      this.renderChat();
+      this.renderVersionSelect();
+      window.toastSystem?.success(`Visual übernommen – jetzt ${skripteService.versionLabel(neueVersion)}`);
+    } catch (err) {
+      window.toastSystem?.error(err.message);
+    } finally {
+      this.visuellApplyLaeuft = false;
     }
   }
 
@@ -1528,5 +1755,10 @@ export class SkriptEditorView {
     }
     this.renderChat();
     this.renderCost();
+
+    // Visual-Vorschlag direkt in die Zelle uebernehmen (kein Annehmen/Ablehnen)
+    if (row.aktion === 'visuell' && row.status === 'vorschlag' && row.vorschlag_text) {
+      this.applyVisuellVorschlag(row);
+    }
   }
 }

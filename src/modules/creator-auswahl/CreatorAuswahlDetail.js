@@ -20,6 +20,7 @@ import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.j
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { tableSelect } from '../../core/components/TableSelect.js';
+import { bindToolbarMenu } from '../../core/components/ToolbarMenu.js';
 import { hoverToolbar } from '../../core/hoverToolbar/HoverToolbar.js';
 import { registerHoverToolbar, unregisterHoverToolbar } from '../../core/hoverToolbar/HoverToolbarRegistry.js';
 import { setChipCellLoading } from '../../core/components/chipCell.js';
@@ -29,9 +30,12 @@ import {
 } from './sourcingIgCell.js';
 import {
   buildSourcingStatusUpdates, isSourcingStatus,
+  buildKundenFeedbackUpdates, isKundenFeedback,
   matchesStatusFilter
 } from './sourcingStatusOptions.js';
+import { SourcingBuchungDrawer } from './SourcingBuchungDrawer.js';
 import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 const IG_FETCH_FLASH_MS = 2000;
 
@@ -47,12 +51,13 @@ export class CreatorAuswahlDetail {
     this.scrollLeft = 0;
     this.hiddenColumns = [];
     this.kundenCallActive = false;
-    this.activeTab = 'offen';
+    this.activeTab = 'alle';
     this.searchQuery = '';
     this.statusFilter = [];
     this.tabelleAnpassenDrawer = null;
     this.kategorienDrawer = new CreatorAuswahlKategorienDrawer(this);
     this.addDrawer = new CreatorAuswahlAddDrawer(this);
+    this.buchungDrawer = new SourcingBuchungDrawer(this);
     this.selectedItems = new Set();
     this.customColumns = new EntityCustomColumnsManager({
       parentType: 'sourcing',
@@ -143,6 +148,7 @@ export class CreatorAuswahlDetail {
     this._boundEventListeners.clear();
     this.addDrawer.remove();
     this.kategorienDrawer.remove();
+    this.buchungDrawer.remove();
     this.selectedItems.clear();
 
     // Die Engine selbst bleibt stehen, sie gehoert der Anwendung. Nur diese
@@ -266,7 +272,8 @@ export class CreatorAuswahlDetail {
 
   getTabCounts() {
     const baseItems = this.getBaseFilteredItems();
-    const counts = { offen: 0, on_hold: 0, gebucht: 0, nicht_buchen: 0, alle: baseItems.length };
+    const counts = Object.fromEntries(SOURCING_TABS.map(t => [t.key, 0]));
+    counts.alle = baseItems.length;
     baseItems.forEach(item => {
       counts[getSourcingTabForItem(item)]++;
     });
@@ -528,6 +535,7 @@ export class CreatorAuswahlDetail {
       if (!element?.closest('.creator-pool-table')) return;
 
       if (field === 'sourcing_status') this.handleStatusChange(itemId, value);
+      else if (field === 'kunden_feedback') this.handleKundenFeedbackChange(itemId, value);
       else if (field === 'creator_typ') this.handleTypChange(itemId, value);
     };
     document.addEventListener('table-select-change', selectHandler);
@@ -984,11 +992,15 @@ export class CreatorAuswahlDetail {
   }
 
   /**
-   * Status-Select der Tabelle: setzt genau eines der Flags angefragt /
-   * in_verhandlung / zusage / on_hold / gebucht / prio_1 / prio_2 / absage und nimmt alle
-   * anderen zurueck.
+   * Status-Select der Tabelle: setzt genau eines der Prozess-Flags angefragt /
+   * in_verhandlung / preis_zugesagt / zusage / on_hold / gebucht / absage und
+   * nimmt die anderen zurueck. Das Kundenfeedback (prio_1 / prio_2 / abgelehnt)
+   * bleibt stehen.
    */
   async handleStatusChange(itemId, status) {
+    // Der Prozess-Status ist intern. Kunden geben ihr Feedback ueber die
+    // eigene Spalte (kunden_feedback), nicht ueber diesen Select.
+    if (this.isKunde) return;
     if (!itemId || !isSourcingStatus(status)) return;
 
     const updates = buildSourcingStatusUpdates(status);
@@ -1007,8 +1019,40 @@ export class CreatorAuswahlDetail {
       }
 
       this.rerenderTable();
+
+      // Gebucht heisst: der Creator geht in die Kampagne. Der Drawer fuehrt
+      // durch CRM-Uebernahme, Management und Kooperation - die Buchung selbst
+      // ist mit dem Status-Update oben laengst gesichert.
+      if (status === 'gebucht' && !this.isKunde && item) {
+        this.buchungDrawer.open(item);
+      }
     } catch (error) {
       console.error('Fehler beim Status-Update:', error);
+      window.toastSystem?.show('Fehler beim Speichern', 'error');
+    }
+  }
+
+  /**
+   * Kundenfeedback-Select der Tabelle: setzt genau eines der Feedback-Flags
+   * prio_1 / prio_2 / abgelehnt und nimmt die anderen zurueck. Der
+   * Prozess-Status bleibt stehen.
+   */
+  async handleKundenFeedbackChange(itemId, feedback) {
+    if (!itemId || !isKundenFeedback(feedback)) return;
+
+    const updates = buildKundenFeedbackUpdates(feedback);
+
+    try {
+      await creatorAuswahlService.updateItem(itemId, updates);
+
+      const item = this.items.find(i => i.id === itemId);
+      if (item) Object.assign(item, updates);
+
+      // Feedback ist Teil des Toolbar-Filters - ein Wechsel kann die Zeile
+      // aus der gefilterten Ansicht nehmen, deshalb die ganze Tabelle neu.
+      this.rerenderTable();
+    } catch (error) {
+      console.error('Fehler beim Feedback-Update:', error);
       window.toastSystem?.show('Fehler beim Speichern', 'error');
     }
   }
@@ -1346,8 +1390,8 @@ export class CreatorAuswahlDetail {
           <select class="bulk-kategorie-select" id="sourcing-bulk-kategorie">
             ${kategorieOptions}
           </select>
-          <button class="primary-btn btn-sm" id="btn-bulk-assign">Zuweisen</button>
-          <button class="secondary-btn btn-sm" id="btn-bulk-deselect">Auswahl aufheben</button>
+          <button class="mdc-btn mdc-btn--sm" id="btn-bulk-assign">Zuweisen</button>
+          <button class="mdc-btn mdc-btn--secondary mdc-btn--sm" id="btn-bulk-deselect">Auswahl aufheben</button>
         </div>
       `;
       document.body.appendChild(bar);
@@ -1473,30 +1517,11 @@ export class CreatorAuswahlDetail {
   }
 
   bindToolbarMenu() {
-    const menu = document.querySelector('.sourcing-toolbar-menu');
-    const toggle = document.getElementById('btn-sourcing-toolbar-menu');
-    const dropdown = menu?.querySelector('.sourcing-toolbar-dropdown');
-    if (!menu || !toggle || !dropdown) return;
+    const menu = document.querySelector('.toolbar-menu');
+    const dropdown = menu?.querySelector('.toolbar-menu-dropdown');
+    if (!menu || !dropdown) return;
 
-    const setOpen = (open) => {
-      dropdown.classList.toggle('show', open);
-      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
-      dropdown.setAttribute('aria-hidden', open ? 'false' : 'true');
-    };
-
-    const toggleHandler = (e) => {
-      e.stopPropagation();
-      setOpen(!dropdown.classList.contains('show'));
-    };
-    toggle.addEventListener('click', toggleHandler);
-    this._boundEventListeners.add(() => toggle.removeEventListener('click', toggleHandler));
-
-    const itemHandler = (e) => {
-      if (e.target.closest('.action-submenu') || e.target.closest('.submenu')) return;
-      if (e.target.closest('.action-item')) setOpen(false);
-    };
-    dropdown.addEventListener('click', itemHandler);
-    this._boundEventListeners.add(() => dropdown.removeEventListener('click', itemHandler));
+    this._boundEventListeners.add(bindToolbarMenu(menu));
 
     const statusFilterHandler = (e) => {
       const reset = e.target.closest('[data-status-filter-reset]');
@@ -1527,18 +1552,6 @@ export class CreatorAuswahlDetail {
     };
     dropdown.addEventListener('click', statusFilterHandler);
     this._boundEventListeners.add(() => dropdown.removeEventListener('click', statusFilterHandler));
-
-    const outsideHandler = (e) => {
-      if (!menu.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('click', outsideHandler);
-    this._boundEventListeners.add(() => document.removeEventListener('click', outsideHandler));
-
-    const escapeHandler = (e) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('keydown', escapeHandler);
-    this._boundEventListeners.add(() => document.removeEventListener('keydown', escapeHandler));
   }
 
   _syncStatusFilterSubmenu() {
@@ -1567,9 +1580,7 @@ export class CreatorAuswahlDetail {
     }
 
     const checkHtml = `
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-      </svg>`;
+      ${icon('check-bold')}`;
 
     panel.querySelectorAll('.submenu-item[data-status-tag]').forEach(item => {
       const tag = item.dataset.statusTag;

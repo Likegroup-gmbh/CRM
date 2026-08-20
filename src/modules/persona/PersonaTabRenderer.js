@@ -51,7 +51,7 @@ export function renderPersonas(detail) {
       <td>${detail.sanitize(persona.lebenssituation || '-')}</td>
       <td>${detail.formatDate(persona.created_at)}</td>
       <td>
-        <button type="button" class="secondary-btn btn-sm persona-row-open" data-persona-id="${persona.id}">Öffnen</button>
+        <button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm persona-row-open" data-persona-id="${persona.id}">Öffnen</button>
       </td>
     </tr>
   `).join('');

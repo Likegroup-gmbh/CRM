@@ -6,6 +6,8 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
+import { resolveEmptyState } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 /**
  * Erzeugt das komplette Seiten-HTML für die Kampagnenliste (Filter, View-Toggle, Tabelle/Kanban/Kalender).
@@ -26,16 +28,12 @@ export function renderPageHtml({ currentView, searchQuery }) {
             currentValue: searchQuery 
           })}
           <div class="view-toggle">
-            <button id="btn-view-list" class="secondary-btn ${currentView === 'list' ? 'active' : ''}">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 1.5v-1.5m0 0c0-.621.504-1.125 1.125-1.125m0 0h7.5" />
-              </svg>
+            <button id="btn-view-list" class="mdc-btn mdc-btn--secondary ${currentView === 'list' ? 'active' : ''}">
+              ${icon('table-grid')}
               Liste
             </button>
-            ${!isKunde ? `<button id="btn-view-calendar" class="secondary-btn ${currentView === 'calendar' ? 'active' : ''}">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-              </svg>
+            ${!isKunde ? `<button id="btn-view-calendar" class="mdc-btn mdc-btn--secondary ${currentView === 'calendar' ? 'active' : ''}">
+              ${icon('calendar-days')}
               Kalender
             </button>` : ''}
           </div>
@@ -43,11 +41,11 @@ export function renderPageHtml({ currentView, searchQuery }) {
         </div>
       </div>
       ${!isKunde ? `<div class="table-actions">
-        ${currentView === 'list' && canBulkDelete ? '<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>' : ''}
-        ${currentView === 'list' && canBulkDelete ? '<button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>' : ''}
+        ${currentView === 'list' && canBulkDelete ? '<button id="btn-select-all" class="mdc-btn mdc-btn--secondary">Alle auswählen</button>' : ''}
+        ${currentView === 'list' && canBulkDelete ? '<button id="btn-deselect-all" class="mdc-btn mdc-btn--secondary" style="display:none;">Auswahl aufheben</button>' : ''}
         ${currentView === 'list' && canBulkDelete ? '<span id="selected-count" style="display:none;">0 ausgewählt</span>' : ''}
-        ${currentView === 'list' && canBulkDelete ? '<button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>' : ''}
-        ${canEdit && !isMitarbeiter ? '<button id="btn-kampagne-new" class="primary-btn">Neue Kampagne anlegen</button>' : ''}
+        ${currentView === 'list' && canBulkDelete ? '<button id="btn-delete-selected" class="mdc-btn mdc-btn--delete" style="display:none;">Ausgewählte löschen</button>' : ''}
+        ${canEdit && !isMitarbeiter ? '<button id="btn-kampagne-new" class="mdc-btn">Neue Kampagne anlegen</button>' : ''}
       </div>` : ''}
     </div>
 
@@ -98,7 +96,7 @@ export function renderTableWrapper() {
   `;
 }
 
-export async function updateTable(kampagnen, { bindDragToScroll }) {
+export async function updateTable(kampagnen, { bindDragToScroll, hasActiveFilters = false }) {
   const tbody = document.getElementById('kampagnen-table-body');
   if (!tbody) return;
 
@@ -108,8 +106,21 @@ export async function updateTable(kampagnen, { bindDragToScroll }) {
 
   await TableAnimationHelper.animatedUpdate(tbody, async () => {
     if (!kampagnen || kampagnen.length === 0) {
-      const { renderEmptyState } = await import('../../core/FilterUI.js');
-      renderEmptyState(tbody);
+      const colspan = tbody.closest('table')?.querySelector('thead tr')?.children?.length || 10;
+      const html = resolveEmptyState({
+        hasActiveFilters,
+        states: {
+          default: isKunde
+            ? { icon: 'megaphone', title: 'Keine Kampagnen vorhanden', text: 'Es wurden noch keine Kampagnen für Sie angelegt.' }
+            : {
+                icon: 'megaphone',
+                title: 'Keine Kampagnen vorhanden',
+                text: 'Legen Sie ein Projekt an, um Ihre erste Kampagne zu starten.',
+                actionsHtml: '<button class="mdc-btn" onclick="window.navigateTo(\'/projekt-erstellen\')">Projekt anlegen</button>'
+              }
+        }
+      }, 'default');
+      tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state-cell">${html}</td></tr>`;
       return;
     }
 

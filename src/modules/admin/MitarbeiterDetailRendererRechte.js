@@ -9,7 +9,7 @@ export function renderRechteTab(detail) {
           <thead>
             <tr>
               <th>Status</th>
-              <th style="width:120px; text-align:right;">Aktiv</th>
+              <th class="col-w120-right">Aktiv</th>
             </tr>
           </thead>
           <tbody>
@@ -17,15 +17,15 @@ export function renderRechteTab(detail) {
               <td>
                 <div>
                   <strong>Benutzer freigeschaltet</strong>
-                  <div class="form-help" style="margin-top: 4px;">
+                  <div class="form-help">
                     ${detail.user?.freigeschaltet ? 
                       'Dieser Benutzer ist freigeschaltet und kann sich anmelden. Sie können Rechte vergeben.' : 
                       'Dieser Benutzer wartet auf Freischaltung. Schalten Sie ihn frei, bevor Sie Rechte vergeben.'}
                   </div>
                 </div>
               </td>
-              <td style="text-align:right;">
-                <label class="toggle-label" style="justify-content:flex-end;">
+              <td class="u-text-right">
+                <label class="toggle-label toggle-label--end">
                   <span class="toggle-switch">
                     <input type="checkbox" id="freigeschaltet-toggle" ${detail.user?.freigeschaltet ? 'checked' : ''}>
                     <span class="toggle-slider"></span>
@@ -44,7 +44,7 @@ export function renderRechteTab(detail) {
           <thead>
             <tr>
               <th>Rolle / Klasse</th>
-              <th style="width: 200px; text-align: right;">Aktionen</th>
+              <th class="col-w200-right">Aktionen</th>
             </tr>
           </thead>
           <tbody>
@@ -52,13 +52,13 @@ export function renderRechteTab(detail) {
               <td>
                 <div>
                   <strong>${detail.user?.mitarbeiter_klasse_name || 'Keine Rolle zugewiesen'}</strong>
-                  <div class="form-help" style="margin-top: 4px;">
+                  <div class="form-help">
                     Definiert die Hauptaufgaben und Zuständigkeiten des Mitarbeiters
                   </div>
                 </div>
               </td>
-              <td style="text-align: right;">
-                <button class="secondary-btn" id="btn-change-rolle">Rolle ändern</button>
+              <td class="u-text-right">
+                <button class="mdc-btn mdc-btn--secondary" id="btn-change-rolle">Rolle ändern</button>
               </td>
             </tr>
           </tbody>
@@ -72,7 +72,7 @@ export function renderRechteTab(detail) {
           <thead>
             <tr>
               <th>Kontaktdaten</th>
-              <th style="width: 320px; text-align: right;">Wert</th>
+              <th class="col-w320-right">Wert</th>
             </tr>
           </thead>
           <tbody>
@@ -80,14 +80,14 @@ export function renderRechteTab(detail) {
               <td>
                 <div>
                   <strong>Firmenhandy</strong>
-                  <div class="form-help" style="margin-top: 4px;">
+                  <div class="form-help">
                     Wird auf der Mitarbeiter-Detailseite angezeigt.
                   </div>
                 </div>
               </td>
               <td>
-                <div style="display:flex; gap:8px; justify-content:flex-end; align-items:center;">
-                  <select id="firmenhandy-land" class="form-select" style="max-width: 170px;">
+                <div class="flex-end-row">
+                  <select id="firmenhandy-land" class="form-select maxw-170">
                     <option value="">Land wählen...</option>
                     ${(detail.euLaender || []).map(land => `
                       <option value="${land.id}" ${land.id === detail.user?.telefonnummer_firmenhandy_land_id ? 'selected' : ''}>
@@ -98,12 +98,11 @@ export function renderRechteTab(detail) {
                   <input
                     id="firmenhandy-nummer"
                     type="tel"
-                    class="form-input"
+                    class="form-input maxw-180"
                     placeholder="z. B. 15123456789"
                     value="${detail.sanitize(detail.user?.telefonnummer_firmenhandy || '')}"
-                    style="max-width: 180px;"
                   />
-                  <button id="btn-save-firmenhandy" class="secondary-btn">Speichern</button>
+                  <button id="btn-save-firmenhandy" class="mdc-btn mdc-btn--secondary">Speichern</button>
                 </div>
               </td>
             </tr>
@@ -118,9 +117,9 @@ export function renderRechteTab(detail) {
           <table class="data-table">
             <thead>
               <tr>
-                <th style="text-align:left;">Recht</th>
-                <th style="width:120px; text-align:right;">Lesen</th>
-                <th style="width:120px; text-align:right;">Bearbeiten</th>
+                <th class="u-text-left">Recht</th>
+                <th class="col-w120-right">Lesen</th>
+                <th class="col-w120-right">Bearbeiten</th>
               </tr>
             </thead>
             <tbody>
@@ -153,17 +152,17 @@ export function generatePermissionsTable(detail) {
     ['feedback','Feedback']
   ].map(([key,label]) => `
     <tr>
-      <td style="text-align:left;">${label}</td>
-      <td style="text-align:right;">
-        <label class="toggle-label" style="justify-content:flex-end;">
+      <td class="u-text-left">${label}</td>
+      <td class="u-text-right">
+        <label class="toggle-label toggle-label--end">
           <span class="toggle-switch">
             <input type="checkbox" class="perm-toggle" data-key="${key}" ${perms?.[key]?.can_view === false ? '' : (perms?.[key] === true || perms?.[key]?.can_view === true ? 'checked' : '')}>
             <span class="toggle-slider"></span>
           </span>
         </label>
       </td>
-      <td style="text-align:right;">
-        <label class="toggle-label" style="justify-content:flex-end;">
+      <td class="u-text-right">
+        <label class="toggle-label toggle-label--end">
           <span class="toggle-switch">
             <input type="checkbox" class="perm-edit-toggle" data-key="${key}" ${perms?.[key]?.can_edit ? 'checked' : ''}>
             <span class="toggle-slider"></span>

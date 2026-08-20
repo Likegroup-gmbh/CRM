@@ -1,0 +1,293 @@
+/* ==========================================================================
+   PROJEKT-Modul (aus components.css extrahiert, Phase 7)
+   ========================================================================== */
+
+.multistep-progress--projekt-erstellen {
+  margin-bottom: 0;
+}
+
+.projekt-erstellen-container {
+  align-items: stretch;
+  flex-direction: row;
+  flex: 1;
+  min-height: inherit;
+  width: 100%;
+  gap: 0;
+}
+
+.projekt-erstellen-step-host {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 320px;
+}
+
+#projekt-progress-container .progress-steps {
+  flex: 1;
+}
+
+.projekt-erstellen-feedback-col {
+  display: flex;
+}
+
+.projekt-erstellen-summary-section {
+  padding: var(--space-md) 0;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.projekt-erstellen-summary-section:first-child {
+  padding-top: 0;
+}
+
+.projekt-erstellen-summary-section:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.projekt-erstellen-summary-doc {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.projekt-erstellen-summary-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-sm);
+}
+
+.projekt-erstellen-summary-section-header h4 {
+  margin: 0;
+  color: var(--gray-900);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+
+.projekt-erstellen-summary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-lg);
+}
+
+.projekt-erstellen-summary-grid-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
+.projekt-erstellen-summary-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm) var(--space-lg);
+  margin-bottom: var(--space-md);
+}
+
+.projekt-erstellen-summary-metric {
+  min-width: 0;
+}
+
+.projekt-erstellen-summary-entity {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.projekt-erstellen-summary-entity span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.projekt-erstellen-summary-avatar {
+  width: var(--space-xl);
+  height: var(--space-xl);
+ 
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  
+  overflow: hidden;
+
+ 
+  color: var(--gray-600);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+
+.projekt-erstellen-summary-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.projekt-erstellen-summary-avatar--placeholder {
+  background: linear-gradient(135deg, var(--gray-50), var(--gray-100));
+}
+
+@media (max-width: 1200px) {
+  .projekt-erstellen-summary-grid,
+  .projekt-erstellen-summary-metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+.projekt-erstellen-campaign-add-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-sm);
+  align-items: end;
+}
+
+.projekt-erstellen-campaign-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.projekt-erstellen-campaign-block-header legend {
+  margin: 0;
+}
+
+.projekt-erstellen-campaign-block-index {
+  color: var(--gray-400);
+  font-weight: 400;
+}
+
+.projekt-erstellen-summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.projekt-erstellen-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+}
+
+.projekt-erstellen-summary-label {
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+  text-transform: uppercase;
+  
+}
+
+.projekt-erstellen-summary-value {
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.projekt-erstellen-summary-value--empty {
+  color: var(--gray-400);
+  font-style: italic;
+}
+
+.projekt-erstellen-extra-row {
+  display: grid;
+  grid-template-columns: 1fr 160px auto;
+  gap: var(--space-sm);
+  align-items: end;
+  margin-bottom: var(--space-xs);
+}
+
+.projekt-erstellen-remove-btn {
+  background: transparent;
+  border: var(--border-xs) solid var(--gray-300);
+  border-radius: var(--radius-md);
+  padding: 6px 10px;
+  cursor: pointer;
+  color: var(--gray-700);
+}
+
+.projekt-erstellen-remove-btn:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.projekt-erstellen-section-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  
+}
+
+.projekt-erstellen-titel-wrap {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: end;
+}
+
+.projekt-erstellen-empty-note {
+  color: var(--gray-500);
+  font-style: italic;
+  font-size: var(--font-size-sm);
+}
+
+.projekt-erstellen-budget-host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.projekt-erstellen-budget-host:empty {
+  margin-top: 0;
+}
+
+/* DatePicker native: gleiches Styling wie .form-field input im Wizard */
+
+.projekt-erstellen-step-host .custom-date-picker--native {
+  width: 100%;
+}
+
+.projekt-erstellen-step-host .custom-date-picker--native .custom-date-picker__control {
+  display: flex;
+}
+
+.projekt-erstellen-step-host .custom-date-picker--native .custom-date-picker__input {
+  width: 100%;
+  padding: var(--space-xs);
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-xl);
+  font-size: var(--text-sm);
+  font-family: 'Lexend', sans-serif;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  cursor: pointer;
+  line-height: var(--leading-normal);
+  transition: border-color 0.2s;
+}
+
+.projekt-erstellen-step-host .custom-date-picker--native .custom-date-picker__input:hover {
+  border-color: var(--gray-300);
+}
+
+.projekt-erstellen-step-host .custom-date-picker--native .custom-date-picker__input:focus {
+  outline: none;
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+/* ==========================================================================
+   Inline-Style-Migration Phase 1 (projekt-erstellen)
+   ========================================================================== */
+
+/* StepDetails: Untertitel "Leistungszeitraum" */
+.pe-leistungszeitraum-subtitle {
+  font-size: var(--text-xs);
+  margin-bottom: var(--space-xs);
+  display: block;
+}
+
+/* StepKampagnenarten: Sektions-Untertitel */
+.pe-kampagnenarten-subtitle {
+  margin-bottom: var(--space-sm);
+}

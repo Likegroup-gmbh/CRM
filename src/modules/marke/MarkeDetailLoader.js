@@ -113,8 +113,8 @@ export async function loadMarkeTabData(detail, tabName) {
 
         case 'briefings': {
           const { data: briefings } = await window.supabase
-            .from('briefings')
-            .select('id, product_service_offer, status, deadline, marke_id, kampagne_id, created_at')
+            .from('campaign_briefings')
+            .select('id, aktivierung_name, bereich, is_draft, content_deadline, marke_id, created_at')
             .eq('marke_id', detail.markeId)
             .order('created_at', { ascending: false });
           if (!isStillActive()) return briefings;

@@ -5,9 +5,11 @@ import { CreatorDetail } from './CreatorDetailCore.js';
 import { renderKampagnenTable } from '../kampagne/KampagneTable.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { VertragUtils } from '../vertrag/VertragUtils.js';
 import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
+import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
 
-const PLUS_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px; margin-right: 4px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>`;
+const PLUS_ICON_SVG = `${icon('plus-lg')}`;
 
 // Instagram-Sektion: Daten aus dem Connect (nur wenn erfolgreich verbunden)
 CreatorDetail.prototype.renderInstagramSection = function() {
@@ -82,7 +84,7 @@ CreatorDetail.prototype.renderInstagramSection = function() {
             <span class="ig-stat-label">Follower</span>
           </div>
           <div class="ig-stat">
-            <span class="ig-stat-value">${engagement}</span>
+            <span class="ig-stat-value">${icon('engagement', { className: 'ig-stat-icon' })}${engagement}</span>
             <span class="ig-stat-label">Engagement-Rate</span>
           </div>
           <div class="ig-stat">
@@ -116,7 +118,7 @@ CreatorDetail.prototype.renderFirmenContent = function() {
     const items = this.firmen || [];
 
     const anlegenBtn = `
-      <button class="primary-btn btn-sm" id="btn-firma-anlegen">
+      <button class="mdc-btn mdc-btn--sm" id="btn-firma-anlegen">
         ${PLUS_ICON_SVG}
         Firma anlegen
       </button>
@@ -141,9 +143,7 @@ CreatorDetail.prototype.renderFirmenContent = function() {
         <td>${safe(f.land || '-')}</td>
         <td>
           <button class="icon-btn" title="Zuordnung entfernen" data-remove-firma="${f.id}">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
+            ${icon('x-mark', { className: 'icon-16' })}
           </button>
         </td>
       </tr>
@@ -257,12 +257,12 @@ CreatorDetail.prototype.renderKooperationenContent = function() {
     const rows = this.kooperationen.map(k => `
       <tr>
         <td>
-          <a href="/kooperation/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kooperation/${k.id}')">
+          <a href="/kooperation/${k.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/kooperation/${k.id}')">
             ${window.validatorSystem.sanitizeHtml(k.name || 'Kooperation')}
           </a>
         </td>
         <td>
-          <a href="/kampagne/${k.kampagne?.id || ''}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.kampagne?.id || ''}')">
+          <a href="/kampagne/${k.kampagne?.id || ''}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.kampagne?.id || ''}')">
             ${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(k.kampagne))}
           </a>
         </td>
@@ -304,13 +304,13 @@ CreatorDetail.prototype.renderRechnungenContent = function() {
 
     const rows = this.rechnungen.map(r => `
       <tr>
-        <td><a href="/rechnung/${r.id}" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${window.validatorSystem.sanitizeHtml(r.rechnung_nr || '—')}</a></td>
+        <td><a href="/rechnung/${r.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${window.validatorSystem.sanitizeHtml(r.rechnung_nr || '—')}</a></td>
         <td>${r.status || '-'}</td>
         <td>${this.formatCurrency(r.nettobetrag)}</td>
         <td>${this.formatCurrency(r.bruttobetrag)}</td>
         <td>${this.formatDate(r.gestellt_am)}</td>
         <td>${this.formatDate(r.bezahlt_am)}</td>
-        <td>${r.rechnung_pdfs && r.rechnung_pdfs.length > 0 ? r.rechnung_pdfs.map((p, i) => `<a href="${p.file_url}" target="_blank" rel="noopener">PDF${r.rechnung_pdfs.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' ') : (r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener">PDF</a>` : '-')}</td>
+        <td>${renderPdfLinks(r.rechnung_pdfs, r.pdf_url)}</td>
       </tr>
     `).join('');
 
@@ -347,18 +347,18 @@ CreatorDetail.prototype.renderVertraegeContent = function() {
     const getStatusLabel = (isDraft) => isDraft ? 'Entwurf' : 'Final';
     const getStatusClass = (isDraft) => isDraft ? 'draft' : 'aktiv';
 
+    const sanitize = (s) => window.validatorSystem.sanitizeHtml(s);
     const rows = this.vertraege.map(v => {
-      const kampagneName = KampagneUtils.getDisplayName(v.kampagne);
       const unternehmenName = v.kunde?.firmenname || '-';
-      
+
       return `
         <tr>
-          <td><a href="/vertraege/${v.id}" onclick="event.preventDefault(); window.navigateTo('/vertraege/${v.id}')">${window.validatorSystem.sanitizeHtml(v.name || '—')}</a></td>
-          <td>${window.validatorSystem.sanitizeHtml(v.typ || '-')}</td>
+          <td>${VertragUtils.renderVertragNameHtml(v, sanitize)}</td>
+          <td>${sanitize(v.typ || '-')}</td>
           <td><span class="status-badge status-${getStatusClass(v.is_draft)}">${getStatusLabel(v.is_draft)}</span></td>
-          <td>${v.kampagne ? `<a href="/kampagne/${v.kampagne.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${v.kampagne.id}')">${window.validatorSystem.sanitizeHtml(kampagneName)}</a>` : '-'}</td>
-          <td>${v.kunde ? `<a href="/unternehmen/${v.kunde.id}" onclick="event.preventDefault(); window.navigateTo('/unternehmen/${v.kunde.id}')">${window.validatorSystem.sanitizeHtml(unternehmenName)}</a>` : '-'}</td>
-          <td>${v.datei_url ? `<a href="${v.datei_url}" target="_blank" rel="noopener">PDF</a>` : '-'}</td>
+          <td>${VertragUtils.renderVertragContextHtml(v, sanitize)}</td>
+          <td>${v.kunde ? `<a href="/unternehmen/${v.kunde.id}" class="table-link" data-table="unternehmen" data-id="${v.kunde.id}">${sanitize(unternehmenName)}</a>` : '-'}</td>
+          <td>${renderPdfLinks(null, v.datei_url)}</td>
           <td>${this.formatDate(v.created_at)}</td>
         </tr>
       `;
@@ -373,7 +373,7 @@ CreatorDetail.prototype.renderVertraegeContent = function() {
               <th>Name</th>
               <th>Typ</th>
               <th>Status</th>
-              <th>Kampagne</th>
+              <th>Kontext</th>
               <th>Unternehmen</th>
               <th>Datei</th>
               <th>Erstellt am</th>
@@ -456,7 +456,7 @@ CreatorDetail.prototype.renderAdresseContent = function() {
 
     const neueAdresseBtn = `
       <button 
-        class="primary-btn btn-sm" 
+        class="mdc-btn mdc-btn--sm" 
         onclick="window.creatorAdressenManager?.open('${this.creatorId}')"
       >
         ${PLUS_ICON_SVG}
@@ -485,12 +485,10 @@ CreatorDetail.prototype.renderZusatzAdressenRows = function() {
     return this.creatorAdressen.map(adresse => `
       <tr>
         <td>
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <div class="address-name-cell">
             <span>${window.validatorSystem.sanitizeHtml(adresse.adressname)}</span>
             ${adresse.ist_standard ? `
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="var(--color-warning, #f59e0b)" style="width: 18px; height: 18px; flex-shrink: 0;">
-                <path d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.006 5.404.434c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.434 2.082-5.005Z" />
-              </svg>
+              ${icon('star', { className: 'icon-18' })}
             ` : ''}
           </div>
         </td>
@@ -531,18 +529,18 @@ CreatorDetail.prototype.renderManagementContent = function() {
     const items = this.managements || [];
 
     const actionButtons = `
-      <button class="primary-btn btn-sm" id="btn-management-zuordnen">
+      <button class="mdc-btn mdc-btn--sm" id="btn-management-zuordnen">
         ${PLUS_ICON_SVG}
         Management zuordnen
       </button>
-      <button class="secondary-btn btn-sm" id="btn-management-anlegen" onclick="event.preventDefault(); window.navigateTo('/management/new')">
+      <button class="mdc-btn mdc-btn--secondary mdc-btn--sm" id="btn-management-anlegen" onclick="event.preventDefault(); window.navigateTo('/management/new')">
         Neues Management anlegen
       </button>
     `;
 
     if (!items.length) {
       return renderEmptyState({
-        icon: 'building',
+        icon: 'management',
         title: 'Kein Management zugeordnet',
         text: 'Diesem Creator ist noch kein Management zugeordnet.',
         actionsHtml: actionButtons
@@ -555,7 +553,7 @@ CreatorDetail.prototype.renderManagementContent = function() {
       return `
         <tr>
           <td>
-            <a href="/management/${m.id}" onclick="event.preventDefault(); window.navigateTo('/management/${m.id}')">
+            <a href="/management/${m.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/management/${m.id}')">
               ${window.validatorSystem.sanitizeHtml(m.firmenname || '—')}
             </a>
           </td>
@@ -566,9 +564,7 @@ CreatorDetail.prototype.renderManagementContent = function() {
           <td>${window.validatorSystem.sanitizeHtml(m.telefonnummer || '-')}</td>
           <td>
             <button class="icon-btn" title="Zuordnung entfernen" data-remove-management="${m.id}">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 16px; height: 16px;">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-              </svg>
+              ${icon('x-mark', { className: 'icon-16' })}
             </button>
           </td>
         </tr>

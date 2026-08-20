@@ -6,6 +6,7 @@ import { PaginationSystem } from './PaginationSystem.js';
 import { TableAnimationHelper } from './TableAnimationHelper.js';
 import { modularFilterSystem as filterSystem } from './filters/ModularFilterSystem.js';
 import { getSearchConfig } from './config/ListSearchConfig.js';
+import { resolveEmptyState, bindEmptyStateActions } from './components/EmptyState.js';
 
 /**
  * Abstrakte Basisklasse für paginierte Listen
@@ -482,15 +483,55 @@ export class BasePaginatedList {
   async updateTable(items) {
     const tbody = document.querySelector(this.options.tbodySelector);
     if (!tbody) return;
-    
+
     await TableAnimationHelper.animatedUpdate(tbody, () => {
       if (!items || items.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="${this.options.tableColspan}" class="no-data empty-state">Keine Einträge gefunden</td></tr>`;
+        this.renderEmptyTable(tbody);
         return;
       }
-      
+
       tbody.innerHTML = items.map(item => this.renderSingleRow(item)).join('');
     });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // EMPTY STATE (zentrales System: core/components/EmptyState.js)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Empty-State der Liste ohne aktive Filter.
+   * Kann ueber options.emptyState oder durch Ueberschreiben angepasst werden.
+   * @returns {Object} State fuer renderEmptyState
+   */
+  getEmptyState() {
+    return this.options.emptyState || {
+      icon: 'inbox',
+      title: `Keine ${this.options.breadcrumbLabel} vorhanden`
+    };
+  }
+
+  /**
+   * Prueft, ob Filter oder Suche aktiv sind (fuer den filtered-Empty-State).
+   */
+  hasActiveFilters() {
+    const filters = filterSystem.getFilters(this.entityType) || {};
+    const hasFilters = Object.values(filters).some(value =>
+      value && (Array.isArray(value) ? value.length > 0 : value !== '')
+    );
+    return hasFilters || (this.searchQuery || '').trim().length > 0;
+  }
+
+  /**
+   * Rendert den Empty-State in den tbody (filter-aware).
+   * Der "Filter zurücksetzen"-Button wird global in bindEvents() delegiert.
+   * @param {HTMLElement} tbody
+   */
+  renderEmptyTable(tbody) {
+    const html = resolveEmptyState({
+      hasActiveFilters: this.hasActiveFilters(),
+      states: { default: this.getEmptyState() }
+    }, 'default');
+    tbody.innerHTML = `<tr><td colspan="${this.options.tableColspan}" class="empty-state-cell">${html}</td></tr>`;
   }
   
   /**
@@ -614,6 +655,11 @@ export class BasePaginatedList {
       this.handlePermissionsChanged(e.detail);
     }, { signal });
     
+    // Empty-State-Actions (z.B. "Filter zurücksetzen" im filtered-State)
+    bindEmptyStateActions(document, {
+      'reset-filters': () => this.onFiltersReset()
+    }, { signal });
+
     // Filter-Tag X-Buttons
     document.addEventListener('click', (e) => {
       if (e.target.classList.contains('tag-x')) {

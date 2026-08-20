@@ -15,7 +15,7 @@ gap: var(--gap-10);
 
 /* Das originale Select verstecken */
 .phone-country-select {
-  display: none !important;
+  display: none;
 }
 
 /* Searchable Select Container für Phone Field - MUSS nebeneinander sein */
@@ -38,11 +38,11 @@ gap: var(--gap-10);
 .phone-number-field .phone-prefix {
   padding: var(--space-10) var(--space-sm);
   padding-right: var(--space-xs);
-  background-color: var(--color-bg-disabled, #f3f4f6);
-  border: 1px solid var(--color-border, #e5e7eb);
+  background-color: var(--color-bg-disabled);
+  border: 1px solid var(--color-border);
   border-right: none;
   border-radius: var(--radius-md) 0 0 6px;
-  color: var(--color-text, #1f2937);
+  color: var(--color-text);
   font-size: var(--text-sm);
   font-weight: 500;
   white-space: nowrap;
@@ -53,7 +53,7 @@ gap: var(--gap-10);
 /* Phone Number Input - daneben */
 .phone-number-field .phone-input-wrapper .phone-number-input {
   flex: 1 !important;
-  border-radius: 0 6px 6px 0;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
   padding-left: var(--space-sm);
 }
 
@@ -66,10 +66,10 @@ gap: var(--gap-10);
 .phone-number-field .phone-number-input {
   flex: 1 !important;
   padding: var(--space-10) var(--space-sm);
-  border: 1px solid var(--color-border, #e5e7eb);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background-color: var(--color-bg, #ffffff);
-  color: var(--color-text, #1f2937);
+  background-color: var(--color-bg);
+  color: var(--color-text);
   font-size: var(--text-sm);
   font-family: inherit;
   transition: all 0.2s ease;
@@ -77,7 +77,7 @@ gap: var(--gap-10);
 
 .phone-number-field .phone-number-input:focus {
   outline: none;
-  border-color: var(--color-primary, #2563eb);
+  border-color: var(--color-primary);
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
 }
 
@@ -89,56 +89,56 @@ gap: var(--gap-10);
 /* Flagge Icon innerhalb des Containers */
 .phone-flag-icon {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  display: inline-block !important;
-  width: var(--flag-width-md) !important;
-  height: var(--flag-height-md) !important;
-  background-size: contain !important;
-  background-position: center !important;
-  background-repeat: no-repeat !important;
+  display: inline-block;
+  width: var(--flag-width-md);
+  height: var(--flag-height-md);
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 /* Flaggen im Dropdown */
 .searchable-select-item .fi {
-  display: inline-block !important;
-  width: var(--flag-width-sm) !important;
-  height: var(--flag-height-sm) !important;
+  display: inline-block;
+  width: var(--flag-width-sm);
+  height: var(--flag-height-sm);
   flex-shrink: 0;
-  background-size: contain !important;
-  background-position: center !important;
-  background-repeat: no-repeat !important;
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
   margin-right: var(--space-xs);
 }
 
 .phone-country-select:focus {
   outline: none;
-  border-color: var(--color-primary, #2563eb);
+  border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .phone-number-input {
   flex: 1;
   padding: var(--space-10) var(--space-sm);
-  border: 1px solid var(--color-border, #e5e7eb);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  background-color: var(--color-bg, #ffffff);
-  color: var(--color-text, #1f2937);
+  background-color: var(--color-bg);
+  color: var(--color-text);
   font-size: var(--text-sm);
   font-family: inherit;
   transition: all 0.2s ease;
 }
 
 .phone-number-input:hover {
-  border-color: var(--color-primary, #2563eb);
+  border-color: var(--color-primary);
 }
 
 .phone-number-input:focus {
   outline: none;
-  border-color: var(--color-primary, #2563eb);
+  border-color: var(--color-primary);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
 .phone-number-input::placeholder {
-  color: var(--color-text-light, #9ca3af);
+  color: var(--color-text-light);
 }
 
 /* Field Hint */
@@ -146,7 +146,7 @@ gap: var(--gap-10);
   display: block;
   margin-top: var(--gap-6);
   font-size: var(--text-xs);
-  color: var(--color-text-light, #6b7280);
+  color: var(--color-text-light);
 }
 
 /* Flag Icons in Select (Choices.js wird die Flags rendern) */
@@ -157,27 +157,27 @@ gap: var(--gap-10);
 /* Responsive Design */
 @media (max-width: 640px) {
   .phone-country-select + .searchable-select-container {
-    flex: 1 !important;
-    min-width: 100% !important;
+    flex: 1;
+    min-width: 100%;
   }
 }
 
 /* Error State */
 .phone-number-field-container.has-error .phone-country-select,
 .phone-number-field-container.has-error .phone-number-input {
-  border-color: var(--color-error, #ef4444);
+  border-color: var(--color-error);
 }
 
 .phone-number-field-container .error-message {
   display: block;
   margin-top: var(--gap-6);
   font-size: var(--text-xs);
-  color: var(--color-error, #ef4444);
+  color: var(--color-error);
 }
 
 /* Required Indicator */
 .phone-number-field-container label .required {
-  color: var(--color-error, #ef4444);
+  color: var(--color-error);
   margin-left: var(--space-xxs);
 }
 
@@ -203,7 +203,7 @@ gap: var(--gap-10);
 /* Disabled State */
 .phone-number-field-container.disabled .phone-country-select,
 .phone-number-field-container.disabled .phone-number-input {
-  background-color: var(--color-bg-disabled, #f3f4f6);
+  background-color: var(--color-bg-disabled);
   cursor: not-allowed;
   opacity: 0.6;
 }

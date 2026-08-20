@@ -2,6 +2,7 @@
 // Markdown-Rendering und verwandte Artikel
 
 import { KUNDE_ALLOWED_SLUGS, ARTICLE_DISPLAY_OVERRIDES } from './EducationConstants.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 export const educationArticleDetail = {
   article: null,
@@ -184,10 +185,8 @@ export const educationArticleDetail = {
           <div class="education-article-author">
             <span>Autor:</span> ${authorName}
           </div>
-          <button class="secondary-btn" id="btn-back-to-education">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="16" height="16">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-            </svg>
+          <button class="mdc-btn mdc-btn--secondary" id="btn-back-to-education">
+            ${icon('arrow-left')}
             ${this.isKundeRole() ? 'Zurück zum Dashboard' : 'Zurück zur Übersicht'}
           </button>
         </div>
@@ -216,12 +215,10 @@ export const educationArticleDetail = {
     const backLabel = this.isKundeRole() ? 'Zurück zum Dashboard' : 'Zurück zur Übersicht';
     return `
       <div class="education-not-found">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="not-found-icon">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-        </svg>
+        ${icon('exclamation-circle')}
         <h2>Artikel nicht gefunden</h2>
         <p>Der gesuchte Artikel existiert nicht oder wurde entfernt.</p>
-        <button class="primary-btn" id="btn-back-to-education">
+        <button class="mdc-btn" id="btn-back-to-education">
           ${backLabel}
         </button>
       </div>

@@ -179,7 +179,7 @@ describe('Sourcing – Kopfzeile der Detailtabelle', () => {
     const doc = kopf({
       liste: { unternehmen: { firmenname: 'Meta Glasses', logo_url: 'https://cdn.test/logo.png' } }
     });
-    const logo = doc.querySelector('.sourcing-unternehmen-logo');
+    const logo = doc.querySelector('.toolbar-entity-logo');
 
     expect(logo.getAttribute('src')).toBe('https://cdn.test/logo.png');
     expect(logo.getAttribute('alt')).toBe('Meta Glasses');
@@ -189,17 +189,17 @@ describe('Sourcing – Kopfzeile der Detailtabelle', () => {
 
   it('laesst den Logo-Platz weg, wenn kein Logo hinterlegt ist', () => {
     expect(kopf({ liste: { unternehmen: { firmenname: 'Ohne Logo' } } })
-      .querySelector('.sourcing-unternehmen-logo')).toBeNull();
-    expect(kopf({ liste: {} }).querySelector('.sourcing-unternehmen-logo')).toBeNull();
-    expect(kopf().querySelector('.sourcing-unternehmen-logo')).toBeNull();
+      .querySelector('.toolbar-entity-logo')).toBeNull();
+    expect(kopf({ liste: {} }).querySelector('.toolbar-entity-logo')).toBeNull();
+    expect(kopf().querySelector('.toolbar-entity-logo')).toBeNull();
   });
 
   it('zeigt den Listennamen auch ohne Logo neben dem Logo-Platz', () => {
     const doc = kopf({ liste: { name: 'Sommer <Kampagne>' } });
-    const name = doc.querySelector('.sourcing-listen-name');
+    const name = doc.querySelector('.toolbar-listen-name');
 
     expect(name.textContent).toBe('Sommer <Kampagne>');
-    expect(name.closest('.sourcing-listen-kopf')).not.toBeNull();
+    expect(name.closest('.toolbar-listen-kopf')).not.toBeNull();
     expect(name.closest('.add-item-actions-left')).not.toBeNull();
   });
 
@@ -210,22 +210,22 @@ describe('Sourcing – Kopfzeile der Detailtabelle', () => {
 
     expect(kinder[0].querySelector('#sourcing-item-search-input')).not.toBeNull();
     expect(kinder[1].id).toBe('btn-open-add-drawer');
-    expect(kinder[2].classList.contains('sourcing-toolbar-menu')).toBe(true);
+    expect(kinder[2].classList.contains('toolbar-menu')).toBe(true);
 
     const kundenDoc = kopf({ isKunde: true });
     expect(kundenDoc.querySelector('#sourcing-item-search-input')).not.toBeNull();
-    expect(kundenDoc.querySelector('.sourcing-toolbar-menu')).toBeNull();
+    expect(kundenDoc.querySelector('.toolbar-menu')).toBeNull();
     expect(kundenDoc.querySelector('.sourcing-status-filter-submenu')).toBeNull();
   });
 
   it('legt Status-Filter und Toolbar-Actions ins Plus-Dropdown', () => {
-    const doc = kopf({ kundenCallActive: true, statusFilter: ['Zusage', 'Buchen'] });
-    const dropdown = doc.querySelector('.sourcing-toolbar-dropdown');
+    const doc = kopf({ kundenCallActive: true, statusFilter: ['Zusage', 'Gebucht'] });
+    const dropdown = doc.querySelector('.toolbar-menu-dropdown');
     const statusSub = dropdown.querySelector('.sourcing-status-filter-submenu');
 
     expect(doc.getElementById('btn-sourcing-toolbar-menu')).not.toBeNull();
     expect(statusSub.querySelector('[data-status-tag="Zusage"] .submenu-check')).not.toBeNull();
-    expect(statusSub.querySelector('[data-status-tag="Buchen"] .submenu-check')).not.toBeNull();
+    expect(statusSub.querySelector('[data-status-tag="Gebucht"] .submenu-check')).not.toBeNull();
     expect(statusSub.querySelector('[data-status-tag="Angefragt"] .submenu-check')).toBeNull();
     expect(dropdown.querySelector('#btn-share-sourcing')).not.toBeNull();
     expect(dropdown.querySelector('#btn-kunden-call-toggle').classList.contains('active')).toBe(true);
@@ -274,6 +274,41 @@ describe('Sourcing – Preis Reels (manuell)', () => {
   });
 });
 
+describe('Sourcing – TikTok-Preise (manuell)', () => {
+  it('nimmt TikTok Video- und Story-Preis als Freitext auf', () => {
+    const video = renderCell('cp-col-preis-tt-video', { preis_tiktok_video: '800' });
+    const story = renderCell('cp-col-preis-tt-story', { preis_tiktok_story: 'ca. 300' });
+
+    expect(video.querySelector('input[data-field="preis_tiktok_video"]').value).toBe('800');
+    expect(story.querySelector('input[data-field="preis_tiktok_story"]').value).toBe('ca. 300');
+  });
+
+  it('steht direkt hinter den TikTok-Followern und vor dem Gesamtpreis', () => {
+    const kopf = Array.from(tabelle().querySelectorAll('thead th'))
+      .map(th => Array.from(th.classList).find(c => c.startsWith('cp-col-')))
+      .filter(Boolean);
+
+    expect(kopf[kopf.indexOf('cp-col-follower-tt') + 1]).toBe('cp-col-preis-tt-video');
+    expect(kopf[kopf.indexOf('cp-col-preis-tt-video') + 1]).toBe('cp-col-preis-tt-story');
+    expect(kopf[kopf.indexOf('cp-col-preis-tt-story') + 1]).toBe('cp-col-pricing');
+  });
+
+  it('zeigt Kunden die Werte nur lesend', () => {
+    const video = renderCell('cp-col-preis-tt-video', { preis_tiktok_video: '800' }, { isKunde: true });
+    const story = renderCell('cp-col-preis-tt-story', {}, { isKunde: true });
+
+    expect(video.querySelector('input')).toBeNull();
+    expect(video.querySelector('.cell-text-readonly').textContent.trim()).toBe('800 €');
+    expect(story.querySelector('.cell-text-readonly').textContent.trim()).toBe('-');
+  });
+
+  it('blendet die Spalten aus, wenn sie versteckt sind', () => {
+    const video = renderCell('cp-col-preis-tt-video', {}, { hiddenColumns: ['cp-col-preis-tt-video'] });
+
+    expect(video.getAttribute('style')).toContain('display:none');
+  });
+});
+
 describe('Sourcing – Gesamtpreis', () => {
   it('nennt die frueher "Tatsächlicher Preis" genannte Spalte Gesamtpreis', () => {
     const doc = tabelle();
@@ -297,6 +332,8 @@ describe('Sourcing – Euro-Zeichen in den Preisfeldern', () => {
   const PREIS_FELDER = [
     ['cp-col-preis-reels', 'preis_reels'],
     ['cp-col-preis-story', 'preis_story'],
+    ['cp-col-preis-tt-video', 'preis_tiktok_video'],
+    ['cp-col-preis-tt-story', 'preis_tiktok_story'],
     ['cp-col-pricing', 'pricing'],
     ['cp-col-ek', 'preis_ek'],
     ['cp-col-vk', 'preis_vk']

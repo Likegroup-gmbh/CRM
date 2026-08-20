@@ -1,6 +1,7 @@
 // GlobalSearch.js – globale Command-Palette-Suche (nur für Mitarbeiter/Admin)
 
 import { KampagneUtils } from '../../modules/kampagne/KampagneUtils.js';
+import { icon } from '../icons/IconSystem.js';
 
 const SEARCH_LIMIT = 5;
 const DEBOUNCE_MS = 300;
@@ -17,7 +18,7 @@ const SEARCH_CONFIG = [
     labelField: ['vorname', 'nachname'],
     searchFields: ['vorname', 'nachname', 'instagram', 'tiktok', 'mail', 'telefonnummer', 'lieferadresse_stadt', 'lieferadresse_plz', 'lieferadresse_land', 'notiz'],
     fieldLabels: { vorname: 'Vorname', nachname: 'Nachname', instagram: 'Instagram', tiktok: 'TikTok', mail: 'E-Mail', telefonnummer: 'Telefon', lieferadresse_stadt: 'Stadt', lieferadresse_plz: 'PLZ', lieferadresse_land: 'Land', notiz: 'Notiz' },
-    icon: 'icon-users',
+    icon: 'creator',
     category: 'Stammdaten',
     permKey: 'creator'
   },
@@ -85,7 +86,7 @@ const SEARCH_CONFIG = [
     labelField: 'auftragsname',
     searchFields: ['auftragsname', 'po', 'externe_po', 're_nr', 'angebotsnummer', 'notiz', 'status'],
     fieldLabels: { auftragsname: 'Auftrag', po: 'PO', externe_po: 'Externe PO', re_nr: 'RE-Nr.', angebotsnummer: 'Angebotsnr.', notiz: 'Notiz', status: 'Status' },
-    icon: 'icon-briefcase',
+    icon: 'auftrag',
     category: 'Projektmanagement',
     permKey: 'auftrag'
   },
@@ -96,7 +97,7 @@ const SEARCH_CONFIG = [
     labelField: 'rechnung_nr',
     searchFields: ['rechnung_nr', 'externe_angebotsnummer', 'status'],
     fieldLabels: { rechnung_nr: 'Rechnungsnr.', externe_angebotsnummer: 'Externe Angebotsnr.', status: 'Status' },
-    icon: 'icon-currency-euro',
+    icon: 'rechnung',
     category: 'Content & Strategie',
     permKey: 'rechnung'
   }
@@ -135,18 +136,25 @@ const REF_ENTITY_DISPLAY = {
   kooperation: { routePrefix: '/kooperation', icon: 'icon-handshake', category: 'Projektmanagement', permKey: 'kooperation' }
 };
 
-const ICONS = {
-  'icon-users': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" /></svg>`,
-  'icon-building': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Zm0 3h.008v.008h-.008v-.008Z" /></svg>`,
-  'icon-tag': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" /></svg>`,
-  'icon-user-circle': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>`,
-  'icon-cube': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" /></svg>`,
-  'icon-campaign': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 1 1 0-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 0 1-1.44-4.282m3.102.069a18.03 18.03 0 0 1-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 0 1 8.835 2.535M10.34 6.66a23.847 23.847 0 0 0 8.835-2.535m0 0A23.74 23.74 0 0 0 18.795 3m.38 1.125a23.91 23.91 0 0 1 1.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 0 0 1.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 0 1 0 3.46" /></svg>`,
-  'icon-briefcase': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>`,
-  'icon-currency-euro': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 11.625h4.5m-4.5 2.25h4.5m2.121 1.527c-1.171 1.464-3.07 1.464-4.242 0-1.172-1.465-1.172-3.84 0-5.304 1.171-1.464 3.07-1.464 4.242 0M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>`,
-  'icon-handshake': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" d="M11.42 15.17 17.25 21A2.652 2.652 0 0 0 21 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 1 1-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 0 0 4.486-6.336l-3.276 3.277a3.004 3.004 0 0 1-2.25-2.25l3.276-3.276a4.5 4.5 0 0 0-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085m-1.745 1.437L5.909 7.5H4.5L2.25 3.75l1.5-1.5L7.5 4.5v1.409l4.26 4.26m-1.745 1.437 1.745-1.437m6.615 8.206L21 17.25A2.652 2.652 0 0 1 17.25 21l-5.877-5.877M10.5 7.5l.653-.653a2.548 2.548 0 0 1 3.586 3.586l-.653.653m.653-.653-1.437-1.437m-1.437 1.437-4.26-4.26" /></svg>`,
-  'icon-search': `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>`
+// Legacy-Keys ('icon-*') auf zentrale Icon-Keys mappen
+const ICON_KEY_MAP = {
+  'icon-users': 'users',
+  'icon-building': 'unternehmen',
+  'icon-tag': 'tag',
+  'icon-user-circle': 'user-circle',
+  'icon-cube': 'cube',
+  'icon-campaign': 'campaign',
+  'icon-briefcase': 'briefcase',
+  'icon-currency-euro': 'document-currency',
+  'icon-handshake': 'handshake',
+  'icon-search': 'search',
 };
+
+function getSearchIcon(name) {
+  const key = ICON_KEY_MAP[name] || name;
+  return icon(key, { stroke: 1.5 });
+}
+
 
 function escapeIlike(q) {
   if (!q || typeof q !== 'string') return '';
@@ -741,7 +749,7 @@ export class GlobalSearch {
     this.container.setAttribute('aria-label', 'Globale Suche');
     this.container.innerHTML = `
       <div class="global-search-input-wrap">
-        <span class="global-search-input-icon" aria-hidden="true">${ICONS['icon-search']}</span>
+        <span class="global-search-input-icon" aria-hidden="true">${getSearchIcon('icon-search')}</span>
         <input type="text" class="global-search-input" placeholder="Suchen nach Namen, Stadt, E-Mail, …" autocomplete="off" aria-label="Suchbegriff" />
         <span class="global-search-shortcut">${shortcut}</span>
       </div>
@@ -806,7 +814,7 @@ export class GlobalSearch {
         const sub = it.sublabel ? `<div class="global-search-result-sublabel">${escapeHtml(it.sublabel)}</div>` : '';
         html += `
           <div class="global-search-result-item" role="option" data-index="${globalIndex}" data-route="${escapeHtml(it.route)}">
-            <span class="global-search-result-icon">${ICONS[it.icon] || ''}</span>
+            <span class="global-search-result-icon">${getSearchIcon(it.icon) || ''}</span>
             <div class="global-search-result-text">
               <div class="global-search-result-label">${escapeHtml(it.label)}</div>
               ${sub}
@@ -823,7 +831,7 @@ export class GlobalSearch {
         const sub = it.sublabel ? `<div class="global-search-result-sublabel">${escapeHtml(it.sublabel)}</div>` : '';
         html += `
           <div class="global-search-result-item" role="option" data-index="${globalIndex}" data-route="${escapeHtml(it.route)}">
-            <span class="global-search-result-icon">${ICONS[it.icon] || ''}</span>
+            <span class="global-search-result-icon">${getSearchIcon(it.icon) || ''}</span>
             <div class="global-search-result-text">
               <div class="global-search-result-label">${escapeHtml(it.label)}</div>
               ${viaHtml}

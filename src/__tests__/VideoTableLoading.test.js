@@ -146,6 +146,6 @@ describe('KampagneKooperationenVideoTable – Ladeoptimierung', () => {
 
     table._closeStatusPortal();
     expect(document.querySelectorAll('.status-dropdown-portal').length).toBe(0);
-    expect(wrapper.classList.contains('open')).toBe(false);
+    expect(wrapper.classList.contains('show')).toBe(false);
   });
 });

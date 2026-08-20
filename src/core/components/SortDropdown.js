@@ -1,6 +1,8 @@
 // SortDropdown.js (ES6-Modul)
 // Wiederverwendbare Sortier-Dropdown Komponente für Listen
 
+import { icon } from '../icons/IconSystem.js';
+
 export class SortDropdown {
   constructor() {
     this.instances = new Map();
@@ -72,7 +74,7 @@ export class SortDropdown {
 
     return `
       <div class="sort-dropdown" data-entity-type="${entityType}">
-        <button class="sort-dropdown-toggle secondary-btn" aria-expanded="false" aria-label="Sortierung ändern">
+        <button class="mdc-btn sort-dropdown-toggle mdc-btn--secondary" aria-expanded="false" aria-label="Sortierung ändern">
           <span class="sort-dropdown-label">${currentOption.label}</span>
           ${this.getChevronIcon()}
         </button>
@@ -91,9 +93,7 @@ export class SortDropdown {
    * Chevron Icon SVG
    */
   getChevronIcon() {
-    return `<svg class="sort-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <polyline points="6 9 12 15 18 9"></polyline>
-    </svg>`;
+    return `${icon('chevron-down')}`;
   }
 
   /**

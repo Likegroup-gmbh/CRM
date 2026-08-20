@@ -80,12 +80,12 @@ export class KickOffDetail extends PersonDetailBase {
     const unternehmenLink = k.unternehmen?.id
       ? (isKunde
           ? this.sanitize(k.unternehmen.firmenname)
-          : `<a href="/unternehmen/${k.unternehmen.id}" onclick="event.preventDefault(); window.navigateTo('/unternehmen/${k.unternehmen.id}')">${this.sanitize(k.unternehmen.firmenname)}</a>`)
+          : `<a href="/unternehmen/${k.unternehmen.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/unternehmen/${k.unternehmen.id}')">${this.sanitize(k.unternehmen.firmenname)}</a>`)
       : null;
     const markeLink = k.marke?.id
       ? (isKunde
           ? this.sanitize(k.marke.markenname)
-          : `<a href="/marke/${k.marke.id}" onclick="event.preventDefault(); window.navigateTo('/marke/${k.marke.id}')">${this.sanitize(k.marke.markenname)}</a>`)
+          : `<a href="/marke/${k.marke.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/marke/${k.marke.id}')">${this.sanitize(k.marke.markenname)}</a>`)
       : null;
 
     let sidebarInfo;

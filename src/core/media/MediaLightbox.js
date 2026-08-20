@@ -1,6 +1,8 @@
-const CLOSE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>`;
-const PREV_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>`;
-const NEXT_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>`;
+import { icon } from '../icons/IconSystem.js';
+
+const CLOSE_ICON = icon('x-mark', { stroke: 2 });
+const PREV_ICON = icon('chevron-left');
+const NEXT_ICON = icon('chevron-right');
 
 /**
  * Wiederverwendbare Lightbox-Shell fuer Medien-Viewer (Video, Storys, Bilder).

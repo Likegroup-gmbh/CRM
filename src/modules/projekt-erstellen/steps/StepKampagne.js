@@ -25,7 +25,7 @@ export class StepKampagne {
             <label for="field-pe-titel">Projektname <span class="required">*</span></label>
             <input type="text" id="field-pe-titel" name="titel" value="${this.escape(a.titel)}" placeholder="Wird aus Unternehmen, Art und Startdatum generiert..." autocomplete="off">
           </div>
-          <button type="button" class="secondary-btn" id="pe-titel-reset-btn" title="Vorschlag zurücksetzen" style="display:none;">Vorschlag nutzen</button>
+          <button type="button" class="mdc-btn mdc-btn--secondary" id="pe-titel-reset-btn" title="Vorschlag zurücksetzen" style="display:none;">Vorschlag nutzen</button>
         </div>
 
         <div id="pe-kampagnen-host"></div>

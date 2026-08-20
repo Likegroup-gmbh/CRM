@@ -3,6 +3,7 @@
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 export class CreatorListPage {
   constructor() {
@@ -29,14 +30,14 @@ export class CreatorListPage {
     const html = `
       <div class="page-header">
         <div class="page-header-right">
-          <button id="btn-new-list" class="primary-btn">Neue Liste</button>
+          <button id="btn-new-list" class="mdc-btn">Neue Liste</button>
         </div>
       </div>
 
       <div class="filter-bar">
         <div class="filter-left"><div id="filter-container"></div></div>
         <div class="filter-right">
-          <button id="btn-filter-reset" class="secondary-btn" style="display:${this.hasActiveFilters() ? 'inline-block' : 'none'};">Filter zurücksetzen</button>
+          <button id="btn-filter-reset" class="mdc-btn mdc-btn--secondary" style="display:${this.hasActiveFilters() ? 'inline-block' : 'none'};">Filter zurücksetzen</button>
         </div>
       </div>
 
@@ -131,13 +132,13 @@ export class CreatorListPage {
     
     tbody.innerHTML = lists.map(l => `
       <tr data-list-id="${sanitize(l.id)}">
-        <td><a href="/creator-lists/${sanitize(l.id)}" class="list-link" data-list-id="${sanitize(l.id)}">${sanitize(l.name || l.id)}</a></td>
+        <td><a href="/creator-lists/${sanitize(l.id)}" class="table-link list-link" data-list-id="${sanitize(l.id)}">${sanitize(l.name || l.id)}</a></td>
         <td>${l.count}</td>
         <td>${formatDate(l.created_at)}</td>
         <td>
           <div class="actions-dropdown-container" data-entity-type="creator_list">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+              ${icon('dots-vertical-filled')}
             </button>
             <div class="actions-dropdown">
               <a href="#" class="action-item" data-action="view" data-list-id="${sanitize(l.id)}">Details anzeigen</a>

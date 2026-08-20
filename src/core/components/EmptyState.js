@@ -1,42 +1,25 @@
 // EmptyState.js
-// Wiederverwendbare Empty-State-Komponente fuer Tabellen/Listen.
-// Reines Rendering (HTML-String), kein Event-Binding: Aufrufer delegieren
-// Clicks auf [data-empty-action] selbst, da Seiten unterschiedliche
-// Lifecycles (AbortController etc.) haben.
+// Zentrales Empty-State-System fuer Tabellen/Listen/Boards.
 //
-// Verwendung:
-//   import { renderEmptyState, resolveEmptyState } from '../../core/components/EmptyState.js';
+// APIs:
+//   renderEmptyState(state)            -> HTML-String (memoized)
+//   renderEmptyStateRow(state, cols)   -> HTML-String als <tr><td colspan>
+//   resolveEmptyState(context, key)    -> filter-aware Auswahl + Rendering
+//   createEmptyState(state)            -> DOM-Node (template-clone, kein HTML-Parse)
+//   insertEmptyState(target, state)    -> schreibt direkt in tbody (auto-colspan) oder Container
+//   bindEmptyStateActions(el, map, {signal}) -> delegiertes Click-Handling fuer [data-empty-action]
+//   renderSectionHeader({title, actionsHtml}) -> Header-Zeile fuer Detail-Tabs
 //
-//   // Direkt:
-//   renderEmptyState({ icon: 'film', title: 'Keine Videos', text: '...' })
+// State-Objekt: { icon, title, text, actions, actionsHtml, size }
+//   icon:        Icon-Key aus EMPTY_ICON_MAP oder beliebiger String (z.B. Emoji)
+//   actions:     [{ label, action, variant: 'primary'|'secondary' }]
+//                Buttons tragen data-empty-action; Klicks via bindEmptyStateActions delegieren.
+//   actionsHtml: Alternativ fertiges HTML (nicht escaped!)
+//   size:        'small' fuer Sidebar-/Drawer-Kontexte
 //
-//   // Filter-aware (waehlt bei aktiven Filtern automatisch den "filtered"-State):
-//   resolveEmptyState({
-//     hasActiveFilters: store.hasActiveFilters(),
-//     states: {
-//       offen: { icon: 'check', title: 'Alles freigegeben', text: '...' },
-//       alle: { icon: 'clipboard', title: 'Keine Eintraege', text: '...' }
-//     }
-//   }, 'offen')
-
-const ICON_SVGS = {
-  filter: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>',
-  check: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
-  clipboard: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>',
-  film: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>',
-  search: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
-  building: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/></svg>',
-  users: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
-  megaphone: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>',
-  handshake: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2"/><path d="M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3"/><path d="M3 4h8"/></svg>',
-  invoice: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></svg>',
-  document: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
-  list: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>',
-  'map-pin': '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z"/><circle cx="12" cy="10" r="3"/></svg>',
-  tag: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.83Z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>',
-  cube: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>',
-  instagram: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37Z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>'
-};
+// Performance: Render-Ergebnisse sind gecacht (LRU), Icons leben in einem
+// einmalig injizierten SVG-Sprite (<use>), createEmptyState klont geparste
+// Templates statt HTML zu parsen.
 
 // Vordefinierte States, die auf allen Seiten gleich aussehen sollen.
 const PRESETS = {
@@ -48,20 +31,77 @@ const PRESETS = {
   }
 };
 
+// Generischer Fallback, wenn resolveEmptyState einen unbekannten Key bekommt.
+// Bewusst ohne Reset-Button (keine Filter aktiv).
+const DEFAULT_STATE = {
+  icon: 'list',
+  title: 'Keine Einträge vorhanden'
+};
+
+/* ------------------------------------------------------------------ */
+/* Escaping                                                            */
+/* ------------------------------------------------------------------ */
+import { icon, hasIcon } from '../icons/IconSystem.js';
+
+// EmptyState-Key -> IconSystem-Key (Feather-Stil auf Heroicons gemappt)
+const EMPTY_ICON_MAP = {
+  filter: 'adjustments-horizontal',
+  check: 'check-circle',
+  clipboard: 'clipboard',
+  film: 'film',
+  search: 'search',
+  building: 'building',
+  users: 'users',
+  creator: 'creator',
+  megaphone: 'campaign',
+  handshake: 'handshake',
+  invoice: 'rechnung',
+  document: 'document',
+  list: 'list-bullet',
+  'map-pin': 'map-pin',
+  tag: 'tag',
+  cube: 'cube',
+  instagram: 'instagram',
+  video: 'video',
+  inbox: 'inbox',
+  calendar: 'calendar',
+  'file-text': 'document',
+  kanban: 'squares-2x2',
+  wallet: 'wallet',
+  gift: 'gift',
+  info: 'information-circle',
+  folder: 'folder',
+};
+
+const NEEDS_ESCAPE = /[&<>"]/;
+
 function escHtml(str) {
-  return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const s = String(str ?? '');
+  if (!NEEDS_ESCAPE.test(s)) return s;
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 function escAttr(str) {
-  return escHtml(str).replace(/"/g, '&quot;');
+  const s = String(str ?? '');
+  if (!NEEDS_ESCAPE.test(s)) return s;
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function renderIcon(icon) {
-  if (!icon) return '';
-  const svg = ICON_SVGS[icon];
-  if (svg) return `<div class="empty-icon empty-icon--svg">${svg}</div>`;
+/* ------------------------------------------------------------------ */
+/* Rendering (intern)                                                  */
+/* ------------------------------------------------------------------ */
+function renderIcon(iconKey) {
+  if (!iconKey) return '';
+  // Bekannte Keys laufen ueber das zentrale IconSystem (Sprite).
+  const mapped = EMPTY_ICON_MAP[iconKey];
+  if (mapped) {
+    return `<div class="empty-icon empty-icon--svg">${icon(mapped, { stroke: 1.5 })}</div>`;
+  }
+  if (hasIcon(iconKey)) {
+    return `<div class="empty-icon empty-icon--svg">${icon(iconKey, { stroke: 1.5 })}</div>`;
+  }
   // Fallback: beliebiger String (z.B. Emoji) wird unveraendert angezeigt
-  return `<div class="empty-icon">${escHtml(icon)}</div>`;
+  return `<div class="empty-icon">${escHtml(iconKey)}</div>`;
 }
 
 function renderActions(actions, actionsHtml) {
@@ -74,28 +114,83 @@ function renderActions(actions, actionsHtml) {
   return `<div class="empty-state-actions">${buttons}</div>`;
 }
 
-/**
- * Rendert einen Empty-State als HTML-String.
- *
- * @param {Object} state
- * @param {string} [state.icon] - Icon-Key (filter|check|clipboard|film|search) oder Fallback-String (z.B. Emoji)
- * @param {string} state.title - Ueberschrift
- * @param {string} [state.text] - Beschreibungstext
- * @param {Array<{label: string, action: string, variant?: 'primary'|'secondary'}>} [state.actions]
- *        Buttons mit data-empty-action-Attribut; Click-Handling macht der Aufrufer per Delegation.
- * @param {string} [state.actionsHtml] - Alternativ: fertiges HTML fuer den Aktionsbereich (nicht escaped!)
- * @returns {string} HTML
- */
-export function renderEmptyState(state = {}) {
-  const { icon, title, text, actions, actionsHtml } = state;
+function buildEmptyStateHtml(state) {
+  const { icon, title, text, actions, actionsHtml, size } = state;
+  const cls = size === 'small' ? 'empty-state empty-state-small' : 'empty-state';
   return `
-    <div class="empty-state">
+    <div class="${cls}">
       ${renderIcon(icon)}
       ${title ? `<h3>${escHtml(title)}</h3>` : ''}
       ${text ? `<p>${escHtml(text)}</p>` : ''}
       ${renderActions(actions, actionsHtml)}
     </div>
   `;
+}
+
+/* ------------------------------------------------------------------ */
+/* LRU-Cache: gleiche States (z.B. filtered-Preset bei jeder Filter-   */
+/* Eingabe) werden nicht neu ge-rendert.                               */
+/* ------------------------------------------------------------------ */
+const CACHE_LIMIT = 50;
+const htmlCache = new Map();
+
+function cacheKey(state) {
+  try {
+    return JSON.stringify(state ?? {});
+  } catch {
+    return null;
+  }
+}
+
+function cacheGet(key) {
+  const hit = htmlCache.get(key);
+  if (hit !== undefined) {
+    // LRU: ans Ende schieben
+    htmlCache.delete(key);
+    htmlCache.set(key, hit);
+  }
+  return hit;
+}
+
+function cacheSet(key, value) {
+  htmlCache.set(key, value);
+  if (htmlCache.size > CACHE_LIMIT) {
+    htmlCache.delete(htmlCache.keys().next().value);
+  }
+}
+
+/**
+ * Rendert einen Empty-State als HTML-String (memoized).
+ *
+ * @param {Object} state
+ * @param {string} [state.icon] - Icon-Key (siehe EMPTY_ICON_MAP) oder Fallback-String (z.B. Emoji)
+ * @param {string} state.title - Ueberschrift
+ * @param {string} [state.text] - Beschreibungstext
+ * @param {Array<{label: string, action: string, variant?: 'primary'|'secondary'}>} [state.actions]
+ * @param {string} [state.actionsHtml] - Alternativ: fertiges HTML (nicht escaped!)
+ * @param {string} [state.size] - 'small' fuer kompakte Darstellung
+ * @returns {string} HTML
+ */
+export function renderEmptyState(state = {}) {
+  const key = cacheKey(state);
+  if (key !== null) {
+    const hit = cacheGet(key);
+    if (hit !== undefined) return hit;
+  }
+  const html = buildEmptyStateHtml(state);
+  if (key !== null) cacheSet(key, html);
+  return html;
+}
+
+/**
+ * Empty-State als Tabellenzeile.
+ * @param {Object} state - siehe renderEmptyState
+ * @param {number} [colspan=1]
+ * @returns {string} HTML `<tr><td colspan>`
+ */
+export function renderEmptyStateRow(state = {}, colspan = 1) {
+  const cols = Number.isFinite(colspan) && colspan > 0 ? colspan : 1;
+  return `<tr><td colspan="${cols}" class="empty-state-cell">${renderEmptyState(state)}</td></tr>`;
 }
 
 /**
@@ -115,11 +210,80 @@ export function resolveEmptyState(context = {}, key) {
     return renderEmptyState({ ...PRESETS.filtered, ...(states.filtered || {}) });
   }
   const state = states[key];
-  if (!state) return renderEmptyState(PRESETS.filtered);
+  if (!state) return renderEmptyState(DEFAULT_STATE);
   return renderEmptyState(state);
 }
 
-export const EMPTY_STATE_PRESETS = PRESETS;
+/* ------------------------------------------------------------------ */
+/* DOM-APIs                                                            */
+/* ------------------------------------------------------------------ */
+let templateEl = null;
+const nodeCache = new Map();
+
+/**
+ * Rendert einen Empty-State als DOM-Node. Geparste Templates werden gecacht
+ * und geklont (kein wiederholtes HTML-Parsen).
+ * @param {Object} state - siehe renderEmptyState
+ * @returns {HTMLElement}
+ */
+export function createEmptyState(state = {}) {
+  const key = cacheKey(state);
+  let node = key !== null ? nodeCache.get(key) : undefined;
+  if (!node) {
+    if (!templateEl) templateEl = document.createElement('template');
+    templateEl.innerHTML = renderEmptyState(state);
+    node = templateEl.content.firstElementChild;
+    if (key !== null) {
+      nodeCache.set(key, node);
+      if (nodeCache.size > CACHE_LIMIT) {
+        nodeCache.delete(nodeCache.keys().next().value);
+      }
+    }
+  }
+  return node.cloneNode(true);
+}
+
+/**
+ * Schreibt einen Empty-State direkt in ein Ziel-Element.
+ * Bei TBODY wird automatisch die Spaltenanzahl aus dem thead ermittelt
+ * (bewusst live gelesen: Spalten koennen zur Laufzeit ein-/ausgeblendet werden).
+ * Ersetzt das alte FilterUI.renderEmptyState.
+ *
+ * @param {HTMLElement} target - tbody oder beliebiger Container
+ * @param {Object} state - siehe renderEmptyState
+ */
+export function insertEmptyState(target, state = {}) {
+  if (!target) return;
+  if (target.tagName === 'TBODY') {
+    const colspan = target.closest('table')?.querySelector('thead tr')?.children?.length || 1;
+    target.innerHTML = renderEmptyStateRow(state, colspan);
+  } else {
+    target.innerHTML = renderEmptyState(state);
+  }
+}
+
+/**
+ * Delegiertes Click-Handling fuer Empty-State-Buttons. Ein Listener am
+ * Container ueberlebt Re-Renders des Empty States.
+ *
+ * @param {HTMLElement} container - stabiler Container (z.B. Tab-Wrapper)
+ * @param {Object<string, (event: MouseEvent, button: HTMLElement) => void>} handlers
+ *        Mapping von data-empty-action auf Handler
+ * @param {Object} [options]
+ * @param {AbortSignal} [options.signal] - zum automatischen Loeschen des Listeners
+ * @returns {() => void} unbind
+ */
+export function bindEmptyStateActions(container, handlers = {}, { signal } = {}) {
+  if (!container) return () => {};
+  const listener = (event) => {
+    const button = event.target.closest?.('[data-empty-action]');
+    if (!button || !container.contains(button)) return;
+    const handler = handlers[button.dataset.emptyAction];
+    if (handler) handler(event, button);
+  };
+  container.addEventListener('click', listener, { signal });
+  return () => container.removeEventListener('click', listener);
+}
 
 /**
  * Einheitliche Header-Zeile fuer Detail-Tabs: Titel links, Aktions-Buttons rechts.

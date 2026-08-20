@@ -462,15 +462,19 @@ export class AuftragCreateHandler {
         .filter(typ => selectedIds.includes(typ.id))
         .map(typ => typ.name);
 
-      const { KAMPAGNENARTEN_MAPPING, generateBudgetOnlyFieldsHtml } = await import('./logic/KampagnenartenMapping.js');
+      const { getKampagnenartConfig, resolveKampagnenartName, generateBudgetOnlyFieldsHtml } = await import('./logic/KampagnenartenMapping.js');
 
       const container = document.getElementById('auftragsdetails-budget-sections');
       if (container) {
         let sectionsHtml = '';
+        const renderedPrefixes = new Set();
         selectedArten.forEach(artName => {
-          const config = KAMPAGNENARTEN_MAPPING[artName];
+          const config = getKampagnenartConfig(artName);
           if (config) {
-            sectionsHtml += generateBudgetOnlyFieldsHtml(artName, {});
+            // Legacy-Namen können auf dieselbe kanonische Art zeigen – Sections deduplizieren
+            if (renderedPrefixes.has(config.prefix)) return;
+            renderedPrefixes.add(config.prefix);
+            sectionsHtml += generateBudgetOnlyFieldsHtml(resolveKampagnenartName(artName), {});
           } else {
             console.warn(`⚠️ Unbekannte Kampagnenart: "${artName}"`);
           }

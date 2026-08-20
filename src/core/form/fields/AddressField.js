@@ -1,4 +1,5 @@
 import { BaseField } from './BaseField.js';
+import { icon } from '../../../core/icons/IconSystem.js';
 
 export class AddressField extends BaseField {
   render() {
@@ -7,27 +8,13 @@ export class AddressField extends BaseField {
     
     return `
       <div class="form-field form-field-full" ${dependsOn} ${showWhen}>
-        <label for="${this.fieldId}" style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">${this.field.label}</label>
+        <label for="${this.fieldId}" class="addresses-label">${this.field.label}</label>
         <div class="addresses-container" id="${this.fieldId}">
-          <div class="addresses-list" style="margin-bottom: 16px;">
+          <div class="addresses-list">
             <!-- Adressen werden hier dynamisch hinzugefügt -->
           </div>
-          <button type="button" class="btn btn-secondary btn-sm add-address-btn" style="
-            background: #6b7280;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            padding: 8px 16px;
-            cursor: pointer;
-            font-size: 14px;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            transition: background-color 0.2s;
-          " onmouseover="this.style.background='#4b5563'" onmouseout="this.style.background='#6b7280'">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px;">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-            </svg>
+          <button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm add-address-btn address-add-btn">
+            ${icon('plus', { className: 'w-4 h-4 icon-16' })}
             Adresse hinzufügen
           </button>
         </div>
@@ -39,72 +26,48 @@ export class AddressField extends BaseField {
   addAddressRow(addressesList) {
     const addressId = `address-${Date.now()}`;
     const addressHtml = `
-      <div class="address-item" data-address-id="${addressId}" style="
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 16px;
-        margin-bottom: 16px;
-        background: #f9fafb;
-      ">
-        <div class="address-header" style="
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
-        ">
+      <div class="address-item address-card" data-address-id="${addressId}">
+        <div class="address-header">
           <h4>Adresse ${addressId}</h4>
-          <button type="button" class="btn-remove-address" onclick="this.closest('.address-item').remove()" style="
-            background: #ef4444;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 4px 8px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: background-color 0.2s;
-          " onmouseover="this.style.background='#dc2626'" onmouseout="this.style.background='#ef4444'">
+          <button type="button" class="btn-remove-address address-remove-btn" onclick="this.closest('.address-item').remove()">
             Entfernen
           </button>
         </div>
-        <div class="address-fields" style="
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-        ">
-          <div class="form-field" style="grid-column: 1 / -1;">
-            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">Adressname</label>
-            <input type="text" name="adressname_${addressId}" placeholder="z.B. Hauptbüro, Filiale, etc." 
-                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+        <div class="address-fields address-fields-grid">
+          <div class="form-field grid-span-all">
+            <label class="address-label">Adressname</label>
+            <input type="text" name="adressname_${addressId}" placeholder="z.B. Hauptbüro, Filiale, etc."
+                   class="address-input">
           </div>
           <div class="form-field">
-            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">Straße</label>
-            <input type="text" name="strasse_${addressId}" placeholder="Musterstraße" 
-                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+            <label class="address-label">Straße</label>
+            <input type="text" name="strasse_${addressId}" placeholder="Musterstraße"
+                   class="address-input">
           </div>
           <div class="form-field">
-            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">Hausnummer</label>
-            <input type="text" name="hausnummer_${addressId}" placeholder="123" 
-                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+            <label class="address-label">Hausnummer</label>
+            <input type="text" name="hausnummer_${addressId}" placeholder="123"
+                   class="address-input">
           </div>
           <div class="form-field">
-            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">PLZ</label>
-            <input type="text" name="plz_${addressId}" placeholder="12345" 
-                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+            <label class="address-label">PLZ</label>
+            <input type="text" name="plz_${addressId}" placeholder="12345"
+                   class="address-input">
           </div>
           <div class="form-field">
-            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">Stadt</label>
-            <input type="text" name="stadt_${addressId}" placeholder="Musterstadt" 
-                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+            <label class="address-label">Stadt</label>
+            <input type="text" name="stadt_${addressId}" placeholder="Musterstadt"
+                   class="address-input">
           </div>
           <div class="form-field">
-            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">Land</label>
-            <input type="text" name="land_${addressId}" placeholder="Deutschland" 
-                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+            <label class="address-label">Land</label>
+            <input type="text" name="land_${addressId}" placeholder="Deutschland"
+                   class="address-input">
           </div>
-          <div class="form-field" style="grid-column: 1 / -1;">
-            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">Notiz</label>
-            <textarea name="notiz_${addressId}" rows="2" placeholder="Zusätzliche Informationen" 
-                      style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px; resize: vertical;"></textarea>
+          <div class="form-field grid-span-all">
+            <label class="address-label">Notiz</label>
+            <textarea name="notiz_${addressId}" rows="2" placeholder="Zusätzliche Informationen"
+                      class="address-input"></textarea>
           </div>
         </div>
       </div>

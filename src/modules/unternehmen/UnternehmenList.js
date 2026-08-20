@@ -11,6 +11,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { UnternehmenService } from './services/UnternehmenService.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 export class UnternehmenList extends BasePaginatedList {
   constructor() {
@@ -29,10 +30,25 @@ export class UnternehmenList extends BasePaginatedList {
     
     // Alias für Kompatibilität
     this.selectedUnternehmen = this.selectedItems;
-    
+
     // Erlaubte IDs für Nicht-Admins
     this._allowedUnternehmenIds = null;
     this._mitarbeiterQuickFilterOptions = [];
+  }
+
+  /**
+   * Empty-State der Liste (ohne aktive Filter)
+   */
+  getEmptyState() {
+    const canEdit = window.isAdmin?.() || window.currentUser?.permissions?.unternehmen?.can_edit;
+    return {
+      icon: 'building',
+      title: 'Keine Unternehmen vorhanden',
+      text: canEdit
+        ? 'Legen Sie Ihr erstes Unternehmen an, um loszulegen.'
+        : 'Es sind noch keine Unternehmen für Sie freigegeben.',
+      actionsHtml: canEdit ? '<button id="btn-unternehmen-new" class="mdc-btn">Neues Unternehmen anlegen</button>' : ''
+    };
   }
   
   // ══════════════════════════════════════════════════════════════════════════
@@ -241,7 +257,7 @@ export class UnternehmenList extends BasePaginatedList {
         </td>
         <td class="col-stadt">${sanitize(u.rechnungsadresse_stadt || '-')}</td>
         <td>${sanitize(u.rechnungsadresse_land || '-')}</td>
-        <td class="col-webseite table-cell-center">${u.webseite ? `<a href="${UnternehmenService.sanitizeUrl(u.webseite)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${sanitize(u.webseite)}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>` : '-'}</td>
+        <td class="col-webseite table-cell-center">${u.webseite ? `<a href="${UnternehmenService.sanitizeUrl(u.webseite)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${sanitize(u.webseite)}">${icon('external-link')}</a>` : '-'}</td>
         <td>${this.renderBrancheTags(u.branchen)}</td>
         <td>${this.renderAnsprechpartnerList(u._ansprechpartner)}</td>
         <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(management)}</td>
@@ -275,10 +291,10 @@ export class UnternehmenList extends BasePaginatedList {
           </div>
         </div>
         <div class="table-actions">
-          ${canBulkDelete ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
-          <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
+          ${canBulkDelete ? `<button id="btn-select-all" class="mdc-btn mdc-btn--secondary">Alle auswählen</button>
+          <button id="btn-deselect-all" class="mdc-btn mdc-btn--secondary" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>` : ''}
-          ${canEdit ? '<button id="btn-unternehmen-new" class="primary-btn">Neues Unternehmen anlegen</button>' : ''}
+          ${canEdit ? '<button id="btn-unternehmen-new" class="mdc-btn">Neues Unternehmen anlegen</button>' : ''}
         </div>
       </div>
 
@@ -418,8 +434,7 @@ export class UnternehmenList extends BasePaginatedList {
 
     await TableAnimationHelper.animatedUpdate(tbody, async () => {
       if (!unternehmen || unternehmen.length === 0) {
-        const { renderEmptyState } = await import('../../core/FilterUI.js');
-        renderEmptyState(tbody);
+        this.renderEmptyTable(tbody);
         return;
       }
 
@@ -702,12 +717,7 @@ export class UnternehmenList extends BasePaginatedList {
                 class="filter-dropdown-toggle"
                 aria-expanded="false"
                 aria-label="Mitarbeiter filtern">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-            <circle cx="8.5" cy="7" r="4"/>
-            <path d="M20 8v6"/>
-            <path d="M23 11h-6"/>
-          </svg>
+          ${icon('user-plus')}
           <span>Mitarbeiter</span>
           ${selectedCount > 0 ? `<span class="filter-count-badge">${selectedCount}</span>` : ''}
         </button>
@@ -715,7 +725,7 @@ export class UnternehmenList extends BasePaginatedList {
         <div id="mitarbeiter-quick-filter-dropdown" class="filter-dropdown">
           <div class="filter-dropdown-header">
             <span class="filter-dropdown-title">Mitarbeiter filtern</span>
-            <button id="mitarbeiter-quick-filter-reset" class="secondary-btn" ${selectedCount === 0 ? 'disabled' : ''}>
+            <button id="mitarbeiter-quick-filter-reset" class="mdc-btn mdc-btn--secondary" ${selectedCount === 0 ? 'disabled' : ''}>
               Zurücksetzen
             </button>
           </div>
@@ -795,7 +805,7 @@ export class UnternehmenList extends BasePaginatedList {
           <div class="form-page">
             ${formHtml}
             <button type="button" class="kickoff-create-toggle-btn" id="kickoff-toggle-btn">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+              ${icon('plus')}
               Strategiebriefing anlegen
             </button>
           </div>
@@ -848,7 +858,7 @@ export class UnternehmenList extends BasePaginatedList {
         <div class="kickoff-panel-header">
           <h3 class="kickoff-panel-header__title">Strategiebriefing</h3>
           <button type="button" class="kickoff-panel-header__close" id="kickoff-panel-close" title="Panel schließen">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+            ${icon('x-mark')}
           </button>
         </div>
         <div>
@@ -884,7 +894,7 @@ export class UnternehmenList extends BasePaginatedList {
     if (toggleBtn) {
       toggleBtn.classList.remove('active');
       toggleBtn.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+        ${icon('plus')}
         Strategiebriefing anlegen
       `;
     }

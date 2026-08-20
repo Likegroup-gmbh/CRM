@@ -8,6 +8,9 @@ import {
   filterPaidKooperationen,
   renderAgencyFeeCardHtml,
   renderKskCardHtml,
+  sumPaidCreatorInvoices,
+  calculateCreatorPaymentSummary,
+  renderCreatorAnteilCardHtml,
 } from '../core/budget/EkVkAgencyFeeHelper.js';
 
 describe('isFilledPrice', () => {
@@ -131,6 +134,44 @@ describe('calculateAgencyFeeSummary', () => {
     const result = calculateAgencyFeeSummary(details, [], []);
     expect(result.showKskCard).toBe(false);
   });
+
+  it('UGC: berechnet KSK automatisch aus der EK-Summe (4,9 %)', () => {
+    const koops = [{ id: 'k1', einkaufspreis_netto: 2730, verkaufspreis_netto: 8000 }];
+    const result = calculateAgencyFeeSummary({}, koops, [], { variant: 'ugc' });
+    expect(result.kskAuto).toBe(true);
+    expect(result.kskValue).toBe(133.77);
+    expect(result.kskBasis).toBe(2730);
+    expect(result.showKskCard).toBe(true);
+  });
+
+  it('UGC: ignoriert manuell hinterlegten ksk_value', () => {
+    const details = { agency_services_enabled: true, ksk_enabled: true, ksk_value: '250' };
+    const koops = [{ id: 'k1', einkaufspreis_netto: 1000, verkaufspreis_netto: 2000 }];
+    const result = calculateAgencyFeeSummary(details, koops, [], { variant: 'ugc' });
+    expect(result.kskValue).toBe(49);
+  });
+
+  it('UGC: versteckt KSK-Card ohne Creator-Kosten', () => {
+    const result = calculateAgencyFeeSummary({}, [], [], { variant: 'ugc' });
+    expect(result.kskValue).toBe(0);
+    expect(result.showKskCard).toBe(false);
+  });
+
+  it('Influencer: kein Auto-KSK, nur manueller Topf', () => {
+    const koops = [{ id: 'k1', einkaufspreis_netto: 2730, verkaufspreis_netto: 8000 }];
+    const result = calculateAgencyFeeSummary({}, koops, [], { variant: 'influencer' });
+    expect(result.kskAuto).toBe(false);
+    expect(result.kskValue).toBe(0);
+    expect(result.showKskCard).toBeFalsy();
+  });
+
+  it('Influencer: manueller Topf bleibt massgeblich', () => {
+    const details = { agency_services_enabled: true, ksk_enabled: true, ksk_value: '250' };
+    const koops = [{ id: 'k1', einkaufspreis_netto: 2730, verkaufspreis_netto: 8000 }];
+    const result = calculateAgencyFeeSummary(details, koops, [], { variant: 'influencer' });
+    expect(result.kskValue).toBe(250);
+    expect(result.showKskCard).toBe(true);
+  });
 });
 
 describe('resolveAgencyFeeForViewer', () => {
@@ -169,7 +210,7 @@ describe('renderAgencyFeeCardHtml', () => {
     const summary = { showAgencyFeeCard: true, baseFee: 500, ekVkMargin: 0, total: 500 };
     const html = renderAgencyFeeCardHtml(summary, fmt);
     expect(html).toContain('500 €');
-    expect(html).toContain('Agentur Fee');
+    expect(html).toContain('Agenturanteil');
     expect(html).toContain('Festgelegt');
     expect(html).toContain('EK/VK-Differenz');
     expect(html).toContain('0 €');
@@ -198,7 +239,7 @@ describe('renderAgencyFeeCardHtml', () => {
     const summary = { showAgencyFeeCard: true, baseFee: 500, ekVkMargin: 200, total: 700 };
     const html = renderAgencyFeeCardHtml(summary, fmt, { canSeePricing: false });
     expect(html).toContain('500 €');
-    expect(html).toContain('Agentur Fee');
+    expect(html).toContain('Agenturanteil');
     expect(html).not.toContain('Festgelegt');
     expect(html).not.toContain('EK/VK-Differenz');
   });
@@ -207,8 +248,71 @@ describe('renderAgencyFeeCardHtml', () => {
     const summary = { showAgencyFeeCard: true, baseFee: 0, ekVkMargin: 200, total: 200 };
     const html = renderAgencyFeeCardHtml(summary, fmt, { canSeePricing: false });
     expect(html).toContain('0 €');
-    expect(html).toContain('Agentur Fee');
+    expect(html).toContain('Agenturanteil');
     expect(html).not.toContain('EK/VK-Differenz');
+  });
+});
+
+describe('sumPaidCreatorInvoices', () => {
+  it('summiert nur bezahlte Kampagnen-Rechnungen', () => {
+    const rechnungen = [
+      { status: 'Bezahlt', nettobetrag: 100, rechnungstyp: 'kampagne' },
+      { status: 'Offen', nettobetrag: 50, rechnungstyp: 'kampagne' },
+      { status: 'Bezahlt', nettobetrag: 25 },
+    ];
+    expect(sumPaidCreatorInvoices(rechnungen)).toBe(125);
+  });
+
+  it('ignoriert Contracting-Rechnungen', () => {
+    const rechnungen = [
+      { status: 'Bezahlt', nettobetrag: 400, rechnungstyp: 'contracting' },
+      { status: 'Bezahlt', nettobetrag: 80, rechnungstyp: 'kampagne' },
+    ];
+    expect(sumPaidCreatorInvoices(rechnungen)).toBe(80);
+  });
+
+  it('liefert 0 bei leeren/null Eingaben', () => {
+    expect(sumPaidCreatorInvoices([])).toBe(0);
+    expect(sumPaidCreatorInvoices(null)).toBe(0);
+  });
+});
+
+describe('calculateCreatorPaymentSummary', () => {
+  it('teilt Creatoranteil in bezahlt und offen', () => {
+    const rechnungen = [
+      { status: 'Bezahlt', nettobetrag: 400 },
+      { status: 'Offen', nettobetrag: 100 },
+      { status: 'Rückfrage', nettobetrag: 50 },
+    ];
+    expect(calculateCreatorPaymentSummary(1000, rechnungen)).toEqual({ paid: 400, open: 600 });
+  });
+
+  it('ohne Rechnung ist alles offen', () => {
+    expect(calculateCreatorPaymentSummary(800, [])).toEqual({ paid: 0, open: 800 });
+  });
+
+  it('clamped open auf 0 wenn bezahlt groesser als EK', () => {
+    const rechnungen = [{ status: 'Bezahlt', nettobetrag: 1500 }];
+    expect(calculateCreatorPaymentSummary(1000, rechnungen)).toEqual({ paid: 1500, open: 0 });
+  });
+
+  it('zaehlt An Qonto gesendet als offen', () => {
+    const rechnungen = [{ status: 'An Qonto gesendet', nettobetrag: 200 }];
+    expect(calculateCreatorPaymentSummary(200, rechnungen)).toEqual({ paid: 0, open: 200 });
+  });
+});
+
+describe('renderCreatorAnteilCardHtml', () => {
+  const fmt = (v) => `${v} €`;
+
+  it('rendert Total plus Bezahlt/Offen-Breakdown', () => {
+    const html = renderCreatorAnteilCardHtml(1000, { paid: 400, open: 600 }, fmt);
+    expect(html).toContain('1000 €');
+    expect(html).toContain('Creator-Anteil');
+    expect(html).toContain('Bezahlt');
+    expect(html).toContain('400 €');
+    expect(html).toContain('Offen');
+    expect(html).toContain('600 €');
   });
 });
 
@@ -264,5 +368,14 @@ describe('renderKskCardHtml', () => {
     const html = renderKskCardHtml({ showKskCard: true, kskValue: 250 }, fmt);
     expect(html).toContain('250 €');
     expect(html).toContain('KSK');
+  });
+
+  it('rendert UGC-Auto-KSK mit Prozent-Breakdown statt Topf-Logik', () => {
+    const html = renderKskCardHtml({ showKskCard: true, kskValue: 133.77, kskAuto: true, kskBasis: 2730 }, fmt);
+    expect(html).toContain('133.77 €');
+    expect(html).toContain('4,9 % vom Creator-Anteil');
+    expect(html).toContain('2730 €');
+    expect(html).not.toContain('Umgebucht');
+    expect(html).not.toContain('Verbleibend');
   });
 });

@@ -33,6 +33,28 @@ export const STATUS_LABELS = {
   archiviert: 'Archiviert'
 };
 
+export const STATUS_TAG_VARIANT = {
+  fragen: 'tag--warning',
+  entwurf: 'tag--warning',
+  feedback_gegeben: 'tag--type',
+  final: 'tag--success',
+  archiviert: 'tag--type'
+};
+
+export function skriptEditorPath(skriptId) {
+  if (!skriptId || skriptId === 'neu' || skriptId === 'new') return '/skripte/new';
+  return `/skripte/${skriptId}`;
+}
+
+export function replaceSkriptUrl(skriptId) {
+  const path = skriptEditorPath(skriptId);
+  window.history.replaceState({ route: path }, '', path);
+}
+
+export const OHNE_QUERY = 'ohne';
+export const OHNE_MARKE_LABEL = 'Ohne Marke';
+export const OHNE_KAMPAGNE_LABEL = 'Ohne Kampagne';
+
 // ---------------------------------------------------------------------------
 // Kosten-Schaetzung aus prompt_kontext.usage (Anthropic Messages API)
 // ---------------------------------------------------------------------------

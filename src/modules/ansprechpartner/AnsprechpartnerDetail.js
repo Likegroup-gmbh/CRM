@@ -12,6 +12,7 @@ import { ImageUploadHelper } from '../../core/ImageUploadHelper.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { magicLinkService } from '../auth/MagicLinkService.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 export class AnsprechpartnerDetail extends PersonDetailBase {
   constructor() {
@@ -253,7 +254,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     const canEdit = window.permissionSystem?.checkPermission('ansprechpartner', 'edit') !== false;
     let kundeItem;
     if (this.kundeVerknuepfung) {
-      const kundeLink = `<a href="/admin/kunden/${this.kundeVerknuepfung.id}" onclick="event.preventDefault(); window.navigateTo('/admin/kunden/${this.kundeVerknuepfung.id}')" class="table-link" style="font-weight: 500;">${this.sanitize(this.kundeVerknuepfung.name || this.kundeVerknuepfung.email || 'Unbekannt')}</a>`;
+      const kundeLink = `<a href="/admin/kunden/${this.kundeVerknuepfung.id}" onclick="event.preventDefault(); window.navigateTo('/admin/kunden/${this.kundeVerknuepfung.id}')" class="table-link fw-500">${this.sanitize(this.kundeVerknuepfung.name || this.kundeVerknuepfung.email || 'Unbekannt')}</a>`;
       kundeItem = { icon: 'user', label: 'Verknüpfter Kunde', rawHtml: kundeLink };
     } else {
       const btnHtml = `<button class="btn-inline-action" data-action="generate-magic-link" ${!canEdit ? 'disabled' : ''}>Kunden einladen</button>`;
@@ -375,7 +376,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
   // Rendere Informationen-Tab
   renderInformationen() {
     const kontaktItems = [
-      { icon: 'phone', label: 'Telefon (Mobil)', rawHtml: PhoneDisplay.renderClickable(
+      { icon: 'phone-mobile', label: 'Telefon (Mobil)', rawHtml: PhoneDisplay.renderClickable(
         this.ansprechpartner?.telefonnummer_land?.iso_code,
         this.ansprechpartner?.telefonnummer_land?.vorwahl,
         this.ansprechpartner?.telefonnummer
@@ -386,8 +387,8 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
         this.ansprechpartner?.telefonnummer_office
       ) || '-' },
       { icon: 'mail', label: 'E-Mail', value: this.ansprechpartner?.email || '-', mailto: true },
-      { icon: 'link', label: 'LinkedIn', rawHtml: this.renderLinkedInLink(this.ansprechpartner?.linkedin) },
-      { icon: 'tag', label: 'Newsletter (1x/Monat)', rawHtml: this.renderEinwilligungBadge(this.ansprechpartner?.erlaubt_newsletter) },
+      { icon: 'linkedin', label: 'LinkedIn', rawHtml: this.renderLinkedInLink(this.ansprechpartner?.linkedin) },
+      { icon: 'newsletter', label: 'Newsletter (1x/Monat)', rawHtml: this.renderEinwilligungBadge(this.ansprechpartner?.erlaubt_newsletter) },
       { icon: 'invoice', label: 'Rechnungsverantwortlich', rawHtml: this.renderEinwilligungBadge(this.ansprechpartner?.ist_rechnungsverantwortlich) },
     ].filter(Boolean);
 
@@ -630,8 +631,8 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
             </div>
           </div>
           <div class="modal-footer">
-            <button class="secondary-btn" data-close-modal>Abbrechen</button>
-            <button id="create-magic-link" class="primary-btn">
+            <button class="mdc-btn mdc-btn--secondary" data-close-modal>Abbrechen</button>
+            <button id="create-magic-link" class="mdc-btn">
               Link erstellen & kopieren
             </button>
           </div>
@@ -837,10 +838,8 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
           <h1>Fehler</h1>
         </div>
         <div class="page-actions">
-          <button class="secondary-btn" id="btn-back-error">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-            </svg>
+          <button class="mdc-btn mdc-btn--secondary" id="btn-back-error">
+            ${icon('arrow-left', { className: 'w-5 h-5' })}
             Zurück zur Liste
           </button>
         </div>

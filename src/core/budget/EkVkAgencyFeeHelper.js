@@ -1,7 +1,7 @@
 // EkVkAgencyFeeHelper.js
 // Shared helper for Agency Fee calculation incl. EK/VK margin aggregation.
 
-import { summeKskSelbstzahler } from './kskSelbstzahler.js';
+import { summeKskSelbstzahler, berechneKskBetrag, KSK_SATZ_PROZENT } from './kskSelbstzahler.js';
 
 export function isFilledPrice(value) {
   const n = parseFloat(value);
@@ -80,15 +80,11 @@ export function calculateEkVkTotals(kooperationen, videos) {
 /**
  * Full Agency Fee summary including base fee, EK/VK margin and visibility flags.
  */
-export function calculateAgencyFeeSummary(details, kooperationen, videos) {
+export function calculateAgencyFeeSummary(details, kooperationen, videos, { variant } = {}) {
   const d = details || {};
 
   const baseFee = (d.agency_services_enabled && d.percentage_fee_enabled)
     ? (parseFloat(d.percentage_fee_value) || 0)
-    : 0;
-
-  const kskValue = (d.agency_services_enabled && d.ksk_enabled)
-    ? (parseFloat(d.ksk_value) || 0)
     : 0;
 
   const { ekSum, vkSum, marginSum } = calculateEkVkTotals(kooperationen, videos);
@@ -98,10 +94,19 @@ export function calculateAgencyFeeSummary(details, kooperationen, videos) {
   // KSK-Selbstzahler: umgebuchter Anteil aus dem KSK-Topf ins Creator-Budget
   const kskUmgebucht = summeKskSelbstzahler(kooperationen);
 
-  const showAgencyFeeCard = true;
-  const showKskCard = d.agency_services_enabled && d.ksk_enabled && kskValue > 0;
+  // UGC traegt die KSK nicht manuell ein: sie wird immer aus dem
+  // Creator-Anteil (EK-Summe) gerechnet. Influencer nutzt den manuellen Topf.
+  const kskAuto = variant === 'ugc';
+  const kskValue = kskAuto
+    ? berechneKskBetrag(ekSum)
+    : ((d.agency_services_enabled && d.ksk_enabled) ? (parseFloat(d.ksk_value) || 0) : 0);
 
-  return { baseFee, ekVkMargin: marginSum, total, kskValue, kskUmgebucht, showAgencyFeeCard, showKskCard, ekSum, vkSum };
+  const showAgencyFeeCard = true;
+  const showKskCard = kskAuto
+    ? kskValue > 0
+    : (d.agency_services_enabled && d.ksk_enabled && kskValue > 0);
+
+  return { baseFee, ekVkMargin: marginSum, total, kskValue, kskUmgebucht, kskAuto, kskBasis: kskAuto ? ekSum : 0, showAgencyFeeCard, showKskCard, ekSum, vkSum };
 }
 
 /**
@@ -155,8 +160,62 @@ export function renderAgencyFeeCardHtml(summary, formatCurrency, { dataAttrs = f
   return `
     <div class="summary-card"${cardAttr}>
       <div class="summary-value"${totalAttr}>${formatCurrency(resolved.total)}</div>
-      <div class="summary-label">Agentur Fee</div>
+      <div class="summary-label">Agenturanteil</div>
       ${canSeePricing ? renderAgencyFeeBreakdownHtml(resolved, formatCurrency, { dataAttrs }) : ''}
+    </div>`;
+}
+
+export function isCreatorKampagneInvoice(rechnung) {
+  return !!rechnung && rechnung.rechnungstyp !== 'contracting';
+}
+
+/**
+ * Summe nettobetrag aller bezahlten Kampagnen-Rechnungen (kein Contracting).
+ */
+export function sumPaidCreatorInvoices(rechnungen) {
+  return (rechnungen || []).reduce((sum, r) => {
+    if (!isCreatorKampagneInvoice(r)) return sum;
+    if (r.status !== 'Bezahlt') return sum;
+    return sum + (parseFloat(r.nettobetrag) || 0);
+  }, 0);
+}
+
+/**
+ * Bezahlt aus Rechnungen, Offen = Rest des gebuchten Creatoranteils.
+ * Kooperationen ohne Rechnung gelten als offen.
+ */
+export function calculateCreatorPaymentSummary(creatorAnteil, rechnungen) {
+  const share = parseFloat(creatorAnteil) || 0;
+  const paid = sumPaidCreatorInvoices(rechnungen);
+  return { paid, open: Math.max(0, share - paid) };
+}
+
+/**
+ * Creator-Anteil Card mit Bezahlt/Offen-Breakdown (wie Agenturanteil).
+ */
+export function renderCreatorAnteilCardHtml(creatorAnteil, payment, formatCurrency, { dataAttrs = false, label = 'Creator-Anteil' } = {}) {
+  const total = parseFloat(creatorAnteil) || 0;
+  const paid = parseFloat(payment?.paid) || 0;
+  const open = parseFloat(payment?.open) || 0;
+  const totalAttr = dataAttrs ? ' data-summary-value="creator-anteil-total"' : '';
+  const paidAttr = dataAttrs ? ' data-summary-value="creator-anteil-paid"' : '';
+  const openAttr = dataAttrs ? ' data-summary-value="creator-anteil-open"' : '';
+  const cardAttr = dataAttrs ? ' data-summary-card="creator-anteil"' : '';
+
+  return `
+    <div class="summary-card"${cardAttr}>
+      <div class="summary-value"${totalAttr}>${formatCurrency(total)}</div>
+      <div class="summary-label">${label}</div>
+      <div class="summary-card-breakdown">
+        <div class="summary-card-breakdown-line">
+          <span>Bezahlt</span>
+          <span${paidAttr}>${formatCurrency(paid)}</span>
+        </div>
+        <div class="summary-card-breakdown-line">
+          <span>Offen</span>
+          <span${openAttr}>${formatCurrency(open)}</span>
+        </div>
+      </div>
     </div>`;
 }
 
@@ -186,6 +245,21 @@ export function filterPaidKooperationen(kooperationen, videos, rechnungStatusMap
  */
 export function renderKskCardHtml(summary, formatCurrency) {
   if (!summary.showKskCard) return '';
+
+  if (summary.kskAuto) {
+    const satzAnzeige = String(KSK_SATZ_PROZENT).replace('.', ',');
+    return `
+    <div class="summary-card">
+      <div class="summary-value">${formatCurrency(summary.kskValue)}</div>
+      <div class="summary-label">KSK</div>
+      <div class="summary-card-breakdown">
+        <div class="summary-card-breakdown-line">
+          <span>${satzAnzeige} % vom Creator-Anteil</span>
+          <span>${formatCurrency(parseFloat(summary.kskBasis) || 0)}</span>
+        </div>
+      </div>
+    </div>`;
+  }
 
   const umgebucht = parseFloat(summary.kskUmgebucht) || 0;
   const verbleibend = (parseFloat(summary.kskValue) || 0) - umgebucht;

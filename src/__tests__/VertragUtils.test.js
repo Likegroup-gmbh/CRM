@@ -43,6 +43,143 @@ describe('VertragUtils', () => {
     });
   });
 
+  // --- getVertragContext ---
+
+  describe('getVertragContext', () => {
+    it('liefert Auftrag-Kontext für Contracting mit Join', () => {
+      const vertrag = {
+        typ: 'Contracting',
+        contracting_auftrag_id: 'a1',
+        contracting_auftrag: { id: 'a1', titel: 'SharkNinja Q2', auftragsname: 'SN Q2' }
+      };
+      expect(VertragUtils.getVertragContext(vertrag)).toEqual({
+        kind: 'auftrag',
+        id: 'a1',
+        label: 'SharkNinja Q2',
+        href: '/contracts/a1',
+        dataTable: 'contracts'
+      });
+    });
+
+    it('fällt auf auftragsname zurück wenn titel fehlt', () => {
+      const vertrag = {
+        typ: 'Contracting',
+        contracting_auftrag: { id: 'a1', titel: null, auftragsname: 'Auftrag X' }
+      };
+      expect(VertragUtils.getVertragContext(vertrag).label).toBe('Auftrag X');
+    });
+
+    it('nutzt contracting_auftrag_id wenn Join fehlt', () => {
+      const vertrag = { typ: 'Contracting', contracting_auftrag_id: 'a9' };
+      const ctx = VertragUtils.getVertragContext(vertrag);
+      expect(ctx.id).toBe('a9');
+      expect(ctx.href).toBe('/contracts/a9');
+      expect(ctx.label).toBe('');
+    });
+
+    it('liefert Kampagne-Kontext für UGC', () => {
+      const vertrag = {
+        typ: 'UGC',
+        kampagne_id: 'k1',
+        kampagne: { id: 'k1', eigener_name: 'Sommer', kampagnenname: 'Kampagne A' }
+      };
+      expect(VertragUtils.getVertragContext(vertrag)).toEqual({
+        kind: 'kampagne',
+        id: 'k1',
+        label: 'Sommer',
+        href: '/kampagne/k1',
+        dataTable: 'kampagne'
+      });
+    });
+
+    it('fällt auf kampagnenname zurück wenn eigener_name fehlt', () => {
+      const vertrag = {
+        typ: 'Influencer Kooperation',
+        kampagne: { id: 'k1', eigener_name: null, kampagnenname: 'Kampagne A' }
+      };
+      expect(VertragUtils.getVertragContext(vertrag).label).toBe('Kampagne A');
+    });
+
+    it('ignoriert Kampagne bei Contracting auch wenn Join vorhanden', () => {
+      const vertrag = {
+        typ: 'Contracting',
+        kampagne: { id: 'k1', kampagnenname: 'Sollte nicht' },
+        contracting_auftrag: { id: 'a1', titel: 'Contract' }
+      };
+      const ctx = VertragUtils.getVertragContext(vertrag);
+      expect(ctx.kind).toBe('auftrag');
+      expect(ctx.id).toBe('a1');
+    });
+
+    it('gibt leeren Kontext bei null', () => {
+      expect(VertragUtils.getVertragContext(null).kind).toBeNull();
+    });
+  });
+
+  describe('renderVertragContextHtml', () => {
+    it('rendert Auftrag-Link für Contracting', () => {
+      const html = VertragUtils.renderVertragContextHtml({
+        typ: 'Contracting',
+        contracting_auftrag: { id: 'a1', titel: 'SharkNinja' }
+      });
+      expect(html).toContain('/contracts/a1');
+      expect(html).toContain('data-table="contracts"');
+      expect(html).toContain('SharkNinja');
+    });
+
+    it('gibt Bindestrich ohne Kontext-ID', () => {
+      expect(VertragUtils.renderVertragContextHtml({ typ: 'Contracting' })).toBe('-');
+      expect(VertragUtils.renderVertragContextHtml({ typ: 'UGC' })).toBe('-');
+    });
+  });
+
+  describe('getVertragOpenAction', () => {
+    it('Draft → Edit-Pfad', () => {
+      expect(VertragUtils.getVertragOpenAction({ id: 'v1', is_draft: true })).toEqual({
+        kind: 'edit',
+        href: '/vertraege/v1/edit'
+      });
+    });
+
+    it('Final mit PDF → pdf-URL', () => {
+      expect(VertragUtils.getVertragOpenAction({
+        id: 'v1',
+        is_draft: false,
+        datei_url: 'https://example.com/v.pdf'
+      })).toEqual({
+        kind: 'pdf',
+        url: 'https://example.com/v.pdf'
+      });
+    });
+
+    it('Final ohne PDF → none', () => {
+      expect(VertragUtils.getVertragOpenAction({ id: 'v1', is_draft: false })).toEqual({
+        kind: 'none'
+      });
+    });
+  });
+
+  describe('renderVertragNameHtml', () => {
+    it('Draft-Name geht auf Edit', () => {
+      const html = VertragUtils.renderVertragNameHtml({ id: 'v1', name: 'Entwurf', is_draft: true });
+      expect(html).toContain('/vertraege/v1/edit');
+      expect(html).toContain('data-vertrag-open="edit"');
+      expect(html).not.toContain('/vertraege/v1"');
+    });
+
+    it('Final-Name ist PDF-Link', () => {
+      const html = VertragUtils.renderVertragNameHtml({
+        id: 'v1',
+        name: 'Final',
+        is_draft: false,
+        datei_url: 'https://example.com/v.pdf'
+      });
+      expect(html).toContain('https://example.com/v.pdf');
+      expect(html).toContain('target="_blank"');
+      expect(html).not.toContain('/vertraege/v1');
+    });
+  });
+
   // --- getVertragStatus ---
 
   describe('getVertragStatus', () => {

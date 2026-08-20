@@ -215,7 +215,7 @@ VertraegeCreate.prototype.renderCreatorAddressPreview = function(creator) {
     if (resolved.source === 'management') {
       const mgmtId = this.formData._management_id;
       const mgmtLink = mgmtId
-        ? `<a href="/management/${escapeHtml(mgmtId)}" onclick="event.preventDefault(); window.navigateTo('/management/${escapeHtml(mgmtId)}')" style="font-size: 12px;">${escapeHtml(resolved.name || 'Management ansehen')}</a>`
+        ? `<a href="/management/${escapeHtml(mgmtId)}" onclick="event.preventDefault(); window.navigateTo('/management/${escapeHtml(mgmtId)}')" class="creator-mgmt-link">${escapeHtml(resolved.name || 'Management ansehen')}</a>`
         : '';
       const titleText = this.formData.nur_management_adresse
         ? 'Fuer den Vertrag wird ausschliesslich die Management-Adresse verwendet (Creator-Adresse ausgeblendet).'

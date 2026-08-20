@@ -1,0 +1,283 @@
+/* ==========================================================================
+   FEEDBACK-Modul (aus components.css extrahiert, Phase 7)
+   ========================================================================== */
+
+/* Feedback cells in tables */
+
+.feedback-cell .fb-line { margin-bottom: var(--space-xs); }
+
+.feedback-cell .fb-meta { display: block; font-size: var(--text-xs); color: var(--gray-500); margin-bottom: var(--space-xxxs); }
+
+.feedback-cell .fb-text { white-space: pre-wrap; }
+
+.btn-add-feedback-in-column {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-xxs);
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
+  transition: color 0.2s;
+  border-radius: var(--radius-sm);
+}
+
+.btn-add-feedback-in-column:hover {
+  color: var(--primary-600);
+  background: var(--gray-100);
+}
+
+/* Delete Button in Feedback Cards */
+
+.btn-delete-feedback {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--gray-400);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.btn-delete-feedback:hover {
+  color: var(--red-500);
+  background-color: var(--red-50);
+}
+
+.btn-edit-feedback {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--gray-400);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xxxs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.btn-edit-feedback:hover {
+  color: var(--primary-600);
+  background-color: var(--primary-50);
+}
+
+/* Archive Feedback Button */
+
+.btn-archive-feedback {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--gray-400);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xxxs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.btn-archive-feedback:hover {
+  color: var(--gray-600);
+  background-color: var(--gray-100);
+}
+
+.btn-archive-feedback.active {
+  color: var(--primary-600);
+}
+
+.btn-archive-feedback.active:hover {
+  color: var(--primary-700);
+  background-color: var(--primary-50);
+}
+
+/* Feedback Comment Indicator in Footer */
+
+.feedback-comment-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxxs);
+  font-size: var(--text-xs);
+  color: var(--primary-500);
+  font-weight: 500;
+}
+
+.feedback-comment-indicator .comment-count {
+  font-size: var(--text-xs);
+}
+
+/* Feedback Vote Buttons */
+
+.feedback-vote-buttons {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  
+}
+
+/* Feedback Comments Section */
+
+.feedback-comments-section {
+  background: var(--gray-50);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  margin-top: -1px;
+  border: 1px solid var(--gray-200);
+  border-top: none;
+}
+
+/* Merged Items Akkordeon Container */
+
+.feedback-merged-items {
+  background: var(--gray-50);
+  border-top: 1px solid var(--gray-200);
+}
+
+/* Merged Items List */
+
+.feedback-merged-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm) var(--space-sm);
+}
+
+.feedback-merged-list.hidden {
+  display: none;
+}
+
+/* Unmerge Button */
+
+.btn-unmerge-feedback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  padding: var(--space-xs);
+  border: none;
+  background: transparent;
+  color: var(--gray-400);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-unmerge-feedback:hover {
+  background: var(--red-50);
+  color: var(--red-500);
+}
+
+.btn-unmerge-feedback svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ============================================
+   End Feedback Merge Styles
+   ============================================ */
+
+.feedback-comments-list {
+  display: flex;
+  flex-direction: column;
+  background: white;
+  border-top: 1px solid var(--gray-200);
+}
+
+.feedback-comments-list.hidden {
+  display: none;
+}
+
+.feedback-comment {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  padding: var(--space-xs);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+/* Letzter Kommentar ohne border-bottom */
+
+.feedback-comment:last-child {
+  border-bottom: none;
+}
+
+.feedback-comment .comment-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.feedback-comment .comment-text {
+  font-size: var(--text-sm);
+  color: var(--gray-700);
+  line-height: 1.4;
+}
+
+.feedback-comment .comment-meta {
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+  white-space: nowrap;
+}
+
+/* Comment Edit Mode */
+
+.feedback-comment--editing {
+  background: var(--white);
+  border-bottom: none;
+}
+
+/* Comment Effort Badge */
+
+/* Feedback Comment Form */
+
+.feedback-comment-form {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  padding: var(--space-sm);
+  border-top: 1px solid var(--gray-200);
+  background: white;
+}
+
+.feedback-comments-list + .feedback-comment-form {
+  border-top: 1px solid var(--gray-200);
+}
+
+/* Feedback Form */
+
+.feedback-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  height: 100%;
+  
+}
+
+/* Speicher-Status in Player + Detailseite: neutrales .tag in der Slot-
+   Ueberschrift (siehe FeedbackSaveStatus) -> kein eigenes CSS noetig. */
+
+/* Schwebendes Badge fuer Tabellen-Feedback (kein eigener Host pro Feld). */
+
+.feedback-save-status--floating {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  padding: var(--space-xxs) var(--space-sm);
+  border-radius: var(--radius-md);
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.feedback-save-status--floating.is-editing,
+.feedback-save-status--floating.is-saving { opacity: 1; background: var(--bg-secondary); color: var(--text-secondary); }
+
+.feedback-save-status--floating.is-saved { opacity: 1; background: var(--success); color: var(--text-inverse); }
+
+.feedback-save-status--floating.is-error { opacity: 1; background: var(--color-error-light); color: var(--text-inverse); pointer-events: auto; cursor: pointer; }

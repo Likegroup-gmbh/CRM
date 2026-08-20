@@ -8,29 +8,29 @@ import {
   AREA_LABELS, PRIORITY_CLASSES, PRIORITY_LABELS, EFFORT_LABELS,
   safe, formatDateDE, getInitials
 } from './FeedbackConstants.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
-export function renderColumn(ctx, columnId, title, feedbacks, icon = '', isStatusColumn = false) {
+export function renderColumn(ctx, columnId, title, feedbacks, headerIcon = '', isStatusColumn = false) {
   const showAddButton = !isStatusColumn;
 
   return `
     <div class="kanban-column" data-column="${columnId}">
       <div class="kanban-column-header">
         <div class="kanban-column-header-left">
-          <span class="kanban-column-title">${icon} ${safe(title)}</span>
+          <span class="kanban-column-title">${headerIcon} ${safe(title)}</span>
           <span class="kanban-count">${feedbacks.length}</span>
         </div>
         ${showAddButton ? `
           <button class="btn-add-feedback-in-column" data-category="${columnId}" title="Feedback hinzufügen">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
+            ${icon('plus-lg')}
           </button>
         ` : ''}
       </div>
       <div class="kanban-column-body" data-column="${columnId}">
-        ${feedbacks.length === 0 ? `
-          <div class="kanban-empty-state"><p>Keine Einträge</p></div>
-        ` : feedbacks.map(fb => renderFeedbackCardWrapper(ctx, fb)).join('')}
+        ${feedbacks.length === 0
+          ? renderEmptyState({ title: 'Keine Einträge', size: 'small' })
+          : feedbacks.map(fb => renderFeedbackCardWrapper(ctx, fb)).join('')}
       </div>
     </div>
   `;
@@ -131,9 +131,7 @@ export function renderFeedbackCard(ctx, fb, feedbackComments = []) {
       <div class="task-card-footer">
         <div class="task-meta-left">
           <span class="feedback-date">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
-            </svg>
+            ${icon('calendar-days')}
             ${formattedDate}
           </span>
           ${commentCount > 0 ? `

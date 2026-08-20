@@ -89,6 +89,7 @@ export async function loadVertraege(unternehmenId, pagination, { typeFilter = 'v
       kunde_unternehmen_id,
       kampagne_id,
       creator_id,
+      contracting_auftrag_id,
       kunde:kunde_unternehmen_id (
         id,
         firmenname
@@ -110,6 +111,11 @@ export async function loadVertraege(unternehmenId, pagination, { typeFilter = 'v
         id,
         vorname,
         nachname
+      ),
+      contracting_auftrag:contracting_auftrag_id (
+        id,
+        auftragsname,
+        titel
       )
     `)
     .eq('kunde_unternehmen_id', unternehmenId);

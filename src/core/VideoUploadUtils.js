@@ -1,3 +1,4 @@
+import { icon } from './icons/IconSystem.js';
 export const MAX_VERSIONS = 3;
 
 // Varianten-Presets fuer Finale-Version-Uploads (Videos + Storys)
@@ -259,8 +260,8 @@ export function mdcBtnIcon(svgMarkup) {
   return `<span class="mdc-btn__icon" aria-hidden="true">${svgMarkup}</span>`;
 }
 
-export const ICON_PLUS_16 = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>`;
+export const ICON_PLUS_16 = `${icon('plus-lg')}`;
 
-export const ICON_CHECK_16 = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/></svg>`;
+export const ICON_CHECK_16 = `${icon('check-filled')}`;
 
-export const ICON_UPLOAD_16 = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>`;
+export const ICON_UPLOAD_16 = `${icon('upload')}`;

@@ -3,6 +3,7 @@
 
 import { iconRegistry } from '../actions/IconRegistry.js';
 import { loadSelectOptions } from './FilterDropdownSelectOptions.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 // ---------------------------------------------------------------------------
 // Dropdown-Shell
@@ -30,9 +31,7 @@ export function renderDropdown(ctx, entityType, config) {
         <div class="filter-dropdown-header">
           <span class="filter-dropdown-title">Filter auswählen</span>
           <button class="filter-dropdown-close" aria-label="Schließen">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
+            ${icon('x-mark')}
           </button>
         </div>
         <div class="filter-dropdown-body">
@@ -51,9 +50,7 @@ export function renderFilterOptions(filters) {
   return filters.map(filter => `
     <div class="filter-option" data-filter-id="${filter.id}" data-filter-type="${filter.type}">
       <span class="filter-option-label">${filter.label}</span>
-      <svg class="submenu-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M9 18l6-6-6-6"/>
-      </svg>
+      ${icon('chevron-right')}
     </div>
   `).join('');
 }
@@ -75,7 +72,7 @@ function chipHtml(filterId, label, displayValue) {
 
 function resetButtonHtml(entityType) {
   return `
-    <button class="secondary-btn filter-reset-all" data-entity-type="${entityType}">
+    <button class="mdc-btn mdc-btn--secondary filter-reset-all" data-entity-type="${entityType}">
       Alle zurücksetzen
     </button>
   `;
@@ -261,7 +258,7 @@ export async function renderFilterSubmenu(ctx, filterConfig, entityType) {
       ${inputHtml}
     </div>
     <div class="filter-submenu-footer">
-      <button class="filter-submenu-apply secondary-btn">Anwenden</button>
+      <button class="mdc-btn filter-submenu-apply mdc-btn--secondary">Anwenden</button>
     </div>
   `;
 }

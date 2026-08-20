@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+import { icon } from '../core/icons/IconSystem.js';
 <html lang="de">
 <head>
     <meta charset="UTF-8">
@@ -149,9 +150,7 @@
             <!-- Success State -->
             <div id="success-state" style="display: none;">
                 <div class="confirmation-icon">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                    </svg>
+                    ${icon('check')}
                 </div>
                 <h1 class="confirmation-title">E-Mail erfolgreich bestätigt!</h1>
                 <p class="confirmation-message">
@@ -164,9 +163,7 @@
             <!-- Error State -->
             <div id="error-state" style="display: none;">
                 <div class="confirmation-icon error">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
+                    ${icon('x-mark')}
                 </div>
                 <h1 class="confirmation-title">Bestätigung fehlgeschlagen</h1>
                 <p class="confirmation-message">
@@ -185,9 +182,7 @@
             <!-- Already Confirmed State -->
             <div id="already-confirmed-state" style="display: none;">
                 <div class="confirmation-icon">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
+                    ${icon('information-circle')}
                 </div>
                 <h1 class="confirmation-title">Bereits bestätigt</h1>
                 <p class="confirmation-message">

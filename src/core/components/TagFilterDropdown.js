@@ -1,3 +1,4 @@
+import { icon } from '../icons/IconSystem.js';
 // TagFilterDropdown.js
 // Multi-Select Tag-Filter Dropdown (clientseitig, analog SortDropdown-Pattern)
 
@@ -63,10 +64,10 @@ export class TagFilterDropdown {
 
     return `
       <div class="tag-filter-dropdown" data-tag-entity="${entityType}">
-        <button class="tag-filter-toggle secondary-btn${hasActive ? ' tag-filter-active' : ''}" aria-expanded="false">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        <button class="mdc-btn tag-filter-toggle mdc-btn--secondary ${hasActive ? ' tag-filter-active' : ''}" aria-expanded="false">
+          ${icon('filter-alt')}
           <span class="tag-filter-label">${label}</span>
-          <svg class="tag-filter-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          ${icon('chevron-down')}
         </button>
         <div class="tag-filter-menu">
           ${hasActive ? `<button class="tag-filter-reset" data-tag-entity="${entityType}">Alle zurücksetzen</button>` : ''}

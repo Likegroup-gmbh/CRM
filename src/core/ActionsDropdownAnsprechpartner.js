@@ -1,3 +1,4 @@
+import { icon } from './icons/IconSystem.js';
 // ActionsDropdownAnsprechpartner.js
 // Alle Ansprechpartner-Modal-Methoden
 
@@ -39,18 +40,18 @@ export async function openAddAnsprechpartnerModal(dropdown, markeId) {
       <div class="modal-body">
         <label class="form-label">Ansprechpartner wählen</label>
         <input type="text" id="ansprechpartner-search" class="form-input auto-suggest-input" placeholder="Ansprechpartner suchen..." />
-        <div id="ansprechpartner-dropdown" class="auto-suggest-dropdown"></div>
+        <div id="ansprechpartner-dropdown" class="auto-suggest-dropdown auto-suggest-dropdown--modal"></div>
       </div>
       <div class="modal-footer">
         <button class="mdc-btn mdc-btn--cancel" id="add-ansprechpartner-cancel">
           <span class="mdc-btn__icon" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+            ${icon('x-circle-filled')}
           </span>
           <span class="mdc-btn__label">Abbrechen</span>
         </button>
         <button class="mdc-btn mdc-btn--create" id="add-ansprechpartner-confirm" disabled>
           <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/></svg>
+            ${icon('check-filled')}
           </span>
           <span class="mdc-btn__spinner" aria-hidden="true">
             <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16"><circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/></svg>
@@ -192,18 +193,18 @@ export async function openAddAnsprechpartnerToUnternehmenModal(dropdown, unterne
       <div class="modal-body">
         <label class="form-label">Ansprechpartner wählen</label>
         <input type="text" id="ansprechpartner-unternehmen-search" class="form-input auto-suggest-input" placeholder="Ansprechpartner suchen..." />
-        <div id="ansprechpartner-unternehmen-dropdown" class="auto-suggest-dropdown"></div>
+        <div id="ansprechpartner-unternehmen-dropdown" class="auto-suggest-dropdown auto-suggest-dropdown--modal"></div>
       </div>
       <div class="modal-footer">
         <button class="mdc-btn mdc-btn--cancel" id="add-ansprechpartner-unternehmen-cancel">
           <span class="mdc-btn__icon" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+            ${icon('x-circle-filled')}
           </span>
           <span class="mdc-btn__label">Abbrechen</span>
         </button>
         <button class="mdc-btn mdc-btn--create" id="add-ansprechpartner-unternehmen-confirm" disabled>
           <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16"><path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/></svg>
+            ${icon('check-filled')}
           </span>
           <span class="mdc-btn__spinner" aria-hidden="true">
             <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16"><circle class="mdc-spinner-path" cx="25" cy="25" r="20" fill="none" stroke-width="5"/></svg>
@@ -338,8 +339,8 @@ export async function openRemoveAnsprechpartnerFromUnternehmenModal(dropdown, un
       <td>${s(ap.telefonnummer || '-')}</td>
       <td>${s(ap.position?.name || '-')}</td>
       <td>
-        <button class="btn-remove-single danger-btn" data-id="${ap.id}" title="Einzeln entfernen">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+        <button class="mdc-btn btn-remove-single mdc-btn--delete" data-id="${ap.id}" title="Einzeln entfernen">
+          ${icon('x-mark', { className: 'w-4 h-4' })}
         </button>
       </td>
     </tr>`).join('');
@@ -355,8 +356,8 @@ export async function openRemoveAnsprechpartnerFromUnternehmenModal(dropdown, un
       <div class="modal-body">
         <p class="modal-description">Wählen Sie die Ansprechpartner aus, die Sie vom Unternehmen entfernen möchten:</p>
         <div class="bulk-actions">
-          <button id="select-all-ansprechpartner" class="secondary-btn">Alle auswählen</button>
-          <button id="deselect-all-ansprechpartner" class="secondary-btn">Auswahl aufheben</button>
+          <button id="select-all-ansprechpartner" class="mdc-btn mdc-btn--secondary">Alle auswählen</button>
+          <button id="deselect-all-ansprechpartner" class="mdc-btn mdc-btn--secondary">Auswahl aufheben</button>
           <span class="selected-count">0 ausgewählt</span>
         </div>
         <div class="data-table-container">
@@ -372,11 +373,11 @@ export async function openRemoveAnsprechpartnerFromUnternehmenModal(dropdown, un
       <div class="modal-footer">
         <button class="mdc-btn mdc-btn--cancel" id="remove-ansprechpartner-unternehmen-cancel">
           <span class="mdc-btn__icon" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+            ${icon('x-circle-filled')}
           </span>
           <span class="mdc-btn__label">Abbrechen</span>
         </button>
-        <button class="danger-btn" id="remove-selected-ansprechpartner" disabled>Ausgewählte entfernen</button>
+        <button class="mdc-btn mdc-btn--delete" id="remove-selected-ansprechpartner" disabled>Ausgewählte entfernen</button>
       </div>
     </div>`;
   document.body.appendChild(modal);

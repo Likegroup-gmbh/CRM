@@ -22,8 +22,8 @@ export class SkriptPersonasTab {
 
   async render(container) {
     container.innerHTML = `
-      <div class="skripte-actions-row" style="margin-bottom: var(--space-md);">
-        <button id="persona-neu-btn" class="primary-btn">Persona anlegen</button>
+      <div class="skripte-actions-row u-mb-md">
+        <button id="persona-neu-btn" class="mdc-btn">Persona anlegen</button>
         <span class="skripte-hint">Personas sind global und stehen in jeder Generierung zur Auswahl.</span>
       </div>
       <div id="persona-wrap"></div>
@@ -73,7 +73,7 @@ export class SkriptPersonasTab {
               <td>${p.budgetrahmen ? badge(BUDGET_LABELS[p.budgetrahmen] || p.budgetrahmen, 'info') : '–'}</td>
               <td>${escapeHtml(p.lebenssituation || '–')}</td>
               <td>${formatDate(p.created_at)}</td>
-              <td><button class="secondary-btn persona-row-open">Öffnen</button></td>
+              <td><button class="mdc-btn mdc-btn--secondary persona-row-open">Öffnen</button></td>
             </tr>
           `).join('')}
         </tbody>

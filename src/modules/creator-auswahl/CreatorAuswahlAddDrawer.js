@@ -4,6 +4,7 @@
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { CREATOR_TYP_OPTIONS, isAllowedCreatorTyp, normalizeCreatorTyp } from './creatorTypeOptions.js';
 import { getTeilbereicheFromListe, DEAKTIVIERTE_SPALTEN } from './CreatorAuswahlTemplates.js';
+import { berechneHiddenColumns } from './sourcingSpaltenPreset.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 
 export class CreatorAuswahlAddDrawer {
@@ -43,8 +44,8 @@ export class CreatorAuswahlAddDrawer {
     toggleContainer.className = 'drawer-toggle-container';
     toggleContainer.innerHTML = `
       <div class="view-toggle">
-        <button type="button" class="secondary-btn active" data-mode="new">Neuer Creator</button>
-        <button type="button" class="secondary-btn" data-mode="database">Aus Datenbank</button>
+        <button type="button" class="mdc-btn mdc-btn--secondary active" data-mode="new">Neuer Creator</button>
+        <button type="button" class="mdc-btn mdc-btn--secondary" data-mode="database">Aus Datenbank</button>
       </div>
     `;
 
@@ -60,12 +61,12 @@ export class CreatorAuswahlAddDrawer {
     overlay.addEventListener('click', () => this.close());
     header.querySelector('.drawer-close-btn').addEventListener('click', () => this.close());
 
-    toggleContainer.querySelectorAll('.view-toggle .secondary-btn').forEach(btn => {
+    toggleContainer.querySelectorAll('.view-toggle .mdc-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        const mode = e.target.dataset.mode;
+        const mode = e.currentTarget.dataset.mode;
         this.switchMode(mode);
-        toggleContainer.querySelectorAll('.view-toggle .secondary-btn').forEach(b => b.classList.remove('active'));
-        e.target.classList.add('active');
+        toggleContainer.querySelectorAll('.view-toggle .mdc-btn').forEach(b => b.classList.remove('active'));
+        e.currentTarget.classList.add('active');
       });
     });
 
@@ -231,6 +232,19 @@ export class CreatorAuswahlAddDrawer {
             </div>
           </div>
 
+          ${this.zeigtTikTokPreise() ? `
+          <div class="form-row">
+            <div class="form-field">
+              <label class="form-label">Preis TikTok Video</label>
+              <input type="text" name="preis_tiktok_video" class="form-input" placeholder="z.B. 400€">
+            </div>
+            <div class="form-field">
+              <label class="form-label">Preis TikTok Story</label>
+              <input type="text" name="preis_tiktok_story" class="form-input" placeholder="z.B. 200€">
+            </div>
+          </div>
+          ` : ''}
+
           <div class="form-field">
             <label class="form-label">Reichweitengarantie</label>
             <input type="text" name="reichweite_garantie" class="form-input" placeholder="z.B. 100K">
@@ -247,6 +261,11 @@ export class CreatorAuswahlAddDrawer {
         </div>
       </form>
     `;
+  }
+
+  /** TikTok-Preisfelder nur, wenn die Liste die TikTok-Spalten ueberhaupt zeigt */
+  zeigtTikTokPreise() {
+    return !berechneHiddenColumns(this.detail.liste || {}).includes('cp-col-preis-tt-video');
   }
 
   bindFormEvents() {
@@ -465,6 +484,8 @@ export class CreatorAuswahlAddDrawer {
         preis_vk: formData.get('preis_vk') ? parseFloat(formData.get('preis_vk')) : null,
         reichweite_story: formData.get('reichweite_story')?.trim() || null,
         preis_story: formData.get('preis_story')?.trim() || null,
+        preis_tiktok_video: formData.get('preis_tiktok_video')?.trim() || null,
+        preis_tiktok_story: formData.get('preis_tiktok_story')?.trim() || null,
         reichweite_garantie: formData.get('reichweite_garantie')?.trim() || null,
         sortierung: this.detail.items.length,
         creator_id: this.selectedCreatorFromDb?.id || null

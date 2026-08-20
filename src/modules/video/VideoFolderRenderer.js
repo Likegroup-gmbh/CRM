@@ -2,14 +2,13 @@
 // Rendering fuer Level 1 (Unternehmen) und Level 2 (Kampagnen) - Grid + Tabelle
 
 import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
+import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
+import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 
-const FOLDER_SVG = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="folder-svg">
-  <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
-</svg>`;
+const FOLDER_SVG = `${icon('folder-open')}`;
 
-const BACK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-  <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-</svg>`;
+const BACK_SVG = `${icon('arrow-left')}`;
 
 const esc = (t) => window.validatorSystem?.sanitizeHtml(t) || t || '';
 
@@ -67,7 +66,11 @@ export class VideoFolderRenderer {
     if (!grid) return;
 
     if (!folders || folders.length === 0) {
-      grid.innerHTML = this._emptyFolderHtml('🎬', 'Keine Videos vorhanden', 'Es wurden noch keine Videos mit Unternehmen verknüpft.');
+      grid.innerHTML = `<div class="empty-state-grid-cell">${renderEmptyState({
+        icon: 'video',
+        title: 'Keine Videos vorhanden',
+        text: 'Es wurden noch keine Videos mit Unternehmen verknüpft.'
+      })}</div>`;
       return;
     }
 
@@ -85,6 +88,7 @@ export class VideoFolderRenderer {
         </div>
       </div>
     `).join('');
+    fillFoldersGrid(grid);
   }
 
   static updateUnternehmenTable(folders) {
@@ -92,18 +96,18 @@ export class VideoFolderRenderer {
     if (!tbody) return;
 
     if (!folders || folders.length === 0) {
-      tbody.innerHTML = `
-        <tr><td colspan="2" class="no-data">
-          ${this._emptyStateInline('🎬', 'Keine Videos vorhanden', 'Es wurden noch keine Videos mit Unternehmen verknüpft.')}
-        </td></tr>
-      `;
+      tbody.innerHTML = renderEmptyStateRow({
+        icon: 'video',
+        title: 'Keine Videos vorhanden',
+        text: 'Es wurden noch keine Videos mit Unternehmen verknüpft.'
+      }, 2);
       return;
     }
 
     tbody.innerHTML = folders.map(f => `
       <tr class="table-row-clickable unternehmen-row" data-unternehmen-id="${f.id}" data-unternehmen-name="${esc(f.firmenname)}">
         <td>
-          <div style="display: flex; align-items: center; gap: var(--space-sm);">
+          <div class="flex-center-sm">
             ${f.logo_url ? `<img src="${esc(f.logo_url)}" alt="${esc(f.firmenname)}" class="table-logo">` : ''}
             <a href="#" class="table-link unternehmen-link" data-unternehmen-id="${f.id}" data-unternehmen-name="${esc(f.firmenname)}">${esc(f.firmenname)}</a>
           </div>
@@ -120,7 +124,7 @@ export class VideoFolderRenderer {
   static renderKampagnenView(listViewMode, isKunde) {
     const backBtnHtml = isKunde
       ? ''
-      : `<button id="btn-back-to-unternehmen" class="secondary-btn">${BACK_SVG} Zurück</button>`;
+      : `<button id="btn-back-to-unternehmen" class="mdc-btn mdc-btn--secondary">${BACK_SVG} Zurück</button>`;
 
     const body = listViewMode === 'grid'
       ? `<div class="folders-grid" id="kampagnen-grid">
@@ -164,7 +168,11 @@ export class VideoFolderRenderer {
     if (!grid) return;
 
     if (!folders || folders.length === 0) {
-      grid.innerHTML = this._emptyFolderHtml('📂', 'Keine Kampagnen', 'Für dieses Unternehmen gibt es noch keine Videos.');
+      grid.innerHTML = `<div class="empty-state-grid-cell">${renderEmptyState({
+        icon: 'folder',
+        title: 'Keine Kampagnen',
+        text: 'Für dieses Unternehmen gibt es noch keine Videos.'
+      })}</div>`;
       return;
     }
 
@@ -177,6 +185,7 @@ export class VideoFolderRenderer {
         </div>
       </div>
     `).join('');
+    fillFoldersGrid(grid);
   }
 
   static updateKampagnenTable(folders) {
@@ -184,11 +193,11 @@ export class VideoFolderRenderer {
     if (!tbody) return;
 
     if (!folders || folders.length === 0) {
-      tbody.innerHTML = `
-        <tr><td colspan="2" class="no-data">
-          ${this._emptyStateInline('📂', 'Keine Kampagnen', 'Für dieses Unternehmen gibt es noch keine Videos.')}
-        </td></tr>
-      `;
+      tbody.innerHTML = renderEmptyStateRow({
+        icon: 'folder',
+        title: 'Keine Kampagnen',
+        text: 'Für dieses Unternehmen gibt es noch keine Videos.'
+      }, 2);
       return;
     }
 
@@ -202,29 +211,6 @@ export class VideoFolderRenderer {
     `).join('');
   }
 
-  // ============================================
-  // HELPERS
-  // ============================================
-
-  static _emptyFolderHtml(icon, title, desc) {
-    return `
-      <div class="empty-state" style="grid-column: 1 / -1; text-align: center; padding: var(--space-xxl);">
-        <div class="empty-icon">${icon}</div>
-        <h3>${title}</h3>
-        <p>${desc}</p>
-      </div>
-    `;
-  }
-
-  static _emptyStateInline(icon, title, desc) {
-    return `
-      <div class="empty-state">
-        <div class="empty-icon">${icon}</div>
-        <h3>${title}</h3>
-        <p>${desc}</p>
-      </div>
-    `;
-  }
 }
 
 export default VideoFolderRenderer;

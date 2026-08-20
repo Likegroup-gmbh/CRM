@@ -37,23 +37,9 @@ export async function renderFilterBar(config, currentFilters, onApply, onReset, 
   bindFilterEvents(onApply, onReset);
 }
 
-// Hilfs-Renderer für leere Ergebnisse (einheitlich für alle Listen)
-export function renderEmptyState(tbodyOrContainer) {
-  if (!tbodyOrContainer) return;
-  const container = tbodyOrContainer.tagName === 'TBODY' ? tbodyOrContainer : null;
-  const html = `
-    <div class="empty-state not-found">
-        <img src="https://www.dropbox.com/scl/fi/6fgrk4u4aync0qfo0mcod/noti_not_found.svg?rlkey=x0idfb8fjl6kpp7850fkp8tto&raw=1" />
-      <p>Leider konnten keine Einträge gefunden werden</p>
-    </div>
-  `;
-  if (container) {
-    const colSpan = container.parentElement?.querySelector('thead tr')?.children?.length || 1;
-    container.innerHTML = `<tr><td colspan="${colSpan}">${html}</td></tr>`;
-  } else {
-    tbodyOrContainer.innerHTML = html;
-  }
-}
+// Hinweis: Leere Ergebnisse werden ueber das zentrale Empty-State-System
+// gerendert (core/components/EmptyState.js: renderEmptyState/resolveEmptyState/
+// insertEmptyState). Das fruehere FilterUI.renderEmptyState wurde entfernt.
 
 // Dynamische Filter-Daten laden
 async function loadDynamicFilterData(filters) {

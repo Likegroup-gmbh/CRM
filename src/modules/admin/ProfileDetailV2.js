@@ -9,6 +9,8 @@ import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { compressImage } from '../../core/ImageCompressor.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 export class ProfileDetailV2 extends PersonDetailBase {
   constructor() {
@@ -424,7 +426,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     }
 
     if (firmenhandyHtml) {
-      items.push({ icon: 'phone', label: 'Firmenhandy', value: '-', rawHtml: firmenhandyHtml });
+      items.push({ icon: 'phone-mobile', label: 'Firmenhandy', value: '-', rawHtml: firmenhandyHtml });
     }
 
     items.push({ icon: 'language', label: 'Sprachen', value: sprachenText });
@@ -488,7 +490,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
 
   renderUnternehmenTab(isKunde) {
     if (this.unternehmen.length === 0) {
-      return '<div class="empty-state"><p>Keine Unternehmen zugeordnet.</p></div>';
+      return renderEmptyState({ icon: 'building', title: 'Keine Unternehmen zugeordnet' });
     }
 
     return `
@@ -498,7 +500,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
             <tr>
               <th>Firmenname</th>
               <th class="col-webseite">Website</th>
-              ${!isKunde ? '<th style="width: 80px; text-align: right;">Aktionen</th>' : ''}
+              ${!isKunde ? '<th class="col-w80-right">Aktionen</th>' : ''}
             </tr>
           </thead>
           <tbody>
@@ -511,8 +513,8 @@ export class ProfileDetailV2 extends PersonDetailBase {
                   </div>
                 </td>
                 <td class="col-webseite">${u.webseite ? `<a href="${u.webseite}" target="_blank" rel="noopener">${this.sanitize(u.webseite)}</a>` : '-'}</td>
-                ${!isKunde ? `<td style="text-align: right;">
-                  <a href="/unternehmen/${u.id}" onclick="event.preventDefault(); window.navigateTo('/unternehmen/${u.id}')" class="secondary-btn btn-sm">Details</a>
+                ${!isKunde ? `<td class="u-text-right">
+                  <a href="/unternehmen/${u.id}" onclick="event.preventDefault(); window.navigateTo('/unternehmen/${u.id}')" class="mdc-btn mdc-btn--secondary mdc-btn--sm">Details</a>
                 </td>` : ''}
               </tr>
             `).join('')}
@@ -524,7 +526,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
 
   renderMarkenTab(isKunde) {
     if (this.marken.length === 0) {
-      return '<div class="empty-state"><p>Keine Marken zugeordnet.</p></div>';
+      return renderEmptyState({ icon: 'tag', title: 'Keine Marken zugeordnet' });
     }
 
     return `
@@ -534,7 +536,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
             <tr>
               <th>Markenname</th>
               <th>Unternehmen</th>
-              ${!isKunde ? '<th style="width: 80px; text-align: right;">Aktionen</th>' : ''}
+              ${!isKunde ? '<th class="col-w80-right">Aktionen</th>' : ''}
             </tr>
           </thead>
           <tbody>
@@ -547,8 +549,8 @@ export class ProfileDetailV2 extends PersonDetailBase {
                   </div>
                 </td>
                 <td>${m.unternehmen?.firmenname ? this.sanitize(m.unternehmen.firmenname) : '-'}</td>
-                ${!isKunde ? `<td style="text-align: right;">
-                  <a href="/marke/${m.id}" onclick="event.preventDefault(); window.navigateTo('/marke/${m.id}')" class="secondary-btn btn-sm">Details</a>
+                ${!isKunde ? `<td class="u-text-right">
+                  <a href="/marke/${m.id}" onclick="event.preventDefault(); window.navigateTo('/marke/${m.id}')" class="mdc-btn mdc-btn--secondary mdc-btn--sm">Details</a>
                 </td>` : ''}
               </tr>
             `).join('')}
@@ -560,7 +562,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
 
   renderAuftraegeTab() {
     if (this.auftraege.length === 0) {
-      return '<div class="empty-state"><p>Keine Aufträge zugeordnet.</p></div>';
+      return renderEmptyState({ icon: 'clipboard', title: 'Keine Aufträge zugeordnet' });
     }
 
     return `
@@ -572,7 +574,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
               <th>Marke</th>
               <th>Status</th>
               <th>Erstellt am</th>
-              <th style="width: 80px; text-align: right;">Aktionen</th>
+              <th class="col-w80-right">Aktionen</th>
             </tr>
           </thead>
           <tbody>
@@ -582,8 +584,8 @@ export class ProfileDetailV2 extends PersonDetailBase {
                 <td>${a.marke?.markenname ? this.sanitize(a.marke.markenname) : '-'}</td>
                 <td><span class="badge badge-secondary">${this.sanitize(a.status || 'Unbekannt')}</span></td>
                 <td>${this.formatDate(a.created_at)}</td>
-                <td style="text-align: right;">
-                  <a href="/auftrag/${a.id}" onclick="event.preventDefault(); window.navigateTo('/auftrag/${a.id}')" class="secondary-btn btn-sm">Details</a>
+                <td class="u-text-right">
+                  <a href="/auftrag/${a.id}" onclick="event.preventDefault(); window.navigateTo('/auftrag/${a.id}')" class="mdc-btn mdc-btn--secondary mdc-btn--sm">Details</a>
                 </td>
               </tr>
             `).join('')}
@@ -595,7 +597,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
 
   renderKampagnenTab(isKunde) {
     if (this.kampagnen.length === 0) {
-      return '<div class="empty-state"><p>Keine Kampagnen zugeordnet.</p></div>';
+      return renderEmptyState({ icon: 'megaphone', title: 'Keine Kampagnen zugeordnet' });
     }
 
     return `
@@ -607,7 +609,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
               <th>Marke</th>
               <th>Status</th>
               <th>Erstellt am</th>
-              ${!isKunde ? '<th style="width: 80px; text-align: right;">Aktionen</th>' : ''}
+              ${!isKunde ? '<th class="col-w80-right">Aktionen</th>' : ''}
             </tr>
           </thead>
           <tbody>
@@ -617,8 +619,8 @@ export class ProfileDetailV2 extends PersonDetailBase {
                 <td>${k.marke?.markenname ? this.sanitize(k.marke.markenname) : (k.unternehmen?.firmenname ? this.sanitize(k.unternehmen.firmenname) : '-')}</td>
                 <td>${(() => { const sn = k.status_ref?.name || k.status; if (!sn) return '-'; const icon = actionsDropdown?.getStatusIcon?.(sn) || ''; return `<div class="tags tags-compact"><span class="tag tag--type">${icon}${this.sanitize(sn)}</span></div>`; })()}</td>
                 <td>${this.formatDate(k.created_at)}</td>
-                ${!isKunde ? `<td style="text-align: right;">
-                  <a href="/kampagne/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.id}')" class="secondary-btn btn-sm">Details</a>
+                ${!isKunde ? `<td class="u-text-right">
+                  <a href="/kampagne/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${k.id}')" class="mdc-btn mdc-btn--secondary mdc-btn--sm">Details</a>
                 </td>` : ''}
               </tr>
             `).join('')}
@@ -630,7 +632,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
 
   renderKooperationenTab() {
     if (this.kooperationen.length === 0) {
-      return '<div class="empty-state"><p>Keine Kooperationen zugeordnet.</p></div>';
+      return renderEmptyState({ icon: 'handshake', title: 'Keine Kooperationen zugeordnet' });
     }
 
     return `
@@ -642,7 +644,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
               <th>Kampagne</th>
               <th>Status</th>
               <th>Erstellt am</th>
-              <th style="width: 80px; text-align: right;">Aktionen</th>
+              <th class="col-w80-right">Aktionen</th>
             </tr>
           </thead>
           <tbody>
@@ -652,8 +654,8 @@ export class ProfileDetailV2 extends PersonDetailBase {
                 <td>${this.sanitize(KampagneUtils.getDisplayName(k.kampagne))}</td>
                 <td><span class="badge badge-secondary">${this.sanitize(k.status || 'Unbekannt')}</span></td>
                 <td>${this.formatDate(k.created_at)}</td>
-                <td style="text-align: right;">
-                  <a href="/kooperation/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kooperation/${k.id}')" class="secondary-btn btn-sm">Details</a>
+                <td class="u-text-right">
+                  <a href="/kooperation/${k.id}" onclick="event.preventDefault(); window.navigateTo('/kooperation/${k.id}')" class="mdc-btn mdc-btn--secondary mdc-btn--sm">Details</a>
                 </td>
               </tr>
             `).join('')}
@@ -665,7 +667,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
 
   renderVideosTab() {
     if (this.videos.length === 0) {
-      return '<div class="empty-state"><p>Keine Videos zugeordnet.</p></div>';
+      return renderEmptyState({ icon: 'video', title: 'Keine Videos zugeordnet' });
     }
 
     return `
@@ -797,15 +799,15 @@ export class ProfileDetailV2 extends PersonDetailBase {
           <input type="text" id="profile-name" class="form-input" value="${this.sanitize(this.user?.name || '')}" placeholder="Vollständiger Name" required>
         </div>
 
-        <div class="form-row" style="display:flex; gap:12px;">
-          <div class="form-field" style="flex:0 0 48%;">
+        <div class="form-row form-row--gap-sm">
+          <div class="form-field form-field--48">
             <label for="profile-firmenhandy-land">Land (Firmenhandy)</label>
             <select id="profile-firmenhandy-land" class="form-input">
               <option value="">Land wählen...</option>
               ${countryOptions}
             </select>
           </div>
-          <div class="form-field" style="flex:1;">
+          <div class="form-field">
             <label for="profile-firmenhandy">Firmenhandy</label>
             <input type="tel" id="profile-firmenhandy" class="form-input" value="${this.sanitize(this.user?.telefonnummer_firmenhandy || '')}" placeholder="z. B. 15123456789">
           </div>
@@ -831,9 +833,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
           </button>
           <button type="button" class="mdc-btn mdc-btn--create" id="profile-save-btn">
             <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
-              </svg>
+              ${icon('check-filled')}
             </span>
             <span class="mdc-btn__spinner" aria-hidden="true">
               <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">

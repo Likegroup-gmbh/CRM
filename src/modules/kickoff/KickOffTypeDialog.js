@@ -10,7 +10,7 @@ export class KickOffTypeDialog {
       const modal = document.createElement('div');
       modal.className = 'modal overlay-modal kickoff-type-modal';
       modal.innerHTML = `
-        <div class="modal-dialog" style="max-width: 560px;">
+        <div class="modal-dialog kickoff-type-dialog">
           <div class="modal-header">
             <h3>Strategiebriefing anlegen</h3>
             <button class="modal-close" data-action="close">&times;</button>
@@ -32,7 +32,7 @@ export class KickOffTypeDialog {
             </div>
           </div>
           <div class="modal-footer">
-            <button type="button" class="secondary-btn" data-action="cancel">Abbrechen</button>
+            <button type="button" class="mdc-btn mdc-btn--secondary" data-action="cancel">Abbrechen</button>
           </div>
         </div>`;
 

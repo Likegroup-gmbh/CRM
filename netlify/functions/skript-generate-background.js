@@ -7,9 +7,8 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
-const { loadContext, fmtSkript, buildKontextText, videoLaengeHinweis } = require('./_shared/skript-context');
-const { ladeBriefingExtrakt } = require('./_shared/skript-briefing');
-const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
+const { loadContext, fmtSkript, buildKontextText, videoLaengeHinweis, briefingSkriptSprache } = require('./_shared/skript-context');
+const { verifyAuth, requireInternal, authErrorBody } = require('./_shared/verify-auth');
 const { starteKiRequest } = require('./_shared/ki-log');
 
 // Erzwungener Tool-Call: die API serialisiert das JSON selbst, unescapte
@@ -119,7 +118,7 @@ function createJobUpdater(supabase, jobId) {
 // ---------------------------------------------------------------------------
 // Prompt-Bau (Kontext-Aufbau + Sektions-Formatierung: _shared/skript-context)
 // ---------------------------------------------------------------------------
-function buildPrompt(ctx, params, rueckfragenDialog = '', briefingExtrakt = null) {
+function buildPrompt(ctx, params, rueckfragenDialog = '') {
   // Block 1 (stabil, cachebar): Rolle + DNA + Beispiele + Anti-Patterns
   let stable = 'Du bist ein erfahrener Werbetexter fuer UGC- und Creator-Videos (TikTok, Instagram Reels). '
     + 'Du schreibst deutsche Video-Skripte, die klingen wie von echten Creators gesprochen - nicht wie Werbung. '
@@ -147,15 +146,16 @@ function buildPrompt(ctx, params, rueckfragenDialog = '', briefingExtrakt = null
   }
 
   // Block 2 (variabel): Auftrag dieser Generierung
-  let task = '# AUFTRAG\nSchreibe EIN Video-Skript auf Deutsch.\n';
-
-  // Hochgeladenes PDF-Briefing: verbindlichste Faktenquelle
-  if (briefingExtrakt) {
-    task += '\n# PDF-BRIEFING (verbindliche Faktenbasis - hat Vorrang vor den CRM-Daten unten)\n'
-      + briefingExtrakt + '\n';
-  }
+  const sprache = briefingSkriptSprache(ctx.briefing);
+  let task = sprache
+    ? `# AUFTRAG\nSchreibe EIN Video-Skript auf ${sprache}.\n`
+    : '# AUFTRAG\nSchreibe EIN Video-Skript auf Deutsch.\n';
 
   task += buildKontextText(ctx, params);
+
+  if (sprache) {
+    task += `\n# SKRIPT-SPRACHE\nLaut Campaign-Briefing: ${sprache}. Schreibe das Skript in dieser Sprache (nicht automatisch auf Deutsch).\n`;
+  }
 
   // Vorab geklaerte Rueckfragen (Slot-Filling-Dialog vor der Generierung)
   if (rueckfragenDialog) {
@@ -169,8 +169,13 @@ function buildPrompt(ctx, params, rueckfragenDialog = '', briefingExtrakt = null
     + 'Der Text ist gesprochener Creator-Text (keine Regieanweisungen in eckigen Klammern, ausser wo unbedingt noetig).\n'
     + 'WICHTIG - nichts erfinden: Behaupte im Skript NICHTS ueber Angebote, Features, Aktionen oder Konditionen '
     + '(z.B. Partnerkarten, Rabatte, Gratis-Extras), das nicht ausdruecklich '
-    + (briefingExtrakt ? 'im PDF-BRIEFING, ' : '')
+    + (ctx.briefing ? 'im CAMPAIGN-BRIEFING, ' : '')
     + 'in den CRM-Daten oben oder in den GEKLAERTEN RUECKFRAGEN steht.';
+
+  if (ctx.briefing) {
+    task += ' Vorgaben fuer dieses Video haben Vorrang vor Briefing-Defaults bei Widerspruechen; '
+      + 'fuer alle nicht explizit gesetzten Punkte ist das Briefing verbindlich.';
+  }
 
   // Harte Anti-Copy-Regel - nur wenn dieses Skript eine Videovorlage hat
   if (params.referenz_video) {
@@ -207,6 +212,8 @@ exports.handler = async (event) => {
       body: JSON.stringify(authErrorBody(auth))
     };
   }
+  const intern = await requireInternal(supabase, auth.user);
+  if (!intern.ok) return intern.response;
   const { user } = auth;
 
   let payload;
@@ -242,14 +249,6 @@ exports.handler = async (event) => {
     job.log(`Kontext: ${ctx.dna.length} DNA-Layer, ${ctx.beispiele.length} Beispiele, ${ctx.antiPatterns.length} Anti-Patterns`
       + `${ctx.briefing ? ', Briefing' : ''}${ctx.kickoff ? ', Kickoff' : ''}${ctx.produkt ? ', Produkt' : ''}`);
 
-    // Hochgeladenes PDF-Briefing durchforsten (Cache am Stub greift, wenn die
-    // Rueckfragen-Phase es schon extrahiert hat)
-    let briefingExtrakt = null;
-    if (payload.briefing_pdf?.pfad) {
-      job.step('briefing', `PDF-Briefing "${payload.briefing_pdf.name || 'Dokument'}" wird durchforstet...`);
-      briefingExtrakt = await ladeBriefingExtrakt(supabase, payload, payload.skript_id || null, (msg) => job.log(msg), user.id);
-    }
-
     // Rueckfragen-Stub: geklaerten Frage/Antwort-Dialog in den Prompt aufnehmen
     let rueckfragenDialog = '';
     if (payload.skript_id) {
@@ -264,7 +263,7 @@ exports.handler = async (event) => {
       if (rueckfragenDialog) job.log('Geklaerte Rueckfragen fliessen in den Prompt ein');
     }
 
-    const { stable, task } = buildPrompt(ctx, payload, rueckfragenDialog, briefingExtrakt);
+    const { stable, task } = buildPrompt(ctx, payload, rueckfragenDialog);
     const model = MODELS.write;
 
     job.step('generierung', `Skript wird geschrieben (${model})...`);
@@ -305,6 +304,7 @@ exports.handler = async (event) => {
       produkt_id: payload.produkt_id || null,
       persona_id: payload.persona_id || null,
       branche_id: ctx.brancheId || null,
+      briefing_id: payload.briefing_id || null,
       hook: parsed.hook,
       hauptteil: parsed.hauptteil,
       cta: parsed.cta,
@@ -328,8 +328,10 @@ exports.handler = async (event) => {
         beispiel_ids: ctx.beispiele.map((s) => s.id),
         anti_pattern_ids: ctx.antiPatterns.map((s) => s.id),
         usage: result.usage,
-        ...(payload.briefing_pdf ? { briefing_pdf: payload.briefing_pdf } : {}),
-        ...(briefingExtrakt ? { briefing_extrakt: briefingExtrakt } : {})
+        ...(payload.briefing_id ? {
+          briefing_id: payload.briefing_id,
+          briefing_name: ctx.briefing?.aktivierung_name || null
+        } : {})
       }
     };
 
@@ -376,3 +378,5 @@ exports.handler = async (event) => {
     return { statusCode: 500 };
   }
 };
+
+exports.buildPrompt = buildPrompt;

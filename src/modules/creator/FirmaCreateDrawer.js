@@ -1,3 +1,4 @@
+import { icon } from '../../core/icons/IconSystem.js';
 // FirmaCreateDrawer.js - Slide-in Drawer zum Inline-Anlegen einer Firma
 // Zwei Modi:
 //  - Formular-Modus (Creator anlegen/bearbeiten): neue Firma wird als Tag im firma_ids-Multiselect gesetzt
@@ -125,9 +126,7 @@ export class FirmaCreateDrawer {
           </button>
           <button type="submit" class="mdc-btn mdc-btn--create">
             <span class="mdc-btn__icon mdc-btn__icon--check" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
-              </svg>
+              ${icon('check-filled')}
             </span>
             <span class="mdc-btn__spinner" aria-hidden="true">
               <svg class="mdc-spinner" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50" width="16" height="16">

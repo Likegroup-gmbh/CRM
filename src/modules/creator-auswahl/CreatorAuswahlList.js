@@ -7,6 +7,9 @@ import { AutoGeneration } from '../../core/form/logic/AutoGeneration.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
+import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
+import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 
 export class CreatorAuswahlList {
   constructor() {
@@ -174,7 +177,7 @@ export class CreatorAuswahlList {
             </div>
           </div>
           <div class="table-actions">
-            ${canCreate ? `<button class="primary-btn" data-action="create-liste">Neue Creator-Auswahl</button>` : ''}
+            ${canCreate ? `<button class="mdc-btn" data-action="create-liste">Neue Creator-Auswahl</button>` : ''}
           </div>
         </div>
 
@@ -201,12 +204,22 @@ export class CreatorAuswahlList {
     `;
   }
 
+  // Einheitlicher Empty-State fuer die Sourcing-Hierarchie (Create-Button nur mit Rechten)
+  _sourcingEmptyState(title, icon = 'sourcing') {
+    const canCreate = !window.isKunde() && (window.isAdmin() || window.currentUser?.permissions?.kampagne?.can_edit);
+    return {
+      icon,
+      title,
+      actionsHtml: canCreate ? '<button class="mdc-btn" data-action="create-liste">Neue Creator-Auswahl</button>' : ''
+    };
+  }
+
   updateCompaniesGrid() {
     const grid = document.getElementById('companies-grid');
     if (!grid) return;
 
     if (this.companyFolders.length === 0) {
-      grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><p>Keine Sourcing-Listen vorhanden.</p></div>`;
+      grid.innerHTML = `<div class="grid-span-all">${renderEmptyState(this._sourcingEmptyState('Keine Sourcing-Listen vorhanden'))}</div>`;
       return;
     }
 
@@ -215,9 +228,7 @@ export class CreatorAuswahlList {
         <div class="folder-icon">
           ${folder.logo_url
             ? `<img src="${this.sanitize(folder.logo_url)}" alt="${this.sanitize(folder.firmenname)}" class="folder-logo">`
-            : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="folder-svg">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
-              </svg>`
+            : `${icon('folder-open')}`
           }
         </div>
         <div class="folder-info">
@@ -226,6 +237,7 @@ export class CreatorAuswahlList {
         </div>
       </div>
     `).join('');
+    fillFoldersGrid(grid);
   }
 
   updateCompaniesTable() {
@@ -233,7 +245,7 @@ export class CreatorAuswahlList {
     if (!tbody) return;
 
     if (this.companyFolders.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="2" class="no-data">Keine Sourcing-Listen vorhanden.</td></tr>`;
+      tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine Sourcing-Listen vorhanden'), 2);
       return;
     }
 
@@ -261,16 +273,14 @@ export class CreatorAuswahlList {
         <div class="table-filter-wrapper">
           <div class="filter-bar">
             <div class="filter-left">
-              <button id="btn-back-to-companies" class="secondary-btn">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-                </svg>
+              <button id="btn-back-to-companies" class="mdc-btn mdc-btn--secondary">
+                ${icon('arrow-left')}
                 Zurück
               </button>
             </div>
           </div>
           <div class="table-actions">
-            ${canCreate ? `<button class="primary-btn" data-action="create-liste">Neue Creator-Auswahl</button>` : ''}
+            ${canCreate ? `<button class="mdc-btn" data-action="create-liste">Neue Creator-Auswahl</button>` : ''}
           </div>
         </div>
 
@@ -316,7 +326,7 @@ export class CreatorAuswahlList {
     if (!tbody) return;
 
     if (this.brandFolders.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="2" class="no-data">Keine markenbezogenen Sourcing-Listen vorhanden.</td></tr>`;
+      tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine markenbezogenen Sourcing-Listen vorhanden', 'tag'), 2);
       return;
     }
 
@@ -357,9 +367,7 @@ export class CreatorAuswahlList {
           <td class="col-actions">
             <div class="actions-dropdown-container" data-entity-type="creator-auswahl">
               <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                </svg>
+                ${icon('dots-vertical-filled')}
               </button>
               <div class="actions-dropdown">
                 <a href="#" class="action-item" data-action="view-liste" data-id="${liste.id}">
@@ -396,7 +404,7 @@ export class CreatorAuswahlList {
     if (!tbody) return;
 
     if (this.companyOnlyItems.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" class="no-data">Keine unternehmensweiten Einträge ohne Marke.</td></tr>`;
+      tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine unternehmensweiten Einträge ohne Marke', 'building'), 6);
       return;
     }
 
@@ -411,16 +419,14 @@ export class CreatorAuswahlList {
         <div class="table-filter-wrapper">
           <div class="filter-bar">
             <div class="filter-left">
-              <button id="btn-back-to-brands" class="secondary-btn">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-                </svg>
+              <button id="btn-back-to-brands" class="mdc-btn mdc-btn--secondary">
+                ${icon('arrow-left')}
                 Zurück
               </button>
             </div>
           </div>
           <div class="table-actions">
-            ${canCreate ? `<button class="primary-btn" data-action="create-liste">Neue Creator-Auswahl</button>` : ''}
+            ${canCreate ? `<button class="mdc-btn" data-action="create-liste">Neue Creator-Auswahl</button>` : ''}
           </div>
         </div>
         <div class="table-container table-container--creator-auswahl-list">
@@ -450,7 +456,7 @@ export class CreatorAuswahlList {
     if (!tbody) return;
 
     if (this.currentItems.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" class="table-state-cell">Keine Sourcing-Listen für diese Marke vorhanden.</td></tr>`;
+      tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine Sourcing-Listen für diese Marke vorhanden'), 6);
       this.pagination.updateTotal(0);
       this.pagination.render();
       return;
@@ -715,9 +721,9 @@ export class CreatorAuswahlList {
           <label class="form-label" for="rename-liste-name">Name</label>
           <input type="text" id="rename-liste-name" class="form-input" value="${currentName}" required>
         </div>
-        <div class="drawer-footer" style="margin-top: var(--space-lg, 24px);">
-          <button type="submit" class="primary-btn">Speichern</button>
-          <button type="button" class="secondary-btn rename-cancel-btn">Abbrechen</button>
+        <div class="drawer-footer u-mt-lg">
+          <button type="submit" class="mdc-btn">Speichern</button>
+          <button type="button" class="mdc-btn mdc-btn--secondary rename-cancel-btn">Abbrechen</button>
         </div>
       </form>
     `;

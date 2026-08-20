@@ -29,13 +29,13 @@
   <!-- Flag Icons Library -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.3.2/css/flag-icons.min.css" />
   <link rel="preload" href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0" as="script">
-  <script type="module" crossorigin src="/assets/main-DItrjekp.js"></script>
+  <script type="module" crossorigin src="/assets/main-5oymDsl5.js"></script>
   <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-B5Qt9EMX.js">
-  <link rel="modulepreload" crossorigin href="/assets/core-DgqIr7GK.js">
-  <link rel="modulepreload" crossorigin href="/assets/modules-B6emBtug.js">
-  <link rel="modulepreload" crossorigin href="/assets/auth-CyLgAAmu.js">
-  <link rel="stylesheet" crossorigin href="/assets/main-BhRBnDVK.css">
-  <link rel="stylesheet" crossorigin href="/assets/components-DDk-RwcL.css">
+  <link rel="modulepreload" crossorigin href="/assets/auth-DA9AR6CD.js">
+  <link rel="modulepreload" crossorigin href="/assets/core-Cvvl0KIo.js">
+  <link rel="modulepreload" crossorigin href="/assets/modules-CmbKWZEg.js">
+  <link rel="stylesheet" crossorigin href="/assets/main-CuUBoaW-.css">
+  <link rel="stylesheet" crossorigin href="/assets/components-ctpfUxRE.css">
 </head>
 <body>
   <div id="login-root"></div>
@@ -144,7 +144,7 @@
         </div>
       </header>
       <div class="main-wrapper" id="dashboard-content">
-        <div style="text-align:center;color:#bdbdbd;">Lade Daten ...</div>
+        <div class="dashboard-loading">Lade Daten ...</div>
       </div>
     </main>
   </div>
@@ -155,7 +155,7 @@
     <div class="mitarbeiter-panel-header">
       <h3>Mitarbeiter zuweisen</h3>
       <button class="mitarbeiter-panel-close" onclick="closeMitarbeiterPanel()">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 20px; height: 20px;">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="icon-20">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
         </svg>
       </button>
@@ -163,7 +163,7 @@
     <div class="mitarbeiter-panel-content">
       <div class="form-box">
         <label class="label">Kooperation</label>
-        <div id="selectedKooperationName" style="padding: 12px; background-color: var(--color-table-border); border-radius: 6px; margin-bottom: 16px;"></div>
+        <div id="selectedKooperationName"></div>
       </div>
       <div class="form-box">
         <label class="label">Mitarbeiter auswählen</label>

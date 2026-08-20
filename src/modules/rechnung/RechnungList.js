@@ -12,6 +12,8 @@ import { renderBezahltToggle } from './RechnungBezahltToggle.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { rechnungNotizModal } from './RechnungNotizModal.js';
 import { resolveDocumentUrl } from '../../core/DocumentUrlHelper.js';
+import { resolveEmptyState, bindEmptyStateActions } from '../../core/components/EmptyState.js';
+import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
 
 export class RechnungList {
   _abortController = null;
@@ -78,6 +80,11 @@ export class RechnungList {
         e.preventDefault();
         this.showCreateForm();
       }
+    }, { signal });
+
+    // Empty-State-Actions (z.B. "Filter zurücksetzen")
+    bindEmptyStateActions(document, {
+      'reset-filters': () => this.onFiltersReset()
     }, { signal });
     
     // Download-Action Handler
@@ -545,17 +552,15 @@ export class RechnungList {
           </div>
         </div>
         <div class="table-actions">
-          ${isAdmin ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
-          <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
+          ${isAdmin ? `<button id="btn-select-all" class="mdc-btn mdc-btn--secondary">Alle auswählen</button>
+          <button id="btn-deselect-all" class="mdc-btn mdc-btn--secondary" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
-          <button id="btn-download-selected" class="secondary-btn" style="display:none;">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width:16px;height:16px;margin-right:4px;vertical-align:middle;">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15M9 12l3 3m0 0 3-3m-3 3V2.25" />
-            </svg>
+          <button id="btn-download-selected" class="mdc-btn mdc-btn--secondary" style="display:none;">
+            ${icon('arrow-down-tray')}
             Ausgewählte herunterladen
           </button>
-          <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>` : ''}
-          ${window.currentUser?.permissions?.rechnung?.can_edit ? '<button id="btn-rechnung-new" class="primary-btn">Neue Rechnung anlegen</button>' : ''}
+          <button id="btn-delete-selected" class="mdc-btn mdc-btn--delete" style="display:none;">Ausgewählte löschen</button>` : ''}
+          ${window.currentUser?.permissions?.rechnung?.can_edit ? '<button id="btn-rechnung-new" class="mdc-btn">Neue Rechnung anlegen</button>' : ''}
         </div>
       </div>
 
@@ -568,8 +573,8 @@ export class RechnungList {
             <tr>
               ${isAdmin ? `<th class="col-checkbox"><input type="checkbox" id="select-all-rechnungen"></th>` : ''}
               <th class="col-name">Rechnungsname</th>
-              <th class="col-typ">Typ</th>
               <th class="col-auftrag">Auftrag</th>
+              <th class="col-typ">Typ</th>
               <th class="col-po">PO-Nummer</th>
               <th class="col-created-at">Erstellt am</th>
               <th class="col-unternehmen">Unternehmen</th>
@@ -742,8 +747,20 @@ export class RechnungList {
 
     await TableAnimationHelper.animatedUpdate(tbody, async () => {
       if (!rechnungen || rechnungen.length === 0) {
-        const { renderEmptyState } = await import('../../core/FilterUI.js');
-        renderEmptyState(tbody);
+        const colspan = tbody.closest('table')?.querySelector('thead tr')?.children?.length || 10;
+        const isContract = this.activeTypeTab === 'contracting';
+        const entityLabel = isContract ? 'Contracts' : 'Rechnungen';
+        const html = resolveEmptyState({
+          hasActiveFilters: this.hasActiveFilters(),
+          states: {
+            alle: { icon: 'invoice', title: `Keine ${entityLabel} vorhanden` },
+            Offen: { icon: 'invoice', title: `Keine offenen ${entityLabel}`, text: 'Es gibt aktuell keine offenen Posten.' },
+            'Rückfrage': { icon: 'invoice', title: `Keine ${entityLabel} in Rückfrage` },
+            Bezahlt: { icon: 'check', title: `Keine bezahlten ${entityLabel}`, text: 'Noch ist nichts bezahlt worden.' },
+            'An Qonto gesendet': { icon: 'invoice', title: `Keine ${entityLabel} an Qonto gesendet` }
+          }
+        }, this.activeStatusTab);
+        tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state-cell">${html}</td></tr>`;
         return;
       }
 
@@ -764,8 +781,8 @@ export class RechnungList {
         <tr data-id="${r.id}" class="${getRowClass(r)}">
           ${isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="rechnung-check" data-id="${r.id}"></td>` : ''}
           <td class="col-name"><span class="col-name-inner">${r.rechnung_nr || '-'}${this._renderNotizIndicator(r.id)}</span></td>
-          <td class="col-typ"><span class="status-badge ${r.rechnungstyp === 'contracting' ? 'status-gestellt' : 'status-beauftragt'}">${r.rechnungstyp === 'contracting' ? 'Contracting' : 'Kampagne'}</span></td>
           <td class="col-auftrag">${r.auftrag_id ? `<a href="#" class="table-link" data-table="${r.rechnungstyp === 'contracting' ? 'contracts' : 'auftragsdetails'}" data-id="${r.rechnungstyp === 'contracting' ? r.auftrag_id : (r.auftrag?.auftrag_details?.[0]?.id || r.auftrag_id)}">${r.auftrag?.auftragsname || '-'}</a>` : '-'}</td>
+          <td class="col-typ"><span class="status-badge ${r.rechnungstyp === 'contracting' ? 'status-gestellt' : 'status-beauftragt'}">${r.rechnungstyp === 'contracting' ? 'Contracting' : 'Kampagne'}</span></td>
           <td class="col-po">${r.po_nummer || '-'}</td>
           <td class="col-created-at">${formatDate(r.created_at)}</td>
           <td class="col-unternehmen">${r.unternehmen?.firmenname || '-'}</td>
@@ -779,7 +796,7 @@ export class RechnungList {
           <td class="col-preis-video">${r.videoanzahl && r.nettobetrag ? formatCurrency(r.nettobetrag / r.videoanzahl) : '-'}</td>
           <td class="col-brutto">${formatCurrency(r.bruttobetrag)}</td>
           <td class="col-ksk">${r.rechnungstyp === 'contracting' ? (r.ksk_pflichtig ? '<span class="status-badge status-erfolg">Ja</span>' : '<span class="status-badge status-inactive">Nein</span>') : ((parseFloat(r.ksk_betrag) || 0) > 0 ? formatCurrency(r.ksk_betrag) : '—')}</td>
-          <td class="col-beleg">${r.rechnung_pdfs && r.rechnung_pdfs.length > 0 ? r.rechnung_pdfs.map((p, i) => `<a href="${p.open_url}" target="_blank" rel="noopener noreferrer">PDF${r.rechnung_pdfs.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' ') : (r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener noreferrer">PDF</a>` : '-')}</td>
+          <td class="col-beleg">${renderPdfLinks(r.rechnung_pdfs, r.pdf_url)}</td>
           <td class="col-vertrag">${renderVertragCell(r)}</td>
           <td class="col-status" data-col="status">${r.status || '-'}</td>
           <td class="col-erstellt-von">${this.renderCreatedBy(r.created_by)}</td>
@@ -1165,15 +1182,7 @@ export class RechnungList {
                 class="filter-dropdown-toggle"
                 aria-expanded="false"
                 aria-label="Unternehmen filtern">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/>
-            <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/>
-            <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/>
-            <path d="M10 6h4"/>
-            <path d="M10 10h4"/>
-            <path d="M10 14h4"/>
-            <path d="M10 18h4"/>
-          </svg>
+          ${icon('building')}
           <span>Unternehmen</span>
           ${selectedCount > 0 ? `<span class="filter-count-badge">${selectedCount}</span>` : ''}
         </button>
@@ -1181,7 +1190,7 @@ export class RechnungList {
         <div id="rechnung-unternehmen-filter-dropdown" class="filter-dropdown">
           <div class="filter-dropdown-header">
             <span class="filter-dropdown-title">Unternehmen filtern</span>
-            <button id="rechnung-unternehmen-filter-reset" class="secondary-btn" ${selectedCount === 0 ? 'disabled' : ''}>
+            <button id="rechnung-unternehmen-filter-reset" class="mdc-btn mdc-btn--secondary" ${selectedCount === 0 ? 'disabled' : ''}>
               Zurücksetzen
             </button>
           </div>

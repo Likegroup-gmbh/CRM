@@ -37,12 +37,12 @@ describe('Sourcing – Spaltenreihenfolge', () => {
       .filter(Boolean);
   }
 
-  it('stellt Bild zwischen Checkbox und Namen, Status direkt hinter die Creator Art', () => {
+  it('stellt Bild zwischen Checkbox und Namen, Status und Kundenfeedback hinter die Creator Art', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
 
-    expect(spalten.slice(0, 9)).toEqual([
+    expect(spalten.slice(0, 10)).toEqual([
       'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-notiz',
-      'cp-col-typ', 'cp-col-status',
+      'cp-col-typ', 'cp-col-status', 'cp-col-kunden-feedback',
       'cp-col-location', 'cp-col-mail', 'cp-col-telefon'
     ]);
   });
@@ -86,13 +86,13 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     ]);
   });
 
-  it('setzt den Gesamtpreis hinter TikTok, danach Nutzungsrechte und Garantie', () => {
+  it('setzt die TikTok-Preise hinter die TikTok-Follower, dann Gesamtpreis, Nutzungsrechte und Garantie', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
     const ab = spalten.indexOf('cp-col-follower-tt');
 
-    expect(spalten.slice(ab, ab + 4)).toEqual([
-      'cp-col-follower-tt', 'cp-col-pricing', 'cp-col-nutzungsrechte',
-      'cp-col-reichweite-garantie'
+    expect(spalten.slice(ab, ab + 6)).toEqual([
+      'cp-col-follower-tt', 'cp-col-preis-tt-video', 'cp-col-preis-tt-story',
+      'cp-col-pricing', 'cp-col-nutzungsrechte', 'cp-col-reichweite-garantie'
     ]);
   });
 
@@ -164,6 +164,21 @@ describe('Sourcing – Spaltenreihenfolge', () => {
       .toContain('Preis Reels');
     expect(doc.querySelector('thead th.cp-col-preis-story').textContent.trim())
       .toContain('Preis Story');
+    const ttVideo = doc.querySelector('thead th.cp-col-preis-tt-video');
+    const ttStory = doc.querySelector('thead th.cp-col-preis-tt-story');
+
+    expect(ttVideo.textContent.trim()).toContain('Preis Video');
+    expect(ttStory.textContent.trim()).toContain('Preis Story');
+    // Der TikTok-Bezug steht als Icon im Kopf
+    expect(ttVideo.querySelector('svg')).not.toBeNull();
+    expect(ttStory.querySelector('svg')).not.toBeNull();
+  });
+
+  it('benennt die Kundenfeedback-Spalte', () => {
+    const doc = tableDoc([{ id: 'i1' }]);
+
+    expect(doc.querySelector('thead th.cp-col-kunden-feedback').textContent.trim())
+      .toBe('Kundenfeedback');
   });
 
   it('nennt im Tooltip den TKP der Liste statt der festen 25', () => {
@@ -340,22 +355,24 @@ describe('Sourcing – Sticky-Positionen', () => {
 });
 
 describe('Sourcing – TikTok-Spalten', () => {
-  it('umfasst Link und Follower', () => {
-    expect(TIKTOK_SPALTEN).toEqual(['cp-col-link-tt', 'cp-col-follower-tt']);
+  it('umfasst Link, Follower und die beiden Preis-Spalten', () => {
+    expect(TIKTOK_SPALTEN).toEqual([
+      'cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-preis-tt-video', 'cp-col-preis-tt-story'
+    ]);
   });
 
-  it('blendet genau diese beiden aus, wenn sie vorbelegt sind', () => {
+  it('blendet genau diese vier aus, wenn sie vorbelegt sind', () => {
     for (const col of TIKTOK_SPALTEN) {
       expect(isColumnVisibleForCustomer(col, false, TIKTOK_SPALTEN)).toBe(false);
     }
     expect(isColumnVisibleForCustomer('cp-col-link-ig', false, TIKTOK_SPALTEN)).toBe(true);
   });
 
-  it('reduziert die Spaltenanzahl um zwei', () => {
+  it('reduziert die Spaltenanzahl um vier', () => {
     const mit = getVisibleColumnCount(false, []);
     const ohne = getVisibleColumnCount(false, TIKTOK_SPALTEN);
 
-    expect(mit - ohne).toBe(2);
+    expect(mit - ohne).toBe(4);
   });
 });
 

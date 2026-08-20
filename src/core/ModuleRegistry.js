@@ -313,7 +313,19 @@ export class ModuleRegistry {
       if (module) module._pendingTab = 'contracts';
     }
     
-    if (id && segment === 'briefing' && id !== 'new') {
+    if (segment === 'briefing' && id === 'new') {
+      moduleKey = 'briefing-create';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Briefing-Generator erkannt, verwende Modul: ${moduleKey}`);
+    }
+
+    if (segment === 'briefing' && id && id !== 'new' && action === 'edit') {
+      moduleKey = 'briefing-create';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Briefing-Bearbeitung erkannt, verwende Modul: ${moduleKey} mit ID: ${id}`);
+    }
+
+    if (id && segment === 'briefing' && id !== 'new' && action !== 'edit') {
       moduleKey = 'briefing-detail';
       module = this.modules.get(moduleKey);
       console.log(`🎯 Briefing-Details erkannt, verwende Modul: ${moduleKey}`);
@@ -424,7 +436,10 @@ export class ModuleRegistry {
 
       const effectiveId = id ? id.split('?')[0] : id;
       if (effectiveId === 'new') {
-        if (segment === 'vertraege') {
+        if (segment === 'skripte') {
+          return module.init?.('new');
+        }
+        if (segment === 'vertraege' || segment === 'briefing') {
           return module.init?.();
         }
         if (segment === 'rechnung') {
@@ -441,7 +456,7 @@ export class ModuleRegistry {
       } else if (effectiveId) {
         if (isEditMode) {
           console.log(`✏️ Zeige Edit-Formular für: ${segment}/${id}`);
-          if (segment === 'vertraege' && module && module.init) {
+          if ((segment === 'vertraege' || segment === 'briefing') && module && module.init) {
             return module.init(effectiveId);
           }
           // Fast-Path: Wenn das Modul initForEdit implementiert, diesen direkt nutzen

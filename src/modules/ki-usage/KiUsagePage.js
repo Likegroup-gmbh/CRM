@@ -4,6 +4,8 @@
 // Geschrieben werden die Zeilen von den Netlify Functions (siehe
 // netlify/functions/_shared/ki-log.js), gelesen per RLS nur von Admins.
 
+import { renderEmptyStateRow } from '../../core/components/EmptyState.js';
+
 const FEATURE_LABELS = {
   skript_generierung: 'Skript-Generierung',
   skript_rueckfragen: 'Skript-Rückfragen',
@@ -44,7 +46,7 @@ export class KiUsagePage {
 
     window.setHeadline('KI-Nutzung');
     window.content.innerHTML = `
-      <div class="table-loading-container" style="min-height: 200px;">
+      <div class="table-loading-container table-loading-min">
         <div class="table-loading-spinner"></div>
       </div>
     `;
@@ -128,7 +130,7 @@ export class KiUsagePage {
     }, { kosten: 0, tokens: 0, geblockt: 0, fehler: 0 });
 
     const zeitraumButtons = ZEITRAEUME.map((z) => `
-      <button type="button" class="secondary-btn ki-usage-zeitraum" data-zeitraum="${z.id}"
+      <button type="button" class="mdc-btn mdc-btn--secondary ki-usage-zeitraum" data-zeitraum="${z.id}"
         style="${z.id === this.zeitraum ? 'font-weight:600;text-decoration:underline;' : ''}">
         ${z.label}
       </button>
@@ -143,13 +145,13 @@ export class KiUsagePage {
         : '';
       return `
         <tr>
-          <td style="white-space:nowrap;">${wann}</td>
+          <td class="cell-nowrap">${wann}</td>
           <td>${this.escape(wer)}</td>
           <td>${this.escape(FEATURE_LABELS[r.feature] || r.feature)}</td>
           <td>${this.escape(r.model || '–')}</td>
-          <td style="text-align:right;">${this.formatTokens(r.input_tokens)}</td>
-          <td style="text-align:right;">${this.formatTokens(r.output_tokens)}</td>
-          <td style="text-align:right;white-space:nowrap;">${this.formatKosten(r.cost_eur)}</td>
+          <td class="u-text-right">${this.formatTokens(r.input_tokens)}</td>
+          <td class="u-text-right">${this.formatTokens(r.output_tokens)}</td>
+          <td class="u-text-right cell-nowrap">${this.formatKosten(r.cost_eur)}</td>
           <td><span class="status-badge" style="color:${status.color};"${fehlerHinweis}>${status.label}</span></td>
         </tr>
       `;
@@ -159,11 +161,11 @@ export class KiUsagePage {
       <div class="content-section">
         <div class="page-header">
           <h2 class="page-header-title">KI-Nutzung</h2>
-          <div class="page-header-right" style="display:flex;gap:6px;">
+          <div class="page-header-right ki-usage-header-actions">
             ${zeitraumButtons}
           </div>
         </div>
-        <div style="display:flex;gap:24px;flex-wrap:wrap;margin:12px 0 18px;font-size:0.9rem;">
+        <div class="ki-usage-summary">
           <div><strong>${this.requests.length}</strong> Anfragen${this.requests.length === 500 ? ' (max. 500 geladen)' : ''}</div>
           <div><strong>${this.formatTokens(summe.tokens)}</strong> Tokens</div>
           <div><strong>${this.formatKosten(summe.kosten, 2)}</strong> Kosten</div>
@@ -178,14 +180,14 @@ export class KiUsagePage {
                 <th>Mitarbeiter</th>
                 <th>Bereich</th>
                 <th>Modell</th>
-                <th style="text-align:right;">Tokens in</th>
-                <th style="text-align:right;">Tokens out</th>
-                <th style="text-align:right;">Kosten</th>
+                <th class="u-text-right">Tokens in</th>
+                <th class="u-text-right">Tokens out</th>
+                <th class="u-text-right">Kosten</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
-              ${rows || `<tr><td colspan="8" style="text-align:center;color:var(--text-secondary,#999);padding:24px;">Keine KI-Anfragen im gewählten Zeitraum.</td></tr>`}
+              ${rows || renderEmptyStateRow({ icon: 'info', title: 'Keine KI-Anfragen im gewählten Zeitraum' }, 8)}
             </tbody>
           </table>
         </div>

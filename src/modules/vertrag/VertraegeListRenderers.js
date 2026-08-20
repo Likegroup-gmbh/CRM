@@ -1,6 +1,9 @@
-import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { VertragUtils } from './VertragUtils.js';
 import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { renderTabButton } from '../../core/TabUtils.js';
+import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
+import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 
 const escapeHtml = (text) => {
   if (!text) return '';
@@ -22,7 +25,7 @@ export function renderFoldersView(listViewMode, canEdit) {
           </div>
         </div>
         <div class="table-actions">
-          ${canEdit ? '<button id="btn-vertrag-new" class="primary-btn">Neuen Vertrag anlegen</button>' : ''}
+          ${canEdit ? '<button id="btn-vertrag-new" class="mdc-btn">Neuen Vertrag anlegen</button>' : ''}
         </div>
       </div>
 
@@ -61,13 +64,11 @@ export function updateFoldersGrid(folders) {
   if (!grid) return;
 
   if (!folders || folders.length === 0) {
-    grid.innerHTML = `
-      <div class="empty-state" style="grid-column: 1 / -1; text-align: center; padding: var(--space-xxl);">
-        <div class="empty-icon">📁</div>
-        <h3>Keine Verträge vorhanden</h3>
-        <p>Es wurden noch keine Verträge mit Unternehmen verknüpft.</p>
-      </div>
-    `;
+    grid.innerHTML = `<div class="empty-state-grid-cell">${renderEmptyState({
+      icon: 'folder',
+      title: 'Keine Verträge vorhanden',
+      text: 'Es wurden noch keine Verträge mit Unternehmen verknüpft.'
+    })}</div>`;
     return;
   }
 
@@ -76,9 +77,7 @@ export function updateFoldersGrid(folders) {
       <div class="folder-icon">
         ${folder.logo_url
           ? `<img src="${escapeHtml(folder.logo_url)}" alt="${escapeHtml(folder.firmenname)}" class="folder-logo">`
-          : `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="folder-svg">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
-            </svg>`
+          : `${icon('folder-open')}`
         }
       </div>
       <div class="folder-info">
@@ -87,6 +86,7 @@ export function updateFoldersGrid(folders) {
       </div>
     </div>
   `).join('');
+  fillFoldersGrid(grid);
 }
 
 export function updateUnternehmenListTableBody(folders) {
@@ -94,24 +94,18 @@ export function updateUnternehmenListTableBody(folders) {
   if (!tbody) return;
 
   if (!folders || folders.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="2" class="no-data">
-          <div class="empty-state">
-            <div class="empty-icon">📁</div>
-            <h3>Keine Verträge vorhanden</h3>
-            <p>Es wurden noch keine Verträge mit Unternehmen verknüpft.</p>
-          </div>
-        </td>
-      </tr>
-    `;
+    tbody.innerHTML = renderEmptyStateRow({
+      icon: 'folder',
+      title: 'Keine Verträge vorhanden',
+      text: 'Es wurden noch keine Verträge mit Unternehmen verknüpft.'
+    }, 2);
     return;
   }
 
   tbody.innerHTML = folders.map(folder => `
     <tr class="table-row-clickable unternehmen-row" data-unternehmen-id="${folder.id}" data-unternehmen-name="${escapeHtml(folder.firmenname)}">
       <td>
-        <div style="display: flex; align-items: center; gap: var(--space-sm);">
+        <div class="flex-center-sm">
           ${folder.logo_url
             ? `<img src="${escapeHtml(folder.logo_url)}" alt="${escapeHtml(folder.firmenname)}" class="table-logo">`
             : ''
@@ -140,39 +134,37 @@ export function renderVertraegeView({ isAdmin, canBulkDelete, canEdit }, activeT
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div class="filter-left">
-            <button id="btn-back-to-folders" class="secondary-btn">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-              </svg>
+            <button id="btn-back-to-folders" class="mdc-btn mdc-btn--secondary">
+              ${icon('arrow-left')}
               Zurück
             </button>
             <div id="filter-dropdown-container"></div>
           </div>
         </div>
         <div class="table-actions">
-          ${canBulkDelete ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
-          <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
+          ${canBulkDelete ? `<button id="btn-select-all" class="mdc-btn mdc-btn--secondary">Alle auswählen</button>
+          <button id="btn-deselect-all" class="mdc-btn mdc-btn--secondary" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
-          <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>` : ''}
-          ${canEdit ? '<button id="btn-vertrag-new" class="primary-btn">Neuen Vertrag anlegen</button>' : ''}
+          <button id="btn-delete-selected" class="mdc-btn mdc-btn--delete" style="display:none;">Ausgewählte löschen</button>` : ''}
+          ${canEdit ? '<button id="btn-vertrag-new" class="mdc-btn">Neuen Vertrag anlegen</button>' : ''}
         </div>
       </div>
 
       <div class="tab-navigation vertraege-type-tabs">${typeTabs}</div>
 
       <div class="table-container">
-        <table class="data-table">
+        <table class="data-table data-table--vertraege">
           <thead>
             <tr>
               ${canBulkDelete ? `<th class="col-checkbox"><input type="checkbox" id="select-all-vertraege"></th>` : ''}
               <th class="col-name">Name</th>
-              <th>Status</th>
-              <th>Typ</th>
-              <th>Kampagne</th>
-              <th>Creator</th>
-              <th>Datei</th>
-              <th>Unterschrieben</th>
-              <th>Erstellt am</th>
+              <th class="col-kampagne">Kontext</th>
+              <th class="col-status">Status</th>
+              <th class="col-typ">Typ</th>
+              <th class="col-creator">Creator</th>
+              <th class="col-datei">Datei</th>
+              <th class="col-signed">Unterschrieben</th>
+              <th class="col-erstellt-am">Erstellt am</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
@@ -194,8 +186,6 @@ export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, is
 
   return vertraege.map(vertrag => {
     const creator = vertrag.creator || {};
-    const kampagne = vertrag.kampagne || {};
-
     const creatorName = creator.vorname
       ? `${escapeHtml(creator.vorname)} ${escapeHtml(creator.nachname || '')}`.trim()
       : '-';
@@ -204,26 +194,20 @@ export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, is
 
     const dateiHtml = vertrag.datei_url
       ? `<a href="${escapeHtml(vertrag.datei_url)}" target="_blank" class="datei-link datei-icon" title="PDF anzeigen">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="20" height="20">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-          </svg>
+          ${icon('pdf')}
         </a>`
       : '<span class="text-muted">—</span>';
 
     const signedUrl = vertrag.dropbox_file_url || vertrag.unterschriebener_vertrag_url;
     let unterschriebenHtml;
     if (signedUrl) {
-      unterschriebenHtml = `<a href="${escapeHtml(signedUrl)}" target="_blank" class="contract-signed-action contract-signed-action--open" title="Unterschriebenen Vertrag öffnen">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
-          </svg>
-          Öffnen
+      unterschriebenHtml = `<a href="${escapeHtml(signedUrl)}" target="_blank" class="contract-signed-action contract-signed-action--open" title="Unterschriebenen Vertrag anzeigen">
+          ${icon('eye')}
+          Anzeigen
         </a>`;
     } else if (canEdit) {
       unterschriebenHtml = `<button type="button" class="contract-signed-action contract-signed-action--upload" data-id="${vertrag.id}" title="Unterschriebenen Vertrag hochladen">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/>
-            </svg>
+            ${icon('upload')}
             Hochladen
           </button>`;
     } else {
@@ -240,33 +224,27 @@ export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, is
       <tr class="table-row-clickable" data-vertrag-id="${vertrag.id}" data-vertrag-draft="${vertrag.is_draft ? '1' : '0'}">
         ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="vertraege-check" data-id="${vertrag.id}"></td>` : ''}
         <td class="col-name">
-          <a href="#" class="table-link" data-table="vertrag" data-id="${vertrag.id}">
-            ${escapeHtml(vertrag.name) || '—'}
-          </a>
+          ${VertragUtils.renderVertragNameHtml(vertrag, escapeHtml)}
         </td>
-        <td>${statusBadge}</td>
-        <td>
+        <td class="col-kampagne">
+          ${VertragUtils.renderVertragContextHtml(vertrag, escapeHtml)}
+        </td>
+        <td class="col-status">${statusBadge}</td>
+        <td class="col-typ">
           ${vertrag.typ
             ? `<span class="status-badge ${typClass}">${escapeHtml(vertrag.typ)}</span>`
             : '-'}
         </td>
-        <td>
-          ${kampagne.id ? `
-            <a href="#" class="table-link" data-table="kampagne" data-id="${kampagne.id}">
-              ${escapeHtml(KampagneUtils.getDisplayName(kampagne))}
-            </a>
-          ` : '-'}
-        </td>
-        <td>
+        <td class="col-creator">
           ${creator.id ? `
             <a href="#" class="table-link" data-table="creator" data-id="${creator.id}">
               ${creatorName}
             </a>
           ` : '-'}
         </td>
-        <td>${dateiHtml}</td>
+        <td class="col-datei">${dateiHtml}</td>
         <td class="col-signed">${unterschriebenHtml}</td>
-        <td>${formatDate(vertrag.created_at)}</td>
+        <td class="col-erstellt-am">${formatDate(vertrag.created_at)}</td>
         <td class="col-actions">
           ${actionsHtml}
         </td>
@@ -280,9 +258,7 @@ export function renderVertragActions(vertrag, isAdmin, canEdit, canDelete = isAd
 
   let actions = '';
 
-  const signedIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-    <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
-  </svg>`;
+  const signedIcon = `${icon('link')}`;
 
   const hasSignedUrl = !!(vertrag.dropbox_file_url || vertrag.unterschriebener_vertrag_url);
   const signedActions = hasSignedUrl
@@ -346,9 +322,7 @@ export function renderVertragActions(vertrag, isAdmin, canEdit, canDelete = isAd
   return `
     <div class="actions-dropdown-container" data-entity-type="vertraege">
       <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-        </svg>
+        ${icon('dots-vertical-filled')}
       </button>
       <div class="actions-dropdown">
         ${actions}

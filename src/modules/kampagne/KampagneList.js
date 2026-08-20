@@ -11,6 +11,7 @@ import { debugLog, debounce, bindDragToScroll, destroyDragToScroll } from './Kam
 import { loadKampagnenWithRelations, loadUserPermissions } from './KampagneListDataLoader.js';
 import { renderPageHtml, updateTable } from './KampagneListRenderers.js';
 import { KampagneCreateHandler } from './KampagneCreateHandler.js';
+import { bindEmptyStateActions } from '../../core/components/EmptyState.js';
 
 const createHandler = new KampagneCreateHandler();
 
@@ -253,7 +254,8 @@ export class KampagneList {
 
         this.pagination.updateTotal(totalCount);
         await updateTable(filteredKampagnen, {
-          bindDragToScroll: () => this.bindDragToScroll()
+          bindDragToScroll: () => this.bindDragToScroll(),
+          hasActiveFilters: this.hasActiveFilters()
         });
         this.pagination.render();
       }
@@ -424,6 +426,11 @@ export class KampagneList {
     document.addEventListener('change', this._handlers.globalChange, { signal: this._abortController.signal });
     window.addEventListener('entityUpdated', this._handlers.entityUpdated, { signal: this._abortController.signal });
     window.addEventListener('kampagneUpdated', this._handlers.kampagneUpdated, { signal: this._abortController.signal });
+
+    // Empty-State-Actions (z.B. "Filter zurücksetzen")
+    bindEmptyStateActions(document, {
+      'reset-filters': () => this.onFiltersReset()
+    }, { signal: this._abortController.signal });
   }
 
   hasActiveFilters() {

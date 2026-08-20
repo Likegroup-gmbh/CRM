@@ -4,6 +4,8 @@
 import { PersonDetailBase } from './PersonDetailBase.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 export class KundenDetail extends PersonDetailBase {
   constructor() {
@@ -163,7 +165,7 @@ export class KundenDetail extends PersonDetailBase {
         <div class="tab-pane ${this.activeMainTab === 'unternehmen' ? 'active' : ''}" id="tab-unternehmen">
           <div class="detail-section">
             <div class="section-header">
-              <button class="primary-btn" id="btn-add-unternehmen">Unternehmen hinzufügen</button>
+              <button class="mdc-btn" id="btn-add-unternehmen">Unternehmen hinzufügen</button>
             </div>
             ${this.renderList(this.assignments.unternehmen, 'unternehmen')}
           </div>
@@ -172,7 +174,7 @@ export class KundenDetail extends PersonDetailBase {
         <div class="tab-pane ${this.activeMainTab === 'marken' ? 'active' : ''}" id="tab-marken">
           <div class="detail-section">
             <div class="section-header">
-              <button class="primary-btn" id="btn-add-marke">Marke hinzufügen</button>
+              <button class="mdc-btn" id="btn-add-marke">Marke hinzufügen</button>
             </div>
             ${this.renderList(this.assignments.marken, 'marke')}
           </div>
@@ -199,22 +201,18 @@ export class KundenDetail extends PersonDetailBase {
       ? this.assignments.ansprechpartner.map(ap => {
           const fullName = `${ap.vorname || ''} ${ap.nachname || ''}`.trim() || 'Unbekannt';
           return `
-            <div style="display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) 0;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="var(--color-success)" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+            <div class="table-cell-flex">
+              ${icon('check-circle')}
               <span>Verknüpft mit: </span>
-              <a href="/ansprechpartner/${ap.id}" onclick="event.preventDefault(); window.navigateTo('/ansprechpartner/${ap.id}')" class="table-link" style="font-weight: 500;">
+              <a href="/ansprechpartner/${ap.id}" onclick="event.preventDefault(); window.navigateTo('/ansprechpartner/${ap.id}')" class="table-link fw-500">
                 ${window.validatorSystem.sanitizeHtml(fullName)}
               </a>
             </div>
           `;
         }).join('')
       : `
-        <div style="display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) 0; color: var(--text-secondary);">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
+        <div class="table-cell-flex u-text-secondary">
+          ${icon('information-circle')}
           <span>Keine Ansprechpartner-Verknüpfung</span>
         </div>
       `;
@@ -241,7 +239,7 @@ export class KundenDetail extends PersonDetailBase {
             <thead>
               <tr>
                 <th>Status</th>
-                <th style="width:120px; text-align:right;">Aktiv</th>
+                <th class="col-w120-right">Aktiv</th>
               </tr>
             </thead>
             <tbody>
@@ -249,13 +247,13 @@ export class KundenDetail extends PersonDetailBase {
                 <td>
                   <div>
                     <strong>Benutzer freigeschaltet</strong>
-                    <div class="form-help" style="margin-top: 4px;">
+                    <div class="form-help">
                       ${this.user?.freigeschaltet ? 'Dieser Benutzer ist freigeschaltet.' : 'Dieser Benutzer ist gesperrt oder wartet auf Freischaltung.'}
                     </div>
                   </div>
                 </td>
-                <td style="text-align:right;">
-                  <label class="toggle-label" style="justify-content:flex-end;">
+                <td class="u-text-right">
+                  <label class="toggle-label toggle-label--end">
                     <span class="toggle-switch">
                       <input type="checkbox" id="freigeschaltet-toggle" ${this.user?.freigeschaltet ? 'checked' : ''}>
                       <span class="toggle-slider"></span>
@@ -267,13 +265,13 @@ export class KundenDetail extends PersonDetailBase {
                 <td>
                   <div>
                     <strong>Contracting-Sicht erlaubt</strong>
-                    <div class="form-help" style="margin-top: 4px;">
+                    <div class="form-help">
                       ${this.user?.contracting_sicht ? 'Dieser Kunde kann den Contracts-Bereich sehen.' : 'Contracts-Bereich ist für diesen Kunden nicht sichtbar.'}
                     </div>
                   </div>
                 </td>
-                <td style="text-align:right;">
-                  <label class="toggle-label" style="justify-content:flex-end;">
+                <td class="u-text-right">
+                  <label class="toggle-label toggle-label--end">
                     <span class="toggle-switch">
                       <input type="checkbox" id="contracting-sicht-toggle" ${this.user?.contracting_sicht ? 'checked' : ''}>
                       <span class="toggle-slider"></span>
@@ -304,7 +302,7 @@ export class KundenDetail extends PersonDetailBase {
   }
 
   renderList(items, type) {
-    if (!items || items.length === 0) return '<div class="empty-state"><p>Keine Einträge</p></div>';
+    if (!items || items.length === 0) return renderEmptyState({ icon: 'list', title: 'Keine Einträge' });
     
     const typeLabel = type === 'unternehmen' ? 'Unternehmen' : 'Marke';
     const nameField = type === 'unternehmen' ? 'firmenname' : 'markenname';
@@ -316,7 +314,7 @@ export class KundenDetail extends PersonDetailBase {
             <tr>
               <th>Name</th>
               <th>Erstellt</th>
-              <th style="width: 80px;">Aktionen</th>
+              <th class="col-w80">Aktionen</th>
             </tr>
           </thead>
           <tbody>
@@ -343,7 +341,7 @@ export class KundenDetail extends PersonDetailBase {
 
   renderKampagnenTable() {
     if (!this.assignments.kampagnen || this.assignments.kampagnen.length === 0) {
-      return '<div class="empty-state"><p>Keine Kampagnen verfügbar</p></div>';
+      return renderEmptyState({ icon: 'megaphone', title: 'Keine Kampagnen verfügbar' });
     }
     
     return `
@@ -385,7 +383,7 @@ export class KundenDetail extends PersonDetailBase {
 
   renderKooperationenTable() {
     if (!this.assignments.kooperationen || this.assignments.kooperationen.length === 0) {
-      return '<div class="empty-state"><p>Keine Kooperationen verfügbar</p></div>';
+      return renderEmptyState({ icon: 'handshake', title: 'Keine Kooperationen verfügbar' });
     }
     
     return `
@@ -397,7 +395,7 @@ export class KundenDetail extends PersonDetailBase {
               <th>Kampagne</th>
               <th>Creator</th>
               <th>Status</th>
-              <th style="text-align: right;">Gesamtkosten</th>
+              <th class="u-text-right">Gesamtkosten</th>
             </tr>
           </thead>
           <tbody>
@@ -417,7 +415,7 @@ export class KundenDetail extends PersonDetailBase {
                   <td>${window.validatorSystem.sanitizeHtml(kampagneName)}</td>
                   <td>${window.validatorSystem.sanitizeHtml(creatorName)}</td>
                   <td><span class="status-badge">${window.validatorSystem.sanitizeHtml(k.status || '—')}</span></td>
-                  <td style="text-align: right;">${gesamtkosten}</td>
+                  <td class="u-text-right">${gesamtkosten}</td>
                 </tr>
               `;
             }).join('')}
@@ -432,9 +430,7 @@ export class KundenDetail extends PersonDetailBase {
     return `
       <div class="actions-dropdown-container" data-entity-type="${entityType}">
         <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-          </svg>
+          ${icon('dots-vertical-filled')}
         </button>
         <div class="actions-dropdown">
           <a href="#" class="action-item" data-action="view" data-id="${entityId}">
@@ -646,7 +642,7 @@ export class KundenDetail extends PersonDetailBase {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
-      <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-content">
         <div class="modal-header">
           <h3>Unternehmen zuordnen</h3>
           <button id="close-modal" class="modal-close">&times;</button>
@@ -657,7 +653,7 @@ export class KundenDetail extends PersonDetailBase {
             <input id="unternehmen-search" class="form-input" type="text" placeholder="Firmenname eingeben..." autocomplete="off" />
             <div id="unternehmen-dropdown" class="auto-suggest-dropdown" style="display: none;"></div>
           </div>
-          <div id="selected-unternehmen" class="selected-items" style="margin-top: 10px;"></div>
+          <div id="selected-unternehmen" class="selected-items"></div>
         </div>
         <div class="modal-footer">
           <button id="cancel-zuordnung" class="mdc-btn mdc-btn--cancel">
@@ -792,7 +788,7 @@ export class KundenDetail extends PersonDetailBase {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
-      <div class="modal-content" style="max-width: 500px;">
+      <div class="modal-content">
         <div class="modal-header">
           <h3>Marke zuordnen</h3>
           <button id="close-modal" class="modal-close">&times;</button>
@@ -803,7 +799,7 @@ export class KundenDetail extends PersonDetailBase {
             <input id="marke-search" class="form-input" type="text" placeholder="Markenname eingeben..." autocomplete="off" />
             <div id="marke-dropdown" class="auto-suggest-dropdown" style="display: none;"></div>
           </div>
-          <div id="selected-marke" class="selected-items" style="margin-top: 10px;"></div>
+          <div id="selected-marke" class="selected-items"></div>
         </div>
         <div class="modal-footer">
           <button id="cancel-zuordnung" class="mdc-btn mdc-btn--cancel">

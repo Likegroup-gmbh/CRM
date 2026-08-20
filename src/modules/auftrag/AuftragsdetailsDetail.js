@@ -1,8 +1,12 @@
 // AuftragsdetailsDetail.js (ES6-Modul)
 // Auftragsdetails-Detailseite ohne Tabs - direkte Anzeige der Informationen
 
-import { calculateEkVkTotals, calculateAgencyFeeSummary, renderAgencyFeeCardHtml, renderKskCardHtml, berechneVerfuegbaresBudget } from '../../core/budget/EkVkAgencyFeeHelper.js';
+import { renderAgencyFeeCardHtml, renderKskCardHtml, calculateCreatorPaymentSummary, renderCreatorAnteilCardHtml } from '../../core/budget/EkVkAgencyFeeHelper.js';
+import { calculateBudgetOverview, getBudgetCardVariant } from '../../core/budget/calculateBudgetOverview.js';
 import { summeKskSelbstzahler } from '../../core/budget/kskSelbstzahler.js';
+import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
+import { CHIP_PREFIX_MAP } from '../projekt-erstellen/logic/CampaignBudgetFields.js';
 
 export class AuftragsdetailsDetail {
   constructor() {
@@ -12,6 +16,7 @@ export class AuftragsdetailsDetail {
     this.kampagnen = [];
     this.kooperationen = [];
     this.videos = [];
+    this.rechnungen = [];
     this.rechnungStatusMap = {};
     this.budgetSummary = {
       totalBudget: 0,
@@ -141,6 +146,8 @@ export class AuftragsdetailsDetail {
       if (kampagneIds.length === 0) {
         this.kooperationen = [];
         this.videos = [];
+        this.rechnungen = [];
+        this.rechnungStatusMap = {};
         this.calculateBudgetSummary();
         return;
       }
@@ -190,22 +197,28 @@ export class AuftragsdetailsDetail {
         this.videos = videos || [];
         console.log('✅ AUFTRAGSDETAILSDETAIL: Videos geladen:', this.videos.length);
 
-        // Rechnungsstatus pro Kooperation laden
+        // Rechnungen pro Kooperation laden (Status + Netto für Creatoranteil-Breakdown)
         const { data: rechnungen, error: rechnungError } = await window.supabase
           .from('rechnung')
-          .select('id, status, kooperation_id')
+          .select('id, status, nettobetrag, kooperation_id, rechnungstyp')
           .in('kooperation_id', koopIds);
 
         if (rechnungError) {
           console.warn('⚠️ AUFTRAGSDETAILSDETAIL: Rechnungen konnten nicht geladen werden:', rechnungError);
+          this.rechnungen = [];
           this.rechnungStatusMap = {};
         } else {
-          this.rechnungStatusMap = (rechnungen || []).reduce((acc, r) => {
+          this.rechnungen = rechnungen || [];
+          this.rechnungStatusMap = this.rechnungen.reduce((acc, r) => {
             if (r.kooperation_id) acc[r.kooperation_id] = r.status;
             return acc;
           }, {});
           console.log('✅ AUFTRAGSDETAILSDETAIL: Rechnungsstatus geladen für', Object.keys(this.rechnungStatusMap).length, 'Kooperationen');
         }
+      } else {
+        this.videos = [];
+        this.rechnungen = [];
+        this.rechnungStatusMap = {};
       }
 
       // Berechne Budget-Zusammenfassung
@@ -215,55 +228,29 @@ export class AuftragsdetailsDetail {
       console.error('❌ AUFTRAGSDETAILSDETAIL: Fehler beim Laden der Budget-Daten:', error);
       this.kooperationen = [];
       this.videos = [];
+      this.rechnungen = [];
+      this.rechnungStatusMap = {};
       this.calculateBudgetSummary();
     }
   }
 
-  // Berechne Budget-Zusammenfassung
+  // Berechne Budget-Zusammenfassung (delegiert an geteilte Calc, damit
+  // /stakeholder dieselben Zahlen aggregieren kann)
   calculateBudgetSummary() {
-    // Verfuegbares Budget (read-derived): creator_budget + KSK-Umbuchungen der Selbstzahler
-    const verfuegbaresBudget = berechneVerfuegbaresBudget(this.auftrag, this.kooperationen);
-    this.budgetSummary.totalBudget = verfuegbaresBudget.verfuegbar;
-    this.budgetSummary.kskUmgebucht = verfuegbaresBudget.umgebucht;
-    
-    // Verbrauchtes Budget = Summe aller Video-EK-Netto + KSK-Aufschlaege (Selbstzahler)
-    this.budgetSummary.usedBudget = (this.videos || []).reduce((sum, v) => {
-      return sum + (parseFloat(v.einkaufspreis_netto) || 0);
-    }, 0) + verfuegbaresBudget.umgebucht;
-    
-    // Gesamtanzahl Videos = Summe aller videoanzahl aus Kooperationen
-    this.budgetSummary.totalVideos = this.kooperationen.reduce((sum, koop) => {
-      return sum + (parseInt(koop.videoanzahl, 10) || 0);
-    }, 0);
-    
-    this.budgetSummary.totalCreators = (this.kooperationen || []).filter(k => k.creator?.id).length;
-
-    this.budgetSummary.avgCostPerCreator = this.budgetSummary.totalCreators > 0
-      ? this.budgetSummary.usedBudget / this.budgetSummary.totalCreators
-      : 0;
-
-    this.budgetSummary.usedVkBudget = (this.videos || []).reduce((sum, v) => {
-      return sum + (parseFloat(v.verkaufspreis_netto) || 0);
-    }, 0);
-
-    this.budgetSummary.extraKostenVkSum = (this.kooperationen || []).reduce((sum, k) => {
-      return sum + (parseFloat(k.verkaufspreis_zusatzkosten) || 0);
-    }, 0);
-
-    this.budgetSummary.targetVideos = (this.kampagnen || []).reduce((sum, k) => sum + (k.videoanzahl || 0), 0);
-    this.budgetSummary.targetCreators = (this.kampagnen || []).reduce((sum, k) => sum + (k.creatoranzahl || 0), 0);
-
-    const ekVk = calculateEkVkTotals(this.kooperationen, this.videos);
-    this.budgetSummary.ekSum = ekVk.ekSum;
-    this.budgetSummary.vkSum = ekVk.vkSum;
-    this.budgetSummary.ekVkMarginSum = ekVk.marginSum;
-    this.budgetSummary.ekVkMarginCreatorbudgetPct = this.budgetSummary.totalBudget > 0
-      ? (this.budgetSummary.ekVkMarginSum / this.budgetSummary.totalBudget) * 100
-      : 0;
-
-    this.budgetSummary.agencyFeeSummary = calculateAgencyFeeSummary(this.details, this.kooperationen, this.videos);
+    this.budgetSummary = calculateBudgetOverview({
+      auftrag: this.auftrag,
+      details: this.details,
+      kooperationen: this.kooperationen,
+      videos: this.videos,
+      kampagnen: this.kampagnen
+    });
 
     console.log('✅ AUFTRAGSDETAILSDETAIL: Budget-Zusammenfassung berechnet:', this.budgetSummary);
+  }
+
+  // Bestimmt die Budget-Kachel-Variante (Influencer vs. UGC)
+  getBudgetCardVariant() {
+    return getBudgetCardVariant(this.details);
   }
 
   // Rendere Auftragsdetails-Detailseite
@@ -291,12 +278,12 @@ export class AuftragsdetailsDetail {
     const canViewInternalBudget = window.canSeePricing();
     const sanitize = (v) => window.validatorSystem?.sanitizeHtml(v) || v || '';
 
-    const gesamtNettoBetrag = parseFloat(this.auftrag?.nettobetrag) || 0;
-    const totalBudget = this.budgetSummary.totalBudget;
-    const usedBudget = this.budgetSummary.usedVkBudget || 0;
-    const openBudget = Math.max(0, totalBudget - usedBudget);
-    const budgetPct = totalBudget > 0 ? Math.min(100, Math.round((usedBudget / totalBudget) * 100)) : 0;
-    const openPct = totalBudget > 0 ? Math.max(0, 100 - budgetPct) : 0;
+    const auftragsvolumen = parseFloat(this.auftrag?.nettobetrag) || 0;
+    const verbrauchtesBudget = this.budgetSummary.verbrauchtesBudget || 0;
+    const verfuegbaresBudget = this.budgetSummary.verfuegbaresBudget || 0;
+    const creatorAnteil = this.budgetSummary.creatorAnteil || 0;
+    const budgetPct = auftragsvolumen > 0 ? Math.min(100, Math.round((verbrauchtesBudget / auftragsvolumen) * 100)) : 0;
+    const openPct = auftragsvolumen > 0 ? Math.max(0, 100 - budgetPct) : 0;
 
     const getBudgetColorClass = (pct) => {
       if (pct >= 90) return 'summary-progress-fill--danger';
@@ -316,6 +303,7 @@ export class AuftragsdetailsDetail {
       : [];
 
     const agencyFeeSummary = this.budgetSummary.agencyFeeSummary || {};
+    const creatorPayment = calculateCreatorPaymentSummary(creatorAnteil, this.rechnungen);
 
     const zusatzleistungenCardsHtml = canViewInternalBudget
       ? validExtraServices.map(s => `
@@ -326,46 +314,86 @@ export class AuftragsdetailsDetail {
           `).join('')
       : '';
 
+    const budgetCardVariant = this.getBudgetCardVariant();
+
+    // Influencer-Variante: festgelegtes Creatorbudget, Verbrauch ueber VK-Preise
+    const creatorBudget = this.budgetSummary.totalBudget || 0;
+    const verbrauchtesCreatorBudget = this.budgetSummary.usedVkBudget || 0;
+    const offenesBudget = Math.max(0, creatorBudget - verbrauchtesCreatorBudget);
+    const creatorBudgetPct = creatorBudget > 0 ? Math.min(100, Math.round((verbrauchtesCreatorBudget / creatorBudget) * 100)) : 0;
+    const offenesBudgetPct = creatorBudget > 0 ? Math.max(0, 100 - creatorBudgetPct) : 0;
+
+    const budgetCardsHtml = budgetCardVariant === 'influencer' ? `
+            <div class="summary-card">
+              <div class="summary-value">${formatCurrency(auftragsvolumen)}</div>
+              <div class="summary-label">Gesamt Nettobetrag</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-value">${formatCurrency(creatorBudget)}</div>
+              <div class="summary-label">Creatorbudget</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-value">${formatCurrency(verbrauchtesCreatorBudget)}</div>
+              <div class="summary-label">Verbrauchtes Creatorbudget</div>
+              <div class="summary-progress">
+                <div class="summary-progress-fill ${getBudgetColorClass(creatorBudgetPct)}"
+                     style="width: ${creatorBudgetPct}%">
+                </div>
+              </div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-value">${formatCurrency(offenesBudget)}</div>
+              <div class="summary-label">Offenes Creator Budget</div>
+              <div class="summary-progress">
+                <div class="summary-progress-fill ${getOpenBudgetColorClass(offenesBudgetPct)}"
+                     style="width: ${offenesBudgetPct}%">
+                </div>
+              </div>
+            </div>
+            ${renderKskCardHtml(agencyFeeSummary, formatCurrency)}
+            ${renderAgencyFeeCardHtml(agencyFeeSummary, formatCurrency, { canSeePricing: true })}
+            <div class="summary-card">
+              <div class="summary-value">${formatCurrency(this.budgetSummary.extraKostenVkSum || 0)}</div>
+              <div class="summary-label">Zusatzkosten</div>
+            </div>
+            ${zusatzleistungenCardsHtml}` : `
+            <div class="summary-card">
+              <div class="summary-value">${formatCurrency(auftragsvolumen)}</div>
+              <div class="summary-label">Auftragsvolumen</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-value">${formatCurrency(verfuegbaresBudget)}</div>
+              <div class="summary-label">Verfügbares Budget</div>
+              <div class="summary-progress">
+                <div class="summary-progress-fill ${getOpenBudgetColorClass(openPct)}"
+                     style="width: ${openPct}%">
+                </div>
+              </div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-value">${formatCurrency(verbrauchtesBudget)}</div>
+              <div class="summary-label">Verbrauchtes Budget</div>
+              <div class="summary-progress">
+                <div class="summary-progress-fill ${getBudgetColorClass(budgetPct)}"
+                     style="width: ${budgetPct}%">
+                </div>
+              </div>
+            </div>
+            ${renderCreatorAnteilCardHtml(creatorAnteil, creatorPayment, formatCurrency)}
+            ${renderAgencyFeeCardHtml(agencyFeeSummary, formatCurrency, { canSeePricing: true })}
+            ${renderKskCardHtml(agencyFeeSummary, formatCurrency)}
+            <div class="summary-card">
+              <div class="summary-value">${formatCurrency(this.budgetSummary.extraKostenVkSum || 0)}</div>
+              <div class="summary-label">Zusatzkosten</div>
+            </div>
+            ${zusatzleistungenCardsHtml}`;
+
     return `
       <div class="detail-section">
         <!-- Budget-Kacheln -->
         <div class="auftragsdetails-summary">
           <div class="summary-cards">
-            ${canViewInternalBudget ? `
-            <div class="summary-card">
-              <div class="summary-value">${formatCurrency(gesamtNettoBetrag)}</div>
-              <div class="summary-label">Gesamt Nettobetrag</div>
-            </div>
-            <div class="summary-card">
-              <div class="summary-value">${formatCurrency(totalBudget)}</div>
-              <div class="summary-label">Creatorbudget</div>
-            </div>
-            <div class="summary-card">
-              <div class="summary-value">${formatCurrency(usedBudget)}</div>
-              <div class="summary-label">Verbrauchtes Creatorbudget</div>
-              <div class="summary-progress">
-                <div class="summary-progress-fill ${getBudgetColorClass(budgetPct)}" 
-                     style="width: ${budgetPct}%">
-                </div>
-              </div>
-            </div>
-            <div class="summary-card">
-              <div class="summary-value">${formatCurrency(openBudget)}</div>
-              <div class="summary-label">Offenes Budget</div>
-              <div class="summary-progress">
-                <div class="summary-progress-fill ${getOpenBudgetColorClass(openPct)}" 
-                     style="width: ${openPct}%">
-                </div>
-              </div>
-            </div>
-            ${zusatzleistungenCardsHtml}
-            ${renderKskCardHtml(agencyFeeSummary, formatCurrency)}
-            ${renderAgencyFeeCardHtml(agencyFeeSummary, formatCurrency, { canSeePricing: true })}
-            <div class="summary-card">
-              <div class="summary-value">${formatCurrency(this.budgetSummary.extraKostenVkSum || 0)}</div>
-              <div class="summary-label">Extra Kosten</div>
-            </div>
-            ` : ''}
+            ${canViewInternalBudget ? budgetCardsHtml : ''}
             ${!canViewInternalBudget ? renderAgencyFeeCardHtml(agencyFeeSummary, formatCurrency, { canSeePricing: false }) : ''}
           </div>
         </div>
@@ -380,7 +408,7 @@ export class AuftragsdetailsDetail {
         ${this.renderKampagnenTable()}
 
         <!-- Gebuchte Creator & Videos Cards -->
-        <div class="auftragsdetails-summary" style="margin-top: var(--space-lg);">
+        <div class="auftragsdetails-summary u-mt-lg">
           <div class="summary-cards">
             <div class="summary-card">
               <div class="summary-value">${num(this.budgetSummary.totalCreators)} von ${num(this.budgetSummary.targetCreators)}</div>
@@ -406,12 +434,13 @@ export class AuftragsdetailsDetail {
   renderKampagnenTable() {
     if (!this.kampagnen || this.kampagnen.length === 0) {
       return `
-        <div class="detail-section" style="margin-top: var(--space-lg);">
+        <div class="detail-section u-mt-lg">
           <h3 class="section-title section-title--spaced">Kampagnen</h3>
-          <div class="empty-state">
-            <h3>Keine Kampagnen vorhanden</h3>
-            <p>Für diesen Auftrag wurden noch keine Kampagnen angelegt.</p>
-          </div>
+          ${renderEmptyState({
+            icon: 'megaphone',
+            title: 'Keine Kampagnen vorhanden',
+            text: 'Für diesen Auftrag wurden noch keine Kampagnen angelegt.'
+          })}
         </div>
       `;
     }
@@ -462,7 +491,7 @@ export class AuftragsdetailsDetail {
     }).join('');
 
     return `
-      <div class="detail-section" style="margin-top: var(--space-lg);">
+      <div class="detail-section u-mt-lg">
         <h3 class="section-title section-title--spaced">Kampagnen</h3>
         <div class="data-table-container">
           <table class="data-table">
@@ -481,7 +510,7 @@ export class AuftragsdetailsDetail {
               ${rowsHtml}
             </tbody>
             <tfoot>
-              <tr style="font-weight: 600;">
+              <tr class="fw-600">
                 <td>Gesamt</td>
                 <td class="text-center">${totalKoops}</td>
                 <td class="text-center">${totalVideos}</td>
@@ -532,7 +561,7 @@ export class AuftragsdetailsDetail {
     }).join('');
 
     return `
-      <div class="detail-section" style="margin-top: var(--space-lg);">
+      <div class="detail-section u-mt-lg">
         <h3 class="section-title section-title--spaced">Zusatzleistungen</h3>
         <div class="data-table-container">
           <table class="data-table">
@@ -547,7 +576,7 @@ export class AuftragsdetailsDetail {
             </tbody>
             ${showAmount ? `
             <tfoot>
-              <tr style="font-weight: 600;">
+              <tr class="fw-600">
                 <td>Gesamt</td>
                 <td class="text-right">${formatCurrency(total)}</td>
               </tr>
@@ -583,71 +612,15 @@ export class AuftragsdetailsDetail {
     const auftragStart = formatDate(this.auftrag?.start);
     const auftragEnde = formatDate(this.auftrag?.ende);
 
-    const hasValue = (value) => value !== null && value !== undefined && value !== '';
-    const hasDataForPrefix = (prefix, hasVideographen = false) => {
-      const fields = [
-        `${prefix}_video_anzahl`,
-        `${prefix}_bilder_anzahl`,
-        `${prefix}_creator_anzahl`,
-        `${prefix}_budget_info`,
-        `${prefix}_einkaufspreis_netto_von`,
-        `${prefix}_einkaufspreis_netto_bis`,
-        `${prefix}_verkaufspreis_netto_von`,
-        `${prefix}_verkaufspreis_netto_bis`
-      ];
+    // Im Wizard gewaehlte Kampagnenarten (Slugs) auf Section-Prefixe mappen,
+    // damit sie auch ohne gepflegte Werte als Zeile erscheinen.
+    const selectedChips = Array.isArray(details.campaign_type) ? details.campaign_type : [];
+    const selectedPrefixes = new Set(
+      selectedChips.map(chip => CHIP_PREFIX_MAP[chip]).filter(Boolean)
+    );
 
-      if (hasVideographen) fields.push(`${prefix}_videographen_anzahl`);
-      return fields.some(field => hasValue(details[field]));
-    };
-
-    const newUgcSections = [
-      {
-        title: 'UGC Pro Paid',
-        prefix: 'ugc_pro_paid',
-        color: '#28a745',
-        hasVideographen: false
-      },
-      {
-        title: 'UGC Pro Organic',
-        prefix: 'ugc_pro_organic',
-        color: '#17a2b8',
-        hasVideographen: false
-      },
-      {
-        title: 'UGC Video Paid',
-        prefix: 'ugc_video_paid',
-        color: '#6f42c1',
-        hasVideographen: false
-      },
-      {
-        title: 'UGC Video Organic',
-        prefix: 'ugc_video_organic',
-        color: '#fd7e14',
-        hasVideographen: false
-      }
-    ];
-
-    const legacyUgcSections = [
-      {
-        title: 'UGC',
-        prefix: 'ugc',
-        color: '#28a745',
-        hasVideographen: false
-      },
-      {
-        title: 'IGC',
-        prefix: 'igc',
-        color: '#17a2b8',
-        hasVideographen: false
-      }
-    ];
-
-    const hasNewUgcData = newUgcSections.some(section => hasDataForPrefix(section.prefix, section.hasVideographen));
-    const ugcSections = hasNewUgcData ? newUgcSections : legacyUgcSections;
-
-    // Daten für die Tabelle vorbereiten (hybrid: neue UGC-Kategorien mit Legacy-Fallback)
+    // Daten für die Tabelle vorbereiten (kanonische Kampagnenarten seit der Zusammenführung 2026-08)
     const sections = [
-      ...ugcSections,
       {
         title: 'UGC Paid',
         prefix: 'ugc_paid',
@@ -667,7 +640,7 @@ export class AuftragsdetailsDetail {
         hasVideographen: false
       },
       {
-        title: 'Story',
+        title: 'Influencer Story',
         prefix: 'story',
         color: '#e83e8c',
         hasVideographen: false
@@ -691,8 +664,9 @@ export class AuftragsdetailsDetail {
       const verkaufspreisVon = details[`${section.prefix}_verkaufspreis_netto_von`];
       const verkaufspreisBis = details[`${section.prefix}_verkaufspreis_netto_bis`];
 
-      // Zeige nur Zeilen mit Daten
-      if (!videoAnzahl && !bilderAnzahl && !creatorAnzahl && !videographenAnzahl && !budgetInfo && !einkaufspreisVon && !einkaufspreisBis && !verkaufspreisVon && !verkaufspreisBis) {
+      // Gewaehlte Kampagnenarten immer zeigen, sonst nur Zeilen mit Daten
+      const isSelected = selectedPrefixes.has(section.prefix);
+      if (!isSelected && !videoAnzahl && !bilderAnzahl && !creatorAnzahl && !videographenAnzahl && !budgetInfo && !einkaufspreisVon && !einkaufspreisBis && !verkaufspreisVon && !verkaufspreisBis) {
         return '';
       }
 
@@ -734,17 +708,13 @@ export class AuftragsdetailsDetail {
 
     if (!tableRows) {
       return `
-        <div class="data-table-container" style="margin-top: var(--space-lg);">
+        <div class="data-table-container u-mt-lg">
           <table class="data-table auftragsdetails-table">
             <thead>
               <tr>${kategorienHeader}</tr>
             </thead>
             <tbody>
-              <tr>
-                <td colspan="${kategorienColspan}" class="no-data">
-                  Keine Produktionsdetails vorhanden
-                </td>
-              </tr>
+              ${renderEmptyStateRow({ icon: 'cube', title: 'Keine Produktionsdetails vorhanden' }, kategorienColspan)}
             </tbody>
           </table>
         </div>
@@ -752,7 +722,7 @@ export class AuftragsdetailsDetail {
     }
 
     return `
-      <div class="data-table-container" style="margin-top: var(--space-lg);">
+      <div class="data-table-container u-mt-lg">
         <table class="data-table auftragsdetails-table">
           <thead>
             <tr>${kategorienHeader}</tr>
@@ -768,12 +738,11 @@ export class AuftragsdetailsDetail {
   // Rendere Creator & Videos Tabelle
   renderCreatorVideosTable() {
     if (!this.kooperationen || this.kooperationen.length === 0) {
-      return `
-        <div class="empty-state">
-          <h3>Keine Kooperationen vorhanden</h3>
-          <p>Für diesen Auftrag wurden noch keine Kooperationen mit Creator und Videos angelegt.</p>
-        </div>
-      `;
+      return renderEmptyState({
+        icon: 'handshake',
+        title: 'Keine Kooperationen vorhanden',
+        text: 'Für diesen Auftrag wurden noch keine Kooperationen mit Creator und Videos angelegt.'
+      });
     }
 
     // Erstelle eine Liste aller Videos mit Creator-Informationen
@@ -829,12 +798,13 @@ export class AuftragsdetailsDetail {
 
     if (videoRows.length === 0) {
       return `
-        <div style="margin-top: var(--space-xl);">
-          <h3 style="margin-bottom: var(--space-md);">Creator & Videos Übersicht</h3>
-          <div class="empty-state">
-            <h3>Keine Videos vorhanden</h3>
-            <p>Für diesen Auftrag wurden noch keine Videos angelegt.</p>
-          </div>
+        <div class="u-mt-xl">
+          <h3 class="u-mb-md">Creator & Videos Übersicht</h3>
+          ${renderEmptyState({
+            icon: 'video',
+            title: 'Keine Videos vorhanden',
+            text: 'Für diesen Auftrag wurden noch keine Videos angelegt.'
+          })}
         </div>
       `;
     }
@@ -864,9 +834,7 @@ export class AuftragsdetailsDetail {
       const videoHtml = row.videoLink
         ? `<a href="${sanitize(row.videoLink)}" target="_blank" rel="noopener noreferrer" class="table-link">
              ${sanitize(videoDisplayName)}
-             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="14" height="14" style="vertical-align: middle; margin-left: 4px;">
-               <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-             </svg>
+             ${icon('external-link', { className: 'icon-14' })}
            </a>`
         : (videoDisplayName && videoDisplayName !== '-' ? sanitize(videoDisplayName) : '-');
       
@@ -972,8 +940,14 @@ export class AuftragsdetailsDetail {
 
   // Berechne Budget Progress-Prozentsatz
   getBudgetProgressPercentage() {
-    if (this.budgetSummary.totalBudget <= 0) return 0;
-    return Math.min(100, Math.round((this.budgetSummary.usedVkBudget / this.budgetSummary.totalBudget) * 100));
+    if (this.getBudgetCardVariant() === 'influencer') {
+      const creatorBudget = this.budgetSummary.totalBudget || 0;
+      if (creatorBudget <= 0) return 0;
+      return Math.min(100, Math.round(((this.budgetSummary.usedVkBudget || 0) / creatorBudget) * 100));
+    }
+    const auftragsvolumen = parseFloat(this.auftrag?.nettobetrag) || 0;
+    if (auftragsvolumen <= 0) return 0;
+    return Math.min(100, Math.round(((this.budgetSummary.verbrauchtesBudget || 0) / auftragsvolumen) * 100));
   }
 
   // Bestimme Farbe für Budget Progress-Bar

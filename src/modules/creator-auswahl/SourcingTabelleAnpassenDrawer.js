@@ -193,8 +193,8 @@ export class SourcingTabelleAnpassenDrawer {
       const isVisible = !this.hiddenColumns.includes(col.className);
       return `
         <tr>
-          <td style="text-align: left;">${escapeHtml(col.label)}</td>
-          <td style="text-align: right;">
+          <td class="u-text-left">${escapeHtml(col.label)}</td>
+          <td class="u-text-right">
             <label class="toggle-switch">
               <input
                 type="checkbox"
@@ -218,8 +218,8 @@ export class SourcingTabelleAnpassenDrawer {
         <table class="data-table">
           <thead>
             <tr>
-              <th style="text-align: left;">Spalte</th>
-              <th style="text-align: right;">Sichtbar</th>
+              <th class="u-text-left">Spalte</th>
+              <th class="u-text-right">Sichtbar</th>
             </tr>
           </thead>
           <tbody id="sourcing-tabelle-anpassen-spalten">
@@ -231,7 +231,7 @@ export class SourcingTabelleAnpassenDrawer {
         <strong>Hinweis:</strong> Die Spalten "Name" und "Aktionen" sind immer sichtbar und können nicht ausgeblendet werden.
       </p>
       <div class="drawer-footer">
-        <button type="button" class="primary-btn" id="btn-close-sourcing-tabelle-anpassen-drawer">
+        <button type="button" class="mdc-btn" id="btn-close-sourcing-tabelle-anpassen-drawer">
           Fertig
         </button>
       </div>

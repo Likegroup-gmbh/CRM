@@ -96,7 +96,7 @@ export class AgencyServicesBlock {
         </div>
         <div id="pe-extras-body" style="${d.extra_services_enabled ? '' : 'display:none;'}">
           <div class="projekt-erstellen-extras-toolbar">
-            <button type="button" class="secondary-btn" id="pe-extra-add-btn">+ Leistung hinzufügen</button>
+            <button type="button" class="mdc-btn mdc-btn--secondary" id="pe-extra-add-btn">+ Leistung hinzufügen</button>
           </div>
           <div id="pe-extra-list">
             ${rows || '<small class="projekt-erstellen-empty-note">Noch keine Zusatzleistung angelegt.</small>'}

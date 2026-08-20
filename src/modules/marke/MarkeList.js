@@ -14,6 +14,7 @@ import { MarkeFilterLogic } from './filters/MarkeFilterLogic.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { MarkeService } from './services/MarkeService.js';
 import { safeExternalUrl } from '../../core/UrlHelper.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 export class MarkeList extends BasePaginatedList {
   constructor() {
@@ -32,9 +33,24 @@ export class MarkeList extends BasePaginatedList {
     
     // Alias für Kompatibilität
     this.selectedMarken = this.selectedItems;
-    
+
     // Erlaubte IDs (kein lokaler Cache - wird über MarkeService geladen)
     this._lastAllowedMarkeIds = null;
+  }
+
+  /**
+   * Empty-State der Liste (ohne aktive Filter)
+   */
+  getEmptyState() {
+    const canEdit = window.isAdmin?.() || window.currentUser?.permissions?.marke?.can_edit;
+    return {
+      icon: 'tag',
+      title: 'Keine Marken vorhanden',
+      text: canEdit
+        ? 'Legen Sie Ihre erste Marke an, um loszulegen.'
+        : 'Es sind noch keine Marken für Sie freigegeben.',
+      actionsHtml: canEdit ? '<button id="btn-marke-new" class="mdc-btn">Neue Marke anlegen</button>' : ''
+    };
   }
   
   // ══════════════════════════════════════════════════════════════════════════
@@ -181,7 +197,7 @@ export class MarkeList extends BasePaginatedList {
         </td>
         <td>${this.renderUnternehmen(marke.unternehmen)}</td>
         <td>${this.renderAnsprechpartner(marke.ansprechpartner)}</td>
-        <td class="col-webseite table-cell-center">${marke.webseite ? `<a href="${safeExternalUrl(marke.webseite)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${marke.webseite}"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>` : '-'}</td>
+        <td class="col-webseite table-cell-center">${marke.webseite ? `<a href="${safeExternalUrl(marke.webseite)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${marke.webseite}">${icon('external-link')}</a>` : '-'}</td>
         <td>${this.renderBranchen(marke.branchen)}</td>
         <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(management)}</td>
         <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(leads)}</td>
@@ -213,10 +229,10 @@ export class MarkeList extends BasePaginatedList {
           </div>
         </div>
         <div class="table-actions">
-          ${canBulkDelete ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
-          <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
+          ${canBulkDelete ? `<button id="btn-select-all" class="mdc-btn mdc-btn--secondary">Alle auswählen</button>
+          <button id="btn-deselect-all" class="mdc-btn mdc-btn--secondary" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>` : ''}
-          ${canEdit ? '<button id="btn-marke-new" class="primary-btn">Neue Marke anlegen</button>' : ''}
+          ${canEdit ? '<button id="btn-marke-new" class="mdc-btn">Neue Marke anlegen</button>' : ''}
         </div>
       </div>
 
@@ -299,8 +315,7 @@ export class MarkeList extends BasePaginatedList {
 
     await TableAnimationHelper.animatedUpdate(tbody, async () => {
       if (!marken || marken.length === 0) {
-        const { renderEmptyState } = await import('../../core/FilterUI.js');
-        renderEmptyState(tbody);
+        this.renderEmptyTable(tbody);
         return;
       }
 

@@ -26,8 +26,10 @@ VertraegeCreate.prototype.renderAgenturSection = function() {
     const vertreten = !!this.formData.influencer_agentur_vertreten;
 
     return `
-      <div id="agentur-section-container">
-        <h3 class="mt-section">Management-Vertretung</h3>
+      <div id="agentur-section-container" class="step-section">
+        <div class="step-section__header">
+          <h3>Management-Vertretung</h3>
+        </div>
 
         <div class="form-field">
           <label>Wird der Influencer durch ein Management vertreten?</label>
@@ -53,13 +55,13 @@ VertraegeCreate.prototype.renderAgenturSection = function() {
                    placeholder="Name des Managements">
           </div>
           <div class="form-field-row">
-            <div class="form-field" style="flex: 1;">
+            <div class="form-field flex-1">
               <label for="influencer_agentur_strasse">Straße</label>
               <input type="text" id="influencer_agentur_strasse" name="influencer_agentur_strasse"
                      value="${this.formData.influencer_agentur_strasse || ''}"
                     >
             </div>
-            <div class="form-field" style="flex: 0 0 100px;">
+            <div class="form-field agentur-field-nr">
               <label for="influencer_agentur_hausnummer">Nr.</label>
               <input type="text" id="influencer_agentur_hausnummer" name="influencer_agentur_hausnummer"
                      value="${this.formData.influencer_agentur_hausnummer || ''}"
@@ -67,13 +69,13 @@ VertraegeCreate.prototype.renderAgenturSection = function() {
             </div>
           </div>
           <div class="form-field-row">
-            <div class="form-field" style="flex: 0 0 120px;">
+            <div class="form-field agentur-field-plz">
               <label for="influencer_agentur_plz">PLZ</label>
               <input type="text" id="influencer_agentur_plz" name="influencer_agentur_plz"
                      value="${this.formData.influencer_agentur_plz || ''}"
                     >
             </div>
-            <div class="form-field" style="flex: 1;">
+            <div class="form-field flex-1">
               <label for="influencer_agentur_stadt">Stadt</label>
               <input type="text" id="influencer_agentur_stadt" name="influencer_agentur_stadt"
                      value="${this.formData.influencer_agentur_stadt || ''}"
@@ -113,13 +115,15 @@ VertraegeCreate.prototype._renderAgenturSectionWithDropdown = function(managemen
     const f = this.formData;
 
     return `
-      <div id="agentur-section-container">
-        <h3 class="mt-section">Management-Vertretung</h3>
+      <div id="agentur-section-container" class="step-section">
+        <div class="step-section__header">
+          <h3>Management-Vertretung</h3>
+        </div>
 
-        <div class="agentur-hint" style="margin-bottom: 12px; padding: 10px 12px; border-radius: 6px; background: #eef4ff; border: 1px solid #c9ddff; color: #1d4ed8; font-size: 13px; display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+        <div class="agentur-hint">
           <span>Der Influencer wird durch ein Management vertreten. Die Auswahl bestimmt die Vertretungsdaten${nurMgmt ? ' und die Vertragsadresse' : ''}.</span>
           <a href="${mgmtLink}" onclick="event.preventDefault(); window.navigateTo('${mgmtLink}')"
-             class="btn btn-sm" style="padding: 6px 12px; border-radius: 4px; border: 1px solid #1d4ed8; background: #fff; color: #1d4ed8; cursor: pointer; font-size: 12px; white-space: nowrap; text-decoration: none;">
+             class="mdc-btn mdc-btn--sm agentur-hint-btn">
             Management ansehen
           </a>
         </div>
@@ -132,7 +136,7 @@ VertraegeCreate.prototype._renderAgenturSectionWithDropdown = function(managemen
         </div>
 
         <div class="form-field">
-          <label class="checkbox-option" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+          <label class="checkbox-label agentur-checkbox-label">
             <input type="checkbox" id="nur_management_adresse" name="nur_management_adresse" value="true" ${nurMgmt ? 'checked' : ''}>
             <span>Nur Management-Adresse verwenden (Influencer-Adresse im Vertrag ausblenden)</span>
           </label>
@@ -145,24 +149,24 @@ VertraegeCreate.prototype._renderAgenturSectionWithDropdown = function(managemen
                    value="${escapeAttr(f.influencer_agentur_name || '')}" readonly disabled class="readonly-field">
           </div>
           <div class="form-field-row">
-            <div class="form-field" style="flex: 1;">
+            <div class="form-field flex-1">
               <label for="influencer_agentur_strasse">Straße</label>
               <input type="text" id="influencer_agentur_strasse" name="influencer_agentur_strasse"
                      value="${escapeAttr(f.influencer_agentur_strasse || '')}" readonly disabled class="readonly-field">
             </div>
-            <div class="form-field" style="flex: 0 0 100px;">
+            <div class="form-field agentur-field-nr">
               <label for="influencer_agentur_hausnummer">Nr.</label>
               <input type="text" id="influencer_agentur_hausnummer" name="influencer_agentur_hausnummer"
                      value="${escapeAttr(f.influencer_agentur_hausnummer || '')}" readonly disabled class="readonly-field">
             </div>
           </div>
           <div class="form-field-row">
-            <div class="form-field" style="flex: 0 0 120px;">
+            <div class="form-field agentur-field-plz">
               <label for="influencer_agentur_plz">PLZ</label>
               <input type="text" id="influencer_agentur_plz" name="influencer_agentur_plz"
                      value="${escapeAttr(f.influencer_agentur_plz || '')}" readonly disabled class="readonly-field">
             </div>
-            <div class="form-field" style="flex: 1;">
+            <div class="form-field flex-1">
               <label for="influencer_agentur_stadt">Stadt</label>
               <input type="text" id="influencer_agentur_stadt" name="influencer_agentur_stadt"
                      value="${escapeAttr(f.influencer_agentur_stadt || '')}" readonly disabled class="readonly-field">

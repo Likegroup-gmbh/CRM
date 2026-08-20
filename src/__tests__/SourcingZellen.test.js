@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { renderItemRow } from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
-import { CREATOR_TYP_OPTIONS, CREATOR_TYP_SELECT_OPTIONS } from '../modules/creator-auswahl/creatorTypeOptions.js';
+import {
+  CREATOR_TYP_OPTIONS,
+  CREATOR_TYP_SELECT_OPTIONS,
+  canonicalizeCreatorTyp
+} from '../modules/creator-auswahl/creatorTypeOptions.js';
 import { createSourcingIgToolbarConfig } from '../modules/creator-auswahl/sourcingIgToolbarConfig.js';
 import {
   applySourcingIgCellState, SOURCING_IG_TOOLBAR
@@ -226,5 +230,33 @@ describe('Sourcing – Creator Art als TableSelect', () => {
 
     expect(cell.querySelector('.table-select')).toBeNull();
     expect(cell.querySelector('.cell-text-readonly').textContent.trim()).toBe('Model');
+  });
+});
+
+describe('Sourcing – Creator Art kanonisieren', () => {
+  it('laesst kanonische Werte unveraendert', () => {
+    for (const typ of CREATOR_TYP_OPTIONS) {
+      expect(canonicalizeCreatorTyp(typ)).toBe(typ);
+    }
+  });
+
+  it('mappt Legacy-Typen aus dem Kampagnenarten-Merge', () => {
+    expect(canonicalizeCreatorTyp('UGC Pro Paid')).toBe('UGC Paid');
+    expect(canonicalizeCreatorTyp('UGC Video Paid')).toBe('UGC Paid');
+    expect(canonicalizeCreatorTyp('UGC Pro Organic')).toBe('UGC Organic');
+    expect(canonicalizeCreatorTyp('UGC Video Organic')).toBe('UGC Organic');
+    expect(canonicalizeCreatorTyp('UGC')).toBe('UGC Organic');
+    expect(canonicalizeCreatorTyp('IGC')).toBe('UGC Organic');
+  });
+
+  it('normalisiert Leerzeichen und Leerwerte', () => {
+    expect(canonicalizeCreatorTyp('  Influencer  ')).toBe('Influencer');
+    expect(canonicalizeCreatorTyp('')).toBeNull();
+    expect(canonicalizeCreatorTyp(null)).toBeNull();
+    expect(canonicalizeCreatorTyp(undefined)).toBeNull();
+  });
+
+  it('laesst unbekannte Werte zur Validierung durch', () => {
+    expect(canonicalizeCreatorTyp('Foo')).toBe('Foo');
   });
 });

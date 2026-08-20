@@ -6,10 +6,12 @@ import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { VertragUtils } from '../vertrag/VertragUtils.js';
 import { renderMarkeBubble, renderPersonBubble } from './UnternehmenDetailRendererHelpers.js';
 import { renderStrategiebriefing as renderStrategiebriefingShared, bindStrategiebriefingCreateButton } from '../kickoff/StrategiebriefingRenderer.js';
 import { getPaymentRowStatusClass } from '../auftrag/logic/PaymentRowStatus.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
 
 export function renderStrategien(detail) {
   if (!detail.strategien || detail.strategien.length === 0) {
@@ -55,7 +57,7 @@ export function renderStrategien(detail) {
 export function renderCreatorAuswahl(detail) {
   if (!detail.creatorAuswahlen || detail.creatorAuswahlen.length === 0) {
     return renderEmptyState({
-      icon: 'users',
+      icon: 'creator',
       title: 'Keine Creator-Auswahlen vorhanden',
       text: 'Es wurden noch keine Creator-Auswahlen für dieses Unternehmen erstellt.'
     });
@@ -146,9 +148,9 @@ export function renderKooperationen(detail) {
 export function renderCreators(detail) {
   if (!detail.creators || detail.creators.length === 0) {
     return renderEmptyState({
-      icon: 'users',
+      icon: 'creator',
       title: 'Keine Creator vorhanden',
-      text: 'Es gibt keine Creator in Kooperationen für dieses Unternehmen.'
+      text: 'Es gibt keine Creator für dieses Unternehmen.'
     });
   }
   return renderCreatorTable(detail.creators);
@@ -172,7 +174,7 @@ export function renderAnsprechpartner(detail) {
         <a href="#" class="table-link" data-table="ansprechpartner" data-id="${ap.id}">
           ${detail.sanitize(ap.vorname)} ${detail.sanitize(ap.nachname)}
         </a>
-        ${ap.ist_verknuepft ? `<span class="tag tag--verknuepft" title="verknüpft"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="tag--verknuepft-icon"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></svg></span>` : ''}
+        ${ap.ist_verknuepft ? `<span class="tag tag--verknuepft" title="verknüpft">${icon('link')}</span>` : ''}
       </td>
       <td>${detail.sanitize(ap.position?.name) || '-'}</td>
       <td>${ap.email ? `<a href="mailto:${ap.email}">${detail.sanitize(ap.email)}</a>` : '-'}</td>
@@ -231,7 +233,7 @@ export function renderRechnungen(detail) {
     }]) : '-';
     return `
     <tr>
-      <td><a href="/rechnung/${r.id}" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${detail.sanitize(r.rechnung_nr || '—')}</a></td>
+      <td><a href="/rechnung/${r.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/rechnung/${r.id}')">${detail.sanitize(r.rechnung_nr || '—')}</a></td>
       <td><span class="status-badge ${r.rechnungstyp === 'contracting' ? 'status-gestellt' : 'status-beauftragt'}">${r.rechnungstyp === 'contracting' ? 'Contracting' : 'Kampagne'}</span></td>
       <td>${r.auftrag ? `<a href="#" class="table-link" data-table="auftrag" data-id="${r.auftrag.id}">${detail.sanitize(r.auftrag.auftragsname || '-')}</a>` : '-'}</td>
       <td>${detail.sanitize(r.po_nummer) || '-'}</td>
@@ -245,7 +247,7 @@ export function renderRechnungen(detail) {
       <td>${r.videoanzahl || '-'}</td>
       <td>${preisProVideo}</td>
       <td>${detail.formatCurrency(r.bruttobetrag)}</td>
-      <td>${r.rechnung_pdfs && r.rechnung_pdfs.length > 0 ? r.rechnung_pdfs.map((p, i) => `<a href="${p.file_url || p.open_url}" target="_blank" rel="noopener">PDF${r.rechnung_pdfs.length > 1 ? ' ' + (i + 1) : ''}</a>`).join(' ') : (r.pdf_url ? `<a href="${r.pdf_url}" target="_blank" rel="noopener">PDF</a>` : '-')}</td>
+      <td>${renderPdfLinks(r.rechnung_pdfs, r.pdf_url)}</td>
       <td>${r.status || '-'}</td>
       ${!isKunde ? `<td>${renderPersonBubble(detail, r.created_by)}</td>` : ''}
       ${!isKunde ? `<td>${actionBuilder.create('rechnung', r.id)}</td>` : ''}
@@ -295,8 +297,8 @@ export function renderKundenrechnungen(detail) {
   const formatDate = (d) => detail.formatDate(d);
   const formatCurrency = (v) => detail.formatCurrency(v);
   const formatZahlungsziel = (tage) => tage ? `${tage} Tage` : '-';
-  const checkIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="var(--success-color, #16a34a)" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>`;
-  const uncheckIcon = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="var(--text-muted, #9ca3af)" width="18" height="18"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>`;
+  const checkIcon = `${icon('check-bold')}`;
+  const uncheckIcon = `${icon('x-mark')}`;
 
   const rows = detail.kundenrechnungen.map(r => {
     const paymentClass = getPaymentRowStatusClass(r);
@@ -362,16 +364,16 @@ export function renderVertraege(detail) {
 
   const rows = detail.vertraege.map(v => {
     const creatorName = v.creator ? `${v.creator.vorname || ''} ${v.creator.nachname || ''}`.trim() : '-';
-    const kampagneName = KampagneUtils.getDisplayName(v.kampagne);
+    const sanitize = (s) => detail.sanitize(s);
 
     return `
       <tr>
-        <td><a href="/vertraege/${v.id}" onclick="event.preventDefault(); window.navigateTo('/vertraege/${v.id}')">${detail.sanitize(v.name || '—')}</a></td>
+        <td>${VertragUtils.renderVertragNameHtml(v, sanitize)}</td>
         <td>${detail.sanitize(v.typ || '-')}</td>
         <td><span class="status-badge status-${getStatusClass(v.is_draft)}">${getStatusLabel(v.is_draft)}</span></td>
-        <td>${v.kampagne ? `<a href="/kampagne/${v.kampagne.id}" onclick="event.preventDefault(); window.navigateTo('/kampagne/${v.kampagne.id}')">${detail.sanitize(kampagneName)}</a>` : '-'}</td>
-        <td>${v.creator ? `<a href="/creator/${v.creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${v.creator.id}')">${detail.sanitize(creatorName)}</a>` : '-'}</td>
-        <td>${v.datei_url ? `<a href="${v.datei_url}" target="_blank" rel="noopener">PDF</a>` : '-'}</td>
+        <td>${VertragUtils.renderVertragContextHtml(v, sanitize)}</td>
+        <td>${v.creator ? `<a href="/creator/${v.creator.id}" class="table-link" data-table="creator" data-id="${v.creator.id}">${detail.sanitize(creatorName)}</a>` : '-'}</td>
+        <td>${renderPdfLinks(null, v.datei_url)}</td>
         <td>${detail.formatDate(v.created_at)}</td>
       </tr>
     `;
@@ -385,7 +387,7 @@ export function renderVertraege(detail) {
             <th>Name</th>
             <th>Typ</th>
             <th>Status</th>
-            <th>Kampagne</th>
+            <th>Kontext</th>
             <th>Creator</th>
             <th>Datei</th>
             <th>Erstellt am</th>

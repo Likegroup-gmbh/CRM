@@ -15,7 +15,7 @@ export class TextField extends BaseField {
              ${readonlyAttr} 
              ${placeholder}
              ${autoGenerateAttr}>
-      ${this.field.autoGenerate ? '<small style="color: #6b7280; font-size: 12px;">Wird automatisch generiert</small>' : ''}
+      ${this.field.autoGenerate ? '<small class="form-auto-hint">Wird automatisch generiert</small>' : ''}
     `;
   }
 

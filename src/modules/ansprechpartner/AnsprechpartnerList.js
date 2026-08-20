@@ -12,6 +12,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { CountryDisplay } from '../../core/components/CountryDisplay.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 // Sprach-Mapping für Abkürzungen
 const SPRACH_KUERZEL = {
@@ -29,9 +30,9 @@ function getSprachKuerzel(name) {
   return SPRACH_KUERZEL[name] || name.substring(0, 2).toUpperCase();
 }
 
-const LINK_ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="tag--verknuepft-icon"><path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" x2="16" y1="12" y2="12"/></svg>';
+const LINK_ICON_SVG = icon('link');
 
-const MAIL_ICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" /></svg>';
+const MAIL_ICON_SVG = icon('envelope-open');
 
 export class AnsprechpartnerList extends BasePaginatedList {
   constructor(opts = {}) {
@@ -311,11 +312,11 @@ export class AnsprechpartnerList extends BasePaginatedList {
           </div>
         </div>
         <div class="table-actions">
-          ${canBulkDelete ? `<button id="btn-select-all" class="secondary-btn">Alle auswählen</button>
-          <button id="btn-deselect-all" class="secondary-btn" style="display:none;">Auswahl aufheben</button>
+          ${canBulkDelete ? `<button id="btn-select-all" class="mdc-btn mdc-btn--secondary">Alle auswählen</button>
+          <button id="btn-deselect-all" class="mdc-btn mdc-btn--secondary" style="display:none;">Auswahl aufheben</button>
           <span id="selected-count" style="display:none;">0 ausgewählt</span>
-          <button id="btn-delete-selected" class="danger-btn" style="display:none;">Ausgewählte löschen</button>` : ''}
-          ${canEdit ? `<button id="btn-ansprechpartner-new" class="primary-btn">${newButtonLabel}</button>` : ''}
+          <button id="btn-delete-selected" class="mdc-btn mdc-btn--delete" style="display:none;">Ausgewählte löschen</button>` : ''}
+          ${canEdit ? `<button id="btn-ansprechpartner-new" class="mdc-btn">${newButtonLabel}</button>` : ''}
         </div>
       </div>
 
@@ -529,7 +530,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
       
       const safeUrl = this.sanitize(url);
       
-      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="LinkedIn Profil"><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 18px; height: 18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg></a>`;
+      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="LinkedIn Profil">${icon('linkedin')}</a>`;
     } catch {
       return '-';
     }

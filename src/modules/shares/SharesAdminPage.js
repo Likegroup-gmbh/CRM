@@ -2,6 +2,8 @@
 // Admin-/Mitarbeiter-Übersicht aller geteilten Listen (list_shares)
 // mit Widerruf und Rechte-Änderung.
 
+import { renderEmptyStateRow } from '../../core/components/EmptyState.js';
+
 const ENTITY_META = {
   kampagne: { label: 'Kampagne', table: 'kampagne', nameColumns: ['eigener_name', 'kampagnenname'], route: (id) => `/kampagne/${id}` },
   sourcing: { label: 'Sourcing', table: 'creator_auswahl', nameColumns: ['name'], route: (id) => `/sourcing/${id}` },
@@ -26,7 +28,7 @@ export class SharesAdminPage {
 
     window.setHeadline('Geteilte Listen');
     window.content.innerHTML = `
-      <div class="table-loading-container" style="min-height: 200px;">
+      <div class="table-loading-container table-loading-min">
         <div class="table-loading-spinner"></div>
       </div>
     `;
@@ -89,14 +91,14 @@ export class SharesAdminPage {
 
       return `
         <tr class="${isRevoked ? 'share-row--revoked' : ''}" data-share-id="${share.id}">
-          <td><a href="${meta.route(share.entity_id)}" data-route="${meta.route(share.entity_id)}" class="share-entity-link">${this.escape(entityName)}</a></td>
+          <td><a href="${meta.route(share.entity_id)}" data-route="${meta.route(share.entity_id)}" class="share-entity-link table-link">${this.escape(entityName)}</a></td>
           <td>${meta.label}</td>
           <td>${this.escape(share.email)}</td>
           <td>${this.escape(share.benutzer?.name || '–')}</td>
           <td>
             ${isRevoked
               ? `<span>${RECHTE_LABELS[share.rechte] || share.rechte}</span>`
-              : `<select class="input share-admin-rechte" data-share-id="${share.id}" style="font-size:0.82rem;padding:3px 6px;">
+              : `<select class="input share-admin-rechte share-admin-rechte-select" data-share-id="${share.id}">
                   <option value="ansehen" ${share.rechte === 'ansehen' ? 'selected' : ''}>Nur ansehen</option>
                   <option value="feedback" ${share.rechte === 'feedback' ? 'selected' : ''}>Ansehen + Feedback</option>
                 </select>`}
@@ -107,7 +109,7 @@ export class SharesAdminPage {
           <td>
             ${isRevoked
               ? '<span class="status-badge">Widerrufen</span>'
-              : `<button type="button" class="secondary-btn share-admin-revoke" data-share-id="${share.id}">Widerrufen</button>`}
+              : `<button type="button" class="mdc-btn mdc-btn--secondary share-admin-revoke" data-share-id="${share.id}">Widerrufen</button>`}
           </td>
         </tr>
       `;
@@ -118,7 +120,7 @@ export class SharesAdminPage {
         <div class="page-header">
           <h2 class="page-header-title">Geteilte Listen</h2>
           <div class="page-header-right">
-            <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;cursor:pointer;">
+            <label class="share-admin-archived-label">
               <input type="checkbox" id="shares-show-revoked" ${this.showRevoked ? 'checked' : ''}>
               Widerrufene anzeigen
             </label>
@@ -140,7 +142,7 @@ export class SharesAdminPage {
               </tr>
             </thead>
             <tbody>
-              ${rows || `<tr><td colspan="9" style="text-align:center;color:var(--text-secondary,#999);padding:24px;">Keine geteilten Listen vorhanden.</td></tr>`}
+              ${rows || renderEmptyStateRow({ icon: 'list', title: 'Keine geteilten Listen vorhanden' }, 9)}
             </tbody>
           </table>
         </div>

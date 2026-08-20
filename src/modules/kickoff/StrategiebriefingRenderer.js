@@ -23,7 +23,7 @@ export function renderStrategiebriefing(detail, { parentType = 'marke' } = {}) {
       icon: 'clipboard',
       title: 'Kein Strategiebriefing vorhanden',
       text: 'Es wurde noch kein Strategiebriefing erstellt.',
-      actionsHtml: !isKunde ? `<button type="button" class="btn btn-primary kickoff-detail-create-btn">Strategiebriefing anlegen</button>` : ''
+      actionsHtml: !isKunde ? `<button type="button" class="mdc-btn kickoff-detail-create-btn">Strategiebriefing anlegen</button>` : ''
     });
   }
 
@@ -47,7 +47,7 @@ export function renderStrategiebriefing(detail, { parentType = 'marke' } = {}) {
           icon: 'clipboard',
           title: `Kein ${typeLabel} Strategiebriefing vorhanden`,
           text: `Für den Typ ${typeLabel} wurde noch kein Strategiebriefing erstellt.`,
-          actionsHtml: !isKunde ? `<button type="button" class="btn btn-primary kickoff-detail-create-btn" data-kickoff-type="${detail.activeKickoffType}">${typeLabel} Strategiebriefing anlegen</button>` : ''
+          actionsHtml: !isKunde ? `<button type="button" class="mdc-btn kickoff-detail-create-btn" data-kickoff-type="${detail.activeKickoffType}">${typeLabel} Strategiebriefing anlegen</button>` : ''
         })}
       </div>
     `;
@@ -67,7 +67,7 @@ export function renderStrategiebriefing(detail, { parentType = 'marke' } = {}) {
         <small class="text-muted">
           ${typeLabel}${!isV2 ? ' (Legacy)' : ''} | Zuletzt aktualisiert: ${detail.formatDate(activeKickoff.updated_at)}
         </small>
-        ${!isKunde ? `<a href="/kickoff/${activeKickoff.id}" class="btn btn-sm btn-secondary" onclick="event.preventDefault(); window.navigateTo('/kickoff/${activeKickoff.id}')" style="margin-left: 1rem;">Details</a>` : ''}
+        ${!isKunde ? `<a href="/kickoff/${activeKickoff.id}" class="mdc-btn mdc-btn--sm mdc-btn--secondary kickoff-details-link" onclick="event.preventDefault(); window.navigateTo('/kickoff/${activeKickoff.id}')">Details</a>` : ''}
       </div>
     </div>
   `;
@@ -136,7 +136,7 @@ function renderLegacyTable(detail, k) {
     ['10. Rechtliche Leitplanken', fv(k.rechtliche_leitplanken)]
   ];
 
-  return `<p class="text-muted" style="font-size: 0.8rem; margin-bottom: 0.5rem;">Legacy Strategiebriefing (nur Ansicht)</p>${buildTable(rows)}`;
+  return `<p class="text-muted strategiebriefing-legacy-hint">Legacy Strategiebriefing (nur Ansicht)</p>${buildTable(rows)}`;
 }
 
 function buildTable(rows) {
@@ -145,7 +145,7 @@ function buildTable(rows) {
       <table class="data-table kickoff-table">
         <thead>
           <tr>
-            <th style="width: 30%;">Kategorie</th>
+            <th class="strategiebriefing-th-kategorie">Kategorie</th>
             <th>Inhalt</th>
           </tr>
         </thead>
@@ -175,7 +175,7 @@ export function bindStrategiebriefingCreateButton(detail, { parentType = 'marke'
       <div class="form-page" id="kickoff-inline-form-wrapper">
         ${formHtml}
       </div>
-      <div class="form-actions" style="margin-top: 1rem; padding: 0 1rem;">
+      <div class="form-actions strategiebriefing-actions">
         <button type="button" class="mdc-btn mdc-btn--cancel" id="kickoff-inline-cancel">Abbrechen</button>
         <button type="button" class="mdc-btn mdc-btn--create" id="kickoff-inline-save">Strategiebriefing speichern</button>
       </div>

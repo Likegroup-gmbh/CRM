@@ -3,6 +3,7 @@
 
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import { renderEmptyStateRow } from '../../core/components/EmptyState.js';
 
 function escapeHtml(v) {
   if (v == null) return '';
@@ -53,7 +54,7 @@ export function renderPageHtml({ searchQuery, showCreateButton = true }) {
         </div>
       </div>
       ${showButton ? `<div class="table-actions">
-        <button id="btn-contract-new" class="primary-btn">Neuen Contract anlegen</button>
+        <button id="btn-contract-new" class="mdc-btn">Neuen Contract anlegen</button>
       </div>` : ''}
     </div>
 
@@ -100,17 +101,11 @@ export function updateTable(contracts) {
   const colCount = isKunde ? 6 : 7;
 
   if (!contracts || contracts.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="${colCount}" class="empty-cell">
-          <div class="empty-state">
-            <p>${isKunde
-              ? 'Sie haben noch kein Contracting. Sprechen Sie uns an!'
-              : 'Keine Contracts vorhanden.'}</p>
-          </div>
-        </td>
-      </tr>
-    `;
+    tbody.innerHTML = renderEmptyStateRow({
+      icon: 'file-text',
+      title: 'Keine Contracts vorhanden',
+      text: isKunde ? 'Sie haben noch kein Contracting. Sprechen Sie uns an!' : 'Es wurden noch keine Contracts erstellt.'
+    }, colCount);
     return;
   }
 

@@ -259,6 +259,15 @@ export const ActionConfigs = {
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
     kundenActions: ['view', 'download']
+  },
+
+  skripte: {
+    actions: [
+      { id: 'view', icon: 'view', label: 'Öffnen', roles: ['all'] },
+      { id: 'separator' },
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
+    ],
+    kundenActions: ['view']
   }
 };
 

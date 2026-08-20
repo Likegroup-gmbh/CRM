@@ -5,9 +5,10 @@ import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { modularFilterSystem } from '../../core/filters/ModularFilterSystem.js';
-import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { syncVertragCheckbox } from '../../core/VertragSyncHelper.js';
 import { openDocumentUrl } from '../../core/DocumentUrlHelper.js';
+import { resolveEmptyState, bindEmptyStateActions } from '../../core/components/EmptyState.js';
+import { VertragUtils } from './VertragUtils.js';
 
 import { loadUnternehmenName, loadUnternehmenFolders, loadVertraege } from './VertraegeListDataLoader.js';
 import {
@@ -192,16 +193,28 @@ export class VertraegeList {
     const perms = this.getVertragPermissions();
 
     if (!vertraege || vertraege.length === 0) {
-      tbody.innerHTML = `
-        <tr>
-          <td colspan="${perms.canBulkDelete ? '10' : '9'}" class="no-data">
-            <div class="empty-state">
-              <div class="empty-icon">📄</div>
-              <h3>Keine Verträge vorhanden</h3>
-              <p>Für dieses Unternehmen wurden noch keine Verträge erstellt.</p>
-            </div>
-          </td>
-        </tr>`;
+      const isContracting = this.activeTypeTab === 'contracting';
+      const filters = modularFilterSystem.getFilters('vertrag') || {};
+      const hasActiveFilters = Object.values(filters).some(v => v && (Array.isArray(v) ? v.length > 0 : v !== ''));
+      const createUrl = this.currentUnternehmenId
+        ? `/vertraege/new?unternehmen=${this.currentUnternehmenId}`
+        : '/vertraege/new';
+      const html = resolveEmptyState({
+        hasActiveFilters,
+        states: {
+          default: {
+            icon: 'file-text',
+            title: isContracting ? 'Keine Contracts vorhanden' : 'Keine Verträge vorhanden',
+            text: isContracting
+              ? 'Es wurden noch keine Contracts erstellt.'
+              : 'Für dieses Unternehmen wurden noch keine Verträge erstellt.',
+            actionsHtml: perms.canEdit
+              ? `<button class="mdc-btn" onclick="window.navigateTo('${createUrl}')">Neuen Vertrag anlegen</button>`
+              : ''
+          }
+        }
+      }, 'default');
+      tbody.innerHTML = `<tr><td colspan="${perms.canBulkDelete ? '10' : '9'}" class="empty-state-cell">${html}</td></tr>`;
       return;
     }
 
@@ -276,6 +289,15 @@ export class VertraegeList {
       this._boundEventListeners.add(() => newBtn.removeEventListener('click', handler));
     }
 
+    // Empty-State-Action "Filter zurücksetzen"
+    const unbindEmptyActions = bindEmptyStateActions(document, {
+      'reset-filters': () => {
+        modularFilterSystem.resetFilters('vertrag');
+        this.reloadData();
+      }
+    });
+    this._boundEventListeners.add(unbindEmptyActions);
+
     // Zurück
     const backBtn = document.getElementById('btn-back-to-folders');
     if (backBtn) {
@@ -306,11 +328,14 @@ export class VertraegeList {
       const id = link.dataset.id;
       switch (table) {
         case 'vertrag': {
-          const row = link.closest('tr[data-vertrag-draft]');
-          const isDraft = row?.dataset?.vertragDraft === '1';
-          window.navigateTo(isDraft ? `/vertraege/${id}/edit` : `/vertraege/${id}`);
+          const vertrag = this.vertraege.find(v => v.id === id);
+          const action = VertragUtils.getVertragOpenAction(vertrag);
+          if (action.kind === 'edit') window.navigateTo(action.href);
+          else if (action.kind === 'pdf') openDocumentUrl(action.url);
+          else window.toastSystem?.show('Keine PDF-Datei vorhanden', 'warning');
           break;
         }
+        case 'contracts': window.navigateTo(`/contracts/${id}`); break;
         case 'creator': window.navigateTo(`/creator/${id}`); break;
         case 'kampagne': window.navigateTo(`/kampagne/${id}`); break;
         case 'unternehmen': window.navigateTo(`/unternehmen/${id}`); break;

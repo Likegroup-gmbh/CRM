@@ -23,7 +23,7 @@ export class SkriptGeneratorTab {
         <div id="gen-form"></div>
 
         <div class="skripte-actions-row">
-          <button id="gen-start" class="primary-btn">Skript generieren</button>
+          <button id="gen-start" class="mdc-btn">Skript generieren</button>
           <span id="gen-status" class="skripte-hint"></span>
         </div>
 
@@ -45,7 +45,7 @@ export class SkriptGeneratorTab {
   async startGeneration() {
     let payload;
     try {
-      payload = await this.form.getPayloadMitUpload();
+      payload = this.form.getPayload();
     } catch (err) {
       window.toastSystem?.error(err.message);
       return;
@@ -112,7 +112,7 @@ export class SkriptGeneratorTab {
     }
     this.renderedLogCount = Math.max(this.renderedLogCount, logs.length);
 
-    const steps = { pending: 5, kontext: 25, briefing: 40, generierung: 60, speichern: 90, done: 100 };
+    const steps = { pending: 5, kontext: 30, generierung: 60, speichern: 90, done: 100 };
     if (job.progress_step) {
       this.setProgress(job.progress_step, steps[job.progress_step] ?? 50);
     }
@@ -133,7 +133,6 @@ export class SkriptGeneratorTab {
     const labels = {
       pending: 'Warte auf Start...',
       kontext: 'Kontext aus CRM-Daten sammeln...',
-      briefing: 'PDF-Briefing durchforsten...',
       generierung: 'Skript wird geschrieben...',
       speichern: 'Speichern...',
       done: 'Fertig'

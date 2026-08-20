@@ -12,7 +12,7 @@ export function renderAnsprechpartner(ansprechpartner) {
       const details = [ap.position?.name, ap.unternehmen?.firmenname].filter(Boolean).join(' • ');
       return `<a href="#" class="tag tag--ansprechpartner" onclick="event.preventDefault(); window.navigateTo('/ansprechpartner/${ap.id}')">
         ${ap.vorname} ${ap.nachname}
-        ${details ? `<small style="opacity: 0.8; margin-left: 5px;">(${details})</small>` : ''}
+        ${details ? `<small>(${details})</small>` : ''}
       </a>`;
     })
     .join('');

@@ -46,9 +46,9 @@ export function renderTabContent(detail, tab) {
     case 'unternehmen':
       return `
         <div class="detail-section">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+          <div class="section-header-row">
             <div></div>
-            <button class="primary-btn" id="btn-add-unternehmen">+ Unternehmen zuordnen</button>
+            <button class="mdc-btn" id="btn-add-unternehmen">+ Unternehmen zuordnen</button>
           </div>
           ${renderUnternehmenTable(detail)}
         </div>
@@ -96,7 +96,7 @@ export function renderMitarbeiterDetailPage(detail) {
   const sidebarInfo = detail.renderInfoItems([
     { icon: 'shield', label: 'Rolle', value: detail.user?.rolle || '-', badge: true, badgeType: detail.user?.rolle === 'admin' ? 'primary' : 'secondary' },
     { icon: 'tag', label: 'Klasse', value: detail.user?.mitarbeiter_klasse_name || 'Nicht zugewiesen' },
-    { icon: 'phone', label: 'Firmenhandy', value: '-', rawHtml: getFirmenhandyDisplayHtml(detail) },
+    { icon: 'phone-mobile', label: 'Firmenhandy', value: '-', rawHtml: getFirmenhandyDisplayHtml(detail) },
     { icon: 'check', label: 'Freigeschaltet', value: detail.user?.freigeschaltet ? 'Ja' : 'Nein', badge: true, badgeType: detail.user?.freigeschaltet ? 'success' : 'warning' },
     { icon: 'clock', label: 'Erstellt', value: detail.formatDate(detail.user?.created_at) }
   ]);

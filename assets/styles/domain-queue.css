@@ -1,0 +1,299 @@
+/* ==========================================================================
+   QUEUE-Modul (aus components.css extrahiert, Phase 7)
+   ========================================================================== */
+
+/* Hinweiszeile pro Eintrag im Add-Drawer (frueher eine Fortschrittsleiste) */
+
+.queue-item-hint {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+/* Beschreibung im Queue-Item */
+
+.queue-item-beschreibung {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Queue Container - füllt den verfügbaren Platz */
+
+.add-item-queue {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.queue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-md);
+}
+
+.queue-title {
+  font-weight: 600;
+  font-size: var(--text-md);
+  color: var(--text-primary);
+}
+
+.queue-counter {
+  font-size: var(--text-xs);
+  color: var(--gray-900);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--gray-200);
+}
+
+/* Queue Liste - scrollbar, füllt verfügbaren Platz */
+
+.queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.queue-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.queue-empty svg {
+  width: 48px;
+  height: 48px;
+  margin-bottom: var(--space-sm);
+  opacity: 0.5;
+}
+
+.queue-empty p {
+  font-size: var(--text-sm);
+}
+
+/* Queue Item */
+
+.queue-item {
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  transition: all 0.2s ease;
+}
+
+.queue-item--processing {
+  background: var(--blue-50);
+  border-color: var(--gray-300);
+}
+
+.queue-item--done {
+  background: var(--background-primary);
+  border-color: var(--green-500);
+}
+
+.queue-item--error {
+  background: var(--red-50);
+  border-color: var(--red-200);
+}
+
+/* Queue Item Row Layout (Download-Style) */
+
+.queue-item-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+}
+
+.queue-item-left {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.queue-item-center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.queue-item-right {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.queue-item-status-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+/* Plattform-Icons (links) */
+
+.queue-platform-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.queue-platform-icon--youtube {
+  color: #000000;
+}
+
+.queue-platform-icon--tiktok {
+  color: #000000;
+}
+
+.queue-platform-icon--instagram {
+  color: #000000;
+}
+
+.queue-platform-icon--other {
+  color: var(--gray-500);
+}
+
+.queue-platform-icon--idea {
+  color: var(--amber-500);
+}
+
+/* Status-Icons (rechts) */
+
+.queue-status-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.queue-status-icon--pending {
+  color: var(--gray-400);
+}
+
+.queue-status-icon--done {
+  color: var(--green-500);
+}
+
+.queue-status-icon--error {
+  color: var(--red-500);
+}
+
+.queue-status-icon .mdc-spinner-path {
+  stroke: var(--gray-600);
+}
+
+/* URL Text */
+
+/* Kategorie Badge */
+
+/* Error Text */
+
+.queue-item-error-text {
+  font-size: var(--text-xs);
+  color: var(--red-600);
+}
+
+/* Progress Row */
+
+/* Progress Bar */
+
+/* Percent Text */
+
+/* Retry Button */
+
+.queue-item-retry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: var(--gray-100);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.queue-item-retry:hover {
+  background: var(--gray-200);
+}
+
+.queue-item-retry svg {
+  width: 16px;
+  height: 16px;
+  color: var(--gray-600);
+}
+
+.queue-item-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  opacity: 0.5;
+}
+
+.queue-item-delete:hover {
+  background: var(--red-50);
+  opacity: 1;
+}
+
+.queue-item-delete svg {
+  width: 16px;
+  height: 16px;
+  color: var(--red-500);
+}
+
+.queue-item-url {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queue-item-kategorie {
+  width: fit-content;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  background: var(--bg-primary);
+  padding: var(--space-xxs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--gray-200);
+  white-space: nowrap;
+}
+
+/* Video Upload Queue (Multi-File) */
+
+.video-queue-item { flex-wrap: wrap; gap: var(--space-xs); }
+
+.video-queue-variant { flex: 1 1 100%; }
+
+/* Story Upload Queue */
+
+.storys-queue-item { flex-wrap: wrap; gap: var(--space-xs); }
+
+.storys-queue-variant { flex: 1 1 100%; }

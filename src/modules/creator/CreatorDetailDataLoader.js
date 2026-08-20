@@ -247,8 +247,10 @@ CreatorDetail.prototype.loadVertraege = async function() {
         .from('vertraege')
         .select(`
           id, name, typ, is_draft, datei_url, datei_path, created_at,
+          dropbox_file_url, unterschriebener_vertrag_url,
           kampagne:kampagne_id(id, kampagnenname, eigener_name),
-          kunde:kunde_unternehmen_id(id, firmenname)
+          kunde:kunde_unternehmen_id(id, firmenname),
+          contracting_auftrag:contracting_auftrag_id(id, auftragsname, titel)
         `)
         .eq('creator_id', this.creatorId)
         .order('created_at', { ascending: false });
@@ -299,6 +301,18 @@ CreatorDetail.prototype.loadUnternehmen = async function() {
       const all = [...kampUnternehmen, ...koopUnternehmen].filter(Boolean);
       const map = new Map();
       all.forEach(u => { if (u?.id) map.set(u.id, u); });
+
+      try {
+        const { data: vertragKunden } = await window.supabase
+          .from('vertraege')
+          .select('kunde:kunde_unternehmen_id(id, firmenname)')
+          .eq('creator_id', this.creatorId)
+          .not('kunde_unternehmen_id', 'is', null);
+        (vertragKunden || []).forEach(v => {
+          if (v.kunde?.id) map.set(v.kunde.id, v.kunde);
+        });
+      } catch (_) { /* Contracting-Firmen optional mergen */ }
+
       this.unternehmen = Array.from(map.values());
     } catch (_) {
       this.unternehmen = [];
@@ -534,15 +548,15 @@ CreatorDetail.prototype._showAddManagementDialog = async function() {
     dialog.className = 'modal show';
     dialog.style.cssText = 'position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.4)';
     dialog.innerHTML = `
-      <div style="background:var(--bg-primary,#fff);border-radius:12px;padding:24px;min-width:320px;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
-        <h3 style="margin:0 0 16px">Management zuordnen</h3>
-        <select id="creator-add-mgmt-select" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border-color,#ddd);">
+      <div class="creator-mgmt-dialog">
+        <h3>Management zuordnen</h3>
+        <select id="creator-add-mgmt-select">
           <option value="">Bitte wählen...</option>
           ${options}
         </select>
-        <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end;">
-          <button class="secondary-btn btn-sm" id="creator-add-mgmt-cancel">Abbrechen</button>
-          <button class="primary-btn btn-sm" id="creator-add-mgmt-confirm">Zuordnen</button>
+        <div class="creator-mgmt-dialog-actions">
+          <button class="mdc-btn mdc-btn--secondary mdc-btn--sm" id="creator-add-mgmt-cancel">Abbrechen</button>
+          <button class="mdc-btn mdc-btn--sm" id="creator-add-mgmt-confirm">Zuordnen</button>
         </div>
       </div>
     `;

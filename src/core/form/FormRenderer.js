@@ -1,4 +1,5 @@
 import { ValidatorSystem } from '../ValidatorSystem.js';
+import { icon } from '../icons/IconSystem.js';
 import { UploaderField } from './fields/UploaderField.js';
 import { PhoneNumberField } from './fields/PhoneNumberField.js';
 import { CountryField } from './fields/CountryField.js';
@@ -43,9 +44,7 @@ export class FormRenderer {
       <div class="modal-header">
         <h2>${isEdit ? 'Bearbeiten' : config.title}</h2>
         <button type="button" class="btn-close" aria-label="Schließen">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-          </svg>
+${icon('x-mark', { stroke: 2, className: 'w-6 h-6' })}
         </button>
       </div>
       <div class="modal-body">
@@ -274,7 +273,7 @@ export class FormRenderer {
           <div class="form-field" ${textDependsOn} ${textShowWhen} ${initialStyle}>
             <label for="${fieldId}">${field.label} ${requiredMark}</label>
             <input type="${field.type}" id="${fieldId}" name="${field.name}" value="${this.validator.sanitizeHtml(value)}" ${required} ${autoGenerateAttr} ${readonlyAttr} ${placeholder}>
-            ${field.autoGenerate ? '<small style="color: #6b7280; font-size: 12px;">Wird automatisch generiert</small>' : ''}
+            ${field.autoGenerate ? '<small class="form-auto-hint">Wird automatisch generiert</small>' : ''}
           </div>
         `;
 
@@ -292,7 +291,7 @@ export class FormRenderer {
         // aiExtract schaltet das Auslesen der Webseite frei (siehe SiteExtractHandler)
         const extractBtn = field.aiExtract ? `
               <button type="button" class="url-extract-btn" data-ai-extract="${field.name}" title="Daten aus der Webseite auslesen">
-                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.8 15.9 9 18.8l-.8-2.9a4.5 4.5 0 0 0-3.1-3.1L2.3 12l2.8-.8a4.5 4.5 0 0 0 3.1-3.1L9 5.3l.8 2.8a4.5 4.5 0 0 0 3.1 3.1l2.8.8-2.8.8a4.5 4.5 0 0 0-3.1 3.1ZM18.3 8.7 18 9.8l-.3-1a3.4 3.4 0 0 0-2.4-2.5L14.3 6l1-.3a3.4 3.4 0 0 0 2.4-2.4L18 2.3l.3 1a3.4 3.4 0 0 0 2.4 2.4l1 .3-1 .3a3.4 3.4 0 0 0-2.4 2.4Z"/></svg>
+                ${icon('sparkles', { stroke: 2, className: 'icon-15' })}
                 <span class="spinner-small url-extract-btn__spinner"></span>
                 <span class="url-extract-btn__label">Auslesen</span>
               </button>` : '';
@@ -333,7 +332,7 @@ export class FormRenderer {
           <div class="form-field" ${numberDependsOn} ${numberShowWhen} ${numberInitialStyle}>
             <label for="${fieldId}">${field.label} ${requiredMark}</label>
             <input type="number" id="${fieldId}" name="${field.name}" ${defaultValue} ${required} ${readonly} ${autoCalculate} ${calculatedFrom} ${numberPlaceholder} ${min} ${max} ${step}>
-            ${field.readonly && field.calculatedFrom ? '<small style="color: #6b7280; font-size: 12px;">Wird automatisch berechnet</small>' : ''}
+            ${field.readonly && field.calculatedFrom ? '<small class="form-auto-hint">Wird automatisch berechnet</small>' : ''}
           </div>
         `;
 
@@ -483,7 +482,7 @@ export class FormRenderer {
           const label = typeof option === 'string' ? option : (option.label ?? val);
           const checked = selectedValues.includes(String(val)) ? 'checked' : '';
           const cbId = `${fieldId}_${val}`;
-          return `<label class="checkbox-option" for="${cbId}"><input type="checkbox" id="${cbId}" name="${field.name}[]" value="${val}" ${checked}><span>${label}</span></label>`;
+          return `<label class="checkbox-label" for="${cbId}"><input type="checkbox" id="${cbId}" name="${field.name}[]" value="${val}" ${checked}><span>${label}</span></label>`;
         }).join('');
 
         return `
@@ -600,17 +599,11 @@ export class FormRenderer {
 
   // Hilfsmethoden für Button-Icons und Labels
   getCheckIcon() {
-    return `
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-  <path d="M9 16.17l-3.88-3.88a1 1 0 10-1.41 1.41l4.59 4.59a1 1 0 001.41 0l10-10a1 1 0 10-1.41-1.41L9 16.17z"/>
-</svg>`;
+    return icon('check', { className: 'crm-icon--filled icon-16' });
   }
 
   getCancelIcon() {
-    return `
-<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-  <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
-</svg>`;
+    return icon('x-circle', { stroke: 1.5, className: 'icon-16' });
   }
 
   getSpinnerIcon() {
@@ -643,27 +636,13 @@ export class FormRenderer {
     
     return `
       <div class="form-field form-field-full" ${required} ${showWhen}>
-        <label for="${fieldId}" style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">${field.label}</label>
+        <label for="${fieldId}" class="addresses-label">${field.label}</label>
         <div class="addresses-container" id="${fieldId}">
-          <div class="addresses-list" style="margin-bottom: 16px;">
+          <div class="addresses-list">
             <!-- Adressen werden hier dynamisch hinzugefügt -->
           </div>
-          <button type="button" class="btn btn-secondary btn-sm add-address-btn" style="
-            background: #6b7280;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            padding: 8px 16px;
-            cursor: pointer;
-            font-size: 14px;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            transition: background-color 0.2s;
-          " onmouseover="this.style.background='#4b5563'" onmouseout="this.style.background='#6b7280'">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 16px; height: 16px;">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-            </svg>
+          <button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm add-address-btn address-add-btn">
+            ${icon('plus', { stroke: 2, className: 'w-4 h-4 icon-16' })}
             Adresse hinzufügen
           </button>
         </div>
@@ -690,72 +669,48 @@ export class FormRenderer {
   addAddressRow(addressesList) {
     const addressId = `address-${Date.now()}`;
     const addressHtml = `
-      <div class="address-item" data-address-id="${addressId}" style="
-        border: 1px solid #e5e7eb;
-        border-radius: 8px;
-        padding: 16px;
-        margin-bottom: 16px;
-        background: #f9fafb;
-      ">
-        <div class="address-header" style="
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
-        ">
+      <div class="address-item address-card" data-address-id="${addressId}">
+        <div class="address-header">
           <h4>Adresse ${addressId}</h4>
-          <button type="button" class="btn-remove-address" onclick="this.closest('.address-item').remove()" style="
-            background: #ef4444;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 4px 8px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: background-color 0.2s;
-          " onmouseover="this.style.background='#dc2626'" onmouseout="this.style.background='#ef4444'">
+          <button type="button" class="btn-remove-address address-remove-btn" onclick="this.closest('.address-item').remove()">
             Entfernen
           </button>
         </div>
-        <div class="address-fields" style="
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-        ">
-          <div class="form-field" style="grid-column: 1 / -1;">
-            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">Adressname</label>
-            <input type="text" name="adressname_${addressId}" placeholder="z.B. Hauptbüro, Filiale, etc." 
-                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+        <div class="address-fields address-fields-grid">
+          <div class="form-field grid-span-all">
+            <label class="address-label">Adressname</label>
+            <input type="text" name="adressname_${addressId}" placeholder="z.B. Hauptbüro, Filiale, etc."
+                   class="address-input">
           </div>
           <div class="form-field">
-            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">Straße</label>
-            <input type="text" name="strasse_${addressId}" placeholder="Musterstraße" 
-                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+            <label class="address-label">Straße</label>
+            <input type="text" name="strasse_${addressId}" placeholder="Musterstraße"
+                   class="address-input">
           </div>
           <div class="form-field">
-            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">Hausnummer</label>
-            <input type="text" name="hausnummer_${addressId}" placeholder="123" 
-                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+            <label class="address-label">Hausnummer</label>
+            <input type="text" name="hausnummer_${addressId}" placeholder="123"
+                   class="address-input">
           </div>
           <div class="form-field">
-            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">PLZ</label>
-            <input type="text" name="plz_${addressId}" placeholder="12345" 
-                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+            <label class="address-label">PLZ</label>
+            <input type="text" name="plz_${addressId}" placeholder="12345"
+                   class="address-input">
           </div>
           <div class="form-field">
-            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">Stadt</label>
-            <input type="text" name="stadt_${addressId}" placeholder="Musterstadt" 
-                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+            <label class="address-label">Stadt</label>
+            <input type="text" name="stadt_${addressId}" placeholder="Musterstadt"
+                   class="address-input">
           </div>
           <div class="form-field">
-            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">Land</label>
-            <input type="text" name="land_${addressId}" placeholder="Deutschland" 
-                   style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+            <label class="address-label">Land</label>
+            <input type="text" name="land_${addressId}" placeholder="Deutschland"
+                   class="address-input">
           </div>
-          <div class="form-field" style="grid-column: 1 / -1;">
-            <label style="display: block; margin-bottom: 4px; font-weight: 500; color: #374151;">Notiz</label>
-            <textarea name="notiz_${addressId}" rows="2" placeholder="Zusätzliche Informationen" 
-                      style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px; resize: vertical;"></textarea>
+          <div class="form-field grid-span-all">
+            <label class="address-label">Notiz</label>
+            <textarea name="notiz_${addressId}" rows="2" placeholder="Zusätzliche Informationen"
+                      class="address-input"></textarea>
           </div>
         </div>
       </div>

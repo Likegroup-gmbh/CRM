@@ -180,9 +180,9 @@ export async function loadCriticalData(kampagneId) {
       .eq('kampagne_id', kampagneId)
       .order('created_at', { ascending: false }),
     window.supabase
-      .from('briefings')
-      .select('id, product_service_offer, deadline, status, created_at, kooperation_id, assignee_id')
-      .eq('kampagne_id', kampagneId)
+      .from('campaign_briefings')
+      .select('id, aktivierung_name, bereich, is_draft, content_deadline, created_at, assignee_id')
+      .eq('unternehmen_id', kampagneData.unternehmen_id)
       .order('created_at', { ascending: false }),
     window.supabase
       .from('creator_auswahl')

@@ -11,8 +11,10 @@ VertraegeCreate.prototype.renderInfluencerStep2 = function() {
     
     return `
       <div class="step-section">
-        <h3>Vertragsparteien</h3>
-        <p class="step-description">Vertragstyp: <strong>Influencer-Kooperationsvertrag</strong></p>
+        <div class="step-section__header">
+          <h3>Vertragsparteien</h3>
+          <p class="step-description">Vertragstyp: <strong>Influencer-Kooperationsvertrag</strong></p>
+        </div>
         
         <!-- Kunde -->
         <div class="form-field">
@@ -56,10 +58,12 @@ VertraegeCreate.prototype.renderInfluencerStep2 = function() {
         </div>
 
         ${this.renderKooperationSelect()}
-
-        ${this.renderAgenturSection()}
-
-        <h3 class="mt-section">Influencer-Daten</h3>
+      </div>
+      ${this.renderAgenturSection()}
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>Influencer-Daten</h3>
+        </div>
         
         <div class="form-field">
           <label for="influencer_land">Land</label>
@@ -82,7 +86,9 @@ VertraegeCreate.prototype.renderInfluencerStep3 = function() {
     
     return `
       <div class="step-section">
-        <h3>§2 Plattformen & Inhalte</h3>
+        <div class="step-section__header">
+          <h3>§2 Plattformen & Inhalte</h3>
+        </div>
         
         <div class="form-field">
           <label>2.1 Plattformen</label>
@@ -138,8 +144,11 @@ VertraegeCreate.prototype.renderInfluencerStep3 = function() {
           </div>
         </div>
         ${renderParagraphZusatz(this.formData, 'p2', '§2 Plattformen & Inhalte')}
-
-        <h3>§3 Konzept, Freigabe & Veröffentlichungsplan</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>§3 Konzept, Freigabe & Veröffentlichungsplan</h3>
+        </div>
         <p class="form-hint">Der Content ist der LikeGroup GmbH vor Veröffentlichung zur Freigabe vorzulegen.</p>
 
         <div class="form-field">
@@ -210,7 +219,9 @@ VertraegeCreate.prototype.renderVeroeffentlichungsDaten = function(typ, dates) {
 VertraegeCreate.prototype.renderInfluencerStep4 = function() {
     return `
       <div class="step-section">
-        <h3>§5 Nutzungsrechte & Media Buyout</h3>
+        <div class="step-section__header">
+          <h3>§5 Nutzungsrechte & Media Buyout</h3>
+        </div>
         
         <div class="form-field">
           <label>5.1 Organische Veröffentlichung</label>
@@ -348,8 +359,11 @@ VertraegeCreate.prototype.renderInfluencerStep4 = function() {
         </div>
         <p class="form-hint">Am Veröffentlichungstag darf keine Werbung für konkurrierende Marken erfolgen.</p>
         ${renderParagraphZusatz(this.formData, 'p5', '§5 Nutzungsrechte & Media Buyout')}
-
-        <h3 class="mt-section">§10 Reichweiten-Garantie</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>§10 Reichweiten-Garantie</h3>
+        </div>
         <div class="form-two-col">
           <div class="form-field">
             <div class="radio-group">
@@ -372,8 +386,11 @@ VertraegeCreate.prototype.renderInfluencerStep4 = function() {
           </div>
         </div>
         ${renderParagraphZusatz(this.formData, 'p10', '§10 Reichweiten-Garantie')}
-
-        <h3 class="mt-section">§11 Mindest-Online-Dauer</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>§11 Mindest-Online-Dauer</h3>
+        </div>
         <div class="form-field">
           <div class="radio-group radio-group-inline">
             <label class="radio-option">
@@ -406,7 +423,9 @@ VertraegeCreate.prototype.renderInfluencerStep4 = function() {
 VertraegeCreate.prototype.renderInfluencerStep5 = function() {
     return `
       <div class="step-section">
-        <h3>§6 Vergütung</h3>
+        <div class="step-section__header">
+          <h3>§6 Vergütung</h3>
+        </div>
         
         <div class="form-two-col">
           <div class="form-field">
@@ -477,12 +496,18 @@ VertraegeCreate.prototype.renderInfluencerStep5 = function() {
 
         <p class="form-hint">Die Zahlung erfolgt durch den Auftraggeber oder die LikeGroup GmbH im Auftrag des Kunden. Die Rechnungsstellung erfolgt nach Veröffentlichung bzw. Erreichung der Ziele.</p>
         ${renderParagraphZusatz(this.formData, 'p6', '§6 Vergütung')}
-
-        <h3 class="mt-section">§7 Qualitätsanforderungen</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>§7 Qualitätsanforderungen</h3>
+        </div>
         <p class="form-hint">Der Content muss technisch sauber (Ton, Licht, Bild), natürlich und nicht übermäßig werblich, markenkonform, visuell hochwertig, kreativ, lebendig und mit ästhetisch geeignetem Hintergrund umgesetzt sein.</p>
         ${renderParagraphZusatz(this.formData, 'p7', '§7 Qualitätsanforderungen')}
-
-        <h3 class="mt-section">§8 Anpassungen</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>§8 Anpassungen</h3>
+        </div>
         <p class="form-hint">Kostenfreie Anpassungen umfassen u.a.:</p>
         <div class="form-field">
           <div class="checkbox-group checkbox-group-multi">
@@ -519,11 +544,17 @@ VertraegeCreate.prototype.renderInfluencerStep5 = function() {
           </div>
         </div>
         ${renderParagraphZusatz(this.formData, 'p8', '§8 Anpassungen')}
-
-        <h3 class="mt-section">Rechnungsstellung</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>Rechnungsstellung</h3>
+        </div>
         ${this.renderMehrfachRechnungToggle()}
-
-        <h3 class="mt-section">Weitere Bestimmungen</h3>
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>Weitere Bestimmungen</h3>
+        </div>
         <div class="form-field">
           <label for="weitere_bestimmungen">Zusätzliche Vereinbarungen (optional)</label>
           <textarea id="weitere_bestimmungen" name="weitere_bestimmungen" rows="4"

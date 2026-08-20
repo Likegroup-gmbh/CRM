@@ -44,8 +44,10 @@ export const IG_REELS_SPALTEN = [
 /** Manuell gepflegte Story-Spalten */
 export const IG_STORY_SPALTEN = ['cp-col-reichweite-story', 'cp-col-preis-story'];
 
-/** TikTok-Spalten: Link und Follower */
-export const TT_SPALTEN = ['cp-col-link-tt', 'cp-col-follower-tt'];
+/** TikTok-Spalten: Link, Follower und die beiden manuell gepflegten Preise */
+export const TT_SPALTEN = [
+  'cp-col-link-tt', 'cp-col-follower-tt', 'cp-col-preis-tt-video', 'cp-col-preis-tt-story'
+];
 
 /**
  * Spalten, die eine neue Liste ausgeblendet startet, obwohl das Preset sie

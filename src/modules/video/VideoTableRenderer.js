@@ -2,14 +2,12 @@
 // Rendering der Video-Tabelle (Level 3)
 
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { renderEmptyStateRow } from '../../core/components/EmptyState.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
-const BACK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-  <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
-</svg>`;
+const BACK_SVG = `${icon('arrow-left')}`;
 
-const FOLDER_LINK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="18" height="18">
-  <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
-</svg>`;
+const FOLDER_LINK_SVG = `${icon('folder-open')}`;
 
 const esc = (t) => window.validatorSystem?.sanitizeHtml(t) || t || '';
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('de-DE') : '-';
@@ -25,7 +23,7 @@ export class VideoTableRenderer {
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div class="filter-left">
-            <button id="btn-back-to-kampagnen" class="secondary-btn">${BACK_SVG} Zurück</button>
+            <button id="btn-back-to-kampagnen" class="mdc-btn mdc-btn--secondary">${BACK_SVG} Zurück</button>
             <div id="filter-dropdown-container"></div>
           </div>
         </div>
@@ -60,13 +58,11 @@ export class VideoTableRenderer {
     const colCount = isKunde ? 7 : 8;
 
     if (!videos || videos.length === 0) {
-      tbody.innerHTML = `
-        <tr><td colspan="${colCount}" class="empty-state">
-          <div class="empty-icon">🎬</div>
-          <h3>Keine Videos vorhanden</h3>
-          <p>Es wurden noch keine Videos erstellt.</p>
-        </td></tr>
-      `;
+      tbody.innerHTML = renderEmptyStateRow({
+        icon: 'video',
+        title: 'Keine Videos vorhanden',
+        text: 'Es wurden noch keine Videos erstellt.'
+      }, colCount);
       return;
     }
 

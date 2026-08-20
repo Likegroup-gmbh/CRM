@@ -12,8 +12,7 @@ const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { loadContext, buildKontextText } = require('./_shared/skript-context');
-const { ladeBriefingExtrakt } = require('./_shared/skript-briefing');
-const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
+const { verifyAuth, requireInternal, authErrorBody } = require('./_shared/verify-auth');
 const { starteKiRequest } = require('./_shared/ki-log');
 
 // Erzwungener Tool-Call: strukturell garantiertes JSON statt Text-Parsing
@@ -58,7 +57,7 @@ function ladeLeitfaden() {
 // ---------------------------------------------------------------------------
 // Prompt
 // ---------------------------------------------------------------------------
-function buildFragenPrompt(ctx, params, history, briefingExtrakt = null) {
+function buildFragenPrompt(ctx, params, history) {
   // Block 1 (stabil, cachebar): Rolle + Leitfaden
   const stable = 'Du bist ein erfahrener Werbetexter fuer UGC- und Creator-Videos (TikTok, Instagram Reels) '
     + 'und bereitest die Generierung eines deutschen Video-Skripts (Hook, Hauptteil, CTA) vor. '
@@ -67,12 +66,8 @@ function buildFragenPrompt(ctx, params, history, briefingExtrakt = null) {
     + '# LEITFADEN FUER DIE RUECKFRAGEN\n'
     + ladeLeitfaden();
 
-  // Block 2 (variabel): PDF-Briefing + Kontext + bisheriger Dialog
+  // Block 2 (variabel): Kontext (inkl. Campaign-Briefing) + bisheriger Dialog
   let task = '';
-  if (briefingExtrakt) {
-    task += '# HOCHGELADENES PDF-BRIEFING (wichtigste Quelle - Fakten-Extrakt)\n'
-      + briefingExtrakt + '\n\n';
-  }
   task += '# VORLIEGENDE CRM-DATEN ZU DIESEM AUFTRAG\n';
   task += buildKontextText(ctx, params) || '(keine Daten vorhanden)\n';
 
@@ -99,7 +94,7 @@ function buildFragenPrompt(ctx, params, history, briefingExtrakt = null) {
     + '- fertig=false: nachricht enthaelt deine naechste(n) Rueckfrage(n) (max. 2, die wichtigste zuerst).\n'
     + '- fertig=true: alle kritischen Punkte sind geklaert (oder es gab nichts zu klaeren). '
     + 'nachricht fasst in 1-2 Saetzen zusammen, was du aus den Antworten mitnimmst, und sagt, dass du bereit bist.\n'
-    + '- Stelle KEINE Frage, deren Antwort bereits in den CRM-Daten oder im bisherigen Dialog steht.';
+    + '- Stelle KEINE Frage, deren Antwort bereits im CAMPAIGN-BRIEFING, in den CRM-Daten oder im bisherigen Dialog steht.';
 
   return { stable, task };
 }
@@ -119,6 +114,8 @@ exports.handler = async (event) => {
       body: JSON.stringify(authErrorBody(auth))
     };
   }
+  const intern = await requireInternal(supabase, auth.user);
+  if (!intern.ok) return intern.response;
 
   let payload;
   try {
@@ -165,6 +162,7 @@ exports.handler = async (event) => {
       produkt_id: skript.produkt_id,
       persona_id: skript.persona_id,
       branche_id: skript.branche_id,
+      briefing_id: skript.briefing_id,
       mit_dna: skript.mit_dna,
       video_idee: skript.video_idee,
       location: skript.location,
@@ -175,9 +173,6 @@ exports.handler = async (event) => {
 
     const ctx = await loadContext(supabase, params);
 
-    // PDF-Briefing durchforsten (nur 1. Runde teuer, danach Cache am Skript)
-    const briefingExtrakt = await ladeBriefingExtrakt(supabase, params, skript.id, null, auth.user.id);
-
     // Bisheriger Rueckfragen-Dialog (ohne die pending Assistant-Message)
     const { data: historyRaw } = await supabase.from('skript_chat_messages')
       .select('rolle, inhalt')
@@ -186,7 +181,7 @@ exports.handler = async (event) => {
       .order('created_at');
     const history = (historyRaw || []).filter((h) => (h.inhalt || '').trim());
 
-    const { stable, task } = buildFragenPrompt(ctx, params, history, briefingExtrakt);
+    const { stable, task } = buildFragenPrompt(ctx, params, history);
 
     const result = await callClaude({
       model: MODELS.edit_fast,

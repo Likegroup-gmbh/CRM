@@ -100,9 +100,9 @@ export function bindMitarbeiterDetail(detail) {
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th style="text-align:left;">Recht</th>
-                    <th style="width:120px; text-align:right;">Lesen</th>
-                    <th style="width:120px; text-align:right;">Bearbeiten</th>
+                    <th class="u-text-left">Recht</th>
+                    <th class="col-w120-right">Lesen</th>
+                    <th class="col-w120-right">Bearbeiten</th>
                   </tr>
                 </thead>
                 <tbody>

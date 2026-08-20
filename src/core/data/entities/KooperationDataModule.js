@@ -31,7 +31,7 @@ export default {
     relations: {
       creator: { table: 'creator', foreignKey: 'creator_id', displayField: 'vorname' },
       kampagne: { table: 'kampagne', foreignKey: 'kampagne_id', displayField: 'name' },
-      briefing: { table: 'briefings', foreignKey: 'briefing_id', displayField: 'product_service_offer' }
+      briefing: { table: 'campaign_briefings', foreignKey: 'briefing_id', displayField: 'aktivierung_name' }
     },
     manyToMany: {
       tags: {

@@ -29,8 +29,12 @@ input:-webkit-autofill:focus {
   --space-xxxxx: 6rem;     /* 96px */
 
   /* Zusätzliche Spacings */
+  --space-6: 0.375rem;     /* 6px */
   --space-10: 0.625rem;    /* 10px */
+  --space-14: 0.875rem;    /* 14px */
+  --space-18: 1.125rem;    /* 18px */
   --space-20: 1.25rem;     /* 20px */
+  --space-38: 2.375rem;    /* 38px */
   --space-44: 2.75rem;     /* 44px */
 
   /* Font Sizes */
@@ -58,7 +62,6 @@ input:-webkit-autofill:focus {
   --radius-xxl: 1rem;      /* 16px */
 
   /* Zusätzliche Border Radius */
-  --radius-2: 0.125rem;    /* 2px */
   --radius-3: 0.1875rem;   /* 3px */
   --radius-4: 0.25rem;     /* 4px */
 
@@ -182,8 +185,8 @@ input:-webkit-autofill:focus {
   --badge-blue-text: #1e40af;
   --badge-indigo-bg: #e0e7ff;
   --badge-indigo-text: #3730a3;
-  --badge-pink-bg: #fce7f3;
-  --badge-pink-text: #be185d;
+  --badge-pink-bg: #FEEEF4;
+  --badge-pink-text: #F20C63;
 
   /* Semantic Status Aliases für einfachere Verwendung */
   --success: var(--color-success);
@@ -253,6 +256,165 @@ input:-webkit-autofill:focus {
 
   /* Tabellen: breite Name/Details-Spalten (24.57em + 5%) */
   --table-name-col-width: 25.7985em;
+
+  /* ===== BLUE SCALE (Basis für Primary) ===== */
+  --blue-25: #fcfdff;
+  --blue-50: #eff6ff;
+  --blue-100: #dbeafe;
+  --blue-200: #bfdbfe;
+  --blue-300: #93c5fd;
+  --blue-400: #60a5fa;
+  --blue-500: #3b82f6;
+  --blue-600: #2563eb;
+  --blue-700: #1d4ed8;
+  --blue-800: #1e40af;
+  --blue-900: #1e3a8a;
+
+  /* ===== PRIMARY (Alias auf Blue) ===== */
+  --primary-25: var(--blue-25);
+  --primary-50: var(--blue-50);
+  --primary-100: var(--blue-100);
+  --primary-200: var(--blue-200);
+  --primary-300: var(--blue-300);
+  --primary-400: var(--blue-400);
+  --primary-500: var(--blue-500);
+  --primary-600: var(--blue-600);
+  --primary-700: var(--blue-700);
+  --primary-800: var(--blue-800);
+  --primary-color: var(--primary-600);
+  --primary-color-light: rgba(37, 99, 241, 0.1);
+  --primary-rgb: 37, 99, 241;
+  --color-primary-bg: rgba(37, 99, 241, 0.08);
+
+  /* ===== BRAND SCALE (Main Brand Colorway) ===== */
+  --brand-25: #fffafc;
+  --brand-50: #fff5f9;
+  --brand-100: #feebf2;
+  --brand-200: #fedce9;
+  --brand-300: #fec6dd;
+  --brand-400: #ffadce;
+  --brand-500: #ff94c0;
+  --brand-600: #ff74ab;
+  --brand-700: #ff5396;
+  --brand-800: #f92f7b;
+  --brand-900: #f30b61;
+  --brand-950: #b9094c;
+
+  /* Brand-Aliase */
+  --color-brand: var(--brand-900);
+  --color-brand-light: var(--brand-500);
+  --color-brand-dark: var(--brand-950);
+  --brand-rgb: 243, 11, 97;
+  --color-brand-bg: rgba(243, 11, 97, 0.08);
+
+  /* ===== AMBER SCALE (Warning-Familie) ===== */
+  --amber-50: #fffbeb;
+  --amber-100: #fef3c7;
+  --amber-200: #fde68a;
+  --amber-300: #fcd34d;
+  --amber-400: #fbbf24;
+  --amber-500: #f59e0b;
+  --amber-600: #d97706;
+  --amber-700: #b45309;
+  --amber-800: #92400e;
+
+  /* Warning-Aliase (numerisch → amber) */
+  --warning-100: var(--amber-100);
+  --warning-300: var(--amber-300);
+  --warning-500: var(--amber-500);
+  --warning-700: var(--amber-700);
+  --warning-text: var(--amber-700);
+
+  /* Error-Aliase (numerisch → red) */
+  --error-50: var(--red-50);
+  --error-400: var(--red-400);
+  --error-500: var(--red-500);
+  --error-600: var(--red-600);
+  --error-700: var(--red-700);
+  --error-light: var(--color-error-light);
+  --error-dark: var(--color-error-dark);
+
+  /* Danger-Aliase (→ error/red) */
+  --danger-50: var(--red-50);
+  --danger-200: var(--red-200);
+  --danger-600: var(--red-600);
+  --color-danger: var(--color-error);
+  --color-danger-light: var(--danger-bg);
+  --color-danger-dark: var(--color-error-dark);
+
+  /* Success-Extras */
+  --success-light: var(--color-success-light);
+  --success-dark: var(--color-success-dark);
+  --success-text: var(--color-success-dark);
+  --success-300: #6ee7b7;
+
+  /* Weitere Farb-Extras (einzeln referenziert) */
+  --yellow-100: #fef9c3;
+  --yellow-600: #ca8a04;
+  --purple-100: #ede9fe;
+  --purple-700: #6d28d9;
+  --cyan-100: #cffafe;
+  --cyan-700: #0e7490;
+  --gray-25: #fcfcfc;
+
+  /* ===== KOMPATIBILITÄTS-ALIASE ===== */
+  --white: #ffffff;
+  --color-white: #ffffff;
+  --border-color: var(--border-primary);
+  --surface-primary: var(--bg-primary);
+  --surface-secondary: var(--bg-secondary);
+  --surface-color: var(--bg-primary);
+  --surface-hover: var(--bg-tertiary);
+  --surface-active: var(--gray-200);
+  --background-primary: var(--bg-primary);
+  --bg-hover: var(--bg-tertiary);
+  --color-text: var(--text-primary);
+  --color-text-light: var(--text-tertiary);
+  --text-link: var(--primary-600);
+  --info-color: var(--color-info);
+  --accent: var(--primary-500);
+  --accent-primary: var(--primary-500);
+  --accent-hover: var(--primary-600);
+
+  /* Font-Size-Aliase */
+  --font-size-sm: var(--text-sm);
+  --font-size-lg: var(--text-lg);
+  --font-size-base: var(--text-md);
+  --font-size-2xl: var(--text-xxl);
+  --text-base: var(--text-md);
+  --text-12: var(--text-xs);
+  --text-14: var(--text-sm);
+  --text-2xl: var(--text-xxl);
+
+  /* Spacing-Aliase */
+  --spacing-lg: var(--space-lg);
+  --spacing-xs: var(--space-xs);
+  --space-2xl: var(--space-xxl);
+  --space-3xl: var(--space-xxxl);
+  --gap-4: 0.25rem;
+  --leading-normal: 1.5;
+
+  /* Radius/Border-Aliase */
+  --radius-full: 9999px;
+  --border-radius-sm: var(--radius-sm);
+  --border-radius-md: var(--radius-md);
+  --border-radius-lg: var(--radius-lg);
+  --border-width-sm: var(--border-sm);
+
+  /* Weitere Aliase (Fallback-abgeglichen) */
+  --color-border: var(--border-primary);
+  --color-bg: var(--bg-primary);
+  --color-bg-disabled: var(--bg-tertiary);
+  --color-bg-subtle: var(--bg-secondary);
+  --border-subtle: var(--border-primary);
+
+  /* Sticky-Tabellen-Offsets (per Inline-Style/Kontext überschreibbar) */
+  --sticky-add-section-height: 0px;
+  --sticky-thead-height: 37px;
+  --sticky-addbar-height: 0px;
+
+  /* Fortschritts-Variable für Gradient-Overlays (wird inline gesetzt) */
+  --p: 0%;
 }
 
 

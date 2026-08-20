@@ -20,7 +20,8 @@ function getEntityDisplayName(entityType) {
     auftrag_details: 'die Auftragsdetails',
     kooperation: 'die Kooperation',
     briefing: 'das Briefing',
-    kampagne: 'die Kampagne'
+    kampagne: 'die Kampagne',
+    skripte: 'das Skript'
   };
   return names[entityType] || 'das Element';
 }
