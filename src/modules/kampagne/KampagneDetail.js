@@ -173,7 +173,12 @@ export class KampagneDetail {
       videoStats: this.videoStats,
       isKunde: this.isKunde,
       kampagneId: this.kampagneId,
-      searchQuery: this.store?.searchQuery || ''
+      searchQuery: this.store?.searchQuery || '',
+      availableStatuses: this.store?.getAvailableStatuses() || [],
+      availableTags: this.store?.getAvailableTags() || [],
+      selectedStatuses: this.store?.selectedStatuses || [],
+      selectedTags: this.store?.selectedTags || [],
+      kooperationSort: this.store?.kooperationSort || 'created_desc'
     });
 
     window.setContentSafely(window.content, html);
@@ -201,6 +206,7 @@ export class KampagneDetail {
     this.videoStats = summary.videoStats;
 
     this._bindVideoStatsCard();
+    this._bindFilteredSummaryCards();
   }
 
   /**
@@ -213,12 +219,46 @@ export class KampagneDetail {
 
     const refresh = () => {
       this.videoStats = this.store.calculateVideoStats();
-      updateVideoStatsCardDOM(this.videoStats);
+      this._refreshSummaryCards({ animate: true });
     };
 
     for (const event of ['video-updated', 'video-added', 'videos-changed', 'kooperation-removed']) {
       this.store.on(event, refresh);
     }
+  }
+
+  /**
+   * Tag-Filter an die Summary-Karten haengen: Bei jeder Tag-Aenderung werden
+   * die kooperationsbasierten Kennzahlen live (animiert, ohne Re-Render) auf
+   * die gefilterte Menge umgerechnet.
+   */
+  _bindFilteredSummaryCards() {
+    if (!this.store) return;
+    this.store.on('tags-filter-changed', () => this._refreshSummaryCards({ animate: true }));
+  }
+
+  /**
+   * Summary-Karten in-place aktualisieren. Bei aktivem Tag-Filter ueber die
+   * gefilterten Kooperationen, sonst global. Schreibt bewusst keine
+   * Instanzfelder (this.koopBudgetSum etc.) - die bleiben global fuer Mounts.
+   */
+  _refreshSummaryCards({ animate = false } = {}) {
+    if (!this.store) return;
+    const hasTagFilter = (this.store.selectedTags || []).length > 0;
+    const summary = hasTagFilter
+      ? this.store.calculateFilteredSummary()
+      : this.store.calculateSummary();
+    updateSummaryCardsDOM(
+      this.kampagneData,
+      summary.koopBudgetSum,
+      summary.koopVideosUsed,
+      summary.koopCreatorsUsed,
+      summary.extraKostenVkSum,
+      summary.ekVkMarginSum,
+      summary.kskUmgebucht,
+      { animate }
+    );
+    updateVideoStatsCardDOM(summary.videoStats, { animate });
   }
 
   _mountVideoTable() {

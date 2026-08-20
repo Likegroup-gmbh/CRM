@@ -4,6 +4,7 @@
 import { KampagneUtils } from './KampagneUtils.js';
 import { getCampaignTargetTotals } from '../projekt-erstellen/logic/CampaignBudgetFields.js';
 import { formatCompactNumber, formatExactNumber } from '../../core/format/compactNumber.js';
+import { animateNumber } from '../../core/animation/animateNumber.js';
 
 const VIDEO_STATS_METRIKEN = [
   { key: 'views', slug: 'stats-views', label: 'Views' },
@@ -38,7 +39,7 @@ export function calculateSummaryCards(kooperationen, videos) {
   return { koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum };
 }
 
-export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, kskUmgebucht = 0) {
+export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, kskUmgebucht = 0, { animate = false } = {}) {
   // Verfuegbares Budget (read-derived): creator_budget + KSK-Umbuchungen der Selbstzahler
   const totalBudget = (parseFloat(
     kampagneData?.auftrag?.creator_budget ||
@@ -60,19 +61,24 @@ export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUse
     else if (pct >= 75) el.classList.add('summary-progress-fill--warning');
   };
 
+  // Schreibt einen Zahlenwert in eine Karte, optional mit Count-Up/Down-Animation.
+  const setValue = (selector, value, format) => {
+    const el = document.querySelector(selector);
+    if (!el) return;
+    if (animate) animateNumber(el, value, { format });
+    else el.textContent = format(value);
+  };
+
   // Gesamtbudget (nur Netto-Gesamtwert)
-  const totalBudgetVal = document.querySelector('[data-summary-value="total-budget"]');
-  if (totalBudgetVal) totalBudgetVal.textContent = KampagneUtils.formatCurrency(totalBudget);
+  setValue('[data-summary-value="total-budget"]', totalBudget, KampagneUtils.formatCurrency);
 
   // Verbrauchtes Budget
-  const spentVal = document.querySelector('[data-summary-value="spent-budget"]');
-  if (spentVal) spentVal.textContent = KampagneUtils.formatCurrency(usedBudget);
+  setValue('[data-summary-value="spent-budget"]', usedBudget, KampagneUtils.formatCurrency);
   const spentProg = document.querySelector('[data-summary-progress="spent-budget"]');
   if (spentProg) { spentProg.style.width = `${budgetPct}%`; setBudgetColor(spentProg, budgetPct); }
 
   // Offenes Budget
-  const openVal = document.querySelector('[data-summary-value="open-budget"]');
-  if (openVal) openVal.textContent = KampagneUtils.formatCurrency(openBudget);
+  setValue('[data-summary-value="open-budget"]', openBudget, KampagneUtils.formatCurrency);
   const openProg = document.querySelector('[data-summary-progress="open-budget"]');
   if (openProg) {
     openProg.style.width = `${openPct}%`;
@@ -82,29 +88,37 @@ export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUse
     else openProg.classList.add('summary-progress-fill--success');
   }
 
-  // Creator & Videos (nur Werte, keine Progress-Bars)
-  const creatorsVal = document.querySelector('[data-summary-value="creators"]');
-  if (creatorsVal) creatorsVal.textContent = `${KampagneUtils.num(koopCreatorsUsed || 0)} von ${KampagneUtils.num(totalCreators)}`;
+  // Creator & Videos (nur Werte, keine Progress-Bars); nur der Ist-Wert wird animiert
+  setValue('[data-summary-value="creators"]', koopCreatorsUsed || 0,
+    (v) => `${KampagneUtils.num(Math.round(v))} von ${KampagneUtils.num(totalCreators)}`);
 
-  const videosVal = document.querySelector('[data-summary-value="videos"]');
-  if (videosVal) videosVal.textContent = `${KampagneUtils.num(koopVideosUsed || 0)} von ${KampagneUtils.num(totalVideos)}`;
+  setValue('[data-summary-value="videos"]', koopVideosUsed || 0,
+    (v) => `${KampagneUtils.num(Math.round(v))} von ${KampagneUtils.num(totalVideos)}`);
 
-  const extraKostenVal = document.querySelector('[data-summary-value="extra-kosten-vk"]');
-  if (extraKostenVal) extraKostenVal.textContent = KampagneUtils.formatCurrency(extraKostenVkSum || 0);
+  setValue('[data-summary-value="extra-kosten-vk"]', extraKostenVkSum || 0, KampagneUtils.formatCurrency);
 }
 
 /**
  * Live-Performance-Karte nachziehen. Laeuft nach jedem Stats-Abruf und jeder
  * manuellen Korrektur in der Tabelle, deshalb kein Re-Render der Seite.
  */
-export function updateVideoStatsCardDOM(videoStats) {
+export function updateVideoStatsCardDOM(videoStats, { animate = false } = {}) {
   const werte = normalizeVideoStats(videoStats);
 
   for (const metrik of VIDEO_STATS_METRIKEN) {
     const el = document.querySelector(`[data-summary-value="${metrik.slug}"]`);
     if (!el) continue;
-    el.textContent = formatCompactNumber(werte[metrik.key]) || '0';
-    el.title = formatExactNumber(werte[metrik.key]);
+    const target = werte[metrik.key];
+    const setExactTitle = () => { el.title = formatExactNumber(target); };
+    if (animate) {
+      animateNumber(el, target, {
+        format: (v) => formatCompactNumber(v) || '0',
+        onComplete: setExactTitle
+      });
+    } else {
+      el.textContent = formatCompactNumber(target) || '0';
+      setExactTitle();
+    }
   }
 }
 
@@ -164,7 +178,7 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
       `).join('');
 
   return `
-    <div class="auftragsdetails-summary" style="margin-bottom: var(--space-xl);">
+    <div class="auftragsdetails-summary auftragsdetails-summary--flush">
       <div class="summary-cards">
         <div class="summary-card" data-summary-card="gesamt-netto">
           <div class="summary-value">${fmt(gesamtNettoBetrag)}</div>
@@ -185,7 +199,7 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
         </div>
         <div class="summary-card" data-summary-card="open-budget">
           <div class="summary-value" data-summary-value="open-budget">${fmt(openBudget)}</div>
-          <div class="summary-label">Offenes Budget</div>
+          <div class="summary-label">Offenes Creator Budget</div>
           <div class="summary-progress">
             <div class="summary-progress-fill ${getOpenBudgetColorClass(openPct)}" data-summary-progress="open-budget"
                  style="width: ${openPct}%">

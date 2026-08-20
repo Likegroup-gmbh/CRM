@@ -226,6 +226,10 @@ export class ActionsDropdown {
     document.addEventListener('click', async (e) => {
       const submenuItem = e.target.closest('.submenu-item');
       if (!submenuItem) return;
+      // Nur eigene set-field-Items behandeln – fremde Submenüs (z.B. die
+      // Toolbar-Plus-Menüs auf Kampagne/Sourcing) nutzen .submenu-item ebenfalls
+      // und dürfen nicht per stopImmediatePropagation verschluckt werden.
+      if (submenuItem.dataset.action !== 'set-field') return;
       e.preventDefault();
       if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
 
@@ -238,26 +242,24 @@ export class ActionsDropdown {
         || submenuItem.closest('.actions-dropdown-container')?.dataset?.entityType
         || 'auftrag';
 
-      if (submenuItem.dataset.action === 'set-field') {
-        try {
-          if (entityType === 'kooperation' && fieldName === 'status_id') {
-            const statusName = submenuItem.dataset.statusName || '';
-            const { error } = await window.supabase
-              .from('kooperationen')
-              .update({ status_id: fieldValue, status: statusName, updated_at: new Date().toISOString() })
-              .eq('id', entityId);
-            if (error) throw error;
-            window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'kooperation', action: 'updated', id: entityId, field: 'status_id', value: fieldValue } }));
-            window.dispatchEvent(new CustomEvent('kooperationStatusChanged', { detail: { kooperationId: entityId, statusId: fieldValue, statusName } }));
-          } else {
-            await this.setField(entityType, entityId, fieldName, fieldValue);
-          }
-        } catch (err) {
-          console.error('setField Fehler aus Submenu', err);
-          alert('Aktualisierung fehlgeschlagen.');
+      try {
+        if (entityType === 'kooperation' && fieldName === 'status_id') {
+          const statusName = submenuItem.dataset.statusName || '';
+          const { error } = await window.supabase
+            .from('kooperationen')
+            .update({ status_id: fieldValue, status: statusName, updated_at: new Date().toISOString() })
+            .eq('id', entityId);
+          if (error) throw error;
+          window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'kooperation', action: 'updated', id: entityId, field: 'status_id', value: fieldValue } }));
+          window.dispatchEvent(new CustomEvent('kooperationStatusChanged', { detail: { kooperationId: entityId, statusId: fieldValue, statusName } }));
+        } else {
+          await this.setField(entityType, entityId, fieldName, fieldValue);
         }
-        this.closeAllDropdowns();
+      } catch (err) {
+        console.error('setField Fehler aus Submenu', err);
+        alert('Aktualisierung fehlgeschlagen.');
       }
+      this.closeAllDropdowns();
     }, { signal });
 
     document.addEventListener('click', (e) => {

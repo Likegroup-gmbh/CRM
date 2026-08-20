@@ -5,66 +5,91 @@ import { KampagneUtils } from './KampagneUtils.js';
 import { VideoTableColumnVisibilityDrawer } from './VideoTableColumnVisibilityDrawer.js';
 import { CustomColumnsDrawer } from './columns/CustomColumnsDrawer.js';
 import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
-import { sortDropdown } from '../../core/components/SortDropdown.js';
-import { tagFilterDropdown } from '../../core/components/TagFilterDropdown.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
+import { bindToolbarMenu } from '../../core/components/ToolbarMenu.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
-const KOOPERATION_SORT_ENTITY = 'kampagne-kooperationen';
-const TAG_FILTER_ENTITY = 'kampagne-kooperation-tags';
-const STATUS_FILTER_ENTITY = 'kampagne-kooperation-status';
+const CHECK_ICON = `
+  ${icon('check-bold')}`;
 
-const KAMPAGNE_KOOPERATION_SORT_OPTIONS = [
-  { value: 'name_asc', label: 'A-Z' },
-  { value: 'name_desc', label: 'Z-A' },
-  { value: 'created_desc', label: 'Neueste zuerst' },
-  { value: 'created_asc', label: 'Älteste zuerst' },
-  { value: 'posting_asc', label: 'GoLive früheste zuerst' },
-  { value: 'posting_desc', label: 'GoLive späteste zuerst' },
-  { value: 'content_deadline_asc', label: 'Content-Deadline früheste zuerst' },
-  { value: 'content_deadline_desc', label: 'Content-Deadline späteste zuerst' }
-];
-
-function initKooperationSortDropdown(detail) {
-  const container = document.getElementById('kampagne-kooperation-sort-container');
-  if (!container) return;
-
-  sortDropdown.init(KOOPERATION_SORT_ENTITY, container, {
-    nameField: 'name',
-    defaultSort: 'created_desc',
-    sortOptions: KAMPAGNE_KOOPERATION_SORT_OPTIONS,
-    onSortChange: () => {
-      const currentSort = sortDropdown.getCurrentSort(KOOPERATION_SORT_ENTITY);
-      detail.store?.setKooperationSort(currentSort);
-      if (detail.currentView === 'table') {
-        detail.kooperationenVideoTable?.refilter();
-      } else if (detail.currentView === 'kanban') {
-        detail.kanbanBoard?.render();
-      }
-    }
-  });
-
-  // Store mit (ggf. bereits persistierter) Auswahl synchronisieren
-  const persisted = sortDropdown.getCurrentSort(KOOPERATION_SORT_ENTITY);
-  detail.store?.setKooperationSort(persisted);
+function initToolbarMenu(signal) {
+  const menu = document.querySelector('.page-header-right .toolbar-menu');
+  if (!menu) return;
+  const cleanup = bindToolbarMenu(menu);
+  signal.addEventListener('abort', cleanup, { once: true });
 }
 
-function initTagFilterDropdown(detail) {
-  const container = document.getElementById('kampagne-tag-filter-container');
-  if (!container || !detail.store) return;
+// Filter-Auswahl (Status/Tags) in den Store schreiben, Submenu-DOM syncen
+// und die Kooperations-Ansicht neu filtern.
+function applyFilterSelection(detail, key, values) {
+  const store = detail.store;
+  if (!store) return;
+  if (key === 'status') store.setSelectedStatuses(values);
+  else store.setSelectedTags(values);
+  syncFilterSubmenu(key, values);
+  refreshKooperationenView(detail);
+}
 
-  const tags = detail.store.getAvailableTags();
-  tagFilterDropdown.init(TAG_FILTER_ENTITY, container, {
-    tags,
-    selectedTags: detail.store.selectedTags,
-    onTagsChange: (selected) => {
-      detail.store.setSelectedTags(selected);
-      if (detail.currentView === 'table') {
-        detail.kooperationenVideoTable?.refilter();
-      } else if (detail.currentView === 'kanban') {
-        detail.kanbanBoard?.render();
-      }
+function syncFilterSubmenu(key, selected) {
+  const submenu = document.querySelector(`[data-filter-submenu="${key}"]`);
+  if (!submenu) return;
+  const hasActive = selected.length > 0;
+
+  const trigger = submenu.querySelector('.action-item.has-submenu');
+  if (trigger) trigger.classList.toggle('active', hasActive);
+
+  const panel = submenu.querySelector('.submenu');
+  if (!panel) return;
+
+  let resetBtn = panel.querySelector('[data-filter-reset]');
+  if (hasActive && !resetBtn) {
+    resetBtn = document.createElement('button');
+    resetBtn.type = 'button';
+    resetBtn.className = 'submenu-item submenu-reset';
+    resetBtn.dataset.filterReset = key;
+    resetBtn.setAttribute('role', 'menuitem');
+    resetBtn.textContent = 'Alle zurücksetzen';
+    panel.prepend(resetBtn);
+  } else if (!hasActive && resetBtn) {
+    resetBtn.remove();
+  }
+
+  syncSubmenuChecks(panel, `.submenu-item[data-filter-value]`, (item) =>
+    selected.includes(item.dataset.filterValue)
+  );
+}
+
+function syncSortSubmenu(currentSort) {
+  const submenu = document.querySelector('[data-sort-submenu]');
+  if (!submenu) return;
+  syncSubmenuChecks(submenu, '.submenu-item[data-sort-value]', (item) =>
+    item.dataset.sortValue === currentSort
+  );
+}
+
+function syncSubmenuChecks(root, selector, isActiveFn) {
+  root.querySelectorAll(selector).forEach(item => {
+    const isActive = isActiveFn(item);
+    item.setAttribute('aria-checked', isActive ? 'true' : 'false');
+    let check = item.querySelector('.submenu-check');
+    if (isActive && !check) {
+      check = document.createElement('span');
+      check.className = 'submenu-check';
+      check.innerHTML = CHECK_ICON;
+      item.appendChild(check);
+    } else if (!isActive && check) {
+      check.remove();
     }
   });
+}
+
+function closeToolbarMenu(root) {
+  const dropdown = root?.querySelector('.toolbar-menu-dropdown');
+  const toggle = root?.querySelector('.toolbar-menu-toggle');
+  if (!dropdown || !toggle) return;
+  dropdown.classList.remove('show');
+  toggle.setAttribute('aria-expanded', 'false');
+  dropdown.setAttribute('aria-hidden', 'true');
 }
 
 function refreshKooperationenView(detail) {
@@ -94,28 +119,6 @@ function clearKooperationenSearch(detail) {
   refreshKooperationenView(detail);
 }
 
-function initStatusFilterDropdown(detail) {
-  const container = document.getElementById('kampagne-status-filter-container');
-  if (!container || !detail.store) return;
-
-  const statuses = detail.store.getAvailableStatuses();
-  tagFilterDropdown.init(STATUS_FILTER_ENTITY, container, {
-    tags: statuses,
-    selectedTags: detail.store.selectedStatuses,
-    placeholder: 'Status filtern',
-    itemLabelSingular: 'Status',
-    itemLabelPlural: 'Status',
-    onTagsChange: (selected) => {
-      detail.store.setSelectedStatuses(selected);
-      if (detail.currentView === 'table') {
-        detail.kooperationenVideoTable?.refilter();
-      } else if (detail.currentView === 'kanban') {
-        detail.kanbanBoard?.render();
-      }
-    }
-  });
-}
-
 let _abortController = null;
 
 export function setupEvents(detail) {
@@ -123,10 +126,46 @@ export function setupEvents(detail) {
   _abortController = new AbortController();
   const signal = _abortController.signal;
 
-  initKooperationSortDropdown(detail);
-  initStatusFilterDropdown(detail);
-  initTagFilterDropdown(detail);
+  initToolbarMenu(signal);
   initKooperationenSearch(detail, signal);
+
+  // Plus-Menü: Filter-Submenus (Status/Tags, Multi-Select)
+  document.addEventListener('click', (e) => {
+    const reset = e.target.closest('[data-filter-reset]');
+    if (reset) {
+      e.preventDefault();
+      applyFilterSelection(detail, reset.dataset.filterReset, []);
+      return;
+    }
+
+    const item = e.target.closest('.submenu-item[data-filter-key]');
+    if (!item) return;
+    e.preventDefault();
+
+    const key = item.dataset.filterKey;
+    const value = item.dataset.filterValue;
+    const store = detail.store;
+    if (!key || value == null || !store) return;
+
+    const current = key === 'status' ? store.selectedStatuses : store.selectedTags;
+    const next = current.includes(value)
+      ? current.filter(v => v !== value)
+      : [...current, value];
+    applyFilterSelection(detail, key, next);
+  }, { signal });
+
+  // Plus-Menü: Sortierung (Single-Select, Menü schliesst nach Wahl)
+  document.addEventListener('click', (e) => {
+    const sortItem = e.target.closest('.submenu-item[data-sort-value]');
+    if (!sortItem) return;
+    e.preventDefault();
+
+    const value = sortItem.dataset.sortValue;
+    detail.store?.setKooperationSort(value);
+    syncSortSubmenu(value);
+    refreshKooperationenView(detail);
+    closeToolbarMenu(sortItem.closest('.toolbar-menu'));
+  }, { signal });
 
   // Tab Navigation (Offen / Abgeschlossen / Alle)
   document.addEventListener('click', (e) => {
@@ -142,9 +181,12 @@ export function setupEvents(detail) {
     const resetBtn = e.target.closest('[data-empty-action="reset-filters"]');
     if (!resetBtn) return;
     e.preventDefault();
-    tagFilterDropdown.reset(STATUS_FILTER_ENTITY);
-    tagFilterDropdown.reset(TAG_FILTER_ENTITY);
+    detail.store?.setSelectedStatuses([]);
+    detail.store?.setSelectedTags([]);
+    syncFilterSubmenu('status', []);
+    syncFilterSubmenu('tag', []);
     clearKooperationenSearch(detail);
+    refreshKooperationenView(detail);
   }, { signal });
 
   // Kooperation anlegen
@@ -258,8 +300,6 @@ export function teardownEvents() {
     _abortController.abort();
     _abortController = null;
   }
-  tagFilterDropdown.destroy(TAG_FILTER_ENTITY);
-  tagFilterDropdown.destroy(STATUS_FILTER_ENTITY);
 }
 
 function showColumnVisibilityDrawer(detail) {

@@ -45,6 +45,14 @@
   text-overflow: ellipsis;
 }
 
+/* Logo + Titel im Detail-Header (Kampagne etc.) */
+.page-header-title-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
+}
+
 /* Page Header Left/Right Sections */
 .page-header-left {
   display: flex;
@@ -74,6 +82,7 @@
   padding: var(--space-xxs);
 }
 
+.view-toggle .mdc-btn,
 .view-toggle .secondary-btn {
   display: flex;
   align-items: center;
@@ -88,21 +97,26 @@
   transition: all 0.2s ease;
 }
 
+.view-toggle .mdc-btn:hover,
 .view-toggle .secondary-btn:hover {
   background: var(--gray-200);
   color: var(--text-primary);
 }
 
+.view-toggle .mdc-btn.active,
 .view-toggle .secondary-btn.active {
   background: var(--bg-primary);
   color: var(--text-primary);
   box-shadow: var(--shadow-sm);
 }
 
+.view-toggle .mdc-btn svg,
 .view-toggle .secondary-btn svg {
   flex-shrink: 0;
 }
 
+.view-toggle .mdc-btn[disabled],
+.view-toggle .mdc-btn:disabled,
 .view-toggle .secondary-btn[disabled],
 .view-toggle .secondary-btn:disabled {
   opacity: 0.5;

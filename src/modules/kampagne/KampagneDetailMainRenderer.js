@@ -6,6 +6,42 @@ import { renderSummaryCards } from './KampagneDetailSummaryCards.js';
 import { renderAnsprechpartner } from './KampagneDetailTabRenderers.js';
 import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
+import { renderToolbarMenu, renderToolbarMenuItem } from '../../core/components/ToolbarMenu.js';
+import { icon } from '../../core/icons/IconSystem.js';
+
+const SHARE_ICON = `
+  <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256">
+    <path d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H165a88,88,0,0,0-85.23,66,8,8,0,0,1-15.5-4A103.94,103.94,0,0,1,165,96h39.71L170.34,61.66a8,8,0,0,1,11.32-11.32l48,48A8,8,0,0,1,229.66,109.66ZM192,208H40V88a8,8,0,0,0-16,0V216a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16Z" />
+  </svg>`;
+
+const KAMPAGNE_KOOPERATION_SORT_OPTIONS = [
+  { value: 'name_asc', label: 'A-Z' },
+  { value: 'name_desc', label: 'Z-A' },
+  { value: 'created_desc', label: 'Neueste zuerst' },
+  { value: 'created_asc', label: 'Älteste zuerst' },
+  { value: 'posting_asc', label: 'GoLive früheste zuerst' },
+  { value: 'posting_desc', label: 'GoLive späteste zuerst' },
+  { value: 'content_deadline_asc', label: 'Content-Deadline früheste zuerst' },
+  { value: 'content_deadline_desc', label: 'Content-Deadline späteste zuerst' }
+];
+
+const CHECK_ICON = `
+  ${icon('check-bold')}`;
+
+const FILTER_ICON = `
+  ${icon('filter-alt')}`;
+
+const TAG_ICON = `
+  ${icon('tag')}`;
+
+const SORT_ICON = `
+  ${icon('arrows-up-down')}`;
+
+const COLUMNS_ICON = `
+  ${icon('bars-3')}`;
+
+const EYE_ICON = `
+  ${icon('eye-outline')}`;
 
 function escapeAttr(str) {
   return String(str)
@@ -16,9 +52,66 @@ function escapeAttr(str) {
     .replace(/'/g, '&#39;');
 }
 
+function sanitize(str) {
+  return window.validatorSystem?.sanitizeHtml(String(str)) || '';
+}
+
+// Multi-Select-Submenu (Status/Tags) im Sourcing-Pattern: Hover oeffnet das
+// Panel, Auswahl wird per Checkmark angezeigt. Sync nach Klick via
+// syncFilterSubmenu in KampagneDetailEvents.js.
+function renderFilterSubmenu({ key, label, icon, options = [], selected = [] }) {
+  if (!options.length) return '';
+  const hasActive = selected.length > 0;
+  const items = options.map(opt => {
+    const isActive = selected.includes(opt);
+    return `
+      <button type="button" class="submenu-item" data-filter-key="${key}" data-filter-value="${escapeAttr(opt)}" role="menuitemcheckbox" aria-checked="${isActive}">
+        <span>${sanitize(opt)}</span>
+        ${isActive ? `<span class="submenu-check">${CHECK_ICON}</span>` : ''}
+      </button>`;
+  }).join('');
+
+  return `
+    <div class="action-submenu" data-filter-submenu="${key}">
+      <button type="button" class="action-item has-submenu${hasActive ? ' active' : ''}" role="menuitem" aria-haspopup="true">
+        ${icon}
+        <span>${label}</span>
+      </button>
+      <div class="submenu" role="menu">
+        ${hasActive ? `
+          <button type="button" class="submenu-item submenu-reset" data-filter-reset="${key}" role="menuitem">
+            Alle zurücksetzen
+          </button>` : ''}
+        ${items}
+      </div>
+    </div>`;
+}
+
+function renderSortSubmenu(currentSort) {
+  const items = KAMPAGNE_KOOPERATION_SORT_OPTIONS.map(opt => {
+    const isActive = opt.value === currentSort;
+    return `
+      <button type="button" class="submenu-item" data-sort-value="${opt.value}" role="menuitemradio" aria-checked="${isActive}">
+        <span>${opt.label}</span>
+        ${isActive ? `<span class="submenu-check">${CHECK_ICON}</span>` : ''}
+      </button>`;
+  }).join('');
+
+  return `
+    <div class="action-submenu" data-sort-submenu>
+      <button type="button" class="action-item has-submenu" role="menuitem" aria-haspopup="true">
+        ${SORT_ICON}
+        <span>Sortierung</span>
+      </button>
+      <div class="submenu" role="menu">
+        ${items}
+      </div>
+    </div>`;
+}
+
 export function renderPageLoading() {
   return `
-    <div class="table-loading-container" style="min-height: 300px;">
+    <div class="table-loading-container table-loading-container--page">
       <div class="table-loading-spinner"></div>
     </div>
   `;
@@ -54,7 +147,9 @@ export function formatDeadlineBadge(dateStr) {
 export function renderMainPage(state) {
   const {
     kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed,
-    extraKostenVkSum, ekVkMarginSum, kskUmgebucht, videoStats, isKunde, kampagneId, searchQuery
+    extraKostenVkSum, ekVkMarginSum, kskUmgebucht, videoStats, isKunde, kampagneId, searchQuery,
+    availableStatuses = [], availableTags = [], selectedStatuses = [], selectedTags = [],
+    kooperationSort = 'created_desc'
   } = state;
 
   const canCreateKooperation = window.currentUser?.permissions?.kooperation?.can_edit || false;
@@ -62,20 +157,49 @@ export function renderMainPage(state) {
 
   const kampagneName = KampagneUtils.getDisplayName(kampagneData) || kampagneData?.kampagnenname || '';
 
+  const orgLogoUrl = kampagneData?.marke?.logo_url || kampagneData?.unternehmen?.logo_url || '';
+  const orgLogoAlt = kampagneData?.marke?.markenname || kampagneData?.unternehmen?.firmenname || 'Logo';
+  const safeLogoUrl = orgLogoUrl ? (window.validatorSystem?.sanitizeUrl(orgLogoUrl) ?? '') : '';
+
   return `
+    ${renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, videoStats, kskUmgebucht)}
+
     <div class="page-header">
-      <h2 class="page-header-title">${window.validatorSystem?.sanitizeHtml(kampagneName) || ''}</h2>
-      ${(canCreateKooperation || canShare) ? `
-      <div class="page-header-right">
-        ${canShare ? `<button id="btn-share-kampagne" class="secondary-btn" title="Liste per E-Mail teilen"><svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256" style="width: 16px; height: 16px;"><path d="M229.66,109.66l-48,48a8,8,0,0,1-11.32-11.32L204.69,112H165a88,88,0,0,0-85.23,66,8,8,0,0,1-15.5-4A103.94,103.94,0,0,1,165,96h39.71L170.34,61.66a8,8,0,0,1,11.32-11.32l48,48A8,8,0,0,1,229.66,109.66ZM192,208H40V88a8,8,0,0,0-16,0V216a8,8,0,0,0,8,8H192a8,8,0,0,0,0-16Z"></path></svg>Teilen</button>` : ''}
-        ${canCreateKooperation ? `<button id="btn-new-kooperation" class="primary-btn">Kooperation anlegen</button>` : ''}
+      <div class="page-header-title-group">
+        ${safeLogoUrl ? `<img src="${escapeAttr(safeLogoUrl)}" alt="${escapeAttr(orgLogoAlt)}" title="${escapeAttr(orgLogoAlt)}" class="toolbar-entity-logo" loading="lazy" />` : ''}
+        <h2 class="page-header-title">${sanitize(kampagneName)}</h2>
       </div>
-      ` : ''}
+      <div class="page-header-right">
+        ${SearchInput.render('kampagne-koop', {
+          placeholder: 'Name suchen...',
+          currentValue: escapeAttr(searchQuery || '')
+        })}
+        ${canCreateKooperation ? `<button id="btn-new-kooperation" class="mdc-btn">Kooperation anlegen</button>` : ''}
+        ${renderToolbarMenu({
+          toggleId: 'btn-kampagne-toolbar-menu',
+          itemsHtml: `
+            ${renderFilterSubmenu({ key: 'status', label: 'Status filtern', icon: FILTER_ICON, options: availableStatuses, selected: selectedStatuses })}
+            ${renderFilterSubmenu({ key: 'tag', label: 'Tags filtern', icon: TAG_ICON, options: availableTags, selected: selectedTags })}
+            ${renderSortSubmenu(kooperationSort)}
+            ${canShare ? renderToolbarMenuItem({ id: 'btn-share-kampagne', title: 'Liste per E-Mail teilen', icon: SHARE_ICON, label: 'Teilen' }) : ''}
+            ${!isKunde ? `
+              ${renderToolbarMenuItem({ id: 'btn-custom-columns', title: 'Eigene Spalten verwalten', icon: COLUMNS_ICON, label: 'Spalten' })}
+              ${renderToolbarMenuItem({ id: 'btn-column-visibility', title: 'Spalten-Sichtbarkeit anpassen', icon: EYE_ICON, label: 'Sichtbarkeit anpassen' })}
+            ` : ''}
+          `
+        })}
+        <div class="view-toggle">
+          <button id="btn-view-table" class="mdc-btn mdc-btn--secondary active" title="Tabelle">
+            ${icon('table-grid')}
+          </button>
+          <button id="btn-view-kanban" class="mdc-btn mdc-btn--secondary" title="Kanban">
+            ${icon('bookmark')}
+          </button>
+        </div>
+      </div>
     </div>
 
     <div class="content-section">
-      ${renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, videoStats, kskUmgebucht)}
-
       <div class="tab-navigation">
         <button class="tab-button active" data-tab="offen">
           Offen <span class="tab-count" id="tab-count-offen"></span>
@@ -86,35 +210,6 @@ export function renderMainPage(state) {
         <button class="tab-button" data-tab="alle">
           Alle <span class="tab-count" id="tab-count-alle"></span>
         </button>
-        <div class="tab-actions" style="margin-left: auto; display: flex; align-items: center; gap: var(--space-sm);">
-          ${SearchInput.render('kampagne-koop', {
-            placeholder: 'Name suchen...',
-            currentValue: escapeAttr(searchQuery || '')
-          })}
-          <div id="kampagne-status-filter-container"></div>
-          <div id="kampagne-tag-filter-container"></div>
-          <div id="kampagne-kooperation-sort-container"></div>
-          ${!isKunde ? `
-          <button id="btn-custom-columns" class="secondary-btn" title="Eigene Spalten verwalten">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-            Spalten
-          </button>
-          <button id="btn-column-visibility" class="secondary-btn">
-            Sichtbarkeit anpassen
-          </button>` : ''}
-          <div class="view-toggle">
-            <button id="btn-view-table" class="secondary-btn active" title="Tabelle">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 1.5v-1.5m0 0c0-.621.504-1.125 1.125-1.125m0 0h7.5" />
-              </svg>
-            </button>
-            <button id="btn-view-kanban" class="secondary-btn" title="Kanban">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" width="16" height="16">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125c-.621 0-1.125.504-1.125 1.125v12.75c0 .621.504 1.125 1.125 1.125Z" />
-              </svg>
-            </button>
-          </div>
-        </div>
       </div>
 
       <div class="tab-content">

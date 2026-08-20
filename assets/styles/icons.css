@@ -1,0 +1,42 @@
+/* icons.css */
+/* Zentrale Icon-Styles: Stroke als CSS-Variable, damit 1px/1.5px ohne doppelte SVGs */
+
+/* Groessen-Default mit 0 Spezifitaet, damit .nav-icon svg, .breadcrumb-icon svg, */
+/* .icon-14/16/18/20 usw. weiterhin gewinnen. icons.css wird in main.js zuletzt importiert. */
+:where(.crm-icon) {
+  width: var(--icon-size, 1.25rem);
+  height: var(--icon-size, 1.25rem);
+}
+
+.crm-icon {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: var(--icon-stroke, 1.5);
+  flex-shrink: 0;
+}
+
+/* Gefuellte Glyphs (z.B. Instagram/TikTok) */
+.crm-icon--filled {
+  fill: currentColor;
+  stroke: none;
+}
+
+.crm-icon--stroke-1 {
+  --icon-stroke: 1;
+}
+
+.crm-icon--stroke-1-5 {
+  --icon-stroke: 1.5;
+}
+
+.crm-icon--stroke-1-7 {
+  --icon-stroke: 1.7;
+}
+
+.crm-icon--stroke-1-8 {
+  --icon-stroke: 1.8;
+}
+
+.crm-icon--stroke-2 {
+  --icon-stroke: 2;
+}

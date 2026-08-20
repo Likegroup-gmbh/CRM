@@ -19,6 +19,7 @@ import '../assets/styles/share.css';
 import '../assets/styles/stakeholder.css';
 import '../assets/styles/skripte.css';
 import '../assets/styles/produkt-doc.css';
+import '../assets/styles/icons.css';
 
 import { CONFIG } from './core/ConfigSystem.js';
 import { modularFilterSystem as filterSystem } from './core/filters/ModularFilterSystem.js';
@@ -42,6 +43,7 @@ import { produktForm } from './modules/produkt/ProduktForm.js';
 import { authService } from './modules/auth/AuthService.js';
 import { authUtils } from './modules/auth/AuthUtils.js';
 import { navigationSystem } from './modules/navigation/NavigationSystem.js';
+import { ensureSpriteMounted } from './core/icons/IconSystem.js';
 import { permissionSystem } from './core/PermissionSystem.js';
 import './core/DataScopeService.js';
 import { dataService } from './core/DataService.js';
@@ -387,6 +389,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       await renderGuestNoAccess();
       return;
     }
+
+    // Icon-Sprite einmal mounten, bevor Navigation/Tabs Icons referenzieren
+    ensureSpriteMounted();
 
     // Globale Suche (nur für Mitarbeiter/Admin) – vor Navigation, damit Sidebar-Button sichtbar ist
     window.globalSearch = globalSearch;

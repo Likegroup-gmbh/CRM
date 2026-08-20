@@ -224,11 +224,32 @@ export class KampagneDetailStore {
   }
 
   calculateSummary() {
-    const allVideos = Object.values(this.videos).flat();
+    return this._calculateSummaryFor(this.kooperationen, this.videos);
+  }
+
+  /**
+   * Summary nur ueber die per Tag-Filter ausgewaehlten Kooperationen.
+   * Status/Suche/Tab fliessen hier bewusst nicht ein (Produktentscheidung).
+   * kskUmgebucht bleibt global, weil es die Budget-Basis (Soll) bildet.
+   */
+  calculateFilteredSummary() {
+    if (this.selectedTags.length === 0) return this.calculateSummary();
+    const koops = this.kooperationen.filter(k =>
+      (k._tags || []).some(tag => this.selectedTags.includes(tag))
+    );
+    const videosByKoopId = {};
+    for (const k of koops) {
+      if (this.videos[k.id]) videosByKoopId[k.id] = this.videos[k.id];
+    }
+    return this._calculateSummaryFor(koops, videosByKoopId);
+  }
+
+  _calculateSummaryFor(koops, videosByKoopId) {
+    const allVideos = Object.values(videosByKoopId).flat();
     const koopBudgetSum = allVideos.reduce((sum, v) => sum + (parseFloat(v.verkaufspreis_netto) || 0), 0);
-    const koopVideosUsed = this.kooperationen.reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
-    const extraKostenVkSum = this.kooperationen.reduce((sum, k) => sum + (parseFloat(k.verkaufspreis_zusatzkosten) || 0), 0);
-    const koopCreatorsUsed = this.kooperationen.filter(k => k.creator_id).length;
+    const koopVideosUsed = koops.reduce((sum, k) => sum + (parseInt(k.videoanzahl, 10) || 0), 0);
+    const extraKostenVkSum = koops.reduce((sum, k) => sum + (parseFloat(k.verkaufspreis_zusatzkosten) || 0), 0);
+    const koopCreatorsUsed = koops.filter(k => k.creator_id).length;
     // KSK-Selbstzahler: aus dem KSK-Topf ins Creator-Budget umgebuchter Anteil
     const kskUmgebucht = summeKskSelbstzahler(this.kooperationen);
 
@@ -239,16 +260,17 @@ export class KampagneDetailStore {
       extraKostenVkSum,
       kskUmgebucht,
       ekVkMarginSum: 0,
-      videoStats: this.calculateVideoStats()
+      videoStats: this.calculateVideoStats(allVideos)
     };
   }
 
   /**
    * Live-Performance der gesamten Kampagne: Summe ueber alle Videos, bei denen
    * Zahlen hinterlegt sind (abgerufen oder von Hand eingetragen).
+   * Optional auf eine bestimmte Video-Menge einschraenkbar (z.B. Tag-Filter).
    */
-  calculateVideoStats() {
-    const allVideos = Object.values(this.videos).flat();
+  calculateVideoStats(videosList) {
+    const allVideos = videosList || Object.values(this.videos).flat();
     const sum = (field) => allVideos.reduce((acc, v) => acc + (Number(v?.[field]) || 0), 0);
 
     return {

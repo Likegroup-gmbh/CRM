@@ -21,8 +21,8 @@ export async function loadCriticalData(kampagneId) {
       .from('kampagne')
       .select(`
         *,
-        unternehmen:unternehmen_id(firmenname, webseite, branche_id),
-        marke:marke_id(markenname, webseite),
+        unternehmen:unternehmen_id(firmenname, webseite, branche_id, logo_url),
+        marke:marke_id(markenname, webseite, logo_url),
         auftrag:auftrag_id(auftragsname, status, gesamt_budget, creator_budget, bruttobetrag, nettobetrag)
       `)
       .eq('id', kampagneId)

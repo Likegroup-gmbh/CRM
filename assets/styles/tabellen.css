@@ -709,6 +709,11 @@
   color: var(--gray-600);
 }
 
+/* Seitenweite Ladezustaende (z.B. Kampagne-Detail) */
+.table-loading-container--page {
+  min-height: 300px;
+}
+
 .table-loading-content {
   text-align: center;
 }
