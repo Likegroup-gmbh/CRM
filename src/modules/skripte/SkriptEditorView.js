@@ -52,7 +52,7 @@ export class SkriptEditorView {
       onChange: (feld, text) => {
         if (this.skript) this.skript[feld] = text || null;
       },
-      onInput: () => this.clearPending(),
+      onInput: () => { if (this.selektion || this.pendingAktion) this.clearPending(); },
       onSave: (feld, text, vorher) => this.saveManuell(feld, text, vorher)
     });
 
@@ -136,6 +136,7 @@ export class SkriptEditorView {
         if (this.messages.some((m) => m.status === 'pending' || m.status === 'running')) {
           this.ensurePolling();
         }
+        this.applyOffeneVisuellvorschlaege();
       }
     } catch (err) {
       container.innerHTML = `
@@ -273,6 +274,7 @@ export class SkriptEditorView {
       if (this.messages.some((m) => m.status === 'pending' || m.status === 'running')) {
         this.ensurePolling();
       }
+      this.applyOffeneVisuellvorschlaege();
     } catch (err) {
       window.toastSystem?.error(err.message);
       this.renderListe();
@@ -625,6 +627,7 @@ export class SkriptEditorView {
 
   startVisuell(sektion) { return this._visuell.startVisuell(sektion); }
   applyVisuellVorschlag(msg) { return this._visuell.applyVisuellVorschlag(msg); }
+  applyOffeneVisuellvorschlaege() { return this._visuell.applyOffene(); }
 
   subscribe() { this._realtime.subscribe(); }
   ensurePolling() { this._realtime.ensurePolling(); }

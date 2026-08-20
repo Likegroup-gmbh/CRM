@@ -121,6 +121,8 @@ export function messageHtml(m, { istFragenModus = false, genLaeuft = false } = {
         </div>
       `;
     }
+  } else if (m.aktion === 'visuell' && m.status === 'vorschlag') {
+    footer = `<p class="skripte-hint">Visual wird automatisch übernommen …</p>`;
   } else if (m.status === 'vorschlag') {
     footer = `
       <div class="skripte-editor-msg-actions">

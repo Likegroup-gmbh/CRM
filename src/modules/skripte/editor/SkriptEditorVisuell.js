@@ -37,10 +37,21 @@ export class SkriptEditorVisuell {
     if (msg) v.renderDoc();
   }
 
+  /** Nach Laden/Wechsel: offene Visual-Vorschlaege der Reihe nach uebernehmen. */
+  async applyOffene() {
+    const offen = this.view.messages.filter((m) =>
+      m.aktion === 'visuell' && m.status === 'vorschlag' && m.vorschlag_text
+    );
+    for (const m of offen) {
+      await this.applyVisuellVorschlag(m);
+    }
+  }
+
   /** Auto-Apply: Visual-Vorschlag direkt in die Zelle schreiben (kein Annehmen/Ablehnen). */
   async applyVisuellVorschlag(msg) {
     const v = this.view;
     if (v.visuellApplyLaeuft) return;
+    if (msg.status !== 'vorschlag') return;
     const sektion = msg.sektion;
     const feld = VISUELL_FIELD[sektion];
     if (!feld || !msg.vorschlag_text) return;

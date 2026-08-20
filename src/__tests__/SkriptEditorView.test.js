@@ -291,6 +291,30 @@ describe('SkriptEditorView Layout', () => {
     });
   });
 
+  it('offener visuell-Vorschlag beim Laden wird auto-applied', async () => {
+    mockService.getChatMessages.mockResolvedValue([{
+      id: 'm-open',
+      skript_id: 's1',
+      rolle: 'assistant',
+      aktion: 'visuell',
+      sektion: 'hook',
+      selektion_text: 'Hook-Text',
+      vorschlag_text: 'Reload-Visual',
+      status: 'vorschlag'
+    }]);
+    mockService.updateSkript.mockResolvedValue({});
+    mockService.createVersion.mockResolvedValue({ version_nr: 2, sub_nr: 0 });
+    mockService.updateChatMessage.mockResolvedValue({});
+    window.toastSystem = { success: vi.fn(), error: vi.fn(), warning: vi.fn() };
+
+    await view.render(container, 's1');
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', { hook_visuell: 'Reload-Visual' });
+    expect(view.skript.hook_visuell).toBe('Reload-Visual');
+    expect(view.skript.hook).toBe('Hook-Text');
+  });
+
   it('applyMessageUpdate auto-applied Visual-Vorschlag und legt Version an', async () => {
     mockService.updateSkript = vi.fn().mockResolvedValue({});
     mockService.createVersion = vi.fn().mockResolvedValue({ version_nr: 2, sub_nr: 0 });
@@ -455,6 +479,28 @@ describe('SkriptEditorView Inline-Edit', () => {
     expect(menu.hidden).toBe(false);
     expect(menu.querySelector('[data-aktion="kuerzen"]')).not.toBeNull();
     expect(view.selektion).toEqual({ sektion: 'hauptteil', text: 'Visual-Text', istVisuell: true });
+  });
+
+  it('acceptVorschlag auf visuell-Message schreibt ins Visual-Feld, nicht ins Spoken-Feld', async () => {
+    window.toastSystem = { success: vi.fn(), error: vi.fn(), warning: vi.fn() };
+    await view.render(container, 's1');
+    mockService.updateSkript.mockClear();
+    mockService.createVersion.mockClear();
+
+    await view.acceptVorschlag({
+      id: 'm-vis',
+      sektion: 'hauptteil',
+      ist_visuell: false,
+      aktion: 'visuell',
+      status: 'vorschlag',
+      selektion_text: 'Hauptteil-Text',
+      vorschlag_text: 'Close-up Pfanne'
+    });
+
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', { hauptteil_visuell: 'Close-up Pfanne' });
+    expect(mockService.updateSkript).not.toHaveBeenCalledWith('s1', expect.objectContaining({ hauptteil: expect.anything() }));
+    expect(view.skript.hauptteil_visuell).toBe('Close-up Pfanne');
+    expect(view.skript.hauptteil).toBe('Hauptteil-Text');
   });
 
   it('acceptVorschlag mit ist_visuell schreibt ins Visual-Feld', async () => {

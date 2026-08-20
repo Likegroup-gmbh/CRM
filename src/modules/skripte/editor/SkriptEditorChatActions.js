@@ -173,6 +173,7 @@ export class SkriptEditorChatActions {
 
   async acceptVorschlag(msg) {
     const v = this.view;
+    if (msg.aktion === 'visuell') return v.applyVisuellVorschlag(msg);
     // Doppelklick-Guard: parallele Accepts kollidieren auf version_nr
     if (v.acceptLaeuft) return;
 

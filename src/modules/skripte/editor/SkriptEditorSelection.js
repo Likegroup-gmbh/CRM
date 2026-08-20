@@ -94,7 +94,8 @@ export class SkriptEditorSelection {
     v.selektion = null;
     v.pendingAktion = null;
     this.updateChip();
-    window.getSelection()?.removeAllRanges();
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed) sel.removeAllRanges();
     const input = document.getElementById('ed-input');
     if (input) input.placeholder = PLACEHOLDER_DEFAULT;
   }

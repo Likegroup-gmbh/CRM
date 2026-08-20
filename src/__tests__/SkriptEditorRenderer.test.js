@@ -34,6 +34,17 @@ describe('SkriptEditorChatRenderer', () => {
     expect(html).toContain('data-msg-id="m3"');
   });
 
+  it('visuell-Vorschlag bekommt keine Annehmen/Ablehnen-Buttons', () => {
+    const html = messageHtml({
+      id: 'm-vis', rolle: 'assistant', status: 'vorschlag', aktion: 'visuell',
+      sektion: 'hauptteil', inhalt: 'Visual fertig.', vorschlag_text: 'Close-up Pfanne'
+    });
+    expect(html).not.toContain('data-msg-action="accept"');
+    expect(html).not.toContain('data-msg-action="reject"');
+    expect(html).toContain('Visual wird automatisch übernommen');
+    expect(html).toContain('Close-up Pfanne');
+  });
+
   it('Vorschlag bekommt Annehmen/Ablehnen-Buttons', () => {
     const html = messageHtml({
       id: 'm4', rolle: 'assistant', status: 'vorschlag', aktion: 'kuerzen',
