@@ -3,7 +3,9 @@
 // zugehoerigen Edit-Kontext. Aus skript-edit-background.js ausgelagert,
 // damit der Handler schlank bleibt und der Prompt isoliert testbar ist.
 
-const { videoLaengeHinweis, WOERTER_PRO_SEKUNDE, kuerzeTranskript, fmtCampaignBriefing } = require('./skript-context');
+const fs = require('fs');
+const path = require('path');
+const { videoLaengeHinweis, WOERTER_PRO_SEKUNDE, kuerzeTranskript, fmtCampaignBriefing, fmtSkript } = require('./skript-context');
 
 // Transkript-Budget im Edit-Prompt: kompakter als bei der Erstgenerierung,
 // weil das fertige Skript + Verlauf schon viel Kontext belegen
@@ -30,8 +32,69 @@ const AKTION_ANWEISUNGEN = {
   anderer_ton: 'Schreibe die markierte Stelle in einem anderen Ton um. Beachte die Ton-Vorgabe des Users, falls vorhanden.',
   feedback: 'Der User hat die markierte Stelle bewertet und strukturiertes Feedback gegeben (Score, Begründung, ggf. eine Vorgabe "So sollte es sein"). Überarbeite die markierte Stelle so, dass das Feedback vollständig umgesetzt wird. Eine Vorgabe "So sollte es sein" ist verbindlich: übernimm ihre Richtung, aber formuliere sie sauber im Ton des restlichen Skripts aus.',
   chat: 'Reagiere auf das Feedback des Users. Wenn eine konkrete Textänderung sinnvoll ist, schlage sie vor. Wenn dir Informationen fehlen (z.B. wie ein CTA konkret aussehen soll), stelle eine Rückfrage statt etwas zu erfinden.',
-  visuell: 'Der gesamte gesprochene Text der Sektion steht unter "Markierte Stelle". Schreibe dazu die VISUELLE REGIE für "Was zu sehen ist": konkrete Shots, B-Roll, Overlays, On-Screen-Texte, Schnitte. KEINEN zweiten Sprechertext, keine gesprochenen Worte. Der gesprochene Text bleibt unverändert. Leitplanken und Briefing-Fakten gelten auch für On-Screen-Texte und Claims. Baue auf der visuellen Regie der vorherigen Sektionen auf (Kontinuitaet von Stil, Orten, Props) und setze die Zeitstempel nahtlos an deren letzten Shot an – nicht bei 0:00 neu starten, ausser bei der Hook.'
+  visuell: 'Der gesamte gesprochene Text der Sektion steht unter "Markierte Stelle". Schreibe dazu die VISUELLE REGIE für "Was zu sehen ist" im Produktionsformat: Text Overlay, Visual, B-Roll – so wie in einem echten Creator-Briefing, kein Filmhochschul-Storyboard. KEINEN zweiten Sprechertext, keine gesprochenen Worte. Der gesprochene Text bleibt unverändert. Leitplanken und Briefing-Fakten gelten auch für On-Screen-Texte und Claims. Baue auf der visuellen Regie der vorherigen Sektionen auf (Kontinuitaet von Stil, Orten, Props) und setze Zeitmarker nahtlos an deren letzten Block an – nicht bei 0:00 neu starten, ausser bei der Hook.'
 };
+
+const VISUELL_STIL_FALLBACK = 'Schreibe visuelle Regie wie ein Produktions-Briefing: Text Overlay, Visual, B-Roll. '
+  + 'Zeitmarker alle 5–10 Sekunden oder „ca. 10 Sek.“, nicht sekündlich. Kein Filmhochschul-Storyboard.';
+
+let visuellStilCache = null;
+
+function ladeVisuellStil() {
+  if (visuellStilCache != null) return visuellStilCache;
+  const kandidaten = [
+    path.resolve(__dirname, 'prompts/skript-visuell-stil.md'),
+    path.resolve(__dirname, '_shared/prompts/skript-visuell-stil.md'),
+    path.resolve(__dirname, '../../netlify/functions/_shared/prompts/skript-visuell-stil.md'),
+    path.resolve(process.cwd(), 'netlify/functions/_shared/prompts/skript-visuell-stil.md')
+  ];
+  for (const p of kandidaten) {
+    try {
+      visuellStilCache = fs.readFileSync(p, 'utf8');
+      return visuellStilCache;
+    } catch (_) { /* naechsten Kandidaten versuchen */ }
+  }
+  console.warn('[skript-edit] Visuell-Stil-Datei nicht gefunden, nutze Fallback');
+  visuellStilCache = VISUELL_STIL_FALLBACK;
+  return visuellStilCache;
+}
+
+function hatVisuellText(s) {
+  return [s?.hook_visuell, s?.hauptteil_visuell, s?.cta_visuell]
+    .some((t) => String(t || '').trim());
+}
+
+/** Max. 3 erfolgreiche/virale Skripte mit Visual-Text (Marke zuerst). */
+async function loadVisualBeispiele(supabase, skript) {
+  const cols = 'id, titel, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, performance_label, marke_id';
+  const labels = ['erfolgreich', 'viral'];
+  const selfId = skript?.id;
+
+  const markePromise = skript?.marke_id
+    ? (() => {
+      let q = supabase.from('skripte').select(cols)
+        .in('performance_label', labels)
+        .eq('marke_id', skript.marke_id);
+      if (selfId) q = q.neq('id', selfId);
+      return q.order('created_at', { ascending: false }).limit(6);
+    })()
+    : Promise.resolve({ data: null });
+
+  let globalQ = supabase.from('skripte').select(cols)
+    .in('performance_label', labels);
+  if (selfId) globalQ = globalQ.neq('id', selfId);
+  globalQ = globalQ.order('created_at', { ascending: false }).limit(8);
+
+  const [{ data: markeRows }, { data: globalRows }] = await Promise.all([markePromise, globalQ]);
+  const beispiele = [];
+  for (const s of [...(markeRows || []), ...(globalRows || [])]) {
+    if (beispiele.length >= 3) break;
+    if (!hatVisuellText(s)) continue;
+    if (beispiele.some((b) => b.id === s.id)) continue;
+    beispiele.push(s);
+  }
+  return beispiele;
+}
 
 const VISUELL_VORGAENGER = {
   hook: null,
@@ -103,8 +166,9 @@ function letzterZeitstempel(text) {
 
 function buildVisuellZeitplan(skript, sektion) {
   let block = '\n# ZEITPLAN UND KONTINUITAET\n';
-  block += '- Jeder Shot MUSS einen Zeitstempel im Format M:SS–M:SS tragen (z.B. 0:03–0:05).\n';
-  block += '- Baue auf der Regie der vorherigen Sektionen auf – Stil, Orte und Props konsistent halten, keine Shots wiederholen.\n';
+  block += '- Zeitmarker alle 5–10 Sekunden, nicht pro Shot und nicht sekündlich. Ein Block darf z.B. „0:00–0:08“ oder „B-Roll (ca. 10 Sek.)“ sein.\n';
+  block += '- M:SS–M:SS ist erlaubt, aber kein Pflicht-Format für jeden Satz.\n';
+  block += '- Baue auf der Regie der vorherigen Sektionen auf – Stil, Orte und Props konsistent halten, keine Szenen wiederholen.\n';
 
   if (sektion === 'hook' || !VISUELL_VORGAENGER[sektion]) {
     block += '- Beginne bei 0:00.\n';
@@ -116,9 +180,9 @@ function buildVisuellZeitplan(skript, sektion) {
   const geschaetzt = formatZeitstempel(geschaetzteDauerSekunden(skript?.[vorg.spoken]));
 
   if (parsed) {
-    block += `- Die Sektion davor (${vorg.label}) endet bei ${parsed}. Dein erster Shot MUSS bei ${parsed} beginnen, die Zeiten laufen nahtlos weiter. Nicht bei 0:00 neu starten.\n`;
+    block += `- Die Sektion davor (${vorg.label}) endet bei ${parsed}. Dein erster Block MUSS bei ${parsed} beginnen, die Zeiten laufen nahtlos weiter. Nicht bei 0:00 neu starten.\n`;
   } else if (geschaetzt) {
-    block += `- Keine Zeitstempel in der Sektion davor (${vorg.label}) gefunden. Schaetze den Start aus dem gesprochenen ${vorg.label}-Text: ca. ${geschaetzt}. Dein erster Shot MUSS dort beginnen, nicht bei 0:00.\n`;
+    block += `- Keine Zeitstempel in der Sektion davor (${vorg.label}) gefunden. Schaetze den Start aus dem gesprochenen ${vorg.label}-Text: ca. ${geschaetzt}. Dein erster Block MUSS dort beginnen, nicht bei 0:00.\n`;
   } else {
     block += `- Keine Zeitstempel in der Sektion davor (${vorg.label}) gefunden. Setze die Zeiten nahtlos an die vorherige Sektion an, nicht bei 0:00 neu starten.\n`;
   }
@@ -126,7 +190,7 @@ function buildVisuellZeitplan(skript, sektion) {
   if (sektion === 'cta') {
     const ende = formatZeitstempel(videoLaengeEndeSekunden(skript?.video_laenge));
     if (ende) {
-      block += `- Der letzte Shot soll bei ${ende} enden (Video-Laenge ${skript.video_laenge}).\n`;
+      block += `- Der letzte Block soll bei ${ende} enden (Video-Laenge ${skript.video_laenge}).\n`;
     }
   }
 
@@ -135,8 +199,8 @@ function buildVisuellZeitplan(skript, sektion) {
 
 // ---------------------------------------------------------------------------
 // Kontext: Skript + volle Persona + Briefing/Kickoff (Kurzform) + aktive DNA
-// + bisheriges strukturiertes Feedback. Beispiel-Skripte/Anti-Patterns bewusst
-// NICHT (Edit bleibt lokal, sonst blaeht der Prompt auf).
+// + bisheriges strukturiertes Feedback. Spoken-Beispiele bewusst NICHT
+// (Edit bleibt lokal). Visual-Few-Shots nur bei aktion=visuell.
 // ---------------------------------------------------------------------------
 async function loadEditContext(supabase, message) {
   const skriptPromise = supabase.from('skripte')
@@ -214,12 +278,16 @@ async function loadEditContext(supabase, message) {
     return data || null;
   })();
 
-  const [dna, briefing, kickoff, modus] = await Promise.all([
-    dnaPromise, briefingPromise, kickoffPromise, modusPromise
+  const beispielePromise = message.aktion === 'visuell'
+    ? loadVisualBeispiele(supabase, skript)
+    : Promise.resolve([]);
+
+  const [dna, briefing, kickoff, modus, beispiele] = await Promise.all([
+    dnaPromise, briefingPromise, kickoffPromise, modusPromise, beispielePromise
   ]);
   const feedback = (feedbackRaw || []).reverse();
 
-  return { skript, history, dna, briefing, kickoff, feedback, modus };
+  return { skript, history, dna, briefing, kickoff, feedback, modus, beispiele };
 }
 
 // ---------------------------------------------------------------------------
@@ -235,8 +303,9 @@ function fmtLines(obj) {
 
 function buildEditPrompt(ctx, message) {
   const { skript, history, dna, briefing, kickoff, feedback, modus } = ctx;
+  const beispiele = ctx.beispiele || [];
 
-  // Block 1 (stabil, cachebar): Rolle + DNA
+  // Block 1 (stabil, cachebar): Rolle + DNA (+ Visual-Stil/Few-Shots nur bei visuell)
   let stable = 'Du bist ein erfahrener Werbetexter fuer UGC- und Creator-Videos (TikTok, Instagram Reels) '
     + 'und ueberarbeitest ein bestehendes deutsches Video-Skript im Dialog mit einem Mitarbeiter. '
     + 'Du aenderst NUR was verlangt wird und erhaeltst Ton und Stil des restlichen Skripts. '
@@ -246,6 +315,17 @@ function buildEditPrompt(ctx, message) {
     stable += '\n# SKRIPT-DNA (verbindliches Regelwerk, geschichtet - spaetere Layer haben Vorrang)\n';
     for (const d of dna) {
       stable += `\n--- ${d.name ? `"${d.name}" - ` : ''}Layer: ${d.layer_typ} (v${d.version}) ---\n${d.inhalt}\n`;
+    }
+  }
+
+  if (message.aktion === 'visuell') {
+    stable += '\n# VISUELLER STIL (verbindliches Format fuer "Was zu sehen ist")\n'
+      + ladeVisuellStil() + '\n';
+    if (beispiele.length) {
+      stable += '\n# ERFOLGREICHE VISUAL-BEISPIELE (an diesen Mustern orientieren, NICHT kopieren)\n';
+      beispiele.forEach((s, i) => {
+        stable += `\n--- Beispiel ${i + 1} (${s.performance_label}) ---\n${fmtSkript(s)}\n`;
+      });
     }
   }
 
@@ -366,7 +446,7 @@ function buildEditPrompt(ctx, message) {
   // Rewrite auf markierte Visual-Regie (nicht der Visual-Button, der aus Spoken generiert)
   if (message.ist_visuell && message.aktion !== 'visuell') {
     task += '\nDie markierte Stelle stammt aus "Was zu sehen ist" (visuelle Regie, kein Sprechertext).\n'
-      + 'Schreibe visuell weiter: Shots, B-Roll, Overlays, On-Screen-Texte, Schnitte. KEINEN Sprechertext.\n'
+      + 'Schreibe visuell weiter: Text Overlay, Visual, B-Roll. KEINEN Sprechertext.\n'
       + 'vorschlag_text ist der Ersatz fuer genau die markierte visuelle Stelle (nicht den gesprochenen Text).\n';
   }
 
@@ -378,7 +458,7 @@ function buildEditPrompt(ctx, message) {
     task += '\n# AUSGABEFORMAT\nAntworte AUSSCHLIESSLICH ueber das Tool "aenderung_abgeben" '
       + '(Felder: antwort, sektion, vorschlag_text).\n'
       + 'Regeln:\n'
-      + '- vorschlag_text = visuelle Regie fuer "Was zu sehen ist" (Shots, B-Roll, Overlays, On-Screen-Texte, Schnitte).\n'
+      + '- vorschlag_text = visuelle Regie fuer "Was zu sehen ist" (Text Overlay, Visual, B-Roll – Produktionsbriefing, kein Sekunden-Storyboard).\n'
       + '- KEIN gesprochener Text, keine Sprecher-Anweisungen, keine woertliche Rede.\n'
       + '- sektion = die Sektion aus dem Auftrag.\n'
       + '- antwort = kurze Bestaetigung (1 Satz, Deutsch).\n'
@@ -424,5 +504,8 @@ module.exports = {
   stripToolXml,
   letzterZeitstempel,
   formatZeitstempel,
+  ladeVisuellStil,
+  loadVisualBeispiele,
+  hatVisuellText,
   EDIT_BRIEFING_MAX
 };

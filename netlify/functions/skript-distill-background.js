@@ -7,6 +7,48 @@ const { callClaude, MODELS } = require('./_shared/anthropic');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { createJobUpdater } = require('./_shared/job-updater');
 const { starteKiRequest } = require('./_shared/ki-log');
+const { fmtSkript } = require('./_shared/skript-context');
+
+const DISTILL_SYSTEM_TEXT = 'Du bist Analyst fuer Video-Werbeskripte. Du destillierst aus Skripten, '
+  + 'menschlichem Sektions-Feedback (Hook/Hauptteil/CTA, Scores 1-5 mit Zwischenwerten, '
+  + 'teils mit Bezug auf eine konkrete markierte Textstelle), visueller Regie '
+  + '("Was zu sehen ist") und Performance-Labels '
+  + 'ein praezises Regelwerk ("Skript-DNA"). Regeln muessen konkret und anwendbar sein - '
+  + 'keine Binsenweisheiten. Erhalte bewaehrte Regeln der bisherigen DNA, verfeinere sie mit '
+  + 'neuen Erkenntnissen, entferne widerlegte Regeln. Kennzeichne NICHTS als vorlaeufig; '
+  + 'schreibe das Dokument so, dass es direkt als Anweisung fuer einen Skript-Autor dient. '
+  + 'Beachte die Marker im Material: Skripte "generiert OHNE DNA (Blindvergleich)" sagen nichts '
+  + 'ueber die Qualitaet der bisherigen DNA aus - ihr Feedback ist reines Text-Lernsignal. '
+  + 'Feedback mit "-> Ueberarbeitung wurde ANGENOMMEN" ist besonders verlaesslich (der Mensch hat '
+  + 'die daraus entstandene Aenderung uebernommen), bei ABGELEHNT die daraus gezogene Regel hinterfragen. '
+  + 'Struktur: Markdown mit Abschnitten Hook, Hauptteil, CTA, Visuell, Tonalitaet, Anti-Patterns.';
+
+function buildDistillMaterial(skripte, feedbackBySkript) {
+  let material = '';
+  for (const s of skripte || []) {
+    const fbs = feedbackBySkript[s.id] || [];
+    if (!fbs.length && s.performance_label === 'unbewertet') continue;
+    const marker = [
+      `Performance: ${s.performance_label}`,
+      s.funnel_stufe ? `Funnel: ${s.funnel_stufe}` : null,
+      s.mit_dna === false ? 'generiert OHNE DNA (Blindvergleich)' : null
+    ].filter(Boolean).join(', ');
+    material += `\n--- Skript "${s.titel || s.id}" (${marker}) ---\n`;
+    material += `${fmtSkript(s)}\n`;
+    if (s.performance_notiz) material += `PERFORMANCE-NOTIZ: ${s.performance_notiz}\n`;
+    for (const f of fbs) {
+      const bezug = f.selektion_text ? ` zu "${f.selektion_text}"` : '';
+      const outcome = f.skript_chat_messages?.status === 'angenommen'
+        ? ' -> daraus generierte Ueberarbeitung wurde ANGENOMMEN'
+        : f.skript_chat_messages?.status === 'abgelehnt'
+          ? ' -> daraus generierte Ueberarbeitung wurde ABGELEHNT'
+          : '';
+      material += `FEEDBACK [${f.sektion}]${bezug} Score ${f.score ?? '-'}/5: ${f.begruendung || '-'}${outcome}\n`;
+      if (f.korrigierte_version) material += `KORRIGIERT [${f.sektion}]: ${f.korrigierte_version}\n`;
+    }
+  }
+  return material;
+}
 
 exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
   const { jobId, layer_typ, branche_id, persona_id, marke_id, name } = payload;
@@ -46,7 +88,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     // 2. Skripte + Feedback im Scope dieses Layers sammeln
     // ------------------------------------------------------------------
     let skriptQuery = supabase.from('skripte')
-      .select('id, titel, hook, hauptteil, cta, performance_label, performance_notiz, funnel_stufe, tonalitaet, mit_dna, marke_id, persona_id, branche_id')
+      .select('id, titel, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, performance_label, performance_notiz, funnel_stufe, tonalitaet, mit_dna, marke_id, persona_id, branche_id')
       .order('created_at', { ascending: false }).limit(40);
     if (layer_typ === 'marke') skriptQuery = skriptQuery.eq('marke_id', marke_id);
     if (layer_typ === 'zielgruppe') skriptQuery = skriptQuery.eq('persona_id', persona_id);
@@ -78,30 +120,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       (feedbackBySkript[f.skript_id] = feedbackBySkript[f.skript_id] || []).push(f);
     }
 
-    let material = '';
-    for (const s of skripte) {
-      const fbs = feedbackBySkript[s.id] || [];
-      if (!fbs.length && s.performance_label === 'unbewertet') continue;
-      const marker = [
-        `Performance: ${s.performance_label}`,
-        s.funnel_stufe ? `Funnel: ${s.funnel_stufe}` : null,
-        // Blind-Skripte kennzeichnen: ihr Feedback bewertet NICHT die DNA
-        s.mit_dna === false ? 'generiert OHNE DNA (Blindvergleich)' : null
-      ].filter(Boolean).join(', ');
-      material += `\n--- Skript "${s.titel || s.id}" (${marker}) ---\n`;
-      material += `HOOK: ${s.hook || '-'}\nHAUPTTEIL: ${s.hauptteil || '-'}\nCTA: ${s.cta || '-'}\n`;
-      if (s.performance_notiz) material += `PERFORMANCE-NOTIZ: ${s.performance_notiz}\n`;
-      for (const f of fbs) {
-        const bezug = f.selektion_text ? ` zu "${f.selektion_text}"` : '';
-        const outcome = f.skript_chat_messages?.status === 'angenommen'
-          ? ' -> daraus generierte Ueberarbeitung wurde ANGENOMMEN'
-          : f.skript_chat_messages?.status === 'abgelehnt'
-            ? ' -> daraus generierte Ueberarbeitung wurde ABGELEHNT'
-            : '';
-        material += `FEEDBACK [${f.sektion}]${bezug} Score ${f.score ?? '-'}/5: ${f.begruendung || '-'}${outcome}\n`;
-        if (f.korrigierte_version) material += `KORRIGIERT [${f.sektion}]: ${f.korrigierte_version}\n`;
-      }
-    }
+    const material = buildDistillMaterial(skripte, feedbackBySkript);
 
     if (!material.trim()) {
       throw new Error('Nur unbewertete Skripte ohne Feedback im Scope - erst Feedback geben');
@@ -113,18 +132,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     const model = MODELS.distill;
     job.step('destillation', `Feedback wird zu DNA-Entwurf verdichtet (${model})...`);
 
-    const systemText = 'Du bist Analyst fuer Video-Werbeskripte. Du destillierst aus Skripten, '
-      + 'menschlichem Sektions-Feedback (Hook/Hauptteil/CTA, Scores 1-5 mit Zwischenwerten, '
-      + 'teils mit Bezug auf eine konkrete markierte Textstelle) und Performance-Labels '
-      + 'ein praezises Regelwerk ("Skript-DNA"). Regeln muessen konkret und anwendbar sein - '
-      + 'keine Binsenweisheiten. Erhalte bewaehrte Regeln der bisherigen DNA, verfeinere sie mit '
-      + 'neuen Erkenntnissen, entferne widerlegte Regeln. Kennzeichne NICHTS als vorlaeufig; '
-      + 'schreibe das Dokument so, dass es direkt als Anweisung fuer einen Skript-Autor dient. '
-      + 'Beachte die Marker im Material: Skripte "generiert OHNE DNA (Blindvergleich)" sagen nichts '
-      + 'ueber die Qualitaet der bisherigen DNA aus - ihr Feedback ist reines Text-Lernsignal. '
-      + 'Feedback mit "-> Ueberarbeitung wurde ANGENOMMEN" ist besonders verlaesslich (der Mensch hat '
-      + 'die daraus entstandene Aenderung uebernommen), bei ABGELEHNT die daraus gezogene Regel hinterfragen. '
-      + 'Struktur: Markdown mit Abschnitten Hook, Hauptteil, CTA, Tonalitaet, Anti-Patterns.';
+    const systemText = DISTILL_SYSTEM_TEXT;
 
     const userPrompt = `# LAYER\n${layer_typ}\n\n# BISHERIGE DNA (Version ${aktuelleDna?.version || 0})\n`
       + `${aktuelleDna?.inhalt || '(noch keine aktive DNA fuer diesen Layer)'}\n\n`
@@ -174,3 +182,6 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     return { statusCode: 500 };
   }
 });
+
+exports.buildDistillMaterial = buildDistillMaterial;
+exports.DISTILL_SYSTEM_TEXT = DISTILL_SYSTEM_TEXT;

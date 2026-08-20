@@ -8,6 +8,7 @@ const {
   fmtCampaignBriefing,
   briefingSkriptSprache,
   buildKontextText,
+  fmtSkript,
   BRIEFING_MAX
 } = require('../../netlify/functions/_shared/skript-context.js');
 const { buildPrompt } = require('../../netlify/functions/skript-generate-background.js');
@@ -93,6 +94,31 @@ describe('fmtCampaignBriefing', () => {
 
   it('Default-Budget ist BRIEFING_MAX', () => {
     expect(BRIEFING_MAX).toBe(6000);
+  });
+});
+
+describe('fmtSkript', () => {
+  it('gibt Spoken und Visual-Blöcke aus, lässt Leeres weg', () => {
+    const text = fmtSkript({
+      titel: 'Glow',
+      hook: 'Kennst du das?',
+      hook_visuell: 'Visual 1: Dose in den Müll.',
+      hauptteil: 'Ich nutze das Serum.',
+      cta: 'Link in Bio.',
+      cta_visuell: 'Text Overlay: Code GLOW20'
+    });
+    expect(text).toContain('Titel: Glow');
+    expect(text).toContain('HOOK: Kennst du das?');
+    expect(text).toContain('HOOK (was zu sehen ist): Visual 1: Dose in den Müll.');
+    expect(text).toContain('HAUPTTEIL: Ich nutze das Serum.');
+    expect(text).not.toContain('HAUPTTEIL (was zu sehen ist)');
+    expect(text).toContain('CTA: Link in Bio.');
+    expect(text).toContain('CTA (was zu sehen ist): Text Overlay: Code GLOW20');
+  });
+
+  it('ohne Visual-Felder bleibt Spoken-only', () => {
+    expect(fmtSkript({ hook: 'Hey', hauptteil: 'Body', cta: 'Go' }))
+      .toBe('HOOK: Hey\nHAUPTTEIL: Body\nCTA: Go');
   });
 });
 

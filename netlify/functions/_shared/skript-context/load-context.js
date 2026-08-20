@@ -124,7 +124,7 @@ async function loadContext(supabase, params) {
   // Positiv-Beispiele: markenspezifisch UND global laufen parallel, danach
   // gemerged (markenspezifisch zuerst, global fuellt auf, max 3, dedupliziert).
   // Kostet eine zusaetzliche Query, spart einen sequentiellen Roundtrip.
-  const exampleCols = 'id, titel, hook, hauptteil, cta, performance_label, marke_id';
+  const exampleCols = 'id, titel, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, performance_label, marke_id';
   const beispieleMarkePromise = marke_id
     ? supabase.from('skripte').select(exampleCols)
       .in('performance_label', ['erfolgreich', 'viral']).eq('marke_id', marke_id)

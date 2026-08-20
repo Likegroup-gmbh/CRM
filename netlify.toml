@@ -35,6 +35,10 @@
 [functions."skript-fragen-background"]
   included_files = ["netlify/functions/_shared/prompts/**"]
 
+# Visual-Regie: Stil-Dokument (Produktionsformat) mit ausliefern
+[functions."skript-edit-background"]
+  included_files = ["netlify/functions/_shared/prompts/**"]
+
 # Instagram Connect: Graph-Call + bis zu 6 Bild-Downloads/WebP-Konvertierungen
 [functions."instagram-connect"]
   timeout = 26

@@ -57,8 +57,11 @@ function fmtSkript(s) {
   return [
     s.titel ? `Titel: ${s.titel}` : null,
     s.hook ? `HOOK: ${s.hook}` : null,
+    s.hook_visuell ? `HOOK (was zu sehen ist): ${s.hook_visuell}` : null,
     s.hauptteil ? `HAUPTTEIL: ${s.hauptteil}` : null,
-    s.cta ? `CTA: ${s.cta}` : null
+    s.hauptteil_visuell ? `HAUPTTEIL (was zu sehen ist): ${s.hauptteil_visuell}` : null,
+    s.cta ? `CTA: ${s.cta}` : null,
+    s.cta_visuell ? `CTA (was zu sehen ist): ${s.cta_visuell}` : null
   ].filter(Boolean).join('\n');
 }
 

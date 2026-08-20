@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const { buildEditPrompt, stripToolXml, letzterZeitstempel } = require('../../netlify/functions/skript-edit-background.js');
+const { buildEditPrompt, stripToolXml, letzterZeitstempel, loadVisualBeispiele } = require('../../netlify/functions/skript-edit-background.js');
 
 function baseCtx(overrides = {}) {
   return {
@@ -22,7 +22,8 @@ function baseCtx(overrides = {}) {
     briefing: overrides.briefing ?? null,
     kickoff: overrides.kickoff ?? null,
     feedback: [],
-    modus: overrides.modus ?? null
+    modus: overrides.modus ?? null,
+    beispiele: overrides.beispiele ?? []
   };
 }
 
@@ -89,8 +90,13 @@ describe('buildEditPrompt aktion visuell', () => {
     expect(task).toContain('KEIN gesprochener Text, keine Sprecher-Anweisungen');
     expect(task).toContain('# ZEITPLAN UND KONTINUITAET');
     expect(task).toContain('Beginne bei 0:00.');
+    expect(task).toContain('5–10');
+    expect(task).toContain('B-Roll (ca. 10 Sek.)');
     expect(task).toContain('M:SS–M:SS');
+    expect(task).toContain('Text Overlay');
+    expect(task).toContain('Produktionsbriefing');
     expect(task).toContain('Stil, Orte und Props konsistent halten');
+    expect(task).not.toContain('Jeder Shot MUSS einen Zeitstempel');
   });
 
   it('visuell Hauptteil: Start = letzter Hook-Zeitstempel', () => {
@@ -105,7 +111,7 @@ describe('buildEditPrompt aktion visuell', () => {
 
     expect(task).toContain('# ZEITPLAN UND KONTINUITAET');
     expect(task).toContain('Die Sektion davor (Hook) endet bei 0:03.');
-    expect(task).toContain('Dein erster Shot MUSS bei 0:03 beginnen');
+    expect(task).toContain('Dein erster Block MUSS bei 0:03 beginnen');
     expect(task).not.toContain('Beginne bei 0:00.');
   });
 
@@ -124,8 +130,8 @@ describe('buildEditPrompt aktion visuell', () => {
     });
 
     expect(task).toContain('Die Sektion davor (Hauptteil) endet bei 0:12.');
-    expect(task).toContain('Dein erster Shot MUSS bei 0:12 beginnen');
-    expect(task).toContain('Der letzte Shot soll bei 0:30 enden');
+    expect(task).toContain('Dein erster Block MUSS bei 0:12 beginnen');
+    expect(task).toContain('Der letzte Block soll bei 0:30 enden');
   });
 
   it('visuell mit Modus: REGIE-MODUS-Block', () => {
@@ -192,6 +198,7 @@ describe('buildEditPrompt ist_visuell Rewrite', () => {
     expect(task).toContain('Close-up Gesicht');
     expect(task).toContain('stammt aus "Was zu sehen ist"');
     expect(task).toContain('KEINEN Sprechertext');
+    expect(task).toContain('Text Overlay, Visual, B-Roll');
     expect(task).not.toContain('HARTES WORT-BUDGET');
   });
 
@@ -208,6 +215,81 @@ describe('buildEditPrompt ist_visuell Rewrite', () => {
     expect(task).toContain('Kürze die markierte Stelle deutlich');
     expect(task).not.toContain('stammt aus "Was zu sehen ist"');
     expect(task).toContain('HARTES WORT-BUDGET');
+  });
+});
+
+describe('buildEditPrompt Visual-Stil und Few-Shots', () => {
+  const VISUELL_MSG = {
+    aktion: 'visuell',
+    sektion: 'hook',
+    selektion_text: 'Kennst du das?',
+    inhalt: 'Visual zu Hook'
+  };
+
+  it('legt Stil-Dokument in den stable-Block', () => {
+    const { stable } = buildEditPrompt(baseCtx(), VISUELL_MSG);
+    expect(stable).toContain('# VISUELLER STIL');
+    expect(stable).toContain('Text Overlay');
+    expect(stable).toContain('B-Roll');
+    expect(stable).toContain('Anti-Beispiel');
+    expect(stable).toContain('Whip-Pan');
+  });
+
+  it('legt Few-Shots nur bei aktion=visuell in den stable-Block', () => {
+    const beispiele = [{
+      titel: 'Muell-Hook',
+      hook: 'Kennst du das?',
+      hook_visuell: 'Visual 1: Creator wirft eine Dose in den Mülleimer.',
+      performance_label: 'viral'
+    }];
+    const { stable } = buildEditPrompt(baseCtx({ beispiele }), VISUELL_MSG);
+    expect(stable).toContain('# ERFOLGREICHE VISUAL-BEISPIELE');
+    expect(stable).toContain('Dose in den Mülleimer');
+    expect(stable).toContain('HOOK (was zu sehen ist)');
+  });
+
+  it('chat: kein Stil-Dokument, keine Visual-Few-Shots', () => {
+    const { stable } = buildEditPrompt(baseCtx({
+      beispiele: [{ hook_visuell: 'DARF-NICHT-IM-CHAT', performance_label: 'viral' }]
+    }), MESSAGE);
+    expect(stable).not.toContain('# VISUELLER STIL');
+    expect(stable).not.toContain('VISUAL-BEISPIELE');
+    expect(stable).not.toContain('DARF-NICHT-IM-CHAT');
+  });
+});
+
+function chainQuery(data) {
+  const q = {
+    select() { return q; },
+    in() { return q; },
+    eq() { return q; },
+    neq() { return q; },
+    order() { return q; },
+    limit() { return q; },
+    then(resolve, reject) { return Promise.resolve({ data }).then(resolve, reject); }
+  };
+  return q;
+}
+
+describe('loadVisualBeispiele', () => {
+  it('nimmt nur erfolgreiche/virale Skripte mit Visual-Text, max 3, dedupliziert', async () => {
+    const rows = [
+      { id: 'a', hook_visuell: 'Visual 1: Dose weg', performance_label: 'erfolgreich' },
+      { id: 'b', hook_visuell: '   ', hauptteil_visuell: null, cta_visuell: null, performance_label: 'viral' },
+      { id: 'c', hauptteil_visuell: 'B-Roll (ca. 10 Sek.): Küche', performance_label: 'viral' },
+      { id: 'd', cta_visuell: 'Text Overlay: Link in Bio', performance_label: 'erfolgreich' },
+      { id: 'a', hook_visuell: 'Visual 1: Dose weg', performance_label: 'erfolgreich' }
+    ];
+    const supabase = { from: () => chainQuery(rows) };
+    const beispiele = await loadVisualBeispiele(supabase, { id: 'self' });
+    expect(beispiele.map((s) => s.id)).toEqual(['a', 'c', 'd']);
+  });
+
+  it('ohne Visual-Text leer', async () => {
+    const supabase = { from: () => chainQuery([
+      { id: 'x', hook: 'Nur Spoken', hook_visuell: null, performance_label: 'viral' }
+    ]) };
+    expect(await loadVisualBeispiele(supabase, {})).toEqual([]);
   });
 });
 

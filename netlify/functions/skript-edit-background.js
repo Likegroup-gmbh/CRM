@@ -10,7 +10,8 @@ const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
 const {
-  loadEditContext, buildEditPrompt, stripToolXml, letzterZeitstempel, formatZeitstempel, EDIT_BRIEFING_MAX
+  loadEditContext, buildEditPrompt, stripToolXml, letzterZeitstempel, formatZeitstempel,
+  ladeVisuellStil, loadVisualBeispiele, EDIT_BRIEFING_MAX
 } = require('./_shared/skript-edit-prompt');
 
 // Tool-Call fuer strukturierte Antworten. Bei Schreib-Aktionen laeuft
@@ -112,4 +113,6 @@ exports.buildEditPrompt = buildEditPrompt;
 exports.stripToolXml = stripToolXml;
 exports.letzterZeitstempel = letzterZeitstempel;
 exports.formatZeitstempel = formatZeitstempel;
+exports.ladeVisuellStil = ladeVisuellStil;
+exports.loadVisualBeispiele = loadVisualBeispiele;
 exports.EDIT_BRIEFING_MAX = EDIT_BRIEFING_MAX;
