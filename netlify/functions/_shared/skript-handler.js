@@ -29,7 +29,7 @@ function withSkriptHandler(fn) {
       return { statusCode: 400, body: 'Invalid JSON' };
     }
 
-    return fn({ supabase, user: auth.user, payload });
+    return fn({ supabase, user: auth.user, payload, event });
   };
 }
 

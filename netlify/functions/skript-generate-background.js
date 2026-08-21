@@ -6,10 +6,11 @@
 // ueber die skript_generation_jobs-Tabelle (Realtime in der UI).
 
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
-const { loadContext, fmtSkript, buildKontextText, videoLaengeHinweis, briefingSkriptSprache } = require('./_shared/skript-context');
+const { loadContext, loadReferenzVideo, fmtSkript, buildKontextText, videoLaengeHinweis, briefingSkriptSprache, cap, KONTEXT_MAX } = require('./_shared/skript-context');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { createJobUpdater } = require('./_shared/job-updater');
 const { starteKiRequest } = require('./_shared/ki-log');
+const { beansprucheJob, autorisiereSkript, hatLaufendenJob, istJobAbgebrochen } = require('./_shared/skript-auftrag');
 
 // Erzwungener Tool-Call: die API serialisiert das JSON selbst, unescapte
 // Anfuehrungszeichen im Skript-Text koennen das Parsen nicht mehr brechen
@@ -29,62 +30,6 @@ const SKRIPT_TOOL = {
 };
 
 // ---------------------------------------------------------------------------
-// Videovorlage (optional): Client-Angaben serverseitig validieren und mit der
-// Job-Row aus transcription_jobs anreichern. Metadaten kommen IMMER aus der
-// DB (nicht faelschbar); das ggf. vom User korrigierte Transkript bleibt
-// bewusst die Client-Fassung ("transkript_verwendet" = Prompt-Snapshot).
-// Ohne Vorlage kommt null zurueck; ein halber Ref-Block (URL ohne Transkript
-// oder umgekehrt) ist ein Fehler statt eines stillen Verlusts.
-// ---------------------------------------------------------------------------
-async function loadReferenzVideo(supabase, payload) {
-  const ref = payload.referenz_video;
-  const url = String(ref?.url || '').trim();
-  const transkript = String(ref?.transkript_verwendet || '').trim();
-  if (!ref || (!url && !transkript)) return null;
-  if (!url || !transkript) {
-    throw new Error('Videovorlage unvollstaendig - sie braucht URL UND Transkript');
-  }
-
-  const referenz = {
-    url,
-    transcription_job_id: ref.transcription_job_id || null,
-    quelle: ref.transcription_job_id ? 'job' : 'manual',
-    transkript_verwendet: transkript,
-    beschreibung: String(ref.beschreibung || '').trim() || null,
-    caption: String(ref.caption || '').trim() || null,
-    platform: null,
-    duration_seconds: null,
-    author_name: null,
-    metrics: { likes: null, comments: null, shares: null, saves: null }
-  };
-
-  if (referenz.quelle === 'job') {
-    const { data: job } = await supabase.from('transcription_jobs')
-      .select('id, url, status, platform, duration_seconds, author_name, description, caption, likes_count, comments_count, shares_count, saves_count')
-      .eq('id', referenz.transcription_job_id).single();
-    if (!job) throw new Error('Transkriptions-Job der Videovorlage nicht gefunden');
-    if (job.status !== 'done') throw new Error('Transkription der Videovorlage ist noch nicht abgeschlossen');
-    if (job.url !== referenz.url) throw new Error('URL der Videovorlage passt nicht zum Transkriptions-Job');
-
-    referenz.platform = job.platform || null;
-    referenz.duration_seconds = job.duration_seconds ?? null;
-    referenz.author_name = job.author_name || null;
-    referenz.beschreibung = referenz.beschreibung || job.description || null;
-    referenz.caption = referenz.caption || job.caption || null;
-    referenz.metrics = {
-      likes: job.likes_count ?? null,
-      comments: job.comments_count ?? null,
-      shares: job.shares_count ?? null,
-      saves: job.saves_count ?? null
-    };
-  } else if (transkript.length < 50) {
-    throw new Error('Manuelles Transkript der Videovorlage ist zu kurz (min. 50 Zeichen)');
-  }
-
-  return referenz;
-}
-
-// ---------------------------------------------------------------------------
 // Prompt-Bau (Kontext-Aufbau + Sektions-Formatierung: _shared/skript-context)
 // ---------------------------------------------------------------------------
 function buildPrompt(ctx, params, rueckfragenDialog = '') {
@@ -96,7 +41,7 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
   if (ctx.dna.length) {
     stable += '\n# SKRIPT-DNA (verbindliches Regelwerk, geschichtet - spaetere Layer haben Vorrang)\n';
     for (const d of ctx.dna) {
-      stable += `\n--- ${d.name ? `"${d.name}" - ` : ''}Layer: ${d.layer_typ} (v${d.version}) ---\n${d.inhalt}\n`;
+      stable += `\n--- ${d.name ? `"${d.name}" - ` : ''}Layer: ${d.layer_typ} (v${d.version}) ---\n${cap(d.inhalt, KONTEXT_MAX.dna)}\n`;
     }
   }
 
@@ -126,10 +71,11 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
     task += `\n# SKRIPT-SPRACHE\nLaut Campaign-Briefing: ${sprache}. Schreibe das Skript in dieser Sprache (nicht automatisch auf Deutsch).\n`;
   }
 
-  // Vorab geklaerte Rueckfragen (Slot-Filling-Dialog vor der Generierung)
+  // Vorab geklaerte Rueckfragen (Slot-Filling-Dialog vor der Generierung).
+  // User-Freitext: delimitiert, damit daraus keine Prompt-Anweisung wird.
   if (rueckfragenDialog) {
     task += '\n# GEKLAERTE RUECKFRAGEN (verbindliche Antworten des Users - haben Vorrang vor widerspruechlichen CRM-Daten)\n'
-      + rueckfragenDialog + '\n';
+      + '<rueckfragen_dialog>\n' + rueckfragenDialog + '\n</rueckfragen_dialog>\n';
   }
 
   task += '\n# AUSGABEFORMAT\nGib das Skript AUSSCHLIESSLICH ueber das Tool "skript_abgeben" ab '
@@ -173,6 +119,20 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
   const { jobId } = payload;
   if (!jobId) return { statusCode: 400, body: 'jobId fehlt' };
 
+  // Autorisierung VOR dem Claim: Service Role umgeht RLS, ohne diesen
+  // Check koennte jeder interne Token ein fremdes Skript umschreiben.
+  if (payload.skript_id && !(await autorisiereSkript(supabase, user, payload.skript_id))) {
+    return { statusCode: 403, body: 'Kein Zugriff auf dieses Skript' };
+  }
+  if (payload.skript_id && await hatLaufendenJob(supabase, payload.skript_id, jobId)) {
+    return { statusCode: 409, body: 'Fuer dieses Skript laeuft bereits eine Generierung' };
+  }
+
+  // Atomarer Claim: zweiter Trigger mit demselben jobId -> 409, kein
+  // zweiter Claude-Call. skript_id sofort auf die Row (Sichtbarkeit).
+  const claimed = await beansprucheJob(supabase, jobId, { skriptId: payload.skript_id || null });
+  if (!claimed) return { statusCode: 409, body: 'Job laeuft bereits oder ist abgeschlossen' };
+
   const job = createJobUpdater(supabase, jobId);
   const startTime = Date.now();
   let ki = null;
@@ -189,7 +149,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     const referenzVideo = await loadReferenzVideo(supabase, payload);
     payload.referenz_video = referenzVideo;
     job.log(referenzVideo
-      ? `Videovorlage: ${referenzVideo.quelle === 'job' ? `Transkriptions-Job (${referenzVideo.platform || 'unbekannt'})` : 'manuelles Transkript'}, ${referenzVideo.transkript_verwendet.length} Zeichen`
+      ? `Videovorlage: ${referenzVideo.quelle === 'strategie_item' ? `Strategie-Item (${referenzVideo.platform || 'unbekannt'})` : referenzVideo.quelle === 'job' ? `Transkriptions-Job (${referenzVideo.platform || 'unbekannt'})` : 'manuelles Transkript'}, ${referenzVideo.transkript_verwendet.length} Zeichen`
       : 'Keine Videovorlage - Aufbau kommt aus DNA und Beispiel-Skripten');
 
     const ctx = await loadContext(supabase, payload);
@@ -213,6 +173,12 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     const { stable, task } = buildPrompt(ctx, payload, rueckfragenDialog);
     const model = MODELS.write;
 
+    // Abbruch waehrend des Kontext-Ladens: kein Claude-Call mehr
+    if (await istJobAbgebrochen(supabase, jobId)) {
+      job.log('Vom Nutzer abgebrochen');
+      return { statusCode: 200 };
+    }
+
     job.step('generierung', `Skript wird geschrieben (${model})...`);
     const result = await callClaude({
       model,
@@ -225,6 +191,12 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       timeoutMs: 480000
     });
     await ki.abschliessen(result);
+
+    // Abbruch waehrend des Calls: Ergebnis verwerfen, nichts persistieren
+    if (await istJobAbgebrochen(supabase, jobId)) {
+      job.log('Vom Nutzer abgebrochen - Ergebnis verworfen');
+      return { statusCode: 200 };
+    }
 
     job.step('speichern', 'Antwort parsen und speichern...');
     const parsed = result.json || extractJson(result.text, {
@@ -255,6 +227,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       persona_id: payload.persona_id || null,
       branche_id: ctx.brancheId || null,
       briefing_id: payload.briefing_id || null,
+      strategie_item_id: payload.strategie_item_id || referenzVideo?.strategie_item_id || null,
       hook: parsed.hook,
       hauptteil: parsed.hauptteil,
       cta: parsed.cta,

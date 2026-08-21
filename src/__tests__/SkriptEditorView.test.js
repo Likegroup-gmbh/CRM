@@ -218,7 +218,7 @@ describe('SkriptEditorView Layout', () => {
     expect(main.querySelector('#ed-input')).toBeNull();
   });
 
-  it('Doc-Kopf: Tags links, Feedback, Version rechts', async () => {
+  it('Doc-Kopf: Feedback, Version rechts – keine Meta-Tags', async () => {
     mockService.loadSkript.mockResolvedValue({
       ...skript,
       marke: { markenname: 'Acme' },
@@ -228,28 +228,73 @@ describe('SkriptEditorView Layout', () => {
     mockService.getVersionen.mockResolvedValue([
       { version_nr: 1, sub_nr: 0 }
     ]);
-    mockService.personaLabel.mockImplementation((p) => p?.name || '');
 
     await view.render(container, 's1');
 
     const head = container.querySelector('.skripte-editor-doc-head');
     expect(head).not.toBeNull();
-    const meta = head.querySelector('#ed-meta');
     const feedback = head.querySelector('#ed-feedback');
     const version = head.querySelector('#ed-version-wrap');
-    expect(meta).not.toBeNull();
+    expect(head.querySelector('#ed-meta')).toBeNull();
     expect(feedback).not.toBeNull();
     expect(version).not.toBeNull();
 
     const kids = [...head.children];
-    expect(kids.indexOf(meta)).toBeLessThan(kids.indexOf(feedback));
     expect(kids.indexOf(feedback)).toBeLessThan(kids.indexOf(version));
 
-    expect(meta.textContent).toContain('Muster GmbH');
-    expect(meta.textContent).toContain('Acme');
-    expect(meta.textContent).toContain('Lisa');
-    expect(meta.textContent).toContain('mit DNA');
-    expect(version.querySelector('#ed-version')).not.toBeNull();
+    expect(head.textContent).not.toContain('Muster GmbH');
+    expect(head.textContent).not.toContain('Acme');
+    expect(head.textContent).not.toContain('Lisa');
+    expect(head.textContent).not.toContain('mit DNA');
+    const trigger = version.querySelector('#ed-version');
+    expect(trigger).not.toBeNull();
+    expect(trigger.tagName).toBe('BUTTON');
+    expect(version.querySelector('select')).toBeNull();
+    expect(container.querySelector('#ed-vermenu')).not.toBeNull();
+  });
+
+  it('Version-Button oeffnet FloatingMenu mit Label, Subtext und Active-Check', async () => {
+    mockService.versionLabel.mockImplementation((v) => {
+      const nr = v?.version_nr ?? 1;
+      const sub = v?.sub_nr ?? 0;
+      return `v${nr}${sub ? `.${sub}` : ''}`;
+    });
+    mockService.loadSkript.mockResolvedValue({
+      ...skript,
+      aktive_version_nr: 1,
+      aktive_sub_nr: 13
+    });
+    mockService.getVersionen.mockResolvedValue([
+      { version_nr: 1, sub_nr: 0, aenderung_beschreibung: 'Ausgangsversion' },
+      { version_nr: 1, sub_nr: 13, aenderung_beschreibung: 'Manuell · Hauptteil Visual' }
+    ]);
+
+    await view.render(container, 's1');
+
+    const trigger = container.querySelector('#ed-version');
+    expect(trigger.tagName).toBe('BUTTON');
+    expect(trigger.textContent).toContain('v1.13');
+    expect(trigger.textContent).toContain('Manuell · Hauptteil Visual');
+
+    const menu = container.querySelector('#ed-vermenu');
+    expect(menu.hidden).toBe(true);
+
+    trigger.click();
+
+    expect(menu.hidden).toBe(false);
+    expect(menu.querySelector('[data-id="1.0"]')).not.toBeNull();
+    expect(menu.querySelector('[data-id="1.13"]')).not.toBeNull();
+    expect(menu.textContent).toContain('Ausgangsversion');
+    expect(menu.textContent).toContain('Manuell · Hauptteil Visual');
+    expect(menu.querySelector('.crm-fmenu-sub')).not.toBeNull();
+
+    const active = menu.querySelector('[data-id="1.13"]');
+    expect(active.classList.contains('is-active')).toBe(true);
+    expect(active.querySelector('.crm-fmenu-check')).not.toBeNull();
+    expect(menu.querySelector('[data-id="1.0"]').classList.contains('is-active')).toBe(false);
+
+    view.closeVersionMenu();
+    mockService.versionLabel.mockImplementation((v) => `v${v?.version_nr || 1}`);
   });
 
   it('Liste rendert Mini-Cards mit pinker Badge und Datum', async () => {

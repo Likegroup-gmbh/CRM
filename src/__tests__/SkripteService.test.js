@@ -53,6 +53,11 @@ describe('SkripteService.loadSkripte', () => {
     expect(select).toHaveBeenCalledWith(expect.stringContaining('unternehmen(id, firmenname, internes_kuerzel, logo_url)'));
     expect(select).toHaveBeenCalledWith(expect.stringContaining('marke(id, markenname, logo_url)'));
     expect(select).toHaveBeenCalledWith(expect.stringContaining('kampagne(id, kampagnenname, eigener_name)'));
+    // Listen-Loader zieht die dicken Content-Felder nicht mit
+    const selectArg = select.mock.calls[0][0];
+    expect(selectArg).not.toContain('hauptteil');
+    expect(selectArg).not.toContain('cta');
+    expect(selectArg).toContain('hook');
   });
 
   it('getVersionen selektiert Visual-Felder', async () => {
@@ -240,5 +245,113 @@ describe('SkripteService.createSkriptStub / updateSkriptStub', () => {
     expect(updated.briefing_id).toBe('br-2');
     expect(updated.prompt_kontext.leftover).toBe(true);
     expect(updated.prompt_kontext.generator_payload.briefing_id).toBe('br-2');
+  });
+
+  it('createSkriptStub schreibt strategie_item_id', async () => {
+    setupWindow();
+    let inserted = null;
+    window.supabase.auth = { getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } } })) };
+    window.supabase.from = vi.fn(() => ({
+      insert: vi.fn((row) => {
+        inserted = row;
+        return { select: () => ({ single: async () => ({ data: { id: 's1', ...row }, error: null }) }) };
+      })
+    }));
+
+    await service.createSkriptStub({
+      unternehmen_id: 'u1',
+      strategie_item_id: 'si-1',
+      video_idee: 'Glow Routine'
+    });
+    expect(inserted.strategie_item_id).toBe('si-1');
+    expect(inserted.prompt_kontext.generator_payload.strategie_item_id).toBe('si-1');
+  });
+});
+
+function mockItemsBuilder(rows, captured) {
+  const api = {
+    select: vi.fn((cols) => { captured.select = cols; return api; }),
+    eq: vi.fn((k, v) => { captured.eq[k] = v; return api; }),
+    order: vi.fn(() => Promise.resolve({ data: rows, error: null }))
+  };
+  return api;
+}
+
+describe('SkripteService.loadStrategieItems', () => {
+  let service;
+
+  beforeEach(() => {
+    service = new SkripteService();
+  });
+
+  it('ohne Kampagne leere Liste, keine Query', async () => {
+    setupWindow();
+    const result = await service.loadStrategieItems(null);
+    expect(result).toEqual([]);
+    expect(window.supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('filtert auf strategie.kampagne_id und wirft nicht_umsetzen raus', async () => {
+    setupWindow();
+    const captured = { eq: {}, select: null };
+    const rows = [
+      { id: 'a', nicht_umsetzen: false, beschreibung: 'Hook' },
+      { id: 'b', nicht_umsetzen: true, beschreibung: 'Skip' }
+    ];
+    window.supabase.from = vi.fn(() => mockItemsBuilder(rows, captured));
+
+    const result = await service.loadStrategieItems('k1');
+    expect(window.supabase.from).toHaveBeenCalledWith('strategie_items');
+    expect(captured.eq['strategie.kampagne_id']).toBe('k1');
+    expect(captured.select).toContain('strategie:strategie_id!inner');
+    expect(result.map((r) => r.id)).toEqual(['a']);
+  });
+
+  it('zieht kein Transkript/Caption in den Picker-Load (nur das Flag)', async () => {
+    setupWindow();
+    const captured = { eq: {}, select: null };
+    window.supabase.from = vi.fn(() => mockItemsBuilder([], captured));
+
+    await service.loadStrategieItems('k1');
+    expect(captured.select).toContain('transkript_quelle');
+    expect(captured.select).not.toMatch(/transkript,/);
+    expect(captured.select).not.toContain('caption');
+  });
+});
+
+describe('SkripteService.loadStrategieItem', () => {
+  let service;
+
+  beforeEach(() => {
+    service = new SkripteService();
+  });
+
+  it('ohne id kein Query', async () => {
+    setupWindow();
+    expect(await service.loadStrategieItem(null)).toBeNull();
+    expect(window.supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('laedt das volle Item inkl. Transkript', async () => {
+    setupWindow();
+    const captured = { select: null, eq: null };
+    const row = { id: 'i1', beschreibung: 'B', transkript: 'Hook. Teil.', caption: 'Cap' };
+    window.supabase.from = vi.fn(() => ({
+      select: vi.fn((s) => {
+        captured.select = s;
+        return {
+          eq: vi.fn((col, val) => {
+            captured.eq = [col, val];
+            return { maybeSingle: vi.fn(() => Promise.resolve({ data: row, error: null })) };
+          })
+        };
+      })
+    }));
+
+    const result = await service.loadStrategieItem('i1');
+    expect(result.transkript).toBe('Hook. Teil.');
+    expect(captured.eq).toEqual(['id', 'i1']);
+    expect(captured.select).toContain('transkript');
+    expect(captured.select).toContain('caption');
   });
 });

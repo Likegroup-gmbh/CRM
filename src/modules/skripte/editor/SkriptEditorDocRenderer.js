@@ -4,12 +4,12 @@
 // Alles pure Funktionen: State rein, HTML-String raus.
 
 import { skripteService, FUNNEL_STUFEN, VIDEO_LAENGEN } from '../SkripteService.js';
-import { escapeHtml, badge } from '../SkripteUtils.js';
+import { escapeHtml } from '../SkripteUtils.js';
 import { icon } from '../../../core/icons/IconSystem.js';
 import {
   AKTION_ICONS, SEKTION_LABELS_KURZ, VISUELL_FIELD
 } from './skriptEditorKonstanten.js';
-import { visuellVorgaengerFehlt, visuellVorgaengerTitle } from './skriptEditorVisuellHelfer.js';
+import { visuellGuardGrund, visuellVorgaengerTitle } from './skriptEditorVisuellHelfer.js';
 
 /** Neu-Modus: Generator-Formular-Platzhalter + Start-Buttons. */
 export function neuModusHtml() {
@@ -72,12 +72,10 @@ export function skriptDocHtml({ skript, messages, isReadonly, docHeadActionsHtml
         ${['hook', 'hauptteil', 'cta'].map((sektion) => {
           const visuellFeld = VISUELL_FIELD[sektion];
           const visuellText = skript[visuellFeld] || '';
-          const visuellLaeuft = messages.some((m) => m.aktion === 'visuell'
-            && m.sektion === sektion && (m.status === 'pending' || m.status === 'running'));
           const gesprochen = skript[sektion] || '';
-          const vorgaengerFehlt = visuellVorgaengerFehlt(skript, sektion);
-          const visuellDisabled = isReadonly || !gesprochen.trim() || visuellLaeuft || vorgaengerFehlt;
-          const visuellTitle = vorgaengerFehlt
+          // Guard-Komposition aus dem Helfer - dieselbe Logik wie in der Aktion
+          const visuellGrund = visuellGuardGrund(skript, sektion, { readonly: isReadonly, messages });
+          const visuellTitle = visuellGrund === 'vorgaenger'
             ? visuellVorgaengerTitle(sektion)
             : 'Was zu sehen ist per KI generieren';
           return `
@@ -90,7 +88,7 @@ export function skriptDocHtml({ skript, messages, isReadonly, docHeadActionsHtml
               ${isReadonly ? '' : `
               <button class="skripte-editor-visual-btn" data-sektion="${sektion}"
                 title="${escapeHtml(visuellTitle)}"
-                ${visuellDisabled ? 'disabled' : ''}>
+                ${visuellGrund ? 'disabled' : ''}>
                 ${icon('ai-visual')}
               </button>
               `}
@@ -105,20 +103,9 @@ export function skriptDocHtml({ skript, messages, isReadonly, docHeadActionsHtml
   `;
 }
 
-export function metaBadgesHtml(skript) {
-  if (!skript) return '';
+/** Doc-Kopf: optional Feedback, Version rechts. */
+export function docHeadActionsHtml({ isReadonly, feedback = false } = {}) {
   return `
-    ${skript.unternehmen?.firmenname ? badge(skript.unternehmen.firmenname) : ''}
-    ${skript.marke?.markenname ? badge(skript.marke.markenname) : ''}
-    ${skript.personas?.name ? badge(skripteService.personaLabel(skript.personas), 'info') : ''}
-    ${badge(skript.mit_dna === false ? 'ohne DNA' : 'mit DNA', skript.mit_dna === false ? 'neutral' : 'success')}
-  `;
-}
-
-/** Doc-Kopf: Tags links, optional Feedback, Version rechts. */
-export function docHeadActionsHtml({ skript, isReadonly, feedback = false } = {}) {
-  return `
-    <div class="skripte-editor-input-meta" id="ed-meta">${metaBadgesHtml(skript)}</div>
     ${feedback && !isReadonly ? `
     <button class="skripte-editor-feedback-btn" id="ed-feedback" title="Skript komplett bewerten (Score, Performance-Label)">
       <span class="skripte-editor-tag-icon">${AKTION_ICONS.feedback}</span>

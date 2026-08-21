@@ -1,10 +1,7 @@
-// Tests fuer die Videovorlage (optionale Referenz) im Skript-Generator:
-//   1. Client-Validierung des Referenz-Payloads (buildReferenzVideoPayload)
-//   2. Prompt-Sektion + Transkript-Kuerzung (_shared/skript-context, CJS)
-//   3. TranscribeService: Race-Schutz gegen stale Job-Updates
+// Tests fuer die Videovorlage im Prompt + TranscribeService (Strategie-Pipeline).
+// Client-Payload der Generator-Form: StrategieVorlage.test.js
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { buildReferenzVideoPayload } from '../modules/skripte/SkriptGeneratorForm.js';
 import { TranscribeService, isSupportedVideoUrl } from '../modules/transcribe/TranscribeService.js';
 import { createRequire } from 'module';
 
@@ -16,92 +13,8 @@ const {
   REFERENZ_TRANSKRIPT_MAX
 } = require('../../netlify/functions/_shared/skript-context.js');
 
-const DONE_JOB = {
-  id: 'job-1',
-  status: 'done',
-  platform: 'tiktok',
-  duration_seconds: 42.7,
-  author_name: 'creatorin',
-  likes_count: 1200,
-  comments_count: 34,
-  shares_count: 5,
-  saves_count: 9
-};
-
 // ---------------------------------------------------------------------------
-// 1. Referenz-Payload: Videovorlage ist optional, aber nie halbfertig
-// ---------------------------------------------------------------------------
-describe('buildReferenzVideoPayload (optionale Videovorlage)', () => {
-  it('liefert null ohne URL und ohne Transkript', () => {
-    expect(buildReferenzVideoPayload({ status: 'idle', url: '', transkript: '' })).toBeNull();
-    expect(buildReferenzVideoPayload({ status: 'idle', url: '   ' })).toBeNull();
-  });
-
-  it('wirft bei Transkript ohne URL (halbfertige Vorlage)', () => {
-    expect(() => buildReferenzVideoPayload({
-      status: 'error', url: '', transkript: 'Ein manuell eingefuegtes Transkript ohne zugehoerige URL.'
-    })).toThrow(/URL ergänzen/);
-  });
-
-  it('wirft bei nicht unterstuetzter Plattform', () => {
-    expect(() => buildReferenzVideoPayload({ status: 'idle', url: 'https://youtube.com/watch?v=x' }))
-      .toThrow(/TikTok- oder Instagram-URL/);
-  });
-
-  it('wirft waehrend laufender Analyse (Generate blockiert)', () => {
-    expect(() => buildReferenzVideoPayload({
-      status: 'transcribing', url: 'https://www.tiktok.com/@u/video/1'
-    })).toThrow(/noch analysiert/);
-  });
-
-  it('wirft im idle-Zustand ohne Analyse', () => {
-    expect(() => buildReferenzVideoPayload({
-      status: 'idle', url: 'https://www.tiktok.com/@u/video/1'
-    })).toThrow(/zuerst analysieren/);
-  });
-
-  it('liefert quelle "job" mit Metadaten aus der Job-Row', () => {
-    const ref = buildReferenzVideoPayload({
-      status: 'ready',
-      url: 'https://www.tiktok.com/@u/video/1',
-      job: DONE_JOB,
-      transkript: 'Das ist das (vom User korrigierte) Transkript der Vorlage.',
-      beschreibung: 'Eine Beschreibung',
-      caption: 'Die Caption'
-    });
-    expect(ref.quelle).toBe('job');
-    expect(ref.transcription_job_id).toBe('job-1');
-    expect(ref.platform).toBe('tiktok');
-    expect(ref.metrics.likes).toBe(1200);
-    expect(ref.transkript_verwendet).toContain('korrigierte');
-  });
-
-  it('wirft bei ready mit leerem Transkript', () => {
-    expect(() => buildReferenzVideoPayload({
-      status: 'ready', url: 'https://www.tiktok.com/@u/video/1', job: DONE_JOB, transkript: '   '
-    })).toThrow(/Transkript.*leer/);
-  });
-
-  it('error-Zustand: kurzes manuelles Transkript reicht nicht', () => {
-    expect(() => buildReferenzVideoPayload({
-      status: 'error', url: 'https://www.instagram.com/reels/abc/', transkript: 'zu kurz'
-    })).toThrow(/manuell/);
-  });
-
-  it('error-Zustand: langes manuelles Transkript ergibt quelle "manual"', () => {
-    const ref = buildReferenzVideoPayload({
-      status: 'error',
-      url: 'https://www.instagram.com/reels/abc/',
-      transkript: 'Dies ist ein manuell eingefuegtes Transkript mit deutlich mehr als fuenfzig Zeichen Inhalt.'
-    });
-    expect(ref.quelle).toBe('manual');
-    expect(ref.transcription_job_id).toBeNull();
-    expect(ref.metrics.likes).toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 2. Prompt-Sektion (Server): Referenz als Bauweise, nie als Faktenquelle
+// Prompt-Sektion (Server): Referenz als Bauweise, nie als Faktenquelle
 // ---------------------------------------------------------------------------
 describe('buildKontextText / buildReferenzText (Prompt)', () => {
   const referenz = {
@@ -125,7 +38,9 @@ describe('buildKontextText / buildReferenzText (Prompt)', () => {
     expect(text).toContain('FREMDMATERIAL');
     expect(text).toContain('Hook Satz. Hauptteil Inhalt. CTA am Ende.');
     // Referenz steht VOR den Vorgaben (kreative Basis, dann Auftrag)
-    expect(text.indexOf('<referenzvideo>')).toBeLessThan(text.indexOf('Vorgaben fuer dieses Video'));
+    expect(text.indexOf('<referenzvideo>')).toBeLessThan(text.indexOf('<user_vorgabe>'));
+    // video_idee ist User-Freitext: delimitiert, nicht als Prompt-Anweisung
+    expect(text).toContain('<user_vorgabe>\nMorgenroutine\n</user_vorgabe>');
   });
 
   it('Engagement-Metriken (Likes etc.) landen NICHT im Prompt', () => {

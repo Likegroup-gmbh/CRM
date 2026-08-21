@@ -4,6 +4,11 @@
 
 import { skripteService } from '../SkripteService.js';
 import { escapeHtml } from '../SkripteUtils.js';
+import { openFloatingMenu } from '../../../core/components/FloatingMenu.js';
+
+function versionKey(x) {
+  return `${x.version_nr}.${x.sub_nr || 0}`;
+}
 
 export class SkriptEditorVersionen {
   constructor(view) {
@@ -26,35 +31,97 @@ export class SkriptEditorVersionen {
     v.aktiveVersion = { version_nr: aktiv.version_nr, sub_nr: aktiv.sub_nr || 0 };
   }
 
-  /** Version-Dropdown rechts vom Feedback-Button im Doc-Kopf. */
+  /** Version-Trigger rechts vom Feedback-Button im Doc-Kopf. */
   renderSelect() {
     const v = this.view;
     const wrap = document.getElementById('ed-version-wrap');
     if (!wrap) return;
     if (v.neuModus || !v.skript || !v.versionen.length) {
       wrap.innerHTML = '';
+      this.closeMenu();
       return;
     }
 
-    const key = (x) => `${x.version_nr}.${x.sub_nr || 0}`;
-    const aktivKey = `${v.aktiveVersion.version_nr}.${v.aktiveVersion.sub_nr || 0}`;
+    const aktivKey = versionKey(v.aktiveVersion);
+    const aktiv = v.versionen.find((x) => versionKey(x) === aktivKey) || v.versionen[v.versionen.length - 1];
+    const triggerLabel = `${skripteService.versionLabel(aktiv)}${
+      aktiv.aenderung_beschreibung ? ` · ${escapeHtml(aktiv.aenderung_beschreibung)}` : ''
+    }`;
     wrap.innerHTML = `
-      <select id="ed-version" class="skripte-editor-version-select"
+      <button type="button" id="ed-version" class="skripte-editor-version-select"
+        aria-haspopup="menu" aria-expanded="false"
         title="Version auswählen – der gewählte Stand wird in den Editor geladen">
-        ${v.versionen.map((x) => `
-          <option value="${key(x)}" ${key(x) === aktivKey ? 'selected' : ''}>
-            ${skripteService.versionLabel(x)}${x.aenderung_beschreibung ? ` · ${escapeHtml(x.aenderung_beschreibung)}` : ''}
-          </option>
-        `).join('')}
-      </select>
+        ${triggerLabel}
+      </button>
     `;
-    wrap.querySelector('#ed-version').addEventListener('change', (e) => this.onChange(e.target.value));
+    const btn = wrap.querySelector('#ed-version');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleMenu(btn);
+    });
+  }
+
+  closeMenu() {
+    const menu = document.getElementById('ed-vermenu');
+    if (menu) menu.hidden = true;
+    document.getElementById('ed-version')?.setAttribute('aria-expanded', 'false');
+    this._unbindDismiss();
+  }
+
+  toggleMenu(trigger) {
+    const v = this.view;
+    const menu = document.getElementById('ed-vermenu');
+    if (!menu || !trigger) return;
+
+    if (!menu.hidden) {
+      this.closeMenu();
+      return;
+    }
+
+    for (const id of ['ed-selmenu', 'ed-modmenu']) {
+      const other = document.getElementById(id);
+      if (other) other.hidden = true;
+    }
+
+    const aktivKey = versionKey(v.aktiveVersion);
+    openFloatingMenu({
+      el: menu,
+      anchor: trigger,
+      wrap: v.container?.querySelector('.skripte-editor'),
+      layout: 'icon-label-sub',
+      items: v.versionen.map((x) => ({
+        id: versionKey(x),
+        label: skripteService.versionLabel(x),
+        subtext: x.aenderung_beschreibung || '',
+        active: versionKey(x) === aktivKey
+      })),
+      onSelect: (id) => {
+        this.closeMenu();
+        this.onChange(id);
+      }
+    });
+    trigger.setAttribute('aria-expanded', 'true');
+    this._bindDismiss();
+  }
+
+  _bindDismiss() {
+    this._unbindDismiss();
+    this._onDismissKey = (e) => {
+      if (e.key === 'Escape') this.closeMenu();
+    };
+    document.addEventListener('keydown', this._onDismissKey);
+  }
+
+  _unbindDismiss() {
+    if (!this._onDismissKey) return;
+    document.removeEventListener('keydown', this._onDismissKey);
+    this._onDismissKey = null;
   }
 
   /** Gewaehlten Versions-Snapshot in die Arbeitskopie laden. */
-  async onChange(versionKey) {
+  async onChange(key) {
     const v = this.view;
-    const [nr, sub] = versionKey.split('.').map(Number);
+    const [nr, sub] = key.split('.').map(Number);
     if (nr === v.aktiveVersion.version_nr && sub === (v.aktiveVersion.sub_nr || 0)) return;
     const version = v.versionen.find((x) => x.version_nr === nr && (x.sub_nr || 0) === sub);
     if (!version) return;

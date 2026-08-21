@@ -4,6 +4,7 @@
 // Eigene Route /skripte/dna (vormals SkriptDnaTab).
 
 import { skripteService, DNA_LAYER } from '../SkripteService.js';
+import { skriptAuftrag } from '../SkriptAuftrag.js';
 import { escapeHtml, formatDate, badge } from '../SkripteUtils.js';
 import { createSkriptDrawer, removeSkriptDrawer } from '../SkriptDrawer.js';
 
@@ -16,8 +17,7 @@ export class SkriptDnaView {
     this.marken = [];
     this.branchen = [];
     this.personas = [];
-    this.channel = null;
-    this.pollInterval = null;
+    this.jobStop = null;
   }
 
   async render(container) {
@@ -43,6 +43,9 @@ export class SkriptDnaView {
       skripteService.loadMarken(),
       skripteService.loadBranchen()
     ]);
+    // Globaler Persona-Loader (alle Personas als DNA-Scope-Ziele) -
+    // bewusst NICHT PersonaService.loadForContext wie im Generator-Formular:
+    // dort kontext-gefiltert, hier vollstaendig. Siehe Kommentar dort.
     this.personas = await skripteService.loadPersonas();
     this.renderListe();
   }
@@ -299,7 +302,6 @@ export class SkriptDnaView {
   }
 
   async startDestillation(layer, scope, name) {
-    const job = await skripteService.createJob();
     const statusCard = document.getElementById('dna-job-status');
     const logEl = document.getElementById('dna-job-log');
     statusCard.style.display = 'block';
@@ -318,37 +320,32 @@ export class SkriptDnaView {
         this.stopJobWatch();
         window.toastSystem?.success('DNA-Entwurf erstellt – bitte reviewen und freigeben');
         await this.reload();
-      } else if (j.status === 'error') {
+      } else if (j.status === 'error' || j.status === 'cancelled') {
         this.stopJobWatch();
-        window.toastSystem?.error(`Destillation fehlgeschlagen: ${j.error_message || 'Unbekannt'}`);
+        if (j.status === 'error') {
+          window.toastSystem?.error(`Destillation fehlgeschlagen: ${j.error_message || 'Unbekannt'}`);
+        }
       }
     };
 
-    this.channel = skripteService.subscribeToJob(job.id, handleUpdate);
-    this.pollInterval = setInterval(async () => {
-      const j = await skripteService.pollJob(job.id);
-      if (j) handleUpdate(j);
-    }, 5000);
-
-    await skripteService.triggerFunction('skript-distill-background', {
-      jobId: job.id,
-      layer_typ: layer,
-      branche_id: layer === 'branche' ? scope : null,
-      persona_id: layer === 'zielgruppe' ? scope : null,
-      marke_id: layer === 'marke' ? scope : null,
-      name: name || null
+    const { stop } = await skriptAuftrag.starteJob({
+      art: 'distill',
+      payload: {
+        layer_typ: layer,
+        branche_id: layer === 'branche' ? scope : null,
+        persona_id: layer === 'zielgruppe' ? scope : null,
+        marke_id: layer === 'marke' ? scope : null,
+        name: name || null
+      },
+      onUpdate: handleUpdate
     });
+    this.jobStop = stop;
   }
 
   stopJobWatch() {
-    if (this.channel) {
-      window.supabase.removeChannel(this.channel);
-      this.channel = null;
-    }
-    if (this.pollInterval) {
-      clearInterval(this.pollInterval);
-      this.pollInterval = null;
-    }
+    // stop() ist idempotent und raeumt Channel + Poll + In-Flight auf
+    this.jobStop?.();
+    this.jobStop = null;
   }
 
   cleanup() {

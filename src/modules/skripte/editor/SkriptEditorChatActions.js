@@ -4,6 +4,7 @@
 // manuelles Speichern aus dem Inline-Edit.
 
 import { skripteService } from '../SkripteService.js';
+import { skriptAuftrag } from '../SkriptAuftrag.js';
 import { AKTION_LABELS, VISUELL_FIELD } from './skriptEditorKonstanten.js';
 import { sektionAnzeige, sektionAnzeigeKurz, skriptStand, manuellBeschreibung } from './skriptEditorVisuellHelfer.js';
 
@@ -16,6 +17,19 @@ export class SkriptEditorChatActions {
   // Senden (freies Feedback oder vorgemerkte Aktion)
   // ------------------------------------------------------------------
   async sendChat() {
+    const v = this.view;
+    // In-Flight-Guard wie acceptLaeuft: Doppel-Enter/Doppel-Klick wuerde
+    // sonst zwei User-Messages + zwei pending Jobs + zwei Claude-Calls bauen
+    if (v.sendLaeuft) return;
+    v.sendLaeuft = true;
+    try {
+      await this._sendChat();
+    } finally {
+      v.sendLaeuft = false;
+    }
+  }
+
+  async _sendChat() {
     const v = this.view;
     const input = document.getElementById('ed-input');
     const text = input?.value.trim() || '';
@@ -91,8 +105,10 @@ export class SkriptEditorChatActions {
       v.renderChat({ forceScroll: true });
 
       v.ensurePolling();
-      const fn = aktion === 'rueckfrage' ? 'skript-fragen-background' : 'skript-edit-background';
-      await skripteService.triggerFunction(fn, { messageId: assistantMsg.id });
+      await skriptAuftrag.starteVonNachricht({
+        art: aktion === 'rueckfrage' ? 'fragen' : 'edit',
+        messageId: assistantMsg.id
+      });
       return assistantMsg;
     } catch (err) {
       window.toastSystem?.error(err.message);
@@ -132,8 +148,10 @@ export class SkriptEditorChatActions {
       v.messages.push(assistantMsg);
       v.renderChat({ forceScroll: true });
       v.ensurePolling();
-      const fn = msg.aktion === 'rueckfrage' ? 'skript-fragen-background' : 'skript-edit-background';
-      await skripteService.triggerFunction(fn, { messageId: assistantMsg.id });
+      await skriptAuftrag.starteVonNachricht({
+        art: msg.aktion === 'rueckfrage' ? 'fragen' : 'edit',
+        messageId: assistantMsg.id
+      });
     } catch (err) {
       window.toastSystem?.error(err.message);
     }
@@ -149,6 +167,19 @@ export class SkriptEditorChatActions {
 
     if (action === 'retry') {
       await this.retryMessage(msg);
+      return;
+    }
+
+    // Abbruch einer pending/running Assistant-Message (der Auftrag)
+    if (action === 'cancel') {
+      if (msg.status !== 'pending' && msg.status !== 'running') return;
+      try {
+        await skriptAuftrag.brichNachrichtAb(msg.id);
+        msg.status = 'cancelled';
+        v.renderChat();
+      } catch (err) {
+        window.toastSystem?.error(err.message);
+      }
       return;
     }
 

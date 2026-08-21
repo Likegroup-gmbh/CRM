@@ -63,8 +63,7 @@ export class SkriptEditorView {
     this.genPayload = null; // RAM-Kopie fuer "Nochmal versuchen"
     this.genStubId = null; // persistenter Stub (Payload ueberlebt Fehler/Reload)
     this.genJobId = null;
-    this.genChannel = null;
-    this.genPoll = null;
+    this.genJobStop = null; // Auftrag-Handle (Realtime + Poll + In-Flight)
     this.visuellApplyLaeuft = false;
     this.modi = [];
     this._modiGeladen = false;
@@ -183,6 +182,7 @@ export class SkriptEditorView {
           </aside>
           `}
         </div>
+        <div class="crm-fmenu crm-fmenu--sm crm-fmenu--scroll skripte-editor-selmenu" id="ed-vermenu" hidden></div>
         ${readonly ? '' : `
         <div class="crm-fmenu skripte-editor-selmenu" id="ed-selmenu" hidden></div>
         <div class="crm-fmenu skripte-editor-selmenu" id="ed-modmenu" hidden></div>
@@ -231,6 +231,7 @@ export class SkriptEditorView {
       this.pollInterval = null;
     }
     this.clearPending();
+    this.closeVersionMenu();
     const selmenu = document.getElementById('ed-selmenu');
     if (selmenu) selmenu.hidden = true;
     const modmenu = document.getElementById('ed-modmenu');
@@ -319,6 +320,7 @@ export class SkriptEditorView {
       document.removeEventListener('mousedown', this.onDocMouseDown);
       this.onDocMouseDown = null;
     }
+    this.closeVersionMenu();
     this.selektion = null;
     this.pendingAktion = null;
     this.visuellApplyLaeuft = false;
@@ -327,6 +329,37 @@ export class SkriptEditorView {
   // ------------------------------------------------------------------
   // Linke Spalte: Skriptliste
   // ------------------------------------------------------------------
+  /**
+   * Einzelnes Skript in der Sidebar-Liste upserten statt nach jeder
+   * Aktion die volle Liste (200 Rows) neu zu laden. Beim Stub kommen die
+   * Join-Namen aus dem Generator-Formular (der Stub wurde genau mit diesen
+   * IDs angelegt); sonst reicht ein frisch geladenes Skript (loadSkript
+   * bringt die Joins mit).
+   */
+  upsertSkriptInListe(skript) {
+    if (!skript) return;
+    const angereichert = { ...skript };
+    const form = this.genForm;
+    if (form && !skript.unternehmen && skript.unternehmen_id) {
+      const u = form.unternehmen?.find((x) => x.id === skript.unternehmen_id);
+      if (u) {
+        angereichert.unternehmen = {
+          id: u.id, firmenname: u.firmenname,
+          internes_kuerzel: u.internes_kuerzel || null, logo_url: u.logo_url || null
+        };
+      }
+      const m = form.marken?.find((x) => x.id === skript.marke_id);
+      if (m) angereichert.marke = { id: m.id, markenname: m.markenname, logo_url: m.logo_url || null };
+      if (skript.kampagne_id) {
+        const label = form.el('kampagne')?.selectedOptions?.[0]?.textContent?.trim();
+        if (label) angereichert.kampagne = { id: skript.kampagne_id, kampagnenname: label, eigener_name: null };
+      }
+    }
+    const idx = this.skripte.findIndex((s) => s.id === skript.id);
+    if (idx >= 0) this.skripte[idx] = { ...this.skripte[idx], ...angereichert };
+    else this.skripte.unshift(angereichert);
+  }
+
   renderListe() {
     const el = document.getElementById('ed-liste');
     if (!el) return;
@@ -388,6 +421,13 @@ export class SkriptEditorView {
 
     // Neu-Modus: Generator-Formular statt Skript-Inhalt
     if (this.neuModus) {
+      // Steht das Form schon im DOM, darf ein Re-Render (z.B. durch
+      // Chat-Updates waehrend des Jobs) die Eingaben nicht verwerfen.
+      // destroy() laeuft nur bei echtem Leave (switchSkript/cleanup).
+      if (this.genForm && el.querySelector('#ed-genform')?.firstChild) {
+        if (this.genStatus?.laeuft) this.setGenButtonAktiv(false);
+        return;
+      }
       el.innerHTML = neuModusHtml();
       // Alte Instanz sauber abbauen (Transcribe-Subscriptions!), sonst
       // leaken Channels/Polls bei jedem Re-Render im Neu-Modus
@@ -406,7 +446,7 @@ export class SkriptEditorView {
       el.innerHTML = fragenModusHtml({
         skript: this.skript,
         genStatus: this.genStatus,
-        docHeadActionsHtml: docHeadActionsHtml({ skript: this.skript, isReadonly: this.isReadonly }),
+        docHeadActionsHtml: docHeadActionsHtml({ isReadonly: this.isReadonly }),
         vorgabenPanelHtml: vorgabenPanelHtml(this.skript)
       });
       el.querySelector('#ed-fragen-gen')?.addEventListener('click', () => this.startGenerationAusFragen());
@@ -423,7 +463,7 @@ export class SkriptEditorView {
       skript: this.skript,
       messages: this.messages,
       isReadonly: this.isReadonly,
-      docHeadActionsHtml: docHeadActionsHtml({ skript: this.skript, isReadonly: this.isReadonly, feedback: true }),
+      docHeadActionsHtml: docHeadActionsHtml({ isReadonly: this.isReadonly, feedback: true }),
       vorgabenPanelHtml: vorgabenPanelHtml(this.skript)
     });
     el.querySelector('#ed-feedback')?.addEventListener('click', () => this.openVollFeedback());
@@ -533,6 +573,7 @@ export class SkriptEditorView {
       if (this.neuModus) this.startGenerationImEditor({ retry: true });
       else this.startGenerationAusFragen();
     });
+    el.querySelector('#ed-gen-cancel')?.addEventListener('click', () => this.brichGenerationAb());
   }
 
   renderCost() {
@@ -556,6 +597,17 @@ export class SkriptEditorView {
   // Events: Selektion, Menue, Chat-Input
   // ------------------------------------------------------------------
   bindEvents() {
+    this.onDocMouseDown = (e) => {
+      for (const id of ['ed-selmenu', 'ed-modmenu', 'ed-vermenu']) {
+        const menu = document.getElementById(id);
+        if (!menu || menu.hidden || menu.contains(e.target)) continue;
+        if (id === 'ed-vermenu' && e.target.closest('#ed-version')) continue;
+        if (id === 'ed-vermenu') this.closeVersionMenu();
+        else menu.hidden = true;
+      }
+    };
+    document.addEventListener('mousedown', this.onDocMouseDown);
+
     if (this.isReadonly) return;
     const input = document.getElementById('ed-input');
     document.getElementById('ed-send')?.addEventListener('click', () => this.sendChat());
@@ -569,6 +621,7 @@ export class SkriptEditorView {
         if (mod) mod.hidden = true;
         const sel = document.getElementById('ed-selmenu');
         if (sel) sel.hidden = true;
+        this.closeVersionMenu();
         if (this.pendingAktion) this.clearPending();
       }
     });
@@ -581,16 +634,6 @@ export class SkriptEditorView {
       setTimeout(() => this.checkSelection(), 10);
     };
     document.addEventListener('mouseup', this.onMouseUp);
-
-    this.onDocMouseDown = (e) => {
-      for (const id of ['ed-selmenu', 'ed-modmenu']) {
-        const menu = document.getElementById(id);
-        if (menu && !menu.hidden && !menu.contains(e.target)) {
-          menu.hidden = true;
-        }
-      }
-    };
-    document.addEventListener('mousedown', this.onDocMouseDown);
   }
 
   setChatInputAktiv(aktiv) {
@@ -614,6 +657,7 @@ export class SkriptEditorView {
   setVersionsState(versionen) { this._versionen.setState(versionen); }
   renderVersionSelect() { this._versionen.renderSelect(); }
   onVersionChange(key) { return this._versionen.onChange(key); }
+  closeVersionMenu() { this._versionen.closeMenu(); }
 
   startNeuModus() { this._generation.startNeuModus(); }
   setGenButtonAktiv(aktiv) { this._generation.setGenButtonAktiv(aktiv); }
@@ -624,6 +668,7 @@ export class SkriptEditorView {
   handleGenJobUpdate(job) { this._generation.handleGenJobUpdate(job); }
   finishGeneration(skriptId) { return this._generation.finishGeneration(skriptId); }
   cleanupGenJob() { this._generation.cleanupGenJob(); }
+  brichGenerationAb() { return this._generation.brichGenerationAb(); }
 
   sendChat() { return this._chatActions.sendChat(); }
   sendMessagePair(args) { return this._chatActions.sendMessagePair(args); }

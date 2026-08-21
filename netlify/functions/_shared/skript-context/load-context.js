@@ -6,7 +6,10 @@
 // ---------------------------------------------------------------------------
 // Kontext-Aufbau
 // ---------------------------------------------------------------------------
-async function loadContext(supabase, params) {
+// options.schlank (Fragen-Pfad): keine Beispiel-/Anti-Pattern-Queries und
+// DNA nur als Metadaten (Name/Typ/Version) - der Fragen-Prompt braucht die
+// Inhalte nicht, nur welche Layer aktiv sind.
+async function loadContext(supabase, params, { schlank = false } = {}) {
   const { unternehmen_id, marke_id, kampagne_id, produkt_id, persona_id, branche_id, briefing_id, mit_dna, dna_id } = params;
   const ctx = { dnaVersionen: [], beispiele: [], antiPatterns: [] };
 
@@ -92,9 +95,10 @@ async function loadContext(supabase, params) {
   //                       (global > branche > zielgruppe > marke)
   const dnaPromise = (async () => {
     if (mit_dna === false) return { dna: [], dnaVersionen: [] };
+    const dnaCols = schlank ? 'id, name, layer_typ, version' : 'id, name, layer_typ, version, inhalt';
     if (dna_id) {
       const { data } = await supabase.from('skript_dna')
-        .select('id, name, layer_typ, version, inhalt')
+        .select(dnaCols)
         .eq('id', dna_id).eq('status', 'aktiv').single();
       if (!data) throw new Error('Gewaehlte DNA nicht gefunden oder nicht aktiv');
       return {
@@ -109,7 +113,7 @@ async function loadContext(supabase, params) {
     if (marke_id) orParts.push(`and(layer_typ.eq.marke,marke_id.eq.${marke_id})`);
 
     const { data } = await supabase.from('skript_dna')
-      .select('id, name, layer_typ, version, inhalt')
+      .select(dnaCols)
       .eq('status', 'aktiv')
       .or(orParts.join(','));
 
@@ -125,19 +129,23 @@ async function loadContext(supabase, params) {
   // gemerged (markenspezifisch zuerst, global fuellt auf, max 3, dedupliziert).
   // Kostet eine zusaetzliche Query, spart einen sequentiellen Roundtrip.
   const exampleCols = 'id, titel, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, performance_label, marke_id';
-  const beispieleMarkePromise = marke_id
+  const beispieleMarkePromise = !schlank && marke_id
     ? supabase.from('skripte').select(exampleCols)
       .in('performance_label', ['erfolgreich', 'viral']).eq('marke_id', marke_id)
       .order('created_at', { ascending: false }).limit(3)
     : Promise.resolve({ data: null });
-  const beispieleGlobalPromise = supabase.from('skripte').select(exampleCols)
-    .in('performance_label', ['erfolgreich', 'viral'])
-    .order('created_at', { ascending: false }).limit(6);
+  const beispieleGlobalPromise = !schlank
+    ? supabase.from('skripte').select(exampleCols)
+      .in('performance_label', ['erfolgreich', 'viral'])
+      .order('created_at', { ascending: false }).limit(6)
+    : Promise.resolve({ data: null });
 
   // Anti-Patterns: max 2 nicht-erfolgreiche
-  const antiPatternsPromise = supabase.from('skripte').select(exampleCols)
-    .eq('performance_label', 'nicht_erfolgreich')
-    .order('created_at', { ascending: false }).limit(2);
+  const antiPatternsPromise = !schlank
+    ? supabase.from('skripte').select(exampleCols)
+      .eq('performance_label', 'nicht_erfolgreich')
+      .order('created_at', { ascending: false }).limit(2)
+    : Promise.resolve({ data: null });
 
   const [
     { data: branche }, dnaResult,

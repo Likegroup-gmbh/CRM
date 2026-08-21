@@ -47,6 +47,7 @@ export class SkriptEditorSelection {
 
     const modmenu = document.getElementById('ed-modmenu');
     if (modmenu) modmenu.hidden = true;
+    v.closeVersionMenu();
 
     openFloatingMenu({
       el: menu,

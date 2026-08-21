@@ -2,6 +2,26 @@
 // Formatierungs-Helfer fuer den Prompt-Text (Sektionen, Preise, Varianten,
 // Skripte, Laengen-Hinweise, Transkript-Kuerzung).
 
+// Harte Budgets fuer Freitext-Felder im Prompt (Generate-/Fragen-Pfad; der
+// Edit-Pfad hat seine EDIT_*_MAX in skript-edit-prompt.js). Schuetzt vor
+// aufgeblaehten CRM-Feldern und bremst Injection-Versuche ein.
+const KONTEXT_MAX = {
+  dna: 4000,
+  kickoff: 4000,
+  beschreibung: 2000,
+  beispiel: 2000,
+  antiPattern: 1000,
+  caption: 2000,
+  userText: 4000
+};
+
+/** Kuerzt Freitext hart auf max Zeichen. */
+function cap(text, max) {
+  if (!text) return '';
+  const t = String(text);
+  return t.length <= max ? t : `${t.slice(0, max)}…`;
+}
+
 function fmtSection(title, obj) {
   if (!obj) return '';
   const lines = Object.entries(obj)
@@ -101,5 +121,6 @@ function kuerzeTranskript(text, max = REFERENZ_TRANSKRIPT_MAX) {
 module.exports = {
   fmtSection, fmtSkript, fmtVarianten, produktPreis,
   videoLaengeHinweis, WOERTER_PRO_SEKUNDE,
-  kuerzeTranskript, REFERENZ_TRANSKRIPT_MAX
+  kuerzeTranskript, REFERENZ_TRANSKRIPT_MAX,
+  cap, KONTEXT_MAX
 };

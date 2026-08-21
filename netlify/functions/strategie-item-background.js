@@ -13,14 +13,15 @@
 // Fortschritt und Ergebnis landen in strategie_items (Realtime -> Tabelle),
 // das Protokoll mit Logs und Engagement-Zahlen in transcription_jobs.
 
-const { createClient } = require('@supabase/supabase-js');
 const { detectPlatform, isMobilePlatform, VIEWPORTS } = require('./screenshot-utils/constants');
 const { launchBrowser, setupPage } = require('./screenshot-utils/browser-setup');
 const { handleInstagramPopups, takeInstagramScreenshot } = require('./screenshot-utils/platform-instagram');
 const { handleTikTokPopups, takeTikTokScreenshot } = require('./screenshot-utils/platform-tiktok');
 const { handleYouTubeInteraction, takeYouTubeScreenshot } = require('./screenshot-utils/platform-youtube');
 const { transcribeVideoOnPage, isTranscribablePlatform, buildNavigateUrl } = require('./_shared/video-transcribe');
-const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
+const { withSkriptHandler } = require('./_shared/skript-handler');
+const { starteKiRequest } = require('./_shared/ki-log');
+const { shouldApplyKiBeschreibung } = require('./_shared/ki-beschreibung');
 
 const SCREENSHOT_BUCKET = 'strategie-screenshots';
 
@@ -164,44 +165,11 @@ async function triggerNextPending(supabase, event, strategieId, currentItemId) {
   }
 }
 
-exports.handler = async (event) => {
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'POST only' };
-  }
-
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) => {
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const aiToken = process.env.CLOUDFLARE_AI_TOKEN;
 
-  if (!supabaseUrl || !supabaseKey) {
-    console.error('Supabase config missing');
-    return { statusCode: 500, body: 'Config error' };
-  }
-  const supabase = createClient(supabaseUrl, supabaseKey);
-
-  const auth = await verifyAuth(event, supabase);
-  if (!auth.user) {
-    return {
-      statusCode: 401,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(authErrorBody(auth))
-    };
-  }
-
-  const { data: benutzer } = await supabase
-    .from('benutzer')
-    .select('id, rolle')
-    .eq('auth_user_id', auth.user.id)
-    .maybeSingle();
-  if (!benutzer || !['admin', 'mitarbeiter'].includes(benutzer.rolle)) {
-    return { statusCode: 403, body: 'Nur Admins und Mitarbeiter duerfen Items verarbeiten' };
-  }
-
-  let itemId;
-  try {
-    ({ itemId } = JSON.parse(event.body || '{}'));
-  } catch (_) { /* unten abgefangen */ }
+  const { itemId } = payload;
   if (!itemId) {
     return { statusCode: 400, body: 'itemId erforderlich' };
   }
@@ -276,13 +244,32 @@ exports.handler = async (event) => {
         platform,
         status: 'processing',
         strategie_item_id: itemId,
-        created_by: auth.user.id
+        created_by: user.id
       })
       .select('id')
       .single();
     if (job) {
       tracker.attachJob(job.id);
       tracker.updateItem({ transcription_job_id: job.id });
+    }
+
+    // KI-Aufrufe (Whisper/Llama) zaehlen: Frequenz-Limit + Protokoll-Zeile.
+    // Bei Limit das Item offen lassen und die Kette stoppen - spaeter
+    // erneut startbar, statt jedes Glied ins Limit laufen zu lassen.
+    let ki = null;
+    try {
+      ki = await starteKiRequest(supabase, { userId: user.id, feature: 'strategie_item' });
+    } catch (e) {
+      if (e.name === 'KiLimitError') {
+        tracker.log(`Frequenz-Limit: ${e.message}`);
+        await tracker.flushItem({
+          verarbeitung_status: 'pending',
+          verarbeitung_step: null,
+          verarbeitung_fehler: e.message
+        });
+        return { statusCode: 429, body: e.message };
+      }
+      throw e;
     }
 
     try {
@@ -302,6 +289,7 @@ exports.handler = async (event) => {
           browser = null;
         }
       });
+      await ki.abschliessen({ model: 'cloudflare-whisper-llama' });
 
       tracker.updateItem({
         transkript: result.transcript,
@@ -310,14 +298,20 @@ exports.handler = async (event) => {
       });
 
       // Vorhandene Beschreibungen bleiben unangetastet - die KI-Fassung steht
-      // weiterhin im Job. Der Filter schuetzt gegen zwischenzeitliche Eingaben.
+      // weiterhin im Job. Frischer Read, falls zwischendurch jemand getippt hat.
       if (result.description) {
-        const { error: descError } = await supabase
+        const { data: current } = await supabase
           .from('strategie_items')
-          .update({ beschreibung: result.description, beschreibung_quelle: 'ki' })
+          .select('beschreibung')
           .eq('id', itemId)
-          .or('beschreibung.is.null,beschreibung.eq.');
-        if (descError) tracker.log(`Beschreibung nicht uebernommen: ${descError.message}`);
+          .maybeSingle();
+        if (shouldApplyKiBeschreibung(current?.beschreibung)) {
+          const { error: descError } = await supabase
+            .from('strategie_items')
+            .update({ beschreibung: result.description, beschreibung_quelle: 'ki' })
+            .eq('id', itemId);
+          if (descError) tracker.log(`Beschreibung nicht uebernommen: ${descError.message}`);
+        }
       }
 
       await tracker.flushJob({
@@ -340,6 +334,7 @@ exports.handler = async (event) => {
     } catch (e) {
       transcriptError = e.message;
       tracker.log(`FEHLER Transkription: ${e.message}`);
+      await ki.fehlgeschlagen(e);
       await tracker.flushJob({
         status: 'error',
         error_message: e.message,
@@ -385,4 +380,4 @@ exports.handler = async (event) => {
       try { await browser.close(); } catch (_) {}
     }
   }
-};
+});

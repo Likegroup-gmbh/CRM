@@ -41,10 +41,11 @@ export class SkriptEditorRealtime {
       if (eventType !== 'INSERT' && eventType !== 'UPDATE') return;
       v.messages.push(row);
     } else {
-      // Lokal bereits final gesetzte Status (angenommen/abgelehnt) nicht
-      // durch verspaetete Realtime-Events zuruecksetzen
+      // Lokal bereits final gesetzte Status (angenommen/abgelehnt/cancelled)
+      // nicht durch verspaetete Realtime-Events zuruecksetzen
       const lokal = v.messages[idx];
-      if (['angenommen', 'abgelehnt'].includes(lokal.status) && ['vorschlag', 'running', 'pending'].includes(row.status)) return;
+      if (['angenommen', 'abgelehnt', 'cancelled'].includes(lokal.status)
+        && ['vorschlag', 'running', 'pending'].includes(row.status)) return;
       // Kein Re-Render, wenn sich nichts Sichtbares geaendert hat
       // (Poll-Fallback liefert alle 5s auch unveraenderte Rows)
       const unveraendert = lokal.status === row.status

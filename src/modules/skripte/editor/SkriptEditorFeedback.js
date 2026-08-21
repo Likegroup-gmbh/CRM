@@ -95,8 +95,9 @@ export class SkriptEditorFeedback {
         }
       },
       onDeleted: async () => {
-        v.skripte = await skripteService.loadSkripte();
-        const naechstes = v.skripte.find((s) => s.id !== v.skript.id);
+        // Geloeschtes Skript lokal aus der Liste nehmen statt Reload
+        v.skripte = v.skripte.filter((s) => s.id !== v.skript.id);
+        const naechstes = v.skripte[0];
         if (naechstes) {
           v.skript = null;
           await v.switchSkript(naechstes.id);

@@ -3,6 +3,7 @@
 // Job-Handling (Realtime + Poll-Fallback) fuer skript-generate-background.
 
 import { skripteService } from '../SkripteService.js';
+import { skriptAuftrag } from '../SkriptAuftrag.js';
 import { replaceSkriptUrl } from '../SkripteUtils.js';
 import { GEN_STEP_LABELS } from './skriptEditorKonstanten.js';
 
@@ -29,6 +30,7 @@ export class SkriptEditorGeneration {
     v.clearPending();
     const menu = document.getElementById('ed-selmenu');
     if (menu) menu.hidden = true;
+    v.closeVersionMenu();
 
     v.skript = null;
     v.messages = [];
@@ -78,7 +80,9 @@ export class SkriptEditorGeneration {
     this.setGenButtonAktiv(false);
     try {
       const stub = await skripteService.createSkriptStub(payload);
-      v.skripte = await skripteService.loadSkripte();
+      // Lokal upserten statt die volle Liste neu zu laden (Join-Namen
+      // kommen aus dem Formular-State)
+      v.upsertSkriptInListe(stub);
       await v.switchSkript(stub.id);
       await this.startFragenRunde();
     } catch (err) {
@@ -100,7 +104,7 @@ export class SkriptEditorGeneration {
     v.messages.push(assistantMsg);
     v.renderChat({ forceScroll: true });
     v.ensurePolling();
-    await skripteService.triggerFunction('skript-fragen-background', { messageId: assistantMsg.id });
+    await skriptAuftrag.starteVonNachricht({ art: 'fragen', messageId: assistantMsg.id });
   }
 
   /** Finale Generierung in den Stub (nach geklaerten Fragen oder per Skip). */
@@ -131,21 +135,14 @@ export class SkriptEditorGeneration {
     v.renderChat({ forceScroll: true });
 
     try {
-      const job = await skripteService.createJob();
-      v.genJobId = job.id;
-
-      v.genChannel = skripteService.subscribeToJob(job.id, (j) => this.handleGenJobUpdate(j));
-      v.genPoll = setInterval(async () => {
-        if (!v.genJobId) return;
-        const j = await skripteService.pollJob(v.genJobId);
-        if (j) this.handleGenJobUpdate(j);
-      }, 5000);
-
-      await skripteService.triggerFunction('skript-generate-background', {
-        jobId: job.id,
-        skript_id: v.skript.id,
-        ...payload
+      const { jobId, stop } = await skriptAuftrag.starteJob({
+        art: 'generate',
+        skriptId: v.skript.id,
+        payload,
+        onUpdate: (j) => this.handleGenJobUpdate(j)
       });
+      v.genJobId = jobId;
+      v.genJobStop = stop;
     } catch (err) {
       this.cleanupGenJob();
       v.genStatus = { error: err.message };
@@ -185,21 +182,14 @@ export class SkriptEditorGeneration {
         v.genStubId = stub.id;
       }
 
-      const job = await skripteService.createJob();
-      v.genJobId = job.id;
-
-      v.genChannel = skripteService.subscribeToJob(job.id, (j) => this.handleGenJobUpdate(j));
-      v.genPoll = setInterval(async () => {
-        if (!v.genJobId) return;
-        const j = await skripteService.pollJob(v.genJobId);
-        if (j) this.handleGenJobUpdate(j);
-      }, 5000);
-
-      await skripteService.triggerFunction('skript-generate-background', {
-        jobId: job.id,
-        skript_id: v.genStubId,
-        ...payload
+      const { jobId, stop } = await skriptAuftrag.starteJob({
+        art: 'generate',
+        skriptId: v.genStubId,
+        payload,
+        onUpdate: (j) => this.handleGenJobUpdate(j)
       });
+      v.genJobId = jobId;
+      v.genJobStop = stop;
     } catch (err) {
       this.cleanupGenJob();
       v.genStatus = { error: err.message };
@@ -240,8 +230,11 @@ export class SkriptEditorGeneration {
     v.genStubId = null;
     window.toastSystem?.success('Skript generiert');
 
-    // Liste aktualisieren, damit das neue Skript links auftaucht
-    v.skripte = await skripteService.loadSkripte();
+    // Liste aktualisieren, damit das neue Skript links auftaucht -
+    // gezielt eine Row statt der vollen Liste (loadSkript bringt die
+    // Joins fuer die Sidebar-Badges mit)
+    const fresh = await skripteService.loadSkript(skriptId);
+    if (fresh) v.upsertSkriptInListe(fresh);
 
     if (v.neuModus) {
       // In-place ins neue Skript wechseln
@@ -260,14 +253,27 @@ export class SkriptEditorGeneration {
 
   cleanupGenJob() {
     const v = this.view;
-    if (v.genChannel) {
-      window.supabase.removeChannel(v.genChannel);
-      v.genChannel = null;
-    }
-    if (v.genPoll) {
-      clearInterval(v.genPoll);
-      v.genPoll = null;
-    }
+    // stop() ist idempotent und raeumt Channel + Poll + In-Flight auf
+    v.genJobStop?.();
+    v.genJobStop = null;
     v.genJobId = null;
+  }
+
+  /** Abbruch-Button an der Gen-Bubble: Job stornieren, UI sofort loesen. */
+  async brichGenerationAb() {
+    const v = this.view;
+    if (!v.genJobId) return;
+    const jobId = v.genJobId;
+    try {
+      await skriptAuftrag.brichAb(jobId);
+    } catch (err) {
+      window.toastSystem?.error(err.message);
+      return;
+    }
+    this.cleanupGenJob();
+    v.genStatus = { error: 'Abgebrochen' };
+    v.renderDoc();
+    v.renderChat({ forceScroll: true });
+    this.setGenButtonAktiv(true);
   }
 }

@@ -28,7 +28,7 @@ export function generatorFormMarkup(p) {
         </div>
         <div class="form-group">
           <label class="form-label">Persona (Zielgruppe)</label>
-          <select id="${p}-persona" class="form-input"><option value="">Laden...</option></select>
+          <select id="${p}-persona" class="form-input" disabled><option value="">– Erst Unternehmen wählen –</option></select>
         </div>
         <div class="form-group">
           <label class="form-label">Branche</label>
@@ -45,34 +45,24 @@ export function generatorFormMarkup(p) {
 
     <div class="skripte-card">
       <h3>Videovorlage (optional)</h3>
-      <p class="skripte-hint">Mit Vorlage übernimmt Liky deren Aufbau und Machart (Hook-Typ, Dramaturgie, Pace, CTA-Mechanik) – aber keine Formulierungen oder Produktaussagen. Ohne Vorlage baut Liky das Skript frei aus Skript-DNA und Beispiel-Skripten. Fakten kommen in beiden Fällen aus CRM und Briefing.</p>
-      <div class="skripte-ref-row">
-        <input type="url" id="${p}-ref-url" class="form-input"
-          placeholder="TikTok- oder Instagram-URL der Vorlage (z.B. https://www.tiktok.com/@user/video/...)" />
-        <button type="button" id="${p}-ref-start" class="mdc-btn mdc-btn--secondary">Analysieren</button>
-      </div>
-      <div id="${p}-ref-progress" class="skripte-ref-progress" hidden>
-        <div class="skripte-progress-head">
-          <span id="${p}-ref-progress-label">Starte…</span>
-        </div>
-        <div class="skripte-progress-track"><div id="${p}-ref-progress-bar" class="skripte-progress-bar"></div></div>
-      </div>
-      <div id="${p}-ref-error" class="skripte-ref-error" hidden>
-        <span id="${p}-ref-error-text"></span>
-        <button type="button" id="${p}-ref-retry" class="mdc-btn mdc-btn--secondary">Erneut versuchen</button>
+      <p class="skripte-hint">Videos aus der Strategie dieser Kampagne. Mit Vorlage übernimmt Liky deren Aufbau und Machart (Hook-Typ, Dramaturgie, Pace, CTA-Mechanik) – aber keine Formulierungen oder Produktaussagen. Die Beschreibung füllt die Video-Idee; das Transkript bleibt bei der Vorlage.</p>
+      <div class="form-group">
+        <label class="form-label">Video aus Strategie</label>
+        <select id="${p}-ref-item" class="form-input" disabled><option value="">– Erst Kampagne wählen –</option></select>
+        <span class="skripte-hint" id="${p}-ref-hint">Wähle eine Kampagne, dann ein Video aus deren Strategie.</span>
       </div>
       <div id="${p}-ref-result" hidden>
         <div id="${p}-ref-meta" class="skripte-ref-meta"></div>
         <div class="form-group">
           <label class="form-label">Transkript der Vorlage <span id="${p}-ref-source" class="skripte-hint"></span></label>
           <textarea id="${p}-ref-transkript" class="form-input" rows="6"
-            placeholder="Transkript erscheint hier nach der Analyse – oder bei Fehlern manuell einfügen"></textarea>
+            placeholder="Transkript aus der Strategie – prüfen/anpassen möglich"></textarea>
         </div>
         <div class="skripte-form-grid">
           <div class="form-group">
-            <label class="form-label">Beschreibung (KI)</label>
+            <label class="form-label">Beschreibung</label>
             <textarea id="${p}-ref-beschreibung" class="form-input" rows="3"
-              placeholder="Automatische Beschreibung des Vorlage-Videos"></textarea>
+              placeholder="Beschreibung aus der Strategie"></textarea>
           </div>
           <div class="form-group">
             <label class="form-label">Caption</label>

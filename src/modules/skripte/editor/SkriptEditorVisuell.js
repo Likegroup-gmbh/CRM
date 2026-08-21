@@ -5,7 +5,7 @@
 
 import { skripteService } from '../SkripteService.js';
 import { SEKTION_LABELS_KURZ, VISUELL_FIELD } from './skriptEditorKonstanten.js';
-import { visuellVorgaengerFehlt, visuellVorgaengerTitle, visuellHatFolgeSektionen, skriptStand } from './skriptEditorVisuellHelfer.js';
+import { visuellGuardGrund, visuellVorgaengerTitle, visuellHatFolgeSektionen, skriptStand } from './skriptEditorVisuellHelfer.js';
 import { openFloatingMenu } from '../../../core/components/FloatingMenu.js';
 
 export class SkriptEditorVisuell {
@@ -16,21 +16,15 @@ export class SkriptEditorVisuell {
   /** Guards + Toasts. true = Generierung darf starten / Menue darf aufgehen. */
   pruefeGuards(sektion) {
     const v = this.view;
-    if (v.isReadonly || !v.skript) return false;
-    if (!['hook', 'hauptteil', 'cta'].includes(sektion)) return false;
-    const gesprochen = (v.skript[sektion] || '').trim();
-    if (!gesprochen) {
+    // Komposition aus dem Helfer - der Renderer nutzt dieselbe fuer disabled
+    const grund = visuellGuardGrund(v.skript, sektion, { readonly: v.isReadonly, messages: v.messages });
+    if (!grund) return true;
+    if (grund === 'leer') {
       window.toastSystem?.warning('Erst gesprochenen Text generieren – dann kann ich das Visual dazu bauen.');
-      return false;
-    }
-    if (visuellVorgaengerFehlt(v.skript, sektion)) {
+    } else if (grund === 'vorgaenger') {
       window.toastSystem?.warning(visuellVorgaengerTitle(sektion));
-      return false;
     }
-    const laeuft = v.messages.some((m) => m.aktion === 'visuell'
-      && m.sektion === sektion && (m.status === 'pending' || m.status === 'running'));
-    if (laeuft) return false;
-    return true;
+    return false;
   }
 
   /** Visual-Button: Guards, dann Modus-Menue – oder Direktstart wenn keine Modi. */
@@ -53,6 +47,7 @@ export class SkriptEditorVisuell {
 
     const selmenu = document.getElementById('ed-selmenu');
     if (selmenu) selmenu.hidden = true;
+    v.closeVersionMenu();
 
     openFloatingMenu({
       el: menu,

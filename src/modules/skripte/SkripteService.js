@@ -74,10 +74,42 @@ export class SkripteService {
     return data || [];
   }
 
+  /** Picker-Loader (DNA-Scope etc.): nur Label-Felder, kein select('*'). */
   async loadPersonas() {
-    const { data } = await this.db.from('personas').select('*')
+    const { data } = await this.db.from('personas').select('id, name, oberbegriff')
       .order('oberbegriff', { nullsFirst: false }).order('name');
     return data || [];
+  }
+
+  /**
+   * Strategie-Items der Kampagne fuer den Vorlagen-Picker (ein Roundtrip
+   * via Inner-Join). Bewusst OHNE transkript/caption: das sind die dicken
+   * Felder, die der Picker nicht anzeigt. transkript_quelle reicht als
+   * "hat Transkript"-Flag. Das volle Item kommt erst beim Select ueber
+   * loadStrategieItem.
+   * nicht_umsetzen bleibt draussen - die sollen keine Vorlage werden.
+   */
+  async loadStrategieItems(kampagneId) {
+    if (!kampagneId) return [];
+
+    const { data, error } = await this.db.from('strategie_items')
+      .select('id, strategie_id, video_link, plattform, beschreibung, transkript_quelle, creator_name, screenshot_url, nicht_umsetzen, strategie:strategie_id!inner(id, name, kampagne_id)')
+      .eq('strategie.kampagne_id', kampagneId)
+      .order('sortierung');
+
+    if (error) throw new Error(error.message);
+    return (data || []).filter((item) => !item.nicht_umsetzen);
+  }
+
+  /** Einzelnes Strategie-Item voll (mit Transkript) - erst beim Select. */
+  async loadStrategieItem(id) {
+    if (!id) return null;
+    const { data, error } = await this.db.from('strategie_items')
+      .select('id, strategie_id, video_link, plattform, beschreibung, transkript, caption, creator_name, screenshot_url')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return data || null;
   }
 
   /**
@@ -131,8 +163,10 @@ export class SkripteService {
   // Skripte
   // ------------------------------------------------------------------
   async loadSkripte() {
+    // Listen-Loader: hauptteil/cta bleiben draussen (nie angezeigt),
+    // hook nur als Titel-Fallback (Renderer schneidet auf 50/80 Zeichen)
     const { data, error } = await this.db.from('skripte')
-      .select('id, titel, unternehmen_id, marke_id, kampagne_id, branche_id, hook, hauptteil, cta, herkunft, performance_label, status, mit_dna, model, funnel_stufe, created_at, unternehmen(id, firmenname, internes_kuerzel, logo_url), marke(id, markenname, logo_url), kampagne(id, kampagnenname, eigener_name), branchen(name)')
+      .select('id, titel, unternehmen_id, marke_id, kampagne_id, branche_id, hook, herkunft, performance_label, status, mit_dna, model, funnel_stufe, created_at, unternehmen(id, firmenname, internes_kuerzel, logo_url), marke(id, markenname, logo_url), kampagne(id, kampagnenname, eigener_name), branchen(name)')
       .order('created_at', { ascending: false })
       .limit(200);
 
@@ -185,6 +219,7 @@ export class SkripteService {
       persona_id: payload.persona_id || null,
       branche_id: payload.branche_id || null,
       briefing_id: payload.briefing_id || null,
+      strategie_item_id: payload.strategie_item_id || null,
       video_idee: payload.video_idee || null,
       location: payload.location || null,
       regieanweisung: payload.regieanweisung || null,
@@ -218,6 +253,7 @@ export class SkripteService {
       persona_id: payload.persona_id || null,
       branche_id: payload.branche_id || null,
       briefing_id: payload.briefing_id || null,
+      strategie_item_id: payload.strategie_item_id || null,
       video_idee: payload.video_idee || null,
       location: payload.location || null,
       regieanweisung: payload.regieanweisung || null,
@@ -441,10 +477,11 @@ export class SkripteService {
   // ------------------------------------------------------------------
   // Jobs (Background Functions)
   // ------------------------------------------------------------------
-  async createJob() {
+  async createJob({ skriptId = null } = {}) {
     const { data: { user } } = await this.db.auth.getUser();
     const { data, error } = await this.db.from('skript_generation_jobs')
-      .insert({ created_by: user?.id }).select().single();
+      .insert({ created_by: user?.id, ...(skriptId ? { skript_id: skriptId } : {}) })
+      .select().single();
     if (error) throw new Error(`Job-Insert fehlgeschlagen: ${error.message}`);
     return data;
   }
@@ -478,6 +515,13 @@ export class SkripteService {
     const { data } = await this.db.from('skript_generation_jobs')
       .select('*').eq('id', jobId).single();
     return data;
+  }
+
+  /** Client-seitiges Job-Update (z.B. Abbruch). RLS: nur eigene Jobs. */
+  async updateJob(jobId, patch) {
+    const { error } = await this.db.from('skript_generation_jobs')
+      .update(patch).eq('id', jobId);
+    if (error) throw new Error(error.message);
   }
 }
 

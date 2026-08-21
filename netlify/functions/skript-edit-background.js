@@ -9,9 +9,10 @@
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
+const { autorisiereSkript, istNachrichtAbgebrochen } = require('./_shared/skript-auftrag');
 const {
   loadEditContext, buildEditPrompt, stripToolXml, letzterZeitstempel, formatZeitstempel,
-  ladeVisuellStil, loadVisualBeispiele, EDIT_BRIEFING_MAX
+  ladeVisuellStil, loadVisualBeispiele, brauchtVisualStil, resolveModusSlug, EDIT_BRIEFING_MAX
 } = require('./_shared/skript-edit-prompt');
 
 // Tool-Call fuer strukturierte Antworten. Bei Schreib-Aktionen laeuft
@@ -53,6 +54,10 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     if (message.rolle !== 'assistant' || message.status !== 'pending') {
       return { statusCode: 409, body: 'Message ist kein pending Assistant-Job' };
     }
+    // Service Role umgeht RLS - Scope des Aufrufers explizit pruefen
+    if (!(await autorisiereSkript(supabase, user, message.skript_id))) {
+      return { statusCode: 403, body: 'Kein Zugriff auf dieses Skript' };
+    }
 
     // Frequenz-Limit pruefen + Protokoll-Zeile anlegen (Fehlermeldung
     // landet ueber den catch als error_message in der Chat-Message)
@@ -63,6 +68,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
 
     const ctx = await loadEditContext(supabase, message);
     const { stable, task } = buildEditPrompt(ctx, message);
+
+    // Abbruch waehrend des Kontext-Ladens: kein Claude-Call mehr
+    if (await istNachrichtAbgebrochen(supabase, messageId)) {
+      return { statusCode: 200 };
+    }
 
     // Modellwahl: Schreiben immer mit dem starken Modell + Extended Thinking,
     // nur freier Chat (Fragen/Rueckfragen) mit dem guenstigen
@@ -83,6 +93,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       timeoutMs: 480000
     });
     await ki.abschliessen(result);
+
+    // Abbruch waehrend des Calls: Ergebnis verwerfen, Message bleibt cancelled
+    if (await istNachrichtAbgebrochen(supabase, messageId)) {
+      return { statusCode: 200 };
+    }
 
     const parsed = result.json || extractJson(result.text, { keys: ['antwort', 'sektion', 'vorschlag_text'] });
     const vorschlag = stripToolXml(parsed.vorschlag_text);
@@ -115,4 +130,6 @@ exports.letzterZeitstempel = letzterZeitstempel;
 exports.formatZeitstempel = formatZeitstempel;
 exports.ladeVisuellStil = ladeVisuellStil;
 exports.loadVisualBeispiele = loadVisualBeispiele;
+exports.brauchtVisualStil = brauchtVisualStil;
+exports.resolveModusSlug = resolveModusSlug;
 exports.EDIT_BRIEFING_MAX = EDIT_BRIEFING_MAX;
