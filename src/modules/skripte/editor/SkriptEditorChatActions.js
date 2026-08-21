@@ -74,6 +74,7 @@ export class SkriptEditorChatActions {
   /** User-Message + pending Assistant-Message anlegen, dann Function triggern. */
   async sendMessagePair({ aktion, sektion, selektion_text, inhalt, ist_visuell = false, modus = null }) {
     const v = this.view;
+    let assistantMsg;
     try {
       const userMsg = await skripteService.createChatMessage({
         skript_id: v.skript.id,
@@ -90,7 +91,7 @@ export class SkriptEditorChatActions {
 
       // inhalt der pending Message = User-Anweisung (wird von der Function
       // als Auftrag gelesen und mit der Modell-Antwort ueberschrieben)
-      const assistantMsg = await skripteService.createChatMessage({
+      assistantMsg = await skripteService.createChatMessage({
         skript_id: v.skript.id,
         rolle: 'assistant',
         aktion,
@@ -105,14 +106,28 @@ export class SkriptEditorChatActions {
       v.renderChat({ forceScroll: true });
 
       v.ensurePolling();
-      await skriptAuftrag.starteVonNachricht({
-        art: aktion === 'rueckfrage' ? 'fragen' : 'edit',
-        messageId: assistantMsg.id
-      });
-      return assistantMsg;
     } catch (err) {
       window.toastSystem?.error(err.message);
       return null;
+    }
+    await this.triggerNachricht(aktion, assistantMsg.id);
+    return assistantMsg;
+  }
+
+  /**
+   * Function zur Message triggern. Transiente Invoke-Fehler (502/503/Netz,
+   * err.transient) werden NICHT getoastet: Netlify queued den Job oft
+   * trotzdem, und Poll + Pending-Timeout in SkriptEditorRealtime faengt
+   * die seltenen echten Drops als Fehler-Bubble mit Retry auf.
+   */
+  async triggerNachricht(aktion, messageId) {
+    try {
+      await skriptAuftrag.starteVonNachricht({
+        art: aktion === 'rueckfrage' ? 'fragen' : 'edit',
+        messageId
+      });
+    } catch (err) {
+      if (!err.transient) window.toastSystem?.error(err.message);
     }
   }
 
@@ -148,10 +163,7 @@ export class SkriptEditorChatActions {
       v.messages.push(assistantMsg);
       v.renderChat({ forceScroll: true });
       v.ensurePolling();
-      await skriptAuftrag.starteVonNachricht({
-        art: msg.aktion === 'rueckfrage' ? 'fragen' : 'edit',
-        messageId: assistantMsg.id
-      });
+      await this.triggerNachricht(msg.aktion, assistantMsg.id);
     } catch (err) {
       window.toastSystem?.error(err.message);
     }

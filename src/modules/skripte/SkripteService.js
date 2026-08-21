@@ -8,6 +8,9 @@ import { planeVersionsRows } from './versionsNummerierung.js';
 
 export { PERFORMANCE_LABELS, FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER };
 
+// Gateway-/Last-Fehler beim Function-Invoke, bei denen ein Retry sinnvoll ist
+const TRANSIENT_TRIGGER_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+
 export class SkripteService {
   get db() {
     return window.supabase;
@@ -285,9 +288,17 @@ export class SkripteService {
     return data;
   }
 
-  async updateChatMessage(id, patch) {
-    const { error } = await this.db.from('skript_chat_messages').update(patch).eq('id', id);
+  /**
+   * nurWennStatus: Update nur ausfuehren, wenn die Message noch in diesem
+   * Status ist (Race-Schutz gegen die Function, die gleichzeitig claimt).
+   * Rueckgabe: true, wenn eine Zeile aktualisiert wurde.
+   */
+  async updateChatMessage(id, patch, { nurWennStatus } = {}) {
+    let q = this.db.from('skript_chat_messages').update(patch).eq('id', id);
+    if (nurWennStatus) q = q.eq('status', nurWennStatus);
+    const { data, error } = await q.select('id');
     if (error) throw new Error(error.message);
+    return (data || []).length > 0;
   }
 
   async pollChatMessage(id) {
@@ -486,17 +497,46 @@ export class SkripteService {
     return data;
   }
 
-  async triggerFunction(name, body) {
+  /**
+   * Background Function anstossen. Erfolg = 202/2xx oder 409 (laeuft bereits,
+   * z.B. Netlify-Auto-Retry nach Gateway-Fehler). Transiente Gateway-Fehler
+   * (408/429/5xx) und Netzwerkabbrueche werden kurz retried: Netlify queued
+   * den Job oft trotz 502/503 schon, der atomare Claim serverseitig macht
+   * den doppelten Invoke idempotent. Schlagen alle Versuche fehl, wird mit
+   * err.transient = true geworfen - der Aufrufer toasted das nicht, weil
+   * Poll/Realtime das Ergebnis trotzdem liefern koennen.
+   */
+  async triggerFunction(name, body, { signal } = {}) {
     const session = await this.db.auth.getSession();
     const token = session?.data?.session?.access_token || '';
-    const response = await fetch(`/.netlify/functions/${name}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body)
-    });
-    if (response.status !== 202 && !response.ok) {
-      throw new Error(`Function-Trigger fehlgeschlagen: HTTP ${response.status}`);
+    const MAX_VERSUCHE = 3;
+    let letzterFehler = null;
+
+    for (let versuch = 1; versuch <= MAX_VERSUCHE; versuch++) {
+      if (versuch > 1) await new Promise((r) => setTimeout(r, 400 * 2 ** (versuch - 2)));
+      let response;
+      try {
+        response = await fetch(`/.netlify/functions/${name}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(body),
+          ...(signal ? { signal } : {})
+        });
+      } catch (err) {
+        if (err.name === 'AbortError') throw err;
+        letzterFehler = err;
+        continue;
+      }
+      if (response.ok || response.status === 409) return;
+      if (!TRANSIENT_TRIGGER_STATUS.has(response.status)) {
+        throw new Error(`Function-Trigger fehlgeschlagen: HTTP ${response.status}`);
+      }
+      letzterFehler = new Error(`Function-Trigger fehlgeschlagen: HTTP ${response.status}`);
     }
+
+    const err = letzterFehler || new Error('Function-Trigger fehlgeschlagen');
+    err.transient = true;
+    throw err;
   }
 
   subscribeToJob(jobId, onUpdate) {

@@ -32,7 +32,7 @@
 
 .projekt-erstellen-summary-section {
   padding: var(--space-md) 0;
-  border-bottom: 1px solid var(--gray-100);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .projekt-erstellen-summary-section:first-child {

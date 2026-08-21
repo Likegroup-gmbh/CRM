@@ -293,7 +293,11 @@ BriefingCreate.prototype.initSearchableSelects = function() {
   try {
     const unternehmenSelect = document.getElementById('unternehmen_id');
     if (unternehmenSelect && window.formSystem?.createSearchableSelect) {
-      window.formSystem.createSearchableSelect(unternehmenSelect, this.unternehmen.map(u => ({ value: u.id, label: u.firmenname })), {
+      window.formSystem.createSearchableSelect(unternehmenSelect, this.unternehmen.map(u => ({
+        value: u.id,
+        label: u.firmenname,
+        selected: u.id === this.formData.unternehmen_id
+      })), {
         name: 'unternehmen_id',
         placeholder: 'Unternehmen suchen...',
         value: this.formData.unternehmen_id || null
@@ -303,7 +307,11 @@ BriefingCreate.prototype.initSearchableSelects = function() {
     const markeSelect = document.getElementById('marke_id');
     if (markeSelect && window.formSystem?.createSearchableSelect && this.formData.unternehmen_id) {
       const filtered = this.marken.filter(m => m.unternehmen_id === this.formData.unternehmen_id);
-      window.formSystem.createSearchableSelect(markeSelect, filtered.map(m => ({ value: m.id, label: m.markenname })), {
+      window.formSystem.createSearchableSelect(markeSelect, filtered.map(m => ({
+        value: m.id,
+        label: m.markenname,
+        selected: m.id === this.formData.marke_id
+      })), {
         name: 'marke_id',
         placeholder: 'Marke suchen...',
         value: this.formData.marke_id || null
@@ -312,7 +320,11 @@ BriefingCreate.prototype.initSearchableSelects = function() {
 
     const assigneeSelect = document.getElementById('assignee_id');
     if (assigneeSelect && window.formSystem?.createSearchableSelect) {
-      window.formSystem.createSearchableSelect(assigneeSelect, this.benutzer.map(b => ({ value: b.id, label: b.name })), {
+      window.formSystem.createSearchableSelect(assigneeSelect, this.benutzer.map(b => ({
+        value: b.id,
+        label: b.name,
+        selected: b.id === this.formData.assignee_id
+      })), {
         name: 'assignee_id',
         placeholder: 'Mitarbeiter suchen...',
         value: this.formData.assignee_id || null

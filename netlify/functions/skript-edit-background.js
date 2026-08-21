@@ -9,7 +9,7 @@
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
-const { autorisiereSkript, istNachrichtAbgebrochen } = require('./_shared/skript-auftrag');
+const { beansprucheNachricht, autorisiereSkript, istNachrichtAbgebrochen } = require('./_shared/skript-auftrag');
 const {
   loadEditContext, buildEditPrompt, stripToolXml, letzterZeitstempel, formatZeitstempel,
   ladeVisuellStil, loadVisualBeispiele, brauchtVisualStil, resolveModusSlug, EDIT_BRIEFING_MAX
@@ -51,20 +51,23 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     const { data: message } = await supabase.from('skript_chat_messages')
       .select('*').eq('id', messageId).single();
     if (!message) return { statusCode: 404, body: 'Message nicht gefunden' };
-    if (message.rolle !== 'assistant' || message.status !== 'pending') {
-      return { statusCode: 409, body: 'Message ist kein pending Assistant-Job' };
+    if (message.rolle !== 'assistant') {
+      return { statusCode: 409, body: 'Message ist kein Assistant-Job' };
     }
     // Service Role umgeht RLS - Scope des Aufrufers explizit pruefen
     if (!(await autorisiereSkript(supabase, user, message.skript_id))) {
       return { statusCode: 403, body: 'Kein Zugriff auf dieses Skript' };
     }
 
+    // Atomarer Claim pending -> running: Netlify-Auto-Retry nach einem
+    // Gateway-Fehler (502/503) oder ein doppelter Client-Invoke bekommt
+    // null und no-opt, statt Claude zweimal auf dieselbe Message zu rufen
+    const claimed = await beansprucheNachricht(supabase, messageId);
+    if (!claimed) return { statusCode: 409, body: 'Message bereits claimed oder beendet' };
+
     // Frequenz-Limit pruefen + Protokoll-Zeile anlegen (Fehlermeldung
     // landet ueber den catch als error_message in der Chat-Message)
     ki = await starteKiRequest(supabase, { userId: user.id, feature: 'skript_editor' });
-
-    await supabase.from('skript_chat_messages')
-      .update({ status: 'running' }).eq('id', messageId);
 
     const ctx = await loadEditContext(supabase, message);
     const { stable, task } = buildEditPrompt(ctx, message);

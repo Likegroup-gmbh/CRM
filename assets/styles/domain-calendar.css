@@ -127,7 +127,7 @@
 .calendar-view-container {
   display: grid;
   grid-template-columns: 280px 1fr;
-  border-top: 1px solid var(--gray-100);
+  border-top: 1px solid var(--border-primary);
   min-height: calc(100vh - 200px);
 }
 
@@ -141,7 +141,7 @@
 
 .calendar-sidebar {
   background: var(--surface-color);
-  border-right: 1px solid var(--gray-100);
+  border-right: 1px solid var(--border-primary);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -152,7 +152,7 @@
 .calendar-sidebar-tabs {
   flex-direction: row;
   border: none;
-  border-bottom: 1px solid var(--gray-100);
+  border-bottom: 1px solid var(--border-primary);
   overflow-x: visible;
   gap: 0;
   padding: 0;
@@ -164,7 +164,7 @@
   width: 100%;
   border-radius: 0;
   padding: var(--space-sm) var(--space-md);
-  border-left: 1px solid var(--gray-200);
+  border-left: 1px solid var(--border-primary);
   font-size: var(--text-xsm);
   font-weight: 400;
   color: var(--gray-500);
@@ -248,7 +248,7 @@
 .calendar-week-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  border-top: 1px solid var(--gray-100);
+  border-top: 1px solid var(--border-primary);
   flex: 1;
 }
 
@@ -258,7 +258,7 @@
   display: flex;
   flex-direction: column;
   flex: 1;
-  border-top: 1px solid var(--gray-100);
+  border-top: 1px solid var(--border-primary);
 }
 
 .calendar-month-header {
@@ -269,7 +269,7 @@
   font-size: var(--text-sm);
   font-weight: 500;
   color: var(--gray-500);
-  border-bottom: 1px solid var(--gray-100);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .calendar-month-body {
@@ -286,8 +286,8 @@
 }
 
 .calendar-month-day {
-  border-right: 1px solid var(--gray-100);
-  border-bottom: 1px solid var(--gray-100);
+  border-right: 1px solid var(--border-primary);
+  border-bottom: 1px solid var(--border-primary);
   padding: var(--space-xs);
   min-height: 80px;
   display: flex;
@@ -348,7 +348,7 @@
 .calendar-month-event {
   font-size: 11px;
   padding: var(--space-xxs) var(--space-xs);
-  border: 1px solid var(--gray-100);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-sm);
   cursor: pointer;
   display: flex;
@@ -398,7 +398,7 @@
   min-height: 300px;
   display: flex;
   flex-direction: column;
-  border-left: 1px solid var(--gray-100);
+  border-left: 1px solid var(--border-primary);
   overflow: hidden;
 }
 
@@ -414,7 +414,7 @@
 .calendar-day-header {
   padding: var(--space-xs);
   text-align: center;
-  border-bottom: 1px solid var(--gray-100);
+  border-bottom: 1px solid var(--border-primary);
   
 }
 
@@ -448,7 +448,7 @@
   padding: var(--space-xs);
   cursor: pointer;
   
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
 }
 
 .calendar-event-header {

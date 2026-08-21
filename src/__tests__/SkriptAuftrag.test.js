@@ -116,12 +116,53 @@ describe('SkriptAuftrag.starteVonNachricht', () => {
 
     const erste = await auftrag.starteVonNachricht({ art: 'edit', messageId: 'm1' });
     expect(erste).toBe(true);
-    expect(service.triggerFunction).toHaveBeenCalledWith('skript-edit-background', { messageId: 'm1' });
+    expect(service.triggerFunction).toHaveBeenCalledWith(
+      'skript-edit-background', { messageId: 'm1' }, { signal: expect.any(AbortSignal) }
+    );
 
     // Nach Abschluss ist der Guard wieder frei (der Trigger selbst ist synchron)
     const zweite = await auftrag.starteVonNachricht({ art: 'fragen', messageId: 'm2' });
     expect(zweite).toBe(true);
-    expect(service.triggerFunction).toHaveBeenCalledWith('skript-fragen-background', { messageId: 'm2' });
+    expect(service.triggerFunction).toHaveBeenCalledWith(
+      'skript-fragen-background', { messageId: 'm2' }, { signal: expect.any(AbortSignal) }
+    );
+  });
+
+  it('AbortError vom Trigger wird als Nutzer-Abbruch geschluckt, nicht geworfen', async () => {
+    const service = makeService({
+      triggerFunction: vi.fn(async () => {
+        throw Object.assign(new Error('The operation was aborted'), { name: 'AbortError' });
+      })
+    });
+    const auftrag = new SkriptAuftrag(service);
+
+    await expect(auftrag.starteVonNachricht({ art: 'fragen', messageId: 'm1' })).resolves.toBe(true);
+    expect(auftrag.hatLaufenden('msg:m1')).toBe(false);
+  });
+
+  it('brichNachrichtAb bricht einen noch offenen Trigger-Fetch ab', async () => {
+    let signalRef = null;
+    const service = makeService({
+      triggerFunction: vi.fn((name, body, { signal } = {}) => {
+        signalRef = signal;
+        return new Promise((_, reject) => {
+          signal.addEventListener('abort', () => {
+            reject(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+          });
+        });
+      })
+    });
+    const auftrag = new SkriptAuftrag(service);
+
+    const startPromise = auftrag.starteVonNachricht({ art: 'fragen', messageId: 'm1' });
+    await auftrag.brichNachrichtAb('m1');
+
+    expect(signalRef.aborted).toBe(true);
+    await expect(startPromise).resolves.toBe(true);
+    expect(service.updateChatMessage).toHaveBeenCalledWith('m1', {
+      status: 'cancelled',
+      error_message: 'Vom Nutzer abgebrochen'
+    });
   });
 });
 

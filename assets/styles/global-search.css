@@ -43,7 +43,7 @@
   align-items: center;
   gap: var(--space-sm);
   padding: var(--space-md) var(--space-lg);
-  border-bottom: var(--border-xs) solid var(--gray-200);
+  border-bottom: var(--border-xs) solid var(--border-primary);
 }
 
 .global-search-input-icon {
@@ -162,7 +162,7 @@
   align-items: center;
   gap: var(--space-lg);
   padding: var(--space-xs) var(--space-lg);
-  border-top: var(--border-xs) solid var(--gray-200);
+  border-top: var(--border-xs) solid var(--border-primary);
   font-size: var(--text-xxs);
   color: var(--gray-500);
 }

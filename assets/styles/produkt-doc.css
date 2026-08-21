@@ -64,7 +64,7 @@
 
 .produkt-doc__group {
   padding: var(--produkt-doc-group-pad) var(--space-lg);
-  border-bottom: var(--border-xs) solid var(--gray-100);
+  border-bottom: var(--border-xs) solid var(--border-primary);
 }
 
 /* Den unteren Abschluss zeichnet schon die Shell */
@@ -309,7 +309,7 @@
    letzten Zelle die Seitenkante, dadurch fehlt der Tabelle sonst der Abschluss. */
 .produkt-doc .table-container {
   margin-bottom: var(--space-xs);
-  border: var(--border-xs) solid var(--gray-200);
+  border: var(--border-xs) solid var(--border-primary);
   border-radius: var(--radius-lg);
   overflow-x: auto;
 }
@@ -326,7 +326,7 @@
   position: static;
   box-shadow: none;
   border-top: none;
-  border-bottom: var(--border-xs) solid var(--gray-200);
+  border-bottom: var(--border-xs) solid var(--border-primary);
 }
 
 .produkt-doc .data-table th {
@@ -341,7 +341,7 @@
 .produkt-doc .data-table td {
   padding: var(--space-xxs) var(--space-xs);
   vertical-align: middle;
-  border-bottom: var(--border-xs) solid var(--gray-200);
+  border-bottom: var(--border-xs) solid var(--border-primary);
 }
 
 .produkt-doc .data-table tbody tr:last-child td {
@@ -675,7 +675,7 @@
   width: 40px;
   height: 40px;
   padding: 0;
-  border: var(--border-xs) solid var(--gray-200);
+  border: var(--border-xs) solid var(--border-primary);
   border-radius: var(--radius-md);
   background: var(--bg-primary);
   color: var(--gray-400);
@@ -710,7 +710,7 @@
   width: 16px;
   height: 16px;
   padding: 0;
-  border: var(--border-xs) solid var(--gray-200);
+  border: var(--border-xs) solid var(--border-primary);
   border-radius: 50%;
   background: var(--bg-primary);
   color: var(--gray-500);

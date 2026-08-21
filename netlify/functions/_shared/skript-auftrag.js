@@ -24,6 +24,24 @@ async function beansprucheJob(supabase, jobId, { skriptId = null } = {}) {
 }
 
 /**
+ * Atomarer Claim fuer Chat-Auftraege (Edit/Fragen): pending -> running in
+ * einem Update. Liefert die Row oder null, wenn sie bereits claimed oder
+ * beendet ist - Netlify-Auto-Retry nach Gateway-Fehler und doppelte
+ * Client-Invokes laufen damit ins Leere, statt Claude zweimal zu rufen.
+ */
+async function beansprucheNachricht(supabase, messageId) {
+  const { data, error } = await supabase.from('skript_chat_messages')
+    .update({ status: 'running' })
+    .eq('id', messageId)
+    .eq('rolle', 'assistant')
+    .eq('status', 'pending')
+    .select('*')
+    .maybeSingle();
+  if (error) throw new Error(`Message-Claim fehlgeschlagen: ${error.message}`);
+  return data || null;
+}
+
+/**
  * Scope-Pruefung serverseitig: requireInternal weist nur die Rolle nach,
  * RLS greift unter Service Role nicht. Ohne diesen Check koennte jeder
  * interne Token eine fremde skript_id/messageId triggern.
@@ -67,6 +85,6 @@ async function istNachrichtAbgebrochen(supabase, messageId) {
 }
 
 module.exports = {
-  beansprucheJob, autorisiereSkript, hatLaufendenJob,
+  beansprucheJob, beansprucheNachricht, autorisiereSkript, hatLaufendenJob,
   istJobAbgebrochen, istNachrichtAbgebrochen
 };

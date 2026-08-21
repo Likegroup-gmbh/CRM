@@ -57,12 +57,19 @@ export function renderFloatingMenuItem(item, menuLayout = 'icon-label') {
   }
 
   const title = item.title || (layout === 'icon' ? label : '');
+  const active = !!item.active;
+  const classes = [
+    'crm-fmenu-item',
+    `crm-fmenu-item--${layout}`,
+    active ? 'is-active' : ''
+  ].filter(Boolean).join(' ');
   return `
-    <button type="button" class="crm-fmenu-item crm-fmenu-item--${layout}" data-id="${escapeHtml(item.id)}"${
+    <button type="button" class="${classes}" data-id="${escapeHtml(item.id)}"${
       title ? ` title="${escapeHtml(title)}"` : ''
-    }${extraDataAttrs(item.data)}>
+    }${active ? ' aria-checked="true"' : ''}${extraDataAttrs(item.data)}>
       ${iconHtml ? `<span class="crm-fmenu-icon">${iconHtml}</span>` : ''}
       ${textHtml}
+      ${active ? `<span class="crm-fmenu-check">${icon('check-filled')}</span>` : ''}
     </button>`;
 }
 

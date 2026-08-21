@@ -11,7 +11,7 @@
 
 /* Cards & Layout */
 .skripte-card {
-  border-bottom: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--border-primary);
 
   padding: var(--space-lg);
   display: flex;
@@ -41,7 +41,7 @@
 
 /* Skript-Sektionen (Hook/Hauptteil/CTA) */
 .skripte-sektion {
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-xl);
   padding: var(--space-md);
   display: flex;
@@ -73,13 +73,13 @@
   padding: var(--space-xs) var(--space-sm);
   color: var(--text-secondary);
   font-weight: 600;
-  border-bottom: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--border-primary);
   white-space: nowrap;
 }
 
 .skripte-table td {
   padding: var(--space-xs) var(--space-sm);
-  border-bottom: 1px solid var(--gray-100);
+  border-bottom: 1px solid var(--border-primary);
   vertical-align: middle;
 }
 
@@ -109,7 +109,7 @@
 
 /* Feedback */
 .skripte-leitfaden {
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-xl);
   padding: var(--space-xs) var(--space-md);
   font-size: var(--text-sm);
@@ -126,7 +126,7 @@
   flex-direction: column;
   gap: var(--space-xs);
   padding-top: var(--space-xs);
-  border-top: 1px dashed var(--gray-200);
+  border-top: 1px dashed var(--border-primary);
 }
 
 .skripte-altes-feedback {
@@ -200,7 +200,7 @@
 
 /* Aufklappbare Sektions-Bloecke im Voll-Feedback */
 .skripte-feedback-details {
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-xl);
   padding: var(--space-xs) var(--space-md);
 }
@@ -235,7 +235,7 @@
   justify-content: space-between;
   align-items: center;
   padding: var(--space-md) var(--space-lg);
-  border-bottom: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .skripte-drawer-header h2 {
@@ -266,7 +266,7 @@
   justify-content: flex-end;
   gap: var(--space-xs);
   padding: var(--space-md) var(--space-lg);
-  border-top: 1px solid var(--gray-200);
+  border-top: 1px solid var(--border-primary);
 }
 
 /* ---------------------------------------------------------------------------

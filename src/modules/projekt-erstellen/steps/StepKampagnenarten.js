@@ -72,7 +72,7 @@ export class StepKampagnenarten {
           margin-bottom: var(--space-sm);
         }
         .projekt-erstellen-subsection {
-          border-top: var(--border-xs) solid var(--gray-200);
+          border-top: var(--border-xs) solid var(--border-primary);
           padding-top: var(--space-md);
           margin-top: var(--space-md);
         }

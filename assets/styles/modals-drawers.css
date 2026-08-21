@@ -225,7 +225,7 @@
 
 .drawer-close {
   background: var(--gray-100);
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   color: var(--gray-700);
   padding: var(--space-xs) 12px;
   border-radius: var(--radius-md);
@@ -236,7 +236,7 @@
 
 .drawer-toggle-container {
   padding: 0 var(--space-md) var(--space-md);
-  border-bottom: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--border-primary);
   flex-shrink: 0;
 }
 
@@ -491,7 +491,7 @@
   flex-direction: column;
   gap: var(--space-md);
   padding-bottom: var(--space-lg);
-  border-bottom: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--border-primary);
   margin-bottom: var(--space-lg);
 }
 
@@ -580,7 +580,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-md);
-  border-bottom: 1px solid var(--gray-100);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .day-events-drawer-header h3 {

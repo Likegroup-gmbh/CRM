@@ -25,6 +25,9 @@ export class SkriptAuftrag {
   constructor(service = skripteService) {
     this.service = service;
     this.inFlight = new Set();
+    // messageId -> AbortController des noch offenen Trigger-Fetch,
+    // damit Abbrechen ihn sofort beendet statt nachtraeglich zu toasten
+    this.triggerController = new Map();
   }
 
   hatLaufenden(key) {
@@ -92,10 +95,18 @@ export class SkriptAuftrag {
     const key = `msg:${messageId}`;
     if (this.inFlight.has(key)) return false;
     this.inFlight.add(key);
+    const controller = new AbortController();
+    this.triggerController.set(messageId, controller);
     try {
-      await this.service.triggerFunction(fn, { messageId });
+      await this.service.triggerFunction(fn, { messageId }, { signal: controller.signal });
       return true;
+    } catch (err) {
+      // Vom Nutzer abgebrochener Invoke ist kein Fehler - die Message
+      // wurde schon auf cancelled gesetzt
+      if (err.name === 'AbortError') return true;
+      throw err;
     } finally {
+      this.triggerController.delete(messageId);
       this.inFlight.delete(key);
     }
   }
@@ -109,6 +120,9 @@ export class SkriptAuftrag {
   }
 
   async brichNachrichtAb(messageId) {
+    // Erst den evtl. noch offenen Invoke killen, dann den Status setzen -
+    // sonst kann der Fetch danach noch als Toast aufschlagen
+    this.triggerController.get(messageId)?.abort();
     await this.service.updateChatMessage(messageId, {
       status: 'cancelled',
       error_message: 'Vom Nutzer abgebrochen'

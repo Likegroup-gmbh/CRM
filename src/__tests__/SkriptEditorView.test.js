@@ -681,3 +681,68 @@ describe('SkriptEditorView Inline-Edit', () => {
     expect(view.skript.hook_visuell).toBe('Neuer Visual-Text');
   });
 });
+
+describe('SkriptEditorView Trigger-Fehler (502/503 am Gateway)', () => {
+  let view;
+  let container;
+
+  const skript = {
+    id: 's1',
+    titel: 'Test-Skript',
+    hook: 'Hook-Text',
+    hauptteil: 'Hauptteil-Text',
+    cta: 'CTA-Text',
+    created_at: '2026-08-20',
+    unternehmen: { firmenname: 'Muster GmbH', internes_kuerzel: 'MUS' },
+    marke: null
+  };
+
+  beforeEach(() => {
+    setupWindow();
+    window.toastSystem = { success: vi.fn(), error: vi.fn(), warning: vi.fn() };
+    view = new SkriptEditorView({ _merkeKontext: () => {} });
+    container = document.createElement('div');
+    document.body.appendChild(container);
+
+    mockService.loadSkript.mockResolvedValue({ ...skript });
+    mockService.loadSkripte.mockResolvedValue([{ ...skript }]);
+    mockService.getChatMessages.mockResolvedValue([]);
+    mockService.getVersionen.mockResolvedValue([]);
+    mockService.createChatMessage
+      .mockResolvedValueOnce({ id: 'u1', skript_id: 's1', rolle: 'user', aktion: 'chat', status: 'fertig', inhalt: 'hi' })
+      .mockResolvedValueOnce({ id: 'a1', skript_id: 's1', rolle: 'assistant', aktion: 'chat', status: 'pending', inhalt: 'hi' });
+  });
+
+  afterEach(() => {
+    if (view.pollInterval) { clearInterval(view.pollInterval); view.pollInterval = null; }
+    container.remove();
+    vi.clearAllMocks();
+  });
+
+  it('transienter Invoke-Fehler: kein Toast, Message bleibt pending (Poll regelt)', async () => {
+    await view.render(container, 's1');
+    const err = new Error('Function-Trigger fehlgeschlagen: HTTP 503');
+    err.transient = true;
+    mockService.triggerFunction.mockRejectedValue(err);
+
+    const msg = await view.sendMessagePair({
+      aktion: 'chat', sektion: 'gesamt', selektion_text: null, inhalt: 'hi'
+    });
+
+    expect(msg?.id).toBe('a1');
+    expect(window.toastSystem.error).not.toHaveBeenCalled();
+    expect(view.messages.find((m) => m.id === 'a1')?.status).toBe('pending');
+  });
+
+  it('echter Invoke-Fehler (z.B. 401): Toast mit der Meldung', async () => {
+    await view.render(container, 's1');
+    mockService.triggerFunction.mockRejectedValue(new Error('Function-Trigger fehlgeschlagen: HTTP 401'));
+
+    const msg = await view.sendMessagePair({
+      aktion: 'chat', sektion: 'gesamt', selektion_text: null, inhalt: 'hi'
+    });
+
+    expect(msg?.id).toBe('a1');
+    expect(window.toastSystem.error).toHaveBeenCalledWith(expect.stringContaining('401'));
+  });
+});

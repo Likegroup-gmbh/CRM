@@ -397,6 +397,17 @@ describe('VideoAssetLoader – Versionen & Varianten', () => {
     const assets = [{ id: 'f1', version_number: 1, is_final: true, variant_name: '9:16' }];
     expect(loader.applyDefaultSelection(assets, null)).toEqual({ selectedVersion: 'final', selectedAssetId: 'f1' });
   });
+
+  it('applyDefaultSelection waehlt Final wenn preferFinal und Finals existieren', () => {
+    const loader = new VideoAssetLoader();
+    const assets = [
+      { id: 'a', version_number: 1, is_current: true },
+      { id: 'f1', version_number: 1, is_final: true, variant_name: '9:16' },
+    ];
+    expect(loader.applyDefaultSelection(assets, null)).toEqual({ selectedVersion: 1, selectedAssetId: 'a' });
+    expect(loader.applyDefaultSelection(assets, null, { preferFinal: true }))
+      .toEqual({ selectedVersion: 'final', selectedAssetId: 'f1' });
+  });
 });
 
 describe('VideoPlayerLightbox – Feedback-Ziel & Navigation', () => {

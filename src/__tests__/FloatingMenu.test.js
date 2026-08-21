@@ -50,6 +50,29 @@ describe('renderFloatingMenuItem', () => {
     expect(html).toContain('data-modus="dynamisch"');
   });
 
+  it('active: is-active, Check und aria-checked – inaktiv ohne Check', () => {
+    const aktiv = renderFloatingMenuItem({
+      id: 'v1',
+      label: 'v1.13',
+      subtext: 'Manuell · Hook',
+      layout: 'icon-label-sub',
+      active: true
+    });
+    expect(aktiv).toContain('is-active');
+    expect(aktiv).toContain('crm-fmenu-check');
+    expect(aktiv).toContain('aria-checked="true"');
+    expect(aktiv).toContain('check-filled');
+
+    const inaktiv = renderFloatingMenuItem({
+      id: 'v0',
+      label: 'v1',
+      layout: 'icon-label'
+    });
+    expect(inaktiv).not.toContain('is-active');
+    expect(inaktiv).not.toContain('crm-fmenu-check');
+    expect(inaktiv).not.toContain('aria-checked');
+  });
+
   it('icon-label-sub ohne subtext fällt auf icon-label zurück', () => {
     const html = renderFloatingMenuItem({
       id: 'k',

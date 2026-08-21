@@ -89,13 +89,17 @@ export class VideoAssetLoader {
    * Default-Auswahl: hoechste Version, dort das aktuelle Asset (oder erstes).
    * Bei Versionen ohne Asset bleibt selectedAssetId null -> Quelle faellt auf
    * video.file_url zurueck. Gibt es nur finale Assets (keine Feedbackschleife),
-   * wird die finale Version gewaehlt.
+   * wird die finale Version gewaehlt. Mit preferFinal (Kunden) gewinnt Final,
+   * sobald is_final-Assets existieren.
    * @returns {{ selectedVersion: number|string|null, selectedAssetId: string|null }}
    */
-  applyDefaultSelection(assets, comments) {
+  applyDefaultSelection(assets, comments, { preferFinal = false } = {}) {
+    const finals = this.finalVariants(assets);
+    if (preferFinal && finals.length > 0) {
+      return { selectedVersion: 'final', selectedAssetId: finals[0].id };
+    }
     const versions = this.combinedVersions(assets, comments);
     if (versions.length === 0) {
-      const finals = this.finalVariants(assets);
       if (finals.length > 0) {
         return { selectedVersion: 'final', selectedAssetId: finals[0].id };
       }

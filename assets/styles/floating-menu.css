@@ -32,8 +32,38 @@
   color: var(--text-primary);
 }
 
-.crm-fmenu-item:hover {
+.crm-fmenu-item:hover,
+.crm-fmenu-item.is-active {
   background: var(--bg-tertiary);
+}
+
+.crm-fmenu--scroll {
+  max-height: min(320px, calc(100vh - 80px));
+  overflow-y: auto;
+}
+
+.crm-fmenu--sm {
+  --text-sm: var(--text-xs);    /* 14 → 12 */
+  --space-xs: var(--space-xxs); /* 8 → 4 */
+  --space-sm: 0.5rem;           /* 12 → 8; fest, nicht var(--space-xs) (sonst zirkulär) */
+}
+
+.crm-fmenu--sm .crm-fmenu-item--icon-label-sub {
+  min-width: 0;
+}
+
+.crm-fmenu-check {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-self: center;
+  margin-left: auto;
+  color: var(--success);
+}
+
+.crm-fmenu-check svg,
+.crm-fmenu-check .crm-icon {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
 }
 
 .crm-fmenu-item--icon-label-sub {
@@ -42,10 +72,15 @@
   min-width: 220px;
 }
 
+.crm-fmenu-item--icon-label-sub .crm-fmenu-icon {
+  margin-top: 0;
+  height: calc(1.25 * var(--text-sm));
+  align-items: center;
+}
+
 .crm-fmenu-icon {
   display: inline-flex;
   flex-shrink: 0;
-  margin-top: 1px;
 }
 
 .crm-fmenu-icon svg,

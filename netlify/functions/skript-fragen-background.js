@@ -13,7 +13,7 @@ const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { loadContext, buildKontextText, cap, KONTEXT_MAX } = require('./_shared/skript-context');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
-const { autorisiereSkript, istNachrichtAbgebrochen } = require('./_shared/skript-auftrag');
+const { beansprucheNachricht, autorisiereSkript, istNachrichtAbgebrochen } = require('./_shared/skript-auftrag');
 
 // Erzwungener Tool-Call: strukturell garantiertes JSON statt Text-Parsing
 const FRAGEN_TOOL = {
@@ -105,7 +105,9 @@ function buildFragenPrompt(ctx, params, history) {
 // ---------------------------------------------------------------------------
 // Handler
 // ---------------------------------------------------------------------------
-exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
+// Als benannte Funktion + Export, damit Tests die Logik ohne den
+// Auth-Wrapper (withSkriptHandler) aufrufen koennen.
+async function verarbeiteRueckfrage({ supabase, user, payload }) {
   const { messageId } = payload;
   if (!messageId) return { statusCode: 400, body: 'messageId fehlt' };
 
@@ -121,20 +123,23 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     const { data: message } = await supabase.from('skript_chat_messages')
       .select('*').eq('id', messageId).single();
     if (!message) return { statusCode: 404, body: 'Message nicht gefunden' };
-    if (message.rolle !== 'assistant' || message.status !== 'pending') {
-      return { statusCode: 409, body: 'Message ist kein pending Assistant-Job' };
+    if (message.rolle !== 'assistant') {
+      return { statusCode: 409, body: 'Message ist kein Assistant-Job' };
     }
     // Service Role umgeht RLS - Scope des Aufrufers explizit pruefen
     if (!(await autorisiereSkript(supabase, user, message.skript_id))) {
       return { statusCode: 403, body: 'Kein Zugriff auf dieses Skript' };
     }
 
+    // Atomarer Claim pending -> running: Netlify-Auto-Retry nach einem
+    // Gateway-Fehler (502/503) oder ein doppelter Client-Invoke bekommt
+    // null und no-opt, statt Claude zweimal auf dieselbe Message zu rufen
+    const claimed = await beansprucheNachricht(supabase, messageId);
+    if (!claimed) return { statusCode: 409, body: 'Message bereits claimed oder beendet' };
+
     // Frequenz-Limit pruefen + Protokoll-Zeile anlegen (Fehlermeldung
     // landet ueber den catch als error_message in der Chat-Message)
     ki = await starteKiRequest(supabase, { userId: user.id, feature: 'skript_rueckfragen' });
-
-    await supabase.from('skript_chat_messages')
-      .update({ status: 'running' }).eq('id', messageId);
 
     // Stub-Skript mit den Generator-Vorgaben laden
     const { data: skript } = await supabase.from('skripte')
@@ -210,4 +215,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     try { await fail(error.message); } catch (_) { /* noop */ }
     return { statusCode: 500 };
   }
-});
+}
+
+exports.handler = withSkriptHandler(verarbeiteRueckfrage);
+exports._verarbeiteRueckfrage = verarbeiteRueckfrage;

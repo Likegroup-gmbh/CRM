@@ -104,7 +104,13 @@ export class SkriptEditorGeneration {
     v.messages.push(assistantMsg);
     v.renderChat({ forceScroll: true });
     v.ensurePolling();
-    await skriptAuftrag.starteVonNachricht({ art: 'fragen', messageId: assistantMsg.id });
+    try {
+      await skriptAuftrag.starteVonNachricht({ art: 'fragen', messageId: assistantMsg.id });
+    } catch (err) {
+      // Transiente Invoke-Fehler (502/503/Netz): kein Toast und kein
+      // Propagieren an startFragenFlow - Poll + Pending-Timeout regeln
+      if (!err.transient) throw err;
+    }
   }
 
   /** Finale Generierung in den Stub (nach geklaerten Fragen oder per Skip). */

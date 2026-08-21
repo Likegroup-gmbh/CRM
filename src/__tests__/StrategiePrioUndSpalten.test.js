@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { renderItemRow, renderItemsTable } from '../modules/strategie/StrategieDetailRenderer.js';
+import { syncRowTextClips, toggleTextClip } from '../modules/strategie/strategieTextClip.js';
 import {
   getStrategiePrio,
   buildStrategiePrioUpdates,
@@ -214,5 +215,99 @@ describe('renderItemsTable – Kopfzeile und colspan', () => {
     const spalten = doc.querySelectorAll('thead th').length;
     const gruppe = doc.querySelector('.category-header-cell');
     expect(Number(gruppe.getAttribute('colspan'))).toBe(spalten);
+  });
+
+  it('hat Plattform und keinen separaten Link-Header', () => {
+    const html = renderItemsTable(detailStub({ items }));
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const header = [...doc.querySelectorAll('thead th')].map(th => th.textContent.trim());
+
+    expect(header).toContain('Plattform');
+    expect(header).not.toContain('Link');
+    expect(doc.querySelector('th.col-link')).toBeNull();
+  });
+});
+
+describe('renderItemRow – Plattform als Link', () => {
+  it('macht das Plattform-Icon zum Link', () => {
+    const doc = renderRow({ video_link: 'https://tiktok.com/x', plattform: 'tiktok' });
+    const link = doc.querySelector('td.col-platform a.strategie-platform-link');
+
+    expect(link).toBeTruthy();
+    expect(link.getAttribute('href')).toBe('https://tiktok.com/x');
+    expect(doc.querySelector('.strategie-ext-link')).toBeNull();
+    expect(doc.querySelector('td.col-link')).toBeNull();
+  });
+
+  it('nimmt bei unbekannter Plattform das Fallback-Icon', () => {
+    const doc = renderRow({ video_link: 'https://example.com/x', plattform: 'other' });
+    const link = doc.querySelector('td.col-platform a.strategie-platform-link');
+
+    expect(link).toBeTruthy();
+    expect(link.innerHTML.trim().length).toBeGreaterThan(0);
+  });
+
+  it('zeigt bei Ideen ohne URL einen Gedankenstrich', () => {
+    const doc = renderRow({ video_link: null });
+    expect(doc.querySelector('td.col-platform .strategie-cell-muted').textContent).toBe('-');
+    expect(doc.querySelector('td.col-platform a')).toBeNull();
+  });
+});
+
+describe('renderItemRow – Text-Clips', () => {
+  it('packt Beschreibung, Transkript und Caption in einen Clip', () => {
+    const doc = renderRow({ beschreibung: 'B', transkript: 'T', caption: 'C' });
+
+    for (const sel of ['td.col-beschreibung', 'td.col-transkript', 'td.col-caption']) {
+      const clip = doc.querySelector(`${sel} .strategie-text-clip`);
+      expect(clip).toBeTruthy();
+      const btn = clip.querySelector('.strategie-text-more');
+      expect(btn).toBeTruthy();
+      expect(btn.getAttribute('aria-label')).toBe('Mehr anzeigen');
+      expect(btn.querySelector('.crm-icon')).toBeTruthy();
+    }
+  });
+});
+
+describe('strategieTextClip', () => {
+  it('setzt die Row-Klasse wenn eine Zelle aufgeht', () => {
+    const doc = renderRow({ beschreibung: 'B', transkript: 'T', caption: 'C' });
+    const row = doc.querySelector('tr.item-row');
+    const beschreibung = row.querySelector('td.col-beschreibung .strategie-text-clip');
+    const transkript = row.querySelector('td.col-transkript .strategie-text-clip');
+
+    toggleTextClip(beschreibung);
+    expect(beschreibung.classList.contains('is-expanded')).toBe(true);
+    expect(row.classList.contains('has-expanded-text')).toBe(true);
+    expect(transkript.classList.contains('is-expanded')).toBe(false);
+    expect(beschreibung.querySelector('.strategie-text-more').getAttribute('aria-label')).toBe('Weniger anzeigen');
+
+    toggleTextClip(beschreibung);
+    expect(row.classList.contains('has-expanded-text')).toBe(false);
+  });
+
+  it('laesst den Mehr-Button bei kurzem Text versteckt', () => {
+    const doc = renderRow({ beschreibung: 'Kurz', transkript: 'Auch kurz', caption: 'C' });
+    const row = doc.querySelector('tr.item-row');
+    syncRowTextClips(row);
+    expect(row.querySelectorAll('.strategie-text-more:not([hidden])')).toHaveLength(0);
+  });
+
+  it('zeigt Mehr wenn der Inhalt die Clip-Hoehe sprengt', () => {
+    const doc = renderRow({ transkript: 'Lang' });
+    const clip = doc.querySelector('td.col-transkript .strategie-text-clip');
+    const body = clip.querySelector('.strategie-text-clip__body');
+    const textarea = clip.querySelector('textarea');
+
+    Object.defineProperty(textarea, 'scrollHeight', { configurable: true, value: 200 });
+    Object.defineProperty(body, 'clientHeight', { configurable: true, value: 50 });
+
+    syncRowTextClips(clip.closest('tr'));
+
+    const btn = clip.querySelector('.strategie-text-more');
+    expect(btn.hidden).toBe(false);
+    expect(btn.getAttribute('aria-label')).toBe('Mehr anzeigen');
+    expect(btn.querySelector('.crm-icon')).toBeTruthy();
+    expect(clip.classList.contains('is-truncated')).toBe(true);
   });
 });

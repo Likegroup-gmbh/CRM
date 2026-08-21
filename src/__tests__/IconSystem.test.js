@@ -88,6 +88,7 @@ describe('IconSystem Guard', () => {
     expect(normalizeIconKey('creator')).toBe('creator');
     expect(normalizeIconKey('modus-klassisch')).toBe('clapperboard');
     expect(normalizeIconKey('modus-dynamisch')).toBe('spark-doc');
+    expect(normalizeIconKey('ai-visual')).toBe('skripte');
   });
 
   it('buildSpriteSvg enthaelt pro Def-Key genau ein <symbol>', () => {

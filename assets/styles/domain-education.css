@@ -96,7 +96,7 @@
 .education-article-header {
   margin-bottom: var(--space-xl);
   padding-bottom: var(--space-lg);
-  border-bottom: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .education-article-meta {
@@ -153,7 +153,7 @@
   margin: var(--space-xl) 0 var(--space-md) 0;
   color: var(--text-primary);
   padding-bottom: var(--space-sm);
-  border-bottom: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .education-article-content h3 {
@@ -188,7 +188,7 @@
 
 .education-article-content hr {
   border: none;
-  border-top: 1px solid var(--gray-200);
+  border-top: 1px solid var(--border-primary);
   margin: var(--space-xl) 0;
 }
 
@@ -228,7 +228,7 @@
   align-items: center;
   margin-top: var(--space-xxl);
   padding-top: var(--space-lg);
-  border-top: 1px solid var(--gray-200);
+  border-top: 1px solid var(--border-primary);
 }
 
 .education-article-author {
@@ -245,7 +245,7 @@
 .education-related {
   margin-top: var(--space-xxl);
   padding-top: var(--space-xl);
-  border-top: 1px solid var(--gray-200);
+  border-top: 1px solid var(--border-primary);
 }
 
 .education-related-title {

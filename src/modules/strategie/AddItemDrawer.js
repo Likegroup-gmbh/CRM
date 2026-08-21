@@ -7,6 +7,7 @@
 import { strategieService } from './StrategieService.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { buildAddItemQueueEntry, buildStrategieItemInsert } from './addItemPayload.js';
 
 export class AddItemDrawer {
   constructor() {
@@ -64,7 +65,7 @@ export class AddItemDrawer {
     
     const subtitle = document.createElement('p');
     subtitle.className = 'drawer-subtitle';
-    subtitle.textContent = 'Video-URL oder Idee hinzufügen – Screenshot, Transkript und Beschreibung entstehen automatisch im Hintergrund';
+    subtitle.textContent = 'Video-URL oder Idee. Screenshot und Transkript entstehen automatisch. Beschreibung nur, wenn das Feld leer bleibt.';
     
     headerLeft.appendChild(title);
     headerLeft.appendChild(subtitle);
@@ -133,15 +134,14 @@ export class AddItemDrawer {
           </div>
         </div>
 
-        <!-- Nur für Ideen: bei einer Video-URL schreibt die KI die Beschreibung -->
         <div class="add-item-drawer-form-row add-item-drawer-form-row--full" id="drawer-beschreibung-row">
           <div class="form-field form-field--full">
-            <label for="drawer-beschreibung">Beschreibung der Idee</label>
+            <label for="drawer-beschreibung">Beschreibung</label>
             <textarea
               id="drawer-beschreibung"
               class="form-input"
               rows="2"
-              placeholder="Worum soll es in dem Video gehen?"
+              placeholder="Eigene Worte bleiben. Leer lassen – dann füllt die KI."
             ></textarea>
           </div>
         </div>
@@ -190,28 +190,13 @@ export class AddItemDrawer {
   bindEvents() {
     const form = document.getElementById('add-item-form');
     const closeBtn = document.getElementById('btn-close-drawer');
-    const urlInput = document.getElementById('drawer-video-url');
 
     form?.addEventListener('submit', (e) => {
       e.preventDefault();
       this.handleAddToQueue();
     });
 
-    urlInput?.addEventListener('input', () => this.syncBeschreibungVisibility());
-    this.syncBeschreibungVisibility();
-
     closeBtn?.addEventListener('click', () => this.handleClose());
-  }
-
-  /**
-   * Beschreibung ist nur bei Ideen ein Eingabefeld. Sobald eine Video-URL
-   * dasteht, uebernimmt die KI-Beschreibung aus der Transkription.
-   */
-  syncBeschreibungVisibility() {
-    const row = document.getElementById('drawer-beschreibung-row');
-    const urlInput = document.getElementById('drawer-video-url');
-    if (!row || !urlInput) return;
-    row.hidden = !!urlInput.value.trim();
   }
 
   /**
@@ -224,8 +209,7 @@ export class AddItemDrawer {
     
     const url = urlInput?.value?.trim() || null;
     const kategorie = kategorieSelect?.value || null;
-    // Bei einer Video-URL ist das Feld ausgeblendet - dann zaehlt nur die KI
-    const beschreibung = url ? null : (beschreibungInput?.value?.trim() || null);
+    const beschreibung = beschreibungInput?.value?.trim() || null;
 
     // URL-Validierung: Nur TikTok, Instagram oder leer (Idee)
     if (url && !this.isAllowedUrl(url)) {
@@ -251,20 +235,17 @@ export class AddItemDrawer {
     // Eindeutige ID generieren
     const id = `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-    this.queue.push({
+    this.queue.push(buildAddItemQueueEntry({
       id,
       url,
       kategorie,
       beschreibung,
-      platform: this.detectPlatform(url),
-      status: 'pending',
-      error: null
-    });
+      platform: this.detectPlatform(url)
+    }));
 
     // Inputs leeren
     urlInput.value = '';
     if (beschreibungInput) beschreibungInput.value = '';
-    this.syncBeschreibungVisibility();
     urlInput.focus();
 
     // Queue rendern
@@ -506,16 +487,13 @@ export class AddItemDrawer {
       }
 
       const existingItems = await strategieService.getStrategieItems(this.strategieId);
-      const created = await strategieService.createStrategieItem({
-        strategie_id: this.strategieId,
-        video_link: nextItem.url,
-        plattform: nextItem.url ? nextItem.platform : null,
-        sortierung: existingItems.length,
-        teilbereich: nextItem.kategorie,
-        beschreibung: nextItem.beschreibung,
-        // Nur Videos brauchen einen Lauf; eine Idee ist mit dem Insert fertig
-        verarbeitung_status: nextItem.url ? 'pending' : null
-      });
+      const created = await strategieService.createStrategieItem(
+        buildStrategieItemInsert({
+          strategieId: this.strategieId,
+          nextItem,
+          sortierung: existingItems.length
+        })
+      );
 
       if (nextItem.url) {
         // Schlaegt der Trigger fehl, bleibt das Item auf 'pending' und laesst

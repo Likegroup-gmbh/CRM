@@ -255,7 +255,7 @@ export class VideoTableDataLoader {
 
   async loadAssetsAndComments(videoIds) {
     const t = this.table;
-    if (!videoIds || videoIds.length === 0) return;
+    if (!videoIds || videoIds.length === 0) return { finalsOk: true };
 
     try {
       const batchIn = VideoTableDataLoader.batchInQuery;
@@ -277,18 +277,25 @@ export class VideoTableDataLoader {
         )
       ]);
 
-      const assets = assetsResult.status === 'fulfilled' ? (assetsResult.value.data || []) : [];
-      const comments = commentsResult.status === 'fulfilled' ? (commentsResult.value.data || []) : [];
-      const finalAssets = finalAssetsResult.status === 'fulfilled' ? (finalAssetsResult.value.data || []) : [];
+      const settledOk = (result) => result.status === 'fulfilled' && !result.value?.error;
+      const assets = settledOk(assetsResult) ? (assetsResult.value.data || []) : [];
+      const comments = settledOk(commentsResult) ? (commentsResult.value.data || []) : [];
+      const finalsOk = settledOk(finalAssetsResult);
+      const finalAssets = finalsOk ? (finalAssetsResult.value.data || []) : [];
 
       if (assetsResult.status === 'rejected') {
         console.warn('⚠️ Assets konnten nicht geladen werden:', assetsResult.reason);
+      } else if (assetsResult.value?.error) {
+        console.warn('⚠️ Assets konnten nicht geladen werden:', assetsResult.value.error);
       }
       if (commentsResult.status === 'rejected') {
         console.warn('⚠️ Comments konnten nicht geladen werden:', commentsResult.reason);
       }
-      if (finalAssetsResult.status === 'rejected') {
-        console.warn('⚠️ Finale Assets konnten nicht geladen werden:', finalAssetsResult.reason);
+      if (!finalsOk) {
+        console.warn(
+          '⚠️ Finale Assets konnten nicht geladen werden:',
+          finalAssetsResult.reason || finalAssetsResult.value?.error
+        );
       }
 
       const assetsByVideoId = new Map(assets.map(a => [a.video_id, a]));
@@ -301,7 +308,7 @@ export class VideoTableDataLoader {
       if (t.store) {
         t.store.applyAssets(assetsByVideoId);
         t.store.applyComments(comments);
-        t.store.applyFinalAssets(finalsByVideoId);
+        if (finalsOk) t.store.applyFinalAssets(finalsByVideoId);
       } else {
         for (const koopVideos of Object.values(t.videos)) {
           for (const video of koopVideos) {
@@ -310,7 +317,7 @@ export class VideoTableDataLoader {
               video.currentAsset = asset;
               video.file_url = asset.file_url || video.asset_url || null;
             }
-            video.finalAssets = finalsByVideoId[video.id] || [];
+            if (finalsOk) video.finalAssets = finalsByVideoId[video.id] || [];
           }
         }
 
@@ -322,13 +329,13 @@ export class VideoTableDataLoader {
         });
       }
 
-      if (assets.length > 0 || comments.length > 0) {
-        this.patchRenderedAssetsAndComments(assetsByVideoId);
-      }
+      this.patchRenderedAssetsAndComments(assetsByVideoId);
 
       console.log(`✅ Assets (${assets.length}) + Comments (${comments.length}) nachgeladen`);
+      return { finalsOk };
     } catch (error) {
       console.error('❌ Fehler beim Nachladen von Assets/Comments:', error);
+      return { finalsOk: false };
     }
   }
 
@@ -439,7 +446,8 @@ export class VideoTableDataLoader {
   }
 
   patchRenderedAssetsAndComments(assetsByVideoId) {
-    const container = this.table.containerId ? document.getElementById(this.table.containerId) : null;
+    const t = this.table;
+    const container = t.containerId ? document.getElementById(t.containerId) : null;
     if (!container) return;
 
     for (const [videoId, asset] of assetsByVideoId) {
@@ -450,12 +458,19 @@ export class VideoTableDataLoader {
       }
     }
 
-    const commentsSource = this.table.store?.videoComments || this.table.videoComments || {};
+    const commentsSource = t.store?.videoComments || t.videoComments || {};
     for (const [videoId, comments] of Object.entries(commentsSource)) {
       VIDEO_FEEDBACK_FIELDS.forEach(slot => {
         const field = container.querySelector(`[data-entity="video"][data-id="${videoId}"][data-field="${slot.field}"]`);
         if (field && !field.value) field.value = formatVideoFeedbackValue(comments, slot.bucket);
       });
+    }
+
+    for (const koop of t.kooperationen || []) {
+      for (const video of (t.videos[koop.id] || [])) {
+        const cell = container.querySelector(`.col-finale-version .video-field-wrapper[data-video-id="${video.id}"]`);
+        if (cell) cell.innerHTML = t.renderer.renderFinaleVersionCell(koop, video);
+      }
     }
   }
 

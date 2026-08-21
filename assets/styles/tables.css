@@ -49,13 +49,13 @@ thead {
 
 .data-table--grouped .table-group-header {
     background: var(--gray-50);
-    border-bottom: 1px solid var(--gray-100);
+    border-bottom: 1px solid var(--border-primary);
   }
 
 .data-table--grouped .table-group-header td {
     padding: var(--space-sm) var(--space-md);
     border: none;
-    border-bottom: 1px solid var(--gray-200);
+    border-bottom: 1px solid var(--border-primary);
   }
 
 .table-group-title {
@@ -136,7 +136,7 @@ thead {
 /* Schlanke Tabelle nur für den Sichtbarkeits-Drawer */
 
 .video-visibility-table-wrap {
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
   overflow: auto;
 }
@@ -149,14 +149,14 @@ thead {
 
 .video-visibility-table thead th {
   background: var(--bg-secondary);
-  border-bottom: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--border-primary);
   padding: var(--space-md);
   font-size: var(--text-xs);
   font-weight: 600;
 }
 
 .video-visibility-table td {
-  border-bottom: 1px solid var(--gray-100);
+  border-bottom: 1px solid var(--border-primary);
   padding: 10px var(--space-md);
 }
 
@@ -393,7 +393,7 @@ thead {
   justify-content: center;
   width: 24px;
   height: 24px;
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-sm);
   background: var(--bg-primary);
   color: var(--gray-600);
@@ -452,7 +452,7 @@ thead {
 
 .data-table .custom-date-picker__nav,
 .kooperation-video-grid .custom-date-picker__nav {
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   background: var(--bg-primary);
   color: var(--gray-700);
   border-radius: var(--radius-sm);
@@ -530,7 +530,7 @@ thead {
   gap: var(--space-sm);
   margin-top: var(--space-xs);
   padding-top: var(--space-xs);
-  border-top: 1px solid var(--gray-200);
+  border-top: 1px solid var(--border-primary);
 }
 
 .data-table .custom-date-picker__action,
@@ -569,8 +569,8 @@ thead {
 
 .auftrag-table th,
 .auftrag-table td {
-  border-bottom: 1px solid var(--gray-100);
-  border-right: 1px solid var(--gray-100);
+  border-bottom: 1px solid var(--border-primary);
+  border-right: 1px solid var(--border-primary);
   border-top: none;
   border-left: none;
 }
@@ -1111,7 +1111,7 @@ thead {
 }
 
 .profile-detail-layout--secondary-nav .tab-content .data-table thead th:not(:first-child) {
-  border-left: 1px solid var(--gray-100);
+  border-left: 1px solid var(--border-primary);
 }
 
 /* Tabellen-Container mit Scroll */
@@ -1277,8 +1277,13 @@ thead {
    Strategie Items Tabelle - Spalten
    ========================================================================== */
 
+.strategie-items-table {
+  --strategie-thumb-w: 100px;
+  --strategie-thumb-h: calc(var(--strategie-thumb-w) * 16 / 9);
+}
+
 .strategie-items-table .col-number {
-  width: var(--space-xl);
+  width: var(--space-lg);
   text-align: center;
   font-weight: 600;
   color: var(--text-secondary);
@@ -1324,15 +1329,6 @@ thead {
   text-align: center;
 }
 
-.strategie-items-table .col-link {
-  width: var(--space-xxl);
-  text-align: center;
-}
-
-.strategie-items-table .col-beschreibung {
-  min-width: calc(var(--space-xxl) * 2);
-}
-
 .strategie-items-table .col-anmerkung {
   min-width: calc(var(--space-xxl) * 4);
 }
@@ -1348,12 +1344,20 @@ thead {
   padding: var(--space-xs) var(--space-sm);
 }
 
-/* Transkript und Caption: Volltext direkt in der Zelle */
+/* Beschreibung, Transkript, Caption: gleiche Breite, Clip in der Zelle */
 
+.strategie-items-table .col-beschreibung,
 .strategie-items-table .col-transkript,
 .strategie-items-table .col-caption {
+  width: calc(var(--space-xxl) * 5);
   min-width: calc(var(--space-xxl) * 5);
   vertical-align: top;
+}
+
+.strategie-items-table tr.has-expanded-text td.col-beschreibung,
+.strategie-items-table tr.has-expanded-text td.col-transkript,
+.strategie-items-table tr.has-expanded-text td.col-caption {
+  height: 1px;
 }
 
 /* "Nicht umsetzen" Kategorie - rot/abgeschwächt */
@@ -1666,8 +1670,8 @@ thead {
 /* Alle Zellen - nur rechts+unten, mit !important um geerbte data-table Regeln zu überschreiben */
 
 .creator-pool-table thead th {
-  border-top: 1px solid var(--gray-100);
-  border-bottom: 1px solid var(--gray-200);
+  border-top: 1px solid var(--border-primary);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .creator-pool-table th:last-child,
@@ -1822,8 +1826,8 @@ thead {
 
 .creator-pool-table th,
 .creator-pool-table td {
-  border-right: 1px solid var(--gray-100);
-  border-bottom: 1px solid var(--gray-100);
+  border-right: 1px solid var(--border-primary);
+  border-bottom: 1px solid var(--border-primary);
   border-left: none;
   border-top: none;
   white-space: nowrap;
@@ -2281,7 +2285,7 @@ table.vertraege-unternehmen-table td:last-child {
 .education-article-content .education-table th,
 .education-article-content .education-table td {
   padding: var(--space-sm) var(--space-md);
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   text-align: left;
 }
 
@@ -2323,10 +2327,10 @@ table.vertraege-unternehmen-table td:last-child {
 .video-versions-table th { font-size: var(--text-xs); }
 
 table.video-versions-table td:first-child,
-table.video-versions-table th:first-child { border-left: 1px solid var(--gray-100); padding-left: var(--space-sm); }
+table.video-versions-table th:first-child { border-left: 1px solid var(--border-primary); padding-left: var(--space-sm); }
 
 table.video-versions-table td:last-child,
-table.video-versions-table th:last-child { border-right: 1px solid var(--gray-100); }
+table.video-versions-table th:last-child { border-right: 1px solid var(--border-primary); }
 
 /* ============================================
    ANSPRECHPARTNER TABELLE - STICKY SPALTEN
@@ -2397,7 +2401,7 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
 .projekt-erstellen-summary-campaign-table-wrap {
   margin-top: var(--space-sm);
   overflow-x: auto;
-  border: 1px solid var(--gray-100);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
 }
 
@@ -2414,7 +2418,7 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
   padding: var(--space-xs) var(--space-sm);
   text-align: left;
   vertical-align: middle;
-  border-bottom: 1px solid var(--gray-100);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .pe-summary-table th {
@@ -2537,7 +2541,7 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--gray-10
   flex-shrink: 0;
   z-index: 20;
   background: var(--color-white);
-  border-top: 1px solid var(--gray-100);
+  border-top: 1px solid var(--border-primary);
   overflow-x: auto;
   flex-wrap: nowrap;
 }

@@ -2,38 +2,9 @@
 // Drawer zum Verknüpfen eines Kampagnen-Videos mit einer Strategie-Idee (Reverse-Flow)
 
 import { buildVideoDisplayName } from './VideoPickerOptions.js';
+import { buildStrategieItemPickerOptions } from './strategieItemPicker.js';
 
-function truncateText(text, max = 80) {
-  const s = String(text || '').trim();
-  if (s.length <= max) return s || 'Ohne Beschreibung';
-  return `${s.slice(0, max - 1)}…`;
-}
-
-export function buildStrategieItemPickerOptions(strategien, items, linkedByItemId, currentVideoId) {
-  const strategieMap = new Map((strategien || []).map(s => [s.id, s]));
-  const options = [];
-
-  (items || [])
-    .filter(item => {
-      const linkedVideoId = linkedByItemId.get(item.id);
-      return !linkedVideoId || linkedVideoId === currentVideoId;
-    })
-    .forEach(item => {
-      const strategie = strategieMap.get(item.strategie_id);
-      options.push({
-        value: item.id,
-        label: truncateText(item.beschreibung),
-        group: strategie?.name || 'Strategie',
-        subtitle: item.video_link ? 'Mit Referenz-Video' : 'Idee ohne Link'
-      });
-    });
-
-  return options.sort((a, b) => {
-    const g = a.group.localeCompare(b.group, 'de');
-    if (g !== 0) return g;
-    return a.label.localeCompare(b.label, 'de');
-  });
-}
+export { buildStrategieItemPickerOptions };
 
 export class LinkStrategieItemDrawer {
   constructor() {

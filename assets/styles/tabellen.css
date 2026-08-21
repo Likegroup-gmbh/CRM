@@ -35,7 +35,7 @@
 .kooperation-video-grid {
   --grid-col-nr: 3ch;
   --grid-col-creator: 18ch;
-  --kampagne-grid-border: var(--gray-100);
+  --kampagne-grid-border: var(--border-primary);
   border-collapse: separate;
   border-spacing: 0;
   min-width: 100%;
@@ -526,7 +526,7 @@
   justify-content: flex-start;
   width: 100%;
   padding: var(--space-sm) var(--space-md);
-  border-bottom: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .video-field-wrapper:last-child {
@@ -537,7 +537,7 @@
 
 .kooperation-video-grid .video-field-wrapper {
   padding: 0;
-  border-bottom: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 /* Letzter Wrapper: keine eigene Trennlinie, die Zeilen-Border des <td>
@@ -707,7 +707,7 @@
 
 .table-loading-spinner {
   margin: 0 auto;
-  border: 3px solid var(--gray-200);
+  border: 3px solid var(--border-primary);
   border-top-color: var(--color-primary);
   border-radius: 50%;
   width: 2.5rem;
@@ -906,7 +906,7 @@
 
 .document-card {
   background: white;
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
   padding: var(--space-md);
   cursor: pointer;
@@ -958,7 +958,7 @@
 .document-card-actions {
   display: flex;
   gap: var(--space-xs);
-  border-top: 1px solid var(--gray-100);
+  border-top: 1px solid var(--border-primary);
   padding-top: var(--space-sm);
   margin-top: var(--space-sm);
 }
@@ -1068,7 +1068,7 @@
 
 .grid-editor-header {
   background: white;
-  border-bottom: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--border-primary);
   padding: var(--space-md) var(--space-lg);
   flex-shrink: 0;
 }
@@ -1528,7 +1528,7 @@
   box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.05);
   z-index: 100;
   opacity: 0;
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   pointer-events: none;
   transition: opacity 0.3s ease, box-shadow 0.2s ease;
   /* left und width werden dynamisch per JS gesetzt */
@@ -1650,7 +1650,7 @@
 .floating-scrollbar-kanban::-webkit-scrollbar-thumb {
   background: var(--gray-400);
   border-radius: var(--radius-md);
-  border: 2px solid var(--gray-100);
+  border: 2px solid var(--border-primary);
 }
 
 .floating-scrollbar-kanban::-webkit-scrollbar-thumb:hover {
@@ -1704,7 +1704,7 @@
   
   height: 32px;
   padding: var(--space-xs);
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-xl);
   background: white;
   color: var(--text-primary);
@@ -2341,7 +2341,7 @@ width: 18em;
   flex-shrink: 0;
   z-index: 20;
   background: var(--color-white);
-  border-top: 1px solid var(--gray-100);
+  border-top: 1px solid var(--border-primary);
   overflow-x: auto;
   flex-wrap: nowrap;
 }
@@ -2524,7 +2524,7 @@ width: 18em;
   height: 60px;
   object-fit: cover;
   border-radius: var(--radius-sm);
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
 }
 
 .video-thema-cell {
@@ -2786,7 +2786,7 @@ th[draggable="true"]:active {
 .custom-columns-table td {
   padding: var(--space-sm) 10px;
   text-align: left;
-  border-bottom: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--border-primary);
   font-size: var(--text-sm);
 }
 
@@ -2875,7 +2875,7 @@ th[draggable="true"]:active {
 
 .cc-dropdown-panel {
   background: var(--gray-50);
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   padding: 10px var(--space-md);
   margin-top: 6px;
@@ -2936,7 +2936,7 @@ th[draggable="true"]:active {
   flex: 1;
   padding: var(--space-xs) var(--space-sm);
   font-size: var(--text-sm);
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-sm);
   background: var(--white);
 }
@@ -3009,7 +3009,7 @@ th[draggable="true"]:active {
 .cc-add-form {
   padding: var(--space-lg) 18px;
   background: var(--gray-50);
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   border-radius: 10px;
   margin-top: var(--space-xs);
 }
@@ -3087,7 +3087,7 @@ th[draggable="true"]:active {
   gap: var(--space-sm);
   margin-top: var(--space-lg);
   padding-top: var(--space-md);
-  border-top: 1px solid var(--gray-200);
+  border-top: 1px solid var(--border-primary);
 }
 
 /* ── Generische Custom Columns (Sourcing/Strategie) ───────────────── */

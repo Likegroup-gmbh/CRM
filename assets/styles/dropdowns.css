@@ -24,7 +24,7 @@
   left: 0;
   min-width: 160px;
   background: var(--bg-primary);
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   z-index: 1000;
@@ -56,7 +56,7 @@
   z-index: 1000;
   min-width: 180px;
   background: white;
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   padding: var(--space-xxs) 0;
@@ -69,7 +69,7 @@
   z-index: 99999;
   min-width: 180px;
   background: white;
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   padding: var(--space-xxs) 0;
@@ -103,7 +103,7 @@
   min-width: 280px;
   max-width: 320px;
   background: white;
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   opacity: 0;
@@ -124,7 +124,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--space-sm) var(--space-md);
-  border-bottom: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .filter-dropdown-title {
@@ -179,7 +179,7 @@
   position: fixed; /* Fixed statt absolute damit es aus dem Dropdown raus kann */
   min-width: 280px;
   background: white;
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   z-index: 1002; /* Höher als Dropdown */
@@ -189,7 +189,7 @@
 
 .filter-submenu-header {
   padding: var(--space-sm) var(--space-md);
-  border-bottom: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .filter-submenu-title {
@@ -204,7 +204,7 @@
 
 .filter-submenu-footer {
   padding: var(--space-sm) var(--space-md);
-  border-top: 1px solid var(--gray-200);
+  border-top: 1px solid var(--border-primary);
   display: flex;
   justify-content: flex-end;
 }
@@ -257,7 +257,7 @@
 .actions-dropdown-portal {
   position: fixed;
   background: white;
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   min-width: 260px;
@@ -454,7 +454,7 @@
   right: 0;
   min-width: 220px;
   background: var(--bg-primary);
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   padding: var(--space-xs) 0;
@@ -533,7 +533,7 @@
 .toolbar-menu-dropdown .sourcing-status-filter-reset,
 .toolbar-menu-dropdown .submenu-reset {
   color: var(--text-secondary);
-  border-bottom: 1px solid var(--gray-100);
+  border-bottom: 1px solid var(--border-primary);
   margin-bottom: var(--space-xxs);
   border-radius: 0;
 }
@@ -542,7 +542,7 @@
 
 .kategorie-pill-dropdown {
   background: white;
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   border-radius: var(--radius-md);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
   min-width: 160px;

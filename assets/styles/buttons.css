@@ -111,7 +111,7 @@ button.is-submit-locked,
 
 .mdc-btn--secondary {
   background: #fff;
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   color: var(--gray-900);
 }
 
@@ -180,7 +180,7 @@ button.is-submit-locked,
 }
 
 .secondary-btn {
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   padding: var(--space-xs);
   background-color: var(--bg-primary);
   border-radius: var(--radius-xl);

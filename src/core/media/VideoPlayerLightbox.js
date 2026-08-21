@@ -257,7 +257,8 @@ export class VideoPlayerLightbox {
       }
     }
     const comments = this.table.videoComments[videoId];
-    const sel = this.assetLoader.applyDefaultSelection(this.assets, comments);
+    const preferFinal = this.table.isKundeRole?.() === true;
+    const sel = this.assetLoader.applyDefaultSelection(this.assets, comments, { preferFinal });
     this.selectedVersion = sel.selectedVersion;
     this.selectedAssetId = sel.selectedAssetId;
   }

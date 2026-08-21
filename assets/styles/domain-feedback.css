@@ -123,7 +123,7 @@
   background: var(--gray-50);
   border-radius: 0 0 var(--radius-md) var(--radius-md);
   margin-top: -1px;
-  border: 1px solid var(--gray-200);
+  border: 1px solid var(--border-primary);
   border-top: none;
 }
 
@@ -131,7 +131,7 @@
 
 .feedback-merged-items {
   background: var(--gray-50);
-  border-top: 1px solid var(--gray-200);
+  border-top: 1px solid var(--border-primary);
 }
 
 /* Merged Items List */
@@ -181,7 +181,7 @@
   display: flex;
   flex-direction: column;
   background: white;
-  border-top: 1px solid var(--gray-200);
+  border-top: 1px solid var(--border-primary);
 }
 
 .feedback-comments-list.hidden {
@@ -193,7 +193,7 @@
   flex-direction: column;
   gap: var(--space-xxs);
   padding: var(--space-xs);
-  border-bottom: 1px solid var(--gray-200);
+  border-bottom: 1px solid var(--border-primary);
 }
 
 /* Letzter Kommentar ohne border-bottom */
@@ -237,12 +237,12 @@
   align-items: flex-start;
   gap: var(--space-xs);
   padding: var(--space-sm);
-  border-top: 1px solid var(--gray-200);
+  border-top: 1px solid var(--border-primary);
   background: white;
 }
 
 .feedback-comments-list + .feedback-comment-form {
-  border-top: 1px solid var(--gray-200);
+  border-top: 1px solid var(--border-primary);
 }
 
 /* Feedback Form */

@@ -237,8 +237,8 @@ export class KampagneKooperationenVideoTable {
       : allVideoIds;
 
     if (unloaded.length === 0) return;
-    await this.dataLoader.loadAssetsAndComments(unloaded);
-    if (this.store) this.store.markAssetsLoaded(unloaded);
+    const result = await this.dataLoader.loadAssetsAndComments(unloaded);
+    if (this.store && result?.finalsOk !== false) this.store.markAssetsLoaded(unloaded);
   }
 
   // ========================================

@@ -60,8 +60,8 @@ export function renderItemsTable(detail) {
   const customCount = detail.customColumns ? detail.customColumns.visibleCount(detail.hiddenColumns, detail.isKunde) : 0;
   const cols = visibleFixedColumns(detail);
 
-  // #, Bild, Plattform, Link sind immer da; Drag und Aktionen nur intern
-  const fixedCount = 4
+  // #, Bild, Plattform sind immer da; Drag und Aktionen nur intern
+  const fixedCount = 3
     + (detail.isKunde ? 0 : 2)
     + Object.values(cols).filter(Boolean).length;
   const colCount = fixedCount + customCount;
@@ -75,7 +75,6 @@ export function renderItemsTable(detail) {
             ${!detail.isKunde ? '<th class="col-drag"></th>' : ''}
             <th class="col-image">Bild</th>
             <th class="col-platform">Plattform</th>
-            <th class="col-link">Link</th>
             ${cols.creator ? '<th class="col-creator">Creator</th>' : ''}
             ${cols.beschreibung ? '<th class="col-beschreibung">Beschreibung</th>' : ''}
             ${cols.transkript ? '<th class="col-transkript">Transkript</th>' : ''}
@@ -188,28 +187,51 @@ function renderBildCell(item, isIdea, ideaIcon) {
 }
 
 /**
- * Lange Texte (Transkript, Caption) voll in der Zelle - gleiches Muster wie die
- * Beschreibung. Der Quellen-Tag zeigt, ob Whisper transkribiert oder die
- * Untertitel des Posts mitgenommen wurden.
+ * Beschreibung, Transkript und Caption: Clip mit Mehr/Weniger.
+ * Der Quellen-Tag zeigt, ob Whisper transkribiert oder die Untertitel
+ * des Posts mitgenommen wurden.
  */
-function renderFullTextCell(detail, item, field, cssClass, placeholder, readonly) {
+function renderClippedTextCell(detail, item, field, cssClass, placeholder, readonly) {
   const value = item[field] || '';
 
-  return `
-    <td class="cell-textarea ${cssClass}">
-      ${!detail.isKunde ? `
-        <textarea
+  const inner = !detail.isKunde
+    ? `<textarea
           class="strategie-textarea${readonly ? ' readonly-textarea' : ''}"
           placeholder="${placeholder}"
           data-field="${field}"
           data-item-id="${item.id}"
           ${readonly ? 'readonly' : ''}
-        >${escapeHtml(value)}</textarea>
-      ` : `
-        <div class="cell-text-readonly">${escapeHtml(value) || '-'}</div>
-      `}
+        >${escapeHtml(value)}</textarea>`
+    : `<div class="cell-text-readonly">${escapeHtml(value) || '-'}</div>`;
+
+  return `
+    <td class="cell-textarea ${cssClass}">
+      <div class="strategie-text-clip">
+        <div class="strategie-text-clip__body">
+          ${inner}
+        </div>
+        <button type="button" class="strategie-text-more" hidden aria-expanded="false" aria-label="Mehr anzeigen" title="Mehr anzeigen">${icon('eye')}</button>
+      </div>
     </td>
   `;
+}
+
+function renderPlatformCell(item, platformIcon, fallbackIcon) {
+  if (item.video_link) {
+    const mark = platformIcon || fallbackIcon;
+    return `
+      <td class="col-platform u-text-center">
+        <a href="${escapeAttr(item.video_link)}" target="_blank" rel="noopener noreferrer"
+           class="strategie-platform-link" title="${escapeAttr(item.video_link)}">${mark}</a>
+      </td>
+    `;
+  }
+
+  if (platformIcon) {
+    return `<td class="col-platform u-text-center">${platformIcon}</td>`;
+  }
+
+  return `<td class="col-platform u-text-center"><span class="strategie-cell-muted">-</span></td>`;
 }
 
 export function renderItemRow(detail, item, index) {
@@ -241,16 +263,7 @@ export function renderItemRow(detail, item, index) {
         </td>
       ` : ''}
       ${renderBildCell(item, isIdea, ideaIcon)}
-      <td class="u-text-center">
-        ${isIdea ? `<span class="strategie-cell-muted">-</span>` : platformIcon}
-      </td>
-      <td class="u-text-center">
-        ${item.video_link ? `
-          <a href="${item.video_link}" target="_blank" rel="noopener noreferrer" class="strategie-ext-link" title="${item.video_link}">
-            ${externalLinkIcon}
-          </a>
-        ` : `<span class="strategie-cell-muted">-</span>`}
-      </td>
+      ${renderPlatformCell(item, platformIcon, externalLinkIcon)}
       ${cols.creator ? `
         <td class="cell-textarea">
           <textarea 
@@ -262,22 +275,9 @@ export function renderItemRow(detail, item, index) {
           >${item.creator_name || ''}</textarea>
         </td>
       ` : ''}
-      ${cols.beschreibung ? `
-        <td class="cell-textarea">
-          ${!detail.isKunde ? `
-            <textarea 
-              class="strategie-textarea" 
-              placeholder="Beschreibung..."
-              data-field="beschreibung"
-              data-item-id="${item.id}"
-            >${item.beschreibung || ''}</textarea>
-          ` : `
-            <div class="cell-text-readonly">${item.beschreibung || '-'}</div>
-          `}
-        </td>
-      ` : ''}
-      ${cols.transkript ? renderFullTextCell(detail, item, 'transkript', 'col-transkript', 'Transkript...', readonly) : ''}
-      ${cols.caption ? renderFullTextCell(detail, item, 'caption', 'col-caption', 'Caption...', readonly) : ''}
+      ${cols.beschreibung ? renderClippedTextCell(detail, item, 'beschreibung', 'col-beschreibung', 'Beschreibung...') : ''}
+      ${cols.transkript ? renderClippedTextCell(detail, item, 'transkript', 'col-transkript', 'Transkript...', readonly) : ''}
+      ${cols.caption ? renderClippedTextCell(detail, item, 'caption', 'col-caption', 'Caption...', readonly) : ''}
       ${cols.anmerkung ? `
         <td class="cell-textarea">
           <textarea 

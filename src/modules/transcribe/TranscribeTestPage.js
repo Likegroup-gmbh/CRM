@@ -78,7 +78,7 @@ export class TranscribeTestPage {
         </div>
 
         <div id="transcribe-meta" style="display: none; flex-direction: column; gap: var(--space-xs);
-                    border: 1px solid var(--gray-200); border-radius: var(--radius-xl); padding: var(--space-sm) var(--space-md);">
+                    border: 1px solid var(--border-primary); border-radius: var(--radius-xl); padding: var(--space-sm) var(--space-md);">
           <div class="transcribe-meta-row">
             <span class="transcribe-meta-muted">Hochgeladen von</span>
             <a id="transcribe-author-link" href="#" target="_blank" rel="noopener"

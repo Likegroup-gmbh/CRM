@@ -111,7 +111,7 @@ export class KampagneDetail {
 
         setupEvents(this);
 
-        this._mountVideoTable();
+        await this._mountVideoTable();
 
         const _renderTime = performance.now() - _initStart;
         console.log(`✅ KAMPAGNEDETAIL: Komplett geladen und gerendert in ${_renderTime.toFixed(0)}ms`);
@@ -261,7 +261,7 @@ export class KampagneDetail {
     updateVideoStatsCardDOM(summary.videoStats, { animate });
   }
 
-  _mountVideoTable() {
+  async _mountVideoTable() {
     if (!this.kooperationenVideoTable) return;
 
     const mainContent = document.querySelector('.main-content');
@@ -303,11 +303,8 @@ export class KampagneDetail {
     updateSummaryCardsDOM(this.kampagneData, this.koopBudgetSum, this.koopVideosUsed, this.koopCreatorsUsed, this.extraKostenVkSum, this.ekVkMarginSum, this.kskUmgebucht);
     updateVideoStatsCardDOM(this.videoStats);
 
-    const videoIds = this._pendingTableData?.videoIds;
-    if (videoIds && videoIds.length > 0) {
-      this.kooperationenVideoTable.loadAssetsAndCommentsForVisible();
-    }
     this._pendingTableData = null;
+    await this.kooperationenVideoTable.loadAssetsAndCommentsForVisible();
   }
 
   switchTab(tabName) {
@@ -343,7 +340,7 @@ export class KampagneDetail {
       this._mountKanban();
     } else {
       this._unmountKanban();
-      this._remountVideoTable();
+      void this._remountVideoTable();
     }
   }
 
@@ -383,7 +380,7 @@ export class KampagneDetail {
     this.kanbanBoard.updateTabCounts();
   }
 
-  _remountVideoTable() {
+  async _remountVideoTable() {
     if (!this.store) return;
     this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId, this.store);
     this.kooperationenVideoTable.statusOptions = this.store.statusOptions || [];
@@ -394,7 +391,7 @@ export class KampagneDetail {
     }
     this.kooperationenVideoTable._dataLoaded = true;
 
-    this._mountVideoTable();
+    await this._mountVideoTable();
   }
 
   showEditForm() {

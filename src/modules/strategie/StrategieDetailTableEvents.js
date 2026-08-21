@@ -5,6 +5,7 @@ import { strategieService } from './StrategieService.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { tableSelect } from '../../core/components/TableSelect.js';
 import { buildStrategiePrioUpdates, isStrategiePrio } from './strategiePrioOptions.js';
+import { bindTextClipEvents } from './strategieTextClip.js';
 
 export function cleanupTableEvents(detail) {
   detail._tableEventListeners.forEach(cleanup => cleanup());
@@ -69,6 +70,7 @@ export function bindTableEvents(detail) {
   }
 
   bindDragToScroll(detail);
+  bindTextClipEvents(detail);
 }
 
 export function bindDragToScroll(detail) {
