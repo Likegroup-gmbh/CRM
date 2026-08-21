@@ -15,7 +15,7 @@ export default defineConfig({
       },
       output: {
         manualChunks: {
-          core: ['src/core/FilterSystem.js', 'src/core/FilterConfig.js', 'src/core/FilterLogic.js', 'src/core/FilterUI.js'],
+          core: ['src/core/FilterLogic.js', 'src/core/FilterUI.js'],
           auth: ['src/modules/auth/AuthService.js', 'src/modules/auth/AuthUtils.js', 'src/modules/auth/MagicLinkService.js'],
           modules: ['src/modules/creator/CreatorList.js']
         }
