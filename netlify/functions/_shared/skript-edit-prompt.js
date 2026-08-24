@@ -6,7 +6,7 @@
 const fs = require('fs');
 const path = require('path');
 const {
-  videoLaengeHinweis, WOERTER_PRO_SEKUNDE, kuerzeTranskript, fmtCampaignBriefing, fmtSkript,
+  videoLaengeHinweis, WOERTER_PRO_SEKUNDE, kuerzeTranskript, fmtCampaignBriefing,
   cap, KONTEXT_MAX, CAMPAIGN_BRIEFING_FIELD_NAMES
 } = require('./skript-context');
 const { loadMasterDocs, fmtMasterBlock } = require('./skript-master');
@@ -41,7 +41,8 @@ const AKTION_ANWEISUNGEN = {
 };
 
 const VISUELL_STIL_FALLBACK = 'Schreibe visuelle Regie wie ein Produktions-Briefing: Text Overlay, Visual, B-Roll. '
-  + 'Zeitmarker alle 5–10 Sekunden oder „ca. 10 Sek.“, nicht sekündlich. Kein Filmhochschul-Storyboard.';
+  + 'Zeitmarker alle 5–10 Sekunden oder „ca. 10 Sek.“, nicht sekündlich. '
+  + 'Jeder Zeitmarker beginnt einen neuen Absatz, Leerzeile dazwischen. Kein Filmhochschul-Storyboard.';
 
 let visuellStilCache = null;
 
@@ -62,11 +63,6 @@ function ladeVisuellStil() {
   console.warn('[skript-edit] Visuell-Stil-Datei nicht gefunden, nutze Fallback');
   visuellStilCache = VISUELL_STIL_FALLBACK;
   return visuellStilCache;
-}
-
-function hatVisuellText(s) {
-  return [s?.hook_visuell, s?.hauptteil_visuell, s?.cta_visuell]
-    .some((t) => String(t || '').trim());
 }
 
 /** Visual-Button oder markierte Visual-Spalte – nicht die Spoken-Spalte. */
@@ -98,38 +94,6 @@ async function resolveModusSlug(supabase, message) {
     ? rows.find((r) => r.sektion === sektion)
     : null;
   return (same || rows[0]).modus;
-}
-
-/** Max. 3 erfolgreiche/virale Skripte mit Visual-Text (Marke zuerst). */
-async function loadVisualBeispiele(supabase, skript) {
-  const cols = 'id, titel, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, performance_label, marke_id';
-  const labels = ['erfolgreich', 'viral'];
-  const selfId = skript?.id;
-
-  const markePromise = skript?.marke_id
-    ? (() => {
-      let q = supabase.from('skripte').select(cols)
-        .in('performance_label', labels)
-        .eq('marke_id', skript.marke_id);
-      if (selfId) q = q.neq('id', selfId);
-      return q.order('created_at', { ascending: false }).limit(6);
-    })()
-    : Promise.resolve({ data: null });
-
-  let globalQ = supabase.from('skripte').select(cols)
-    .in('performance_label', labels);
-  if (selfId) globalQ = globalQ.neq('id', selfId);
-  globalQ = globalQ.order('created_at', { ascending: false }).limit(8);
-
-  const [{ data: markeRows }, { data: globalRows }] = await Promise.all([markePromise, globalQ]);
-  const beispiele = [];
-  for (const s of [...(markeRows || []), ...(globalRows || [])]) {
-    if (beispiele.length >= 3) break;
-    if (!hatVisuellText(s)) continue;
-    if (beispiele.some((b) => b.id === s.id)) continue;
-    beispiele.push(s);
-  }
-  return beispiele;
 }
 
 const VISUELL_VORGAENGER = {
@@ -322,19 +286,15 @@ async function loadEditContext(supabase, message) {
     return data || null;
   })();
 
-  const beispielePromise = brauchtVisualStil(message)
-    ? loadVisualBeispiele(supabase, skript)
-    : Promise.resolve([]);
-
   const masterPromise = loadMasterDocs(supabase, skript.bereich, { schlank: false });
 
-  const [dna, briefing, kickoff, modus, beispiele, masterResult] = await Promise.all([
-    dnaPromise, briefingPromise, kickoffPromise, modusPromise, beispielePromise, masterPromise
+  const [dna, briefing, kickoff, modus, masterResult] = await Promise.all([
+    dnaPromise, briefingPromise, kickoffPromise, modusPromise, masterPromise
   ]);
   const feedback = (feedbackRaw || []).reverse();
 
   return {
-    skript, history, dna, briefing, kickoff, feedback, modus, beispiele,
+    skript, history, dna, briefing, kickoff, feedback, modus,
     master: masterResult.master,
     masterVersionen: masterResult.masterVersionen
   };
@@ -353,7 +313,6 @@ function fmtLines(obj) {
 
 function buildEditPrompt(ctx, message) {
   const { skript, history, dna, briefing, kickoff, feedback, modus } = ctx;
-  const beispiele = ctx.beispiele || [];
   const master = ctx.master || [];
   const hatGrid = Boolean(skript.hook || skript.hauptteil || skript.cta
     || skript.hook_visuell || skript.hauptteil_visuell || skript.cta_visuell);
@@ -380,12 +339,6 @@ function buildEditPrompt(ctx, message) {
   if (visualSpalte) {
     stable += '\n# VISUELLER STIL (verbindliches Format fuer "Was zu sehen ist")\n'
       + ladeVisuellStil() + '\n';
-    if (beispiele.length) {
-      stable += '\n# ERFOLGREICHE VISUAL-BEISPIELE (an diesen Mustern orientieren, NICHT kopieren)\n';
-      beispiele.forEach((s, i) => {
-        stable += `\n--- Beispiel ${i + 1} (${s.performance_label}) ---\n${fmtSkript(s)}\n`;
-      });
-    }
   }
 
   // Block 2 (variabel): Skript + Verlauf + Auftrag
@@ -606,8 +559,6 @@ module.exports = {
   letzterZeitstempel,
   formatZeitstempel,
   ladeVisuellStil,
-  loadVisualBeispiele,
-  hatVisuellText,
   brauchtVisualStil,
   resolveModusSlug,
   EDIT_BRIEFING_MAX

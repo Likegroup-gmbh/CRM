@@ -190,6 +190,7 @@ describe('SkriptEditorDocRenderer', () => {
     expect(html).toContain('Klein, aber oho');
     expect(html).toContain('Sek. 0–6');
     expect(html).toContain('Zusätzliche Infos');
+    expect(html).toContain('tab-navigation');
     expect(html).toContain('data-editor-tab="zusatz"');
     expect(html).toContain('Kopf');
     expect(html).not.toContain('Creator-facing');

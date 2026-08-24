@@ -1,12 +1,12 @@
 // Netlify Background Function: Skript-Generierung (Layer 1)
 // Ablauf: Kontext per SQL sammeln (Pick-and-pull, kein LLM) ->
-//         DNA-Layer + Beispiele/Anti-Patterns in den Prompt ->
+//         DNA-Layer in den Prompt ->
 //         Claude schreibt EIN drehfertiges Markdown-Dokument (inhalt_md) -> Supabase.
 // Background Function: antwortet sofort 202, Fortschritt kommt asynchron
 // ueber die skript_generation_jobs-Tabelle (Realtime in der UI).
 
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
-const { loadContext, loadReferenzVideo, fmtSkript, buildKontextText, videoLaengeHinweis, briefingSkriptSprache, cap, KONTEXT_MAX } = require('./_shared/skript-context');
+const { loadContext, loadReferenzVideo, buildKontextText, videoLaengeHinweis, briefingSkriptSprache, cap, KONTEXT_MAX } = require('./_shared/skript-context');
 const { fmtMasterBlock, MASTER_BEREICH_LABELS } = require('./_shared/skript-master');
 const { extractSkriptAusMaster } = require('./_shared/skript-creator-facing');
 const { withSkriptHandler } = require('./_shared/skript-handler');
@@ -27,12 +27,12 @@ const SKRIPT_TOOL = {
         type: 'string',
         description: 'Nur Zusatzinfos (Produktionskopf, Timing, Shotlist, Brand-Hinweise). KEINE Creator-facing-Tabelle, KEINE Variantenuebersicht, KEINE alternativen Opener/Hooks/CTAs.'
       },
-      hook: { type: 'string', description: 'Gesprochener Hook der Hauptvariante A' },
-      hauptteil: { type: 'string', description: 'Gesprochener Hauptteil der Hauptvariante A' },
-      cta: { type: 'string', description: 'Gesprochener CTA der Hauptvariante A' },
-      hook_visuell: { type: 'string', description: 'Was zu sehen ist im Hook (Variante A)' },
-      hauptteil_visuell: { type: 'string', description: 'Was zu sehen ist im Hauptteil (Variante A)' },
-      cta_visuell: { type: 'string', description: 'Was zu sehen ist im CTA (Variante A)' },
+      hook: { type: 'string', description: 'Gesprochener Hook der Hauptvariante A. Jeder Zeitbeat eigener Absatz, Leerzeile dazwischen, gleiche Anzahl wie hook_visuell.' },
+      hauptteil: { type: 'string', description: 'Gesprochener Hauptteil der Hauptvariante A. Jeder Zeitbeat eigener Absatz, Leerzeile dazwischen, gleiche Anzahl wie hauptteil_visuell.' },
+      cta: { type: 'string', description: 'Gesprochener CTA der Hauptvariante A. Jeder Zeitbeat eigener Absatz, Leerzeile dazwischen, gleiche Anzahl wie cta_visuell.' },
+      hook_visuell: { type: 'string', description: 'Was zu sehen ist im Hook (Variante A). Jeder Zeitmarker (Sek. 0–3:) beginnt einen neuen Absatz, Leerzeile dazwischen. On-Screen-Text am jeweiligen Beat.' },
+      hauptteil_visuell: { type: 'string', description: 'Was zu sehen ist im Hauptteil (Variante A). Jeder Zeitmarker beginnt einen neuen Absatz, Leerzeile dazwischen. On-Screen-Text am jeweiligen Beat.' },
+      cta_visuell: { type: 'string', description: 'Was zu sehen ist im CTA (Variante A). Jeder Zeitmarker beginnt einen neuen Absatz, Leerzeile dazwischen. On-Screen-Text am jeweiligen Beat.' },
       varianten: {
         type: 'array',
         description: 'Genau zwei alternative Skript-Varianten (B und C). Nicht in inhalt_md wiederholen.',
@@ -61,10 +61,8 @@ const SKRIPT_TOOL = {
 function buildPrompt(ctx, params, rueckfragenDialog = '') {
   const master = ctx.master || [];
   const dna = ctx.dna || [];
-  const beispiele = ctx.beispiele || [];
-  const antiPatterns = ctx.antiPatterns || [];
 
-  // Block 1 (stabil, cachebar): Rolle + Master + DNA + Beispiele + Anti-Patterns
+  // Block 1 (stabil, cachebar): Rolle + Master + DNA
   let stable = 'Du bist ein erfahrener Creative Director fuer Social-Video-Content '
     + '(Owned Media, Paid Ads, Influencer-Konzepte; TikTok, Instagram Reels). '
     + 'Du schreibst drehfertige Konzepte nach dem verbindlichen Master-Regelwerk. '
@@ -78,20 +76,6 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
     for (const d of dna) {
       stable += `\n--- ${d.name ? `"${d.name}" - ` : ''}Layer: ${d.layer_typ} (v${d.version}) ---\n${cap(d.inhalt, KONTEXT_MAX.dna)}\n`;
     }
-  }
-
-  if (beispiele.length) {
-    stable += '\n# ERFOLGREICHE BEISPIEL-SKRIPTE (an diesen Mustern orientieren, NICHT kopieren)\n';
-    beispiele.forEach((s, i) => {
-      stable += `\n--- Beispiel ${i + 1} (${s.performance_label}) ---\n${fmtSkript(s)}\n`;
-    });
-  }
-
-  if (antiPatterns.length) {
-    stable += '\n# ANTI-PATTERNS (diese Skripte haben NICHT funktioniert - solche Muster vermeiden)\n';
-    antiPatterns.forEach((s, i) => {
-      stable += `\n--- Anti-Beispiel ${i + 1} ---\n${fmtSkript(s)}\n`;
-    });
   }
 
   // Block 2 (variabel): Auftrag dieser Generierung
@@ -128,6 +112,10 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
     + 'Zweispalter "gesprochen / zu sehen". Diese Inhalte gehoeren AUSSCHLIESSLICH in die Skript-Felder.\n'
     + 'Variante A: hook/hauptteil/cta (gesprochen) plus hook_visuell/hauptteil_visuell/cta_visuell '
     + '(was zu sehen ist) – direkt mitgenerieren.\n'
+    + 'ZEITMARKER: Jeder Beat beginnt einen neuen Absatz (Leerzeile dazwischen), '
+    + 'Format „Sek. 0–3: …“. Links (gesagt) und rechts (sehen) dieselbe Absatz-Anzahl. '
+    + 'On-Screen-Text gehoert zum Beat, nicht als Liste ans Ende. '
+    + 'Marker alle paar Sekunden, nicht sekündlich. Niemals alle Marker in einen Fliesstext packen.\n'
     + 'Varianten B und C: Array "varianten" (label B/C, beschreibung, abweichende Felder). '
     + 'Meist nur Hook/Opener anders, Hauptteil und CTA gleich. NICHT in inhalt_md wiederholen.\n'
     + 'Tabellen als Markdown-Tabellen. Innerhalb der Texte typografische Anfuehrungszeichen (\u201e\u2026\u201c) statt gerader (") verwenden.\n'
@@ -199,7 +187,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     payload.referenz_video = referenzVideo;
     job.log(referenzVideo
       ? `Videovorlage: ${referenzVideo.quelle === 'strategie_item' ? `Strategie-Item (${referenzVideo.platform || 'unbekannt'})` : referenzVideo.quelle === 'job' ? `Transkriptions-Job (${referenzVideo.platform || 'unbekannt'})` : 'manuelles Transkript'}, ${referenzVideo.transkript_verwendet.length} Zeichen`
-      : 'Keine Videovorlage - Aufbau kommt aus DNA und Beispiel-Skripten');
+      : 'Keine Videovorlage - Aufbau kommt aus DNA');
 
     const ctx = await loadContext(supabase, payload);
     if (!ctx.bereich) {
@@ -213,7 +201,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
         .maybeSingle();
       ctx.modus = modus || null;
     }
-    job.log(`Kontext: Bereich ${ctx.bereich}, ${ctx.master.length} Master-Docs, ${ctx.dna.length} DNA-Layer, ${ctx.beispiele.length} Beispiele, ${ctx.antiPatterns.length} Anti-Patterns`
+    job.log(`Kontext: Bereich ${ctx.bereich}, ${ctx.master.length} Master-Docs, ${ctx.dna.length} DNA-Layer`
       + `${ctx.briefing ? ', Briefing' : ''}${ctx.kickoff ? ', Kickoff' : ''}${ctx.produkt ? ', Produkt' : ''}${ctx.modus ? `, Modus ${ctx.modus.slug}` : ''}`);
 
     // Rueckfragen-Stub: geklaerten Frage/Antwort-Dialog in den Prompt aufnehmen
@@ -325,8 +313,6 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
         master_versionen: ctx.masterVersionen,
         bereich: ctx.bereich,
         modus: payload.modus || null,
-        beispiel_ids: ctx.beispiele.map((s) => s.id),
-        anti_pattern_ids: ctx.antiPatterns.map((s) => s.id),
         usage: result.usage,
         ...(payload.briefing_id ? {
           briefing_id: payload.briefing_id,

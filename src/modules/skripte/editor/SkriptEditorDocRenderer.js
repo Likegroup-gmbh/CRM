@@ -122,7 +122,7 @@ function gridTabelleHtml({ skript, grid, messages, isReadonly }) {
 
 function docTabsHtml(activeTab) {
   return `
-    <div class="skripte-editor-doc-tabs" role="tablist">
+    <div class="tab-navigation skripte-editor-doc-tabs" role="tablist">
       <button type="button" class="tab-button${activeTab === 'skript' ? ' active' : ''}"
         role="tab" data-editor-tab="skript" aria-selected="${activeTab === 'skript'}">Skript</button>
       <button type="button" class="tab-button${activeTab === 'zusatz' ? ' active' : ''}"

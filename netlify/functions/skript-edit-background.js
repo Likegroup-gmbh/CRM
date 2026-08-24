@@ -13,7 +13,7 @@ const { beansprucheNachricht, autorisiereSkript, istNachrichtAbgebrochen } = req
 const { setThinking } = require('./_shared/thinking');
 const {
   loadEditContext, buildEditPrompt, stripToolXml, letzterZeitstempel, formatZeitstempel,
-  ladeVisuellStil, loadVisualBeispiele, brauchtVisualStil, resolveModusSlug, EDIT_BRIEFING_MAX
+  ladeVisuellStil, brauchtVisualStil, resolveModusSlug, EDIT_BRIEFING_MAX
 } = require('./_shared/skript-edit-prompt');
 
 // Tool-Call fuer strukturierte Antworten. Bei Schreib-Aktionen laeuft
@@ -157,7 +157,6 @@ exports.stripToolXml = stripToolXml;
 exports.letzterZeitstempel = letzterZeitstempel;
 exports.formatZeitstempel = formatZeitstempel;
 exports.ladeVisuellStil = ladeVisuellStil;
-exports.loadVisualBeispiele = loadVisualBeispiele;
 exports.brauchtVisualStil = brauchtVisualStil;
 exports.resolveModusSlug = resolveModusSlug;
 exports.EDIT_BRIEFING_MAX = EDIT_BRIEFING_MAX;

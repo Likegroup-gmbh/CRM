@@ -17,7 +17,11 @@ Erlaubte Bausteine:
   Einstellungen. Aufzählung 1., 2. ist ok.
 
 Zeitmarker: alle 5–10 Sekunden, oder Dauer im Fließtext (`ca. 10 Sek.`).
-`0:00–0:08` ist erlaubt. Kein Marker pro Sekunde, kein Marker pro Satz.
+`0:00–0:08` oder `Sek. 0–3:` ist erlaubt. Kein Marker pro Sekunde, kein Marker pro Satz.
+
+Jeder Zeitmarker beginnt einen **neuen Absatz** (Leerzeile dazwischen).
+On-Screen-Text gehört zum jeweiligen Beat, nicht als Liste ans Ende.
+Niemals mehrere `Sek. …`-Blöcke in einen Fließtext packen.
 
 Sprache: Creator-Briefing. Was man sieht und macht. Kein Filmhochschul-Jargon
 als Default (kein Whip-Pan, Jump-Cut, Over-Shoulder, Close-up/Wide als

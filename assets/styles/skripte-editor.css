@@ -262,15 +262,8 @@
 }
 
 .skripte-editor-doc-tabs {
-  display: flex;
-  gap: var(--space-xs);
-  padding: var(--space-xs) var(--space-md) 0;
-  border-bottom: var(--border-xs) solid var(--border-primary);
-}
-
-.skripte-editor-doc-tabs .tab-button {
-  padding: var(--space-xs) var(--space-sm);
-  font-size: var(--text-sm);
+  padding-left: var(--space-md);
+  padding-right: var(--space-md);
 }
 
 .skripte-editor-doc-panel {

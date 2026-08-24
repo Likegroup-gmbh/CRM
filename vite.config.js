@@ -1,6 +1,23 @@
 import { defineConfig } from 'vite';
 
+/** Vite Dev serviert Source-CJS roh. Default-Import aus der UI braucht export default. */
+function cjsSharedAsDefault() {
+  return {
+    name: 'cjs-shared-as-default',
+    transform(code, id) {
+      const file = id.split('?')[0].replace(/\\/g, '/');
+      if (!file.includes('/netlify/functions/_shared/') || !file.endsWith('.js')) return null;
+      if (!/\bmodule\.exports\s*=/.test(code)) return null;
+      return {
+        code: `${code.replace(/\bmodule\.exports\s*=/, 'const __cjs_exports =')}\nexport default __cjs_exports;\n`,
+        map: null
+      };
+    }
+  };
+}
+
 export default defineConfig({
+  plugins: [cjsSharedAsDefault()],
   root: '.',
   build: {
     outDir: 'dist',

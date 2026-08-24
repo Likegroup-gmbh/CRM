@@ -113,6 +113,34 @@ function nonempty(s) {
   return emptyish(s) ? null : String(s).trim();
 }
 
+const SKRIPT_TEXT_FELDER = [
+  'hook', 'hauptteil', 'cta',
+  'hook_visuell', 'hauptteil_visuell', 'cta_visuell'
+];
+
+/**
+ * Packt "Sek. 0: … Sek. 3–7: …" in eigene Absaetze. Schon gesplitteter
+ * Text bleibt unveraendert (keine extra Leerzeilen).
+ */
+function splitZeitmarkerAbsaetze(text) {
+  if (text == null) return text;
+  const raw = String(text);
+  if (!raw.trim()) return raw.trim();
+  return raw
+    .replace(/(?<!\n\n)(?<!^)\s+(?=Sek\.?\s*\d+)/gi, '\n\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function splitSkriptFelder(felder) {
+  if (!felder) return felder;
+  const out = { ...felder };
+  for (const key of SKRIPT_TEXT_FELDER) {
+    if (out[key]) out[key] = splitZeitmarkerAbsaetze(out[key]);
+  }
+  return out;
+}
+
 function joinBlocks(parts) {
   return parts.map((p) => String(p || '').trim()).filter(Boolean).join('\n\n') || null;
 }
@@ -368,21 +396,22 @@ function extractSkriptAusMaster(md, parsedTool = {}) {
   }
 
   const grid = extractGridFromTables(creatorTables.length ? creatorTables : allTables) || {};
-  const felder = {
+  const felder = splitSkriptFelder({
     hook: nonempty(parsedTool.hook) || grid.hook || null,
     hauptteil: nonempty(parsedTool.hauptteil) || grid.hauptteil || null,
     cta: nonempty(parsedTool.cta) || grid.cta || null,
     hook_visuell: nonempty(parsedTool.hook_visuell) || grid.hook_visuell || null,
     hauptteil_visuell: nonempty(parsedTool.hauptteil_visuell) || grid.hauptteil_visuell || null,
     cta_visuell: nonempty(parsedTool.cta_visuell) || grid.cta_visuell || null
-  };
+  });
 
   const fromTool = normalizeToolVarianten(parsedTool.varianten, felder);
   const fromMd = mergeVariants(
     extractVariantenFromTables(allTables, felder),
     extractOpenerBullets(md, felder)
   );
-  const varianten = fromTool.length ? fromTool : fromMd;
+  const varianten = (fromTool.length ? fromTool : fromMd)
+    .map((v) => ({ ...v, felder: splitSkriptFelder(v.felder) }));
 
   return { felder, varianten, inhalt_md: zusatzInfosMarkdown(md) };
 }
@@ -428,5 +457,6 @@ module.exports = {
   gridFelderFuerSkript,
   istCreatorFacingSektion,
   istVariantenSektion,
-  parseMasterSektionen
+  parseMasterSektionen,
+  splitZeitmarkerAbsaetze
 };

@@ -1,12 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
+import {
+  extractSkriptAusMaster as extractFromEsm,
+  zusatzInfosMarkdown as extraFromEsm,
+  hatZusatzInfos,
+  hatGridInhalt as hatGridFromEsm,
+  gridFelderFuerSkript as gridFromEsm,
+  istCreatorFacingSektion
+} from '../modules/skripte/master/skriptCreatorFacing.js';
 
 const require = createRequire(import.meta.url);
 const {
   extractSkriptAusMaster,
   zusatzInfosMarkdown,
   hatGridInhalt,
-  gridFelderFuerSkript
+  gridFelderFuerSkript,
+  splitZeitmarkerAbsaetze
 } = require('../../netlify/functions/_shared/skript-creator-facing.js');
 
 const PAID_MD = `## Strategischer Produktionskopf
@@ -40,6 +49,15 @@ Timing: 30 Sekunden.
 `;
 
 describe('skript-creator-facing', () => {
+  it('ESM-Wrapper liefert Named Exports (Vite-Dev-Pfad)', () => {
+    expect(typeof extractFromEsm).toBe('function');
+    expect(typeof extraFromEsm).toBe('function');
+    expect(typeof hatZusatzInfos).toBe('function');
+    expect(typeof hatGridFromEsm).toBe('function');
+    expect(typeof gridFromEsm).toBe('function');
+    expect(typeof istCreatorFacingSektion).toBe('function');
+  });
+
   it('mappt Zweispalter auf Hook/Hauptteil/CTA inkl. Visuals', () => {
     const { felder } = extractSkriptAusMaster(PAID_MD);
     expect(felder.hook).toContain('Klein, aber oho');
@@ -108,5 +126,33 @@ describe('skript-creator-facing', () => {
   it('gridFelderFuerSkript nimmt persistierte Felder vor MD', () => {
     const g = gridFelderFuerSkript({ hook: 'Persist', inhalt_md: PAID_MD });
     expect(g.hook).toBe('Persist');
+  });
+
+  it('splitZeitmarkerAbsaetze trennt gepackte Marker, laesst gesplittete', () => {
+    const packed = 'Sek. 0: Schublade öffnet sich. Text-Overlay: „Brauche ich einen AirFryer?“ Sek. 1–6: Karton aufreißen. Sek. 6-10: Close-up Gerät.';
+    expect(splitZeitmarkerAbsaetze(packed)).toBe(
+      'Sek. 0: Schublade öffnet sich. Text-Overlay: „Brauche ich einen AirFryer?“\n\n'
+      + 'Sek. 1–6: Karton aufreißen.\n\n'
+      + 'Sek. 6-10: Close-up Gerät.'
+    );
+
+    const schon = 'Sek. 0–3: Close-up.\n\nSek. 3–7: Karton.';
+    expect(splitZeitmarkerAbsaetze(schon)).toBe(schon);
+    expect(splitZeitmarkerAbsaetze(null)).toBe(null);
+    expect(splitZeitmarkerAbsaetze('')).toBe('');
+  });
+
+  it('extractSkriptAusMaster splittet gepackte Tool-Visuals', () => {
+    const { felder, varianten } = extractSkriptAusMaster('## Produktionskopf\nRest', {
+      hook: 'ASMR. Dann VO.',
+      hook_visuell: 'Sek. 0–3: Schublade. Sek. 3–7: Karton.',
+      hauptteil: 'Mitte',
+      hauptteil_visuell: 'Bild',
+      cta: 'Ende',
+      cta_visuell: 'Endframe',
+      varianten: [{ label: 'B', hook_visuell: 'Sek. 0: Maßband. Sek. 3: Karton.' }]
+    });
+    expect(felder.hook_visuell).toBe('Sek. 0–3: Schublade.\n\nSek. 3–7: Karton.');
+    expect(varianten[0].felder.hook_visuell).toBe('Sek. 0: Maßband.\n\nSek. 3: Karton.');
   });
 });

@@ -8,12 +8,11 @@ const { resolveSkriptBereich, loadMasterDocs } = require('../skript-master');
 // ---------------------------------------------------------------------------
 // Kontext-Aufbau
 // ---------------------------------------------------------------------------
-// options.schlank (Fragen-Pfad): keine Beispiel-/Anti-Pattern-Queries und
-// DNA nur als Metadaten (Name/Typ/Version) - der Fragen-Prompt braucht die
-// Inhalte nicht, nur welche Layer aktiv sind.
+// options.schlank (Fragen-Pfad): DNA nur als Metadaten (Name/Typ/Version) -
+// der Fragen-Prompt braucht die Inhalte nicht, nur welche Layer aktiv sind.
 async function loadContext(supabase, params, { schlank = false } = {}) {
   const { unternehmen_id, marke_id, kampagne_id, produkt_id, persona_id, branche_id, briefing_id, mit_dna, dna_id } = params;
-  const ctx = { dnaVersionen: [], beispiele: [], antiPatterns: [], master: [], masterVersionen: [] };
+  const ctx = { dnaVersionen: [], master: [], masterVersionen: [] };
 
   // Welle 1: alle Quellen, die nur an params-IDs haengen (nicht voneinander)
   const unternehmenPromise = unternehmen_id
@@ -129,39 +128,14 @@ async function loadContext(supabase, params, { schlank = false } = {}) {
     };
   })();
 
-  // Positiv-Beispiele: markenspezifisch UND global laufen parallel, danach
-  // gemerged (markenspezifisch zuerst, global fuellt auf, max 3, dedupliziert).
-  // Kostet eine zusaetzliche Query, spart einen sequentiellen Roundtrip.
-  const exampleCols = 'id, titel, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, inhalt_md, performance_label, marke_id';
-  const beispieleMarkePromise = !schlank && marke_id
-    ? supabase.from('skripte').select(exampleCols)
-      .in('performance_label', ['erfolgreich', 'viral']).eq('marke_id', marke_id)
-      .order('created_at', { ascending: false }).limit(3)
-    : Promise.resolve({ data: null });
-  const beispieleGlobalPromise = !schlank
-    ? supabase.from('skripte').select(exampleCols)
-      .in('performance_label', ['erfolgreich', 'viral'])
-      .order('created_at', { ascending: false }).limit(6)
-    : Promise.resolve({ data: null });
-
-  // Anti-Patterns: max 2 nicht-erfolgreiche
-  const antiPatternsPromise = !schlank
-    ? supabase.from('skripte').select(exampleCols)
-      .eq('performance_label', 'nicht_erfolgreich')
-      .order('created_at', { ascending: false }).limit(2)
-    : Promise.resolve({ data: null });
-
   // Master-Regelwerk: Basis immer + Bereichs-Doc. Auch im schlanken
   // Fragen-Pfad voll laden - die Rueckfragen muessen die Ausgabestruktur kennen.
   const masterPromise = loadMasterDocs(supabase, ctx.bereich, { schlank: false });
 
   const [
-    { data: branche }, dnaResult,
-    { data: beispieleMarke }, { data: beispieleGlobal }, { data: antiPatterns },
-    masterResult
+    { data: branche }, dnaResult, masterResult
   ] = await Promise.all([
-    branchePromise, dnaPromise, beispieleMarkePromise, beispieleGlobalPromise, antiPatternsPromise,
-    masterPromise
+    branchePromise, dnaPromise, masterPromise
   ]);
 
   ctx.branche = branche;
@@ -169,14 +143,6 @@ async function loadContext(supabase, params, { schlank = false } = {}) {
   ctx.dnaVersionen = dnaResult.dnaVersionen;
   ctx.master = masterResult.master;
   ctx.masterVersionen = masterResult.masterVersionen;
-
-  const beispiele = [...(beispieleMarke || [])];
-  for (const s of beispieleGlobal || []) {
-    if (beispiele.length >= 3) break;
-    if (!beispiele.some((b) => b.id === s.id)) beispiele.push(s);
-  }
-  ctx.beispiele = beispiele;
-  ctx.antiPatterns = antiPatterns || [];
 
   return ctx;
 }

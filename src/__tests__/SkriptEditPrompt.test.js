@@ -5,7 +5,7 @@ import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 const {
-  buildEditPrompt, stripToolXml, letzterZeitstempel, loadVisualBeispiele,
+  buildEditPrompt, stripToolXml, letzterZeitstempel,
   brauchtVisualStil, resolveModusSlug
 } = require('../../netlify/functions/skript-edit-background.js');
 
@@ -25,8 +25,7 @@ function baseCtx(overrides = {}) {
     briefing: overrides.briefing ?? null,
     kickoff: overrides.kickoff ?? null,
     feedback: [],
-    modus: overrides.modus ?? null,
-    beispiele: overrides.beispiele ?? []
+    modus: overrides.modus ?? null
   };
 }
 
@@ -214,8 +213,7 @@ describe('buildEditPrompt ist_visuell Rewrite', () => {
 
   it('Spoken-Rewrite ohne Flag bleibt Spoken', () => {
     const { task, stable } = buildEditPrompt(baseCtx({
-      skript: { hook_visuell: 'Shot', video_laenge: '15-30' },
-      beispiele: [{ hook_visuell: 'DARF-NICHT', performance_label: 'viral' }]
+      skript: { hook_visuell: 'Shot', video_laenge: '15-30' }
     }), {
       aktion: 'kuerzen',
       sektion: 'hook',
@@ -232,14 +230,8 @@ describe('buildEditPrompt ist_visuell Rewrite', () => {
     expect(stable).not.toContain('DARF-NICHT');
   });
 
-  it('Visual-Rewrite teilt Stil-Dokument und Few-Shots mit dem Button', () => {
-    const beispiele = [{
-      titel: 'Muell-Hook',
-      hook_visuell: 'Visual 1: Creator wirft eine Dose in den Mülleimer.',
-      performance_label: 'viral'
-    }];
+  it('Visual-Rewrite teilt Stil-Dokument mit dem Button, ohne fremde Skripte', () => {
     const { stable, task } = buildEditPrompt(baseCtx({
-      beispiele,
       modus: { slug: 'klassisch', name: 'Klassisch', inhalt: 'Ruhige Blöcke, 5–10s.' }
     }), {
       aktion: 'kuerzen',
@@ -249,14 +241,13 @@ describe('buildEditPrompt ist_visuell Rewrite', () => {
     });
 
     expect(stable).toContain('# VISUELLER STIL');
-    expect(stable).toContain('# ERFOLGREICHE VISUAL-BEISPIELE');
-    expect(stable).toContain('Dose in den Mülleimer');
+    expect(stable).not.toContain('# ERFOLGREICHE VISUAL-BEISPIELE');
     expect(task).toContain('# REGIE-MODUS: Klassisch');
     expect(task).not.toContain('# ZEITPLAN UND KONTINUITAET');
   });
 });
 
-describe('buildEditPrompt Visual-Stil und Few-Shots', () => {
+describe('buildEditPrompt Visual-Stil', () => {
   const VISUELL_MSG = {
     aktion: 'visuell',
     sektion: 'hook',
@@ -273,23 +264,15 @@ describe('buildEditPrompt Visual-Stil und Few-Shots', () => {
     expect(stable).toContain('Whip-Pan');
   });
 
-  it('legt Few-Shots bei Visual-Spalte in den stable-Block', () => {
-    const beispiele = [{
-      titel: 'Muell-Hook',
-      hook: 'Kennst du das?',
-      hook_visuell: 'Visual 1: Creator wirft eine Dose in den Mülleimer.',
-      performance_label: 'viral'
-    }];
-    const { stable } = buildEditPrompt(baseCtx({ beispiele }), VISUELL_MSG);
-    expect(stable).toContain('# ERFOLGREICHE VISUAL-BEISPIELE');
-    expect(stable).toContain('Dose in den Mülleimer');
-    expect(stable).toContain('HOOK (was zu sehen ist)');
+  it('legt keine fremden Visual-Skripte in den Prompt', () => {
+    const { stable } = buildEditPrompt(baseCtx(), VISUELL_MSG);
+    expect(stable).toContain('# VISUELLER STIL');
+    expect(stable).not.toContain('# ERFOLGREICHE VISUAL-BEISPIELE');
+    expect(stable).not.toContain('HOOK (was zu sehen ist)');
   });
 
   it('chat ohne Markierung: Spoken-Pfad, kein Visual-Stil', () => {
-    const { stable, task } = buildEditPrompt(baseCtx({
-      beispiele: [{ hook_visuell: 'DARF-NICHT-IM-CHAT', performance_label: 'viral' }]
-    }), MESSAGE);
+    const { stable, task } = buildEditPrompt(baseCtx(), MESSAGE);
     expect(task).toContain('# SPALTE: Was gesagt wird');
     expect(stable).not.toContain('# VISUELLER STIL');
     expect(stable).not.toContain('VISUAL-BEISPIELE');
@@ -350,28 +333,6 @@ describe('resolveModusSlug', () => {
     const supabase = { from: () => { called = true; return chainQuery([]); } };
     expect(await resolveModusSlug(supabase, { aktion: 'kuerzen', skript_id: 's1' })).toBeNull();
     expect(called).toBe(false);
-  });
-});
-
-describe('loadVisualBeispiele', () => {
-  it('nimmt nur erfolgreiche/virale Skripte mit Visual-Text, max 3, dedupliziert', async () => {
-    const rows = [
-      { id: 'a', hook_visuell: 'Visual 1: Dose weg', performance_label: 'erfolgreich' },
-      { id: 'b', hook_visuell: '   ', hauptteil_visuell: null, cta_visuell: null, performance_label: 'viral' },
-      { id: 'c', hauptteil_visuell: 'B-Roll (ca. 10 Sek.): Küche', performance_label: 'viral' },
-      { id: 'd', cta_visuell: 'Text Overlay: Link in Bio', performance_label: 'erfolgreich' },
-      { id: 'a', hook_visuell: 'Visual 1: Dose weg', performance_label: 'erfolgreich' }
-    ];
-    const supabase = { from: () => chainQuery(rows) };
-    const beispiele = await loadVisualBeispiele(supabase, { id: 'self' });
-    expect(beispiele.map((s) => s.id)).toEqual(['a', 'c', 'd']);
-  });
-
-  it('ohne Visual-Text leer', async () => {
-    const supabase = { from: () => chainQuery([
-      { id: 'x', hook: 'Nur Spoken', hook_visuell: null, performance_label: 'viral' }
-    ]) };
-    expect(await loadVisualBeispiele(supabase, {})).toEqual([]);
   });
 });
 

@@ -33,7 +33,7 @@ in dieser Reihenfolge:
    bei uns gibt.
 
    Liegt keine Videovorlage vor, entscheidest du die kreative Bauweise selbst
-   aus Skript-DNA und Beispiel-Skripten – dazu keine Geschmacksfragen stellen.
+   aus der Skript-DNA – dazu keine Geschmacksfragen stellen.
    Frag höchstens nach, wenn eine konkrete Referenz oder ein gewünschtes
    Format inhaltlich entscheidend ist.
 

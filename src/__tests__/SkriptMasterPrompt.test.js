@@ -27,8 +27,6 @@ describe('buildPrompt Master + inhalt_md', () => {
   it('legt Master vor DNA und verlangt inhalt_md', () => {
     const { stable, task } = buildPrompt({
       dna: [{ name: 'Global', layer_typ: 'global', version: 1, inhalt: 'DNA-Regel' }],
-      beispiele: [],
-      antiPatterns: [],
       master: MASTER,
       bereich: 'owned_social'
     }, { video_idee: 'Airfryer' });
@@ -43,11 +41,29 @@ describe('buildPrompt Master + inhalt_md', () => {
     expect(task).toContain('NICHT in inhalt_md');
     expect(task).toContain('varianten');
     expect(task).toContain('Owned Social');
+    expect(task).toContain('ZEITMARKER');
+    expect(task).toContain('Sek. 0–3');
+    expect(stable).not.toContain('ERFOLGREICHE BEISPIEL');
+    expect(stable).not.toContain('ANTI-PATTERNS');
+  });
+
+  it('nimmt keine fremden Beispiel-Skripte in den Prompt auf', () => {
+    const { stable } = buildPrompt({
+      dna: [],
+      master: [],
+      bereich: 'owned_social',
+      beispiele: [{ titel: 'Viral-Hook', hook: 'DARF-NICHT', performance_label: 'viral' }],
+      antiPatterns: [{ titel: 'Flop', hook: 'AUCH-NICHT', performance_label: 'nicht_erfolgreich' }]
+    }, { video_idee: 'x' });
+    expect(stable).not.toContain('DARF-NICHT');
+    expect(stable).not.toContain('AUCH-NICHT');
+    expect(stable).not.toContain('ERFOLGREICHE BEISPIEL');
+    expect(stable).not.toContain('ANTI-PATTERNS');
   });
 
   it('injiziert Regie-Modus in den Task-Block', () => {
     const { stable, task } = buildPrompt({
-      dna: [], beispiele: [], antiPatterns: [], master: [],
+      dna: [], master: [],
       bereich: 'paid_creator_ads',
       modus: { name: 'Dynamisch', inhalt: 'Schnelle Wechsel.' }
     }, { video_idee: 'x' });
@@ -74,8 +90,7 @@ describe('buildEditPrompt Master-Dokument', () => {
       briefing: null,
       kickoff: null,
       feedback: [],
-      master: MASTER,
-      beispiele: []
+      master: MASTER
     }, { aktion: 'chat', sektion: 'hook-paket', inhalt: 'Kuerzer' });
 
     expect(task).toContain('## Hook-Paket');
