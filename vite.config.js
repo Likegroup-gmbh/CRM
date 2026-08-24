@@ -4,6 +4,11 @@ export default defineConfig({
   root: '.',
   build: {
     outDir: 'dist',
+    // Shared CJS unter netlify/functions (z. B. skript-creator-facing)
+    // sonst: "X is not exported" im Production-Build.
+    commonjsOptions: {
+      include: [/node_modules/, /netlify\/functions/]
+    },
     rollupOptions: {
       input: {
         main: 'index.html',
