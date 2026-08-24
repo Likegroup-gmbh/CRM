@@ -12,6 +12,7 @@ import { skripteService, PERFORMANCE_LABELS } from './SkripteService.js';
 import { escapeHtml, formatDate, badge } from './SkripteUtils.js';
 import { createSkriptDrawer, removeSkriptDrawer } from './SkriptDrawer.js';
 import { istMasterSkript, parseMasterSektionen, masterSektionBody } from './master/skriptMasterFormat.js';
+import { zusatzInfosMarkdown } from './master/skriptCreatorFacing.js';
 
 const DRAWER_ID = 'skripte-feedback-drawer';
 
@@ -22,15 +23,18 @@ function sektionLabel(sektion) {
 }
 
 function sektionText(skript, sektion) {
+  if (['hook', 'hauptteil', 'cta'].includes(sektion)) return skript[sektion] || '';
   if (istMasterSkript(skript)) return masterSektionBody(skript.inhalt_md, sektion);
   return skript[sektion] || '';
 }
 
 function feedbackSektionen(skript) {
+  const base = ['hook', 'hauptteil', 'cta'];
   if (istMasterSkript(skript)) {
-    return [...parseMasterSektionen(skript.inhalt_md).map((s) => s.slug), 'gesamt'];
+    const extra = parseMasterSektionen(zusatzInfosMarkdown(skript.inhalt_md));
+    return [...base, ...extra.map((s) => s.slug), 'gesamt'];
   }
-  return ['hook', 'hauptteil', 'cta', 'gesamt'];
+  return [...base, 'gesamt'];
 }
 
 const BEWERTUNGSLEITFADEN = `

@@ -10,6 +10,7 @@ const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
 const { beansprucheNachricht, autorisiereSkript, istNachrichtAbgebrochen } = require('./_shared/skript-auftrag');
+const { setThinking } = require('./_shared/thinking');
 const {
   loadEditContext, buildEditPrompt, stripToolXml, letzterZeitstempel, formatZeitstempel,
   ladeVisuellStil, loadVisualBeispiele, brauchtVisualStil, resolveModusSlug, EDIT_BRIEFING_MAX
@@ -91,6 +92,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     // nur freier Chat (Fragen/Rueckfragen) mit dem guenstigen
     const istSchreibAktion = ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton', 'feedback', 'visuell'].includes(message.aktion);
 
+    await setThinking(supabase, 'skript_chat_messages', messageId, {
+      step: 'schreiben',
+      label: istSchreibAktion ? 'Ich formuliere den Vorschlag…' : 'Ich formuliere die Antwort…'
+    });
+
     const result = await callClaude({
       model: istSchreibAktion ? MODELS.edit_write : MODELS.edit_fast,
       systemBlocks: [{ text: stable, cache: true }],
@@ -120,6 +126,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     const sektion = istMaster
       ? (parsedSektion || message.sektion)
       : (['hook', 'hauptteil', 'cta'].includes(parsedSektion) ? parsedSektion : message.sektion);
+
+    await setThinking(supabase, 'skript_chat_messages', messageId, {
+      step: 'speichern',
+      label: 'Ich speichere die Antwort…'
+    });
 
     await supabase.from('skript_chat_messages').update({
       // Vorschlag ohne konkrete Sektion kann nicht angewendet werden -> nur Antwort

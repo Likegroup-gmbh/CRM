@@ -210,6 +210,31 @@ describe('SkriptEditorView Layout', () => {
     expect(visualBtns.length).toBe(3);
   });
 
+  it('Master mit Creator-facing rendert Grid, Visual-Buttons und Zusatz-Tab', async () => {
+    mockService.loadSkript.mockResolvedValue({
+      ...skript,
+      inhalt_md: '## Kopf\nMeta\n\n## Creator-facing Skript (links gesprochen, rechts zu sehen)\n\n'
+        + '| LINKS: Was gesprochen wird | RECHTS: Was zu sehen ist |\n| --- | --- |\n'
+        + '| „Klein, aber oho.“ | Close-up Karton. |\n'
+        + '| *ASMR* | Pommes. |\n'
+        + '| „Passt.“ | Endframe. |\n',
+      hook: '„Klein, aber oho.“',
+      hauptteil: '*ASMR*',
+      cta: '„Passt.“',
+      hook_visuell: 'Close-up Karton.',
+      hauptteil_visuell: 'Pommes.',
+      cta_visuell: 'Endframe.',
+      bereich: 'paid_creator_ads'
+    });
+    await view.render(container, 's1');
+
+    expect(container.querySelector('table.skripte-editor-tabelle')).not.toBeNull();
+    expect(container.querySelector('[data-editor-tab="zusatz"]')).not.toBeNull();
+    expect(container.querySelectorAll('.skripte-editor-visual-btn').length).toBe(3);
+    expect(container.textContent).toContain('Klein, aber oho');
+    expect(container.textContent).toContain('Close-up Karton');
+  });
+
   it('Master-Skript rendert Markdown-Sektionen ohne Visual-Buttons', async () => {
     mockService.loadSkript.mockResolvedValue({
       ...skript,
@@ -217,6 +242,9 @@ describe('SkriptEditorView Layout', () => {
       hook: null,
       hauptteil: null,
       cta: null,
+      hook_visuell: null,
+      hauptteil_visuell: null,
+      cta_visuell: null,
       bereich: 'owned_social'
     });
     await view.render(container, 's1');

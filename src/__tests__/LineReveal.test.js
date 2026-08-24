@@ -65,11 +65,49 @@ describe('revealLines', () => {
     el.textContent = Array.from({ length: 10 }, (_, i) => `z${i}`).join('\n');
     document.body.append(el);
 
-    revealLines(el, { stagger: 90, maxTotal: 500 });
-    // delay = min(90, 500/10) = 50
+    revealLines(el, { stagger: 90, maxTotal: 500, minDelay: 0 });
+    // delay = min(90, max(0, 500/10)) = 50
     expect(el.children.length).toBe(1);
 
     await vi.advanceTimersByTimeAsync(49);
+    expect(el.children.length).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(el.children.length).toBe(2);
+    el.remove();
+  });
+
+  it('faellt bei vielen Zeilen nicht unter minDelay', async () => {
+    vi.useFakeTimers();
+    const el = document.createElement('div');
+    el.textContent = Array.from({ length: 10 }, (_, i) => `z${i}`).join('\n');
+    document.body.append(el);
+
+    revealLines(el, { stagger: 140, maxTotal: 400, minDelay: 80 });
+    // min(140, max(80, 40)) = 80
+    expect(el.children.length).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(79);
+    expect(el.children.length).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(el.children.length).toBe(2);
+    el.remove();
+  });
+
+  it('nutzt Defaults 140ms stagger und 260ms duration', async () => {
+    vi.useFakeTimers();
+    const el = document.createElement('div');
+    el.textContent = 'a\nb';
+    document.body.append(el);
+
+    revealLines(el);
+
+    const [, opts] = HTMLElement.prototype.animate.mock.calls[0];
+    expect(opts.duration).toBe(260);
+    expect(el.children.length).toBe(1);
+
+    await vi.advanceTimersByTimeAsync(139);
     expect(el.children.length).toBe(1);
 
     await vi.advanceTimersByTimeAsync(1);
@@ -172,13 +210,13 @@ describe('revealLines', () => {
     el.textContent = 'a\nb';
     document.body.append(el);
 
-    revealLines(el, { stagger: 90, duration: 220 });
+    revealLines(el);
 
     expect(HTMLElement.prototype.animate).toHaveBeenCalled();
     const [keyframes, opts] = HTMLElement.prototype.animate.mock.calls[0];
-    expect(keyframes[0]).toEqual({ opacity: 0, transform: 'translateY(4px)' });
+    expect(keyframes[0]).toEqual({ opacity: 0, transform: 'translateY(6px)' });
     expect(keyframes[1]).toEqual({ opacity: 1, transform: 'translateY(0)' });
-    expect(opts.duration).toBe(220);
+    expect(opts.duration).toBe(260);
     el.remove();
   });
 });

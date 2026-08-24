@@ -19,10 +19,21 @@ describe('SkriptEditorChatRenderer', () => {
     expect(html).not.toContain('<b>kuerzen</b>');
   });
 
-  it('Assistant pending zeigt Arbeits-Indikator', () => {
+  it('Assistant pending zeigt Thinking-Liste, Default wenn leer', () => {
     const html = messageHtml({ id: 'm2', rolle: 'assistant', status: 'running', aktion: 'chat' });
     expect(html).toContain('Ich arbeite gerade');
-    expect(html).toContain('skripte-editor-dots');
+    expect(html).toContain('chat-thinking');
+
+    const withSteps = messageHtml({
+      id: 'm2', rolle: 'assistant', status: 'running', aktion: 'chat',
+      progress_steps: [
+        { step: 'kontext', label: 'Ich lese Skript und Kontext…' },
+        { step: 'schreiben', label: 'Ich formuliere den Vorschlag…' }
+      ]
+    });
+    expect(withSteps).toContain('Ich lese Skript und Kontext');
+    expect(withSteps).toContain('Ich formuliere den Vorschlag');
+    expect(withSteps).toContain('is-active');
   });
 
   it('Assistant error zeigt Fehlermeldung und Retry-Button', () => {
@@ -83,7 +94,12 @@ describe('SkriptEditorChatRenderer', () => {
 
   it('genStatusBubbleHtml: laufend, Fehler, leer', () => {
     expect(genStatusBubbleHtml(null)).toBe('');
-    expect(genStatusBubbleHtml({ laeuft: true, step: 'kontext' })).toContain('ed-gen-step');
+    const running = genStatusBubbleHtml({
+      laeuft: true,
+      progress_steps: [{ step: 'kontext', label: 'Ich sammle den Kontext aus den CRM-Daten…' }]
+    });
+    expect(running).toContain('ed-gen-thinking');
+    expect(running).toContain('Ich sammle den Kontext');
     const err = genStatusBubbleHtml({ error: 'Boom' });
     expect(err).toContain('Fehler: Boom');
     expect(err).toContain('ed-gen-retry');
@@ -147,6 +163,36 @@ describe('SkriptEditorDocRenderer', () => {
     expect(html).toContain('Ende');
     expect(html).toContain('Was gesagt wird');
     expect(html).toContain('Was zu sehen ist');
+  });
+
+  it('skriptDocHtml mit Creator-facing fuellt Grid und Zusatz-Tab', () => {
+    const html = skriptDocHtml({
+      skript: {
+        titel: 'Ninja',
+        inhalt_md: '## Kopf\nMeta\n\n## Creator-facing Skript (links gesprochen, rechts zu sehen)\n\n'
+          + '| LINKS: Was gesprochen wird | RECHTS: Was zu sehen ist |\n| --- | --- |\n'
+          + '| „Klein, aber oho.“ | Sek. 0–6: Karton. |\n'
+          + '| *ASMR Schublade* | Sek. 10–20: Pommes. |\n'
+          + '| „Passt.“ | Sek. 27–30: Endframe. |\n',
+        hook: '„Klein, aber oho.“',
+        hauptteil: '*ASMR Schublade*',
+        cta: '„Passt.“',
+        hook_visuell: 'Sek. 0–6: Karton.',
+        hauptteil_visuell: 'Sek. 10–20: Pommes.',
+        cta_visuell: 'Sek. 27–30: Endframe.'
+      },
+      messages: [],
+      isReadonly: false,
+      docHeadActionsHtml: '',
+      vorgabenPanelHtml: ''
+    });
+    expect(html).toContain('Was gesagt wird');
+    expect(html).toContain('Klein, aber oho');
+    expect(html).toContain('Sek. 0–6');
+    expect(html).toContain('Zusätzliche Infos');
+    expect(html).toContain('data-editor-tab="zusatz"');
+    expect(html).toContain('Kopf');
+    expect(html).not.toContain('Creator-facing');
   });
 
   it('skriptDocHtml wechselt bei inhalt_md auf Markdown-Sektionen', () => {

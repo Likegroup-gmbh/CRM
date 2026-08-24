@@ -9,6 +9,10 @@ import { skripteService } from '../SkripteService.js';
 // Netlify-Auto-Retry) -> als Fehler mit Retry zeigen statt ewig "Ich arbeite…"
 const PENDING_TIMEOUT_MS = 45000;
 
+function stepsKey(steps) {
+  return JSON.stringify(Array.isArray(steps) && steps.length ? steps : []);
+}
+
 export class SkriptEditorRealtime {
   constructor(view) {
     this.view = view;
@@ -83,7 +87,8 @@ export class SkriptEditorRealtime {
       const unveraendert = lokal.status === row.status
         && lokal.inhalt === row.inhalt
         && lokal.vorschlag_text === row.vorschlag_text
-        && lokal.error_message === row.error_message;
+        && lokal.error_message === row.error_message
+        && stepsKey(lokal.progress_steps) === stepsKey(row.progress_steps);
       const warOffen = ['pending', 'running'].includes(lokal.status);
       const jetztFinal = ['fertig', 'vorschlag'].includes(row.status);
       animateText = warOffen && jetztFinal;

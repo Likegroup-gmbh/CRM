@@ -201,16 +201,17 @@ export function renderMdBody(body, escapeHtml) {
   return out.join('\n');
 }
 
-export function renderMasterMarkdownHtml(md, escapeHtml) {
+export function renderMasterMarkdownHtml(md, escapeHtml, { feld = 'inhalt_md' } = {}) {
   const sections = parseMasterSektionen(md);
   if (!sections.length) {
     return '<div class="skripte-editor-md"><p class="skripte-hint">Noch kein Inhalt.</p></div>';
   }
+  const feldAttr = feld ? ` data-feld="${escapeHtml(feld)}"` : '';
   return `<div class="skripte-editor-md">${sections.map((s) => `
     <section class="skripte-editor-md-sektion" data-sektion="${escapeHtml(s.slug)}">
       <h2 class="skripte-editor-md-heading">${escapeHtml(s.title)}</h2>
       <div class="skripte-editor-sektion-text skripte-editor-sektion-text--md"
-        data-sektion="${escapeHtml(s.slug)}" data-feld="inhalt_md">${renderMdBody(s.body, escapeHtml)}</div>
+        data-sektion="${escapeHtml(s.slug)}"${feldAttr}>${renderMdBody(s.body, escapeHtml)}</div>
     </section>
   `).join('')}</div>`;
 }

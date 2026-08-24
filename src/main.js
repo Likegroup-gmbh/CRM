@@ -32,6 +32,7 @@ import '../assets/styles/toast.css';
 import '../assets/styles/share.css';
 import '../assets/styles/stakeholder.css';
 import '../assets/styles/skripte.css';
+import '../assets/styles/chat-thinking.css';
 import '../assets/styles/produkt-doc.css';
 import '../assets/styles/utilities.css';
 import '../assets/styles/icons.css';

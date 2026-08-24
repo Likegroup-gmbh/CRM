@@ -4,8 +4,9 @@
 
 import { skripteService } from '../SkripteService.js';
 import { escapeHtml, badge } from '../SkripteUtils.js';
-import { AKTION_LABELS, AKTION_ICONS, GEN_STEP_LABELS } from './skriptEditorKonstanten.js';
+import { AKTION_LABELS, AKTION_ICONS } from './skriptEditorKonstanten.js';
 import { sektionAnzeige } from './skriptEditorVisuellHelfer.js';
+import { thinkingHtml } from '../../../core/chat/thinking.js';
 
 const LIKY_HEAD = `
   <div class="skripte-editor-msg-head">
@@ -41,8 +42,7 @@ export function genStatusBubbleHtml(genStatus) {
     return `
       <div class="skripte-editor-msg skripte-editor-msg--assistant">
         ${LIKY_HEAD}
-        <div class="skripte-editor-working"><span class="skripte-editor-dots"><i></i><i></i><i></i></span> Ich arbeite gerade…</div>
-        <div class="skripte-editor-msg-text" id="ed-gen-step">${escapeHtml(GEN_STEP_LABELS[genStatus.step] || 'Starte…')}</div>
+        <div id="ed-gen-thinking">${thinkingHtml(genStatus.progress_steps)}</div>
         <div class="skripte-editor-msg-actions">
           <button class="skripte-editor-pill-btn" id="ed-gen-cancel">Abbrechen</button>
         </div>
@@ -89,7 +89,7 @@ export function messageHtml(m, { istFragenModus = false, genLaeuft = false } = {
       <div class="skripte-editor-msg skripte-editor-msg--assistant" data-msg-row="${m.id}">
         ${LIKY_HEAD}
         ${tag}
-        <div class="skripte-editor-working"><span class="skripte-editor-dots"><i></i><i></i><i></i></span> Ich arbeite gerade…</div>
+        ${thinkingHtml(m.progress_steps)}
         <div class="skripte-editor-msg-actions">
           <button class="skripte-editor-pill-btn" data-msg-action="cancel" data-msg-id="${m.id}">Abbrechen</button>
         </div>

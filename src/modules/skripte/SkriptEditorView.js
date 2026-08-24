@@ -24,7 +24,6 @@ import {
 import {
   neuModusHtml, fragenModusHtml, skriptDocHtml, docHeadActionsHtml, vorgabenPanelHtml
 } from './editor/SkriptEditorDocRenderer.js';
-import { istMasterSkript } from './master/skriptMasterFormat.js';
 import {
   chatLeerNeuHtml, chatLeerHtml, genStatusBubbleHtml, messageHtml, versionsHinweisHtml
 } from './editor/SkriptEditorChatRenderer.js';
@@ -49,22 +48,57 @@ function cancelRowReveal(row) {
   row?.querySelectorAll(MSG_TEXT_SEL).forEach((node) => cancelLineReveal(node));
 }
 
+/**
+ * Text-Ziele und Footer leeren/verstecken, bevor die Row ins Live-DOM kommt.
+ * Sonst malt der Browser einen Frame den kompletten Block.
+ */
+function prepareRevealTargets(row) {
+  const textByTarget = [];
+  for (const node of row.querySelectorAll(MSG_TEXT_SEL)) {
+    const text = node.textContent ?? '';
+    node.textContent = '';
+    const wrap = node.classList.contains('skripte-editor-vorschlag-text')
+      ? node.closest('.skripte-editor-vorschlag')
+      : null;
+    if (wrap) wrap.style.display = 'none';
+    textByTarget.push({ el: node, text, wrap });
+  }
+  for (const f of row.querySelectorAll(MSG_FOOTER_SEL)) f.style.display = 'none';
+  return textByTarget;
+}
+
+function bindRevealScroll(logEl) {
+  const follow = { current: logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 120 };
+  let pinning = false;
+  const onScroll = () => {
+    if (pinning) return;
+    follow.current = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 120;
+  };
+  logEl.addEventListener('scroll', onScroll, { passive: true });
+  const pin = () => {
+    if (!follow.current) return;
+    pinning = true;
+    logEl.scrollTop = logEl.scrollHeight;
+    pinning = false;
+  };
+  const stop = () => logEl.removeEventListener('scroll', onScroll);
+  return { pin, stop };
+}
+
 /** Erst Kommentar, dann Vorschlag; Footer (Buttons) erst nach dem Reveal. */
-async function revealMessageRow(row, { pin } = {}) {
+async function revealMessageRow(row, { pin, textByTarget } = {}) {
   const footers = [...row.querySelectorAll(MSG_FOOTER_SEL)];
   for (const f of footers) f.style.display = 'none';
 
-  // Text sofort leeren (gleicher Tick wie das Insert), sonst malt der Browser
-  // einen Frame den kompletten Block, bevor der Reveal startet.
-  const targets = [...row.querySelectorAll(MSG_TEXT_SEL)].map((el) => {
-    const text = el.textContent ?? '';
-    el.textContent = '';
-    const wrap = el.classList.contains('skripte-editor-vorschlag-text')
-      ? el.closest('.skripte-editor-vorschlag')
-      : null;
-    if (wrap) wrap.style.display = 'none';
-    return { el, text, wrap };
-  });
+  const targets = textByTarget?.length
+    ? textByTarget
+    : [...row.querySelectorAll(MSG_TEXT_SEL)].map((el) => ({
+      el,
+      text: el.textContent ?? '',
+      wrap: el.classList.contains('skripte-editor-vorschlag-text')
+        ? el.closest('.skripte-editor-vorschlag')
+        : null
+    }));
 
   for (const { el, text, wrap } of targets) {
     if (!row.isConnected) return;
@@ -96,6 +130,7 @@ export class SkriptEditorView {
     this.messages = [];
     this.versionen = [];
     this.aktiveVersion = { version_nr: 1, sub_nr: 0 };
+    this.docTab = 'skript';
     this.selektion = null; // { sektion, text, istVisuell }
     this.pendingAktion = null; // 'neu_schreiben' | 'kuerzen' | 'laenger' | 'anderer_ton' | null
     this.channel = null;
@@ -304,6 +339,7 @@ export class SkriptEditorView {
       this.pollInterval = null;
     }
     this.clearPending();
+    this.docTab = 'skript';
     this.closeVersionMenu();
     const selmenu = document.getElementById('ed-selmenu');
     if (selmenu) selmenu.hidden = true;
@@ -562,15 +598,20 @@ export class SkriptEditorView {
       messages: this.messages,
       isReadonly: this.isReadonly,
       docHeadActionsHtml: docHeadActionsHtml({ isReadonly: this.isReadonly, feedback: true }),
-      vorgabenPanelHtml: vorgabenPanelHtml(this.skript)
+      vorgabenPanelHtml: vorgabenPanelHtml(this.skript),
+      docTab: this.docTab || 'skript'
     });
     el.querySelector('#ed-feedback')?.addEventListener('click', () => this.openVollFeedback());
-    if (!istMasterSkript(this.skript)) {
-      el.querySelectorAll('.skripte-editor-visual-btn').forEach((btn) => {
-        btn.addEventListener('click', () => this.openVisuellModusMenu(btn));
+    el.querySelectorAll('[data-editor-tab]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this.docTab = btn.dataset.editorTab;
+        this.renderDoc();
       });
-      this.inlineEdit.attach(el, { readonly: this.isReadonly });
-    }
+    });
+    el.querySelectorAll('.skripte-editor-visual-btn').forEach((btn) => {
+      btn.addEventListener('click', () => this.openVisuellModusMenu(btn));
+    });
+    this.inlineEdit.attach(el, { readonly: this.isReadonly });
     this.renderVersionSelect();
   }
 
@@ -635,29 +676,35 @@ export class SkriptEditorView {
       return;
     }
     const html = this.renderMessage(m);
+    const tpl = document.createElement('template');
+    tpl.innerHTML = html.trim();
+    const newRow = tpl.content.firstElementChild;
+    if (!newRow) return;
+
+    // Follow-State VOR dem Insert: nach einem Riesenblock waere
+    // scrollHeight-scrollTop nicht mehr < 120, obwohl der User unten war.
+    const { pin, stop } = bindRevealScroll(el);
+    const textByTarget = animateText ? prepareRevealTargets(newRow) : [];
+
     const existing = el.querySelector(`[data-msg-row="${m.id}"]`);
     if (existing) {
       cancelRowReveal(existing);
-      const tpl = document.createElement('template');
-      tpl.innerHTML = html.trim();
-      existing.replaceWith(tpl.content.firstElementChild);
+      existing.replaceWith(newRow);
     } else {
       // Vor der Gen-Status-Bubble einfuegen, damit sie immer unten bleibt
-      const bubble = el.querySelector('#ed-gen-step')?.closest('.skripte-editor-msg');
-      if (bubble) bubble.insertAdjacentHTML('beforebegin', html);
-      else el.insertAdjacentHTML('beforeend', html);
+      const bubble = el.querySelector('#ed-gen-thinking')?.closest('.skripte-editor-msg');
+      if (bubble) bubble.before(newRow);
+      else el.append(newRow);
     }
     el.querySelectorAll(`[data-msg-id="${m.id}"]`).forEach((btn) => {
       btn.addEventListener('click', () => this.handleMessageAction(btn.dataset.msgAction, btn.dataset.msgId));
     });
-    const warUnten = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-    if (warUnten) el.scrollTop = el.scrollHeight;
+    pin();
 
-    const row = el.querySelector(`[data-msg-row="${m.id}"]`);
-    if (animateText && row) {
-      revealMessageRow(row, {
-        pin: () => { if (warUnten) el.scrollTop = el.scrollHeight; }
-      });
+    if (animateText) {
+      revealMessageRow(newRow, { pin, textByTarget }).finally(stop);
+    } else {
+      stop();
     }
   }
 

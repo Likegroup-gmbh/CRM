@@ -6,6 +6,9 @@
 import { skripteService, FUNNEL_STUFEN, VIDEO_LAENGEN, SKRIPT_BEREICHE } from '../SkripteService.js';
 import { escapeHtml } from '../SkripteUtils.js';
 import { istMasterSkript, renderMasterMarkdownHtml } from '../master/skriptMasterFormat.js';
+import {
+  hatGridInhalt, hatZusatzInfos, gridFelderFuerSkript, zusatzInfosMarkdown
+} from '../master/skriptCreatorFacing.js';
 import { icon } from '../../../core/icons/IconSystem.js';
 import {
   AKTION_ICONS, SEKTION_LABELS_KURZ, VISUELL_FIELD
@@ -63,17 +66,8 @@ export function masterDocHtml({ skript, docHeadActionsHtml, vorgabenPanelHtml })
   `;
 }
 
-/** Skript-Dokument: Kopf + Vorgaben + 2-Spalten-Tabelle (gesagt/visual). */
-export function skriptDocHtml({ skript, messages, isReadonly, docHeadActionsHtml, vorgabenPanelHtml }) {
-  if (istMasterSkript(skript)) {
-    return masterDocHtml({ skript, docHeadActionsHtml, vorgabenPanelHtml });
-  }
+function gridTabelleHtml({ skript, grid, messages, isReadonly }) {
   return `
-    <div class="skripte-editor-doc-head">
-      <h2>${escapeHtml(skript.titel || 'Skript')}</h2>
-      ${docHeadActionsHtml}
-    </div>
-    ${vorgabenPanelHtml}
     <div class="skripte-editor-doc-box">
       <table class="skripte-editor-tabelle">
         <colgroup>
@@ -91,10 +85,13 @@ export function skriptDocHtml({ skript, messages, isReadonly, docHeadActionsHtml
         <tbody>
         ${['hook', 'hauptteil', 'cta'].map((sektion) => {
           const visuellFeld = VISUELL_FIELD[sektion];
-          const visuellText = skript[visuellFeld] || '';
-          const gesprochen = skript[sektion] || '';
-          // Guard-Komposition aus dem Helfer - dieselbe Logik wie in der Aktion
-          const visuellGrund = visuellGuardGrund(skript, sektion, { readonly: isReadonly, messages });
+          const visuellText = grid[visuellFeld] || '';
+          const gesprochen = grid[sektion] || '';
+          const visuellGrund = visuellGuardGrund(
+            { ...skript, ...grid },
+            sektion,
+            { readonly: isReadonly, messages }
+          );
           const visuellTitle = visuellGrund === 'vorgaenger'
             ? visuellVorgaengerTitle(sektion)
             : 'Was zu sehen ist per KI generieren';
@@ -120,6 +117,56 @@ export function skriptDocHtml({ skript, messages, isReadonly, docHeadActionsHtml
         </tbody>
       </table>
     </div>
+  `;
+}
+
+function docTabsHtml(activeTab) {
+  return `
+    <div class="skripte-editor-doc-tabs" role="tablist">
+      <button type="button" class="tab-button${activeTab === 'skript' ? ' active' : ''}"
+        role="tab" data-editor-tab="skript" aria-selected="${activeTab === 'skript'}">Skript</button>
+      <button type="button" class="tab-button${activeTab === 'zusatz' ? ' active' : ''}"
+        role="tab" data-editor-tab="zusatz" aria-selected="${activeTab === 'zusatz'}">Zusätzliche Infos</button>
+    </div>
+  `;
+}
+
+/** Skript-Dokument: Kopf + Vorgaben + 2-Spalten-Tabelle (gesagt/visual). */
+export function skriptDocHtml({
+  skript, messages, isReadonly, docHeadActionsHtml, vorgabenPanelHtml, docTab = 'skript'
+}) {
+  const extraMd = skript.inhalt_md ? zusatzInfosMarkdown(skript.inhalt_md) : '';
+  const showExtra = hatZusatzInfos(skript.inhalt_md);
+  const showGrid = hatGridInhalt(skript);
+
+  if (istMasterSkript(skript) && !showGrid) {
+    return masterDocHtml({ skript, docHeadActionsHtml, vorgabenPanelHtml });
+  }
+
+  const grid = showGrid ? gridFelderFuerSkript(skript) : {
+    hook: skript.hook, hauptteil: skript.hauptteil, cta: skript.cta,
+    hook_visuell: skript.hook_visuell, hauptteil_visuell: skript.hauptteil_visuell,
+    cta_visuell: skript.cta_visuell
+  };
+  const activeTab = showExtra && docTab === 'zusatz' ? 'zusatz' : 'skript';
+
+  return `
+    <div class="skripte-editor-doc-head">
+      <h2>${escapeHtml(skript.titel || 'Skript')}</h2>
+      ${docHeadActionsHtml}
+    </div>
+    ${vorgabenPanelHtml}
+    ${showExtra ? docTabsHtml(activeTab) : ''}
+    <div class="skripte-editor-doc-panel" data-editor-tab-panel="skript"${activeTab === 'zusatz' ? ' hidden' : ''}>
+      ${gridTabelleHtml({ skript, grid, messages, isReadonly })}
+    </div>
+    ${showExtra ? `
+    <div class="skripte-editor-doc-panel skripte-editor-doc-panel--zusatz" data-editor-tab-panel="zusatz"${activeTab === 'skript' ? ' hidden' : ''}>
+      <div class="skripte-editor-doc-box skripte-editor-doc-box--md">
+        ${renderMasterMarkdownHtml(extraMd, escapeHtml, { feld: null })}
+      </div>
+    </div>
+    ` : ''}
   `;
 }
 

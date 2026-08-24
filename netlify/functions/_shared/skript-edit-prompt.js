@@ -10,6 +10,7 @@ const {
   cap, KONTEXT_MAX, CAMPAIGN_BRIEFING_FIELD_NAMES
 } = require('./skript-context');
 const { loadMasterDocs, fmtMasterBlock } = require('./skript-master');
+const { zusatzInfosMarkdown } = require('./skript-creator-facing');
 
 // Transkript-Budget im Edit-Prompt: kompakter als bei der Erstgenerierung,
 // weil das fertige Skript + Verlauf schon viel Kontext belegen
@@ -354,7 +355,11 @@ function buildEditPrompt(ctx, message) {
   const { skript, history, dna, briefing, kickoff, feedback, modus } = ctx;
   const beispiele = ctx.beispiele || [];
   const master = ctx.master || [];
-  const istMaster = Boolean(skript.inhalt_md);
+  const hatGrid = Boolean(skript.hook || skript.hauptteil || skript.cta
+    || skript.hook_visuell || skript.hauptteil_visuell || skript.cta_visuell);
+  const istMasterSektion = Boolean(skript.inhalt_md)
+    && !['hook', 'hauptteil', 'cta'].includes(message.sektion);
+  const istMaster = Boolean(skript.inhalt_md) && !hatGrid;
 
   const visualSpalte = !istMaster && brauchtVisualStil(message);
 
@@ -386,7 +391,18 @@ function buildEditPrompt(ctx, message) {
   // Block 2 (variabel): Skript + Verlauf + Auftrag
   let task = '# AKTUELLES SKRIPT\n';
   if (skript.titel) task += `Titel: ${skript.titel}\n`;
-  if (istMaster) {
+  if (hatGrid) {
+    task += `HOOK:\n${skript.hook || '-'}\n`;
+    task += `HOOK (was zu sehen ist):\n${skript.hook_visuell || '-'}\n\n`;
+    task += `HAUPTTEIL:\n${skript.hauptteil || '-'}\n`;
+    task += `HAUPTTEIL (was zu sehen ist):\n${skript.hauptteil_visuell || '-'}\n\n`;
+    task += `CTA:\n${skript.cta || '-'}\n`;
+    task += `CTA (was zu sehen ist):\n${skript.cta_visuell || '-'}\n`;
+    if (skript.inhalt_md) {
+      const extra = zusatzInfosMarkdown(skript.inhalt_md);
+      if (extra.trim()) task += `\n# ZUSAETZLICHE INFOS\n${extra}\n`;
+    }
+  } else if (skript.inhalt_md) {
     task += `${skript.inhalt_md}\n`;
   } else {
     task += `HOOK:\n${skript.hook || '-'}\n`;
@@ -499,7 +515,7 @@ function buildEditPrompt(ctx, message) {
     task += '</chat_verlauf>\n';
   }
 
-  if (istMaster) {
+  if (istMasterSektion) {
     task += '\n# FORMAT\nDas Dokument ist Markdown mit ##-Sektionen. '
       + 'vorschlag_text ersetzt die markierte Stelle oder die komplette Sektion (ohne die ##-Ueberschrift).\n';
   } else if (visualSpalte) {
@@ -561,7 +577,7 @@ function buildEditPrompt(ctx, message) {
     + '- Nichts erfinden: Behaupte NICHTS ueber Angebote, Features, Aktionen oder Konditionen, das nicht im CAMPAIGN-BRIEFING bzw. Briefing-Extrakt, den LEITPLANKEN oder dem bestehenden Skript steht. Vorschlaege duerfen den Briefing-Fakten nicht widersprechen.\n'
     + '- Wenn eine markierte Stelle vorliegt, ist vorschlag_text NUR der Ersatztext fuer genau diese Stelle (nicht die ganze Sektion).\n'
     + '- Ohne markierte Stelle, aber mit klarem Aenderungswunsch: vorschlag_text = komplette neue Version der betroffenen Sektion, sektion entsprechend setzen.\n'
-    + (istMaster
+    + (istMasterSektion
       ? '- sektion ist der Slug der ##-Ueberschrift (klein, Bindestriche, ohne Umlaute), nicht hook/hauptteil/cta.\n'
       : '')
     + '- Bei reinen Fragen/Rueckfragen: vorschlag_text = null, sektion = null.\n'

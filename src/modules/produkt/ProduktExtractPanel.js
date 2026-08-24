@@ -1,4 +1,4 @@
-import { icon } from '../../core/icons/IconSystem.js';
+import { renderThinking, pushStep } from '../../core/chat/thinking.js';
 // ProduktExtractPanel.js
 // Der Verlauf unter der URL-Eingabe in der rechten Spalte. Aufgebaut wie der
 // Chat im Skript-Editor: Liky begruesst, die eingegebene Adresse erscheint als
@@ -7,22 +7,10 @@ import { icon } from '../../core/icons/IconSystem.js';
 // Die Daten kommen aus den Events, die SiteExtractHandler beim Pollen der
 // extract_jobs-Zeile feuert: siteExtractStarted, siteExtractProgress,
 // siteExtractFinished. Das Panel rendert nur - es startet nichts selbst.
-
-const STEP_TEXTS = {
-  start: 'Ich schaue mir die Seite an',
-  cache: 'Die Seite kenne ich schon',
-  laden: 'Seite wird geladen',
-  unterseite: 'Ich gehe die Unterseiten durch',
-  auswerten: 'USPs und Pain Points werden durchsucht',
-  bilder: 'Produktbilder zusammengesucht'
-};
+// Labels kommen im Event ({ step, label } oder steps[]) - kein eigener Katalog.
 
 const GRUSS = 'Schick mir die Produktseite, dann fülle ich Beschreibung, USPs, '
   + 'Preis und Bilder aus. Was du selbst geschrieben hast, bleibt stehen.';
-
-const ICONS = {
-  done: icon('check-bold')
-};
 
 export class ProduktExtractPanel {
   constructor() {
@@ -30,10 +18,8 @@ export class ProduktExtractPanel {
     this._abort = null;
     // Der laufende Liky-Beitrag, an den Schritte und Abschluss angehaengt werden
     this.turn = null;
-    this.steps = null;
-    // step -> <li>, damit ein doppelt gemeldeter Schritt keine zweite Zeile gibt
-    this.items = new Map();
-    this.active = null;
+    this.slot = null;
+    this.received = [];
   }
 
   /** @param {HTMLFormElement} form - traegt das vom Renderer gebaute Panel */
@@ -56,7 +42,11 @@ export class ProduktExtractPanel {
 
     document.addEventListener('siteExtractProgress', (e) => {
       if (e.detail?.entity !== 'produkt') return;
-      this.addStep(e.detail.step);
+      if (Array.isArray(e.detail.steps) && e.detail.steps.length) {
+        this.setSteps(e.detail.steps);
+        return;
+      }
+      this.addStep(e.detail.step, e.detail.label);
     }, opts);
 
     document.addEventListener('siteExtractFinished', (e) => {
@@ -66,10 +56,9 @@ export class ProduktExtractPanel {
   }
 
   reset() {
-    this.items.clear();
-    this.active = null;
+    this.received = [];
     this.turn = null;
-    this.steps = null;
+    this.slot = null;
     if (this.root) this.root.innerHTML = '';
   }
 
@@ -99,8 +88,7 @@ export class ProduktExtractPanel {
   addLikyTurn(message = '') {
     if (!this.root) return;
 
-    this.settleActive();
-    this.items.clear();
+    this.received = [];
 
     const msg = document.createElement('div');
     msg.className = 'produkt-chat__msg produkt-chat__msg--liky';
@@ -113,47 +101,32 @@ export class ProduktExtractPanel {
 
     if (message) msg.appendChild(this.textNode(message));
 
-    const steps = document.createElement('ul');
-    steps.className = 'produkt-chat__steps';
-    msg.appendChild(steps);
+    const slot = document.createElement('div');
+    slot.className = 'produkt-chat__thinking';
+    msg.appendChild(slot);
 
     this.root.appendChild(msg);
     this.turn = msg;
-    this.steps = steps;
+    this.slot = slot;
     this.scrollToEnd();
   }
 
-  addStep(step) {
-    if (!this.steps || !step || this.items.has(step)) return;
-
-    this.settleActive();
-
-    const li = document.createElement('li');
-    li.className = 'produkt-chat__step is-active';
-    li.innerHTML = `
-      <span class="produkt-chat__mark" aria-hidden="true"><i></i><i></i><i></i></span>
-      <span class="produkt-chat__step-text"></span>
-    `;
-    li.querySelector('.produkt-chat__step-text').textContent = STEP_TEXTS[step] || 'Ich arbeite';
-
-    this.steps.appendChild(li);
-    this.items.set(step, li);
-    this.active = li;
-    this.scrollToEnd();
+  addStep(step, label) {
+    if (!this.slot || !step) return;
+    if (this.received.some((s) => s.step === step)) return;
+    this.setSteps(pushStep(this.received, { step, label: label || 'Ich arbeite' }));
   }
 
-  /** Den laufenden Schritt als erledigt markieren. */
-  settleActive() {
-    if (!this.active) return;
-    this.active.classList.remove('is-active');
-    const mark = this.active.querySelector('.produkt-chat__mark');
-    if (mark) mark.innerHTML = ICONS.done;
-    this.active = null;
+  setSteps(steps) {
+    if (!this.slot) return;
+    this.received = Array.isArray(steps) ? steps : [];
+    renderThinking(this.slot, this.received);
+    this.scrollToEnd();
   }
 
   finish(detail = {}) {
     if (!this.turn) return;
-    this.settleActive();
+    if (this.received.length) renderThinking(this.slot, this.received, { done: true });
 
     if (detail.ok) {
       this.turn.appendChild(this.textNode(this.erfolgText(detail)));

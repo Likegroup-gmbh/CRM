@@ -14,6 +14,16 @@ const { hasSpec } = require('./_shared/extract-specs');
 const { runExtraction } = require('./site-extract-utils/extract-core');
 const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 const { starteKiRequest } = require('./_shared/ki-log');
+const { appendStep } = require('./_shared/thinking');
+
+const THINKING_LABELS = {
+  start: 'Ich schaue mir die Seite an',
+  cache: 'Die Seite kenne ich schon',
+  laden: 'Seite wird geladen',
+  unterseite: 'Ich gehe die Unterseiten durch',
+  auswerten: 'USPs und Pain Points werden durchsucht',
+  bilder: 'Produktbilder zusammengesucht'
+};
 
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405 };
@@ -67,10 +77,20 @@ exports.handler = async (event) => {
   // Fortschritts-Schreiber: sequenziell, damit sich Updates nicht ueberholen;
   // ein fehlgeschlagener Zwischenstand darf die Extraktion nicht kippen
   let queue = Promise.resolve();
+  let progressSteps = [];
   const schreibeStep = (step, msg) => {
     if (msg) console.log(`[${jobId}] ${msg}`);
+    progressSteps = appendStep(progressSteps, {
+      step,
+      label: THINKING_LABELS[step] || msg || 'Ich arbeite'
+    });
+    const steps = progressSteps;
     queue = queue
-      .then(() => supabase.from('extract_jobs').update({ status: 'running', progress_step: step }).eq('id', jobId))
+      .then(() => supabase.from('extract_jobs').update({
+        status: 'running',
+        progress_step: step,
+        progress_steps: steps
+      }).eq('id', jobId))
       .catch((e) => console.error(`[${jobId}] Job-Update fehlgeschlagen:`, e.message));
   };
 

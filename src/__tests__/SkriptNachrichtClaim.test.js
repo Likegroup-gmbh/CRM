@@ -13,6 +13,7 @@ function makeSupabase(terminal) {
   const chain = {};
   chain.update = vi.fn(() => chain);
   chain.eq = vi.fn(() => chain);
+  chain.in = vi.fn(() => chain);
   chain.select = vi.fn(() => chain);
   chain.maybeSingle = vi.fn(async () => terminal);
   return { from: vi.fn(() => chain), chain };

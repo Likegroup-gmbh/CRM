@@ -39,7 +39,9 @@ describe('buildPrompt Master + inhalt_md', () => {
     expect(stable.indexOf('MASTER-REGELWERK')).toBeLessThan(stable.indexOf('SKRIPT-DNA'));
     expect(stable).toContain('DNA-Regel');
     expect(task).toContain('inhalt_md');
-    expect(task).not.toContain('hook, hauptteil, cta');
+    expect(task).toContain('hook, hauptteil, cta');
+    expect(task).toContain('NICHT in inhalt_md');
+    expect(task).toContain('varianten');
     expect(task).toContain('Owned Social');
   });
 

@@ -168,7 +168,8 @@ describe('SkriptEditorRealtime animateText', () => {
   it('unveraenderte Poll-Row: kein upsert', () => {
     const row = {
       id: 'm1', skript_id: 's1', rolle: 'assistant', status: 'pending',
-      inhalt: null, vorschlag_text: null, error_message: null
+      inhalt: null, vorschlag_text: null, error_message: null,
+      progress_steps: [{ step: 'pending', label: 'Auftrag ist unterwegs…' }]
     };
     const view = makeView([{ ...row }]);
     const rt = new SkriptEditorRealtime(view);
@@ -176,5 +177,32 @@ describe('SkriptEditorRealtime animateText', () => {
     rt.applyMessageUpdate({ ...row }, 'UPDATE');
 
     expect(view.upsertMessageRow).not.toHaveBeenCalled();
+  });
+
+  it('nur progress_steps geaendert: upsert ohne animateText', () => {
+    const view = makeView([{
+      id: 'm1', skript_id: 's1', rolle: 'assistant', status: 'running',
+      inhalt: null, vorschlag_text: null, error_message: null,
+      progress_steps: [{ step: 'pending', label: 'Auftrag ist unterwegs…' }]
+    }]);
+    const rt = new SkriptEditorRealtime(view);
+
+    rt.applyMessageUpdate({
+      id: 'm1', skript_id: 's1', rolle: 'assistant', status: 'running',
+      inhalt: null, vorschlag_text: null, error_message: null,
+      progress_steps: [
+        { step: 'pending', label: 'Auftrag ist unterwegs…' },
+        { step: 'kontext', label: 'Ich lese Skript und Kontext…' }
+      ]
+    }, 'UPDATE');
+
+    expect(view.upsertMessageRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        progress_steps: expect.arrayContaining([
+          expect.objectContaining({ step: 'kontext' })
+        ])
+      }),
+      { animateText: false }
+    );
   });
 });

@@ -21,7 +21,7 @@ const ENDPOINT = '/.netlify/functions/site-extract-background';
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 3 * 60 * 1000;
 
-// progress_step aus der Job-Zeile -> Beschriftung am Button
+// progress_step aus der Job-Zeile -> Kurztext am Button
 const STEP_LABELS = {
   start: 'Startet…',
   cache: 'Liest…',
@@ -29,6 +29,17 @@ const STEP_LABELS = {
   unterseite: 'Unterseiten…',
   auswerten: 'KI wertet aus…',
   bilder: 'Bilder…'
+};
+
+// Chat-Labels fuer den Thinking-Slot (nicht der Button). Fallback, falls
+// die Job-Zeile noch keine progress_steps hat.
+const STEP_CHAT_LABELS = {
+  start: 'Ich schaue mir die Seite an',
+  cache: 'Die Seite kenne ich schon',
+  laden: 'Seite wird geladen',
+  unterseite: 'Ich gehe die Unterseiten durch',
+  auswerten: 'USPs und Pain Points werden durchsucht',
+  bilder: 'Produktbilder zusammengesucht'
 };
 
 /**
@@ -134,7 +145,11 @@ export class SiteExtractHandler {
     this.running = true;
     state.busy();
     emit('siteExtractStarted', { entity: this.entity, form: this.form, url });
-    emit('siteExtractProgress', { entity: this.entity, step: 'start' });
+    emit('siteExtractProgress', {
+      entity: this.entity,
+      step: 'start',
+      label: STEP_CHAT_LABELS.start
+    });
 
     try {
       // Ergebnis eines vorherigen Laufs zurueckziehen, damit neue Werte
@@ -214,7 +229,7 @@ export class SiteExtractHandler {
       await warte(POLL_INTERVAL_MS);
 
       const { data: row, error: pollError } = await db.from('extract_jobs')
-        .select('status, progress_step, result, error_message')
+        .select('status, progress_step, progress_steps, result, error_message')
         .eq('id', job.id).maybeSingle();
       // Voruebergehende Poll-Fehler (Netz, Zeile noch nicht sichtbar)
       // aussitzen - der naechste Umlauf kommt in 2s
@@ -236,7 +251,14 @@ export class SiteExtractHandler {
       if (row.progress_step && row.progress_step !== letzterStep) {
         letzterStep = row.progress_step;
         state?.step(STEP_LABELS[row.progress_step] || 'Liest…');
-        emit('siteExtractProgress', { entity: this.entity, step: row.progress_step });
+        const steps = Array.isArray(row.progress_steps) ? row.progress_steps : [];
+        const last = steps[steps.length - 1];
+        emit('siteExtractProgress', {
+          entity: this.entity,
+          step: last?.step || row.progress_step,
+          label: last?.label || STEP_CHAT_LABELS[row.progress_step] || 'Ich arbeite',
+          steps
+        });
       }
     }
 

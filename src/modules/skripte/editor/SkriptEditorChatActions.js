@@ -6,6 +6,7 @@
 import { skripteService } from '../SkripteService.js';
 import { skriptAuftrag } from '../SkriptAuftrag.js';
 import { AKTION_LABELS, VISUELL_FIELD } from './skriptEditorKonstanten.js';
+import { pendingThinking } from '../../../core/chat/thinking.js';
 import { sektionAnzeige, sektionAnzeigeKurz, skriptStand, manuellBeschreibung } from './skriptEditorVisuellHelfer.js';
 import { istMasterSkript, replaceMasterSektion, masterSektionBody } from '../master/skriptMasterFormat.js';
 
@@ -101,7 +102,8 @@ export class SkriptEditorChatActions {
         inhalt,
         ist_visuell: !!ist_visuell,
         modus: modus || null,
-        status: 'pending'
+        status: 'pending',
+        progress_steps: pendingThinking()
       });
       v.messages.push(assistantMsg);
       v.renderChat({ forceScroll: true });
@@ -159,7 +161,8 @@ export class SkriptEditorChatActions {
         inhalt: userInhalt,
         ist_visuell: !!msg.ist_visuell,
         modus: msg.modus || null,
-        status: 'pending'
+        status: 'pending',
+        progress_steps: pendingThinking()
       });
       v.messages.push(assistantMsg);
       v.renderChat({ forceScroll: true });
@@ -225,9 +228,11 @@ export class SkriptEditorChatActions {
     if (v.acceptLaeuft) return;
 
     const sektion = msg.sektion;
-    if (istMasterSkript(v.skript)) {
-      await this.acceptMasterVorschlag(msg);
-      return;
+    if (!['hook', 'hauptteil', 'cta'].includes(sektion)) {
+      if (istMasterSkript(v.skript)) {
+        await this.acceptMasterVorschlag(msg);
+        return;
+      }
     }
     if (!['hook', 'hauptteil', 'cta'].includes(sektion) || !msg.vorschlag_text) {
       window.toastSystem?.error('Vorschlag kann nicht zugeordnet werden');

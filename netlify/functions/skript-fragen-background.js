@@ -15,6 +15,7 @@ const { fmtMasterBlock, MASTER_BEREICH_LABELS } = require('./_shared/skript-mast
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
 const { beansprucheNachricht, autorisiereSkript, istNachrichtAbgebrochen } = require('./_shared/skript-auftrag');
+const { setThinking } = require('./_shared/thinking');
 
 // Erzwungener Tool-Call: strukturell garantiertes JSON statt Text-Parsing
 const FRAGEN_TOOL = {
@@ -184,6 +185,11 @@ async function verarbeiteRueckfrage({ supabase, user, payload }) {
     if (await istNachrichtAbgebrochen(supabase, messageId)) {
       return { statusCode: 200 };
     }
+
+    await setThinking(supabase, 'skript_chat_messages', messageId, {
+      step: 'fragen',
+      label: 'Ich formuliere die Rückfragen…'
+    });
 
     const result = await callClaude({
       model: MODELS.edit_fast,

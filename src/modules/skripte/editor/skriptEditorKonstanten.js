@@ -1,6 +1,6 @@
 // skriptEditorKonstanten.js
-// Konstanten fuer den Skript-Editor: Aktions-Labels/Icons, Sektions-Labels,
-// Placeholder-Texte und Generierungs-Schritte.
+// Konstanten fuer den Skript-Editor: Aktions-Labels/Icons, Sektions-Labels
+// und Placeholder-Texte. Thinking-Labels kommen vom Job, nicht von hier.
 
 import { icon } from '../../../core/icons/IconSystem.js';
 
@@ -40,11 +40,3 @@ export const PLACEHOLDER_DEFAULT = 'Feedback geben oder Frage stellen…';
 export const PLACEHOLDER_AKTION = 'Anweisung ergänzen (optional) – Enter startet';
 export const PLACEHOLDER_NEU = 'Erst Skript generieren – danach kannst du hier verfeinern';
 export const PLACEHOLDER_FRAGEN = 'Antwort auf die Rückfrage schreiben…';
-
-export const GEN_STEP_LABELS = {
-  pending: 'Warte auf Start…',
-  kontext: 'Ich sammle den Kontext aus den CRM-Daten…',
-  generierung: 'Ich schreibe das Skript…',
-  speichern: 'Fast fertig – ich speichere…',
-  done: 'Fertig!'
-};

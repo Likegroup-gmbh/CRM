@@ -1,0 +1,83 @@
+/* Thinking-Slot: erledigte Pills + aktive Punkte-Zeile.
+   Wird von jedem Chat-Working-Slot genutzt (Skript, URL, spaeter weitere). */
+
+.chat-thinking {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Erledigter Schritt: helle Pill */
+.chat-thinking__step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  padding: var(--space-xxs) var(--space-sm);
+  border-radius: var(--radius-xxl);
+  background: var(--gray-100);
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+  animation: chatThinkingIn 0.2s ease;
+}
+
+/* Laufender Schritt: rahmenlose Zeile */
+.chat-thinking__step.is-active {
+  padding-left: 0;
+  padding-right: 0;
+  background: none;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.chat-thinking__mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--gap-2);
+  flex: none;
+  color: var(--gray-500);
+}
+
+.chat-thinking__mark svg {
+  width: var(--text-sm);
+  height: var(--text-sm);
+}
+
+.chat-thinking__step.is-active .chat-thinking__mark {
+  color: var(--text-secondary);
+}
+
+.chat-thinking__mark i {
+  width: var(--space-xxs);
+  height: var(--space-xxs);
+  border-radius: var(--radius-xxl);
+  background: currentColor;
+  animation: chatThinkingBlink 1.2s infinite;
+}
+
+.chat-thinking__mark i:nth-child(2) { animation-delay: 0.2s; }
+.chat-thinking__mark i:nth-child(3) { animation-delay: 0.4s; }
+
+.chat-thinking__text {
+  min-width: 0;
+}
+
+@keyframes chatThinkingBlink {
+  0%, 80%, 100% { opacity: 0.25; }
+  40% { opacity: 1; }
+}
+
+@keyframes chatThinkingIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-thinking__step,
+  .chat-thinking__mark i {
+    animation: none;
+  }
+}

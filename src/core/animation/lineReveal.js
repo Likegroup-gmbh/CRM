@@ -5,9 +5,10 @@
 
 const runningReveals = new WeakMap();
 
-const DEFAULT_STAGGER = 90;
-const DEFAULT_DURATION = 220;
-const DEFAULT_MAX_TOTAL = 2500;
+const DEFAULT_STAGGER = 140;
+const DEFAULT_DURATION = 260;
+const DEFAULT_MAX_TOTAL = 4000;
+const DEFAULT_MIN_DELAY = 80;
 const DEFAULT_EASING = 'cubic-bezier(0.4, 0, 0.2, 1)';
 
 function prefersReducedMotion() {
@@ -67,9 +68,10 @@ export function cancelLineReveal(el) {
  *
  * @param {HTMLElement} el
  * @param {object} [options]
- * @param {number} [options.stagger=90] Pause zwischen Zeilen in ms
- * @param {number} [options.duration=220] Fade-Dauer einer Zeile in ms
- * @param {number} [options.maxTotal=2500] Deckel fuer die Gesamtdauer (stagger wird gekuerzt)
+ * @param {number} [options.stagger=140] Pause zwischen Zeilen in ms
+ * @param {number} [options.duration=260] Fade-Dauer einer Zeile in ms
+ * @param {number} [options.maxTotal=4000] Deckel fuer die Gesamtdauer (stagger wird gekuerzt)
+ * @param {number} [options.minDelay=80] Untergrenze pro Zeile, auch bei vielen Zeilen
  * @param {string} [options.text] Expliziter Text (sonst el.textContent)
  * @param {(index: number, line: string) => void} [options.onLine] nach jeder angehaengten Zeile
  * @param {() => void} [options.onDone] nach der letzten Zeile (nicht bei Abbruch)
@@ -81,6 +83,7 @@ export function revealLines(el, options = {}) {
   const staggerIn = options.stagger ?? DEFAULT_STAGGER;
   const duration = options.duration ?? DEFAULT_DURATION;
   const maxTotal = options.maxTotal ?? DEFAULT_MAX_TOTAL;
+  const minDelay = options.minDelay ?? DEFAULT_MIN_DELAY;
   const onLine = options.onLine;
   const onDone = options.onDone;
 
@@ -100,7 +103,7 @@ export function revealLines(el, options = {}) {
     return Promise.resolve();
   }
 
-  const stagger = Math.min(staggerIn, maxTotal / lines.length);
+  const stagger = Math.min(staggerIn, Math.max(minDelay, maxTotal / lines.length));
   el.replaceChildren();
 
   return new Promise((resolve) => {
@@ -129,7 +132,7 @@ export function revealLines(el, options = {}) {
       if (typeof span.animate === 'function') {
         span.animate(
           [
-            { opacity: 0, transform: 'translateY(4px)' },
+            { opacity: 0, transform: 'translateY(6px)' },
             { opacity: 1, transform: 'translateY(0)' }
           ],
           { duration, easing: DEFAULT_EASING, fill: 'forwards' }

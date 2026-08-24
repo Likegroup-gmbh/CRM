@@ -4,6 +4,8 @@
 // laufende Auftraege pro Skript erkennen. Der Schreib-Adapter fuer
 // Fortschritt/Logs bleibt job-updater.js.
 
+const { setThinking } = require('./thinking');
+
 /**
  * Atomarer Claim: pending -> running. Liefert die Job-Row oder null, wenn
  * der Job bereits claimed/abgeschlossen ist (zweiter Trigger = 409).
@@ -38,7 +40,12 @@ async function beansprucheNachricht(supabase, messageId) {
     .select('*')
     .maybeSingle();
   if (error) throw new Error(`Message-Claim fehlgeschlagen: ${error.message}`);
-  return data || null;
+  if (!data) return null;
+  await setThinking(supabase, 'skript_chat_messages', messageId, {
+    step: 'kontext',
+    label: 'Ich lese Skript und Kontext…'
+  });
+  return data;
 }
 
 /**

@@ -2,9 +2,13 @@
 // Gemeinsamer Fortschritts-Updater fuer skript_generation_jobs:
 // sammelt Logs im Speicher und serialisiert die DB-Updates ueber eine Queue,
 // damit Realtime-Events in der richtigen Reihenfolge ankommen.
+// progress_steps laeuft ueber appendStep (derselbe Vertrag wie setThinking).
+
+const { appendStep } = require('./thinking');
 
 function createJobUpdater(supabase, jobId) {
   const logs = [];
+  let progressSteps = [];
   let queue = Promise.resolve();
 
   const enqueue = (patch) => {
@@ -21,7 +25,8 @@ function createJobUpdater(supabase, jobId) {
   return {
     step(progressStep, msg) {
       if (msg) pushLog(msg);
-      enqueue({ progress_step: progressStep, status: 'running' });
+      progressSteps = appendStep(progressSteps, { step: progressStep, label: msg || progressStep });
+      enqueue({ progress_step: progressStep, progress_steps: progressSteps, status: 'running' });
     },
     log(msg) {
       pushLog(msg);

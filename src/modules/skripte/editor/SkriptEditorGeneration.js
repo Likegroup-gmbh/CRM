@@ -5,7 +5,7 @@
 import { skripteService } from '../SkripteService.js';
 import { skriptAuftrag } from '../SkriptAuftrag.js';
 import { replaceSkriptUrl } from '../SkripteUtils.js';
-import { GEN_STEP_LABELS } from './skriptEditorKonstanten.js';
+import { pendingThinking, renderThinking } from '../../../core/chat/thinking.js';
 
 export class SkriptEditorGeneration {
   constructor(view) {
@@ -100,7 +100,8 @@ export class SkriptEditorGeneration {
       rolle: 'assistant',
       aktion: 'rueckfrage',
       sektion: 'gesamt',
-      status: 'pending'
+      status: 'pending',
+      progress_steps: pendingThinking()
     });
     v.messages.push(assistantMsg);
     v.renderChat({ forceScroll: true });
@@ -139,7 +140,7 @@ export class SkriptEditorGeneration {
     };
 
     this.cleanupGenJob();
-    v.genStatus = { laeuft: true, step: 'pending' };
+    v.genStatus = { laeuft: true, step: 'pending', progress_steps: pendingThinking() };
     v.renderDoc();
     v.renderChat({ forceScroll: true });
 
@@ -177,7 +178,7 @@ export class SkriptEditorGeneration {
 
     this.cleanupGenJob();
     this.setGenButtonAktiv(false);
-    v.genStatus = { laeuft: true, step: 'pending' };
+    v.genStatus = { laeuft: true, step: 'pending', progress_steps: pendingThinking() };
     v.renderChat({ forceScroll: true });
 
     try {
@@ -223,11 +224,13 @@ export class SkriptEditorGeneration {
       return;
     }
 
-    // Fortschritt in der Bubble aktualisieren (ohne komplettes Re-Render)
-    if (job.progress_step && v.genStatus?.laeuft) {
-      v.genStatus.step = job.progress_step;
-      const stepEl = document.getElementById('ed-gen-step');
-      if (stepEl) stepEl.textContent = GEN_STEP_LABELS[job.progress_step] || job.progress_step;
+    if (v.genStatus?.laeuft) {
+      if (job.progress_step) v.genStatus.step = job.progress_step;
+      if (Array.isArray(job.progress_steps) && job.progress_steps.length) {
+        v.genStatus.progress_steps = job.progress_steps;
+        const slot = document.getElementById('ed-gen-thinking');
+        if (slot) renderThinking(slot, job.progress_steps);
+      }
     }
   }
 

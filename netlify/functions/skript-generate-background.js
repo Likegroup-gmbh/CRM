@@ -8,6 +8,7 @@
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { loadContext, loadReferenzVideo, fmtSkript, buildKontextText, videoLaengeHinweis, briefingSkriptSprache, cap, KONTEXT_MAX } = require('./_shared/skript-context');
 const { fmtMasterBlock, MASTER_BEREICH_LABELS } = require('./_shared/skript-master');
+const { extractSkriptAusMaster } = require('./_shared/skript-creator-facing');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { createJobUpdater } = require('./_shared/job-updater');
 const { starteKiRequest } = require('./_shared/ki-log');
@@ -17,14 +18,37 @@ const { beansprucheJob, autorisiereSkript, hatLaufendenJob, istJobAbgebrochen } 
 // Anfuehrungszeichen im Skript-Text koennen das Parsen nicht mehr brechen
 const SKRIPT_TOOL = {
   name: 'skript_abgeben',
-  description: 'Gibt das fertige drehfertige Konzept als Markdown-Dokument ab.',
+  description: 'Gibt das fertige drehfertige Konzept als Markdown-Dokument plus Hook/Hauptteil/CTA ab.',
   input_schema: {
     type: 'object',
     properties: {
       titel: { type: 'string', description: 'Kurzer Arbeitstitel' },
       inhalt_md: {
         type: 'string',
-        description: 'Komplettes drehfertiges Markdown-Dokument mit ##-Ueberschriften nach dem Master-Bereichs-Template'
+        description: 'Nur Zusatzinfos (Produktionskopf, Timing, Shotlist, Brand-Hinweise). KEINE Creator-facing-Tabelle, KEINE Variantenuebersicht, KEINE alternativen Opener/Hooks/CTAs.'
+      },
+      hook: { type: 'string', description: 'Gesprochener Hook der Hauptvariante A' },
+      hauptteil: { type: 'string', description: 'Gesprochener Hauptteil der Hauptvariante A' },
+      cta: { type: 'string', description: 'Gesprochener CTA der Hauptvariante A' },
+      hook_visuell: { type: 'string', description: 'Was zu sehen ist im Hook (Variante A)' },
+      hauptteil_visuell: { type: 'string', description: 'Was zu sehen ist im Hauptteil (Variante A)' },
+      cta_visuell: { type: 'string', description: 'Was zu sehen ist im CTA (Variante A)' },
+      varianten: {
+        type: 'array',
+        description: 'Genau zwei alternative Skript-Varianten (B und C). Nicht in inhalt_md wiederholen.',
+        items: {
+          type: 'object',
+          properties: {
+            label: { type: 'string', description: 'B oder C' },
+            beschreibung: { type: 'string', description: 'Kurzer Unterschied zur Hauptvariante' },
+            hook: { type: 'string' },
+            hauptteil: { type: 'string' },
+            cta: { type: 'string' },
+            hook_visuell: { type: 'string' },
+            hauptteil_visuell: { type: 'string' },
+            cta_visuell: { type: 'string' }
+          }
+        }
       }
     },
     required: ['titel', 'inhalt_md']
@@ -95,10 +119,17 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
   }
 
   task += '\n# AUSGABEFORMAT\nGib das Dokument AUSSCHLIESSLICH ueber das Tool "skript_abgeben" ab '
-    + '(Felder: titel, inhalt_md).\n'
+    + '(Felder: titel, inhalt_md, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, varianten).\n'
     + `Bereich: ${bereichLabel}. Folge dem drehfertigen Aufbau im MASTER-BEREICH-Dokument. `
-    + 'inhalt_md ist das komplette Markdown-Dokument. Strukturiere es mit ##-Ueberschriften '
-    + 'genau nach den Hauptbloecken des drehfertigen Aufbaus (nicht nach Unterpunkten A/B/C als ##).\n'
+    + 'inhalt_md = NUR Zusatzinfos: Produktionskopf, Timing, Brand-Hinweise, Shotlist, Pflicht-Shots, '
+    + 'On-Screen-Liste, Schnitt/Sound. Mit ##-Ueberschriften nach den Hauptbloecken '
+    + '(nicht nach Unterpunkten A/B/C als ##).\n'
+    + 'NICHT in inhalt_md: Creator-facing-Tabelle, Variantenuebersicht, alternative Opener/Hooks/CTAs, '
+    + 'Zweispalter "gesprochen / zu sehen". Diese Inhalte gehoeren AUSSCHLIESSLICH in die Skript-Felder.\n'
+    + 'Variante A: hook/hauptteil/cta (gesprochen) plus hook_visuell/hauptteil_visuell/cta_visuell '
+    + '(was zu sehen ist) – direkt mitgenerieren.\n'
+    + 'Varianten B und C: Array "varianten" (label B/C, beschreibung, abweichende Felder). '
+    + 'Meist nur Hook/Opener anders, Hauptteil und CTA gleich. NICHT in inhalt_md wiederholen.\n'
     + 'Tabellen als Markdown-Tabellen. Innerhalb der Texte typografische Anfuehrungszeichen (\u201e\u2026\u201c) statt gerader (") verwenden.\n'
     + 'WICHTIG - nichts erfinden: Behaupte im Skript NICHTS ueber Angebote, Features, Aktionen oder Konditionen '
     + '(z.B. Partnerkarten, Rabatte, Gratis-Extras), das nicht ausdruecklich '
@@ -160,7 +191,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     // mit UI-tauglicher Meldung, die ueber den catch im Job-Log landet)
     ki = await starteKiRequest(supabase, { userId: user.id, feature: 'skript_generierung' });
 
-    job.step('kontext', 'Kontext aus CRM-Daten sammeln (SQL, kein LLM)...');
+    job.step('kontext', 'Ich sammle den Kontext aus den CRM-Daten…');
 
     // Videovorlage (optional): serverseitig validieren + aus der Job-Row
     // anreichern. Der validierte Snapshot ersetzt die Client-Angaben.
@@ -208,7 +239,8 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       return { statusCode: 200 };
     }
 
-    job.step('generierung', `Skript wird geschrieben (${model})...`);
+    job.step('generierung', 'Ich schreibe das Skript…');
+    job.log(`Modell: ${model}`);
     const result = await callClaude({
       model,
       systemBlocks: [{ text: stable, cache: true }],
@@ -227,13 +259,19 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       return { statusCode: 200 };
     }
 
-    job.step('speichern', 'Antwort parsen und speichern...');
+    job.step('speichern', 'Fast fertig – ich speichere…');
     const parsed = result.json || extractJson(result.text, {
-      keys: ['titel', 'inhalt_md'],
+      keys: ['titel', 'inhalt_md', 'hook', 'hauptteil', 'cta',
+        'hook_visuell', 'hauptteil_visuell', 'cta_visuell', 'varianten'],
       onWarn: (msg) => job.log(msg)
     });
     if (!(parsed.inhalt_md || '').trim()) {
       throw new Error('Antwort unvollstaendig (inhalt_md fehlt)');
+    }
+    const { felder, varianten, inhalt_md: extraMd } = extractSkriptAusMaster(parsed.inhalt_md, parsed);
+    const inhaltMd = extraMd || '';
+    if (varianten.length) {
+      job.log(`${varianten.length} Alternative(n) als eigene Versionen`);
     }
 
     // Bestehendes prompt_kontext (Stub) fuer den Merge laden: der
@@ -258,10 +296,15 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       briefing_id: payload.briefing_id || null,
       bereich: ctx.bereich,
       strategie_item_id: payload.strategie_item_id || referenzVideo?.strategie_item_id || null,
-      inhalt_md: parsed.inhalt_md,
-      hook: null,
-      hauptteil: null,
-      cta: null,
+      inhalt_md: inhaltMd,
+      hook: felder.hook,
+      hauptteil: felder.hauptteil,
+      cta: felder.cta,
+      hook_visuell: felder.hook_visuell,
+      hauptteil_visuell: felder.hauptteil_visuell,
+      cta_visuell: felder.cta_visuell,
+      aktive_version_nr: 1,
+      aktive_sub_nr: 0,
       video_idee: payload.video_idee || null,
       location: payload.location || null,
       regieanweisung: payload.regieanweisung || null,
@@ -306,20 +349,41 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       skript = data;
     }
 
-    // Ausgangsversion (v1) fuer den Chat-Editor snapshotten.
-    // Nicht kritisch fuer die Generierung -> Fehler nur loggen.
-    const { error: versionError } = await supabase.from('skript_versionen').insert({
-      skript_id: skript.id,
-      version_nr: 1,
-      titel: parsed.titel || null,
-      inhalt_md: parsed.inhalt_md,
-      hook: null,
-      hauptteil: null,
-      cta: null,
-      aenderung_beschreibung: 'Erstgenerierung',
-      created_by: user.id
-    });
-    if (versionError) job.log(`Hinweis: v1-Snapshot fehlgeschlagen (${versionError.message})`);
+    // v1 = Hauptvariante. Weitere Opener/Hooks/CTAs als v2, v3, …
+    const versionRows = [
+      {
+        skript_id: skript.id,
+        version_nr: 1,
+        sub_nr: 0,
+        titel: parsed.titel || null,
+        inhalt_md: inhaltMd,
+        hook: felder.hook,
+        hauptteil: felder.hauptteil,
+        cta: felder.cta,
+        hook_visuell: felder.hook_visuell,
+        hauptteil_visuell: felder.hauptteil_visuell,
+        cta_visuell: felder.cta_visuell,
+        aenderung_beschreibung: 'Erstgenerierung',
+        created_by: user.id
+      },
+      ...varianten.map((v, i) => ({
+        skript_id: skript.id,
+        version_nr: i + 2,
+        sub_nr: 0,
+        titel: parsed.titel || null,
+        inhalt_md: inhaltMd,
+        hook: v.felder.hook,
+        hauptteil: v.felder.hauptteil,
+        cta: v.felder.cta,
+        hook_visuell: v.felder.hook_visuell,
+        hauptteil_visuell: v.felder.hauptteil_visuell,
+        cta_visuell: v.felder.cta_visuell,
+        aenderung_beschreibung: v.beschreibung,
+        created_by: user.id
+      }))
+    ];
+    const { error: versionError } = await supabase.from('skript_versionen').insert(versionRows);
+    if (versionError) job.log(`Hinweis: Versions-Snapshots fehlgeschlagen (${versionError.message})`);
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
     job.log(`Fertig in ${elapsed}s (Tokens: ${result.usage?.input_tokens ?? '?'} in / ${result.usage?.output_tokens ?? '?'} out)`);
