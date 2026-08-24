@@ -12,6 +12,7 @@
 
 import { bindCollapsible } from '../../core/collapsiblePanel.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { revealLines, cancelLineReveal } from '../../core/animation/lineReveal.js';
 import { skripteService } from './SkripteService.js';
 import { SkriptGeneratorForm } from './SkriptGeneratorForm.js';
 import { SkriptFeedbackDrawer } from './SkriptFeedbackDrawer.js';
@@ -34,6 +35,58 @@ import { SkriptEditorSelection } from './editor/SkriptEditorSelection.js';
 import { SkriptEditorVersionen } from './editor/SkriptEditorVersionen.js';
 import { SkriptEditorVisuell } from './editor/SkriptEditorVisuell.js';
 import { SkriptEditorRealtime } from './editor/SkriptEditorRealtime.js';
+
+const MSG_TEXT_SEL = '.skripte-editor-msg-text, .skripte-editor-vorschlag-text';
+const MSG_FOOTER_SEL = '.skripte-editor-msg-actions, .skripte-editor-msg-state, p.skripte-hint';
+
+function prefersReducedMotion() {
+  return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function cancelRowReveal(row) {
+  row?.querySelectorAll(MSG_TEXT_SEL).forEach((node) => cancelLineReveal(node));
+}
+
+/** Erst Kommentar, dann Vorschlag; Footer (Buttons) erst nach dem Reveal. */
+async function revealMessageRow(row, { pin } = {}) {
+  const footers = [...row.querySelectorAll(MSG_FOOTER_SEL)];
+  for (const f of footers) f.style.display = 'none';
+
+  // Text sofort leeren (gleicher Tick wie das Insert), sonst malt der Browser
+  // einen Frame den kompletten Block, bevor der Reveal startet.
+  const targets = [...row.querySelectorAll(MSG_TEXT_SEL)].map((el) => {
+    const text = el.textContent ?? '';
+    el.textContent = '';
+    const wrap = el.classList.contains('skripte-editor-vorschlag-text')
+      ? el.closest('.skripte-editor-vorschlag')
+      : null;
+    if (wrap) wrap.style.display = 'none';
+    return { el, text, wrap };
+  });
+
+  for (const { el, text, wrap } of targets) {
+    if (!row.isConnected) return;
+    if (!text) continue;
+    if (wrap) wrap.style.display = '';
+    await revealLines(el, { text, onLine: pin });
+  }
+  if (!row.isConnected) return;
+
+  const reduce = prefersReducedMotion();
+  for (const f of footers) {
+    if (!f.isConnected) return;
+    f.style.display = '';
+    if (!reduce && typeof f.animate === 'function') {
+      f.animate(
+        [{ opacity: 0 }, { opacity: 1 }],
+        { duration: 180, easing: 'cubic-bezier(0.4, 0, 0.2, 1)' }
+      );
+    }
+  }
+  pin?.();
+}
 
 export class SkriptEditorView {
   constructor(page) {
@@ -575,7 +628,7 @@ export class SkriptEditorView {
    * neu zu rendern (Realtime/Poll-Pfad). Faellt auf renderChat() zurueck,
    * wenn die Row nicht existiert (z.B. leerer Verlauf oder Neu-Modus).
    */
-  upsertMessageRow(m) {
+  upsertMessageRow(m, { animateText = false } = {}) {
     const el = document.getElementById('ed-chat-log');
     if (!el || this.neuModus) {
       this.renderChat();
@@ -584,6 +637,7 @@ export class SkriptEditorView {
     const html = this.renderMessage(m);
     const existing = el.querySelector(`[data-msg-row="${m.id}"]`);
     if (existing) {
+      cancelRowReveal(existing);
       const tpl = document.createElement('template');
       tpl.innerHTML = html.trim();
       existing.replaceWith(tpl.content.firstElementChild);
@@ -598,6 +652,13 @@ export class SkriptEditorView {
     });
     const warUnten = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
     if (warUnten) el.scrollTop = el.scrollHeight;
+
+    const row = el.querySelector(`[data-msg-row="${m.id}"]`);
+    if (animateText && row) {
+      revealMessageRow(row, {
+        pin: () => { if (warUnten) el.scrollTop = el.scrollHeight; }
+      });
+    }
   }
 
   renderMessage(m) {

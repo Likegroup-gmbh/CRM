@@ -68,6 +68,7 @@ export class SkriptEditorRealtime {
     const v = this.view;
     if (!row || row.skript_id !== v.skript?.id) return;
     const idx = v.messages.findIndex((m) => m.id === row.id);
+    let animateText = false;
     if (idx === -1) {
       if (eventType !== 'INSERT' && eventType !== 'UPDATE') return;
       v.messages.push(row);
@@ -83,10 +84,13 @@ export class SkriptEditorRealtime {
         && lokal.inhalt === row.inhalt
         && lokal.vorschlag_text === row.vorschlag_text
         && lokal.error_message === row.error_message;
+      const warOffen = ['pending', 'running'].includes(lokal.status);
+      const jetztFinal = ['fertig', 'vorschlag'].includes(row.status);
+      animateText = warOffen && jetztFinal;
       v.messages[idx] = row;
       if (unveraendert) return;
     }
-    v.upsertMessageRow(row);
+    v.upsertMessageRow(row, { animateText });
     v.renderCost();
 
     // Visual-Vorschlag direkt in die Zelle uebernehmen (kein Annehmen/Ablehnen)

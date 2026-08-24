@@ -90,3 +90,91 @@ describe('SkriptEditorRealtime Pending-Watchdog', () => {
     expect(mockService.updateChatMessage).not.toHaveBeenCalled();
   });
 });
+
+describe('SkriptEditorRealtime animateText', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('pending -> vorschlag: upsertMessageRow mit animateText true', () => {
+    const view = makeView([{
+      id: 'm1', skript_id: 's1', rolle: 'assistant', status: 'pending',
+      inhalt: null, vorschlag_text: null, error_message: null
+    }]);
+    const rt = new SkriptEditorRealtime(view);
+
+    rt.applyMessageUpdate({
+      id: 'm1', skript_id: 's1', rolle: 'assistant', status: 'vorschlag',
+      inhalt: 'ok', vorschlag_text: 'neuer Text', error_message: null
+    }, 'UPDATE');
+
+    expect(view.upsertMessageRow).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'vorschlag', vorschlag_text: 'neuer Text' }),
+      { animateText: true }
+    );
+  });
+
+  it('running -> fertig: upsertMessageRow mit animateText true', () => {
+    const view = makeView([{
+      id: 'm1', skript_id: 's1', rolle: 'assistant', status: 'running',
+      inhalt: null, vorschlag_text: null, error_message: null
+    }]);
+    const rt = new SkriptEditorRealtime(view);
+
+    rt.applyMessageUpdate({
+      id: 'm1', skript_id: 's1', rolle: 'assistant', status: 'fertig',
+      inhalt: 'Hier der Kommentar', vorschlag_text: null, error_message: null
+    }, 'UPDATE');
+
+    expect(view.upsertMessageRow).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'fertig' }),
+      { animateText: true }
+    );
+  });
+
+  it('pending -> running: kein animateText', () => {
+    const view = makeView([{
+      id: 'm1', skript_id: 's1', rolle: 'assistant', status: 'pending',
+      inhalt: null, vorschlag_text: null, error_message: null
+    }]);
+    const rt = new SkriptEditorRealtime(view);
+
+    rt.applyMessageUpdate({
+      id: 'm1', skript_id: 's1', rolle: 'assistant', status: 'running',
+      inhalt: null, vorschlag_text: null, error_message: null
+    }, 'UPDATE');
+
+    expect(view.upsertMessageRow).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'running' }),
+      { animateText: false }
+    );
+  });
+
+  it('INSERT: kein animateText', () => {
+    const view = makeView([]);
+    const rt = new SkriptEditorRealtime(view);
+
+    rt.applyMessageUpdate({
+      id: 'm2', skript_id: 's1', rolle: 'assistant', status: 'fertig',
+      inhalt: 'hi', vorschlag_text: null, error_message: null
+    }, 'INSERT');
+
+    expect(view.upsertMessageRow).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'm2' }),
+      { animateText: false }
+    );
+  });
+
+  it('unveraenderte Poll-Row: kein upsert', () => {
+    const row = {
+      id: 'm1', skript_id: 's1', rolle: 'assistant', status: 'pending',
+      inhalt: null, vorschlag_text: null, error_message: null
+    };
+    const view = makeView([{ ...row }]);
+    const rt = new SkriptEditorRealtime(view);
+
+    rt.applyMessageUpdate({ ...row }, 'UPDATE');
+
+    expect(view.upsertMessageRow).not.toHaveBeenCalled();
+  });
+});
