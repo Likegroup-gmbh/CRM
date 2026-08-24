@@ -7,6 +7,7 @@ import { skripteService } from '../SkripteService.js';
 import { skriptAuftrag } from '../SkriptAuftrag.js';
 import { AKTION_LABELS, VISUELL_FIELD } from './skriptEditorKonstanten.js';
 import { sektionAnzeige, sektionAnzeigeKurz, skriptStand, manuellBeschreibung } from './skriptEditorVisuellHelfer.js';
+import { istMasterSkript, replaceMasterSektion, masterSektionBody } from '../master/skriptMasterFormat.js';
 
 export class SkriptEditorChatActions {
   constructor(view) {
@@ -224,6 +225,10 @@ export class SkriptEditorChatActions {
     if (v.acceptLaeuft) return;
 
     const sektion = msg.sektion;
+    if (istMasterSkript(v.skript)) {
+      await this.acceptMasterVorschlag(msg);
+      return;
+    }
     if (!['hook', 'hauptteil', 'cta'].includes(sektion) || !msg.vorschlag_text) {
       window.toastSystem?.error('Vorschlag kann nicht zugeordnet werden');
       return;
@@ -275,6 +280,66 @@ export class SkriptEditorChatActions {
       await skripteService.updateChatMessage(msg.id, { status: 'angenommen' });
       msg.status = 'angenommen';
 
+      v.renderDoc();
+      v.renderChat();
+      v.renderVersionSelect();
+      window.toastSystem?.success(`Übernommen – jetzt ${skripteService.versionLabel(neueVersion)}`);
+    } catch (err) {
+      window.toastSystem?.error(err.message);
+      btns.forEach((b) => { b.disabled = false; });
+    } finally {
+      v.acceptLaeuft = false;
+    }
+  }
+
+  async acceptMasterVorschlag(msg) {
+    const v = this.view;
+    if (v.acceptLaeuft) return;
+    const sektion = msg.sektion;
+    if (!sektion || sektion === 'gesamt' || !msg.vorschlag_text) {
+      window.toastSystem?.error('Vorschlag kann nicht zugeordnet werden');
+      return;
+    }
+
+    const alt = v.skript.inhalt_md || '';
+    const body = masterSektionBody(alt, sektion);
+    let neu;
+    if (msg.selektion_text && body.includes(msg.selektion_text)) {
+      neu = replaceMasterSektion(alt, sektion, msg.vorschlag_text, { selektion: msg.selektion_text });
+    } else if (msg.selektion_text) {
+      const res = await window.confirmationModal?.open({
+        title: 'Markierte Stelle nicht mehr gefunden',
+        message: `Die ursprünglich markierte Stelle kommt in „${sektion}“ nicht mehr vor. Soll der Vorschlag die gesamte Sektion ersetzen?`,
+        confirmText: 'Gesamte Sektion ersetzen',
+        danger: true
+      });
+      if (!res?.confirmed) return;
+      neu = replaceMasterSektion(alt, sektion, msg.vorschlag_text);
+    } else {
+      neu = replaceMasterSektion(alt, sektion, msg.vorschlag_text);
+    }
+    if (!neu) {
+      window.toastSystem?.error('Sektion nicht gefunden');
+      return;
+    }
+
+    const vorherigerStand = skriptStand(v.skript);
+    await v.inlineEdit.flush();
+    v.acceptLaeuft = true;
+    const btns = v.container?.querySelectorAll(`[data-msg-id="${msg.id}"]`) || [];
+    btns.forEach((b) => { b.disabled = true; });
+
+    try {
+      await skripteService.updateSkript(v.skript.id, { inhalt_md: neu });
+      v.skript.inhalt_md = neu;
+      const beschreibung = `${AKTION_LABELS[msg.aktion] || 'Änderung'} · ${sektionAnzeigeKurz(sektion, false)}`;
+      const neueVersion = await skripteService.createVersion(v.skript, beschreibung, vorherigerStand, v.aktiveVersion);
+      v.aktiveVersion = neueVersion;
+      v.skript.aktive_version_nr = neueVersion.version_nr;
+      v.skript.aktive_sub_nr = neueVersion.sub_nr;
+      v.versionen = await skripteService.getVersionen(v.skript.id);
+      await skripteService.updateChatMessage(msg.id, { status: 'angenommen' });
+      msg.status = 'angenommen';
       v.renderDoc();
       v.renderChat();
       v.renderVersionSelect();

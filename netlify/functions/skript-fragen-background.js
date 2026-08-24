@@ -11,6 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { loadContext, buildKontextText, cap, KONTEXT_MAX } = require('./_shared/skript-context');
+const { fmtMasterBlock, MASTER_BEREICH_LABELS } = require('./_shared/skript-master');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
 const { beansprucheNachricht, autorisiereSkript, istNachrichtAbgebrochen } = require('./_shared/skript-auftrag');
@@ -59,12 +60,14 @@ function ladeLeitfaden() {
 // ---------------------------------------------------------------------------
 function buildFragenPrompt(ctx, params, history) {
   // Block 1 (stabil, cachebar): Rolle + Leitfaden
-  const stable = 'Du bist ein erfahrener Werbetexter fuer UGC- und Creator-Videos (TikTok, Instagram Reels) '
-    + 'und bereitest die Generierung eines deutschen Video-Skripts (Hook, Hauptteil, CTA) vor. '
-    + 'BEVOR das Skript geschrieben wird, klaerst du im Dialog mit einem Mitarbeiter alle offenen Punkte. '
-    + 'Du schreibst in dieser Phase KEIN Skript.\n\n'
-    + '# LEITFADEN FUER DIE RUECKFRAGEN\n'
-    + ladeLeitfaden();
+  const bereichLabel = MASTER_BEREICH_LABELS[ctx.bereich] || ctx.bereich || 'unbekannt';
+  let stable = 'Du bist ein erfahrener Creative Director fuer Social-Video-Content '
+    + 'und bereitest die Generierung eines drehfertigen Konzepts vor '
+    + `(Bereich: ${bereichLabel}). `
+    + 'BEVOR das Dokument geschrieben wird, klaerst du im Dialog mit einem Mitarbeiter alle offenen Punkte. '
+    + 'Du schreibst in dieser Phase KEIN Skript und KEIN Konzept.\n';
+  stable += fmtMasterBlock(ctx.master);
+  stable += '\n# LEITFADEN FUER DIE RUECKFRAGEN\n' + ladeLeitfaden();
 
   // Block 2 (variabel): Kontext (inkl. Campaign-Briefing) + bisheriger Dialog
   let task = '';
@@ -154,6 +157,7 @@ async function verarbeiteRueckfrage({ supabase, user, payload }) {
       persona_id: skript.persona_id,
       branche_id: skript.branche_id,
       briefing_id: skript.briefing_id,
+      bereich: skript.bereich,
       mit_dna: skript.mit_dna,
       video_idee: skript.video_idee,
       location: skript.location,

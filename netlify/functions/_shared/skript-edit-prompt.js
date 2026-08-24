@@ -9,6 +9,7 @@ const {
   videoLaengeHinweis, WOERTER_PRO_SEKUNDE, kuerzeTranskript, fmtCampaignBriefing, fmtSkript,
   cap, KONTEXT_MAX, CAMPAIGN_BRIEFING_FIELD_NAMES
 } = require('./skript-context');
+const { loadMasterDocs, fmtMasterBlock } = require('./skript-master');
 
 // Transkript-Budget im Edit-Prompt: kompakter als bei der Erstgenerierung,
 // weil das fertige Skript + Verlauf schon viel Kontext belegen
@@ -238,9 +239,9 @@ function buildVisuellZeitplan(skript, sektion) {
 // ---------------------------------------------------------------------------
 // Enge Spalten statt select('*'): der Edit-Prompt braucht nur die
 // Skript-Texte, die Meta-Vorgaben und die Scope-/Kontext-IDs.
-const EDIT_SKRIPT_COLS = 'id, titel, hook, hook_visuell, hauptteil, hauptteil_visuell, cta, cta_visuell, '
+const EDIT_SKRIPT_COLS = 'id, titel, hook, hook_visuell, hauptteil, hauptteil_visuell, cta, cta_visuell, inhalt_md, '
   + 'tonalitaet, video_laenge, funnel_stufe, video_idee, location, regieanweisung, prompt_kontext, '
-  + 'mit_dna, branche_id, persona_id, marke_id, briefing_id';
+  + 'mit_dna, branche_id, persona_id, marke_id, briefing_id, bereich';
 
 async function loadEditContext(supabase, message) {
   const skriptPromise = supabase.from('skripte')
@@ -324,12 +325,18 @@ async function loadEditContext(supabase, message) {
     ? loadVisualBeispiele(supabase, skript)
     : Promise.resolve([]);
 
-  const [dna, briefing, kickoff, modus, beispiele] = await Promise.all([
-    dnaPromise, briefingPromise, kickoffPromise, modusPromise, beispielePromise
+  const masterPromise = loadMasterDocs(supabase, skript.bereich, { schlank: false });
+
+  const [dna, briefing, kickoff, modus, beispiele, masterResult] = await Promise.all([
+    dnaPromise, briefingPromise, kickoffPromise, modusPromise, beispielePromise, masterPromise
   ]);
   const feedback = (feedbackRaw || []).reverse();
 
-  return { skript, history, dna, briefing, kickoff, feedback, modus, beispiele };
+  return {
+    skript, history, dna, briefing, kickoff, feedback, modus, beispiele,
+    master: masterResult.master,
+    masterVersionen: masterResult.masterVersionen
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -346,14 +353,17 @@ function fmtLines(obj) {
 function buildEditPrompt(ctx, message) {
   const { skript, history, dna, briefing, kickoff, feedback, modus } = ctx;
   const beispiele = ctx.beispiele || [];
+  const master = ctx.master || [];
+  const istMaster = Boolean(skript.inhalt_md);
 
-  const visualSpalte = brauchtVisualStil(message);
+  const visualSpalte = !istMaster && brauchtVisualStil(message);
 
-  // Block 1 (stabil, cachebar): Rolle + DNA (+ Visual-Stil/Few-Shots nur Visual-Spalte)
-  let stable = 'Du bist ein erfahrener Werbetexter fuer UGC- und Creator-Videos (TikTok, Instagram Reels) '
-    + 'und ueberarbeitest ein bestehendes deutsches Video-Skript im Dialog mit einem Mitarbeiter. '
-    + 'Du aenderst NUR was verlangt wird und erhaeltst Ton und Stil des restlichen Skripts. '
-    + 'Der Text ist gesprochener Creator-Text, keine Werbesprache.\n';
+  // Block 1 (stabil, cachebar): Rolle + Master + DNA (+ Visual-Stil/Few-Shots nur Visual-Spalte)
+  let stable = 'Du bist ein erfahrener Creative Director fuer Social-Video-Content '
+    + 'und ueberarbeitest ein bestehendes deutsches Video-Konzept im Dialog mit einem Mitarbeiter. '
+    + 'Du aenderst NUR was verlangt wird und erhaeltst Ton und Stil des restlichen Dokuments.\n';
+
+  stable += fmtMasterBlock(master);
 
   if (dna.length) {
     stable += '\n# SKRIPT-DNA (verbindliches Regelwerk, geschichtet - spaetere Layer haben Vorrang)\n';
@@ -376,12 +386,16 @@ function buildEditPrompt(ctx, message) {
   // Block 2 (variabel): Skript + Verlauf + Auftrag
   let task = '# AKTUELLES SKRIPT\n';
   if (skript.titel) task += `Titel: ${skript.titel}\n`;
-  task += `HOOK:\n${skript.hook || '-'}\n`;
-  task += `HOOK (was zu sehen ist):\n${skript.hook_visuell || '-'}\n\n`;
-  task += `HAUPTTEIL:\n${skript.hauptteil || '-'}\n`;
-  task += `HAUPTTEIL (was zu sehen ist):\n${skript.hauptteil_visuell || '-'}\n\n`;
-  task += `CTA:\n${skript.cta || '-'}\n`;
-  task += `CTA (was zu sehen ist):\n${skript.cta_visuell || '-'}\n`;
+  if (istMaster) {
+    task += `${skript.inhalt_md}\n`;
+  } else {
+    task += `HOOK:\n${skript.hook || '-'}\n`;
+    task += `HOOK (was zu sehen ist):\n${skript.hook_visuell || '-'}\n\n`;
+    task += `HAUPTTEIL:\n${skript.hauptteil || '-'}\n`;
+    task += `HAUPTTEIL (was zu sehen ist):\n${skript.hauptteil_visuell || '-'}\n\n`;
+    task += `CTA:\n${skript.cta || '-'}\n`;
+    task += `CTA (was zu sehen ist):\n${skript.cta_visuell || '-'}\n`;
+  }
 
   const meta = [
     skript.marke?.markenname ? `Marke: ${skript.marke.markenname}` : null,
@@ -485,7 +499,10 @@ function buildEditPrompt(ctx, message) {
     task += '</chat_verlauf>\n';
   }
 
-  if (visualSpalte) {
+  if (istMaster) {
+    task += '\n# FORMAT\nDas Dokument ist Markdown mit ##-Sektionen. '
+      + 'vorschlag_text ersetzt die markierte Stelle oder die komplette Sektion (ohne die ##-Ueberschrift).\n';
+  } else if (visualSpalte) {
     task += '\n# SPALTE: Was zu sehen ist\n'
       + 'Nur visuelle Regie anfassen, den gesprochenen Text unverändert lassen.\n';
   } else {
@@ -544,10 +561,13 @@ function buildEditPrompt(ctx, message) {
     + '- Nichts erfinden: Behaupte NICHTS ueber Angebote, Features, Aktionen oder Konditionen, das nicht im CAMPAIGN-BRIEFING bzw. Briefing-Extrakt, den LEITPLANKEN oder dem bestehenden Skript steht. Vorschlaege duerfen den Briefing-Fakten nicht widersprechen.\n'
     + '- Wenn eine markierte Stelle vorliegt, ist vorschlag_text NUR der Ersatztext fuer genau diese Stelle (nicht die ganze Sektion).\n'
     + '- Ohne markierte Stelle, aber mit klarem Aenderungswunsch: vorschlag_text = komplette neue Version der betroffenen Sektion, sektion entsprechend setzen.\n'
+    + (istMaster
+      ? '- sektion ist der Slug der ##-Ueberschrift (klein, Bindestriche, ohne Umlaute), nicht hook/hauptteil/cta.\n'
+      : '')
     + '- Bei reinen Fragen/Rueckfragen: vorschlag_text = null, sektion = null.\n'
     + '- Schlage pro Antwort maximal EINE Aenderung vor.'
     + (!message.ist_visuell && skript.video_laenge
-      ? '\n- HARTES WORT-BUDGET: Das Gesamt-Skript (Hook + Hauptteil + CTA) muss zur Video-Laenge passen '
+      ? '\n- HARTES WORT-BUDGET: Das Gesamt-Skript muss zur Video-Laenge passen '
         + `(${videoLaengeHinweis(skript.video_laenge)}). Auch bei "Laenger schreiben" darf das Gesamt-Budget nicht gesprengt werden - im Zweifel lieber knapp bleiben.`
       : '');
 

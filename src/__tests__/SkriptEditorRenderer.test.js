@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import {
   messageHtml, genStatusBubbleHtml, aktionTagHtml, chatLeerHtml, versionsHinweisHtml
 } from '../modules/skripte/editor/SkriptEditorChatRenderer.js';
-import { neuModusHtml, fragenModusHtml, skriptDocHtml } from '../modules/skripte/editor/SkriptEditorDocRenderer.js';
+import { neuModusHtml, fragenModusHtml, skriptDocHtml, masterDocHtml } from '../modules/skripte/editor/SkriptEditorDocRenderer.js';
 
 describe('SkriptEditorChatRenderer', () => {
   it('User-Message rendert Inhalt und Selektion, escaped HTML', () => {
@@ -108,6 +108,8 @@ describe('SkriptEditorDocRenderer', () => {
     expect(html).toContain('id="ed-genform"');
     expect(html).toContain('id="ed-gen-start"');
     expect(html).toContain('id="ed-gen-direkt"');
+    expect(html).toContain('skripte-actions-row--sticky');
+    expect(html).toContain('skripte-editor-doc-scroll');
   });
 
   it('fragenModusHtml zeigt Titel, Rueckfragen-Badge und Generieren-Button', () => {
@@ -121,6 +123,7 @@ describe('SkriptEditorDocRenderer', () => {
     expect(html).toContain('Rückfragen');
     expect(html).toContain('id="ed-fragen-gen"');
     expect(html).toContain('<div>Vorgaben</div>');
+    expect(html).not.toContain('skripte-actions-row--sticky');
   });
 
   it('fragenModusHtml deaktiviert den Button waehrend Generierung', () => {
@@ -144,5 +147,28 @@ describe('SkriptEditorDocRenderer', () => {
     expect(html).toContain('Ende');
     expect(html).toContain('Was gesagt wird');
     expect(html).toContain('Was zu sehen ist');
+  });
+
+  it('skriptDocHtml wechselt bei inhalt_md auf Markdown-Sektionen', () => {
+    const html = skriptDocHtml({
+      skript: { titel: 'T', inhalt_md: '## Produktionskopf\nArbeitstitel: X' },
+      messages: [],
+      isReadonly: false,
+      docHeadActionsHtml: '',
+      vorgabenPanelHtml: ''
+    });
+    expect(html).toContain('Produktionskopf');
+    expect(html).toContain('data-sektion="produktionskopf"');
+    expect(html).not.toContain('Was gesagt wird');
+  });
+
+  it('masterDocHtml rendert Tabellen', () => {
+    const html = masterDocHtml({
+      skript: { titel: 'Paid', inhalt_md: '## Body\n| L | R |\n| --- | --- |\n| gesagt | gesehen |' },
+      docHeadActionsHtml: '',
+      vorgabenPanelHtml: ''
+    });
+    expect(html).toContain('<table');
+    expect(html).toContain('gesagt');
   });
 });

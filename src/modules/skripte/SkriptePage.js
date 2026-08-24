@@ -1,10 +1,11 @@
 // SkriptePage.js
 // /skripte = Table-Liste, /skripte/new und /skripte/:id = 3-Spalten-Editor,
-// /skripte/dna = DNA-Verwaltung.
+// /skripte/dna = DNA-Verwaltung, /skripte/master = Master-Regelwerk.
 
 import { SkriptEditorView } from './SkriptEditorView.js';
 import { SkriptList } from './SkriptList.js';
 import { SkriptDnaView } from './dna/SkriptDnaView.js';
+import { SkriptMasterView } from './master/SkriptMasterView.js';
 import { replaceSkriptUrl } from './SkripteUtils.js';
 
 const KONTEXT_KEY = 'skripte:kontext';
@@ -14,6 +15,7 @@ export class SkriptePage {
     this.list = new SkriptList();
     this.editorView = new SkriptEditorView(this);
     this.dnaView = new SkriptDnaView();
+    this.masterView = new SkriptMasterView();
   }
 
   async init(id) {
@@ -31,6 +33,25 @@ export class SkriptePage {
     await this.editorView.cleanup?.();
     this.list.destroy?.();
     this.dnaView.cleanup?.();
+    this.masterView.cleanup?.();
+
+    // Master-Regelwerk: eigene Route, nur intern
+    if (id === 'master') {
+      if (window.isKunde?.()) {
+        window.history.replaceState({ route: '/skripte' }, '', '/skripte');
+        id = null;
+      } else {
+        window.setHeadline('Skript-Master');
+        window.setContentSafely(window.content, `
+          <div class="skripte-page">
+            <div id="skripte-master-content"></div>
+          </div>
+        `);
+        const container = document.getElementById('skripte-master-content');
+        if (container) await this.masterView.render(container);
+        return;
+      }
+    }
 
     // DNA-Verwaltung: eigene Route, nur intern
     if (id === 'dna') {
@@ -123,6 +144,7 @@ export class SkriptePage {
   destroy() {
     this.list.destroy?.();
     this.dnaView.cleanup?.();
+    this.masterView.cleanup?.();
     return this.editorView.cleanup?.();
   }
 }

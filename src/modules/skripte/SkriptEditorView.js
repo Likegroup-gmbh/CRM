@@ -10,18 +10,20 @@
 // Feedback, Selection, Versionen, Visuell, Realtime), das Markup in den
 // puren Renderern (SkriptEditorDocRenderer, SkriptEditorChatRenderer).
 
+import { bindCollapsible } from '../../core/collapsiblePanel.js';
+import { icon } from '../../core/icons/IconSystem.js';
 import { skripteService } from './SkripteService.js';
 import { SkriptGeneratorForm } from './SkriptGeneratorForm.js';
 import { SkriptFeedbackDrawer } from './SkriptFeedbackDrawer.js';
 import { SkriptInlineEdit } from './SkriptInlineEdit.js';
 import { escapeHtml, formatDate, formatUsageCost, replaceSkriptUrl, skriptEditorPath } from './SkripteUtils.js';
-import { icon } from '../../core/icons/IconSystem.js';
 import {
   SEND_ICON, PLACEHOLDER_DEFAULT, PLACEHOLDER_NEU, PLACEHOLDER_FRAGEN
 } from './editor/skriptEditorKonstanten.js';
 import {
   neuModusHtml, fragenModusHtml, skriptDocHtml, docHeadActionsHtml, vorgabenPanelHtml
 } from './editor/SkriptEditorDocRenderer.js';
+import { istMasterSkript } from './master/skriptMasterFormat.js';
 import {
   chatLeerNeuHtml, chatLeerHtml, genStatusBubbleHtml, messageHtml, versionsHinweisHtml
 } from './editor/SkriptEditorChatRenderer.js';
@@ -67,6 +69,7 @@ export class SkriptEditorView {
     this.visuellApplyLaeuft = false;
     this.modi = [];
     this._modiGeladen = false;
+    this._listeCollapse = null;
 
     // Controller (Fachlogik), jeweils mit Blick auf diese Fassade
     this._generation = new SkriptEditorGeneration(this);
@@ -157,10 +160,25 @@ export class SkriptEditorView {
 
   renderLayout() {
     const readonly = this.isReadonly;
+    const listeCollapsed = this.sollListeStartCollapsed();
     this.container.innerHTML = `
-      <div class="skripte-editor${readonly ? ' skripte-editor--readonly' : ''}">
+      <div class="skripte-editor${readonly ? ' skripte-editor--readonly' : ''}${listeCollapsed ? ' skripte-editor--liste-collapsed' : ''}">
         <div class="skripte-editor-shell">
-          <nav class="skripte-editor-liste" id="ed-liste" aria-label="Skripte"></nav>
+          <nav class="skripte-editor-liste" id="ed-liste" aria-label="Skripte">
+            <div class="skripte-editor-liste-head">
+              <div class="skripte-editor-liste-head-start">
+                <button type="button" class="sidebar-toggle-btn" id="ed-liste-toggle" title="Navigation verkleinern"></button>
+                <span class="skripte-editor-liste-head-label">Skripte</span>
+              </div>
+              ${readonly ? '' : `
+              <a href="${skriptEditorPath('new')}" class="mdc-btn mdc-btn--secondary" id="ed-neu" title="Neues Skript erstellen">
+                <span class="mdc-btn__icon">${icon('ai-visual')}</span>
+                <span class="mdc-btn__label">Neues Skript</span>
+              </a>
+              `}
+            </div>
+            <div id="ed-liste-items"></div>
+          </nav>
           <main class="skripte-editor-main">
             <div class="skripte-editor-doc" id="ed-doc"></div>
           </main>
@@ -190,6 +208,8 @@ export class SkriptEditorView {
       </div>
     `;
 
+    this.bindListeHead();
+    this.bindListeCollapse();
     this.renderListe();
     this.renderDoc();
     if (!readonly) {
@@ -321,6 +341,8 @@ export class SkriptEditorView {
       this.onDocMouseDown = null;
     }
     this.closeVersionMenu();
+    this._listeCollapse?.destroy();
+    this._listeCollapse = null;
     this.selektion = null;
     this.pendingAktion = null;
     this.visuellApplyLaeuft = false;
@@ -360,26 +382,55 @@ export class SkriptEditorView {
     else this.skripte.unshift(angereichert);
   }
 
+  bindListeHead() {
+    this.container.querySelector('#ed-neu')?.addEventListener('click', (e) => {
+      if (this.isModifiedClick(e)) return;
+      e.preventDefault();
+      this.startNeuModus();
+    });
+  }
+
+  sollListeStartCollapsed() {
+    if (this.neuModus) return true;
+    try {
+      return localStorage.getItem('skripte-liste-collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  bindListeCollapse() {
+    this._listeCollapse?.destroy();
+    const editor = this.container.querySelector('.skripte-editor');
+    const btn = document.getElementById('ed-liste-toggle');
+    if (!editor || !btn) return;
+    this._listeCollapse = bindCollapsible({
+      root: editor,
+      toggleBtn: btn,
+      collapsedClass: 'skripte-editor--liste-collapsed',
+      storageKey: 'skripte-liste-collapsed'
+    });
+    if (this.neuModus) {
+      this._listeCollapse.setCollapsed(true, { persist: false });
+    } else {
+      this._listeCollapse.restore();
+    }
+  }
+
+  setListeCollapsed(collapsed, opts) {
+    this._listeCollapse?.setCollapsed(collapsed, opts);
+  }
+
   renderListe() {
-    const el = document.getElementById('ed-liste');
+    const el = document.getElementById('ed-liste-items');
     if (!el) return;
-    el.innerHTML = `
-      <div class="skripte-editor-liste-head">
-        <span>Skripte</span>
-        ${this.isReadonly ? '' : `
-        <a href="${skriptEditorPath('new')}" class="mdc-btn mdc-btn--secondary" id="ed-neu" title="Neues Skript erstellen">
-          <span class="mdc-btn__icon">${icon('ai-visual')}</span>
-          <span class="mdc-btn__label">Neues Skript</span>
-        </a>
-        `}
-      </div>
-      ${this.skripte.map((s) => {
-        const badgeText = s.unternehmen?.internes_kuerzel
-          || s.unternehmen?.firmenname
-          || s.marke?.markenname
-          || 'Skripte';
-        const aktiv = s.id === this.skript?.id;
-        return `
+    el.innerHTML = this.skripte.map((s) => {
+      const badgeText = s.unternehmen?.internes_kuerzel
+        || s.unternehmen?.firmenname
+        || s.marke?.markenname
+        || 'Skripte';
+      const aktiv = s.id === this.skript?.id;
+      return `
         <a href="${skriptEditorPath(s.id)}" class="skripte-editor-liste-item ${aktiv ? 'active' : ''}"
           data-id="${s.id}"${aktiv ? ' aria-current="page"' : ''}>
           <span class="skripte-editor-liste-top">
@@ -389,13 +440,7 @@ export class SkriptEditorView {
           <span class="skripte-editor-liste-titel">${escapeHtml(s.titel || s.hook?.slice(0, 50) || '(ohne Titel)')}</span>
         </a>
       `;
-      }).join('')}
-    `;
-    el.querySelector('#ed-neu')?.addEventListener('click', (e) => {
-      if (this.isModifiedClick(e)) return;
-      e.preventDefault();
-      this.startNeuModus();
-    });
+    }).join('');
     el.querySelectorAll('.skripte-editor-liste-item').forEach((link) => {
       link.addEventListener('click', (e) => {
         if (this.isModifiedClick(e)) return;
@@ -467,10 +512,12 @@ export class SkriptEditorView {
       vorgabenPanelHtml: vorgabenPanelHtml(this.skript)
     });
     el.querySelector('#ed-feedback')?.addEventListener('click', () => this.openVollFeedback());
-    el.querySelectorAll('.skripte-editor-visual-btn').forEach((btn) => {
-      btn.addEventListener('click', () => this.openVisuellModusMenu(btn));
-    });
-    this.inlineEdit.attach(el, { readonly: this.isReadonly });
+    if (!istMasterSkript(this.skript)) {
+      el.querySelectorAll('.skripte-editor-visual-btn').forEach((btn) => {
+        btn.addEventListener('click', () => this.openVisuellModusMenu(btn));
+      });
+      this.inlineEdit.attach(el, { readonly: this.isReadonly });
+    }
     this.renderVersionSelect();
   }
 

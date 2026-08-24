@@ -1,6 +1,7 @@
 // NavigationSystem.js (ES6-Modul)
 // Zentrale Navigation für das CRM
 
+import { bindCollapsible } from '../../core/collapsiblePanel.js';
 import { entityIcon } from '../../core/icons/entityIcons.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
@@ -355,7 +356,6 @@ export class NavigationSystem {
   init() {
     console.log('🧭 NavigationSystem: Initialisiere Navigation');
     this._bindSidebarToggle();
-    this._restoreSidebarState();
     try {
       this.renderNavigation();
     } catch (err) {
@@ -363,40 +363,23 @@ export class NavigationSystem {
     }
   }
 
-  _restoreSidebarState() {
-    const appRoot = document.getElementById('app-root');
-    if (appRoot && appRoot.classList.contains('sidebar-collapsed')) {
-      this._updateToggleIcon(true);
-    }
-  }
-
   _bindSidebarToggle() {
-    const btn = document.getElementById('sidebar-toggle');
-    if (!btn || btn._sidebarBound) return;
-    btn._sidebarBound = true;
-    btn.addEventListener('click', () => this._toggleSidebar());
-  }
-
-  _toggleSidebar() {
     const appRoot = document.getElementById('app-root');
-    if (!appRoot) return;
-
-    const isNowCollapsed = appRoot.classList.toggle('sidebar-collapsed');
-    localStorage.setItem('sidebar-collapsed', isNowCollapsed);
-    this._updateToggleIcon(isNowCollapsed);
-  }
-
-  _updateToggleIcon(isCollapsed) {
     const btn = document.getElementById('sidebar-toggle');
-    if (!btn) return;
-    const showIcon = `${icon('arrows-expand-diagonal')}`;
-    const hideIcon = `${icon('arrows-expand')}`;
-    btn.innerHTML = isCollapsed ? showIcon : hideIcon;
-    btn.title = isCollapsed ? 'Navigation einblenden' : 'Navigation verkleinern';
+    if (!appRoot || !btn || btn._sidebarBound) return;
+    btn._sidebarBound = true;
+    this._sidebarCollapse = bindCollapsible({
+      root: appRoot,
+      toggleBtn: btn,
+      collapsedClass: 'sidebar-collapsed',
+      storageKey: 'sidebar-collapsed'
+    });
   }
 
   // Cleanup
   destroy() {
+    this._sidebarCollapse?.destroy();
+    this._sidebarCollapse = null;
     console.log('🗑️ NavigationSystem: Destroy aufgerufen');
   }
 }

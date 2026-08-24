@@ -1,12 +1,13 @@
 // Netlify Background Function: Skript-Generierung (Layer 1)
 // Ablauf: Kontext per SQL sammeln (Pick-and-pull, kein LLM) ->
 //         DNA-Layer + Beispiele/Anti-Patterns in den Prompt ->
-//         Claude schreibt EIN Skript (Hook/Hauptteil/CTA) -> Supabase.
+//         Claude schreibt EIN drehfertiges Markdown-Dokument (inhalt_md) -> Supabase.
 // Background Function: antwortet sofort 202, Fortschritt kommt asynchron
 // ueber die skript_generation_jobs-Tabelle (Realtime in der UI).
 
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { loadContext, loadReferenzVideo, fmtSkript, buildKontextText, videoLaengeHinweis, briefingSkriptSprache, cap, KONTEXT_MAX } = require('./_shared/skript-context');
+const { fmtMasterBlock, MASTER_BEREICH_LABELS } = require('./_shared/skript-master');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { createJobUpdater } = require('./_shared/job-updater');
 const { starteKiRequest } = require('./_shared/ki-log');
@@ -16,16 +17,17 @@ const { beansprucheJob, autorisiereSkript, hatLaufendenJob, istJobAbgebrochen } 
 // Anfuehrungszeichen im Skript-Text koennen das Parsen nicht mehr brechen
 const SKRIPT_TOOL = {
   name: 'skript_abgeben',
-  description: 'Gibt das fertige Video-Skript strukturiert ab.',
+  description: 'Gibt das fertige drehfertige Konzept als Markdown-Dokument ab.',
   input_schema: {
     type: 'object',
     properties: {
       titel: { type: 'string', description: 'Kurzer Arbeitstitel' },
-      hook: { type: 'string', description: 'Gesprochener Hook-Text' },
-      hauptteil: { type: 'string', description: 'Gesprochener Hauptteil' },
-      cta: { type: 'string', description: 'Gesprochener Call-to-Action' }
+      inhalt_md: {
+        type: 'string',
+        description: 'Komplettes drehfertiges Markdown-Dokument mit ##-Ueberschriften nach dem Master-Bereichs-Template'
+      }
     },
-    required: ['titel', 'hook', 'hauptteil', 'cta']
+    required: ['titel', 'inhalt_md']
   }
 };
 
@@ -33,28 +35,37 @@ const SKRIPT_TOOL = {
 // Prompt-Bau (Kontext-Aufbau + Sektions-Formatierung: _shared/skript-context)
 // ---------------------------------------------------------------------------
 function buildPrompt(ctx, params, rueckfragenDialog = '') {
-  // Block 1 (stabil, cachebar): Rolle + DNA + Beispiele + Anti-Patterns
-  let stable = 'Du bist ein erfahrener Werbetexter fuer UGC- und Creator-Videos (TikTok, Instagram Reels). '
-    + 'Du schreibst deutsche Video-Skripte, die klingen wie von echten Creators gesprochen - nicht wie Werbung. '
-    + 'Jedes Skript hat exakt drei Sektionen: Hook, Hauptteil, CTA.\n';
+  const master = ctx.master || [];
+  const dna = ctx.dna || [];
+  const beispiele = ctx.beispiele || [];
+  const antiPatterns = ctx.antiPatterns || [];
 
-  if (ctx.dna.length) {
+  // Block 1 (stabil, cachebar): Rolle + Master + DNA + Beispiele + Anti-Patterns
+  let stable = 'Du bist ein erfahrener Creative Director fuer Social-Video-Content '
+    + '(Owned Media, Paid Ads, Influencer-Konzepte; TikTok, Instagram Reels). '
+    + 'Du schreibst drehfertige Konzepte nach dem verbindlichen Master-Regelwerk. '
+    + 'Die drei Systeme Owned, Paid und Influencer duerfen nicht vermischt werden. '
+    + 'Fehlende Produktfakten, Claims, Preise, Offers, Bewertungen oder Ergebnisse darfst du niemals erfinden.\n';
+
+  stable += fmtMasterBlock(master);
+
+  if (dna.length) {
     stable += '\n# SKRIPT-DNA (verbindliches Regelwerk, geschichtet - spaetere Layer haben Vorrang)\n';
-    for (const d of ctx.dna) {
+    for (const d of dna) {
       stable += `\n--- ${d.name ? `"${d.name}" - ` : ''}Layer: ${d.layer_typ} (v${d.version}) ---\n${cap(d.inhalt, KONTEXT_MAX.dna)}\n`;
     }
   }
 
-  if (ctx.beispiele.length) {
+  if (beispiele.length) {
     stable += '\n# ERFOLGREICHE BEISPIEL-SKRIPTE (an diesen Mustern orientieren, NICHT kopieren)\n';
-    ctx.beispiele.forEach((s, i) => {
+    beispiele.forEach((s, i) => {
       stable += `\n--- Beispiel ${i + 1} (${s.performance_label}) ---\n${fmtSkript(s)}\n`;
     });
   }
 
-  if (ctx.antiPatterns.length) {
+  if (antiPatterns.length) {
     stable += '\n# ANTI-PATTERNS (diese Skripte haben NICHT funktioniert - solche Muster vermeiden)\n';
-    ctx.antiPatterns.forEach((s, i) => {
+    antiPatterns.forEach((s, i) => {
       stable += `\n--- Anti-Beispiel ${i + 1} ---\n${fmtSkript(s)}\n`;
     });
   }
@@ -78,10 +89,17 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
       + '<rueckfragen_dialog>\n' + rueckfragenDialog + '\n</rueckfragen_dialog>\n';
   }
 
-  task += '\n# AUSGABEFORMAT\nGib das Skript AUSSCHLIESSLICH ueber das Tool "skript_abgeben" ab '
-    + '(Felder: titel, hook, hauptteil, cta).\n'
-    + 'Innerhalb der Texte typografische Anfuehrungszeichen (\u201e\u2026\u201c) statt gerader (") verwenden.\n'
-    + 'Der Text ist gesprochener Creator-Text (keine Regieanweisungen in eckigen Klammern, ausser wo unbedingt noetig).\n'
+  const bereichLabel = MASTER_BEREICH_LABELS[ctx.bereich] || ctx.bereich || 'unbekannt';
+  if (ctx.modus?.inhalt) {
+    task += `\n# REGIE-MODUS: ${ctx.modus.name}\n${ctx.modus.inhalt}\n`;
+  }
+
+  task += '\n# AUSGABEFORMAT\nGib das Dokument AUSSCHLIESSLICH ueber das Tool "skript_abgeben" ab '
+    + '(Felder: titel, inhalt_md).\n'
+    + `Bereich: ${bereichLabel}. Folge dem drehfertigen Aufbau im MASTER-BEREICH-Dokument. `
+    + 'inhalt_md ist das komplette Markdown-Dokument. Strukturiere es mit ##-Ueberschriften '
+    + 'genau nach den Hauptbloecken des drehfertigen Aufbaus (nicht nach Unterpunkten A/B/C als ##).\n'
+    + 'Tabellen als Markdown-Tabellen. Innerhalb der Texte typografische Anfuehrungszeichen (\u201e\u2026\u201c) statt gerader (") verwenden.\n'
     + 'WICHTIG - nichts erfinden: Behaupte im Skript NICHTS ueber Angebote, Features, Aktionen oder Konditionen '
     + '(z.B. Partnerkarten, Rabatte, Gratis-Extras), das nicht ausdruecklich '
     + (ctx.briefing ? 'im CAMPAIGN-BRIEFING, ' : '')
@@ -153,8 +171,19 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       : 'Keine Videovorlage - Aufbau kommt aus DNA und Beispiel-Skripten');
 
     const ctx = await loadContext(supabase, payload);
-    job.log(`Kontext: ${ctx.dna.length} DNA-Layer, ${ctx.beispiele.length} Beispiele, ${ctx.antiPatterns.length} Anti-Patterns`
-      + `${ctx.briefing ? ', Briefing' : ''}${ctx.kickoff ? ', Kickoff' : ''}${ctx.produkt ? ', Produkt' : ''}`);
+    if (!ctx.bereich) {
+      throw new Error('Bereich fehlt – bitte Owned Social, Paid Creator Ads oder Influencer Marketing wählen');
+    }
+    if (payload.modus) {
+      const { data: modus } = await supabase.from('skript_modi')
+        .select('slug, name, inhalt')
+        .eq('slug', payload.modus)
+        .eq('status', 'aktiv')
+        .maybeSingle();
+      ctx.modus = modus || null;
+    }
+    job.log(`Kontext: Bereich ${ctx.bereich}, ${ctx.master.length} Master-Docs, ${ctx.dna.length} DNA-Layer, ${ctx.beispiele.length} Beispiele, ${ctx.antiPatterns.length} Anti-Patterns`
+      + `${ctx.briefing ? ', Briefing' : ''}${ctx.kickoff ? ', Kickoff' : ''}${ctx.produkt ? ', Produkt' : ''}${ctx.modus ? `, Modus ${ctx.modus.slug}` : ''}`);
 
     // Rueckfragen-Stub: geklaerten Frage/Antwort-Dialog in den Prompt aufnehmen
     let rueckfragenDialog = '';
@@ -184,7 +213,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       model,
       systemBlocks: [{ text: stable, cache: true }],
       userPrompt: task,
-      maxTokens: 4096,
+      maxTokens: 8192,
       tool: SKRIPT_TOOL,
       // Konservativ: ein haengender Claude-Call soll nicht bis zum
       // Netlify-Limit blockieren, sondern als Job-Fehler sichtbar werden
@@ -200,11 +229,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
 
     job.step('speichern', 'Antwort parsen und speichern...');
     const parsed = result.json || extractJson(result.text, {
-      keys: ['titel', 'hook', 'hauptteil', 'cta'],
+      keys: ['titel', 'inhalt_md'],
       onWarn: (msg) => job.log(msg)
     });
-    if (!parsed.hook || !parsed.hauptteil || !parsed.cta) {
-      throw new Error('Antwort unvollstaendig (hook/hauptteil/cta fehlt)');
+    if (!(parsed.inhalt_md || '').trim()) {
+      throw new Error('Antwort unvollstaendig (inhalt_md fehlt)');
     }
 
     // Bestehendes prompt_kontext (Stub) fuer den Merge laden: der
@@ -227,10 +256,12 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       persona_id: payload.persona_id || null,
       branche_id: ctx.brancheId || null,
       briefing_id: payload.briefing_id || null,
+      bereich: ctx.bereich,
       strategie_item_id: payload.strategie_item_id || referenzVideo?.strategie_item_id || null,
-      hook: parsed.hook,
-      hauptteil: parsed.hauptteil,
-      cta: parsed.cta,
+      inhalt_md: parsed.inhalt_md,
+      hook: null,
+      hauptteil: null,
+      cta: null,
       video_idee: payload.video_idee || null,
       location: payload.location || null,
       regieanweisung: payload.regieanweisung || null,
@@ -248,6 +279,9 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
         generator_payload: generatorPayload,
         referenz_video: referenzVideo,
         dna_versionen: ctx.dnaVersionen,
+        master_versionen: ctx.masterVersionen,
+        bereich: ctx.bereich,
+        modus: payload.modus || null,
         beispiel_ids: ctx.beispiele.map((s) => s.id),
         anti_pattern_ids: ctx.antiPatterns.map((s) => s.id),
         usage: result.usage,
@@ -278,9 +312,10 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       skript_id: skript.id,
       version_nr: 1,
       titel: parsed.titel || null,
-      hook: parsed.hook,
-      hauptteil: parsed.hauptteil,
-      cta: parsed.cta,
+      inhalt_md: parsed.inhalt_md,
+      hook: null,
+      hauptteil: null,
+      cta: null,
       aenderung_beschreibung: 'Erstgenerierung',
       created_by: user.id
     });

@@ -137,6 +137,7 @@ export class SkriptEditorVersionen {
         hook_visuell: version.hook_visuell ?? null,
         hauptteil_visuell: version.hauptteil_visuell ?? null,
         cta_visuell: version.cta_visuell ?? null,
+        inhalt_md: version.inhalt_md ?? null,
         aktive_version_nr: nr,
         aktive_sub_nr: sub
       });

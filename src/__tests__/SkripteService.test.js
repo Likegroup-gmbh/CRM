@@ -75,6 +75,7 @@ describe('SkripteService.loadSkripte', () => {
     expect(select).toHaveBeenCalledWith(expect.stringContaining('hook_visuell'));
     expect(select).toHaveBeenCalledWith(expect.stringContaining('hauptteil_visuell'));
     expect(select).toHaveBeenCalledWith(expect.stringContaining('cta_visuell'));
+    expect(select).toHaveBeenCalledWith(expect.stringContaining('inhalt_md'));
   });
 
   it('wirft bei Query-Fehler statt still [] zu liefern', async () => {
@@ -216,9 +217,11 @@ describe('SkripteService.createSkriptStub / updateSkriptStub', () => {
     await service.createSkriptStub({
       unternehmen_id: 'u1',
       briefing_id: 'br-1',
+      bereich: 'owned_social',
       video_idee: 'Glow Routine'
     });
     expect(inserted.briefing_id).toBe('br-1');
+    expect(inserted.bereich).toBe('owned_social');
     expect(inserted.prompt_kontext.generator_payload.briefing_id).toBe('br-1');
   });
 

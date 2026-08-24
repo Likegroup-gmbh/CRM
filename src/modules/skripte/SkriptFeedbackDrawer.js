@@ -11,10 +11,27 @@
 import { skripteService, PERFORMANCE_LABELS } from './SkripteService.js';
 import { escapeHtml, formatDate, badge } from './SkripteUtils.js';
 import { createSkriptDrawer, removeSkriptDrawer } from './SkriptDrawer.js';
+import { istMasterSkript, parseMasterSektionen, masterSektionBody } from './master/skriptMasterFormat.js';
 
 const DRAWER_ID = 'skripte-feedback-drawer';
 
 const SEKTION_LABELS = { hook: 'HOOK', hauptteil: 'HAUPTTEIL', cta: 'CTA', gesamt: 'GESAMT' };
+
+function sektionLabel(sektion) {
+  return SEKTION_LABELS[sektion] || sektion;
+}
+
+function sektionText(skript, sektion) {
+  if (istMasterSkript(skript)) return masterSektionBody(skript.inhalt_md, sektion);
+  return skript[sektion] || '';
+}
+
+function feedbackSektionen(skript) {
+  if (istMasterSkript(skript)) {
+    return [...parseMasterSektionen(skript.inhalt_md).map((s) => s.slug), 'gesamt'];
+  }
+  return ['hook', 'hauptteil', 'cta', 'gesamt'];
+}
 
 const BEWERTUNGSLEITFADEN = `
   <details class="skripte-leitfaden">
@@ -63,12 +80,12 @@ export class SkriptFeedbackDrawer {
 
     const body = `
       <div class="skripte-detail-meta">
-        ${badge(SEKTION_LABELS[sektion], 'info')}
+        ${badge(sektionLabel(sektion), 'info')}
         ${selektionText ? badge('Markierte Stelle') : ''}
       </div>
       <div class="skripte-sektion">
-        <div class="skripte-sektion-label">${SEKTION_LABELS[sektion]}</div>
-        <div class="skripte-sektion-text">${highlightSelektion(skript[sektion], selektionText)}</div>
+        <div class="skripte-sektion-label">${escapeHtml(sektionLabel(sektion))}</div>
+        <div class="skripte-sektion-text">${highlightSelektion(sektionText(skript, sektion), selektionText)}</div>
       </div>
       ${this.altesFeedbackHtml(altes)}
       ${BEWERTUNGSLEITFADEN}
@@ -80,7 +97,7 @@ export class SkriptFeedbackDrawer {
       <p class="skripte-hint">Nach dem Senden wird das Feedback gespeichert und Liky schlägt direkt eine Überarbeitung vor.</p>
     `;
 
-    this.createDrawer(`Feedback · ${SEKTION_LABELS[sektion]}`, body, [
+    this.createDrawer(`Feedback · ${sektionLabel(sektion)}`, body, [
       { label: 'Feedback senden', primary: true, onClick: async () => {
         const score = this.readScore(sektion);
         const begruendung = document.getElementById(`fb-text-${sektion}`)?.value.trim() || '';
@@ -117,9 +134,9 @@ export class SkriptFeedbackDrawer {
 
     const sektionBlock = (sektion, rows) => `
       <details class="skripte-feedback-details">
-        <summary>${SEKTION_LABELS[sektion]}</summary>
+        <summary>${escapeHtml(sektionLabel(sektion))}</summary>
         <div class="skripte-sektion">
-          ${sektion !== 'gesamt' ? `<div class="skripte-sektion-text">${escapeHtml(skript[sektion] || '–')}</div>` : ''}
+          ${sektion !== 'gesamt' ? `<div class="skripte-sektion-text">${escapeHtml(sektionText(skript, sektion) || '–')}</div>` : ''}
           ${this.altesFeedbackHtml(feedbackBySektion[sektion] || [])}
           <div class="skripte-feedback-form">
             ${this.scoreSliderHtml(sektion)}
@@ -164,10 +181,7 @@ export class SkriptFeedbackDrawer {
 
       ${BEWERTUNGSLEITFADEN}
 
-      ${sektionBlock('hook', 2)}
-      ${sektionBlock('hauptteil', 4)}
-      ${sektionBlock('cta', 2)}
-      ${sektionBlock('gesamt', 2)}
+      ${feedbackSektionen(skript).map((s) => sektionBlock(s, s === 'gesamt' ? 2 : 3)).join('')}
     `;
 
     this.createDrawer(skript.titel || 'Skript bewerten', body, [
@@ -193,7 +207,7 @@ export class SkriptFeedbackDrawer {
             branche_id: document.getElementById('det-branche').value || null
           });
 
-          const eintraege = ['hook', 'hauptteil', 'cta', 'gesamt'].map((sektion) => ({
+          const eintraege = feedbackSektionen(skript).map((sektion) => ({
             sektion,
             score: this.readScore(sektion),
             begruendung: document.getElementById(`fb-text-${sektion}`)?.value || '',
@@ -211,7 +225,7 @@ export class SkriptFeedbackDrawer {
       } }
     ]);
 
-    for (const sektion of ['hook', 'hauptteil', 'cta', 'gesamt']) {
+    for (const sektion of feedbackSektionen(skript)) {
       this.bindScoreSlider(sektion);
     }
   }

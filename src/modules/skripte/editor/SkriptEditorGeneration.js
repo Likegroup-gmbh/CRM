@@ -43,6 +43,7 @@ export class SkriptEditorGeneration {
     v.page._merkeKontext({ skript: 'neu' });
 
     v.updateBreadcrumb();
+    v.setListeCollapsed(true, { persist: false });
     v.renderListe();
     v.renderDoc();
     v.renderChat();
@@ -126,6 +127,8 @@ export class SkriptEditorGeneration {
       persona_id: v.skript.persona_id,
       branche_id: v.skript.branche_id,
       briefing_id: v.skript.briefing_id,
+      bereich: v.skript.bereich,
+      modus: v.skript.prompt_kontext?.modus || v.skript.prompt_kontext?.generator_payload?.modus || null,
       mit_dna: v.skript.mit_dna,
       video_idee: v.skript.video_idee,
       location: v.skript.location,
@@ -241,6 +244,8 @@ export class SkriptEditorGeneration {
     // Joins fuer die Sidebar-Badges mit)
     const fresh = await skripteService.loadSkript(skriptId);
     if (fresh) v.upsertSkriptInListe(fresh);
+
+    v.setListeCollapsed(false);
 
     if (v.neuModus) {
       // In-place ins neue Skript wechseln

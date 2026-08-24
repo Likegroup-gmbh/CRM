@@ -209,7 +209,10 @@ describe('createButtonHtml Kunden', () => {
 
   it('intern zeigt Create-Button', () => {
     window.isKunde = vi.fn(() => false);
-    expect(createButtonHtml()).toContain('btn-skript-new');
+    const html = createButtonHtml();
+    expect(html).toContain('btn-skript-new');
+    expect(html).toContain('/skripte/master');
+    expect(html).toContain('/skripte/dna');
   });
 
   it('Kunde sieht keinen Create-Button', () => {

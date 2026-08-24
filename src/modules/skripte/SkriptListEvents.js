@@ -96,6 +96,13 @@ export function bindEvents(list) {
       return;
     }
 
+    const masterLink = e.target.closest('a[href="/skripte/master"]');
+    if (masterLink) {
+      e.preventDefault();
+      window.navigateTo('/skripte/master');
+      return;
+    }
+
     if (e.target.classList.contains('table-link') && e.target.dataset.table === 'skripte') {
       e.preventDefault();
       window.navigateTo(`/skripte/${e.target.dataset.id}`);

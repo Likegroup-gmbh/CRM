@@ -2,7 +2,7 @@
 // Markup des Generator-Formulars (Kontext + Videovorlage + Video-Vorgaben).
 // Reine Template-Funktion: Prefix rein, HTML-String raus.
 
-import { FUNNEL_STUFEN, VIDEO_LAENGEN } from './skripteKonstanten.js';
+import { FUNNEL_STUFEN, VIDEO_LAENGEN, SKRIPT_BEREICHE } from './skripteKonstanten.js';
 
 export function generatorFormMarkup(p) {
   return `
@@ -94,12 +94,20 @@ export function generatorFormMarkup(p) {
       </div>
       <div class="skripte-form-grid">
         <div class="form-group">
+          <label class="form-label">Bereich *</label>
+          <select id="${p}-bereich" class="form-input">
+            <option value="">– Bereich wählen –</option>
+            ${Object.entries(SKRIPT_BEREICHE).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
+          </select>
+          <span class="skripte-hint">Kommt aus dem Briefing, kann überschrieben werden. Steuert das Master-Regelwerk.</span>
+        </div>
+        <div class="form-group">
           <label class="form-label">Video-Länge (gesamt)</label>
           <select id="${p}-laenge" class="form-input">
             <option value="">– Keine Vorgabe –</option>
             ${Object.entries(VIDEO_LAENGEN).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
           </select>
-          <span class="skripte-hint">Das Skript wird auf diese gesprochene Länge dimensioniert.</span>
+          <span class="skripte-hint">Wird bei Briefing-Wahl aus dem Briefing übernommen.</span>
         </div>
         <div class="form-group">
           <label class="form-label">Funnel-Stufe</label>
@@ -107,6 +115,7 @@ export function generatorFormMarkup(p) {
             <option value="">– Keine Vorgabe –</option>
             ${Object.entries(FUNNEL_STUFEN).map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}
           </select>
+          <span class="skripte-hint">Wird bei Briefing-Wahl aus dem Briefing übernommen.</span>
         </div>
         <div class="form-group">
           <label class="form-label">Tonalität</label>

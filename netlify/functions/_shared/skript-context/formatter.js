@@ -74,6 +74,12 @@ function fmtVarianten(varianten) {
 }
 
 function fmtSkript(s) {
+  if (s.inhalt_md) {
+    return [
+      s.titel ? `Titel: ${s.titel}` : null,
+      cap(s.inhalt_md, KONTEXT_MAX.beispiel)
+    ].filter(Boolean).join('\n');
+  }
   return [
     s.titel ? `Titel: ${s.titel}` : null,
     s.hook ? `HOOK: ${s.hook}` : null,
@@ -99,7 +105,7 @@ function videoLaengeHinweis(spanne) {
   const rund5 = (n) => Math.max(5, Math.round(n / 5) * 5);
   const minWoerter = rund5(von * WOERTER_PRO_SEKUNDE);
   const maxWoerter = rund5(bis * WOERTER_PRO_SEKUNDE);
-  return `${von}-${bis} Sekunden gesprochen, das sind ca. ${minWoerter}-${maxWoerter} Woerter GESAMT (Hook + Hauptteil + CTA zusammen)`;
+  return `${von}-${bis} Sekunden gesprochen, das sind ca. ${minWoerter}-${maxWoerter} Woerter GESAMT (gesamtes Skript)`;
 }
 
 // ---------------------------------------------------------------------------

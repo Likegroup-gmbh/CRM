@@ -3,8 +3,9 @@
 // Phase und das eigentliche Skript-Dokument (Hook/Hauptteil/CTA + Visual).
 // Alles pure Funktionen: State rein, HTML-String raus.
 
-import { skripteService, FUNNEL_STUFEN, VIDEO_LAENGEN } from '../SkripteService.js';
+import { skripteService, FUNNEL_STUFEN, VIDEO_LAENGEN, SKRIPT_BEREICHE } from '../SkripteService.js';
 import { escapeHtml } from '../SkripteUtils.js';
+import { istMasterSkript, renderMasterMarkdownHtml } from '../master/skriptMasterFormat.js';
 import { icon } from '../../../core/icons/IconSystem.js';
 import {
   AKTION_ICONS, SEKTION_LABELS_KURZ, VISUELL_FIELD
@@ -14,11 +15,13 @@ import { visuellGuardGrund, visuellVorgaengerTitle } from './skriptEditorVisuell
 /** Neu-Modus: Generator-Formular-Platzhalter + Start-Buttons. */
 export function neuModusHtml() {
   return `
-    <div class="skripte-editor-doc-head">
-      <h2>Neues Skript</h2>
+    <div class="skripte-editor-doc-scroll">
+      <div class="skripte-editor-doc-head">
+        <h2>Neues Skript</h2>
+      </div>
+      <div class="skripte-editor-genform" id="ed-genform"></div>
     </div>
-    <div class="skripte-editor-genform" id="ed-genform"></div>
-    <div class="skripte-actions-row">
+    <div class="skripte-actions-row skripte-actions-row--sticky">
       <button id="ed-gen-start" class="mdc-btn" title="Liky stellt erst kluge Rückfragen zu fehlenden Infos (z.B. CTA), dann wird generiert">Skript generieren</button>
       <button id="ed-gen-direkt" class="mdc-btn mdc-btn--secondary" title="Rückfragen überspringen und sofort generieren">Direkt generieren</button>
     </div>
@@ -46,8 +49,25 @@ export function fragenModusHtml({ skript, genStatus, docHeadActionsHtml, vorgabe
   `;
 }
 
+/** Neues Format: gerenderte Markdown-Sektionen aus ##-Ueberschriften. */
+export function masterDocHtml({ skript, docHeadActionsHtml, vorgabenPanelHtml }) {
+  return `
+    <div class="skripte-editor-doc-head">
+      <h2>${escapeHtml(skript.titel || 'Skript')}</h2>
+      ${docHeadActionsHtml}
+    </div>
+    ${vorgabenPanelHtml}
+    <div class="skripte-editor-doc-box skripte-editor-doc-box--md">
+      ${renderMasterMarkdownHtml(skript.inhalt_md, escapeHtml)}
+    </div>
+  `;
+}
+
 /** Skript-Dokument: Kopf + Vorgaben + 2-Spalten-Tabelle (gesagt/visual). */
 export function skriptDocHtml({ skript, messages, isReadonly, docHeadActionsHtml, vorgabenPanelHtml }) {
+  if (istMasterSkript(skript)) {
+    return masterDocHtml({ skript, docHeadActionsHtml, vorgabenPanelHtml });
+  }
   return `
     <div class="skripte-editor-doc-head">
       <h2>${escapeHtml(skript.titel || 'Skript')}</h2>
@@ -150,6 +170,8 @@ export function vorgabenPanelHtml(skript) {
     ['Produkt', s.produkt?.name],
     ['Persona', s.personas ? skripteService.personaLabel(s.personas) : null],
     ['Branche', s.branchen?.name],
+    ['Bereich', s.bereich ? (SKRIPT_BEREICHE[s.bereich] || s.bereich) : null],
+    ['Regie-Modus', s.prompt_kontext?.modus || s.prompt_kontext?.generator_payload?.modus || null],
     ['Video-Länge', s.video_laenge ? (VIDEO_LAENGEN[s.video_laenge] || s.video_laenge) : null],
     ['Funnel-Stufe', s.funnel_stufe ? (FUNNEL_STUFEN[s.funnel_stufe] || s.funnel_stufe) : null],
     ['Tonalität', s.tonalitaet],

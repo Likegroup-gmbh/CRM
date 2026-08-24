@@ -3,10 +3,10 @@
 // Alle Queries laufen ueber window.supabase (RLS: intern voll, Kunden nur eigener Scope).
 
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
-import { PERFORMANCE_LABELS, FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER } from './skripteKonstanten.js';
+import { PERFORMANCE_LABELS, FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER, SKRIPT_BEREICHE, MASTER_BEREICHE } from './skripteKonstanten.js';
 import { planeVersionsRows } from './versionsNummerierung.js';
 
-export { PERFORMANCE_LABELS, FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER };
+export { PERFORMANCE_LABELS, FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER, SKRIPT_BEREICHE, MASTER_BEREICHE };
 
 // Gateway-/Last-Fehler beim Function-Invoke, bei denen ein Retry sinnvoll ist
 const TRANSIENT_TRIGGER_STATUS = new Set([408, 429, 500, 502, 503, 504]);
@@ -124,7 +124,7 @@ export class SkripteService {
     if (!unternehmenId) return [];
 
     let q = this.db.from('campaign_briefings')
-      .select('id, aktivierung_name, bereich, is_draft')
+      .select('id, aktivierung_name, bereich, is_draft, im_funnel_stufen, pa_funnel_stufen, pa_videolaengen, im_formatvorgaben, os_formatvorgaben')
       .eq('unternehmen_id', unternehmenId)
       .eq('is_draft', false);
 
@@ -222,6 +222,7 @@ export class SkripteService {
       persona_id: payload.persona_id || null,
       branche_id: payload.branche_id || null,
       briefing_id: payload.briefing_id || null,
+      bereich: payload.bereich || null,
       strategie_item_id: payload.strategie_item_id || null,
       video_idee: payload.video_idee || null,
       location: payload.location || null,
@@ -256,6 +257,7 @@ export class SkripteService {
       persona_id: payload.persona_id || null,
       branche_id: payload.branche_id || null,
       briefing_id: payload.briefing_id || null,
+      bereich: payload.bereich || null,
       strategie_item_id: payload.strategie_item_id || null,
       video_idee: payload.video_idee || null,
       location: payload.location || null,
@@ -324,7 +326,7 @@ export class SkripteService {
   // ------------------------------------------------------------------
   async getVersionen(skriptId) {
     const { data, error } = await this.db.from('skript_versionen')
-      .select('id, version_nr, sub_nr, titel, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, aenderung_beschreibung, created_at')
+      .select('id, version_nr, sub_nr, titel, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, inhalt_md, aenderung_beschreibung, created_at')
       .eq('skript_id', skriptId).order('version_nr').order('sub_nr');
     if (error) throw new Error(error.message);
     return data || [];
@@ -389,6 +391,7 @@ export class SkripteService {
       hook_visuell: version.hook_visuell ?? null,
       hauptteil_visuell: version.hauptteil_visuell ?? null,
       cta_visuell: version.cta_visuell ?? null,
+      inhalt_md: version.inhalt_md ?? null,
       aktive_version_nr: version.version_nr,
       aktive_sub_nr: version.sub_nr || 0
     });
@@ -466,6 +469,34 @@ export class SkripteService {
     if (doc.marke_id) q = q.eq('marke_id', doc.marke_id);
     await q;
     await this.updateDna(doc.id, {
+      status: 'aktiv',
+      freigegeben_von: user?.id || null,
+      freigegeben_am: new Date().toISOString()
+    });
+  }
+
+  // ------------------------------------------------------------------
+  // Master-Regelwerk
+  // ------------------------------------------------------------------
+  async loadMasterDokumente() {
+    const { data, error } = await this.db.from('skript_master')
+      .select('*')
+      .order('bereich').order('version', { ascending: false });
+    if (error) throw new Error(error.message);
+    return data || [];
+  }
+
+  async updateMaster(id, patch) {
+    const { error } = await this.db.from('skript_master').update(patch).eq('id', id);
+    if (error) throw new Error(error.message);
+  }
+
+  /** Aktiviert eine Master-Version und archiviert die bisher aktive desselben Bereichs. */
+  async aktiviereMaster(doc) {
+    const { data: { user } } = await this.db.auth.getUser();
+    await this.db.from('skript_master').update({ status: 'archiviert' })
+      .eq('bereich', doc.bereich).eq('status', 'aktiv').neq('id', doc.id);
+    await this.updateMaster(doc.id, {
       status: 'aktiv',
       freigegeben_von: user?.id || null,
       freigegeben_am: new Date().toISOString()

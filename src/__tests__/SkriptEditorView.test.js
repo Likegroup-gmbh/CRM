@@ -31,11 +31,19 @@ const { mockService } = vi.hoisted(() => ({
 vi.mock('../modules/skripte/SkripteService.js', () => ({
   skripteService: mockService,
   FUNNEL_STUFEN: {},
-  VIDEO_LAENGEN: {}
+  VIDEO_LAENGEN: {},
+  SKRIPT_BEREICHE: {
+    owned_social: 'Owned Social',
+    paid_creator_ads: 'Paid Creator Ads',
+    influencer_marketing: 'Influencer Marketing'
+  }
 }));
 
 vi.mock('../modules/skripte/SkriptGeneratorForm.js', () => ({
-  SkriptGeneratorForm: class {}
+  SkriptGeneratorForm: class {
+    render() {}
+    destroy() {}
+  }
 }));
 
 vi.mock('../modules/skripte/SkriptFeedbackDrawer.js', () => ({
@@ -147,6 +155,7 @@ describe('SkriptEditorView Layout', () => {
 
   beforeEach(() => {
     setupWindow();
+    localStorage.clear();
     view = new SkriptEditorView({ _merkeKontext: () => {} });
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -159,6 +168,7 @@ describe('SkriptEditorView Layout', () => {
 
   afterEach(() => {
     container.remove();
+    localStorage.clear();
     vi.clearAllMocks();
   });
 
@@ -198,6 +208,24 @@ describe('SkriptEditorView Layout', () => {
     // Wand-Button in jeder rechten Zelle
     const visualBtns = container.querySelectorAll('.skripte-editor-visual-btn');
     expect(visualBtns.length).toBe(3);
+  });
+
+  it('Master-Skript rendert Markdown-Sektionen ohne Visual-Buttons', async () => {
+    mockService.loadSkript.mockResolvedValue({
+      ...skript,
+      inhalt_md: '## Produktionskopf\nArbeitstitel: Test\n\n## Hook-Paket\nAudio: hi',
+      hook: null,
+      hauptteil: null,
+      cta: null,
+      bereich: 'owned_social'
+    });
+    await view.render(container, 's1');
+
+    expect(container.querySelector('table.skripte-editor-tabelle')).toBeNull();
+    expect(container.querySelector('[data-sektion="produktionskopf"]')).not.toBeNull();
+    expect(container.querySelector('[data-sektion="hook-paket"]')).not.toBeNull();
+    expect(container.querySelectorAll('.skripte-editor-visual-btn').length).toBe(0);
+    expect(container.textContent).toContain('Arbeitstitel: Test');
   });
 
   it('Composer sitzt im Chat-DOM, nicht in der Mitte', async () => {
@@ -322,6 +350,39 @@ describe('SkriptEditorView Layout', () => {
     expect(neuBtn.classList.contains('mdc-btn')).toBe(true);
     expect(neuBtn.classList.contains('mdc-btn--secondary')).toBe(true);
     expect(neuBtn.querySelector('.mdc-btn__icon')).not.toBeNull();
+
+    const toggle = container.querySelector('#ed-liste-toggle');
+    expect(toggle).not.toBeNull();
+    expect(toggle.tagName).toBe('BUTTON');
+    expect(container.querySelector('.skripte-editor--liste-collapsed')).toBeNull();
+    expect(localStorage.getItem('skripte-liste-collapsed')).toBeNull();
+  });
+
+  it('Neu-Modus startet mit eingeklappter Liste, ohne Storage zu schreiben', async () => {
+    await view.render(container, 'neu');
+
+    const editor = container.querySelector('.skripte-editor');
+    expect(editor.classList.contains('skripte-editor--liste-collapsed')).toBe(true);
+    expect(container.querySelector('#ed-liste-toggle')).not.toBeNull();
+    expect(localStorage.getItem('skripte-liste-collapsed')).toBeNull();
+  });
+
+  it('startNeuModus klappt die Liste ein, ohne Pref zu persistieren', async () => {
+    await view.render(container, 's1');
+    expect(container.querySelector('.skripte-editor--liste-collapsed')).toBeNull();
+
+    view.startNeuModus();
+
+    const editor = container.querySelector('.skripte-editor');
+    expect(editor.classList.contains('skripte-editor--liste-collapsed')).toBe(true);
+    expect(localStorage.getItem('skripte-liste-collapsed')).toBeNull();
+  });
+
+  it('bestehendes Skript stellt collapsed-Pref aus Storage wieder her', async () => {
+    localStorage.setItem('skripte-liste-collapsed', 'true');
+    await view.render(container, 's1');
+
+    expect(container.querySelector('.skripte-editor').classList.contains('skripte-editor--liste-collapsed')).toBe(true);
   });
 
   it('Visual-Button oeffnet Modus-Menue statt Direktstart', async () => {

@@ -3,6 +3,8 @@
 // Zwei parallele Query-Wellen statt des frueheren 13-Query-Waterfalls:
 // Welle 1 haengt nur an den params-IDs, Welle 2 an den Ergebnissen aus 1.
 
+const { resolveSkriptBereich, loadMasterDocs } = require('../skript-master');
+
 // ---------------------------------------------------------------------------
 // Kontext-Aufbau
 // ---------------------------------------------------------------------------
@@ -11,7 +13,7 @@
 // Inhalte nicht, nur welche Layer aktiv sind.
 async function loadContext(supabase, params, { schlank = false } = {}) {
   const { unternehmen_id, marke_id, kampagne_id, produkt_id, persona_id, branche_id, briefing_id, mit_dna, dna_id } = params;
-  const ctx = { dnaVersionen: [], beispiele: [], antiPatterns: [] };
+  const ctx = { dnaVersionen: [], beispiele: [], antiPatterns: [], master: [], masterVersionen: [] };
 
   // Welle 1: alle Quellen, die nur an params-IDs haengen (nicht voneinander)
   const unternehmenPromise = unternehmen_id
@@ -82,7 +84,9 @@ async function loadContext(supabase, params, { schlank = false } = {}) {
   // Branche: explizite Wahl aus der UI hat Vorrang vor Marke/Unternehmen/Persona
   ctx.brancheId = branche_id || ctx.marke?.branche_id || ctx.unternehmen?.branche_id || null;
 
-  // Welle 2: haengt an den Ergebnissen aus Welle 1 (brancheId, persona.branche_id)
+  ctx.bereich = resolveSkriptBereich(params, ctx.briefing);
+
+  // Welle 2: haengt an den Ergebnissen aus Welle 1 (brancheId, persona.branche_id, bereich)
   const branchePromise = ctx.brancheId
     ? supabase.from('branchen')
       .select('id, name').eq('id', ctx.brancheId).single()
@@ -128,7 +132,7 @@ async function loadContext(supabase, params, { schlank = false } = {}) {
   // Positiv-Beispiele: markenspezifisch UND global laufen parallel, danach
   // gemerged (markenspezifisch zuerst, global fuellt auf, max 3, dedupliziert).
   // Kostet eine zusaetzliche Query, spart einen sequentiellen Roundtrip.
-  const exampleCols = 'id, titel, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, performance_label, marke_id';
+  const exampleCols = 'id, titel, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, inhalt_md, performance_label, marke_id';
   const beispieleMarkePromise = !schlank && marke_id
     ? supabase.from('skripte').select(exampleCols)
       .in('performance_label', ['erfolgreich', 'viral']).eq('marke_id', marke_id)
@@ -147,16 +151,24 @@ async function loadContext(supabase, params, { schlank = false } = {}) {
       .order('created_at', { ascending: false }).limit(2)
     : Promise.resolve({ data: null });
 
+  // Master-Regelwerk: Basis immer + Bereichs-Doc. Auch im schlanken
+  // Fragen-Pfad voll laden - die Rueckfragen muessen die Ausgabestruktur kennen.
+  const masterPromise = loadMasterDocs(supabase, ctx.bereich, { schlank: false });
+
   const [
     { data: branche }, dnaResult,
-    { data: beispieleMarke }, { data: beispieleGlobal }, { data: antiPatterns }
+    { data: beispieleMarke }, { data: beispieleGlobal }, { data: antiPatterns },
+    masterResult
   ] = await Promise.all([
-    branchePromise, dnaPromise, beispieleMarkePromise, beispieleGlobalPromise, antiPatternsPromise
+    branchePromise, dnaPromise, beispieleMarkePromise, beispieleGlobalPromise, antiPatternsPromise,
+    masterPromise
   ]);
 
   ctx.branche = branche;
   ctx.dna = dnaResult.dna;
   ctx.dnaVersionen = dnaResult.dnaVersionen;
+  ctx.master = masterResult.master;
+  ctx.masterVersionen = masterResult.masterVersionen;
 
   const beispiele = [...(beispieleMarke || [])];
   for (const s of beispieleGlobal || []) {

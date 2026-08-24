@@ -36,3 +36,15 @@ export const DNA_LAYER = {
   zielgruppe: 'Zielgruppe',
   marke: 'Marke'
 };
+
+// Briefing-Bereich = Master-Doc (ohne 'basis', das ist immer dabei)
+export const SKRIPT_BEREICHE = {
+  owned_social: 'Owned Social',
+  paid_creator_ads: 'Paid Creator Ads',
+  influencer_marketing: 'Influencer Marketing'
+};
+
+export const MASTER_BEREICHE = {
+  basis: 'Basis (übergreifend)',
+  ...SKRIPT_BEREICHE
+};

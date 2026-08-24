@@ -25,7 +25,7 @@ const EDIT_TOOL = {
     type: 'object',
     properties: {
       antwort: { type: 'string', description: 'Kurze Erklaerung fuer den User (1-3 Saetze, Deutsch)' },
-      sektion: { type: ['string', 'null'], enum: ['hook', 'hauptteil', 'cta', null], description: 'Betroffene Sektion oder null' },
+      sektion: { type: ['string', 'null'], description: 'Betroffene Sektion (hook/hauptteil/cta oder ##-Slug) oder null' },
       vorschlag_text: { type: ['string', 'null'], description: 'Neuer Text oder null' }
     },
     required: ['antwort', 'sektion', 'vorschlag_text']
@@ -70,6 +70,16 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     ki = await starteKiRequest(supabase, { userId: user.id, feature: 'skript_editor' });
 
     const ctx = await loadEditContext(supabase, message);
+    if (ctx.masterVersionen?.length) {
+      const bestehend = ctx.skript.prompt_kontext || {};
+      await supabase.from('skripte').update({
+        prompt_kontext: {
+          ...bestehend,
+          master_versionen: ctx.masterVersionen,
+          bereich: ctx.skript.bereich || bestehend.bereich || null
+        }
+      }).eq('id', ctx.skript.id);
+    }
     const { stable, task } = buildEditPrompt(ctx, message);
 
     // Abbruch waehrend des Kontext-Ladens: kein Claude-Call mehr
@@ -105,7 +115,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     const parsed = result.json || extractJson(result.text, { keys: ['antwort', 'sektion', 'vorschlag_text'] });
     const vorschlag = stripToolXml(parsed.vorschlag_text);
     const antwort = stripToolXml(parsed.antwort);
-    const sektion = ['hook', 'hauptteil', 'cta'].includes(parsed.sektion) ? parsed.sektion : message.sektion;
+    const istMaster = Boolean(ctx.skript?.inhalt_md);
+    const parsedSektion = (parsed.sektion || '').trim() || null;
+    const sektion = istMaster
+      ? (parsedSektion || message.sektion)
+      : (['hook', 'hauptteil', 'cta'].includes(parsedSektion) ? parsedSektion : message.sektion);
 
     await supabase.from('skript_chat_messages').update({
       // Vorschlag ohne konkrete Sektion kann nicht angewendet werden -> nur Antwort

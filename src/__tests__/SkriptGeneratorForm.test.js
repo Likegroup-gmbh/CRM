@@ -239,4 +239,122 @@ describe('SkriptGeneratorForm', () => {
       expect(optionValues(createSimpleSearchableSelect, 'ref-item')).toEqual(['']);
     });
   });
+
+  describe('Bereich + Briefing-Vorgaben', () => {
+    function chooseBriefing(briefing) {
+      form.briefings = [briefing];
+      const briefingSel = form.el('briefing');
+      briefingSel.innerHTML = `<option value=""></option><option value="${briefing.id}">${briefing.aktivierung_name}</option>`;
+      briefingSel.disabled = false;
+      briefingSel.value = briefing.id;
+      form.onBriefingChange();
+    }
+
+    it('setzt Bereich aus dem Briefing und nimmt ihn ins Payload', async () => {
+      await form.render(root);
+      chooseBriefing({ id: 'br1', aktivierung_name: 'Launch', bereich: 'paid_creator_ads' });
+      form.el('unternehmen').value = 'u1';
+      form.el('idee').value = 'Airfryer-Hook';
+
+      expect(form.el('bereich').value).toBe('paid_creator_ads');
+      const payload = form.getPayload();
+      expect(payload.bereich).toBe('paid_creator_ads');
+      expect(payload).not.toHaveProperty('modus');
+    });
+
+    it('laesst manuelle Bereich-Ueberschreibung zu', async () => {
+      await form.render(root);
+      chooseBriefing({ id: 'br1', aktivierung_name: 'Launch', bereich: 'owned_social' });
+      form.el('unternehmen').value = 'u1';
+      form.el('idee').value = 'Idee';
+      form.el('bereich').value = 'influencer_marketing';
+
+      expect(form.getPayload().bereich).toBe('influencer_marketing');
+    });
+
+    it('wirft ohne Bereich', async () => {
+      await form.render(root);
+      form.el('unternehmen').value = 'u1';
+      form.el('idee').value = 'Idee';
+      form.el('bereich').value = '';
+      expect(() => form.getPayload()).toThrow(/Bereich/);
+    });
+
+    it('mappt PA-Laenge/Funnel, disabled sie und schickt sie im Payload', async () => {
+      await form.render(root);
+      chooseBriefing({
+        id: 'br1',
+        aktivierung_name: 'Launch',
+        bereich: 'paid_creator_ads',
+        pa_videolaengen: ['30s'],
+        pa_funnel_stufen: ['upper']
+      });
+      form.el('unternehmen').value = 'u1';
+      form.el('idee').value = 'Idee';
+
+      expect(form.el('laenge').value).toBe('15-30');
+      expect(form.el('funnel').value).toBe('top');
+      expect(form.el('laenge').disabled).toBe(true);
+      expect(form.el('funnel').disabled).toBe(true);
+      const payload = form.getPayload();
+      expect(payload.video_laenge).toBe('15-30');
+      expect(payload.funnel_stufe).toBe('top');
+    });
+
+    it('parst IM-Freitext-Laenge und sperrt die Felder', async () => {
+      await form.render(root);
+      chooseBriefing({
+        id: 'br1',
+        aktivierung_name: 'Launch',
+        bereich: 'influencer_marketing',
+        im_formatvorgaben: { videolaenge: '30-60 Sek.' },
+        im_funnel_stufen: ['mid']
+      });
+
+      expect(form.el('laenge').value).toBe('45-60');
+      expect(form.el('funnel').value).toBe('mid');
+      expect(form.el('laenge').disabled).toBe(true);
+      expect(form.el('funnel').disabled).toBe(true);
+    });
+
+    it('laesst Laenge/Funnel nach Briefing-Abwahl wieder enabled, Werte bleiben', async () => {
+      await form.render(root);
+      chooseBriefing({
+        id: 'br1',
+        aktivierung_name: 'Launch',
+        bereich: 'paid_creator_ads',
+        pa_videolaengen: ['30s'],
+        pa_funnel_stufen: ['upper']
+      });
+      expect(form.el('laenge').disabled).toBe(true);
+
+      form.el('briefing').value = '';
+      form.onBriefingChange();
+
+      expect(form.el('laenge').disabled).toBe(false);
+      expect(form.el('funnel').disabled).toBe(false);
+      expect(form.el('laenge').value).toBe('15-30');
+      expect(form.el('funnel').value).toBe('top');
+      expect(form.el('laenge').querySelector('option[value=""]').textContent)
+        .toBe('– Keine Vorgabe –');
+    });
+
+    it('setzt leeren Platzhalter wenn das Briefing keine Vorgabe hat', async () => {
+      await form.render(root);
+      chooseBriefing({
+        id: 'br1',
+        aktivierung_name: 'Launch',
+        bereich: 'owned_social'
+      });
+
+      expect(form.el('laenge').value).toBe('');
+      expect(form.el('funnel').value).toBe('');
+      expect(form.el('laenge').disabled).toBe(true);
+      expect(form.el('funnel').disabled).toBe(true);
+      expect(form.el('laenge').querySelector('option[value=""]').textContent)
+        .toBe('– Keine Vorgabe im Briefing –');
+      expect(form.el('funnel').querySelector('option[value=""]').textContent)
+        .toBe('– Keine Vorgabe im Briefing –');
+    });
+  });
 });

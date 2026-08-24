@@ -9,6 +9,7 @@ import { BEREICH_LABELS } from '../briefing/create/fieldConfig.js';
 import { PersonaService } from '../persona/PersonaService.js';
 import { buildSkriptVorlagePickerOptions } from '../strategie/strategieItemPicker.js';
 import { generatorFormMarkup } from './SkriptGeneratorFormMarkup.js';
+import { briefingVorgaben } from './briefingVorgaben.js';
 import { applyStrategieItem, buildReferenzVideoPayload } from './strategieVorlage.js';
 
 export { applyStrategieItem, buildReferenzVideoPayload };
@@ -19,6 +20,7 @@ export class SkriptGeneratorForm {
     this.container = null;
     this.unternehmen = [];
     this.marken = [];
+    this.briefings = [];
     this.strategieItems = [];
     this.ideeFromItem = '';
     this.referenz = { itemId: null, item: null };
@@ -35,10 +37,13 @@ export class SkriptGeneratorForm {
     this.el('unternehmen').addEventListener('change', () => this.onUnternehmenChange());
     this.el('marke').addEventListener('change', () => this.onMarkeChange());
     this.el('kampagne').addEventListener('change', () => this.onKampagneChange());
+    this.el('briefing')?.addEventListener('change', () => this.onBriefingChange());
     this.bindReferenzEvents();
     this.initDisabledDependents();
 
-    await Promise.all([this.loadUnternehmen(), this.loadBranchen(), this.loadDnaOptionen()]);
+    await Promise.all([
+      this.loadUnternehmen(), this.loadBranchen(), this.loadDnaOptionen()
+    ]);
   }
 
   // ------------------------------------------------------------------
@@ -227,6 +232,7 @@ export class SkriptGeneratorForm {
     if (!select) return;
 
     if (!unternehmenId) {
+      this.briefings = [];
       select.disabled = true;
       this.refreshSearchableSelect('briefing', [], {
         placeholder: 'Briefing suchen…',
@@ -237,6 +243,7 @@ export class SkriptGeneratorForm {
     }
 
     const briefings = await skripteService.loadBriefings(unternehmenId, markeId || null);
+    this.briefings = briefings;
     select.disabled = false;
     this.refreshSearchableSelect('briefing', briefings.map((b) => {
       const bereich = BEREICH_LABELS[b.bereich] || '';
@@ -255,6 +262,42 @@ export class SkriptGeneratorForm {
         hint.textContent = 'Liky nutzt die Angaben als verbindliche Basis für das Skript.';
       }
     }
+    this.onBriefingChange();
+  }
+
+  onBriefingChange() {
+    const id = this.el('briefing')?.value;
+    const briefing = this.briefings?.find((b) => b.id === id) || null;
+    const bereichEl = this.el('bereich');
+    if (briefing?.bereich && bereichEl) bereichEl.value = briefing.bereich;
+    this.applyBriefingVorgaben(briefing);
+  }
+
+  applyBriefingVorgaben(briefing) {
+    const laengeEl = this.el('laenge');
+    const funnelEl = this.el('funnel');
+    if (!laengeEl || !funnelEl) return;
+
+    const setEmpty = (select, label) => {
+      const empty = select.querySelector('option[value=""]');
+      if (empty) empty.textContent = label;
+    };
+
+    if (!briefing) {
+      laengeEl.disabled = false;
+      funnelEl.disabled = false;
+      setEmpty(laengeEl, '– Keine Vorgabe –');
+      setEmpty(funnelEl, '– Keine Vorgabe –');
+      return;
+    }
+
+    const vorgaben = briefingVorgaben(briefing);
+    laengeEl.value = vorgaben.video_laenge || '';
+    funnelEl.value = vorgaben.funnel_stufe || '';
+    laengeEl.disabled = true;
+    funnelEl.disabled = true;
+    setEmpty(laengeEl, vorgaben.video_laenge ? '– Keine Vorgabe –' : '– Keine Vorgabe im Briefing –');
+    setEmpty(funnelEl, vorgaben.funnel_stufe ? '– Keine Vorgabe –' : '– Keine Vorgabe im Briefing –');
   }
 
   async loadUnternehmen() {
@@ -447,6 +490,8 @@ export class SkriptGeneratorForm {
 
     if (!unternehmenId) throw new Error('Bitte ein Unternehmen wählen');
     if (!videoIdee) throw new Error('Bitte eine Video-Idee eingeben');
+    const bereich = this.el('bereich')?.value;
+    if (!bereich) throw new Error('Bitte einen Bereich wählen (Owned / Paid / Influencer)');
 
     const referenzVideo = this.getReferenzPayload();
     const strategieItemId = this.el('ref-item')?.value || this.referenz.itemId || null;
@@ -461,6 +506,7 @@ export class SkriptGeneratorForm {
       persona_id: this.el('persona').value || null,
       branche_id: this.el('branche').value || null,
       briefing_id: this.el('briefing')?.value || null,
+      bereich,
       strategie_item_id: strategieItemId,
       video_idee: videoIdee,
       location: this.el('location').value.trim() || null,
