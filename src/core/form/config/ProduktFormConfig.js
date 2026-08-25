@@ -6,10 +6,9 @@
 // abweichender Preis) haengen daran und werden im Panel rechts gepflegt,
 // siehe ProduktVarianten.js.
 //
-// unternehmen_id ist bewusst kein sichtbares Feld: der Besitzer kommt aus dem
-// Kontext und wird von ProduktForm als Hidden-Input eingehaengt. marke_ids
-// rendert nur im Unternehmens-Kontext - aus einer Marke heraus ist die
-// Zuordnung fix.
+// unternehmen_id kommt aus dem Kontext (Hidden) oder, auf /produkt/new, als
+// sichtbares Select (docRole 'owner'). marke_ids rendert im Unternehmens-
+// und Listen-Kontext - aus einer Marke heraus ist die Zuordnung fix.
 //
 // Die doc*-Angaben steuern das Worksheet-Layout in ProduktDoc.js:
 //   docSlot   'side' holt das Feld aus dem Dokument in die rechte Spalte
@@ -54,6 +53,22 @@ export const produktConfig = {
       section: 'basis',
       sectionTitle: 'Was ist das Produkt?',
       sectionDescription: 'Die Kollektion trägt die gemeinsame Basis. Unterschiede wie Farbe oder Modell kommen als Varianten dazu.'
+    },
+    {
+      name: 'unternehmen_id',
+      label: 'Unternehmen',
+      type: 'select',
+      required: true,
+      searchable: true,
+      table: 'unternehmen',
+      displayField: 'firmenname',
+      valueField: 'id',
+      placeholder: 'Unternehmen suchen und auswählen...',
+      docRole: 'owner',
+      docLabel: 'Unternehmen',
+      docHint: 'Welchem Unternehmen gehört das Produkt?',
+      docGroup: 'inhalt',
+      section: 'basis'
     },
     {
       name: 'marke_ids',

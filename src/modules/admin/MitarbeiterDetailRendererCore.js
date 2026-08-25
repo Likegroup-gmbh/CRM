@@ -4,7 +4,7 @@
 import { renderTabButton } from '../../core/TabUtils.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { renderRechteTab } from './MitarbeiterDetailRendererRechte.js';
-import { renderKampagnenTable, renderKooperationenTable, renderBriefingsTable, renderAuftragsdetailsTable, renderUnternehmenTable, renderBudget } from './MitarbeiterDetailRendererTables.js';
+import { renderKampagnenTable, renderKooperationenTable, renderAuftragsdetailsTable, renderUnternehmenTable, renderBudget } from './MitarbeiterDetailRendererTables.js';
 
 export function getDisplayName(detail) {
   if (detail.user?.vorname && detail.user?.nachname) {
@@ -26,7 +26,6 @@ export function getTabsConfig(detail) {
     { tab: 'unternehmen', label: 'Unternehmen', count: detail.zugeordnet.unternehmen.length, isActive: detail.activeMainTab === 'unternehmen' },
     { tab: 'auftragsdetails', label: 'Auftragsdetails', count: detail.assignments.auftragsdetails.length, isActive: detail.activeMainTab === 'auftragsdetails' },
     { tab: 'kampagnen', label: 'Kampagnen', count: detail.assignments.kampagnen.length, isActive: detail.activeMainTab === 'kampagnen' },
-    { tab: 'briefings', label: 'Briefings', count: detail.assignments.briefings.length, isActive: detail.activeMainTab === 'briefings' },
     { tab: 'kooperationen', label: 'Kooperationen', count: detail.assignments.kooperationen.length, isActive: detail.activeMainTab === 'koops' },
     { tab: 'cashflow', label: 'Budget', isActive: detail.activeMainTab === 'budget' },
     { tab: 'rechte', label: 'Rechte', isActive: detail.activeMainTab === 'rechte' }
@@ -59,8 +58,6 @@ export function renderTabContent(detail, tab) {
       return `<div class="detail-section">${renderKooperationenTable(detail)}</div>`;
     case 'budget':
       return `<div class="detail-section">${renderBudget(detail)}</div>`;
-    case 'briefings':
-      return `<div class="detail-section">${renderBriefingsTable(detail)}</div>`;
     case 'auftragsdetails':
       return `<div class="detail-section">${renderAuftragsdetailsTable(detail)}</div>`;
     default:
@@ -69,7 +66,7 @@ export function renderTabContent(detail, tab) {
 }
 
 export function renderMainContent(detail) {
-  const tabs = ['rechte', 'unternehmen', 'kampagnen', 'koops', 'budget', 'briefings', 'auftragsdetails'];
+  const tabs = ['rechte', 'unternehmen', 'kampagnen', 'koops', 'budget', 'auftragsdetails'];
   detail._renderedTabs = new Set();
   if (detail.activeMainTab && tabs.includes(detail.activeMainTab)) {
     detail._renderedTabs.add(detail.activeMainTab);

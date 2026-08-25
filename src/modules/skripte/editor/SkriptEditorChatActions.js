@@ -1,5 +1,5 @@
 // SkriptEditorChatActions.js
-// Chat-Aktionen im Editor: Senden (freies Feedback, vorgemerkte Aktion,
+// Chat-Aktionen im Editor: Senden (freie Anweisung, vorgemerkte Aktion,
 // Rueckfragen-Antwort), Retry, Annehmen/Ablehnen von Vorschlaegen und
 // manuelles Speichern aus dem Inline-Edit.
 
@@ -16,7 +16,7 @@ export class SkriptEditorChatActions {
   }
 
   // ------------------------------------------------------------------
-  // Senden (freies Feedback oder vorgemerkte Aktion)
+  // Senden (freie Anweisung oder vorgemerkte Aktion)
   // ------------------------------------------------------------------
   async sendChat() {
     const v = this.view;
@@ -57,7 +57,7 @@ export class SkriptEditorChatActions {
       return;
     }
 
-    // Freies Feedback braucht Text
+    // Freie Anweisung braucht Text
     if (!text) return;
     input.value = '';
 

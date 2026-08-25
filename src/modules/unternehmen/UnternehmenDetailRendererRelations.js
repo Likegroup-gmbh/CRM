@@ -1,5 +1,5 @@
 // UnternehmenDetailRendererRelations.js
-// Tab-Renderer: Strategien, Creator-Auswahl, Kooperationen, Creator, Ansprechpartner, Rechnungen, Verträge, Strategiebriefing
+// Tab-Renderer: Strategien, Creator-Auswahl, Kooperationen, Creator, Ansprechpartner, Rechnungen, Verträge
 
 import { renderCreatorTable } from '../creator/CreatorTable.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
@@ -8,7 +8,6 @@ import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { VertragUtils } from '../vertrag/VertragUtils.js';
 import { renderMarkeBubble, renderPersonBubble } from './UnternehmenDetailRendererHelpers.js';
-import { renderStrategiebriefing as renderStrategiebriefingShared, bindStrategiebriefingCreateButton } from '../kickoff/StrategiebriefingRenderer.js';
 import { getPaymentRowStatusClass } from '../auftrag/logic/PaymentRowStatus.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
@@ -397,12 +396,4 @@ export function renderVertraege(detail) {
       </table>
     </div>
   `;
-}
-
-export function renderKickOff(detail) {
-  return renderStrategiebriefingShared(detail, { parentType: 'unternehmen' });
-}
-
-export function bindUnternehmenKickOffCreateButton(detail) {
-  bindStrategiebriefingCreateButton(detail, { parentType: 'unternehmen' });
 }

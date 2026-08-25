@@ -3,10 +3,10 @@
 // Alle Queries laufen ueber window.supabase (RLS: intern voll, Kunden nur eigener Scope).
 
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
-import { PERFORMANCE_LABELS, FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER, SKRIPT_BEREICHE, MASTER_BEREICHE } from './skripteKonstanten.js';
+import { FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER, SKRIPT_BEREICHE, MASTER_BEREICHE } from './skripteKonstanten.js';
 import { planeVersionsRows } from './versionsNummerierung.js';
 
-export { PERFORMANCE_LABELS, FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER, SKRIPT_BEREICHE, MASTER_BEREICHE };
+export { FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER, SKRIPT_BEREICHE, MASTER_BEREICHE };
 
 // Gateway-/Last-Fehler beim Function-Invoke, bei denen ein Retry sinnvoll ist
 const TRANSIENT_TRIGGER_STATUS = new Set([408, 429, 500, 502, 503, 504]);
@@ -169,7 +169,7 @@ export class SkripteService {
     // Listen-Loader: hauptteil/cta bleiben draussen (nie angezeigt),
     // hook nur als Titel-Fallback (Renderer schneidet auf 50/80 Zeichen)
     const { data, error } = await this.db.from('skripte')
-      .select('id, titel, unternehmen_id, marke_id, kampagne_id, branche_id, hook, herkunft, performance_label, status, mit_dna, model, funnel_stufe, created_at, unternehmen(id, firmenname, internes_kuerzel, logo_url), marke(id, markenname, logo_url), kampagne(id, kampagnenname, eigener_name), branchen(name)')
+      .select('id, titel, unternehmen_id, marke_id, kampagne_id, branche_id, hook, herkunft, status, mit_dna, model, funnel_stufe, created_at, unternehmen(id, firmenname, internes_kuerzel, logo_url), marke(id, markenname, logo_url), kampagne(id, kampagnenname, eigener_name), branchen(name)')
       .order('created_at', { ascending: false })
       .limit(200);
 
@@ -398,44 +398,6 @@ export class SkripteService {
   }
 
   // ------------------------------------------------------------------
-  // Feedback
-  // ------------------------------------------------------------------
-  async loadFeedback(skriptId) {
-    const { data, error } = await this.db.from('skript_feedback')
-      .select('*').eq('skript_id', skriptId).order('created_at');
-    if (error) throw new Error(error.message);
-    return data || [];
-  }
-
-  async saveFeedback(skriptId, eintraege) {
-    const { data: { user } } = await this.db.auth.getUser();
-    const rows = eintraege
-      .filter((e) => e.score != null || (e.begruendung || '').trim() || (e.korrigierte_version || '').trim())
-      .map((e) => ({
-        skript_id: skriptId,
-        sektion: e.sektion,
-        score: e.score ?? null,
-        begruendung: (e.begruendung || '').trim() || null,
-        korrigierte_version: (e.korrigierte_version || '').trim() || null,
-        selektion_text: (e.selektion_text || '').trim() || null,
-        version_nr: e.version_nr ?? null,
-        chat_message_id: e.chat_message_id || null,
-        created_by: user?.id
-      }));
-    if (!rows.length) return [];
-    const { data, error } = await this.db.from('skript_feedback').insert(rows).select();
-    if (error) throw new Error(error.message);
-    await this.updateSkript(skriptId, { status: 'feedback_gegeben' });
-    return data || [];
-  }
-
-  /** Nachtraeglicher Patch an einem Feedback-Eintrag (z.B. chat_message_id). */
-  async updateFeedback(id, patch) {
-    const { error } = await this.db.from('skript_feedback').update(patch).eq('id', id);
-    if (error) throw new Error(error.message);
-  }
-
-  // ------------------------------------------------------------------
   // DNA
   // ------------------------------------------------------------------
   /** Aktive DNA-Dokumente fuer die Auswahl im Generator. */
@@ -452,6 +414,36 @@ export class SkripteService {
       .select('*, branchen(name), personas(name, oberbegriff), marke(markenname)')
       .order('layer_typ').order('version', { ascending: false });
     return data || [];
+  }
+
+  async loadDna(id) {
+    const { data, error } = await this.db.from('skript_dna')
+      .select('*, branchen(name), personas(name, oberbegriff), marke(markenname)')
+      .eq('id', id).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async createDna({ name, inhalt, layer_typ, branche_id = null, persona_id = null, marke_id = null }) {
+    let maxQ = this.db.from('skript_dna').select('version')
+      .eq('layer_typ', layer_typ)
+      .order('version', { ascending: false }).limit(1);
+    if (branche_id) maxQ = maxQ.eq('branche_id', branche_id);
+    if (persona_id) maxQ = maxQ.eq('persona_id', persona_id);
+    if (marke_id) maxQ = maxQ.eq('marke_id', marke_id);
+    const { data: maxRows } = await maxQ;
+    const { data, error } = await this.db.from('skript_dna').insert({
+      name: (name || '').trim() || null,
+      inhalt: inhalt ?? '',
+      layer_typ,
+      branche_id: branche_id || null,
+      persona_id: persona_id || null,
+      marke_id: marke_id || null,
+      version: (maxRows?.[0]?.version || 0) + 1,
+      status: 'entwurf'
+    }).select('*, branchen(name), personas(name, oberbegriff), marke(markenname)').single();
+    if (error) throw new Error(error.message);
+    return data;
   }
 
   async updateDna(id, patch) {
@@ -484,6 +476,28 @@ export class SkripteService {
       .order('bereich').order('version', { ascending: false });
     if (error) throw new Error(error.message);
     return data || [];
+  }
+
+  async loadMaster(id) {
+    const { data, error } = await this.db.from('skript_master')
+      .select('*').eq('id', id).maybeSingle();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  async createMaster({ name, inhalt, bereich }) {
+    const { data: maxRows } = await this.db.from('skript_master')
+      .select('version').eq('bereich', bereich)
+      .order('version', { ascending: false }).limit(1);
+    const { data, error } = await this.db.from('skript_master').insert({
+      name: (name || '').trim() || MASTER_BEREICHE[bereich] || bereich,
+      inhalt: inhalt ?? '',
+      bereich,
+      version: (maxRows?.[0]?.version || 0) + 1,
+      status: 'entwurf'
+    }).select('*').single();
+    if (error) throw new Error(error.message);
+    return data;
   }
 
   async updateMaster(id, patch) {

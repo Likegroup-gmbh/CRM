@@ -237,30 +237,6 @@
   white-space: nowrap;
 }
 
-/* Button "Feedback" im Doc-Kopf: oeffnet die Komplett-Bewertung */
-.skripte-editor-feedback-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-xxs);
-  background: none;
-  border: var(--border-xs) solid var(--border-primary);
-  border-radius: 999px;
-  padding: var(--space-xxs) var(--space-sm);
-  font-size: var(--text-xs);
-  color: var(--text-primary);
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.skripte-editor-feedback-btn:hover {
-  background: var(--bg-tertiary);
-}
-
-.skripte-editor-feedback-btn .skripte-editor-tag-icon {
-  width: var(--text-sm);
-  height: var(--text-sm);
-}
-
 .skripte-editor-doc-tabs {
   padding-left: var(--space-md);
   padding-right: var(--space-md);
@@ -655,7 +631,7 @@
   gap: var(--space-sm);
 }
 
-/* Versions-Auswahl rechts vom Feedback-Button im Doc-Kopf */
+/* Versions-Auswahl im Doc-Kopf */
 .skripte-editor-version {
   flex-shrink: 0;
 }

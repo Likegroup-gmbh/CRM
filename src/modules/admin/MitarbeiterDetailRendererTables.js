@@ -1,5 +1,5 @@
 // MitarbeiterDetailRendererTables.js
-// Tab-Tabellen: Kampagnen, Kooperationen, Briefings, Auftragsdetails, Unternehmen, Budget
+// Tab-Tabellen: Kampagnen, Kooperationen, Auftragsdetails, Unternehmen, Budget
 
 import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
@@ -64,24 +64,6 @@ export function renderKooperationenTable(detail) {
     <div class="data-table-container">
       <table class="data-table">
         <thead><tr><th>Name</th><th>Kampagne</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-  `;
-}
-
-export function renderBriefingsTable(detail) {
-  const rows = (detail.assignments.briefings || []).map(b => `
-    <tr>
-      <td><a href="/briefing/${b.id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/briefing/${b.id}')">${window.validatorSystem.sanitizeHtml(b.aktivierung_name || b.id)}</a></td>
-      <td><span class="status-badge ${b.is_draft ? 'status-entwurf' : 'status-final'}">${b.is_draft ? 'Entwurf' : 'Final'}</span></td>
-    </tr>
-  `).join('');
-  if (!rows) return renderEmptyState({ icon: 'document', title: 'Keine Briefings zugewiesen' });
-  return `
-    <div class="data-table-container">
-      <table class="data-table">
-        <thead><tr><th>Briefing</th><th>Status</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>

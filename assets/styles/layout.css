@@ -516,7 +516,43 @@
 .breadcrumb-current {
   color: var(--text-primary);
   font-weight: 500;
-  
+}
+
+.breadcrumb-switcher {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  gap: var(--space-xxs);
+  min-width: 0;
+  max-width: 240px;
+}
+
+.breadcrumb-switcher:hover,
+.breadcrumb-switcher[aria-expanded="true"] {
+  color: var(--text-primary);
+}
+
+.breadcrumb-switcher-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.breadcrumb-switcher-icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  transform: rotate(90deg);
+  color: var(--text-muted);
+}
+
+.breadcrumb-switcher-icon svg,
+.breadcrumb-switcher-icon .crm-icon {
+  width: 14px;
+  height: 14px;
 }
 
 .breadcrumb-separator {

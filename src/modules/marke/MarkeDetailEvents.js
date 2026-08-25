@@ -3,13 +3,9 @@
 
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { loadMarkeTabData } from './MarkeDetailLoader.js';
-import { updateKickOffTab } from './MarkeDetailTabUpdates.js';
-import { bindKickOffCreateButton } from './MarkeDetailRendererKickOff.js';
+
 export function bindMarkeDetailEvents(detail) {
   detail.bindSidebarTabs();
-
-  // Kick-Off Create Button binden (nach jedem Render)
-  bindKickOffCreateButton(detail);
 
   if (detail._eventsBound) return;
   detail._eventsBound = true;
@@ -20,19 +16,6 @@ export function bindMarkeDetailEvents(detail) {
 
   // Zentraler Click-Handler
   const handleDocumentClick = async (e) => {
-    // KickOff-Type-Switcher VOR generischem Tab-Handler
-    const kickoffTypeBtn = e.target.closest('.kickoff-type-btn');
-    if (kickoffTypeBtn) {
-      e.preventDefault();
-      const nextType = kickoffTypeBtn.dataset.kickoffType;
-      if (!['paid', 'organic'].includes(nextType)) return;
-      detail.activeKickoffType = nextType;
-      detail.kickoff = detail.kickoffsByType[nextType] || null;
-      detail.kickoffMarkenwerte = detail.kickoffMarkenwerteByType[nextType] || [];
-      updateKickOffTab(detail);
-      return;
-    }
-
     // Tab-Button Navigation
     const btn = e.target.closest('.tab-button');
     if (btn) {

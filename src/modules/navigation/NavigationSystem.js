@@ -28,6 +28,7 @@ export class NavigationSystem {
         items: [
           { id: 'unternehmen', label: 'Unternehmen', icon: 'unternehmen', url: '/unternehmen' },
           { id: 'marke', label: 'Marken', icon: 'marke', url: '/marke' },
+          { id: 'produkt', label: 'Produkte', icon: 'produkt', url: '/produkt' },
           { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'ansprechpartner', url: '/ansprechpartner' },
           {
             id: 'management',
@@ -50,9 +51,6 @@ export class NavigationSystem {
       {
         title: 'Content & Strategie',
         items: [
-          // Ausgeblendet, kommt später wieder:
-          // { id: 'kickoff', label: 'Kick-Off', icon: 'kickoff', url: '/kickoff' },
-          // { id: 'produkt', label: 'Produkte', icon: 'produkt', url: '/produkt' },
           { id: 'briefing', label: 'Briefings', icon: 'briefing', url: '/briefing' },
           { id: 'strategie', label: 'Strategie', icon: 'strategie', url: '/strategie' },
           { id: 'sourcing', label: 'Sourcing', icon: 'sourcing', url: '/sourcing' },
@@ -143,7 +141,6 @@ export class NavigationSystem {
         'management-ansprechpartner': 'ansprechpartner',
         kampagne: 'kampagne',
         strategie: 'strategie',
-        kickoff: 'kickoff',
         briefing: 'briefing',
         skripte: 'skripte',
         kooperation: 'kooperation',

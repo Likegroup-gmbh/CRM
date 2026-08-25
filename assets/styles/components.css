@@ -5828,33 +5828,6 @@ h3.section-title,
 }
 
 /* ==========================================================================
-   KickOff / Strategiebriefing
-   ========================================================================== */
-
-.kickoff-details-link {
-  margin-left: var(--space-md);
-}
-
-.strategiebriefing-legacy-hint {
-  font-size: var(--text-xsm);
-  margin-bottom: var(--space-xs);
-}
-
-.strategiebriefing-th-kategorie {
-  width: 30%;
-}
-
-.strategiebriefing-actions {
-  margin-top: var(--space-md);
-  padding: 0 var(--space-md);
-}
-
-.kickoff-legacy-tag {
-  font-size: 0.7rem;
-  opacity: 0.6;
-}
-
-/* ==========================================================================
    KI Usage
    ========================================================================== */
 

@@ -4,11 +4,12 @@
 import { renderTabButton } from '../../core/TabUtils.js';
 import { UnternehmenService } from './services/UnternehmenService.js';
 import { renderAuftraege, renderAuftragsdetails, renderBriefings, renderKampagnen } from './UnternehmenDetailRendererBusiness.js';
-import { renderStrategien, renderCreatorAuswahl, renderKooperationen, renderCreators, renderAnsprechpartner, renderRechnungen, renderKundenrechnungen, renderVertraege, renderKickOff } from './UnternehmenDetailRendererRelations.js';
+import { renderStrategien, renderCreatorAuswahl, renderKooperationen, renderCreators, renderAnsprechpartner, renderRechnungen, renderKundenrechnungen, renderVertraege } from './UnternehmenDetailRendererRelations.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { renderPersonas } from '../persona/PersonaTabRenderer.js';
 import { renderProdukte } from '../produkt/ProduktTabRenderer.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderNotizDokument } from '../../core/components/NotizDokument.js';
 
 export function renderUnternehmenDetailPage(detail) {
   if (!detail.activeMainTab) {
@@ -41,7 +42,12 @@ export function renderUnternehmenDetailPage(detail) {
     { icon: 'home', label: 'Rechnungsadresse', rawHtml: renderAdresseBlock(detail, 'rechnungsadresse') },
     { icon: 'clock', label: 'Erstellt', value: detail.formatDate(detail.unternehmen?.created_at) },
     { icon: 'clock', label: 'Aktualisiert', value: detail.formatDate(detail.unternehmen?.updated_at) }
-  ]);
+  ]) + renderNotizDokument({
+    entityType: 'unternehmen',
+    entityId: detail.unternehmenId,
+    sektionen: detail.strategieDokument?.sektionen || {},
+    kiStand: detail.strategieDokument?.ki_stand || null
+  });
 
   const tabNavigation = renderTabNavigation(detail);
   const mainContent = renderMainContent(detail);
@@ -85,16 +91,8 @@ export function renderAdresseBlock(detail, prefix) {
 }
 
 export function renderTabNavigation(detail) {
-  const showKickOffTab = detail.marken.length === 0;
-
   const tabs = [
     { tab: 'informationen', label: 'Informationen', isActive: detail.activeMainTab === 'informationen' },
-    ...(showKickOffTab ? [{
-      tab: 'kickoff',
-      label: 'Strategiebriefing',
-      count: Object.values(detail.kickoffsByType).filter(Boolean).length,
-      isActive: detail.activeMainTab === 'kickoff'
-    }] : []),
     { tab: 'marken', label: 'Marken', count: detail.marken.length, isActive: detail.activeMainTab === 'marken' },
     { tab: 'personas', label: 'Personas', count: detail.personas.length, isActive: detail.activeMainTab === 'personas' },
     { tab: 'produkte', label: 'Produkte', count: detail.produkte.length, isActive: detail.activeMainTab === 'produkte' },
@@ -118,9 +116,6 @@ export function renderTabNavigation(detail) {
 export function renderMainContent(detail) {
   return `
     <div class="tab-content secondary-tab-content">
-      <div class="tab-pane ${detail.activeMainTab === 'kickoff' ? 'active' : ''}" id="tab-kickoff">
-        ${renderKickOff(detail)}
-      </div>
       <div class="tab-pane ${detail.activeMainTab === 'marken' ? 'active' : ''}" id="tab-marken">
         ${renderMarken(detail)}
       </div>

@@ -32,6 +32,53 @@ const BILD_KOMPRESSION = {
   fallbackFormat: 'image/webp'
 };
 
+/**
+ * Reine Scope-Rechnung aus Zuordnungen. Kein Admin/Kunde, keine DB.
+ * Explizite Marken einer Firma → nur diese Marken; sonst alle Produkte der Firma.
+ * Marken ohne Firmen-Zuordnung bleiben markenbeschränkt.
+ */
+export function resolveProduktScope({ companyIds = [], brands = [] } = {}) {
+  const companySet = [...new Set(companyIds.filter(Boolean))];
+  const brandsByCompany = new Map();
+
+  for (const brand of brands) {
+    if (!brand?.id || !brand.unternehmen_id) continue;
+    if (!brandsByCompany.has(brand.unternehmen_id)) {
+      brandsByCompany.set(brand.unternehmen_id, []);
+    }
+    brandsByCompany.get(brand.unternehmen_id).push(brand.id);
+  }
+
+  const unrestrictedCompanyIds = [];
+  const restrictedBrandIds = new Set();
+
+  for (const companyId of companySet) {
+    const explicit = brandsByCompany.get(companyId);
+    if (explicit?.length) {
+      explicit.forEach(id => restrictedBrandIds.add(id));
+    } else {
+      unrestrictedCompanyIds.push(companyId);
+    }
+  }
+
+  for (const brand of brands) {
+    if (!brand?.id) continue;
+    if (!brand.unternehmen_id || !companySet.includes(brand.unternehmen_id)) {
+      restrictedBrandIds.add(brand.id);
+    }
+  }
+
+  return {
+    unrestrictedCompanyIds,
+    restrictedBrandIds: [...restrictedBrandIds]
+  };
+}
+
+export function produktFormRoute(unternehmenId, produktId = null) {
+  const base = `/unternehmen/${unternehmenId}/produkt`;
+  return produktId ? `${base}?produkt=${produktId}` : base;
+}
+
 const MARKEN_SELECT = 'marken:produkt_marke(marke_id, marke:marke_id(id, markenname))';
 
 const TABELLEN_SELECT = `
@@ -39,8 +86,128 @@ const TABELLEN_SELECT = `
   bilder:produkt_bilder(id, storage_pfad, position, ist_hauptbild, variante_id)
 `;
 
+function isUnscopedRolle(rolle) {
+  const r = String(rolle || '').toLowerCase();
+  return r === 'admin' || r === 'kunde' || r === 'kunde_editor';
+}
+
 export class ProduktService {
   // --- Lesen ---
+
+  /**
+   * Sichtbarkeit analog MarkeService: Admin/Kunde unscoped (RLS),
+   * Mitarbeiter nur eigene Firma/Marke.
+   * @returns {Promise<{all: boolean, produktIds: string[]|null, unrestrictedCompanyIds: string[], restrictedBrandIds: string[]}>}
+   */
+  static async getAllowedProduktScopeForUser(userId) {
+    const empty = {
+      all: false,
+      produktIds: [],
+      unrestrictedCompanyIds: [],
+      restrictedBrandIds: []
+    };
+
+    if (isUnscopedRolle(window.currentUser?.rolle)) {
+      return { all: true, produktIds: null, unrestrictedCompanyIds: [], restrictedBrandIds: [] };
+    }
+    if (!userId || !window.supabase) return empty;
+
+    try {
+      const [companyIds, brands] = await Promise.all([
+        this._loadCompanyAssignments(userId),
+        this._loadBrandAssignments(userId)
+      ]);
+      const resolved = resolveProduktScope({ companyIds, brands });
+      const produktIds = await this._loadProduktIdsForScope(resolved);
+      return { all: false, produktIds, ...resolved };
+    } catch (error) {
+      console.error('❌ ProduktService.getAllowedProduktScopeForUser:', error);
+      return empty;
+    }
+  }
+
+  /** Firmen, unter denen der User ein Produkt anlegen darf. */
+  static async loadCreateUnternehmenOptions(userId) {
+    const scope = await this.getAllowedProduktScopeForUser(userId);
+    let query = window.supabase.from('unternehmen').select('id, firmenname').order('firmenname');
+
+    if (!scope.all) {
+      const ids = new Set(scope.unrestrictedCompanyIds || []);
+      if (scope.restrictedBrandIds?.length) {
+        const { data: marken } = await window.supabase
+          .from('marke')
+          .select('unternehmen_id')
+          .in('id', scope.restrictedBrandIds);
+        (marken || []).forEach(m => { if (m.unternehmen_id) ids.add(m.unternehmen_id); });
+      }
+      if (!ids.size) return [];
+      query = query.in('id', [...ids]);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  }
+
+  static async _loadCompanyAssignments(userId) {
+    const { data, error } = await window.supabase
+      .from('mitarbeiter_unternehmen')
+      .select('unternehmen_id')
+      .eq('mitarbeiter_id', userId);
+    if (error) throw error;
+    return (data || []).map(r => r.unternehmen_id).filter(Boolean);
+  }
+
+  static async _loadBrandAssignments(userId) {
+    const { data, error } = await window.supabase
+      .from('marke_mitarbeiter')
+      .select('marke_id')
+      .eq('mitarbeiter_id', userId);
+    if (error) throw error;
+    const ids = (data || []).map(r => r.marke_id).filter(Boolean);
+    if (!ids.length) return [];
+
+    const { data: marken, error: markenError } = await window.supabase
+      .from('marke')
+      .select('id, unternehmen_id')
+      .in('id', ids);
+    if (markenError) throw markenError;
+    return marken || [];
+  }
+
+  static async _loadProduktIdsForScope({ unrestrictedCompanyIds = [], restrictedBrandIds = [] } = {}) {
+    const ids = new Set();
+    const promises = [];
+
+    if (unrestrictedCompanyIds.length) {
+      promises.push(
+        window.supabase
+          .from('produkt')
+          .select('id')
+          .in('unternehmen_id', unrestrictedCompanyIds)
+          .then(({ data, error }) => {
+            if (error) throw error;
+            (data || []).forEach(r => { if (r.id) ids.add(r.id); });
+          })
+      );
+    }
+
+    if (restrictedBrandIds.length) {
+      promises.push(
+        window.supabase
+          .from('produkt_marke')
+          .select('produkt_id')
+          .in('marke_id', restrictedBrandIds)
+          .then(({ data, error }) => {
+            if (error) throw error;
+            (data || []).forEach(r => { if (r.produkt_id) ids.add(r.produkt_id); });
+          })
+      );
+    }
+
+    await Promise.all(promises);
+    return [...ids];
+  }
 
   /** Produkte des Kontexts inklusive Varianten-IDs und Bildern fuer die Tabelle. */
   static async loadForContext({ unternehmenId = null, markeId = null } = {}) {

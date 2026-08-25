@@ -7,6 +7,7 @@ import { loadCriticalData, loadMarkeTabData } from './MarkeDetailLoader.js';
 import { renderMarkeDetailPage } from './MarkeDetailRendererCore.js';
 import { bindMarkeDetailEvents, setupCacheInvalidation } from './MarkeDetailEvents.js';
 import { showEditForm } from './MarkeDetailEdit.js';
+import { bindNotizDokument } from '../../core/components/NotizDokument.js';
 
 export class MarkeDetail extends PersonDetailBase {
   constructor() {
@@ -23,13 +24,9 @@ export class MarkeDetail extends PersonDetailBase {
     this.strategien = [];
     this.personas = [];
     this.produkte = [];
-    this.kickoff = null;
-    this.kickoffMarkenwerte = [];
-    this.kickoffsByType = { paid: null, organic: null };
-    this.kickoffMarkenwerteByType = { paid: [], organic: [] };
-    this.activeKickoffType = 'organic';
-    this._kickoffLoaded = false;
     this.activeMainTab = 'informationen';
+    this.strategieDokument = null;
+    this._notizDokument = null;
 
     this._tabAbortControllers = new Map();
     this._currentLoadingTab = null;
@@ -51,9 +48,6 @@ export class MarkeDetail extends PersonDetailBase {
 
     try {
       this.markeId = markeId;
-      this.kickoffsByType = { paid: null, organic: null };
-      this.kickoffMarkenwerteByType = { paid: [], organic: [] };
-      this._kickoffLoaded = false;
 
       // ?tab=... macht einzelne Tabs deeplink-faehig und laesst die Rueckkehr
       // von Unterseiten (z.B. Persona-Formular) auf dem richtigen Tab landen.
@@ -94,6 +88,18 @@ export class MarkeDetail extends PersonDetailBase {
 
   render() {
     renderMarkeDetailPage(this);
+    this._bindNotizDokument();
+  }
+
+  _bindNotizDokument() {
+    this._notizDokument?.destroy();
+    const root = document.getElementById('notiz-dokument');
+    this._notizDokument = root
+      ? bindNotizDokument(root, {
+          entityType: 'marke',
+          entityId: this.markeId
+        })
+      : null;
   }
 
   bindEvents() {
@@ -109,6 +115,8 @@ export class MarkeDetail extends PersonDetailBase {
   }
 
   destroy() {
+    this._notizDokument?.destroy();
+    this._notizDokument = null;
     this._cacheAbortController?.abort();
     this._cacheAbortController = null;
 

@@ -1,24 +1,29 @@
 // SkriptePage.js
 // /skripte = Table-Liste, /skripte/new und /skripte/:id = 3-Spalten-Editor,
-// /skripte/dna = DNA-Verwaltung, /skripte/master = Master-Regelwerk.
+// /skripte/dna|/master = Regelwerk-Liste, /new und /:id = Dokument-Seite.
 
 import { SkriptEditorView } from './SkriptEditorView.js';
 import { SkriptList } from './SkriptList.js';
-import { SkriptDnaView } from './dna/SkriptDnaView.js';
-import { SkriptMasterView } from './master/SkriptMasterView.js';
+import { SkriptRegelwerkList } from './regelwerk/SkriptRegelwerkList.js';
+import { SkriptRegelwerkDetail } from './regelwerk/SkriptRegelwerkDetail.js';
+import { dnaAdapter, masterAdapter } from './regelwerk/regelwerkAdapters.js';
 import { replaceSkriptUrl } from './SkripteUtils.js';
 
 const KONTEXT_KEY = 'skripte:kontext';
+const REGELWERK = { dna: dnaAdapter, master: masterAdapter };
 
 export class SkriptePage {
   constructor() {
     this.list = new SkriptList();
     this.editorView = new SkriptEditorView(this);
-    this.dnaView = new SkriptDnaView();
-    this.masterView = new SkriptMasterView();
+    this.regelwerkListen = {
+      dna: new SkriptRegelwerkList(dnaAdapter),
+      master: new SkriptRegelwerkList(masterAdapter)
+    };
+    this.regelwerkDetail = new SkriptRegelwerkDetail();
   }
 
-  async init(id) {
+  async init(id, childId = null) {
     const canView = window.canViewPage?.('skripte')
       || window.checkUserPermission?.('skripte', 'can_view');
     if (!canView) {
@@ -32,41 +37,16 @@ export class SkriptePage {
 
     await this.editorView.cleanup?.();
     this.list.destroy?.();
-    this.dnaView.cleanup?.();
-    this.masterView.cleanup?.();
+    this.regelwerkListen.dna.cleanup();
+    this.regelwerkListen.master.cleanup();
+    await this.regelwerkDetail.cleanup();
 
-    // Master-Regelwerk: eigene Route, nur intern
-    if (id === 'master') {
+    if (id === 'dna' || id === 'master') {
       if (window.isKunde?.()) {
         window.history.replaceState({ route: '/skripte' }, '', '/skripte');
         id = null;
       } else {
-        window.setHeadline('Skript-Master');
-        window.setContentSafely(window.content, `
-          <div class="skripte-page">
-            <div id="skripte-master-content"></div>
-          </div>
-        `);
-        const container = document.getElementById('skripte-master-content');
-        if (container) await this.masterView.render(container);
-        return;
-      }
-    }
-
-    // DNA-Verwaltung: eigene Route, nur intern
-    if (id === 'dna') {
-      if (window.isKunde?.()) {
-        window.history.replaceState({ route: '/skripte' }, '', '/skripte');
-        id = null;
-      } else {
-        window.setHeadline('Skript-DNA');
-        window.setContentSafely(window.content, `
-          <div class="skripte-page">
-            <div id="skripte-dna-content"></div>
-          </div>
-        `);
-        const container = document.getElementById('skripte-dna-content');
-        if (container) await this.dnaView.render(container);
+        await this.openRegelwerk(id, childId);
         return;
       }
     }
@@ -99,6 +79,30 @@ export class SkriptePage {
 
     window.setHeadline('Skripte');
     await this.list.init();
+  }
+
+  async openRegelwerk(kind, childId) {
+    const adapter = REGELWERK[kind];
+    if (childId) {
+      window.setHeadline(adapter.headline);
+      window.setContentSafely(window.content, `
+        <div class="skripte-page skripte-page--regelwerk">
+          <div id="skripte-regelwerk-content"></div>
+        </div>
+      `);
+      const container = document.getElementById('skripte-regelwerk-content');
+      if (container) await this.regelwerkDetail.render(container, kind, childId);
+      return;
+    }
+
+    window.setHeadline(adapter.headline);
+    window.setContentSafely(window.content, `
+      <div class="skripte-page">
+        <div id="skripte-regelwerk-content"></div>
+      </div>
+    `);
+    const container = document.getElementById('skripte-regelwerk-content');
+    if (container) await this.regelwerkListen[kind].render(container);
   }
 
   /** Vom Generator aus: Skript direkt im Editor oeffnen. */
@@ -143,9 +147,11 @@ export class SkriptePage {
 
   destroy() {
     this.list.destroy?.();
-    this.dnaView.cleanup?.();
-    this.masterView.cleanup?.();
-    return this.editorView.cleanup?.();
+    this.regelwerkListen.dna.cleanup();
+    this.regelwerkListen.master.cleanup();
+    const detail = this.regelwerkDetail.cleanup();
+    const editor = this.editorView.cleanup?.();
+    return Promise.all([detail, editor].filter(Boolean));
   }
 }
 

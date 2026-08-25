@@ -100,6 +100,16 @@ export const ActionConfigs = {
     kundenActions: ['view']
   },
 
+  produkt: {
+    actions: [
+      { id: 'view', icon: 'view', label: 'Öffnen', roles: ['all'] },
+      { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      { id: 'separator' },
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
+    ],
+    kundenActions: ['view']
+  },
+
   // Contract Actions (Contracting-Auftraege)
   contract: {
     actions: [

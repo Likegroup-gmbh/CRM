@@ -7,7 +7,7 @@
 //
 // Fassade/Orchestrator: State + Lifecycle + Listen-/Doc-/Chat-Verdrahtung.
 // Fachlogik liegt in den Controllern unter editor/ (Generation, ChatActions,
-// Feedback, Selection, Versionen, Visuell, Realtime), das Markup in den
+// Selection, Versionen, Visuell, Realtime), das Markup in den
 // puren Renderern (SkriptEditorDocRenderer, SkriptEditorChatRenderer).
 
 import { bindCollapsible } from '../../core/collapsiblePanel.js';
@@ -15,8 +15,7 @@ import { icon } from '../../core/icons/IconSystem.js';
 import { revealLines, cancelLineReveal } from '../../core/animation/lineReveal.js';
 import { skripteService } from './SkripteService.js';
 import { SkriptGeneratorForm } from './SkriptGeneratorForm.js';
-import { SkriptFeedbackDrawer } from './SkriptFeedbackDrawer.js';
-import { SkriptInlineEdit } from './SkriptInlineEdit.js';
+import { InlineEdit } from '../../core/components/InlineEdit.js';
 import { escapeHtml, formatDate, formatUsageCost, replaceSkriptUrl, skriptEditorPath } from './SkripteUtils.js';
 import {
   SEND_ICON, PLACEHOLDER_DEFAULT, PLACEHOLDER_NEU, PLACEHOLDER_FRAGEN
@@ -29,7 +28,6 @@ import {
 } from './editor/SkriptEditorChatRenderer.js';
 import { SkriptEditorGeneration } from './editor/SkriptEditorGeneration.js';
 import { SkriptEditorChatActions } from './editor/SkriptEditorChatActions.js';
-import { SkriptEditorFeedback } from './editor/SkriptEditorFeedback.js';
 import { SkriptEditorSelection } from './editor/SkriptEditorSelection.js';
 import { SkriptEditorVersionen } from './editor/SkriptEditorVersionen.js';
 import { SkriptEditorVisuell } from './editor/SkriptEditorVisuell.js';
@@ -137,8 +135,7 @@ export class SkriptEditorView {
     this.pollInterval = null;
     this.onMouseUp = null;
     this.onDocMouseDown = null;
-    this.feedbackDrawer = new SkriptFeedbackDrawer();
-    this.inlineEdit = new SkriptInlineEdit({
+    this.inlineEdit = new InlineEdit({
       onChange: (feld, text) => {
         if (this.skript) this.skript[feld] = text || null;
       },
@@ -162,7 +159,6 @@ export class SkriptEditorView {
     // Controller (Fachlogik), jeweils mit Blick auf diese Fassade
     this._generation = new SkriptEditorGeneration(this);
     this._chatActions = new SkriptEditorChatActions(this);
-    this._feedback = new SkriptEditorFeedback(this);
     this._selection = new SkriptEditorSelection(this);
     this._versionen = new SkriptEditorVersionen(this);
     this._visuell = new SkriptEditorVisuell(this);
@@ -323,10 +319,6 @@ export class SkriptEditorView {
   async switchSkript(skriptId) {
     if (this.skript && skriptId === this.skript.id) return;
 
-    // Offener Feedback-Drawer gehoert zum alten Skript -> schliessen,
-    // sonst wuerde Speichern/Loeschen das falsche Skript treffen
-    this.feedbackDrawer.close();
-
     try { await this.inlineEdit.flush(); } catch (_) { /* Wechsel trotzdem */ }
 
     // Verbindungen des alten Skripts beenden (DOM und Maus-Listener bleiben)
@@ -407,7 +399,6 @@ export class SkriptEditorView {
   async cleanup() {
     try { await this.inlineEdit.flush(); } catch (_) { /* Abbau trotzdem */ }
     this.inlineEdit.detach();
-    this.feedbackDrawer.close();
     this.cleanupGenJob();
     this.neuModus = false;
     this.genStatus = null;
@@ -580,7 +571,7 @@ export class SkriptEditorView {
       el.innerHTML = fragenModusHtml({
         skript: this.skript,
         genStatus: this.genStatus,
-        docHeadActionsHtml: docHeadActionsHtml({ isReadonly: this.isReadonly }),
+        docHeadActionsHtml: docHeadActionsHtml(),
         vorgabenPanelHtml: vorgabenPanelHtml(this.skript)
       });
       el.querySelector('#ed-fragen-gen')?.addEventListener('click', () => this.startGenerationAusFragen());
@@ -597,11 +588,10 @@ export class SkriptEditorView {
       skript: this.skript,
       messages: this.messages,
       isReadonly: this.isReadonly,
-      docHeadActionsHtml: docHeadActionsHtml({ isReadonly: this.isReadonly, feedback: true }),
+      docHeadActionsHtml: docHeadActionsHtml(),
       vorgabenPanelHtml: vorgabenPanelHtml(this.skript),
       docTab: this.docTab || 'skript'
     });
-    el.querySelector('#ed-feedback')?.addEventListener('click', () => this.openVollFeedback());
     el.querySelectorAll('[data-editor-tab]').forEach((btn) => {
       btn.addEventListener('click', () => {
         this.docTab = btn.dataset.editorTab;
@@ -831,10 +821,6 @@ export class SkriptEditorView {
   handleMessageAction(action, messageId) { return this._chatActions.handleMessageAction(action, messageId); }
   acceptVorschlag(msg) { return this._chatActions.acceptVorschlag(msg); }
   saveManuell(feld, text, vorher) { return this._chatActions.saveManuell(feld, text, vorher); }
-
-  openSektionsFeedback() { return this._feedback.openSektionsFeedback(); }
-  submitSektionsFeedback(args) { return this._feedback.submitSektionsFeedback(args); }
-  openVollFeedback() { return this._feedback.openVollFeedback(); }
 
   checkSelection() { this._selection.checkSelection(); }
   setPendingAktion(aktion) { this._selection.setPendingAktion(aktion); }

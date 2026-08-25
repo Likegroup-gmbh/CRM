@@ -7,6 +7,7 @@ import { renderUnternehmenDetailPage } from './UnternehmenDetailRendererCore.js'
 import { bindUnternehmenDetailEvents, bindUnternehmenDetailDragScroll } from './UnternehmenDetailEvents.js';
 import { showEditForm, removeAnsprechpartner, getBranchenNamen, uploadLogo } from './UnternehmenDetailEdit.js';
 import { UnternehmenService } from './services/UnternehmenService.js';
+import { bindNotizDokument } from '../../core/components/NotizDokument.js';
 
 export class UnternehmenDetail extends PersonDetailBase {
   constructor() {
@@ -28,13 +29,10 @@ export class UnternehmenDetail extends PersonDetailBase {
     this.vertraege = [];
     this.strategien = [];
     this.creatorAuswahlen = [];
+    this.strategieDokument = null;
+    this._notizDokument = null;
     this._creatorMap = {};
     this._kampagneArtMap = new Map();
-    this.kickoff = null;
-    this.kickoffMarkenwerte = [];
-    this.kickoffsByType = { paid: null, organic: null };
-    this.kickoffMarkenwerteByType = { paid: [], organic: [] };
-    this.activeKickoffType = 'organic';
     this.activeMainTab = null;
     this.eventsBound = false;
     this._isLoading = false;
@@ -95,6 +93,18 @@ export class UnternehmenDetail extends PersonDetailBase {
     }
     this._lastRenderTime = now;
     renderUnternehmenDetailPage(this);
+    this._bindNotizDokument();
+  }
+
+  _bindNotizDokument() {
+    this._notizDokument?.destroy();
+    const root = document.getElementById('notiz-dokument');
+    this._notizDokument = root
+      ? bindNotizDokument(root, {
+          entityType: 'unternehmen',
+          entityId: this.unternehmenId
+        })
+      : null;
   }
 
   bindEvents() {
@@ -141,6 +151,8 @@ export class UnternehmenDetail extends PersonDetailBase {
   }
 
   destroy() {
+    this._notizDokument?.destroy();
+    this._notizDokument = null;
     this._removeAllEventListeners();
     this._isLoading = false;
     this._lastRenderTime = 0;

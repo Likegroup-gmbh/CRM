@@ -36,7 +36,7 @@ export const VISUELL_NACHFOLGER = {
   cta: []
 };
 
-export const PLACEHOLDER_DEFAULT = 'Feedback geben oder Frage stellen…';
+export const PLACEHOLDER_DEFAULT = 'Anweisung oder Frage…';
 export const PLACEHOLDER_AKTION = 'Anweisung ergänzen (optional) – Enter startet';
 export const PLACEHOLDER_NEU = 'Erst Skript generieren – danach kannst du hier verfeinern';
 export const PLACEHOLDER_FRAGEN = 'Antwort auf die Rückfrage schreiben…';

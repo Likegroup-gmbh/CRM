@@ -15,8 +15,6 @@ import { personaConfig } from './config/PersonaFormConfig.js';
 import { rechnungConfig } from './config/RechnungFormConfig.js';
 import { sourcingConfig } from './config/SourcingFormConfig.js';
 import { strategieConfig } from './config/StrategieFormConfig.js';
-import { kickoffEmbeddedConfig } from './config/KickoffEmbeddedFormConfig.js';
-import { strategiebriefingEmbeddedConfig } from './config/StrategiebriefingEmbeddedFormConfig.js';
 import { managementConfig } from './config/ManagementFormConfig.js';
 import { firmaConfig } from './config/FirmaFormConfig.js';
 
@@ -34,8 +32,6 @@ const FORM_CONFIGS = {
   rechnung: rechnungConfig,
   sourcing: sourcingConfig,
   strategie: strategieConfig,
-  kickoff_embedded: kickoffEmbeddedConfig,
-  strategiebriefing_embedded: strategiebriefingEmbeddedConfig,
   management: managementConfig,
   firma: firmaConfig,
 };

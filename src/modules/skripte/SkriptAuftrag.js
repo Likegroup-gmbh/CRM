@@ -1,11 +1,10 @@
 // SkriptAuftrag.js
 // Client-Haelfte des Skript-Auftrags: eine Stelle fuer anlegen, triggern,
 // beobachten (Realtime + Poll-Fallback) und abbrechen. Die Call-Sites
-// (Generation, DNA-Destillation, Chat-Aktionen) orchestrieren das nicht
-// mehr selbst.
+// (Generation, Chat-Aktionen) orchestrieren das nicht mehr selbst.
 //
 // Zwei Adapter dahinter, bewusst getrennt:
-//   - skript_generation_jobs  (Generate, Distill)
+//   - skript_generation_jobs  (Generate)
 //   - skript_chat_messages    (Edit/Fragen/Visuell: die pending
 //     Assistant-Message IST der Auftrag und gleichzeitig der Verlauf)
 
@@ -13,7 +12,6 @@ import { skripteService } from './SkripteService.js';
 
 const FUNCTION_NAMEN = {
   generate: 'skript-generate-background',
-  distill: 'skript-distill-background',
   edit: 'skript-edit-background',
   fragen: 'skript-fragen-background'
 };

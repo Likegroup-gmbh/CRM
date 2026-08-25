@@ -54,16 +54,13 @@ export class SkriptEditorSelection {
       anchor: sel.getRangeAt(0),
       wrap: v.container.querySelector('.skripte-editor'),
       layout: 'icon-label',
-      items: ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton', 'feedback'].map((aktion) => ({
+      items: ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton'].map((aktion) => ({
         id: aktion,
         iconHtml: AKTION_ICONS[aktion],
         label: AKTION_LABELS[aktion],
         data: { aktion }
       })),
-      onSelect: (aktion) => {
-        if (aktion === 'feedback') v.openSektionsFeedback();
-        else this.setPendingAktion(aktion);
-      }
+      onSelect: (aktion) => this.setPendingAktion(aktion)
     });
   }
 

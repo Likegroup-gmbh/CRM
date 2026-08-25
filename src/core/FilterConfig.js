@@ -181,6 +181,28 @@ export const FILTER_CONFIGS = {
       placeholder: 'Nach Branche suchen...'
     }
   ],
+  produkt: [
+    {
+      id: 'unternehmen_id',
+      label: 'Unternehmen',
+      type: 'select',
+      multiple: false,
+      table: 'unternehmen',
+      displayField: 'firmenname',
+      valueField: 'id',
+      dynamic: true
+    },
+    {
+      id: 'marke_id',
+      label: 'Marke',
+      type: 'select',
+      multiple: false,
+      table: 'marke',
+      displayField: 'markenname',
+      valueField: 'id',
+      dynamic: true
+    }
+  ],
   kooperation: [
     {
       id: 'creator_id',

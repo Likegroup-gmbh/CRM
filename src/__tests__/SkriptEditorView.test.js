@@ -46,12 +46,6 @@ vi.mock('../modules/skripte/SkriptGeneratorForm.js', () => ({
   }
 }));
 
-vi.mock('../modules/skripte/SkriptFeedbackDrawer.js', () => ({
-  SkriptFeedbackDrawer: class {
-    close() {}
-  }
-}));
-
 vi.mock('../modules/skripte/SkripteUtils.js', () => ({
   escapeHtml: (v) => String(v ?? ''),
   formatDate: () => '',
@@ -274,7 +268,7 @@ describe('SkriptEditorView Layout', () => {
     expect(main.querySelector('#ed-input')).toBeNull();
   });
 
-  it('Doc-Kopf: Feedback, Version rechts – keine Meta-Tags', async () => {
+  it('Doc-Kopf: Version rechts – keine Meta-Tags', async () => {
     mockService.loadSkript.mockResolvedValue({
       ...skript,
       marke: { markenname: 'Acme' },
@@ -289,14 +283,10 @@ describe('SkriptEditorView Layout', () => {
 
     const head = container.querySelector('.skripte-editor-doc-head');
     expect(head).not.toBeNull();
-    const feedback = head.querySelector('#ed-feedback');
     const version = head.querySelector('#ed-version-wrap');
     expect(head.querySelector('#ed-meta')).toBeNull();
-    expect(feedback).not.toBeNull();
+    expect(head.querySelector('#ed-feedback')).toBeNull();
     expect(version).not.toBeNull();
-
-    const kids = [...head.children];
-    expect(kids.indexOf(feedback)).toBeLessThan(kids.indexOf(version));
 
     expect(head.textContent).not.toContain('Muster GmbH');
     expect(head.textContent).not.toContain('Acme');

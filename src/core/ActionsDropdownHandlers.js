@@ -6,6 +6,7 @@ import { deleteUnternehmenCascade, collectDependentIds } from '../modules/untern
 import { rechnungNotizModal } from '../modules/rechnung/RechnungNotizModal.js';
 import { getSignedDocumentUrl, resolveDocumentUrl } from './DocumentUrlHelper.js';
 import { authorizedFetch } from './auth/getAccessToken.js';
+import { ProduktService, produktFormRoute } from '../modules/produkt/ProduktService.js';
 
 // Entity-Types, die keine eigene DB-Tabelle haben und auf eine andere Entity gemappt werden
 const ENTITY_ALIASES = { mitarbeiter: 'benutzer' };
@@ -15,6 +16,7 @@ function getEntityDisplayName(entityType) {
     creator: 'den Creator',
     unternehmen: 'das Unternehmen',
     marke: 'die Marke',
+    produkt: 'das Produkt',
     auftrag: 'den Auftrag',
     auftragsdetails: 'die Auftragsdetails',
     auftrag_details: 'die Auftragsdetails',
@@ -29,6 +31,10 @@ function getEntityDisplayName(entityType) {
 export async function handleAction(dropdown, action, entityId, entityType, actionItem) {
   switch (action) {
     case 'view':
+      if (entityType === 'produkt') {
+        await navigateToProduktForm(entityId);
+        break;
+      }
       if (entityType === 'contract') {
         window.navigateTo(`/contracts/${entityId}`);
       } else {
@@ -37,6 +43,10 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
       break;
 
     case 'edit':
+      if (entityType === 'produkt') {
+        await navigateToProduktForm(entityId);
+        break;
+      }
       if (entityType === 'auftrag' || entityType === 'contract') {
         window.navigateTo(`/projekt-erstellen/edit/${entityId}`);
         break;
@@ -69,6 +79,10 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
       break;
 
     case 'delete':
+      if (entityType === 'produkt') {
+        await confirmDeleteProdukt(entityId);
+        break;
+      }
       if (entityType === 'vertraege') {
         const vertraegeModule = window.moduleRegistry?.modules?.get('vertraege');
         if (vertraegeModule?.deleteVertrag) {
@@ -570,6 +584,47 @@ export async function addToFavorites(dropdown, creatorId, kampagneId) {
   } catch (err) {
     console.error('Fehler beim Hinzufügen zu Favoriten', err);
     alert('Hinzufügen zu Favoriten fehlgeschlagen.');
+  }
+}
+
+async function navigateToProduktForm(produktId) {
+  const { data, error } = await window.supabase
+    .from('produkt')
+    .select('unternehmen_id')
+    .eq('id', produktId)
+    .maybeSingle();
+  if (error || !data?.unternehmen_id) {
+    window.toastSystem?.error?.('Produkt konnte nicht geöffnet werden.');
+    return;
+  }
+  window.navigateTo(produktFormRoute(data.unternehmen_id, produktId));
+}
+
+async function confirmDeleteProdukt(entityId) {
+  const message = 'Möchten Sie wirklich das Produkt löschen? Diese Aktion kann nicht rückgängig gemacht werden.';
+  let proceed = false;
+  if (window.confirmationModal) {
+    const res = await window.confirmationModal.open({
+      title: 'Löschvorgang bestätigen',
+      message,
+      confirmText: 'Endgültig löschen',
+      cancelText: 'Abbrechen',
+      danger: true
+    });
+    proceed = !!res?.confirmed;
+  } else {
+    proceed = confirm(message);
+  }
+  if (!proceed) return;
+
+  try {
+    await ProduktService.remove(entityId);
+    window.dispatchEvent(new CustomEvent('entityUpdated', {
+      detail: { entity: 'produkt', action: 'deleted', id: entityId }
+    }));
+  } catch (err) {
+    console.error('Produkt-Löschung fehlgeschlagen:', err);
+    window.toastSystem?.error?.('Produkt konnte nicht gelöscht werden.');
   }
 }
 

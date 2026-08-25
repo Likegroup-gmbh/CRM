@@ -3,7 +3,7 @@
 
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
-import { updateKampagnenTab, updateAuftraegeTab, updateBriefingsTab, updateKooperationenTab, updateRechnungenTab, updateStrategienTab, updateKickOffTab, updatePersonasTab, updateProdukteTab } from './MarkeDetailTabUpdates.js';
+import { updateKampagnenTab, updateAuftraegeTab, updateBriefingsTab, updateKooperationenTab, updateRechnungenTab, updateStrategienTab, updatePersonasTab, updateProdukteTab } from './MarkeDetailTabUpdates.js';
 import { PersonaService } from '../persona/PersonaService.js';
 import { ProduktService } from '../produkt/ProduktService.js';
 
@@ -12,7 +12,8 @@ export async function loadCriticalData(detail) {
     const [
       markeResult,
       branchenResult,
-      ansprechpartnerResult
+      ansprechpartnerResult,
+      dokumentResult
     ] = await parallelLoad([
       () => window.supabase
         .from('marke')
@@ -49,11 +50,19 @@ export async function loadCriticalData(detail) {
             kunde_ansprechpartner(kunde_id)
           )
         `)
-        .eq('marke_id', detail.markeId)
+        .eq('marke_id', detail.markeId),
+
+      () => window.supabase
+        .from('entity_dokumente')
+        .select('*')
+        .eq('entity_type', 'marke')
+        .eq('entity_id', detail.markeId)
+        .maybeSingle()
     ]);
 
     if (markeResult.error) throw markeResult.error;
     detail.marke = markeResult.data;
+    detail.strategieDokument = (!dokumentResult?.error && dokumentResult?.data) ? dokumentResult.data : null;
 
     if (!branchenResult.error && branchenResult.data && branchenResult.data.length > 0) {
       detail.marke.branchen = branchenResult.data.map(item => item.branche);
@@ -194,56 +203,6 @@ export async function loadMarkeTabData(detail, tabName) {
           detail.produkte = produkte;
           updateProdukteTab(detail);
           return produkte;
-        }
-
-        case 'kickoff': {
-          const { data: kickoffList } = await window.supabase
-            .from('marke_kickoff')
-            .select('*')
-            .eq('marke_id', detail.markeId);
-          if (!isStillActive()) return kickoffList;
-
-          detail.kickoffsByType = { influencer: null, paid: null, organic: null };
-          (kickoffList || []).forEach(item => {
-            const typeKey = item.kampagnenart || item.kickoff_type || 'organic';
-            if (typeKey === 'paid' || typeKey === 'organic' || typeKey === 'influencer') {
-              detail.kickoffsByType[typeKey] = item;
-            }
-          });
-
-          if (!detail.kickoffsByType[detail.activeKickoffType]) {
-            detail.activeKickoffType = detail.kickoffsByType.influencer
-              ? 'influencer'
-              : (detail.kickoffsByType.organic
-                ? 'organic'
-                : (detail.kickoffsByType.paid ? 'paid' : 'influencer'));
-          }
-
-          detail.kickoffMarkenwerteByType = { influencer: [], paid: [], organic: [] };
-          const kickoffEntries = Object.entries(detail.kickoffsByType).filter(([, value]) => value);
-          if (kickoffEntries.length > 0) {
-            const markenwerteResults = await Promise.all(
-              kickoffEntries.map(async ([typeKey, kickoffItem]) => {
-                const { data: markenwerte } = await window.supabase
-                  .from('marke_kickoff_markenwerte')
-                  .select('markenwert:markenwert_id(id, name)')
-                  .eq('kickoff_id', kickoffItem.id);
-                return { typeKey, markenwerte: markenwerte?.map(m => m.markenwert) || [] };
-              })
-            );
-
-            if (!isStillActive()) return kickoffList;
-            markenwerteResults.forEach(({ typeKey, markenwerte }) => {
-              detail.kickoffMarkenwerteByType[typeKey] = markenwerte;
-            });
-          }
-
-          detail.kickoff = detail.kickoffsByType[detail.activeKickoffType] || null;
-          detail.kickoffMarkenwerte = detail.kickoffMarkenwerteByType[detail.activeKickoffType] || [];
-          detail._kickoffLoaded = true;
-
-          updateKickOffTab(detail);
-          return kickoffList;
         }
       }
     } catch (error) {

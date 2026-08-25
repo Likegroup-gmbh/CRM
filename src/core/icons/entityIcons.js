@@ -20,7 +20,6 @@ export const ENTITY_ICONS = {
   auftragsdetails: 'auftragsdetails',
   kampagne: 'campaign',
   strategie: 'strategy',
-  kickoff: 'rocket',
   vertrag: 'contract',
   vertraege: 'contract',
   video: 'video',

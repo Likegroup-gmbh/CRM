@@ -317,19 +317,6 @@ BriefingCreate.prototype.initSearchableSelects = function() {
         value: this.formData.marke_id || null
       });
     }
-
-    const assigneeSelect = document.getElementById('assignee_id');
-    if (assigneeSelect && window.formSystem?.createSearchableSelect) {
-      window.formSystem.createSearchableSelect(assigneeSelect, this.benutzer.map(b => ({
-        value: b.id,
-        label: b.name,
-        selected: b.id === this.formData.assignee_id
-      })), {
-        name: 'assignee_id',
-        placeholder: 'Mitarbeiter suchen...',
-        value: this.formData.assignee_id || null
-      });
-    }
   } finally {
     setTimeout(() => { this._isInitializing = false; }, 100);
   }

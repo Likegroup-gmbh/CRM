@@ -291,6 +291,10 @@ export const ICON_DEFS = {
   'arrow-up-tray': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75v-2.25m-18 0-2.25-2.25M3 16.5l2.25-2.25m13.5 0 2.25 2.25m2.25-2.25L21 16.5m-9-5.25v12m0 0-3.75-3.75M12 11.25l3.75-3.75" />' },
   'arrow-up-right': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-4.5-7.5H21m0 0v7.5m0-7.5L10.5 13.5" />' },
   'arrows-up-down': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M3 7.5 7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5" />' },
+  'switcher-chevrons': {
+    viewBox: '0 0 24 24',
+    body: '<path stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="16" d="M8.99995 7L6.62858 8.92711C4.87619 10.3512 4 11.0633 4 12C4 12.9367 4.8762 13.6488 6.62859 15.0729L9 17" /><path stroke-linecap="round" stroke-linejoin="round" stroke-miterlimit="16" d="M15 7L17.3714 8.92711C19.1238 10.3512 20 11.0633 20 12C20 12.9367 19.1238 13.6488 17.3714 15.0729L15 17" />'
+  },
   'document-duplicate': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />' },
   'x-mark': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />' },
   'x-circle': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />' },

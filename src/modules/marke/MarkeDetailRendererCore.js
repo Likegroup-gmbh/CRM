@@ -5,18 +5,12 @@ import { renderTabButton } from '../../core/TabUtils.js';
 import { safeExternalUrl } from '../../core/UrlHelper.js';
 import { getBranchenDisplay } from './MarkeDetailRendererHelpers.js';
 import { renderKampagnen, renderAuftraege, renderAnsprechpartner, renderBriefings, renderKooperationen, renderRechnungen, renderStrategien } from './MarkeDetailRendererTables.js';
-import { renderKickOff } from './MarkeDetailRendererKickOff.js';
 import { renderPersonas } from '../persona/PersonaTabRenderer.js';
 import { renderProdukte } from '../produkt/ProduktTabRenderer.js';
+import { renderNotizDokument } from '../../core/components/NotizDokument.js';
 
 export function getTabsConfig(detail) {
   return [
-    {
-      tab: 'kickoff',
-      label: 'Strategiebriefing',
-      count: Object.values(detail.kickoffsByType).filter(Boolean).length,
-      isActive: detail.activeMainTab === 'kickoff'
-    },
     { tab: 'ansprechpartner', label: 'Ansprechpartner', count: detail.ansprechpartner.length, isActive: detail.activeMainTab === 'ansprechpartner' },
     { tab: 'auftraege', label: 'Aufträge', count: detail.auftraege.length, isActive: detail.activeMainTab === 'auftraege' },
     { tab: 'kampagnen', label: 'Kampagnen', count: detail.kampagnen.length, isActive: detail.activeMainTab === 'kampagnen' },
@@ -37,10 +31,6 @@ export function renderTabNavigation(detail) {
 export function renderMainContent(detail) {
   return `
     <div class="tab-content">
-      <div class="tab-pane ${detail.activeMainTab === 'kickoff' ? 'active' : ''}" id="tab-kickoff">
-        ${renderKickOff(detail)}
-      </div>
-
       <div class="tab-pane ${detail.activeMainTab === 'ansprechpartner' ? 'active' : ''}" id="tab-ansprechpartner">
         ${renderAnsprechpartner(detail)}
       </div>
@@ -102,7 +92,12 @@ export function renderMarkeDetailPage(detail) {
     { icon: 'link', label: 'Webseite', rawHtml: detail.marke?.webseite ? `<a href="${safeExternalUrl(detail.marke.webseite)}" target="_blank" rel="noopener">${detail.sanitize(detail.marke.webseite)}</a>` : '-' },
     { icon: 'clock', label: 'Erstellt', value: detail.formatDate(detail.marke?.created_at) },
     { icon: 'clock', label: 'Aktualisiert', value: detail.formatDate(detail.marke?.updated_at) }
-  ]);
+  ]) + renderNotizDokument({
+    entityType: 'marke',
+    entityId: detail.markeId,
+    sektionen: detail.strategieDokument?.sektionen || {},
+    kiStand: detail.strategieDokument?.ki_stand || null
+  });
 
   const tabNavigation = renderTabNavigation(detail);
   const mainContent = renderMainContent(detail);

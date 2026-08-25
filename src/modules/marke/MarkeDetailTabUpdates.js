@@ -2,7 +2,6 @@
 // DOM-Update-Funktionen: ersetzen Tab-Inhalte nach Lazy-Load
 
 import { renderKampagnen, renderAuftraege, renderBriefings, renderKooperationen, renderRechnungen, renderStrategien } from './MarkeDetailRendererTables.js';
-import { renderKickOff, bindKickOffCreateButton } from './MarkeDetailRendererKickOff.js';
 
 export { updatePersonasTab } from '../persona/PersonaTabRenderer.js';
 export { updateProdukteTab } from '../produkt/ProduktTabRenderer.js';
@@ -46,13 +45,5 @@ export function updateStrategienTab(detail) {
   const container = document.querySelector('#tab-strategien .data-table-container');
   if (container) {
     container.parentElement.innerHTML = renderStrategien(detail);
-  }
-}
-
-export function updateKickOffTab(detail) {
-  const pane = document.querySelector('#tab-kickoff');
-  if (pane) {
-    pane.innerHTML = renderKickOff(detail);
-    bindKickOffCreateButton(detail);
   }
 }

@@ -49,8 +49,7 @@ export class BriefingDetail {
       .select(`
         *,
         unternehmen:unternehmen_id(id, firmenname),
-        marke:marke_id(id, markenname),
-        assignee:assignee_id(id, name)
+        marke:marke_id(id, markenname)
       `)
       .eq('id', this.briefingId)
       .single();
@@ -116,10 +115,6 @@ export class BriefingDetail {
                 <div class="detail-item">
                   <label>Marke:</label>
                   <span>${escape(this.briefing.marke?.markenname)}</span>
-                </div>
-                <div class="detail-item">
-                  <label>Zugewiesen:</label>
-                  <span>${escape(this.briefing.assignee?.name)}</span>
                 </div>
                 <div class="detail-item">
                   <label>Erstellt:</label>

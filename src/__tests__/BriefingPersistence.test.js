@@ -6,7 +6,12 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { BriefingCreate } from '../modules/briefing/create/BriefingCreateCore.js';
+import { starteBriefingAuswertung } from '../modules/briefing/create/BriefingAuswertung.js';
 import '../modules/briefing/create/DataPersistence.js';
+
+vi.mock('../modules/briefing/create/BriefingAuswertung.js', () => ({
+  starteBriefingAuswertung: vi.fn().mockResolvedValue({ id: 'job-1' })
+}));
 
 function createInstance() {
   const instance = new BriefingCreate();
@@ -51,7 +56,7 @@ describe('Briefing DataPersistence', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    starteBriefingAuswertung.mockClear();
     delete window.supabase;
   });
 
@@ -212,6 +217,11 @@ describe('Briefing DataPersistence', () => {
     expect(calls.update.length).toBe(1);
     expect(calls.update[0].is_draft).toBe(false);
     expect(calls.insert.length).toBe(0);
+    expect(starteBriefingAuswertung).toHaveBeenCalledWith({ briefingId: 'briefing-1' });
+    expect(window.toastSystem.show).toHaveBeenCalledWith(
+      'Briefing gespeichert – KI-Auswertung läuft im Hintergrund',
+      'success'
+    );
     vi.useRealTimers();
   });
 
@@ -226,6 +236,7 @@ describe('Briefing DataPersistence', () => {
 
     expect(calls.insert.length).toBe(0);
     expect(calls.update.length).toBe(0);
+    expect(starteBriefingAuswertung).not.toHaveBeenCalled();
     expect(window.toastSystem.show).toHaveBeenCalledWith(expect.stringContaining('Unternehmen'), 'warning');
   });
 
@@ -235,7 +246,6 @@ describe('Briefing DataPersistence', () => {
       bereich: 'paid_creator_ads',
       unternehmen_id: 'u1',
       marke_id: 'm1',
-      assignee_id: null,
       aktivierung_name: 'Paid Push',
       ansatz: 'kampagne',
       kampagne_thema: 'Launch',

@@ -11,7 +11,6 @@ export class BriefingCreate {
     this.formData = {};
     this.unternehmen = [];
     this.marken = [];
-    this.benutzer = [];
     this.isGenerated = false;
     this.editId = null;
     this._isRendering = false;
@@ -83,12 +82,6 @@ BriefingCreate.prototype.loadStammdaten = async function() {
       .select('id, markenname, unternehmen_id')
       .order('markenname');
     this.marken = marken || [];
-
-    const { data: benutzer } = await window.supabase
-      .from('benutzer')
-      .select('id, name')
-      .order('name');
-    this.benutzer = benutzer || [];
   } catch (error) {
     console.error('Fehler beim Laden der Stammdaten:', error);
   }

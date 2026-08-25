@@ -181,7 +181,7 @@ export async function loadCriticalData(kampagneId) {
       .order('created_at', { ascending: false }),
     window.supabase
       .from('campaign_briefings')
-      .select('id, aktivierung_name, bereich, is_draft, content_deadline, created_at, assignee_id')
+      .select('id, aktivierung_name, bereich, is_draft, content_deadline, created_at')
       .eq('unternehmen_id', kampagneData.unternehmen_id)
       .order('created_at', { ascending: false }),
     window.supabase

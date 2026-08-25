@@ -472,8 +472,7 @@ export const MASTER_STEPS = [
         description: 'Fuer welches Unternehmen bzw. welche Marke ist das Briefing?',
         fields: [
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'entitySelect', table: 'unternehmen', displayField: 'firmenname', required: true, placeholder: 'Unternehmen auswaehlen...' },
-          { name: 'marke_id', label: 'Marke (optional)', type: 'entitySelect', table: 'marke', displayField: 'markenname', dependsOn: 'unternehmen_id', placeholder: 'Marke auswaehlen...' },
-          { name: 'assignee_id', label: 'Zugewiesen an (optional)', type: 'entitySelect', table: 'benutzer', displayField: 'name', placeholder: 'Mitarbeiter auswaehlen...' }
+          { name: 'marke_id', label: 'Marke (optional)', type: 'entitySelect', table: 'marke', displayField: 'markenname', dependsOn: 'unternehmen_id', placeholder: 'Marke auswaehlen...' }
         ]
       },
       {

@@ -11,7 +11,7 @@ import {
 } from '../master/skriptCreatorFacing.js';
 import { icon } from '../../../core/icons/IconSystem.js';
 import {
-  AKTION_ICONS, SEKTION_LABELS_KURZ, VISUELL_FIELD
+  SEKTION_LABELS_KURZ, VISUELL_FIELD
 } from './skriptEditorKonstanten.js';
 import { visuellGuardGrund, visuellVorgaengerTitle } from './skriptEditorVisuellHelfer.js';
 
@@ -170,15 +170,9 @@ export function skriptDocHtml({
   `;
 }
 
-/** Doc-Kopf: optional Feedback, Version rechts. */
-export function docHeadActionsHtml({ isReadonly, feedback = false } = {}) {
+/** Doc-Kopf: Version rechts. */
+export function docHeadActionsHtml() {
   return `
-    ${feedback && !isReadonly ? `
-    <button class="skripte-editor-feedback-btn" id="ed-feedback" title="Skript komplett bewerten (Score, Performance-Label)">
-      <span class="skripte-editor-tag-icon">${AKTION_ICONS.feedback}</span>
-      <span>Feedback</span>
-    </button>
-    ` : ''}
     <div class="skripte-editor-version" id="ed-version-wrap"></div>
   `;
 }
