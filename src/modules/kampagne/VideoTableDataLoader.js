@@ -237,6 +237,14 @@ export class VideoTableDataLoader {
         parallelTasks.push(this.loadAssetsAndComments(videoIds));
         parallelTasks.push(this.loadStorySlots(videoIds));
       }
+      // Creator-Upload-Zugaenge (nur intern, nur wenn Dropbox genutzt wird)
+      if (typeof window.isInternal === 'function' && window.isInternal() && !t.kampagneInfo?.keinDropbox) {
+        parallelTasks.push(
+          import('./CreatorUploadActions.js')
+            .then(m => m.loadCreatorUploadStatus(t.kampagneId))
+            .catch(err => console.warn('[creator-upload] Status-Preload:', err))
+        );
+      }
       if (koopIds.length > 0) {
         parallelTasks.push(this.loadBilder(koopIds));
       }

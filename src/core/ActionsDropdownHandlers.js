@@ -110,6 +110,15 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
       }
       break;
 
+    case 'creator-upload-send':
+    case 'creator-upload-resend':
+    case 'creator-upload-copy':
+    case 'creator-upload-revoke': {
+      const { handleCreatorUploadAction } = await import('../modules/kampagne/CreatorUploadActions.js');
+      await handleCreatorUploadAction(action, actionItem);
+      break;
+    }
+
     case 'delete-strategie':
       if (window.strategieList) {
         window.strategieList.confirmDeleteStrategie(entityId);

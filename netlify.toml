@@ -61,10 +61,28 @@
 [functions."cleanup-temp-produktbilder"]
   schedule = "@daily"
 
+# Creator-Upload: Dropbox save_url + Finalisieren (keine grossen Bytes durch
+# die Function, aber Dropbox-/DB-Roundtrips)
+[functions."creator-upload-complete"]
+  timeout = 26
+
+[functions."creator-upload-status"]
+  timeout = 26
+
+# Orphan-GC: haengengebliebene Staging-Uploads taeglich aufraeumen
+[functions."creator-upload-cleanup"]
+  schedule = "@daily"
+
 # Auth-Seiten direkt ausliefern (NICHT auf index.html umleiten)
 [[redirects]]
   from = "/src/auth/*"
   to = "/src/auth/:splat"
+  status = 200
+
+# Oeffentliche Creator-Upload-Seite direkt ausliefern (kein SPA-Fallback)
+[[redirects]]
+  from = "/src/upload/*"
+  to = "/src/upload/:splat"
   status = 200
 
 # SPA-Fallback für alle anderen Routen
@@ -78,4 +96,13 @@
   for = "/*"
   [headers.values]
     X-Robots-Tag = "noindex, nofollow, noarchive, nosnippet"
+
+# Creator-Upload-Seite: Token steckt im URL-Hash — kein Referer-Leak,
+# kein Cachen der Seite
+[[headers]]
+  for = "/src/upload/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow, noarchive, nosnippet"
+    Referrer-Policy = "no-referrer"
+    Cache-Control = "no-store"
 

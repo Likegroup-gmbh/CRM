@@ -7,6 +7,7 @@ import { renderEmptyState, resolveEmptyState } from '../../core/components/Empty
 import { formatCompactNumber, formatExactNumber } from '../../core/format/compactNumber.js';
 import { renderChipCell, renderPlatformChip, renderStaticChip } from '../../core/components/chipCell.js';
 import { liveLinkDotState, LIVE_LINK_TOOLBAR } from './liveLinkCell.js';
+import { getCachedCreatorUploadStatus } from './CreatorUploadActions.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
 const EXTERNAL_LINK_ICON = `${icon('arrow-top-right')}`;
@@ -550,6 +551,7 @@ export class VideoTableRenderer {
                 ${icon('pencil-square', { className: 'w-4 h-4' })}
                 Bearbeiten
               </a>
+              ${this.renderCreatorUploadItems(koop)}
               ${t.canDeleteKooperation() ? `
                 <div class="action-separator"></div>
                 <a href="#" class="action-item action-danger" data-action="delete" data-id="${koop.id}">
@@ -640,6 +642,40 @@ export class VideoTableRenderer {
     return customCols.map(col =>
       renderCustomCell(col, koop, videos, t.store, t)
     ).join('');
+  }
+
+  renderCreatorUploadItems(koop) {
+    const t = this.table;
+    if (t.isKundeRole()) return '';
+    if (t.kampagneInfo?.keinDropbox) return '';
+    if (!koop.creator_id) return '';
+
+    const status = getCachedCreatorUploadStatus(t.kampagneId).get(koop.creator_id);
+    const stateLine = status?.expiresAt
+      ? `<div class="action-item action-item--info" style="pointer-events:none; font-size:12px; opacity:0.75;">Zugang aktiv bis ${new Date(status.expiresAt).toLocaleDateString('de-DE')}</div>`
+      : '';
+
+    const attrs = `data-id="${koop.id}" data-kampagne-id="${t.kampagneId}" data-creator-id="${koop.creator_id}"`;
+    return `
+      <div class="action-separator"></div>
+      ${stateLine}
+      <a href="#" class="action-item" data-action="creator-upload-send" ${attrs}>
+        ${icon('envelope', { className: 'w-4 h-4' })}
+        Upload-Link senden
+      </a>
+      <a href="#" class="action-item" data-action="creator-upload-resend" ${attrs}>
+        ${icon('arrow-path', { className: 'w-4 h-4' })}
+        Upload-Link erneut senden
+      </a>
+      <a href="#" class="action-item" data-action="creator-upload-copy" ${attrs}>
+        ${icon('link', { className: 'w-4 h-4' })}
+        Upload-Link kopieren
+      </a>
+      <a href="#" class="action-item action-danger" data-action="creator-upload-revoke" ${attrs}>
+        ${icon('x-circle', { className: 'w-4 h-4' })}
+        Upload-Zugang widerrufen
+      </a>
+    `;
   }
 
   renderActionStatusSubmenu(koop) {
