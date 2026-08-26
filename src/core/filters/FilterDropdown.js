@@ -13,6 +13,7 @@ import {
 import {
   bindGlobalEvents as _bindGlobalEvents,
   closeAllDropdowns as _closeAllDropdowns,
+  openDropdownAt as _openDropdownAt,
 } from './FilterDropdownEvents.js';
 
 import {
@@ -139,6 +140,7 @@ export class FilterDropdown {
 
   bindGlobalEvents() { _bindGlobalEvents(this); }
   closeAllDropdowns() { _closeAllDropdowns(); }
+  openFromAnchor(entityType, anchorEl) { return _openDropdownAt(this, entityType, anchorEl); }
 
   // --- FormatApply-Delegation ---
 

@@ -92,14 +92,6 @@ export const KAMPAGNE_FILTERS = [
     priority: 11
   }),
 
-  // Ist abgeschlossen
-  createFilterConfig('boolean', {
-    id: 'is_completed',
-    label: 'Abgeschlossen',
-    virtual: true,
-    priority: 12
-  }),
-
   // Ist überfällig
   createFilterConfig('boolean', {
     id: 'is_overdue',
@@ -134,7 +126,7 @@ export const KAMPAGNE_FILTER_GROUPS = [
   {
     id: 'status_flags',
     label: 'Status & Flags',
-    filters: ['has_briefing', 'is_completed', 'is_overdue'],
+    filters: ['has_briefing', 'is_overdue'],
     expanded: false
   },
 ];
@@ -177,18 +169,6 @@ export const KAMPAGNE_FILTER_PRESETS = [
     description: 'UGC Kampagnen (Paid/Organic)',
     filters: {
       art_der_kampagne: ['UGC Paid', 'UGC Organic']
-    }
-  },
-  {
-    id: 'completed_this_month',
-    label: 'Diesen Monat abgeschlossen',
-    description: 'In diesem Monat abgeschlossene Kampagnen',
-    filters: {
-      is_completed: true,
-      deadline_post_produktion: {
-        from: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
-        to: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]
-      }
     }
   }
 ];

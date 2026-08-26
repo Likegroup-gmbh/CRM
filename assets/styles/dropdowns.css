@@ -486,6 +486,38 @@
   color: var(--text-primary);
 }
 
+.toolbar-menu-toggle .filter-count-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+}
+
+.toolbar-completed-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-md);
+}
+
+.toolbar-completed-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.toolbar-completed-toggle-label svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.kampagne-list-page .filter-dropdown-toggle {
+  display: none;
+}
+
 .toolbar-menu-dropdown .action-submenu {
   position: relative;
 }
