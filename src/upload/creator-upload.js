@@ -66,6 +66,12 @@ const I18N = {
 };
 
 const MAX_VERSIONS = 3;
+// Muss mit SIZE_CAPS in netlify/functions/_shared/creator-upload.js laufen.
+const SIZE_CAPS = {
+  video: 2 * 1024 * 1024 * 1024,
+  story: 500 * 1024 * 1024,
+  bilder: 55 * 1024 * 1024,
+};
 const ACCEPT_BY_TYPE = {
   video: 'video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,.mp4,.mov,.avi,.mkv,.webm',
   story: 'video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,.mp4,.mov,.avi,.mkv,.webm',
@@ -262,6 +268,29 @@ function pollStatus(jobId) {
   });
 }
 
+function abortUpload(jobId) {
+  if (!jobId) return;
+  const body = JSON.stringify({ token, jobId });
+  // sendBeacon ueberlebt pagehide; fetch nur als Fallback.
+  if (navigator.sendBeacon && navigator.sendBeacon('/.netlify/functions/creator-upload-abort', new Blob([body], { type: 'application/json' }))) {
+    return;
+  }
+  fetch('/.netlify/functions/creator-upload-abort', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+    keepalive: true,
+  }).catch(() => {});
+}
+
+function isTooLargeError(err) {
+  if (!err) return false;
+  const status = err.status ?? err.originalResponse?.getStatus?.() ?? err.originalRequest?.status;
+  if (status === 413) return true;
+  const msg = String(err.message || err.originalResponse?.getBody?.() || '').toLowerCase();
+  return msg.includes('entitytoolarge') || msg.includes('file size') || msg.includes('file-size') || msg.includes('too large') || msg.includes('payload too large');
+}
+
 async function handleUpload(slotEl, file) {
   const btn = slotEl.querySelector('.cu-upload-btn');
   const progress = slotEl.querySelector('.cu-progress');
@@ -276,6 +305,18 @@ async function handleUpload(slotEl, file) {
   progress.style.display = '';
   fill.style.width = '0%';
 
+  if (file.size > SIZE_CAPS[targetType]) {
+    status.className = 'cu-status cu-status--err';
+    status.textContent = t('err_too_large');
+    progress.style.display = 'none';
+    btn.disabled = false;
+    return;
+  }
+
+  let jobId = null;
+  const onPageHide = () => abortUpload(jobId);
+  window.addEventListener('pagehide', onPageHide);
+
   try {
     const start = await api('start', {
       targetType,
@@ -284,6 +325,7 @@ async function handleUpload(slotEl, file) {
       fileSize: file.size,
       contentType: file.type || '',
     });
+    jobId = start.jobId;
 
     status.textContent = t('uploading');
 
@@ -308,8 +350,9 @@ async function handleUpload(slotEl, file) {
     });
 
     status.textContent = t('processing');
-    await api('complete', { jobId: start.jobId });
-    const result = await pollStatus(start.jobId);
+    await api('complete', { jobId });
+    const result = await pollStatus(jobId);
+    jobId = null;
 
     status.className = 'cu-status cu-status--ok';
     status.textContent = t('done', result.versionNumber);
@@ -317,14 +360,19 @@ async function handleUpload(slotEl, file) {
     updateSlotAfterDone(slotEl, result.versionNumber);
   } catch (err) {
     console.error('Upload fehlgeschlagen:', err);
+    abortUpload(jobId);
+    jobId = null;
     if (err.status === 404) {
       setState('error');
       return;
     }
     status.className = 'cu-status cu-status--err';
-    status.textContent = (err.code && I18N[lang][`err_${err.code}`]) ? t(`err_${err.code}`) : t('failed');
+    const code = err.code || (isTooLargeError(err) ? 'too_large' : null);
+    status.textContent = (code && I18N[lang][`err_${code}`]) ? t(`err_${code}`) : t('failed');
     progress.style.display = 'none';
     btn.disabled = false;
+  } finally {
+    window.removeEventListener('pagehide', onPageHide);
   }
 }
 
