@@ -3,12 +3,14 @@
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { KampagneFilterLogic } from './filters/KampagneFilterLogic.js';
+import { shouldHideCompleted } from './kampagneListPrefs.js';
 import { debugLog } from './KampagneListUtils.js';
 
 /**
  * Konvertiert UI-Filter in das JSONB-Format der get_kampagnen_list RPC.
+ * hide_completed hängt am Session-Switch + Suche, nicht am FilterSystem.
  */
-function buildRpcFilters(activeFilters) {
+export function buildRpcFilters(activeFilters, { searchQuery = '' } = {}) {
   const rpcFilters = {};
 
   for (const [key, value] of Object.entries(activeFilters)) {
@@ -55,8 +57,13 @@ function buildRpcFilters(activeFilters) {
         rpcFilters.is_overdue = !!value;
         break;
 
-      // Virtual filters (creator_count, duration_days, is_completed) are applied client-side
+      // Virtual filters (creator_count, duration_days) are applied client-side
     }
+  }
+
+  const searchParam = searchQuery || activeFilters.kampagnenname || '';
+  if (shouldHideCompleted(searchParam)) {
+    rpcFilters.hide_completed = true;
   }
 
   return rpcFilters;
@@ -78,8 +85,8 @@ export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQ
 
     const activeFilters = filterSystem.getFilters('kampagne');
 
-    const rpcFilters = buildRpcFilters(activeFilters);
     const searchParam = searchQuery || activeFilters.kampagnenname || null;
+    const rpcFilters = buildRpcFilters(activeFilters, { searchQuery: searchParam || '' });
 
     debugLog('🔍 KAMPAGNELIST: RPC-Call mit filters:', rpcFilters, 'search:', searchParam);
 
@@ -147,7 +154,7 @@ export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQ
       };
     });
 
-    // Virtual Filter client-seitig anwenden (creator_count, duration_days, is_completed)
+    // Virtual Filter client-seitig anwenden (creator_count, duration_days)
     const filtered = KampagneFilterLogic.applyVirtualFilters(formattedData, activeFilters);
 
     const loadTime = (performance.now() - startTime).toFixed(0);

@@ -6,12 +6,14 @@ import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { KampagneCalendarView } from './KampagneCalendarView.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
+import { bindToolbarMenu } from '../../core/components/ToolbarMenu.js';
 
 import { debugLog, debounce, bindDragToScroll, destroyDragToScroll } from './KampagneListUtils.js';
 import { loadKampagnenWithRelations, loadUserPermissions } from './KampagneListDataLoader.js';
 import { renderPageHtml, updateTable } from './KampagneListRenderers.js';
 import { KampagneCreateHandler } from './KampagneCreateHandler.js';
 import { bindEmptyStateActions } from '../../core/components/EmptyState.js';
+import { getShowCompleted, setShowCompleted, shouldHideCompleted } from './kampagneListPrefs.js';
 
 const createHandler = new KampagneCreateHandler();
 
@@ -255,8 +257,11 @@ export class KampagneList {
         this.pagination.updateTotal(totalCount);
         await updateTable(filteredKampagnen, {
           bindDragToScroll: () => this.bindDragToScroll(),
-          hasActiveFilters: this.hasActiveFilters()
+          hasActiveFilters: this.hasActiveFilters(),
+          hideCompletedActive: shouldHideCompleted(this.searchQuery)
         });
+        this.syncShowCompletedToggle();
+        this.updateToolbarFilterBadge();
         this.pagination.render();
       }
     } catch (error) {
@@ -322,6 +327,7 @@ export class KampagneList {
         onFilterApply: (filters) => this.onFiltersApplied(filters),
         onFilterReset: () => this.onFiltersReset()
       });
+      this.updateToolbarFilterBadge();
     }
   }
 
@@ -332,6 +338,7 @@ export class KampagneList {
   onFiltersApplied(filters) {
     filterSystem.applyFilters('kampagne', filters);
     this.pagination.currentPage = 1;
+    this.updateToolbarFilterBadge();
     this._debouncedLoadAndRender();
   }
 
@@ -339,6 +346,7 @@ export class KampagneList {
     debugLog('🔄 KampagneList: Filter zurückgesetzt');
     filterSystem.resetFilters('kampagne');
     this.pagination.currentPage = 1;
+    this.updateToolbarFilterBadge();
     this.loadData();
   }
 
@@ -367,7 +375,7 @@ export class KampagneList {
       this.searchQuery = query.trim();
       
       if (this.currentView === 'calendar' && this.calendarView) {
-        this.calendarView.setSearchQuery(this.searchQuery);
+        void this.calendarView.setSearchQuery(this.searchQuery);
         return;
       }
       
@@ -382,6 +390,7 @@ export class KampagneList {
 
   bindEvents() {
     SearchInput.bind('kampagne', (value) => this.handleSearch(value));
+    this._bindToolbarMenu();
 
     // View-Toggle (list/calendar)
     const switchView = async (targetView) => {
@@ -429,13 +438,69 @@ export class KampagneList {
 
     // Empty-State-Actions (z.B. "Filter zurücksetzen")
     bindEmptyStateActions(document, {
-      'reset-filters': () => this.onFiltersReset()
+      'reset-filters': () => this.onFiltersReset(),
+      'show-completed': () => this.applyShowCompleted(true)
     }, { signal: this._abortController.signal });
+  }
+
+  _bindToolbarMenu() {
+    const menu = document.querySelector('.kampagne-list-page .toolbar-menu');
+    if (!menu) return;
+    const cleanup = bindToolbarMenu(menu);
+    this._abortController.signal.addEventListener('abort', cleanup, { once: true });
+
+    const toggle = document.getElementById('kampagne-show-completed');
+    if (toggle) {
+      toggle.addEventListener('change', (e) => {
+        this.applyShowCompleted(e.target.checked);
+      }, { signal: this._abortController.signal });
+    }
+
+    const filterBtn = document.getElementById('btn-kampagne-list-filter');
+    if (filterBtn) {
+      filterBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        menu.querySelector('.toolbar-menu-dropdown')?.classList.remove('show');
+        menu.querySelector('.toolbar-menu-toggle')?.setAttribute('aria-expanded', 'false');
+        const plus = document.getElementById('btn-kampagne-list-toolbar-menu');
+        filterDropdown.openFromAnchor('kampagne', plus || filterBtn);
+      }, { signal: this._abortController.signal });
+    }
+
+    this.updateToolbarFilterBadge();
+  }
+
+  applyShowCompleted(value) {
+    setShowCompleted(value);
+    this.syncShowCompletedToggle();
+    this.pagination.currentPage = 1;
+    if (this.currentView === 'calendar' && this.calendarView) {
+      this.calendarView.reload();
+      return;
+    }
+    this.loadData();
+  }
+
+  syncShowCompletedToggle() {
+    const toggle = document.getElementById('kampagne-show-completed');
+    if (toggle) toggle.checked = getShowCompleted();
+  }
+
+  updateToolbarFilterBadge() {
+    const badge = document.getElementById('kampagne-list-plus-badge');
+    if (!badge) return;
+    const count = filterDropdown.getActiveFilterCount?.('kampagne') || 0;
+    badge.hidden = count < 1;
+    badge.textContent = count > 0 ? String(count) : '';
   }
 
   hasActiveFilters() {
     const filters = filterSystem.getFilters('kampagne');
-    return Object.keys(filters).length > 0;
+    return Object.keys(filters).some((key) => {
+      const value = filters[key];
+      return value !== null && value !== undefined && value !== '';
+    }) || !!String(this.searchQuery || '').trim();
   }
 
   // ========================================

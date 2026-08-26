@@ -80,14 +80,6 @@ export class KampagneFilterLogic {
           };
           break;
 
-        case 'is_completed':
-          // Virtual Filter: Kampagne abgeschlossen
-          processedFilters[key] = {
-            type: 'virtual_completed',
-            value: value
-          };
-          break;
-
         case 'is_overdue':
           // Virtual Filter: Kampagne überfällig
           processedFilters[key] = {
@@ -250,7 +242,6 @@ export class KampagneFilterLogic {
         // Virtual Filter werden in Post-Processing behandelt
         case 'virtual_creator_count':
         case 'virtual_duration':
-        case 'virtual_completed':
           // Diese werden nach dem Query-Ausführung gefiltert
           break;
       }
@@ -294,10 +285,6 @@ export class KampagneFilterLogic {
         if (filter.min !== null && durationDays < filter.min) return false;
         if (filter.max !== null && durationDays > filter.max) return false;
         return true;
-
-      case 'virtual_completed':
-        const isCompleted = this.isKampagneCompleted(kampagne);
-        return filter.value ? isCompleted : !isCompleted;
 
       case 'virtual_overdue':
         const isOverdue = this.isKampagneOverdue(kampagne);
@@ -439,9 +426,6 @@ export class KampagneFilterLogic {
           break;
         case 'virtual_overdue':
           if (filter.value) label = 'Überfällige Kampagnen';
-          break;
-        case 'virtual_completed':
-          if (filter.value) label = 'Abgeschlossene Kampagnen';
           break;
       }
 

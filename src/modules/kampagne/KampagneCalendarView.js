@@ -5,10 +5,19 @@ import { KampagnePreviewDrawer } from './KampagnePreviewDrawer.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { shouldHideCompleted } from './kampagneListPrefs.js';
 
 // Debug-Flag für Logging (Production: false)
 const DEBUG_CALENDAR = false;
 const debugLog = (...args) => DEBUG_CALENDAR && console.log(...args);
+
+function normalizeUuidList(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === 'string') {
+    return value.replace(/[{}]/g, '').split(',').map((s) => s.trim()).filter(Boolean);
+  }
+  return [];
+}
 
 export class KampagneCalendarView {
   constructor() {
@@ -95,6 +104,16 @@ export class KampagneCalendarView {
         query = query.in('id', allowedIds);
       }
 
+      if (shouldHideCompleted(this.searchQuery)) {
+        const { data: completedIds, error: completedError } = await window.supabase
+          .rpc('get_completed_kampagne_ids');
+        if (completedError) throw completedError;
+        const ids = normalizeUuidList(completedIds);
+        if (ids.length > 0) {
+          query = query.not('id', 'in', `(${ids.join(',')})`);
+        }
+      }
+
       const { data, error } = await query;
 
       if (error) throw error;
@@ -154,9 +173,22 @@ export class KampagneCalendarView {
     return `${year}-${month}-${day}`;
   }
 
-  // Suchbegriff setzen und View aktualisieren
-  setSearchQuery(query) {
-    this.searchQuery = (query || '').trim().toLowerCase();
+  async reload() {
+    await this.loadKampagnen();
+    this.render();
+    this.bindEvents();
+  }
+
+  // Suchbegriff setzen und View aktualisieren.
+  // Hide-Completed hängt an leerer Suche — bei Leer/Nicht-leer nachladen.
+  async setSearchQuery(query) {
+    const next = (query || '').trim().toLowerCase();
+    const hideBefore = shouldHideCompleted(this.searchQuery);
+    this.searchQuery = next;
+    const hideAfter = shouldHideCompleted(this.searchQuery);
+    if (hideBefore !== hideAfter) {
+      await this.loadKampagnen();
+    }
     this.render();
     this.bindEvents();
   }
