@@ -61,7 +61,9 @@ exports.handler = async (event) => {
     const stagingKey = `${tokenRow.id}/${targetType}/${targetId}/${crypto.randomUUID()}.${fileCheck.ext}`;
 
     // Abandoned Jobs freigeben, sonst blockiert ein geschlossener Laptop-Deckel
-    // den Slot bis zur taeglichen GC: pending > 15 Min / processing > 60 Min.
+    // den Slot bis zur taeglichen GC. pending wird sofort ersetzt (Retry = Absicht),
+    // processing erst nach 60 Min, damit ein laufender Dropbox-Transfer nicht
+    // zerschossen wird.
     const now = Date.now();
     const { data: activeJobs } = await supabase
       .from('creator_upload_job')
@@ -71,8 +73,8 @@ exports.handler = async (event) => {
       .in('status', ['pending', 'processing']);
     for (const old of activeJobs || []) {
       const ageMs = now - new Date(old.created_at).getTime();
-      const staleMs = old.status === 'pending' ? 15 * 60 * 1000 : 60 * 60 * 1000;
-      if (ageMs > staleMs) {
+      const stale = old.status === 'pending' || ageMs > 60 * 60 * 1000;
+      if (stale) {
         await supabase.from('creator_upload_job')
           .update({ status: 'aborted', error: 'Verworfen — neuer Upload gestartet', updated_at: new Date().toISOString() })
           .eq('id', old.id);
