@@ -17,7 +17,7 @@ export const rechnungConfig = {
     { name: 'vertrag_id', label: 'Vertrag', type: 'select', required: false, options: [], dynamic: true, searchable: true, placeholder: 'Vertrag wählen...', editOnly: true, dependsOn: 'kooperation_id', filterBy: 'kooperation_id', table: 'vertraege', displayField: 'name', valueField: 'id', section: 'zuordnung' },
     { name: 'videoanzahl', label: 'Video Anzahl (aus Kooperation)', type: 'number', required: false, validation: { type: 'number', min: 0 }, section: 'zuordnung' },
     // Status & Datum
-    { name: 'status', label: 'Status', type: 'select', required: true, options: ['Offen', 'Rückfrage', 'Bezahlt', 'An Qonto gesendet'], section: 'status', row: 'statusrow' },
+    { name: 'status', label: 'Status', type: 'select', required: true, options: ['Offen', 'Rückfrage', 'Bezahlt', 'An Qonto gesendet', 'Marc an Qonto gesendet'], section: 'status', row: 'statusrow' },
     { name: 'geprueft', label: 'Geprüft', type: 'toggle', required: false, section: 'status', row: 'statusrow' },
     { name: 'gestellt_am', label: 'Gestellt am', type: 'date', required: true, section: 'status', row: 'datumrow' },
     { name: 'zahlungsziel', label: 'Zahlungsziel', type: 'date', required: true, section: 'status', row: 'datumrow' },
