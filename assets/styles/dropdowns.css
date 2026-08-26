@@ -119,6 +119,16 @@
   transform: translateY(0);
 }
 
+/* Seitlich geankertes Panel (z.B. Kampagnenliste): klappt wie das
+   Sortierung-Submenu zur Seite aus statt die Leiste zu ueberlagern */
+.filter-dropdown.filter-dropdown--side {
+  transform: translateX(8px);
+}
+
+.filter-dropdown.filter-dropdown--side.show {
+  transform: translateX(0);
+}
+
 .filter-dropdown-header {
   display: flex;
   align-items: center;

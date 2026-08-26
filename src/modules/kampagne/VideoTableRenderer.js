@@ -9,6 +9,8 @@ import { renderChipCell, renderPlatformChip, renderStaticChip } from '../../core
 import { liveLinkDotState, LIVE_LINK_TOOLBAR } from './liveLinkCell.js';
 import { getCachedCreatorUploadStatus } from './CreatorUploadActions.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { loopStills, finalStills, stillsForVideoCell } from '../../core/stills/stillAssets.js';
+import { STILL_FINAL_VARIANT } from '../../core/PromoteFinalAsset.js';
 
 const EXTERNAL_LINK_ICON = `${icon('arrow-top-right')}`;
 
@@ -489,8 +491,11 @@ export class VideoTableRenderer {
               value="${this.escapeHtml(video.video_name || '')}" placeholder="Video-Name"/>
           `)}
         </td>
-        <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-link-content') ? 'style="display:none;"' : ''}>
+        <td class="grid-cell video-stack-cell col-link-content" ${!t.isColumnVisibleForCustomer('col-link-content') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => this.renderContentCell(koop, video))}
+        </td>
+        <td class="grid-cell video-stack-cell col-stills" ${!t.isColumnVisibleForCustomer('col-stills') ? 'style="display:none;"' : ''}>
+          ${this.renderVideoFieldStack(videos, (video) => this.renderStillsCell(koop, video))}
         </td>
         ${VIDEO_FEEDBACK_FIELDS.map(slot => `
         <td class="grid-cell video-stack-cell wide-field" ${!t.isColumnVisibleForCustomer(slot.colClass) ? 'style="display:none;"' : ''}>
@@ -574,11 +579,6 @@ export class VideoTableRenderer {
     const videoUrl = video.file_url || video.link_content || video.asset_url;
     const hasPlayable = !!videoUrl;
     const hasStorys = !!storyFolderUrl;
-    // Bilder pro Video: eigene Bilder dieses Videos oder (noch) nicht zugeordnete
-    // Altbilder der Kooperation (video_id = NULL erscheint in allen Zeilen).
-    const koopBilder = Array.isArray(koop._bilder) ? koop._bilder : [];
-    const hasBilder = koopBilder.some(b => b.video_id === video.id || b.video_id == null)
-      || (!Array.isArray(koop._bilder) && !!koop.bilder_folder_url);
     const hasContent = hasPlayable || !!folderUrl || hasStorys;
 
     const buttons = [];
@@ -591,10 +591,6 @@ export class VideoTableRenderer {
 
     if (hasStorys) {
       buttons.push(`<button type="button" class="external-link-btn media-action-btn" data-action="view-storys" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Storys ansehen">${STORYS_ICON}</button>`);
-    }
-
-    if (hasBilder) {
-      buttons.push(`<button type="button" class="external-link-btn media-action-btn" data-action="view-bilder" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Bilder ansehen">${BILDER_ICON}</button>`);
     }
 
     if (!isKunde) {
@@ -612,18 +608,52 @@ export class VideoTableRenderer {
     return `<div class="content-cell-actions">${buttons.join('')}</div>`;
   }
 
+  renderStillsCell(koop, video) {
+    const t = this.table;
+    const isKunde = t.isKundeRole();
+    const stills = stillsForVideoCell(koop, video);
+    const loop = loopStills(stills);
+    const hasStills = loop.length > 0
+      || (!Array.isArray(koop._bilder) && !!koop.bilder_folder_url);
+
+    const buttons = [];
+    if (hasStills) {
+      buttons.push(`<button type="button" class="external-link-btn media-action-btn" data-action="view-bilder" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Stills ansehen">${BILDER_ICON}</button>`);
+    }
+
+    if (!isKunde) {
+      if (hasStills) {
+        buttons.push(`<button type="button" class="video-settings-btn stills-settings-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-file-path="" data-video-url="" title="Stills verwalten">${GEAR_ICON}</button>`);
+      } else {
+        buttons.push(`<button type="button" class="video-upload-btn stills-upload-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Stills hochladen">${UPLOAD_ICON} Upload</button>`);
+      }
+    }
+
+    if (buttons.length === 0) {
+      return `<span class="no-content-placeholder">—</span>`;
+    }
+
+    return `<div class="content-cell-actions stills-cell-actions">${buttons.join('')}</div>`;
+  }
+
   renderFinaleVersionCell(koop, video) {
     const t = this.table;
     const isKunde = t.isKundeRole();
     const finals = video.finalAssets || [];
+    const stillFinals = finalStills(stillsForVideoCell(koop, video));
 
     const buttons = finals.map(asset => {
       const label = asset.variant_name || 'Final';
       return `<button type="button" class="external-link-btn media-action-btn finale-play-btn" data-action="play-final" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-asset-id="${asset.id}" title="Finale Version ${this.escapeHtml(label)} abspielen">${PLAY_ICON}<span class="finale-variant-label">${this.escapeHtml(label)}</span></button>`;
     });
 
+    stillFinals.forEach(asset => {
+      const label = asset.variant_name || STILL_FINAL_VARIANT;
+      buttons.push(`<button type="button" class="external-link-btn media-action-btn finale-play-btn" data-action="play-final-still" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-asset-id="${asset.id}" title="Finales Still abspielen">${BILDER_ICON}<span class="finale-variant-label">${this.escapeHtml(label)}</span></button>`);
+    });
+
     if (!isKunde) {
-      buttons.push(`<button type="button" class="video-upload-btn finale-upload-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Finale Version hochladen">${UPLOAD_ICON}${finals.length === 0 ? ' Upload' : ''}</button>`);
+      buttons.push(`<button type="button" class="video-upload-btn finale-upload-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Finale Version hochladen">${UPLOAD_ICON}${finals.length === 0 && stillFinals.length === 0 ? ' Upload' : ''}</button>`);
     }
 
     if (buttons.length === 0) {

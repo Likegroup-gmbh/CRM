@@ -33,6 +33,7 @@ const DEFAULT_COLUMNS = [
   { id: 'col-skript-freigegeben', label: 'Skript freigegeben', dataCol: '18', configurable: true },
   { id: 'col-video-name', label: 'Video-Name', dataCol: '18b', configurable: true },
   { id: 'col-link-content', label: 'Content', dataCol: '19', configurable: true },
+  { id: 'col-stills', label: 'Stills', dataCol: '19b', configurable: true },
   ...VIDEO_FEEDBACK_FIELDS.map((slot, idx) => ({
     id: slot.colClass,
     label: slot.label,

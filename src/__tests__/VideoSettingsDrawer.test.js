@@ -188,6 +188,36 @@ describe('VideoSettingsDrawer', () => {
     expect(body.textContent).not.toContain('Video 1 – Schnitzel');
   });
 
+  it('beschriftet 9:16/4:5 als Finale-Version-Auswahl mit Tooltip', async () => {
+    window.supabase = createSettingsSupabase({
+      videoAssets: [{
+        id: 'va-1',
+        file_url: 'https://example.com/clip.mp4',
+        file_path: 'clip.mp4',
+        version_number: 1,
+        is_current: true,
+        is_final: false,
+        variant_name: 'Haupt',
+        created_at: '2026-01-15T10:00:00Z',
+      }],
+    });
+
+    await drawer.open({
+      videoId: 'vid-1',
+      kooperationId: 'koop-1',
+      videoUrl: '',
+      videoTitel: 'Testvideo',
+    });
+
+    const body = document.getElementById('video-settings-drawer-body');
+    expect(body.querySelector('.promote-final-label')?.textContent).toBe('Finale Version');
+    const nineBySixteen = body.querySelector('.promote-final-btn[data-slot="9:16"]');
+    expect(nineBySixteen).toBeTruthy();
+    expect(nineBySixteen.getAttribute('title')).toBe('Als finale Version auswählen (9:16)');
+    expect(body.querySelector('.promote-final-btn[data-slot="4:5"]')?.getAttribute('title'))
+      .toBe('Als finale Version auswählen (4:5)');
+  });
+
   it('zeigt Legacy-Video-Link wenn keine Assets aber videoUrl gesetzt', async () => {
     window.supabase = createSettingsSupabase({ videoAssets: [] });
 

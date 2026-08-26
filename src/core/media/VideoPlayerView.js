@@ -31,13 +31,13 @@ export class VideoPlayerView {
     let controls;
     if (item.type === 'video') {
       title = item.video.video_name || item.video.thema || 'Video';
-      controls = `${this.renderVersionSelect()}${this.renderVariantSelect()}`;
+      controls = `${this.renderVersionSelect()}${this.renderVariantSelect()}${this.renderPromoteControl()}`;
     } else if (item.type === 'story') {
       title = item.slot.slot_name || `Story ${item.slot.slot_index || ''}`.trim();
       controls = this.renderStoryVersionSelect();
     } else {
-      title = item.image.file_name || 'Bild';
-      controls = this.renderThumbs();
+      title = this.ctx.stillAsset()?.file_name || item.image.file_name || 'Still';
+      controls = `${this.renderStillVersionSelect()}${this.renderStillVariantSelect()}${this.renderPromoteControl()}`;
     }
     title += this._typeCounter(item);
 
@@ -151,6 +151,46 @@ export class VideoPlayerView {
       </div>`;
   }
 
+  renderStillVersionSelect() {
+    const images = this.ctx.stillImages();
+    const versions = this.ctx.stillVersions(images);
+    const hasFinal = this.ctx.stillFinalVariants(images).length > 0;
+    if (versions.length + (hasFinal ? 1 : 0) <= 1) return '';
+    let options = versions.map(ver =>
+      `<option value="${ver}" ${ver === this.ctx.stillVersion ? 'selected' : ''}>Feedbackschleife ${ver}</option>`
+    ).join('');
+    if (hasFinal) {
+      options += `<option value="final" ${this.ctx.stillVersion === 'final' ? 'selected' : ''}>Finale Version</option>`;
+    }
+    return `
+      <div class="media-viewer-control">
+        <select class="still-version-select">${options}</select>
+      </div>`;
+  }
+
+  renderStillVariantSelect() {
+    const variants = this.ctx.stillsForSelectedVersion();
+    if (variants.length <= 1) return '';
+    const options = variants.map(a =>
+      `<option value="${a.id}" ${a.id === this.ctx.stillAssetId ? 'selected' : ''}>${escapeHtml(a.variant_name || a.file_name || 'Variante')}</option>`
+    ).join('');
+    return `
+      <div class="media-viewer-control">
+        <label>Variante</label>
+        <select class="still-variant-select">${options}</select>
+      </div>`;
+  }
+
+  renderPromoteControl() {
+    if (this.ctx.table?.isKundeRole?.()) return '';
+    const item = this.ctx.current;
+    if (!item || item.type === 'story') return '';
+    if (item.type === 'video' && this.ctx.selectedVersion === 'final') return '';
+    if (item.type === 'bild' && this.ctx.stillVersion === 'final') return '';
+    const html = this.ctx.renderPromoteMenuHtml?.();
+    return html || '';
+  }
+
   renderVariantSelect() {
     const variants = this.ctx.assetLoader.variantsForVersion(this.ctx.assets, this.ctx.selectedVersion);
     if (variants.length <= 1) return '';
@@ -219,7 +259,7 @@ export class VideoPlayerView {
         </div>`;
     }
 
-    const { videoId, target } = ft;
+    const { videoId, target, kind = 'video' } = ft;
     if (target.isFinal) {
       return `
         <div class="media-viewer-feedback">
@@ -228,7 +268,10 @@ export class VideoPlayerView {
     }
     if (!target.slot) return '';
 
-    const comments = normalizeVideoFeedbackComments(this.ctx.table.videoComments[videoId]);
+    const commentsMap = kind === 'still'
+      ? (this.ctx.table.stillComments || {})
+      : this.ctx.table.videoComments;
+    const comments = normalizeVideoFeedbackComments(commentsMap[videoId]);
     const ownValue = formatVideoFeedbackValue(comments, target.slot.bucket);
     const counterpartValue = target.counterpartSlot
       ? formatVideoFeedbackValue(comments, target.counterpartSlot.bucket)
@@ -251,7 +294,7 @@ export class VideoPlayerView {
         <h4>${escapeHtml(target.slot.label)}</h4>
         <textarea
           class="player-feedback-input"
-          data-entity="video"
+          data-entity="${kind === 'still' ? 'still' : 'video'}"
           data-id="${videoId}"
           data-field="${target.slot.field}"
           ${editable ? '' : 'readonly'}

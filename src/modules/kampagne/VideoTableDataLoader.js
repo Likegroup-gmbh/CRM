@@ -8,6 +8,7 @@ import {
   VIDEO_FEEDBACK_SELECT
 } from '../../core/VideoFeedbackBuckets.js';
 import { CustomColumnDataLoader } from './columns/CustomColumnDataLoader.js';
+import { BILDER_ASSET_SELECT } from '../../core/stills/stillAssets.js';
 
 export class VideoTableDataLoader {
   constructor(table) {
@@ -30,6 +31,18 @@ export class VideoTableDataLoader {
 
     console.warn('feedback_typ fehlt noch in der DB, lade Kommentare im Legacy-Modus.');
     return load(VIDEO_FEEDBACK_LEGACY_SELECT);
+  }
+
+  async loadStillFeedbackComments(videoIds) {
+    const batchIn = VideoTableDataLoader.batchInQuery;
+    const sb = window.supabase;
+    return batchIn(
+      sb.from('kooperation_still_comment'),
+      VIDEO_FEEDBACK_SELECT,
+      'video_id',
+      videoIds,
+      q => q.is('deleted_at', null).order('created_at', { ascending: true })
+    );
   }
 
   static batchInQuery(supabaseFrom, selectStr, column, ids, extraFilters) {
@@ -269,7 +282,7 @@ export class VideoTableDataLoader {
       const batchIn = VideoTableDataLoader.batchInQuery;
       const sb = window.supabase;
 
-      const [assetsResult, commentsResult, finalAssetsResult] = await Promise.allSettled([
+      const [assetsResult, commentsResult, finalAssetsResult, stillCommentsResult] = await Promise.allSettled([
         batchIn(
           sb.from('kooperation_video_asset'),
           'id, video_id, file_url, file_path, is_current',
@@ -279,15 +292,17 @@ export class VideoTableDataLoader {
         this.loadVideoFeedbackComments(videoIds),
         batchIn(
           sb.from('kooperation_video_asset'),
-          'id, video_id, file_url, file_path, variant_name, is_final, created_at',
+          'id, video_id, file_url, file_path, variant_name, is_final, source_asset_id, created_at',
           'video_id', videoIds,
           q => q.eq('is_final', true).order('created_at', { ascending: true })
-        )
+        ),
+        this.loadStillFeedbackComments(videoIds)
       ]);
 
       const settledOk = (result) => result.status === 'fulfilled' && !result.value?.error;
       const assets = settledOk(assetsResult) ? (assetsResult.value.data || []) : [];
       const comments = settledOk(commentsResult) ? (commentsResult.value.data || []) : [];
+      const stillComments = settledOk(stillCommentsResult) ? (stillCommentsResult.value.data || []) : [];
       const finalsOk = settledOk(finalAssetsResult);
       const finalAssets = finalsOk ? (finalAssetsResult.value.data || []) : [];
 
@@ -316,6 +331,7 @@ export class VideoTableDataLoader {
       if (t.store) {
         t.store.applyAssets(assetsByVideoId);
         t.store.applyComments(comments);
+        t.store.applyStillComments(stillComments);
         if (finalsOk) t.store.applyFinalAssets(finalsByVideoId);
       } else {
         for (const koopVideos of Object.values(t.videos)) {
@@ -334,6 +350,12 @@ export class VideoTableDataLoader {
             t.videoComments[comment.video_id] = createEmptyVideoFeedbackComments();
           }
           t.videoComments[comment.video_id][getVideoFeedbackBucket(comment)].push(comment);
+        });
+        stillComments.forEach(comment => {
+          if (!t.stillComments[comment.video_id]) {
+            t.stillComments[comment.video_id] = createEmptyVideoFeedbackComments();
+          }
+          t.stillComments[comment.video_id][getVideoFeedbackBucket(comment)].push(comment);
         });
       }
 
@@ -428,9 +450,9 @@ export class VideoTableDataLoader {
 
       const result = await batchIn(
         sb.from('kooperation_bilder_asset'),
-        'id, kooperation_id, video_id, file_url, file_path, file_name, created_at',
+        BILDER_ASSET_SELECT,
         'kooperation_id', koopIds,
-        q => q.order('file_name', { ascending: true })
+        q => q.order('created_at', { ascending: true })
       );
 
       const images = result?.data || [];
@@ -478,6 +500,8 @@ export class VideoTableDataLoader {
       for (const video of (t.videos[koop.id] || [])) {
         const cell = container.querySelector(`.col-finale-version .video-field-wrapper[data-video-id="${video.id}"]`);
         if (cell) cell.innerHTML = t.renderer.renderFinaleVersionCell(koop, video);
+        const stillsCell = container.querySelector(`.col-stills .video-field-wrapper[data-video-id="${video.id}"]`);
+        if (stillsCell) stillsCell.innerHTML = t.renderer.renderStillsCell(koop, video);
       }
     }
   }

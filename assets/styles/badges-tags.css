@@ -560,6 +560,12 @@
   line-height: 1;
 }
 
+/* display:inline-flex oben wuerde das hidden-Attribut sonst ueberschreiben
+   (leerer dunkler Badge bliebe sichtbar) */
+.filter-count-badge[hidden] {
+  display: none;
+}
+
 .uploader-badge--extracted {
   background: var(--green-100);
   color: var(--green-800);

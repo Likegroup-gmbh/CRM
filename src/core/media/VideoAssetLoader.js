@@ -9,7 +9,7 @@
 
 import { normalizeVideoFeedbackComments, VIDEO_FEEDBACK_FIELDS } from '../VideoFeedbackBuckets.js';
 
-const ASSET_SELECT = 'id, video_id, file_url, file_path, version_number, variant_name, description, is_current, is_final, created_at';
+const ASSET_SELECT = 'id, video_id, file_url, file_path, version_number, variant_name, description, is_current, is_final, source_asset_id, created_at';
 
 export class VideoAssetLoader {
   constructor() {

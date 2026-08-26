@@ -9,10 +9,19 @@ function buildBilderRootFolderPath({ unternehmen, marke, kampagne, kooperation }
 // ohne bleibt der Kooperations-Bilderordner (Altverhalten, z.B. list-Action).
 function buildBilderFolderPath(fields) {
   const root = buildBilderRootFolderPath(fields);
-  if (!fields.videoPosition) return root;
   const pos = fields.videoPosition;
-  const thema = sanitizePath(fields.videoThema || '');
-  return thema ? `${root}/Video_${pos}_${thema}` : `${root}/Video_${pos}`;
+  let folder = root;
+  if (pos) {
+    const thema = sanitizePath(fields.videoThema || '');
+    folder = thema ? `${root}/Video_${pos}_${thema}` : `${root}/Video_${pos}`;
+  }
+  if (fields.isFinal) {
+    return `${folder}/Finale_Version`;
+  }
+  if (fields.versionNumber) {
+    return `${folder}/Feedbackschleife_${fields.versionNumber}`;
+  }
+  return folder;
 }
 
 function buildBilderFilePath(fields) {

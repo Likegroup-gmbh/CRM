@@ -20,6 +20,7 @@ export class KampagneDetailStore {
     this.kooperationen = [];
     this.videos = {};
     this.videoComments = {};
+    this.stillComments = {};
     this.versandInfos = {};
     this.creators = new Map();
     this.creatorAdressen = {};
@@ -78,6 +79,10 @@ export class KampagneDetailStore {
 
   setVideoComments(comments) {
     this.videoComments = comments || {};
+  }
+
+  setStillComments(comments) {
+    this.stillComments = comments || {};
   }
 
   setVersandInfos(infos) {
@@ -326,6 +331,7 @@ export class KampagneDetailStore {
     delete this.videos[koopId];
     deletedVideoIds.forEach(vid => {
       delete this.videoComments[vid];
+      delete this.stillComments[vid];
       delete this.versandInfos[vid];
       this._loadedAssetVideoIds.delete(vid);
     });
@@ -336,6 +342,11 @@ export class KampagneDetailStore {
   updateVideoComments(videoId, commentsByBucket) {
     this.videoComments[videoId] = normalizeVideoFeedbackComments(commentsByBucket);
     this.emit('comments-updated', { videoId });
+  }
+
+  updateStillComments(videoId, commentsByBucket) {
+    this.stillComments[videoId] = normalizeVideoFeedbackComments(commentsByBucket);
+    this.emit('still-comments-updated', { videoId });
   }
 
   // ========================================
@@ -377,6 +388,15 @@ export class KampagneDetailStore {
         this.videoComments[comment.video_id] = createEmptyVideoFeedbackComments();
       }
       this.videoComments[comment.video_id][getVideoFeedbackBucket(comment)].push(comment);
+    }
+  }
+
+  applyStillComments(comments) {
+    for (const comment of comments) {
+      if (!this.stillComments[comment.video_id]) {
+        this.stillComments[comment.video_id] = createEmptyVideoFeedbackComments();
+      }
+      this.stillComments[comment.video_id][getVideoFeedbackBucket(comment)].push(comment);
     }
   }
 
@@ -523,6 +543,7 @@ export class KampagneDetailStore {
     this.kooperationen = [];
     this.videos = {};
     this.videoComments = {};
+    this.stillComments = {};
     this.versandInfos = {};
     this.creatorAdressen = {};
     this.creators.clear();

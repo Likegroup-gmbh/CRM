@@ -86,6 +86,9 @@ export class KampagneKooperationenVideoTable {
   get videoComments() { return this.store?.videoComments || this._videoComments || {}; }
   set videoComments(val) { if (this.store) this.store.setVideoComments(val); else this._videoComments = val; }
 
+  get stillComments() { return this.store?.stillComments || this._stillComments || {}; }
+  set stillComments(val) { if (this.store) this.store.setStillComments(val); else this._stillComments = val; }
+
   get versandInfos() { return this.store?.versandInfos || this._versandInfos || {}; }
   set versandInfos(val) { if (this.store) this.store.setVersandInfos(val); else this._versandInfos = val; }
 
@@ -277,7 +280,7 @@ export class KampagneKooperationenVideoTable {
 
   _openUploadDrawer(videoId, kooperationId, opts) { return this._drawerActions.openUploadDrawer(videoId, kooperationId, opts); }
   _openCustomUploadDrawer(btn) { return this._drawerActions.openCustomUploadDrawer(btn); }
-  _openSettingsDrawer(btn) { return this._drawerActions.openSettingsDrawer(btn); }
+  _openSettingsDrawer(btn, opts) { return this._drawerActions.openSettingsDrawer(btn, opts); }
   _openLinkStrategieDrawer(btn) { return this._drawerActions.openLinkStrategieDrawer(btn); }
   _reloadAfterStrategieLink() { return this._drawerActions.reloadAfterStrategieLink(); }
 

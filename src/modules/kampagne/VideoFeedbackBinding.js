@@ -12,9 +12,10 @@ export class VideoFeedbackBinding {
   }
 
   static isEditableFeedbackField(el) {
+    const entity = el?.dataset?.entity;
     return !!el
       && el.tagName === 'TEXTAREA'
-      && el.dataset?.entity === 'video'
+      && (entity === 'video' || entity === 'still')
       && !el.readOnly
       && !!getVideoFeedbackSlotByField(el.dataset.field);
   }
