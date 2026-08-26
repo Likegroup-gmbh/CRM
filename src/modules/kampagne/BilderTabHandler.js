@@ -1,10 +1,12 @@
 import {
   escapeHtml, readFileAsBase64, proxyPost, uploadLargeFile, createFolderSharedLink,
-  IMAGE_EXTENSIONS, IMAGE_MIME_PREFIX, MAX_IMAGE_SIZE,
+  IMAGE_EXTENSIONS, IMAGE_MIME_PREFIX, MAX_IMAGE_SIZE, MAX_VERSIONS,
+  buildVersionedFileName, buildFinalFileName,
   normalizeExternalUrl, isValidExternalUrl,
   mdcBtnIcon, ICON_PLUS_16, ICON_CHECK_16, ICON_UPLOAD_16
 } from '../../core/VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { STILL_FINAL_VARIANT, updateStillCurrentFlags } from '../../core/stills/stillAssets.js';
 
 export class BilderTabHandler {
   constructor(drawer) {
@@ -26,9 +28,38 @@ export class BilderTabHandler {
   reset() {
     this._selectedImages = [];
     this._existingImages = [];
+    this._existingVersions = [];
     this._linkQueue = [];
     this._isUploadingImages = false;
     this._initialized = false;
+  }
+
+  _defaultVersion() {
+    return this._existingVersions.length > 0 ? Math.max(...this._existingVersions) : 1;
+  }
+
+  _newQueueItem({ file = null, url = '' } = {}) {
+    if (this.drawer.preselectFinal) {
+      return { file, url, variantName: STILL_FINAL_VARIANT, versionNumber: 1, isFinal: true };
+    }
+    return { file, url, variantName: '', versionNumber: this._defaultVersion(), isFinal: false };
+  }
+
+  _queueItemAt(idx) {
+    if (this.drawer.useExternalLinks) return this._linkQueue?.[idx];
+    return this._selectedImages[idx];
+  }
+
+  _buildVersionOptions(item) {
+    const allVersions = Array.from({ length: MAX_VERSIONS }, (_, i) => i + 1);
+    let html = allVersions.map(v => {
+      const exists = this._existingVersions.includes(v);
+      const label = exists ? `Feedbackschleife ${v} (hinzufügen)` : `Feedbackschleife ${v}`;
+      const selected = !item.isFinal && v === item.versionNumber ? ' selected' : '';
+      return `<option value="${v}"${selected}>${label}</option>`;
+    }).join('');
+    html += `<option value="final"${item.isFinal ? ' selected' : ''}>Finale Version</option>`;
+    return html;
   }
 
   // ─── Render ────────────────────────────────────────────────
@@ -43,7 +74,7 @@ export class BilderTabHandler {
           <div class="upload-dropzone" id="bilder-upload-dropzone">
             <div class="dropzone-content">
               ${icon('photo')}
-              <p class="dropzone-text">Bilder hierher ziehen oder <button type="button" class="dropzone-browse-btn" id="bilder-browse-btn">Dateien auswählen</button></p>
+              <p class="dropzone-text">Stills hierher ziehen oder <button type="button" class="dropzone-browse-btn" id="bilder-browse-btn">Dateien auswählen</button></p>
               <p class="dropzone-hint">Alle Bildformate – max. 50 MB pro Bild</p>
             </div>
             <input type="file" id="bilder-upload-file-input" accept="image/*" multiple style="display:none"/>
@@ -70,7 +101,7 @@ export class BilderTabHandler {
 
           <div class="existing-images-section" id="existing-images-section">
             <div class="existing-images-header">
-              <span class="existing-images-title">Vorhandene Bilder</span>
+              <span class="existing-images-title">Vorhandene Stills</span>
               <span class="existing-images-count" id="existing-images-count"></span>
             </div>
             <div class="existing-images-list" id="existing-images-list">
@@ -89,7 +120,7 @@ export class BilderTabHandler {
           <div class="link-add-section">
             <button type="button" class="mdc-btn upload-drawer-btn--secondary" id="bilder-link-add-btn">
               ${mdcBtnIcon(ICON_PLUS_16)}
-              <span class="mdc-btn__label">Bilder-Link hinzufügen</span>
+              <span class="mdc-btn__label">Still-Link hinzufügen</span>
             </button>
           </div>
 
@@ -107,7 +138,7 @@ export class BilderTabHandler {
 
           <div class="existing-images-section" id="existing-images-section">
             <div class="existing-images-header">
-              <span class="existing-images-title">Vorhandene Bilder</span>
+              <span class="existing-images-title">Vorhandene Stills</span>
               <span class="existing-images-count" id="existing-images-count"></span>
             </div>
             <div class="existing-images-list" id="existing-images-list">
@@ -164,7 +195,7 @@ export class BilderTabHandler {
       if (removeBtn) {
         const idx = parseInt(removeBtn.dataset.idx, 10);
         if (this.drawer.useExternalLinks) {
-          this._removeBilderLink(idx);
+        this._removeBilderLink(idx);
         } else {
           this._removeSelectedImage(idx);
         }
@@ -179,6 +210,29 @@ export class BilderTabHandler {
         }
         this._updateBilderSubmitState();
       }
+      const variantInput = e.target.closest('.bilder-variant-name-input');
+      if (variantInput) {
+        const idx = parseInt(variantInput.dataset.idx, 10);
+        const item = this._queueItemAt(idx);
+        if (item) item.variantName = variantInput.value;
+      }
+    });
+    previewList?.addEventListener('change', (e) => {
+      const versionSelect = e.target.closest('.bilder-version-select');
+      if (!versionSelect) return;
+      const idx = parseInt(versionSelect.dataset.idx, 10);
+      const item = this._queueItemAt(idx);
+      if (!item) return;
+      if (versionSelect.value === 'final') {
+        item.isFinal = true;
+        item.versionNumber = 1;
+        item.variantName = STILL_FINAL_VARIANT;
+      } else {
+        if (item.isFinal) item.variantName = '';
+        item.isFinal = false;
+        item.versionNumber = parseInt(versionSelect.value, 10);
+      }
+      this._renderSelectedImagesList();
     });
 
     const existingList = document.getElementById('existing-images-list');
@@ -217,9 +271,9 @@ export class BilderTabHandler {
         continue;
       }
 
-      const alreadySelected = this._selectedImages.some(f => f.name === file.name && f.size === file.size);
+      const alreadySelected = this._selectedImages.some(q => q.file?.name === file.name && q.file?.size === file.size);
       if (!alreadySelected) {
-        this._selectedImages.push(file);
+        this._selectedImages.push(this._newQueueItem({ file }));
       }
     }
 
@@ -241,16 +295,43 @@ export class BilderTabHandler {
     const list = document.getElementById('bilder-preview-list');
     if (!list) return;
 
-    if (this._selectedImages.length === 0) {
+    if (this._selectedImages.length === 0 && !(this.drawer.useExternalLinks && this._linkQueue?.length)) {
       list.innerHTML = '';
       return;
     }
 
-    list.innerHTML = this._selectedImages.map((file, i) => `
-      <div class="upload-file-item">
+    if (this.drawer.useExternalLinks) {
+      list.innerHTML = (this._linkQueue || []).map((item, i) => `
+        <div class="upload-file-item video-queue-item">
+          <div class="video-queue-variant flex-1">
+            <input type="url" class="form-input bilder-link-url-input" data-idx="${i}"
+              value="${escapeHtml(item.url || '')}" placeholder="https://..." />
+          </div>
+          <div class="video-queue-variant">
+            <input type="text" class="form-input bilder-variant-name-input" data-idx="${i}"
+              value="${escapeHtml(item.variantName || '')}" placeholder="Varianten-Name" maxlength="120"/>
+          </div>
+          <div class="video-queue-selects">
+            <select class="form-input bilder-version-select" data-idx="${i}">${this._buildVersionOptions(item)}</select>
+          </div>
+          <button type="button" class="file-remove-btn bilder-file-remove" data-idx="${i}" title="Entfernen">&times;</button>
+        </div>
+      `).join('');
+      return;
+    }
+
+    list.innerHTML = this._selectedImages.map((item, i) => `
+      <div class="upload-file-item video-queue-item">
         <div class="file-info">
-          <span class="file-name">${escapeHtml(file.name)}</span>
-          <span class="file-size">${(file.size / 1024 / 1024).toFixed(1)} MB</span>
+          <span class="file-name">${escapeHtml(item.file.name)}</span>
+          <span class="file-size">${(item.file.size / 1024 / 1024).toFixed(1)} MB</span>
+        </div>
+        <div class="video-queue-variant">
+          <input type="text" class="form-input bilder-variant-name-input" data-idx="${i}"
+            value="${escapeHtml(item.variantName || '')}" placeholder="Varianten-Name" maxlength="120"/>
+        </div>
+        <div class="video-queue-selects">
+          <select class="form-input bilder-version-select" data-idx="${i}">${this._buildVersionOptions(item)}</select>
         </div>
         <button type="button" class="file-remove-btn bilder-file-remove" data-idx="${i}" title="Entfernen">&times;</button>
       </div>
@@ -293,7 +374,8 @@ export class BilderTabHandler {
 
     try {
       if (progressText) progressText.textContent = 'Verbinde mit Dropbox...';
-      const firstFile = this._selectedImages[0];
+      const firstItem = this._selectedImages[0];
+      const firstFile = firstItem.file;
       const prepareResp = await fetch('/.netlify/functions/dropbox-upload-bilder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -306,6 +388,8 @@ export class BilderTabHandler {
           videoPosition: this.drawer.metadaten.videoPosition || 1,
           videoThema: this.drawer.metadaten.videoThema || '',
           fileName: firstFile.name,
+          versionNumber: firstItem.versionNumber || 1,
+          isFinal: !!firstItem.isFinal,
         })
       });
 
@@ -322,12 +406,50 @@ export class BilderTabHandler {
       const uploadedFiles = [];
 
       for (let i = 0; i < this._selectedImages.length; i++) {
-        const file = this._selectedImages[i];
+        const item = this._selectedImages[i];
+        const file = item.file;
         const pct = Math.round((i / total) * 90);
         if (progressFill) progressFill.style.width = `${pct}%`;
         if (progressText) progressText.textContent = `Lade hoch... ${i + 1}/${total}: ${file.name}`;
 
-        const dropboxPath = `${folderPath}/${file.name}`;
+        const ext = (file.name.split('.').pop() || 'jpg');
+        const fileName = item.isFinal
+          ? buildFinalFileName(
+              this.drawer.metadaten?.creatorName || '',
+              this.drawer.metadaten?.unternehmen || '',
+              this.drawer.metadaten?.kampagne || '',
+              item.variantName || STILL_FINAL_VARIANT,
+              ext
+            )
+          : buildVersionedFileName(
+              this.drawer.metadaten?.creatorName || '',
+              this.drawer.metadaten?.unternehmen || '',
+              this.drawer.metadaten?.kampagne || '',
+              item.versionNumber || 1,
+              ext
+            );
+
+        const itemPrepare = await fetch('/.netlify/functions/dropbox-upload-bilder', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'prepare',
+            unternehmen: this.drawer.metadaten.unternehmen || '',
+            marke: this.drawer.metadaten.marke || '',
+            kampagne: this.drawer.metadaten.kampagne || '',
+            kooperation: this.drawer.metadaten.kooperationName || '',
+            videoPosition: this.drawer.metadaten.videoPosition || 1,
+            videoThema: this.drawer.metadaten.videoThema || '',
+            fileName,
+            versionNumber: item.versionNumber || 1,
+            isFinal: !!item.isFinal,
+          }),
+        });
+        if (!itemPrepare.ok) throw new Error('Dropbox-Pfad konnte nicht vorbereitet werden');
+        const itemData = await itemPrepare.json();
+        token = itemData.token || token;
+        const dropboxPath = itemData.dropboxPath;
+        if (!folderPath) folderPath = itemData.folderPath;
         const CHUNK_SIZE = 2 * 1024 * 1024;
 
         if (file.size <= CHUNK_SIZE) {
@@ -337,7 +459,14 @@ export class BilderTabHandler {
           await uploadLargeFile(file, dropboxPath, token);
         }
 
-        uploadedFiles.push({ name: file.name, size: file.size, path: dropboxPath });
+        uploadedFiles.push({
+          name: fileName,
+          size: file.size,
+          path: dropboxPath,
+          versionNumber: item.versionNumber || 1,
+          isFinal: !!item.isFinal,
+          variantName: (item.variantName || '').trim() || null,
+        });
         uploaded++;
       }
 
@@ -375,6 +504,10 @@ export class BilderTabHandler {
           file_path: fl.path,
           file_name: fl.name,
           file_size: fl.size,
+          version_number: fl.versionNumber || 1,
+          is_current: !fl.isFinal,
+          is_final: !!fl.isFinal,
+          variant_name: fl.variantName || null,
           uploaded_by: window.currentUser?.id || null,
           created_at: new Date().toISOString(),
         }));
@@ -383,6 +516,7 @@ export class BilderTabHandler {
           .from('kooperation_bilder_asset')
           .insert(insertRows);
         if (insertErr) console.warn('Bilder-Asset DB-Insert fehlgeschlagen:', insertErr);
+        else if (this.drawer.videoId) await updateStillCurrentFlags(this.drawer.videoId);
       }
 
       if (bilderFolderUrl && this.drawer.kooperationId) {
@@ -402,6 +536,7 @@ export class BilderTabHandler {
       if (typeof this.drawer.onBilderSuccess === 'function') {
         this.drawer.onBilderSuccess(bilderFolderUrl);
       }
+      if (fileLinks.some(fl => fl.isFinal)) this.drawer.onFinaleChanged?.(this.drawer.videoId);
 
       await this._loadExistingImages();
 
@@ -424,15 +559,15 @@ export class BilderTabHandler {
 
   _addBilderLinkEntry() {
     if (!this._linkQueue) this._linkQueue = [];
-    this._linkQueue.push({ url: '' });
-    this._renderBilderLinkList();
+    this._linkQueue.push(this._newQueueItem({ url: '' }));
+    this._renderSelectedImagesList();
     this._updateBilderSubmitState();
   }
 
   _removeBilderLink(idx) {
     if (!this._linkQueue) return;
     this._linkQueue.splice(idx, 1);
-    this._renderBilderLinkList();
+    this._renderSelectedImagesList();
     this._updateBilderSubmitState();
   }
 
@@ -476,6 +611,10 @@ export class BilderTabHandler {
         file_path: null,
         file_name: item.url.split('/').pop() || 'Link',
         file_size: 0,
+        version_number: item.versionNumber || 1,
+        is_current: !item.isFinal,
+        is_final: !!item.isFinal,
+        variant_name: (item.variantName || '').trim() || null,
         uploaded_by: window.currentUser?.id || null,
         created_at: new Date().toISOString(),
       }));
@@ -484,12 +623,14 @@ export class BilderTabHandler {
         .from('kooperation_bilder_asset')
         .insert(insertRows);
       if (insertErr) throw insertErr;
+      if (this.drawer.videoId) await updateStillCurrentFlags(this.drawer.videoId);
 
       this._linkQueue = [];
-      this._renderBilderLinkList();
+      this._renderSelectedImagesList();
       this._isUploadingImages = false;
       this._updateBilderSubmitState();
       this.drawer.onBilderChanged?.();
+      if (insertRows.some(r => r.is_final)) this.drawer.onFinaleChanged?.(this.drawer.videoId);
       await this._loadExistingImages();
       window.toastSystem?.success?.('Bilder-Links gespeichert');
     } catch (err) {
@@ -517,12 +658,18 @@ export class BilderTabHandler {
 
       const { data, error } = await window.supabase
         .from('kooperation_bilder_asset')
-        .select('id, video_id, file_url, file_path, file_name, file_size, created_at')
+        .select('id, video_id, file_url, file_path, file_name, file_size, version_number, is_current, is_final, variant_name, created_at')
         .eq('kooperation_id', this.drawer.kooperationId)
         .order('file_name', { ascending: true });
 
       if (error) throw error;
       this._existingImages = data || [];
+      this._existingVersions = [...new Set(
+        this._existingImages
+          .filter(a => !a.is_final && a.video_id === this.drawer.videoId)
+          .map(a => a.version_number)
+          .filter(v => typeof v === 'number')
+      )];
 
       if (countEl) countEl.textContent = `(${this._existingImages.length})`;
 
@@ -541,6 +688,8 @@ export class BilderTabHandler {
       const renderItem = (img) => {
         const sizeMB = img.file_size ? (img.file_size / 1024 / 1024).toFixed(1) + ' MB' : '';
         const name = img.file_name || img.file_path?.split('/').pop() || '?';
+        const versionLabel = img.is_final ? 'Finale' : `FS${img.version_number || 1}`;
+        const currentBadge = img.is_current && !img.is_final ? ' <span class="version-badge version-badge--current">aktuell</span>' : '';
         const videoSelect = videos.length > 0 ? `
               <select class="existing-image-video-select" data-id="${img.id}" title="Video zuordnen">
                 <option value="">Nicht zugeordnet</option>
@@ -549,7 +698,7 @@ export class BilderTabHandler {
         return `
           <div class="existing-image-item existing-storys-asset-item">
             <div class="existing-image-info">
-              <span class="existing-image-name">${escapeHtml(name)}${sizeMB ? ` · ${sizeMB}` : ''}</span>
+              <span class="existing-image-name">${escapeHtml(name)}${img.variant_name ? ` · ${escapeHtml(img.variant_name)}` : ''} · ${versionLabel}${currentBadge}${sizeMB ? ` · ${sizeMB}` : ''}</span>
             </div>
             <div class="existing-asset-actions">
               ${videoSelect}

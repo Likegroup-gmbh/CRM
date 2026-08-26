@@ -68,7 +68,7 @@ export class VideoTableDrawerActions {
     try {
       const { data } = await window.supabase
         .from('kooperation_video_asset')
-        .select('id, video_id, file_url, file_path, variant_name, is_final, created_at')
+        .select('id, video_id, file_url, file_path, variant_name, is_final, source_asset_id, created_at')
         .eq('video_id', videoId)
         .eq('is_final', true)
         .order('created_at', { ascending: true });
@@ -157,7 +157,7 @@ export class VideoTableDrawerActions {
     });
   }
 
-  async openSettingsDrawer(btn) {
+  async openSettingsDrawer(btn, { initialTab = 'videos' } = {}) {
     const t = this.table;
     const videoId = btn.dataset.videoId;
     const kooperationId = btn.dataset.kooperationId;
@@ -173,11 +173,13 @@ export class VideoTableDrawerActions {
       filePath,
       videoTitel: video?.thema || 'Video',
       videos: videos.map(v => ({ id: v.id, position: v.position || 1, thema: v.thema || '' })),
+      initialTab,
       onReupload: () => this.openUploadDrawer(videoId, kooperationId),
       onStorysReupload: () => this.openUploadDrawer(videoId, kooperationId, { initialTab: 'storys' }),
       onBilderReupload: () => this.openUploadDrawer(videoId, kooperationId, { initialTab: 'bilder' }),
       onDelete: () => this.executeVideoDelete(videoId, kooperationId),
       onBilderChanged: () => this.refreshBilderForKoop(kooperationId),
+      onFinaleChanged: () => this.refreshFinalAssetsForVideo(videoId, kooperationId),
     });
   }
 

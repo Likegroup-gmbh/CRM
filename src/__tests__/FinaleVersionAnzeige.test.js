@@ -75,6 +75,37 @@ describe('Finale-Spalte – Kunden-Play-Button', () => {
     expect(html).toContain('9:16');
     expect(html).not.toContain('finale-upload-btn');
   });
+
+  it('zeigt ein markiertes Still in der Finale-Spalte', () => {
+    const table = makeTable({ isKunde: true });
+    const renderer = new VideoTableRenderer(table);
+    const html = renderer.renderFinaleVersionCell({
+      id: 'k1',
+      _bilder: [{ id: 's1', video_id: 'v1', is_final: true, variant_name: 'Still', file_url: 'https://x/s.jpg' }],
+    }, { id: 'v1', finalAssets: [] });
+    expect(html).toContain('data-action="play-final-still"');
+    expect(html).toContain('Still');
+  });
+});
+
+describe('Stills-Spalte', () => {
+  it('zeigt Upload fuer Staff wenn keine Stills da sind', () => {
+    const table = makeTable({ isKunde: false });
+    const renderer = new VideoTableRenderer(table);
+    const html = renderer.renderStillsCell({ id: 'k1', _bilder: [] }, { id: 'v1' });
+    expect(html).toContain('stills-upload-btn');
+  });
+
+  it('zeigt Ansehen ohne Upload fuer Kunden', () => {
+    const table = makeTable({ isKunde: true });
+    const renderer = new VideoTableRenderer(table);
+    const html = renderer.renderStillsCell({
+      id: 'k1',
+      _bilder: [{ id: 's1', video_id: 'v1', is_final: false, file_url: 'https://x/s.jpg' }],
+    }, { id: 'v1' });
+    expect(html).toContain('data-action="view-bilder"');
+    expect(html).not.toContain('stills-upload-btn');
+  });
 });
 
 describe('Finale-Spalte – Asset-Hydrate', () => {

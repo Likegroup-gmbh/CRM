@@ -24,7 +24,7 @@ export class VideoFeedbackSaveController {
   }
 
   _key(field) {
-    return `${field.dataset.id}|${field.dataset.field}`;
+    return `${field.dataset.entity || 'video'}|${field.dataset.id}|${field.dataset.field}`;
   }
 
   // Feld fokussiert: Status-Tag sofort anzeigen ("Bearbeiten"), ausser es laeuft
@@ -130,8 +130,8 @@ export class VideoFeedbackSaveController {
   // Hat dieser Slot (videoId+Feld) ungespeicherte Aenderungen (pending, laufend
   // oder fehlgeschlagen)? Realtime nutzt das, um lokalen Text nicht zu
   // ueberschreiben.
-  isDirty(videoId, fieldName) {
-    return this._dirty.has(`${videoId}|${fieldName}`);
+  isDirty(videoId, fieldName, entity = 'video') {
+    return this._dirty.has(`${entity}|${videoId}|${fieldName}`);
   }
 
   // Haelt doppelte Textareas desselben Feldes (Tabelle <-> Player) in Sync.
@@ -139,8 +139,9 @@ export class VideoFeedbackSaveController {
     const id = field.dataset.id;
     const fieldName = field.dataset.field;
     if (!id || !fieldName) return;
+    const entity = field.dataset.entity || 'video';
     document
-      .querySelectorAll(`textarea[data-entity="video"][data-id="${id}"][data-field="${fieldName}"]`)
+      .querySelectorAll(`textarea[data-entity="${entity}"][data-id="${id}"][data-field="${fieldName}"]`)
       .forEach(el => {
         if (el !== field && el.value !== field.value) el.value = field.value;
       });
