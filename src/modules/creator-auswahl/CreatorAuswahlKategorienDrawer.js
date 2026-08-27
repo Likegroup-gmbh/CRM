@@ -2,9 +2,40 @@
 // Drawer zum Verwalten von Kategorien (Teilbereichen) einer Creator-Auswahl-Liste
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
-import { getTeilbereicheFromListe } from './CreatorAuswahlTemplates.js';
+import { getTeilbereicheFromListe, resolveSourcingKategorie } from './CreatorAuswahlTemplates.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
+
+export const NICHT_UMSETZEN_KATEGORIE = 'Nicht umsetzen';
+
+/**
+ * Validiert Add/Rename eines Kategorienamens (CSV-Speicher, Duplikate, Reserviert).
+ * @returns {{ error?: string, unchanged?: boolean, name?: string }}
+ */
+export function validateSourcingKategorieName(newKategorieInput, { existing = [], oldName = null } = {}) {
+  const name = newKategorieInput?.trim();
+  if (!name) return { error: 'Bitte einen Namen eingeben' };
+  if (name.includes(',')) return { error: 'Kommas sind im Kategorienamen nicht erlaubt' };
+
+  const oldNormalized = oldName?.trim().toLowerCase() ?? null;
+  const newNormalized = name.toLowerCase();
+
+  if (oldNormalized === NICHT_UMSETZEN_KATEGORIE.toLowerCase() && newNormalized !== oldNormalized) {
+    return { error: '"Nicht umsetzen" kann nicht umbenannt werden' };
+  }
+
+  const hasDuplicate = existing.some(k => {
+    const kn = k.trim().toLowerCase();
+    return kn === newNormalized && kn !== oldNormalized;
+  });
+  if (hasDuplicate) return { error: 'Diese Kategorie existiert bereits' };
+
+  if (oldNormalized !== null && newNormalized === oldNormalized) {
+    return { unchanged: true, name };
+  }
+
+  return { name };
+}
 
 export class CreatorAuswahlKategorienDrawer {
   constructor(detail) {
@@ -19,7 +50,10 @@ export class CreatorAuswahlKategorienDrawer {
         ${teilbereiche.length > 0 ? teilbereiche.map(tb => `
           <div class="kategorie-item" data-kategorie="${escapeAttr(tb)}">
             <span class="kategorie-name">${escapeAttr(tb)}</span>
-            <button type="button" class="kategorie-delete-btn" data-kategorie="${escapeAttr(tb)}" title="Kategorie löschen">
+            <button type="button" class="kategorie-delete-btn" data-action="edit-kategorie" data-kategorie="${escapeAttr(tb)}" title="Kategorie bearbeiten">
+              ${icon('pencil-square', { className: 'icon-16' })}
+            </button>
+            <button type="button" class="kategorie-delete-btn" data-action="delete-kategorie" data-kategorie="${escapeAttr(tb)}" title="Kategorie löschen">
               ${icon('x-mark', { className: 'icon-16' })}
             </button>
           </div>
@@ -34,21 +68,16 @@ export class CreatorAuswahlKategorienDrawer {
 
   async handleAdd() {
     const input = document.getElementById('new-kategorie-input');
-    const newKategorie = input?.value?.trim();
-
-    if (!newKategorie) {
-      window.toastSystem?.show('Bitte einen Namen eingeben', 'warning');
-      return;
-    }
-
     const existingKategorien = getTeilbereicheFromListe(this.detail.liste);
-    if (existingKategorien.includes(newKategorie)) {
-      window.toastSystem?.show('Diese Kategorie existiert bereits', 'warning');
+    const result = validateSourcingKategorieName(input?.value, { existing: existingKategorien });
+
+    if (result.error) {
+      window.toastSystem?.show(result.error, 'warning');
       return;
     }
 
     try {
-      const updatedKategorien = [...existingKategorien, newKategorie];
+      const updatedKategorien = [...existingKategorien, result.name];
       const teilbereichString = updatedKategorien.join(', ');
 
       await creatorAuswahlService.updateListe(this.detail.listeId, { teilbereich: teilbereichString });
@@ -61,6 +90,95 @@ export class CreatorAuswahlKategorienDrawer {
     } catch (error) {
       console.error('Fehler beim Hinzufügen der Kategorie:', error);
       window.toastSystem?.show('Fehler beim Hinzufügen', 'error');
+    }
+  }
+
+  startInlineEdit(row, kategorie) {
+    const checkSvg = icon('check-bold', { stroke: 2 });
+    const cancelSvg = icon('x-mark', { stroke: 2 });
+
+    row.innerHTML = `
+      <input type="text" class="form-input" value="${escapeAttr(kategorie)}">
+      <button type="button" class="kategorie-delete-btn" data-action="save-kategorie" title="Speichern">${checkSvg}</button>
+      <button type="button" class="kategorie-delete-btn" data-action="cancel-edit" title="Abbrechen">${cancelSvg}</button>
+    `;
+
+    const input = row.querySelector('input');
+    input.focus();
+    input.select();
+
+    let saving = false;
+
+    const save = async () => {
+      if (saving) return;
+      saving = true;
+      const didSave = await this.handleRename(kategorie, input.value);
+      if (!didSave) saving = false;
+    };
+
+    const cancel = () => {
+      this.rerenderBody();
+    };
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); save(); }
+      if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+    });
+
+    row.querySelector('[data-action="save-kategorie"]').addEventListener('click', save);
+    row.querySelector('[data-action="cancel-edit"]').addEventListener('click', cancel);
+  }
+
+  async handleRename(oldKategorie, newKategorieInput) {
+    const existingKategorien = getTeilbereicheFromListe(this.detail.liste);
+    const result = validateSourcingKategorieName(newKategorieInput, {
+      existing: existingKategorien,
+      oldName: oldKategorie
+    });
+
+    if (result.error) {
+      window.toastSystem?.show(result.error, 'warning');
+      return false;
+    }
+
+    if (result.unchanged) {
+      this.rerenderBody();
+      return true;
+    }
+
+    const newKategorie = result.name;
+
+    try {
+      const updatedKategorien = existingKategorien.map(k => (k === oldKategorie ? newKategorie : k));
+      const teilbereichString = updatedKategorien.length > 0 ? updatedKategorien.join(', ') : null;
+
+      await creatorAuswahlService.updateListe(this.detail.listeId, { teilbereich: teilbereichString });
+
+      const itemsToUpdate = (this.detail.items || []).filter(
+        item => resolveSourcingKategorie(item.kategorie, existingKategorien) === oldKategorie
+      );
+
+      if (itemsToUpdate.length > 0) {
+        await creatorAuswahlService.updateItemsKategorie(
+          itemsToUpdate.map(item => item.id),
+          newKategorie
+        );
+        itemsToUpdate.forEach(item => {
+          item.kategorie = newKategorie;
+        });
+      }
+
+      this.detail.liste.teilbereich = teilbereichString;
+
+      this.rerenderBody();
+      this.detail.rerenderTable();
+
+      window.toastSystem?.show(`Kategorie "${oldKategorie}" wurde umbenannt`, 'success');
+      return true;
+    } catch (error) {
+      console.error('Fehler beim Umbenennen der Kategorie:', error);
+      window.toastSystem?.show('Fehler beim Umbenennen', 'error');
+      return false;
     }
   }
 
@@ -125,7 +243,16 @@ export class CreatorAuswahlKategorienDrawer {
       });
     }
 
-    document.querySelectorAll('.kategorie-delete-btn').forEach(btn => {
+    document.querySelectorAll('[data-action="edit-kategorie"]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const row = btn.closest('.kategorie-item');
+        if (!row) return;
+        this.startInlineEdit(row, btn.dataset.kategorie);
+      });
+    });
+
+    document.querySelectorAll('[data-action="delete-kategorie"]').forEach(btn => {
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         this.handleDelete(btn.dataset.kategorie);
