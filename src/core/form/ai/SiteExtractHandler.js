@@ -174,7 +174,10 @@ export class SiteExtractHandler {
         ok: true,
         felder,
         cached: !!result.cached,
-        source: result.source || null
+        source: result.source || null,
+        // Rohfelder inkl. fact/guess-Markierung - z.B. der Persona-Job am
+        // Produkt braucht die Arten und Werte, die kein Formularfeld haben
+        fields: result.fields || {}
       });
     } catch (error) {
       notifyError(`Webseite konnte nicht ausgelesen werden: ${error.message}`);

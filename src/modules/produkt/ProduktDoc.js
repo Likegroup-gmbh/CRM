@@ -92,6 +92,11 @@ function renderDocFields(fields, { markenPending = false } = {}) {
     parts.push(
       `<div class="produkt-doc__group" data-doc-group="${attr(openGroup)}">${groupParts.join('')}</div>`
     );
+    // Einsatzsituationen direkt hinter dem Inhalt, Personas ganz unten
+    // (nach dem letzten flushGroup nach compliance).
+    if (openGroup === 'inhalt') {
+      parts.push(renderUseCasesSlot());
+    }
     openGroup = null;
     groupParts = [];
   };
@@ -148,6 +153,7 @@ function renderDocFields(fields, { markenPending = false } = {}) {
   });
 
   flushGroup();
+  parts.push(renderPersonasSlot());
   return parts.join('');
 }
 
@@ -215,6 +221,30 @@ function renderInlineRow(first, rowFields) {
       ${first.sectionDescription ? `<p class="produkt-doc__hint">${text(first.sectionDescription)}</p>` : ''}
       <div class="produkt-doc__price-cards">${cards}</div>
     </section>
+  `;
+}
+
+/**
+ * Einsatzsituationen hinter dem Inhalt. Der Slot bleibt leer, ihn fuellt
+ * das ProduktPersonaPanel. Personas stehen separat ganz unten.
+ */
+function renderUseCasesSlot() {
+  return `
+    <div class="produkt-doc__group" data-doc-group="usecases">
+      <div id="produkt-usecases-panel"></div>
+    </div>
+  `;
+}
+
+/**
+ * Persona-Vorschlaege ans Dokumentende (nach Compliance). Gleicher Panel,
+ * zweiter Slot – so stoert der noch leere Bereich den Lesefluss nicht.
+ */
+function renderPersonasSlot() {
+  return `
+    <div class="produkt-doc__group" data-doc-group="personas">
+      <div id="produkt-persona-panel"></div>
+    </div>
   `;
 }
 

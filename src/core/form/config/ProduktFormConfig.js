@@ -134,15 +134,10 @@ export const produktConfig = {
       docGroup: 'inhalt',
       section: 'nutzen'
     },
-    {
-      name: 'einsatzsituation',
-      label: 'Einsatzsituation / Anwendungsfall',
-      type: 'textarea',
-      required: false,
-      rows: 3,
-      docGroup: 'inhalt',
-      section: 'nutzen'
-    },
+    // einsatzsituation hat hier kein Feld mehr: Einsatzsituationen sind
+    // strukturierte Kinder (produkt_use_case) und werden im Persona-Band
+    // gepflegt. Der Extract liefert den Wert weiter als Seed fuer den
+    // Persona-Job, die Spalte bleibt als Legacy-Lesefallback bestehen.
 
     // 4. Preis-Range der Kollektion
     {

@@ -16,6 +16,8 @@
 import { ProduktService, MAX_BILDER } from './ProduktService.js';
 import { ProduktVariantenPanel } from './ProduktVarianten.js';
 import { ProduktExtractPanel } from './ProduktExtractPanel.js';
+import { ProduktPersonaPanel } from './ProduktPersonaPanel.js';
+import { ProduktPersonaService } from './ProduktPersonaService.js';
 import { renderProduktDoc, bindProduktDoc, refreshDocHeights } from './ProduktDoc.js';
 import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import { produktConfig } from '../../core/form/config/ProduktFormConfig.js';
@@ -32,6 +34,7 @@ export class ProduktForm {
     this.bilder = [];
     this.variantenPanel = null;
     this.extractPanel = null;
+    this.personaPanel = null;
     this.uploader = null;
     this._abort = null;
   }
@@ -150,6 +153,17 @@ export class ProduktForm {
 
     this.extractPanel = new ProduktExtractPanel();
     this.extractPanel.mount(form);
+
+    this.personaPanel = new ProduktPersonaPanel();
+    await this.personaPanel.mount(form, {
+      produktId: this.produktId,
+      markeId: this.ctx.markeId || null,
+      getUnternehmenId: () => this.ctx.unternehmenId
+        || form.querySelector('[name="unternehmen_id"]')?.value
+        || null,
+      getMarkeIds: () => this.currentMarkeIds(),
+      legacyEinsatzsituation: this.produkt?.einsatzsituation || null
+    });
   }
 
   findUnternehmenSelect() {
@@ -386,6 +400,7 @@ export class ProduktForm {
       await ProduktService.saveVarianten(produktId, this.variantenPanel?.getVarianten() || []);
       await this.saveBilder(produktId);
       await this.saveVariantenBilder(produktId);
+      await this.flushPersonaPanel(produktId, data);
 
       window.toastSystem?.success?.(this.isEdit ? 'Produkt gespeichert' : 'Produkt angelegt');
       window.navigateTo(this.returnRoute);
@@ -407,6 +422,27 @@ export class ProduktForm {
     const werte = data.marke_ids;
     if (Array.isArray(werte)) return werte;
     return werte ? [werte] : [];
+  }
+
+  /** Aktuelle Marken-Auswahl aus dem Formular (fuer den Persona-Job vor dem Save). */
+  currentMarkeIds() {
+    const form = document.getElementById('produkt-form');
+    const data = form ? window.formSystem.collectSubmitData(form) : {};
+    return this.collectMarkenIds(data);
+  }
+
+  /**
+   * Use Cases und Persona-Vorschlaege werden erst mit dem Produkt-Save
+   * persistiert. Ein Flush-Fehler bricht den Save ab (catch aussen), damit
+   * Accept-Entscheidungen nicht still verloren gehen.
+   */
+  async flushPersonaPanel(produktId, data) {
+    if (!this.personaPanel?.isFlushBereit()) return;
+    const saved = await ProduktPersonaService.flushOnSave(produktId, this.personaPanel.getState(), {
+      unternehmenId: this.ctx.unternehmenId || data.unternehmen_id,
+      markeIds: this.collectMarkenIds(data)
+    });
+    this.personaPanel.applySavedState(saved);
   }
 
   /** @returns {{feld: string, text: string}|null} */
@@ -554,6 +590,8 @@ export class ProduktForm {
     this.variantenPanel = null;
     this.extractPanel?.destroy?.();
     this.extractPanel = null;
+    this.personaPanel?.destroy?.();
+    this.personaPanel = null;
     this.uploader?.destroy?.();
     this.uploader = null;
   }
