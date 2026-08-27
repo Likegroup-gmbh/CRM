@@ -4,8 +4,11 @@
 import { strategieService } from './StrategieService.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { reorderStrategieItemsByKategorien } from './StrategieDetailRenderer.js';
 
 const DRAWER_ID = 'kategorien-drawer';
+let _reorderUnbind = [];
+let _draggedKategorieRow = null;
 
 export function renderKategorienDrawerBody(detail) {
   const teilbereiche = detail.getTeilbereicheFromStrategie();
@@ -13,7 +16,10 @@ export function renderKategorienDrawerBody(detail) {
   return `
     <div class="kategorien-list" id="kategorien-list">
       ${teilbereiche.length > 0 ? teilbereiche.map(tb => `
-        <div class="kategorie-item" data-kategorie="${escapeAttr(tb)}">
+        <div class="kategorie-item" data-kategorie="${escapeAttr(tb)}" draggable="false">
+          <button type="button" class="kategorie-drag-handle" data-action="drag-kategorie" title="Reihenfolge ändern" aria-label="Reihenfolge ändern">
+            ${icon('bars-3', { className: 'icon-16' })}
+          </button>
           <span class="kategorie-name">${escapeAttr(tb)}</span>
           <button type="button" class="kategorie-delete-btn" data-action="edit-kategorie" data-kategorie="${escapeAttr(tb)}" title="Kategorie bearbeiten">
             ${icon('pencil-square')}
@@ -56,7 +62,7 @@ export function showKategorienModal(detail) {
   
   const subtitle = document.createElement('p');
   subtitle.className = 'drawer-subtitle';
-  subtitle.textContent = 'Kategorien hinzufügen oder entfernen';
+  subtitle.textContent = 'Kategorien hinzufügen, umbenennen, sortieren oder entfernen';
   
   headerLeft.appendChild(title);
   headerLeft.appendChild(subtitle);
@@ -113,11 +119,14 @@ export function bindKategorienDrawerEvents(detail) {
   document.querySelectorAll('[data-action="delete-kategorie"]').forEach(btn => {
     btn.addEventListener('click', () => handleDeleteKategorie(detail, btn.dataset.kategorie));
   });
+
+  bindReorderEvents(detail);
   
   input?.focus();
 }
 
 export function removeKategorienDrawer() {
+  unbindReorder();
   document.getElementById(`${DRAWER_ID}-overlay`)?.remove();
   document.getElementById(DRAWER_ID)?.remove();
 }
@@ -132,6 +141,116 @@ export function closeKategorienModal() {
     }, 300);
   } else {
     removeKategorienDrawer();
+  }
+}
+
+function unbindReorder() {
+  _reorderUnbind.forEach(fn => fn());
+  _reorderUnbind = [];
+  _draggedKategorieRow = null;
+}
+
+function bindReorderEvents(detail) {
+  unbindReorder();
+  const list = document.getElementById('kategorien-list');
+  if (!list) return;
+
+  const rows = () => list.querySelectorAll('.kategorie-item');
+
+  list.querySelectorAll('[data-action="drag-kategorie"]').forEach(handle => {
+    const onMouseDown = () => {
+      handle.closest('.kategorie-item')?.setAttribute('draggable', 'true');
+    };
+    handle.addEventListener('mousedown', onMouseDown);
+    _reorderUnbind.push(() => handle.removeEventListener('mousedown', onMouseDown));
+  });
+
+  const onMouseUp = () => {
+    rows().forEach(row => row.setAttribute('draggable', 'false'));
+  };
+  document.addEventListener('mouseup', onMouseUp);
+  _reorderUnbind.push(() => document.removeEventListener('mouseup', onMouseUp));
+
+  rows().forEach(row => {
+    const onDragStart = (e) => {
+      _draggedKategorieRow = row;
+      row.classList.add('is-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', row.dataset.kategorie);
+    };
+    const onDragEnd = async () => {
+      row.classList.remove('is-dragging');
+      row.setAttribute('draggable', 'false');
+      _draggedKategorieRow = null;
+      list.querySelectorAll('.kategorie-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+      await applyKategorieOrder(detail, readKategorieOrderFromDom());
+    };
+    const onDragOver = (e) => {
+      e.preventDefault();
+      const dragged = _draggedKategorieRow;
+      if (!dragged || dragged === row) return;
+      const siblings = Array.from(list.children);
+      const from = siblings.indexOf(dragged);
+      const to = siblings.indexOf(row);
+      if (from < 0 || to < 0) return;
+      if (from < to) {
+        list.insertBefore(dragged, row.nextSibling);
+      } else {
+        list.insertBefore(dragged, row);
+      }
+    };
+    const onDrop = (e) => {
+      e.preventDefault();
+    };
+
+    row.addEventListener('dragstart', onDragStart);
+    row.addEventListener('dragend', onDragEnd);
+    row.addEventListener('dragover', onDragOver);
+    row.addEventListener('drop', onDrop);
+    _reorderUnbind.push(() => {
+      row.removeEventListener('dragstart', onDragStart);
+      row.removeEventListener('dragend', onDragEnd);
+      row.removeEventListener('dragover', onDragOver);
+      row.removeEventListener('drop', onDrop);
+    });
+  });
+}
+
+function readKategorieOrderFromDom() {
+  const list = document.getElementById('kategorien-list');
+  if (!list) return [];
+  return Array.from(list.querySelectorAll('.kategorie-item')).map(row => row.dataset.kategorie);
+}
+
+export async function applyKategorieOrder(detail, nextKategorien) {
+  const existingKategorien = detail.getTeilbereicheFromStrategie();
+  if (nextKategorien.join('\0') === existingKategorien.join('\0')) return false;
+  if (nextKategorien.length !== existingKategorien.length) return false;
+
+  const existingSet = new Set(existingKategorien);
+  if (nextKategorien.some(k => !existingSet.has(k))) return false;
+
+  const teilbereichString = nextKategorien.join(', ');
+
+  try {
+    await strategieService.updateStrategie(detail.strategieId, { teilbereich: teilbereichString });
+    detail.strategie.teilbereich = teilbereichString;
+
+    const reorderedItems = reorderStrategieItemsByKategorien(detail.items || [], nextKategorien);
+    if (reorderedItems.length > 0) {
+      await strategieService.updateItemsSortierungWithTeilbereich(reorderedItems);
+      detail.items = reorderedItems;
+    }
+
+    rerenderKategorienDrawerBody(detail);
+    detail.rerenderItemsTable();
+    window.toastSystem?.show('Reihenfolge gespeichert', 'success');
+    return true;
+  } catch (error) {
+    console.error('Fehler beim Sortieren der Kategorien:', error);
+    window.toastSystem?.show('Fehler beim Sortieren', 'error');
+    rerenderKategorienDrawerBody(detail);
+    return false;
   }
 }
 
