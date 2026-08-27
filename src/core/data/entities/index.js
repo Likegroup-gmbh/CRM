@@ -544,6 +544,50 @@ export const EntityRegistry = {
     sortBy: 'created_at',
     sortOrder: 'desc'
   },
+  // Use Cases und Persona-Vorschlaege haengen am Produkt. Verwaltet werden
+  // sie vom ProduktPersonaService (Worksheet-Flush beim Produkt-Save) - die
+  // Registry-Eintraege ermoeglichen generischen Zugriff (Listen, Admin).
+  produkt_use_case: {
+    table: 'produkt_use_case',
+    displayField: 'name',
+    fields: {
+      name: 'string',
+      produkt_id: 'uuid',
+      beschreibung: 'string',
+      position: 'number',
+      created_at: 'date',
+      updated_at: 'date'
+    },
+    relations: {
+      produkt: { table: 'produkt', foreignKey: 'produkt_id', displayField: 'name' }
+    },
+    filters: ['name', 'produkt_id'],
+    sortBy: 'position',
+    sortOrder: 'asc'
+  },
+  produkt_persona_vorschlag: {
+    table: 'produkt_persona_vorschlag',
+    displayField: 'fit_grund',
+    fields: {
+      produkt_id: 'uuid',
+      typ: 'string',
+      status: 'string',
+      persona_id: 'uuid',
+      payload: 'jsonb',
+      fit_grund: 'string',
+      use_case_ids: 'array',
+      position: 'number',
+      created_at: 'date',
+      updated_at: 'date'
+    },
+    relations: {
+      produkt: { table: 'produkt', foreignKey: 'produkt_id', displayField: 'name' },
+      persona: { table: 'personas', foreignKey: 'persona_id', displayField: 'name' }
+    },
+    filters: ['produkt_id', 'persona_id', 'status'],
+    sortBy: 'position',
+    sortOrder: 'asc'
+  },
   auftrag_teilrechnung: {
     table: 'auftrag_teilrechnung',
     displayField: 're_nr',

@@ -92,6 +92,10 @@ function renderDocFields(fields, { markenPending = false } = {}) {
     parts.push(
       `<div class="produkt-doc__group" data-doc-group="${attr(openGroup)}">${groupParts.join('')}</div>`
     );
+    // Das Persona-Band folgt direkt auf die Inhalts-Gruppe (Nutzen)
+    if (openGroup === 'inhalt') {
+      parts.push(renderPersonaBand());
+    }
     openGroup = null;
     groupParts = [];
   };
@@ -215,6 +219,21 @@ function renderInlineRow(first, rowFields) {
       ${first.sectionDescription ? `<p class="produkt-doc__hint">${text(first.sectionDescription)}</p>` : ''}
       <div class="produkt-doc__price-cards">${cards}</div>
     </section>
+  `;
+}
+
+/**
+ * Einsatzsituationen & Personas: eigene Gruppe zwischen Inhalt und Preis.
+ * Der Slot bleibt leer, ihn fuellt das ProduktPersonaPanel (Use-Case-Liste,
+ * Karten-Grid, Aktions-Rail).
+ */
+function renderPersonaBand() {
+  return `
+    <div class="produkt-doc__group produkt-doc__group--personas" data-doc-group="personas">
+      <h3 class="produkt-doc__heading">Einsatzsituationen &amp; Personas</h3>
+      <p class="produkt-doc__hint">Wer nutzt das Angebot wann – von der KI vorgeschlagen, von dir geprüft.</p>
+      <div id="produkt-persona-panel"></div>
+    </div>
   `;
 }
 
