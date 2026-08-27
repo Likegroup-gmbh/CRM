@@ -297,4 +297,38 @@ describe('CreatorAuswahlKategorienDrawer.handleRename', () => {
     drawer.remove();
     delete window.toastSystem;
   });
+
+  it('benennt per Klick auf den Kategorienamen um', async () => {
+    window.toastSystem = { show: vi.fn() };
+    const items = [{ id: 'i1', kategorie: 'Reels' }];
+    const detail = {
+      listeId: 'list-1',
+      liste: { teilbereich: 'Reels, Stories' },
+      items,
+      rerenderTable: vi.fn()
+    };
+    const drawer = new CreatorAuswahlKategorienDrawer(detail);
+
+    vi.spyOn(creatorAuswahlService, 'updateListe').mockResolvedValue({});
+    vi.spyOn(creatorAuswahlService, 'updateItemsKategorie').mockResolvedValue([]);
+
+    drawer.open();
+
+    const nameBtn = Array.from(document.querySelectorAll('.kategorie-name'))
+      .find(btn => btn.dataset.kategorie === 'Reels');
+    expect(nameBtn).toBeTruthy();
+    nameBtn.click();
+
+    const input = document.querySelector('.kategorie-item input');
+    expect(input.value).toBe('Reels');
+    input.value = 'UGC';
+
+    document.querySelector('[data-action="save-kategorie"]').click();
+    await vi.waitFor(() => {
+      expect(items[0].kategorie).toBe('UGC');
+    });
+
+    drawer.remove();
+    delete window.toastSystem;
+  });
 });

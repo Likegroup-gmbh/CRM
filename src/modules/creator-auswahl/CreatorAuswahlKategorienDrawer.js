@@ -49,8 +49,8 @@ export class CreatorAuswahlKategorienDrawer {
       <div class="kategorien-list" id="kategorien-list">
         ${teilbereiche.length > 0 ? teilbereiche.map(tb => `
           <div class="kategorie-item" data-kategorie="${escapeAttr(tb)}">
-            <span class="kategorie-name">${escapeAttr(tb)}</span>
-            <button type="button" class="kategorie-delete-btn" data-action="edit-kategorie" data-kategorie="${escapeAttr(tb)}" title="Kategorie bearbeiten">
+            <button type="button" class="kategorie-name" data-action="edit-kategorie" data-kategorie="${escapeAttr(tb)}" title="Kategorie umbenennen">${escapeAttr(tb)}</button>
+            <button type="button" class="kategorie-delete-btn" data-action="edit-kategorie" data-kategorie="${escapeAttr(tb)}" title="Kategorie umbenennen">
               ${icon('pencil-square', { className: 'icon-16' })}
             </button>
             <button type="button" class="kategorie-delete-btn" data-action="delete-kategorie" data-kategorie="${escapeAttr(tb)}" title="Kategorie löschen">
@@ -277,7 +277,7 @@ export class CreatorAuswahlKategorienDrawer {
     header.innerHTML = `
       <div>
         <span class="drawer-title">Kategorien verwalten</span>
-        <p class="drawer-subtitle">Kategorien für die Creator-Gruppierung</p>
+        <p class="drawer-subtitle">Kategorien hinzufügen, umbenennen oder entfernen</p>
       </div>
       <div>
         <button class="drawer-close-btn" type="button" aria-label="Schließen">&times;</button>

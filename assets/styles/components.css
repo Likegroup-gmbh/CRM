@@ -3170,6 +3170,17 @@ h3.section-title,
   flex: 1;
   font-size: var(--text-sm);
   font-weight: 500;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font-family: inherit;
+}
+
+.kategorie-item .kategorie-name:hover {
+  text-decoration: underline;
 }
 
 .kategorien-add-form {
