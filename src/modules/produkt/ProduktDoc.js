@@ -92,9 +92,10 @@ function renderDocFields(fields, { markenPending = false } = {}) {
     parts.push(
       `<div class="produkt-doc__group" data-doc-group="${attr(openGroup)}">${groupParts.join('')}</div>`
     );
-    // Das Persona-Band folgt direkt auf die Inhalts-Gruppe (Nutzen)
+    // Einsatzsituationen direkt hinter dem Inhalt, Personas ganz unten
+    // (nach dem letzten flushGroup nach compliance).
     if (openGroup === 'inhalt') {
-      parts.push(renderPersonaBand());
+      parts.push(renderUseCasesSlot());
     }
     openGroup = null;
     groupParts = [];
@@ -152,6 +153,7 @@ function renderDocFields(fields, { markenPending = false } = {}) {
   });
 
   flushGroup();
+  parts.push(renderPersonasSlot());
   return parts.join('');
 }
 
@@ -223,15 +225,24 @@ function renderInlineRow(first, rowFields) {
 }
 
 /**
- * Einsatzsituationen & Personas: eigene Gruppe zwischen Inhalt und Preis.
- * Der Slot bleibt leer, ihn fuellt das ProduktPersonaPanel (Use-Case-Liste,
- * Karten-Grid, Aktions-Rail).
+ * Einsatzsituationen hinter dem Inhalt. Der Slot bleibt leer, ihn fuellt
+ * das ProduktPersonaPanel. Personas stehen separat ganz unten.
  */
-function renderPersonaBand() {
+function renderUseCasesSlot() {
   return `
-    <div class="produkt-doc__group produkt-doc__group--personas" data-doc-group="personas">
-      <h3 class="produkt-doc__heading">Einsatzsituationen &amp; Personas</h3>
-      <p class="produkt-doc__hint">Wer nutzt das Angebot wann – von der KI vorgeschlagen, von dir geprüft.</p>
+    <div class="produkt-doc__group" data-doc-group="usecases">
+      <div id="produkt-usecases-panel"></div>
+    </div>
+  `;
+}
+
+/**
+ * Persona-Vorschlaege ans Dokumentende (nach Compliance). Gleicher Panel,
+ * zweiter Slot – so stoert der noch leere Bereich den Lesefluss nicht.
+ */
+function renderPersonasSlot() {
+  return `
+    <div class="produkt-doc__group" data-doc-group="personas">
       <div id="produkt-persona-panel"></div>
     </div>
   `;
