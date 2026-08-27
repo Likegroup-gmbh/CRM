@@ -27,6 +27,11 @@ describe('RechnungBezahltToggle', () => {
       expect(html).not.toMatch(/\bchecked\b/);
     });
 
+    it('zeigt nicht checked bei Status Marc an Qonto gesendet', () => {
+      const html = renderBezahltToggle({ id: 'r4b', status: 'Marc an Qonto gesendet' }, true);
+      expect(html).not.toMatch(/\bchecked\b/);
+    });
+
     // --- Disabled / Enabled ---
 
     it('ist disabled wenn canEdit false ist', () => {

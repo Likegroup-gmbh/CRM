@@ -1761,6 +1761,11 @@ h3.section-title,
   color: var(--primary-800);
 }
 
+.status-marc-an-qonto-gesendet {
+  background: var(--primary-100);
+  color: var(--primary-800);
+}
+
 .status-nicht-erstellt {
   background: var(--gray-100);
   color: var(--gray-600);

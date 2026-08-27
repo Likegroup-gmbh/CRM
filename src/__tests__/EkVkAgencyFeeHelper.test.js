@@ -300,6 +300,11 @@ describe('calculateCreatorPaymentSummary', () => {
     const rechnungen = [{ status: 'An Qonto gesendet', nettobetrag: 200 }];
     expect(calculateCreatorPaymentSummary(200, rechnungen)).toEqual({ paid: 0, open: 200 });
   });
+
+  it('zaehlt Marc an Qonto gesendet als offen', () => {
+    const rechnungen = [{ status: 'Marc an Qonto gesendet', nettobetrag: 200 }];
+    expect(calculateCreatorPaymentSummary(200, rechnungen)).toEqual({ paid: 0, open: 200 });
+  });
 });
 
 describe('renderCreatorAnteilCardHtml', () => {

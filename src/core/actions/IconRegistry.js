@@ -36,6 +36,7 @@ const KEY_MAP = {
   'status-rueckfrage': 'question-mark-circle',
   'status-bezahlt': 'check',
   'status-qonto': 'paper-airplane',
+  'status-marc-qonto': 'building-library',
   strategie: 'strategy',
   abgeschlossen: 'check-circle',
   'video produktion': 'table-cells',
@@ -100,6 +101,7 @@ export class IconRegistry {
       'rückfrage': 'status-rueckfrage',
       'bezahlt': 'status-bezahlt',
       'an qonto gesendet': 'status-qonto',
+      'marc an qonto gesendet': 'status-marc-qonto',
     };
     const iconKey = statusIconMap[key] || 'status-default';
     return this.get(iconKey);

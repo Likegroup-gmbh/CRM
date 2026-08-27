@@ -31,7 +31,7 @@ export const rechnungContractingConfig = {
     { name: 'ust_betrag', label: 'Umsatzsteuerbetrag', type: 'number', required: false, readonly: true, validation: { type: 'number', min: 0 } },
     { name: 'bruttobetrag', label: 'Betrag (Brutto)', type: 'number', required: false, readonly: true, validation: { type: 'number', min: 0 } },
     { name: 'ksk_pflichtig', label: 'KSK-pflichtig', type: 'toggle', required: false, defaultValue: false, helpText: 'Künstlersozialabgabe wird abgeführt' },
-    { name: 'status', label: 'Status', type: 'select', required: true, options: ['Offen', 'Rückfrage', 'Bezahlt', 'An Qonto gesendet'] },
+    { name: 'status', label: 'Status', type: 'select', required: true, options: ['Offen', 'Rückfrage', 'Bezahlt', 'An Qonto gesendet', 'Marc an Qonto gesendet'] },
     { name: 'gestellt_am', label: 'Gestellt am', type: 'date', required: true },
     { name: 'zahlungsziel', label: 'Zahlungsziel', type: 'date', required: true },
     { name: 'bezahlt_am', label: 'Bezahlt am', type: 'date', required: false },

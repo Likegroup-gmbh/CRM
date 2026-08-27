@@ -12,6 +12,7 @@ export async function syncPositionFromRechnung(positionId, rechnungStatus, { rec
       update.bezahlt_am = bezahltAm || new Date().toISOString().split('T')[0];
       break;
     case 'An Qonto gesendet':
+    case 'Marc an Qonto gesendet':
     case 'Offen':
     case 'Rückfrage':
       update.status = 'gestellt';

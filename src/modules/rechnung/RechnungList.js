@@ -31,14 +31,16 @@ export class RechnungList {
       { id: 'Offen', name: 'Offen' },
       { id: 'Rückfrage', name: 'Rückfrage' },
       { id: 'Bezahlt', name: 'Bezahlt' },
-      { id: 'An Qonto gesendet', name: 'An Qonto gesendet' }
+      { id: 'An Qonto gesendet', name: 'An Qonto gesendet' },
+      { id: 'Marc an Qonto gesendet', name: 'Marc an Qonto gesendet' }
     ];
     this.statusTabs = [
       { id: 'alle', label: 'Alle' },
       { id: 'Offen', label: 'Offen' },
       { id: 'Rückfrage', label: 'Rückfrage' },
       { id: 'Bezahlt', label: 'Bezahlt' },
-      { id: 'An Qonto gesendet', label: 'An Qonto gesendet' }
+      { id: 'An Qonto gesendet', label: 'An Qonto gesendet' },
+      { id: 'Marc an Qonto gesendet', label: 'Marc an Qonto gesendet' }
     ];
     this.typeTabs = [
       { id: 'rechnung', label: 'Rechnungen' },
@@ -757,7 +759,8 @@ export class RechnungList {
             Offen: { icon: 'invoice', title: `Keine offenen ${entityLabel}`, text: 'Es gibt aktuell keine offenen Posten.' },
             'Rückfrage': { icon: 'invoice', title: `Keine ${entityLabel} in Rückfrage` },
             Bezahlt: { icon: 'check', title: `Keine bezahlten ${entityLabel}`, text: 'Noch ist nichts bezahlt worden.' },
-            'An Qonto gesendet': { icon: 'invoice', title: `Keine ${entityLabel} an Qonto gesendet` }
+            'An Qonto gesendet': { icon: 'invoice', title: `Keine ${entityLabel} an Qonto gesendet` },
+            'Marc an Qonto gesendet': { icon: 'invoice', title: `Keine ${entityLabel} von Marc an Qonto gesendet` }
           }
         }, this.activeStatusTab);
         tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state-cell">${html}</td></tr>`;
