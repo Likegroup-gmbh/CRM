@@ -85,6 +85,33 @@ export function groupItemsByKategorie(items, defined = []) {
   return groups;
 }
 
+const NICHT_UMSETZEN_KATEGORIE_NAME = 'Nicht umsetzen';
+
+function stripGroupMeta(list) {
+  return (list || []).map(({ globalIndex, ...item }) => item);
+}
+
+/**
+ * Schreibt Items in die Anzeigereihenfolge der Tabelle:
+ * definierte Kategorien (ohne "Nicht umsetzen") → Orphans → Ohne Kategorie → Nicht umsetzen.
+ */
+export function reorderSourcingItemsByKategorien(items, orderedKategorien) {
+  const groups = groupItemsByKategorie(items, orderedKategorien);
+  const known = new Set([...orderedKategorien, 'Ohne Kategorie', NICHT_UMSETZEN_KATEGORIE_NAME]);
+  const result = [];
+
+  for (const kategorie of orderedKategorien.filter(k => k !== NICHT_UMSETZEN_KATEGORIE_NAME)) {
+    result.push(...stripGroupMeta(groups[kategorie]));
+  }
+  for (const kategorie of Object.keys(groups).filter(k => !known.has(k))) {
+    result.push(...stripGroupMeta(groups[kategorie]));
+  }
+  result.push(...stripGroupMeta(groups['Ohne Kategorie']));
+  result.push(...stripGroupMeta(groups[NICHT_UMSETZEN_KATEGORIE_NAME]));
+
+  return result.map((item, index) => ({ ...item, sortierung: index }));
+}
+
 /** Spalten, die es in der Tabelle nicht mehr gibt, aber noch in hidden_columns stehen koennen */
 const ENTFERNTE_SPALTEN = [
   'cp-col-cpm-ig', 'cp-col-cpm-tt',

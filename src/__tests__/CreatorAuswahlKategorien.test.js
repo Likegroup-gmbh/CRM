@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   renderGroupedItems,
-  resolveSourcingKategorie
+  resolveSourcingKategorie,
+  reorderSourcingItemsByKategorien
 } from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
 import {
   CreatorAuswahlKategorienDrawer,
@@ -330,5 +331,88 @@ describe('CreatorAuswahlKategorienDrawer.handleRename', () => {
 
     drawer.remove();
     delete window.toastSystem;
+  });
+});
+
+describe('reorderSourcingItemsByKategorien', () => {
+  it('verschiebt Creator mit ihrer Kategorie und behaelt die Reihenfolge in der Gruppe', () => {
+    const items = [
+      { id: 'a1', kategorie: 'A', sortierung: 0 },
+      { id: 'a2', kategorie: 'A', sortierung: 1 },
+      { id: 'b1', kategorie: 'B', sortierung: 2 },
+      { id: 'c1', kategorie: 'C', sortierung: 3 }
+    ];
+
+    const reordered = reorderSourcingItemsByKategorien(items, ['C', 'A', 'B']);
+
+    expect(reordered.map(i => i.id)).toEqual(['c1', 'a1', 'a2', 'b1']);
+    expect(reordered.map(i => i.sortierung)).toEqual([0, 1, 2, 3]);
+  });
+
+  it('laesst Ohne Kategorie und Nicht umsetzen am Ende', () => {
+    const items = [
+      { id: 'n1', kategorie: 'Nicht umsetzen', sortierung: 0 },
+      { id: 'a1', kategorie: 'A', sortierung: 1 },
+      { id: 'o1', kategorie: null, sortierung: 2 },
+      { id: 'b1', kategorie: 'B', sortierung: 3 }
+    ];
+
+    const reordered = reorderSourcingItemsByKategorien(items, ['B', 'A', 'Nicht umsetzen']);
+
+    expect(reordered.map(i => i.id)).toEqual(['b1', 'a1', 'o1', 'n1']);
+  });
+
+  it('rendert Gruppenheader in der neuen CSV-Reihenfolge', () => {
+    const items = [
+      { id: 'a1', kategorie: 'A' },
+      { id: 'b1', kategorie: 'B' }
+    ];
+    const doc = groupedDoc(items, { teilbereich: 'B, A' });
+    const labels = Array.from(doc.querySelectorAll('.kategorie-label')).map(el => el.textContent.trim());
+    expect(labels.slice(0, 2)).toEqual(['B', 'A']);
+  });
+});
+
+describe('CreatorAuswahlKategorienDrawer.applyKategorieOrder', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '<div id="kategorien-drawer-body"></div>';
+    vi.restoreAllMocks();
+    window.toastSystem = { show: vi.fn() };
+  });
+
+  it('schreibt CSV und Item-Sortierung in der neuen Reihenfolge', async () => {
+    const items = [
+      { id: 'a1', kategorie: 'A', sortierung: 0 },
+      { id: 'b1', kategorie: 'B', sortierung: 1 }
+    ];
+    const detail = {
+      listeId: 'list-1',
+      liste: { teilbereich: 'A, B' },
+      items,
+      rerenderTable: vi.fn()
+    };
+    const drawer = new CreatorAuswahlKategorienDrawer(detail);
+
+    vi.spyOn(creatorAuswahlService, 'updateListe').mockResolvedValue({});
+    vi.spyOn(creatorAuswahlService, 'updateItemsSortierungWithKategorie').mockResolvedValue();
+
+    const didSave = await drawer.applyKategorieOrder(['B', 'A']);
+
+    expect(didSave).toBe(true);
+    expect(creatorAuswahlService.updateListe).toHaveBeenCalledWith('list-1', { teilbereich: 'B, A' });
+    expect(creatorAuswahlService.updateItemsSortierungWithKategorie).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'b1', kategorie: 'B', sortierung: 0 }),
+      expect.objectContaining({ id: 'a1', kategorie: 'A', sortierung: 1 })
+    ]);
+    expect(detail.items.map(i => i.id)).toEqual(['b1', 'a1']);
+    expect(detail.rerenderTable).toHaveBeenCalled();
+  });
+
+  it('zeigt einen Drag-Griff an jeder Kategorie', () => {
+    const drawer = new CreatorAuswahlKategorienDrawer({
+      liste: { teilbereich: 'A, B' }
+    });
+    const doc = new DOMParser().parseFromString(drawer.renderBody(), 'text/html');
+    expect(doc.querySelectorAll('[data-action="drag-kategorie"]')).toHaveLength(2);
   });
 });

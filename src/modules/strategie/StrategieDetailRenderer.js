@@ -109,6 +109,30 @@ export function groupItemsByTeilbereich(items) {
   return groups;
 }
 
+function stripGroupMeta(list) {
+  return (list || []).map(({ globalIndex, ...item }) => item);
+}
+
+/**
+ * Schreibt Items in die Anzeigereihenfolge der Tabelle:
+ * definierte Kategorien → Orphans → Ohne Kategorie.
+ */
+export function reorderStrategieItemsByKategorien(items, orderedKategorien) {
+  const groups = groupItemsByTeilbereich(items);
+  const known = new Set([...orderedKategorien, 'Ohne Kategorie']);
+  const result = [];
+
+  for (const kategorie of orderedKategorien) {
+    result.push(...stripGroupMeta(groups[kategorie]));
+  }
+  for (const kategorie of Object.keys(groups).filter(k => !known.has(k))) {
+    result.push(...stripGroupMeta(groups[kategorie]));
+  }
+  result.push(...stripGroupMeta(groups['Ohne Kategorie']));
+
+  return result.map((item, index) => ({ ...item, sortierung: index }));
+}
+
 export function renderGroupedItems(detail, groupedItems, colCount) {
   const definierteKategorien = detail.getTeilbereicheFromStrategie();
   const hatDefinierteKategorien = definierteKategorien.length > 0;

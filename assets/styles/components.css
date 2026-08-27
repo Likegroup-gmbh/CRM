@@ -3183,6 +3183,33 @@ h3.section-title,
   text-decoration: underline;
 }
 
+.kategorie-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.kategorie-drag-handle:active {
+  cursor: grabbing;
+}
+
+.kategorie-item.is-dragging {
+  opacity: 0.5;
+}
+
+.kategorie-item.drag-over {
+  border-color: var(--border-focus, var(--gray-400));
+}
+
 .kategorien-add-form {
   margin-top: var(--space-md);
   display: flex;

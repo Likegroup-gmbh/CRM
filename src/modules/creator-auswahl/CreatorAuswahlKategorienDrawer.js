@@ -2,7 +2,7 @@
 // Drawer zum Verwalten von Kategorien (Teilbereichen) einer Creator-Auswahl-Liste
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
-import { getTeilbereicheFromListe, resolveSourcingKategorie } from './CreatorAuswahlTemplates.js';
+import { getTeilbereicheFromListe, resolveSourcingKategorie, reorderSourcingItemsByKategorien } from './CreatorAuswahlTemplates.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 
@@ -40,6 +40,7 @@ export function validateSourcingKategorieName(newKategorieInput, { existing = []
 export class CreatorAuswahlKategorienDrawer {
   constructor(detail) {
     this.detail = detail;
+    this._reorderUnbind = [];
   }
 
   renderBody() {
@@ -48,7 +49,10 @@ export class CreatorAuswahlKategorienDrawer {
     return `
       <div class="kategorien-list" id="kategorien-list">
         ${teilbereiche.length > 0 ? teilbereiche.map(tb => `
-          <div class="kategorie-item" data-kategorie="${escapeAttr(tb)}">
+          <div class="kategorie-item" data-kategorie="${escapeAttr(tb)}" draggable="false">
+            <button type="button" class="kategorie-drag-handle" data-action="drag-kategorie" title="Reihenfolge ändern" aria-label="Reihenfolge ändern">
+              ${icon('bars-3', { className: 'icon-16' })}
+            </button>
             <button type="button" class="kategorie-name" data-action="edit-kategorie" data-kategorie="${escapeAttr(tb)}" title="Kategorie umbenennen">${escapeAttr(tb)}</button>
             <button type="button" class="kategorie-delete-btn" data-action="edit-kategorie" data-kategorie="${escapeAttr(tb)}" title="Kategorie umbenennen">
               ${icon('pencil-square', { className: 'icon-16' })}
@@ -182,6 +186,116 @@ export class CreatorAuswahlKategorienDrawer {
     }
   }
 
+  async applyKategorieOrder(nextKategorien) {
+    const existingKategorien = getTeilbereicheFromListe(this.detail.liste);
+    if (nextKategorien.join('\0') === existingKategorien.join('\0')) return false;
+    if (nextKategorien.length !== existingKategorien.length) return false;
+
+    const existingSet = new Set(existingKategorien);
+    if (nextKategorien.some(k => !existingSet.has(k))) return false;
+
+    const teilbereichString = nextKategorien.join(', ');
+
+    try {
+      await creatorAuswahlService.updateListe(this.detail.listeId, { teilbereich: teilbereichString });
+      this.detail.liste.teilbereich = teilbereichString;
+
+      const reorderedItems = reorderSourcingItemsByKategorien(this.detail.items || [], nextKategorien);
+      if (reorderedItems.length > 0) {
+        await creatorAuswahlService.updateItemsSortierungWithKategorie(reorderedItems);
+        this.detail.items = reorderedItems;
+      }
+
+      this.rerenderBody();
+      this.detail.rerenderTable();
+      window.toastSystem?.show('Reihenfolge gespeichert', 'success');
+      return true;
+    } catch (error) {
+      console.error('Fehler beim Sortieren der Kategorien:', error);
+      window.toastSystem?.show('Fehler beim Sortieren', 'error');
+      this.rerenderBody();
+      return false;
+    }
+  }
+
+  async handleReorderFromDom() {
+    const list = document.getElementById('kategorien-list');
+    if (!list) return;
+    const next = Array.from(list.querySelectorAll('.kategorie-item')).map(row => row.dataset.kategorie);
+    await this.applyKategorieOrder(next);
+  }
+
+  unbindReorder() {
+    this._reorderUnbind.forEach(fn => fn());
+    this._reorderUnbind = [];
+  }
+
+  bindReorderEvents() {
+    this.unbindReorder();
+    const list = document.getElementById('kategorien-list');
+    if (!list) return;
+
+    const rows = () => list.querySelectorAll('.kategorie-item');
+
+    list.querySelectorAll('[data-action="drag-kategorie"]').forEach(handle => {
+      const onMouseDown = () => {
+        handle.closest('.kategorie-item')?.setAttribute('draggable', 'true');
+      };
+      handle.addEventListener('mousedown', onMouseDown);
+      this._reorderUnbind.push(() => handle.removeEventListener('mousedown', onMouseDown));
+    });
+
+    const onMouseUp = () => {
+      rows().forEach(row => row.setAttribute('draggable', 'false'));
+    };
+    document.addEventListener('mouseup', onMouseUp);
+    this._reorderUnbind.push(() => document.removeEventListener('mouseup', onMouseUp));
+
+    rows().forEach(row => {
+      const onDragStart = (e) => {
+        this._draggedKategorieRow = row;
+        row.classList.add('is-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', row.dataset.kategorie);
+      };
+      const onDragEnd = async () => {
+        row.classList.remove('is-dragging');
+        row.setAttribute('draggable', 'false');
+        this._draggedKategorieRow = null;
+        list.querySelectorAll('.kategorie-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+        await this.handleReorderFromDom();
+      };
+      const onDragOver = (e) => {
+        e.preventDefault();
+        const dragged = this._draggedKategorieRow;
+        if (!dragged || dragged === row) return;
+        const siblings = Array.from(list.children);
+        const from = siblings.indexOf(dragged);
+        const to = siblings.indexOf(row);
+        if (from < 0 || to < 0) return;
+        if (from < to) {
+          list.insertBefore(dragged, row.nextSibling);
+        } else {
+          list.insertBefore(dragged, row);
+        }
+      };
+      const onDrop = (e) => {
+        e.preventDefault();
+      };
+
+      row.addEventListener('dragstart', onDragStart);
+      row.addEventListener('dragend', onDragEnd);
+      row.addEventListener('dragover', onDragOver);
+      row.addEventListener('drop', onDrop);
+      this._reorderUnbind.push(() => {
+        row.removeEventListener('dragstart', onDragStart);
+        row.removeEventListener('dragend', onDragEnd);
+        row.removeEventListener('dragover', onDragOver);
+        row.removeEventListener('drop', onDrop);
+      });
+    });
+  }
+
   async handleDelete(kategorie) {
     const result = await window.confirmationModal?.open({
       title: 'Kategorie löschen?',
@@ -219,6 +333,7 @@ export class CreatorAuswahlKategorienDrawer {
   }
 
   rerenderBody() {
+    this.unbindReorder();
     const drawerBody = document.getElementById('kategorien-drawer-body');
     if (drawerBody) {
       drawerBody.innerHTML = this.renderBody();
@@ -258,6 +373,8 @@ export class CreatorAuswahlKategorienDrawer {
         this.handleDelete(btn.dataset.kategorie);
       });
     });
+
+    this.bindReorderEvents();
   }
 
   open() {
@@ -277,7 +394,7 @@ export class CreatorAuswahlKategorienDrawer {
     header.innerHTML = `
       <div>
         <span class="drawer-title">Kategorien verwalten</span>
-        <p class="drawer-subtitle">Kategorien hinzufügen, umbenennen oder entfernen</p>
+        <p class="drawer-subtitle">Kategorien hinzufügen, umbenennen, sortieren oder entfernen</p>
       </div>
       <div>
         <button class="drawer-close-btn" type="button" aria-label="Schließen">&times;</button>
@@ -307,6 +424,7 @@ export class CreatorAuswahlKategorienDrawer {
   }
 
   remove() {
+    this.unbindReorder();
     ['kategorien-drawer-overlay', 'kategorien-drawer'].forEach(id => {
       document.getElementById(id)?.remove();
     });

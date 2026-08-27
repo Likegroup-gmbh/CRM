@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { renderItemRow, renderItemsTable } from '../modules/strategie/StrategieDetailRenderer.js';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { renderItemRow, renderItemsTable, reorderStrategieItemsByKategorien } from '../modules/strategie/StrategieDetailRenderer.js';
 import { syncRowTextClips, toggleTextClip } from '../modules/strategie/strategieTextClip.js';
 import {
   getStrategiePrio,
@@ -10,6 +10,8 @@ import {
   isFixedColumnVisible,
   setFixedColumnVisibility
 } from '../modules/strategie/strategieColumns.js';
+import { renderKategorienDrawerBody, applyKategorieOrder } from '../modules/strategie/StrategieDetailKategorienDrawer.js';
+import { strategieService } from '../modules/strategie/StrategieService.js';
 
 const FLAGS = ['prio_1', 'prio_2', 'nicht_umsetzen'];
 
@@ -309,5 +311,74 @@ describe('strategieTextClip', () => {
     expect(btn.getAttribute('aria-label')).toBe('Mehr anzeigen');
     expect(btn.querySelector('.crm-icon')).toBeTruthy();
     expect(clip.classList.contains('is-truncated')).toBe(true);
+  });
+});
+
+describe('reorderStrategieItemsByKategorien', () => {
+  it('verschiebt Videos mit ihrer Kategorie und behaelt die Reihenfolge in der Gruppe', () => {
+    const items = [
+      { id: 'a1', teilbereich: 'A', sortierung: 0 },
+      { id: 'a2', teilbereich: 'A', sortierung: 1 },
+      { id: 'b1', teilbereich: 'B', sortierung: 2 },
+      { id: 'c1', teilbereich: 'C', sortierung: 3 }
+    ];
+
+    const reordered = reorderStrategieItemsByKategorien(items, ['C', 'A', 'B']);
+
+    expect(reordered.map(i => i.id)).toEqual(['c1', 'a1', 'a2', 'b1']);
+    expect(reordered.map(i => i.sortierung)).toEqual([0, 1, 2, 3]);
+  });
+
+  it('laesst Ohne Kategorie am Ende', () => {
+    const items = [
+      { id: 'o1', teilbereich: null, sortierung: 0 },
+      { id: 'a1', teilbereich: 'A', sortierung: 1 },
+      { id: 'b1', teilbereich: 'B', sortierung: 2 }
+    ];
+
+    const reordered = reorderStrategieItemsByKategorien(items, ['B', 'A']);
+    expect(reordered.map(i => i.id)).toEqual(['b1', 'a1', 'o1']);
+  });
+});
+
+describe('Strategie-Kategorien-Drawer Reihenfolge', () => {
+  it('zeigt einen Drag-Griff an jeder Kategorie', () => {
+    const html = renderKategorienDrawerBody({
+      getTeilbereicheFromStrategie: () => ['Reels', 'Stories']
+    });
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    expect(doc.querySelectorAll('[data-action="drag-kategorie"]')).toHaveLength(2);
+  });
+
+  it('schreibt CSV und Item-Sortierung in der neuen Reihenfolge', async () => {
+    window.toastSystem = { show: vi.fn() };
+    const items = [
+      { id: 'a1', teilbereich: 'A', sortierung: 0 },
+      { id: 'b1', teilbereich: 'B', sortierung: 1 }
+    ];
+    const detail = {
+      strategieId: 'strat-1',
+      strategie: { teilbereich: 'A, B' },
+      items,
+      getTeilbereicheFromStrategie() {
+        return (this.strategie.teilbereich || '').split(',').map(s => s.trim()).filter(Boolean);
+      },
+      rerenderItemsTable: vi.fn()
+    };
+
+    vi.spyOn(strategieService, 'updateStrategie').mockResolvedValue({});
+    vi.spyOn(strategieService, 'updateItemsSortierungWithTeilbereich').mockResolvedValue();
+
+    const didSave = await applyKategorieOrder(detail, ['B', 'A']);
+
+    expect(didSave).toBe(true);
+    expect(strategieService.updateStrategie).toHaveBeenCalledWith('strat-1', { teilbereich: 'B, A' });
+    expect(strategieService.updateItemsSortierungWithTeilbereich).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'b1', teilbereich: 'B', sortierung: 0 }),
+      expect.objectContaining({ id: 'a1', teilbereich: 'A', sortierung: 1 })
+    ]);
+    expect(detail.items.map(i => i.id)).toEqual(['b1', 'a1']);
+    expect(detail.rerenderItemsTable).toHaveBeenCalled();
+    delete window.toastSystem;
   });
 });
