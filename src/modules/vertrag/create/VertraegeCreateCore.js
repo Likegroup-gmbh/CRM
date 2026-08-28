@@ -369,7 +369,7 @@ VertraegeCreate.prototype.loadStammdaten = async function() {
       // Lade Creator mit Adressen
       const { data: creators } = await window.supabase
         .from('creator')
-        .select('id, vorname, nachname, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land, instagram, tiktok')
+        .select('id, vorname, nachname, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land, hauptadresse_quelle, instagram, tiktok')
         .order('nachname');
       
       this.creators = creators || [];

@@ -15,7 +15,8 @@ CreatorDetail.prototype.loadCriticalData = async function() {
       branchenResult,
       typenResult,
       adressenResult,
-      firmenResult
+      firmenResult,
+      managementsResult
     ] = await parallelLoad([
       () => window.supabase
         .from('creator')
@@ -53,7 +54,14 @@ CreatorDetail.prototype.loadCriticalData = async function() {
         .select('firma_id, firma:firma_id(id, firmenname, strasse, hausnummer, plz, stadt, land)')
         .eq('creator_id', this.creatorId)
         .eq('ist_aktiv', true)
-        .then(r => (r.data || []).map(x => x.firma).filter(Boolean))
+        .then(r => (r.data || []).map(x => x.firma).filter(Boolean)),
+
+      () => window.supabase
+        .from('creator_management')
+        .select('management_id, management:management_id(id, firmenname, strasse, hausnummer, plz, stadt, land)')
+        .eq('creator_id', this.creatorId)
+        .eq('ist_aktiv', true)
+        .then(r => (r.data || []).map(x => x.management).filter(Boolean))
     ]);
     
     if (creatorResult.error) {
@@ -66,6 +74,7 @@ CreatorDetail.prototype.loadCriticalData = async function() {
     this.creator.creator_types = typenResult;
     this.creatorAdressen = adressenResult;
     this.firmen = firmenResult;
+    this.managements = managementsResult;
     
     const loadTime = (performance.now() - startTime).toFixed(0);
     console.log(`✅ CREATORDETAIL: Kritische Daten geladen in ${loadTime}ms`);
@@ -620,5 +629,6 @@ CreatorDetail.prototype._removeManagementFromCreator = async function(management
       window.toastSystem?.success('Management-Zuordnung entfernt.');
       await this.loadManagements();
       this.updateManagementTab();
+      await this._resetHauptadresseIfQuelleMissing('management');
     }
 };

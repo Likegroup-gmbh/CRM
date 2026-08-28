@@ -37,7 +37,10 @@ export default {
       ksk_selbstzahler: 'boolean',
       haustier_beschreibung: 'string',
       hat_kinder: 'boolean',
-      kinder_beschreibung: 'string'
+      kinder_beschreibung: 'string',
+      spielt_instrument: 'boolean',
+      instrument_beschreibung: 'string',
+      hauptadresse_quelle: 'string'
     },
     relations: {},
     manyToMany: {
@@ -145,6 +148,33 @@ creator_sprachen(sprachen!sprache_id(id,name))`;
           idSets.push(new Set((links || []).map(r => r.creator_id)));
         }
         delete filters.kunde_id;
+      }
+      // Management: nur aktive Verknuepfungen zaehlen, damit beendete
+      // Vertretungen den Creator nicht mehr im Filter auftauchen lassen
+      if (filters && filters.management_id) {
+        const selectedId = getIdFromFilter(filters.management_id);
+        const { data: links, error: lerr } = await supabase
+          .from('creator_management')
+          .select('creator_id')
+          .eq('management_id', selectedId)
+          .eq('ist_aktiv', true);
+        if (!lerr) {
+          idSets.push(new Set((links || []).map(r => r.creator_id)));
+        }
+        delete filters.management_id;
+      }
+      // Firma: analog zu Management ueber creator_firma
+      if (filters && filters.firma_id) {
+        const selectedId = getIdFromFilter(filters.firma_id);
+        const { data: links, error: lerr } = await supabase
+          .from('creator_firma')
+          .select('creator_id')
+          .eq('firma_id', selectedId)
+          .eq('ist_aktiv', true);
+        if (!lerr) {
+          idSets.push(new Set((links || []).map(r => r.creator_id)));
+        }
+        delete filters.firma_id;
       }
       // Schnittmenge bilden
       if (idSets.length > 0) {

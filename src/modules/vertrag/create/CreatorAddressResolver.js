@@ -3,6 +3,7 @@
 // Ersetzt die fruehere creator_agentur-basierte Logik.
 
 import { VertraegeCreate } from './VertraegeCreateCore.js';
+import { HAUPTADRESSE_QUELLE_OPTIONS, normalizeHauptadresseQuelle } from '../../creator/hauptadresseQuelle.js';
 
 function escapeHtml(value) {
     return String(value ?? '')
@@ -19,6 +20,7 @@ VertraegeCreate.prototype._loadCreatorManagement = async function(creatorId) {
     if (!creatorId) {
       this._resetManagementFields();
       this._resetFirmaFields();
+      this.formData.hauptadresse_quelle = null;
       this._syncAgenturDomFromFormData();
       return;
     }
@@ -72,6 +74,7 @@ VertraegeCreate.prototype._loadCreatorManagement = async function(creatorId) {
 
     const creator = this.creators.find(c => c.id === creatorId);
     if (creator && this.formData.creator_id === creatorId) {
+      this._syncHauptadresseQuelleFromCreator(creator);
       this.updateCreatorAddressPreview(creator);
     }
 };
@@ -133,6 +136,11 @@ VertraegeCreate.prototype._applySelectedFirma = function(firmaId) {
     this.formData.influencer_firma_stadt = f.stadt || '';
     this.formData.influencer_firma_land = f.land || 'Deutschland';
     this.formData._firma_id = f.id;
+};
+
+VertraegeCreate.prototype._syncHauptadresseQuelleFromCreator = function(creator) {
+    if (!creator) return;
+    this.formData.hauptadresse_quelle = normalizeHauptadresseQuelle(creator.hauptadresse_quelle);
 };
 
 VertraegeCreate.prototype._resetFirmaFields = function() {
@@ -248,7 +256,8 @@ function firmaAddressFrom(agentur) {
 
 // Aufloesung der Vertrags-Hauptadresse:
 // - Schalter "nur_management_adresse" AN: erzwinge Management-Adresse
-// - sonst: 1. Firmenadresse (rechtliche Hauptadresse), 2. Creator-Lieferadresse, 3. Management, 4. null
+// - sonst die am Creator gewaehlte Quelle (creator | management | firma)
+// - ist die Wahl ungueltig: Fallback Creator -> Management -> Firma
 VertraegeCreate.prototype.getResolvedCreatorContractAddress = function(creator, agentur = this.formData) {
     agentur = { ...(this.formData || {}), ...(agentur || {}) };
     const forceManagement = !!(agentur && agentur.nur_management_adresse);
@@ -260,23 +269,30 @@ VertraegeCreate.prototype.getResolvedCreatorContractAddress = function(creator, 
       return null;
     }
 
-    if (this.hasValidFirmaAddress(agentur)) {
-      return firmaAddressFrom(agentur);
-    }
+    const quelle = normalizeHauptadresseQuelle(
+      agentur.hauptadresse_quelle || creator?.hauptadresse_quelle
+    );
 
-    if (this.hasValidCreatorAddress(creator)) {
-      return {
+    const byQuelle = {
+      firma: () => this.hasValidFirmaAddress(agentur) ? firmaAddressFrom(agentur) : null,
+      management: () => this.hasValidManagementAddress(agentur) ? managementAddressFrom(agentur) : null,
+      creator: () => this.hasValidCreatorAddress(creator) ? {
         source: 'creator',
         strasse: creator.lieferadresse_strasse || '',
         hausnummer: creator.lieferadresse_hausnummer || '',
         plz: creator.lieferadresse_plz || '',
         stadt: creator.lieferadresse_stadt || '',
         land: creator.lieferadresse_land || 'Deutschland'
-      };
-    }
+      } : null
+    };
 
-    if (this.hasValidManagementAddress(agentur)) {
-      return managementAddressFrom(agentur);
+    const selected = byQuelle[quelle]();
+    if (selected) return selected;
+
+    const fallbackOrder = ['creator', 'management', 'firma'].filter(q => q !== quelle);
+    for (const q of fallbackOrder) {
+      const resolved = byQuelle[q]();
+      if (resolved) return resolved;
     }
 
     return null;
@@ -287,9 +303,12 @@ VertraegeCreate.prototype.renderCreatorAddressPreview = function(creator) {
 
     if (!creator) return '';
 
+    const picker = this._renderHauptadresseQuelleSelect(creator, resolved);
+
     if (!resolved) {
       this.creatorAddressMissing = true;
       return `
+        ${picker}
         <div class="address-warning">
           <span>Keine Creator-, Firmen- oder Management-Adresse mit gültigen Daten hinterlegt.</span><br>
           <a href="/creator/${escapeHtml(creator.id)}" onclick="event.preventDefault(); window.navigateTo('/creator/${escapeHtml(creator.id)}')">
@@ -307,6 +326,7 @@ VertraegeCreate.prototype.renderCreatorAddressPreview = function(creator) {
 
     if (resolved.source === 'firma') {
       return `
+        ${picker}
         <div class="contract-address-fallback">
           <div class="contract-address-fallback__title">Fuer den Vertrag wird die Firmenadresse als Hauptadresse verwendet.</div>
           <small class="address-text">
@@ -326,8 +346,11 @@ VertraegeCreate.prototype.renderCreatorAddressPreview = function(creator) {
         : '';
       const titleText = this.formData.nur_management_adresse
         ? 'Fuer den Vertrag wird ausschliesslich die Management-Adresse verwendet (Creator-Adresse ausgeblendet).'
-        : 'Creator hat keine eigene Adresse. Fuer den Vertrag wird die Management-Adresse verwendet.';
+        : (normalizeHauptadresseQuelle(this.formData.hauptadresse_quelle || creator.hauptadresse_quelle) === 'management'
+          ? 'Fuer den Vertrag wird die Management-Adresse als Hauptadresse verwendet.'
+          : 'Creator hat keine eigene Adresse. Fuer den Vertrag wird die Management-Adresse verwendet.');
       return `
+        ${picker}
         <div class="contract-address-fallback">
           <div class="contract-address-fallback__title">${titleText}</div>
           <small class="address-text">
@@ -342,6 +365,7 @@ VertraegeCreate.prototype.renderCreatorAddressPreview = function(creator) {
     }
 
     return `
+      ${picker}
       <small class="address-text">
         ${escapeHtml(resolved.strasse)} ${escapeHtml(resolved.hausnummer)}<br>
         ${escapeHtml(resolved.plz)} ${escapeHtml(resolved.stadt)}<br>
@@ -350,10 +374,73 @@ VertraegeCreate.prototype.renderCreatorAddressPreview = function(creator) {
     `;
 };
 
+VertraegeCreate.prototype._availableHauptadresseQuellen = function() {
+    const options = [];
+    options.push(HAUPTADRESSE_QUELLE_OPTIONS[0]);
+    if ((this.creatorManagements && this.creatorManagements.length > 0) || this.hasValidManagementAddress()) {
+      options.push(HAUPTADRESSE_QUELLE_OPTIONS[1]);
+    }
+    if ((this.creatorFirmen && this.creatorFirmen.length > 0) || this.hasValidFirmaAddress()) {
+      options.push(HAUPTADRESSE_QUELLE_OPTIONS[2]);
+    }
+    return options;
+};
+
+VertraegeCreate.prototype._renderHauptadresseQuelleSelect = function(creator, resolved) {
+    const options = this._availableHauptadresseQuellen();
+    if (options.length < 2) return '';
+
+    const selected = normalizeHauptadresseQuelle(
+      this.formData.hauptadresse_quelle || creator?.hauptadresse_quelle
+    );
+    const optionHtml = options.map(o =>
+      `<option value="${escapeHtml(o.value)}" ${o.value === selected ? 'selected' : ''}>${escapeHtml(o.label)}</option>`
+    ).join('');
+
+    const fallbackHint = resolved && resolved.source !== selected
+      ? `<small class="field-hint">Gewählte Hauptadresse ist unvollständig. Es wird die ${escapeHtml(resolved.source === 'firma' ? 'Firmenadresse' : resolved.source === 'management' ? 'Management-Adresse' : 'Creator-Adresse')} verwendet.</small>`
+      : '';
+
+    return `
+      <div class="form-field hauptadresse-quelle-field">
+        <label for="vertrag_hauptadresse_quelle">Hauptadresse</label>
+        <select id="vertrag_hauptadresse_quelle" name="vertrag_hauptadresse_quelle">
+          ${optionHtml}
+        </select>
+        ${fallbackHint}
+      </div>
+    `;
+};
+
+VertraegeCreate.prototype.selectVertragHauptadresse = async function(quelle) {
+    quelle = normalizeHauptadresseQuelle(quelle);
+    this.formData.hauptadresse_quelle = quelle;
+    const creator = this.creators.find(c => c.id === this.formData.creator_id);
+    if (creator) {
+      creator.hauptadresse_quelle = quelle;
+      this.updateCreatorAddressPreview(creator);
+      if (window.supabase && creator.id) {
+        const { error } = await window.supabase
+          .from('creator')
+          .update({ hauptadresse_quelle: quelle })
+          .eq('id', creator.id);
+        if (error) {
+          console.error('❌ VERTRAG: Hauptadresse konnte nicht gespeichert werden:', error);
+        }
+      }
+    }
+};
+
 VertraegeCreate.prototype.updateCreatorAddressPreview = function(creator) {
     const preview = document.getElementById('creator-adresse');
     if (!preview) return;
     preview.innerHTML = this.renderCreatorAddressPreview(creator);
+    const select = preview.querySelector('#vertrag_hauptadresse_quelle');
+    if (select) {
+      select.addEventListener('change', (e) => {
+        this.selectVertragHauptadresse(e.target.value);
+      });
+    }
 };
 
 // Schreibt Firmenname (falls Hauptadresse = Firma) plus Strasse/PLZ/Land in ein PDF.

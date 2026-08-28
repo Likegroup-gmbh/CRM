@@ -8,6 +8,7 @@ import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { VertragUtils } from '../vertrag/VertragUtils.js';
 import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
+import { HAUPTADRESSE_QUELLE, normalizeHauptadresseQuelle } from './hauptadresseQuelle.js';
 
 const PLUS_ICON_SVG = `${icon('plus-lg')}`;
 
@@ -437,7 +438,7 @@ CreatorDetail.prototype.renderAdresseContent = function() {
           </thead>
           <tbody>
             <tr>
-              <td><span class="badge badge-primary">Hauptadresse</span></td>
+              <td><span class="badge badge-secondary">Creator-Adresse</span></td>
               <td>-</td>
               <td>${sanitizeVal(c.lieferadresse_strasse)}</td>
               <td>${sanitizeVal(c.lieferadresse_hausnummer)}</td>
@@ -467,12 +468,72 @@ CreatorDetail.prototype.renderAdresseContent = function() {
     return `
       <div class="creator-addresses-container">
         <div class="address-section">
+          ${renderSectionHeader({ title: 'Hauptadresse (Vertrag)' })}
+          <p class="field-hint">Diese Adresse wird im Vertragsgenerator verwendet. Versandadressen bleiben davon unabhängig.</p>
+          ${this.renderHauptadressePicker()}
+        </div>
+        <div class="address-section">
           ${renderSectionHeader({ title: 'Adressen', actionsHtml: neueAdresseBtn })}
           ${this.creatorAdressen && this.creatorAdressen.length === 0 
             ? `${hauptAdresseTable}<p class="empty-text">Keine zusätzlichen Adressen hinterlegt.</p>` 
             : hauptAdresseTable
           }
         </div>
+      </div>
+    `;
+};
+
+CreatorDetail.prototype.renderHauptadressePicker = function() {
+    const c = this.creator || {};
+    const selected = normalizeHauptadresseQuelle(c.hauptadresse_quelle);
+    const management = (this.managements || [])[0] || null;
+    const firma = (this.firmen || [])[0] || null;
+
+    const formatLine = (strasse, hausnummer, plz, stadt, land) => {
+      const street = [strasse, hausnummer].filter(Boolean).join(' ').trim();
+      const city = [plz, stadt].filter(Boolean).join(' ').trim();
+      const parts = [street, city, land].filter(Boolean);
+      return parts.length ? parts.join(', ') : 'Keine Adresse hinterlegt';
+    };
+
+    const rows = [
+      {
+        value: HAUPTADRESSE_QUELLE.CREATOR,
+        title: 'Creator-Adresse',
+        detail: formatLine(c.lieferadresse_strasse, c.lieferadresse_hausnummer, c.lieferadresse_plz, c.lieferadresse_stadt, c.lieferadresse_land),
+        enabled: true
+      },
+      {
+        value: HAUPTADRESSE_QUELLE.MANAGEMENT,
+        title: management ? `Management: ${management.firmenname || '—'}` : 'Management-Adresse',
+        detail: management
+          ? formatLine(management.strasse, management.hausnummer, management.plz, management.stadt, management.land)
+          : 'Kein Management zugeordnet',
+        enabled: !!management
+      },
+      {
+        value: HAUPTADRESSE_QUELLE.FIRMA,
+        title: firma ? `Firma: ${firma.firmenname || '—'}` : 'Firmenadresse',
+        detail: firma
+          ? formatLine(firma.strasse, firma.hausnummer, firma.plz, firma.stadt, firma.land)
+          : 'Keine Firma zugeordnet',
+        enabled: !!firma
+      }
+    ];
+
+    return `
+      <div class="hauptadresse-picker" role="radiogroup" aria-label="Hauptadresse">
+        ${rows.map(row => `
+          <label class="radio-option hauptadresse-picker__option ${row.enabled ? '' : 'is-disabled'}">
+            <input type="radio" name="hauptadresse_quelle" value="${row.value}"
+                   ${selected === row.value ? 'checked' : ''}
+                   ${row.enabled ? '' : 'disabled'}>
+            <span>
+              <strong>${window.validatorSystem.sanitizeHtml(row.title)}</strong>
+              <small>${window.validatorSystem.sanitizeHtml(row.detail)}</small>
+            </span>
+          </label>
+        `).join('')}
       </div>
     `;
 };

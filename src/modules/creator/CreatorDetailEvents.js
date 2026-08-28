@@ -4,6 +4,7 @@
 import { CreatorDetail } from './CreatorDetailCore.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { firmaCreateDrawer, injectFirmaCreateButton } from './FirmaCreateDrawer.js';
+import { HAUPTADRESSE_QUELLE, normalizeHauptadresseQuelle } from './hauptadresseQuelle.js';
 
 CreatorDetail.prototype.bindEvents = function() {
     if (this._abortController) {
@@ -73,6 +74,8 @@ CreatorDetail.prototype.bindEvents = function() {
           onCreated: async () => {
             await this.loadFirmen();
             this.updateFirmenTab();
+            const adresseTab = document.getElementById('tab-adresse');
+            if (adresseTab) adresseTab.innerHTML = this.renderAdresseContent();
           }
         });
         return;
@@ -81,6 +84,12 @@ CreatorDetail.prototype.bindEvents = function() {
       if (removeFirmaBtn) {
         e.preventDefault();
         this._removeFirmaFromCreator(removeFirmaBtn.getAttribute('data-remove-firma'));
+      }
+    }, { signal });
+
+    document.addEventListener('change', (e) => {
+      if (e.target?.name === 'hauptadresse_quelle' && e.target.closest('.hauptadresse-picker')) {
+        this.setHauptadresseQuelle(e.target.value);
       }
     }, { signal });
 
@@ -356,7 +365,42 @@ CreatorDetail.prototype._removeFirmaFromCreator = async function(firmaId) {
       window.toastSystem?.success('Firmen-Zuordnung entfernt.');
       await this.loadFirmen();
       this.updateFirmenTab();
+      await this._resetHauptadresseIfQuelleMissing('firma');
     }
+};
+
+CreatorDetail.prototype.setHauptadresseQuelle = async function(quelle) {
+    quelle = normalizeHauptadresseQuelle(quelle);
+    if (quelle === HAUPTADRESSE_QUELLE.MANAGEMENT && !(this.managements || []).length) return;
+    if (quelle === HAUPTADRESSE_QUELLE.FIRMA && !(this.firmen || []).length) return;
+
+    const { error } = await window.supabase
+      .from('creator')
+      .update({ hauptadresse_quelle: quelle })
+      .eq('id', this.creatorId);
+
+    if (error) {
+      window.toastSystem?.show('Hauptadresse konnte nicht gespeichert werden: ' + error.message, 'error');
+      return;
+    }
+
+    if (this.creator) this.creator.hauptadresse_quelle = quelle;
+    window.toastSystem?.success?.('Hauptadresse gespeichert.');
+    const adresseTab = document.getElementById('tab-adresse');
+    if (adresseTab) adresseTab.innerHTML = this.renderAdresseContent();
+};
+
+CreatorDetail.prototype._resetHauptadresseIfQuelleMissing = async function(quelle) {
+    if (normalizeHauptadresseQuelle(this.creator?.hauptadresse_quelle) !== quelle) {
+      const adresseTab = document.getElementById('tab-adresse');
+      if (adresseTab) adresseTab.innerHTML = this.renderAdresseContent();
+      return;
+    }
+    const stillPresent = quelle === HAUPTADRESSE_QUELLE.FIRMA
+      ? (this.firmen || []).length > 0
+      : (this.managements || []).length > 0;
+    if (stillPresent) return;
+    await this.setHauptadresseQuelle(HAUPTADRESSE_QUELLE.CREATOR);
 };
 
 CreatorDetail.prototype.showValidationErrors = function(errors) {
