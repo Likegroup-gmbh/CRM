@@ -165,13 +165,23 @@ export class SkripteService {
   // ------------------------------------------------------------------
   // Skripte
   // ------------------------------------------------------------------
-  async loadSkripte() {
-    // Listen-Loader: hauptteil/cta bleiben draussen (nie angezeigt),
+  /**
+   * Listen-Loader. Optionaler Scope: { kampagneId } filtert die Sidebar im
+   * Editor auf eine Kampagne; null = explizit „ohne Kampagne“. Ohne Argument
+   * bleibt das bisherige Verhalten (alles, Limit 200) fuer SkriptList.
+   */
+  async loadSkripte({ kampagneId } = {}) {
+    // hauptteil/cta bleiben draussen (nie angezeigt),
     // hook nur als Titel-Fallback (Renderer schneidet auf 50/80 Zeichen)
-    const { data, error } = await this.db.from('skripte')
+    let query = this.db.from('skripte')
       .select('id, titel, unternehmen_id, marke_id, kampagne_id, branche_id, hook, herkunft, status, mit_dna, model, funnel_stufe, created_at, unternehmen(id, firmenname, internes_kuerzel, logo_url), marke(id, markenname, logo_url), kampagne(id, kampagnenname, eigener_name), branchen(name)')
       .order('created_at', { ascending: false })
       .limit(200);
+
+    if (kampagneId) query = query.eq('kampagne_id', kampagneId);
+    else if (kampagneId === null) query = query.is('kampagne_id', null);
+
+    const { data, error } = await query;
 
     if (error) throw new Error(error.message);
     return data || [];
