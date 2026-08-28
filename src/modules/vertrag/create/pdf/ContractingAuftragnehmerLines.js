@@ -8,14 +8,22 @@ function formatAddressLines(streetParts, plz, stadt, land, landFallback) {
   return [strasse, plzStadt, land || landFallback || 'Deutschland'];
 }
 
-/**
- * @param {{ vertrag: object, creator: object|null|undefined, address: object|null|undefined }} params
- * @returns {string[]} Textzeilen (ohne Überschrift), zentriert zu rendern
- */
-export function buildContractingAuftragnehmerLines({ vertrag, creator, address }) {
-  const creatorName = `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim() || '-';
-  const landFallback = vertrag?.influencer_land || 'Deutschland';
-  const creatorAddressLines = formatAddressLines(
+function partyAddressLines(address, creator, landFallback) {
+  if (address && (address.strasse || address.plz || address.stadt)) {
+    const lines = [];
+    if (address.source === 'firma' && address.name) {
+      lines.push(`Firma: ${address.name}`);
+    }
+    lines.push(...formatAddressLines(
+      { strasse: address.strasse, hausnummer: address.hausnummer },
+      address.plz,
+      address.stadt,
+      address.land,
+      landFallback
+    ));
+    return lines;
+  }
+  return formatAddressLines(
     {
       strasse: creator?.lieferadresse_strasse,
       hausnummer: creator?.lieferadresse_hausnummer
@@ -25,6 +33,16 @@ export function buildContractingAuftragnehmerLines({ vertrag, creator, address }
     creator?.lieferadresse_land,
     landFallback
   );
+}
+
+/**
+ * @param {{ vertrag: object, creator: object|null|undefined, address: object|null|undefined }} params
+ * @returns {string[]} Textzeilen (ohne Überschrift), zentriert zu rendern
+ */
+export function buildContractingAuftragnehmerLines({ vertrag, creator, address }) {
+  const creatorName = `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim() || '-';
+  const landFallback = vertrag?.influencer_land || 'Deutschland';
+  const creatorAddressLines = partyAddressLines(address, creator, landFallback);
   const vertreten = !!vertrag?.influencer_agentur_vertreten;
   const hasAgencyData = !!(
     vertrag?.influencer_agentur_name ||

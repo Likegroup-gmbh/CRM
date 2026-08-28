@@ -1,5 +1,5 @@
 // CreatorAddressResolver.js
-// Laedt Management-Daten fuer den Creator und resolved die Vertragsadresse.
+// Laedt Management- und Firmen-Daten fuer den Creator und resolved die Vertragsadresse.
 // Ersetzt die fruehere creator_agentur-basierte Logik.
 
 import { VertraegeCreate } from './VertraegeCreateCore.js';
@@ -18,6 +18,7 @@ function escapeHtml(value) {
 VertraegeCreate.prototype._loadCreatorManagement = async function(creatorId) {
     if (!creatorId) {
       this._resetManagementFields();
+      this._resetFirmaFields();
       this._syncAgenturDomFromFormData();
       return;
     }
@@ -67,10 +68,82 @@ VertraegeCreate.prototype._loadCreatorManagement = async function(creatorId) {
 
     this._syncAgenturDomFromFormData();
 
+    await this._loadCreatorFirma(creatorId);
+
     const creator = this.creators.find(c => c.id === creatorId);
     if (creator && this.formData.creator_id === creatorId) {
       this.updateCreatorAddressPreview(creator);
     }
+};
+
+// Laedt aktive Firmen des Creators aus creator_firma/firma und mappt sie
+// auf influencer_firma_*-Felder in formData (analog Management).
+VertraegeCreate.prototype._loadCreatorFirma = async function(creatorId) {
+    if (!creatorId || !window.supabase) {
+      if (!creatorId) this._resetFirmaFields();
+      return;
+    }
+
+    try {
+      const { data, error } = await window.supabase
+        .from('creator_firma')
+        .select(`
+          ist_aktiv,
+          firma:firma_id (
+            id, firmenname, strasse, hausnummer, plz, stadt, land
+          )
+        `)
+        .eq('creator_id', creatorId)
+        .eq('ist_aktiv', true);
+
+      if (error) {
+        console.error('❌ VERTRAG: Fehler beim Laden creator_firma:', error);
+        this._resetFirmaFields();
+        return;
+      }
+
+      const list = (data || [])
+        .filter(item => item.firma)
+        .map(item => item.firma);
+      this.creatorFirmen = list;
+
+      if (list.length > 0) {
+        const keep = list.find(f => f.id === this.formData._firma_id);
+        this._applySelectedFirma((keep || list[0]).id);
+      } else {
+        this._resetFirmaFields();
+      }
+    } catch (err) {
+      console.error('❌ VERTRAG: Exception bei _loadCreatorFirma:', err);
+      this._resetFirmaFields();
+    }
+};
+
+VertraegeCreate.prototype._applySelectedFirma = function(firmaId) {
+    const list = this.creatorFirmen || [];
+    const f = list.find(x => x.id === firmaId) || list[0];
+    if (!f) {
+      this._resetFirmaFields();
+      return;
+    }
+    this.formData.influencer_firma_name = f.firmenname || '';
+    this.formData.influencer_firma_strasse = f.strasse || '';
+    this.formData.influencer_firma_hausnummer = f.hausnummer || '';
+    this.formData.influencer_firma_plz = f.plz || '';
+    this.formData.influencer_firma_stadt = f.stadt || '';
+    this.formData.influencer_firma_land = f.land || 'Deutschland';
+    this.formData._firma_id = f.id;
+};
+
+VertraegeCreate.prototype._resetFirmaFields = function() {
+    this.creatorFirmen = [];
+    this.formData.influencer_firma_name = '';
+    this.formData.influencer_firma_strasse = '';
+    this.formData.influencer_firma_hausnummer = '';
+    this.formData.influencer_firma_plz = '';
+    this.formData.influencer_firma_stadt = '';
+    this.formData.influencer_firma_land = 'Deutschland';
+    this.formData._firma_id = null;
 };
 
 // Uebernimmt die Daten des gewaehlten Managements in die influencer_agentur_*-Felder.
@@ -141,26 +214,54 @@ VertraegeCreate.prototype.hasValidManagementAddress = function(agentur = this.fo
     return !!agentur.influencer_agentur_vertreten && hasStrasse && hasPlz && hasStadt;
 };
 
-// Aufloesung:
-// - Schalter "nur_management_adresse" AN: erzwinge Management-Adresse (kein Creator-Fallback)
-// - sonst Fallback-Kette: 1. Creator-Lieferadresse, 2. Management-Adresse, 3. null
+VertraegeCreate.prototype.hasValidFirmaAddress = function(agentur = this.formData) {
+    if (!agentur) return false;
+    const hasStrasse = agentur.influencer_firma_strasse && agentur.influencer_firma_strasse.trim() !== '';
+    const hasPlz = agentur.influencer_firma_plz && agentur.influencer_firma_plz.trim() !== '';
+    const hasStadt = agentur.influencer_firma_stadt && agentur.influencer_firma_stadt.trim() !== '';
+    return hasStrasse && hasPlz && hasStadt;
+};
+
+function managementAddressFrom(agentur) {
+    return {
+      source: 'management',
+      name: agentur.influencer_agentur_name || '',
+      strasse: agentur.influencer_agentur_strasse || '',
+      hausnummer: agentur.influencer_agentur_hausnummer || '',
+      plz: agentur.influencer_agentur_plz || '',
+      stadt: agentur.influencer_agentur_stadt || '',
+      land: agentur.influencer_agentur_land || 'Deutschland'
+    };
+}
+
+function firmaAddressFrom(agentur) {
+    return {
+      source: 'firma',
+      name: agentur.influencer_firma_name || '',
+      strasse: agentur.influencer_firma_strasse || '',
+      hausnummer: agentur.influencer_firma_hausnummer || '',
+      plz: agentur.influencer_firma_plz || '',
+      stadt: agentur.influencer_firma_stadt || '',
+      land: agentur.influencer_firma_land || 'Deutschland'
+    };
+}
+
+// Aufloesung der Vertrags-Hauptadresse:
+// - Schalter "nur_management_adresse" AN: erzwinge Management-Adresse
+// - sonst: 1. Firmenadresse (rechtliche Hauptadresse), 2. Creator-Lieferadresse, 3. Management, 4. null
 VertraegeCreate.prototype.getResolvedCreatorContractAddress = function(creator, agentur = this.formData) {
+    agentur = { ...(this.formData || {}), ...(agentur || {}) };
     const forceManagement = !!(agentur && agentur.nur_management_adresse);
 
     if (forceManagement) {
       if (this.hasValidManagementAddress(agentur)) {
-        return {
-          source: 'management',
-          name: agentur.influencer_agentur_name || '',
-          strasse: agentur.influencer_agentur_strasse || '',
-          hausnummer: agentur.influencer_agentur_hausnummer || '',
-          plz: agentur.influencer_agentur_plz || '',
-          stadt: agentur.influencer_agentur_stadt || '',
-          land: agentur.influencer_agentur_land || 'Deutschland'
-        };
+        return managementAddressFrom(agentur);
       }
-      // Schalter an, aber keine gueltige Management-Adresse -> kein Creator-Fallback
       return null;
+    }
+
+    if (this.hasValidFirmaAddress(agentur)) {
+      return firmaAddressFrom(agentur);
     }
 
     if (this.hasValidCreatorAddress(creator)) {
@@ -175,15 +276,7 @@ VertraegeCreate.prototype.getResolvedCreatorContractAddress = function(creator, 
     }
 
     if (this.hasValidManagementAddress(agentur)) {
-      return {
-        source: 'management',
-        name: agentur.influencer_agentur_name || '',
-        strasse: agentur.influencer_agentur_strasse || '',
-        hausnummer: agentur.influencer_agentur_hausnummer || '',
-        plz: agentur.influencer_agentur_plz || '',
-        stadt: agentur.influencer_agentur_stadt || '',
-        land: agentur.influencer_agentur_land || 'Deutschland'
-      };
+      return managementAddressFrom(agentur);
     }
 
     return null;
@@ -198,7 +291,7 @@ VertraegeCreate.prototype.renderCreatorAddressPreview = function(creator) {
       this.creatorAddressMissing = true;
       return `
         <div class="address-warning">
-          <span>Keine Creator-Adresse und kein Management mit gueltiger Adresse hinterlegt.</span><br>
+          <span>Keine Creator-, Firmen- oder Management-Adresse mit gültigen Daten hinterlegt.</span><br>
           <a href="/creator/${escapeHtml(creator.id)}" onclick="event.preventDefault(); window.navigateTo('/creator/${escapeHtml(creator.id)}')">
             Zum Creator-Profil
           </a>
@@ -210,7 +303,21 @@ VertraegeCreate.prototype.renderCreatorAddressPreview = function(creator) {
       `;
     }
 
-    this.creatorAddressMissing = resolved.source !== 'creator';
+    this.creatorAddressMissing = resolved.source !== 'creator' && resolved.source !== 'firma';
+
+    if (resolved.source === 'firma') {
+      return `
+        <div class="contract-address-fallback">
+          <div class="contract-address-fallback__title">Fuer den Vertrag wird die Firmenadresse als Hauptadresse verwendet.</div>
+          <small class="address-text">
+            ${resolved.name ? `${escapeHtml(resolved.name)}<br>` : ''}
+            ${escapeHtml(resolved.strasse)} ${escapeHtml(resolved.hausnummer)}<br>
+            ${escapeHtml(resolved.plz)} ${escapeHtml(resolved.stadt)}<br>
+            ${escapeHtml(resolved.land)}
+          </small>
+        </div>
+      `;
+    }
 
     if (resolved.source === 'management') {
       const mgmtId = this.formData._management_id;
@@ -247,4 +354,19 @@ VertraegeCreate.prototype.updateCreatorAddressPreview = function(creator) {
     const preview = document.getElementById('creator-adresse');
     if (!preview) return;
     preview.innerHTML = this.renderCreatorAddressPreview(creator);
+};
+
+// Schreibt Firmenname (falls Hauptadresse = Firma) plus Strasse/PLZ/Land in ein PDF.
+// Gibt die Y-Position nach der letzten Adresszeile zurueck.
+VertraegeCreate.prototype.appendPdfCreatorContractAddress = function(doc, y, address, landFallback, x = 105) {
+    if (address?.source === 'firma' && address.name) {
+      doc.text(`Firma: ${address.name}`, x, y, { align: 'center' });
+      y += 5;
+    }
+    doc.text(`${address?.strasse || ''} ${address?.hausnummer || ''}`.trim(), x, y, { align: 'center' });
+    y += 5;
+    doc.text(`${address?.plz || ''} ${address?.stadt || ''}`.trim(), x, y, { align: 'center' });
+    y += 5;
+    doc.text(`${address?.land || landFallback || 'Deutschland'}`, x, y, { align: 'center' });
+    return y;
 };

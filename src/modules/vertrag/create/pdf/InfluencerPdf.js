@@ -255,11 +255,7 @@ VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang =
       y += 8;
       doc.text(`Name: ${creator?.vorname || ''} ${creator?.nachname || ''}`, 105, y, { align: 'center' });
       y += 5;
-      doc.text(`${creatorContractAddress?.strasse || ''} ${creatorContractAddress?.hausnummer || ''}`.trim(), 105, y, { align: 'center' });
-      y += 5;
-      doc.text(`${creatorContractAddress?.plz || ''} ${creatorContractAddress?.stadt || ''}`.trim(), 105, y, { align: 'center' });
-      y += 5;
-      doc.text(`${creatorContractAddress?.land || vertrag.influencer_land || 'Deutschland'}`, 105, y, { align: 'center' });
+      y = this.appendPdfCreatorContractAddress(doc, y, creatorContractAddress, vertrag.influencer_land || 'Deutschland');
       y += 5;
       const profiles = vertrag.influencer_profile || [];
       doc.text(`Profil(e): ${profiles.length > 0 ? profiles.join(', ') : '-'}`, 105, y, { align: 'center' });

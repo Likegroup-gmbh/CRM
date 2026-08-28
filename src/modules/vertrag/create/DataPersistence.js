@@ -424,7 +424,7 @@ VertraegeCreate.prototype.handleSubmit = async function(e, startNewAfter = false
       if (creator && !this.getResolvedCreatorContractAddress(creator)) {
         const msg = this.formData.nur_management_adresse
           ? 'Es ist "Nur Management-Adresse verwenden" aktiv, aber das gewaehlte Management hat keine gueltige Adresse.'
-          : 'Der Creator hat keine gueltige Adresse und kein Management mit Adresse hinterlegt.';
+          : 'Der Creator hat keine gueltige Adresse, keine Firma mit Adresse und kein Management mit Adresse hinterlegt.';
         window.toastSystem?.show(msg, 'error');
         return;
       }
