@@ -251,11 +251,7 @@ VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this
       const creatorContractAddress = this.getResolvedCreatorContractAddress(creator, vertrag);
       doc.text(`Name: ${creator?.vorname || ''} ${creator?.nachname || ''}`, 105, y, { align: 'center' });
       y += 5;
-      doc.text(`${creatorContractAddress?.strasse || ''} ${creatorContractAddress?.hausnummer || ''}`.trim(), 105, y, { align: 'center' });
-      y += 5;
-      doc.text(`${creatorContractAddress?.plz || ''} ${creatorContractAddress?.stadt || ''}`.trim(), 105, y, { align: 'center' });
-      y += 5;
-      doc.text(`${creatorContractAddress?.land || vertrag.influencer_land || 'Deutschland'}`, 105, y, { align: 'center' });
+      y = this.appendPdfCreatorContractAddress(doc, y, creatorContractAddress, vertrag.influencer_land || 'Deutschland');
       if (vertrag.influencer_steuer_id) {
         y += 5;
         doc.text(`Steuer-ID: ${vertrag.influencer_steuer_id}`, 105, y, { align: 'center' });

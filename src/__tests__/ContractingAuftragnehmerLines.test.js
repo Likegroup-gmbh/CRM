@@ -161,4 +161,32 @@ describe('buildContractingAuftragnehmerLines', () => {
     expect(lines[0]).toBe('Agentur: ALL IMPACT GmbH');
     expect(lines).toContain('Influencer: Leonie Weiß');
   });
+
+  it('ohne Agentur: nutzt die aufgelöste Firmenadresse statt der Privatadresse', () => {
+    const lines = buildContractingAuftragnehmerLines({
+      vertrag: {
+        nur_management_adresse: false,
+        influencer_agentur_vertreten: false
+      },
+      creator,
+      address: {
+        source: 'firma',
+        name: 'SARO GmbH',
+        strasse: 'Dr. Otto-Höchtl-Straße',
+        hausnummer: '12',
+        plz: '94315',
+        stadt: 'Straubing',
+        land: 'Deutschland'
+      }
+    });
+
+    expect(lines).toEqual([
+      'Name: Leonie Weiß',
+      'Firma: SARO GmbH',
+      'Dr. Otto-Höchtl-Straße 12',
+      '94315 Straubing',
+      'Deutschland'
+    ]);
+    expect(lines.join('\n')).not.toContain('Imstiege');
+  });
 });
