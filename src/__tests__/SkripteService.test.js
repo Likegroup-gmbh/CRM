@@ -90,6 +90,50 @@ describe('SkripteService.loadSkripte', () => {
 
     await expect(service.loadSkripte()).rejects.toThrow('PGRST200 boom');
   });
+
+  it('filtert mit { kampagneId } per eq auf die Kampagne', async () => {
+    setupWindow({ isAdmin: true });
+
+    const rows = [skript({ id: 'a', kampagne_id: 'k1' })];
+    const eq = vi.fn(() => Promise.resolve({ data: rows, error: null }));
+    const limit = vi.fn(() => ({ eq }));
+    const order = vi.fn(() => ({ limit }));
+    const select = vi.fn(() => ({ order }));
+    window.supabase.from = vi.fn(() => ({ select }));
+
+    const result = await service.loadSkripte({ kampagneId: 'k1' });
+    expect(result).toHaveLength(1);
+    expect(eq).toHaveBeenCalledWith('kampagne_id', 'k1');
+  });
+
+  it('filtert mit { kampagneId: null } per is auf „ohne Kampagne“', async () => {
+    setupWindow({ isAdmin: true });
+
+    const rows = [skript({ id: 'a', kampagne_id: null })];
+    const is = vi.fn(() => Promise.resolve({ data: rows, error: null }));
+    const limit = vi.fn(() => ({ is }));
+    const order = vi.fn(() => ({ limit }));
+    const select = vi.fn(() => ({ order }));
+    window.supabase.from = vi.fn(() => ({ select }));
+
+    const result = await service.loadSkripte({ kampagneId: null });
+    expect(result).toHaveLength(1);
+    expect(is).toHaveBeenCalledWith('kampagne_id', null);
+  });
+
+  it('ohne Argument bleibt das bisherige Verhalten (kein eq/is)', async () => {
+    setupWindow({ isAdmin: true });
+
+    const rows = [skript({ id: 'a' }), skript({ id: 'b', kampagne_id: 'k2' })];
+    const limit = vi.fn(() => Promise.resolve({ data: rows, error: null }));
+    const order = vi.fn(() => ({ limit }));
+    const select = vi.fn(() => ({ order }));
+    window.supabase.from = vi.fn(() => ({ select }));
+
+    const result = await service.loadSkripte();
+    expect(result).toHaveLength(2);
+    expect(order).toHaveBeenCalled();
+  });
 });
 
 describe('SkripteService.loadSkript', () => {

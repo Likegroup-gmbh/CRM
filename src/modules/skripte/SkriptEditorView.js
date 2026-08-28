@@ -14,6 +14,7 @@ import { bindCollapsible } from '../../core/collapsiblePanel.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { revealLines, cancelLineReveal } from '../../core/animation/lineReveal.js';
 import { skripteService } from './SkripteService.js';
+import { matchesKampagne } from './SkriptList.js';
 import { SkriptGeneratorForm } from './SkriptGeneratorForm.js';
 import { SkriptFeedbackDrawer } from './SkriptFeedbackDrawer.js';
 import { SkriptInlineEdit } from './SkriptInlineEdit.js';
@@ -127,6 +128,7 @@ export class SkriptEditorView {
     this.page = page;
     this.skript = null;
     this.skripte = [];
+    this._listeKampagneId = undefined; // Scope der Sidebar; undefined = noch nicht gesetzt
     this.messages = [];
     this.versionen = [];
     this.aktiveVersion = { version_nr: 1, sub_nr: 0 };
@@ -188,7 +190,8 @@ export class SkriptEditorView {
         container.innerHTML = '<div class="empty-state"><p>Kein Zugriff – Skripte können nur gelesen werden.</p></div>';
         return;
       }
-      this.skripte = await skripteService.loadSkripte();
+      this.skripte = [];
+      this._listeKampagneId = null;
       this.skript = null;
       this.messages = [];
       this.neuModus = true;
@@ -202,21 +205,24 @@ export class SkriptEditorView {
 
     const readonly = this.isReadonly;
     try {
-      const [skript, skripte, messages, versionen, modi] = await Promise.all([
-        skripteService.loadSkript(skriptId),
-        skripteService.loadSkripte(),
-        readonly ? Promise.resolve([]) : skripteService.getChatMessages(skriptId),
-        skripteService.getVersionen(skriptId),
-        readonly ? Promise.resolve([]) : this.loadModiCached()
-      ]);
+      // Skript zuerst: die Sidebar wird auf dessen Kampagne gescoped
+      const skript = await skripteService.loadSkript(skriptId);
 
       if (!skript) {
         container.innerHTML = '<div class="empty-state"><p>Kein Zugriff auf dieses Skript.</p></div>';
         return;
       }
 
+      const [skripte, messages, versionen, modi] = await Promise.all([
+        skripteService.loadSkripte({ kampagneId: skript.kampagne_id ?? null }),
+        readonly ? Promise.resolve([]) : skripteService.getChatMessages(skriptId),
+        skripteService.getVersionen(skriptId),
+        readonly ? Promise.resolve([]) : this.loadModiCached()
+      ]);
+
       this.skript = skript;
       this.skripte = skripte;
+      this._listeKampagneId = skript.kampagne_id ?? null;
       this.messages = messages;
       this.setVersionsState(versionen);
       if (!readonly) this.modi = modi || [];
@@ -381,6 +387,14 @@ export class SkriptEditorView {
       this.messages = messages;
       this.setVersionsState(versionen);
 
+      // Liste nachladen, wenn das neue Skript in einer anderen Kampagne
+      // liegt als der bisherige Sidebar-Scope (z.B. Neu-Modus -> Kampagne B)
+      const neueKampagneId = skript.kampagne_id ?? null;
+      if (neueKampagneId !== this._listeKampagneId) {
+        this._listeKampagneId = neueKampagneId;
+        this.skripte = await skripteService.loadSkripte({ kampagneId: neueKampagneId });
+      }
+
       replaceSkriptUrl(skriptId);
       this.page._merkeKontext({ skript: skriptId });
 
@@ -413,6 +427,7 @@ export class SkriptEditorView {
     this.genStatus = null;
     this.genForm?.destroy?.();
     this.genForm = null;
+    this._listeKampagneId = undefined;
     if (this.channel) {
       window.supabase.removeChannel(this.channel);
       this.channel = null;
@@ -449,6 +464,10 @@ export class SkriptEditorView {
    */
   upsertSkriptInListe(skript) {
     if (!skript) return;
+    // Nur upserten, wenn das Skript zum aktuellen Sidebar-Scope passt.
+    // Fremde Kampagnen wuerden sonst in der gefilterten Liste landen.
+    if (this._listeKampagneId !== undefined
+        && !matchesKampagne(skript, this._listeKampagneId)) return;
     const angereichert = { ...skript };
     const form = this.genForm;
     if (form && !skript.unternehmen && skript.unternehmen_id) {
@@ -513,7 +532,14 @@ export class SkriptEditorView {
   renderListe() {
     const el = document.getElementById('ed-liste-items');
     if (!el) return;
-    el.innerHTML = this.skripte.map((s) => {
+    // Safety-Net: nur Skripte derselben Kampagne wie das geoeffnete.
+    // Neu-Modus (kein Skript) zeigt nichts; das geoeffnete Skript bleibt
+    // immer sichtbar, auch wenn kampagne_id null ist.
+    const kampagneId = this.skript?.kampagne_id ?? null;
+    const items = this.neuModus
+      ? []
+      : this.skripte.filter((s) => s.id === this.skript?.id || matchesKampagne(s, kampagneId));
+    el.innerHTML = items.map((s) => {
       const badgeText = s.unternehmen?.internes_kuerzel
         || s.unternehmen?.firmenname
         || s.marke?.markenname

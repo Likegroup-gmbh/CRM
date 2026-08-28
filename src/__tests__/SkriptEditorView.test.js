@@ -52,6 +52,13 @@ vi.mock('../modules/skripte/SkriptFeedbackDrawer.js', () => ({
   }
 }));
 
+vi.mock('../modules/skripte/SkriptList.js', () => ({
+  matchesKampagne: (item, kampagneId) => {
+    if (kampagneId == null) return !item.kampagne_id;
+    return item.kampagne_id === kampagneId;
+  }
+}));
+
 vi.mock('../modules/skripte/SkripteUtils.js', () => ({
   escapeHtml: (v) => String(v ?? ''),
   formatDate: () => '',
@@ -142,6 +149,7 @@ describe('SkriptEditorView Layout', () => {
   const skript = {
     id: 's1',
     titel: 'Test-Skript',
+    kampagne_id: 'k1',
     hook: 'Hook-Text',
     hauptteil: 'Hauptteil-Text',
     cta: 'CTA-Text',
@@ -208,6 +216,50 @@ describe('SkriptEditorView Layout', () => {
     // Wand-Button in jeder rechten Zelle
     const visualBtns = container.querySelectorAll('.skripte-editor-visual-btn');
     expect(visualBtns.length).toBe(3);
+  });
+
+  it('Sidebar rendert nur Skripte derselben Kampagne', async () => {
+    mockService.loadSkripte.mockResolvedValue([
+      { ...skript, id: 's1', titel: 'Aktiv' },
+      { ...skript, id: 's2', titel: 'Andere Kampagne', kampagne_id: 'k2' },
+      { ...skript, id: 's3', titel: 'Ohne Kampagne', kampagne_id: null }
+    ]);
+    await view.render(container, 's1');
+
+    const items = container.querySelectorAll('#ed-liste-items .skripte-editor-liste-item');
+    expect(items.length).toBe(1);
+    expect(items[0].dataset.id).toBe('s1');
+    expect(container.textContent).not.toContain('Andere Kampagne');
+    expect(container.textContent).not.toContain('Ohne Kampagne');
+  });
+
+  it('Sidebar zeigt nur „ohne Kampagne“-Skripte, wenn das geoeffnete keine hat', async () => {
+    mockService.loadSkript.mockResolvedValue({ ...skript, kampagne_id: null });
+    mockService.loadSkripte.mockResolvedValue([
+      { ...skript, id: 's1', titel: 'Aktiv', kampagne_id: null },
+      { ...skript, id: 's2', titel: 'Mit Kampagne', kampagne_id: 'k1' },
+      { ...skript, id: 's3', titel: 'Auch ohne', kampagne_id: null }
+    ]);
+    await view.render(container, 's1');
+
+    const items = container.querySelectorAll('#ed-liste-items .skripte-editor-liste-item');
+    expect(items.length).toBe(2);
+    expect(container.textContent).toContain('Aktiv');
+    expect(container.textContent).toContain('Auch ohne');
+    expect(container.textContent).not.toContain('Mit Kampagne');
+  });
+
+  it('Neu-Modus laesst die Sidebar leer', async () => {
+    mockService.loadSkripte.mockResolvedValue([{ ...skript, id: 's1' }]);
+    await view.render(container, 'neu');
+
+    const items = container.querySelectorAll('#ed-liste-items .skripte-editor-liste-item');
+    expect(items.length).toBe(0);
+  });
+
+  it('loadSkripte wird mit der Kampagne des geoeffneten Skripts aufgerufen', async () => {
+    await view.render(container, 's1');
+    expect(mockService.loadSkripte).toHaveBeenCalledWith({ kampagneId: 'k1' });
   });
 
   it('Master mit Creator-facing rendert Grid, Visual-Buttons und Zusatz-Tab', async () => {
@@ -601,6 +653,7 @@ describe('SkriptEditorView Inline-Edit', () => {
   const skript = {
     id: 's1',
     titel: 'Test-Skript',
+    kampagne_id: 'k1',
     hook: 'Hook-Text',
     hauptteil: 'Hauptteil-Text',
     cta: 'CTA-Text',
@@ -778,6 +831,7 @@ describe('SkriptEditorView Trigger-Fehler (502/503 am Gateway)', () => {
   const skript = {
     id: 's1',
     titel: 'Test-Skript',
+    kampagne_id: 'k1',
     hook: 'Hook-Text',
     hauptteil: 'Hauptteil-Text',
     cta: 'CTA-Text',
