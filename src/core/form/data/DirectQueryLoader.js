@@ -241,7 +241,7 @@ async function loadGenericTable(field) {
   }
 
   if (field.table === 'benutzer') {
-    query = query.neq('rolle', 'kunde');
+    query = query.neq('rolle', 'kunde').neq('rolle', 'gast');
 
     if (field.filterByKlasse) {
       const klasseNames = Array.isArray(field.filterByKlasse)

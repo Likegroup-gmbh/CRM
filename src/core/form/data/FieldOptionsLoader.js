@@ -459,6 +459,7 @@ export async function loadBenutzerOptions(filter = {}) {
       .from('benutzer')
       .select('id, name, vorname, nachname, rolle')
       .neq('rolle', 'kunde')
+      .neq('rolle', 'gast')
       .order('name');
 
     if (filter.role) {

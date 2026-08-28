@@ -389,7 +389,8 @@ export const cascadeStrategies = {
     let mitarbeiterQuery = window.supabase
       .from('benutzer')
       .select('id, name, vorname, nachname, rolle')
-      .neq('rolle', 'kunde');
+      .neq('rolle', 'kunde')
+      .neq('rolle', 'gast');
 
     if (fieldConfig.filterByKlasse) {
       const klasseNames = Array.isArray(fieldConfig.filterByKlasse)

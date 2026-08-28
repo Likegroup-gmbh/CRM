@@ -207,7 +207,7 @@ export async function openAssignStaffModal(dropdown, kampagneId) {
         const { data: assigned } = await window.supabase.from('kampagne_mitarbeiter').select('mitarbeiter_id').eq('kampagne_id', kampagneId);
         assignedIds = (assigned || []).map(r => r.mitarbeiter_id);
       } catch {}
-      let query = window.supabase.from('benutzer').select('id, name, rolle, mitarbeiter_klasse:mitarbeiter_klasse_id(name)').neq('rolle', 'kunde').order('name');
+      let query = window.supabase.from('benutzer').select('id, name, rolle, mitarbeiter_klasse:mitarbeiter_klasse_id(name)').neq('rolle', 'kunde').neq('rolle', 'gast').order('name');
       if (term) query = query.ilike('name', `%${term}%`);
       if (assignedIds.length > 0) query = query.not('id', 'in', `(${assignedIds.join(',')})`);
       const { data } = await query;
@@ -277,7 +277,7 @@ export async function openAssignMarkeStaffModal(dropdown, markeId) {
   try {
     const { data: existing } = await window.supabase.from('marke_mitarbeiter').select('mitarbeiter_id').eq('marke_id', markeId);
     excludedMitarbeiterIds = (existing || []).map(r => r.mitarbeiter_id).filter(Boolean);
-    let query = window.supabase.from('benutzer').select(`id, name, rolle, mitarbeiter_klasse:mitarbeiter_klasse_id(name)`).neq('rolle', 'kunde').order('name');
+    let query = window.supabase.from('benutzer').select(`id, name, rolle, mitarbeiter_klasse:mitarbeiter_klasse_id(name)`).neq('rolle', 'kunde').neq('rolle', 'gast').order('name');
     if (excludedMitarbeiterIds.length > 0) query = query.not('id', 'in', `(${excludedMitarbeiterIds.join(',')})`);
     const { data } = await query;
     mitarbeiter = data || [];
@@ -353,7 +353,7 @@ export async function openAssignMarkeStaffModal(dropdown, markeId) {
       const term = e.target.value.trim();
       if (term.length < 1) { ddEl.classList.remove('show'); return; }
       try {
-        let query = window.supabase.from('benutzer').select(`id, name, rolle, mitarbeiter_klasse:mitarbeiter_klasse_id(name)`).neq('rolle', 'kunde').or(`name.ilike.%${term}%,rolle.ilike.%${term}%`).order('name');
+        let query = window.supabase.from('benutzer').select(`id, name, rolle, mitarbeiter_klasse:mitarbeiter_klasse_id(name)`).neq('rolle', 'kunde').neq('rolle', 'gast').or(`name.ilike.%${term}%,rolle.ilike.%${term}%`).order('name');
         if (excludedMitarbeiterIds.length > 0) query = query.not('id', 'in', `(${excludedMitarbeiterIds.join(',')})`);
         const { data } = await query;
         mitarbeiter = data || [];

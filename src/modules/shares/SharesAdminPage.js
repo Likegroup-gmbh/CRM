@@ -1,6 +1,5 @@
 // SharesAdminPage.js
-// Admin-/Mitarbeiter-Übersicht aller geteilten Listen (list_shares)
-// mit Widerruf und Rechte-Änderung.
+// Admin-/Mitarbeiter-Übersicht aller Zugänge (list_shares) inkl. Teilnehmer.
 
 import { renderEmptyStateRow } from '../../core/components/EmptyState.js';
 
@@ -47,7 +46,7 @@ export class SharesAdminPage {
   async loadData() {
     const { data, error } = await window.supabase
       .from('list_shares')
-      .select('id, entity_type, entity_id, email, rechte, created_at, last_access_at, revoked_at, benutzer:gast_benutzer_id (name), ersteller:created_by (name)')
+      .select('id, token, entity_type, entity_id, label, rechte, created_at, last_access_at, revoked_at, expires_at, ends_with_kampagne, ersteller:created_by (name), share_participants (id, name, last_seen_at)')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -57,7 +56,6 @@ export class SharesAdminPage {
     }
     this.shares = data || [];
 
-    // Entitätsnamen nachladen
     this.entityNames = new Map();
     for (const [type, meta] of Object.entries(ENTITY_META)) {
       const ids = [...new Set(this.shares.filter(s => s.entity_type === type).map(s => s.entity_id))];
@@ -88,13 +86,17 @@ export class SharesAdminPage {
         ? new Date(share.last_access_at).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })
         : '–';
       const created = new Date(share.created_at).toLocaleDateString('de-DE');
+      const participants = (share.share_participants || []).map(p => p.name).filter(Boolean).join(', ') || '–';
+      const expiry = share.expires_at
+        ? new Date(share.expires_at).toLocaleDateString('de-DE')
+        : (share.ends_with_kampagne ? 'mit Kampagne' : '–');
 
       return `
         <tr class="${isRevoked ? 'share-row--revoked' : ''}" data-share-id="${share.id}">
           <td><a href="${meta.route(share.entity_id)}" data-route="${meta.route(share.entity_id)}" class="share-entity-link table-link">${this.escape(entityName)}</a></td>
           <td>${meta.label}</td>
-          <td>${this.escape(share.email)}</td>
-          <td>${this.escape(share.benutzer?.name || '–')}</td>
+          <td>${this.escape(share.label || 'Zugang')}</td>
+          <td>${this.escape(participants)}</td>
           <td>
             ${isRevoked
               ? `<span>${RECHTE_LABELS[share.rechte] || share.rechte}</span>`
@@ -105,6 +107,7 @@ export class SharesAdminPage {
           </td>
           <td>${this.escape(share.ersteller?.name || '–')}</td>
           <td>${created}</td>
+          <td>${expiry}</td>
           <td>${lastAccess}</td>
           <td>
             ${isRevoked
@@ -132,17 +135,18 @@ export class SharesAdminPage {
               <tr>
                 <th>Liste</th>
                 <th>Typ</th>
-                <th>E-Mail</th>
-                <th>Name</th>
+                <th>Zugang</th>
+                <th>Teilnehmer</th>
                 <th>Rechte</th>
                 <th>Geteilt von</th>
                 <th>Geteilt am</th>
+                <th>Ablauf</th>
                 <th>Letzter Zugriff</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              ${rows || renderEmptyStateRow({ icon: 'list', title: 'Keine geteilten Listen vorhanden' }, 9)}
+              ${rows || renderEmptyStateRow({ icon: 'list', title: 'Keine geteilten Listen vorhanden' }, 10)}
             </tbody>
           </table>
         </div>

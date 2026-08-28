@@ -179,6 +179,7 @@ describe('breadcrumbSwitcher', () => {
     await loadSwitcherItems({ segment: 'mitarbeiter' });
     expect(calls.tables).toContain('benutzer');
     expect(calls.neq).toContainEqual(['rolle', 'kunde']);
+    expect(calls.neq).toContainEqual(['rolle', 'gast']);
   });
 
   it('gibt leer zurück ohne can_view', async () => {

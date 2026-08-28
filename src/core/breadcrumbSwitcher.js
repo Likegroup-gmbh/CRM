@@ -186,7 +186,7 @@ export const SWITCHER_CONFIG = {
     routePrefix: '/mitarbeiter',
     labelField: 'name',
     searchFields: ['name', 'email'],
-    extra: (query) => query.neq('rolle', 'kunde'),
+    extra: (query) => query.neq('rolle', 'kunde').neq('rolle', 'gast'),
     resolveScope: async () => null
   },
   strategie: {

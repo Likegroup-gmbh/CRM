@@ -49,7 +49,7 @@ export class MitarbeiterList {
 
       if (window.supabase) {
         // Lade Mitarbeiterdaten direkt (inkl. E-Mail aus benutzer-Tabelle)
-        // Filter: Rolle != 'kunde' (Kunden haben eigene Seite)
+        // Filter: keine Kunden, keine Share-Gäste (eigene Seiten)
         const { data, error } = await window.supabase
           .from('benutzer')
           .select(`
@@ -57,6 +57,7 @@ export class MitarbeiterList {
             mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)
           `)
           .neq('rolle', 'kunde')
+          .neq('rolle', 'gast')
           .order('name');
 
         if (error) {
@@ -66,6 +67,7 @@ export class MitarbeiterList {
             .from('benutzer')
             .select('*, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)')
             .neq('rolle', 'kunde')
+            .neq('rolle', 'gast')
             .order('name');
 
           if (fallbackError) {
@@ -83,7 +85,8 @@ export class MitarbeiterList {
           this.rows = data || [];
         }
       } else {
-        this.rows = await window.dataService.loadEntities('benutzer');
+        const all = await window.dataService.loadEntities('benutzer');
+        this.rows = (all || []).filter((u) => !['kunde', 'gast'].includes((u.rolle || '').toLowerCase()));
       }
     } catch (e) {
       console.error('❌ Fehler beim Laden der Mitarbeiter:', e);

@@ -85,67 +85,73 @@
   white-space: nowrap;
 }
 
-/* --- Share-Dialog (Shell: overlay-modal + modal-dialog aus components.css) --- */
+/* --- Share-Modal: nur unter .share-list-modal (globale .modal-* unangetastet) --- */
 
 .share-list-modal .modal-dialog {
-  max-width: 600px;
-  width: 100%;
+  max-width: 560px;
 }
 
-/* Share-Modal: Kombo-Klassen für modulspezifische Overrides (Shell bleibt modal-*) */
-
-.share-list-modal-header {
-  padding: var(--space-md) var(--space-md) var(--space-xxs) var(--space-md);
-  border-bottom: none;
+.share-list-modal .modal-header,
+.share-list-modal .modal-footer {
+  flex-shrink: 0;
 }
 
-.share-list-modal-header h3 {
+.share-list-modal .modal-header h3 {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.share-list-modal .modal-body {
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.share-list-modal .modal-footer {
+  padding: var(--space-md);
+  gap: var(--space-xs);
+}
+
+.share-list-modal .modal-description {
+  margin: 0 0 var(--space-md);
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+
+.share-list-modal .modal-body .form-group {
+  margin-bottom: var(--space-md);
+  gap: var(--space-xs);
+}
+
+.share-list-modal .modal-body .form-group:last-child {
+  margin-bottom: 0;
+}
+
+.share-list-modal .modal-body .form-label {
+  font-size: var(--text-sm);
   font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 0;
 }
 
-.share-dialog-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-
-.share-dialog-form-row {
-  display: grid;
-  grid-template-columns: minmax(10rem, 1fr) auto auto;
-  align-items: stretch;
-  gap: var(--space-xs);
-}
-
-.share-dialog-form .input {
+.share-list-modal .input {
   box-sizing: border-box;
 }
 
-.share-dialog-form-row #share-email-input {
-  width: auto;
-  min-width: 0;
+.share-list-modal .tag-input-container {
+  z-index: 5;
 }
 
-.share-rechte-select {
-  width: auto;
-  max-width: 11rem;
-  min-width: 0;
+.share-list-modal .suggestion-item-meta {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
 }
 
-.share-dialog-form-row #share-submit-btn {
-  padding: var(--space-xs) var(--space-sm);
-  white-space: nowrap;
-}
-
-.share-message-input {
-  width: 100%;
-  resize: vertical;
-  min-height: var(--space-xxl);
-  font-family: inherit;
-  line-height: 1.5;
+.share-list-modal .tag-item .tag-remove {
+  color: inherit;
 }
 
 .share-dialog-list {
@@ -205,6 +211,83 @@
   align-items: center;
   gap: var(--space-xxs);
   flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.share-access-row {
+  align-items: flex-start;
+  padding: var(--space-sm) 0;
+  border-bottom: var(--border-xs) solid var(--border-primary);
+}
+
+.share-access-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.share-fresh-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--text-sm);
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  margin-top: var(--space-xxs);
+}
+
+.share-code-banner {
+  margin-top: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-secondary);
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-lg);
+}
+
+.share-code-banner-title {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+.share-code-banner-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-xxs);
+}
+
+.share-code-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: var(--text-xl);
+  letter-spacing: 0.2em;
+  font-weight: 700;
+}
+
+.share-link-value {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+
+.share-inline-btn {
+  background: none;
+  border: none;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: var(--space-xxs) var(--space-xs);
+  border-radius: var(--radius-md);
+  white-space: nowrap;
+}
+
+.share-inline-btn:hover {
+  background: var(--bg-tertiary);
+}
+
+.guest-code-label {
+  text-align: left;
+  margin-bottom: var(--space-xs);
 }
 
 .share-recipient-rechte {
