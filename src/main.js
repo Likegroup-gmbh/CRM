@@ -351,6 +351,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (window.supabase && window.CONFIG?.SUPABASE?.URL && window.CONFIG?.SUPABASE?.KEY) {
     try {
       const { createClient } = window.supabase;
+      window.__supabaseCreateClient = createClient;
       window.supabase = createClient(
         window.CONFIG.SUPABASE.URL,
         window.CONFIG.SUPABASE.KEY,
@@ -403,10 +404,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (isAuthenticated) {
     console.log('✅ Benutzer ist authentifiziert');
 
-    // Gäste (Share-Link) haben keinen Zugang zur normalen App —
-    // Direktaufrufe von /, /kampagne etc. zeigen die Sperrseite
+    // Alte Gast-Accounts gibt es nicht mehr; Safety-Net falls doch.
     if (window.currentUser?.rolle === 'gast') {
-      console.log('🔒 Gast-Session ohne Share-Link - zeige Sperrseite');
+      console.log('🔒 Gast-Rolle ohne Share-Link - zeige Sperrseite');
       const { renderGuestNoAccess } = await import('./modules/share/GuestShareApp.js');
       await renderGuestNoAccess();
       return;
@@ -487,6 +487,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Header/UI-Setup (Initialen, Quick-Menu etc.)
     window.setupHeaderUI?.();
   } else {
+    const { hasStoredGuestSessions } = await import('./modules/share/guestSession.js');
+    if (hasStoredGuestSessions()) {
+      console.log('🔒 Gast-JWT ohne Share-Link - zeige Sperrseite');
+      const { renderGuestNoAccess } = await import('./modules/share/GuestShareApp.js');
+      await renderGuestNoAccess();
+      return;
+    }
     console.log('🔐 Benutzer nicht authentifiziert - zeige Login');
     authUtils.showLogin();
   }

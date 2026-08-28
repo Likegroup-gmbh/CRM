@@ -378,6 +378,7 @@ export async function prefillMitarbeiterFromUnternehmen(form, unternehmenId) {
         .from('benutzer')
         .select('id, name')
         .neq('rolle', 'kunde')
+        .neq('rolle', 'gast')
         .order('name');
 
       const options = (allMitarbeiter || []).map(m => ({
