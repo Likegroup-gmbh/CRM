@@ -132,10 +132,29 @@ describe('Vertrag Creator-Adressfallback', () => {
     expect(html).toContain('ausschliesslich die Management-Adresse');
   });
 
-  it('nutzt die Firmenadresse als Hauptadresse, auch wenn der Creator eine Privatadresse hat', () => {
+  it('nutzt die Creator-Adresse, wenn Firma und Management existieren, aber keine Hauptadresse gewählt ist', () => {
     const form = new VertraegeCreate();
 
     const resolved = form.getResolvedCreatorContractAddress(creatorWithAddress, {
+      ...managementAddress,
+      ...firmaAddress
+    });
+
+    expect(resolved).toMatchObject({
+      source: 'creator',
+      strasse: 'Creatorstrasse',
+      plz: '60314',
+      stadt: 'Frankfurt'
+    });
+  });
+
+  it('nutzt die Firmenadresse nur, wenn sie als Hauptadresse gewählt ist', () => {
+    const form = new VertraegeCreate();
+
+    const resolved = form.getResolvedCreatorContractAddress({
+      ...creatorWithAddress,
+      hauptadresse_quelle: 'firma'
+    }, {
       ...managementAddress,
       ...firmaAddress
     });
@@ -150,10 +169,33 @@ describe('Vertrag Creator-Adressfallback', () => {
     });
   });
 
-  it('nutzt die Firmenadresse, wenn der Creator keine eigene Adresse hat', () => {
+  it('nutzt die Management-Adresse, wenn sie als Hauptadresse gewählt ist', () => {
     const form = new VertraegeCreate();
 
-    const resolved = form.getResolvedCreatorContractAddress(creatorWithoutAddress, firmaAddress);
+    const resolved = form.getResolvedCreatorContractAddress({
+      ...creatorWithAddress,
+      hauptadresse_quelle: 'management'
+    }, {
+      ...managementAddress,
+      ...firmaAddress
+    });
+
+    expect(resolved).toMatchObject({
+      source: 'management',
+      name: 'Creator Agency GmbH',
+      strasse: 'Agenturweg',
+      plz: '10115',
+      stadt: 'Berlin'
+    });
+  });
+
+  it('nutzt die Firmenadresse, wenn der Creator keine eigene Adresse hat und Firma gewählt ist', () => {
+    const form = new VertraegeCreate();
+
+    const resolved = form.getResolvedCreatorContractAddress({
+      ...creatorWithoutAddress,
+      hauptadresse_quelle: 'firma'
+    }, firmaAddress);
 
     expect(resolved).toMatchObject({
       source: 'firma',
@@ -164,10 +206,13 @@ describe('Vertrag Creator-Adressfallback', () => {
     });
   });
 
-  it('fällt auf die Creator-Adresse zurück, wenn die Firma keine gültige Adresse hat', () => {
+  it('fällt auf die Creator-Adresse zurück, wenn die gewählte Firma keine gültige Adresse hat', () => {
     const form = new VertraegeCreate();
 
-    const resolved = form.getResolvedCreatorContractAddress(creatorWithAddress, {
+    const resolved = form.getResolvedCreatorContractAddress({
+      ...creatorWithAddress,
+      hauptadresse_quelle: 'firma'
+    }, {
       influencer_firma_name: 'SARO GmbH',
       influencer_firma_strasse: '',
       influencer_firma_plz: '',
@@ -179,6 +224,18 @@ describe('Vertrag Creator-Adressfallback', () => {
       strasse: 'Creatorstrasse',
       plz: '60314',
       stadt: 'Frankfurt'
+    });
+  });
+
+  it('fällt auf die Firmenadresse zurück, wenn keine Creator-Adresse da ist und Firma hinterlegt ist', () => {
+    const form = new VertraegeCreate();
+
+    const resolved = form.getResolvedCreatorContractAddress(creatorWithoutAddress, firmaAddress);
+
+    expect(resolved).toMatchObject({
+      source: 'firma',
+      name: 'SARO GmbH',
+      stadt: 'Straubing'
     });
   });
 
@@ -201,9 +258,12 @@ describe('Vertrag Creator-Adressfallback', () => {
 
   it('rendert einen Hinweis, wenn die Firmenadresse als Hauptadresse verwendet wird', () => {
     const form = new VertraegeCreate();
-    form.formData = { ...firmaAddress };
+    form.formData = { ...firmaAddress, hauptadresse_quelle: 'firma' };
 
-    const html = form.renderCreatorAddressPreview(creatorWithAddress);
+    const html = form.renderCreatorAddressPreview({
+      ...creatorWithAddress,
+      hauptadresse_quelle: 'firma'
+    });
 
     expect(html).toContain('contract-address-fallback');
     expect(html).toContain('Firmenadresse');

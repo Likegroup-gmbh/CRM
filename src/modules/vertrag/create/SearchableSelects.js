@@ -137,6 +137,7 @@ VertraegeCreate.prototype.rebuildCreatorSelect = function(enabled) {
           this.formData.influencer_profile = [];
           this._resetManagementFields();
           this._resetFirmaFields();
+          this.formData.hauptadresse_quelle = null;
           this._syncAgenturDomFromFormData();
         }
       });
@@ -346,6 +347,7 @@ VertraegeCreate.prototype.initContractingCreatorSearchableSelect = function() {
         this.formData.influencer_profile = [];
         this._resetManagementFields();
         this._resetFirmaFields();
+        this.formData.hauptadresse_quelle = null;
         this._syncAgenturDomFromFormData();
       }
     });
@@ -437,6 +439,7 @@ VertraegeCreate.prototype.initCreatorSearchableSelect = function() {
         this.formData.influencer_profile = [];
         this._resetManagementFields();
         this._resetFirmaFields();
+        this.formData.hauptadresse_quelle = null;
         this._syncAgenturDomFromFormData();
       }
     });

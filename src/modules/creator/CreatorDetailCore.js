@@ -18,6 +18,7 @@ export class CreatorDetail extends PersonDetailBase {
     this.unternehmen = [];
     this.creatorAdressen = [];
     this.managements = [];
+    this.firmen = [];
     this.profileCounts = {
       kooperationen: 0,
       videos: 0

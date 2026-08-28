@@ -75,8 +75,31 @@
   gap: var(--space-xs);
 }
 
-.address-name-cell svg {
-  flex-shrink: 0;
+.hauptadresse-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.hauptadresse-picker__option {
+  align-items: flex-start;
+}
+
+.hauptadresse-picker__option span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hauptadresse-picker__option small {
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+
+.hauptadresse-picker__option.is-disabled {
+  opacity: 0.55;
+  pointer-events: none;
 }
 
 /* Empty State: zentrale Definition in tabellen.css */

@@ -1,6 +1,8 @@
 // Formular-Konfiguration fuer "creator"
 // Reine Datendatei, wird von FormConfig.js eingesammelt.
 
+import { HAUPTADRESSE_QUELLE_OPTIONS } from '../../../modules/creator/hauptadresseQuelle.js';
+
 // Auch von CreatorFilterConfig.js genutzt, damit Formular und Filter dieselben
 // Werte anbieten. Paar/Familie/Tier bilden Accounts ab, hinter denen keine
 // einzelne Person steht.
@@ -37,6 +39,7 @@ export const creatorConfig = {
     { name: 'ksk_selbstzahler', label: 'KSK zahlt der Creator selbst', type: 'toggle', required: false, defaultValue: false, section: 'basis' },
     { name: 'management_ids', label: 'Management', type: 'multiselect', required: false, options: [], dynamic: true, searchable: true, tagBased: true, placeholder: 'Management suchen und hinzufügen...', table: 'management', displayField: 'firmenname', valueField: 'id', customField: true, section: 'basis' },
     { name: 'firma_ids', label: 'Firmen', type: 'multiselect', required: false, options: [], dynamic: true, searchable: true, tagBased: true, placeholder: 'Firma suchen und hinzufügen...', table: 'firma', displayField: 'firmenname', valueField: 'id', customField: true, section: 'basis' },
+    { name: 'hauptadresse_quelle', label: 'Hauptadresse (Vertrag)', type: 'select', required: false, defaultValue: 'creator', options: HAUPTADRESSE_QUELLE_OPTIONS, section: 'basis' },
     // Social Media
     { name: 'instagram', label: 'Instagram', type: 'text', required: false, row: 'social_instagram', section: 'social' },
     { 
