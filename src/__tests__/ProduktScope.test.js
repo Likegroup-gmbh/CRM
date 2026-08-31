@@ -2,7 +2,9 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   ProduktService,
   resolveProduktScope,
-  produktFormRoute
+  produktFormRoute,
+  produktListDetailRoute,
+  isStandaloneProduktPath
 } from '../modules/produkt/ProduktService.js';
 import { ProduktList } from '../modules/produkt/ProduktList.js';
 import { renderProduktDoc } from '../modules/produkt/ProduktDoc.js';
@@ -60,6 +62,49 @@ describe('produktFormRoute', () => {
   it('baut die Worksheet-Route', () => {
     expect(produktFormRoute('u1', 'p1')).toBe('/unternehmen/u1/produkt?produkt=p1');
     expect(produktFormRoute('u1')).toBe('/unternehmen/u1/produkt');
+  });
+});
+
+describe('produktListDetailRoute', () => {
+  it('baut die Listen-Detailroute', () => {
+    expect(produktListDetailRoute('p1')).toBe('/produkt/p1');
+  });
+
+  it('erkennt den Listen-Pfad', () => {
+    expect(isStandaloneProduktPath('/produkt')).toBe(true);
+    expect(isStandaloneProduktPath('/produkt/p1')).toBe(true);
+    expect(isStandaloneProduktPath('/produkt/new')).toBe(true);
+    expect(isStandaloneProduktPath('/unternehmen/u1/produkt')).toBe(false);
+    expect(isStandaloneProduktPath('/marke/m1/produkt')).toBe(false);
+  });
+});
+
+describe('ProduktService.loadOne', () => {
+  afterEach(() => {
+    delete window.supabase;
+  });
+
+  function mockLoadQuery() {
+    const eqs = [];
+    const chain = {
+      select() { return chain; },
+      eq(col, val) { eqs.push([col, val]); return chain; },
+      maybeSingle: async () => ({ data: { id: 'p1', name: 'Serum' }, error: null })
+    };
+    window.supabase = { from: vi.fn(() => chain) };
+    return eqs;
+  }
+
+  it('lädt ohne Owner nur nach id', async () => {
+    const eqs = mockLoadQuery();
+    await ProduktService.loadOne('p1');
+    expect(eqs).toEqual([['id', 'p1']]);
+  });
+
+  it('filtert nach Unternehmen wenn gesetzt', async () => {
+    const eqs = mockLoadQuery();
+    await ProduktService.loadOne('p1', { unternehmenId: 'u1' });
+    expect(eqs).toEqual([['unternehmen_id', 'u1'], ['id', 'p1']]);
   });
 });
 
@@ -244,6 +289,12 @@ describe('ProduktList Anlegen', () => {
     window.navigateTo = vi.fn();
     new ProduktList().showCreateForm();
     expect(window.navigateTo).toHaveBeenCalledWith('/produkt/new');
+  });
+
+  it('öffnet das Produkt über die Listen-Route', () => {
+    window.navigateTo = vi.fn();
+    new ProduktList().openProdukt('p1', 'u1');
+    expect(window.navigateTo).toHaveBeenCalledWith('/produkt/p1');
   });
 });
 

@@ -173,6 +173,15 @@ describe('validateVorschlaege (Quality-Mix)', () => {
     expect(sauber._meta).toBeUndefined();
     expect(sauber.alter_von).toBeNull();
   });
+
+  it('sanitizePersonaPayload clampt budgetrahmen auf niedrig/mittel/hoch', () => {
+    expect(sanitizePersonaPayload({ name: 'A', budgetrahmen: 'niedrig' }).budgetrahmen).toBe('niedrig');
+    expect(sanitizePersonaPayload({ name: 'A', budgetrahmen: 'Mittel' }).budgetrahmen).toBe('mittel');
+    expect(sanitizePersonaPayload({ name: 'A', budgetrahmen: 'mittel bis hoch' }).budgetrahmen).toBeNull();
+    expect(sanitizePersonaPayload({ name: 'A', budgetrahmen: 'niedrig bis mittel' }).budgetrahmen).toBeNull();
+    expect(sanitizePersonaPayload({ name: 'A', budgetrahmen: '' }).budgetrahmen).toBeNull();
+    expect(sanitizePersonaPayload({ name: 'A', budgetrahmen: null }).budgetrahmen).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------

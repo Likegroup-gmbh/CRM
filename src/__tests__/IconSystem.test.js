@@ -70,6 +70,9 @@ describe('IconSystem Guard', () => {
     expect(ENTITY_ICONS.creator).toBe('creator');
     expect(ENTITY_ICONS.creators).toBe('creator');
     expect(ENTITY_ICONS.management).toBe('management');
+    expect(ENTITY_ICONS.sourcing).toBe('sourcing');
+    expect(ENTITY_ICONS.kundenrechnungen).toBe('rechnung');
+    expect(ENTITY_ICONS.stakeholder).toBe('chart-trend');
   });
 
   it('jeder ICON_ALIASES-Wert zeigt auf einen existierenden Def-Key', () => {
@@ -115,5 +118,17 @@ describe('IconSystem Guard', () => {
   it('filled-Defs (plus-sign) bekommen crm-icon--filled', () => {
     expect(icon('plus-sign')).toContain('crm-icon--filled');
     expect(icon('plus')).not.toContain('crm-icon--filled');
+  });
+
+  it('Liky/Chat-Icons sind zentral verfuegbar (ai-chat, arrows-collapse, chat-bot Alias)', () => {
+    expect(hasIcon('ai-chat')).toBe(true);
+    expect(hasIcon('arrows-collapse')).toBe(true);
+    expect(hasIcon('chat-bot')).toBe(true);
+    expect(normalizeIconKey('chat-bot')).toBe('ai-chat');
+    expect(normalizeIconKey('liky')).toBe('ai-chat');
+    expect(ICON_DEFS['ai-chat'].viewBox).toBe('0 0 24 24');
+    // Kein stroke-width im Def - Stroke kommt aus CSS
+    expect(ICON_DEFS['ai-chat'].body).not.toContain('stroke-width');
+    expect(ICON_DEFS['arrows-collapse'].body).not.toContain('stroke-width');
   });
 });

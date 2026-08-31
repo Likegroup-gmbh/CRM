@@ -182,6 +182,45 @@ describe('breadcrumbSwitcher', () => {
     expect(calls.neq).toContainEqual(['rolle', 'gast']);
   });
 
+  it('Produkt ohne Owner-Context navigiert auf die Listen-Route', async () => {
+    const { supabase } = createQuery({
+      data: [{ id: 'p1', name: 'Serum' }]
+    });
+    window.supabase = supabase;
+
+    const { items } = await loadSwitcherItems({ segment: 'produkt' });
+    expect(items[0]).toEqual({ id: 'p1', label: 'Serum', route: '/produkt/p1' });
+  });
+
+  it('Produkt mit Owner-Context navigiert nested', async () => {
+    const { supabase } = createQuery({
+      data: [{ id: 'p1', name: 'Serum' }]
+    });
+    window.supabase = supabase;
+
+    const { items } = await loadSwitcherItems({
+      segment: 'produkt',
+      context: {
+        typ: 'unternehmen',
+        unternehmenId: 'u1',
+        ownerId: 'u1',
+        basePath: '/unternehmen/u1'
+      }
+    });
+    expect(items[0].route).toBe('/unternehmen/u1/produkt?produkt=p1');
+  });
+
+  it('Persona ohne Owner bleibt leer', async () => {
+    const { supabase } = createQuery({
+      data: [{ id: 'x1', name: 'Alex', oberbegriff: 'Test' }]
+    });
+    window.supabase = supabase;
+
+    const { items } = await loadSwitcherItems({ segment: 'persona' });
+    expect(items).toEqual([]);
+    expect(supabase.from).not.toHaveBeenCalled();
+  });
+
   it('gibt leer zurück ohne can_view', async () => {
     window.currentUser = { id: 'm1', rolle: 'mitarbeiter' };
     const { supabase } = createQuery({ data: [{ id: 'a1', auftragsname: 'X' }] });

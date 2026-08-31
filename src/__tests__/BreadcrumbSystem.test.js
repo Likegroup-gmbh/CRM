@@ -76,6 +76,16 @@ describe('BreadcrumbSystem Rework', () => {
       expect(current).not.toBeNull();
       expect(current.textContent).toContain('...');
     });
+
+    it('Produkt-Listen-Detail startet mit Produkte > …', async () => {
+      const system = await createBreadcrumbSystem();
+      system.setFromRoute('produkt', 'p1');
+
+      const items = container.querySelectorAll('.breadcrumb-item');
+      expect(items).toHaveLength(2);
+      expect(items[0].textContent).toContain('Produkte');
+      expect(items[1].textContent).toContain('...');
+    });
   });
 
   describe('Zyklus 3: updateDetailLabel Happy Path', () => {
@@ -364,7 +374,8 @@ describe('BreadcrumbSystem Rework', () => {
 
       expect(breadcrumbSwitcher.loadSwitcherItems).toHaveBeenLastCalledWith({
         segment: 'kampagne',
-        query: 'winter'
+        query: 'winter',
+        context: expect.objectContaining({ segment: 'kampagne', id: '123' })
       });
     });
 
