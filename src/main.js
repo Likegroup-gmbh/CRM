@@ -137,6 +137,8 @@ import './core/ConfirmationModal.js';
 import { DuplicateChecker } from './core/validation/DuplicateChecker.js';
 // SubmitGuard für globalen Doppelklick-Schutz + Navigation
 import { submitGuard } from './core/SubmitGuard.js';
+import { enableManualScrollRestoration } from './core/NavigationScroll.js';
+import './modules/kooperation/kooperationFromKampagne.js';
 // App Service Locator
 import App from './core/App.js';
 import { ModuleRegistry } from './core/ModuleRegistry.js';
@@ -452,6 +454,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // SubmitGuard initialisieren (globaler Doppelklick-Schutz + Navigation)
     submitGuard.init();
+    enableManualScrollRestoration();
     
     // App anzeigen
     window.appRoot.style.display = '';

@@ -16,7 +16,8 @@ export class CreatorFilterLogic {
 
     for (const [key, value] of Object.entries(filters)) {
       if (key.startsWith('_')) continue;
-      if (!value) continue;
+      // false ist ein gültiger Boolean-Filter ("Hat kein Haustier")
+      if (value === '' || value === null || value === undefined) continue;
 
       switch (key) {
         case 'name':
@@ -63,6 +64,20 @@ export class CreatorFilterLogic {
           };
           break;
 
+        case 'has_instagram':
+          processedFilters['instagram'] = {
+            type: 'not_null',
+            value: value
+          };
+          break;
+
+        case 'has_tiktok':
+          processedFilters['tiktok'] = {
+            type: 'not_null',
+            value: value
+          };
+          break;
+
         case 'has_phone':
           // Virtual Filter: Telefon vorhanden
           processedFilters['telefonnummer'] = {
@@ -92,11 +107,23 @@ export class CreatorFilterLogic {
           break;
 
         case 'lieferadresse_stadt':
-          // Stadt-Filter mit Like-Suche
+        case 'lieferadresse_plz':
+          // Stadt-/PLZ-Filter mit Like-Suche
           processedFilters[key] = {
             type: 'text_search',
             value: value
           };
+          break;
+
+        case 'ig_engagement_rate':
+        case 'budget_letzte_buchung':
+          if (typeof value === 'object') {
+            processedFilters[key] = {
+              type: 'number_range',
+              min: value.min ?? null,
+              max: value.max ?? null
+            };
+          }
           break;
 
         case 'sprache_id':
@@ -104,6 +131,8 @@ export class CreatorFilterLogic {
         case 'branche':
         case 'creator_type_id':
         case 'kunde_id':
+        case 'management_id':
+        case 'firma_id':
           // M:N-Filter werden in DataService über Junction-Tabellen aufgelöst
           break;
 

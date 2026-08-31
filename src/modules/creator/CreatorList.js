@@ -161,6 +161,11 @@ export class CreatorList extends BasePaginatedList {
    * damit die Scroll-Position nicht nach oben springt.
    * @returns {Promise<boolean>} true = Full-Reload unterdrücken
    */
+  async loadMoreForScroll() {
+    if (this.viewMode !== 'grid' || !this.gridView) return false;
+    return this.gridView.loadMoreForScroll();
+  }
+
   async handleEntityUpdated(detail) {
     if (this.viewMode !== 'grid') return false;
     if (!detail?.id) return false;

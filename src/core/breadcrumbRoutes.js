@@ -26,6 +26,7 @@ const ROUTE_CONFIG = {
   mitarbeiter:        { label: 'Mitarbeiter',       entity: 'mitarbeiter' },
   'kunden-admin':     { label: 'Kunden',            entity: 'kunden-admin' },
   'admin/kunden':     { label: 'Kunden',            entity: 'kunden-admin' },
+  kunde:              { label: 'Kunden',            entity: 'kunden-admin' },
   kunden:             { label: 'Übersicht',         entity: 'kunden' },
   tabellen:           { label: 'Tabellen',          entity: 'tabellen' },
   feedback:           { label: 'Feedback',          entity: 'feedback' },

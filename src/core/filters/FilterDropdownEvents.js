@@ -36,6 +36,19 @@ export function bindGlobalEvents(ctx) {
       return;
     }
 
+    // --- Erweiterte Filter ein-/ausklappen ---
+    const advancedToggle = e.target.closest('.filter-advanced-toggle');
+    if (advancedToggle) {
+      e.preventDefault();
+      e.stopPropagation();
+      const block = advancedToggle.nextElementSibling;
+      const willShow = !block?.classList.contains('show');
+      block?.classList.toggle('show', willShow);
+      advancedToggle.setAttribute('aria-expanded', willShow ? 'true' : 'false');
+      advancedToggle.textContent = willShow ? 'Weniger anzeigen' : 'Mehr anzeigen';
+      return;
+    }
+
     // --- Filter-Option → Submenu öffnen ---
     const filterOption = e.target.closest('.filter-option');
     if (filterOption) {

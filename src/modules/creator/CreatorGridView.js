@@ -127,6 +127,13 @@ export class CreatorGridView {
     }
   }
 
+  async loadMoreForScroll() {
+    if (this._reachedEnd || this._loading || this.list._destroyed) return false;
+    const before = this._loadedCount;
+    await this._loadChunk(this._requestId);
+    return this._loadedCount > before;
+  }
+
   _appendCards(items) {
     const container = this.getContainer();
     if (!container || !items.length) return;

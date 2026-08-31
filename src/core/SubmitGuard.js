@@ -66,10 +66,11 @@ class SubmitGuard {
 
   // Bei erfolgreichem Erstellen zur Listenseite navigieren
   handleEntityCreated(e) {
-    const { entity, action } = e.detail || {};
+    const { entity, action, skipListRedirect } = e.detail || {};
     
     // Nur bei 'created' Action
     if (action !== 'created') return;
+    if (skipListRedirect) return;
     
     // Prüfen ob das Formular in einem Modal/Drawer ist
     // Wenn ja, NICHT zur Liste navigieren (Modal/Drawer schließt sich selbst)
@@ -163,6 +164,8 @@ class SubmitGuard {
     console.log('🔓 SubmitGuard: Alle Buttons freigegeben');
   }
 }
+
+export { SubmitGuard };
 
 // Singleton exportieren
 export const submitGuard = new SubmitGuard();
