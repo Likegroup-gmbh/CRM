@@ -35,24 +35,43 @@ export function renderDropdown(ctx, entityType, config) {
           </button>
         </div>
         <div class="filter-dropdown-body">
-          ${renderFilterOptions(config.filters)}
+          ${renderFilterOptions(config.filters, new Set(Object.keys(ctx.getActiveFilters(entityType) || {})))}
         </div>
       </div>
     </div>
   `;
 }
 
-export function renderFilterOptions(filters) {
-  if (!filters || filters.length === 0) {
-    return '<div class="filter-dropdown-empty">Keine Filter verfügbar</div>';
-  }
-
-  return filters.map(filter => `
+function renderFilterOption(filter) {
+  return `
     <div class="filter-option" data-filter-id="${filter.id}" data-filter-type="${filter.type}">
       <span class="filter-option-label">${filter.label}</span>
       ${icon('chevron-right')}
     </div>
-  `).join('');
+  `;
+}
+
+export function renderFilterOptions(filters, activeIds = new Set()) {
+  if (!filters || filters.length === 0) {
+    return '<div class="filter-dropdown-empty">Keine Filter verfügbar</div>';
+  }
+
+  const primary = filters.filter(filter => !filter.advanced);
+  const advanced = filters.filter(filter => filter.advanced);
+  const expanded = advanced.some(filter => activeIds.has(filter.id));
+
+  let html = primary.map(renderFilterOption).join('');
+  if (advanced.length === 0) return html;
+
+  html += `
+    <button type="button" class="filter-advanced-toggle" aria-expanded="${expanded ? 'true' : 'false'}">
+      ${expanded ? 'Weniger anzeigen' : 'Mehr anzeigen'}
+    </button>
+    <div class="filter-advanced-options${expanded ? ' show' : ''}">
+      ${advanced.map(renderFilterOption).join('')}
+    </div>
+  `;
+  return html;
 }
 
 // ---------------------------------------------------------------------------

@@ -59,3 +59,33 @@ describe('NavigationGuard – Mehrfach-Klick-Schutz', () => {
     expect(mockModule.init).toHaveBeenCalledWith('def');
   });
 });
+
+describe('Kunden-Routen-Alias', () => {
+  let registry;
+  let kundenDetail;
+
+  beforeEach(() => {
+    registry = new ModuleRegistry();
+    kundenDetail = { init: vi.fn(() => Promise.resolve()), destroy: vi.fn() };
+    registry.register('kunden-detail', kundenDetail);
+    window.currentUser = { rolle: 'admin' };
+  });
+
+  it('leitet /kunde/:id/edit auf die Kundendetailseite', async () => {
+    await registry.navigateTo('/kunde/39633377-48a7-4efb-a30d-dce388f5269e/edit');
+    expect(kundenDetail.init).toHaveBeenCalledWith('39633377-48a7-4efb-a30d-dce388f5269e');
+  });
+
+  it('leitet /kunde/:id auf die Kundendetailseite', async () => {
+    await registry.navigateTo('/kunde/39633377-48a7-4efb-a30d-dce388f5269e');
+    expect(kundenDetail.init).toHaveBeenCalledWith('39633377-48a7-4efb-a30d-dce388f5269e');
+  });
+
+  it('laesst /kunden (Portal) unangetastet', async () => {
+    const portal = { init: vi.fn(() => Promise.resolve()), destroy: vi.fn() };
+    registry.register('kunden', portal);
+    await registry.navigateTo('/kunden');
+    expect(portal.init).toHaveBeenCalled();
+    expect(kundenDetail.init).not.toHaveBeenCalled();
+  });
+});

@@ -7,6 +7,10 @@ import { actionsDropdown } from '../../core/ActionsDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { KooperationFilterLogic } from './filters/KooperationFilterLogic.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import {
+  resolveKampagneIdFromCreateContext,
+  resolveKooperationCreateRedirect
+} from './kooperationFromKampagne.js';
 import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
 import { resolveEmptyState, bindEmptyStateActions } from '../../core/components/EmptyState.js';
 
@@ -871,23 +875,29 @@ export class KooperationList {
       
       if (result.success) {
         this.showSuccessMessage('Kooperation erfolgreich erstellt!');
-        
-        // Event auslösen für Listen-Update
+
+        const kampagneId = resolveKampagneIdFromCreateContext({
+          submitData,
+          form,
+          search: window.location.search
+        });
+
         window.dispatchEvent(new CustomEvent('entityUpdated', {
-          detail: { entity: 'kooperation', action: 'created', id: result.id }
+          detail: {
+            entity: 'kooperation',
+            action: 'created',
+            id: result.id,
+            skipListRedirect: true
+          }
         }));
-        
-        // Wenn kampagne_id vorhanden, zurück zur Kampagnen-Detailseite
-        if (submitData.kampagne_id) {
-          setTimeout(() => {
-            window.navigateTo(`/kampagne/${submitData.kampagne_id}`);
-          }, 1500);
-        } else {
-          // Sonst zur Kooperations-Detailseite
-          setTimeout(() => {
-            window.navigateTo(`/kooperation/${result.id}`);
-          }, 1500);
-        }
+
+        const redirect = resolveKooperationCreateRedirect({
+          kampagneId,
+          newKooperationId: result.id
+        });
+        setTimeout(() => {
+          window.navigateTo(redirect);
+        }, 1500);
       } else {
         this.showErrorMessage(`Fehler beim Erstellen: ${result.error}`);
       }

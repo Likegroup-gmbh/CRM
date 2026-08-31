@@ -2,6 +2,7 @@
 // Event-Binding und -Teardown für die Kampagnen-Detailseite
 
 import { KampagneUtils } from './KampagneUtils.js';
+import { navigateToNewKooperationFromKampagne } from '../kooperation/kooperationFromKampagne.js';
 import { VideoTableColumnVisibilityDrawer } from './VideoTableColumnVisibilityDrawer.js';
 import { CustomColumnsDrawer } from './columns/CustomColumnsDrawer.js';
 import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
@@ -194,18 +195,7 @@ export function setupEvents(detail) {
   if (btnNewKooperation) {
     btnNewKooperation.addEventListener('click', (e) => {
       e.preventDefault();
-      if (detail.kampagneData) {
-        window.kooperationPrefillCache = {
-          kampagne_id: detail.kampagneId,
-          kampagnenname: KampagneUtils.getDisplayName(detail.kampagneData),
-          unternehmen_id: detail.kampagneData.unternehmen_id,
-          marke_id: detail.kampagneData.marke_id || null,
-          unternehmen: detail.kampagneData.unternehmen,
-          marke: detail.kampagneData.marke,
-          timestamp: Date.now()
-        };
-      }
-      window.navigateTo(`/kooperation/new?kampagne_id=${detail.kampagneId}`);
+      navigateToNewKooperationFromKampagne(detail.kampagneId, detail.kampagneData);
     }, { signal });
   }
 

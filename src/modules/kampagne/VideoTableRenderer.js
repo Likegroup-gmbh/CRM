@@ -166,7 +166,7 @@ export class VideoTableRenderer {
           ? 'Es wurden noch keine Kooperationen für diese Kampagne angelegt.'
           : 'Erstelle eine Kooperation, um sie hier mit Videos zu verwalten.',
         actionsHtml: !isKunde
-          ? `<button class="mdc-btn" onclick="window.navigateTo('/kooperation/new?kampagne_id=${t.kampagneId}')">Kooperation anlegen</button>`
+          ? `<button class="mdc-btn" onclick="window.navigateToNewKooperationFromKampagne('${t.kampagneId}')">Kooperation anlegen</button>`
           : ''
       });
     }

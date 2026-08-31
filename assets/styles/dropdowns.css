@@ -168,6 +168,31 @@
   font-size: var(--text-sm);
 }
 
+.filter-advanced-toggle {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: var(--space-sm) var(--space-md);
+  text-align: left;
+  color: var(--gray-600);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.filter-advanced-toggle:hover {
+  background: var(--gray-50);
+  color: var(--gray-800);
+}
+
+.filter-advanced-options {
+  display: none;
+}
+
+.filter-advanced-options.show {
+  display: block;
+}
+
 .filter-option .submenu-arrow {
   margin-left: auto;
   color: var(--gray-400);

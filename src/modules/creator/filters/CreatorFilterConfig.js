@@ -180,6 +180,83 @@ export const CREATOR_FILTERS = [
     label: 'Portfolio vorhanden',
     virtual: true, // Wird in der Logik verarbeitet
     priority: 11
+  }),
+
+  createFilterConfig('boolean', {
+    id: 'hat_haustier',
+    label: 'Hat Haustier',
+    priority: 12
+  }),
+  createFilterConfig('boolean', {
+    id: 'hat_kinder',
+    label: 'Hat Kinder',
+    priority: 13
+  }),
+  createFilterConfig('boolean', {
+    id: 'spielt_instrument',
+    label: 'Spielt Instrument',
+    advanced: true,
+    priority: 14
+  }),
+
+  createFilterConfig('select', {
+    id: 'management_id',
+    label: 'Management',
+    table: 'management',
+    displayField: 'firmenname',
+    valueField: 'id',
+    dynamic: true,
+    placeholder: 'Management auswählen...',
+    advanced: true,
+    priority: 15
+  }),
+  createFilterConfig('select', {
+    id: 'firma_id',
+    label: 'Firma',
+    table: 'firma',
+    displayField: 'firmenname',
+    valueField: 'id',
+    dynamic: true,
+    placeholder: 'Firma auswählen...',
+    advanced: true,
+    priority: 16
+  }),
+
+  createFilterConfig('text', {
+    id: 'lieferadresse_plz',
+    label: 'PLZ',
+    placeholder: 'Nach PLZ suchen...',
+    priority: 17
+  }),
+
+  createFilterConfig('dateRange', {
+    id: 'created_at',
+    label: 'Angelegt am',
+    type: 'dateRange',
+    advanced: true,
+    priority: 18
+  }),
+  createFilterConfig('dateRange', {
+    id: 'updated_at',
+    label: 'Aktualisiert am',
+    type: 'dateRange',
+    advanced: true,
+    priority: 19
+  }),
+
+  createFilterConfig('boolean', {
+    id: 'has_instagram',
+    label: 'Instagram vorhanden',
+    virtual: true,
+    advanced: true,
+    priority: 20
+  }),
+  createFilterConfig('boolean', {
+    id: 'has_tiktok',
+    label: 'TikTok vorhanden',
+    virtual: true,
+    advanced: true,
+    priority: 21
   })
 ];
 
@@ -190,25 +267,37 @@ export const CREATOR_FILTER_GROUPS = [
   {
     id: 'basic',
     label: 'Grundlagen',
-    filters: ['name', 'creator_type_id', 'sprache_id', 'branche_id', 'kunde_id', 'geschlecht', 'alter'],
+    filters: ['name', 'creator_type_id', 'sprache_id', 'branche_id', 'kunde_id', 'geschlecht', 'alter', 'hat_haustier', 'hat_kinder', 'spielt_instrument'],
     expanded: true
   },
   {
     id: 'social',
     label: 'Social Media',
-    filters: ['instagram_follower', 'tiktok_follower'],
+    filters: ['instagram_follower', 'tiktok_follower', 'has_instagram', 'has_tiktok'],
     expanded: false
   },
   {
     id: 'location',
     label: 'Standort',
-    filters: ['lieferadresse_stadt', 'lieferadresse_land'],
+    filters: ['lieferadresse_stadt', 'lieferadresse_land', 'lieferadresse_plz'],
     expanded: false
   },
   {
     id: 'contact',
     label: 'Kontakt',
     filters: ['has_email', 'has_phone', 'has_portfolio'],
+    expanded: false
+  },
+  {
+    id: 'relations',
+    label: 'Beziehungen',
+    filters: ['management_id', 'firma_id'],
+    expanded: false
+  },
+  {
+    id: 'meta',
+    label: 'Zeit',
+    filters: ['created_at', 'updated_at'],
     expanded: false
   },
 ];

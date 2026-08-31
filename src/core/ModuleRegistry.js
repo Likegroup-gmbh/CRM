@@ -1,5 +1,14 @@
 import { OptionsManager } from './form/data/OptionsManager.js';
 import { resetElementCount } from './dev/ListenerMonitor.js';
+import {
+  rememberScrollForRoute,
+  saveScrollToCurrentHistory,
+  applyScrollAfterNavigation,
+  savedScrollFor,
+  historyScrollFor,
+  mergeScrolls,
+  currentHistoryRoute
+} from './NavigationScroll.js';
 export { OptionsManager };
 
 export class ModuleRegistry {
@@ -24,12 +33,29 @@ export class ModuleRegistry {
   async navigateTo(route, skipPushState = false) {
     if (this._isNavigating) return;
     this._isNavigating = true;
+    this._didInitModule = false;
 
     try {
-    return await this._doNavigate(route, skipPushState);
+      // Vor pushState merken: nach popstate ist die URL schon das Ziel.
+      if (!skipPushState) {
+        rememberScrollForRoute();
+        saveScrollToCurrentHistory();
+      }
+      const result = await this._doNavigate(route, skipPushState);
+      if (this._didInitModule) {
+        await this._restoreScrollAfterNav();
+      }
+      return result;
     } finally {
       this._isNavigating = false;
     }
+  }
+
+  async _restoreScrollAfterNav() {
+    const dest = currentHistoryRoute();
+    const scroll = mergeScrolls(historyScrollFor(dest), savedScrollFor(dest));
+    const loadMore = this.currentModule?.loadMoreForScroll?.bind(this.currentModule);
+    await applyScrollAfterNavigation({ ...scroll, loadMore });
   }
 
   async _doNavigate(route, skipPushState = false) {
@@ -73,6 +99,9 @@ export class ModuleRegistry {
     try {
       if (route.startsWith('/admin/kunden')) {
         route = route.replace('/admin/kunden', '/kunden-admin');
+      } else if (route === '/kunde' || route.startsWith('/kunde/')) {
+        // Aktionsmenü baut /kunde/:id(/edit) — das Modul heißt kunden-admin / kunden-detail.
+        route = `/kunden-admin${route.slice('/kunde'.length)}`;
       }
     } catch (err) {
       console.warn('⚠️ Route-Mapping fehlgeschlagen:', err?.message);
@@ -433,6 +462,7 @@ export class ModuleRegistry {
     if (module) {
       console.log(`✅ Modul gefunden: ${moduleKey}`, module);
       this.currentModule = module;
+      this._didInitModule = true;
 
       const effectiveId = id ? id.split('?')[0] : id;
       if (effectiveId === 'new') {
