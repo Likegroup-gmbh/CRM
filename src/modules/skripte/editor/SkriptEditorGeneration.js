@@ -16,8 +16,6 @@ export class SkriptEditorGeneration {
     const v = this.view;
     if (v.isReadonly || v.neuModus) return;
 
-    v.feedbackDrawer.close();
-
     // Verbindungen des offenen Skripts beenden
     if (v.channel) {
       window.supabase.removeChannel(v.channel);

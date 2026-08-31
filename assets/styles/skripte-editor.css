@@ -1,9 +1,10 @@
 /* ---------------------------------------------------------------------------
-   Chat-Editor (3 Spalten: Skriptliste | Skript + Eingabe | Chat-Verlauf)
+   Skript-Editor (3 Spalten: Skriptliste | Skript | Feedback)
+   Der Liky-Chat liegt als aufklappbare Bubble ueber dem Dokument.
 --------------------------------------------------------------------------- */
 
 /* Editor nimmt exakt die sichtbare Hoehe ein - kein globaler Scroll,
-   nur die einzelnen Spalten (Liste / Doc / Chat) scrollen intern. */
+   nur die einzelnen Spalten (Liste / Doc / Feedback) scrollen intern. */
 .main-wrapper:has(.skripte-page--editor) {
   display: flex;
   flex-direction: column;
@@ -41,7 +42,8 @@
   border-radius: var(--radius-xl);
 }
 
-/* Shell: drei Kästen mit Gap (Liste | Dokument | Chat) */
+/* Shell: drei Kästen mit Gap (Liste | Dokument | Feedback).
+   Die dritte Spalte steht allen Rollen offen - Kunden kommentieren dort. */
 .skripte-editor-shell {
   display: grid;
   grid-template-columns: var(--panel-md) minmax(0, 1fr) var(--panel-lg);
@@ -53,26 +55,14 @@
   min-height: 0;
 }
 
-.skripte-editor--readonly .skripte-editor-shell {
-  grid-template-columns: var(--panel-md) minmax(0, 1fr);
-}
-
 .skripte-editor--liste-collapsed .skripte-editor-shell {
   grid-template-columns: var(--sidebar-width-collapsed) minmax(0, 1fr) var(--panel-lg);
-}
-
-.skripte-editor--readonly.skripte-editor--liste-collapsed .skripte-editor-shell {
-  grid-template-columns: var(--sidebar-width-collapsed) minmax(0, 1fr);
 }
 
 @media (max-width: 1200px) {
   .skripte-editor-shell,
   .skripte-editor--liste-collapsed .skripte-editor-shell {
     grid-template-columns: minmax(0, 1fr) var(--panel-lg);
-  }
-  .skripte-editor--readonly .skripte-editor-shell,
-  .skripte-editor--readonly.skripte-editor--liste-collapsed .skripte-editor-shell {
-    grid-template-columns: minmax(0, 1fr);
   }
   .skripte-editor-liste {
     display: none;
@@ -97,17 +87,24 @@
 
 }
 
+.skripte-editor-liste-head,
+.skripte-editor-doc-head,
+.skripte-editor-fb-head {
+  min-height: calc(var(--space-sm) * 2 + var(--space-xs) * 2 + 1.5 * var(--text-sm) + var(--border-xs) * 3);
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
 .skripte-editor-liste-head {
   display: flex;
-  align-items: center;
   justify-content: space-between;
   gap: var(--space-xs);
   font-size: var(--text-sm);
   font-weight: 500;
   color: var(--gray-800);
-  padding: var(--space-md);
-  border-bottom: 1px solid var(--border-primary);
-  flex-shrink: 0;
 }
 
 .skripte-editor-liste-head-start {
@@ -219,11 +216,8 @@
 
 .skripte-editor-doc-head {
   display: flex;
-  align-items: center;
   flex-wrap: wrap;
   gap: var(--space-sm);
-  padding: var(--space-md);
-  border-bottom: var(--border-xs) solid var(--border-primary);
 }
 
 .skripte-editor-doc-head h2 {
@@ -760,13 +754,20 @@
   opacity: 0.85;
 }
 
-/* Rechte Spalte: Chat-Verlauf ("Liky") + Composer unten */
+/* ---------------------------------------------------------------------------
+   Liky: Positionierung/Head/Buttons liegen in der ChatPanelShell
+   (assets/styles/chat-panel.css). Hier bleiben nur die Inner-Styles des
+   Skript-Chats (Verlauf, Composer, Messages) - das Panel traegt weiter die
+   Klasse .skripte-editor-chat.
+   --------------------------------------------------------------------------- */
+
+/* Chat-Verlauf ("Liky") + Composer unten. Auch der Feedback-Composer teilt
+   sich .skripte-editor-inputwrap - die Liky-Padding-Regel haengt am Panel. */
 .skripte-editor-chat {
   display: flex;
   flex-direction: column;
   min-height: 0;
   background: var(--bg-primary);
-  border-left: 1px solid var(--border-primary);
 
   overflow: hidden;
 }
@@ -960,4 +961,169 @@
 
 .skripte-editor-pill-btn--primary:hover {
   background: var(--gray-800);
+}
+
+/* ---------------------------------------------------------------------------
+   Rechte Spalte: Feedback-Threads zu markierten Stellen.
+   Nutzt die Chat-Klassen (.skripte-editor-msg-*, .skripte-editor-input),
+   hier stehen nur die Ergaenzungen fuer Kopfzeile, Antworten und Erledigt.
+--------------------------------------------------------------------------- */
+.skripte-editor-fb {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-primary);
+  border-left: 1px solid var(--border-primary);
+  overflow: hidden;
+}
+
+.skripte-editor-fb-head {
+  display: flex;
+  gap: var(--space-xs);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.skripte-editor-fb-head-icon {
+  display: inline-flex;
+  color: var(--text-primary);
+}
+
+.skripte-editor-fb-head-icon svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.skripte-editor-fb-log {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.skripte-editor-fb-log .skripte-editor-chat-empty {
+  margin: auto;
+}
+
+.skripte-editor-fb-thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--border-primary);
+  font-size: var(--text-sm);
+}
+
+/* Kopf: Avatar + Name/Meta links, Erledigt-Haken rechts */
+.skripte-editor-fb-kopf {
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.skripte-editor-fb-ident {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxxs);
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+}
+
+.skripte-editor-fb-meta {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skripte-editor-fb-check {
+  background: none;
+  border: none;
+  padding: var(--space-xxs);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.skripte-editor-fb-check svg {
+  width: var(--icon-sm);
+  height: var(--icon-sm);
+}
+
+.skripte-editor-fb-check:hover {
+  background: var(--gray-100);
+  color: var(--text-primary);
+}
+
+.skripte-editor-fb-check.is-erledigt {
+  color: var(--color-success);
+}
+
+/* Antworten haengen eingerueckt am Thread, wie das Zitat im Chat */
+.skripte-editor-fb-antwort {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-left: var(--space-sm);
+  padding-left: var(--space-sm);
+  border-left: var(--border-sm) solid var(--border-secondary);
+}
+
+.skripte-editor-fb-reply .skripte-editor-input {
+  margin-top: var(--space-xs);
+}
+
+/* Erledigt: Thread schrumpft auf eine Zeile, Klick klappt ihn wieder auf */
+.skripte-editor-fb-thread--erledigt {
+  opacity: 0.55;
+}
+
+.skripte-editor-fb-thread--erledigt:hover {
+  opacity: 0.8;
+}
+
+.skripte-editor-fb-thread.is-kollabiert {
+  flex-direction: row;
+  align-items: center;
+  padding: var(--space-sm) var(--space-lg);
+}
+
+.skripte-editor-fb-aufklappen {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  color: inherit;
+}
+
+/* Neuer Kommentar: hebt sich vom Verlauf ab, bis er abgeschickt ist */
+.skripte-editor-fb-thread--neu {
+  background: var(--bg-secondary);
+}
+
+/* Autor-Avatar: gleiche Groesse wie Liky, aber Bild oder Initialen */
+.skripte-editor-avatar--user {
+  background: var(--gray-200);
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+  overflow: hidden;
+}
+
+.skripte-editor-avatar--user img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
