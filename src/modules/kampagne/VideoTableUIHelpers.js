@@ -2,6 +2,21 @@
 // UI-Helpers fuer die Kampagnen-Video-Tabelle:
 // Floating Scrollbar, Spalten-Resize, Drag-to-Scroll, Performance-Tracking
 
+const DRAG_SCROLL_SKIP_SELECTOR = '.address-cell, .col-produkt, .resize-handle-col, a';
+
+/** Drag-to-Scroll nicht auf Feldern starten, die Kunden markieren/kopieren. */
+export function shouldStartVideoTableDragScroll(target, isResizing = false) {
+  if (!target || isResizing) return false;
+  const tag = target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || tag === 'A') {
+    return false;
+  }
+  if (typeof target.closest === 'function' && target.closest(DRAG_SCROLL_SKIP_SELECTOR)) {
+    return false;
+  }
+  return true;
+}
+
 export class VideoTableUIHelpers {
   constructor(table) {
     this.table = table;
@@ -265,14 +280,7 @@ export class VideoTableUIHelpers {
     this.table.dragScrollContainer = container;
 
     container.addEventListener('mousedown', (e) => {
-      if (
-        e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' ||
-        e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON' ||
-        e.target.classList.contains('resize-handle-col') ||
-        e.target.closest('.resize-handle-col') ||
-        e.target.tagName === 'A' || e.target.closest('a') ||
-        this.table.isResizing
-      ) return;
+      if (!shouldStartVideoTableDragScroll(e.target, this.table.isResizing)) return;
 
       this.table.isDragging = true;
       this.table.startX = e.pageX - container.offsetLeft;

@@ -615,6 +615,8 @@
 /* Lieferadresse: Straße / PLZ Stadt / Land untereinander, linksbündig */
 .address-text {
   white-space: pre-line;
+  user-select: text;
+  cursor: text;
 }
 
 .kooperation-video-grid .address-text {
@@ -668,6 +670,8 @@
 
 .address-line {
   text-align: left;
+  user-select: text;
+  cursor: text;
 }
 
 .address-land-text {
@@ -2410,6 +2414,10 @@ width: 18em;
 .stacked-video-input[readonly],
 .stacked-video-textarea[readonly] {
   padding: var(--space-sm) var(--space-md);
+}
+
+.kooperation-video-grid .col-produkt .stacked-video-input[readonly] {
+  cursor: text;
 }
 
 /* External Link Button */
