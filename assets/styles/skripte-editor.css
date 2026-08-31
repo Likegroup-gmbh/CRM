@@ -220,15 +220,32 @@
   gap: var(--space-sm);
 }
 
-.skripte-editor-doc-head h2 {
-  margin: 0;
-  font-weight: 500;
-  font-size: var(--text-md);
+.skripte-editor-doc-head .toolbar-listen-kopf {
   flex: 1;
   min-width: 0;
+}
+
+/* Creator-Button im Doc-Kopf: Bubble kompakt, Name gekuerzt */
+.skripte-editor-zuweisen-btn {
+  flex-shrink: 0;
+}
+
+.skripte-editor-zuweisen-bubbles {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.skripte-editor-zuweisen-bubbles .avatar-bubble {
+  --avatar-size: 20px;
+  font-size: 0.55rem;
+  border-width: 2px;
+}
+
+.skripte-editor-zuweisen-name {
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  max-width: 180px;
 }
 
 .skripte-editor-doc-tabs {
@@ -625,30 +642,33 @@
   gap: var(--space-sm);
 }
 
-/* Versions-Auswahl im Doc-Kopf */
+/* Versions-Trigger: gleiches Secondary-Styling wie Teilen/Zuweisen, Chevron bleibt */
 .skripte-editor-version {
   flex-shrink: 0;
 }
 
-/* Pill wie .skripte-badge, Chevron rechts */
 .skripte-editor-version-select {
-  display: inline-block;
-  border: none;
-  border-radius: 999px;
-  background: var(--gray-100)
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='%236b7280'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E")
-    no-repeat right var(--space-xs) center / 10px 10px;
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-  font-family: inherit;
-  line-height: inherit;
-  text-align: left;
-  padding: var(--space-xxs) calc(var(--space-sm) + 12px) var(--space-xxs) var(--space-sm);
   max-width: 220px;
+  padding-right: calc(var(--space-xs) + 14px);
+}
+
+.skripte-editor-version-select .mdc-btn__label {
   overflow: hidden;
-  white-space: nowrap;
   text-overflow: ellipsis;
-  cursor: pointer;
+  min-width: 0;
+}
+
+.skripte-editor-version-select::after {
+  content: '';
+  position: absolute;
+  right: var(--space-xs);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 10px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256' fill='%236b7280'%3E%3Cpath d='M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'/%3E%3C/svg%3E")
+    no-repeat center / 10px 10px;
+  pointer-events: none;
 }
 
 /* Rueckfragen-Phase: Hinweis in der Mitte, solange das Skript noch nicht generiert ist */
@@ -932,22 +952,11 @@
   overflow: hidden;
 }
 
-.skripte-editor-fb-head {
-  display: flex;
-  gap: var(--space-xs);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.skripte-editor-fb-head-icon {
-  display: inline-flex;
-  color: var(--text-primary);
-}
-
-.skripte-editor-fb-head-icon svg {
-  width: var(--icon-sm);
-  height: var(--icon-sm);
+.skripte-editor-fb-head.tab-navigation {
+  align-items: stretch;
+  padding: var(--space-xs) var(--space-md);
+  border: none;
+  border-bottom: var(--border-xs) solid var(--border-primary);
 }
 
 .skripte-editor-fb-log {
@@ -993,6 +1002,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.skripte-editor-fb-gast {
+  display: inline-block;
+  margin-left: var(--space-1, 4px);
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  vertical-align: 1px;
+  color: var(--text-secondary);
+  background: var(--surface-secondary, rgba(0, 0, 0, 0.06));
 }
 
 .skripte-editor-fb-check {
@@ -1067,6 +1088,69 @@
 /* Neuer Kommentar: hebt sich vom Verlauf ab, bis er abgeschickt ist */
 .skripte-editor-fb-thread--neu {
   background: var(--bg-secondary);
+}
+
+/* Info-Zeile (Kunden-Edit am Dokument): Vorher/Nachher in der gleichen
+   Quote-Anmutung wie Kommentar-Zitate - nur die farbige Kante und die
+   Wort-Markierung tragen die Information */
+.skripte-editor-fb-diff {
+  display: block;
+  width: 100%;
+  padding: 0 0 0 var(--space-xs);
+  background: none;
+  border: none;
+  border-left: var(--border-sm) solid var(--border-secondary);
+  font: inherit;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  cursor: pointer;
+}
+
+.skripte-editor-fb-diff-label {
+  font-weight: 600;
+}
+
+.skripte-editor-fb-diff-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.skripte-editor-fb-diff.is-offen .skripte-editor-fb-diff-text {
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.skripte-editor-fb-diff--vorher {
+  border-left-color: var(--color-error);
+}
+
+.skripte-editor-fb-diff--nachher {
+  border-left-color: var(--color-success);
+}
+
+/* Wort-Diff: geaenderte Woerter im Snippet markieren */
+.skripte-editor-fb-diff mark {
+  background: none;
+  color: inherit;
+  font-weight: 600;
+}
+
+.skripte-editor-fb-diff .skripte-editor-fb-mark--del {
+  color: var(--color-error);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.skripte-editor-fb-diff .skripte-editor-fb-mark--ins {
+  color: var(--color-success);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
 }
 
 /* Autor-Avatar: gleiche Groesse wie Liky, aber Bild oder Initialen */

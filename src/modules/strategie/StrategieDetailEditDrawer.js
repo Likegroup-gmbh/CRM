@@ -4,8 +4,19 @@
 import { strategieService } from './StrategieService.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { StrategieCreatorDrawer } from './StrategieCreatorDrawer.js';
+import { handleCreatorUnlink } from './StrategieDetailTableEvents.js';
 
 const DRAWER_ID = 'edit-item-drawer';
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 /** Nur aus TikTok und Instagram laesst sich eine Tonspur bzw. Untertitel ziehen. */
 function isTranscribableUrl(url) {
@@ -103,17 +114,7 @@ function renderEditItemDrawerBody(detail, item) {
         </select>
       </div>
 
-      <div class="form-field">
-        <label for="edit-creator-name">Creator</label>
-        <input 
-          type="text" 
-          id="edit-creator-name" 
-          name="creator_name" 
-          class="form-input" 
-          value="${item.creator_name || ''}"
-          placeholder="Creator-Name..."
-        >
-      </div>
+      ${renderEditCreatorField(item)}
 
       <div class="form-field">
         <label for="edit-beschreibung">Beschreibung</label>
@@ -149,16 +150,98 @@ function renderEditItemDrawerBody(detail, item) {
   `;
 }
 
+/**
+ * Creator-Feld: ohne Verknüpfung das bekannte Freitext-Input plus Button zum
+ * Verbinden; mit Verknüpfung der Live-Name als Profil-Link plus Ändern/Lösen.
+ */
+function renderEditCreatorField(item) {
+  const linked = !!(item.creator_id && item.creator);
+
+  if (item.creator_id) {
+    // Fallback: Join leer (Creator gelöscht) -> gespeicherter Freitext
+    const name = linked
+      ? `${item.creator.vorname || ''} ${item.creator.nachname || ''}`.trim()
+      : (item.creator_name || '');
+    const label = escapeHtml(name || 'Unbekannt');
+
+    return `
+      <div class="form-field form-field--creator">
+        <label>Creator</label>
+        <div class="creator-cell creator-cell--drawer">
+          ${linked
+            ? `<a href="/creator/${item.creator_id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/creator/${item.creator_id}')">${label}</a>`
+            : `<span>${label}</span>`}
+          <span class="creator-cell-actions">
+            <button type="button" class="mdc-btn mdc-btn--secondary" id="btn-edit-creator-change">
+              <span class="mdc-btn__label">Ändern</span>
+            </button>
+            <button type="button" class="mdc-btn mdc-btn--danger" id="btn-edit-creator-unlink">
+              <span class="mdc-btn__label">Lösen</span>
+            </button>
+          </span>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="form-field form-field--creator">
+      <label for="edit-creator-name">Creator</label>
+      <div class="creator-cell creator-cell--drawer">
+        <input
+          type="text"
+          id="edit-creator-name"
+          name="creator_name"
+          class="form-input"
+          value="${escapeAttr(item.creator_name || '')}"
+          placeholder="Creator-Name..."
+        >
+        <button type="button" class="creator-cell-btn" id="btn-edit-creator-connect" title="Creator aus Datenbank verbinden" aria-label="Creator aus Datenbank verbinden">${icon('user-add')}</button>
+      </div>
+    </div>
+  `;
+}
+
+function refreshEditCreatorField(detail, itemId) {
+  const item = detail.items.find(i => i.id === itemId);
+  const field = document.querySelector('#edit-item-form .form-field--creator');
+  if (!item || !field) return;
+
+  const tmp = document.createElement('div');
+  tmp.innerHTML = renderEditCreatorField(item);
+  field.replaceWith(tmp.firstElementChild);
+  bindEditCreatorFieldEvents(detail, itemId);
+}
+
+function bindEditCreatorFieldEvents(detail, itemId) {
+  const form = document.getElementById('edit-item-form');
+  if (!form) return;
+
+  const openCreatorDrawer = () => {
+    const drawer = new StrategieCreatorDrawer(detail);
+    drawer.open(itemId, { onSuccess: () => refreshEditCreatorField(detail, itemId) });
+  };
+
+  form.querySelector('#btn-edit-creator-connect')?.addEventListener('click', openCreatorDrawer);
+  form.querySelector('#btn-edit-creator-change')?.addEventListener('click', openCreatorDrawer);
+  form.querySelector('#btn-edit-creator-unlink')?.addEventListener('click', async () => {
+    const done = await handleCreatorUnlink(detail, itemId);
+    if (done) refreshEditCreatorField(detail, itemId);
+  });
+}
+
 function bindEditItemDrawerEvents(detail, itemId) {
   const form = document.getElementById('edit-item-form');
   const cancelBtn = form?.querySelector('[data-action="close-drawer"]');
-  
+
   cancelBtn?.addEventListener('click', () => closeEditItemDrawer());
-  
+
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
     await handleEditItemSubmit(detail, itemId, new FormData(form));
   });
+
+  bindEditCreatorFieldEvents(detail, itemId);
 }
 
 async function handleEditItemSubmit(detail, itemId, formData) {
@@ -173,7 +256,6 @@ async function handleEditItemSubmit(detail, itemId, formData) {
 
     const videoUrl = formData.get('video_link')?.trim() || null;
     const teilbereich = formData.get('teilbereich') || null;
-    const creatorName = formData.get('creator_name')?.trim() || null;
     const beschreibung = formData.get('beschreibung')?.trim() || null;
 
     const item = detail.items.find(i => i.id === itemId);
@@ -201,10 +283,15 @@ async function handleEditItemSubmit(detail, itemId, formData) {
     const updates = {
       video_link: videoUrl,
       teilbereich: teilbereich,
-      creator_name: creatorName,
       beschreibung: beschreibung,
       plattform: platform
     };
+
+    // Bei bestehender Creator-Verknüpfung ist kein creator_name-Input im
+    // Formular - das Feld darf dann nicht angefasst werden
+    if (formData.has('creator_name')) {
+      updates.creator_name = formData.get('creator_name')?.trim() || null;
+    }
 
     // Wer hier tippt, pflegt von Hand - der KI-Tag verschwindet
     if (beschreibung !== (item?.beschreibung || null)) {

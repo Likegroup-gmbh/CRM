@@ -2268,6 +2268,71 @@ input.readonly-field {
   box-shadow: none;
 }
 
+/* Creator-Zelle (Strategieliste + Edit-Drawer): Freitext oder verknüpfter
+   Creator als Profil-Link, dazu Connect-/Unlink-Icon-Buttons */
+
+.creator-cell {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xxs);
+}
+
+.creator-cell .strategie-textarea {
+  flex: 1;
+  min-width: 0;
+}
+
+.creator-cell-link,
+.creator-cell-name {
+  display: inline-block;
+  padding: var(--space-sm) 0;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.creator-cell-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.creator-cell-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.creator-cell-btn:hover {
+  background: var(--gray-100);
+  color: var(--text-primary);
+}
+
+.creator-cell-btn .crm-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.creator-cell--drawer {
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.creator-cell--drawer .creator-cell-actions {
+  margin-left: auto;
+}
+
 .kategorie-item .form-input {
   flex: 1;
 }

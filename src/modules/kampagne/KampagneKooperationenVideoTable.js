@@ -6,6 +6,7 @@ import { VideoTableFieldHandler } from './VideoTableFieldHandler.js';
 import { VideoUploadDrawer } from './VideoUploadDrawer.js';
 import { VideoSettingsDrawer } from './VideoSettingsDrawer.js';
 import { LinkStrategieItemDrawer } from '../strategie/LinkStrategieItemDrawer.js';
+import { LinkSkriptDrawer } from '../skripte/LinkSkriptDrawer.js';
 import { VideoPlayerLightbox } from '../../core/media/VideoPlayerLightbox.js';
 import { VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
 import { VideoFeedbackSaveController } from '../../core/videoFeedback/VideoFeedbackSaveController.js';
@@ -68,6 +69,7 @@ export class KampagneKooperationenVideoTable {
     this._uploadDrawer = new VideoUploadDrawer();
     this._settingsDrawer = new VideoSettingsDrawer();
     this._linkStrategieDrawer = new LinkStrategieItemDrawer();
+    this._linkSkriptDrawer = new LinkSkriptDrawer();
     this._mediaViewer = new VideoPlayerLightbox(this);
 
     // Die Hover-Toolbar der Live-Link-Spalte laeuft ueber die zentrale Engine.
@@ -282,6 +284,7 @@ export class KampagneKooperationenVideoTable {
   _openCustomUploadDrawer(btn) { return this._drawerActions.openCustomUploadDrawer(btn); }
   _openSettingsDrawer(btn, opts) { return this._drawerActions.openSettingsDrawer(btn, opts); }
   _openLinkStrategieDrawer(btn) { return this._drawerActions.openLinkStrategieDrawer(btn); }
+  _openLinkSkriptDrawer(btn) { return this._drawerActions.openLinkSkriptDrawer(btn); }
   _reloadAfterStrategieLink() { return this._drawerActions.reloadAfterStrategieLink(); }
 
   // ========================================
@@ -480,6 +483,8 @@ export class KampagneKooperationenVideoTable {
     // Drawer-eigene window-Listener (VIDEO_DONE/STORYS_DONE/CUSTOM_DONE,
     // QUEUE_CHANGED) freigeben, sonst bleiben sie pro Tabellen-Instanz haengen.
     this._uploadDrawer?.destroy();
+    this._linkStrategieDrawer?.destroy?.();
+    this._linkSkriptDrawer?.destroy?.();
 
     const container = document.querySelector('.kooperation-video-grid');
     if (container) CustomDatePicker.destroy(container);

@@ -147,11 +147,27 @@
 
 .header-chat-toggle {
   position: relative;
+  padding: var(--space-xs) var(--space-sm);
+  gap: var(--space-xs);
+  color: var(--text-secondary);
+}
+
+.header-chat-toggle:hover {
+  color: var(--text-primary);
 }
 
 .header-chat-toggle.is-offen {
-  background-color: var(--bg-secondary);
+  background-color: var(--gray-50);
   color: var(--text-primary);
+}
+
+/* display: inline-flex von .secondary-btn schlaegt sonst das hidden-Attribut */
+.header-chat-toggle[hidden] {
+  display: none !important;
+}
+
+.header-chat-toggle svg {
+  flex-shrink: 0;
 }
 
 /* Activity-Dot am Header-Icon */

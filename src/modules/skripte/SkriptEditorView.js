@@ -28,7 +28,8 @@ import {
   SEND_ICON, PLACEHOLDER_DEFAULT, PLACEHOLDER_NEU, PLACEHOLDER_FRAGEN
 } from './editor/skriptEditorKonstanten.js';
 import {
-  neuModusHtml, fragenModusHtml, skriptDocHtml, docHeadActionsHtml, vorgabenPanelHtml
+  neuModusHtml, fragenModusHtml, skriptDocHtml, docHeadActionsHtml, vorgabenPanelHtml,
+  verknuepfungenHtml
 } from './editor/SkriptEditorDocRenderer.js';
 import {
   chatLeerNeuHtml, chatLeerHtml, genStatusBubbleHtml, messageHtml, versionsHinweisHtml
@@ -40,6 +41,7 @@ import { SkriptEditorVersionen } from './editor/SkriptEditorVersionen.js';
 import { SkriptEditorVisuell } from './editor/SkriptEditorVisuell.js';
 import { SkriptEditorRealtime } from './editor/SkriptEditorRealtime.js';
 import { SkriptFeedbackPanel } from './editor/SkriptFeedbackPanel.js';
+import { SkriptKooperationDrawer } from './SkriptKooperationDrawer.js';
 
 const MSG_TEXT_SEL = '.skripte-editor-msg-text, .skripte-editor-vorschlag-text';
 const MSG_FOOTER_SEL = '.skripte-editor-msg-actions, .skripte-editor-msg-state, p.skripte-hint';
@@ -175,11 +177,26 @@ export class SkriptEditorView {
     this._visuell = new SkriptEditorVisuell(this);
     this._realtime = new SkriptEditorRealtime(this);
     this._feedback = new SkriptFeedbackPanel(this);
+    this.verknuepfungen = [];
+    this._koopDrawer = null;
   }
 
   /** Dokument selbst nicht editierbar (kein InlineEdit, keine Visual-Buttons). */
   get isReadonly() {
     return Boolean(window.isKunde?.());
+  }
+
+  /**
+   * Dokument-Zellen duerfen interne Nutzer und Kunden bearbeiten; Kunden
+   * speichern dabei ueber den RPC (Feld-Whitelist + Info-Zeile) statt
+   * updateSkript + Version. Share-Gaeste duerfen nur mit dem Recht
+   * 'feedback' (UI: "Bearbeiten") und speichern dann ueber den Gast-RPC.
+   * isReadonly steuert weiterhin die Intern-only-Tools (Liky, Visual-KI,
+   * Generator).
+   */
+  get kannDokumentEditieren() {
+    if (window.permissionSystem?.isGast) return window.guestShare?.rechte === 'feedback';
+    return true;
   }
 
   /** Liky-Bubble und die Rewrite-Aktionen im Selektionsmenue: nur intern. */
@@ -188,18 +205,28 @@ export class SkriptEditorView {
   }
 
   /**
-   * Feedback schreiben duerfen alle ausser Gaesten ohne Feedback-Recht.
-   * Kunden markieren Text und kommentieren - nur die AI-Aktionen fehlen ihnen.
-   * Share-Gaeste haben keine benutzer-Row und damit kein created_by, deshalb
-   * gilt zusaetzlich: ohne Benutzer-ID kein Kommentar.
+   * Feedback schreiben duerfen Kunden und Share-Gaeste mit Feedback-Recht.
+   * Gaeste ohne Feedback-Recht ('ansehen') bleiben lesend. Share-Gaeste
+   * haben keine benutzer-Row: ihr Kommentar laeuft mit created_by = NULL,
+   * der DB-Trigger setzt Autor und guest_participant_id aus dem Gast-JWT.
    */
   get kannKommentieren() {
-    if (window.permissionSystem?.isGastReadonly) return false;
+    if (window.permissionSystem?.isGast) return window.guestShare?.rechte === 'feedback';
     return Boolean(window.currentUser?.id);
   }
 
   /** Threads abhaken bleibt intern (serverseitig zusaetzlich per RPC erzwungen). */
   get kannErledigen() {
+    return Boolean(window.isInternal?.());
+  }
+
+  /** Teilen-Button im Doc-Kopf: nur intern und nur fuer ein geladenes Skript. */
+  get kannTeilen() {
+    return Boolean(window.isInternal?.()) && Boolean(this.skript?.id) && !this.neuModus;
+  }
+
+  /** Creator/Kooperation zuweisen: nur intern. */
+  get kannZuweisen() {
     return Boolean(window.isInternal?.());
   }
 
@@ -223,6 +250,7 @@ export class SkriptEditorView {
       this.skript = null;
       this.messages = [];
       this.kommentare = [];
+      this.verknuepfungen = [];
       this.neuModus = true;
       this.genStatus = null;
       this.updateBreadcrumb();
@@ -244,12 +272,13 @@ export class SkriptEditorView {
         return;
       }
 
-      const [skripte, messages, versionen, modi, kommentare] = await Promise.all([
+      const [skripte, messages, versionen, modi, kommentare, verknuepfungen] = await Promise.all([
         skripteService.loadSkripte({ kampagneId: skript.kampagne_id ?? null }),
         readonly ? Promise.resolve([]) : skripteService.getChatMessages(skriptId),
         skripteService.getVersionen(skriptId),
         readonly ? Promise.resolve([]) : this.loadModiCached(),
-        this._feedback.load(skriptId)
+        this._feedback.load(skriptId),
+        skripteService.loadSkriptVerknuepfungen(skriptId).catch(() => [])
       ]);
 
       this.skript = skript;
@@ -257,6 +286,7 @@ export class SkriptEditorView {
       this._listeKampagneId = skript.kampagne_id ?? null;
       this.messages = messages;
       this.kommentare = kommentare;
+      this.verknuepfungen = verknuepfungen || [];
       this.setVersionsState(versionen);
       if (!readonly) this.modi = modi || [];
       this.neuModus = false;
@@ -313,9 +343,11 @@ export class SkriptEditorView {
             <div class="skripte-editor-doc" id="ed-doc"></div>
           </main>
           <aside class="skripte-editor-fb" id="ed-fb" aria-label="Feedback">
-            <div class="skripte-editor-fb-head">
-              <span class="skripte-editor-fb-head-icon">${icon('chat-bubble-left-ellipsis')}</span>
-              <span>Feedback</span>
+            <div class="skripte-editor-fb-head tab-navigation" role="tablist">
+              <button type="button" class="tab-button active" data-fb-tab="kommentare"
+                role="tab" aria-selected="true">Kommentare <span class="tab-count" hidden></span></button>
+              <button type="button" class="tab-button" data-fb-tab="aenderungen"
+                role="tab" aria-selected="false">Änderungen <span class="tab-count" hidden></span></button>
             </div>
             <div class="skripte-editor-fb-log" id="ed-fb-log"></div>
           </aside>
@@ -332,6 +364,7 @@ export class SkriptEditorView {
 
     this.bindListeHead();
     this.bindListeCollapse();
+    this.bindFeedbackTabs();
     this.mountLikyChat();
     this.renderListe();
     this.renderDoc();
@@ -346,10 +379,26 @@ export class SkriptEditorView {
   updateBreadcrumb() {
     const label = this.neuModus ? 'Neues Skript' : (this.skript?.titel || 'Skript');
     window.setHeadline(this.neuModus ? 'Neues Skript' : 'Skripte');
+    // Gaeste duerfen nur die geteilte Route - kein Link auf die Gesamtliste
+    if (window.permissionSystem?.isGast) {
+      window.breadcrumbSystem?.updateBreadcrumb([{ label, clickable: false }]);
+      return;
+    }
     window.breadcrumbSystem?.updateBreadcrumb([
       { label: 'Skripte', url: '/skripte', clickable: true },
       { label, clickable: false }
     ]);
+  }
+
+  bindShareButton(el) {
+    el.querySelector('#ed-share')?.addEventListener('click', () => {
+      if (!this.kannTeilen) return;
+      window.shareListDialog?.open({
+        entityType: 'skript',
+        entityId: this.skript.id,
+        entityName: this.skript.titel || 'Skript'
+      });
+    });
   }
 
   /**
@@ -398,12 +447,13 @@ export class SkriptEditorView {
     document.getElementById('ed-fb-log')?.classList.add('skripte-editor--laedt');
 
     try {
-      const [skript, messages, versionen, , kommentare] = await Promise.all([
+      const [skript, messages, versionen, , kommentare, verknuepfungen] = await Promise.all([
         skripteService.loadSkript(skriptId),
         skripteService.getChatMessages(skriptId),
         skripteService.getVersionen(skriptId),
         this.loadModiCached(),
-        this._feedback.load(skriptId)
+        this._feedback.load(skriptId),
+        skripteService.loadSkriptVerknuepfungen(skriptId).catch(() => [])
       ]);
 
       if (!skript) {
@@ -415,6 +465,7 @@ export class SkriptEditorView {
       this.skript = skript;
       this.messages = messages;
       this.kommentare = kommentare;
+      this.verknuepfungen = verknuepfungen || [];
       this.setVersionsState(versionen);
 
       // Liste nachladen, wenn das neue Skript in einer anderen Kampagne
@@ -452,6 +503,8 @@ export class SkriptEditorView {
   }
 
   async cleanup() {
+    this._likyShell?.destroy();
+    this._likyShell = null;
     try { await this.inlineEdit.flush(); } catch (_) { /* Abbau trotzdem */ }
     this.inlineEdit.detach();
     this.cleanupGenJob();
@@ -469,6 +522,9 @@ export class SkriptEditorView {
       this.pollInterval = null;
     }
     this._feedback.destroy();
+    this._koopDrawer?.destroy?.();
+    this._koopDrawer = null;
+    this.verknuepfungen = [];
     if (this.onMouseUp) {
       document.removeEventListener('mouseup', this.onMouseUp);
       this.onMouseUp = null;
@@ -480,8 +536,6 @@ export class SkriptEditorView {
     this.closeVersionMenu();
     this._listeCollapse?.destroy();
     this._listeCollapse = null;
-    this._likyShell?.destroy();
-    this._likyShell = null;
     this.kommentare = [];
     this.selektion = null;
     this.pendingAktion = null;
@@ -563,6 +617,12 @@ export class SkriptEditorView {
 
   setListeCollapsed(collapsed, opts) {
     this._listeCollapse?.setCollapsed(collapsed, opts);
+  }
+
+  bindFeedbackTabs() {
+    this.container.querySelectorAll('[data-fb-tab]').forEach((btn) => {
+      btn.addEventListener('click', () => this._feedback.setTab(btn.dataset.fbTab));
+    });
   }
 
   // ------------------------------------------------------------------
@@ -708,10 +768,15 @@ export class SkriptEditorView {
       el.innerHTML = fragenModusHtml({
         skript: this.skript,
         genStatus: this.genStatus,
-        docHeadActionsHtml: docHeadActionsHtml(),
+        docHeadActionsHtml: docHeadActionsHtml({
+          kannTeilen: this.kannTeilen,
+          verknuepfungenHtml: this.renderVerknuepfungenHtml()
+        }),
         vorgabenPanelHtml: vorgabenPanelHtml(this.skript)
       });
       el.querySelector('#ed-fragen-gen')?.addEventListener('click', () => this.startGenerationAusFragen());
+      this.bindShareButton(el);
+      this.bindVerknuepfungen(el);
       const input = document.getElementById('ed-input');
       if (input && !input.disabled) input.placeholder = PLACEHOLDER_FRAGEN;
       this.renderVersionSelect();
@@ -725,7 +790,10 @@ export class SkriptEditorView {
       skript: this.skript,
       messages: this.messages,
       isReadonly: this.isReadonly,
-      docHeadActionsHtml: docHeadActionsHtml(),
+      docHeadActionsHtml: docHeadActionsHtml({
+        kannTeilen: this.kannTeilen,
+        verknuepfungenHtml: this.renderVerknuepfungenHtml()
+      }),
       vorgabenPanelHtml: vorgabenPanelHtml(this.skript),
       docTab: this.docTab || 'skript'
     });
@@ -735,11 +803,50 @@ export class SkriptEditorView {
         this.renderDoc();
       });
     });
+    this.bindShareButton(el);
     el.querySelectorAll('.skripte-editor-visual-btn').forEach((btn) => {
       btn.addEventListener('click', () => this.openVisuellModusMenu(btn));
     });
-    this.inlineEdit.attach(el, { readonly: this.isReadonly });
+    this.bindVerknuepfungen(el);
+    this.inlineEdit.attach(el, { readonly: !this.kannDokumentEditieren });
     this.renderVersionSelect();
+  }
+
+  renderVerknuepfungenHtml() {
+    return verknuepfungenHtml({
+      verknuepfungen: this.verknuepfungen,
+      kannZuweisen: this.kannZuweisen
+    });
+  }
+
+  bindVerknuepfungen(el) {
+    el.querySelector('#ed-skript-zuweisen')?.addEventListener('click', () => this.openKooperationDrawer());
+  }
+
+  async reloadVerknuepfungen() {
+    if (!this.skript?.id) {
+      this.verknuepfungen = [];
+      return;
+    }
+    try {
+      this.verknuepfungen = await skripteService.loadSkriptVerknuepfungen(this.skript.id);
+    } catch (err) {
+      console.warn('Skript-Verknüpfungen konnten nicht geladen werden:', err);
+      this.verknuepfungen = [];
+    }
+  }
+
+  openKooperationDrawer() {
+    if (!this.kannZuweisen || !this.skript) return;
+    if (!this._koopDrawer) this._koopDrawer = new SkriptKooperationDrawer();
+    this._koopDrawer.open({
+      skript: this.skript,
+      verknuepfungen: this.verknuepfungen,
+      onSuccess: async () => {
+        await this.reloadVerknuepfungen();
+        this.renderDoc();
+      }
+    });
   }
 
   // ------------------------------------------------------------------
@@ -970,6 +1077,7 @@ export class SkriptEditorView {
   updateChip() { this._selection.updateChip(); }
 
   renderFeedback() { this._feedback.render(); }
+  upsertFeedback(kommentar) { this._feedback.upsert(kommentar); }
   startNeuerKommentar(selektion) { this._feedback.startNeuerKommentar(selektion); }
 
   startVisuell(sektion, modus) { return this._visuell.startVisuell(sektion, modus); }

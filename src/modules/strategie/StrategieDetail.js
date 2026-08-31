@@ -8,6 +8,7 @@ import { bindTableEvents, cleanupTableEvents, destroyDragToScroll } from './Stra
 import { showEditItemDrawer as _showEditItemDrawer, removeEditItemDrawer, closeEditItemDrawer as _closeEditItemDrawer } from './StrategieDetailEditDrawer.js';
 import { showKategorienModal as _showKategorienModal, removeKategorienDrawer } from './StrategieDetailKategorienDrawer.js';
 import { handleDeleteItem as _handleDeleteItem, handleAddToVideo as _handleAddToVideo, handleUnlinkFromVideo as _handleUnlinkFromVideo } from './StrategieDetailItemActions.js';
+import { StrategieCreatorDrawer, removeStrategieCreatorDrawer } from './StrategieCreatorDrawer.js';
 import { StrategieDetailColumnVisibilityDrawer } from './StrategieDetailColumnVisibilityDrawer.js';
 import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
 import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
@@ -208,6 +209,12 @@ export class StrategieDetail {
   handleAddToVideo(itemId) { return _handleAddToVideo(this, itemId); }
   handleUnlinkFromVideo(itemId, videoId) { return _handleUnlinkFromVideo(this, itemId, videoId); }
 
+  // --- Creator-Verknüpfung ---
+  showCreatorDrawer(itemId) {
+    const drawer = new StrategieCreatorDrawer(this);
+    drawer.open(itemId);
+  }
+
   openAddItemDrawer() {
     const teilbereiche = this.getTeilbereicheFromStrategie();
     const drawer = new AddItemDrawer();
@@ -332,6 +339,7 @@ export class StrategieDetail {
     this.unsubscribeFromItemUpdates();
     this.removeKategorienDrawer();
     this.removeEditItemDrawer();
+    removeStrategieCreatorDrawer();
   }
 }
 

@@ -24,7 +24,8 @@ const { mockService } = vi.hoisted(() => ({
     loadAktiveModi: vi.fn(async () => [
       { id: 'mod-k', slug: 'klassisch', name: 'Klassisch', beschreibung: 'Ruhige Shots, klare Schnitte', icon: 'clapperboard', item_layout: 'icon-label-sub' },
       { id: 'mod-d', slug: 'dynamisch', name: 'Dynamisch', beschreibung: 'Schnelle Wechsel, mehr Szenen', icon: 'spark-doc', item_layout: 'icon-label-sub' }
-    ])
+    ]),
+    loadSkriptVerknuepfungen: vi.fn(async () => [])
   }
 }));
 
@@ -752,14 +753,14 @@ describe('SkriptEditorView Inline-Edit', () => {
     expect(hook.textContent).not.toContain('–');
   });
 
-  it('Kunde: Zellen nicht contenteditable', async () => {
+  it('Kunde: Zellen sind contenteditable (Speichern laeuft ueber RPC)', async () => {
     window.isKunde = vi.fn(() => true);
     await view.render(container, 's1');
 
     const zellen = container.querySelectorAll('[data-feld]');
     expect(zellen.length).toBe(6);
     zellen.forEach((el) => {
-      expect(el.getAttribute('contenteditable')).toBeNull();
+      expect(el.getAttribute('contenteditable')).toBe('plaintext-only');
     });
   });
 

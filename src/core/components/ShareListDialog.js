@@ -33,6 +33,12 @@ export class ShareListDialog {
     }
   }
 
+  rechteOptions() {
+    return this.entityType === 'skript'
+      ? [['ansehen', 'Nur ansehen'], ['feedback', 'Ansehen + Bearbeiten']]
+      : [['ansehen', 'Nur ansehen'], ['feedback', 'Ansehen + Feedback']];
+  }
+
   render() {
     this.close();
     const overlay = document.createElement('div');
@@ -40,7 +46,7 @@ export class ShareListDialog {
     overlay.innerHTML = `
       <div class="modal-dialog">
         <div class="modal-header">
-          <h3>Liste teilen</h3>
+          <h3>${this.entityType === 'skript' ? 'Skript teilen' : 'Liste teilen'}</h3>
           <button type="button" class="modal-close" data-action="close" aria-label="Schließen">&times;</button>
         </div>
         <div class="modal-body">
@@ -53,8 +59,7 @@ export class ShareListDialog {
             <div class="form-group">
               <label class="form-label" for="share-rechte-select">Rechte</label>
               <select id="share-rechte-select" class="input">
-                <option value="ansehen">Nur ansehen</option>
-                <option value="feedback">Ansehen + Feedback</option>
+                ${this.rechteOptions().map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}
               </select>
             </div>
             <div class="form-group">
@@ -359,8 +364,7 @@ export class ShareListDialog {
           </div>
           <div class="share-recipient-actions">
             <select class="share-recipient-rechte" data-share-id="${share.id}" title="Rechte ändern">
-              <option value="ansehen" ${share.rechte === 'ansehen' ? 'selected' : ''}>Nur ansehen</option>
-              <option value="feedback" ${share.rechte === 'feedback' ? 'selected' : ''}>Ansehen + Feedback</option>
+              ${this.rechteOptions().map(([value, label]) => `<option value="${value}" ${share.rechte === value ? 'selected' : ''}>${label}</option>`).join('')}
             </select>
             <button type="button" class="share-recipient-revoke" data-copy="${this.escape(link)}">Link</button>
             <button type="button" class="share-recipient-revoke" data-rotate="${share.id}">Code erneuern</button>

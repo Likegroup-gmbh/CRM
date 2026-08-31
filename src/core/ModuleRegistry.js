@@ -9,6 +9,7 @@ import {
   mergeScrolls,
   currentHistoryRoute
 } from './NavigationScroll.js';
+import { unregisterHeaderChatToggle } from './chat/HeaderChatSlot.js';
 export { OptionsManager };
 
 export class ModuleRegistry {
@@ -548,6 +549,7 @@ export class ModuleRegistry {
 
   _globalCleanup() {
     try { OptionsManager.cleanup(); } catch {}
+    unregisterHeaderChatToggle();
 
     for (const cb of this._cleanupCallbacks) {
       try { cb(); } catch (e) { console.warn('⚠️ Cleanup-Callback Fehler:', e); }

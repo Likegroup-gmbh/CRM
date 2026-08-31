@@ -23,12 +23,14 @@ const ENTITY_ROUTES = {
   kampagne: (id) => `/kampagne/${id}`,
   sourcing: (id) => `/sourcing/${id}`,
   strategie: (id) => `/strategie/${id}`,
+  skript: (id) => `/skripte/${id}`,
 };
 
 const ENTITY_LABELS = {
   kampagne: 'Kampagne',
   sourcing: 'Sourcing-Liste',
   strategie: 'Strategie-Liste',
+  skript: 'Skript',
 };
 
 export async function initGuestShare(token) {
@@ -249,7 +251,7 @@ function renderOnboarding(root, token, share) {
 async function enterGuestApp(token, share) {
   const loginRoot = document.getElementById('login-root');
   const appRoot = document.getElementById('app-root');
-  renderMessage(loginRoot, 'Liste wird geladen …');
+  renderMessage(loginRoot, 'Wird geladen …');
 
   if (!share.jwt) {
     renderMessage(loginRoot, 'Anmeldung fehlgeschlagen. Bitte den Link erneut öffnen.', true);

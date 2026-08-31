@@ -76,8 +76,12 @@ export class SkriptKommentarService {
     const text = String(inhalt || '').trim();
     if (!text) throw new Error('Kommentar ist leer');
 
-    const benutzerId = window.currentUser?.id;
-    if (!benutzerId) throw new Error('Kein angemeldeter Benutzer');
+    // Share-Gaeste haben keine benutzer-Row: created_by bleibt NULL, der
+    // Insert-Trigger setzt guest_participant_id + author_name aus dem JWT.
+    const benutzerId = window.currentUser?.id ?? null;
+    if (!benutzerId && !window.permissionSystem?.isGast) {
+      throw new Error('Kein angemeldeter Benutzer');
+    }
 
     const { data, error } = await this.db.from('skript_kommentare')
       .insert({

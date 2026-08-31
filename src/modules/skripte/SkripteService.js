@@ -189,7 +189,7 @@ export class SkripteService {
 
   async loadSkript(id) {
     const { data, error } = await this.db.from('skripte')
-      .select('*, unternehmen(firmenname), marke(markenname), kampagne(kampagnenname, eigener_name), produkt(name), personas(name, oberbegriff), branchen(name), briefing:campaign_briefings(aktivierung_name, bereich)')
+      .select('*, unternehmen(firmenname, logo_url), marke(markenname, logo_url), kampagne(kampagnenname, eigener_name), produkt(name), personas(name, oberbegriff), branchen(name), briefing:campaign_briefings(aktivierung_name, bereich)')
       .eq('id', id).maybeSingle();
 
     if (error) throw new Error(error.message);
@@ -199,6 +199,91 @@ export class SkripteService {
   async updateSkript(id, patch) {
     const { error } = await this.db.from('skripte').update(patch).eq('id', id);
     if (error) throw new Error(error.message);
+  }
+
+  /**
+   * Videos (Creator in Kooperation), an denen dieses Skript haengt.
+   */
+  async loadSkriptVerknuepfungen(skriptId) {
+    if (!skriptId) return [];
+    const { data, error } = await this.db
+      .from('kooperation_videos')
+      .select('id, position, video_name, thema, kooperation_id, kooperation:kooperation_id(id, name, kampagne_id, creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url))')
+      .eq('skript_id', skriptId)
+      .order('position', { ascending: true });
+    if (error) throw new Error(error.message);
+    return data || [];
+  }
+
+  /** Kooperationen + Videos einer Kampagne fuer den Zuweisungs-Picker. */
+  async loadKooperationenMitVideos(kampagneId) {
+    if (!kampagneId) return { kooperationen: [], videos: [] };
+
+    const { data: kooperationen, error: koopError } = await this.db
+      .from('kooperationen')
+      .select('id, name, videoanzahl, kampagne_id, creator:creator_id(id, vorname, nachname)')
+      .eq('kampagne_id', kampagneId)
+      .order('created_at', { ascending: false });
+    if (koopError) throw new Error(koopError.message);
+
+    const koops = kooperationen || [];
+    if (koops.length === 0) return { kooperationen: [], videos: [] };
+
+    const { data: videos, error: videoError } = await this.db
+      .from('kooperation_videos')
+      .select('id, video_name, thema, content_art, kampagnenart, kooperation_id, position, skript_id')
+      .in('kooperation_id', koops.map((k) => k.id))
+      .order('position', { ascending: true });
+    if (videoError) throw new Error(videoError.message);
+
+    return { kooperationen: koops, videos: videos || [] };
+  }
+
+  async verknuepfeMitVideo(videoId, skriptId) {
+    const { error } = await this.db
+      .from('kooperation_videos')
+      .update({ skript_id: skriptId })
+      .eq('id', videoId);
+    if (error) throw new Error(error.message);
+  }
+
+  async loeseVerknuepfung(videoId) {
+    const { error } = await this.db
+      .from('kooperation_videos')
+      .update({ skript_id: null })
+      .eq('id', videoId);
+    if (error) throw new Error(error.message);
+  }
+
+  /**
+   * Kunden-Speicherweg fuer Dokument-Edits: der RPC schreibt genau ein
+   * Content-Feld (Whitelist serverseitig) und legt atomar die Info-Zeile
+   * (typ='aenderung') in skript_kommentare an. Gibt die Kommentar-ID
+   * zurueck; kein Versionen-Snapshot (das bleibt der interne Changelog).
+   */
+  async saveKundeAenderung(skriptId, feld, wert) {
+    const { data, error } = await this.db.rpc('save_skript_kunde_aenderung', {
+      p_skript_id: skriptId,
+      p_feld: feld,
+      p_wert: wert
+    });
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  /**
+   * Gleicher Speicherweg fuer Share-Gaeste mit Feedback-Recht: gleiche
+   * Feld-Whitelist und Vorher/Nachher-Info-Zeile, Zugriff laeuft ueber
+   * den Share-Claim statt ueber den Kunden-Scope.
+   */
+  async saveGastAenderung(skriptId, feld, wert) {
+    const { data, error } = await this.db.rpc('save_skript_gast_aenderung', {
+      p_skript_id: skriptId,
+      p_feld: feld,
+      p_wert: wert
+    });
+    if (error) throw new Error(error.message);
+    return data;
   }
 
   async importSkript(payload) {

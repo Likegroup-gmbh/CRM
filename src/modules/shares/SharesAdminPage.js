@@ -7,6 +7,7 @@ const ENTITY_META = {
   kampagne: { label: 'Kampagne', table: 'kampagne', nameColumns: ['eigener_name', 'kampagnenname'], route: (id) => `/kampagne/${id}` },
   sourcing: { label: 'Sourcing', table: 'creator_auswahl', nameColumns: ['name'], route: (id) => `/sourcing/${id}` },
   strategie: { label: 'Strategie', table: 'strategie', nameColumns: ['name'], route: (id) => `/strategie/${id}` },
+  skript: { label: 'Skript', table: 'skripte', nameColumns: ['titel'], route: (id) => `/skripte/${id}` },
 };
 
 const RECHTE_LABELS = { ansehen: 'Nur ansehen', feedback: 'Ansehen + Feedback' };

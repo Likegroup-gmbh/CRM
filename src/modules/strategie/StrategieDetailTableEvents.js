@@ -47,6 +47,10 @@ export function bindTableEvents(detail) {
           e.preventDefault();
           detail.showEditItemDrawer(id);
           break;
+        case 'connect-creator':
+          e.preventDefault();
+          detail.showCreatorDrawer(id);
+          break;
         case 'reprocess-item':
           e.preventDefault();
           handleReprocessItem(detail, id);
@@ -67,6 +71,27 @@ export function bindTableEvents(detail) {
     };
     document.addEventListener('click', actionHandler);
     detail._tableEventListeners.add(() => document.removeEventListener('click', actionHandler));
+
+    // Plus- und x-Button in der Creator-Zelle (nur Tabellenkontext, der
+    // Edit-Drawer bindet seine eigenen Buttons)
+    const creatorCellHandler = (e) => {
+      if (e.target.closest('#edit-item-drawer')) return;
+
+      const connectBtn = e.target.closest('.creator-connect-btn');
+      if (connectBtn) {
+        e.preventDefault();
+        detail.showCreatorDrawer(connectBtn.dataset.itemId);
+        return;
+      }
+
+      const unlinkBtn = e.target.closest('.creator-unlink-btn');
+      if (unlinkBtn) {
+        e.preventDefault();
+        handleCreatorUnlink(detail, unlinkBtn.dataset.itemId);
+      }
+    };
+    document.addEventListener('click', creatorCellHandler);
+    detail._tableEventListeners.add(() => document.removeEventListener('click', creatorCellHandler));
   }
 
   bindDragToScroll(detail);
@@ -275,6 +300,38 @@ export async function handlePrioChange(detail, itemId, value) {
     console.error('Fehler beim Speichern der Prio:', error);
     window.toastSystem?.show('Fehler beim Speichern', 'error');
     detail.rerenderItemsTable();
+  }
+}
+
+/**
+ * Creator-Verknüpfung lösen: nur creator_id wird entfernt, creator_name
+ * bleibt als Freitext erhalten.
+ * @returns {Promise<boolean>} true, wenn gelöst wurde
+ */
+export async function handleCreatorUnlink(detail, itemId) {
+  const item = detail.items.find(i => i.id === itemId);
+  if (!item?.creator_id) return false;
+
+  const result = await window.confirmationModal?.open({
+    title: 'Verknüpfung lösen?',
+    message: 'Die Verknüpfung zum Creator wird gelöst. Der Name bleibt als Freitext in der Spalte erhalten.',
+    confirmText: 'Lösen',
+    cancelText: 'Abbrechen',
+    danger: true
+  });
+  if (!result?.confirmed) return false;
+
+  try {
+    await strategieService.updateStrategieItem(itemId, { creator_id: null });
+    item.creator_id = null;
+    item.creator = null;
+    detail.rerenderItemsTable();
+    window.toastSystem?.show('Verknüpfung gelöst', 'success');
+    return true;
+  } catch (error) {
+    console.error('Fehler beim Lösen der Creator-Verknüpfung:', error);
+    window.toastSystem?.show('Fehler beim Lösen', 'error');
+    return false;
   }
 }
 

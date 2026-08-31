@@ -48,10 +48,10 @@ export class SkriptEditorVersionen {
       aktiv.aenderung_beschreibung ? ` · ${escapeHtml(aktiv.aenderung_beschreibung)}` : ''
     }`;
     wrap.innerHTML = `
-      <button type="button" id="ed-version" class="skripte-editor-version-select"
+      <button type="button" id="ed-version" class="mdc-btn mdc-btn--secondary skripte-editor-version-select"
         aria-haspopup="menu" aria-expanded="false"
         title="Version auswählen – der gewählte Stand wird in den Editor geladen">
-        ${triggerLabel}
+        <span class="mdc-btn__label">${triggerLabel}</span>
       </button>
     `;
     const btn = wrap.querySelector('#ed-version');
