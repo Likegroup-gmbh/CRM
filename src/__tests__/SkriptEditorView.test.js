@@ -59,7 +59,9 @@ vi.mock('../modules/skripte/SkripteUtils.js', () => ({
   badge: (text, variant = 'neutral') => `<span class="skripte-badge skripte-badge--${variant}">${text}</span>`,
   formatUsageCost: () => null,
   replaceSkriptUrl: () => {},
-  skriptEditorPath: (id) => (!id || id === 'neu' || id === 'new') ? '/skripte/new' : `/skripte/${id}`
+  skriptEditorPath: (id) => (!id || id === 'neu' || id === 'new') ? '/skripte/new' : `/skripte/${id}`,
+  relativeZeit: () => 'Vor 4 Stunden',
+  initialen: (name) => String(name || '?')[0].toUpperCase()
 }));
 
 vi.mock('../core/icons/IconSystem.js', () => ({
@@ -76,7 +78,17 @@ function setupWindow() {
   window.breadcrumbSystem = { updateBreadcrumb: vi.fn() };
   window.supabase = {
     removeChannel: vi.fn(),
-    channel: vi.fn(() => ({ on: vi.fn(() => ({ subscribe: vi.fn() })) }))
+    channel: vi.fn(() => ({ on: vi.fn(() => ({ subscribe: vi.fn() })) })),
+    // Feedback-Panel laedt skript_kommentare: leere Liste reicht hier
+    from: vi.fn(() => {
+      const chain = {
+        select: () => chain,
+        eq: () => chain,
+        in: () => Promise.resolve({ data: [], error: null }),
+        order: () => Promise.resolve({ data: [], error: null })
+      };
+      return chain;
+    })
   };
 }
 
@@ -92,6 +104,7 @@ describe('SkriptEditorView Fehlerzustaende', () => {
   });
 
   afterEach(() => {
+    view._likyShell?.destroy();
     container.remove();
     vi.clearAllMocks();
   });
@@ -169,6 +182,7 @@ describe('SkriptEditorView Layout', () => {
   });
 
   afterEach(() => {
+    view._likyShell?.destroy();
     container.remove();
     localStorage.clear();
     vi.clearAllMocks();
@@ -302,10 +316,10 @@ describe('SkriptEditorView Layout', () => {
     expect(container.textContent).toContain('Arbeitstitel: Test');
   });
 
-  it('Composer sitzt im Chat-DOM, nicht in der Mitte', async () => {
+  it('Composer sitzt im Chat-Panel (Shell am body), nicht in der Mitte', async () => {
     await view.render(container, 's1');
 
-    const chat = container.querySelector('#ed-chat');
+    const chat = document.getElementById('ed-chat');
     expect(chat).not.toBeNull();
     expect(chat.querySelector('#ed-chat-log')).not.toBeNull();
     expect(chat.querySelector('.skripte-editor-inputwrap')).not.toBeNull();
@@ -318,6 +332,55 @@ describe('SkriptEditorView Layout', () => {
     const main = container.querySelector('.skripte-editor-main');
     expect(main.querySelector('.skripte-editor-inputwrap')).toBeNull();
     expect(main.querySelector('#ed-input')).toBeNull();
+  });
+
+  it('Liky: kein FAB mehr, Toggle im Header oeffnet expanded, erneuter Klick schliesst', async () => {
+    const header = document.createElement('div');
+    header.className = 'header-actions';
+    header.innerHTML = '<button class="logout-btn"></button><div class="profile-menu"></div>';
+    document.body.appendChild(header);
+    try {
+      await view.render(container, 's1');
+
+      // Kein FAB im Editor-Markup
+      expect(container.querySelector('.skripte-editor-liky-fab')).toBeNull();
+      expect(container.querySelector('#ed-liky')).toBeNull();
+
+      const toggle = document.getElementById('header-chat-toggle');
+      expect(toggle).not.toBeNull();
+      expect(toggle.hidden).toBe(false);
+
+      const panel = document.getElementById('ed-chat');
+      expect(panel.hidden).toBe(true);
+
+      toggle.click();
+      expect(panel.hidden).toBe(false);
+      expect(panel.classList.contains('is-expanded')).toBe(true);
+      expect(toggle.getAttribute('aria-expanded')).toBe('true');
+
+      toggle.click();
+      expect(panel.hidden).toBe(true);
+      expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    } finally {
+      header.remove();
+    }
+  });
+
+  it('Liky: Kunde/Readonly bekommt keinen Header-Toggle und kein Panel', async () => {
+    window.isKunde = vi.fn(() => true);
+    const header = document.createElement('div');
+    header.className = 'header-actions';
+    header.innerHTML = '<button class="logout-btn"></button>';
+    document.body.appendChild(header);
+    try {
+      await view.render(container, 's1');
+
+      expect(document.getElementById('ed-chat')).toBeNull();
+      const toggle = document.getElementById('header-chat-toggle');
+      expect(toggle === null || toggle.hidden).toBe(true);
+    } finally {
+      header.remove();
+    }
   });
 
   it('Doc-Kopf: Version rechts – keine Meta-Tags', async () => {
@@ -670,6 +733,7 @@ describe('SkriptEditorView Inline-Edit', () => {
   });
 
   afterEach(() => {
+    view._likyShell?.destroy();
     container.remove();
     vi.clearAllMocks();
   });

@@ -1,16 +1,22 @@
 // SkriptEditorView.js
-// Chat-basierter Skript-Editor (3 Spalten in einer Shell, nach Figma):
+// Skript-Editor (3 Spalten in einer Shell, nach Figma):
 //   links   Skriptliste zum Umschalten
-//   mitte   Skript (Hook/Hauptteil/CTA) mit Selektions-Menue + Chat-Eingabe
-//   rechts  Chat-Verlauf ("Liky") mit Aktions-Tag, Status und Annehmen/Ablehnen
-// Die Assistant-Message in skript_chat_messages ist der Job (Realtime + Poll).
+//   mitte   Skript (Hook/Hauptteil/CTA) mit Selektions-Menue
+//   rechts  Feedback-Panel: Kommentar-Threads an markierten Stellen
+// Der AI-Chat ("Liky") laeuft in der ChatPanelShell (src/core/chat): Toggle
+// sitzt im globalen Header, das Panel oeffnet rechts als Drawer und kann
+// im Kopf verkleinert/vergroessert werden. Die Assistant-Message in
+// skript_chat_messages ist der Job (Realtime + Poll), Kommentare liegen
+// getrennt in skript_kommentare.
 //
 // Fassade/Orchestrator: State + Lifecycle + Listen-/Doc-/Chat-Verdrahtung.
 // Fachlogik liegt in den Controllern unter editor/ (Generation, ChatActions,
-// Selection, Versionen, Visuell, Realtime), das Markup in den
-// puren Renderern (SkriptEditorDocRenderer, SkriptEditorChatRenderer).
+// Selection, Versionen, Visuell, Realtime, Feedback), das Markup in den
+// puren Renderern (SkriptEditorDocRenderer, SkriptEditorChatRenderer,
+// SkriptFeedbackRenderer).
 
 import { bindCollapsible } from '../../core/collapsiblePanel.js';
+import { ChatPanelShell } from '../../core/chat/ChatPanelShell.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { revealLines, cancelLineReveal } from '../../core/animation/lineReveal.js';
 import { skripteService } from './SkripteService.js';
@@ -33,6 +39,7 @@ import { SkriptEditorSelection } from './editor/SkriptEditorSelection.js';
 import { SkriptEditorVersionen } from './editor/SkriptEditorVersionen.js';
 import { SkriptEditorVisuell } from './editor/SkriptEditorVisuell.js';
 import { SkriptEditorRealtime } from './editor/SkriptEditorRealtime.js';
+import { SkriptFeedbackPanel } from './editor/SkriptFeedbackPanel.js';
 
 const MSG_TEXT_SEL = '.skripte-editor-msg-text, .skripte-editor-vorschlag-text';
 const MSG_FOOTER_SEL = '.skripte-editor-msg-actions, .skripte-editor-msg-state, p.skripte-hint';
@@ -128,6 +135,7 @@ export class SkriptEditorView {
     this.skripte = [];
     this._listeKampagneId = undefined; // Scope der Sidebar; undefined = noch nicht gesetzt
     this.messages = [];
+    this.kommentare = [];
     this.versionen = [];
     this.aktiveVersion = { version_nr: 1, sub_nr: 0 };
     this.docTab = 'skript';
@@ -157,6 +165,7 @@ export class SkriptEditorView {
     this.modi = [];
     this._modiGeladen = false;
     this._listeCollapse = null;
+    this._likyShell = null;
 
     // Controller (Fachlogik), jeweils mit Blick auf diese Fassade
     this._generation = new SkriptEditorGeneration(this);
@@ -165,10 +174,33 @@ export class SkriptEditorView {
     this._versionen = new SkriptEditorVersionen(this);
     this._visuell = new SkriptEditorVisuell(this);
     this._realtime = new SkriptEditorRealtime(this);
+    this._feedback = new SkriptFeedbackPanel(this);
   }
 
+  /** Dokument selbst nicht editierbar (kein InlineEdit, keine Visual-Buttons). */
   get isReadonly() {
     return Boolean(window.isKunde?.());
+  }
+
+  /** Liky-Bubble und die Rewrite-Aktionen im Selektionsmenue: nur intern. */
+  get kannAiAktionen() {
+    return !this.isReadonly;
+  }
+
+  /**
+   * Feedback schreiben duerfen alle ausser Gaesten ohne Feedback-Recht.
+   * Kunden markieren Text und kommentieren - nur die AI-Aktionen fehlen ihnen.
+   * Share-Gaeste haben keine benutzer-Row und damit kein created_by, deshalb
+   * gilt zusaetzlich: ohne Benutzer-ID kein Kommentar.
+   */
+  get kannKommentieren() {
+    if (window.permissionSystem?.isGastReadonly) return false;
+    return Boolean(window.currentUser?.id);
+  }
+
+  /** Threads abhaken bleibt intern (serverseitig zusaetzlich per RPC erzwungen). */
+  get kannErledigen() {
+    return Boolean(window.isInternal?.());
   }
 
   // ------------------------------------------------------------------
@@ -190,12 +222,15 @@ export class SkriptEditorView {
       this._listeKampagneId = null;
       this.skript = null;
       this.messages = [];
+      this.kommentare = [];
       this.neuModus = true;
       this.genStatus = null;
       this.updateBreadcrumb();
       this.renderLayout();
       this.bindEvents();
       this.setChatInputAktiv(false);
+      // Im Neu-Modus laeuft die Generierung in der Bubble - sonst unsichtbar
+      this.setLikyOffen(true, { persist: false });
       return;
     }
 
@@ -209,17 +244,19 @@ export class SkriptEditorView {
         return;
       }
 
-      const [skripte, messages, versionen, modi] = await Promise.all([
+      const [skripte, messages, versionen, modi, kommentare] = await Promise.all([
         skripteService.loadSkripte({ kampagneId: skript.kampagne_id ?? null }),
         readonly ? Promise.resolve([]) : skripteService.getChatMessages(skriptId),
         skripteService.getVersionen(skriptId),
-        readonly ? Promise.resolve([]) : this.loadModiCached()
+        readonly ? Promise.resolve([]) : this.loadModiCached(),
+        this._feedback.load(skriptId)
       ]);
 
       this.skript = skript;
       this.skripte = skripte;
       this._listeKampagneId = skript.kampagne_id ?? null;
       this.messages = messages;
+      this.kommentare = kommentare;
       this.setVersionsState(versionen);
       if (!readonly) this.modi = modi || [];
       this.neuModus = false;
@@ -227,10 +264,13 @@ export class SkriptEditorView {
       this.updateBreadcrumb();
       this.renderLayout();
       this.bindEvents();
+      this._feedback.subscribe();
       if (!readonly) {
         this.subscribe();
         if (this.messages.some((m) => m.status === 'pending' || m.status === 'running')) {
           this.ensurePolling();
+          // Laufender Job: Bubble aufmachen, sonst sieht der User den Fortschritt nicht
+          this.setLikyOffen(true, { persist: false });
         }
         this.applyOffeneVisuellvorschlaege();
       }
@@ -272,36 +312,30 @@ export class SkriptEditorView {
           <main class="skripte-editor-main">
             <div class="skripte-editor-doc" id="ed-doc"></div>
           </main>
-          ${readonly ? '' : `
-          <aside class="skripte-editor-chat" id="ed-chat">
-            <div class="skripte-editor-chat-log" id="ed-chat-log"></div>
-            <div class="skripte-editor-inputwrap">
-              <div class="skripte-editor-chip" id="ed-chip" hidden></div>
-              <div class="skripte-editor-input">
-                <textarea id="ed-input" rows="2" placeholder="${PLACEHOLDER_DEFAULT}"></textarea>
-                <div class="skripte-editor-input-footer">
-                  <div class="skripte-editor-input-actions">
-                    <span class="skripte-editor-cost" id="ed-cost"></span>
-                    <button id="ed-send" class="skripte-editor-send" title="Senden" aria-label="Senden">${SEND_ICON}</button>
-                  </div>
-                </div>
-              </div>
+          <aside class="skripte-editor-fb" id="ed-fb" aria-label="Feedback">
+            <div class="skripte-editor-fb-head">
+              <span class="skripte-editor-fb-head-icon">${icon('chat-bubble-left-ellipsis')}</span>
+              <span>Feedback</span>
             </div>
+            <div class="skripte-editor-fb-log" id="ed-fb-log"></div>
           </aside>
-          `}
         </div>
         <div class="crm-fmenu crm-fmenu--sm crm-fmenu--scroll skripte-editor-selmenu" id="ed-vermenu" hidden></div>
-        ${readonly ? '' : `
+        ${this.kannKommentieren ? `
         <div class="crm-fmenu skripte-editor-selmenu" id="ed-selmenu" hidden></div>
+        ` : ''}
+        ${this.kannAiAktionen ? `
         <div class="crm-fmenu skripte-editor-selmenu" id="ed-modmenu" hidden></div>
-        `}
+        ` : ''}
       </div>
     `;
 
     this.bindListeHead();
     this.bindListeCollapse();
+    this.mountLikyChat();
     this.renderListe();
     this.renderDoc();
+    this._feedback.render();
     if (!readonly) {
       this.renderChat();
       this.renderCost();
@@ -336,6 +370,7 @@ export class SkriptEditorView {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
     }
+    this._feedback.unsubscribe();
     this.clearPending();
     this.docTab = 'skript';
     this.closeVersionMenu();
@@ -360,13 +395,15 @@ export class SkriptEditorView {
     });
     document.getElementById('ed-doc')?.classList.add('skripte-editor--laedt');
     document.getElementById('ed-chat-log')?.classList.add('skripte-editor--laedt');
+    document.getElementById('ed-fb-log')?.classList.add('skripte-editor--laedt');
 
     try {
-      const [skript, messages, versionen] = await Promise.all([
+      const [skript, messages, versionen, , kommentare] = await Promise.all([
         skripteService.loadSkript(skriptId),
         skripteService.getChatMessages(skriptId),
         skripteService.getVersionen(skriptId),
-        this.loadModiCached()
+        this.loadModiCached(),
+        this._feedback.load(skriptId)
       ]);
 
       if (!skript) {
@@ -377,6 +414,7 @@ export class SkriptEditorView {
 
       this.skript = skript;
       this.messages = messages;
+      this.kommentare = kommentare;
       this.setVersionsState(versionen);
 
       // Liste nachladen, wenn das neue Skript in einer anderen Kampagne
@@ -395,8 +433,10 @@ export class SkriptEditorView {
       this.renderDoc();
       this.renderChat({ forceScroll: true });
       this.renderCost();
+      this._feedback.render();
 
       this.subscribe();
+      this._feedback.subscribe();
       if (this.messages.some((m) => m.status === 'pending' || m.status === 'running')) {
         this.ensurePolling();
       }
@@ -407,6 +447,7 @@ export class SkriptEditorView {
     } finally {
       document.getElementById('ed-doc')?.classList.remove('skripte-editor--laedt');
       document.getElementById('ed-chat-log')?.classList.remove('skripte-editor--laedt');
+      document.getElementById('ed-fb-log')?.classList.remove('skripte-editor--laedt');
     }
   }
 
@@ -427,6 +468,7 @@ export class SkriptEditorView {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
     }
+    this._feedback.destroy();
     if (this.onMouseUp) {
       document.removeEventListener('mouseup', this.onMouseUp);
       this.onMouseUp = null;
@@ -438,6 +480,9 @@ export class SkriptEditorView {
     this.closeVersionMenu();
     this._listeCollapse?.destroy();
     this._listeCollapse = null;
+    this._likyShell?.destroy();
+    this._likyShell = null;
+    this.kommentare = [];
     this.selektion = null;
     this.pendingAktion = null;
     this.visuellApplyLaeuft = false;
@@ -518,6 +563,72 @@ export class SkriptEditorView {
 
   setListeCollapsed(collapsed, opts) {
     this._listeCollapse?.setCollapsed(collapsed, opts);
+  }
+
+  // ------------------------------------------------------------------
+  // Liky: ChatPanelShell rechts, Toggle im globalen Header (ai-chat)
+  // ------------------------------------------------------------------
+  /** Shell nur fuer interne User; Kunden/Readonly sehen keinen Einstieg. */
+  mountLikyChat() {
+    this._likyShell?.destroy();
+    this._likyShell = null;
+    if (!this.kannAiAktionen) return;
+
+    this._likyShell = new ChatPanelShell().mount({
+      trigger: 'header',
+      persistKey: 'skripte-liky',
+      headerTitle: 'Liky',
+      dialogLabel: 'Liky',
+      ids: { root: 'ed-liky', panel: 'ed-chat' },
+      panelClass: 'skripte-editor-chat',
+      titleHtml: `
+        <span class="skripte-editor-msg-head">
+          <span class="skripte-editor-avatar">L</span>
+          <span class="skripte-editor-msg-name">Liky</span>
+        </span>`,
+      bodyHtml: `
+        <div class="skripte-editor-chat-log" id="ed-chat-log"></div>
+        <div class="skripte-editor-inputwrap">
+          <div class="skripte-editor-chip" id="ed-chip" hidden></div>
+          <div class="skripte-editor-input">
+            <textarea id="ed-input" rows="2" placeholder="${PLACEHOLDER_DEFAULT}"></textarea>
+            <div class="skripte-editor-input-footer">
+              <div class="skripte-editor-input-actions">
+                <span class="skripte-editor-cost" id="ed-cost"></span>
+                <button id="ed-send" class="skripte-editor-send" title="Senden" aria-label="Senden">${SEND_ICON}</button>
+              </div>
+            </div>
+          </div>
+        </div>`,
+      onOpen: () => {
+        const log = document.getElementById('ed-chat-log');
+        if (log) log.scrollTop = log.scrollHeight;
+      }
+    });
+
+    const { offen, size } = this._likyShell.getStoredState();
+    if (offen) this._likyShell.open({ size: size || undefined, persist: false });
+  }
+
+  istLikyOffen() {
+    return Boolean(this._likyShell?.isOpen());
+  }
+
+  /** Nur ein-/ausschalten - die Groesse behaelt die Shell (Restore/letzter Zustand). */
+  setLikyOffen(offen, { persist = true } = {}) {
+    if (!this._likyShell) return;
+    if (offen) this._likyShell.open({ persist });
+    else this._likyShell.close({ persist });
+    this.updateLikyDot();
+  }
+
+  /** Punkt am Header-Icon, solange Liky arbeitet oder ein Vorschlag offen ist. */
+  updateLikyDot() {
+    if (!this._likyShell) return;
+    const aktiv = this.messages.some(
+      (m) => m.status === 'pending' || m.status === 'running' || m.status === 'vorschlag'
+    );
+    this._likyShell.setDot(aktiv);
   }
 
   renderListe() {
@@ -637,6 +748,7 @@ export class SkriptEditorView {
   renderChat({ forceScroll = false } = {}) {
     const el = document.getElementById('ed-chat-log');
     if (!el) return;
+    this.updateLikyDot();
 
     // Neu-Modus: Generierungs-Fortschritt als Liky-Bubble (lokal, ohne DB-Message)
     if (this.neuModus) {
@@ -715,6 +827,7 @@ export class SkriptEditorView {
     el.querySelectorAll(`[data-msg-id="${m.id}"]`).forEach((btn) => {
       btn.addEventListener('click', () => this.handleMessageAction(btn.dataset.msgAction, btn.dataset.msgId));
     });
+    this.updateLikyDot();
     pin();
 
     if (animateText) {
@@ -779,7 +892,19 @@ export class SkriptEditorView {
     };
     document.addEventListener('mousedown', this.onDocMouseDown);
 
-    if (this.isReadonly) return;
+    // Selektions-Menue: nach Mouseup pruefen, ob Auswahl in einer Sektion liegt.
+    // Laeuft auch fuer Kunden - sie sehen im Menue nur "Kommentieren".
+    if (this.kannKommentieren) {
+      this.onMouseUp = (e) => {
+        const menu = document.getElementById('ed-selmenu');
+        if (!menu || menu.contains(e.target)) return;
+        // Timeout: Selection ist erst nach dem Event final
+        setTimeout(() => this.checkSelection(), 10);
+      };
+      document.addEventListener('mouseup', this.onMouseUp);
+    }
+
+    if (!this.kannAiAktionen) return;
     const input = document.getElementById('ed-input');
     document.getElementById('ed-send')?.addEventListener('click', () => this.sendChat());
     input?.addEventListener('keydown', (e) => {
@@ -796,15 +921,6 @@ export class SkriptEditorView {
         if (this.pendingAktion) this.clearPending();
       }
     });
-
-    // Selektions-Menue: nach Mouseup pruefen, ob Auswahl in einer Sektion liegt
-    this.onMouseUp = (e) => {
-      const menu = document.getElementById('ed-selmenu');
-      if (!menu || menu.contains(e.target)) return;
-      // Timeout: Selection ist erst nach dem Event final
-      setTimeout(() => this.checkSelection(), 10);
-    };
-    document.addEventListener('mouseup', this.onMouseUp);
   }
 
   setChatInputAktiv(aktiv) {
@@ -852,6 +968,9 @@ export class SkriptEditorView {
   setPendingAktion(aktion) { this._selection.setPendingAktion(aktion); }
   clearPending() { this._selection.clearPending(); }
   updateChip() { this._selection.updateChip(); }
+
+  renderFeedback() { this._feedback.render(); }
+  startNeuerKommentar(selektion) { this._feedback.startNeuerKommentar(selektion); }
 
   startVisuell(sektion, modus) { return this._visuell.startVisuell(sektion, modus); }
   openVisuellModusMenu(btn) { return this._visuell.openModusMenu(btn); }

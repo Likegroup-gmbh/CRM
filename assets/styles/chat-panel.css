@@ -1,0 +1,167 @@
+/* chat-panel.css */
+/* Generische Chat-Shell (Liky & Co.): gleiche Oberflaeche, zwei Placements.
+   --header: Toggle in der Topbar, Panel rechts wie ein Drawer (ohne Overlay,
+             Skript/Feedback bleiben bedienbar). Top beginnt unter dem Header,
+             sonst waere der Header-Toggle zum Schliessen verdeckt.
+   --fab:    Bubble unten rechts (fuer Seiten ohne Topbar-Einstieg).
+   Groesse unabhaengig vom Trigger: .is-expanded | .is-compact. */
+
+.chat-panel {
+  position: fixed;
+  /* 1300: ueber Content, unter Drawer/Modal (1400/1500) */
+  z-index: 1300;
+  /* 54px = Hoehe .main-header (layout.css) */
+  top: calc(54px + var(--space-sm));
+  right: var(--space-sm);
+  bottom: var(--space-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  pointer-events: none;
+}
+
+.chat-panel > * {
+  pointer-events: auto;
+}
+
+.chat-panel--fab {
+  top: auto;
+  right: var(--space-lg);
+  bottom: var(--space-lg);
+}
+
+.chat-panel__panel {
+  display: flex;
+  flex-direction: column;
+  width: var(--panel-lg);
+  max-width: calc(100vw - var(--space-xl));
+  min-height: 0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  overflow: hidden;
+}
+
+/* display: flex schlaegt sonst das hidden-Attribut des Panels */
+.chat-panel__panel[hidden] {
+  display: none !important;
+}
+
+/* Expanded: volle Band-Hoehe, Drawer-Optik (Padding oben/rechts/unten) */
+.chat-panel__panel.is-expanded {
+  flex: 1;
+  border-radius: var(--radius-xl);
+}
+
+/* Compact: kleines Fenster unten rechts (bisherige Liky-Bubble) */
+.chat-panel__panel.is-compact {
+  max-height: min(600px, 70vh);
+}
+
+.chat-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-lg);
+  border-bottom: 1px solid var(--border-primary);
+  flex-shrink: 0;
+}
+
+.chat-panel__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.chat-panel__head-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  flex-shrink: 0;
+}
+
+.chat-panel__icon-btn {
+  background: none;
+  border: none;
+  padding: var(--space-xxs);
+  cursor: pointer;
+  color: var(--text-secondary);
+  display: flex;
+  border-radius: var(--radius-sm);
+}
+
+.chat-panel__icon-btn:hover {
+  background: var(--gray-100);
+  color: var(--text-primary);
+}
+
+.chat-panel__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* --- FAB (Trigger 'fab') ------------------------------------------------ */
+
+.chat-panel__fab {
+  width: var(--height-avatar-md);
+  height: var(--height-avatar-md);
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  padding: 0;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.chat-panel__fab:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-xl);
+}
+
+/* Activity-Dot am FAB */
+.chat-panel__dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: var(--space-xs);
+  height: var(--space-xs);
+  border-radius: var(--radius-full);
+  background: var(--color-error);
+  border: 2px solid var(--bg-primary);
+}
+
+/* --- Header-Toggle in der Topbar ---------------------------------------- */
+
+.header-chat-toggle {
+  position: relative;
+}
+
+.header-chat-toggle.is-offen {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+/* Activity-Dot am Header-Icon */
+.header-chat-dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: var(--space-xs);
+  height: var(--space-xs);
+  border-radius: var(--radius-full);
+  background: var(--color-error);
+  border: 2px solid var(--bg-primary);
+}

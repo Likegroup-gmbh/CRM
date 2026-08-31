@@ -1,9 +1,14 @@
 // SkriptEditorSelection.js
-// Selektions-Menue im Editor: Text markieren -> Hover-Menue mit Aktionen
-// (Neu schreiben, Kuerzen, ...), Chip ueber dem Chat-Input.
+// Selektions-Menue im Editor: Text markieren -> Hover-Menue mit Aktionen.
+// "Kommentieren" fuehrt ins Feedback-Panel und sehen alle; die AI-Aktionen
+// (Neu schreiben, Kuerzen, ...) sind intern und setzen den Chip ueber dem
+// Liky-Input.
 
 import { escapeHtml } from '../SkripteUtils.js';
-import { AKTION_LABELS, AKTION_ICONS, PLACEHOLDER_AKTION, PLACEHOLDER_DEFAULT } from './skriptEditorKonstanten.js';
+import {
+  AKTION_LABELS, AKTION_ICONS, AI_SELEKTION_AKTIONEN,
+  PLACEHOLDER_AKTION, PLACEHOLDER_DEFAULT
+} from './skriptEditorKonstanten.js';
 import { sektionAnzeige } from './skriptEditorVisuellHelfer.js';
 import { openFloatingMenu } from '../../../core/components/FloatingMenu.js';
 
@@ -49,19 +54,34 @@ export class SkriptEditorSelection {
     if (modmenu) modmenu.hidden = true;
     v.closeVersionMenu();
 
+    const aktionen = v.kannAiAktionen
+      ? ['kommentieren', ...AI_SELEKTION_AKTIONEN]
+      : ['kommentieren'];
+
     openFloatingMenu({
       el: menu,
       anchor: sel.getRangeAt(0),
       wrap: v.container.querySelector('.skripte-editor'),
       layout: 'icon-label',
-      items: ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton'].map((aktion) => ({
+      items: aktionen.map((aktion) => ({
         id: aktion,
         iconHtml: AKTION_ICONS[aktion],
         label: AKTION_LABELS[aktion],
         data: { aktion }
       })),
-      onSelect: (aktion) => this.setPendingAktion(aktion)
+      onSelect: (aktion) => this.onAktion(aktion)
     });
+  }
+
+  /** "Kommentieren" geht ins Feedback-Panel, alles andere in den Liky-Chat. */
+  onAktion(aktion) {
+    if (aktion === 'kommentieren') {
+      const selektion = this.view.selektion;
+      this.clearPending();
+      this.view.startNeuerKommentar(selektion);
+      return;
+    }
+    this.setPendingAktion(aktion);
   }
 
   /**
@@ -73,6 +93,8 @@ export class SkriptEditorSelection {
     if (!v.selektion) return;
     v.pendingAktion = aktion;
     window.getSelection()?.removeAllRanges();
+    // Der Chip haengt am Liky-Input - ohne offene Bubble sieht der User nichts
+    v.setLikyOffen(true);
     this.updateChip();
 
     const input = document.getElementById('ed-input');
