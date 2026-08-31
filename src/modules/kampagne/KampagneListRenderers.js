@@ -149,12 +149,14 @@ export async function updateTable(kampagnen, { bindDragToScroll, hasActiveFilter
           },
           default: isKunde
             ? { icon: 'megaphone', title: 'Keine Kampagnen vorhanden', text: 'Es wurden noch keine Kampagnen für Sie angelegt.' }
-            : {
-                icon: 'megaphone',
-                title: 'Keine Kampagnen vorhanden',
-                text: 'Legen Sie ein Projekt an, um Ihre erste Kampagne zu starten.',
-                actionsHtml: '<button class="mdc-btn" onclick="window.navigateTo(\'/projekt-erstellen\')">Projekt anlegen</button>'
-              }
+            : window.canCreateProject?.()
+              ? {
+                  icon: 'megaphone',
+                  title: 'Keine Kampagnen vorhanden',
+                  text: 'Legen Sie ein Projekt an, um Ihre erste Kampagne zu starten.',
+                  actionsHtml: '<button class="mdc-btn" onclick="window.navigateTo(\'/projekt-erstellen\')">Projekt anlegen</button>'
+                }
+              : { icon: 'megaphone', title: 'Keine Kampagnen vorhanden', text: 'Es wurden noch keine Kampagnen angelegt.' }
         }
       }, emptyKey);
       tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty-state-cell">${html}</td></tr>`;

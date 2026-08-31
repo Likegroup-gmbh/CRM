@@ -13,7 +13,7 @@ import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { ProduktFilterLogic } from './filters/ProduktFilterLogic.js';
 import {
   ProduktService,
-  produktFormRoute
+  produktListDetailRoute
 } from './ProduktService.js';
 import {
   buildCompanyFolders,
@@ -614,7 +614,7 @@ export class ProduktList extends BasePaginatedList {
       const openLink = e.target.closest('.produkt-row-open');
       if (openLink) {
         e.preventDefault();
-        this.openProdukt(openLink.dataset.produktId, openLink.dataset.unternehmenId);
+        this.openProdukt(openLink.dataset.produktId);
         return;
       }
 
@@ -625,9 +625,9 @@ export class ProduktList extends BasePaginatedList {
     }, { signal });
   }
 
-  openProdukt(produktId, unternehmenId) {
-    if (!produktId || !unternehmenId) return;
-    window.navigateTo(produktFormRoute(unternehmenId, produktId));
+  openProdukt(produktId) {
+    if (!produktId) return;
+    window.navigateTo(produktListDetailRoute(produktId));
   }
 
   showCreateForm() {

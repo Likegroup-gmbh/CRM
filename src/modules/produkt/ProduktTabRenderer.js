@@ -4,7 +4,8 @@
 // mit den zugeordneten Marken dazu. Anlegen und Bearbeiten passieren auf einer
 // eigenen Seite, siehe ProduktForm.js.
 
-import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { ProduktService } from './ProduktService.js';
 
 const CREATE_BTN_HTML = '<button type="button" class="mdc-btn mdc-btn--create produkt-create-btn">Produkt anlegen</button>';
@@ -55,15 +56,12 @@ export function renderProdukte(detail) {
       <td>${detail.sanitize(ProduktService.preisLabel(produkt))}</td>
       <td>${variantenAnzahl > 0 ? variantenAnzahl : '-'}</td>
       <td>${detail.formatDate(produkt.created_at)}</td>
-      <td>
-        <button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm produkt-row-open" data-produkt-id="${produkt.id}">Öffnen</button>
-      </td>
+      <td class="col-actions">${actionBuilder.create('produkt', produkt.id)}</td>
     </tr>
   `;
   }).join('');
 
   return `
-    ${renderSectionHeader({ title: 'Produkte', actionsHtml: isKunde ? '' : CREATE_BTN_HTML })}
     <div class="data-table-container">
       <table class="data-table">
         <thead>
@@ -74,7 +72,7 @@ export function renderProdukte(detail) {
             <th>Preis</th>
             <th>Varianten</th>
             <th>Erstellt</th>
-            <th>Aktion</th>
+            <th class="col-actions">Aktionen</th>
           </tr>
         </thead>
         <tbody>

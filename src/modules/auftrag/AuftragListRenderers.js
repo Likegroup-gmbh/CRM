@@ -214,7 +214,6 @@ AuftragList.prototype.updateTable = async function(auftraege, mode = 'auftraege'
 
   await TableAnimationHelper.animatedUpdate(tbody, () => {
     if (!auftraege || auftraege.length === 0) {
-      const isKunde = window.isKunde?.() || false;
       const html = resolveEmptyState({
         hasActiveFilters: this.hasActiveFilters?.() || false,
         states: {
@@ -222,7 +221,7 @@ AuftragList.prototype.updateTable = async function(auftraege, mode = 'auftraege'
             icon: isContracts ? 'file-text' : 'clipboard',
             title: emptyTitle,
             text: emptySubtitle,
-            actionsHtml: (!isContracts && !isKunde)
+            actionsHtml: (!isContracts && window.canCreateProject?.())
               ? '<button id="btn-auftrag-new" class="mdc-btn">Neuen Auftrag anlegen</button>'
               : ''
           }

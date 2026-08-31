@@ -1,6 +1,7 @@
 // MitarbeiterDetail.js (Fassade)
 // Dünne Orchestrierungsklasse – delegiert an Loader, Renderer, Events, Modals, Actions
 
+import { getTabQueryParam } from '../../core/TabUtils.js';
 import { PersonDetailBase } from './PersonDetailBase.js';
 import { loadMitarbeiterData } from './MitarbeiterDetailLoader.js';
 import { renderMitarbeiterDetailPage, getDisplayName } from './MitarbeiterDetailRendererCore.js';
@@ -26,6 +27,7 @@ export class MitarbeiterDetail extends PersonDetailBase {
 
   async init(id) {
     this.userId = id;
+    this.activeMainTab = getTabQueryParam() || 'informationen';
     await this.load();
 
     if (window.breadcrumbSystem && this.user) {

@@ -5,7 +5,7 @@
 import { renderCreatorTable } from '../creator/CreatorTable.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
-import { renderTabButton } from '../../core/TabUtils.js';
+import { renderSecondaryNav, activateSecondaryNavTab, getSecondaryNavTabFromEvent, getTabQueryParam } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
@@ -31,6 +31,7 @@ export class ManagementDetail extends PersonDetailBase {
     try {
       this._isLoading = true;
       this.managementId = managementId;
+      this.activeMainTab = getTabQueryParam() || 'creators';
       await this.loadManagementData();
 
       if (window.breadcrumbSystem && this.management) {
@@ -211,7 +212,7 @@ export class ManagementDetail extends PersonDetailBase {
       { tab: 'creators', label: 'Creator', count: this.creators.length, isActive: this.activeMainTab === 'creators' },
       { tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen.length, isActive: this.activeMainTab === 'rechnungen' }
     ];
-    return tabs.map(t => renderTabButton({ ...t, showIcon: true })).join('');
+    return renderSecondaryNav(tabs.map(t => ({ ...t, showIcon: true })));
   }
 
   renderMainContent() {
@@ -347,18 +348,11 @@ export class ManagementDetail extends PersonDetailBase {
     const signal = this._eventsAbort.signal;
 
     this._tabClickHandler = (e) => {
-      const btn = e.target.closest('.tab-button');
-      if (!btn) return;
-      e.preventDefault();
-      const tab = btn.dataset.tab;
+      const tab = getSecondaryNavTabFromEvent(e);
       if (!tab) return;
-
+      e.preventDefault();
       this.activeMainTab = tab;
-      document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-      const pane = document.getElementById(`tab-${tab}`);
-      if (pane) pane.classList.add('active');
+      activateSecondaryNavTab(tab);
     };
     document.addEventListener('click', this._tabClickHandler, { signal });
 

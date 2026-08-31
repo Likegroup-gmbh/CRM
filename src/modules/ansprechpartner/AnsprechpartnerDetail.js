@@ -6,7 +6,7 @@ import { ansprechpartnerCreate } from './AnsprechpartnerCreate.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { CountryDisplay } from '../../core/components/CountryDisplay.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
-import { renderTabButton } from '../../core/TabUtils.js';
+import { renderSecondaryNav, activateSecondaryNavTab, getSecondaryNavTabFromEvent, getTabQueryParam } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { ImageUploadHelper } from '../../core/ImageUploadHelper.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
@@ -32,6 +32,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
   async init(ansprechpartnerId) {
     this.ansprechpartnerId = ansprechpartnerId;
     console.log('🎯 ANSPRECHPARTNERDETAIL: Initialisiere Detail-Seite für:', ansprechpartnerId);
+    this.activeMainTab = getTabQueryParam() || 'informationen';
     
     if (ansprechpartnerId === 'new') {
       // Verwende AnsprechpartnerCreate System (wie bei Marken)
@@ -344,15 +345,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       { tab: 'kampagnen', label: 'Kampagnen', count: this.ansprechpartner?.ansprechpartner_kampagne?.length || 0, isActive: this.activeMainTab === 'kampagnen' },
     ];
 
-    const tabsHtml = tabs.map(t => renderTabButton({ ...t, showIcon: true })).join('');
-
-    return `
-      <div class="tabs-header-container" style="--tab-count: ${tabs.length}">
-        <div class="tabs-left">
-          ${tabsHtml}
-        </div>
-      </div>
-    `;
+    return renderSecondaryNav(tabs.map(t => ({ ...t, showIcon: true })));
   }
 
   renderMainContent() {
@@ -541,18 +534,11 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     this.bindSidebarTabs();
 
     this._onDocumentClick = (e) => {
-      const btn = e.target.closest('.tab-button');
-      if (btn) {
+      const tab = getSecondaryNavTabFromEvent(e);
+      if (tab) {
         e.preventDefault();
-        const tab = btn.dataset.tab;
-        if (tab) {
-          this.activeMainTab = tab;
-          document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-          document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-          const pane = document.getElementById(`tab-${tab}`);
-          if (pane) pane.classList.add('active');
-        }
+        this.activeMainTab = tab;
+        activateSecondaryNavTab(tab);
         return;
       }
       if (e.target.id === 'btn-back' || e.target.closest('#btn-back') || e.target.id === 'btn-back-error' || e.target.closest('#btn-back-error')) {

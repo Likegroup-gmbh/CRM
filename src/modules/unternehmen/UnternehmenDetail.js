@@ -1,6 +1,8 @@
 // UnternehmenDetail.js (Fassade)
 // Dünne Orchestrierungsklasse – delegiert an Loader, Renderer, Events und Edit-Module
 
+import { getTabQueryParam } from '../../core/TabUtils.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { loadUnternehmenData } from './UnternehmenDetailLoader.js';
 import { renderUnternehmenDetailPage } from './UnternehmenDetailRendererCore.js';
@@ -53,17 +55,23 @@ export class UnternehmenDetail extends PersonDetailBase {
 
       // ?tab=... macht einzelne Tabs deeplink-faehig und laesst die Rueckkehr
       // von Unterseiten (z.B. Persona-Formular) auf dem richtigen Tab landen.
-      const tabParam = new URLSearchParams(window.location.search).get('tab');
-      this.activeMainTab = tabParam || 'informationen';
+      this.activeMainTab = getTabQueryParam() || 'informationen';
+      if (this.activeMainTab === 'creatorauswahl') this.activeMainTab = 'sourcing';
 
       await this.loadUnternehmenData();
 
       if (window.breadcrumbSystem && this.unternehmen) {
         const canEdit = window.currentUser?.permissions?.unternehmen?.can_edit !== false;
-        window.breadcrumbSystem.updateDetailLabel(this.unternehmen.firmenname || 'Details', {
+        const breadcrumbOpts = {
           id: 'btn-edit-unternehmen',
-          canEdit: canEdit
-        });
+          canEdit
+        };
+        if (!window.isKunde?.()) {
+          breadcrumbOpts.actionsHtml = actionBuilder.create('unternehmen', this.unternehmenId, null, {
+            onlyActions: ['add_ansprechpartner_unternehmen', 'add_produkt', 'add_persona']
+          });
+        }
+        window.breadcrumbSystem.updateDetailLabel(this.unternehmen.firmenname || 'Details', breadcrumbOpts);
       }
 
       this.render(true);

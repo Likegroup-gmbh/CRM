@@ -9,6 +9,7 @@
 
 import { PersonaService } from './PersonaService.js';
 import { resolveOwnerContext } from '../../core/OwnerContext.js';
+import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
 export class PersonaForm {
@@ -70,9 +71,12 @@ export class PersonaForm {
 
     window.breadcrumbSystem?.updateBreadcrumb([
       { label: this.ctx.listLabel, url: this.ctx.listPath, clickable: true },
-      { label: this.ctx.ownerLabel, url: this.returnRoute, clickable: true },
+      { label: this.ctx.ownerLabel, url: this.ctx.basePath, clickable: true },
+      { label: 'Personas', url: this.returnRoute, clickable: true },
       { label: this.isEdit ? PersonaService.label(this.persona) : 'Persona anlegen', clickable: false }
-    ]);
+    ], null, {
+      switcher: this.isEdit ? nestedSwitcherContext('persona', this.personaId, this.ctx) : null
+    });
 
     const formData = this.isEdit
       ? { ...this.persona, marke_ids: this.markenIds, _isEditMode: true, _entityId: this.persona.id }

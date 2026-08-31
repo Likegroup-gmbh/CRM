@@ -2,6 +2,8 @@
 // Dünne Orchestrierungsklasse — delegiert an Loader, Renderer, Events, Edit
 
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
+import { getTabQueryParam } from '../../core/TabUtils.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { loadCriticalData, loadMarkeTabData } from './MarkeDetailLoader.js';
 import { renderMarkeDetailPage } from './MarkeDetailRendererCore.js';
@@ -22,6 +24,7 @@ export class MarkeDetail extends PersonDetailBase {
     this.ansprechpartner = [];
     this.rechnungen = [];
     this.strategien = [];
+    this.sourcingListen = [];
     this.personas = [];
     this.produkte = [];
     this.activeMainTab = 'informationen';
@@ -51,7 +54,7 @@ export class MarkeDetail extends PersonDetailBase {
 
       // ?tab=... macht einzelne Tabs deeplink-faehig und laesst die Rueckkehr
       // von Unterseiten (z.B. Persona-Formular) auf dem richtigen Tab landen.
-      const tabParam = new URLSearchParams(window.location.search).get('tab');
+      const tabParam = getTabQueryParam();
       if (tabParam) this.activeMainTab = tabParam;
 
       tabDataCache.invalidate('marke', markeId);
@@ -59,10 +62,16 @@ export class MarkeDetail extends PersonDetailBase {
 
       if (window.breadcrumbSystem && this.marke) {
         const canEdit = window.currentUser?.permissions?.marke?.can_edit !== false;
-        window.breadcrumbSystem.updateDetailLabel(this.marke.markenname || 'Details', {
+        const breadcrumbOpts = {
           id: 'btn-edit-marke',
-          canEdit: canEdit
-        });
+          canEdit
+        };
+        if (!window.isKunde?.()) {
+          breadcrumbOpts.actionsHtml = actionBuilder.create('marke', this.markeId, null, {
+            onlyActions: ['add_ansprechpartner', 'add_produkt', 'add_persona']
+          });
+        }
+        window.breadcrumbSystem.updateDetailLabel(this.marke.markenname || 'Details', breadcrumbOpts);
       }
 
       this.render();

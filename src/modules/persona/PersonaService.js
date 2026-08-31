@@ -11,6 +11,26 @@
 // Skript-DNA bestehen und tauchen in beiden Ansichten nicht auf.
 
 const MARKEN_SELECT = 'marken:persona_marke(marke_id, marke:marke_id(id, markenname))';
+const BUDGETRAHMEN = ['niedrig', 'mittel', 'hoch'];
+
+/**
+ * Postgres: CHECK (budgetrahmen IN ('niedrig','mittel','hoch')), NULL ok.
+ * Exakt (case-insensitive), sonst genau ein erlaubtes Wort im String.
+ * Ranges wie "mittel bis hoch" → null.
+ */
+function clampBudgetrahmen(value) {
+  if (value === null || value === undefined) return null;
+  const n = String(value).trim().toLowerCase();
+  if (!n) return null;
+  if (BUDGETRAHMEN.includes(n)) return n;
+  const hits = BUDGETRAHMEN.filter(v => n.includes(v));
+  return hits.length === 1 ? hits[0] : null;
+}
+
+export function personaFormRoute(ownerTyp, ownerId, personaId = null) {
+  const base = `/${ownerTyp}/${ownerId}/persona`;
+  return personaId ? `${base}?persona=${personaId}` : base;
+}
 
 export class PersonaService {
   static async loadForContext({ unternehmenId = null, markeId = null } = {}) {
@@ -66,6 +86,7 @@ export class PersonaService {
   static async create(data, { unternehmenId = null } = {}) {
     const payload = { ...data, unternehmen_id: unternehmenId };
     delete payload.marke_ids;
+    if ('budgetrahmen' in payload) payload.budgetrahmen = clampBudgetrahmen(payload.budgetrahmen);
 
     const result = await window.dataService.createEntity('persona', payload);
     if (!result.success) throw new Error(result.error || 'Persona konnte nicht angelegt werden');
@@ -77,6 +98,7 @@ export class PersonaService {
     delete payload.marke_ids;
     // unternehmen_id steht als Hidden-Feld im Formular und darf nicht wandern
     delete payload.unternehmen_id;
+    if ('budgetrahmen' in payload) payload.budgetrahmen = clampBudgetrahmen(payload.budgetrahmen);
 
     const result = await window.dataService.updateEntity('persona', id, payload);
     if (!result.success) throw new Error(result.error || 'Persona konnte nicht gespeichert werden');

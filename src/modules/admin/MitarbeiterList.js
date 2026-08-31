@@ -124,10 +124,12 @@ export class MitarbeiterList {
     const vorname = u.vorname || (u.name ? u.name.split(' ')[0] : '—');
     const nachname = u.nachname || (u.name && u.name.includes(' ') ? u.name.split(' ').slice(1).join(' ') : '—');
     
-    const initials = `${vorname[0] || ''}${nachname[0] || ''}`.toUpperCase() || '—';
-    const avatar = u.profile_image_url
-      ? `<img src="${u.profile_image_url}" alt="${window.validatorSystem.sanitizeHtml(vorname + ' ' + nachname)}" class="table-logo">`
-      : `<div class="table-avatar-placeholder table-avatar-round">${window.validatorSystem.sanitizeHtml(initials)}</div>`;
+    const initials = `${vorname[0] || ''}${nachname[0] || ''}`.toUpperCase() || '?';
+    const avatarSource = u.profile_image_thumb_url || u.profile_image_url;
+    const safeAvatarUrl = avatarSource ? window.validatorSystem?.sanitizeUrl?.(avatarSource) : null;
+    const avatar = safeAvatarUrl
+      ? `<img src="${safeAvatarUrl}" alt="${window.validatorSystem.sanitizeHtml(`${vorname} ${nachname}`.trim())}" class="table-avatar table-avatar-img" loading="lazy" />`
+      : `<span class="table-avatar">${window.validatorSystem.sanitizeHtml(initials[0] || '?')}</span>`;
 
     return `
       <tr data-id="${u.id}">
@@ -156,6 +158,7 @@ export class MitarbeiterList {
       { key: 'Copywriter', label: 'Copywriter', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Copywriter' },
       { key: 'Cutter', label: 'Cutter', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Cutter' },
       { key: 'Back-Office-Buchhaltung', label: 'Back-Office-Buchhaltung', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Back-Office-Buchhaltung' },
+      { key: 'Finanzen', label: 'Finanzen', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Finanzen' },
       { key: 'ohne', label: 'Ohne Rolle', filter: u => u.rolle !== 'admin' && !u.mitarbeiter_klasse?.name }
     ];
 

@@ -1,5 +1,5 @@
 // StakeholderOverviewPage.js
-// Stakeholder-Gesamtübersicht (/stakeholder, Admin-only, Deep-Link).
+// Stakeholder-Gesamtübersicht (/stakeholder, Admin-only, Nav unter Projektmanagement).
 // Zeitraum-Filter + Kategorie-Tabs (GESAMT, Influencer Marketing, UGC Paid,
 // UGC Organic, Vor-Ort Production, Contracting). Darunter Budget-Karten
 // (Auftragsvolumen, Verfügbares/Offenes Creator Budget, Verbrauchtes Budget,

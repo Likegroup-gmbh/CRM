@@ -1,7 +1,7 @@
 // MitarbeiterDetailRendererCore.js
 // Seiten-Render, Tabs, Lazy panes, TabContent-Dispatch
 
-import { renderTabButton } from '../../core/TabUtils.js';
+import { renderSecondaryNav } from '../../core/TabUtils.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { renderRechteTab } from './MitarbeiterDetailRendererRechte.js';
 import { renderKampagnenTable, renderKooperationenTable, renderAuftragsdetailsTable, renderUnternehmenTable, renderBudget } from './MitarbeiterDetailRendererTables.js';
@@ -34,8 +34,12 @@ export function getTabsConfig(detail) {
 
 export function renderTabNavigation(detail) {
   const tabs = getTabsConfig(detail);
-  const tabsHtml = tabs.map(t => renderTabButton({ ...t, showIcon: true, tab: t.tab === 'kooperationen' ? 'koops' : (t.tab === 'cashflow' ? 'budget' : t.tab) })).join('');
-  return `<div class="tabs-header-container" style="--tab-count: ${tabs.length}"><div class="tabs-left">${tabsHtml}</div></div>`;
+  const mapped = tabs.map(t => ({
+    ...t,
+    showIcon: true,
+    tab: t.tab === 'kooperationen' ? 'koops' : (t.tab === 'cashflow' ? 'budget' : t.tab)
+  }));
+  return renderSecondaryNav(mapped);
 }
 
 export function renderTabContent(detail, tab) {

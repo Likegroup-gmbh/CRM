@@ -42,6 +42,7 @@ export class NavigationSystem {
       {
         title: 'Projektmanagement',
         items: [
+          { id: 'stakeholder', label: 'Stakeholder', icon: 'stakeholder', url: '/stakeholder' },
           { id: 'auftrag', label: 'Aufträge', icon: 'auftrag', url: '/auftrag' },
           { id: 'ausgangsrechnungen', label: 'Kundenrechnungen', icon: 'ausgangsrechnungen', url: '/ausgangsrechnungen' },
           { id: 'auftragsdetails', label: 'Auftragsdetails', icon: 'auftragsdetails', url: '/auftragsdetails' },
@@ -119,6 +120,10 @@ export class NavigationSystem {
 
       // KI-Nutzung: nur Admins (RLS laesst ohnehin nur Admins lesen)
       if (id === 'ki-usage') {
+        return typeof window.isAdmin === 'function' && window.isAdmin();
+      }
+
+      if (id === 'stakeholder') {
         return typeof window.isAdmin === 'function' && window.isAdmin();
       }
 

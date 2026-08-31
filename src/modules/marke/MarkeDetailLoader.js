@@ -3,7 +3,7 @@
 
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
-import { updateKampagnenTab, updateAuftraegeTab, updateBriefingsTab, updateKooperationenTab, updateRechnungenTab, updateStrategienTab, updatePersonasTab, updateProdukteTab } from './MarkeDetailTabUpdates.js';
+import { updateKampagnenTab, updateAuftraegeTab, updateBriefingsTab, updateKooperationenTab, updateRechnungenTab, updateStrategienTab, updateSourcingTab, updatePersonasTab, updateProdukteTab } from './MarkeDetailTabUpdates.js';
 import { PersonaService } from '../persona/PersonaService.js';
 import { ProduktService } from '../produkt/ProduktService.js';
 
@@ -187,6 +187,18 @@ export async function loadMarkeTabData(detail, tabName) {
           detail.strategien = strategien || [];
           updateStrategienTab(detail);
           return strategien;
+        }
+
+        case 'sourcing': {
+          const { data: sourcingListen } = await window.supabase
+            .from('creator_auswahl')
+            .select('id, name, created_at')
+            .eq('marke_id', detail.markeId)
+            .order('created_at', { ascending: false });
+          if (!isStillActive()) return sourcingListen;
+          detail.sourcingListen = sourcingListen || [];
+          updateSourcingTab(detail);
+          return sourcingListen;
         }
 
         case 'personas': {

@@ -105,7 +105,7 @@ const PERSONA_TOOL = {
                 geschlecht: { type: ['string', 'null'], description: 'Weiblich, Maennlich, Divers oder Gemischt' },
                 wohnort_region: { type: ['string', 'null'] },
                 beruf: { type: ['string', 'null'] },
-                budgetrahmen: { type: ['string', 'null'], description: 'niedrig, mittel oder hoch' },
+                budgetrahmen: { type: ['string', 'null'], enum: ['niedrig', 'mittel', 'hoch'], description: 'niedrig, mittel oder hoch – genau einer der drei Werte, keine Ranges' },
                 bildungsstand: { type: ['string', 'null'] },
                 lebenssituation: { type: ['string', 'null'], description: 'Single, Familie, Paar ohne Kinder, Alleinerziehend, Student/in, Rentner/in, Mensch mit Behinderung, WG / Wohngemeinschaft' },
                 kontext: { type: ['string', 'null'], description: 'Situation/Alltag: Mediennutzung, Werte, was die Person beschaeftigt' },
@@ -341,6 +341,22 @@ function validateVorschlaege(json, { poolIds = [], useCaseCount = 0, maxVorschla
   };
 }
 
+const BUDGETRAHMEN = ['niedrig', 'mittel', 'hoch'];
+
+/**
+ * Postgres: CHECK (budgetrahmen IN ('niedrig','mittel','hoch')), NULL ok.
+ * Exakt (case-insensitive), sonst genau ein erlaubtes Wort im String.
+ * Ranges wie "mittel bis hoch" → null.
+ */
+function clampBudgetrahmen(value) {
+  if (value === null || value === undefined) return null;
+  const n = String(value).trim().toLowerCase();
+  if (!n) return null;
+  if (BUDGETRAHMEN.includes(n)) return n;
+  const hits = BUDGETRAHMEN.filter(v => n.includes(v));
+  return hits.length === 1 ? hits[0] : null;
+}
+
 /** Nur bekannte Persona-Felder durchlassen, Strings trimmen, Leeres zu null. */
 function sanitizePersonaPayload(persona) {
   const STRING_FELDER = [
@@ -354,6 +370,7 @@ function sanitizePersonaPayload(persona) {
     const wert = persona[feld];
     out[feld] = (wert === null || wert === undefined || !String(wert).trim()) ? null : String(wert).trim();
   }
+  out.budgetrahmen = clampBudgetrahmen(out.budgetrahmen);
   for (const feld of ['alter_von', 'alter_bis']) {
     const zahl = Number(persona[feld]);
     out[feld] = Number.isInteger(zahl) && zahl >= 0 && zahl <= 120 ? zahl : null;

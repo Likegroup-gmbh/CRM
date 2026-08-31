@@ -144,6 +144,7 @@ export function generatePermissionsTable(detail) {
     ['kampagne','Kampagnen'],
     ['briefing','Briefings'],
     ['strategie','Strategie'],
+    ['sourcing','Sourcing'],
     ['kooperation','Kooperationen'],
     ['rechnung','Rechnungen'],
     ['tasks','Aufgaben'],

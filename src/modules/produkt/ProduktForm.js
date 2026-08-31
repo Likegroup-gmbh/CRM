@@ -3,6 +3,7 @@
 // Routen: /marke/:markeId/produkt, /unternehmen/:unternehmenId/produkt
 //         (Bearbeiten jeweils mit ?produkt=:id)
 //         /produkt/new — Anlegen aus der Liste, Firma waehlt man im Dokument
+//         /produkt/:id — Bearbeiten aus der Liste (Breadcrumb: Produkte > Name)
 //
 // Die Seite ist ein Worksheet: mittig ein Schreibdokument mit festen
 // Ueberschriften und frei beschreibbaren Abschnitten (ProduktDoc.js),
@@ -13,7 +14,7 @@
 // Im Unternehmens- und Listen-Kontext traegt das Dokument ein Marken-
 // Multiselect. Aus einer Marke heraus ist die Zuordnung fix.
 
-import { ProduktService, MAX_BILDER } from './ProduktService.js';
+import { ProduktService, MAX_BILDER, isStandaloneProduktPath } from './ProduktService.js';
 import { ProduktVariantenPanel } from './ProduktVarianten.js';
 import { ProduktExtractPanel } from './ProduktExtractPanel.js';
 import { ProduktPersonaPanel } from './ProduktPersonaPanel.js';
@@ -22,6 +23,7 @@ import { renderProduktDoc, bindProduktDoc, refreshDocHeights } from './ProduktDo
 import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import { produktConfig } from '../../core/form/config/ProduktFormConfig.js';
 import { resolveOwnerContext } from '../../core/OwnerContext.js';
+import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
 export class ProduktForm {
@@ -65,16 +67,20 @@ export class ProduktForm {
     this._abort?.abort();
     this._abort = new AbortController();
 
-    this.produktId = new URLSearchParams(window.location.search).get('produkt');
+    const standalone = isStandaloneProduktPath();
+    const pathId = window.location.pathname.split('/').filter(Boolean)[1];
+    this.produktId = standalone
+      ? (pathId && pathId !== 'new' ? pathId : null)
+      : new URLSearchParams(window.location.search).get('produkt');
     this.produkt = null;
     this.markenIds = [];
     this.varianten = [];
     this.bilder = [];
 
     try {
-      this.ctx = ownerId
-        ? await resolveOwnerContext(ownerId)
-        : standaloneProduktContext();
+      this.ctx = standalone || !ownerId
+        ? standaloneProduktContext()
+        : await resolveOwnerContext(ownerId);
 
       if (this.produktId) {
         this.produkt = await ProduktService.loadOne(this.produktId, this.ctx);
@@ -113,17 +119,25 @@ export class ProduktForm {
 
     window.setHeadline(title);
 
+    const detailLabel = this.isEdit ? ProduktService.label(this.produkt) : 'Produkt anlegen';
     const crumbs = this.isStandalone
       ? [
           { label: 'Produkte', url: '/produkt', clickable: true },
-          { label: 'Produkt anlegen', clickable: false }
+          { label: detailLabel, clickable: false }
         ]
       : [
           { label: this.ctx.listLabel, url: this.ctx.listPath, clickable: true },
-          { label: this.ctx.ownerLabel, url: this.returnRoute, clickable: true },
-          { label: this.isEdit ? ProduktService.label(this.produkt) : 'Produkt anlegen', clickable: false }
+          { label: this.ctx.ownerLabel, url: this.ctx.basePath, clickable: true },
+          { label: 'Produkte', url: this.returnRoute, clickable: true },
+          { label: detailLabel, clickable: false }
         ];
-    window.breadcrumbSystem?.updateBreadcrumb(crumbs);
+    window.breadcrumbSystem?.updateBreadcrumb(crumbs, null, {
+      switcher: this.isEdit
+        ? (this.isStandalone
+          ? { segment: 'produkt', id: this.produktId }
+          : nestedSwitcherContext('produkt', this.produktId, this.ctx))
+        : null
+    });
 
     const formData = this.isEdit
       ? { ...this.produkt, marke_ids: this.markenIds, _isEditMode: true, _entityId: this.produkt.id }

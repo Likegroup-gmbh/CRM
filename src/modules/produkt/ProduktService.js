@@ -79,6 +79,15 @@ export function produktFormRoute(unternehmenId, produktId = null) {
   return produktId ? `${base}?produkt=${produktId}` : base;
 }
 
+/** Listen-Detail: Herkunft = Produktliste, nicht das Unternehmen. */
+export function produktListDetailRoute(produktId) {
+  return `/produkt/${produktId}`;
+}
+
+export function isStandaloneProduktPath(pathname = window.location?.pathname || '') {
+  return pathname.split('/').filter(Boolean)[0] === 'produkt';
+}
+
 const MARKEN_SELECT = 'marken:produkt_marke(marke_id, marke:marke_id(id, markenname))';
 
 const TABELLEN_SELECT = `
@@ -237,8 +246,10 @@ export class ProduktService {
       query = query
         .select('*, treffer:produkt_marke!inner(marke_id)')
         .eq('treffer.marke_id', markeId);
-    } else {
+    } else if (unternehmenId) {
       query = query.select('*').eq('unternehmen_id', unternehmenId);
+    } else {
+      query = query.select('*');
     }
 
     const { data, error } = await query.eq('id', produktId).maybeSingle();

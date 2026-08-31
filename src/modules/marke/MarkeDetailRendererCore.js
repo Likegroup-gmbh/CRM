@@ -1,10 +1,10 @@
 // MarkeDetailRendererCore.js
 // Seiten-Render, Tabs, renderMainContent
 
-import { renderTabButton } from '../../core/TabUtils.js';
+import { renderSecondaryNav } from '../../core/TabUtils.js';
 import { safeExternalUrl } from '../../core/UrlHelper.js';
 import { getBranchenDisplay } from './MarkeDetailRendererHelpers.js';
-import { renderKampagnen, renderAuftraege, renderAnsprechpartner, renderBriefings, renderKooperationen, renderRechnungen, renderStrategien } from './MarkeDetailRendererTables.js';
+import { renderKampagnen, renderAuftraege, renderAnsprechpartner, renderBriefings, renderKooperationen, renderRechnungen, renderStrategien, renderSourcingListen } from './MarkeDetailRendererTables.js';
 import { renderPersonas } from '../persona/PersonaTabRenderer.js';
 import { renderProdukte } from '../produkt/ProduktTabRenderer.js';
 import { renderNotizDokument } from '../../core/components/NotizDokument.js';
@@ -16,6 +16,7 @@ export function getTabsConfig(detail) {
     { tab: 'kampagnen', label: 'Kampagnen', count: detail.kampagnen.length, isActive: detail.activeMainTab === 'kampagnen' },
     { tab: 'briefings', label: 'Briefings', count: detail.briefings.length, isActive: detail.activeMainTab === 'briefings' },
     { tab: 'strategien', label: 'Strategien', count: detail.strategien.length, isActive: detail.activeMainTab === 'strategien' },
+    { tab: 'sourcing', label: 'Sourcing', count: (detail.sourcingListen || []).length, isActive: detail.activeMainTab === 'sourcing' },
     { tab: 'kooperationen', label: 'Kooperationen', count: detail.kooperationen.length, isActive: detail.activeMainTab === 'kooperationen' },
     { tab: 'rechnungen', label: 'Rechnungen', count: detail.rechnungen.length, isActive: detail.activeMainTab === 'rechnungen' },
     { tab: 'personas', label: 'Personas', count: detail.personas.length, isActive: detail.activeMainTab === 'personas' },
@@ -25,7 +26,7 @@ export function getTabsConfig(detail) {
 
 export function renderTabNavigation(detail) {
   const tabs = getTabsConfig(detail);
-  return `<div class="tabs-header-container" style="--tab-count: ${tabs.length}"><div class="tabs-left">${tabs.map(t => renderTabButton({ ...t, showIcon: true })).join('')}</div></div>`;
+  return renderSecondaryNav(tabs.map(t => ({ ...t, showIcon: true })));
 }
 
 export function renderMainContent(detail) {
@@ -53,6 +54,10 @@ export function renderMainContent(detail) {
 
       <div class="tab-pane ${detail.activeMainTab === 'strategien' ? 'active' : ''}" id="tab-strategien">
         ${renderStrategien(detail)}
+      </div>
+
+      <div class="tab-pane ${detail.activeMainTab === 'sourcing' ? 'active' : ''}" id="tab-sourcing">
+        ${renderSourcingListen(detail)}
       </div>
 
       <div class="tab-pane ${detail.activeMainTab === 'rechnungen' ? 'active' : ''}" id="tab-rechnungen">

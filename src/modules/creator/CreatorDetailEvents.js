@@ -5,6 +5,7 @@ import { CreatorDetail } from './CreatorDetailCore.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { firmaCreateDrawer, injectFirmaCreateButton } from './FirmaCreateDrawer.js';
 import { HAUPTADRESSE_QUELLE, normalizeHauptadresseQuelle } from './hauptadresseQuelle.js';
+import { activateSecondaryNavTab, getSecondaryNavTabFromEvent } from '../../core/TabUtils.js';
 
 CreatorDetail.prototype.bindEvents = function() {
     if (this._abortController) {
@@ -16,9 +17,10 @@ CreatorDetail.prototype.bindEvents = function() {
     this.bindSidebarTabs();
 
     document.addEventListener('click', (e) => {
-      if (e.target.classList.contains('tab-button')) {
+      const tab = getSecondaryNavTabFromEvent(e);
+      if (tab) {
         e.preventDefault();
-        this.switchTab(e.target.dataset.tab);
+        this.switchTab(tab);
       }
     }, { signal });
 
@@ -131,25 +133,11 @@ CreatorDetail.prototype.switchTab = async function(tabName) {
     console.log('🔄 CREATORDETAIL: Wechsle zu Tab:', tabName);
     
     this.activeMainTab = tabName;
-    
-    document.querySelectorAll('.tab-button').forEach(btn => {
-      btn.classList.remove('active');
-    });
-    
-    document.querySelectorAll('.tab-pane').forEach(pane => {
-      pane.classList.remove('active');
-    });
-    
-    const activeButton = document.querySelector(`[data-tab="${tabName}"]`);
+    activateSecondaryNavTab(tabName);
+
     const activePane = document.getElementById(`tab-${tabName}`);
-    
-    if (activeButton && activePane) {
-      activeButton.classList.add('active');
-      activePane.classList.add('active');
-      
-      if (!['adresse'].includes(tabName)) {
-        await this.loadTabData(tabName);
-      }
+    if (activePane && !['adresse'].includes(tabName)) {
+      await this.loadTabData(tabName);
     }
 };
 

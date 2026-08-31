@@ -1,6 +1,7 @@
 // MitarbeiterDetailEvents.js
 // Event-Binding für Mitarbeiter-Detailseite
 
+import { activateSecondaryNavTab, getSecondaryNavTabFromEvent } from '../../core/TabUtils.js';
 import { renderTabContent } from './MitarbeiterDetailRendererCore.js';
 import { generatePermissionsTable } from './MitarbeiterDetailRendererRechte.js';
 import { autoSavePermissions } from './MitarbeiterDetailPermissions.js';
@@ -19,24 +20,18 @@ export function bindMitarbeiterDetail(detail) {
 
   // Tab-Navigation mit Lazy-Rendering
   on('click', (e) => {
-    const btn = e.target.closest('.tab-button');
-    if (!btn) return;
-    e.preventDefault();
-    const tab = btn.dataset.tab;
+    const tab = getSecondaryNavTabFromEvent(e);
     if (!tab) return;
+    e.preventDefault();
 
     detail.activeMainTab = tab;
-    document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-    const pane = document.getElementById(`tab-${tab}`);
+    const pane = activateSecondaryNavTab(tab);
     if (pane) {
       if (detail._renderedTabs && !detail._renderedTabs.has(tab)) {
         const content = renderTabContent(detail, tab);
         if (content) pane.innerHTML = content;
         detail._renderedTabs.add(tab);
       }
-      pane.classList.add('active');
     }
   });
 

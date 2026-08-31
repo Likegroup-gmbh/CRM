@@ -177,7 +177,7 @@ export class CreatorAuswahlList {
             </div>
           </div>
           <div class="table-actions">
-            ${canCreate ? `<button class="mdc-btn" data-action="create-liste">Neue Creator-Auswahl</button>` : ''}
+            ${canCreate ? `<button class="mdc-btn" data-action="create-liste">Neue Sourcing-Liste</button>` : ''}
           </div>
         </div>
 
@@ -210,7 +210,7 @@ export class CreatorAuswahlList {
     return {
       icon,
       title,
-      actionsHtml: canCreate ? '<button class="mdc-btn" data-action="create-liste">Neue Creator-Auswahl</button>' : ''
+      actionsHtml: canCreate ? '<button class="mdc-btn" data-action="create-liste">Neue Sourcing-Liste</button>' : ''
     };
   }
 
@@ -280,7 +280,7 @@ export class CreatorAuswahlList {
             </div>
           </div>
           <div class="table-actions">
-            ${canCreate ? `<button class="mdc-btn" data-action="create-liste">Neue Creator-Auswahl</button>` : ''}
+            ${canCreate ? `<button class="mdc-btn" data-action="create-liste">Neue Sourcing-Liste</button>` : ''}
           </div>
         </div>
 
@@ -426,7 +426,7 @@ export class CreatorAuswahlList {
             </div>
           </div>
           <div class="table-actions">
-            ${canCreate ? `<button class="mdc-btn" data-action="create-liste">Neue Creator-Auswahl</button>` : ''}
+            ${canCreate ? `<button class="mdc-btn" data-action="create-liste">Neue Sourcing-Liste</button>` : ''}
           </div>
         </div>
         <div class="table-container table-container--creator-auswahl-list">
@@ -442,7 +442,7 @@ export class CreatorAuswahlList {
               </tr>
             </thead>
             <tbody id="creator-auswahl-table-body">
-              <tr><td colspan="6" class="table-state-cell">Lade Creator-Auswahl-Listen...</td></tr>
+              <tr><td colspan="6" class="table-state-cell">Lade Sourcing-Listen...</td></tr>
             </tbody>
           </table>
         </div>
@@ -662,8 +662,8 @@ export class CreatorAuswahlList {
   async confirmDeleteListe(id) {
     if (window.confirmationModal) {
       const result = await window.confirmationModal.open({
-        title: 'Creator-Auswahl löschen',
-        message: 'Möchten Sie diese Creator-Auswahl wirklich löschen? Alle zugeordneten Creator werden entfernt.',
+        title: 'Sourcing-Liste löschen',
+        message: 'Möchten Sie diese Sourcing-Liste wirklich löschen? Alle zugeordneten Creator werden entfernt.',
         confirmText: 'Löschen',
         cancelText: 'Abbrechen',
         danger: true
@@ -671,7 +671,7 @@ export class CreatorAuswahlList {
       if (result?.confirmed) {
         await this.deleteListe(id);
       }
-    } else if (confirm('Möchten Sie diese Creator-Auswahl wirklich löschen?')) {
+    } else if (confirm('Möchten Sie diese Sourcing-Liste wirklich löschen?')) {
       await this.deleteListe(id);
     }
   }
@@ -679,13 +679,13 @@ export class CreatorAuswahlList {
   async deleteListe(id) {
     try {
       await creatorAuswahlService.deleteListe(id);
-      window.toastSystem?.show('Creator-Auswahl erfolgreich gelöscht', 'success');
+      window.toastSystem?.show('Sourcing-Liste erfolgreich gelöscht', 'success');
       this._forceReload = true;
       this.listen = [];
       await this.loadAndRender();
     } catch (error) {
       console.error('Fehler beim Löschen:', error);
-      window.toastSystem?.show('Fehler beim Löschen der Creator-Auswahl', 'error');
+      window.toastSystem?.show('Fehler beim Löschen der Sourcing-Liste', 'error');
     }
   }
 
@@ -806,7 +806,7 @@ export class CreatorAuswahlList {
     header.className = 'drawer-header';
     header.innerHTML = `
       <div>
-        <span class="drawer-title">Neue Creator-Auswahl</span>
+        <span class="drawer-title">Neue Sourcing-Liste</span>
         <p class="drawer-subtitle">Erstellen Sie eine neue Sourcing-Liste für eine Kampagne</p>
       </div>
       <div>
@@ -881,7 +881,7 @@ export class CreatorAuswahlList {
 
       const newListe = await creatorAuswahlService.createListe(submitData);
       if (newListe?.id) {
-        window.toastSystem?.show('Creator-Auswahl erfolgreich erstellt', 'success');
+        window.toastSystem?.show('Sourcing-Liste erfolgreich erstellt', 'success');
         this.closeCreateDrawer();
         window.navigateTo(`/sourcing/${newListe.id}`);
       } else {

@@ -5,7 +5,7 @@ import { kooperationVersandManager } from './VersandManager.js';
 import { TaskKanbanBoard } from '../tasks/TaskKanbanBoard.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
-import { renderTabButton } from '../../core/TabUtils.js';
+import { renderSecondaryNav, activateSecondaryNavTab, getSecondaryNavTabFromEvent, getTabQueryParam } from '../../core/TabUtils.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { deleteVideoFull } from '../../core/VideoDeleteHelper.js';
@@ -53,6 +53,7 @@ export class KooperationDetail extends PersonDetailBase {
     const currentUrl = new URL(window.location.href);
     this.returnToRoute = currentUrl.searchParams.get('returnTo') || null;
     this.kooperationId = kooperationId;
+    this.activeMainTab = getTabQueryParam() || 'informationen';
 
     if (window.moduleRegistry?.currentModule !== this) {
       console.log('⚠️ KOOPERATIONDETAIL: Nicht mehr das aktuelle Modul, breche ab');
@@ -441,7 +442,7 @@ export class KooperationDetail extends PersonDetailBase {
 
   renderTabNavigation(isKundeRole) {
     const tabs = this.getTabsConfig(isKundeRole);
-    return `<div class="tabs-header-container" style="--tab-count: ${tabs.length}"><div class="tabs-left">${tabs.map(t => renderTabButton({ ...t, showIcon: true })).join('')}</div></div>`;
+    return renderSecondaryNav(tabs.map(t => ({ ...t, showIcon: true })));
   }
 
   renderMainContent(isKundeRole) {
@@ -823,24 +824,17 @@ export class KooperationDetail extends PersonDetailBase {
 
   async _handleDocumentClick(e) {
     // Tab-Button (robust via closest)
-    const tabBtn = e.target.closest('.tab-button');
-    if (tabBtn) {
+    const tab = getSecondaryNavTabFromEvent(e);
+    if (tab) {
       e.preventDefault();
-      const tab = tabBtn.dataset.tab;
-      if (tab) {
-        this.activeMainTab = tab;
-        document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-        tabBtn.classList.add('active');
-        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-        const pane = document.getElementById(`tab-${tab}`);
-        if (pane) {
-          pane.classList.add('active');
-          if (!['versand'].includes(tab) && tab !== 'tasks') {
-            await this.loadTabData(tab);
-          }
-          if (tab === 'tasks' && !this.taskKanbanBoard) {
-            await this.initTasksBoard();
-          }
+      this.activeMainTab = tab;
+      const pane = activateSecondaryNavTab(tab);
+      if (pane) {
+        if (!['versand'].includes(tab) && tab !== 'tasks') {
+          await this.loadTabData(tab);
+        }
+        if (tab === 'tasks' && !this.taskKanbanBoard) {
+          await this.initTasksBoard();
         }
       }
       return;

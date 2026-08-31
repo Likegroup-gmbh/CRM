@@ -1,6 +1,8 @@
 // UnternehmenDetailEvents.js
 // Event-Binding und Drag-to-Scroll für Unternehmen-Detailseite
 
+import { activateSecondaryNavTab, getSecondaryNavTabFromEvent } from '../../core/TabUtils.js';
+
 export function bindUnternehmenDetailEvents(detail) {
   detail.bindSidebarTabs();
 
@@ -10,18 +12,11 @@ export function bindUnternehmenDetailEvents(detail) {
 
   // Main Tab-Navigation
   detail._tabClickHandler = (e) => {
-    const btn = e.target.closest('.tab-button');
-    if (!btn) return;
-    e.preventDefault();
-    const tab = btn.dataset.tab;
+    const tab = getSecondaryNavTabFromEvent(e);
     if (!tab) return;
-
+    e.preventDefault();
     detail.activeMainTab = tab;
-    document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-    const pane = document.getElementById(`tab-${tab}`);
-    if (pane) pane.classList.add('active');
+    activateSecondaryNavTab(tab);
     detail.bindDragToScroll();
   };
   document.addEventListener('click', detail._tabClickHandler, { signal });
@@ -100,6 +95,12 @@ export function bindUnternehmenDetailEvents(detail) {
     }
     if (e.detail?.entity === 'unternehmen' && e.detail?.id === detail.unternehmenId) {
       detail.loadUnternehmenData().then(() => detail.render());
+    }
+    if (['produkt', 'persona', 'strategie', 'creator_auswahl'].includes(e.detail?.entity)) {
+      detail.loadUnternehmenData().then(() => {
+        detail.render(true);
+        detail.bindDragToScroll();
+      });
     }
   };
   document.addEventListener('entityUpdated', detail._entityUpdatedHandler, { signal });
