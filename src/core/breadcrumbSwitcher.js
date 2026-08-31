@@ -6,7 +6,7 @@ import { KampagneUtils } from '../modules/kampagne/KampagneUtils.js';
 export const SWITCHER_LIMIT = 25;
 
 function isUnscopedRole() {
-  return Boolean(window.isAdmin?.() || window.isKunde?.());
+  return Boolean(window.isUnscoped?.() || window.isAdmin?.() || window.isKunde?.());
 }
 
 async function allowedIds(getter) {
@@ -114,6 +114,46 @@ async function scopeAnsprechpartner() {
   return { in: { column: 'id', ids: [...ids] } };
 }
 
+async function scopeOwnerNested(context, { ownerColumn, junctionTable, junctionEntityColumn }) {
+  if (context?.typ === 'marke' && context.ownerId) {
+    const { data } = await window.supabase
+      .from(junctionTable)
+      .select(junctionEntityColumn)
+      .eq('marke_id', context.ownerId);
+    const ids = [...new Set((data || []).map((row) => row[junctionEntityColumn]).filter(Boolean))];
+    if (!ids.length) return { empty: true };
+    return { in: { column: 'id', ids } };
+  }
+  const unternehmenId = context?.unternehmenId
+    || (context?.typ === 'unternehmen' ? context.ownerId : null);
+  if (!unternehmenId) return { empty: true };
+  return { in: { column: ownerColumn, ids: [unternehmenId] } };
+}
+
+async function scopeProduktList() {
+  if (isUnscopedRole()) return null;
+  const userId = window.currentUser?.id;
+  if (!userId) return { empty: true };
+  const { ProduktService } = await import('../modules/produkt/ProduktService.js');
+  const scope = await ProduktService.getAllowedProduktScopeForUser(userId);
+  if (scope?.all) return null;
+  if (!scope?.produktIds?.length) return { empty: true };
+  return { in: { column: 'id', ids: scope.produktIds } };
+}
+
+function hasNestedOwner(context) {
+  if (context?.typ === 'marke' && context.ownerId) return true;
+  return Boolean(context?.unternehmenId || (context?.typ === 'unternehmen' && context.ownerId));
+}
+
+function nestedOwnerRoute(kind) {
+  return (row, context) => {
+    if (!row?.id) return '#';
+    if (context?.basePath) return `${context.basePath}/${kind}?${kind}=${row.id}`;
+    return `/${kind}/${row.id}`;
+  };
+}
+
 export const SWITCHER_CONFIG = {
   unternehmen: {
     table: 'unternehmen',
@@ -212,6 +252,33 @@ export const SWITCHER_CONFIG = {
     labelField: 'rechnung_nr',
     searchFields: ['rechnung_nr', 'externe_angebotsnummer'],
     resolveScope: scopeRechnung
+  },
+  persona: {
+    table: 'personas',
+    permKey: (context) => context?.typ === 'marke' ? 'marke' : 'unternehmen',
+    labelField: ['oberbegriff', 'name'],
+    searchFields: ['name', 'oberbegriff'],
+    buildLabel: (row) => [row.oberbegriff, row.name].filter(Boolean).join(' · ') || 'Persona',
+    buildRoute: nestedOwnerRoute('persona'),
+    resolveScope: (context) => scopeOwnerNested(context, {
+      ownerColumn: 'unternehmen_id',
+      junctionTable: 'persona_marke',
+      junctionEntityColumn: 'persona_id'
+    })
+  },
+  produkt: {
+    table: 'produkt',
+    permKey: 'produkt',
+    labelField: 'name',
+    searchFields: ['name'],
+    buildRoute: nestedOwnerRoute('produkt'),
+    resolveScope: (context) => hasNestedOwner(context)
+      ? scopeOwnerNested(context, {
+          ownerColumn: 'unternehmen_id',
+          junctionTable: 'produkt_marke',
+          junctionEntityColumn: 'produkt_id'
+        })
+      : scopeProduktList()
   }
 };
 
@@ -221,6 +288,18 @@ export function getSwitcherConfig(segment) {
 
 export function hasSwitcherConfig(segment) {
   return Boolean(SWITCHER_CONFIG[segment]);
+}
+
+export function nestedSwitcherContext(segment, id, ctx) {
+  if (!id || !ctx) return null;
+  return {
+    segment,
+    id,
+    typ: ctx.typ,
+    ownerId: ctx.markeId || ctx.unternehmenId,
+    unternehmenId: ctx.unternehmenId,
+    basePath: ctx.basePath
+  };
 }
 
 export function canViewSwitcher(permKey) {
@@ -234,7 +313,8 @@ export function shouldEnableSwitcher(segment, id, options = {}) {
   if (options.isChild) return false;
   const config = SWITCHER_CONFIG[segment];
   if (!config) return false;
-  return canViewSwitcher(config.permKey);
+  const permKey = typeof config.permKey === 'function' ? config.permKey(options.context) : config.permKey;
+  return canViewSwitcher(permKey);
 }
 
 export function escapeSwitcherQuery(value) {
@@ -293,14 +373,15 @@ async function runQuery(config, { search, scope }) {
   return result || { data: [], error: null };
 }
 
-export async function loadSwitcherItems({ segment, query = '' } = {}) {
+export async function loadSwitcherItems({ segment, query = '', context } = {}) {
   const config = SWITCHER_CONFIG[segment];
   if (!config) return { items: [], error: null };
-  if (!canViewSwitcher(config.permKey)) return { items: [], error: null };
+  const permKey = typeof config.permKey === 'function' ? config.permKey(context) : config.permKey;
+  if (!canViewSwitcher(permKey)) return { items: [], error: null };
   if (!window.supabase) return { items: [], error: new Error('Supabase nicht verfügbar') };
 
   try {
-    const scope = await config.resolveScope();
+    const scope = await config.resolveScope(context);
     if (scope?.empty) return { items: [], error: null };
 
     const { data, error } = await runQuery(config, { search: query, scope });
@@ -309,7 +390,9 @@ export async function loadSwitcherItems({ segment, query = '' } = {}) {
     const items = (data || []).map((row) => ({
       id: row.id,
       label: buildLabel(row, config),
-      route: `${config.routePrefix}/${row.id}`
+      route: typeof config.buildRoute === 'function'
+        ? config.buildRoute(row, context)
+        : `${config.routePrefix}/${row.id}`
     }));
     return { items, error: null };
   } catch (error) {

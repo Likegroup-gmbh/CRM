@@ -19,6 +19,8 @@ const KEY_MAP = {
   unlink: 'minus-circle',
   refresh: 'arrow-path',
   'add-ansprechpartner': 'user-plus',
+  'add-produkt': 'cube',
+  'add-persona': 'users',
   check: 'check',
   zap: 'bolt',
   invoice: 'bolt',

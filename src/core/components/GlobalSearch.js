@@ -59,9 +59,9 @@ const SEARCH_CONFIG = [
   {
     key: 'produkt',
     table: 'produkt',
-    // Produkte leben unter ihrem Unternehmen, es gibt keine eigene Detailroute
-    routeFields: ['unternehmen_id'],
-    buildRoute: (row) => (row.unternehmen_id ? `/unternehmen/${row.unternehmen_id}/produkt?produkt=${row.id}` : null),
+    // Listen-Detail: Herkunft bleibt die Produktliste, nicht das Unternehmen
+    routeFields: ['id'],
+    buildRoute: (row) => (row.id ? `/produkt/${row.id}` : null),
     labelField: 'name',
     searchFields: ['name', 'url', 'kurzbeschreibung', 'usp'],
     fieldLabels: { name: 'Name', url: 'Shop-URL', kurzbeschreibung: 'Kurzbeschreibung', usp: 'USP' },

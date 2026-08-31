@@ -221,10 +221,10 @@ export class ModuleRegistry {
       console.log(`🎯 Produkt-Formular erkannt (${segment}), verwende Modul: ${moduleKey}`);
     }
 
-    if (segment === 'produkt' && id === 'new') {
+    if (segment === 'produkt' && id) {
       moduleKey = 'produkt-form';
       module = this.modules.get(moduleKey);
-      console.log('🎯 Produkt-Formular erkannt (Liste), verwende Modul: produkt-form');
+      console.log(`🎯 Produkt-Formular erkannt (Liste${id === 'new' ? '' : '-Detail'}), verwende Modul: produkt-form`);
     }
     
     if (id === 'new' && segment === 'auftragsdetails') {

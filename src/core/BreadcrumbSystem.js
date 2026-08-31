@@ -22,6 +22,7 @@ export class BreadcrumbSystem {
     this._container = null;
     this.currentBreadcrumbs = [];
     this.editButton = null;
+    this.actionsHtml = '';
     this.navigationId = 0;
     this._switcherContext = null;
     this._portal = null;
@@ -67,7 +68,9 @@ export class BreadcrumbSystem {
 
   // Breadcrumb aktualisieren
   // editButton: { id: string, canEdit: boolean } - optional
-  updateBreadcrumb(crumbs, editButton = null) {
+  // options.switcher: Context für den letzten Crumb, oder null zum Abschalten.
+  // Ohne options.switcher bleibt der Context aus setFromRoute.
+  updateBreadcrumb(crumbs, editButton = null, options = {}) {
     if (!this.container) {
       console.warn('⚠️ BreadcrumbSystem: Container nicht initialisiert');
       return;
@@ -75,6 +78,10 @@ export class BreadcrumbSystem {
 
     this.currentBreadcrumbs = crumbs;
     this.editButton = editButton;
+    this.actionsHtml = editButton?.actionsHtml || '';
+    if (Object.prototype.hasOwnProperty.call(options, 'switcher')) {
+      this._switcherContext = options.switcher;
+    }
     this.render();
   }
 
@@ -84,6 +91,7 @@ export class BreadcrumbSystem {
     this._switcherContext = null;
     this.currentBreadcrumbs = [];
     this.editButton = null;
+    this.actionsHtml = '';
     if (this.container) {
       this.container.innerHTML = '';
     }
@@ -95,6 +103,7 @@ export class BreadcrumbSystem {
 
     this.navigationId++;
     this.editButton = null;
+    this.actionsHtml = '';
     this.closeSwitcher();
 
     const rolle = options.rolle || window.currentUser?.rolle?.toLowerCase();
@@ -106,31 +115,54 @@ export class BreadcrumbSystem {
       ? { segment, id }
       : null;
 
+    let nextCrumbs;
     if (child) {
       const childUrl = `${url}/${id}`;
-      this.currentBreadcrumbs = [
+      nextCrumbs = [
         { label: config.label, url, clickable: true },
         { label: child.label, url: childUrl, clickable: Boolean(action) },
       ];
       if (action) {
-        this.currentBreadcrumbs.push({
+        nextCrumbs.push({
           label: action === 'new' ? 'Neu' : '...',
           url: `${childUrl}/${action}`,
           clickable: false,
         });
       }
     } else if (id) {
-      this.currentBreadcrumbs = [
+      nextCrumbs = [
         { label: config.label, url, clickable: true },
         { label: '...', url: `${url}/${id}`, clickable: false },
       ];
     } else {
-      this.currentBreadcrumbs = [
+      nextCrumbs = [
         { label: config.label, url, clickable: false },
       ];
     }
 
+    // Persona/Produkt-Formulare im selben Owner: alte Krumen stehen lassen,
+    // bis das Modul nach dem Laden atomar umrendert. Verhindert das Flackern
+    // auf "Unternehmen > ...".
+    if (this._isNestedOwnerForm(segment, action) && this._sharesContextPrefix(nextCrumbs)) {
+      return;
+    }
+
+    this.currentBreadcrumbs = nextCrumbs.map((crumb, i) => {
+      const prev = this.currentBreadcrumbs[i];
+      return prev && prev.url === crumb.url ? { ...crumb, label: prev.label } : crumb;
+    });
+
     this.render();
+  }
+
+  _isNestedOwnerForm(segment, action) {
+    return (segment === 'unternehmen' || segment === 'marke')
+      && (action === 'persona' || action === 'produkt');
+  }
+
+  _sharesContextPrefix(nextCrumbs) {
+    return nextCrumbs.length > 0
+      && nextCrumbs.every((crumb, i) => this.currentBreadcrumbs[i]?.url === crumb.url);
   }
 
   // Detail-Label aktualisieren (Platzhalter ersetzen)
@@ -144,6 +176,7 @@ export class BreadcrumbSystem {
     }
 
     this.editButton = editButton;
+    this.actionsHtml = editButton?.actionsHtml || '';
     this.render();
   }
 
@@ -203,10 +236,15 @@ export class BreadcrumbSystem {
       `;
     }
 
+    const actionsHtml = this.actionsHtml || '';
+    const trailingHtml = (editButtonHtml || actionsHtml)
+      ? `<div class="breadcrumb-actions">${editButtonHtml}${actionsHtml}</div>`
+      : '';
+
     this.container.innerHTML = `
       <nav class="breadcrumb" aria-label="Breadcrumb">
         ${breadcrumbHtml}
-        ${editButtonHtml}
+        ${trailingHtml}
       </nav>
     `;
 
@@ -370,7 +408,8 @@ export class BreadcrumbSystem {
 
     const { items, error } = await loadSwitcherItems({
       segment: this._switcherContext.segment,
-      query
+      query,
+      context: this._switcherContext
     });
 
     if (!this._portal) return;
@@ -422,6 +461,7 @@ export class BreadcrumbSystem {
       return;
     }
     this.closeSwitcher();
+    this.updateDetailLabel(item.label);
     if (item.route && window.navigateTo) window.navigateTo(item.route);
   }
 

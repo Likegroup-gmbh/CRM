@@ -2,7 +2,7 @@
 // Ermittelt Unternehmen-/Marken-Zuordnungen fuer den aktuellen Benutzer.
 // Ergebnisse werden gecacht und bei Permission-Aenderungen invalidiert.
 
-class DataScopeService {
+export class DataScopeService {
   constructor() {
     this._unternehmenCache = null;
     this._markenCache = null;
@@ -39,11 +39,9 @@ class DataScopeService {
   }
 
   async _fetchUnternehmenIds() {
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-    const userId = window.currentUser?.id;
+    if (window.isUnscoped?.() || window.permissionSystem?.isUnscoped) return null;
 
-    if (rolle === 'admin') return null;
-    if (rolle === 'kunde' || rolle === 'kunde_editor') return null;
+    const userId = window.currentUser?.id;
     if (!userId) {
       console.warn('⚠️ getAllowedUnternehmenIds: Kein User-ID gefunden');
       return [];
@@ -86,11 +84,9 @@ class DataScopeService {
   }
 
   async _fetchMarkenIds() {
-    const rolle = window.currentUser?.rolle?.toLowerCase();
-    const userId = window.currentUser?.id;
+    if (window.isUnscoped?.() || window.permissionSystem?.isUnscoped) return null;
 
-    if (rolle === 'admin') return null;
-    if (rolle === 'kunde' || rolle === 'kunde_editor') return null;
+    const userId = window.currentUser?.id;
     if (!userId) {
       console.warn('⚠️ getAllowedMarkenIds: Kein User-ID gefunden');
       return [];
