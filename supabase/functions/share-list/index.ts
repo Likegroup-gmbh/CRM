@@ -150,6 +150,7 @@ function buildInviteEmail(params: {
   rechte: string;
   link: string;
   code: string;
+  message?: string;
 }): string {
   const article = params.entityArticle || 'die';
   const articleCapitalized = article === 'das' ? 'Ein' : 'Eine';
@@ -159,6 +160,14 @@ function buildInviteEmail(params: {
       ? `Sie können ${article} ${params.entityLabel} ansehen, kommentieren und Änderungen vornehmen.`
       : `Sie können ${article} ${params.entityLabel} ansehen und Feedback geben.`)
     : `Sie können ${article} ${params.entityLabel} ansehen.`;
+  const messageBlock = params.message
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;">
+            <tr><td style="padding:12px 16px;background:#f4f4f5;border-left:3px solid #d4d4d4;border-radius:4px;">
+              <p style="margin:0 0 4px 0;color:#555;font-size:12px;font-weight:600;">Nachricht von ${escapeHtml(params.sharedByName)}:</p>
+              <p style="margin:0;color:#1a1a1a;font-size:14px;white-space:pre-line;">${escapeHtml(params.message)}</p>
+            </td></tr>
+          </table>`
+    : '';
   return `<!DOCTYPE html>
 <html lang="de">
 <head><meta charset="utf-8"><title>${escapeHtml(params.entityLabel)} geteilt</title></head>
@@ -170,6 +179,7 @@ function buildInviteEmail(params: {
           <h2 style="margin:0 0 16px 0;font-size:20px;">${articleCapitalized} ${escapeHtml(params.entityLabel)} wurde mit Ihnen geteilt</h2>
           <p style="margin:0 0 16px 0;">${escapeHtml(params.sharedByName)} hat ${article} ${escapeHtml(params.entityLabel)} <strong>${escapeHtml(params.entityName)}</strong> mit Ihnen geteilt.</p>
           <p style="margin:0 0 24px 0;">${rechteText} Leiten Sie diese Mail gerne an Kolleginnen und Kollegen weiter.</p>
+          ${messageBlock}
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;">
             <tr><td style="border-radius:6px;background:#4f46e5;">
               <a href="${params.link}" style="display:inline-block;padding:12px 28px;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;">${escapeHtml(params.entityLabel)} öffnen</a>
@@ -481,7 +491,10 @@ serve(async (req: Request) => {
     const entityId = String(body.entityId ?? '');
     const rechte = String(body.rechte ?? 'ansehen');
     const label = String(body.label ?? '').trim().slice(0, 80) || 'Zugang';
+    const message = String(body.message ?? '').trim().slice(0, 500);
     const emails = parseEmails(body.emails ?? body.email);
+    const expiresAtRaw = body.expiresAt ? String(body.expiresAt) : '';
+    const endsWithKampagne = Boolean(body.endsWithKampagne);
 
     const entityConfig = ENTITY_CONFIG[entityType];
     if (!entityConfig) return jsonRes({ error: 'Ungültiger Listen-Typ.' }, 400, headers);
@@ -496,6 +509,13 @@ serve(async (req: Request) => {
     const info = await entityName(admin, entityType, entityId);
     if (!info) return jsonRes({ error: 'Liste nicht gefunden.' }, 404, headers);
 
+    let expiresAt: string | null = null;
+    if (expiresAtRaw) {
+      const d = new Date(expiresAtRaw);
+      if (Number.isNaN(d.getTime())) return jsonRes({ error: 'Ungültiges Ablaufdatum.' }, 400, headers);
+      expiresAt = d.toISOString();
+    }
+
     const token = generateToken();
     const code = generateCode();
     const codeHash = await hashCode(code, secret);
@@ -509,8 +529,8 @@ serve(async (req: Request) => {
         rechte,
         label,
         code_hash: codeHash,
-        expires_at: null,
-        ends_with_kampagne: Boolean(info.kampagneId),
+        expires_at: expiresAt,
+        ends_with_kampagne: endsWithKampagne && Boolean(info.kampagneId),
         created_by: staff.id,
       })
       .select('id')
@@ -536,6 +556,7 @@ serve(async (req: Request) => {
         rechte,
         link,
         code,
+        message: message || undefined,
       }),
     });
 
@@ -638,6 +659,7 @@ serve(async (req: Request) => {
         rechte: share.rechte,
         link,
         code,
+        message: String(body.message ?? '').trim().slice(0, 500) || undefined,
       }),
     });
     if (mailResult.error && mailResult.sent === 0) return jsonRes({ error: mailResult.error }, 502, headers);
