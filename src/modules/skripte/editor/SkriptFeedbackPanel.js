@@ -14,6 +14,7 @@ export class SkriptFeedbackPanel {
     this.view = view;
     this.channel = null;
     this.neueSelektion = null;
+    this.tab = 'kommentare';
     // Erledigte Threads, die der User manuell wieder aufgeklappt hat
     this.aufgeklappt = new Set();
   }
@@ -36,6 +37,35 @@ export class SkriptFeedbackPanel {
   }
 
   // ------------------------------------------------------------------
+  // Tabs: Kommentare (Threads) vs. Aenderungen (Info-Zeilen)
+  // ------------------------------------------------------------------
+  setTab(tab) {
+    if (this.tab === tab) return;
+    this.tab = tab;
+    this.syncTabButtons();
+    this.render();
+  }
+
+  syncTabButtons() {
+    document.querySelectorAll('#ed-fb [data-fb-tab]').forEach((btn) => {
+      const aktiv = btn.dataset.fbTab === this.tab;
+      btn.classList.toggle('active', aktiv);
+      btn.setAttribute('aria-selected', String(aktiv));
+    });
+  }
+
+  updateCounts(threadAnzahl, aenderungAnzahl) {
+    const setze = (tab, anzahl) => {
+      const badge = document.querySelector(`#ed-fb [data-fb-tab="${tab}"] .tab-count`);
+      if (!badge) return;
+      badge.textContent = anzahl > 0 ? String(anzahl) : '';
+      badge.hidden = anzahl === 0;
+    };
+    setze('kommentare', threadAnzahl);
+    setze('aenderungen', aenderungAnzahl);
+  }
+
+  // ------------------------------------------------------------------
   // Rendern
   // ------------------------------------------------------------------
   render() {
@@ -43,8 +73,20 @@ export class SkriptFeedbackPanel {
     if (!el) return;
 
     const vorherigerScroll = el.scrollTop;
-    const threads = gruppiereThreads(this.kommentare);
+    const aenderungen = this.kommentare.filter((k) => k.typ === 'aenderung');
+    const threads = gruppiereThreads(this.kommentare.filter((k) => k.typ !== 'aenderung'));
     const kannAntworten = this.view.kannKommentieren;
+
+    this.updateCounts(threads.length, aenderungen.length);
+
+    if (this.tab === 'aenderungen') {
+      el.innerHTML = aenderungen.length
+        ? aenderungen.map((a) => threadHtml(a, {})).join('')
+        : feedbackLeerHtml(kannAntworten, 'aenderungen');
+      this.bindEvents(el);
+      el.scrollTop = vorherigerScroll;
+      return;
+    }
 
     const threadsHtml = threads.map((t) => threadHtml(t, {
       kannErledigen: this.view.kannErledigen,
@@ -58,7 +100,7 @@ export class SkriptFeedbackPanel {
 
     el.innerHTML = threads.length || composer
       ? composer + threadsHtml
-      : feedbackLeerHtml(kannAntworten);
+      : feedbackLeerHtml(kannAntworten, 'kommentare');
 
     this.bindEvents(el);
     el.scrollTop = vorherigerScroll;
@@ -83,10 +125,18 @@ export class SkriptFeedbackPanel {
   handleAction(action, id) {
     if (action === 'erledigt') return this.toggleErledigt(id);
     if (action === 'aufklappen') return this.aufklappen(id);
+    if (action === 'diff-toggle') return this.toggleDiff(id);
     if (action === 'antworten') return this.sendAntwort(id);
     if (action === 'neu-senden') return this.sendNeuerKommentar();
     if (action === 'neu-abbrechen') return this.abbrechenNeuerKommentar();
     return undefined;
+  }
+
+  /** Lange Vorher/Nachher-Texte in Info-Zeilen auf-/zuklappen (ohne Re-Render). */
+  toggleDiff(blockId) {
+    document.getElementById('ed-fb-log')
+      ?.querySelector(`[data-fb-id="${CSS.escape(blockId)}"]`)
+      ?.classList.toggle('is-offen');
   }
 
   // ------------------------------------------------------------------
@@ -97,6 +147,10 @@ export class SkriptFeedbackPanel {
     if (!this.view.kannKommentieren || !selektion) return;
     this.neueSelektion = { ...selektion };
     window.getSelection()?.removeAllRanges();
+    if (this.tab !== 'kommentare') {
+      this.tab = 'kommentare';
+      this.syncTabButtons();
+    }
     this.render();
 
     const input = document.getElementById('ed-fb-neu-input');

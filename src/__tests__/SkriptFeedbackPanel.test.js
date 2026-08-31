@@ -69,6 +69,20 @@ describe('threadHtml', () => {
     expect(html).toContain('Hier würde ich den Text gegen einen neuen tauschen.');
   });
 
+  it('nutzt author_name, wenn der Autor-Join per RLS leer bleibt', () => {
+    const kunde = { ...kommentar({ created_by: null, author_name: 'Jasmis' }), antworten: [] };
+    const html = threadHtml(kunde, { kannErledigen: true });
+    expect(html).toContain('Jasmis');
+    expect(html).not.toContain('Unbekannt');
+  });
+
+  it('nutzt author_name, wenn Realtime created_by nur als UUID liefert', () => {
+    const realtime = { ...kommentar({ created_by: 'u1', author_name: 'Jasmis' }), antworten: [] };
+    const html = threadHtml(realtime, { kannErledigen: true });
+    expect(html).toContain('Jasmis');
+    expect(html).not.toContain('Unbekannt');
+  });
+
   it('blendet den Erledigt-Haken ohne interne Rechte aus', () => {
     expect(threadHtml(thread, { kannErledigen: false })).not.toContain('data-fb-action="erledigt"');
     expect(threadHtml(thread, { kannErledigen: true })).toContain('data-fb-action="erledigt"');

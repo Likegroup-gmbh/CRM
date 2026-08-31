@@ -44,6 +44,17 @@ export function relativeZeit(iso) {
   return 'Gerade eben';
 }
 
+/** Absolutes Datum + Uhrzeit, als Tooltip neben relativeZeit. */
+export function datumZeit(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString('de-DE', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+}
+
 /** Initialen fuer den Avatar-Fallback, wenn kein Profilbild hinterlegt ist. */
 export function initialen(name) {
   const teile = String(name || '').trim().split(/\s+/).filter(Boolean);
@@ -74,6 +85,9 @@ export function skriptEditorPath(skriptId) {
 }
 
 export function replaceSkriptUrl(skriptId) {
+  // Gast-Modus: die URL bleibt der Share-Link, sonst braeche ein Reload
+  // den Zugang (kein /share/:token-Match mehr nach dem Umschreiben).
+  if (window.permissionSystem?.isGast) return;
   const path = skriptEditorPath(skriptId);
   window.history.replaceState({ route: path }, '', path);
 }

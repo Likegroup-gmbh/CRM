@@ -11,18 +11,71 @@ import {
   hatGridInhalt, hatZusatzInfos, gridFelderFuerSkript, zusatzInfosMarkdown
 } from '../master/skriptCreatorFacing.js';
 import { icon } from '../../../core/icons/IconSystem.js';
+import { renderToolbarListenKopf } from '../../../core/components/ToolbarMenu.js';
+import { avatarBubbles } from '../../../core/components/AvatarBubbles.js';
 import {
-  AKTION_ICONS, SEKTION_LABELS_KURZ, VISUELL_FIELD
+  SEKTION_LABELS_KURZ, VISUELL_FIELD
 } from './skriptEditorKonstanten.js';
 import { visuellGuardGrund, visuellVorgaengerTitle } from './skriptEditorVisuellHelfer.js';
+
+/** Logo (Marke, sonst Unternehmen) + Skripttitel – gleiche Klassen wie Strategie/Sourcing. */
+function docHeadHtml(skript, extraHtml = '', fallbackName = 'Skript') {
+  const marke = skript?.marke;
+  const unternehmen = skript?.unternehmen;
+  return `
+    <div class="skripte-editor-doc-head">
+      ${renderToolbarListenKopf({
+        name: skript?.titel || fallbackName,
+        logoUrl: marke?.logo_url || unternehmen?.logo_url || '',
+        logoAlt: marke?.markenname || unternehmen?.firmenname || 'Logo'
+      })}
+      ${extraHtml}
+    </div>`;
+}
+
+function creatorDisplayName(creator) {
+  return `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim() || 'Creator';
+}
+
+/** Secondary-Button im Doc-Kopf: zuweisen bzw. Bubble + Creator-Name. */
+export function verknuepfungenHtml({ verknuepfungen = [], kannZuweisen = false } = {}) {
+  if (!kannZuweisen) return '';
+  if (!verknuepfungen.length) {
+    return `
+      <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-zuweisen-btn" id="ed-skript-zuweisen"
+        title="Creator zuweisen">
+        <span class="mdc-btn__icon">${icon('user-add')}</span>
+        <span class="mdc-btn__label">Creator zuweisen</span>
+      </button>`;
+  }
+
+  const proCreator = new Map();
+  for (const row of verknuepfungen) {
+    const creator = row.kooperation?.creator;
+    if (!creator) continue;
+    const key = creator.id || creatorDisplayName(creator);
+    if (!proCreator.has(key)) proCreator.set(key, creator);
+  }
+  const creators = [...proCreator.values()];
+  const namen = creators.map(creatorDisplayName).join(', ');
+  const bubbles = avatarBubbles.renderBubbles(creators.map((c) => ({
+    name: creatorDisplayName(c),
+    type: 'person',
+    profile_image_url: c.profilbild_thumb_url || c.profilbild_url || null
+  })), { maxVisible: creators.length });
+  return `
+    <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-zuweisen-btn" id="ed-skript-zuweisen"
+      title="${escapeHtml(namen)}">
+      <span class="skripte-editor-zuweisen-bubbles">${bubbles}</span>
+      <span class="mdc-btn__label skripte-editor-zuweisen-name">${escapeHtml(namen)}</span>
+    </button>`;
+}
 
 /** Neu-Modus: Generator-Formular-Platzhalter + Start-Buttons. */
 export function neuModusHtml() {
   return `
     <div class="skripte-editor-doc-scroll">
-      <div class="skripte-editor-doc-head">
-        <h2>Neues Skript</h2>
-      </div>
+      ${docHeadHtml(null, '', 'Neues Skript')}
       <div class="skripte-editor-genform" id="ed-genform"></div>
     </div>
     <div class="skripte-actions-row skripte-actions-row--sticky">
@@ -35,11 +88,10 @@ export function neuModusHtml() {
 /** Rueckfragen-Phase: Vorgaben + Hinweis statt (noch leerem) Skript-Inhalt. */
 export function fragenModusHtml({ skript, genStatus, docHeadActionsHtml, vorgabenPanelHtml }) {
   return `
-    <div class="skripte-editor-doc-head">
-      <h2>${escapeHtml(skript.titel || 'Neues Skript')}</h2>
+    ${docHeadHtml(skript, `
       <span class="skripte-badge skripte-badge--info" title="Liky klärt erst offene Fragen, dann wird das Skript geschrieben">Rückfragen</span>
       ${docHeadActionsHtml}
-    </div>
+    `, 'Neues Skript')}
     ${vorgabenPanelHtml}
     <div class="skripte-editor-fragen-info">
       <p>Liky prüft die Vorgaben und stellt dir rechts Rückfragen, bevor das Skript geschrieben wird.</p>
@@ -56,10 +108,7 @@ export function fragenModusHtml({ skript, genStatus, docHeadActionsHtml, vorgabe
 /** Neues Format: gerenderte Markdown-Sektionen aus ##-Ueberschriften. */
 export function masterDocHtml({ skript, docHeadActionsHtml, vorgabenPanelHtml }) {
   return `
-    <div class="skripte-editor-doc-head">
-      <h2>${escapeHtml(skript.titel || 'Skript')}</h2>
-      ${docHeadActionsHtml}
-    </div>
+    ${docHeadHtml(skript, docHeadActionsHtml, 'Skript')}
     ${vorgabenPanelHtml}
     <div class="skripte-editor-doc-box skripte-editor-doc-box--md">
       ${renderMasterMarkdownHtml(skript.inhalt_md, escapeHtml)}
@@ -152,10 +201,7 @@ export function skriptDocHtml({
   const activeTab = showExtra && docTab === 'zusatz' ? 'zusatz' : 'skript';
 
   return `
-    <div class="skripte-editor-doc-head">
-      <h2>${escapeHtml(skript.titel || 'Skript')}</h2>
-      ${docHeadActionsHtml}
-    </div>
+    ${docHeadHtml(skript, docHeadActionsHtml, 'Skript')}
     ${vorgabenPanelHtml}
     ${showExtra ? docTabsHtml(activeTab) : ''}
     <div class="skripte-editor-doc-panel" data-editor-tab-panel="skript"${activeTab === 'zusatz' ? ' hidden' : ''}>
@@ -171,16 +217,17 @@ export function skriptDocHtml({
   `;
 }
 
-/** Doc-Kopf: optional Feedback, Version rechts. */
-export function docHeadActionsHtml({ isReadonly, feedback = false } = {}) {
+/** Doc-Kopf: Version, optional Teilen, dann Creator-Zuweisen. */
+export function docHeadActionsHtml({ kannTeilen = false, verknuepfungenHtml = '' } = {}) {
   return `
-    ${feedback && !isReadonly ? `
-    <button class="skripte-editor-feedback-btn" id="ed-feedback" title="Skript komplett bewerten (Score, Performance-Label)">
-      <span class="skripte-editor-tag-icon">${AKTION_ICONS.feedback}</span>
-      <span>Feedback</span>
-    </button>
-    ` : ''}
     <div class="skripte-editor-version" id="ed-version-wrap"></div>
+    ${kannTeilen ? `
+    <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-share"
+      title="Skript per Link teilen">
+      <span class="mdc-btn__icon">${icon('share-alt')}</span>
+      <span class="mdc-btn__label">Teilen</span>
+    </button>` : ''}
+    ${verknuepfungenHtml}
   `;
 }
 

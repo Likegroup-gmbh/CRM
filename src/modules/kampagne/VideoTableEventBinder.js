@@ -209,6 +209,19 @@ export class VideoTableEventBinder {
       if (linkBtn) {
         e.preventDefault();
         t._openLinkStrategieDrawer(linkBtn);
+        return;
+      }
+      const openSkript = e.target.closest('[data-action="open-skript"]');
+      if (openSkript) {
+        e.preventDefault();
+        const skriptId = openSkript.dataset.skriptId;
+        if (skriptId) window.navigateTo(`/skripte/${skriptId}`);
+        return;
+      }
+      const linkSkript = e.target.closest('[data-action="link-skript"]');
+      if (linkSkript) {
+        e.preventDefault();
+        t._openLinkSkriptDrawer(linkSkript);
       }
     }, { signal });
 

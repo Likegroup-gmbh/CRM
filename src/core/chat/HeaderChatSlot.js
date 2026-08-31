@@ -18,14 +18,12 @@ function ensureButton() {
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.id = HEADER_CHAT_BTN_ID;
-  btn.className = 'header-icon-btn header-chat-toggle';
+  btn.className = 'secondary-btn header-chat-toggle';
   btn.hidden = true;
   btn.setAttribute('aria-expanded', 'false');
   btn.innerHTML = `${icon('ai-chat')}<span class="header-chat-dot" hidden></span>`;
 
-  // Vor Logout einreihen: Chat gehoert zu den App-Aktionen, nicht zum Account
-  const anchor = actions.querySelector('.logout-btn') || actions.querySelector('.profile-menu');
-  actions.insertBefore(btn, anchor || null);
+  actions.insertBefore(btn, actions.firstChild);
   _btn = btn;
   return btn;
 }

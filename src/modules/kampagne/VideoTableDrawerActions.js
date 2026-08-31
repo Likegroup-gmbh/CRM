@@ -202,9 +202,56 @@ export class VideoTableDrawerActions {
     });
   }
 
+  async openLinkSkriptDrawer(btn) {
+    const t = this.table;
+    const videoId = btn.dataset.videoId;
+    const kooperationId = btn.dataset.kooperationId;
+    const koop = t.kooperationen.find(k => k.id === kooperationId);
+    const videos = t.videos[kooperationId] || [];
+    const video = videos.find(v => v.id === videoId);
+
+    if (!video || !koop) {
+      window.toastSystem?.show('Video nicht gefunden', 'error');
+      return;
+    }
+
+    await t._linkSkriptDrawer.open({
+      video,
+      kooperation: koop,
+      kampagneId: t.kampagneId,
+      onSuccess: () => this.reloadAfterSkriptLink(videoId)
+    });
+  }
+
   async reloadAfterStrategieLink() {
     const t = this.table;
     await t.dataLoader.loadData();
+    t.refilter();
+  }
+
+  async reloadAfterSkriptLink(videoId) {
+    const t = this.table;
+    try {
+      const { data } = await window.supabase
+        .from('kooperation_videos')
+        .select('skript_id, skript:skript_id(id, titel, status)')
+        .eq('id', videoId)
+        .single();
+      const patch = {
+        skript_id: data?.skript_id || null,
+        skript: data?.skript || null
+      };
+      if (t.store) {
+        t.store.updateVideo(videoId, patch);
+      } else {
+        for (const vids of Object.values(t.videos || {})) {
+          const v = vids.find((vid) => vid.id === videoId);
+          if (v) Object.assign(v, patch);
+        }
+      }
+    } catch (err) {
+      console.warn('Skript-Verknüpfung konnte nicht aktualisiert werden:', err);
+    }
     t.refilter();
   }
 

@@ -258,6 +258,60 @@ function renderPlatformCell(item, platformIcon, fallbackIcon) {
   return `<td class="col-platform u-text-center"><span class="strategie-cell-muted">-</span></td>`;
 }
 
+/**
+ * Creator-Zelle: Freitext-Textarea oder - bei Verknüpfung - der Name aus dem
+ * Join als Profil-Link. Der Plus-Button öffnet den Creator-Drawer, das x löst
+ * die Verknüpfung (creator_name bleibt als Freitext erhalten).
+ */
+function renderCreatorCell(detail, item, readonly) {
+  const canEdit = !detail.isKunde && !readonly;
+  const linked = !!(item.creator_id && item.creator);
+
+  const connectBtn = canEdit
+    ? `<button type="button" class="creator-cell-btn creator-connect-btn" data-item-id="${item.id}" title="Creator aus Datenbank verbinden" aria-label="Creator aus Datenbank verbinden">${icon('user-add')}</button>`
+    : '';
+
+  if (item.creator_id) {
+    // Fallback: creator_id gesetzt, aber Join leer (Creator gelöscht) -> Freitext zeigen
+    const name = linked
+      ? `${item.creator.vorname || ''} ${item.creator.nachname || ''}`.trim()
+      : (item.creator_name || '');
+    const label = escapeHtml(name || 'Unbekannt');
+
+    const nameHtml = (!detail.isKunde && linked)
+      ? `<a href="/creator/${item.creator_id}" class="table-link creator-cell-link" onclick="event.preventDefault(); window.navigateTo('/creator/${item.creator_id}')">${label}</a>`
+      : `<span class="creator-cell-name">${label}</span>`;
+
+    const unlinkBtn = canEdit
+      ? `<button type="button" class="creator-cell-btn creator-unlink-btn" data-item-id="${item.id}" title="Verknüpfung lösen" aria-label="Verknüpfung lösen">${icon('x-mark')}</button>`
+      : '';
+
+    return `
+      <td class="cell-textarea col-creator">
+        <div class="creator-cell">
+          ${nameHtml}
+          <span class="creator-cell-actions">${connectBtn}${unlinkBtn}</span>
+        </div>
+      </td>
+    `;
+  }
+
+  return `
+    <td class="cell-textarea col-creator">
+      <div class="creator-cell">
+        <textarea
+          class="strategie-textarea${readonly ? ' readonly-textarea' : ''}"
+          placeholder="Creator..."
+          data-field="creator_name"
+          data-item-id="${item.id}"
+          ${readonly ? 'readonly' : ''}
+        >${escapeHtml(item.creator_name || '')}</textarea>
+        ${connectBtn}
+      </div>
+    </td>
+  `;
+}
+
 export function renderItemRow(detail, item, index) {
   const platformIcon = getPlatformIcon(item.plattform);
   const externalLinkIcon = `${icon('external-link', { className: 'icon-20' })}`;
@@ -288,17 +342,7 @@ export function renderItemRow(detail, item, index) {
       ` : ''}
       ${renderBildCell(item, isIdea, ideaIcon)}
       ${renderPlatformCell(item, platformIcon, externalLinkIcon)}
-      ${cols.creator ? `
-        <td class="cell-textarea">
-          <textarea 
-            class="strategie-textarea${readonly ? ' readonly-textarea' : ''}" 
-            placeholder="Creator..."
-            data-field="creator_name"
-            data-item-id="${item.id}"
-            ${readonly ? 'readonly' : ''}
-          >${item.creator_name || ''}</textarea>
-        </td>
-      ` : ''}
+      ${cols.creator ? renderCreatorCell(detail, item, readonly) : ''}
       ${cols.beschreibung ? renderClippedTextCell(detail, item, 'beschreibung', 'col-beschreibung', 'Beschreibung...') : ''}
       ${cols.transkript ? renderClippedTextCell(detail, item, 'transkript', 'col-transkript', 'Transkript...', readonly) : ''}
       ${cols.caption ? renderClippedTextCell(detail, item, 'caption', 'col-caption', 'Caption...', readonly) : ''}
@@ -356,6 +400,10 @@ export function renderItemRow(detail, item, index) {
               <a href="#" class="action-item" data-action="edit-item" data-id="${item.id}">
                 ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
                 Bearbeiten
+              </a>
+              <a href="#" class="action-item" data-action="connect-creator" data-id="${item.id}">
+                ${icon('user-add')}
+                ${item.creator_id ? 'Creator ändern' : 'Creator verbinden'}
               </a>
               ${item.video_link ? `
                 <a href="#" class="action-item" data-action="reprocess-item" data-id="${item.id}">

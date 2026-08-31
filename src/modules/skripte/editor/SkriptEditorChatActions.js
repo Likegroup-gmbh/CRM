@@ -4,6 +4,7 @@
 // manuelles Speichern aus dem Inline-Edit.
 
 import { skripteService } from '../SkripteService.js';
+import { skriptKommentarService } from '../SkriptKommentarService.js';
 import { skriptAuftrag } from '../SkriptAuftrag.js';
 import { AKTION_LABELS, VISUELL_FIELD } from './skriptEditorKonstanten.js';
 import { pendingThinking } from '../../../core/chat/thinking.js';
@@ -360,9 +361,35 @@ export class SkriptEditorChatActions {
   async saveManuell(feld, text, vorherText) {
     const v = this.view;
     if (!v.skript) return;
+    const wert = text || null;
+
+    // Kunden und Share-Gaeste mit Feedback-Recht: Feld-Update + Info-Zeile
+    // kommen atomar aus dem RPC, ohne Version (die Versionshistorie bleibt
+    // der interne Changelog). Gaeste haben keinen benutzer-Eintrag und
+    // speichern ueber den eigenen RPC (Autor kommt aus dem Gast-JWT).
+    if (v.isReadonly) {
+      v.skript[feld] = wert;
+      try {
+        const kommentarId = window.permissionSystem?.isGast
+          ? await skripteService.saveGastAenderung(v.skript.id, feld, wert)
+          : await skripteService.saveKundeAenderung(v.skript.id, feld, wert);
+        // Nachladen mit Autor-Join; schlaegt das fehl, liefert Realtime die Zeile
+        try {
+          const kommentar = await skriptKommentarService.loadKommentar(kommentarId);
+          if (kommentar) {
+            v.upsertFeedback(kommentar);
+            v.renderFeedback();
+          }
+        } catch (_) { /* Realtime holt die Info-Zeile nach */ }
+      } catch (err) {
+        window.toastSystem?.error(err.message);
+        throw err;
+      }
+      return;
+    }
+
     const vorherigerStand = skriptStand(v.skript);
     vorherigerStand[feld] = vorherText || null;
-    const wert = text || null;
     v.skript[feld] = wert;
     try {
       await skripteService.updateSkript(v.skript.id, { [feld]: wert });

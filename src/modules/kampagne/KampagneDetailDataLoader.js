@@ -414,7 +414,7 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
   const [videosResult, creatorsResult, vertraegeResult, versandResult, statusResult, tagsResult, rechnungResult, customColsResult, colOrderResult] = await Promise.allSettled([
     batchIn(
       sb.from('kooperation_videos'),
-      'id, kooperation_id, position, asset_url, content_art, caption, freigabe, link_content, folder_url, story_folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, link_live, stats_views, stats_likes, stats_comments, stats_fetched_at, stats_error, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, skript_deadline, content_deadline, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id, video_link)',
+      'id, kooperation_id, position, asset_url, content_art, caption, freigabe, link_content, folder_url, story_folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, link_live, stats_views, stats_likes, stats_comments, stats_fetched_at, stats_error, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, skript_deadline, content_deadline, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id, video_link), skript_id, skript:skript_id(id, titel, status)',
       'kooperation_id', koopIds,
       q => q.order('position', { ascending: true })
     ),

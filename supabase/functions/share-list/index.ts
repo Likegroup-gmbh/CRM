@@ -23,10 +23,11 @@ const VERIFY_WINDOW_MIN = 15;
 const VERIFY_MAX_ATTEMPTS = 5;
 const JWT_TTL_SEC = 60 * 60 * 24 * 30;
 
-const ENTITY_CONFIG: Record<string, { table: string; nameColumns: string[]; label: string }> = {
-  kampagne: { table: 'kampagne', nameColumns: ['eigener_name', 'kampagnenname'], label: 'Kampagne' },
-  sourcing: { table: 'creator_auswahl', nameColumns: ['name'], label: 'Sourcing-Liste' },
-  strategie: { table: 'strategie', nameColumns: ['name'], label: 'Strategie-Liste' },
+const ENTITY_CONFIG: Record<string, { table: string; nameColumns: string[]; label: string; article: string }> = {
+  kampagne: { table: 'kampagne', nameColumns: ['eigener_name', 'kampagnenname'], label: 'Kampagne', article: 'die' },
+  sourcing: { table: 'creator_auswahl', nameColumns: ['name'], label: 'Sourcing-Liste', article: 'die' },
+  strategie: { table: 'strategie', nameColumns: ['name'], label: 'Strategie-Liste', article: 'die' },
+  skript: { table: 'skripte', nameColumns: ['titel'], label: 'Skript', article: 'das' },
 };
 
 function normalizeFromEmail(raw: string | undefined): string {
@@ -143,29 +144,35 @@ function parseEmails(raw: unknown): string[] {
 
 function buildInviteEmail(params: {
   entityLabel: string;
+  entityArticle: string;
   entityName: string;
   sharedByName: string;
   rechte: string;
   link: string;
   code: string;
 }): string {
+  const article = params.entityArticle || 'die';
+  const articleCapitalized = article === 'das' ? 'Ein' : 'Eine';
+  const isSkript = params.entityLabel === 'Skript';
   const rechteText = params.rechte === 'feedback'
-    ? 'Sie können die Liste ansehen und Feedback geben.'
-    : 'Sie können die Liste ansehen.';
+    ? (isSkript
+      ? `Sie können ${article} ${params.entityLabel} ansehen, kommentieren und Änderungen vornehmen.`
+      : `Sie können ${article} ${params.entityLabel} ansehen und Feedback geben.`)
+    : `Sie können ${article} ${params.entityLabel} ansehen.`;
   return `<!DOCTYPE html>
 <html lang="de">
-<head><meta charset="utf-8"><title>Liste geteilt</title></head>
+<head><meta charset="utf-8"><title>${escapeHtml(params.entityLabel)} geteilt</title></head>
 <body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;">
     <tr><td align="center" style="padding:40px 20px;">
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;max-width:600px;width:100%;">
         <tr><td style="padding:32px 40px;color:#1a1a1a;font-size:15px;line-height:1.6;">
-          <h2 style="margin:0 0 16px 0;font-size:20px;">Eine Liste wurde mit Ihnen geteilt</h2>
-          <p style="margin:0 0 16px 0;">${escapeHtml(params.sharedByName)} hat die ${escapeHtml(params.entityLabel)} <strong>${escapeHtml(params.entityName)}</strong> mit Ihnen geteilt.</p>
+          <h2 style="margin:0 0 16px 0;font-size:20px;">${articleCapitalized} ${escapeHtml(params.entityLabel)} wurde mit Ihnen geteilt</h2>
+          <p style="margin:0 0 16px 0;">${escapeHtml(params.sharedByName)} hat ${article} ${escapeHtml(params.entityLabel)} <strong>${escapeHtml(params.entityName)}</strong> mit Ihnen geteilt.</p>
           <p style="margin:0 0 24px 0;">${rechteText} Leiten Sie diese Mail gerne an Kolleginnen und Kollegen weiter.</p>
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;">
             <tr><td style="border-radius:6px;background:#4f46e5;">
-              <a href="${params.link}" style="display:inline-block;padding:12px 28px;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;">Liste öffnen</a>
+              <a href="${params.link}" style="display:inline-block;padding:12px 28px;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;">${escapeHtml(params.entityLabel)} öffnen</a>
             </td></tr>
           </table>
           <p style="margin:0 0 8px 0;color:#1a1a1a;font-size:15px;">Ihr Zugangscode:</p>
@@ -523,6 +530,7 @@ serve(async (req: Request) => {
       subject: `${entityConfig.label} „${info.name}" wurde mit Ihnen geteilt`,
       html: buildInviteEmail({
         entityLabel: entityConfig.label,
+        entityArticle: entityConfig.article,
         entityName: info.name,
         sharedByName: staff.name || 'Ihr Ansprechpartner',
         rechte,
@@ -624,6 +632,7 @@ serve(async (req: Request) => {
       subject: `${entityConfig?.label || 'Liste'} „${info?.name || share.label}" wurde mit Ihnen geteilt`,
       html: buildInviteEmail({
         entityLabel: entityConfig?.label || 'Liste',
+        entityArticle: entityConfig?.article || 'die',
         entityName: info?.name || share.label || 'Unbenannt',
         sharedByName: staff.name || 'Ihr Ansprechpartner',
         rechte: share.rechte,

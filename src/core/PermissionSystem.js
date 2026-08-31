@@ -67,6 +67,7 @@ BASE_PERMISSIONS.gast = {
   videos:      { ...V },
   sourcing:    { ...V },
   strategie:   { ...V },
+  skripte:     { ...V },
 };
 
 const DEFAULT_PERMISSIONS = {

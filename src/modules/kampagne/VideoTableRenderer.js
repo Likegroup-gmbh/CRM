@@ -27,6 +27,10 @@ const GEAR_ICON = `${icon('cog')}`;
 
 const UPLOAD_ICON = `${icon('upload')}`;
 
+const SKRIPT_ICON = `${icon('skripte', { className: 'w-4 h-4' })}`;
+
+const SKRIPT_EDIT_ICON = `${icon('pencil-square', { className: 'w-4 h-4' })}`;
+
 // Auch vom VideoTableEventBinder genutzt (Copy-Feedback)
 export const COPY_ICON = `${icon('squares-2x2')}`;
 
@@ -345,6 +349,9 @@ export class VideoTableRenderer {
             return `<span class="no-strategie-hint">Noch kein Thema/Strategie verknüpft</span>`;
           })}
         </td>
+        <td class="grid-cell video-stack-cell col-skript" ${!t.isColumnVisibleForCustomer('col-skript') ? 'style="display:none;"' : ''}>
+          ${this.renderVideoFieldStack(videos, (video) => this.renderSkriptCell(koop, video))}
+        </td>
         <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-organic-paid') ? 'style="display:none;"' : ''}>
           ${this.renderVideoFieldStack(videos, (video) => `
             <select class="grid-select stacked-video-select" 
@@ -629,6 +636,68 @@ export class VideoTableRenderer {
     }
 
     return `<div class="content-cell-actions finale-cell-actions">${buttons.join('')}</div>`;
+  }
+
+  renderSkriptCell(koop, video) {
+    const t = this.table;
+    const canLink = !t.isKundeRole();
+    // Share-Gaeste duerfen nicht in den Skript-Editor durchgreifen -
+    // Skripte werden nur ueber eigene Skript-Links geteilt.
+    const isGast = Boolean(window.isGast?.());
+    const skript = video.skript;
+    const skriptId = video.skript_id || skript?.id;
+    const titel = (skript?.titel || '').trim() || 'Skript';
+
+    if (skriptId) {
+      const href = `/skripte/${skriptId}`;
+      if (isGast) {
+        return `
+          <span class="skript-link-cell skript-link-cell--static">
+            ${SKRIPT_ICON}<span class="skript-link-title">${this.escapeHtml(titel)}</span>
+          </span>
+        `;
+      }
+      if (canLink) {
+        return `
+          <div class="skript-link-cell">
+            <button type="button" class="thema-link-btn skript-link-open"
+              data-action="open-skript"
+              data-skript-id="${skriptId}"
+              title="${this.escapeHtml(titel)}">
+              ${SKRIPT_ICON}<span class="skript-link-title">${this.escapeHtml(titel)}</span>
+            </button>
+            <button type="button" class="skript-link-edit-btn"
+              data-action="link-skript"
+              data-video-id="${video.id}"
+              data-kooperation-id="${koop.id}"
+              title="Verknüpfung ändern"
+              aria-label="Verknüpfung ändern">
+              ${SKRIPT_EDIT_ICON}
+            </button>
+          </div>
+        `;
+      }
+      return `
+        <a href="${href}" class="thema-link-btn skript-link-open"
+          data-action="open-skript"
+          data-skript-id="${skriptId}"
+          title="${this.escapeHtml(titel)}">
+          ${SKRIPT_ICON}<span class="skript-link-title">${this.escapeHtml(titel)}</span>
+        </a>
+      `;
+    }
+
+    if (canLink) {
+      return `
+        <button type="button" class="thema-link-btn"
+          data-action="link-skript"
+          data-video-id="${video.id}"
+          data-kooperation-id="${koop.id}">
+          Skript verknüpfen
+        </button>
+      `;
+    }
+    return `<span class="no-strategie-hint">Noch kein Skript verknüpft</span>`;
   }
 
   _renderCustomColumnCells(koop, videos) {
