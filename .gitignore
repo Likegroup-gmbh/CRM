@@ -9,3 +9,6 @@ supabase/.temp/
 
 # Local Netlify folder
 .netlify
+
+# Teaching workspace (local; not part of the CRM app)
+lehrgang/

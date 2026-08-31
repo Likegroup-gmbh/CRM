@@ -882,10 +882,10 @@ input.input-error {
 .form-group textarea,
 .form-group select {
   width: 100%;
-  padding: var(--space-md);
+  padding: var(--space-xs);
   border: var(--border-xs) solid #ddd;
   border-radius: var(--radius-4);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   transition: border-color 0.2s ease;
 }
 

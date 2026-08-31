@@ -1411,6 +1411,10 @@ thead {
   gap: var(--space-sm);
 }
 
+.table-user-cell .table-avatar {
+  margin-right: 0;
+}
+
 .table-avatar-placeholder {
   width: 32px;
   height: 32px;

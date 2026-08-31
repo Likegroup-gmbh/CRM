@@ -839,3 +839,80 @@
   height: 100%;
   object-fit: cover;
 }
+
+/* --- Rohmaterial-Ansicht (/videos -> Kampagne -> Rohmaterial) --- */
+
+.rohmaterial-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  padding: var(--space-lg) 0;
+}
+
+.rohmaterial-group {
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+.rohmaterial-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+  flex-wrap: wrap;
+}
+
+.rohmaterial-group-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rohmaterial-group-name {
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+.rohmaterial-group-sub {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.rohmaterial-group-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* Die Gruppe clippt fuer den Radius (overflow: hidden), darum scrollt die
+   Tabelle in ihrem eigenen Wrapper — sonst ist die Aktionsspalte auf schmalen
+   Viewports abgeschnitten und unerreichbar. */
+.rohmaterial-table-wrap {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.rohmaterial-empty,
+.rohmaterial-progress {
+  margin: 0;
+  padding: var(--space-md) var(--space-lg);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.rohmaterial-actions-col {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.rohmaterial-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+}
