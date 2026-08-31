@@ -31,19 +31,19 @@ function buildMailHtml({ creatorVorname, kampagneName, link, expiresAt }) {
   return `
 <div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; color: #1a1a1a; max-width: 560px; margin: 0 auto; line-height: 1.55;">
   <p>Hallo${name ? ` ${name}` : ''},</p>
-  <p>für die Kampagne <strong>${kamp}</strong> kannst du deine Videos, Storys und Bilder jetzt direkt hochladen:</p>
+  <p>für die Kampagne <strong>${kamp}</strong> kannst du dein Rohmaterial jetzt direkt hochladen:</p>
   <p style="margin: 24px 0;">
-    <a href="${safeLink}" style="background:#1a1a1a; color:#ffffff; padding:12px 22px; border-radius:8px; text-decoration:none; display:inline-block;">Dateien hochladen</a>
+    <a href="${safeLink}" style="background:#1a1a1a; color:#ffffff; padding:12px 22px; border-radius:8px; text-decoration:none; display:inline-block;">Rohmaterial hochladen</a>
   </p>
-  <p>Der Link ist bis zum <strong>${dateDe}</strong> gültig. Du siehst dort genau, welche Inhalte zu welcher Kooperation gehören. Du kannst nichts löschen oder überschreiben — jede Abgabe wird als neue Version gespeichert.</p>
+  <p>Der Link ist bis zum <strong>${dateDe}</strong> gültig. Du kannst alle Clips auf einmal auswählen — den Schnitt übernehmen wir. Du kannst nichts löschen oder überschreiben.</p>
   <p>Bei Fragen antworte einfach auf diese E-Mail.</p>
   <hr style="border:none; border-top:1px solid #e5e5e5; margin:32px 0;" />
   <p>Hi${name ? ` ${name}` : ''},</p>
-  <p>for the campaign <strong>${kamp}</strong> you can now upload your videos, stories and images directly:</p>
+  <p>for the campaign <strong>${kamp}</strong> you can now upload your raw footage directly:</p>
   <p style="margin: 24px 0;">
-    <a href="${safeLink}" style="background:#1a1a1a; color:#ffffff; padding:12px 22px; border-radius:8px; text-decoration:none; display:inline-block;">Upload files</a>
+    <a href="${safeLink}" style="background:#1a1a1a; color:#ffffff; padding:12px 22px; border-radius:8px; text-decoration:none; display:inline-block;">Upload raw footage</a>
   </p>
-  <p>The link is valid until <strong>${dateEn}</strong>. It shows exactly which content belongs to which cooperation. You cannot delete or overwrite anything — every submission is stored as a new version.</p>
+  <p>The link is valid until <strong>${dateEn}</strong>. You can select all your clips at once — we take care of the edit. You cannot delete or overwrite anything.</p>
   <p>If you have any questions, just reply to this email.</p>
 </div>`.trim();
 }
@@ -65,7 +65,7 @@ async function sendCreatorUploadMail({ to, creatorVorname, kampagneName, link, e
     body: JSON.stringify({
       from: RESEND_FROM,
       to: [to],
-      subject: `Upload-Link für ${kamp} / Upload link for ${kamp}`,
+      subject: `Rohmaterial-Upload für ${kamp} / Raw footage upload for ${kamp}`,
       html: buildMailHtml({ creatorVorname, kampagneName, link, expiresAt }),
     }),
   });

@@ -211,6 +211,48 @@ export class VideoFolderRenderer {
     `).join('');
   }
 
+  // ============================================
+  // LEVEL 2b - Kampagne: Videos | Rohmaterial
+  // Nur intern. Kunden springen direkt auf die Video-Tabelle.
+  // ============================================
+
+  static renderKampagneRootView() {
+    return `
+      <div class="list-container">
+        <div class="table-filter-wrapper">
+          <div class="filter-bar">
+            <div class="filter-left">
+              <button id="btn-back-to-kampagnen" class="mdc-btn mdc-btn--secondary">${BACK_SVG} Zurück</button>
+            </div>
+          </div>
+        </div>
+        <div class="table-container">
+          <div class="folders-grid" id="kampagne-root-grid">
+            <div class="folder-card" data-root-target="videos">
+              <div class="folder-icon">${FOLDER_SVG}</div>
+              <div class="folder-info">
+                <span class="folder-name">Videos</span>
+                <span class="folder-count">Feedbackschleifen &amp; Finale</span>
+              </div>
+            </div>
+            <div class="folder-card" data-root-target="rohmaterial">
+              <div class="folder-icon">${FOLDER_SVG}</div>
+              <div class="folder-info">
+                <span class="folder-name">Rohmaterial</span>
+                <span class="folder-count">Abgaben der Creator</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  /** Wie bei den anderen Ordner-Grids: Restplaetze der letzten Reihe auffuellen. */
+  static fillKampagneRootGrid() {
+    fillFoldersGrid(document.getElementById('kampagne-root-grid'));
+  }
+
 }
 
 export default VideoFolderRenderer;

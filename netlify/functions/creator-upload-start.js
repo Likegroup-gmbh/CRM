@@ -7,6 +7,9 @@ const crypto = require('crypto');
 const {
   STAGING_BUCKET,
   SUPABASE_URL,
+  isKnownTarget,
+  isVersionedTarget,
+  holdsInFlightLock,
   getServiceClient,
   resolveToken,
   resolveTarget,
@@ -28,7 +31,7 @@ exports.handler = async (event) => {
   if (!body) return json(400, { error: 'Ungueltiger Request' });
 
   const { token, targetType, targetId, fileName, fileSize, contentType } = body;
-  if (!['video', 'story', 'bilder'].includes(targetType) || !targetId) {
+  if (!isKnownTarget(targetType) || !targetId) {
     return json(400, { error: 'Ungueltiges Ziel' });
   }
 
@@ -51,7 +54,7 @@ exports.handler = async (event) => {
 
     // FS-Nummer serverseitig (Video/Story); null = alle belegt
     let versionNumber = null;
-    if (targetType !== 'bilder') {
+    if (isVersionedTarget(targetType)) {
       versionNumber = await nextVersionNumber(supabase, targetType, targetId);
       if (versionNumber == null) {
         return json(409, { error: 'Alle Feedbackschleifen sind bereits belegt', code: 'fs_full' });
@@ -64,21 +67,26 @@ exports.handler = async (event) => {
     // den Slot bis zur taeglichen GC. pending wird sofort ersetzt (Retry = Absicht),
     // processing erst nach 60 Min, damit ein laufender Dropbox-Transfer nicht
     // zerschossen wird.
-    const now = Date.now();
-    const { data: activeJobs } = await supabase
-      .from('creator_upload_job')
-      .select('id, status, created_at, staging_key')
-      .eq('target_type', targetType)
-      .eq('target_id', targetId)
-      .in('status', ['pending', 'processing']);
-    for (const old of activeJobs || []) {
-      const ageMs = now - new Date(old.created_at).getTime();
-      const stale = old.status === 'pending' || ageMs > 60 * 60 * 1000;
-      if (stale) {
-        await supabase.from('creator_upload_job')
-          .update({ status: 'aborted', error: 'Verworfen — neuer Upload gestartet', updated_at: new Date().toISOString() })
-          .eq('id', old.id);
-        await deleteStagingObject(supabase, old.staging_key);
+    //
+    // Ohne In-Flight-Lock gibt es nichts freizugeben, und ein Reclaim wuerde die
+    // parallel laufenden Uploads derselben Abgabe abschiessen.
+    if (holdsInFlightLock(targetType)) {
+      const now = Date.now();
+      const { data: activeJobs } = await supabase
+        .from('creator_upload_job')
+        .select('id, status, created_at, staging_key')
+        .eq('target_type', targetType)
+        .eq('target_id', targetId)
+        .in('status', ['pending', 'processing']);
+      for (const old of activeJobs || []) {
+        const ageMs = now - new Date(old.created_at).getTime();
+        const stale = old.status === 'pending' || ageMs > 60 * 60 * 1000;
+        if (stale) {
+          await supabase.from('creator_upload_job')
+            .update({ status: 'aborted', error: 'Verworfen — neuer Upload gestartet', updated_at: new Date().toISOString() })
+            .eq('id', old.id);
+          await deleteStagingObject(supabase, old.staging_key);
+        }
       }
     }
 

@@ -5,6 +5,7 @@
 
 const {
   MAX_VERSIONS,
+  isVersionedTarget,
   nextVersionNumber,
   dropboxEnsureSharedLink,
   deleteStagingObject,
@@ -31,7 +32,7 @@ async function flipCurrentFlags(supabase, table, fk, targetId) {
 // Falls Staff zwischen startUpload und jetzt dieselbe FS belegt hat: naechste
 // freie nehmen (Ordnername weicht dann ab, wird geloggt).
 async function ensureFreeVersion(supabase, job) {
-  if (job.target_type === 'bilder') return null;
+  if (!isVersionedTarget(job.target_type)) return null;
   const table = job.target_type === 'video' ? 'kooperation_video_asset' : 'kooperation_story_asset';
   const fk = job.target_type === 'video' ? 'video_id' : 'story_id';
   const { data } = await supabase
@@ -48,10 +49,11 @@ async function ensureFreeVersion(supabase, job) {
   return next;
 }
 
-// Bilder: kein Ueberschreiben — bei Kollision _2, _3, ... vor der Extension.
-async function resolveBilderCollision(supabase, kooperationId, filePath) {
+// Bilder/Rohmaterial behalten den Originalnamen und ueberschreiben nie —
+// bei Kollision _2, _3, ... vor der Extension.
+async function resolveFileNameCollision(supabase, table, kooperationId, filePath) {
   const { data } = await supabase
-    .from('kooperation_bilder_asset')
+    .from(table)
     .select('file_path')
     .eq('kooperation_id', kooperationId);
   const taken = new Set((data || []).map(r => r.file_path));
@@ -66,6 +68,19 @@ async function resolveBilderCollision(supabase, kooperationId, filePath) {
     if (!taken.has(candidate)) return candidate;
   }
   throw new Error('Dateiname kollidiert zu oft');
+}
+
+// save_url hat schon unter fromPath abgelegt -> nachtraeglich umbenennen.
+async function moveDropboxFile(dropboxToken, fromPath, toPath) {
+  const resp = await fetch('https://api.dropboxapi.com/2/files/move_v2', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${dropboxToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from_path: fromPath, to_path: toPath, autorename: false }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(`Dropbox move fehlgeschlagen: ${err.error_summary || resp.status}`);
+  }
 }
 
 /**
@@ -143,19 +158,44 @@ async function finalizeJob(supabase, job, targetCtx, dropboxToken, dropboxPath) 
     return { assetId: asset.id, version };
   }
 
-  // bilder
-  const finalPath = await resolveBilderCollision(supabase, job.target_id, dropboxPath);
-  if (finalPath !== dropboxPath) {
-    // save_url hat bereits unter dropboxPath abgelegt -> verschieben
-    const moveResp = await fetch('https://api.dropboxapi.com/2/files/move_v2', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${dropboxToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from_path: dropboxPath, to_path: finalPath, autorename: false }),
-    });
-    if (!moveResp.ok) {
-      const err = await moveResp.json().catch(() => ({}));
-      throw new Error(`Dropbox move fehlgeschlagen: ${err.error_summary || moveResp.status}`);
+  if (job.target_type === 'rohmaterial') {
+    const finalPath = await resolveFileNameCollision(
+      supabase, 'kooperation_rohmaterial_asset', job.target_id, dropboxPath
+    );
+    if (finalPath !== dropboxPath) {
+      await moveDropboxFile(dropboxToken, dropboxPath, finalPath);
+      fileUrl = await dropboxEnsureSharedLink(dropboxToken, finalPath);
     }
+
+    // Ordner-Link liegt auf jeder Zeile: der Cutter oeffnet den Rohmaterial-Ordner
+    // direkt aus der Liste, ohne dass kooperationen eine weitere Spalte braucht.
+    const folderUrl = await dropboxEnsureSharedLink(dropboxToken, job._folderPath);
+
+    const { data: asset, error } = await supabase
+      .from('kooperation_rohmaterial_asset')
+      .insert({
+        kooperation_id: job.target_id,
+        file_url: fileUrl,
+        file_path: finalPath,
+        file_name: finalPath.substring(finalPath.lastIndexOf('/') + 1),
+        file_size: job.file_size,
+        folder_url: folderUrl,
+        uploaded_by: null,
+        created_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single();
+    if (error) throw error;
+
+    return { assetId: asset.id, version: null };
+  }
+
+  // bilder
+  const finalPath = await resolveFileNameCollision(
+    supabase, 'kooperation_bilder_asset', job.target_id, dropboxPath
+  );
+  if (finalPath !== dropboxPath) {
+    await moveDropboxFile(dropboxToken, dropboxPath, finalPath);
     fileUrl = await dropboxEnsureSharedLink(dropboxToken, finalPath);
   }
 

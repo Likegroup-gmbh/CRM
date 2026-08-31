@@ -19,15 +19,17 @@ const MAX_MAILS_PER_TOKEN_PER_HOUR = 5;
 
 // Groessen-Caps pro Zieltyp (Bytes)
 const SIZE_CAPS = {
-  video: 2 * 1024 * 1024 * 1024,   // 2 GB
-  story: 500 * 1024 * 1024,        // 500 MB
-  bilder: 55 * 1024 * 1024,        // 55 MB
+  video: 2 * 1024 * 1024 * 1024,        // 2 GB
+  story: 500 * 1024 * 1024,             // 500 MB
+  bilder: 55 * 1024 * 1024,             // 55 MB
+  rohmaterial: 10 * 1024 * 1024 * 1024, // 10 GB (unkomprimierte Clips)
 };
 
 const EXT_BY_TYPE = {
   video: ['mp4', 'mov', 'avi', 'mkv', 'webm'],
   story: ['mp4', 'mov', 'avi', 'mkv', 'webm'],
   bilder: ['jpg', 'jpeg', 'png', 'webp', 'heic', 'heif', 'gif', 'bmp', 'tiff', 'tif', 'avif'],
+  rohmaterial: ['mp4', 'mov', 'avi', 'mkv', 'webm', 'zip'],
 };
 
 const MIME_BY_EXT = {
@@ -36,7 +38,34 @@ const MIME_BY_EXT = {
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp',
   heic: 'image/heic', heif: 'image/heif', gif: 'image/gif', bmp: 'image/bmp',
   tiff: 'image/tiff', tif: 'image/tiff', avif: 'image/avif',
+  zip: 'application/zip',
 };
+
+// Zieltyp-Regeln. Beide Flags haengen an derselben Frage — nimmt ein Ziel genau
+// eine Datei pro Abgabe auf?
+//   versioned:      Datei belegt eine Feedbackschleife (serverseitige FS-Nummer)
+//   singleInFlight: nur ein aktiver Upload pro Ziel. Deckungsgleich mit dem
+//                   Unique-Index creator_upload_job_inflight_unique; Rohmaterial
+//                   ist ein Multi-Datei-Dump auf dieselbe Kooperation und darf
+//                   dort nicht gesperrt werden.
+const TARGET_RULES = {
+  video:       { versioned: true,  singleInFlight: true },
+  story:       { versioned: true,  singleInFlight: true },
+  bilder:      { versioned: false, singleInFlight: true },
+  rohmaterial: { versioned: false, singleInFlight: false },
+};
+
+function isKnownTarget(targetType) {
+  return Object.prototype.hasOwnProperty.call(TARGET_RULES, targetType);
+}
+
+function isVersionedTarget(targetType) {
+  return !!TARGET_RULES[targetType]?.versioned;
+}
+
+function holdsInFlightLock(targetType) {
+  return !!TARGET_RULES[targetType]?.singleInFlight;
+}
 
 // ─── Supabase Service Client ────────────────────────────────
 
@@ -143,7 +172,7 @@ async function loadMembership(supabase, tokenRow) {
   const storySlots = storySlotRows || [];
   const storyIds = storySlots.map(s => s.id);
 
-  const [videoAssetsRes, storyAssetsRes, bilderRes] = await Promise.all([
+  const [videoAssetsRes, storyAssetsRes, bilderRes, rohmaterialRes] = await Promise.all([
     videoIds.length
       ? supabase.from('kooperation_video_asset').select('video_id, version_number').in('video_id', videoIds).eq('is_final', false)
       : Promise.resolve({ data: [], error: null }),
@@ -151,11 +180,17 @@ async function loadMembership(supabase, tokenRow) {
       ? supabase.from('kooperation_story_asset').select('story_id, version_number').in('story_id', storyIds).eq('is_final', false)
       : Promise.resolve({ data: [], error: null }),
     supabase.from('kooperation_bilder_asset').select('kooperation_id').in('kooperation_id', koopIds),
+    supabase
+      .from('kooperation_rohmaterial_asset')
+      .select('kooperation_id, file_name, file_size, created_at')
+      .in('kooperation_id', koopIds)
+      .order('created_at', { ascending: true }),
   ]);
 
   const storyAssets = storyAssetsRes.data || [];
   const videoAssets = videoAssetsRes.data || [];
   const bilderRows = bilderRes.data || [];
+  const rohmaterialRows = rohmaterialRes.data || [];
 
   const fsByVideo = {};
   videoAssets.forEach(a => {
@@ -170,6 +205,17 @@ async function loadMembership(supabase, tokenRow) {
   const bilderCountByKoop = {};
   bilderRows.forEach(b => {
     bilderCountByKoop[b.kooperation_id] = (bilderCountByKoop[b.kooperation_id] || 0) + 1;
+  });
+
+  // Nur Name/Groesse: der Creator soll sehen was angekommen ist, aber keine
+  // Dropbox-Pfade oder -Links.
+  const rohmaterialByKoop = {};
+  rohmaterialRows.forEach(r => {
+    if (!rohmaterialByKoop[r.kooperation_id]) rohmaterialByKoop[r.kooperation_id] = [];
+    rohmaterialByKoop[r.kooperation_id].push({
+      name: r.file_name || '',
+      size: r.file_size || 0,
+    });
   });
 
   const storysByVideo = {};
@@ -204,6 +250,7 @@ async function loadMembership(supabase, tokenRow) {
       name: k.name || '',
       videos: videosByKoop[k.id] || [],
       bilderCount: bilderCountByKoop[k.id] || 0,
+      rohmaterial: rohmaterialByKoop[k.id] || [],
     })),
   };
 }
@@ -233,9 +280,10 @@ async function resolveTarget(supabase, tokenRow, targetType, targetId) {
     return null;
   }
 
-  if (targetType === 'bilder') {
+  // bilder + rohmaterial haengen auf Kooperations-Ebene, nicht an einem Video-Slot
+  if (targetType === 'bilder' || targetType === 'rohmaterial') {
     const koop = membership.kooperationen.find(k => k.id === targetId);
-    if (koop && koopIds.includes(targetId)) return { kind: 'bilder', koop, membership };
+    if (koop && koopIds.includes(targetId)) return { kind: targetType, koop, membership };
     return null;
   }
 
@@ -246,7 +294,7 @@ async function resolveTarget(supabase, tokenRow, targetType, targetId) {
 
 function validateFile(targetType, fileName, fileSize, contentType) {
   const ext = (String(fileName || '').split('.').pop() || '').toLowerCase();
-  if (!EXT_BY_TYPE[targetType].includes(ext)) {
+  if (!EXT_BY_TYPE[targetType]?.includes(ext)) {
     return { ok: false, code: 'bad_type', error: `Dateityp .${ext} ist hier nicht erlaubt` };
   }
   const size = Number(fileSize) || 0;
@@ -353,6 +401,18 @@ function buildTargetPath(ctx, job, targetCtx) {
     kampagne: ctx.kampagne,
     kooperation: ctx.kooperation,
   });
+
+  // Rohmaterial: Kooperations-Ebene, Geschwister von Videos/Storys/Bilder.
+  // Originalname bleibt erhalten (der Cutter erkennt seine Clips daran),
+  // nur Dropbox-verbotene Zeichen werden ersetzt. Kollision -> _n beim Finalize.
+  if (job.target_type === 'rohmaterial') {
+    const safeName = sanitizePath(job.file_name) || `rohmaterial.${job._ext}`;
+    return {
+      filePath: `${base}/Rohmaterial/${safeName}`,
+      folderPath: `${base}/Rohmaterial`,
+    };
+  }
+
   const pos = targetCtx.video?.position || 1;
   const thema = sanitizePath(targetCtx.video?.thema || '');
   const videoFolder = thema ? `Video_${pos}_${thema}` : `Video_${pos}`;
@@ -512,6 +572,11 @@ module.exports = {
   TOKEN_TTL_DAYS,
   MAX_VERSIONS,
   SIZE_CAPS,
+  EXT_BY_TYPE,
+  TARGET_RULES,
+  isKnownTarget,
+  isVersionedTarget,
+  holdsInFlightLock,
   getServiceClient,
   generateRawToken,
   hashToken,

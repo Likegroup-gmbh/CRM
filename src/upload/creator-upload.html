@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Content-Upload | CreatorJobs24</title>
+    <title>Rohmaterial-Upload | CreatorJobs24</title>
     <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
     <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -49,20 +49,31 @@
         font-size: 12px; font-weight: 700; text-transform: uppercase;
         letter-spacing: 0.06em; color: var(--cu-muted); margin: 18px 0 8px;
       }
-      .cu-slot {
+      .cu-drop {
+        border: 1.5px dashed var(--cu-border); border-radius: 10px;
+        padding: 28px 16px; text-align: center; cursor: pointer;
+        transition: border-color 0.15s, background 0.15s;
+      }
+      .cu-drop:hover, .cu-drop:focus-visible { border-color: var(--cu-accent); outline: none; }
+      .cu-drop--over { border-color: var(--cu-accent); background: #f0f0ee; }
+      .cu-drop-hint { font-weight: 600; font-size: 14.5px; }
+      .cu-drop-sub { color: var(--cu-muted); font-size: 12.5px; margin: 4px 0 14px; }
+      .cu-file-list:empty { display: none; }
+      .cu-file {
         display: flex; align-items: center; justify-content: space-between;
-        gap: 12px; padding: 12px 14px; border: 1px solid var(--cu-border);
-        border-radius: 10px; margin-bottom: 8px; flex-wrap: wrap;
+        gap: 12px; padding: 11px 14px; border: 1px solid var(--cu-border);
+        border-radius: 10px; margin-bottom: 8px;
       }
-      .cu-slot-info { min-width: 0; }
-      .cu-slot-name { font-weight: 600; font-size: 14px; }
-      .cu-slot-sub { color: var(--cu-muted); font-size: 12.5px; }
-      .cu-badges { display: flex; gap: 6px; margin-top: 6px; }
-      .cu-badge {
-        font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px;
-        border: 1px solid var(--cu-border); color: var(--cu-muted);
+      .cu-file-info { min-width: 0; flex: 1; }
+      .cu-file-name {
+        font-weight: 600; font-size: 13.5px;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
       }
-      .cu-badge--filled { background: #ecfdf3; border-color: #bbf7d0; color: var(--cu-success); }
+      .cu-file-sub { color: var(--cu-muted); font-size: 12px; }
+      .cu-file-state { font-size: 12.5px; color: var(--cu-muted); white-space: nowrap; }
+      .cu-file-state--ok { color: var(--cu-success); }
+      .cu-file-state--err { color: var(--cu-error); }
+      .cu-note--empty { margin: 0; }
       .cu-btn {
         border: none; background: var(--cu-accent); color: var(--cu-accent-text);
         padding: 9px 16px; border-radius: 8px; font-size: 13.5px; font-weight: 600;
@@ -72,12 +83,9 @@
       .cu-btn--ghost { background: transparent; color: var(--cu-text); border: 1px solid var(--cu-border); }
       .cu-progress {
         width: 100%; height: 6px; background: var(--cu-border); border-radius: 999px;
-        overflow: hidden; margin-top: 10px;
+        overflow: hidden; margin-top: 8px;
       }
       .cu-progress-fill { height: 100%; width: 0%; background: var(--cu-accent); transition: width 0.2s; }
-      .cu-status { font-size: 12.5px; margin-top: 6px; color: var(--cu-muted); }
-      .cu-status--ok { color: var(--cu-success); }
-      .cu-status--err { color: var(--cu-error); }
       .cu-center { text-align: center; padding: 64px 16px; }
       .cu-spinner {
         width: 36px; height: 36px; border: 3px solid var(--cu-border);
@@ -114,7 +122,7 @@
       </div>
       <div id="koop-list"></div>
       <p class="cu-note" style="margin-top: 20px;" data-i18n="footnote">
-        Jede Abgabe wird als neue Version gespeichert. Du kannst nichts löschen oder überschreiben.
+        Lade dein komplettes Rohmaterial hoch — den Schnitt übernehmen wir. Du kannst nichts löschen oder überschreiben.
       </p>
     </div>
   </div>

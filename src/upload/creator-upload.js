@@ -1,6 +1,9 @@
-// creator-upload.js — Oeffentliche Creator-Upload-Seite.
+// creator-upload.js — Oeffentliche Creator-Upload-Seite (Rohmaterial-Abgabe).
 // Kein Supabase-Client, kein Anon-Key: nur die Token-API + TUS mit
 // x-signature. Token kommt per URL-Hash (#t=...), nie per Query.
+//
+// Der Creator laedt sein Rohmaterial ab — kein Slot, keine Feedbackschleife.
+// Geschnitten wird intern; Feedbackschleifen/Finale laufen ueber das CRM.
 
 import * as tus from 'tus-js-client';
 
@@ -9,78 +12,70 @@ const I18N = {
     loading: 'Link wird überprüft…',
     errorTitle: 'Link ungültig',
     errorText: 'Dieser Link ist ungültig oder abgelaufen.',
-    heroTitle: (name, kamp) => `Hallo ${name ? name + ', ' : ''}hier lädst du deine Inhalte hoch`,
+    heroTitle: (name) => `Hallo ${name ? name + ', ' : ''}hier lädst du dein Rohmaterial hoch`,
     heroSub: (kamp, date) => `Kampagne: ${kamp} · Link gültig bis ${date}`,
-    videos: 'Videos',
-    storys: 'Storys',
-    bilder: 'Bilder',
-    video: 'Video',
-    story: 'Story',
-    upload: 'Hochladen',
+    rohmaterial: 'Rohmaterial',
+    dropHint: 'Dateien hierher ziehen oder auswählen',
+    dropSub: 'Video-Dateien (MP4, MOV, AVI, MKV, WEBM) oder ZIP · max. 10 GB pro Datei',
+    chooseFiles: 'Dateien auswählen',
+    uploaded: 'Bereits hochgeladen',
+    nothingYet: 'Noch keine Dateien hochgeladen',
+    queued: 'Warten…',
     uploading: 'Wird hochgeladen…',
     processing: 'Wird verarbeitet…',
-    done: (v) => `Hochgeladen${v ? ` (FS${v})` : ''}`,
+    done: 'Hochgeladen',
     failed: 'Fehlgeschlagen — bitte erneut versuchen',
-    fs: (n) => `FS${n}`,
-    fsFree: (n) => `FS${n} frei`,
-    bilderHint: (n) => n > 0 ? `${n} Bild${n !== 1 ? 'er' : ''} bereits hochgeladen` : 'Noch keine Bilder hochgeladen',
-    footnote: 'Jede Abgabe wird als neue Version gespeichert. Du kannst nichts löschen oder überschreiben.',
-    allFull: 'Alle Feedbackschleifen belegt',
-    chooseFile: 'Datei auswählen',
+    retry: 'Erneut versuchen',
+    footnote: 'Lade dein komplettes Rohmaterial hoch — den Schnitt übernehmen wir. Du kannst nichts löschen oder überschreiben.',
     err_bad_type: 'Dieser Dateityp ist hier nicht erlaubt',
     err_too_large: 'Datei zu groß',
     err_empty: 'Datei ist leer',
-    err_fs_full: 'Alle Feedbackschleifen sind bereits belegt',
-    err_in_flight: 'Für dieses Ziel läuft bereits ein Upload',
     err_rate_limited: 'Zu viele Uploads. Bitte später erneut versuchen.',
   },
   en: {
     loading: 'Checking your link…',
     errorTitle: 'Invalid link',
     errorText: 'This link is invalid or has expired.',
-    heroTitle: (name) => `Hi ${name ? name + ', ' : ''}upload your content here`,
+    heroTitle: (name) => `Hi ${name ? name + ', ' : ''}upload your raw footage here`,
     heroSub: (kamp, date) => `Campaign: ${kamp} · link valid until ${date}`,
-    videos: 'Videos',
-    storys: 'Stories',
-    bilder: 'Images',
-    video: 'Video',
-    story: 'Story',
-    upload: 'Upload',
+    rohmaterial: 'Raw footage',
+    dropHint: 'Drag files here or choose them',
+    dropSub: 'Video files (MP4, MOV, AVI, MKV, WEBM) or ZIP · max. 10 GB per file',
+    chooseFiles: 'Choose files',
+    uploaded: 'Already uploaded',
+    nothingYet: 'No files uploaded yet',
+    queued: 'Waiting…',
     uploading: 'Uploading…',
     processing: 'Processing…',
-    done: (v) => `Uploaded${v ? ` (FS${v})` : ''}`,
+    done: 'Uploaded',
     failed: 'Failed — please try again',
-    fs: (n) => `FS${n}`,
-    fsFree: (n) => `FS${n} free`,
-    bilderHint: (n) => n > 0 ? `${n} image${n !== 1 ? 's' : ''} uploaded` : 'No images uploaded yet',
-    footnote: 'Every submission is stored as a new version. You cannot delete or overwrite anything.',
-    allFull: 'All feedback rounds taken',
-    chooseFile: 'Choose file',
+    retry: 'Try again',
+    footnote: 'Upload all of your raw footage — we take care of the edit. You cannot delete or overwrite anything.',
     err_bad_type: 'This file type is not allowed here',
     err_too_large: 'File too large',
     err_empty: 'File is empty',
-    err_fs_full: 'All feedback rounds are already taken',
-    err_in_flight: 'An upload for this target is already running',
     err_rate_limited: 'Too many uploads. Please try again later.',
   },
 };
 
-const MAX_VERSIONS = 3;
-// Muss mit SIZE_CAPS in netlify/functions/_shared/creator-upload.js laufen.
-const SIZE_CAPS = {
-  video: 2 * 1024 * 1024 * 1024,
-  story: 500 * 1024 * 1024,
-  bilder: 55 * 1024 * 1024,
-};
-const ACCEPT_BY_TYPE = {
-  video: 'video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,.mp4,.mov,.avi,.mkv,.webm',
-  story: 'video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,.mp4,.mov,.avi,.mkv,.webm',
-  bilder: 'image/*,.heic,.heif',
-};
+// Muss mit SIZE_CAPS/EXT_BY_TYPE in netlify/functions/_shared/creator-upload.js laufen.
+const SIZE_CAP = 10 * 1024 * 1024 * 1024;
+const ACCEPT = 'video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm,application/zip,.mp4,.mov,.avi,.mkv,.webm,.zip';
+const ALLOWED_EXT = ['mp4', 'mov', 'avi', 'mkv', 'webm', 'zip'];
+
+// Mehr parallele TUS-Streams saettigen die Creator-Leitung und lassen jeden
+// einzelnen Upload langsamer aussehen — der Rest wartet in der Queue.
+const MAX_PARALLEL = 2;
 
 let lang = 'de';
 let token = null;
 let pageData = null;
+
+// Laufende/abgeschlossene Uploads dieser Sitzung, pro Kooperation.
+// id ist clientseitig und stabil, damit ein Re-Render den Zustand nicht verliert.
+let uploads = [];
+let uploadSeq = 0;
+let activeCount = 0;
 
 const $ = (sel) => document.querySelector(sel);
 const t = (key, ...args) => {
@@ -131,90 +126,99 @@ function formatDate(iso) {
   }
 }
 
-function fsBadges(filled) {
-  const set = new Set(filled || []);
-  let html = '<div class="cu-badges">';
-  for (let v = 1; v <= MAX_VERSIONS; v++) {
-    html += `<span class="cu-badge ${set.has(v) ? 'cu-badge--filled' : ''}">${esc(t('fs', v))}</span>`;
-  }
-  return html + '</div>';
+function formatSize(bytes) {
+  const n = Number(bytes) || 0;
+  if (n >= 1024 * 1024 * 1024) return `${(n / 1024 / 1024 / 1024).toFixed(1)} GB`;
+  if (n >= 1024 * 1024) return `${Math.round(n / 1024 / 1024)} MB`;
+  if (n >= 1024) return `${Math.round(n / 1024)} KB`;
+  return `${n} B`;
 }
 
-function nextFreeFs(filled) {
-  const set = new Set(filled || []);
-  for (let v = 1; v <= MAX_VERSIONS; v++) {
-    if (!set.has(v)) return v;
-  }
-  return null;
+function fileExt(name) {
+  return (String(name || '').split('.').pop() || '').toLowerCase();
 }
 
-function slotRow({ targetType, targetId, title, sub, fs }) {
-  const free = nextFreeFs(fs);
-  return `
-    <div class="cu-slot" data-target-type="${targetType}" data-target-id="${esc(targetId)}">
-      <div class="cu-slot-info">
-        <div class="cu-slot-name">${esc(title)}</div>
-        ${sub ? `<div class="cu-slot-sub">${esc(sub)}</div>` : ''}
-        ${fsBadges(fs)}
-        <div class="cu-progress" style="display:none;"><div class="cu-progress-fill"></div></div>
-        <div class="cu-status"></div>
-      </div>
-      <button type="button" class="cu-btn cu-upload-btn" ${free == null ? 'disabled' : ''}>
-        ${esc(free == null ? t('allFull') : t('upload'))}
-      </button>
-    </div>`;
-}
+// ─── Render ─────────────────────────────────────────────────
 
 function renderKoop(koop) {
-  const videoRows = koop.videos.map(v =>
-    slotRow({
-      targetType: 'video',
-      targetId: v.id,
-      title: `${t('video')} ${v.position}${v.thema ? ` — ${v.thema}` : ''}`,
-      sub: v.titel || '',
-      fs: v.fs,
-    })
-  ).join('');
-
-  const storyRows = koop.videos.flatMap(v =>
-    v.storys.map(s =>
-      slotRow({
-        targetType: 'story',
-        targetId: s.id,
-        title: `${t('story')} ${s.slotIndex}${s.slotName ? ` — ${s.slotName}` : ''}`,
-        sub: `${t('video')} ${v.position}${v.thema ? ` — ${v.thema}` : ''}`,
-        fs: s.fs,
-      })
-    )
-  ).join('');
-
-  const bilderRow = slotRow({
-    targetType: 'bilder',
-    targetId: koop.id,
-    title: t('bilder'),
-    sub: t('bilderHint', koop.bilderCount || 0),
-    fs: [],
-  }).replace('<div class="cu-badges">', '<div class="cu-badges" style="display:none;">');
+  const existing = koop.rohmaterial || [];
+  const existingHtml = existing.length > 0
+    ? existing.map(f => `
+        <div class="cu-file cu-file--done">
+          <div class="cu-file-info">
+            <div class="cu-file-name">${esc(f.name)}</div>
+            <div class="cu-file-sub">${esc(formatSize(f.size))}</div>
+          </div>
+          <div class="cu-file-state cu-file-state--ok">${esc(t('done'))}</div>
+        </div>`).join('')
+    : `<p class="cu-note cu-note--empty">${esc(t('nothingYet'))}</p>`;
 
   return `
-    <div class="cu-card">
+    <div class="cu-card" data-koop-id="${esc(koop.id)}">
       <h3 class="cu-koop-name">${esc(koop.name)}</h3>
       <p class="cu-koop-sub">${esc(pageData.kampagne)}</p>
-      ${videoRows ? `<div class="cu-section-title">${esc(t('videos'))}</div>${videoRows}` : ''}
-      ${storyRows ? `<div class="cu-section-title">${esc(t('storys'))}</div>${storyRows}` : ''}
-      <div class="cu-section-title">${esc(t('bilder'))}</div>${bilderRow}
+
+      <div class="cu-drop" data-koop-id="${esc(koop.id)}" tabindex="0" role="button">
+        <div class="cu-drop-hint">${esc(t('dropHint'))}</div>
+        <div class="cu-drop-sub">${esc(t('dropSub'))}</div>
+        <button type="button" class="cu-btn cu-choose-btn">${esc(t('chooseFiles'))}</button>
+      </div>
+
+      <div class="cu-file-list" id="cu-session-${esc(koop.id)}"></div>
+
+      <div class="cu-section-title">${esc(t('uploaded'))}</div>
+      <div class="cu-file-list">${existingHtml}</div>
     </div>`;
 }
 
 function render() {
-  $('#hero-title').textContent = t('heroTitle', pageData.creatorVorname, pageData.kampagne);
+  $('#hero-title').textContent = t('heroTitle', pageData.creatorVorname);
   $('#hero-sub').textContent = t('heroSub', pageData.kampagne, formatDate(pageData.expiresAt));
   $('#koop-list').innerHTML = pageData.kooperationen.map(renderKoop).join('');
+  pageData.kooperationen.forEach(k => renderSessionList(k.id));
   document.querySelectorAll('[data-i18n]').forEach(el => {
     const key = el.dataset.i18n;
     if (I18N[lang][key]) el.textContent = t(key);
   });
   $('#lang-toggle').textContent = lang === 'de' ? 'EN' : 'DE';
+}
+
+function stateLabel(u) {
+  if (u.state === 'queued') return t('queued');
+  if (u.state === 'uploading') return t('uploading');
+  if (u.state === 'processing') return t('processing');
+  if (u.state === 'done') return t('done');
+  return (u.errorCode && I18N[lang][`err_${u.errorCode}`]) ? t(`err_${u.errorCode}`) : t('failed');
+}
+
+// Nur die Zeilen dieser Kooperation neu zeichnen — ein Full-Re-Render wuerde
+// die Fortschrittsbalken der anderen Karten zuruecksetzen.
+function renderSessionList(koopId) {
+  const host = document.getElementById(`cu-session-${koopId}`);
+  if (!host) return;
+  const rows = uploads.filter(u => u.koopId === koopId);
+  host.innerHTML = rows.map(u => {
+    const stateClass = u.state === 'done' ? 'cu-file-state--ok'
+      : u.state === 'failed' ? 'cu-file-state--err' : '';
+    const showBar = u.state === 'uploading' || u.state === 'processing';
+    return `
+      <div class="cu-file" data-upload-id="${u.id}">
+        <div class="cu-file-info">
+          <div class="cu-file-name">${esc(u.name)}</div>
+          <div class="cu-file-sub">${esc(formatSize(u.size))}</div>
+          ${showBar ? `<div class="cu-progress"><div class="cu-progress-fill" style="width:${u.progress}%"></div></div>` : ''}
+        </div>
+        <div class="cu-file-state ${stateClass}">${esc(stateLabel(u))}</div>
+        ${u.state === 'failed' ? `<button type="button" class="cu-btn cu-btn--ghost cu-retry-btn">${esc(t('retry'))}</button>` : ''}
+      </div>`;
+  }).join('');
+}
+
+// Fortschritt haeufig: nur den Balken anfassen, nicht die Zeile neu bauen.
+function updateProgressBar(u) {
+  const row = document.querySelector(`[data-upload-id="${u.id}"]`);
+  const fill = row?.querySelector('.cu-progress-fill');
+  if (fill) fill.style.width = `${u.progress}%`;
 }
 
 function setState(state) {
@@ -223,29 +227,7 @@ function setState(state) {
   $('#state-content').style.display = state === 'content' ? '' : 'none';
 }
 
-// Nach Abschluss nur diesen Slot aktualisieren — ein Full-Re-Render wuerde
-// laufende Uploads anderer Slots visuell abschiessen.
-function updateSlotAfterDone(slotEl, versionNumber) {
-  const targetType = slotEl.dataset.targetType;
-  if (targetType === 'bilder') {
-    const sub = slotEl.querySelector('.cu-slot-sub');
-    if (sub) {
-      const m = sub.textContent.match(/\d+/);
-      const n = m ? parseInt(m[0], 10) + 1 : 1;
-      sub.textContent = t('bilderHint', n);
-    }
-    return;
-  }
-  const badges = slotEl.querySelectorAll('.cu-badge');
-  const idx = (versionNumber || 0) - 1;
-  if (badges[idx]) badges[idx].classList.add('cu-badge--filled');
-  const allFilled = [...badges].length > 0 && [...badges].every(b => b.classList.contains('cu-badge--filled'));
-  if (allFilled) {
-    const btn = slotEl.querySelector('.cu-upload-btn');
-    btn.disabled = true;
-    btn.textContent = t('allFull');
-  }
-}
+// ─── Upload ─────────────────────────────────────────────────
 
 function pollStatus(jobId) {
   return new Promise((resolve, reject) => {
@@ -291,46 +273,68 @@ function isTooLargeError(err) {
   return msg.includes('entitytoolarge') || msg.includes('file size') || msg.includes('file-size') || msg.includes('too large') || msg.includes('payload too large');
 }
 
-async function handleUpload(slotEl, file) {
-  const btn = slotEl.querySelector('.cu-upload-btn');
-  const progress = slotEl.querySelector('.cu-progress');
-  const fill = slotEl.querySelector('.cu-progress-fill');
-  const status = slotEl.querySelector('.cu-status');
-  const targetType = slotEl.dataset.targetType;
-  const targetId = slotEl.dataset.targetId;
-
-  btn.disabled = true;
-  status.className = 'cu-status';
-  status.textContent = '';
-  progress.style.display = '';
-  fill.style.width = '0%';
-
-  if (file.size > SIZE_CAPS[targetType]) {
-    status.className = 'cu-status cu-status--err';
-    status.textContent = t('err_too_large');
-    progress.style.display = 'none';
-    btn.disabled = false;
-    return;
+function enqueue(koopId, files) {
+  for (const file of files) {
+    const entry = {
+      id: `u${++uploadSeq}`,
+      koopId,
+      file,
+      name: file.name,
+      size: file.size,
+      state: 'queued',
+      progress: 0,
+      errorCode: null,
+      jobId: null,
+    };
+    if (!ALLOWED_EXT.includes(fileExt(file.name))) {
+      entry.state = 'failed';
+      entry.errorCode = 'bad_type';
+    } else if (file.size > SIZE_CAP) {
+      entry.state = 'failed';
+      entry.errorCode = 'too_large';
+    } else if (file.size <= 0) {
+      entry.state = 'failed';
+      entry.errorCode = 'empty';
+    }
+    uploads.push(entry);
   }
+  renderSessionList(koopId);
+  pumpQueue();
+}
 
-  let jobId = null;
-  const onPageHide = () => abortUpload(jobId);
+function pumpQueue() {
+  while (activeCount < MAX_PARALLEL) {
+    const next = uploads.find(u => u.state === 'queued');
+    if (!next) return;
+    activeCount++;
+    runUpload(next).finally(() => {
+      activeCount--;
+      pumpQueue();
+    });
+  }
+}
+
+async function runUpload(entry) {
+  entry.state = 'uploading';
+  entry.progress = 0;
+  entry.errorCode = null;
+  renderSessionList(entry.koopId);
+
+  const onPageHide = () => abortUpload(entry.jobId);
   window.addEventListener('pagehide', onPageHide);
 
   try {
     const start = await api('start', {
-      targetType,
-      targetId,
-      fileName: file.name,
-      fileSize: file.size,
-      contentType: file.type || '',
+      targetType: 'rohmaterial',
+      targetId: entry.koopId,
+      fileName: entry.file.name,
+      fileSize: entry.file.size,
+      contentType: entry.file.type || '',
     });
-    jobId = start.jobId;
-
-    status.textContent = t('uploading');
+    entry.jobId = start.jobId;
 
     await new Promise((resolve, reject) => {
-      const upload = new tus.Upload(file, {
+      const upload = new tus.Upload(entry.file, {
         endpoint: start.uploadEndpoint,
         headers: { 'x-signature': start.uploadToken },
         metadata: {
@@ -341,7 +345,8 @@ async function handleUpload(slotEl, file) {
         chunkSize: 6 * 1024 * 1024,
         retryDelays: [0, 3000, 5000, 10000, 20000],
         onProgress: (uploaded, total) => {
-          fill.style.width = `${Math.round((uploaded / total) * 100)}%`;
+          entry.progress = Math.round((uploaded / total) * 100);
+          updateProgressBar(entry);
         },
         onError: reject,
         onSuccess: resolve,
@@ -349,46 +354,100 @@ async function handleUpload(slotEl, file) {
       upload.start();
     });
 
-    status.textContent = t('processing');
-    await api('complete', { jobId });
-    const result = await pollStatus(jobId);
-    jobId = null;
+    entry.state = 'processing';
+    renderSessionList(entry.koopId);
 
-    status.className = 'cu-status cu-status--ok';
-    status.textContent = t('done', result.versionNumber);
-    progress.style.display = 'none';
-    updateSlotAfterDone(slotEl, result.versionNumber);
+    await api('complete', { jobId: entry.jobId });
+    await pollStatus(entry.jobId);
+    entry.jobId = null;
+
+    entry.state = 'done';
+    entry.progress = 100;
+    renderSessionList(entry.koopId);
   } catch (err) {
     console.error('Upload fehlgeschlagen:', err);
-    abortUpload(jobId);
-    jobId = null;
+    abortUpload(entry.jobId);
+    entry.jobId = null;
     if (err.status === 404) {
       setState('error');
       return;
     }
-    status.className = 'cu-status cu-status--err';
-    const code = err.code || (isTooLargeError(err) ? 'too_large' : null);
-    status.textContent = (code && I18N[lang][`err_${code}`]) ? t(`err_${code}`) : t('failed');
-    progress.style.display = 'none';
-    btn.disabled = false;
+    entry.state = 'failed';
+    entry.errorCode = err.code || (isTooLargeError(err) ? 'too_large' : null);
+    renderSessionList(entry.koopId);
   } finally {
     window.removeEventListener('pagehide', onPageHide);
   }
 }
 
+// ─── Events ─────────────────────────────────────────────────
+
+function pickFiles(koopId) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.multiple = true;
+  input.accept = ACCEPT;
+  input.onchange = () => {
+    if (input.files && input.files.length) enqueue(koopId, [...input.files]);
+  };
+  input.click();
+}
+
 function bindUploads() {
-  $('#koop-list').addEventListener('click', (e) => {
-    const btn = e.target.closest('.cu-upload-btn');
-    if (!btn || btn.disabled) return;
-    const slotEl = btn.closest('.cu-slot');
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = ACCEPT_BY_TYPE[slotEl.dataset.targetType] || '*/*';
-    input.onchange = () => {
-      if (input.files && input.files[0]) handleUpload(slotEl, input.files[0]);
-    };
-    input.click();
+  const list = $('#koop-list');
+
+  list.addEventListener('click', (e) => {
+    const retry = e.target.closest('.cu-retry-btn');
+    if (retry) {
+      const row = retry.closest('[data-upload-id]');
+      const entry = uploads.find(u => u.id === row?.dataset.uploadId);
+      // Ein Typ-/Groessenfehler wird durch einen Retry nicht besser.
+      if (entry && !['bad_type', 'too_large', 'empty'].includes(entry.errorCode)) {
+        entry.state = 'queued';
+        renderSessionList(entry.koopId);
+        pumpQueue();
+      }
+      return;
+    }
+    const drop = e.target.closest('.cu-drop');
+    if (drop) pickFiles(drop.dataset.koopId);
   });
+
+  list.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const drop = e.target.closest('.cu-drop');
+    if (!drop) return;
+    e.preventDefault();
+    pickFiles(drop.dataset.koopId);
+  });
+
+  // Drag & Drop pro Karte. dragover muss praeventiert werden, sonst oeffnet
+  // der Browser die Datei statt sie an uns zu geben.
+  list.addEventListener('dragover', (e) => {
+    const drop = e.target.closest('.cu-drop');
+    if (!drop) return;
+    e.preventDefault();
+    drop.classList.add('cu-drop--over');
+  });
+
+  list.addEventListener('dragleave', (e) => {
+    const drop = e.target.closest('.cu-drop');
+    if (drop) drop.classList.remove('cu-drop--over');
+  });
+
+  list.addEventListener('drop', (e) => {
+    const drop = e.target.closest('.cu-drop');
+    if (!drop) return;
+    e.preventDefault();
+    drop.classList.remove('cu-drop--over');
+    const files = [...(e.dataTransfer?.files || [])];
+    if (files.length) enqueue(drop.dataset.koopId, files);
+  });
+
+  // Ausserhalb der Drop-Zonen nichts uebernehmen, damit ein Fehlwurf nicht
+  // die Seite durch die Datei ersetzt.
+  window.addEventListener('dragover', (e) => e.preventDefault());
+  window.addEventListener('drop', (e) => e.preventDefault());
 }
 
 async function init() {

@@ -159,6 +159,25 @@ export function toPreviewDropboxUrl(url) {
 }
 
 /**
+ * Wie toPreviewDropboxUrl, nur mit dl=1: der Klick laedt die Datei herunter
+ * statt sie im Dropbox-Viewer zu oeffnen. Fuer Rohmaterial, das der Cutter
+ * lokal braucht. Gibt null zurueck, wenn es kein dropbox.com-Shared-Link ist.
+ * @param {string} url
+ * @returns {string|null}
+ */
+export function toDownloadDropboxUrl(url) {
+  if (!url || !/dropbox\.com/i.test(url)) return null;
+  try {
+    const u = new URL(url);
+    u.searchParams.delete('raw');
+    u.searchParams.set('dl', '1');
+    return u.toString();
+  } catch {
+    return url.replace(/([?&])raw=1\b/i, '$1dl=1');
+  }
+}
+
+/**
  * Holt einen frischen, direkten Streaming-Link (dl.dropboxusercontent.com) fuer
  * einen Dropbox-Pfad. Unterstuetzt Range-Requests/Seeking, gueltig ~4h.
  * @param {string} filePath - Dropbox-Pfad (beginnt mit /)
