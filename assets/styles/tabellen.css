@@ -2417,7 +2417,10 @@ width: 18em;
   padding: var(--space-sm) var(--space-md);
 }
 
-.kooperation-video-grid .col-produkt .stacked-video-input[readonly] {
+.kooperation-video-grid .grid-input[readonly],
+.kooperation-video-grid .grid-textarea[readonly],
+.kooperation-video-grid .stacked-video-input[readonly],
+.kooperation-video-grid .stacked-video-textarea[readonly] {
   cursor: text;
 }
 

@@ -1,21 +1,6 @@
 // VideoTableUIHelpers.js
 // UI-Helpers fuer die Kampagnen-Video-Tabelle:
-// Floating Scrollbar, Spalten-Resize, Drag-to-Scroll, Performance-Tracking
-
-const DRAG_SCROLL_SKIP_SELECTOR = '.address-cell, .col-produkt, .resize-handle-col, a';
-
-/** Drag-to-Scroll nicht auf Feldern starten, die Kunden markieren/kopieren. */
-export function shouldStartVideoTableDragScroll(target, isResizing = false) {
-  if (!target || isResizing) return false;
-  const tag = target.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || tag === 'A') {
-    return false;
-  }
-  if (typeof target.closest === 'function' && target.closest(DRAG_SCROLL_SKIP_SELECTOR)) {
-    return false;
-  }
-  return true;
-}
+// Floating Scrollbar, Spalten-Resize, Performance-Tracking
 
 export class VideoTableUIHelpers {
   constructor(table) {
@@ -282,47 +267,19 @@ export class VideoTableUIHelpers {
     } catch { /* ignore */ }
   }
 
-  // --- Drag to Scroll ---
-
+  // Drag-to-Scroll absichtlich nicht gebunden: horizontales Scrollen geht
+  // ueber die Floating-Leiste, Trackpad und Shift+Mausrad. Zellen bleiben
+  // markier- und kopierbar.
   bindDragToScroll() {
-    const container = document.querySelector('.grid-wrapper');
-    if (!container) return;
-
     this._dragScrollAbort?.abort();
-    this._dragScrollAbort = new AbortController();
-    const signal = this._dragScrollAbort.signal;
-
-    this.table.dragScrollContainer = container;
-
-    container.addEventListener('mousedown', (e) => {
-      if (!shouldStartVideoTableDragScroll(e.target, this.table.isResizing)) return;
-
-      this.table.isDragging = true;
-      this.table.startX = e.pageX - container.offsetLeft;
-      this.table.scrollLeft = container.scrollLeft;
-      container.style.cursor = 'grabbing';
-      container.style.userSelect = 'none';
-      e.preventDefault();
-    }, { signal });
-
-    container.addEventListener('mousemove', (e) => {
-      if (!this.table.isDragging) return;
-      e.preventDefault();
-      const x = e.pageX - container.offsetLeft;
-      container.scrollLeft = this.table.scrollLeft - (x - this.table.startX) * 1.5;
-    }, { signal });
-
-    const stopDragging = () => {
-      if (this.table.isDragging) {
-        this.table.isDragging = false;
-        container.style.cursor = 'grab';
-        container.style.userSelect = '';
-      }
-    };
-    container.addEventListener('mouseup', stopDragging, { signal });
-    container.addEventListener('mouseleave', stopDragging, { signal });
-
-    container.style.cursor = 'grab';
+    this._dragScrollAbort = null;
+    const container = document.querySelector('.grid-wrapper');
+    if (container) {
+      container.style.cursor = '';
+      container.style.userSelect = '';
+    }
+    this.table.isDragging = false;
+    this.table.dragScrollContainer = null;
   }
 
   // --- Floating Scrollbar ---
