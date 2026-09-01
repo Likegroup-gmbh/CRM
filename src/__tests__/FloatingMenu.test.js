@@ -116,4 +116,49 @@ describe('openFloatingMenu', () => {
     expect(el.hidden).toBe(true);
     expect(onSelect).toHaveBeenCalledWith('dynamisch');
   });
+
+  it('Item mit children rendert Parent-Trigger + Flyout', () => {
+    const html = renderFloatingMenuItem({
+      id: 'formatierung',
+      label: 'Formatierung',
+      children: [
+        { id: 'fett', icon: 'bold', label: 'Fett' },
+        { id: 'kursiv', icon: 'italic', label: 'Kursiv' }
+      ]
+    });
+    expect(html).toContain('crm-fmenu-group');
+    expect(html).toContain('crm-fmenu-item--parent');
+    expect(html).toContain('data-has-children="true"');
+    expect(html).toContain('crm-fmenu-chevron');
+    expect(html).toContain('crm-fmenu-flyout');
+    expect(html).toContain('data-id="fett"');
+    expect(html).toContain('data-id="kursiv"');
+  });
+
+  it('Parent-Klick toggelt nur Flyout, Kind-Klick ruft onSelect', () => {
+    const onSelect = vi.fn();
+    openFloatingMenu({
+      el,
+      items: [
+        { id: 'kommentieren', label: 'Kommentieren' },
+        {
+          id: 'formatierung',
+          label: 'Formatierung',
+          children: [{ id: 'fett', label: 'Fett' }]
+        }
+      ],
+      layout: 'icon-label',
+      onSelect
+    });
+
+    const parent = el.querySelector('[data-id="formatierung"]');
+    parent.click();
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(el.hidden).toBe(false);
+    expect(parent.closest('.crm-fmenu-group').classList.contains('is-open')).toBe(true);
+
+    el.querySelector('[data-id="fett"]').click();
+    expect(onSelect).toHaveBeenCalledWith('fett');
+    expect(el.hidden).toBe(true);
+  });
 });

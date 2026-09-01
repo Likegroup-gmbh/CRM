@@ -63,6 +63,26 @@ export function renderFloatingMenuItem(item, menuLayout = 'icon-label') {
     `crm-fmenu-item--${layout}`,
     active ? 'is-active' : ''
   ].filter(Boolean).join(' ');
+
+  // Item mit children: Parent-Trigger + Hover-Flyout (Pattern wie
+  // .action-submenu in dropdowns.css). Der Trigger loest selbst keine
+  // Aktion aus - Klick toggelt nur das Flyout (Touch/Tastatur).
+  const children = Array.isArray(item.children) ? item.children.filter(Boolean) : [];
+  if (children.length) {
+    const childHtml = children.map((child) => renderFloatingMenuItem(child, menuLayout)).join('');
+    return `
+    <div class="crm-fmenu-group">
+      <button type="button" class="${classes} crm-fmenu-item--parent" data-id="${escapeHtml(item.id)}"
+        data-has-children="true" aria-haspopup="true"${
+        title ? ` title="${escapeHtml(title)}"` : ''}${extraDataAttrs(item.data)}>
+        ${iconHtml ? `<span class="crm-fmenu-icon">${iconHtml}</span>` : ''}
+        ${textHtml}
+        <span class="crm-fmenu-chevron" aria-hidden="true">›</span>
+      </button>
+      <div class="crm-fmenu-flyout">${childHtml}</div>
+    </div>`;
+  }
+
   return `
     <button type="button" class="${classes}" data-id="${escapeHtml(item.id)}"${
       title ? ` title="${escapeHtml(title)}"` : ''
@@ -89,8 +109,24 @@ export function openFloatingMenu({ el, anchor, wrap, items, layout = 'icon-label
   el.innerHTML = list.map((item) => renderFloatingMenuItem(item, layout)).join('');
   el.querySelectorAll('button[data-id]').forEach((btn) => {
     btn.addEventListener('click', () => {
+      // Parent mit children: nur Flyout togglen, keine Aktion ausloesen
+      if (btn.dataset.hasChildren) {
+        btn.closest('.crm-fmenu-group')?.classList.toggle('is-open');
+        return;
+      }
       el.hidden = true;
       onSelect?.(btn.dataset.id);
+    });
+  });
+
+  // Flyout-Richtung: rechts auf, ausser es laeuft aus dem Viewport
+  el.querySelectorAll('.crm-fmenu-group').forEach((group) => {
+    const trigger = group.querySelector('.crm-fmenu-item--parent');
+    const flyout = group.querySelector('.crm-fmenu-flyout');
+    trigger?.addEventListener('mouseenter', () => {
+      flyout.classList.remove('crm-fmenu-flyout--left');
+      const rect = flyout.getBoundingClientRect();
+      if (rect.right > window.innerWidth - 8) flyout.classList.add('crm-fmenu-flyout--left');
     });
   });
 

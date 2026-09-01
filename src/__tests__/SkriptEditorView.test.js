@@ -719,13 +719,13 @@ describe('SkriptEditorView Inline-Edit', () => {
     view.checkSelection();
     expect(menu.hidden).toBe(false);
     expect(menu.querySelector('[data-aktion="neu_schreiben"]')).not.toBeNull();
-    expect(view.selektion).toEqual({ sektion: 'hook', text: 'Hook-Text', istVisuell: false });
+    expect(view.selektion).toMatchObject({ sektion: 'hook', text: 'Hook-Text', istVisuell: false, feld: 'hook' });
 
     selectText(visual);
     view.checkSelection();
     expect(menu.hidden).toBe(false);
     expect(menu.querySelector('[data-aktion="kuerzen"]')).not.toBeNull();
-    expect(view.selektion).toEqual({ sektion: 'hauptteil', text: 'Visual-Text', istVisuell: true });
+    expect(view.selektion).toMatchObject({ sektion: 'hauptteil', text: 'Visual-Text', istVisuell: true, feld: 'hauptteil_visuell' });
   });
 
   it('acceptVorschlag auf visuell-Message schreibt ins Visual-Feld, nicht ins Spoken-Feld', async () => {

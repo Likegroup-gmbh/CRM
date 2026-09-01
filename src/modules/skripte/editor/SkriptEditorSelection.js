@@ -3,9 +3,15 @@
 // (Neu schreiben, Kuerzen, ...), Chip ueber dem Chat-Input.
 
 import { escapeHtml } from '../SkripteUtils.js';
-import { AKTION_LABELS, AKTION_ICONS, PLACEHOLDER_AKTION, PLACEHOLDER_DEFAULT } from './skriptEditorKonstanten.js';
+import {
+  AKTION_LABELS, AKTION_ICONS, FORMAT_AKTIONEN,
+  PLACEHOLDER_AKTION, PLACEHOLDER_DEFAULT
+} from './skriptEditorKonstanten.js';
 import { sektionAnzeige } from './skriptEditorVisuellHelfer.js';
 import { openFloatingMenu } from '../../../core/components/FloatingMenu.js';
+import {
+  renderInlineMd, htmlToInlineMd, detectInlineFormat, domSelectionToRaw
+} from '../../../core/utils/inlineFormat.js';
 
 export class SkriptEditorSelection {
   constructor(view) {
@@ -41,26 +47,60 @@ export class SkriptEditorSelection {
     const feld = start.dataset.feld || sektion;
     const istVisuell = feld.endsWith('_visuell')
       || start.classList.contains('skripte-editor-sektion-visual');
-    v.selektion = { sektion, text, istVisuell };
+    v.selektion = { sektion, text, istVisuell, feld };
     v.pendingAktion = null;
+
+    // Formatierung (nur intern, nur Grid-Zellen): Raw-Stand + Auswahl-Offsets
+    // jetzt sichern - nach einem Menue-Klick ist die DOM-Selektion evtl. weg.
+    let formatierungItem = null;
+    const istMasterZelle = start.classList.contains('skripte-editor-sektion-text--md');
+    if (!v.isReadonly && !istMasterZelle) {
+      const raw = htmlToInlineMd(start);
+      const { toRaw } = renderInlineMd(raw);
+      const offsets = domSelectionToRaw(start, toRaw);
+      if (offsets && offsets.start !== offsets.end) {
+        v.selektion.start = offsets.start;
+        v.selektion.end = offsets.end;
+        const { bold, italic } = detectInlineFormat(raw, offsets.start, offsets.end);
+        const fettId = bold ? 'fett_entfernen' : 'fett';
+        const kursivId = italic ? 'kursiv_entfernen' : 'kursiv';
+        formatierungItem = {
+          id: 'formatierung',
+          iconHtml: AKTION_ICONS.formatierung,
+          label: AKTION_LABELS.formatierung,
+          children: [fettId, kursivId].map((id) => ({
+            id,
+            iconHtml: AKTION_ICONS[id],
+            label: AKTION_LABELS[id]
+          }))
+        };
+      }
+    }
     this.updateChip();
 
     const modmenu = document.getElementById('ed-modmenu');
     if (modmenu) modmenu.hidden = true;
     v.closeVersionMenu();
 
+    const items = ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton', 'feedback'].map((aktion) => ({
+      id: aktion,
+      iconHtml: AKTION_ICONS[aktion],
+      label: AKTION_LABELS[aktion],
+      data: { aktion }
+    }));
+    if (formatierungItem) items.unshift(formatierungItem);
+
     openFloatingMenu({
       el: menu,
       anchor: sel.getRangeAt(0),
       wrap: v.container.querySelector('.skripte-editor'),
       layout: 'icon-label',
-      items: ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton', 'feedback'].map((aktion) => ({
-        id: aktion,
-        iconHtml: AKTION_ICONS[aktion],
-        label: AKTION_LABELS[aktion],
-        data: { aktion }
-      })),
+      items,
       onSelect: (aktion) => {
+        if (FORMAT_AKTIONEN[aktion]) {
+          v.formatiereSelektion(aktion);
+          return;
+        }
         if (aktion === 'feedback') v.openSektionsFeedback();
         else this.setPendingAktion(aktion);
       }

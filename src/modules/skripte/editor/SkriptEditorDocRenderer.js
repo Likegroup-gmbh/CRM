@@ -5,6 +5,7 @@
 
 import { skripteService, FUNNEL_STUFEN, VIDEO_LAENGEN, SKRIPT_BEREICHE } from '../SkripteService.js';
 import { escapeHtml } from '../SkripteUtils.js';
+import { renderInlineMd } from '../../../core/utils/inlineFormat.js';
 import { istMasterSkript, renderMasterMarkdownHtml } from '../master/skriptMasterFormat.js';
 import {
   hatGridInhalt, hatZusatzInfos, gridFelderFuerSkript, zusatzInfosMarkdown
@@ -99,7 +100,7 @@ function gridTabelleHtml({ skript, grid, messages, isReadonly }) {
           <tr data-sektion="${sektion}">
             <th scope="row">${SEKTION_LABELS_KURZ[sektion]}</th>
             <td>
-              <div class="skripte-editor-sektion-text" data-sektion="${sektion}" data-feld="${sektion}">${escapeHtml(gesprochen)}</div>
+              <div class="skripte-editor-sektion-text" data-sektion="${sektion}" data-feld="${sektion}">${renderInlineMd(gesprochen).html}</div>
             </td>
             <td class="skripte-editor-tabelle-zelle--visual">
               ${isReadonly ? '' : `
@@ -109,7 +110,7 @@ function gridTabelleHtml({ skript, grid, messages, isReadonly }) {
                 ${icon('ai-visual')}
               </button>
               `}
-              <div class="skripte-editor-sektion-visual" data-sektion="${sektion}" data-feld="${visuellFeld}">${escapeHtml(visuellText)}</div>
+              <div class="skripte-editor-sektion-visual" data-sektion="${sektion}" data-feld="${visuellFeld}">${renderInlineMd(visuellText).html}</div>
             </td>
           </tr>
         `;
