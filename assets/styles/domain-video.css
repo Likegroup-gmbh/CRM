@@ -673,7 +673,8 @@
   font-size: 0.85rem;
 }
 
-/* Fallback bei nicht abspielbaren Formaten (z. B. .mov in Chrome/Firefox) */
+/* Fallback-Aktionen, wenn ein Medium nicht dargestellt werden kann:
+   nicht abspielbare Formate (z. B. .mov) und nicht einbettbare Bild-Links */
 
 .media-viewer-fallback-actions {
   display: flex;
@@ -683,13 +684,26 @@
   margin-top: var(--space-sm);
 }
 
-.media-viewer-unplayable .media-viewer-fallback-actions .vpl-fallback-download {
+/* Thumb-Ersatz, wenn sich das Bild nicht einbetten laesst (Sharing-Link) */
+.media-gallery-thumb-label {
+  display: block;
+  padding: var(--space-xxs);
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-viewer-fallback-actions .vpl-fallback-download {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
 }
 
-.media-viewer-unplayable .media-viewer-fallback-actions .media-viewer-fallback-link {
+/* Als Button gestalteter Link: die weisse Flaeche braucht dunkle Schrift,
+   sonst schlaegt die helle Link-Farbe des dunklen Stages durch. */
+.media-viewer-fallback-actions .media-viewer-fallback-link {
   margin-top: 0;
   text-decoration: none;
   color: var(--text-primary);

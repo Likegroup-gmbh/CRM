@@ -8,8 +8,9 @@ import { formatCompactNumber, formatExactNumber } from '../../core/format/compac
 import { renderChipCell, renderPlatformChip, renderStaticChip } from '../../core/components/chipCell.js';
 import { liveLinkDotState, LIVE_LINK_TOOLBAR } from './liveLinkCell.js';
 import { icon } from '../../core/icons/IconSystem.js';
-import { loopStills, finalStills, stillsForVideoCell } from '../../core/stills/stillAssets.js';
+import { finalStills, stillsForVideoCell } from '../../core/stills/stillAssets.js';
 import { STILL_FINAL_VARIANT } from '../../core/PromoteFinalAsset.js';
+import { toRawDropboxUrl, canPreviewImageAsset } from '../../core/VideoUploadUtils.js';
 
 const EXTERNAL_LINK_ICON = `${icon('arrow-top-right')}`;
 
@@ -610,8 +611,7 @@ export class VideoTableRenderer {
     const t = this.table;
     const isKunde = t.isKundeRole();
     const stills = stillsForVideoCell(koop, video);
-    const loop = loopStills(stills);
-    const hasStills = loop.length > 0
+    const hasStills = stills.length > 0
       || (!Array.isArray(koop._bilder) && !!koop.bilder_folder_url);
 
     const buttons = [];
@@ -647,7 +647,12 @@ export class VideoTableRenderer {
 
     stillFinals.forEach(asset => {
       const label = asset.variant_name || STILL_FINAL_VARIANT;
-      buttons.push(`<button type="button" class="external-link-btn media-action-btn finale-play-btn" data-action="play-final-still" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-asset-id="${asset.id}" title="Finales Still abspielen">${BILDER_ICON}<span class="finale-variant-label">${this.escapeHtml(label)}</span></button>`);
+      // Icon liegt unter dem Bild: laedt das Thumb nicht, entfernt sich das
+      // <img> und das Icon bleibt stehen.
+      const thumb = canPreviewImageAsset(asset)
+        ? `<span class="finale-still-media">${BILDER_ICON}<img class="finale-still-thumb" src="${this.escapeHtml(toRawDropboxUrl(asset.file_url) || '')}" alt="" loading="lazy" onerror="this.remove()"></span>`
+        : BILDER_ICON;
+      buttons.push(`<button type="button" class="external-link-btn media-action-btn finale-play-btn finale-still-btn" data-action="play-final-still" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-asset-id="${asset.id}" title="Finales Still ansehen">${thumb}<span class="finale-variant-label">${this.escapeHtml(label)}</span></button>`);
     });
 
     if (!isKunde) {
