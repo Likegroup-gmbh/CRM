@@ -4,6 +4,7 @@ import {
   getAssetDisplayLabel,
   isExternalAsset,
   isDirectImageUrl,
+  toRawDropboxUrl,
   FINAL_VARIANTS,
 } from '../../core/VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
@@ -227,7 +228,7 @@ export class VideoSettingsDrawer {
 
   _renderAssetThumb(url) {
     if (!isDirectImageUrl(url)) return '';
-    return `<img src="${escapeHtml(url)}" alt="" class="settings-asset-thumb" loading="lazy" onerror="this.style.display='none'">`;
+    return `<img src="${escapeHtml(toRawDropboxUrl(url))}" alt="" class="settings-asset-thumb" loading="lazy" onerror="this.style.display='none'">`;
   }
 
   _renderExternalBadge(asset) {

@@ -16,7 +16,7 @@ import {
   stillsForVideo, stillVersions, stillsForVersion, pickStillAsset, defaultStillSelection, finalStills
 } from '../stills/stillAssets.js';
 import { promoteAssetToFinal, unmarkFinalSlot, markedSlotsForSource } from '../PromoteFinalAsset.js';
-import { FINAL_VARIANTS } from '../VideoUploadUtils.js';
+import { FINAL_VARIANTS, getAssetDisplayLabel } from '../VideoUploadUtils.js';
 
 // Container-Formate, die haeufig nicht abspielbar sind -> kein Blob-Caching
 // (laufen ohnehin ueber den Download-Fallback).
@@ -383,7 +383,7 @@ export class VideoPlayerLightbox {
     if (!item) return 'Medium';
     if (item.type === 'video') return item.video?.video_name || item.video?.thema || 'Video';
     if (item.type === 'story') return item.slot?.slot_name || 'Story';
-    return this.stillAsset()?.file_name || item.image?.file_name || 'Still';
+    return getAssetDisplayLabel(this.stillAsset() || item.image) || 'Still';
   }
 
   /**

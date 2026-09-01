@@ -234,16 +234,21 @@ export class KampagneKooperationenVideoTable {
   async loadColumnVisibilitySettings() { return this.dataLoader.loadColumnVisibilitySettings(); }
 
   async loadAssetsAndCommentsForVisible() {
+    // Stills gehoeren zur gleichen Nachlade-Runde wie die Video-Assets: laeuft
+    // parallel und ist selbst gegen Mehrfachladen abgesichert.
+    const bilderTask = this.dataLoader.loadBilderForVisible();
+
     const allVideoIds = Object.values(this.videos).flat().map(v => v.id);
-    if (allVideoIds.length === 0) return;
+    const unloaded = allVideoIds.length === 0
+      ? []
+      : (this.store ? this.store.getUnloadedVideoIds(allVideoIds) : allVideoIds);
 
-    const unloaded = this.store
-      ? this.store.getUnloadedVideoIds(allVideoIds)
-      : allVideoIds;
+    if (unloaded.length > 0) {
+      const result = await this.dataLoader.loadAssetsAndComments(unloaded);
+      if (this.store && result?.finalsOk !== false) this.store.markAssetsLoaded(unloaded);
+    }
 
-    if (unloaded.length === 0) return;
-    const result = await this.dataLoader.loadAssetsAndComments(unloaded);
-    if (this.store && result?.finalsOk !== false) this.store.markAssetsLoaded(unloaded);
+    await bilderTask;
   }
 
   // ========================================

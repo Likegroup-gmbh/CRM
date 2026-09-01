@@ -128,6 +128,7 @@ export async function createFolderSharedLink(token, folderPath) {
 export function toRawDropboxUrl(url) {
   if (!url) return url;
   if (/dropboxusercontent\.com/i.test(url)) return url;
+  if (!/dropbox\.com/i.test(url)) return url;
   try {
     const u = new URL(url);
     u.searchParams.delete('dl');
@@ -240,21 +241,29 @@ export function isValidExternalUrl(url) {
   }
 }
 
+function looksLikeOpaqueShareToken(value) {
+  if (!value) return false;
+  if (IMAGE_EXTENSIONS.test(value) || VIDEO_EXTENSIONS.test(value)) return false;
+  return value.length > 24 && !/\s/.test(value);
+}
+
 export function getAssetDisplayLabel(asset) {
   if (!asset) return '?';
   if (asset.variant_name) return asset.variant_name;
-  if (asset.file_name) return asset.file_name;
+  if (asset.file_name && !looksLikeOpaqueShareToken(asset.file_name)) return asset.file_name;
   if (asset.file_path) {
     const last = asset.file_path.split('/').pop();
-    if (last) return last;
+    if (last && !looksLikeOpaqueShareToken(last)) return last;
   }
   if (asset.file_url) {
     try {
       const parsed = new URL(asset.file_url);
+      if (/sharepoint\.com/i.test(parsed.hostname)) return 'Externer Link';
       const segment = parsed.pathname.split('/').filter(Boolean).pop();
-      return segment || parsed.hostname;
+      if (segment && !looksLikeOpaqueShareToken(segment)) return segment;
+      return parsed.hostname;
     } catch {
-      return asset.file_url;
+      return 'Externer Link';
     }
   }
   return '?';
@@ -271,6 +280,20 @@ export function isDirectImageUrl(url) {
   } catch {
     return IMAGE_EXTENSIONS.test(url);
   }
+}
+
+/**
+ * true, wenn sich das Bild-Asset im Browser anzeigen laesst: Dropbox-Assets
+ * ueber den Temp-Link zum Pfad, externe Links nur als direkte Bild-URL.
+ * Sharing-Links (z. B. SharePoint /:i:/) liefern ohne Sitzung im Tenant eine
+ * HTML-Seite bzw. 403 und lassen sich deshalb nicht einbetten.
+ * @param {{ file_path?: string|null, file_url?: string|null }} asset
+ * @returns {boolean}
+ */
+export function canPreviewImageAsset(asset) {
+  if (!asset) return false;
+  if (asset.file_path) return true;
+  return isDirectImageUrl(asset.file_url);
 }
 
 // ─── Upload-Drawer Button Icons ──────────────────────────────

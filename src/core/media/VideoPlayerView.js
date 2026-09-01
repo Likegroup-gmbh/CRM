@@ -3,7 +3,12 @@
 // sowie der Fallback-Ansicht fuer nicht abspielbare Formate. Liest den State
 // ueber einen schlanken Kontext (ctx = Player), erzeugt nur HTML-Strings.
 
-import { escapeHtml, toRawDropboxUrl } from '../VideoUploadUtils.js';
+import {
+  escapeHtml,
+  getAssetDisplayLabel,
+  toRawDropboxUrl,
+  canPreviewImageAsset,
+} from '../VideoUploadUtils.js';
 import { DOWNLOAD_ICON } from './downloadMediaAsset.js';
 import {
   formatVideoFeedbackValue,
@@ -36,7 +41,7 @@ export class VideoPlayerView {
       title = item.slot.slot_name || `Story ${item.slot.slot_index || ''}`.trim();
       controls = this.renderStoryVersionSelect();
     } else {
-      title = this.ctx.stillAsset()?.file_name || item.image.file_name || 'Still';
+      title = getAssetDisplayLabel(this.ctx.stillAsset() || item.image) || 'Still';
       controls = `${this.renderStillVersionSelect()}${this.renderStillVariantSelect()}${this.renderPromoteControl()}`;
     }
     title += this._typeCounter(item);
@@ -82,8 +87,10 @@ export class VideoPlayerView {
 
     const item = this.ctx.current;
     if (item?.type === 'bild') {
+      const asset = this.ctx.stillAsset?.() || item.image;
+      if (!canPreviewImageAsset(asset)) return this.renderImageNotPreviewable(asset);
       if (this.ctx.src) {
-        return `<img class="vpl-image" src="${escapeHtml(this.ctx.src)}" alt="${escapeHtml(item.image.file_name || 'Bild')}">`;
+        return `<img class="vpl-image" src="${escapeHtml(this.ctx.src)}" alt="${escapeHtml(getAssetDisplayLabel(asset) || 'Bild')}">`;
       }
       return `<div class="media-viewer-empty"><span>Bild kann nicht geladen werden.</span></div>`;
     }
@@ -107,6 +114,19 @@ export class VideoPlayerView {
       <div class="media-viewer-empty">
         <span>Kein Video hochgeladen.</span>
         ${folderUrl ? `<a class="media-viewer-fallback-link" href="${escapeHtml(folderUrl)}" target="_blank" rel="noopener">Ordner oeffnen</a>` : ''}
+      </div>`;
+  }
+
+  // Sharing-Links (z. B. SharePoint) lassen sich nicht einbetten: statt eines
+  // kaputten Bildes den Grund nennen und den Link extern anbieten.
+  renderImageNotPreviewable(asset) {
+    const link = asset?.file_url || '';
+    return `
+      <div class="media-viewer-empty">
+        <span>Externer Link &ndash; Vorschau nicht möglich.</span>
+        ${link ? `<div class="media-viewer-fallback-actions">
+          <a class="mdc-btn mdc-btn--secondary media-viewer-fallback-link" href="${escapeHtml(link)}" target="_blank" rel="noopener">Extern öffnen</a>
+        </div>` : ''}
       </div>`;
   }
 
@@ -172,7 +192,7 @@ export class VideoPlayerView {
     const variants = this.ctx.stillsForSelectedVersion();
     if (variants.length <= 1) return '';
     const options = variants.map(a =>
-      `<option value="${a.id}" ${a.id === this.ctx.stillAssetId ? 'selected' : ''}>${escapeHtml(a.variant_name || a.file_name || 'Variante')}</option>`
+      `<option value="${a.id}" ${a.id === this.ctx.stillAssetId ? 'selected' : ''}>${escapeHtml(getAssetDisplayLabel(a) || 'Variante')}</option>`
     ).join('');
     return `
       <div class="media-viewer-control">
@@ -242,9 +262,12 @@ export class VideoPlayerView {
     const currentId = this.ctx.current.image.id;
     const thumbs = images.map(img => {
       const itemIndex = this.ctx.items.findIndex(it => it.type === 'bild' && it.image.id === img.id);
-      const url = toRawDropboxUrl(img.file_url) || '';
+      const label = getAssetDisplayLabel(img);
+      const inner = canPreviewImageAsset(img)
+        ? `<img src="${escapeHtml(toRawDropboxUrl(img.file_url) || '')}" alt="${escapeHtml(label)}" loading="lazy">`
+        : `<span class="media-gallery-thumb-label">${escapeHtml(label)}</span>`;
       return `<button type="button" class="media-gallery-thumb ${img.id === currentId ? 'active' : ''}" data-item-index="${itemIndex}">
-        <img src="${escapeHtml(url)}" alt="${escapeHtml(img.file_name || '')}" loading="lazy">
+        ${inner}
       </button>`;
     }).join('');
     return `<div class="media-gallery-thumbs">${thumbs}</div>`;

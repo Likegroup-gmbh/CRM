@@ -12,6 +12,7 @@ export function finalStills(images) {
 }
 
 export function stillsForVideo(images, videoId) {
+  if (videoId == null) return [];
   return (images || []).filter(a => a.video_id === videoId);
 }
 

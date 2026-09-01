@@ -440,6 +440,21 @@ export class VideoTableDataLoader {
     }
   }
 
+  /**
+   * Zieht die Stills der geladenen Koops nach. Die Kampagnen-Detailseite laedt
+   * Koops/Videos selbst und setzt _dataLoaded, wodurch loadData() – und damit
+   * loadBilder() – dort nie laeuft. Ohne diesen Aufruf bleiben Stills- und
+   * Finale-Spalte leer, obwohl der Drawer die Stills findet.
+   */
+  async loadBilderForVisible() {
+    const t = this.table;
+    const missing = (t.kooperationen || [])
+      .filter(koop => !Array.isArray(koop._bilder))
+      .map(koop => koop.id);
+    if (missing.length === 0) return;
+    await this.loadBilder(missing);
+  }
+
   async loadBilder(koopIds) {
     const t = this.table;
     if (!koopIds || koopIds.length === 0) return;
@@ -455,6 +470,11 @@ export class VideoTableDataLoader {
         q => q.order('created_at', { ascending: true })
       );
 
+      if (result?.error) {
+        console.error('❌ Fehler beim Laden der Bilder-Assets:', result.error);
+        return;
+      }
+
       const images = result?.data || [];
       const byKoop = {};
       for (const img of images) {
@@ -469,6 +489,7 @@ export class VideoTableDataLoader {
         if (idSet.has(koop.id)) koop._bilder = byKoop[koop.id] || [];
       }
 
+      this.patchRenderedBilderCells();
       console.log(`✅ Bilder-Assets (${images.length}) geladen`);
     } catch (error) {
       console.error('❌ Fehler beim Laden der Bilder-Assets:', error);
@@ -495,6 +516,14 @@ export class VideoTableDataLoader {
         if (field && !field.value) field.value = formatVideoFeedbackValue(comments, slot.bucket);
       });
     }
+
+    this.patchRenderedBilderCells();
+  }
+
+  patchRenderedBilderCells() {
+    const t = this.table;
+    const container = t.containerId ? document.getElementById(t.containerId) : null;
+    if (!container || !t.renderer) return;
 
     for (const koop of t.kooperationen || []) {
       for (const video of (t.videos[koop.id] || [])) {

@@ -100,6 +100,31 @@ describe('VideoSettingsDrawer', () => {
     expect(body.textContent).toContain('https://cdn.example.com/photo.png');
   });
 
+  it('zeigt fuer SharePoint-Links kein Thumbnail, aber den Link', async () => {
+    window.supabase = createSettingsSupabase({
+      bilderAssets: [{
+        id: 'ba-sp',
+        file_url: 'https://contoso-my.sharepoint.com/:i:/g/personal/a/abc',
+        file_path: null,
+        file_name: 'IQBnDyUIKgVkSoE4abcdefghijklmnopqrstuv',
+        file_size: 0,
+        created_at: '2026-02-01T10:00:00Z',
+      }],
+    });
+
+    await drawer.open({
+      videoId: 'vid-1',
+      kooperationId: 'koop-1',
+      videoTitel: 'Testvideo',
+    });
+
+    drawer._switchTab('bilder');
+    const body = document.getElementById('video-settings-drawer-body');
+    expect(body.querySelector('img.settings-asset-thumb')).toBeNull();
+    expect(body.querySelector('.video-settings-file-link')).toBeTruthy();
+    expect(body.textContent).not.toContain('IQBnDyUIKgVkSoE4');
+  });
+
   it('gruppiert Story-Assets nach Slot in einer Feedbackschleife', async () => {
     window.supabase = createSettingsSupabase({
       storyAssets: [
