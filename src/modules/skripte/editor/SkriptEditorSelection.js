@@ -6,11 +6,14 @@
 
 import { escapeHtml } from '../SkripteUtils.js';
 import {
-  AKTION_LABELS, AKTION_ICONS, AI_SELEKTION_AKTIONEN,
-  PLACEHOLDER_AKTION, PLACEHOLDER_DEFAULT
+  AKTION_LABELS, AKTION_ICONS, AI_SELEKTION_AKTIONEN, FORMAT_AKTIONEN,
+    PLACEHOLDER_AKTION, PLACEHOLDER_DEFAULT
 } from './skriptEditorKonstanten.js';
 import { sektionAnzeige } from './skriptEditorVisuellHelfer.js';
 import { openFloatingMenu } from '../../../core/components/FloatingMenu.js';
+import {
+  renderInlineMd, htmlToInlineMd, detectInlineFormat, domSelectionToRaw
+} from '../../../core/utils/inlineFormat.js';
 
 export class SkriptEditorSelection {
   constructor(view) {
@@ -46,8 +49,35 @@ export class SkriptEditorSelection {
     const feld = start.dataset.feld || sektion;
     const istVisuell = feld.endsWith('_visuell')
       || start.classList.contains('skripte-editor-sektion-visual');
-    v.selektion = { sektion, text, istVisuell };
+    v.selektion = { sektion, text, istVisuell, feld };
     v.pendingAktion = null;
+
+    // Formatierung (nur intern, nur Grid-Zellen): Raw-Stand + Auswahl-Offsets
+    // jetzt sichern - nach einem Menue-Klick ist die DOM-Selektion evtl. weg.
+    let formatierungItem = null;
+    const istMasterZelle = start.classList.contains('skripte-editor-sektion-text--md');
+    if (v.kannAiAktionen && !istMasterZelle) {
+      const raw = htmlToInlineMd(start);
+      const { toRaw } = renderInlineMd(raw);
+      const offsets = domSelectionToRaw(start, toRaw);
+      if (offsets && offsets.start !== offsets.end) {
+        v.selektion.start = offsets.start;
+        v.selektion.end = offsets.end;
+        const { bold, italic } = detectInlineFormat(raw, offsets.start, offsets.end);
+        const fettId = bold ? 'fett_entfernen' : 'fett';
+        const kursivId = italic ? 'kursiv_entfernen' : 'kursiv';
+        formatierungItem = {
+          id: 'formatierung',
+          iconHtml: AKTION_ICONS.formatierung,
+          label: AKTION_LABELS.formatierung,
+          children: [fettId, kursivId].map((id) => ({
+            id,
+            iconHtml: AKTION_ICONS[id],
+            label: AKTION_LABELS[id]
+          }))
+        };
+      }
+    }
     this.updateChip();
 
     const modmenu = document.getElementById('ed-modmenu');
@@ -58,27 +88,36 @@ export class SkriptEditorSelection {
       ? ['kommentieren', ...AI_SELEKTION_AKTIONEN]
       : ['kommentieren'];
 
+    const items = aktionen.map((aktion) => ({
+      id: aktion,
+      iconHtml: AKTION_ICONS[aktion],
+      label: AKTION_LABELS[aktion],
+      data: { aktion }
+    }));
+    // Formatierung ganz oben im Menue
+    if (formatierungItem) items.unshift(formatierungItem);
+
     openFloatingMenu({
       el: menu,
       anchor: sel.getRangeAt(0),
       wrap: v.container.querySelector('.skripte-editor'),
       layout: 'icon-label',
-      items: aktionen.map((aktion) => ({
-        id: aktion,
-        iconHtml: AKTION_ICONS[aktion],
-        label: AKTION_LABELS[aktion],
-        data: { aktion }
-      })),
+      items,
       onSelect: (aktion) => this.onAktion(aktion)
     });
   }
 
-  /** "Kommentieren" geht ins Feedback-Panel, alles andere in den Liky-Chat. */
+  /** "Kommentieren" geht ins Feedback-Panel, Formatierung direkt an die
+   *  Zelle, alles andere in den Liky-Chat. */
   onAktion(aktion) {
     if (aktion === 'kommentieren') {
       const selektion = this.view.selektion;
       this.clearPending();
       this.view.startNeuerKommentar(selektion);
+      return;
+    }
+    if (FORMAT_AKTIONEN[aktion]) {
+      this.view.formatiereSelektion(aktion);
       return;
     }
     this.setPendingAktion(aktion);

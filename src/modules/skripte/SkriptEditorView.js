@@ -37,6 +37,8 @@ import {
 import { SkriptEditorGeneration } from './editor/SkriptEditorGeneration.js';
 import { SkriptEditorChatActions } from './editor/SkriptEditorChatActions.js';
 import { SkriptEditorSelection } from './editor/SkriptEditorSelection.js';
+import { SkriptEditorFormat } from './editor/SkriptEditorFormat.js';
+import { htmlToInlineMd } from '../../core/utils/inlineFormat.js';
 import { SkriptEditorVersionen } from './editor/SkriptEditorVersionen.js';
 import { SkriptEditorVisuell } from './editor/SkriptEditorVisuell.js';
 import { SkriptEditorRealtime } from './editor/SkriptEditorRealtime.js';
@@ -148,6 +150,11 @@ export class SkriptEditorView {
     this.onMouseUp = null;
     this.onDocMouseDown = null;
     this.inlineEdit = new InlineEdit({
+      // Grid-Zellen lesen Markdown-sicher (strong/em -> **/*), Master-Zellen
+      // (--md) behalten das bisherige innerText-Verhalten (null = Default)
+      lesen: (el) => (el.classList?.contains('skripte-editor-sektion-text--md')
+        ? null
+        : htmlToInlineMd(el)),
       onChange: (feld, text) => {
         if (this.skript) this.skript[feld] = text || null;
       },
@@ -173,6 +180,7 @@ export class SkriptEditorView {
     this._generation = new SkriptEditorGeneration(this);
     this._chatActions = new SkriptEditorChatActions(this);
     this._selection = new SkriptEditorSelection(this);
+    this._format = new SkriptEditorFormat(this);
     this._versionen = new SkriptEditorVersionen(this);
     this._visuell = new SkriptEditorVisuell(this);
     this._realtime = new SkriptEditorRealtime(this);
@@ -1013,6 +1021,19 @@ export class SkriptEditorView {
 
     if (!this.kannAiAktionen) return;
     const input = document.getElementById('ed-input');
+
+    // Mini-WYSIWYG: Cmd/Ctrl+B/I direkt in den Grid-Zellen (nicht Master)
+    const doc = document.getElementById('ed-doc');
+    doc?.addEventListener('keydown', (e) => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return;
+      const taste = e.key.toLowerCase();
+      if (taste !== 'b' && taste !== 'i') return;
+      const zelle = this._format.zelleFuer(e.target);
+      if (!zelle || !doc.contains(zelle)) return;
+      e.preventDefault();
+      this._format.anwendenShortcut(zelle, taste === 'b' ? 'bold' : 'italic');
+    });
+
     document.getElementById('ed-send')?.addEventListener('click', () => this.sendChat());
     input?.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
@@ -1075,6 +1096,7 @@ export class SkriptEditorView {
   setPendingAktion(aktion) { this._selection.setPendingAktion(aktion); }
   clearPending() { this._selection.clearPending(); }
   updateChip() { this._selection.updateChip(); }
+  formatiereSelektion(aktion) { return this._format.anwendenAusMenue(aktion); }
 
   renderFeedback() { this._feedback.render(); }
   upsertFeedback(kommentar) { this._feedback.upsert(kommentar); }

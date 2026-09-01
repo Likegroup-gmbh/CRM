@@ -460,6 +460,24 @@ export const ICON_DEFS = {
     viewBox: '0 0 24 24',
     body: '<path stroke-linecap="round" stroke-linejoin="round" d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />'
   },
+
+  // --- Text-Formatierung (Mini-WYSIWYG) ---
+  'note-edit': {
+    viewBox: '0 0 24 24',
+    body: '<path stroke-linecap="round" stroke-linejoin="round" d="M14.4862 22H13.0005V20.5142C13.0005 20.0427 13.1878 19.5905 13.5211 19.2571L18.388 14.3905C18.9087 13.8698 19.7528 13.8698 20.2734 14.3905L20.61 14.7271C21.1306 15.2478 21.1306 16.092 20.61 16.6127L15.7431 21.4793C15.4098 21.8127 14.9576 22 14.4862 22Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M19.0005 10V9C19.0005 5.70017 19.0005 4.05025 17.9754 3.02513C16.9502 2 15.3003 2 12.0005 2H10.0005C6.70066 2 5.05074 2 4.02561 3.02513C3.00049 4.05025 3.00049 5.70017 3.00049 9V16C3.00049 18.3389 3.00049 19.5083 3.53695 20.3621C3.8167 20.8073 4.19316 21.1838 4.63838 21.4635C5.49216 22 6.6616 22 9.00049 22" /><path stroke-linecap="round" stroke-linejoin="round" d="M11.0005 6H15.0005" /><path stroke-linecap="round" stroke-linejoin="round" d="M7.00049 10H15.0005" /><path stroke-linecap="round" stroke-linejoin="round" d="M7.00049 14H13.0005" />'
+  },
+  bold: {
+    viewBox: '0 0 24 24',
+    body: '<path stroke-linecap="round" stroke-linejoin="round" d="M13 4H10C8.11438 4 7.17157 4 6.58579 4.58579C6 5.17157 6 6.11438 6 8V12H13C15.2091 12 17 10.2091 17 8C17 5.79086 15.2091 4 13 4Z" /><path stroke-linecap="round" stroke-linejoin="round" d="M14 12H6V16C6 17.8856 6 18.8284 6.58579 19.4142C7.17157 20 8.11438 20 10 20H14C16.2091 20 18 18.2091 18 16C18 13.7909 16.2091 12 14 12Z" />'
+  },
+  italic: {
+    viewBox: '0 0 24 24',
+    body: '<path stroke-linecap="round" d="M10.6667 4H20" /><path stroke-linecap="round" d="M7.99872 20L15.9987 4" /><path stroke-linecap="round" d="M3.99872 20L13.3321 20" />'
+  },
+  'italic-off': {
+    viewBox: '0 0 24 24',
+    body: '<path stroke-linecap="round" stroke-linejoin="round" d="M11 20.001H5" /><path stroke-linecap="round" stroke-linejoin="round" d="M3 3L21 21" /><path stroke-linecap="round" d="M19 7C19 6.36778 19 5.95381 18.9194 5.6768C18.7518 5.10062 18.3066 4.60428 17.7541 4.37789C17.4886 4.26905 17.1885 4.23819 16.5884 4.17648C15.1695 4.03054 13.3874 4 12 4H8" /><path stroke-linecap="round" stroke-linejoin="round" d="M12 4L11.2 7.20003M8 20.0008L10.4001 10.4001" />'
+  },
 };
 
 // Aliase auf Canonical-Keys (Legacy + semantische Kurzformen)

@@ -6,10 +6,13 @@
 const IDLE_MS = 1000;
 
 export class InlineEdit {
-  constructor({ onChange, onSave, onInput } = {}) {
+  constructor({ onChange, onSave, onInput, lesen } = {}) {
     this.onChange = onChange;
     this.onSave = onSave;
     this.onInput = onInput;
+    // Optionaler Lese-Hook (z.B. Markdown-Serializer fuer formatierte Zellen);
+    // Rueckgabe null/undefined = Default-Lesen per innerText
+    this.lesenHook = lesen || null;
     this.root = null;
     this.readonly = false;
     this.saved = new Map();
@@ -100,6 +103,10 @@ export class InlineEdit {
   }
 
   _lesen(el) {
+    if (this.lesenHook) {
+      const viaHook = this.lesenHook(el);
+      if (viaHook != null) return viaHook;
+    }
     let text = (el.innerText ?? el.textContent ?? '').replace(/\u00a0/g, ' ');
     if (text === '\n') text = '';
     return text;
