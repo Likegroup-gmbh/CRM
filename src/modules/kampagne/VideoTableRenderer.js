@@ -757,7 +757,7 @@ export class VideoTableRenderer {
     const currentId = koop.status_id || '';
     const statusName = koop.status_name || koop.status_ref?.name || '';
     const statusClass = statusName ? `status-${statusName.toLowerCase().replace(/\s+/g, '-')}` : '';
-    const chevron = `${icon('chevron-down')}`;
+    const chevron = `<span class="status-select-chevron">${icon('chevron-down')}</span>`;
     const checkSvg = `${icon('check-bold', { className: 'size-5' })}`;
 
     const triggerClasses = statusName

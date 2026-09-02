@@ -256,7 +256,7 @@ export class UnternehmenList extends BasePaginatedList {
     const marken = u._marken || [];
     const expanded = this._expandedIds.has(u.id);
     const chevron = marken.length > 0
-      ? `<button type="button" class="unternehmen-marken-toggle" data-id="${u.id}" aria-expanded="${expanded ? 'true' : 'false'}" aria-label="Marken ${expanded ? 'einklappen' : 'aufklappen'}">${icon(expanded ? 'chevron-down' : 'chevron-right')}</button>`
+      ? `<button type="button" class="unternehmen-marken-toggle" data-id="${u.id}" aria-expanded="${expanded ? 'true' : 'false'}" aria-label="Marken ${expanded ? 'einklappen' : 'aufklappen'}">${icon('chevron-down')}</button>`
       : '';
     
     return `

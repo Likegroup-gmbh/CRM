@@ -7,7 +7,6 @@
 // aufgeblaehten CRM-Feldern und bremst Injection-Versuche ein.
 const KONTEXT_MAX = {
   dna: 4000,
-  kickoff: 4000,
   beschreibung: 2000,
   beispiel: 2000,
   antiPattern: 1000,

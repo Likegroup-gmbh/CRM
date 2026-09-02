@@ -2152,6 +2152,14 @@ width: 18em;
   vertical-align: middle;
 }
 
+.data-table--unternehmen .unternehmen-marken-toggle .crm-icon {
+  transition: transform 0.2s ease;
+}
+
+.data-table--unternehmen .unternehmen-marken-toggle[aria-expanded="true"] .crm-icon {
+  transform: rotate(180deg);
+}
+
 .data-table--unternehmen .nested-marke-row {
   background: var(--gray-50, rgba(0, 0, 0, 0.03));
 }

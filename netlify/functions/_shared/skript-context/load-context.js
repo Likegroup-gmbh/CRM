@@ -56,19 +56,12 @@ async function loadContext(supabase, params, { schlank = false } = {}) {
       .select('*').eq('id', briefing_id).single()
     : Promise.resolve({ data: null });
 
-  // Neuester Kickoff (Marken-DNA aus dem Onboarding)
-  const kickoffPromise = marke_id
-    ? supabase.from('marke_kickoff')
-      .select('brand_essenz, mission, zielgruppe, zielgruppen_mindset, marken_usp, tonalitaet_sprachstil, content_charakter, dos_donts, rechtliche_leitplanken, erfolgskriterien, learnings')
-      .eq('marke_id', marke_id).order('created_at', { ascending: false }).limit(1)
-    : Promise.resolve({ data: null });
-
   const [
     { data: unternehmen }, { data: marke }, { data: produkt }, { data: varianten },
-    { data: persona }, { data: kampagne }, { data: briefing }, { data: kickoffRows }
+    { data: persona }, { data: kampagne }, { data: briefing }
   ] = await Promise.all([
     unternehmenPromise, markePromise, produktPromise, variantenPromise,
-    personaPromise, kampagnePromise, briefingPromise, kickoffPromise
+    personaPromise, kampagnePromise, briefingPromise
   ]);
 
   ctx.unternehmen = unternehmen;
@@ -78,7 +71,6 @@ async function loadContext(supabase, params, { schlank = false } = {}) {
   ctx.persona = persona;
   ctx.kampagne = kampagne;
   ctx.briefing = briefing || null;
-  ctx.kickoff = kickoffRows?.[0] || null;
 
   // Branche: explizite Wahl aus der UI hat Vorrang vor Marke/Unternehmen/Persona
   ctx.brancheId = branche_id || ctx.marke?.branche_id || ctx.unternehmen?.branche_id || null;

@@ -9,7 +9,7 @@
 
 import { icon } from '../icons/IconSystem.js';
 
-const CHEVRON_ICON = icon('chevron-down-filled');
+const CHEVRON_ICON = `<span class="table-select__chevron">${icon('chevron-down')}</span>`;
 const CHECK_ICON = icon('check-filled');
 
 function escapeHtml(str) {
