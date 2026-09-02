@@ -2137,6 +2137,33 @@ width: 18em;
   
 }
 
+.data-table--unternehmen .unternehmen-marken-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-right: var(--space-xs, 0.25rem);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  vertical-align: middle;
+}
+
+.data-table--unternehmen .nested-marke-row {
+  background: var(--gray-50, rgba(0, 0, 0, 0.03));
+}
+
+.data-table--unternehmen .nested-marke-row .col-name {
+  padding-left: 2rem;
+}
+
+.data-table--unternehmen .nested-marke-row.is-search-match {
+  background: var(--color-warning-bg, #fff6d6);
+}
+
 /* Webseite-Spalte (global) - Breite anpassbar, Icon oder Link */
 .data-table th.col-webseite,
 .data-table td.col-webseite {
