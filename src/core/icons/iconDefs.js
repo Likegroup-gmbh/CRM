@@ -286,7 +286,7 @@ export const ICON_DEFS = {
     viewBox: '0 0 24 24',
     body: '<path stroke-linecap="round" stroke-linejoin="round" d="M12 12.002V11.502M12 5.00195V4.50195M12 19.002V18.502M13 12.002C13 11.4497 12.5523 11.002 12 11.002C11.4477 11.002 11 11.4497 11 12.002C11 12.5542 11.4477 13.002 12 13.002C12.5523 13.002 13 12.5542 13 12.002ZM13 5.00195C13 4.44967 12.5523 4.00195 12 4.00195C11.4477 4.00195 11 4.44967 11 5.00195C11 5.55424 11.4477 6.00195 12 6.00195C12.5523 6.00195 13 5.55424 13 5.00195ZM13 19.002C13 18.4497 12.5523 18.002 12 18.002C11.4477 18.002 11 18.4497 11 19.002C11 19.5542 11.4477 20.002 12 20.002C12.5523 20.002 13 19.5542 13 19.002Z" />'
   },
-  'chevron-down': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />' },
+  'chevron-down': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M18 9.00005C18 9.00005 13.5811 15 12 15C10.4188 15 6 9 6 9" />' },
   'chevron-right': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />' },
   'arrow-left': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />' },
   'arrow-right': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />' },
@@ -377,7 +377,7 @@ export const ICON_DEFS = {
   'chevron-left': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />' },
   'chevron-right': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />' },
   'chevron-up': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />' },
-  'chevron-down': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />' },
+  'chevron-down': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M18 9.00005C18 9.00005 13.5811 15 12 15C10.4188 15 6 9 6 9" />' },
   'chevron-down-filled': { viewBox: '0 0 24 24', body: '<path fill-rule="evenodd" clip-rule="evenodd" d="M12.53 16.28a.75.75 0 0 1-1.06 0l-7.5-7.5a.75.75 0 0 1 1.06-1.06L12 14.69l6.97-6.97a.75.75 0 1 1 1.06 1.06l-7.5 7.5Z" />' },
   download: { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />' },
   'arrow-left': { viewBox: '0 0 24 24', body: '<path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />' },
@@ -518,6 +518,7 @@ export const ICON_ALIASES = {
   'icon-document-currency': 'document-currency',
   'icon-list-bullet': 'list-bullet',
   'icon-user': 'user',
+  dropdown: 'chevron-down',
 
   // Schreibweisen-Aliase (Plural/Singular, deutsche Kurzformen)
   // Fachliche Zuordnung Entity -> Icon liegt in entityIcons.js.
