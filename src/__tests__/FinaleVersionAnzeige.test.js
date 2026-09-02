@@ -75,6 +75,82 @@ describe('Finale-Spalte – Kunden-Play-Button', () => {
     expect(html).toContain('9:16');
     expect(html).not.toContain('finale-upload-btn');
   });
+
+  it('zeigt ein markiertes Still in der Finale-Spalte', () => {
+    const table = makeTable({ isKunde: true });
+    const renderer = new VideoTableRenderer(table);
+    const html = renderer.renderFinaleVersionCell({
+      id: 'k1',
+      _bilder: [{ id: 's1', video_id: 'v1', is_final: true, variant_name: 'Still', file_url: 'https://x/s.jpg' }],
+    }, { id: 'v1', finalAssets: [] });
+    expect(html).toContain('data-action="play-final-still"');
+    expect(html).toContain('Still');
+    expect(html).toContain('finale-still-thumb');
+    expect(html).toContain('https://x/s.jpg');
+  });
+
+  it('behaelt das Icon als Fallback wenn das Thumb nicht laedt', () => {
+    const table = makeTable({ isKunde: true });
+    const renderer = new VideoTableRenderer(table);
+    document.body.innerHTML = renderer.renderFinaleVersionCell({
+      id: 'k1',
+      _bilder: [{ id: 's1', video_id: 'v1', is_final: true, variant_name: 'Still', file_url: 'https://x/s.jpg' }],
+    }, { id: 'v1', finalAssets: [] });
+
+    const media = document.querySelector('.finale-still-media');
+    expect(media.querySelector('svg')).not.toBeNull();
+    media.querySelector('img.finale-still-thumb').remove();
+    expect(media.querySelector('svg')).not.toBeNull();
+  });
+
+  it('zeigt bei SharePoint-Stills nur das Icon statt eines kaputten Bildes', () => {
+    const table = makeTable({ isKunde: true });
+    const renderer = new VideoTableRenderer(table);
+    const html = renderer.renderFinaleVersionCell({
+      id: 'k1',
+      _bilder: [{
+        id: 's1',
+        video_id: 'v1',
+        is_final: true,
+        variant_name: 'Still',
+        file_url: 'https://contoso-my.sharepoint.com/:i:/g/personal/a/abc',
+      }],
+    }, { id: 'v1', finalAssets: [] });
+    expect(html).toContain('data-action="play-final-still"');
+    expect(html).not.toContain('finale-still-thumb');
+    expect(html).not.toContain('sharepoint.com');
+  });
+});
+
+describe('Stills-Spalte', () => {
+  it('zeigt Upload fuer Staff wenn keine Stills da sind', () => {
+    const table = makeTable({ isKunde: false });
+    const renderer = new VideoTableRenderer(table);
+    const html = renderer.renderStillsCell({ id: 'k1', _bilder: [] }, { id: 'v1' });
+    expect(html).toContain('stills-upload-btn');
+  });
+
+  it('zeigt Ansehen ohne Upload fuer Kunden', () => {
+    const table = makeTable({ isKunde: true });
+    const renderer = new VideoTableRenderer(table);
+    const html = renderer.renderStillsCell({
+      id: 'k1',
+      _bilder: [{ id: 's1', video_id: 'v1', is_final: false, file_url: 'https://x/s.jpg' }],
+    }, { id: 'v1' });
+    expect(html).toContain('data-action="view-bilder"');
+    expect(html).not.toContain('stills-upload-btn');
+  });
+
+  it('zeigt Ansehen wenn nur ein finales Still existiert', () => {
+    const table = makeTable({ isKunde: false });
+    const renderer = new VideoTableRenderer(table);
+    const html = renderer.renderStillsCell({
+      id: 'k1',
+      _bilder: [{ id: 's1', video_id: 'v1', is_final: true, variant_name: 'Still' }],
+    }, { id: 'v1' });
+    expect(html).toContain('data-action="view-bilder"');
+    expect(html).not.toContain('stills-upload-btn');
+  });
 });
 
 describe('Finale-Spalte – Asset-Hydrate', () => {
@@ -147,5 +223,127 @@ describe('Finale-Spalte – Asset-Hydrate', () => {
 
     await KampagneKooperationenVideoTable.prototype.loadAssetsAndCommentsForVisible.call(table);
     expect(store.getUnloadedVideoIds(['v1'])).toEqual(['v1']);
+  });
+});
+
+describe('Finale-Spalte – Bilder-Hydrate', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div id="grid">
+        <div class="col-finale-version">
+          <div class="video-field-wrapper" data-video-id="v1">
+            <span class="no-content-placeholder">—</span>
+          </div>
+        </div>
+        <div class="col-stills">
+          <div class="video-field-wrapper" data-video-id="v1">
+            <button type="button" class="stills-upload-btn">Upload</button>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+
+  it('patched die Finale- und Stills-Zelle nach loadBilder', async () => {
+    window.supabase = {
+      from: vi.fn(() => createChainableQuery({
+        data: [{
+          id: 's1',
+          kooperation_id: 'k1',
+          video_id: 'v1',
+          is_final: true,
+          variant_name: 'Still',
+          file_url: 'https://cdn.example.com/s.jpg',
+        }],
+        error: null,
+      })),
+    };
+
+    const table = makeTable({ isKunde: true });
+    table.containerId = 'grid';
+    table.kooperationen = [{ id: 'k1' }];
+    table.videos = { k1: [{ id: 'v1', finalAssets: [] }] };
+    table.renderer = new VideoTableRenderer(table);
+    const loader = new VideoTableDataLoader(table);
+
+    await loader.loadBilder(['k1']);
+
+    expect(table.kooperationen[0]._bilder).toHaveLength(1);
+    const finale = document.querySelector('.col-finale-version .video-field-wrapper[data-video-id="v1"]');
+    expect(finale.querySelector('[data-action="play-final-still"]')).not.toBeNull();
+    expect(finale.querySelector('img.finale-still-thumb')).not.toBeNull();
+    const stills = document.querySelector('.col-stills .video-field-wrapper[data-video-id="v1"]');
+    expect(stills.querySelector('[data-action="view-bilder"]')).not.toBeNull();
+  });
+
+  it('zieht Stills nach, wenn die Detailseite die Tabelle als geladen markiert', async () => {
+    window.supabase = {
+      from: vi.fn((tableName) => createChainableQuery(
+        tableName === 'kooperation_bilder_asset'
+          ? {
+              data: [{
+                id: 's1',
+                kooperation_id: 'k1',
+                video_id: 'v1',
+                is_final: true,
+                variant_name: 'Still',
+                file_url: 'https://cdn.example.com/s.jpg',
+              }],
+              error: null,
+            }
+          : { data: [], error: null }
+      )),
+    };
+
+    const table = makeTable();
+    table.containerId = 'grid';
+    table.store = null;
+    table.kooperationen = [{ id: 'k1' }];
+    table.videos = { k1: [{ id: 'v1', finalAssets: [] }] };
+    table.videoComments = {};
+    table.stillComments = {};
+    table.renderer = new VideoTableRenderer(table);
+    table.dataLoader = new VideoTableDataLoader(table);
+    // Wie auf der Detailseite: Daten gelten als geladen, loadData laeuft nicht.
+    table._dataLoaded = true;
+
+    await KampagneKooperationenVideoTable.prototype.loadAssetsAndCommentsForVisible.call(table);
+
+    expect(table.kooperationen[0]._bilder).toHaveLength(1);
+    const finale = document.querySelector('.col-finale-version .video-field-wrapper[data-video-id="v1"]');
+    expect(finale.querySelector('[data-action="play-final-still"]')).not.toBeNull();
+  });
+
+  it('fragt Stills nicht erneut ab, wenn sie schon geladen sind', async () => {
+    const from = vi.fn(() => createChainableQuery({ data: [], error: null }));
+    window.supabase = { from };
+
+    const table = makeTable();
+    table.kooperationen = [{ id: 'k1', _bilder: [] }];
+    const loader = new VideoTableDataLoader(table);
+
+    await loader.loadBilderForVisible();
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it('ueberschreibt vorhandene Stills nicht wenn die Query fehlschlaegt', async () => {
+    window.supabase = {
+      from: vi.fn(() => createChainableQuery({
+        data: null,
+        error: { message: 'column source_asset_id does not exist' },
+      })),
+    };
+
+    const table = makeTable();
+    table.kooperationen = [{
+      id: 'k1',
+      _bilder: [{ id: 'keep', video_id: 'v1', is_final: true }],
+    }];
+    table.videos = { k1: [{ id: 'v1' }] };
+    table.renderer = new VideoTableRenderer(table);
+    const loader = new VideoTableDataLoader(table);
+
+    await loader.loadBilder(['k1']);
+    expect(table.kooperationen[0]._bilder.map(b => b.id)).toEqual(['keep']);
   });
 });

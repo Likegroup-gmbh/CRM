@@ -6,6 +6,8 @@ import { deleteUnternehmenCascade, collectDependentIds } from '../modules/untern
 import { rechnungNotizModal } from '../modules/rechnung/RechnungNotizModal.js';
 import { getSignedDocumentUrl, resolveDocumentUrl } from './DocumentUrlHelper.js';
 import { authorizedFetch } from './auth/getAccessToken.js';
+import { ProduktService, produktFormRoute, produktListDetailRoute } from '../modules/produkt/ProduktService.js';
+import { PersonaService, personaFormRoute } from '../modules/persona/PersonaService.js';
 
 // Entity-Types, die keine eigene DB-Tabelle haben und auf eine andere Entity gemappt werden
 const ENTITY_ALIASES = { mitarbeiter: 'benutzer' };
@@ -15,6 +17,10 @@ function getEntityDisplayName(entityType) {
     creator: 'den Creator',
     unternehmen: 'das Unternehmen',
     marke: 'die Marke',
+    produkt: 'das Produkt',
+    persona: 'die Persona',
+    strategie: 'die Strategie',
+    creator_auswahl: 'die Sourcing-Liste',
     auftrag: 'den Auftrag',
     auftragsdetails: 'die Auftragsdetails',
     auftrag_details: 'die Auftragsdetails',
@@ -29,6 +35,22 @@ function getEntityDisplayName(entityType) {
 export async function handleAction(dropdown, action, entityId, entityType, actionItem) {
   switch (action) {
     case 'view':
+      if (entityType === 'produkt') {
+        await navigateToProduktForm(entityId);
+        break;
+      }
+      if (entityType === 'persona') {
+        await navigateToPersonaForm(entityId);
+        break;
+      }
+      if (entityType === 'strategie') {
+        window.navigateTo(`/strategie/${entityId}`);
+        break;
+      }
+      if (entityType === 'creator_auswahl') {
+        window.navigateTo(`/sourcing/${entityId}`);
+        break;
+      }
       if (entityType === 'contract') {
         window.navigateTo(`/contracts/${entityId}`);
       } else {
@@ -37,6 +59,22 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
       break;
 
     case 'edit':
+      if (entityType === 'produkt') {
+        await navigateToProduktForm(entityId);
+        break;
+      }
+      if (entityType === 'persona') {
+        await navigateToPersonaForm(entityId);
+        break;
+      }
+      if (entityType === 'strategie') {
+        window.navigateTo(`/strategie/${entityId}/edit`);
+        break;
+      }
+      if (entityType === 'creator_auswahl') {
+        window.navigateTo(`/sourcing/${entityId}/edit`);
+        break;
+      }
       if (entityType === 'auftrag' || entityType === 'contract') {
         window.navigateTo(`/projekt-erstellen/edit/${entityId}`);
         break;
@@ -69,6 +107,22 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
       break;
 
     case 'delete':
+      if (entityType === 'produkt') {
+        await confirmDeleteProdukt(entityId);
+        break;
+      }
+      if (entityType === 'persona') {
+        await confirmDeletePersona(entityId);
+        break;
+      }
+      if (entityType === 'strategie') {
+        await confirmDeleteStrategieStandalone(entityId);
+        break;
+      }
+      if (entityType === 'creator_auswahl') {
+        await confirmDeleteCreatorAuswahl(entityId);
+        break;
+      }
       if (entityType === 'vertraege') {
         const vertraegeModule = window.moduleRegistry?.modules?.get('vertraege');
         if (vertraegeModule?.deleteVertrag) {
@@ -95,6 +149,15 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
         window.creatorAuswahlList.openRenameDrawer(entityId, currentName);
       }
       break;
+
+    case 'creator-upload-send':
+    case 'creator-upload-resend':
+    case 'creator-upload-copy':
+    case 'creator-upload-revoke': {
+      const { handleCreatorUploadAction } = await import('../modules/kampagne/CreatorUploadActions.js');
+      await handleCreatorUploadAction(action, actionItem);
+      break;
+    }
 
     case 'delete-strategie':
       if (window.strategieList) {
@@ -208,6 +271,14 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
 
     case 'add_ansprechpartner_unternehmen':
       dropdown.openAddAnsprechpartnerToUnternehmenModal(entityId);
+      break;
+
+    case 'add_produkt':
+      window.navigateTo(`/${entityType}/${entityId}/produkt`);
+      break;
+
+    case 'add_persona':
+      window.navigateTo(`/${entityType}/${entityId}/persona`);
       break;
 
     case 'remove_ansprechpartner_unternehmen':
@@ -570,6 +641,163 @@ export async function addToFavorites(dropdown, creatorId, kampagneId) {
   } catch (err) {
     console.error('Fehler beim Hinzufügen zu Favoriten', err);
     alert('Hinzufügen zu Favoriten fehlgeschlagen.');
+  }
+}
+
+async function navigateToProduktForm(produktId) {
+  const markeDetail = window.moduleRegistry?.modules?.get('marke-detail');
+  if (markeDetail?.markeId && location.pathname.includes('/marke/')) {
+    window.navigateTo(`/marke/${markeDetail.markeId}/produkt?produkt=${produktId}`);
+    return;
+  }
+  const unternehmenDetail = window.moduleRegistry?.modules?.get('unternehmen-detail');
+  if (unternehmenDetail?.unternehmenId && location.pathname.includes('/unternehmen/')) {
+    window.navigateTo(produktFormRoute(unternehmenDetail.unternehmenId, produktId));
+    return;
+  }
+  window.navigateTo(produktListDetailRoute(produktId));
+}
+
+async function confirmDeleteProdukt(entityId) {
+  const message = 'Möchten Sie wirklich das Produkt löschen? Diese Aktion kann nicht rückgängig gemacht werden.';
+  let proceed = false;
+  if (window.confirmationModal) {
+    const res = await window.confirmationModal.open({
+      title: 'Löschvorgang bestätigen',
+      message,
+      confirmText: 'Endgültig löschen',
+      cancelText: 'Abbrechen',
+      danger: true
+    });
+    proceed = !!res?.confirmed;
+  } else {
+    proceed = confirm(message);
+  }
+  if (!proceed) return;
+
+  try {
+    await ProduktService.remove(entityId);
+    window.dispatchEvent(new CustomEvent('entityUpdated', {
+      detail: { entity: 'produkt', action: 'deleted', id: entityId }
+    }));
+  } catch (err) {
+    console.error('Produkt-Löschung fehlgeschlagen:', err);
+    window.toastSystem?.error?.('Produkt konnte nicht gelöscht werden.');
+  }
+}
+
+async function navigateToPersonaForm(personaId) {
+  const markeDetail = window.moduleRegistry?.modules?.get('marke-detail');
+  if (markeDetail?.markeId && location.pathname.includes('/marke/')) {
+    window.navigateTo(personaFormRoute('marke', markeDetail.markeId, personaId));
+    return;
+  }
+  const unternehmenDetail = window.moduleRegistry?.modules?.get('unternehmen-detail');
+  if (unternehmenDetail?.unternehmenId && location.pathname.includes('/unternehmen/')) {
+    window.navigateTo(personaFormRoute('unternehmen', unternehmenDetail.unternehmenId, personaId));
+    return;
+  }
+  const { data, error } = await window.supabase
+    .from('personas')
+    .select('unternehmen_id')
+    .eq('id', personaId)
+    .maybeSingle();
+  if (error || !data?.unternehmen_id) {
+    window.toastSystem?.error?.('Persona konnte nicht geöffnet werden.');
+    return;
+  }
+  window.navigateTo(personaFormRoute('unternehmen', data.unternehmen_id, personaId));
+}
+
+async function confirmDeletePersona(entityId) {
+  const message = 'Möchten Sie wirklich die Persona löschen? Diese Aktion kann nicht rückgängig gemacht werden.';
+  let proceed = false;
+  if (window.confirmationModal) {
+    const res = await window.confirmationModal.open({
+      title: 'Löschvorgang bestätigen',
+      message,
+      confirmText: 'Endgültig löschen',
+      cancelText: 'Abbrechen',
+      danger: true
+    });
+    proceed = !!res?.confirmed;
+  } else {
+    proceed = confirm(message);
+  }
+  if (!proceed) return;
+
+  try {
+    await PersonaService.remove(entityId);
+    window.dispatchEvent(new CustomEvent('entityUpdated', {
+      detail: { entity: 'persona', action: 'deleted', id: entityId }
+    }));
+  } catch (err) {
+    console.error('Persona-Löschung fehlgeschlagen:', err);
+    window.toastSystem?.error?.('Persona konnte nicht gelöscht werden.');
+  }
+}
+
+async function confirmDeleteStrategieStandalone(entityId) {
+  const message = 'Möchten Sie diese Strategie wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.';
+  let proceed = false;
+  if (window.confirmationModal) {
+    const res = await window.confirmationModal.open({
+      title: 'Strategie löschen',
+      message,
+      confirmText: 'Löschen',
+      cancelText: 'Abbrechen',
+      danger: true
+    });
+    proceed = !!res?.confirmed;
+  } else {
+    proceed = confirm(message);
+  }
+  if (!proceed) return;
+
+  try {
+    const { error } = await window.supabase.from('strategie').delete().eq('id', entityId);
+    if (error) throw error;
+    window.toastSystem?.show('Strategie erfolgreich gelöscht', 'success');
+    window.dispatchEvent(new CustomEvent('entityUpdated', {
+      detail: { entity: 'strategie', action: 'deleted', id: entityId }
+    }));
+    if (window.strategieList) {
+      window.strategieList._forceReload = true;
+      window.strategieList.strategien = [];
+    }
+  } catch (err) {
+    console.error('Strategie-Löschung fehlgeschlagen:', err);
+    window.toastSystem?.show('Fehler beim Löschen der Strategie', 'error');
+  }
+}
+
+async function confirmDeleteCreatorAuswahl(entityId) {
+  const message = 'Möchten Sie diese Sourcing-Liste wirklich löschen? Alle zugeordneten Creator werden entfernt.';
+  let proceed = false;
+  if (window.confirmationModal) {
+    const res = await window.confirmationModal.open({
+      title: 'Sourcing-Liste löschen',
+      message,
+      confirmText: 'Löschen',
+      cancelText: 'Abbrechen',
+      danger: true
+    });
+    proceed = !!res?.confirmed;
+  } else {
+    proceed = confirm(message);
+  }
+  if (!proceed) return;
+
+  try {
+    const { creatorAuswahlService } = await import('../modules/creator-auswahl/CreatorAuswahlService.js');
+    await creatorAuswahlService.deleteListe(entityId);
+    window.toastSystem?.show('Sourcing-Liste erfolgreich gelöscht', 'success');
+    window.dispatchEvent(new CustomEvent('entityUpdated', {
+      detail: { entity: 'creator_auswahl', action: 'deleted', id: entityId }
+    }));
+  } catch (err) {
+    console.error('Sourcing-Löschung fehlgeschlagen:', err);
+    window.toastSystem?.show('Fehler beim Löschen der Sourcing-Liste', 'error');
   }
 }
 

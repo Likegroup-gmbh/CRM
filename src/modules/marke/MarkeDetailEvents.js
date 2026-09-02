@@ -1,15 +1,12 @@
 // MarkeDetailEvents.js
 // Event-Binding: Document-Click, entityUpdated, softRefresh, Cache-Invalidierung
 
+import { activateSecondaryNavTab, getSecondaryNavTabFromEvent } from '../../core/TabUtils.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { loadMarkeTabData } from './MarkeDetailLoader.js';
-import { updateKickOffTab } from './MarkeDetailTabUpdates.js';
-import { bindKickOffCreateButton } from './MarkeDetailRendererKickOff.js';
+
 export function bindMarkeDetailEvents(detail) {
   detail.bindSidebarTabs();
-
-  // Kick-Off Create Button binden (nach jedem Render)
-  bindKickOffCreateButton(detail);
 
   if (detail._eventsBound) return;
   detail._eventsBound = true;
@@ -20,36 +17,14 @@ export function bindMarkeDetailEvents(detail) {
 
   // Zentraler Click-Handler
   const handleDocumentClick = async (e) => {
-    // KickOff-Type-Switcher VOR generischem Tab-Handler
-    const kickoffTypeBtn = e.target.closest('.kickoff-type-btn');
-    if (kickoffTypeBtn) {
-      e.preventDefault();
-      const nextType = kickoffTypeBtn.dataset.kickoffType;
-      if (!['paid', 'organic'].includes(nextType)) return;
-      detail.activeKickoffType = nextType;
-      detail.kickoff = detail.kickoffsByType[nextType] || null;
-      detail.kickoffMarkenwerte = detail.kickoffMarkenwerteByType[nextType] || [];
-      updateKickOffTab(detail);
-      return;
-    }
-
     // Tab-Button Navigation
-    const btn = e.target.closest('.tab-button');
-    if (btn) {
+    const tab = getSecondaryNavTabFromEvent(e);
+    if (tab) {
       e.preventDefault();
-      const tab = btn.dataset.tab;
-      if (!tab) return;
-
       detail.activeMainTab = tab;
-      document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-      const pane = document.getElementById(`tab-${tab}`);
-      if (pane) {
-        pane.classList.add('active');
-        if (!['ansprechpartner'].includes(tab)) {
-          await loadMarkeTabData(detail, tab);
-        }
+      const pane = activateSecondaryNavTab(tab);
+      if (pane && !['ansprechpartner'].includes(tab)) {
+        await loadMarkeTabData(detail, tab);
       }
       return;
     }
@@ -116,6 +91,17 @@ export function bindMarkeDetailEvents(detail) {
         detail.render();
         detail.bindEvents();
       });
+    }
+    const tabByEntity = {
+      produkt: 'produkte',
+      persona: 'personas',
+      strategie: 'strategien',
+      creator_auswahl: 'sourcing'
+    };
+    const tab = tabByEntity[e.detail?.entity];
+    if (tab) {
+      tabDataCache.invalidate('marke', detail.markeId);
+      loadMarkeTabData(detail, tab);
     }
   };
 

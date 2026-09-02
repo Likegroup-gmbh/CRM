@@ -2,11 +2,14 @@
 // Dünne Orchestrierungsklasse — delegiert an Loader, Renderer, Events, Edit
 
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
+import { getTabQueryParam } from '../../core/TabUtils.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { loadCriticalData, loadMarkeTabData } from './MarkeDetailLoader.js';
 import { renderMarkeDetailPage } from './MarkeDetailRendererCore.js';
 import { bindMarkeDetailEvents, setupCacheInvalidation } from './MarkeDetailEvents.js';
 import { showEditForm } from './MarkeDetailEdit.js';
+import { bindNotizDokument } from '../../core/components/NotizDokument.js';
 
 export class MarkeDetail extends PersonDetailBase {
   constructor() {
@@ -21,15 +24,12 @@ export class MarkeDetail extends PersonDetailBase {
     this.ansprechpartner = [];
     this.rechnungen = [];
     this.strategien = [];
+    this.sourcingListen = [];
     this.personas = [];
     this.produkte = [];
-    this.kickoff = null;
-    this.kickoffMarkenwerte = [];
-    this.kickoffsByType = { paid: null, organic: null };
-    this.kickoffMarkenwerteByType = { paid: [], organic: [] };
-    this.activeKickoffType = 'organic';
-    this._kickoffLoaded = false;
     this.activeMainTab = 'informationen';
+    this.strategieDokument = null;
+    this._notizDokument = null;
 
     this._tabAbortControllers = new Map();
     this._currentLoadingTab = null;
@@ -51,13 +51,10 @@ export class MarkeDetail extends PersonDetailBase {
 
     try {
       this.markeId = markeId;
-      this.kickoffsByType = { paid: null, organic: null };
-      this.kickoffMarkenwerteByType = { paid: [], organic: [] };
-      this._kickoffLoaded = false;
 
       // ?tab=... macht einzelne Tabs deeplink-faehig und laesst die Rueckkehr
       // von Unterseiten (z.B. Persona-Formular) auf dem richtigen Tab landen.
-      const tabParam = new URLSearchParams(window.location.search).get('tab');
+      const tabParam = getTabQueryParam();
       if (tabParam) this.activeMainTab = tabParam;
 
       tabDataCache.invalidate('marke', markeId);
@@ -65,10 +62,16 @@ export class MarkeDetail extends PersonDetailBase {
 
       if (window.breadcrumbSystem && this.marke) {
         const canEdit = window.currentUser?.permissions?.marke?.can_edit !== false;
-        window.breadcrumbSystem.updateDetailLabel(this.marke.markenname || 'Details', {
+        const breadcrumbOpts = {
           id: 'btn-edit-marke',
-          canEdit: canEdit
-        });
+          canEdit
+        };
+        if (!window.isKunde?.()) {
+          breadcrumbOpts.actionsHtml = actionBuilder.create('marke', this.markeId, null, {
+            onlyActions: ['add_ansprechpartner', 'add_produkt', 'add_persona']
+          });
+        }
+        window.breadcrumbSystem.updateDetailLabel(this.marke.markenname || 'Details', breadcrumbOpts);
       }
 
       this.render();
@@ -94,6 +97,18 @@ export class MarkeDetail extends PersonDetailBase {
 
   render() {
     renderMarkeDetailPage(this);
+    this._bindNotizDokument();
+  }
+
+  _bindNotizDokument() {
+    this._notizDokument?.destroy();
+    const root = document.getElementById('notiz-dokument');
+    this._notizDokument = root
+      ? bindNotizDokument(root, {
+          entityType: 'marke',
+          entityId: this.markeId
+        })
+      : null;
   }
 
   bindEvents() {
@@ -109,6 +124,8 @@ export class MarkeDetail extends PersonDetailBase {
   }
 
   destroy() {
+    this._notizDokument?.destroy();
+    this._notizDokument = null;
     this._cacheAbortController?.abort();
     this._cacheAbortController = null;
 

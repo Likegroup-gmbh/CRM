@@ -33,7 +33,8 @@ export default defineConfig({
         magicRegister: 'src/auth/magic-register.html',
         verifyEmail: 'src/auth/verify-email.html',
         confirmEmail: 'src/auth/confirm-email.html',
-        resetPassword: 'src/auth/reset-password.html'
+        resetPassword: 'src/auth/reset-password.html',
+        creatorUpload: 'src/upload/creator-upload.html'
       },
       output: {
         manualChunks: {

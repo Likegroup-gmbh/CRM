@@ -175,7 +175,7 @@ export class ModuleRegistry {
     this._globalCleanup();
 
     if (window.breadcrumbSystem?.setFromRoute) {
-      window.breadcrumbSystem.setFromRoute(segment, id || null);
+      window.breadcrumbSystem.setFromRoute(segment, id || null, { action: action || null });
     }
 
     let moduleKey = segment;
@@ -249,6 +249,12 @@ export class ModuleRegistry {
       moduleKey = 'produkt-form';
       module = this.modules.get(moduleKey);
       console.log(`🎯 Produkt-Formular erkannt (${segment}), verwende Modul: ${moduleKey}`);
+    }
+
+    if (segment === 'produkt' && id) {
+      moduleKey = 'produkt-form';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Produkt-Formular erkannt (Liste${id === 'new' ? '' : '-Detail'}), verwende Modul: produkt-form`);
     }
     
     if (id === 'new' && segment === 'auftragsdetails') {
@@ -373,12 +379,6 @@ export class ModuleRegistry {
       console.log(`🎯 Strategie-Details erkannt, verwende Modul: ${moduleKey}`);
     }
     
-    if (id && segment === 'kickoff' && id !== 'new') {
-      moduleKey = 'kickoff-detail';
-      module = this.modules.get(moduleKey);
-      console.log(`🎯 Kick-Off-Details erkannt, verwende Modul: ${moduleKey}`);
-    }
-    
     if (id && segment === 'sourcing' && id !== 'new') {
       moduleKey = 'sourcing-detail';
       module = this.modules.get(moduleKey);
@@ -470,7 +470,7 @@ export class ModuleRegistry {
         if (segment === 'skripte') {
           return module.init?.('new');
         }
-        if (segment === 'vertraege' || segment === 'briefing') {
+        if (segment === 'vertraege' || segment === 'briefing' || segment === 'produkt') {
           return module.init?.();
         }
         if (segment === 'rechnung') {

@@ -8,6 +8,7 @@ import {
   VIDEO_FEEDBACK_SELECT
 } from '../../core/VideoFeedbackBuckets.js';
 import { CustomColumnDataLoader } from './columns/CustomColumnDataLoader.js';
+import { BILDER_ASSET_SELECT } from '../../core/stills/stillAssets.js';
 
 export class VideoTableDataLoader {
   constructor(table) {
@@ -30,6 +31,18 @@ export class VideoTableDataLoader {
 
     console.warn('feedback_typ fehlt noch in der DB, lade Kommentare im Legacy-Modus.');
     return load(VIDEO_FEEDBACK_LEGACY_SELECT);
+  }
+
+  async loadStillFeedbackComments(videoIds) {
+    const batchIn = VideoTableDataLoader.batchInQuery;
+    const sb = window.supabase;
+    return batchIn(
+      sb.from('kooperation_still_comment'),
+      VIDEO_FEEDBACK_SELECT,
+      'video_id',
+      videoIds,
+      q => q.is('deleted_at', null).order('created_at', { ascending: true })
+    );
   }
 
   static batchInQuery(supabaseFrom, selectStr, column, ids, extraFilters) {
@@ -237,6 +250,14 @@ export class VideoTableDataLoader {
         parallelTasks.push(this.loadAssetsAndComments(videoIds));
         parallelTasks.push(this.loadStorySlots(videoIds));
       }
+      // Creator-Upload-Zugaenge (nur intern, nur wenn Dropbox genutzt wird)
+      if (typeof window.isInternal === 'function' && window.isInternal() && !t.kampagneInfo?.keinDropbox) {
+        parallelTasks.push(
+          import('./CreatorUploadActions.js')
+            .then(m => m.loadCreatorUploadStatus(t.kampagneId))
+            .catch(err => console.warn('[creator-upload] Status-Preload:', err))
+        );
+      }
       if (koopIds.length > 0) {
         parallelTasks.push(this.loadBilder(koopIds));
       }
@@ -261,7 +282,7 @@ export class VideoTableDataLoader {
       const batchIn = VideoTableDataLoader.batchInQuery;
       const sb = window.supabase;
 
-      const [assetsResult, commentsResult, finalAssetsResult] = await Promise.allSettled([
+      const [assetsResult, commentsResult, finalAssetsResult, stillCommentsResult] = await Promise.allSettled([
         batchIn(
           sb.from('kooperation_video_asset'),
           'id, video_id, file_url, file_path, is_current',
@@ -271,15 +292,17 @@ export class VideoTableDataLoader {
         this.loadVideoFeedbackComments(videoIds),
         batchIn(
           sb.from('kooperation_video_asset'),
-          'id, video_id, file_url, file_path, variant_name, is_final, created_at',
+          'id, video_id, file_url, file_path, variant_name, is_final, source_asset_id, created_at',
           'video_id', videoIds,
           q => q.eq('is_final', true).order('created_at', { ascending: true })
-        )
+        ),
+        this.loadStillFeedbackComments(videoIds)
       ]);
 
       const settledOk = (result) => result.status === 'fulfilled' && !result.value?.error;
       const assets = settledOk(assetsResult) ? (assetsResult.value.data || []) : [];
       const comments = settledOk(commentsResult) ? (commentsResult.value.data || []) : [];
+      const stillComments = settledOk(stillCommentsResult) ? (stillCommentsResult.value.data || []) : [];
       const finalsOk = settledOk(finalAssetsResult);
       const finalAssets = finalsOk ? (finalAssetsResult.value.data || []) : [];
 
@@ -308,6 +331,7 @@ export class VideoTableDataLoader {
       if (t.store) {
         t.store.applyAssets(assetsByVideoId);
         t.store.applyComments(comments);
+        t.store.applyStillComments(stillComments);
         if (finalsOk) t.store.applyFinalAssets(finalsByVideoId);
       } else {
         for (const koopVideos of Object.values(t.videos)) {
@@ -326,6 +350,12 @@ export class VideoTableDataLoader {
             t.videoComments[comment.video_id] = createEmptyVideoFeedbackComments();
           }
           t.videoComments[comment.video_id][getVideoFeedbackBucket(comment)].push(comment);
+        });
+        stillComments.forEach(comment => {
+          if (!t.stillComments[comment.video_id]) {
+            t.stillComments[comment.video_id] = createEmptyVideoFeedbackComments();
+          }
+          t.stillComments[comment.video_id][getVideoFeedbackBucket(comment)].push(comment);
         });
       }
 
@@ -410,6 +440,21 @@ export class VideoTableDataLoader {
     }
   }
 
+  /**
+   * Zieht die Stills der geladenen Koops nach. Die Kampagnen-Detailseite laedt
+   * Koops/Videos selbst und setzt _dataLoaded, wodurch loadData() – und damit
+   * loadBilder() – dort nie laeuft. Ohne diesen Aufruf bleiben Stills- und
+   * Finale-Spalte leer, obwohl der Drawer die Stills findet.
+   */
+  async loadBilderForVisible() {
+    const t = this.table;
+    const missing = (t.kooperationen || [])
+      .filter(koop => !Array.isArray(koop._bilder))
+      .map(koop => koop.id);
+    if (missing.length === 0) return;
+    await this.loadBilder(missing);
+  }
+
   async loadBilder(koopIds) {
     const t = this.table;
     if (!koopIds || koopIds.length === 0) return;
@@ -420,10 +465,15 @@ export class VideoTableDataLoader {
 
       const result = await batchIn(
         sb.from('kooperation_bilder_asset'),
-        'id, kooperation_id, video_id, file_url, file_path, file_name, created_at',
+        BILDER_ASSET_SELECT,
         'kooperation_id', koopIds,
-        q => q.order('file_name', { ascending: true })
+        q => q.order('created_at', { ascending: true })
       );
+
+      if (result?.error) {
+        console.error('❌ Fehler beim Laden der Bilder-Assets:', result.error);
+        return;
+      }
 
       const images = result?.data || [];
       const byKoop = {};
@@ -439,6 +489,7 @@ export class VideoTableDataLoader {
         if (idSet.has(koop.id)) koop._bilder = byKoop[koop.id] || [];
       }
 
+      this.patchRenderedBilderCells();
       console.log(`✅ Bilder-Assets (${images.length}) geladen`);
     } catch (error) {
       console.error('❌ Fehler beim Laden der Bilder-Assets:', error);
@@ -466,10 +517,20 @@ export class VideoTableDataLoader {
       });
     }
 
+    this.patchRenderedBilderCells();
+  }
+
+  patchRenderedBilderCells() {
+    const t = this.table;
+    const container = t.containerId ? document.getElementById(t.containerId) : null;
+    if (!container || !t.renderer) return;
+
     for (const koop of t.kooperationen || []) {
       for (const video of (t.videos[koop.id] || [])) {
         const cell = container.querySelector(`.col-finale-version .video-field-wrapper[data-video-id="${video.id}"]`);
         if (cell) cell.innerHTML = t.renderer.renderFinaleVersionCell(koop, video);
+        const stillsCell = container.querySelector(`.col-stills .video-field-wrapper[data-video-id="${video.id}"]`);
+        if (stillsCell) stillsCell.innerHTML = t.renderer.renderStillsCell(koop, video);
       }
     }
   }

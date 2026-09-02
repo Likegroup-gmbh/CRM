@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rohmaterial-Upload | CreatorJobs24</title>
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <style>
+      :root {
+        --cu-bg: #f7f7f5;
+        --cu-card: #ffffff;
+        --cu-text: #1a1a1a;
+        --cu-muted: #6b7280;
+        --cu-border: #e5e5e0;
+        --cu-accent: #1a1a1a;
+        --cu-accent-text: #ffffff;
+        --cu-success: #15803d;
+        --cu-error: #b91c1c;
+        --cu-radius: 12px;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: var(--cu-bg);
+        color: var(--cu-text);
+        line-height: 1.55;
+      }
+      .cu-wrap { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+      .cu-header {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 24px;
+      }
+      .cu-logo { font-weight: 700; font-size: 18px; letter-spacing: -0.02em; }
+      .cu-lang {
+        border: 1px solid var(--cu-border); background: var(--cu-card);
+        border-radius: 999px; padding: 4px 10px; font-size: 13px; cursor: pointer;
+        color: var(--cu-muted);
+      }
+      .cu-card {
+        background: var(--cu-card); border: 1px solid var(--cu-border);
+        border-radius: var(--cu-radius); padding: 20px; margin-bottom: 16px;
+      }
+      .cu-koop-name { font-size: 17px; font-weight: 650; margin: 0 0 4px; }
+      .cu-koop-sub { color: var(--cu-muted); font-size: 13px; margin: 0 0 16px; }
+      .cu-section-title {
+        font-size: 12px; font-weight: 700; text-transform: uppercase;
+        letter-spacing: 0.06em; color: var(--cu-muted); margin: 18px 0 8px;
+      }
+      .cu-drop {
+        border: 1.5px dashed var(--cu-border); border-radius: 10px;
+        padding: 28px 16px; text-align: center; cursor: pointer;
+        transition: border-color 0.15s, background 0.15s;
+      }
+      .cu-drop:hover, .cu-drop:focus-visible { border-color: var(--cu-accent); outline: none; }
+      .cu-drop--over { border-color: var(--cu-accent); background: #f0f0ee; }
+      .cu-drop-hint { font-weight: 600; font-size: 14.5px; }
+      .cu-drop-sub { color: var(--cu-muted); font-size: 12.5px; margin: 4px 0 14px; }
+      .cu-file-list:empty { display: none; }
+      .cu-file {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: 12px; padding: 11px 14px; border: 1px solid var(--cu-border);
+        border-radius: 10px; margin-bottom: 8px;
+      }
+      .cu-file-info { min-width: 0; flex: 1; }
+      .cu-file-name {
+        font-weight: 600; font-size: 13.5px;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .cu-file-sub { color: var(--cu-muted); font-size: 12px; }
+      .cu-file-state { font-size: 12.5px; color: var(--cu-muted); white-space: nowrap; }
+      .cu-file-state--ok { color: var(--cu-success); }
+      .cu-file-state--err { color: var(--cu-error); }
+      .cu-note--empty { margin: 0; }
+      .cu-btn {
+        border: none; background: var(--cu-accent); color: var(--cu-accent-text);
+        padding: 9px 16px; border-radius: 8px; font-size: 13.5px; font-weight: 600;
+        cursor: pointer; white-space: nowrap;
+      }
+      .cu-btn:disabled { opacity: 0.45; cursor: default; }
+      .cu-btn--ghost { background: transparent; color: var(--cu-text); border: 1px solid var(--cu-border); }
+      .cu-progress {
+        width: 100%; height: 6px; background: var(--cu-border); border-radius: 999px;
+        overflow: hidden; margin-top: 8px;
+      }
+      .cu-progress-fill { height: 100%; width: 0%; background: var(--cu-accent); transition: width 0.2s; }
+      .cu-center { text-align: center; padding: 64px 16px; }
+      .cu-spinner {
+        width: 36px; height: 36px; border: 3px solid var(--cu-border);
+        border-top-color: var(--cu-accent); border-radius: 50%;
+        animation: cu-spin 0.9s linear infinite; margin: 0 auto 16px;
+      }
+      @keyframes cu-spin { to { transform: rotate(360deg); } }
+      .cu-note { color: var(--cu-muted); font-size: 13px; }
+      .cu-hero h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+      .cu-hero p { margin: 0; color: var(--cu-muted); font-size: 14px; }
+    </style>
+</head>
+<body>
+  <div class="cu-wrap">
+    <div class="cu-header">
+      <div class="cu-logo">CreatorJobs24</div>
+      <button class="cu-lang" id="lang-toggle" type="button">EN</button>
+    </div>
+
+    <div id="state-loading" class="cu-center">
+      <div class="cu-spinner"></div>
+      <p class="cu-note" data-i18n="loading">Link wird überprüft…</p>
+    </div>
+
+    <div id="state-error" class="cu-center" style="display:none;">
+      <h2 data-i18n="errorTitle">Link ungültig</h2>
+      <p class="cu-note" id="error-text" data-i18n="errorText">Dieser Link ist ungültig oder abgelaufen.</p>
+    </div>
+
+    <div id="state-content" style="display:none;">
+      <div class="cu-hero" style="margin-bottom: 20px;">
+        <h1 id="hero-title"></h1>
+        <p id="hero-sub"></p>
+      </div>
+      <div id="koop-list"></div>
+      <p class="cu-note" style="margin-top: 20px;" data-i18n="footnote">
+        Lade dein komplettes Rohmaterial hoch — den Schnitt übernehmen wir. Du kannst nichts löschen oder überschreiben.
+      </p>
+    </div>
+  </div>
+
+  <script type="module" src="./creator-upload.js"></script>
+</body>
+</html>

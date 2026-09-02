@@ -1,12 +1,15 @@
 // UnternehmenDetail.js (Fassade)
 // Dünne Orchestrierungsklasse – delegiert an Loader, Renderer, Events und Edit-Module
 
+import { getTabQueryParam } from '../../core/TabUtils.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { loadUnternehmenData } from './UnternehmenDetailLoader.js';
 import { renderUnternehmenDetailPage } from './UnternehmenDetailRendererCore.js';
 import { bindUnternehmenDetailEvents, bindUnternehmenDetailDragScroll } from './UnternehmenDetailEvents.js';
 import { showEditForm, removeAnsprechpartner, getBranchenNamen, uploadLogo } from './UnternehmenDetailEdit.js';
 import { UnternehmenService } from './services/UnternehmenService.js';
+import { bindNotizDokument } from '../../core/components/NotizDokument.js';
 
 export class UnternehmenDetail extends PersonDetailBase {
   constructor() {
@@ -28,13 +31,10 @@ export class UnternehmenDetail extends PersonDetailBase {
     this.vertraege = [];
     this.strategien = [];
     this.creatorAuswahlen = [];
+    this.strategieDokument = null;
+    this._notizDokument = null;
     this._creatorMap = {};
     this._kampagneArtMap = new Map();
-    this.kickoff = null;
-    this.kickoffMarkenwerte = [];
-    this.kickoffsByType = { paid: null, organic: null };
-    this.kickoffMarkenwerteByType = { paid: [], organic: [] };
-    this.activeKickoffType = 'organic';
     this.activeMainTab = null;
     this.eventsBound = false;
     this._isLoading = false;
@@ -55,17 +55,23 @@ export class UnternehmenDetail extends PersonDetailBase {
 
       // ?tab=... macht einzelne Tabs deeplink-faehig und laesst die Rueckkehr
       // von Unterseiten (z.B. Persona-Formular) auf dem richtigen Tab landen.
-      const tabParam = new URLSearchParams(window.location.search).get('tab');
-      this.activeMainTab = tabParam || 'informationen';
+      this.activeMainTab = getTabQueryParam() || 'informationen';
+      if (this.activeMainTab === 'creatorauswahl') this.activeMainTab = 'sourcing';
 
       await this.loadUnternehmenData();
 
       if (window.breadcrumbSystem && this.unternehmen) {
         const canEdit = window.currentUser?.permissions?.unternehmen?.can_edit !== false;
-        window.breadcrumbSystem.updateDetailLabel(this.unternehmen.firmenname || 'Details', {
+        const breadcrumbOpts = {
           id: 'btn-edit-unternehmen',
-          canEdit: canEdit
-        });
+          canEdit
+        };
+        if (!window.isKunde?.()) {
+          breadcrumbOpts.actionsHtml = actionBuilder.create('unternehmen', this.unternehmenId, null, {
+            onlyActions: ['add_ansprechpartner_unternehmen', 'add_produkt', 'add_persona']
+          });
+        }
+        window.breadcrumbSystem.updateDetailLabel(this.unternehmen.firmenname || 'Details', breadcrumbOpts);
       }
 
       this.render(true);
@@ -95,6 +101,18 @@ export class UnternehmenDetail extends PersonDetailBase {
     }
     this._lastRenderTime = now;
     renderUnternehmenDetailPage(this);
+    this._bindNotizDokument();
+  }
+
+  _bindNotizDokument() {
+    this._notizDokument?.destroy();
+    const root = document.getElementById('notiz-dokument');
+    this._notizDokument = root
+      ? bindNotizDokument(root, {
+          entityType: 'unternehmen',
+          entityId: this.unternehmenId
+        })
+      : null;
   }
 
   bindEvents() {
@@ -141,6 +159,8 @@ export class UnternehmenDetail extends PersonDetailBase {
   }
 
   destroy() {
+    this._notizDokument?.destroy();
+    this._notizDokument = null;
     this._removeAllEventListeners();
     this._isLoading = false;
     this._lastRenderTime = 0;

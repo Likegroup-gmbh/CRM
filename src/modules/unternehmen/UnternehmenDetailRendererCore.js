@@ -1,14 +1,15 @@
 // UnternehmenDetailRendererCore.js
 // Seitenhülle, Tab-Navigation, Main-Content-Verdrahtung, Marken, Adresse
 
-import { renderTabButton } from '../../core/TabUtils.js';
+import { renderSecondaryNav } from '../../core/TabUtils.js';
 import { UnternehmenService } from './services/UnternehmenService.js';
 import { renderAuftraege, renderAuftragsdetails, renderBriefings, renderKampagnen } from './UnternehmenDetailRendererBusiness.js';
-import { renderStrategien, renderCreatorAuswahl, renderKooperationen, renderCreators, renderAnsprechpartner, renderRechnungen, renderKundenrechnungen, renderVertraege, renderKickOff } from './UnternehmenDetailRendererRelations.js';
+import { renderStrategien, renderCreatorAuswahl, renderKooperationen, renderCreators, renderAnsprechpartner, renderRechnungen, renderKundenrechnungen, renderVertraege } from './UnternehmenDetailRendererRelations.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { renderPersonas } from '../persona/PersonaTabRenderer.js';
 import { renderProdukte } from '../produkt/ProduktTabRenderer.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderNotizDokument } from '../../core/components/NotizDokument.js';
 
 export function renderUnternehmenDetailPage(detail) {
   if (!detail.activeMainTab) {
@@ -41,7 +42,12 @@ export function renderUnternehmenDetailPage(detail) {
     { icon: 'home', label: 'Rechnungsadresse', rawHtml: renderAdresseBlock(detail, 'rechnungsadresse') },
     { icon: 'clock', label: 'Erstellt', value: detail.formatDate(detail.unternehmen?.created_at) },
     { icon: 'clock', label: 'Aktualisiert', value: detail.formatDate(detail.unternehmen?.updated_at) }
-  ]);
+  ]) + renderNotizDokument({
+    entityType: 'unternehmen',
+    entityId: detail.unternehmenId,
+    sektionen: detail.strategieDokument?.sektionen || {},
+    kiStand: detail.strategieDokument?.ki_stand || null
+  });
 
   const tabNavigation = renderTabNavigation(detail);
   const mainContent = renderMainContent(detail);
@@ -85,16 +91,8 @@ export function renderAdresseBlock(detail, prefix) {
 }
 
 export function renderTabNavigation(detail) {
-  const showKickOffTab = detail.marken.length === 0;
-
   const tabs = [
     { tab: 'informationen', label: 'Informationen', isActive: detail.activeMainTab === 'informationen' },
-    ...(showKickOffTab ? [{
-      tab: 'kickoff',
-      label: 'Strategiebriefing',
-      count: Object.values(detail.kickoffsByType).filter(Boolean).length,
-      isActive: detail.activeMainTab === 'kickoff'
-    }] : []),
     { tab: 'marken', label: 'Marken', count: detail.marken.length, isActive: detail.activeMainTab === 'marken' },
     { tab: 'personas', label: 'Personas', count: detail.personas.length, isActive: detail.activeMainTab === 'personas' },
     { tab: 'produkte', label: 'Produkte', count: detail.produkte.length, isActive: detail.activeMainTab === 'produkte' },
@@ -104,7 +102,7 @@ export function renderTabNavigation(detail) {
     { tab: 'kampagnen', label: 'Kampagnen', count: detail.kampagnen.length, isActive: detail.activeMainTab === 'kampagnen' },
     { tab: 'briefings', label: 'Briefings', count: detail.briefings.length, isActive: detail.activeMainTab === 'briefings' },
     { tab: 'strategien', label: 'Strategien', count: detail.strategien.length, isActive: detail.activeMainTab === 'strategien' },
-    { tab: 'creatorauswahl', label: 'Creator-Auswahl', count: detail.creatorAuswahlen.length, isActive: detail.activeMainTab === 'creatorauswahl' },
+    { tab: 'sourcing', label: 'Sourcing', count: detail.creatorAuswahlen.length, isActive: detail.activeMainTab === 'sourcing' },
     { tab: 'kooperationen', label: 'Kooperationen', count: detail.kooperationen.length, isActive: detail.activeMainTab === 'kooperationen' },
     { tab: 'creators', label: 'Creator', count: detail.creators.length, isActive: detail.activeMainTab === 'creators' },
     { tab: 'rechnungen', label: 'Rechnungen', count: detail.rechnungen.length, isActive: detail.activeMainTab === 'rechnungen' },
@@ -112,15 +110,12 @@ export function renderTabNavigation(detail) {
     { tab: 'vertraege', label: 'Verträge', count: detail.vertraege.length, isActive: detail.activeMainTab === 'vertraege' }
   ];
 
-  return tabs.map(t => renderTabButton({ ...t, showIcon: true })).join('');
+  return renderSecondaryNav(tabs.map(t => ({ ...t, showIcon: true })));
 }
 
 export function renderMainContent(detail) {
   return `
     <div class="tab-content secondary-tab-content">
-      <div class="tab-pane ${detail.activeMainTab === 'kickoff' ? 'active' : ''}" id="tab-kickoff">
-        ${renderKickOff(detail)}
-      </div>
       <div class="tab-pane ${detail.activeMainTab === 'marken' ? 'active' : ''}" id="tab-marken">
         ${renderMarken(detail)}
       </div>
@@ -148,7 +143,7 @@ export function renderMainContent(detail) {
       <div class="tab-pane ${detail.activeMainTab === 'strategien' ? 'active' : ''}" id="tab-strategien">
         ${renderStrategien(detail)}
       </div>
-      <div class="tab-pane ${detail.activeMainTab === 'creatorauswahl' ? 'active' : ''}" id="tab-creatorauswahl">
+      <div class="tab-pane ${detail.activeMainTab === 'sourcing' ? 'active' : ''}" id="tab-sourcing">
         ${renderCreatorAuswahl(detail)}
       </div>
       <div class="tab-pane ${detail.activeMainTab === 'kooperationen' ? 'active' : ''}" id="tab-kooperationen">

@@ -4,7 +4,8 @@
 // mit den zugeordneten Marken dazu. Anlegen und Bearbeiten passieren auf einer
 // eigenen Seite, siehe PersonaForm.js.
 
-import { renderEmptyState, renderSectionHeader } from '../../core/components/EmptyState.js';
+import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { PersonaService } from './PersonaService.js';
 
 const CREATE_BTN_HTML = '<button type="button" class="mdc-btn mdc-btn--create persona-create-btn">Persona anlegen</button>';
@@ -50,14 +51,11 @@ export function renderPersonas(detail) {
       <td>${detail.sanitize(persona.wohnort_region || '-')}</td>
       <td>${detail.sanitize(persona.lebenssituation || '-')}</td>
       <td>${detail.formatDate(persona.created_at)}</td>
-      <td>
-        <button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm persona-row-open" data-persona-id="${persona.id}">Öffnen</button>
-      </td>
+      <td class="col-actions">${actionBuilder.create('persona', persona.id)}</td>
     </tr>
   `).join('');
 
   return `
-    ${renderSectionHeader({ title: 'Personas', actionsHtml: isKunde ? '' : CREATE_BTN_HTML })}
     <div class="data-table-container">
       <table class="data-table">
         <thead>
@@ -70,7 +68,7 @@ export function renderPersonas(detail) {
             <th>Region</th>
             <th>Lebenssituation</th>
             <th>Erstellt</th>
-            <th>Aktion</th>
+            <th class="col-actions">Aktionen</th>
           </tr>
         </thead>
         <tbody>

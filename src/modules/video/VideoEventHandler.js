@@ -20,17 +20,23 @@ export class VideoEventHandler {
    *   onViewModeChange(listViewMode),
    *   onBackToUnternehmen(),
    *   onBackToKampagnen(),
+   *   onBackToKampagneRoot(),
    *   onUnternehmenSelect(id, name),
-   *   onKampagneSelect(id, name)
+   *   onKampagneSelect(id, name),
+   *   onKampagneRootSelect('videos'|'rohmaterial'),
+   *   onRohmaterialUpload(kooperationId),
+   *   onRohmaterialDelete(assetId)
    * }
    */
   bindEvents(callbacks) {
     this.clearEvents();
 
     this._bindViewToggle(callbacks.onViewModeChange);
-    this._bindBackButtons(callbacks.onBackToUnternehmen, callbacks.onBackToKampagnen);
+    this._bindBackButtons(callbacks);
     this._bindUnternehmenClicks(callbacks.onUnternehmenSelect);
     this._bindKampagnenClicks(callbacks.onKampagneSelect);
+    this._bindKampagneRootClicks(callbacks.onKampagneRootSelect);
+    this._bindRohmaterialActions(callbacks.onRohmaterialUpload, callbacks.onRohmaterialDelete);
     this._bindTableLinks();
   }
 
@@ -56,16 +62,19 @@ export class VideoEventHandler {
     if (btnGrid) this._addListener(btnGrid, 'click', makeHandler('grid'));
   }
 
-  _bindBackButtons(onBackUnt, onBackKamp) {
-    const btnBackUnt = document.getElementById('btn-back-to-unternehmen');
-    if (btnBackUnt && onBackUnt) {
-      this._addListener(btnBackUnt, 'click', (e) => { e.preventDefault(); onBackUnt(); });
-    }
+  _bindBackButtons(callbacks) {
+    const buttons = {
+      'btn-back-to-unternehmen': callbacks.onBackToUnternehmen,
+      'btn-back-to-kampagnen': callbacks.onBackToKampagnen,
+      'btn-back-to-kampagne-root': callbacks.onBackToKampagneRoot,
+    };
 
-    const btnBackKamp = document.getElementById('btn-back-to-kampagnen');
-    if (btnBackKamp && onBackKamp) {
-      this._addListener(btnBackKamp, 'click', (e) => { e.preventDefault(); onBackKamp(); });
-    }
+    Object.entries(buttons).forEach(([id, handler]) => {
+      const btn = document.getElementById(id);
+      if (btn && handler) {
+        this._addListener(btn, 'click', (e) => { e.preventDefault(); handler(); });
+      }
+    });
   }
 
   // ============================================
@@ -111,6 +120,41 @@ export class VideoEventHandler {
         const name = row.dataset.kampagneName;
         if (id) onSelect(id, name);
       });
+    });
+  }
+
+  _bindKampagneRootClicks(onSelect) {
+    if (!onSelect) return;
+
+    const grid = document.getElementById('kampagne-root-grid');
+    if (!grid) return;
+
+    this._addListener(grid, 'click', (e) => {
+      const card = e.target.closest('.folder-card');
+      if (card?.dataset.rootTarget) onSelect(card.dataset.rootTarget);
+    });
+  }
+
+  // ============================================
+  // ROHMATERIAL (Upload / Loeschen, nur intern)
+  // ============================================
+
+  _bindRohmaterialActions(onUpload, onDelete) {
+    const host = document.getElementById('rohmaterial-groups');
+    if (!host) return;
+
+    this._addListener(host, 'click', (e) => {
+      const uploadBtn = e.target.closest('.rohmaterial-upload-btn');
+      if (uploadBtn) {
+        e.preventDefault();
+        onUpload?.(uploadBtn.dataset.koopId);
+        return;
+      }
+      const deleteBtn = e.target.closest('.rohmaterial-delete-btn');
+      if (deleteBtn) {
+        e.preventDefault();
+        onDelete?.(deleteBtn.dataset.assetId);
+      }
     });
   }
 

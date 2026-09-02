@@ -65,7 +65,7 @@ export class AuthService {
 
       const { data, error } = await window.supabase
         .from('benutzer')
-        .select('*')
+        .select('*, mitarbeiter_klasse:mitarbeiter_klasse_id(id, name)')
         .eq('auth_user_id', authUserId)
         .single();
 
@@ -154,14 +154,20 @@ export class AuthService {
               console.log('🔄 REALTIME: Benutzer-Daten wurden aktualisiert', payload.new);
               
               // Aktualisiere window.currentUser mit neuen Daten
+              const prev = window.currentUser || {};
               const updatedUser = payload.new;
               window.currentUser = {
-                ...window.currentUser,
+                ...prev,
                 ...updatedUser
               };
-              
-              // Permissions neu berechnen
-              permissionSystem.setUserPermissions(updatedUser);
+              if (
+                updatedUser.mitarbeiter_klasse_id === prev.mitarbeiter_klasse_id
+                && prev.mitarbeiter_klasse
+              ) {
+                window.currentUser.mitarbeiter_klasse = prev.mitarbeiter_klasse;
+              }
+
+              permissionSystem.setUserPermissions(window.currentUser);
               
               // Cache-Flag zurücksetzen für Scoped Permissions
               window.currentUser._permissionsCached = false;

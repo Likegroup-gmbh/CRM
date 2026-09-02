@@ -1,7 +1,7 @@
 // PersonDetailBase.js (ES6-Modul)
 // Gemeinsame Basis-Klasse für alle Personen-Detailseiten (Mitarbeiter, Kunden, Creator, Profil)
 // Stellt einheitliches zwei-Spalten-Layout bereit
-import { getTabIcon } from '../../core/TabUtils.js';
+import { renderSecondaryNavItem } from '../../core/TabUtils.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
@@ -60,16 +60,33 @@ export class PersonDetailBase {
         }
       }
 
+      let navHtml = tabNavigation;
+      if (!hasInfoButton) {
+        const infoItem = renderSecondaryNavItem({
+          tab: 'informationen',
+          label: 'Informationen',
+          isActive: !hasActivePane,
+          showIcon: true,
+          skipPermissionCheck: true,
+          dataAttr: infoAttr
+        });
+        if (/<ul class="secondary-nav-list">/.test(navHtml)) {
+          navHtml = navHtml.replace(
+            /<ul class="secondary-nav-list">/,
+            `<ul class="secondary-nav-list">${infoItem}`
+          );
+        } else {
+          navHtml = `${infoItem}${navHtml}`;
+        }
+      }
+
       return `
         <div class="profile-page-wrapper">
           <div class="profile-detail-layout profile-detail-layout--secondary-nav ${layoutClass || ''}">
             <div class="profile-sidebar profile-sidebar--secondary-fixed">
               <div class="profile-sidebar-header">Navigation</div>
               <div class="secondary-nav-sidebar">
-                <div class="secondary-tab-nav">
-                  ${!hasInfoButton ? `<button class="tab-button ${!hasActivePane ? 'active' : ''}" ${infoAttr}="informationen"><span class="tab-icon">${getTabIcon('informationen')}</span>Informationen</button>` : ''}
-                  ${tabNavigation}
-                </div>
+                ${navHtml}
               </div>
             </div>
             <div class="profile-main-content profile-main-content--secondary-scroll">

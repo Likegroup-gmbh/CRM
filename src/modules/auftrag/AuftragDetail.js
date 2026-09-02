@@ -5,7 +5,7 @@ import { getKampagnenartConfig } from './logic/KampagnenartenMapping.js';
 import { renderAuftragAmpel } from './logic/AuftragStatusUtils.js';
 import { parallelLoad } from '../../core/loaders/ParallelQueryHelper.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
-import { renderTabButton } from '../../core/TabUtils.js';
+import { renderSecondaryNav, activateSecondaryNavTab, getSecondaryNavTabFromEvent, getTabQueryParam } from '../../core/TabUtils.js';
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
 import { berechneVerfuegbaresBudget } from '../../core/budget/EkVkAgencyFeeHelper.js';
 import { summeKskSelbstzahler } from '../../core/budget/kskSelbstzahler.js';
@@ -48,7 +48,7 @@ export class AuftragDetail extends PersonDetailBase {
     
     try {
       this.auftragId = auftragId;
-      this.activeMainTab = 'uebersicht';
+      this.activeMainTab = getTabQueryParam() || 'uebersicht';
       this._finanzenLoaded = false;
       tabDataCache.invalidate('auftrag', auftragId);
       await this.loadCriticalData();
@@ -72,11 +72,9 @@ export class AuftragDetail extends PersonDetailBase {
   }
 
   async _handleDocumentClick(e) {
-    const tabBtn = e.target.closest('.tab-button');
-    if (tabBtn) {
+    const tabName = getSecondaryNavTabFromEvent(e);
+    if (tabName) {
       e.preventDefault();
-      const tabName = tabBtn.dataset.tab;
-      if (!tabName) return;
       this.switchTab(tabName);
       return;
     }
@@ -600,7 +598,7 @@ export class AuftragDetail extends PersonDetailBase {
 
   renderTabNavigation() {
     const tabs = this.getTabsConfig();
-    return `<div class="tabs-header-container" style="--tab-count: ${tabs.length}"><div class="tabs-left">${tabs.map((tab) => renderTabButton({ ...tab, showIcon: true })).join('')}</div></div>`;
+    return renderSecondaryNav(tabs.map((tab) => ({ ...tab, showIcon: true })));
   }
 
   renderMainContent() {
@@ -1245,24 +1243,7 @@ export class AuftragDetail extends PersonDetailBase {
   // Tab wechseln
   switchTab(tabName) {
     this.activeMainTab = tabName;
-
-    // Alle Tab-Buttons deaktivieren
-    document.querySelectorAll('.tab-button').forEach(btn => {
-      btn.classList.remove('active');
-    });
-
-    // Alle Tab-Panes ausblenden
-    document.querySelectorAll('.tab-pane').forEach(pane => {
-      pane.classList.remove('active');
-    });
-
-    // Gewählten Tab aktivieren
-    const selectedButton = document.querySelector(`[data-tab="${tabName}"]`);
-    const selectedPane = document.getElementById(`tab-${tabName}`);
-
-    if (selectedButton) selectedButton.classList.add('active');
-    if (selectedPane) selectedPane.classList.add('active');
-    
+    activateSecondaryNavTab(tabName);
     this.loadTabData(tabName);
   }
 

@@ -2,6 +2,8 @@
 // Registry für entitäts-spezifische Select-Option-Loader.
 // Neue Entity-Typen registrieren sich hier (oder in src/modules/{entity}/filters/).
 
+import { ProduktService } from '../../modules/produkt/ProduktService.js';
+
 const selectOptionsLoaders = new Map();
 
 export function registerSelectOptionsLoader(entityType, filterId, loaderFn) {
@@ -94,3 +96,43 @@ registerSelectOptionsLoader('auftrag', 'auftragsname',
 // Auftragsdetails (nutzt dieselbe Tabelle wie Auftrag)
 registerSelectOptionsLoader('auftragsdetails', 'auftragsname',
   createUniqueFieldLoader('auftrag', 'auftragsname'));
+
+registerSelectOptionsLoader('produkt', 'unternehmen_id', async ({ supabase }) => {
+  const scope = await ProduktService.getAllowedProduktScopeForUser(window.currentUser?.id);
+  let query = supabase.from('unternehmen').select('id, firmenname').order('firmenname');
+  if (!scope.all) {
+    const companyIds = new Set(scope.unrestrictedCompanyIds || []);
+    if (scope.restrictedBrandIds?.length) {
+      const { data: marken } = await supabase
+        .from('marke')
+        .select('unternehmen_id')
+        .in('id', scope.restrictedBrandIds);
+      (marken || []).forEach(m => { if (m.unternehmen_id) companyIds.add(m.unternehmen_id); });
+    }
+    if (!companyIds.size) return [];
+    query = query.in('id', [...companyIds]);
+  }
+  const { data, error } = await query;
+  if (error || !data) return [];
+  return data.map(u => ({ value: u.id, label: u.firmenname }));
+});
+
+registerSelectOptionsLoader('produkt', 'marke_id', async ({ supabase }) => {
+  const scope = await ProduktService.getAllowedProduktScopeForUser(window.currentUser?.id);
+  let query = supabase.from('marke').select('id, markenname').order('markenname');
+  if (!scope.all) {
+    const markeIds = new Set(scope.restrictedBrandIds || []);
+    if (scope.unrestrictedCompanyIds?.length) {
+      const { data: marken } = await supabase
+        .from('marke')
+        .select('id')
+        .in('unternehmen_id', scope.unrestrictedCompanyIds);
+      (marken || []).forEach(m => { if (m.id) markeIds.add(m.id); });
+    }
+    if (!markeIds.size) return [];
+    query = query.in('id', [...markeIds]);
+  }
+  const { data, error } = await query;
+  if (error || !data) return [];
+  return data.map(m => ({ value: m.id, label: m.markenname }));
+});

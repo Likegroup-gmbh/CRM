@@ -80,6 +80,8 @@ export const ActionConfigs = {
       { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
       { id: 'add_ansprechpartner_unternehmen', icon: 'add-ansprechpartner', label: 'Ansprechpartner hinzufügen', roles: ['admin', 'mitarbeiter'] },
+      { id: 'add_produkt', icon: 'add-produkt', label: 'Produkt anlegen', roles: ['admin', 'mitarbeiter'] },
+      { id: 'add_persona', icon: 'add-persona', label: 'Persona anlegen', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
@@ -93,7 +95,49 @@ export const ActionConfigs = {
       { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
       { id: 'add_ansprechpartner', icon: 'add-ansprechpartner', label: 'Ansprechpartner hinzufügen', roles: ['admin', 'mitarbeiter'] },
+      { id: 'add_produkt', icon: 'add-produkt', label: 'Produkt anlegen', roles: ['admin', 'mitarbeiter'] },
+      { id: 'add_persona', icon: 'add-persona', label: 'Persona anlegen', roles: ['admin', 'mitarbeiter'] },
       { id: 'assign_staff', icon: 'add-ansprechpartner', label: 'Mitarbeiter zuordnen', roles: ['admin'] },
+      { id: 'separator' },
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
+    ],
+    kundenActions: ['view']
+  },
+
+  produkt: {
+    actions: [
+      { id: 'view', icon: 'view', label: 'Öffnen', roles: ['all'] },
+      { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      { id: 'separator' },
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
+    ],
+    kundenActions: ['view']
+  },
+
+  persona: {
+    actions: [
+      { id: 'view', icon: 'view', label: 'Öffnen', roles: ['all'] },
+      { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      { id: 'separator' },
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
+    ],
+    kundenActions: ['view']
+  },
+
+  strategie: {
+    actions: [
+      { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
+      { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      { id: 'separator' },
+      { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
+    ],
+    kundenActions: ['view']
+  },
+
+  creator_auswahl: {
+    actions: [
+      { id: 'view', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
+      { id: 'edit', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
       { id: 'separator' },
       { id: 'delete', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
     ],
@@ -271,6 +315,32 @@ export const ActionConfigs = {
   }
 };
 
+const VIEW_ACTION_IDS = new Set(['view', 'download', 'quickview']);
+
+function collapseSeparators(actions) {
+  const result = [];
+  for (const action of actions) {
+    if (action.id === 'separator') {
+      if (result.length === 0 || result[result.length - 1].id === 'separator') continue;
+      result.push(action);
+      continue;
+    }
+    result.push(action);
+  }
+  if (result[result.length - 1]?.id === 'separator') result.pop();
+  return result;
+}
+
+function filterWriteActions(entityType, userRole, actions) {
+  if (!userRole || userRole === 'admin') return actions;
+  const perms = window.permissionSystem?.getEntityPermissions?.(entityType);
+  if (!perms) return actions;
+  if (perms.can_edit === true) return actions;
+  return collapseSeparators(
+    actions.filter(action => action.id === 'separator' || VIEW_ACTION_IDS.has(action.id))
+  );
+}
+
 /**
  * ActionConfig Klasse für das Abrufen und Filtern von Action-Konfigurationen
  */
@@ -293,9 +363,9 @@ export class ActionConfig {
     if (userRole === 'kunde' && config.kundenActions) {
       return {
         ...config,
-        actions: config.actions.filter(action => 
+        actions: filterWriteActions(entityType, userRole, config.actions.filter(action =>
           config.kundenActions.includes(action.id) || action.id === 'separator'
-        )
+        ))
       };
     }
 
@@ -303,16 +373,11 @@ export class ActionConfig {
     if (userRole && userRole !== 'admin') {
       return {
         ...config,
-        actions: config.actions.filter(action => {
-          // Separators immer anzeigen
+        actions: filterWriteActions(entityType, userRole, config.actions.filter(action => {
           if (action.id === 'separator') return true;
-          
-          // Actions ohne Rollen-Einschränkung
           if (!action.roles) return true;
-          
-          // Actions mit 'all' oder passender Rolle
           return action.roles.includes('all') || action.roles.includes(userRole);
-        })
+        }))
       };
     }
 

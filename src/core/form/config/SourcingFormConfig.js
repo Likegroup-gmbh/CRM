@@ -8,7 +8,7 @@ import {
 } from '../../../modules/creator-auswahl/sourcingSpaltenPreset.js';
 
 export const sourcingConfig = {
-  title: 'Neue Creator-Auswahl anlegen',
+  title: 'Neue Sourcing-Liste anlegen',
   fields: [
     { 
       name: 'name', 

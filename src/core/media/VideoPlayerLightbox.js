@@ -12,6 +12,11 @@ import { VideoPlaybackController } from './VideoPlaybackController.js';
 import { VideoElementPool } from './VideoElementPool.js';
 import * as MediaCache from './MediaCache.js';
 import { perfLog, perfNow, mediaLog } from './mediaPerf.js';
+import {
+  stillsForVideo, stillVersions, stillsForVersion, pickStillAsset, defaultStillSelection, finalStills
+} from '../stills/stillAssets.js';
+import { promoteAssetToFinal, unmarkFinalSlot, markedSlotsForSource } from '../PromoteFinalAsset.js';
+import { FINAL_VARIANTS, getAssetDisplayLabel } from '../VideoUploadUtils.js';
 
 // Container-Formate, die haeufig nicht abspielbar sind -> kein Blob-Caching
 // (laufen ohnehin ueber den Download-Fallback).
@@ -40,6 +45,8 @@ export class VideoPlayerLightbox {
     // Story-spezifischer Zustand
     this.storyVersion = null;
     this.storyFinalAssetId = null;
+    this.stillVersion = null;
+    this.stillAssetId = null;
 
     this.loading = false;
     this.src = null;
@@ -75,6 +82,12 @@ export class VideoPlayerLightbox {
     this._preferFinal = true;
     this._preferFinalAssetId = assetId || null;
     return this.openVideo(videoId, kooperationId);
+  }
+
+  openStillFinal(videoId, kooperationId, assetId = null) {
+    this._preferStillFinal = true;
+    this._preferStillFinalAssetId = assetId || null;
+    return this.openBilder(videoId, kooperationId);
   }
 
   openStory(videoId, kooperationId) {
@@ -183,6 +196,8 @@ export class VideoPlayerLightbox {
     this.selectedAssetId = null;
     this.storyVersion = null;
     this.storyFinalAssetId = null;
+    this.stillVersion = null;
+    this.stillAssetId = null;
     this.src = null;
     this.fallbackUrl = null;
   }
@@ -237,6 +252,7 @@ export class VideoPlayerLightbox {
     }
 
     // bild
+    this._applyStillDefaultSelection();
     this.loading = true;
     await this.lightbox.update();
     await this._resolveSrc();
@@ -261,6 +277,54 @@ export class VideoPlayerLightbox {
     const sel = this.assetLoader.applyDefaultSelection(this.assets, comments, { preferFinal });
     this.selectedVersion = sel.selectedVersion;
     this.selectedAssetId = sel.selectedAssetId;
+  }
+
+  stillImages() {
+    const item = this.current;
+    if (!item || item.type !== 'bild') return [];
+    const all = item.koop?._bilder || [];
+    const videoId = item.video?.id || item.image?.video_id;
+    if (videoId) {
+      const assigned = stillsForVideo(all, videoId);
+      if (assigned.length) return assigned;
+    }
+    return item.image ? [item.image] : [];
+  }
+
+  stillVersions(images = this.stillImages()) {
+    return stillVersions(images);
+  }
+
+  stillFinalVariants(images = this.stillImages()) {
+    return finalStills(images);
+  }
+
+  stillsForSelectedVersion() {
+    return stillsForVersion(this.stillImages(), this.stillVersion);
+  }
+
+  stillAsset() {
+    return pickStillAsset(this.stillImages(), this.stillVersion, this.stillAssetId) || this.current?.image || null;
+  }
+
+  _applyStillDefaultSelection() {
+    const images = this.stillImages();
+    if (this._preferStillFinal) {
+      const finals = finalStills(images);
+      const preferredId = this._preferStillFinalAssetId;
+      this._preferStillFinal = false;
+      this._preferStillFinalAssetId = null;
+      if (finals.length > 0) {
+        const preferred = finals.find(a => a.id === preferredId) || finals[0];
+        this.stillVersion = 'final';
+        this.stillAssetId = preferred.id;
+        return;
+      }
+    }
+    const preferFinal = this.table.isKundeRole?.() === true;
+    const sel = defaultStillSelection(images, { preferFinal });
+    this.stillVersion = sel.selectedVersion;
+    this.stillAssetId = sel.selectedAssetId;
   }
 
   // ---- Story-Versionen ----
@@ -303,7 +367,8 @@ export class VideoPlayerLightbox {
       const a = this.storyAsset(item.slot, this.storyVersion);
       return { file_path: a?.file_path || null, file_url: a?.file_url || null };
     }
-    return { file_path: item.image.file_path || null, file_url: item.image.file_url || null };
+    const still = this.stillAsset();
+    return { file_path: still?.file_path || null, file_url: still?.file_url || null };
   }
 
   /** Pfad/URL des aktuellen Mediums (fuer Format-Hinweis). */
@@ -318,7 +383,7 @@ export class VideoPlayerLightbox {
     if (!item) return 'Medium';
     if (item.type === 'video') return item.video?.video_name || item.video?.thema || 'Video';
     if (item.type === 'story') return item.slot?.slot_name || 'Story';
-    return item.image?.file_name || 'Bild';
+    return getAssetDisplayLabel(this.stillAsset() || item.image) || 'Still';
   }
 
   /**
@@ -340,8 +405,9 @@ export class VideoPlayerLightbox {
       if (!a?.id) return null;
       return `story:${a.id}:${a.created_at || a.file_size || ''}`;
     }
-    if (!item.image?.id) return null;
-    return `bild:${item.image.id}:${item.image.created_at || ''}`;
+    if (!item.image?.id && !this.stillAsset()?.id) return null;
+    const still = this.stillAsset() || item.image;
+    return `bild:${still.id}:${still.created_at || ''}`;
   }
 
   async _resolveSrc() {
@@ -534,6 +600,7 @@ export class VideoPlayerLightbox {
       if (this.selectedVersion === 'final') {
         return {
           videoId: item.video.id,
+          kind: 'video',
           target: { slot: null, counterpartSlot: null, readonly: true, isFinal: true }
         };
       }
@@ -545,21 +612,31 @@ export class VideoPlayerLightbox {
         if (!videoId) return null;
         return {
           videoId,
+          kind: 'video',
           target: { slot: null, counterpartSlot: null, readonly: true, isFinal: true }
         };
       }
       version = this.storyVersion || 1;
     } else {
-      // Bild: bevorzugt das zugeordnete Video (item.video via video_id),
-      // Altbilder ohne Zuordnung fallen auf das erste Koop-Video zurueck.
       const koopVideos = this.table.videos[item.koop.id] || [];
       videoId = item.video?.id || item.image?.video_id || koopVideos[0]?.id || null;
-      version = 1;
+      if (this.stillVersion === 'final') {
+        if (!videoId) return null;
+        return {
+          videoId,
+          kind: 'still',
+          target: { slot: null, counterpartSlot: null, readonly: true, isFinal: true }
+        };
+      }
+      version = this.stillVersion || item.image?.version_number || 1;
+      if (!videoId) return null;
+      const isKunde = this.table.isKundeRole();
+      return { videoId, kind: 'still', target: resolveVideoFeedbackTarget(version, isKunde) };
     }
     if (!videoId) return null;
 
     const isKunde = this.table.isKundeRole();
-    return { videoId, target: resolveVideoFeedbackTarget(version, isKunde) };
+    return { videoId, kind: 'video', target: resolveVideoFeedbackTarget(version, isKunde) };
   }
 
   // ---- Events ----
@@ -615,6 +692,31 @@ export class VideoPlayerLightbox {
       });
     }
 
+    const stillVersionSelect = root.querySelector('.still-version-select');
+    if (stillVersionSelect) {
+      stillVersionSelect.addEventListener('change', async () => {
+        const raw = stillVersionSelect.value;
+        this.stillVersion = raw === 'final' ? 'final' : Number(raw);
+        const variants = this.stillsForSelectedVersion();
+        this.stillAssetId = variants[0]?.id || null;
+        this.src = null;
+        await this.lightbox.update();
+        this._resolveSrc();
+      });
+    }
+
+    const stillVariantSelect = root.querySelector('.still-variant-select');
+    if (stillVariantSelect) {
+      stillVariantSelect.addEventListener('change', async () => {
+        this.stillAssetId = stillVariantSelect.value;
+        this.src = null;
+        await this.lightbox.update();
+        this._resolveSrc();
+      });
+    }
+
+    this._bindPromoteMenu(root);
+
     root.querySelectorAll('.media-gallery-thumb').forEach(btn => {
       btn.addEventListener('click', () => {
         const idx = Number(btn.dataset.itemIndex);
@@ -645,6 +747,73 @@ export class VideoPlayerLightbox {
     this.playback.mount(stage);
   }
 
+  renderPromoteMenuHtml() {
+    const item = this.current;
+    if (!item || this.table?.isKundeRole?.()) return '';
+    if (item.type === 'video') {
+      const asset = this.assetLoader.selectedAsset(this.assets, this.selectedAssetId);
+      if (!asset || asset.is_final) return '';
+      const marked = markedSlotsForSource(this.assetLoader.finalVariants(this.assets), asset.id);
+      const buttons = FINAL_VARIANTS.map(slot => {
+        const on = marked.includes(slot);
+        const title = on
+          ? `Finale Version ${slot} aufheben`
+          : `Als finale Version auswählen (${slot})`;
+        return `<button type="button" class="promote-final-btn${on ? ' is-active' : ''}" data-kind="video" data-slot="${slot}" title="${title}" ${on ? 'data-unmark="1"' : ''}>${on ? `Final ${slot}` : `Als ${slot}`}</button>`;
+      }).join('');
+      return `<div class="media-viewer-control vpl-promote"><span class="promote-final-label">Finale Version</span>${buttons}</div>`;
+    }
+    if (item.type === 'bild') {
+      const asset = this.stillAsset();
+      if (!asset || asset.is_final) return '';
+      const marked = markedSlotsForSource(this.stillFinalVariants(), asset.id);
+      const on = marked.length > 0;
+      return `<div class="media-viewer-control vpl-promote">
+        <button type="button" class="promote-final-btn${on ? ' is-active' : ''}" data-kind="still" title="${on ? 'Finale Version aufheben' : 'Als finale Version auswählen'}" ${on ? 'data-unmark="1"' : ''}>${on ? 'Final aufheben' : 'Als final markieren'}</button>
+      </div>`;
+    }
+    return '';
+  }
+
+  _bindPromoteMenu(root) {
+    root.querySelectorAll('.promote-final-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const kind = btn.dataset.kind;
+        const slot = btn.dataset.slot;
+        const unmark = btn.dataset.unmark === '1';
+        const source = kind === 'still'
+          ? {
+              ...this.stillAsset(),
+              video_id: this.stillAsset()?.video_id || this.current?.video?.id,
+              kooperation_id: this.stillAsset()?.kooperation_id || this.current?.koop?.id,
+            }
+          : this.assetLoader.selectedAsset(this.assets, this.selectedAssetId);
+        if (!source) return;
+        btn.disabled = true;
+        try {
+          if (unmark) {
+            await unmarkFinalSlot(kind, source.video_id || this.current?.video?.id, slot);
+          } else {
+            await promoteAssetToFinal(kind, source, slot);
+          }
+          if (kind === 'video') {
+            this.assetLoader._cache.delete(source.video_id);
+            this.assets = await this.assetLoader.load(source.video_id);
+            this.table?._drawerActions?.refreshFinalAssetsForVideo(source.video_id, this.current?.koop?.id);
+          } else {
+            const koopId = source.kooperation_id || this.current?.koop?.id;
+            if (koopId) await this.table?.dataLoader?.loadBilder([koopId]);
+            this.table?.refilter?.();
+          }
+          await this.lightbox.update();
+        } catch (err) {
+          window.toastSystem?.show(err.message || 'Markieren fehlgeschlagen', 'error');
+          btn.disabled = false;
+        }
+      });
+    });
+  }
+
   // ---- Download ----
 
   _download() {
@@ -665,8 +834,8 @@ export class VideoPlayerLightbox {
       source = this.storyAsset(item.slot, this.storyVersion);
       filename = source?.file_name || `${item.slot.slot_name || 'Story'}_v${this.storyVersion || 1}`;
     } else {
-      source = item.image;
-      filename = item.image.file_name || 'Bild';
+      source = this.stillAsset() || item.image;
+      filename = source?.file_name || 'Still';
     }
 
     if (!source || (!source.file_path && !source.file_url)) {

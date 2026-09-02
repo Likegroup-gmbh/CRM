@@ -5,6 +5,20 @@ import { iconRegistry } from './IconRegistry.js';
 import { ActionConfig } from './ActionConfig.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
+function collapseSeparators(actions) {
+  const result = [];
+  for (const action of actions) {
+    if (action.id === 'separator') {
+      if (result.length === 0 || result[result.length - 1].id === 'separator') continue;
+      result.push(action);
+      continue;
+    }
+    result.push(action);
+  }
+  if (result[result.length - 1]?.id === 'separator') result.pop();
+  return result;
+}
+
 /**
  * ActionBuilder - Generiert HTML für Action-Dropdowns basierend auf Konfiguration
  */
@@ -81,6 +95,13 @@ export class ActionBuilder {
         if (action.id === 'separator') return false;
         return allowedOnPaid.has(action.id);
       });
+    }
+
+    if (options && Array.isArray(options.onlyActions)) {
+      const allowed = new Set(options.onlyActions);
+      filteredActions = collapseSeparators(
+        filteredActions.filter(action => action.id === 'separator' || allowed.has(action.id))
+      );
     }
 
     return filteredActions.map(action => {

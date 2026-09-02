@@ -673,7 +673,8 @@
   font-size: 0.85rem;
 }
 
-/* Fallback bei nicht abspielbaren Formaten (z. B. .mov in Chrome/Firefox) */
+/* Fallback-Aktionen, wenn ein Medium nicht dargestellt werden kann:
+   nicht abspielbare Formate (z. B. .mov) und nicht einbettbare Bild-Links */
 
 .media-viewer-fallback-actions {
   display: flex;
@@ -683,13 +684,26 @@
   margin-top: var(--space-sm);
 }
 
-.media-viewer-unplayable .media-viewer-fallback-actions .vpl-fallback-download {
+/* Thumb-Ersatz, wenn sich das Bild nicht einbetten laesst (Sharing-Link) */
+.media-gallery-thumb-label {
+  display: block;
+  padding: var(--space-xxs);
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.media-viewer-fallback-actions .vpl-fallback-download {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
 }
 
-.media-viewer-unplayable .media-viewer-fallback-actions .media-viewer-fallback-link {
+/* Als Button gestalteter Link: die weisse Flaeche braucht dunkle Schrift,
+   sonst schlaegt die helle Link-Farbe des dunklen Stages durch. */
+.media-viewer-fallback-actions .media-viewer-fallback-link {
   margin-top: 0;
   text-decoration: none;
   color: var(--text-primary);
@@ -838,4 +852,81 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* --- Rohmaterial-Ansicht (/videos -> Kampagne -> Rohmaterial) --- */
+
+.rohmaterial-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  padding: var(--space-lg) 0;
+}
+
+.rohmaterial-group {
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+.rohmaterial-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+  flex-wrap: wrap;
+}
+
+.rohmaterial-group-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.rohmaterial-group-name {
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+.rohmaterial-group-sub {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.rohmaterial-group-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* Die Gruppe clippt fuer den Radius (overflow: hidden), darum scrollt die
+   Tabelle in ihrem eigenen Wrapper — sonst ist die Aktionsspalte auf schmalen
+   Viewports abgeschnitten und unerreichbar. */
+.rohmaterial-table-wrap {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.rohmaterial-empty,
+.rohmaterial-progress {
+  margin: 0;
+  padding: var(--space-md) var(--space-lg);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.rohmaterial-actions-col {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.rohmaterial-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-xs);
 }

@@ -112,7 +112,7 @@ export class CreatorAuswahlDetail {
       console.error('Fehler beim Laden:', error);
       window.content.innerHTML = `
         <div class="error-message">
-          <p>Fehler beim Laden der Creator-Auswahl</p>
+          <p>Fehler beim Laden der Sourcing-Liste</p>
         </div>
       `;
     }

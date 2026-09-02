@@ -55,20 +55,10 @@ export const BRIEFING_FILTERS = [
     priority: 5
   }),
 
-  createFilterConfig('select', {
-    id: 'assignee_id',
-    label: 'Zugewiesen an',
-    table: 'benutzer',
-    displayField: 'name',
-    valueField: 'id',
-    dynamic: true,
-    priority: 6
-  }),
-
   createFilterConfig('dateRange', {
     id: 'content_deadline',
     label: 'Content Deadline',
-    priority: 7
+    priority: 6
   })
 ];
 
@@ -78,12 +68,6 @@ export const BRIEFING_FILTER_GROUPS = [
     label: 'Grundlagen',
     filters: ['aktivierung_name', 'unternehmen_id', 'marke_id', 'bereich', 'is_draft'],
     expanded: true
-  },
-  {
-    id: 'assignments',
-    label: 'Zuweisungen',
-    filters: ['assignee_id'],
-    expanded: false
   },
   {
     id: 'timing',

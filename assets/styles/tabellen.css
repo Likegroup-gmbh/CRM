@@ -88,7 +88,8 @@
 .kooperation-video-grid .col-drehort { width: 18ch; min-width: 18ch; }
 .kooperation-video-grid .col-link-skript,
   .kooperation-video-grid .col-skript-freigegeben,
-  .kooperation-video-grid .col-link-content { width: 13ch; min-width: 13ch; }
+  .kooperation-video-grid .col-link-content,
+  .kooperation-video-grid .col-stills { width: 13ch; min-width: 13ch; }
 .kooperation-video-grid .col-freigabe { width: 8ch; min-width: 8ch; }
 .kooperation-video-grid .col-caption { width: 25rem; min-width: 25rem; }
 .kooperation-video-grid .col-feedback-cj-1,
@@ -100,7 +101,7 @@
   width: 16rem;
   min-width: 16rem;
 }
-.kooperation-video-grid .col-finale-version { width: 14ch; min-width: 14ch; }
+.kooperation-video-grid .col-finale-version { width: 16rem; min-width: 16rem; }
 .kooperation-video-grid .col-kosten,
 .kooperation-video-grid .col-vk-video { width: 12ch; min-width: 12ch; }
 .kooperation-video-grid .col-video-nr { width: 5ch; min-width: 5ch; }
@@ -2483,6 +2484,31 @@ width: 18em;
 
 .video-field-wrapper .external-link-btn {
   margin: auto;
+}
+
+/* Play+Label in der Finale-Spalte: nicht auf das 32px-Quadrat von
+   .external-link-btn zwingen, sonst laeuft "9:16" in den Upload-Button. */
+.kooperation-video-grid .finale-cell-actions {
+  gap: var(--space-sm);
+  flex-wrap: nowrap;
+}
+
+.kooperation-video-grid .finale-cell-actions .finale-play-btn {
+  width: auto;
+  height: auto;
+  min-height: var(--space-xl);
+  padding: var(--space-xxs) var(--space-sm);
+  gap: var(--space-xs);
+  flex-shrink: 0;
+  margin: 0;
+  border: var(--border-xs) solid var(--border-secondary);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.kooperation-video-grid .finale-cell-actions .finale-upload-btn {
+  flex-shrink: 0;
+  margin: 0;
 }
 
 /* === SKELETON LOADING SYSTEM === */

@@ -27,7 +27,7 @@ export class MediaItemBuilder {
       const ids = missing.map(k => k.id);
       const { data, error } = await window.supabase
         .from('kooperation_bilder_asset')
-        .select('id, kooperation_id, video_id, file_url, file_path, file_name, created_at')
+        .select('id, kooperation_id, video_id, file_url, file_path, file_name, created_at, version_number, is_current, is_final, variant_name, source_asset_id')
         .in('kooperation_id', ids)
         .order('file_name', { ascending: true });
       if (error) throw error;

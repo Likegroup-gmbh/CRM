@@ -1,7 +1,9 @@
 // ProduktForm.js
 // Eigene Seite zum Anlegen und Bearbeiten eines Produkts.
-// Routen: /marke/:markeId/produkt und /unternehmen/:unternehmenId/produkt
+// Routen: /marke/:markeId/produkt, /unternehmen/:unternehmenId/produkt
 //         (Bearbeiten jeweils mit ?produkt=:id)
+//         /produkt/new — Anlegen aus der Liste, Firma waehlt man im Dokument
+//         /produkt/:id — Bearbeiten aus der Liste (Breadcrumb: Produkte > Name)
 //
 // Die Seite ist ein Worksheet: mittig ein Schreibdokument mit festen
 // Ueberschriften und frei beschreibbaren Abschnitten (ProduktDoc.js),
@@ -9,16 +11,19 @@
 // (ProduktExtractPanel.js). Bilder und Varianten stehen als Tabellen
 // mitten im Dokument.
 //
-// Im Unternehmens-Kontext traegt das Dokument zusaetzlich ein Marken-
+// Im Unternehmens- und Listen-Kontext traegt das Dokument ein Marken-
 // Multiselect. Aus einer Marke heraus ist die Zuordnung fix.
 
-import { ProduktService, MAX_BILDER } from './ProduktService.js';
+import { ProduktService, MAX_BILDER, isStandaloneProduktPath } from './ProduktService.js';
 import { ProduktVariantenPanel } from './ProduktVarianten.js';
 import { ProduktExtractPanel } from './ProduktExtractPanel.js';
+import { ProduktPersonaPanel } from './ProduktPersonaPanel.js';
+import { ProduktPersonaService } from './ProduktPersonaService.js';
 import { renderProduktDoc, bindProduktDoc, refreshDocHeights } from './ProduktDoc.js';
 import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import { produktConfig } from '../../core/form/config/ProduktFormConfig.js';
 import { resolveOwnerContext } from '../../core/OwnerContext.js';
+import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
 export class ProduktForm {
@@ -31,6 +36,7 @@ export class ProduktForm {
     this.bilder = [];
     this.variantenPanel = null;
     this.extractPanel = null;
+    this.personaPanel = null;
     this.uploader = null;
     this._abort = null;
   }
@@ -39,26 +45,42 @@ export class ProduktForm {
     return !!this.produktId;
   }
 
+  get isStandalone() {
+    return !!this.ctx?.standalone;
+  }
+
   get returnRoute() {
+    if (this.isStandalone) return '/produkt';
     return `${this.ctx.basePath}?tab=produkte`;
   }
 
   get zeigtMarkenFeld() {
+    if (this.isStandalone) return true;
     return !this.ctx.markeId && this.ctx.markenAnzahl > 0;
+  }
+
+  get zeigtUnternehmenFeld() {
+    return this.isStandalone;
   }
 
   async init(ownerId) {
     this._abort?.abort();
     this._abort = new AbortController();
 
-    this.produktId = new URLSearchParams(window.location.search).get('produkt');
+    const standalone = isStandaloneProduktPath();
+    const pathId = window.location.pathname.split('/').filter(Boolean)[1];
+    this.produktId = standalone
+      ? (pathId && pathId !== 'new' ? pathId : null)
+      : new URLSearchParams(window.location.search).get('produkt');
     this.produkt = null;
     this.markenIds = [];
     this.varianten = [];
     this.bilder = [];
 
     try {
-      this.ctx = await resolveOwnerContext(ownerId);
+      this.ctx = standalone || !ownerId
+        ? standaloneProduktContext()
+        : await resolveOwnerContext(ownerId);
 
       if (this.produktId) {
         this.produkt = await ProduktService.loadOne(this.produktId, this.ctx);
@@ -76,26 +98,46 @@ export class ProduktForm {
     } catch (err) {
       console.error('Produkt-Formular konnte nicht geladen werden:', err);
       window.ErrorHandler?.handle?.(err, 'ProduktForm.init');
-      window.navigateTo(this.ctx?.basePath || '/marke');
+      window.navigateTo(this.ctx?.basePath || '/produkt');
       return;
     }
 
-    this.render();
+    await this.render();
     this.bindEvents();
+    if (this.zeigtUnternehmenFeld) {
+      await this.applyUnternehmenScope();
+    }
+    if (this.isStandalone) {
+      this.syncMarkenFeldSichtbarkeit();
+    }
   }
 
-  render() {
+  async render() {
     const title = this.isEdit
       ? ProduktService.label(this.produkt)
       : 'Neues Produkt anlegen';
 
     window.setHeadline(title);
 
-    window.breadcrumbSystem?.updateBreadcrumb([
-      { label: this.ctx.listLabel, url: this.ctx.listPath, clickable: true },
-      { label: this.ctx.ownerLabel, url: this.returnRoute, clickable: true },
-      { label: this.isEdit ? ProduktService.label(this.produkt) : 'Produkt anlegen', clickable: false }
-    ]);
+    const detailLabel = this.isEdit ? ProduktService.label(this.produkt) : 'Produkt anlegen';
+    const crumbs = this.isStandalone
+      ? [
+          { label: 'Produkte', url: '/produkt', clickable: true },
+          { label: detailLabel, clickable: false }
+        ]
+      : [
+          { label: this.ctx.listLabel, url: this.ctx.listPath, clickable: true },
+          { label: this.ctx.ownerLabel, url: this.ctx.basePath, clickable: true },
+          { label: 'Produkte', url: this.returnRoute, clickable: true },
+          { label: detailLabel, clickable: false }
+        ];
+    window.breadcrumbSystem?.updateBreadcrumb(crumbs, null, {
+      switcher: this.isEdit
+        ? (this.isStandalone
+          ? { segment: 'produkt', id: this.produktId }
+          : nestedSwitcherContext('produkt', this.produktId, this.ctx))
+        : null
+    });
 
     const formData = this.isEdit
       ? { ...this.produkt, marke_ids: this.markenIds, _isEditMode: true, _entityId: this.produkt.id }
@@ -103,15 +145,16 @@ export class ProduktForm {
 
     window.content.innerHTML = renderProduktDoc(formData, {
       mitMarkenFeld: this.zeigtMarkenFeld,
+      mitUnternehmenFeld: this.zeigtUnternehmenFeld,
       unternehmenId: this.ctx.unternehmenId
     });
 
     const form = document.getElementById('produkt-form');
     bindProduktDoc(form, formData);
 
-    // Setzt unter anderem setupSiteExtract auf; der eigene Submit-Handler in
-    // bindEvents() ersetzt danach den generischen.
-    window.formSystem.bindFormEvents('produkt', formData);
+    // Searchable-Selects und filterBy (Marke nach Firma) muessen stehen,
+    // bevor applyUnternehmenScope die Firmenliste setzt.
+    await window.formSystem.bindFormEvents('produkt', formData);
 
     this.mountBilderUploader(form);
 
@@ -124,6 +167,56 @@ export class ProduktForm {
 
     this.extractPanel = new ProduktExtractPanel();
     this.extractPanel.mount(form);
+
+    this.personaPanel = new ProduktPersonaPanel();
+    await this.personaPanel.mount(form, {
+      produktId: this.produktId,
+      markeId: this.ctx.markeId || null,
+      getUnternehmenId: () => this.ctx.unternehmenId
+        || form.querySelector('[name="unternehmen_id"]')?.value
+        || null,
+      getMarkeIds: () => this.currentMarkeIds(),
+      legacyEinsatzsituation: this.produkt?.einsatzsituation || null
+    });
+  }
+
+  findUnternehmenSelect() {
+    return document.querySelector('#field-unternehmen_id')
+      || document.querySelector('#produkt-form select[data-field-name="unternehmen_id"]')
+      || document.querySelector('#produkt-form select[name="unternehmen_id"]');
+  }
+
+  async applyUnternehmenScope() {
+    const select = this.findUnternehmenSelect();
+    if (!select) return;
+
+    const rows = await ProduktService.loadCreateUnternehmenOptions(window.currentUser?.id);
+    const options = rows.map(u => ({ value: u.id, label: u.firmenname }));
+    if (window.formSystem?.reinitializeSearchableSelect) {
+      window.formSystem.reinitializeSearchableSelect(select, options, {
+        placeholder: 'Unternehmen suchen und auswählen...',
+        type: 'select',
+        searchable: true
+      });
+      return;
+    }
+
+    select.innerHTML = '<option value="">Unternehmen suchen und auswählen...</option>';
+    options.forEach(opt => {
+      const el = document.createElement('option');
+      el.value = opt.value;
+      el.textContent = opt.label;
+      select.appendChild(el);
+    });
+  }
+
+  syncMarkenFeldSichtbarkeit() {
+    if (!this.isStandalone) return;
+    const form = document.getElementById('produkt-form');
+    const section = form?.querySelector('[data-doc-field="marke_ids"]');
+    if (!section) return;
+    const value = form.querySelector('[name="unternehmen_id"]')?.value;
+    section.hidden = !value;
   }
 
   /**
@@ -220,10 +313,17 @@ export class ProduktForm {
       await this.handleSubmit();
     };
 
-    // Abbrechen fuehrt zurueck auf den Produkte-Tab der Marke
+    // Abbrechen: Liste oder Produkte-Tab der Marke/Firma
     const cancelBtn = form.querySelector('.mdc-btn--cancel');
     if (cancelBtn) {
       cancelBtn.addEventListener('click', () => window.navigateTo(this.returnRoute), opts);
+    }
+
+    if (this.isStandalone) {
+      form.addEventListener('change', (e) => {
+        const name = e.target?.name || e.target?.dataset?.fieldName;
+        if (name === 'unternehmen_id') this.syncMarkenFeldSichtbarkeit();
+      }, opts);
     }
 
     // Ergebnisse der KI-Extraktion abholen: Bilder und Varianten kommen
@@ -273,7 +373,8 @@ export class ProduktForm {
 
     this.clearFieldErrors(form);
     const validation = window.validatorSystem.validateForm(data, {
-      name: { type: 'text', minLength: 2, required: true }
+      name: { type: 'text', minLength: 2, required: true },
+      ...(this.zeigtUnternehmenFeld ? { unternehmen_id: { type: 'text', required: true } } : {})
     });
     if (!validation.isValid) {
       this.showFieldErrors(form, validation.errors);
@@ -298,7 +399,14 @@ export class ProduktForm {
       if (this.isEdit) {
         await ProduktService.update(this.produktId, data);
       } else {
-        const result = await ProduktService.create(data, this.ctx);
+        const unternehmenId = this.ctx.unternehmenId || data.unternehmen_id;
+        if (!unternehmenId) {
+          this.showFieldErrors(form, { unternehmen_id: 'Bitte ein Unternehmen wählen' });
+          window.toastSystem?.error?.('Bitte ein Unternehmen wählen');
+          this.releaseSubmitBtn(submitBtn);
+          return;
+        }
+        const result = await ProduktService.create(data, { unternehmenId });
         produktId = result.id;
       }
 
@@ -306,6 +414,7 @@ export class ProduktForm {
       await ProduktService.saveVarianten(produktId, this.variantenPanel?.getVarianten() || []);
       await this.saveBilder(produktId);
       await this.saveVariantenBilder(produktId);
+      await this.flushPersonaPanel(produktId, data);
 
       window.toastSystem?.success?.(this.isEdit ? 'Produkt gespeichert' : 'Produkt angelegt');
       window.navigateTo(this.returnRoute);
@@ -327,6 +436,27 @@ export class ProduktForm {
     const werte = data.marke_ids;
     if (Array.isArray(werte)) return werte;
     return werte ? [werte] : [];
+  }
+
+  /** Aktuelle Marken-Auswahl aus dem Formular (fuer den Persona-Job vor dem Save). */
+  currentMarkeIds() {
+    const form = document.getElementById('produkt-form');
+    const data = form ? window.formSystem.collectSubmitData(form) : {};
+    return this.collectMarkenIds(data);
+  }
+
+  /**
+   * Use Cases und Persona-Vorschlaege werden erst mit dem Produkt-Save
+   * persistiert. Ein Flush-Fehler bricht den Save ab (catch aussen), damit
+   * Accept-Entscheidungen nicht still verloren gehen.
+   */
+  async flushPersonaPanel(produktId, data) {
+    if (!this.personaPanel?.isFlushBereit()) return;
+    const saved = await ProduktPersonaService.flushOnSave(produktId, this.personaPanel.getState(), {
+      unternehmenId: this.ctx.unternehmenId || data.unternehmen_id,
+      markeIds: this.collectMarkenIds(data)
+    });
+    this.personaPanel.applySavedState(saved);
   }
 
   /** @returns {{feld: string, text: string}|null} */
@@ -474,9 +604,26 @@ export class ProduktForm {
     this.variantenPanel = null;
     this.extractPanel?.destroy?.();
     this.extractPanel = null;
+    this.personaPanel?.destroy?.();
+    this.personaPanel = null;
     this.uploader?.destroy?.();
     this.uploader = null;
   }
+}
+
+function standaloneProduktContext() {
+  return {
+    typ: 'produkt',
+    markeId: null,
+    unternehmenId: null,
+    owner: null,
+    basePath: '/produkt',
+    listPath: '/produkt',
+    listLabel: 'Produkte',
+    ownerLabel: null,
+    markenAnzahl: 0,
+    standalone: true
+  };
 }
 
 export const produktForm = new ProduktForm();

@@ -3,7 +3,12 @@
 // sowie der Fallback-Ansicht fuer nicht abspielbare Formate. Liest den State
 // ueber einen schlanken Kontext (ctx = Player), erzeugt nur HTML-Strings.
 
-import { escapeHtml, toRawDropboxUrl } from '../VideoUploadUtils.js';
+import {
+  escapeHtml,
+  getAssetDisplayLabel,
+  toRawDropboxUrl,
+  canPreviewImageAsset,
+} from '../VideoUploadUtils.js';
 import { DOWNLOAD_ICON } from './downloadMediaAsset.js';
 import {
   formatVideoFeedbackValue,
@@ -31,13 +36,13 @@ export class VideoPlayerView {
     let controls;
     if (item.type === 'video') {
       title = item.video.video_name || item.video.thema || 'Video';
-      controls = `${this.renderVersionSelect()}${this.renderVariantSelect()}`;
+      controls = `${this.renderVersionSelect()}${this.renderVariantSelect()}${this.renderPromoteControl()}`;
     } else if (item.type === 'story') {
       title = item.slot.slot_name || `Story ${item.slot.slot_index || ''}`.trim();
       controls = this.renderStoryVersionSelect();
     } else {
-      title = item.image.file_name || 'Bild';
-      controls = this.renderThumbs();
+      title = getAssetDisplayLabel(this.ctx.stillAsset() || item.image) || 'Still';
+      controls = `${this.renderStillVersionSelect()}${this.renderStillVariantSelect()}${this.renderPromoteControl()}`;
     }
     title += this._typeCounter(item);
 
@@ -82,8 +87,10 @@ export class VideoPlayerView {
 
     const item = this.ctx.current;
     if (item?.type === 'bild') {
+      const asset = this.ctx.stillAsset?.() || item.image;
+      if (!canPreviewImageAsset(asset)) return this.renderImageNotPreviewable(asset);
       if (this.ctx.src) {
-        return `<img class="vpl-image" src="${escapeHtml(this.ctx.src)}" alt="${escapeHtml(item.image.file_name || 'Bild')}">`;
+        return `<img class="vpl-image" src="${escapeHtml(this.ctx.src)}" alt="${escapeHtml(getAssetDisplayLabel(asset) || 'Bild')}">`;
       }
       return `<div class="media-viewer-empty"><span>Bild kann nicht geladen werden.</span></div>`;
     }
@@ -107,6 +114,19 @@ export class VideoPlayerView {
       <div class="media-viewer-empty">
         <span>Kein Video hochgeladen.</span>
         ${folderUrl ? `<a class="media-viewer-fallback-link" href="${escapeHtml(folderUrl)}" target="_blank" rel="noopener">Ordner oeffnen</a>` : ''}
+      </div>`;
+  }
+
+  // Sharing-Links (z. B. SharePoint) lassen sich nicht einbetten: statt eines
+  // kaputten Bildes den Grund nennen und den Link extern anbieten.
+  renderImageNotPreviewable(asset) {
+    const link = asset?.file_url || '';
+    return `
+      <div class="media-viewer-empty">
+        <span>Externer Link &ndash; Vorschau nicht möglich.</span>
+        ${link ? `<div class="media-viewer-fallback-actions">
+          <a class="mdc-btn mdc-btn--secondary media-viewer-fallback-link" href="${escapeHtml(link)}" target="_blank" rel="noopener">Extern öffnen</a>
+        </div>` : ''}
       </div>`;
   }
 
@@ -149,6 +169,46 @@ export class VideoPlayerView {
       <div class="media-viewer-control">
         <select class="player-version-select">${options}</select>
       </div>`;
+  }
+
+  renderStillVersionSelect() {
+    const images = this.ctx.stillImages();
+    const versions = this.ctx.stillVersions(images);
+    const hasFinal = this.ctx.stillFinalVariants(images).length > 0;
+    if (versions.length + (hasFinal ? 1 : 0) <= 1) return '';
+    let options = versions.map(ver =>
+      `<option value="${ver}" ${ver === this.ctx.stillVersion ? 'selected' : ''}>Feedbackschleife ${ver}</option>`
+    ).join('');
+    if (hasFinal) {
+      options += `<option value="final" ${this.ctx.stillVersion === 'final' ? 'selected' : ''}>Finale Version</option>`;
+    }
+    return `
+      <div class="media-viewer-control">
+        <select class="still-version-select">${options}</select>
+      </div>`;
+  }
+
+  renderStillVariantSelect() {
+    const variants = this.ctx.stillsForSelectedVersion();
+    if (variants.length <= 1) return '';
+    const options = variants.map(a =>
+      `<option value="${a.id}" ${a.id === this.ctx.stillAssetId ? 'selected' : ''}>${escapeHtml(getAssetDisplayLabel(a) || 'Variante')}</option>`
+    ).join('');
+    return `
+      <div class="media-viewer-control">
+        <label>Variante</label>
+        <select class="still-variant-select">${options}</select>
+      </div>`;
+  }
+
+  renderPromoteControl() {
+    if (this.ctx.table?.isKundeRole?.()) return '';
+    const item = this.ctx.current;
+    if (!item || item.type === 'story') return '';
+    if (item.type === 'video' && this.ctx.selectedVersion === 'final') return '';
+    if (item.type === 'bild' && this.ctx.stillVersion === 'final') return '';
+    const html = this.ctx.renderPromoteMenuHtml?.();
+    return html || '';
   }
 
   renderVariantSelect() {
@@ -202,9 +262,12 @@ export class VideoPlayerView {
     const currentId = this.ctx.current.image.id;
     const thumbs = images.map(img => {
       const itemIndex = this.ctx.items.findIndex(it => it.type === 'bild' && it.image.id === img.id);
-      const url = toRawDropboxUrl(img.file_url) || '';
+      const label = getAssetDisplayLabel(img);
+      const inner = canPreviewImageAsset(img)
+        ? `<img src="${escapeHtml(toRawDropboxUrl(img.file_url) || '')}" alt="${escapeHtml(label)}" loading="lazy">`
+        : `<span class="media-gallery-thumb-label">${escapeHtml(label)}</span>`;
       return `<button type="button" class="media-gallery-thumb ${img.id === currentId ? 'active' : ''}" data-item-index="${itemIndex}">
-        <img src="${escapeHtml(url)}" alt="${escapeHtml(img.file_name || '')}" loading="lazy">
+        ${inner}
       </button>`;
     }).join('');
     return `<div class="media-gallery-thumbs">${thumbs}</div>`;
@@ -219,7 +282,7 @@ export class VideoPlayerView {
         </div>`;
     }
 
-    const { videoId, target } = ft;
+    const { videoId, target, kind = 'video' } = ft;
     if (target.isFinal) {
       return `
         <div class="media-viewer-feedback">
@@ -228,7 +291,10 @@ export class VideoPlayerView {
     }
     if (!target.slot) return '';
 
-    const comments = normalizeVideoFeedbackComments(this.ctx.table.videoComments[videoId]);
+    const commentsMap = kind === 'still'
+      ? (this.ctx.table.stillComments || {})
+      : this.ctx.table.videoComments;
+    const comments = normalizeVideoFeedbackComments(commentsMap[videoId]);
     const ownValue = formatVideoFeedbackValue(comments, target.slot.bucket);
     const counterpartValue = target.counterpartSlot
       ? formatVideoFeedbackValue(comments, target.counterpartSlot.bucket)
@@ -251,7 +317,7 @@ export class VideoPlayerView {
         <h4>${escapeHtml(target.slot.label)}</h4>
         <textarea
           class="player-feedback-input"
-          data-entity="video"
+          data-entity="${kind === 'still' ? 'still' : 'video'}"
           data-id="${videoId}"
           data-field="${target.slot.field}"
           ${editable ? '' : 'readonly'}

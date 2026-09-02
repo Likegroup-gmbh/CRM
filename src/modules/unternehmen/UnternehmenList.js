@@ -999,19 +999,8 @@ export class UnternehmenList extends BasePaginatedList {
     
     const formHtml = window.formSystem.renderFormOnly('unternehmen');
     window.content.innerHTML = `
-      <div class="form-split-container">
-        <div class="form-split-left">
-          <div class="form-page">
-            ${formHtml}
-            <button type="button" class="kickoff-create-toggle-btn" id="kickoff-toggle-btn">
-              ${icon('plus')}
-              Strategiebriefing anlegen
-            </button>
-          </div>
-        </div>
-        <div class="form-split-right hidden" id="unternehmen-split-container">
-          <div id="unternehmen-embedded-form"></div>
-        </div>
+      <div class="form-page">
+        ${formHtml}
       </div>
     `;
 
@@ -1026,80 +1015,6 @@ export class UnternehmenList extends BasePaginatedList {
       
       this.setupDuplicateValidation(form);
     }
-
-    this._kickoffType = null;
-    this._kickoffPanelOpen = false;
-    this.setupKickOffToggle();
-  }
-
-  setupKickOffToggle() {
-    const toggleBtn = document.getElementById('kickoff-toggle-btn');
-    if (!toggleBtn) return;
-
-    toggleBtn.addEventListener('click', () => {
-      if (this._kickoffPanelOpen) {
-        this.closeKickOffPanel('unternehmen');
-        return;
-      }
-
-      this._kickoffPanelOpen = true;
-      toggleBtn.classList.add('active');
-      toggleBtn.textContent = 'Strategiebriefing ✓';
-
-      const splitContainer = document.getElementById('unternehmen-split-container');
-      const embeddedForm = document.getElementById('unternehmen-embedded-form');
-      if (!splitContainer || !embeddedForm) return;
-
-      splitContainer.classList.remove('hidden');
-
-      const kickoffFormHtml = window.formSystem.renderFormOnly('strategiebriefing_embedded');
-      embeddedForm.innerHTML = `
-        <div class="kickoff-panel-header">
-          <h3 class="kickoff-panel-header__title">Strategiebriefing</h3>
-          <button type="button" class="kickoff-panel-header__close" id="kickoff-panel-close" title="Panel schließen">
-            ${icon('x-mark')}
-          </button>
-        </div>
-        <div>
-          ${kickoffFormHtml}
-        </div>
-      `;
-
-      window.formSystem.bindFormEvents('strategiebriefing_embedded', null);
-
-      const kickoffForm = embeddedForm.querySelector('form');
-      if (kickoffForm) {
-        kickoffForm.onsubmit = (e) => e.preventDefault();
-        const submitRow = kickoffForm.querySelector('.form-actions');
-        if (submitRow) submitRow.style.display = 'none';
-      }
-
-      document.getElementById('kickoff-panel-close')?.addEventListener('click', () => {
-        this.closeKickOffPanel('unternehmen');
-      });
-
-      setTimeout(() => {
-        const container = document.querySelector('.form-split-container');
-        if (container) container.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
-    });
-  }
-
-  closeKickOffPanel(entityPrefix) {
-    const splitContainer = document.getElementById(`${entityPrefix}-split-container`);
-    if (splitContainer) splitContainer.classList.add('hidden');
-    
-    const toggleBtn = document.getElementById('kickoff-toggle-btn');
-    if (toggleBtn) {
-      toggleBtn.classList.remove('active');
-      toggleBtn.innerHTML = `
-        ${icon('plus')}
-        Strategiebriefing anlegen
-      `;
-    }
-    
-    this._kickoffPanelOpen = false;
-    this._kickoffType = null;
   }
 
   setupDuplicateValidation(form) {
@@ -1234,20 +1149,6 @@ export class UnternehmenList extends BasePaginatedList {
         return;
       }
 
-      // Strategiebriefing-Validierung (wenn Panel offen)
-      if (this._kickoffPanelOpen) {
-        const kickoffForm = document.querySelector('#unternehmen-embedded-form form');
-        if (kickoffForm) {
-          const { StrategiebriefingService: SBS } = await import('../kickoff/StrategiebriefingService.js');
-          const kickoffData = window.formSystem.collectSubmitData(kickoffForm);
-          const kickoffValidation = window.validatorSystem.validateForm(kickoffData, SBS.getValidationRules());
-          if (!kickoffValidation.isValid) {
-            window.toastSystem?.show('Bitte alle Pflichtfelder im Strategiebriefing ausfüllen', 'error');
-            return;
-          }
-        }
-      }
-
       const result = await window.dataService.createEntity('unternehmen', submitData);
 
       if (result.success && result.id) {
@@ -1271,16 +1172,6 @@ export class UnternehmenList extends BasePaginatedList {
           console.error('❌ Logo-Upload Fehler:', logoErr);
         }
 
-        // Strategiebriefing speichern (wenn Panel offen)
-        if (this._kickoffPanelOpen) {
-          try {
-            await this.saveStrategiebriefing(result.id, null);
-          } catch (kickoffErr) {
-            console.error('❌ Strategiebriefing Fehler:', kickoffErr);
-            window.toastSystem?.show('Unternehmen erstellt, aber Strategiebriefing konnte nicht gespeichert werden', 'warning');
-          }
-        }
-
         this.showSuccessMessage('Unternehmen erfolgreich erstellt!');
         
         window.dispatchEvent(new CustomEvent('entityUpdated', { 
@@ -1294,24 +1185,6 @@ export class UnternehmenList extends BasePaginatedList {
       console.error('❌ Formular-Submit Fehler:', error);
       this.showErrorMessage(error.message);
     }
-  }
-
-  async saveStrategiebriefing(unternehmenId, markeId) {
-    const kickoffForm = document.querySelector('#unternehmen-embedded-form form');
-    if (!kickoffForm) return;
-
-    const { StrategiebriefingService } = await import('../kickoff/StrategiebriefingService.js');
-    const formData = window.formSystem.collectSubmitData(kickoffForm);
-    const kampagnenart = formData.kampagnenart || kickoffForm.querySelector('[name="kampagnenart"]')?.value;
-
-    const result = await StrategiebriefingService.saveBriefing(formData, {
-      markeId,
-      unternehmenId,
-      kampagnenart
-    });
-
-    console.log('✅ Strategiebriefing gespeichert:', result.id);
-    return result;
   }
 
   showValidationErrors(errors) {

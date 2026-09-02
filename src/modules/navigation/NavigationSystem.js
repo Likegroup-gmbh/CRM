@@ -27,6 +27,8 @@ export class NavigationSystem {
         title: 'Stammdaten',
         items: [
           { id: 'unternehmen', label: 'Unternehmen', icon: 'unternehmen', url: '/unternehmen' },
+          { id: 'marke', label: 'Marken', icon: 'marke', url: '/marke' },
+          { id: 'produkt', label: 'Produkte', icon: 'produkt', url: '/produkt' },
           { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'ansprechpartner', url: '/ansprechpartner' },
           {
             id: 'management',
@@ -40,6 +42,7 @@ export class NavigationSystem {
       {
         title: 'Projektmanagement',
         items: [
+          { id: 'stakeholder', label: 'Stakeholder', icon: 'stakeholder', url: '/stakeholder' },
           { id: 'auftrag', label: 'Aufträge', icon: 'auftrag', url: '/auftrag' },
           { id: 'ausgangsrechnungen', label: 'Kundenrechnungen', icon: 'ausgangsrechnungen', url: '/ausgangsrechnungen' },
           { id: 'auftragsdetails', label: 'Auftragsdetails', icon: 'auftragsdetails', url: '/auftragsdetails' },
@@ -49,9 +52,6 @@ export class NavigationSystem {
       {
         title: 'Content & Strategie',
         items: [
-          // Ausgeblendet, kommt später wieder:
-          // { id: 'kickoff', label: 'Kick-Off', icon: 'kickoff', url: '/kickoff' },
-          // { id: 'produkt', label: 'Produkte', icon: 'produkt', url: '/produkt' },
           { id: 'briefing', label: 'Briefings', icon: 'briefing', url: '/briefing' },
           { id: 'strategie', label: 'Strategie', icon: 'strategie', url: '/strategie' },
           { id: 'sourcing', label: 'Sourcing', icon: 'sourcing', url: '/sourcing' },
@@ -123,6 +123,10 @@ export class NavigationSystem {
         return typeof window.isAdmin === 'function' && window.isAdmin();
       }
 
+      if (id === 'stakeholder') {
+        return typeof window.isAdmin === 'function' && window.isAdmin();
+      }
+
       // 1) Page-Scoped Check (DB-Overrides)
       if (window.canViewPage && typeof window.canViewPage === 'function') {
         const allowed = window.canViewPage(id);
@@ -142,7 +146,6 @@ export class NavigationSystem {
         'management-ansprechpartner': 'ansprechpartner',
         kampagne: 'kampagne',
         strategie: 'strategie',
-        kickoff: 'kickoff',
         briefing: 'briefing',
         skripte: 'skripte',
         kooperation: 'kooperation',

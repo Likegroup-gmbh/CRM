@@ -17,10 +17,6 @@ function createInstance() {
     { id: 'm2', markenname: 'Acme Food', unternehmen_id: 'u1' },
     { id: 'm3', markenname: 'Beta Brand', unternehmen_id: 'u2' }
   ];
-  instance.benutzer = [
-    { id: 'b1', name: 'Anna' },
-    { id: 'b2', name: 'Ben' }
-  ];
   return instance;
 }
 
@@ -29,7 +25,6 @@ function mountSelects() {
     <form id="briefing-form">
       <select id="unternehmen_id" name="unternehmen_id"></select>
       <select id="marke_id" name="marke_id"></select>
-      <select id="assignee_id" name="assignee_id"></select>
     </form>
   `;
 }
@@ -47,17 +42,16 @@ describe('Briefing initSearchableSelects', () => {
     document.body.innerHTML = '';
   });
 
-  it('markiert geladene Unternehmen/Marke/Assignee als selected', () => {
+  it('markiert geladene Unternehmen/Marke als selected', () => {
     const instance = createInstance();
     instance.formData = {
       unternehmen_id: 'u1',
-      marke_id: 'm2',
-      assignee_id: 'b1'
+      marke_id: 'm2'
     };
 
     instance.initSearchableSelects();
 
-    expect(window.formSystem.createSearchableSelect).toHaveBeenCalledTimes(3);
+    expect(window.formSystem.createSearchableSelect).toHaveBeenCalledTimes(2);
 
     const [unternehmenEl, unternehmenOpts] = window.formSystem.createSearchableSelect.mock.calls[0];
     expect(unternehmenEl.id).toBe('unternehmen_id');
@@ -71,28 +65,16 @@ describe('Briefing initSearchableSelects', () => {
     expect(markeOpts.filter(o => o.selected)).toEqual([
       { value: 'm2', label: 'Acme Food', selected: true }
     ]);
-
-    const [assigneeEl, assigneeOpts] = window.formSystem.createSearchableSelect.mock.calls[2];
-    expect(assigneeEl.id).toBe('assignee_id');
-    expect(assigneeOpts.filter(o => o.selected)).toEqual([
-      { value: 'b1', label: 'Anna', selected: true }
-    ]);
   });
 
   it('initialisiert Marke nicht ohne unternehmen_id', () => {
     const instance = createInstance();
-    instance.formData = { assignee_id: 'b2' };
+    instance.formData = {};
 
     instance.initSearchableSelects();
 
     const names = window.formSystem.createSearchableSelect.mock.calls.map(c => c[2].name);
-    expect(names).toEqual(['unternehmen_id', 'assignee_id']);
+    expect(names).toEqual(['unternehmen_id']);
     expect(names).not.toContain('marke_id');
-
-    const assigneeOpts = window.formSystem.createSearchableSelect.mock.calls
-      .find(c => c[2].name === 'assignee_id')[1];
-    expect(assigneeOpts.filter(o => o.selected)).toEqual([
-      { value: 'b2', label: 'Ben', selected: true }
-    ]);
   });
 });

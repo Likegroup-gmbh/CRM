@@ -1,5 +1,5 @@
 // MarkeDetailRendererTables.js
-// Tabellen-Renderer: Kampagnen, Auftraege, Ansprechpartner, Rechnungen, Briefings, Kooperationen, Strategien
+// Tabellen-Renderer: Kampagnen, Auftraege, Ansprechpartner, Rechnungen, Briefings, Kooperationen, Strategien, Sourcing
 
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
@@ -316,9 +316,7 @@ export function renderStrategien(detail) {
       <td class="col-erstellt-von">${detail.sanitize(strategie.created_by_user?.name) || '-'}</td>
       <td>${detail.formatDate(strategie.created_at)}</td>
       <td>${detail.formatDate(strategie.updated_at)}</td>
-      <td>
-        ${actionBuilder.create('strategie', strategie.id)}
-      </td>
+      <td class="col-actions">${actionBuilder.create('strategie', strategie.id)}</td>
     </tr>
   `).join('');
 
@@ -333,12 +331,49 @@ export function renderStrategien(detail) {
             <th class="col-erstellt-von">Erstellt von</th>
             <th>Erstellt am</th>
             <th>Aktualisiert am</th>
-            <th>Aktion</th>
+            <th class="col-actions">Aktionen</th>
           </tr>
         </thead>
         <tbody>
           ${rows}
         </tbody>
+      </table>
+    </div>
+  `;
+}
+
+export function renderSourcingListen(detail) {
+  if (!detail.sourcingListen || detail.sourcingListen.length === 0) {
+    return renderEmptyState({
+      icon: 'sourcing',
+      title: 'Keine Sourcing-Listen vorhanden',
+      text: 'Es wurden noch keine Sourcing-Listen für diese Marke erstellt.'
+    });
+  }
+
+  const rows = detail.sourcingListen.map(liste => `
+    <tr>
+      <td>
+        <a href="#" class="table-link" data-table="sourcing" data-id="${liste.id}">
+          ${detail.sanitize(liste.name) || 'Unbekannte Sourcing-Liste'}
+        </a>
+      </td>
+      <td>${detail.formatDate(liste.created_at)}</td>
+      <td class="col-actions">${actionBuilder.create('creator_auswahl', liste.id)}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="data-table-container">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Erstellt am</th>
+            <th class="col-actions">Aktionen</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
       </table>
     </div>
   `;

@@ -1,27 +1,152 @@
 // BriefingList.js (ES6-Modul)
-// Liste der Campaign Briefings (campaign_briefings).
+// Grid: Unternehmen → Marken → Briefings. Liste: bisherige flache Tabelle.
 // RLS: intern voll, Kunden nur eigener Scope (kunde_unternehmen / kunde_marke).
-// Keine zusaetzliche Client-Filterlogik.
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
+import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { resolveEmptyState, bindEmptyStateActions } from '../../core/components/EmptyState.js';
 import { BEREICH_LABELS } from './create/fieldConfig.js';
+import {
+  buildCompanyFolders,
+  buildBrandFolders,
+  buildCurrentItems,
+  OHNE_MARKE_LABEL,
+  OHNE_QUERY
+} from './BriefingFolders.js';
+import {
+  renderCompaniesView, updateCompaniesGrid,
+  renderBrandsView, updateBrandsGrid,
+  renderItemsView, updateItemsTable as _updateItemsTable
+} from './BriefingFolderRenderer.js';
 
 export class BriefingList {
   constructor() {
     this.selectedBriefings = new Set();
     this._boundEventListeners = new Set();
     this._abortController = null;
+    this.briefings = [];
+    this._forceReload = true;
+
+    this.viewMode = 'companies';
+    this.listViewMode = 'grid';
+    this.currentUnternehmenId = null;
+    this.currentUnternehmenName = null;
+    this.currentMarkeId = null;
+    this.currentMarkeName = null;
+    this._ohneMarke = false;
+
+    this.companyFolders = [];
+    this.brandFolders = [];
+    this.currentItems = [];
+  }
+
+  sanitize(value) {
+    return window.validatorSystem?.sanitizeHtml(value) || value || '';
+  }
+
+  applyQueryParams(params) {
+    const qUnternehmenId = params.get('unternehmen');
+    const qUnternehmenName = params.get('unternehmen_name');
+    const qMarke = params.get('marke');
+    const qMarkeName = params.get('marke_name');
+
+    this.currentUnternehmenId = null;
+    this.currentUnternehmenName = null;
+    this.currentMarkeId = null;
+    this.currentMarkeName = null;
+    this._ohneMarke = false;
+    this.viewMode = 'companies';
+
+    if (!qUnternehmenId) return;
+
+    this.currentUnternehmenId = qUnternehmenId;
+    this.currentUnternehmenName = decodeURIComponent(qUnternehmenName || 'Unternehmen');
+
+    if (qMarke === OHNE_QUERY) {
+      this.viewMode = 'items';
+      this._ohneMarke = true;
+      this.currentMarkeName = decodeURIComponent(qMarkeName || OHNE_MARKE_LABEL);
+      return;
+    }
+
+    if (qMarke) {
+      this.viewMode = 'items';
+      this.currentMarkeId = qMarke;
+      this.currentMarkeName = decodeURIComponent(qMarkeName || 'Marke');
+      return;
+    }
+
+    this.viewMode = 'brands';
+  }
+
+  listUrl(viewMode = this.viewMode) {
+    if (viewMode === 'companies' || !this.currentUnternehmenId) return '/briefing';
+
+    const params = new URLSearchParams();
+    params.set('unternehmen', this.currentUnternehmenId);
+    params.set('unternehmen_name', this.currentUnternehmenName || '');
+
+    if (viewMode === 'brands') return `/briefing?${params}`;
+
+    if (this._ohneMarke) {
+      params.set('marke', OHNE_QUERY);
+      params.set('marke_name', this.currentMarkeName || OHNE_MARKE_LABEL);
+    } else if (this.currentMarkeId) {
+      params.set('marke', this.currentMarkeId);
+      params.set('marke_name', this.currentMarkeName || '');
+    }
+    return `/briefing?${params}`;
+  }
+
+  syncListUrl() {
+    const url = this.listViewMode === 'list' ? '/briefing' : this.listUrl();
+    window.history.replaceState({ route: url }, '', url);
+  }
+
+  updateBreadcrumbDisplay() {
+    if (!window.breadcrumbSystem) return;
+
+    if (this.listViewMode === 'list' || this.viewMode === 'companies') {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Briefings', url: '/briefing', clickable: false }
+      ]);
+      return;
+    }
+
+    const crumbs = [
+      { label: 'Briefings', url: '/briefing', clickable: true }
+    ];
+
+    if (this.viewMode === 'brands') {
+      crumbs.push({ label: this.currentUnternehmenName || 'Unternehmen', url: '#', clickable: false });
+      window.breadcrumbSystem.updateBreadcrumb(crumbs);
+      return;
+    }
+
+    crumbs.push({
+      label: this.currentUnternehmenName || 'Unternehmen',
+      url: this.listUrl('brands'),
+      clickable: true
+    });
+    crumbs.push({
+      label: this.currentMarkeName || OHNE_MARKE_LABEL,
+      url: '#',
+      clickable: false
+    });
+    window.breadcrumbSystem.updateBreadcrumb(crumbs);
   }
 
   async init(id) {
     if (id && id !== 'new' && window.moduleRegistry) {
       return window.navigateTo(`/briefing/${id}`);
     }
+
+    this.applyQueryParams(new URLSearchParams(window.location.search));
+    this._forceReload = true;
 
     window.setHeadline('Briefings Übersicht');
 
@@ -47,15 +172,106 @@ export class BriefingList {
 
   async loadAndRender() {
     try {
-      await this.render();
-      await this.initializeFilterBar();
+      if (this.listViewMode === 'list') {
+        this.viewMode = 'companies';
+        await this.render();
+        await this.initializeFilterBar();
+        const currentFilters = filterSystem.getFilters('briefing');
+        const briefings = await this.loadBriefings(currentFilters);
+        this.briefings = briefings;
+        await this.updateTable(briefings);
+        this.updateBreadcrumbDisplay();
+        this.syncListUrl();
+        return;
+      }
 
-      const currentFilters = filterSystem.getFilters('briefing');
-      const briefings = await this.loadBriefings(currentFilters);
-      await this.updateTable(briefings);
+      if (this.briefings.length === 0 || this._forceReload) {
+        this.briefings = await this.loadBriefings({});
+        this._forceReload = false;
+      }
+
+      this.buildCurrentFolders();
+      this.renderFolderView();
+
+      if (this.viewMode === 'items') {
+        this.updateItemsTable();
+      }
     } catch (error) {
       window.ErrorHandler.handle(error, 'BriefingList.loadAndRender');
     }
+  }
+
+  buildCurrentFolders() {
+    if (this.viewMode === 'companies') {
+      this.companyFolders = buildCompanyFolders(this.briefings);
+      return;
+    }
+    if (this.viewMode === 'brands') {
+      this.brandFolders = buildBrandFolders(this.briefings, this.currentUnternehmenId);
+      return;
+    }
+    this.currentItems = buildCurrentItems(this.briefings, {
+      unternehmenId: this.currentUnternehmenId,
+      markeId: this.currentMarkeId,
+      ohneMarke: this._ohneMarke
+    });
+  }
+
+  renderFolderView() {
+    this.updateBreadcrumbDisplay();
+    this.syncListUrl();
+
+    let html = '';
+    if (this.viewMode === 'companies') html = renderCompaniesView(this);
+    else if (this.viewMode === 'brands') html = renderBrandsView(this);
+    else html = renderItemsView(this);
+
+    window.setContentSafely(window.content, html);
+
+    if (this.viewMode === 'companies') updateCompaniesGrid(this);
+    else if (this.viewMode === 'brands') updateBrandsGrid(this);
+  }
+
+  updateItemsTable() { _updateItemsTable(this); }
+
+  switchToCompaniesView() {
+    this.viewMode = 'companies';
+    this.currentUnternehmenId = null;
+    this.currentUnternehmenName = null;
+    this.currentMarkeId = null;
+    this.currentMarkeName = null;
+    this._ohneMarke = false;
+    this.loadAndRender();
+  }
+
+  switchToBrandsView(unternehmenId, unternehmenName) {
+    this.viewMode = 'brands';
+    this.currentUnternehmenId = unternehmenId;
+    this.currentUnternehmenName = unternehmenName;
+    this.currentMarkeId = null;
+    this.currentMarkeName = null;
+    this._ohneMarke = false;
+    this.loadAndRender();
+  }
+
+  switchToItemsView(markeId, markeName, { ohneMarke = false } = {}) {
+    this.viewMode = 'items';
+    this.currentMarkeId = ohneMarke ? null : markeId;
+    this.currentMarkeName = markeName;
+    this._ohneMarke = ohneMarke;
+    this.loadAndRender();
+  }
+
+  setListViewMode(mode) {
+    if (this.listViewMode === mode && (mode === 'list' || this.viewMode === 'companies')) return;
+    this.listViewMode = mode;
+    this.viewMode = 'companies';
+    this.currentUnternehmenId = null;
+    this.currentUnternehmenName = null;
+    this.currentMarkeId = null;
+    this.currentMarkeName = null;
+    this._ohneMarke = false;
+    this.loadAndRender();
   }
 
   async loadBriefings(filters = {}) {
@@ -66,10 +282,9 @@ export class BriefingList {
       .select(`
         id, aktivierung_name, bereich, is_draft, ansatz,
         content_deadline, go_live, created_at, updated_at,
-        unternehmen_id, marke_id, assignee_id,
+        unternehmen_id, marke_id,
         unternehmen:unternehmen_id(id, firmenname, logo_url),
-        marke:marke_id(id, markenname, logo_url),
-        assignee:assignee_id(id, name, profile_image_url)
+        marke:marke_id(id, markenname, logo_url)
       `)
       .order('created_at', { ascending: false });
 
@@ -97,7 +312,6 @@ export class BriefingList {
 
     apply('unternehmen_id', filters.unternehmen_id, 'uuid');
     apply('marke_id', filters.marke_id, 'uuid');
-    apply('assignee_id', filters.assignee_id, 'uuid');
     apply('bereich', filters.bereich);
     apply('is_draft', filters.is_draft, 'bool');
     if (filters.aktivierung_name) apply('aktivierung_name', filters.aktivierung_name, 'stringIlike');
@@ -116,6 +330,10 @@ export class BriefingList {
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div class="filter-left">
+            ${ViewModeToggle.render([
+              { buttonId: 'btn-view-list', label: 'Liste', icon: 'list', active: this.listViewMode === 'list' },
+              { buttonId: 'btn-view-grid', label: 'Grid', icon: 'grid', active: this.listViewMode === 'grid' }
+            ])}
             <div id="filter-dropdown-container"></div>
           </div>
         </div>
@@ -138,14 +356,13 @@ export class BriefingList {
               <th>Marke</th>
               <th>Bereich</th>
               <th>Status</th>
-              <th>Zugewiesen</th>
               <th>Content Deadline</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody id="briefings-table-body">
             <tr>
-              <td colspan="${canBulkDelete ? '9' : '8'}" class="loading">Lade Briefings...</td>
+              <td colspan="${canBulkDelete ? '8' : '7'}" class="loading">Lade Briefings...</td>
             </tr>
           </tbody>
         </table>
@@ -181,6 +398,50 @@ export class BriefingList {
     const signal = this._abortController.signal;
 
     document.addEventListener('click', (e) => {
+      const listBtn = e.target.closest('#btn-view-list');
+      if (listBtn) {
+        e.preventDefault();
+        this.setListViewMode('list');
+        return;
+      }
+
+      const gridBtn = e.target.closest('#btn-view-grid');
+      if (gridBtn) {
+        e.preventDefault();
+        this.setListViewMode('grid');
+        return;
+      }
+
+      const backCompanies = e.target.closest('#btn-back-to-companies');
+      if (backCompanies) {
+        e.preventDefault();
+        this.switchToCompaniesView();
+        return;
+      }
+
+      const backBrands = e.target.closest('#btn-back-to-brands');
+      if (backBrands) {
+        e.preventDefault();
+        this.switchToBrandsView(this.currentUnternehmenId, this.currentUnternehmenName);
+        return;
+      }
+
+      const companyCard = e.target.closest('#companies-grid .folder-card');
+      if (companyCard) {
+        this.switchToBrandsView(companyCard.dataset.unternehmenId, companyCard.dataset.unternehmenName);
+        return;
+      }
+
+      const brandCard = e.target.closest('#brands-grid .folder-card');
+      if (brandCard) {
+        if (brandCard.dataset.ohneMarke === '1') {
+          this.switchToItemsView(null, brandCard.dataset.markeName, { ohneMarke: true });
+        } else {
+          this.switchToItemsView(brandCard.dataset.markeId, brandCard.dataset.markeName);
+        }
+        return;
+      }
+
       if (e.target.id === 'btn-briefing-new' || e.target.closest('#btn-briefing-new')) {
         e.preventDefault();
         window.navigateTo('/briefing/new');
@@ -232,6 +493,7 @@ export class BriefingList {
 
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'briefing') {
+        this._forceReload = true;
         this.loadAndRender();
       }
     }, { signal });
@@ -314,6 +576,7 @@ export class BriefingList {
 
       const tbody = document.getElementById('briefings-table-body');
       if (tbody && tbody.children.length === 0) {
+        this._forceReload = true;
         await this.loadAndRender();
       }
 
@@ -327,6 +590,7 @@ export class BriefingList {
       });
       console.error('Fehler beim Löschen:', error);
       window.toastSystem?.show(`Fehler beim Löschen: ${error.message}`, 'error');
+      this._forceReload = true;
       await this.loadAndRender();
     }
   }
@@ -386,18 +650,6 @@ export class BriefingList {
     }]);
   }
 
-  renderAssignee(assignee) {
-    if (!assignee?.name) return '-';
-
-    return avatarBubbles.renderBubbles([{
-      name: assignee.name,
-      type: 'person',
-      id: assignee.id,
-      entityType: 'mitarbeiter',
-      profile_image_url: assignee.profile_image_url
-    }]);
-  }
-
   renderBereich(bereich) {
     const label = BEREICH_LABELS[bereich] || bereich || '-';
     return `<span class="tag tag--type">${window.validatorSystem.sanitizeHtml(label)}</span>`;
@@ -409,17 +661,39 @@ export class BriefingList {
       : '<span class="tag tag--status tag--success">Final</span>';
   }
 
+  renderBriefingRow(b, options = {}) {
+    const canBulkDelete = options.checkbox !== false && window.canBulkDelete();
+    const escapeHtml = (s) => window.validatorSystem.sanitizeHtml(s || '—');
+
+    return `
+      <tr data-id="${b.id}">
+        ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="briefing-check" data-id="${b.id}"></td>` : ''}
+        <td class="col-name">
+          <a href="#" class="table-link" data-table="briefing" data-id="${b.id}">
+            ${escapeHtml((b.aktivierung_name || 'Ohne Namen').toString().slice(0, 80))}
+          </a>
+        </td>
+        <td>${this.renderUnternehmen(b)}</td>
+        <td>${this.renderMarke(b)}</td>
+        <td>${this.renderBereich(b.bereich)}</td>
+        <td>${this.renderStatus(b.is_draft)}</td>
+        <td>${b.content_deadline ? new Date(b.content_deadline).toLocaleDateString('de-DE') : '-'}</td>
+        <td class="col-actions">
+          ${actionBuilder.create('briefing', b.id)}
+        </td>
+      </tr>
+    `;
+  }
+
   async updateTable(items) {
     const tbody = document.getElementById('briefings-table-body');
     if (!tbody) return;
 
     const canEdit = window.isAdmin() || window.currentUser?.permissions?.briefing?.can_edit;
-    const canBulkDelete = window.canBulkDelete();
-    const escapeHtml = (s) => window.validatorSystem.sanitizeHtml(s || '—');
 
     await TableAnimationHelper.animatedUpdate(tbody, async () => {
       if (!items || items.length === 0) {
-        const colspan = tbody.closest('table')?.querySelector('thead tr')?.children?.length || 9;
+        const colspan = tbody.closest('table')?.querySelector('thead tr')?.children?.length || 8;
         const html = resolveEmptyState({
           hasActiveFilters: this.hasActiveFilters(),
           states: {
@@ -439,25 +713,7 @@ export class BriefingList {
         return;
       }
 
-      tbody.innerHTML = items.map(b => `
-        <tr data-id="${b.id}">
-          ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="briefing-check" data-id="${b.id}"></td>` : ''}
-          <td class="col-name">
-            <a href="#" class="table-link" data-table="briefing" data-id="${b.id}">
-              ${escapeHtml((b.aktivierung_name || 'Ohne Namen').toString().slice(0, 80))}
-            </a>
-          </td>
-          <td>${this.renderUnternehmen(b)}</td>
-          <td>${this.renderMarke(b)}</td>
-          <td>${this.renderBereich(b.bereich)}</td>
-          <td>${this.renderStatus(b.is_draft)}</td>
-          <td>${this.renderAssignee(b.assignee)}</td>
-          <td>${b.content_deadline ? new Date(b.content_deadline).toLocaleDateString('de-DE') : '-'}</td>
-          <td class="col-actions">
-            ${actionBuilder.create('briefing', b.id)}
-          </td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = items.map(b => this.renderBriefingRow(b)).join('');
     });
   }
 
@@ -468,6 +724,17 @@ export class BriefingList {
       element.removeEventListener(type, handler);
     });
     this._boundEventListeners.clear();
+    this.briefings = [];
+    this.companyFolders = [];
+    this.brandFolders = [];
+    this.currentItems = [];
+    this.viewMode = 'companies';
+    this.currentUnternehmenId = null;
+    this.currentUnternehmenName = null;
+    this.currentMarkeId = null;
+    this.currentMarkeName = null;
+    this._ohneMarke = false;
+    this._forceReload = true;
   }
 }
 

@@ -3,7 +3,7 @@
 // Nutzt einheitliches PersonDetailBase Pattern
 
 import { PersonDetailBase } from './PersonDetailBase.js';
-import { getTabIcon } from '../../core/TabUtils.js';
+import { renderSecondaryNav, activateSecondaryNavTab, getTabQueryParam } from '../../core/TabUtils.js';
 import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
@@ -35,6 +35,8 @@ export class ProfileDetailV2 extends PersonDetailBase {
       console.error('❌ Kein Benutzer eingeloggt');
       return;
     }
+
+    this.activeMainTab = getTabQueryParam() || 'informationen';
 
     await this.loadAllData();
     
@@ -444,21 +446,15 @@ export class ProfileDetailV2 extends PersonDetailBase {
   }
 
   renderProfileTabNavigation(isKunde) {
-    const renderMainTab = (tab, label, count) => `
-      <button class="tab-button ${this.activeMainTab === tab ? 'active' : ''}" data-main-tab="${tab}">
-        <span class="tab-icon">${getTabIcon(tab)}</span>
-        ${label}
-      </button>
-    `;
-
-    return `
-      ${renderMainTab('unternehmen', 'Unternehmen', this.unternehmen.length)}
-      ${renderMainTab('marken', 'Marken', this.marken.length)}
-      ${!isKunde ? renderMainTab('auftraege', 'Aufträge', this.auftraege.length) : ''}
-      ${renderMainTab('kampagnen', 'Kampagnen', this.kampagnen.length)}
-      ${renderMainTab('kooperationen', 'Kooperationen', this.kooperationen.length)}
-      ${renderMainTab('videos', 'Videos', this.videos.length)}
-    `;
+    const tabs = [
+      { tab: 'unternehmen', label: 'Unternehmen', isActive: this.activeMainTab === 'unternehmen' },
+      { tab: 'marken', label: 'Marken', isActive: this.activeMainTab === 'marken' },
+      ...(!isKunde ? [{ tab: 'auftraege', label: 'Aufträge', isActive: this.activeMainTab === 'auftraege' }] : []),
+      { tab: 'kampagnen', label: 'Kampagnen', isActive: this.activeMainTab === 'kampagnen' },
+      { tab: 'kooperationen', label: 'Kooperationen', isActive: this.activeMainTab === 'kooperationen' },
+      { tab: 'videos', label: 'Videos', isActive: this.activeMainTab === 'videos' }
+    ];
+    return renderSecondaryNav(tabs.map(t => ({ ...t, showIcon: true })), { dataAttr: 'data-main-tab' });
   }
 
   renderProfileMainContent(isKunde) {
@@ -705,16 +701,13 @@ export class ProfileDetailV2 extends PersonDetailBase {
 
     this.bindSidebarTabs();
 
-    document.querySelectorAll('[data-main-tab]').forEach(btn => {
+    document.querySelectorAll('.secondary-nav [data-main-tab]').forEach(btn => {
       btn.addEventListener('click', (e) => {
+        e.preventDefault();
         const tab = e.currentTarget.dataset.mainTab;
+        if (!tab) return;
         this.activeMainTab = tab;
-        
-        document.querySelectorAll('.tab-button').forEach(t => t.classList.remove('active'));
-        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-        
-        e.currentTarget.classList.add('active');
-        document.getElementById(`main-${tab}`)?.classList.add('active');
+        activateSecondaryNavTab(tab, { dataAttr: 'data-main-tab' });
       }, { signal });
     });
 

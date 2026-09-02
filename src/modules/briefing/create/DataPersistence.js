@@ -5,6 +5,7 @@
 
 import { BriefingCreate } from './BriefingCreateCore.js';
 import { getAllFields, evaluateCondition } from './fieldConfig.js';
+import { starteBriefingAuswertung } from './BriefingAuswertung.js';
 
 // ---------------------------------------------------------------
 // Formular -> formData (generisch ueber Feld-Schema)
@@ -143,8 +144,7 @@ BriefingCreate.prototype.prepareDataForDB = function() {
   const data = {
     bereich,
     unternehmen_id: this.formData.unternehmen_id || null,
-    marke_id: this.formData.marke_id || null,
-    assignee_id: this.formData.assignee_id || null
+    marke_id: this.formData.marke_id || null
   };
 
   for (const field of getAllFields()) {
@@ -315,13 +315,29 @@ BriefingCreate.prototype.handleSubmit = async function() {
         .eq('id', this.editId);
       if (error) throw error;
     } else {
-      const { error } = await window.supabase
+      const { data: created, error } = await window.supabase
         .from('campaign_briefings')
-        .insert([data]);
+        .insert([data])
+        .select('id')
+        .single();
       if (error) throw error;
+      this.editId = created.id;
     }
 
-    window.toastSystem?.show(isEdit ? 'Briefing aktualisiert!' : 'Briefing erfolgreich erstellt!', 'success');
+    let auswertungOk = false;
+    try {
+      await starteBriefingAuswertung({ briefingId: this.editId });
+      auswertungOk = true;
+    } catch (auswertungError) {
+      console.warn('KI-Auswertung:', auswertungError);
+    }
+
+    window.toastSystem?.show(
+      auswertungOk
+        ? 'Briefing gespeichert – KI-Auswertung läuft im Hintergrund'
+        : (isEdit ? 'Briefing aktualisiert!' : 'Briefing erfolgreich erstellt!'),
+      'success'
+    );
 
     setTimeout(() => {
       window.navigateTo('/briefing');
@@ -357,7 +373,6 @@ BriefingCreate.prototype.loadFromDB = async function(id) {
     this.formData.bereich = briefing.bereich;
     this.formData.unternehmen_id = briefing.unternehmen_id;
     this.formData.marke_id = briefing.marke_id;
-    this.formData.assignee_id = briefing.assignee_id;
 
     this.selectedBereich = briefing.bereich;
     this.isGenerated = true;

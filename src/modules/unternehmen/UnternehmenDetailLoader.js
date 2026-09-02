@@ -18,22 +18,21 @@ export async function loadUnternehmenData(detail) {
       vertraegeResult,
       strategienResult,
       creatorAuswahlenResult,
-      kickoffResult,
       ansprechpartnerResult,
       personasResult,
-      produkteResult
+      produkteResult,
+      dokumentResult
     ] = await Promise.all([
       window.supabase.from('unternehmen').select('*').eq('id', detail.unternehmenId).single(),
       window.supabase.from('unternehmen_branchen').select('branche_id, branchen:branche_id (id, name)').eq('unternehmen_id', detail.unternehmenId),
       window.supabase.from('marke').select('*').eq('unternehmen_id', detail.unternehmenId),
       window.supabase.from('auftrag').select('*, marke:marke_id(id, markenname, logo_url), ansprechpartner:ansprechpartner_id(id, vorname, nachname, profile_image_url), created_by:created_by_id(id, name, profile_image_url)').eq('unternehmen_id', detail.unternehmenId).order('created_at', { ascending: false }),
-      window.supabase.from('campaign_briefings').select('id, aktivierung_name, bereich, is_draft, content_deadline, unternehmen_id, marke_id, created_at, marke:marke_id(id, markenname, logo_url), assignee:assignee_id(id, name, profile_image_url)').eq('unternehmen_id', detail.unternehmenId).order('created_at', { ascending: false }),
+      window.supabase.from('campaign_briefings').select('id, aktivierung_name, bereich, is_draft, content_deadline, unternehmen_id, marke_id, created_at, marke:marke_id(id, markenname, logo_url)').eq('unternehmen_id', detail.unternehmenId).order('created_at', { ascending: false }),
       window.supabase.from('kampagne').select('id, kampagnenname, eigener_name, status, start, deadline, art_der_kampagne, creatoranzahl, videoanzahl, unternehmen_id, auftrag_id, marke:marke_id(id, markenname, logo_url)').eq('unternehmen_id', detail.unternehmenId).order('created_at', { ascending: false }),
       window.supabase.from('rechnung').select('id, rechnung_nr, rechnungstyp, status, nettobetrag, bruttobetrag, gestellt_am, zahlungsziel, bezahlt_am, po_nummer, land, videoanzahl, created_at, pdf_url, auftrag:auftrag_id(id, auftragsname), kampagne:kampagne_id(id, kampagnenname, eigener_name), creator:creator_id(id, vorname, nachname), created_by:created_by_id(id, name, profile_image_url), rechnung_pdfs(id, file_name, file_path, file_url)').eq('unternehmen_id', detail.unternehmenId).order('gestellt_am', { ascending: false }),
       window.supabase.from('vertraege').select('id, name, typ, is_draft, datei_url, datei_path, created_at, dropbox_file_url, unterschriebener_vertrag_url, creator_id, kampagne:kampagne_id(id, kampagnenname, eigener_name), creator:creator_id(id, vorname, nachname), contracting_auftrag:contracting_auftrag_id(id, auftragsname, titel)').eq('kunde_unternehmen_id', detail.unternehmenId).order('created_at', { ascending: false }),
       window.supabase.from('strategie').select('id, name, teilbereich, created_at, created_by_user:created_by(id, name)').eq('unternehmen_id', detail.unternehmenId).order('created_at', { ascending: false }),
       window.supabase.from('creator_auswahl').select('id, name, created_at').eq('unternehmen_id', detail.unternehmenId).order('created_at', { ascending: false }),
-      window.supabase.from('marke_kickoff').select('*').eq('unternehmen_id', detail.unternehmenId).is('marke_id', null),
       window.supabase.from('ansprechpartner_unternehmen').select(`
         ansprechpartner_id,
         ansprechpartner:ansprechpartner_id (
@@ -48,7 +47,11 @@ export async function loadUnternehmenData(detail) {
       // Beide liefern auch die marken-gebundenen Datensaetze mit, weil die
       // Junction nur die Zuordnung haelt und unternehmen_id der Besitzer ist.
       PersonaService.loadForContext({ unternehmenId: detail.unternehmenId }).catch(() => []),
-      ProduktService.loadForContext({ unternehmenId: detail.unternehmenId }).catch(() => [])
+      ProduktService.loadForContext({ unternehmenId: detail.unternehmenId }).catch(() => []),
+      window.supabase.from('entity_dokumente').select('*')
+        .eq('entity_type', 'unternehmen')
+        .eq('entity_id', detail.unternehmenId)
+        .maybeSingle()
     ]);
 
     if (unternehmenResult.error) throw unternehmenResult.error;
@@ -62,6 +65,7 @@ export async function loadUnternehmenData(detail) {
     detail.marken = markenResult.data || [];
     detail.personas = personasResult || [];
     detail.produkte = produkteResult || [];
+    detail.strategieDokument = (!dokumentResult.error && dokumentResult.data) ? dokumentResult.data : null;
     detail.auftraege = auftraegeResult.data || [];
     detail.briefings = briefingsResult.data || [];
     detail.kampagnen = kampagnenResult.data || [];
@@ -69,48 +73,6 @@ export async function loadUnternehmenData(detail) {
     detail.vertraege = vertraegeResult.data || [];
     detail.strategien = strategienResult.data || [];
     detail.creatorAuswahlen = creatorAuswahlenResult.data || [];
-    detail.kickoffsByType = { influencer: null, paid: null, organic: null };
-    (kickoffResult.data || []).forEach(item => {
-      const typeKey = item.kampagnenart || item.kickoff_type || 'organic';
-      if (typeKey === 'paid' || typeKey === 'organic' || typeKey === 'influencer') {
-        detail.kickoffsByType[typeKey] = item;
-      }
-    });
-    if (!detail.kickoffsByType[detail.activeKickoffType]) {
-      detail.activeKickoffType = detail.kickoffsByType.influencer
-        ? 'influencer'
-        : (detail.kickoffsByType.organic
-          ? 'organic'
-          : (detail.kickoffsByType.paid ? 'paid' : 'influencer'));
-    }
-    detail.kickoff = detail.kickoffsByType[detail.activeKickoffType] || null;
-
-    detail.kickoffMarkenwerteByType = { influencer: [], paid: [], organic: [] };
-    const kickoffEntries = Object.entries(detail.kickoffsByType).filter(([, value]) => value);
-    if (kickoffEntries.length > 0) {
-      try {
-        const markenwerteResults = await Promise.all(
-          kickoffEntries.map(async ([typeKey, kickoffItem]) => {
-            const { data: markenwerte } = await window.supabase
-              .from('marke_kickoff_markenwerte')
-              .select('markenwert:markenwert_id(id, name)')
-              .eq('kickoff_id', kickoffItem.id);
-            return { typeKey, markenwerte: markenwerte?.map(m => m.markenwert) || [] };
-          })
-        );
-        markenwerteResults.forEach(({ typeKey, markenwerte }) => {
-          detail.kickoffMarkenwerteByType[typeKey] = markenwerte;
-        });
-        detail.kickoffMarkenwerte = detail.kickoffMarkenwerteByType[detail.activeKickoffType] || [];
-      } catch {
-        detail.kickoffMarkenwerteByType = { influencer: [], paid: [], organic: [] };
-        detail.kickoffMarkenwerte = [];
-      }
-    } else {
-      detail.kickoff = null;
-      detail.kickoffMarkenwerteByType = { influencer: [], paid: [], organic: [] };
-      detail.kickoffMarkenwerte = [];
-    }
 
     // Ansprechpartner verarbeiten
     if (!ansprechpartnerResult.error) {

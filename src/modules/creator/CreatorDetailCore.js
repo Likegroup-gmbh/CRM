@@ -3,7 +3,7 @@
 // Methoden werden via Prototype-Mixins aus DataLoader, Renderers und Events hinzugefuegt
 
 import { PersonDetailBase } from '../admin/PersonDetailBase.js';
-import { renderTabButton } from '../../core/TabUtils.js';
+import { renderSecondaryNav, getTabQueryParam } from '../../core/TabUtils.js';
 
 export class CreatorDetail extends PersonDetailBase {
   constructor() {
@@ -55,8 +55,10 @@ export class CreatorDetail extends PersonDetailBase {
     try {
       await this.loadCriticalData();
 
-      // Bei verbundenem Instagram direkt den IG-Tab vorselektieren
-      if (this.creator?.ig_connected_at) {
+      const tabParam = getTabQueryParam();
+      if (tabParam) {
+        this.activeMainTab = tabParam;
+      } else if (this.creator?.ig_connected_at) {
         this.activeMainTab = 'instagram';
       }
 
@@ -246,7 +248,7 @@ export class CreatorDetail extends PersonDetailBase {
 
   renderTabNavigation() {
     const tabs = this.getTabsConfig();
-    return `<div class="tabs-header-container" style="--tab-count: ${tabs.length}"><div class="tabs-left">${tabs.map(t => renderTabButton({ ...t, showIcon: true })).join('')}</div></div>`;
+    return renderSecondaryNav(tabs.map(t => ({ ...t, showIcon: true })));
   }
 
   renderMainContent() {

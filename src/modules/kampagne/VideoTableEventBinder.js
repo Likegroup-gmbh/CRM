@@ -131,7 +131,11 @@ export class VideoTableEventBinder {
       if (uploadBtn) {
         e.preventDefault();
         // Finale-Spalte: Video-Tab mit vorausgewaehlter "Finale Version" oeffnen
-        const opts = uploadBtn.classList.contains('finale-upload-btn') ? { preselectFinal: true } : undefined;
+        const opts = uploadBtn.classList.contains('finale-upload-btn')
+          ? { preselectFinal: true }
+          : uploadBtn.classList.contains('stills-upload-btn')
+            ? { initialTab: 'bilder' }
+            : undefined;
         t._openUploadDrawer(uploadBtn.dataset.videoId, uploadBtn.dataset.kooperationId, opts);
       }
 
@@ -152,7 +156,7 @@ export class VideoTableEventBinder {
       const settingsBtn = e.target.closest('.video-settings-btn');
       if (settingsBtn) {
         e.preventDefault();
-        t._openSettingsDrawer(settingsBtn);
+      t._openSettingsDrawer(settingsBtn, settingsBtn.classList.contains('stills-settings-btn') ? { initialTab: 'bilder' } : undefined);
       }
     }, { signal });
 
@@ -167,6 +171,12 @@ export class VideoTableEventBinder {
       if (playFinalBtn) {
         e.preventDefault();
         t._mediaViewer.openVideoFinal(playFinalBtn.dataset.videoId, playFinalBtn.dataset.kooperationId, playFinalBtn.dataset.assetId);
+        return;
+      }
+      const playFinalStillBtn = e.target.closest('[data-action="play-final-still"]');
+      if (playFinalStillBtn) {
+        e.preventDefault();
+        t._mediaViewer.openStillFinal(playFinalStillBtn.dataset.videoId, playFinalStillBtn.dataset.kooperationId, playFinalStillBtn.dataset.assetId);
         return;
       }
       const storysBtn = e.target.closest('[data-action="view-storys"]');

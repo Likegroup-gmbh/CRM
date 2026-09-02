@@ -44,12 +44,16 @@ const ICONS = {
  * @param {Object|null} data - Produktdaten im Edit-Modus, sonst null
  * @param {Object} [ctx]
  * @param {boolean} [ctx.mitMarkenFeld] - Marken-Multiselect zeigen (Unternehmens-Kontext)
+ * @param {boolean} [ctx.mitUnternehmenFeld] - Firmenwahl auf /produkt/new
  * @param {string|null} [ctx.unternehmenId] - Besitzer, geht als Hidden-Feld mit
  * @returns {string}
  */
-export function renderProduktDoc(data = null, { mitMarkenFeld = false, unternehmenId = null } = {}) {
-  const fields = produktConfig.fields
-    .filter(f => mitMarkenFeld || f.docRole !== 'relations');
+export function renderProduktDoc(data = null, { mitMarkenFeld = false, mitUnternehmenFeld = false, unternehmenId = null } = {}) {
+  const fields = produktConfig.fields.filter(f => {
+    if (f.docRole === 'relations' && !mitMarkenFeld) return false;
+    if (f.docRole === 'owner' && !mitUnternehmenFeld) return false;
+    return true;
+  });
   const isEdit = !!data?._isEditMode;
 
   const sideFields = fields.filter(f => f.docSlot === 'side');
@@ -59,12 +63,12 @@ export function renderProduktDoc(data = null, { mitMarkenFeld = false, unternehm
     <form id="${FORM_ID}" class="produkt-doc" data-entity="produkt"
           data-entity-id="${attr(data?.id || data?._entityId || '')}"
           data-is-edit-mode="${isEdit ? 'true' : 'false'}">
-      <input type="hidden" name="unternehmen_id" value="${attr(unternehmenId || '')}">
+      ${mitUnternehmenFeld ? '' : `<input type="hidden" name="unternehmen_id" value="${attr(unternehmenId || '')}">`}
       <div class="produkt-doc__shell">
         <main class="produkt-doc__main">
           <div class="produkt-doc__scroll">
             <article class="produkt-doc__paper">
-              ${renderDocFields(docFields)}
+              ${renderDocFields(docFields, { markenPending: mitUnternehmenFeld && mitMarkenFeld })}
             </article>
           </div>
           ${renderActions(isEdit)}
@@ -77,7 +81,7 @@ export function renderProduktDoc(data = null, { mitMarkenFeld = false, unternehm
   `;
 }
 
-function renderDocFields(fields) {
+function renderDocFields(fields, { markenPending = false } = {}) {
   const parts = [];
   const handled = new Set();
   let openGroup = null;
@@ -88,6 +92,11 @@ function renderDocFields(fields) {
     parts.push(
       `<div class="produkt-doc__group" data-doc-group="${attr(openGroup)}">${groupParts.join('')}</div>`
     );
+    // Einsatzsituationen direkt hinter dem Inhalt, Personas ganz unten
+    // (nach dem letzten flushGroup nach compliance).
+    if (openGroup === 'inhalt') {
+      parts.push(renderUseCasesSlot());
+    }
     openGroup = null;
     groupParts = [];
   };
@@ -119,8 +128,13 @@ function renderDocFields(fields) {
       return;
     }
 
+    if (field.docRole === 'owner') {
+      push(renderOwnerSelect(field), field.docGroup);
+      return;
+    }
+
     if (field.docRole === 'relations') {
-      push(renderRelationsBlock(field), field.docGroup);
+      push(renderRelationsBlock(field, { hidden: markenPending }), field.docGroup);
       return;
     }
 
@@ -139,6 +153,7 @@ function renderDocFields(fields) {
   });
 
   flushGroup();
+  parts.push(renderPersonasSlot());
   return parts.join('');
 }
 
@@ -210,15 +225,57 @@ function renderInlineRow(first, rowFields) {
 }
 
 /**
+ * Einsatzsituationen hinter dem Inhalt. Der Slot bleibt leer, ihn fuellt
+ * das ProduktPersonaPanel. Personas stehen separat ganz unten.
+ */
+function renderUseCasesSlot() {
+  return `
+    <div class="produkt-doc__group" data-doc-group="usecases">
+      <div id="produkt-usecases-panel"></div>
+    </div>
+  `;
+}
+
+/**
+ * Persona-Vorschlaege ans Dokumentende (nach Compliance). Gleicher Panel,
+ * zweiter Slot – so stoert der noch leere Bereich den Lesefluss nicht.
+ */
+function renderPersonasSlot() {
+  return `
+    <div class="produkt-doc__group" data-doc-group="personas">
+      <div id="produkt-persona-panel"></div>
+    </div>
+  `;
+}
+
+/**
  * Tag-Multiselect im Dokument. Das leere <select> wird von
  * FormSystem.bindFormEvents() ueber die Feld-Config befuellt und danach durch
  * das Auto-Suggestion-Widget ersetzt - die Attribute muessen deshalb exakt zu
  * denen aus dem FormRenderer passen.
  */
-function renderRelationsBlock(field) {
+function renderOwnerSelect(field) {
   const id = `field-${field.name}`;
   return `
     <section class="form-field produkt-doc__section" data-doc-field="${attr(field.name)}">
+      <label for="${attr(id)}">${text(field.docLabel || field.label)}</label>
+      <select id="${attr(id)}" name="${attr(field.name)}" required
+              data-searchable="true"
+              data-placeholder="${attr(field.placeholder || 'Bitte wählen...')}"
+              data-table="${attr(field.table || '')}"
+              data-display-field="${attr(field.displayField || '')}"
+              data-value-field="${attr(field.valueField || 'id')}">
+        <option value="">${attr(field.placeholder || 'Bitte wählen...')}</option>
+      </select>
+      ${field.docHint ? `<p class="produkt-doc__hint">${text(field.docHint)}</p>` : ''}
+    </section>
+  `;
+}
+
+function renderRelationsBlock(field, { hidden = false } = {}) {
+  const id = `field-${field.name}`;
+  return `
+    <section class="form-field produkt-doc__section" data-doc-field="${attr(field.name)}"${hidden ? ' hidden' : ''}>
       <label for="${attr(id)}">${text(field.docLabel || field.label)}</label>
       <select id="${attr(id)}" name="${attr(field.name)}" multiple
               data-searchable="true" data-tag-based="true"

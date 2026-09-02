@@ -171,7 +171,7 @@ export class VideoTableUIHelpers {
     container.addEventListener('mousedown', (e) => {
       const handle = e.target.closest('.resize-handle-col');
       if (handle) {
-        this.startResize(parseInt(handle.dataset.col), e.pageX);
+        this.startResize(handle.dataset.col, e.pageX);
         e.preventDefault();
       }
     }, { signal });
@@ -188,36 +188,51 @@ export class VideoTableUIHelpers {
     }, { signal });
   }
 
+  /** @param {string} col data-col der Header-Zelle */
   startResize(col, pageX) {
+    const colKey = String(col);
     this.table.isResizing = true;
-    this.table.resizeCol = col;
+    this.table.resizeCol = colKey;
     this.table.resizeStartX = pageX;
-    const header = document.querySelector(`.col-header .resize-handle-col[data-col="${col}"]`)?.closest('.col-header');
+    const header = document.querySelector(`.col-header .resize-handle-col[data-col="${colKey}"]`)?.closest('.col-header');
     this.table.resizeStartWidth = header ? header.offsetWidth : 120;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
   }
 
-  /** @param {number} col @param {number} widthPx Breite in Pixel (Resize-Messung) */
+  /**
+   * Breite anhand von data-col setzen — nicht per nth-child(dataCol+1),
+   * weil data-col (z.B. 28, 19b) nicht der sichtbare Spaltenindex ist.
+   * @param {string|number} col
+   * @param {number} widthPx Breite in Pixel (Resize-Messung)
+   */
   setColumnWidth(col, widthPx) {
+    const colKey = String(col);
     const widthRem = widthPx / 16;
     const remStr = this._pxToRem(widthPx);
-    this.table.columnWidths.set(col, widthRem);
+    this.table.columnWidths.set(colKey, widthRem);
 
-    document.querySelectorAll(`th.col-header:nth-child(${col + 1})`).forEach(h => {
-      h.style.width = remStr;
-      h.style.minWidth = remStr;
-    });
-    document.querySelectorAll(`.kooperation-video-grid tbody td:nth-child(${col + 1})`).forEach(c => {
-      c.style.width = remStr;
-      c.style.minWidth = remStr;
+    document.querySelectorAll(`th.col-header[data-col="${colKey}"]`).forEach(header => {
+      header.style.width = remStr;
+      header.style.minWidth = remStr;
+
+      const table = header.closest('table');
+      const row = header.parentElement;
+      if (!table || !row) return;
+      const index = Array.prototype.indexOf.call(row.children, header);
+      table.querySelectorAll('tbody tr').forEach(tr => {
+        const cell = tr.children[index];
+        if (!cell) return;
+        cell.style.width = remStr;
+        cell.style.minWidth = remStr;
+      });
     });
 
-    if (col === 0) {
+    if (colKey === '0') {
       document.querySelectorAll('.kooperation-video-grid').forEach(grid => {
         grid.style.setProperty('--grid-col-nr', remStr);
       });
-    } else if (col === 1) {
+    } else if (colKey === '1') {
       document.querySelectorAll('.kooperation-video-grid').forEach(grid => {
         grid.style.setProperty('--grid-col-creator', remStr);
       });
@@ -246,7 +261,7 @@ export class VideoTableUIHelpers {
         Object.entries(JSON.parse(saved)).forEach(([col, width]) => {
           const rem = this._normalizeStoredWidth(width);
           if (rem == null) return;
-          this.setColumnWidth(parseInt(col, 10), rem * 16);
+          this.setColumnWidth(col, rem * 16);
         });
       }
     } catch { /* ignore */ }

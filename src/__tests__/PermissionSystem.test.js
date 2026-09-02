@@ -23,6 +23,7 @@ describe('PermissionSystem', () => {
       ['kunde',        { isAdmin: false, isKunde: true,  isKundeEditor: false, isMitarbeiter: false, isPending: false, isInternal: false }],
       ['kunde_editor', { isAdmin: false, isKunde: true,  isKundeEditor: true,  isMitarbeiter: false, isPending: false, isInternal: false }],
       ['pending',      { isAdmin: false, isKunde: false, isKundeEditor: false, isMitarbeiter: false, isPending: true,  isInternal: false }],
+      ['gast',         { isAdmin: false, isKunde: true,  isKundeEditor: false, isMitarbeiter: false, isPending: false, isInternal: false }],
     ];
 
     it.each(cases)('Rolle "%s" liefert korrekte Helper-Werte', (rolle, expected) => {
@@ -66,7 +67,7 @@ describe('PermissionSystem', () => {
       expect(ps.canManageStaff).toBe(false);
       expect(ps.canBulkDelete).toBe(false);
       expect(ps.canCreateProject).toBe(false);
-      expect(ps.canUseGlobalSearch).toBe(false);
+      expect(ps.canUseGlobalSearch).toBe(true);
     });
 
     it('kunde_editor hat gleiche Capabilities wie kunde', () => {
@@ -142,6 +143,25 @@ describe('PermissionSystem', () => {
       expect(ps.checkPermission('dashboard', 'view')).toBe(true);
       expect(ps.checkPermission('feedback', 'view')).toBe(true);
       expect(ps.checkPermission('kampagne', 'view')).toBe(false);
+    });
+
+    it('Gast sieht geteilte Entitäten, sonst nichts', () => {
+      ps.setUserPermissions(makeUser('gast'));
+      expect(ps.isGast).toBe(true);
+      expect(ps.checkPermission('kampagne', 'view')).toBe(true);
+      expect(ps.checkPermission('sourcing', 'view')).toBe(true);
+      expect(ps.checkPermission('strategie', 'view')).toBe(true);
+      expect(ps.checkPermission('kampagne', 'edit')).toBe(false);
+      expect(ps.checkPermission('mitarbeiter', 'view')).toBe(false);
+      expect(ps.checkPermission('rechnung', 'view')).toBe(false);
+    });
+
+    it('isGastReadonly folgt window.guestShare.rechte', () => {
+      ps.setUserPermissions(makeUser('gast'));
+      window.guestShare = { rechte: 'ansehen' };
+      expect(ps.isGastReadonly).toBe(true);
+      window.guestShare = { rechte: 'feedback' };
+      expect(ps.isGastReadonly).toBe(false);
     });
   });
 
@@ -317,5 +337,87 @@ describe('Window-Exports (Singleton)', () => {
     permissionSystem.setUserPermissions(makeUser('mitarbeiter'));
     expect(window.checkUserPermission('kampagne', 'view')).toBe(true);
     expect(window.checkUserPermission('auftrag', 'view')).toBe(false);
+  });
+});
+
+describe('Finanzen-Klassen-Preset', () => {
+  let ps;
+
+  function finanzenUser(overrides = {}) {
+    return {
+      id: 'u1',
+      rolle: 'mitarbeiter',
+      zugriffsrechte: null,
+      mitarbeiter_klasse: { id: 'k1', name: 'Finanzen' },
+      ...overrides
+    };
+  }
+
+  beforeEach(() => {
+    ps = new PermissionSystem();
+  });
+
+  it('sieht nur PM + Dashboard, nichts bearbeiten', () => {
+    ps.setUserPermissions(finanzenUser());
+
+    expect(ps.canView('dashboard')).toBe(true);
+    expect(ps.canView('auftrag')).toBe(true);
+    expect(ps.canView('auftragsdetails')).toBe(true);
+    expect(ps.canView('kampagne')).toBe(true);
+    expect(ps.canEdit('auftrag')).toBe(false);
+    expect(ps.canEdit('kampagne')).toBe(false);
+    expect(ps.canView('creator')).toBe(false);
+    expect(ps.canView('unternehmen')).toBe(false);
+    expect(ps.canView('briefing')).toBe(false);
+  });
+
+  it('ist unscoped, darf kein Projekt anlegen, sieht Preise', () => {
+    ps.setUserPermissions(finanzenUser());
+
+    expect(ps.isUnscoped).toBe(true);
+    expect(ps.isInternal).toBe(true);
+    expect(ps.canCreateProject).toBe(false);
+    expect(ps.canBulkDelete).toBe(false);
+    expect(ps.canSeePricing).toBe(true);
+  });
+
+  it('zugriffsrechte weichen das Preset nicht auf', () => {
+    ps.setUserPermissions(finanzenUser({
+      zugriffsrechte: { creator: { can_view: true, can_edit: true } }
+    }));
+
+    expect(ps.canView('creator')).toBe(false);
+    expect(ps.canEdit('creator')).toBe(false);
+    expect(ps.canView('auftrag')).toBe(true);
+  });
+
+  it('erkennt Klasse auch über mitarbeiter_klasse_name', () => {
+    ps.setUserPermissions({
+      id: 'u1',
+      rolle: 'mitarbeiter',
+      mitarbeiter_klasse_name: 'Finanzen'
+    });
+    expect(ps.canView('kampagne')).toBe(true);
+    expect(ps.canCreateProject).toBe(false);
+  });
+});
+
+describe('canView / canEdit bool', () => {
+  let ps;
+
+  beforeEach(() => {
+    ps = new PermissionSystem();
+  });
+
+  it('Admin kann alles', () => {
+    ps.setUserPermissions(makeUser('admin'));
+    expect(ps.canView('mitarbeiter')).toBe(true);
+    expect(ps.canEdit('auftrag')).toBe(true);
+  });
+
+  it('unbekannte Entity ist false, nicht undefined', () => {
+    ps.setUserPermissions(makeUser('mitarbeiter'));
+    expect(ps.canView('gibt-es-nicht')).toBe(false);
+    expect(ps.canEdit('gibt-es-nicht')).toBe(false);
   });
 });

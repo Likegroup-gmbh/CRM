@@ -221,7 +221,6 @@ BriefingCreate.prototype.getStepContent = function() {
 BriefingCreate.prototype.getFieldContext = function() {
   return {
     unternehmen: this.unternehmen,
-    marke: this.marken,
-    benutzer: this.benutzer
+    marke: this.marken
   };
 };

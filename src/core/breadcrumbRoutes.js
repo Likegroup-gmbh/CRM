@@ -32,13 +32,19 @@ const ROUTE_CONFIG = {
   feedback:           { label: 'Feedback',          entity: 'feedback' },
   education:          { label: 'Education',          entity: 'education' },
   'creator-lists':    { label: 'Listen',            entity: 'creator-lists' },
-  kickoff:            { label: 'Strategiebriefing',  entity: 'kickoff' },
   contracts:          { label: 'Contracts',          entity: 'vertraege' },
   ausgangsrechnungen: { label: 'Kundenrechnungen', entity: 'ausgangsrechnungen' },
   profile:            { label: 'Profil',            entity: 'profile' },
   transcribe:         { label: 'Transkription (Test)', entity: 'transcribe' },
   stakeholder:        { label: 'Stakeholder-Übersicht', entity: 'stakeholder' },
-  skripte:            { label: 'Skripte',            entity: 'skripte' },
+  skripte:            {
+    label: 'Skripte',
+    entity: 'skripte',
+    children: {
+      dna:    { label: 'DNA' },
+      master: { label: 'Master-Regelwerk' }
+    }
+  },
   'ki-usage':         { label: 'KI-Nutzung',         entity: 'ki-usage' },
 };
 

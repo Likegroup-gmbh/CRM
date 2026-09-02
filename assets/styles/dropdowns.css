@@ -119,6 +119,16 @@
   transform: translateY(0);
 }
 
+/* Seitlich geankertes Panel (z.B. Kampagnenliste): klappt wie das
+   Sortierung-Submenu zur Seite aus statt die Leiste zu ueberlagern */
+.filter-dropdown.filter-dropdown--side {
+  transform: translateX(8px);
+}
+
+.filter-dropdown.filter-dropdown--side.show {
+  transform: translateX(0);
+}
+
 .filter-dropdown-header {
   display: flex;
   align-items: center;
@@ -606,4 +616,70 @@
   max-height: 240px;
   overflow-y: auto;
   padding: var(--space-xs) 0;
+}
+
+.breadcrumb-switcher-portal {
+  position: fixed;
+  z-index: 99999;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.breadcrumb-switcher-search {
+  padding: var(--space-xs);
+  border-bottom: 1px solid var(--border-primary);
+}
+
+.breadcrumb-switcher-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  padding: var(--space-xxs) var(--space-xs);
+}
+
+.breadcrumb-switcher-input:focus {
+  outline: none;
+  border-color: var(--border-focus, var(--border-primary));
+  box-shadow: 0 0 0 2px var(--bg-hover);
+}
+
+.breadcrumb-switcher-list {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: var(--space-xxs) 0;
+}
+
+.breadcrumb-switcher-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  padding: var(--space-xs) var(--space-sm);
+  cursor: pointer;
+}
+
+.breadcrumb-switcher-item:hover,
+.breadcrumb-switcher-item.is-focused {
+  background: var(--bg-hover);
+}
+
+.breadcrumb-switcher-item.is-active {
+  font-weight: 500;
+  background: var(--bg-hover);
+}
+
+.breadcrumb-switcher-status {
+  padding: var(--space-sm);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }

@@ -141,6 +141,152 @@ export function renderTabNavigation(tabs) {
   `;
 }
 
+/**
+ * Einzelnes Secondary-Nav-Item (Detailseiten-Sidebar)
+ * @param {Object} config
+ * @param {string} config.tab
+ * @param {string} config.label
+ * @param {boolean} [config.isActive]
+ * @param {string} [config.icon]
+ * @param {boolean} [config.skipPermissionCheck]
+ * @param {boolean} [config.showIcon]
+ * @param {string} [config.dataAttr] - data-tab oder data-main-tab
+ * @param {string} [config.href]
+ * @returns {string} <li> oder leer ohne Berechtigung
+ */
+export function renderSecondaryNavItem({
+  tab,
+  label,
+  isActive = false,
+  icon,
+  skipPermissionCheck = false,
+  showIcon = true,
+  dataAttr = 'data-tab',
+  href
+}) {
+  if (!skipPermissionCheck && !canViewTab(tab)) {
+    return '';
+  }
+
+  const tabIcon = icon || getTabIcon(tab);
+  const current = isActive ? ' aria-current="page"' : '';
+
+  let linkHref = href;
+  if (!linkHref) {
+    if (typeof window !== 'undefined' && window.location) {
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', tab);
+      linkHref = `${url.pathname}${url.search}${url.hash}`;
+    } else {
+      linkHref = `?tab=${encodeURIComponent(tab)}`;
+    }
+  }
+
+  return `
+    <li class="secondary-nav-item">
+      <a href="${linkHref}" class="secondary-nav-link${isActive ? ' is-active' : ''}" ${dataAttr}="${tab}"${current}>
+        ${showIcon ? `<span class="tab-icon">${tabIcon}</span>` : ''}
+        <span class="secondary-nav-label">${label}</span>
+      </a>
+    </li>
+  `;
+}
+
+function renderSecondaryNavList(items, dataAttr) {
+  const html = (items || []).map((item) => renderSecondaryNavItem({
+    ...item,
+    dataAttr: item.dataAttr || dataAttr,
+    showIcon: item.showIcon !== false
+  })).join('');
+  return `<ul class="secondary-nav-list">${html}</ul>`;
+}
+
+/**
+ * Secondary-Navigation als semantische Liste.
+ * Optional groups: [{ title, items }] — ohne title nur die Liste.
+ *
+ * @param {Array<Object>} tabs
+ * @param {Object} [options]
+ * @param {string} [options.ariaLabel]
+ * @param {string} [options.dataAttr]
+ * @param {Array<{title?: string, items: Array}>} [options.groups]
+ * @returns {string}
+ */
+export function renderSecondaryNav(tabs = [], { ariaLabel = 'Seitenbereiche', dataAttr = 'data-tab', groups } = {}) {
+  if (groups?.length) {
+    const sections = groups.map((group) => {
+      if (!group.items?.length) return '';
+      const list = renderSecondaryNavList(group.items, dataAttr);
+      if (!group.title) return list;
+      return `<div class="secondary-nav-section"><span class="secondary-nav-section-title">${group.title}</span>${list}</div>`;
+    }).join('');
+    return `<nav class="secondary-nav" aria-label="${ariaLabel}">${sections}</nav>`;
+  }
+
+  return `
+    <nav class="secondary-nav" aria-label="${ariaLabel}">
+      ${renderSecondaryNavList(tabs, dataAttr)}
+    </nav>
+  `;
+}
+
+/**
+ * ?tab= in der URL halten, ohne Navigation auszulösen.
+ * @param {string} tab
+ */
+export function syncTabQueryParam(tab) {
+  if (!tab || typeof window === 'undefined' || !window.history?.replaceState) return;
+  const url = new URL(window.location.href);
+  url.searchParams.set('tab', tab);
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+}
+
+/**
+ * @returns {string|null}
+ */
+export function getTabQueryParam() {
+  if (typeof window === 'undefined') return null;
+  return new URLSearchParams(window.location.search).get('tab');
+}
+
+/**
+ * Liest data-tab / data-main-tab aus einem Secondary-Nav-Klick.
+ * @param {Event} e
+ * @param {string} [dataAttr]
+ * @returns {string|null}
+ */
+export function getSecondaryNavTabFromEvent(e, dataAttr = 'data-tab') {
+  const link = e.target.closest?.(`.secondary-nav [${dataAttr}]`);
+  if (!link) return null;
+  return dataAttr === 'data-main-tab' ? link.dataset.mainTab : link.dataset.tab;
+}
+
+/**
+ * Active-State der Secondary-Nav + passendes Pane setzen, URL ?tab= syncen.
+ * @param {string} tab
+ * @param {Object} [options]
+ * @param {string} [options.dataAttr]
+ * @returns {HTMLElement|null} das aktivierte Pane
+ */
+export function activateSecondaryNavTab(tab, { dataAttr = 'data-tab' } = {}) {
+  if (!tab) return null;
+  const panePrefix = dataAttr === 'data-main-tab' ? 'main' : 'tab';
+
+  document.querySelectorAll(`.secondary-nav [${dataAttr}]`).forEach((link) => {
+    const value = dataAttr === 'data-main-tab' ? link.dataset.mainTab : link.dataset.tab;
+    const isActive = value === tab;
+    link.classList.toggle('is-active', isActive);
+    if (isActive) link.setAttribute('aria-current', 'page');
+    else link.removeAttribute('aria-current');
+  });
+
+  document.querySelectorAll('.tab-pane').forEach((p) => p.classList.remove('active'));
+  const pane = document.getElementById(`${panePrefix}-${tab}`);
+  if (pane) pane.classList.add('active');
+  syncTabQueryParam(tab);
+  return pane;
+}
+
 
 
 

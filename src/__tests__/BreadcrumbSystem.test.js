@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import App from '../core/App.js';
+import * as breadcrumbSwitcher from '../core/breadcrumbSwitcher.js';
 
 describe('BreadcrumbSystem Rework', () => {
   let container;
@@ -74,6 +75,16 @@ describe('BreadcrumbSystem Rework', () => {
       const current = container.querySelector('.breadcrumb-current');
       expect(current).not.toBeNull();
       expect(current.textContent).toContain('...');
+    });
+
+    it('Produkt-Listen-Detail startet mit Produkte > …', async () => {
+      const system = await createBreadcrumbSystem();
+      system.setFromRoute('produkt', 'p1');
+
+      const items = container.querySelectorAll('.breadcrumb-item');
+      expect(items).toHaveLength(2);
+      expect(items[0].textContent).toContain('Produkte');
+      expect(items[1].textContent).toContain('...');
     });
   });
 
@@ -198,6 +209,48 @@ describe('BreadcrumbSystem Rework', () => {
     });
   });
 
+  describe('Skripte-Kinder dna/master', () => {
+    it('setzt DNA statt Platzhalter für /skripte/dna', async () => {
+      const system = await createBreadcrumbSystem();
+      system.setFromRoute('skripte', 'dna');
+
+      const items = container.querySelectorAll('.breadcrumb-item');
+      expect(items).toHaveLength(2);
+      expect(items[0].textContent).toContain('Skripte');
+      expect(items[1].textContent).toContain('DNA');
+      expect(items[1].textContent).not.toContain('...');
+      expect(container.querySelector('.breadcrumb-link')?.getAttribute('data-route')).toBe('/skripte');
+    });
+
+    it('setzt Master-Regelwerk für /skripte/master', async () => {
+      const system = await createBreadcrumbSystem();
+      system.setFromRoute('skripte', 'master');
+
+      const items = container.querySelectorAll('.breadcrumb-item');
+      expect(items).toHaveLength(2);
+      expect(items[1].textContent).toContain('Master-Regelwerk');
+    });
+
+    it('drittes Segment Neu auf /skripte/dna/new', async () => {
+      const system = await createBreadcrumbSystem();
+      system.setFromRoute('skripte', 'dna', { action: 'new' });
+
+      const items = container.querySelectorAll('.breadcrumb-item');
+      expect(items).toHaveLength(3);
+      expect(items[1].textContent).toContain('DNA');
+      expect(items[2].textContent).toContain('Neu');
+      expect(container.querySelector('.breadcrumb-link[data-route="/skripte/dna"]')).not.toBeNull();
+    });
+
+    it('unbekannte Skript-ID bleibt Platzhalter', async () => {
+      const system = await createBreadcrumbSystem();
+      system.setFromRoute('skripte', 'abc-uuid');
+
+      const items = container.querySelectorAll('.breadcrumb-item');
+      expect(items[1].textContent).toContain('...');
+    });
+  });
+
   describe('Zyklus 8: getRouteConfig Unknown Segment', () => {
     it('gibt kapitalisierten Fallback für unbekanntes Segment', async () => {
       const { getRouteConfig } = await import('../core/breadcrumbRoutes.js');
@@ -213,4 +266,141 @@ describe('BreadcrumbSystem Rework', () => {
       expect(config.entity).toBeNull();
     });
   });
+
+  describe('Switcher-Gate', () => {
+    afterEach(() => {
+      window.currentUser = null;
+      document.querySelector('.breadcrumb-switcher-portal')?.remove();
+    });
+
+    it('zeigt keinen Switcher auf der Liste', async () => {
+      window.currentUser = { id: 'a', rolle: 'admin' };
+      const system = await createBreadcrumbSystem();
+      system.setFromRoute('kampagne');
+      expect(container.querySelector('.breadcrumb-switcher')).toBeNull();
+    });
+
+    it('zeigt keinen Switcher auf /new', async () => {
+      window.currentUser = { id: 'a', rolle: 'admin' };
+      const system = await createBreadcrumbSystem();
+      system.setFromRoute('kampagne', 'new');
+      expect(container.querySelector('.breadcrumb-switcher')).toBeNull();
+    });
+
+    it('zeigt keinen Switcher auf statischen Kindern', async () => {
+      window.currentUser = { id: 'a', rolle: 'admin' };
+      const system = await createBreadcrumbSystem();
+      system.setFromRoute('skripte', 'dna');
+      expect(container.querySelector('.breadcrumb-switcher')).toBeNull();
+    });
+
+    it('zeigt keinen Switcher ohne can_view', async () => {
+      window.currentUser = null;
+      const system = await createBreadcrumbSystem();
+      system.setFromRoute('kampagne', '123');
+      expect(container.querySelector('.breadcrumb-switcher')).toBeNull();
+      expect(container.querySelector('.breadcrumb-current')).not.toBeNull();
+    });
+
+    it('macht den letzten Crumb zum Switcher auf der Detailseite', async () => {
+      window.currentUser = { id: 'a', rolle: 'admin' };
+      const system = await createBreadcrumbSystem();
+      system.setFromRoute('kampagne', '123');
+      system.updateDetailLabel('Sommerkampagne 2025');
+
+      const switcher = container.querySelector('.breadcrumb-switcher');
+      expect(switcher).not.toBeNull();
+      expect(switcher.textContent).toContain('Sommerkampagne 2025');
+      expect(container.querySelector('.breadcrumb-link')?.getAttribute('data-route')).toBe('/kampagne');
+    });
+
+    it('behält den Switcher nach updateBreadcrumb', async () => {
+      window.currentUser = { id: 'a', rolle: 'admin' };
+      const system = await createBreadcrumbSystem();
+      system.setFromRoute('kampagne', '123');
+      system.updateBreadcrumb([
+        { label: 'Kampagne', url: '/kampagne', clickable: true },
+        { label: 'Custom Name', url: '/kampagne/123', clickable: false }
+      ]);
+      expect(container.querySelector('.breadcrumb-switcher')?.textContent).toContain('Custom Name');
+    });
+  });
+
+  describe('Switcher-Dropdown', () => {
+    afterEach(() => {
+      window.currentUser = null;
+      delete window.navigateTo;
+      document.querySelectorAll('.breadcrumb-switcher-portal').forEach((node) => node.remove());
+      vi.restoreAllMocks();
+    });
+
+    async function openKampagneSwitcher(system) {
+      window.currentUser = { id: 'a', rolle: 'admin' };
+      vi.spyOn(breadcrumbSwitcher, 'loadSwitcherItems').mockResolvedValue({
+        items: [
+          { id: '123', label: 'Sommerkampagne 2025', route: '/kampagne/123' },
+          { id: '456', label: 'Winterkampagne', route: '/kampagne/456' }
+        ],
+        error: null
+      });
+      system.setFromRoute('kampagne', '123');
+      system.updateDetailLabel('Sommerkampagne 2025');
+      container.querySelector('.breadcrumb-switcher').click();
+      await vi.waitFor(() => {
+        expect(document.querySelector('.breadcrumb-switcher-item')).not.toBeNull();
+      });
+    }
+
+    it('öffnet das Portal mit Typeahead und markiert das aktuelle Item', async () => {
+      const system = await createBreadcrumbSystem();
+      await openKampagneSwitcher(system);
+
+      expect(document.querySelector('.breadcrumb-switcher-portal')).not.toBeNull();
+      expect(document.querySelector('.breadcrumb-switcher-input')).not.toBeNull();
+      expect(document.querySelector('.breadcrumb-switcher-item.is-active')?.textContent)
+        .toContain('Sommerkampagne 2025');
+    });
+
+    it('sucht nach Debounce serverseitig', async () => {
+      const system = await createBreadcrumbSystem();
+      await openKampagneSwitcher(system);
+
+      vi.useFakeTimers();
+      const input = document.querySelector('.breadcrumb-switcher-input');
+      input.value = 'winter';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await vi.advanceTimersByTimeAsync(200);
+      vi.useRealTimers();
+
+      expect(breadcrumbSwitcher.loadSwitcherItems).toHaveBeenLastCalledWith({
+        segment: 'kampagne',
+        query: 'winter',
+        context: expect.objectContaining({ segment: 'kampagne', id: '123' })
+      });
+    });
+
+    it('navigiert auf einen anderen Eintrag', async () => {
+      window.navigateTo = vi.fn();
+      const system = await createBreadcrumbSystem();
+      await openKampagneSwitcher(system);
+
+      const winter = [...document.querySelectorAll('.breadcrumb-switcher-item')]
+        .find((el) => el.textContent.includes('Winterkampagne'));
+      winter.click();
+
+      expect(window.navigateTo).toHaveBeenCalledWith('/kampagne/456');
+      expect(document.querySelector('.breadcrumb-switcher-portal')).toBeNull();
+    });
+
+    it('schließt nur, wenn der aktuelle Eintrag geklickt wird', async () => {
+      window.navigateTo = vi.fn();
+      const system = await createBreadcrumbSystem();
+      await openKampagneSwitcher(system);
+
+      document.querySelector('.breadcrumb-switcher-item.is-active').click();
+      expect(window.navigateTo).not.toHaveBeenCalled();
+      expect(document.querySelector('.breadcrumb-switcher-portal')).toBeNull();
+    });
+  });
 });
+

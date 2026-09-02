@@ -3,9 +3,7 @@
 
 import { MarkeService } from './services/MarkeService.js';
 import { FormSubmitHelper } from '../../core/form/FormSubmitHelper.js';
-import { StrategiebriefingService } from '../kickoff/StrategiebriefingService.js';
 import { normalizeFormUrlFields } from '../../core/UrlHelper.js';
-import { icon } from '../../core/icons/IconSystem.js';
 
 export class MarkeCreate {
   constructor() {
@@ -33,19 +31,8 @@ export class MarkeCreate {
     // Formular direkt in content rendern
     const formHtml = window.formSystem.renderFormOnly('marke');
     window.content.innerHTML = `
-      <div class="form-split-container">
-        <div class="form-split-left">
-          <div class="form-page">
-            ${formHtml}
-            <button type="button" class="kickoff-create-toggle-btn" id="kickoff-toggle-btn">
-              ${icon('plus')}
-              Strategiebriefing anlegen
-            </button>
-          </div>
-        </div>
-        <div class="form-split-right hidden" id="marke-split-container">
-          <div id="marke-embedded-form"></div>
-        </div>
+      <div class="form-page">
+        ${formHtml}
       </div>
     `;
 
@@ -63,83 +50,6 @@ export class MarkeCreate {
       // Duplikat-Validierung auf Markenname
       this.setupDuplicateValidation(form);
     }
-
-    this._kickoffType = null;
-    this._kickoffPanelOpen = false;
-    this.setupKickOffToggle();
-  }
-
-  async setupKickOffToggle() {
-    const toggleBtn = document.getElementById('kickoff-toggle-btn');
-    if (!toggleBtn) return;
-
-    const signal = this._abort?.signal;
-    const opts = signal ? { signal } : undefined;
-
-    toggleBtn.addEventListener('click', () => {
-      if (this._kickoffPanelOpen) {
-        this.closeKickOffPanel();
-        return;
-      }
-
-      this._kickoffPanelOpen = true;
-      toggleBtn.classList.add('active');
-      toggleBtn.textContent = 'Strategiebriefing ✓';
-
-      const splitContainer = document.getElementById('marke-split-container');
-      const embeddedForm = document.getElementById('marke-embedded-form');
-      if (!splitContainer || !embeddedForm) return;
-
-      splitContainer.classList.remove('hidden');
-
-      const kickoffFormHtml = window.formSystem.renderFormOnly('strategiebriefing_embedded');
-      embeddedForm.innerHTML = `
-        <div class="kickoff-panel-header">
-          <h3 class="kickoff-panel-header__title">Strategiebriefing</h3>
-          <button type="button" class="kickoff-panel-header__close" id="kickoff-panel-close" title="Panel schließen">
-            ${icon('x-mark')}
-          </button>
-        </div>
-        <div>
-          ${kickoffFormHtml}
-        </div>
-      `;
-
-      window.formSystem.bindFormEvents('strategiebriefing_embedded', null);
-
-      const kickoffForm = embeddedForm.querySelector('form');
-      if (kickoffForm) {
-        kickoffForm.onsubmit = (e) => e.preventDefault();
-        const submitRow = kickoffForm.querySelector('.form-actions');
-        if (submitRow) submitRow.style.display = 'none';
-      }
-
-      document.getElementById('kickoff-panel-close')?.addEventListener('click', () => {
-        this.closeKickOffPanel();
-      });
-
-      setTimeout(() => {
-        const container = document.querySelector('.form-split-container');
-        if (container) container.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
-    }, opts);
-  }
-
-  closeKickOffPanel() {
-    const splitContainer = document.getElementById('marke-split-container');
-    if (splitContainer) splitContainer.classList.add('hidden');
-    
-    const toggleBtn = document.getElementById('kickoff-toggle-btn');
-    if (toggleBtn) {
-      toggleBtn.classList.remove('active');
-      toggleBtn.innerHTML = `
-        ${icon('plus')}
-        Strategiebriefing anlegen
-      `;
-    }
-    
-    this._kickoffPanelOpen = false;
-    this._kickoffType = null;
   }
 
   // Setup Duplikat-Validierung für Markenname
@@ -345,23 +255,6 @@ export class MarkeCreate {
         return;
       }
 
-      // Strategiebriefing-Validierung (wenn Panel offen)
-      if (this._kickoffPanelOpen) {
-        const kickoffForm = document.querySelector('#marke-embedded-form form');
-        if (kickoffForm) {
-          const kickoffData = window.formSystem.collectSubmitData(kickoffForm);
-          const kickoffValidation = window.validatorSystem.validateForm(kickoffData, StrategiebriefingService.getValidationRules());
-          if (!kickoffValidation.isValid) {
-            window.toastSystem?.show('Bitte alle Pflichtfelder im Strategiebriefing ausfüllen', 'error');
-            if (submitBtn) {
-              submitBtn.innerHTML = originalText;
-              submitBtn.disabled = false;
-            }
-            return;
-          }
-        }
-      }
-
       // Marke erstellen
       const result = await window.dataService.createEntity('marke', data);
       
@@ -375,16 +268,6 @@ export class MarkeCreate {
           // Mitarbeiter-Zuordnungen mit Rollen speichern - über MarkeService
           const unternehmenId = data.unternehmen_id || null;
           await MarkeService.saveMitarbeiterToMarke(result.id, data, unternehmenId, { deleteExisting: false });
-
-          // Strategiebriefing speichern (wenn Panel offen)
-          if (this._kickoffPanelOpen) {
-            try {
-              await this.saveStrategiebriefing(unternehmenId, result.id);
-            } catch (kickoffErr) {
-              console.error('❌ Strategiebriefing Fehler:', kickoffErr);
-              window.toastSystem?.show('Marke erstellt, aber Strategiebriefing konnte nicht gespeichert werden', 'warning');
-            }
-          }
         }
 
         this.showSuccessMessage('Marke erfolgreich erstellt!');
@@ -410,23 +293,6 @@ export class MarkeCreate {
     }
   }
 
-  async saveStrategiebriefing(unternehmenId, markeId) {
-    const kickoffForm = document.querySelector('#marke-embedded-form form');
-    if (!kickoffForm) return;
-
-    const formData = window.formSystem.collectSubmitData(kickoffForm);
-    const kampagnenart = formData.kampagnenart || kickoffForm.querySelector('[name="kampagnenart"]')?.value;
-
-    const result = await StrategiebriefingService.saveBriefing(formData, {
-      markeId,
-      unternehmenId,
-      kampagnenart
-    });
-
-    console.log('✅ Strategiebriefing gespeichert:', result.id);
-    return result;
-  }
-  
   // Validierungsfehler anzeigen
   showValidationErrors(errors) {
     // Alte Fehler entfernen

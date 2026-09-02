@@ -1,5 +1,5 @@
 // UnternehmenDetailRendererRelations.js
-// Tab-Renderer: Strategien, Creator-Auswahl, Kooperationen, Creator, Ansprechpartner, Rechnungen, Verträge, Strategiebriefing
+// Tab-Renderer: Strategien, Sourcing, Kooperationen, Creator, Ansprechpartner, Rechnungen, Verträge
 
 import { renderCreatorTable } from '../creator/CreatorTable.js';
 import { PhoneDisplay } from '../../core/components/PhoneDisplay.js';
@@ -8,7 +8,6 @@ import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { VertragUtils } from '../vertrag/VertragUtils.js';
 import { renderMarkeBubble, renderPersonBubble } from './UnternehmenDetailRendererHelpers.js';
-import { renderStrategiebriefing as renderStrategiebriefingShared, bindStrategiebriefingCreateButton } from '../kickoff/StrategiebriefingRenderer.js';
 import { getPaymentRowStatusClass } from '../auftrag/logic/PaymentRowStatus.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
@@ -32,7 +31,7 @@ export function renderStrategien(detail) {
       <td>${detail.sanitize(s.teilbereich) || '-'}</td>
       <td class="col-erstellt-von">${detail.sanitize(s.created_by_user?.name) || '-'}</td>
       <td>${detail.formatDate(s.created_at)}</td>
-      <td>${actionBuilder.create('strategie', s.id)}</td>
+      <td class="col-actions">${actionBuilder.create('strategie', s.id)}</td>
     </tr>
   `).join('');
 
@@ -45,7 +44,7 @@ export function renderStrategien(detail) {
             <th>Teilbereich</th>
             <th class="col-erstellt-von">Erstellt von</th>
             <th>Erstellt am</th>
-            <th>Aktion</th>
+            <th class="col-actions">Aktionen</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -57,9 +56,9 @@ export function renderStrategien(detail) {
 export function renderCreatorAuswahl(detail) {
   if (!detail.creatorAuswahlen || detail.creatorAuswahlen.length === 0) {
     return renderEmptyState({
-      icon: 'creator',
-      title: 'Keine Creator-Auswahlen vorhanden',
-      text: 'Es wurden noch keine Creator-Auswahlen für dieses Unternehmen erstellt.'
+      icon: 'sourcing',
+      title: 'Keine Sourcing-Listen vorhanden',
+      text: 'Es wurden noch keine Sourcing-Listen für dieses Unternehmen erstellt.'
     });
   }
 
@@ -67,11 +66,11 @@ export function renderCreatorAuswahl(detail) {
     <tr>
       <td>
         <a href="#" class="table-link" data-table="sourcing" data-id="${ca.id}">
-          ${detail.sanitize(ca.name) || 'Unbekannte Creator-Auswahl'}
+          ${detail.sanitize(ca.name) || 'Unbekannte Sourcing-Liste'}
         </a>
       </td>
       <td>${detail.formatDate(ca.created_at)}</td>
-      <td>${actionBuilder.create('creator_auswahl', ca.id)}</td>
+      <td class="col-actions">${actionBuilder.create('creator_auswahl', ca.id)}</td>
     </tr>
   `).join('');
 
@@ -82,7 +81,7 @@ export function renderCreatorAuswahl(detail) {
           <tr>
             <th>Name</th>
             <th>Erstellt am</th>
-            <th>Aktion</th>
+            <th class="col-actions">Aktionen</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -397,12 +396,4 @@ export function renderVertraege(detail) {
       </table>
     </div>
   `;
-}
-
-export function renderKickOff(detail) {
-  return renderStrategiebriefingShared(detail, { parentType: 'unternehmen' });
-}
-
-export function bindUnternehmenKickOffCreateButton(detail) {
-  bindStrategiebriefingCreateButton(detail, { parentType: 'unternehmen' });
 }

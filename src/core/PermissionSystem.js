@@ -7,7 +7,7 @@ const ENTITIES = [
   'creator', 'creator-lists', 'unternehmen', 'marke', 'produkt',
   'auftrag', 'auftragsdetails', 'kampagne', 'kooperation', 'briefing',
   'videos', 'rechnung', 'ansprechpartner', 'dashboard', 'tasks',
-  'strategie', 'kickoff', 'sourcing', 'feedback', 'mitarbeiter',
+  'strategie', 'sourcing', 'feedback', 'mitarbeiter',
   'vertraege', 'kunden-admin', 'contracts', 'skripte'
 ];
 
@@ -48,7 +48,6 @@ const BASE_PERMISSIONS = {
     dashboard:   { ...V },
     tasks:       { can_view: true, can_edit: true, can_delete: false },
     strategie:   { can_view: true, can_edit: true, can_delete: false },
-    kickoff:     { ...V },
     sourcing:    { ...V },
     contracts:   { ...V },
   },
@@ -81,6 +80,19 @@ const PENDING_PERMISSIONS = {
   dashboard: { ...V },
 };
 
+const FINANZEN_PRESET = {
+  ...allOf(F),
+  dashboard: { ...V },
+  auftrag: { ...V },
+  auftragsdetails: { ...V },
+  kampagne: { ...V },
+};
+
+function resolveKlasseName(user) {
+  const raw = user?.mitarbeiter_klasse?.name ?? user?.mitarbeiter_klasse_name ?? '';
+  return String(raw).trim();
+}
+
 // --- Permission System Klasse ---
 
 export class PermissionSystem {
@@ -88,6 +100,7 @@ export class PermissionSystem {
     this.userPermissions = {};
     this.userRole = null;
     this._normalizedRole = '';
+    this._usesKlassePreset = false;
     this.calculatedPermissions = {};
     this.pagePermissions = {};
     this.tablePermissions = {};
@@ -108,12 +121,13 @@ export class PermissionSystem {
   get isMitarbeiter() { return this._normalizedRole === 'mitarbeiter'; }
   get isPending()     { return this._normalizedRole === 'pending'; }
   get isInternal()    { return this.isAdmin || this.isMitarbeiter; }
+  get isUnscoped()    { return this.isAdmin || this.isKunde || this._usesKlassePreset; }
 
   // Feature-basierte Checks (Capabilities)
   get canSeePricing()      { return this.isInternal; }
   get canManageStaff()     { return this.isAdmin; }
-  get canBulkDelete()      { return this.isInternal; }
-  get canCreateProject()   { return this.isInternal; }
+  get canBulkDelete()      { return this.isInternal && !this._usesKlassePreset; }
+  get canCreateProject()   { return this.isInternal && !this._usesKlassePreset; }
   get canUseGlobalSearch() { return !this.isPending; }
   get canViewContracts() {
     if (this.isAdmin) return true;
@@ -129,11 +143,16 @@ export class PermissionSystem {
     this.userRole = user.rolle;
     this._normalizedRole = String(user.rolle || '').trim().toLowerCase();
     this.userPermissions = user.zugriffsrechte || {};
+    this._usesKlassePreset = resolveKlasseName(user) === 'Finanzen';
 
-    let calculatedPermissions = this.getPermissionsByRole(this._normalizedRole);
-
-    if (user?.zugriffsrechte && typeof user.zugriffsrechte === 'object') {
-      calculatedPermissions = this.applyOverrides(calculatedPermissions, user.zugriffsrechte);
+    let calculatedPermissions;
+    if (this._usesKlassePreset) {
+      calculatedPermissions = structuredClone(FINANZEN_PRESET);
+    } else {
+      calculatedPermissions = this.getPermissionsByRole(this._normalizedRole);
+      if (user?.zugriffsrechte && typeof user.zugriffsrechte === 'object') {
+        calculatedPermissions = this.applyOverrides(calculatedPermissions, user.zugriffsrechte);
+      }
     }
 
     this.calculatedPermissions = calculatedPermissions;
@@ -211,6 +230,24 @@ export class PermissionSystem {
   // ============================================
   // Permission-Checks
   // ============================================
+
+  canView(entity) {
+    if (this.isAdmin) return true;
+    if (!this._normalizedRole) return false;
+
+    const pageOverride = this.pagePermissions?.[entity]?.can_view;
+    if (typeof pageOverride === 'boolean') return pageOverride;
+    return !!this.calculatedPermissions?.[entity]?.can_view;
+  }
+
+  canEdit(entity) {
+    if (this.isAdmin) return true;
+    if (!this._normalizedRole) return false;
+
+    const pageOverride = this.pagePermissions?.[entity]?.can_edit;
+    if (typeof pageOverride === 'boolean') return pageOverride;
+    return !!this.calculatedPermissions?.[entity]?.can_edit;
+  }
 
   canViewPage(pageId) {
     if (this.isAdmin) return true;
@@ -291,6 +328,7 @@ export class PermissionSystem {
     this.userPermissions = {};
     this.userRole = null;
     this._normalizedRole = '';
+    this._usesKlassePreset = false;
     this.calculatedPermissions = {};
     this.pagePermissions = {};
     this.tablePermissions = {};
@@ -315,6 +353,8 @@ if (typeof window !== 'undefined') {
   window.getUserPermissions = () => permissionSystem.getUserPermissions();
   window.getEntityPermissions = (entity) => permissionSystem.getEntityPermissions(entity);
   window.canViewPage = (pageId) => permissionSystem.canViewPage(pageId);
+  window.canView = (entity) => permissionSystem.canView(entity);
+  window.canEdit = (entity) => permissionSystem.canEdit(entity);
   window.canViewTable = (pageId, tableId) => permissionSystem.canViewTable(pageId, tableId);
   window.getDataFilters = (pageId, tableId) => permissionSystem.getDataFilters(pageId, tableId);
 
@@ -327,6 +367,7 @@ if (typeof window !== 'undefined') {
   window.isMitarbeiter  = () => permissionSystem.isMitarbeiter;
   window.isPending      = () => permissionSystem.isPending;
   window.isInternal     = () => permissionSystem.isInternal;
+  window.isUnscoped     = () => permissionSystem.isUnscoped;
 
   // Feature-basierte Capabilities
   window.canSeePricing      = () => permissionSystem.canSeePricing;

@@ -15,6 +15,7 @@ import KooperationFilterConfig from '../../modules/kooperation/filters/Kooperati
 import RechnungFilterConfig from '../../modules/rechnung/filters/RechnungFilterConfig.js';
 import VertragFilterConfig from '../../modules/vertrag/filters/VertragFilterConfig.js';
 import SkriptFilterConfig from '../../modules/skripte/filters/SkriptFilterConfig.js';
+import ProduktFilterConfig from '../../modules/produkt/filters/ProduktFilterConfig.js';
 
 // Importiere Filter-Logik (optional)
 import CreatorFilterLogic from '../../modules/creator/filters/CreatorFilterLogic.js';
@@ -24,6 +25,7 @@ import MarkeFilterLogic from '../../modules/marke/filters/MarkeFilterLogic.js';
 import AuftragFilterLogic from '../../modules/auftrag/filters/AuftragFilterLogic.js';
 import AuftragsdetailsFilterLogic from '../../modules/auftrag/filters/AuftragsdetailsFilterLogic.js';
 import KooperationFilterLogic from '../../modules/kooperation/filters/KooperationFilterLogic.js';
+import ProduktFilterLogic from '../../modules/produkt/filters/ProduktFilterLogic.js';
 
 /**
  * Zentrale Registrierung aller Filter-Konfigurationen
@@ -41,7 +43,8 @@ export const FILTER_CONFIG_REGISTRY = {
   briefing: BriefingFilterConfig,
   rechnung: RechnungFilterConfig,
   vertrag: VertragFilterConfig,
-  skripte: SkriptFilterConfig
+  skripte: SkriptFilterConfig,
+  produkt: ProduktFilterConfig
 };
 
 /**
@@ -54,8 +57,8 @@ export const FILTER_LOGIC_REGISTRY = {
   marke: MarkeFilterLogic,
   auftrag: AuftragFilterLogic,
   auftragsdetails: AuftragsdetailsFilterLogic,
-  kooperation: KooperationFilterLogic
-  // Weitere Logik-Module können hier hinzugefügt werden
+  kooperation: KooperationFilterLogic,
+  produkt: ProduktFilterLogic
 };
 
 /**

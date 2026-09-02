@@ -53,6 +53,22 @@ export class ProduktExtractPanel {
       if (e.detail?.entity !== 'produkt') return;
       this.finish(e.detail);
     }, opts);
+
+    // Persona-Job: haengt sich als eigener Liky-Beitrag hinter den Extract
+    document.addEventListener('produktPersonaProgress', (e) => {
+      if (e.detail?.step === 'start') this.addLikyTurn();
+      if (Array.isArray(e.detail?.steps) && e.detail.steps.length) {
+        this.setSteps(e.detail.steps);
+        return;
+      }
+      if (e.detail?.step && e.detail.step !== 'start') {
+        this.addStep(e.detail.step, e.detail.label);
+      }
+    }, opts);
+
+    document.addEventListener('produktPersonaFinished', (e) => {
+      this.finishPersona(e.detail || {});
+    }, opts);
   }
 
   reset() {
@@ -143,6 +159,25 @@ export class ProduktExtractPanel {
   erfolgText(detail) {
     if (!detail.felder) return 'Auf der Seite war nichts Brauchbares zu finden.';
     return 'Fertig, schau es dir an. Was ich nur vermute, ist im Dokument markiert.';
+  }
+
+  /** Abschluss des Persona-Beitrags (Erfolg/Fehler als Text unter den Steps). */
+  finishPersona(detail) {
+    if (!this.turn) return;
+    if (this.received.length) renderThinking(this.slot, this.received, { done: true });
+
+    if (detail.ok) {
+      this.turn.appendChild(this.textNode(
+        'Einsatzsituationen und Persona-Vorschläge liegen im Dokument – bitte prüfen: annehmen, neu generieren oder verwerfen.'
+      ));
+    } else {
+      const error = document.createElement('div');
+      error.className = 'produkt-chat__error';
+      error.textContent = 'Die Persona-Vorschläge haben nicht geklappt. Du kannst sie im Dokument neu anstoßen.';
+      this.turn.appendChild(error);
+    }
+
+    this.scrollToEnd();
   }
 
   textNode(message) {

@@ -1411,6 +1411,10 @@ thead {
   gap: var(--space-sm);
 }
 
+.table-user-cell .table-avatar {
+  margin-right: 0;
+}
+
 .table-avatar-placeholder {
   width: 32px;
   height: 32px;
@@ -2296,17 +2300,6 @@ table.vertraege-unternehmen-table td:last-child {
 
 .education-article-content .education-table tr:hover {
   background: var(--gray-50);
-}
-
-.kickoff-table td {
-  vertical-align: top;
-  padding: var(--space-md);
-}
-
-.kickoff-table td:first-child {
-  
-  color: var(--gray-700);
-  white-space: nowrap;
 }
 
 /* Kampagnen-Zuordnung Badges (Ansprechpartner-Detail) */

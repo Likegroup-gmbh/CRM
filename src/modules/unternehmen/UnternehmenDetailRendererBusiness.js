@@ -179,7 +179,6 @@ export function renderBriefings(detail) {
       <td>${renderMarkeBubble(detail, briefing.marke)}</td>
       <td>${briefing.bereich ? `<span class="tag tag--type">${detail.sanitize(BEREICH_LABELS[briefing.bereich] || briefing.bereich)}</span>` : '-'}</td>
       <td><span class="status-badge ${briefing.is_draft ? 'status-entwurf' : 'status-final'}">${briefing.is_draft ? 'Entwurf' : 'Final'}</span></td>
-      <td>${renderPersonBubble(detail, briefing.assignee)}</td>
       <td>${actionBuilder.create('briefing', briefing.id)}</td>
     </tr>
   `).join('');
@@ -193,7 +192,6 @@ export function renderBriefings(detail) {
             <th>Marke</th>
             <th>Bereich</th>
             <th>Status</th>
-            <th>Zugewiesen</th>
             <th>Aktionen</th>
           </tr>
         </thead>

@@ -2,7 +2,7 @@
 // Admin: Kunden-Details und Zuordnungen verwalten
 // Nutzt einheitliches zwei-Spalten-Layout
 import { PersonDetailBase } from './PersonDetailBase.js';
-import { renderTabButton } from '../../core/TabUtils.js';
+import { renderSecondaryNav, activateSecondaryNavTab, getSecondaryNavTabFromEvent, getTabQueryParam } from '../../core/TabUtils.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
@@ -18,6 +18,7 @@ export class KundenDetail extends PersonDetailBase {
 
   async init(id) {
     this.userId = id;
+    this.activeMainTab = getTabQueryParam() || 'informationen';
     await this.load();
     
     // Breadcrumb aktualisieren
@@ -152,7 +153,7 @@ export class KundenDetail extends PersonDetailBase {
 
   renderTabNavigation() {
     const tabs = this.getTabsConfig();
-    return `<div class="tabs-header-container" style="--tab-count: ${tabs.length}"><div class="tabs-left">${tabs.map(t => renderTabButton({ ...t, showIcon: true })).join('')}</div></div>`;
+    return renderSecondaryNav(tabs.map(t => ({ ...t, showIcon: true })));
   }
 
   renderMainContent() {
@@ -579,18 +580,11 @@ export class KundenDetail extends PersonDetailBase {
       }
 
       // Main Tab Navigation
-      const tabBtn = e.target.closest('.tab-button');
-      if (tabBtn) {
+      const tab = getSecondaryNavTabFromEvent(e);
+      if (tab) {
         e.preventDefault();
-        const tab = tabBtn.dataset.tab;
-        if (!tab) return;
-        
         this.activeMainTab = tab;
-        document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-        tabBtn.classList.add('active');
-        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-        const pane = document.getElementById(`tab-${tab}`);
-        if (pane) pane.classList.add('active');
+        activateSecondaryNavTab(tab);
       }
     };
 

@@ -4,6 +4,7 @@ import {
   replaceVideoFeedbackBucket
 } from '../../core/VideoFeedbackBuckets.js';
 import { saveVideoFeedbackSlot } from '../../core/videoFeedback/VideoFeedbackRepository.js';
+import { saveStillFeedbackSlot } from '../../core/videoFeedback/StillFeedbackRepository.js';
 import { CustomColumnFieldHandler } from './columns/CustomColumnFieldHandler.js';
 import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
 
@@ -127,27 +128,39 @@ export class VideoTableFieldHandler {
           console.log('✅ Versand-Info aktualisiert');
         }
       } 
-      else if (entity === 'video' && getVideoFeedbackSlotByField(fieldName)) {
+      else if ((entity === 'video' || entity === 'still') && getVideoFeedbackSlotByField(fieldName)) {
         const slot = getVideoFeedbackSlotByField(fieldName);
         const videoId = id;
-        const commentsSource = store ? store.videoComments : t.videoComments;
+        const isStill = entity === 'still';
+        const commentsSource = isStill
+          ? (store ? store.stillComments : t.stillComments)
+          : (store ? store.videoComments : t.videoComments);
 
-        // Schreiblogik (Upsert / Soft-Delete) liegt zentral im Repository.
-        const { row } = await saveVideoFeedbackSlot({
-          videoId,
-          slot,
-          text: value,
-          user: window.currentUser
-        });
+        const { row } = isStill
+          ? await saveStillFeedbackSlot({
+              videoId,
+              slot,
+              text: value,
+              user: window.currentUser
+            })
+          : await saveVideoFeedbackSlot({
+              videoId,
+              slot,
+              text: value,
+              user: window.currentUser
+            });
 
-        const nextComments = replaceVideoFeedbackBucket(commentsSource[videoId], slot.bucket, row ? [row] : []);
-        if (store) {
+        const nextComments = replaceVideoFeedbackBucket(commentsSource?.[videoId], slot.bucket, row ? [row] : []);
+        if (isStill) {
+          if (store) store.updateStillComments(videoId, nextComments);
+          else t.stillComments[videoId] = nextComments;
+        } else if (store) {
           store.updateVideoComments(videoId, nextComments);
         } else {
           t.videoComments[videoId] = nextComments;
         }
 
-        console.log(`✅ ${slot.label} ${row ? 'gespeichert (Upsert)' : 'geleert (Soft-Delete)'}`);
+        console.log(`✅ ${isStill ? 'Still-' : ''}${slot.label} ${row ? 'gespeichert (Upsert)' : 'geleert (Soft-Delete)'}`);
       } 
       else {
         if (entity === 'kooperation' && fieldName === 'vertrag_unterschrieben') {

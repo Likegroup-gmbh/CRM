@@ -136,6 +136,11 @@ describe('resolveStreamUrl – Temp-Link-Cache & Fallback', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('laesst SharePoint-Links unveraendert (kein raw=1)', async () => {
+    const url = 'https://contoso-my.sharepoint.com/:i:/g/personal/a/abc?e=xyz';
+    expect(await resolveStreamUrl({ file_path: null, file_url: url })).toBe(url);
+  });
+
   it('Fallback auf toRawDropboxUrl wenn kein file_path', async () => {
     const fetchMock = vi.fn();
     global.fetch = fetchMock;
@@ -407,6 +412,47 @@ describe('VideoAssetLoader – Versionen & Varianten', () => {
     expect(loader.applyDefaultSelection(assets, null)).toEqual({ selectedVersion: 1, selectedAssetId: 'a' });
     expect(loader.applyDefaultSelection(assets, null, { preferFinal: true }))
       .toEqual({ selectedVersion: 'final', selectedAssetId: 'f1' });
+  });
+});
+
+describe('VideoPlayerView – Bild-Stage bei nicht einbettbaren Links', () => {
+  function playerAtBild(image) {
+    const koops = [{ id: 'k1', name: 'Koop', _bilder: [image] }];
+    const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
+    const table = makeFakeTable(koops, videos);
+    const player = new VideoPlayerLightbox(table);
+    player.items = new MediaItemBuilder(table).build();
+    player.index = player.items.findIndex(it => it.type === 'bild');
+    player.loading = false;
+    return player;
+  }
+
+  it('zeigt Hinweis + Extern-oeffnen statt eines kaputten Bildes', () => {
+    const player = playerAtBild({
+      id: 'img1',
+      file_path: null,
+      file_url: 'https://contoso-my.sharepoint.com/:i:/g/personal/a/abc?e=xyz',
+    });
+    player.src = 'https://contoso-my.sharepoint.com/:i:/g/personal/a/abc?e=xyz';
+
+    document.body.innerHTML = player.view.renderStageInner();
+    expect(document.querySelector('img.vpl-image')).toBeNull();
+    expect(document.body.textContent).toContain('Vorschau nicht möglich');
+    const link = document.querySelector('a.media-viewer-fallback-link');
+    expect(link.getAttribute('href')).toContain('sharepoint.com');
+    expect(link.getAttribute('target')).toBe('_blank');
+  });
+
+  it('zeigt direkte Bild-URLs weiterhin als Bild', () => {
+    const player = playerAtBild({
+      id: 'img1',
+      file_path: null,
+      file_url: 'https://cdn.example.com/p.png',
+    });
+    player.src = 'https://cdn.example.com/p.png';
+
+    document.body.innerHTML = player.view.renderStageInner();
+    expect(document.querySelector('img.vpl-image')).not.toBeNull();
   });
 });
 

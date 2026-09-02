@@ -272,24 +272,6 @@ async function loadSwitchCaseOptions(entity, field, form) {
       break;
     }
 
-    case 'assignee_id': {
-      const { data: benutzer, error: benError } = await window.supabase
-        .from('benutzer')
-        .select('id, name')
-        .neq('rolle', 'kunde')
-        .order('name');
-
-      if (benError) {
-        console.error('❌ Fehler beim Laden der Benutzer:', benError);
-      } else if (benutzer) {
-        options = benutzer.map(b => ({
-          value: b.id,
-          label: b.name || 'Unbekannter Benutzer'
-        }));
-      }
-      break;
-    }
-
     case 'art_der_kampagne': {
       const { data: kampagneArtTypen, error: katError } = await window.supabase
         .from('kampagne_art_typen')

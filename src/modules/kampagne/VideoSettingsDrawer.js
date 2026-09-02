@@ -4,8 +4,11 @@ import {
   getAssetDisplayLabel,
   isExternalAsset,
   isDirectImageUrl,
+  toRawDropboxUrl,
+  FINAL_VARIANTS,
 } from '../../core/VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { promoteAssetToFinal, unmarkFinalSlot, markedSlotsForSource } from '../../core/PromoteFinalAsset.js';
 
 const DELETE_ICON = `${icon('trash-alt')}`;
 
@@ -33,7 +36,7 @@ export class VideoSettingsDrawer {
     this._expandedRounds = new Set();
   }
 
-  async open({ videoId, kooperationId, videoUrl, filePath, videoTitel, videos, onReupload, onStorysReupload, onBilderReupload, onDelete, onBilderChanged }) {
+  async open({ videoId, kooperationId, videoUrl, filePath, videoTitel, videos, onReupload, onStorysReupload, onBilderReupload, onDelete, onBilderChanged, onFinaleChanged, initialTab = 'videos' }) {
     this.videoId = videoId;
     this.kooperationId = kooperationId;
     this.videoUrl = videoUrl;
@@ -45,7 +48,8 @@ export class VideoSettingsDrawer {
     this.onBilderReupload = onBilderReupload;
     this.onDelete = onDelete;
     this.onBilderChanged = onBilderChanged || null;
-    this._activeTab = 'videos';
+    this.onFinaleChanged = onFinaleChanged || null;
+    this._activeTab = initialTab === 'bilder' ? 'bilder' : (initialTab === 'storys' ? 'storys' : 'videos');
     this._expandedRounds = new Set();
     this.assets = [];
     this.storyAssets = [];
@@ -58,7 +62,7 @@ export class VideoSettingsDrawer {
       const [videoResult, storyResult, bilderResult] = await Promise.allSettled([
         window.supabase
           .from('kooperation_video_asset')
-          .select('id, file_url, file_path, version_number, is_current, is_final, variant_name, created_at')
+          .select('id, video_id, file_url, file_path, version_number, is_current, is_final, variant_name, source_asset_id, created_at')
           .eq('video_id', this.videoId)
           .order('version_number', { ascending: true }),
         window.supabase
@@ -70,7 +74,7 @@ export class VideoSettingsDrawer {
         this.kooperationId
           ? window.supabase
               .from('kooperation_bilder_asset')
-              .select('id, video_id, file_url, file_path, file_name, file_size, created_at')
+              .select('id, kooperation_id, video_id, file_url, file_path, file_name, file_size, version_number, is_current, is_final, variant_name, source_asset_id, created_at')
               .eq('kooperation_id', this.kooperationId)
               .order('file_name', { ascending: true })
           : Promise.resolve({ data: [] }),
@@ -184,7 +188,7 @@ export class VideoSettingsDrawer {
       <div class="drawer-tab-nav">
         <button type="button" class="drawer-tab-btn ${this._activeTab === 'videos' ? 'active' : ''}" data-settings-tab="videos">Videos${videoCount ? ` (${videoCount})` : ''}</button>
         <button type="button" class="drawer-tab-btn ${this._activeTab === 'storys' ? 'active' : ''}" data-settings-tab="storys">Storys${storyCount ? ` (${storyCount})` : ''}</button>
-        <button type="button" class="drawer-tab-btn ${this._activeTab === 'bilder' ? 'active' : ''}" data-settings-tab="bilder">Bilder${bilderCount ? ` (${bilderCount})` : ''}</button>
+        <button type="button" class="drawer-tab-btn ${this._activeTab === 'bilder' ? 'active' : ''}" data-settings-tab="bilder">Stills${bilderCount ? ` (${bilderCount})` : ''}</button>
       </div>
     `;
   }
@@ -224,7 +228,7 @@ export class VideoSettingsDrawer {
 
   _renderAssetThumb(url) {
     if (!isDirectImageUrl(url)) return '';
-    return `<img src="${escapeHtml(url)}" alt="" class="settings-asset-thumb" loading="lazy" onerror="this.style.display='none'">`;
+    return `<img src="${escapeHtml(toRawDropboxUrl(url))}" alt="" class="settings-asset-thumb" loading="lazy" onerror="this.style.display='none'">`;
   }
 
   _renderExternalBadge(asset) {
@@ -240,7 +244,7 @@ export class VideoSettingsDrawer {
     return `Story ${story.slot_index}${name}`;
   }
 
-  _renderAccordionAssetRow(asset, { deleteBtnClass, showSize = false, showThumb = false }) {
+  _renderAccordionAssetRow(asset, { deleteBtnClass, showSize = false, showThumb = false, promoteKind = null }) {
     const url = asset.file_url || '';
     const label = getAssetDisplayLabel(asset);
     const uploadDate = this._formatUploadDate(asset.created_at);
@@ -250,6 +254,7 @@ export class VideoSettingsDrawer {
     const linkIcon = url
       ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="video-version-link-icon" title="Öffnen">${LINK_ICON}</a>`
       : '<span class="video-version-nofile">–</span>';
+    const promoteHtml = this._renderPromoteActions(asset, promoteKind);
 
     return `
       <div class="settings-accordion-file-row">
@@ -258,6 +263,7 @@ export class VideoSettingsDrawer {
           ${sizeMB ? `<span class="settings-file-size">${sizeMB}</span>` : ''}
           <span class="settings-file-date">${uploadDate}</span>
           <span class="settings-file-actions">
+            ${promoteHtml}
             ${linkIcon}
             <button type="button" class="${deleteBtnClass}" data-asset-id="${asset.id}" data-file-path="${escapeHtml(asset.file_path || '')}" title="Löschen">${DELETE_ICON}</button>
           </span>
@@ -266,6 +272,28 @@ export class VideoSettingsDrawer {
         ${showThumb ? this._renderAssetThumb(url) : ''}
       </div>
     `;
+  }
+
+  _renderPromoteActions(asset, kind) {
+    if (!kind || asset.is_final) return '';
+    const finals = kind === 'video'
+      ? this.assets.filter(a => a.is_final)
+      : this.bilderAssets.filter(a => a.is_final && a.video_id === asset.video_id);
+    const marked = markedSlotsForSource(finals, asset.id);
+    if (kind === 'still') {
+      const isMarked = marked.length > 0 || finals.some(f => f.source_asset_id === asset.id);
+      return isMarked
+        ? `<button type="button" class="promote-final-btn" data-kind="still" data-asset-id="${asset.id}" data-unmark="1" title="Finale Version aufheben">Final aufheben</button>`
+        : `<button type="button" class="promote-final-btn" data-kind="still" data-asset-id="${asset.id}" title="Als finale Version auswählen">Als final</button>`;
+    }
+    const buttons = FINAL_VARIANTS.map(slot => {
+      const on = marked.includes(slot);
+      const title = on
+        ? `Finale Version ${slot} aufheben`
+        : `Als finale Version auswählen (${slot})`;
+      return `<button type="button" class="promote-final-btn${on ? ' is-active' : ''}" data-kind="video" data-asset-id="${asset.id}" data-slot="${slot}" title="${title}" ${on ? 'data-unmark="1"' : ''}>${on ? `Final ${slot} ✓` : slot}</button>`;
+    }).join('');
+    return `<span class="promote-final-group"><span class="promote-final-label">Finale Version</span>${buttons}</span>`;
   }
 
   _renderLegacyVideoBlock() {
@@ -347,6 +375,7 @@ export class VideoSettingsDrawer {
         for (const asset of assets) {
           contentHtml += this._renderAccordionAssetRow(asset, {
             deleteBtnClass: 'video-version-delete-btn',
+            promoteKind: 'video',
           });
         }
 
@@ -511,12 +540,15 @@ export class VideoSettingsDrawer {
     const uploadDate = this._formatUploadDate(asset.created_at);
     const externalBadge = this._renderExternalBadge(asset);
 
+    const versionLabel = asset.is_final ? 'Finale' : `FS${asset.version_number || 1}`;
+    const promoteHtml = asset.is_final ? '' : this._renderPromoteActions(asset, 'still');
     let html = `<tr>
-      <td class="settings-asset-name">${escapeHtml(name)}${externalBadge}</td>
+      <td class="settings-asset-name">${escapeHtml(name)} · ${versionLabel}${externalBadge}</td>
       <td>${sizeMB}</td>
       <td class="u-text-center">${linkIcon}</td>
       <td>${uploadDate}</td>
       <td class="u-text-center">
+        ${promoteHtml}
         <button type="button" class="bilder-asset-delete-btn" data-asset-id="${asset.id}" data-file-path="${escapeHtml(asset.file_path || '')}" title="Löschen">${DELETE_ICON}</button>
       </td>
     </tr>`;
@@ -663,6 +695,54 @@ export class VideoSettingsDrawer {
       if (typeof this.onBilderReupload === 'function') {
         setTimeout(() => this.onBilderReupload(), 350);
       }
+    });
+
+    panel?.querySelectorAll('.promote-final-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const kind = btn.dataset.kind;
+        const assetId = btn.dataset.assetId;
+        const slot = btn.dataset.slot;
+        const unmark = btn.dataset.unmark === '1';
+        const source = kind === 'still'
+          ? {
+              ...this.bilderAssets.find(a => a.id === assetId),
+              video_id: (this.bilderAssets.find(a => a.id === assetId)?.video_id) || this.videoId,
+              kooperation_id: (this.bilderAssets.find(a => a.id === assetId)?.kooperation_id) || this.kooperationId,
+            }
+          : {
+              ...this.assets.find(a => a.id === assetId),
+              video_id: (this.assets.find(a => a.id === assetId)?.video_id) || this.videoId,
+            };
+        if (!source?.id) return;
+        btn.disabled = true;
+        try {
+          if (unmark) {
+            await unmarkFinalSlot(kind, source.video_id || this.videoId, slot || undefined);
+          } else {
+            await promoteAssetToFinal(kind, source, slot);
+          }
+          this.onFinaleChanged?.();
+          this.onBilderChanged?.();
+          await this.open({
+            videoId: this.videoId,
+            kooperationId: this.kooperationId,
+            videoUrl: this.videoUrl,
+            filePath: this.filePath,
+            videoTitel: this.videoTitel,
+            videos: this.videos,
+            onReupload: this.onReupload,
+            onStorysReupload: this.onStorysReupload,
+            onBilderReupload: this.onBilderReupload,
+            onDelete: this.onDelete,
+            onBilderChanged: this.onBilderChanged,
+            onFinaleChanged: this.onFinaleChanged,
+            initialTab: this._activeTab,
+          });
+        } catch (err) {
+          alert('Markieren fehlgeschlagen: ' + (err.message || 'Unbekannter Fehler'));
+          btn.disabled = false;
+        }
+      });
     });
 
     // Video version delete

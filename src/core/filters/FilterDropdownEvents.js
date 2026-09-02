@@ -124,7 +124,7 @@ export function positionDropdown(dropdown, toggle) {
 
 export function closeAllDropdowns() {
   document.querySelectorAll('.filter-dropdown.show').forEach(d => {
-    d.classList.remove('show');
+    d.classList.remove('show', 'filter-dropdown--side');
     d.style.position = '';
     d.style.right = '';
     d.style.left = '';
@@ -144,14 +144,27 @@ export function openDropdownAt(ctx, entityType, anchorEl) {
   if (!dropdown || !anchorEl) return;
 
   closeAllDropdowns();
-  dropdown.classList.add('show');
+  dropdown.classList.add('show', 'filter-dropdown--side');
   toggle?.setAttribute('aria-expanded', 'true');
 
+  // Panel klappt seitlich (links) vom Anker aus, statt die Leiste darunter
+  // zu ueberlagern – gleiches Muster wie das Sortierung-Submenu (right: 100%).
   const rect = anchorEl.getBoundingClientRect();
+  const gap = 8;
+  const panelWidth = dropdown.offsetWidth || 320;
+  const panelHeight = dropdown.offsetHeight || 0;
+  const right = Math.min(
+    Math.max(gap, window.innerWidth - rect.left + gap),
+    Math.max(gap, window.innerWidth - panelWidth - gap)
+  );
+  const top = panelHeight
+    ? Math.min(rect.top, Math.max(gap, window.innerHeight - panelHeight - gap))
+    : rect.top;
+
   dropdown.style.position = 'fixed';
-  dropdown.style.right = `${Math.max(8, window.innerWidth - rect.right)}px`;
+  dropdown.style.right = `${right}px`;
   dropdown.style.left = 'auto';
-  dropdown.style.top = `${rect.bottom + 8}px`;
+  dropdown.style.top = `${top}px`;
   dropdown.style.bottom = 'auto';
   dropdown.style.marginTop = '0';
 }

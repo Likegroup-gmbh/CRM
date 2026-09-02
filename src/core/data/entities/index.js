@@ -323,16 +323,14 @@ export const EntityRegistry = {
       go_live: 'date',
       unternehmen_id: 'uuid',
       marke_id: 'uuid',
-      assignee_id: 'uuid',
       created_at: 'date',
       updated_at: 'date'
     },
     relations: {
       unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' },
-      marke: { table: 'marke', foreignKey: 'marke_id', displayField: 'markenname' },
-      assignee: { table: 'benutzer', foreignKey: 'assignee_id', displayField: 'name' }
+      marke: { table: 'marke', foreignKey: 'marke_id', displayField: 'markenname' }
     },
-    filters: ['aktivierung_name', 'unternehmen_id', 'marke_id', 'bereich', 'is_draft', 'assignee_id', 'content_deadline', 'created_at'],
+    filters: ['aktivierung_name', 'unternehmen_id', 'marke_id', 'bereich', 'is_draft', 'content_deadline', 'created_at'],
     sortBy: 'created_at',
     sortOrder: 'desc'
   },
@@ -545,6 +543,50 @@ export const EntityRegistry = {
     filters: ['name', 'unternehmen_id'],
     sortBy: 'created_at',
     sortOrder: 'desc'
+  },
+  // Use Cases und Persona-Vorschlaege haengen am Produkt. Verwaltet werden
+  // sie vom ProduktPersonaService (Worksheet-Flush beim Produkt-Save) - die
+  // Registry-Eintraege ermoeglichen generischen Zugriff (Listen, Admin).
+  produkt_use_case: {
+    table: 'produkt_use_case',
+    displayField: 'name',
+    fields: {
+      name: 'string',
+      produkt_id: 'uuid',
+      beschreibung: 'string',
+      position: 'number',
+      created_at: 'date',
+      updated_at: 'date'
+    },
+    relations: {
+      produkt: { table: 'produkt', foreignKey: 'produkt_id', displayField: 'name' }
+    },
+    filters: ['name', 'produkt_id'],
+    sortBy: 'position',
+    sortOrder: 'asc'
+  },
+  produkt_persona_vorschlag: {
+    table: 'produkt_persona_vorschlag',
+    displayField: 'fit_grund',
+    fields: {
+      produkt_id: 'uuid',
+      typ: 'string',
+      status: 'string',
+      persona_id: 'uuid',
+      payload: 'jsonb',
+      fit_grund: 'string',
+      use_case_ids: 'array',
+      position: 'number',
+      created_at: 'date',
+      updated_at: 'date'
+    },
+    relations: {
+      produkt: { table: 'produkt', foreignKey: 'produkt_id', displayField: 'name' },
+      persona: { table: 'personas', foreignKey: 'persona_id', displayField: 'name' }
+    },
+    filters: ['produkt_id', 'persona_id', 'status'],
+    sortBy: 'position',
+    sortOrder: 'asc'
   },
   auftrag_teilrechnung: {
     table: 'auftrag_teilrechnung',
@@ -986,44 +1028,6 @@ export const EntityRegistry = {
     relations: {},
     manyToMany: {},
     filters: ['firmenname', 'stadt', 'land'],
-    sortBy: 'created_at',
-    sortOrder: 'desc'
-  },
-  marke_kickoff: {
-    table: 'marke_kickoff',
-    displayField: 'brand_essenz',
-    fields: {
-      kickoff_type: 'string',
-      marke_id: 'uuid',
-      unternehmen_id: 'uuid',
-      brand_essenz: 'string',
-      mission: 'string',
-      zielgruppe: 'string',
-      zielgruppen_mindset: 'string',
-      marken_usp: 'string',
-      tonalitaet_sprachstil: 'string',
-      content_charakter: 'string',
-      dos_donts: 'string',
-      rechtliche_leitplanken: 'string',
-      created_by: 'uuid',
-      created_at: 'date',
-      updated_at: 'date'
-    },
-    relations: {
-      marke: { table: 'marke', foreignKey: 'marke_id', displayField: 'markenname' },
-      unternehmen: { table: 'unternehmen', foreignKey: 'unternehmen_id', displayField: 'firmenname' },
-      created_by_user: { table: 'benutzer', foreignKey: 'created_by', displayField: 'name' }
-    },
-    manyToMany: {
-      markenwerte: {
-        table: 'markenwert_typen',
-        junctionTable: 'marke_kickoff_markenwerte',
-        localKey: 'kickoff_id',
-        foreignKey: 'markenwert_id',
-        displayField: 'name'
-      }
-    },
-    filters: ['marke_id', 'unternehmen_id'],
     sortBy: 'created_at',
     sortOrder: 'desc'
   }

@@ -1,6 +1,7 @@
 // GlobalSearch.js – globale Command-Palette-Suche (nur für Mitarbeiter/Admin)
 
 import { KampagneUtils } from '../../modules/kampagne/KampagneUtils.js';
+import { ProduktService } from '../../modules/produkt/ProduktService.js';
 import { icon } from '../icons/IconSystem.js';
 
 const SEARCH_LIMIT = 5;
@@ -58,9 +59,9 @@ const SEARCH_CONFIG = [
   {
     key: 'produkt',
     table: 'produkt',
-    // Produkte leben unter ihrem Unternehmen, es gibt keine eigene Detailroute
-    routeFields: ['unternehmen_id'],
-    buildRoute: (row) => (row.unternehmen_id ? `/unternehmen/${row.unternehmen_id}/produkt?produkt=${row.id}` : null),
+    // Listen-Detail: Herkunft bleibt die Produktliste, nicht das Unternehmen
+    routeFields: ['id'],
+    buildRoute: (row) => (row.id ? `/produkt/${row.id}` : null),
     labelField: 'name',
     searchFields: ['name', 'url', 'kurzbeschreibung', 'usp'],
     fieldLabels: { name: 'Name', url: 'Shop-URL', kurzbeschreibung: 'Kurzbeschreibung', usp: 'USP' },
@@ -277,11 +278,12 @@ export class GlobalSearch {
       ]);
 
       // Phase 2: Abgeleitete IDs parallel laden
-      const [ansprechpartnerIds, produktIds, rechnungIds] = await Promise.all([
+      const [ansprechpartnerIds, produktScope, rechnungIds] = await Promise.all([
         this._loadAllowedAnsprechpartnerIds(unternehmenIds, markenIds),
-        this._loadAllowedProduktIds(unternehmenIds, markenIds),
+        ProduktService.getAllowedProduktScopeForUser(window.currentUser?.id),
         this._loadAllowedRechnungIds(kampagneIds, unternehmenIds)
       ]);
+      const produktIds = produktScope?.all ? null : (produktScope?.produktIds || []);
 
       this._allowedIdsCache = {
         creator: null,          // Creators: keine Einschränkung
@@ -339,47 +341,6 @@ export class GlobalSearch {
       return [...ids];
     } catch (error) {
       console.warn('GlobalSearch: Fehler bei Ansprechpartner-IDs:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Produkt-IDs aus erlaubten Unternehmen und Marken laden.
-   * unternehmen_id ist der Besitzer, die Marken-Zuordnung steht in produkt_marke.
-   */
-  async _loadAllowedProduktIds(unternehmenIds, markenIds) {
-    try {
-      const ohneUnternehmenFilter = !Array.isArray(unternehmenIds);
-      const ohneMarkenFilter = !Array.isArray(markenIds);
-      if (ohneUnternehmenFilter && ohneMarkenFilter) return null; // keine Filterung
-
-      const ids = new Set();
-      const promises = [];
-
-      if (Array.isArray(unternehmenIds) && unternehmenIds.length > 0) {
-        promises.push(
-          window.supabase
-            .from('produkt')
-            .select('id')
-            .in('unternehmen_id', unternehmenIds)
-            .then(({ data }) => (data || []).forEach(r => ids.add(r.id)))
-        );
-      }
-
-      if (Array.isArray(markenIds) && markenIds.length > 0) {
-        promises.push(
-          window.supabase
-            .from('produkt_marke')
-            .select('produkt_id')
-            .in('marke_id', markenIds)
-            .then(({ data }) => (data || []).forEach(r => { if (r.produkt_id) ids.add(r.produkt_id); }))
-        );
-      }
-
-      await Promise.all(promises);
-      return [...ids];
-    } catch (error) {
-      console.warn('GlobalSearch: Fehler bei Produkt-IDs:', error);
       return [];
     }
   }

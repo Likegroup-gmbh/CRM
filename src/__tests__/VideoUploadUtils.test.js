@@ -7,6 +7,8 @@ import {
   getAssetDisplayLabel,
   isExternalAsset,
   isDirectImageUrl,
+  canPreviewImageAsset,
+  toRawDropboxUrl,
 } from '../core/VideoUploadUtils.js';
 
 describe('buildVersionedFileName', () => {
@@ -126,6 +128,13 @@ describe('getAssetDisplayLabel', () => {
   it('nutzt letztes Segment von file_path', () => {
     expect(getAssetDisplayLabel({ file_path: '/dropbox/foo/bar.mp4' })).toBe('bar.mp4');
   });
+
+  it('zeigt SharePoint-Tokens nicht als Dateiname', () => {
+    expect(getAssetDisplayLabel({
+      file_name: 'IQBnDyUIKgVkSoE4abcdefghijklmnopqrstuv',
+      file_url: 'https://relay-1518901-my.sharepoint.com/:i:/g/personal/x/IQBnDyUIKgVkSoE4',
+    })).toBe('Externer Link');
+  });
 });
 
 describe('isExternalAsset', () => {
@@ -145,5 +154,38 @@ describe('isDirectImageUrl', () => {
 
   it('lehnt Video-URLs ab', () => {
     expect(isDirectImageUrl('https://example.com/clip.mp4')).toBe(false);
+  });
+
+  it('lehnt SharePoint-Sharing-Links ab (keine Bilddatei)', () => {
+    expect(isDirectImageUrl('https://contoso-my.sharepoint.com/:i:/g/personal/a/abc')).toBe(false);
+  });
+});
+
+describe('canPreviewImageAsset', () => {
+  it('erlaubt Dropbox-Assets mit Pfad', () => {
+    expect(canPreviewImageAsset({ file_path: '/a/b.jpeg', file_url: null })).toBe(true);
+  });
+
+  it('erlaubt direkte Bild-URLs ohne Pfad', () => {
+    expect(canPreviewImageAsset({ file_path: null, file_url: 'https://cdn.example.com/p.png' })).toBe(true);
+  });
+
+  it('lehnt SharePoint-Sharing-Links ohne Pfad ab', () => {
+    expect(canPreviewImageAsset({
+      file_path: '',
+      file_url: 'https://contoso-my.sharepoint.com/:i:/g/personal/a/abc?e=xyz',
+    })).toBe(false);
+  });
+
+  it('lehnt leere Assets ab', () => {
+    expect(canPreviewImageAsset(null)).toBe(false);
+    expect(canPreviewImageAsset({})).toBe(false);
+  });
+});
+
+describe('toRawDropboxUrl', () => {
+  it('veraendert SharePoint-Links nicht', () => {
+    const url = 'https://contoso-my.sharepoint.com/:i:/g/personal/a/abc';
+    expect(toRawDropboxUrl(url)).toBe(url);
   });
 });

@@ -88,6 +88,9 @@ export class KampagneKooperationenVideoTable {
   get videoComments() { return this.store?.videoComments || this._videoComments || {}; }
   set videoComments(val) { if (this.store) this.store.setVideoComments(val); else this._videoComments = val; }
 
+  get stillComments() { return this.store?.stillComments || this._stillComments || {}; }
+  set stillComments(val) { if (this.store) this.store.setStillComments(val); else this._stillComments = val; }
+
   get versandInfos() { return this.store?.versandInfos || this._versandInfos || {}; }
   set versandInfos(val) { if (this.store) this.store.setVersandInfos(val); else this._versandInfos = val; }
 
@@ -231,16 +234,21 @@ export class KampagneKooperationenVideoTable {
   async loadColumnVisibilitySettings() { return this.dataLoader.loadColumnVisibilitySettings(); }
 
   async loadAssetsAndCommentsForVisible() {
+    // Stills gehoeren zur gleichen Nachlade-Runde wie die Video-Assets: laeuft
+    // parallel und ist selbst gegen Mehrfachladen abgesichert.
+    const bilderTask = this.dataLoader.loadBilderForVisible();
+
     const allVideoIds = Object.values(this.videos).flat().map(v => v.id);
-    if (allVideoIds.length === 0) return;
+    const unloaded = allVideoIds.length === 0
+      ? []
+      : (this.store ? this.store.getUnloadedVideoIds(allVideoIds) : allVideoIds);
 
-    const unloaded = this.store
-      ? this.store.getUnloadedVideoIds(allVideoIds)
-      : allVideoIds;
+    if (unloaded.length > 0) {
+      const result = await this.dataLoader.loadAssetsAndComments(unloaded);
+      if (this.store && result?.finalsOk !== false) this.store.markAssetsLoaded(unloaded);
+    }
 
-    if (unloaded.length === 0) return;
-    const result = await this.dataLoader.loadAssetsAndComments(unloaded);
-    if (this.store && result?.finalsOk !== false) this.store.markAssetsLoaded(unloaded);
+    await bilderTask;
   }
 
   // ========================================
@@ -279,7 +287,7 @@ export class KampagneKooperationenVideoTable {
 
   _openUploadDrawer(videoId, kooperationId, opts) { return this._drawerActions.openUploadDrawer(videoId, kooperationId, opts); }
   _openCustomUploadDrawer(btn) { return this._drawerActions.openCustomUploadDrawer(btn); }
-  _openSettingsDrawer(btn) { return this._drawerActions.openSettingsDrawer(btn); }
+  _openSettingsDrawer(btn, opts) { return this._drawerActions.openSettingsDrawer(btn, opts); }
   _openLinkStrategieDrawer(btn) { return this._drawerActions.openLinkStrategieDrawer(btn); }
   _openLinkSkriptDrawer(btn) { return this._drawerActions.openLinkSkriptDrawer(btn); }
   _reloadAfterStrategieLink() { return this._drawerActions.reloadAfterStrategieLink(); }

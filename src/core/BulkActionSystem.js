@@ -2,6 +2,7 @@
 // Generisches System für Bulk-Aktionen in allen Listen
 
 import { deleteUnternehmenCascade } from '../modules/unternehmen/services/UnternehmenDeleteService.js';
+import { ProduktService } from '../modules/produkt/ProduktService.js';
 
 export class BulkActionSystem {
   constructor() {
@@ -240,6 +241,35 @@ export class BulkActionSystem {
         return;
       }
 
+      if (entityType === 'produkt') {
+        let deletedCount = 0;
+        const errors = [];
+        for (const id of selectedIds) {
+          try {
+            await ProduktService.remove(id);
+            deletedCount++;
+          } catch (err) {
+            errors.push(err);
+            const row = document.querySelector(`tr[data-id="${id}"]`);
+            if (row) row.style.opacity = '1';
+          }
+        }
+        if (deletedCount > 0) {
+          selectedIds.forEach(id => document.querySelector(`tr[data-id="${id}"]`)?.remove());
+          window.toastSystem?.success(deletedCount === 1
+            ? 'Produkt erfolgreich gelöscht.'
+            : `${deletedCount} Produkte erfolgreich gelöscht.`);
+          this.genericDeselectAll();
+          window.dispatchEvent(new CustomEvent('entityUpdated', {
+            detail: { entity: 'produkt', action: 'bulk-deleted', count: deletedCount }
+          }));
+        }
+        if (errors.length && !deletedCount) {
+          window.toastSystem?.error('Produkte konnten nicht gelöscht werden.');
+        }
+        return;
+      }
+
       // Batch-Delete für bessere Performance
       const result = await window.dataService.deleteEntities(entityType, selectedIds);
       
@@ -350,6 +380,11 @@ export class BulkActionSystem {
         checkboxSelector: '.marke-check',
         selectAllId: 'select-all-marken',
         displayName: 'Marken'
+      },
+      produkt: {
+        checkboxSelector: '.produkt-check',
+        selectAllId: 'select-all-produkte',
+        displayName: 'Produkte'
       },
       auftrag: {
         checkboxSelector: '.auftrag-check',
