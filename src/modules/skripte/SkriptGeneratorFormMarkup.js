@@ -8,7 +8,7 @@ export function generatorFormMarkup(p) {
   return `
     <div class="skripte-card">
       <h3>Kontext auswählen</h3>
-      <p class="skripte-hint">Unternehmen wählen – Marke ist optional (nicht jedes Unternehmen hat eine). Kickoff und Produktdaten werden automatisch aus dem CRM gezogen; das Briefing wählst du unten.</p>
+      <p class="skripte-hint">Unternehmen wählen – Marke ist optional (nicht jedes Unternehmen hat eine). Produktdaten werden automatisch aus dem CRM gezogen; das Briefing wählst du unten.</p>
       <div class="skripte-form-grid">
         <div class="form-group">
           <label class="form-label">Unternehmen *</label>

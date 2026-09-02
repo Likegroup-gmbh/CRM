@@ -7,7 +7,7 @@
 import { escapeHtml } from '../SkripteUtils.js';
 import {
   AKTION_LABELS, AKTION_ICONS, AI_SELEKTION_AKTIONEN, FORMAT_AKTIONEN,
-  PLACEHOLDER_AKTION, PLACEHOLDER_DEFAULT
+    PLACEHOLDER_AKTION, PLACEHOLDER_DEFAULT
 } from './skriptEditorKonstanten.js';
 import { sektionAnzeige } from './skriptEditorVisuellHelfer.js';
 import { openFloatingMenu } from '../../../core/components/FloatingMenu.js';
@@ -94,6 +94,7 @@ export class SkriptEditorSelection {
       label: AKTION_LABELS[aktion],
       data: { aktion }
     }));
+    // Formatierung ganz oben im Menue
     if (formatierungItem) items.unshift(formatierungItem);
 
     openFloatingMenu({

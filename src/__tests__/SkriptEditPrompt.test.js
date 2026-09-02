@@ -23,8 +23,6 @@ function baseCtx(overrides = {}) {
     history: [],
     dna: [],
     briefing: overrides.briefing ?? null,
-    kickoff: overrides.kickoff ?? null,
-    feedback: [],
     modus: overrides.modus ?? null
   };
 }

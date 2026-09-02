@@ -3,7 +3,7 @@
 // Seam: oeffentliche API attach / flush / onSave – kein DOM-Interna der View.
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { SkriptInlineEdit } from '../modules/skripte/SkriptInlineEdit.js';
+import { InlineEdit } from '../core/components/InlineEdit.js';
 
 function zelle(feld, text = '') {
   const el = document.createElement('div');
@@ -25,7 +25,7 @@ function rootMitZellen(felder) {
   return root;
 }
 
-describe('SkriptInlineEdit', () => {
+describe('InlineEdit', () => {
   let root;
 
   afterEach(() => {
@@ -36,7 +36,7 @@ describe('SkriptInlineEdit', () => {
 
   it('attach macht Zellen contenteditable, leerer Hook bleibt leer', () => {
     root = rootMitZellen({ hook: '', hook_visuell: 'Shot' });
-    const edit = new SkriptInlineEdit();
+    const edit = new InlineEdit();
     edit.attach(root);
 
     const hook = root.querySelector('[data-feld="hook"]');
@@ -50,7 +50,7 @@ describe('SkriptInlineEdit', () => {
   it('Input + Blur mit Aenderung ruft onSave mit feld und text', async () => {
     const onSave = vi.fn().mockResolvedValue();
     root = rootMitZellen({ hook: 'Alt' });
-    const edit = new SkriptInlineEdit({ onSave });
+    const edit = new InlineEdit({ onSave });
     edit.attach(root);
 
     const hook = root.querySelector('[data-feld="hook"]');
@@ -65,7 +65,7 @@ describe('SkriptInlineEdit', () => {
   it('Blur ohne Aenderung ruft onSave nicht', () => {
     const onSave = vi.fn();
     root = rootMitZellen({ hook: 'Alt' });
-    const edit = new SkriptInlineEdit({ onSave });
+    const edit = new InlineEdit({ onSave });
     edit.attach(root);
 
     const hook = root.querySelector('[data-feld="hook"]');
@@ -76,7 +76,7 @@ describe('SkriptInlineEdit', () => {
 
   it('Paste fuegt nur Plaintext ein', () => {
     root = rootMitZellen({ hook: 'Hallo' });
-    const edit = new SkriptInlineEdit();
+    const edit = new InlineEdit();
     edit.attach(root);
 
     const hook = root.querySelector('[data-feld="hook"]');
@@ -93,7 +93,7 @@ describe('SkriptInlineEdit', () => {
   it('flush speichert ausstehende Aenderung sofort', async () => {
     const onSave = vi.fn().mockResolvedValue();
     root = rootMitZellen({ hook: 'Alt' });
-    const edit = new SkriptInlineEdit({ onSave });
+    const edit = new InlineEdit({ onSave });
     edit.attach(root);
 
     const hook = root.querySelector('[data-feld="hook"]');
@@ -103,5 +103,20 @@ describe('SkriptInlineEdit', () => {
 
     await edit.flush();
     expect(onSave).toHaveBeenCalledWith('hook', 'Neu', 'Alt');
+  });
+
+  it('isDirty ist true nach Input und false nach flush', async () => {
+    const onSave = vi.fn().mockResolvedValue();
+    root = rootMitZellen({ hook: 'Alt' });
+    const edit = new InlineEdit({ onSave });
+    edit.attach(root);
+
+    const hook = root.querySelector('[data-feld="hook"]');
+    hook.textContent = 'Neu';
+    hook.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(edit.isDirty('hook')).toBe(true);
+
+    await edit.flush();
+    expect(edit.isDirty('hook')).toBe(false);
   });
 });

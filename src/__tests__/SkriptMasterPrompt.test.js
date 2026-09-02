@@ -88,8 +88,6 @@ describe('buildEditPrompt Master-Dokument', () => {
       history: [],
       dna: [],
       briefing: null,
-      kickoff: null,
-      feedback: [],
       master: MASTER
     }, { aktion: 'chat', sektion: 'hook-paket', inhalt: 'Kuerzer' });
 
