@@ -505,6 +505,9 @@ export class ModuleRegistry {
           }
         } else {
           console.log(`👁️ Zeige Details für: ${segment}/${id}`);
+          if (segment === 'skripte') {
+            return module.init?.(effectiveId, action || null);
+          }
           return module.init?.(effectiveId);
         }
       } else {

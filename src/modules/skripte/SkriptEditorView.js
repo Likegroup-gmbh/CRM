@@ -22,7 +22,7 @@ import { revealLines, cancelLineReveal } from '../../core/animation/lineReveal.j
 import { skripteService } from './SkripteService.js';
 import { matchesKampagne } from './SkriptList.js';
 import { SkriptGeneratorForm } from './SkriptGeneratorForm.js';
-import { SkriptInlineEdit } from './SkriptInlineEdit.js';
+import { InlineEdit } from '../../core/components/InlineEdit.js';
 import { escapeHtml, formatDate, formatUsageCost, replaceSkriptUrl, skriptEditorPath } from './SkripteUtils.js';
 import {
   SEND_ICON, PLACEHOLDER_DEFAULT, PLACEHOLDER_NEU, PLACEHOLDER_FRAGEN
@@ -149,7 +149,7 @@ export class SkriptEditorView {
     this.pollInterval = null;
     this.onMouseUp = null;
     this.onDocMouseDown = null;
-    this.inlineEdit = new SkriptInlineEdit({
+    this.inlineEdit = new InlineEdit({
       // Grid-Zellen lesen Markdown-sicher (strong/em -> **/*), Master-Zellen
       // (--md) behalten das bisherige innerText-Verhalten (null = Default)
       lesen: (el) => (el.classList?.contains('skripte-editor-sektion-text--md')

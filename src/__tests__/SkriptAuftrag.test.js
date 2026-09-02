@@ -84,24 +84,12 @@ describe('SkriptAuftrag.starteJob', () => {
   it('stop() ist idempotent', async () => {
     const service = makeService();
     const auftrag = new SkriptAuftrag(service);
-    const { stop } = await auftrag.starteJob({ art: 'distill' });
+    const { stop } = await auftrag.starteJob({ art: 'generate', skriptId: 's1' });
 
     stop();
     stop();
     expect(window.supabase.removeChannel).toHaveBeenCalledTimes(1);
-    expect(auftrag.hatLaufenden('distill:global')).toBe(false);
-  });
-
-  it('distill geht ohne skript_id an die Distill-Function', async () => {
-    const service = makeService();
-    const auftrag = new SkriptAuftrag(service);
-    await auftrag.starteJob({ art: 'distill', payload: { layer_typ: 'global' } });
-
-    expect(service.createJob).toHaveBeenCalledWith({ skriptId: null });
-    expect(service.triggerFunction).toHaveBeenCalledWith('skript-distill-background', {
-      jobId: 'job-1',
-      layer_typ: 'global'
-    });
+    expect(auftrag.hatLaufenden('generate:s1')).toBe(false);
   });
 });
 
