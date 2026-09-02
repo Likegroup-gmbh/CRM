@@ -11,6 +11,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { UnternehmenService } from './services/UnternehmenService.js';
+import { MarkeService } from '../marke/services/MarkeService.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
 export class UnternehmenList extends BasePaginatedList {
@@ -34,6 +35,8 @@ export class UnternehmenList extends BasePaginatedList {
     // Erlaubte IDs für Nicht-Admins
     this._allowedUnternehmenIds = null;
     this._mitarbeiterQuickFilterOptions = [];
+    this._expandedIds = new Set();
+    this._unternehmenRows = [];
   }
 
   /**
@@ -245,11 +248,17 @@ export class UnternehmenList extends BasePaginatedList {
     const management = allMitarbeiter.filter(m => m.role === 'management');
     const leads = allMitarbeiter.filter(m => m.role === 'lead_mitarbeiter');
     const mitarbeiter = allMitarbeiter.filter(m => m.role === 'mitarbeiter');
+    const marken = u._marken || [];
+    const expanded = this._expandedIds.has(u.id);
+    const chevron = marken.length > 0
+      ? `<button type="button" class="unternehmen-marken-toggle" data-id="${u.id}" aria-expanded="${expanded ? 'true' : 'false'}" aria-label="Marken ${expanded ? 'einklappen' : 'aufklappen'}">${icon(expanded ? 'chevron-down' : 'chevron-right')}</button>`
+      : '';
     
     return `
       <tr data-id="${u.id}">
         ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="unternehmen-check" data-id="${u.id}"></td>` : ''}
         <td class="col-name">
+          ${chevron}
           ${u.logo_url ? `<img src="${u.logo_url}" class="table-logo" width="24" height="24" alt="" />` : ''}
           <a href="#" class="table-link" data-table="unternehmen" data-id="${u.id}">
             ${sanitize(u.internes_kuerzel || u.firmenname || '')}
@@ -371,6 +380,26 @@ export class UnternehmenList extends BasePaginatedList {
     }, { signal });
 
     document.addEventListener('click', (e) => {
+      const toggle = e.target.closest('.unternehmen-marken-toggle');
+      if (toggle) {
+        e.preventDefault();
+        e.stopPropagation();
+        const id = toggle.dataset.id;
+        if (!id) return;
+        if (this._expandedIds.has(id)) this._expandedIds.delete(id);
+        else this._expandedIds.add(id);
+        this._renderRows();
+        return;
+      }
+
+      const markeLink = e.target.closest('a.table-link[data-table="marke"]');
+      if (markeLink?.dataset.id) {
+        e.preventDefault();
+        window.navigateTo(`/marke/${markeLink.dataset.id}`);
+      }
+    }, { signal });
+
+    document.addEventListener('click', (e) => {
       const container = document.getElementById('unternehmen-mitarbeiter-filter-container');
       const dropdown = document.getElementById('mitarbeiter-quick-filter-dropdown');
       const toggleButton = document.getElementById('mitarbeiter-quick-filter-toggle');
@@ -440,19 +469,106 @@ export class UnternehmenList extends BasePaginatedList {
 
       // Kontakte und Mitarbeiter für alle Unternehmen laden
       const unternehmenIds = unternehmen.map(u => u.id).filter(Boolean);
-      const [apMap, mitarbeiterMap] = await Promise.all([
+      const [apMap, mitarbeiterMap, markenMap] = await Promise.all([
         this.loadAnsprechpartnerMap(unternehmenIds),
-        this.loadMitarbeiterMap(unternehmenIds)
+        this.loadMitarbeiterMap(unternehmenIds),
+        this.loadMarkenMap(unternehmenIds)
       ]);
 
-      // Daten an Unternehmen anhängen
+      let allowedMarkeIds = null;
+      if (!this.isAdmin) {
+        allowedMarkeIds = new Set(
+          await MarkeService.getAllowedMarkeIdsForUser(window.currentUser?.id) || []
+        );
+      }
+
       unternehmen.forEach(u => {
         u._ansprechpartner = apMap.get(u.id) || [];
         u._mitarbeiter = mitarbeiterMap.get(u.id) || [];
+        const marken = markenMap.get(u.id) || [];
+        u._marken = allowedMarkeIds
+          ? marken.filter(m => allowedMarkeIds.has(m.id))
+          : marken;
       });
 
-      tbody.innerHTML = unternehmen.map(u => this.renderSingleRow(u)).join('');
+      this._unternehmenRows = unternehmen;
+      this._renderRows();
     });
+  }
+
+  _renderRows() {
+    const tbody = document.querySelector(this.options.tbodySelector);
+    if (!tbody) return;
+    tbody.innerHTML = this._unternehmenRows.map(u => this.renderRowGroup(u)).join('');
+  }
+
+  renderRowGroup(u) {
+    const expanded = this._expandedIds.has(u.id);
+    const marken = expanded ? (u._marken || []) : [];
+    return this.renderSingleRow(u) + marken.map(m => this.renderNestedMarkeRow(m)).join('');
+  }
+
+  renderNestedMarkeRow(marke) {
+    const canBulkDelete = this.canBulkDelete;
+    const sanitize = this.sanitize.bind(this);
+    const name = sanitize(marke.markenname || '');
+    const avatar = marke.logo_url
+      ? `<img src="${marke.logo_url}" class="table-logo" width="24" height="24" alt="" />`
+      : `<span class="table-avatar">${(marke.markenname || '?')[0].toUpperCase()}</span>`;
+
+    return `
+      <tr class="nested-marke-row" data-id="${marke.id}" data-parent-id="${marke.unternehmen_id || ''}">
+        ${canBulkDelete ? `<td class="col-checkbox"></td>` : ''}
+        <td class="col-name col-name-with-icon" colspan="3">
+          ${avatar}
+          <a href="#" class="table-link" data-table="marke" data-id="${marke.id}">
+            ${name}
+          </a>
+        </td>
+        <td class="col-webseite table-cell-center">-</td>
+        <td>-</td>
+        <td>-</td>
+        <td class="col-mitarbeiter">-</td>
+        <td class="col-mitarbeiter">-</td>
+        <td class="col-mitarbeiter">-</td>
+        <td class="col-actions">-</td>
+      </tr>
+    `;
+  }
+
+  async loadMarkenMap(unternehmenIds) {
+    const map = new Map();
+    try {
+      if (!window.supabase || !Array.isArray(unternehmenIds) || unternehmenIds.length === 0) {
+        return map;
+      }
+
+      const { data, error } = await window.supabase
+        .from('marke')
+        .select('id, markenname, logo_url, webseite, unternehmen_id')
+        .in('unternehmen_id', unternehmenIds);
+
+      if (error) {
+        console.warn('⚠️ Konnte Marken nicht laden:', error);
+        return map;
+      }
+
+      (data || []).forEach(marke => {
+        if (!marke?.unternehmen_id) return;
+        const list = map.get(marke.unternehmen_id) || [];
+        list.push(marke);
+        map.set(marke.unternehmen_id, list);
+      });
+
+      for (const list of map.values()) {
+        list.sort((a, b) =>
+          (a.markenname || '').localeCompare(b.markenname || '', 'de', { sensitivity: 'base' })
+        );
+      }
+    } catch (e) {
+      console.warn('⚠️ loadMarkenMap Fehler:', e);
+    }
+    return map;
   }
   
   // ══════════════════════════════════════════════════════════════════════════
