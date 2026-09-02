@@ -35,6 +35,7 @@ export const ENTITY_ICONS = {
   listen: 'list-bullet',
   'creator-lists': 'list-bullet',
   shares: 'shared-list',
+  neuigkeiten: 'speaker-wave',
   tabellen: 'table-cells',
   feedback: 'chat-bubble',
   produkt: 'cube',

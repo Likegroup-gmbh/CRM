@@ -414,6 +414,12 @@ export class ModuleRegistry {
       module = this.modules.get(moduleKey);
       console.log(`🎯 Education-Artikel erkannt, verwende Modul: ${moduleKey}, slug: ${id}`);
     }
+
+    if (id && segment === 'neuigkeiten') {
+      moduleKey = 'neuigkeiten-detail';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Neuigkeit erkannt, verwende Modul: ${moduleKey}, slug: ${id}`);
+    }
     
     if (id && segment === 'ansprechpartner') {
       moduleKey = 'ansprechpartner-detail';
