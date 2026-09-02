@@ -161,7 +161,7 @@ export class TableSelect {
 
   closeAll() {
     document.querySelectorAll('.table-select__portal').forEach(p => p.remove());
-    document.querySelectorAll('.table-select.open').forEach(w => {
+    document.querySelectorAll('.table-select.show').forEach(w => {
       w.classList.remove('show');
       w.querySelector('.table-select__trigger')?.setAttribute('aria-expanded', 'false');
     });
