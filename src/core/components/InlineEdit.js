@@ -1,11 +1,11 @@
-// SkriptInlineEdit.js
-// Word-aehnliches Inline-Edit fuer Hook/Hauptteil/CTA + Visual-Zellen.
-// View bleibt Orchestrator; dieses Modul haengt contenteditable an
-// [data-feld]-Zellen und persistiert per onSave (Idle/Blur/Flush).
+// InlineEdit.js
+// Word-aehnliches Inline-Edit: haengt contenteditable an [data-feld]-Zellen
+// und persistiert per onSave (Idle/Blur/Flush). Fachlich ungebunden - Skript-
+// Editor, Strategie-Dokument und spaetere Seiten teilen sich diese Klasse.
 
 const IDLE_MS = 1000;
 
-export class SkriptInlineEdit {
+export class InlineEdit {
   constructor({ onChange, onSave, onInput, lesen } = {}) {
     this.onChange = onChange;
     this.onSave = onSave;
@@ -76,6 +76,10 @@ export class SkriptInlineEdit {
     return el?.dataset.feld || null;
   }
 
+  isDirty(feld) {
+    return this.dirty.has(feld);
+  }
+
   async flush() {
     if (this.timer) {
       clearTimeout(this.timer);
@@ -88,7 +92,7 @@ export class SkriptInlineEdit {
     }
   }
 
-  /** Nach externem Patch (z.B. Visual-Apply) den gespeicherten Stand angleichen. */
+  /** Nach externem Patch (z.B. Visual-Apply / KI-Realtime) den gespeicherten Stand angleichen. */
   syncSaved(feld, text) {
     this.saved.set(feld, text ?? '');
     this.dirty.delete(feld);

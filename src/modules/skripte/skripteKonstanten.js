@@ -1,13 +1,6 @@
 // skripteKonstanten.js
 // Konstanten des Skripte-Moduls (Labels, Funnel-Stufen, Video-Laengen, DNA-Layer).
 
-export const PERFORMANCE_LABELS = {
-  unbewertet: 'Unbewertet',
-  erfolgreich: 'Erfolgreich',
-  nicht_erfolgreich: 'Nicht erfolgreich',
-  viral: 'Viral'
-};
-
 export const FUNNEL_STUFEN = {
   top: 'Top (Awareness)',
   mid: 'Mid (Consideration)',
