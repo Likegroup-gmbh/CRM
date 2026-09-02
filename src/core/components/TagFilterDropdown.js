@@ -67,7 +67,7 @@ export class TagFilterDropdown {
         <button class="mdc-btn tag-filter-toggle mdc-btn--secondary ${hasActive ? ' tag-filter-active' : ''}" aria-expanded="false">
           ${icon('filter-alt')}
           <span class="tag-filter-label">${label}</span>
-          ${icon('chevron-down')}
+          <span class="tag-filter-chevron">${icon('chevron-down')}</span>
         </button>
         <div class="tag-filter-menu">
           ${hasActive ? `<button class="tag-filter-reset" data-tag-entity="${entityType}">Alle zurücksetzen</button>` : ''}

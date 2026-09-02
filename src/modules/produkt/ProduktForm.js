@@ -2,6 +2,7 @@
 // Eigene Seite zum Anlegen und Bearbeiten eines Produkts.
 // Routen: /marke/:markeId/produkt und /unternehmen/:unternehmenId/produkt
 //         (Bearbeiten jeweils mit ?produkt=:id)
+//         /produkt/new und /produkt/:id als Top-Level-Standalone
 //
 // Die Seite ist ein Worksheet: mittig ein Schreibdokument mit festen
 // Ueberschriften und frei beschreibbaren Abschnitten (ProduktDoc.js),
@@ -39,11 +40,16 @@ export class ProduktForm {
     return !!this.produktId;
   }
 
+  get isStandalone() {
+    return window.location.pathname.split('/').filter(Boolean)[0] === 'produkt';
+  }
+
   get returnRoute() {
-    return `${this.ctx.basePath}?tab=produkte`;
+    return this.isStandalone ? '/produkt' : `${this.ctx.basePath}?tab=produkte`;
   }
 
   get zeigtMarkenFeld() {
+    if (this.isStandalone) return true;
     return !this.ctx.markeId && this.ctx.markenAnzahl > 0;
   }
 
@@ -52,31 +58,61 @@ export class ProduktForm {
     this._abort = new AbortController();
 
     this.produktId = new URLSearchParams(window.location.search).get('produkt');
+    if (this.isStandalone) {
+      this.produktId = ownerId && ownerId !== 'new' ? ownerId : null;
+    }
     this.produkt = null;
     this.markenIds = [];
     this.varianten = [];
     this.bilder = [];
 
     try {
-      this.ctx = await resolveOwnerContext(ownerId);
-
-      if (this.produktId) {
-        this.produkt = await ProduktService.loadOne(this.produktId, this.ctx);
-        if (!this.produkt) {
-          window.toastSystem?.error?.('Produkt nicht gefunden');
-          window.navigateTo(this.returnRoute);
-          return;
+      if (this.isStandalone) {
+        if (this.produktId) {
+          this.produkt = await ProduktService.loadOne(this.produktId);
+          if (!this.produkt) {
+            window.toastSystem?.error?.('Produkt nicht gefunden');
+            window.navigateTo(this.returnRoute);
+            return;
+          }
+          [this.varianten, this.bilder, this.markenIds] = await Promise.all([
+            ProduktService.loadVarianten(this.produktId),
+            ProduktService.loadBilder(this.produktId),
+            ProduktService.loadMarkenIds(this.produktId)
+          ]);
         }
-        [this.varianten, this.bilder, this.markenIds] = await Promise.all([
-          ProduktService.loadVarianten(this.produktId),
-          ProduktService.loadBilder(this.produktId),
-          ProduktService.loadMarkenIds(this.produktId)
-        ]);
+        this.ctx = {
+          typ: 'produkt',
+          markeId: null,
+          unternehmenId: this.produkt?.unternehmen_id || null,
+          owner: null,
+          basePath: '/produkt',
+          listPath: '/produkt',
+          listLabel: 'Produkte',
+          ownerLabel: 'Übersicht',
+          markenAnzahl: 0
+        };
+      } else {
+        this.ctx = await resolveOwnerContext(ownerId);
+
+        if (this.produktId) {
+          this.produkt = await ProduktService.loadOne(this.produktId, this.ctx);
+          if (!this.produkt) {
+            window.toastSystem?.error?.('Produkt nicht gefunden');
+            window.navigateTo(this.returnRoute);
+            return;
+          }
+          [this.varianten, this.bilder, this.markenIds] = await Promise.all([
+            ProduktService.loadVarianten(this.produktId),
+            ProduktService.loadBilder(this.produktId),
+            ProduktService.loadMarkenIds(this.produktId)
+          ]);
+        }
       }
     } catch (err) {
       console.error('Produkt-Formular konnte nicht geladen werden:', err);
       window.ErrorHandler?.handle?.(err, 'ProduktForm.init');
-      window.navigateTo(this.ctx?.basePath || '/marke');
+      window.navigateTo(this.isStandalone ? '/produkt' : (this.ctx?.basePath || '/marke'));
       return;
     }
 
@@ -91,11 +127,17 @@ export class ProduktForm {
 
     window.setHeadline(title);
 
-    window.breadcrumbSystem?.updateBreadcrumb([
-      { label: this.ctx.listLabel, url: this.ctx.listPath, clickable: true },
-      { label: this.ctx.ownerLabel, url: this.returnRoute, clickable: true },
-      { label: this.isEdit ? ProduktService.label(this.produkt) : 'Produkt anlegen', clickable: false }
-    ]);
+    const crumbs = this.isStandalone
+      ? [
+          { label: 'Produkte', url: '/produkt', clickable: true },
+          { label: this.isEdit ? ProduktService.label(this.produkt) : 'Produkt anlegen', clickable: false }
+        ]
+      : [
+          { label: this.ctx.listLabel, url: this.ctx.listPath, clickable: true },
+          { label: this.ctx.ownerLabel, url: this.returnRoute, clickable: true },
+          { label: this.isEdit ? ProduktService.label(this.produkt) : 'Produkt anlegen', clickable: false }
+        ];
+    window.breadcrumbSystem?.updateBreadcrumb(crumbs);
 
     const formData = this.isEdit
       ? { ...this.produkt, marke_ids: this.markenIds, _isEditMode: true, _entityId: this.produkt.id }
@@ -103,11 +145,14 @@ export class ProduktForm {
 
     window.content.innerHTML = renderProduktDoc(formData, {
       mitMarkenFeld: this.zeigtMarkenFeld,
-      unternehmenId: this.ctx.unternehmenId
+      unternehmenId: this.ctx.unternehmenId,
+      standalone: this.isStandalone
     });
 
     const form = document.getElementById('produkt-form');
     bindProduktDoc(form, formData);
+
+    if (this.isStandalone) this.prepareStandalone(form);
 
     // Setzt unter anderem setupSiteExtract auf; der eigene Submit-Handler in
     // bindEvents() ersetzt danach den generischen.
@@ -124,6 +169,22 @@ export class ProduktForm {
 
     this.extractPanel = new ProduktExtractPanel();
     this.extractPanel.mount(form);
+  }
+
+  /**
+   * Standalone: Unternehmen ist ein sichtbares, pflichtiges Searchable-Select.
+   * Im Edit bleibt es readonly, damit das Produkt nicht zwischen Unternehmen
+   * wandert. Das Marken-Feld bleibt optional, der DirectQueryLoader filtert
+   * ueber filterBy automatisch.
+   */
+  prepareStandalone(form) {
+    if (!form || !this.isEdit) return;
+
+    const unternehmenField = form.querySelector('[name="unternehmen_id"]');
+    if (unternehmenField) {
+      unternehmenField.disabled = true;
+      unternehmenField.classList.add('is-readonly');
+    }
   }
 
   /**
@@ -273,7 +334,8 @@ export class ProduktForm {
 
     this.clearFieldErrors(form);
     const validation = window.validatorSystem.validateForm(data, {
-      name: { type: 'text', minLength: 2, required: true }
+      name: { type: 'text', minLength: 2, required: true },
+      ...(this.isStandalone ? { unternehmen_id: { required: true } } : {})
     });
     if (!validation.isValid) {
       this.showFieldErrors(form, validation.errors);
@@ -298,7 +360,8 @@ export class ProduktForm {
       if (this.isEdit) {
         await ProduktService.update(this.produktId, data);
       } else {
-        const result = await ProduktService.create(data, this.ctx);
+        const createCtx = this.isStandalone ? { unternehmenId: data.unternehmen_id } : this.ctx;
+        const result = await ProduktService.create(data, createCtx);
         produktId = result.id;
       }
 
@@ -321,6 +384,11 @@ export class ProduktForm {
    * Marke heraus kommt sie nur dazu. Sonst zaehlt genau die Auswahl im Tag-Feld.
    */
   collectMarkenIds(data) {
+    if (this.isStandalone) {
+      const werte = data.marke_ids;
+      if (Array.isArray(werte)) return werte;
+      return werte ? [werte] : [];
+    }
     if (!this.zeigtMarkenFeld) {
       return [...new Set([...this.markenIds, this.ctx.markeId].filter(Boolean))];
     }

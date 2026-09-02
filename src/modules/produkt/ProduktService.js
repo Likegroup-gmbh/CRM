@@ -42,6 +42,17 @@ const TABELLEN_SELECT = `
 export class ProduktService {
   // --- Lesen ---
 
+  /** Alle Produkte ueber alle Unternehmen, fuer die Top-Level-Liste. */
+  static async loadAll() {
+    const { data, error } = await window.supabase
+      .from('produkt')
+      .select(`*, unternehmen:unternehmen_id(id, firmenname, logo_url), ${MARKEN_SELECT}, ${TABELLEN_SELECT}`)
+      .order('name');
+
+    if (error) throw error;
+    return data || [];
+  }
+
   /** Produkte des Kontexts inklusive Varianten-IDs und Bildern fuer die Tabelle. */
   static async loadForContext({ unternehmenId = null, markeId = null } = {}) {
     let query = window.supabase.from('produkt');
@@ -62,7 +73,7 @@ export class ProduktService {
     return data || [];
   }
 
-  /** Laedt ein einzelnes Produkt. Der Kontext schuetzt gegen fremde Deeplinks. */
+  /** Laedt ein einzelnes Produkt. Im Standalone ohne Kontext, sonst schuetzt der Kontext gegen fremde Deeplinks. */
   static async loadOne(produktId, { unternehmenId = null, markeId = null } = {}) {
     let query = window.supabase.from('produkt');
 
@@ -70,8 +81,10 @@ export class ProduktService {
       query = query
         .select('*, treffer:produkt_marke!inner(marke_id)')
         .eq('treffer.marke_id', markeId);
-    } else {
+    } else if (unternehmenId) {
       query = query.select('*').eq('unternehmen_id', unternehmenId);
+    } else {
+      query = query.select('*');
     }
 
     const { data, error } = await query.eq('id', produktId).maybeSingle();

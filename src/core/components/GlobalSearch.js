@@ -69,6 +69,17 @@ const SEARCH_CONFIG = [
     permKey: 'produkt'
   },
   {
+    key: 'persona',
+    table: 'personas',
+    routePrefix: '/persona',
+    labelField: 'name',
+    searchFields: ['name', 'oberbegriff', 'beruf', 'wohnort_region', 'beschreibung'],
+    fieldLabels: { name: 'Name', oberbegriff: 'Oberbegriff', beruf: 'Beruf', wohnort_region: 'Region', beschreibung: 'Beschreibung' },
+    icon: 'icon-user',
+    category: 'Stammdaten',
+    permKey: 'persona'
+  },
+  {
     key: 'kampagne',
     table: 'kampagne',
     routePrefix: '/kampagne',

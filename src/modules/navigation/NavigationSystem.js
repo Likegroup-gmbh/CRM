@@ -27,6 +27,8 @@ export class NavigationSystem {
         title: 'Stammdaten',
         items: [
           { id: 'unternehmen', label: 'Unternehmen', icon: 'unternehmen', url: '/unternehmen' },
+          { id: 'persona', label: 'Personas', icon: 'persona', url: '/persona' },
+          { id: 'produkt', label: 'Produkte', icon: 'produkt', url: '/produkt' },
           { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'ansprechpartner', url: '/ansprechpartner' },
           {
             id: 'management',
@@ -51,7 +53,6 @@ export class NavigationSystem {
         items: [
           // Ausgeblendet, kommt später wieder:
           // { id: 'kickoff', label: 'Kick-Off', icon: 'kickoff', url: '/kickoff' },
-          // { id: 'produkt', label: 'Produkte', icon: 'produkt', url: '/produkt' },
           { id: 'briefing', label: 'Briefings', icon: 'briefing', url: '/briefing' },
           { id: 'strategie', label: 'Strategie', icon: 'strategie', url: '/strategie' },
           { id: 'sourcing', label: 'Sourcing', icon: 'sourcing', url: '/sourcing' },
@@ -71,6 +72,7 @@ export class NavigationSystem {
       {
         title: 'Admin',
         items: [
+          { id: 'stakeholder', label: 'Stakeholder', icon: 'stakeholder', url: '/stakeholder' },
           { id: 'mitarbeiter', label: 'Mitarbeiter', icon: 'mitarbeiter', url: '/mitarbeiter' },
           { id: 'kunden-admin', label: 'Kunden', icon: 'kunden-admin', url: '/admin/kunden' },
           { id: 'shares', label: 'Geteilte Listen', icon: 'shares', url: '/shares' },
@@ -123,6 +125,11 @@ export class NavigationSystem {
         return typeof window.isAdmin === 'function' && window.isAdmin();
       }
 
+      // Stakeholder-Uebersicht: nur Admins
+      if (id === 'stakeholder') {
+        return typeof window.isAdmin === 'function' && window.isAdmin();
+      }
+
       // 1) Page-Scoped Check (DB-Overrides)
       if (window.canViewPage && typeof window.canViewPage === 'function') {
         const allowed = window.canViewPage(id);
@@ -135,6 +142,7 @@ export class NavigationSystem {
         unternehmen: 'unternehmen',
         marke: 'marke',
         produkt: 'produkt',
+        persona: 'persona',
         auftrag: 'auftrag',
         'projekt-erstellen': 'auftrag',
         auftragsdetails: 'auftragsdetails',
@@ -160,7 +168,8 @@ export class NavigationSystem {
         tabellen: 'dashboard',
         feedback: 'feedback',
         contracts: 'contracts',
-        ausgangsrechnungen: 'auftrag'
+        ausgangsrechnungen: 'auftrag',
+        stakeholder: 'stakeholder'
       };
       
       const entity = map[id] || id;

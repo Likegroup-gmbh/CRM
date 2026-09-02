@@ -21,6 +21,19 @@ export const personaConfig = {
       sectionDescription: 'Eine Persona beschreibt einen Typ Mensch. Kampagnen, Briefings und Skripte greifen später auf diese Informationen zu.'
     },
     {
+      name: 'unternehmen_id',
+      label: 'Unternehmen',
+      type: 'select',
+      required: true,
+      dynamic: true,
+      searchable: true,
+      placeholder: 'Unternehmen suchen und auswählen...',
+      table: 'unternehmen',
+      displayField: 'firmenname',
+      valueField: 'id',
+      section: 'identitaet'
+    },
+    {
       name: 'name',
       label: 'Name / Kurzcharakter',
       type: 'text',
@@ -41,6 +54,7 @@ export const personaConfig = {
       displayField: 'markenname',
       valueField: 'id',
       filterBy: 'unternehmen_id',
+      dependsOn: 'unternehmen_id',
       relationTable: 'persona_marke',
       relationField: 'marke_id',
       relationEntityField: 'persona_id',

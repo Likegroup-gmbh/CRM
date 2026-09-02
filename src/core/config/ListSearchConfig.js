@@ -34,6 +34,9 @@ export const LIST_SEARCH_CONFIG = {
   produkt: {
     fields: ['name', 'url', 'kurzbeschreibung', 'usp']
   },
+  persona: {
+    fields: ['name', 'oberbegriff', 'beruf', 'wohnort_region']
+  },
   contracts: {
     fields: ['auftragsname', 'angebotsnummer', 'po', 'externe_po'],
     relations: [

@@ -42,7 +42,7 @@ describe('TableSelect', () => {
     trigger().click();
 
     expect(portal()).toBeNull();
-    expect(document.querySelector('.table-select.open')).toBeNull();
+    expect(document.querySelector('.table-select.show')).toBeNull();
   });
 
   it('feuert table-select-change mit Feld, Item und neuem Wert', () => {

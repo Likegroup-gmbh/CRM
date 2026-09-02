@@ -58,7 +58,9 @@ import { markeList } from './modules/marke/MarkeList.js';
 import { markeDetail } from './modules/marke/MarkeDetail.js';
 import { markeCreate } from './modules/marke/MarkeCreate.js';
 import { personaForm } from './modules/persona/PersonaForm.js';
+import { personaList } from './modules/persona/PersonaList.js';
 import { produktForm } from './modules/produkt/ProduktForm.js';
+import { produktList } from './modules/produkt/ProduktList.js';
 import { authService } from './modules/auth/AuthService.js';
 import { authUtils } from './modules/auth/AuthUtils.js';
 import { navigationSystem } from './modules/navigation/NavigationSystem.js';
@@ -161,8 +163,11 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('marke', markeList);
   moduleRegistry.register('marke-detail', markeDetail);
   moduleRegistry.register('marke-create', markeCreate);
-  // Ein Formular fuer beide Besitzer: /marke/:id/persona und /unternehmen/:id/persona
+  // Top-Level-Liste und ein Formular fuer beide Besitzer:
+  // /persona, /persona/new, /persona/:id sowie /marke/:id/persona und /unternehmen/:id/persona
+  moduleRegistry.register('persona', personaList);
   moduleRegistry.register('persona-form', personaForm);
+  moduleRegistry.register('produkt', produktList);
   moduleRegistry.register('produkt-form', produktForm);
   moduleRegistry.register('kickoff', kickOffList);
   moduleRegistry.register('kickoff-detail', kickOffDetail);

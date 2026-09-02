@@ -118,6 +118,27 @@ describe('PermissionSystem', () => {
       expect(ps.canViewPage('skripte')).toBe(true);
     });
 
+    it('Kunde hat kein Persona-Recht (RLS blockiert Schreiben)', () => {
+      ps.setUserPermissions(makeUser('kunde'));
+      expect(ps.checkPermission('persona', 'view')).toBe(false);
+      expect(ps.checkPermission('persona', 'edit')).toBe(false);
+      expect(ps.checkPermission('persona', 'delete')).toBe(false);
+    });
+
+    it('Mitarbeiter kann Personas voll verwalten', () => {
+      ps.setUserPermissions(makeUser('mitarbeiter'));
+      expect(ps.checkPermission('persona', 'view')).toBe(true);
+      expect(ps.checkPermission('persona', 'edit')).toBe(true);
+      expect(ps.checkPermission('persona', 'delete')).toBe(true);
+    });
+
+    it('Admin kann Personas voll verwalten', () => {
+      ps.setUserPermissions(makeUser('admin'));
+      expect(ps.checkPermission('persona', 'view')).toBe(true);
+      expect(ps.checkPermission('persona', 'edit')).toBe(true);
+      expect(ps.checkPermission('persona', 'delete')).toBe(true);
+    });
+
     it('kunde_editor hat identische Matrix wie kunde', () => {
       const psKunde = new PermissionSystem();
       psKunde.setUserPermissions(makeUser('kunde'));

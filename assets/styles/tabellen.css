@@ -2130,11 +2130,38 @@ width: 18em;
   max-width: 10em;
 }
 
-/* Stadt-Spalte (Unternehmensliste) - Breite anpassbar */
-.data-table--unternehmen th.col-stadt,
-.data-table--unternehmen td.col-stadt {
-  width: 12em;
-  
+.data-table.data-table--unternehmen {
+  table-layout: fixed;
+}
+
+.data-table.data-table--unternehmen th.col-name,
+.data-table.data-table--unternehmen td.col-name {
+  width: 16em;
+}
+
+.data-table.data-table--unternehmen th.col-stadt,
+.data-table.data-table--unternehmen td.col-stadt {
+  width: 10em;
+}
+
+.data-table.data-table--unternehmen th.col-land,
+.data-table.data-table--unternehmen td.col-land {
+  width: 8em;
+}
+
+.data-table.data-table--unternehmen th.col-webseite,
+.data-table.data-table--unternehmen td.col-webseite {
+  width: 6.5em;
+}
+
+.data-table.data-table--unternehmen th.col-branche,
+.data-table.data-table--unternehmen td.col-branche {
+  width: 11em;
+}
+
+.data-table.data-table--unternehmen th.col-ansprechpartner,
+.data-table.data-table--unternehmen td.col-ansprechpartner {
+  width: 9em;
 }
 
 .data-table--unternehmen .unternehmen-marken-toggle {
@@ -2152,12 +2179,24 @@ width: 18em;
   vertical-align: middle;
 }
 
+.data-table--unternehmen .unternehmen-marken-toggle .crm-icon {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  transition: transform 0.2s ease;
+}
+
+.data-table--unternehmen .unternehmen-marken-toggle[aria-expanded="true"] .crm-icon {
+  transform: rotate(180deg);
+}
+
 .data-table--unternehmen .nested-marke-row {
   background: var(--gray-50, rgba(0, 0, 0, 0.03));
 }
 
 .data-table--unternehmen .nested-marke-row .col-name {
   padding-left: 2rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .data-table--unternehmen .nested-marke-row.is-search-match {

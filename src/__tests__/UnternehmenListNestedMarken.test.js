@@ -64,9 +64,15 @@ describe('UnternehmenList – nested Marken', () => {
 
     const toggle = document.querySelector('.unternehmen-marken-toggle');
     expect(toggle).not.toBeNull();
+    expect(toggle.querySelector('use')?.getAttribute('href')).toBe('#crm-icon-chevron-down');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
     expect(document.body.textContent).not.toContain('Müller Bio');
 
     toggle.click();
+
+    const open = document.querySelector('.unternehmen-marken-toggle');
+    expect(open.getAttribute('aria-expanded')).toBe('true');
+    expect(open.querySelector('use')?.getAttribute('href')).toBe('#crm-icon-chevron-down');
 
     expect(document.body.textContent).toContain('Müller Bio');
     expect(document.body.textContent).toContain('Müller Kids');

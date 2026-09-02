@@ -45,11 +45,16 @@ const ICONS = {
  * @param {Object} [ctx]
  * @param {boolean} [ctx.mitMarkenFeld] - Marken-Multiselect zeigen (Unternehmens-Kontext)
  * @param {string|null} [ctx.unternehmenId] - Besitzer, geht als Hidden-Feld mit
+ * @param {boolean} [ctx.standalone] - Top-Level /produkt: Unternehmen ist ein sichtbares Select
  * @returns {string}
  */
-export function renderProduktDoc(data = null, { mitMarkenFeld = false, unternehmenId = null } = {}) {
+export function renderProduktDoc(data = null, { mitMarkenFeld = false, unternehmenId = null, standalone = false } = {}) {
   const fields = produktConfig.fields
-    .filter(f => mitMarkenFeld || f.docRole !== 'relations');
+    .filter(f => {
+      if (f.docRole === 'owner') return standalone;
+      if (f.docRole === 'relations') return mitMarkenFeld;
+      return true;
+    });
   const isEdit = !!data?._isEditMode;
 
   const sideFields = fields.filter(f => f.docSlot === 'side');
@@ -59,7 +64,7 @@ export function renderProduktDoc(data = null, { mitMarkenFeld = false, unternehm
     <form id="${FORM_ID}" class="produkt-doc" data-entity="produkt"
           data-entity-id="${attr(data?.id || data?._entityId || '')}"
           data-is-edit-mode="${isEdit ? 'true' : 'false'}">
-      <input type="hidden" name="unternehmen_id" value="${attr(unternehmenId || '')}">
+      ${standalone ? '' : `<input type="hidden" name="unternehmen_id" value="${attr(unternehmenId || '')}">`}
       <div class="produkt-doc__shell">
         <main class="produkt-doc__main">
           <div class="produkt-doc__scroll">
@@ -109,6 +114,11 @@ function renderDocFields(fields) {
 
     if (field.docRole === 'title') {
       push(renderTitle(field), field.docGroup);
+      return;
+    }
+
+    if (field.docRole === 'owner') {
+      push(renderOwnerSelect(field), field.docGroup);
       return;
     }
 
@@ -205,6 +215,23 @@ function renderInlineRow(first, rowFields) {
       <h3 class="produkt-doc__heading">${text(first.sectionTitle || 'Preis')}</h3>
       ${first.sectionDescription ? `<p class="produkt-doc__hint">${text(first.sectionDescription)}</p>` : ''}
       <div class="produkt-doc__price-cards">${cards}</div>
+    </section>
+  `;
+}
+
+function renderOwnerSelect(field) {
+  const id = `field-${field.name}`;
+  return `
+    <section class="form-field produkt-doc__section" data-doc-field="${attr(field.name)}">
+      <label for="${attr(id)}">${text(field.docLabel || field.label)}</label>
+      <select id="${attr(id)}" name="${attr(field.name)}" required
+              data-searchable="true"
+              data-placeholder="${attr(field.placeholder || 'Bitte wählen...')}"
+              data-table="${attr(field.table || '')}"
+              data-display-field="${attr(field.displayField || '')}"
+              data-value-field="${attr(field.valueField || 'id')}">
+        <option value="">${text(field.placeholder || 'Bitte wählen...')}</option>
+      </select>
     </section>
   `;
 }

@@ -709,6 +709,11 @@ input.input-error {
   transition: transform 0.15s ease;
 }
 
+.table-select__chevron .crm-icon {
+  width: 100%;
+  height: 100%;
+}
+
 .table-select.show .table-select__chevron {
   transform: rotate(180deg);
 }
@@ -1954,7 +1959,7 @@ width: 100%;
   height: var(--icon-xs);
   pointer-events: none;
   transition: transform 0.2s ease;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='m19.5 8.25-7.5 7.5-7.5-7.5'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke-width='1.5' stroke='%236b7280'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M18 9.00005C18 9.00005 13.5811 15 12 15C10.4188 15 6 9 6 9'/%3E%3C/svg%3E");
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
@@ -3892,6 +3897,14 @@ input.readonly-field {
   justify-content: center;
   padding: var(--space-xxs);
   border-radius: var(--radius-sm);
+}
+
+.bg-upload-toggle .crm-icon {
+  transition: transform 0.2s ease;
+}
+
+.bg-upload-toggle.is-collapsed .crm-icon {
+  transform: rotate(180deg);
 }
 
 .bg-upload-toggle:hover { background: var(--gray-100); color: var(--text-primary); }

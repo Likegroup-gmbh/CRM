@@ -6,15 +6,16 @@
 // abweichender Preis) haengen daran und werden im Panel rechts gepflegt,
 // siehe ProduktVarianten.js.
 //
-// unternehmen_id ist bewusst kein sichtbares Feld: der Besitzer kommt aus dem
-// Kontext und wird von ProduktForm als Hidden-Input eingehaengt. marke_ids
-// rendert nur im Unternehmens-Kontext - aus einer Marke heraus ist die
-// Zuordnung fix.
+// unternehmen_id ist im Nested-Flow ein Hidden-Feld aus dem Kontext. Im
+// Standalone (/produkt/new, /produkt/:id) ist es ein sichtbares Select
+// (docRole 'owner'). marke_ids rendert nur im Unternehmens-Kontext und im
+// Standalone - aus einer Marke heraus ist die Zuordnung fix.
 //
 // Die doc*-Angaben steuern das Worksheet-Layout in ProduktDoc.js:
 //   docSlot   'side' holt das Feld aus dem Dokument in die rechte Spalte
 //   docRole   'title' = Dokumenttitel, 'inline' = schmales Feld in einer Zeile,
 //             'uploader' = Tabelle, 'relations' = Tag-Multiselect,
+//             'owner' = Unternehmen-Select nur im Standalone,
 //             sonst frei beschreibbarer Textabschnitt
 //   docLabel  kuerzere Ueberschrift fuers Dokument, falls label zu technisch ist
 //   docHint   kurze Erlaeuterung unter dem Feld (nur bei docRole 'inline')
@@ -54,6 +55,21 @@ export const produktConfig = {
       section: 'basis',
       sectionTitle: 'Was ist das Produkt?',
       sectionDescription: 'Die Kollektion trägt die gemeinsame Basis. Unterschiede wie Farbe oder Modell kommen als Varianten dazu.'
+    },
+    {
+      name: 'unternehmen_id',
+      label: 'Unternehmen',
+      type: 'select',
+      required: true,
+      dynamic: true,
+      searchable: true,
+      placeholder: 'Unternehmen suchen und auswählen...',
+      table: 'unternehmen',
+      displayField: 'firmenname',
+      valueField: 'id',
+      docRole: 'owner',
+      docGroup: 'inhalt',
+      section: 'basis'
     },
     {
       name: 'marke_ids',
