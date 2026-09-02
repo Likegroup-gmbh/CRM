@@ -5,6 +5,7 @@
 import { icon } from '../../../core/icons/IconSystem.js';
 
 export const AKTION_LABELS = {
+  kommentieren: 'Kommentieren',
   neu_schreiben: 'Neu schreiben',
   kuerzen: 'Kürzen',
   laenger: 'Länger',
@@ -21,6 +22,7 @@ export const AKTION_LABELS = {
 };
 
 export const AKTION_ICONS = {
+  kommentieren: icon('chat-bubble-left-ellipsis'),
   neu_schreiben: icon('rewrite'),
   kuerzen: icon('shorten'),
   laenger: icon('lengthen'),
@@ -34,6 +36,9 @@ export const AKTION_ICONS = {
   kursiv: icon('italic'),
   kursiv_entfernen: icon('italic-off')
 };
+
+/** AI-Aktionen des Selektionsmenues (nur intern). "kommentieren" sehen alle. */
+export const AI_SELEKTION_AKTIONEN = ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton'];
 
 /** Format-Aktionen des Formatierung-Submenues -> Format ('bold'|'italic'). */
 export const FORMAT_AKTIONEN = {

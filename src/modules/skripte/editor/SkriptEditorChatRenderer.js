@@ -30,7 +30,7 @@ export function chatLeerHtml() {
   return `
     <div class="skripte-editor-chat-empty">
       <p>Noch kein Verlauf.</p>
-      <p class="skripte-hint">Markiere eine Stelle im Skript und wähle eine Aktion – oder schreib unten dein Feedback. Vorschläge kannst du hier annehmen oder ablehnen.</p>
+      <p class="skripte-hint">Markiere eine Stelle im Skript und wähle „Neu schreiben“, „Kürzen“ oder „Länger“ – oder schreib mir unten direkt eine Anweisung. Vorschläge kannst du hier annehmen oder ablehnen.</p>
     </div>
   `;
 }

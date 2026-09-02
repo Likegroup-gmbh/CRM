@@ -27,7 +27,6 @@ export class NavigationSystem {
         title: 'Stammdaten',
         items: [
           { id: 'unternehmen', label: 'Unternehmen', icon: 'unternehmen', url: '/unternehmen' },
-          { id: 'marke', label: 'Marken', icon: 'marke', url: '/marke' },
           { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'ansprechpartner', url: '/ansprechpartner' },
           {
             id: 'management',

@@ -1,10 +1,12 @@
 // SkriptEditorSelection.js
-// Selektions-Menue im Editor: Text markieren -> Hover-Menue mit Aktionen
-// (Neu schreiben, Kuerzen, ...), Chip ueber dem Chat-Input.
+// Selektions-Menue im Editor: Text markieren -> Hover-Menue mit Aktionen.
+// "Kommentieren" fuehrt ins Feedback-Panel und sehen alle; die AI-Aktionen
+// (Neu schreiben, Kuerzen, ...) sind intern und setzen den Chip ueber dem
+// Liky-Input.
 
 import { escapeHtml } from '../SkripteUtils.js';
 import {
-  AKTION_LABELS, AKTION_ICONS, FORMAT_AKTIONEN,
+  AKTION_LABELS, AKTION_ICONS, AI_SELEKTION_AKTIONEN, FORMAT_AKTIONEN,
   PLACEHOLDER_AKTION, PLACEHOLDER_DEFAULT
 } from './skriptEditorKonstanten.js';
 import { sektionAnzeige } from './skriptEditorVisuellHelfer.js';
@@ -54,7 +56,7 @@ export class SkriptEditorSelection {
     // jetzt sichern - nach einem Menue-Klick ist die DOM-Selektion evtl. weg.
     let formatierungItem = null;
     const istMasterZelle = start.classList.contains('skripte-editor-sektion-text--md');
-    if (!v.isReadonly && !istMasterZelle) {
+    if (v.kannAiAktionen && !istMasterZelle) {
       const raw = htmlToInlineMd(start);
       const { toRaw } = renderInlineMd(raw);
       const offsets = domSelectionToRaw(start, toRaw);
@@ -82,7 +84,11 @@ export class SkriptEditorSelection {
     if (modmenu) modmenu.hidden = true;
     v.closeVersionMenu();
 
-    const items = ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton', 'feedback'].map((aktion) => ({
+    const aktionen = v.kannAiAktionen
+      ? ['kommentieren', ...AI_SELEKTION_AKTIONEN]
+      : ['kommentieren'];
+
+    const items = aktionen.map((aktion) => ({
       id: aktion,
       iconHtml: AKTION_ICONS[aktion],
       label: AKTION_LABELS[aktion],
@@ -96,15 +102,24 @@ export class SkriptEditorSelection {
       wrap: v.container.querySelector('.skripte-editor'),
       layout: 'icon-label',
       items,
-      onSelect: (aktion) => {
-        if (FORMAT_AKTIONEN[aktion]) {
-          v.formatiereSelektion(aktion);
-          return;
-        }
-        if (aktion === 'feedback') v.openSektionsFeedback();
-        else this.setPendingAktion(aktion);
-      }
+      onSelect: (aktion) => this.onAktion(aktion)
     });
+  }
+
+  /** "Kommentieren" geht ins Feedback-Panel, Formatierung direkt an die
+   *  Zelle, alles andere in den Liky-Chat. */
+  onAktion(aktion) {
+    if (aktion === 'kommentieren') {
+      const selektion = this.view.selektion;
+      this.clearPending();
+      this.view.startNeuerKommentar(selektion);
+      return;
+    }
+    if (FORMAT_AKTIONEN[aktion]) {
+      this.view.formatiereSelektion(aktion);
+      return;
+    }
+    this.setPendingAktion(aktion);
   }
 
   /**
@@ -116,6 +131,8 @@ export class SkriptEditorSelection {
     if (!v.selektion) return;
     v.pendingAktion = aktion;
     window.getSelection()?.removeAllRanges();
+    // Der Chip haengt am Liky-Input - ohne offene Bubble sieht der User nichts
+    v.setLikyOffen(true);
     this.updateChip();
 
     const input = document.getElementById('ed-input');

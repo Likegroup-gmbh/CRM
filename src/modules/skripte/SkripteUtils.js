@@ -18,6 +18,40 @@ export function badge(text, variant = 'neutral') {
   return `<span class="skripte-badge skripte-badge--${variant}">${escapeHtml(text)}</span>`;
 }
 
+const RELATIVE_STUFEN = [
+  ['year', 365 * 24 * 60 * 60],
+  ['month', 30 * 24 * 60 * 60],
+  ['day', 24 * 60 * 60],
+  ['hour', 60 * 60],
+  ['minute', 60]
+];
+
+/** "Vor 4 Stunden" / "Gerade eben" fuer Feedback-Kommentare. */
+export function relativeZeit(iso) {
+  if (!iso) return '';
+  const sekunden = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+  if (!Number.isFinite(sekunden)) return '';
+  if (sekunden < 60) return 'Gerade eben';
+
+  const fmt = new Intl.RelativeTimeFormat('de-DE', { numeric: 'always' });
+  for (const [einheit, laenge] of RELATIVE_STUFEN) {
+    if (sekunden >= laenge) {
+      const wert = Math.floor(sekunden / laenge);
+      const text = fmt.format(-wert, einheit);
+      return text.charAt(0).toUpperCase() + text.slice(1);
+    }
+  }
+  return 'Gerade eben';
+}
+
+/** Initialen fuer den Avatar-Fallback, wenn kein Profilbild hinterlegt ist. */
+export function initialen(name) {
+  const teile = String(name || '').trim().split(/\s+/).filter(Boolean);
+  if (!teile.length) return '?';
+  if (teile.length === 1) return teile[0][0].toUpperCase();
+  return (teile[0][0] + teile[teile.length - 1][0]).toUpperCase();
+}
+
 export const STATUS_LABELS = {
   fragen: 'Rückfragen offen',
   entwurf: 'Entwurf',

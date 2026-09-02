@@ -391,7 +391,7 @@ export class MarkeCreate {
         
         // Kurz warten, dann zur Übersicht
         setTimeout(() => {
-          window.navigateTo('/marke');
+          window.navigateTo(result.id ? `/marke/${result.id}` : '/unternehmen');
         }, 1500);
       } else {
         throw new Error(result.error || 'Fehler beim Erstellen der Marke');
