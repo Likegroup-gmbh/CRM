@@ -4308,6 +4308,10 @@ h3.section-title,
   flex-shrink: 0;
 }
 
+.progress-actions .split-btn {
+  flex-shrink: 0;
+}
+
 .progress-actions button {
   display: inline-flex;
   align-items: center;
