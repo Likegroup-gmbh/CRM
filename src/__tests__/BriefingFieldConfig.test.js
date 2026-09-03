@@ -91,6 +91,13 @@ describe('Briefing fieldConfig Schema', () => {
     expect(required).toContain('unternehmen_id');
     expect(required).toContain('aktivierung_name');
   });
+
+  it('produkt_ids liegt in der Zuordnung, aber nicht in getAllFields (kein DB-Feld)', () => {
+    const masterFields = MASTER_STEPS.flatMap(s => s.sections.flatMap(sec => sec.fields));
+    const produktField = masterFields.find(f => f.name === 'produkt_ids');
+    expect(produktField).toMatchObject({ type: 'entityMulti', persist: false, table: 'produkt' });
+    expect(getAllFields().map(f => f.name)).not.toContain('produkt_ids');
+  });
 });
 
 describe('Briefing evaluateCondition', () => {

@@ -469,11 +469,17 @@ export const MASTER_STEPS = [
     sections: [
       {
         title: 'Zuordnung',
-        description: 'Fuer welches Unternehmen bzw. welche Marke ist das Briefing?',
+        description: 'Fuer welches Unternehmen, welche Marke und welche Produkte ist das Briefing?',
         fields: [
           { name: 'unternehmen_id', label: 'Unternehmen', type: 'entitySelect', table: 'unternehmen', displayField: 'firmenname', required: true, placeholder: 'Unternehmen auswaehlen...' },
           { name: 'marke_id', label: 'Marke (optional)', type: 'entitySelect', table: 'marke', displayField: 'markenname', dependsOn: 'unternehmen_id', placeholder: 'Marke auswaehlen...' },
-          { name: 'assignee_id', label: 'Zugewiesen an (optional)', type: 'entitySelect', table: 'benutzer', displayField: 'name', placeholder: 'Mitarbeiter auswaehlen...' }
+          { name: 'assignee_id', label: 'Zugewiesen an (optional)', type: 'entitySelect', table: 'benutzer', displayField: 'name', placeholder: 'Mitarbeiter auswaehlen...' },
+          {
+            name: 'produkt_ids', label: 'Produkte (optional)', type: 'entityMulti',
+            table: 'produkt', displayField: 'name', persist: false, dependsOn: 'unternehmen_id',
+            placeholder: 'Produkte suchen und hinzufügen...',
+            helper: 'Ein oder mehrere Produkte, auf die sich das Briefing bezieht.'
+          }
         ]
       },
       {
@@ -824,7 +830,7 @@ export function getAllFields() {
   const fields = [];
   for (const step of [...MASTER_STEPS, ...Object.values(MODULE_STEPS).flat()]) {
     for (const section of step.sections) {
-      fields.push(...section.fields);
+      fields.push(...section.fields.filter(f => f.persist !== false));
     }
   }
   return fields;

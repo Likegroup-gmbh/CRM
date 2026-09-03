@@ -14,10 +14,39 @@ function createInstance() {
   return instance;
 }
 
-function mockSupabase({ row = null } = {}) {
-  const calls = { insert: [], update: [] };
+function mockSupabase({ row = null, produkte = [] } = {}) {
+  const calls = { insert: [], update: [], junctionInsert: [], junctionDelete: 0 };
   const sb = {
     from: vi.fn((table) => {
+      if (table === 'campaign_briefing_produkt') {
+        return {
+          delete: vi.fn(() => ({
+            eq: vi.fn(async () => {
+              calls.junctionDelete += 1;
+              return { error: null };
+            })
+          })),
+          insert: vi.fn(async (rows) => {
+            calls.junctionInsert.push(rows);
+            return { error: null };
+          }),
+          select: vi.fn(() => ({
+            eq: vi.fn(async () => ({
+              data: produkte.map(p => ({ produkt_id: p.id, produkt: p })),
+              error: null
+            }))
+          }))
+        };
+      }
+      if (table === 'produkt') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              order: vi.fn(async () => ({ data: [], error: null }))
+            }))
+          }))
+        };
+      }
       expect(table).toBe('campaign_briefings');
       return {
         insert: vi.fn((rows) => {
@@ -99,6 +128,42 @@ describe('Briefing DataPersistence', () => {
     expect(instance.formData.im_channels).toEqual({ instagram: ['reel'] });
     expect(instance.formData.im_kpis).toEqual([{ kpi: 'reichweite', zielwert: '100k' }]);
     expect(instance.formData.bereich).toBe('influencer_marketing');
+  });
+
+  it('saveCurrentStepData sammelt produkt_ids aus der Multi-Auswahl', () => {
+    document.body.innerHTML = `
+      <form id="briefing-form">
+        <div data-entity-multi="produkt_ids">
+          <select id="produkt_ids" name="produkt_ids" multiple>
+            <option value="p1" selected>Serum</option>
+            <option value="p2">Creme</option>
+            <option value="p3" selected>Toner</option>
+          </select>
+        </div>
+      </form>
+    `;
+
+    const instance = createInstance();
+    instance.saveCurrentStepData();
+    expect(instance.formData.produkt_ids).toEqual(['p1', 'p3']);
+  });
+
+  it('saveCurrentStepData liest produkt_ids aus dem Hidden-Select des Tag-Widgets', () => {
+    document.body.innerHTML = `
+      <form id="briefing-form">
+        <div data-entity-multi="produkt_ids">
+          <input type="text" id="produkt_ids" name="produkt_ids">
+          <select id="produkt_ids_hidden" name="produkt_ids[]" multiple>
+            <option value="p1" selected>Serum</option>
+            <option value="p3" selected>Toner</option>
+          </select>
+        </div>
+      </form>
+    `;
+
+    const instance = createInstance();
+    instance.saveCurrentStepData();
+    expect(instance.formData.produkt_ids).toEqual(['p1', 'p3']);
   });
 
   it('prepareDataForDB leert Felder mit nicht erfuellter Condition', () => {
@@ -187,14 +252,20 @@ describe('Briefing DataPersistence', () => {
     window.supabase = sb;
 
     const instance = createInstance();
-    instance.formData = { unternehmen_id: 'u1', aktivierung_name: 'Draft' };
+    instance.formData = { unternehmen_id: 'u1', aktivierung_name: 'Draft', produkt_ids: ['p1', 'p2'] };
 
     await instance.saveDraftToDB();
 
     expect(calls.insert.length).toBe(1);
     expect(calls.insert[0].is_draft).toBe(true);
     expect(calls.insert[0].aktivierung_name).toBe('Draft');
+    expect(calls.insert[0]).not.toHaveProperty('produkt_ids');
     expect(instance.editId).toBe('briefing-1');
+    expect(calls.junctionDelete).toBe(1);
+    expect(calls.junctionInsert[0]).toEqual([
+      { briefing_id: 'briefing-1', produkt_id: 'p1' },
+      { briefing_id: 'briefing-1', produkt_id: 'p2' }
+    ]);
     vi.useRealTimers();
   });
 
@@ -242,7 +313,7 @@ describe('Briefing DataPersistence', () => {
       pa_objectives: ['sales'],
       im_funnel_stufen: null
     };
-    const { sb } = mockSupabase({ row });
+    const { sb } = mockSupabase({ row, produkte: [{ id: 'p1', name: 'Serum' }] });
     window.supabase = sb;
 
     const instance = new BriefingCreate();
@@ -256,5 +327,6 @@ describe('Briefing DataPersistence', () => {
     // null-Spalten landen nicht in formData
     expect(instance.formData).not.toHaveProperty('im_funnel_stufen');
     expect(instance.formData.marke_id).toBe('m1');
+    expect(instance.formData.produkt_ids).toEqual(['p1']);
   });
 });
