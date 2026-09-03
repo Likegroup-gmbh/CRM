@@ -137,10 +137,14 @@ VertraegeCreate.prototype.prepareDataForDB = function() {
         mindest_online_dauer: this.formData.mindest_online_dauer || null,
         
         // Anpassungen
-        anpassungen: this.formData.anpassungen || [],
+        anpassungen: this.formData.anpassungen || []
+      });
 
-        // Awareness-spezifische Felder als JSONB (nur beim BURGA-Awareness-Template genutzt)
-        awareness_felder: {
+      // Awareness-Felder NUR beim BURGA-Awareness-Template mitschicken.
+      // Bei Standard-Vertraegen wuerde das Insert sonst fehlschlagen, wenn die
+      // Spalte awareness_felder in der DB (noch) nicht existiert.
+      if (this.formData.vertrag_template === 'awareness') {
+        data.awareness_felder = {
           vertrag_datum: this.formData.vertrag_datum || null,
           ansprechpartner_email: this.formData.ansprechpartner_email || null,
           video_mindestlaenge_sekunden: parseInt(this.formData.video_mindestlaenge_sekunden) || null,
@@ -154,8 +158,8 @@ VertraegeCreate.prototype.prepareDataForDB = function() {
           kuendigungsfrist_tage: parseInt(this.formData.kuendigungsfrist_tage) || 30,
           influencer_reg_code: this.formData.influencer_reg_code || null,
           influencer_ust_id: this.formData.influencer_ust_id || null
-        }
-      });
+        };
+      }
     } else if (typ === 'Videograph') {
       // Videograf-spezifische Felder
       Object.assign(data, {

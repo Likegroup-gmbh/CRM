@@ -279,7 +279,8 @@
 
 /* Portal: am body angehängt, fixed positioniert */
 
-.actions-dropdown-portal {
+.actions-dropdown-portal,
+.split-btn__menu-portal {
   position: fixed;
   background: white;
   border: 1px solid var(--border-primary);
@@ -293,9 +294,23 @@
   transition: opacity 150ms ease, transform 150ms ease;
 }
 
-.actions-dropdown-portal.show {
+.actions-dropdown-portal.show,
+.split-btn__menu-portal.show {
   opacity: 1;
   transform: scale(1);
+}
+
+.split-btn__menu-portal .action-item {
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+
+.split-btn__menu-portal .action-item.is-active {
+  background: var(--gray-50);
 }
 
 /* Submenu Styles */
