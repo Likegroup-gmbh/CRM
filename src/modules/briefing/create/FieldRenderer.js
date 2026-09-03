@@ -341,6 +341,37 @@ function renderRepeatableUpload(field, formData) {
   `;
 }
 
+function renderEntityMulti(field, formData, context) {
+  const selected = Array.isArray(formData[field.name]) ? formData[field.name] : [];
+  let options = context?.[field.table] || [];
+  let disabled = false;
+  let placeholder = field.placeholder || 'Suchen und hinzufügen...';
+
+  if (field.dependsOn && !formData[field.dependsOn]) {
+    options = [];
+    disabled = true;
+    placeholder = 'Bitte zuerst Unternehmen waehlen...';
+  }
+
+  const opts = options.map(o => `
+    <option value="${escapeHtml(o.id)}" ${selected.includes(o.id) ? 'selected' : ''}>${escapeHtml(o[field.displayField] || o.id)}</option>
+  `).join('');
+
+  return `
+    <div class="form-field" data-entity-multi="${escapeHtml(field.name)}">
+      ${renderLabel(field)}
+      <select id="${escapeHtml(field.name)}" name="${escapeHtml(field.name)}" multiple
+              data-searchable="true" data-tag-based="true"
+              data-placeholder="${escapeHtml(placeholder)}"
+              ${field.dependsOn ? `data-depends-on="${escapeHtml(field.dependsOn)}"` : ''}
+              ${disabled ? 'disabled' : ''}>
+        ${opts}
+      </select>
+      ${renderHelper(field)}
+    </div>
+  `;
+}
+
 // Entity-Select (Unternehmen/Marke/Benutzer), Optionen kommen aus context
 function renderEntitySelect(field, formData, context) {
   const current = formData[field.name] ?? '';
@@ -398,6 +429,7 @@ export function renderField(field, formData, context) {
     case 'repeatableText': html = renderRepeatableText(field, formData); break;
     case 'repeatableUpload': html = renderRepeatableUpload(field, formData); break;
     case 'entitySelect': html = renderEntitySelect(field, formData, context); break;
+    case 'entityMulti': html = renderEntityMulti(field, formData, context); break;
     default: html = renderTextLike(field, formData, 'text');
   }
   return wrapConditional(html, field.condition, formData);

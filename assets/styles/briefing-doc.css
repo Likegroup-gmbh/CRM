@@ -1,0 +1,199 @@
+/* ============================================================
+   Briefing-Dokument (Read-only Detail)
+   Zentriertes Paper: Hero, Callout, Prosa, Specs-Tabelle.
+   Tokens ausschliesslich aus variables.css.
+   ============================================================ */
+
+.briefing-doc {
+  max-width: 48rem;
+  width: 100%;
+  margin: 0 auto;
+  padding-top: var(--space-lg);
+  padding-bottom: var(--space-xxl);
+}
+
+.briefing-doc__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.briefing-doc__hero {
+  padding-bottom: var(--space-lg);
+  margin-bottom: var(--space-lg);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+}
+
+.briefing-doc__badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+}
+
+.briefing-doc__products {
+  margin: 0 0 var(--space-sm);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.briefing-doc__title {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--text-xxxl);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--text-primary);
+}
+
+.briefing-doc__subtitle {
+  margin: 0 0 var(--space-md);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.briefing-doc__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md) var(--space-lg);
+}
+
+.briefing-doc__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.briefing-doc__chip-icon {
+  color: var(--text-tertiary);
+}
+
+.briefing-doc__hint {
+  margin: 0 0 var(--space-lg);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.briefing-doc__callout {
+  margin: 0 0 var(--space-xl);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--gray-50);
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-md);
+}
+
+.briefing-doc__kicker {
+  margin: 0 0 var(--space-xs);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.briefing-doc__callout-text {
+  font-size: var(--text-md);
+  line-height: 1.55;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.briefing-doc__section {
+  margin: 0 0 var(--space-xl);
+  padding-bottom: var(--space-xl);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+}
+
+.briefing-doc__section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.briefing-doc__heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin: 0 0 var(--space-md);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.briefing-doc__section-icon {
+  color: var(--text-tertiary);
+}
+
+.briefing-doc__prose {
+  margin: 0 0 var(--space-md);
+  font-size: var(--text-md);
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.briefing-doc__prose:last-child {
+  margin-bottom: 0;
+}
+
+.briefing-doc__specs {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.briefing-doc__specs th,
+.briefing-doc__specs td {
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+  vertical-align: top;
+  text-align: left;
+}
+
+.briefing-doc__specs tr:last-child th,
+.briefing-doc__specs tr:last-child td {
+  border-bottom: none;
+}
+
+.briefing-doc__specs th {
+  width: 38%;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.briefing-doc__specs td {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.briefing-doc__specs .tag {
+  margin: 0 var(--space-xxs) var(--space-xxs) 0;
+}
+
+@media (max-width: 768px) {
+  .briefing-doc__title {
+    font-size: var(--text-xxl);
+  }
+
+  .briefing-doc__specs th,
+  .briefing-doc__specs td {
+    display: block;
+    width: 100%;
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  .briefing-doc__specs th {
+    padding-bottom: var(--space-xxs);
+  }
+
+  .briefing-doc__specs td {
+    padding-top: var(--space-xxs);
+  }
+}
