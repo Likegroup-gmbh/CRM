@@ -4,6 +4,8 @@
 
 import { VertraegeCreate } from './VertraegeCreateCore.js';
 import { KampagneUtils } from '../../kampagne/KampagneUtils.js';
+import { splitButton } from '../../../core/components/SplitButton.js';
+import { SplitButtonConfig } from '../../../core/components/SplitButtonConfig.js';
 
 VertraegeCreate.prototype.bindMultistepEvents = function() {
     const cancelBtn = document.getElementById('btn-cancel');
@@ -11,7 +13,6 @@ VertraegeCreate.prototype.bindMultistepEvents = function() {
     const nextBtn = document.getElementById('btn-next');
     const submitBtn = document.getElementById('btn-submit');
     const saveDraftBtn = document.getElementById('btn-save-draft');
-    const languageButtons = document.querySelectorAll('[data-contract-lang]');
 
     // Abbrechen
     if (cancelBtn) {
@@ -61,7 +62,7 @@ VertraegeCreate.prototype.bindMultistepEvents = function() {
     }
     
     // Submit (Vertrag erstellen)
-    if (submitBtn) {
+    if (submitBtn && !submitBtn.closest('.split-btn')) {
       submitBtn.addEventListener('click', async () => {
         if (this.validateCurrentStep()) {
           this.saveCurrentStepData();
@@ -70,34 +71,63 @@ VertraegeCreate.prototype.bindMultistepEvents = function() {
       });
     }
 
-    // Submit und Neu (gleiche Daten behalten)
-    const submitAndNewBtn = document.getElementById('btn-submit-and-new');
-    if (submitAndNewBtn) {
-      submitAndNewBtn.addEventListener('click', async () => {
-        if (this.validateCurrentStep()) {
-          this.saveCurrentStepData();
-          await this.handleSubmit(null, true); // true = startNewAfter
-        }
-      });
-    }
+    const configId = this.getSubmitConfigId();
+    splitButton.setHandler(configId, async (item) => {
+      const action = item?.data?.action;
+      if (action === 'draft') {
+        this.saveCurrentStepData();
+        await this.saveDraftToDB();
+        return;
+      }
+      if (!this.validateCurrentStep()) return;
+      this.saveCurrentStepData();
+      let data = item?.data || {};
+      if (action === 'submit-and-new') {
+        const selectedId = document.querySelector(`.split-btn[data-split-config="${configId}"]`)?.dataset.splitSelected;
+        data = SplitButtonConfig.getItem(configId, selectedId)?.data || {};
+      }
+      this.formData.vertragssprache = data.lang === 'en' ? 'en' : 'de';
+      this.formData.vertrag_template = data.template || 'legacy';
+      if (this.selectedTyp === 'UGC') {
+        this.formData.ugc_pdf_variant = action === 'submit-and-new'
+          ? (document.querySelector(`.split-btn[data-split-config="${configId}"]`)?.dataset.splitSelected || 'legacy-de')
+          : item.id;
+      }
+      await this.handleSubmit(null, action === 'submit-and-new');
+    });
 
-    if (languageButtons.length > 0) {
-      languageButtons.forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const lang = btn.dataset.contractLang === 'en' ? 'en' : 'de';
-          this.formData.vertragssprache = lang;
-          languageButtons.forEach((otherBtn) => {
-            otherBtn.classList.toggle('btn-active', otherBtn.dataset.contractLang === lang);
-          });
-        });
-      });
+    this.updateSubmitDisabled();
+    const form = document.getElementById('vertrag-form');
+    if (form) {
+      form.addEventListener('input', () => this.updateSubmitDisabled());
+      form.addEventListener('change', () => this.updateSubmitDisabled());
     }
+  };
 
-    // Dynamische Felder
-    this.bindDynamicFieldEvents();
-    
-    // Adress-Vorschau bei Auswahl
-    this.bindAddressPreviewEvents();
+VertraegeCreate.prototype.updateSubmitDisabled = function() {
+    if (this.currentStep !== this.totalSteps) return;
+    const root = document.querySelector(`.split-btn[data-split-config="${this.getSubmitConfigId()}"]`);
+    if (!root) return;
+
+    const missing = this.getMissingRequiredFields();
+    const disable = missing.length > 0;
+    splitButton.setPrimaryDisabled(root, disable);
+    const items = SplitButtonConfig.resolveItems(SplitButtonConfig.get(this.getSubmitConfigId()));
+    const ids = items
+      .filter((item) => item && item.id && item.id !== 'separator' && item.data?.action !== 'draft')
+      .map((item) => item.id);
+    splitButton.setItemsDisabled(root, ids, disable);
+};
+
+VertraegeCreate.prototype.getMissingRequiredFields = function() {
+    const form = document.getElementById('vertrag-form');
+    if (!form) return [];
+    const required = Array.from(form.querySelectorAll('[required]'));
+    return required.filter((field) => {
+      if (field.disabled || field.offsetParent === null) return false;
+      const value = (field.value ?? '').toString().trim();
+      return !value;
+    });
 };
 
 

@@ -80,3 +80,20 @@ export function expandParagraphZusaetze(zusaetze) {
   });
   return result;
 }
+
+/**
+ * Expandiert das awareness_felder-JSONB (BURGA-Awareness-Template) zurueck in
+ * flache Formularfelder. Die Keys entsprechen 1:1 den name-Attributen im Formular.
+ *
+ * @param {object|null} felder z.B. { vertrag_datum: '2026-01-15', brand_tag: '@x' }
+ * @returns {object} flache Formularfelder (null/undefined werden ausgelassen)
+ */
+export function expandAwarenessFelder(felder) {
+  const result = {};
+  Object.entries(felder || {}).forEach(([key, value]) => {
+    if (value !== null && value !== undefined) {
+      result[key] = value;
+    }
+  });
+  return result;
+}

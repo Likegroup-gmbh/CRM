@@ -78,6 +78,39 @@ VertraegeCreate.prototype.renderInfluencerStep2 = function() {
                  placeholder="Wird automatisch generiert..." class="readonly-field">
         </div>
       </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>Awareness-Vertrag (optional)</h3>
+          <p class="step-description">Nur relevant beim BURGA-Awareness-Template. Bei Standard-Vertrag ignoriert.</p>
+        </div>
+        <div class="form-two-col">
+          <div class="form-field">
+            <label for="vertrag_datum">Vertragsdatum</label>
+            <input type="date" id="vertrag_datum" name="vertrag_datum"
+                   value="${this.formData.vertrag_datum || ''}">
+          </div>
+          <div class="form-field">
+            <label for="ansprechpartner_email">Kontakt-Email (Kunde)</label>
+            <input type="email" id="ansprechpartner_email" name="ansprechpartner_email"
+                   value="${this.formData.ansprechpartner_email || ''}"
+                   placeholder="z.B. kontakt@marke.com">
+          </div>
+        </div>
+        <div class="form-two-col">
+          <div class="form-field">
+            <label for="influencer_reg_code">Influencer Reg.-Code / Handelsregister</label>
+            <input type="text" id="influencer_reg_code" name="influencer_reg_code"
+                   value="${this.formData.influencer_reg_code || ''}"
+                   placeholder="optional">
+          </div>
+          <div class="form-field">
+            <label for="influencer_ust_id">Influencer USt-IdNr. / Steuer-IdNr.</label>
+            <input type="text" id="influencer_ust_id" name="influencer_ust_id"
+                   value="${this.formData.influencer_ust_id || ''}"
+                   placeholder="optional">
+          </div>
+        </div>
+      </div>
     `;
 };
 
@@ -141,6 +174,28 @@ VertraegeCreate.prototype.renderInfluencerStep3 = function() {
             <label for="anzahl_storys">Story-Slides</label>
             <input type="number" id="anzahl_storys" name="anzahl_storys" min="0" 
                    value="${this.formData.anzahl_storys || 0}">
+          </div>
+        </div>
+
+        <h4>Awareness-Vertrag (optional)</h4>
+        <p class="form-hint">Nur relevant beim BURGA-Awareness-Template.</p>
+        <div class="form-three-col">
+          <div class="form-field">
+            <label for="video_mindestlaenge_sekunden">Video-Mindestlänge (Sek.)</label>
+            <input type="number" id="video_mindestlaenge_sekunden" name="video_mindestlaenge_sekunden" min="0"
+                   value="${this.formData.video_mindestlaenge_sekunden ?? ''}"
+                   placeholder="z.B. 30">
+          </div>
+          <div class="form-field">
+            <label for="veroeffentlichungsfrist">Veröffentlichung bis</label>
+            <input type="date" id="veroeffentlichungsfrist" name="veroeffentlichungsfrist"
+                   value="${this.formData.veroeffentlichungsfrist || ''}">
+          </div>
+          <div class="form-field">
+            <label for="brand_tag">Brand-Tag</label>
+            <input type="text" id="brand_tag" name="brand_tag"
+                   value="${this.formData.brand_tag || ''}"
+                   placeholder="z.B. @burgaofficial">
           </div>
         </div>
         ${renderParagraphZusatz(this.formData, 'p2', '§2 Plattformen & Inhalte')}
@@ -496,6 +551,81 @@ VertraegeCreate.prototype.renderInfluencerStep5 = function() {
 
         <p class="form-hint">Die Zahlung erfolgt durch den Auftraggeber oder die LikeGroup GmbH im Auftrag des Kunden. Die Rechnungsstellung erfolgt nach Veröffentlichung bzw. Erreichung der Ziele.</p>
         ${renderParagraphZusatz(this.formData, 'p6', '§6 Vergütung')}
+      </div>
+      <div class="step-section">
+        <div class="step-section__header">
+          <h3>Awareness-Vertrag (optional)</h3>
+          <p class="step-description">Nur relevant beim BURGA-Awareness-Template. Bei Standard-Vertrag ignoriert.</p>
+        </div>
+        <div class="form-two-col">
+          <div class="form-field">
+            <label for="verguetung_brutto">Gesamtvergütung inkl. Steuern</label>
+            <div class="input-with-suffix">
+              <input type="number" id="verguetung_brutto" name="verguetung_brutto"
+                     step="0.01" min="0"
+                     value="${this.formData.verguetung_brutto || ''}">
+              <span class="input-suffix">€</span>
+            </div>
+          </div>
+          <div class="form-field">
+            <label>Zahlungsmethode</label>
+            <div class="radio-group radio-group-inline">
+              <label class="radio-option">
+                <input type="radio" name="zahlungsmethode" value="banktransfer"
+                       ${this.formData.zahlungsmethode === 'banktransfer' ? 'checked' : ''}>
+                <span>Banküberweisung</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="zahlungsmethode" value="paypal"
+                       ${this.formData.zahlungsmethode === 'paypal' ? 'checked' : ''}>
+                <span>PayPal</span>
+              </label>
+              <label class="radio-option">
+                <input type="radio" name="zahlungsmethode" value="beides"
+                       ${this.formData.zahlungsmethode === 'beides' ? 'checked' : ''}>
+                <span>Beides</span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="form-three-col">
+          <div class="form-field">
+            <label for="statistik_frist_tage">Statistik-Frist (Tage)</label>
+            <input type="number" id="statistik_frist_tage" name="statistik_frist_tage" min="0"
+                   value="${this.formData.statistik_frist_tage ?? ''}"
+                   placeholder="z.B. 7">
+          </div>
+          <div class="form-field">
+            <label for="content_vorlauf_tage">Content-Vorlauf (Werktage)</label>
+            <input type="number" id="content_vorlauf_tage" name="content_vorlauf_tage" min="0"
+                   value="${this.formData.content_vorlauf_tage ?? 3}">
+          </div>
+          <div class="form-field">
+            <label for="kuendigungsfrist_tage">Kündigungsfrist (Tage)</label>
+            <input type="number" id="kuendigungsfrist_tage" name="kuendigungsfrist_tage" min="0"
+                   value="${this.formData.kuendigungsfrist_tage ?? 30}">
+          </div>
+        </div>
+        <div class="form-field">
+          <label>Content-Aufbewahrung auf Profil</label>
+          <div class="radio-group radio-group-inline">
+            <label class="radio-option">
+              <input type="radio" name="content_aufbewahrung_dauer" value="6_monate"
+                     ${this.formData.content_aufbewahrung_dauer === '6_monate' ? 'checked' : ''}>
+              <span>6 Monate</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="content_aufbewahrung_dauer" value="12_monate"
+                     ${!this.formData.content_aufbewahrung_dauer || this.formData.content_aufbewahrung_dauer === '12_monate' ? 'checked' : ''}>
+              <span>12 Monate</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="content_aufbewahrung_dauer" value="individuell"
+                     ${this.formData.content_aufbewahrung_dauer === 'individuell' ? 'checked' : ''}>
+              <span>Individuell</span>
+            </label>
+          </div>
+        </div>
       </div>
       <div class="step-section">
         <div class="step-section__header">
