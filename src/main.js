@@ -90,6 +90,7 @@ import { ansprechpartnerCreate, managementAnsprechpartnerCreate } from './module
 import { rechnungList } from './modules/rechnung/RechnungList.js';
 import { rechnungDetail } from './modules/rechnung/RechnungDetail.js';
 import { actionsDropdown } from './core/ActionsDropdown.js';
+import { splitButton } from './core/components/SplitButton.js';
 import { hoverToolbar } from './core/hoverToolbar/HoverToolbar.js';
 import { tableSelect } from './core/components/TableSelect.js';
 import { mitarbeiterList } from './modules/admin/MitarbeiterList.js';
@@ -268,6 +269,7 @@ window.creatorUtils = creatorUtils;
 window.AvatarBubbles = AvatarBubbles;
 window.formSystem = formSystem;
 window.ActionsDropdown = actionsDropdown;
+window.SplitButton = splitButton;
 window.bulkActionSystem = bulkActionSystem;
 
 // Duplicate Checker Service
@@ -295,6 +297,7 @@ App.set('breadcrumbSystem', breadcrumbSystem);
 App.set('bulkActionSystem', bulkActionSystem);
 App.set('submitGuard', submitGuard);
 App.set('ActionsDropdown', actionsDropdown);
+App.set('SplitButton', splitButton);
 App.set('creatorUtils', creatorUtils);
 App.set('kampagneUtils', kampagneUtils);
 App.set('authService', authService);
@@ -434,6 +437,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // ActionsDropdown initialisieren
     actionsDropdown.init();
+    splitButton.init();
 
     // Hover-Toolbars in Tabellenzellen (data-hover-toolbar)
     hoverToolbar.init();

@@ -5,6 +5,7 @@
 import { VertraegeCreate } from './VertraegeCreateCore.js';
 import { PageTransitionHelper } from '../../../core/PageTransitionHelper.js';
 import { icon } from '../../../core/icons/IconSystem.js';
+import { splitButton } from '../../../core/components/SplitButton.js';
 
 VertraegeCreate.prototype.render = function() {
     // Verhindere doppeltes Rendern
@@ -156,15 +157,15 @@ VertraegeCreate.prototype.renderProgressBar = function() {
       { num: 4, label: 'Nutzung' },
       { num: 5, label: 'Vergütung' }
     ];
-    
+
     const isEdit = !!this.editId;
-    const selectedLanguage = this.getContractLanguage(this.formData);
+    const isLastStep = this.currentStep === this.totalSteps;
 
     return `
       <div class="progress-steps">
         ${steps.map(step => `
-          <div class="progress-step ${this.currentStep >= step.num ? 'active' : ''} ${this.currentStep === step.num ? 'current' : ''}" 
-               data-step="${step.num}" 
+          <div class="progress-step ${this.currentStep >= step.num ? 'active' : ''} ${this.currentStep === step.num ? 'current' : ''}"
+               data-step="${step.num}"
                class="cursor-pointer"
                title="Zu ${step.label} springen">
             <div class="step-number">${step.num - 1}</div>
@@ -176,43 +177,57 @@ VertraegeCreate.prototype.renderProgressBar = function() {
         <button type="button" class="mdc-btn mdc-btn--cancel" id="btn-cancel">
           <span class="mdc-btn__label">Abbrechen</span>
         </button>
-        <button type="button" id="btn-save-draft" class="mdc-btn mdc-btn--secondary" title="Als Entwurf in der Datenbank speichern">
-          ${icon('inbox')}
-          <span class="btn-label">Als Entwurf speichern</span>
-        </button>
+        ${!isLastStep ? `
+          <button type="button" id="btn-save-draft" class="mdc-btn mdc-btn--secondary" title="Als Entwurf in der Datenbank speichern">
+            ${icon('inbox')}
+            <span class="btn-label">Als Entwurf speichern</span>
+          </button>
+        ` : ''}
         ${this.currentStep >= 2 ? `
           <button type="button" id="btn-prev" class="mdc-btn mdc-btn--secondary">
             ${icon('arrow-left')}
             Zurück
           </button>
         ` : ''}
-        ${this.currentStep === this.totalSteps ? `
-          <div class="contract-language-switch" role="group" aria-label="Vertragssprache">
-            <span class="contract-language-switch__label">Sprache:</span>
-            <button type="button" class="mdc-btn mdc-btn--secondary ${selectedLanguage === 'de' ? 'btn-active' : ''}" data-contract-lang="de">
-              Deutsch
-            </button>
-            <button type="button" class="mdc-btn mdc-btn--secondary ${selectedLanguage === 'en' ? 'btn-active' : ''}" data-contract-lang="en">
-              English
-            </button>
-          </div>
-        ` : ''}
-        ${this.currentStep < this.totalSteps ? `
+        ${!isLastStep ? `
           <button type="button" id="btn-next" class="mdc-btn">
             Weiter
             ${icon('arrow-right')}
           </button>
         ` : `
-          <button type="button" id="btn-submit" class="mdc-btn">
-            ${isEdit ? 'Finalisieren & PDF' : 'Erstellen & PDF'}
-          </button>
-          <button type="button" id="btn-submit-and-new" class="mdc-btn mdc-btn--secondary" title="Vertrag erstellen und mit gleichen Daten neuen starten">
-            ${icon('arrow-path')}
-            Erstellen & Neu mit gleichen Daten
-          </button>
+          ${this.renderSubmitControl(isEdit)}
         `}
       </div>
     `;
+};
+
+VertraegeCreate.prototype.getSubmitConfigId = function() {
+    const map = {
+      'UGC': 'ugc-contract-submit',
+      'Influencer Kooperation': 'influencer-contract-submit',
+      'Videograph': 'videograph-contract-submit',
+      'Model': 'model-contract-submit',
+      'Contracting': 'contracting-contract-submit'
+    };
+    return map[this.selectedTyp] || 'ugc-contract-submit';
+};
+
+VertraegeCreate.prototype.renderSubmitControl = function(isEdit) {
+    let selectedId;
+    if (this.selectedTyp === 'UGC') {
+      selectedId = this.formData.ugc_pdf_variant || 'legacy-de';
+    } else if (this.selectedTyp === 'Influencer Kooperation') {
+      const template = this.formData.vertrag_template === 'awareness' ? 'awareness' : 'legacy';
+      const lang = this.formData.vertragssprache === 'en' ? 'en' : 'de';
+      selectedId = `${template}-${lang}`;
+    } else {
+      selectedId = this.formData.vertragssprache === 'en' ? 'en' : 'de';
+    }
+    return splitButton.render(this.getSubmitConfigId(), {
+      buttonId: 'btn-submit',
+      label: isEdit ? 'Finalisieren & PDF' : 'Erstellen & PDF',
+      selectedId
+    });
 };
 
 VertraegeCreate.prototype.bindProgressBarEvents = function() {
