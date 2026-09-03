@@ -6,6 +6,7 @@
 import { BriefingCreate } from './BriefingCreateCore.js';
 import { getAllFields, evaluateCondition } from './fieldConfig.js';
 import { starteBriefingAuswertung } from './BriefingAuswertung.js';
+import { loadBriefingProdukte, syncBriefingProdukte } from '../BriefingProdukte.js';
 
 // ---------------------------------------------------------------
 // Formular -> formData (generisch ueber Feld-Schema)
@@ -130,6 +131,14 @@ BriefingCreate.prototype.saveCurrentStepData = function() {
 
   if (this.selectedBereich && !this.formData.bereich) {
     this.formData.bereich = this.selectedBereich;
+  }
+
+  const produktSelect = form.querySelector('#produkt_ids_hidden')
+    || form.querySelector('select[name="produkt_ids[]"]')
+    || form.querySelector('[data-entity-multi="produkt_ids"] select[multiple]')
+    || form.querySelector('select#produkt_ids');
+  if (produktSelect) {
+    this.formData.produkt_ids = Array.from(produktSelect.selectedOptions).map(o => o.value);
   }
 };
 
@@ -258,6 +267,7 @@ BriefingCreate.prototype.saveDraftToDB = async function() {
         .update(data)
         .eq('id', this.editId);
       if (error) throw error;
+      await syncBriefingProdukte(this.editId, this.formData.produkt_ids);
       window.toastSystem?.show('Entwurf aktualisiert!', 'success');
     } else {
       const { data: created, error } = await window.supabase
@@ -267,6 +277,7 @@ BriefingCreate.prototype.saveDraftToDB = async function() {
         .single();
       if (error) throw error;
       this.editId = created.id;
+      await syncBriefingProdukte(this.editId, this.formData.produkt_ids);
       window.toastSystem?.show('Entwurf gespeichert!', 'success');
     }
 
@@ -324,6 +335,8 @@ BriefingCreate.prototype.handleSubmit = async function() {
       this.editId = created.id;
     }
 
+    await syncBriefingProdukte(this.editId, this.formData.produkt_ids);
+
     let auswertungOk = false;
     try {
       await starteBriefingAuswertung({ briefingId: this.editId });
@@ -373,6 +386,10 @@ BriefingCreate.prototype.loadFromDB = async function(id) {
     this.formData.bereich = briefing.bereich;
     this.formData.unternehmen_id = briefing.unternehmen_id;
     this.formData.marke_id = briefing.marke_id;
+
+    const produkte = await loadBriefingProdukte(id);
+    this.formData.produkt_ids = produkte.map(p => p.id);
+    await this.refreshProdukte();
 
     this.selectedBereich = briefing.bereich;
     this.isGenerated = true;

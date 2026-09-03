@@ -4,6 +4,8 @@
 // Prototype-Extension angehangen (RenderShell, FormEvents, DataPersistence).
 // Struktur 1:1 wie src/modules/vertrag/create/.
 
+import { loadProdukteForBriefing } from '../BriefingProdukte.js';
+
 export class BriefingCreate {
   constructor() {
     this.currentStep = 1;      // 1 = Typ-Auswahl, 2..n = Content-Steps
@@ -11,6 +13,7 @@ export class BriefingCreate {
     this.formData = {};
     this.unternehmen = [];
     this.marken = [];
+    this.produkte = [];
     this.isGenerated = false;
     this.editId = null;
     this._isRendering = false;
@@ -53,6 +56,7 @@ BriefingCreate.prototype.init = async function(editId = null) {
     await this.loadFromDB(editId);
   } else {
     this.applyQueryPrefill();
+    await this.refreshProdukte();
   }
 
   this.render();
@@ -82,8 +86,21 @@ BriefingCreate.prototype.loadStammdaten = async function() {
       .select('id, markenname, unternehmen_id')
       .order('markenname');
     this.marken = marken || [];
+    await this.refreshProdukte();
   } catch (error) {
     console.error('Fehler beim Laden der Stammdaten:', error);
+  }
+};
+
+BriefingCreate.prototype.refreshProdukte = async function() {
+  try {
+    this.produkte = await loadProdukteForBriefing(
+      this.formData.unternehmen_id,
+      this.formData.marke_id
+    );
+  } catch (error) {
+    console.error('Fehler beim Laden der Produkte:', error);
+    this.produkte = [];
   }
 };
 
