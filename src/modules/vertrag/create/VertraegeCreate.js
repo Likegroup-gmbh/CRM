@@ -22,6 +22,7 @@ import './types/ModelContract.js';
 import './types/ContractingContract.js';
 import './pdf/UgcPdf.js';
 import './pdf/InfluencerPdf.js';
+import './pdf/AwarenessPdf.js';
 import './pdf/VideografPdf.js';
 import './pdf/ModelPdf.js';
 import './pdf/ContractingPdf.js';
