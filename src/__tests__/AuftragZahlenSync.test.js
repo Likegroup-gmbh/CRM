@@ -8,11 +8,14 @@ vi.mock('../modules/auth/CurrentUser.js', () => ({
   getCurrentBenutzerId: vi.fn(async () => 'user-1')
 }));
 
+vi.mock('../core/animation/animateNumber.js');
+
 import { ModuleRegistry } from '../core/ModuleRegistry.js';
 import { ProjektErstellenPersistence } from '../modules/projekt-erstellen/services/ProjektErstellenPersistence.js';
 import { ProjektErstellenWizard } from '../modules/projekt-erstellen/ProjektErstellenWizard.js';
 import { resolveVolumen } from '../modules/stakeholder/StakeholderOverviewPage.js';
 import { AusgangsrechnungenList } from '../modules/ausgangsrechnungen/AusgangsrechnungenList.js';
+import { animateNumber } from '../core/animation/animateNumber.js';
 import { StepDetails } from '../modules/projekt-erstellen/steps/StepDetails.js';
 
 describe('Auftrag-Edit landet immer im Wizard', () => {
@@ -276,5 +279,66 @@ describe('Kundenrechnungen-Monatssummen', () => {
     const cells = [...document.querySelectorAll('#ausgangsrechnungen-summary td')];
     const spans = cells.reduce((sum, td) => sum + (parseInt(td.colSpan, 10) || 1), 0);
     expect(spans).toBe(list.getListColumnCount());
+  });
+
+  it('rendert Summary-Cards fuer Netto, Mehrwertsteuer und Brutto ueber der Tabelle', () => {
+    const list = new AusgangsrechnungenList();
+    document.body.innerHTML = list.renderListView();
+
+    const cards = document.getElementById('ausgangsrechnungen-summary-cards');
+    expect(cards).not.toBeNull();
+    expect(cards.querySelector('[data-summary-card="nettobetrag"] .summary-label').textContent).toBe('Netto');
+    expect(cards.querySelector('[data-summary-card="ust_betrag"] .summary-label').textContent).toBe('Mehrwertsteuer');
+    expect(cards.querySelector('[data-summary-card="bruttobetrag"] .summary-label').textContent).toBe('Brutto');
+    // Cards sitzen oberhalb der Tabelle
+    const table = document.getElementById('auftrag-table-container');
+    expect(cards.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('schreibt die Summen auch in die Cards, nicht nur in den tfoot', () => {
+    const list = new AusgangsrechnungenList();
+    document.body.innerHTML = list.renderListView();
+
+    list.updateInvoiceSummary([
+      { nettobetrag: 1000, ust_betrag: 190, bruttobetrag: 1190 },
+      { nettobetrag: 1000, ust_betrag: 190, bruttobetrag: 1190 }
+    ]);
+
+    const cards = document.getElementById('ausgangsrechnungen-summary-cards');
+    expect(cards.querySelector('[data-summary-value="nettobetrag"]').textContent)
+      .toBe(list.formatSummaryCurrency(2000));
+    expect(cards.querySelector('[data-summary-value="ust_betrag"]').textContent)
+      .toBe(list.formatSummaryCurrency(380));
+    expect(cards.querySelector('[data-summary-value="bruttobetrag"]').textContent)
+      .toBe(list.formatSummaryCurrency(2380));
+    expect(animateNumber).not.toHaveBeenCalled();
+  });
+
+  it('animiert die Summen beim Tab-Wechsel ueber das zentrale animateNumber', () => {
+    animateNumber.mockClear();
+    const list = new AusgangsrechnungenList();
+    document.body.innerHTML = list.renderListView();
+
+    list.updateInvoiceSummary(
+      [{ nettobetrag: 1000, ust_betrag: 190, bruttobetrag: 1190 }],
+      { animate: true }
+    );
+
+    const cards = document.getElementById('ausgangsrechnungen-summary-cards');
+    const foot = document.getElementById('ausgangsrechnungen-summary');
+    // 3 Felder x 2 Surfaces (Card + tfoot) laufen synchron
+    expect(animateNumber).toHaveBeenCalledTimes(6);
+    expect(animateNumber).toHaveBeenCalledWith(
+      cards.querySelector('[data-summary-value="nettobetrag"]'),
+      1000,
+      { format: expect.any(Function) }
+    );
+    expect(animateNumber).toHaveBeenCalledWith(
+      foot.querySelector('[data-summary="bruttobetrag"]'),
+      1190,
+      { format: expect.any(Function) }
+    );
+    const { format } = animateNumber.mock.calls[0][2];
+    expect(format(1234.5)).toBe(list.formatSummaryCurrency(1234.5));
   });
 });

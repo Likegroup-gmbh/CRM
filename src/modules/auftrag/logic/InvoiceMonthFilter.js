@@ -52,19 +52,6 @@ export function countRowsByMonth(rows, year) {
   return counts;
 }
 
-export function resolveDefaultMonth(rows, year, preferredMonth) {
-  const counts = countRowsByMonth(rows, year);
-  if (preferredMonth === ALL_TAB) return ALL_TAB;
-  if (preferredMonth === NO_RENR_TAB && counts[NO_RENR_TAB] > 0) return NO_RENR_TAB;
-  if (preferredMonth === UNDATED_TAB && counts[UNDATED_TAB] > 0) return UNDATED_TAB;
-  if (typeof preferredMonth === 'number' && counts.months[preferredMonth] > 0) return preferredMonth;
-  const first = counts.months.findIndex(count => count > 0);
-  if (first !== -1) return first;
-  if (counts[UNDATED_TAB] > 0) return UNDATED_TAB;
-  if (counts[NO_RENR_TAB] > 0) return NO_RENR_TAB;
-  return preferredMonth;
-}
-
 export function formatMonthEmptyText(month, year) {
   if (month === ALL_TAB) return 'Keine Rechnungen vorhanden.';
   if (month === NO_RENR_TAB) return 'Keine Rechnungen ohne Rechnungsnummer.';

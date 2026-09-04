@@ -12,9 +12,9 @@ import {
   filterRowsByMonthYear,
   findInvoiceCacheRow,
   formatMonthEmptyText,
-  parseMonthTab,
-  resolveDefaultMonth
+  parseMonthTab
 } from '../auftrag/logic/InvoiceMonthFilter.js';
+import { animateNumber } from '../../core/animation/animateNumber.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
@@ -46,7 +46,6 @@ export class AusgangsrechnungenList extends AuftragList {
     this.currentYear = now.getFullYear();
     this.currentMonth = now.getMonth();
     this._allInvoiceRows = [];
-    this._monthInitialized = false;
   }
 
   async render() {
@@ -95,6 +94,7 @@ export class AusgangsrechnungenList extends AuftragList {
     const tableClass = isContracts ? 'auftrag-table contracts-table' : 'auftrag-table';
 
     return `
+    ${this.renderInvoiceSummaryCards()}
     <div class="table-container" id="auftrag-table-container">
         <table class="data-table ${tableClass}">
           <thead>
@@ -133,6 +133,29 @@ export class AusgangsrechnungenList extends AuftragList {
   `;
   }
 
+  // Gleiche Optik wie die Summary-Cards auf Kampagne/Auftragsdetails:
+  // Werte oben, Label unten, eine Quelle (sumInvoiceRows) fuer Cards und tfoot.
+  renderInvoiceSummaryCards() {
+    const zero = this.formatSummaryCurrency(0);
+    const cards = [
+      { field: 'nettobetrag', label: 'Netto' },
+      { field: 'ust_betrag', label: 'Mehrwertsteuer' },
+      { field: 'bruttobetrag', label: 'Brutto' }
+    ];
+    return `
+      <div class="auftragsdetails-summary" id="ausgangsrechnungen-summary-cards">
+        <div class="summary-cards">
+          ${cards.map(({ field, label }) => `
+            <div class="summary-card" data-summary-card="${field}">
+              <div class="summary-value" data-summary-value="${field}">${zero}</div>
+              <div class="summary-label">${label}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
   // Summen der aktuell sichtbaren Zeilen. Der Monatstab zeigt sonst nur, wie viele
   // Rechnungen im Monat liegen, aber nicht, um wie viel Geld es geht.
   renderInvoiceSummaryFoot() {
@@ -165,13 +188,23 @@ export class AusgangsrechnungenList extends AuftragList {
     }, { nettobetrag: 0, ust_betrag: 0, bruttobetrag: 0 });
   }
 
-  updateInvoiceSummary(rows) {
-    const foot = document.getElementById('ausgangsrechnungen-summary');
-    if (!foot) return;
+  // animate: Count-Up/Down wie auf den Kampagnen-Summary-Cards (zentrales
+  // animateNumber). Cards und tfoot zeigen dieselbe Zahl und laufen synchron.
+  updateInvoiceSummary(rows, { animate = false } = {}) {
     const totals = this.sumInvoiceRows(rows);
+    const foot = document.getElementById('ausgangsrechnungen-summary');
+    const cards = document.getElementById('ausgangsrechnungen-summary-cards');
+    const format = (v) => this.formatSummaryCurrency(v);
     Object.entries(totals).forEach(([field, value]) => {
-      const cell = foot.querySelector(`[data-summary="${field}"]`);
-      if (cell) cell.textContent = this.formatSummaryCurrency(value);
+      const targets = [
+        foot?.querySelector(`[data-summary="${field}"]`),
+        cards?.querySelector(`[data-summary-value="${field}"]`)
+      ];
+      targets.forEach((el) => {
+        if (!el) return;
+        if (animate) animateNumber(el, value, { format });
+        else el.textContent = format(value);
+      });
     });
   }
 
@@ -266,11 +299,11 @@ export class AusgangsrechnungenList extends AuftragList {
     });
   }
 
-  async updateTable(auftraege, mode = 'auftraege') {
+  async updateTable(auftraege, mode = 'auftraege', { animate = false } = {}) {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
 
-    this.updateInvoiceSummary(auftraege);
+    this.updateInvoiceSummary(auftraege, { animate });
 
     const isContracts = mode === 'contracts';
     const actionEntity = isContracts ? 'contract' : 'auftrag';
@@ -357,7 +390,7 @@ export class AusgangsrechnungenList extends AuftragList {
       year: this.currentYear,
       month: this.currentMonth
     });
-    this.updateTable(filtered, 'auftraege');
+    this.updateTable(filtered, 'auftraege', { animate: true });
     this.updateMonthTabUI();
   }
 
@@ -592,11 +625,8 @@ export class AusgangsrechnungenList extends AuftragList {
         return { data: sorted.slice(from, from + limit), count: sorted.length };
       }
 
-      if (!this._monthInitialized) {
-        this.currentMonth = resolveDefaultMonth(sorted, this.currentYear, this.currentMonth);
-        this._monthInitialized = true;
-      }
-
+      // Kein Auto-Sprung in den ersten Monat mit Daten: die Auswahl (Singleton)
+      // bleibt ueber SPA-Navigation erhalten, Default ist der aktuelle Monat.
       const filtered = filterRowsByMonthYear(sorted, {
         year: this.currentYear,
         month: this.currentMonth
@@ -611,7 +641,6 @@ export class AusgangsrechnungenList extends AuftragList {
 
   destroy() {
     this._allInvoiceRows = [];
-    this._monthInitialized = false;
     super.destroy();
   }
 }

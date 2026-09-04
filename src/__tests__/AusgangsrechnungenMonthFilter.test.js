@@ -6,8 +6,7 @@ import {
   countRowsByMonth,
   filterRowsByMonthYear,
   findInvoiceCacheRow,
-  formatMonthEmptyText,
-  resolveDefaultMonth
+  formatMonthEmptyText
 } from '../modules/auftrag/logic/InvoiceMonthFilter.js';
 import { AusgangsrechnungenList } from '../modules/ausgangsrechnungen/AusgangsrechnungenList.js';
 import { defaultReNrPrefix } from '../modules/auftrag/logic/PrefixedNumberSort.js';
@@ -57,11 +56,6 @@ describe('InvoiceMonthFilter', () => {
     expect(filterRowsByMonthYear(rows, { year: 2019, month: ALL_TAB })).toEqual(rows);
   });
 
-  it('behaelt den Alle-Tab auch ohne Treffer im gewaehlten Jahr', () => {
-    expect(resolveDefaultMonth(rows, 2019, ALL_TAB)).toBe(ALL_TAB);
-    expect(resolveDefaultMonth([], 2026, ALL_TAB)).toBe(ALL_TAB);
-  });
-
   it('zaehlt Monate, Ohne-Datum und Ohne-RE-Nr separat', () => {
     expect(countRowsByMonth(rows, 2026)).toEqual({
       undated: 1,
@@ -69,12 +63,6 @@ describe('InvoiceMonthFilter', () => {
       alle: rows.length,
       months: [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     });
-  });
-
-  it('nimmt den aktuellen Monat wenn Daten da sind, sonst den ersten Monat mit Daten', () => {
-    expect(resolveDefaultMonth(rows, 2026, 0)).toBe(0);
-    expect(resolveDefaultMonth(rows, 2026, 7)).toBe(0);
-    expect(resolveDefaultMonth([{ id: 'x' }], 2026, 7)).toBe(NO_RENR_TAB);
   });
 
   it('formatiert den Empty-State monatsbezogen', () => {
@@ -159,7 +147,7 @@ describe('AusgangsrechnungenList Monatssheet', () => {
 
     list.selectInvoiceMonth(ALL_TAB);
     expect(list.currentMonth).toBe(ALL_TAB);
-    expect(list.updateTable).toHaveBeenCalledWith(rows, 'auftraege');
+    expect(list.updateTable).toHaveBeenCalledWith(rows, 'auftraege', { animate: true });
   });
 
   it('waehlt trotz vorangestelltem Alle-Tab den aktuellen Monat vor', () => {
@@ -182,7 +170,7 @@ describe('AusgangsrechnungenList Monatssheet', () => {
 
     list.selectInvoiceMonth('2');
     expect(list.currentMonth).toBe(2);
-    expect(list.updateTable).toHaveBeenCalledWith([rows[1]], 'auftraege');
+    expect(list.updateTable).toHaveBeenCalledWith([rows[1]], 'auftraege', { animate: true });
   });
 
   it('entfernt eine Zeile aus dem aktuellen Monat nach Rechnungsdatum-Edit', () => {
@@ -200,7 +188,7 @@ describe('AusgangsrechnungenList Monatssheet', () => {
     });
 
     expect(list._allInvoiceRows[0].rechnung_gestellt_am).toBe('2026-04-10');
-    expect(list.updateTable).toHaveBeenCalledWith([], 'auftraege');
+    expect(list.updateTable).toHaveBeenCalledWith([], 'auftraege', { animate: true });
   });
 
   it('entfernt eine Zeile aus Ohne-RE-Nr nach re_nr-Save', () => {
@@ -214,7 +202,7 @@ describe('AusgangsrechnungenList Monatssheet', () => {
     list.onInlineReNrUpdated({ id: 'tr5', value: 'RE-5' });
 
     expect(list._allInvoiceRows[4].re_nr).toBe('RE-5');
-    expect(list.updateTable).toHaveBeenCalledWith([], 'auftraege');
+    expect(list.updateTable).toHaveBeenCalledWith([], 'auftraege', { animate: true });
   });
 
   it('rendert re_nr als grid-input fuer Admins und als Text fuer Kunden', () => {
@@ -394,17 +382,20 @@ describe('AusgangsrechnungenList Monatssheet', () => {
     expect(result).toEqual({ re_nr: 'RE-2026-001' });
   });
 
-  it('leert den Cache beim Destroy und entfernt den focusin-Listener', () => {
+  it('leert den Cache beim Destroy, behaelt die Monatsauswahl und entfernt den focusin-Listener', () => {
     const list = new AusgangsrechnungenList();
     list._allInvoiceRows = rows;
-    list._monthInitialized = true;
+    list.currentYear = 2025;
+    list.currentMonth = 3;
     list.bindGlobalDelegatedEvents();
     expect(list._globalFocusInHandler).toEqual(expect.any(Function));
     const focusHandler = list._globalFocusInHandler;
     const remove = vi.spyOn(document, 'removeEventListener');
     list.destroy();
     expect(list._allInvoiceRows).toEqual([]);
-    expect(list._monthInitialized).toBe(false);
+    // Kein Auto-Sprung mehr: die Auswahl ueberlebt die SPA-Navigation.
+    expect(list.currentYear).toBe(2025);
+    expect(list.currentMonth).toBe(3);
     expect(remove).toHaveBeenCalledWith('focusin', focusHandler);
     expect(list._globalFocusInHandler).toBeNull();
     remove.mockRestore();
