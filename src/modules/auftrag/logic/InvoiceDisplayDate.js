@@ -25,7 +25,7 @@ export function getInvoiceDisplayDate(row = {}) {
 }
 
 export function getInvoiceMonthKey(row) {
-  const date = parseInvoiceDate(row?.rechnung_gestellt_am);
+  const { date } = getInvoiceDisplayDate(row || {});
   if (!date) return null;
   return { year: date.getFullYear(), month: date.getMonth() };
 }

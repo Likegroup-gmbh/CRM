@@ -8,7 +8,7 @@
 // Rechenquelle: calculateBudgetOverview (gleiche Logik wie Auftragsdetails).
 
 import { CAMPAIGN_TYPES } from '../projekt-erstellen/constants.js';
-import { getChipFromKampagnenartName } from '../projekt-erstellen/logic/CampaignBudgetFields.js';
+import { getChipFromKampagnenartName, sumBlockUmsatz } from '../projekt-erstellen/logic/CampaignBudgetFields.js';
 import { calculateBudgetOverview } from '../../core/budget/calculateBudgetOverview.js';
 import { calculateCreatorPaymentSummary } from '../../core/budget/EkVkAgencyFeeHelper.js';
 import { icon } from '../../core/icons/IconSystem.js';
@@ -53,6 +53,16 @@ export function mergeFeeSource(details, auftrag) {
     }
   });
   return merged;
+}
+
+// GESAMT zeigt das Auftragsvolumen. In einem Kategorie-Tab ist der gepflegte
+// Kampagnenart-Umsatz die genauere Zahl; ohne gepflegten Block bleibt der Nettobetrag.
+export function resolveVolumen(auftrag, blocks, activeTab) {
+  const netto = parseFloat(auftrag?.nettobetrag) || 0;
+  if (activeTab === TAB_GESAMT) return netto;
+
+  const { sum, hasAny } = sumBlockUmsatz(blocks);
+  return hasAny ? sum : netto;
 }
 
 export function resolvePercentageFee(details) {
@@ -459,7 +469,7 @@ export class StakeholderOverviewPage {
         kampagnen
       });
 
-      const volumen = parseFloat(a.nettobetrag) || 0;
+      const volumen = resolveVolumen(a, blocks, this.activeTab);
       const creator = summary.creatorAnteil || 0;
       const koopIds = new Set(koops.map(k => k.id));
       const auftragRechnungen = (this.rechnungen || []).filter(r => {

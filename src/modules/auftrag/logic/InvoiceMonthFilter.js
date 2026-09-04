@@ -11,6 +11,7 @@ export const MONTH_FULL_NAMES = [
 ];
 export const UNDATED_TAB = 'undated';
 export const NO_RENR_TAB = 'no-renr';
+export const ALL_TAB = 'alle';
 
 export function hasInvoiceNumber(row) {
   return Boolean(String(row?.re_nr ?? '').trim());
@@ -22,12 +23,13 @@ export function getInvoiceTabKey(row) {
 }
 
 export function parseMonthTab(tab) {
-  if (tab === UNDATED_TAB || tab === NO_RENR_TAB) return tab;
+  if (tab === UNDATED_TAB || tab === NO_RENR_TAB || tab === ALL_TAB) return tab;
   return parseInt(tab, 10);
 }
 
 export function filterRowsByMonthYear(rows, { year, month }) {
   const list = rows || [];
+  if (month === ALL_TAB) return list;
   if (month === NO_RENR_TAB || month === UNDATED_TAB) {
     return list.filter(row => getInvoiceTabKey(row) === month);
   }
@@ -39,8 +41,9 @@ export function filterRowsByMonthYear(rows, { year, month }) {
 }
 
 export function countRowsByMonth(rows, year) {
-  const counts = { [UNDATED_TAB]: 0, [NO_RENR_TAB]: 0, months: Array(12).fill(0) };
-  for (const row of rows || []) {
+  const list = rows || [];
+  const counts = { [UNDATED_TAB]: 0, [NO_RENR_TAB]: 0, [ALL_TAB]: list.length, months: Array(12).fill(0) };
+  for (const row of list) {
     const key = getInvoiceTabKey(row);
     if (key === NO_RENR_TAB) counts[NO_RENR_TAB] += 1;
     else if (key === UNDATED_TAB) counts[UNDATED_TAB] += 1;
@@ -51,6 +54,7 @@ export function countRowsByMonth(rows, year) {
 
 export function resolveDefaultMonth(rows, year, preferredMonth) {
   const counts = countRowsByMonth(rows, year);
+  if (preferredMonth === ALL_TAB) return ALL_TAB;
   if (preferredMonth === NO_RENR_TAB && counts[NO_RENR_TAB] > 0) return NO_RENR_TAB;
   if (preferredMonth === UNDATED_TAB && counts[UNDATED_TAB] > 0) return UNDATED_TAB;
   if (typeof preferredMonth === 'number' && counts.months[preferredMonth] > 0) return preferredMonth;
@@ -62,6 +66,7 @@ export function resolveDefaultMonth(rows, year, preferredMonth) {
 }
 
 export function formatMonthEmptyText(month, year) {
+  if (month === ALL_TAB) return 'Keine Rechnungen vorhanden.';
   if (month === NO_RENR_TAB) return 'Keine Rechnungen ohne Rechnungsnummer.';
   if (month === UNDATED_TAB) return 'Keine Rechnungen ohne Datum.';
   return `Keine Rechnungen im ${MONTH_FULL_NAMES[month]} ${year}.`;

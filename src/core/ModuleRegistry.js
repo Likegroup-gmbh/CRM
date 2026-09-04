@@ -59,6 +59,14 @@ export class ModuleRegistry {
     await applyScrollAfterNavigation({ ...scroll, loadMore });
   }
 
+  // Umleitungen aus _doNavigate heraus muessen an navigateTo vorbei: dessen
+  // Reentrancy-Flag steht zu dem Zeitpunkt noch und wuerde den Aufruf wortlos
+  // verwerfen. Die URL bleibt auf der urspruenglichen Route, ein Reload leitet
+  // erneut um.
+  _redirect(route) {
+    return this._doNavigate(route, true);
+  }
+
   async _doNavigate(route, skipPushState = false) {
     // Gast-Modus (Share-Link): strikt nur die geteilte Entität, keine anderen Routen
     if (window.guestShare) {
@@ -189,7 +197,7 @@ export class ModuleRegistry {
 
     // Legacy-Redirects: /auftrag/new, /auftragsdetails/new, /kampagne/new → Wizard
     if (id === 'new' && (segment === 'auftrag' || segment === 'auftragsdetails' || segment === 'kampagne')) {
-      return this.navigateTo('/projekt-erstellen', true);
+      return this._redirect('/projekt-erstellen');
     }
     
     if (id && segment === 'creator' && id !== 'new') {
@@ -282,7 +290,7 @@ export class ModuleRegistry {
     }
     
     if (id === 'new' && segment === 'auftragsdetails') {
-      return this.navigateTo('/projekt-erstellen', true);
+      return this._redirect('/projekt-erstellen');
     }
     else if (id && segment === 'auftragsdetails' && id !== 'new' && action === 'edit') {
       // Wizard-Redirect: auftrag_id aus den Details laden, dann Wizard-Edit öffnen
@@ -298,7 +306,7 @@ export class ModuleRegistry {
             .eq('id', id)
             .single();
           if (data?.auftrag_id) {
-            return this.navigateTo(`/projekt-erstellen/edit/${data.auftrag_id}`, true);
+            return this._redirect(`/projekt-erstellen/edit/${data.auftrag_id}`);
           }
         } catch (e) {
           console.warn('⚠️ Auftragsdetails-Edit Wizard-Redirect fehlgeschlagen:', e);
@@ -312,6 +320,13 @@ export class ModuleRegistry {
       console.log(`🎯 Auftragsdetails-Details erkannt, verwende Modul: ${moduleKey}`);
     }
     
+    // Auftrag/Contract-Edit laeuft ueber den Wizard. Das alte FormSystem-Formular
+    // schreibt nur die auftrag-Zeile und laesst auftrag_teilrechnung unberuehrt,
+    // wodurch Kundenrechnungen weiter die alten Teilrechnungsbetraege zeigen.
+    else if (id && id !== 'new' && action === 'edit' && (segment === 'auftrag' || segment === 'contracts')) {
+      return this._redirect(`/projekt-erstellen/edit/${id.split('?')[0]}`);
+    }
+
     else if (id && segment === 'auftrag' && id !== 'new') {
       moduleKey = 'auftrag-detail';
       module = this.modules.get(moduleKey);
@@ -346,7 +361,7 @@ export class ModuleRegistry {
           .eq('id', id)
           .single();
         if (data?.auftrag_id) {
-          return this.navigateTo(`/projekt-erstellen/edit/${data.auftrag_id}?step=kampagnen`, true);
+          return this._redirect(`/projekt-erstellen/edit/${data.auftrag_id}?step=kampagnen`);
         }
       } catch (e) {
         console.warn('⚠️ Kampagne-Edit Wizard-Redirect fehlgeschlagen:', e);

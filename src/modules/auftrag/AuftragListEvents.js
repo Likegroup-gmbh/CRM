@@ -273,13 +273,11 @@ AuftragList.prototype.bindGlobalDelegatedEvents = function() {
     const isInlineBillingUpdate =
       (entity === 'auftrag' || entity === 'auftrag_teilrechnung') &&
       e.detail.action === 'updated' &&
-      (e.detail.field === 'rechnung_gestellt_am' || e.detail.field === 'ueberwiesen_am' || e.detail.field === 'erwarteter_monat_zahlungseingang') &&
+      (e.detail.field === 'rechnung_gestellt_am' || e.detail.field === 'ueberwiesen_am') &&
       e.detail.id;
 
     if (isInlineBillingUpdate) {
-      if (e.detail.field !== 'erwarteter_monat_zahlungseingang') {
-        this.syncInlineBillingUpdate(e.detail.id, e.detail.field, e.detail.value);
-      }
+      this.syncInlineBillingUpdate(e.detail.id, e.detail.field, e.detail.value);
       this.onInlineBillingUpdated?.(e.detail);
       return;
     }

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  ALL_TAB,
   NO_RENR_TAB,
   UNDATED_TAB,
   countRowsByMonth,
@@ -24,12 +25,12 @@ const rows = [
 describe('InvoiceMonthFilter', () => {
   it('filtert nur den gewaehlten Monat im Jahr', () => {
     const january = filterRowsByMonthYear(rows, { year: 2026, month: 0 });
-    expect(january.map(r => r.id)).toEqual(['a1', 'a2']);
+    expect(january.map(r => r.id)).toEqual(['a1']);
   });
 
-  it('ordnet nach Rechnungsdatum, nicht nach Zahlungsdatum', () => {
+  it('folgt derselben Datumskaskade wie der Cashflow-Kalender', () => {
     const march = filterRowsByMonthYear(rows, { year: 2026, month: 2 });
-    expect(march).toEqual([]);
+    expect(march.map(r => r.id)).toEqual(['a2']);
   });
 
   it('laesst anderes Jahr aussen vor', () => {
@@ -51,11 +52,22 @@ describe('InvoiceMonthFilter', () => {
     expect(filterRowsByMonthYear(rows, { year: 2026, month: UNDATED_TAB }).map(r => r.id)).not.toContain('a5');
   });
 
+  it('gibt im Alle-Tab jede Zeile jahr- und monatsunabhaengig zurueck', () => {
+    expect(filterRowsByMonthYear(rows, { year: 2026, month: ALL_TAB })).toEqual(rows);
+    expect(filterRowsByMonthYear(rows, { year: 2019, month: ALL_TAB })).toEqual(rows);
+  });
+
+  it('behaelt den Alle-Tab auch ohne Treffer im gewaehlten Jahr', () => {
+    expect(resolveDefaultMonth(rows, 2019, ALL_TAB)).toBe(ALL_TAB);
+    expect(resolveDefaultMonth([], 2026, ALL_TAB)).toBe(ALL_TAB);
+  });
+
   it('zaehlt Monate, Ohne-Datum und Ohne-RE-Nr separat', () => {
     expect(countRowsByMonth(rows, 2026)).toEqual({
       undated: 1,
       'no-renr': 1,
-      months: [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      alle: rows.length,
+      months: [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     });
   });
 
@@ -69,6 +81,7 @@ describe('InvoiceMonthFilter', () => {
     expect(formatMonthEmptyText(7, 2026)).toBe('Keine Rechnungen im August 2026.');
     expect(formatMonthEmptyText(UNDATED_TAB, 2026)).toBe('Keine Rechnungen ohne Datum.');
     expect(formatMonthEmptyText(NO_RENR_TAB, 2026)).toBe('Keine Rechnungen ohne Rechnungsnummer.');
+    expect(formatMonthEmptyText(ALL_TAB, 2026)).toBe('Keine Rechnungen vorhanden.');
   });
 
   it('findet Cache-Zeilen ueber Teilrechnungs- oder Auftrags-ID', () => {
@@ -95,7 +108,7 @@ describe('AusgangsrechnungenList Monatssheet', () => {
     expect(document.getElementById('pagination-auftrag')).toBeNull();
     expect(document.getElementById('ausgangsrechnungen-month-tabs')).toBeTruthy();
     expect(document.getElementById('ausgangsrechnungen-year-select')).toBeTruthy();
-    expect(document.querySelectorAll('#ausgangsrechnungen-month-tabs .tab-button')).toHaveLength(14);
+    expect(document.querySelectorAll('#ausgangsrechnungen-month-tabs .tab-button')).toHaveLength(15);
   });
 
   it('kuerzt die Rechnungsspalten auf alltagstaugliche Header', () => {
@@ -124,11 +137,39 @@ describe('AusgangsrechnungenList Monatssheet', () => {
     document.body.innerHTML = list.renderMonthSheet();
     list.updateMonthTabUI();
 
-    expect(document.querySelector('[data-month-count="0"]').textContent).toBe('2');
-    expect(document.querySelector('[data-month-count="2"]').textContent).toBe('0');
+    expect(document.querySelector('[data-month-count="0"]').textContent).toBe('1');
+    expect(document.querySelector('[data-month-count="2"]').textContent).toBe('1');
     expect(document.querySelector(`[data-month-count="${UNDATED_TAB}"]`).textContent).toBe('1');
     expect(document.querySelector(`[data-month-count="${NO_RENR_TAB}"]`).textContent).toBe('1');
+    expect(document.querySelector(`[data-month-count="${ALL_TAB}"]`).textContent).toBe(String(rows.length));
     expect(document.querySelector('#ausgangsrechnungen-month-tabs .tab-button[data-tab="0"]').classList.contains('active')).toBe(true);
+  });
+
+  it('stellt den Alle-Tab voran und zeigt darin alle Zeilen', () => {
+    const list = new AusgangsrechnungenList();
+    list.currentYear = 2026;
+    list.currentMonth = 0;
+    list._allInvoiceRows = rows;
+    list.updateTable = vi.fn();
+    document.body.innerHTML = list.renderMonthSheet();
+
+    const tabs = [...document.querySelectorAll('#ausgangsrechnungen-month-tabs .tab-button[data-tab]')];
+    expect(tabs[0].dataset.tab).toBe(ALL_TAB);
+    expect(tabs.at(-1).dataset.tab).toBe(NO_RENR_TAB);
+
+    list.selectInvoiceMonth(ALL_TAB);
+    expect(list.currentMonth).toBe(ALL_TAB);
+    expect(list.updateTable).toHaveBeenCalledWith(rows, 'auftraege');
+  });
+
+  it('waehlt trotz vorangestelltem Alle-Tab den aktuellen Monat vor', () => {
+    const list = new AusgangsrechnungenList();
+    const now = new Date();
+    expect(list.currentMonth).toBe(now.getMonth());
+
+    document.body.innerHTML = list.renderMonthSheet();
+    const active = document.querySelector('#ausgangsrechnungen-month-tabs .tab-button.active');
+    expect(active.dataset.tab).toBe(String(now.getMonth()));
   });
 
   it('filtert beim Tab-Wechsel nur den Cache', () => {
@@ -141,7 +182,7 @@ describe('AusgangsrechnungenList Monatssheet', () => {
 
     list.selectInvoiceMonth('2');
     expect(list.currentMonth).toBe(2);
-    expect(list.updateTable).toHaveBeenCalledWith([], 'auftraege');
+    expect(list.updateTable).toHaveBeenCalledWith([rows[1]], 'auftraege');
   });
 
   it('entfernt eine Zeile aus dem aktuellen Monat nach Rechnungsdatum-Edit', () => {
@@ -159,7 +200,7 @@ describe('AusgangsrechnungenList Monatssheet', () => {
     });
 
     expect(list._allInvoiceRows[0].rechnung_gestellt_am).toBe('2026-04-10');
-    expect(list.updateTable).toHaveBeenCalledWith([rows[1]], 'auftraege');
+    expect(list.updateTable).toHaveBeenCalledWith([], 'auftraege');
   });
 
   it('entfernt eine Zeile aus Ohne-RE-Nr nach re_nr-Save', () => {

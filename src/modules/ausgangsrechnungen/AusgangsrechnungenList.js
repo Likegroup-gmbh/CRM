@@ -4,6 +4,7 @@
 import { AuftragList } from '../auftrag/AuftragList.js';
 import { defaultReNrPrefix, sortRowsByPrefixedNumberDesc } from '../auftrag/logic/PrefixedNumberSort.js';
 import {
+  ALL_TAB,
   MONTH_LABELS,
   NO_RENR_TAB,
   UNDATED_TAB,
@@ -124,11 +125,54 @@ export class AusgangsrechnungenList extends AuftragList {
               <td colspan="${this.getListColumnCount()}" class="loading">${loadingText}</td>
             </tr>
           </tbody>
+          ${this.renderInvoiceSummaryFoot()}
         </table>
     </div>
 
     ${isContracts ? '' : this.renderMonthSheet()}
   `;
+  }
+
+  // Summen der aktuell sichtbaren Zeilen. Der Monatstab zeigt sonst nur, wie viele
+  // Rechnungen im Monat liegen, aber nicht, um wie viel Geld es geht.
+  renderInvoiceSummaryFoot() {
+    const zero = this.formatSummaryCurrency(0);
+    return `
+      <tfoot id="ausgangsrechnungen-summary">
+        <tr>
+          <td colspan="10" class="col-summary-label">Summe</td>
+          <td class="col-netto" data-summary="nettobetrag">${zero}</td>
+          <td class="col-mwst-prozent"></td>
+          <td class="col-ust" data-summary="ust_betrag">${zero}</td>
+          <td class="col-brutto" data-summary="bruttobetrag">${zero}</td>
+          <td colspan="${this.isKunde ? 4 : 5}"></td>
+        </tr>
+      </tfoot>
+    `;
+  }
+
+  formatSummaryCurrency(value) {
+    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' })
+      .format(Number(value) || 0);
+  }
+
+  sumInvoiceRows(rows) {
+    return (rows || []).reduce((acc, row) => {
+      acc.nettobetrag += parseFloat(row.nettobetrag) || 0;
+      acc.ust_betrag += parseFloat(row.ust_betrag) || 0;
+      acc.bruttobetrag += parseFloat(row.bruttobetrag) || 0;
+      return acc;
+    }, { nettobetrag: 0, ust_betrag: 0, bruttobetrag: 0 });
+  }
+
+  updateInvoiceSummary(rows) {
+    const foot = document.getElementById('ausgangsrechnungen-summary');
+    if (!foot) return;
+    const totals = this.sumInvoiceRows(rows);
+    Object.entries(totals).forEach(([field, value]) => {
+      const cell = foot.querySelector(`[data-summary="${field}"]`);
+      if (cell) cell.textContent = this.formatSummaryCurrency(value);
+    });
   }
 
   renderMonthSheet() {
@@ -137,6 +181,13 @@ export class AusgangsrechnungenList extends AuftragList {
     for (let year = nowYear - 5; year <= nowYear + 5; year += 1) {
       yearOptions.push(`<option value="${year}" ${year === this.currentYear ? 'selected' : ''}>${year}</option>`);
     }
+
+    const allTab = renderTabButton({
+      tab: ALL_TAB,
+      label: `Alle<span class="tab-count" data-month-count="${ALL_TAB}">0</span>`,
+      isActive: this.currentMonth === ALL_TAB,
+      skipPermissionCheck: true
+    });
 
     const monthTabs = MONTH_LABELS.map((label, index) => renderTabButton({
       tab: String(index),
@@ -164,6 +215,7 @@ export class AusgangsrechnungenList extends AuftragList {
         <select id="ausgangsrechnungen-year-select" class="form-select" aria-label="Jahr">
           ${yearOptions.join('')}
         </select>
+        ${allTab}
         ${monthTabs}
         ${undatedTab}
         ${noRenrTab}
@@ -218,6 +270,8 @@ export class AusgangsrechnungenList extends AuftragList {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
 
+    this.updateInvoiceSummary(auftraege);
+
     const isContracts = mode === 'contracts';
     const actionEntity = isContracts ? 'contract' : 'auftrag';
 
@@ -268,20 +322,9 @@ export class AusgangsrechnungenList extends AuftragList {
     });
   }
 
+  // Der erwartete Zahlungseingang entspricht der RE-Faelligkeit und ist nicht editierbar.
   renderExpectedPaymentDateCell(auftrag) {
-    if (!this.isAdmin) {
-      return this.formatDate(auftrag.erwarteter_monat_zahlungseingang);
-    }
-    const { id, entity } = this._inlineTarget(auftrag);
-    return CustomDatePicker.render({
-      id,
-      entity,
-      field: 'erwarteter_monat_zahlungseingang',
-      dateField: '',
-      value: auftrag.erwarteter_monat_zahlungseingang,
-      label: 'Erwarteter Zahlungseingang',
-      inputClass: 'auftrag-inline-date-input'
-    });
+    return this.formatDate(auftrag.re_faelligkeit);
   }
 
   // Bei Kundenrechnungen werden Inline-Edits pro Teilrechnung geschrieben,
@@ -332,6 +375,8 @@ export class AusgangsrechnungenList extends AuftragList {
     if (undatedEl) undatedEl.textContent = counts[UNDATED_TAB] || 0;
     const noRenrEl = document.querySelector(`[data-month-count="${NO_RENR_TAB}"]`);
     if (noRenrEl) noRenrEl.textContent = counts[NO_RENR_TAB] || 0;
+    const allEl = document.querySelector(`[data-month-count="${ALL_TAB}"]`);
+    if (allEl) allEl.textContent = counts[ALL_TAB] || 0;
 
     const yearSelect = document.getElementById('ausgangsrechnungen-year-select');
     if (yearSelect && String(yearSelect.value) !== String(this.currentYear)) {
@@ -346,7 +391,7 @@ export class AusgangsrechnungenList extends AuftragList {
 
   selectInvoiceMonth(tab) {
     const next = parseMonthTab(tab);
-    if (Number.isNaN(next) && next !== UNDATED_TAB && next !== NO_RENR_TAB) return;
+    if (Number.isNaN(next) && next !== UNDATED_TAB && next !== NO_RENR_TAB && next !== ALL_TAB) return;
     if (next === this.currentMonth) return;
     this.currentMonth = next;
     this.applyMonthFilter();

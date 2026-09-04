@@ -102,6 +102,14 @@ export function bindUnternehmenDetailEvents(detail) {
         detail.bindDragToScroll();
       });
     }
+    // Auftragsbetraege stehen in den Tabs Auftraege und Kundenrechnungen.
+    // Ohne diesen Zweig bleiben die Summen stehen, bis man die Seite neu betritt.
+    if (['auftrag', 'auftrag_teilrechnung'].includes(e.detail?.entity)) {
+      detail.loadUnternehmenData().then(() => {
+        detail.render(true);
+        detail.bindDragToScroll();
+      });
+    }
   };
   document.addEventListener('entityUpdated', detail._entityUpdatedHandler, { signal });
 

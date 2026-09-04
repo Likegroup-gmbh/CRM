@@ -60,7 +60,7 @@ describe('InvoiceDisplayDate', () => {
     });
   });
 
-  it('bildet year/month nur aus dem Rechnungsdatum', () => {
+  it('bildet year/month aus derselben Kaskade wie der Kalender', () => {
     expect(getInvoiceMonthKey({ rechnung_gestellt_am: '2026-08-19' })).toEqual({
       year: 2026,
       month: 7
@@ -68,7 +68,18 @@ describe('InvoiceDisplayDate', () => {
     expect(getInvoiceMonthKey({
       ueberwiesen_am: '2026-03-05',
       rechnung_gestellt_am: '2026-01-10'
-    })).toEqual({ year: 2026, month: 0 });
-    expect(getInvoiceMonthKey({ ueberwiesen_am: '2026-03-05' })).toBeNull();
+    })).toEqual({ year: 2026, month: 2 });
+    expect(getInvoiceMonthKey({ ueberwiesen_am: '2026-03-05' })).toEqual({
+      year: 2026,
+      month: 2
+    });
+    expect(getInvoiceMonthKey({ erwarteter_monat_zahlungseingang: '2026-11-01' })).toEqual({
+      year: 2026,
+      month: 10
+    });
+    expect(getInvoiceMonthKey({ re_faelligkeit: '2026-05-20' })).toEqual({
+      year: 2026,
+      month: 4
+    });
   });
 });
