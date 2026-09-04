@@ -102,6 +102,9 @@ VertraegeCreate.prototype.bindMultistepEvents = function() {
       form.addEventListener('input', () => this.updateSubmitDisabled());
       form.addEventListener('change', () => this.updateSubmitDisabled());
     }
+
+    this.bindDynamicFieldEvents();
+    this.bindAddressPreviewEvents();
   };
 
 VertraegeCreate.prototype.updateSubmitDisabled = function() {
