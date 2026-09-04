@@ -11,6 +11,7 @@ const ROUTE_CONFIG = {
   'management-creator': { label: 'Management-Creator', entity: 'creator' },
   management:         { label: 'Management',        entity: 'management' },
   produkt:            { label: 'Produkte',           entity: 'produkt' },
+  persona:            { label: 'Personas',           entity: 'persona' },
   creator:            { label: 'Creator',            entity: 'creator' },
   auftrag:            { label: 'Aufträge',          entity: 'auftrag' },
   'projekt-erstellen': { label: 'Projekt anlegen',   entity: 'projekt-erstellen' },

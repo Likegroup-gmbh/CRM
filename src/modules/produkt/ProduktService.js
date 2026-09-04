@@ -219,6 +219,17 @@ export class ProduktService {
   }
 
   /** Produkte des Kontexts inklusive Varianten-IDs und Bildern fuer die Tabelle. */
+  /** Alle Produkte (Top-Level-Liste), inkl. Unternehmen, Marken und Relationen. */
+  static async loadAll() {
+    const { data, error } = await window.supabase
+      .from('produkt')
+      .select(`*, unternehmen:unternehmen_id(id, firmenname, logo_url), ${MARKEN_SELECT}, ${TABELLEN_SELECT}`)
+      .order('name');
+
+    if (error) throw error;
+    return data || [];
+  }
+
   static async loadForContext({ unternehmenId = null, markeId = null } = {}) {
     let query = window.supabase.from('produkt');
 

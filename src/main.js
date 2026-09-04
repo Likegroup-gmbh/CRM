@@ -23,6 +23,7 @@ import '../assets/styles/domain-calendar.css';
 import '../assets/styles/domain-queue.css';
 import '../assets/styles/domain-projekt.css';
 import '../assets/styles/domain-education.css';
+import '../assets/styles/domain-neuigkeiten.css';
 import '../assets/styles/components.css';
 import '../assets/styles/global-search.css';
 import '../assets/styles/dashboard.css';
@@ -60,6 +61,7 @@ import { markeList } from './modules/marke/MarkeList.js';
 import { markeDetail } from './modules/marke/MarkeDetail.js';
 import { markeCreate } from './modules/marke/MarkeCreate.js';
 import { personaForm } from './modules/persona/PersonaForm.js';
+import { personaList } from './modules/persona/PersonaList.js';
 import { produktForm } from './modules/produkt/ProduktForm.js';
 import { produktList } from './modules/produkt/ProduktList.js';
 import { authService } from './modules/auth/AuthService.js';
@@ -114,6 +116,8 @@ import { creatorAuswahlDetail } from './modules/creator-auswahl/CreatorAuswahlDe
 import { feedbackPage } from './modules/feedback/FeedbackPage.js';
 import { educationPage } from './modules/education/EducationPage.js';
 import { educationArticleDetail } from './modules/education/EducationArticleDetail.js';
+import { neuigkeitenPage } from './modules/neuigkeiten/NeuigkeitenPage.js';
+import { neuigkeitDetail } from './modules/neuigkeiten/NeuigkeitDetail.js';
 import { managementList } from './modules/management/ManagementList.js';
 import { managementDetail } from './modules/management/ManagementDetail.js';
 import { managementCreate } from './modules/management/ManagementCreate.js';
@@ -163,7 +167,9 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('marke', markeList);
   moduleRegistry.register('marke-detail', markeDetail);
   moduleRegistry.register('marke-create', markeCreate);
-  // Ein Formular fuer beide Besitzer: /marke/:id/persona und /unternehmen/:id/persona
+  // Top-Level-Liste und ein Formular fuer beide Besitzer:
+  // /persona, /persona/new, /persona/:id sowie /marke/:id/persona und /unternehmen/:id/persona
+  moduleRegistry.register('persona', personaList);
   moduleRegistry.register('persona-form', personaForm);
   moduleRegistry.register('produkt', produktList);
   moduleRegistry.register('produkt-form', produktForm);
@@ -206,6 +212,8 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('feedback', feedbackPage);
   moduleRegistry.register('education', educationPage);
   moduleRegistry.register('education-detail', educationArticleDetail);
+  moduleRegistry.register('neuigkeiten', neuigkeitenPage);
+  moduleRegistry.register('neuigkeiten-detail', neuigkeitDetail);
   moduleRegistry.register('videos', videoList);
   moduleRegistry.register('vertraege', vertraegeList);
   moduleRegistry.register('vertraege-create', vertraegeCreate);

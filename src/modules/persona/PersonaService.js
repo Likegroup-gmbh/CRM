@@ -33,6 +33,19 @@ export function personaFormRoute(ownerTyp, ownerId, personaId = null) {
 }
 
 export class PersonaService {
+  /** Alle Personas ueber alle Unternehmen, fuer die Top-Level-Liste. DNA-Personas (ohne unternehmen_id) bleiben draussen. */
+  static async loadAll() {
+    const { data, error } = await window.supabase
+      .from('personas')
+      .select(`*, unternehmen:unternehmen_id(id, firmenname, logo_url), ${MARKEN_SELECT}`)
+      .not('unternehmen_id', 'is', null)
+      .order('oberbegriff', { nullsFirst: false })
+      .order('name');
+
+    if (error) throw error;
+    return data || [];
+  }
+
   static async loadForContext({ unternehmenId = null, markeId = null } = {}) {
     let query = window.supabase.from('personas');
 
@@ -54,7 +67,7 @@ export class PersonaService {
     return data || [];
   }
 
-  /** Laedt eine einzelne Persona. Der Kontext schuetzt gegen fremde Deeplinks. */
+  /** Laedt eine einzelne Persona. Im Standalone ohne Kontext, sonst schuetzt der Kontext gegen fremde Deeplinks. */
   static async loadOne(personaId, { unternehmenId = null, markeId = null } = {}) {
     let query = window.supabase.from('personas');
 
@@ -62,8 +75,10 @@ export class PersonaService {
       query = query
         .select('*, treffer:persona_marke!inner(marke_id)')
         .eq('treffer.marke_id', markeId);
-    } else {
+    } else if (unternehmenId) {
       query = query.select('*').eq('unternehmen_id', unternehmenId);
+    } else {
+      query = query.select('*');
     }
 
     const { data, error } = await query.eq('id', personaId).maybeSingle();
@@ -84,7 +99,8 @@ export class PersonaService {
   }
 
   static async create(data, { unternehmenId = null } = {}) {
-    const payload = { ...data, unternehmen_id: unternehmenId };
+    const payload = { ...data };
+    if (unternehmenId) payload.unternehmen_id = unternehmenId;
     delete payload.marke_ids;
     if ('budgetrahmen' in payload) payload.budgetrahmen = clampBudgetrahmen(payload.budgetrahmen);
 

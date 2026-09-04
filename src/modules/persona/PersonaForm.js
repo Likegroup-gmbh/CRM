@@ -26,8 +26,12 @@ export class PersonaForm {
     return !!this.personaId;
   }
 
+  get isStandalone() {
+    return window.location.pathname.split('/').filter(Boolean)[0] === 'persona';
+  }
+
   get returnRoute() {
-    return `${this.ctx.basePath}?tab=personas`;
+    return this.isStandalone ? '/persona' : `${this.ctx.basePath}?tab=personas`;
   }
 
   async init(ownerId) {
@@ -35,26 +39,53 @@ export class PersonaForm {
     this._abort = new AbortController();
 
     this.personaId = new URLSearchParams(window.location.search).get('persona');
+    if (this.isStandalone) {
+      this.personaId = ownerId && ownerId !== 'new' ? ownerId : null;
+    }
     this.persona = null;
     this.markenIds = [];
 
     try {
-      this.ctx = await resolveOwnerContext(ownerId);
-      this.owner = this.ctx.owner;
-
-      if (this.personaId) {
-        this.persona = await PersonaService.loadOne(this.personaId, this.ctx);
-        if (!this.persona) {
-          window.toastSystem?.error?.('Persona nicht gefunden');
-          window.navigateTo(this.returnRoute);
-          return;
+      if (this.isStandalone) {
+        if (this.personaId) {
+          this.persona = await PersonaService.loadOne(this.personaId);
+          if (!this.persona) {
+            window.toastSystem?.error?.('Persona nicht gefunden');
+            window.navigateTo(this.returnRoute);
+            return;
+          }
+          this.markenIds = await PersonaService.loadMarkenIds(this.personaId);
         }
-        this.markenIds = await PersonaService.loadMarkenIds(this.personaId);
+        this.ctx = {
+          typ: 'persona',
+          markeId: null,
+          unternehmenId: this.persona?.unternehmen_id || null,
+          owner: null,
+          basePath: '/persona',
+          listPath: '/persona',
+          listLabel: 'Personas',
+          ownerLabel: 'Übersicht',
+          markenAnzahl: 0
+        };
+        this.owner = null;
+      } else {
+        this.ctx = await resolveOwnerContext(ownerId);
+        this.owner = this.ctx.owner;
+
+        if (this.personaId) {
+          this.persona = await PersonaService.loadOne(this.personaId, this.ctx);
+          if (!this.persona) {
+            window.toastSystem?.error?.('Persona nicht gefunden');
+            window.navigateTo(this.returnRoute);
+            return;
+          }
+          this.markenIds = await PersonaService.loadMarkenIds(this.personaId);
+        }
       }
     } catch (err) {
       console.error('Persona-Formular konnte nicht geladen werden:', err);
       window.ErrorHandler?.handle?.(err, 'PersonaForm.init');
-      window.navigateTo(this.ctx?.basePath || '/marke');
+      window.navigateTo(this.isStandalone ? '/persona' : (this.ctx?.basePath || '/marke'));
       return;
     }
 
@@ -69,14 +100,21 @@ export class PersonaForm {
 
     window.setHeadline(title);
 
-    window.breadcrumbSystem?.updateBreadcrumb([
-      { label: this.ctx.listLabel, url: this.ctx.listPath, clickable: true },
-      { label: this.ctx.ownerLabel, url: this.ctx.basePath, clickable: true },
-      { label: 'Personas', url: this.returnRoute, clickable: true },
-      { label: this.isEdit ? PersonaService.label(this.persona) : 'Persona anlegen', clickable: false }
-    ], null, {
-      switcher: this.isEdit ? nestedSwitcherContext('persona', this.personaId, this.ctx) : null
-    });
+    if (this.isStandalone) {
+      window.breadcrumbSystem?.updateBreadcrumb([
+        { label: 'Personas', url: '/persona', clickable: true },
+        { label: this.isEdit ? PersonaService.label(this.persona) : 'Persona anlegen', clickable: false }
+      ]);
+    } else {
+      window.breadcrumbSystem?.updateBreadcrumb([
+        { label: this.ctx.listLabel, url: this.ctx.listPath, clickable: true },
+        { label: this.ctx.ownerLabel, url: this.ctx.basePath, clickable: true },
+        { label: 'Personas', url: this.returnRoute, clickable: true },
+        { label: this.isEdit ? PersonaService.label(this.persona) : 'Persona anlegen', clickable: false }
+      ], null, {
+        switcher: this.isEdit ? nestedSwitcherContext('persona', this.personaId, this.ctx) : null
+      });
+    }
 
     const formData = this.isEdit
       ? { ...this.persona, marke_ids: this.markenIds, _isEditMode: true, _entityId: this.persona.id }
@@ -93,13 +131,36 @@ export class PersonaForm {
     `;
 
     const form = document.getElementById('persona-form');
-    this.prepareMarkenFeld(form);
+    if (this.isStandalone) {
+      this.prepareStandalone(form);
+    } else {
+      this.prepareMarkenFeld(form);
+    }
 
     window.formSystem.bindFormEvents('persona', formData);
   }
 
   get zeigtMarkenFeld() {
+    if (this.isStandalone) return true;
     return !this.ctx.markeId && this.ctx.markenAnzahl > 0;
+  }
+
+  /**
+   * Standalone: Unternehmen ist ein sichtbares, pflichtiges Searchable-Select.
+   * Im Edit bleibt es readonly, damit die Persona nicht zwischen Unternehmen
+   * wandert. Das Marken-Feld bleibt optional, der DirectQueryLoader filtert
+   * ueber dependsOn automatisch.
+   */
+  prepareStandalone(form) {
+    if (!form) return;
+
+    if (this.isEdit) {
+      const unternehmenField = form.querySelector('[name="unternehmen_id"]');
+      if (unternehmenField) {
+        unternehmenField.disabled = true;
+        unternehmenField.classList.add('is-readonly');
+      }
+    }
   }
 
   /**
@@ -135,8 +196,8 @@ export class PersonaForm {
       await this.handleSubmit();
     };
 
-    // Der Abbrechen-Button aus renderFormOnly zeigt fest auf /persona - die Route
-    // existiert nicht, deshalb zurueck auf den Personas-Tab.
+    // Der Abbrechen-Button aus renderFormOnly zeigt fest auf /persona - nested
+    // muss er zurueck auf den Tab, im Standalone passt die Route schon.
     const cancelBtn = form.querySelector('.mdc-btn--cancel');
     if (cancelBtn) {
       cancelBtn.removeAttribute('onclick');
@@ -175,7 +236,8 @@ export class PersonaForm {
 
     this.clearFieldErrors(form);
     const validation = window.validatorSystem.validateForm(data, {
-      name: { type: 'text', minLength: 2, required: true }
+      name: { type: 'text', minLength: 2, required: true },
+      unternehmen_id: { required: true }
     });
     if (!validation.isValid) {
       this.showFieldErrors(form, validation.errors);
@@ -192,7 +254,8 @@ export class PersonaForm {
       if (this.isEdit) {
         await PersonaService.update(this.personaId, data);
       } else {
-        const result = await PersonaService.create(data, this.ctx);
+        const createCtx = this.isStandalone ? { unternehmenId: data.unternehmen_id } : this.ctx;
+        const result = await PersonaService.create(data, createCtx);
         personaId = result.id;
       }
 
@@ -212,6 +275,11 @@ export class PersonaForm {
    * Marke heraus kommt sie nur dazu. Sonst zaehlt genau die Auswahl im Tag-Feld.
    */
   collectMarkenIds(data) {
+    if (this.isStandalone) {
+      const werte = data.marke_ids;
+      if (Array.isArray(werte)) return werte;
+      return werte ? [werte] : [];
+    }
     if (!this.zeigtMarkenFeld) {
       return [...new Set([...this.markenIds, this.ctx.markeId].filter(Boolean))];
     }

@@ -237,11 +237,35 @@ export class ModuleRegistry {
     // Personas und Produkte gehoeren dem Unternehmen, lassen sich aber auch aus
     // einer Marke heraus anlegen. Beide Routen fuehren auf dasselbe Formular,
     // das seinen Besitzer-Kontext aus dem Pfad ableitet (OwnerContext.js).
+    // Top-Level: /persona (Liste), /persona/new und /persona/:id (Standalone-Formular).
+    if (segment === 'persona' && id) {
+      moduleKey = 'persona-form';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Persona-Formular erkannt (standalone), verwende Modul: ${moduleKey}`);
+      if (module) {
+        this.currentModule = module;
+        this._didInitModule = true;
+        return module.init(id);
+      }
+    }
+
     // /:segment/:ownerId/persona bzw. ?persona=:id zum Bearbeiten
     if (id && id !== 'new' && (segment === 'marke' || segment === 'unternehmen') && action === 'persona') {
       moduleKey = 'persona-form';
       module = this.modules.get(moduleKey);
       console.log(`🎯 Persona-Formular erkannt (${segment}), verwende Modul: ${moduleKey}`);
+    }
+
+    // Top-Level: /produkt (Liste), /produkt/new und /produkt/:id (Standalone-Formular).
+    if (segment === 'produkt' && id) {
+      moduleKey = 'produkt-form';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Produkt-Formular erkannt (standalone), verwende Modul: ${moduleKey}`);
+      if (module) {
+        this.currentModule = module;
+        this._didInitModule = true;
+        return module.init(id);
+      }
     }
 
     // /:segment/:ownerId/produkt bzw. ?produkt=:id zum Bearbeiten
@@ -389,6 +413,12 @@ export class ModuleRegistry {
       moduleKey = 'education-detail';
       module = this.modules.get(moduleKey);
       console.log(`🎯 Education-Artikel erkannt, verwende Modul: ${moduleKey}, slug: ${id}`);
+    }
+
+    if (id && segment === 'neuigkeiten') {
+      moduleKey = 'neuigkeiten-detail';
+      module = this.modules.get(moduleKey);
+      console.log(`🎯 Neuigkeit erkannt, verwende Modul: ${moduleKey}, slug: ${id}`);
     }
     
     if (id && segment === 'ansprechpartner') {

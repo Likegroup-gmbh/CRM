@@ -2279,26 +2279,26 @@ table.vertraege-unternehmen-table td:last-child {
 
 /* Tables in Articles */
 
-.education-article-content .education-table {
+.md-content .md-table {
   width: 100%;
   border-collapse: collapse;
   margin: var(--space-md) 0;
   font-size: var(--text-sm);
 }
 
-.education-article-content .education-table th,
-.education-article-content .education-table td {
+.md-content .md-table th,
+.md-content .md-table td {
   padding: var(--space-sm) var(--space-md);
   border: 1px solid var(--border-primary);
   text-align: left;
 }
 
-.education-article-content .education-table th {
+.md-content .md-table th {
   background: var(--gray-50);
   font-weight: 600;
 }
 
-.education-article-content .education-table tr:hover {
+.md-content .md-table tr:hover {
   background: var(--gray-50);
 }
 

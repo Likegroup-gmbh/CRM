@@ -12,7 +12,8 @@ export class NavigationSystem {
       {
         title: 'Dashboard',
         items: [
-          { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', url: '/dashboard' }
+          { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', url: '/dashboard' },
+          { id: 'neuigkeiten', label: 'Was ist neu', icon: 'neuigkeiten', url: '/neuigkeiten' }
           // Ausgeblendet, kommt später wieder:
           // { id: 'tasks', label: 'Aufgaben', icon: 'tasks', url: '/tasks' }
         ]
@@ -27,7 +28,7 @@ export class NavigationSystem {
         title: 'Stammdaten',
         items: [
           { id: 'unternehmen', label: 'Unternehmen', icon: 'unternehmen', url: '/unternehmen' },
-          { id: 'marke', label: 'Marken', icon: 'marke', url: '/marke' },
+          { id: 'persona', label: 'Personas', icon: 'persona', url: '/persona' },
           { id: 'produkt', label: 'Produkte', icon: 'produkt', url: '/produkt' },
           { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'ansprechpartner', url: '/ansprechpartner' },
           {
@@ -52,6 +53,8 @@ export class NavigationSystem {
       {
         title: 'Content & Strategie',
         items: [
+          // Ausgeblendet, kommt später wieder:
+          // { id: 'kickoff', label: 'Kick-Off', icon: 'kickoff', url: '/kickoff' },
           { id: 'briefing', label: 'Briefings', icon: 'briefing', url: '/briefing' },
           { id: 'strategie', label: 'Strategie', icon: 'strategie', url: '/strategie' },
           { id: 'sourcing', label: 'Sourcing', icon: 'sourcing', url: '/sourcing' },
@@ -71,6 +74,7 @@ export class NavigationSystem {
       {
         title: 'Admin',
         items: [
+          { id: 'stakeholder', label: 'Stakeholder', icon: 'stakeholder', url: '/stakeholder' },
           { id: 'mitarbeiter', label: 'Mitarbeiter', icon: 'mitarbeiter', url: '/mitarbeiter' },
           { id: 'kunden-admin', label: 'Kunden', icon: 'kunden-admin', url: '/admin/kunden' },
           { id: 'shares', label: 'Geteilte Listen', icon: 'shares', url: '/shares' },
@@ -118,11 +122,17 @@ export class NavigationSystem {
         return typeof window.isInternal === 'function' && window.isInternal();
       }
 
+      // Neuigkeiten ("Was ist neu"): nur intern (RLS laesst ohnehin nur Staff lesen)
+      if (id === 'neuigkeiten') {
+        return typeof window.isInternal === 'function' && window.isInternal();
+      }
+
       // KI-Nutzung: nur Admins (RLS laesst ohnehin nur Admins lesen)
       if (id === 'ki-usage') {
         return typeof window.isAdmin === 'function' && window.isAdmin();
       }
 
+      // Stakeholder-Uebersicht: nur Admins
       if (id === 'stakeholder') {
         return typeof window.isAdmin === 'function' && window.isAdmin();
       }
@@ -139,6 +149,7 @@ export class NavigationSystem {
         unternehmen: 'unternehmen',
         marke: 'marke',
         produkt: 'produkt',
+        persona: 'persona',
         auftrag: 'auftrag',
         'projekt-erstellen': 'auftrag',
         auftragsdetails: 'auftragsdetails',
@@ -163,7 +174,8 @@ export class NavigationSystem {
         tabellen: 'dashboard',
         feedback: 'feedback',
         contracts: 'contracts',
-        ausgangsrechnungen: 'auftrag'
+        ausgangsrechnungen: 'auftrag',
+        stakeholder: 'stakeholder'
       };
       
       const entity = map[id] || id;

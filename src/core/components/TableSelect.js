@@ -9,7 +9,7 @@
 
 import { icon } from '../icons/IconSystem.js';
 
-const CHEVRON_ICON = icon('chevron-down-filled');
+const CHEVRON_ICON = `<span class="table-select__chevron">${icon('chevron-down')}</span>`;
 const CHECK_ICON = icon('check-filled');
 
 function escapeHtml(str) {
@@ -161,7 +161,7 @@ export class TableSelect {
 
   closeAll() {
     document.querySelectorAll('.table-select__portal').forEach(p => p.remove());
-    document.querySelectorAll('.table-select.open').forEach(w => {
+    document.querySelectorAll('.table-select.show').forEach(w => {
       w.classList.remove('show');
       w.querySelector('.table-select__trigger')?.setAttribute('aria-expanded', 'false');
     });

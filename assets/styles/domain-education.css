@@ -134,20 +134,20 @@
 
 /* Article Content Styling */
 
-.education-article-content {
+.md-content {
   font-size: var(--text-md);
   line-height: 1.7;
   color: var(--text-primary);
 }
 
-.education-article-content h1 {
+.md-content h1 {
   font-size: var(--text-xxl);
   font-weight: 700;
   margin: var(--space-xl) 0 var(--space-md) 0;
   color: var(--text-primary);
 }
 
-.education-article-content h2 {
+.md-content h2 {
   font-size: var(--text-xl);
   font-weight: 600;
   margin: var(--space-xl) 0 var(--space-md) 0;
@@ -156,37 +156,37 @@
   border-bottom: 1px solid var(--border-primary);
 }
 
-.education-article-content h3 {
+.md-content h3 {
   font-size: var(--text-lg);
   font-weight: 600;
   margin: var(--space-lg) 0 var(--space-sm) 0;
   color: var(--text-primary);
 }
 
-.education-article-content p {
+.md-content p {
   margin: 0 0 var(--space-md) 0;
 }
 
-.education-article-content ul,
-.education-article-content ol {
+.md-content ul,
+.md-content ol {
   margin: 0 0 var(--space-md) 0;
   padding-left: var(--space-lg);
 }
 
-.education-article-content li {
+.md-content li {
   margin-bottom: var(--space-xs);
 }
 
-.education-article-content a {
+.md-content a {
   color: var(--primary-600);
   text-decoration: underline;
 }
 
-.education-article-content a:hover {
+.md-content a:hover {
   color: var(--primary-700);
 }
 
-.education-article-content hr {
+.md-content hr {
   border: none;
   border-top: 1px solid var(--border-primary);
   margin: var(--space-xl) 0;
@@ -194,7 +194,7 @@
 
 /* Code Blocks */
 
-.education-article-content .code-block {
+.md-content .code-block {
   background: var(--gray-900);
   color: var(--gray-100);
   padding: var(--space-md);
@@ -205,13 +205,13 @@
   margin: var(--space-md) 0;
 }
 
-.education-article-content .code-block code {
+.md-content .code-block code {
   background: none;
   padding: 0;
   color: inherit;
 }
 
-.education-article-content .inline-code {
+.md-content .inline-code {
   background: var(--gray-100);
   padding: 2px var(--space-xs);
   border-radius: var(--radius-sm);

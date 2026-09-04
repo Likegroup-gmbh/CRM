@@ -6,14 +6,16 @@
 // abweichender Preis) haengen daran und werden im Panel rechts gepflegt,
 // siehe ProduktVarianten.js.
 //
-// unternehmen_id kommt aus dem Kontext (Hidden) oder, auf /produkt/new, als
-// sichtbares Select (docRole 'owner'). marke_ids rendert im Unternehmens-
-// und Listen-Kontext - aus einer Marke heraus ist die Zuordnung fix.
+// unternehmen_id ist im Nested-Flow ein Hidden-Feld aus dem Kontext. Im
+// Standalone (/produkt/new, /produkt/:id) ist es ein sichtbares Select
+// (docRole 'owner'). marke_ids rendert nur im Unternehmens-Kontext und im
+// Standalone - aus einer Marke heraus ist die Zuordnung fix.
 //
 // Die doc*-Angaben steuern das Worksheet-Layout in ProduktDoc.js:
 //   docSlot   'side' holt das Feld aus dem Dokument in die rechte Spalte
 //   docRole   'title' = Dokumenttitel, 'inline' = schmales Feld in einer Zeile,
 //             'uploader' = Tabelle, 'relations' = Tag-Multiselect,
+//             'owner' = Unternehmen-Select nur im Standalone,
 //             sonst frei beschreibbarer Textabschnitt
 //   docLabel  kuerzere Ueberschrift fuers Dokument, falls label zu technisch ist
 //   docHint   kurze Erlaeuterung unter dem Feld (nur bei docRole 'inline')
@@ -60,6 +62,7 @@ export const produktConfig = {
       type: 'select',
       required: true,
       searchable: true,
+      dynamic: true,
       table: 'unternehmen',
       displayField: 'firmenname',
       valueField: 'id',

@@ -5,6 +5,7 @@ import { getGreeting } from './DashboardGreetings.js';
 import { loadUpcomingBirthdays, renderBirthdaysList } from './DashboardBirthdays.js';
 import { loadUpcomingKampagnen, loadUpcomingKooperationen, renderKampagnenBlock, renderKooperationenBlock } from './DashboardUpcoming.js';
 import { renderKundeTutorialBlock } from './DashboardKundeTutorial.js';
+import { loadNeuigkeiten, renderNeuigkeitenBlock } from './DashboardNeuigkeiten.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
 export class DashboardModule {
@@ -12,6 +13,7 @@ export class DashboardModule {
     this.birthdays = [];
     this.kampagnen = [];
     this.kooperationen = [];
+    this.neuigkeiten = [];
   }
 
   async init() {
@@ -23,15 +25,17 @@ export class DashboardModule {
       return;
     }
 
-    const [birthdays, kampagnen, kooperationen] = await Promise.all([
+    const [birthdays, kampagnen, kooperationen, neuigkeiten] = await Promise.all([
       loadUpcomingBirthdays(),
       loadUpcomingKampagnen(),
-      loadUpcomingKooperationen()
+      loadUpcomingKooperationen(),
+      loadNeuigkeiten()
     ]);
 
     this.birthdays = birthdays;
     this.kampagnen = kampagnen;
     this.kooperationen = kooperationen;
+    this.neuigkeiten = neuigkeiten;
 
     this.renderDashboard();
     this.setupEventListeners();
@@ -53,6 +57,8 @@ export class DashboardModule {
         ${searchAllowed ? this.renderSearchField() : ''}
 
         ${renderKundeTutorialBlock()}
+
+        ${renderNeuigkeitenBlock(this.neuigkeiten)}
 
         ${renderBirthdaysList(this.birthdays)}
 
