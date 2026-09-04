@@ -280,6 +280,29 @@ export class ProduktService {
     return (data || []).map(row => row.marke_id);
   }
 
+  /**
+   * Schlanke Suche fuer die Inline-Verknuepfung (Relation-Panels): Produkte
+   * eines Unternehmens per Namensfragment, ohne die schweren Listen-Selects.
+   */
+  static async searchByName(unternehmenId, term = '', { excludeIds = [], limit = 8 } = {}) {
+    if (!unternehmenId) return [];
+
+    let query = window.supabase
+      .from('produkt')
+      .select('id, name, kurzbeschreibung')
+      .eq('unternehmen_id', unternehmenId)
+      .order('name')
+      .limit(limit);
+
+    const such = String(term || '').trim();
+    if (such) query = query.ilike('name', `%${such}%`);
+    if (excludeIds.length) query = query.not('id', 'in', `(${excludeIds.join(',')})`);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  }
+
   static async loadVarianten(produktId) {
     const { data, error } = await window.supabase
       .from('produkt_variante')

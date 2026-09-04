@@ -435,6 +435,96 @@ describe('ProduktPersonaService Accept/Unlink', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Persona-seitige Verknuepfung (Persona-Formular -> saveForPersona)
+// ---------------------------------------------------------------------------
+
+describe('ProduktPersonaService.saveForPersona', () => {
+  it('markiert entfernte Produkte als deleted, ohne die Persona zu loeschen', async () => {
+    window.supabase = createSupabaseMock((chain) => {
+      if (chain.table === 'produkt_persona_vorschlag' && hatOp(chain, 'select')) {
+        return { data: [
+          { id: 'v-1', produkt_id: 'prod-1', persona_id: 'p1', status: 'accepted', payload: { fit: 'x' } },
+          { id: 'v-2', produkt_id: 'prod-2', persona_id: 'p1', status: 'accepted', payload: null }
+        ], error: null };
+      }
+      return { data: [], error: null };
+    });
+
+    await ProduktPersonaService.saveForPersona('p1', ['prod-2']);
+
+    const del = window.supabase.chains.find(c =>
+      c.table === 'produkt_persona_vorschlag' && hatOp(c, 'update') && c.ops.some(o => o[0] === 'update' && o[1].status === 'deleted')
+    );
+    expect(del).toBeTruthy();
+    expect(opArgs(del, 'eq')).toEqual([['id', 'v-1']]);
+    expect(PersonaService.remove).not.toHaveBeenCalled();
+  });
+
+  it('hebt eine deleted-Row desselben Paars wieder auf accepted und behaelt den Fit', async () => {
+    window.supabase = createSupabaseMock((chain) => {
+      if (chain.table === 'produkt_persona_vorschlag' && hatOp(chain, 'select')) {
+        return { data: [
+          { id: 'v-1', produkt_id: 'prod-1', persona_id: 'p1', status: 'deleted', payload: { _attached_marke_ids: ['m-alt'] } }
+        ], error: null };
+      }
+      if (chain.table === 'produkt_marke') return { data: [{ marke_id: 'm-neu' }], error: null };
+      if (chain.table === 'persona_marke') return { data: [], error: null };
+      return { data: [], error: null };
+    });
+
+    await ProduktPersonaService.saveForPersona('p1', ['prod-1']);
+
+    const revive = window.supabase.chains.find(c =>
+      c.table === 'produkt_persona_vorschlag' && hatOp(c, 'update') && c.ops.some(o => o[0] === 'update' && o[1].status === 'accepted')
+    );
+    expect(revive).toBeTruthy();
+    const row = opArgs(revive, 'update')[0][0];
+    expect(row.payload._attached_marke_ids).toEqual(['m-alt', 'm-neu']);
+
+    const inserts = window.supabase.chains.filter(c => c.table === 'produkt_persona_vorschlag' && hatOp(c, 'insert'));
+    expect(inserts).toHaveLength(0);
+  });
+
+  it('legt eine neue accepted-Row an, wenn keine besteht, und haengt Produkt-Marken an', async () => {
+    window.supabase = createSupabaseMock((chain) => {
+      if (chain.table === 'produkt_persona_vorschlag' && hatOp(chain, 'select')) return { data: [], error: null };
+      if (chain.table === 'produkt_marke') return { data: [{ marke_id: 'm1' }, { marke_id: 'm2' }], error: null };
+      if (chain.table === 'persona_marke' && hatOp(chain, 'select')) return { data: [{ marke_id: 'm1' }], error: null };
+      return { data: [], error: null };
+    });
+
+    await ProduktPersonaService.saveForPersona('p1', ['prod-1']);
+
+    const insert = window.supabase.chains.find(c => c.table === 'produkt_persona_vorschlag' && hatOp(c, 'insert'));
+    const row = opArgs(insert, 'insert')[0][0][0];
+    expect(row).toMatchObject({ produkt_id: 'prod-1', typ: 'match', status: 'accepted', persona_id: 'p1' });
+    expect(row.payload._attached_marke_ids).toEqual(['m2']);
+
+    const attach = window.supabase.chains.find(c => c.table === 'persona_marke' && hatOp(c, 'insert'));
+    expect(opArgs(attach, 'insert')[0][0]).toEqual([{ persona_id: 'p1', marke_id: 'm2' }]);
+  });
+
+  it('laesst pending-Rows ohne persona_id (typ neu) unangetastet', async () => {
+    window.supabase = createSupabaseMock((chain) => {
+      if (chain.table === 'produkt_persona_vorschlag' && hatOp(chain, 'select')) {
+        return { data: [
+          { id: 'v-pending', produkt_id: 'prod-9', persona_id: 'p1', status: 'pending', payload: null }
+        ], error: null };
+      }
+      if (chain.table === 'produkt_marke') return { data: [], error: null };
+      return { data: [], error: null };
+    });
+
+    await ProduktPersonaService.saveForPersona('p1', []);
+
+    const touched = window.supabase.chains.filter(c =>
+      c.table === 'produkt_persona_vorschlag' && (hatOp(c, 'update') || hatOp(c, 'insert'))
+    );
+    expect(touched).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Panel: Regen-Exclusion, Auto-Chain, Karten-Aktionen
 // ---------------------------------------------------------------------------
 

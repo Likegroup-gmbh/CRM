@@ -92,11 +92,63 @@ describe('AusgangsrechnungenList Monatssheet', () => {
     const list = new AusgangsrechnungenList();
     expect(list.usesPagination).toBe(false);
 
-    document.body.innerHTML = list.renderListView();
+    document.body.innerHTML = '<div id="page-tab-content" class="kundenrechnungen-page"></div>';
+    list.renderAuftraegeContent();
     expect(document.getElementById('pagination-auftrag')).toBeNull();
     expect(document.getElementById('ausgangsrechnungen-month-tabs')).toBeTruthy();
     expect(document.getElementById('ausgangsrechnungen-year-select')).toBeTruthy();
     expect(document.querySelectorAll('#ausgangsrechnungen-month-tabs .tab-button')).toHaveLength(15);
+  });
+
+  it('legt Monats-Tabs in den Fuss und Summen in den scrollenden Mittelteil', () => {
+    const list = new AusgangsrechnungenList();
+    document.body.innerHTML = '<div id="page-tab-content" class="kundenrechnungen-page"></div>';
+    list.renderAuftraegeContent();
+
+    const stickyHead = document.querySelector('.kr-sticky-head');
+    const scrollBody = document.querySelector('.kr-scroll-body');
+    const stickyFoot = document.querySelector('.kr-sticky-foot');
+    expect(stickyHead).toBeTruthy();
+    expect(scrollBody).toBeTruthy();
+    expect(stickyFoot).toBeTruthy();
+
+    // Kopf: keine Monats-Tabs / Summen / Tabelle mehr
+    expect(stickyHead.querySelector('#ausgangsrechnungen-month-tabs')).toBeNull();
+    expect(stickyHead.querySelector('#ausgangsrechnungen-summary-cards')).toBeNull();
+    expect(stickyHead.querySelector('#auftrag-table-container')).toBeNull();
+
+    // Mitte scrollt: Summen-Cards + Tabelle
+    expect(scrollBody.querySelector('#ausgangsrechnungen-summary-cards')).toBeTruthy();
+    expect(scrollBody.querySelector('#auftrag-table-container')).toBeTruthy();
+
+    // Fuss: Monats-Tabs
+    expect(stickyFoot.querySelector('#ausgangsrechnungen-month-tabs')).toBeTruthy();
+
+    // DOM-Reihenfolge: Kopf -> Mitte -> Fuss
+    expect(stickyHead.compareDocumentPosition(scrollBody) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(scrollBody.compareDocumentPosition(stickyFoot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('integriert Suche und Aktionen in den Page-Header ohne separate Filter-Box', () => {
+    const list = new AusgangsrechnungenList();
+    document.body.innerHTML = '<div id="page-tab-content" class="kundenrechnungen-page"></div>';
+    list.renderAuftraegeContent();
+
+    // Keine separate Filter-Zeile mehr auf dieser Seite
+    expect(document.querySelector('.table-filter-wrapper')).toBeNull();
+
+    const header = document.querySelector('.kr-sticky-head .page-header');
+    expect(header).toBeTruthy();
+    // Links: Suche + Filter-Dropdown
+    expect(header.querySelector('.page-header-left #auftrag-search-input')).toBeTruthy();
+    expect(header.querySelector('.page-header-left #filter-dropdown-container')).toBeTruthy();
+    // Rechts: Aktions-Buttons + View-Toggle
+    expect(header.querySelector('.page-header-right #btn-select-all')).toBeTruthy();
+    expect(header.querySelector('.page-header-right #btn-deselect-all')).toBeTruthy();
+    expect(header.querySelector('.page-header-right #selected-count')).toBeTruthy();
+    expect(header.querySelector('.page-header-right #btn-delete-selected')).toBeTruthy();
+    expect(header.querySelector('.page-header-right #btn-view-list')).toBeTruthy();
+    expect(header.querySelector('.page-header-right #btn-view-calendar')).toBeTruthy();
   });
 
   it('kuerzt die Rechnungsspalten auf alltagstaugliche Header', () => {

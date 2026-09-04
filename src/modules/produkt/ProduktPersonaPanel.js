@@ -13,6 +13,8 @@
 
 import { ProduktPersonaService } from './ProduktPersonaService.js';
 import { ProduktPersonaDrawer } from './ProduktPersonaDrawer.js';
+import { PersonaService } from '../persona/PersonaService.js';
+import { toggleRelationSuche } from '../../core/components/EntitySearchInput.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
 // Felder, die in den Job-Input laufen (Reihenfolge = Prompt-Reihenfolge).
@@ -35,7 +37,7 @@ function tempKey(prefix) {
 }
 
 function iconBtn(action, iconKey, label, { disabled = false, active = false } = {}) {
-  const cls = `persona-icon-btn${active ? ' persona-icon-btn--active' : ''}`;
+  const cls = `rel-icon-btn${active ? ' rel-icon-btn--active' : ''}`;
   return `<button type="button" class="${cls}" data-persona-action="${action}"${disabled ? ' disabled' : ''}${active ? ' aria-pressed="true"' : ''} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${icon(iconKey)}</button>`;
 }
 
@@ -48,8 +50,9 @@ export class ProduktPersonaPanel {
     this.verworfeneMatchIds = [];
     this.extractSeed = null;
     this.jobRunning = false;
-    this.loaded = !this.produktId; // Create-Modus: sofort bereit
+    this.loaded = false; // mount() setzt den Create-Modus auf sofort bereit
     this.drawer = new ProduktPersonaDrawer();
+    this.suche = null;
     this._abort = null;
   }
 
@@ -302,6 +305,58 @@ export class ProduktPersonaPanel {
 
   // --- Karten-Aktionen ---
 
+  /**
+   * Bestehende Persona manuell anhaengen - die KI bleibt der Hauptweg, aber
+   * bekannte Personas muessen ohne Generierung verlinkbar sein (gleiche
+   * Inline-Suche wie das Produkte-Band an der Persona).
+   */
+  toggleSuche() {
+    toggleRelationSuche(this, {
+      placeholder: 'Personas suchen und hinzufügen...',
+      emptyText: 'Keine Personas gefunden',
+      search: (unternehmenId, term) => this.suchePersonas(unternehmenId, term),
+      onSelect: (item) => this.addPersonaKarte(item)
+    });
+  }
+
+  async suchePersonas(unternehmenId, term) {
+    const belegt = this.karten
+      .filter(k => k.status !== 'deleted' && k.persona_id)
+      .map(k => k.persona_id);
+    const treffer = await PersonaService.searchByName(unternehmenId, term, {
+      excludeIds: [...new Set([...belegt, ...this.verworfeneMatchIds])]
+    });
+    return treffer.map(p => ({
+      id: p.id,
+      label: p.name || 'Persona',
+      sub: p.oberbegriff || '',
+      data: p
+    }));
+  }
+
+  /**
+   * Manuell gewaehlte Persona als sofort akzeptierte Match-Karte. Beim Save
+   * laeuft sie durch denselben flushKarte-Pfad wie ein angenommener
+   * KI-Vorschlag (Materialisierung inkl. Marken-Attach).
+   */
+  addPersonaKarte(item) {
+    if (this.karten.some(k => k.status !== 'deleted' && k.persona_id === item.id)) return;
+    this.karten.push({
+      key: tempKey('karte'),
+      id: null,
+      typ: 'match',
+      status: 'accepted',
+      persona_id: item.id,
+      persona: item.data || null,
+      payload: null,
+      fit_grund: '',
+      useCaseKeys: [],
+      position: this.karten.length,
+      persisted: null
+    });
+    this.render();
+  }
+
   acceptKarte(key) {
     const karte = this.karten.find(k => k.key === key);
     if (!karte || karte.status !== 'pending') return;
@@ -410,6 +465,7 @@ export class ProduktPersonaPanel {
 
       const aktionen = {
         'open': () => this.openDrawer(key),
+        'add-persona': () => this.toggleSuche(),
         'accept': () => this.acceptKarte(key),
         'zurueck': () => this.zurueckKarte(key),
         'verwerfen': () => this.verwerfKarte(key),
@@ -557,34 +613,36 @@ export class ProduktPersonaPanel {
     let body;
     if (this.jobRunning && !karten.length) {
       body = `
-        <div class="produkt-persona-grid">
-          ${Array.from({ length: 3 }, () => '<div class="persona-card persona-card--skeleton" aria-hidden="true"><div class="persona-card__skeleton-zeile"></div><div class="persona-card__skeleton-zeile persona-card__skeleton-zeile--kurz"></div><div class="persona-card__skeleton-block"></div></div>').join('')}
+        <div class="rel-grid">
+          ${Array.from({ length: 3 }, () => '<div class="rel-card rel-card--skeleton" aria-hidden="true"><div class="rel-card__skeleton-zeile"></div><div class="rel-card__skeleton-zeile rel-card__skeleton-zeile--kurz"></div><div class="rel-card__skeleton-block"></div></div>').join('')}
         </div>
       `;
     } else if (!karten.length) {
       body = `
-        <div class="produkt-persona-grid produkt-persona-grid--leer">
-          <p class="produkt-persona-grid__leer">Noch keine Persona-Vorschläge. Sobald Name und USP oder Pain Points stehen, kann die KI welche entwerfen.</p>
+        <div class="rel-grid rel-grid--leer">
+          <p class="rel-grid__leer">Noch keine Personas verknüpft. Über die Suche oben rechts hinzufügen – oder von der KI welche entwerfen lassen, sobald Name und USP oder Pain Points stehen.</p>
         </div>
       `;
     } else {
       body = `
-        <div class="produkt-persona-grid">
+        <div class="rel-grid">
           ${karten.map(karte => this.renderKarte(karte)).join('')}
         </div>
       `;
     }
 
     return `
-      <div class="produkt-personas">
-        <div class="produkt-personas__head">
-          <span class="produkt-personas__title">Personas</span>
-          <div class="produkt-personas__aktionen">
+      <div class="rel-panel">
+        <div class="rel-panel__head">
+          <span class="rel-panel__title">Personas</span>
+          <div class="rel-panel__aktionen">
+            ${iconBtn('add-persona', 'plus-sign', 'Bestehende Persona hinzufügen', { disabled: this.jobRunning })}
             ${iconBtn('regen-alle', 'arrow-path', regenLabel, { disabled: this.jobRunning || !gateOk })}
             ${iconBtn('accept-alle', 'check-bold', 'Alle annehmen', { disabled: !pending.length || this.jobRunning })}
             ${iconBtn('verwerf-alle', 'trash', 'Alle verwerfen', { disabled: !pending.length || this.jobRunning })}
           </div>
         </div>
+        <div class="rel-panel__suche"></div>
         ${body}
       </div>
     `;
@@ -595,10 +653,10 @@ export class ProduktPersonaPanel {
     const akzeptiert = karte.status === 'accepted';
 
     return `
-      <article class="persona-card${akzeptiert ? ' persona-card--accepted' : ''}" data-key="${karte.key}">
-        <header class="persona-card__kopf">
-          <span class="persona-card__name">${escapeHtml(daten.name)}</span>
-          <div class="persona-card__aktionen">
+      <article class="rel-card${akzeptiert ? ' rel-card--accepted' : ''}" data-key="${karte.key}">
+        <header class="rel-card__kopf">
+          <span class="rel-card__name">${escapeHtml(daten.name)}</span>
+          <div class="rel-card__aktionen">
             ${iconBtn('open', 'document-text', 'Details öffnen')}
             ${akzeptiert
               ? iconBtn('zurueck', 'check-bold', 'Zurücknehmen', { active: true })
@@ -607,13 +665,15 @@ export class ProduktPersonaPanel {
             ${iconBtn('verwerfen', 'trash', 'Verwerfen')}
           </div>
         </header>
-        ${daten.oberbegriff ? `<p class="persona-card__sub">${escapeHtml(daten.oberbegriff)}</p>` : ''}
-        ${daten.text ? `<p class="persona-card__text"><span class="persona-card__label">Situation / Alltag:</span> ${escapeHtml(daten.text)}</p>` : ''}
+        ${daten.oberbegriff ? `<p class="rel-card__sub">${escapeHtml(daten.oberbegriff)}</p>` : ''}
+        ${daten.text ? `<p class="rel-card__text"><span class="rel-card__label">Situation / Alltag:</span> ${escapeHtml(daten.text)}</p>` : ''}
       </article>
     `;
   }
 
   destroy() {
+    this.suche?.destroy();
+    this.suche = null;
     if (this._abort) {
       try { this._abort.abort(); } catch (_) { /* noop */ }
       this._abort = null;

@@ -1,12 +1,7 @@
-# Neuigkeiten-Pipeline: nach jedem Production-Deploy von main einen
-# Update-Post ("Was ist neu") ins Dashboard schreiben.
+# Neuigkeiten-Pipeline: nach jedem Push auf main einen Kurz-Post
+# ("Was ist neu") fuer die Dashboard-Cards schreiben.
 #
-# Die Action wartet bewusst auf den Netlify-Deploy dieser SHA, bevor sie
-# Screenshots macht - sonst zeigen die Bilder noch die alte Version.
-#
-# Secrets: ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY,
-# NETLIFY_AUTH_TOKEN, NETLIFY_SITE_ID, PRODUCTION_URL,
-# WHATSNEW_LOGIN_EMAIL, WHATSNEW_LOGIN_PASSWORD
+# Secrets: ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY
 
 name: Neuigkeiten
 
@@ -18,7 +13,7 @@ permissions:
   contents: read
 
 # Schnelle Folge-Pushes laufen seriell, nicht parallel: sonst racen die
-# Laeufe auf den Netlify-Poll und den DB-Insert.
+# Laeufe auf den DB-Insert.
 concurrency:
   group: neuigkeiten-main
   cancel-in-progress: false
@@ -26,7 +21,7 @@ concurrency:
 jobs:
   neuigkeit:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -41,18 +36,10 @@ jobs:
       - name: Abhaengigkeiten installieren
         run: npm ci
 
-      - name: Chromium fuer Puppeteer installieren
-        run: npx puppeteer browsers install chrome
-
       - name: Neuigkeit erzeugen
         env:
           GITHUB_EVENT_BEFORE: ${{ github.event.before }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-          PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
-          WHATSNEW_LOGIN_EMAIL: ${{ secrets.WHATSNEW_LOGIN_EMAIL }}
-          WHATSNEW_LOGIN_PASSWORD: ${{ secrets.WHATSNEW_LOGIN_PASSWORD }}
         run: node scripts/neuigkeiten/run.cjs

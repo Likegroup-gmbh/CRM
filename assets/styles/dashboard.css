@@ -27,6 +27,23 @@
   }
 }
 
+/* Mit Kachel-Grid (Was ist neu / Geburtstage nebeneinander) braucht das
+   Dashboard mehr Breite als die sonstigen 35%. Greift nur, wenn das Grid
+   gerendert ist - die schmale Kunden-Ansicht bleibt unveraendert. */
+.dashboard-container--centered:has(.dashboard-grid) {
+  width: min(1100px, 90%);
+}
+
+/* ===== KACHEL-GRID (Neuigkeiten + Geburtstage nebeneinander) ===== */
+/* auto-fit: zwei Kacheln -> zwei Spalten, eine Kachel -> volle Breite,
+   schmaler Viewport -> stapelt automatisch. */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr));
+  gap: 0 var(--space-lg);
+  align-items: start;
+}
+
 /* ===== GREETING ===== */
 .dashboard-greeting {
   text-align: center;
@@ -280,6 +297,78 @@
 .dashboard-birthdays__badge--today {
   color: var(--success-700);
   background: var(--success-100);
+}
+
+/* ===== NEUIGKEITEN (Was ist neu) ===== */
+.dashboard-neuigkeiten__cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.dashboard-neuigkeiten__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-secondary);
+  border-radius: var(--radius-md);
+}
+
+.dashboard-neuigkeiten__card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.dashboard-neuigkeiten__card-titel {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.dashboard-neuigkeiten__badge {
+  font-size: var(--text-xs);
+  color: var(--primary-600);
+  background: var(--primary-100);
+  border-radius: var(--radius-xxl);
+  padding: var(--space-xxxs) var(--space-xs);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.dashboard-neuigkeiten__card-text {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.dashboard-neuigkeiten__datum {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+
+.dashboard-neuigkeiten__toggle {
+  margin-top: var(--space-sm);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--primary-600);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.dashboard-neuigkeiten__toggle:hover {
+  text-decoration: underline;
+}
+
+.dashboard-neuigkeiten__toggle:disabled {
+  opacity: 0.5;
+  cursor: default;
+  text-decoration: none;
 }
 
 /* ===== UPCOMING (Kampagnen + Kooperationen) ===== */

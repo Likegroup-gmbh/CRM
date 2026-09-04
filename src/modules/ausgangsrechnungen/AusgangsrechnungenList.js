@@ -18,6 +18,7 @@ import { animateNumber } from '../../core/animation/animateNumber.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
+import { SearchInput } from '../../core/components/SearchInput.js';
 import { getPaymentRowStatusClass } from '../auftrag/logic/PaymentRowStatus.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { renderTabButton } from '../../core/TabUtils.js';
@@ -52,31 +53,100 @@ export class AusgangsrechnungenList extends AuftragList {
     window.setHeadline('Kundenrechnungen');
 
     const isContracts = this.activeTab === 'contracts';
-    const viewToggleDisabled = isContracts ? 'disabled' : '';
 
-    const VIEW_LIST_ICON = `${icon('table-grid')}`;
-    const VIEW_CAL_ICON = `${icon('calendar-days')}`;
-
-    const html = `
-      <div class="page-header">
-        <div class="page-header-right">
-          <div class="view-toggle">
-            <button id="btn-view-list" class="mdc-btn mdc-btn--secondary ${this.currentView === 'list' ? 'active' : ''}" ${viewToggleDisabled}>${VIEW_LIST_ICON} Liste</button>
-            <button id="btn-view-calendar" class="mdc-btn mdc-btn--secondary ${this.currentView === 'calendar' ? 'active' : ''}" ${viewToggleDisabled}>${VIEW_CAL_ICON} Kalender</button>
-          </div>
-        </div>
-      </div>
-
-      <div id="page-tab-content"></div>
-    `;
-
-    window.setContentSafely(window.content, html);
+    // Die Shell besteht nur aus dem Tab-Content. Der Page-Header (View-Toggle)
+    // steckt im sticky Kopfbereich, den renderAuftraegeContent baut – so klebt
+    // alles bis zu den Monats-Tabs als ein Block oben.
+    window.setContentSafely(window.content, '<div id="page-tab-content" class="kundenrechnungen-page"></div>');
     this._shellRendered = true;
 
     this.renderAuftraegeContent();
     if (!isContracts && this.currentView === 'calendar') {
       await this.initCashFlowCalendar();
     }
+  }
+
+  // Kopfzeile: links Suche + Filter, rechts Aktions-Buttons + View-Toggle
+  // (Liste/Kalender). In der Listenansicht ist die fruehere .table-filter-wrapper
+  // hier mit integriert – eine Box/Zeile weniger im sticky Kopfbereich.
+  // Alle Klicks laufen ueber die globale Delegation in AuftragListEvents,
+  // SearchInput.bind wird nach jedem Re-Render erneut auf dieselbe ID gebunden.
+  _renderPageHeader(isContracts, { withFilters = false } = {}) {
+    const viewToggleDisabled = isContracts ? 'disabled' : '';
+    const filterDropdownStyle = isContracts ? 'style="display:none;"' : '';
+    const placeholder = isContracts ? 'Contract suchen...' : 'Auftrag suchen...';
+
+    const filtersLeft = withFilters ? `
+      <div class="page-header-left">
+        ${SearchInput.render('auftrag', {
+          placeholder,
+          currentValue: this.searchQuery
+        })}
+        ${!this.isKunde ? `<div id="filter-dropdown-container" ${filterDropdownStyle}></div>` : ''}
+      </div>
+    ` : '';
+
+    const tableActions = withFilters ? `
+      <div class="table-actions">
+        ${this.isAdmin ? '<button id="btn-select-all" class="mdc-btn mdc-btn--secondary">Alle auswählen</button>' : ''}
+        ${this.isAdmin ? '<button id="btn-deselect-all" class="mdc-btn mdc-btn--secondary" style="display:none;">Auswahl aufheben</button>' : ''}
+        <span id="selected-count" style="display:none;">0 ausgewählt</span>
+        ${this.isAdmin ? '<button id="btn-delete-selected" class="mdc-btn mdc-btn--delete" style="display:none;">Ausgewählte löschen</button>' : ''}
+      </div>
+    ` : '';
+
+    return `
+      <div class="page-header">
+        ${filtersLeft}
+        <div class="page-header-right">
+          ${tableActions}
+          <div class="view-toggle">
+            <button id="btn-view-list" class="mdc-btn mdc-btn--secondary ${this.currentView === 'list' ? 'active' : ''}" ${viewToggleDisabled}>${icon('table-grid')} Liste</button>
+            <button id="btn-view-calendar" class="mdc-btn mdc-btn--secondary ${this.currentView === 'calendar' ? 'active' : ''}" ${viewToggleDisabled}>${icon('calendar-days')} Kalender</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Kundenrechnungen-Layout: Header + Auftrag/Contract-Tabs kleben oben
+  // (.kr-sticky-head), die Monats-Tabs kleben unten (.kr-sticky-foot).
+  // Dazwischen scrollt .kr-scroll-body mit den Summen-Cards und der Tabelle.
+  // Die Tabelle bekommt per CSS eine feste Mindesthoehe, damit der Monatswechsel
+  // keinen Layout-Sprung verursacht.
+  renderAuftraegeContent() {
+    const container = document.getElementById('page-tab-content');
+    if (!container) return;
+
+    const isContracts = this.activeTab === 'contracts';
+
+    if (this.currentView === 'calendar') {
+      container.innerHTML = `
+        <div class="kr-sticky-head">${this._renderPageHeader(isContracts)}</div>
+        <div class="kr-scroll-body">
+          <div id="auftrag-content-container">
+            <div id="calendar-container"></div>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="kr-sticky-head">
+        ${this._renderPageHeader(isContracts, { withFilters: true })}
+        ${this.renderTabNavigation()}
+      </div>
+
+      <div class="kr-scroll-body">
+        ${this.renderInvoiceSummaryCards()}
+        <div id="auftrag-table-wrapper">
+          ${this.renderListView(isContracts ? 'contracts' : 'auftraege')}
+        </div>
+      </div>
+
+      ${isContracts ? '' : `<div class="kr-sticky-foot">${this.renderMonthSheet()}</div>`}
+    `;
   }
 
   _getSortField() {
@@ -88,13 +158,14 @@ export class AusgangsrechnungenList extends AuftragList {
     return 19;
   }
 
+  // Nur die Tabelle – Summen-Cards und Monats-Tabs liegen im sticky Kopfbereich
+  // (renderAuftraegeContent), damit sie beim Scrollen stehen bleiben.
   renderListView(mode = 'auftraege') {
     const isContracts = mode === 'contracts';
     const loadingText = 'Lade Kundenrechnungen...';
     const tableClass = isContracts ? 'auftrag-table contracts-table' : 'auftrag-table';
 
     return `
-    ${this.renderInvoiceSummaryCards()}
     <div class="table-container" id="auftrag-table-container">
         <table class="data-table ${tableClass}">
           <thead>
@@ -128,8 +199,6 @@ export class AusgangsrechnungenList extends AuftragList {
           ${this.renderInvoiceSummaryFoot()}
         </table>
     </div>
-
-    ${isContracts ? '' : this.renderMonthSheet()}
   `;
   }
 

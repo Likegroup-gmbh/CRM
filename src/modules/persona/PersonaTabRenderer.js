@@ -21,6 +21,12 @@ function renderMarkenZellen(detail, persona) {
   return namen.map(name => `<span class="status-badge">${detail.sanitize(name)}</span>`).join(' ');
 }
 
+function renderProduktZellen(detail, persona) {
+  const namen = PersonaService.produktNamen(persona);
+  if (!namen.length) return '<span class="text-muted">-</span>';
+  return namen.map(name => `<span class="status-badge">${detail.sanitize(name)}</span>`).join(' ');
+}
+
 export function renderPersonas(detail) {
   const isKunde = window.isKunde?.();
   const personas = detail.personas || [];
@@ -46,6 +52,7 @@ export function renderPersonas(detail) {
       </td>
       <td>${detail.sanitize(persona.name)}</td>
       ${mitMarken ? `<td>${renderMarkenZellen(detail, persona)}</td>` : ''}
+      <td>${renderProduktZellen(detail, persona)}</td>
       <td>${detail.sanitize(PersonaService.alterLabel(persona))}</td>
       <td>${detail.sanitize(persona.geschlecht || '-')}</td>
       <td>${detail.sanitize(persona.wohnort_region || '-')}</td>
@@ -63,6 +70,7 @@ export function renderPersonas(detail) {
             <th>Oberbegriff</th>
             <th>Name</th>
             ${mitMarken ? '<th>Marken</th>' : ''}
+            <th>Produkte</th>
             <th>Alter</th>
             <th>Geschlecht</th>
             <th>Region</th>

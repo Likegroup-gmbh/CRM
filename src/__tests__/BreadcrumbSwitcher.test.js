@@ -8,24 +8,26 @@ import {
   escapeSwitcherQuery
 } from '../core/breadcrumbSwitcher.js';
 
-function createQuery({ data = [], error = null } = {}) {
-  const calls = { tables: [], select: null, or: null, inCalls: [], order: null, limit: null, neq: [] };
-  const result = { data, error };
+function createQuery({ data = [], error = null, byTable = null } = {}) {
+  const calls = { tables: [], select: null, or: null, inCalls: [], order: null, limit: null, neq: [], notCalls: [] };
+  let current = { data, error };
   const chain = {
     select(...args) { calls.select = args; return chain; },
     or(...args) { calls.or = args; return chain; },
     in(...args) { calls.inCalls.push(args); return chain; },
     eq() { return chain; },
     neq(...args) { calls.neq.push(args); return chain; },
+    not(...args) { calls.notCalls.push(args); return chain; },
     order(...args) { calls.order = args; return chain; },
     limit(...args) { calls.limit = args; return chain; },
-    then(resolve, reject) { return Promise.resolve(result).then(resolve, reject); }
+    then(resolve, reject) { return Promise.resolve(current).then(resolve, reject); }
   };
   return {
     calls,
     supabase: {
       from: vi.fn((table) => {
         calls.tables.push(table);
+        current = byTable?.[table] ?? { data, error };
         return chain;
       })
     }
@@ -210,15 +212,62 @@ describe('breadcrumbSwitcher', () => {
     expect(items[0].route).toBe('/unternehmen/u1/produkt?produkt=p1');
   });
 
-  it('Persona ohne Owner bleibt leer', async () => {
-    const { supabase } = createQuery({
+  it('Persona standalone lädt ungescoped (RLS), ohne DNA-Personas', async () => {
+    const { supabase, calls } = createQuery({
       data: [{ id: 'x1', name: 'Alex', oberbegriff: 'Test' }]
     });
     window.supabase = supabase;
 
     const { items } = await loadSwitcherItems({ segment: 'persona' });
-    expect(items).toEqual([]);
-    expect(supabase.from).not.toHaveBeenCalled();
+
+    expect(calls.tables).toContain('personas');
+    expect(calls.inCalls).toHaveLength(0);
+    expect(calls.notCalls).toContainEqual(['unternehmen_id', 'is', null]);
+    expect(items).toEqual([{ id: 'x1', label: 'Test · Alex', route: '/persona/x1' }]);
+  });
+
+  it('Persona mit Unternehmen-Context scoped auf unternehmen_id, Route nested', async () => {
+    const { supabase, calls } = createQuery({
+      data: [{ id: 'x1', name: 'Alex', oberbegriff: null }]
+    });
+    window.supabase = supabase;
+
+    const { items } = await loadSwitcherItems({
+      segment: 'persona',
+      context: {
+        typ: 'unternehmen',
+        unternehmenId: 'u1',
+        ownerId: 'u1',
+        basePath: '/unternehmen/u1'
+      }
+    });
+
+    expect(calls.inCalls).toContainEqual(['unternehmen_id', ['u1']]);
+    expect(items[0].route).toBe('/unternehmen/u1/persona?persona=x1');
+  });
+
+  it('Persona mit Marke-Context scoped über die persona_marke-Junction', async () => {
+    const { supabase, calls } = createQuery({
+      byTable: {
+        persona_marke: { data: [{ persona_id: 'x1' }], error: null },
+        personas: { data: [{ id: 'x1', name: 'Alex', oberbegriff: 'Test' }], error: null }
+      }
+    });
+    window.supabase = supabase;
+
+    const { items } = await loadSwitcherItems({
+      segment: 'persona',
+      context: {
+        typ: 'marke',
+        ownerId: 'm1',
+        unternehmenId: 'u1',
+        basePath: '/marke/m1'
+      }
+    });
+
+    expect(calls.tables).toEqual(['persona_marke', 'personas']);
+    expect(calls.inCalls).toContainEqual(['id', ['x1']]);
+    expect(items[0]).toEqual({ id: 'x1', label: 'Test · Alex', route: '/marke/m1/persona?persona=x1' });
   });
 
   it('gibt leer zurück ohne can_view', async () => {

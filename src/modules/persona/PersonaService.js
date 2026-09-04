@@ -11,6 +11,7 @@
 // Skript-DNA bestehen und tauchen in beiden Ansichten nicht auf.
 
 const MARKEN_SELECT = 'marken:persona_marke(marke_id, marke:marke_id(id, markenname))';
+const PRODUKTE_SELECT = 'produkte:produkt_persona_vorschlag(produkt_id, status, produkt:produkt_id(id, name))';
 const BUDGETRAHMEN = ['niedrig', 'mittel', 'hoch'];
 
 /**
@@ -37,7 +38,7 @@ export class PersonaService {
   static async loadAll() {
     const { data, error } = await window.supabase
       .from('personas')
-      .select(`*, unternehmen:unternehmen_id(id, firmenname, logo_url), ${MARKEN_SELECT}`)
+      .select(`*, unternehmen:unternehmen_id(id, firmenname, logo_url), ${MARKEN_SELECT}, ${PRODUKTE_SELECT}`)
       .not('unternehmen_id', 'is', null)
       .order('oberbegriff', { nullsFirst: false })
       .order('name');
@@ -51,11 +52,11 @@ export class PersonaService {
 
     if (markeId) {
       query = query
-        .select(`*, treffer:persona_marke!inner(marke_id), ${MARKEN_SELECT}`)
+        .select(`*, treffer:persona_marke!inner(marke_id), ${MARKEN_SELECT}, ${PRODUKTE_SELECT}`)
         .eq('treffer.marke_id', markeId);
     } else {
       query = query
-        .select(`*, ${MARKEN_SELECT}`)
+        .select(`*, ${MARKEN_SELECT}, ${PRODUKTE_SELECT}`)
         .eq('unternehmen_id', unternehmenId);
     }
 
@@ -98,10 +99,46 @@ export class PersonaService {
     return (data || []).map(row => row.marke_id);
   }
 
+  /** Produkt-IDs einer Persona (accepted-Links), fuer die Vorbelegung. */
+  static async loadProduktIds(personaId) {
+    const { data, error } = await window.supabase
+      .from('produkt_persona_vorschlag')
+      .select('produkt_id')
+      .eq('persona_id', personaId)
+      .eq('status', 'accepted');
+
+    if (error) throw error;
+    return (data || []).map(row => row.produkt_id);
+  }
+
+  /**
+   * Schlanke Suche fuer die Inline-Verknuepfung (Relation-Panels): Personas
+   * eines Unternehmens per Namens- oder Oberbegriff-Fragment.
+   */
+  static async searchByName(unternehmenId, term = '', { excludeIds = [], limit = 8 } = {}) {
+    if (!unternehmenId) return [];
+
+    let query = window.supabase
+      .from('personas')
+      .select('id, name, oberbegriff')
+      .eq('unternehmen_id', unternehmenId)
+      .order('name')
+      .limit(limit);
+
+    const such = String(term || '').trim();
+    if (such) query = query.or(`name.ilike.%${such}%,oberbegriff.ilike.%${such}%`);
+    if (excludeIds.length) query = query.not('id', 'in', `(${excludeIds.join(',')})`);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  }
+
   static async create(data, { unternehmenId = null } = {}) {
     const payload = { ...data };
     if (unternehmenId) payload.unternehmen_id = unternehmenId;
     delete payload.marke_ids;
+    delete payload.produkt_ids;
     if ('budgetrahmen' in payload) payload.budgetrahmen = clampBudgetrahmen(payload.budgetrahmen);
 
     const result = await window.dataService.createEntity('persona', payload);
@@ -112,6 +149,7 @@ export class PersonaService {
   static async update(id, data) {
     const payload = { ...data };
     delete payload.marke_ids;
+    delete payload.produkt_ids;
     // unternehmen_id steht als Hidden-Feld im Formular und darf nicht wandern
     delete payload.unternehmen_id;
     if ('budgetrahmen' in payload) payload.budgetrahmen = clampBudgetrahmen(payload.budgetrahmen);
@@ -160,6 +198,15 @@ export class PersonaService {
   static markenNamen(persona) {
     return (persona?.marken || [])
       .map(eintrag => eintrag?.marke?.markenname)
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, 'de'));
+  }
+
+  /** Produktnamen aus dem eingebetteten Vorschlags-Select, nur accepted. */
+  static produktNamen(persona) {
+    return (persona?.produkte || [])
+      .filter(eintrag => eintrag?.status === 'accepted')
+      .map(eintrag => eintrag?.produkt?.name)
       .filter(Boolean)
       .sort((a, b) => a.localeCompare(b, 'de'));
   }

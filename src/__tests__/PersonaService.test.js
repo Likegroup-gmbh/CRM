@@ -83,3 +83,38 @@ describe('PersonaService.loadOne', () => {
     expect(result).toEqual(persona);
   });
 });
+
+describe('PersonaService.loadProduktIds', () => {
+  it('laedt nur accepted-Produkt-Links', async () => {
+    const q = {
+      select: vi.fn(() => q),
+      eq: vi.fn(() => q),
+      then: (resolve) => resolve({ data: [{ produkt_id: 'prod-1' }, { produkt_id: 'prod-2' }], error: null })
+    };
+    window.supabase = { from: vi.fn(() => q) };
+
+    const result = await PersonaService.loadProduktIds('p1');
+
+    expect(window.supabase.from).toHaveBeenCalledWith('produkt_persona_vorschlag');
+    expect(q.eq).toHaveBeenCalledWith('persona_id', 'p1');
+    expect(q.eq).toHaveBeenCalledWith('status', 'accepted');
+    expect(result).toEqual(['prod-1', 'prod-2']);
+  });
+});
+
+describe('PersonaService.produktNamen', () => {
+  it('listet nur accepted-Produkte, sortiert', () => {
+    const persona = {
+      produkte: [
+        { status: 'accepted', produkt: { name: 'Zahncreme' } },
+        { status: 'deleted', produkt: { name: 'Verworfen' } },
+        { status: 'accepted', produkt: { name: 'Shampoo' } }
+      ]
+    };
+    expect(PersonaService.produktNamen(persona)).toEqual(['Shampoo', 'Zahncreme']);
+  });
+
+  it('leer ohne Produkte', () => {
+    expect(PersonaService.produktNamen({})).toEqual([]);
+  });
+});

@@ -68,6 +68,12 @@ export class PersonaList {
     return namen.map(name => `<span class="status-badge">${window.validatorSystem.sanitizeHtml(name)}</span>`).join(' ');
   }
 
+  _renderProdukte(persona) {
+    const namen = PersonaService.produktNamen(persona);
+    if (!namen.length) return '<span class="text-muted">-</span>';
+    return namen.map(name => `<span class="status-badge">${window.validatorSystem.sanitizeHtml(name)}</span>`).join(' ');
+  }
+
   render() {
     const isKunde = window.isKunde?.();
 
@@ -91,6 +97,7 @@ export class PersonaList {
         </td>
         <td>${this._renderUnternehmen(persona)}</td>
         <td>${this._renderMarken(persona)}</td>
+        <td>${this._renderProdukte(persona)}</td>
         <td>${window.validatorSystem.sanitizeHtml(PersonaService.alterLabel(persona))}</td>
         <td>${window.validatorSystem.sanitizeHtml(persona.geschlecht || '-')}</td>
         <td>${window.validatorSystem.sanitizeHtml(persona.wohnort_region || '-')}</td>
@@ -111,6 +118,7 @@ export class PersonaList {
               <th>Name</th>
               <th>Unternehmen</th>
               <th>Marken</th>
+              <th>Produkte</th>
               <th>Alter</th>
               <th>Geschlecht</th>
               <th>Region</th>

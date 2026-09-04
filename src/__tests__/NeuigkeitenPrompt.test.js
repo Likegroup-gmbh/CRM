@@ -1,69 +1,44 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeSchritte, slugify, ROUTE_ALLOWLIST } from '../../scripts/neuigkeiten/prompt.cjs';
+import { sanitizeTitel, sanitizeKurztext, NEUIGKEIT_TOOL, TITEL_MAX, KURZTEXT_MAX } from '../../scripts/neuigkeiten/prompt.cjs';
 
-describe('neuigkeiten/prompt – sanitizeSchritte', () => {
-  it('laesst valide Schritte mit erlaubter Route durch', () => {
-    const schritte = sanitizeSchritte([
-      { titel: 'Oeffnen Sie die Produktliste', text: 'Dort sehen Sie die Ordner.', route: '/produkt' }
-    ]);
-    expect(schritte).toHaveLength(1);
-    expect(schritte[0]).toEqual({
-      titel: 'Oeffnen Sie die Produktliste',
-      text: 'Dort sehen Sie die Ordner.',
-      route: '/produkt',
-      screenshot_path: null
-    });
+describe('neuigkeiten/prompt – sanitizeTitel', () => {
+  it('trimmt und gibt den Text zurueck', () => {
+    expect(sanitizeTitel('  Ordner für Personas  ')).toBe('Ordner für Personas');
   });
 
-  it('verwirft halluzinierte Routen, behaelt aber den Schritt', () => {
-    const schritte = sanitizeSchritte([
-      { titel: 'Schritt', text: 'Text', route: '/admin/geheim' },
-      { titel: 'Schritt 2', text: 'Text 2', route: 'https://example.com/produkt' }
-    ]);
-    expect(schritte).toHaveLength(2);
-    expect(schritte[0].route).toBeNull();
-    expect(schritte[1].route).toBeNull();
+  it('kappt auf die Maximallaenge', () => {
+    expect(sanitizeTitel('x'.repeat(200))).toHaveLength(TITEL_MAX);
   });
 
-  it('filtert Schritte ohne Titel oder Text', () => {
-    const schritte = sanitizeSchritte([
-      { titel: '', text: 'Text' },
-      { titel: 'Titel', text: '' },
-      { titel: 'Titel' },
-      null,
-      'muell',
-      { titel: 'Gut', text: 'Gut' }
-    ]);
-    expect(schritte).toHaveLength(1);
-    expect(schritte[0].titel).toBe('Gut');
-  });
-
-  it('begrenzt auf die Maximalzahl', () => {
-    const viele = Array.from({ length: 10 }, (_, i) => ({ titel: `S${i}`, text: `T${i}` }));
-    expect(sanitizeSchritte(viele)).toHaveLength(6);
-  });
-
-  it('gibt bei Nicht-Arrays ein leeres Array zurueck', () => {
-    expect(sanitizeSchritte(undefined)).toEqual([]);
-    expect(sanitizeSchritte('text')).toEqual([]);
-    expect(sanitizeSchritte(null)).toEqual([]);
-  });
-
-  it('Allowlist enthaelt die Kern-Routen der App', () => {
-    for (const route of ['/dashboard', '/produkt', '/persona', '/kampagne', '/skripte']) {
-      expect(ROUTE_ALLOWLIST).toContain(route);
-    }
+  it('gibt null bei Leere oder Nicht-Strings zurueck', () => {
+    expect(sanitizeTitel('')).toBeNull();
+    expect(sanitizeTitel('   ')).toBeNull();
+    expect(sanitizeTitel(null)).toBeNull();
+    expect(sanitizeTitel(undefined)).toBeNull();
+    expect(sanitizeTitel(42)).toBeNull();
   });
 });
 
-describe('neuigkeiten/prompt – slugify', () => {
-  it('ersetzt Umlaute und Sonderzeichen', () => {
-    expect(slugify('Personas für Kampagnen: Übersicht')).toBe('personas-fuer-kampagnen-uebersicht');
+describe('neuigkeiten/prompt – sanitizeKurztext', () => {
+  it('trimmt und gibt den Text zurueck', () => {
+    expect(sanitizeKurztext('  Du findest Personas jetzt im Ordner.  ')).toBe('Du findest Personas jetzt im Ordner.');
   });
 
-  it('kappt lange Titel und faellt auf update zurueck', () => {
-    expect(slugify('x'.repeat(100))).toHaveLength(60);
-    expect(slugify('')).toBe('update');
-    expect(slugify(null)).toBe('update');
+  it('kappt auf die Maximallaenge', () => {
+    expect(sanitizeKurztext('x'.repeat(800))).toHaveLength(KURZTEXT_MAX);
+  });
+
+  it('gibt null bei Leere oder Nicht-Strings zurueck', () => {
+    expect(sanitizeKurztext('')).toBeNull();
+    expect(sanitizeKurztext(null)).toBeNull();
+    expect(sanitizeKurztext(['liste'])).toBeNull();
+  });
+});
+
+describe('neuigkeiten/prompt – Tool-Schema', () => {
+  it('kennt nur noch titel und kurztext neben user_relevant', () => {
+    const props = Object.keys(NEUIGKEIT_TOOL.input_schema.properties);
+    expect(props).toEqual(['user_relevant', 'titel', 'kurztext']);
+    expect(NEUIGKEIT_TOOL.input_schema.required).toEqual(['user_relevant']);
   });
 });
