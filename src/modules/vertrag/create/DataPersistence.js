@@ -140,10 +140,11 @@ VertraegeCreate.prototype.prepareDataForDB = function() {
         anpassungen: this.formData.anpassungen || []
       });
 
-      // Awareness-Felder NUR beim BURGA-Awareness-Template mitschicken.
+      // Awareness-Felder NUR beim Direktvertrag-Template (awareness) mitschicken
+      // und nur wenn der Kunde ein Direktvertrag-Kunde (BURGA / UAB Hautica) ist.
       // Bei Standard-Vertraegen wuerde das Insert sonst fehlschlagen, wenn die
       // Spalte awareness_felder in der DB (noch) nicht existiert.
-      if (this.formData.vertrag_template === 'awareness') {
+      if (this.formData.vertrag_template === 'awareness' && this.isDirektvertragKunde()) {
         data.awareness_felder = {
           vertrag_datum: this.formData.vertrag_datum || null,
           ansprechpartner_email: this.formData.ansprechpartner_email || null,
@@ -157,7 +158,8 @@ VertraegeCreate.prototype.prepareDataForDB = function() {
           brand_tag: this.formData.brand_tag || null,
           kuendigungsfrist_tage: parseInt(this.formData.kuendigungsfrist_tage) || 30,
           influencer_reg_code: this.formData.influencer_reg_code || null,
-          influencer_ust_id: this.formData.influencer_ust_id || null
+          influencer_ust_id: this.formData.influencer_ust_id || null,
+          produkt_beschreibung: this.formData.produkt_beschreibung || null
         };
       }
     } else if (typ === 'Videograph') {

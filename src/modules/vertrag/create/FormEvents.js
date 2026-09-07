@@ -626,7 +626,10 @@ VertraegeCreate.prototype.bindAddressPreviewEvents = function() {
         const id = e.target.value;
         console.log('🔄 VERTRAG: Kunde ausgewählt mit ID:', id);
         this.formData.kunde_unternehmen_id = id;
-        
+
+        // Direktvertrag-Sektionen (BURGA / UAB Hautica) ein-/ausblenden
+        this.updateDirektvertragSections();
+
         // Adress-Vorschau
         const kunde = this.unternehmen.find(u => u.id === id);
         const preview = document.getElementById('kunde-adresse');

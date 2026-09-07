@@ -32,3 +32,21 @@ _Avoid_: Artikel, SKU, Offer
 Der KI-Assistent. Liest Shop-URLs aus, schlägt Personas vor und schreibt im Skript-Editor.
 Sitzt in der rechten Spalte der Detail-Worksheets (Produkt, Persona).
 _Avoid_: Bot, Chatbot, Copilot
+
+**Vertrag**:
+Rechtliches Dokument zwischen Parteien, wird als PDF generiert. Hat genau einen Vertragstyp.
+_Avoid_: Agreement, Kontrakt
+
+**Vertragstyp**:
+Art des Vertrags: UGC, Influencer Kooperation, Videograph, Model oder Contracting.
+_Avoid_: Template (das ist das Vertragstemplate)
+
+**Vertragstemplate**:
+Die PDF-Variante innerhalb des Vertragstyps Influencer Kooperation: Standard oder Direktvertrag.
+_Avoid_: Vertragstyp, Layout
+
+**Direktvertrag**:
+Vertragstemplate der Influencer Kooperation, bei dem der Kunde (z.B. BURGA, UAB Hautica) direkt
+Vertragspartei des Influencers ist. LikeGroup tritt nicht als Vertragspartei auf.
+Wird nur bei diesen Kunden angeboten. Hat einen Anhang pro gebuchter Plattform (Anhang A, B, ...).
+_Avoid_: Awareness-Vertrag, BURGA-Vertrag

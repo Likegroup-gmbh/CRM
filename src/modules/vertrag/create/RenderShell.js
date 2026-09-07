@@ -202,9 +202,14 @@ VertraegeCreate.prototype.renderProgressBar = function() {
 };
 
 VertraegeCreate.prototype.getSubmitConfigId = function() {
+    // Influencer: Direktvertrag-Items (awareness) nur bei BURGA / UAB Hautica
+    if (this.selectedTyp === 'Influencer Kooperation') {
+      return this.isDirektvertragKunde()
+        ? 'influencer-contract-submit'
+        : 'influencer-contract-submit-standard';
+    }
     const map = {
       'UGC': 'ugc-contract-submit',
-      'Influencer Kooperation': 'influencer-contract-submit',
       'Videograph': 'videograph-contract-submit',
       'Model': 'model-contract-submit',
       'Contracting': 'contracting-contract-submit'
@@ -217,7 +222,7 @@ VertraegeCreate.prototype.renderSubmitControl = function(isEdit) {
     if (this.selectedTyp === 'UGC') {
       selectedId = this.formData.ugc_pdf_variant || 'legacy-de';
     } else if (this.selectedTyp === 'Influencer Kooperation') {
-      const template = this.formData.vertrag_template === 'awareness' ? 'awareness' : 'legacy';
+      const template = this.isDirektvertragKunde() && this.formData.vertrag_template === 'awareness' ? 'awareness' : 'legacy';
       const lang = this.formData.vertragssprache === 'en' ? 'en' : 'de';
       selectedId = `${template}-${lang}`;
     } else {

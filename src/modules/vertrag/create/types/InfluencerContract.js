@@ -78,10 +78,10 @@ VertraegeCreate.prototype.renderInfluencerStep2 = function() {
                  placeholder="Wird automatisch generiert..." class="readonly-field">
         </div>
       </div>
-      <div class="step-section">
+      <div class="step-section awareness-section ${this.isDirektvertragKunde() ? '' : 'hidden'}">
         <div class="step-section__header">
-          <h3>Awareness-Vertrag (optional)</h3>
-          <p class="step-description">Nur relevant beim BURGA-Awareness-Template. Bei Standard-Vertrag ignoriert.</p>
+          <h3>Direktvertrag</h3>
+          <p class="step-description">Nur relevant für den Direktvertrag (Marke ↔ Influencer, z.B. BURGA / UAB Hautica). Bei Standard-Vertrag ignoriert.</p>
         </div>
         <div class="form-two-col">
           <div class="form-field">
@@ -177,8 +177,9 @@ VertraegeCreate.prototype.renderInfluencerStep3 = function() {
           </div>
         </div>
 
-        <h4>Awareness-Vertrag (optional)</h4>
-        <p class="form-hint">Nur relevant beim BURGA-Awareness-Template.</p>
+        <div class="awareness-section ${this.isDirektvertragKunde() ? '' : 'hidden'}">
+        <h4>Direktvertrag</h4>
+        <p class="form-hint">Nur relevant für den Direktvertrag (Marke ↔ Influencer).</p>
         <div class="form-three-col">
           <div class="form-field">
             <label for="video_mindestlaenge_sekunden">Video-Mindestlänge (Sek.)</label>
@@ -197,6 +198,12 @@ VertraegeCreate.prototype.renderInfluencerStep3 = function() {
                    value="${this.formData.brand_tag || ''}"
                    placeholder="z.B. @burgaofficial">
           </div>
+        </div>
+        <div class="form-field">
+          <label for="produkt_beschreibung">Produktbeschreibung (Vertragstext)</label>
+          <textarea id="produkt_beschreibung" name="produkt_beschreibung" rows="2"
+                    placeholder="Leer = Standardtext (Schutzhüllen für Handys, Laptops, Tablets). Wird in beiden Sprachspalten verwendet.">${this.formData.produkt_beschreibung || ''}</textarea>
+        </div>
         </div>
         ${renderParagraphZusatz(this.formData, 'p2', '§2 Plattformen & Inhalte')}
       </div>
@@ -552,10 +559,10 @@ VertraegeCreate.prototype.renderInfluencerStep5 = function() {
         <p class="form-hint">Die Zahlung erfolgt durch den Auftraggeber oder die LikeGroup GmbH im Auftrag des Kunden. Die Rechnungsstellung erfolgt nach Veröffentlichung bzw. Erreichung der Ziele.</p>
         ${renderParagraphZusatz(this.formData, 'p6', '§6 Vergütung')}
       </div>
-      <div class="step-section">
+      <div class="step-section awareness-section ${this.isDirektvertragKunde() ? '' : 'hidden'}">
         <div class="step-section__header">
-          <h3>Awareness-Vertrag (optional)</h3>
-          <p class="step-description">Nur relevant beim BURGA-Awareness-Template. Bei Standard-Vertrag ignoriert.</p>
+          <h3>Direktvertrag</h3>
+          <p class="step-description">Nur relevant für den Direktvertrag (Marke ↔ Influencer, z.B. BURGA / UAB Hautica). Bei Standard-Vertrag ignoriert.</p>
         </div>
         <div class="form-two-col">
           <div class="form-field">
