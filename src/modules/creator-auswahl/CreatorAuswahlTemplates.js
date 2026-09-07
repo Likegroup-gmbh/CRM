@@ -685,6 +685,7 @@ export function berechnePreisAusViews(views, tkp) {
 function beschreibeAusreisser(item, fenster) {
   const outliers = item?.ig_stats?.[`outliers_${fenster}`];
   const werbung = Number(item?.ig_stats?.skipped_ads) || 0;
+  const trials = Number(item?.ig_stats?.skipped_trials) || 0;
   if (!Array.isArray(outliers)) return null;
 
   const zeilen = [];
@@ -705,6 +706,10 @@ function beschreibeAusreisser(item, fenster) {
 
   if (werbung) {
     zeilen.push(`${werbung} Reel${werbung === 1 ? '' : 's'} mit Werbe-Kennzeichnung ausgeschlossen`);
+  }
+
+  if (trials) {
+    zeilen.push(`${trials} Trial-Reel${trials === 1 ? '' : 's'} als Duplikat ausgeschlossen`);
   }
 
   return zeilen.join('\n');

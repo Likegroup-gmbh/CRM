@@ -40,9 +40,8 @@ const {
 const {
   computeInstagramCpm,
   formatCpmDebug,
-  istWerbePost,
+  classifyVideos,
   WINDOW_LONG,
-  MIN_AGE_HOURS,
   CALC_VERSION
 } = require('./_shared/instagram-cpm');
 const { extractEmail, extractPhone, extractCity } = require('./_shared/bio-extract');
@@ -57,11 +56,12 @@ const IG_CPM_DEBUG = true;
 const PAGE_SIZE = 50;
 const MAX_PAGES = 3;   // 26s Function-Timeout, mehr ist nicht drin
 
-// Reserve ueber das 30er-Fenster hinaus. Faellt ein Reel als Ausreisser durch,
-// rueckt der naechste nach - ohne Reserve bliebe das Fenster unterbesetzt. Zehn
-// deckt auch Creator mit mehreren Ausreissern ab und kostet meist keinen
-// zusaetzlichen Request, weil PAGE_SIZE bei 50 liegt.
-const PUFFER_NACHRUECKER = 10;
+// Reserve ueber das 30er-Fenster hinaus. Faellt ein Reel als Ausreisser oder
+// Trial-Duplikat durch, rueckt der naechste nach - ohne Reserve bliebe das
+// Fenster unterbesetzt. Fuenfzehn deckt auch Creator mit mehreren Ausreissern
+// und Trial-Paaren ab und kostet meist keinen zusaetzlichen Request, weil
+// PAGE_SIZE bei 50 liegt.
+const PUFFER_NACHRUECKER = 15;
 
 const PROFILE_FIELDS = 'username,name,followers_count,media_count,profile_picture_url,biography,website';
 // Bewusst ohne media_product_type und is_shared_to_feed: fuer Business
@@ -84,19 +84,15 @@ function jsonResponse(statusCode, body) {
 /**
  * Reels, die es wirklich in die Rechnung schaffen koennen.
  *
- * Werbe-Reels und zu frische Reels zaehlen nicht mit: sonst bricht das Paging zu
- * frueh ab und dem Fenster fehlen Nachruecker fuer die Ausreisser-Ersetzung,
- * obwohl weiter hinten genug organische Reels liegen.
+ * Werbe-Reels, Trial-Duplikate und zu frische Reels zaehlen nicht mit: sonst
+ * bricht das Paging zu frueh ab und dem Fenster fehlen Nachruecker fuer die
+ * Ausreisser-Ersetzung, obwohl weiter hinten genug organische Reels liegen.
+ * Laueft ueber classifyVideos, damit Paging und Rechnung dieselbe Logik
+ * teilen - ein Trial-Paar, das die Rechnung nicht sieht, darf das Paging
+ * auch nicht stoppen.
  */
 function zaehleVerwertbar(media, now = Date.now()) {
-  const cutoff = now - MIN_AGE_HOURS * 60 * 60 * 1000;
-  return media.filter((m) => {
-    if (m?.media_type !== 'VIDEO') return false;
-    // istWerbePost liefert einen Marker-String oder null; ein Marker macht !… zu false.
-    if (istWerbePost(m.caption)) return false;
-    const postedAt = Date.parse(m.timestamp);
-    return Number.isFinite(postedAt) && postedAt <= cutoff;
-  }).length;
+  return classifyVideos(media, now).included.length;
 }
 
 /**
@@ -186,6 +182,7 @@ function statsFromPool(pool) {
     videos_available: ig.videos_available,
     skipped_too_recent: ig.skipped_too_recent,
     skipped_ads: ig.skipped_ads ?? null,
+    skipped_trials: ig.skipped_trials ?? null,
     non_video_skipped: ig.non_video_skipped ?? null,
     videos: ig.videos || [],
     skipped_videos: ig.skipped_videos || []
@@ -481,6 +478,7 @@ exports.handler = async (event) => {
       videos_available: stats.videos_available,
       skipped_too_recent: stats.skipped_too_recent,
       skipped_ads: stats.skipped_ads,
+      skipped_trials: stats.skipped_trials,
       non_video_skipped: stats.non_video_skipped,
       videos: stats.videos,
       skipped_videos: stats.skipped_videos
@@ -536,7 +534,8 @@ exports.handler = async (event) => {
       views_30: stats.views_30,
       videos_available: stats.videos_available,
       skipped_too_recent: stats.skipped_too_recent,
-      skipped_ads: stats.skipped_ads
+      skipped_ads: stats.skipped_ads,
+      skipped_trials: stats.skipped_trials
     },
     ...(debug ? { debug } : {})
   });

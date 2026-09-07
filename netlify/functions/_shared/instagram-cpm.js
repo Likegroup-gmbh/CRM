@@ -56,11 +56,26 @@ const AD_PHRASE_RE = /paid partnership|bezahlte partnerschaft|in kooperation mit
 // eines Reels ist organisch. Zum Zuschalten in istWerbePost aufnehmen.
 const GESCHENK_HASHTAGS = ['gifted', 'geschenkt', 'prsample', 'pr'];
 
+// Trial-/Ghost-Reels: Meta gibt fuer fremde Profile kein Flag her, sichtbar
+// ist nur die Doppelung - dieselbe Creative wird als Trial an Non-Follower
+// ausgespielt und spaeter als Reel aufs Grid gehoben. Beide landen mit
+// view_count in der Media-Liste und wuerden sonst zwei Slots im Fenster
+// belegen. Erkannt wird ueber die Caption: gleicher Text in kurzem Abstand
+// heisst gleiche Creative. Behalten wird der neuere Upload (der auf dem Grid),
+// nicht der mit den mehr Views - ein frisches Final startet bei 0, waehrend
+// der Trial schon Tage gelaufen ist.
+const TRIAL_EXACT_MIN_LEN = 24;      // Zeichen der normalisierten Caption
+const TRIAL_EXACT_MAX_GAP_DAYS = 14;
+const TRIAL_FUZZY_MIN_LEN = 40;      // laengere Texte, sonst trifft jeder Hook
+const TRIAL_FUZZY_MAX_GAP_DAYS = 7;
+const TRIAL_FUZZY_JACCARD = 0.85;
+
 // Version der Rechenlogik. Landet in ig_stats.calc_version; eine aeltere
 // Version im Creator-Pool gilt als veraltet und erzwingt einen neuen Abruf.
-const CALC_VERSION = 4;
+const CALC_VERSION = 5;
 
 const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 
 /**
  * Werbe-Kennzeichnung in einer Caption erkennen.
@@ -83,13 +98,102 @@ function istWerbePost(caption) {
 }
 
 /**
- * Videos klassifizieren: auswertbar vs. aussortiert.
- * Aussortiert werden Videos, die juenger als MIN_AGE_HOURS sind (too_recent)
- * und Videos mit Werbe-Kennzeichnung in der Caption (ad_post). Videos ohne
- * view_count und Nicht-Videos werden nicht in skipped gefuehrt.
+ * Caption fuer den Duplikat-Vergleich normalisieren. URLs, Mentions und
+ * Hashtags fallen weg: Creators aendern beim Re-Upload oft genau diese
+ * Anhaengsel, der eigentliche Text bleibt. Leere oder sehr kurze Captions
+ * taugen nicht als Fingerabdruck und werden vom Aufrufer ignoriert.
  *
- * Die Werbe-Pruefung laeuft vor der Altersregel: ein zu frischer Werbe-Reel
- * soll als Werbung auftauchen, nicht als "kommt spaeter noch dazu".
+ * @param {string|null|undefined} caption
+ * @returns {string}
+ */
+function normCaption(caption) {
+  return String(caption || '')
+    .toLowerCase()
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/@[\w.]+/g, ' ')
+    .replace(/#[\p{L}\p{N}_]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Jaccard-Aehnlichkeit der Wortmengen zweier normalisierter Captions */
+function captionJaccard(a, b) {
+  const setA = new Set(a.split(' ').filter(Boolean));
+  const setB = new Set(b.split(' ').filter(Boolean));
+  if (!setA.size || !setB.size) return 0;
+  let schnitt = 0;
+  for (const wort of setA) if (setB.has(wort)) schnitt += 1;
+  return schnitt / (setA.size + setB.size - schnitt);
+}
+
+/**
+ * Zwei Reels als Trial-Paar erkennen: dieselbe Creative in kurzem Abstand.
+ * Exact reicht fuer den Normalfall (Caption 1:1 uebernommen), fuzzy faengt
+ * leicht umgeschriebene Captions. Beide Stufen brauchen Mindestlaenge und
+ * ein Zeitfenster, damit Serien mit gleichem Hook nicht zusammenkleben.
+ *
+ * @returns {boolean}
+ */
+function istTrialPaar(a, b) {
+  const gapDays = Math.abs(a.postedAt - b.postedAt) / DAY_MS;
+  const normA = normCaption(a.caption);
+  const normB = normCaption(b.caption);
+
+  if (normA.length >= TRIAL_EXACT_MIN_LEN && normA === normB
+      && gapDays <= TRIAL_EXACT_MAX_GAP_DAYS) {
+    return true;
+  }
+
+  if (normA.length >= TRIAL_FUZZY_MIN_LEN && normB.length >= TRIAL_FUZZY_MIN_LEN
+      && gapDays <= TRIAL_FUZZY_MAX_GAP_DAYS
+      && captionJaccard(normA, normB) >= TRIAL_FUZZY_JACCARD) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Trial-Duplikate in einer Liste von Video-Entries markieren.
+ * Laueft transitiv: drei Uploads derselben Creative bilden einen Cluster,
+ * behalten wird der neueste Timestamp. Rueckgabe ist die Menge der
+ * zu verwerfenden Indizes in `videos`.
+ *
+ * @param {Array} videos Video-Entries mit caption und postedAt
+ * @returns {Set<number>}
+ */
+function findeTrialDuplikate(videos) {
+  const drop = new Set();
+  for (let i = 0; i < videos.length; i += 1) {
+    if (drop.has(i)) continue;
+    for (let j = i + 1; j < videos.length; j += 1) {
+      if (drop.has(j)) continue;
+      if (!istTrialPaar(videos[i], videos[j])) continue;
+      // Der juengere bleibt, der aeltere faellt
+      const aelter = videos[i].postedAt >= videos[j].postedAt ? j : i;
+      drop.add(aelter);
+    }
+  }
+  return drop;
+}
+
+/**
+ * Videos klassifizieren: auswertbar vs. aussortiert.
+ * Aussortiert werden Videos mit Werbe-Kennzeichnung (ad_post), die aeltere
+ * Haelfte eines Trial-Duplikats (trial_duplicate) und Videos juenger als
+ * MIN_AGE_HOURS (too_recent). Videos ohne view_count und Nicht-Videos werden
+ * nicht in skipped gefuehrt.
+ *
+ * Reihenfolge ist entscheidend:
+ * 1. Werbung zuerst: ein bezahlter Reel sagt nichts ueber organische
+ *    Reichweite, egal ob er zusaetzlich ein Duplikat ist.
+ * 2. Trial-Paare vor der Altersregel und ueber die frischen Reels hinweg:
+ *    das Final ist oft juenger als 96h und wuerde sonst als too_recent
+ *    ausfallen, waehrend der aeltere Trial ins Fenster rueckt. Der
+ *    Duplikat-Check sieht das Paar nur, wenn beide Seiten noch im Rennen
+ *    sind. Der juengere Upload bleibt - ist er zu frisch, faellt er danach
+ *    regulär als too_recent und der naechste organische Reel rueckt nach.
+ * 3. Erst dann die Altersregel.
  *
  * @param {Array} media
  * @param {number} now
@@ -100,6 +204,9 @@ function classifyVideos(media, now) {
   const skipped = [];
   let nonVideoSkipped = 0;
 
+  // Erst sammeln, dann paaren: der Duplikat-Check braucht die Gesamtmenge,
+  // auch die Reels, die danach als zu frisch ausfallen.
+  const entries = [];
   for (const m of media || []) {
     if (!m) continue;
     if (m.media_type !== 'VIDEO') {
@@ -120,20 +227,30 @@ function classifyVideos(media, now) {
       timestamp: m.timestamp || null,
       postedAt,
       views,
-      age_hours: ageHours
+      age_hours: ageHours,
+      caption: m.caption || null
     };
 
     const adMarker = istWerbePost(m.caption);
-    const reason = adMarker ? 'ad_post'
-      : postedAt > cutoff ? 'too_recent'
-        : null;
+    if (adMarker) {
+      skipped.push({ ...entry, reason: 'ad_post', ad_marker: adMarker });
+    } else {
+      entries.push(entry);
+    }
+  }
 
-    if (reason) {
-      skipped.push({ ...entry, reason, ad_marker: adMarker || null });
+  // Trial-Duplikate: aeltere Haelfte jedes Paars faellt, bevor das Alter
+  // ueberhaupt geprueft wird.
+  const trialDrops = findeTrialDuplikate(entries);
+  entries.forEach((entry, index) => {
+    if (trialDrops.has(index)) {
+      skipped.push({ ...entry, reason: 'trial_duplicate', ad_marker: null });
+    } else if (entry.postedAt > cutoff) {
+      skipped.push({ ...entry, reason: 'too_recent', ad_marker: null });
     } else {
       included.push(entry);
     }
-  }
+  });
 
   included.sort((a, b) => b.postedAt - a.postedAt);
   skipped.sort((a, b) => b.postedAt - a.postedAt);
@@ -348,7 +465,7 @@ function evaluateWindow(videos, size) {
  *   used_8: number[], used_30: number[],
  *   outliers_8: Array, outliers_30: Array,
  *   videos_available: number, skipped_too_recent: number,
- *   skipped_ads: number, non_video_skipped: number,
+ *   skipped_ads: number, skipped_trials: number, non_video_skipped: number,
  *   videos: Array, skipped_videos: Array, calc_version: number
  * }}
  */
@@ -380,6 +497,7 @@ function computeInstagramCpm(media, opts = {}) {
     videos_available: videos.length,
     skipped_too_recent: skipped.filter((s) => s.reason === 'too_recent').length,
     skipped_ads: skipped.filter((s) => s.reason === 'ad_post').length,
+    skipped_trials: skipped.filter((s) => s.reason === 'trial_duplicate').length,
     non_video_skipped: nonVideoSkipped,
     videos: videos.slice(0, debugBis).map((v) => ({
       permalink: v.permalink,
@@ -460,6 +578,11 @@ function formatCpmDebug(username, stats, meta = {}) {
       OUTLIER_RATIO,
       OUTLIER_MIN_SAMPLE,
       AD_HASHTAGS,
+      TRIAL_EXACT_MIN_LEN,
+      TRIAL_EXACT_MAX_GAP_DAYS,
+      TRIAL_FUZZY_MIN_LEN,
+      TRIAL_FUZZY_MAX_GAP_DAYS,
+      TRIAL_FUZZY_JACCARD,
       CALC_VERSION,
       note: 'UI-Preis = views × Listen-TKP; cpm_* hier immer × CPM_RATE'
     },
@@ -474,6 +597,7 @@ function formatCpmDebug(username, stats, meta = {}) {
       non_video_skipped: stats.non_video_skipped ?? null,
       skipped_too_recent: stats.skipped_too_recent ?? null,
       skipped_ads: stats.skipped_ads ?? null,
+      skipped_trials: stats.skipped_trials ?? null,
       videos_available: stats.videos_available ?? null,
       sample_8: stats.sample_8 ?? null,
       sample_30: stats.sample_30 ?? null,
@@ -495,6 +619,11 @@ module.exports = {
   OUTLIER_MIN_SAMPLE,
   AD_HASHTAGS,
   GESCHENK_HASHTAGS,
+  TRIAL_EXACT_MIN_LEN,
+  TRIAL_EXACT_MAX_GAP_DAYS,
+  TRIAL_FUZZY_MIN_LEN,
+  TRIAL_FUZZY_MAX_GAP_DAYS,
+  TRIAL_FUZZY_JACCARD,
   WINDOW_SHORT,
   WINDOW_LONG,
   CALC_VERSION,
@@ -504,6 +633,10 @@ module.exports = {
   detectOutliers,
   pickWindow,
   istWerbePost,
+  normCaption,
+  captionJaccard,
+  istTrialPaar,
+  findeTrialDuplikate,
   toCpm,
   computeInstagramCpm,
   formatCpmDebug
