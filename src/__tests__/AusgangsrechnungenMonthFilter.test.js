@@ -24,12 +24,12 @@ const rows = [
 describe('InvoiceMonthFilter', () => {
   it('filtert nur den gewaehlten Monat im Jahr', () => {
     const january = filterRowsByMonthYear(rows, { year: 2026, month: 0 });
-    expect(january.map(r => r.id)).toEqual(['a1']);
+    expect(january.map(r => r.id)).toEqual(['a1', 'a2']);
   });
 
-  it('folgt derselben Datumskaskade wie der Cashflow-Kalender', () => {
+  it('ordnet nach RE gestellt am, nicht nach ueberwiesen_am', () => {
     const march = filterRowsByMonthYear(rows, { year: 2026, month: 2 });
-    expect(march.map(r => r.id)).toEqual(['a2']);
+    expect(march).toEqual([]);
   });
 
   it('laesst anderes Jahr aussen vor', () => {
@@ -61,7 +61,7 @@ describe('InvoiceMonthFilter', () => {
       undated: 1,
       'no-renr': 1,
       alle: rows.length,
-      months: [1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+      months: [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     });
   });
 
@@ -125,8 +125,8 @@ describe('AusgangsrechnungenList Monatssheet', () => {
     document.body.innerHTML = list.renderMonthSheet();
     list.updateMonthTabUI();
 
-    expect(document.querySelector('[data-month-count="0"]').textContent).toBe('1');
-    expect(document.querySelector('[data-month-count="2"]').textContent).toBe('1');
+    expect(document.querySelector('[data-month-count="0"]').textContent).toBe('2');
+    expect(document.querySelector('[data-month-count="2"]').textContent).toBe('0');
     expect(document.querySelector(`[data-month-count="${UNDATED_TAB}"]`).textContent).toBe('1');
     expect(document.querySelector(`[data-month-count="${NO_RENR_TAB}"]`).textContent).toBe('1');
     expect(document.querySelector(`[data-month-count="${ALL_TAB}"]`).textContent).toBe(String(rows.length));
@@ -170,7 +170,7 @@ describe('AusgangsrechnungenList Monatssheet', () => {
 
     list.selectInvoiceMonth('2');
     expect(list.currentMonth).toBe(2);
-    expect(list.updateTable).toHaveBeenCalledWith([rows[1]], 'auftraege', { animate: true });
+    expect(list.updateTable).toHaveBeenCalledWith([], 'auftraege', { animate: true });
   });
 
   it('entfernt eine Zeile aus dem aktuellen Monat nach Rechnungsdatum-Edit', () => {
@@ -188,7 +188,7 @@ describe('AusgangsrechnungenList Monatssheet', () => {
     });
 
     expect(list._allInvoiceRows[0].rechnung_gestellt_am).toBe('2026-04-10');
-    expect(list.updateTable).toHaveBeenCalledWith([], 'auftraege', { animate: true });
+    expect(list.updateTable).toHaveBeenCalledWith([rows[1]], 'auftraege', { animate: true });
   });
 
   it('entfernt eine Zeile aus Ohne-RE-Nr nach re_nr-Save', () => {
