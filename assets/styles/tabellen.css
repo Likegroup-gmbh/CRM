@@ -135,6 +135,14 @@
   padding-right: 18px;
 }
 
+.chip-cell--ig-fetch .chip-cell__input {
+  padding-right: 26px;
+}
+
+.chip-cell--ig-fetch .chip-cell__chip {
+  inset: 0 26px 1px var(--chip-cell-pad-left);
+}
+
 /* Solange der Chip liegt, wuerde die URL darunter durchscheinen */
 .chip-cell .chip-cell__input:not(:focus) {
   color: transparent;

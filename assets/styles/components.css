@@ -3664,9 +3664,73 @@ h3.section-title,
   padding-right: var(--space-xxs);
 }
 
-/* Spinner der Hover-Toolbar. Der Name stammt vom Instagram-Abruf im Sourcing,
-   dessen Haekchen-Button hier stand, bevor seine Aktionen in die Leiste
-   gewandert sind. */
+/* IG-Fetch-Button in der Sourcing-Zelle. Sitzt fest rechts im Chip, damit
+   Hover sofort "frisch bei Instagram abrufen" zeigt - ohne auf die
+   schwebende Toolbar zu warten. */
+
+.ig-fetch-btn {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-top: -10px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.ig-fetch-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.ig-fetch-btn.is-refresh svg {
+  width: 14px;
+  height: 14px;
+}
+
+.ig-fetch-btn.is-empty {
+  display: none;
+}
+
+.ig-fetch-btn:hover:not(:disabled) {
+  background: var(--gray-100);
+  color: var(--color-primary);
+}
+
+.ig-fetch-btn:disabled {
+  cursor: default;
+}
+
+.ig-fetch-btn.is-loading svg {
+  display: none;
+}
+
+.ig-fetch-btn.is-loading::after {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--gray-300, #d1d5db);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: ig-fetch-spin 0.7s linear infinite;
+}
+
+.ig-fetch-btn.is-success {
+  color: var(--color-success, #16a34a);
+}
+
+.ig-fetch-btn.is-error {
+  color: var(--color-danger, #dc2626);
+}
 
 @keyframes ig-fetch-spin {
   to { transform: rotate(360deg); }
