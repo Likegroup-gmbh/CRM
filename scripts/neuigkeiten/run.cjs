@@ -1,34 +1,22 @@
 // run.cjs
 // Neuigkeiten-Pipeline nach Push auf main. Laeuft in der GitHub Action
-// .github/workflows/neuigkeiten.yml, NACHDEM der Production-Deploy dieser
-// SHA auf Netlify fertig ist:
+// .github/workflows/neuigkeiten.yml:
 //
 //   1. Deduplizierung: SHA schon in neuigkeit? -> fertig
 //   2. Diff seit dem letzten verarbeiteten Stand
-//   3. Netlify-Poll bis der Production-Deploy der SHA ready ist
-//   4. Claude: user-sichtbar? -> Post (titel/teaser/inhalt/schritte)
-//   5. Puppeteer-Screenshots der betroffenen Routen -> Bucket neuigkeiten
-//   6. Insert in neuigkeit (published bzw. skipped)
+//   3. Claude: user-sichtbar? -> Post (titel/kurztext)
+//   4. Insert in neuigkeit (published bzw. skipped)
 //
 // Benoetigte Env: SUPABASE_URL, SUPABASE_SERVICE_KEY, ANTHROPIC_API_KEY,
-// NETLIFY_AUTH_TOKEN, NETLIFY_SITE_ID, PRODUCTION_URL, GITHUB_SHA.
-// Optional: GITHUB_EVENT_BEFORE, WHATSNEW_LOGIN_EMAIL, WHATSNEW_LOGIN_PASSWORD
-// (ohne Login-Daten geht der Post ohne Screenshots raus).
+// GITHUB_SHA. Optional: GITHUB_EVENT_BEFORE.
 
 const { execSync } = require('child_process');
-const { randomUUID } = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 const { callClaude, MODELS } = require('../../netlify/functions/_shared/anthropic');
-const { NEUIGKEIT_TOOL, buildSystemPrompt, buildUserPrompt, sanitizeSchritte, slugify } = require('./prompt.cjs');
-const { shootRoutes } = require('./screenshots.cjs');
+const { NEUIGKEIT_TOOL, buildSystemPrompt, buildUserPrompt, sanitizeTitel, sanitizeKurztext } = require('./prompt.cjs');
 
-const NETLIFY_API = 'https://api.netlify.com/api/v1';
-const DEPLOY_TIMEOUT_MS = 15 * 60 * 1000;
-const DEPLOY_POLL_MS = 15000;
 const DIFF_MAX_CHARS = 100000;
 const DIFF_MAX_LINES_PER_FILE = 200;
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function requireEnv(names) {
   const fehlend = names.filter((n) => !process.env[n]);
@@ -92,34 +80,12 @@ function buildDiff(from, to) {
   return { commits, stat, diff };
 }
 
-async function waitForDeploy(siteId, sha, token) {
-  const deadline = Date.now() + DEPLOY_TIMEOUT_MS;
-  while (Date.now() < deadline) {
-    const res = await fetch(`${NETLIFY_API}/sites/${siteId}/deploys?per_page=20`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (!res.ok) throw new Error(`Netlify API: HTTP ${res.status}`);
-    const deploys = await res.json();
-    const deploy = deploys.find((d) => d.commit_ref === sha && d.context === 'production');
-    if (deploy?.state === 'ready') {
-      console.log(`✅ Production-Deploy ${deploy.id} ist live`);
-      return deploy;
-    }
-    if (deploy?.state === 'error') {
-      throw new Error(`Netlify Deploy ${deploy.id} fehlgeschlagen`);
-    }
-    console.log(`⏳ Warte auf Production-Deploy von ${sha.slice(0, 7)} (${deploy?.state || 'noch nicht gestartet'})`);
-    await sleep(DEPLOY_POLL_MS);
-  }
-  throw new Error(`Timeout: kein fertiger Production-Deploy fuer ${sha.slice(0, 7)}`);
-}
-
 async function generatePost({ commits, stat, diff }) {
   const result = await callClaude({
     model: MODELS.distill,
     systemBlocks: [{ text: buildSystemPrompt() }],
     userPrompt: buildUserPrompt({ commits, stat, diff }),
-    maxTokens: 4096,
+    maxTokens: 1024,
     tool: NEUIGKEIT_TOOL
   });
   const json = result.json;
@@ -127,52 +93,11 @@ async function generatePost({ commits, stat, diff }) {
   return json;
 }
 
-async function uploadScreenshots(supabase, neuigkeitId, schritte) {
-  const email = process.env.WHATSNEW_LOGIN_EMAIL;
-  const password = process.env.WHATSNEW_LOGIN_PASSWORD;
-  if (!email || !password) {
-    console.warn('⚠️ WHATSNEW_LOGIN_EMAIL/PASSWORD nicht gesetzt - Post geht ohne Screenshots raus');
-    return schritte;
-  }
-
-  const routes = schritte.map((s) => s.route).filter(Boolean);
-  let shots;
-  try {
-    shots = await shootRoutes({
-      baseUrl: process.env.PRODUCTION_URL.replace(/\/$/, ''),
-      email,
-      password,
-      routes
-    });
-  } catch (err) {
-    console.error(`⚠️ Screenshot-Lauf fehlgeschlagen: ${err.message}`);
-    return schritte;
-  }
-
-  for (const schritt of schritte) {
-    const buffer = schritt.route ? shots.get(schritt.route) : null;
-    if (!buffer) continue;
-    const pfad = `${neuigkeitId}/${slugify(schritt.route)}.png`;
-    const { error } = await supabase.storage
-      .from('neuigkeiten')
-      .upload(pfad, buffer, { contentType: 'image/png', upsert: true });
-    if (error) {
-      console.error(`⚠️ Upload ${pfad} fehlgeschlagen: ${error.message}`);
-      continue;
-    }
-    schritt.screenshot_path = pfad;
-  }
-  return schritte;
-}
-
 async function main() {
   requireEnv([
     'SUPABASE_URL',
     'SUPABASE_SERVICE_KEY',
     'ANTHROPIC_API_KEY',
-    'NETLIFY_AUTH_TOKEN',
-    'NETLIFY_SITE_ID',
-    'PRODUCTION_URL',
     'GITHUB_SHA'
   ]);
   const sha = process.env.GITHUB_SHA;
@@ -194,16 +119,11 @@ async function main() {
   const { commits, stat, diff } = buildDiff(from, to);
   console.log(`📝 Diff ${from.slice(0, 7)}..${to.slice(0, 7)}: ${stat.split('\n').pop() || 'leer'}`);
 
-  // 3. Warten, bis genau diese SHA live ist - sonst zeigen die Screenshots
-  // noch die alte Version
-  await waitForDeploy(process.env.NETLIFY_SITE_ID, sha, process.env.NETLIFY_AUTH_TOKEN);
-
-  // 4. Claude
+  // 3. Claude
   const post = await generatePost({ commits, stat, diff });
 
   if (!post.user_relevant) {
     const { error } = await supabase.from('neuigkeit').insert({
-      slug: `deploy-${sha.slice(0, 7)}`,
       titel: 'Keine sichtbaren Aenderungen',
       status: 'skipped',
       commit_sha: sha
@@ -213,23 +133,17 @@ async function main() {
     return;
   }
 
-  // 5. Screenshots + 6. Insert
-  const id = randomUUID();
-  const schritte = await uploadScreenshots(supabase, id, sanitizeSchritte(post.schritte));
+  // 4. Insert
   const { error } = await supabase.from('neuigkeit').insert({
-    id,
-    slug: `${slugify(post.titel)}-${sha.slice(0, 7)}`,
-    titel: String(post.titel || 'Update').slice(0, 120),
-    teaser: post.teaser ? String(post.teaser).slice(0, 200) : null,
-    inhalt: post.inhalt || null,
-    schritte,
+    titel: sanitizeTitel(post.titel) || 'Update',
+    kurztext: sanitizeKurztext(post.kurztext),
     audience: 'intern',
     status: 'published',
     commit_sha: sha,
     published_at: new Date().toISOString()
   });
   if (error) throw new Error(`Insert (published): ${error.message}`);
-  console.log(`🎉 Neuigkeit "${post.titel}" ist live (${schritte.filter((s) => s.screenshot_path).length} Screenshots)`);
+  console.log(`🎉 Neuigkeit "${post.titel}" ist live`);
 }
 
 main().catch((err) => {

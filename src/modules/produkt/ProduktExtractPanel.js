@@ -86,9 +86,9 @@ export class ProduktExtractPanel {
     if (!this.root || !url) return;
 
     const msg = document.createElement('div');
-    msg.className = 'produkt-chat__msg produkt-chat__msg--user';
+    msg.className = 'doc-chat__msg doc-chat__msg--user';
     const text = document.createElement('div');
-    text.className = 'produkt-chat__text';
+    text.className = 'doc-chat__text';
     text.textContent = String(url).replace(/^https?:\/\//i, '');
     msg.appendChild(text);
 
@@ -107,18 +107,18 @@ export class ProduktExtractPanel {
     this.received = [];
 
     const msg = document.createElement('div');
-    msg.className = 'produkt-chat__msg produkt-chat__msg--liky';
+    msg.className = 'doc-chat__msg doc-chat__msg--liky';
     msg.innerHTML = `
-      <div class="produkt-chat__head">
-        <span class="produkt-chat__avatar" aria-hidden="true">L</span>
-        <span class="produkt-chat__name">Liky</span>
+      <div class="doc-chat__head">
+        <span class="doc-chat__avatar" aria-hidden="true">L</span>
+        <span class="doc-chat__name">Liky</span>
       </div>
     `;
 
     if (message) msg.appendChild(this.textNode(message));
 
     const slot = document.createElement('div');
-    slot.className = 'produkt-chat__thinking';
+    slot.className = 'doc-chat__thinking';
     msg.appendChild(slot);
 
     this.root.appendChild(msg);
@@ -148,7 +148,7 @@ export class ProduktExtractPanel {
       this.turn.appendChild(this.textNode(this.erfolgText(detail)));
     } else {
       const error = document.createElement('div');
-      error.className = 'produkt-chat__error';
+      error.className = 'doc-chat__error';
       error.textContent = 'Das hat nicht geklappt. Prüf die Adresse und versuch es nochmal.';
       this.turn.appendChild(error);
     }
@@ -172,7 +172,7 @@ export class ProduktExtractPanel {
       ));
     } else {
       const error = document.createElement('div');
-      error.className = 'produkt-chat__error';
+      error.className = 'doc-chat__error';
       error.textContent = 'Die Persona-Vorschläge haben nicht geklappt. Du kannst sie im Dokument neu anstoßen.';
       this.turn.appendChild(error);
     }
@@ -182,14 +182,14 @@ export class ProduktExtractPanel {
 
   textNode(message) {
     const el = document.createElement('div');
-    el.className = 'produkt-chat__text';
+    el.className = 'doc-chat__text';
     el.textContent = message;
     return el;
   }
 
   /** Die Spalte scrollt selbst, der neueste Beitrag soll sichtbar bleiben. */
   scrollToEnd() {
-    const spalte = this.root?.closest('.produkt-doc__side');
+    const spalte = this.root?.closest('.doc__side');
     if (spalte) spalte.scrollTop = spalte.scrollHeight;
   }
 

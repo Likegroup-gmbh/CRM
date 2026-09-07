@@ -521,6 +521,106 @@ export class ProduktPersonaService {
     return !(links.count > 0 || skripte.count > 0 || dna.count > 0);
   }
 
+  // --- Persona-seitige Verknuepfung ---
+  //
+  // Das Persona-Formular schreibt dieselbe Tabelle wie das Panel: accepted
+  // ist der Link. Unterschied zum Panel: Abhaengen setzt nur status=deleted,
+  // ohne dematerialize - die Persona wird gerade editiert und darf nicht
+  // geloescht werden. Anhaengen hebt eine bestehende pending/deleted-Row
+  // desselben Paars wieder auf accepted (Fit bleibt) und haengt fehlende
+  // Produkt-Marken an die Persona (protokolliert in _attached_marke_ids,
+  // damit ein spaeteres Verwerfen am Produkt sie wieder abziehen kann).
+
+  /** Akzeptierte Produkt-Links einer Persona mit eingebettetem Produkt (Karten im Persona-Panel). */
+  static async loadProdukteForPersona(personaId) {
+    const { data, error } = await window.supabase
+      .from('produkt_persona_vorschlag')
+      .select('produkt_id, produkt:produkt_id(id, name, kurzbeschreibung)')
+      .eq('persona_id', personaId)
+      .eq('status', 'accepted')
+      .order('position')
+      .order('created_at');
+    if (error) throw error;
+    return data || [];
+  }
+
+  /** Alle Vorschlags-Zeilen einer Persona (alle Status), fuer den Diff. */
+  static async loadRowsForPersona(personaId) {
+    const { data, error } = await window.supabase
+      .from('produkt_persona_vorschlag')
+      .select('*')
+      .eq('persona_id', personaId);
+    if (error) throw error;
+    return data || [];
+  }
+
+  /** Marken eines Produkts, fuer den Attach beim Anhaengen. */
+  static async loadProduktMarkenIds(produktId) {
+    const { data, error } = await window.supabase
+      .from('produkt_marke')
+      .select('marke_id')
+      .eq('produkt_id', produktId);
+    if (error) throw error;
+    return (data || []).map(r => r.marke_id);
+  }
+
+  /**
+   * Setzt die Produkt-Zuordnung einer Persona auf genau diese Liste.
+   * Entfernte Produkte -> status=deleted (Persona bleibt, Fit bleibt).
+   * Neue Produkte -> pending/deleted-Row desselben Paars reviven, sonst
+   * Insert typ=match + accepted. Pending-Rows ohne persona_id (typ neu)
+   * bleiben unangetastet.
+   */
+  static async saveForPersona(personaId, produktIds = []) {
+    const soll = [...new Set((produktIds || []).filter(Boolean))];
+    const rows = await this.loadRowsForPersona(personaId);
+
+    const aktive = rows.filter(r => r.status === 'accepted');
+    const aktiveProduktIds = new Set(aktive.map(r => r.produkt_id));
+    const sollSet = new Set(soll);
+
+    // 1. Entfernt: nur deleted markieren, kein dematerialize
+    const entfernt = aktive.filter(r => !sollSet.has(r.produkt_id));
+    for (const row of entfernt) {
+      const { error } = await window.supabase
+        .from('produkt_persona_vorschlag')
+        .update({ status: 'deleted' })
+        .eq('id', row.id);
+      if (error) throw error;
+    }
+
+    // 2. Neu: bestehende Row desselben Paars reviven, sonst anlegen
+    const neu = soll.filter(produktId => !aktiveProduktIds.has(produktId));
+    for (const produktId of neu) {
+      const vorhandene = rows.find(r => r.produkt_id === produktId && r.status !== 'accepted');
+      const markeIds = await this.loadProduktMarkenIds(produktId);
+      const attached = await this.attachPersonaMarken(personaId, markeIds);
+
+      if (vorhandene) {
+        const payload = { ...(vorhandene.payload || {}) };
+        const bisher = Array.isArray(payload._attached_marke_ids) ? payload._attached_marke_ids : [];
+        payload._attached_marke_ids = [...new Set([...bisher, ...attached])];
+
+        const { error } = await window.supabase
+          .from('produkt_persona_vorschlag')
+          .update({ status: 'accepted', payload })
+          .eq('id', vorhandene.id);
+        if (error) throw error;
+      } else {
+        const { error } = await window.supabase
+          .from('produkt_persona_vorschlag')
+          .insert([{
+            produkt_id: produktId,
+            typ: 'match',
+            status: 'accepted',
+            persona_id: personaId,
+            payload: { _attached_marke_ids: attached }
+          }]);
+        if (error) throw error;
+      }
+    }
+  }
+
   static isUuid(value) {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || ''));
   }

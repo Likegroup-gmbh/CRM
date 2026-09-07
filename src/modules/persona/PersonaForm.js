@@ -2,12 +2,20 @@
 // Eigene Seite zum Anlegen und Bearbeiten einer Persona.
 // Routen: /marke/:markeId/persona und /unternehmen/:unternehmenId/persona
 //         (Bearbeiten jeweils mit ?persona=:id)
-// Layout wie "Marke anlegen": Split-Container, Formular links auf halber Breite.
+//         /persona/new und /persona/:id (Standalone aus der Liste)
 //
-// Im Unternehmens-Kontext steht im Formular ein Marken-Multiselect. Aus einer
-// Marke heraus ist die Zuordnung fix - das Feld wird dort entfernt.
+// Die Seite ist ein Worksheet wie das Produkt (core/doc/DocPage.js via
+// PersonaDoc.js): mittig das Schreibdokument, rechts der Liky-Slot, ganz
+// unten das Produkte-Band (PersonaProduktPanel.js) - gleiches Layout und
+// gleiche Verknuepfungs-Mechanik wie am Produkt.
+//
+// Im Unternehmens-Kontext steht im Dokument ein Marken-Multiselect. Aus einer
+// Marke heraus ist die Zuordnung fix - das Feld wird dort nicht gerendert.
 
 import { PersonaService } from './PersonaService.js';
+import { ProduktPersonaService } from '../produkt/ProduktPersonaService.js';
+import { renderPersonaDoc, bindPersonaDoc } from './PersonaDoc.js';
+import { PersonaProduktPanel } from './PersonaProduktPanel.js';
 import { resolveOwnerContext } from '../../core/OwnerContext.js';
 import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
 import { icon } from '../../core/icons/IconSystem.js';
@@ -19,6 +27,7 @@ export class PersonaForm {
     this.personaId = null;
     this.persona = null;
     this.markenIds = [];
+    this.produktPanel = null;
     this._abort = null;
   }
 
@@ -89,11 +98,11 @@ export class PersonaForm {
       return;
     }
 
-    this.render();
+    await this.render();
     this.bindEvents();
   }
 
-  render() {
+  async render() {
     const title = this.isEdit
       ? PersonaService.label(this.persona)
       : 'Neue Persona anlegen';
@@ -101,10 +110,15 @@ export class PersonaForm {
     window.setHeadline(title);
 
     if (this.isStandalone) {
+      // Schlichter Kontext statt nestedSwitcherContext: ctx.basePath ist '/persona',
+      // damit wuerde nestedOwnerRoute '/persona/persona?persona=<id>' bauen. Der
+      // Fallback '/persona/<id>' ist die korrekte Standalone-Route.
       window.breadcrumbSystem?.updateBreadcrumb([
         { label: 'Personas', url: '/persona', clickable: true },
         { label: this.isEdit ? PersonaService.label(this.persona) : 'Persona anlegen', clickable: false }
-      ]);
+      ], null, {
+        switcher: this.isEdit ? { segment: 'persona', id: this.personaId } : null
+      });
     } else {
       window.breadcrumbSystem?.updateBreadcrumb([
         { label: this.ctx.listLabel, url: this.ctx.listPath, clickable: true },
@@ -119,25 +133,30 @@ export class PersonaForm {
     const formData = this.isEdit
       ? { ...this.persona, marke_ids: this.markenIds, _isEditMode: true, _entityId: this.persona.id }
       : null;
-    const formHtml = window.formSystem.renderFormOnly('persona', formData);
 
-    window.content.innerHTML = `
-      <div class="form-split-container">
-        <div class="form-split-left">
-          <div class="form-page">${formHtml}</div>
-        </div>
-        <div class="form-split-right hidden"></div>
-      </div>
-    `;
+    window.content.innerHTML = renderPersonaDoc(formData, {
+      mitMarkenFeld: this.zeigtMarkenFeld,
+      mitUnternehmenFeld: this.isStandalone,
+      unternehmenId: this.ctx?.unternehmenId || null
+    });
 
     const form = document.getElementById('persona-form');
+    bindPersonaDoc(form, formData);
+
     if (this.isStandalone) {
       this.prepareStandalone(form);
-    } else {
-      this.prepareMarkenFeld(form);
     }
 
-    window.formSystem.bindFormEvents('persona', formData);
+    // Searchable-Selects und Tag-Multiselect (Unternehmen, Branche, Marken)
+    await window.formSystem.bindFormEvents('persona', formData);
+
+    this.produktPanel = new PersonaProduktPanel();
+    await this.produktPanel.mount(form, {
+      personaId: this.personaId,
+      getUnternehmenId: () => this.ctx?.unternehmenId
+        || form.querySelector('[name="unternehmen_id"]')?.value
+        || null
+    });
   }
 
   get zeigtMarkenFeld() {
@@ -163,26 +182,6 @@ export class PersonaForm {
     }
   }
 
-  /**
-   * Das Marken-Multiselect braucht die unternehmen_id als Filter-Parent
-   * (field.filterBy in DirectQueryLoader). Aus einer Marke heraus ist die
-   * Zuordnung fix und ein Unternehmen ohne Marken hat nichts zu waehlen -
-   * in beiden Faellen fliegt das Feld raus.
-   */
-  prepareMarkenFeld(form) {
-    if (!form) return;
-
-    const hidden = document.createElement('input');
-    hidden.type = 'hidden';
-    hidden.name = 'unternehmen_id';
-    hidden.value = this.ctx.unternehmenId || '';
-    form.appendChild(hidden);
-
-    if (!this.zeigtMarkenFeld) {
-      form.querySelector('[name="marke_ids"]')?.closest('.form-field')?.remove();
-    }
-  }
-
   bindEvents() {
     const form = document.getElementById('persona-form');
     if (!form) return;
@@ -196,11 +195,9 @@ export class PersonaForm {
       await this.handleSubmit();
     };
 
-    // Der Abbrechen-Button aus renderFormOnly zeigt fest auf /persona - nested
-    // muss er zurueck auf den Tab, im Standalone passt die Route schon.
+    // Abbrechen: Liste oder Personas-Tab der Marke/des Unternehmens
     const cancelBtn = form.querySelector('.mdc-btn--cancel');
     if (cancelBtn) {
-      cancelBtn.removeAttribute('onclick');
       cancelBtn.addEventListener('click', () => window.navigateTo(this.returnRoute), opts);
     }
 
@@ -249,6 +246,12 @@ export class PersonaForm {
     submitBtn?.classList.add('is-loading');
 
     try {
+      // Panel konnte den persisted Stand nicht laden: nicht speichern, sonst
+      // diffed saveForPersona gegen [] und loescht alle Produkt-Verknuepfungen.
+      if (this.produktPanel?.loadFehler) {
+        throw new Error('Verknüpfte Produkte konnten nicht geladen werden – bitte Seite neu laden, es wurde nichts gespeichert.');
+      }
+
       let personaId = this.personaId;
 
       if (this.isEdit) {
@@ -260,6 +263,9 @@ export class PersonaForm {
       }
 
       await PersonaService.saveMarken(personaId, this.collectMarkenIds(data));
+      // Erst Marken, dann Produkte: saveMarken macht Delete-all und wuerde
+      // die beim Produkt-Attach auto-angehaengten Marken sonst wegwischen.
+      await ProduktPersonaService.saveForPersona(personaId, this.produktPanel?.getProduktIds() || []);
 
       window.toastSystem?.success?.(this.isEdit ? 'Persona gespeichert' : 'Persona angelegt');
       window.navigateTo(this.returnRoute);
@@ -325,7 +331,7 @@ export class PersonaForm {
       const error = document.createElement('div');
       error.className = 'field-error';
       error.textContent = message;
-      el.parentNode.appendChild(error);
+      (el.closest('.form-field') || el.parentNode).appendChild(error);
     }
   }
 
@@ -334,6 +340,8 @@ export class PersonaForm {
       try { this._abort.abort(); } catch (_) { /* noop */ }
       this._abort = null;
     }
+    this.produktPanel?.destroy?.();
+    this.produktPanel = null;
   }
 }
 

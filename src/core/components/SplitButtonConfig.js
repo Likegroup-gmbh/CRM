@@ -51,8 +51,16 @@ export const SplitButtonConfigs = {
     items: contractSubmitItems([
       { id: 'legacy-de', icon: 'contract', label: 'Standard (DE)', data: { template: 'legacy', lang: 'de' } },
       { id: 'legacy-en', icon: 'contract', label: 'Standard (EN)', data: { template: 'legacy', lang: 'en' } },
-      { id: 'awareness-de', icon: 'contract', label: 'BURGA Awareness (DE)', data: { template: 'awareness', lang: 'de' } },
-      { id: 'awareness-en', icon: 'contract', label: 'BURGA Awareness (EN)', data: { template: 'awareness', lang: 'en' } }
+      { id: 'awareness-de', icon: 'contract', label: 'Direktvertrag (Deckblatt/Anhang DE)', data: { template: 'awareness', lang: 'de' } },
+      { id: 'awareness-en', icon: 'contract', label: 'Direktvertrag (Deckblatt/Anhang EN)', data: { template: 'awareness', lang: 'en' } }
+    ])
+  },
+  // Influencer ohne Direktvertrag-Kunde (BURGA / UAB Hautica): nur Standard-Template
+  'influencer-contract-submit-standard': {
+    label: 'Erstellen & PDF',
+    items: contractSubmitItems([
+      { id: 'legacy-de', icon: 'contract', label: 'Standard (DE)', data: { template: 'legacy', lang: 'de' } },
+      { id: 'legacy-en', icon: 'contract', label: 'Standard (EN)', data: { template: 'legacy', lang: 'en' } }
     ])
   },
   'videograph-contract-submit': {

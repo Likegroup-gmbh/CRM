@@ -11,18 +11,12 @@
 // (docRole 'owner'). marke_ids rendert nur im Unternehmens-Kontext und im
 // Standalone - aus einer Marke heraus ist die Zuordnung fix.
 //
-// Die doc*-Angaben steuern das Worksheet-Layout in ProduktDoc.js:
-//   docSlot   'side' holt das Feld aus dem Dokument in die rechte Spalte
-//   docRole   'title' = Dokumenttitel, 'inline' = schmales Feld in einer Zeile,
-//             'uploader' = Tabelle, 'relations' = Tag-Multiselect,
-//             'owner' = Unternehmen-Select nur im Standalone,
-//             sonst frei beschreibbarer Textabschnitt
-//   docLabel  kuerzere Ueberschrift fuers Dokument, falls label zu technisch ist
-//   docHint   kurze Erlaeuterung unter dem Feld (nur bei docRole 'inline')
-//   docList   ein Eintrag pro Zeile - setzt die Zeilen enger als Fliesstext
-//   docGroup  buendelt Felder in eine Sektion (Hairline-Band; Abstand zwischen
-//             Sektionen und innerhalb der Sektion sind getrennt steuerbar)
-// Ohne diese Angaben rendert das klassische FormRenderer-Formular unveraendert.
+// Die doc*-Angaben steuern das Worksheet-Layout im geteilten Doc-Renderer
+// (core/doc/DocPage.js - dort ist der kanonische Ueberblick dokumentiert).
+// Panel-Slots (Einsatzsituationen, Varianten, Personas) stehen als
+// Pseudo-Felder mit docRole 'slot' in der Reihenfolge der Felder - so ist
+// auch ihre Position config-gesteuert. Ohne doc*-Angaben rendert das
+// klassische FormRenderer-Formular unveraendert.
 
 export const produktConfig = {
   title: 'Neues Produkt anlegen',
@@ -142,6 +136,19 @@ export const produktConfig = {
     // gepflegt. Der Extract liefert den Wert weiter als Seed fuer den
     // Persona-Job, die Spalte bleibt als Legacy-Lesefallback bestehen.
 
+    // Einsatzsituationen direkt hinter dem Inhalt - gefuellt vom
+    // ProduktPersonaPanel.
+    {
+      name: '_slot_usecases',
+      label: '',
+      type: 'hidden',
+      required: false,
+      docRole: 'slot',
+      slotId: 'produkt-usecases-panel',
+      docGroup: 'usecases',
+      section: 'nutzen'
+    },
+
     // 4. Preis-Range der Kollektion
     {
       name: 'preis_von',
@@ -154,6 +161,7 @@ export const produktConfig = {
       colSize: 'small',
       docRole: 'inline',
       docLabel: 'von',
+      docUnit: '€',
       docGroup: 'preis',
       section: 'preis',
       sectionTitle: 'Preis'
@@ -169,6 +177,7 @@ export const produktConfig = {
       colSize: 'small',
       docRole: 'inline',
       docLabel: 'bis',
+      docUnit: '€',
       docGroup: 'preis',
       section: 'preis'
     },
@@ -183,6 +192,7 @@ export const produktConfig = {
       colSize: 'small',
       docRole: 'inline',
       docLabel: 'UVP',
+      docUnit: '€',
       docHint: 'Nur bei Rabatt',
       docGroup: 'preis',
       section: 'preis'
@@ -211,6 +221,19 @@ export const produktConfig = {
       section: 'assets',
       sectionTitle: 'Produkt-Assets',
       sectionDescription: 'Bis zu fünf Bilder. Beim Auslesen der Shop-URL werden Bilder automatisch vorgeschlagen und können einzeln verworfen werden.'
+    },
+
+    // Varianten als eigene Sektion hinter den Bildern - gefuellt vom
+    // ProduktVariantenPanel.
+    {
+      name: '_slot_varianten',
+      label: '',
+      type: 'hidden',
+      required: false,
+      docRole: 'slot',
+      slotId: 'produkt-varianten-panel',
+      docGroup: 'varianten',
+      section: 'assets'
     },
 
     // 6. Compliance - relevant fuer Creator-Briefings
@@ -253,6 +276,18 @@ export const produktConfig = {
       required: false,
       rows: 3,
       docGroup: 'compliance',
+      section: 'compliance'
+    },
+
+    // Persona-Vorschlaege ganz unten - gefuellt vom ProduktPersonaPanel.
+    {
+      name: '_slot_personas',
+      label: '',
+      type: 'hidden',
+      required: false,
+      docRole: 'slot',
+      slotId: 'produkt-persona-panel',
+      docGroup: 'personas',
       section: 'compliance'
     }
   ]

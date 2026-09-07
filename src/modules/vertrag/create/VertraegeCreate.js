@@ -7,6 +7,7 @@ import { VertraegeCreate } from './VertraegeCreateCore.js';
 
 // Side-effect imports: erweitern VertraegeCreate.prototype
 import './ContractTranslations.js';
+import './DirektvertragGating.js';
 import './RenderShell.js';
 import './KooperationLogic.js';
 import './FormEvents.js';

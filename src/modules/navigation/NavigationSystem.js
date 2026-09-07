@@ -12,8 +12,7 @@ export class NavigationSystem {
       {
         title: 'Dashboard',
         items: [
-          { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', url: '/dashboard' },
-          { id: 'neuigkeiten', label: 'Was ist neu', icon: 'neuigkeiten', url: '/neuigkeiten' }
+          { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', url: '/dashboard' }
           // Ausgeblendet, kommt später wieder:
           // { id: 'tasks', label: 'Aufgaben', icon: 'tasks', url: '/tasks' }
         ]
@@ -119,11 +118,6 @@ export class NavigationSystem {
 
       // Geteilte Listen: nur intern (Admin + Mitarbeiter)
       if (id === 'shares') {
-        return typeof window.isInternal === 'function' && window.isInternal();
-      }
-
-      // Neuigkeiten ("Was ist neu"): nur intern (RLS laesst ohnehin nur Staff lesen)
-      if (id === 'neuigkeiten') {
         return typeof window.isInternal === 'function' && window.isInternal();
       }
 

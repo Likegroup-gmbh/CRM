@@ -1,8 +1,10 @@
 // pdf/AwarenessPdf.js
-// BURGA "Awareness"-Influencer-Vertrag: bilinguale (EN links / DE rechts) PDF-Generierung.
-// Eigenes zweispaltiges Layout, unabhaengig von der Standard-Influencer-PDF und den
-// ContractTranslations. Statischer Rechtstext hardcoded, dynamische Werte aus
-// vertrag.* + vertrag.awareness_felder.*
+// Direktvertrag (Code-Bezeichner: awareness): PDF-Generierung nach den
+// Original-Vorlagen (DE_TT/DE_IGR Agreement Awareness 2025).
+// - Deckblatt (Seite 1) und Anhaenge: einsprachig, Sprache = lang (Split-Button)
+// - Hauptteil (SPECIAL/GENERAL TERMS, 1.1-10.10): immer bilingual (EN|DE)
+// - Pro gewaehlter Plattform ein eigener Anhang (A, B, ...)
+// Dynamische Werte aus vertrag.* + vertrag.awareness_felder.* + unternehmen.*
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
@@ -13,6 +15,8 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
     const doc = new jsPDF();
     doc.setFont('helvetica');
 
+    const en = lang === 'en';
+
     // ============================================
     // Daten & dynamische Werte
     // ============================================
@@ -20,6 +24,8 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
     const kunde = this.unternehmen.find(u => u.id === vertrag.kunde_unternehmen_id) || {};
     const creator = this.creators.find(c => c.id === vertrag.creator_id) || {};
     const creatorAddr = this.getResolvedCreatorContractAddress(creator, vertrag) || {};
+    const kampagne = this.kampagnen.find(k => k.id === vertrag.kampagne_id) || {};
+    const markenname = kampagne?.marke?.markenname || 'BURGA';
 
     const ph = (v, len = 20) => {
       const s = (v === null || v === undefined) ? '' : String(v).trim();
@@ -28,72 +34,125 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
 
     const platLabels = { instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube' };
     const platLabel = (p) => p === 'sonstige'
-      ? (vertrag.plattformen_sonstige || (lang === 'en' ? 'Other' : 'Sonstige'))
+      ? (vertrag.plattformen_sonstige || (en ? 'Other' : 'Sonstige'))
       : (platLabels[p] || p);
-    const plattformenText = (vertrag.plattformen || []).map(platLabel).join(', ')
-      || (lang === 'en' ? 'TikTok' : 'TikTok');
+    const plattformen = (vertrag.plattformen || []).length ? vertrag.plattformen : ['tiktok'];
+    const plattformenText = plattformen.map(platLabel).join(', ') || 'TikTok';
+    const platAccountsEn = plattformen.map(platLabel).join(' and ') || 'TikTok';
+    const platAccountsDe = plattformen.map(platLabel).join(' und ') || 'TikTok';
 
-    const buildDeliverables = () => {
-      const parts = [];
-      const r = vertrag.anzahl_reels || 0;
-      const f = vertrag.anzahl_feed_posts || 0;
-      const s = vertrag.anzahl_storys || 0;
-      const plat = (vertrag.plattformen || []).map(platLabel).join('/') || 'TikTok';
-      if (r) parts.push(lang === 'en' ? `${r} ${plat} video(s)` : `${r} ${plat} Video(s)`);
-      if (f) parts.push(lang === 'en' ? `${f} feed post(s)` : `${f} Feed-Post(s)`);
-      if (s) parts.push(lang === 'en' ? `${s} story slide(s)` : `${s} Story-Slide(s)`);
-      return parts.join(', ') || (lang === 'en' ? '1 TikTok video' : '1 TikTok Video');
+    // Plattform-Nomen im Singular (fuer "Das TikTok Video muss ..." etc.)
+    const platNoun = (p, lc = false) => {
+      const map = {
+        tiktok: lc ? 'TikTok video' : 'TikTok Video',
+        instagram: lc ? 'Instagram reel' : 'Instagram-Reel',
+        youtube: lc ? 'YouTube video' : 'YouTube Video'
+      };
+      return map[p] || (lc ? 'video' : 'Video');
     };
-    const deliverablesText = buildDeliverables();
 
-    const formatDate = (d) => (d ? this.formatContractDate(d, lang) : null);
-    const money = (v) => this.formatContractMoney(v, lang, { emptyValue: '__________' });
+    const anzahlReels = vertrag.anzahl_reels || 0;
+    const anzahlFeed = vertrag.anzahl_feed_posts || 0;
+    const anzahlStorys = vertrag.anzahl_storys || 0;
+
+    // Lieferumfang pro Plattform (Anhang-Tabelle, einsprachig per lang)
+    const lieferumfangFor = (p) => {
+      if (p === 'instagram') {
+        const parts = [];
+        if (anzahlReels) parts.push(en ? `${anzahlReels} Instagram reel(s)` : `${anzahlReels} Instagram-Reel(s)`);
+        if (anzahlFeed) parts.push(en ? `${anzahlFeed} feed post(s)` : `${anzahlFeed} Feed-Post(s)`);
+        if (anzahlStorys) parts.push(en ? `${anzahlStorys} story slide(s)` : `${anzahlStorys} Story-Slide(s)`);
+        return parts.join(', ') || (en ? '1 Instagram reel' : '1 Instagram-Reel');
+      }
+      if (p === 'youtube') return `${anzahlReels || 1} YouTube ${en ? 'video(s)' : 'Video(s)'}`;
+      if (p === 'sonstige') return `${anzahlReels || 1} ${platLabel('sonstige')} ${en ? 'video(s)' : 'Video(s)'}`;
+      return `${anzahlReels || 1} TikTok ${en ? 'video(s)' : 'Video(s)'}`;
+    };
+
+    // 1.2.2 Deliverables im Haupttext: EN- und DE-Variante getrennt,
+    // damit die EN-Spalte auch bei lang=de englisch bleibt.
+    const buildDeliverables = (isEn) => {
+      const parts = [];
+      const plat = plattformen.map(platLabel).join('/') || 'TikTok';
+      if (anzahlReels) {
+        const noun = plattformen.length === 1 && plattformen[0] === 'instagram'
+          ? (isEn ? 'Instagram reel(s)' : 'Instagram-Reel(s)')
+          : (isEn ? 'video(s)' : 'Video(s)');
+        parts.push(`${anzahlReels} ${plat} ${noun}`);
+      }
+      if (anzahlFeed) parts.push(isEn ? `${anzahlFeed} feed post(s)` : `${anzahlFeed} Feed-Post(s)`);
+      if (anzahlStorys) parts.push(isEn ? `${anzahlStorys} story slide(s)` : `${anzahlStorys} Story-Slide(s)`);
+      return parts.join(', ') || (isEn ? `1 ${plat} video` : `1 ${plat} Video`);
+    };
+    const deliverablesEn = buildDeliverables(true);
+    const deliverablesDe = buildDeliverables(false);
+
+    // Account-Handle pro Plattform (Anhang). influencer_profile-Eintraege sind
+    // i.d.R. "TikTok @handle" – Plattform-Praefix fuer die Anzeige entfernen.
+    const stripPlatPrefix = (s) => (s || '').replace(/^\s*(tiktok|instagram|youtube)\s*/i, '').trim();
+    const profileFor = (re) => stripPlatPrefix((vertrag.influencer_profile || []).find(pr => re.test(pr)) || '');
+    const tiktokHandle = profileFor(/tiktok/i) || creator.tiktok || '';
+    const accountFor = (p) => {
+      if (p === 'tiktok') return tiktokHandle;
+      if (p === 'instagram') return creator.instagram || profileFor(/insta/i);
+      if (p === 'youtube') return profileFor(/youtube/i);
+      return '';
+    };
+
+    // Anhang-Referenzen (A, B, ...) fuer 3.2.1 / 7.1 / 7.2
+    const ANNEX_LETTERS = ['A', 'B', 'C', 'D', 'E'];
+    const annexLetters = plattformen.map((_, i) => ANNEX_LETTERS[i] || String(i + 1));
+    const annexRefEn = annexLetters.length > 1
+      ? `Annexes ${annexLetters.slice(0, -1).join(', ')} and ${annexLetters[annexLetters.length - 1]}`
+      : `Annex ${annexLetters[0]}`;
+    const annexRefDe = annexLetters.length > 1
+      ? `Anhänge ${annexLetters.slice(0, -1).join(', ')} und ${annexLetters[annexLetters.length - 1]}`
+      : `Anhang ${annexLetters[0]}`;
+
+    // Datum im ISO-Format wie im Original (2025-04-10)
+    const isoDate = (d) => {
+      if (!d) return null;
+      const dt = new Date(d);
+      return Number.isNaN(dt.getTime()) ? String(d) : dt.toISOString().split('T')[0];
+    };
     const verguetungBetrag = (af.verguetung_brutto !== null && af.verguetung_brutto !== undefined)
       ? af.verguetung_brutto
       : vertrag.verguetung_netto;
+    const moneyEn = this.formatContractMoney(verguetungBetrag, 'en', { emptyValue: '__________' });
+    const moneyDe = this.formatContractMoney(verguetungBetrag, 'de', { emptyValue: '__________' });
 
     const zahlungszielTage = { '14_tage': 14, '30_tage': 30, '45_tage': 45 }[vertrag.zahlungsziel] || 30;
 
-    const zahlungsmethodeText = (() => {
-      const m = af.zahlungsmethode;
-      if (lang === 'en') {
-        return m === 'paypal' ? 'PayPal'
-          : m === 'banktransfer' ? 'bank transfer'
-          : 'bank transfer or PayPal';
-      }
-      return m === 'paypal' ? 'PayPal'
-        : m === 'banktransfer' ? 'Banküberweisung'
-        : 'Banküberweisung oder PayPal';
-    })();
+    const zahlungsmethode = af.zahlungsmethode;
+    const zahlungsmethodeEn = zahlungsmethode === 'paypal' ? 'PayPal'
+      : zahlungsmethode === 'banktransfer' ? 'bank transfer'
+      : 'bank transfer or PayPal';
+    const zahlungsmethodeDe = zahlungsmethode === 'paypal' ? 'PayPal'
+      : zahlungsmethode === 'banktransfer' ? 'Banküberweisung'
+      : 'Banküberweisung oder PayPal';
 
-    const aufbewahrungText = (() => {
-      const a = af.content_aufbewahrung_dauer || '12_monate';
-      if (lang === 'en') {
-        return a === '6_monate' ? '6 (six) months'
-          : a === 'individuell' ? 'the agreed period'
-          : '1 (one) year';
-      }
-      return a === '6_monate' ? '6 (sechs) Monate'
-        : a === 'individuell' ? 'den vereinbarten Zeitraum'
-        : '1 (ein) Jahr';
-    })();
+    const aufbewahrung = af.content_aufbewahrung_dauer || '12_monate';
+    const aufbewahrungEn = aufbewahrung === '6_monate' ? '6 (six) months'
+      : aufbewahrung === 'individuell' ? 'the agreed period'
+      : '1 (one) year';
+    const aufbewahrungDe = aufbewahrung === '6_monate' ? '6 (sechs) Monate'
+      : aufbewahrung === 'individuell' ? 'den vereinbarten Zeitraum'
+      : '1 (ein) Jahr';
 
     const videoLen = af.video_mindestlaenge_sekunden;
     const statistikFrist = af.statistik_frist_tage;
     const contentVorlauf = af.content_vorlauf_tage || 3;
     const kuendigungsfrist = af.kuendigungsfrist_tage || 30;
     const brandTag = af.brand_tag || '';
-    const veroeffentlichungsfrist = formatDate(af.veroeffentlichungsfrist);
-    const tiktokHandle = (vertrag.influencer_profile || []).find(p => /tiktok/i.test(p))
-      || creator.tiktok || '';
+    const veroeffentlichungsfrist = isoDate(af.veroeffentlichungsfrist);
 
     // ============================================
     // Layout-Konstanten
     // ============================================
-    const LEFT_X = 14;      // EN-Spalte
-    const RIGHT_X = 109;    // DE-Spalte
-    const COL_W = 87;       // Spaltenbreite
-    const FULL_W = 182;     // volle Breite
+    const LEFT_X = 14;      // EN-Spalte / linker Rand
+    const RIGHT_X = 109;    // DE-Spalte (Hauptteil)
+    const COL_W = 87;       // Spaltenbreite (Hauptteil)
+    const FULL_W = 182;     // volle Breite (Deckblatt/Anhang)
     const TOP_Y = 20;
     const MAX_CONTENT_Y = 275;
     const FOOTER_Y = 288;
@@ -116,7 +175,7 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
         ? `${kunde.firmenname}`
         : 'Influencer Agreement';
       doc.text(footerLabel, LEFT_X, FOOTER_Y);
-      doc.text(`${lang === 'en' ? 'Page' : 'Seite'} ${pageNumber}`, 196, FOOTER_Y, { align: 'right' });
+      doc.text(`${en ? 'Page' : 'Seite'} ${pageNumber}`, 196, FOOTER_Y, { align: 'right' });
       doc.setTextColor(0);
       doc.setFontSize(prevSize);
       doc.setFont(prevFont.fontName, prevFont.fontStyle);
@@ -131,11 +190,11 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
     };
 
     // Bilingualer Absatz: EN links, DE rechts, Zeilenumbruch + Seitenumbruch
-    const row = (en, de, opts = {}) => {
+    const row = (enText, deText, opts = {}) => {
       const gap = opts.gap ?? 1.5;
       setBody();
-      const enLines = doc.splitTextToSize(en || '', COL_W);
-      const deLines = doc.splitTextToSize(de || '', COL_W);
+      const enLines = doc.splitTextToSize(enText || '', COL_W);
+      const deLines = doc.splitTextToSize(deText || '', COL_W);
       const rows = Math.max(enLines.length, deLines.length);
       if (y + rows * LH > MAX_CONTENT_Y) y = newPage();
       for (let i = 0; i < rows; i++) {
@@ -146,12 +205,12 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
     };
 
     // Bilinguale Ueberschrift (fett)
-    const heading = (en, de, opts = {}) => {
+    const heading = (enText, deText, opts = {}) => {
       const topGap = opts.topGap ?? 3;
       y += topGap;
       setHead();
-      const enLines = doc.splitTextToSize(en || '', COL_W);
-      const deLines = doc.splitTextToSize(de || '', COL_W);
+      const enLines = doc.splitTextToSize(enText || '', COL_W);
+      const deLines = doc.splitTextToSize(deText || '', COL_W);
       const rows = Math.max(enLines.length, deLines.length);
       if (y + rows * LH_H > MAX_CONTENT_Y) y = newPage();
       for (let i = 0; i < rows; i++) {
@@ -170,6 +229,159 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
       doc.text(text, 105, y, { align: 'center' });
     };
 
+    // Einsprachiger Absatz ueber die volle Breite (Deckblatt/Anhang)
+    const para = (text, opts = {}) => {
+      const { style = 'normal', indent = 0, gap = 1.5, align, size = 8.5 } = opts;
+      doc.setFont('helvetica', style);
+      doc.setFontSize(size);
+      const lines = doc.splitTextToSize(text || '', FULL_W - indent);
+      if (y + lines.length * LH > MAX_CONTENT_Y) y = newPage();
+      lines.forEach(line => {
+        if (align === 'center') doc.text(line, 105, y, { align: 'center' });
+        else doc.text(line, LEFT_X + indent, y);
+        y += LH;
+      });
+      y += gap;
+      setBody();
+    };
+
+    // Haengender Einzug: Marker (A)/(B)/(C) links, Text eingerueckt
+    const hanging = (marker, text) => {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      const lines = doc.splitTextToSize(text || '', FULL_W - 8);
+      if (y + lines.length * LH > MAX_CONTENT_Y) y = newPage();
+      doc.text(marker, LEFT_X, y);
+      lines.forEach(line => { doc.text(line, LEFT_X + 8, y); y += LH; });
+      y += 1.5;
+    };
+
+    // Gerahmte Parteien-Box auf dem Deckblatt (wie Original):
+    // links fett zentriert das Label (UNTERNEHMEN/INFLUENCER), rechts Kopfzeile
+    // (fett zentriert) + Label/Wert-Zeilen. Vollrahmen + vertikale Trennlinie.
+    const partyBox = (label, headline, lines) => {
+      const LABEL_W = 46;
+      const PAD = 2.5;
+      const contentX = LEFT_X + LABEL_W + PAD;
+      const contentW = FULL_W - LABEL_W - 2 * PAD;
+
+      setBody();
+      const prepared = [];
+      prepared.push({
+        wrapped: doc.splitTextToSize(headline || '', contentW),
+        style: 'bold', align: 'center'
+      });
+      lines.forEach(l => {
+        const labelW = doc.getTextWidth(l.label + ' ') + 1;
+        prepared.push({
+          label: l.label,
+          labelW,
+          wrapped: doc.splitTextToSize(l.value || '', contentW - labelW),
+          style: 'normal'
+        });
+      });
+
+      const totalLines = prepared.reduce((sum, c) => sum + c.wrapped.length, 0);
+      const boxH = totalLines * LH + 2 * PAD + 1;
+      if (y + boxH > MAX_CONTENT_Y) y = newPage();
+
+      // Rahmen + Trennlinie
+      doc.setDrawColor(0);
+      doc.rect(LEFT_X, y, FULL_W, boxH);
+      doc.line(LEFT_X + LABEL_W, y, LEFT_X + LABEL_W, y + boxH);
+
+      // Label horizontal + vertikal zentriert
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.text(label, LEFT_X + LABEL_W / 2, y + boxH / 2 + 1.2, { align: 'center' });
+
+      // Inhalt
+      let cy = y + PAD + 3;
+      prepared.forEach(c => {
+        c.wrapped.forEach((line, i) => {
+          if (c.align === 'center') {
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8.5);
+            doc.text(line, contentX + contentW / 2, cy, { align: 'center' });
+          } else {
+            doc.setFontSize(8.5);
+            if (i === 0 && c.label) {
+              doc.setFont('helvetica', 'bold');
+              doc.text(c.label, contentX, cy);
+              doc.setFont('helvetica', 'normal');
+              doc.text(line, contentX + c.labelW, cy);
+            } else {
+              doc.setFont('helvetica', 'normal');
+              doc.text(line, contentX + (c.label ? c.labelW : 0), cy);
+            }
+          }
+          cy += LH;
+        });
+      });
+      y += boxH + 2;
+      setBody();
+    };
+
+    // Tabelle mit Vollrahmen (Anhang). Zellen = Array von Segmenten
+    // { text, style?, bullet?, gapAfter? } fuer fette Zwischenzeilen/Bullets.
+    // Wird nicht mitten drin umgebrochen (vorher newPage, wenn noetig).
+    const boxTable = (headers, rows, colWidths) => {
+      const PAD = 1.5;
+      const W = colWidths.reduce((a, b) => a + b, 0);
+
+      const prepCell = (segments, w, bold) => {
+        const out = [];
+        segments.forEach(seg => {
+          const prefix = seg.bullet ? '• ' : '';
+          const wrapped = doc.splitTextToSize(prefix + (seg.text || ''), w - 2 * PAD);
+          wrapped.forEach((t, i) => out.push({
+            text: t,
+            style: seg.style || (bold ? 'bold' : 'normal'),
+            indent: seg.bullet && i > 0 ? 2.5 : 0
+          }));
+          if (seg.gapAfter) out.push({ text: '', style: 'normal', indent: 0 });
+        });
+        return out;
+      };
+
+      const headerCells = headers.map((h, i) => prepCell([{ text: h }], colWidths[i], true));
+      const bodyCells = rows.map(r => r.map((cell, i) => prepCell(cell, colWidths[i], false)));
+
+      const rowHeight = cells => Math.max(...cells.map(c => c.length)) * LH + 2 * PAD;
+      const headerH = rowHeight(headerCells);
+      const bodyHs = bodyCells.map(rowHeight);
+      const totalH = headerH + bodyHs.reduce((a, b) => a + b, 0);
+      if (y + totalH > MAX_CONTENT_Y) y = newPage();
+
+      const tableTop = y;
+      const renderRow = (cells, h) => {
+        let x = LEFT_X;
+        cells.forEach((cell, i) => {
+          let cy = y + PAD + 2.5;
+          cell.forEach(line => {
+            doc.setFont('helvetica', line.style);
+            doc.setFontSize(8.5);
+            if (line.text) doc.text(line.text, x + PAD + line.indent, cy);
+            cy += LH;
+          });
+          x += colWidths[i];
+        });
+        y += h;
+      };
+
+      renderRow(headerCells, headerH);
+      bodyCells.forEach((cells, i) => renderRow(cells, bodyHs[i]));
+
+      // Aussenrahmen + Innenlinien
+      doc.setDrawColor(0);
+      doc.rect(LEFT_X, tableTop, W, totalH);
+      doc.line(LEFT_X, tableTop + headerH, LEFT_X + W, tableTop + headerH);
+      let lx = LEFT_X;
+      colWidths.slice(0, -1).forEach(w => { lx += w; doc.line(lx, tableTop, lx, tableTop + totalH); });
+      y += 2;
+      setBody();
+    };
+
     // Unterschriftenblock (Unternehmen + Influencer), zweispaltig, mit Umbruchschutz
     const signatureBlock = (startY) => {
       let sy = startY;
@@ -181,12 +393,12 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
       }
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
-      doc.text(lang === 'en' ? 'FOR AND ON BEHALF OF THE COMPANY' : 'FÜR UND IM NAMEN DES UNTERNEHMENS', LEFT_X, sy);
-      doc.text(lang === 'en' ? 'FOR AND ON BEHALF OF THE INFLUENCER' : 'FÜR UND IM NAMEN DES INFLUENCERS', RIGHT_X, sy);
+      doc.text(en ? 'FOR AND ON BEHALF OF THE COMPANY' : 'FÜR UND IM NAMEN DES UNTERNEHMENS', LEFT_X, sy);
+      doc.text(en ? 'FOR AND ON BEHALF OF THE INFLUENCER' : 'FÜR UND IM NAMEN DES INFLUENCERS', RIGHT_X, sy);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
       sy += 10;
-      const labels = lang === 'en'
+      const labels = en
         ? ['[Name]', '[Title]', '[Date]', '[Signature]']
         : ['[Name]', '[Titel]', '[Datum]', '[Unterschrift]'];
       labels.forEach((lab) => {
@@ -198,69 +410,65 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
     };
 
     // ============================================
-    // SEITE 1: Titel + Praeambel + Parteien
+    // SEITE 1: Deckblatt (einsprachig per lang)
     // ============================================
-    centered(lang === 'en' ? 'INFLUENCER AGREEMENT' : 'INFLUENCER-VERTRAG', 16, 'bold');
+    centered(en ? 'INFLUENCER AGREEMENT' : 'INFLUENCER-VERTRAG', 16, 'bold');
     y += 7;
-    centered(`${lang === 'en' ? 'Date' : 'Datum'}: ${ph(formatDate(af.vertrag_datum), 14)}`, 10, 'normal');
+    centered(`${ph(isoDate(af.vertrag_datum), 12)}`, 10, 'normal');
     y += 8;
-
     setBody();
-    heading('WHEREAS:', 'AUSGANGSLAGE:', { topGap: 0 });
-    row(
-      '(A) The Company is a manufacturer and distributor of cases for mobile phones, laptops, tablets and others;',
-      '(A) Das Unternehmen ist ein Hersteller und Vertreiber von Schutzhüllen für Handys, Laptops, Tablets und ähnliches;'
-    );
-    row(
-      '(B) The Influencer is a person engaged in marketing who, by his or her reputation, influences the choice of buyers;',
-      '(B) Der Influencer ist eine im Marketing tätige Person, die durch ihren Ruf die Entscheidung der Käufer beeinflusst;'
-    );
-    row(
-      '(C) The Company seeks to promote its product through the Influencer\u2019s social media outlets.',
-      '(C) Das Unternehmen versucht, sein Produkt über die sozialen Medien durch den Influencer zu bewerben.'
-    );
-    row(
-      'AGREED TO ENTER INTO AGREEMENT UNDER THESE CONDITIONS:',
-      'ES WURDE ZUGESTIMMT, UNTER DIESEN BEDINGUNGEN EIN ABKOMMEN ZU SCHLIESSEN:'
-    );
 
-    // Parteien: UNTERNEHMEN
-    heading('COMPANY', 'UNTERNEHMEN');
-    row(
-      `Company name: ${ph(kunde.firmenname)}`,
-      `Firmenname: ${ph(kunde.firmenname)}`,
-      { gap: 0.5 }
-    );
-    row(`Reg. code: ${ph('', 16)}`, `Reg.-Code: ${ph('', 16)}`, { gap: 0.5 });
-    row(`VAT ID: ${ph('', 16)}`, `USt-IdNr.: ${ph('', 16)}`, { gap: 0.5 });
-    row(
-      `Address: ${ph(`${kunde.rechnungsadresse_strasse || ''} ${kunde.rechnungsadresse_hausnummer || ''}`.trim())}, ${ph(`${kunde.rechnungsadresse_plz || ''} ${kunde.rechnungsadresse_stadt || ''}`.trim())}`,
-      `Adresse: ${ph(`${kunde.rechnungsadresse_strasse || ''} ${kunde.rechnungsadresse_hausnummer || ''}`.trim())}, ${ph(`${kunde.rechnungsadresse_plz || ''} ${kunde.rechnungsadresse_stadt || ''}`.trim())}`,
-      { gap: 0.5 }
-    );
-    row(`Contact email: ${ph(af.ansprechpartner_email, 18)}`, `Kontakt-Email: ${ph(af.ansprechpartner_email, 18)}`, { gap: 0.5 });
-    row(
-      `Represented by: ${ph('', 18)}`,
-      `Vertreten durch: ${ph('', 18)}`
-    );
-
-    // Parteien: INFLUENCER
-    heading('INFLUENCER', 'INFLUENCER');
-    const creatorName = `${creator.vorname || ''} ${creator.nachname || ''}`.trim();
-    row(`Name / Agency: ${ph(creatorName)}`, `Name / Agentur: ${ph(creatorName)}`, { gap: 0.5 });
+    // Parteien-Boxen (gerahmt, wie Original)
+    const kundeAdresse = [
+      `${kunde.rechnungsadresse_strasse || ''} ${kunde.rechnungsadresse_hausnummer || ''}`.trim(),
+      `${kunde.rechnungsadresse_plz || ''} ${kunde.rechnungsadresse_stadt || ''}`.trim(),
+      kunde.rechnungsadresse_land
+    ].filter(Boolean).join(', ');
     const creatorAddrLine = `${creatorAddr.strasse || ''} ${creatorAddr.hausnummer || ''}`.trim();
     const creatorAddrLine2 = `${creatorAddr.plz || ''} ${creatorAddr.stadt || ''}`.trim();
-    row(
-      `Address: ${ph([creatorAddrLine, creatorAddrLine2, creatorAddr.land].filter(Boolean).join(', '))}`,
-      `Adresse: ${ph([creatorAddrLine, creatorAddrLine2, creatorAddr.land].filter(Boolean).join(', '))}`,
-      { gap: 0.5 }
-    );
-    row(`Reg. code: ${ph(af.influencer_reg_code, 16)}`, `Reg.-Code: ${ph(af.influencer_reg_code, 16)}`, { gap: 0.5 });
-    row(`VAT ID / Tax ID: ${ph(af.influencer_ust_id, 16)}`, `USt-IdNr. / Steuer-IdNr.: ${ph(af.influencer_ust_id, 16)}`, { gap: 0.5 });
-    row(`Contact email: ${ph(creator.email, 18)}`, `Kontakt-Email: ${ph(creator.email, 18)}`);
+    const creatorAdresse = [creatorAddrLine, creatorAddrLine2, creatorAddr.land].filter(Boolean).join(', ');
+    const creatorName = `${creator.vorname || ''} ${creator.nachname || ''}`.trim();
+
+    partyBox(en ? 'COMPANY' : 'UNTERNEHMEN', ph(kunde.firmenname, 24), [
+      { label: 'Reg. code:', value: ph(kunde.reg_code, 20) },
+      { label: 'USt-IdNr.:', value: ph(kunde.ust_id, 20) },
+      { label: en ? 'Address:' : 'Adresse:', value: ph(kundeAdresse, 30) },
+      { label: en ? 'Contact email:' : 'Kontakt Email:', value: ph(af.ansprechpartner_email, 24) },
+      { label: en ? 'Represented by' : 'Vertreten durch', value: ph(kunde.vertreten_durch, 40) }
+    ]);
+
+    // Bei Agentur-/Firmenadresse: "Name / Agentur" als Kopfzeile (wie Original)
+    const influencerHeadline = creatorAddr.name && creatorAddr.source !== 'creator'
+      ? `${ph(creatorName, 20)} / ${creatorAddr.name}`
+      : ph(creatorName, 24);
+    partyBox('INFLUENCER', influencerHeadline, [
+      { label: en ? 'Address:' : 'Adresse:', value: ph(creatorAdresse, 30) },
+      { label: 'Reg. code:', value: ph(af.influencer_reg_code, 20) },
+      { label: en ? 'VAT / tax ID:' : 'USt-IdNr. / Steuer-IdNr.:', value: ph(af.influencer_ust_id, 20) },
+      { label: en ? 'Contact email:' : 'Kontakt Email:', value: ph(creator.mail, 24) }
+    ]);
+
+    // Praeambel (einsprachig, haengender Einzug)
+    y += 4;
+    para(en ? 'WHEREAS:' : 'AUSGANGSLAGE:', { style: 'bold' });
+    // Produktbeschreibung: aus awareness_felder.produkt_beschreibung, sonst BURGA-Default.
+    const produktBeschreibung = (af.produkt_beschreibung || '').trim();
+    hanging('(A)', produktBeschreibung || (en
+      ? 'The Company is a manufacturer and distributor of cases for mobile phones, laptops, tablet and others;'
+      : 'Das Unternehmen ist ein Hersteller und Vertreiber von Schutzhüllen für Handys, Laptops, Tablets und ähnliches;'));
+    hanging('(B)', en
+      ? 'The Influencer is a person engaged in marketing who, by his or her reputation, influences the choice of buyers;'
+      : 'Der Influencer ist eine im Marketing tätige Person, die durch ihren Ruf die Entscheidung der Käufer beeinflusst;');
+    hanging('(C)', en
+      ? 'The Company seeks to promote its product through Influencer’s social media outlets.'
+      : 'Das Unternehmen versucht, sein Produkt über die sozialen Medien durch Influencer zu bewerben.');
+    y += 2;
+    para(en
+      ? 'AGREED TO ENTER INTO AGREEMENT UNDER THESE CONDITIONS:'
+      : 'ES WURDE ZUGESTIMMT, UNTER DIESEN BEDINGUNGEN EIN ABKOMMEN ZU SCHLIESSEN:', { style: 'bold' });
 
     // ============================================
-    // SPECIAL TERMS
+    // SPECIAL TERMS (bilingual)
     // ============================================
     newPage();
     setBody();
@@ -273,186 +481,247 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
     // 1. Object of agreement
     heading('1. OBJECT OF AGREEMENT', '1. VERTRAGSGEGENSTAND', { topGap: 0 });
     row(
-      '1.1. The Company herewith appoints the Influencer as its promoter to promote the Company\u2019s products and brands (hereinafter \u2013 Products).',
-      '1.1. Das Unternehmen ernennt hiermit den Influencer als seinen Promoter, um die Produkte und Marken des Unternehmens (im Folgenden Produkte) zu bewerben.'
+      '1.1. The Company herewith appoints an Influencer as its promoter to promote the Company’s products and brands (hereinafter – Products).',
+      '1.1. Das Unternehmen ernennt hiermit einen Influencer als seinen Promoter, um die Produkte und Marken des Unternehmens (im Folgenden Produkte) zu bewerben.'
     );
     row(
-      '1.2. The Influencer undertakes to promote Products through the following platform(s) under these conditions:',
-      '1.2. Der Influencer verpflichtet sich, unter diesen Bedingungen Produkte über die folgende(n) Plattform(en) zu bewerben:'
+      '1.2. The Influencer undertakes to promote Products through this Platform under these conditions:',
+      '1.2. Der Influencer verpflichtet sich, unter diesen Bedingungen Produkte über die folgende Plattform zu bewerben:'
     );
-    row(`1.2.1. ${plattformenText};`, `1.2.1. ${plattformenText};`);
-    row(`1.2.2. Deliverables: ${deliverablesText};`, `1.2.2. Lieferumfang: ${deliverablesText};`);
+    row(`1.2.1 ${plattformenText};`, `1.2.1. ${plattformenText};`);
+    row(`1.2.2. Deliverables: ${deliverablesEn};`, `1.2.2. Lieferumfang: ${deliverablesDe};`);
     row(
-      `1.2.3. Video content has to be at least ${ph(videoLen, 4)} seconds long;`,
-      `1.2.3. Video-Inhalte müssen mindestens ${ph(videoLen, 4)} Sekunden lang sein;`
+      `1.2.3. ${plattformen.length === 1 ? platNoun(plattformen[0], true) : 'Video content'} has to be at least ${ph(videoLen, 4)} seconds long;`,
+      `1.2.3. ${plattformen.length === 1 ? `Das ${platNoun(plattformen[0])}` : 'Video-Inhalte'} ${plattformen.length === 1 ? 'muss' : 'müssen'} mindestens ${ph(videoLen, 4)} Sekunden lang sein;`
     );
     row(
       `1.2.4. Content has to be published no later than ${ph(veroeffentlichungsfrist, 12)};`,
       `1.2.4. Der Inhalt muss bis spätestens ${ph(veroeffentlichungsfrist, 12)} veröffentlicht werden;`
     );
     row(
-      '1.2.5. The creative concept has to be discussed and confirmed by the Company before filming.',
-      '1.2.5. Das kreative Konzept muss vor dem Filmen mit dem Unternehmen abgesprochen und bestätigt werden.'
+      '1.2.5. Creative concept has to be discussed and confirmed by the Company before filming.',
+      '1.2.5. Das kreative Konzept muss vor dem Filmen mit dem Unternehmen abgesprochen und bestätigt werden;'
     );
 
     // 2. Payment and transfer
     heading('2. PAYMENT AND TRANSFER', '2. ZAHLUNG UND ÜBERWEISUNG');
     row(
-      `2.1. For the Services named in this Agreement, the Company agrees to pay the Influencer ${money(verguetungBetrag)} \u20ac (all fees and taxes included). The Influencer agrees that this payment shall be the sole and entire compensation received.`,
-      `2.1. Für die in diesem Vertrag genannten Dienstleistungen erklärt sich das Unternehmen bereit, dem Influencer ${money(verguetungBetrag)} \u20ac (alle Gebühren und Steuern enthalten) zu zahlen. Der Influencer erklärt sich damit einverstanden, dass diese Zahlung die einzige und gesamte Vergütung ist.`
+      `2.1. For the Services named in this Agreement, the Company agrees to pay Influencer ${moneyEn} € (all fees and taxes included to the amount). Influencer agrees that this payment shall be the sole and entire compensation received and no other compensation of any kind shall be due upon termination of the Agreement or thereafter.`,
+      `2.1. Für die in diesem Vertrag genannten Dienstleistungen erklärt sich das Unternehmen bereit, dem Influencer ${moneyDe} € (alle Gebühren und Steuern im Betrag enthalten) zu zahlen. Der Influencer erklärt sich damit einverstanden, dass diese Zahlung die einzige und gesamte Vergütung ist, die er erhält, und dass bei Beendigung des Vertrags oder danach keine weitere Vergütung jeglicher Art fällig wird.`
     );
     row(
-      '2.2. No payments will be made until the Influencer\u2019s Content has been approved by the Company.',
+      '2.2. No payments will be made until the Influencer’s Content has been approved by the Company.',
       '2.2. Es werden keine Zahlungen geleistet, bevor der Inhalt des Influencers vom Unternehmen genehmigt wurde.'
     );
     row(
-      `2.3. Payment shall be made via ${zahlungsmethodeText} within ${zahlungszielTage} days of receipt of a respective invoice from the Influencer. If the Parties do not agree on an invoice date, the payment will be due thirty (30) days after completion of the Agreement.`,
-      `2.3. Die Zahlung erfolgt per ${zahlungsmethodeText} innerhalb von ${zahlungszielTage} Tagen nach Erhalt einer entsprechenden Rechnung des Influencers. Einigen sich die Parteien nicht auf ein Rechnungsdatum, wird die Zahlung dreißig (30) Tage nach Abschluss des Vertrags fällig.`
+      `2.3. Payment shall be made via ${zahlungsmethodeEn} within ${zahlungszielTage} days of receipt from the Influencer of a respective invoice. Invoice is made by Influencer via PayPal or by filling out the Company's or Influencer's invoice template with the provided information. By sending the invoice, the Influencer confirms that the information provided in the invoice is correct and accepts full loss if the information is incorrect. If Parties do not agree on an invoice date, the payment will be due thirty (30) days after the completion of the Agreement.`,
+      `2.3. Die Zahlung erfolgt per ${zahlungsmethodeDe} innerhalb von ${zahlungszielTage} Tagen nach Erhalt einer entsprechenden Rechnung durch den Influencer. Die Rechnung wird vom Influencer über PayPal oder durch Ausfüllen der Rechnungsvorlage des Unternehmens oder des Influencers mit den bereitgestellten Informationen erstellt. Mit der Übersendung der Rechnung bestätigt der Influencer, dass die in der Rechnung gemachten Angaben korrekt sind und stimmt dem vollen Haftungsausschluss zu, falls die Angaben falsch sein sollten. Einigen sich die Parteien nicht auf ein Rechnungsdatum, wird die Zahlung dreißig (30) Tage nach Abschluss des Vertrags fällig.`
     );
     row(
-      '2.4. The Company is responsible for paying all relevant taxes by sending the transfer and is not responsible for any additional fees that may occur in the Influencer\u2019s country of residence.',
-      '2.4. Das Unternehmen ist für die Zahlung aller relevanten Steuern bei der Überweisung verantwortlich und nicht für zusätzliche Gebühren, die im Wohnsitzland des Influencers anfallen können.'
+      '2.4. The Company is responsible for paying all the relevant taxes by sending the transfer and is not responsible for any of the additional fees that may occur in the Influencer’s country of residence.',
+      '2.4. Das Unternehmen ist für die Zahlung aller relevanten Steuern bei der Überweisung und nicht für die zusätzlichen Gebühren verantwortlich, die im Wohnsitzland des Influencers anfallen können.'
     );
     row(
-      `2.5. The collaboration shall be considered fully completed only upon delivery of all agreed content and provision of performance analytics (e.g. reach, impressions, clicks, engagement). These statistics must be provided to the Company within ${ph(statistikFrist, 4)} calendar days after the final post is published. The Influencer may issue an invoice only after all deliverables, including the required statistics, have been submitted in full.`,
-      `2.5. Die Zusammenarbeit gilt erst dann als vollständig abgeschlossen, wenn alle vereinbarten Inhalte geliefert und Leistungsanalysen (z. B. Reichweite, Impressionen, Klicks, Engagement) bereitgestellt wurden. Diese Statistiken müssen dem Unternehmen innerhalb von ${ph(statistikFrist, 4)} Kalendertagen nach Veröffentlichung des letzten Beitrags zur Verfügung gestellt werden. Der Influencer kann erst dann eine Rechnung ausstellen, wenn alle Leistungen einschließlich der Statistiken vollständig erbracht wurden.`
+      `2.5. The Influencer agrees that the collaboration shall be considered fully completed only upon the delivery of all agreed content and the provision of performance analytics (e.g., reach, impressions, clicks, engagement, etc.) related to the published content. These statistics must be provided to the Company within ${ph(statistikFrist, 4)} calendar days after the final post is published. The Influencer may issue an invoice only after the above deliverables, including the required performance statistics, have been submitted in full. Failure to provide the required insights within the stated timeframe may result in delayed payment until all deliverables are received.`,
+      `2.5. Der Influencer erklärt sich damit einverstanden, dass die Zusammenarbeit erst dann als vollständig abgeschlossen gilt, wenn alle vereinbarten Inhalte geliefert und Leistungsanalysen (z. B. Reichweite, Impressionen, Klicks, Engagement usw.) in Bezug auf die veröffentlichten Inhalte bereitgestellt wurden. Diese Statistiken müssen dem Unternehmen innerhalb von ${ph(statistikFrist, 4)} Kalendertagen nach Veröffentlichung des letzten Beitrags zur Verfügung gestellt werden. Der Influencer kann erst dann eine Rechnung ausstellen, wenn die oben genannten Leistungen, einschließlich der erforderlichen Leistungsstatistiken, vollständig erbracht wurden. Werden die geforderten Einblicke nicht innerhalb des angegebenen Zeitrahmens zur Verfügung gestellt, kann dies zu einer verzögerten Zahlung führen, bis alle Leistungen eingegangen sind.`
     );
 
     // 3. Performance and service delivery
     heading('3. PERFORMANCE AND SERVICE DELIVERY', '3. LEISTUNG UND DIENSTLEISTUNGSERBRINGUNG');
     row(
-      '3.1. The Parties agree that the Products will be marked as samples.',
-      '3.1. Die Parteien vereinbaren, dass die Produkte als \u201aSample\u2018 gekennzeichnet werden.'
+      '3.1. The Parties agree and understand that the Products will be marked as samples.',
+      '3.1. Produkte werden als ‚Sample‘ gekennzeichnet.'
     );
     row(
       '3.2. The Influencer undertakes to promote Products in accordance with the following conditions:',
       '3.2. Der Influencer verpflichtet sich, die Produkte gemäß den folgenden Bedingungen zu bewerben:'
     );
     row(
-      '3.2.1. The deliverables are provided in Annex A. Please review it below.',
-      '3.2.1. Die zu erbringenden Leistungen sind in Anhang A enthalten. Bitte lesen Sie ihn unten.'
+      `3.2.1. The deliverables are provided in ${annexLetters.length > 1 ? annexRefEn : 'an Annex A'}. Please review ${annexLetters.length > 1 ? 'them' : 'it'} below.`,
+      `3.2.1. Die zu erbringenden Leistungen sind in ${annexLetters.length > 1 ? `den ${annexRefDe}` : 'einem Anhang A'} enthalten. Bitte lesen Sie ${annexLetters.length > 1 ? 'sie' : 'ihn'} unten.`
     );
     row(
-      '3.2.2. All Content developed by the Influencer is to be approved by the Company before posting. The Company can either approve the content or ask for revisions within two (2) days of receipt of work.',
-      '3.2.2. Alle vom Influencer entwickelten Inhalte müssen vor der Veröffentlichung vom Unternehmen genehmigt werden. Das Unternehmen kann den Inhalt genehmigen oder innerhalb von zwei (2) Tagen nach Erhalt Überarbeitungen verlangen.'
+      '3.2.2. All Content developed by Influencer is to be approved by the Company before posting. The Company can either approve the content or ask for additional revisions and/or amendments within two (2) days of receipt of work.',
+      '3.2.2. Alle vom Influencer entwickelten Inhalte müssen vor der Veröffentlichung vom Unternehmen genehmigt werden. Das Unternehmen kann den Inhalt entweder genehmigen oder innerhalb von zwei (2) Tagen nach Erhalt der Arbeit zusätzliche Überarbeitungen und/oder Änderungen verlangen.'
     );
     row(
       '3.2.3. The Company is to be tagged in every single social media post. It must be clearly stated that the advertisement is a paid collaboration.',
-      '3.2.3. Das Unternehmen muss in jedem einzelnen Beitrag genannt werden. Es muss deutlich angegeben werden, dass es sich um eine bezahlte Zusammenarbeit handelt.'
+      '3.2.3. Das Unternehmen muss in jedem einzelnen Beitrag auf Social Media genannt werden. Es muss deutlich angegeben werden, dass es sich bei der Anzeige um eine bezahlte Zusammenarbeit handelt.'
     );
     row(
-      `3.2.4. All Content shall be submitted to the Company prior to publication, minimum ${contentVorlauf} business days before Content goes live. The Company has the right to reject any deliverable and must notify the Influencer within 3 business days of receipt of work.`,
-      `3.2.4. Alle Inhalte müssen dem Unternehmen vor der Veröffentlichung vorgelegt werden, mindestens ${contentVorlauf} Werktage bevor der Inhalt veröffentlicht wird. Das Unternehmen hat das Recht, jede Leistung abzulehnen, und muss den Influencer innerhalb von 3 Werktagen nach Erhalt benachrichtigen.`
+      `3.2.4. All Content shall be submitted to the Company prior to publication, minimum ${contentVorlauf} business days prior to Content going live. The Company has a right to reject any deliverable in accordance with this Section and must notify the Influencer within 3 business days of receipt of work;`,
+      `3.2.4. Alle Inhalte müssen dem Unternehmen vor der Veröffentlichung vorgelegt werden, und zwar mindestens ${contentVorlauf} Werktage, bevor der Inhalt veröffentlicht wird. Das Unternehmen hat das Recht, jede Leistung in Übereinstimmung mit diesem Abschnitt abzulehnen und muss den Influencer innerhalb von 3 Werktagen nach Erhalt der Arbeit benachrichtigen.`
     );
 
     // 4. Ownership and usage
     heading('4. OWNERSHIP AND USAGE', '4. EIGENTUM UND NUTZUNG');
     row(
-      `4.1. The Influencer agrees to display the Content as directed by the Company and keep such Content on his/her account for a period of ${aufbewahrungText}. If requested by the Company, the Influencer agrees to remove the Content and cease further use thereof. All rights to Content remain the property of the Influencer.`,
-      `4.1. Der Influencer erklärt sich damit einverstanden, die Inhalte gemäß den Anweisungen des Unternehmens zu zeigen und für einen Zeitraum von ${aufbewahrungText} auf seinem Konto zu speichern. Auf Verlangen des Unternehmens entfernt der Influencer die Inhalte und stellt deren weitere Nutzung ein. Alle Rechte an den Inhalten verbleiben beim Influencer.`
+      `4.1. The Influencer agrees to display the Content as directed by the Company and keep such Content on his/her ${platAccountsEn} account for a period of ${aufbewahrungEn}. If requested by the Company, Influencer agrees to remove the Content from any of Influencer’s Platform and to cease all further use thereof. All the rights to Content remain the property of the Influencer.`,
+      `4.1. Der Influencer erklärt sich damit einverstanden, die Inhalte gemäß den Anweisungen des Unternehmens zu zeigen und diese Inhalte für einen Zeitraum von ${aufbewahrungDe} auf seinem ${platAccountsDe}-Konto zu speichern. Auf Verlangen des Unternehmens verpflichtet sich der Influencer, die Inhalte von der Plattform des Influencers zu entfernen und deren weitere Nutzung einzustellen. Alle Rechte an den Inhalten verbleiben im Eigentum des Influencers.`
     );
     row(
-      `4.2. The Influencer hereby grants the Company the right to reuse the deliverables (the "Content") for purposes of organic communication, limited to organic reposting under the Company\u2019s account${brandTag ? ` (${brandTag})` : ''}.`,
-      `4.2. Der Influencer gewährt dem Unternehmen hiermit das Recht, die erstellten Inhalte (den \u201eContent\u201c) für Zwecke der organischen Kommunikation wiederzuverwenden, beschränkt auf das organische Reposten unter dem Account des Unternehmens${brandTag ? ` (${brandTag})` : ''}.`
+      `4.2. The Influencer hereby grants ${markenname} the right to reuse the Deliverables (the "Content") for purposes of organic communication, limited to organic reposting under ${markenname}'s account${brandTag ? ` (${brandTag})` : ''}.`,
+      `4.2. Der Influencer gewährt ${markenname} hiermit das Recht, die erstellten Inhalte (den „Content“) für Zwecke der organischen Kommunikation wiederzuverwenden, beschränkt auf das organische Reposten unter dem ${markenname}-Account${brandTag ? ` (${brandTag})` : ''}.`
     );
 
     // ============================================
-    // GENERAL TERMS
+    // GENERAL TERMS (bilingual)
     // ============================================
     heading('GENERAL TERMS', 'ALLGEMEINE BEDINGUNGEN');
 
     // 5. Liability
     heading('5. LIABILITY', '5. HAFTUNG', { topGap: 0 });
     row(
-      '5.1. To the fullest extent permitted by law, the Influencer will defend, indemnify and hold the Company harmless from any claims, damages, losses, liabilities, costs and expenses arising out of improper, insulting or disrespectful promotion of Products and/or the Company\u2019s brands, as well as any other public remarks made during the Term or 6 months thereafter.',
-      '5.1. Soweit gesetzlich zulässig, stellt der Influencer das Unternehmen von allen Ansprüchen, Schäden, Verlusten, Verbindlichkeiten, Kosten und Ausgaben frei, die aus unangemessener, beleidigender oder respektloser Werbung für die Produkte und/oder Marken des Unternehmens sowie aus anderen öffentlichen Äußerungen während der Laufzeit oder 6 Monate danach entstehen.'
+      '5.1. To the fullest extent permitted by law Influencer will defend, indemnify, and hold the Company harmless from any claims or demands made by any third party, as well as any and all damages, losses, liabilities, judgments, costs, reasonable attorneys\' fees, and other expenses of every kind and nature, known and unknown, incurred or suffered by the Company, relating to or arising out of the improper and (or) insulting and (or) disrespectful (to person, race, religion, ethnic, etc.) promotion, in accordance with this Agreement, of Products and (or) Company’s brands. The Influencer understands that the provisions in this article are not limited to the Products or Company’s brands, but also include any other promotion, public remarks, statements or messages, not related to the Company or its brands, that the Influencer conducts during the Term of the Agreement or 6 months after the termination of the Agreement.',
+      '5.1. Soweit gesetzlich zulässig, wird der Influencer das Unternehmen von allen Ansprüchen oder Forderungen Dritter sowie von allen Schäden, Verlusten, Verbindlichkeiten, Urteilen, Kosten, angemessenen Anwaltsgebühren und anderen Ausgaben jeder Art freistellen, bekannter und unbekannter Art, die dem Unternehmen im Zusammenhang mit der unangemessenen und (oder) beleidigenden und (oder) respektlosen (gegenüber Personen, Rasse, Religion, Ethnie usw.) Werbung für die Produkte und (oder) die Marken des Unternehmens gemäß diesem Vertrag entstanden sind oder daraus hervorgehen. Der Influencer nimmt zur Kenntnis, dass sich die Bestimmungen dieses Artikels nicht auf die Produkte oder die Marken des Unternehmens beschränken, sondern auch alle anderen Werbemaßnahmen, öffentlichen Äußerungen, Erklärungen oder Nachrichten umfassen, die sich nicht auf das Unternehmen oder seine Marken beziehen und die der Influencer während der Laufzeit des Vertrags oder 6 Monate nach Beendigung des Vertrags durchführt.'
     );
     row(
-      '5.2. The Influencer undertakes to comply with all rules and requirements of the relevant social media platforms and not to distribute prohibited, unethical or Company-discrediting content. The Company may request no more than two (2) revisions of the Influencer\u2019s Content.',
-      '5.2. Der Influencer verpflichtet sich, alle Regeln und Anforderungen der jeweiligen Social-Media-Plattformen einzuhalten und keine verbotenen, unethischen oder das Unternehmen diskreditierenden Inhalte zu verbreiten. Das Unternehmen kann nicht mehr als zwei (2) Überarbeitungen verlangen.'
+      '5.2. The Influencer undertakes to comply with all the rules and the requirements of the relevant social media platforms, not to distribute the prohibited, unethical or Company discrediting content. The Company has a maximum of two (2) business days to reject any deliverable (in writing) in accordance with this section and must notify Influencer within two (2) business days of receipt of work that additional revisions and/or amendments will be requested unless a representative of the Company sent a written notice prior to the Influencer providing longer approval timeframe. The Company may request no more than two (2) revisions and/or amendments to Influencer’s Content.',
+      '5.2. Der Influencer verpflichtet sich, alle Regeln und Anforderungen der jeweiligen Social-Media-Plattformen einzuhalten und keine verbotenen, unethischen oder das Unternehmen diskreditierenden Inhalte zu verbreiten. Das Unternehmen kann innerhalb von zwei (2) Arbeitstagen jede Leistung (schriftlich) gemäß diesem Abschnitt ablehnen und muss den Influencer innerhalb von zwei (2) Arbeitstagen nach Erhalt der Arbeit darüber informieren, dass zusätzliche Überarbeitungen und/oder Änderungen verlangt werden, es sei denn, ein Vertreter des Unternehmens hat dem Influencer eine schriftliche Benachrichtigung zukommen lassen, die eine längere Genehmigungsfrist vorsieht. Das Unternehmen kann nicht mehr als zwei (2) Überarbeitungen und/oder Änderungen an den Inhalten des Influencers verlangen.'
     );
     row(
-      '5.3. When publishing posts about the Company\u2019s Products or brands, the Influencer must clearly disclose the material connection with the Company. The disclosure must be clear, prominent and in close proximity to the statements, regardless of any space limitations of the medium.',
-      '5.3. Bei Veröffentlichung von Beiträgen über die Produkte oder Marken des Unternehmens muss der Influencer die materielle Verbindung zum Unternehmen deutlich offenlegen. Die Offenlegung muss klar, deutlich und in unmittelbarer Nähe zu den Aussagen erfolgen, unabhängig von Platzbeschränkungen des Mediums.'
+      '5.3. When publishing posts/statuses about the Company’s Products or brands, the Influencer must clearly disclose her material connection with the Company, including the fact that the Influencer was given any consideration or provided with certain experiences. The aforementioned disclosure should be clear and prominent and made in close proximity to any statements that the Influencer makes about the Company or the Company’s products or services. The Influencer declares that she understands that the above mentioned disclosure is required regardless of any space limitations of the medium (e.g. Twitter). The Influencer should only make factual statements about the Company or the Company’s products that the Influencer knows for certain are true and can be verified.',
+      '5.3. Wenn der Influencer Beiträge/Statements über die Produkte oder Marken des Unternehmens veröffentlicht, muss er seine materielle Verbindung mit dem Unternehmen deutlich offenlegen, einschließlich der Tatsache, dass er eine Gegenleistung erhalten oder bestimmte Erfahrungen gemacht hat. Die vorgenannte Offenlegung sollte klar und deutlich sein und in unmittelbarer Nähe zu allen Aussagen erfolgen, die der Influencer über das Unternehmen oder die Produkte oder Dienstleistungen des Unternehmens macht. Der Influencer erklärt, dass er versteht, dass die oben genannte Offenlegung unabhängig von etwaigen Platzbeschränkungen des Mediums (z.B. Twitter) erforderlich ist. Der Influencer sollte nur sachliche Aussagen über das Unternehmen oder die Produkte des Unternehmens machen, von denen der Influencer sicher weiß, dass sie wahr sind und überprüft werden können.'
     );
 
     // 6. General requirements
     heading('6. GENERAL REQUIREMENTS', '6. ALLGEMEINE ANFORDERUNGEN');
     row(
-      '6.1. The Company will provide the creator with creative guidelines including all tags, key messages and visual requirements. The Services shall conform to the Guidelines and are subject to the Company\u2019s acceptance and approval.',
-      '6.1. Das Unternehmen stellt dem Ersteller kreative Richtlinien zur Verfügung, einschließlich aller Tags, Schlüsselbotschaften und visuellen Anforderungen. Die Dienste müssen den Richtlinien entsprechen und unterliegen der Annahme und Genehmigung durch das Unternehmen.'
+      '6.1. The Company will provide the creator with Creative guidelines including all tags, key messages and visual requirements. The Services shall conform to the Guidelines of the Company, abide by the rules of the relevant social media platforms, and are subject to the Company’s acceptance and approval.',
+      '6.1. Das Unternehmen stellt dem Ersteller kreative Richtlinien zur Verfügung, die alle Tags, Schlüsselbotschaften und visuellen Anforderungen enthalten. Die Dienste müssen mit den Richtlinien des Unternehmens übereinstimmen, die Regeln der jeweiligen Social-Media-Plattformen einhalten und unterliegen der Annahme und Genehmigung durch das Unternehmen.'
     );
     row(
-      '6.2. It is obligatory to follow the Creative Guidelines. If the Influencer does not follow them, the Influencer will be required to edit or redo the Content. If the Influencer refuses to amend the content and/or publishes without approval, the Influencer is not entitled to compensation.',
-      '6.2. Es ist verpflichtend, die Gestaltungsrichtlinien zu befolgen. Hält sich der Influencer nicht daran, muss er den Inhalt bearbeiten oder neu erstellen. Weigert sich der Influencer oder veröffentlicht ohne Genehmigung, hat er keinen Anspruch auf Vergütung.'
+      '6.2. It is obligatory to follow the Creative Guidelines provided by the Company. In the event the Influencer does not follow the Guidelines provided by the Company, the Influencer will be required to edit or redo the Content. If the Influencer refuses to amend the content and/or publishes Content without approval, the Influencer is not entitled to the compensation.',
+      '6.2. Es ist verpflichtend, die vom Unternehmen vorgegebenen Gestaltungsrichtlinien zu befolgen. Falls der Influencer sich nicht an die vom Unternehmen vorgegebenen Richtlinien hält, muss er den Inhalt bearbeiten oder neu erstellen. Wenn der Influencer sich weigert, den Inhalt zu ändern und/oder den Inhalt ohne Genehmigung veröffentlicht, hat er keinen Anspruch auf Vergütung.'
     );
 
     // 7. Duration and termination
     heading('7. DURATION AND TERMINATION', '7. DAUER UND BEENDIGUNG');
     row(
-      '7.1. This Agreement takes effect once signed by both parties and is valid for the duration of the collaboration or until all deliverables stated in 3.2. and Annex A are completed and pre-approved by the Company.',
-      '7.1. Dieser Vertrag tritt in Kraft, sobald er von beiden Parteien unterzeichnet ist, und gilt für die Dauer der Zusammenarbeit bzw. bis alle in 3.2. und Anhang A genannten Leistungen erbracht und vom Unternehmen vorab genehmigt sind.'
+      `7.1. This agreement shall take effect as soon as it has been signed by both parties and shall be valid for the duration of the collaboration or until all the deliverables stated in 3.2. and ${annexRefEn} are completed and pre-approval of the Company is given.`,
+      `7.1. Dieser Vertrag tritt in Kraft, sobald er von beiden Parteien unterzeichnet ist, und gilt für die Dauer der Zusammenarbeit bzw. bis alle in 3.2. und ${annexRefDe} genannten Leistungen erbracht sind und die Vorabgenehmigung des Unternehmens erteilt ist.`
     );
     row(
-      `7.2. If the deliverables are not completed and pre-approval is not given within ${kuendigungsfrist} days after signing, any Party may terminate this Agreement unilaterally. In case of termination the Company pays compensation only for deliverables created until termination.`,
-      `7.2. Werden die Leistungen nicht erbracht und die Vorabgenehmigung nicht innerhalb von ${kuendigungsfrist} Tagen nach Unterzeichnung erteilt, kann jede Partei diesen Vertrag einseitig kündigen. Im Falle einer Kündigung zahlt das Unternehmen nur für bis zur Kündigung erstellte Leistungen.`
+      `7.2. In the event that all the deliverables stated in 3.2. and ${annexRefEn} are not completed and pre-approval to make amendments is not given by the Company in ${kuendigungsfrist} days after signing this Agreement, any Party retains the right to terminate this Agreement unilaterally. Termination of the contract under this subparagraph releases both parties from their obligation to effect and to receive future performance only if the deliverables have been created until the moment of termination. In case of termination under this clause the Company is responsible for paying compensation only for the deliverables that were created until termination.`,
+      `7.2. Sollten nicht alle unter 3.2 und in ${annexRefDe} genannten Leistungen erbracht und die Vorabgenehmigung nicht innerhalb von ${kuendigungsfrist} Tagen nach Unterzeichnung erteilt werden, behält sich jede Vertragspartei das Recht vor, dieses Abkommen einseitig zu kündigen. Die Kündigung des Vertrags gemäß diesem Unterabsatz entbindet beide Parteien nur dann von ihrer Verpflichtung, künftige Leistungen zu erbringen und zu empfangen, wenn die Leistungen bis zum Zeitpunkt der Kündigung erbracht wurden. Im Falle einer Beendigung gemäß dieser Klausel ist das Unternehmen nur für die bis zur Beendigung erbrachten Leistungen entschädigungspflichtig.`
     );
     row(
-      '7.3. In the event of a breach, any Party may terminate if: (7.3.1.) the affected party informs the other within three (3) days of learning about the breach, obliging the guilty Party to remedy it; and (7.3.2.) the guilty Party does not remedy the breach within fourteen (14) days of the written notice.',
-      '7.3. Im Falle einer Verletzung kann jede Partei kündigen, wenn: (7.3.1.) die betroffene Partei die andere innerhalb von drei (3) Tagen nach Kenntnis informiert und zur Behebung auffordert; und (7.3.2.) die schuldige Partei den Verstoß nicht innerhalb von vierzehn (14) Tagen nach der schriftlichen Mitteilung behebt.'
+      '7.3. In the event of a breach of the Agreement, any Party has the right to terminate this Agreement if the following conditions are met:',
+      '7.3. Im Falle einer Verletzung des Abkommens hat jede Vertragspartei das Recht, das Abkommen zu kündigen, wenn die folgenden Bedingungen erfüllt sind:'
     );
     row(
-      '7.4. In addition, if the Influencer has breached this Agreement, the Company may (7.4.1.) immediately suspend, limit or terminate the Influencer\u2019s access to any of the Company\u2019s accounts; and/or (7.4.2.) instruct the Influencer to cease all promotional activities or make clarifying statements.',
-      '7.4. Zusätzlich kann das Unternehmen bei einem Verstoß des Influencers (7.4.1.) den Zugang des Influencers zu Konten des Unternehmens sofort aussetzen, einschränken oder beenden; und/oder (7.4.2.) den Influencer anweisen, alle Werbemaßnahmen einzustellen oder klarstellende Erklärungen abzugeben.'
+      '7.3.1. the affected party, within three (3) days of learning about the infringement, informs the other party about the breach of the Agreement, obliging the guilty Party to remedy the breach;',
+      '7.3.1. die betroffene Partei informiert die andere Partei innerhalb von drei (3) Tagen, nachdem sie von dem Verstoß erfahren hat, über die Verletzung des Vertrags und verpflichtet die schuldige Partei, die Verletzung zu beheben;'
     );
     row(
-      '7.5. If the Influencer breaches this Agreement and does not remedy it under 7.2. and 7.3., or infringes 5.1. and 5.2., the Influencer automatically loses the right to any compensation and the Company may terminate immediately, informing the Influencer one (1) day prior.',
-      '7.5. Verstößt der Influencer gegen diesen Vertrag und behebt dies nicht gemäß 7.2. und 7.3. oder verstößt gegen 5.1. und 5.2., verliert er automatisch das Recht auf jegliche Vergütung und das Unternehmen kann sofort kündigen, indem es den Influencer einen (1) Tag vorher informiert.'
+      '7.3.2. within the fourteen (14) days period, from the day that the written notice was received regarding the breach, the guilty Party does not remedy the breach of the Agreement.',
+      '7.3.2. die schuldige Vertragspartei stellt innerhalb der Frist von vierzehn (14) Tagen ab dem Tag, an dem sie die schriftliche Mitteilung über den Verstoß erhalten hat, den Verstoß gegen das Abkommen nicht ab.'
+    );
+    row(
+      '7.4. In addition, in the event that the Influencer has breached this Agreement, the Company has the right to:',
+      '7.4. Falls der Influencer gegen diesen Vertrag verstoßen hat, hat das Unternehmen außerdem folgendes Recht:'
+    );
+    row(
+      '7.4.1. immediately suspend, limit or terminate the Influencer’s access to any of the Company’s accounts and/or;',
+      '7.4.1. er kann den Zugang des Influencers zu einem der Konten des Unternehmens sofort aussetzen, einschränken oder beenden und/oder;'
+    );
+    row(
+      '7.4.2. instruct the Influencer to cease all promotional activities or make clarifying statements, and the Influencer shall immediately comply.',
+      '7.4.2. er kann den Influencer anweisen, alle Werbemaßnahmen einzustellen oder klarstellende Erklärungen abzugeben, und der Influencer wird dem unverzüglich nachkommen.'
+    );
+    row(
+      '7.5. In the event that the Influencer breaches the conditions of this Agreement and does not remedy the breach in accordance with articles 7.2. and 7.3. of this Agreement or infringes conditions set forth in Article 5.1. and 5.2 of this Agreement, the Influencer automatically loses the right to any kind of compensation under this Agreement and the Company has the right to immediately terminate the Agreement, informing the Influencer one (1) day prior to the termination of the Agreement. If the Agreement is terminated due to the fault of a Party, the affected Party has the right to claim direct damages.',
+      '7.5. Für den Fall, dass der Influencer gegen die Bedingungen dieses Vertrages verstößt und den Verstoß nicht gemäß Artikel 7.2. und 7.3. dieses Vertrages behebt oder gegen die in Artikel 5.1. und 5.2. dieses Vertrages festgelegten Bedingungen verstößt, verliert der Influencer automatisch das Recht auf jegliche Art von Entschädigung im Rahmen dieses Vertrages und das Unternehmen hat das Recht, den Vertrag sofort zu kündigen, indem es den Influencer einen (1) Tag vor der Kündigung des Vertrags informiert. Wird das Abkommen aufgrund des Verschuldens einer Partei gekündigt, hat die betroffene Partei das Recht, direkten Schadenersatz zu verlangen.'
     );
 
     // 8. Confidentiality and exclusivity
     heading('8. CONFIDENTIALITY AND EXCLUSIVITY', '8. VERTRAULICHKEIT UND AUSSCHLIESSLICHKEIT');
     row(
-      '8.1. During the term, the Influencer will access and create documents and information of a confidential and proprietary nature. The Influencer acknowledges that such information is an asset of the Company or its clients, is not generally known, and must be kept strictly confidential.',
-      '8.1. Während der Laufzeit erhält der Influencer Zugang zu vertraulichen und geschützten Dokumenten und Informationen und erstellt diese. Der Influencer erkennt an, dass diese Informationen ein Vermögenswert des Unternehmens oder seiner Kunden sind, nicht allgemein bekannt sind und streng vertraulich behandelt werden müssen.'
+      '8.1. During the term of the Agreement, the Influencer will receive, have access to and create documents, records and information of a confidential and proprietary nature to the Company and customers of the Company. Influencer acknowledges and agrees that such information is an asset of the Company or its clients, is not generally known to the public, is of confidential nature and, to preserve the goodwill of the Company and its clients, must be kept strictly confidential and used only in the performance of Influencer’s duties under this Agreement.',
+      '8.1. Während der Laufzeit des Vertrags erhält der Influencer Zugang zu Dokumenten, Aufzeichnungen und Informationen vertraulicher und geschützter Natur, die für das Unternehmen und dessen Kunden bestimmt sind, und erstellt diese. Der Influencer erklärt sich damit einverstanden, dass diese Informationen ein Vermögenswert des Unternehmens oder seiner Kunden sind, der Öffentlichkeit nicht allgemein bekannt sind, vertraulichen Charakter haben und zur Wahrung des Firmenwerts des Unternehmens und seiner Kunden streng vertraulich behandelt und nur zur Erfüllung der Pflichten des Influencers im Rahmen dieses Vertrags verwendet werden dürfen.'
     );
     row(
-      '8.2. The Influencer will not use, disclose, copy or permit disclosure of the information indicated in 8.1. to any third party, except as directed by the Company. Upon termination or on request, the Influencer will return all confidential information and copies thereof.',
-      '8.2. Der Influencer wird die in 8.1. genannten Informationen nicht verwenden, offenlegen, kopieren oder deren Offenlegung an Dritte zulassen, außer auf Anweisung des Unternehmens. Bei Beendigung oder auf Verlangen gibt der Influencer alle vertraulichen Informationen und Kopien zurück.'
+      '8.2. Influencer agrees that Influencer will not use, disclose, communicate, copy or permit the use or disclosure of information indicated in article 8.1. of this Agreement to any third party in any manner whatsoever except to the existing employees of the Company or as otherwise directed by the Company in the course of Influencer’s performance of services under this Agreement, and thereafter only with the written permission of the Company. Upon termination of this Agreement or upon the request of the Company, the Influencer will return to the Company all of the confidential information, and all copies or reproductions thereof, which are in the Influencer’s possession or control.',
+      '8.2. Der Influencer erklärt sich damit einverstanden, dass er die in Artikel 8.1. dieses Vertrages genannten Informationen in keiner Weise gegenüber Dritten verwendet, offenlegt, weitergibt, kopiert oder deren Verwendung oder Offenlegung zulässt, außer gegenüber den vorhandenen Mitarbeitern des Unternehmens oder auf andere Weise auf Anweisung des Unternehmens im Zuge der Erbringung der Dienstleistungen des Influencers im Rahmen dieses Vertrages, und danach nur mit schriftlicher Genehmigung des Unternehmens. Bei Beendigung dieses Vertrags oder auf Verlangen des Unternehmens gibt der Influencer alle vertraulichen Informationen und alle Kopien oder Reproduktionen davon, die sich im Besitz oder unter der Kontrolle des Influencers befinden, an das Unternehmen zurück.'
     );
 
     // 9. Warranties and statements
     heading('9. WARRANTIES AND STATEMENTS', '9. GEWÄHRLEISTUNGEN UND ERKLÄRUNGEN');
+    row('9.1. Parties state and guarantee that:', '9.1. Die Parteien erklären und garantieren Folgendes:');
     row(
-      '9.1. Each Party states and guarantees that it is legally established and operates in accordance with the laws of its country, has performed all legal actions for the valid conclusion of the Agreement, and will not violate any laws or binding obligations.',
-      '9.1. Jede Partei erklärt und garantiert, dass sie rechtmäßig gegründet ist und nach dem Recht ihres Landes tätig ist, alle Rechtshandlungen für den gültigen Abschluss vorgenommen hat und gegen keine Gesetze oder verbindlichen Verpflichtungen verstößt.'
+      '9.1.1. each Party is fully established and legally operates in accordance with the laws of their respective countries;',
+      '9.1.1. jede Vertragspartei hat ihren Sitz und ist nach dem Recht ihres Landes rechtmäßig tätig;'
     );
     row(
-      '9.2. Neither Party is the agent or representative of the other and has no authority to bind the other Party in any way.',
-      '9.2. Keine Partei ist Vertreter der anderen und hat keine Befugnis, die andere Partei in irgendeiner Weise zu binden.'
+      '9.1.2. the Party has performed all legal actions necessary for the proper conclusion and validity of the Agreement and has all the permits, licenses, staff required for the provision of the services provided by the law;',
+      '9.1.2. die Vertragspartei hat alle für den ordnungsgemäßen Abschluss und die Gültigkeit des Vertrags erforderlichen Rechtshandlungen vorgenommen und verfügt über alle Genehmigungen, Lizenzen und Mitarbeiter, die für die Erbringung der gesetzlich vorgesehenen Dienstleistungen erforderlich sind;'
     );
     row(
-      '9.3. The Influencer is retained as an independent contractor and is solely responsible for the manner of performance and for the withholding and payment of all taxes. Nothing in this Agreement indicates an intent to enter into an employee-based contract.',
-      '9.3. Der Influencer wird als unabhängiger Auftragnehmer eingestellt und ist allein für die Art der Leistungserbringung sowie für die Einbehaltung und Abführung aller Steuern verantwortlich. Nichts in diesem Vertrag deutet auf die Absicht eines Arbeitnehmervertrags hin.'
+      '9.1.3. in concluding the Agreement, the Party will not violate the laws, rules, regulations, ordinances, obligations or agreements binding on it.',
+      '9.1.3. die Vertragspartei wird beim Abschluss des Vertrags nicht gegen die für sie verbindlichen Gesetze, Regeln, Vorschriften, Verordnungen, Verpflichtungen oder Vereinbarungen verstoßen.'
+    );
+    row(
+      '9.2. Neither Party shall be the agent, representative or attorney-in-fact of the other Party and consequently it shall have no authority whatsoever to act in the name of or on behalf of the other Party or to bind the other Party in any way.',
+      '9.2. Keine der Vertragsparteien ist der Agent, Vertreter oder Bevollmächtigte der anderen Vertragspartei und hat daher keinerlei Befugnis, im Namen oder im Auftrag der anderen Vertragspartei zu handeln oder die andere Vertragspartei in irgendeiner Weise zu binden.'
+    );
+    row(
+      '9.3. Influencer is retained as an independent contractor of the Company. The Influencer acknowledges and agrees that:',
+      '9.3. Der Influencer wird als unabhängiger Auftragnehmer des Unternehmens eingestellt. Der Influencer erkennt an und stimmt Folgendem zu:'
+    );
+    row(
+      '9.3.1. the Influencer is solely responsible for the manner and form by which the Influencer performs under this Agreement;',
+      '9.3.1. der Influencer ist allein verantwortlich für die Art und Weise, in der er im Rahmen dieses Vertrags Leistungen erbringt;'
+    );
+    row(
+      '9.3.2. the Influencer is responsible for the withholding and payment of all taxes and other assessments arising out of the Influencer’s performance of services, and neither the Influencer nor any of the Influencer’s employees or independent clients shall be entitled to participate in any employee benefit plans of the Company;',
+      '9.3.2. der Influencer ist für die Einbehaltung und Abführung aller Steuern und sonstiger Abgaben verantwortlich, die sich aus der Erbringung von Dienstleistungen durch den Influencer ergeben, und weder der Influencer noch seine Angestellten oder unabhängigen Kunden haben Anspruch auf die Teilnahme an einem Sozialplan des Unternehmens;'
+    );
+    row(
+      '9.3.3. none of the provisions in this Agreement shall be interpreted as indicating the intent to enter into an employee-based contract.',
+      '9.3.3. keine der Bestimmungen dieses Abkommens darf so ausgelegt werden, dass die Absicht besteht, einen Arbeitnehmervertrag abzuschließen.'
     );
 
     // 10. Miscellaneous
     heading('10. MISCELLANEOUS PROVISIONS', '10. SONSTIGE BESTIMMUNGEN');
     row(
-      '10.1. This Agreement together with its annex contains the entire agreement between the Parties and supersedes all prior agreements. 10.2. Any amendments must be agreed in writing by both Parties.',
-      '10.1. Dieser Vertrag mit seinem Anhang enthält die gesamte Vereinbarung zwischen den Parteien und ersetzt alle früheren Vereinbarungen. 10.2. Änderungen müssen von beiden Parteien schriftlich vereinbart werden.'
+      '10.1. This Agreement together with its annex contains the entire agreement and understanding between the Parties with respect to the subject matter hereof and supersedes and replaces all prior agreements or understandings, whether written or oral, with respect to the same subject matter that are still in force between the Parties.',
+      '10.1. Dieses Abkommen mit seinem Anhang enthält die gesamte Vereinbarung und Übereinkunft zwischen den Vertragsparteien in Bezug auf den Gegenstand dieses Abkommens und ersetzt alle früheren schriftlichen oder mündlichen Vereinbarungen oder Übereinkünfte in Bezug auf denselben Gegenstand, die zwischen den Vertragsparteien noch in Kraft sind, und setzt diese außer Kraft.'
     );
     row(
-      '10.3. If any provision is found invalid, the remainder of this Agreement remains in full force, and the Parties shall replace the invalid provision with one reflecting its purpose as closely as possible.',
-      '10.3. Sollte eine Bestimmung ungültig sein, bleibt der übrige Vertrag in Kraft, und die Parteien ersetzen die ungültige Bestimmung durch eine, die deren Zweck möglichst nahekommt.'
+      '10.2. Any amendments to this Agreement, as well as any additions or deletions, must be agreed in writing by both Parties.',
+      '10.2. Änderungen dieses Abkommens sowie Ergänzungen oder Streichungen müssen von beiden Parteien schriftlich vereinbart werden.'
     );
     row(
-      '10.5. Neither Party may assign its rights or obligations without the prior written consent of the other. 10.6.\u201310.7. This Agreement is governed by Lithuanian law; all disputes are subject to the exclusive jurisdiction of Kaunas city (Lithuania).',
-      '10.5. Keine Partei darf ihre Rechte oder Pflichten ohne vorherige schriftliche Zustimmung der anderen übertragen. 10.6.\u201310.7. Dieser Vertrag unterliegt litauischem Recht; alle Streitigkeiten unterliegen der ausschließlichen Zuständigkeit der Stadt Kaunas (Litauen).'
+      '10.3. Whenever possible, the provisions of this Agreement shall be interpreted in such a manner as to be valid and enforceable under the applicable law. However, if one or more provisions of this Agreement are found to be invalid, illegal or unenforceable, in whole or in part, the remainder of that provision and of this Agreement shall remain in full force and effect as if such invalid, illegal or unenforceable provision had never been contained herein. Moreover, in such an event, the parties shall amend the invalid, illegal or unenforceable provision(s) or any part thereof and/or agree on a new provision in such a way as to reflect insofar as possible the purpose of the invalid, illegal or unenforceable provision(s).',
+      '10.3. Wann immer möglich, sind die Bestimmungen dieses Abkommens so auszulegen, dass sie nach dem anwendbaren Recht gültig und durchsetzbar sind. Sollten sich jedoch eine oder mehrere Bestimmungen dieses Vertrags ganz oder teilweise als ungültig, rechtswidrig oder nicht durchsetzbar erweisen, so bleiben die übrigen Bestimmungen dieses Vertrags so in Kraft, als ob die ungültige, rechtswidrige oder nicht durchsetzbare Bestimmung nie in diesem Vertrag enthalten gewesen wäre. Darüber hinaus werden die Parteien in einem solchen Fall die unwirksame(n), rechtswidrige(n) oder undurchführbare(n) Bestimmung(en) oder Teile davon ändern und/oder eine neue Bestimmung vereinbaren, die dem Zweck der unwirksamen, rechtswidrigen oder undurchführbaren Bestimmung(en) so weit wie möglich entspricht.'
     );
     row(
-      '10.8.\u201310.10. This Agreement is executed in two original copies, each party acknowledging receipt of one. Translations are for convenience only. The English version of the Agreement shall prevail.',
-      '10.8.\u201310.10. Dieser Vertrag wird in zwei Originalen ausgefertigt, wobei jede Partei den Erhalt eines Exemplars bestätigt. Übersetzungen dienen nur der Vereinfachung. Es gilt die englische Version des Vertrags.'
+      '10.4. Any failure or delay by a Party in exercising any right under this Agreement, any single or partial exercise of any right under this Agreement or any partial reaction or absence of reaction by a Party in the event of violation by the other Party of one or more provisions of this Agreement, shall not operate or be interpreted as a waiver (either express or implied, in whole or in part) of that Party’s rights under this Agreement or under said provision(s), nor shall it preclude any further exercise of any such rights. Any waiver of a right must be expressed and in writing. If there has been an express written waiver of a right following a specific failure by a Party, this waiver cannot be invoked by the other Party in favour of a new failure, similar to the prior one, or in favour of any other kind of failure.',
+      '10.4. Jedes Versäumnis oder jede Verzögerung einer Vertragspartei bei der Ausübung von Rechten im Rahmen dieses Abkommens, jede einmalige oder teilweise Ausübung von Rechten im Rahmen dieses Abkommens oder jede teilweise oder ausbleibende Reaktion einer Vertragspartei im Falle eines Verstoßes der anderen Vertragspartei gegen eine oder mehrere Bestimmungen dieses Abkommens gilt nicht als (ausdrücklicher oder stillschweigender, vollständiger oder teilweiser) Verzicht auf die Rechte der betreffenden Vertragspartei im Rahmen dieses Abkommens oder der genannten Bestimmung(en) und schließt eine weitere Ausübung dieser Rechte nicht aus. Jeder Verzicht auf ein Recht muss ausdrücklich und schriftlich erfolgen. Hat eine Vertragspartei ausdrücklich und schriftlich auf ein Recht verzichtet, das sich aus einem bestimmten Versäumnis ergibt, so kann die andere Vertragspartei diesen Verzicht nicht für ein neues Versäumnis, das dem vorangegangenen ähnlich ist, oder für eine andere Art von Versäumnis geltend machen.'
+    );
+    row(
+      '10.5. Neither Party has the right to assign any or all of its rights and obligations under this Agreement to any third party without the prior written consent of the other Party.',
+      '10.5. Keine der Vertragsparteien ist berechtigt, ihre Rechte und Pflichten aus diesem Abkommen ohne vorherige schriftliche Zustimmung der anderen Vertragspartei ganz oder teilweise auf Dritte zu übertragen.'
+    );
+    row(
+      '10.6. All issues, questions and disputes concerning the validity, interpretation, enforcement, performance and termination of this Agreement shall be governed by and construed in accordance with Lithuanian law, and no effect shall be given to any other choice-of-law or conflict-of-laws rules or provisions (Lithuanian, foreign or international), that would cause the laws of any other jurisdiction to be applicable.',
+      '10.6. Sämtliche Probleme, Fragen und Streitigkeiten im Zusammenhang mit der Gültigkeit, Auslegung, Durchsetzung, Erfüllung und Beendigung dieses Abkommens unterliegen litauischem Recht und sind nach diesem auszulegen; andere (litauische, ausländische oder internationale) Rechtswahl- oder Kollisionsnormen oder -bestimmungen, die dazu führen würden, dass das Recht einer anderen Rechtsordnung anwendbar wäre, bleiben unberücksichtigt.'
+    );
+    row(
+      '10.7. All disputes concerning the validity, interpretation, enforcement, performance and termination of this Agreement shall be submitted to the exclusive jurisdiction of Kaunas city (Lithuania).',
+      '10.7. Alle Streitigkeiten über die Gültigkeit, Auslegung, Durchsetzung, Erfüllung und Beendigung dieses Vertrags unterliegen der ausschließlichen Zuständigkeit der Stadt Kaunas (Litauen).'
+    );
+    row(
+      '10.8. This Agreement is executed in separate copies, each of which is deemed an original and all of which taken together constitute one and the same agreement. Translations into any language other than English may be made but are for the sake of convenience only, even when executed by one or both parties.',
+      '10.8. Dieser Vertrag wird in getrennten Exemplaren ausgefertigt, von denen jedes als Original gilt und die alle zusammen einen einzigen Vertrag darstellen. Übersetzungen in eine andere Sprache als Englisch sind möglich, haben aber nur den Zweck der Vereinfachung, auch wenn sie von einer oder beiden Parteien angefertigt werden.'
+    );
+    row(
+      '10.9. Executed in two original copies, each party acknowledging receipt of one.',
+      '10.9. Ausfertigung in zwei Originalen, wobei jede Partei den Erhalt eines Exemplars bestätigt.'
+    );
+    row(
+      '10.10. English version of the agreement shall prevail.',
+      '10.10. Es gilt die englische Version der Vereinbarung.'
     );
 
     // ============================================
@@ -461,52 +730,82 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
     y = signatureBlock(y);
 
     // ============================================
-    // ANHANG A / ANNEX A
+    // ANHAENGE: ein Anhang pro Plattform (einsprachig per lang)
     // ============================================
-    newPage();
-    setBody();
-    centered('ANNEX A', 12, 'bold');
-    y += 4;
-    doc.text('ANHANG A', 105, y, { align: 'center' });
-    y += 8;
-    setBody();
+    plattformen.forEach((plattform, idx) => {
+      const letter = annexLetters[idx];
+      const account = accountFor(plattform);
+      const nounEn = platNoun(plattform, true);
+      const nounDe = platNoun(plattform);
 
-    row(
-      `The Influencer\u2019s social media platforms relevant to this Agreement: TikTok Account: ${ph(tiktokHandle, 16)}`,
-      `Die für diese Vereinbarung relevanten Social-Media-Plattformen des Influencers: TikTok Account: ${ph(tiktokHandle, 16)}`
-    );
+      newPage();
+      setBody();
+      centered(en ? `ANNEX ${letter}` : `ANHANG ${letter}`, 12, 'bold');
+      y += 8;
+      setBody();
 
-    heading('DELIVERABLES', 'LEISTUNGEN', { topGap: 2 });
-    row(
-      '1. Content must be created according to the visual guidelines (provided in a file named "Guidelines" sent together with this Agreement).',
-      '1. Der Inhalt muss gemäß den visuellen Richtlinien erstellt werden (bereitgestellt in einer Datei namens "Richtlinien", die zusammen mit diesem Vertrag gesendet wird).'
-    );
-    row('2. Content must be approved before publication.', '2. Der Inhalt muss vor der Veröffentlichung genehmigt werden.');
-    row(
-      '3. Do not use copyrighted materials, including music that appears to be available on the platforms.',
-      '3. Verwenden Sie keine urheberrechtlich geschützten Materialien, einschließlich Musik, die scheinbar auf den Plattformen verfügbar ist.'
-    );
-    row(
-      `4. Content must be sent for approval at least ${contentVorlauf} business days before the agreed publication date.`,
-      `4. Der Inhalt muss spätestens ${contentVorlauf} Werktage vor dem vereinbarten Veröffentlichungsdatum zur Genehmigung gesendet werden.`
-    );
+      para(en
+        ? 'The Influencer’s social media platforms relevant to this Agreement:'
+        : 'Die Social-Media-Plattformen des Influencers, die für diese Vereinbarung relevant sind:');
+      para(`1. ${platLabel(plattform)} Account: ${ph(account, 16)}`);
 
-    heading('SCOPE / GUIDELINES', 'LIEFERUMFANG / RICHTLINIEN', { topGap: 2 });
-    row(
-      `Deliverable: ${deliverablesText}  |  Date: ${ph(veroeffentlichungsfrist, 12)}`,
-      `Lieferumfang: ${deliverablesText}  |  Datum: ${ph(veroeffentlichungsfrist, 12)}`
-    );
-    row(
-      `\u2022 The content must be approved by the Company before publication.  \u2022 Tag ${ph(brandTag, 14)}.`,
-      `\u2022 Der Inhalt muss vom Unternehmen vor der Veröffentlichung genehmigt werden.  \u2022 Taggen Sie ${ph(brandTag, 14)}.`
-    );
-    row(
-      '\u2022 Products must be properly attached to the respective devices. \u2022 No accessories from other brands should be visible. \u2022 High-quality video showing the product in the centre of the frame. \u2022 The product design must be clearly visible (sufficient lighting). \u2022 Tags and text must be in the Influencer\u2019s native language.',
-      '\u2022 Die Produkte müssen ordnungsgemäß auf den entsprechenden Geräten angebracht sein. \u2022 Es sollte kein Zubehör anderer Marken sichtbar sein. \u2022 Qualitativ hochwertiges Video, das das Produkt im Zentrum des Bildes zeigt. \u2022 Das Design des Produkts muss klar sichtbar sein (ausreichende Beleuchtung). \u2022 Tags und Text müssen in der Muttersprache des Influencers sein.'
-    );
+      y += 2;
+      para(en ? 'DELIVERABLES' : 'LEISTUNGEN', { style: 'bold', align: 'center', size: 10 });
+      y += 1;
 
-    // Unterschriften (Anhang)
-    y = signatureBlock(y);
+      const items = en ? [
+        '1. Content must be created according to the visual guidelines (provided in a file named "Guidelines" sent together with this Agreement).',
+        '2. Content must be approved before publication.',
+        '3. Do not use copyrighted materials, including music that appears to be available on the platforms.',
+        `4. Content must be sent for approval at least ${contentVorlauf} business days before the agreed publication date.`
+      ] : [
+        '1. Der Inhalt muss gemäß den visuellen Richtlinien erstellt werden (die in einer Datei namens "Richtlinien" zur Verfügung gestellt werden und zusammen mit diesem Vertrag gesendet werden).',
+        '2. Der Inhalt muss vor der Veröffentlichung genehmigt werden.',
+        '3. Verwenden Sie keine urheberrechtlich geschützten Materialien, einschließlich Musik, die scheinbar auf den Plattformen verfügbar ist.',
+        `4. Der Inhalt muss spätestens ${contentVorlauf} Werktage vor dem vereinbarten Veröffentlichungsdatum zur Genehmigung gesendet werden.`
+      ];
+      items.forEach(t => para(t));
+      y += 2;
+
+      // Richtlinien-Zelle: Genehmigung + Tag + Allgemeine Richtlinien (wie Original)
+      const guidelineSegments = en ? [
+        { text: `The ${nounEn} must be approved by the Company before publication.`, bullet: true },
+        { text: `Tag ${ph(brandTag, 14)}`, bullet: true, gapAfter: true },
+        { text: 'General guidelines:', style: 'bold' },
+        { text: 'Products must be properly attached to the respective devices.', bullet: true },
+        { text: 'No accessories from other brands should be visible.', bullet: true },
+        { text: 'High-quality video showing the product on the phone (and other devices) in the centre of the frame.', bullet: true },
+        { text: 'The product design must be clearly visible (sufficient lighting, etc.).', bullet: true },
+        { text: 'Tags and text must be in the Influencer’s native language.', bullet: true }
+      ] : [
+        { text: `Das ${nounDe} muss von dem Unternehmen vor der Veröffentlichung genehmigt werden.`, bullet: true },
+        { text: `Taggen Sie ${ph(brandTag, 14)}`, bullet: true, gapAfter: true },
+        { text: 'Allgemeine Richtlinien:', style: 'bold' },
+        { text: 'Die Produkte müssen auf den entsprechenden Geräten angebracht sein. Die Hüllen müssen ordnungsgemäß auf die Geräte angebracht werden.', bullet: true },
+        { text: 'Es sollte kein Zubehör von anderen Marken zu sehen sein.', bullet: true },
+        { text: 'Qualitativ hochwertiges Video, das das Produkt auf dem Handy (und anderen Geräten) im Zentrum des Bildes zeigt.', bullet: true },
+        { text: 'Das Design des Produkts muss klar sichtbar sein (ausreichende Beleuchtung; usw.).', bullet: true },
+        { text: 'Tags, Text müssen in der Muttersprache des Influencers sein (auf Deutsch).', bullet: true }
+      ];
+
+      boxTable(
+        en ? ['Deliverable', 'Date', 'Guidelines'] : ['Lieferumfang', 'Datum', 'Richtlinien'],
+        [[
+          [{ text: lieferumfangFor(plattform) }],
+          [{ text: ph(veroeffentlichungsfrist, 12) }],
+          guidelineSegments
+        ]],
+        [40, 28, 114]
+      );
+
+      para(en
+        ? 'Executed in two original copies, each party acknowledging receipt of one.'
+        : 'Ausfertigung in zwei Originalen, wobei jede Partei den Erhalt eines Exemplars bestätigt.',
+        { style: 'bold' });
+
+      // Unterschriften (Anhang)
+      y = signatureBlock(y);
+    });
 
     // Letzte Fußzeile
     addFooter();
@@ -515,20 +814,20 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
     // Speichern + Upload
     // ============================================
     const pdfBlob = doc.output('blob');
-    const filePrefix = lang === 'en' ? 'EN_Contract_Awareness' : 'Vertrag_Awareness';
+    const filePrefix = en ? 'EN_Contract_Awareness' : 'Vertrag_Awareness';
     const fileName = `${filePrefix}_${vertrag.name || 'Kooperation'}_${new Date().toISOString().split('T')[0]}.pdf`;
 
     const uploadResult = await uploadGeneratedVertragPdf(this, vertrag, pdfBlob, fileName);
     if (uploadResult?.fileUrl) {
-      console.log('✅ Awareness-PDF nach Dropbox hochgeladen und URL gespeichert');
+      console.log('✅ Direktvertrag-PDF nach Dropbox hochgeladen und URL gespeichert');
     } else {
       console.warn('⚠️ Dropbox-Upload nicht erfolgreich – PDF wird nur lokal heruntergeladen');
     }
     doc.save(fileName);
 
-    console.log('✅ Awareness-PDF generiert');
+    console.log('✅ Direktvertrag-PDF generiert');
   } catch (error) {
-    console.error('❌ Fehler bei Awareness-PDF-Generierung:', error);
+    console.error('❌ Fehler bei Direktvertrag-PDF-Generierung:', error);
     window.toastSystem?.show('PDF konnte nicht generiert werden', 'warning');
   }
 };

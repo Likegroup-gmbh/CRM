@@ -241,6 +241,13 @@ describe('Kundenrechnungen-Monatssummen', () => {
     window.validatorSystem = { sanitizeHtml: value => value };
   });
 
+  // Baut die Seite wie im Browser: Summen-Cards und Monats-Tabs liegen im
+  // sticky Kopfbereich, renderListView liefert nur noch die Tabelle.
+  const renderFullPage = (list) => {
+    document.body.innerHTML = '<div id="page-tab-content" class="kundenrechnungen-page"></div>';
+    list.renderAuftraegeContent();
+  };
+
   it('summiert Netto, MwSt und Brutto der uebergebenen Zeilen', () => {
     const list = new AusgangsrechnungenList();
     expect(list.sumInvoiceRows([
@@ -283,7 +290,7 @@ describe('Kundenrechnungen-Monatssummen', () => {
 
   it('rendert Summary-Cards fuer Netto, Mehrwertsteuer und Brutto ueber der Tabelle', () => {
     const list = new AusgangsrechnungenList();
-    document.body.innerHTML = list.renderListView();
+    renderFullPage(list);
 
     const cards = document.getElementById('ausgangsrechnungen-summary-cards');
     expect(cards).not.toBeNull();
@@ -297,7 +304,7 @@ describe('Kundenrechnungen-Monatssummen', () => {
 
   it('schreibt die Summen auch in die Cards, nicht nur in den tfoot', () => {
     const list = new AusgangsrechnungenList();
-    document.body.innerHTML = list.renderListView();
+    renderFullPage(list);
 
     list.updateInvoiceSummary([
       { nettobetrag: 1000, ust_betrag: 190, bruttobetrag: 1190 },
@@ -317,7 +324,7 @@ describe('Kundenrechnungen-Monatssummen', () => {
   it('animiert die Summen beim Tab-Wechsel ueber das zentrale animateNumber', () => {
     animateNumber.mockClear();
     const list = new AusgangsrechnungenList();
-    document.body.innerHTML = list.renderListView();
+    renderFullPage(list);
 
     list.updateInvoiceSummary(
       [{ nettobetrag: 1000, ust_betrag: 190, bruttobetrag: 1190 }],

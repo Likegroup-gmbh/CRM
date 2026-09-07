@@ -260,11 +260,16 @@ export const SWITCHER_CONFIG = {
     searchFields: ['name', 'oberbegriff'],
     buildLabel: (row) => [row.oberbegriff, row.name].filter(Boolean).join(' · ') || 'Persona',
     buildRoute: nestedOwnerRoute('persona'),
-    resolveScope: (context) => scopeOwnerNested(context, {
-      ownerColumn: 'unternehmen_id',
-      junctionTable: 'persona_marke',
-      junctionEntityColumn: 'persona_id'
-    })
+    // Wie PersonaService.loadAll(): DNA-Personas ohne unternehmen_id tauchen nicht auf.
+    extra: (query) => query.not('unternehmen_id', 'is', null),
+    // Standalone (/persona/:id) hat keinen Owner: null = RLS entscheidet (Listen-Paritaet).
+    resolveScope: (context) => hasNestedOwner(context)
+      ? scopeOwnerNested(context, {
+          ownerColumn: 'unternehmen_id',
+          junctionTable: 'persona_marke',
+          junctionEntityColumn: 'persona_id'
+        })
+      : null
   },
   produkt: {
     table: 'produkt',

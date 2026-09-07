@@ -2381,37 +2381,63 @@ width: 18em;
   height: unset;
 }
 
-/* Kundenrechnungen: Tabelle scrollt intern, Monats-Leiste bleibt unten */
-.main-wrapper:has(#ausgangsrechnungen-month-tabs) {
+/* Kundenrechnungen: App-Shell-Layout als Flex-Spalte. Kopf (Header + Auftrag/
+   Contract-Tabs) und Fuss (Monats-Tabs) bleiben stehen, dazwischen scrollt
+   .kr-scroll-body mit den Summen-Cards und der Tabelle. */
+.kundenrechnungen-page {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  height: 100%;
   min-height: 0;
 }
 
-.main-wrapper:has(#ausgangsrechnungen-month-tabs) .page-header,
-.main-wrapper:has(#ausgangsrechnungen-month-tabs) .table-filter-wrapper,
-.main-wrapper:has(#ausgangsrechnungen-month-tabs) .auftrag-tabs {
-  flex-shrink: 0;
+.kundenrechnungen-page .kr-sticky-head {
+  flex: 0 0 auto;
+  z-index: 40;
+  background: var(--bg-primary);
 }
 
-.main-wrapper:has(#ausgangsrechnungen-month-tabs) #page-tab-content,
-.main-wrapper:has(#ausgangsrechnungen-month-tabs) #auftrag-table-wrapper {
-  flex: 1;
+.kundenrechnungen-page .kr-scroll-body {
+  flex: 1 1 auto;
   min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.kundenrechnungen-page .kr-sticky-foot {
+  flex: 0 0 auto;
+  z-index: 40;
+  background: var(--bg-primary);
+}
+
+/* Kopfzeile als eine Zeile: Suche + Filter links, Aktions-Buttons und
+   View-Toggle rechts – die separate Filter-Box entfällt auf dieser Seite.
+   Auf schmalen Viewports bricht die Zeile sauber um. */
+.kundenrechnungen-page .kr-sticky-head .page-header {
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.kundenrechnungen-page .page-header-left {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: var(--space-sm);
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
-.main-wrapper:has(#ausgangsrechnungen-month-tabs) #auftrag-table-container {
-  flex: 1;
-  min-height: 0;
-  overflow: auto !important;
+.kundenrechnungen-page .page-header-right {
+  flex-wrap: wrap;
+  row-gap: var(--space-xs);
+}
+
+/* Feste Mindesthöhe der Tabellenfläche: Beim Monatswechsel (unterschiedlich
+   viele Zeilen) bleibt das Layout stehen – kein Sprung. */
+.kundenrechnungen-page #auftrag-table-container {
+  min-height: 60vh;
 }
 
 .ausgangsrechnungen-month-tabs {
-  flex-shrink: 0;
-  z-index: 20;
   background: var(--color-white);
   border-top: 1px solid var(--border-primary);
   overflow-x: auto;

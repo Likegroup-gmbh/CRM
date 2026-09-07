@@ -29,7 +29,7 @@ const SRC = path.join(ROOT, 'src');
 const ALLOWED_SVG = /<svg[^>]*(viewBox="0 0 50 50"|viewBox="0 0 120 66"|viewBox="0 0 256 256"|viewBox="0 0 200 200"|class="mdc-spinner|class="crm-icon|id="\$\{SPRITE_ID\}"|\$\{symbols\}|<use)/;
 const ALLOWED_FILES = new Set([
   'src/core/icons/IconSystem.js',                     // Sprite-Template + icon()-Output
-  'src/modules/produkt/ProduktDoc.js',                // animierter Progress-Circle
+  'src/core/doc/DocPage.js',                          // animierter Progress-Circle (Submit-Button)
 ]);
 
 function walk(dir, out = []) {
