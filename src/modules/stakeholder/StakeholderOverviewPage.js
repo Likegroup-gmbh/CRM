@@ -11,6 +11,7 @@ import { CAMPAIGN_TYPES } from '../projekt-erstellen/constants.js';
 import { getChipFromKampagnenartName, sumBlockUmsatz } from '../projekt-erstellen/logic/CampaignBudgetFields.js';
 import { calculateBudgetOverview } from '../../core/budget/calculateBudgetOverview.js';
 import { calculateCreatorPaymentSummary } from '../../core/budget/EkVkAgencyFeeHelper.js';
+import { sumPaidInvoiceRows } from '../auftrag/logic/PaymentRowStatus.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
 const SUPABASE = () => window.supabase;
@@ -105,6 +106,10 @@ const CARD_HINTS = {
   zusatz: {
     formula: 'Σ Zusatzkosten der Kooperationen',
     hint: 'Reise, Lizenzen, Tools, Versand, Payroll'
+  },
+  bezahlt: {
+    formula: 'Σ Netto/Brutto der Rechnungen mit „Bezahlt am"-Datum',
+    hint: 'nur tatsächlich überwiesene Kundenrechnungen'
   }
 };
 
@@ -209,6 +214,7 @@ export class StakeholderOverviewPage {
     this.kooperationen = [];
     this.videos = [];
     this.rechnungen = [];
+    this.teilrechnungen = [];
     this.detailsByAuftrag = new Map();
     this.unternehmenById = new Map();
     this.selectedYear = 'all';
@@ -249,10 +255,10 @@ export class StakeholderOverviewPage {
     const supabase = SUPABASE();
     if (!supabase) throw new Error('Supabase nicht verfügbar');
 
-    const [auftragRes, blocksRes, kampagnenRes, koopsRes, videosRes, detailsRes, unternehmenRes, rechnungRes] = await Promise.all([
+    const [auftragRes, blocksRes, kampagnenRes, koopsRes, videosRes, detailsRes, unternehmenRes, rechnungRes, teilrechnungRes] = await Promise.all([
       supabase
         .from('auftrag')
-        .select('id, titel, auftragsname, nettobetrag, creator_budget, auftragtype, start, ende, created_at, is_draft, unternehmen_id, marke_id, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, marke:marke_id(id, markenname)'),
+        .select('id, titel, auftragsname, nettobetrag, bruttobetrag, ueberwiesen, ueberwiesen_am, creator_budget, auftragtype, start, ende, created_at, is_draft, unternehmen_id, marke_id, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, marke:marke_id(id, markenname)'),
       supabase
         .from('auftrag_kampagnenart_blocks')
         .select('id, auftrag_id, campaign_type, campaign_type_label, umsatz_netto, sort_order'),
@@ -273,7 +279,10 @@ export class StakeholderOverviewPage {
         .select('id, firmenname'),
       supabase
         .from('rechnung')
-        .select('kooperation_id, auftrag_id, status, nettobetrag, rechnungstyp')
+        .select('kooperation_id, auftrag_id, status, nettobetrag, rechnungstyp'),
+      supabase
+        .from('auftrag_teilrechnung')
+        .select('auftrag_id, nettobetrag, bruttobetrag, ueberwiesen, ueberwiesen_am')
     ]);
 
     if (auftragRes.error) throw auftragRes.error;
@@ -284,6 +293,7 @@ export class StakeholderOverviewPage {
     if (detailsRes.error) throw detailsRes.error;
     if (unternehmenRes.error) throw unternehmenRes.error;
     if (rechnungRes.error) throw rechnungRes.error;
+    if (teilrechnungRes.error) throw teilrechnungRes.error;
 
     this.auftraege = (auftragRes.data || []).filter(a => a.is_draft !== true);
     this.blocks = blocksRes.data || [];
@@ -291,6 +301,7 @@ export class StakeholderOverviewPage {
     this.kooperationen = koopsRes.data || [];
     this.videos = videosRes.data || [];
     this.rechnungen = rechnungRes.data || [];
+    this.teilrechnungen = teilrechnungRes.data || [];
     this.detailsByAuftrag = new Map((detailsRes.data || []).map(d => [d.auftrag_id, d]));
     this.unternehmenById = new Map((unternehmenRes.data || []).map(u => [u.id, u]));
   }
@@ -429,12 +440,23 @@ export class StakeholderOverviewPage {
 
   // ---------- Aggregation ----------
 
+  // Teilrechnungen nach auftrag_id gruppieren (fuer die „Bereits bezahlt"-Card)
+  teilrechnungenByAuftrag() {
+    const map = new Map();
+    (this.teilrechnungen || []).forEach(tr => {
+      if (!map.has(tr.auftrag_id)) map.set(tr.auftrag_id, []);
+      map.get(tr.auftrag_id).push(tr);
+    });
+    return map;
+  }
+
   aggregate() {
     const auftraege = this.filteredAuftraege();
     const blockMap = this.blocksByAuftrag();
     const koopMap = this.koopsByAuftrag();
     const videoMap = this.videosByKoop();
     const kampMap = this.kampagnenByAuftrag();
+    const trMap = this.teilrechnungenByAuftrag();
 
     const rows = [];
     let sumVolumen = 0;
@@ -450,6 +472,8 @@ export class StakeholderOverviewPage {
     let sumDb = 0;
     let sumCreatorPaid = 0;
     let sumCreatorOpen = 0;
+    let sumPaidNetto = 0;
+    let sumPaidBrutto = 0;
 
     auftraege.forEach(a => {
       const blocks = blockMap.get(a.id) || [];
@@ -506,6 +530,13 @@ export class StakeholderOverviewPage {
       sumCreatorPaid += creatorPayment.paid;
       sumCreatorOpen += creatorPayment.open;
 
+      // „Bereits bezahlt": Teilrechnungen haben eigene Betraege/Zahlungsdaten;
+      // ohne Teilrechnungen gilt der Auftrags-Datensatz als eine Rechnungszeile.
+      const trs = trMap.get(a.id) || [];
+      const paid = trs.length > 0 ? sumPaidInvoiceRows(trs) : sumPaidInvoiceRows([a]);
+      sumPaidNetto += paid.netto;
+      sumPaidBrutto += paid.brutto;
+
       rows.push({
         auftrag: a,
         details,
@@ -539,7 +570,9 @@ export class StakeholderOverviewPage {
         agenturVoll: sumAgenturVoll,
         ksk: sumKsk,
         zusatz: sumZusatz,
-        db: sumDb
+        db: sumDb,
+        paidNetto: sumPaidNetto,
+        paidBrutto: sumPaidBrutto
       }
     };
   }
@@ -656,6 +689,21 @@ export class StakeholderOverviewPage {
         ${card('Auftragsvolumen = Budget', volumen, 'was der Kunde beauftragt hat', 'jede Buchung verbraucht Budget', { hint: CARD_HINTS.volumen })}
         ${card('Verbrauchtes Budget', verbraucht, 'aufgeschlüsselt in der Zeile darunter', `${this.fmtPct(verbrauchtPct)} des Budgets`, { progress: verbrauchtPct, progressClass: progressClass(verbrauchtPct), accent: true, footAccent: true, hint: CARD_HINTS.verbraucht })}
         ${card(offenLabel, offenValue, offenSub, `${this.fmtPct(offenPct)} offen`, { progress: offenPct, progressClass: openProgressClass(offenPct), hint: offenHint })}
+      </div>
+      <div class="stakeholder-cards stakeholder-cards--paid">
+        <div class="stakeholder-card stakeholder-card--wide">
+          ${cardHead('Bereits bezahlt', CARD_HINTS.bezahlt)}
+          <div class="stakeholder-card-paid-values">
+            <div class="stakeholder-card-paid-value">
+              <div class="stakeholder-card-value" data-paid-value="netto">${this.fmtEuro(totals.paidNetto)}</div>
+              <div class="stakeholder-card-sub">Netto</div>
+            </div>
+            <div class="stakeholder-card-paid-value">
+              <div class="stakeholder-card-value stakeholder-card-value--accent" data-paid-value="brutto">${this.fmtEuro(totals.paidBrutto)}</div>
+              <div class="stakeholder-card-sub">Brutto</div>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="stakeholder-cards stakeholder-cards--breakdown">
         ${breakdownCard('Creatoranteil', creator, `${this.fmtEuro(totals.creatorPaid)} von ${this.fmtEuro(creator)} bezahlt`, [
