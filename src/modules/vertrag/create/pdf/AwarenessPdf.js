@@ -1,7 +1,10 @@
 // pdf/AwarenessPdf.js
 // Direktvertrag (Code-Bezeichner: awareness): PDF-Generierung nach den
 // Original-Vorlagen (DE_TT/DE_IGR Agreement Awareness 2025).
-// - Deckblatt (Seite 1) und Anhaenge: einsprachig, Sprache = lang (Split-Button)
+// - Deckblatt (Seite 1, gestapelt wie Standard-Influencer-Vertrag) und Anhaenge:
+//   einsprachig, Sprache = lang (Split-Button)
+// - Seite 2: Praeambel + "ES WURDE ZUGESTIMMT..." + § 6 Rechte des Kunden als
+//   beguenstigte Dritte (Abs. 1/4/5, nur Deutsch; "EHG" = Platzhalter fuer kunde.firmenname)
 // - Hauptteil (SPECIAL/GENERAL TERMS, 1.1-10.10): immer bilingual (EN|DE)
 // - Pro gewaehlter Plattform ein eigener Anhang (A, B, ...)
 // Dynamische Werte aus vertrag.* + vertrag.awareness_felder.* + unternehmen.*
@@ -256,70 +259,14 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
       y += 1.5;
     };
 
-    // Gerahmte Parteien-Box auf dem Deckblatt (wie Original):
-    // links fett zentriert das Label (UNTERNEHMEN/INFLUENCER), rechts Kopfzeile
-    // (fett zentriert) + Label/Wert-Zeilen. Vollrahmen + vertikale Trennlinie.
-    const partyBox = (label, headline, lines) => {
-      const LABEL_W = 46;
-      const PAD = 2.5;
-      const contentX = LEFT_X + LABEL_W + PAD;
-      const contentW = FULL_W - LABEL_W - 2 * PAD;
-
-      setBody();
-      const prepared = [];
-      prepared.push({
-        wrapped: doc.splitTextToSize(headline || '', contentW),
-        style: 'bold', align: 'center'
-      });
-      lines.forEach(l => {
-        const labelW = doc.getTextWidth(l.label + ' ') + 1;
-        prepared.push({
-          label: l.label,
-          labelW,
-          wrapped: doc.splitTextToSize(l.value || '', contentW - labelW),
-          style: 'normal'
-        });
-      });
-
-      const totalLines = prepared.reduce((sum, c) => sum + c.wrapped.length, 0);
-      const boxH = totalLines * LH + 2 * PAD + 1;
-      if (y + boxH > MAX_CONTENT_Y) y = newPage();
-
-      // Rahmen + Trennlinie
-      doc.setDrawColor(0);
-      doc.rect(LEFT_X, y, FULL_W, boxH);
-      doc.line(LEFT_X + LABEL_W, y, LEFT_X + LABEL_W, y + boxH);
-
-      // Label horizontal + vertikal zentriert
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9.5);
-      doc.text(label, LEFT_X + LABEL_W / 2, y + boxH / 2 + 1.2, { align: 'center' });
-
-      // Inhalt
-      let cy = y + PAD + 3;
-      prepared.forEach(c => {
-        c.wrapped.forEach((line, i) => {
-          if (c.align === 'center') {
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(8.5);
-            doc.text(line, contentX + contentW / 2, cy, { align: 'center' });
-          } else {
-            doc.setFontSize(8.5);
-            if (i === 0 && c.label) {
-              doc.setFont('helvetica', 'bold');
-              doc.text(c.label, contentX, cy);
-              doc.setFont('helvetica', 'normal');
-              doc.text(line, contentX + c.labelW, cy);
-            } else {
-              doc.setFont('helvetica', 'normal');
-              doc.text(line, contentX + (c.label ? c.labelW : 0), cy);
-            }
-          }
-          cy += LH;
-        });
-      });
-      y += boxH + 2;
-      setBody();
+    // Checkbox zeichnen (Deckblatt, wie InfluencerPdf)
+    const drawCheckbox = (x, yPos, checked, label) => {
+      doc.rect(x, yPos - 2.5, 3, 3);
+      if (checked) {
+        doc.line(x + 0.5, yPos - 2, x + 2.5, yPos);
+        doc.line(x + 0.5, yPos, x + 2.5, yPos - 2);
+      }
+      doc.text(label, x + 5, yPos);
     };
 
     // Tabelle mit Vollrahmen (Anhang). Zellen = Array von Segmenten
@@ -378,7 +325,7 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
       doc.line(LEFT_X, tableTop + headerH, LEFT_X + W, tableTop + headerH);
       let lx = LEFT_X;
       colWidths.slice(0, -1).forEach(w => { lx += w; doc.line(lx, tableTop, lx, tableTop + totalH); });
-      y += 2;
+      y += 6;
       setBody();
     };
 
@@ -410,46 +357,169 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
     };
 
     // ============================================
-    // SEITE 1: Deckblatt (einsprachig per lang)
+    // SEITE 1: Deckblatt (gestapelt, wie Standard-Influencer-Vertrag)
+    // LikeGroup = Agentur (fix), Kunde + Influencer dynamisch.
     // ============================================
-    centered(en ? 'INFLUENCER AGREEMENT' : 'INFLUENCER-VERTRAG', 16, 'bold');
-    y += 7;
-    centered(`${ph(isoDate(af.vertrag_datum), 12)}`, 10, 'normal');
+
+    // LikeGroup Logo als SVG (identisch zum Standard-Influencer-Vertrag)
+    const logoSvg = `<svg width="120" height="66" viewBox="0 0 120 66" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g clip-path="url(#clip0_4719_236)">
+<path d="M65.7855 50.1389V47.153H64.2168V60.8863H65.7855V53.7794C65.7855 50.6035 67.8717 48.5575 71.1445 48.5575H71.4975V46.9418H71.1445C68.7105 46.9418 66.8153 48.1536 65.7855 50.1468V50.1415V50.1389Z" fill="#0D0D0D"/>
+<path d="M79.4557 46.8257C75.2885 46.8257 72.1484 49.9224 72.1484 54.0144C72.1484 58.1064 75.3176 61.2031 79.4557 61.2031C83.5937 61.2031 86.739 58.1064 86.739 54.0144C86.739 49.9224 83.6282 46.8257 79.4557 46.8257ZM85.1119 54.017C85.1119 57.2458 82.7019 59.6983 79.4557 59.6983C76.2095 59.6983 73.7702 57.2484 73.7702 54.017C73.7702 50.7857 76.2042 48.3358 79.4557 48.3358C82.7072 48.3358 85.1119 50.7857 85.1119 54.017Z" fill="#0D0D0D"/>
+<path d="M100.293 55.1998C100.293 57.8926 98.3151 59.6957 95.6343 59.6957C92.9535 59.6957 91.1937 57.919 91.1937 55.2526V47.1504H89.625V55.6855C89.625 59.0278 91.844 61.2058 95.1751 61.2058C97.4764 61.2058 99.26 60.2078 100.293 58.4866V60.8837H101.861V47.1504H100.293V55.2024V55.1971V55.1998Z" fill="#0D0D0D"/>
+<path d="M112.96 46.8257C110.335 46.8257 108.169 48.1694 107.004 50.2999V47.1478H105.436V66H107.004V57.7342C108.164 59.8594 110.33 61.2084 112.96 61.2084C116.995 61.2084 120 58.1117 120 54.0197C120 49.9277 116.998 46.831 112.96 46.831V46.8257ZM112.692 59.6983C109.441 59.6983 107.007 57.2484 107.007 54.017C107.007 50.7857 109.441 48.3358 112.692 48.3358C115.944 48.3358 118.378 50.7857 118.378 54.017C118.378 50.7857 115.944 59.6983 112.692 59.6983Z" fill="#0D0D0D"/>
+<path d="M48.8391 48.6869H59.8119C59.419 55.007 54.2883 59.6006 47.7349 59.6006C40.6719 59.6006 35.3421 54.2626 35.3421 47.1926C35.3421 47.0158 35.3474 46.8389 35.3553 46.6594H33.6168C33.6115 46.8362 33.6035 47.0105 33.6035 47.1926C33.6035 55.1628 39.6792 61.2084 47.7376 61.2084C55.796 61.2084 61.5531 55.4374 61.5531 47.7022V47.153H48.8417V48.6842H48.8364H48.8391V48.6869Z" fill="#0D0D0D"/>
+<path d="M28.7462 15.3067H23.1191V41.5879H28.7462V15.3067Z" fill="#0D0D0D"/>
+<path d="M5.58991 0H0V41.448H18.2535V36.4531H5.59257L5.58991 0Z" fill="#0D0D0D"/>
+<path d="M82.6114 35.9753C81.0347 37.2636 78.9777 38.0503 76.6233 38.0503C71.8589 38.0503 68.4667 34.9642 67.6041 30.7402H91.3838C91.6784 28.3114 91.3838 26.1703 91.3838 26.1703C90.3513 19.4885 84.3207 14.1715 76.6233 14.1715C68.0633 14.1715 61.7461 20.6844 61.7461 28.4513C61.7461 36.2182 68.0659 42.731 76.6233 42.731C82.2477 42.731 86.8423 39.9538 89.3851 35.9753H82.6114ZM76.618 18.8522C81.3825 18.8522 84.9472 22.0519 85.7514 26.1624H67.6041C68.5251 21.8777 72.0261 18.8522 76.6233 18.8522H76.6233Z" fill="#0D0D0D"/>
+<path d="M62.0331 41.4525C61.6187 40.1351 61.0132 38.8889 60.2323 37.748C57.5524 33.817 53.1035 31.4694 48.3254 31.4694C45.927 31.4694 43.595 32.078 41.5286 33.1767L59.2071 15.2815H52.3678L39.7225 28.3367V0H34.0918V41.5052H39.4251C40.8248 38.3356 44.0147 36.1171 47.7251 36.1171C51.4356 36.1171 54.6254 38.3329 56.0252 41.5052H62.0463C62.0463 41.5052 62.041 41.4893 62.0384 41.4683C62.0384 41.4604 62.0331 41.4525Z" fill="#0D0D0D"/>
+</g>
+<defs>
+<clipPath id="clip0_4719_236">
+<rect width="120" height="66" fill="white"/>
+</clipPath>
+</defs>
+</svg>`;
+
+    // Helper: SVG zu PNG konvertieren (data: URL statt blob:)
+    const svgToPngDataUrl = async (svgString, width, height) => {
+      return new Promise((resolve, reject) => {
+        const svgBase64 = btoa(unescape(encodeURIComponent(svgString)));
+        const dataUrl = `data:image/svg+xml;base64,${svgBase64}`;
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = width * 2;
+          canvas.height = height * 2;
+          const ctx = canvas.getContext('2d');
+          ctx.scale(2, 2);
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = reject;
+        img.src = dataUrl;
+      });
+    };
+
+    // Logo oben zentriert (in Umgebungen ohne Canvas, z.B. Tests, uebersprungen)
+    let logoBase64 = null;
+    try {
+      const testCtx = document.createElement('canvas').getContext?.('2d');
+      if (typeof Image !== 'undefined' && testCtx) {
+        logoBase64 = await svgToPngDataUrl(logoSvg, 120, 66);
+      }
+    } catch (e) {
+      console.warn('⚠️ Logo wird uebersprungen:', e);
+    }
+    if (logoBase64) doc.addImage(logoBase64, 'PNG', 93.6, 10, 22.75, 12.6);
+
+    // Titel
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(en ? 'INFLUENCER COOPERATION AGREEMENT' : 'INFLUENCER-KOOPERATIONSVERTRAG', 105, 54, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+
+    // Vertragsname
+    doc.setFontSize(10);
+    doc.text(`${vertrag.name || (en ? 'Untitled' : 'Ohne Name')}`, 105, 64, { align: 'center' });
+
+    y = 80;
+
+    // Agenturdaten (LikeGroup, fix)
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(en ? 'Agency details' : 'Agenturdaten', 105, y, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
     y += 8;
+    doc.text('LikeGroup GmbH', 105, y, { align: 'center' });
+    y += 5;
+    doc.text('Jakob-Latscha-Str. 3', 105, y, { align: 'center' });
+    y += 5;
+    doc.text('60314 Frankfurt am Main', 105, y, { align: 'center' });
+    y += 5;
+    doc.text(en ? 'Germany' : 'Deutschland', 105, y, { align: 'center' });
+
+    // Kundendaten (dynamisch)
+    y += 15;
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(en ? 'Client details' : 'Kundendaten', 105, y, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    y += 8;
+    doc.text(`${en ? 'Company name' : 'Firmenname'}: ${kunde.firmenname || '-'}`, 105, y, { align: 'center' });
+    y += 5;
+    doc.text(`${kunde.rechnungsadresse_strasse || ''} ${kunde.rechnungsadresse_hausnummer || ''}`.trim(), 105, y, { align: 'center' });
+    y += 5;
+    doc.text(`${kunde.rechnungsadresse_plz || ''} ${kunde.rechnungsadresse_stadt || ''}`.trim(), 105, y, { align: 'center' });
+
+    // Influencer-Vertretung
+    y += 15;
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(en ? 'Influencer / representation' : 'Influencer / Vertretung', 105, y, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    y += 8;
+    doc.text(en ? 'Is the influencer represented by an agency?' : 'Wird der Influencer durch eine Agentur vertreten?', 105, y, { align: 'center' });
+    y += 6;
+    drawCheckbox(85, y, !vertrag.influencer_agentur_vertreten, en ? 'No' : 'Nein');
+    drawCheckbox(105, y, vertrag.influencer_agentur_vertreten, en ? 'Yes' : 'Ja');
+
+    if (vertrag.influencer_agentur_vertreten) {
+      y += 8;
+      doc.text(`${en ? 'Agency name' : 'Agenturname'}: ${vertrag.influencer_agentur_name || '-'}`, 105, y, { align: 'center' });
+      y += 5;
+      const strasseZeile = `${vertrag.influencer_agentur_strasse || ''} ${vertrag.influencer_agentur_hausnummer || ''}`.trim();
+      const plzStadtZeile = `${vertrag.influencer_agentur_plz || ''} ${vertrag.influencer_agentur_stadt || ''}`.trim();
+      doc.text(strasseZeile || '-', 105, y, { align: 'center' });
+      y += 5;
+      doc.text(plzStadtZeile || '-', 105, y, { align: 'center' });
+      y += 5;
+      doc.text(vertrag.influencer_agentur_land || (en ? 'Germany' : 'Deutschland'), 105, y, { align: 'center' });
+      y += 5;
+      doc.text(`${en ? 'Represented by' : 'Vertreten durch'}: ${vertrag.influencer_agentur_vertretung || '-'}`, 105, y, { align: 'center' });
+    }
+
+    // Influencer-Daten (dynamisch)
+    y += 15;
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(en ? 'Influencer details' : 'Influencer-Daten', 105, y, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    y += 8;
+    const creatorName = `${creator.vorname || ''} ${creator.nachname || ''}`.trim();
+    doc.text(`Name: ${creatorName}`, 105, y, { align: 'center' });
+    y += 5;
+    y = this.appendPdfCreatorContractAddress(doc, y, creatorAddr, vertrag.influencer_land || (en ? 'Germany' : 'Deutschland'));
+    y += 5;
+    const profiles = vertrag.influencer_profile || [];
+    doc.text(`${en ? 'Profile(s)' : 'Profil(e)'}: ${profiles.length > 0 ? profiles.join(', ') : '-'}`, 105, y, { align: 'center' });
+
+    // PO / Auftragsnummer
+    y += 15;
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(en ? 'PO / order number' : 'PO / Auftragsnummer', 105, y, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    y += 8;
+    doc.text(`${vertrag.kunde_po_nummer || '_______________________________'}`, 105, y, { align: 'center' });
+    doc.setFontSize(9);
+    y += 7;
+    doc.text(en ? 'Mandatory on the invoice. Payment is not possible without it.' : 'Zwingend auf der Rechnung anzugeben. Ohne Angabe ist keine Zahlung möglich.', 105, y, { align: 'center' });
+    doc.setFontSize(10);
+
+    // ============================================
+    // SEITE 2: Praeambel + Zustimmung + § 6 (Rechte des Kunden als
+    // beguenstigte Dritte). Eigene Seite, weil das Deckblatt hochkant gestapelt ist.
+    // ============================================
+    newPage();
     setBody();
 
-    // Parteien-Boxen (gerahmt, wie Original)
-    const kundeAdresse = [
-      `${kunde.rechnungsadresse_strasse || ''} ${kunde.rechnungsadresse_hausnummer || ''}`.trim(),
-      `${kunde.rechnungsadresse_plz || ''} ${kunde.rechnungsadresse_stadt || ''}`.trim(),
-      kunde.rechnungsadresse_land
-    ].filter(Boolean).join(', ');
-    const creatorAddrLine = `${creatorAddr.strasse || ''} ${creatorAddr.hausnummer || ''}`.trim();
-    const creatorAddrLine2 = `${creatorAddr.plz || ''} ${creatorAddr.stadt || ''}`.trim();
-    const creatorAdresse = [creatorAddrLine, creatorAddrLine2, creatorAddr.land].filter(Boolean).join(', ');
-    const creatorName = `${creator.vorname || ''} ${creator.nachname || ''}`.trim();
-
-    partyBox(en ? 'COMPANY' : 'UNTERNEHMEN', ph(kunde.firmenname, 24), [
-      { label: 'Reg. code:', value: ph(kunde.reg_code, 20) },
-      { label: 'USt-IdNr.:', value: ph(kunde.ust_id, 20) },
-      { label: en ? 'Address:' : 'Adresse:', value: ph(kundeAdresse, 30) },
-      { label: en ? 'Contact email:' : 'Kontakt Email:', value: ph(af.ansprechpartner_email, 24) },
-      { label: en ? 'Represented by' : 'Vertreten durch', value: ph(kunde.vertreten_durch, 40) }
-    ]);
-
-    // Bei Agentur-/Firmenadresse: "Name / Agentur" als Kopfzeile (wie Original)
-    const influencerHeadline = creatorAddr.name && creatorAddr.source !== 'creator'
-      ? `${ph(creatorName, 20)} / ${creatorAddr.name}`
-      : ph(creatorName, 24);
-    partyBox('INFLUENCER', influencerHeadline, [
-      { label: en ? 'Address:' : 'Adresse:', value: ph(creatorAdresse, 30) },
-      { label: 'Reg. code:', value: ph(af.influencer_reg_code, 20) },
-      { label: en ? 'VAT / tax ID:' : 'USt-IdNr. / Steuer-IdNr.:', value: ph(af.influencer_ust_id, 20) },
-      { label: en ? 'Contact email:' : 'Kontakt Email:', value: ph(creator.mail, 24) }
-    ]);
-
     // Praeambel (einsprachig, haengender Einzug)
-    y += 4;
     para(en ? 'WHEREAS:' : 'AUSGANGSLAGE:', { style: 'bold' });
     // Produktbeschreibung: aus awareness_felder.produkt_beschreibung, sonst BURGA-Default.
     const produktBeschreibung = (af.produkt_beschreibung || '').trim();
@@ -466,6 +536,23 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
     para(en
       ? 'AGREED TO ENTER INTO AGREEMENT UNDER THESE CONDITIONS:'
       : 'ES WURDE ZUGESTIMMT, UNTER DIESEN BEDINGUNGEN EIN ABKOMMEN ZU SCHLIESSEN:', { style: 'bold' });
+
+    // Rechte des Kunden als beguenstigte Dritte (Abs. 1-3) — ohne §-Nummer,
+    // volle Breite, Sprache per lang. "EHG" im Originaltext = Platzhalter fuer den Kunden.
+    const ehg = ph(kunde.firmenname, 20);
+    y += 4;
+    para(en
+      ? `Rights of ${ehg} as third-party beneficiary`
+      : `Rechte von ${ehg} als begünstigte Dritte`, { style: 'bold' });
+    para(en
+      ? `1. ${ehg} is a third-party beneficiary within the meaning of § 328 BGB (German Civil Code) and acquires the own rights against the creator as set out below. The rights created in favour of ${ehg} may not be subsequently revoked or restricted in text form without the consent of ${ehg}.`
+      : `1. ${ehg} ist begünstigte Dritte im Sinne von § 328 BGB und erwirbt die nachfolgend bestimmten eigenen Rechte gegen den Creator. Die zugunsten von ${ehg} entstandenen Rechte können ohne Zustimmung von ${ehg} in Textform nicht nachträglich aufgehoben oder beschränkt werden.`);
+    para(en
+      ? `2. Technical coordination is generally handled via the agency. ${ehg} may issue directly binding instructions to the creator insofar as these serve to comply with the project sheet, the briefing, technical or brand-related specifications or the avoidance of legal risks. In the event of contradictory instructions, the creator shall inform the agency and ${ehg} without undue delay. In case of doubt, the instruction of ${ehg} shall prevail.`
+      : `2. Die fachliche Abstimmung erfolgt grundsätzlich über die Agentur. ${ehg} darf dem Creator unmittelbar verbindliche Weisungen erteilen, soweit diese der Einhaltung des Projektblatts, des Briefings, technischer oder markenbezogener Vorgaben oder der Vermeidung rechtlicher Risiken dienen. Bei widersprechenden Weisungen informiert der Creator Agentur und ${ehg} unverzüglich. Im Zweifel geht die Weisung von ${ehg} vor.`);
+    para(en
+      ? '3. The statutory objections of the creator under this contract remain unaffected.'
+      : '3. Die gesetzlichen Einwendungen des Creators aus diesem Vertrag bleiben bestehen.');
 
     // ============================================
     // SPECIAL TERMS (bilingual)

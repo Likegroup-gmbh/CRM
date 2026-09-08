@@ -2,7 +2,8 @@
 // Smoke-Test fuer den Direktvertrag (awareness): generiert das PDF headless
 // (Mock-jsPDF, Upload gemockt) und prueft die Text-Inhalte gegen die
 // Original-Vorlagen (DE_TT / DE_IGR Agreement Awareness 2025).
-// Sprachmodell: Deckblatt + Anhang einsprachig (lang), Hauptteil bilingual.
+// Sprachmodell: Deckblatt (gestapelt wie Standard-Influencer-Vertrag) + Anhang
+// einsprachig (lang), Seite 2 mit § 6 nur Deutsch, Hauptteil bilingual.
 
 import { vi } from 'vitest';
 
@@ -43,6 +44,7 @@ class MockJsPDF {
     return out;
   }
   addPage() {}
+  addImage() {}
   line() {}
   rect() {}
   output() { return new Blob(['pdf']); }
@@ -102,6 +104,7 @@ function makeVertrag(plattformen) {
     anzahl_storys: 0,
     zahlungsziel: '30_tage',
     verguetung_netto: 500,
+    kunde_po_nummer: 'PO-2026-001',
     influencer_profile: ['TikTok @lisa_tt', 'Instagram @lisa_ig'],
     awareness_felder: {
       vertrag_datum: '2026-09-07',
@@ -143,17 +146,30 @@ describe('AwarenessPdf (Direktvertrag)', () => {
     expect(all).toContain('Lieferumfang');
     expect(all).toContain('Allgemeine Richtlinien:');
 
-    // Deckblatt: echte Firmendaten + ISO-Datum, einsprachig deutsch
-    expect(all).toContain('INFLUENCER-VERTRAG');
+    // Deckblatt: gestapelt wie Standard-Influencer-Vertrag
+    // (LikeGroup fix, Kunde/Influencer/PO dynamisch)
+    expect(all).toContain('INFLUENCER-KOOPERATIONSVERTRAG');
+    expect(all).toContain('LikeGroup GmbH');
+    expect(all).toContain('Agenturdaten');
+    expect(all).toContain('Kundendaten');
     expect(all).toContain('UAB "Hautica"');
-    expect(all).toContain('304140967');
-    expect(all).toContain('LT100010142716');
-    expect(all).toContain('Lietuva');
-    expect(all).toContain('lisa@test.de');
-    expect(all).toContain('2026-09-07');
+    expect(all).toContain('Mosedzio g. 32');
+    expect(all).toContain('Influencer-Daten');
+    expect(all).toContain('Name: Lisa Test');
+    expect(all).toContain('PO-2026-001');
+    // Alte Parteien-Boxen (UNTERNEHMEN/INFLUENCER mit Reg. code etc.) sind weg
+    expect(all).not.toContain('Reg. code:');
 
-    // Reihenfolge Deckblatt: Parteien-Box VOR der Praeambel
-    expect(all.indexOf('UNTERNEHMEN')).toBeLessThan(all.indexOf('AUSGANGSLAGE:'));
+    // Reihenfolge: Deckblatt (Kundendaten) VOR der Praeambel (Seite 2)
+    expect(all.indexOf('Kundendaten')).toBeLessThan(all.indexOf('AUSGANGSLAGE:'));
+
+    // Rechte des Kunden als begünstigte Dritte (EHG = Kundenname, dynamisch)
+    expect(all).toContain('Rechte von UAB "Hautica" als begünstigte Dritte');
+    expect(all).toContain('§ 328 BGB');
+    expect(all).toContain('Im Zweifel geht die Weisung von UAB "Hautica" vor');
+    expect(all).toContain('Die gesetzlichen Einwendungen des Creators aus diesem Vertrag bleiben bestehen.');
+    expect(all).not.toContain('§ 6');
+    expect(all).not.toContain('EHG');
 
     // 1:1-Rechtstext Stichproben (Hauptteil bilingual)
     expect(all).toContain('10.4.'); // Waiver-Klausel
@@ -173,11 +189,13 @@ describe('AwarenessPdf (Direktvertrag)', () => {
     expect(all).toContain('Annexes A and B');
   });
 
-  it('EN: Deckblatt und Anhang auf Englisch', async () => {
+  it('EN: Deckblatt und Anhang auf Englisch, § 6 bleibt Deutsch', async () => {
     const all = await generate(['tiktok'], 'en');
 
-    expect(all).toContain('INFLUENCER AGREEMENT');
-    expect(all).toContain('COMPANY');
+    expect(all).toContain('INFLUENCER COOPERATION AGREEMENT');
+    expect(all).toContain('Agency details');
+    expect(all).toContain('Client details');
+    expect(all).toContain('Influencer details');
     expect(all).toContain('WHEREAS:');
     expect(all).toContain('ANNEX A');
     expect(all).not.toContain('ANHANG A');
@@ -186,6 +204,11 @@ describe('AwarenessPdf (Direktvertrag)', () => {
     expect(all).toContain('Guidelines');
     expect(all).toContain('General guidelines:');
     expect(all).toContain('1. TikTok Account: @lisa_tt');
+    // Rechte des Kunden als begünstigte Dritte: im EN-Dokument englisch
+    expect(all).toContain('Rights of UAB "Hautica" as third-party beneficiary');
+    expect(all).toContain('§ 328 BGB');
+    expect(all).toContain('third-party beneficiary within the meaning of § 328 BGB');
+    expect(all).not.toContain('§ 6');
     // Hauptteil bleibt bilingual
     expect(all).toContain('2. ZAHLUNG UND ÜBERWEISUNG');
   });

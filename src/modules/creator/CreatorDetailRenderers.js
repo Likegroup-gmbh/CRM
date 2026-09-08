@@ -37,12 +37,24 @@ CreatorDetail.prototype.renderInstagramSection = function() {
       ? `${Number(c.ig_engagement_rate).toLocaleString('de-DE', { maximumFractionDigits: 2 })} %`
       : '-';
 
+    // Trial-Filter: bei aktivem Gate gibt es eine bereinigte ER als Tooltip
+    const trialGate = c.ig_trial_gate || null;
+    const engagementTitle = (trialGate?.aktiv && c.ig_engagement_rate_clean != null && !isNaN(c.ig_engagement_rate_clean))
+      ? ` title="Ohne Trial-Reels: ${Number(c.ig_engagement_rate_clean).toLocaleString('de-DE', { maximumFractionDigits: 2 })} %"`
+      : '';
+
     const brands = Array.isArray(c.ig_brand_mentions) ? c.ig_brand_mentions : [];
     const brandsHtml = brands.length
       ? `<div class="tags">${brands.map(b => `<a class="tag tag--brand" href="https://instagram.com/${encodeURIComponent(b)}" target="_blank" rel="noopener noreferrer">@${safe(b)}</a>`).join('')}</div>`
       : '<span class="ig-muted">Keine Werbe-Kooperationen in den letzten Posts erkannt</span>';
 
-    const posts = Array.isArray(c.ig_recent_posts) ? c.ig_recent_posts : [];
+    // Bei aktivem Trial-Gate die gefilterte Ansicht zeigen; die rohe Liste
+    // (ig_recent_posts) bleibt in der DB erhalten und kommt sonst unveraendert
+    // zum Zug.
+    const cleanPosts = Array.isArray(c.ig_recent_posts_clean) ? c.ig_recent_posts_clean : [];
+    const zeigeClean = trialGate?.aktiv && cleanPosts.length > 0;
+    const posts = zeigeClean ? cleanPosts : (Array.isArray(c.ig_recent_posts) ? c.ig_recent_posts : []);
+    const ausgeblendet = Number(trialGate?.cluster_size) || 0;
     const postsHtml = posts.length
       ? `<div class="ig-posts-grid">${posts.map(p => {
           const link = safeUrl(p.permalink) || profileUrl;
@@ -59,6 +71,7 @@ CreatorDetail.prototype.renderInstagramSection = function() {
                 ${isVideo ? '<span class="ig-post-type-badge">Reel</span>' : ''}
               </div>
               <div class="ig-post-meta">
+                ${p.view_count != null ? `<span>&#9654; ${num(p.view_count)}</span>` : ''}
                 <span>&hearts; ${num(p.like_count)}</span>
                 <span>&#128172; ${num(p.comments_count)}</span>
                 ${date ? `<span class="ig-post-date">${date}</span>` : ''}
@@ -85,7 +98,7 @@ CreatorDetail.prototype.renderInstagramSection = function() {
             <span class="ig-stat-label">Follower</span>
           </div>
           <div class="ig-stat">
-            <span class="ig-stat-value">${icon('engagement', { className: 'ig-stat-icon' })}${engagement}</span>
+            <span class="ig-stat-value"${engagementTitle}>${icon('engagement', { className: 'ig-stat-icon' })}${engagement}</span>
             <span class="ig-stat-label">Engagement-Rate</span>
           </div>
           <div class="ig-stat">
@@ -108,6 +121,7 @@ CreatorDetail.prototype.renderInstagramSection = function() {
 
         <div class="ig-posts-block">
           <label>Letzte Posts:</label>
+          ${zeigeClean ? `<div class="ig-muted ig-trial-hint">${ausgeblendet} Trial-Reel${ausgeblendet === 1 ? '' : 's'} ausgeblendet (gefilterte Ansicht)</div>` : ''}
           ${postsHtml}
         </div>
       </div>

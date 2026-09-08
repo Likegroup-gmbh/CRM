@@ -90,9 +90,10 @@ function inputAttrs(attrs = {}) {
  * @param {object}  spec.input           { value, placeholder, className, ariaLabel, attrs }
  * @param {string}  spec.chip            HTML des Chip-Inhalts, meist renderPlatformChip
  * @param {object}  spec.dot             { stateClass, title }
+ * @param {string}  spec.action          Optional: ersetzt den Status-Punkt (z.B. Fetch-Button)
  * @param {string}  spec.className       zusaetzliche Klassen am Wrapper
  */
-export function renderChipCell({ toolbar, id, input = {}, chip = '', dot = {}, className = '' } = {}) {
+export function renderChipCell({ toolbar, id, input = {}, chip = '', dot = {}, action, className = '' } = {}) {
   const inputClass = ['chip-cell__input', input.className].filter(Boolean).join(' ');
 
   return `
@@ -101,7 +102,7 @@ export function renderChipCell({ toolbar, id, input = {}, chip = '', dot = {}, c
         value="${escapeHtml(input.value || '')}"
         placeholder="${escapeHtml(input.placeholder || '')}"${input.ariaLabel ? ` aria-label="${escapeHtml(input.ariaLabel)}"` : ''}${inputAttrs(input.attrs)}/>
       <span class="chip-cell__chip" data-chip-cell-chip${chip ? '' : ' hidden'}>${chip}</span>
-      ${renderChipDot(dot)}
+      ${action !== undefined ? `<span data-chip-cell-action>${action}</span>` : renderChipDot(dot)}
     </div>
   `;
 }
