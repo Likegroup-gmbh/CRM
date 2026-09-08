@@ -163,11 +163,12 @@ describe('AwarenessPdf (Direktvertrag)', () => {
     // Reihenfolge: Deckblatt (Kundendaten) VOR der Praeambel (Seite 2)
     expect(all.indexOf('Kundendaten')).toBeLessThan(all.indexOf('AUSGANGSLAGE:'));
 
-    // § 6 Rechte des Kunden als begünstigte Dritte (EHG = Kundenname, dynamisch)
-    expect(all).toContain('§ 6 Rechte von UAB "Hautica" als begünstigte Dritte');
+    // Rechte des Kunden als begünstigte Dritte (EHG = Kundenname, dynamisch)
+    expect(all).toContain('Rechte von UAB "Hautica" als begünstigte Dritte');
     expect(all).toContain('§ 328 BGB');
     expect(all).toContain('Im Zweifel geht die Weisung von UAB "Hautica" vor');
     expect(all).toContain('Die gesetzlichen Einwendungen des Creators aus diesem Vertrag bleiben bestehen.');
+    expect(all).not.toContain('§ 6');
     expect(all).not.toContain('EHG');
 
     // 1:1-Rechtstext Stichproben (Hauptteil bilingual)
@@ -203,9 +204,11 @@ describe('AwarenessPdf (Direktvertrag)', () => {
     expect(all).toContain('Guidelines');
     expect(all).toContain('General guidelines:');
     expect(all).toContain('1. TikTok Account: @lisa_tt');
-    // § 6 ist auch im EN-Dokument Deutsch (Kunde = begünstigte Dritte)
-    expect(all).toContain('§ 6 Rechte von UAB "Hautica" als begünstigte Dritte');
+    // Rechte des Kunden als begünstigte Dritte: im EN-Dokument englisch
+    expect(all).toContain('Rights of UAB "Hautica" as third-party beneficiary');
     expect(all).toContain('§ 328 BGB');
+    expect(all).toContain('third-party beneficiary within the meaning of § 328 BGB');
+    expect(all).not.toContain('§ 6');
     // Hauptteil bleibt bilingual
     expect(all).toContain('2. ZAHLUNG UND ÜBERWEISUNG');
   });
