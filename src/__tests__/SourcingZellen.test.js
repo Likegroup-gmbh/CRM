@@ -91,11 +91,22 @@ describe('Sourcing – IG-Zelle', () => {
     expect(cell.querySelector('.chip-cell__label').textContent).toBe('@echtername');
   });
 
-  it('legt keine Aktions-Buttons mehr in die Zelle', () => {
+  it('legt den Abruf-Button in die Zelle, keinen Extern-Link', () => {
     const cell = zelle({ link_instagram: IG_URL });
 
-    expect(cell.querySelector('button')).toBeNull();
+    expect(cell.querySelector('[data-ig-fetch]')).not.toBeNull();
     expect(cell.querySelector('a')).toBeNull();
+  });
+
+  it('zeigt nach dem Abruf den Hover-Text zum Frisch-Abrufen', () => {
+    const btn = zelle({
+      link_instagram: IG_URL,
+      ig_fetched_at: '2026-07-20T10:00:00.000Z'
+    }).querySelector('[data-ig-fetch]');
+
+    expect(btn.getAttribute('aria-label')).toBe('Instagram-Daten frisch abrufen');
+    expect(btn.title).toContain('frisch bei Instagram abrufen');
+    expect(btn.classList.contains('is-refresh')).toBe(true);
   });
 
   it('rendert unabhaengig vom Link-Zustand denselben Zellenaufbau', () => {
@@ -107,14 +118,14 @@ describe('Sourcing – IG-Zelle', () => {
     expect(aufbau({ link_instagram: IG_URL })).toEqual(aufbau({}));
   });
 
-  it('faerbt den Status-Punkt nach dem Abruf-Zustand', () => {
-    const dot = (item) => zelle(item).querySelector('[data-chip-cell-dot]').className;
+  it('faerbt den Abruf-Button nach dem Zustand', () => {
+    const cls = (item) => zelle(item).querySelector('[data-ig-fetch]').className;
 
-    expect(dot({})).toContain('is-empty');
-    expect(dot({ link_instagram: IG_URL })).toContain('is-idle');
-    expect(dot({ link_instagram: IG_URL, ig_fetched_at: '2026-07-20T10:00:00.000Z' }))
-      .toContain('is-fetched');
-    expect(dot({ link_instagram: IG_URL, ig_fetch_error: 'Profil nicht gefunden' }))
+    expect(cls({})).toContain('is-empty');
+    expect(cls({ link_instagram: IG_URL })).not.toContain('is-refresh');
+    expect(cls({ link_instagram: IG_URL, ig_fetched_at: '2026-07-20T10:00:00.000Z' }))
+      .toContain('is-refresh');
+    expect(cls({ link_instagram: IG_URL, ig_fetch_error: 'Profil nicht gefunden' }))
       .toContain('is-error');
   });
 
@@ -133,7 +144,8 @@ describe('Sourcing – IG-Zelle', () => {
 
     expect(cell.querySelector('[data-chip-cell-chip]').hidden).toBe(false);
     expect(cell.querySelector('.chip-cell__label').textContent).toBe('@paulinemary');
-    expect(cell.querySelector('[data-chip-cell-dot]').className).toContain('is-idle');
+    expect(cell.querySelector('[data-ig-fetch]').hidden).toBe(false);
+    expect(cell.querySelector('[data-ig-fetch]').classList.contains('is-empty')).toBe(false);
   });
 });
 

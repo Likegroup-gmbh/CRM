@@ -339,6 +339,9 @@ function renderAdminMeta(detail) {
   if (detail.briefing.updated_at) {
     rows.push({ label: 'Aktualisiert', html: detail.escape(detail.formatDate(detail.briefing.updated_at)) });
   }
+  if (detail.briefing.assignee?.name) {
+    rows.push({ label: 'Zugewiesen', html: detail.escape(detail.briefing.assignee.name) });
+  }
   if (!rows.length) return '';
   return `
     <section class="briefing-doc__section">

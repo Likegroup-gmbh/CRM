@@ -2,10 +2,21 @@ import { describe, expect, it } from 'vitest';
 import { getInvoiceDisplayDate, getInvoiceMonthKey } from '../modules/auftrag/logic/InvoiceDisplayDate.js';
 
 describe('InvoiceDisplayDate', () => {
-  it('priorisiert ueberwiesen_am vor allen anderen Daten', () => {
+  it('priorisiert rechnung_gestellt_am vor allen anderen Daten', () => {
     expect(getInvoiceDisplayDate({
       ueberwiesen_am: '2026-04-10',
       rechnung_gestellt_am: '2026-03-01',
+      erwarteter_monat_zahlungseingang: '2026-02-01',
+      re_faelligkeit: '2026-01-15'
+    })).toEqual({
+      date: new Date('2026-03-01'),
+      status: 'paid'
+    });
+  });
+
+  it('nimmt ueberwiesen_am wenn kein Rechnungsdatum gesetzt ist', () => {
+    expect(getInvoiceDisplayDate({
+      ueberwiesen_am: '2026-04-10',
       erwarteter_monat_zahlungseingang: '2026-02-01',
       re_faelligkeit: '2026-01-15'
     })).toEqual({
@@ -60,7 +71,7 @@ describe('InvoiceDisplayDate', () => {
     });
   });
 
-  it('bildet year/month nur aus dem Rechnungsdatum', () => {
+  it('bildet year/month aus derselben Kaskade wie der Kalender', () => {
     expect(getInvoiceMonthKey({ rechnung_gestellt_am: '2026-08-19' })).toEqual({
       year: 2026,
       month: 7
@@ -69,6 +80,17 @@ describe('InvoiceDisplayDate', () => {
       ueberwiesen_am: '2026-03-05',
       rechnung_gestellt_am: '2026-01-10'
     })).toEqual({ year: 2026, month: 0 });
-    expect(getInvoiceMonthKey({ ueberwiesen_am: '2026-03-05' })).toBeNull();
+    expect(getInvoiceMonthKey({ ueberwiesen_am: '2026-03-05' })).toEqual({
+      year: 2026,
+      month: 2
+    });
+    expect(getInvoiceMonthKey({ erwarteter_monat_zahlungseingang: '2026-11-01' })).toEqual({
+      year: 2026,
+      month: 10
+    });
+    expect(getInvoiceMonthKey({ re_faelligkeit: '2026-05-20' })).toEqual({
+      year: 2026,
+      month: 4
+    });
   });
 });

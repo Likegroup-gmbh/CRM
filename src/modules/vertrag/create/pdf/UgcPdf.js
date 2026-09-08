@@ -28,6 +28,10 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
 
     // Je nach Vertragstyp unterschiedliche PDF generieren
     if (vertrag.typ === 'Influencer Kooperation') {
+      const template = vertrag._pdfTemplate || this.formData?.vertrag_template || 'legacy';
+      if (template === 'awareness' && typeof this.generateAwarenessPDF === 'function') {
+        return this.generateAwarenessPDF(vertrag, lang);
+      }
       return this.generateInfluencerPDF(vertrag, lang);
     }
     
@@ -43,7 +47,12 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       return this.generateContractingPDF(vertrag, lang);
     }
 
-    // Standard: UGC-PDF
+    const template = vertrag._pdfTemplate || this.formData?.vertrag_template || 'legacy';
+    if (template === 'v2' && typeof this.generateUgcV2PDF === 'function') {
+      return this.generateUgcV2PDF(vertrag, lang);
+    }
+
+    // Standard: UGC-PDF (Legacy)
     try {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF();
@@ -664,7 +673,10 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
 
       // PDF als Blob generieren
       const pdfBlob = doc.output('blob');
-      const filePrefix = lang === 'en' ? 'EN_Contract' : 'Vertrag';
+      const template = vertrag._pdfTemplate || this.formData?.vertrag_template || 'legacy';
+      const filePrefix = template === 'v2'
+        ? (lang === 'en' ? 'EN_Contract_neu' : 'Vertrag_neu')
+        : (lang === 'en' ? 'EN_Contract' : 'Vertrag');
       const fileName = `${filePrefix}_${vertrag.name || 'UGC'}_${new Date().toISOString().split('T')[0]}.pdf`;
 
       const uploadResult = await uploadGeneratedVertragPdf(this, vertrag, pdfBlob, fileName);

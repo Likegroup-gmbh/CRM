@@ -51,7 +51,7 @@ export class ProduktPersonaDrawer {
       <div>
         <span class="drawer-title">${escapeHtml(titel || 'Persona')}</span>
         <p class="drawer-subtitle">
-          <span class="tag persona-card__badge ${istMatch ? 'persona-card__badge--match' : 'persona-card__badge--neu'}">${istMatch ? 'Bekannte Persona' : 'Neuer Vorschlag'}</span>
+          <span class="tag rel-card__badge ${istMatch ? 'rel-card__badge--match' : 'rel-card__badge--neu'}">${istMatch ? 'Bekannte Persona' : 'Neuer Vorschlag'}</span>
           ${persona.oberbegriff ? ` ${escapeHtml(persona.oberbegriff)}` : ''}
         </p>
       </div>

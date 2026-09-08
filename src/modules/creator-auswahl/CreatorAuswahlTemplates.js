@@ -685,6 +685,10 @@ export function berechnePreisAusViews(views, tkp) {
 function beschreibeAusreisser(item, fenster) {
   const outliers = item?.ig_stats?.[`outliers_${fenster}`];
   const werbung = Number(item?.ig_stats?.skipped_ads) || 0;
+  const trials = Number(item?.ig_stats?.skipped_trials) || 0;
+  const trialViews = Number(item?.ig_stats?.skipped_trial_views) || 0;
+  const gate = item?.ig_stats?.trial_gate;
+  const ohne = item?.ig_stats?.ohne_trials;
   if (!Array.isArray(outliers)) return null;
 
   const zeilen = [];
@@ -705,6 +709,22 @@ function beschreibeAusreisser(item, fenster) {
 
   if (werbung) {
     zeilen.push(`${werbung} Reel${werbung === 1 ? '' : 's'} mit Werbe-Kennzeichnung ausgeschlossen`);
+  }
+
+  if (trials) {
+    zeilen.push(`${trials} Trial-Reel${trials === 1 ? '' : 's'} als Duplikat ausgeschlossen`);
+  }
+
+  // Per View-Luecke erkannte Trials bleiben im Hauptwert enthalten (Variante
+  // A) - der Tooltip muss das sagen, sonst wirkt die zweite Zahl willkuerlich.
+  if (trialViews) {
+    zeilen.push(`${trialViews} Trial-Reel${trialViews === 1 ? '' : 's'} per View-Lücke erkannt (im Hauptwert enthalten)`);
+  }
+
+  const cleanViews = ohne?.[`views_${fenster}`];
+  if (gate?.aktiv && cleanViews != null) {
+    const luecke = gate.gap_ratio != null ? `, Lücke ${String(gate.gap_ratio).replace('.', ',')}x` : '';
+    zeilen.push(`Ohne Trials: Ø ${formatExactNumber(cleanViews)} Views (Schwelle ${formatExactNumber(gate.schwelle)}${luecke})`);
   }
 
   return zeilen.join('\n');
@@ -745,7 +765,7 @@ function renderPreisFreitextCell(ctx, item, columnClass, field, hide) {
  * Mit showViews steht unter dem Preis die View-Basis, sonst waere in der
  * Tabelle nicht erkennbar, worauf sich der 8er- bzw. 30er-Wert bezieht.
  */
-function renderAutoCpmCell(ctx, item, columnClass, views, hide, showViews = false, hinweis = null) {
+function renderAutoCpmCell(ctx, item, columnClass, views, hide, showViews = false, hinweis = null, cleanViews = null) {
   const tkp = getListenTkp(ctx.liste);
   const cpm = berechnePreisAusViews(views, tkp);
 
@@ -759,6 +779,15 @@ function renderAutoCpmCell(ctx, item, columnClass, views, hide, showViews = fals
 
   const reach = showViews && views != null ? formatReachShort(views) : null;
 
+  // Zweitwert ohne Trial-Reels (Variante B): nur wenn das Gate aktiv war und
+  // sich der Wert unterscheidet - sonst exakt die bisherige Zelle.
+  const cleanCpm = berechnePreisAusViews(cleanViews, tkp);
+  const cleanReach = cleanViews != null ? formatReachShort(cleanViews) : null;
+  const showClean = cleanViews != null && views != null && Number(cleanViews) !== Number(views);
+  const cleanLine = showClean
+    ? `<div class="cpm-auto-reach cpm-auto-reach--clean">${cleanCpm != null ? `${cleanCpm.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € · ` : ''}Ø ${cleanReach} ohne Trials</div>`
+    : '';
+
   return `
     <td class="cell-textarea ${columnClass}" style="${hide(columnClass)}">
       <div class="cell-text-readonly cpm-auto-value${ctx.kundenCallActive ? ' kunden-call-blur' : ''}"
@@ -766,6 +795,7 @@ function renderAutoCpmCell(ctx, item, columnClass, views, hide, showViews = fals
            title="${escapeHtml(title)}">
         <div class="cpm-auto-price">${value}</div>
         ${reach ? `<div class="cpm-auto-reach">Ø ${reach} Views</div>` : ''}
+        ${cleanLine}
       </div>
     </td>
   `;
@@ -994,9 +1024,9 @@ export function renderItemRow(ctx, item, index) {
       ${customAt('cp-col-link-ig')}
       ${renderFollowerCell(ctx, item, 'cp-col-follower-ig', 'follower_instagram', hide)}
       ${customAt('cp-col-follower-ig')}
-      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-8', item.ig_views_8, hide, true, beschreibeAusreisser(item, 8))}
+      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-8', item.ig_views_8, hide, true, beschreibeAusreisser(item, 8), item.ig_stats?.ohne_trials?.views_8)}
       ${customAt('cp-col-cpm-ig-8')}
-      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-30', item.ig_views_30, hide, true, beschreibeAusreisser(item, 30))}
+      ${renderAutoCpmCell(ctx, item, 'cp-col-cpm-ig-30', item.ig_views_30, hide, true, beschreibeAusreisser(item, 30), item.ig_stats?.ohne_trials?.views_30)}
       ${customAt('cp-col-cpm-ig-30')}
       ${renderPreisFreitextCell(ctx, item, 'cp-col-preis-reels', 'preis_reels', hide)}
       ${customAt('cp-col-preis-reels')}

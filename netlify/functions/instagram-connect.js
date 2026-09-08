@@ -15,11 +15,17 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const {
+  graphGet,
   normalizeUsername,
   isValidUsername,
+  isRateLimitError,
   fetchProfile: fetchDiscoveryProfile,
   storeImagePair
 } = require('./_shared/instagram-graph');
+const {
+  classifyVideos,
+  serialisiereTrialGate
+} = require('./_shared/instagram-cpm');
 const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 const { erkenneGeschlecht } = require('./_shared/geschlecht-erkennen');
 
@@ -38,10 +44,25 @@ const MAX_BRANDS_RESOLVE = 8;     // Limit wegen 26s Function-Timeout
 const BRAND_IMAGE_WIDTH = 320;    // Logos sind klein -> kleineres Hauptbild
 const BRAND_CACHE_MAX_AGE_DAYS = 30;
 
-// Profil + letzte 25 Posts (mit Engagement-Zahlen fuer die ER-Berechnung)
-const DISCOVERY_FIELDS = 'username,name,followers_count,media_count,'
-  + 'profile_picture_url,biography,website,'
-  + 'media.limit(25){caption,like_count,comments_count,media_type,media_url,thumbnail_url,permalink,timestamp}';
+// Profil-Felder fuer den Connect. view_count gehoert seit der
+// Trial-Reel-Erkennung dazu. Bewusst ohne media_product_type und
+// is_shared_to_feed: Business Discovery lehnt beide mit Fehlercode 100 ab
+// und ein abgelehntes Feld laesst den ganzen Call scheitern.
+const PROFILE_FIELDS = 'username,name,followers_count,media_count,'
+  + 'profile_picture_url,biography,website';
+const MEDIA_FIELDS = 'caption,like_count,comments_count,view_count,'
+  + 'media_type,media_url,thumbnail_url,permalink,timestamp';
+
+// Paginierung wie im Sourcing: eine Seite (25 bzw. 50 Posts) reicht oft
+// nicht, um die Trial-Flut als eigenen Cluster sichtbar zu machen.
+const PAGE_SIZE = 50;
+const MAX_PAGES = 3;   // 26s Function-Timeout neben Bild-Uploads und Brands
+// Genug verwertbare Reels fuer die Luecken-Erkennung - weiteres Paging waere
+// Quota-Verschwendung (gleiche Logik wie sourcing-instagram-stats).
+const ZIEL_VERWERTBAR = 45;
+
+// Brand-Aufloesung braucht keine Medien - spart Quota pro aufgeloestem Handle
+const BRAND_FIELDS = 'username,name,followers_count,profile_picture_url';
 
 function jsonResponse(statusCode, body) {
   return {
@@ -51,9 +72,57 @@ function jsonResponse(statusCode, body) {
   };
 }
 
-/** Ein Instagram-Profil via Business Discovery laden */
-function fetchProfile(username) {
-  return fetchDiscoveryProfile(username, DISCOVERY_FIELDS);
+/** Verwertbare Reels zaehlen (Paging-Abbruch, gleiche Logik wie die Rechnung) */
+function zaehleVerwertbar(media, now = Date.now()) {
+  return classifyVideos(media, now).included.length;
+}
+
+/**
+ * Profil + Medien paginiert laden. Fehler auf Folgeseiten sind nicht fatal:
+ * mit dem gerechnet, was da ist.
+ */
+async function fetchProfileWithMedia(username) {
+  const igUserId = process.env.META_IG_USER_ID;
+  let profile = null;
+  let media = [];
+  let after = null;
+
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const edge = after
+      ? `media.limit(${PAGE_SIZE}).after(${after}){${MEDIA_FIELDS}}`
+      : `media.limit(${PAGE_SIZE}){${MEDIA_FIELDS}}`;
+    const fields = page === 0 ? `${PROFILE_FIELDS},${edge}` : edge;
+
+    let data;
+    try {
+      data = await graphGet(igUserId, {
+        fields: `business_discovery.username(${username}){${fields}}`
+      });
+    } catch (err) {
+      if (page > 0) {
+        console.warn(`⚠️ instagram-connect: Seite ${page} fehlgeschlagen:`, err.message);
+        break;
+      }
+      return {
+        ok: false,
+        error: err.meta?.message || err.message,
+        error_code: err.meta?.code ?? null,
+        rate_limited: isRateLimitError(err.meta)
+      };
+    }
+
+    const bd = data.business_discovery || {};
+    if (page === 0) profile = bd;
+    media = media.concat(bd.media?.data || []);
+
+    after = bd.media?.paging?.cursors?.after || null;
+    if (!after || zaehleVerwertbar(media) >= ZIEL_VERWERTBAR) break;
+  }
+
+  if (!profile) {
+    return { ok: false, error: 'Profil konnte nicht geladen werden', error_code: null, rate_limited: false };
+  }
+  return { ok: true, profile, media };
 }
 
 /** Engagement Rate = Durchschnitt (Likes + Kommentare) / Follower ueber die geladenen Posts, in Prozent */
@@ -130,7 +199,7 @@ async function resolveBrands(supabase, handles) {
     }
 
     try {
-      const res = await fetchProfile(handle);
+      const res = await fetchDiscoveryProfile(handle, BRAND_FIELDS);
       if (!res.ok) {
         await supabase.from('instagram_brands').upsert({
           username: handle,
@@ -259,7 +328,7 @@ exports.handler = async (event) => {
     return jsonResponse(400, { error: 'Kein gültiger Instagram-Link am Creator hinterlegt' });
   }
 
-  const res = await fetchProfile(username);
+  const res = await fetchProfileWithMedia(username);
   if (!res.ok) {
     // Fehler am Creator vermerken (z.B. Rate-Limit / kein Business-Account)
     await supabase
@@ -288,7 +357,21 @@ exports.handler = async (event) => {
 
   const p = res.profile;
   const media = res.media;
+
+  // Trial-Reels per View-Luecke markieren (4. Pipeline-Stufe, siehe
+  // _shared/instagram-cpm.js). Die rohe Liste bleibt unveraendert in
+  // ig_recent_posts; die gefilterte Ansicht landet zusaetzlich in
+  // ig_recent_posts_clean - nur wenn das Gate aktiv war.
+  const { included: verwertbareReels, trialGate } = classifyVideos(media, Date.now());
+  const trialIds = new Set(
+    verwertbareReels.filter((v) => v.trial_views).map((v) => v.id).filter(Boolean)
+  );
+  const cleanMedia = trialGate.aktiv ? media.filter((m) => !trialIds.has(m.id)) : media;
+
   const engagementRate = computeEngagementRate(media, p.followers_count);
+  const engagementRateClean = trialGate.aktiv
+    ? computeEngagementRate(cleanMedia, p.followers_count)
+    : null;
   const brandHandles = extractBrandMentions(media);
   // Werbepartner zu Name + Logo aufloesen (Cache + Business Discovery).
   // Bulk-Laeufe senden skip_brands, um bis zu 8 zusaetzliche Graph-Calls
@@ -297,13 +380,19 @@ exports.handler = async (event) => {
     ? brandHandles // reine Handles (Alt-Format), UI normalisiert beides
     : await resolveBrands(supabase, brandHandles);
 
+  const rawPosts = media.slice(0, SAVED_POSTS);
+  const cleanPosts = cleanMedia.slice(0, SAVED_POSTS);
+  // Bild-Budget (5 Uploads) geht an die Liste, die die UI auch zeigt: bei
+  // aktivem Gate die gefilterte Ansicht, sonst die rohe.
+  const anzeigePosts = trialGate.aktiv ? cleanPosts : rawPosts;
+
   // Profilbild + Bilder der letzten 5 Posts nach Storage kopieren, jeweils als
   // Hauptbild und Thumbnail. Die Posts laufen parallel: sechs Bilder mal zwei
   // Encodes waeren sequenziell zu nah am 26s-Timeout. Die Geschlechts-Ableitung
   // haengt sich hier mit rein, weil sie auf nichts davon wartet.
   const [profilbild, postBilder, geschlecht] = await Promise.all([
     storeImagePair(supabase, p.profile_picture_url, `${creatorId}/profil`),
-    Promise.all(media.slice(0, SAVED_POSTS).map((m, i) => {
+    Promise.all(anzeigePosts.map((m, i) => {
       // Bei Videos/Reels liefert media_url die Videodatei -> Thumbnail nehmen
       const imageSource = m.media_type === 'VIDEO'
         ? (m.thumbnail_url || null)
@@ -313,25 +402,34 @@ exports.handler = async (event) => {
     ermittleGeschlecht(supabase, creator, p, username, auth.user.id)
   ]);
 
-  const recentPosts = media.slice(0, SAVED_POSTS).map((m, i) => ({
+  const bildByPermalink = new Map(
+    anzeigePosts.map((m, i) => [m.permalink, postBilder[i]]).filter(([link]) => link)
+  );
+  const mapPost = (m) => ({
     caption: m.caption || null,
     media_type: m.media_type || null,
     permalink: m.permalink || null,
     like_count: m.like_count ?? null,
     comments_count: m.comments_count ?? null,
+    view_count: m.view_count ?? null,
     timestamp: m.timestamp || null,
     // thumbnail_path bleibt das Hauptbild, damit vorhandene Daten weiter passen
-    thumbnail_path: postBilder[i]?.url || null,
-    thumbnail_thumb_path: postBilder[i]?.thumbUrl || null
-  }));
+    thumbnail_path: bildByPermalink.get(m.permalink)?.url || null,
+    thumbnail_thumb_path: bildByPermalink.get(m.permalink)?.thumbUrl || null
+  });
+  const recentPosts = rawPosts.map(mapPost);
+  const recentPostsClean = trialGate.aktiv ? cleanPosts.map(mapPost) : null;
 
   const update = {
     ig_username: username,
     ig_biography: p.biography || null,
     ig_media_count: p.media_count ?? null,
     ig_engagement_rate: engagementRate,
+    ig_engagement_rate_clean: engagementRateClean,
     ig_brand_mentions: brandMentions,
     ig_recent_posts: recentPosts,
+    ig_recent_posts_clean: recentPostsClean,
+    ig_trial_gate: serialisiereTrialGate(trialGate),
     instagram_follower: p.followers_count ?? null,
     ig_connected_at: new Date().toISOString(),
     ig_last_error: null
@@ -362,8 +460,10 @@ exports.handler = async (event) => {
     followers_count: p.followers_count ?? null,
     media_count: p.media_count ?? null,
     engagement_rate: engagementRate,
+    engagement_rate_clean: engagementRateClean,
     brand_mentions: brandMentions,
     posts_saved: recentPosts.length,
+    trial_gate: update.ig_trial_gate,
     profilbild_url: profilbild?.url || null,
     geschlecht: update.geschlecht || null
   });

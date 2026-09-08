@@ -11,8 +11,7 @@ const ICONS = {
   abort: icon('x-mark'),
   retry: icon('arrow-path'),
   done: icon('check-bold'),
-  collapse: icon('chevron-down'),
-  expand: icon('chevron-up'),
+  chevron: icon('chevron-down'),
 };
 
 function fmtMB(bytes) {
@@ -204,8 +203,8 @@ export class BackgroundUploadPanel {
         <span class="bg-upload-title">${escapeHtml(title)}</span>
         <div class="bg-upload-header-actions">
           ${hasDismissable ? `<button type="button" class="bg-upload-link" data-action="dismiss-all-done" title="Erledigte schließen">Schließen</button>` : ''}
-          <button type="button" class="bg-upload-toggle" title="${this.collapsed ? 'Ausklappen' : 'Einklappen'}">
-            ${this.collapsed ? ICONS.expand : ICONS.collapse}
+          <button type="button" class="bg-upload-toggle${this.collapsed ? ' is-collapsed' : ''}" title="${this.collapsed ? 'Ausklappen' : 'Einklappen'}">
+            ${ICONS.chevron}
           </button>
         </div>
       </div>

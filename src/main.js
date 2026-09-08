@@ -34,6 +34,7 @@ import '../assets/styles/stakeholder.css';
 import '../assets/styles/skripte.css';
 import '../assets/styles/chat-thinking.css';
 import '../assets/styles/chat-panel.css';
+import '../assets/styles/doc.css';
 import '../assets/styles/produkt-doc.css';
 import '../assets/styles/notiz-dokument.css';
 import '../assets/styles/regelwerk-dokument.css';
@@ -60,6 +61,7 @@ import { markeList } from './modules/marke/MarkeList.js';
 import { markeDetail } from './modules/marke/MarkeDetail.js';
 import { markeCreate } from './modules/marke/MarkeCreate.js';
 import { personaForm } from './modules/persona/PersonaForm.js';
+import { personaList } from './modules/persona/PersonaList.js';
 import { produktForm } from './modules/produkt/ProduktForm.js';
 import { produktList } from './modules/produkt/ProduktList.js';
 import { authService } from './modules/auth/AuthService.js';
@@ -91,6 +93,7 @@ import { ansprechpartnerCreate, managementAnsprechpartnerCreate } from './module
 import { rechnungList } from './modules/rechnung/RechnungList.js';
 import { rechnungDetail } from './modules/rechnung/RechnungDetail.js';
 import { actionsDropdown } from './core/ActionsDropdown.js';
+import { splitButton } from './core/components/SplitButton.js';
 import { hoverToolbar } from './core/hoverToolbar/HoverToolbar.js';
 import { tableSelect } from './core/components/TableSelect.js';
 import { mitarbeiterList } from './modules/admin/MitarbeiterList.js';
@@ -162,7 +165,9 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('marke', markeList);
   moduleRegistry.register('marke-detail', markeDetail);
   moduleRegistry.register('marke-create', markeCreate);
-  // Ein Formular fuer beide Besitzer: /marke/:id/persona und /unternehmen/:id/persona
+  // Top-Level-Liste und ein Formular fuer beide Besitzer:
+  // /persona, /persona/new, /persona/:id sowie /marke/:id/persona und /unternehmen/:id/persona
+  moduleRegistry.register('persona', personaList);
   moduleRegistry.register('persona-form', personaForm);
   moduleRegistry.register('produkt', produktList);
   moduleRegistry.register('produkt-form', produktForm);
@@ -269,6 +274,7 @@ window.creatorUtils = creatorUtils;
 window.AvatarBubbles = AvatarBubbles;
 window.formSystem = formSystem;
 window.ActionsDropdown = actionsDropdown;
+window.SplitButton = splitButton;
 window.bulkActionSystem = bulkActionSystem;
 
 // Duplicate Checker Service
@@ -296,6 +302,7 @@ App.set('breadcrumbSystem', breadcrumbSystem);
 App.set('bulkActionSystem', bulkActionSystem);
 App.set('submitGuard', submitGuard);
 App.set('ActionsDropdown', actionsDropdown);
+App.set('SplitButton', splitButton);
 App.set('creatorUtils', creatorUtils);
 App.set('kampagneUtils', kampagneUtils);
 App.set('authService', authService);
@@ -435,6 +442,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // ActionsDropdown initialisieren
     actionsDropdown.init();
+    splitButton.init();
 
     // Hover-Toolbars in Tabellenzellen (data-hover-toolbar)
     hoverToolbar.init();

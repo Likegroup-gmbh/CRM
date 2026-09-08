@@ -299,6 +299,14 @@ export function renderKundenrechnungen(detail) {
   const checkIcon = `${icon('check-bold')}`;
   const uncheckIcon = `${icon('x-mark')}`;
 
+  // Summiert die explodierten Teilrechnungen, nicht die Auftragskoepfe.
+  // Der Tab Auftraege rechnet bewusst anders (eine Zeile je Auftrag).
+  const sum = (field) => detail.kundenrechnungen
+    .reduce((total, r) => total + (parseFloat(r[field]) || 0), 0);
+  const sumNetto = sum('nettobetrag');
+  const sumUst = sum('ust_betrag');
+  const sumBrutto = sum('bruttobetrag');
+
   const rows = detail.kundenrechnungen.map(r => {
     const paymentClass = getPaymentRowStatusClass(r);
     return `
@@ -344,6 +352,15 @@ export function renderKundenrechnungen(detail) {
           </tr>
         </thead>
         <tbody>${rows}</tbody>
+        <tfoot>
+          <tr>
+            <td colspan="9">GESAMT</td>
+            <td>${formatCurrency(sumNetto)}</td>
+            <td>${formatCurrency(sumUst)}</td>
+            <td>${formatCurrency(sumBrutto)}</td>
+            <td colspan="3"></td>
+          </tr>
+        </tfoot>
       </table>
     </div>
   `;

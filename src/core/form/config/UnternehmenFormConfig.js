@@ -34,6 +34,9 @@ export const unternehmenConfig = {
     { name: 'rechnungsadresse_plz', label: 'PLZ', type: 'text', required: false, row: 'adresse2', colSize: 'small', section: 'stammdaten' },
     { name: 'rechnungsadresse_stadt', label: 'Stadt', type: 'text', required: false, row: 'adresse2', colSize: 'grow', section: 'stammdaten' },
     { name: 'rechnungsadresse_land', label: 'Land', type: 'text', required: false, defaultValue: 'Deutschland', section: 'stammdaten' },
+    { name: 'reg_code', label: 'Reg.-Code / Handelsregister', type: 'text', required: false, section: 'stammdaten' },
+    { name: 'ust_id', label: 'USt-IdNr.', type: 'text', required: false, section: 'stammdaten' },
+    { name: 'vertreten_durch', label: 'Vertreten durch', type: 'text', required: false, placeholder: 'z.B. Geschäftsführer Max Mustermann, handelnd auf Grundlage des Gesellschaftsvertrags', section: 'stammdaten' },
     // Section: Online - Logo
     { name: 'logo_file', label: 'Logo', type: 'custom', customType: 'uploader', accept: 'image/png,image/jpeg,image/webp', multiple: false, required: false, maxFileSize: 200 * 1024, section: 'online' },
     // Section: Team - Branchen, Management, Lead-Mitarbeiter, Mitarbeiter

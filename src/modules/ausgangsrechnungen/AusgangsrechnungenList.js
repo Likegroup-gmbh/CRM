@@ -4,6 +4,7 @@
 import { AuftragList } from '../auftrag/AuftragList.js';
 import { defaultReNrPrefix, sortRowsByPrefixedNumberDesc } from '../auftrag/logic/PrefixedNumberSort.js';
 import {
+  ALL_TAB,
   MONTH_LABELS,
   NO_RENR_TAB,
   UNDATED_TAB,
@@ -11,12 +12,13 @@ import {
   filterRowsByMonthYear,
   findInvoiceCacheRow,
   formatMonthEmptyText,
-  parseMonthTab,
-  resolveDefaultMonth
+  parseMonthTab
 } from '../auftrag/logic/InvoiceMonthFilter.js';
+import { animateNumber } from '../../core/animation/animateNumber.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
+import { SearchInput } from '../../core/components/SearchInput.js';
 import { getPaymentRowStatusClass } from '../auftrag/logic/PaymentRowStatus.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { renderTabButton } from '../../core/TabUtils.js';
@@ -45,38 +47,106 @@ export class AusgangsrechnungenList extends AuftragList {
     this.currentYear = now.getFullYear();
     this.currentMonth = now.getMonth();
     this._allInvoiceRows = [];
-    this._monthInitialized = false;
   }
 
   async render() {
     window.setHeadline('Kundenrechnungen');
 
     const isContracts = this.activeTab === 'contracts';
-    const viewToggleDisabled = isContracts ? 'disabled' : '';
 
-    const VIEW_LIST_ICON = `${icon('table-grid')}`;
-    const VIEW_CAL_ICON = `${icon('calendar-days')}`;
-
-    const html = `
-      <div class="page-header">
-        <div class="page-header-right">
-          <div class="view-toggle">
-            <button id="btn-view-list" class="mdc-btn mdc-btn--secondary ${this.currentView === 'list' ? 'active' : ''}" ${viewToggleDisabled}>${VIEW_LIST_ICON} Liste</button>
-            <button id="btn-view-calendar" class="mdc-btn mdc-btn--secondary ${this.currentView === 'calendar' ? 'active' : ''}" ${viewToggleDisabled}>${VIEW_CAL_ICON} Kalender</button>
-          </div>
-        </div>
-      </div>
-
-      <div id="page-tab-content"></div>
-    `;
-
-    window.setContentSafely(window.content, html);
+    // Die Shell besteht nur aus dem Tab-Content. Der Page-Header (View-Toggle)
+    // steckt im sticky Kopfbereich, den renderAuftraegeContent baut – so klebt
+    // alles bis zu den Monats-Tabs als ein Block oben.
+    window.setContentSafely(window.content, '<div id="page-tab-content" class="kundenrechnungen-page"></div>');
     this._shellRendered = true;
 
     this.renderAuftraegeContent();
     if (!isContracts && this.currentView === 'calendar') {
       await this.initCashFlowCalendar();
     }
+  }
+
+  // Kopfzeile: links Suche + Filter, rechts Aktions-Buttons + View-Toggle
+  // (Liste/Kalender). In der Listenansicht ist die fruehere .table-filter-wrapper
+  // hier mit integriert – eine Box/Zeile weniger im sticky Kopfbereich.
+  // Alle Klicks laufen ueber die globale Delegation in AuftragListEvents,
+  // SearchInput.bind wird nach jedem Re-Render erneut auf dieselbe ID gebunden.
+  _renderPageHeader(isContracts, { withFilters = false } = {}) {
+    const viewToggleDisabled = isContracts ? 'disabled' : '';
+    const filterDropdownStyle = isContracts ? 'style="display:none;"' : '';
+    const placeholder = isContracts ? 'Contract suchen...' : 'Auftrag suchen...';
+
+    const filtersLeft = withFilters ? `
+      <div class="page-header-left">
+        ${SearchInput.render('auftrag', {
+          placeholder,
+          currentValue: this.searchQuery
+        })}
+        ${!this.isKunde ? `<div id="filter-dropdown-container" ${filterDropdownStyle}></div>` : ''}
+      </div>
+    ` : '';
+
+    const tableActions = withFilters ? `
+      <div class="table-actions">
+        ${this.isAdmin ? '<button id="btn-select-all" class="mdc-btn mdc-btn--secondary">Alle auswählen</button>' : ''}
+        ${this.isAdmin ? '<button id="btn-deselect-all" class="mdc-btn mdc-btn--secondary" style="display:none;">Auswahl aufheben</button>' : ''}
+        <span id="selected-count" style="display:none;">0 ausgewählt</span>
+        ${this.isAdmin ? '<button id="btn-delete-selected" class="mdc-btn mdc-btn--delete" style="display:none;">Ausgewählte löschen</button>' : ''}
+      </div>
+    ` : '';
+
+    return `
+      <div class="page-header">
+        ${filtersLeft}
+        <div class="page-header-right">
+          ${tableActions}
+          <div class="view-toggle">
+            <button id="btn-view-list" class="mdc-btn mdc-btn--secondary ${this.currentView === 'list' ? 'active' : ''}" ${viewToggleDisabled}>${icon('table-grid')} Liste</button>
+            <button id="btn-view-calendar" class="mdc-btn mdc-btn--secondary ${this.currentView === 'calendar' ? 'active' : ''}" ${viewToggleDisabled}>${icon('calendar-days')} Kalender</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // Kundenrechnungen-Layout: Header + Auftrag/Contract-Tabs kleben oben
+  // (.kr-sticky-head), die Monats-Tabs kleben unten (.kr-sticky-foot).
+  // Dazwischen scrollt .kr-scroll-body mit den Summen-Cards und der Tabelle.
+  // Die Tabelle bekommt per CSS eine feste Mindesthoehe, damit der Monatswechsel
+  // keinen Layout-Sprung verursacht.
+  renderAuftraegeContent() {
+    const container = document.getElementById('page-tab-content');
+    if (!container) return;
+
+    const isContracts = this.activeTab === 'contracts';
+
+    if (this.currentView === 'calendar') {
+      container.innerHTML = `
+        <div class="kr-sticky-head">${this._renderPageHeader(isContracts)}</div>
+        <div class="kr-scroll-body">
+          <div id="auftrag-content-container">
+            <div id="calendar-container"></div>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="kr-sticky-head">
+        ${this._renderPageHeader(isContracts, { withFilters: true })}
+        ${this.renderTabNavigation()}
+      </div>
+
+      <div class="kr-scroll-body">
+        ${this.renderInvoiceSummaryCards()}
+        <div id="auftrag-table-wrapper">
+          ${this.renderListView(isContracts ? 'contracts' : 'auftraege')}
+        </div>
+      </div>
+
+      ${isContracts ? '' : `<div class="kr-sticky-foot">${this.renderMonthSheet()}</div>`}
+    `;
   }
 
   _getSortField() {
@@ -88,6 +158,8 @@ export class AusgangsrechnungenList extends AuftragList {
     return 19;
   }
 
+  // Nur die Tabelle – Summen-Cards und Monats-Tabs liegen im sticky Kopfbereich
+  // (renderAuftraegeContent), damit sie beim Scrollen stehen bleiben.
   renderListView(mode = 'auftraege') {
     const isContracts = mode === 'contracts';
     const loadingText = 'Lade Kundenrechnungen...';
@@ -124,11 +196,85 @@ export class AusgangsrechnungenList extends AuftragList {
               <td colspan="${this.getListColumnCount()}" class="loading">${loadingText}</td>
             </tr>
           </tbody>
+          ${this.renderInvoiceSummaryFoot()}
         </table>
     </div>
-
-    ${isContracts ? '' : this.renderMonthSheet()}
   `;
+  }
+
+  // Gleiche Optik wie die Summary-Cards auf Kampagne/Auftragsdetails:
+  // Werte oben, Label unten, eine Quelle (sumInvoiceRows) fuer Cards und tfoot.
+  renderInvoiceSummaryCards() {
+    const zero = this.formatSummaryCurrency(0);
+    const cards = [
+      { field: 'nettobetrag', label: 'Netto' },
+      { field: 'ust_betrag', label: 'Mehrwertsteuer' },
+      { field: 'bruttobetrag', label: 'Brutto' }
+    ];
+    return `
+      <div class="auftragsdetails-summary" id="ausgangsrechnungen-summary-cards">
+        <div class="summary-cards">
+          ${cards.map(({ field, label }) => `
+            <div class="summary-card" data-summary-card="${field}">
+              <div class="summary-value" data-summary-value="${field}">${zero}</div>
+              <div class="summary-label">${label}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  // Summen der aktuell sichtbaren Zeilen. Der Monatstab zeigt sonst nur, wie viele
+  // Rechnungen im Monat liegen, aber nicht, um wie viel Geld es geht.
+  renderInvoiceSummaryFoot() {
+    const zero = this.formatSummaryCurrency(0);
+    return `
+      <tfoot id="ausgangsrechnungen-summary">
+        <tr>
+          <td colspan="10" class="col-summary-label">Summe</td>
+          <td class="col-netto" data-summary="nettobetrag">${zero}</td>
+          <td class="col-mwst-prozent"></td>
+          <td class="col-ust" data-summary="ust_betrag">${zero}</td>
+          <td class="col-brutto" data-summary="bruttobetrag">${zero}</td>
+          <td colspan="${this.isKunde ? 4 : 5}"></td>
+        </tr>
+      </tfoot>
+    `;
+  }
+
+  formatSummaryCurrency(value) {
+    return new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' })
+      .format(Number(value) || 0);
+  }
+
+  sumInvoiceRows(rows) {
+    return (rows || []).reduce((acc, row) => {
+      acc.nettobetrag += parseFloat(row.nettobetrag) || 0;
+      acc.ust_betrag += parseFloat(row.ust_betrag) || 0;
+      acc.bruttobetrag += parseFloat(row.bruttobetrag) || 0;
+      return acc;
+    }, { nettobetrag: 0, ust_betrag: 0, bruttobetrag: 0 });
+  }
+
+  // animate: Count-Up/Down wie auf den Kampagnen-Summary-Cards (zentrales
+  // animateNumber). Cards und tfoot zeigen dieselbe Zahl und laufen synchron.
+  updateInvoiceSummary(rows, { animate = false } = {}) {
+    const totals = this.sumInvoiceRows(rows);
+    const foot = document.getElementById('ausgangsrechnungen-summary');
+    const cards = document.getElementById('ausgangsrechnungen-summary-cards');
+    const format = (v) => this.formatSummaryCurrency(v);
+    Object.entries(totals).forEach(([field, value]) => {
+      const targets = [
+        foot?.querySelector(`[data-summary="${field}"]`),
+        cards?.querySelector(`[data-summary-value="${field}"]`)
+      ];
+      targets.forEach((el) => {
+        if (!el) return;
+        if (animate) animateNumber(el, value, { format });
+        else el.textContent = format(value);
+      });
+    });
   }
 
   renderMonthSheet() {
@@ -137,6 +283,13 @@ export class AusgangsrechnungenList extends AuftragList {
     for (let year = nowYear - 5; year <= nowYear + 5; year += 1) {
       yearOptions.push(`<option value="${year}" ${year === this.currentYear ? 'selected' : ''}>${year}</option>`);
     }
+
+    const allTab = renderTabButton({
+      tab: ALL_TAB,
+      label: `Alle<span class="tab-count" data-month-count="${ALL_TAB}">0</span>`,
+      isActive: this.currentMonth === ALL_TAB,
+      skipPermissionCheck: true
+    });
 
     const monthTabs = MONTH_LABELS.map((label, index) => renderTabButton({
       tab: String(index),
@@ -164,6 +317,7 @@ export class AusgangsrechnungenList extends AuftragList {
         <select id="ausgangsrechnungen-year-select" class="form-select" aria-label="Jahr">
           ${yearOptions.join('')}
         </select>
+        ${allTab}
         ${monthTabs}
         ${undatedTab}
         ${noRenrTab}
@@ -214,9 +368,11 @@ export class AusgangsrechnungenList extends AuftragList {
     });
   }
 
-  async updateTable(auftraege, mode = 'auftraege') {
+  async updateTable(auftraege, mode = 'auftraege', { animate = false } = {}) {
     const tbody = document.querySelector('.data-table tbody');
     if (!tbody) return;
+
+    this.updateInvoiceSummary(auftraege, { animate });
 
     const isContracts = mode === 'contracts';
     const actionEntity = isContracts ? 'contract' : 'auftrag';
@@ -268,20 +424,9 @@ export class AusgangsrechnungenList extends AuftragList {
     });
   }
 
+  // Der erwartete Zahlungseingang entspricht der RE-Faelligkeit und ist nicht editierbar.
   renderExpectedPaymentDateCell(auftrag) {
-    if (!this.isAdmin) {
-      return this.formatDate(auftrag.erwarteter_monat_zahlungseingang);
-    }
-    const { id, entity } = this._inlineTarget(auftrag);
-    return CustomDatePicker.render({
-      id,
-      entity,
-      field: 'erwarteter_monat_zahlungseingang',
-      dateField: '',
-      value: auftrag.erwarteter_monat_zahlungseingang,
-      label: 'Erwarteter Zahlungseingang',
-      inputClass: 'auftrag-inline-date-input'
-    });
+    return this.formatDate(auftrag.re_faelligkeit);
   }
 
   // Bei Kundenrechnungen werden Inline-Edits pro Teilrechnung geschrieben,
@@ -314,7 +459,7 @@ export class AusgangsrechnungenList extends AuftragList {
       year: this.currentYear,
       month: this.currentMonth
     });
-    this.updateTable(filtered, 'auftraege');
+    this.updateTable(filtered, 'auftraege', { animate: true });
     this.updateMonthTabUI();
   }
 
@@ -332,6 +477,8 @@ export class AusgangsrechnungenList extends AuftragList {
     if (undatedEl) undatedEl.textContent = counts[UNDATED_TAB] || 0;
     const noRenrEl = document.querySelector(`[data-month-count="${NO_RENR_TAB}"]`);
     if (noRenrEl) noRenrEl.textContent = counts[NO_RENR_TAB] || 0;
+    const allEl = document.querySelector(`[data-month-count="${ALL_TAB}"]`);
+    if (allEl) allEl.textContent = counts[ALL_TAB] || 0;
 
     const yearSelect = document.getElementById('ausgangsrechnungen-year-select');
     if (yearSelect && String(yearSelect.value) !== String(this.currentYear)) {
@@ -346,7 +493,7 @@ export class AusgangsrechnungenList extends AuftragList {
 
   selectInvoiceMonth(tab) {
     const next = parseMonthTab(tab);
-    if (Number.isNaN(next) && next !== UNDATED_TAB && next !== NO_RENR_TAB) return;
+    if (Number.isNaN(next) && next !== UNDATED_TAB && next !== NO_RENR_TAB && next !== ALL_TAB) return;
     if (next === this.currentMonth) return;
     this.currentMonth = next;
     this.applyMonthFilter();
@@ -547,11 +694,8 @@ export class AusgangsrechnungenList extends AuftragList {
         return { data: sorted.slice(from, from + limit), count: sorted.length };
       }
 
-      if (!this._monthInitialized) {
-        this.currentMonth = resolveDefaultMonth(sorted, this.currentYear, this.currentMonth);
-        this._monthInitialized = true;
-      }
-
+      // Kein Auto-Sprung in den ersten Monat mit Daten: die Auswahl (Singleton)
+      // bleibt ueber SPA-Navigation erhalten, Default ist der aktuelle Monat.
       const filtered = filterRowsByMonthYear(sorted, {
         year: this.currentYear,
         month: this.currentMonth
@@ -566,7 +710,6 @@ export class AusgangsrechnungenList extends AuftragList {
 
   destroy() {
     this._allInvoiceRows = [];
-    this._monthInitialized = false;
     super.destroy();
   }
 }

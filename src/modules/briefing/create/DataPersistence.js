@@ -153,7 +153,8 @@ BriefingCreate.prototype.prepareDataForDB = function() {
   const data = {
     bereich,
     unternehmen_id: this.formData.unternehmen_id || null,
-    marke_id: this.formData.marke_id || null
+    marke_id: this.formData.marke_id || null,
+    assignee_id: this.formData.assignee_id || null
   };
 
   for (const field of getAllFields()) {
@@ -386,6 +387,7 @@ BriefingCreate.prototype.loadFromDB = async function(id) {
     this.formData.bereich = briefing.bereich;
     this.formData.unternehmen_id = briefing.unternehmen_id;
     this.formData.marke_id = briefing.marke_id;
+    this.formData.assignee_id = briefing.assignee_id;
 
     const produkte = await loadBriefingProdukte(id);
     this.formData.produkt_ids = produkte.map(p => p.id);

@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  ALL_TAB,
   NO_RENR_TAB,
   UNDATED_TAB,
   countRowsByMonth,
   filterRowsByMonthYear,
   findInvoiceCacheRow,
-  formatMonthEmptyText,
-  resolveDefaultMonth
+  formatMonthEmptyText
 } from '../modules/auftrag/logic/InvoiceMonthFilter.js';
 import { AusgangsrechnungenList } from '../modules/ausgangsrechnungen/AusgangsrechnungenList.js';
 import { defaultReNrPrefix } from '../modules/auftrag/logic/PrefixedNumberSort.js';
@@ -27,7 +27,7 @@ describe('InvoiceMonthFilter', () => {
     expect(january.map(r => r.id)).toEqual(['a1', 'a2']);
   });
 
-  it('ordnet nach Rechnungsdatum, nicht nach Zahlungsdatum', () => {
+  it('ordnet nach RE gestellt am, nicht nach ueberwiesen_am', () => {
     const march = filterRowsByMonthYear(rows, { year: 2026, month: 2 });
     expect(march).toEqual([]);
   });
@@ -51,24 +51,25 @@ describe('InvoiceMonthFilter', () => {
     expect(filterRowsByMonthYear(rows, { year: 2026, month: UNDATED_TAB }).map(r => r.id)).not.toContain('a5');
   });
 
+  it('gibt im Alle-Tab jede Zeile jahr- und monatsunabhaengig zurueck', () => {
+    expect(filterRowsByMonthYear(rows, { year: 2026, month: ALL_TAB })).toEqual(rows);
+    expect(filterRowsByMonthYear(rows, { year: 2019, month: ALL_TAB })).toEqual(rows);
+  });
+
   it('zaehlt Monate, Ohne-Datum und Ohne-RE-Nr separat', () => {
     expect(countRowsByMonth(rows, 2026)).toEqual({
       undated: 1,
       'no-renr': 1,
+      alle: rows.length,
       months: [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     });
-  });
-
-  it('nimmt den aktuellen Monat wenn Daten da sind, sonst den ersten Monat mit Daten', () => {
-    expect(resolveDefaultMonth(rows, 2026, 0)).toBe(0);
-    expect(resolveDefaultMonth(rows, 2026, 7)).toBe(0);
-    expect(resolveDefaultMonth([{ id: 'x' }], 2026, 7)).toBe(NO_RENR_TAB);
   });
 
   it('formatiert den Empty-State monatsbezogen', () => {
     expect(formatMonthEmptyText(7, 2026)).toBe('Keine Rechnungen im August 2026.');
     expect(formatMonthEmptyText(UNDATED_TAB, 2026)).toBe('Keine Rechnungen ohne Datum.');
     expect(formatMonthEmptyText(NO_RENR_TAB, 2026)).toBe('Keine Rechnungen ohne Rechnungsnummer.');
+    expect(formatMonthEmptyText(ALL_TAB, 2026)).toBe('Keine Rechnungen vorhanden.');
   });
 
   it('findet Cache-Zeilen ueber Teilrechnungs- oder Auftrags-ID', () => {
@@ -91,11 +92,63 @@ describe('AusgangsrechnungenList Monatssheet', () => {
     const list = new AusgangsrechnungenList();
     expect(list.usesPagination).toBe(false);
 
-    document.body.innerHTML = list.renderListView();
+    document.body.innerHTML = '<div id="page-tab-content" class="kundenrechnungen-page"></div>';
+    list.renderAuftraegeContent();
     expect(document.getElementById('pagination-auftrag')).toBeNull();
     expect(document.getElementById('ausgangsrechnungen-month-tabs')).toBeTruthy();
     expect(document.getElementById('ausgangsrechnungen-year-select')).toBeTruthy();
-    expect(document.querySelectorAll('#ausgangsrechnungen-month-tabs .tab-button')).toHaveLength(14);
+    expect(document.querySelectorAll('#ausgangsrechnungen-month-tabs .tab-button')).toHaveLength(15);
+  });
+
+  it('legt Monats-Tabs in den Fuss und Summen in den scrollenden Mittelteil', () => {
+    const list = new AusgangsrechnungenList();
+    document.body.innerHTML = '<div id="page-tab-content" class="kundenrechnungen-page"></div>';
+    list.renderAuftraegeContent();
+
+    const stickyHead = document.querySelector('.kr-sticky-head');
+    const scrollBody = document.querySelector('.kr-scroll-body');
+    const stickyFoot = document.querySelector('.kr-sticky-foot');
+    expect(stickyHead).toBeTruthy();
+    expect(scrollBody).toBeTruthy();
+    expect(stickyFoot).toBeTruthy();
+
+    // Kopf: keine Monats-Tabs / Summen / Tabelle mehr
+    expect(stickyHead.querySelector('#ausgangsrechnungen-month-tabs')).toBeNull();
+    expect(stickyHead.querySelector('#ausgangsrechnungen-summary-cards')).toBeNull();
+    expect(stickyHead.querySelector('#auftrag-table-container')).toBeNull();
+
+    // Mitte scrollt: Summen-Cards + Tabelle
+    expect(scrollBody.querySelector('#ausgangsrechnungen-summary-cards')).toBeTruthy();
+    expect(scrollBody.querySelector('#auftrag-table-container')).toBeTruthy();
+
+    // Fuss: Monats-Tabs
+    expect(stickyFoot.querySelector('#ausgangsrechnungen-month-tabs')).toBeTruthy();
+
+    // DOM-Reihenfolge: Kopf -> Mitte -> Fuss
+    expect(stickyHead.compareDocumentPosition(scrollBody) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(scrollBody.compareDocumentPosition(stickyFoot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('integriert Suche und Aktionen in den Page-Header ohne separate Filter-Box', () => {
+    const list = new AusgangsrechnungenList();
+    document.body.innerHTML = '<div id="page-tab-content" class="kundenrechnungen-page"></div>';
+    list.renderAuftraegeContent();
+
+    // Keine separate Filter-Zeile mehr auf dieser Seite
+    expect(document.querySelector('.table-filter-wrapper')).toBeNull();
+
+    const header = document.querySelector('.kr-sticky-head .page-header');
+    expect(header).toBeTruthy();
+    // Links: Suche + Filter-Dropdown
+    expect(header.querySelector('.page-header-left #auftrag-search-input')).toBeTruthy();
+    expect(header.querySelector('.page-header-left #filter-dropdown-container')).toBeTruthy();
+    // Rechts: Aktions-Buttons + View-Toggle
+    expect(header.querySelector('.page-header-right #btn-select-all')).toBeTruthy();
+    expect(header.querySelector('.page-header-right #btn-deselect-all')).toBeTruthy();
+    expect(header.querySelector('.page-header-right #selected-count')).toBeTruthy();
+    expect(header.querySelector('.page-header-right #btn-delete-selected')).toBeTruthy();
+    expect(header.querySelector('.page-header-right #btn-view-list')).toBeTruthy();
+    expect(header.querySelector('.page-header-right #btn-view-calendar')).toBeTruthy();
   });
 
   it('kuerzt die Rechnungsspalten auf alltagstaugliche Header', () => {
@@ -128,7 +181,35 @@ describe('AusgangsrechnungenList Monatssheet', () => {
     expect(document.querySelector('[data-month-count="2"]').textContent).toBe('0');
     expect(document.querySelector(`[data-month-count="${UNDATED_TAB}"]`).textContent).toBe('1');
     expect(document.querySelector(`[data-month-count="${NO_RENR_TAB}"]`).textContent).toBe('1');
+    expect(document.querySelector(`[data-month-count="${ALL_TAB}"]`).textContent).toBe(String(rows.length));
     expect(document.querySelector('#ausgangsrechnungen-month-tabs .tab-button[data-tab="0"]').classList.contains('active')).toBe(true);
+  });
+
+  it('stellt den Alle-Tab voran und zeigt darin alle Zeilen', () => {
+    const list = new AusgangsrechnungenList();
+    list.currentYear = 2026;
+    list.currentMonth = 0;
+    list._allInvoiceRows = rows;
+    list.updateTable = vi.fn();
+    document.body.innerHTML = list.renderMonthSheet();
+
+    const tabs = [...document.querySelectorAll('#ausgangsrechnungen-month-tabs .tab-button[data-tab]')];
+    expect(tabs[0].dataset.tab).toBe(ALL_TAB);
+    expect(tabs.at(-1).dataset.tab).toBe(NO_RENR_TAB);
+
+    list.selectInvoiceMonth(ALL_TAB);
+    expect(list.currentMonth).toBe(ALL_TAB);
+    expect(list.updateTable).toHaveBeenCalledWith(rows, 'auftraege', { animate: true });
+  });
+
+  it('waehlt trotz vorangestelltem Alle-Tab den aktuellen Monat vor', () => {
+    const list = new AusgangsrechnungenList();
+    const now = new Date();
+    expect(list.currentMonth).toBe(now.getMonth());
+
+    document.body.innerHTML = list.renderMonthSheet();
+    const active = document.querySelector('#ausgangsrechnungen-month-tabs .tab-button.active');
+    expect(active.dataset.tab).toBe(String(now.getMonth()));
   });
 
   it('filtert beim Tab-Wechsel nur den Cache', () => {
@@ -141,7 +222,7 @@ describe('AusgangsrechnungenList Monatssheet', () => {
 
     list.selectInvoiceMonth('2');
     expect(list.currentMonth).toBe(2);
-    expect(list.updateTable).toHaveBeenCalledWith([], 'auftraege');
+    expect(list.updateTable).toHaveBeenCalledWith([], 'auftraege', { animate: true });
   });
 
   it('entfernt eine Zeile aus dem aktuellen Monat nach Rechnungsdatum-Edit', () => {
@@ -159,7 +240,7 @@ describe('AusgangsrechnungenList Monatssheet', () => {
     });
 
     expect(list._allInvoiceRows[0].rechnung_gestellt_am).toBe('2026-04-10');
-    expect(list.updateTable).toHaveBeenCalledWith([rows[1]], 'auftraege');
+    expect(list.updateTable).toHaveBeenCalledWith([rows[1]], 'auftraege', { animate: true });
   });
 
   it('entfernt eine Zeile aus Ohne-RE-Nr nach re_nr-Save', () => {
@@ -173,7 +254,7 @@ describe('AusgangsrechnungenList Monatssheet', () => {
     list.onInlineReNrUpdated({ id: 'tr5', value: 'RE-5' });
 
     expect(list._allInvoiceRows[4].re_nr).toBe('RE-5');
-    expect(list.updateTable).toHaveBeenCalledWith([], 'auftraege');
+    expect(list.updateTable).toHaveBeenCalledWith([], 'auftraege', { animate: true });
   });
 
   it('rendert re_nr als grid-input fuer Admins und als Text fuer Kunden', () => {
@@ -353,17 +434,20 @@ describe('AusgangsrechnungenList Monatssheet', () => {
     expect(result).toEqual({ re_nr: 'RE-2026-001' });
   });
 
-  it('leert den Cache beim Destroy und entfernt den focusin-Listener', () => {
+  it('leert den Cache beim Destroy, behaelt die Monatsauswahl und entfernt den focusin-Listener', () => {
     const list = new AusgangsrechnungenList();
     list._allInvoiceRows = rows;
-    list._monthInitialized = true;
+    list.currentYear = 2025;
+    list.currentMonth = 3;
     list.bindGlobalDelegatedEvents();
     expect(list._globalFocusInHandler).toEqual(expect.any(Function));
     const focusHandler = list._globalFocusInHandler;
     const remove = vi.spyOn(document, 'removeEventListener');
     list.destroy();
     expect(list._allInvoiceRows).toEqual([]);
-    expect(list._monthInitialized).toBe(false);
+    // Kein Auto-Sprung mehr: die Auswahl ueberlebt die SPA-Navigation.
+    expect(list.currentYear).toBe(2025);
+    expect(list.currentMonth).toBe(3);
     expect(remove).toHaveBeenCalledWith('focusin', focusHandler);
     expect(list._globalFocusInHandler).toBeNull();
     remove.mockRestore();

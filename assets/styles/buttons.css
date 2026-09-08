@@ -159,6 +159,71 @@ button.is-submit-locked,
   background: var(--gray-700);
 }
 
+/* ===== SPLIT BUTTON ===== */
+
+.split-btn {
+  display: inline-flex;
+  align-items: stretch;
+  position: relative;
+}
+
+.split-btn__main {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.split-btn__toggle {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  padding-left: var(--space-xs);
+  padding-right: var(--space-xs);
+  min-width: 2rem;
+}
+
+.split-btn__toggle .crm-icon,
+.split-btn__toggle svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+  transition: transform 0.15s ease;
+}
+
+.split-btn.is-open .split-btn__toggle {
+  background: var(--gray-800);
+}
+
+.split-btn.is-open .split-btn__toggle .crm-icon,
+.split-btn.is-open .split-btn__toggle svg {
+  transform: rotate(180deg);
+}
+
+.split-btn__divider {
+  width: 1px;
+  align-self: stretch;
+  margin: 6px 0;
+  background: rgba(255, 255, 255, 0.22);
+  flex-shrink: 0;
+}
+
+.split-btn--secondary .split-btn__divider,
+.split-btn--cancel .split-btn__divider {
+  background: var(--gray-300);
+}
+
+.split-btn--secondary.is-open .split-btn__toggle,
+.split-btn--cancel.is-open .split-btn__toggle {
+  background: var(--gray-100);
+}
+
+.split-btn__menu {
+  display: none;
+}
+
+.split-btn.is-disabled,
+.split-btn.is-busy {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
 /* ===== LEGACY BUTTONS (aus components.css uebernommen) ===== */
 
 .primary-btn {

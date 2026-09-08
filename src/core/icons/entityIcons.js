@@ -39,6 +39,7 @@ export const ENTITY_ICONS = {
   feedback: 'chat-bubble',
   produkt: 'cube',
   produkte: 'cube',
+  persona: 'user',
   skripte: 'skripte',
   'ki-usage': 'document-currency',
   education: 'home',

@@ -2,12 +2,20 @@
 // Eigene Seite zum Anlegen und Bearbeiten einer Persona.
 // Routen: /marke/:markeId/persona und /unternehmen/:unternehmenId/persona
 //         (Bearbeiten jeweils mit ?persona=:id)
-// Layout wie "Marke anlegen": Split-Container, Formular links auf halber Breite.
+//         /persona/new und /persona/:id (Standalone aus der Liste)
 //
-// Im Unternehmens-Kontext steht im Formular ein Marken-Multiselect. Aus einer
-// Marke heraus ist die Zuordnung fix - das Feld wird dort entfernt.
+// Die Seite ist ein Worksheet wie das Produkt (core/doc/DocPage.js via
+// PersonaDoc.js): mittig das Schreibdokument, rechts der Liky-Slot, ganz
+// unten das Produkte-Band (PersonaProduktPanel.js) - gleiches Layout und
+// gleiche Verknuepfungs-Mechanik wie am Produkt.
+//
+// Im Unternehmens-Kontext steht im Dokument ein Marken-Multiselect. Aus einer
+// Marke heraus ist die Zuordnung fix - das Feld wird dort nicht gerendert.
 
 import { PersonaService } from './PersonaService.js';
+import { ProduktPersonaService } from '../produkt/ProduktPersonaService.js';
+import { renderPersonaDoc, bindPersonaDoc } from './PersonaDoc.js';
+import { PersonaProduktPanel } from './PersonaProduktPanel.js';
 import { resolveOwnerContext } from '../../core/OwnerContext.js';
 import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
 import { icon } from '../../core/icons/IconSystem.js';
@@ -19,6 +27,7 @@ export class PersonaForm {
     this.personaId = null;
     this.persona = null;
     this.markenIds = [];
+    this.produktPanel = null;
     this._abort = null;
   }
 
@@ -26,8 +35,12 @@ export class PersonaForm {
     return !!this.personaId;
   }
 
+  get isStandalone() {
+    return window.location.pathname.split('/').filter(Boolean)[0] === 'persona';
+  }
+
   get returnRoute() {
-    return `${this.ctx.basePath}?tab=personas`;
+    return this.isStandalone ? '/persona' : `${this.ctx.basePath}?tab=personas`;
   }
 
   async init(ownerId) {
@@ -35,90 +48,137 @@ export class PersonaForm {
     this._abort = new AbortController();
 
     this.personaId = new URLSearchParams(window.location.search).get('persona');
+    if (this.isStandalone) {
+      this.personaId = ownerId && ownerId !== 'new' ? ownerId : null;
+    }
     this.persona = null;
     this.markenIds = [];
 
     try {
-      this.ctx = await resolveOwnerContext(ownerId);
-      this.owner = this.ctx.owner;
-
-      if (this.personaId) {
-        this.persona = await PersonaService.loadOne(this.personaId, this.ctx);
-        if (!this.persona) {
-          window.toastSystem?.error?.('Persona nicht gefunden');
-          window.navigateTo(this.returnRoute);
-          return;
+      if (this.isStandalone) {
+        if (this.personaId) {
+          this.persona = await PersonaService.loadOne(this.personaId);
+          if (!this.persona) {
+            window.toastSystem?.error?.('Persona nicht gefunden');
+            window.navigateTo(this.returnRoute);
+            return;
+          }
+          this.markenIds = await PersonaService.loadMarkenIds(this.personaId);
         }
-        this.markenIds = await PersonaService.loadMarkenIds(this.personaId);
+        this.ctx = {
+          typ: 'persona',
+          markeId: null,
+          unternehmenId: this.persona?.unternehmen_id || null,
+          owner: null,
+          basePath: '/persona',
+          listPath: '/persona',
+          listLabel: 'Personas',
+          ownerLabel: 'Übersicht',
+          markenAnzahl: 0
+        };
+        this.owner = null;
+      } else {
+        this.ctx = await resolveOwnerContext(ownerId);
+        this.owner = this.ctx.owner;
+
+        if (this.personaId) {
+          this.persona = await PersonaService.loadOne(this.personaId, this.ctx);
+          if (!this.persona) {
+            window.toastSystem?.error?.('Persona nicht gefunden');
+            window.navigateTo(this.returnRoute);
+            return;
+          }
+          this.markenIds = await PersonaService.loadMarkenIds(this.personaId);
+        }
       }
     } catch (err) {
       console.error('Persona-Formular konnte nicht geladen werden:', err);
       window.ErrorHandler?.handle?.(err, 'PersonaForm.init');
-      window.navigateTo(this.ctx?.basePath || '/marke');
+      window.navigateTo(this.isStandalone ? '/persona' : (this.ctx?.basePath || '/marke'));
       return;
     }
 
-    this.render();
+    await this.render();
     this.bindEvents();
   }
 
-  render() {
+  async render() {
     const title = this.isEdit
       ? PersonaService.label(this.persona)
       : 'Neue Persona anlegen';
 
     window.setHeadline(title);
 
-    window.breadcrumbSystem?.updateBreadcrumb([
-      { label: this.ctx.listLabel, url: this.ctx.listPath, clickable: true },
-      { label: this.ctx.ownerLabel, url: this.ctx.basePath, clickable: true },
-      { label: 'Personas', url: this.returnRoute, clickable: true },
-      { label: this.isEdit ? PersonaService.label(this.persona) : 'Persona anlegen', clickable: false }
-    ], null, {
-      switcher: this.isEdit ? nestedSwitcherContext('persona', this.personaId, this.ctx) : null
-    });
+    if (this.isStandalone) {
+      // Schlichter Kontext statt nestedSwitcherContext: ctx.basePath ist '/persona',
+      // damit wuerde nestedOwnerRoute '/persona/persona?persona=<id>' bauen. Der
+      // Fallback '/persona/<id>' ist die korrekte Standalone-Route.
+      window.breadcrumbSystem?.updateBreadcrumb([
+        { label: 'Personas', url: '/persona', clickable: true },
+        { label: this.isEdit ? PersonaService.label(this.persona) : 'Persona anlegen', clickable: false }
+      ], null, {
+        switcher: this.isEdit ? { segment: 'persona', id: this.personaId } : null
+      });
+    } else {
+      window.breadcrumbSystem?.updateBreadcrumb([
+        { label: this.ctx.listLabel, url: this.ctx.listPath, clickable: true },
+        { label: this.ctx.ownerLabel, url: this.ctx.basePath, clickable: true },
+        { label: 'Personas', url: this.returnRoute, clickable: true },
+        { label: this.isEdit ? PersonaService.label(this.persona) : 'Persona anlegen', clickable: false }
+      ], null, {
+        switcher: this.isEdit ? nestedSwitcherContext('persona', this.personaId, this.ctx) : null
+      });
+    }
 
     const formData = this.isEdit
       ? { ...this.persona, marke_ids: this.markenIds, _isEditMode: true, _entityId: this.persona.id }
       : null;
-    const formHtml = window.formSystem.renderFormOnly('persona', formData);
 
-    window.content.innerHTML = `
-      <div class="form-split-container">
-        <div class="form-split-left">
-          <div class="form-page">${formHtml}</div>
-        </div>
-        <div class="form-split-right hidden"></div>
-      </div>
-    `;
+    window.content.innerHTML = renderPersonaDoc(formData, {
+      mitMarkenFeld: this.zeigtMarkenFeld,
+      mitUnternehmenFeld: this.isStandalone,
+      unternehmenId: this.ctx?.unternehmenId || null
+    });
 
     const form = document.getElementById('persona-form');
-    this.prepareMarkenFeld(form);
+    bindPersonaDoc(form, formData);
 
-    window.formSystem.bindFormEvents('persona', formData);
+    if (this.isStandalone) {
+      this.prepareStandalone(form);
+    }
+
+    // Searchable-Selects und Tag-Multiselect (Unternehmen, Branche, Marken)
+    await window.formSystem.bindFormEvents('persona', formData);
+
+    this.produktPanel = new PersonaProduktPanel();
+    await this.produktPanel.mount(form, {
+      personaId: this.personaId,
+      getUnternehmenId: () => this.ctx?.unternehmenId
+        || form.querySelector('[name="unternehmen_id"]')?.value
+        || null
+    });
   }
 
   get zeigtMarkenFeld() {
+    if (this.isStandalone) return true;
     return !this.ctx.markeId && this.ctx.markenAnzahl > 0;
   }
 
   /**
-   * Das Marken-Multiselect braucht die unternehmen_id als Filter-Parent
-   * (field.filterBy in DirectQueryLoader). Aus einer Marke heraus ist die
-   * Zuordnung fix und ein Unternehmen ohne Marken hat nichts zu waehlen -
-   * in beiden Faellen fliegt das Feld raus.
+   * Standalone: Unternehmen ist ein sichtbares, pflichtiges Searchable-Select.
+   * Im Edit bleibt es readonly, damit die Persona nicht zwischen Unternehmen
+   * wandert. Das Marken-Feld bleibt optional, der DirectQueryLoader filtert
+   * ueber dependsOn automatisch.
    */
-  prepareMarkenFeld(form) {
+  prepareStandalone(form) {
     if (!form) return;
 
-    const hidden = document.createElement('input');
-    hidden.type = 'hidden';
-    hidden.name = 'unternehmen_id';
-    hidden.value = this.ctx.unternehmenId || '';
-    form.appendChild(hidden);
-
-    if (!this.zeigtMarkenFeld) {
-      form.querySelector('[name="marke_ids"]')?.closest('.form-field')?.remove();
+    if (this.isEdit) {
+      const unternehmenField = form.querySelector('[name="unternehmen_id"]');
+      if (unternehmenField) {
+        unternehmenField.disabled = true;
+        unternehmenField.classList.add('is-readonly');
+      }
     }
   }
 
@@ -135,11 +195,9 @@ export class PersonaForm {
       await this.handleSubmit();
     };
 
-    // Der Abbrechen-Button aus renderFormOnly zeigt fest auf /persona - die Route
-    // existiert nicht, deshalb zurueck auf den Personas-Tab.
+    // Abbrechen: Liste oder Personas-Tab der Marke/des Unternehmens
     const cancelBtn = form.querySelector('.mdc-btn--cancel');
     if (cancelBtn) {
-      cancelBtn.removeAttribute('onclick');
       cancelBtn.addEventListener('click', () => window.navigateTo(this.returnRoute), opts);
     }
 
@@ -175,7 +233,8 @@ export class PersonaForm {
 
     this.clearFieldErrors(form);
     const validation = window.validatorSystem.validateForm(data, {
-      name: { type: 'text', minLength: 2, required: true }
+      name: { type: 'text', minLength: 2, required: true },
+      unternehmen_id: { required: true }
     });
     if (!validation.isValid) {
       this.showFieldErrors(form, validation.errors);
@@ -187,16 +246,26 @@ export class PersonaForm {
     submitBtn?.classList.add('is-loading');
 
     try {
+      // Panel konnte den persisted Stand nicht laden: nicht speichern, sonst
+      // diffed saveForPersona gegen [] und loescht alle Produkt-Verknuepfungen.
+      if (this.produktPanel?.loadFehler) {
+        throw new Error('Verknüpfte Produkte konnten nicht geladen werden – bitte Seite neu laden, es wurde nichts gespeichert.');
+      }
+
       let personaId = this.personaId;
 
       if (this.isEdit) {
         await PersonaService.update(this.personaId, data);
       } else {
-        const result = await PersonaService.create(data, this.ctx);
+        const createCtx = this.isStandalone ? { unternehmenId: data.unternehmen_id } : this.ctx;
+        const result = await PersonaService.create(data, createCtx);
         personaId = result.id;
       }
 
       await PersonaService.saveMarken(personaId, this.collectMarkenIds(data));
+      // Erst Marken, dann Produkte: saveMarken macht Delete-all und wuerde
+      // die beim Produkt-Attach auto-angehaengten Marken sonst wegwischen.
+      await ProduktPersonaService.saveForPersona(personaId, this.produktPanel?.getProduktIds() || []);
 
       window.toastSystem?.success?.(this.isEdit ? 'Persona gespeichert' : 'Persona angelegt');
       window.navigateTo(this.returnRoute);
@@ -212,6 +281,11 @@ export class PersonaForm {
    * Marke heraus kommt sie nur dazu. Sonst zaehlt genau die Auswahl im Tag-Feld.
    */
   collectMarkenIds(data) {
+    if (this.isStandalone) {
+      const werte = data.marke_ids;
+      if (Array.isArray(werte)) return werte;
+      return werte ? [werte] : [];
+    }
     if (!this.zeigtMarkenFeld) {
       return [...new Set([...this.markenIds, this.ctx.markeId].filter(Boolean))];
     }
@@ -257,7 +331,7 @@ export class PersonaForm {
       const error = document.createElement('div');
       error.className = 'field-error';
       error.textContent = message;
-      el.parentNode.appendChild(error);
+      (el.closest('.form-field') || el.parentNode).appendChild(error);
     }
   }
 
@@ -266,6 +340,8 @@ export class PersonaForm {
       try { this._abort.abort(); } catch (_) { /* noop */ }
       this._abort = null;
     }
+    this.produktPanel?.destroy?.();
+    this.produktPanel = null;
   }
 }
 

@@ -102,8 +102,13 @@ export class StepKampagne {
     // Updates laufen direkt ueber TitelGenerator + StepKampagnenarten Events.
   }
 
+  isMounted() {
+    return Boolean(document.getElementById('pe-kampagnen-host'));
+  }
+
   collectData() {
-    const titel = document.getElementById('field-pe-titel')?.value || '';
+    const titelInput = document.getElementById('field-pe-titel');
+    const titel = titelInput ? titelInput.value : (this.wizard.formData.auftrag.titel || '');
 
     let details = {};
     let kampagne = {};

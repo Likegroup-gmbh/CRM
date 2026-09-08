@@ -67,8 +67,9 @@ export const auftragConfig = {
     },
     { name: 'rechnung_gestellt', label: 'RE gestellt', type: 'toggle', required: false, row: 'zahlung', section: 'details' },
     { name: 'rechnung_gestellt_am', label: 'Datum', type: 'date', required: false, placeholder: 'Rechnungsdatum', dependsOn: 'rechnung_gestellt', row: 'zahlung', section: 'details' },
-    { name: 'erwarteter_monat_zahlungseingang', label: 'Erwarteter Zahlungseingang', type: 'date', required: false, placeholder: 'Erwartetes Datum des Zahlungseingangs', row: 'zahlung', section: 'details' },
     { name: 're_faelligkeit', label: 'RE-Fälligkeit', type: 'date', required: false, section: 'details' },
+    // Wird aus re_faelligkeit abgeleitet (siehe AuftragEvents) und nur fuer den Cashflow-Kalender gespeichert
+    { name: 'erwarteter_monat_zahlungseingang', type: 'hidden', section: 'details' },
     { name: 'start', label: 'Startdatum', type: 'date', required: false, row: 'zeitraum', section: 'details' },
     { name: 'ende', label: 'Enddatum', type: 'date', required: false, row: 'zeitraum', section: 'details' },
     { name: 'titel', label: 'Titel', type: 'textarea', required: false, rows: 3, section: 'details' },

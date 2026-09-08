@@ -80,6 +80,10 @@ export class StepAuftragstyp {
     }
   }
 
+  isMounted() {
+    return Boolean(document.querySelector('input[name="pe-auftragtype"]'));
+  }
+
   collectData() {
     const checked = document.querySelector('input[name="pe-auftragtype"]:checked');
     return {

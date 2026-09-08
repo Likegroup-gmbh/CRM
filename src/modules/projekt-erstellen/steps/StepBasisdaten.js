@@ -446,6 +446,10 @@ export class StepBasisdaten {
     return opt?.textContent || null;
   }
 
+  isMounted() {
+    return Boolean(document.getElementById('field-pe-unternehmen_id'));
+  }
+
   collectData() {
     const a = this.wizard.formData.auftrag || {};
     // Fallback auf bereits gespeicherte State-Werte, falls DOM (z. B. nach Re-Render durch SearchableSelect) leer ist

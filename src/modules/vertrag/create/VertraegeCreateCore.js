@@ -12,7 +12,7 @@
 
 import { KampagneUtils } from '../../kampagne/KampagneUtils.js';
 import CONFIG from '../../../core/ConfigSystem.js';
-import { expandParagraphZusaetze } from './paragraphZusatz.js';
+import { expandParagraphZusaetze, expandAwarenessFelder } from './paragraphZusatz.js';
 
 export class VertraegeCreate {
   constructor() {
@@ -294,7 +294,9 @@ VertraegeCreate.prototype.loadDraftFromDB = async function(draftId) {
           contracting_exklusivitaet_von: draft.contracting_exklusivitaet_von,
           contracting_exklusivitaet_bis: draft.contracting_exklusivitaet_bis,
           // Zusätzliche Bestimmungen pro Paragraph: JSONB -> flache paragraph_zusatz_*-Felder
-          ...expandParagraphZusaetze(draft.paragraph_zusaetze)
+          ...expandParagraphZusaetze(draft.paragraph_zusaetze),
+          // Awareness-Template-Felder: JSONB -> flache Formularfelder
+          ...expandAwarenessFelder(draft.awareness_felder)
         };
         this.selectedTyp = draft.typ;
         this.isGenerated = true;
@@ -348,7 +350,7 @@ VertraegeCreate.prototype.loadStammdaten = async function() {
       // Lade Unternehmen
       const { data: unternehmen } = await window.supabase
         .from('unternehmen')
-        .select('id, firmenname, rechnungsadresse_strasse, rechnungsadresse_hausnummer, rechnungsadresse_plz, rechnungsadresse_stadt')
+        .select('id, firmenname, rechnungsadresse_strasse, rechnungsadresse_hausnummer, rechnungsadresse_plz, rechnungsadresse_stadt, rechnungsadresse_land, reg_code, ust_id, vertreten_durch')
         .order('firmenname');
       
       this.unternehmen = unternehmen || [];
@@ -369,7 +371,7 @@ VertraegeCreate.prototype.loadStammdaten = async function() {
       // Lade Creator mit Adressen
       const { data: creators } = await window.supabase
         .from('creator')
-        .select('id, vorname, nachname, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land, hauptadresse_quelle, instagram, tiktok')
+        .select('id, vorname, nachname, mail, lieferadresse_strasse, lieferadresse_hausnummer, lieferadresse_plz, lieferadresse_stadt, lieferadresse_land, hauptadresse_quelle, instagram, tiktok')
         .order('nachname');
       
       this.creators = creators || [];

@@ -256,7 +256,7 @@ export class UnternehmenList extends BasePaginatedList {
     const marken = u._marken || [];
     const expanded = this._expandedIds.has(u.id);
     const chevron = marken.length > 0
-      ? `<button type="button" class="unternehmen-marken-toggle" data-id="${u.id}" aria-expanded="${expanded ? 'true' : 'false'}" aria-label="Marken ${expanded ? 'einklappen' : 'aufklappen'}">${icon(expanded ? 'chevron-down' : 'chevron-right')}</button>`
+      ? `<button type="button" class="unternehmen-marken-toggle" data-id="${u.id}" aria-expanded="${expanded ? 'true' : 'false'}" aria-label="Marken ${expanded ? 'einklappen' : 'aufklappen'}">${icon('chevron-down')}</button>`
       : '';
     
     return `
@@ -270,10 +270,10 @@ export class UnternehmenList extends BasePaginatedList {
           </a>
         </td>
         <td class="col-stadt">${sanitize(u.rechnungsadresse_stadt || '-')}</td>
-        <td>${sanitize(u.rechnungsadresse_land || '-')}</td>
+        <td class="col-land">${sanitize(u.rechnungsadresse_land || '-')}</td>
         <td class="col-webseite table-cell-center">${u.webseite ? `<a href="${UnternehmenService.sanitizeUrl(u.webseite)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${sanitize(u.webseite)}">${icon('external-link')}</a>` : '-'}</td>
-        <td>${this.renderBrancheTags(u.branchen)}</td>
-        <td>${this.renderAnsprechpartnerList(u._ansprechpartner)}</td>
+        <td class="col-branche">${this.renderBrancheTags(u.branchen)}</td>
+        <td class="col-ansprechpartner">${this.renderAnsprechpartnerList(u._ansprechpartner)}</td>
         <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(management)}</td>
         <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(leads)}</td>
         <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(mitarbeiter)}</td>
@@ -320,10 +320,10 @@ export class UnternehmenList extends BasePaginatedList {
               ${canBulkDelete ? `<th class="col-checkbox"><input type="checkbox" id="select-all-unternehmen"></th>` : ''}
               <th class="col-name">Name</th>
               <th class="col-stadt">Stadt</th>
-              <th>Land</th>
+              <th class="col-land">Land</th>
               <th class="col-webseite table-cell-center">Webseite</th>
-              <th>Branche</th>
-              <th>Ansprechpartner</th>
+              <th class="col-branche">Branche</th>
+              <th class="col-ansprechpartner">Ansprechpartner</th>
               <th class="col-mitarbeiter">Management</th>
               <th class="col-mitarbeiter">Lead</th>
               <th class="col-mitarbeiter">Mitarbeiter</th>
@@ -394,11 +394,7 @@ export class UnternehmenList extends BasePaginatedList {
       if (toggle) {
         e.preventDefault();
         e.stopPropagation();
-        const id = toggle.dataset.id;
-        if (!id) return;
-        if (this._expandedIds.has(id)) this._expandedIds.delete(id);
-        else this._expandedIds.add(id);
-        this._renderRows();
+        this._toggleMarken(toggle);
         return;
       }
 
@@ -538,15 +534,43 @@ export class UnternehmenList extends BasePaginatedList {
     const tbody = document.querySelector(this.options.tbodySelector);
     if (!tbody) return;
     tbody.innerHTML = this._unternehmenRows.map(u => this.renderRowGroup(u)).join('');
+    tbody.querySelectorAll(`.${this.options.checkboxClass}`).forEach(cb => {
+      if (cb.dataset.id && this.selectedItems.has(cb.dataset.id)) cb.checked = true;
+    });
+    this.updateSelection();
+    this.updateSelectAllCheckbox();
+  }
+
+  _toggleMarken(toggle) {
+    const id = toggle.dataset.id;
+    if (!id) return;
+    const parentTr = toggle.closest('tr');
+    const u = this._unternehmenRows.find(row => String(row.id) === String(id));
+    if (!parentTr || !u) return;
+
+    if (this._expandedIds.has(id)) {
+      this._expandedIds.delete(id);
+      [...parentTr.parentElement.querySelectorAll('.nested-marke-row')]
+        .filter(row => row.dataset.parentId === id)
+        .forEach(row => row.remove());
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-label', 'Marken aufklappen');
+      return;
+    }
+
+    this._expandedIds.add(id);
+    parentTr.insertAdjacentHTML('afterend', (u._marken || []).map(m => this.renderNestedMarkeRow(m, id)).join(''));
+    toggle.setAttribute('aria-expanded', 'true');
+    toggle.setAttribute('aria-label', 'Marken einklappen');
   }
 
   renderRowGroup(u) {
     const expanded = this._expandedIds.has(u.id);
     const marken = expanded ? (u._marken || []) : [];
-    return this.renderSingleRow(u) + marken.map(m => this.renderNestedMarkeRow(m)).join('');
+    return this.renderSingleRow(u) + marken.map(m => this.renderNestedMarkeRow(m, u.id)).join('');
   }
 
-  renderNestedMarkeRow(marke) {
+  renderNestedMarkeRow(marke, parentId = marke.unternehmen_id) {
     const canBulkDelete = this.canBulkDelete;
     const sanitize = this.sanitize.bind(this);
     const name = sanitize(marke.markenname || '');
@@ -563,17 +587,19 @@ export class UnternehmenList extends BasePaginatedList {
     const matchClass = this._matchedMarkeIds.has(marke.id) ? ' is-search-match' : '';
 
     return `
-      <tr class="nested-marke-row${matchClass}" data-id="${marke.id}" data-parent-id="${marke.unternehmen_id || ''}">
+      <tr class="nested-marke-row${matchClass}" data-id="${marke.id}" data-parent-id="${parentId || ''}">
         ${canBulkDelete ? `<td class="col-checkbox"></td>` : ''}
-        <td class="col-name col-name-with-icon" colspan="3">
+        <td class="col-name col-name-with-icon">
           ${avatar}
           <a href="#" class="table-link" data-table="marke" data-id="${marke.id}">
             ${name}
           </a>
         </td>
+        <td class="col-stadt"></td>
+        <td class="col-land"></td>
         <td class="col-webseite table-cell-center">${website}</td>
-        <td>${this.renderBrancheTags(marke.branchen)}</td>
-        <td>${this.renderAnsprechpartnerList(marke.ansprechpartner)}</td>
+        <td class="col-branche">${this.renderBrancheTags(marke.branchen)}</td>
+        <td class="col-ansprechpartner">${this.renderAnsprechpartnerList(marke.ansprechpartner)}</td>
         <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(management)}</td>
         <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(leads)}</td>
         <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(mitarbeiter)}</td>

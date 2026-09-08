@@ -426,6 +426,15 @@ export class CreatorAuswahlDetail {
       };
       document.addEventListener('click', actionClickHandler);
       this._boundEventListeners.add(() => document.removeEventListener('click', actionClickHandler));
+
+      const igFetchHandler = (e) => {
+        const btn = e.target.closest('[data-ig-fetch]');
+        if (!btn || btn.disabled || btn.hidden) return;
+        e.preventDefault();
+        this.handleInstagramFetch(btn.dataset.itemId, btn);
+      };
+      document.addEventListener('click', igFetchHandler);
+      this._boundEventListeners.add(() => document.removeEventListener('click', igFetchHandler));
     }
 
     if (!this.isKunde) {
@@ -810,7 +819,7 @@ export class CreatorAuswahlDetail {
       // Die Zeile ist per outerHTML ersetzt, die Zelle unter der Leiste also
       // eine andere. rebind() verankert sie neu und zeigt jetzt "Frisch abrufen".
       hoverToolbar.rebind();
-      this._flashIgFetchSuccess();
+      this._flashIgFetchSuccess(itemId);
 
       if (debug) {
         const handle = debug.username || 'unknown';
@@ -881,8 +890,9 @@ export class CreatorAuswahlDetail {
    * gerendert hat. Das unpin() haengt hinten dran, damit die Leiste den Flash
    * ueberdauert, auch wenn der Zeiger inzwischen weitergewandert ist.
    */
-  _flashIgFetchSuccess() {
-    const button = document.querySelector('.hover-toolbar [data-hover-action="ig-fetch"]');
+  _flashIgFetchSuccess(itemId) {
+    const button = document.querySelector(`.ig-fetch-btn[data-item-id="${itemId}"]`)
+      || document.querySelector('.hover-toolbar [data-hover-action="ig-fetch"]');
     if (!button) {
       hoverToolbar.unpin();
       return;

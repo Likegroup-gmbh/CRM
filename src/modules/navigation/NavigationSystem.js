@@ -27,7 +27,7 @@ export class NavigationSystem {
         title: 'Stammdaten',
         items: [
           { id: 'unternehmen', label: 'Unternehmen', icon: 'unternehmen', url: '/unternehmen' },
-          { id: 'marke', label: 'Marken', icon: 'marke', url: '/marke' },
+          { id: 'persona', label: 'Personas', icon: 'persona', url: '/persona' },
           { id: 'produkt', label: 'Produkte', icon: 'produkt', url: '/produkt' },
           { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'ansprechpartner', url: '/ansprechpartner' },
           {
@@ -52,6 +52,8 @@ export class NavigationSystem {
       {
         title: 'Content & Strategie',
         items: [
+          // Ausgeblendet, kommt später wieder:
+          // { id: 'kickoff', label: 'Kick-Off', icon: 'kickoff', url: '/kickoff' },
           { id: 'briefing', label: 'Briefings', icon: 'briefing', url: '/briefing' },
           { id: 'strategie', label: 'Strategie', icon: 'strategie', url: '/strategie' },
           { id: 'sourcing', label: 'Sourcing', icon: 'sourcing', url: '/sourcing' },
@@ -71,6 +73,7 @@ export class NavigationSystem {
       {
         title: 'Admin',
         items: [
+          { id: 'stakeholder', label: 'Stakeholder', icon: 'stakeholder', url: '/stakeholder' },
           { id: 'mitarbeiter', label: 'Mitarbeiter', icon: 'mitarbeiter', url: '/mitarbeiter' },
           { id: 'kunden-admin', label: 'Kunden', icon: 'kunden-admin', url: '/admin/kunden' },
           { id: 'shares', label: 'Geteilte Listen', icon: 'shares', url: '/shares' },
@@ -123,6 +126,7 @@ export class NavigationSystem {
         return typeof window.isAdmin === 'function' && window.isAdmin();
       }
 
+      // Stakeholder-Uebersicht: nur Admins
       if (id === 'stakeholder') {
         return typeof window.isAdmin === 'function' && window.isAdmin();
       }
@@ -139,6 +143,7 @@ export class NavigationSystem {
         unternehmen: 'unternehmen',
         marke: 'marke',
         produkt: 'produkt',
+        persona: 'persona',
         auftrag: 'auftrag',
         'projekt-erstellen': 'auftrag',
         auftragsdetails: 'auftragsdetails',
@@ -163,7 +168,8 @@ export class NavigationSystem {
         tabellen: 'dashboard',
         feedback: 'feedback',
         contracts: 'contracts',
-        ausgangsrechnungen: 'auftrag'
+        ausgangsrechnungen: 'auftrag',
+        stakeholder: 'stakeholder'
       };
       
       const entity = map[id] || id;

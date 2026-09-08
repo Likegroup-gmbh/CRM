@@ -5,6 +5,7 @@
 import { skripteService } from '../SkripteService.js';
 import { escapeHtml } from '../SkripteUtils.js';
 import { openFloatingMenu } from '../../../core/components/FloatingMenu.js';
+import { icon } from '../../../core/icons/IconSystem.js';
 
 function versionKey(x) {
   return `${x.version_nr}.${x.sub_nr || 0}`;
@@ -52,6 +53,7 @@ export class SkriptEditorVersionen {
         aria-haspopup="menu" aria-expanded="false"
         title="Version auswählen – der gewählte Stand wird in den Editor geladen">
         <span class="mdc-btn__label">${triggerLabel}</span>
+        <span class="skripte-editor-version-chevron">${icon('chevron-down')}</span>
       </button>
     `;
     const btn = wrap.querySelector('#ed-version');

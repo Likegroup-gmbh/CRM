@@ -40,9 +40,9 @@ const {
 const {
   computeInstagramCpm,
   formatCpmDebug,
-  istWerbePost,
+  formatCpmReport,
+  classifyVideos,
   WINDOW_LONG,
-  MIN_AGE_HOURS,
   CALC_VERSION
 } = require('./_shared/instagram-cpm');
 const { extractEmail, extractPhone, extractCity } = require('./_shared/bio-extract');
@@ -57,11 +57,12 @@ const IG_CPM_DEBUG = true;
 const PAGE_SIZE = 50;
 const MAX_PAGES = 3;   // 26s Function-Timeout, mehr ist nicht drin
 
-// Reserve ueber das 30er-Fenster hinaus. Faellt ein Reel als Ausreisser durch,
-// rueckt der naechste nach - ohne Reserve bliebe das Fenster unterbesetzt. Zehn
-// deckt auch Creator mit mehreren Ausreissern ab und kostet meist keinen
-// zusaetzlichen Request, weil PAGE_SIZE bei 50 liegt.
-const PUFFER_NACHRUECKER = 10;
+// Reserve ueber das 30er-Fenster hinaus. Faellt ein Reel als Ausreisser oder
+// Trial-Duplikat durch, rueckt der naechste nach - ohne Reserve bliebe das
+// Fenster unterbesetzt. Fuenfzehn deckt auch Creator mit mehreren Ausreissern
+// und Trial-Paaren ab und kostet meist keinen zusaetzlichen Request, weil
+// PAGE_SIZE bei 50 liegt.
+const PUFFER_NACHRUECKER = 15;
 
 const PROFILE_FIELDS = 'username,name,followers_count,media_count,profile_picture_url,biography,website';
 // Bewusst ohne media_product_type und is_shared_to_feed: fuer Business
@@ -84,19 +85,15 @@ function jsonResponse(statusCode, body) {
 /**
  * Reels, die es wirklich in die Rechnung schaffen koennen.
  *
- * Werbe-Reels und zu frische Reels zaehlen nicht mit: sonst bricht das Paging zu
- * frueh ab und dem Fenster fehlen Nachruecker fuer die Ausreisser-Ersetzung,
- * obwohl weiter hinten genug organische Reels liegen.
+ * Werbe-Reels, Trial-Duplikate und zu frische Reels zaehlen nicht mit: sonst
+ * bricht das Paging zu frueh ab und dem Fenster fehlen Nachruecker fuer die
+ * Ausreisser-Ersetzung, obwohl weiter hinten genug organische Reels liegen.
+ * Laueft ueber classifyVideos, damit Paging und Rechnung dieselbe Logik
+ * teilen - ein Trial-Paar, das die Rechnung nicht sieht, darf das Paging
+ * auch nicht stoppen.
  */
 function zaehleVerwertbar(media, now = Date.now()) {
-  const cutoff = now - MIN_AGE_HOURS * 60 * 60 * 1000;
-  return media.filter((m) => {
-    if (m?.media_type !== 'VIDEO') return false;
-    // istWerbePost liefert einen Marker-String oder null; ein Marker macht !… zu false.
-    if (istWerbePost(m.caption)) return false;
-    const postedAt = Date.parse(m.timestamp);
-    return Number.isFinite(postedAt) && postedAt <= cutoff;
-  }).length;
+  return classifyVideos(media, now).included.length;
 }
 
 /**
@@ -183,9 +180,13 @@ function statsFromPool(pool) {
     used_30: ig.used_30,
     outliers_8: ig.outliers_8 || [],
     outliers_30: ig.outliers_30 || [],
+    ohne_trials: ig.ohne_trials ?? null,
+    trial_gate: ig.trial_gate ?? null,
     videos_available: ig.videos_available,
     skipped_too_recent: ig.skipped_too_recent,
     skipped_ads: ig.skipped_ads ?? null,
+    skipped_trials: ig.skipped_trials ?? null,
+    skipped_trial_views: ig.skipped_trial_views ?? null,
     non_video_skipped: ig.non_video_skipped ?? null,
     videos: ig.videos || [],
     skipped_videos: ig.skipped_videos || []
@@ -195,16 +196,11 @@ function statsFromPool(pool) {
 function emitCpmDebug(username, stats, meta) {
   if (!IG_CPM_DEBUG) return null;
   const debug = formatCpmDebug(username, stats, meta);
-  console.log(`[IG-CPM] @${username} (${meta.source})`, {
-    rules: debug.rules,
-    skipped: debug.skipped,
-    included_8: debug.included_8,
-    included_30: debug.included_30,
-    outliers: debug.outliers,
-    summary: debug.summary,
-    pool_fetched_at: debug.pool_fetched_at,
-    image_error: debug.image_error
-  });
+  // Menschenlesbarer Report ins Log (Regeln, Gate, Verdict je Reel, duale
+  // Summary) - identisch zum Output von scripts/instagram-media-debug.mjs,
+  // damit sich Zeilen stichprobenartig gegen das eingeloggte Grid pruefen
+  // lassen. Der JSON-Payload bleibt fuer die Response.
+  console.log(formatCpmReport(username, stats, meta));
   return debug;
 }
 
@@ -333,6 +329,7 @@ exports.handler = async (event) => {
     const debug = emitCpmDebug(username, statsFromPool(pool), {
       source: 'pool',
       pool_fetched_at: pool.ig_fetched_at,
+      follower: pool.follower_instagram,
       image_error: pool.profile_image_url
         ? null
         : 'kein Bild im Pool, letzter Versuch erfolglos (force erzwingt neuen Versuch)'
@@ -373,6 +370,7 @@ exports.handler = async (event) => {
       const debug = emitCpmDebug(username, statsFromPool(pool), {
         source: 'pool',
         pool_fetched_at: pool.ig_fetched_at,
+        follower: pool.follower_instagram,
         image_error: `Bild-Nachzug fehlgeschlagen: ${res.error}`
       });
 
@@ -481,7 +479,11 @@ exports.handler = async (event) => {
       videos_available: stats.videos_available,
       skipped_too_recent: stats.skipped_too_recent,
       skipped_ads: stats.skipped_ads,
+      skipped_trials: stats.skipped_trials,
+      skipped_trial_views: stats.skipped_trial_views,
       non_video_skipped: stats.non_video_skipped,
+      ohne_trials: stats.ohne_trials,
+      trial_gate: stats.trial_gate,
       videos: stats.videos,
       skipped_videos: stats.skipped_videos
     }
@@ -521,6 +523,8 @@ exports.handler = async (event) => {
   const debug = emitCpmDebug(username, stats, {
     source: 'meta',
     pool_fetched_at: poolRow.ig_fetched_at,
+    follower: p.followers_count ?? null,
+    media_total: res.media.length,
     image_error: bildFehler
   });
 
@@ -536,7 +540,8 @@ exports.handler = async (event) => {
       views_30: stats.views_30,
       videos_available: stats.videos_available,
       skipped_too_recent: stats.skipped_too_recent,
-      skipped_ads: stats.skipped_ads
+      skipped_ads: stats.skipped_ads,
+      skipped_trials: stats.skipped_trials
     },
     ...(debug ? { debug } : {})
   });

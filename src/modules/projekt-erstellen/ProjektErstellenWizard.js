@@ -545,8 +545,20 @@ export class ProjektErstellenWizard {
     this.updateFeedback();
   }
 
+  // Steps lesen ihre Werte aus dem DOM. Nur der aktive Step ist gemountet,
+  // ein unmounteter Step wuerde beim Sammeln alles auf null zuruecksetzen.
+  collectMountedSteps() {
+    (this.steps || []).forEach(step => {
+      if (!step?.collectData) return;
+      if (typeof step.isMounted === 'function' && !step.isMounted()) return;
+      this.mergeFormData(step.collectData());
+    });
+  }
+
   async submit() {
     const nextBtn = document.getElementById('wizard-next-btn');
+
+    this.collectMountedSteps();
 
     for (let s = 1; s <= this.totalSteps; s++) {
       const v = this.validator.validateStep(this.getLogicalStepNumber(s), this.formData);

@@ -76,7 +76,7 @@ export class SortDropdown {
       <div class="sort-dropdown" data-entity-type="${entityType}">
         <button class="mdc-btn sort-dropdown-toggle mdc-btn--secondary" aria-expanded="false" aria-label="Sortierung ändern">
           <span class="sort-dropdown-label">${currentOption.label}</span>
-          ${this.getChevronIcon()}
+          <span class="sort-chevron">${this.getChevronIcon()}</span>
         </button>
         <div class="sort-dropdown-menu">
           ${sortOptions.map(opt => `

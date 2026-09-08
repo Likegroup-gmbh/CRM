@@ -3,6 +3,7 @@
 
 import { VertraegeCreate } from './VertraegeCreateCore.js';
 import { collectParagraphZusaetze } from './paragraphZusatz.js';
+import { splitButton } from '../../../core/components/SplitButton.js';
 
 VertraegeCreate.prototype.saveDraftToDB = async function() {
     // Erst aktuelle Formulardaten sammeln!
@@ -138,6 +139,29 @@ VertraegeCreate.prototype.prepareDataForDB = function() {
         // Anpassungen
         anpassungen: this.formData.anpassungen || []
       });
+
+      // Awareness-Felder NUR beim Direktvertrag-Template (awareness) mitschicken
+      // und nur wenn der Kunde ein Direktvertrag-Kunde (BURGA / UAB Hautica) ist.
+      // Bei Standard-Vertraegen wuerde das Insert sonst fehlschlagen, wenn die
+      // Spalte awareness_felder in der DB (noch) nicht existiert.
+      if (this.formData.vertrag_template === 'awareness' && this.isDirektvertragKunde()) {
+        data.awareness_felder = {
+          vertrag_datum: this.formData.vertrag_datum || null,
+          ansprechpartner_email: this.formData.ansprechpartner_email || null,
+          video_mindestlaenge_sekunden: parseInt(this.formData.video_mindestlaenge_sekunden) || null,
+          veroeffentlichungsfrist: this.formData.veroeffentlichungsfrist || null,
+          verguetung_brutto: this.parseCurrencyInput(this.formData.verguetung_brutto),
+          zahlungsmethode: this.formData.zahlungsmethode || null,
+          statistik_frist_tage: parseInt(this.formData.statistik_frist_tage) || null,
+          content_vorlauf_tage: parseInt(this.formData.content_vorlauf_tage) || 3,
+          content_aufbewahrung_dauer: this.formData.content_aufbewahrung_dauer || '12_monate',
+          brand_tag: this.formData.brand_tag || null,
+          kuendigungsfrist_tage: parseInt(this.formData.kuendigungsfrist_tage) || 30,
+          influencer_reg_code: this.formData.influencer_reg_code || null,
+          influencer_ust_id: this.formData.influencer_ust_id || null,
+          produkt_beschreibung: this.formData.produkt_beschreibung || null
+        };
+      }
     } else if (typ === 'Videograph') {
       // Videograf-spezifische Felder
       Object.assign(data, {
@@ -431,15 +455,16 @@ VertraegeCreate.prototype.handleSubmit = async function(e, startNewAfter = false
     }
 
     const submitBtn = document.getElementById('btn-submit');
-    const submitAndNewBtn = document.getElementById('btn-submit-and-new');
+    const splitRoot = document.querySelector(`.split-btn[data-split-config="${this.getSubmitConfigId()}"]`);
     const isEdit = !!this.editId;
-    
-    if (submitBtn) {
+    const busyLabel = isEdit ? 'Wird finalisiert...' : 'Wird erstellt...';
+    const idleLabel = isEdit ? 'Finalisieren & PDF' : 'Erstellen & PDF';
+
+    if (splitRoot) {
+      splitButton.setBusy(splitRoot, true, busyLabel);
+    } else if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.textContent = isEdit ? 'Wird finalisiert...' : 'Wird erstellt...';
-    }
-    if (submitAndNewBtn) {
-      submitAndNewBtn.disabled = true;
+      submitBtn.textContent = busyLabel;
     }
 
     try {
@@ -493,6 +518,7 @@ VertraegeCreate.prototype.handleSubmit = async function(e, startNewAfter = false
       }
 
       // PDF generieren
+      vertrag._pdfTemplate = this.formData.vertrag_template || 'legacy';
       await this.generatePDF(vertrag);
 
       window.toastSystem?.show(
@@ -518,12 +544,11 @@ VertraegeCreate.prototype.handleSubmit = async function(e, startNewAfter = false
       console.error('❌ Fehler beim Erstellen:', error);
       window.toastSystem?.show(`Fehler: ${error.message}`, 'error');
       
-      if (submitBtn) {
+      if (splitRoot) {
+        splitButton.setBusy(splitRoot, false, idleLabel);
+      } else if (submitBtn) {
         submitBtn.disabled = false;
-        submitBtn.textContent = isEdit ? 'Vertrag finalisieren & PDF generieren' : 'Vertrag erstellen & PDF generieren';
-      }
-      if (submitAndNewBtn) {
-        submitAndNewBtn.disabled = false;
+        submitBtn.textContent = idleLabel;
       }
     }
 };

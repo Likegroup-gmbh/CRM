@@ -1,6 +1,7 @@
 // InvoiceDisplayDate.js
 // Gemeinsame Monats-Kaskade fuer Kundenrechnungen-Liste und Cashflow-Kalender:
-// ueberwiesen_am → rechnung_gestellt_am → erwarteter_monat_zahlungseingang → re_faelligkeit
+// rechnung_gestellt_am → ueberwiesen_am → erwarteter_monat_zahlungseingang → re_faelligkeit
+// Status bleibt entkoppelt: paid schlaegt invoiced, egal welches Datum den Monat gewinnt.
 
 function parseInvoiceDate(value) {
   if (!value) return null;
@@ -9,23 +10,18 @@ function parseInvoiceDate(value) {
 }
 
 export function getInvoiceDisplayDate(row = {}) {
-  const paid = parseInvoiceDate(row.ueberwiesen_am);
-  if (paid) return { date: paid, status: 'paid' };
-
   const invoiced = parseInvoiceDate(row.rechnung_gestellt_am);
-  if (invoiced) return { date: invoiced, status: 'invoiced' };
-
+  const paid = parseInvoiceDate(row.ueberwiesen_am);
   const expected = parseInvoiceDate(row.erwarteter_monat_zahlungseingang);
-  if (expected) return { date: expected, status: 'pending' };
-
   const due = parseInvoiceDate(row.re_faelligkeit);
-  if (due) return { date: due, status: 'pending' };
 
-  return { date: null, status: null };
+  const date = invoiced || paid || expected || due || null;
+  const status = paid ? 'paid' : invoiced ? 'invoiced' : (expected || due) ? 'pending' : null;
+  return { date, status };
 }
 
 export function getInvoiceMonthKey(row) {
-  const date = parseInvoiceDate(row?.rechnung_gestellt_am);
+  const { date } = getInvoiceDisplayDate(row || {});
   if (!date) return null;
   return { year: date.getFullYear(), month: date.getMonth() };
 }

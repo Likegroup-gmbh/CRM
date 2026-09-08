@@ -57,7 +57,7 @@ export class AuftragCashFlowCalendar {
           *,
           unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
           marke:marke_id(id, markenname, logo_url),
-          teilrechnungen:auftrag_teilrechnung(id, position, nettobetrag, re_nr, re_faelligkeit, erwarteter_monat_zahlungseingang, rechnung_gestellt, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am)
+          teilrechnungen:auftrag_teilrechnung(id, position, nettobetrag, ust_betrag, bruttobetrag, re_nr, re_faelligkeit, erwarteter_monat_zahlungseingang, rechnung_gestellt, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am)
         `);
 
       // Filter anwenden
@@ -108,7 +108,9 @@ export class AuftragCashFlowCalendar {
           unternehmen: auftrag.unternehmen,
           marke: auftrag.marke,
           auftraege: [],
-          months: Array(12).fill(null).map(() => ({ auftraege: [], total: 0, status: null }))
+          months: Array(12).fill(null).map(() => ({
+            auftraege: [], total: 0, totalUst: 0, totalBrutto: 0, status: null
+          }))
         });
       }
       
@@ -152,6 +154,8 @@ export class AuftragCashFlowCalendar {
           id: null,
           position: 1,
           nettobetrag: auftrag.nettobetrag,
+          ust_betrag: auftrag.ust_betrag,
+          bruttobetrag: auftrag.bruttobetrag,
           re_nr: auftrag.re_nr,
           re_faelligkeit: auftrag.re_faelligkeit,
           erwarteter_monat_zahlungseingang: auftrag.erwarteter_monat_zahlungseingang,
@@ -166,6 +170,8 @@ export class AuftragCashFlowCalendar {
     for (const tr of teilrechnungen) {
       const { date: anzeigeDatum, status: anzeigeStatus } = getInvoiceDisplayDate(tr);
       const betrag = parseFloat(tr.nettobetrag) || 0;
+      const ustBetrag = parseFloat(tr.ust_betrag) || 0;
+      const bruttoBetrag = parseFloat(tr.bruttobetrag) || 0;
 
       if (!anzeigeDatum || anzeigeDatum.getFullYear() !== this.currentYear) continue;
 
@@ -180,6 +186,8 @@ export class AuftragCashFlowCalendar {
           trId: tr.id,
           auftragsname: auftrag.auftragsname,
           betrag,
+          ustBetrag,
+          bruttoBetrag,
           status: anzeigeStatus,
           datum: anzeigeDatum,
           position: tr.position,
@@ -190,6 +198,8 @@ export class AuftragCashFlowCalendar {
           ueberwiesen_am: tr.ueberwiesen_am
         });
         months[monthIndex].total += betrag;
+        months[monthIndex].totalUst += ustBetrag;
+        months[monthIndex].totalBrutto += bruttoBetrag;
       }
 
       const currentP = statusPriority[months[monthIndex].status] || 0;
@@ -334,26 +344,41 @@ export class AuftragCashFlowCalendar {
     `;
   }
 
-  // Rendere Footer mit Summen
-  renderFooter() {
+  // Summen je Monat plus Jahressumme fuer ein Betragsfeld der Monatszellen
+  sumMonths(field) {
     const monthTotals = Array(12).fill(0);
     let grandTotal = 0;
-    
+
     this.groupedData.forEach(group => {
       group.months.forEach((month, i) => {
-        monthTotals[i] += month.total;
-        grandTotal += month.total;
+        const value = month[field] || 0;
+        monthTotals[i] += value;
+        grandTotal += value;
       });
     });
-    
-    return `
-      <tr class="cash-flow-totals">
-        <td class="sticky-col">SUMME</td>
+
+    return { monthTotals, grandTotal };
+  }
+
+  // Rendere Footer mit Summen (Netto, MwSt, Brutto)
+  renderFooter() {
+    const rows = [
+      { label: 'SUMME NETTO', field: 'total', cls: 'cash-flow-totals' },
+      { label: 'MWST', field: 'totalUst', cls: 'cash-flow-totals cash-flow-totals--secondary' },
+      { label: 'SUMME BRUTTO', field: 'totalBrutto', cls: 'cash-flow-totals cash-flow-totals--secondary' }
+    ];
+
+    return rows.map(({ label, field, cls }) => {
+      const { monthTotals, grandTotal } = this.sumMonths(field);
+      return `
+      <tr class="${cls}">
+        <td class="sticky-col">${label}</td>
         <td class="sticky-col-2"></td>
         ${monthTotals.map(total => `<td>${total > 0 ? this.formatCurrency(total) : ''}</td>`).join('')}
         <td class="total-cell grand-total">${this.formatCurrency(grandTotal)}</td>
       </tr>
     `;
+    }).join('');
   }
 
   // Generiere Tooltip für Zelle
@@ -740,15 +765,7 @@ export class AuftragCashFlowCalendar {
     });
 
     // Summenzeile berechnen
-    const monthTotals = Array(12).fill(0);
-    let grandTotal = 0;
-    
-    this.groupedData.forEach(group => {
-      group.months.forEach((month, i) => {
-        monthTotals[i] += month.total;
-        grandTotal += month.total;
-      });
-    });
+    const { monthTotals, grandTotal } = this.sumMonths('total');
 
     // Summenzeile hinzufügen
     const sumRow = {

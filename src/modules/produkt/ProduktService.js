@@ -219,6 +219,17 @@ export class ProduktService {
   }
 
   /** Produkte des Kontexts inklusive Varianten-IDs und Bildern fuer die Tabelle. */
+  /** Alle Produkte (Top-Level-Liste), inkl. Unternehmen, Marken und Relationen. */
+  static async loadAll() {
+    const { data, error } = await window.supabase
+      .from('produkt')
+      .select(`*, unternehmen:unternehmen_id(id, firmenname, logo_url), ${MARKEN_SELECT}, ${TABELLEN_SELECT}`)
+      .order('name');
+
+    if (error) throw error;
+    return data || [];
+  }
+
   static async loadForContext({ unternehmenId = null, markeId = null } = {}) {
     let query = window.supabase.from('produkt');
 
@@ -267,6 +278,29 @@ export class ProduktService {
 
     if (error) throw error;
     return (data || []).map(row => row.marke_id);
+  }
+
+  /**
+   * Schlanke Suche fuer die Inline-Verknuepfung (Relation-Panels): Produkte
+   * eines Unternehmens per Namensfragment, ohne die schweren Listen-Selects.
+   */
+  static async searchByName(unternehmenId, term = '', { excludeIds = [], limit = 8 } = {}) {
+    if (!unternehmenId) return [];
+
+    let query = window.supabase
+      .from('produkt')
+      .select('id, name, kurzbeschreibung')
+      .eq('unternehmen_id', unternehmenId)
+      .order('name')
+      .limit(limit);
+
+    const such = String(term || '').trim();
+    if (such) query = query.ilike('name', `%${such}%`);
+    if (excludeIds.length) query = query.not('id', 'in', `(${excludeIds.join(',')})`);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
   }
 
   static async loadVarianten(produktId) {

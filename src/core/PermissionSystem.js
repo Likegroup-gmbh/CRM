@@ -5,7 +5,7 @@
 
 const ENTITIES = [
   'creator', 'creator-lists', 'unternehmen', 'marke', 'produkt',
-  'auftrag', 'auftragsdetails', 'kampagne', 'kooperation', 'briefing',
+  'persona', 'auftrag', 'auftragsdetails', 'kampagne', 'kooperation', 'briefing',
   'videos', 'rechnung', 'ansprechpartner', 'dashboard', 'tasks',
   'strategie', 'sourcing', 'feedback', 'mitarbeiter',
   'vertraege', 'kunden-admin', 'contracts', 'skripte'
@@ -39,6 +39,7 @@ const BASE_PERMISSIONS = {
   kunde: {
     ...allOf(F),
     produkt:     { ...V },
+    persona:     { ...F },
     auftrag:     { ...V },
     kampagne:    { ...V },
     kooperation: { ...V },

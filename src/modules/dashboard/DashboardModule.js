@@ -5,6 +5,7 @@ import { getGreeting } from './DashboardGreetings.js';
 import { loadUpcomingBirthdays, renderBirthdaysList } from './DashboardBirthdays.js';
 import { loadUpcomingKampagnen, loadUpcomingKooperationen, renderKampagnenBlock, renderKooperationenBlock } from './DashboardUpcoming.js';
 import { renderKundeTutorialBlock } from './DashboardKundeTutorial.js';
+import { loadNeuigkeiten, renderNeuigkeitenBlock, bindNeuigkeitenEvents } from './DashboardNeuigkeiten.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
 export class DashboardModule {
@@ -12,6 +13,7 @@ export class DashboardModule {
     this.birthdays = [];
     this.kampagnen = [];
     this.kooperationen = [];
+    this.neuigkeiten = [];
   }
 
   async init() {
@@ -23,15 +25,17 @@ export class DashboardModule {
       return;
     }
 
-    const [birthdays, kampagnen, kooperationen] = await Promise.all([
+    const [birthdays, kampagnen, kooperationen, neuigkeiten] = await Promise.all([
       loadUpcomingBirthdays(),
       loadUpcomingKampagnen(),
-      loadUpcomingKooperationen()
+      loadUpcomingKooperationen(),
+      loadNeuigkeiten()
     ]);
 
     this.birthdays = birthdays;
     this.kampagnen = kampagnen;
     this.kooperationen = kooperationen;
+    this.neuigkeiten = neuigkeiten;
 
     this.renderDashboard();
     this.setupEventListeners();
@@ -54,7 +58,7 @@ export class DashboardModule {
 
         ${renderKundeTutorialBlock()}
 
-        ${renderBirthdaysList(this.birthdays)}
+        ${this.renderKachelGrid()}
 
         ${ /* renderKampagnenBlock(this.kampagnen) -- temporär ausgeblendet */ ''}
 
@@ -63,6 +67,15 @@ export class DashboardModule {
     `;
 
     window.setContentSafely(window.content, html);
+  }
+
+  // Die zwei Dashboard-Kacheln (Was ist neu + Geburtstage) nebeneinander.
+  // Leere Bloecke erzeugen keine Grid-Zelle; ist beides leer, entfaellt das Grid.
+  renderKachelGrid() {
+    const neuigkeitenHtml = renderNeuigkeitenBlock(this.neuigkeiten);
+    const birthdaysHtml = renderBirthdaysList(this.birthdays);
+    if (!neuigkeitenHtml && !birthdaysHtml) return '';
+    return `<div class="dashboard-grid">${neuigkeitenHtml}${birthdaysHtml}</div>`;
   }
 
   renderSearchField() {
@@ -127,6 +140,8 @@ export class DashboardModule {
   }
 
   setupEventListeners() {
+    bindNeuigkeitenEvents();
+
     const searchInput = document.querySelector('.dashboard-search__input[data-action="open-search"]');
     if (searchInput) {
       searchInput.addEventListener('click', () => window.globalSearch?.open?.());

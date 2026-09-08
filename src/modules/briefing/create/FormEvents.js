@@ -386,6 +386,19 @@ BriefingCreate.prototype.initSearchableSelects = function() {
       });
     }
 
+    const assigneeSelect = document.getElementById('assignee_id');
+    if (assigneeSelect && window.formSystem?.createSearchableSelect) {
+      window.formSystem.createSearchableSelect(assigneeSelect, this.benutzer.map(b => ({
+        value: b.id,
+        label: b.name,
+        selected: b.id === this.formData.assignee_id
+      })), {
+        name: 'assignee_id',
+        placeholder: 'Mitarbeiter suchen...',
+        value: this.formData.assignee_id || null
+      });
+    }
+
     const produktSelect = document.getElementById('produkt_ids');
     if (produktSelect && window.formSystem?.createSearchableSelect && this.formData.unternehmen_id) {
       const selected = new Set(this.formData.produkt_ids || []);

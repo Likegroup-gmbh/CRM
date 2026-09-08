@@ -287,6 +287,19 @@ export class ProjektErstellenPersistence {
     }
   }
 
+  // Contracting hat keine Kampagnenbloecke, aber sehr wohl Agenturleistungen, Fee und KSK.
+  // Die Stakeholder-Uebersicht liest diese Werte aus auftrag_details, nicht aus auftrag.
+  async _saveContractingDetails(supabase, formData, auftragId, { createdById = null } = {}) {
+    const payload = this.buildDetailsPayload(formData);
+    payload.auftrag_id = auftragId;
+    if (createdById) payload.created_by_id = createdById;
+
+    const { error } = await supabase
+      .from('auftrag_details')
+      .upsert([payload], { onConflict: 'auftrag_id' });
+    if (error) throw error;
+  }
+
   buildCampaignBlockPayloads(fd, { auftragId, kampagneId, createdById, campaignArtIdMap = {} } = {}) {
     const blocks = normalizeCampaignBlocks(fd.details || {});
 
@@ -339,6 +352,10 @@ export class ProjektErstellenPersistence {
       if (auftragErr) throw auftragErr;
 
       const auftragId = auftragData.id;
+
+      await this._saveContractingDetails(supabase, formData, auftragId, {
+        createdById: currentBenutzerId
+      });
 
       await this._saveTeilrechnungen(supabase, formData, auftragId);
 
@@ -597,6 +614,9 @@ export class ProjektErstellenPersistence {
         .update(auftragPayload)
         .eq('id', auftragId);
       if (auftragErr) throw auftragErr;
+
+      const createdById = existingRaw?.details ? null : await getCurrentBenutzerId();
+      await this._saveContractingDetails(supabase, formData, auftragId, { createdById });
 
       await this._saveTeilrechnungen(supabase, formData, auftragId, { deleteFirst: true });
 

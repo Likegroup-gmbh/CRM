@@ -222,6 +222,7 @@ BriefingCreate.prototype.getFieldContext = function() {
   return {
     unternehmen: this.unternehmen,
     marke: this.marken,
+    benutzer: this.benutzer,
     produkt: this.produkte
   };
 };
