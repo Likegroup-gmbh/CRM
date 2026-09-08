@@ -20,6 +20,40 @@ function normalizeVideoStats(videoStats) {
   };
 }
 
+export function hasVideoStats(videoStats) {
+  const werte = normalizeVideoStats(videoStats);
+  return werte.views > 0 || werte.likes > 0 || werte.comments > 0;
+}
+
+function renderVideoStatsCardHtml(videoStats) {
+  const werte = normalizeVideoStats(videoStats);
+  const viewsExact = formatExactNumber(werte.views);
+  const likesExact = formatExactNumber(werte.likes);
+  const commentsExact = formatExactNumber(werte.comments);
+  const viewsDisplay = formatCompactNumber(werte.views) || '0';
+  const likesDisplay = formatCompactNumber(werte.likes) || '0';
+  const commentsDisplay = formatCompactNumber(werte.comments) || '0';
+
+  return `
+        <div class="summary-card summary-card--performance" data-summary-card="video-stats">
+          <div class="summary-card__overline">Live-Performance</div>
+          <div class="performance-hero">
+            <span class="performance-hero__value" data-summary-value="stats-views" title="${viewsExact}">${viewsDisplay}</span>
+            <span class="performance-hero__unit">Views</span>
+          </div>
+          <div class="performance-split">
+            <div class="performance-split__item">
+              <span class="performance-split__value" data-summary-value="stats-likes" title="${likesExact}">${likesDisplay}</span>
+              <span class="performance-split__label">Likes</span>
+            </div>
+            <div class="performance-split__item">
+              <span class="performance-split__value" data-summary-value="stats-comments" title="${commentsExact}">${commentsDisplay}</span>
+              <span class="performance-split__label">Kommentare</span>
+            </div>
+          </div>
+        </div>`;
+}
+
 
 function resolveTargets(kampagneData) {
   return getCampaignTargetTotals({
@@ -101,12 +135,33 @@ export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUse
 /**
  * Live-Performance-Karte nachziehen. Laeuft nach jedem Stats-Abruf und jeder
  * manuellen Korrektur in der Tabelle, deshalb kein Re-Render der Seite.
+ * Ohne Zahlen bleibt die Karte weg, sobald welche da sind, haengt sie sich ein.
  */
 export function updateVideoStatsCardDOM(videoStats, { animate = false } = {}) {
+  const hasData = hasVideoStats(videoStats);
+  let card = document.querySelector('[data-summary-card="video-stats"]');
+
+  if (!hasData) {
+    card?.remove();
+    return;
+  }
+
+  if (!card) {
+    const container = document.querySelector('.auftragsdetails-summary .summary-cards');
+    if (!container) return;
+    container.insertAdjacentHTML(
+      'beforeend',
+      renderVideoStatsCardHtml(animate ? { views: 0, likes: 0, comments: 0 } : videoStats)
+    );
+    if (!animate) return;
+    card = container.querySelector('[data-summary-card="video-stats"]');
+    if (!card) return;
+  }
+
   const werte = normalizeVideoStats(videoStats);
 
   for (const metrik of VIDEO_STATS_METRIKEN) {
-    const el = document.querySelector(`[data-summary-value="${metrik.slug}"]`);
+    const el = card.querySelector(`[data-summary-value="${metrik.slug}"]`);
     if (!el) continue;
     const target = werte[metrik.key];
     const setExactTitle = () => { el.title = formatExactNumber(target); };
@@ -162,14 +217,6 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
 
   const fmt = KampagneUtils.formatCurrency;
 
-  const statsWerte = normalizeVideoStats(videoStats);
-  const viewsExact = formatExactNumber(statsWerte.views);
-  const likesExact = formatExactNumber(statsWerte.likes);
-  const commentsExact = formatExactNumber(statsWerte.comments);
-  const viewsDisplay = formatCompactNumber(statsWerte.views) || '0';
-  const likesDisplay = formatCompactNumber(statsWerte.likes) || '0';
-  const commentsDisplay = formatCompactNumber(statsWerte.comments) || '0';
-
   const zusatzleistungenCardsHtml = validExtraServices.map(s => `
         <div class="summary-card">
           <div class="summary-value">${fmt(parseFloat(s.amount) || 0)}</div>
@@ -219,23 +266,7 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
           <div class="summary-value" data-summary-value="videos">${KampagneUtils.num(usedVideos)} von ${KampagneUtils.num(totalVideos)}</div>
           <div class="summary-label">Gebuchte Videos</div>
         </div>
-        <div class="summary-card summary-card--performance" data-summary-card="video-stats">
-          <div class="summary-card__overline">Live-Performance</div>
-          <div class="performance-hero">
-            <span class="performance-hero__value" data-summary-value="stats-views" title="${viewsExact}">${viewsDisplay}</span>
-            <span class="performance-hero__unit">Views</span>
-          </div>
-          <div class="performance-split">
-            <div class="performance-split__item">
-              <span class="performance-split__value" data-summary-value="stats-likes" title="${likesExact}">${likesDisplay}</span>
-              <span class="performance-split__label">Likes</span>
-            </div>
-            <div class="performance-split__item">
-              <span class="performance-split__value" data-summary-value="stats-comments" title="${commentsExact}">${commentsDisplay}</span>
-              <span class="performance-split__label">Kommentare</span>
-            </div>
-          </div>
-        </div>
+        ${hasVideoStats(videoStats) ? renderVideoStatsCardHtml(videoStats) : ''}
       </div>
     </div>
   `;
