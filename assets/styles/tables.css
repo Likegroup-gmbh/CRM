@@ -1990,6 +1990,15 @@ thead {
   color: var(--text-tertiary);
 }
 
+/* Zweitwert "ohne Trials": optisch abgesetzt, damit klar ist, dass der
+   Hauptwert (mit Trials) die bisherige Rechnung bleibt */
+.creator-pool-table .cpm-auto-reach--clean {
+  color: var(--text-secondary);
+  border-top: 1px dashed var(--border-primary);
+  margin-top: 2px;
+  padding-top: 2px;
+}
+
 /* Blur setzt color nur auf dem Wrapper - die Views-Zeile braucht sie explizit */
 
 .creator-pool-table .cpm-auto-value.kunden-call-blur .cpm-auto-reach {

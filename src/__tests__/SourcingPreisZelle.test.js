@@ -128,6 +128,64 @@ describe('Sourcing – Ausreißer-Hinweis im Tooltip', () => {
   });
 });
 
+describe('Sourcing – Zweitwert ohne Trials', () => {
+  const itemMitGate = {
+    ig_views_8: 189375,
+    ig_stats: {
+      outliers_8: [],
+      skipped_trial_views: 5,
+      ohne_trials: { views_8: 501875, cpm_8: 12546.88 },
+      trial_gate: { aktiv: true, schwelle: 25125, gap_ratio: 150, cluster_size: 5 }
+    }
+  };
+
+  it('zeigt eine zweite Zeile, wenn ig_stats.ohne_trials vorliegt', () => {
+    const cell = renderCell('cp-col-cpm-ig-8', itemMitGate);
+
+    // Hauptwert bleibt die bisherige Rechnung (mit Trials)
+    expect(cell.querySelector('.cpm-auto-price').textContent.trim()).toBe('4.734,38 €');
+    expect(cell.querySelector('.cpm-auto-reach').textContent.trim()).toBe('Ø 189,4K Views');
+
+    const clean = cell.querySelector('.cpm-auto-reach--clean');
+    expect(clean).not.toBeNull();
+    expect(clean.textContent).toContain('12.546,88 €');
+    expect(clean.textContent).toContain('Ø 501,9K ohne Trials');
+  });
+
+  it('zeigt ohne Gate keine zweite Zeile', () => {
+    const cell = renderCell('cp-col-cpm-ig-8', {
+      ig_views_8: 50000,
+      ig_stats: { outliers_8: [] }
+    });
+
+    expect(cell.querySelector('.cpm-auto-reach--clean')).toBeNull();
+  });
+
+  it('zeigt keine zweite Zeile, wenn B dem A-Wert entspricht', () => {
+    const cell = renderCell('cp-col-cpm-ig-8', {
+      ig_views_8: 50000,
+      ig_stats: { outliers_8: [], ohne_trials: { views_8: 50000 } }
+    });
+
+    expect(cell.querySelector('.cpm-auto-reach--clean')).toBeNull();
+  });
+
+  it('rechnet den Zweitwert mit dem TKP der Liste', () => {
+    const cell = renderCell('cp-col-cpm-ig-8', itemMitGate, { liste: { tkp: 40 } });
+
+    // 501875 / 1000 * 40 = 20075
+    expect(cell.querySelector('.cpm-auto-reach--clean').textContent).toContain('20.075,00 €');
+  });
+
+  it('nennt erkannte Trials und den bereinigten Schnitt im Tooltip', () => {
+    const cell = renderCell('cp-col-cpm-ig-8', itemMitGate);
+    const title = cell.querySelector('.cpm-auto-value').title;
+
+    expect(title).toContain('5 Trial-Reels per View-Lücke erkannt (im Hauptwert enthalten)');
+    expect(title).toContain('Ohne Trials: Ø 501.875 Views (Schwelle 25.125, Lücke 150x)');
+  });
+});
+
 describe('Sourcing – TKP der Liste', () => {
   it('rechnet den Preis mit dem TKP der Liste, nicht mit den gespeicherten cpm_ig_*', () => {
     const cell = renderCell(

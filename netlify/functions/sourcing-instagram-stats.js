@@ -40,6 +40,7 @@ const {
 const {
   computeInstagramCpm,
   formatCpmDebug,
+  formatCpmReport,
   classifyVideos,
   WINDOW_LONG,
   CALC_VERSION
@@ -179,10 +180,13 @@ function statsFromPool(pool) {
     used_30: ig.used_30,
     outliers_8: ig.outliers_8 || [],
     outliers_30: ig.outliers_30 || [],
+    ohne_trials: ig.ohne_trials ?? null,
+    trial_gate: ig.trial_gate ?? null,
     videos_available: ig.videos_available,
     skipped_too_recent: ig.skipped_too_recent,
     skipped_ads: ig.skipped_ads ?? null,
     skipped_trials: ig.skipped_trials ?? null,
+    skipped_trial_views: ig.skipped_trial_views ?? null,
     non_video_skipped: ig.non_video_skipped ?? null,
     videos: ig.videos || [],
     skipped_videos: ig.skipped_videos || []
@@ -192,16 +196,11 @@ function statsFromPool(pool) {
 function emitCpmDebug(username, stats, meta) {
   if (!IG_CPM_DEBUG) return null;
   const debug = formatCpmDebug(username, stats, meta);
-  console.log(`[IG-CPM] @${username} (${meta.source})`, {
-    rules: debug.rules,
-    skipped: debug.skipped,
-    included_8: debug.included_8,
-    included_30: debug.included_30,
-    outliers: debug.outliers,
-    summary: debug.summary,
-    pool_fetched_at: debug.pool_fetched_at,
-    image_error: debug.image_error
-  });
+  // Menschenlesbarer Report ins Log (Regeln, Gate, Verdict je Reel, duale
+  // Summary) - identisch zum Output von scripts/instagram-media-debug.mjs,
+  // damit sich Zeilen stichprobenartig gegen das eingeloggte Grid pruefen
+  // lassen. Der JSON-Payload bleibt fuer die Response.
+  console.log(formatCpmReport(username, stats, meta));
   return debug;
 }
 
@@ -330,6 +329,7 @@ exports.handler = async (event) => {
     const debug = emitCpmDebug(username, statsFromPool(pool), {
       source: 'pool',
       pool_fetched_at: pool.ig_fetched_at,
+      follower: pool.follower_instagram,
       image_error: pool.profile_image_url
         ? null
         : 'kein Bild im Pool, letzter Versuch erfolglos (force erzwingt neuen Versuch)'
@@ -370,6 +370,7 @@ exports.handler = async (event) => {
       const debug = emitCpmDebug(username, statsFromPool(pool), {
         source: 'pool',
         pool_fetched_at: pool.ig_fetched_at,
+        follower: pool.follower_instagram,
         image_error: `Bild-Nachzug fehlgeschlagen: ${res.error}`
       });
 
@@ -479,7 +480,10 @@ exports.handler = async (event) => {
       skipped_too_recent: stats.skipped_too_recent,
       skipped_ads: stats.skipped_ads,
       skipped_trials: stats.skipped_trials,
+      skipped_trial_views: stats.skipped_trial_views,
       non_video_skipped: stats.non_video_skipped,
+      ohne_trials: stats.ohne_trials,
+      trial_gate: stats.trial_gate,
       videos: stats.videos,
       skipped_videos: stats.skipped_videos
     }
@@ -519,6 +523,8 @@ exports.handler = async (event) => {
   const debug = emitCpmDebug(username, stats, {
     source: 'meta',
     pool_fetched_at: poolRow.ig_fetched_at,
+    follower: p.followers_count ?? null,
+    media_total: res.media.length,
     image_error: bildFehler
   });
 

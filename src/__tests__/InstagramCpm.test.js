@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   computeInstagramCpm,
   formatCpmDebug,
+  formatCpmReport,
   detectOutliers,
   istWerbePost,
   toCpm,
@@ -671,4 +672,137 @@ describe('formatCpmDebug', () => {
     expect(debug.included_8.map((v) => v.permalink)).not.toContain(ausreisserPermalink);
   });
 
+});
+
+/** 5 Trials (~3K) + 8 reguläre Reels (~500K), neueste zuerst */
+function bimodal() {
+  return [
+    ...videosAus([3000, 3200, 2800, 3100, 2900], 5),
+    ...videosAus([500000, 520000, 480000, 510000, 490000, 505000, 495000, 515000], 10)
+  ];
+}
+
+describe('computeInstagramCpm – Trial-Lücke (View-Gap)', () => {
+  it('erkennt den Boden-Cluster und rechnet dual: A mit Trials, B ohne', () => {
+    const stats = computeInstagramCpm(bimodal(), { now: NOW });
+
+    expect(stats.trial_gate.aktiv).toBe(true);
+    expect(stats.trial_gate.cluster_size).toBe(5);
+    expect(stats.trial_gate.reg_median).toBe(502500);
+    // Schwelle = 5 % des regulaeren Medians
+    expect(stats.trial_gate.schwelle).toBe(25125);
+    expect(stats.trial_gate.gap_ratio).toBe(150);
+    expect(stats.skipped_trial_views).toBe(5);
+
+    // A bleibt das bisherige Verhalten: die Trials stecken im 8er-Fenster
+    // (5 Trials + 3 regulaere = 1515000 / 8)
+    expect(stats.views_8).toBe(189375);
+    // B rechnet nur ueber die 8 regulären Reels
+    expect(stats.ohne_trials).not.toBeNull();
+    expect(stats.ohne_trials.views_8).toBe(501875);
+    expect(stats.ohne_trials.sample_8).toBe(8);
+    expect(stats.ohne_trials.cpm_8).toBe(toCpm(501875));
+  });
+
+  it('führt markierte Trials in skipped_videos, behält sie aber in videos', () => {
+    const stats = computeInstagramCpm(bimodal(), { now: NOW });
+
+    const markiert = stats.skipped_videos.filter((v) => v.reason === 'trial_views');
+    expect(markiert).toHaveLength(5);
+    expect(markiert[0].trial_detail.schwelle).toBe(25125);
+    expect(markiert[0].trial_detail.reg_median).toBe(502500);
+    // Variante A nutzt sie weiterhin
+    expect(stats.videos_available).toBe(13);
+  });
+
+  it('bleibt bei einem unimodalen kleinen Account inaktiv (B = A)', () => {
+    const stats = computeInstagramCpm(videoSeries(10, 3000), { now: NOW });
+
+    expect(stats.trial_gate.aktiv).toBe(false);
+    expect(stats.ohne_trials).toBeNull();
+    expect(stats.skipped_trial_views).toBe(0);
+  });
+
+  it('lässt den echten 50K-Flop bei 600K-Median regulär (nur 3K-Cluster fällt)', () => {
+    const media = videosAus([
+      3000, 4000, 5000,   // Trial-Cluster
+      50000,              // echter Flop, ueber der 5%-Schwelle von 30000
+      ...Array(8).fill(600000)
+    ], 5);
+    const stats = computeInstagramCpm(media, { now: NOW });
+
+    expect(stats.trial_gate.aktiv).toBe(true);
+    expect(stats.trial_gate.schwelle).toBe(30000);
+    const trialViews = stats.skipped_videos
+      .filter((v) => v.reason === 'trial_views')
+      .map((v) => v.views);
+    expect(trialViews.sort((a, b) => a - b)).toEqual([3000, 4000, 5000]);
+    expect(trialViews).not.toContain(50000);
+  });
+
+  it('aktiviert das Gate nicht unter 3 Videos im Boden-Cluster', () => {
+    const media = videosAus([3000, 4000, ...Array(8).fill(600000)], 5);
+    const stats = computeInstagramCpm(media, { now: NOW });
+
+    expect(stats.trial_gate.aktiv).toBe(false);
+    expect(stats.ohne_trials).toBeNull();
+  });
+
+  it('aktiviert das Gate nicht, wenn der reguläre Median unter 50K liegt', () => {
+    // Luecke vorhanden (300 -> 4000 = 13x), aber der Account ist zu klein:
+    // niedrige Views sind dort normaler Content
+    const media = videosAus([200, 250, 300, ...Array(8).fill(4000)], 5);
+    const stats = computeInstagramCpm(media, { now: NOW });
+
+    expect(stats.trial_gate.aktiv).toBe(false);
+    expect(stats.trial_gate.grund).toContain('reg_median');
+    expect(stats.ohne_trials).toBeNull();
+  });
+
+  it('markiert frische Videos nie als Trial (Altersregel läuft vorher)', () => {
+    const media = [
+      video(1, 3000), video(2, 3200), video(3, 2800),
+      ...videoSeries(8, 500000, 5)
+    ];
+    const stats = computeInstagramCpm(media, { now: NOW });
+
+    expect(stats.skipped_too_recent).toBe(3);
+    expect(stats.skipped_trial_views).toBe(0);
+    expect(stats.trial_gate.aktiv).toBe(false);
+    expect(stats.ohne_trials).toBeNull();
+  });
+
+  it('liefert ohne Gate kein B und unveränderte A-Werte', () => {
+    const stats = computeInstagramCpm(videoSeries(30, 20000), { now: NOW });
+
+    expect(stats.ohne_trials).toBeNull();
+    expect(stats.views_8).toBe(20000);
+    expect(stats.views_30).toBe(20000);
+  });
+});
+
+describe('formatCpmReport', () => {
+  it('zeigt Gate, Verdicts und duale Summary bei aktivem Filter', () => {
+    const stats = computeInstagramCpm(bimodal(), { now: NOW });
+    const report = formatCpmReport('demo_user', stats, {
+      source: 'test', follower: 2100000, media_total: 13, now: NOW
+    });
+
+    expect(report).toContain('@demo_user');
+    expect(report).toContain('calc_v6');
+    expect(report).toContain('GATE   reg_median=502,5K >= 50.000');
+    expect(report).toContain('AKTIV, Schwelle=25,1K');
+    expect(report).toContain('TRIAL_VIEWS (3,0K < 25,1K = 5% von 502,5K)');
+    expect(report).toContain('SUMMARY  A mit Trials:   views_8=189,4K');
+    expect(report).toContain('B ohne Trials:  views_8=501,9K');
+  });
+
+  it('zeigt bei inaktivem Gate nur Variante A', () => {
+    const stats = computeInstagramCpm(videoSeries(10, 3000), { now: NOW });
+    const report = formatCpmReport('kleiner_account', stats, { now: NOW });
+
+    expect(report).toContain('GATE   INAKTIV');
+    expect(report).toContain('B = A');
+    expect(report).not.toContain('B ohne Trials:');
+  });
 });

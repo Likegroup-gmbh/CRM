@@ -2250,6 +2250,10 @@ h3.section-title,
   margin-top: var(--space-md);
 }
 
+.ig-trial-hint {
+  margin: 2px 0 var(--space-sm);
+}
+
 .ig-posts-block > label {
   display: block;
   font-size: var(--text-sm);
