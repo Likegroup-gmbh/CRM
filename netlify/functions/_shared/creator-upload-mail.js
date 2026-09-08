@@ -3,7 +3,17 @@
 // (DE zuerst, EN darunter) — Philips finale Vorlagen sind Drop-in.
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const RESEND_FROM = process.env.RESEND_FROM || 'CreatorJobs24 <uploads@creatorjobs24.de>';
+
+function normalizeFrom(raw) {
+  const fallback = 'LikeGroup <uploads@creatorjobs24.de>';
+  const value = String(raw || '').trim();
+  if (!value) return fallback;
+  return value
+    .replace(/\bCreatorJobs24\b/gi, 'LikeGroup')
+    .replace(/\bnoreply@/gi, 'hello@');
+}
+
+const RESEND_FROM = normalizeFrom(process.env.RESEND_FROM);
 
 function escapeHtml(str) {
   return String(str ?? '')
@@ -64,6 +74,7 @@ async function sendCreatorUploadMail({ to, creatorVorname, kampagneName, link, e
     },
     body: JSON.stringify({
       from: RESEND_FROM,
+      reply_to: RESEND_FROM,
       to: [to],
       subject: `Rohmaterial-Upload für ${kamp} / Raw footage upload for ${kamp}`,
       html: buildMailHtml({ creatorVorname, kampagneName, link, expiresAt }),
