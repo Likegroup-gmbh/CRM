@@ -83,19 +83,28 @@ const TRIAL_FUZZY_JACCARD = 0.85;
 // Trials vor (3K vs. 600K). Der Split emergiert aus den Daten selbst, kein
 // starrer Prozentsatz - so funktioniert es auch, wenn Trials mehr als die
 // Haelfte der Posts stellen und den Median kaputt machen wuerden.
-const TRIAL_GAP_RATIO = 5;           // min. Verhaeltnis oben/unten am Splitpunkt
+const TRIAL_GAP_RATIO = 3;           // min. Nachbar-Verhaeltnis am Splitpunkt.
+                                     // Bewusst moderat: aeltere Reels mit
+                                     // Mittelfeld-Views zerlegen eine grosse
+                                     // Luecke in kleine Nachbarschritte
+                                     // (carodaur: 62x gesamt, aber kein
+                                     // einzelner 5x-Sprung) - die Trennschaerfe
+                                     // uebernimmt der Boden-Check unten.
 const TRIAL_MIN_CLUSTER = 3;         // min. Videos im Boden-Cluster ("hohe Stueckzahl")
 const TRIAL_MIN_REGULAR = OUTLIER_MIN_SAMPLE; // min. Videos oberhalb des Splits
 // Account-Gate statt Follower-Schalter: unter 50K regulaerem Median sind
 // niedrige Views normaler Content, der Mechanismus bleibt komplett aus.
 const TRIAL_MIN_REGULAR_MEDIAN = 50000;
-// Final pro Video: unter 5 % des regulaeren Medians ist es ein Trial. Trennt
-// bei 600K-Median die 3-8K-Trials vom echten 50K-Flop.
+// Doppelt genutzt: am Split muss der Median des Bodens unter 5 % des
+// regulaeren Medians liegen (der Boden als Ganzes ist winzig, nicht nur
+// einzelne Reels - das haelt Viral-Hit-Splits und echte Flop-Cluster fern),
+// und markiert wird final pro Video unter 5 %. Trennt bei 600K-Median die
+// 3-8K-Trials vom echten 50K-Flop.
 const TRIAL_MAX_PCT = 0.05;
 
 // Version der Rechenlogik. Landet in ig_stats.calc_version; eine aeltere
 // Version im Creator-Pool gilt als veraltet und erzwingt einen neuen Abruf.
-const CALC_VERSION = 6;
+const CALC_VERSION = 7;
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -214,24 +223,28 @@ function median(values) {
  * mit winzigen Views (Non-Follower-Testlauf), klar getrennt vom regulaeren
  * Niveau des Accounts.
  *
- * Vorgehen:
- * 1. Views aufsteigend sortieren, Split-Kandidaten sind Nachbarpaare mit
- *    Verhaeltnis >= TRIAL_GAP_RATIO, unten >= TRIAL_MIN_CLUSTER und oben
- *    >= TRIAL_MIN_REGULAR Videos.
- * 2. Gewaehlt wird der NIEDRIGSTE Kandidat: ein echter Mid-Flop (50K bei
- *    600K-Median) darf nicht in den Trial-Topf rutschen.
- * 3. Account-Gate: liegt der Median der oberen Seite unter
- *    TRIAL_MIN_REGULAR_MEDIAN, sind niedrige Views normaler Content und der
- *    Mechanismus bleibt aus (kleine Creator).
- * 4. Markiert wird pro Video: views < TRIAL_MAX_PCT * reg_median. So bleibt
- *    der 50K-Flop auch dann regulär, wenn der Split unter ihm liegt.
+ * Vorgehen (Kandidaten-Scan statt erstem Treffer):
+ * 1. Views aufsteigend sortieren. Jeder Split mit unten >= TRIAL_MIN_CLUSTER
+ *    und oben >= TRIAL_MIN_REGULAR Videos ist Kandidat, wenn das
+ *    Nachbar-Verhaeltnis >= TRIAL_GAP_RATIO liegt.
+ * 2. Account-Gate je Kandidat: der Median der oberen Seite muss >=
+ *    TRIAL_MIN_REGULAR_MEDIAN liegen (kleine Creator bleiben komplett aus).
+ * 3. Boden-Check je Kandidat: der Median der UNTEREN Seite muss unter
+ *    TRIAL_MAX_PCT des regulaeren Medians liegen. Der Boden muss also als
+ *    Ganzes winzig sein, nicht nur einzelne Reels - das haelt Viral-Hit-
+ *    Splits (oben 5M+, unten normale 200-800K) und echte Flop-Cluster fern
+ *    und erlaubt gleichzeitig Mittelfeld-Stufen zwischen Boden und Split.
+ * 4. Gewaehlt wird der Kandidat mit der groessten lokalen Luecke (die
+ *    deutlichste Trennstelle).
+ * 5. Markiert wird pro Video: views < TRIAL_MAX_PCT * reg_median. So bleibt
+ *    der 50K-Flop auch dann regulaer, wenn der Split unter ihm liegt.
  *
  * Die Funktion entscheidet nur, markiert wird in classifyVideos.
  *
  * @param {Array} videos included-Entries (organisch, alt genug, keine Duplikate)
  * @returns {{aktiv: boolean, grund: string|null, markiert: Set<number>,
- *   gap_ratio: number|null, reg_median: number|null, schwelle: number|null,
- *   cluster_size: number}}
+ *   gap_ratio: number|null, reg_median: number|null, boden_median: number|null,
+ *   schwelle: number|null, cluster_size: number}}
  */
 function findeTrialLuecke(videos) {
   const inaktiv = (grund) => ({
@@ -240,6 +253,7 @@ function findeTrialLuecke(videos) {
     markiert: new Set(),
     gap_ratio: null,
     reg_median: null,
+    boden_median: null,
     schwelle: null,
     cluster_size: 0
   });
@@ -252,26 +266,40 @@ function findeTrialLuecke(videos) {
     .map((v, index) => ({ views: v.views, index }))
     .sort((a, b) => a.views - b.views);
 
-  let split = -1;
-  let gapRatio = null;
+  let bester = null;
+  let lueckeGesehen = false;
+  let maxRegMedian = 0;
+  let minBodenPct = Infinity;
   for (let i = TRIAL_MIN_CLUSTER - 1; i < sortiert.length - TRIAL_MIN_REGULAR; i += 1) {
     const unten = sortiert[i].views;
     const oben = sortiert[i + 1].views;
     const ratio = unten > 0 ? oben / unten : (oben > 0 ? Infinity : 1);
-    if (ratio >= TRIAL_GAP_RATIO) {
-      split = i;
-      gapRatio = ratio;
-      break;
+    if (ratio < TRIAL_GAP_RATIO) continue;
+    lueckeGesehen = true;
+
+    const regMedian = median(sortiert.slice(i + 1).map((s) => s.views));
+    if (regMedian > maxRegMedian) maxRegMedian = regMedian;
+    if (regMedian < TRIAL_MIN_REGULAR_MEDIAN) continue;
+
+    const bodenMedian = median(sortiert.slice(0, i + 1).map((s) => s.views));
+    const bodenPct = bodenMedian / regMedian;
+    if (bodenPct < minBodenPct) minBodenPct = bodenPct;
+    if (bodenMedian >= TRIAL_MAX_PCT * regMedian) continue;
+
+    if (!bester || ratio > bester.ratio) {
+      bester = { ratio, regMedian, bodenMedian };
     }
   }
-  if (split === -1) return inaktiv(`keine View-Luecke >= ${TRIAL_GAP_RATIO}x`);
 
-  const regMedian = median(sortiert.slice(split + 1).map((s) => s.views));
-  if (regMedian < TRIAL_MIN_REGULAR_MEDIAN) {
-    return inaktiv(`reg_median ${Math.round(regMedian)} < ${TRIAL_MIN_REGULAR_MEDIAN}`);
+  if (!bester) {
+    if (!lueckeGesehen) return inaktiv(`keine View-Luecke >= ${TRIAL_GAP_RATIO}x`);
+    if (maxRegMedian < TRIAL_MIN_REGULAR_MEDIAN) {
+      return inaktiv(`reg_median ${Math.round(maxRegMedian)} < ${TRIAL_MIN_REGULAR_MEDIAN}`);
+    }
+    return inaktiv(`Boden zu hoch: boden_median bei ${Math.round(minBodenPct * 100)}% reg_median (>= ${TRIAL_MAX_PCT * 100}%)`);
   }
 
-  const schwelle = TRIAL_MAX_PCT * regMedian;
+  const schwelle = TRIAL_MAX_PCT * bester.regMedian;
   const markiert = new Set();
   for (const s of sortiert) {
     if (s.views < schwelle) markiert.add(s.index);
@@ -284,8 +312,9 @@ function findeTrialLuecke(videos) {
     aktiv: true,
     grund: null,
     markiert,
-    gap_ratio: gapRatio,
-    reg_median: regMedian,
+    gap_ratio: bester.ratio,
+    reg_median: bester.regMedian,
+    boden_median: bester.bodenMedian,
     schwelle,
     cluster_size: markiert.size
   };
@@ -302,6 +331,7 @@ function serialisiereTrialGate(gate) {
     aktiv: gate.aktiv === true,
     grund: gate.grund || null,
     reg_median: gate.reg_median != null ? Math.round(gate.reg_median) : null,
+    boden_median: gate.boden_median != null ? Math.round(gate.boden_median) : null,
     gap_ratio: Number.isFinite(gate.gap_ratio)
       ? Math.round(gate.gap_ratio * 100) / 100
       : null,
@@ -910,7 +940,7 @@ function formatCpmReport(username, stats, meta = {}) {
   const follower = meta.follower != null ? deZahl(meta.follower) : '-';
   z.push(`[IG-CPM] @${username || '?'}  source=${meta.source || '?'}  fetched=${meta.pool_fetched_at || '-'}  follower=${follower}`);
 
-  z.push(`RULES  age>=${MIN_AGE_HOURS}h  gap>=${TRIAL_GAP_RATIO}x  cluster>=${TRIAL_MIN_CLUSTER}  regular>=${TRIAL_MIN_REGULAR}  reg_median>=${deZahl(TRIAL_MIN_REGULAR_MEDIAN)}  flag<${TRIAL_MAX_PCT * 100}% reg_median  outlier>=${OUTLIER_RATIO}x  calc_v${CALC_VERSION}`);
+  z.push(`RULES  age>=${MIN_AGE_HOURS}h  gap>=${TRIAL_GAP_RATIO}x  cluster>=${TRIAL_MIN_CLUSTER}  regular>=${TRIAL_MIN_REGULAR}  reg_median>=${deZahl(TRIAL_MIN_REGULAR_MEDIAN)}  boden<${TRIAL_MAX_PCT * 100}% reg_median  flag<${TRIAL_MAX_PCT * 100}% reg_median  outlier>=${OUTLIER_RATIO}x  calc_v${CALC_VERSION}`);
 
   const mediaTotal = meta.media_total
     ?? (videos.length + skipped.length + (stats.non_video_skipped ?? 0));
@@ -933,7 +963,7 @@ function formatCpmReport(username, stats, meta = {}) {
     const splitUnten = lows.length ? kurzZahl(lows[lows.length - 1]) : '?';
     const splitOben = highs.length ? kurzZahl(highs[0]) : '?';
     z.push(`        └─ low cluster n=${lows.length} ─┘  ↑ SPLIT ${splitUnten} -> ${splitOben} (ratio ${String(gate.gap_ratio ?? '?').replace('.', ',')}x)`);
-    z.push(`GATE   reg_median=${kurzZahl(gate.reg_median)} >= ${deZahl(TRIAL_MIN_REGULAR_MEDIAN)}  cluster=${gate.cluster_size} >= ${TRIAL_MIN_CLUSTER}  => AKTIV, Schwelle=${kurzZahl(gate.schwelle)}`);
+    z.push(`GATE   reg_median=${kurzZahl(gate.reg_median)} >= ${deZahl(TRIAL_MIN_REGULAR_MEDIAN)}  boden_median=${kurzZahl(gate.boden_median)} < ${TRIAL_MAX_PCT * 100}% reg_median  cluster=${gate.cluster_size} >= ${TRIAL_MIN_CLUSTER}  => AKTIV, Schwelle=${kurzZahl(gate.schwelle)}`);
   } else {
     z.push(`GATE   INAKTIV (${gate?.grund || 'keine Daten'}) => B = A`);
   }
