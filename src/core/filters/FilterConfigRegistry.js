@@ -16,6 +16,7 @@ import RechnungFilterConfig from '../../modules/rechnung/filters/RechnungFilterC
 import VertragFilterConfig from '../../modules/vertrag/filters/VertragFilterConfig.js';
 import SkriptFilterConfig from '../../modules/skripte/filters/SkriptFilterConfig.js';
 import ProduktFilterConfig from '../../modules/produkt/filters/ProduktFilterConfig.js';
+import PersonaFilterConfig from '../../modules/persona/filters/PersonaFilterConfig.js';
 
 // Importiere Filter-Logik (optional)
 import CreatorFilterLogic from '../../modules/creator/filters/CreatorFilterLogic.js';
@@ -44,7 +45,8 @@ export const FILTER_CONFIG_REGISTRY = {
   rechnung: RechnungFilterConfig,
   vertrag: VertragFilterConfig,
   skripte: SkriptFilterConfig,
-  produkt: ProduktFilterConfig
+  produkt: ProduktFilterConfig,
+  persona: PersonaFilterConfig
 };
 
 /**
