@@ -333,8 +333,8 @@ describe('Kundenrechnungen-Monatssummen', () => {
 
     const cards = document.getElementById('ausgangsrechnungen-summary-cards');
     const foot = document.getElementById('ausgangsrechnungen-summary');
-    // 3 Felder x 2 Surfaces (Card + tfoot) laufen synchron
-    expect(animateNumber).toHaveBeenCalledTimes(6);
+    // 3 Summen-Felder x 2 Surfaces (Card + tfoot) + 2 Bezahlt-Werte (nur Card)
+    expect(animateNumber).toHaveBeenCalledTimes(8);
     expect(animateNumber).toHaveBeenCalledWith(
       cards.querySelector('[data-summary-value="nettobetrag"]'),
       1000,
@@ -345,7 +345,32 @@ describe('Kundenrechnungen-Monatssummen', () => {
       1190,
       { format: expect.any(Function) }
     );
+    // Zeile ohne ueberwiesen_am -> Bezahlt-Card animiert auf 0
+    expect(animateNumber).toHaveBeenCalledWith(
+      cards.querySelector('[data-summary-value="bezahlt_brutto"]'),
+      0,
+      { format: expect.any(Function) }
+    );
     const { format } = animateNumber.mock.calls[0][2];
     expect(format(1234.5)).toBe(list.formatSummaryCurrency(1234.5));
+  });
+
+  it('zeigt auf der Bezahlt-Card nur ueberwiesene Zeilen (Netto + Brutto)', () => {
+    const list = new AusgangsrechnungenList();
+    renderFullPage(list);
+
+    list.updateInvoiceSummary([
+      { nettobetrag: 1000, ust_betrag: 190, bruttobetrag: 1190, ueberwiesen_am: '2026-09-01' },
+      { nettobetrag: 2000, ust_betrag: 380, bruttobetrag: 2380, ueberwiesen_am: null }
+    ]);
+
+    const cards = document.getElementById('ausgangsrechnungen-summary-cards');
+    expect(cards.querySelector('[data-summary-value="bezahlt_netto"]').textContent)
+      .toBe(list.formatSummaryCurrency(1000));
+    expect(cards.querySelector('[data-summary-value="bezahlt_brutto"]').textContent)
+      .toBe(list.formatSummaryCurrency(1190));
+    // Gesamt-Summen bleiben unveraendert ueber alle Zeilen
+    expect(cards.querySelector('[data-summary-value="bruttobetrag"]').textContent)
+      .toBe(list.formatSummaryCurrency(3570));
   });
 });

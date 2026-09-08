@@ -29,6 +29,23 @@ export function isReFaelligkeitOverdue(reFaelligkeit) {
   return faellig < today;
 }
 
+// Bezahlt = ueberwiesen_am gesetzt; nur wenn das Datums-Feld nicht uebergeben
+// wird, dient das Boolean-Flag als Fallback (z.B. bei Aggregations-Queries).
+export function isInvoiceRowPaid({ ueberwiesen, ueberwiesen_am } = {}) {
+  return ueberwiesen_am !== undefined ? hasValue(ueberwiesen_am) : Boolean(ueberwiesen);
+}
+
+// Summen der bezahlten Rechnungszeilen (Auftrag- oder Teilrechnungs-Zeilen).
+// Grundlage der „Bereits bezahlt"-Cards auf Kundenrechnungen und Stakeholder.
+export function sumPaidInvoiceRows(rows) {
+  return (rows || []).reduce((acc, row) => {
+    if (!isInvoiceRowPaid(row)) return acc;
+    acc.netto += parseFloat(row.nettobetrag) || 0;
+    acc.brutto += parseFloat(row.bruttobetrag) || 0;
+    return acc;
+  }, { netto: 0, brutto: 0 });
+}
+
 export function getPaymentRowStatusClass({
   ueberwiesen,
   ueberwiesen_am,
@@ -36,7 +53,7 @@ export function getPaymentRowStatusClass({
   rechnung_gestellt_am,
   re_faelligkeit
 } = {}) {
-  const isPaid = ueberwiesen_am !== undefined ? hasValue(ueberwiesen_am) : Boolean(ueberwiesen);
+  const isPaid = isInvoiceRowPaid({ ueberwiesen, ueberwiesen_am });
   const isInvoiced = rechnung_gestellt_am !== undefined ? hasValue(rechnung_gestellt_am) : Boolean(rechnung_gestellt);
 
   if (isPaid) return PAYMENT_CLASS.ueberwiesen;

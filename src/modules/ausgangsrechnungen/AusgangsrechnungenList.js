@@ -19,7 +19,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
-import { getPaymentRowStatusClass } from '../auftrag/logic/PaymentRowStatus.js';
+import { getPaymentRowStatusClass, sumPaidInvoiceRows } from '../auftrag/logic/PaymentRowStatus.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { renderTabButton } from '../../core/TabUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
@@ -214,6 +214,18 @@ export class AusgangsrechnungenList extends AuftragList {
     return `
       <div class="auftragsdetails-summary" id="ausgangsrechnungen-summary-cards">
         <div class="summary-cards">
+          <div class="summary-card summary-card--wide" data-summary-card="bezahlt">
+            <div class="summary-card-values">
+              <div class="summary-card-value-block">
+                <div class="summary-value" data-summary-value="bezahlt_netto">${zero}</div>
+                <div class="summary-label">Bereits bezahlt (Netto)</div>
+              </div>
+              <div class="summary-card-value-block">
+                <div class="summary-value" data-summary-value="bezahlt_brutto">${zero}</div>
+                <div class="summary-label">Bereits bezahlt (Brutto)</div>
+              </div>
+            </div>
+          </div>
           ${cards.map(({ field, label }) => `
             <div class="summary-card" data-summary-card="${field}">
               <div class="summary-value" data-summary-value="${field}">${zero}</div>
@@ -261,10 +273,18 @@ export class AusgangsrechnungenList extends AuftragList {
   // animateNumber). Cards und tfoot zeigen dieselbe Zahl und laufen synchron.
   updateInvoiceSummary(rows, { animate = false } = {}) {
     const totals = this.sumInvoiceRows(rows);
+    // „Bereits bezahlt"-Card: nur Zeilen mit ueberwiesen_am. Da rows bereits die
+    // monatsgefilterten Zeilen sind, folgt die Card automatisch dem Monatsfilter.
+    const paid = sumPaidInvoiceRows(rows);
     const foot = document.getElementById('ausgangsrechnungen-summary');
     const cards = document.getElementById('ausgangsrechnungen-summary-cards');
     const format = (v) => this.formatSummaryCurrency(v);
-    Object.entries(totals).forEach(([field, value]) => {
+    const entries = {
+      ...totals,
+      bezahlt_netto: paid.netto,
+      bezahlt_brutto: paid.brutto
+    };
+    Object.entries(entries).forEach(([field, value]) => {
       const targets = [
         foot?.querySelector(`[data-summary="${field}"]`),
         cards?.querySelector(`[data-summary-value="${field}"]`)

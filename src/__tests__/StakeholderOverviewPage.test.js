@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { StakeholderOverviewPage, elapsedRatio, groupRowsByKundeMarke } from '../modules/stakeholder/StakeholderOverviewPage.js';
 
-function createMockSupabase({ auftraege = [], blocks = [], kampagnen = [], kooperationen = [], videos = [], details = [], unternehmen = [], rechnungen = [] }) {
+function createMockSupabase({ auftraege = [], blocks = [], kampagnen = [], kooperationen = [], videos = [], details = [], unternehmen = [], rechnungen = [], teilrechnungen = [] }) {
   const tableData = {
     auftrag: { data: auftraege, error: null },
     auftrag_kampagnenart_blocks: { data: blocks, error: null },
@@ -10,7 +10,8 @@ function createMockSupabase({ auftraege = [], blocks = [], kampagnen = [], koope
     kooperation_videos: { data: videos, error: null },
     auftrag_details: { data: details, error: null },
     unternehmen: { data: unternehmen, error: null },
-    rechnung: { data: rechnungen, error: null }
+    rechnung: { data: rechnungen, error: null },
+    auftrag_teilrechnung: { data: teilrechnungen, error: null }
   };
 
   return {
@@ -578,5 +579,50 @@ describe('StakeholderOverviewPage', () => {
     const html = window.setContentSafely.mock.calls[0][1];
     expect(html).not.toContain('WHITELISTING');
     expect(html).not.toContain('DARKPOSTING');
+  });
+
+  it('summiert bezahlte Kundenrechnungen (Netto/Brutto) und folgt dem Jahr-Filter', async () => {
+    const auftraege = [
+      // Auftragsebene bezahlt (keine Teilrechnungen)
+      { id: 'a1', auftragsname: 'Alt bezahlt', nettobetrag: 1000, bruttobetrag: 1190, ueberwiesen_am: '2025-02-10', start: '2025-01-01', is_draft: false, unternehmen_id: 'u1' },
+      // Hat Teilrechnungen -> Auftrags-Betraege duerfen nicht zaehlen
+      { id: 'a2', auftragsname: 'Neu teilweise', nettobetrag: 2000, bruttobetrag: 2380, ueberwiesen_am: null, start: '2026-01-01', is_draft: false, unternehmen_id: 'u1' }
+    ];
+    const teilrechnungen = [
+      { auftrag_id: 'a2', nettobetrag: 500, bruttobetrag: 595, ueberwiesen_am: '2026-03-01' },
+      { auftrag_id: 'a2', nettobetrag: 1500, bruttobetrag: 1785, ueberwiesen_am: null }
+    ];
+    const unternehmen = [{ id: 'u1', firmenname: 'Muster GmbH' }];
+    window.supabase = createMockSupabase({ auftraege, teilrechnungen, unternehmen });
+    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
+    document.body.appendChild(window.content);
+
+    const page = new StakeholderOverviewPage();
+    await page.init();
+
+    const nettoEl = () => window.content.querySelector('[data-paid-value="netto"]');
+    const bruttoEl = () => window.content.querySelector('[data-paid-value="brutto"]');
+
+    expect(window.content.innerHTML).toContain('Bereits bezahlt');
+    // Alle Jahre: a1 (1000/1190) + bezahlte Teilrechnung von a2 (500/595)
+    expect(nettoEl().textContent).toBe(page.fmtEuro(1500));
+    expect(bruttoEl().textContent).toBe(page.fmtEuro(1785));
+
+    // Jahr 2026: nur a2, davon nur die bezahlte Teilrechnung
+    let select = document.getElementById('stakeholder-year-select');
+    select.value = '2026';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(nettoEl().textContent).toBe(page.fmtEuro(500));
+    expect(bruttoEl().textContent).toBe(page.fmtEuro(595));
+
+    // Jahr 2025: nur a1 auf Auftragsebene
+    select = document.getElementById('stakeholder-year-select');
+    select.value = '2025';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(nettoEl().textContent).toBe(page.fmtEuro(1000));
+    expect(bruttoEl().textContent).toBe(page.fmtEuro(1190));
+
+    page.destroy();
+    window.content.remove();
   });
 });
