@@ -325,7 +325,7 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
       doc.line(LEFT_X, tableTop + headerH, LEFT_X + W, tableTop + headerH);
       let lx = LEFT_X;
       colWidths.slice(0, -1).forEach(w => { lx += w; doc.line(lx, tableTop, lx, tableTop + totalH); });
-      y += 2;
+      y += 6;
       setBody();
     };
 
