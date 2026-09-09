@@ -1,5 +1,5 @@
 // StakeholderOverviewPage.js
-// Stakeholder-Gesamtübersicht (/stakeholder, Admin-only, Nav unter Projektmanagement).
+// Stakeholder-Gesamtübersicht (/admin/stakeholder, Admin-only).
 // Zeitraum-Filter + Kategorie-Tabs (GESAMT, Influencer Marketing, UGC Paid,
 // UGC Organic, Vor-Ort Production, Contracting). Darunter Budget-Karten
 // (Auftragsvolumen, Verfügbares/Offenes Creator Budget, Verbrauchtes Budget,
@@ -27,6 +27,7 @@ import {
 } from './berichtsstandStore.js';
 import { sumPaidInvoiceRows } from '../auftrag/logic/PaymentRowStatus.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { fetchAllRows } from '../../core/fetchAllRows.js';
 import { escapeHtml, formatEuro } from '../../core/format.js';
 
@@ -626,16 +627,10 @@ export class StakeholderOverviewPage {
       <div class="stakeholder-page">
         ${this.renderRechnungsstatus()}
         <div class="stakeholder-toolbar">
-          <div class="stakeholder-view-toggle" role="tablist" aria-label="Ansicht">
-            <button type="button" class="stakeholder-view-btn${!isMonate ? ' active' : ''}"
-                    data-stakeholder-view="kalkulation" role="tab" aria-selected="${!isMonate}">
-              Kalkulation
-            </button>
-            <button type="button" class="stakeholder-view-btn${isMonate ? ' active' : ''}"
-                    data-stakeholder-view="monate" role="tab" aria-selected="${isMonate}">
-              Monatsauswertung
-            </button>
-          </div>
+          ${ViewModeToggle.render([
+            { buttonId: 'btn-view-kalkulation', label: 'Kalkulation', active: !isMonate },
+            { buttonId: 'btn-view-monate', label: 'Monatsauswertung', active: isMonate },
+          ])}
           ${!isMonate ? `
           <div class="form-field stakeholder-year-field">
             <label for="stakeholder-year-select">Zeitraum</label>
@@ -785,7 +780,7 @@ export class StakeholderOverviewPage {
     ).join('');
 
     const select = `
-      <select id="stakeholder-bericht-select" aria-label="Berichtsstand wählen">
+      <select id="stakeholder-bericht-select" class="form-select" aria-label="Berichtsstand wählen">
         <option value="live"${!aktiv ? ' selected' : ''}>Live-Ansicht</option>
         ${optionen}
       </select>`;
@@ -1071,7 +1066,7 @@ export class StakeholderOverviewPage {
     return `
       <div class="stakeholder-cards">
         ${card('Auftragsvolumen = Budget', volumen, 'was der Kunde beauftragt hat', 'jede Buchung verbraucht Budget', { hint: CARD_HINTS.volumen })}
-        ${card('Verbrauchtes Budget', verbraucht, 'aufgeschlüsselt in der Zeile darunter', `${this.fmtPct(verbrauchtPct)} des Budgets`, { progress: verbrauchtPct, progressClass: progressClass(verbrauchtPct), accent: true, footAccent: true, hint: CARD_HINTS.verbraucht })}
+        ${card('Verbrauchtes Budget', verbraucht, 'aufgeschlüsselt in der Zeile darunter', `${this.fmtPct(verbrauchtPct)} des Budgets`, { progress: verbrauchtPct, progressClass: progressClass(verbrauchtPct), hint: CARD_HINTS.verbraucht })}
         ${card(offenLabel, offenValue, offenSub, `${this.fmtPct(offenPct)} offen`, { progress: offenPct, progressClass: openProgressClass(offenPct), hint: offenHint })}
       </div>
       <div class="stakeholder-cards stakeholder-cards--paid">
@@ -1083,7 +1078,7 @@ export class StakeholderOverviewPage {
               <div class="stakeholder-card-sub">Netto</div>
             </div>
             <div class="stakeholder-card-paid-value">
-              <div class="stakeholder-card-value stakeholder-card-value--accent" data-paid-value="brutto">${this.fmtEuro(totals.paidBrutto)}</div>
+              <div class="stakeholder-card-value" data-paid-value="brutto">${this.fmtEuro(totals.paidBrutto)}</div>
               <div class="stakeholder-card-sub">Brutto</div>
             </div>
           </div>
@@ -1097,7 +1092,7 @@ export class StakeholderOverviewPage {
         ${breakdownCard('Agenturanteil', agentur, `${this.fmtEuro(agentur)} von ${this.fmtEuro(totals.agenturVoll)} eingelöst`, [
           ['Fest vereinbart', this.fmtEuro(totals.agenturFest)],
           ['EK/VK-Differenz', this.fmtEuro(totals.agenturMargin)]
-        ], `${this.fmtPct(quote)} Quote`, { progress: quote, accent: true, footAccent: true, hint: CARD_HINTS.agentur })}
+        ], `${this.fmtPct(quote)} Quote`, { progress: quote, hint: CARD_HINTS.agentur })}
         ${breakdownCard('KSK-Abgabe', ksk, 'Künstlersozialabgabe auf Honorare', null, `${this.fmtPct(verbraucht > 0 ? (ksk / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (ksk / verbraucht) * 100 : 0, hint: CARD_HINTS.ksk })}
         ${breakdownCard('Zusatzkosten', zusatz, 'Reise, Lizenzen, Tools, Versand, Payroll', null, `${this.fmtPct(verbraucht > 0 ? (zusatz / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (zusatz / verbraucht) * 100 : 0, hint: CARD_HINTS.zusatz })}
       </div>
@@ -1319,9 +1314,9 @@ export class StakeholderOverviewPage {
         return;
       }
 
-      const viewBtn = e.target.closest('[data-stakeholder-view]');
+      const viewBtn = e.target.closest('#btn-view-kalkulation, #btn-view-monate');
       if (viewBtn) {
-        this.activeView = viewBtn.dataset.stakeholderView;
+        this.activeView = viewBtn.id === 'btn-view-monate' ? 'monate' : 'kalkulation';
         // Berichtsstände gehören zur Monatsauswertung: beim Wechsel in die
         // Kalkulation gilt wieder die Live-Rechnung, sonst stuende dort ein
         // eingefrorener Zahlungsstand ohne Weg zurueck.

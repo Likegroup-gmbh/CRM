@@ -22,6 +22,9 @@ describe('NavigationSystem Adminbereich', () => {
 
     expect(html).toContain('/admin/datenqualitaet');
     expect(html).toContain('Datenqualität');
+    expect(html).toContain('/admin/unternehmen');
+    expect(html).toContain('Unternehmen');
+    expect(html).toContain('/admin/stakeholder');
     expect(html).toContain('Zurück zur App');
     // Volle Hauptnavigation ist im Adminbereich nicht sichtbar
     expect(html).not.toContain('Aufträge');
@@ -37,7 +40,12 @@ describe('NavigationSystem Adminbereich', () => {
     expect(document.getElementById('main-nav').innerHTML).toContain('Datenqualität');
 
     nav.syncWithRoute('/dashboard');
-    expect(document.getElementById('main-nav').innerHTML).toContain('Aufträge');
+    const main = document.getElementById('main-nav').innerHTML;
+    expect(main).toContain('Aufträge');
+    expect(main).toContain('Unternehmen');
+    expect(main).not.toContain('Geteilte Listen');
+    expect(main).not.toContain('Mitarbeiter');
+    expect(main).not.toContain('Stakeholder');
   });
 
   it('markiert /admin ohne Unterseite als aktive Datenqualitaet', () => {
@@ -58,5 +66,16 @@ describe('NavigationSystem Adminbereich', () => {
     const html = document.getElementById('main-nav').innerHTML;
     expect(html).toContain('Datenqualität');
     expect(document.querySelector('.nav-link.active')?.getAttribute('data-route')).toBe('/admin/kunden');
+  });
+
+  it('haelt den Adminbereich auf /admin/stakeholder aktiv', () => {
+    const nav = new NavigationSystem();
+    nav.renderNavigation('/admin/datenqualitaet');
+    nav.syncWithRoute('/admin/stakeholder');
+
+    const html = document.getElementById('main-nav').innerHTML;
+    expect(html).toContain('Datenqualität');
+    expect(html).not.toContain('Aufträge');
+    expect(document.querySelector('.nav-link.active')?.getAttribute('data-route')).toBe('/admin/stakeholder');
   });
 });

@@ -42,7 +42,6 @@ export class NavigationSystem {
       {
         title: 'Projektmanagement',
         items: [
-          { id: 'stakeholder', label: 'Stakeholder', icon: 'stakeholder', url: '/stakeholder' },
           { id: 'auftrag', label: 'Aufträge', icon: 'auftrag', url: '/auftrag' },
           { id: 'ausgangsrechnungen', label: 'Kundenrechnungen', icon: 'ausgangsrechnungen', url: '/ausgangsrechnungen' },
           { id: 'auftragsdetails', label: 'Auftragsdetails', icon: 'auftragsdetails', url: '/auftragsdetails' },
@@ -71,16 +70,6 @@ export class NavigationSystem {
       //   ]
       // },
       {
-        title: 'Admin',
-        items: [
-          { id: 'stakeholder', label: 'Stakeholder', icon: 'stakeholder', url: '/stakeholder' },
-          { id: 'mitarbeiter', label: 'Mitarbeiter', icon: 'mitarbeiter', url: '/mitarbeiter' },
-          { id: 'kunden-admin', label: 'Kunden', icon: 'kunden-admin', url: '/admin/kunden' },
-          { id: 'shares', label: 'Geteilte Listen', icon: 'shares', url: '/shares' },
-          { id: 'ki-usage', label: 'KI-Nutzung', icon: 'ki-usage', url: '/ki-usage' }
-        ]
-      },
-      {
         title: 'Feedback',
         items: [
           { id: 'feedback', label: 'Feedback', icon: 'feedback', url: '/feedback' }
@@ -97,11 +86,12 @@ export class NavigationSystem {
         title: 'Adminbereich',
         items: [
           { id: 'admin-datenqualitaet', label: 'Datenqualität', icon: 'admin-datenqualitaet', url: '/admin/datenqualitaet' },
-          { id: 'stakeholder', label: 'Stakeholder', icon: 'stakeholder', url: '/stakeholder' },
-          { id: 'mitarbeiter', label: 'Mitarbeiter', icon: 'mitarbeiter', url: '/mitarbeiter' },
+          { id: 'stakeholder', label: 'Stakeholder', icon: 'stakeholder', url: '/admin/stakeholder' },
+          { id: 'mitarbeiter', label: 'Mitarbeiter', icon: 'mitarbeiter', url: '/admin/mitarbeiter' },
           { id: 'kunden-admin', label: 'Kunden', icon: 'kunden-admin', url: '/admin/kunden' },
-          { id: 'shares', label: 'Geteilte Listen', icon: 'shares', url: '/shares' },
-          { id: 'ki-usage', label: 'KI-Nutzung', icon: 'ki-usage', url: '/ki-usage' }
+          { id: 'unternehmen', label: 'Unternehmen', icon: 'unternehmen', url: '/admin/unternehmen' },
+          { id: 'shares', label: 'Geteilte Listen', icon: 'shares', url: '/admin/shares' },
+          { id: 'ki-usage', label: 'KI-Nutzung', icon: 'ki-usage', url: '/admin/ki-usage' }
         ]
       },
       {

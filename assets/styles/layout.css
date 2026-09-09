@@ -712,6 +712,22 @@
   flex-shrink: 0;
 }
 
+/* Adminbereich-Button: gleiche Form wie Education, nur das Schild */
+.admin-btn {
+  padding: var(--space-xs) var(--space-sm);
+  gap: var(--space-xs);
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.admin-btn:hover {
+  color: var(--text-primary);
+}
+
+.admin-btn svg {
+  flex-shrink: 0;
+}
+
 /* Profile initials/avatar */
 .profile-menu { 
   display: inline-flex; 

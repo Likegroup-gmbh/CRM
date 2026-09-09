@@ -109,7 +109,8 @@ _Avoid_: Snapshot, Report, Export
 
 **Adminbereich**:
 Eigener Bereich unter /admin, nur fuer Admins. Reduzierte Navigation auf die fuer die
-Administration relevanten Seiten; Einstieg ueber den Schild-Button in der Kopfzeile.
+Administration relevanten Seiten (Datenqualitaet, Stakeholder, Mitarbeiter, Kunden,
+Unternehmen, Geteilte Listen, KI-Nutzung); Einstieg ueber den Schild-Button in der Kopfzeile.
 _Avoid_: Backend, Admin-Panel, Einstellungen
 
 **Datenqualitaetsanzeige**:
