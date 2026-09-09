@@ -146,8 +146,10 @@ describe('StakeholderOverviewPage', () => {
     expect(html).toContain('FESTE FEE');
     expect(html).toContain('EK/VK');
 
-    // Tabellen-Spalten in CFO-Reihenfolge
-    const thead = html.match(/<thead>[\s\S]*?<\/thead>/)?.[0] || '';
+    // Tabellen-Spalten in CFO-Reihenfolge (Kundenliste — nicht der
+    // Zahlungsstand-Block, der früher im HTML steht)
+    const kundenCard = html.split('Kunden nach Umsatz')[1] || '';
+    const thead = kundenCard.match(/<thead>[\s\S]*?<\/thead>/)?.[0] || '';
     expect(thead).toContain('Kunde');
     expect(thead).toContain('Marke');
     expect(thead).toContain('Auftragsvolumen');
@@ -234,6 +236,54 @@ describe('StakeholderOverviewPage', () => {
     page.render();
     const htmlBuch = window.setContentSafely.mock.calls.at(-1)[1];
     expect(htmlBuch).toContain('Buchhaltungssicht');
+  });
+
+  it('zeigt den Zahlungsstand als Snapshot in beiden Ansichten', async () => {
+    const auftraege = [{
+      id: 'a1',
+      auftragsname: 'UGC Auftrag',
+      nettobetrag: 10000,
+      creator_budget: 8000,
+      auftragtype: 'UGC/Influencer',
+      start: '2026-01-01',
+      is_draft: false,
+      unternehmen_id: 'u1',
+      rechnung_gestellt_am: '2026-03-10',
+      ueberwiesen: false,
+      ueberwiesen_am: null,
+      re_faelligkeit: '2026-12-31'
+    }];
+    const blocks = [{ auftrag_id: 'a1', campaign_type: 'ugc_paid', campaign_type_label: 'UGC Paid', umsatz_netto: 10000 }];
+    const kampagnen = [{ id: 'k1', auftrag_id: 'a1', videoanzahl: 5, creatoranzahl: 2 }];
+    const kooperationen = [{ id: 'koop1', kampagne_id: 'k1', creator_id: 'c1', einkaufspreis_netto: 5000, ksk_selbstzahler: false }];
+    const rechnungen = [{
+      id: 'r1', auftrag_id: 'a1', kooperation_id: 'koop1', status: 'Bezahlt', rechnungstyp: 'kampagne',
+      nettobetrag: 5000, nettobetrag_steuerfrei: 0, zusatzkosten: 0,
+      gestellt_am: '2026-06-01', bezahlt_am: '2026-07-01', zahlungsziel: '2026-07-15'
+    }];
+
+    window.supabase = createMockSupabase({ auftraege, blocks, kampagnen, kooperationen, rechnungen });
+
+    const page = new StakeholderOverviewPage();
+    await page.init();
+    const html = window.setContentSafely.mock.calls[1][1];
+
+    // Block mit beiden Seiten und vier Kategorien
+    expect(html).toContain('Zahlungsstand');
+    expect(html).toContain('Kundenrechnungen');
+    expect(html).toContain('Creatorrechnungen');
+    expect(html).toContain('Gestellt');
+    expect(html).toContain('Bezahlt');
+    expect(html).toContain('Noch nicht gestellt');
+    // Kunden: 10.000 gestellt und offen; Creator: 5.000 + 245 KSK = 5.245 bezahlt
+    expect(html).toContain('10.000,00');
+    expect(html).toContain('5.245,00');
+
+    // Der Snapshot steht auch über der Monatsauswertung
+    page.activeView = 'monate';
+    page.render();
+    const htmlMonate = window.setContentSafely.mock.calls.at(-1)[1];
+    expect(htmlMonate).toContain('Zahlungsstand');
   });
 
   it('filtert Aufträge nach Zeitraum', async () => {
@@ -625,7 +675,8 @@ describe('StakeholderOverviewPage', () => {
     const page = new StakeholderOverviewPage();
     await page.init();
     const html = window.setContentSafely.mock.calls[1][1];
-    const thead = html.match(/<thead>[\s\S]*?<\/thead>/)?.[0] || '';
+    const kundenCard = html.split('Kunden nach Umsatz')[1] || '';
+    const thead = kundenCard.match(/<thead>[\s\S]*?<\/thead>/)?.[0] || '';
 
     expect(thead).toContain('Marke');
     expect(html).toContain('Ninja Kitchen');

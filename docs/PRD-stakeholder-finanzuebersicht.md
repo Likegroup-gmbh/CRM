@@ -12,6 +12,8 @@ Die Übersicht bekommt eine monatliche Auswertung von Umsatz und Fremdkosten je 
 
 Alle Beträge werden vorzeichenrichtig gezeigt, Lücken benannt statt geglättet ([ADR 0007](adr/0007-unplausible-zahlen-ausweisen-statt-glaetten.md)). Was sich nicht zuordnen lässt, bekommt einen sichtbaren Sammelposten, damit die Summe der Bereiche immer das Gesamt ergibt.
 
+Ergänzend zur Periodisierung zeigt ein Status-Block den Zahlungsstand als Snapshot „Stand heute": je Seite (Kunden und Creator) gestellt, davon bezahlt, davon offen — mit überfälligem Teil — und noch nicht gestellt. Die Matrix beantwortet „wann wurde gebucht?", der Status-Block „wo stehen wir heute?".
+
 Getrennt davon entsteht ein Adminbereich mit einer Datenqualitätsanzeige, die nach Kampagne gruppiert und nach betroffenem Geldvolumen sortiert zeigt, wo Zahlen unvollständig sind.
 
 ## User Stories
@@ -24,6 +26,7 @@ Getrennt davon entsteht ein Adminbereich mit einer Datenqualitätsanzeige, die n
 6. Als Buchhaltung möchte ich dieselben Rechnungen nach ihrem eigenen Rechnungsdatum sehen, weil das die Sicht ist, die zu den Büchern passt.
 7. Als Mitarbeiter möchte ich, dass ein überschrittenes Budget als Überschreitung erscheint und nicht als punktgenau ausgeschöpft, damit ich den Fehler überhaupt bemerke.
 8. Als Nutzer der Übersicht möchte ich, dass die Summe der Leistungsbereiche immer dem Gesamtumsatz entspricht, damit ich der Aufteilung trauen kann.
+9. Als Geschäftsführer möchte ich je Seite — Kunden und Creator — sehen, welcher Betrag bereits gestellt, davon bereits bezahlt und welcher noch gar nicht gestellt ist, damit ich den Zahlungsstand ohne Buchhaltungskenntnisse erfasse.
 
 ## Implementation Decisions
 
@@ -71,19 +74,32 @@ Neue Ansicht auf `/stakeholder`, umschaltbar zur bestehenden Kalkulationsansicht
 - **Margensicht:** die Fremdkosten eines Auftrags folgen seinem Umsatz anteilig über dessen Kundenrechnungsmonate. Bei einer einzigen Kundenrechnung ist das deren Monat; bei 50/50-Teilrechnungen trägt jeder Monat die Hälfte der Kosten — sonst stünden alle Kosten im ersten Monat, während der Erlös sich verteilt, und die Monatsmarge kippte genau bei den Raten-Aufträgen.
 - **Buchhaltungssicht:** jeder Beleg in seinem eigenen Rechnungsmonat.
 - Zwei getrennte Zeilen unterhalb der Matrix: **noch nicht fakturiert** (91.879 € kalkulierte Creatorkosten ohne Rechnung) und **ohne Kundenrechnung** (380.919 € Creatorkosten zu nie fakturierten Aufträgen). Beide haben in der Margensicht keinen Monat und dürfen deshalb nicht einfach verschwinden. Dazu kommt **Überfakturiert** (ADR 0007) und der Ausweis unmöglicher Rechnungsdaten.
-- Im Kopf steht die Zuordnungsquote. Der Verweis auf die Datenqualitätsanzeige ist ein Hinweistext, bis Schritt 7 die Anzeige liefert.
+- Im Kopf steht die Zuordnungsquote. Der Verweis auf die Datenqualitätsanzeige ist ein Hinweistext, bis Schritt 9 die Anzeige liefert.
 
-### Schritt 5 — Berichtsstände
+### Schritt 5 — Rechnungsstatus-Snapshot
+
+Status-Block auf `/stakeholder`, direkt oberhalb des View-Toggles, damit er in beiden Ansichten steht — der Snapshot ist ansichtsunabhängig. Zwei Zeilen (Kunden / Creator) mal vier Spalten: **Gestellt gesamt**, **davon bezahlt**, **davon offen**, **noch nicht gestellt**. Im UI heißt es einheitlich „Bezahlt" (CONTEXT.md), auch wenn die Speicherung kundenseitig `ueberwiesen_am` und creatorseitig `status = 'Bezahlt'` heißt.
+
+- **Kundenseitig:** gestellt = Summe gestellter Teilrechnungen plus Aufträge mit `rechnung_gestellt_am`; bezahlt = `ueberwiesen_am` gesetzt; noch nicht gestellt = `nettobetrag` minus Summe gestellter Teile (Restbetrag-Logik, Entwürfe ausgenommen).
+- **Creatorseitig:** gestellt = Summe der Creatorrechnungen mit derselben Betragsdefinition wie die Matrix (Honorar + KSK + Zusatzkosten); bezahlt = `status = 'Bezahlt'`; noch nicht gestellt = die bestehende Sonderzeile `nochNichtFakturiert` (Restbetrag je Kooperation).
+- **Überfällig** ist eine rote Teilzahl innerhalb von „offen", keine eigene Spalte: kundenseitig `re_faelligkeit` überschritten und nicht überwiesen (Logik aus `PaymentRowStatus.js`), creatorseitig analog über `zahlungsziel`.
+- Snapshot „Stand heute", bewusst ohne Zeitraumfilter.
+
+### Schritt 6 — Visuelles Aufräumen der Stakeholder-Seite
+
+Nur `/stakeholder`, CI (Farben, Typo) bleibt unangetastet. Alle Tabellen — zuerst „Kunden nach Umsatz", das bei kleineren Breiten über die Karte hinausschießt — bekommen horizontal scrollbare Container mit Mindestspaltenbreiten. Das Muster existiert bereits: `.stakeholder-scroll-x` bei der Monatsmatrix wird konsequent auf die Kalkulations-Tabellen angewendet. Dazu Kartenhierarchie, Abstände und Toggle-Styling aufräumen.
+
+### Schritt 7 — Berichtsstände
 
 Neue Tabelle für Snapshots. Die Ansicht rechnet immer live; der Snapshot hält fest, worauf ein verschicktes Update beruhte. Monate einzufrieren wurde verworfen, weil das Nachzügler in falsche Monate verschieben würde.
 
-### Schritt 6 — Adminbereich
+### Schritt 8 — Adminbereich
 
 - Button in `index.html` innerhalb von `.header-actions`, **links vom** `.education-btn`.
 - Route `/admin`, abgesichert über das vorhandene `permissionSystem.isAdmin`.
 - Reduzierte Navigation: nur die Punkte, die für die Administration relevant sind.
 
-### Schritt 7 — Datenqualitätsanzeige
+### Schritt 9 — Datenqualitätsanzeige
 
 Liste der Kampagnen mit einem Pflegegrad, aufklappbar zu den konkreten Mängeln, sortiert nach betroffenem Geldvolumen. Die erste Fassung prüft ausschließlich, was Finanzzahlen verfälscht:
 
@@ -110,6 +126,7 @@ Getestet wird das Ergebnis, nicht der Rechenweg.
 4. **Keine Doppelzählung** — Auftrag mit Teilrechnungen darf nicht zusätzlich über `auftrag.nettobetrag` gezählt werden.
 5. **Vorzeichen** — Auftrag mit überschrittenem Budget muss einen negativen Restwert liefern, nicht null.
 6. **KSK** — Selbstzahler-Kooperation darf keine zusätzlichen 4,9 % erzeugen.
+7. **Zahlungsstand** — Rechnung mit `ueberwiesen_am` zählt zu „bezahlt", nicht zu „offen"; überfällig nur bei überschrittener Fälligkeit ohne Zahlung. Die Identität „gestellt = bezahlt + offen" muss je Seite immer aufgehen, und „noch nicht gestellt" plus „gestellt" muss dem Soll entsprechen.
 
 ### Prior Art
 
@@ -129,6 +146,7 @@ Getestet wird das Ergebnis, nicht der Rechenweg.
 
 ## Further Notes
 
+- **Vorgemerkt — Cash-Sicht:** Eine dritte Sicht in der Monatsauswertung, die nach Zahlungseingang periodisiert (kundenseitig `ueberwiesen_am`, creatorseitig `bezahlt_am`, Zukunft nach `erwarteter_monat_zahlungseingang`), wurde bewusst verschoben. Der `AuftragCashFlowCalendar` bildet dieselbe Mechanik bereits ab; perspektivisch gehört er in die Stakeholder-Sicht integriert, statt ein zweites Cashflow-Modul daneben zu bauen.
 - **Offen:** Ob die KSK auf jede Creatorrechnung anfällt, ist bei der Buchhaltung angefragt. Möglich sind Ausnahmen für Creator im Ausland, Agenturen statt Einzelpersonen oder Kleinunternehmer. Das Feld `rechnung.ksk_pflichtig` existiert, ist aber nur bei 2 von 772 Rechnungen gesetzt und taugt nicht als Filter. Bis zur Antwort rechnet die Auswertung mit der bekannten Regel (4,9 % aufs Honorar, die 3 Selbstzahler ausgenommen); meldet die Buchhaltung Ausnahmen, bekommt der Creator ein gepflegtes Merkmal und die Berechnung folgt ihm.
 - Nur 52 % der `auftrag_kampagnenart_blocks` haben einen `umsatz_netto`. Solange das so bleibt, lassen sich gemischte Aufträge nicht anteilig aufteilen und landen im Sammelposten „Gemischt". Die Nachpflege betrifft 19 Aufträge.
 - Die Felder `auftrag.influencer_preis`, `ugc_preis` und `vor_ort_preis` sind bei 0 von 157 Aufträgen befüllt. Sie kommen als Verteilschlüssel nicht in Frage und sind Kandidaten zum Entfernen.

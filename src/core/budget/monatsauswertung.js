@@ -16,6 +16,7 @@
 
 import { berechneKskBetrag } from './kskSelbstzahler.js';
 import { leistungsbereichForAuftrag } from './leistungsbereich.js';
+import { calculateKoopFakturierung } from './koopFakturierung.js';
 
 // Rechnungen mit gestellt_am vor 2020 sind in dieser Datenbank falsch
 // (CRM startete spaeter) und wuerden Phantom-Monate erzeugen.
@@ -96,19 +97,6 @@ export function calculateMonatsauswertung({
   const koopById = new Map(kooperationen.map(k => [k.id, k]));
   const kampagneToAuftrag = new Map(kampagnen.map(k => [k.id, k.auftrag_id]));
 
-  // Video-EK je Kooperation, wo Videos gepflegt sind (Konvention aus
-  // collectEkVkPriceRows: Video-Preise schlagen den Kooperations-Preis).
-  const videoEkByKoop = new Map();
-  const koopMitVideos = new Set();
-  videos.forEach(v => {
-    if (!v.kooperation_id) return;
-    koopMitVideos.add(v.kooperation_id);
-    videoEkByKoop.set(
-      v.kooperation_id,
-      (videoEkByKoop.get(v.kooperation_id) || 0) + (parseFloat(v.einkaufspreis_netto) || 0)
-    );
-  });
-
   const teilrechnungenByAuftrag = new Map();
   teilrechnungen.forEach(t => {
     if (!teilrechnungenByAuftrag.has(t.auftrag_id)) teilrechnungenByAuftrag.set(t.auftrag_id, []);
@@ -173,18 +161,10 @@ export function calculateMonatsauswertung({
     unplausibleDaten: { betrag: 0, faelle: 0 },
   };
   const honorarInMatrix = { buchhaltung: 0, marge: 0 };
-  const fakturiertByKoop = new Map();
 
   rechnungen.forEach(r => {
     const honorar = (parseFloat(r.nettobetrag) || 0) + (parseFloat(r.nettobetrag_steuerfrei) || 0);
     const zusatzkosten = parseFloat(r.zusatzkosten) || 0;
-
-    if (r.kooperation_id) {
-      fakturiertByKoop.set(
-        r.kooperation_id,
-        (fakturiertByKoop.get(r.kooperation_id) || 0) + honorar
-      );
-    }
 
     const koop = r.kooperation_id ? koopById.get(r.kooperation_id) : null;
     const auftragId = r.auftrag_id
@@ -233,28 +213,17 @@ export function calculateMonatsauswertung({
   });
 
   // --- Noch nicht fakturiert / ueberfakturiert: Restbetrag je Kooperation ---
-  kooperationen.forEach(k => {
-    const auftragId = kampagneToAuftrag.get(k.kampagne_id);
-    if (auftragId && !gueltigeAuftragIds.has(auftragId)) return;
-
-    // Soll wie in der Kalkulation: Video-Preise, wo gepflegt, sonst der
-    // Kooperations-Preis. Bei Selbstzahlern kommt der KSK-Aufschlag dazu,
-    // weil ihre Rechnung ihn mitfakturiert.
-    const ekSoll = koopMitVideos.has(k.id)
-      ? (videoEkByKoop.get(k.id) || 0)
-      : (parseFloat(k.einkaufspreis_netto) || 0);
-    const soll = ekSoll + (k.ksk_selbstzahler ? (parseFloat(k.ksk_betrag) || 0) : 0);
-    const fakturiert = fakturiertByKoop.get(k.id) || 0;
-    const rest = soll - fakturiert;
-    if (rest > 0.005) {
-      sonderzeilen.nochNichtFakturiert.betrag += rest;
-      sonderzeilen.nochNichtFakturiert.faelle += 1;
-    } else if (rest < -0.005) {
-      // ADR 0007: Ueberfakturierung wird ausgewiesen, nicht geklemmt.
-      sonderzeilen.ueberfakturiert.betrag += -rest;
-      sonderzeilen.ueberfakturiert.faelle += 1;
-    }
+  // Geteilte Logik mit dem Rechnungsstatus (creatorseitig "noch nicht
+  // gestellt"), damit beide dasselbe Soll benutzen.
+  const fakturierung = calculateKoopFakturierung({
+    kooperationen,
+    videos,
+    rechnungen,
+    kampagnen,
+    gueltigeAuftragIds,
   });
+  sonderzeilen.nochNichtFakturiert = fakturierung.nochNichtFakturiert;
+  sonderzeilen.ueberfakturiert = fakturierung.ueberfakturiert;
 
   finalizeDifferenz(views.buchhaltung.bereiche);
   finalizeDifferenz(views.marge.bereiche);

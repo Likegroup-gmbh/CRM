@@ -88,3 +88,8 @@ _Avoid_: Kategorie, Segment, Geschaeftsbereich
 Sammelbegriff fuer Creator-Honorar, KSK-Abgabe und Zusatzkosten. Kein eigener Posten: die drei bleiben
 in jeder Auswertung einzeln sichtbar.
 _Avoid_: Direkte Kosten, Creator-Kosten, COGS
+
+**Bezahlt**:
+Eine gestellte Rechnung, deren Zahlung eingegangen ist. Derselbe Begriff gilt fuer Kunden- und
+Creatorrechnungen, auch wenn die Speicherung ihn in zwei Woertern festhaelt.
+_Avoid_: Überwiesen, beglichen, erledigt

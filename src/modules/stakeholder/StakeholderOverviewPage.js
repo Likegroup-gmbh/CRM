@@ -17,6 +17,7 @@ import {
   primaerBereichForAuftrag,
 } from '../../core/budget/leistungsbereich.js';
 import { calculateMonatsauswertung, zuordnungsquote } from '../../core/budget/monatsauswertung.js';
+import { calculateRechnungsstatus } from '../../core/budget/rechnungsstatus.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
 const SUPABASE = () => window.supabase;
@@ -257,6 +258,7 @@ export class StakeholderOverviewPage {
     this.monatsSicht = 'marge'; // 'marge' | 'buchhaltung'
     this.monatsMetrik = 'differenz'; // 'umsatz' | 'fremdkosten' | 'differenz'
     this._monats = null;
+    this._status = null;
     this._eventsBound = false;
     this._docClickHandler = null;
     this._docChangeHandler = null;
@@ -297,7 +299,7 @@ export class StakeholderOverviewPage {
     // PostgREST-Zeilenlimit verloren geht.
     const [auftraege, blocks, kampagnen, koops, videos, details, unternehmen, rechnungen, teilrechnungen] = await Promise.all([
       fetchAllRows(supabase, 'auftrag',
-        'id, titel, auftragsname, nettobetrag, creator_budget, auftragtype, start, ende, created_at, is_draft, unternehmen_id, marke_id, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, rechnung_gestellt_am, marke:marke_id(id, markenname)'),
+        'id, titel, auftragsname, nettobetrag, creator_budget, auftragtype, start, ende, created_at, is_draft, unternehmen_id, marke_id, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am, re_faelligkeit, marke:marke_id(id, markenname)'),
       fetchAllRows(supabase, 'auftrag_kampagnenart_blocks',
         'id, auftrag_id, campaign_type, campaign_type_label, umsatz_netto, sort_order'),
       fetchAllRows(supabase, 'kampagne',
@@ -312,11 +314,13 @@ export class StakeholderOverviewPage {
         'id, firmenname'),
       // Fremdkosten brauchen Rechnungsdatum und die drei Posten-Quellen
       // (Honorar netto + steuerfrei, Zusatzkosten; KSK wird berechnet).
+      // Der Zahlungsstand braucht zusaetzlich status/bezahlt_am/zahlungsziel.
       fetchAllRows(supabase, 'rechnung',
-        'id, kooperation_id, auftrag_id, status, nettobetrag, nettobetrag_steuerfrei, zusatzkosten, gestellt_am, rechnungstyp'),
-      // Kundenrechnungen: geplante und gestellte Teilrechnungen je Auftrag.
+        'id, kooperation_id, auftrag_id, status, nettobetrag, nettobetrag_steuerfrei, zusatzkosten, gestellt_am, bezahlt_am, zahlungsziel, rechnungstyp'),
+      // Kundenrechnungen: geplante und gestellte Teilrechnungen je Auftrag,
+      // inkl. Zahlungsstatus (ueberwiesen_am) und Faelligkeit.
       fetchAllRows(supabase, 'auftrag_teilrechnung',
-        'id, auftrag_id, nettobetrag, rechnung_gestellt, rechnung_gestellt_am'),
+        'id, auftrag_id, nettobetrag, rechnung_gestellt, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am, re_faelligkeit'),
     ]);
 
     this.auftraege = (auftraege || []).filter(a => a.is_draft !== true);
@@ -593,6 +597,7 @@ export class StakeholderOverviewPage {
 
     const html = `
       <div class="stakeholder-page">
+        ${this.renderRechnungsstatus()}
         <div class="stakeholder-toolbar">
           <div class="stakeholder-view-toggle" role="tablist" aria-label="Ansicht">
             <button type="button" class="stakeholder-view-btn${!isMonate ? ' active' : ''}"
@@ -644,6 +649,67 @@ export class StakeholderOverviewPage {
       });
     }
     return this._monats;
+  }
+
+  // Zahlungsstand als Snapshot "Stand heute" (PRD Schritt 5). Haengt
+  // bewusst nicht am Zeitraum-Filter und steht ueber beiden Ansichten.
+  rechnungsstatus() {
+    if (!this._status) {
+      this._status = calculateRechnungsstatus({
+        auftraege: this.auftraege,
+        kampagnen: this.kampagnen,
+        kooperationen: this.kooperationen,
+        videos: this.videos,
+        rechnungen: this.rechnungen,
+        teilrechnungen: this.teilrechnungen,
+      });
+    }
+    return this._status;
+  }
+
+  renderRechnungsstatus() {
+    const { kunden, creator } = this.rechnungsstatus();
+
+    const offenZelle = (seite) => `
+      <div>${this.fmtEuro(seite.offen)}</div>
+      ${seite.ueberfaellig >= 0.005
+        ? `<div class="stakeholder-status-ueberfaellig">davon überfällig: ${this.fmtEuro(seite.ueberfaellig)}</div>`
+        : ''}
+    `;
+
+    const zeile = (label, seite) => `
+      <tr>
+        <td>${label}</td>
+        <td class="stakeholder-num">${this.fmtEuro(seite.gestellt)}</td>
+        <td class="stakeholder-num">${this.fmtEuro(seite.bezahlt)}</td>
+        <td class="stakeholder-num">${offenZelle(seite)}</td>
+        <td class="stakeholder-num${seite.nichtGestellt < -0.005 ? ' stakeholder-negativ' : ''}">${this.fmtEuro(seite.nichtGestellt)}</td>
+      </tr>
+    `;
+
+    return `
+      <div class="stakeholder-list-card stakeholder-status">
+        <div class="stakeholder-list-header">
+          <h3 class="stakeholder-list-title">Zahlungsstand</h3>
+          <p class="stakeholder-list-hint">Stand heute, unabhängig von Ansicht und Zeitraum · Gestellt = Summe aller gestellten Rechnungen · Bezahlt = Zahlung eingegangen · Offen = gestellt, nicht bezahlt · Noch nicht gestellt = Restbetrag aus Auftrag bzw. Kalkulation</p>
+        </div>
+        <table class="stakeholder-table stakeholder-status-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th class="stakeholder-num">Gestellt</th>
+              <th class="stakeholder-num">Bezahlt</th>
+              <th class="stakeholder-num">Offen</th>
+              <th class="stakeholder-num">Noch nicht gestellt</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${zeile('Kundenrechnungen', kunden)}
+            ${zeile('Creatorrechnungen', creator)}
+          </tbody>
+        </table>
+      </div>
+    `;
   }
 
   fmtMonatLabel(monthKeyStr) {
