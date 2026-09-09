@@ -78,16 +78,16 @@ Neue Ansicht auf `/stakeholder`, umschaltbar zur bestehenden Kalkulationsansicht
 
 ### Schritt 5 — Rechnungsstatus-Snapshot
 
-Status-Block auf `/stakeholder`, direkt oberhalb des View-Toggles, damit er in beiden Ansichten steht — der Snapshot ist ansichtsunabhängig. Zwei Zeilen (Kunden / Creator) mal vier Spalten: **Gestellt gesamt**, **davon bezahlt**, **davon offen**, **noch nicht gestellt**. Im UI heißt es einheitlich „Bezahlt" (CONTEXT.md), auch wenn die Speicherung kundenseitig `ueberwiesen_am` und creatorseitig `status = 'Bezahlt'` heißt.
+Status-Block auf `/stakeholder`, direkt oberhalb des View-Toggles, damit er in beiden Ansichten steht — der Snapshot ist ansichtsunabhängig. Zwei Zeilen (Kunden / Creator) mal vier Spalten: **Gestellt**, **Bezahlt**, **Offen**, **Noch nicht gestellt**. Im UI heißt es einheitlich „Bezahlt" (CONTEXT.md), auch wenn die Speicherung kundenseitig `ueberwiesen_am` und creatorseitig `status = 'Bezahlt'` heißt.
 
-- **Kundenseitig:** gestellt = Summe gestellter Teilrechnungen plus Aufträge mit `rechnung_gestellt_am`; bezahlt = `ueberwiesen_am` gesetzt; noch nicht gestellt = `nettobetrag` minus Summe gestellter Teile (Restbetrag-Logik, Entwürfe ausgenommen).
-- **Creatorseitig:** gestellt = Summe der Creatorrechnungen mit derselben Betragsdefinition wie die Matrix (Honorar + KSK + Zusatzkosten); bezahlt = `status = 'Bezahlt'`; noch nicht gestellt = die bestehende Sonderzeile `nochNichtFakturiert` (Restbetrag je Kooperation).
+- **Kundenseitig:** gestellt = Summe gestellter Teilrechnungen plus Aufträge mit `rechnung_gestellt_am`; bezahlt = `ueberwiesen_am` gesetzt; noch nicht gestellt = `nettobetrag` minus Summe gestellter Teile (Restbetrag-Logik, Entwürfe ausgenommen). Wie in `PaymentRowStatus.js` sind die Datumsfelder maßgeblich, die Boolean-Flags (`rechnung_gestellt`, `ueberwiesen`) nur Fallback — sie können veraltet sein. Eine bezahlte, aber nicht als gestellt markierte Zeile zählt als beides, sonst bricht die Identität.
+- **Creatorseitig:** gestellt = Summe der Creatorrechnungen mit derselben Betragsdefinition wie die Matrix (Honorar + KSK + Zusatzkosten); bezahlt = `status = 'Bezahlt'` (Fallback: `bezahlt_am` gesetzt, falls der Status nicht nachgezogen wurde); noch nicht gestellt = die bestehende Sonderzeile `nochNichtFakturiert` (Restbetrag je Kooperation).
 - **Überfällig** ist eine rote Teilzahl innerhalb von „offen", keine eigene Spalte: kundenseitig `re_faelligkeit` überschritten und nicht überwiesen (Logik aus `PaymentRowStatus.js`), creatorseitig analog über `zahlungsziel`.
 - Snapshot „Stand heute", bewusst ohne Zeitraumfilter.
 
 ### Schritt 6 — Visuelles Aufräumen der Stakeholder-Seite
 
-Nur `/stakeholder`, CI (Farben, Typo) bleibt unangetastet. Alle Tabellen — zuerst „Kunden nach Umsatz", das bei kleineren Breiten über die Karte hinausschießt — bekommen horizontal scrollbare Container mit Mindestspaltenbreiten. Das Muster existiert bereits: `.stakeholder-scroll-x` bei der Monatsmatrix wird konsequent auf die Kalkulations-Tabellen angewendet. Dazu Kartenhierarchie, Abstände und Toggle-Styling aufräumen.
+Nur `/stakeholder`, CI (Farben, Typo) bleibt unangetastet. Alle Tabellen — zuerst „Kunden nach Umsatz", das bei kleineren Breiten über die Karte hinausschießt — bekommen horizontal scrollbare Container mit Mindestspaltenbreiten. Das Muster existiert bereits: `.stakeholder-scroll-x` bei der Monatsmatrix wird konsequent auf die Kalkulations-Tabellen angewendet, und zwar als Wrapper um die Tabelle, damit der Karten-Titel beim Scrollen stehen bleibt. Dazu Kartenhierarchie, Abstände und Toggle-Styling aufräumen sowie ein Zeilen-Hover auf den Tabellen — der Sinn des Schritts ist Scannbarkeit.
 
 ### Schritt 7 — Berichtsstände
 
@@ -126,7 +126,7 @@ Getestet wird das Ergebnis, nicht der Rechenweg.
 4. **Keine Doppelzählung** — Auftrag mit Teilrechnungen darf nicht zusätzlich über `auftrag.nettobetrag` gezählt werden.
 5. **Vorzeichen** — Auftrag mit überschrittenem Budget muss einen negativen Restwert liefern, nicht null.
 6. **KSK** — Selbstzahler-Kooperation darf keine zusätzlichen 4,9 % erzeugen.
-7. **Zahlungsstand** — Rechnung mit `ueberwiesen_am` zählt zu „bezahlt", nicht zu „offen"; überfällig nur bei überschrittener Fälligkeit ohne Zahlung. Die Identität „gestellt = bezahlt + offen" muss je Seite immer aufgehen, und „noch nicht gestellt" plus „gestellt" muss dem Soll entsprechen.
+7. **Zahlungsstand** — Rechnung mit `ueberwiesen_am` zählt zu „bezahlt", nicht zu „offen"; überfällig nur bei überschrittener Fälligkeit ohne Zahlung. Die Identität „gestellt = bezahlt + offen" muss je Seite immer aufgehen. Kundenseitig gilt außerdem exakt „gestellt + noch nicht gestellt = Auftrags-Nettobetrag". Creatorseitig gilt das bewusst nur näherungsweise: „gestellt" enthält die volle Fremdkosten-Last inklusive berechneter KSK, der Restbetrag in „noch nicht gestellt" ist dagegen honorar-basiert (dieselbe Definition wie die Sonderzeile der Monatsauswertung) — die Summe weicht also um die KSK auf den Restbetrag ab. Zwei verschiedene Restbetrag-Definitionen auf einer Seite wären schlimmer als diese bewusste Asymmetrie.
 
 ### Prior Art
 

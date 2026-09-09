@@ -7,12 +7,18 @@
 // Geteilt zwischen Monatsauswertung (Sonderzeilen) und Rechnungsstatus
 // (creatorseitig "noch nicht gestellt"), damit beide dasselbe Soll benutzen.
 
+function betrag(v) {
+  return parseFloat(v) || 0;
+}
+
 export function calculateKoopFakturierung({
   kooperationen = [],
   videos = [],
   rechnungen = [],
   kampagnen = [],
-  gueltigeAuftragIds = null,
+  // Pflicht: beide Aufrufer (Monatsauswertung, Rechnungsstatus) filtern
+  // Entwuerfe vorher heraus und uebergeben das Set der gueltigen IDs.
+  gueltigeAuftragIds,
 } = {}) {
   const kampagneToAuftrag = new Map(kampagnen.map(k => [k.id, k.auftrag_id]));
 
@@ -23,7 +29,7 @@ export function calculateKoopFakturierung({
     koopMitVideos.add(v.kooperation_id);
     videoEkByKoop.set(
       v.kooperation_id,
-      (videoEkByKoop.get(v.kooperation_id) || 0) + (parseFloat(v.einkaufspreis_netto) || 0)
+      (videoEkByKoop.get(v.kooperation_id) || 0) + betrag(v.einkaufspreis_netto)
     );
   });
 
@@ -31,7 +37,7 @@ export function calculateKoopFakturierung({
   const fakturiertByKoop = new Map();
   rechnungen.forEach(r => {
     if (!r.kooperation_id) return;
-    const honorar = (parseFloat(r.nettobetrag) || 0) + (parseFloat(r.nettobetrag_steuerfrei) || 0);
+    const honorar = betrag(r.nettobetrag) + betrag(r.nettobetrag_steuerfrei);
     fakturiertByKoop.set(
       r.kooperation_id,
       (fakturiertByKoop.get(r.kooperation_id) || 0) + honorar
@@ -47,12 +53,12 @@ export function calculateKoopFakturierung({
     const auftragId = kampagneToAuftrag.get(k.kampagne_id);
     // Kooperationen herausgefilterter Auftraege (z. B. Entwuerfe) gehoeren
     // nicht in die Auswertung; Kooperationen ohne Auftrag schon.
-    if (auftragId && gueltigeAuftragIds && !gueltigeAuftragIds.has(auftragId)) return;
+    if (auftragId && !gueltigeAuftragIds.has(auftragId)) return;
 
     const ekSoll = koopMitVideos.has(k.id)
       ? (videoEkByKoop.get(k.id) || 0)
-      : (parseFloat(k.einkaufspreis_netto) || 0);
-    const soll = ekSoll + (k.ksk_selbstzahler ? (parseFloat(k.ksk_betrag) || 0) : 0);
+      : betrag(k.einkaufspreis_netto);
+    const soll = ekSoll + (k.ksk_selbstzahler ? betrag(k.ksk_betrag) : 0);
     const rest = soll - (fakturiertByKoop.get(k.id) || 0);
 
     if (rest > 0.005) {

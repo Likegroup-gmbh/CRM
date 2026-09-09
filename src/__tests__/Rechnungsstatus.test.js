@@ -110,6 +110,20 @@ describe('Kundenseite', () => {
     expect(s.kunden.nichtGestellt).toBe(-2000);
   });
 
+  it('das Datumsfeld rechnung_gestellt_am schlaegt das veraltete Boolean-Flag', () => {
+    // PaymentRowStatus-Konvention: Datumsfelder sind massgeblich, Flags
+    // koennen veraltet sein (StepDetails schreibt das Datum, ohne das Flag
+    // nachzuziehen).
+    const s = calculateRechnungsstatus(base({
+      teilrechnungen: [
+        { id: 't1', auftrag_id: 'a1', nettobetrag: 4000, rechnung_gestellt: false, rechnung_gestellt_am: '2026-03-01' },
+      ],
+    }));
+    expect(s.kunden.gestellt).toBe(4000);
+    expect(s.kunden.offen).toBe(4000);
+    expect(s.kunden.nichtGestellt).toBe(6000);
+  });
+
   it('bezahlte, aber nicht als gestellt markierte Teilrechnung zaehlt als gestellt und bezahlt', () => {
     // Zahlungseingang setzt eine gestellte Rechnung voraus — die Zeile ist
     // falsch gepflegt, aber das Geld ist da. Sie gehoert in beide Toepfe,

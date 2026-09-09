@@ -77,12 +77,13 @@ export function calculateRechnungsstatus({
 
     let positionen;
     if (teile.length > 0) {
-      positionen = teile.map(t => ({
-        betrag: betrag(t.nettobetrag),
-        gestellt: Boolean(t.rechnung_gestellt) || hatWert(t.ueberwiesen_am) || Boolean(t.ueberwiesen),
-        bezahlt: hatWert(t.ueberwiesen_am) || Boolean(t.ueberwiesen),
-        faelligkeit: t.re_faelligkeit,
-      }));
+      positionen = teile.map(t => {
+        // Wie PaymentRowStatus: die Datumsfelder sind massgeblich, die
+        // Boolean-Flags nur Fallback — sie koennen veraltet sein.
+        const bezahlt = hatWert(t.ueberwiesen_am) || Boolean(t.ueberwiesen);
+        const gestellt = hatWert(t.rechnung_gestellt_am) || Boolean(t.rechnung_gestellt) || bezahlt;
+        return { betrag: betrag(t.nettobetrag), gestellt, bezahlt, faelligkeit: t.re_faelligkeit };
+      });
     } else if (hatWert(a.rechnung_gestellt_am) || hatWert(a.ueberwiesen_am) || a.ueberwiesen) {
       positionen = [{
         betrag: nettobetrag,
