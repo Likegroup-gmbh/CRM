@@ -13,7 +13,7 @@ import { VideoElementPool } from './VideoElementPool.js';
 import * as MediaCache from './MediaCache.js';
 import { perfLog, perfNow, mediaLog } from './mediaPerf.js';
 import {
-  stillsForVideo, stillVersions, stillsForVersion, pickStillAsset, defaultStillSelection, finalStills
+  stillsForVideo, stillVersions, stillsForVersion, pickStillAsset, defaultStillSelection, finalStills, pickLatestAsset
 } from '../stills/stillAssets.js';
 import { promoteAssetToFinal, unmarkFinalSlot, markedSlotsForSource } from '../PromoteFinalAsset.js';
 import { FINAL_VARIANTS, getAssetDisplayLabel } from '../VideoUploadUtils.js';
@@ -321,6 +321,12 @@ export class VideoPlayerLightbox {
         return;
       }
     }
+    const own = this.current?.image;
+    if (own?.id) {
+      this.stillVersion = own.is_final ? 'final' : (own.version_number || 1);
+      this.stillAssetId = own.id;
+      return;
+    }
     const preferFinal = this.table.isKundeRole?.() === true;
     const sel = defaultStillSelection(images, { preferFinal });
     this.stillVersion = sel.selectedVersion;
@@ -346,7 +352,7 @@ export class VideoPlayerLightbox {
       return finals.find(a => a.id === this.storyFinalAssetId) || finals[0] || null;
     }
     const variants = (slot.assets || []).filter(a => !a.is_final && (a.version_number || 1) === version);
-    return variants.find(a => a.is_current) || variants[0] || null;
+    return pickLatestAsset(variants);
   }
 
   // ---- Quelle aufloesen ----
@@ -648,8 +654,7 @@ export class VideoPlayerLightbox {
         const raw = versionSelect.value;
         this.selectedVersion = raw === 'final' ? 'final' : Number(raw);
         const variants = this.assetLoader.variantsForVersion(this.assets, this.selectedVersion);
-        const currentAsset = variants.find(a => a.is_current) || variants[0];
-        this.selectedAssetId = currentAsset?.id || null;
+        this.selectedAssetId = pickLatestAsset(variants)?.id || null;
         this.loading = false;
         await this.lightbox.update();
         this._resolveSrc();
@@ -698,7 +703,7 @@ export class VideoPlayerLightbox {
         const raw = stillVersionSelect.value;
         this.stillVersion = raw === 'final' ? 'final' : Number(raw);
         const variants = this.stillsForSelectedVersion();
-        this.stillAssetId = variants[0]?.id || null;
+        this.stillAssetId = pickLatestAsset(variants)?.id || variants[0]?.id || null;
         this.src = null;
         await this.lightbox.update();
         this._resolveSrc();
@@ -708,7 +713,15 @@ export class VideoPlayerLightbox {
     const stillVariantSelect = root.querySelector('.still-variant-select');
     if (stillVariantSelect) {
       stillVariantSelect.addEventListener('change', async () => {
-        this.stillAssetId = stillVariantSelect.value;
+        const id = stillVariantSelect.value;
+        const idx = this.items.findIndex(it => it.type === 'bild' && it.image.id === id);
+        if (idx >= 0 && idx !== this.index) {
+          this.index = idx;
+          this._resetItemState();
+          await this._loadCurrent();
+          return;
+        }
+        this.stillAssetId = id;
         this.src = null;
         await this.lightbox.update();
         this._resolveSrc();

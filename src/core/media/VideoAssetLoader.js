@@ -8,6 +8,7 @@
 // gar keine Versionen/Varianten geladen wurden (kein Auswahl-Select sichtbar).
 
 import { normalizeVideoFeedbackComments, VIDEO_FEEDBACK_FIELDS } from '../VideoFeedbackBuckets.js';
+import { pickLatestAsset } from '../stills/stillAssets.js';
 
 const ASSET_SELECT = 'id, video_id, file_url, file_path, version_number, variant_name, description, is_current, is_final, source_asset_id, created_at';
 
@@ -86,7 +87,8 @@ export class VideoAssetLoader {
   }
 
   /**
-   * Default-Auswahl: hoechste Version, dort das aktuelle Asset (oder erstes).
+   * Default-Auswahl: hoechste Version, dort das neueste Asset
+   * (version_number/created_at, is_current nur Tiebreak).
    * Bei Versionen ohne Asset bleibt selectedAssetId null -> Quelle faellt auf
    * video.file_url zurueck. Gibt es nur finale Assets (keine Feedbackschleife),
    * wird die finale Version gewaehlt. Mit preferFinal (Kunden) gewinnt Final,
@@ -96,18 +98,18 @@ export class VideoAssetLoader {
   applyDefaultSelection(assets, comments, { preferFinal = false } = {}) {
     const finals = this.finalVariants(assets);
     if (preferFinal && finals.length > 0) {
-      return { selectedVersion: 'final', selectedAssetId: finals[0].id };
+      return { selectedVersion: 'final', selectedAssetId: pickLatestAsset(finals).id };
     }
     const versions = this.combinedVersions(assets, comments);
     if (versions.length === 0) {
       if (finals.length > 0) {
-        return { selectedVersion: 'final', selectedAssetId: finals[0].id };
+        return { selectedVersion: 'final', selectedAssetId: pickLatestAsset(finals).id };
       }
       return { selectedVersion: null, selectedAssetId: null };
     }
     const selectedVersion = versions[versions.length - 1];
     const variants = this.variantsForVersion(assets, selectedVersion);
-    const currentAsset = variants.find(a => a.is_current) || variants[0] || null;
+    const currentAsset = pickLatestAsset(variants);
     return { selectedVersion, selectedAssetId: currentAsset?.id || null };
   }
 }

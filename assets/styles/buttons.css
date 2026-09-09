@@ -504,11 +504,24 @@ button.is-submit-locked,
 /* --- Content-Zelle Action-Buttons --- */
 
 .content-cell-actions .media-action-btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   color: var(--text-primary);
   border-color: var(--border-secondary);
+}
+
+.content-cell-actions .media-action-btn .filter-count-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 4px;
+  font-size: 10px;
+  line-height: 14px;
+  pointer-events: none;
 }
 
 .content-cell-actions .media-action-btn:hover {
