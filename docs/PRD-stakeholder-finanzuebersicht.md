@@ -89,6 +89,15 @@ Status-Block auf `/stakeholder`, direkt oberhalb des View-Toggles, damit er in b
 
 Nur `/stakeholder`, CI (Farben, Typo) bleibt unangetastet. Alle Tabellen — zuerst „Kunden nach Umsatz", das bei kleineren Breiten über die Karte hinausschießt — bekommen horizontal scrollbare Container mit Mindestspaltenbreiten. Das Muster existiert bereits: `.stakeholder-scroll-x` bei der Monatsmatrix wird konsequent auf die Kalkulations-Tabellen angewendet, und zwar als Wrapper um die Tabelle, damit der Karten-Titel beim Scrollen stehen bleibt. Dazu Kartenhierarchie, Abstände und Toggle-Styling aufräumen sowie ein Zeilen-Hover auf den Tabellen — der Sinn des Schritts ist Scannbarkeit.
 
+**Visual-Pass (beschlossen 2026-09-09):** Moderneres Erscheinungsbild ausschließlich über vorhandene Design-Tokens, kein CI-Umbau.
+
+- **Brand-Pink sparsam aktivieren:** Die Seite nutzt überall `var(--color-primary, #e83e8c)`, doch `--color-primary` ist als `gray-900` definiert — das intendierte Pink greift nie. Reparatur auf die echte Brand-Farbe (`--color-brand`), nur an den Stellen, die heute schon Akzente tragen: aktiver Tab, Fortschrittsbalken, Accent-Kartenwerte. Die App bleibt monochrom, die Seite bekommt einen bewussten Akzent.
+- **Elevation und Radien:** Karten bekommen `--shadow-xs`/`--shadow-sm` bei haarfarbenem Border und 12px Radius (`--radius-xl`), wie es `components.css` und `forms.css` bereits vormachen.
+- **Typo-Hierarchie:** KPI-Werte deutlich größer (`--text-xxl`/`--text-xxxl`, tabular-nums), Labels kleiner und gedämpfter; mehr Weißraum zwischen den Sektionen.
+- **Semantische Farben:** Differenz-Werte grün bei positiv, rot bei negativ (bisher nur rot). Sonderzeilen werden eine kompakte Warnleiste (`--amber-50`-Fläche) statt gestrichelter Karten.
+- **Struktur:** Sticky Toolbar, damit der Ansicht-Umschalter beim Scrollen stehen bleibt; Tabellen-Zeilen verdichtet.
+- **Bewusst nicht:** Delta-Badges gegenüber dem Vormonat. Die Monatswerte ändern sich rückwirkend durch nachlaufende Creatorrechnungen (ADR 0006); ein Δ-Chip suggerierte eine Endgültigkeit, die es nicht gibt. Kommt frühestens mit den Berichtsständen (Schritt 7), wo ein eingefrorener Stand verglichen werden darf.
+
 ### Schritt 7 — Berichtsstände
 
 Neue Tabelle für Snapshots. Die Ansicht rechnet immer live; der Snapshot hält fest, worauf ein verschicktes Update beruhte. Monate einzufrieren wurde verworfen, weil das Nachzügler in falsche Monate verschieben würde.
