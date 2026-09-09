@@ -319,7 +319,9 @@ export class AuftragsdetailsDetail {
     // Influencer-Variante: festgelegtes Creatorbudget, Verbrauch ueber VK-Preise
     const creatorBudget = this.budgetSummary.totalBudget || 0;
     const verbrauchtesCreatorBudget = this.budgetSummary.usedVkBudget || 0;
-    const offenesBudget = Math.max(0, creatorBudget - verbrauchtesCreatorBudget);
+    // Negativ = mehr VK gebucht als Creator-Budget vorhanden (ADR 0007).
+    // creatorBudgetPct/offenesBudgetPct bleiben geklemmt, sie steuern nur den Balken.
+    const offenesBudget = creatorBudget - verbrauchtesCreatorBudget;
     const creatorBudgetPct = creatorBudget > 0 ? Math.min(100, Math.round((verbrauchtesCreatorBudget / creatorBudget) * 100)) : 0;
     const offenesBudgetPct = creatorBudget > 0 ? Math.max(0, 100 - creatorBudgetPct) : 0;
 

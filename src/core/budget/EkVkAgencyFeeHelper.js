@@ -55,6 +55,11 @@ export function collectEkVkPriceRows(kooperationen, videos) {
 
 /**
  * Calculates EK/VK totals and the valid margin (only rows where both > 0).
+ *
+ * Halb bepreiste Zeilen zaehlen in ekSum/vkSum, aber nicht in marginSum: ihre
+ * Marge ist unbekannt, nicht null. Damit die Zahlen trotzdem aufgehen, wird
+ * ihr Saldo als incompleteSum ausgewiesen. Es gilt immer:
+ *   vkSum - ekSum === marginSum + incompleteSum
  */
 export function calculateEkVkTotals(kooperationen, videos) {
   const rows = collectEkVkPriceRows(kooperationen, videos);
@@ -62,6 +67,8 @@ export function calculateEkVkTotals(kooperationen, videos) {
   let ekSum = 0;
   let vkSum = 0;
   let marginSum = 0;
+  let incompleteSum = 0;
+  let incompleteRows = 0;
 
   rows.forEach(row => {
     const ek = parseFloat(row.ekNetto) || 0;
@@ -71,10 +78,13 @@ export function calculateEkVkTotals(kooperationen, videos) {
 
     if (isFilledPrice(row.ekNetto) && isFilledPrice(row.vkNetto)) {
       marginSum += vk - ek;
+    } else if (ek !== 0 || vk !== 0) {
+      incompleteSum += vk - ek;
+      incompleteRows += 1;
     }
   });
 
-  return { ekSum, vkSum, marginSum, rows };
+  return { ekSum, vkSum, marginSum, incompleteSum, incompleteRows, rows };
 }
 
 /**
@@ -183,11 +193,14 @@ export function sumPaidCreatorInvoices(rechnungen) {
 /**
  * Bezahlt aus Rechnungen, Offen = Rest des gebuchten Creatoranteils.
  * Kooperationen ohne Rechnung gelten als offen.
+ *
+ * Ein negatives open bedeutet Ueberzahlung und wird bewusst nicht geklemmt
+ * (ADR 0007): eine Ueberzahlung sieht sonst aus wie eine punktgenaue Zahlung.
  */
 export function calculateCreatorPaymentSummary(creatorAnteil, rechnungen) {
   const share = parseFloat(creatorAnteil) || 0;
   const paid = sumPaidCreatorInvoices(rechnungen);
-  return { paid, open: Math.max(0, share - paid) };
+  return { paid, open: share - paid };
 }
 
 /**

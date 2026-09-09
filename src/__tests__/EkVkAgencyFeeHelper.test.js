@@ -80,17 +80,44 @@ describe('calculateEkVkTotals', () => {
     expect(result.ekSum).toBe(0);
     expect(result.vkSum).toBe(2000);
     expect(result.marginSum).toBe(0);
+    expect(result.incompleteSum).toBe(2000);
+    expect(result.incompleteRows).toBe(1);
   });
 
   it('ignores margin when VK is null', () => {
     const koops = [{ id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: null }];
     const result = calculateEkVkTotals(koops, []);
     expect(result.marginSum).toBe(0);
+    expect(result.incompleteSum).toBe(-100);
+    expect(result.incompleteRows).toBe(1);
   });
 
   it('returns zeros for empty data', () => {
     const result = calculateEkVkTotals([], []);
-    expect(result).toEqual({ ekSum: 0, vkSum: 0, marginSum: 0, rows: [] });
+    expect(result).toEqual({
+      ekSum: 0, vkSum: 0, marginSum: 0, incompleteSum: 0, incompleteRows: 0, rows: [],
+    });
+  });
+
+  it('zaehlt vollstaendige Zeilen nicht als unvollstaendig', () => {
+    const koops = [{ id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: 300 }];
+    const result = calculateEkVkTotals(koops, []);
+    expect(result.marginSum).toBe(200);
+    expect(result.incompleteSum).toBe(0);
+    expect(result.incompleteRows).toBe(0);
+  });
+
+  it('vkSum - ekSum geht immer in marginSum + incompleteSum auf', () => {
+    const koops = [{ id: 'k1' }];
+    const videos = [
+      { kooperation_id: 'k1', einkaufspreis_netto: 100, verkaufspreis_netto: 300 },
+      { kooperation_id: 'k1', einkaufspreis_netto: 0, verkaufspreis_netto: 500 },
+      { kooperation_id: 'k1', einkaufspreis_netto: 80, verkaufspreis_netto: null },
+      { kooperation_id: 'k1', einkaufspreis_netto: null, verkaufspreis_netto: null },
+    ];
+    const r = calculateEkVkTotals(koops, videos);
+    expect(r.vkSum - r.ekSum).toBe(r.marginSum + r.incompleteSum);
+    expect(r.incompleteRows).toBe(2);
   });
 });
 
@@ -291,9 +318,9 @@ describe('calculateCreatorPaymentSummary', () => {
     expect(calculateCreatorPaymentSummary(800, [])).toEqual({ paid: 0, open: 800 });
   });
 
-  it('clamped open auf 0 wenn bezahlt groesser als EK', () => {
+  it('weist Ueberzahlung negativ aus statt sie auf 0 zu klemmen', () => {
     const rechnungen = [{ status: 'Bezahlt', nettobetrag: 1500 }];
-    expect(calculateCreatorPaymentSummary(1000, rechnungen)).toEqual({ paid: 1500, open: 0 });
+    expect(calculateCreatorPaymentSummary(1000, rechnungen)).toEqual({ paid: 1500, open: -500 });
   });
 
   it('zaehlt An Qonto gesendet als offen', () => {

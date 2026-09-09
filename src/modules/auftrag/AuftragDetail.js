@@ -650,15 +650,18 @@ export class AuftragDetail extends PersonDetailBase {
     // Verfuegbares Budget (read-derived): creator_budget + KSK-Umbuchungen der Selbstzahler
     const totalBudget = berechneVerfuegbaresBudget(this.auftrag, this.kooperationen).verfuegbar;
     const usedBudget = this.usedBudget || 0;
-    const openBudget = Math.max(0, totalBudget - usedBudget);
+    // Negativ = Ueberschreitung, wird ausgewiesen statt geklemmt (ADR 0007).
+    const openBudget = totalBudget - usedBudget;
 
     const fmt = (v) => v || v === 0
       ? new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v) : '-';
     const num = (v) => v || v === 0
       ? new Intl.NumberFormat('de-DE').format(v) : '-';
 
-    const budgetPct = totalBudget > 0 ? Math.min(100, Math.round((usedBudget / totalBudget) * 100)) : 0;
-    const openPct = totalBudget > 0 ? Math.max(0, 100 - budgetPct) : 0;
+    const budgetPct = totalBudget > 0 ? Math.round((usedBudget / totalBudget) * 100) : 0;
+    const openPct = totalBudget > 0 ? 100 - budgetPct : 0;
+    // Nur die Balkengeometrie wird begrenzt, nicht der angezeigte Wert.
+    const barWidth = (pct) => Math.min(100, Math.max(0, pct));
 
     const getBudgetColorClass = (pct) => {
       if (pct >= 90) return 'summary-progress-fill--danger';
@@ -686,7 +689,7 @@ export class AuftragDetail extends PersonDetailBase {
             <div class="summary-label">Verbrauchtes Budget</div>
             <div class="summary-progress">
               <div class="summary-progress-fill ${getBudgetColorClass(budgetPct)}"
-                   style="width: ${budgetPct}%">
+                   style="width: ${barWidth(budgetPct)}%">
               </div>
             </div>
           </div>
@@ -695,7 +698,7 @@ export class AuftragDetail extends PersonDetailBase {
             <div class="summary-label">Offenes Creator Budget</div>
             <div class="summary-progress">
               <div class="summary-progress-fill ${getOpenBudgetColorClass(openPct)}"
-                   style="width: ${openPct}%">
+                   style="width: ${barWidth(openPct)}%">
               </div>
             </div>
           </div>` : ''}

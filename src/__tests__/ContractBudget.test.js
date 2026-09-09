@@ -48,7 +48,8 @@ describe('ContractDetail.calculateBudgetSummary', () => {
     expect(totalBudget).toBe(8000);
   });
 
-  it('lässt offenes Budget nicht negativ werden', () => {
+  // ADR 0007: Ueberfakturierung wird ausgewiesen, nicht auf 0 geklemmt.
+  it('weist Überfakturierung als negatives offenes Budget aus', () => {
     const instance = createInstance({
       creator_budget: 9000,
       rechnungen: [{ nettobetrag: 6000 }, { nettobetrag: 5000 }]
@@ -57,6 +58,6 @@ describe('ContractDetail.calculateBudgetSummary', () => {
     const { usedBudget, openBudget } = instance.calculateBudgetSummary();
 
     expect(usedBudget).toBe(11000);
-    expect(openBudget).toBe(0);
+    expect(openBudget).toBe(-2000);
   });
 });

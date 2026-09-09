@@ -222,7 +222,8 @@ export class ContractDetail {
 
     // Verbrauchtes Budget = Summe aller bereits gestellten Rechnungen (netto)
     const usedBudget = rechnungen.reduce((sum, r) => sum + (parseFloat(r.nettobetrag) || 0), 0);
-    const openBudget = Math.max(0, totalBudget - usedBudget);
+    // Negativ = ueberfakturiert, wird ausgewiesen statt geklemmt (ADR 0007).
+    const openBudget = totalBudget - usedBudget;
 
     return { totalBudget, usedBudget, openBudget };
   }

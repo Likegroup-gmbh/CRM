@@ -101,7 +101,9 @@ export function calculateBudgetOverview({ auftrag, details, kooperationen = [], 
     (agencyFeeSummary?.kskValue || 0) +
     (extraKostenVkSum || 0);
   const auftragsvolumen = parseFloat(auftrag?.nettobetrag) || 0;
-  const verfuegbaresBudgetRest = Math.max(0, auftragsvolumen - verbrauchtesBudget);
+  // Negativ = Budgetueberschreitung. Nicht klemmen (ADR 0007), sonst ist ein
+  // um 20.000 € gerissener Auftrag nicht von einem punktgenauen zu unterscheiden.
+  const verfuegbaresBudgetRest = auftragsvolumen - verbrauchtesBudget;
 
   return {
     variant,

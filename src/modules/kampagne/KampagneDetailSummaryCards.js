@@ -47,7 +47,9 @@ export function updateSummaryCardsDOM(kampagneData, koopBudgetSum, koopVideosUse
     kampagneData?.auftrag?.nettobetrag || 0
   ) || 0) + (parseFloat(kskUmgebucht) || 0);
   const usedBudget = koopBudgetSum || 0;
-  const openBudget = Math.max(0, totalBudget - usedBudget);
+  // Negativ = Ueberschreitung (ADR 0007). budgetPct/openPct bleiben geklemmt,
+  // sie steuern nur Balkenbreite und Farbe.
+  const openBudget = totalBudget - usedBudget;
   const targets = resolveTargets(kampagneData);
   const totalVideos = targets.videos;
   const totalCreators = targets.creators;
@@ -131,7 +133,9 @@ export function renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, 
     kampagneData?.auftrag?.nettobetrag || 0
   ) || 0) + (parseFloat(kskUmgebucht) || 0);
   const usedBudget = koopBudgetSum || 0;
-  const openBudget = Math.max(0, totalBudget - usedBudget);
+  // Negativ = Ueberschreitung (ADR 0007). budgetPct/openPct bleiben geklemmt,
+  // sie steuern nur Balkenbreite und Farbe.
+  const openBudget = totalBudget - usedBudget;
   const targets = resolveTargets(kampagneData);
   const totalVideos = targets.videos;
   const usedVideos = koopVideosUsed || 0;

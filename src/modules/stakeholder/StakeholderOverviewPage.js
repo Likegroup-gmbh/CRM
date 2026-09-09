@@ -489,7 +489,8 @@ export class StakeholderOverviewPage {
       const agenturVoll = feeRaw + agenturMargin;
 
       const verbraucht = creator + agentur + ksk + zusatz;
-      const verfuegbar = Math.max(0, volumen - verbraucht);
+      // Negativ = Ueberschreitung, wird bewusst durchgereicht (ADR 0007).
+      const verfuegbar = volumen - verbraucht;
       const db = agentur;
 
       sumVolumen += volumen;
@@ -596,8 +597,10 @@ export class StakeholderOverviewPage {
     const zusatz = totals.zusatz;
     const db = totals.db;
 
-    const verbrauchtPct = volumen > 0 ? Math.min(100, (verbraucht / volumen) * 100) : 0;
-    const offenPct = volumen > 0 ? Math.max(0, 100 - verbrauchtPct) : 0;
+    // Ungeklemmt: ueber 100 % bedeutet Ueberschreitung, unter 0 % Ueberzahlung.
+    // Die Balkenbreite wird erst beim Rendern begrenzt.
+    const verbrauchtPct = volumen > 0 ? (verbraucht / volumen) * 100 : 0;
+    const offenPct = volumen > 0 ? 100 - verbrauchtPct : 0;
     const quote = verbraucht > 0 ? (agentur / verbraucht) * 100 : 0;
 
     const offenLabel = isInfluencerTab ? 'Offenes Creator Budget' : 'Verfügbares Budget';
@@ -708,7 +711,8 @@ export class StakeholderOverviewPage {
       });
     });
 
-    return Math.max(0, budget - verbraucht);
+    // Negativ = mehr VK gebucht als Creator-Budget vorhanden (ADR 0007).
+    return budget - verbraucht;
   }
 
   renderKundenListe(rows, totals, isInfluencerTab) {
