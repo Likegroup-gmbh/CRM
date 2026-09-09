@@ -666,7 +666,11 @@ export class VideoTableRenderer {
 
     const buttons = [];
     if (hasStills) {
-      buttons.push(`<button type="button" class="external-link-btn media-action-btn" data-action="view-bilder" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Stills ansehen">${BILDER_ICON}</button>`);
+      const countBadge = stills.length > 0 ? `<span class="filter-count-badge">${stills.length}</span>` : '';
+      const stillsTitle = stills.length > 0
+        ? `${stills.length} Still${stills.length !== 1 ? 's' : ''} ansehen`
+        : 'Stills ansehen';
+      buttons.push(`<button type="button" class="external-link-btn media-action-btn" data-action="view-bilder" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="${stillsTitle}">${BILDER_ICON}${countBadge}</button>`);
     }
 
     if (!isKunde) {

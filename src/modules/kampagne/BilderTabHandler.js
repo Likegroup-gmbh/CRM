@@ -1,7 +1,7 @@
 import {
   escapeHtml, readFileAsBase64, proxyPost, uploadLargeFile, createFolderSharedLink,
   IMAGE_EXTENSIONS, IMAGE_MIME_PREFIX, MAX_IMAGE_SIZE, MAX_VERSIONS,
-  buildVersionedFileName, buildFinalFileName,
+  buildVersionedFileName, buildFinalFileName, withStillIndex, countStillNameUsage,
   normalizeExternalUrl, isValidExternalUrl,
   mdcBtnIcon, ICON_PLUS_16, ICON_CHECK_16, ICON_UPLOAD_16
 } from '../../core/VideoUploadUtils.js';
@@ -405,6 +405,15 @@ export class BilderTabHandler {
 
       const uploadedFiles = [];
 
+      // Laufende Nummer pro Basis-Dateiname, damit sich mehrere Stills derselben
+      // Feedbackschleife nicht gegenseitig in Dropbox ueberschreiben (mode: overwrite).
+      // Start-Index = bereits belegte Namen aus den existierenden Assets dieses Videos
+      // (plus unzugeordnete, die im selben Video-Ordner landen koennen).
+      const nameUsage = new Map();
+      const relevantExisting = (this._existingImages || []).filter(img =>
+        !this.drawer.videoId || img.video_id === this.drawer.videoId || img.video_id == null
+      );
+
       for (let i = 0; i < this._selectedImages.length; i++) {
         const item = this._selectedImages[i];
         const file = item.file;
@@ -413,7 +422,7 @@ export class BilderTabHandler {
         if (progressText) progressText.textContent = `Lade hoch... ${i + 1}/${total}: ${file.name}`;
 
         const ext = (file.name.split('.').pop() || 'jpg');
-        const fileName = item.isFinal
+        const baseFileName = item.isFinal
           ? buildFinalFileName(
               this.drawer.metadaten?.creatorName || '',
               this.drawer.metadaten?.unternehmen || '',
@@ -428,6 +437,12 @@ export class BilderTabHandler {
               item.versionNumber || 1,
               ext
             );
+        if (!nameUsage.has(baseFileName)) {
+          nameUsage.set(baseFileName, countStillNameUsage(relevantExisting, baseFileName));
+        }
+        const stillIdx = nameUsage.get(baseFileName) + 1;
+        nameUsage.set(baseFileName, stillIdx + 1);
+        const fileName = withStillIndex(baseFileName, stillIdx);
 
         const itemPrepare = await fetch('/.netlify/functions/dropbox-upload-bilder', {
           method: 'POST',
@@ -515,8 +530,12 @@ export class BilderTabHandler {
         const { error: insertErr } = await window.supabase
           .from('kooperation_bilder_asset')
           .insert(insertRows);
-        if (insertErr) console.warn('Bilder-Asset DB-Insert fehlgeschlagen:', insertErr);
-        else if (this.drawer.videoId) await updateStillCurrentFlags(this.drawer.videoId);
+        // Fehler werfen statt still zu loggen: Sonst wirkt der Upload erfolgreich,
+        // obwohl keine DB-Zeilen existieren. Ein Retry ist sicher, weil die
+        // Index-Zaehlung aus _existingImages kommt und dieselben Dateinamen
+        // vergibt (ueberschreibt die verwaisten Dropbox-Dateien).
+        if (insertErr) throw new Error(`Bilder konnten nicht gespeichert werden: ${insertErr.message}`);
+        if (this.drawer.videoId) await updateStillCurrentFlags(this.drawer.videoId);
       }
 
       if (bilderFolderUrl && this.drawer.kooperationId) {

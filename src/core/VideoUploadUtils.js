@@ -35,6 +35,37 @@ export function getAvailableVersions(existingVersions, maxVersions = MAX_VERSION
   return all.filter(v => !existingVersions.includes(v));
 }
 
+// ─── Stills: eindeutige Dateinamen ───────────────────────────
+// Mehrere Stills derselben Feedbackschleife erzeugen sonst identische
+// Dateinamen; Dropbox-Upload laeuft mit mode:'overwrite' -> Dateien
+// ueberschreiben sich gegenseitig. Deshalb bekommt jeder Still eine
+// laufende Nummer: name_v1.jpg -> name_v1_01.jpg, name_v1_02.jpg, ...
+
+export function withStillIndex(fileName, n) {
+  const idx = String(n).padStart(2, '0');
+  const dot = fileName.lastIndexOf('.');
+  if (dot <= 0) return `${fileName}_${idx}`;
+  return `${fileName.slice(0, dot)}_${idx}${fileName.slice(dot)}`;
+}
+
+function escapeRegExp(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Zaehlt, wie viele vorhandene Assets bereits denselben Basis-Dateinamen
+ * belegen (unindiziert `name_v1.jpg` oder indiziert `name_v1_01.jpg`).
+ * Liefert den Start-Index fuer neue Uploads (Rueckgabe = belegte Slots).
+ */
+export function countStillNameUsage(existingImages, baseFileName) {
+  if (!baseFileName) return 0;
+  const dot = baseFileName.lastIndexOf('.');
+  const stem = dot > 0 ? baseFileName.slice(0, dot) : baseFileName;
+  const ext = dot > 0 ? baseFileName.slice(dot) : '';
+  const re = new RegExp(`^${escapeRegExp(stem)}(_\\d+)?${escapeRegExp(ext)}$`, 'i');
+  return (existingImages || []).filter(img => img.file_name && re.test(img.file_name)).length;
+}
+
 // ─── Shared Upload Helpers ──────────────────────────────────
 
 export function escapeHtml(str) {

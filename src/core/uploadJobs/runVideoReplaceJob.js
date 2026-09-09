@@ -52,18 +52,11 @@ export async function runVideoReplaceJob(ctx) {
   if (!file) throw new Error('file fehlt');
   if (!assetId) throw new Error('assetId fehlt');
 
-  // Alte Datei aus Dropbox löschen (best effort)
-  if (oldFilePath) {
-    try {
-      await fetch('/.netlify/functions/dropbox-delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filePath: oldFilePath }),
-      });
-    } catch (err) {
-      console.warn('[VideoReplace] Dropbox-Löschung fehlgeschlagen:', err);
-    }
-  }
+  // HINWEIS: Die alte Dropbox-Datei wird bewusst NICHT vor dem Upload geloescht.
+  // Schlaegt der Upload fehl oder wird abgebrochen, bleibt alte Datei + DB-Row
+  // intakt und das Video "verschwindet" nicht. Der Upload schreibt ohnehin mit
+  // mode:'overwrite' auf denselben Pfad; abweichende alte Pfade werden erst
+  // nach erfolgreichem Upload + DB-Update aufgeraeumt (siehe unten).
 
   const ext = file.name.split('.').pop() || 'mp4';
   const fileName = buildVersionedFileName(
@@ -114,7 +107,8 @@ export async function runVideoReplaceJob(ctx) {
   updateItem(item.id, { status: 'saving' });
 
   const sharedLink = await createSharedLink(token, actualPath);
-  const fileUrl = sharedLink || actualPath;
+  // Kein Roh-Pfad als URL-Fallback (toter Play-Button); Wiedergabe ueber file_path.
+  const fileUrl = sharedLink || null;
 
   const { error: updateErr } = await window.supabase
     .from('kooperation_video_asset')
@@ -125,6 +119,21 @@ export async function runVideoReplaceJob(ctx) {
     })
     .eq('id', assetId);
   if (updateErr) throw updateErr;
+
+  // Alte Datei erst NACH erfolgreichem Upload + DB-Update loeschen (best effort).
+  // Gleicher Pfad wurde durch mode:'overwrite' bereits ersetzt – nur abweichende
+  // Pfade (z.B. andere Extension) muessen aufgeraeumt werden.
+  if (oldFilePath && oldFilePath !== actualPath) {
+    try {
+      await fetch('/.netlify/functions/dropbox-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath: oldFilePath }),
+      });
+    } catch (err) {
+      console.warn('[VideoReplace] Dropbox-Löschung fehlgeschlagen:', err);
+    }
+  }
 
   updateItem(item.id, { status: 'done', loaded: file.size });
 
