@@ -35,6 +35,7 @@ export function calculateKoopFakturierung({
 
   // Fakturiert ist das Honorar (netto + steuerfrei), ohne KSK/Zusatzkosten.
   const fakturiertByKoop = new Map();
+  const anzahlRechnungenByKoop = new Map();
   rechnungen.forEach(r => {
     if (!r.kooperation_id) return;
     const honorar = betrag(r.nettobetrag) + betrag(r.nettobetrag_steuerfrei);
@@ -42,11 +43,20 @@ export function calculateKoopFakturierung({
       r.kooperation_id,
       (fakturiertByKoop.get(r.kooperation_id) || 0) + honorar
     );
+    anzahlRechnungenByKoop.set(
+      r.kooperation_id,
+      (anzahlRechnungenByKoop.get(r.kooperation_id) || 0) + 1
+    );
   });
 
   const ergebnis = {
     nochNichtFakturiert: { betrag: 0, faelle: 0 },
     ueberfakturiert: { betrag: 0, faelle: 0 },
+    // Pro-Kooperation-Aufstellung fuer die Datenqualitaetsanzeige (PRD
+    // Schritt 9): dieselbe Soll/Fakturiert-Rechnung wie oben, aber je
+    // Kooperation statt summiert. Enthaelt nur ausgewertete Kooperationen
+    // (Entwuerfe sind bereits herausgefiltert).
+    proKoop: [],
   };
 
   kooperationen.forEach(k => {
@@ -59,7 +69,17 @@ export function calculateKoopFakturierung({
       ? (videoEkByKoop.get(k.id) || 0)
       : betrag(k.einkaufspreis_netto);
     const soll = ekSoll + (k.ksk_selbstzahler ? betrag(k.ksk_betrag) : 0);
-    const rest = soll - (fakturiertByKoop.get(k.id) || 0);
+    const fakturiert = fakturiertByKoop.get(k.id) || 0;
+    const rest = soll - fakturiert;
+
+    ergebnis.proKoop.push({
+      id: k.id,
+      kampagne_id: k.kampagne_id,
+      soll,
+      fakturiert,
+      rest,
+      anzahlRechnungen: anzahlRechnungenByKoop.get(k.id) || 0,
+    });
 
     if (rest > 0.005) {
       ergebnis.nochNichtFakturiert.betrag += rest;

@@ -105,6 +105,11 @@ export class ModuleRegistry {
       }
     }
 
+    // Pfad vor den Alias-Rewrites merken: die Navigations-Bereichswahl
+    // (Haupt- vs. Adminbereich) haengt am sichtbaren Pfad, nicht am
+    // internen Modul-Namen (z. B. /admin/kunden -> kunden-admin).
+    const navPath = String(route || '').split(/[?#]/)[0];
+
     try {
       if (route.startsWith('/admin/kunden')) {
         route = route.replace('/admin/kunden', '/kunden-admin');
@@ -185,6 +190,11 @@ export class ModuleRegistry {
     if (window.breadcrumbSystem?.setFromRoute) {
       window.breadcrumbSystem.setFromRoute(segment, id || null, { action: action || null });
     }
+
+    // Navigationsbereich (Haupt-Navigation vs. Adminbereich) mit der Route
+    // synchronisieren — auch bei Header-Buttons und Browser-Zurueck, die
+    // nicht durch das NavigationSystem selbst laufen.
+    window.navigationSystem?.syncWithRoute?.(navPath);
 
     let moduleKey = segment;
     let module = this.modules.get(moduleKey);

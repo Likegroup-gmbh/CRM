@@ -27,25 +27,10 @@ import {
 } from './berichtsstandStore.js';
 import { sumPaidInvoiceRows } from '../auftrag/logic/PaymentRowStatus.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { fetchAllRows } from '../../core/fetchAllRows.js';
+import { escapeHtml, formatEuro } from '../../core/format.js';
 
 const SUPABASE = () => window.supabase;
-
-// Laedt eine Tabelle seitenweise, damit keine Zeile am PostgREST-Limit
-// (Standard: 1000) still verloren geht. kooperation_videos hat z. B. ueber
-// 2.500 Zeilen. Stabile Sortierung nach id, damit die Seiten deterministisch sind.
-export async function fetchAllRows(supabase, table, select, pageSize = 1000) {
-  const rows = [];
-  for (let offset = 0; ; offset += pageSize) {
-    const { data, error } = await supabase
-      .from(table)
-      .select(select)
-      .order('id', { ascending: true })
-      .range(offset, offset + pageSize - 1);
-    if (error) throw error;
-    rows.push(...(data || []));
-    if (!data || data.length < pageSize) return rows;
-  }
-}
 
 const TAB_GESAMT = 'gesamt';
 const TAB_INFLUENCER = 'influencer_marketing';
@@ -363,17 +348,11 @@ export class StakeholderOverviewPage {
   // ---------- Helpers ----------
 
   escape(v) {
-    if (v == null) return '';
-    return String(v)
-      .replace(/&/g, '&amp;')
-      .replace(/"/g, '&quot;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+    return escapeHtml(v);
   }
 
   fmtEuro(n) {
-    const num = Number(n) || 0;
-    return num.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+    return formatEuro(n);
   }
 
   fmtPct(n) {
@@ -860,9 +839,10 @@ export class StakeholderOverviewPage {
           ${metrikBtn('differenz', 'Differenz')}
         </div>
         <div class="stakeholder-monate-meta"
-             title="Der nicht zugeordnete Rest ist ein Datenmangel (fehlende Kampagnenart-Blöcke). Die Aufstellung der konkreten Fälle folgt mit der Datenqualitätsanzeige im Adminbereich.">
+             title="Der nicht zugeordnete Rest ist ein Datenmangel (fehlende Kampagnenart-Blöcke). Die konkreten Fälle stehen in der Datenqualitätsanzeige im Adminbereich.">
           Stand ${stand}${this.aktiverBerichtsstand ? ' (eingefroren)' : ''}
           ${quote != null ? ` · ${this.fmtPct(quote * 100)} des Umsatzes einem Leistungsbereich zugeordnet` : ''}
+          ${window.isAdmin?.() ? ` · <button type="button" class="stakeholder-dq-link" data-stakeholder-dq-link>Fälle in der Datenqualitätsanzeige ansehen</button>` : ''}
         </div>
       </div>
       ${this.renderBerichtsstandLeiste()}
@@ -1326,6 +1306,12 @@ export class StakeholderOverviewPage {
     this._eventsBound = true;
 
     this._docClickHandler = (e) => {
+      const dqLink = e.target.closest('[data-stakeholder-dq-link]');
+      if (dqLink) {
+        window.navigateTo('/admin/datenqualitaet');
+        return;
+      }
+
       const tab = e.target.closest('.stakeholder-tab');
       if (tab) {
         this.activeTab = tab.dataset.tab;

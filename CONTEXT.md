@@ -106,3 +106,19 @@ Ein eingefrorener Stand der Stakeholder-Finanzuebersicht (Monatsauswertung und Z
 belegt, worauf ein verschicktes Update beruhte. Die Ansicht rechnet immer live; ein Berichtsstand
 wird nie korrigiert, sondern durch einen neuen Stand ersetzt.
 _Avoid_: Snapshot, Report, Export
+
+**Adminbereich**:
+Eigener Bereich unter /admin, nur fuer Admins. Reduzierte Navigation auf die fuer die
+Administration relevanten Seiten; Einstieg ueber den Schild-Button in der Kopfzeile.
+_Avoid_: Backend, Admin-Panel, Einstellungen
+
+**Datenqualitaetsanzeige**:
+Seite im Adminbereich, die Pflegemaengel an Finanzdaten nach Kampagne gruppiert und nach
+betroffenem Geldvolumen sortiert zeigt. Sie benennt die Faelle; korrigiert wird von den Teams.
+Gleicher Ein- und Verkaufspreis ist bewusst kein Mangel (Fee-Modell).
+_Avoid_: Qualitaetsdashboard, Fehlerliste, Audit
+
+**Pflegegrad**:
+Anteil fehlerfreier gepruefter Einheiten (Videos, Kooperationen, Auftraege, Rechnungen) einer
+Kampagne in der Datenqualitaetsanzeige. 100 % heisst: alles Gepruefte ist vollstaendig gepflegt.
+_Avoid_: Score, Qualitaetsindex, Ampel

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { fetchAllRows } from '../modules/stakeholder/StakeholderOverviewPage.js';
+import { fetchAllRows } from '../core/fetchAllRows.js';
 
 // Die Stakeholder Uebersicht lud frueher jede Tabelle mit einer einzigen
 // Anfrage und verlor still alles ueber dem PostgREST-Limit (1.000 Zeilen).
