@@ -112,7 +112,7 @@ export class CreatorAuswahlDetail {
       console.error('Fehler beim Laden:', error);
       window.content.innerHTML = `
         <div class="error-message">
-          <p>Fehler beim Laden der Sourcing-Liste</p>
+          <p>Fehler beim Laden der Casting-Liste</p>
         </div>
       `;
     }
@@ -618,7 +618,7 @@ export class CreatorAuswahlDetail {
       unternehmen: this.liste?.unternehmen?.firmenname || '',
       marke: this.liste?.marke?.markenname || '',
       kampagne: this.liste?.kampagne?.kampagnenname || '',
-      kooperationName: this.liste?.name || 'Sourcing',
+      kooperationName: this.liste?.name || 'Casting',
     };
   }
 
