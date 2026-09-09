@@ -8,6 +8,7 @@ import { VertraegeCreate } from './VertraegeCreateCore.js';
 // Side-effect imports: erweitern VertraegeCreate.prototype
 import './ContractTranslations.js';
 import './DirektvertragGating.js';
+import './EhgVertragGating.js';
 import './RenderShell.js';
 import './KooperationLogic.js';
 import './FormEvents.js';
@@ -24,6 +25,7 @@ import './types/ContractingContract.js';
 import './pdf/UgcPdf.js';
 import './pdf/InfluencerPdf.js';
 import './pdf/AwarenessPdf.js';
+import './pdf/EhgPdf.js';
 import './pdf/VideografPdf.js';
 import './pdf/ModelPdf.js';
 import './pdf/ContractingPdf.js';

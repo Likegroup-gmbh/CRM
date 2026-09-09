@@ -97,3 +97,44 @@ export function expandAwarenessFelder(felder) {
   });
   return result;
 }
+
+const EHG_FELDER_FORM_KEYS = {
+  marke_id: 'ehg_marke_id',
+  marke_name: 'ehg_marke_name',
+  produkt_id: 'ehg_produkt_id',
+  produkt_name: 'ehg_produkt_name',
+  ansprechpartner_id: 'ehg_ansprechpartner_id',
+  ansprechpartner: 'ehg_ansprechpartner',
+  content_sonstiges: 'ehg_content_sonstiges',
+  lieferbestandteile: 'ehg_lieferbestandteile',
+  technische_vorgaben: 'ehg_technische_vorgaben',
+  entwurf_bis: 'ehg_entwurf_bis',
+  nutzungen: 'ehg_nutzungen',
+  nutzung_sonstiges: 'ehg_nutzung_sonstiges',
+  persoenlichkeitsrechte: 'ehg_persoenlichkeitsrechte',
+  gebiet: 'ehg_gebiet',
+  gebiet_sonstiges: 'ehg_gebiet_sonstiges',
+  dauer_organic: 'ehg_dauer_organic',
+  dauer_organic_sonstiges: 'ehg_dauer_organic_sonstiges',
+  dauer_paid: 'ehg_dauer_paid',
+  dauer_paid_sonstiges: 'ehg_dauer_paid_sonstiges',
+  ust: 'ehg_ust',
+  zusatzleistungen: 'ehg_zusatzleistungen',
+  produkte_verbleiben: 'ehg_produkte_verbleiben',
+  unterlagen: 'ehg_unterlagen',
+  unterlagen_sonstiges: 'ehg_unterlagen_sonstiges',
+  unterlagen_bezeichnung: 'ehg_unterlagen_bezeichnung',
+  unterlagen_weg: 'ehg_unterlagen_weg',
+  unterlagen_datum: 'ehg_unterlagen_datum',
+  unterschrift_ort: 'ehg_unterschrift_ort',
+  unterschrift_datum: 'ehg_unterschrift_datum'
+};
+
+export function expandEhgFelder(felder) {
+  const result = {};
+  Object.entries(felder || {}).forEach(([key, value]) => {
+    if (value === null || value === undefined) return;
+    result[EHG_FELDER_FORM_KEYS[key] || key] = value;
+  });
+  return result;
+}

@@ -45,8 +45,10 @@ async function resolveVertragPathMetadata(ctx, vertrag) {
 }
 
 // Lädt das generierte PDF nach Dropbox hoch und speichert URL/Pfad am Vertrag.
-// Bei Fehler wird false zurückgegeben damit der Aufrufer lokal speichern kann.
+// Dropbox-Fehler: null, damit der Aufrufer lokal speichern kann.
+// Update-Fehler: throw, damit die Übersicht nicht still ohne Link bleibt.
 export async function uploadGeneratedVertragPdf(ctx, vertrag, pdfBlob, fileName) {
+  let result = null;
   try {
     const metadata = await resolveVertragPathMetadata(ctx, vertrag);
 
@@ -55,21 +57,27 @@ export async function uploadGeneratedVertragPdf(ctx, vertrag, pdfBlob, fileName)
     // Dateinamen in metadata.
     const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
-    const result = await uploadVertragPdf({ metadata, file });
-
-    if (result?.fileUrl && window.supabase && vertrag.id) {
-      await window.supabase
-        .from('vertraege')
-        .update({
-          datei_url: result.fileUrl,
-          datei_path: result.filePath,
-        })
-        .eq('id', vertrag.id);
-    }
-
-    return result;
+    result = await uploadVertragPdf({ metadata, file });
   } catch (err) {
     console.warn('⚠️ Vertrag-PDF Upload nach Dropbox fehlgeschlagen:', err);
     return null;
   }
+
+  if (!result?.fileUrl) return null;
+  if (!window.supabase || !vertrag?.id) return null;
+
+  const { error } = await window.supabase
+    .from('vertraege')
+    .update({
+      datei_url: result.fileUrl,
+      datei_path: result.filePath,
+    })
+    .eq('id', vertrag.id);
+
+  if (error) {
+    console.warn('⚠️ Vertrag-PDF konnte nicht in der Übersicht verknüpft werden:', error);
+    throw new Error(error.message || 'Vertrag-PDF konnte nicht verknüpft werden');
+  }
+
+  return result;
 }

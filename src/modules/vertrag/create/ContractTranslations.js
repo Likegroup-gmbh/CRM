@@ -26,6 +26,7 @@ const CONTRACT_TEXT_TRANSLATIONS = {
     'VIDEOGRAFEN- & FOTOGRAFEN-PRODUKTIONSVERTRAG': 'VIDEOGRAPHER & PHOTOGRAPHER PRODUCTION AGREEMENT',
     'Agenturdaten': 'Agency details',
     'Kundendaten': 'Client details',
+    'Drittbegünstigte': 'Third-party beneficiary',
     'Creatordaten': 'Creator details',
     'Influencer-Vertretung': 'Influencer representation',
     'Influencer / Vertretung': 'Influencer / representation',

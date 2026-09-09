@@ -70,6 +70,7 @@ VertraegeCreate.prototype.renderStep2 = function() {
         </div>
       </div>
       ${this.renderAgenturSection()}
+      ${typeof this.renderEhgSection === 'function' ? this.renderEhgSection(2) : ''}
     `;
 };
 
@@ -169,6 +170,7 @@ VertraegeCreate.prototype.renderStep3 = function() {
         </div>
         ${renderParagraphZusatz(this.formData, 'p3', '§3 Output & Lieferumfang')}
       </div>
+      ${typeof this.renderEhgSection === 'function' ? this.renderEhgSection(3) : ''}
     `;
 };
 
@@ -267,6 +269,7 @@ VertraegeCreate.prototype.renderStep4 = function() {
         </div>
         ${renderParagraphZusatz(this.formData, 'p4', '§4 Nutzungsrechte')}
       </div>
+      ${typeof this.renderEhgSection === 'function' ? this.renderEhgSection(4) : ''}
     `;
 };
 
@@ -368,5 +371,6 @@ VertraegeCreate.prototype.renderStep5 = function() {
                     placeholder="z.B. besondere Vereinbarungen, Sonderkonditionen...">${this.formData.weitere_bestimmungen || ''}</textarea>
         </div>
       </div>
+      ${typeof this.renderEhgSection === 'function' ? this.renderEhgSection(5) : ''}
     `;
 };

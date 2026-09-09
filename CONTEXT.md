@@ -43,7 +43,7 @@ _Avoid_: Template (das ist das Vertragstemplate)
 
 **Vertragstemplate**:
 Die PDF-Variante innerhalb eines Vertragstyps. Bei Influencer Kooperation: Standard oder Direktvertrag.
-Bei UGC: Standard (Alter Vertrag / Neuer Vertrag) oder EHG-Vertrag.
+Bei UGC: Alter Vertrag, Neuer Vertrag oder EHG-Vertrag. Bei EHG GmbH & Co. KG entfällt Neuer Vertrag.
 _Avoid_: Vertragstyp, Layout
 
 **Direktvertrag**:
@@ -53,10 +53,20 @@ Wird nur bei diesen Kunden angeboten. Hat einen Anhang pro gebuchter Plattform (
 _Avoid_: Awareness-Vertrag, BURGA-Vertrag, EHG-Vertrag
 
 **EHG-Vertrag**:
-UGC-Vertragstemplate nur für das Unternehmen EHG GmbH & Co. KG. Vertragsparteien sind Agentur und
-Creator; EHG ist Drittbegünstigte. § 6 der EHG-Vorlage steht vollständig im Vertrag, nicht gekürzt
-wie die Drittbegünstigten-Klausel im Direktvertrag.
+UGC-Vertragstemplate nur für EHG GmbH & Co. KG. Vertragsparteien sind Agentur und Creator;
+EHG ist Drittbegünstigte. Das Deckblatt folgt dem UGC-Standard plus Block Drittbegünstigte;
+Vertragstext und Projektblatt folgen der EHG-Vorlage, einsprachig DE oder EN.
 _Avoid_: Direktvertrag, Ernstings-Vertrag, UTC-Vertrag, Kundenvertrag
+
+**Drittbegünstigte**:
+Partei, die aus dem EHG-Vertrag eigene Rechte erwirbt, ohne Vertragspartei zu sein. Immer
+EHG GmbH & Co. KG. Steht auf dem Deckblatt zusätzlich zu den Kundendaten.
+_Avoid_: Kunde, Dritte
+
+**Projektblatt**:
+Anlage zum EHG-Vertrag. Legt Leistung, Nutzung, Gebiet, Dauer und Vergütung fest; bei Abweichungen
+geht es dem Vertragstext vor.
+_Avoid_: Anhang, Briefing
 
 ### Rechnungswesen
 

@@ -46,6 +46,16 @@ export const SplitButtonConfigs = {
       { id: 'v2', icon: 'contract', label: 'Neuer Vertrag', data: { template: 'v2', lang: 'de' } }
     ])
   },
+  // UGC bei EHG GmbH & Co. KG: Alter Vertrag plus EHG-Vertrag, ohne Neuer Vertrag
+  'ugc-contract-submit-ehg': {
+    label: 'Erstellen & PDF',
+    items: contractSubmitItems([
+      { id: 'legacy-de', icon: 'contract', label: 'Alter Vertrag (DE)', data: { template: 'legacy', lang: 'de' } },
+      { id: 'legacy-en', icon: 'contract', label: 'Alter Vertrag (EN)', data: { template: 'legacy', lang: 'en' } },
+      { id: 'ehg-de', icon: 'contract', label: 'EHG-Vertrag (DE)', data: { template: 'ehg', lang: 'de' } },
+      { id: 'ehg-en', icon: 'contract', label: 'EHG-Vertrag (EN)', data: { template: 'ehg', lang: 'en' } }
+    ])
+  },
   'influencer-contract-submit': {
     label: 'Erstellen & PDF',
     items: contractSubmitItems([

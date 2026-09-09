@@ -34,6 +34,22 @@ describe('VertraegeList Unified Upload', () => {
     creator: { id: 'c1', vorname: 'Max', nachname: 'Muster' }
   };
 
+  describe('Spalte Datei', () => {
+    it('zeigt den PDF-Link der aktuellsten generierten Datei', () => {
+      const html = renderVertraegeTableBody([baseVertrag], { canBulkDelete: false, canEdit: true, isAdmin: false });
+      expect(html).toContain('datei-link');
+      expect(html).toContain(baseVertrag.datei_url);
+      expect(html).toContain('PDF anzeigen');
+    });
+
+    it('zeigt keinen PDF-Link wenn datei_url fehlt', () => {
+      const ohneDatei = { ...baseVertrag, datei_url: null };
+      const html = renderVertraegeTableBody([ohneDatei], { canBulkDelete: false, canEdit: true, isAdmin: false });
+      expect(html).not.toContain('datei-link');
+      expect(html).toContain('text-muted');
+    });
+  });
+
   describe('Spalte Unterschrieben', () => {
     it('zeigt upload-Button fuer canEdit wenn kein signedUrl', () => {
       const html = renderVertraegeTableBody([baseVertrag], { canBulkDelete: false, canEdit: true, isAdmin: false });
