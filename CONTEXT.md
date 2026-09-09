@@ -42,14 +42,21 @@ Art des Vertrags: UGC, Influencer Kooperation, Videograph, Model oder Contractin
 _Avoid_: Template (das ist das Vertragstemplate)
 
 **Vertragstemplate**:
-Die PDF-Variante innerhalb des Vertragstyps Influencer Kooperation: Standard oder Direktvertrag.
+Die PDF-Variante innerhalb eines Vertragstyps. Bei Influencer Kooperation: Standard oder Direktvertrag.
+Bei UGC: Standard (Alter Vertrag / Neuer Vertrag) oder EHG-Vertrag.
 _Avoid_: Vertragstyp, Layout
 
 **Direktvertrag**:
 Vertragstemplate der Influencer Kooperation, bei dem der Kunde (z.B. BURGA, UAB Hautica) direkt
 Vertragspartei des Influencers ist. LikeGroup tritt nicht als Vertragspartei auf.
 Wird nur bei diesen Kunden angeboten. Hat einen Anhang pro gebuchter Plattform (Anhang A, B, ...).
-_Avoid_: Awareness-Vertrag, BURGA-Vertrag
+_Avoid_: Awareness-Vertrag, BURGA-Vertrag, EHG-Vertrag
+
+**EHG-Vertrag**:
+UGC-Vertragstemplate nur für das Unternehmen EHG GmbH & Co. KG. Vertragsparteien sind Agentur und
+Creator; EHG ist Drittbegünstigte. § 6 der EHG-Vorlage steht vollständig im Vertrag, nicht gekürzt
+wie die Drittbegünstigten-Klausel im Direktvertrag.
+_Avoid_: Direktvertrag, Ernstings-Vertrag, UTC-Vertrag, Kundenvertrag
 
 ### Rechnungswesen
 
