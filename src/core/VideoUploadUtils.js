@@ -66,6 +66,23 @@ export function countStillNameUsage(existingImages, baseFileName) {
   return (existingImages || []).filter(img => img.file_name && re.test(img.file_name)).length;
 }
 
+/**
+ * Liefert einen Zaehler, der pro Basis-Dateiname den naechsten freien Index
+ * vergibt (1, 2, 3, ...). Startet bei countStillNameUsage + 1, damit
+ * Nachschub-Uploads nicht mit Altbestand kollidieren.
+ */
+export function createStillIndexCounter(existingImages) {
+  const usage = new Map();
+  return function nextStillIndex(baseFileName) {
+    if (!usage.has(baseFileName)) {
+      usage.set(baseFileName, countStillNameUsage(existingImages, baseFileName));
+    }
+    const n = usage.get(baseFileName) + 1;
+    usage.set(baseFileName, n);
+    return n;
+  };
+}
+
 // ─── Shared Upload Helpers ──────────────────────────────────
 
 export function escapeHtml(str) {

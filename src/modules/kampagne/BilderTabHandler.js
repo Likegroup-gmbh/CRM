@@ -1,7 +1,7 @@
 import {
   escapeHtml, readFileAsBase64, proxyPost, uploadLargeFile, createFolderSharedLink,
   IMAGE_EXTENSIONS, IMAGE_MIME_PREFIX, MAX_IMAGE_SIZE, MAX_VERSIONS,
-  buildVersionedFileName, buildFinalFileName, withStillIndex, countStillNameUsage,
+  buildVersionedFileName, buildFinalFileName, withStillIndex, createStillIndexCounter,
   normalizeExternalUrl, isValidExternalUrl,
   mdcBtnIcon, ICON_PLUS_16, ICON_CHECK_16, ICON_UPLOAD_16
 } from '../../core/VideoUploadUtils.js';
@@ -409,10 +409,10 @@ export class BilderTabHandler {
       // Feedbackschleife nicht gegenseitig in Dropbox ueberschreiben (mode: overwrite).
       // Start-Index = bereits belegte Namen aus den existierenden Assets dieses Videos
       // (plus unzugeordnete, die im selben Video-Ordner landen koennen).
-      const nameUsage = new Map();
       const relevantExisting = (this._existingImages || []).filter(img =>
         !this.drawer.videoId || img.video_id === this.drawer.videoId || img.video_id == null
       );
+      const nextStillIndex = createStillIndexCounter(relevantExisting);
 
       for (let i = 0; i < this._selectedImages.length; i++) {
         const item = this._selectedImages[i];
@@ -437,12 +437,7 @@ export class BilderTabHandler {
               item.versionNumber || 1,
               ext
             );
-        if (!nameUsage.has(baseFileName)) {
-          nameUsage.set(baseFileName, countStillNameUsage(relevantExisting, baseFileName));
-        }
-        const stillIdx = nameUsage.get(baseFileName) + 1;
-        nameUsage.set(baseFileName, stillIdx + 1);
-        const fileName = withStillIndex(baseFileName, stillIdx);
+        const fileName = withStillIndex(baseFileName, nextStillIndex(baseFileName));
 
         const itemPrepare = await fetch('/.netlify/functions/dropbox-upload-bilder', {
           method: 'POST',

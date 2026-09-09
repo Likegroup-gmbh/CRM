@@ -1,4 +1,21 @@
 import { defineConfig } from 'vite';
+import { writeFileSync, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+function writeVersionJson() {
+  return {
+    name: 'write-version-json',
+    apply: 'build',
+    closeBundle() {
+      const outDir = join(process.cwd(), 'dist');
+      mkdirSync(outDir, { recursive: true });
+      writeFileSync(
+        join(outDir, 'version.json'),
+        JSON.stringify({ build: new Date().toISOString() })
+      );
+    }
+  };
+}
 
 /** Vite Dev serviert Source-CJS roh. Default-Import aus der UI braucht export default. */
 function cjsSharedAsDefault() {
@@ -17,7 +34,7 @@ function cjsSharedAsDefault() {
 }
 
 export default defineConfig({
-  plugins: [cjsSharedAsDefault()],
+  plugins: [cjsSharedAsDefault(), writeVersionJson()],
   root: '.',
   build: {
     outDir: 'dist',

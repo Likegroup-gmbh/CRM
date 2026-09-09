@@ -11,6 +11,7 @@ import {
   toRawDropboxUrl,
   withStillIndex,
   countStillNameUsage,
+  createStillIndexCounter,
 } from '../core/VideoUploadUtils.js';
 
 describe('buildVersionedFileName', () => {
@@ -259,5 +260,40 @@ describe('countStillNameUsage', () => {
 
   it('gibt 0 zurueck bei leerem Basis-Namen', () => {
     expect(countStillNameUsage([{ file_name: 'x_01.jpg' }], '')).toBe(0);
+  });
+});
+
+describe('createStillIndexCounter', () => {
+  const base = 'creator_firma_kampagne_v1.jpg';
+
+  it('vergibt 1, 2, 3 im Batch ohne Altbestand', () => {
+    const next = createStillIndexCounter([]);
+    expect(next(base)).toBe(1);
+    expect(next(base)).toBe(2);
+    expect(next(base)).toBe(3);
+  });
+
+  it('startet nach unindiziertem Altbestand', () => {
+    const next = createStillIndexCounter([{ file_name: base }]);
+    expect(next(base)).toBe(2);
+    expect(next(base)).toBe(3);
+  });
+
+  it('startet nach gemischtem Altbestand (unindiziert + indiziert)', () => {
+    const next = createStillIndexCounter([
+      { file_name: base },
+      { file_name: 'creator_firma_kampagne_v1_01.jpg' },
+    ]);
+    expect(next(base)).toBe(3);
+    expect(next(base)).toBe(4);
+  });
+
+  it('zaehlt getrennte Basis-Namen unabhaengig', () => {
+    const other = 'creator_firma_kampagne_v2.jpg';
+    const next = createStillIndexCounter([]);
+    expect(next(base)).toBe(1);
+    expect(next(other)).toBe(1);
+    expect(next(base)).toBe(2);
+    expect(next(other)).toBe(2);
   });
 });
