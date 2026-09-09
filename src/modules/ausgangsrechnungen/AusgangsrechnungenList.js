@@ -2,6 +2,7 @@
 // Zeigt pro Auftrag je eine Zeile pro Teilrechnung, sortiert nach Rechnungsnummer (re_nr)
 
 import { AuftragList } from '../auftrag/AuftragList.js';
+import { FINAL_AUFTRAG_OR_FILTER } from '../auftrag/AuftragListDataLoader.js';
 import { defaultReNrPrefix, sortRowsByPrefixedNumberDesc } from '../auftrag/logic/PrefixedNumberSort.js';
 import {
   ALL_TAB,
@@ -37,6 +38,23 @@ function escapeAttr(value) {
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+// Entwuerfe gehoeren nicht in die Rechnungsliste. Gleiche Regel wie auf der
+// Stakeholder-Uebersicht: is_draft !== true, null zaehlt als final (Altbestand).
+// Der Query-Gegenpart steckt in FINAL_AUFTRAG_OR_FILTER (AuftragListDataLoader).
+export function isFinalAuftrag(row) {
+  return row?.is_draft !== true;
+}
+
+// Contracts haben auf dieser Seite keine Pagination-UI (usesPagination === false).
+// Summen-Cards und Tabelle muessen trotzdem ALLE Zeilen sehen, nicht still nur
+// die ersten 25 – sonst weicht die Netto-Card vom Tabelleninhalt ab.
+export function visibleContractRows(rows, { usesPagination, page = 1, limit = 25 } = {}) {
+  const list = rows || [];
+  if (usesPagination === false) return list;
+  const from = (page - 1) * limit;
+  return list.slice(from, from + limit);
 }
 
 export class AusgangsrechnungenList extends AuftragList {
@@ -564,6 +582,7 @@ export class AusgangsrechnungenList extends AuftragList {
     extraQuery = mode === 'contracts'
       ? extraQuery.eq('auftragtype', 'Contracting')
       : extraQuery.neq('auftragtype', 'Contracting');
+    extraQuery = extraQuery.or(FINAL_AUFTRAG_OR_FILTER);
     const { data: extraRows, error: extraError } = await extraQuery;
     if (extraError) {
       console.warn('⚠️ Extra-IDs der Teilrechnungs-Suche konnten nicht geladen werden:', extraError);
@@ -582,8 +601,10 @@ export class AusgangsrechnungenList extends AuftragList {
       const searchTerm = typeof filters.auftragsname === 'string' ? filters.auftragsname.trim() : '';
       const filterCopy = { ...filters };
 
-      // 1) Alle passenden Auftrag-IDs laden
-      const idQuery = await this.buildFilteredAuftragQuery(filterCopy, mode, 'id');
+      // 1) Alle passenden Auftrag-IDs laden (Entwuerfe gar nicht erst holen).
+      // Kein .or()-Chaining nach dem await: der Query-Builder ist thenable und
+      // wuerde dabei schon ausgefuehrt – der Draft-Filter steckt im Builder.
+      const idQuery = await this.buildFilteredAuftragQuery(filterCopy, mode, 'id', { excludeDrafts: true });
       const { data: idRows, error: idError } = await idQuery;
 
       if (idError) {
@@ -614,6 +635,7 @@ export class AusgangsrechnungenList extends AuftragList {
         zahlungsziel_tage,
         start,
         ende,
+        is_draft,
         nettobetrag,
         ust_prozent,
         ust_betrag,
@@ -653,9 +675,12 @@ export class AusgangsrechnungenList extends AuftragList {
 
       const createdByFallbacks = await this.loadCreatedByFallbacks(auftraege || []);
 
-      // 3) Explodieren: pro Teilrechnung eine Zeile
+      // 3) Explodieren: pro Teilrechnung eine Zeile.
+      // Entwuerfe sind bereits in der ID-Query raus; der Filter hier faengt
+      // Altbestaende ab, bei denen die Query-Bedingung nicht greift.
+      const finaleAuftraege = (auftraege || []).filter(isFinalAuftrag);
       const exploded = [];
-      for (const auftrag of (auftraege || [])) {
+      for (const auftrag of finaleAuftraege) {
         const details = auftrag.auftrag_details;
         const detailsId = Array.isArray(details) ? details[0]?.id : details?.id;
 
@@ -710,8 +735,14 @@ export class AusgangsrechnungenList extends AuftragList {
       this._allInvoiceRows = sorted;
 
       if (mode !== 'auftraege') {
-        const from = (page - 1) * limit;
-        return { data: sorted.slice(from, from + limit), count: sorted.length };
+        // Ohne Pagination-UI die volle Liste – sonst summieren die Cards nur
+        // die ersten 25 Zeilen, waehrend die Tabelle alle zu zeigen scheint.
+        const visible = visibleContractRows(sorted, {
+          usesPagination: this.usesPagination,
+          page,
+          limit
+        });
+        return { data: visible, count: sorted.length };
       }
 
       // Kein Auto-Sprung in den ersten Monat mit Daten: die Auswahl (Singleton)

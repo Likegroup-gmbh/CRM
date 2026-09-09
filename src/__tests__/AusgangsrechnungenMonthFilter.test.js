@@ -8,7 +8,7 @@ import {
   findInvoiceCacheRow,
   formatMonthEmptyText
 } from '../modules/auftrag/logic/InvoiceMonthFilter.js';
-import { AusgangsrechnungenList } from '../modules/ausgangsrechnungen/AusgangsrechnungenList.js';
+import { AusgangsrechnungenList, isFinalAuftrag, visibleContractRows } from '../modules/ausgangsrechnungen/AusgangsrechnungenList.js';
 import { defaultReNrPrefix } from '../modules/auftrag/logic/PrefixedNumberSort.js';
 import { DataPreparer } from '../core/data/DataPreparer.js';
 import { EntityRegistry } from '../core/data/entities/index.js';
@@ -475,5 +475,102 @@ describe('AusgangsrechnungenList Monatssheet', () => {
     }));
     expect(list.loadAuftraegeData).not.toHaveBeenCalled();
     list.destroy();
+  });
+});
+
+describe('Contract-Summe und Entwuerfe', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    window.currentUser = { rolle: 'admin' };
+    window.validatorSystem = { sanitizeHtml: value => value };
+  });
+
+  afterEach(() => {
+    delete window.supabase;
+  });
+
+  // Thenable-Query-Mock: die Loader-Kette select/eq/neq/or/in/order muss
+  // durchreichen, await liefert das Ergebnis.
+  const makeQuery = (result) => {
+    const q = {
+      select: vi.fn(() => q),
+      eq: vi.fn(() => q),
+      neq: vi.fn(() => q),
+      or: vi.fn(() => q),
+      in: vi.fn(() => q),
+      order: vi.fn(() => q),
+      ilike: vi.fn(() => q),
+      then: (resolve) => resolve(result)
+    };
+    return q;
+  };
+
+  it('gibt Contracts ohne Pagination-UI komplett zurueck, nicht nur die ersten 25', () => {
+    const thirty = Array.from({ length: 30 }, (_, i) => ({ id: `c${i + 1}`, nettobetrag: 1000 }));
+    expect(visibleContractRows(thirty, { usesPagination: false, page: 1, limit: 25 })).toHaveLength(30);
+  });
+
+  it('schneidet mit aktiver Pagination weiterhin auf die Seite', () => {
+    const thirty = Array.from({ length: 30 }, (_, i) => ({ id: `c${i + 1}` }));
+    expect(visibleContractRows(thirty, { usesPagination: true, page: 1, limit: 25 })).toHaveLength(25);
+    expect(visibleContractRows(thirty, { usesPagination: true, page: 2, limit: 25 })).toHaveLength(5);
+  });
+
+  it('laedt 30 Contract-Zeilen ohne 25er-Schnitt und summiert sie in der Netto-Card', async () => {
+    const thirty = Array.from({ length: 30 }, (_, i) => ({
+      id: `a${i + 1}`,
+      auftragsname: `Contract ${i + 1}`,
+      is_draft: false,
+      nettobetrag: 1000,
+      ust_betrag: 190,
+      bruttobetrag: 1190
+    }));
+    const idQuery = makeQuery({ data: thirty.map(a => ({ id: a.id })), error: null });
+    const fullQuery = makeQuery({ data: thirty, error: null });
+    const trQuery = makeQuery({ data: [], error: null });
+    const auftragQueries = [idQuery, fullQuery];
+    window.supabase = { from: vi.fn((table) => table === 'auftrag' ? auftragQueries.shift() : trQuery) };
+
+    const list = new AusgangsrechnungenList();
+    const { data, count } = await list.loadAuftraegeWithPagination({}, 1, 25, 'contracts');
+
+    expect(data).toHaveLength(30);
+    expect(count).toBe(30);
+
+    document.body.innerHTML = '<div id="page-tab-content" class="kundenrechnungen-page"></div>';
+    list.renderAuftraegeContent();
+    list.updateInvoiceSummary(data);
+    const cards = document.getElementById('ausgangsrechnungen-summary-cards');
+    expect(cards.querySelector('[data-summary-value="nettobetrag"]').textContent)
+      .toBe(list.formatSummaryCurrency(30000));
+  });
+
+  it('filtert Entwuerfe in der ID-Query und vor dem Explodieren, null bleibt drin', async () => {
+    const idQuery = makeQuery({ data: [{ id: 'a1' }, { id: 'a2' }, { id: 'a3' }], error: null });
+    const fullQuery = makeQuery({
+      data: [
+        { id: 'a1', auftragsname: 'Final', is_draft: false, nettobetrag: 1000 },
+        { id: 'a2', auftragsname: 'Entwurf', is_draft: true, nettobetrag: 2000 },
+        { id: 'a3', auftragsname: 'Altbestand', is_draft: null, nettobetrag: 3000 }
+      ],
+      error: null
+    });
+    const trQuery = makeQuery({ data: [], error: null });
+    const auftragQueries = [idQuery, fullQuery];
+    window.supabase = { from: vi.fn((table) => table === 'auftrag' ? auftragQueries.shift() : trQuery) };
+
+    const list = new AusgangsrechnungenList();
+    const { data, count } = await list.loadAuftraegeWithPagination({}, 1, 25, 'contracts');
+
+    expect(idQuery.or).toHaveBeenCalledWith('is_draft.is.null,is_draft.eq.false');
+    expect(data.map(r => r.id).sort()).toEqual(['a1', 'a3']);
+    expect(count).toBe(2);
+  });
+
+  it('isFinalAuftrag: nur is_draft === true faellt raus', () => {
+    expect(isFinalAuftrag({ is_draft: true })).toBe(false);
+    expect(isFinalAuftrag({ is_draft: false })).toBe(true);
+    expect(isFinalAuftrag({ is_draft: null })).toBe(true);
+    expect(isFinalAuftrag({})).toBe(true);
   });
 });

@@ -7,6 +7,10 @@ import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { AuftragFilterLogic } from './filters/AuftragFilterLogic.js';
 import { sortRowsByPrefixedNumberDesc } from './logic/PrefixedNumberSort.js';
 
+// PostgREST-Filter gegen Entwuerfe: neq('is_draft', true) wuerde NULL-Zeilen
+// (Altbestand) mit ausblenden, darum explizit "null ODER false".
+export const FINAL_AUFTRAG_OR_FILTER = 'is_draft.is.null,is_draft.eq.false';
+
 const AUFTRAG_LIST_SELECT = `
         id,
         auftragsname,
@@ -163,7 +167,7 @@ AuftragList.prototype.loadContractsData = async function() {
   }
 };
 
-AuftragList.prototype.buildFilteredAuftragQuery = async function(filters = {}, mode = 'auftraege', select = AUFTRAG_LIST_SELECT) {
+AuftragList.prototype.buildFilteredAuftragQuery = async function(filters = {}, mode = 'auftraege', select = AUFTRAG_LIST_SELECT, { excludeDrafts = false } = {}) {
   let query = window.supabase
     .from('auftrag')
     .select(select, { count: 'estimated' });
@@ -172,6 +176,12 @@ AuftragList.prototype.buildFilteredAuftragQuery = async function(filters = {}, m
     query = query.eq('auftragtype', 'Contracting');
   } else {
     query = query.neq('auftragtype', 'Contracting');
+  }
+
+  // Nur die Kundenrechnungen-Seite (AusgangsrechnungenList) setzt excludeDrafts;
+  // die Auftragsliste (/auftrag) bleibt unveraendert.
+  if (excludeDrafts) {
+    query = query.or(FINAL_AUFTRAG_OR_FILTER);
   }
 
   if (filters.auftragsname) {
