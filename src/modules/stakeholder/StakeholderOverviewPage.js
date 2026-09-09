@@ -693,6 +693,7 @@ export class StakeholderOverviewPage {
           <h3 class="stakeholder-list-title">Zahlungsstand</h3>
           <p class="stakeholder-list-hint">Stand heute, unabhängig von Ansicht und Zeitraum · Gestellt = Summe aller gestellten Rechnungen · Bezahlt = Zahlung eingegangen · Offen = gestellt, nicht bezahlt · Noch nicht gestellt = Restbetrag aus Auftrag bzw. Kalkulation</p>
         </div>
+        <div class="stakeholder-scroll-x">
         <table class="stakeholder-table stakeholder-status-table">
           <thead>
             <tr>
@@ -708,6 +709,7 @@ export class StakeholderOverviewPage {
             ${zeile('Creatorrechnungen', creator)}
           </tbody>
         </table>
+        </div>
       </div>
     `;
   }
@@ -782,7 +784,7 @@ export class StakeholderOverviewPage {
     });
 
     return `
-      <div class="stakeholder-list-card stakeholder-scroll-x">
+      <div class="stakeholder-list-card">
         <div class="stakeholder-list-header">
           <h3 class="stakeholder-list-title">${this.escape(metrik.label)}</h3>
           <p class="stakeholder-list-hint">${
@@ -791,6 +793,7 @@ export class StakeholderOverviewPage {
               : 'Buchhaltungssicht: jeder Beleg steht im Monat seines eigenen Rechnungsdatums.'
           }</p>
         </div>
+        <div class="stakeholder-scroll-x">
         <table class="stakeholder-table stakeholder-matrix">
           <thead>
             <tr>
@@ -813,6 +816,7 @@ export class StakeholderOverviewPage {
             </tr>
           </tfoot>
         </table>
+        </div>
       </div>
     `;
   }
@@ -828,11 +832,12 @@ export class StakeholderOverviewPage {
       .reduce((s, row) => s + (row[field]?.[m] || 0), 0);
 
     return `
-      <div class="stakeholder-list-card stakeholder-scroll-x">
+      <div class="stakeholder-list-card">
         <div class="stakeholder-list-header">
           <h3 class="stakeholder-list-title">Fremdkosten nach Posten</h3>
           <p class="stakeholder-list-hint">Die drei Posten bleiben getrennt – KSK wird berechnet (4,9 %), nie eingetragen; Selbstzahler ausgenommen.</p>
         </div>
+        <div class="stakeholder-scroll-x">
         <table class="stakeholder-table stakeholder-matrix">
           <thead>
             <tr>
@@ -849,6 +854,7 @@ export class StakeholderOverviewPage {
             `).join('')}
           </tbody>
         </table>
+        </div>
       </div>
     `;
   }
@@ -1095,7 +1101,8 @@ export class StakeholderOverviewPage {
           <h3 class="stakeholder-list-title">Kunden nach Umsatz</h3>
           <p class="stakeholder-list-hint">Spalten wie Karten · ${kundenLabel}</p>
         </div>
-        <table class="stakeholder-table">
+        <div class="stakeholder-scroll-x">
+        <table class="stakeholder-table stakeholder-table--kunden">
           <thead>
             <tr>
               <th class="stakeholder-num">#</th>
@@ -1130,6 +1137,7 @@ export class StakeholderOverviewPage {
             </tr>
           </tfoot>
         </table>
+        </div>
       </div>
     `;
   }

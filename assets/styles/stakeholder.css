@@ -18,11 +18,6 @@
   color: var(--text-secondary);
 }
 
-.stakeholder-toolbar {
-  display: flex;
-  justify-content: flex-end;
-}
-
 .stakeholder-year-field {
   min-width: var(--min-width-lg);
 }
@@ -71,7 +66,6 @@
   background: var(--gray-100);
   color: var(--text-secondary);
   font-size: var(--text-sm);
-  
 }
 
 .stakeholder-tab.active .stakeholder-tab-badge {
@@ -322,6 +316,27 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Zeilen-Hover macht breite Tabellen scannbar */
+.stakeholder-table tbody tr:hover td {
+  background: var(--gray-100);
+}
+
+/* Kundenliste: 11 Spalten passen auf schmalen Screens nicht auf 100 % —
+   Mindestbreite + Scroll-Container statt gequetschter Spalten. */
+.stakeholder-table--kunden {
+  min-width: 1020px;
+}
+
+.stakeholder-table--kunden th,
+.stakeholder-table--kunden td {
+  white-space: nowrap;
+}
+
+.stakeholder-table--kunden td:nth-child(2) {
+  white-space: normal;
+  min-width: 160px;
+}
+
 .stakeholder-kunde {
   display: flex;
   flex-direction: column;
@@ -442,7 +457,7 @@
 }
 
 .stakeholder-view-btn.active {
-  background: #fff;
+  background: var(--bg-primary, #fff);
   color: var(--text-primary);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
@@ -470,6 +485,10 @@
 
 .stakeholder-scroll-x {
   overflow-x: auto;
+  /* Scrollbarer Bereich geht bis an den Kartenrand, damit die Tabelle die
+     volle Breite nutzt; der Abstand steht am Karten-Header. */
+  margin: 0 calc(-1 * var(--space-md)) calc(-1 * var(--space-md));
+  padding: 0 var(--space-md) var(--space-md);
 }
 
 .stakeholder-matrix th,
@@ -528,6 +547,7 @@
    Ansichten. Ueberfaellig ist eine rote Teilzahl innerhalb von "Offen". */
 .stakeholder-status-table {
   max-width: 860px;
+  min-width: 560px;
 }
 
 .stakeholder-status-table td:first-child {
