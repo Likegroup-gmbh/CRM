@@ -14,6 +14,7 @@ Ausloeser war eine Messung des zeitlichen Versatzes zwischen Kundenrechnung und 
 ## Consequences
 
 - Ein abgeschlossener Monat aendert sich in der Margenansicht rueckwirkend, sobald eine spaete Creatorrechnung eintrifft. Das ist keine Schwaeche, sondern eine Eigenschaft des Nachlaufs, und wird als Stand-Datum ausgewiesen statt kaschiert.
+- Hat ein Auftrag mehrere Kundenrechnungen (Teilrechnungen), folgen die Fremdkosten dem Umsatz anteilig ueber dessen Rechnungsmonate: bei 50/50-Raten traegt jeder Monat die Haelfte der Kosten. Alles andere wuerde die gesamten Kosten in den erste Monat legen und die Monatsmarge genau bei den Raten-Auftraegen kippen lassen.
 - Weil sich berichtete Zahlen dadurch spaeter aendern koennen, wird zu jedem Investorenupdate ein Berichtsstand gespeichert. Die Ansicht rechnet immer live; der Snapshot dient nur dazu, eine einmal gemeldete Zahl spaeter noch begruenden zu koennen. Monate einzufrieren waere die Alternative gewesen, haette aber Nachzuegler in falsche Monate verschoben und damit die Zuordnungslogik ausgehebelt, die dieser ADR gerade begruendet.
 - Die beiden Ansichten zeigen fuer denselben Monat unterschiedliche Zahlen. Sie muessen deshalb sichtbar getrennt und benannt sein; eine Ansicht ohne Bezeichnung waere schlimmer als gar keine.
 - Noch nicht fakturierte Fremdkosten fehlen in beiden Ansichten in der Hauptzahl und stehen als eigene Zeile daneben. Zum Zeitpunkt der Entscheidung waren das 91.878,95 €, davon 81.223 € aus einer einzigen Kampagne mit 50/50-Zahlungszielen.

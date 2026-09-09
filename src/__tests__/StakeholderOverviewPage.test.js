@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { StakeholderOverviewPage, elapsedRatio, groupRowsByKundeMarke } from '../modules/stakeholder/StakeholderOverviewPage.js';
 
-function createMockSupabase({ auftraege = [], blocks = [], kampagnen = [], kooperationen = [], videos = [], details = [], unternehmen = [], rechnungen = [] }) {
+function createMockSupabase({ auftraege = [], blocks = [], kampagnen = [], kooperationen = [], videos = [], details = [], unternehmen = [], rechnungen = [], teilrechnungen = [] }) {
   const tableData = {
     auftrag: { data: auftraege, error: null },
     auftrag_kampagnenart_blocks: { data: blocks, error: null },
@@ -10,12 +10,19 @@ function createMockSupabase({ auftraege = [], blocks = [], kampagnen = [], koope
     kooperation_videos: { data: videos, error: null },
     auftrag_details: { data: details, error: null },
     unternehmen: { data: unternehmen, error: null },
-    rechnung: { data: rechnungen, error: null }
+    rechnung: { data: rechnungen, error: null },
+    auftrag_teilrechnung: { data: teilrechnungen, error: null }
   };
 
+  // fetchAllRows kettet select().order().range(); die erste Seite liefert
+  // hier immer alle Mock-Zeilen (< 1000), also stoppt die Pagination.
   return {
     from: vi.fn((table) => ({
-      select: vi.fn(() => Promise.resolve(tableData[table] || { data: [], error: null }))
+      select: vi.fn(() => ({
+        order: vi.fn(() => ({
+          range: vi.fn(() => Promise.resolve(tableData[table] || { data: [], error: null }))
+        }))
+      }))
     }))
   };
 }
@@ -161,6 +168,72 @@ describe('StakeholderOverviewPage', () => {
     expect(thead.indexOf('Creatoranteil')).toBeLessThan(thead.indexOf('Agenturanteil'));
     expect(thead.indexOf('Agenturanteil')).toBeLessThan(thead.indexOf('KSK'));
     expect(thead.indexOf('KSK')).toBeLessThan(thead.indexOf('Zusatzkosten'));
+  });
+
+  it('rendert die Monatsauswertung mit beiden Sichten, Matrix und Sonderzeilen', async () => {
+    const auftraege = [{
+      id: 'a1',
+      auftragsname: 'UGC Auftrag',
+      nettobetrag: 10000,
+      creator_budget: 8000,
+      auftragtype: 'UGC/Influencer',
+      start: '2026-01-01',
+      ende: '2026-03-31',
+      is_draft: false,
+      unternehmen_id: 'u1',
+      rechnung_gestellt_am: '2026-03-10'
+    }];
+    const blocks = [{ auftrag_id: 'a1', campaign_type: 'ugc_paid', campaign_type_label: 'UGC Paid', umsatz_netto: 10000 }];
+    const kampagnen = [{ id: 'k1', auftrag_id: 'a1', videoanzahl: 5, creatoranzahl: 2 }];
+    const kooperationen = [{ id: 'koop1', kampagne_id: 'k1', creator_id: 'c1', videoanzahl: 2, einkaufspreis_netto: 5000, verkaufspreis_netto: 8000 }];
+    const rechnungen = [{
+      id: 'r1', auftrag_id: 'a1', kooperation_id: 'koop1', status: 'Bezahlt', rechnungstyp: 'kampagne',
+      nettobetrag: 2000, nettobetrag_steuerfrei: 0, zusatzkosten: 0, gestellt_am: '2026-06-15'
+    }];
+
+    window.supabase = createMockSupabase({ auftraege, blocks, kampagnen, kooperationen, rechnungen });
+
+    const page = new StakeholderOverviewPage();
+    await page.init();
+
+    // Umschalten auf die Monatsauswertung
+    page.activeView = 'monate';
+    page.render();
+    const html = window.setContentSafely.mock.calls.at(-1)[1];
+
+    // Sicht- und Metrik-Umschalter
+    expect(html).toContain('Margensicht');
+    expect(html).toContain('Buchhaltungssicht');
+    expect(html).toContain('Umsatz');
+    expect(html).toContain('Fremdkosten');
+    expect(html).toContain('Differenz');
+
+    // Matrix: Leistungsbereich und beide Monate (Umsatz März, Kosten Juni)
+    expect(html).toContain('Leistungsbereich');
+    expect(html).toContain('UGC Paid');
+    expect(html).toContain('März 26');
+    expect(html).toContain('Juni 26');
+
+    // Fremdkosten-Posten bleiben getrennt
+    expect(html).toContain('Fremdkosten nach Posten');
+    expect(html).toContain('Creator-Honorar');
+    expect(html).toContain('KSK-Abgabe');
+    expect(html).toContain('Zusatzkosten');
+
+    // Sonderzeile: 3.000 € Restbetrag der Kooperation ist noch nicht fakturiert
+    expect(html).toContain('Nicht in der Monatsmatrix enthalten');
+    expect(html).toContain('Noch nicht fakturiert');
+    expect(html).toContain('3.000,00');
+
+    // Margensicht (Standard): die Juni-Rechnung steht im März, nicht im Juni.
+    // Differenz März = 10.000 − 2.000 − 98 KSK = 7.902
+    expect(html).toContain('7.902,00');
+
+    // Buchhaltungssicht: Kosten stehen im Juni
+    page.monatsSicht = 'buchhaltung';
+    page.render();
+    const htmlBuch = window.setContentSafely.mock.calls.at(-1)[1];
+    expect(htmlBuch).toContain('Buchhaltungssicht');
   });
 
   it('filtert Aufträge nach Zeitraum', async () => {

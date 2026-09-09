@@ -11,9 +11,32 @@ import { CAMPAIGN_TYPES } from '../projekt-erstellen/constants.js';
 import { getChipFromKampagnenartName, sumBlockUmsatz } from '../projekt-erstellen/logic/CampaignBudgetFields.js';
 import { calculateBudgetOverview } from '../../core/budget/calculateBudgetOverview.js';
 import { calculateCreatorPaymentSummary } from '../../core/budget/EkVkAgencyFeeHelper.js';
+import {
+  LEISTUNGSBEREICHE,
+  LEISTUNGSBEREICH_LABELS,
+  primaerBereichForAuftrag,
+} from '../../core/budget/leistungsbereich.js';
+import { calculateMonatsauswertung, zuordnungsquote } from '../../core/budget/monatsauswertung.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
 const SUPABASE = () => window.supabase;
+
+// Laedt eine Tabelle seitenweise, damit keine Zeile am PostgREST-Limit
+// (Standard: 1000) still verloren geht. kooperation_videos hat z. B. ueber
+// 2.500 Zeilen. Stabile Sortierung nach id, damit die Seiten deterministisch sind.
+export async function fetchAllRows(supabase, table, select, pageSize = 1000) {
+  const rows = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from(table)
+      .select(select)
+      .order('id', { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) return rows;
+  }
+}
 
 const TAB_GESAMT = 'gesamt';
 const TAB_INFLUENCER = 'influencer_marketing';
@@ -72,6 +95,22 @@ export function resolvePercentageFee(details) {
 
 const MARK_NONE = '__none__';
 const DATE_MONTH = { month: 'short', year: 'numeric' };
+
+// Metriken der Monatsmatrix: Label und Zellwert an einem Ort.
+const MONATS_METRIKEN = {
+  umsatz: {
+    label: 'Umsatz (netto, nach Rechnungsdatum)',
+    wert: (row, m) => row.umsatz[m],
+  },
+  fremdkosten: {
+    label: 'Fremdkosten gesamt (Honorar + KSK + Zusatzkosten)',
+    wert: (row, m) => (row.honorar[m] || 0) + (row.ksk[m] || 0) + (row.zusatzkosten[m] || 0),
+  },
+  differenz: {
+    label: 'Differenz (Umsatz − Fremdkosten)',
+    wert: (row, m) => row.differenz[m],
+  },
+};
 
 const CARD_HINTS = {
   volumen: {
@@ -213,6 +252,11 @@ export class StakeholderOverviewPage {
     this.unternehmenById = new Map();
     this.selectedYear = 'all';
     this.activeTab = TAB_GESAMT;
+    // Monatsauswertung (ADR 0006): eigene Ansicht neben der Kalkulation.
+    this.activeView = 'kalkulation'; // 'kalkulation' | 'monate'
+    this.monatsSicht = 'marge'; // 'marge' | 'buchhaltung'
+    this.monatsMetrik = 'differenz'; // 'umsatz' | 'fremdkosten' | 'differenz'
+    this._monats = null;
     this._eventsBound = false;
     this._docClickHandler = null;
     this._docChangeHandler = null;
@@ -249,50 +293,41 @@ export class StakeholderOverviewPage {
     const supabase = SUPABASE();
     if (!supabase) throw new Error('Supabase nicht verfügbar');
 
-    const [auftragRes, blocksRes, kampagnenRes, koopsRes, videosRes, detailsRes, unternehmenRes, rechnungRes] = await Promise.all([
-      supabase
-        .from('auftrag')
-        .select('id, titel, auftragsname, nettobetrag, creator_budget, auftragtype, start, ende, created_at, is_draft, unternehmen_id, marke_id, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, marke:marke_id(id, markenname)'),
-      supabase
-        .from('auftrag_kampagnenart_blocks')
-        .select('id, auftrag_id, campaign_type, campaign_type_label, umsatz_netto, sort_order'),
-      supabase
-        .from('kampagne')
-        .select('id, auftrag_id, videoanzahl, creatoranzahl'),
-      supabase
-        .from('kooperationen')
-        .select('id, kampagne_id, creator_id, videoanzahl, einkaufspreis_netto, verkaufspreis_netto, verkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag'),
-      supabase
-        .from('kooperation_videos')
-        .select('id, kooperation_id, einkaufspreis_netto, verkaufspreis_netto, kampagnenart'),
-      supabase
-        .from('auftrag_details')
-        .select('auftrag_id, campaign_type, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value'),
-      supabase
-        .from('unternehmen')
-        .select('id, firmenname'),
-      supabase
-        .from('rechnung')
-        .select('kooperation_id, auftrag_id, status, nettobetrag, rechnungstyp')
+    // Alle Tabellen seitenweise (fetchAllRows), damit nichts am
+    // PostgREST-Zeilenlimit verloren geht.
+    const [auftraege, blocks, kampagnen, koops, videos, details, unternehmen, rechnungen, teilrechnungen] = await Promise.all([
+      fetchAllRows(supabase, 'auftrag',
+        'id, titel, auftragsname, nettobetrag, creator_budget, auftragtype, start, ende, created_at, is_draft, unternehmen_id, marke_id, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, rechnung_gestellt_am, marke:marke_id(id, markenname)'),
+      fetchAllRows(supabase, 'auftrag_kampagnenart_blocks',
+        'id, auftrag_id, campaign_type, campaign_type_label, umsatz_netto, sort_order'),
+      fetchAllRows(supabase, 'kampagne',
+        'id, auftrag_id, videoanzahl, creatoranzahl'),
+      fetchAllRows(supabase, 'kooperationen',
+        'id, kampagne_id, creator_id, videoanzahl, einkaufspreis_netto, verkaufspreis_netto, verkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag'),
+      fetchAllRows(supabase, 'kooperation_videos',
+        'id, kooperation_id, einkaufspreis_netto, verkaufspreis_netto, kampagnenart'),
+      fetchAllRows(supabase, 'auftrag_details',
+        'auftrag_id, campaign_type, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value'),
+      fetchAllRows(supabase, 'unternehmen',
+        'id, firmenname'),
+      // Fremdkosten brauchen Rechnungsdatum und die drei Posten-Quellen
+      // (Honorar netto + steuerfrei, Zusatzkosten; KSK wird berechnet).
+      fetchAllRows(supabase, 'rechnung',
+        'id, kooperation_id, auftrag_id, status, nettobetrag, nettobetrag_steuerfrei, zusatzkosten, gestellt_am, rechnungstyp'),
+      // Kundenrechnungen: geplante und gestellte Teilrechnungen je Auftrag.
+      fetchAllRows(supabase, 'auftrag_teilrechnung',
+        'id, auftrag_id, nettobetrag, rechnung_gestellt, rechnung_gestellt_am'),
     ]);
 
-    if (auftragRes.error) throw auftragRes.error;
-    if (blocksRes.error) throw blocksRes.error;
-    if (kampagnenRes.error) throw kampagnenRes.error;
-    if (koopsRes.error) throw koopsRes.error;
-    if (videosRes.error) throw videosRes.error;
-    if (detailsRes.error) throw detailsRes.error;
-    if (unternehmenRes.error) throw unternehmenRes.error;
-    if (rechnungRes.error) throw rechnungRes.error;
-
-    this.auftraege = (auftragRes.data || []).filter(a => a.is_draft !== true);
-    this.blocks = blocksRes.data || [];
-    this.kampagnen = kampagnenRes.data || [];
-    this.kooperationen = koopsRes.data || [];
-    this.videos = videosRes.data || [];
-    this.rechnungen = rechnungRes.data || [];
-    this.detailsByAuftrag = new Map((detailsRes.data || []).map(d => [d.auftrag_id, d]));
-    this.unternehmenById = new Map((unternehmenRes.data || []).map(u => [u.id, u]));
+    this.auftraege = (auftraege || []).filter(a => a.is_draft !== true);
+    this.blocks = blocks || [];
+    this.kampagnen = kampagnen || [];
+    this.kooperationen = koops || [];
+    this.videos = videos || [];
+    this.rechnungen = rechnungen || [];
+    this.teilrechnungen = teilrechnungen || [];
+    this.detailsByAuftrag = new Map((details || []).map(d => [d.auftrag_id, d]));
+    this.unternehmenById = new Map((unternehmen || []).map(u => [u.id, u]));
   }
 
   // ---------- Helpers ----------
@@ -398,17 +433,11 @@ export class StakeholderOverviewPage {
 
   // ---------- Tab-Logik ----------
 
+  // Die Zuordnung Kampagnenart -> Bereich kommt aus leistungsbereich.js;
+  // hier entscheidet nur noch die Tab-Prioritaet (Mehrbereichs-Auftraege
+  // erscheinen im Tab ihres Schwerpunkts).
   tabForAuftrag(auftrag, blocks) {
-    if (auftrag.auftragtype === 'Contracting') return TAB_CONTRACTING;
-    const chips = new Set((blocks || []).map(b => b.campaign_type).filter(Boolean));
-    if (chips.size === 0) return TAB_GESAMT;
-    if ([...chips].some(c => INFLUENCER_CHIPS.has(c))) return TAB_INFLUENCER;
-    if (chips.has('ugc_paid')) return TAB_UGC_PAID;
-    if (chips.has('ugc_organic')) return TAB_UGC_ORGANIC;
-    if (chips.has('vorort_produktion')) return TAB_VOR_ORT;
-    if (chips.has('whitelisting')) return TAB_WHITELISTING;
-    if (chips.has('darkposting')) return TAB_DARKPOSTING;
-    return TAB_GESAMT;
+    return primaerBereichForAuftrag(auftrag, blocks);
   }
 
   tabCounts() {
@@ -560,31 +589,252 @@ export class StakeholderOverviewPage {
       </button>
     `).join('');
 
-    const { rows, totals } = this.aggregate();
-    const isInfluencerTab = this.activeTab === TAB_INFLUENCER;
+    const isMonate = this.activeView === 'monate';
 
     const html = `
       <div class="stakeholder-page">
         <div class="stakeholder-toolbar">
+          <div class="stakeholder-view-toggle" role="tablist" aria-label="Ansicht">
+            <button type="button" class="stakeholder-view-btn${!isMonate ? ' active' : ''}"
+                    data-stakeholder-view="kalkulation" role="tab" aria-selected="${!isMonate}">
+              Kalkulation
+            </button>
+            <button type="button" class="stakeholder-view-btn${isMonate ? ' active' : ''}"
+                    data-stakeholder-view="monate" role="tab" aria-selected="${isMonate}">
+              Monatsauswertung
+            </button>
+          </div>
+          ${!isMonate ? `
           <div class="form-field stakeholder-year-field">
             <label for="stakeholder-year-select">Zeitraum</label>
             <select id="stakeholder-year-select">
               <option value="all"${this.selectedYear === 'all' ? ' selected' : ''}>Alle Jahre</option>
               ${years.map(y => `<option value="${y}"${String(this.selectedYear) === String(y) ? ' selected' : ''}>${y}</option>`).join('')}
             </select>
-          </div>
+          </div>` : ''}
         </div>
 
+        ${isMonate ? this.renderMonatsauswertung() : `
         <div class="stakeholder-tabs" role="tablist">
           ${tabButtons}
         </div>
-
-        ${this.renderCards(totals, isInfluencerTab)}
-        ${this.renderKundenListe(rows, totals, isInfluencerTab)}
+        ${this.renderKalkulationBody()}`}
       </div>
     `;
 
     window.setContentSafely(window.content, html);
+  }
+
+  renderKalkulationBody() {
+    const { rows, totals } = this.aggregate();
+    const isInfluencerTab = this.activeTab === TAB_INFLUENCER;
+    return `${this.renderCards(totals, isInfluencerTab)}${this.renderKundenListe(rows, totals, isInfluencerTab)}`;
+  }
+
+  monatsauswertung() {
+    if (!this._monats) {
+      this._monats = calculateMonatsauswertung({
+        auftraege: this.auftraege,
+        blocks: this.blocks,
+        kampagnen: this.kampagnen,
+        kooperationen: this.kooperationen,
+        videos: this.videos,
+        rechnungen: this.rechnungen,
+        teilrechnungen: this.teilrechnungen,
+      });
+    }
+    return this._monats;
+  }
+
+  fmtMonatLabel(monthKeyStr) {
+    const [y, m] = monthKeyStr.split('-').map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString('de-DE', { month: 'short', year: '2-digit' });
+  }
+
+  fmtMonatsWert(v) {
+    if (v == null || Math.abs(v) < 0.005) return '<span class="stakeholder-null">–</span>';
+    const cls = v < 0 ? ' class="stakeholder-negativ"' : '';
+    return `<span${cls}>${this.fmtEuro(v)}</span>`;
+  }
+
+  renderMonatsauswertung() {
+    const auswertung = this.monatsauswertung();
+    const view = auswertung.views[this.monatsSicht];
+    const quote = zuordnungsquote(view);
+    const stand = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+    const sichtBtn = (key, label, hint) => `
+      <button type="button" class="stakeholder-view-btn${this.monatsSicht === key ? ' active' : ''}"
+              data-monat-sicht="${key}" title="${this.escape(hint)}">${label}</button>`;
+    const metrikBtn = (key, label) => `
+      <button type="button" class="stakeholder-view-btn${this.monatsMetrik === key ? ' active' : ''}"
+              data-monat-metrik="${key}">${label}</button>`;
+
+    return `
+      <div class="stakeholder-monate-toolbar">
+        <div class="stakeholder-view-toggle" role="tablist" aria-label="Sicht">
+          ${sichtBtn('marge', 'Margensicht', 'Fremdkosten stehen im Monat der zugehörigen Kundenrechnung – so liest sich die Marge pro Monat richtig.')}
+          ${sichtBtn('buchhaltung', 'Buchhaltungssicht', 'Jeder Beleg steht im Monat seines eigenen Rechnungsdatums – so ging der Monat durch die Bücher.')}
+        </div>
+        <div class="stakeholder-view-toggle" role="tablist" aria-label="Metrik">
+          ${metrikBtn('umsatz', 'Umsatz')}
+          ${metrikBtn('fremdkosten', 'Fremdkosten')}
+          ${metrikBtn('differenz', 'Differenz')}
+        </div>
+        <div class="stakeholder-monate-meta"
+             title="Der nicht zugeordnete Rest ist ein Datenmangel (fehlende Kampagnenart-Blöcke). Die Aufstellung der konkreten Fälle folgt mit der Datenqualitätsanzeige im Adminbereich.">
+          Stand ${stand}
+          ${quote != null ? ` · ${this.fmtPct(quote * 100)} des Umsatzes einem Leistungsbereich zugeordnet` : ''}
+        </div>
+      </div>
+      ${this.renderMonatsMatrix(view, auswertung.months)}
+      ${this.renderFremdkostenPosten(view, auswertung.months)}
+      ${this.renderSonderzeilen(auswertung.sonderzeilen)}
+    `;
+  }
+
+  renderMonatsMatrix(view, months) {
+    if (months.length === 0) {
+      return `
+        <div class="stakeholder-list-card">
+          <div class="stakeholder-empty">Noch keine gestellten Rechnungen mit plausiblem Datum.</div>
+        </div>
+      `;
+    }
+
+    const metrik = MONATS_METRIKEN[this.monatsMetrik] || MONATS_METRIKEN.differenz;
+
+    const aktiveBereiche = LEISTUNGSBEREICHE.filter(key => {
+      const row = view.bereiche[key];
+      if (!row) return false;
+      return months.some(m => Math.abs(metrik.wert(row, m) || 0) >= 0.005);
+    });
+
+    const totals = {};
+    months.forEach(m => {
+      totals[m] = aktiveBereiche.reduce((s, key) => s + (metrik.wert(view.bereiche[key], m) || 0), 0);
+    });
+
+    return `
+      <div class="stakeholder-list-card stakeholder-scroll-x">
+        <div class="stakeholder-list-header">
+          <h3 class="stakeholder-list-title">${this.escape(metrik.label)}</h3>
+          <p class="stakeholder-list-hint">${
+            this.monatsSicht === 'marge'
+              ? 'Margensicht: Fremdkosten folgen dem Umsatz anteilig über dessen Kundenrechnungsmonate. Nachlaufende Creatorrechnungen ändern abgeschlossene Monate rückwirkend.'
+              : 'Buchhaltungssicht: jeder Beleg steht im Monat seines eigenen Rechnungsdatums.'
+          }</p>
+        </div>
+        <table class="stakeholder-table stakeholder-matrix">
+          <thead>
+            <tr>
+              <th>Leistungsbereich</th>
+              ${months.map(m => `<th class="stakeholder-num">${this.fmtMonatLabel(m)}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${aktiveBereiche.map(key => `
+              <tr>
+                <td>${this.escape(LEISTUNGSBEREICH_LABELS[key])}</td>
+                ${months.map(m => `<td class="stakeholder-num">${this.fmtMonatsWert(metrik.wert(view.bereiche[key], m))}</td>`).join('')}
+              </tr>
+            `).join('')}
+          </tbody>
+          <tfoot>
+            <tr class="stakeholder-row--total">
+              <td>GESAMT</td>
+              ${months.map(m => `<td class="stakeholder-num">${this.fmtMonatsWert(totals[m])}</td>`).join('')}
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    `;
+  }
+
+  renderFremdkostenPosten(view, months) {
+    if (months.length === 0) return '';
+    const posten = [
+      ['Creator-Honorar', 'honorar'],
+      ['KSK-Abgabe', 'ksk'],
+      ['Zusatzkosten', 'zusatzkosten'],
+    ];
+    const sumOf = (field, m) => Object.values(view.bereiche)
+      .reduce((s, row) => s + (row[field]?.[m] || 0), 0);
+
+    return `
+      <div class="stakeholder-list-card stakeholder-scroll-x">
+        <div class="stakeholder-list-header">
+          <h3 class="stakeholder-list-title">Fremdkosten nach Posten</h3>
+          <p class="stakeholder-list-hint">Die drei Posten bleiben getrennt – KSK wird berechnet (4,9 %), nie eingetragen; Selbstzahler ausgenommen.</p>
+        </div>
+        <table class="stakeholder-table stakeholder-matrix">
+          <thead>
+            <tr>
+              <th>Posten</th>
+              ${months.map(m => `<th class="stakeholder-num">${this.fmtMonatLabel(m)}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${posten.map(([label, field]) => `
+              <tr>
+                <td>${label}</td>
+                ${months.map(m => `<td class="stakeholder-num">${this.fmtMonatsWert(sumOf(field, m))}</td>`).join('')}
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  renderSonderzeilen(sonderzeilen) {
+    const zeilen = [
+      {
+        label: 'Noch nicht fakturiert (Creatorseite)',
+        wert: sonderzeilen.nochNichtFakturiert.betrag,
+        meta: `${sonderzeilen.nochNichtFakturiert.faelle} Kooperationen mit offenem Restbetrag`,
+        hint: 'Kalkulierter Einkaufspreis minus bereits gestellte Creatorrechnungen. Fehlt in der Hauptzahl beider Sichten.',
+      },
+      {
+        label: 'Ohne Kundenrechnung',
+        wert: sonderzeilen.ohneKundenrechnung.betrag,
+        meta: `${sonderzeilen.ohneKundenrechnung.faelle} Creatorrechnungen zu nie fakturierten Aufträgen`,
+        hint: 'Diese Kosten haben in der Margensicht keinen Monat, weil der Auftrag nie fakturiert wurde. In der Buchhaltungssicht stehen sie in ihrem Rechnungsmonat.',
+      },
+      {
+        label: 'Überfakturiert',
+        wert: sonderzeilen.ueberfakturiert.betrag,
+        meta: `${sonderzeilen.ueberfakturiert.faelle} Kooperationen über ihrem Einkaufspreis fakturiert`,
+        hint: 'Gestellte Creatorrechnungen übersteigen den kalkulierten Einkaufspreis (ADR 0007: ausgewiesen, nicht geklemmt).',
+        negativ: true,
+      },
+      {
+        label: 'Unplausibles Rechnungsdatum',
+        wert: sonderzeilen.unplausibleDaten.betrag,
+        meta: `${sonderzeilen.unplausibleDaten.faelle} Creatorrechnungen mit Datum vor 2020`,
+        hint: 'Diese Daten sind falsch und würden Phantom-Monate erzeugen. Bitte in der Buchhaltung korrigieren.',
+      },
+    ].filter(z => z.faelle !== 0 || Math.abs(z.wert) >= 0.005);
+
+    if (zeilen.length === 0) return '';
+
+    return `
+      <div class="stakeholder-list-card">
+        <div class="stakeholder-list-header">
+          <h3 class="stakeholder-list-title">Nicht in der Monatsmatrix enthalten</h3>
+          <p class="stakeholder-list-hint">Bewusst ausgewiesen statt untergeschlagen (ADR 0007) – diese Beträge fehlen in der Hauptzahl oben.</p>
+        </div>
+        <div class="stakeholder-sonderzeilen">
+          ${zeilen.map(z => `
+            <div class="stakeholder-sonderzeile" title="${this.escape(z.hint)}">
+              <div class="stakeholder-sonderzeile-label">${this.escape(z.label)}</div>
+              <div class="stakeholder-sonderzeile-wert${z.negativ ? ' stakeholder-negativ' : ''}">${this.fmtEuro(z.wert)}</div>
+              <div class="stakeholder-sonderzeile-meta">${this.escape(z.meta)}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
   }
 
   renderCards(totals, isInfluencerTab) {
@@ -826,6 +1076,27 @@ export class StakeholderOverviewPage {
       const tab = e.target.closest('.stakeholder-tab');
       if (tab) {
         this.activeTab = tab.dataset.tab;
+        this.render();
+        return;
+      }
+
+      const viewBtn = e.target.closest('[data-stakeholder-view]');
+      if (viewBtn) {
+        this.activeView = viewBtn.dataset.stakeholderView;
+        this.render();
+        return;
+      }
+
+      const sichtBtn = e.target.closest('[data-monat-sicht]');
+      if (sichtBtn) {
+        this.monatsSicht = sichtBtn.dataset.monatSicht;
+        this.render();
+        return;
+      }
+
+      const metrikBtn = e.target.closest('[data-monat-metrik]');
+      if (metrikBtn) {
+        this.monatsMetrik = metrikBtn.dataset.monatMetrik;
         this.render();
         return;
       }

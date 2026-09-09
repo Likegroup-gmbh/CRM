@@ -68,10 +68,10 @@ Die bestehenden Tabs der Stakeholder Übersicht werden auf dieselbe Funktion umg
 
 Neue Ansicht auf `/stakeholder`, umschaltbar zur bestehenden Kalkulationsansicht. Matrix aus Monat und Leistungsbereich, umschaltbar zwischen Umsatz, Fremdkosten und Differenz sowie zwischen Margensicht und Buchhaltungssicht.
 
-- **Margensicht:** Fremdkosten landen im Monat der Kundenrechnung des zugehörigen Auftrags.
+- **Margensicht:** die Fremdkosten eines Auftrags folgen seinem Umsatz anteilig über dessen Kundenrechnungsmonate. Bei einer einzigen Kundenrechnung ist das deren Monat; bei 50/50-Teilrechnungen trägt jeder Monat die Hälfte der Kosten — sonst stünden alle Kosten im ersten Monat, während der Erlös sich verteilt, und die Monatsmarge kippte genau bei den Raten-Aufträgen.
 - **Buchhaltungssicht:** jeder Beleg in seinem eigenen Rechnungsmonat.
-- Zwei getrennte Zeilen unterhalb der Matrix: **noch nicht fakturiert** (91.879 € kalkulierte Creatorkosten ohne Rechnung) und **ohne Kundenrechnung** (380.919 € Creatorkosten zu nie fakturierten Aufträgen). Beide haben in der Margensicht keinen Monat und dürfen deshalb nicht einfach verschwinden.
-- Im Kopf steht die Zuordnungsquote mit Verweis auf die Datenqualitätsanzeige.
+- Zwei getrennte Zeilen unterhalb der Matrix: **noch nicht fakturiert** (91.879 € kalkulierte Creatorkosten ohne Rechnung) und **ohne Kundenrechnung** (380.919 € Creatorkosten zu nie fakturierten Aufträgen). Beide haben in der Margensicht keinen Monat und dürfen deshalb nicht einfach verschwinden. Dazu kommt **Überfakturiert** (ADR 0007) und der Ausweis unmöglicher Rechnungsdaten.
+- Im Kopf steht die Zuordnungsquote. Der Verweis auf die Datenqualitätsanzeige ist ein Hinweistext, bis Schritt 7 die Anzeige liefert.
 
 ### Schritt 5 — Berichtsstände
 
@@ -129,7 +129,7 @@ Getestet wird das Ergebnis, nicht der Rechenweg.
 
 ## Further Notes
 
-- **Offen:** Ob die KSK auf jede Creatorrechnung anfällt, ist bei der Buchhaltung angefragt. Möglich sind Ausnahmen für Creator im Ausland, Agenturen statt Einzelpersonen oder Kleinunternehmer. Das Feld `rechnung.ksk_pflichtig` existiert, ist aber nur bei 2 von 772 Rechnungen gesetzt und taugt nicht als Filter. Fällt die Antwort auf Ausnahmen, braucht es ein gepflegtes Merkmal am Creator statt an der Rechnung. Bis dahin bleibt die KSK-Zeile in Schritt 3 unbefüllt; alle anderen Schritte sind davon nicht betroffen.
+- **Offen:** Ob die KSK auf jede Creatorrechnung anfällt, ist bei der Buchhaltung angefragt. Möglich sind Ausnahmen für Creator im Ausland, Agenturen statt Einzelpersonen oder Kleinunternehmer. Das Feld `rechnung.ksk_pflichtig` existiert, ist aber nur bei 2 von 772 Rechnungen gesetzt und taugt nicht als Filter. Bis zur Antwort rechnet die Auswertung mit der bekannten Regel (4,9 % aufs Honorar, die 3 Selbstzahler ausgenommen); meldet die Buchhaltung Ausnahmen, bekommt der Creator ein gepflegtes Merkmal und die Berechnung folgt ihm.
 - Nur 52 % der `auftrag_kampagnenart_blocks` haben einen `umsatz_netto`. Solange das so bleibt, lassen sich gemischte Aufträge nicht anteilig aufteilen und landen im Sammelposten „Gemischt". Die Nachpflege betrifft 19 Aufträge.
 - Die Felder `auftrag.influencer_preis`, `ugc_preis` und `vor_ort_preis` sind bei 0 von 157 Aufträgen befüllt. Sie kommen als Verteilschlüssel nicht in Frage und sind Kandidaten zum Entfernen.
 - Ein Nachlauf ist der Normalfall, kein Sonderfall: nur 16,5 % des Einkaufsvolumens trifft im selben Monat ein wie die zugehörige Kundenrechnung, 77,4 % später.
