@@ -3432,6 +3432,65 @@ h3.section-title,
   transform: scale(1.05);
 }
 
+/* Verlinkte Videoidee: Thumbnail oeffnet Video in neuem Tab,
+   das Link-Icon daneben oeffnet den Verknuepfungs-Drawer. */
+.thema-item-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.kooperation-video-grid .thema-item-actions {
+  padding: var(--space-md);
+}
+
+.kooperation-video-grid .thema-item-actions .thema-thumbnail-link {
+  padding: 0;
+}
+
+.thema-thumbnail-link--playable {
+  position: relative;
+}
+
+.thema-thumbnail-link--playable::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: center / 24px no-repeat url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%3E%3Ccircle%20cx='12'%20cy='12'%20r='11'%20fill='rgba(0,0,0,0.55)'/%3E%3Cpath%20d='M9.5%207.5v9l7.5-4.5z'%20fill='white'/%3E%3C/svg%3E");
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+
+.thema-thumbnail-link--playable:hover::after {
+  opacity: 1;
+}
+
+.thema-thumbnail--placeholder {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.thema-relink-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xs);
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.thema-relink-btn:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
 .skript-link-cell {
   display: flex;
   align-items: center;

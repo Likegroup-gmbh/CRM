@@ -2892,18 +2892,21 @@ width: 18em;
   margin-bottom: var(--space-md);
 }
 
-/* Column drag & drop */
+/* Column drag & drop (Kooperationstabelle, Excel-Style):
+   Quellspalte (Header + Zellen, via data-col-id) dimmen, Drop-Linie in
+   voller Tabellenhoehe. Die native Browser-Ghost wird per JS ersetzt. */
 .column-dragging {
   opacity: 0.4;
 }
 
 .column-drop-indicator {
   position: fixed;
-  width: 2px;
-  background: var(--primary, #2563eb);
+  width: 3px;
+  background: var(--gray-800, #262626);
   z-index: 10000;
   pointer-events: none;
   border-radius: 1px;
+  box-shadow: 0 0 4px rgba(38, 38, 38, 0.4);
 }
 
 th[draggable="true"] {

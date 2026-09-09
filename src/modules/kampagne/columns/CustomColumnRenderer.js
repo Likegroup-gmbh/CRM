@@ -23,7 +23,8 @@ function escapeHtml(text) {
 
 export function renderCustomHeader(col, hiddenColumns, isKunde) {
   const vis = isColumnVisible(col.id, hiddenColumns, isKunde) ? '' : 'style="display:none;"';
-  return `<th class="col-header ${col.id}" ${vis} data-col="${col.dataCol}" draggable="true">
+  const drag = !isKunde ? 'draggable="true"' : '';
+  return `<th class="col-header ${col.id}" ${vis} data-col="${col.dataCol}" data-col-id="${col.id}" ${drag}>
     ${escapeHtml(col.label)}
     <div class="resize-handle resize-handle-col" data-col="${col.dataCol}"></div>
   </th>`;
@@ -35,7 +36,7 @@ export function renderCustomCell(col, koop, videos, store, table) {
   const vis = isColumnVisible(col.id, hiddenColumns, isKunde) ? '' : 'style="display:none;"';
 
   if (isKunde && !col.visibleForKunden) {
-    return `<td class="grid-cell" ${vis}></td>`;
+    return `<td class="grid-cell ${col.id}" data-col-id="${col.id}" ${vis}></td>`;
   }
 
   const isEditable = !isKunde;
@@ -50,12 +51,12 @@ function renderKooperationLevelCell(col, koop, store, vis, isEditable) {
   const value = store?.getCustomColumnValue(koop.id, col.uuid) ?? '';
   const content = renderFieldByType(col, koop.id, value, isEditable);
   const extraClass = col.fieldType === 'boolean' ? ' checkbox-stack' : '';
-  return `<td class="grid-cell${extraClass}" ${vis}>${content}</td>`;
+  return `<td class="grid-cell ${col.id}${extraClass}" data-col-id="${col.id}" ${vis}>${content}</td>`;
 }
 
 function renderVideoLevelCell(col, koop, videos, store, vis, isEditable, table) {
   if (!videos || videos.length === 0) {
-    return `<td class="grid-cell video-stack-cell" ${vis}><span class="text-muted">-</span></td>`;
+    return `<td class="grid-cell video-stack-cell ${col.id}" data-col-id="${col.id}" ${vis}><span class="text-muted">-</span></td>`;
   }
 
   const stack = videos.map(video => {
@@ -66,7 +67,7 @@ function renderVideoLevelCell(col, koop, videos, store, vis, isEditable, table) 
   }).join('');
 
   const extraClass = col.fieldType === 'boolean' ? ' checkbox-stack' : '';
-  return `<td class="grid-cell video-stack-cell${extraClass}" ${vis}><div class="video-fields-stack">${stack}</div></td>`;
+  return `<td class="grid-cell video-stack-cell ${col.id}${extraClass}" data-col-id="${col.id}" ${vis}><div class="video-fields-stack">${stack}</div></td>`;
 }
 
 function renderFieldByType(col, entityId, value, isEditable) {
