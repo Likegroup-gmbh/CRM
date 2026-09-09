@@ -30,17 +30,25 @@ const ENTITY_CONFIG: Record<string, { table: string; nameColumns: string[]; labe
   skript: { table: 'skripte', nameColumns: ['titel'], label: 'Skript', article: 'das' },
 };
 
+const FROM_DISPLAY = 'LikeGroup';
+const FROM_LOCAL = 'hello';
+
+function rewriteFromAddress(addr: string): string {
+  return addr.replace(/^noreply@/i, `${FROM_LOCAL}@`);
+}
+
 function normalizeFromEmail(raw: string | undefined): string {
-  const fallback = 'CreatorJobs24 <onboarding@resend.dev>';
+  const fallback = `${FROM_DISPLAY} <onboarding@resend.dev>`;
   let value = (raw ?? '').trim().replace(/^["']+|["']+$/g, '').trim();
   if (!value) return fallback;
   const nameAddr = value.match(/^(.*)<\s*([^\s@<>]+@[^\s@<>]+\.[^\s@<>]+)\s*>$/);
   if (nameAddr) {
-    const name = nameAddr[1].trim().replace(/^["']+|["']+$/g, '').trim();
-    return name ? `${name} <${nameAddr[2]}>` : nameAddr[2];
+    let name = nameAddr[1].trim().replace(/^["']+|["']+$/g, '').trim();
+    if (!name || /^CreatorJobs24$/i.test(name)) name = FROM_DISPLAY;
+    return `${name} <${rewriteFromAddress(nameAddr[2])}>`;
   }
-  if (EMAIL_REGEX.test(value)) return `CreatorJobs24 <${value}>`;
-  if (/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(value)) return `CreatorJobs24 <noreply@${value}>`;
+  if (EMAIL_REGEX.test(value)) return `${FROM_DISPLAY} <${rewriteFromAddress(value)}>`;
+  if (/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(value)) return `${FROM_DISPLAY} <${FROM_LOCAL}@${value}>`;
   console.error(`SHARE_FROM_EMAIL hat ungültiges Format: "${raw}" — Fallback auf ${fallback}`);
   return fallback;
 }
@@ -267,7 +275,13 @@ async function sendInviteMails(params: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${resendKey}`,
         },
-        body: JSON.stringify({ from: params.fromEmail, to: [to], subject: params.subject, html: params.html }),
+        body: JSON.stringify({
+          from: params.fromEmail,
+          reply_to: params.fromEmail,
+          to: [to],
+          subject: params.subject,
+          html: params.html,
+        }),
       });
       if (!mailRes.ok) {
         lastError = await mailRes.text();

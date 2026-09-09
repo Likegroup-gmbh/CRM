@@ -17,11 +17,11 @@ export class KampagnePreviewDrawer {
         icon: `${icon('rocket-launch')}` 
       },
       deadline_strategie: { 
-        label: 'Strategie', 
+        label: 'Konzepte', 
         icon: `${icon('puzzle')}` 
       },
       deadline_creator_sourcing: { 
-        label: 'Sourcing', 
+        label: 'Castings', 
         icon: `${icon('search-circle')}` 
       },
       deadline_video_produktion: { 

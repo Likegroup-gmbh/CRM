@@ -266,9 +266,9 @@ function renderInfoCards(kampagneData, koopBudgetSum, isKunde) {
       <h3 class="section-title">Deadlines</h3>
       <div class="detail-grid">
         <div class="detail-item"><label>Briefing:</label><span>${KampagneUtils.formatDate(kampagneData.deadline_briefing)}</span></div>
-        <div class="detail-item"><label>Strategie:</label><span>${KampagneUtils.formatDate(kampagneData.deadline_strategie)}</span></div>
+        <div class="detail-item"><label>Konzepte:</label><span>${KampagneUtils.formatDate(kampagneData.deadline_strategie)}</span></div>
         <div class="detail-item"><label>Skripte:</label><span>${KampagneUtils.formatDate(kampagneData.deadline_skripte)}</span></div>
-        <div class="detail-item"><label>Sourcing:</label><span>${KampagneUtils.formatDate(kampagneData.deadline_creator_sourcing)}</span></div>
+        <div class="detail-item"><label>Castings:</label><span>${KampagneUtils.formatDate(kampagneData.deadline_creator_sourcing)}</span></div>
         <div class="detail-item"><label>Video Produktion:</label><span>${KampagneUtils.formatDate(kampagneData.deadline_video_produktion)}</span></div>
         <div class="detail-item"><label>Post Produktion:</label><span>${KampagneUtils.formatDate(kampagneData.deadline_post_produktion)}</span></div>
       </div>

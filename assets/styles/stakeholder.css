@@ -85,6 +85,16 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+/* „Bereits bezahlt"-Card: volle Breite, Netto/Brutto nebeneinander */
+.stakeholder-cards--paid {
+  grid-template-columns: 1fr;
+}
+
+.stakeholder-card-paid-values {
+  display: flex;
+  gap: var(--space-xl);
+}
+
 @media (max-width: 1100px) {
   .stakeholder-cards,
   .stakeholder-cards--breakdown {

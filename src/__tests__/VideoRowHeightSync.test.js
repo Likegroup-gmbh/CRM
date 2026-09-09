@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { VideoRowHeightSync } from '../modules/kampagne/VideoRowHeightSync.js';
 
 // jsdom hat kein echtes Layout -> Hoehe/Sichtbarkeit pro Element stubben.
@@ -81,5 +81,75 @@ describe('VideoRowHeightSync – Hoehenangleich pro data-video-id', () => {
   it('sync ohne Zeilen wirft nicht', () => {
     container = makeContainer([]);
     expect(() => new VideoRowHeightSync(container).sync()).not.toThrow();
+  });
+
+  it('schedule(scope) fasst nur die Zielzeile an, Nachbarzeile behaelt min-height', () => {
+    let flushRaf;
+    vi.stubGlobal('requestAnimationFrame', (cb) => { flushRaf = cb; return 1; });
+
+    // Zeile 1: v1=50 | Zeile 2: v1=80 (Nachbar, bereits vermessen)
+    const r1 = makeWrapper('v1', 50);
+    const r2 = makeWrapper('v1', 80);
+    r2.style.minHeight = '80px';
+    container = makeContainer([[r1], [r2]]);
+
+    const sync = new VideoRowHeightSync(container);
+    const row1 = container.children[0];
+    sync.schedule(row1);
+    flushRaf();
+
+    expect(r1.style.minHeight).toBe('50px');
+    // Nachbarzeile wurde nicht zurueckgesetzt/neu geschrieben
+    expect(r2.style.minHeight).toBe('80px');
+
+    vi.unstubAllGlobals();
+  });
+
+  it('schedule() ohne Scope bleibt global und schlaegt scoped pending', () => {
+    let flushRaf;
+    vi.stubGlobal('requestAnimationFrame', (cb) => { flushRaf = cb; return 1; });
+
+    const r1 = makeWrapper('v1', 50);
+    const r2 = makeWrapper('v1', 80);
+    container = makeContainer([[r1], [r2]]);
+
+    const sync = new VideoRowHeightSync(container);
+    sync.schedule(container.children[0]);
+    sync.schedule(); // global gewinnt
+    flushRaf();
+
+    expect(r1.style.minHeight).toBe('50px');
+    expect(r2.style.minHeight).toBe('80px');
+
+    vi.unstubAllGlobals();
+  });
+
+  it('ResizeObserver ohne Breitenaenderung loest keinen Sync aus', () => {
+    let roCallback = null;
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(cb) { roCallback = cb; }
+      observe() {}
+      disconnect() {}
+    });
+    vi.stubGlobal('requestAnimationFrame', (cb) => { cb(); return 1; });
+
+    const w = makeWrapper('v1', 50);
+    container = makeContainer([[w]]);
+    container.getBoundingClientRect = () => ({ width: 500, height: 100 });
+
+    const sync = new VideoRowHeightSync(container);
+    const spy = vi.spyOn(sync, 'sync');
+    sync.observe();
+
+    roCallback(); // gleiche Breite -> kein Sync
+    expect(spy).not.toHaveBeenCalled();
+
+    container.getBoundingClientRect = () => ({ width: 700, height: 100 });
+    roCallback(); // Breite geaendert -> globaler Sync
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalledWith(); // ohne Scope
+
+    sync.disconnect();
+    vi.unstubAllGlobals();
   });
 });

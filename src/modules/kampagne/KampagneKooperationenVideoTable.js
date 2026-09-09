@@ -22,6 +22,7 @@ import { LIVE_LINK_TOOLBAR } from './liveLinkCell.js';
 import { UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { ColumnDragHandler } from './columns/ColumnDragHandler.js';
+import { preserveScroll } from '../../core/dom/preserveScroll.js';
 
 export class KampagneKooperationenVideoTable {
   constructor(kampagneId, store) {
@@ -419,26 +420,20 @@ export class KampagneKooperationenVideoTable {
 
       this._closeStatusPortal();
 
-      const scrollY = window.scrollY;
-      const containerScrollTop = container.scrollTop;
-      const gridWrapper = container.querySelector('.grid-wrapper');
-      const gridScrollLeft = gridWrapper?.scrollLeft ?? 0;
-      const floatingBar = document.getElementById('floating-scrollbar-kampagne');
-      const floatingLeft = floatingBar?.scrollLeft ?? 0;
-
-      container.innerHTML = this.render();
-      this.bindEvents();
-      this.initFloatingScrollbar();
-      this.loadColumnWidths();
-      this.updateTabCounts();
-
-      requestAnimationFrame(() => {
-        window.scrollTo({ top: scrollY, behavior: 'instant' });
-        container.scrollTop = containerScrollTop;
-        const newGrid = container.querySelector('.grid-wrapper');
-        if (newGrid) newGrid.scrollLeft = gridScrollLeft;
-        const newBar = document.getElementById('floating-scrollbar-kampagne');
-        if (newBar) newBar.scrollLeft = floatingLeft;
+      // container selbst ueberlebt den innerHTML-Tausch (lebender Node),
+      // .grid-wrapper und die Floating-Bar werden neu gebaut -> Selektoren.
+      preserveScroll(() => {
+        container.innerHTML = this.render();
+        this.bindEvents();
+        this.initFloatingScrollbar();
+        this.loadColumnWidths();
+        this.updateTabCounts();
+      }, {
+        keep: [
+          container,
+          { sel: '.grid-wrapper', scope: container },
+          '#floating-scrollbar-kampagne'
+        ]
       });
 
       this.loadAssetsAndCommentsForVisible();

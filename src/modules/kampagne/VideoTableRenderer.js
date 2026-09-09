@@ -15,6 +15,8 @@ import { toRawDropboxUrl, canPreviewImageAsset } from '../../core/VideoUploadUti
 
 const EXTERNAL_LINK_ICON = `${icon('arrow-top-right')}`;
 
+const LINK_ICON = `${icon('link')}`;
+
 const INSTAGRAM_ICON = `${icon('instagram')}`;
 
 const TIKTOK_ICON = `${icon('tiktok')}`;
@@ -231,7 +233,10 @@ export class VideoTableRenderer {
         return renderCustomHeader(col, hiddenColumns, isKunde);
       }
       const vis = t.isColumnVisibleForCustomer(col.id) ? '' : 'style="display:none;"';
-      return `<th class="col-header ${col.id}" ${vis} data-col="${col.dataCol}" draggable="true">
+      // Drag nur intern und nur auf verschiebbaren Spalten
+      // (Nr/Creator/Aktionen sind fixiert, configurable: false).
+      const drag = !isKunde && col.configurable !== false ? 'draggable="true"' : '';
+      return `<th class="col-header ${col.id}" ${vis} data-col="${col.dataCol}" data-col-id="${col.id}" ${drag}>
         ${col.label}
         <div class="resize-handle resize-handle-col" data-col="${col.dataCol}"></div>
       </th>`;
@@ -245,337 +250,373 @@ export class VideoTableRenderer {
     const canViewViaPage = window.canViewPage?.('creator');
     const canViewViaPerm = window.currentUser?.permissions?.creator?.can_view;
     const canViewCreator = !t.isKundeRole() && canViewViaPage !== false && canViewViaPerm !== false;
-    
     const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
+
+    // Header und Body laufen ueber dieselbe Spaltenliste: die Zellen folgen
+    // der Reihenfolge aus getOrderedColumns (Custom Columns stehen mitten
+    // drin, nicht als Block vor den Aktionen). Sonst wandert beim
+    // Spalten-Drag nur der Header und der Body bleibt in der alten Reihenfolge.
+    const ctx = { t, koop, videos, creator, canViewCreator, formatDate, rowNumber };
+    const cells = getOrderedColumns(t.store)
+      .map(col => this._renderBodyCell(col, ctx))
+      .join('\n');
 
     return `
       <tr class="kooperation-row" data-kooperation-id="${koop.id}">
-        <td class="grid-cell read-only" ${!t.isColumnVisibleForCustomer('col-nr') ? 'style="display:none;"' : ''}>${rowNumber}</td>
-        <td class="grid-cell read-only" ${!t.isColumnVisibleForCustomer('col-creator') ? 'style="display:none;"' : ''}>
-          ${canViewCreator && creator.id
-            ? `<a href="/creator/${creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${creator.id}')" class="table-link">
-            ${this.escapeHtml(`${creator.vorname || ''} ${creator.nachname || ''}`.trim() || 'Unbekannt')}
-          </a>`
-            : this.escapeHtml(`${creator.vorname || ''} ${creator.nachname || ''}`.trim() || 'Unbekannt')}
-          ${(creator.instagram || creator.tiktok) ? `<div class="creator-social-links">
-            ${creator.instagram ? `<a href="${creator.instagram.startsWith('http') ? this.escapeHtml(creator.instagram) : `https://instagram.com/${encodeURIComponent(creator.instagram.replace('@', ''))}`}" target="_blank" rel="noopener" title="@${this.escapeHtml(creator.instagram)}">${INSTAGRAM_ICON}</a>` : ''}
-            ${creator.tiktok ? `<a href="${creator.tiktok.startsWith('http') ? this.escapeHtml(creator.tiktok) : `https://tiktok.com/@${encodeURIComponent(creator.tiktok.replace('@', ''))}`}" target="_blank" rel="noopener" title="@${this.escapeHtml(creator.tiktok)}">${TIKTOK_ICON}</a>` : ''}
-          </div>` : ''}
-        </td>
-        <td class="grid-cell col-status" ${!t.isColumnVisibleForCustomer('col-status') ? 'style="display:none;"' : ''}>
-          ${this.renderStatusSelect(koop)}
-        </td>
-        <td class="grid-cell col-tags" ${!t.isColumnVisibleForCustomer('col-tags') ? 'style="display:none;"' : ''}>
-          ${(koop._tags || []).length > 0
-            ? `<div class="tags tags-compact">${koop._tags.map(name => `<span class="tag tag--branche">${this.escapeHtml(name)}</span>`).join('')}</div>`
-            : '<span class="text-muted">-</span>'}
-        </td>
-        <td class="grid-cell read-only" ${!t.isColumnVisibleForCustomer('col-extra-kosten') ? 'style="display:none;"' : ''}>
-          ${koop.verkaufspreis_zusatzkosten != null && parseFloat(koop.verkaufspreis_zusatzkosten) !== 0
-            ? parseFloat(koop.verkaufspreis_zusatzkosten).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })
-            : '—'}
-        </td>
-        <td class="grid-cell cell-centered" ${!t.isColumnVisibleForCustomer('col-vertrag') ? 'style="display:none;"' : ''}>
-          ${renderVertragCell(koop)}
-        </td>
-        <td class="grid-cell cell-centered" ${!t.isColumnVisibleForCustomer('col-nutzungsrechte') ? 'style="display:none;"' : ''}>
-          ${renderNutzungsrechteCell(koop)}
-        </td>
-        <td class="grid-cell read-only" ${!t.isColumnVisibleForCustomer('col-start-datum') ? 'style="display:none;"' : ''}>${formatDate(koop.created_at)}</td>
-        <td class="grid-cell read-only" ${!t.isColumnVisibleForCustomer('col-videoanzahl') ? 'style="display:none;"' : ''}>${koop.videoanzahl || 0}</td>
-        <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-video-nr') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video, index, total) => {
-            const videoNr = index + 1;
-            return `<div class="video-nr-text">${videoNr}/${total}</div>`;
-          })}
-        </td>
-        <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-vk-video') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => {
-            const vk = video.verkaufspreis_netto != null ? parseFloat(video.verkaufspreis_netto) : null;
-            return vk != null ? `<div class="video-vk-text">${vk.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</div>` : '<div class="video-vk-text">—</div>';
-          })}
-        </td>
-        <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-video-script-deadline') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => this._renderVideoDatePicker(video, 'skript_deadline', 'Script Deadline'))}
-        </td>
-        <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-video-content-deadline') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => this._renderVideoDatePicker(video, 'content_deadline', 'Content Deadline'))}
-        </td>
-        <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-video-typ') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => {
-            return `<div class="video-typ-text">${this.escapeHtml(video.kampagnenart || '—')}</div>`;
-          })}
-        </td>
-        <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-thema') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => `
-            <input type="text" class="grid-input stacked-video-input"
-              data-entity="video" data-id="${video.id}" data-field="thema"
-              ${!t.isFieldEditableForUser('video', 'thema') ? 'readonly' : ''}
-              value="${this.escapeHtml(video.thema || '')}" placeholder="Thema"/>
-          `)}
-        </td>
-        <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-idee-strategie') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => {
-            const canLink = !t.isKundeRole();
-            if (video.strategie_item && video.strategie_item.screenshot_url) {
-              const videoLink = video.strategie_item.video_link;
-              const screenshotUrl = video.strategie_item.screenshot_url;
-              const beschreibung = video.strategie_item.beschreibung || 'Strategie-Idee';
-              const href = videoLink || `/strategie/${video.strategie_item.strategie_id}`;
-              const targetAttr = videoLink ? ' target="_blank" rel="noopener noreferrer"' : '';
-              if (canLink) {
-                return `
-                  <button type="button" class="thema-link-btn thema-link-btn--linked"
-                    data-action="link-strategie-item"
-                    data-video-id="${video.id}"
-                    data-kooperation-id="${koop.id}"
-                    title="${this.escapeHtml(beschreibung)}">
-                    <img src="${screenshotUrl}" alt="Thema" class="thema-thumbnail" />
-                  </button>
-                `;
-              }
-              return `
-                <a href="${href}" class="thema-thumbnail-link" title="${this.escapeHtml(beschreibung)}"${targetAttr}>
-                  <img src="${screenshotUrl}" alt="Thema" class="thema-thumbnail" />
-                </a>
-              `;
-            }
-            if (canLink) {
-              return `
-                <button type="button" class="thema-link-btn"
-                  data-action="link-strategie-item"
-                  data-video-id="${video.id}"
-                  data-kooperation-id="${koop.id}">
-                  Idee verknüpfen
-                </button>
-              `;
-            }
-            return `<span class="no-strategie-hint">Noch kein Thema/Strategie verknüpft</span>`;
-          })}
-        </td>
-        <td class="grid-cell video-stack-cell col-skript" ${!t.isColumnVisibleForCustomer('col-skript') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => this.renderSkriptCell(koop, video))}
-        </td>
-        <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-organic-paid') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => `
-            <select class="grid-select stacked-video-select" 
-              data-entity="video" data-id="${video.id}" data-field="content_art"
-              ${!t.isFieldEditableForUser('video', 'content_art') ? 'disabled' : ''}>
-              <option value="">– bitte wählen –</option>
-              <option value="Paid" ${video.content_art === 'Paid' ? 'selected' : ''}>Paid</option>
-              <option value="Organisch" ${video.content_art === 'Organisch' ? 'selected' : ''}>Organisch</option>
-              <option value="Influencer" ${video.content_art === 'Influencer' ? 'selected' : ''}>Influencer</option>
-              <option value="Videograph" ${video.content_art === 'Videograph' ? 'selected' : ''}>Videograph</option>
-              <option value="Whitelisting" ${video.content_art === 'Whitelisting' ? 'selected' : ''}>Whitelisting</option>
-              <option value="Spark-Ad" ${video.content_art === 'Spark-Ad' ? 'selected' : ''}>Spark-Ad</option>
-            </select>
-          `)}
-        </td>
-        <td class="grid-cell video-stack-cell col-produkt" ${!t.isColumnVisibleForCustomer('col-produkt') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => {
-            const versandForVideo = t.getVersandForVideo(video.id);
-            return `
-              <input type="text" class="grid-input stacked-video-input" 
-                data-entity="versand" 
-                data-id="${versandForVideo?.id || 'new'}"
-                data-video-id="${video.id}"
-                data-kooperation-id="${koop.id}"
-                data-field="produkt_name"
-                ${!t.isFieldEditableForUser('versand', 'produkt_name') ? 'readonly' : ''}
-                value="${this.escapeHtml(versandForVideo?.produkt_name || '')}" 
-                placeholder="Produktname"/>
-              <input type="url" class="grid-input stacked-video-input" 
-                data-entity="versand" 
-                data-id="${versandForVideo?.id || 'new'}"
-                data-video-id="${video.id}"
-                data-kooperation-id="${koop.id}"
-                data-field="produkt_link"
-                ${!t.isFieldEditableForUser('versand', 'produkt_link') ? 'readonly' : ''}
-                value="${this.escapeHtml(versandForVideo?.produkt_link || '')}" 
-                placeholder="Produktlink (optional)"/>
-            `;
-          })}
-        </td>
-        <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-lieferadresse') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => {
-            const versandForVideo = t.getVersandForVideo(video.id);
-            let strasse = '';
-            let plzStadt = '';
-            let land = '';
-
-            if (versandForVideo?.creator_adresse_id) {
-              const ca = (t.store || t).creatorAdressen?.[versandForVideo.creator_adresse_id];
-              if (ca) {
-                strasse = [ca.strasse, ca.hausnummer].filter(Boolean).join(' ');
-                plzStadt = [ca.plz, ca.stadt].filter(Boolean).join(' ');
-                land = ca.land || '';
-              }
-            } else if (versandForVideo?.strasse) {
-              strasse = [versandForVideo.strasse, versandForVideo.hausnummer].filter(Boolean).join(' ');
-              plzStadt = [versandForVideo.plz, versandForVideo.stadt].filter(Boolean).join(' ');
-              land = versandForVideo.land || '';
-            }
-
-            if (!strasse && !plzStadt && koop.creator) {
-              strasse = [koop.creator.lieferadresse_strasse, koop.creator.lieferadresse_hausnummer]
-                .filter(Boolean).join(' ');
-              plzStadt = [koop.creator.lieferadresse_plz, koop.creator.lieferadresse_stadt]
-                .filter(Boolean).join(' ');
-              land = koop.creator.lieferadresse_land || '';
-            }
-
-            const lines = [strasse, plzStadt].filter(Boolean);
-            const copyText = [strasse, plzStadt, land].filter(Boolean).join('\n');
-            if (lines.length === 0) lines.push('-');
-            const addressHtml = `<div class="small-text address-text">`
-                 + lines.map(l => `<div class="address-line">${this.escapeHtml(l)}</div>`).join('')
-                 + (land ? `<div class="address-line address-land-text">${this.escapeHtml(land)}</div>` : '')
-                 + `</div>`;
-            const copyBtn = copyText
-              ? `<button type="button" class="address-copy-btn" data-action="copy-address" data-address="${this.escapeHtml(copyText)}" title="Adresse kopieren">${COPY_ICON}</button>`
-              : '';
-            return `<div class="address-cell">${addressHtml}${copyBtn}</div>`;
-          })}
-        </td>
-        <td class="grid-cell read-only" ${!t.isColumnVisibleForCustomer('col-telefon') ? 'style="display:none;"' : ''}>
-          ${koop.creator?.telefonnummer
-            ? `<a href="tel:${this.escapeHtml(koop.creator.telefonnummer)}" class="small-text telefon-link">${this.escapeHtml(koop.creator.telefonnummer)}</a>`
-            : '<span class="text-muted">-</span>'}
-        </td>
-        <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-paket-tracking') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => {
-            const versandForVideo = t.getVersandForVideo(video.id);
-            return `
-              <input type="text" class="grid-input stacked-video-input" 
-                data-entity="versand" 
-                data-id="${versandForVideo?.id || 'new'}"
-                data-video-id="${video.id}"
-                data-kooperation-id="${koop.id}"
-                data-field="tracking_nummer"
-                ${!t.isFieldEditableForUser('versand', 'tracking_nummer') ? 'readonly' : ''}
-                value="${this.escapeHtml(versandForVideo?.tracking_nummer || '')}" 
-                placeholder="Tracking Nr."/>
-            `;
-          })}
-        </td>
-        <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-drehort') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => `
-            <input type="text" class="grid-input stacked-video-input" 
-              data-entity="video" data-id="${video.id}" data-field="drehort"
-              ${!t.isFieldEditableForUser('video', 'drehort') ? 'readonly' : ''}
-              value="${this.escapeHtml(video.drehort || '')}" placeholder="Drehort"/>
-          `)}
-        </td>
-        <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-link-skript') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => {
-            if (t.isKundeRole()) {
-              const url = video.link_skript || '';
-              return url
-                ? `<a href="${this.escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="external-link-btn stacked-video-link-btn" title="Skript öffnen">${EXTERNAL_LINK_ICON}</a>`
-                : `<span class="stacked-video-empty">-</span>`;
-            }
-            return `
-              <input type="text" class="grid-input stacked-video-input" 
-                data-entity="video" data-id="${video.id}" data-field="link_skript"
-                value="${this.escapeHtml(video.link_skript || '')}" placeholder="Link"/>
-            `;
-          })}
-        </td>
-        <td class="grid-cell video-stack-cell checkbox-stack" ${!t.isColumnVisibleForCustomer('col-skript-freigegeben') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => `
-            <div class="stacked-video-checkbox-wrapper">
-              <input type="checkbox" class="grid-checkbox stacked-video-checkbox" 
-                data-entity="video" data-id="${video.id}" data-field="skript_freigegeben"
-                ${!t.isFieldEditableForUser('video', 'skript_freigegeben') ? 'disabled' : ''}
-                ${video.skript_freigegeben ? 'checked' : ''}/>
-            </div>
-          `)}
-        </td>
-        <td class="grid-cell video-stack-cell col-video-name" ${!t.isColumnVisibleForCustomer('col-video-name') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => `
-            <input type="text" class="grid-input stacked-video-input"
-              data-entity="video" data-id="${video.id}" data-field="video_name"
-              ${!t.isFieldEditableForUser('video', 'video_name') ? 'readonly' : ''}
-              value="${this.escapeHtml(video.video_name || '')}" placeholder="Video-Name"/>
-          `)}
-        </td>
-        <td class="grid-cell video-stack-cell col-link-content" ${!t.isColumnVisibleForCustomer('col-link-content') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => this.renderContentCell(koop, video))}
-        </td>
-        <td class="grid-cell video-stack-cell col-stills" ${!t.isColumnVisibleForCustomer('col-stills') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => this.renderStillsCell(koop, video))}
-        </td>
-        ${VIDEO_FEEDBACK_FIELDS.map(slot => `
-        <td class="grid-cell video-stack-cell wide-field" ${!t.isColumnVisibleForCustomer(slot.colClass) ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => {
-            const comments = t.videoComments[video.id];
-            const value = formatVideoFeedbackValue(comments, slot.bucket);
-            return `<textarea class="grid-textarea stacked-video-textarea auto-resize-textarea" 
-              data-entity="video" data-id="${video.id}" data-field="${slot.field}"
-              ${!t.isFieldEditableForUser('video', slot.field) ? 'readonly' : ''}
-              placeholder="${slot.label}" rows="1">${this.escapeHtml(value)}</textarea>`;
-          })}
-        </td>`).join('')}
-        <td class="grid-cell video-stack-cell checkbox-stack" ${!t.isColumnVisibleForCustomer('col-freigabe') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => `
-            <div class="stacked-video-checkbox-wrapper">
-              <input type="checkbox" class="grid-checkbox stacked-video-checkbox"
-                data-entity="video" data-id="${video.id}" data-field="freigabe"
-                ${!t.isFieldEditableForUser('video', 'freigabe') ? 'disabled' : ''}
-                ${video.freigabe ? 'checked' : ''}/>
-            </div>
-          `)}
-        </td>
-        <td class="grid-cell video-stack-cell wide-field" ${!t.isColumnVisibleForCustomer('col-caption') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => `
-            <textarea class="grid-textarea stacked-video-textarea auto-resize-textarea" 
-              data-entity="video" data-id="${video.id}" data-field="caption"
-              ${!t.isFieldEditableForUser('video', 'caption') ? 'readonly' : ''}
-              placeholder="Caption" rows="1">${this.escapeHtml(video.caption || '')}</textarea>
-          `)}
-        </td>
-        <td class="grid-cell video-stack-cell col-finale-version" ${!t.isColumnVisibleForCustomer('col-finale-version') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => this.renderFinaleVersionCell(koop, video))}
-        </td>
-        <td class="grid-cell video-stack-cell" ${!t.isColumnVisibleForCustomer('col-posting-datum') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => this._renderVideoDatePicker(video, 'posting_datum', 'Posting Datum'))}
-        </td>
-        <td class="grid-cell video-stack-cell col-link-live" ${!t.isColumnVisibleForCustomer('col-link-live') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => this._renderLiveLinkCell(koop, video))}
-        </td>
-        <td class="grid-cell video-stack-cell col-stats-views" ${!t.isColumnVisibleForCustomer('col-stats-views') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => this._renderStatsNumberCell(video, 'stats_views', 'Views'))}
-        </td>
-        <td class="grid-cell video-stack-cell col-stats-likes" ${!t.isColumnVisibleForCustomer('col-stats-likes') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => this._renderStatsNumberCell(video, 'stats_likes', 'Likes'))}
-        </td>
-        <td class="grid-cell video-stack-cell col-stats-comments" ${!t.isColumnVisibleForCustomer('col-stats-comments') ? 'style="display:none;"' : ''}>
-          ${this.renderVideoFieldStack(videos, (video) => this._renderStatsNumberCell(video, 'stats_comments', 'Kommentare'))}
-        </td>
-        ${this._renderCustomColumnCells(koop, videos)}
-        <td class="grid-cell col-actions" ${!t.isColumnVisibleForCustomer('col-actions') ? 'style="display:none;"' : ''}>
-          <div class="actions-dropdown-container" data-entity-type="kooperation">
-            <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-              ${icon('dots-grid', { className: 'w-5 h-5' })}
-            </button>
-            <div class="actions-dropdown">
-              ${this.renderActionStatusSubmenu(koop)}
-              <a href="#" class="action-item" data-action="edit" data-id="${koop.id}" data-return-to="/kampagne/${t.kampagneId}">
-                ${icon('pencil-square', { className: 'w-4 h-4' })}
-                Bearbeiten
-              </a>
-              ${this.renderCreatorUploadItems(koop)}
-              ${t.canDeleteKooperation() ? `
-                <div class="action-separator"></div>
-                <a href="#" class="action-item action-danger" data-action="delete" data-id="${koop.id}">
-                  ${icon('trash-alt', { className: 'w-4 h-4' })}
-                  Löschen
-                </a>
-              ` : ''}
-            </div>
-          </div>
-        </td>
+        ${cells}
       </tr>
+    `;
+  }
+
+  _renderBodyCell(col, ctx) {
+    if (col.isCustom) {
+      return renderCustomCell(col, ctx.koop, ctx.videos, ctx.t.store, ctx.t);
+    }
+    const renderer = this._bodyCellRenderers()[col.id];
+    return renderer ? renderer(ctx) : '';
+  }
+
+  /**
+   * Einheitliche Body-Zelle: col.id als Klasse plus data-col-id.
+   * data-col-id ist der verlaessliche Selektor - Custom-IDs ("custom:uuid")
+   * enthalten einen Doppelpunkt und sind als CSS-Klasse unbrauchbar.
+   */
+  _td(ctx, colId, innerHtml, extraClass = '') {
+    const vis = ctx.t.isColumnVisibleForCustomer(colId) ? '' : ' style="display:none;"';
+    const cls = extraClass ? `grid-cell ${extraClass} ${colId}` : `grid-cell ${colId}`;
+    return `<td class="${cls}" data-col-id="${colId}"${vis}>${innerHtml}</td>`;
+  }
+
+  _bodyCellRenderers() {
+    if (this._cellRenderers) return this._cellRenderers;
+
+    const map = {
+      'col-nr': (c) => this._td(c, 'col-nr', `${c.rowNumber}`, 'read-only'),
+      'col-creator': (c) => this._td(c, 'col-creator', this._renderCreatorInner(c), 'read-only'),
+      'col-status': (c) => this._td(c, 'col-status', this.renderStatusSelect(c.koop)),
+      'col-tags': (c) => this._td(c, 'col-tags', this._renderTagsInner(c.koop)),
+      'col-extra-kosten': (c) => this._td(c, 'col-extra-kosten',
+        c.koop.verkaufspreis_zusatzkosten != null && parseFloat(c.koop.verkaufspreis_zusatzkosten) !== 0
+          ? parseFloat(c.koop.verkaufspreis_zusatzkosten).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })
+          : '—',
+        'read-only'),
+      'col-vertrag': (c) => this._td(c, 'col-vertrag', renderVertragCell(c.koop), 'cell-centered'),
+      'col-nutzungsrechte': (c) => this._td(c, 'col-nutzungsrechte', renderNutzungsrechteCell(c.koop), 'cell-centered'),
+      'col-start-datum': (c) => this._td(c, 'col-start-datum', c.formatDate(c.koop.created_at), 'read-only'),
+      'col-videoanzahl': (c) => this._td(c, 'col-videoanzahl', `${c.koop.videoanzahl || 0}`, 'read-only'),
+      'col-video-nr': (c) => this._td(c, 'col-video-nr', this.renderVideoFieldStack(c.videos, (video, index, total) => {
+        return `<div class="video-nr-text">${index + 1}/${total}</div>`;
+      }), 'video-stack-cell'),
+      'col-vk-video': (c) => this._td(c, 'col-vk-video', this.renderVideoFieldStack(c.videos, (video) => {
+        const vk = video.verkaufspreis_netto != null ? parseFloat(video.verkaufspreis_netto) : null;
+        return vk != null ? `<div class="video-vk-text">${vk.toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })}</div>` : '<div class="video-vk-text">—</div>';
+      }), 'video-stack-cell'),
+      'col-video-script-deadline': (c) => this._td(c, 'col-video-script-deadline',
+        this.renderVideoFieldStack(c.videos, (video) => this._renderVideoDatePicker(video, 'skript_deadline', 'Script Deadline')), 'video-stack-cell'),
+      'col-video-content-deadline': (c) => this._td(c, 'col-video-content-deadline',
+        this.renderVideoFieldStack(c.videos, (video) => this._renderVideoDatePicker(video, 'content_deadline', 'Content Deadline')), 'video-stack-cell'),
+      'col-video-typ': (c) => this._td(c, 'col-video-typ', this.renderVideoFieldStack(c.videos, (video) => {
+        return `<div class="video-typ-text">${this.escapeHtml(video.kampagnenart || '—')}</div>`;
+      }), 'video-stack-cell'),
+      'col-thema': (c) => this._td(c, 'col-thema', this.renderVideoFieldStack(c.videos, (video) => `
+        <input type="text" class="grid-input stacked-video-input"
+          data-entity="video" data-id="${video.id}" data-field="thema"
+          ${!c.t.isFieldEditableForUser('video', 'thema') ? 'readonly' : ''}
+          value="${this.escapeHtml(video.thema || '')}" placeholder="Thema"/>
+      `), 'video-stack-cell'),
+      'col-idee-strategie': (c) => this._td(c, 'col-idee-strategie',
+        this.renderVideoFieldStack(c.videos, (video) => this._renderIdeeStrategieInner(c, video)), 'video-stack-cell'),
+      'col-skript': (c) => this._td(c, 'col-skript',
+        this.renderVideoFieldStack(c.videos, (video) => this.renderSkriptCell(c.koop, video)), 'video-stack-cell'),
+      'col-organic-paid': (c) => this._td(c, 'col-organic-paid', this.renderVideoFieldStack(c.videos, (video) => `
+        <select class="grid-select stacked-video-select" 
+          data-entity="video" data-id="${video.id}" data-field="content_art"
+          ${!c.t.isFieldEditableForUser('video', 'content_art') ? 'disabled' : ''}>
+          <option value="">– bitte wählen –</option>
+          <option value="Paid" ${video.content_art === 'Paid' ? 'selected' : ''}>Paid</option>
+          <option value="Organisch" ${video.content_art === 'Organisch' ? 'selected' : ''}>Organisch</option>
+          <option value="Influencer" ${video.content_art === 'Influencer' ? 'selected' : ''}>Influencer</option>
+          <option value="Videograph" ${video.content_art === 'Videograph' ? 'selected' : ''}>Videograph</option>
+          <option value="Whitelisting" ${video.content_art === 'Whitelisting' ? 'selected' : ''}>Whitelisting</option>
+          <option value="Spark-Ad" ${video.content_art === 'Spark-Ad' ? 'selected' : ''}>Spark-Ad</option>
+        </select>
+      `), 'video-stack-cell'),
+      'col-produkt': (c) => this._td(c, 'col-produkt',
+        this.renderVideoFieldStack(c.videos, (video) => this._renderProduktInner(c, video)), 'video-stack-cell'),
+      'col-lieferadresse': (c) => this._td(c, 'col-lieferadresse',
+        this.renderVideoFieldStack(c.videos, (video) => this._renderLieferadresseInner(c, video)), 'video-stack-cell'),
+      'col-telefon': (c) => this._td(c, 'col-telefon',
+        c.koop.creator?.telefonnummer
+          ? `<a href="tel:${this.escapeHtml(c.koop.creator.telefonnummer)}" class="small-text telefon-link">${this.escapeHtml(c.koop.creator.telefonnummer)}</a>`
+          : '<span class="text-muted">-</span>',
+        'read-only'),
+      'col-paket-tracking': (c) => this._td(c, 'col-paket-tracking', this.renderVideoFieldStack(c.videos, (video) => {
+        const versandForVideo = c.t.getVersandForVideo(video.id);
+        return `
+          <input type="text" class="grid-input stacked-video-input" 
+            data-entity="versand" 
+            data-id="${versandForVideo?.id || 'new'}"
+            data-video-id="${video.id}"
+            data-kooperation-id="${c.koop.id}"
+            data-field="tracking_nummer"
+            ${!c.t.isFieldEditableForUser('versand', 'tracking_nummer') ? 'readonly' : ''}
+            value="${this.escapeHtml(versandForVideo?.tracking_nummer || '')}" 
+            placeholder="Tracking Nr."/>
+        `;
+      }), 'video-stack-cell'),
+      'col-drehort': (c) => this._td(c, 'col-drehort', this.renderVideoFieldStack(c.videos, (video) => `
+        <input type="text" class="grid-input stacked-video-input" 
+          data-entity="video" data-id="${video.id}" data-field="drehort"
+          ${!c.t.isFieldEditableForUser('video', 'drehort') ? 'readonly' : ''}
+          value="${this.escapeHtml(video.drehort || '')}" placeholder="Drehort"/>
+      `), 'video-stack-cell'),
+      'col-link-skript': (c) => this._td(c, 'col-link-skript', this.renderVideoFieldStack(c.videos, (video) => {
+        if (c.t.isKundeRole()) {
+          const url = video.link_skript || '';
+          return url
+            ? `<a href="${this.escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="external-link-btn stacked-video-link-btn" title="Skript öffnen">${EXTERNAL_LINK_ICON}</a>`
+            : `<span class="stacked-video-empty">-</span>`;
+        }
+        return `
+          <input type="text" class="grid-input stacked-video-input" 
+            data-entity="video" data-id="${video.id}" data-field="link_skript"
+            value="${this.escapeHtml(video.link_skript || '')}" placeholder="Link"/>
+        `;
+      }), 'video-stack-cell'),
+      'col-skript-freigegeben': (c) => this._td(c, 'col-skript-freigegeben', this.renderVideoFieldStack(c.videos, (video) => `
+        <div class="stacked-video-checkbox-wrapper">
+          <input type="checkbox" class="grid-checkbox stacked-video-checkbox" 
+            data-entity="video" data-id="${video.id}" data-field="skript_freigegeben"
+            ${!c.t.isFieldEditableForUser('video', 'skript_freigegeben') ? 'disabled' : ''}
+            ${video.skript_freigegeben ? 'checked' : ''}/>
+        </div>
+      `), 'video-stack-cell checkbox-stack'),
+      'col-video-name': (c) => this._td(c, 'col-video-name', this.renderVideoFieldStack(c.videos, (video) => `
+        <input type="text" class="grid-input stacked-video-input"
+          data-entity="video" data-id="${video.id}" data-field="video_name"
+          ${!c.t.isFieldEditableForUser('video', 'video_name') ? 'readonly' : ''}
+          value="${this.escapeHtml(video.video_name || '')}" placeholder="Video-Name"/>
+      `), 'video-stack-cell'),
+      'col-link-content': (c) => this._td(c, 'col-link-content',
+        this.renderVideoFieldStack(c.videos, (video) => this.renderContentCell(c.koop, video)), 'video-stack-cell'),
+      'col-stills': (c) => this._td(c, 'col-stills',
+        this.renderVideoFieldStack(c.videos, (video) => this.renderStillsCell(c.koop, video)), 'video-stack-cell'),
+      'col-freigabe': (c) => this._td(c, 'col-freigabe', this.renderVideoFieldStack(c.videos, (video) => `
+        <div class="stacked-video-checkbox-wrapper">
+          <input type="checkbox" class="grid-checkbox stacked-video-checkbox"
+            data-entity="video" data-id="${video.id}" data-field="freigabe"
+            ${!c.t.isFieldEditableForUser('video', 'freigabe') ? 'disabled' : ''}
+            ${video.freigabe ? 'checked' : ''}/>
+        </div>
+      `), 'video-stack-cell checkbox-stack'),
+      'col-caption': (c) => this._td(c, 'col-caption', this.renderVideoFieldStack(c.videos, (video) => `
+        <textarea class="grid-textarea stacked-video-textarea auto-resize-textarea" 
+          data-entity="video" data-id="${video.id}" data-field="caption"
+          ${!c.t.isFieldEditableForUser('video', 'caption') ? 'readonly' : ''}
+          placeholder="Caption" rows="1">${this.escapeHtml(video.caption || '')}</textarea>
+      `), 'video-stack-cell wide-field'),
+      'col-finale-version': (c) => this._td(c, 'col-finale-version',
+        this.renderVideoFieldStack(c.videos, (video) => this.renderFinaleVersionCell(c.koop, video)), 'video-stack-cell'),
+      'col-posting-datum': (c) => this._td(c, 'col-posting-datum',
+        this.renderVideoFieldStack(c.videos, (video) => this._renderVideoDatePicker(video, 'posting_datum', 'Posting Datum')), 'video-stack-cell'),
+      'col-link-live': (c) => this._td(c, 'col-link-live',
+        this.renderVideoFieldStack(c.videos, (video) => this._renderLiveLinkCell(c.koop, video)), 'video-stack-cell'),
+      'col-stats-views': (c) => this._td(c, 'col-stats-views',
+        this.renderVideoFieldStack(c.videos, (video) => this._renderStatsNumberCell(video, 'stats_views', 'Views')), 'video-stack-cell'),
+      'col-stats-likes': (c) => this._td(c, 'col-stats-likes',
+        this.renderVideoFieldStack(c.videos, (video) => this._renderStatsNumberCell(video, 'stats_likes', 'Likes')), 'video-stack-cell'),
+      'col-stats-comments': (c) => this._td(c, 'col-stats-comments',
+        this.renderVideoFieldStack(c.videos, (video) => this._renderStatsNumberCell(video, 'stats_comments', 'Kommentare')), 'video-stack-cell'),
+      'col-actions': (c) => this._td(c, 'col-actions', this._renderActionsInner(c))
+    };
+
+    for (const slot of VIDEO_FEEDBACK_FIELDS) {
+      map[slot.colClass] = (c) => this._td(c, slot.colClass, this.renderVideoFieldStack(c.videos, (video) => {
+        const comments = c.t.videoComments[video.id];
+        const value = formatVideoFeedbackValue(comments, slot.bucket);
+        return `<textarea class="grid-textarea stacked-video-textarea auto-resize-textarea" 
+          data-entity="video" data-id="${video.id}" data-field="${slot.field}"
+          ${!c.t.isFieldEditableForUser('video', slot.field) ? 'readonly' : ''}
+          placeholder="${slot.label}" rows="1">${this.escapeHtml(value)}</textarea>`;
+      }), 'video-stack-cell wide-field');
+    }
+
+    this._cellRenderers = map;
+    return map;
+  }
+
+  _renderCreatorInner(c) {
+    const creator = c.creator;
+    const name = this.escapeHtml(`${creator.vorname || ''} ${creator.nachname || ''}`.trim() || 'Unbekannt');
+    const nameHtml = c.canViewCreator && creator.id
+      ? `<a href="/creator/${creator.id}" onclick="event.preventDefault(); window.navigateTo('/creator/${creator.id}')" class="table-link">${name}</a>`
+      : name;
+    const socials = (creator.instagram || creator.tiktok) ? `<div class="creator-social-links">
+      ${creator.instagram ? `<a href="${creator.instagram.startsWith('http') ? this.escapeHtml(creator.instagram) : `https://instagram.com/${encodeURIComponent(creator.instagram.replace('@', ''))}`}" target="_blank" rel="noopener" title="@${this.escapeHtml(creator.instagram)}">${INSTAGRAM_ICON}</a>` : ''}
+      ${creator.tiktok ? `<a href="${creator.tiktok.startsWith('http') ? this.escapeHtml(creator.tiktok) : `https://tiktok.com/@${encodeURIComponent(creator.tiktok.replace('@', ''))}`}" target="_blank" rel="noopener" title="@${this.escapeHtml(creator.tiktok)}">${TIKTOK_ICON}</a>` : ''}
+    </div>` : '';
+    return `${nameHtml}${socials}`;
+  }
+
+  _renderTagsInner(koop) {
+    return (koop._tags || []).length > 0
+      ? `<div class="tags tags-compact">${koop._tags.map(name => `<span class="tag tag--branche">${this.escapeHtml(name)}</span>`).join('')}</div>`
+      : '<span class="text-muted">-</span>';
+  }
+
+  _renderIdeeStrategieInner(c, video) {
+    const t = c.t;
+    const koop = c.koop;
+    const canLink = !t.isKundeRole();
+    const item = video.strategie_item;
+    if (item && (item.screenshot_url || item.video_link)) {
+      const videoLink = item.video_link;
+      const screenshotUrl = item.screenshot_url;
+      const beschreibung = item.beschreibung || 'Konzept-Idee';
+      const thumbHtml = screenshotUrl
+        ? `<img src="${screenshotUrl}" alt="Thema" class="thema-thumbnail" />`
+        : `<span class="thema-thumbnail thema-thumbnail--placeholder">${PLAY_ICON}</span>`;
+      if (canLink) {
+        // Verlinkte Videoidee: Bild oeffnet das Video in neuem Tab,
+        // der Verknuepfungs-Drawer wandert auf das Link-Icon daneben.
+        if (videoLink) {
+          return `
+            <span class="thema-item-actions">
+              <a href="${videoLink}" class="thema-thumbnail-link thema-thumbnail-link--playable"
+                title="${this.escapeHtml(beschreibung)}" target="_blank" rel="noopener noreferrer">
+                ${thumbHtml}
+              </a>
+              <button type="button" class="thema-relink-btn"
+                data-action="link-strategie-item"
+                data-video-id="${video.id}"
+                data-kooperation-id="${koop.id}"
+                title="Verknüpfung ändern">${LINK_ICON}</button>
+            </span>
+          `;
+        }
+        // Reine Idee ohne Video-Link: Klick oeffnet weiterhin den Drawer.
+        return `
+          <button type="button" class="thema-link-btn thema-link-btn--linked"
+            data-action="link-strategie-item"
+            data-video-id="${video.id}"
+            data-kooperation-id="${koop.id}"
+            title="${this.escapeHtml(beschreibung)}">
+            ${thumbHtml}
+          </button>
+        `;
+      }
+      const href = videoLink || `/strategie/${item.strategie_id}`;
+      const targetAttr = videoLink ? ' target="_blank" rel="noopener noreferrer"' : '';
+      return `
+        <a href="${href}" class="thema-thumbnail-link${videoLink ? ' thema-thumbnail-link--playable' : ''}" title="${this.escapeHtml(beschreibung)}"${targetAttr}>
+          ${thumbHtml}
+        </a>
+      `;
+    }
+    if (canLink) {
+      return `
+        <button type="button" class="thema-link-btn"
+          data-action="link-strategie-item"
+          data-video-id="${video.id}"
+          data-kooperation-id="${koop.id}">
+          Idee verknüpfen
+        </button>
+      `;
+    }
+    return `<span class="no-strategie-hint">Noch kein Thema/Konzept verknüpft</span>`;
+  }
+
+  _renderProduktInner(c, video) {
+    const t = c.t;
+    const versandForVideo = t.getVersandForVideo(video.id);
+    return `
+      <input type="text" class="grid-input stacked-video-input" 
+        data-entity="versand" 
+        data-id="${versandForVideo?.id || 'new'}"
+        data-video-id="${video.id}"
+        data-kooperation-id="${c.koop.id}"
+        data-field="produkt_name"
+        ${!t.isFieldEditableForUser('versand', 'produkt_name') ? 'readonly' : ''}
+        value="${this.escapeHtml(versandForVideo?.produkt_name || '')}" 
+        placeholder="Produktname"/>
+      <input type="url" class="grid-input stacked-video-input" 
+        data-entity="versand" 
+        data-id="${versandForVideo?.id || 'new'}"
+        data-video-id="${video.id}"
+        data-kooperation-id="${c.koop.id}"
+        data-field="produkt_link"
+        ${!t.isFieldEditableForUser('versand', 'produkt_link') ? 'readonly' : ''}
+        value="${this.escapeHtml(versandForVideo?.produkt_link || '')}" 
+        placeholder="Produktlink (optional)"/>
+    `;
+  }
+
+  _renderLieferadresseInner(c, video) {
+    const t = c.t;
+    const koop = c.koop;
+    const versandForVideo = t.getVersandForVideo(video.id);
+    let strasse = '';
+    let plzStadt = '';
+    let land = '';
+
+    if (versandForVideo?.creator_adresse_id) {
+      const ca = (t.store || t).creatorAdressen?.[versandForVideo.creator_adresse_id];
+      if (ca) {
+        strasse = [ca.strasse, ca.hausnummer].filter(Boolean).join(' ');
+        plzStadt = [ca.plz, ca.stadt].filter(Boolean).join(' ');
+        land = ca.land || '';
+      }
+    } else if (versandForVideo?.strasse) {
+      strasse = [versandForVideo.strasse, versandForVideo.hausnummer].filter(Boolean).join(' ');
+      plzStadt = [versandForVideo.plz, versandForVideo.stadt].filter(Boolean).join(' ');
+      land = versandForVideo.land || '';
+    }
+
+    if (!strasse && !plzStadt && koop.creator) {
+      strasse = [koop.creator.lieferadresse_strasse, koop.creator.lieferadresse_hausnummer]
+        .filter(Boolean).join(' ');
+      plzStadt = [koop.creator.lieferadresse_plz, koop.creator.lieferadresse_stadt]
+        .filter(Boolean).join(' ');
+      land = koop.creator.lieferadresse_land || '';
+    }
+
+    const lines = [strasse, plzStadt].filter(Boolean);
+    const copyText = [strasse, plzStadt, land].filter(Boolean).join('\n');
+    if (lines.length === 0) lines.push('-');
+    const addressHtml = `<div class="small-text address-text">`
+         + lines.map(l => `<div class="address-line">${this.escapeHtml(l)}</div>`).join('')
+         + (land ? `<div class="address-line address-land-text">${this.escapeHtml(land)}</div>` : '')
+         + `</div>`;
+    const copyBtn = copyText
+      ? `<button type="button" class="address-copy-btn" data-action="copy-address" data-address="${this.escapeHtml(copyText)}" title="Adresse kopieren">${COPY_ICON}</button>`
+      : '';
+    return `<div class="address-cell">${addressHtml}${copyBtn}</div>`;
+  }
+
+  _renderActionsInner(c) {
+    const t = c.t;
+    const koop = c.koop;
+    return `
+      <div class="actions-dropdown-container" data-entity-type="kooperation">
+        <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
+          ${icon('dots-grid', { className: 'w-5 h-5' })}
+        </button>
+        <div class="actions-dropdown">
+          ${this.renderActionStatusSubmenu(koop)}
+          <a href="#" class="action-item" data-action="edit" data-id="${koop.id}" data-return-to="/kampagne/${t.kampagneId}">
+            ${icon('pencil-square', { className: 'w-4 h-4' })}
+            Bearbeiten
+          </a>
+          ${this.renderCreatorUploadItems(koop)}
+          ${t.canDeleteKooperation() ? `
+            <div class="action-separator"></div>
+            <a href="#" class="action-item action-danger" data-action="delete" data-id="${koop.id}">
+              ${icon('trash-alt', { className: 'w-4 h-4' })}
+              Löschen
+            </a>
+          ` : ''}
+        </div>
+      </div>
     `;
   }
 
@@ -625,7 +666,11 @@ export class VideoTableRenderer {
 
     const buttons = [];
     if (hasStills) {
-      buttons.push(`<button type="button" class="external-link-btn media-action-btn" data-action="view-bilder" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Stills ansehen">${BILDER_ICON}</button>`);
+      const countBadge = stills.length > 0 ? `<span class="filter-count-badge">${stills.length}</span>` : '';
+      const stillsTitle = stills.length > 0
+        ? `${stills.length} Still${stills.length !== 1 ? 's' : ''} ansehen`
+        : 'Stills ansehen';
+      buttons.push(`<button type="button" class="external-link-btn media-action-btn" data-action="view-bilder" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="${stillsTitle}">${BILDER_ICON}${countBadge}</button>`);
     }
 
     if (!isKunde) {
@@ -735,17 +780,6 @@ export class VideoTableRenderer {
       `;
     }
     return `<span class="no-strategie-hint">Noch kein Skript verknüpft</span>`;
-  }
-
-  _renderCustomColumnCells(koop, videos) {
-    const t = this.table;
-    const columns = getOrderedColumns(t.store);
-    const customCols = columns.filter(c => c.isCustom);
-    if (customCols.length === 0) return '';
-
-    return customCols.map(col =>
-      renderCustomCell(col, koop, videos, t.store, t)
-    ).join('');
   }
 
   renderCreatorUploadItems(koop) {

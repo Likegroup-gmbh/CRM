@@ -9,6 +9,9 @@ import {
   isDirectImageUrl,
   canPreviewImageAsset,
   toRawDropboxUrl,
+  withStillIndex,
+  countStillNameUsage,
+  createStillIndexCounter,
 } from '../core/VideoUploadUtils.js';
 
 describe('buildVersionedFileName', () => {
@@ -187,5 +190,110 @@ describe('toRawDropboxUrl', () => {
   it('veraendert SharePoint-Links nicht', () => {
     const url = 'https://contoso-my.sharepoint.com/:i:/g/personal/a/abc';
     expect(toRawDropboxUrl(url)).toBe(url);
+  });
+});
+
+describe('withStillIndex', () => {
+  it('haengt zweistelligen Index vor der Extension an', () => {
+    expect(withStillIndex('creator_firma_kampagne_v1.jpg', 1)).toBe('creator_firma_kampagne_v1_01.jpg');
+    expect(withStillIndex('creator_firma_kampagne_v1.jpg', 7)).toBe('creator_firma_kampagne_v1_07.jpg');
+  });
+
+  it('waechst ueber 99 hinaus ohne abzuschneiden', () => {
+    expect(withStillIndex('a_v1.png', 100)).toBe('a_v1_100.png');
+  });
+
+  it('behandelt Dateinamen ohne Extension', () => {
+    expect(withStillIndex('datei', 2)).toBe('datei_02');
+  });
+
+  it('ignoriert Punkte in Verzeichnisbestandteilen nicht relevant, nutzt letzten Punkt', () => {
+    expect(withStillIndex('a.b_v1.jpg', 3)).toBe('a.b_v1_03.jpg');
+  });
+});
+
+describe('countStillNameUsage', () => {
+  const base = 'creator_firma_kampagne_v1.jpg';
+
+  it('zaehlt 0 bei keinen vorhandenen Assets', () => {
+    expect(countStillNameUsage([], base)).toBe(0);
+    expect(countStillNameUsage(null, base)).toBe(0);
+  });
+
+  it('zaehlt unindizierten Altbestand (vor dem Fix)', () => {
+    const existing = [{ file_name: base }];
+    expect(countStillNameUsage(existing, base)).toBe(1);
+  });
+
+  it('zaehlt indizierte Namen desselben Stems', () => {
+    const existing = [
+      { file_name: 'creator_firma_kampagne_v1_01.jpg' },
+      { file_name: 'creator_firma_kampagne_v1_02.jpg' },
+    ];
+    expect(countStillNameUsage(existing, base)).toBe(2);
+  });
+
+  it('zaehlt gemischten Alt- und Neu-Bestand zusammen', () => {
+    const existing = [
+      { file_name: base },
+      { file_name: 'creator_firma_kampagne_v1_01.jpg' },
+    ];
+    expect(countStillNameUsage(existing, base)).toBe(2);
+  });
+
+  it('ignoriert andere Versionen, Extensions und fremde Stems', () => {
+    const existing = [
+      { file_name: 'creator_firma_kampagne_v2_01.jpg' },
+      { file_name: 'creator_firma_kampagne_v1_01.png' },
+      { file_name: 'andere_firma_kampagne_v1_01.jpg' },
+      { file_name: 'creator_firma_kampagne_v1_extra.jpg' },
+      { file_name: null },
+      {},
+    ];
+    expect(countStillNameUsage(existing, base)).toBe(0);
+  });
+
+  it('matcht case-insensitiv', () => {
+    const existing = [{ file_name: 'Creator_Firma_Kampagne_V1_01.JPG' }];
+    expect(countStillNameUsage(existing, base)).toBe(1);
+  });
+
+  it('gibt 0 zurueck bei leerem Basis-Namen', () => {
+    expect(countStillNameUsage([{ file_name: 'x_01.jpg' }], '')).toBe(0);
+  });
+});
+
+describe('createStillIndexCounter', () => {
+  const base = 'creator_firma_kampagne_v1.jpg';
+
+  it('vergibt 1, 2, 3 im Batch ohne Altbestand', () => {
+    const next = createStillIndexCounter([]);
+    expect(next(base)).toBe(1);
+    expect(next(base)).toBe(2);
+    expect(next(base)).toBe(3);
+  });
+
+  it('startet nach unindiziertem Altbestand', () => {
+    const next = createStillIndexCounter([{ file_name: base }]);
+    expect(next(base)).toBe(2);
+    expect(next(base)).toBe(3);
+  });
+
+  it('startet nach gemischtem Altbestand (unindiziert + indiziert)', () => {
+    const next = createStillIndexCounter([
+      { file_name: base },
+      { file_name: 'creator_firma_kampagne_v1_01.jpg' },
+    ]);
+    expect(next(base)).toBe(3);
+    expect(next(base)).toBe(4);
+  });
+
+  it('zaehlt getrennte Basis-Namen unabhaengig', () => {
+    const other = 'creator_firma_kampagne_v2.jpg';
+    const next = createStillIndexCounter([]);
+    expect(next(base)).toBe(1);
+    expect(next(other)).toBe(1);
+    expect(next(base)).toBe(2);
+    expect(next(other)).toBe(2);
   });
 });

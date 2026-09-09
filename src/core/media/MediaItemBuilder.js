@@ -5,6 +5,8 @@
 // nicht zugeordneten Bilder (video_id = NULL, Altdaten) der Kooperation.
 //   Koop -> [V1, Storys(V1)..., Bilder(V1)..., V2, ...] -> [Bilder ohne video_id] -> naechste Koop
 
+import { sortStills } from '../stills/stillAssets.js';
+
 export class MediaItemBuilder {
   /** @param {object} table - KampagneKooperationenVideoTable (Datenquelle) */
   constructor(table) {
@@ -79,9 +81,15 @@ export class MediaItemBuilder {
             items.push({ type: 'story', slot, video, koop });
           }
         }
-        // Bilder dieses Videos direkt dahinter
-        for (const image of bilder) {
-          if (image.video_id === video.id) items.push({ type: 'bild', image, video, koop });
+        // Loop-Stills dieses Videos direkt dahinter. Finale sind Pointer auf
+        // dieselbe Datei und wuerden sonst als zweites Item auftauchen;
+        // nur wenn keine Loop-Stills existieren, das Final als Item nutzen.
+        const loopOfVideo = bilder.filter(image => image.video_id === video.id && !image.is_final);
+        const stillItems = sortStills(loopOfVideo.length
+          ? loopOfVideo
+          : bilder.filter(image => image.video_id === video.id && image.is_final));
+        for (const image of stillItems) {
+          items.push({ type: 'bild', image, video, koop });
         }
       }
       // Nicht zugeordnete Bilder (Altdaten) ans Koop-Ende

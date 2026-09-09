@@ -18,14 +18,35 @@ export class VideoRowHeightSync {
     this._resizeObserver = null;
     this._onInput = null;
     this._onResize = null;
+    // Zeilen, die im naechsten Frame gescoped neu gemessen werden. Leer +
+    // _globalPending=true heisst: voller Sync (Realtime, Erst-Render).
+    this._pendingScopes = new Set();
+    this._globalPending = false;
+    this._lastWidth = 0;
   }
 
-  /** Gebuendelter Re-Sync im naechsten Frame (mehrfach-aufruf-sicher). */
-  schedule() {
+  /**
+   * Gebuendelter Re-Sync im naechsten Frame (mehrfach-aufruf-sicher).
+   * Mit scope (eine .kooperation-row) wird nur diese Zeile angeglichen -
+   * der Rest der Tabelle behaelt seine min-heights, nichts kollabiert
+   * ueber der Scrollposition. Ohne scope: globaler Sync.
+   * @param {HTMLElement} [scope]
+   */
+  schedule(scope) {
+    if (scope) this._pendingScopes.add(scope);
+    else this._globalPending = true;
     if (this._rafId != null) return;
     this._rafId = requestAnimationFrame(() => {
       this._rafId = null;
-      this.sync();
+      if (this._globalPending) {
+        this._pendingScopes.clear();
+        this._globalPending = false;
+        this.sync();
+        return;
+      }
+      const scopes = [...this._pendingScopes];
+      this._pendingScopes.clear();
+      scopes.forEach(s => this.sync(s));
     });
   }
 
@@ -77,17 +98,27 @@ export class VideoRowHeightSync {
     return el.offsetParent !== null;
   }
 
-  /** Live-Trigger: ResizeObserver (Containerbreite), Tippen im Feedback, Window-Resize. */
+  /** Live-Trigger: ResizeObserver (nur Container-BREITE), Tippen im Feedback, Window-Resize. */
   observe() {
     if (!this.container) return;
 
     this._onInput = (e) => {
-      if (e.target?.closest?.('.stacked-video-textarea')) this.schedule();
+      const ta = e.target?.closest?.('.stacked-video-textarea');
+      if (ta) this.schedule(ta.closest('.kooperation-row'));
     };
     this.container.addEventListener('input', this._onInput);
 
     if (typeof ResizeObserver !== 'undefined') {
-      this._resizeObserver = new ResizeObserver(() => this.schedule());
+      this._lastWidth = this.container.getBoundingClientRect().width;
+      // Nur Breitenwechsel (Spalten-Resize) rechtfertigt einen globalen Sync.
+      // Hoehenwechsel sind tipp-/sync-induziert und wuerden sonst bei jedem
+      // Tastendruck erneut die ganze Tabelle vermessen.
+      this._resizeObserver = new ResizeObserver(() => {
+        const w = this.container.getBoundingClientRect().width;
+        if (w === this._lastWidth) return;
+        this._lastWidth = w;
+        this.schedule();
+      });
       this._resizeObserver.observe(this.container);
     }
 

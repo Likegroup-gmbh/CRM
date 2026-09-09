@@ -192,11 +192,11 @@ export class VideoPlayerView {
     const variants = this.ctx.stillsForSelectedVersion();
     if (variants.length <= 1) return '';
     const options = variants.map(a =>
-      `<option value="${a.id}" ${a.id === this.ctx.stillAssetId ? 'selected' : ''}>${escapeHtml(getAssetDisplayLabel(a) || 'Variante')}</option>`
+      `<option value="${a.id}" ${a.id === this.ctx.stillAssetId ? 'selected' : ''}>${escapeHtml(getAssetDisplayLabel(a) || 'Still')}</option>`
     ).join('');
     return `
       <div class="media-viewer-control">
-        <label>Variante</label>
+        <label>Still</label>
         <select class="still-variant-select">${options}</select>
       </div>`;
   }

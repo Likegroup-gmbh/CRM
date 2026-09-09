@@ -52,8 +52,8 @@ export class LinkStrategieItemDrawer {
     panel.innerHTML = `
       <div class="drawer-header">
         <div>
-          <span class="drawer-title">Strategie-Idee verknüpfen</span>
-          <p class="drawer-subtitle">Wählen Sie eine Idee aus den Strategien dieser Kampagne</p>
+          <span class="drawer-title">Konzept-Idee verknüpfen</span>
+          <p class="drawer-subtitle">Wählen Sie eine Idee aus den Konzepten dieser Kampagne</p>
         </div>
         <div>
           <button type="button" class="drawer-close-btn" aria-label="Schließen">&times;</button>
@@ -160,16 +160,16 @@ export class LinkStrategieItemDrawer {
 
       ${!hasStrategien ? `
         <div class="add-to-video-empty">
-          <p>Keine Strategien für diese Kampagne vorhanden.</p>
+          <p>Keine Konzepte für diese Kampagne vorhanden.</p>
         </div>
       ` : !hasItems ? `
         <div class="add-to-video-empty">
-          <p>Keine freien Strategie-Ideen verfügbar.</p>
+          <p>Keine freien Konzept-Ideen verfügbar.</p>
           <p class="hint">Alle Ideen sind bereits mit anderen Videos verknüpft.</p>
         </div>
       ` : `
         <div class="form-field">
-          <label>Strategie-Idee auswählen</label>
+          <label>Konzept-Idee auswählen</label>
           <select id="select-strategie-item" class="form-input" data-searchable="true">
             <option value="">– Idee wählen –</option>
           </select>
@@ -200,7 +200,7 @@ export class LinkStrategieItemDrawer {
     if (!select || !window.formSystem) return;
 
     window.formSystem.createSimpleSearchableSelect(select, options, {
-      placeholder: 'Strategie oder Idee suchen…'
+      placeholder: 'Konzept oder Idee suchen…'
     });
 
     if (this.selectedItemId) {
@@ -251,7 +251,7 @@ export class LinkStrategieItemDrawer {
 
       if (error) throw error;
 
-      window.toastSystem?.show('Strategie-Idee erfolgreich verknüpft', 'success');
+      window.toastSystem?.show('Konzept-Idee erfolgreich verknüpft', 'success');
       window.dispatchEvent(new CustomEvent('strategieItemLinked', {
         detail: { itemId: this.selectedItemId, videoId: this.video.id }
       }));
@@ -273,7 +273,7 @@ export class LinkStrategieItemDrawer {
 
     const result = await window.confirmationModal?.open({
       title: 'Verknüpfung entfernen?',
-      message: 'Möchten Sie die Verknüpfung zwischen diesem Video und der Strategie-Idee entfernen?',
+      message: 'Möchten Sie die Verknüpfung zwischen diesem Video und der Konzept-Idee entfernen?',
       confirmText: 'Entfernen',
       cancelText: 'Abbrechen',
       danger: true

@@ -5,6 +5,9 @@ import './core/PerformanceMonitor.js';
 import { initListenerMonitor } from './core/dev/ListenerMonitor.js';
 initListenerMonitor();
 
+import { initVersionCheck } from './core/VersionCheck.js';
+initVersionCheck();
+
 // CSS Imports - müssen für Vite-Build hier sein
 import '../assets/styles/variables.css';
 import '../assets/styles/base.css';
@@ -203,10 +206,10 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('dashboard', dashboardModule);
   moduleRegistry.register('tasks', taskListPage);
   moduleRegistry.register('tabellen', tabellenModule);
-  moduleRegistry.register('strategie', strategieList);
-  moduleRegistry.register('strategie-detail', strategieDetail);
-  moduleRegistry.register('sourcing', creatorAuswahlList);
-  moduleRegistry.register('sourcing-detail', creatorAuswahlDetail);
+  moduleRegistry.register('konzepte', strategieList);
+  moduleRegistry.register('konzepte-detail', strategieDetail);
+  moduleRegistry.register('castings', creatorAuswahlList);
+  moduleRegistry.register('castings-detail', creatorAuswahlDetail);
   moduleRegistry.register('feedback', feedbackPage);
   moduleRegistry.register('education', educationPage);
   moduleRegistry.register('education-detail', educationArticleDetail);

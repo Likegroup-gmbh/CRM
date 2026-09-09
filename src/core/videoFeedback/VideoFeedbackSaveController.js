@@ -145,6 +145,8 @@ export class VideoFeedbackSaveController {
       .forEach(el => {
         if (el !== field && el.value !== field.value) el.value = field.value;
       });
-    this.table._rowHeightSync?.schedule?.();
+    // Nur die Zeile des gespeicherten Feldes neu angleichen - ein globaler
+    // Sync nach jedem Autosave wuerde die ganze Tabelle kurz kollabieren.
+    this.table._rowHeightSync?.schedule?.(field.closest('.kooperation-row'));
   }
 }

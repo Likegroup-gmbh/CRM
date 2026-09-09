@@ -22,7 +22,7 @@ const DEFAULT_COLUMNS = [
   { id: 'col-video-content-deadline', label: 'Content Deadline', dataCol: '10e', configurable: true },
   { id: 'col-video-typ', label: 'Typ', dataCol: '10c', configurable: true },
   { id: 'col-thema', label: 'Thema', dataCol: '11', configurable: true },
-  { id: 'col-idee-strategie', label: 'Idee/Strategie', dataCol: '11b', configurable: true },
+  { id: 'col-idee-strategie', label: 'Idee/Konzept', dataCol: '11b', configurable: true },
   { id: 'col-skript', label: 'Skript', dataCol: '11c', configurable: true },
   { id: 'col-organic-paid', label: 'Content/Art', dataCol: '12', configurable: true },
   { id: 'col-produkt', label: 'Produkte', dataCol: '13', configurable: true },

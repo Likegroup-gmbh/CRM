@@ -67,6 +67,20 @@ async function createSharedLink(token, dropboxPath) {
   }
 }
 
+// Rollback-Helfer: verwaiste Dropbox-Datei entfernen, wenn der DB-Insert
+// nach erfolgreichem Upload fehlschlaegt (best effort).
+async function deleteDropboxFile(filePath) {
+  try {
+    await fetch('/.netlify/functions/dropbox-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filePath }),
+    });
+  } catch (err) {
+    console.warn('[VideoUpload] Rollback-Löschung fehlgeschlagen:', err);
+  }
+}
+
 async function saveAssetVersion({ videoId, fileUrl, filePath, variantName, versionNumber, isFinal }) {
   const version = parseInt(versionNumber, 10) || 1;
   const { error } = await window.supabase
@@ -191,7 +205,10 @@ export async function runVideoUploadJob(ctx) {
       folderUrl = await createFolderSharedLink(token, kooperationFolderPath);
     }
 
-    const fileUrl = sharedLink || actualPath;
+    // Kein Roh-Pfad als URL-Fallback: Ein Dropbox-Pfad in file_url/link_content
+    // erzeugt einen toten Play-Button (Video wirkt "verschwunden"). Wiedergabe
+    // laeuft dann ueber file_path + Temporary-Link.
+    const fileUrl = sharedLink || null;
     // link_content bleibt an den Feedbackschleifen haengen; finale Assets
     // duerfen den aktuellen Content-Link nicht ueberschreiben.
     if (isFinal) {
@@ -200,7 +217,14 @@ export async function runVideoUploadJob(ctx) {
       lastFileUrl = fileUrl;
     }
 
-    await saveAssetVersion({ videoId, fileUrl, filePath: actualPath, variantName, versionNumber, isFinal });
+    try {
+      await saveAssetVersion({ videoId, fileUrl, filePath: actualPath, variantName, versionNumber, isFinal });
+    } catch (err) {
+      // Rollback: Dropbox-Datei wieder entfernen, damit keine verwaiste Datei
+      // ohne DB-Zeile zurueckbleibt.
+      await deleteDropboxFile(actualPath);
+      throw err;
+    }
 
     updateItem(item.id, { status: 'done', loaded: file.size });
   }
@@ -213,10 +237,15 @@ export async function runVideoUploadJob(ctx) {
   if (folderUrl) updateData.folder_url = folderUrl;
 
   if (Object.keys(updateData).length > 0) {
-    await window.supabase
+    const { error: videoUpdateErr } = await window.supabase
       .from('kooperation_videos')
       .update(updateData)
       .eq('id', videoId);
+    // Nicht still schlucken: Der Job muss als fehlgeschlagen sichtbar werden,
+    // sonst liegt die Datei in Dropbox, aber das CRM zeigt wieder "Upload".
+    if (videoUpdateErr) {
+      throw new Error(`Video-Metadaten konnten nicht gespeichert werden: ${videoUpdateErr.message}`);
+    }
   }
 
   return { lastFileUrl, folderUrl, videoName, hasFinalUpload };
