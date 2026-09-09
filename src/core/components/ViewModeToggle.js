@@ -21,8 +21,9 @@ export class ViewModeToggle {
     const buttons = modes.map(mode => {
       const iconHtml = mode.icon ? this.getIcon(mode.icon) : '';
       const activeClass = mode.active ? 'active' : '';
+      const titleAttr = mode.title ? ` title="${mode.title}"` : '';
       return `
-        <button id="${mode.buttonId}" class="mdc-btn mdc-btn--secondary ${activeClass}">
+        <button id="${mode.buttonId}" class="mdc-btn mdc-btn--secondary ${activeClass}"${titleAttr}>
           ${iconHtml}
           ${mode.label}
         </button>

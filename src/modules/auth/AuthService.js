@@ -708,13 +708,20 @@ export class AuthService {
   // Header-Buttons basierend auf Rolle anpassen
   updateHeaderForRole(rolle) {
     const isKunde = window.isKunde();
-    
+    const isAdmin = typeof window.isAdmin === 'function' && window.isAdmin();
+
     // Education Button ausblenden für Kunden
     const educationBtn = document.querySelector('.education-btn');
     if (educationBtn) {
       educationBtn.style.display = isKunde ? 'none' : '';
     }
-    
+
+    // Adminbereich-Button: nur fuer Admins (startet in index.html unsichtbar)
+    const adminBtn = document.querySelector('.admin-btn');
+    if (adminBtn) {
+      adminBtn.style.display = isAdmin ? '' : 'none';
+    }
+
     console.log(`🎨 Header aktualisiert für Rolle: ${rolle}, isKunde: ${isKunde}`);
   }
 }

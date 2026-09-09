@@ -42,7 +42,6 @@ export class NavigationSystem {
       {
         title: 'Projektmanagement',
         items: [
-          { id: 'stakeholder', label: 'Stakeholder', icon: 'stakeholder', url: '/stakeholder' },
           { id: 'auftrag', label: 'Aufträge', icon: 'auftrag', url: '/auftrag' },
           { id: 'ausgangsrechnungen', label: 'Kundenrechnungen', icon: 'ausgangsrechnungen', url: '/ausgangsrechnungen' },
           { id: 'auftragsdetails', label: 'Auftragsdetails', icon: 'auftragsdetails', url: '/auftragsdetails' }
@@ -71,30 +70,74 @@ export class NavigationSystem {
       //   ]
       // },
       {
-        title: 'Admin',
-        items: [
-          { id: 'mitarbeiter', label: 'Mitarbeiter', icon: 'mitarbeiter', url: '/mitarbeiter' },
-          { id: 'kunden-admin', label: 'Kunden', icon: 'kunden-admin', url: '/admin/kunden' },
-          { id: 'shares', label: 'Geteilte Listen', icon: 'shares', url: '/shares' },
-          { id: 'ki-usage', label: 'KI-Nutzung', icon: 'ki-usage', url: '/ki-usage' }
-        ]
-      },
-      {
         title: 'Feedback',
         items: [
           { id: 'feedback', label: 'Feedback', icon: 'feedback', url: '/feedback' }
         ]
       }
     ];
+
+    // Adminbereich (PRD Schritt 8): reduzierte Navigation, die nur die fuer
+    // die Administration relevanten Punkte zeigt. Aktiv auf /admin-Routen;
+    // die Huelle legt nur Navigation + Route an, die vollstaendige
+    // Herunterbrechung aller Seiten ist bewusst out of scope.
+    this.adminSections = [
+      {
+        title: 'Adminbereich',
+        items: [
+          { id: 'admin-datenqualitaet', label: 'Datenqualität', icon: 'admin-datenqualitaet', url: '/admin/datenqualitaet' },
+          { id: 'stakeholder', label: 'Stakeholder', icon: 'stakeholder', url: '/admin/stakeholder' },
+          { id: 'mitarbeiter', label: 'Mitarbeiter', icon: 'mitarbeiter', url: '/admin/mitarbeiter' },
+          { id: 'kunden-admin', label: 'Kunden', icon: 'kunden-admin', url: '/admin/kunden' },
+          { id: 'unternehmen', label: 'Unternehmen', icon: 'unternehmen', url: '/admin/unternehmen' },
+          { id: 'shares', label: 'Geteilte Listen', icon: 'shares', url: '/admin/shares' },
+          { id: 'ki-usage', label: 'KI-Nutzung', icon: 'ki-usage', url: '/admin/ki-usage' }
+        ]
+      },
+      {
+        title: null,
+        items: [
+          { id: 'dashboard', label: 'Zurück zur App', icon: 'dashboard', url: '/dashboard' }
+        ]
+      }
+    ];
+
+    // 'main' | 'admin' — welcher Navigationsbereich gerade gerendert ist.
+    this.area = 'main';
+  }
+
+  // Der Adminbereich haengt am Pfad-Praefix, nicht an einem Nav-State —
+  // so ueberlebt die Bereichswahl Reload und Browser-Zurueck.
+  static areaForRoute(route) {
+    return String(route || '').startsWith('/admin') ? 'admin' : 'main';
+  }
+
+  // Wird von der ModuleRegistry nach jeder Navigation aufgerufen: wechselt
+  // bei Bedarf zwischen Haupt- und Admin-Navigation und markiert die Route.
+  syncWithRoute(route) {
+    const area = NavigationSystem.areaForRoute(route);
+    if (area !== this.area) {
+      // Rendert neu und setzt this.area; danach faellt die Markierung
+      // der aktiven Route auf das frische DOM.
+      this.renderNavigation(route);
+    }
+    // /admin ohne Unterseite zeigt die Datenqualitaet — Nav-Punkt mitmarkieren.
+    const effective = area === 'admin' && (route === '/admin' || route === '/admin/')
+      ? '/admin/datenqualitaet'
+      : route;
+    this.updateActiveRoute(effective);
   }
 
   // Navigation rendern
-  renderNavigation() {
+  renderNavigation(route = window.location.pathname) {
     const navElement = document.getElementById('main-nav');
     if (!navElement) {
       console.error('Navigation-Element nicht gefunden');
       return;
     }
+
+    this.area = NavigationSystem.areaForRoute(route);
+    const sections = this.area === 'admin' ? this.adminSections : this.navSections;
 
     // Sichtbarkeit anhand Berechtigungen filtern (Page-Scoped, dann Entity)
     const perms = window.currentUser?.permissions || {};
@@ -185,7 +228,7 @@ export class NavigationSystem {
     };
 
     // Feedback separat rendern (für Footer)
-    const feedbackSection = this.navSections.find(s => s.title === 'Feedback');
+    const feedbackSection = sections.find(s => s.title === 'Feedback');
     const feedbackItems = feedbackSection ? feedbackSection.items.filter(it => canView(it.id)) : [];
 
     const renderNavItem = (item) => `
@@ -229,7 +272,7 @@ export class NavigationSystem {
     }).join('');
 
     // Alle anderen Sections (ohne Feedback)
-    const sectionsHtml = this.navSections
+    const sectionsHtml = sections
       .filter(section => section.title !== 'Feedback')
       .map(section => {
         const visibleItems = section.items.filter(it => {

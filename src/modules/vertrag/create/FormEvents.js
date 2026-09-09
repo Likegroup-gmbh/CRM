@@ -244,6 +244,8 @@ VertraegeCreate.prototype.bindDynamicFieldEvents = function() {
       });
     }
 
+    if (typeof this._bindEhgKopfEvents === 'function') this._bindEhgKopfEvents();
+
     // === INFLUENCER-SPEZIFISCHE EVENTS ===
 
     // Agentur-Vertretung: Radio-Toggle + Modal-Button (nur wenn Block vorhanden)
@@ -629,6 +631,7 @@ VertraegeCreate.prototype.bindAddressPreviewEvents = function() {
 
         // Direktvertrag-Sektionen (BURGA / UAB Hautica) ein-/ausblenden
         this.updateDirektvertragSections();
+        if (typeof this.updateEhgSections === 'function') this.updateEhgSections();
 
         // Adress-Vorschau
         const kunde = this.unternehmen.find(u => u.id === id);

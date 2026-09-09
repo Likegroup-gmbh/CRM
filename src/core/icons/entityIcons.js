@@ -45,6 +45,8 @@ export const ENTITY_ICONS = {
   education: 'home',
   profile: 'user-circle',
   stakeholder: 'chart-trend',
+  admin: 'shield',
+  'admin-datenqualitaet': 'shield',
   transcribe: 'video',
   kunden: 'home',
   adresse: 'map-pin',

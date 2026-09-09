@@ -74,7 +74,7 @@ Neue Ansicht auf `/stakeholder`, umschaltbar zur bestehenden Kalkulationsansicht
 - **Margensicht:** die Fremdkosten eines Auftrags folgen seinem Umsatz anteilig über dessen Kundenrechnungsmonate. Bei einer einzigen Kundenrechnung ist das deren Monat; bei 50/50-Teilrechnungen trägt jeder Monat die Hälfte der Kosten — sonst stünden alle Kosten im ersten Monat, während der Erlös sich verteilt, und die Monatsmarge kippte genau bei den Raten-Aufträgen.
 - **Buchhaltungssicht:** jeder Beleg in seinem eigenen Rechnungsmonat.
 - Zwei getrennte Zeilen unterhalb der Matrix: **noch nicht fakturiert** (91.879 € kalkulierte Creatorkosten ohne Rechnung) und **ohne Kundenrechnung** (380.919 € Creatorkosten zu nie fakturierten Aufträgen). Beide haben in der Margensicht keinen Monat und dürfen deshalb nicht einfach verschwinden. Dazu kommt **Überfakturiert** (ADR 0007) und der Ausweis unmöglicher Rechnungsdaten.
-- Im Kopf steht die Zuordnungsquote. Der Verweis auf die Datenqualitätsanzeige ist ein Hinweistext, bis Schritt 9 die Anzeige liefert.
+- Im Kopf steht die Zuordnungsquote. Der Verweis auf die Datenqualitätsanzeige war zunächst ein Hinweistext und ist seit Schritt 9 für Admins mit der Anzeige verlinkt.
 
 ### Schritt 5 — Rechnungsstatus-Snapshot
 
@@ -98,19 +98,28 @@ Nur `/stakeholder`, CI (Farben, Typo) bleibt unangetastet. Alle Tabellen — zue
 - **Struktur:** Sticky Toolbar, damit der Ansicht-Umschalter beim Scrollen stehen bleibt; Tabellen-Zeilen verdichtet.
 - **Bewusst nicht:** Delta-Badges gegenüber dem Vormonat. Die Monatswerte ändern sich rückwirkend durch nachlaufende Creatorrechnungen (ADR 0006); ein Δ-Chip suggerierte eine Endgültigkeit, die es nicht gibt. Kommt frühestens mit den Berichtsständen (Schritt 7), wo ein eingefrorener Stand verglichen werden darf.
 
-### Schritt 7 — Berichtsstände
+### Schritt 7 — Berichtsstände ✅ umgesetzt
 
-Neue Tabelle für Snapshots. Die Ansicht rechnet immer live; der Snapshot hält fest, worauf ein verschicktes Update beruhte. Monate einzufrieren wurde verworfen, weil das Nachzügler in falsche Monate verschieben würde.
+Neue Tabelle `berichtsstand` (Migration `20260909_berichtsstand`): `label`, `daten` (jsonb), `created_by`, `created_at`. RLS: lesen und sichern nur Admins — die Seite ist admin-only. Bewusst kein UPDATE/DELETE: ein Berichtsstand ist ein Beleg; fehlerhafte Stände werden durch einen neuen ersetzt, nicht korrigiert.
 
-### Schritt 8 — Adminbereich
+Der Payload (`src/modules/stakeholder/berichtsstandStore.js`) ist versioniert (`version: 1`) und enthält die vollständige Monatsauswertung (beide Sichten, alle Metriken) plus den Zahlungsstand — per JSON-Rundlauf garantiert serialisierbar. Die Ansicht rechnet immer live; der Snapshot hält fest, worauf ein verschicktes Update beruhte. Monate einzufrieren wurde verworfen, weil das Nachzügler in falsche Monate verschieben würde.
 
-- Button in `index.html` innerhalb von `.header-actions`, **links vom** `.education-btn`.
-- Route `/admin`, abgesichert über das vorhandene `permissionSystem.isAdmin`.
-- Reduzierte Navigation: nur die Punkte, die für die Administration relevant sind.
+UI in der Monatsauswertung: eine Leiste mit Auswahl (Live-Ansicht plus gesicherte Stände), Bezeichnungsfeld (Default „Investorenupdate <Monat Jahr>") und Sichern-Button. Ein gewählter Stand ersetzt Matrix, Fremdkosten-Posten, Sonderzeilen und den Zahlungsstand-Block durch die eingefrorenen Werte; ein Banner nennt Datum und Label und weist darauf hin, dass die Live-Werte inzwischen abweichen können. Sicht- und Metrik-Umschalter funktionieren auch auf eingefrorenen Daten, weil beide Sichten im Payload liegen.
 
-### Schritt 9 — Datenqualitätsanzeige
+**Bewusst nicht:** Delta-Badges gegenüber einem Berichtsstand. Der eingefrorene Stand ist die technische Voraussetzung dafür, die Anzeige selbst ist ein eigener Schritt.
 
-Liste der Kampagnen mit einem Pflegegrad, aufklappbar zu den konkreten Mängeln, sortiert nach betroffenem Geldvolumen. Die erste Fassung prüft ausschließlich, was Finanzzahlen verfälscht:
+**Tests:** `src/__tests__/Berichtsstand.test.js` (Payload-Form, Sichern, Listen, Laden, Fehler) und drei Seitentests in `StakeholderOverviewPage.test.js` (Leiste sichtbar, Sichern mit versioniertem Payload, eingefrorenes Rendern inklusive Rückweg zur Live-Ansicht).
+
+### Schritt 8 — Adminbereich ✅ umgesetzt
+
+- Button in `index.html` innerhalb von `.header-actions`, **links vom** `.education-btn` (Schild-Icon, nur für Admins sichtbar — Einblendung in `setupHeaderUI`).
+- Route `/admin`, abgesichert über das vorhandene `permissionSystem.isAdmin` (Guard in `AdminPage.init`, wie bei der Stakeholder-Seite). Die Hülle (`src/modules/admin/AdminPage.js`) kennt die Unterseiten und delegiert; `/admin` ohne Unterseite zeigt die Datenqualitätsanzeige.
+- Reduzierte Navigation: das `NavigationSystem` kennt neben der Hauptnavigation einen Admin-Sektionssatz (Datenqualität, Stakeholder, Mitarbeiter, Kunden, Unternehmen, Geteilte Listen, KI-Nutzung, dazu „Zurück zur App"). Der Bereich hängt am Pfad-Präfix `/admin` — damit überlebt er Reload und Browser-Zurück — und wird über `syncWithRoute` aus der `ModuleRegistry` synchronisiert, damit auch Header-Buttons und `popstate` umschalten. Die Admin-Nav-Punkte liegen unter `/admin/...` (Alias auf das jeweilige Modul, analog `/admin/kunden`), damit ein Klick auf Stakeholder oder Unternehmen den Bereich nicht verlässt.
+- Die volle Herunterbrechung aller Seiten in den Adminbereich bleibt out of scope; die Hülle und die Navigation sind angelegt.
+
+### Schritt 9 — Datenqualitätsanzeige ✅ umgesetzt
+
+Liste der Kampagnen mit einem Pflegegrad, aufklappbar zu den konkreten Mängeln, sortiert nach betroffenem Geldvolumen (`src/core/budget/datenqualitaet.js` für die Rechnung, `src/modules/admin/DatenqualitaetPage.js` für die Anzeige). Die erste Fassung prüft ausschließlich, was Finanzzahlen verfälscht. Die Regeln wurden an den Live-Daten kalibriert (2026-09-09); die Spalte „Stand bei Erstellung" bleibt als historischer Beleg stehen:
 
 | Prüfung | Stand bei Erstellung |
 |---|---|
@@ -124,6 +133,20 @@ Liste der Kampagnen mit einem Pflegegrad, aufklappbar zu den konkreten Mängeln,
 | Kooperationen mit offenem Restbetrag | 38 (91.879 €) |
 
 **Gleicher Ein- und Verkaufspreis ist ausdrücklich keine Prüfung.** Bei Influencer-Aufträgen verdient die Agentur über die Fee und reicht den Creatorpreis durch. Belegt über die Creatorrechnungen: Kooperationen mit durchgängig EK gleich VK haben 97,1 % ihres erfassten Einkaufspreises fakturiert, solche mit Spanne 99,5 % — wäre der EK ein kopierter VK, läge die erste Quote weit darunter. Eine solche Prüfung würde 475 Videos und 2,8 Mio. € als verdächtig melden und die Anzeige damit entwerten.
+
+**Umgesetzte Prüfregeln (2026-09-09 an den Live-Daten kalibriert):**
+
+- **Videos ohne EK/VK:** Preis fehlt oder ist 0. Betroffenes Volumen ist der VK des Videos (fehlt auch der, der EK).
+- **Kaum erfasster Einkauf:** fakturierter Betrag > 0 und das erfasste Soll (Video-EK bzw. Kooperations-EK, Konvention aus `koopFakturierung.js`) deckt weniger als 50 % der Fakturierung. Volumen ist die Lücke.
+- **Videos ohne Kampagnenart:** nur in gemischten Aufträgen — nur dort verfälscht die fehlende Art die Bereichs-Zuordnung.
+- **Auftrag ohne Kampagnenart-Block:** Entwürfe und Contracting ausgenommen (Contracting braucht keinen Block). Volumen ist der Nettobetrag.
+- **Gemischt ohne Block-Umsatz:** mehrere Leistungsbereiche über die Blöcke, aber kein `umsatz_netto` gepflegt — der Auftrag ist nicht anteilig aufteilbar.
+- **Unmögliches Rechnungsdatum:** `gestellt_am` vor 2020. Volumen ist das Honorar (netto + steuerfrei), dieselbe Definition wie die Sonderzeile der Monatsauswertung.
+- **Offener Restbetrag:** Restbetrag > 0 und mindestens eine Creatorrechnung vorhanden — angefangen, aber nicht zu Ende fakturiert. Entscheidend ist das Vorhandensein einer Rechnung, nicht ihr Betrag (auch eine 0-€-Rechnung zählt als angefangen). Ohne Rechnung ist „noch nichts fakturiert" der Normalzustand und kein Mangel dieser Anzeige. (Trifft sich exakt mit dem Stand 38 Fälle / 91.879 € aus der Analyse.)
+
+**Pflegegrad:** Anteil fehlerfreier geprüfter Einheiten je Kampagne. Einheiten sind Videos (immer geprüft), Kooperationen (geprüft, sobald eine Rechnung existiert), Aufträge (geprüft, außer Contracting) und Rechnungen (geprüft, sobald ein Gestellt-Datum existiert). Kampagnen ohne prüfbare Einheiten tauchen nicht auf; vollständig gepflegte Kampagnen erscheinen mit 100 % am Ende der Liste. Befunde ohne Kampagne sammelt die Gruppe „Ohne Kampagne" (ADR 0007: nichts verschwindet). Auftrags-Level-Befunde werden jeder Kampagne des Auftrags zugeordnet (betrifft aktuell 9 Aufträge mit mehreren Kampagnen). Die Prüfungs-Karten und die Gesamtsummen zählen denselben Fall dagegen nur einmal (dedupliziert), damit sie mit den kalibrierten Fallzahlen übereinstimmen; die Kampagnen-Zeilen tragen das Volumen bewusst je Zuordnung.
+
+**Tests:** `src/__tests__/Datenqualitaet.test.js` (alle acht Regeln, Pflegegrad, Entwurfsfilter, Vollständigkeit der Summen, EK=VK ist kein Mangel), `src/__tests__/AdminPage.test.js` (Guard, Rendern, Aufklappen, Navigation, Erfolgszustand), `src/__tests__/NavigationAdmin.test.js` (Bereichswechsel, Alias-Route, aktive Markierung).
 
 ## Testing Decisions
 
@@ -150,7 +173,7 @@ Getestet wird das Ergebnis, nicht der Rechenweg.
 - Teilrechnungen für Creatorrechnungen ([ADR 0004](adr/0004-teilrechnungen-ueber-restbetrag.md), [ADR 0005](adr/0005-teilrechnungen-kunde-geplant-creator-frei.md)) — eigenes Vorhaben, nicht Teil dieser Übersicht.
 - Prozessmängel in der Datenqualitätsanzeige: fehlende Freigaben, überfällige Deadlines, fehlende Verträge. Kommen dazu, wenn die Teams die Anzeige mitbenutzen.
 - Zugang der Teams zur Datenqualitätsanzeige. Zunächst nur Administration.
-- Der vollständige Adminbereich mit allen heruntergebrochenen Seiten von Dashboard bis KI-Nutzung. Schritt 6 legt nur die Hülle und die Navigation an.
+- Der vollständige Adminbereich mit allen heruntergebrochenen Seiten von Dashboard bis KI-Nutzung. Schritt 8 legt nur die Hülle und die Navigation an.
 - Nachpflegen der Daten selbst. Die Anzeige benennt die Fälle, korrigiert werden sie von den Teams.
 
 ## Further Notes

@@ -205,6 +205,8 @@ describe('SplitButton', () => {
     }
     const ugc = SplitButtonConfig.resolveItems(SplitButtonConfig.get('ugc-contract-submit')).map((i) => i.id);
     expect(ugc).toEqual(['legacy-de', 'legacy-en', 'v2', 'separator', 'draft', 'submit-and-new']);
+    const ugcEhg = SplitButtonConfig.resolveItems(SplitButtonConfig.get('ugc-contract-submit-ehg')).map((i) => i.id);
+    expect(ugcEhg).toEqual(['legacy-de', 'legacy-en', 'ehg-de', 'ehg-en', 'separator', 'draft', 'submit-and-new']);
     const influencer = SplitButtonConfig.resolveItems(SplitButtonConfig.get('influencer-contract-submit')).map((i) => i.id);
     expect(influencer).toEqual(['legacy-de', 'legacy-en', 'awareness-de', 'awareness-en', 'separator', 'draft', 'submit-and-new']);
   });

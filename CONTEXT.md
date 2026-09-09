@@ -42,14 +42,31 @@ Art des Vertrags: UGC, Influencer Kooperation, Videograph, Model oder Contractin
 _Avoid_: Template (das ist das Vertragstemplate)
 
 **Vertragstemplate**:
-Die PDF-Variante innerhalb des Vertragstyps Influencer Kooperation: Standard oder Direktvertrag.
+Die PDF-Variante innerhalb eines Vertragstyps. Bei Influencer Kooperation: Standard oder Direktvertrag.
+Bei UGC: Alter Vertrag, Neuer Vertrag oder EHG-Vertrag. Bei EHG GmbH & Co. KG entfällt Neuer Vertrag.
 _Avoid_: Vertragstyp, Layout
 
 **Direktvertrag**:
 Vertragstemplate der Influencer Kooperation, bei dem der Kunde (z.B. BURGA, UAB Hautica) direkt
 Vertragspartei des Influencers ist. LikeGroup tritt nicht als Vertragspartei auf.
 Wird nur bei diesen Kunden angeboten. Hat einen Anhang pro gebuchter Plattform (Anhang A, B, ...).
-_Avoid_: Awareness-Vertrag, BURGA-Vertrag
+_Avoid_: Awareness-Vertrag, BURGA-Vertrag, EHG-Vertrag
+
+**EHG-Vertrag**:
+UGC-Vertragstemplate nur für EHG GmbH & Co. KG. Vertragsparteien sind Agentur und Creator;
+EHG ist Drittbegünstigte. Das Deckblatt folgt dem UGC-Standard plus Block Drittbegünstigte;
+Vertragstext und Projektblatt folgen der EHG-Vorlage, einsprachig DE oder EN.
+_Avoid_: Direktvertrag, Ernstings-Vertrag, UTC-Vertrag, Kundenvertrag
+
+**Drittbegünstigte**:
+Partei, die aus dem EHG-Vertrag eigene Rechte erwirbt, ohne Vertragspartei zu sein. Immer
+EHG GmbH & Co. KG. Steht auf dem Deckblatt zusätzlich zu den Kundendaten.
+_Avoid_: Kunde, Dritte
+
+**Projektblatt**:
+Anlage zum EHG-Vertrag. Legt Leistung, Nutzung, Gebiet, Dauer und Vergütung fest; bei Abweichungen
+geht es dem Vertragstext vor.
+_Avoid_: Anhang, Briefing
 
 **Briefing**:
 Das Aktivierungsdokument eines Unternehmens, optional einer Marke. Verbindliche Grundlage
@@ -149,3 +166,26 @@ _Avoid_: Direkte Kosten, Creator-Kosten, COGS
 Eine gestellte Rechnung, deren Zahlung eingegangen ist. Derselbe Begriff gilt fuer Kunden- und
 Creatorrechnungen, auch wenn die Speicherung ihn in zwei Woertern festhaelt.
 _Avoid_: Überwiesen, beglichen, erledigt
+
+**Berichtsstand**:
+Ein eingefrorener Stand der Stakeholder-Finanzuebersicht (Monatsauswertung und Zahlungsstand), der
+belegt, worauf ein verschicktes Update beruhte. Die Ansicht rechnet immer live; ein Berichtsstand
+wird nie korrigiert, sondern durch einen neuen Stand ersetzt.
+_Avoid_: Snapshot, Report, Export
+
+**Adminbereich**:
+Eigener Bereich unter /admin, nur fuer Admins. Reduzierte Navigation auf die fuer die
+Administration relevanten Seiten (Datenqualitaet, Stakeholder, Mitarbeiter, Kunden,
+Unternehmen, Geteilte Listen, KI-Nutzung); Einstieg ueber den Schild-Button in der Kopfzeile.
+_Avoid_: Backend, Admin-Panel, Einstellungen
+
+**Datenqualitaetsanzeige**:
+Seite im Adminbereich, die Pflegemaengel an Finanzdaten nach Kampagne gruppiert und nach
+betroffenem Geldvolumen sortiert zeigt. Sie benennt die Faelle; korrigiert wird von den Teams.
+Gleicher Ein- und Verkaufspreis ist bewusst kein Mangel (Fee-Modell).
+_Avoid_: Qualitaetsdashboard, Fehlerliste, Audit
+
+**Pflegegrad**:
+Anteil fehlerfreier gepruefter Einheiten (Videos, Kooperationen, Auftraege, Rechnungen) einer
+Kampagne in der Datenqualitaetsanzeige. 100 % heisst: alles Gepruefte ist vollstaendig gepflegt.
+_Avoid_: Score, Qualitaetsindex, Ampel

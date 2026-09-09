@@ -1,7 +1,20 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { StakeholderOverviewPage, elapsedRatio, groupRowsByKundeMarke } from '../modules/stakeholder/StakeholderOverviewPage.js';
+import { calculateMonatsauswertung } from '../core/budget/monatsauswertung.js';
+import { calculateRechnungsstatus } from '../core/budget/rechnungsstatus.js';
 
-function createMockSupabase({ auftraege = [], blocks = [], kampagnen = [], kooperationen = [], videos = [], details = [], unternehmen = [], rechnungen = [], teilrechnungen = [] }) {
+// Jede Page bindet document-weite Listener und rendert in das globale
+// window.content. Ohne Cleanup reagieren Pages aus frueheren Tests auf
+// Events spaeterer Tests und ueberschreiben deren DOM. Deshalb zentral
+// registrieren und nach jedem Test zerstoeren.
+const createdPages = [];
+function createPage() {
+  const page = new StakeholderOverviewPage();
+  createdPages.push(page);
+  return page;
+}
+
+function createMockSupabase({ auftraege = [], blocks = [], kampagnen = [], kooperationen = [], videos = [], details = [], unternehmen = [], rechnungen = [], teilrechnungen = [], berichtsstaende = [], berichtsstandById = null, onBerichtsstandInsert = null } = {}) {
   const tableData = {
     auftrag: { data: auftraege, error: null },
     auftrag_kampagnenart_blocks: { data: blocks, error: null },
@@ -16,14 +29,43 @@ function createMockSupabase({ auftraege = [], blocks = [], kampagnen = [], koope
 
   // fetchAllRows kettet select().order().range(); die erste Seite liefert
   // hier immer alle Mock-Zeilen (< 1000), also stoppt die Pagination.
+  // berichtsstand hat eigene Ketten: Liste (select().order()), einzelner
+  // Stand (select().eq().single()) und Sichern (insert().select().single()).
   return {
-    from: vi.fn((table) => ({
-      select: vi.fn(() => ({
-        order: vi.fn(() => ({
-          range: vi.fn(() => Promise.resolve(tableData[table] || { data: [], error: null }))
+    from: vi.fn((table) => {
+      if (table === 'berichtsstand') {
+        return {
+          select: vi.fn(() => ({
+            order: vi.fn(() => Promise.resolve({ data: berichtsstaende, error: null })),
+            eq: vi.fn(() => ({
+              single: vi.fn(() => Promise.resolve(
+                berichtsstandById
+                  ? { data: berichtsstandById, error: null }
+                  : { data: null, error: new Error('nicht gefunden') }
+              ))
+            }))
+          })),
+          insert: vi.fn((row) => {
+            onBerichtsstandInsert?.(row);
+            return {
+              select: vi.fn(() => ({
+                single: vi.fn(() => Promise.resolve({
+                  data: { id: 'b-neu', created_at: '2026-09-09T12:00:00Z', label: row.label },
+                  error: null
+                }))
+              }))
+            };
+          })
+        };
+      }
+      return {
+        select: vi.fn(() => ({
+          order: vi.fn(() => ({
+            range: vi.fn(() => Promise.resolve(tableData[table] || { data: [], error: null }))
+          }))
         }))
-      }))
-    }))
+      };
+    })
   };
 }
 
@@ -37,9 +79,14 @@ describe('StakeholderOverviewPage', () => {
     window.validatorSystem = { sanitizeHtml: (v) => v || '' };
   });
 
+  afterEach(() => {
+    while (createdPages.length) createdPages.pop().destroy();
+    window.content?.remove();
+  });
+
   it('zeigt Zugriffsfehler für Nicht-Admins', async () => {
     window.isAdmin = vi.fn(() => false);
-    const page = new StakeholderOverviewPage();
+    const page = createPage();
     await page.init();
     expect(window.setContentSafely).toHaveBeenCalledWith(
       window.content,
@@ -105,14 +152,16 @@ describe('StakeholderOverviewPage', () => {
 
     window.supabase = createMockSupabase({ auftraege, blocks, kampagnen, kooperationen, videos, details, unternehmen });
 
-    const page = new StakeholderOverviewPage();
+    const page = createPage();
     await page.init();
 
     expect(window.setHeadline).toHaveBeenCalledWith('Stakeholder-Übersicht');
     // init() zeigt zuerst Loading, dann das gerenderte HTML
     const html = window.setContentSafely.mock.calls[1][1];
 
-    // Tabs vorhanden
+    // Leistungsbereich als Formular-Select (wie Zeitraum daneben)
+    expect(html).toContain('id="stakeholder-tab-select"');
+    expect(html).toContain('form-select');
     expect(html).toContain('GESAMT');
     expect(html).toContain('INFLUENCER MARKETING');
     expect(html).toContain('UGC PAID');
@@ -195,7 +244,7 @@ describe('StakeholderOverviewPage', () => {
 
     window.supabase = createMockSupabase({ auftraege, blocks, kampagnen, kooperationen, rechnungen });
 
-    const page = new StakeholderOverviewPage();
+    const page = createPage();
     await page.init();
 
     // Umschalten auf die Monatsauswertung
@@ -203,7 +252,10 @@ describe('StakeholderOverviewPage', () => {
     page.render();
     const html = window.setContentSafely.mock.calls.at(-1)[1];
 
-    // Sicht- und Metrik-Umschalter
+    // Sicht- und Metrik-Umschalter (ViewModeToggle, wie Briefings Liste/Grid)
+    expect(html).toContain('btn-view-marge');
+    expect(html).toContain('btn-view-buchhaltung');
+    expect(html).toContain('btn-view-umsatz');
     expect(html).toContain('Margensicht');
     expect(html).toContain('Buchhaltungssicht');
     expect(html).toContain('Umsatz');
@@ -264,7 +316,7 @@ describe('StakeholderOverviewPage', () => {
 
     window.supabase = createMockSupabase({ auftraege, blocks, kampagnen, kooperationen, rechnungen });
 
-    const page = new StakeholderOverviewPage();
+    const page = createPage();
     await page.init();
     const html = window.setContentSafely.mock.calls[1][1];
 
@@ -286,6 +338,141 @@ describe('StakeholderOverviewPage', () => {
     expect(htmlMonate).toContain('Zahlungsstand');
   });
 
+  it('zeigt die Berichtsstand-Leiste in der Monatsauswertung', async () => {
+    window.supabase = createMockSupabase({
+      berichtsstaende: [{ id: 'b1', created_at: '2026-08-09T10:00:00Z', label: 'Investorenupdate August 2026' }]
+    });
+
+    const page = createPage();
+    await page.init();
+    page.activeView = 'monate';
+    page.render();
+    const html = window.setContentSafely.mock.calls.at(-1)[1];
+
+    expect(html).toContain('id="stakeholder-bericht-select"');
+    expect(html).toContain('form-select');
+    expect(html).toContain('form-input');
+    expect(html).toContain('class="mdc-btn"');
+    expect(html).toContain('Live-Ansicht');
+    expect(html).toContain('Investorenupdate August 2026');
+    expect(html).toContain('stakeholder-bericht-sichern');
+    expect(html).toContain('Investorenupdate'); // Default-Label im Eingabefeld
+    expect(html).not.toContain('stakeholder-bericht-btn');
+    expect(html).not.toContain('table-select');
+    // Live-Modus: kein Banner
+    expect(html).not.toContain('stakeholder-bericht-banner');
+  });
+
+  it('sichert den Live-Stand als Berichtsstand mit versioniertem Payload', async () => {
+    const auftraege = [
+      { id: 'a1', auftragsname: 'A', nettobetrag: 10000, start: '2026-03-01', is_draft: false, unternehmen_id: 'u1', rechnung_gestellt_am: '2026-03-15' }
+    ];
+    const blocks = [{ auftrag_id: 'a1', campaign_type: 'ugc_paid', campaign_type_label: 'UGC Paid', umsatz_netto: 10000 }];
+
+    let insertPayload = null;
+    window.toastSystem = { show: vi.fn() };
+    window.supabase = createMockSupabase({
+      auftraege, blocks,
+      onBerichtsstandInsert: (row) => { insertPayload = row; }
+    });
+    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
+    document.body.appendChild(window.content);
+
+    const page = createPage();
+    await page.init();
+    page.activeView = 'monate';
+    page.render();
+
+    document.getElementById('stakeholder-bericht-sichern')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    // Vollständig synchronisieren: die neu gesicherte Zeile erscheint erst
+    // im Select, wenn Sichern inklusive abschliessendem Render durch ist.
+    // Sonst schreibt ein spaeter Render dieser Page in das window.content
+    // des naechsten Tests.
+    await vi.waitFor(() => {
+      const values = [...document.getElementById('stakeholder-bericht-select').options]
+        .map(o => o.value);
+      expect(values).toContain('b-neu');
+    });
+    expect(insertPayload).not.toBeNull();
+
+    expect(insertPayload.label).toContain('Investorenupdate');
+    expect(insertPayload.daten.version).toBe(1);
+    expect(insertPayload.daten.monatsauswertung.months).toContain('2026-03');
+    expect(insertPayload.daten.zahlungsstand.kunden.gestellt).toBe(10000);
+    expect(window.toastSystem.show).toHaveBeenCalledWith(
+      expect.stringContaining('gesichert'), 'success'
+    );
+
+    page.destroy();
+    window.content.remove();
+  });
+
+  it('rendert einen gewählten Berichtsstand eingefroren statt live', async () => {
+    const auftraege = [
+      { id: 'a1', auftragsname: 'A', nettobetrag: 10000, start: '2026-03-01', is_draft: false, unternehmen_id: 'u1', rechnung_gestellt_am: '2026-03-15' }
+    ];
+    const blocks = [{ auftrag_id: 'a1', campaign_type: 'ugc_paid', campaign_type_label: 'UGC Paid', umsatz_netto: 10000 }];
+
+    // Eingefrorener Stand mit abweichendem Wert (99.999 statt 10.000),
+    // erzeugt ueber die echte Berechnung auf einem anderen Datensatz.
+    const frozenAuftraege = [
+      { id: 'a1', auftragsname: 'A', nettobetrag: 99999, start: '2026-03-01', is_draft: false, unternehmen_id: 'u1', rechnung_gestellt_am: '2026-03-15' }
+    ];
+    const frozenBlocks = [{ auftrag_id: 'a1', campaign_type: 'ugc_paid', campaign_type_label: 'UGC Paid', umsatz_netto: 99999 }];
+    const frozen = {
+      version: 1,
+      monatsauswertung: calculateMonatsauswertung({
+        auftraege: frozenAuftraege, blocks: frozenBlocks,
+        kampagnen: [], kooperationen: [], videos: [], rechnungen: [], teilrechnungen: []
+      }),
+      zahlungsstand: calculateRechnungsstatus({
+        auftraege: frozenAuftraege, kampagnen: [], kooperationen: [],
+        videos: [], rechnungen: [], teilrechnungen: []
+      })
+    };
+
+    window.supabase = createMockSupabase({
+      auftraege, blocks,
+      berichtsstaende: [{ id: 'b1', created_at: '2026-08-09T10:00:00Z', label: 'Investorenupdate August 2026' }],
+      berichtsstandById: { id: 'b1', created_at: '2026-08-09T10:00:00Z', label: 'Investorenupdate August 2026', daten: frozen }
+    });
+    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
+    document.body.appendChild(window.content);
+
+    const page = createPage();
+    await page.init();
+    page.activeView = 'monate';
+    page.render();
+
+    const berichtSelect = document.getElementById('stakeholder-bericht-select');
+    berichtSelect.value = 'b1';
+    berichtSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => {
+      expect(window.content.innerHTML).toContain('stakeholder-bericht-banner');
+    });
+
+    const html = window.content.innerHTML;
+    expect(html).toContain('Berichtsstand vom 09.08.2026');
+    expect(html).toContain('Investorenupdate August 2026');
+    expect(html).toContain('eingefroren');
+    // Matrix und Zahlungsstand zeigen die eingefrorenen Werte
+    expect(html).toContain('99.999,00');
+    expect(html).toContain('eingefrorener Berichtsstand');
+
+    // Zurueck zur Live-Ansicht
+    const liveSelect = document.getElementById('stakeholder-bericht-select');
+    liveSelect.value = 'live';
+    liveSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => {
+      expect(window.content.innerHTML).not.toContain('stakeholder-bericht-banner');
+    });
+    expect(window.content.innerHTML).toContain('10.000,00');
+
+    page.destroy();
+    window.content.remove();
+  });
+
   it('filtert Aufträge nach Zeitraum', async () => {
     const auftraege = [
       { id: 'a1', auftragsname: 'Alt', nettobetrag: 1000, start: '2025-01-01', is_draft: false, unternehmen_id: 'u1' },
@@ -300,7 +487,7 @@ describe('StakeholderOverviewPage', () => {
     window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
     document.body.appendChild(window.content);
 
-    const page = new StakeholderOverviewPage();
+    const page = createPage();
     await page.init();
 
     expect(window.content.innerHTML).toContain('Jan. 2025');
@@ -378,7 +565,7 @@ describe('StakeholderOverviewPage', () => {
 
     window.supabase = createMockSupabase({ auftraege, blocks, kampagnen, kooperationen, videos, details, unternehmen });
 
-    const page = new StakeholderOverviewPage();
+    const page = createPage();
     await page.init();
     const { rows, totals } = page.aggregate();
 
@@ -438,19 +625,23 @@ describe('StakeholderOverviewPage', () => {
     const unternehmen = [{ id: 'u1', firmenname: 'Beispiel AG' }];
 
     window.supabase = createMockSupabase({ auftraege, blocks, kampagnen, kooperationen, videos, details, unternehmen });
+    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
+    document.body.appendChild(window.content);
 
-    const page = new StakeholderOverviewPage();
+    const page = createPage();
     await page.init();
 
-    // Wechsel zu Influencer-Tab
-    page.activeTab = 'influencer_marketing';
-    page.render();
-    const html = window.setContentSafely.mock.calls[2][1];
+    const tabSelect = document.getElementById('stakeholder-tab-select');
+    tabSelect.value = 'influencer_marketing';
+    tabSelect.dispatchEvent(new Event('change', { bubbles: true }));
 
-    expect(html).toContain('Offenes Creator Budget');
-    expect(html).not.toContain('Verfügbares Budget');
+    expect(window.content.innerHTML).toContain('Offenes Creator Budget');
+    expect(window.content.innerHTML).not.toContain('Verfügbares Budget');
     // Offenes Creator Budget = 44000 - 3000 = 41000
-    expect(html).toContain('41.000,00');
+    expect(window.content.innerHTML).toContain('41.000,00');
+
+    page.destroy();
+    window.content.remove();
   });
 
   it('berechnet DB als Agenturanteil (Verbraucht − Creator − KSK − Zusatz)', async () => {
@@ -481,7 +672,7 @@ describe('StakeholderOverviewPage', () => {
 
     window.supabase = createMockSupabase({ auftraege, blocks, kampagnen, kooperationen, videos, details, unternehmen });
 
-    const page = new StakeholderOverviewPage();
+    const page = createPage();
     await page.init();
 
     const { totals } = page.aggregate();
@@ -531,7 +722,7 @@ describe('StakeholderOverviewPage', () => {
 
     window.supabase = createMockSupabase({ auftraege, blocks, kampagnen, kooperationen, videos, details, unternehmen, rechnungen });
 
-    const page = new StakeholderOverviewPage();
+    const page = createPage();
     await page.init();
 
     const { totals } = page.aggregate();
@@ -563,7 +754,7 @@ describe('StakeholderOverviewPage', () => {
 
     window.supabase = createMockSupabase({ auftraege, blocks, unternehmen });
 
-    const page = new StakeholderOverviewPage();
+    const page = createPage();
     await page.init();
 
     const html = window.setContentSafely.mock.calls[1][1];
@@ -599,7 +790,7 @@ describe('StakeholderOverviewPage', () => {
     const unternehmen = [{ id: 'u1', firmenname: 'Contract GmbH' }];
     window.supabase = createMockSupabase({ auftraege, unternehmen });
 
-    const page = new StakeholderOverviewPage();
+    const page = createPage();
     await page.init();
     const { totals } = page.aggregate();
 
@@ -672,7 +863,7 @@ describe('StakeholderOverviewPage', () => {
     const unternehmen = [{ id: 'u1', firmenname: 'SharkNinja Germany GmbH' }];
     window.supabase = createMockSupabase({ auftraege, blocks, unternehmen });
 
-    const page = new StakeholderOverviewPage();
+    const page = createPage();
     await page.init();
     const html = window.setContentSafely.mock.calls[1][1];
     const kundenCard = html.split('Kunden nach Umsatz')[1] || '';
@@ -696,7 +887,7 @@ describe('StakeholderOverviewPage', () => {
 
     window.supabase = createMockSupabase({ auftraege, blocks, unternehmen });
 
-    const page = new StakeholderOverviewPage();
+    const page = createPage();
     await page.init();
 
     const html = window.setContentSafely.mock.calls[0][1];
@@ -720,7 +911,7 @@ describe('StakeholderOverviewPage', () => {
     window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
     document.body.appendChild(window.content);
 
-    const page = new StakeholderOverviewPage();
+    const page = createPage();
     await page.init();
 
     const nettoEl = () => window.content.querySelector('[data-paid-value="netto"]');

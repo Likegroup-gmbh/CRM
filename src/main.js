@@ -34,6 +34,7 @@ import '../assets/styles/tabellen.css';
 import '../assets/styles/toast.css';
 import '../assets/styles/share.css';
 import '../assets/styles/stakeholder.css';
+import '../assets/styles/admin.css';
 import '../assets/styles/skripte.css';
 import '../assets/styles/chat-thinking.css';
 import '../assets/styles/chat-panel.css';
@@ -129,6 +130,7 @@ import { vertraegeCreate } from './modules/vertrag/create/VertraegeCreate.js';
 import { projektErstellenModule } from './modules/projekt-erstellen/ProjektErstellenModule.js';
 import { transcribeTestPage } from './modules/transcribe/TranscribeTestPage.js';
 import { stakeholderOverviewPage } from './modules/stakeholder/StakeholderOverviewPage.js';
+import { adminPage } from './modules/admin/AdminPage.js';
 import { skriptePage } from './modules/skripte/SkriptePage.js';
 import { sharesAdminPage } from './modules/shares/SharesAdminPage.js';
 import { kiUsagePage } from './modules/ki-usage/KiUsagePage.js';
@@ -220,6 +222,7 @@ window.moduleRegistry = moduleRegistry;
   moduleRegistry.register('ausgangsrechnungen', ausgangsrechnungenList);
   moduleRegistry.register('transcribe', transcribeTestPage);
   moduleRegistry.register('stakeholder', stakeholderOverviewPage);
+  moduleRegistry.register('admin', adminPage);
   moduleRegistry.register('shares', sharesAdminPage);
   moduleRegistry.register('ki-usage', kiUsagePage);
   moduleRegistry.register('skripte', skriptePage);
@@ -590,6 +593,20 @@ window.setupHeaderUI = () => {
         e.preventDefault();
         moduleRegistry.navigateTo('/education');
       });
+    }
+
+    // Adminbereich-Button (PRD Schritt 8): nur fuer Admins sichtbar,
+    // steht in index.html links vom Education-Button.
+    const adminBtn = document.querySelector('.admin-btn');
+    if (adminBtn) {
+      adminBtn.style.display = window.isAdmin?.() ? '' : 'none';
+      if (!adminBtn.dataset.bound) {
+        adminBtn.dataset.bound = 'true';
+        adminBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          moduleRegistry.navigateTo('/admin');
+        });
+      }
     }
 
     // Kick-Off Button entfernt — Kick-Off wird jetzt über Unternehmen/Marke Create-Flow oder Detail-Seite erstellt

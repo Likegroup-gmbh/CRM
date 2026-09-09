@@ -12,7 +12,7 @@
 
 import { KampagneUtils } from '../../kampagne/KampagneUtils.js';
 import CONFIG from '../../../core/ConfigSystem.js';
-import { expandParagraphZusaetze, expandAwarenessFelder } from './paragraphZusatz.js';
+import { expandParagraphZusaetze, expandAwarenessFelder, expandEhgFelder } from './paragraphZusatz.js';
 
 export class VertraegeCreate {
   constructor() {
@@ -296,9 +296,13 @@ VertraegeCreate.prototype.loadDraftFromDB = async function(draftId) {
           // Zusätzliche Bestimmungen pro Paragraph: JSONB -> flache paragraph_zusatz_*-Felder
           ...expandParagraphZusaetze(draft.paragraph_zusaetze),
           // Awareness-Template-Felder: JSONB -> flache Formularfelder
-          ...expandAwarenessFelder(draft.awareness_felder)
+          ...expandAwarenessFelder(draft.awareness_felder),
+          ...expandEhgFelder(draft.ehg_felder)
         };
         this.selectedTyp = draft.typ;
+        if (typeof this.loadEhgKundenStammdaten === 'function' && this.formData.typ === 'UGC') {
+          await this.loadEhgKundenStammdaten();
+        }
         this.isGenerated = true;
         this.currentStep = 2; // Start bei Schritt 2 da Typ schon gewählt
         
@@ -359,7 +363,7 @@ VertraegeCreate.prototype.loadStammdaten = async function() {
       // Lade Kampagnen mit Unternehmen-ID + Marke (für Dropbox-Pfad bei PDF-Upload)
       const { data: kampagnen } = await window.supabase
         .from('kampagne')
-        .select('id, kampagnenname, eigener_name, unternehmen_id, auftrag_id, marke:marke_id(markenname)')
+        .select('id, kampagnenname, eigener_name, unternehmen_id, auftrag_id, marke_id, marke:marke_id(id, markenname)')
         .order('kampagnenname');
       
       this.kampagnen = kampagnen || [];

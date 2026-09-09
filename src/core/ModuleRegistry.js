@@ -109,9 +109,28 @@ export class ModuleRegistry {
       }
     }
 
+    // Pfad vor den Alias-Rewrites merken: die Navigations-Bereichswahl
+    // (Haupt- vs. Adminbereich) haengt am sichtbaren Pfad, nicht am
+    // internen Modul-Namen (z. B. /admin/kunden -> kunden-admin).
+    const navPath = String(route || '').split(/[?#]/)[0];
+
     try {
-      if (route.startsWith('/admin/kunden')) {
-        route = route.replace('/admin/kunden', '/kunden-admin');
+      // Admin-Nav-Punkte liegen unter /admin/..., die Module selbst aber
+      // unter ihrem bisherigen Pfad. Rewrite nur fuer diese Aliase —
+      // /admin und /admin/datenqualitaet bleiben bei der Admin-Huelle.
+      // navPath oben bleibt der sichtbare /admin-Pfad, damit die Sidebar
+      // im Adminbereich bleibt.
+      const ADMIN_ALIASES = {
+        kunden: '/kunden-admin',
+        stakeholder: '/stakeholder',
+        mitarbeiter: '/mitarbeiter',
+        shares: '/shares',
+        'ki-usage': '/ki-usage',
+        unternehmen: '/unternehmen',
+      };
+      const adminAlias = String(route || '').match(/^\/admin\/([^/?#]+)(.*)$/);
+      if (adminAlias && ADMIN_ALIASES[adminAlias[1]]) {
+        route = ADMIN_ALIASES[adminAlias[1]] + adminAlias[2];
       } else if (route === '/kunde' || route.startsWith('/kunde/')) {
         // Aktionsmenü baut /kunde/:id(/edit) — das Modul heißt kunden-admin / kunden-detail.
         route = `/kunden-admin${route.slice('/kunde'.length)}`;
@@ -189,6 +208,11 @@ export class ModuleRegistry {
     if (window.breadcrumbSystem?.setFromRoute) {
       window.breadcrumbSystem.setFromRoute(segment, id || null, { action: action || null });
     }
+
+    // Navigationsbereich (Haupt-Navigation vs. Adminbereich) mit der Route
+    // synchronisieren — auch bei Header-Buttons und Browser-Zurueck, die
+    // nicht durch das NavigationSystem selbst laufen.
+    window.navigationSystem?.syncWithRoute?.(navPath);
 
     let moduleKey = segment;
     let module = this.modules.get(moduleKey);

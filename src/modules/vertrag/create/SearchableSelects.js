@@ -64,6 +64,9 @@ VertraegeCreate.prototype.rebuildKampagneSelect = function(kundeId) {
         
         // Vertragsname automatisch generieren
         this.generateVertragName();
+        if (typeof this.updateEhgProjektblattKopf === 'function') {
+          this.updateEhgProjektblattKopf({ syncMarkeFromKampagne: true });
+        }
       });
     } else {
       // Fallback ohne Searchable Select
@@ -129,6 +132,7 @@ VertraegeCreate.prototype.rebuildCreatorSelect = function(enabled) {
         const creator = this.creators.find(c => c.id === id);
         if (creator) {
           this._applyCreatorProfiles(creator);
+          if (typeof this.updateEhgProjektblattKopf === 'function') this.updateEhgProjektblattKopf();
           await this._loadCreatorManagement(id);
         } else {
           const preview = document.getElementById('creator-adresse');
@@ -386,6 +390,9 @@ VertraegeCreate.prototype.initKampagneSearchableSelect = function() {
       
       // Vertragsname automatisch generieren
       this.generateVertragName();
+      if (typeof this.updateEhgProjektblattKopf === 'function') {
+        this.updateEhgProjektblattKopf({ syncMarkeFromKampagne: true });
+      }
     });
 };
 
@@ -458,6 +465,7 @@ VertraegeCreate.prototype._applyCreatorProfiles = function(creator) {
       profiles.push(`TikTok: @${handle}`);
     }
     this.formData.influencer_profile = profiles;
+    if (typeof this.updateEhgProjektblattKopf === 'function') this.updateEhgProjektblattKopf();
 };
 
 

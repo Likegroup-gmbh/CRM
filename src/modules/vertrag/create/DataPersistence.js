@@ -3,6 +3,7 @@
 
 import { VertraegeCreate } from './VertraegeCreateCore.js';
 import { collectParagraphZusaetze } from './paragraphZusatz.js';
+import { collectEhgFelder } from './EhgVertragGating.js';
 import { splitButton } from '../../../core/components/SplitButton.js';
 
 VertraegeCreate.prototype.saveDraftToDB = async function() {
@@ -302,6 +303,10 @@ VertraegeCreate.prototype.prepareDataForDB = function() {
         content_deadline: this.formData.content_deadline || null,
         abnahmedatum: this.formData.abnahmedatum || null
       });
+
+      if (typeof this.isEhgKunde === 'function' && this.isEhgKunde()) {
+        data.ehg_felder = collectEhgFelder(this.formData, (v) => this.parseCurrencyInput(v));
+      }
     }
 
     return data;
@@ -339,7 +344,7 @@ VertraegeCreate.prototype.saveCurrentStepData = function() {
     console.log('📋 FormData Einträge:', Array.from(formData.entries()));
     
     // Array-Felder die speziell behandelt werden müssen
-    const arrayFields = ['medien', 'plattformen', 'anpassungen', 'videograf_lieferumfang', 'videograf_nutzungsart', 'model_einsatzort_art', 'model_rolle', 'model_nutzungsarten', 'model_ki_nutzung', 'model_absage_regelung', 'contracting_content_formate', 'contracting_buyout_plattformen', 'contracting_buyout_art'];
+    const arrayFields = ['medien', 'plattformen', 'anpassungen', 'videograf_lieferumfang', 'videograf_nutzungsart', 'model_einsatzort_art', 'model_rolle', 'model_nutzungsarten', 'model_ki_nutzung', 'model_absage_regelung', 'contracting_content_formate', 'contracting_buyout_plattformen', 'contracting_buyout_art', 'ehg_lieferbestandteile', 'ehg_nutzungen', 'ehg_persoenlichkeitsrechte', 'ehg_unterlagen'];
     
     // Normale Felder (Array-Felder werden separat gesammelt)
     for (const [key, value] of formData.entries()) {
@@ -519,6 +524,9 @@ VertraegeCreate.prototype.handleSubmit = async function(e, startNewAfter = false
 
       // PDF generieren
       vertrag._pdfTemplate = this.formData.vertrag_template || 'legacy';
+      if (vertrag._pdfTemplate === 'ehg' && !vertrag.ehg_felder) {
+        vertrag.ehg_felder = collectEhgFelder(this.formData, (v) => this.parseCurrencyInput(v));
+      }
       await this.generatePDF(vertrag);
 
       window.toastSystem?.show(

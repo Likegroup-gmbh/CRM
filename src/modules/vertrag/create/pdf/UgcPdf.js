@@ -48,6 +48,9 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
     }
 
     const template = vertrag._pdfTemplate || this.formData?.vertrag_template || 'legacy';
+    if (template === 'ehg' && typeof this.generateEhgPDF === 'function') {
+      return this.generateEhgPDF(vertrag, lang);
+    }
     if (template === 'v2' && typeof this.generateUgcV2PDF === 'function') {
       return this.generateUgcV2PDF(vertrag, lang);
     }

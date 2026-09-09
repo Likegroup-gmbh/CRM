@@ -43,11 +43,14 @@ describe('NavigationSystem – Stammdaten ohne Marken-Liste', () => {
     expect(ansprechpartner).toBeGreaterThan(produkt);
   });
 
-  it('zeigt Stakeholder in der Admin-Sektion fuer Admins', () => {
+  it('zeigt Stakeholder nur im Adminbereich, nicht in der Hauptnavigation', () => {
     const nav = new NavigationSystem();
-    nav.renderNavigation();
+    nav.renderNavigation('/dashboard');
+    expect(document.getElementById('main-nav').innerHTML).not.toMatch(/href="\/stakeholder"/);
+
+    nav.syncWithRoute('/admin');
     const html = document.getElementById('main-nav').innerHTML;
-    expect(html).toMatch(/href="\/stakeholder"/);
+    expect(html).toMatch(/href="\/admin\/stakeholder"/);
     expect(html).toContain('>Stakeholder<');
   });
 

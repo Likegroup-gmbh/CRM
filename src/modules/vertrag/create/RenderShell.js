@@ -208,8 +208,12 @@ VertraegeCreate.prototype.getSubmitConfigId = function() {
         ? 'influencer-contract-submit'
         : 'influencer-contract-submit-standard';
     }
+    if (this.selectedTyp === 'UGC') {
+      return (typeof this.isEhgKunde === 'function' && this.isEhgKunde())
+        ? 'ugc-contract-submit-ehg'
+        : 'ugc-contract-submit';
+    }
     const map = {
-      'UGC': 'ugc-contract-submit',
       'Videograph': 'videograph-contract-submit',
       'Model': 'model-contract-submit',
       'Contracting': 'contracting-contract-submit'
@@ -220,7 +224,12 @@ VertraegeCreate.prototype.getSubmitConfigId = function() {
 VertraegeCreate.prototype.renderSubmitControl = function(isEdit) {
     let selectedId;
     if (this.selectedTyp === 'UGC') {
-      selectedId = this.formData.ugc_pdf_variant || 'legacy-de';
+      if (this.isEhgKunde() && this.formData.vertrag_template === 'ehg') {
+        selectedId = this.formData.vertragssprache === 'en' ? 'ehg-en' : 'ehg-de';
+      } else {
+        selectedId = this.formData.ugc_pdf_variant || 'legacy-de';
+        if (this.isEhgKunde() && selectedId === 'v2') selectedId = 'legacy-de';
+      }
     } else if (this.selectedTyp === 'Influencer Kooperation') {
       const template = this.isDirektvertragKunde() && this.formData.vertrag_template === 'awareness' ? 'awareness' : 'legacy';
       const lang = this.formData.vertragssprache === 'en' ? 'en' : 'de';
