@@ -97,7 +97,7 @@ export function bindEvents(list) {
     const viewBtn = e.target.closest('[data-action="view-strategie"]');
     if (viewBtn) {
       e.preventDefault();
-      window.navigateTo(`/strategie/${viewBtn.dataset.id}`);
+      window.navigateTo(`/konzepte/${viewBtn.dataset.id}`);
       return;
     }
 
@@ -117,14 +117,14 @@ export function bindEvents(list) {
 
     if (e.target.classList.contains('table-link') && e.target.dataset.table === 'strategie') {
       e.preventDefault();
-      window.navigateTo(`/strategie/${e.target.dataset.id}`);
+      window.navigateTo(`/konzepte/${e.target.dataset.id}`);
       return;
     }
 
     const row = e.target.closest('.table-row-clickable');
     if (row && !e.target.closest('.actions-dropdown-container') && !e.target.closest('.table-link')) {
       const id = row.dataset.strategieId;
-      if (id) window.navigateTo(`/strategie/${id}`);
+      if (id) window.navigateTo(`/konzepte/${id}`);
     }
   };
   document.addEventListener('click', globalClickHandler);

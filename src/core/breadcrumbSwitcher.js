@@ -232,7 +232,7 @@ export const SWITCHER_CONFIG = {
   strategie: {
     table: 'strategie',
     permKey: 'strategie',
-    routePrefix: '/strategie',
+    routePrefix: '/konzepte',
     labelField: 'name',
     searchFields: ['name'],
     resolveScope: () => scopeKampagneColumn('kampagne_id')
@@ -240,7 +240,7 @@ export const SWITCHER_CONFIG = {
   sourcing: {
     table: 'creator_auswahl',
     permKey: 'sourcing',
-    routePrefix: '/sourcing',
+    routePrefix: '/castings',
     labelField: 'name',
     searchFields: ['name'],
     resolveScope: () => scopeKampagneColumn('kampagne_id')
@@ -287,12 +287,21 @@ export const SWITCHER_CONFIG = {
   }
 };
 
+const SWITCHER_SEGMENT_ALIAS = {
+  konzepte: 'strategie',
+  castings: 'sourcing',
+};
+
+function resolveSwitcherSegment(segment) {
+  return SWITCHER_SEGMENT_ALIAS[segment] || segment;
+}
+
 export function getSwitcherConfig(segment) {
-  return SWITCHER_CONFIG[segment] || null;
+  return SWITCHER_CONFIG[resolveSwitcherSegment(segment)] || null;
 }
 
 export function hasSwitcherConfig(segment) {
-  return Boolean(SWITCHER_CONFIG[segment]);
+  return Boolean(getSwitcherConfig(segment));
 }
 
 export function nestedSwitcherContext(segment, id, ctx) {
@@ -316,7 +325,7 @@ export function shouldEnableSwitcher(segment, id, options = {}) {
   if (!id || id === 'new') return false;
   if (options.action) return false;
   if (options.isChild) return false;
-  const config = SWITCHER_CONFIG[segment];
+  const config = getSwitcherConfig(segment);
   if (!config) return false;
   const permKey = typeof config.permKey === 'function' ? config.permKey(options.context) : config.permKey;
   return canViewSwitcher(permKey);
@@ -379,7 +388,7 @@ async function runQuery(config, { search, scope }) {
 }
 
 export async function loadSwitcherItems({ segment, query = '', context } = {}) {
-  const config = SWITCHER_CONFIG[segment];
+  const config = getSwitcherConfig(segment);
   if (!config) return { items: [], error: null };
   const permKey = typeof config.permKey === 'function' ? config.permKey(context) : config.permKey;
   if (!canViewSwitcher(permKey)) return { items: [], error: null };

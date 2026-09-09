@@ -13,7 +13,7 @@ function canCreateStrategie() {
 
 function strategieCreateButtonHtml() {
   return canCreateStrategie()
-    ? '<button class="mdc-btn" data-action="create-strategie">Neue Strategie anlegen</button>'
+    ? '<button class="mdc-btn" data-action="create-strategie">Neues Konzept anlegen</button>'
     : '';
 }
 
@@ -36,7 +36,7 @@ export function renderCompaniesView(list) {
             ${icon('globe')}
             How to
           </button>` : ''}
-          ${canCreate ? `<button class="mdc-btn" data-action="create-strategie">Neue Strategie anlegen</button>` : ''}
+          ${canCreate ? `<button class="mdc-btn" data-action="create-strategie">Neues Konzept anlegen</button>` : ''}
         </div>
       </div>
 
@@ -55,7 +55,7 @@ function renderCompaniesTable() {
       <thead>
         <tr>
           <th>Unternehmen</th>
-          <th>Strategien</th>
+          <th>Konzepte</th>
         </tr>
       </thead>
       <tbody id="companies-table-body"></tbody>
@@ -70,8 +70,8 @@ export function updateCompaniesGrid(list) {
   if (list.companyFolders.length === 0) {
     grid.innerHTML = `<div class="grid-span-all">${renderEmptyState({
       icon: 'clipboard',
-      title: 'Keine Strategien vorhanden',
-      text: canCreateStrategie() ? 'Legen Sie Ihre erste Strategie an, um loszulegen.' : 'Es wurden noch keine Strategien für Sie freigegeben.',
+      title: 'Keine Konzepte vorhanden',
+      text: canCreateStrategie() ? 'Legen Sie Ihr erstes Konzept an, um loszulegen.' : 'Es wurden noch keine Konzepte für Sie freigegeben.',
       actionsHtml: strategieCreateButtonHtml()
     })}</div>`;
     return;
@@ -87,7 +87,7 @@ export function updateCompaniesGrid(list) {
       </div>
       <div class="folder-info">
         <span class="folder-name">${list.sanitize(folder.firmenname)}</span>
-        <span class="folder-count">${folder.count} ${folder.count === 1 ? 'Strategie' : 'Strategien'}</span>
+        <span class="folder-count">${folder.count} ${folder.count === 1 ? 'Konzept' : 'Konzepte'}</span>
       </div>
     </div>
   `).join('');
@@ -101,8 +101,8 @@ export function updateCompaniesTable(list) {
   if (list.companyFolders.length === 0) {
     tbody.innerHTML = renderEmptyStateRow({
       icon: 'clipboard',
-      title: 'Keine Strategien vorhanden',
-      text: canCreateStrategie() ? 'Legen Sie Ihre erste Strategie an, um loszulegen.' : 'Es wurden noch keine Strategien für Sie freigegeben.',
+      title: 'Keine Konzepte vorhanden',
+      text: canCreateStrategie() ? 'Legen Sie Ihr erstes Konzept an, um loszulegen.' : 'Es wurden noch keine Konzepte für Sie freigegeben.',
       actionsHtml: strategieCreateButtonHtml()
     }, 2);
     return;
@@ -140,18 +140,18 @@ export function renderBrandsView(list) {
         </div>
         <div class="table-actions">
           ${!isKunde ? `<button class="mdc-btn mdc-btn--secondary" data-action="how-to-strategie">How to</button>` : ''}
-          ${canCreate ? `<button class="mdc-btn" data-action="create-strategie">Neue Strategie anlegen</button>` : ''}
+          ${canCreate ? `<button class="mdc-btn" data-action="create-strategie">Neues Konzept anlegen</button>` : ''}
         </div>
       </div>
 
       ${showBrandsSection ? `
         <div class="table-container">
-          <h3 class="table-section-title">Strategien mit Marke</h3>
+          <h3 class="table-section-title">Konzepte mit Marke</h3>
           <table class="data-table">
             <thead>
               <tr>
                 <th>Marke</th>
-                <th>Strategien</th>
+                <th>Konzepte</th>
               </tr>
             </thead>
             <tbody id="brands-table-body"></tbody>
@@ -161,7 +161,7 @@ export function renderBrandsView(list) {
 
       ${showCompanyOnlySection ? `
         <div class="table-container table-container--spaced">
-          <h3 class="table-section-title">Strategien ohne Marke (nur Unternehmen)</h3>
+          <h3 class="table-section-title">Konzepte ohne Marke (nur Unternehmen)</h3>
           <table class="data-table">
             <thead>
               <tr>
@@ -186,7 +186,7 @@ export function updateBrandsTable(list) {
   if (list.brandFolders.length === 0) {
     tbody.innerHTML = renderEmptyStateRow({
       icon: 'tag',
-      title: 'Keine markenbezogenen Strategien vorhanden',
+      title: 'Keine markenbezogenen Konzepte vorhanden',
       actionsHtml: strategieCreateButtonHtml()
     }, 2);
     return;
@@ -256,7 +256,7 @@ export function updateCompanyOnlyTable(list) {
   if (list.companyOnlyItems.length === 0) {
     tbody.innerHTML = renderEmptyStateRow({
       icon: 'building',
-      title: 'Keine unternehmensweiten Strategien ohne Marke',
+      title: 'Keine unternehmensweiten Konzepte ohne Marke',
       actionsHtml: strategieCreateButtonHtml()
     }, 4);
     return;
@@ -281,7 +281,7 @@ export function renderItemsView(list) {
         </div>
         <div class="table-actions">
           ${!isKunde ? `<button class="mdc-btn mdc-btn--secondary" data-action="how-to-strategie">How to</button>` : ''}
-          ${canCreate ? `<button class="mdc-btn" data-action="create-strategie">Neue Strategie anlegen</button>` : ''}
+          ${canCreate ? `<button class="mdc-btn" data-action="create-strategie">Neues Konzept anlegen</button>` : ''}
         </div>
       </div>
       <div class="table-container">
@@ -295,7 +295,7 @@ export function renderItemsView(list) {
             </tr>
           </thead>
           <tbody id="strategien-table-body">
-            <tr><td colspan="4" class="table-empty-cell">Lade Strategien...</td></tr>
+            <tr><td colspan="4" class="table-empty-cell">Lade Konzepte...</td></tr>
           </tbody>
         </table>
       </div>
@@ -311,7 +311,7 @@ export function updateItemsTable(list) {
   if (list.currentItems.length === 0) {
     tbody.innerHTML = renderEmptyStateRow({
       icon: 'clipboard',
-      title: 'Keine Strategien für diese Marke vorhanden',
+      title: 'Keine Konzepte für diese Marke vorhanden',
       actionsHtml: strategieCreateButtonHtml()
     }, 4);
     list.pagination.updateTotal(0);

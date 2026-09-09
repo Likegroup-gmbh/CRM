@@ -44,7 +44,7 @@ export class StrategieDetail {
 
       if (window.breadcrumbSystem && this.strategie) {
         const crumbs = [
-          { label: 'Strategien', url: '/strategie', clickable: true }
+          { label: 'Konzepte', url: '/konzepte', clickable: true }
         ];
 
         if (this.strategie.unternehmen) {
@@ -52,7 +52,7 @@ export class StrategieDetail {
           const uId = this.strategie.unternehmen_id;
           crumbs.push({
             label: this.strategie.unternehmen.firmenname,
-            url: `/strategie?unternehmen=${uId}&unternehmen_name=${uName}`,
+            url: `/konzepte?unternehmen=${uId}&unternehmen_name=${uName}`,
             clickable: true
           });
         }
@@ -64,7 +64,7 @@ export class StrategieDetail {
           const mId = this.strategie.marke_id;
           crumbs.push({
             label: this.strategie.marke.markenname,
-            url: `/strategie?unternehmen=${uId}&unternehmen_name=${uName}&marke=${mId}&marke_name=${mName}`,
+            url: `/konzepte?unternehmen=${uId}&unternehmen_name=${uName}&marke=${mId}&marke_name=${mName}`,
             clickable: true
           });
         }
@@ -81,7 +81,7 @@ export class StrategieDetail {
       console.error('Fehler beim Laden der Strategie:', error);
       window.content.innerHTML = `
         <div class="error-message">
-          <p>Fehler beim Laden der Strategie</p>
+          <p>Fehler beim Laden des Konzepts</p>
         </div>
       `;
     }

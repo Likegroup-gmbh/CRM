@@ -110,7 +110,7 @@ const SEARCH_CONFIG = [
     searchFields: ['rechnung_nr', 'externe_angebotsnummer', 'status'],
     fieldLabels: { rechnung_nr: 'Rechnungsnr.', externe_angebotsnummer: 'Externe Angebotsnr.', status: 'Status' },
     icon: 'rechnung',
-    category: 'Content & Strategie',
+    category: 'Content & Konzepte',
     permKey: 'rechnung'
   }
 ];
@@ -775,7 +775,7 @@ export class GlobalSearch {
       if (!byCategory[it.category]) byCategory[it.category] = [];
       byCategory[it.category].push(it);
     });
-    const order = ['Stammdaten', 'Projektmanagement', 'Content & Strategie'];
+    const order = ['Stammdaten', 'Projektmanagement', 'Content & Konzepte'];
     let html = '';
     order.forEach((cat) => {
       const list = byCategory[cat];
