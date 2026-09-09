@@ -45,24 +45,24 @@ export function generatorFormMarkup(p) {
 
     <div class="skripte-card">
       <h3>Videovorlage (optional)</h3>
-      <p class="skripte-hint">Videos aus der Strategie dieser Kampagne. Mit Vorlage übernimmt Liky deren Aufbau und Machart (Hook-Typ, Dramaturgie, Pace, CTA-Mechanik) – aber keine Formulierungen oder Produktaussagen. Die Beschreibung füllt die Video-Idee; das Transkript bleibt bei der Vorlage.</p>
+      <p class="skripte-hint">Videos aus dem Konzept dieser Kampagne. Mit Vorlage übernimmt Liky deren Aufbau und Machart (Hook-Typ, Dramaturgie, Pace, CTA-Mechanik) – aber keine Formulierungen oder Produktaussagen. Die Beschreibung füllt die Video-Idee; das Transkript bleibt bei der Vorlage.</p>
       <div class="form-group">
-        <label class="form-label">Video aus Strategie</label>
+        <label class="form-label">Video aus Konzept</label>
         <select id="${p}-ref-item" class="form-input" disabled><option value="">– Erst Kampagne wählen –</option></select>
-        <span class="skripte-hint" id="${p}-ref-hint">Wähle eine Kampagne, dann ein Video aus deren Strategie.</span>
+        <span class="skripte-hint" id="${p}-ref-hint">Wähle eine Kampagne, dann ein Video aus deren Konzept.</span>
       </div>
       <div id="${p}-ref-result" hidden>
         <div id="${p}-ref-meta" class="skripte-ref-meta"></div>
         <div class="form-group">
           <label class="form-label">Transkript der Vorlage <span id="${p}-ref-source" class="skripte-hint"></span></label>
           <textarea id="${p}-ref-transkript" class="form-input" rows="6"
-            placeholder="Transkript aus der Strategie – prüfen/anpassen möglich"></textarea>
+            placeholder="Transkript aus dem Konzept – prüfen/anpassen möglich"></textarea>
         </div>
         <div class="skripte-form-grid">
           <div class="form-group">
             <label class="form-label">Beschreibung</label>
             <textarea id="${p}-ref-beschreibung" class="form-input" rows="3"
-              placeholder="Beschreibung aus der Strategie"></textarea>
+              placeholder="Beschreibung aus dem Konzept"></textarea>
           </div>
           <div class="form-group">
             <label class="form-label">Caption</label>

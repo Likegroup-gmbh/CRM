@@ -53,8 +53,8 @@ describe('GuestShareApp', () => {
 
     expect(window.__supabaseCreateClient).toHaveBeenCalled();
     expect(window.currentUser).toMatchObject({ rolle: 'gast', name: 'Pat', id: null });
-    expect(window.guestShare.allowedRoute).toBe(`/sourcing/${SHARE.entityId}`);
-    expect(window.moduleRegistry.navigateTo).toHaveBeenCalledWith(`/sourcing/${SHARE.entityId}`, true);
+    expect(window.guestShare.allowedRoute).toBe(`/castings/${SHARE.entityId}`);
+    expect(window.moduleRegistry.navigateTo).toHaveBeenCalledWith(`/castings/${SHARE.entityId}`, true);
     expect(document.getElementById('app-root').classList.contains('guest-mode')).toBe(true);
   });
 

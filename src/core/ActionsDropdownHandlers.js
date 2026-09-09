@@ -19,8 +19,8 @@ function getEntityDisplayName(entityType) {
     marke: 'die Marke',
     produkt: 'das Produkt',
     persona: 'die Persona',
-    strategie: 'die Strategie',
-    creator_auswahl: 'die Sourcing-Liste',
+    strategie: 'das Konzept',
+    creator_auswahl: 'die Casting-Liste',
     auftrag: 'den Auftrag',
     auftragsdetails: 'die Auftragsdetails',
     auftrag_details: 'die Auftragsdetails',
@@ -44,11 +44,11 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
         break;
       }
       if (entityType === 'strategie') {
-        window.navigateTo(`/strategie/${entityId}`);
+        window.navigateTo(`/konzepte/${entityId}`);
         break;
       }
       if (entityType === 'creator_auswahl') {
-        window.navigateTo(`/sourcing/${entityId}`);
+        window.navigateTo(`/castings/${entityId}`);
         break;
       }
       if (entityType === 'contract') {
@@ -68,11 +68,11 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
         break;
       }
       if (entityType === 'strategie') {
-        window.navigateTo(`/strategie/${entityId}/edit`);
+        window.navigateTo(`/konzepte/${entityId}/edit`);
         break;
       }
       if (entityType === 'creator_auswahl') {
-        window.navigateTo(`/sourcing/${entityId}/edit`);
+        window.navigateTo(`/castings/${entityId}/edit`);
         break;
       }
       if (entityType === 'auftrag' || entityType === 'contract') {
@@ -168,11 +168,11 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
       break;
 
     case 'view-strategie':
-      window.navigateTo(`/strategie/${entityId}`);
+      window.navigateTo(`/konzepte/${entityId}`);
       break;
 
     case 'edit-strategie':
-      window.navigateTo(`/strategie/${entityId}/edit`);
+      window.navigateTo(`/konzepte/${entityId}/edit`);
       break;
 
     case 'remove':
@@ -738,11 +738,11 @@ async function confirmDeletePersona(entityId) {
 }
 
 async function confirmDeleteStrategieStandalone(entityId) {
-  const message = 'Möchten Sie diese Strategie wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.';
+  const message = 'Möchten Sie dieses Konzept wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.';
   let proceed = false;
   if (window.confirmationModal) {
     const res = await window.confirmationModal.open({
-      title: 'Strategie löschen',
+      title: 'Konzept löschen',
       message,
       confirmText: 'Löschen',
       cancelText: 'Abbrechen',
@@ -757,7 +757,7 @@ async function confirmDeleteStrategieStandalone(entityId) {
   try {
     const { error } = await window.supabase.from('strategie').delete().eq('id', entityId);
     if (error) throw error;
-    window.toastSystem?.show('Strategie erfolgreich gelöscht', 'success');
+    window.toastSystem?.show('Konzept erfolgreich gelöscht', 'success');
     window.dispatchEvent(new CustomEvent('entityUpdated', {
       detail: { entity: 'strategie', action: 'deleted', id: entityId }
     }));
@@ -767,16 +767,16 @@ async function confirmDeleteStrategieStandalone(entityId) {
     }
   } catch (err) {
     console.error('Strategie-Löschung fehlgeschlagen:', err);
-    window.toastSystem?.show('Fehler beim Löschen der Strategie', 'error');
+    window.toastSystem?.show('Fehler beim Löschen des Konzepts', 'error');
   }
 }
 
 async function confirmDeleteCreatorAuswahl(entityId) {
-  const message = 'Möchten Sie diese Sourcing-Liste wirklich löschen? Alle zugeordneten Creator werden entfernt.';
+  const message = 'Möchten Sie diese Casting-Liste wirklich löschen? Alle zugeordneten Creator werden entfernt.';
   let proceed = false;
   if (window.confirmationModal) {
     const res = await window.confirmationModal.open({
-      title: 'Sourcing-Liste löschen',
+      title: 'Casting-Liste löschen',
       message,
       confirmText: 'Löschen',
       cancelText: 'Abbrechen',
@@ -791,13 +791,13 @@ async function confirmDeleteCreatorAuswahl(entityId) {
   try {
     const { creatorAuswahlService } = await import('../modules/creator-auswahl/CreatorAuswahlService.js');
     await creatorAuswahlService.deleteListe(entityId);
-    window.toastSystem?.show('Sourcing-Liste erfolgreich gelöscht', 'success');
+    window.toastSystem?.show('Casting-Liste erfolgreich gelöscht', 'success');
     window.dispatchEvent(new CustomEvent('entityUpdated', {
       detail: { entity: 'creator_auswahl', action: 'deleted', id: entityId }
     }));
   } catch (err) {
     console.error('Sourcing-Löschung fehlgeschlagen:', err);
-    window.toastSystem?.show('Fehler beim Löschen der Sourcing-Liste', 'error');
+    window.toastSystem?.show('Fehler beim Löschen der Casting-Liste', 'error');
   }
 }
 

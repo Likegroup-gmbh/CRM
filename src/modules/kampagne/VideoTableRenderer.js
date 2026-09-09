@@ -505,7 +505,7 @@ export class VideoTableRenderer {
           </button>
         `;
       }
-      const href = videoLink || `/strategie/${item.strategie_id}`;
+      const href = videoLink || `/konzepte/${item.strategie_id}`;
       const targetAttr = videoLink ? ' target="_blank" rel="noopener noreferrer"' : '';
       return `
         <a href="${href}" class="thema-thumbnail-link${videoLink ? ' thema-thumbnail-link--playable' : ''}" title="${this.escapeHtml(beschreibung)}"${targetAttr}>

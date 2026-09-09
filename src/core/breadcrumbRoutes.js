@@ -19,6 +19,8 @@ const ROUTE_CONFIG = {
   kampagne:           { label: 'Kampagne',          entity: 'kampagne' },
   strategie:          { label: 'Strategien',        entity: 'strategie' },
   sourcing:           { label: 'Sourcing',          entity: 'sourcing' },
+  konzepte:           { label: 'Konzepte',          entity: 'strategie' },
+  castings:           { label: 'Castings',          entity: 'sourcing' },
   vertraege:          { label: 'Verträge',          entity: 'vertraege' },
   videos:             { label: 'Videos',             entity: 'videos' },
   rechnung:           { label: 'Rechnung',          entity: 'rechnung' },

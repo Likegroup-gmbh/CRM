@@ -92,7 +92,11 @@ export class ModuleRegistry {
     }
 
     // Alias: /kampagnen(/...) → /kampagne(/...) (Safety-Net für alte Links/Tippfehler)
-    route = String(route || '').replace(/^(\/?)kampagnen(?=[/?#]|$)/, '$1kampagne');
+    // Alias: /strategie → /konzepte, /sourcing → /castings (Umbenennung, Alt-Links bleiben gültig)
+    route = String(route || '')
+      .replace(/^(\/?)kampagnen(?=[/?#]|$)/, '$1kampagne')
+      .replace(/^(\/?)strategie(?=[/?#]|$)/, '$1konzepte')
+      .replace(/^(\/?)sourcing(?=[/?#]|$)/, '$1castings');
 
     if (!skipPushState) {
       try {
@@ -436,16 +440,16 @@ export class ModuleRegistry {
       console.log(`🎯 Rechnung-Details erkannt, verwende Modul: ${moduleKey}`);
     }
     
-    if (id && segment === 'strategie' && id !== 'new') {
-      moduleKey = 'strategie-detail';
+    if (id && segment === 'konzepte' && id !== 'new') {
+      moduleKey = 'konzepte-detail';
       module = this.modules.get(moduleKey);
-      console.log(`🎯 Strategie-Details erkannt, verwende Modul: ${moduleKey}`);
+      console.log(`🎯 Konzepte-Details erkannt, verwende Modul: ${moduleKey}`);
     }
     
-    if (id && segment === 'sourcing' && id !== 'new') {
-      moduleKey = 'sourcing-detail';
+    if (id && segment === 'castings' && id !== 'new') {
+      moduleKey = 'castings-detail';
       module = this.modules.get(moduleKey);
-      console.log(`🎯 Creator-Auswahl-Details erkannt, verwende Modul: ${moduleKey}`);
+      console.log(`🎯 Castings-Details erkannt, verwende Modul: ${moduleKey}`);
     }
     
     if (id && segment === 'education') {

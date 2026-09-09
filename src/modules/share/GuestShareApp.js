@@ -21,15 +21,15 @@ import {
 
 const ENTITY_ROUTES = {
   kampagne: (id) => `/kampagne/${id}`,
-  sourcing: (id) => `/sourcing/${id}`,
-  strategie: (id) => `/strategie/${id}`,
+  sourcing: (id) => `/castings/${id}`,
+  strategie: (id) => `/konzepte/${id}`,
   skript: (id) => `/skripte/${id}`,
 };
 
 const ENTITY_LABELS = {
   kampagne: 'Kampagne',
-  sourcing: 'Sourcing-Liste',
-  strategie: 'Strategie-Liste',
+  sourcing: 'Casting-Liste',
+  strategie: 'Konzept',
   skript: 'Skript',
 };
 

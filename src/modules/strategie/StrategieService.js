@@ -270,7 +270,7 @@ export class StrategieService {
       
       if (!allowedKampagneIds.includes(data.kampagne_id)) {
         console.warn('🔐 Zugriff verweigert: Benutzer hat keinen Zugriff auf diese Strategie');
-        throw new Error('Keine Berechtigung für diese Strategie');
+        throw new Error('Keine Berechtigung für dieses Konzept');
       }
     }
 
@@ -285,7 +285,7 @@ export class StrategieService {
     // Berechtigungsprüfung: Kunden dürfen keine Strategien erstellen
     if (window.isKunde()) {
       console.warn('🔐 Kunden dürfen keine Strategien erstellen');
-      throw new Error('Keine Berechtigung zum Erstellen von Strategien');
+      throw new Error('Keine Berechtigung zum Erstellen von Konzepten');
     }
 
     // Leere Strings in UUID-Feldern zu null konvertieren
@@ -321,7 +321,7 @@ export class StrategieService {
     // Berechtigungsprüfung: Kunden dürfen Strategien nicht bearbeiten
     if (window.isKunde()) {
       console.warn('🔐 Kunden dürfen Strategien nicht bearbeiten');
-      throw new Error('Keine Berechtigung zum Bearbeiten von Strategien');
+      throw new Error('Keine Berechtigung zum Bearbeiten von Konzepten');
     }
 
     // Leere Strings in UUID-Feldern zu null konvertieren
@@ -355,8 +355,8 @@ export class StrategieService {
     // Berechtigungsprüfung über Permission-System
     const canDelete = window.currentUser?.permissions?.strategie?.can_delete || false;
     if (!canDelete) {
-      console.warn('🔐 Keine Berechtigung zum Löschen von Strategien');
-      throw new Error('Keine Berechtigung zum Löschen von Strategien');
+      console.warn('🔐 Keine Berechtigung zum Löschen von Konzepten');
+      throw new Error('Keine Berechtigung zum Löschen von Konzepten');
     }
     
     console.log('🗑️ Lösche Strategie:', id);
