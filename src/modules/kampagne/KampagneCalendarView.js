@@ -46,9 +46,9 @@ export class KampagneCalendarView {
     this.deadlineTypes = {
       start: { label: 'Start', color: 'var(--color-info)' },
       deadline_briefing: { label: 'Briefing', color: 'var(--color-accent)' },
-      deadline_strategie: { label: 'Strategie', color: 'var(--color-warning)' },
+      deadline_strategie: { label: 'Konzepte', color: 'var(--color-warning)' },
       deadline_skripte: { label: 'Skripte', color: 'var(--color-tertiary)' },
-      deadline_creator_sourcing: { label: 'Sourcing', color: 'var(--color-primary)' },
+      deadline_creator_sourcing: { label: 'Castings', color: 'var(--color-primary)' },
       deadline_video_produktion: { label: 'Video Produktion', color: 'var(--color-success)' },
       deadline_post_produktion: { label: 'Post Produktion', color: 'var(--color-secondary)' }
     };

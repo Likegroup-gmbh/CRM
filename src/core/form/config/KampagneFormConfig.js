@@ -97,9 +97,9 @@ export const kampagneConfig = {
     { name: 'start', label: 'Startdatum', type: 'date', required: false },
     // Deadline-Felder Gruppe (3x2 Grid)
     { name: 'deadline_briefing', label: 'Deadline Briefing', type: 'date', required: false, twoCol: true },
-    { name: 'deadline_strategie', label: 'Deadline Strategie', type: 'date', required: false, twoCol: true },
+    { name: 'deadline_strategie', label: 'Deadline Konzepte', type: 'date', required: false, twoCol: true },
     { name: 'deadline_skripte', label: 'Deadline Skripte', type: 'date', required: false, twoCol: true },
-    { name: 'deadline_creator_sourcing', label: 'Deadline Sourcing', type: 'date', required: false, twoCol: true },
+    { name: 'deadline_creator_sourcing', label: 'Deadline Castings', type: 'date', required: false, twoCol: true },
     { name: 'deadline_video_produktion', label: 'Deadline Video Produktion', type: 'date', required: false, twoCol: true },
     { name: 'deadline_post_produktion', label: 'Deadline Post Produktion', type: 'date', required: false, twoCol: true },
     { 
