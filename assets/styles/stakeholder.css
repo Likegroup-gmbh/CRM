@@ -441,6 +441,13 @@
 
 /* ---------- Monatsauswertung (ADR 0006) ---------- */
 
+.stakeholder-toolbar-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+
 .stakeholder-toolbar {
   display: flex;
   justify-content: space-between;
@@ -501,24 +508,6 @@
 .stakeholder-bericht input {
   flex: 1;
   min-width: var(--min-width-lg);
-}
-
-/* Primaeraktion der Leiste — Brand-Akzent wie aktiver Tab/Progress */
-.stakeholder-bericht-btn {
-  padding: var(--space-xxs) var(--space-sm);
-  border: none;
-  border-radius: var(--radius-sm);
-  background: var(--color-brand);
-  color: var(--text-inverse);
-  font-size: var(--text-xs);
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: opacity var(--motion-duration-fast) var(--motion-ease-in-out);
-}
-
-.stakeholder-bericht-btn:hover {
-  opacity: 0.9;
 }
 
 .stakeholder-bericht-banner {

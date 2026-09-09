@@ -1,6 +1,6 @@
 // StakeholderOverviewPage.js
 // Stakeholder-Gesamtübersicht (/admin/stakeholder, Admin-only).
-// Zeitraum-Filter + Kategorie-Tabs (GESAMT, Influencer Marketing, UGC Paid,
+// Zeitraum-Filter + Leistungsbereich-Auswahl (GESAMT, Influencer Marketing, UGC Paid,
 // UGC Organic, Vor-Ort Production, Contracting). Darunter Budget-Karten
 // (Auftragsvolumen, Verfügbares/Offenes Creator Budget, Verbrauchtes Budget,
 // Creatoranteil, Agenturanteil, KSK-Abgabe, Zusatzkosten) und eine
@@ -125,8 +125,8 @@ const CARD_HINTS = {
     hint: 'noch nicht gebuchtes Creator-Budget'
   },
   creator: {
-    formula: 'Σ Einkaufspreise (EK)',
-    hint: 'Honorare der gebuchten Videos'
+    formula: 'Σ Einkaufspreise (EK) der gebuchten Videos',
+    hint: 'Kalkulation — nicht die gestellten Creatorrechnungen im Zahlungsstand'
   },
   agentur: {
     formula: 'Feste Fee + EK/VK-Differenz',
@@ -265,6 +265,7 @@ export class StakeholderOverviewPage {
     this._eventsBound = false;
     this._docClickHandler = null;
     this._docChangeHandler = null;
+    this._berichtWahl = 'live';
   }
 
   async init() {
@@ -612,16 +613,11 @@ export class StakeholderOverviewPage {
     const years = this.availableYears();
     const counts = this.tabCounts();
     const tabs = this.visibleTabs();
-
-    const tabButtons = tabs.map(t => `
-      <button type="button" class="stakeholder-tab${this.activeTab === t.key ? ' active' : ''}"
-              data-tab="${t.key}" role="tab" aria-selected="${this.activeTab === t.key}">
-        ${t.label}
-        <span class="stakeholder-tab-badge">${counts.get(t.key) || 0}</span>
-      </button>
-    `).join('');
-
     const isMonate = this.activeView === 'monate';
+
+    const tabOptions = tabs.map(t => `
+      <option value="${t.key}"${this.activeTab === t.key ? ' selected' : ''}>${this.escape(t.label)} (${counts.get(t.key) || 0})</option>
+    `).join('');
 
     const html = `
       <div class="stakeholder-page">
@@ -632,20 +628,24 @@ export class StakeholderOverviewPage {
             { buttonId: 'btn-view-monate', label: 'Monatsauswertung', active: isMonate },
           ])}
           ${!isMonate ? `
-          <div class="form-field stakeholder-year-field">
-            <label for="stakeholder-year-select">Zeitraum</label>
-            <select id="stakeholder-year-select" class="form-select">
-              <option value="all"${this.selectedYear === 'all' ? ' selected' : ''}>Alle Jahre</option>
-              ${years.map(y => `<option value="${y}"${String(this.selectedYear) === String(y) ? ' selected' : ''}>${y}</option>`).join('')}
-            </select>
+          <div class="stakeholder-toolbar-filters">
+            <div class="form-field">
+              <label for="stakeholder-tab-select">Leistungsbereich</label>
+              <select id="stakeholder-tab-select" class="form-select">
+                ${tabOptions}
+              </select>
+            </div>
+            <div class="form-field stakeholder-year-field">
+              <label for="stakeholder-year-select">Zeitraum</label>
+              <select id="stakeholder-year-select" class="form-select">
+                <option value="all"${this.selectedYear === 'all' ? ' selected' : ''}>Alle Jahre</option>
+                ${years.map(y => `<option value="${y}"${String(this.selectedYear) === String(y) ? ' selected' : ''}>${y}</option>`).join('')}
+              </select>
+            </div>
           </div>` : ''}
         </div>
 
-        ${isMonate ? this.renderMonatsauswertung() : `
-        <div class="stakeholder-tabs" role="tablist">
-          ${tabButtons}
-        </div>
-        ${this.renderKalkulationBody()}`}
+        ${isMonate ? this.renderMonatsauswertung() : this.renderKalkulationBody()}
       </div>
     `;
 
@@ -776,7 +776,7 @@ export class StakeholderOverviewPage {
   renderBerichtsstandLeiste() {
     const aktiv = this.aktiverBerichtsstand;
     const optionen = this.berichtsstaende.map(b =>
-      `<option value="${b.id}"${aktiv?.id === b.id ? ' selected' : ''}>${this.fmtBerichtsstandDatum(b.created_at)} — ${this.escape(b.label)}</option>`
+      `<option value="${this.escape(b.id)}"${aktiv?.id === b.id ? ' selected' : ''}>${this.escape(this.fmtBerichtsstandDatum(b.created_at))} — ${this.escape(b.label)}</option>`
     ).join('');
 
     const select = `
@@ -797,10 +797,10 @@ export class StakeholderOverviewPage {
     return `
       <div class="stakeholder-bericht">
         ${select}
-        <input type="text" id="stakeholder-bericht-label"
+        <input type="text" id="stakeholder-bericht-label" class="form-input"
                value="${this.escape(this.defaultBerichtsstandLabel())}"
                aria-label="Bezeichnung des Berichtsstands" />
-        <button type="button" id="stakeholder-bericht-sichern" class="stakeholder-bericht-btn">
+        <button type="button" id="stakeholder-bericht-sichern" class="mdc-btn">
           Berichtsstand sichern
         </button>
       </div>
@@ -1276,6 +1276,7 @@ export class StakeholderOverviewPage {
 
   // Wechselt zwischen Live-Ansicht und einem eingefrorenen Berichtsstand.
   async oeffneBerichtsstand(id) {
+    this._berichtWahl = id;
     if (id === 'live') {
       this.aktiverBerichtsstand = null;
       this.render();
@@ -1290,7 +1291,7 @@ export class StakeholderOverviewPage {
       return;
     }
     // Spaet eintreffende Antwort verwerfen, wenn inzwischen umgeschaltet wurde.
-    if (document.getElementById('stakeholder-bericht-select')?.value !== id) return;
+    if (this._berichtWahl !== id) return;
     if (stand.daten?.version !== BERICHTSSTAND_VERSION) {
       window.toastSystem?.show('Dieser Berichtsstand hat ein unbekanntes Format und kann nicht angezeigt werden', 'error');
       return;
@@ -1307,13 +1308,6 @@ export class StakeholderOverviewPage {
       const dqLink = e.target.closest('[data-stakeholder-dq-link]');
       if (dqLink) {
         window.navigateTo('/admin/datenqualitaet');
-        return;
-      }
-
-      const tab = e.target.closest('.stakeholder-tab');
-      if (tab) {
-        this.activeTab = tab.dataset.tab;
-        this.render();
         return;
       }
 
@@ -1352,6 +1346,11 @@ export class StakeholderOverviewPage {
     document.addEventListener('click', this._docClickHandler);
 
     this._docChangeHandler = (e) => {
+      if (e.target?.id === 'stakeholder-tab-select') {
+        this.activeTab = e.target.value;
+        this.render();
+        return;
+      }
       if (e.target?.id === 'stakeholder-bericht-select') {
         this.oeffneBerichtsstand(e.target.value);
         return;

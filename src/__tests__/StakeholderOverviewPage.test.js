@@ -159,7 +159,9 @@ describe('StakeholderOverviewPage', () => {
     // init() zeigt zuerst Loading, dann das gerenderte HTML
     const html = window.setContentSafely.mock.calls[1][1];
 
-    // Tabs vorhanden
+    // Leistungsbereich als Formular-Select (wie Zeitraum daneben)
+    expect(html).toContain('id="stakeholder-tab-select"');
+    expect(html).toContain('form-select');
     expect(html).toContain('GESAMT');
     expect(html).toContain('INFLUENCER MARKETING');
     expect(html).toContain('UGC PAID');
@@ -347,12 +349,16 @@ describe('StakeholderOverviewPage', () => {
     page.render();
     const html = window.setContentSafely.mock.calls.at(-1)[1];
 
-    expect(html).toContain('stakeholder-bericht-select');
+    expect(html).toContain('id="stakeholder-bericht-select"');
     expect(html).toContain('form-select');
+    expect(html).toContain('form-input');
+    expect(html).toContain('class="mdc-btn"');
     expect(html).toContain('Live-Ansicht');
     expect(html).toContain('Investorenupdate August 2026');
     expect(html).toContain('stakeholder-bericht-sichern');
     expect(html).toContain('Investorenupdate'); // Default-Label im Eingabefeld
+    expect(html).not.toContain('stakeholder-bericht-btn');
+    expect(html).not.toContain('table-select');
     // Live-Modus: kein Banner
     expect(html).not.toContain('stakeholder-bericht-banner');
   });
@@ -384,8 +390,9 @@ describe('StakeholderOverviewPage', () => {
     // Sonst schreibt ein spaeter Render dieser Page in das window.content
     // des naechsten Tests.
     await vi.waitFor(() => {
-      const sel = document.getElementById('stakeholder-bericht-select');
-      expect(sel ? [...sel.options].map(o => o.value) : []).toContain('b-neu');
+      const values = [...document.getElementById('stakeholder-bericht-select').options]
+        .map(o => o.value);
+      expect(values).toContain('b-neu');
     });
     expect(insertPayload).not.toBeNull();
 
@@ -438,9 +445,9 @@ describe('StakeholderOverviewPage', () => {
     page.activeView = 'monate';
     page.render();
 
-    const select = document.getElementById('stakeholder-bericht-select');
-    select.value = 'b1';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+    const berichtSelect = document.getElementById('stakeholder-bericht-select');
+    berichtSelect.value = 'b1';
+    berichtSelect.dispatchEvent(new Event('change', { bubbles: true }));
     await vi.waitFor(() => {
       expect(window.content.innerHTML).toContain('stakeholder-bericht-banner');
     });
@@ -454,9 +461,9 @@ describe('StakeholderOverviewPage', () => {
     expect(html).toContain('eingefrorener Berichtsstand');
 
     // Zurueck zur Live-Ansicht
-    const select2 = document.getElementById('stakeholder-bericht-select');
-    select2.value = 'live';
-    select2.dispatchEvent(new Event('change', { bubbles: true }));
+    const liveSelect = document.getElementById('stakeholder-bericht-select');
+    liveSelect.value = 'live';
+    liveSelect.dispatchEvent(new Event('change', { bubbles: true }));
     await vi.waitFor(() => {
       expect(window.content.innerHTML).not.toContain('stakeholder-bericht-banner');
     });
@@ -618,19 +625,23 @@ describe('StakeholderOverviewPage', () => {
     const unternehmen = [{ id: 'u1', firmenname: 'Beispiel AG' }];
 
     window.supabase = createMockSupabase({ auftraege, blocks, kampagnen, kooperationen, videos, details, unternehmen });
+    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
+    document.body.appendChild(window.content);
 
     const page = createPage();
     await page.init();
 
-    // Wechsel zu Influencer-Tab
-    page.activeTab = 'influencer_marketing';
-    page.render();
-    const html = window.setContentSafely.mock.calls[2][1];
+    const tabSelect = document.getElementById('stakeholder-tab-select');
+    tabSelect.value = 'influencer_marketing';
+    tabSelect.dispatchEvent(new Event('change', { bubbles: true }));
 
-    expect(html).toContain('Offenes Creator Budget');
-    expect(html).not.toContain('Verfügbares Budget');
+    expect(window.content.innerHTML).toContain('Offenes Creator Budget');
+    expect(window.content.innerHTML).not.toContain('Verfügbares Budget');
     // Offenes Creator Budget = 44000 - 3000 = 41000
-    expect(html).toContain('41.000,00');
+    expect(window.content.innerHTML).toContain('41.000,00');
+
+    page.destroy();
+    window.content.remove();
   });
 
   it('berechnet DB als Agenturanteil (Verbraucht − Creator − KSK − Zusatz)', async () => {
