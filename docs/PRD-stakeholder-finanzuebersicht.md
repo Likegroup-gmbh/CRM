@@ -1,0 +1,135 @@
+# PRD: Stakeholder Finanzübersicht und Datenqualitätsanzeige
+
+## Problem Statement
+
+Die Stakeholder Übersicht (`/stakeholder`) zeigt Zahlen, die die finanzielle Lage nicht korrekt abbilden. Drei Ursachen wurden nachgewiesen. Erstens fehlen ganze Datenmengen: `loadData` lädt acht Tabellen ohne Pagination, obwohl `kooperation_videos` 2.533 und `kooperationen` 1.141 Zeilen hat, und das `rechnung`-Select enthält kein einziges Datumsfeld. Kundenrechnungen werden gar nicht geladen, weder aus `auftrag` noch aus `auftrag_teilrechnung`. Zweitens verdeckt die Berechnung Fehler: an rund zehn Stellen klemmt `Math.max(0, …)` jede Budgetüberschreitung auf null, und `calculateEkVkTotals` zählt Zeilen mit nur einem gepflegten Preis in `ekSum` und `vkSum`, lässt sie in `marginSum` aber weg. Drittens gibt es keine Zeitachse: die Übersicht kennt weder vergangene noch kommende Monate.
+
+Parallel dazu fehlt der Geschäftsführung ein Weg, Datenmängel zu erkennen. Auffälligkeiten werden heute zufällig beim Durchsehen einzelner Kampagnen entdeckt.
+
+## Solution
+
+Die Übersicht bekommt eine monatliche Auswertung von Umsatz und Fremdkosten je Leistungsbereich, in zwei Sichten nach [ADR 0006](adr/0006-zwei-periodisierungen.md): die Margensicht ordnet Fremdkosten dem Monat der Kundenrechnung zu, die Buchhaltungssicht jedem Beleg seinen eigenen Rechnungsmonat. Grundlage sind ausschließlich Rechnungen, nicht die Kalkulation — damit schlagen die bekannten EK/VK-Pflegemängel nicht auf die Auswertung durch.
+
+Alle Beträge werden vorzeichenrichtig gezeigt, Lücken benannt statt geglättet ([ADR 0007](adr/0007-unplausible-zahlen-ausweisen-statt-glaetten.md)). Was sich nicht zuordnen lässt, bekommt einen sichtbaren Sammelposten, damit die Summe der Bereiche immer das Gesamt ergibt.
+
+Getrennt davon entsteht ein Adminbereich mit einer Datenqualitätsanzeige, die nach Kampagne gruppiert und nach betroffenem Geldvolumen sortiert zeigt, wo Zahlen unvollständig sind.
+
+## User Stories
+
+1. Als Geschäftsführer möchte ich pro Monat sehen, welcher Umsatz welchem Leistungsbereich zuzurechnen ist und welche Fremdkosten dem gegenüberstehen, damit ich das Investorenupdate ohne Handrechnung erstellen kann.
+2. Als Geschäftsführer möchte ich Creator-Honorar, KSK und Zusatzkosten einzeln sehen, weil sie unterschiedlich entstehen und ich sie unterschiedlich beeinflussen kann.
+3. Als Geschäftsführer möchte ich erkennen können, welcher Anteil eines Monats noch gar nicht fakturiert ist, damit ich eine Marge nicht für endgültig halte, die es nicht ist.
+4. Als Geschäftsführer möchte ich zu jedem verschickten Update nachvollziehen können, auf welchem Stand es beruhte, auch wenn sich die Zahl seitdem verändert hat.
+5. Als Geschäftsführer möchte ich auf einen Blick sehen, welche Kampagnen unvollständig gepflegt sind und wie viel Geld daran hängt, statt es zufällig beim Durchsehen zu entdecken.
+6. Als Buchhaltung möchte ich dieselben Rechnungen nach ihrem eigenen Rechnungsdatum sehen, weil das die Sicht ist, die zu den Büchern passt.
+7. Als Mitarbeiter möchte ich, dass ein überschrittenes Budget als Überschreitung erscheint und nicht als punktgenau ausgeschöpft, damit ich den Fehler überhaupt bemerke.
+8. Als Nutzer der Übersicht möchte ich, dass die Summe der Leistungsbereiche immer dem Gesamtumsatz entspricht, damit ich der Aufteilung trauen kann.
+
+## Implementation Decisions
+
+Die Schritte bauen aufeinander auf und sind in dieser Reihenfolge umzusetzen.
+
+### Schritt 1 — Vorzeichen freilegen und Marge abstimmbar machen ✅ umgesetzt
+
+Jede Fundstelle wurde einzeln eingeordnet, statt `Math.max(0, …)` pauschal zu entfernen. Es gibt drei Kategorien, und nur die erste wurde geändert.
+
+**Entklemmt (Geldwerte in der Anzeige):** `calculateBudgetOverview.js` (`verfuegbaresBudgetRest`), `EkVkAgencyFeeHelper.js` (`calculateCreatorPaymentSummary.open`), `StakeholderOverviewPage.js` (`verfuegbar`, `verbrauchtPct`, `offenPct`, `influencerOffenesCreatorBudget`), `AuftragDetail.js` (`openBudget`), `AuftragsdetailsDetail.js` (`offenesBudget`), `KampagneDetailSummaryCards.js` (`openBudget`, beide Vorkommen), `ContractDetail.js` (`openBudget`).
+
+**Bewusst geklemmt geblieben (Balkengeometrie):** die `width: …%`-Ausdrücke sowie `KampagneUtils.getProgressPercentage`. Ein Balken kann nicht negativ breit sein. In `AuftragDetail.js` wurden Wert und Geometrie über einen `barWidth`-Helfer getrennt, damit die Klemmung nicht mehr auf den Prozentwert durchschlägt.
+
+**Bewusst geklemmt geblieben (persistierte Eingabewerte):** `AutoCalculation.js:262`, `ProjektErstellenPersistence.js:73` und `FeedbackCard.js:63`. Alle drei berechnen `creator_budget` aus `netto − KSK − Deckungsbeitrag` und schreiben das Ergebnis in ein Formularfeld, das gespeichert wird. Die Klemmung versteckt dort keinen bestehenden Fehler, sondern verhindert, dass ein negativer Wert überhaupt erst in die Datenbank gelangt. Das ist eine andere Frage als die Anzeigewahrheit und gehört in einen eigenen Schritt: sinnvoll wäre eine Validierung am Eingabefeld statt einer stillen Null.
+
+**Marge abstimmbar:** `marginSum` behält seine Bedeutung — nur vollständig bepreiste Zeilen, denn bei fehlendem EK ist die Marge unbekannt, nicht null. Neu ist `incompleteSum` samt `incompleteRows` für den Saldo der halb bepreisten Zeilen. Damit gilt immer `vkSum − ekSum === marginSum + incompleteSum`, und die Lücke ist beziffert statt verschwunden. Das ist rückwärtskompatibel: keine bestehende Auswertung ändert ihr Ergebnis.
+
+**Tests:** `src/__tests__/BudgetUeberschreitung.test.js` hält das neue Verhalten fest, inklusive der Identität oben. Zwei bestehende Tests kodierten die alte Klemmung und wurden umgedreht (`EkVkAgencyFeeHelper.test.js`, `ContractBudget.test.js`).
+
+### Schritt 2 — Leistungsbereich aus einer Quelle
+
+Neues Modul `src/core/budget/leistungsbereich.js` mit einer Funktion, die aus einem Auftrag seinen Leistungsbereich ableitet:
+
+- `auftragtype` enthält „Contracting" → **Contracting**
+- kein `auftrag_kampagnenart_blocks`-Eintrag → **Nicht zugeordnet**
+- genau ein Bereich über alle Blöcke → dieser Bereich
+- mehrere Bereiche → **Gemischt**
+
+Die Zusammenfassung ist gröber als die Kampagnenart: `influencer`, `story` und `event` bilden gemeinsam **Influencer Marketing**. Genau diese Gruppierung reduziert „Nicht zugeordnet" von 39 auf 13 Aufträge, weil 25 davon Contracting sind.
+
+Die bestehenden Tabs der Stakeholder Übersicht werden auf dieselbe Funktion umgestellt. Zwei verschiedene Kategorisierungen auf einer Seite wären der schlimmste Ausgang.
+
+### Schritt 3 — Rechnungsbasierte Datenschicht
+
+- `loadData` bekommt Pagination über `.range()`. `VideoTableDataLoader.batchInQuery` chunkt nur ID-Listen und greift hier nicht, weil die Selects ungefiltert sind.
+- Das `rechnung`-Select wird um `gestellt_am`, `nettobetrag_steuerfrei`, `zusatzkosten` und `kooperation_id` erweitert.
+- Kundenrechnungen werden neu geladen: `auftrag.rechnung_gestellt_am` plus `auftrag_teilrechnung`. Hat ein Auftrag Teilrechnungen, zählen ausschließlich diese, sonst der Auftrag selbst — sonst wird doppelt gezählt.
+- Die drei Fremdkostenposten je Creatorrechnung: **Honorar** aus `nettobetrag` + `nettobetrag_steuerfrei`, **Zusatzkosten** aus `rechnung.zusatzkosten` (187 Rechnungen, 53.187 €; nicht `zusatzkosten_netto`, das leer ist), **KSK** als 4,9 % des Honorars gemäß `KSK_SATZ_PROZENT`. Die 3 Kooperationen mit `ksk_selbstzahler` sind ausgenommen, dort steckt der Aufschlag bereits im Honorar.
+- Rechnungen mit `gestellt_am` vor 2020 werden nicht stillschweigend übersprungen, sondern separat ausgewiesen. Aktuell sind es vier mit zusammen 15.940 €.
+
+### Schritt 4 — Monatsauswertung
+
+Neue Ansicht auf `/stakeholder`, umschaltbar zur bestehenden Kalkulationsansicht. Matrix aus Monat und Leistungsbereich, umschaltbar zwischen Umsatz, Fremdkosten und Differenz sowie zwischen Margensicht und Buchhaltungssicht.
+
+- **Margensicht:** Fremdkosten landen im Monat der Kundenrechnung des zugehörigen Auftrags.
+- **Buchhaltungssicht:** jeder Beleg in seinem eigenen Rechnungsmonat.
+- Zwei getrennte Zeilen unterhalb der Matrix: **noch nicht fakturiert** (91.879 € kalkulierte Creatorkosten ohne Rechnung) und **ohne Kundenrechnung** (380.919 € Creatorkosten zu nie fakturierten Aufträgen). Beide haben in der Margensicht keinen Monat und dürfen deshalb nicht einfach verschwinden.
+- Im Kopf steht die Zuordnungsquote mit Verweis auf die Datenqualitätsanzeige.
+
+### Schritt 5 — Berichtsstände
+
+Neue Tabelle für Snapshots. Die Ansicht rechnet immer live; der Snapshot hält fest, worauf ein verschicktes Update beruhte. Monate einzufrieren wurde verworfen, weil das Nachzügler in falsche Monate verschieben würde.
+
+### Schritt 6 — Adminbereich
+
+- Button in `index.html` innerhalb von `.header-actions`, **links vom** `.education-btn`.
+- Route `/admin`, abgesichert über das vorhandene `permissionSystem.isAdmin`.
+- Reduzierte Navigation: nur die Punkte, die für die Administration relevant sind.
+
+### Schritt 7 — Datenqualitätsanzeige
+
+Liste der Kampagnen mit einem Pflegegrad, aufklappbar zu den konkreten Mängeln, sortiert nach betroffenem Geldvolumen. Die erste Fassung prüft ausschließlich, was Finanzzahlen verfälscht:
+
+| Prüfung | Stand bei Erstellung |
+|---|---|
+| Videos ohne Einkaufspreis | 312 |
+| Videos ohne Verkaufspreis | 332 |
+| Kooperationen mit Rechnung, aber kaum erfasstem Einkauf | 26 (52.166 € fakturiert gegen 9.500 € erfasst) |
+| Videos ohne Kampagnenart in gemischten Aufträgen | 159 (387.720 €) |
+| Aufträge ohne Kampagnenart-Block | 13 (2.232.163 € Umsatz) |
+| Gemischte Aufträge ohne Block-Umsatz | 19 (1.513.891 € Umsatz) |
+| Rechnungen mit unmöglichem Rechnungsdatum | 4 (15.940 €) |
+| Kooperationen mit offenem Restbetrag | 38 (91.879 €) |
+
+**Gleicher Ein- und Verkaufspreis ist ausdrücklich keine Prüfung.** Bei Influencer-Aufträgen verdient die Agentur über die Fee und reicht den Creatorpreis durch. Belegt über die Creatorrechnungen: Kooperationen mit durchgängig EK gleich VK haben 97,1 % ihres erfassten Einkaufspreises fakturiert, solche mit Spanne 99,5 % — wäre der EK ein kopierter VK, läge die erste Quote weit darunter. Eine solche Prüfung würde 475 Videos und 2,8 Mio. € als verdächtig melden und die Anzeige damit entwerten.
+
+## Testing Decisions
+
+Getestet wird das Ergebnis, nicht der Rechenweg.
+
+1. **Leistungsbereich-Ableitung** — Unit-Test über alle vier Fälle: Contracting über `auftragtype`, kein Block, ein Bereich, mehrere Bereiche. Dazu der Fall, dass zwei Blöcke (`influencer` und `story`) zu **einem** Bereich zusammenfallen und nicht als „Gemischt" gelten dürfen.
+2. **Periodisierung** — Integration-Test mit einem Auftrag, dessen Kundenrechnung im März und dessen Creatorrechnung im Juni liegt. Margensicht muss beide im März zeigen, Buchhaltungssicht getrennt in März und Juni.
+3. **Vollständigkeit** — Kontrollsumme: die Summe aller Leistungsbereiche inklusive „Gemischt", „Nicht zugeordnet" und der beiden Sonderzeilen muss dem Gesamtumsatz beziehungsweise den Gesamtfremdkosten entsprechen.
+4. **Keine Doppelzählung** — Auftrag mit Teilrechnungen darf nicht zusätzlich über `auftrag.nettobetrag` gezählt werden.
+5. **Vorzeichen** — Auftrag mit überschrittenem Budget muss einen negativen Restwert liefern, nicht null.
+6. **KSK** — Selbstzahler-Kooperation darf keine zusätzlichen 4,9 % erzeugen.
+
+### Prior Art
+
+- `src/__tests__/StakeholderOverviewPage.test.js` — bestehende Tests der Übersicht
+- `src/modules/auftrag/logic/InvoiceDisplayDate.js` — Datumskaskade für Kundenrechnungen
+- `src/modules/auftrag/AuftragCashFlowCalendar.js` — monatliche Aggregation über `auftrag` und `auftrag_teilrechnung`, dieselbe Mechanik in kleinerem Rahmen
+- `src/core/budget/kskSelbstzahler.js` — KSK-Satz und Selbstzahler-Logik
+- Vitest, `vi.fn()` für Supabase-Mocks
+
+## Out of Scope
+
+- Teilrechnungen für Creatorrechnungen ([ADR 0004](adr/0004-teilrechnungen-ueber-restbetrag.md), [ADR 0005](adr/0005-teilrechnungen-kunde-geplant-creator-frei.md)) — eigenes Vorhaben, nicht Teil dieser Übersicht.
+- Prozessmängel in der Datenqualitätsanzeige: fehlende Freigaben, überfällige Deadlines, fehlende Verträge. Kommen dazu, wenn die Teams die Anzeige mitbenutzen.
+- Zugang der Teams zur Datenqualitätsanzeige. Zunächst nur Administration.
+- Der vollständige Adminbereich mit allen heruntergebrochenen Seiten von Dashboard bis KI-Nutzung. Schritt 6 legt nur die Hülle und die Navigation an.
+- Nachpflegen der Daten selbst. Die Anzeige benennt die Fälle, korrigiert werden sie von den Teams.
+
+## Further Notes
+
+- **Offen:** Ob die KSK auf jede Creatorrechnung anfällt, ist bei der Buchhaltung angefragt. Möglich sind Ausnahmen für Creator im Ausland, Agenturen statt Einzelpersonen oder Kleinunternehmer. Das Feld `rechnung.ksk_pflichtig` existiert, ist aber nur bei 2 von 772 Rechnungen gesetzt und taugt nicht als Filter. Fällt die Antwort auf Ausnahmen, braucht es ein gepflegtes Merkmal am Creator statt an der Rechnung. Bis dahin bleibt die KSK-Zeile in Schritt 3 unbefüllt; alle anderen Schritte sind davon nicht betroffen.
+- Nur 52 % der `auftrag_kampagnenart_blocks` haben einen `umsatz_netto`. Solange das so bleibt, lassen sich gemischte Aufträge nicht anteilig aufteilen und landen im Sammelposten „Gemischt". Die Nachpflege betrifft 19 Aufträge.
+- Die Felder `auftrag.influencer_preis`, `ugc_preis` und `vor_ort_preis` sind bei 0 von 157 Aufträgen befüllt. Sie kommen als Verteilschlüssel nicht in Frage und sind Kandidaten zum Entfernen.
+- Ein Nachlauf ist der Normalfall, kein Sonderfall: nur 16,5 % des Einkaufsvolumens trifft im selben Monat ein wie die zugehörige Kundenrechnung, 77,4 % später.

@@ -50,3 +50,41 @@ Vertragstemplate der Influencer Kooperation, bei dem der Kunde (z.B. BURGA, UAB 
 Vertragspartei des Influencers ist. LikeGroup tritt nicht als Vertragspartei auf.
 Wird nur bei diesen Kunden angeboten. Hat einen Anhang pro gebuchter Plattform (Anhang A, B, ...).
 _Avoid_: Awareness-Vertrag, BURGA-Vertrag
+
+### Rechnungswesen
+
+**Teilrechnung**:
+Eine von mehreren Rechnungen zum selben Auftrag oder zur selben Kooperation.
+Derselbe Begriff gilt in beide Richtungen; die Richtung ergibt sich aus Kundenrechnung oder Creatorrechnung.
+_Avoid_: Abschlagsrechnung, Anzahlung, Rate
+
+**Restbetrag**:
+Sollbetrag minus Summe der bereits gestellten Rechnungen. Beziffert, was noch abgerechnet werden darf,
+und ist damit die einzige Bedingung dafür, ob eine weitere Teilrechnung möglich ist.
+_Avoid_: Offener Posten, Differenz, Rest
+
+**Schlussrechnung**:
+Die als letzte markierte Teilrechnung einer Kooperation. Nur nötig, wenn ein Restbetrag offen bleibt:
+geht er auf null, gilt die Kooperation ohne Markierung als abgerechnet.
+_Avoid_: Endabrechnung, finale Rechnung
+
+**Minderabrechnung**:
+Der Restbetrag einer per Schlussrechnung abgeschlossenen Kooperation. Wirtschaftlich eine Ersparnis
+gegenueber dem vereinbarten Einkaufspreis, keine offene Verbindlichkeit.
+_Avoid_: Rabatt, Nachlass, Differenz
+
+**Kampagnenart**:
+Die Leistungsform eines Auftragsblocks: UGC Paid, UGC Organic, Influencer Kampagne, Influencer Story,
+Influencer Events, Vor-Ort-Produktion, Whitelisting oder Darkposting.
+_Avoid_: Kampagnentyp, Format, Chip
+
+**Leistungsbereich**:
+Die Achse, nach der Umsatz und Fremdkosten ausgewertet werden. Groeber als die Kampagnenart – Kampagne,
+Story und Events bilden zusammen Influencer Marketing – und ergaenzt um Contracting sowie einen
+Sammelposten fuer Nicht zugeordnetes.
+_Avoid_: Kategorie, Segment, Geschaeftsbereich
+
+**Fremdkosten**:
+Sammelbegriff fuer Creator-Honorar, KSK-Abgabe und Zusatzkosten. Kein eigener Posten: die drei bleiben
+in jeder Auswertung einzeln sichtbar.
+_Avoid_: Direkte Kosten, Creator-Kosten, COGS
