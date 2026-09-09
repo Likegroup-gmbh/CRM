@@ -34,6 +34,7 @@ import {
   matchesStatusFilter
 } from './sourcingStatusOptions.js';
 import { SourcingBuchungDrawer } from './SourcingBuchungDrawer.js';
+import { preserveScroll } from '../../core/dom/preserveScroll.js';
 import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
@@ -112,7 +113,7 @@ export class CreatorAuswahlDetail {
       console.error('Fehler beim Laden:', error);
       window.content.innerHTML = `
         <div class="error-message">
-          <p>Fehler beim Laden der Sourcing-Liste</p>
+          <p>Fehler beim Laden der Casting-Liste</p>
         </div>
       `;
     }
@@ -618,7 +619,7 @@ export class CreatorAuswahlDetail {
       unternehmen: this.liste?.unternehmen?.firmenname || '',
       marke: this.liste?.marke?.markenname || '',
       kampagne: this.liste?.kampagne?.kampagnenname || '',
-      kooperationName: this.liste?.name || 'Sourcing',
+      kooperationName: this.liste?.name || 'Casting',
     };
   }
 
@@ -1060,7 +1061,10 @@ export class CreatorAuswahlDetail {
 
       // Feedback ist Teil des Toolbar-Filters - ein Wechsel kann die Zeile
       // aus der gefilterten Ansicht nehmen, deshalb die ganze Tabelle neu.
-      this.rerenderTable();
+      // preserveScroll: vertikal scrollt das Fenster, horizontal der
+      // main-wrapper - ohne Erhalt springt die Liste nach dem outerHTML-Tausch.
+      const mainWrapper = document.querySelector('.main-wrapper');
+      preserveScroll(() => this.rerenderTable(), { keep: mainWrapper ? [mainWrapper] : [] });
     } catch (error) {
       console.error('Fehler beim Feedback-Update:', error);
       window.toastSystem?.show('Fehler beim Speichern', 'error');
