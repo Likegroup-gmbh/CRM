@@ -719,9 +719,13 @@ export class StakeholderOverviewPage {
     return new Date(y, m - 1, 1).toLocaleDateString('de-DE', { month: 'short', year: '2-digit' });
   }
 
-  fmtMonatsWert(v) {
+  // semantisch = true nur bei der Differenz-Metrik: dort traegt der Wert
+  // eine Bewertung (gruen/rot). Umsatz und Fremdkosten bleiben neutral.
+  fmtMonatsWert(v, semantisch = false) {
     if (v == null || Math.abs(v) < 0.005) return '<span class="stakeholder-null">–</span>';
-    const cls = v < 0 ? ' class="stakeholder-negativ"' : '';
+    const cls = v < 0
+      ? ' class="stakeholder-negativ"'
+      : (semantisch ? ' class="stakeholder-positiv"' : '');
     return `<span${cls}>${this.fmtEuro(v)}</span>`;
   }
 
@@ -771,6 +775,7 @@ export class StakeholderOverviewPage {
     }
 
     const metrik = MONATS_METRIKEN[this.monatsMetrik] || MONATS_METRIKEN.differenz;
+    const semantisch = metrik === MONATS_METRIKEN.differenz;
 
     const aktiveBereiche = LEISTUNGSBEREICHE.filter(key => {
       const row = view.bereiche[key];
@@ -805,14 +810,14 @@ export class StakeholderOverviewPage {
             ${aktiveBereiche.map(key => `
               <tr>
                 <td>${this.escape(LEISTUNGSBEREICH_LABELS[key])}</td>
-                ${months.map(m => `<td class="stakeholder-num">${this.fmtMonatsWert(metrik.wert(view.bereiche[key], m))}</td>`).join('')}
+                ${months.map(m => `<td class="stakeholder-num">${this.fmtMonatsWert(metrik.wert(view.bereiche[key], m), semantisch)}</td>`).join('')}
               </tr>
             `).join('')}
           </tbody>
           <tfoot>
             <tr class="stakeholder-row--total">
               <td>GESAMT</td>
-              ${months.map(m => `<td class="stakeholder-num">${this.fmtMonatsWert(totals[m])}</td>`).join('')}
+              ${months.map(m => `<td class="stakeholder-num">${this.fmtMonatsWert(totals[m], semantisch)}</td>`).join('')}
             </tr>
           </tfoot>
         </table>

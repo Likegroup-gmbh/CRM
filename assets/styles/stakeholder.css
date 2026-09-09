@@ -6,7 +6,7 @@
 .stakeholder-page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-lg);
+  gap: var(--space-xl);
   max-width: var(--container-max-width);
   /* #dashboard-content setzt .main-wrapper-Padding auf 0 – Abstand wie ueblich hier setzen */
   padding: var(--space-lg);
@@ -52,7 +52,7 @@
 
 .stakeholder-tab.active {
   color: var(--text-primary);
-  border-bottom-color: var(--color-primary, #e83e8c);
+  border-bottom-color: var(--color-brand);
 }
 
 .stakeholder-tab-badge {
@@ -69,8 +69,8 @@
 }
 
 .stakeholder-tab.active .stakeholder-tab-badge {
-  background: var(--color-primary, #e83e8c);
-  color: #fff;
+  background: var(--color-brand);
+  color: var(--text-inverse);
 }
 
 /* Karten-Grid */
@@ -106,13 +106,16 @@
   gap: var(--space-xs);
   padding: var(--space-lg);
   border: 1px solid var(--border-primary);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   background: var(--bg-primary);
+  box-shadow: var(--shadow-xs);
+  transition: box-shadow var(--motion-duration-fast) var(--motion-ease-in-out);
 }
 
 .stakeholder-card:hover,
 .stakeholder-card:focus-within {
   z-index: 2;
+  box-shadow: var(--shadow-sm);
 }
 
 .stakeholder-card-head {
@@ -194,14 +197,19 @@
 }
 
 .stakeholder-card-value {
-  font-size: var(--text-xl);
-  font-weight: 500;
+  font-size: var(--text-xxl);
+  font-weight: 600;
   color: var(--text-primary);
   font-variant-numeric: tabular-nums;
 }
 
+/* Die drei Haupt-KPIs duerfen groesser als die Breakdown-Karten */
+.stakeholder-cards:not(.stakeholder-cards--breakdown) .stakeholder-card-value {
+  font-size: var(--text-xxxl);
+}
+
 .stakeholder-card-value--accent {
-  color: var(--color-primary, #e83e8c);
+  color: var(--color-brand);
 }
 
 .stakeholder-card-sub {
@@ -234,7 +242,7 @@
 .stakeholder-progress-fill {
   height: 100%;
   border-radius: 999px;
-  background: var(--color-primary, #e83e8c);
+  background: var(--color-brand);
 }
 
 .stakeholder-progress-fill--warning {
@@ -255,7 +263,7 @@
 }
 
 .stakeholder-card-foot--accent {
-  color: var(--color-primary, #e83e8c);
+  color: var(--color-brand);
   font-weight: 600;
 }
 
@@ -266,6 +274,7 @@
   border: 1px solid var(--border-primary);
   border-radius: var(--radius-xl);
   background: var(--bg-primary);
+  box-shadow: var(--shadow-xs);
 }
 
 .stakeholder-list-header {
@@ -297,7 +306,7 @@
 
 .stakeholder-table th,
 .stakeholder-table td {
-  padding: var(--space-xs) var(--space-sm);
+  padding: var(--space-6) var(--space-10);
   border-bottom: 1px solid var(--border-primary);
   text-align: left;
   color: var(--text-primary);
@@ -372,8 +381,8 @@
 }
 
 .stakeholder-badge--fee {
-  border-color: var(--color-primary, #e83e8c);
-  color: var(--color-primary, #e83e8c);
+  border-color: var(--color-brand);
+  color: var(--color-brand);
 }
 
 .stakeholder-verbraucht {
@@ -450,6 +459,8 @@
   color: var(--text-secondary);
   cursor: pointer;
   white-space: nowrap;
+  transition: background var(--motion-duration-fast) var(--motion-ease-in-out),
+              color var(--motion-duration-fast) var(--motion-ease-in-out);
 }
 
 .stakeholder-view-btn:hover {
@@ -468,6 +479,13 @@
   align-items: flex-end;
   gap: var(--space-md);
   flex-wrap: wrap;
+  /* Bleibt beim Scrollen stehen: .main-wrapper ist der Scroll-Container,
+     der Page-Header liegt ausserhalb davon. */
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: var(--bg-primary);
+  padding: var(--space-xs) 0;
 }
 
 .stakeholder-monate-toolbar {
@@ -502,7 +520,13 @@
 }
 
 .stakeholder-negativ {
-  color: var(--color-error, #c00);
+  color: var(--color-error);
+  font-weight: 600;
+}
+
+/* Semantisches Gruen nur, wo der Wert eine Bewertung traegt (Differenz) */
+.stakeholder-positiv {
+  color: var(--color-success);
   font-weight: 600;
 }
 
@@ -510,28 +534,37 @@
   color: var(--text-tertiary, var(--text-secondary));
 }
 
+/* Sonderzeilen als Warnleiste: es sind ausgewiesene Datenmaengel (ADR 0007),
+   also sehen sie auch nach Warnung aus statt nach Karte. */
 .stakeholder-sonderzeilen {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--space-md);
-  padding: var(--space-sm) var(--space-md) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: 0 var(--space-md) var(--space-md);
 }
 
 .stakeholder-sonderzeile {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: var(--space-sm);
-  border: 1px dashed var(--border-primary);
-  border-radius: var(--radius-sm);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: var(--space-md);
+  align-items: baseline;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--amber-50);
+  border: 1px solid var(--amber-200);
+  border-radius: var(--radius-md);
 }
 
 .stakeholder-sonderzeile-label {
+  grid-column: 1;
   font-size: var(--text-xs);
-  color: var(--text-secondary);
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 .stakeholder-sonderzeile-wert {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
   font-size: var(--text-lg, 1.1rem);
   font-weight: 600;
   color: var(--text-primary);
@@ -539,6 +572,7 @@
 }
 
 .stakeholder-sonderzeile-meta {
+  grid-column: 1;
   font-size: var(--text-xs);
   color: var(--text-secondary);
 }
