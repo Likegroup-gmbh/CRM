@@ -9,7 +9,7 @@ export const DOKUMENT_SEKTIONEN = [
   { key: 'kampagnenstrategie', label: 'Kampagnenstrategie', placeholder: 'Kurze Strategie: Ziel, Hebel, Kanäle…' },
   { key: 'todos', label: 'Handlungsempfehlungen & To-dos', placeholder: 'Konkrete nächste Schritte…' },
   { key: 'offene_punkte', label: 'Offene Punkte', placeholder: 'Was fehlt noch, was muss entschieden werden…' },
-  { key: 'empfehlungen', label: 'Empfehlungen Sourcing, Creator & Content', placeholder: 'Wen suchen, welche Formate, welcher Ton…' },
+  { key: 'empfehlungen', label: 'Empfehlungen Castings, Creator & Content', placeholder: 'Wen suchen, welche Formate, welcher Ton…' },
   { key: 'notizen', label: 'Eigene Notizen', placeholder: 'Frei notieren – die KI überschreibt das nicht.' }
 ];
 

@@ -381,7 +381,7 @@ function buildUploadMetadaten(detail) {
     unternehmen: s.unternehmen?.firmenname || '',
     marke: s.marke?.markenname || '',
     kampagne: s.kampagne?.kampagnenname || '',
-    kooperationName: s.name || 'Strategie',
+    kooperationName: s.name || 'Konzept',
   };
 }
 

@@ -51,6 +51,8 @@ describe('breadcrumbSwitcher', () => {
     expect(hasSwitcherConfig('kampagne')).toBe(true);
     expect(hasSwitcherConfig('unternehmen')).toBe(true);
     expect(hasSwitcherConfig('briefing')).toBe(true);
+    expect(hasSwitcherConfig('konzepte')).toBe(true);
+    expect(hasSwitcherConfig('castings')).toBe(true);
     expect(hasSwitcherConfig('skripte')).toBe(false);
     expect(hasSwitcherConfig('dashboard')).toBe(false);
   });

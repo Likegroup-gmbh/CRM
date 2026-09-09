@@ -30,7 +30,7 @@ export function buildPickerOptions(items, { strategieMap = null, subtitleFor } =
     options.push({
       value: item.id,
       label: truncateText(item.beschreibung),
-      group: strategie?.name || 'Strategie',
+      group: strategie?.name || 'Konzept',
       ...(subtitle ? { subtitle } : {})
     });
   });

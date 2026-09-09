@@ -71,13 +71,13 @@ export class StrategieList {
     if (!canView) {
       window.content.innerHTML = `
         <div class="error-message">
-          <p>Sie haben keine Berechtigung, Strategien anzuzeigen.</p>
+          <p>Sie haben keine Berechtigung, Konzepte anzuzeigen.</p>
         </div>
       `;
       return;
     }
 
-    window.setHeadline('Strategien');
+    window.setHeadline('Konzepte');
     this.updateBreadcrumbDisplay();
     await this.loadAndRender();
   }
@@ -119,7 +119,7 @@ export class StrategieList {
 
     if (this.viewMode === 'brands') {
       window.breadcrumbSystem.updateBreadcrumb([
-        { label: 'Strategien', url: '/strategie', clickable: true },
+        { label: 'Konzepte', url: '/konzepte', clickable: true },
         { label: this.currentUnternehmenName || 'Unternehmen', url: '#', clickable: false }
       ]);
       return;
@@ -128,8 +128,8 @@ export class StrategieList {
     const uName = encodeURIComponent(this.currentUnternehmenName || '');
     const uId = this.currentUnternehmenId;
     window.breadcrumbSystem.updateBreadcrumb([
-      { label: 'Strategien', url: '/strategie', clickable: true },
-      { label: this.currentUnternehmenName || 'Unternehmen', url: `/strategie?unternehmen=${uId}&unternehmen_name=${uName}`, clickable: true },
+      { label: 'Konzepte', url: '/konzepte', clickable: true },
+      { label: this.currentUnternehmenName || 'Unternehmen', url: `/konzepte?unternehmen=${uId}&unternehmen_name=${uName}`, clickable: true },
       { label: this.currentMarkeName || 'Marke', url: '#', clickable: false }
     ]);
   }
@@ -258,8 +258,8 @@ export class StrategieList {
   }
 
   showCreateForm() {
-    if (window.location.pathname !== '/strategie') {
-      window.navigateTo('/strategie');
+    if (window.location.pathname !== '/konzepte') {
+      window.navigateTo('/konzepte');
       setTimeout(() => this.openCreateDrawer(), 100);
     } else {
       this.openCreateDrawer();

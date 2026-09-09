@@ -5,8 +5,8 @@ import { renderEmptyStateRow } from '../../core/components/EmptyState.js';
 
 const ENTITY_META = {
   kampagne: { label: 'Kampagne', table: 'kampagne', nameColumns: ['eigener_name', 'kampagnenname'], route: (id) => `/kampagne/${id}` },
-  sourcing: { label: 'Sourcing', table: 'creator_auswahl', nameColumns: ['name'], route: (id) => `/sourcing/${id}` },
-  strategie: { label: 'Strategie', table: 'strategie', nameColumns: ['name'], route: (id) => `/strategie/${id}` },
+  sourcing: { label: 'Castings', table: 'creator_auswahl', nameColumns: ['name'], route: (id) => `/castings/${id}` },
+  strategie: { label: 'Konzepte', table: 'strategie', nameColumns: ['name'], route: (id) => `/konzepte/${id}` },
   skript: { label: 'Skript', table: 'skripte', nameColumns: ['titel'], route: (id) => `/skripte/${id}` },
 };
 

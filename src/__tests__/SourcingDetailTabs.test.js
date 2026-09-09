@@ -23,12 +23,12 @@ describe('Sourcing- und Kundenrechnungen-Tabs', () => {
     expect(entityIcon('kundenrechnungen')).toBe(entityIcon('ausgangsrechnungen'));
   });
 
-  it('Secondary-Nav rendert Sourcing-Label und Sourcing-Icon', () => {
+  it('Secondary-Nav rendert Castings-Label und Sourcing-Icon', () => {
     const html = renderSecondaryNav([
-      { tab: 'sourcing', label: 'Sourcing', showIcon: true }
+      { tab: 'sourcing', label: 'Castings', showIcon: true }
     ]);
     expect(html).toContain('data-tab="sourcing"');
-    expect(html).toContain('Sourcing');
+    expect(html).toContain('Castings');
     expect(html).not.toContain('Creator-Auswahl');
     expect(html).toContain('crm-icon-sourcing');
   });
@@ -50,7 +50,7 @@ describe('Sourcing- und Kundenrechnungen-Tabs', () => {
     const sourcing = tabs.find(t => t.tab === 'sourcing');
     expect(sourcing).toEqual(expect.objectContaining({
       tab: 'sourcing',
-      label: 'Sourcing',
+      label: 'Castings',
       count: 1,
       isActive: true
     }));
@@ -77,7 +77,7 @@ describe('Sourcing- und Kundenrechnungen-Tabs', () => {
       activeMainTab: 'sourcing'
     });
     expect(html).toContain('data-tab="sourcing"');
-    expect(html).toContain('Sourcing');
+    expect(html).toContain('Castings');
     expect(html).not.toContain('Creator-Auswahl');
     expect(html).not.toContain('data-tab="creatorauswahl"');
     expect(html).toContain('crm-icon-sourcing');

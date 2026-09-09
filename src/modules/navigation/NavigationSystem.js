@@ -45,19 +45,19 @@ export class NavigationSystem {
           { id: 'stakeholder', label: 'Stakeholder', icon: 'stakeholder', url: '/stakeholder' },
           { id: 'auftrag', label: 'Aufträge', icon: 'auftrag', url: '/auftrag' },
           { id: 'ausgangsrechnungen', label: 'Kundenrechnungen', icon: 'ausgangsrechnungen', url: '/ausgangsrechnungen' },
-          { id: 'auftragsdetails', label: 'Auftragsdetails', icon: 'auftragsdetails', url: '/auftragsdetails' },
-          { id: 'kampagne', label: 'Kampagnen', icon: 'kampagne', url: '/kampagne' }
+          { id: 'auftragsdetails', label: 'Auftragsdetails', icon: 'auftragsdetails', url: '/auftragsdetails' }
         ]
       },
       {
-        title: 'Content & Strategie',
+        title: 'Content & Konzepte',
         items: [
           // Ausgeblendet, kommt später wieder:
           // { id: 'kickoff', label: 'Kick-Off', icon: 'kickoff', url: '/kickoff' },
           { id: 'briefing', label: 'Briefings', icon: 'briefing', url: '/briefing' },
-          { id: 'strategie', label: 'Strategie', icon: 'strategie', url: '/strategie' },
-          { id: 'sourcing', label: 'Sourcing', icon: 'sourcing', url: '/sourcing' },
+          { id: 'sourcing', label: 'Castings', icon: 'sourcing', url: '/castings' },
+          { id: 'strategie', label: 'Konzepte', icon: 'strategie', url: '/konzepte' },
           { id: 'skripte', label: 'Skripte', icon: 'skripte', url: '/skripte' },
+          { id: 'kampagne', label: 'Kampagnen', icon: 'kampagne', url: '/kampagne' },
           { id: 'vertraege', label: 'Verträge', icon: 'vertraege', url: '/vertraege' },
           { id: 'videos', label: 'Videos', icon: 'videos', url: '/videos' },
           { id: 'rechnung', label: 'Rechnung', icon: 'rechnung', url: '/rechnung' }
@@ -73,7 +73,6 @@ export class NavigationSystem {
       {
         title: 'Admin',
         items: [
-          { id: 'stakeholder', label: 'Stakeholder', icon: 'stakeholder', url: '/stakeholder' },
           { id: 'mitarbeiter', label: 'Mitarbeiter', icon: 'mitarbeiter', url: '/mitarbeiter' },
           { id: 'kunden-admin', label: 'Kunden', icon: 'kunden-admin', url: '/admin/kunden' },
           { id: 'shares', label: 'Geteilte Listen', icon: 'shares', url: '/shares' },

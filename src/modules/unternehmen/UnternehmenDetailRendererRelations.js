@@ -16,8 +16,8 @@ export function renderStrategien(detail) {
   if (!detail.strategien || detail.strategien.length === 0) {
     return renderEmptyState({
       icon: 'clipboard',
-      title: 'Keine Strategien vorhanden',
-      text: 'Es wurden noch keine Strategien für dieses Unternehmen erstellt.'
+      title: 'Keine Konzepte vorhanden',
+      text: 'Es wurden noch keine Konzepte für dieses Unternehmen erstellt.'
     });
   }
 
@@ -25,7 +25,7 @@ export function renderStrategien(detail) {
     <tr>
       <td>
         <a href="#" class="table-link" data-table="strategie" data-id="${s.id}">
-          ${detail.sanitize(s.name) || 'Unbekannte Strategie'}
+          ${detail.sanitize(s.name) || 'Unbekanntes Konzept'}
         </a>
       </td>
       <td>${detail.sanitize(s.teilbereich) || '-'}</td>
@@ -57,8 +57,8 @@ export function renderCreatorAuswahl(detail) {
   if (!detail.creatorAuswahlen || detail.creatorAuswahlen.length === 0) {
     return renderEmptyState({
       icon: 'sourcing',
-      title: 'Keine Sourcing-Listen vorhanden',
-      text: 'Es wurden noch keine Sourcing-Listen für dieses Unternehmen erstellt.'
+      title: 'Keine Casting-Listen vorhanden',
+      text: 'Es wurden noch keine Casting-Listen für dieses Unternehmen erstellt.'
     });
   }
 
@@ -66,7 +66,7 @@ export function renderCreatorAuswahl(detail) {
     <tr>
       <td>
         <a href="#" class="table-link" data-table="sourcing" data-id="${ca.id}">
-          ${detail.sanitize(ca.name) || 'Unbekannte Sourcing-Liste'}
+          ${detail.sanitize(ca.name) || 'Unbekannte Casting-Liste'}
         </a>
       </td>
       <td>${detail.formatDate(ca.created_at)}</td>

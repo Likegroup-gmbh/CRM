@@ -67,7 +67,7 @@ export class KundenLanding {
       });
 
       return `
-        <tr class="table-row-clickable" onclick="window.navigateTo('/strategie/${s.id}')">
+        <tr class="table-row-clickable" onclick="window.navigateTo('/konzepte/${s.id}')">
           <td>
             <strong>${window.validatorSystem.sanitizeHtml(s.name || 'Ohne Namen')}</strong>
             ${s.beschreibung ? `<br><span class="kunden-landing-desc">${window.validatorSystem.sanitizeHtml(s.beschreibung)}</span>` : ''}
@@ -100,20 +100,20 @@ export class KundenLanding {
           </div>
         </div>
 
-        <!-- Strategien Section -->
+        <!-- Konzepte Section -->
         <div>
-          <h2 class="u-mb-md">Content-Strategien</h2>
+          <h2 class="u-mb-md">Konzepte</h2>
           <div class="data-table-container">
             <table class="data-table">
               <thead>
                 <tr>
-                  <th>Strategie</th>
+                  <th>Konzept</th>
                   <th>Verknüpfung</th>
                   <th>Erstellt am</th>
                 </tr>
               </thead>
               <tbody>
-                ${strategienRows || renderEmptyStateRow({ icon: 'list', title: 'Keine Strategien' }, 3)}
+                ${strategienRows || renderEmptyStateRow({ icon: 'list', title: 'Keine Konzepte' }, 3)}
               </tbody>
         </table>
           </div>

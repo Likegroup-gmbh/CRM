@@ -52,13 +52,13 @@ export class CreatorAuswahlList {
     if (!canView) {
       window.content.innerHTML = `
         <div class="error-message">
-          <p>Sie haben keine Berechtigung, Sourcing anzuzeigen.</p>
+          <p>Sie haben keine Berechtigung, Castings anzuzeigen.</p>
         </div>
       `;
       return;
     }
 
-    window.setHeadline('Sourcing');
+    window.setHeadline('Castings');
     this.updateBreadcrumb();
     await this.loadAndRender();
   }
@@ -177,7 +177,7 @@ export class CreatorAuswahlList {
             </div>
           </div>
           <div class="table-actions">
-            ${canCreate ? `<button class="mdc-btn" data-action="create-liste">Neue Sourcing-Liste</button>` : ''}
+            ${canCreate ? `<button class="mdc-btn" data-action="create-liste">Neue Casting-Liste</button>` : ''}
           </div>
         </div>
 
@@ -196,7 +196,7 @@ export class CreatorAuswahlList {
         <thead>
           <tr>
             <th>Unternehmen</th>
-            <th>Sourcing-Listen</th>
+            <th>Casting-Listen</th>
           </tr>
         </thead>
         <tbody id="companies-table-body"></tbody>
@@ -210,7 +210,7 @@ export class CreatorAuswahlList {
     return {
       icon,
       title,
-      actionsHtml: canCreate ? '<button class="mdc-btn" data-action="create-liste">Neue Sourcing-Liste</button>' : ''
+      actionsHtml: canCreate ? '<button class="mdc-btn" data-action="create-liste">Neue Casting-Liste</button>' : ''
     };
   }
 
@@ -219,7 +219,7 @@ export class CreatorAuswahlList {
     if (!grid) return;
 
     if (this.companyFolders.length === 0) {
-      grid.innerHTML = `<div class="grid-span-all">${renderEmptyState(this._sourcingEmptyState('Keine Sourcing-Listen vorhanden'))}</div>`;
+      grid.innerHTML = `<div class="grid-span-all">${renderEmptyState(this._sourcingEmptyState('Keine Casting-Listen vorhanden'))}</div>`;
       return;
     }
 
@@ -245,7 +245,7 @@ export class CreatorAuswahlList {
     if (!tbody) return;
 
     if (this.companyFolders.length === 0) {
-      tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine Sourcing-Listen vorhanden'), 2);
+      tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine Casting-Listen vorhanden'), 2);
       return;
     }
 
@@ -280,18 +280,18 @@ export class CreatorAuswahlList {
             </div>
           </div>
           <div class="table-actions">
-            ${canCreate ? `<button class="mdc-btn" data-action="create-liste">Neue Sourcing-Liste</button>` : ''}
+            ${canCreate ? `<button class="mdc-btn" data-action="create-liste">Neue Casting-Liste</button>` : ''}
           </div>
         </div>
 
         ${showBrandsSection ? `
           <div class="table-container">
-            <h3 class="table-section-title">Sourcing-Listen mit Marke</h3>
+            <h3 class="table-section-title">Casting-Listen mit Marke</h3>
             <table class="data-table">
               <thead>
                 <tr>
                   <th>Marke</th>
-                  <th>Sourcing-Listen</th>
+                  <th>Casting-Listen</th>
                 </tr>
               </thead>
               <tbody id="brands-table-body"></tbody>
@@ -301,7 +301,7 @@ export class CreatorAuswahlList {
 
         ${showCompanyOnlySection ? `
           <div class="table-container table-container--spaced">
-            <h3 class="table-section-title">Sourcing-Listen ohne Marke (nur Unternehmen)</h3>
+            <h3 class="table-section-title">Casting-Listen ohne Marke (nur Unternehmen)</h3>
             <table class="data-table">
               <thead>
                 <tr>
@@ -326,7 +326,7 @@ export class CreatorAuswahlList {
     if (!tbody) return;
 
     if (this.brandFolders.length === 0) {
-      tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine markenbezogenen Sourcing-Listen vorhanden', 'tag'), 2);
+      tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine markenbezogenen Casting-Listen vorhanden', 'tag'), 2);
       return;
     }
 
@@ -426,7 +426,7 @@ export class CreatorAuswahlList {
             </div>
           </div>
           <div class="table-actions">
-            ${canCreate ? `<button class="mdc-btn" data-action="create-liste">Neue Sourcing-Liste</button>` : ''}
+            ${canCreate ? `<button class="mdc-btn" data-action="create-liste">Neue Casting-Liste</button>` : ''}
           </div>
         </div>
         <div class="table-container table-container--creator-auswahl-list">
@@ -442,7 +442,7 @@ export class CreatorAuswahlList {
               </tr>
             </thead>
             <tbody id="creator-auswahl-table-body">
-              <tr><td colspan="6" class="table-state-cell">Lade Sourcing-Listen...</td></tr>
+              <tr><td colspan="6" class="table-state-cell">Lade Casting-Listen...</td></tr>
             </tbody>
           </table>
         </div>
@@ -456,7 +456,7 @@ export class CreatorAuswahlList {
     if (!tbody) return;
 
     if (this.currentItems.length === 0) {
-      tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine Sourcing-Listen für diese Marke vorhanden'), 6);
+      tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine Casting-Listen für diese Marke vorhanden'), 6);
       this.pagination.updateTotal(0);
       this.pagination.render();
       return;
@@ -619,7 +619,7 @@ export class CreatorAuswahlList {
       const viewBtn = e.target.closest('[data-action="view-liste"]');
       if (viewBtn) {
         e.preventDefault();
-        window.navigateTo(`/sourcing/${viewBtn.dataset.id}`);
+        window.navigateTo(`/castings/${viewBtn.dataset.id}`);
         return;
       }
 
@@ -633,7 +633,7 @@ export class CreatorAuswahlList {
       const editBtn = e.target.closest('[data-action="edit-liste"]');
       if (editBtn) {
         e.preventDefault();
-        window.navigateTo(`/sourcing/${editBtn.dataset.id}/edit`);
+        window.navigateTo(`/castings/${editBtn.dataset.id}/edit`);
         return;
       }
 
@@ -646,14 +646,14 @@ export class CreatorAuswahlList {
 
       if (e.target.classList.contains('table-link') && e.target.dataset.table === 'sourcing') {
         e.preventDefault();
-        window.navigateTo(`/sourcing/${e.target.dataset.id}`);
+        window.navigateTo(`/castings/${e.target.dataset.id}`);
         return;
       }
 
       const row = e.target.closest('.table-row-clickable');
       if (row && !e.target.closest('.actions-dropdown-container') && !e.target.closest('.table-link')) {
         const id = row.dataset.listeId;
-        if (id) window.navigateTo(`/sourcing/${id}`);
+        if (id) window.navigateTo(`/castings/${id}`);
       }
     });
     this._boundEventListeners.add(() => document.removeEventListener('click', this._globalClickHandler));
@@ -662,8 +662,8 @@ export class CreatorAuswahlList {
   async confirmDeleteListe(id) {
     if (window.confirmationModal) {
       const result = await window.confirmationModal.open({
-        title: 'Sourcing-Liste löschen',
-        message: 'Möchten Sie diese Sourcing-Liste wirklich löschen? Alle zugeordneten Creator werden entfernt.',
+        title: 'Casting-Liste löschen',
+        message: 'Möchten Sie diese Casting-Liste wirklich löschen? Alle zugeordneten Creator werden entfernt.',
         confirmText: 'Löschen',
         cancelText: 'Abbrechen',
         danger: true
@@ -671,7 +671,7 @@ export class CreatorAuswahlList {
       if (result?.confirmed) {
         await this.deleteListe(id);
       }
-    } else if (confirm('Möchten Sie diese Sourcing-Liste wirklich löschen?')) {
+    } else if (confirm('Möchten Sie diese Casting-Liste wirklich löschen?')) {
       await this.deleteListe(id);
     }
   }
@@ -679,13 +679,13 @@ export class CreatorAuswahlList {
   async deleteListe(id) {
     try {
       await creatorAuswahlService.deleteListe(id);
-      window.toastSystem?.show('Sourcing-Liste erfolgreich gelöscht', 'success');
+      window.toastSystem?.show('Casting-Liste erfolgreich gelöscht', 'success');
       this._forceReload = true;
       this.listen = [];
       await this.loadAndRender();
     } catch (error) {
       console.error('Fehler beim Löschen:', error);
-      window.toastSystem?.show('Fehler beim Löschen der Sourcing-Liste', 'error');
+      window.toastSystem?.show('Fehler beim Löschen der Casting-Liste', 'error');
     }
   }
 
@@ -706,7 +706,7 @@ export class CreatorAuswahlList {
     header.innerHTML = `
       <div>
         <span class="drawer-title">Name bearbeiten</span>
-        <p class="drawer-subtitle">Ändern Sie den Namen dieser Sourcing-Liste</p>
+        <p class="drawer-subtitle">Ändern Sie den Namen dieser Casting-Liste</p>
       </div>
       <div>
         <button type="button" class="drawer-close-btn" aria-label="Schließen">&times;</button>
@@ -806,8 +806,8 @@ export class CreatorAuswahlList {
     header.className = 'drawer-header';
     header.innerHTML = `
       <div>
-        <span class="drawer-title">Neue Sourcing-Liste</span>
-        <p class="drawer-subtitle">Erstellen Sie eine neue Sourcing-Liste für eine Kampagne</p>
+        <span class="drawer-title">Neue Casting-Liste</span>
+        <p class="drawer-subtitle">Erstellen Sie eine neue Casting-Liste für eine Kampagne</p>
       </div>
       <div>
         <button type="button" class="drawer-close-btn" aria-label="Schließen">&times;</button>
@@ -881,9 +881,9 @@ export class CreatorAuswahlList {
 
       const newListe = await creatorAuswahlService.createListe(submitData);
       if (newListe?.id) {
-        window.toastSystem?.show('Sourcing-Liste erfolgreich erstellt', 'success');
+        window.toastSystem?.show('Casting-Liste erfolgreich erstellt', 'success');
         this.closeCreateDrawer();
-        window.navigateTo(`/sourcing/${newListe.id}`);
+        window.navigateTo(`/castings/${newListe.id}`);
       } else {
         throw new Error('Keine ID zurückgegeben');
       }
@@ -917,8 +917,8 @@ export class CreatorAuswahlList {
   }
 
   showCreateForm() {
-    if (window.location.pathname !== '/sourcing') {
-      window.navigateTo('/sourcing');
+    if (window.location.pathname !== '/castings') {
+      window.navigateTo('/castings');
       setTimeout(() => this.openCreateDrawer(), 100);
     } else {
       this.openCreateDrawer();

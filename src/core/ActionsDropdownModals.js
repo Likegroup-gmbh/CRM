@@ -519,7 +519,7 @@ export async function openAddToCampaignModal(dropdown, creatorId) {
       await window.supabase.from('kampagne_creator_sourcing').insert({ kampagne_id: selectedId, creator_id: creatorId });
       close();
       window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'kampagne', action: 'sourcing-added', id: selectedId } }));
-      alert('Creator wurde zum Sourcing der Kampagne hinzugefügt.');
+      alert('Creator wurde zum Casting der Kampagne hinzugefügt.');
     } catch (err) {
       console.error('Fehler beim Hinzufügen zur Kampagne', err);
       alert('Hinzufügen fehlgeschlagen.');

@@ -6,15 +6,15 @@ import { strategieService } from './StrategieService.js';
 export function showHowToModal() {
   if (window.modalSystem) {
     window.modalSystem.open({
-      title: 'Wie funktioniert die Strategie?',
+      title: 'Wie funktionieren Konzepte?',
       content: `
         <div class="how-to-content">
-          <p><strong>1. Strategie erstellen</strong></p>
-          <p>Klicke auf "Neue Strategie anlegen" und wähle Unternehmen, Marke und Kampagne aus.</p>
+          <p><strong>1. Konzept erstellen</strong></p>
+          <p>Klicke auf "Neues Konzept anlegen" und wähle Unternehmen, Marke und Kampagne aus.</p>
           <p><strong>2. Items hinzufügen</strong></p>
-          <p>Füge Video-Konzepte, Hooks und andere Elemente zur Strategie hinzu.</p>
+          <p>Füge Video-Konzepte, Hooks und andere Elemente zum Konzept hinzu.</p>
           <p><strong>3. Mit Kunden teilen</strong></p>
-          <p>Kunden können die Strategie einsehen und Feedback geben.</p>
+          <p>Kunden können das Konzept einsehen und Feedback geben.</p>
         </div>
       `,
       size: 'medium'
@@ -25,8 +25,8 @@ export function showHowToModal() {
 export async function confirmDeleteStrategie(list, id) {
   if (window.confirmationModal) {
     const result = await window.confirmationModal.open({
-      title: 'Strategie löschen',
-      message: 'Möchten Sie diese Strategie wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.',
+      title: 'Konzept löschen',
+      message: 'Möchten Sie dieses Konzept wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.',
       confirmText: 'Löschen',
       cancelText: 'Abbrechen',
       danger: true
@@ -34,7 +34,7 @@ export async function confirmDeleteStrategie(list, id) {
     if (result?.confirmed) {
       await deleteStrategie(list, id);
     }
-  } else if (confirm('Möchten Sie diese Strategie wirklich löschen?')) {
+  } else if (confirm('Möchten Sie dieses Konzept wirklich löschen?')) {
     await deleteStrategie(list, id);
   }
 }
@@ -47,13 +47,13 @@ async function deleteStrategie(list, id) {
       .eq('id', id);
 
     if (error) throw error;
-    window.toastSystem?.show('Strategie erfolgreich gelöscht', 'success');
+    window.toastSystem?.show('Konzept erfolgreich gelöscht', 'success');
     list._forceReload = true;
     list.strategien = [];
     await list.loadAndRender();
   } catch (error) {
     console.error('Fehler beim Löschen:', error);
-    window.toastSystem?.show('Fehler beim Löschen der Strategie', 'error');
+    window.toastSystem?.show('Fehler beim Löschen des Konzepts', 'error');
   }
 }
 
@@ -73,8 +73,8 @@ export function openCreateDrawer(list) {
   header.className = 'drawer-header';
   header.innerHTML = `
     <div>
-      <span class="drawer-title">Neue Strategie</span>
-      <p class="drawer-subtitle">Erstellen Sie eine neue Strategie für eine Kampagne</p>
+      <span class="drawer-title">Neues Konzept</span>
+      <p class="drawer-subtitle">Erstellen Sie ein neues Konzept für eine Kampagne</p>
     </div>
     <div>
       <button type="button" class="drawer-close-btn" aria-label="Schließen">&times;</button>
@@ -134,15 +134,15 @@ async function handleCreateFormSubmit(list, form) {
   try {
     const submitData = window.formSystem.collectSubmitData(form);
     if (!submitData.name || submitData.name.trim() === '') {
-      window.toastSystem?.show('Bitte geben Sie einen Strategienamen ein', 'error');
+      window.toastSystem?.show('Bitte geben Sie einen Konzeptnamen ein', 'error');
       return;
     }
 
     const newStrategie = await strategieService.createStrategie(submitData);
     if (newStrategie?.id) {
-      window.toastSystem?.show('Strategie erfolgreich erstellt', 'success');
+      window.toastSystem?.show('Konzept erfolgreich erstellt', 'success');
       closeCreateDrawer();
-      window.navigateTo(`/strategie/${newStrategie.id}`);
+      window.navigateTo(`/konzepte/${newStrategie.id}`);
     } else {
       throw new Error('Keine ID zurückgegeben');
     }
@@ -157,7 +157,7 @@ export async function openEditDrawer(list, strategieId) {
 
   try {
     const strategie = await strategieService.getStrategieById(strategieId);
-    if (!strategie) throw new Error('Strategie nicht gefunden');
+    if (!strategie) throw new Error('Konzept nicht gefunden');
 
     const overlay = document.createElement('div');
     overlay.className = 'drawer-overlay';
@@ -172,8 +172,8 @@ export async function openEditDrawer(list, strategieId) {
     header.className = 'drawer-header';
     header.innerHTML = `
       <div>
-        <span class="drawer-title">Strategie bearbeiten</span>
-        <p class="drawer-subtitle">Strategie bearbeiten</p>
+        <span class="drawer-title">Konzept bearbeiten</span>
+        <p class="drawer-subtitle">Konzept bearbeiten</p>
       </div>
       <div>
         <button type="button" class="drawer-close-btn" aria-label="Schließen">&times;</button>
@@ -252,7 +252,7 @@ export async function openEditDrawer(list, strategieId) {
 
   } catch (error) {
     console.error('Fehler beim Öffnen des Edit-Drawers:', error);
-    window.toastSystem?.show('Fehler beim Laden der Strategie', 'error');
+    window.toastSystem?.show('Fehler beim Laden des Konzepts', 'error');
   }
 }
 
@@ -376,7 +376,7 @@ async function handleEditFormSubmit(list, strategieId, form) {
     const kampagneId = form.querySelector('[name="kampagne_id"]').value;
 
     if (!name) {
-      window.toastSystem?.show('Bitte geben Sie einen Strategienamen ein', 'error');
+      window.toastSystem?.show('Bitte geben Sie einen Konzeptnamen ein', 'error');
       return;
     }
     if (!unternehmenId) {
@@ -397,7 +397,7 @@ async function handleEditFormSubmit(list, strategieId, form) {
 
     await strategieService.updateStrategie(strategieId, updates);
 
-    window.toastSystem?.show('Strategie erfolgreich aktualisiert', 'success');
+    window.toastSystem?.show('Konzept erfolgreich aktualisiert', 'success');
     closeEditDrawer();
     list._forceReload = true;
     list.strategien = [];

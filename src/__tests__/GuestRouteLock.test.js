@@ -4,7 +4,7 @@ import { ModuleRegistry } from '../core/ModuleRegistry.js';
 describe('ModuleRegistry Gast-Routensperre', () => {
   beforeEach(() => {
     window.guestShare = {
-      allowedRoute: '/sourcing/abc',
+      allowedRoute: '/castings/abc',
       entityType: 'sourcing',
       entityId: 'abc',
       rechte: 'ansehen',
@@ -26,8 +26,8 @@ describe('ModuleRegistry Gast-Routensperre', () => {
   it('erlaubt die geteilte Liste', async () => {
     const registry = new ModuleRegistry();
     const init = vi.fn();
-    registry.register('sourcing-detail', { init });
-    await registry.navigateTo('/sourcing/abc');
+    registry.register('castings-detail', { init });
+    await registry.navigateTo('/castings/abc');
     expect(window.toastSystem.show).not.toHaveBeenCalled();
     expect(init).toHaveBeenCalledWith('abc');
   });
