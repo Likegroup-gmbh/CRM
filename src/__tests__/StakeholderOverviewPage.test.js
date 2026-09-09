@@ -250,7 +250,10 @@ describe('StakeholderOverviewPage', () => {
     page.render();
     const html = window.setContentSafely.mock.calls.at(-1)[1];
 
-    // Sicht- und Metrik-Umschalter
+    // Sicht- und Metrik-Umschalter (ViewModeToggle, wie Briefings Liste/Grid)
+    expect(html).toContain('btn-view-marge');
+    expect(html).toContain('btn-view-buchhaltung');
+    expect(html).toContain('btn-view-umsatz');
     expect(html).toContain('Margensicht');
     expect(html).toContain('Buchhaltungssicht');
     expect(html).toContain('Umsatz');
@@ -345,6 +348,7 @@ describe('StakeholderOverviewPage', () => {
     const html = window.setContentSafely.mock.calls.at(-1)[1];
 
     expect(html).toContain('stakeholder-bericht-select');
+    expect(html).toContain('form-select');
     expect(html).toContain('Live-Ansicht');
     expect(html).toContain('Investorenupdate August 2026');
     expect(html).toContain('stakeholder-bericht-sichern');

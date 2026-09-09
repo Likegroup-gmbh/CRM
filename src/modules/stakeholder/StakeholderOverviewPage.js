@@ -634,7 +634,7 @@ export class StakeholderOverviewPage {
           ${!isMonate ? `
           <div class="form-field stakeholder-year-field">
             <label for="stakeholder-year-select">Zeitraum</label>
-            <select id="stakeholder-year-select">
+            <select id="stakeholder-year-select" class="form-select">
               <option value="all"${this.selectedYear === 'all' ? ' selected' : ''}>Alle Jahre</option>
               ${years.map(y => `<option value="${y}"${String(this.selectedYear) === String(y) ? ' selected' : ''}>${y}</option>`).join('')}
             </select>
@@ -815,24 +815,27 @@ export class StakeholderOverviewPage {
       ? this.fmtBerichtsstandDatum(this.aktiverBerichtsstand.created_at)
       : new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-    const sichtBtn = (key, label, hint) => `
-      <button type="button" class="stakeholder-view-btn${this.monatsSicht === key ? ' active' : ''}"
-              data-monat-sicht="${key}" title="${this.escape(hint)}">${label}</button>`;
-    const metrikBtn = (key, label) => `
-      <button type="button" class="stakeholder-view-btn${this.monatsMetrik === key ? ' active' : ''}"
-              data-monat-metrik="${key}">${label}</button>`;
-
     return `
       <div class="stakeholder-monate-toolbar">
-        <div class="stakeholder-view-toggle" role="tablist" aria-label="Sicht">
-          ${sichtBtn('marge', 'Margensicht', 'Fremdkosten stehen im Monat der zugehörigen Kundenrechnung – so liest sich die Marge pro Monat richtig.')}
-          ${sichtBtn('buchhaltung', 'Buchhaltungssicht', 'Jeder Beleg steht im Monat seines eigenen Rechnungsdatums – so ging der Monat durch die Bücher.')}
-        </div>
-        <div class="stakeholder-view-toggle" role="tablist" aria-label="Metrik">
-          ${metrikBtn('umsatz', 'Umsatz')}
-          ${metrikBtn('fremdkosten', 'Fremdkosten')}
-          ${metrikBtn('differenz', 'Differenz')}
-        </div>
+        ${ViewModeToggle.render([
+          {
+            buttonId: 'btn-view-marge',
+            label: 'Margensicht',
+            active: this.monatsSicht === 'marge',
+            title: 'Fremdkosten stehen im Monat der zugehörigen Kundenrechnung – so liest sich die Marge pro Monat richtig.',
+          },
+          {
+            buttonId: 'btn-view-buchhaltung',
+            label: 'Buchhaltungssicht',
+            active: this.monatsSicht === 'buchhaltung',
+            title: 'Jeder Beleg steht im Monat seines eigenen Rechnungsdatums – so ging der Monat durch die Bücher.',
+          },
+        ])}
+        ${ViewModeToggle.render([
+          { buttonId: 'btn-view-umsatz', label: 'Umsatz', active: this.monatsMetrik === 'umsatz' },
+          { buttonId: 'btn-view-fremdkosten', label: 'Fremdkosten', active: this.monatsMetrik === 'fremdkosten' },
+          { buttonId: 'btn-view-differenz', label: 'Differenz', active: this.monatsMetrik === 'differenz' },
+        ])}
         <div class="stakeholder-monate-meta"
              title="Der nicht zugeordnete Rest ist ein Datenmangel (fehlende Kampagnenart-Blöcke). Die konkreten Fälle stehen in der Datenqualitätsanzeige im Adminbereich.">
           Stand ${stand}${this.aktiverBerichtsstand ? ' (eingefroren)' : ''}
@@ -1035,19 +1038,19 @@ export class StakeholderOverviewPage {
     const card = (label, value, sub, foot, opts = {}) => `
       <div class="stakeholder-card">
         ${cardHead(label, opts.hint)}
-        <div class="stakeholder-card-value${opts.accent ? ' stakeholder-card-value--accent' : ''}">${this.fmtEuro(value)}</div>
+        <div class="stakeholder-card-value">${this.fmtEuro(value)}</div>
         ${sub ? `<div class="stakeholder-card-sub">${sub}</div>` : ''}
         ${opts.progress != null ? `
           <div class="stakeholder-progress">
             <div class="stakeholder-progress-fill${opts.progressClass ? ` ${opts.progressClass}` : ''}" style="width: ${Math.min(100, Math.max(0, opts.progress))}%"></div>
           </div>` : ''}
-        ${foot ? `<div class="stakeholder-card-foot${opts.footAccent ? ' stakeholder-card-foot--accent' : ''}">${foot}</div>` : ''}
+        ${foot ? `<div class="stakeholder-card-foot">${foot}</div>` : ''}
       </div>`;
 
     const breakdownCard = (label, value, sub, lines, foot, opts = {}) => `
       <div class="stakeholder-card">
         ${cardHead(label, opts.hint)}
-        <div class="stakeholder-card-value${opts.accent ? ' stakeholder-card-value--accent' : ''}">${this.fmtEuro(value)}</div>
+        <div class="stakeholder-card-value">${this.fmtEuro(value)}</div>
         ${sub ? `<div class="stakeholder-card-sub">${sub}</div>` : ''}
         ${lines?.length ? `
           <div class="stakeholder-card-breakdown">
@@ -1057,7 +1060,7 @@ export class StakeholderOverviewPage {
           <div class="stakeholder-progress">
             <div class="stakeholder-progress-fill${opts.progressClass ? ` ${opts.progressClass}` : ''}" style="width: ${Math.min(100, Math.max(0, opts.progress))}%"></div>
           </div>` : ''}
-        ${foot ? `<div class="stakeholder-card-foot${opts.footAccent ? ' stakeholder-card-foot--accent' : ''}">${foot}</div>` : ''}
+        ${foot ? `<div class="stakeholder-card-foot">${foot}</div>` : ''}
       </div>`;
 
     const progressClass = (pct) => pct >= 90 ? 'stakeholder-progress-fill--danger' : pct >= 75 ? 'stakeholder-progress-fill--warning' : '';
@@ -1325,16 +1328,18 @@ export class StakeholderOverviewPage {
         return;
       }
 
-      const sichtBtn = e.target.closest('[data-monat-sicht]');
+      const sichtBtn = e.target.closest('#btn-view-marge, #btn-view-buchhaltung');
       if (sichtBtn) {
-        this.monatsSicht = sichtBtn.dataset.monatSicht;
+        this.monatsSicht = sichtBtn.id === 'btn-view-buchhaltung' ? 'buchhaltung' : 'marge';
         this.render();
         return;
       }
 
-      const metrikBtn = e.target.closest('[data-monat-metrik]');
+      const metrikBtn = e.target.closest('#btn-view-umsatz, #btn-view-fremdkosten, #btn-view-differenz');
       if (metrikBtn) {
-        this.monatsMetrik = metrikBtn.dataset.monatMetrik;
+        this.monatsMetrik = metrikBtn.id === 'btn-view-fremdkosten' ? 'fremdkosten'
+          : metrikBtn.id === 'btn-view-differenz' ? 'differenz'
+          : 'umsatz';
         this.render();
         return;
       }
