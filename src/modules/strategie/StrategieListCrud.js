@@ -212,6 +212,13 @@ export async function openEditDrawer(list, strategieId) {
           </select>
         </div>
 
+        <div class="mdc-field" id="edit-strategie-briefing-field">
+          <label class="mdc-label" for="edit-strategie-briefing">Briefing</label>
+          <select id="edit-strategie-briefing" name="briefing_id" class="mdc-select">
+            <option value="">Wird geladen...</option>
+          </select>
+        </div>
+
         <div class="mdc-form-actions">
           <button type="button" class="mdc-btn mdc-btn--cancel">Abbrechen</button>
           <button type="submit" class="mdc-btn mdc-btn--primary">Speichern</button>
@@ -303,6 +310,67 @@ async function populateEditSelects(list, strategie) {
     markeSelect.innerHTML = '<option value="">-- Zuerst Unternehmen wählen --</option>';
     kampagneSelect.innerHTML = '<option value="">-- Zuerst Unternehmen wählen --</option>';
   }
+
+  await renderEditBriefingField(list, strategie);
+}
+
+// Briefing-Pflicht (Step 1): gesetzter Link ist eingefroren (read-only Anzeige).
+// Altbestand ohne Link darf genau einmal gesetzt werden (searchable Picker,
+// finalisierte Briefings des Unternehmens, bei Marke nur dieser Marke).
+async function renderEditBriefingField(list, strategie) {
+  const briefingSelect = document.getElementById('edit-strategie-briefing');
+  const briefingField = document.getElementById('edit-strategie-briefing-field');
+  if (!briefingSelect || !briefingField) return;
+
+  if (strategie.briefing_id) {
+    const { data: briefing } = await window.supabase
+      .from('campaign_briefings')
+      .select('aktivierung_name')
+      .eq('id', strategie.briefing_id)
+      .single();
+    const name = briefing?.aktivierung_name || 'Briefing';
+    briefingField.innerHTML = `
+      <label class="mdc-label">Briefing</label>
+      <div class="mdc-input mdc-input--readonly">${list.sanitize(name)}</div>
+    `;
+    return;
+  }
+
+  if (!strategie.unternehmen_id) {
+    briefingSelect.innerHTML = '<option value="">-- Zuerst Unternehmen wählen --</option>';
+    briefingSelect.disabled = true;
+    return;
+  }
+
+  let query = window.supabase
+    .from('campaign_briefings')
+    .select('id, aktivierung_name')
+    .eq('unternehmen_id', strategie.unternehmen_id)
+    .eq('is_draft', false)
+    .order('created_at', { ascending: false });
+  if (strategie.marke_id) {
+    query = query.eq('marke_id', strategie.marke_id);
+  }
+  const { data: briefings } = await query;
+
+  if (!briefings || briefings.length === 0) {
+    const params = new URLSearchParams({ unternehmen: strategie.unternehmen_id });
+    if (strategie.marke_id) params.set('marke', strategie.marke_id);
+    briefingSelect.innerHTML = `<option value="">Kein finalisiertes Briefing — zuerst anlegen: /briefing/new?${params.toString()}</option>`;
+    briefingSelect.disabled = true;
+    return;
+  }
+
+  const options = briefings.map(b => ({
+    value: b.id,
+    label: b.aktivierung_name || `Briefing ${b.id.slice(0, 6)}`
+  }));
+  briefingSelect.innerHTML = '<option value="">-- Briefing wählen (optional) --</option>';
+  briefingSelect.disabled = false;
+  window.formSystem?.createSearchableSelect(briefingSelect, options, {
+    name: 'briefing_id',
+    placeholder: 'Briefing suchen und auswählen...'
+  });
 }
 
 function bindEditSelectCascades(list) {
@@ -374,6 +442,10 @@ async function handleEditFormSubmit(list, strategieId, form) {
     const unternehmenId = form.querySelector('[name="unternehmen_id"]').value;
     const markeId = form.querySelector('[name="marke_id"]').value || null;
     const kampagneId = form.querySelector('[name="kampagne_id"]').value;
+    // Searchable-Select traegt den Wert im hidden input; das Original-select
+    // hat kein name-Attribut mehr. querySelector('[name="briefing_id"]')
+    // trifft daher den hidden input.
+    const briefingId = form.querySelector('[name="briefing_id"]')?.value || null;
 
     if (!name) {
       window.toastSystem?.show('Bitte geben Sie einen Konzeptnamen ein', 'error');
@@ -394,6 +466,11 @@ async function handleEditFormSubmit(list, strategieId, form) {
       marke_id: markeId,
       kampagne_id: kampagneId
     };
+    // Nur mitschicken wenn gesetzt (Grandfather: einmal setzen erlaubt).
+    // Der Service-Lock verwirft leere/ausgelassene Werte bei bestehendem Link.
+    if (briefingId) {
+      updates.briefing_id = briefingId;
+    }
 
     await strategieService.updateStrategie(strategieId, updates);
 

@@ -6,6 +6,7 @@
 //   ANTHROPIC_MODEL_EDIT_FAST  (Default: claude-haiku-4-5) - Editor: freier Chat / Rueckfragen
 //   ANTHROPIC_MODEL_EXTRACT    (Default: claude-haiku-4-5) - Webseiten-Extraktion (site-extract)
 //   ANTHROPIC_MODEL_EXTRACT_PRODUKT (Default: claude-sonnet-4-5) - Produktseiten: mehr Felder, mehr Interpretation
+//   ANTHROPIC_MODEL_EXTRACT_BRIEFING (Default: claude-sonnet-4-5) - Kundenbriefing-PDF: viele Felder, Mapping
 //   ANTHROPIC_MODEL_PERSONA    (Default: claude-sonnet-4-5) - Persona-Vorschlaege aus dem Produkt
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
@@ -17,6 +18,7 @@ const MODELS = {
   edit_fast: process.env.ANTHROPIC_MODEL_EDIT_FAST || 'claude-haiku-4-5',
   extract: process.env.ANTHROPIC_MODEL_EXTRACT || 'claude-haiku-4-5',
   extract_produkt: process.env.ANTHROPIC_MODEL_EXTRACT_PRODUKT || 'claude-sonnet-4-5',
+  extract_briefing: process.env.ANTHROPIC_MODEL_EXTRACT_BRIEFING || 'claude-sonnet-4-5',
   persona: process.env.ANTHROPIC_MODEL_PERSONA || 'claude-sonnet-4-5'
 };
 
@@ -47,7 +49,7 @@ class ClaudeTimeoutError extends Error {
  * Thinking erlaubt Anthropic nur 'auto'/'none' - dann wird still auf 'auto'
  * degradiert und der Aufrufer braucht einen Text-Fallback via extractJson.
  */
-async function callClaude({ model, systemBlocks = [], userPrompt, maxTokens = 4096, thinking = false, thinkingBudget = 2048, timeoutMs = 0, tool = null, toolForced = true }) {
+async function callClaude({ model, systemBlocks = [], userPrompt, maxTokens = 4096, thinking = false, thinkingBudget = 2048, timeoutMs = 0, tool = null, toolForced = true, document = null }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY nicht gesetzt');
 
@@ -68,6 +70,21 @@ async function callClaude({ model, systemBlocks = [], userPrompt, maxTokens = 40
       tool_choice: forced ? { type: 'tool', name: tool.name } : { type: 'auto' }
     }
     : {};
+
+  // PDF als Document-Block vor dem Text, damit das Modell erst das Dokument
+  // sieht und dann die Aufgabe. base64 ohne data:-Prefix.
+  const content = [];
+  if (document?.base64) {
+    content.push({
+      type: 'document',
+      source: {
+        type: 'base64',
+        media_type: document.mediaType || 'application/pdf',
+        data: document.base64
+      }
+    });
+  }
+  content.push({ type: 'text', text: userPrompt });
 
   const controller = timeoutMs > 0 ? new AbortController() : null;
   // Der Timer laeuft ueber Request UND Body-Lesen: bei non-streaming haelt
@@ -90,7 +107,7 @@ async function callClaude({ model, systemBlocks = [], userPrompt, maxTokens = 40
         ...(thinking ? { thinking: { type: 'enabled', budget_tokens: thinkingBudget } } : {}),
         ...toolParams,
         ...(system.length ? { system } : {}),
-        messages: [{ role: 'user', content: userPrompt }]
+        messages: [{ role: 'user', content }]
       }),
       ...(controller ? { signal: controller.signal } : {})
     });

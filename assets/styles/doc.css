@@ -838,35 +838,39 @@
   opacity: 0.75;
 }
 
-.doc .doc-chat__field {
+/* Der Chat lebt immer in der Seitenspalte (.doc__side) - am Doc-Worksheet
+   (Produkt, Persona) genauso wie am Briefing-Multistep. Deshalb haengen die
+   Styles an .doc__side, nicht an .doc: sonst muesste jede Seite ein .doc
+   vortaeuschen, nur damit Liky aussieht wie Liky. */
+.doc__side .doc-chat__field {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
   margin: 0;
 }
 
-.doc .doc-chat__field > label {
+.doc__side .doc-chat__field > label {
   margin: 0;
   color: var(--text-secondary);
   font-size: var(--text-xs);
 }
 
 /* Die Karte ist der Rahmen, deshalb tritt das Feld selbst komplett zurueck */
-.doc .doc-chat__input,
-.doc .doc-chat__input:focus-within {
+.doc__side .doc-chat__input,
+.doc__side .doc-chat__input:focus-within {
   border: none;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
 }
 
-.doc .doc-chat__input .url-input {
+.doc__side .doc-chat__input .url-input {
   padding: 0;
   font-size: var(--text-sm);
 }
 
 /* Schlichte Eingabezeile ohne eigenes Feld-Chrome (Liky-Slot) */
-.doc .doc-chat__eingabe {
+.doc__side .doc-chat__eingabe {
   width: 100%;
   padding: 0;
   border: none;
@@ -878,13 +882,13 @@
   color: var(--gray-900);
 }
 
-.doc .doc-chat__eingabe:focus {
+.doc__side .doc-chat__eingabe:focus {
   border: none;
   outline: none;
   box-shadow: none;
 }
 
-.doc .doc-chat__eingabe:disabled {
+.doc__side .doc-chat__eingabe:disabled {
   color: var(--gray-400);
   cursor: default;
 }
@@ -909,7 +913,7 @@
 }
 
 /* Runder Absende-Button, Werte wie .skripte-editor-send */
-.doc .doc-chat__send {
+.doc__side .doc-chat__send {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -925,20 +929,82 @@
   transition: opacity 0.15s ease;
 }
 
-.doc .doc-chat__send svg {
+.doc__side .doc-chat__send svg {
   width: var(--icon-xs);
   height: var(--icon-xs);
 }
 
-.doc .doc-chat__send:hover:not(:disabled) {
+.doc__side .doc-chat__send:hover:not(:disabled) {
   background: var(--gray-900);
   color: var(--text-inverse);
   opacity: 0.85;
 }
 
-.doc .doc-chat__send:disabled {
+.doc__side .doc-chat__send:disabled {
   background: var(--gray-300);
   color: var(--text-inverse);
+}
+
+/* Beim Laden tritt der Kreis-Spinner an die Stelle des Icons
+   (gleiches Verhalten wie .url-extract-btn in components.css) */
+.doc__side .doc-chat__send .spinner-small {
+  display: none;
+  margin: 0;
+}
+
+.doc__side .doc-chat__send.is-loading svg {
+  display: none;
+}
+
+.doc__side .doc-chat__send.is-loading .spinner-small {
+  display: inline-block;
+}
+
+/* Abgelegte Datei (z.B. Kundenbriefing-PDF) als Chip ueber der Eingabe */
+.doc__side .doc-chat__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xxs);
+}
+
+.doc__side .doc-chat__chips:empty {
+  display: none;
+}
+
+.doc__side .doc-chat__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  max-width: 100%;
+  padding: 2px var(--space-xs);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+}
+
+.doc__side .doc-chat__chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc__side .doc-chat__chip button {
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.doc__side .doc-chat__chip button:hover {
+  color: var(--text-primary);
+}
+
+/* Drop-Ziel ist der Composer selbst - keine separate Dropzone */
+.doc__side .doc-chat__composer.is-dragover {
+  border-color: var(--border-focus);
 }
 
 /* ===== Chat-Spalte: Liky-Verlauf ===== */

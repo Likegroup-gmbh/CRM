@@ -29,7 +29,7 @@ Personas hängen über die Zuordnung, nicht als Eigentum des Produkts.
 _Avoid_: Artikel, SKU, Offer
 
 **Liky**:
-Der KI-Assistent. Liest Shop-URLs aus, schlägt Personas vor und schreibt im Skript-Editor.
+Der KI-Assistent. Liest Shop-URLs und Kundenbriefings aus, schlägt Personas vor und schreibt im Skript-Editor.
 Sitzt in der rechten Spalte der Detail-Worksheets (Produkt, Persona).
 _Avoid_: Bot, Chatbot, Copilot
 
@@ -50,6 +50,62 @@ Vertragstemplate der Influencer Kooperation, bei dem der Kunde (z.B. BURGA, UAB 
 Vertragspartei des Influencers ist. LikeGroup tritt nicht als Vertragspartei auf.
 Wird nur bei diesen Kunden angeboten. Hat einen Anhang pro gebuchter Plattform (Anhang A, B, ...).
 _Avoid_: Awareness-Vertrag, BURGA-Vertrag
+
+**Briefing**:
+Das Aktivierungsdokument eines Unternehmens, optional einer Marke. Verbindliche Grundlage
+für Casting und Konzept. Hängt nicht an einer Kampagne.
+_Avoid_: Kampagnen-Briefing (das ist die Tabelle `campaign_briefings`), Kundenbriefing
+
+**Kundenbriefing**:
+Das vom Kunden gelieferte PDF als Vorlage für ein Briefing. Genau eines pro Briefing.
+Liegt im Storage der Marke, sonst des Unternehmens.
+Nicht das Briefing selbst.
+_Avoid_: Briefing, Quelldokument, Kundendokument
+
+**Casting**:
+Die Creator-Auswahlliste einer Kampagne.
+_Avoid_: Sourcing (außer Code/Route), Creator-Liste
+
+**Konzept**:
+Das Strategie-Dokument einer Kampagne. Sammlung von Videoideen.
+_Avoid_: Strategie (außer Tabelle `strategie`), Strategie-Doc
+
+**Videoidee**:
+Eintrag in einer Strategie. Zwei Varianten: verlinkte Videoidee (mit Instagram-/TikTok-Link,
+per Klick in neuem Tab abspielbar) und reine Idee (nur Text, nichts abspielbar).
+Kann einem Kooperationsvideo zugeordnet werden.
+_Avoid_: Idee/Strategie, Referenzvideo
+
+**Kooperationsvideo**:
+Das hochgeladene Videofile in einer Kooperation (Dropbox-Asset), wird in der
+VideoPlayerLightbox abgespielt. Nicht zu verwechseln mit der Videoidee.
+_Avoid_: Upload, Videodatei
+
+**Kooperationstabelle**:
+Tabelle auf der Kampagne mit Kooperationen und Video-Stacks.
+_Avoid_: Kampagnen-Tabelle
+
+**Eigene Spalte**:
+User-definierte Spalte in der Kooperationstabelle.
+_Avoid_: Custom Column (in der UI)
+
+**Rechnung**:
+Eingangsrechnung eines Creators. Der Monat sitzt am Rechnungsdatum.
+_Avoid_: Eingangsrechnung, Invoice, Beleg (das ist die PDF)
+
+**Kundenrechnung**:
+Ausgangsrechnung an den Kunden. Eine Zeile ist ein Auftrag × Teilrechnung, nicht der Auftrag selbst.
+_Avoid_: Ausgangsrechnung, Auftrag-Rechnung
+
+**Monatsblatt**:
+Der Jahr/Monat-Schnitt einer Rechnungsliste: sichtbare Zeilen plus Counts für die Tabs.
+Gesetzte Suche hebt den Monatsschnitt auf (Treffer über den Bestand, kein Auto-Sprung auf Alle).
+Counts sind Tab-Badges, kein Full-Scan der Zeilen.
+_Avoid_: Monatsfilter, Invoice sheet
+
+**Video-Ordnerblatt**:
+Die Unternehmen-/Kampagnen-Hierarchie der Videos-Nav. Zählt Kooperationsvideos, lädt sie nicht.
+_Avoid_: Video-Liste (das ist die paginierte Tabelle), Kooperationstabelle (sitzt auf der Kampagne)
 
 ### Rechnungswesen
 

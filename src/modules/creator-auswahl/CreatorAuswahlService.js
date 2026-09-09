@@ -3,6 +3,7 @@
 
 import { CREATOR_TYP_OPTIONS, canonicalizeCreatorTyp, isAllowedCreatorTyp, normalizeCreatorTyp } from './creatorTypeOptions.js';
 import { authorizedFetch } from '../../core/auth/getAccessToken.js';
+import { assertBriefingForCreate, assertBriefingLinkLock } from '../briefing/BriefingLinkGuard.js';
 
 export class CreatorAuswahlService {
   constructor() {
@@ -227,7 +228,9 @@ export class CreatorAuswahlService {
     if (window.isKunde()) {
       throw new Error('Keine Berechtigung zum Erstellen von Listen');
     }
-    
+
+    await assertBriefingForCreate(listeData, 'Casting-Liste');
+
     const { data, error } = await window.supabase
       .from('creator_auswahl')
       .insert({
@@ -252,7 +255,9 @@ export class CreatorAuswahlService {
     if (window.isKunde()) {
       throw new Error('Keine Berechtigung zum Bearbeiten von Listen');
     }
-    
+
+    await assertBriefingLinkLock('creator_auswahl', id, updates);
+
     const { data, error } = await window.supabase
       .from('creator_auswahl')
       .update(updates)

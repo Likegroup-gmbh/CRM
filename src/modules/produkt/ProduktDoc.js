@@ -6,13 +6,9 @@
 
 import { renderDocPage, bindDocPage, refreshDocHeights, attr, text } from '../../core/doc/DocPage.js';
 import { produktConfig } from '../../core/form/config/ProduktFormConfig.js';
-import { icon } from '../../core/icons/IconSystem.js';
+import { renderLikyComposer, renderLikySend } from '../../core/chat/likyComposer.js';
 
 const FORM_ID = 'produkt-form';
-
-const ICONS = {
-  send: icon('paper-airplane')
-};
 
 /**
  * Baut das komplette Formular-Markup.
@@ -60,28 +56,24 @@ function renderExtractPanel(sideFields) {
 
   const id = `field-${urlField.name}`;
 
-  return `
-    <div class="doc-chat__composer">
-      <div class="form-field doc-chat__field" data-doc-field="${attr(urlField.name)}">
-        <label for="${attr(id)}">${text(urlField.docLabel || 'URL')}</label>
-        <div class="url-input-field doc-chat__input">
-          <input type="text" id="${attr(id)}" name="${attr(urlField.name)}" class="url-input"
-                 data-url-field="true" autocomplete="off" spellcheck="false"
-                 placeholder="${attr(urlField.placeholder || '')}">
-        </div>
-        <div class="doc-chat__footer">
-          <div class="doc-chat__meta" data-extract-meta-slot></div>
-          <button type="button" class="url-extract-btn doc-chat__send"
-                  data-ai-extract="${attr(urlField.name)}"
-                  title="Produktseite auslesen" aria-label="Produktseite auslesen">
-            ${ICONS.send}
-            <span class="spinner-small url-extract-btn__spinner"></span>
-          </button>
-        </div>
+  return renderLikyComposer({
+    label: text(urlField.docLabel || 'URL'),
+    labelFor: attr(id),
+    fieldAttrs: `data-doc-field="${attr(urlField.name)}"`,
+    inputHtml: `
+      <div class="url-input-field doc-chat__input">
+        <input type="text" id="${attr(id)}" name="${attr(urlField.name)}" class="url-input"
+               data-url-field="true" autocomplete="off" spellcheck="false"
+               placeholder="${attr(urlField.placeholder || '')}">
       </div>
-    </div>
-    <div class="doc-chat__feed" id="produkt-extract-feed"></div>
-  `;
+    `,
+    sendHtml: renderLikySend({
+      title: 'Produktseite auslesen',
+      extraClasses: 'url-extract-btn',
+      attrs: `data-ai-extract="${attr(urlField.name)}"`,
+      spinnerClass: 'url-extract-btn__spinner'
+    })
+  }) + `<div class="doc-chat__feed" id="produkt-extract-feed"></div>`;
 }
 
 /**

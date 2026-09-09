@@ -1,6 +1,8 @@
 // StrategieService.js
 // Service für Strategie-Datenbank-Operationen
 
+import { assertBriefingForCreate, assertBriefingLinkLock } from '../briefing/BriefingLinkGuard.js';
+
 export class StrategieService {
   /**
    * Jeder Lauf startet ein eigenes Chromium. Mehr als zwei parallel treiben die
@@ -289,12 +291,14 @@ export class StrategieService {
     }
 
     // Leere Strings in UUID-Feldern zu null konvertieren
-    const uuidFields = ['unternehmen_id', 'marke_id', 'kampagne_id', 'auftrag_id'];
+    const uuidFields = ['unternehmen_id', 'marke_id', 'kampagne_id', 'auftrag_id', 'briefing_id'];
     for (const field of uuidFields) {
       if (strategieData[field] === '') {
         strategieData[field] = null;
       }
     }
+
+    await assertBriefingForCreate(strategieData, 'Konzept');
 
     const { data, error } = await window.supabase
       .from('strategie')
@@ -325,12 +329,14 @@ export class StrategieService {
     }
 
     // Leere Strings in UUID-Feldern zu null konvertieren
-    const uuidFields = ['unternehmen_id', 'marke_id', 'kampagne_id', 'auftrag_id'];
+    const uuidFields = ['unternehmen_id', 'marke_id', 'kampagne_id', 'auftrag_id', 'briefing_id'];
     for (const field of uuidFields) {
       if (updates[field] === '') {
         updates[field] = null;
       }
     }
+
+    await assertBriefingLinkLock('strategie', id, updates);
 
     const { data, error } = await window.supabase
       .from('strategie')

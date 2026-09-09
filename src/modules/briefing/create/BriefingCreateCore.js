@@ -19,6 +19,7 @@ export class BriefingCreate {
     this.editId = null;
     this._isRendering = false;
     this._isInitializing = false;
+    this.likyPanel = null;
   }
 }
 
@@ -119,9 +120,13 @@ BriefingCreate.prototype.resetForm = function() {
   this.editId = null;
   this._isRendering = false;
   this._isInitializing = false;
+  this.likyPanel = null;
 };
 
 BriefingCreate.prototype.destroy = function() {
+  if (this.likyPanel) {
+    this.likyPanel.destroy();
+  }
   this.resetForm();
   const progressContainer = document.getElementById('briefing-progress-container');
   if (progressContainer) {

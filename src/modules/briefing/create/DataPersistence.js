@@ -259,29 +259,8 @@ BriefingCreate.prototype.saveDraftToDB = async function() {
   }
 
   try {
-    const data = this.prepareDataForDB();
-    data.is_draft = true;
-
-    if (this.editId) {
-      const { error } = await window.supabase
-        .from('campaign_briefings')
-        .update(data)
-        .eq('id', this.editId);
-      if (error) throw error;
-      await syncBriefingProdukte(this.editId, this.formData.produkt_ids);
-      window.toastSystem?.show('Entwurf aktualisiert!', 'success');
-    } else {
-      const { data: created, error } = await window.supabase
-        .from('campaign_briefings')
-        .insert([data])
-        .select()
-        .single();
-      if (error) throw error;
-      this.editId = created.id;
-      await syncBriefingProdukte(this.editId, this.formData.produkt_ids);
-      window.toastSystem?.show('Entwurf gespeichert!', 'success');
-    }
-
+    await this.persistDraft();
+    window.toastSystem?.show(this.editId ? 'Entwurf aktualisiert!' : 'Entwurf gespeichert!', 'success');
     setTimeout(() => {
       window.navigateTo('/briefing');
     }, 500);
@@ -294,6 +273,36 @@ BriefingCreate.prototype.saveDraftToDB = async function() {
       if (saveDraftLabel) saveDraftLabel.textContent = 'Als Entwurf speichern';
     }
   }
+};
+
+/**
+ * Interner Draft ohne Toast und ohne Navigation. Wird vom Liky-Panel
+ * aufgerufen, wenn das erste Kundenbriefing hereinkommt und noch keine
+ * Briefing-ID existiert.
+ */
+BriefingCreate.prototype.persistDraft = async function() {
+  const data = this.prepareDataForDB();
+  data.is_draft = true;
+
+  if (this.editId) {
+    const { error } = await window.supabase
+      .from('campaign_briefings')
+      .update(data)
+      .eq('id', this.editId);
+    if (error) throw error;
+    await syncBriefingProdukte(this.editId, this.formData.produkt_ids);
+    return this.editId;
+  }
+
+  const { data: created, error } = await window.supabase
+    .from('campaign_briefings')
+    .insert([data])
+    .select()
+    .single();
+  if (error) throw error;
+  this.editId = created.id;
+  await syncBriefingProdukte(this.editId, this.formData.produkt_ids);
+  return created.id;
 };
 
 BriefingCreate.prototype.handleSubmit = async function() {

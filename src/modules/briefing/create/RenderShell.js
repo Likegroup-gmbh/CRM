@@ -9,6 +9,9 @@ import { PageTransitionHelper } from '../../../core/PageTransitionHelper.js';
 import { icon } from '../../../core/icons/IconSystem.js';
 import { BEREICH_OPTIONS, getStepsForBereich } from './fieldConfig.js';
 import { renderStep } from './FieldRenderer.js';
+import { renderLikyComposer, renderLikySend } from '../../../core/chat/likyComposer.js';
+import { likyCapability } from '../../../core/chat/likyCapabilities.js';
+import { BriefingLikyPanel } from './BriefingLikyPanel.js';
 
 BriefingCreate.prototype.render = function() {
   if (this._isRendering) {
@@ -110,16 +113,44 @@ BriefingCreate.prototype.getTotalSteps = function() {
 
 BriefingCreate.prototype.renderMultistep = function() {
   const stepContent = this.getStepContent();
+  // Zentraler Schalter: steht briefing nicht in likyCapabilities, gibt es
+  // den Multistep ohne Liky-Spalte (Layout wie vor ADR 0008).
+  const mitLiky = !!likyCapability('briefing');
 
-  const html = `
-    <div class="form-page">
-      <form id="briefing-form" data-entity="campaign_briefings">
-        <div class="multistep-content">
-          ${stepContent}
-        </div>
-      </form>
-    </div>
-  `;
+  const formHtml = `
+        <form id="briefing-form" data-entity="campaign_briefings">
+          <div class="multistep-content">
+            ${stepContent}
+          </div>
+        </form>`;
+
+  const likySide = `
+        <aside class="doc__side briefing-liky-side">
+          ${renderLikyComposer({
+            composerId: 'briefing-liky-composer',
+            label: 'Kundenbriefing',
+            labelFor: 'briefing-liky-input',
+            inputHtml: `
+              <div class="doc-chat__chips" id="briefing-liky-chips"></div>
+              <div class="doc-chat__input">
+                <input type="text" id="briefing-liky-input" class="doc-chat__eingabe"
+                       autocomplete="off" spellcheck="false"
+                       placeholder="Kundenbriefing (PDF) hier reinziehen …">
+              </div>
+            `,
+            sendHtml: renderLikySend({ id: 'briefing-liky-send', title: 'Absenden' })
+          })}
+          <div class="doc-chat__feed" id="briefing-liky-feed"></div>
+        </aside>`;
+
+  const html = mitLiky
+    ? `<div class="form-page form-page--briefing-liky">
+      <div class="briefing-liky-shell">
+        ${formHtml}
+        ${likySide}
+      </div>
+    </div>`
+    : `<div class="form-page">${formHtml}</div>`;
 
   window.setContentSafely(window.content, html);
 
@@ -140,6 +171,15 @@ BriefingCreate.prototype.renderMultistep = function() {
   this.bindProgressBarEvents();
   this.bindMultistepEvents();
   this.initSearchableSelects();
+  this.mountLikyPanel();
+};
+
+BriefingCreate.prototype.mountLikyPanel = function() {
+  if (!document.getElementById('briefing-liky-feed')) return;
+  if (!this.likyPanel) {
+    this.likyPanel = new BriefingLikyPanel(this);
+  }
+  this.likyPanel.mount();
 };
 
 BriefingCreate.prototype.renderProgressBar = function() {
