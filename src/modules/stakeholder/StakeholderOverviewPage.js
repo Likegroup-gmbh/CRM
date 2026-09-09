@@ -18,6 +18,13 @@ import {
 } from '../../core/budget/leistungsbereich.js';
 import { calculateMonatsauswertung, zuordnungsquote } from '../../core/budget/monatsauswertung.js';
 import { calculateRechnungsstatus } from '../../core/budget/rechnungsstatus.js';
+import {
+  BERICHTSSTAND_VERSION,
+  buildBerichtsstandPayload,
+  saveBerichtsstand,
+  fetchBerichtsstaende,
+  fetchBerichtsstand,
+} from './berichtsstandStore.js';
 import { sumPaidInvoiceRows } from '../auftrag/logic/PaymentRowStatus.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
@@ -265,6 +272,10 @@ export class StakeholderOverviewPage {
     this.monatsMetrik = 'differenz'; // 'umsatz' | 'fremdkosten' | 'differenz'
     this._monats = null;
     this._status = null;
+    // Berichtsstände (PRD Schritt 7): eingefrorene Stände der Auswertung.
+    // aktiverBerichtsstand === null bedeutet Live-Ansicht.
+    this.berichtsstaende = [];
+    this.aktiverBerichtsstand = null;
     this._eventsBound = false;
     this._docClickHandler = null;
     this._docChangeHandler = null;
@@ -338,6 +349,15 @@ export class StakeholderOverviewPage {
     this.teilrechnungen = teilrechnungen || [];
     this.detailsByAuftrag = new Map((details || []).map(d => [d.auftrag_id, d]));
     this.unternehmenById = new Map((unternehmen || []).map(u => [u.id, u]));
+
+    // Berichtsstände sind ein Add-on: scheitert das Listen-Laden, soll die
+    // Uebersicht trotzdem rendern.
+    try {
+      this.berichtsstaende = await fetchBerichtsstaende(supabase);
+    } catch (e) {
+      console.error('❌ Stakeholder-Übersicht: Berichtsstände konnten nicht geladen werden', e);
+      this.berichtsstaende = [];
+    }
   }
 
   // ---------- Helpers ----------
@@ -696,7 +716,10 @@ export class StakeholderOverviewPage {
   }
 
   renderRechnungsstatus() {
-    const { kunden, creator } = this.rechnungsstatus();
+    // Im Berichtsstand-Modus zeigt der Block den eingefrorenen Stand,
+    // damit die Ansicht konsistent zum gesicherten Update bleibt.
+    const eingefroren = this.aktiverBerichtsstand?.daten?.zahlungsstand;
+    const { kunden, creator } = eingefroren || this.rechnungsstatus();
 
     const offenZelle = (seite) => `
       <div>${this.fmtEuro(seite.offen)}</div>
@@ -719,7 +742,9 @@ export class StakeholderOverviewPage {
       <div class="stakeholder-list-card stakeholder-status">
         <div class="stakeholder-list-header">
           <h3 class="stakeholder-list-title">Zahlungsstand</h3>
-          <p class="stakeholder-list-hint">Stand heute, unabhängig von Ansicht und Zeitraum · Gestellt = Summe aller gestellten Rechnungen · Bezahlt = Zahlung eingegangen · Offen = gestellt, nicht bezahlt · Noch nicht gestellt = Restbetrag aus Auftrag bzw. Kalkulation</p>
+          <p class="stakeholder-list-hint">${eingefroren
+            ? `Stand ${this.fmtBerichtsstandDatum(this.aktiverBerichtsstand.created_at)} (eingefrorener Berichtsstand)`
+            : 'Stand heute, unabhängig von Ansicht und Zeitraum'} · Gestellt = Summe aller gestellten Rechnungen · Bezahlt = Zahlung eingegangen · Offen = gestellt, nicht bezahlt · Noch nicht gestellt = Restbetrag aus Auftrag bzw. Kalkulation</p>
         </div>
         <div class="stakeholder-scroll-x">
         <table class="stakeholder-table stakeholder-status-table">
@@ -757,11 +782,64 @@ export class StakeholderOverviewPage {
     return `<span${cls}>${this.fmtEuro(v)}</span>`;
   }
 
+  // Quelle der Monatsauswertung: live gerechnet oder der eingefrorene
+  // Berichtsstand (PRD Schritt 7). Gleiche Objektform in beiden Faellen.
+  aktiveMonatsauswertung() {
+    return this.aktiverBerichtsstand?.daten?.monatsauswertung || this.monatsauswertung();
+  }
+
+  defaultBerichtsstandLabel() {
+    return `Investorenupdate ${new Date().toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}`;
+  }
+
+  fmtBerichtsstandDatum(iso) {
+    return new Date(iso).toLocaleDateString('de-DE', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+    });
+  }
+
+  renderBerichtsstandLeiste() {
+    const aktiv = this.aktiverBerichtsstand;
+    const optionen = this.berichtsstaende.map(b =>
+      `<option value="${b.id}"${aktiv?.id === b.id ? ' selected' : ''}>${this.fmtBerichtsstandDatum(b.created_at)} — ${this.escape(b.label)}</option>`
+    ).join('');
+
+    const select = `
+      <select id="stakeholder-bericht-select" aria-label="Berichtsstand wählen">
+        <option value="live"${!aktiv ? ' selected' : ''}>Live-Ansicht</option>
+        ${optionen}
+      </select>`;
+
+    if (aktiv) {
+      return `
+        <div class="stakeholder-bericht-banner">
+          <span>Berichtsstand vom ${this.fmtBerichtsstandDatum(aktiv.created_at)} — „${this.escape(aktiv.label)}". Eingefrorener Stand; die Live-Werte können inzwischen abweichen.</span>
+          ${select}
+        </div>
+      `;
+    }
+
+    return `
+      <div class="stakeholder-bericht">
+        ${select}
+        <input type="text" id="stakeholder-bericht-label"
+               value="${this.escape(this.defaultBerichtsstandLabel())}"
+               aria-label="Bezeichnung des Berichtsstands" />
+        <button type="button" id="stakeholder-bericht-sichern" class="stakeholder-bericht-btn">
+          Berichtsstand sichern
+        </button>
+      </div>
+    `;
+  }
+
   renderMonatsauswertung() {
-    const auswertung = this.monatsauswertung();
+    const auswertung = this.aktiveMonatsauswertung();
     const view = auswertung.views[this.monatsSicht];
     const quote = zuordnungsquote(view);
-    const stand = new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const stand = this.aktiverBerichtsstand
+      ? this.fmtBerichtsstandDatum(this.aktiverBerichtsstand.created_at)
+      : new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
     const sichtBtn = (key, label, hint) => `
       <button type="button" class="stakeholder-view-btn${this.monatsSicht === key ? ' active' : ''}"
@@ -783,10 +861,11 @@ export class StakeholderOverviewPage {
         </div>
         <div class="stakeholder-monate-meta"
              title="Der nicht zugeordnete Rest ist ein Datenmangel (fehlende Kampagnenart-Blöcke). Die Aufstellung der konkreten Fälle folgt mit der Datenqualitätsanzeige im Adminbereich.">
-          Stand ${stand}
+          Stand ${stand}${this.aktiverBerichtsstand ? ' (eingefroren)' : ''}
           ${quote != null ? ` · ${this.fmtPct(quote * 100)} des Umsatzes einem Leistungsbereich zugeordnet` : ''}
         </div>
       </div>
+      ${this.renderBerichtsstandLeiste()}
       ${this.renderMonatsMatrix(view, auswertung.months)}
       ${this.renderFremdkostenPosten(view, auswertung.months)}
       ${this.renderSonderzeilen(auswertung.sonderzeilen)}
@@ -1190,6 +1269,58 @@ export class StakeholderOverviewPage {
     `;
   }
 
+  // Sichert den aktuellen Live-Stand als Berichtsstand (PRD Schritt 7).
+  async sichereBerichtsstand() {
+    // Doppelklick-Guard: Staende koennen bewusst nicht geloescht werden,
+    // also darf ein Klick nicht zwei Belege erzeugen.
+    if (this._berichtSpeichert) return;
+    this._berichtSpeichert = true;
+    const input = document.getElementById('stakeholder-bericht-label');
+    const label = (input?.value || '').trim() || this.defaultBerichtsstandLabel();
+    try {
+      const daten = buildBerichtsstandPayload({
+        monatsauswertung: this.monatsauswertung(),
+        zahlungsstand: this.rechnungsstatus(),
+      });
+      const createdBy = window.currentUser?.auth_user_id || null;
+      const row = await saveBerichtsstand(SUPABASE(), { label, daten, createdBy });
+      this.berichtsstaende = [{ ...row, created_by: createdBy }, ...this.berichtsstaende];
+      window.toastSystem?.show(`Berichtsstand „${label}" gesichert`, 'success');
+    } catch (e) {
+      console.error('❌ Berichtsstand konnte nicht gesichert werden', e);
+      window.toastSystem?.show('Berichtsstand konnte nicht gesichert werden', 'error');
+      return;
+    } finally {
+      this._berichtSpeichert = false;
+    }
+    this.render();
+  }
+
+  // Wechselt zwischen Live-Ansicht und einem eingefrorenen Berichtsstand.
+  async oeffneBerichtsstand(id) {
+    if (id === 'live') {
+      this.aktiverBerichtsstand = null;
+      this.render();
+      return;
+    }
+    let stand;
+    try {
+      stand = await fetchBerichtsstand(SUPABASE(), id);
+    } catch (e) {
+      console.error('❌ Berichtsstand konnte nicht geladen werden', e);
+      window.toastSystem?.show('Berichtsstand konnte nicht geladen werden', 'error');
+      return;
+    }
+    // Spaet eintreffende Antwort verwerfen, wenn inzwischen umgeschaltet wurde.
+    if (document.getElementById('stakeholder-bericht-select')?.value !== id) return;
+    if (stand.daten?.version !== BERICHTSSTAND_VERSION) {
+      window.toastSystem?.show('Dieser Berichtsstand hat ein unbekanntes Format und kann nicht angezeigt werden', 'error');
+      return;
+    }
+    this.aktiverBerichtsstand = stand;
+    this.render();
+  }
+
   bindEvents() {
     if (this._eventsBound) return;
     this._eventsBound = true;
@@ -1205,6 +1336,10 @@ export class StakeholderOverviewPage {
       const viewBtn = e.target.closest('[data-stakeholder-view]');
       if (viewBtn) {
         this.activeView = viewBtn.dataset.stakeholderView;
+        // Berichtsstände gehören zur Monatsauswertung: beim Wechsel in die
+        // Kalkulation gilt wieder die Live-Rechnung, sonst stuende dort ein
+        // eingefrorener Zahlungsstand ohne Weg zurueck.
+        if (this.activeView !== 'monate') this.aktiverBerichtsstand = null;
         this.render();
         return;
       }
@@ -1222,10 +1357,19 @@ export class StakeholderOverviewPage {
         this.render();
         return;
       }
+
+      if (e.target.closest('#stakeholder-bericht-sichern')) {
+        this.sichereBerichtsstand();
+        return;
+      }
     };
     document.addEventListener('click', this._docClickHandler);
 
     this._docChangeHandler = (e) => {
+      if (e.target?.id === 'stakeholder-bericht-select') {
+        this.oeffneBerichtsstand(e.target.value);
+        return;
+      }
       if (e.target?.id !== 'stakeholder-year-select') return;
       this.selectedYear = e.target.value;
       this.render();

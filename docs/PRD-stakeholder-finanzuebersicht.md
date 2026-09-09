@@ -98,9 +98,17 @@ Nur `/stakeholder`, CI (Farben, Typo) bleibt unangetastet. Alle Tabellen — zue
 - **Struktur:** Sticky Toolbar, damit der Ansicht-Umschalter beim Scrollen stehen bleibt; Tabellen-Zeilen verdichtet.
 - **Bewusst nicht:** Delta-Badges gegenüber dem Vormonat. Die Monatswerte ändern sich rückwirkend durch nachlaufende Creatorrechnungen (ADR 0006); ein Δ-Chip suggerierte eine Endgültigkeit, die es nicht gibt. Kommt frühestens mit den Berichtsständen (Schritt 7), wo ein eingefrorener Stand verglichen werden darf.
 
-### Schritt 7 — Berichtsstände
+### Schritt 7 — Berichtsstände ✅ umgesetzt
 
-Neue Tabelle für Snapshots. Die Ansicht rechnet immer live; der Snapshot hält fest, worauf ein verschicktes Update beruhte. Monate einzufrieren wurde verworfen, weil das Nachzügler in falsche Monate verschieben würde.
+Neue Tabelle `berichtsstand` (Migration `20260909_berichtsstand`): `label`, `daten` (jsonb), `created_by`, `created_at`. RLS: lesen und sichern nur Admins — die Seite ist admin-only. Bewusst kein UPDATE/DELETE: ein Berichtsstand ist ein Beleg; fehlerhafte Stände werden durch einen neuen ersetzt, nicht korrigiert.
+
+Der Payload (`src/modules/stakeholder/berichtsstandStore.js`) ist versioniert (`version: 1`) und enthält die vollständige Monatsauswertung (beide Sichten, alle Metriken) plus den Zahlungsstand — per JSON-Rundlauf garantiert serialisierbar. Die Ansicht rechnet immer live; der Snapshot hält fest, worauf ein verschicktes Update beruhte. Monate einzufrieren wurde verworfen, weil das Nachzügler in falsche Monate verschieben würde.
+
+UI in der Monatsauswertung: eine Leiste mit Auswahl (Live-Ansicht plus gesicherte Stände), Bezeichnungsfeld (Default „Investorenupdate <Monat Jahr>") und Sichern-Button. Ein gewählter Stand ersetzt Matrix, Fremdkosten-Posten, Sonderzeilen und den Zahlungsstand-Block durch die eingefrorenen Werte; ein Banner nennt Datum und Label und weist darauf hin, dass die Live-Werte inzwischen abweichen können. Sicht- und Metrik-Umschalter funktionieren auch auf eingefrorenen Daten, weil beide Sichten im Payload liegen.
+
+**Bewusst nicht:** Delta-Badges gegenüber einem Berichtsstand. Der eingefrorene Stand ist die technische Voraussetzung dafür, die Anzeige selbst ist ein eigener Schritt.
+
+**Tests:** `src/__tests__/Berichtsstand.test.js` (Payload-Form, Sichern, Listen, Laden, Fehler) und drei Seitentests in `StakeholderOverviewPage.test.js` (Leiste sichtbar, Sichern mit versioniertem Payload, eingefrorenes Rendern inklusive Rückweg zur Live-Ansicht).
 
 ### Schritt 8 — Adminbereich
 

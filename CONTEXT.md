@@ -93,3 +93,9 @@ _Avoid_: Direkte Kosten, Creator-Kosten, COGS
 Eine gestellte Rechnung, deren Zahlung eingegangen ist. Derselbe Begriff gilt fuer Kunden- und
 Creatorrechnungen, auch wenn die Speicherung ihn in zwei Woertern festhaelt.
 _Avoid_: Überwiesen, beglichen, erledigt
+
+**Berichtsstand**:
+Ein eingefrorener Stand der Stakeholder-Finanzuebersicht (Monatsauswertung und Zahlungsstand), der
+belegt, worauf ein verschicktes Update beruhte. Die Ansicht rechnet immer live; ein Berichtsstand
+wird nie korrigiert, sondern durch einen neuen Stand ersetzt.
+_Avoid_: Snapshot, Report, Export
