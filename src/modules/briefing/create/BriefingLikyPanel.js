@@ -250,7 +250,9 @@ export class BriefingLikyPanel {
 
       const path = await this.uploadPdf(file);
       const spec = buildSpec(this.briefing.selectedBereich);
-      const result = await this.runJob('extract', { spec, pdfBase64: await this.pdfBase64(path) });
+      // Kein Base64 durch den Function-Request (Netlify-Body-Limit, 413) -
+      // die Function laedt das PDF selbst aus dem Storage (Service-Role).
+      const result = await this.runJob('extract', { spec, pdfPath: path });
 
       const { applied, skipped } = this.apply.apply(result.fields || {}, spec);
       this.apply.renderAndMark();
@@ -300,14 +302,6 @@ export class BriefingLikyPanel {
 
     this.kundenbriefing = row;
     return path;
-  }
-
-  async pdfBase64(storagePath) {
-    const { data: fileData, error } = await window.supabase.storage
-      .from('documents')
-      .download(storagePath);
-    if (error) throw new Error(`PDF konnte nicht gelesen werden: ${error.message}`);
-    return this.blobToBase64(fileData);
   }
 
   // ---------------------------------------------------------------
@@ -576,7 +570,7 @@ export class BriefingLikyPanel {
   }
 
   scrollToEnd() {
-    if (this.side) this.side.scrollTop = this.side.scrollHeight;
+    if (this.feed) this.feed.scrollTop = this.feed.scrollHeight;
   }
 
   destroy() {
@@ -589,14 +583,5 @@ export class BriefingLikyPanel {
     this.received = [];
     this.side = null;
     this.feed = null;
-  }
-
-  blobToBase64(blob) {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result).split(',')[1]);
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
   }
 }

@@ -141,11 +141,14 @@ function buildChatPrompt({ spec, history, formData, userText }) {
 }
 
 exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
-  const { jobId, briefing_id: briefingId, modus, spec, formData, userText, history, pdfBase64 } = payload;
+  const { jobId, briefing_id: briefingId, modus, spec, formData, userText, history, pdfPath } = payload;
   if (!jobId) return { statusCode: 400, body: 'jobId fehlt' };
   if (!briefingId) return { statusCode: 400, body: 'briefing_id fehlt' };
   if (!modus || !['extract', 'chat'].includes(modus)) {
     return { statusCode: 400, body: 'modus muss extract oder chat sein' };
+  }
+  if (modus === 'extract' && !pdfPath) {
+    return { statusCode: 400, body: 'pdfPath fehlt' };
   }
 
   // Job atomar claimen (pending -> running)
@@ -206,6 +209,28 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
 
     if (modus === 'extract') {
       job.step('lesen', 'Ich lese das Kundenbriefing…');
+
+      // PDF serverseitig aus dem Storage laden - der Client schickt nur den
+      // Pfad, sonst kollidiert das Base64 mit dem Netlify-Body-Limit (413).
+      // Der Pfad muss zum Briefing passen: die Service-Role umgeht die
+      // Storage-RLS, ohne Abgleich waere jeder erratene Pfad lesbar.
+      const { data: kb } = await supabase
+        .from('kundenbriefings')
+        .select('storage_path')
+        .eq('briefing_id', briefingId)
+        .maybeSingle();
+      if (!kb || kb.storage_path !== pdfPath || !pdfPath.startsWith('kundenbriefings/')) {
+        throw new Error('pdfPath gehoert nicht zu diesem Briefing');
+      }
+
+      const { data: fileData, error: downloadError } = await supabase.storage
+        .from('documents')
+        .download(pdfPath);
+      if (downloadError || !fileData) {
+        throw new Error(`PDF nicht lesbar: ${downloadError?.message || 'leer'}`);
+      }
+      const pdfBase64 = Buffer.from(await fileData.arrayBuffer()).toString('base64');
+
       const { stable, task } = buildExtractPrompt({
         spec, unternehmenName, markeName, produkte
       });
@@ -218,7 +243,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
         maxTokens: 8192,
         tool: EXTRACT_TOOL,
         timeoutMs: 480000,
-        document: pdfBase64 ? { base64: pdfBase64, mediaType: 'application/pdf' } : null
+        document: { base64: pdfBase64, mediaType: 'application/pdf' }
       });
     } else {
       job.step('antworten', 'Ich denke nach…');
