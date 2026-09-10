@@ -1,19 +1,25 @@
 // job-updater.js
-// Gemeinsamer Fortschritts-Updater fuer skript_generation_jobs:
-// sammelt Logs im Speicher und serialisiert die DB-Updates ueber eine Queue,
-// damit Realtime-Events in der richtigen Reihenfolge ankommen.
+// Gemeinsamer Fortschritts-Updater fuer Job-Tabellen (Default:
+// skript_generation_jobs): sammelt Logs im Speicher und serialisiert die
+// DB-Updates ueber eine Queue, damit Realtime-Events in der richtigen
+// Reihenfolge ankommen.
 // progress_steps laeuft ueber appendStep (derselbe Vertrag wie setThinking).
+//
+// Andere Job-Tabellen (z.B. briefing_pdf_jobs) ueber options.table waehlen;
+// mitLogs: false, wenn die Tabelle keine logs-Spalte hat.
 
 const { appendStep } = require('./thinking');
 
-function createJobUpdater(supabase, jobId) {
+function createJobUpdater(supabase, jobId, { table = 'skript_generation_jobs', withLogs = true } = {}) {
   const logs = [];
   let progressSteps = [];
   let queue = Promise.resolve();
 
+  const withLogPayload = (patch) => (withLogs ? { ...patch, logs } : patch);
+
   const enqueue = (patch) => {
     queue = queue
-      .then(() => supabase.from('skript_generation_jobs').update({ ...patch, logs }).eq('id', jobId))
+      .then(() => supabase.from(table).update(withLogPayload(patch)).eq('id', jobId))
       .catch((e) => console.error(`[${jobId}] Supabase-Write fehlgeschlagen:`, e.message));
   };
 
@@ -34,7 +40,7 @@ function createJobUpdater(supabase, jobId) {
     },
     async flushAndUpdate(patch) {
       await queue;
-      await supabase.from('skript_generation_jobs').update({ ...patch, logs }).eq('id', jobId);
+      await supabase.from(table).update(withLogPayload(patch)).eq('id', jobId);
     }
   };
 }

@@ -159,7 +159,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
   if (claimError) throw new Error(`Job-Claim fehlgeschlagen: ${claimError.message}`);
   if (!claimed) return { statusCode: 409, body: 'Job laeuft bereits oder ist abgeschlossen' };
 
-  const job = createJobUpdater(supabase, jobId);
+  const job = createJobUpdater(supabase, jobId, { table: 'briefing_pdf_jobs', withLogs: false });
   const startTime = Date.now();
   let ki = null;
 
