@@ -94,7 +94,7 @@ export class LinkStrategieItemDrawer {
 
     const { data: items, error: itemsError } = await window.supabase
       .from('strategie_items')
-      .select('id, beschreibung, strategie_id, video_link, screenshot_url')
+      .select('id, beschreibung, strategie_id, video_link, screenshot_url, creator_auswahl_item_id, casting_eintrag:creator_auswahl_item_id(id, name, creator_id)')
       .in('strategie_id', strategieIds)
       .order('sortierung', { ascending: true });
 
@@ -242,6 +242,15 @@ export class LinkStrategieItemDrawer {
       if (btn) {
         btn.disabled = true;
         btn.classList.add('is-loading');
+      }
+
+      // Match: hat die Idee einen Casting-Eintrag mit CRM-Creator, muss das
+      // Video zur Kooperation desselben Creators gehoeren.
+      const item = this.items.find(i => i.id === this.selectedItemId);
+      const eintragCreatorId = item?.casting_eintrag?.creator_id || null;
+      const koopCreatorId = this.kooperation?.creator?.id || null;
+      if (eintragCreatorId && koopCreatorId && eintragCreatorId !== koopCreatorId) {
+        throw new Error('Die Idee ist einem anderen Creator zugeordnet als die Kooperation dieses Videos.');
       }
 
       const { error } = await window.supabase

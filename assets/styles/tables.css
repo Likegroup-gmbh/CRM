@@ -1289,6 +1289,18 @@ thead {
   color: var(--text-secondary);
 }
 
+.strategie-skript-badge {
+  display: flex;
+  justify-content: center;
+  margin-top: 2px;
+  color: var(--success, #1b7f4e);
+}
+
+.strategie-skript-badge svg {
+  width: 14px;
+  height: 14px;
+}
+
 .strategie-items-table .col-drag,
 .strategie-items-table th.col-drag,
 .strategie-items-table td.col-drag {
@@ -2156,7 +2168,6 @@ thead {
   --rechnung-col-checkbox-width: 2.5em;
   --rechnung-col-name-width: 24em;
   --rechnung-col-auftrag-width: 18em;
-  --rechnung-col-typ-width: 9em;
   overflow-x: auto;
   overflow-y: visible;
 }
@@ -2203,28 +2214,6 @@ thead {
 
 .rechnung-table-container .data-table thead th.col-auftrag {
   z-index: 25;
-  background: white;
-}
-
-/* Typ als dritte Sticky-Spalte -- klebt hinter Auftrag, z-index 19 (unter Auftrag) */
-
-.rechnung-table-container .data-table th.col-typ,
-.rechnung-table-container .data-table td.col-typ {
-  position: sticky;
-  left: calc(var(--rechnung-col-name-width) + var(--rechnung-col-auftrag-width));
-  z-index: 19;
-  background: white;
-  width: var(--rechnung-col-typ-width);
-  min-width: var(--rechnung-col-typ-width);
-  border: none;
-  box-shadow:
-    inset 0 1px 0 0 var(--gray-100),
-    inset -1px 0 0 0 var(--gray-200),
-    inset 0 -1px 0 0 var(--gray-100);
-}
-
-.rechnung-table-container .data-table thead th.col-typ {
-  z-index: 24;
   background: white;
 }
 
@@ -2514,27 +2503,39 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--border-
 /* Kundenrechnungen: Kopfbereich (View-Toggle, Filter, Auftrag/Contract-Tabs,
    Summen-Cards, Monats-Tabs) klebt sticky oben. Die Tabelle läuft im normalen
    Seitenfluss – gescrollt wird die Seite, kein Innencontainer. */
-.kundenrechnungen-page {
+.main-wrapper:has(> .kundenrechnungen-page),
+.main-wrapper:has(> .rechnungen-page) {
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+
+.kundenrechnungen-page,
+.rechnungen-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
   height: 100%;
   min-height: 0;
 }
 
-.kundenrechnungen-page .kr-sticky-head {
+.kundenrechnungen-page .kr-sticky-head,
+.rechnungen-page .kr-sticky-head {
   flex: 0 0 auto;
   z-index: 40;
   background: var(--bg-primary);
 }
 
-.kundenrechnungen-page .kr-scroll-body {
+.kundenrechnungen-page .kr-scroll-body,
+.rechnungen-page .kr-scroll-body {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
 }
 
-.kundenrechnungen-page .kr-sticky-foot {
+.kundenrechnungen-page .kr-sticky-foot,
+.rechnungen-page .kr-sticky-foot {
   flex: 0 0 auto;
   z-index: 40;
   background: var(--bg-primary);
@@ -2563,39 +2564,46 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--border-
 
 /* Feste Mindesthöhe der Tabellenfläche: Beim Monatswechsel (unterschiedlich
    viele Zeilen) bleibt das Layout stehen – kein Sprung. */
-.kundenrechnungen-page #auftrag-table-container {
+.kundenrechnungen-page #auftrag-table-container,
+.rechnungen-page .rechnung-table-container {
   min-height: 60vh;
 }
 
-.ausgangsrechnungen-month-tabs {
+.ausgangsrechnungen-month-tabs,
+.rechnung-month-tabs {
   background: var(--color-white);
   border-top: 1px solid var(--border-primary);
   overflow-x: auto;
   flex-wrap: nowrap;
 }
 
-.ausgangsrechnungen-month-tabs .form-select {
+.ausgangsrechnungen-month-tabs .form-select,
+.rechnung-month-tabs .form-select {
   flex-shrink: 0;
   width: auto;
   min-width: 5.5rem;
 }
 
-.ausgangsrechnungen-month-tabs .tab-button {
+.ausgangsrechnungen-month-tabs .tab-button,
+.rechnung-month-tabs .tab-button {
   gap: var(--space-xxs);
   padding: var(--space-xxs) var(--space-xs);
   border-radius: var(--radius-sm);
 }
 
-.ausgangsrechnungen-month-tabs .tab-button:hover {
+.ausgangsrechnungen-month-tabs .tab-button:hover,
+.rechnung-month-tabs .tab-button:hover {
   background: var(--gray-50);
 }
 
-.ausgangsrechnungen-month-tabs .tab-button.active {
+.ausgangsrechnungen-month-tabs .tab-button.active,
+.rechnung-month-tabs .tab-button.active {
   color: var(--gray-900);
   font-weight: 500;
 }
 
-.ausgangsrechnungen-month-tabs .tab-button.active::after {
+.ausgangsrechnungen-month-tabs .tab-button.active::after,
+.rechnung-month-tabs .tab-button.active::after {
   background-color: var(--gray-900);
   height: 2px;
 }

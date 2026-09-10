@@ -32,41 +32,16 @@ function showBanner() {
   }
 
   const banner = document.createElement('div');
+  banner.className = 'version-banner';
   banner.setAttribute('role', 'status');
-  banner.style.cssText = [
-    'position:fixed',
-    'top:0',
-    'left:0',
-    'right:0',
-    'z-index:10000',
-    'display:flex',
-    'align-items:center',
-    'justify-content:center',
-    'gap:12px',
-    'padding:10px 16px',
-    'background:#1a1a1a',
-    'color:#fff',
-    'font:14px/1.4 system-ui,sans-serif',
-    'box-shadow:0 2px 8px rgba(0,0,0,.25)',
-  ].join(';');
 
   const text = document.createElement('span');
   text.textContent = 'Eine neue Version des CRM ist verfügbar.';
 
   const btn = document.createElement('button');
   btn.type = 'button';
+  btn.className = 'version-banner-btn';
   btn.textContent = 'Jetzt neu laden';
-  btn.style.cssText = [
-    'appearance:none',
-    'border:0',
-    'border-radius:6px',
-    'padding:6px 12px',
-    'background:#fff',
-    'color:#1a1a1a',
-    'font:inherit',
-    'font-weight:600',
-    'cursor:pointer',
-  ].join(';');
   btn.addEventListener('click', () => location.reload());
 
   banner.append(text, btn);

@@ -5,6 +5,7 @@
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER, SKRIPT_BEREICHE, MASTER_BEREICHE } from './skripteKonstanten.js';
 import { planeVersionsRows } from './versionsNummerierung.js';
+import { briefingVorgaben } from './briefingVorgaben.js';
 
 export { FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER, SKRIPT_BEREICHE, MASTER_BEREICHE };
 
@@ -96,7 +97,7 @@ export class SkripteService {
     if (!kampagneId) return [];
 
     const { data, error } = await this.db.from('strategie_items')
-      .select('id, strategie_id, video_link, plattform, beschreibung, transkript_quelle, creator_name, screenshot_url, nicht_umsetzen, strategie:strategie_id!inner(id, name, kampagne_id)')
+      .select('id, strategie_id, video_link, plattform, beschreibung, transkript_quelle, creator_name, creator_auswahl_item_id, screenshot_url, nicht_umsetzen, strategie:strategie_id!inner(id, name, kampagne_id)')
       .eq('strategie.kampagne_id', kampagneId)
       .order('sortierung');
 
@@ -104,11 +105,54 @@ export class SkripteService {
     return (data || []).filter((item) => !item.nicht_umsetzen);
   }
 
+  /**
+   * Videoideen, die im Konzept fuer die Skripterstellung freigegeben sind.
+   * Ohne Kampagne keine Treffer – der Drawer filtert immer auf eine Kampagne.
+   */
+  async loadFreigegebeneVideoideen({ unternehmenId, markeId = null, kampagneId = null } = {}) {
+    if (!unternehmenId || !kampagneId) return [];
+
+    let q = this.db.from('strategie_items')
+      .select(`
+        id, strategie_id, video_link, plattform, beschreibung, transkript_quelle,
+        creator_name, creator_auswahl_item_id, screenshot_url, nicht_umsetzen, skript_freigabe,
+        casting_eintrag:creator_auswahl_item_id(id, name, creator_id, creator:creator_id(vorname, nachname)),
+        strategie:strategie_id!inner(
+          id, name, unternehmen_id, marke_id, kampagne_id, briefing_id,
+          unternehmen:unternehmen_id(id, firmenname, branche_id),
+          marke:marke_id(id, markenname, branche_id),
+          kampagne:kampagne_id(id, kampagnenname, eigener_name),
+          briefing:briefing_id(id, aktivierung_name, bereich, im_funnel_stufen, pa_funnel_stufen, pa_videolaengen, im_formatvorgaben, os_formatvorgaben)
+        )
+      `)
+      .eq('skript_freigabe', true)
+      .eq('nicht_umsetzen', false)
+      .not('creator_auswahl_item_id', 'is', null)
+      .eq('strategie.unternehmen_id', unternehmenId)
+      .eq('strategie.kampagne_id', kampagneId);
+
+    if (markeId) q = q.eq('strategie.marke_id', markeId);
+
+    const { data, error } = await q.order('sortierung');
+    if (error) throw new Error(error.message);
+
+    const items = data || [];
+    if (items.length === 0) return [];
+
+    const { data: skripte, error: skriptErr } = await this.db.from('skripte')
+      .select('strategie_item_id')
+      .in('strategie_item_id', items.map((i) => i.id));
+    if (skriptErr) throw new Error(skriptErr.message);
+
+    const mitSkript = new Set((skripte || []).map((s) => s.strategie_item_id));
+    return items.map((item) => ({ ...item, hasSkript: mitSkript.has(item.id) }));
+  }
+
   /** Einzelnes Strategie-Item voll (mit Transkript) - erst beim Select. */
   async loadStrategieItem(id) {
     if (!id) return null;
     const { data, error } = await this.db.from('strategie_items')
-      .select('id, strategie_id, video_link, plattform, beschreibung, transkript, caption, creator_name, screenshot_url')
+      .select('id, strategie_id, video_link, plattform, beschreibung, transkript, caption, creator_name, creator_auswahl_item_id, screenshot_url')
       .eq('id', id)
       .maybeSingle();
     if (error) throw new Error(error.message);
@@ -308,29 +352,57 @@ export class SkripteService {
    */
   async createSkriptStub(payload) {
     const { data: { user } } = await this.db.auth.getUser();
+    const enriched = await this._enrichPayloadFromBriefing(payload);
     const { data, error } = await this.db.from('skripte').insert({
-      titel: payload.video_idee ? payload.video_idee.slice(0, 60) : null,
-      unternehmen_id: payload.unternehmen_id || null,
-      marke_id: payload.marke_id || null,
-      kampagne_id: payload.kampagne_id || null,
-      produkt_id: payload.produkt_id || null,
-      persona_id: payload.persona_id || null,
-      branche_id: payload.branche_id || null,
-      briefing_id: payload.briefing_id || null,
-      bereich: payload.bereich || null,
-      strategie_item_id: payload.strategie_item_id || null,
-      video_idee: payload.video_idee || null,
-      location: payload.location || null,
-      regieanweisung: payload.regieanweisung || null,
-      video_laenge: payload.video_laenge || null,
-      funnel_stufe: payload.funnel_stufe || null,
-      tonalitaet: payload.tonalitaet || null,
+      titel: enriched.video_idee ? enriched.video_idee.slice(0, 60) : null,
+      unternehmen_id: enriched.unternehmen_id || null,
+      marke_id: enriched.marke_id || null,
+      kampagne_id: enriched.kampagne_id || null,
+      produkt_id: enriched.produkt_id || null,
+      persona_id: enriched.persona_id || null,
+      branche_id: enriched.branche_id || null,
+      briefing_id: enriched.briefing_id || null,
+      bereich: enriched.bereich || null,
+      strategie_item_id: enriched.strategie_item_id || null,
+      video_idee: enriched.video_idee || null,
+      location: null,
+      regieanweisung: null,
+      video_laenge: enriched.video_laenge || null,
+      funnel_stufe: enriched.funnel_stufe || null,
+      tonalitaet: enriched.tonalitaet || null,
       herkunft: 'generiert',
       status: 'fragen',
-      mit_dna: payload.mit_dna !== false,
-      prompt_kontext: { generator_payload: payload },
+      mit_dna: enriched.mit_dna !== false,
+      prompt_kontext: { generator_payload: enriched },
       created_by: user?.id
     }).select().single();
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  /**
+   * Laenge/Funnel/Bereich aus dem Briefing ziehen, wenn der Caller sie
+   * nicht schon gesetzt hat (Create-Drawer uebergibt nur die Idee).
+   */
+  async _enrichPayloadFromBriefing(payload) {
+    const next = { ...payload };
+    const briefing = payload.briefing
+      || (payload.briefing_id ? await this._loadBriefingVorgaben(payload.briefing_id) : null);
+    if (!briefing) return next;
+
+    const vorgaben = briefingVorgaben(briefing);
+    if (!next.bereich) next.bereich = briefing.bereich || null;
+    if (!next.video_laenge) next.video_laenge = vorgaben.video_laenge;
+    if (!next.funnel_stufe) next.funnel_stufe = vorgaben.funnel_stufe;
+    delete next.briefing;
+    return next;
+  }
+
+  async _loadBriefingVorgaben(briefingId) {
+    const { data, error } = await this.db.from('campaign_briefings')
+      .select('id, aktivierung_name, bereich, im_funnel_stufen, pa_funnel_stufen, pa_videolaengen, im_formatvorgaben, os_formatvorgaben')
+      .eq('id', briefingId)
+      .maybeSingle();
     if (error) throw new Error(error.message);
     return data;
   }

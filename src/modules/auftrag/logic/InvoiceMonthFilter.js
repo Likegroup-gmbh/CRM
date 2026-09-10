@@ -27,27 +27,31 @@ export function parseMonthTab(tab) {
   return parseInt(tab, 10);
 }
 
-export function filterRowsByMonthYear(rows, { year, month }) {
+export function getCurrentMonthSelection(now = new Date()) {
+  return { year: now.getFullYear(), month: now.getMonth() };
+}
+
+export function filterRowsByMonthYear(rows, { year, month }, getTabKey = getInvoiceTabKey) {
   const list = rows || [];
   if (month === ALL_TAB) return list;
   if (month === NO_RENR_TAB || month === UNDATED_TAB) {
-    return list.filter(row => getInvoiceTabKey(row) === month);
+    return list.filter(row => getTabKey(row) === month);
   }
   const monthIndex = Number(month);
   return list.filter(row => {
-    const key = getInvoiceTabKey(row);
+    const key = getTabKey(row);
     return Boolean(key && typeof key === 'object' && key.year === year && key.month === monthIndex);
   });
 }
 
-export function countRowsByMonth(rows, year) {
+export function countRowsByMonth(rows, year, getTabKey = getInvoiceTabKey) {
   const list = rows || [];
   const counts = { [UNDATED_TAB]: 0, [NO_RENR_TAB]: 0, [ALL_TAB]: list.length, months: Array(12).fill(0) };
   for (const row of list) {
-    const key = getInvoiceTabKey(row);
+    const key = getTabKey(row);
     if (key === NO_RENR_TAB) counts[NO_RENR_TAB] += 1;
     else if (key === UNDATED_TAB) counts[UNDATED_TAB] += 1;
-    else if (key.year === year) counts.months[key.month] += 1;
+    else if (key && key.year === year) counts.months[key.month] += 1;
   }
   return counts;
 }

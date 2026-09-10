@@ -232,3 +232,10 @@
 .skripte-drawer input[type="checkbox"] {
   width: auto;
 }
+
+.skript-create-kontext .form-readonly,
+#skript-create-drawer .form-readonly {
+  margin: 0;
+  padding: var(--space-xs) 0;
+  color: var(--text-secondary);
+}

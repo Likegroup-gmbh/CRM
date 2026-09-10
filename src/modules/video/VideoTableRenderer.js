@@ -77,7 +77,7 @@ export class VideoTableRenderer {
 
     let themaHtml = '-';
     if (strategieItem.screenshot_url) {
-      themaHtml = `<img src="${esc(strategieItem.screenshot_url)}" alt="Thema" class="video-list-thumbnail" />`;
+      themaHtml = `<img src="${esc(strategieItem.screenshot_url)}" alt="Thema" class="video-list-thumbnail" loading="lazy" />`;
     } else if (video.thema) {
       themaHtml = esc(video.thema);
     } else if (video.titel) {

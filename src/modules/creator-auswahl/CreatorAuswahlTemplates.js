@@ -389,6 +389,8 @@ const TABELLE_ANPASSEN_ICON = `
 const CUSTOM_COLUMNS_ICON = `
   ${icon('bars-3')}`;
 
+const LINK_ICON = `${icon('link')}`;
+
 const KATEGORIEN_ICON = `
   ${icon('tag')}`;
 
@@ -413,6 +415,7 @@ export function renderAddSection(ctx = {}) {
           toggleId: 'btn-sourcing-toolbar-menu',
           itemsHtml: `
             ${renderStatusFilterSubmenu(ctx)}
+            ${renderToolbarMenuItem({ id: 'btn-sourcing-konzept-link', title: ctx.liste?.strategie_id ? 'Konzept-Verknüpfung lösen' : 'Konzept verknüpfen', icon: LINK_ICON, label: ctx.liste?.strategie_id ? 'Konzept lösen' : 'Konzept verknüpfen' })}
             ${renderToolbarMenuItem({ id: 'btn-share-sourcing', title: 'Liste per E-Mail teilen', icon: SHARE_ICON, label: 'Teilen' })}
             ${renderToolbarMenuItem({ id: 'btn-kunden-call-toggle', title: 'EK und CPM für Kundenpräsentation ausblenden', icon: KUNDEN_CALL_ICON, label: 'Kunden Call', active: kundenCallActive })}
             ${renderToolbarMenuItem({ id: 'btn-sourcing-tabelle-anpassen', title: 'TKP, Art der Liste und Spalten-Sichtbarkeit', icon: TABELLE_ANPASSEN_ICON, label: 'Tabelle anpassen' })}
@@ -1112,6 +1115,12 @@ export function renderItemRow(ctx, item, index) {
             </button>
             <div class="actions-dropdown">
               ${''}
+              ${(item.zusage || item.gebucht) && ctx.liste?.strategie_id ? `
+                <a href="#" class="action-item" data-action="create-videoidee" data-id="${item.id}">
+                  ${icon('light-bulb')}
+                  Videoidee anlegen
+                </a>
+              ` : ''}
               <!-- CRM-Uebernahme vorerst ausgeblendet -->
               <a href="#" class="action-item action-danger" data-action="delete-item" data-id="${item.id}">
                 ${window.ActionsDropdown?.getHeroIcon('delete') || ''}

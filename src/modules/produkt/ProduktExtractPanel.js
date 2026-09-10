@@ -187,10 +187,9 @@ export class ProduktExtractPanel {
     return el;
   }
 
-  /** Die Spalte scrollt selbst, der neueste Beitrag soll sichtbar bleiben. */
+  /** Der Verlauf scrollt selbst, der neueste Beitrag soll sichtbar bleiben. */
   scrollToEnd() {
-    const spalte = this.root?.closest('.doc__side');
-    if (spalte) spalte.scrollTop = spalte.scrollHeight;
+    if (this.root) this.root.scrollTop = this.root.scrollHeight;
   }
 
   destroy() {

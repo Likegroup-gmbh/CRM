@@ -40,13 +40,6 @@ vi.mock('../modules/skripte/SkripteService.js', () => ({
   }
 }));
 
-vi.mock('../modules/skripte/SkriptGeneratorForm.js', () => ({
-  SkriptGeneratorForm: class {
-    render() {}
-    destroy() {}
-  }
-}));
-
 vi.mock('../modules/skripte/SkriptList.js', () => ({
   matchesKampagne: (item, kampagneId) => {
     if (kampagneId == null) return !item.kampagne_id;
@@ -60,7 +53,7 @@ vi.mock('../modules/skripte/SkripteUtils.js', () => ({
   badge: (text, variant = 'neutral') => `<span class="skripte-badge skripte-badge--${variant}">${text}</span>`,
   formatUsageCost: () => null,
   replaceSkriptUrl: () => {},
-  skriptEditorPath: (id) => (!id || id === 'neu' || id === 'new') ? '/skripte/new' : `/skripte/${id}`,
+  skriptEditorPath: (id) => (!id || id === 'neu' || id === 'new') ? '/skripte' : `/skripte/${id}`,
   relativeZeit: () => 'Vor 4 Stunden',
   initialen: (name) => String(name || '?')[0].toUpperCase()
 }));
@@ -256,14 +249,6 @@ describe('SkriptEditorView Layout', () => {
     expect(container.textContent).toContain('Aktiv');
     expect(container.textContent).toContain('Auch ohne');
     expect(container.textContent).not.toContain('Mit Kampagne');
-  });
-
-  it('Neu-Modus laesst die Sidebar leer', async () => {
-    mockService.loadSkripte.mockResolvedValue([{ ...skript, id: 's1' }]);
-    await view.render(container, 'neu');
-
-    const items = container.querySelectorAll('#ed-liste-items .skripte-editor-liste-item');
-    expect(items.length).toBe(0);
   });
 
   it('loadSkripte wird mit der Kampagne des geoeffneten Skripts aufgerufen', async () => {
@@ -479,8 +464,7 @@ describe('SkriptEditorView Layout', () => {
 
     const neuBtn = container.querySelector('#ed-neu');
     expect(neuBtn).not.toBeNull();
-    expect(neuBtn.tagName).toBe('A');
-    expect(neuBtn.getAttribute('href')).toBe('/skripte/new');
+    expect(neuBtn.tagName).toBe('BUTTON');
     expect(neuBtn.classList.contains('mdc-btn')).toBe(true);
     expect(neuBtn.classList.contains('mdc-btn--secondary')).toBe(true);
     expect(neuBtn.querySelector('.mdc-btn__icon')).not.toBeNull();
@@ -489,26 +473,6 @@ describe('SkriptEditorView Layout', () => {
     expect(toggle).not.toBeNull();
     expect(toggle.tagName).toBe('BUTTON');
     expect(container.querySelector('.skripte-editor--liste-collapsed')).toBeNull();
-    expect(localStorage.getItem('skripte-liste-collapsed')).toBeNull();
-  });
-
-  it('Neu-Modus startet mit eingeklappter Liste, ohne Storage zu schreiben', async () => {
-    await view.render(container, 'neu');
-
-    const editor = container.querySelector('.skripte-editor');
-    expect(editor.classList.contains('skripte-editor--liste-collapsed')).toBe(true);
-    expect(container.querySelector('#ed-liste-toggle')).not.toBeNull();
-    expect(localStorage.getItem('skripte-liste-collapsed')).toBeNull();
-  });
-
-  it('startNeuModus klappt die Liste ein, ohne Pref zu persistieren', async () => {
-    await view.render(container, 's1');
-    expect(container.querySelector('.skripte-editor--liste-collapsed')).toBeNull();
-
-    view.startNeuModus();
-
-    const editor = container.querySelector('.skripte-editor');
-    expect(editor.classList.contains('skripte-editor--liste-collapsed')).toBe(true);
     expect(localStorage.getItem('skripte-liste-collapsed')).toBeNull();
   });
 

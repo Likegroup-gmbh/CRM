@@ -97,13 +97,6 @@ AuftragList.prototype.initDragToScroll = function() {
 
 AuftragList.prototype.bindGlobalDelegatedEvents = function() {
   this._globalClickHandler = (e) => {
-    const monthTabBtn = e.target.closest('#ausgangsrechnungen-month-tabs .tab-button[data-tab]');
-    if (monthTabBtn) {
-      e.preventDefault();
-      this.selectInvoiceMonth?.(monthTabBtn.dataset.tab);
-      return;
-    }
-
     const tabBtn = e.target.closest('.auftrag-tabs .tab-button[data-tab]');
     if (tabBtn) {
       e.preventDefault();
@@ -223,11 +216,6 @@ AuftragList.prototype.bindGlobalDelegatedEvents = function() {
   };
 
   this._globalChangeHandler = (e) => {
-    if (e.target.id === 'ausgangsrechnungen-year-select') {
-      this.selectInvoiceYear?.(e.target.value);
-      return;
-    }
-
     if (
       e.target.classList.contains('auftrag-inline-re-nr-input') ||
       e.target.classList.contains('auftrag-inline-text-input')

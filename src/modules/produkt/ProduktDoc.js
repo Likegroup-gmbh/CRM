@@ -6,7 +6,7 @@
 
 import { renderDocPage, bindDocPage, refreshDocHeights, attr, text } from '../../core/doc/DocPage.js';
 import { produktConfig } from '../../core/form/config/ProduktFormConfig.js';
-import { renderLikyComposer, renderLikySend } from '../../core/chat/likyComposer.js';
+import { renderLikyComposer, renderLikySend, renderLikyColumn } from '../../core/chat/likyComposer.js';
 
 const FORM_ID = 'produkt-form';
 
@@ -44,9 +44,9 @@ export function renderProduktDoc(data = null, { mitMarkenFeld = false, mitUntern
 }
 
 /**
- * Rechte Spalte: die Eingabekarte fuer die Shop-URL und darunter der Verlauf.
- * Aufbau bewusst wie das Chat-Input im Skript-Editor - Feld oben, darunter ein
- * Footer mit den Kosten links und dem runden Absende-Button rechts.
+ * Rechte Spalte: der Liky-Verlauf oben, darunter die Eingabekarte fuer die
+ * Shop-URL. Aufbau bewusst wie der Chat im Skript-Editor - Verlauf scrollt,
+ * Composer bleibt unten. Reihenfolge kommt aus renderLikyColumn.
  *
  * Der Verlauf bleibt leer, ihn fuellt ProduktExtractPanel.
  */
@@ -56,24 +56,27 @@ function renderExtractPanel(sideFields) {
 
   const id = `field-${urlField.name}`;
 
-  return renderLikyComposer({
-    label: text(urlField.docLabel || 'URL'),
-    labelFor: attr(id),
-    fieldAttrs: `data-doc-field="${attr(urlField.name)}"`,
-    inputHtml: `
-      <div class="url-input-field doc-chat__input">
-        <input type="text" id="${attr(id)}" name="${attr(urlField.name)}" class="url-input"
-               data-url-field="true" autocomplete="off" spellcheck="false"
-               placeholder="${attr(urlField.placeholder || '')}">
-      </div>
-    `,
-    sendHtml: renderLikySend({
-      title: 'Produktseite auslesen',
-      extraClasses: 'url-extract-btn',
-      attrs: `data-ai-extract="${attr(urlField.name)}"`,
-      spinnerClass: 'url-extract-btn__spinner'
+  return renderLikyColumn({
+    feedId: 'produkt-extract-feed',
+    composer: renderLikyComposer({
+      label: text(urlField.docLabel || 'URL'),
+      labelFor: attr(id),
+      fieldAttrs: `data-doc-field="${attr(urlField.name)}"`,
+      inputHtml: `
+        <div class="url-input-field doc-chat__input">
+          <input type="text" id="${attr(id)}" name="${attr(urlField.name)}" class="url-input"
+                 data-url-field="true" autocomplete="off" spellcheck="false"
+                 placeholder="${attr(urlField.placeholder || '')}">
+        </div>
+      `,
+      sendHtml: renderLikySend({
+        title: 'Produktseite auslesen',
+        extraClasses: 'url-extract-btn',
+        attrs: `data-ai-extract="${attr(urlField.name)}"`,
+        spinnerClass: 'url-extract-btn__spinner'
+      })
     })
-  }) + `<div class="doc-chat__feed" id="produkt-extract-feed"></div>`;
+  });
 }
 
 /**

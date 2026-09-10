@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import {
   messageHtml, genStatusBubbleHtml, aktionTagHtml, chatLeerHtml, versionsHinweisHtml
 } from '../modules/skripte/editor/SkriptEditorChatRenderer.js';
-import { neuModusHtml, fragenModusHtml, skriptDocHtml, masterDocHtml } from '../modules/skripte/editor/SkriptEditorDocRenderer.js';
+import { fragenModusHtml, skriptDocHtml, masterDocHtml } from '../modules/skripte/editor/SkriptEditorDocRenderer.js';
 
 describe('SkriptEditorChatRenderer', () => {
   it('User-Message rendert Inhalt und Selektion, escaped HTML', () => {
@@ -119,15 +119,6 @@ describe('SkriptEditorChatRenderer', () => {
 });
 
 describe('SkriptEditorDocRenderer', () => {
-  it('neuModusHtml enthaelt Generator-Platzhalter und beide Start-Buttons', () => {
-    const html = neuModusHtml();
-    expect(html).toContain('id="ed-genform"');
-    expect(html).toContain('id="ed-gen-start"');
-    expect(html).toContain('id="ed-gen-direkt"');
-    expect(html).toContain('skripte-actions-row--sticky');
-    expect(html).toContain('skripte-editor-doc-scroll');
-  });
-
   it('fragenModusHtml zeigt Titel, Rueckfragen-Badge und Generieren-Button', () => {
     const html = fragenModusHtml({
       skript: { titel: 'Mein <Skript>' },

@@ -8,7 +8,7 @@ import {
   VIDEO_FEEDBACK_SELECT
 } from '../../core/VideoFeedbackBuckets.js';
 import { CustomColumnDataLoader } from './columns/CustomColumnDataLoader.js';
-import { BILDER_ASSET_SELECT } from '../../core/stills/stillAssets.js';
+import { BILDER_ASSET_SELECT, pickLatestAsset } from '../../core/stills/stillAssets.js';
 
 export class VideoTableDataLoader {
   constructor(table) {
@@ -285,9 +285,9 @@ export class VideoTableDataLoader {
       const [assetsResult, commentsResult, finalAssetsResult, stillCommentsResult] = await Promise.allSettled([
         batchIn(
           sb.from('kooperation_video_asset'),
-          'id, video_id, file_url, file_path, is_current',
+          'id, video_id, file_url, file_path, version_number, is_current, created_at',
           'video_id', videoIds,
-          q => q.eq('is_current', true).eq('is_final', false)
+          q => q.eq('is_final', false)
         ),
         this.loadVideoFeedbackComments(videoIds),
         batchIn(
@@ -321,11 +321,28 @@ export class VideoTableDataLoader {
         );
       }
 
-      const assetsByVideoId = new Map(assets.map(a => [a.video_id, a]));
+      const loopByVideoId = {};
+      for (const a of assets) {
+        if (!loopByVideoId[a.video_id]) loopByVideoId[a.video_id] = [];
+        loopByVideoId[a.video_id].push(a);
+      }
+      const assetsByVideoId = new Map();
+      for (const [videoId, list] of Object.entries(loopByVideoId)) {
+        const current = pickLatestAsset(list);
+        if (current) assetsByVideoId.set(videoId, current);
+      }
       const finalsByVideoId = {};
       for (const fa of finalAssets) {
         if (!finalsByVideoId[fa.video_id]) finalsByVideoId[fa.video_id] = [];
         finalsByVideoId[fa.video_id].push(fa);
+      }
+      if (finalsOk) {
+        for (const [videoId, finals] of Object.entries(finalsByVideoId)) {
+          if (!assetsByVideoId.has(videoId)) {
+            const fallback = pickLatestAsset(finals);
+            if (fallback) assetsByVideoId.set(videoId, fallback);
+          }
+        }
       }
 
       if (t.store) {
@@ -409,7 +426,7 @@ export class VideoTableDataLoader {
       for (const slot of slots) {
         const slotAssets = assetsByStoryId[slot.id] || [];
         const loopAssets = slotAssets.filter(a => !a.is_final);
-        const currentAsset = loopAssets.find(a => a.is_current) || loopAssets[0] || null;
+        const currentAsset = pickLatestAsset(loopAssets) || pickLatestAsset(slotAssets.filter(a => a.is_final));
         const versions = [...new Set(loopAssets.map(a => a.version_number))].sort((a, b) => a - b);
 
         const enrichedSlot = {

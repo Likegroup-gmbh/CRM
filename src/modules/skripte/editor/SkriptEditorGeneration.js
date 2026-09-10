@@ -1,52 +1,14 @@
 // SkriptEditorGeneration.js
-// Generierungs-Flow im Editor: Neu-Modus, Rueckfragen (Slot-Filling) und
+// Generierungs-Flow im Editor: Rueckfragen (Slot-Filling) und
 // Job-Handling (Realtime + Poll-Fallback) fuer skript-generate-background.
 
 import { skripteService } from '../SkripteService.js';
 import { skriptAuftrag } from '../SkriptAuftrag.js';
-import { replaceSkriptUrl } from '../SkripteUtils.js';
 import { pendingThinking, renderThinking } from '../../../core/chat/thinking.js';
 
 export class SkriptEditorGeneration {
   constructor(view) {
     this.view = view;
-  }
-
-  startNeuModus() {
-    const v = this.view;
-    if (v.isReadonly || v.neuModus) return;
-
-    // Verbindungen des offenen Skripts beenden
-    if (v.channel) {
-      window.supabase.removeChannel(v.channel);
-      v.channel = null;
-    }
-    if (v.pollInterval) {
-      clearInterval(v.pollInterval);
-      v.pollInterval = null;
-    }
-    v.clearPending();
-    const menu = document.getElementById('ed-selmenu');
-    if (menu) menu.hidden = true;
-    v.closeVersionMenu();
-
-    v.skript = null;
-    v.messages = [];
-    v.versionen = [];
-    v.aktiveVersion = { version_nr: 1, sub_nr: 0 };
-    v.neuModus = true;
-    v.genStatus = null;
-
-    replaceSkriptUrl('neu');
-    v.page._merkeKontext({ skript: 'neu' });
-
-    v.updateBreadcrumb();
-    v.setListeCollapsed(true, { persist: false });
-    v.renderListe();
-    v.renderDoc();
-    v.renderChat();
-    v.renderCost();
-    v.setChatInputAktiv(false);
   }
 
   setGenButtonAktiv(aktiv) {
@@ -62,34 +24,6 @@ export class SkriptEditorGeneration {
   // ------------------------------------------------------------------
   // Rueckfragen-Flow (Slot-Filling vor der Generierung)
   // ------------------------------------------------------------------
-  /**
-   * Standard-Weg: Stub anlegen, Editor oeffnet ihn, Liky stellt Rueckfragen.
-   * Erst wenn alles geklaert ist (oder der User skippt), wird generiert.
-   */
-  async startFragenFlow() {
-    const v = this.view;
-    let payload;
-    try {
-      payload = v.genForm.getPayload();
-    } catch (err) {
-      window.toastSystem?.error(err.message);
-      return;
-    }
-
-    this.setGenButtonAktiv(false);
-    try {
-      const stub = await skripteService.createSkriptStub(payload);
-      // Lokal upserten statt die volle Liste neu zu laden (Join-Namen
-      // kommen aus dem Formular-State)
-      v.upsertSkriptInListe(stub);
-      await v.switchSkript(stub.id);
-      await this.startFragenRunde();
-    } catch (err) {
-      window.toastSystem?.error(err.message);
-      this.setGenButtonAktiv(true);
-    }
-  }
-
   /** Neue Rueckfragen-Runde: pending Assistant-Message anlegen und Function triggern. */
   async startFragenRunde() {
     const v = this.view;
@@ -108,7 +42,7 @@ export class SkriptEditorGeneration {
       await skriptAuftrag.starteVonNachricht({ art: 'fragen', messageId: assistantMsg.id });
     } catch (err) {
       // Transiente Invoke-Fehler (502/503/Netz): kein Toast und kein
-      // Propagieren an startFragenFlow - Poll + Pending-Timeout regeln
+      // Poll + Pending-Timeout regeln den Rest
       if (!err.transient) throw err;
     }
   }
@@ -159,53 +93,6 @@ export class SkriptEditorGeneration {
     }
   }
 
-  async startGenerationImEditor({ retry = false } = {}) {
-    const v = this.view;
-    let payload;
-    if (retry && v.genPayload) {
-      payload = v.genPayload;
-    } else {
-      try {
-        payload = v.genForm.getPayload();
-      } catch (err) {
-        window.toastSystem?.error(err.message);
-        return;
-      }
-    }
-    v.genPayload = payload;
-
-    this.cleanupGenJob();
-    this.setGenButtonAktiv(false);
-    v.genStatus = { laeuft: true, step: 'pending', progress_steps: pendingThinking() };
-    v.renderChat({ forceScroll: true });
-
-    try {
-      // Persistenter Stub: Payload inkl. Videovorlage ueberlebt Fehler und
-      // Reload (der Stub taucht in der Liste auf und kann dort weiter
-      // generiert werden). Retry aktualisiert denselben Stub.
-      if (v.genStubId) {
-        await skripteService.updateSkriptStub(v.genStubId, payload);
-      } else {
-        const stub = await skripteService.createSkriptStub(payload);
-        v.genStubId = stub.id;
-      }
-
-      const { jobId, stop } = await skriptAuftrag.starteJob({
-        art: 'generate',
-        skriptId: v.genStubId,
-        payload,
-        onUpdate: (j) => this.handleGenJobUpdate(j)
-      });
-      v.genJobId = jobId;
-      v.genJobStop = stop;
-    } catch (err) {
-      this.cleanupGenJob();
-      v.genStatus = { error: err.message };
-      v.renderChat({ forceScroll: true });
-      this.setGenButtonAktiv(true);
-    }
-  }
-
   handleGenJobUpdate(job) {
     const v = this.view;
     if (!job || job.id !== v.genJobId) return;
@@ -248,12 +135,7 @@ export class SkriptEditorGeneration {
 
     v.setListeCollapsed(false);
 
-    if (v.neuModus) {
-      // In-place ins neue Skript wechseln
-      v.neuModus = false;
-      v.setChatInputAktiv(true);
-      await v.switchSkript(skriptId);
-    } else if (v.skript?.id === skriptId) {
+    if (v.skript?.id === skriptId) {
       // Rueckfragen-Stub wurde befuellt -> gleiches Skript neu laden
       v.skript = null;
       await v.switchSkript(skriptId);

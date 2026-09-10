@@ -105,36 +105,36 @@ Die Adaption darf die strategische Kernidee nicht unbemerkt verändern. Wenn ein
 Creator nicht glaubwürdig zur Idee oder zum notwendigen Proof passt, muss der
 Generator den Konflikt markieren, statt eine Erfahrung zu erfinden.
 
-## Eine Idee, mehrere Creator-Umsetzungen
+## Eine Videoidee, ein Creator
 
-Eine strategische Videoidee kann mit mehreren Creatorn umgesetzt werden. Dafür wird
-die Kernidee nicht dupliziert; es entstehen getrennte Creator-Umsetzungen:
+Eine Videoidee ist genau eine Umsetzung, nicht eine Kernidee mit mehreren
+Creatorn. Sie traegt hoechstens einen Casting-Eintrag aus dem mit dem Konzept
+verknuepften Casting. Soll dieselbe Kernidee mit mehreren Creatorn entstehen,
+sind das mehrere Videoideen im Konzept - keine Unterversionen derselben Idee.
 
 ```text
-Kernidee
-├── Umsetzung Creator A
-├── Umsetzung Creator B
-└── Umsetzung Creator C
+Konzept
+├── Videoidee 1 → Casting-Eintrag A
+├── Videoidee 2 → Casting-Eintrag B
+└── Videoidee 3 → Casting-Eintrag A
 ```
 
-Jede Umsetzung darf eine eigene Hook, Story, Sprache und Inszenierung besitzen.
-Produktwahrheit, strategischer Zweck und bestätigte Claims bleiben konsistent.
+Vor der Übernahme in den Skriptbereich muss der finale Creator feststehen:
+eine Videovorlage ohne Casting-Eintrag blockt den Generator.
 
 ## Adaption nach späterer Creator-Zuweisung
 
-Wird einer offenen Idee später ein Creator zugewiesen, führt das System einen eigenen
-Adaptionsschritt aus:
+Wird einer offenen Idee später ein Casting-Eintrag zugeordnet, passt der
+Generator die Umsetzung auf diesen Creator an:
 
-1. Kernidee und unveränderliche Bestandteile sichern.
-2. tatsächliche Creator-DNA und Produktionsrealität berücksichtigen.
-3. Creator-Fit und Proof-Fähigkeit prüfen.
+1. strategische Bestandteile der Idee sichern (Produkt, Persona, Bereich,
+   Angle, Proof, Claims, Ziel),
+2. tatsächliche Creator-DNA und Produktionsrealität berücksichtigen,
+3. Creator-Fit und Proof-Fähigkeit prüfen,
 4. Hook, Story, Setting, Sprache und visuelle Umsetzung anpassen.
-5. neue Creator-Umsetzung als eigene Version speichern.
-6. ursprüngliche offene Idee erhalten.
 
-Die Funktion heißt in der Oberfläche sinngemäß:
-
-> „Videoidee auf diesen Creator adaptieren“
+Die ursprüngliche Idee bleibt im Konzept erhalten; die Adaption entsteht im
+Skript, nicht als eigene Creator-Version an der Idee.
 
 ## Modusspezifische Anwendung
 
@@ -161,9 +161,10 @@ Community-Fit, persönliche Story und typische Formate konkret ausgearbeitet wer
 - Ist Creator offen oder zugewiesen eindeutig gekennzeichnet?
 - Wird bei offenem Status keine Creator-DNA erfunden?
 - Ist bei zugewiesenem Status der Creator-Fit konkret erkennbar?
-- Bleibt die Kernidee bei der Adaption erhalten?
+- Bleibt die strategische Idee bei der Adaption erhalten?
 - Werden persönliche Erfahrungen nur verwendet, wenn sie bestätigt sind?
-- Kann eine weitere Creator-Umsetzung entstehen, ohne die Kernidee zu duplizieren?
+- Hat die Videovorlage einen Casting-Eintrag, bevor sie in den Skriptbereich
+  übernommen wird?
 - Bleibt bei Paid die Funnel- und Testlogik stabil?
 - Bleibt bei Influencer genügend Creator-Freiheit erhalten?
 

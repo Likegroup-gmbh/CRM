@@ -1,6 +1,6 @@
 // SkriptePage.js
-// /skripte = Table-Liste, /skripte/new und /skripte/:id = 3-Spalten-Editor,
-// /skripte/dna|/master = Regelwerk-Liste, /new und /:id = Dokument-Seite.
+// /skripte = Table-Liste, /skripte/:id = 3-Spalten-Editor,
+// /skripte/dna|/master = Regelwerk-Liste, /:id = Dokument-Seite.
 
 import { SkriptEditorView } from './SkriptEditorView.js';
 import { SkriptList } from './SkriptList.js';
@@ -51,29 +51,23 @@ export class SkriptePage {
       }
     }
 
-    // Kunden: nur lesen, kein Generator
-    if (window.isKunde?.() && (id === 'new' || id === 'neu')) {
+    // Legacy: /skripte/new und ?skript=neu → Liste (Create sitzt im Drawer)
+    if (id === 'new' || id === 'neu') {
       window.history.replaceState({ route: '/skripte' }, '', '/skripte');
       id = null;
     }
 
-    // Legacy: /skripte?skript=<id|neu> → neue Pfade (ohne navigateTo, Router ist schon aktiv)
     if (!id) {
       const skriptParam = new URLSearchParams(window.location.search).get('skript');
-      if (skriptParam) {
-        if (window.isKunde?.() && (skriptParam === 'neu' || skriptParam === 'new')) {
-          window.history.replaceState({ route: '/skripte' }, '', '/skripte');
-        } else {
-          const editorId = skriptParam === 'neu' ? 'neu' : skriptParam;
-          replaceSkriptUrl(editorId);
-          await this.openEditor(editorId);
-          return;
-        }
+      if (skriptParam && skriptParam !== 'neu' && skriptParam !== 'new') {
+        replaceSkriptUrl(skriptParam);
+        await this.openEditor(skriptParam);
+        return;
       }
     }
 
-    if (id === 'new' || id) {
-      await this.openEditor(id === 'new' ? 'neu' : id);
+    if (id) {
+      await this.openEditor(id);
       return;
     }
 
@@ -111,8 +105,7 @@ export class SkriptePage {
   }
 
   async openEditor(skriptId) {
-    const isNeu = skriptId === 'neu' || skriptId === 'new';
-    window.setHeadline(isNeu ? 'Neues Skript' : 'Skripte');
+    window.setHeadline('Skripte');
     window.setContentSafely(window.content, `
       <div class="skripte-page skripte-page--editor">
         <div id="skripte-tab-content"></div>
@@ -123,8 +116,8 @@ export class SkriptePage {
     if (!container) return;
 
     replaceSkriptUrl(skriptId);
-    this._merkeKontext({ skript: isNeu ? 'neu' : skriptId });
-    await this.editorView.render(container, isNeu ? 'neu' : skriptId);
+    this._merkeKontext({ skript: skriptId });
+    await this.editorView.render(container, skriptId);
   }
 
   _merkeKontext(update) {

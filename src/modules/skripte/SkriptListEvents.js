@@ -2,6 +2,7 @@
 // Toggle, Zurück, Ordner-Klick, Create, Item-Navigation.
 
 import { bindEmptyStateActions } from '../../core/components/EmptyState.js';
+import { openSkriptCreateDrawer } from './SkriptCreateDrawer.js';
 
 export function bindEvents(list) {
   list._boundEventListeners.forEach((cleanup) => cleanup());
@@ -85,7 +86,7 @@ export function bindEvents(list) {
     if (e.target.id === 'btn-skript-new' || e.target.closest('#btn-skript-new')) {
       e.preventDefault();
       if (window.isKunde?.()) return;
-      window.navigateTo('/skripte/new');
+      openSkriptCreateDrawer();
       return;
     }
 

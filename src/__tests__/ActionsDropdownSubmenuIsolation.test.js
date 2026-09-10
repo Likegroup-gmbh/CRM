@@ -112,4 +112,110 @@ describe('ActionsDropdown – .submenu-item Isolation', () => {
 
     document.removeEventListener('click', spy);
   });
+
+  it('reicht toggle-skript-freigabe an spaetere Page-Handler durch statt zu claimen', () => {
+    document.body.innerHTML = `
+      <div class="actions-dropdown-container" data-entity-type="strategie">
+        <div class="actions-dropdown">
+          <a href="#" class="action-item" data-action="toggle-skript-freigabe" data-id="i1">Für Skript freigeben</a>
+        </div>
+      </div>`;
+
+    dd = new ActionsDropdown();
+    dd.handleAction = vi.fn();
+    dd.closeAllDropdowns = vi.fn();
+    dd.bindGlobalEvents();
+
+    const pageSpy = vi.fn();
+    const pageHandler = (e) => {
+      if (e.target.closest('.action-item')?.dataset.action === 'toggle-skript-freigabe') pageSpy();
+    };
+    document.addEventListener('click', pageHandler);
+
+    clickOn(document.querySelector('.action-item[data-action="toggle-skript-freigabe"]'));
+
+    expect(pageSpy).toHaveBeenCalledTimes(1);
+    expect(dd.handleAction).not.toHaveBeenCalled();
+    expect(dd.closeAllDropdowns).toHaveBeenCalled();
+
+    document.removeEventListener('click', pageHandler);
+  });
+
+  it('reicht reprocess-item an spaetere Page-Handler durch', () => {
+    document.body.innerHTML = `
+      <div class="actions-dropdown-container" data-entity-type="strategie">
+        <div class="actions-dropdown">
+          <a href="#" class="action-item" data-action="reprocess-item" data-id="i1">Neu verarbeiten</a>
+        </div>
+      </div>`;
+
+    dd = new ActionsDropdown();
+    dd.handleAction = vi.fn();
+    dd.bindGlobalEvents();
+
+    const pageSpy = vi.fn();
+    const pageHandler = (e) => {
+      if (e.target.closest('.action-item')?.dataset.action === 'reprocess-item') pageSpy();
+    };
+    document.addEventListener('click', pageHandler);
+
+    clickOn(document.querySelector('.action-item[data-action="reprocess-item"]'));
+
+    expect(pageSpy).toHaveBeenCalledTimes(1);
+    expect(dd.handleAction).not.toHaveBeenCalled();
+
+    document.removeEventListener('click', pageHandler);
+  });
+
+  it('reicht unbekannte Actions durch statt in handleAction zu landen', () => {
+    document.body.innerHTML = `
+      <div class="actions-dropdown-container" data-entity-type="strategie">
+        <div class="actions-dropdown">
+          <a href="#" class="action-item" data-action="neue-page-action" data-id="i1">Neu</a>
+        </div>
+      </div>`;
+
+    dd = new ActionsDropdown();
+    dd.handleAction = vi.fn();
+    dd.closeAllDropdowns = vi.fn();
+    dd.bindGlobalEvents();
+
+    const pageSpy = vi.fn();
+    const pageHandler = (e) => {
+      if (e.target.closest('.action-item')?.dataset.action === 'neue-page-action') pageSpy();
+    };
+    document.addEventListener('click', pageHandler);
+
+    clickOn(document.querySelector('.action-item[data-action="neue-page-action"]'));
+
+    expect(pageSpy).toHaveBeenCalledTimes(1);
+    expect(dd.handleAction).not.toHaveBeenCalled();
+    expect(dd.closeAllDropdowns).toHaveBeenCalled();
+
+    document.removeEventListener('click', pageHandler);
+  });
+
+  it('claimt bekannte Global-Actions weiterhin ueber handleAction', () => {
+    document.body.innerHTML = `
+      <div class="actions-dropdown-container" data-entity-type="strategie">
+        <div class="actions-dropdown">
+          <a href="#" class="action-item" data-action="view" data-id="s1">Ansehen</a>
+        </div>
+      </div>`;
+
+    dd = new ActionsDropdown();
+    dd.handleAction = vi.fn();
+    dd.closeAllDropdowns = vi.fn();
+    dd.bindGlobalEvents();
+
+    const lateSpy = vi.fn();
+    document.addEventListener('click', lateSpy);
+
+    clickOn(document.querySelector('.action-item[data-action="view"]'));
+
+    expect(dd.handleAction).toHaveBeenCalledWith('view', 's1', 'strategie', expect.anything());
+    expect(lateSpy).not.toHaveBeenCalled();
+
+    document.removeEventListener('click', lateSpy);
+  });
 });

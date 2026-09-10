@@ -47,8 +47,8 @@ export default {
       contracting_position: { table: 'contracting_position', foreignKey: 'contracting_position_id', displayField: 'beschreibung' }
     },
     filters: ['rechnung_nr', 'rechnungstyp', 'kooperation_id', 'kampagne_id', 'unternehmen_id', 'auftrag_id', 'status', 'gestellt_am', 'zahlungsziel', 'bezahlt_am', 'nettobetrag', 'land'],
-    sortBy: 'zahlungsziel',
-    sortOrder: 'asc'
+    sortBy: 'gestellt_am',
+    sortOrder: 'desc'
   },
 
   async loadFilterDataOverride(_supabase) {
@@ -76,23 +76,19 @@ rechnung_pdfs(id, rechnung_id, file_name, file_path, file_url)`;
 
   customOrder(query) {
     return query
-      .order('zahlungsziel', { ascending: true, nullsFirst: false })
+      .order('gestellt_am', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false });
   },
 
   transformResult(data) {
     if (!data) return data;
     data.sort((a, b) => {
-      const aPaid = a.status === 'Bezahlt' ? 1 : 0;
-      const bPaid = b.status === 'Bezahlt' ? 1 : 0;
-      if (aPaid !== bPaid) return aPaid - bPaid;
+      const aDate = a.gestellt_am ? new Date(a.gestellt_am).getTime() : 0;
+      const bDate = b.gestellt_am ? new Date(b.gestellt_am).getTime() : 0;
+      if (aDate !== bDate) return bDate - aDate;
 
-      const aDate = a.zahlungsziel ? new Date(a.zahlungsziel) : new Date('9999-12-31');
-      const bDate = b.zahlungsziel ? new Date(b.zahlungsziel) : new Date('9999-12-31');
-      if (aDate.getTime() !== bDate.getTime()) return aDate - bDate;
-
-      const aCreated = a.created_at ? new Date(a.created_at) : new Date(0);
-      const bCreated = b.created_at ? new Date(b.created_at) : new Date(0);
+      const aCreated = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const bCreated = b.created_at ? new Date(b.created_at).getTime() : 0;
       return bCreated - aCreated;
     });
     return data;

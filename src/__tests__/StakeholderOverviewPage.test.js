@@ -162,7 +162,8 @@ describe('StakeholderOverviewPage', () => {
     // Leistungsbereich als Formular-Select (wie Zeitraum daneben)
     expect(html).toContain('id="stakeholder-tab-select"');
     expect(html).toContain('form-select');
-    expect(html).toContain('GESAMT');
+    expect(html).toContain('GESAMT ohne Contracts');
+    expect(html).toContain('GESAMT mit');
     expect(html).toContain('INFLUENCER MARKETING');
     expect(html).toContain('UGC PAID');
 
@@ -792,12 +793,62 @@ describe('StakeholderOverviewPage', () => {
 
     const page = createPage();
     await page.init();
+    page.activeTab = 'gesamt_mit';
     const { totals } = page.aggregate();
 
     expect(totals.agenturFest).toBe(10000);
     expect(totals.agentur).toBe(10000);
     expect(totals.agenturVoll).toBe(10000);
     expect(totals.volumen).toBe(30000);
+  });
+
+  it('schließt Contracting im Default-Tab aus und nimmt es in GESAMT mit auf', async () => {
+    const auftraege = [
+      {
+        id: 'ugc1',
+        auftragsname: 'UGC Auftrag',
+        nettobetrag: 10000,
+        auftragtype: 'UGC/Influencer',
+        start: '2026-01-01',
+        is_draft: false,
+        unternehmen_id: 'u1'
+      },
+      {
+        id: 'c1',
+        auftragsname: 'Retainer',
+        nettobetrag: 30000,
+        auftragtype: 'Contracting',
+        start: '2026-01-01',
+        is_draft: false,
+        unternehmen_id: 'u2'
+      }
+    ];
+    const blocks = [
+      { auftrag_id: 'ugc1', campaign_type: 'ugc_paid', campaign_type_label: 'UGC Paid', umsatz_netto: 10000 }
+    ];
+    const unternehmen = [
+      { id: 'u1', firmenname: 'Ugc GmbH' },
+      { id: 'u2', firmenname: 'Contract GmbH' }
+    ];
+    window.supabase = createMockSupabase({ auftraege, blocks, unternehmen });
+
+    const page = createPage();
+    await page.init();
+
+    expect(page.activeTab).toBe('gesamt_ohne');
+    const ohne = page.aggregate();
+    expect(ohne.rows.map(r => r.auftrag.id)).toEqual(['ugc1']);
+    expect(ohne.totals.volumen).toBe(10000);
+
+    const html = window.setContentSafely.mock.calls[1][1];
+    expect(html).toContain('value="gesamt_ohne" selected');
+    expect(html).toContain('Ugc GmbH');
+    expect(html).not.toContain('Contract GmbH');
+
+    page.activeTab = 'gesamt_mit';
+    const mit = page.aggregate();
+    expect(mit.rows.map(r => r.auftrag.id).sort()).toEqual(['c1', 'ugc1']);
+    expect(mit.totals.volumen).toBe(40000);
   });
 
   it('summiert agentur und agenturVoll pro Kunde+Marke', () => {

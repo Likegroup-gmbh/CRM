@@ -42,8 +42,8 @@ describe('SkriptList Smoke', () => {
   });
 
   it('skriptEditorPath mappt neu/new und UUIDs', () => {
-    expect(skriptEditorPath('neu')).toBe('/skripte/new');
-    expect(skriptEditorPath('new')).toBe('/skripte/new');
+    expect(skriptEditorPath('neu')).toBe('/skripte');
+    expect(skriptEditorPath('new')).toBe('/skripte');
     expect(skriptEditorPath('abc-123')).toBe('/skripte/abc-123');
   });
 

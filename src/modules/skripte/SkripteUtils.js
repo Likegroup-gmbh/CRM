@@ -80,7 +80,7 @@ export const STATUS_TAG_VARIANT = {
 };
 
 export function skriptEditorPath(skriptId) {
-  if (!skriptId || skriptId === 'neu' || skriptId === 'new') return '/skripte/new';
+  if (!skriptId || skriptId === 'neu' || skriptId === 'new') return '/skripte';
   return `/skripte/${skriptId}`;
 }
 

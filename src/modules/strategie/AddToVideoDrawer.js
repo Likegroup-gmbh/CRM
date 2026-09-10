@@ -250,6 +250,17 @@ export class AddToVideoDrawer {
         btn.classList.add('is-loading');
       }
 
+      // Match: hat die Idee einen Casting-Eintrag mit CRM-Creator, muss das
+      // Video zur Kooperation desselben Creators gehoeren.
+      const eintragCreatorId = this.item?.casting_eintrag?.creator_id || null;
+      if (eintragCreatorId) {
+        const video = this.videos.find(v => v.id === this.selectedVideoId);
+        const koop = video ? this.kooperationen.find(k => k.id === video.kooperation_id) : null;
+        if (koop?.creator?.id && koop.creator.id !== eintragCreatorId) {
+          throw new Error('Das Video gehört zu einem anderen Creator als der Casting-Eintrag der Idee.');
+        }
+      }
+
       const { error } = await window.supabase
         .from('kooperation_videos')
         .update({ strategie_item_id: this.item.id })

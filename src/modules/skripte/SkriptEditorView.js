@@ -21,18 +21,18 @@ import { icon } from '../../core/icons/IconSystem.js';
 import { revealLines, cancelLineReveal } from '../../core/animation/lineReveal.js';
 import { skripteService } from './SkripteService.js';
 import { matchesKampagne } from './SkriptList.js';
-import { SkriptGeneratorForm } from './SkriptGeneratorForm.js';
+import { openSkriptCreateDrawer } from './SkriptCreateDrawer.js';
 import { InlineEdit } from '../../core/components/InlineEdit.js';
 import { escapeHtml, formatDate, formatUsageCost, replaceSkriptUrl, skriptEditorPath } from './SkripteUtils.js';
 import {
   SEND_ICON, PLACEHOLDER_DEFAULT, PLACEHOLDER_NEU, PLACEHOLDER_FRAGEN
 } from './editor/skriptEditorKonstanten.js';
 import {
-  neuModusHtml, fragenModusHtml, skriptDocHtml, docHeadActionsHtml, vorgabenPanelHtml,
+  fragenModusHtml, skriptDocHtml, docHeadActionsHtml, vorgabenPanelHtml,
   verknuepfungenHtml
 } from './editor/SkriptEditorDocRenderer.js';
 import {
-  chatLeerNeuHtml, chatLeerHtml, genStatusBubbleHtml, messageHtml, versionsHinweisHtml
+  chatLeerHtml, genStatusBubbleHtml, messageHtml, versionsHinweisHtml
 } from './editor/SkriptEditorChatRenderer.js';
 import { SkriptEditorGeneration } from './editor/SkriptEditorGeneration.js';
 import { SkriptEditorChatActions } from './editor/SkriptEditorChatActions.js';
@@ -162,12 +162,9 @@ export class SkriptEditorView {
       onSave: (feld, text, vorher) => this.saveManuell(feld, text, vorher)
     });
 
-    // Neu-Modus: Generator-Formular in der Mitte statt Hook/Hauptteil/CTA
-    this.neuModus = false;
-    this.genForm = null;
     this.genStatus = null; // null | { laeuft: true, step } | { error }
     this.genPayload = null; // RAM-Kopie fuer "Nochmal versuchen"
-    this.genStubId = null; // persistenter Stub (Payload ueberlebt Fehler/Reload)
+    this.genStubId = null;
     this.genJobId = null;
     this.genJobStop = null; // Auftrag-Handle (Realtime + Poll + In-Flight)
     this.visuellApplyLaeuft = false;
@@ -230,7 +227,7 @@ export class SkriptEditorView {
 
   /** Teilen-Button im Doc-Kopf: nur intern und nur fuer ein geladenes Skript. */
   get kannTeilen() {
-    return Boolean(window.isInternal?.()) && Boolean(this.skript?.id) && !this.neuModus;
+    return Boolean(window.isInternal?.()) && Boolean(this.skript?.id);
   }
 
   /** Creator/Kooperation zuweisen: nur intern. */
@@ -246,29 +243,6 @@ export class SkriptEditorView {
     this.container = container;
 
     container.innerHTML = '<div class="empty-state"><p>Skript wird geladen...</p></div>';
-
-    // Neu-Modus: Editor-Shell mit leerer Mitte (Generator) statt Skript-Load
-    if (skriptId === 'neu') {
-      if (this.isReadonly) {
-        container.innerHTML = '<div class="empty-state"><p>Kein Zugriff – Skripte können nur gelesen werden.</p></div>';
-        return;
-      }
-      this.skripte = [];
-      this._listeKampagneId = null;
-      this.skript = null;
-      this.messages = [];
-      this.kommentare = [];
-      this.verknuepfungen = [];
-      this.neuModus = true;
-      this.genStatus = null;
-      this.updateBreadcrumb();
-      this.renderLayout();
-      this.bindEvents();
-      this.setChatInputAktiv(false);
-      // Im Neu-Modus laeuft die Generierung in der Bubble - sonst unsichtbar
-      this.setLikyOffen(true, { persist: false });
-      return;
-    }
 
     const readonly = this.isReadonly;
     try {
@@ -297,8 +271,6 @@ export class SkriptEditorView {
       this.verknuepfungen = verknuepfungen || [];
       this.setVersionsState(versionen);
       if (!readonly) this.modi = modi || [];
-      this.neuModus = false;
-
       this.updateBreadcrumb();
       this.renderLayout();
       this.bindEvents();
@@ -309,6 +281,9 @@ export class SkriptEditorView {
           this.ensurePolling();
           // Laufender Job: Bubble aufmachen, sonst sieht der User den Fortschritt nicht
           this.setLikyOffen(true, { persist: false });
+        } else if (this.sollFragenRundeStarten()) {
+          this.setLikyOffen(true, { persist: false });
+          this.startFragenRunde();
         }
         this.applyOffeneVisuellvorschlaege();
       }
@@ -339,10 +314,10 @@ export class SkriptEditorView {
                 <span class="skripte-editor-liste-head-label">Skripte</span>
               </div>
               ${readonly ? '' : `
-              <a href="${skriptEditorPath('new')}" class="mdc-btn mdc-btn--secondary" id="ed-neu" title="Neues Skript erstellen">
+              <button type="button" class="mdc-btn mdc-btn--secondary" id="ed-neu" title="Neues Skript erstellen">
                 <span class="mdc-btn__icon">${icon('ai-visual')}</span>
                 <span class="mdc-btn__label">Neues Skript</span>
-              </a>
+              </button>
               `}
             </div>
             <div id="ed-liste-items"></div>
@@ -385,8 +360,8 @@ export class SkriptEditorView {
 
   /** Breadcrumb: "Skripte" (klickbar, fuehrt zur Hauptseite) > aktueller Skript-Titel. */
   updateBreadcrumb() {
-    const label = this.neuModus ? 'Neues Skript' : (this.skript?.titel || 'Skript');
-    window.setHeadline(this.neuModus ? 'Neues Skript' : 'Skripte');
+    const label = this.skript?.titel || 'Skript';
+    window.setHeadline('Skripte');
     // Gaeste duerfen nur die geteilte Route - kein Link auf die Gesamtliste
     if (window.permissionSystem?.isGast) {
       window.breadcrumbSystem?.updateBreadcrumb([{ label, clickable: false }]);
@@ -435,16 +410,6 @@ export class SkriptEditorView {
     if (selmenu) selmenu.hidden = true;
     const modmenu = document.getElementById('ed-modmenu');
     if (modmenu) modmenu.hidden = true;
-
-    // Ggf. Neu-Modus verlassen (laufende Generierung bleibt bewusst bestehen,
-    // ihr Ergebnis wird beim Job-Done trotzdem geladen)
-    if (this.neuModus) {
-      this.neuModus = false;
-      this.genStatus = null;
-      this.genForm?.destroy?.();
-      this.genForm = null;
-      this.setChatInputAktiv(true);
-    }
 
     // Sofortiges Feedback: Active-State umschalten, Inhalte dimmen
     this.container.querySelectorAll('.skripte-editor-liste-item').forEach((btn) => {
@@ -498,6 +463,9 @@ export class SkriptEditorView {
       this._feedback.subscribe();
       if (this.messages.some((m) => m.status === 'pending' || m.status === 'running')) {
         this.ensurePolling();
+      } else if (this.sollFragenRundeStarten()) {
+        this.setLikyOffen(true, { persist: false });
+        this.startFragenRunde();
       }
       this.applyOffeneVisuellvorschlaege();
     } catch (err) {
@@ -516,10 +484,7 @@ export class SkriptEditorView {
     try { await this.inlineEdit.flush(); } catch (_) { /* Abbau trotzdem */ }
     this.inlineEdit.detach();
     this.cleanupGenJob();
-    this.neuModus = false;
     this.genStatus = null;
-    this.genForm?.destroy?.();
-    this.genForm = null;
     this._listeKampagneId = undefined;
     if (this.channel) {
       window.supabase.removeChannel(this.channel);
@@ -567,22 +532,6 @@ export class SkriptEditorView {
     if (this._listeKampagneId !== undefined
         && !matchesKampagne(skript, this._listeKampagneId)) return;
     const angereichert = { ...skript };
-    const form = this.genForm;
-    if (form && !skript.unternehmen && skript.unternehmen_id) {
-      const u = form.unternehmen?.find((x) => x.id === skript.unternehmen_id);
-      if (u) {
-        angereichert.unternehmen = {
-          id: u.id, firmenname: u.firmenname,
-          internes_kuerzel: u.internes_kuerzel || null, logo_url: u.logo_url || null
-        };
-      }
-      const m = form.marken?.find((x) => x.id === skript.marke_id);
-      if (m) angereichert.marke = { id: m.id, markenname: m.markenname, logo_url: m.logo_url || null };
-      if (skript.kampagne_id) {
-        const label = form.el('kampagne')?.selectedOptions?.[0]?.textContent?.trim();
-        if (label) angereichert.kampagne = { id: skript.kampagne_id, kampagnenname: label, eigener_name: null };
-      }
-    }
     const idx = this.skripte.findIndex((s) => s.id === skript.id);
     if (idx >= 0) this.skripte[idx] = { ...this.skripte[idx], ...angereichert };
     else this.skripte.unshift(angereichert);
@@ -590,14 +539,13 @@ export class SkriptEditorView {
 
   bindListeHead() {
     this.container.querySelector('#ed-neu')?.addEventListener('click', (e) => {
-      if (this.isModifiedClick(e)) return;
       e.preventDefault();
-      this.startNeuModus();
+      if (this.isReadonly) return;
+      openSkriptCreateDrawer();
     });
   }
 
   sollListeStartCollapsed() {
-    if (this.neuModus) return true;
     try {
       return localStorage.getItem('skripte-liste-collapsed') === 'true';
     } catch {
@@ -616,11 +564,7 @@ export class SkriptEditorView {
       collapsedClass: 'skripte-editor--liste-collapsed',
       storageKey: 'skripte-liste-collapsed'
     });
-    if (this.neuModus) {
-      this._listeCollapse.setCollapsed(true, { persist: false });
-    } else {
-      this._listeCollapse.restore();
-    }
+    this._listeCollapse.restore();
   }
 
   setListeCollapsed(collapsed, opts) {
@@ -703,12 +647,9 @@ export class SkriptEditorView {
     const el = document.getElementById('ed-liste-items');
     if (!el) return;
     // Safety-Net: nur Skripte derselben Kampagne wie das geoeffnete.
-    // Neu-Modus (kein Skript) zeigt nichts; das geoeffnete Skript bleibt
-    // immer sichtbar, auch wenn kampagne_id null ist.
+    // Das geoeffnete Skript bleibt immer sichtbar, auch wenn kampagne_id null ist.
     const kampagneId = this.skript?.kampagne_id ?? null;
-    const items = this.neuModus
-      ? []
-      : this.skripte.filter((s) => s.id === this.skript?.id || matchesKampagne(s, kampagneId));
+    const items = this.skripte.filter((s) => s.id === this.skript?.id || matchesKampagne(s, kampagneId));
     el.innerHTML = items.map((s) => {
       const badgeText = s.unternehmen?.internes_kuerzel
         || s.unternehmen?.firmenname
@@ -748,28 +689,6 @@ export class SkriptEditorView {
     if (!el) return;
 
     this.inlineEdit.detach();
-
-    // Neu-Modus: Generator-Formular statt Skript-Inhalt
-    if (this.neuModus) {
-      // Steht das Form schon im DOM, darf ein Re-Render (z.B. durch
-      // Chat-Updates waehrend des Jobs) die Eingaben nicht verwerfen.
-      // destroy() laeuft nur bei echtem Leave (switchSkript/cleanup).
-      if (this.genForm && el.querySelector('#ed-genform')?.firstChild) {
-        if (this.genStatus?.laeuft) this.setGenButtonAktiv(false);
-        return;
-      }
-      el.innerHTML = neuModusHtml();
-      // Alte Instanz sauber abbauen (Transcribe-Subscriptions!), sonst
-      // leaken Channels/Polls bei jedem Re-Render im Neu-Modus
-      this.genForm?.destroy?.();
-      this.genForm = new SkriptGeneratorForm({ prefix: 'edgen' });
-      // Selects laden asynchron nach – Formular steht sofort
-      this.genForm.render(el.querySelector('#ed-genform'));
-      el.querySelector('#ed-gen-start').addEventListener('click', () => this.startFragenFlow());
-      el.querySelector('#ed-gen-direkt').addEventListener('click', () => this.startGenerationImEditor());
-      if (this.genStatus?.laeuft) this.setGenButtonAktiv(false);
-      return;
-    }
 
     // Rueckfragen-Phase: Vorgaben + Hinweis statt (noch leerem) Skript-Inhalt
     if (this.istFragenModus()) {
@@ -865,19 +784,6 @@ export class SkriptEditorView {
     if (!el) return;
     this.updateLikyDot();
 
-    // Neu-Modus: Generierungs-Fortschritt als Liky-Bubble (lokal, ohne DB-Message)
-    if (this.neuModus) {
-      const bubble = genStatusBubbleHtml(this.genStatus);
-      if (bubble) {
-        el.innerHTML = bubble;
-        this.bindGenRetry(el);
-      } else {
-        el.innerHTML = chatLeerNeuHtml();
-      }
-      if (forceScroll) el.scrollTop = el.scrollHeight;
-      return;
-    }
-
     if (!this.messages.length) {
       el.innerHTML = this.versionsHinweisHtml()
         + genStatusBubbleHtml(this.genStatus)
@@ -914,7 +820,7 @@ export class SkriptEditorView {
    */
   upsertMessageRow(m, { animateText = false } = {}) {
     const el = document.getElementById('ed-chat-log');
-    if (!el || this.neuModus) {
+    if (!el) {
       this.renderChat();
       return;
     }
@@ -961,7 +867,7 @@ export class SkriptEditorView {
 
   versionsHinweisHtml() {
     return versionsHinweisHtml({
-      neuModus: this.neuModus,
+      neuModus: false,
       versionen: this.versionen,
       aktiveVersion: this.aktiveVersion
     });
@@ -969,8 +875,7 @@ export class SkriptEditorView {
 
   bindGenRetry(el) {
     el.querySelector('#ed-gen-retry')?.addEventListener('click', () => {
-      if (this.neuModus) this.startGenerationImEditor({ retry: true });
-      else this.startGenerationAusFragen();
+      this.startGenerationAusFragen();
     });
     el.querySelector('#ed-gen-cancel')?.addEventListener('click', () => this.brichGenerationAb());
   }
@@ -1074,12 +979,13 @@ export class SkriptEditorView {
   onVersionChange(key) { return this._versionen.onChange(key); }
   closeVersionMenu() { this._versionen.closeMenu(); }
 
-  startNeuModus() { this._generation.startNeuModus(); }
   setGenButtonAktiv(aktiv) { this._generation.setGenButtonAktiv(aktiv); }
-  startFragenFlow() { return this._generation.startFragenFlow(); }
   startFragenRunde() { return this._generation.startFragenRunde(); }
   startGenerationAusFragen() { return this._generation.startGenerationAusFragen(); }
-  startGenerationImEditor(opts) { return this._generation.startGenerationImEditor(opts); }
+  sollFragenRundeStarten() {
+    if (this.skript?.status !== 'fragen') return false;
+    return !this.messages.some((m) => m.aktion === 'rueckfrage');
+  }
   handleGenJobUpdate(job) { this._generation.handleGenJobUpdate(job); }
   finishGeneration(skriptId) { return this._generation.finishGeneration(skriptId); }
   cleanupGenJob() { this._generation.cleanupGenJob(); }

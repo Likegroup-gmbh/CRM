@@ -1,36 +1,40 @@
 // AusgangsrechnungenList.js
-// Zeigt pro Auftrag je eine Zeile pro Teilrechnung, sortiert nach Rechnungsnummer (re_nr)
+// Kundenrechnung-Liste. Eigenes Modul, kein AuftragList.
 
-import { AuftragList } from '../auftrag/AuftragList.js';
-import { FINAL_AUFTRAG_OR_FILTER } from '../auftrag/AuftragListDataLoader.js';
-import { defaultReNrPrefix, sortRowsByPrefixedNumberDesc } from '../auftrag/logic/PrefixedNumberSort.js';
+import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
+import { filterDropdown } from '../../core/filters/FilterDropdown.js';
+import { defaultReNrPrefix, isBareReNrPrefix } from '../auftrag/logic/PrefixedNumberSort.js';
 import {
   ALL_TAB,
-  MONTH_LABELS,
   NO_RENR_TAB,
   UNDATED_TAB,
-  countRowsByMonth,
-  filterRowsByMonthYear,
-  findInvoiceCacheRow,
   formatMonthEmptyText,
+  getCurrentMonthSelection,
   parseMonthTab
 } from '../auftrag/logic/InvoiceMonthFilter.js';
+import { renderInvoiceMonthSheet, updateInvoiceMonthTabUI } from '../auftrag/logic/InvoiceMonthSheet.js';
+import { ENTITY_KUNDENRECHNUNG, isFinalAuftrag as isFinalAuftragRow, loadCounts, loadRows } from '../rechnung/Monatsblatt.js';
 import { animateNumber } from '../../core/animation/animateNumber.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
+import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { getPaymentRowStatusClass, sumPaidInvoiceRows } from '../auftrag/logic/PaymentRowStatus.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
-import { renderTabButton } from '../../core/TabUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { AuftragCashFlowCalendar } from '../auftrag/AuftragCashFlowCalendar.js';
 
-const TR_FIELDS = [
-  're_nr', 'externe_po', 'nettobetrag', 'ust_betrag', 'bruttobetrag',
-  'rechnung_gestellt', 'rechnung_gestellt_am', 're_faelligkeit',
-  'erwarteter_monat_zahlungseingang',
-  'ueberwiesen', 'ueberwiesen_am'
-];
+export function isFinalAuftrag(row) {
+  return isFinalAuftragRow(row);
+}
+
+export function visibleContractRows(rows, { usesPagination, page = 1, limit = 25 } = {}) {
+  const list = rows || [];
+  if (usesPagination === false) return list;
+  const from = (page - 1) * limit;
+  return list.slice(from, from + limit);
+}
 
 function escapeAttr(value) {
   return String(value ?? '')
@@ -40,55 +44,83 @@ function escapeAttr(value) {
     .replace(/>/g, '&gt;');
 }
 
-// Entwuerfe gehoeren nicht in die Rechnungsliste. Gleiche Regel wie auf der
-// Stakeholder-Uebersicht: is_draft !== true, null zaehlt als final (Altbestand).
-// Der Query-Gegenpart steckt in FINAL_AUFTRAG_OR_FILTER (AuftragListDataLoader).
-export function isFinalAuftrag(row) {
-  return row?.is_draft !== true;
-}
+const currencyFormatter = new Intl.NumberFormat('de-DE', {
+  style: 'currency', currency: 'EUR',
+  minimumFractionDigits: 0, maximumFractionDigits: 0
+});
+const CHECK_ICON = `${icon('check-bold')}`;
+const CROSS_ICON = `${icon('x-mark')}`;
 
-// Contracts haben auf dieser Seite keine Pagination-UI (usesPagination === false).
-// Summen-Cards und Tabelle muessen trotzdem ALLE Zeilen sehen, nicht still nur
-// die ersten 25 – sonst weicht die Netto-Card vom Tabelleninhalt ab.
-export function visibleContractRows(rows, { usesPagination, page = 1, limit = 25 } = {}) {
-  const list = rows || [];
-  if (usesPagination === false) return list;
-  const from = (page - 1) * limit;
-  return list.slice(from, from + limit);
-}
-
-export class AusgangsrechnungenList extends AuftragList {
+export class AusgangsrechnungenList {
   constructor() {
-    super();
-    this.usesPagination = false;
-    const now = new Date();
-    this.currentYear = now.getFullYear();
-    this.currentMonth = now.getMonth();
-    this._allInvoiceRows = [];
+    this.selectedAuftraege = new Set();
+    this.currentView = 'list';
+    this.activeTab = 'auftraege';
+    this.cashFlowCalendar = null;
+    this.searchQuery = '';
+    this._searchDebounceTimer = null;
+    this._abortController = null;
+    this._loadRequestId = 0;
+    this._isAdmin = null;
+    this._isKunde = null;
+    this.rechnungen = [];
+    this._blattCounts = { months: { undated: 0, 'no-renr': 0, alle: 0, months: Array(12).fill(0) } };
+    this.statusOptions = [
+      { id: 'Beauftragt', name: 'Beauftragt' },
+      { id: 'Abgeschlossen', name: 'Abgeschlossen' },
+      { id: 'Storniert', name: 'Storniert' }
+    ];
+    this.resetToCurrentMonth();
+  }
+
+  get isAdmin() {
+    if (this._isAdmin === null) this._isAdmin = window.isAdmin();
+    return this._isAdmin;
+  }
+
+  get isKunde() {
+    if (this._isKunde === null) this._isKunde = window.isKunde();
+    return this._isKunde;
+  }
+
+  resetToCurrentMonth() {
+    const { year, month } = getCurrentMonthSelection();
+    this.currentYear = year;
+    this.currentMonth = month;
+  }
+
+  async init() {
+    this.resetToCurrentMonth();
+    window.setHeadline('Kundenrechnungen');
+    window.bulkActionSystem?.registerList('auftrag', this);
+
+    if (this.isKunde && window.supabase) {
+      const { count } = await window.supabase
+        .from('kunde_marke')
+        .select('*', { count: 'exact', head: true })
+        .eq('kunde_id', window.currentUser.id);
+      this._kundeHasMultipleMarken = (count || 0) > 1;
+    } else {
+      this._kundeHasMultipleMarken = false;
+    }
+
+    await this.render();
+    this.bindEvents();
+    this.initializeFilterBar();
+    await this.reloadBlatt({ withCounts: true, firstPaint: true });
+    this.refreshInactiveTabCount();
   }
 
   async render() {
     window.setHeadline('Kundenrechnungen');
-
     const isContracts = this.activeTab === 'contracts';
-
-    // Die Shell besteht nur aus dem Tab-Content. Der Page-Header (View-Toggle)
-    // steckt im sticky Kopfbereich, den renderAuftraegeContent baut – so klebt
-    // alles bis zu den Monats-Tabs als ein Block oben.
     window.setContentSafely(window.content, '<div id="page-tab-content" class="kundenrechnungen-page"></div>');
-    this._shellRendered = true;
-
     this.renderAuftraegeContent();
     if (!isContracts && this.currentView === 'calendar') {
       await this.initCashFlowCalendar();
     }
   }
 
-  // Kopfzeile: links Suche + Filter, rechts Aktions-Buttons + View-Toggle
-  // (Liste/Kalender). In der Listenansicht ist die fruehere .table-filter-wrapper
-  // hier mit integriert – eine Box/Zeile weniger im sticky Kopfbereich.
-  // Alle Klicks laufen ueber die globale Delegation in AuftragListEvents,
-  // SearchInput.bind wird nach jedem Re-Render erneut auf dieselbe ID gebunden.
   _renderPageHeader(isContracts, { withFilters = false } = {}) {
     const viewToggleDisabled = isContracts ? 'disabled' : '';
     const filterDropdownStyle = isContracts ? 'style="display:none;"' : '';
@@ -127,11 +159,6 @@ export class AusgangsrechnungenList extends AuftragList {
     `;
   }
 
-  // Kundenrechnungen-Layout: Header + Auftrag/Contract-Tabs kleben oben
-  // (.kr-sticky-head), die Monats-Tabs kleben unten (.kr-sticky-foot).
-  // Dazwischen scrollt .kr-scroll-body mit den Summen-Cards und der Tabelle.
-  // Die Tabelle bekommt per CSS eine feste Mindesthoehe, damit der Monatswechsel
-  // keinen Layout-Sprung verursacht.
   renderAuftraegeContent() {
     const container = document.getElementById('page-tab-content');
     if (!container) return;
@@ -167,8 +194,19 @@ export class AusgangsrechnungenList extends AuftragList {
     `;
   }
 
-  _getSortField() {
-    return 're_nr';
+  renderTabNavigation() {
+    if (!window.canViewContracts?.()) return '';
+    const isContracts = this.activeTab === 'contracts';
+    return `
+      <div class="tab-navigation auftrag-tabs">
+        <button class="tab-button ${!isContracts ? 'active' : ''}" data-tab="auftraege">
+          Aufträge<span class="tab-count" data-tab-count="auftraege">0</span>
+        </button>
+        <button class="tab-button ${isContracts ? 'active' : ''}" data-tab="contracts">
+          Contracts<span class="tab-count" data-tab-count="contracts">0</span>
+        </button>
+      </div>
+    `;
   }
 
   getListColumnCount() {
@@ -176,8 +214,6 @@ export class AusgangsrechnungenList extends AuftragList {
     return 19;
   }
 
-  // Nur die Tabelle – Summen-Cards und Monats-Tabs liegen im sticky Kopfbereich
-  // (renderAuftraegeContent), damit sie beim Scrollen stehen bleiben.
   renderListView(mode = 'auftraege') {
     const isContracts = mode === 'contracts';
     const loadingText = 'Lade Kundenrechnungen...';
@@ -220,8 +256,6 @@ export class AusgangsrechnungenList extends AuftragList {
   `;
   }
 
-  // Gleiche Optik wie die Summary-Cards auf Kampagne/Auftragsdetails:
-  // Werte oben, Label unten, eine Quelle (sumInvoiceRows) fuer Cards und tfoot.
   renderInvoiceSummaryCards() {
     const zero = this.formatSummaryCurrency(0);
     const cards = [
@@ -255,8 +289,6 @@ export class AusgangsrechnungenList extends AuftragList {
     `;
   }
 
-  // Summen der aktuell sichtbaren Zeilen. Der Monatstab zeigt sonst nur, wie viele
-  // Rechnungen im Monat liegen, aber nicht, um wie viel Geld es geht.
   renderInvoiceSummaryFoot() {
     const zero = this.formatSummaryCurrency(0);
     return `
@@ -278,6 +310,67 @@ export class AusgangsrechnungenList extends AuftragList {
       .format(Number(value) || 0);
   }
 
+  formatCurrency(value) {
+    return value ? currencyFormatter.format(value) : '-';
+  }
+
+  formatDate(date) {
+    return date ? new Date(date).toLocaleDateString('de-DE') : '-';
+  }
+
+  formatZahlungsziel(tage) {
+    if (tage === null || tage === undefined) return '-';
+    if (tage === 0) return 'Sofort';
+    return `${tage} Tage`;
+  }
+
+  formatBoolean(value) {
+    return value ? CHECK_ICON : CROSS_ICON;
+  }
+
+  formatUnternehmenTag(unternehmen) {
+    if (!unternehmen?.firmenname) return '-';
+    const bubbleData = {
+      name: unternehmen.firmenname,
+      label: unternehmen.internes_kuerzel || unternehmen.firmenname,
+      type: 'org',
+      logo_url: unternehmen.logo_url || null,
+      thumb_url: unternehmen.logo_thumb_url || null
+    };
+    if (!this.isKunde) {
+      bubbleData.id = unternehmen.id;
+      bubbleData.entityType = 'unternehmen';
+    }
+    return avatarBubbles.renderBubbles([bubbleData], { showLabel: true });
+  }
+
+  formatMarkeTag(marke) {
+    if (!marke?.markenname) return '-';
+    const bubbleData = {
+      name: marke.markenname,
+      type: 'org',
+      logo_url: marke.logo_url || null,
+      thumb_url: marke.logo_thumb_url || null
+    };
+    if (!this.isKunde) {
+      bubbleData.id = marke.id;
+      bubbleData.entityType = 'marke';
+    }
+    return avatarBubbles.renderBubbles([bubbleData], { showLabel: true });
+  }
+
+  renderCreatedBy(user) {
+    if (!user || !user.name) return '-';
+    return avatarBubbles.renderBubbles([{
+      name: user.name,
+      type: 'person',
+      id: user.id,
+      entityType: 'mitarbeiter',
+      profile_image_url: user.profile_image_url,
+      thumb_url: user.profile_image_thumb_url || null
+    }]);
+  }
+
   sumInvoiceRows(rows) {
     return (rows || []).reduce((acc, row) => {
       acc.nettobetrag += parseFloat(row.nettobetrag) || 0;
@@ -287,12 +380,8 @@ export class AusgangsrechnungenList extends AuftragList {
     }, { nettobetrag: 0, ust_betrag: 0, bruttobetrag: 0 });
   }
 
-  // animate: Count-Up/Down wie auf den Kampagnen-Summary-Cards (zentrales
-  // animateNumber). Cards und tfoot zeigen dieselbe Zahl und laufen synchron.
   updateInvoiceSummary(rows, { animate = false } = {}) {
     const totals = this.sumInvoiceRows(rows);
-    // „Bereits bezahlt"-Card: nur Zeilen mit ueberwiesen_am. Da rows bereits die
-    // monatsgefilterten Zeilen sind, folgt die Card automatisch dem Monatsfilter.
     const paid = sumPaidInvoiceRows(rows);
     const foot = document.getElementById('ausgangsrechnungen-summary');
     const cards = document.getElementById('ausgangsrechnungen-summary-cards');
@@ -316,51 +405,13 @@ export class AusgangsrechnungenList extends AuftragList {
   }
 
   renderMonthSheet() {
-    const nowYear = new Date().getFullYear();
-    const yearOptions = [];
-    for (let year = nowYear - 5; year <= nowYear + 5; year += 1) {
-      yearOptions.push(`<option value="${year}" ${year === this.currentYear ? 'selected' : ''}>${year}</option>`);
-    }
-
-    const allTab = renderTabButton({
-      tab: ALL_TAB,
-      label: `Alle<span class="tab-count" data-month-count="${ALL_TAB}">0</span>`,
-      isActive: this.currentMonth === ALL_TAB,
-      skipPermissionCheck: true
+    return renderInvoiceMonthSheet({
+      rootId: 'ausgangsrechnungen-month-tabs',
+      yearSelectId: 'ausgangsrechnungen-year-select',
+      year: this.currentYear,
+      month: this.currentMonth,
+      extraTabs: [{ tab: NO_RENR_TAB, label: 'Ohne Rechnungsnummer' }]
     });
-
-    const monthTabs = MONTH_LABELS.map((label, index) => renderTabButton({
-      tab: String(index),
-      label: `${label}<span class="tab-count" data-month-count="${index}">0</span>`,
-      isActive: this.currentMonth === index,
-      skipPermissionCheck: true
-    })).join('');
-
-    const undatedTab = renderTabButton({
-      tab: UNDATED_TAB,
-      label: `Ohne Datum<span class="tab-count" data-month-count="${UNDATED_TAB}">0</span>`,
-      isActive: this.currentMonth === UNDATED_TAB,
-      skipPermissionCheck: true
-    });
-
-    const noRenrTab = renderTabButton({
-      tab: NO_RENR_TAB,
-      label: `Ohne Rechnungsnummer<span class="tab-count" data-month-count="${NO_RENR_TAB}">0</span>`,
-      isActive: this.currentMonth === NO_RENR_TAB,
-      skipPermissionCheck: true
-    });
-
-    return `
-      <div class="tab-navigation ausgangsrechnungen-month-tabs" id="ausgangsrechnungen-month-tabs">
-        <select id="ausgangsrechnungen-year-select" class="form-select" aria-label="Jahr">
-          ${yearOptions.join('')}
-        </select>
-        ${allTab}
-        ${monthTabs}
-        ${undatedTab}
-        ${noRenrTab}
-      </div>
-    `;
   }
 
   renderRechnungsnummerCell(auftrag) {
@@ -443,7 +494,7 @@ export class AusgangsrechnungenList extends AuftragList {
           <td class="col-rechnung-gestellt table-cell-center">${this.renderInvoiceDateCell(auftrag)}</td>
           <td class="col-zahlungsziel">${this.formatZahlungsziel(auftrag.zahlungsziel_tage)}</td>
           <td class="col-re-faelligkeit">${this.formatDate(auftrag.re_faelligkeit)}</td>
-          <td class="col-erwarteter-ze table-cell-center">${this.renderExpectedPaymentDateCell(auftrag)}</td>
+          <td class="col-erwarteter-ze table-cell-center">${this.formatDate(auftrag.re_faelligkeit)}</td>
           <td class="col-netto">${this.formatCurrency(auftrag.nettobetrag)}</td>
           <td class="col-mwst-prozent">${mwstProzent}</td>
           <td class="col-ust">${this.formatCurrency(auftrag.ust_betrag)}</td>
@@ -462,13 +513,6 @@ export class AusgangsrechnungenList extends AuftragList {
     });
   }
 
-  // Der erwartete Zahlungseingang entspricht der RE-Faelligkeit und ist nicht editierbar.
-  renderExpectedPaymentDateCell(auftrag) {
-    return this.formatDate(auftrag.re_faelligkeit);
-  }
-
-  // Bei Kundenrechnungen werden Inline-Edits pro Teilrechnung geschrieben,
-  // sonst (kein Teilrechnungs-Datensatz) auf den Auftrag.
   _inlineTarget(auftrag) {
     return auftrag.teilrechnung_id
       ? { id: auftrag.teilrechnung_id, entity: 'auftrag_teilrechnung' }
@@ -492,40 +536,55 @@ export class AusgangsrechnungenList extends AuftragList {
     });
   }
 
-  applyMonthFilter() {
-    const filtered = filterRowsByMonthYear(this._allInvoiceRows, {
+  _blattOpts() {
+    const filters = filterSystem.getFilters('auftrag') || {};
+    if (this.searchQuery.trim()) filters.auftragsname = this.searchQuery.trim();
+    return {
+      entity: ENTITY_KUNDENRECHNUNG,
       year: this.currentYear,
-      month: this.currentMonth
-    });
-    this.updateTable(filtered, 'auftraege', { animate: true });
-    this.updateMonthTabUI();
+      month: this.currentMonth,
+      filters,
+      search: this.searchQuery,
+      mode: this.activeTab === 'contracts' ? 'contracts' : 'auftraege'
+    };
   }
 
-  afterInvoiceRowsLoaded() {
-    this.updateMonthTabUI();
+  async reloadBlatt({ withCounts = false, firstPaint = false, animate = false } = {}) {
+    const requestId = ++this._loadRequestId;
+    const opts = this._blattOpts();
+    const tbody = document.getElementById('auftraege-table-body');
+    if (!firstPaint) TableAnimationHelper.showLoadingOverlay(tbody);
+
+    const { rows } = await loadRows(opts);
+    if (requestId !== this._loadRequestId) return;
+
+    this.rechnungen = rows;
+    await this.updateTable(rows, this.activeTab === 'contracts' ? 'contracts' : 'auftraege', { animate });
+    this.updateTabCount(this.activeTab, rows.length);
+
+    if (withCounts && this.activeTab !== 'contracts') {
+      this._hydrateCounts(opts, requestId);
+    }
+  }
+
+  async _hydrateCounts(opts, requestId) {
+    try {
+      const counts = await loadCounts(opts);
+      if (requestId !== this._loadRequestId) return;
+      this._blattCounts = counts;
+      this.updateMonthTabUI();
+    } catch (error) {
+      console.warn('⚠️ Kundenrechnung-Counts fehlgeschlagen:', error);
+    }
   }
 
   updateMonthTabUI() {
-    const counts = countRowsByMonth(this._allInvoiceRows, this.currentYear);
-    MONTH_LABELS.forEach((_, index) => {
-      const el = document.querySelector(`[data-month-count="${index}"]`);
-      if (el) el.textContent = counts.months[index] || 0;
-    });
-    const undatedEl = document.querySelector(`[data-month-count="${UNDATED_TAB}"]`);
-    if (undatedEl) undatedEl.textContent = counts[UNDATED_TAB] || 0;
-    const noRenrEl = document.querySelector(`[data-month-count="${NO_RENR_TAB}"]`);
-    if (noRenrEl) noRenrEl.textContent = counts[NO_RENR_TAB] || 0;
-    const allEl = document.querySelector(`[data-month-count="${ALL_TAB}"]`);
-    if (allEl) allEl.textContent = counts[ALL_TAB] || 0;
-
-    const yearSelect = document.getElementById('ausgangsrechnungen-year-select');
-    if (yearSelect && String(yearSelect.value) !== String(this.currentYear)) {
-      yearSelect.value = String(this.currentYear);
-    }
-
-    document.querySelectorAll('#ausgangsrechnungen-month-tabs .tab-button[data-tab]').forEach(btn => {
-      const tab = parseMonthTab(btn.dataset.tab);
-      btn.classList.toggle('active', tab === this.currentMonth);
+    updateInvoiceMonthTabUI({
+      rootId: 'ausgangsrechnungen-month-tabs',
+      yearSelectId: 'ausgangsrechnungen-year-select',
+      year: this.currentYear,
+      month: this.currentMonth,
+      counts: this._blattCounts?.months || { undated: 0, 'no-renr': 0, alle: 0, months: Array(12).fill(0) }
     });
   }
 
@@ -534,234 +593,273 @@ export class AusgangsrechnungenList extends AuftragList {
     if (Number.isNaN(next) && next !== UNDATED_TAB && next !== NO_RENR_TAB && next !== ALL_TAB) return;
     if (next === this.currentMonth) return;
     this.currentMonth = next;
-    this.applyMonthFilter();
+    this.reloadBlatt({ withCounts: false, animate: true });
   }
 
   selectInvoiceYear(year) {
     const nextYear = parseInt(year, 10);
     if (Number.isNaN(nextYear) || nextYear === this.currentYear) return;
     this.currentYear = nextYear;
-    this.applyMonthFilter();
+    this.reloadBlatt({ withCounts: true, animate: true });
   }
 
-  onInlineBillingUpdated({ id, field, value }) {
-    const row = findInvoiceCacheRow(this._allInvoiceRows, id);
-    if (!row) return;
-    row[field] = value || null;
-    if (field === 'rechnung_gestellt_am') row.rechnung_gestellt = Boolean(value);
-    if (field === 'ueberwiesen_am') row.ueberwiesen = Boolean(value);
-    this.applyMonthFilter();
+  updateTabCount(tab, count) {
+    const el = document.querySelector(`[data-tab-count="${tab}"]`);
+    if (el) el.textContent = count ?? 0;
   }
 
-  onInlineReNrUpdated({ id, field = 're_nr', value }) {
-    const row = findInvoiceCacheRow(this._allInvoiceRows, id);
-    if (!row) return;
-    row[field] = value;
-    if (field === 're_nr') this.applyMonthFilter();
-  }
-
-  async _mergeTeilrechnungSearchIds(auftragIds, searchTerm, mode) {
-    if (!searchTerm || !window.supabase) return auftragIds;
-
-    const { data: trHits, error } = await window.supabase
-      .from('auftrag_teilrechnung')
-      .select('auftrag_id')
-      .ilike('re_nr', `%${searchTerm}%`);
-
-    if (error) {
-      console.warn('⚠️ Teilrechnungs-Suche nach re_nr fehlgeschlagen:', error);
-      return auftragIds;
-    }
-
-    const known = new Set(auftragIds);
-    const extraIds = [...new Set((trHits || []).map(row => row.auftrag_id).filter(Boolean))]
-      .filter(id => !known.has(id));
-    if (extraIds.length === 0) return auftragIds;
-
-    let extraQuery = window.supabase.from('auftrag').select('id').in('id', extraIds);
-    extraQuery = mode === 'contracts'
-      ? extraQuery.eq('auftragtype', 'Contracting')
-      : extraQuery.neq('auftragtype', 'Contracting');
-    extraQuery = extraQuery.or(FINAL_AUFTRAG_OR_FILTER);
-    const { data: extraRows, error: extraError } = await extraQuery;
-    if (extraError) {
-      console.warn('⚠️ Extra-IDs der Teilrechnungs-Suche konnten nicht geladen werden:', extraError);
-      return auftragIds;
-    }
-
-    return auftragIds.concat((extraRows || []).map(row => row.id));
-  }
-
-  async loadAuftraegeWithPagination(filters = {}, page = 1, limit = 25, mode = 'auftraege') {
+  async refreshInactiveTabCount() {
+    if (!window.canViewContracts?.() || !window.supabase) return;
     try {
-      if (!window.supabase) {
-        return { data: [], count: 0 };
-      }
-
-      const searchTerm = typeof filters.auftragsname === 'string' ? filters.auftragsname.trim() : '';
-      const filterCopy = { ...filters };
-
-      // 1) Alle passenden Auftrag-IDs laden (Entwuerfe gar nicht erst holen).
-      // Kein .or()-Chaining nach dem await: der Query-Builder ist thenable und
-      // wuerde dabei schon ausgefuehrt – der Draft-Filter steckt im Builder.
-      const idQuery = await this.buildFilteredAuftragQuery(filterCopy, mode, 'id', { excludeDrafts: true });
-      const { data: idRows, error: idError } = await idQuery;
-
-      if (idError) {
-        console.error('❌ Fehler beim Laden der Auftrags-IDs:', idError);
-        throw idError;
-      }
-
-      let auftragIds = (idRows || []).map(r => r.id);
-      auftragIds = await this._mergeTeilrechnungSearchIds(auftragIds, searchTerm, mode);
-      if (auftragIds.length === 0) {
-        this._allInvoiceRows = [];
-        return { data: [], count: 0 };
-      }
-
-      // 2) Auftraege + Teilrechnungen parallel laden
-      const AUFTRAG_SELECT = `
-        id,
-        auftragsname,
-        auftragtype,
-        angebotsnummer,
-        anzahl_teilrechnungen,
-        status,
-        po,
-        externe_po,
-        re_nr,
-        re_faelligkeit,
-        erwarteter_monat_zahlungseingang,
-        zahlungsziel_tage,
-        start,
-        ende,
-        is_draft,
-        nettobetrag,
-        ust_prozent,
-        ust_betrag,
-        bruttobetrag,
-        rechnung_gestellt,
-        rechnung_gestellt_am,
-        ueberwiesen,
-        ueberwiesen_am,
-        created_by_id,
-        created_at,
-        unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url, logo_thumb_url),
-        marke:marke_id(id, markenname, logo_url, logo_thumb_url),
-        created_by:created_by_id(id, name, profile_image_url, profile_image_thumb_url),
-        auftrag_details(id),
-        kampagne_arten:auftrag_kampagne_art(art:kampagne_art_id(id, name))
-      `;
-
-      const [{ data: auftraege, error: auftraegeError }, { data: teilrechnungen, error: trError }] = await Promise.all([
-        window.supabase.from('auftrag').select(AUFTRAG_SELECT).in('id', auftragIds),
-        window.supabase.from('auftrag_teilrechnung')
-          .select('*')
-          .in('auftrag_id', auftragIds)
-          .order('position', { ascending: true })
-      ]);
-
-      if (auftraegeError) throw auftraegeError;
-      if (trError) throw trError;
-
-      // Teilrechnungen nach auftrag_id gruppieren
-      const trByAuftrag = new Map();
-      for (const tr of (teilrechnungen || [])) {
-        if (!trByAuftrag.has(tr.auftrag_id)) {
-          trByAuftrag.set(tr.auftrag_id, []);
-        }
-        trByAuftrag.get(tr.auftrag_id).push(tr);
-      }
-
-      const createdByFallbacks = await this.loadCreatedByFallbacks(auftraege || []);
-
-      // 3) Explodieren: pro Teilrechnung eine Zeile.
-      // Entwuerfe sind bereits in der ID-Query raus; der Filter hier faengt
-      // Altbestaende ab, bei denen die Query-Bedingung nicht greift.
-      const finaleAuftraege = (auftraege || []).filter(isFinalAuftrag);
-      const exploded = [];
-      for (const auftrag of finaleAuftraege) {
-        const details = auftrag.auftrag_details;
-        const detailsId = Array.isArray(details) ? details[0]?.id : details?.id;
-
-        const base = {
-          ...auftrag,
-          has_auftragsdetails: Boolean(detailsId),
-          auftragsdetails_id: detailsId || null,
-          created_by: auftrag.created_by || createdByFallbacks.get(auftrag.created_by_id) || null,
-          unternehmen: auftrag.unternehmen ? {
-            id: auftrag.unternehmen.id,
-            firmenname: auftrag.unternehmen.firmenname,
-            internes_kuerzel: auftrag.unternehmen.internes_kuerzel,
-            logo_url: auftrag.unternehmen.logo_url,
-            logo_thumb_url: auftrag.unternehmen.logo_thumb_url
-          } : null,
-          marke: auftrag.marke ? {
-            id: auftrag.marke.id,
-            markenname: auftrag.marke.markenname,
-            logo_url: auftrag.marke.logo_url,
-            logo_thumb_url: auftrag.marke.logo_thumb_url
-          } : null,
-          art_der_kampagne: (auftrag.kampagne_arten || [])
-            .map(ka => ka.art?.name)
-            .filter(Boolean)
-        };
-
-        const trs = trByAuftrag.get(auftrag.id);
-        if (trs && trs.length > 0) {
-          const total = trs.length;
-          for (const tr of trs) {
-            const row = { ...base };
-            for (const field of TR_FIELDS) {
-              if (tr[field] !== undefined) row[field] = tr[field];
-            }
-            row.teilrechnung_id = tr.id;
-            row._teilrechnung = {
-              position: tr.position,
-              total,
-              label: `${tr.position} von ${total}`
-            };
-            exploded.push(row);
-          }
-        } else {
-          base.teilrechnung_id = null;
-          base._teilrechnung = { position: 1, total: 1, label: '1 von 1' };
-          exploded.push(base);
-        }
-      }
-
-      // 4) Sortieren nach re_nr (neueste/hoechste zuerst)
-      const sorted = sortRowsByPrefixedNumberDesc(exploded, 're_nr');
-      this._allInvoiceRows = sorted;
-
-      if (mode !== 'auftraege') {
-        // Ohne Pagination-UI die volle Liste – sonst summieren die Cards nur
-        // die ersten 25 Zeilen, waehrend die Tabelle alle zu zeigen scheint.
-        const visible = visibleContractRows(sorted, {
-          usesPagination: this.usesPagination,
-          page,
-          limit
-        });
-        return { data: visible, count: sorted.length };
-      }
-
-      // Kein Auto-Sprung in den ersten Monat mit Daten: die Auswahl (Singleton)
-      // bleibt ueber SPA-Navigation erhalten, Default ist der aktuelle Monat.
-      const filtered = filterRowsByMonthYear(sorted, {
-        year: this.currentYear,
-        month: this.currentMonth
-      });
-      return { data: filtered, count: sorted.length };
-
+      const inactiveTab = this.activeTab === 'contracts' ? 'auftraege' : 'contracts';
+      let query = window.supabase.from('auftrag').select('*', { count: 'estimated', head: true });
+      query = inactiveTab === 'contracts'
+        ? query.eq('auftragtype', 'Contracting')
+        : query.neq('auftragtype', 'Contracting');
+      const { count } = await query;
+      this.updateTabCount(inactiveTab, count || 0);
     } catch (error) {
-      console.error('❌ Fehler beim Laden der Kundenrechnungen:', error);
-      throw error;
+      console.warn('⚠️ Tab-Count fuer inaktiven Tab konnte nicht geladen werden:', error);
+    }
+  }
+
+  async switchTab(tab) {
+    if (this.activeTab === tab) return;
+    this.activeTab = tab;
+    this.currentView = 'list';
+    if (this.cashFlowCalendar) {
+      this.cashFlowCalendar.destroy();
+      this.cashFlowCalendar = null;
+    }
+    this.renderAuftraegeContent();
+    SearchInput.bind('auftrag', (value) => this.handleSearch(value));
+    this.initializeFilterBar();
+    await this.reloadBlatt({ withCounts: tab !== 'contracts' });
+    this.refreshInactiveTabCount();
+  }
+
+  async initializeFilterBar() {
+    if (this.isKunde) return;
+    const filterContainer = document.getElementById('filter-dropdown-container');
+    if (!filterContainer) return;
+    SearchInput.bind('auftrag', (value) => this.handleSearch(value));
+    await filterDropdown.init('auftrag', filterContainer, {
+      onFilterApply: (filters) => this.onFiltersApplied(filters),
+      onFilterReset: () => this.onFiltersReset()
+    });
+  }
+
+  onFiltersApplied(filters) {
+    filterSystem.applyFilters('auftrag', filters);
+    this.reloadBlatt({ withCounts: true });
+  }
+
+  onFiltersReset() {
+    filterSystem.resetFilters('auftrag');
+    this.reloadBlatt({ withCounts: true });
+  }
+
+  handleSearch(query) {
+    clearTimeout(this._searchDebounceTimer);
+    this._searchDebounceTimer = setTimeout(() => {
+      this.searchQuery = query.trim();
+      this.reloadBlatt({ withCounts: true });
+    }, 300);
+  }
+
+  async initCashFlowCalendar() {
+    const container = document.getElementById('calendar-container');
+    if (!container) return;
+    this.cashFlowCalendar = new AuftragCashFlowCalendar();
+    await this.cashFlowCalendar.init(container);
+  }
+
+  bindEvents() {
+    this._abortController?.abort();
+    this._abortController = new AbortController();
+    const { signal } = this._abortController;
+
+    document.addEventListener('click', (e) => {
+      const monthTabBtn = e.target.closest('#ausgangsrechnungen-month-tabs .tab-button[data-tab]');
+      if (monthTabBtn) {
+        e.preventDefault();
+        this.selectInvoiceMonth(monthTabBtn.dataset.tab);
+        return;
+      }
+
+      const tabBtn = e.target.closest('.auftrag-tabs .tab-button[data-tab]');
+      if (tabBtn) {
+        e.preventDefault();
+        this.switchTab(tabBtn.dataset.tab);
+        return;
+      }
+
+      if (this.activeTab === 'contracts') {
+        const contractRow = e.target.closest('.contracts-table tr[data-id]');
+        if (contractRow && !e.target.closest('a, button, input, label, .actions-dropdown')) {
+          e.preventDefault();
+          window.navigateTo(`/contracts/${contractRow.dataset.id}`);
+          return;
+        }
+      }
+
+      if (e.target.id === 'btn-view-list' || e.target.closest('#btn-view-list')) {
+        e.preventDefault();
+        if (this.activeTab === 'contracts' || this.currentView === 'list') return;
+        this.cashFlowCalendar?.destroy();
+        this.cashFlowCalendar = null;
+        this.currentView = 'list';
+        this.renderAuftraegeContent();
+        SearchInput.bind('auftrag', (value) => this.handleSearch(value));
+        this.initializeFilterBar();
+        this.reloadBlatt({ withCounts: true });
+        document.getElementById('btn-view-list')?.classList.add('active');
+        document.getElementById('btn-view-calendar')?.classList.remove('active');
+        return;
+      }
+
+      if (e.target.id === 'btn-view-calendar' || e.target.closest('#btn-view-calendar')) {
+        e.preventDefault();
+        if (this.activeTab === 'contracts' || this.currentView === 'calendar') return;
+        this.currentView = 'calendar';
+        this.renderAuftraegeContent();
+        this.initCashFlowCalendar();
+        document.getElementById('btn-view-list')?.classList.remove('active');
+        document.getElementById('btn-view-calendar')?.classList.add('active');
+        return;
+      }
+
+      if (e.target.closest('[data-empty-action="reset-filters"]')) {
+        e.preventDefault();
+        this.onFiltersReset();
+      }
+    }, { signal });
+
+    document.addEventListener('change', (e) => {
+      if (e.target.id === 'ausgangsrechnungen-year-select') {
+        this.selectInvoiceYear(e.target.value);
+        return;
+      }
+      if (
+        e.target.classList.contains('auftrag-inline-re-nr-input') ||
+        e.target.classList.contains('auftrag-inline-text-input')
+      ) {
+        this.handleInlineReNrChange(e.target);
+        return;
+      }
+      if (e.target.classList.contains('auftrag-inline-date-input')) {
+        this.handleInlineBillingDateChange(e.target);
+      }
+    }, { signal });
+
+    document.addEventListener('focusin', (e) => {
+      if (!e.target.classList.contains('auftrag-inline-re-nr-input')) return;
+      const input = e.target;
+      const len = input.value?.length ?? 0;
+      requestAnimationFrame(() => {
+        try { input.setSelectionRange(len, len); } catch (_) { /* noop */ }
+      });
+    }, { signal });
+
+    this._inlineDatePickerCleanup = CustomDatePicker.bind(document);
+
+    window.addEventListener('entityUpdated', (e) => {
+      const entity = e?.detail?.entity;
+      if (entity !== 'auftrag' && entity !== 'auftrag_teilrechnung' && entity !== 'auftrag_details' && entity !== 'auftragsdetails') return;
+
+      const field = e.detail.field;
+      if (
+        (entity === 'auftrag' || entity === 'auftrag_teilrechnung') &&
+        e.detail.action === 'updated' &&
+        (field === 'rechnung_gestellt_am' || field === 'ueberwiesen_am' || field === 're_nr' || field === 'externe_po')
+      ) {
+        this.reloadBlatt({ withCounts: field === 'rechnung_gestellt_am' || field === 're_nr' });
+        return;
+      }
+
+      this.reloadBlatt({ withCounts: true });
+    }, { signal });
+  }
+
+  async handleInlineReNrChange(input) {
+    if (!this.isAdmin || !input) return;
+    const id = input.dataset.id;
+    const entity = input.dataset.entity || 'auftrag';
+    const field = input.dataset.field || 're_nr';
+    if (!id || !field) return;
+
+    const previousValue = input.dataset.previousValue ?? '';
+    const nextValue = input.value?.trim() || '';
+    if (nextValue === previousValue) return;
+
+    const isReNr = field === 're_nr';
+    const payloadValue = isReNr && isBareReNrPrefix(nextValue) ? null : (nextValue || null);
+    input.disabled = true;
+    try {
+      const result = await window.dataService.updateEntity(entity, id, { [field]: payloadValue });
+      if (!result?.success) throw new Error(result?.error || 'Update fehlgeschlagen');
+
+      if (isReNr && payloadValue == null) {
+        const prefix = defaultReNrPrefix();
+        input.value = prefix;
+        input.dataset.previousValue = prefix;
+      } else {
+        input.dataset.previousValue = nextValue;
+      }
+      window.dispatchEvent(new CustomEvent('entityUpdated', {
+        detail: { entity, action: 'updated', id, field, value: payloadValue }
+      }));
+    } catch (error) {
+      input.value = previousValue;
+      window.toastSystem?.show('Aktualisierung fehlgeschlagen', 'error');
+    } finally {
+      input.disabled = false;
+    }
+  }
+
+  async handleInlineBillingDateChange(input) {
+    if (!this.isAdmin || !input) return;
+    const auftragId = input.dataset.id;
+    const field = input.dataset.field;
+    const dateField = input.dataset.dateField;
+    const entity = input.dataset.entity || 'auftrag';
+    if (!auftragId || !field) return;
+
+    const previousValue = input.dataset.previousValue || '';
+    const nextValue = CustomDatePicker.getValue(input);
+    if (nextValue === previousValue) return;
+
+    const payload = nextValue
+      ? { [dateField]: nextValue, [field]: true }
+      : { [dateField]: null, [field]: false };
+
+    CustomDatePicker.setDisabled(input, true);
+    try {
+      const result = await window.dataService.updateEntity(entity, auftragId, payload);
+      if (!result?.success) throw new Error(result?.error || 'Update fehlgeschlagen');
+      input.dataset.previousValue = nextValue;
+      window.dispatchEvent(new CustomEvent('entityUpdated', {
+        detail: { entity, action: 'updated', id: auftragId, field: dateField, value: nextValue || null }
+      }));
+    } catch (error) {
+      CustomDatePicker.setValue(input, previousValue);
+      window.toastSystem?.show('Aktualisierung fehlgeschlagen', 'error');
+    } finally {
+      CustomDatePicker.setDisabled(input, false);
     }
   }
 
   destroy() {
-    this._allInvoiceRows = [];
-    super.destroy();
+    clearTimeout(this._searchDebounceTimer);
+    this._abortController?.abort();
+    this._abortController = null;
+    this._inlineDatePickerCleanup?.();
+    this._inlineDatePickerCleanup = null;
+    this.cashFlowCalendar?.destroy();
+    this.cashFlowCalendar = null;
+    this.rechnungen = [];
+    this._isAdmin = null;
+    this._isKunde = null;
   }
 }
 

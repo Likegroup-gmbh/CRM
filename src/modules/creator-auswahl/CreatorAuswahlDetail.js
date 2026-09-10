@@ -2,6 +2,7 @@
 // Orchestrierungs-Klasse fuer die Creator-Auswahl Detail-Ansicht
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
+import { strategieService } from '../strategie/StrategieService.js';
 import { SourcingTabelleAnpassenDrawer } from './SourcingTabelleAnpassenDrawer.js';
 import { normalizeCreatorTyp, isAllowedCreatorTyp } from './creatorTypeOptions.js';
 import {
@@ -415,6 +416,10 @@ export class CreatorAuswahlDetail {
             e.preventDefault();
             this.handleDeleteItem(id);
             break;
+          case 'create-videoidee':
+            e.preventDefault();
+            this.handleCreateVideoidee(id);
+            break;
           case 'transfer-to-crm':
             e.preventDefault();
             this.handleTransferToCRM(id);
@@ -478,6 +483,13 @@ export class CreatorAuswahlDetail {
         const handler = () => this.kategorienDrawer.open();
         kategorienBtn.addEventListener('click', handler);
         this._boundEventListeners.add(() => kategorienBtn.removeEventListener('click', handler));
+      }
+
+      const konzeptLinkBtn = document.getElementById('btn-sourcing-konzept-link');
+      if (konzeptLinkBtn) {
+        const handler = () => this.handleKonzeptLink();
+        konzeptLinkBtn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => konzeptLinkBtn.removeEventListener('click', handler));
       }
 
       const addBtn = document.getElementById('btn-open-add-drawer');
@@ -1017,6 +1029,12 @@ export class CreatorAuswahlDetail {
     const updates = buildSourcingStatusUpdates(status);
 
     try {
+      // Absage loest die Zuordnung an Videoideen; blockt, wenn eine davon
+      // schon ein Skript hat (eingefroren).
+      if (status === 'absage') {
+        await creatorAuswahlService._loeseVideoideeZuordnungen(itemId, 'abgesagt');
+      }
+
       await creatorAuswahlService.updateItem(itemId, updates);
 
       const item = this.items.find(i => i.id === itemId);
@@ -1233,6 +1251,182 @@ export class CreatorAuswahlDetail {
     } catch (error) {
       console.error('Fehler bei CRM-Übernahme:', error);
       window.toastSystem?.show('Fehler bei der CRM-Übernahme', 'error');
+    }
+  }
+
+  /**
+   * Konzept verknuepfen oder loesen (1:1-Paar, ADR 0010). Spiegelbild zu
+   * StrategieDetail.handleCastingLink. Picker zeigt nur unverknuepfte
+   * Konzepte derselben Kampagne mit gleichem Briefing. Loesen blockt,
+   * sobald eine Videoidee einen Casting-Eintrag traegt (Service-Gate).
+   */
+  async handleKonzeptLink() {
+    if (this.liste?.strategie_id) {
+      const result = await window.confirmationModal?.open({
+        title: 'Konzept-Verknüpfung lösen?',
+        message: 'Die Verknüpfung zum Konzept wird gelöst. Videoideen behalten ihre Zuordnung nicht.',
+        confirmText: 'Lösen',
+        cancelText: 'Abbrechen',
+        danger: true
+      });
+      if (!result?.confirmed) return;
+
+      try {
+        await strategieService.unlinkCasting(this.liste.strategie_id);
+        window.toastSystem?.show('Konzept-Verknüpfung gelöst', 'success');
+        this.liste = await creatorAuswahlService.getListeById(this.listeId);
+        await this.render();
+        this.bindEvents();
+      } catch (error) {
+        console.error('Fehler beim Lösen der Konzept-Verknüpfung:', error);
+        window.toastSystem?.show(error.message || 'Fehler beim Lösen', 'error');
+      }
+      return;
+    }
+
+    await this.showKonzeptPicker();
+  }
+
+  async showKonzeptPicker() {
+    const { data: konzepte, error } = await window.supabase
+      .from('strategie')
+      .select('id, name, kampagne_id, briefing_id, creator_auswahl_id')
+      .eq('kampagne_id', this.liste?.kampagne_id)
+      .is('creator_auswahl_id', null)
+      .order('name');
+
+    if (error) {
+      window.toastSystem?.show('Fehler beim Laden der Konzepte', 'error');
+      return;
+    }
+
+    const passend = (konzepte || []).filter(s =>
+      (s.briefing_id || null) === (this.liste?.briefing_id || null)
+    );
+
+    if (passend.length === 0) {
+      window.toastSystem?.show('Kein unverknüpftes Konzept mit gleichem Briefing in dieser Kampagne', 'info');
+      return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'drawer-overlay';
+    overlay.id = 'sourcing-konzept-picker-overlay';
+
+    const panel = document.createElement('div');
+    panel.setAttribute('role', 'dialog');
+    panel.className = 'drawer-panel';
+    panel.id = 'sourcing-konzept-picker';
+
+    panel.innerHTML = `
+      <div class="drawer-header">
+        <div>
+          <span class="drawer-title">Konzept verknüpfen</span>
+          <p class="drawer-subtitle">Nur unverknüpfte Konzepte dieser Kampagne mit gleichem Briefing</p>
+        </div>
+        <div>
+          <button class="drawer-close-btn" type="button" aria-label="Schließen">&times;</button>
+        </div>
+      </div>
+      <div class="drawer-body">
+        <div class="form-field">
+          <label for="sourcing-konzept-select">Konzept</label>
+          <select id="sourcing-konzept-select" class="form-input">
+            <option value="">– Konzept wählen –</option>
+            ${passend.map(s => `<option value="${s.id}">${escapeAttr(s.name || 'Ohne Namen')}</option>`).join('')}
+          </select>
+        </div>
+        <div class="drawer-footer">
+          <button type="button" class="mdc-btn mdc-btn--cancel" data-action="close">
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
+          <button type="button" id="btn-konzept-link-confirm" class="mdc-btn mdc-btn--create" disabled>
+            <span class="mdc-btn__label">Verknüpfen</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    const close = () => {
+      panel.classList.remove('show');
+      overlay.classList.remove('active');
+      setTimeout(() => { overlay.remove(); panel.remove(); }, 250);
+    };
+
+    overlay.addEventListener('click', close);
+    panel.querySelector('.drawer-close-btn').addEventListener('click', close);
+    panel.querySelector('[data-action="close"]').addEventListener('click', close);
+
+    const select = panel.querySelector('#sourcing-konzept-select');
+    const confirmBtn = panel.querySelector('#btn-konzept-link-confirm');
+    select.addEventListener('change', () => { confirmBtn.disabled = !select.value; });
+
+    confirmBtn.addEventListener('click', async () => {
+      if (!select.value) return;
+      confirmBtn.disabled = true;
+      try {
+        await strategieService.linkCasting(select.value, this.listeId);
+        window.toastSystem?.show('Konzept verknüpft', 'success');
+        close();
+        this.liste = await creatorAuswahlService.getListeById(this.listeId);
+        await this.render();
+        this.bindEvents();
+      } catch (error) {
+        console.error('Fehler beim Verknüpfen:', error);
+        window.toastSystem?.show(error.message || 'Fehler beim Verknüpfen', 'error');
+        confirmBtn.disabled = false;
+      }
+    });
+
+    document.body.appendChild(overlay);
+    document.body.appendChild(panel);
+    requestAnimationFrame(() => {
+      overlay.classList.add('active');
+      panel.classList.add('show');
+    });
+  }
+
+  /**
+   * Creator-zuerst: legt eine Videoidee im verknuepften Konzept an, schon
+   * diesem Casting-Eintrag zugeordnet. Nur bei Zusage/Gebucht und nur, wenn
+   * das Casting mit einem Konzept verknuepft ist.
+   */
+  async handleCreateVideoidee(itemId) {
+    const item = this.items.find(i => i.id === itemId);
+    if (!item) return;
+
+    if (!this.liste?.strategie_id) {
+      window.toastSystem?.show('Dieses Casting ist mit keinem Konzept verknüpft', 'warning');
+      return;
+    }
+    if (!item.zusage && !item.gebucht) {
+      window.toastSystem?.show('Nur Einträge mit Status Zusage oder Gebucht können einer Videoidee zugeordnet werden', 'warning');
+      return;
+    }
+
+    try {
+      const existing = await strategieService.getStrategieItems(this.liste.strategie_id);
+      const created = await strategieService.createStrategieItem({
+        strategie_id: this.liste.strategie_id,
+        video_link: null,
+        plattform: null,
+        sortierung: existing.length,
+        teilbereich: null,
+        beschreibung: null,
+        beschreibung_quelle: null,
+        verarbeitung_status: null,
+        creator_auswahl_item_id: item.id
+      });
+
+      window.toastSystem?.show('Videoidee angelegt', 'success');
+      window.dispatchEvent(new CustomEvent('strategieItemCreated', {
+        detail: { strategieId: this.liste.strategie_id }
+      }));
+      window.navigateTo(`/konzepte/${this.liste.strategie_id}`);
+      return created;
+    } catch (error) {
+      console.error('Fehler beim Anlegen der Videoidee:', error);
+      window.toastSystem?.show(error.message || 'Fehler beim Anlegen der Videoidee', 'error');
     }
   }
 

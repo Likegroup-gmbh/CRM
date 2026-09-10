@@ -178,8 +178,8 @@ AuftragList.prototype.buildFilteredAuftragQuery = async function(filters = {}, m
     query = query.neq('auftragtype', 'Contracting');
   }
 
-  // Nur die Kundenrechnungen-Seite (AusgangsrechnungenList) setzt excludeDrafts;
-  // die Auftragsliste (/auftrag) bleibt unveraendert.
+  // Die Auftragsliste (/auftrag) zeigt Entwuerfe. Kundenrechnungen filtern
+  // Entwuerfe im Monatsblatt, nicht hier.
   if (excludeDrafts) {
     query = query.or(FINAL_AUFTRAG_OR_FILTER);
   }

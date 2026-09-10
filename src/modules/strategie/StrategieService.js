@@ -300,10 +300,15 @@ export class StrategieService {
 
     await assertBriefingForCreate(strategieData, 'Konzept');
 
+    // Optionale Casting-Verknuepfung (ADR 0010): laeuft nie direkt in den
+    // Insert, sondern wird danach ueber linkCasting beidseitig gesetzt -
+    // sonst entstuende ein halbes Paar (nur eine Seite geschrieben).
+    const { creator_auswahl_id: castingId, ...insertData } = strategieData;
+
     const { data, error } = await window.supabase
       .from('strategie')
       .insert({
-        ...strategieData,
+        ...insertData,
         created_by: window.currentUser?.id
       })
       .select()
@@ -312,6 +317,16 @@ export class StrategieService {
     if (error) {
       console.error('Fehler beim Erstellen der Strategie:', error);
       throw error;
+    }
+
+    if (castingId && data?.id) {
+      try {
+        await this.linkCasting(data.id, castingId);
+      } catch (linkError) {
+        // Konzept bleibt angelegt; manueller Link im Detail bleibt moeglich.
+        console.error('Fehler beim Verknüpfen des Castings:', linkError);
+        window.toastSystem?.show('Konzept angelegt, Verknüpfung mit dem Casting fehlgeschlagen – bitte im Detail manuell verknüpfen', 'warning');
+      }
     }
 
     return data;
@@ -446,7 +461,8 @@ export class StrategieService {
       .from('strategie_items')
       .select(`
         *,
-        creator:creator_id(id, vorname, nachname, instagram, tiktok)
+        creator:creator_id(id, vorname, nachname, instagram, tiktok),
+        casting_eintrag:creator_auswahl_item_id(id, name, creator_id, link_instagram, link_tiktok, zusage, gebucht, creator:creator_id(id, vorname, nachname))
       `)
       .eq('strategie_id', strategieId)
       .order('sortierung', { ascending: true });
@@ -759,8 +775,238 @@ export class StrategieService {
       name: `${c.vorname || ''} ${c.nachname || ''}`.trim()
     }));
   }
+
+  // ------------------------------------------------------------------
+  // Casting ↔ Konzept (1:1-Paar) und Casting-Eintrag an der Videoidee
+  // ------------------------------------------------------------------
+
+  /**
+   * Skript-Freeze: existiert mindestens ein Skript mit dieser Videoidee als
+   * Vorlage, ist die Creator-Zuordnung eingefroren. Escape ist die Vorlage
+   * am Skript loesen (strategie_item_id auf NULL), nicht die Zuordnung.
+   */
+  async hasSkriptForItem(itemId) {
+    if (!itemId) return false;
+    const { count, error } = await window.supabase
+      .from('skripte')
+      .select('id', { count: 'exact', head: true })
+      .eq('strategie_item_id', itemId);
+    if (error) throw error;
+    return (count || 0) > 0;
+  }
+
+  /**
+   * Verknuepft ein Konzept mit einem Casting (1:1). Beide muessen dieselbe
+   * Kampagne und dasselbe briefing_id tragen (inkl. beide NULL). Das
+   * Gegenstueck muss unverknuepft sein. Schreibt beide Seiten.
+   */
+  async linkCasting(strategieId, creatorAuswahlId) {
+    const { data: strategie, error: sErr } = await window.supabase
+      .from('strategie')
+      .select('id, kampagne_id, briefing_id, creator_auswahl_id')
+      .eq('id', strategieId)
+      .single();
+    if (sErr || !strategie) throw new Error('Konzept nicht gefunden');
+
+    const { data: casting, error: cErr } = await window.supabase
+      .from('creator_auswahl')
+      .select('id, kampagne_id, briefing_id, strategie_id')
+      .eq('id', creatorAuswahlId)
+      .single();
+    if (cErr || !casting) throw new Error('Casting nicht gefunden');
+
+    if (strategie.creator_auswahl_id) {
+      throw new Error('Dieses Konzept ist bereits mit einem Casting verknüpft.');
+    }
+    if (casting.strategie_id) {
+      throw new Error('Dieses Casting ist bereits mit einem Konzept verknüpft.');
+    }
+    if ((strategie.kampagne_id || null) !== (casting.kampagne_id || null)) {
+      throw new Error('Konzept und Casting gehören zu unterschiedlichen Kampagnen.');
+    }
+    if ((strategie.briefing_id || null) !== (casting.briefing_id || null)) {
+      throw new Error('Konzept und Casting haben unterschiedliche Briefings.');
+    }
+
+    const { error: upErr } = await window.supabase
+      .from('strategie')
+      .update({ creator_auswahl_id: creatorAuswahlId })
+      .eq('id', strategieId);
+    if (upErr) throw upErr;
+
+    const { error: upErr2 } = await window.supabase
+      .from('creator_auswahl')
+      .update({ strategie_id: strategieId })
+      .eq('id', creatorAuswahlId);
+    if (upErr2) {
+      // Rueckgaengig, damit kein halbes Paar stehen bleibt
+      await window.supabase.from('strategie').update({ creator_auswahl_id: null }).eq('id', strategieId);
+      throw upErr2;
+    }
+  }
+
+  /**
+   * Loesung des Paars. Nur moeglich, solange keine Videoidee einen
+   * Casting-Eintrag aus diesem Casting traegt - sonst wuerden Zuordnungen
+   * ihre Quelle verlieren.
+   */
+  async unlinkCasting(strategieId) {
+    const { data: strategie, error: sErr } = await window.supabase
+      .from('strategie')
+      .select('id, creator_auswahl_id')
+      .eq('id', strategieId)
+      .single();
+    if (sErr || !strategie) throw new Error('Konzept nicht gefunden');
+    if (!strategie.creator_auswahl_id) return;
+
+    const { count, error: cntErr } = await window.supabase
+      .from('strategie_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('strategie_id', strategieId)
+      .not('creator_auswahl_item_id', 'is', null);
+    if (cntErr) throw cntErr;
+    if ((count || 0) > 0) {
+      throw new Error('Es sind noch Videoideen mit einem Casting-Eintrag verknüpft. Zuerst dort lösen.');
+    }
+
+    const castingId = strategie.creator_auswahl_id;
+    const { error: upErr } = await window.supabase
+      .from('strategie')
+      .update({ creator_auswahl_id: null })
+      .eq('id', strategieId);
+    if (upErr) throw upErr;
+
+    await window.supabase
+      .from('creator_auswahl')
+      .update({ strategie_id: null })
+      .eq('id', castingId);
+  }
+
+  /**
+   * Ordnet einer Videoidee einen Casting-Eintrag zu. Gates:
+   * - Konzept muss mit dem Casting des Eintrags verknuepft sein
+   * - Eintrag muss Status Zusage oder Gebucht haben
+   * - Zuordnung ist eingefroren, sobald ein Skript aus der Idee existiert
+   */
+  async assignCastingItem(itemId, auswahlItemId) {
+    const { data: item, error: iErr } = await window.supabase
+      .from('strategie_items')
+      .select('id, strategie_id, creator_auswahl_item_id')
+      .eq('id', itemId)
+      .single();
+    if (iErr || !item) throw new Error('Videoidee nicht gefunden');
+
+    const { data: strategie, error: sErr } = await window.supabase
+      .from('strategie')
+      .select('id, creator_auswahl_id')
+      .eq('id', item.strategie_id)
+      .single();
+    if (sErr || !strategie) throw new Error('Konzept nicht gefunden');
+    if (!strategie.creator_auswahl_id) {
+      throw new Error('Dieses Konzept ist mit keinem Casting verknüpft.');
+    }
+
+    const { data: eintrag, error: eErr } = await window.supabase
+      .from('creator_auswahl_items')
+      .select('id, creator_auswahl_id, zusage, gebucht, name, creator_id')
+      .eq('id', auswahlItemId)
+      .single();
+    if (eErr || !eintrag) throw new Error('Casting-Eintrag nicht gefunden');
+
+    if (eintrag.creator_auswahl_id !== strategie.creator_auswahl_id) {
+      throw new Error('Der Eintrag gehört nicht zum verknüpften Casting.');
+    }
+    if (!eintrag.zusage && !eintrag.gebucht) {
+      throw new Error('Nur Einträge mit Status Zusage oder Gebucht können zugeordnet werden.');
+    }
+
+    if (item.creator_auswahl_item_id && item.creator_auswahl_item_id !== auswahlItemId) {
+      if (await this.hasSkriptForItem(itemId)) {
+        throw new Error('Die Zuordnung ist eingefroren, weil bereits ein Skript aus dieser Idee existiert.');
+      }
+    }
+
+    await this.updateStrategieItem(itemId, { creator_auswahl_item_id: auswahlItemId });
+  }
+
+  /**
+   * Loesung der Zuordnung. Blockt, sobald ein Skript aus der Idee existiert.
+   */
+  async unassignCastingItem(itemId) {
+    if (await this.hasSkriptForItem(itemId)) {
+      throw new Error('Die Zuordnung ist eingefroren, weil bereits ein Skript aus dieser Idee existiert.');
+    }
+    await this.updateStrategieItem(itemId, {
+      creator_auswahl_item_id: null,
+      ...skriptFreigabeClearPatch()
+    });
+  }
+
+  /**
+   * Skript-Freigabe setzen oder zuruecknehmen. Gate nur fuer Neuanlage.
+   * Freigeben nur mit Casting-Eintrag und ohne „Nicht umsetzen“.
+   */
+  async setSkriptFreigabe(itemId, flag) {
+    const { data: item, error } = await window.supabase
+      .from('strategie_items')
+      .select('id, creator_auswahl_item_id, nicht_umsetzen')
+      .eq('id', itemId)
+      .single();
+    if (error || !item) throw new Error('Videoidee nicht gefunden');
+
+    if (flag) {
+      if (!item.creator_auswahl_item_id) {
+        throw new Error('Zuerst einen Casting-Eintrag zuordnen.');
+      }
+      if (item.nicht_umsetzen) {
+        throw new Error('Ideen mit „Nicht umsetzen“ können nicht freigegeben werden.');
+      }
+      await this.updateStrategieItem(itemId, {
+        skript_freigabe: true,
+        skript_freigabe_am: new Date().toISOString(),
+        skript_freigabe_von: window.currentUser?.id || null
+      });
+      return;
+    }
+
+    await this.updateStrategieItem(itemId, skriptFreigabeClearPatch());
+  }
+
+  /**
+   * Eintraege des mit einem Konzept verknuepften Castings, die einer
+   * Videoidee zugeordnet werden duerfen (Status Zusage/Gebucht).
+   */
+  async getZuordbareCastingItems(strategieId) {
+    const { data: strategie, error: sErr } = await window.supabase
+      .from('strategie')
+      .select('id, creator_auswahl_id')
+      .eq('id', strategieId)
+      .single();
+    if (sErr || !strategie || !strategie.creator_auswahl_id) return { castingId: null, items: [] };
+
+    const { data, error } = await window.supabase
+      .from('creator_auswahl_items')
+      .select('id, name, creator_id, link_instagram, link_tiktok, zusage, gebucht')
+      .eq('creator_auswahl_id', strategie.creator_auswahl_id)
+      .order('sortierung', { ascending: true });
+    if (error) throw error;
+
+    return {
+      castingId: strategie.creator_auswahl_id,
+      items: (data || []).filter(i => i.zusage || i.gebucht)
+    };
+  }
+}
+
+function skriptFreigabeClearPatch() {
+  return {
+    skript_freigabe: false,
+    skript_freigabe_am: null,
+    skript_freigabe_von: null
+  };
 }
 
 // Singleton-Instanz exportieren
 export const strategieService = new StrategieService();
+export { skriptFreigabeClearPatch };
 

@@ -418,6 +418,85 @@ export const cascadeStrategies = {
     }
   },
 
+  // Optionale Casting-Verknuepfung am Konzept-Create (ADR 0010): nur
+  // unverknuepfte Castings derselben Kampagne mit gleichem Briefing.
+  // Spiegelt die Match-Regeln aus strategieService.linkCasting.
+  'creator_auswahl_id:kampagne_id': async (parentValue, form, field, fieldConfig, ctx) => {
+    try {
+      const briefingField = form?.querySelector('[name="briefing_id"]');
+      const briefingId = briefingField ? (ctx.getFieldValue(briefingField) || null) : null;
+      if (!briefingId) {
+        ctx.setNoOptionsState(field, fieldConfig, 'Zuerst ein Briefing wählen.');
+        return;
+      }
+
+      const { data: castings, error } = await window.supabase
+        .from('creator_auswahl')
+        .select('id, name')
+        .eq('kampagne_id', parentValue)
+        .is('strategie_id', null)
+        .eq('briefing_id', briefingId)
+        .order('name');
+      if (error) {
+        console.error('❌ Fehler beim Laden der Castings:', error);
+        return;
+      }
+
+      if (!castings || castings.length === 0) {
+        ctx.setNoOptionsState(field, fieldConfig, 'Kein unverknüpftes Casting mit gleichem Briefing in dieser Kampagne');
+        return;
+      }
+
+      const options = castings.map(c => ({
+        value: c.id,
+        label: c.name || 'Ohne Namen'
+      }));
+      field.disabled = false;
+      ctx.updateDependentFieldOptions(field, fieldConfig, options);
+    } catch (e) {
+      console.error('❌ Unerwarteter Fehler beim Laden der Castings:', e);
+    }
+  },
+
+  // Optionale Konzept-Verknuepfung am Casting-Create (ADR 0010):
+  // spiegelverkehrt zu 'creator_auswahl_id:kampagne_id'.
+  'strategie_id:kampagne_id': async (parentValue, form, field, fieldConfig, ctx) => {
+    try {
+      const briefingField = form?.querySelector('[name="briefing_id"]');
+      const briefingId = briefingField ? (ctx.getFieldValue(briefingField) || null) : null;
+      if (!briefingId) {
+        ctx.setNoOptionsState(field, fieldConfig, 'Zuerst ein Briefing wählen.');
+        return;
+      }
+
+      const { data: konzepte, error } = await window.supabase
+        .from('strategie')
+        .select('id, name')
+        .eq('kampagne_id', parentValue)
+        .is('creator_auswahl_id', null)
+        .eq('briefing_id', briefingId)
+        .order('name');
+      if (error) {
+        console.error('❌ Fehler beim Laden der Konzepte:', error);
+        return;
+      }
+
+      if (!konzepte || konzepte.length === 0) {
+        ctx.setNoOptionsState(field, fieldConfig, 'Kein unverknüpftes Konzept mit gleichem Briefing in dieser Kampagne');
+        return;
+      }
+
+      const options = konzepte.map(s => ({
+        value: s.id,
+        label: s.name || 'Ohne Namen'
+      }));
+      field.disabled = false;
+      ctx.updateDependentFieldOptions(field, fieldConfig, options);
+    } catch (e) {
+      console.error('❌ Unerwarteter Fehler beim Laden der Konzepte:', e);
+    }
+  },
+
   'prefillFromUnternehmen': async (parentValue, form, field, fieldConfig, ctx) => {
     const targetRole = fieldConfig.prefillRole;
 

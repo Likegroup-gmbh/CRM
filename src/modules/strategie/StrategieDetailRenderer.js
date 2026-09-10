@@ -259,31 +259,32 @@ function renderPlatformCell(item, platformIcon, fallbackIcon) {
 }
 
 /**
- * Creator-Zelle: Freitext-Textarea oder - bei Verknüpfung - der Name aus dem
- * Join als Profil-Link. Der Plus-Button öffnet den Creator-Drawer, das x löst
- * die Verknüpfung (creator_name bleibt als Freitext erhalten).
+ * Creator-Zelle: zeigt den zugeordneten Casting-Eintrag (neu) oder den
+ * Altbestand (creator_id/creator_name, nur Anzeige). Der Plus-Button oeffnet
+ * den Casting-Drawer, das x loest die Zuordnung. Freitext wird nicht mehr
+ * geschrieben.
  */
 function renderCreatorCell(detail, item, readonly) {
   const canEdit = !detail.isKunde && !readonly;
-  const linked = !!(item.creator_id && item.creator);
+  const eintrag = item.casting_eintrag;
+  const hatEintrag = !!item.creator_auswahl_item_id;
 
   const connectBtn = canEdit
-    ? `<button type="button" class="creator-cell-btn creator-connect-btn" data-item-id="${item.id}" title="Creator aus Datenbank verbinden" aria-label="Creator aus Datenbank verbinden">${icon('user-add')}</button>`
+    ? `<button type="button" class="creator-cell-btn creator-connect-btn" data-item-id="${item.id}" title="Casting-Eintrag zuordnen" aria-label="Casting-Eintrag zuordnen">${icon('user-add')}</button>`
     : '';
 
-  if (item.creator_id) {
-    // Fallback: creator_id gesetzt, aber Join leer (Creator gelöscht) -> Freitext zeigen
-    const name = linked
-      ? `${item.creator.vorname || ''} ${item.creator.nachname || ''}`.trim()
-      : (item.creator_name || '');
-    const label = escapeHtml(name || 'Unbekannt');
+  if (hatEintrag) {
+    const name = eintrag?.name
+      || (eintrag?.creator ? `${eintrag.creator.vorname || ''} ${eintrag.creator.nachname || ''}`.trim() : '')
+      || 'Unbekannt';
+    const label = escapeHtml(name);
 
-    const nameHtml = (!detail.isKunde && linked)
-      ? `<a href="/creator/${item.creator_id}" class="table-link creator-cell-link" onclick="event.preventDefault(); window.navigateTo('/creator/${item.creator_id}')">${label}</a>`
+    const nameHtml = eintrag?.creator_id
+      ? `<a href="/creator/${eintrag.creator_id}" class="table-link creator-cell-link" onclick="event.preventDefault(); window.navigateTo('/creator/${eintrag.creator_id}')">${label}</a>`
       : `<span class="creator-cell-name">${label}</span>`;
 
     const unlinkBtn = canEdit
-      ? `<button type="button" class="creator-cell-btn creator-unlink-btn" data-item-id="${item.id}" title="Verknüpfung lösen" aria-label="Verknüpfung lösen">${icon('x-mark')}</button>`
+      ? `<button type="button" class="creator-cell-btn creator-unlink-btn" data-item-id="${item.id}" title="Zuordnung lösen" aria-label="Zuordnung lösen">${icon('x-mark')}</button>`
       : '';
 
     return `
@@ -296,16 +297,15 @@ function renderCreatorCell(detail, item, readonly) {
     `;
   }
 
+  // Altbestand: creator_id/creator_name nur noch Anzeige, kein Freitext-Input
+  const legacyName = item.creator
+    ? `${item.creator.vorname || ''} ${item.creator.nachname || ''}`.trim()
+    : (item.creator_name || '');
+
   return `
     <td class="cell-textarea col-creator">
       <div class="creator-cell">
-        <textarea
-          class="strategie-textarea${readonly ? ' readonly-textarea' : ''}"
-          placeholder="Creator..."
-          data-field="creator_name"
-          data-item-id="${item.id}"
-          ${readonly ? 'readonly' : ''}
-        >${escapeHtml(item.creator_name || '')}</textarea>
+        ${legacyName ? `<span class="creator-cell-name">${escapeHtml(legacyName)}</span>` : '<span class="strategie-cell-muted">–</span>'}
         ${connectBtn}
       </div>
     </td>
@@ -328,12 +328,14 @@ export function renderItemRow(detail, item, index) {
     isIdea ? 'idea-row' : '',
     isUmgesetzt ? 'strategie-item-umgesetzt' : '',
     item.nicht_umsetzen ? 'item-nicht-umsetzen' : '',
+    item.skript_freigabe ? 'item-skript-freigabe' : '',
   ].filter(Boolean).join(' ');
 
   return `
     <tr class="${rowClasses}" data-item-id="${item.id}" draggable="false">
       <td class="col-number">
         ${index + 1}
+        ${item.skript_freigabe ? `<span class="strategie-skript-badge" title="Für Skript freigegeben">${icon('document-text')}</span>` : ''}
       </td>
       ${!detail.isKunde ? `
         <td class="col-drag drag-handle">
@@ -411,6 +413,7 @@ export function renderItemRow(detail, item, index) {
                   Neu verarbeiten
                 </a>
               ` : ''}
+              ${renderSkriptFreigabeAction(item)}
               ${isLinked ? `
                 <a href="#" class="action-item action-warning" data-action="unlink-from-video" data-id="${item.id}" data-video-id="${item.linked_video.id}">
                   ${window.ActionsDropdown?.getHeroIcon('unlink') || ''}
@@ -432,6 +435,29 @@ export function renderItemRow(detail, item, index) {
         </td>
       ` : ''}
     </tr>
+  `;
+}
+
+function renderSkriptFreigabeAction(item) {
+  const kannFreigeben = !!item.creator_auswahl_item_id && !item.nicht_umsetzen;
+  const aktiv = !!item.skript_freigabe;
+  const disabled = !aktiv && !kannFreigeben;
+  const title = aktiv
+    ? 'Skript-Freigabe zurücknehmen'
+    : (item.nicht_umsetzen
+      ? 'Zuerst „Nicht umsetzen“ deaktivieren'
+      : (item.creator_auswahl_item_id
+        ? 'Für Skript freigeben'
+        : 'Zuerst einen Casting-Eintrag zuordnen'));
+
+  return `
+              <a href="#" class="action-item${disabled ? ' action-disabled' : ''}"
+                data-action="toggle-skript-freigabe" data-id="${item.id}"
+                ${disabled ? 'aria-disabled="true"' : ''}
+                title="${escapeAttr(title)}">
+                ${icon('document-text')}
+                ${aktiv ? 'Skript-Freigabe zurücknehmen' : 'Für Skript freigeben'}
+              </a>
   `;
 }
 

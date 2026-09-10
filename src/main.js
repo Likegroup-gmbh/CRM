@@ -32,6 +32,7 @@ import '../assets/styles/dashboard.css';
 import '../assets/styles/addresses.css';
 import '../assets/styles/tabellen.css';
 import '../assets/styles/toast.css';
+import '../assets/styles/version-check.css';
 import '../assets/styles/share.css';
 import '../assets/styles/stakeholder.css';
 import '../assets/styles/admin.css';

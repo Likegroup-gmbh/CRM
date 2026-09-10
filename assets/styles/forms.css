@@ -2929,13 +2929,6 @@ input.readonly-field {
   left: calc(var(--rechnung-col-checkbox-width) + var(--rechnung-col-name-width));
 }
 
-/* Wenn Checkbox-Spalte vorhanden ist, Typ als vierte fixe Spalte verschieben */
-
-.rechnung-table-container .data-table:has(th.col-checkbox) th.col-typ,
-.rechnung-table-container .data-table:has(th.col-checkbox) td.col-typ {
-  left: calc(var(--rechnung-col-checkbox-width) + var(--rechnung-col-name-width) + var(--rechnung-col-auftrag-width));
-}
-
 /* Header über Body-Zellen halten (gestaffelt: Checkbox > Name > Auftrag) */
 
 .rechnung-table-container .data-table thead th.col-checkbox {
@@ -4171,33 +4164,4 @@ input.readonly-field {
 
 .bf-custom-multi-input {
   margin-top: var(--space-xs);
-}
-
-/* ===== Briefing-Liky (rechte Spalte am Multistep) =====
-   Nur die Shell: das Chat selbst kommt aus doc.css (.doc__side/.doc-chat__*),
-   damit Liky hier exakt so aussieht wie am Produkt (ADR 0008). */
-
-.form-page--briefing-liky {
-  padding: 0;
-  border-right: none;
-  display: flex;
-  min-height: calc(100dvh - 128px);
-}
-
-.briefing-liky-shell {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--panel-lg);
-  grid-template-rows: minmax(0, 1fr);
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.briefing-liky-shell #briefing-form {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  min-height: 0;
-  border-right: var(--border-xs) solid var(--border-primary);
-  overflow-y: auto;
 }

@@ -9,10 +9,12 @@ class SubmitGuard {
 
   init() {
     // Capture-Phase: Submit-Events VOR allen anderen Handlern abfangen
-    document.addEventListener('submit', this.handleFormSubmit.bind(this), true);
+    this._onFormSubmit = this.handleFormSubmit.bind(this);
+    document.addEventListener('submit', this._onFormSubmit, true);
     
     // Click-Handler für Submit-Buttons (für nicht-form Buttons)
-    document.addEventListener('click', this.handleButtonClick.bind(this), true);
+    this._onButtonClick = this.handleButtonClick.bind(this);
+    document.addEventListener('click', this._onButtonClick, true);
     
     // Globale Navigation bei erfolgreichem Erstellen (NUR für Seiten, nicht Modals/Drawers)
     window.addEventListener('entityUpdated', this.handleEntityCreated.bind(this));

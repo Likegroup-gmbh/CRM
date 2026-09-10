@@ -15,6 +15,15 @@ import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.j
 import { renderToolbarMenu, renderToolbarMenuItem, renderToolbarListenKopf, bindToolbarMenu } from '../../core/components/ToolbarMenu.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export class StrategieDetail {
   constructor() {
     this._boundEventListeners = new Set();
@@ -145,6 +154,7 @@ export class StrategieDetail {
             toggleId: 'btn-strategie-toolbar-menu',
             itemsHtml: `
               ${renderToolbarMenuItem({ id: 'btn-share-strategie', title: 'Liste per E-Mail teilen', icon: shareIcon, label: 'Teilen' })}
+              ${renderToolbarMenuItem({ id: 'btn-strategie-casting-link', title: this.strategie?.creator_auswahl_id ? 'Casting-Verknüpfung lösen' : 'Casting verknüpfen', icon: icon('link'), label: this.strategie?.creator_auswahl_id ? 'Casting lösen' : 'Casting verknüpfen' })}
               ${renderToolbarMenuItem({ id: 'btn-manage-kategorien', title: 'Kategorien verwalten', icon: kategorienIcon, label: 'Kategorien' })}
               ${renderToolbarMenuItem({ id: 'btn-strategie-detail-column-visibility', title: 'Spalten-Sichtbarkeit', icon: sichtbarkeitIcon, label: 'Sichtbarkeit anpassen' })}
               ${renderToolbarMenuItem({ id: 'btn-strategie-custom-columns', title: 'Eigene Spalten verwalten', icon: customColumnsIcon, label: 'Eigene Spalten' })}
@@ -213,6 +223,137 @@ export class StrategieDetail {
   showCreatorDrawer(itemId) {
     const drawer = new StrategieCreatorDrawer(this);
     drawer.open(itemId);
+  }
+
+  /**
+   * Casting verknuepfen oder loesen. Picker zeigt nur unverknuepfte Castings
+   * derselben Kampagne mit gleichem Briefing. Loesen blockt, sobald eine
+   * Videoidee einen Casting-Eintrag traegt.
+   */
+  async handleCastingLink() {
+    if (this.strategie?.creator_auswahl_id) {
+      const result = await window.confirmationModal?.open({
+        title: 'Casting-Verknüpfung lösen?',
+        message: 'Die Verknüpfung zum Casting wird gelöst. Videoideen behalten ihre Zuordnung nicht.',
+        confirmText: 'Lösen',
+        cancelText: 'Abbrechen',
+        danger: true
+      });
+      if (!result?.confirmed) return;
+
+      try {
+        await strategieService.unlinkCasting(this.strategieId);
+        this.strategie.creator_auswahl_id = null;
+        window.toastSystem?.show('Casting-Verknüpfung gelöst', 'success');
+        await this.render();
+        this.bindEvents();
+      } catch (error) {
+        console.error('Fehler beim Lösen der Casting-Verknüpfung:', error);
+        window.toastSystem?.show(error.message || 'Fehler beim Lösen', 'error');
+      }
+      return;
+    }
+
+    await this.showCastingPicker();
+  }
+
+  async showCastingPicker() {
+    const { data: castings, error } = await window.supabase
+      .from('creator_auswahl')
+      .select('id, name, kampagne_id, briefing_id, strategie_id')
+      .eq('kampagne_id', this.strategie?.kampagne_id)
+      .is('strategie_id', null)
+      .order('name');
+
+    if (error) {
+      window.toastSystem?.show('Fehler beim Laden der Castings', 'error');
+      return;
+    }
+
+    const passend = (castings || []).filter(c =>
+      (c.briefing_id || null) === (this.strategie?.briefing_id || null)
+    );
+
+    if (passend.length === 0) {
+      window.toastSystem?.show('Kein unverknüpftes Casting mit gleichem Briefing in dieser Kampagne', 'info');
+      return;
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'drawer-overlay';
+    overlay.id = 'strategie-casting-picker-overlay';
+
+    const panel = document.createElement('div');
+    panel.setAttribute('role', 'dialog');
+    panel.className = 'drawer-panel';
+    panel.id = 'strategie-casting-picker';
+
+    panel.innerHTML = `
+      <div class="drawer-header">
+        <div>
+          <span class="drawer-title">Casting verknüpfen</span>
+          <p class="drawer-subtitle">Nur unverknüpfte Castings dieser Kampagne mit gleichem Briefing</p>
+        </div>
+        <div>
+          <button class="drawer-close-btn" type="button" aria-label="Schließen">&times;</button>
+        </div>
+      </div>
+      <div class="drawer-body">
+        <div class="form-field">
+          <label for="strategie-casting-select">Casting</label>
+          <select id="strategie-casting-select" class="form-input">
+            <option value="">– Casting wählen –</option>
+            ${passend.map(c => `<option value="${c.id}">${escapeHtml(c.name || 'Ohne Namen')}</option>`).join('')}
+          </select>
+        </div>
+        <div class="drawer-footer">
+          <button type="button" class="mdc-btn mdc-btn--cancel" data-action="close">
+            <span class="mdc-btn__label">Abbrechen</span>
+          </button>
+          <button type="button" id="btn-casting-link-confirm" class="mdc-btn mdc-btn--create" disabled>
+            <span class="mdc-btn__label">Verknüpfen</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    const close = () => {
+      panel.classList.remove('show');
+      overlay.classList.remove('active');
+      setTimeout(() => { overlay.remove(); panel.remove(); }, 250);
+    };
+
+    overlay.addEventListener('click', close);
+    panel.querySelector('.drawer-close-btn').addEventListener('click', close);
+    panel.querySelector('[data-action="close"]').addEventListener('click', close);
+
+    const select = panel.querySelector('#strategie-casting-select');
+    const confirmBtn = panel.querySelector('#btn-casting-link-confirm');
+    select.addEventListener('change', () => { confirmBtn.disabled = !select.value; });
+
+    confirmBtn.addEventListener('click', async () => {
+      if (!select.value) return;
+      confirmBtn.disabled = true;
+      try {
+        await strategieService.linkCasting(this.strategieId, select.value);
+        this.strategie.creator_auswahl_id = select.value;
+        window.toastSystem?.show('Casting verknüpft', 'success');
+        close();
+        await this.render();
+        this.bindEvents();
+      } catch (error) {
+        console.error('Fehler beim Verknüpfen:', error);
+        window.toastSystem?.show(error.message || 'Fehler beim Verknüpfen', 'error');
+        confirmBtn.disabled = false;
+      }
+    });
+
+    document.body.appendChild(overlay);
+    document.body.appendChild(panel);
+    requestAnimationFrame(() => {
+      overlay.classList.add('active');
+      panel.classList.add('show');
+    });
   }
 
   openAddItemDrawer() {
@@ -286,6 +427,13 @@ export class StrategieDetail {
         const handler = () => this.customColumns.openManagementDrawer(() => this.rerenderItemsTable());
         customColumnsBtn.addEventListener('click', handler);
         this._boundEventListeners.add(() => customColumnsBtn.removeEventListener('click', handler));
+      }
+
+      const castingLinkBtn = document.getElementById('btn-strategie-casting-link');
+      if (castingLinkBtn) {
+        const handler = () => this.handleCastingLink();
+        castingLinkBtn.addEventListener('click', handler);
+        this._boundEventListeners.add(() => castingLinkBtn.removeEventListener('click', handler));
       }
     }
 

@@ -302,6 +302,29 @@ describe('MediaItemBuilder – flache Item-Liste', () => {
     expect(items.map(e => e.type === 'video' ? e.video.id : e.image.id)).toEqual(['v1', 'img1']);
     expect(items[1].video).toBeUndefined();
   });
+
+  it('reiht nur Loop-Stills ein, Finale sind kein eigenes Item', () => {
+    const koops = [{
+      id: 'k1',
+      _bilder: [
+        { id: 's1', file_url: 'u1', video_id: 'v1', is_final: false },
+        { id: 'fin', file_url: 'uf', video_id: 'v1', is_final: true, source_asset_id: 's1' },
+      ],
+    }];
+    const videos = { k1: [{ id: 'v1', file_url: 'vid' }] };
+    const items = new MediaItemBuilder(makeFakeTable(koops, videos)).build();
+    expect(items.filter(e => e.type === 'bild').map(e => e.image.id)).toEqual(['s1']);
+  });
+
+  it('nimmt das Final-Still als Item, wenn das Video keine Loop-Stills hat', () => {
+    const koops = [{
+      id: 'k1',
+      _bilder: [{ id: 'fin', file_url: 'uf', video_id: 'v1', is_final: true }],
+    }];
+    const videos = { k1: [{ id: 'v1', file_url: 'vid' }] };
+    const items = new MediaItemBuilder(makeFakeTable(koops, videos)).build();
+    expect(items.filter(e => e.type === 'bild').map(e => e.image.id)).toEqual(['fin']);
+  });
 });
 
 describe('MediaItemBuilder.ensureStorySlotsLoaded – on-demand Story-Slots', () => {
@@ -412,6 +435,27 @@ describe('VideoAssetLoader – Versionen & Varianten', () => {
     expect(loader.applyDefaultSelection(assets, null)).toEqual({ selectedVersion: 1, selectedAssetId: 'a' });
     expect(loader.applyDefaultSelection(assets, null, { preferFinal: true }))
       .toEqual({ selectedVersion: 'final', selectedAssetId: 'f1' });
+  });
+
+  it('applyDefaultSelection waehlt neuestes Asset auch bei current_assets=0', () => {
+    const loader = new VideoAssetLoader();
+    const assets = [
+      { id: 'old', version_number: 1, is_current: false, created_at: '2026-01-01' },
+      { id: 'new', version_number: 2, is_current: false, created_at: '2026-03-01' },
+    ];
+    expect(loader.applyDefaultSelection(assets, null))
+      .toEqual({ selectedVersion: 2, selectedAssetId: 'new' });
+  });
+
+  it('applyDefaultSelection bei mehreren is_current nimmt neuestes created_at der hoechsten Version', () => {
+    const loader = new VideoAssetLoader();
+    const assets = [
+      { id: 'a', version_number: 1, is_current: true, created_at: '2026-04-01' },
+      { id: 'b', version_number: 1, is_current: true, created_at: '2026-05-01' },
+      { id: 'c', version_number: 1, is_current: true, created_at: '2026-03-01' },
+    ];
+    expect(loader.applyDefaultSelection(assets, null))
+      .toEqual({ selectedVersion: 1, selectedAssetId: 'b' });
   });
 });
 
@@ -668,6 +712,63 @@ describe('VideoPlayerLightbox._open – kein Sprung auf fremde Kooperation', () 
     await player.openBilder('k1');
     expect(player.current?.type).toBe('bild');
     expect(player.current?.image.id).toBe('img1');
+  });
+});
+
+describe('VideoPlayerLightbox – Stills-Galerie zeigt das Item-Bild', () => {
+  function stillsPlayer() {
+    const stills = Array.from({ length: 7 }, (_, i) => ({
+      id: `s${i + 1}`,
+      video_id: 'v1',
+      file_url: `https://cdn.example.com/still-${i + 1}.jpg`,
+      file_path: `/stills/still-${i + 1}.jpg`,
+      version_number: 1,
+      is_current: true,
+      is_final: false,
+      variant_name: `Still ${i + 1}`,
+      created_at: `2026-09-09T08:43:16.688+00`,
+    }));
+    const koops = [{ id: 'k1', _bilder: stills }];
+    const videos = { k1: [{ id: 'v1', file_url: 'u1' }] };
+    const table = makeFakeTable(koops, videos);
+    const player = new VideoPlayerLightbox(table);
+    player.items = new MediaItemBuilder(table).build();
+    return player;
+  }
+
+  it('baut 7 bild-Items und jedes zeigt sein eigenes Bild trotz is_current-Drift', () => {
+    const player = stillsPlayer();
+    const bilder = player.items.filter(it => it.type === 'bild');
+    expect(bilder.map(it => it.image.id)).toEqual(['s1', 's2', 's3', 's4', 's5', 's6', 's7']);
+
+    const urls = bilder.map((_, i) => {
+      player.index = player.items.findIndex(it => it.type === 'bild' && it.image.id === `s${i + 1}`);
+      player._applyStillDefaultSelection();
+      return player.currentLookup().file_url;
+    });
+    expect(urls).toEqual([
+      'https://cdn.example.com/still-1.jpg',
+      'https://cdn.example.com/still-2.jpg',
+      'https://cdn.example.com/still-3.jpg',
+      'https://cdn.example.com/still-4.jpg',
+      'https://cdn.example.com/still-5.jpg',
+      'https://cdn.example.com/still-6.jpg',
+      'https://cdn.example.com/still-7.jpg',
+    ]);
+  });
+
+  it('Prev/Weiter wechselt das angezeigte Still', () => {
+    const player = stillsPlayer();
+    const firstBild = player.items.findIndex(it => it.type === 'bild');
+    player.index = firstBild;
+    player._applyStillDefaultSelection();
+    expect(player.stillAssetId).toBe('s1');
+
+    player.index = firstBild + 3;
+    player._resetItemState();
+    player._applyStillDefaultSelection();
+    expect(player.stillAssetId).toBe('s4');
+    expect(player.currentLookup().file_url).toBe('https://cdn.example.com/still-4.jpg');
   });
 });
 

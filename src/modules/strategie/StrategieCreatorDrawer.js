@@ -1,7 +1,8 @@
 // StrategieCreatorDrawer.js
-// Verknüpft ein Strategie-Item mit genau einem Creator aus der Datenbank.
-// Beim Verbinden wird creator_name mit dem DB-Namen überschrieben, beim
-// Lösen bleibt er als Freitext erhalten (nur creator_id wird entfernt).
+// Verknuepft eine Videoidee mit genau einem Casting-Eintrag aus dem mit dem
+// Konzept verknuepften Casting. Der freie CRM-Picker ist ersetzt: Quelle ist
+// die Liste, nicht der Stammdatensatz. Altbestand (creator_id/creator_name)
+// bleibt als Anzeige stehen, wird aber nicht mehr geschrieben.
 
 import { strategieService } from './StrategieService.js';
 import { icon } from '../../core/icons/IconSystem.js';
@@ -18,8 +19,8 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-function creatorDisplayName(creator) {
-  return `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim();
+function eintragDisplayName(eintrag) {
+  return (eintrag?.name || '').trim();
 }
 
 export class StrategieCreatorDrawer {
@@ -27,13 +28,12 @@ export class StrategieCreatorDrawer {
     this.detail = detail;
     this.item = null;
     this.onSuccess = null;
-    this.selectedCreatorId = null;
-    // id -> Creator aus der Suche, damit beim Verbinden Name und Join-Daten
-    // ohne Extra-Query vorliegen
-    this.creatorCache = new Map();
+    this.selectedItemId = null;
+    this.castingItems = [];
+    this.castingId = null;
   }
 
-  open(itemId, { onSuccess } = {}) {
+  async open(itemId, { onSuccess } = {}) {
     const item = this.detail.items.find(i => i.id === itemId);
     if (!item) {
       window.toastSystem?.show('Item nicht gefunden', 'error');
@@ -44,11 +44,9 @@ export class StrategieCreatorDrawer {
 
     this.item = item;
     this.onSuccess = onSuccess || null;
-    this.selectedCreatorId = item.creator_id || null;
-    this.creatorCache = new Map();
-
-    const linkedName = creatorDisplayName(item.creator);
-    const kontext = (item.beschreibung || '').trim();
+    this.selectedItemId = item.creator_auswahl_item_id || null;
+    this.castingItems = [];
+    this.castingId = null;
 
     const overlay = document.createElement('div');
     overlay.className = 'drawer-overlay';
@@ -59,50 +57,25 @@ export class StrategieCreatorDrawer {
     panel.className = 'drawer-panel';
     panel.id = DRAWER_ID;
 
+    const kontext = (item.beschreibung || '').trim();
+
     panel.innerHTML = `
       <div class="drawer-header">
         <div>
-          <span class="drawer-title">Creator verbinden</span>
+          <span class="drawer-title">Creator aus dem Casting</span>
           <p class="drawer-subtitle">${kontext ? escapeHtml(kontext.slice(0, 80)) : (item.video_link ? 'Video' : 'Idee')}</p>
         </div>
         <div>
           <button class="drawer-close-btn" type="button" aria-label="Schließen">&times;</button>
         </div>
       </div>
-      <div class="drawer-body">
-        ${item.creator_id && linkedName ? `
-          <div class="link-strategie-context">
-            <div class="link-strategie-context-row">
-              <span class="link-strategie-context-label">Aktuell verknüpft</span>
-              <span>${escapeHtml(linkedName)}</span>
-            </div>
-          </div>
-        ` : ''}
-        <div class="form-field">
-          <label for="strategie-creator-select">Creator aus der Datenbank</label>
-          <select id="strategie-creator-select" class="form-input">
-            <option value="">– Creator wählen –</option>
-          </select>
-        </div>
-        <div class="drawer-footer">
-          <button type="button" class="mdc-btn mdc-btn--cancel" data-action="close">
-            <span class="mdc-btn__label">Abbrechen</span>
-          </button>
-          ${item.creator_id ? `
-            <button type="button" id="btn-creator-unlink" class="mdc-btn mdc-btn--danger">
-              <span class="mdc-btn__label">Verknüpfung lösen</span>
-            </button>
-          ` : ''}
-          <button type="button" id="btn-creator-connect" class="mdc-btn mdc-btn--create" disabled>
-            <span class="mdc-btn__label">Verbinden</span>
-          </button>
-        </div>
+      <div class="drawer-body" id="${DRAWER_ID}-body">
+        <div class="drawer-loading-state">Lade Casting…</div>
       </div>
     `;
 
     overlay.addEventListener('click', () => this.close());
     panel.querySelector('.drawer-close-btn').addEventListener('click', () => this.close());
-    panel.querySelector('[data-action="close"]')?.addEventListener('click', () => this.close());
 
     document.body.appendChild(overlay);
     document.body.appendChild(panel);
@@ -112,98 +85,140 @@ export class StrategieCreatorDrawer {
       panel.classList.add('show');
     });
 
-    this.initCreatorSelect();
+    await this.loadCasting();
+    this.renderBody();
     this.bindEvents();
   }
 
-  initCreatorSelect() {
-    const select = document.getElementById('strategie-creator-select');
-    if (!select || !window.formSystem) return;
+  async loadCasting() {
+    try {
+      const { castingId, items } = await strategieService.getZuordbareCastingItems(this.item.strategie_id);
+      this.castingId = castingId;
+      this.castingItems = items;
+    } catch (error) {
+      console.error('Fehler beim Laden des Castings:', error);
+      this.castingId = null;
+      this.castingItems = [];
+    }
+  }
 
-    const loadCreators = async (query) => {
-      try {
-        const creators = await strategieService.searchCreators((query || '').trim());
-        creators.forEach(c => this.creatorCache.set(c.id, c));
-        return creators.map(c => ({
-          value: c.id,
-          label: c.name || 'Unbekannt',
-          subtitle: [c.instagram, c.tiktok].filter(Boolean).join(', ') || undefined
-        }));
-      } catch (error) {
-        console.error('Fehler bei der Creator-Suche:', error);
-        return [];
-      }
-    };
+  renderBody() {
+    const body = document.getElementById(`${DRAWER_ID}-body`);
+    if (!body) return;
 
-    // Vorauswahl bei bestehender Verknüpfung: die selected-Option setzt im
-    // Searchable-Select sowohl das sichtbare Input als auch den Hidden-Value
-    const initialOptions = [];
-    if (this.item.creator_id && this.item.creator) {
-      const c = this.item.creator;
-      const name = creatorDisplayName(c) || this.item.creator_name || 'Unbekannt';
-      this.creatorCache.set(c.id, { ...c, name });
-      initialOptions.push({ value: c.id, label: name, selected: true });
+    const item = this.item;
+    const aktuell = item.casting_eintrag;
+    const aktuellName = eintragDisplayName(aktuell)
+      || (aktuell?.creator ? `${aktuell.creator.vorname || ''} ${aktuell.creator.nachname || ''}`.trim() : '');
+
+    if (!this.castingId) {
+      body.innerHTML = `
+        <div class="add-to-video-empty">
+          <p>Dieses Konzept ist mit keinem Casting verknüpft.</p>
+          <p class="hint">Verknüpfen Sie das Konzept zuerst mit einem Casting, dann können Sie hier einen Eintrag zuordnen.</p>
+        </div>
+        <div class="drawer-footer">
+          <button type="button" class="mdc-btn mdc-btn--cancel" data-action="close">
+            <span class="mdc-btn__label">Schließen</span>
+          </button>
+        </div>
+      `;
+      return;
     }
 
-    window.formSystem.createSimpleSearchableSelect(select, initialOptions, {
-      placeholder: 'Name, Instagram oder TikTok eingeben...',
-      serverSearch: loadCreators
+    const options = this.castingItems.map(e => ({
+      value: e.id,
+      label: eintragDisplayName(e) || 'Unbekannt',
+      subtitle: [e.link_instagram, e.link_tiktok].filter(Boolean).join(', ') || undefined,
+      selected: e.id === this.selectedItemId
+    }));
+
+    body.innerHTML = `
+      ${aktuellName ? `
+        <div class="link-strategie-context">
+          <div class="link-strategie-context-row">
+            <span class="link-strategie-context-label">Aktuell zugeordnet</span>
+            <span>${escapeHtml(aktuellName)}</span>
+          </div>
+        </div>
+      ` : ''}
+      <div class="form-field">
+        <label for="strategie-casting-item-select">Eintrag aus dem Casting</label>
+        <select id="strategie-casting-item-select" class="form-input">
+          <option value="">– Eintrag wählen –</option>
+        </select>
+      </div>
+      <div class="drawer-footer">
+        <button type="button" class="mdc-btn mdc-btn--cancel" data-action="close">
+          <span class="mdc-btn__label">Abbrechen</span>
+        </button>
+        ${item.creator_auswahl_item_id ? `
+          <button type="button" id="btn-casting-item-unlink" class="mdc-btn mdc-btn--danger">
+            <span class="mdc-btn__label">Zuordnung lösen</span>
+          </button>
+        ` : ''}
+        <button type="button" id="btn-casting-item-connect" class="mdc-btn mdc-btn--create" disabled>
+          <span class="mdc-btn__label">Zuordnen</span>
+        </button>
+      </div>
+    `;
+
+    this.initSelect(options);
+  }
+
+  initSelect(options) {
+    const select = document.getElementById('strategie-casting-item-select');
+    if (!select || !window.formSystem) return;
+
+    window.formSystem.createSimpleSearchableSelect(select, options, {
+      placeholder: 'Name oder Handle eingeben…'
     });
 
-    if (this.selectedCreatorId) {
-      const btn = document.getElementById('btn-creator-connect');
+    if (this.selectedItemId) {
+      const btn = document.getElementById('btn-casting-item-connect');
       if (btn) btn.disabled = false;
     }
   }
 
   bindEvents() {
-    const select = document.getElementById('strategie-creator-select');
-    select?.addEventListener('change', () => {
-      // Der zuverlässige Wert steckt im Hidden-Input des Searchable-Selects
-      const hidden = document.getElementById('strategie-creator-select_value');
-      this.selectedCreatorId = hidden?.value || null;
-      const btn = document.getElementById('btn-creator-connect');
-      if (btn) btn.disabled = !this.selectedCreatorId;
+    document.querySelectorAll(`#${DRAWER_ID} [data-action="close"]`).forEach(btn => {
+      btn.addEventListener('click', () => this.close());
     });
 
-    document.getElementById('btn-creator-connect')?.addEventListener('click', () => this.handleConnect());
-    document.getElementById('btn-creator-unlink')?.addEventListener('click', () => this.handleUnlink());
+    const select = document.getElementById('strategie-casting-item-select');
+    select?.addEventListener('change', () => {
+      const hidden = document.getElementById('strategie-casting-item-select_value');
+      this.selectedItemId = hidden?.value || null;
+      const btn = document.getElementById('btn-casting-item-connect');
+      if (btn) btn.disabled = !this.selectedItemId;
+    });
+
+    document.getElementById('btn-casting-item-connect')?.addEventListener('click', () => this.handleConnect());
+    document.getElementById('btn-casting-item-unlink')?.addEventListener('click', () => this.handleUnlink());
   }
 
   async handleConnect() {
-    if (!this.selectedCreatorId || !this.item) return;
+    if (!this.selectedItemId || !this.item) return;
 
-    const btn = document.getElementById('btn-creator-connect');
+    const btn = document.getElementById('btn-casting-item-connect');
     try {
       if (btn) {
         btn.disabled = true;
         btn.classList.add('is-loading');
       }
 
-      const creator = this.creatorCache.get(this.selectedCreatorId);
-      const name = creator?.name || creatorDisplayName(creator) || null;
+      await strategieService.assignCastingItem(this.item.id, this.selectedItemId);
 
-      const updates = { creator_id: this.selectedCreatorId, creator_name: name };
-      await strategieService.updateStrategieItem(this.item.id, updates);
+      this.item.creator_auswahl_item_id = this.selectedItemId;
+      this.item.casting_eintrag = this.castingItems.find(e => e.id === this.selectedItemId) || null;
 
-      Object.assign(this.item, updates);
-      if (creator) {
-        this.item.creator = {
-          id: creator.id,
-          vorname: creator.vorname,
-          nachname: creator.nachname,
-          instagram: creator.instagram,
-          tiktok: creator.tiktok
-        };
-      }
-
-      window.toastSystem?.show('Creator verknüpft', 'success');
+      window.toastSystem?.show('Casting-Eintrag zugeordnet', 'success');
       if (this.onSuccess) await this.onSuccess();
       this.close();
       this.detail.rerenderItemsTable();
     } catch (error) {
-      console.error('Fehler beim Verknüpfen des Creators:', error);
-      window.toastSystem?.show('Fehler beim Verknüpfen', 'error');
+      console.error('Fehler beim Zuordnen:', error);
+      window.toastSystem?.show(error.message || 'Fehler beim Zuordnen', 'error');
       if (btn) {
         btn.disabled = false;
         btn.classList.remove('is-loading');
@@ -212,11 +227,11 @@ export class StrategieCreatorDrawer {
   }
 
   async handleUnlink() {
-    if (!this.item?.creator_id) return;
+    if (!this.item?.creator_auswahl_item_id) return;
 
     const result = await window.confirmationModal?.open({
-      title: 'Verknüpfung lösen?',
-      message: 'Die Verknüpfung zum Creator wird gelöst. Der Name bleibt als Freitext in der Spalte erhalten.',
+      title: 'Zuordnung lösen?',
+      message: 'Die Zuordnung zum Casting-Eintrag wird gelöst.',
       confirmText: 'Lösen',
       cancelText: 'Abbrechen',
       danger: true
@@ -224,17 +239,17 @@ export class StrategieCreatorDrawer {
     if (!result?.confirmed) return;
 
     try {
-      await strategieService.updateStrategieItem(this.item.id, { creator_id: null });
-      this.item.creator_id = null;
-      this.item.creator = null;
+      await strategieService.unassignCastingItem(this.item.id);
+      this.item.creator_auswahl_item_id = null;
+      this.item.casting_eintrag = null;
 
-      window.toastSystem?.show('Verknüpfung gelöst', 'success');
+      window.toastSystem?.show('Zuordnung gelöst', 'success');
       if (this.onSuccess) await this.onSuccess();
       this.close();
       this.detail.rerenderItemsTable();
     } catch (error) {
-      console.error('Fehler beim Lösen der Creator-Verknüpfung:', error);
-      window.toastSystem?.show('Fehler beim Lösen', 'error');
+      console.error('Fehler beim Lösen:', error);
+      window.toastSystem?.show(error.message || 'Fehler beim Lösen', 'error');
     }
   }
 

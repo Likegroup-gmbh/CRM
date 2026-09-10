@@ -71,20 +71,6 @@ export function verknuepfungenHtml({ verknuepfungen = [], kannZuweisen = false }
     </button>`;
 }
 
-/** Neu-Modus: Generator-Formular-Platzhalter + Start-Buttons. */
-export function neuModusHtml() {
-  return `
-    <div class="skripte-editor-doc-scroll">
-      ${docHeadHtml(null, '', 'Neues Skript')}
-      <div class="skripte-editor-genform" id="ed-genform"></div>
-    </div>
-    <div class="skripte-actions-row skripte-actions-row--sticky">
-      <button id="ed-gen-start" class="mdc-btn" title="Liky stellt erst kluge Rückfragen zu fehlenden Infos (z.B. CTA), dann wird generiert">Skript generieren</button>
-      <button id="ed-gen-direkt" class="mdc-btn mdc-btn--secondary" title="Rückfragen überspringen und sofort generieren">Direkt generieren</button>
-    </div>
-  `;
-}
-
 /** Rueckfragen-Phase: Vorgaben + Hinweis statt (noch leerem) Skript-Inhalt. */
 export function fragenModusHtml({ skript, genStatus, docHeadActionsHtml, vorgabenPanelHtml }) {
   return `

@@ -1,8 +1,9 @@
 // likyComposer.js
 // Die eine Liky-Eingabekarte fuer alle Seiten: Feld oben, Footer mit Meta
-// links und rundem Absende-Button rechts. Produkt (URL), Persona (bald) und
-// Briefing (PDF) rendern denselben Rahmen, damit Liky ueberall gleich
-// aussieht. Styles: .doc__side .doc-chat__* in doc.css.
+// links und rundem Absende-Button rechts. renderLikyColumn setzt die Karte
+// an den unteren Rand der Spalte, den Verlauf darueber. Produkt (URL),
+// Persona (bald) und Briefing (PDF) rendern denselben Rahmen, damit Liky
+// ueberall gleich aussieht. Styles: .doc__side .doc-chat__* in doc.css.
 
 import { icon } from '../icons/IconSystem.js';
 
@@ -38,6 +39,29 @@ export function renderLikyComposer({
         </div>
       </div>
     </div>
+  `;
+}
+
+/**
+ * Die eine Liky-Spalte fuer alle Seiten: Verlauf oben (scrollt), Composer
+ * unten (gepinnt). Produkt, Persona und Briefing bauen ihre Spalte nur noch
+ * ueber diese Funktion - die Reihenfolge gibt es genau einmal.
+ * @param {Object} opts
+ * @param {string} [opts.feedId] - id auf dem Verlauf (Panel mounten darauf)
+ * @param {string} [opts.feedHtml] - vorgerenderter Inhalt des Verlaufs
+ * @param {string} opts.composer - HTML aus renderLikyComposer
+ * @param {string} [opts.feedClass] - zusaetzliche Klassen auf dem Feed
+ * @returns {string}
+ */
+export function renderLikyColumn({
+  feedId = null,
+  feedHtml = '',
+  composer,
+  feedClass = ''
+}) {
+  return `
+    <div class="doc-chat__feed${feedClass ? ` ${feedClass}` : ''}"${feedId ? ` id="${feedId}"` : ''}>${feedHtml}</div>
+    ${composer}
   `;
 }
 

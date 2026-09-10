@@ -151,25 +151,25 @@ function renderEditItemDrawerBody(detail, item) {
 }
 
 /**
- * Creator-Feld: ohne Verknüpfung das bekannte Freitext-Input plus Button zum
- * Verbinden; mit Verknüpfung der Live-Name als Profil-Link plus Ändern/Lösen.
+ * Creator-Feld: zeigt den zugeordneten Casting-Eintrag (neu) oder den
+ * Altbestand (nur Anzeige). Aendern/Loesen laeuft ueber den Casting-Drawer.
  */
 function renderEditCreatorField(item) {
-  const linked = !!(item.creator_id && item.creator);
+  const eintrag = item.casting_eintrag;
+  const hatEintrag = !!item.creator_auswahl_item_id;
 
-  if (item.creator_id) {
-    // Fallback: Join leer (Creator gelöscht) -> gespeicherter Freitext
-    const name = linked
-      ? `${item.creator.vorname || ''} ${item.creator.nachname || ''}`.trim()
-      : (item.creator_name || '');
-    const label = escapeHtml(name || 'Unbekannt');
+  if (hatEintrag) {
+    const name = eintrag?.name
+      || (eintrag?.creator ? `${eintrag.creator.vorname || ''} ${eintrag.creator.nachname || ''}`.trim() : '')
+      || 'Unbekannt';
+    const label = escapeHtml(name);
 
     return `
       <div class="form-field form-field--creator">
-        <label>Creator</label>
+        <label>Creator (aus dem Casting)</label>
         <div class="creator-cell creator-cell--drawer">
-          ${linked
-            ? `<a href="/creator/${item.creator_id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/creator/${item.creator_id}')">${label}</a>`
+          ${eintrag?.creator_id
+            ? `<a href="/creator/${eintrag.creator_id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/creator/${eintrag.creator_id}')">${label}</a>`
             : `<span>${label}</span>`}
           <span class="creator-cell-actions">
             <button type="button" class="mdc-btn mdc-btn--secondary" id="btn-edit-creator-change">
@@ -184,19 +184,16 @@ function renderEditCreatorField(item) {
     `;
   }
 
+  const legacyName = item.creator
+    ? `${item.creator.vorname || ''} ${item.creator.nachname || ''}`.trim()
+    : (item.creator_name || '');
+
   return `
     <div class="form-field form-field--creator">
-      <label for="edit-creator-name">Creator</label>
+      <label>Creator</label>
       <div class="creator-cell creator-cell--drawer">
-        <input
-          type="text"
-          id="edit-creator-name"
-          name="creator_name"
-          class="form-input"
-          value="${escapeAttr(item.creator_name || '')}"
-          placeholder="Creator-Name..."
-        >
-        <button type="button" class="creator-cell-btn" id="btn-edit-creator-connect" title="Creator aus Datenbank verbinden" aria-label="Creator aus Datenbank verbinden">${icon('user-add')}</button>
+        ${legacyName ? `<span>${escapeHtml(legacyName)}</span>` : '<span class="strategie-cell-muted">–</span>'}
+        <button type="button" class="creator-cell-btn" id="btn-edit-creator-connect" title="Casting-Eintrag zuordnen" aria-label="Casting-Eintrag zuordnen">${icon('user-add')}</button>
       </div>
     </div>
   `;
@@ -287,11 +284,8 @@ async function handleEditItemSubmit(detail, itemId, formData) {
       plattform: platform
     };
 
-    // Bei bestehender Creator-Verknüpfung ist kein creator_name-Input im
-    // Formular - das Feld darf dann nicht angefasst werden
-    if (formData.has('creator_name')) {
-      updates.creator_name = formData.get('creator_name')?.trim() || null;
-    }
+    // creator_name wird nicht mehr geschrieben - der Creator kommt als
+    // Casting-Eintrag ueber den Drawer, nicht als Freitext.
 
     // Wer hier tippt, pflegt von Hand - der KI-Tag verschwindet
     if (beschreibung !== (item?.beschreibung || null)) {

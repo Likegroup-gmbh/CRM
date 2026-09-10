@@ -104,6 +104,10 @@ export class AuthUtils {
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
     const errorDiv = document.getElementById('loginError');
+    // Der globale SubmitGuard lockt den Button beim Submit (Capture-Phase).
+    // Ohne Unlock bliebe er nach einem Fehler gesperrt -> erneutes Einloggen
+    // erst nach Reload möglich.
+    const submitBtn = e.target.querySelector('button[type="submit"]');
 
     try {
       errorDiv.style.display = 'none';
@@ -132,6 +136,8 @@ export class AuthUtils {
 
       errorDiv.textContent = this.translateAuthError(error);
       errorDiv.style.display = 'block';
+    } finally {
+      window.submitGuard?.unlockButton?.(submitBtn);
     }
   }
 
@@ -242,6 +248,7 @@ export class AuthUtils {
     const password = document.getElementById('registerPassword').value;
     const errorDiv = document.getElementById('registerError');
     const emailErrorDiv = document.getElementById('registerEmailError');
+    const submitBtn = e.target.querySelector('button[type="submit"]');
 
     try {
       errorDiv.style.display = 'none';
@@ -299,6 +306,8 @@ export class AuthUtils {
 
       errorDiv.textContent = error.message || 'Registrierung fehlgeschlagen';
       errorDiv.style.display = 'block';
+    } finally {
+      window.submitGuard?.unlockButton?.(submitBtn);
     }
   }
 
@@ -463,6 +472,8 @@ export class AuthUtils {
       errorDiv.style.display = 'block';
       submitBtn.disabled = false;
       submitBtn.textContent = 'Link senden';
+    } finally {
+      window.submitGuard?.unlockButton?.(submitBtn);
     }
   }
 

@@ -72,6 +72,27 @@ export const strategieConfig = {
       table: 'campaign_briefings',
       displayField: 'aktivierung_name',
       valueField: 'id'
+    },
+    {
+      // Optionale 1:1-Verknuepfung (ADR 0010): nur unverknuepfte Castings
+      // derselben Kampagne mit gleichem Briefing. Loader sitzt in
+      // CascadeStrategies ('creator_auswahl_id:kampagne_id'); Briefing-Wechsel
+      // laedt ueber reloadOnChange neu. Der Service verknuepft nach dem
+      // Insert ueber linkCasting (beide Seiten), das Feld laeuft nie direkt
+      // in den Insert.
+      name: 'creator_auswahl_id',
+      label: 'Casting (optional)',
+      type: 'select',
+      required: false,
+      options: [],
+      dynamic: true,
+      searchable: true,
+      placeholder: 'Casting suchen und auswählen...',
+      dependsOn: 'kampagne_id',
+      reloadOnChange: ['briefing_id'],
+      table: 'creator_auswahl',
+      displayField: 'name',
+      valueField: 'id'
     }
   ]
 };

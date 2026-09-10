@@ -82,6 +82,27 @@ export const sourcingConfig = {
       valueField: 'id'
     },
     {
+      // Optionale 1:1-Verknuepfung (ADR 0010): nur unverknuepfte Konzepte
+      // derselben Kampagne mit gleichem Briefing. Loader sitzt in
+      // CascadeStrategies ('strategie_id:kampagne_id'); Briefing-Wechsel
+      // laedt ueber reloadOnChange neu. Der Service verknuepft nach dem
+      // Insert ueber linkCasting (beide Seiten), das Feld laeuft nie direkt
+      // in den Insert.
+      name: 'strategie_id',
+      label: 'Konzept (optional)',
+      type: 'select',
+      required: false,
+      options: [],
+      dynamic: true,
+      searchable: true,
+      placeholder: 'Konzept suchen und auswählen...',
+      dependsOn: 'kampagne_id',
+      reloadOnChange: ['briefing_id'],
+      table: 'strategie',
+      displayField: 'name',
+      valueField: 'id'
+    },
+    {
       // Bestimmt zusammen mit plattformen und ig_formate die hidden_columns
       // der neuen Liste, siehe sourcingSpaltenPreset.js. Nachtraeglich
       // aenderbar ueber den Drawer "Tabelle anpassen".

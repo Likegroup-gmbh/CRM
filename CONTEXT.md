@@ -80,18 +80,28 @@ Nicht das Briefing selbst.
 _Avoid_: Briefing, Quelldokument, Kundendokument
 
 **Casting**:
-Die Creator-Auswahlliste einer Kampagne.
+Die Creator-Auswahlliste einer Kampagne. Unverknüpft oder 1:1 mit einem Konzept.
 _Avoid_: Sourcing (außer Code/Route), Creator-Liste
 
 **Konzept**:
-Das Strategie-Dokument einer Kampagne. Sammlung von Videoideen.
+Das Strategie-Dokument einer Kampagne. Sammlung von Videoideen. Unverknüpft oder 1:1 mit einem Casting.
 _Avoid_: Strategie (außer Tabelle `strategie`), Strategie-Doc
 
+**Casting-Eintrag**:
+Eine Person auf einem Casting. Nicht der CRM-Creator; die Stammdaten-Identität kann später entstehen.
+Darf an mehreren Videoideen des verknüpften Konzepts hängen.
+_Avoid_: Casting-Item, Kandidat, Sourcing-Creator
+
 **Videoidee**:
-Eintrag in einer Strategie. Zwei Varianten: verlinkte Videoidee (mit Instagram-/TikTok-Link,
-per Klick in neuem Tab abspielbar) und reine Idee (nur Text, nichts abspielbar).
-Kann einem Kooperationsvideo zugeordnet werden.
-_Avoid_: Idee/Strategie, Referenzvideo
+Eintrag in einem Konzept: verlinkte Videoidee oder reine Idee. Genau eine Umsetzung, nicht
+eine Kernidee mit mehreren Creatorn. Höchstens ein Casting-Eintrag aus dem verknüpften Casting;
+zuordenbar einem Kooperationsvideo.
+_Avoid_: Idee/Strategie, Referenzvideo, Kernidee
+
+**Skript-Freigabe**:
+Ausdrückliche Freigabe einer Videoidee für die Skripterstellung. Voraussetzung: zugeordneter
+Casting-Eintrag und nicht „Nicht umsetzen“. Gate nur für Neuanlage, nicht für bestehende Skripte.
+_Avoid_: Freigabe (alleinstehend – Kollision mit Video-Freigabe am Kooperationsvideo)
 
 **Kooperationsvideo**:
 Das hochgeladene Videofile in einer Kooperation (Dropbox-Asset), wird in der

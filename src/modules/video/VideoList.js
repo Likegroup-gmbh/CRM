@@ -5,7 +5,6 @@
 // Delegiert Datenladen, Rendering und Events an separate Module.
 
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
-import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { VideoDataLoader } from './VideoDataLoader.js';
@@ -29,6 +28,9 @@ export class VideoList {
     this.kampagnenFolders = [];
     this.videos = [];
     this.rohmaterialGroups = [];
+    this.ordnerblatt = { unternehmen: [], kampagnen: [] };
+    this._forceReload = false;
+    this._ordnerblattLoaded = false;
 
     this.pagination = new PaginationSystem();
     this.events = new VideoEventHandler();
@@ -43,6 +45,7 @@ export class VideoList {
 
   async init() {
     window.setHeadline('Videos');
+    this._forceReload = true;
 
     this.isAdmin = window.isAdmin();
     this.isKunde = window.isKunde();
@@ -86,6 +89,9 @@ export class VideoList {
     this.unternehmenFolders = [];
     this.kampagnenFolders = [];
     this.rohmaterialGroups = [];
+    this.ordnerblatt = { unternehmen: [], kampagnen: [] };
+    this._forceReload = false;
+    this._ordnerblattLoaded = false;
     this.viewMode = 'unternehmen';
     this.currentUnternehmenId = null;
     this.currentUnternehmenName = null;
@@ -113,10 +119,13 @@ export class VideoList {
       }
 
       if (this.viewMode === 'unternehmen') {
-        this.unternehmenFolders = await VideoDataLoader.loadUnternehmenFolders();
+        await this._ensureOrdnerblatt();
+        this.unternehmenFolders = VideoDataLoader.loadUnternehmenFolders(this.ordnerblatt);
         this._renderUnternehmen();
       } else if (this.viewMode === 'kampagnen') {
-        this.kampagnenFolders = await VideoDataLoader.loadKampagnenFolders(
+        await this._ensureOrdnerblatt();
+        this.kampagnenFolders = VideoDataLoader.loadKampagnenFolders(
+          this.ordnerblatt,
           this.currentUnternehmenId,
           this.isKunde
         );
@@ -127,7 +136,6 @@ export class VideoList {
       } else if (this.viewMode === 'rohmaterial') {
         await this._loadAndRenderRohmaterial();
       } else {
-        await this._initFilterBar();
         await this._loadAndRenderVideos();
       }
 
@@ -144,11 +152,14 @@ export class VideoList {
   async reloadData() {
     try {
       if (this.viewMode === 'unternehmen') {
-        this.unternehmenFolders = await VideoDataLoader.loadUnternehmenFolders();
+        await this._ensureOrdnerblatt();
+        this.unternehmenFolders = VideoDataLoader.loadUnternehmenFolders(this.ordnerblatt);
         this._renderUnternehmen();
         this._bindAllEvents();
       } else if (this.viewMode === 'kampagnen') {
-        this.kampagnenFolders = await VideoDataLoader.loadKampagnenFolders(
+        await this._ensureOrdnerblatt();
+        this.kampagnenFolders = VideoDataLoader.loadKampagnenFolders(
+          this.ordnerblatt,
           this.currentUnternehmenId,
           this.isKunde
         );
@@ -166,6 +177,13 @@ export class VideoList {
     } catch (error) {
       window.ErrorHandler?.handle(error, 'VideoList.reloadData');
     }
+  }
+
+  async _ensureOrdnerblatt() {
+    if (this._ordnerblattLoaded && !this._forceReload) return;
+    this.ordnerblatt = await VideoDataLoader.loadOrdnerblatt();
+    this._ordnerblattLoaded = true;
+    this._forceReload = false;
   }
 
   // ============================================
@@ -406,30 +424,6 @@ export class VideoList {
     });
   }
 
-  // ============================================
-  // FILTER
-  // ============================================
-
-  async _initFilterBar() {
-    const filterContainer = document.getElementById('filter-dropdown-container');
-    if (!filterContainer) return;
-    await filterDropdown.init('video', filterContainer, {
-      onFilterApply: (filters) => this._onFiltersApplied(filters),
-      onFilterReset: () => this._onFiltersReset()
-    });
-  }
-
-  _onFiltersApplied(filters) {
-    filterSystem.applyFilters('video', filters);
-    this.pagination.reset();
-    this.loadAndRender();
-  }
-
-  _onFiltersReset() {
-    filterSystem.resetFilters('video');
-    this.pagination.reset();
-    this.loadAndRender();
-  }
 }
 
 export const videoList = new VideoList();

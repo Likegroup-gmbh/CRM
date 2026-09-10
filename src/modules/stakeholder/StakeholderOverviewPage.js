@@ -1,6 +1,6 @@
 // StakeholderOverviewPage.js
 // Stakeholder-Gesamtübersicht (/admin/stakeholder, Admin-only).
-// Zeitraum-Filter + Leistungsbereich-Auswahl (GESAMT, Influencer Marketing, UGC Paid,
+// Zeitraum-Filter + Leistungsbereich-Auswahl (GESAMT ohne/mit Contracts, Influencer Marketing, UGC Paid,
 // UGC Organic, Vor-Ort Production, Contracting). Darunter Budget-Karten
 // (Auftragsvolumen, Verfügbares/Offenes Creator Budget, Verbrauchtes Budget,
 // Creatoranteil, Agenturanteil, KSK-Abgabe, Zusatzkosten) und eine
@@ -34,6 +34,8 @@ import { escapeHtml, formatEuro } from '../../core/format.js';
 const SUPABASE = () => window.supabase;
 
 const TAB_GESAMT = 'gesamt';
+const TAB_GESAMT_OHNE = 'gesamt_ohne';
+const TAB_GESAMT_MIT = 'gesamt_mit';
 const TAB_INFLUENCER = 'influencer_marketing';
 const TAB_UGC_PAID = 'ugc_paid';
 const TAB_UGC_ORGANIC = 'ugc_organic';
@@ -41,6 +43,10 @@ const TAB_VOR_ORT = 'vorort_produktion';
 const TAB_CONTRACTING = 'contracting';
 const TAB_WHITELISTING = 'whitelisting';
 const TAB_DARKPOSTING = 'darkposting';
+
+function isGesamtTab(tab) {
+  return tab === TAB_GESAMT_OHNE || tab === TAB_GESAMT_MIT || tab === TAB_GESAMT;
+}
 
 const INFLUENCER_CHIPS = new Set(['influencer', 'story', 'event']);
 
@@ -77,7 +83,7 @@ export function mergeFeeSource(details, auftrag) {
 // Kampagnenart-Umsatz die genauere Zahl; ohne gepflegten Block bleibt der Nettobetrag.
 export function resolveVolumen(auftrag, blocks, activeTab) {
   const netto = parseFloat(auftrag?.nettobetrag) || 0;
-  if (activeTab === TAB_GESAMT) return netto;
+  if (isGesamtTab(activeTab)) return netto;
 
   const { sum, hasAny } = sumBlockUmsatz(blocks);
   return hasAny ? sum : netto;
@@ -229,7 +235,8 @@ export function groupTypBadges(g) {
 }
 
 const TABS = [
-  { key: TAB_GESAMT, label: 'GESAMT' },
+  { key: TAB_GESAMT_OHNE, label: 'GESAMT ohne Contracts' },
+  { key: TAB_GESAMT_MIT, label: 'GESAMT mit' },
   { key: TAB_INFLUENCER, label: 'INFLUENCER MARKETING' },
   { key: TAB_UGC_PAID, label: 'UGC PAID' },
   { key: TAB_UGC_ORGANIC, label: 'UGC ORGANIC' },
@@ -251,7 +258,7 @@ export class StakeholderOverviewPage {
     this.detailsByAuftrag = new Map();
     this.unternehmenById = new Map();
     this.selectedYear = 'all';
-    this.activeTab = TAB_GESAMT;
+    this.activeTab = TAB_GESAMT_OHNE;
     // Monatsauswertung (ADR 0006): eigene Ansicht neben der Kalkulation.
     this.activeView = 'kalkulation'; // 'kalkulation' | 'monate'
     this.monatsSicht = 'marge'; // 'marge' | 'buchhaltung'
@@ -457,14 +464,17 @@ export class StakeholderOverviewPage {
     this.filteredAuftraege().forEach(a => {
       const tab = this.tabForAuftrag(a, blockMap.get(a.id));
       counts.set(tab, (counts.get(tab) || 0) + 1);
-      counts.set(TAB_GESAMT, (counts.get(TAB_GESAMT) || 0) + 1);
+      counts.set(TAB_GESAMT_MIT, (counts.get(TAB_GESAMT_MIT) || 0) + 1);
+      if (tab !== TAB_CONTRACTING) {
+        counts.set(TAB_GESAMT_OHNE, (counts.get(TAB_GESAMT_OHNE) || 0) + 1);
+      }
     });
     return counts;
   }
 
   visibleTabs() {
     const counts = this.tabCounts();
-    return TABS.filter(t => t.key === TAB_GESAMT || (counts.get(t.key) || 0) > 0);
+    return TABS.filter(t => isGesamtTab(t.key) || (counts.get(t.key) || 0) > 0);
   }
 
   // ---------- Aggregation ----------
@@ -507,7 +517,8 @@ export class StakeholderOverviewPage {
     auftraege.forEach(a => {
       const blocks = blockMap.get(a.id) || [];
       const tab = this.tabForAuftrag(a, blocks);
-      if (this.activeTab !== TAB_GESAMT && tab !== this.activeTab) return;
+      if (!isGesamtTab(this.activeTab) && tab !== this.activeTab) return;
+      if (this.activeTab === TAB_GESAMT_OHNE && tab === TAB_CONTRACTING) return;
 
       const details = mergeFeeSource(this.detailsByAuftrag.get(a.id), a);
       const koops = koopMap.get(a.id) || [];

@@ -212,6 +212,27 @@ describe('AusgangsrechnungenList Monatssheet', () => {
     expect(active.dataset.tab).toBe(String(now.getMonth()));
   });
 
+  it('setzt Alle beim Oeffnen auf den aktuellen Monat zurueck', async () => {
+    const list = new AusgangsrechnungenList();
+    list.currentMonth = ALL_TAB;
+    list.currentYear = 2020;
+    list.loadAndRender = vi.fn();
+    list.bindEvents = vi.fn();
+    list.refreshInactiveTabCount = vi.fn();
+    window.isAdmin = () => true;
+    window.isKunde = () => false;
+    window.bulkActionSystem = { registerList: vi.fn() };
+    window.ErrorHandler = { handle: vi.fn() };
+
+    await list.init();
+
+    const now = new Date();
+    expect(list.currentMonth).toBe(now.getMonth());
+    expect(list.currentYear).toBe(now.getFullYear());
+    expect(list.loadAndRender).toHaveBeenCalled();
+    list.destroy();
+  });
+
   it('filtert beim Tab-Wechsel nur den Cache', () => {
     const list = new AusgangsrechnungenList();
     list.currentYear = 2026;
@@ -434,7 +455,7 @@ describe('AusgangsrechnungenList Monatssheet', () => {
     expect(result).toEqual({ re_nr: 'RE-2026-001' });
   });
 
-  it('leert den Cache beim Destroy, behaelt die Monatsauswahl und entfernt den focusin-Listener', () => {
+  it('leert den Cache beim Destroy, laesst die Monatsauswahl und entfernt den focusin-Listener', () => {
     const list = new AusgangsrechnungenList();
     list._allInvoiceRows = rows;
     list.currentYear = 2025;
@@ -445,7 +466,7 @@ describe('AusgangsrechnungenList Monatssheet', () => {
     const remove = vi.spyOn(document, 'removeEventListener');
     list.destroy();
     expect(list._allInvoiceRows).toEqual([]);
-    // Kein Auto-Sprung mehr: die Auswahl ueberlebt die SPA-Navigation.
+    // Destroy setzt den Monat nicht zurueck; init() holt den aktuellen Monat.
     expect(list.currentYear).toBe(2025);
     expect(list.currentMonth).toBe(3);
     expect(remove).toHaveBeenCalledWith('focusin', focusHandler);

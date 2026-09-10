@@ -33,12 +33,11 @@ export const RECHNUNG_FILTERS = [
     id: 'status',
     label: 'Status',
     options: [
-      { value: 'Entwurf', label: 'Entwurf' },
       { value: 'Offen', label: 'Offen' },
-      { value: 'Überfällig', label: 'Überfällig' },
-      { value: 'Teilweise bezahlt', label: 'Teilweise bezahlt' },
+      { value: 'Rückfrage', label: 'Rückfrage' },
       { value: 'Bezahlt', label: 'Bezahlt' },
-      { value: 'Storniert', label: 'Storniert' }
+      { value: 'An Qonto gesendet', label: 'An Qonto gesendet' },
+      { value: 'Marc an Qonto gesendet', label: 'Marc an Qonto gesendet' }
     ]
   }),
   createFilterConfig('text', {

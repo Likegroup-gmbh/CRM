@@ -4,6 +4,7 @@
 import { CREATOR_TYP_OPTIONS, canonicalizeCreatorTyp, isAllowedCreatorTyp, normalizeCreatorTyp } from './creatorTypeOptions.js';
 import { authorizedFetch } from '../../core/auth/getAccessToken.js';
 import { assertBriefingForCreate, assertBriefingLinkLock } from '../briefing/BriefingLinkGuard.js';
+import { strategieService } from '../strategie/StrategieService.js';
 
 export class CreatorAuswahlService {
   constructor() {
@@ -231,10 +232,15 @@ export class CreatorAuswahlService {
 
     await assertBriefingForCreate(listeData, 'Casting-Liste');
 
+    // Optionale Konzept-Verknuepfung (ADR 0010): laeuft nie direkt in den
+    // Insert, sondern wird danach ueber linkCasting beidseitig gesetzt -
+    // sonst entstuende ein halbes Paar (nur eine Seite geschrieben).
+    const { strategie_id: konzeptId, ...insertData } = listeData;
+
     const { data, error } = await window.supabase
       .from('creator_auswahl')
       .insert({
-        ...listeData,
+        ...insertData,
         created_by: window.currentUser?.id
       })
       .select()
@@ -243,6 +249,16 @@ export class CreatorAuswahlService {
     if (error) {
       console.error('Fehler beim Erstellen der Liste:', error);
       throw error;
+    }
+
+    if (konzeptId && data?.id) {
+      try {
+        await strategieService.linkCasting(konzeptId, data.id);
+      } catch (linkError) {
+        // Liste bleibt angelegt; manueller Link im Detail bleibt moeglich.
+        console.error('Fehler beim Verknüpfen des Konzepts:', linkError);
+        window.toastSystem?.show('Casting-Liste angelegt, Verknüpfung mit dem Konzept fehlgeschlagen – bitte im Detail manuell verknüpfen', 'warning');
+      }
     }
 
     return data;
@@ -391,6 +407,11 @@ export class CreatorAuswahlService {
 
   /**
    * Item löschen (Defense-in-Depth: Client-seitiger Scope-Check, RLS sichert zusätzlich ab)
+   *
+   * Haengt der Eintrag an Videoideen, werden deren Zuordnungen vorher geloest
+   * (creator_auswahl_item_id -> NULL). Ideen mit Skript sind eingefroren:
+   * dort blockt das Loeschen, weil sonst die Skript-Vorlage ihren Creator
+   * verliert.
    */
   async deleteItem(id) {
     if (window.isKunde()) {
@@ -399,6 +420,8 @@ export class CreatorAuswahlService {
     if (!window.checkUserPermission('sourcing', 'delete')) {
       throw new Error('Keine Berechtigung zum Löschen von Creator-Einträgen');
     }
+
+    await this._loeseVideoideeZuordnungen(id, 'gelöscht');
 
     const { error } = await window.supabase
       .from('creator_auswahl_items')
@@ -409,6 +432,46 @@ export class CreatorAuswahlService {
       console.error('Fehler beim Löschen des Items:', error);
       throw error;
     }
+  }
+
+  /**
+   * Loesung der Zuordnung an allen Videoideen, die diesen Casting-Eintrag
+   * tragen. Wirft, wenn eine davon eingefroren ist (Skript existiert).
+   * @param {string} auswahlItemId
+   * @param {string} aktion - 'gelöscht' | 'abgesagt' (nur fuer Fehlertext)
+   */
+  async _loeseVideoideeZuordnungen(auswahlItemId, aktion) {
+    const { data: ideen, error } = await window.supabase
+      .from('strategie_items')
+      .select('id')
+      .eq('creator_auswahl_item_id', auswahlItemId);
+    if (error) throw error;
+    if (!ideen || ideen.length === 0) return;
+
+    const ids = ideen.map(i => i.id);
+    const { data: skripte, error: sErr } = await window.supabase
+      .from('skripte')
+      .select('strategie_item_id')
+      .in('strategie_item_id', ids);
+    if (sErr) throw sErr;
+
+    if (skripte && skripte.length > 0) {
+      throw new Error(
+        `Der Eintrag kann nicht ${aktion} werden: mindestens eine verknüpfte Videoidee hat bereits ein Skript. ` +
+        'Bitte zuerst die Vorlage am Skript lösen.'
+      );
+    }
+
+    const { error: upErr } = await window.supabase
+      .from('strategie_items')
+      .update({
+        creator_auswahl_item_id: null,
+        skript_freigabe: false,
+        skript_freigabe_am: null,
+        skript_freigabe_von: null
+      })
+      .in('id', ids);
+    if (upErr) throw upErr;
   }
 
   /**

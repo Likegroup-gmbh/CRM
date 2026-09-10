@@ -27,6 +27,9 @@
 }
 
 .doc__shell {
+  /* Horizontaler Inhaltssrand fuer beide Spalten (Dokument + Liky).
+     Eine Variable, alle Split-Seiten (Produkt, Persona, Briefing, …). */
+  --doc-pad-x: var(--space-md);
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--panel-lg);
   grid-template-rows: minmax(0, 1fr);
@@ -35,6 +38,31 @@
   overflow: hidden;
   flex: 1;
   min-height: 0;
+}
+
+/* Multistep in der linken Spalte (Briefing): gleiche Shell wie .doc,
+   Formular statt .doc__main. Seitenrand kommt von --doc-pad-x. */
+.form-page:has(> .doc__shell) {
+  padding: 0;
+  border-right: none;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 128px);
+}
+
+.main-wrapper:has(.doc__shell) > .multistep-progress {
+  padding-left: var(--space-md);
+  padding-right: var(--space-md);
+}
+
+.doc__shell > form {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-right: var(--border-xs) solid var(--border-primary);
+  overflow-y: auto;
+  padding: var(--space-xxl);
 }
 
 .doc__main {
@@ -65,7 +93,7 @@
 /* ===== Sektionen (Hairline-Baender ueber docGroup) ===== */
 
 .doc__group {
-  padding: var(--doc-group-pad) var(--space-lg);
+  padding: var(--doc-group-pad) var(--doc-pad-x, var(--space-md));
   border-bottom: var(--border-xs) solid var(--border-primary);
 }
 
@@ -93,8 +121,10 @@
   flex-direction: column;
   gap: var(--space-lg);
   min-width: 0;
-  overflow-y: auto;
-  padding: var(--space-lg);
+  /* Die Spalte scrollt nicht als Ganzes - der Verlauf scrollt, der
+     Composer bleibt unten gepinnt (siehe .doc-chat__feed). */
+  overflow: hidden;
+  padding: var(--space-lg) var(--doc-pad-x, var(--space-md));
 }
 
 /* ===== Dokumenttitel ===== */
@@ -103,7 +133,7 @@
 .doc .doc__title-field {
   position: relative;
   margin: 0;
-  padding: 0 var(--space-lg);
+  padding: 0 var(--doc-pad-x, var(--space-md));
 }
 
 .doc .doc__title {
@@ -135,7 +165,7 @@
 .doc .doc__title-field > .tag--extract {
   position: absolute;
   top: 0;
-  right: var(--space-lg);
+  right: var(--doc-pad-x, var(--space-md));
   margin: 0;
 }
 
@@ -806,7 +836,7 @@
   gap: var(--space-xs);
   flex: none;
   margin: 0;
-  padding: var(--space-sm) var(--space-lg);
+  padding: var(--space-sm) var(--doc-pad-x, var(--space-md));
   border-top: var(--border-xs) solid var(--border-primary);
   background: var(--bg-primary);
 }
@@ -1009,10 +1039,14 @@
 
 /* ===== Chat-Spalte: Liky-Verlauf ===== */
 
+/* Der Verlauf scrollt innerhalb der Spalte, der Composer bleibt unten. */
 .doc-chat__feed {
   display: flex;
   flex-direction: column;
   gap: var(--space-lg);
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   font-size: var(--text-sm);
 }
 
@@ -1411,7 +1445,18 @@
   .doc__side {
     order: -1;
     overflow: visible;
-    padding: 0 0 var(--space-lg);
+    padding: 0 var(--doc-pad-x, var(--space-md)) var(--space-lg);
+  }
+
+  /* Keine Vollhoehe mehr: der Verlauf bekommt eine Deckelung, damit der
+     Composer darunter sichtbar bleibt und die Seite als Ganzes scrollt. */
+  .doc__side .doc-chat__feed {
+    flex: none;
+    max-height: 40vh;
+  }
+
+  .doc__shell > form {
+    border-right: none;
   }
 
   .doc .doc__actions {

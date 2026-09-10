@@ -1,116 +1,72 @@
 // VideoDataLoader.js
-// Supabase-Queries fuer Video-Modul
-// RLS filtert serverseitig - keine client-seitige Permission-Filterung
+// Video-Ordnerblatt + paginiertes Listenblatt. RLS filtert serverseitig.
 
 import { VideoFilterLogic } from './filters/VideoFilterLogic.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 export class VideoDataLoader {
   /**
-   * Laedt Unternehmen-Ordner (Level 1) aggregiert aus kooperation_videos.
-   * RLS beschraenkt automatisch auf sichtbare Videos.
+   * Baut das Video-Ordnerblatt aus RPC-Zeilen (eine Zeile pro Kampagne).
+   * @returns {{unternehmen: Array, kampagnen: Array}}
    */
-  static async loadUnternehmenFolders() {
-    if (!window.supabase) return [];
-
-    const { data, error } = await window.supabase
-      .from('kooperation_videos')
-      .select(`
-        id,
-        kooperation:kooperation_id (
-          kampagne:kampagne_id (
-            id,
-            unternehmen:unternehmen_id (id, firmenname, logo_url),
-            marke:marke_id (
-              unternehmen:unternehmen_id (id, firmenname, logo_url)
-            )
-          )
-        )
-      `);
-
-    if (error) {
-      console.error('❌ VideoDataLoader.loadUnternehmenFolders:', error);
-      return [];
-    }
-
+  static buildOrdnerblatt(rows) {
     const unternehmenMap = new Map();
-    (data || []).forEach(video => {
-      const kampagne = video.kooperation?.kampagne;
-      const unternehmen = kampagne?.marke?.unternehmen || kampagne?.unternehmen;
-      if (!unternehmen?.id) return;
+    const kampagnen = [];
 
-      const existing = unternehmenMap.get(unternehmen.id);
+    for (const row of rows || []) {
+      if (!row?.kampagne_id || !row?.unternehmen_id) continue;
+      const count = Number(row.video_count) || 0;
+
+      kampagnen.push({
+        id: row.kampagne_id,
+        name: KampagneUtils.getDisplayName({
+          eigener_name: row.eigener_name,
+          kampagnenname: row.kampagnenname
+        }),
+        unternehmenId: row.unternehmen_id,
+        count
+      });
+
+      const existing = unternehmenMap.get(row.unternehmen_id);
       if (existing) {
-        existing.count++;
+        existing.count += count;
       } else {
-        unternehmenMap.set(unternehmen.id, {
-          id: unternehmen.id,
-          firmenname: unternehmen.firmenname,
-          logo_url: unternehmen.logo_url,
-          count: 1
+        unternehmenMap.set(row.unternehmen_id, {
+          id: row.unternehmen_id,
+          firmenname: row.firmenname,
+          logo_url: row.logo_url,
+          count
         });
       }
-    });
+    }
 
-    return Array.from(unternehmenMap.values())
+    kampagnen.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'de'));
+    const unternehmen = Array.from(unternehmenMap.values())
       .sort((a, b) => (a.firmenname || '').localeCompare(b.firmenname || '', 'de'));
+
+    return { unternehmen, kampagnen };
   }
 
-  /**
-   * Laedt Kampagnen-Ordner (Level 2) fuer ein Unternehmen bzw. alle fuer Kunden.
-   * RLS beschraenkt automatisch auf sichtbare Videos.
-   */
-  static async loadKampagnenFolders(unternehmenId, isKunde = false) {
-    if (!window.supabase) return [];
-    if (!isKunde && !unternehmenId) return [];
+  static async loadOrdnerblatt() {
+    if (!window.supabase) return { unternehmen: [], kampagnen: [] };
 
-    const { data, error } = await window.supabase
-      .from('kooperation_videos')
-      .select(`
-        id,
-        kooperation:kooperation_id (
-          kampagne:kampagne_id (
-            id,
-            kampagnenname,
-            eigener_name,
-            unternehmen:unternehmen_id (id),
-            marke:marke_id (
-              unternehmen:unternehmen_id (id)
-            )
-          )
-        )
-      `);
-
+    const { data, error } = await window.supabase.rpc('get_video_ordnerblatt');
     if (error) {
-      console.error('❌ VideoDataLoader.loadKampagnenFolders:', error);
-      return [];
+      console.error('❌ VideoDataLoader.loadOrdnerblatt:', error);
+      return { unternehmen: [], kampagnen: [] };
     }
+    return this.buildOrdnerblatt(data);
+  }
 
-    const kampagnenMap = new Map();
-    (data || []).forEach(video => {
-      const kampagne = video.kooperation?.kampagne;
-      if (!kampagne?.id) return;
+  static loadUnternehmenFolders(blatt) {
+    return blatt?.unternehmen || [];
+  }
 
-      // Bei Nicht-Kunden: Unternehmens-Filter anwenden (clientseitig, nur zur Ansichts-Eingrenzung)
-      if (!isKunde) {
-        const kampagneUnternehmenId = kampagne?.marke?.unternehmen?.id || kampagne?.unternehmen?.id;
-        if (kampagneUnternehmenId !== unternehmenId) return;
-      }
-
-      const existing = kampagnenMap.get(kampagne.id);
-      if (existing) {
-        existing.count++;
-      } else {
-        kampagnenMap.set(kampagne.id, {
-          id: kampagne.id,
-          name: KampagneUtils.getDisplayName(kampagne),
-          count: 1
-        });
-      }
-    });
-
-    return Array.from(kampagnenMap.values())
-      .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'de'));
+  static loadKampagnenFolders(blatt, unternehmenId, isKunde = false) {
+    const all = blatt?.kampagnen || [];
+    if (isKunde) return all;
+    if (!unternehmenId) return [];
+    return all.filter(k => k.unternehmenId === unternehmenId);
   }
 
   /**
@@ -125,7 +81,7 @@ export class VideoDataLoader {
     const koopJoin = kampagneId ? '!inner' : '';
 
     const selectFields = `
-      id, kooperation_id, position, titel, content_art, status, posting_datum, thema, link_content, asset_url, folder_url,
+      id, kooperation_id, position, titel, content_art, status, posting_datum, thema, link_content, folder_url,
       strategie_item:strategie_item_id (id, screenshot_url),
       kooperation:kooperation_id${koopJoin} (
         id, name, kampagne_id,

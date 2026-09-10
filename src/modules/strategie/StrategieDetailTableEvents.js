@@ -67,6 +67,11 @@ export function bindTableEvents(detail) {
           e.preventDefault();
           detail.handleUnlinkFromVideo(id, actionItem.dataset.videoId);
           break;
+        case 'toggle-skript-freigabe':
+          e.preventDefault();
+          if (actionItem.classList.contains('action-disabled')) return;
+          handleSkriptFreigabeToggle(detail, id);
+          break;
       }
     };
     document.addEventListener('click', actionHandler);
@@ -291,6 +296,11 @@ export async function handlePrioChange(detail, itemId, value) {
   }
 
   const updates = buildStrategiePrioUpdates(value);
+  if (value === 'nicht_umsetzen') {
+    updates.skript_freigabe = false;
+    updates.skript_freigabe_am = null;
+    updates.skript_freigabe_von = null;
+  }
 
   try {
     await strategieService.updateStrategieItem(itemId, updates);
@@ -304,17 +314,17 @@ export async function handlePrioChange(detail, itemId, value) {
 }
 
 /**
- * Creator-Verknüpfung lösen: nur creator_id wird entfernt, creator_name
- * bleibt als Freitext erhalten.
+ * Casting-Zuordnung lösen: creator_auswahl_item_id wird entfernt. Blockt,
+ * sobald ein Skript aus der Idee existiert (Service wirft).
  * @returns {Promise<boolean>} true, wenn gelöst wurde
  */
 export async function handleCreatorUnlink(detail, itemId) {
   const item = detail.items.find(i => i.id === itemId);
-  if (!item?.creator_id) return false;
+  if (!item?.creator_auswahl_item_id) return false;
 
   const result = await window.confirmationModal?.open({
-    title: 'Verknüpfung lösen?',
-    message: 'Die Verknüpfung zum Creator wird gelöst. Der Name bleibt als Freitext in der Spalte erhalten.',
+    title: 'Zuordnung lösen?',
+    message: 'Die Zuordnung zum Casting-Eintrag wird gelöst.',
     confirmText: 'Lösen',
     cancelText: 'Abbrechen',
     danger: true
@@ -322,16 +332,40 @@ export async function handleCreatorUnlink(detail, itemId) {
   if (!result?.confirmed) return false;
 
   try {
-    await strategieService.updateStrategieItem(itemId, { creator_id: null });
-    item.creator_id = null;
-    item.creator = null;
+    await strategieService.unassignCastingItem(itemId);
+    item.creator_auswahl_item_id = null;
+    item.casting_eintrag = null;
+    item.skript_freigabe = false;
+    item.skript_freigabe_am = null;
+    item.skript_freigabe_von = null;
     detail.rerenderItemsTable();
-    window.toastSystem?.show('Verknüpfung gelöst', 'success');
+    window.toastSystem?.show('Zuordnung gelöst', 'success');
     return true;
   } catch (error) {
-    console.error('Fehler beim Lösen der Creator-Verknüpfung:', error);
-    window.toastSystem?.show('Fehler beim Lösen', 'error');
+    console.error('Fehler beim Lösen der Zuordnung:', error);
+    window.toastSystem?.show(error.message || 'Fehler beim Lösen', 'error');
     return false;
+  }
+}
+
+export async function handleSkriptFreigabeToggle(detail, itemId) {
+  const item = detail.items.find(i => i.id === itemId);
+  if (!item) return;
+
+  const next = !item.skript_freigabe;
+  try {
+    await strategieService.setSkriptFreigabe(itemId, next);
+    item.skript_freigabe = next;
+    item.skript_freigabe_am = next ? new Date().toISOString() : null;
+    item.skript_freigabe_von = next ? (window.currentUser?.id || null) : null;
+    detail.rerenderItemsTable();
+    window.toastSystem?.show(
+      next ? 'Für Skript freigegeben' : 'Skript-Freigabe zurückgenommen',
+      'success'
+    );
+  } catch (error) {
+    console.error('Fehler bei der Skript-Freigabe:', error);
+    window.toastSystem?.show(error.message || 'Fehler bei der Skript-Freigabe', 'error');
   }
 }
 
