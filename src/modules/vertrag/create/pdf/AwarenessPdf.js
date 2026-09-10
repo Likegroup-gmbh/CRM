@@ -6,6 +6,8 @@
 // - Seite 2: Praeambel + "ES WURDE ZUGESTIMMT..." + § 6 Rechte des Kunden als
 //   beguenstigte Dritte (Abs. 1/4/5, nur Deutsch; "EHG" = Platzhalter fuer kunde.firmenname)
 // - Hauptteil (SPECIAL/GENERAL TERMS, 1.1-10.10): immer bilingual (EN|DE)
+// - Extra-Seite "Weitere Bestimmungen" (nur wenn vertrag.weitere_bestimmungen
+//   gefuellt): eigene Seite nach 10.10, vor der Haupt-Unterschrift
 // - Pro gewaehlter Plattform ein eigener Anhang (A, B, ...)
 // Dynamische Werte aus vertrag.* + vertrag.awareness_felder.* + unternehmen.*
 
@@ -810,6 +812,30 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
       '10.10. English version of the agreement shall prevail.',
       '10.10. Es gilt die englische Version der Vereinbarung.'
     );
+
+    // ============================================
+    // Extra-Seite: Weitere Bestimmungen (optional).
+    // Eigene Seite nach 10.10, vor der Haupt-Unterschrift.
+    // ============================================
+    const weitereBestimmungen = (vertrag.weitere_bestimmungen || '').trim();
+    if (weitereBestimmungen) {
+      newPage();
+      setBody();
+      centered('ADDITIONAL PROVISIONS', 12, 'bold');
+      y += 4;
+      doc.text('WEITERE BESTIMMUNGEN', 105, y, { align: 'center' });
+      y += 8;
+      setBody();
+
+      // Freitext volle Breite, zeilenweise mit Seitenumbruch
+      // (para() bricht nur einmal am Blockanfang um)
+      const wbLines = doc.splitTextToSize(weitereBestimmungen, FULL_W);
+      wbLines.forEach(line => {
+        if (y + LH > MAX_CONTENT_Y) y = newPage();
+        doc.text(line, LEFT_X, y);
+        y += LH;
+      });
+    }
 
     // ============================================
     // Unterschriften (Vertrag)

@@ -221,4 +221,33 @@ describe('AwarenessPdf (Direktvertrag)', () => {
     expect(all).toContain('1. TikTok Account: @lisa_tt');
     expect(all).toContain('Anhang A');
   });
+
+  it('DE: weitere Bestimmungen auf eigener Seite zwischen 10.10 und Unterschrift', async () => {
+    MockJsPDF.instances = [];
+    const inst = makeInstance();
+    const vertrag = {
+      ...makeVertrag(['tiktok']),
+      weitere_bestimmungen: 'Sonderkonditionen: Whitelisting 6 Monate inklusive.'
+    };
+    await inst.generateAwarenessPDF(vertrag, 'de');
+    const all = MockJsPDF.instances[0].rawTexts.join('\n');
+
+    // Bilinguale Ueberschrift (wie SPECIAL TERMS) + Freitext
+    expect(all).toContain('ADDITIONAL PROVISIONS');
+    expect(all).toContain('WEITERE BESTIMMUNGEN');
+    expect(all).toContain('Sonderkonditionen: Whitelisting 6 Monate inklusive.');
+
+    // Reihenfolge: 10.10 → Extra-Seite → Haupt-Unterschrift → Anhang
+    expect(all.indexOf('10.10. English version')).toBeLessThan(all.indexOf('WEITERE BESTIMMUNGEN'));
+    expect(all.indexOf('WEITERE BESTIMMUNGEN')).toBeLessThan(all.indexOf('Sonderkonditionen'));
+    expect(all.indexOf('Sonderkonditionen')).toBeLessThan(all.indexOf('FÜR UND IM NAMEN'));
+    expect(all.indexOf('FÜR UND IM NAMEN')).toBeLessThan(all.indexOf('ANHANG A'));
+  });
+
+  it('DE: ohne weitere Bestimmungen keine Extra-Seite', async () => {
+    const all = await generate(['tiktok'], 'de');
+
+    expect(all).not.toContain('WEITERE BESTIMMUNGEN');
+    expect(all).not.toContain('ADDITIONAL PROVISIONS');
+  });
 });
