@@ -57,6 +57,36 @@ describe('NavigationSystem – Kundendaten ohne Marken-Liste', () => {
     expect(html).not.toContain('>Stakeholder<');
   });
 
+  it('legt Kampagnen unter Projektmanagement und die operativen Seiten unter Kampagnenmanagement', () => {
+    const nav = new NavigationSystem();
+    nav.renderNavigation('/dashboard');
+
+    const sections = [...document.querySelectorAll('.nav-section')].map((el) => el.dataset.section);
+    const projektIdx = sections.indexOf('Projektmanagement');
+    const kampagnenIdx = sections.indexOf('Kampagnenmanagement');
+    expect(projektIdx).toBeGreaterThan(-1);
+    expect(kampagnenIdx).toBe(projektIdx + 1);
+
+    const projekt = document.querySelector('[data-section="Projektmanagement"]');
+    const hrefs = [...projekt.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'));
+    expect(hrefs).toEqual(['/auftrag', '/ausgangsrechnungen', '/auftragsdetails', '/kampagne']);
+
+    const kampagnen = document.querySelector('[data-section="Kampagnenmanagement"]');
+    const kampagnenHrefs = [...kampagnen.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'));
+    expect(kampagnenHrefs).toEqual([
+      '/briefing',
+      '/castings',
+      '/konzepte',
+      '/skripte',
+      '/vertraege',
+      '/rechnung',
+      '/videos'
+    ]);
+    expect(projekt.innerHTML).not.toContain('Briefings');
+    expect(kampagnen.innerHTML).toContain('Briefings');
+    expect(kampagnen.innerHTML).toContain('Castings');
+  });
+
   it('blendet Stakeholder fuer Nicht-Admins aus', () => {
     window.isAdmin = () => false;
     window.canViewPage = () => undefined;
