@@ -257,11 +257,11 @@ export const SOURCING_SPALTEN_LABELS = {
   'cp-col-feedback': 'Rückmeldung Kunde'
 };
 
-export function getVisibleColumnCount(isKunde, hiddenColumns) {
+export function getVisibleColumnCount(isKunde, hiddenColumns, { canEdit = true, hasActions = true } = {}) {
   let count = 0;
   for (const col of SOURCING_SPALTEN) {
-    if (col === 'cp-col-drag' && isKunde) continue;
-    if (col === 'cp-col-actions' && isKunde) continue;
+    if (col === 'cp-col-drag' && (isKunde || !canEdit)) continue;
+    if (col === 'cp-col-actions' && (isKunde || !hasActions)) continue;
     if (isColumnVisibleForCustomer(col, isKunde, hiddenColumns)) count++;
   }
   return count;
@@ -275,7 +275,10 @@ export function getVisibleColumnCount(isKunde, hiddenColumns) {
  */
 export function getStickyClasses(ctx) {
   const bildSichtbar = isColumnVisibleForCustomer('cp-col-bild', ctx.isKunde, ctx.hiddenColumns);
-  let position = ctx.isKunde ? 1 : 2;   // intern belegt die Drag-Spalte die 1
+  // Die Drag-Spalte (Position 1) gibt es nur, wer auch editieren darf -
+  // ein view-only Interner (Investor) hat sie nicht.
+  const hasDrag = !ctx.isKunde && (ctx.canEdit ?? true);
+  let position = hasDrag ? 2 : 1;
 
   const bild = bildSichtbar ? `col-sticky-${position++}` : '';
   return { bild, name: `col-sticky-${position}` };
@@ -469,7 +472,11 @@ export function renderItemsTable(ctx) {
 
   const vis = (col) => isColumnVisibleForCustomer(col, ctx.isKunde, ctx.hiddenColumns);
   const customCount = ctx.customManager ? ctx.customManager.visibleCount(ctx.hiddenColumns, ctx.isKunde) : 0;
-  const visibleColCount = getVisibleColumnCount(ctx.isKunde, ctx.hiddenColumns) + customCount;
+  // Write-Faehigkeiten: Sichtbarkeit interner Spalten bleibt Rollen-Sache
+  // (!isKunde), Editierbarkeit ist Capability (Investor: sehen ja, anfassen nein).
+  const canWrite = !ctx.isKunde && (ctx.canEdit ?? true);
+  const hasActions = !ctx.isKunde && ((ctx.canCreate ?? true) || (ctx.canDelete ?? true));
+  const visibleColCount = getVisibleColumnCount(ctx.isKunde, ctx.hiddenColumns, { canEdit: canWrite, hasActions }) + customCount;
   const hide = (col) => !vis(col) ? 'style="display:none;"' : '';
   const sticky = getStickyClasses(ctx);
   const tkpLabel = getListenTkp(ctx.liste).toLocaleString('de-DE');
@@ -481,10 +488,10 @@ export function renderItemsTable(ctx) {
 
   return `
     <div class="table-container creator-pool-table-container">
-      <table class="data-table strategie-items-table creator-pool-table${!ctx.isKunde ? ' has-bulk-select' : ''}">
+      <table class="data-table strategie-items-table creator-pool-table${canWrite ? ' has-bulk-select' : ''}">
         <thead>
           <tr>
-            ${!ctx.isKunde ? '<th class="col-drag col-sticky-1 cp-col-drag"><input type="checkbox" class="sourcing-select-all" title="Alle auswählen"></th>' : ''}
+            ${canWrite ? '<th class="col-drag col-sticky-1 cp-col-drag"><input type="checkbox" class="sourcing-select-all" title="Alle auswählen"></th>' : ''}
             <th class="cp-col-bild ${sticky.bild}" ${hide('cp-col-bild')}></th>
             <th class="${sticky.name} cp-col-name">Name</th>
             <th class="cp-col-notiz" ${hide('cp-col-notiz')} title="Startet mit der Instagram-Bio, sobald der Creator abgerufen wurde">Kurzbeschreibung</th>
@@ -536,13 +543,13 @@ export function renderItemsTable(ctx) {
             <th class="cp-col-feedback" ${hide('cp-col-feedback')}>Rückmeldung Kunde</th>
             ${customAt('cp-col-feedback')}
             ${ctx.customManager ? ctx.customManager.renderHeaders(ctx.hiddenColumns, ctx.isKunde) : ''}
-            ${!ctx.isKunde ? '<th class="col-actions cp-col-actions">Aktionen</th>' : ''}
+            ${hasActions ? '<th class="col-actions cp-col-actions">Aktionen</th>' : ''}
           </tr>
         </thead>
         <tbody id="items-table-body">
           ${renderGroupedItems(ctx)}
         </tbody>
-        ${!ctx.isKunde ? `
+        ${!ctx.isKunde && (ctx.canCreate ?? true) ? `
         <tfoot>
           <tr class="add-row-footer">
             <td colspan="${visibleColCount}">
@@ -571,7 +578,7 @@ function renderKategorieHeaderRow(kategorie, items, colCount, ctx, { variant = '
   const checkboxTitle = variant === 'default'
     ? 'Alle ohne Kategorie auswählen'
     : `Alle in '${kategorie}' auswählen`;
-  const checkbox = !ctx.isKunde
+  const checkbox = !ctx.isKunde && (ctx.canEdit ?? true)
     ? `<input type="checkbox" class="sourcing-group-select" data-kategorie="${escaped}" title="${escapeAttr(checkboxTitle)}">`
     : '';
 
@@ -599,7 +606,9 @@ export function renderGroupedItems(ctx) {
 
   const groupedItems = groupItemsByKategorie(ctx.items, definierteKategorien);
   const customCount = ctx.customManager ? ctx.customManager.visibleCount(ctx.hiddenColumns, ctx.isKunde) : 0;
-  const colCount = getVisibleColumnCount(ctx.isKunde, ctx.hiddenColumns) + customCount;
+  const canWrite = !ctx.isKunde && (ctx.canEdit ?? true);
+  const hasActions = !ctx.isKunde && ((ctx.canCreate ?? true) || (ctx.canDelete ?? true));
+  const colCount = getVisibleColumnCount(ctx.isKunde, ctx.hiddenColumns, { canEdit: canWrite, hasActions }) + customCount;
 
   let html = '';
   let globalIndex = 0;
@@ -744,10 +753,11 @@ export function ohneEuroZeichen(wert) {
  */
 function renderPreisFreitextCell(ctx, item, columnClass, field, hide) {
   const wert = ohneEuroZeichen(item[field]);
+  const canWrite = !ctx.isKunde && (ctx.canEdit ?? true);
 
   return `
     <td class="cell-textarea ${columnClass}" style="${hide(columnClass)}">
-      ${!ctx.isKunde ? `
+      ${canWrite ? `
         <div class="cell-euro">
           <input type="text" class="strategie-textarea cell-euro__input" data-field="${field}" data-item-id="${item.id}" placeholder="Preis..." value="${escapeHtml(wert)}">
           <span class="cell-euro__suffix" aria-hidden="true">€</span>
@@ -814,7 +824,7 @@ function renderSourcingStatusCell(ctx, item) {
     itemId: item.id,
     value: status,
     options: SOURCING_STATUS_OPTIONS,
-    disabled: tableSelectDisabled({ gastReadonly: !!ctx.gastReadonly, isKunde: !!ctx.isKunde }),
+    disabled: tableSelectDisabled({ gastReadonly: !!ctx.gastReadonly, isKunde: !!ctx.isKunde, canEdit: ctx.canEdit ?? true }),
     meta: getSourcingStatusMeta(item, status)
   });
 }
@@ -832,7 +842,7 @@ function renderKundenFeedbackCell(ctx, item) {
     itemId: item.id,
     value: feedback,
     options: KUNDEN_FEEDBACK_OPTIONS,
-    disabled: tableSelectDisabled({ gastReadonly: !!ctx.gastReadonly, isKunde: !!ctx.isKunde, kundeDarfWaehlen: true }),
+    disabled: tableSelectDisabled({ gastReadonly: !!ctx.gastReadonly, isKunde: !!ctx.isKunde, kundeDarfWaehlen: true, canEdit: ctx.canEdit ?? true }),
     meta: getKundenFeedbackMeta(item, feedback)
   });
 }
@@ -847,7 +857,7 @@ function renderFollowerCell(ctx, item, columnClass, field, hide) {
   const compact = formatCompactNumber(value);
   const exact = formatExactNumber(value);
 
-  if (ctx.isKunde) {
+  if (ctx.isKunde || !(ctx.canEdit ?? true)) {
     return `
       <td class="${columnClass}" style="${hide(columnClass)}">
         <div class="cell-number__static" title="${exact}">${compact || '-'}</div>
@@ -905,6 +915,18 @@ function renderKontaktCell(ctx, item, columnClass, field, hide) {
     ? `<a href="${schema}${escapeHtml(value)}" class="link-icon-btn" title="${escapeHtml(value)}">${field === 'email' ? MAIL_ICON : EXTERNAL_LINK_ICON}</a>`
     : '';
 
+  // View-only (Investor): Wert bleibt sichtbar, aber kein Input.
+  if (!(ctx.canEdit ?? true)) {
+    return `
+      <td class="cell-textarea ${columnClass}" style="${hide(columnClass)}">
+        <div class="links-compact-row">
+          <span class="cell-text-readonly">${escapeHtml(value) || '-'}</span>
+          ${link}
+        </div>
+      </td>
+    `;
+  }
+
   if (field === 'email') {
     return `
       <td class="cell-textarea ${columnClass} cell-icon-only" style="${hide(columnClass)}">
@@ -954,16 +976,20 @@ export function renderItemRow(ctx, item, index) {
   const vis = (col) => isColumnVisibleForCustomer(col, ctx.isKunde, ctx.hiddenColumns);
   const hide = (col) => !vis(col) ? ' display:none;' : '';
   const sticky = getStickyClasses(ctx);
+  // Write-Capabilities: interne Spalten bleiben sichtbar (Investor sieht
+  // Preise), aber Inputs/Drag/Aktionen nur mit Capability.
+  const canWrite = !ctx.isKunde && (ctx.canEdit ?? true);
+  const hasActions = !ctx.isKunde && ((ctx.canCreate ?? true) || (ctx.canDelete ?? true));
   // Gegenstueck zu customAt() im Tabellenkopf - dieselben Anker, dieselbe Stelle.
   const customAt = (anchor) => ctx.customManager
-    ? ctx.customManager.renderCellsAt(anchor, item.id, ctx.hiddenColumns, ctx.isKunde)
+    ? ctx.customManager.renderCellsAt(anchor, item.id, ctx.hiddenColumns, ctx.isKunde, canWrite)
     : '';
 
   const isBooked = !!item.gebucht;
 
   return `
-    <tr class="item-row ${!ctx.isKunde ? 'draggable' : ''} ${isBooked ? 'item-gebucht' : ''}" data-item-id="${item.id}" draggable="false">
-      ${!ctx.isKunde ? `
+    <tr class="item-row ${canWrite ? 'draggable' : ''} ${isBooked ? 'item-gebucht' : ''}" data-item-id="${item.id}" draggable="false">
+      ${canWrite ? `
         <td class="col-drag drag-handle col-sticky-1 cp-col-drag">
           <div class="drag-cell-content">
             <input type="checkbox" class="sourcing-item-check" data-item-id="${item.id}">
@@ -973,20 +999,20 @@ export function renderItemRow(ctx, item, index) {
       ` : ''}
       ${renderBildCell(ctx, item, sticky, hide)}
       <td class="cell-textarea cp-col-name ${sticky.name}">
-        ${!ctx.isKunde ? `
+        ${canWrite ? `
           <div class="cp-name-cell-inner">
             <textarea class="strategie-textarea" data-field="name" data-item-id="${item.id}" placeholder="Name...">${item.name || ''}</textarea>
           </div>
         ` : `<div class="cell-text-readonly">${item.name || '-'}</div>`}
       </td>
       <td class="cell-textarea cp-col-notiz" style="${hide('cp-col-notiz')}">
-        ${!ctx.isKunde ? `
+        ${canWrite ? `
           <textarea class="strategie-textarea" data-field="notiz" data-item-id="${item.id}" placeholder="Kurzbeschreibung...">${item.notiz || ''}</textarea>
         ` : `<div class="cell-text-readonly">${item.notiz || '-'}</div>`}
       </td>
       ${customAt('cp-col-notiz')}
       <td class="cp-col-typ" style="${hide('cp-col-typ')}">
-        ${!ctx.isKunde ? renderTableSelect({
+        ${canWrite ? renderTableSelect({
           field: 'creator_typ',
           itemId: item.id,
           value: item.typ || '',
@@ -1004,7 +1030,7 @@ export function renderItemRow(ctx, item, index) {
       </td>
       ${customAt('cp-col-kunden-feedback')}
       <td class="cell-textarea cp-col-location" style="${hide('cp-col-location')}">
-        ${!ctx.isKunde ? `
+        ${canWrite ? `
           <textarea class="strategie-textarea" data-field="wohnort" data-item-id="${item.id}" placeholder="Location...">${item.wohnort || ''}</textarea>
         ` : `<div class="cell-text-readonly">${item.wohnort || '-'}</div>`}
       </td>
@@ -1014,7 +1040,7 @@ export function renderItemRow(ctx, item, index) {
       ${renderKontaktCell(ctx, item, 'cp-col-telefon', 'telefon', hide)}
       ${customAt('cp-col-telefon')}
       <td class="cp-col-link-ig" style="${hide('cp-col-link-ig')}">
-        ${!ctx.isKunde ? renderSourcingIgCell(item) : `
+        ${canWrite ? renderSourcingIgCell(item) : `
           <div class="links-compact-cell links-compact-cell--readonly">
             ${item.link_instagram ? `<a href="${item.link_instagram}" target="_blank" class="link-icon-btn" title="Instagram">${INSTAGRAM_ICON}</a>` : '<span class="cell-text-readonly">-</span>'}
           </div>
@@ -1030,7 +1056,7 @@ export function renderItemRow(ctx, item, index) {
       ${renderPreisFreitextCell(ctx, item, 'cp-col-preis-reels', 'preis_reels', hide)}
       ${customAt('cp-col-preis-reels')}
       <td class="cell-textarea cp-col-reichweite-story" style="${hide('cp-col-reichweite-story')}">
-        ${!ctx.isKunde ? `
+        ${canWrite ? `
           <input type="text" class="strategie-textarea" data-field="reichweite_story" data-item-id="${item.id}" placeholder="z.B. 10K" value="${item.reichweite_story || ''}">
         ` : `<div class="cell-text-readonly">${item.reichweite_story || '-'}</div>`}
       </td>
@@ -1038,7 +1064,7 @@ export function renderItemRow(ctx, item, index) {
       ${renderPreisFreitextCell(ctx, item, 'cp-col-preis-story', 'preis_story', hide)}
       ${customAt('cp-col-preis-story')}
       <td class="cp-col-link-tt" style="${hide('cp-col-link-tt')}">
-        ${!ctx.isKunde ? `
+        ${canWrite ? `
           <div class="links-compact-row">
             <input type="text" class="links-compact-input" data-field="link_tiktok" data-item-id="${item.id}" placeholder="TT Link..." value="${item.link_tiktok || ''}">
             ${item.link_tiktok ? `<a href="${item.link_tiktok}" target="_blank" class="link-icon-btn" title="${item.link_tiktok}">${EXTERNAL_LINK_ICON}</a>` : ''}
@@ -1059,19 +1085,19 @@ export function renderItemRow(ctx, item, index) {
       ${renderPreisFreitextCell(ctx, item, 'cp-col-pricing', 'pricing', hide)}
       ${customAt('cp-col-pricing')}
       <td class="cell-textarea cp-col-nutzungsrechte" style="${hide('cp-col-nutzungsrechte')}">
-        ${!ctx.isKunde ? `
+        ${canWrite ? `
           <textarea class="strategie-textarea" data-field="nutzungsrechte" data-item-id="${item.id}" placeholder="Nutzungsrechte...">${escapeHtml(item.nutzungsrechte || '')}</textarea>
         ` : `<div class="cell-text-readonly">${escapeHtml(item.nutzungsrechte || '-')}</div>`}
       </td>
       ${customAt('cp-col-nutzungsrechte')}
       <td class="cell-textarea cp-col-reichweite-garantie" style="${hide('cp-col-reichweite-garantie')}">
-        ${!ctx.isKunde ? `
+        ${canWrite ? `
           <input type="text" class="strategie-textarea" data-field="reichweite_garantie" data-item-id="${item.id}" placeholder="z.B. 50K" value="${item.reichweite_garantie || ''}">
         ` : `<div class="cell-text-readonly">${item.reichweite_garantie || '-'}</div>`}
       </td>
       ${customAt('cp-col-reichweite-garantie')}
       <td class="cell-textarea cp-col-ek" style="${hide('cp-col-ek')}">
-        ${!ctx.isKunde ? `
+        ${canWrite ? `
           <div class="cell-euro">
             <input type="number" class="strategie-textarea cell-euro__input${ctx.kundenCallActive ? ' kunden-call-blur' : ''}" data-field="preis_ek" data-item-id="${item.id}" data-blur-target placeholder="0" value="${item.preis_ek ?? ''}" step="0.01">
             <span class="cell-euro__suffix" aria-hidden="true">€</span>
@@ -1080,12 +1106,12 @@ export function renderItemRow(ctx, item, index) {
       </td>
       ${customAt('cp-col-ek')}
       <td class="cell-textarea cp-col-vk" style="${hide('cp-col-vk')}">
-        ${!ctx.isKunde ? `
+        ${canWrite ? `
           <div class="cell-euro">
             <input type="number" class="strategie-textarea cell-euro__input" data-field="preis_vk" data-item-id="${item.id}" placeholder="0" value="${item.preis_vk ?? ''}" step="0.01">
             <span class="cell-euro__suffix" aria-hidden="true">€</span>
           </div>
-        ` : `<div class="cell-text-readonly">-</div>`}
+        ` : `<div class="cell-text-readonly">${item.preis_vk != null ? Number(item.preis_vk).toLocaleString('de-DE', {minimumFractionDigits: 0}) + ' €' : '-'}</div>`}
       </td>
       ${customAt('cp-col-vk')}
       <td class="cell-textarea cp-col-feedback" style="${hide('cp-col-feedback')}">
@@ -1102,8 +1128,8 @@ export function renderItemRow(ctx, item, index) {
           </div>` : ''}
       </td>
       ${customAt('cp-col-feedback')}
-      ${ctx.customManager ? ctx.customManager.renderCells(item.id, ctx.hiddenColumns, ctx.isKunde) : ''}
-      ${!ctx.isKunde ? `
+      ${ctx.customManager ? ctx.customManager.renderCells(item.id, ctx.hiddenColumns, ctx.isKunde, canWrite) : ''}
+      ${hasActions ? `
         <td class="col-actions cp-col-actions">
           <div class="actions-dropdown-container" data-entity-type="creator_auswahl_item">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">

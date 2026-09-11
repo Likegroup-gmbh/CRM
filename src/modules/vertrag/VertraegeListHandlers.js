@@ -88,9 +88,17 @@ async function handleAction(list, action, id) {
       break;
     case 'add-signed':
     case 'replace-signed':
+      if (!list.getVertragPermissions().canEdit) {
+        window.toastSystem?.show('Sie haben keine Berechtigung, Vertragsentwürfe zu bearbeiten.', 'warning');
+        break;
+      }
       list.openVertragUploadDrawer(id);
       break;
     case 'remove-signed':
+      if (!list.getVertragPermissions().canEdit) {
+        window.toastSystem?.show('Sie haben keine Berechtigung, Vertragsentwürfe zu bearbeiten.', 'warning');
+        break;
+      }
       await removeSignedContract(list, id);
       break;
   }

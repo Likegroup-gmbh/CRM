@@ -509,3 +509,49 @@ describe('canView / canEdit bool', () => {
     expect(ps.canEdit('gibt-es-nicht')).toBe(false);
   });
 });
+
+describe('Entity-Alias creator_auswahl → sourcing', () => {
+  let ps;
+
+  beforeEach(() => {
+    ps = new PermissionSystem();
+  });
+
+  it('Mitarbeiter: creator_auswahl loest auf sourcing auf (volle Rechte)', () => {
+    ps.setUserPermissions(makeUser('mitarbeiter'));
+    expect(ps.can('creator_auswahl', 'view')).toBe(true);
+    expect(ps.can('creator_auswahl', 'edit')).toBe(true);
+    expect(ps.can('creator_auswahl', 'delete')).toBe(true);
+    expect(ps.canEdit('creator_auswahl')).toBe(true);
+    expect(ps.checkPermission('creator_auswahl', 'edit')).toBe(true);
+  });
+
+  it('Investor: creator_auswahl ist view-only wie sourcing', () => {
+    ps.setUserPermissions(makeUser('investor'));
+    expect(ps.can('creator_auswahl', 'view')).toBe(true);
+    expect(ps.can('creator_auswahl', 'create')).toBe(false);
+    expect(ps.can('creator_auswahl', 'edit')).toBe(false);
+    expect(ps.can('creator_auswahl', 'delete')).toBe(false);
+    expect(ps.canEdit('creator_auswahl')).toBe(false);
+  });
+
+  it('Kunde: creator_auswahl erbt sourcing view-only', () => {
+    ps.setUserPermissions(makeUser('kunde'));
+    expect(ps.can('creator_auswahl', 'view')).toBe(true);
+    expect(ps.canEdit('creator_auswahl')).toBe(false);
+  });
+
+  it('zugriffsrechte-Override auf sourcing gilt auch fuer creator_auswahl', () => {
+    ps.setUserPermissions(makeUser('mitarbeiter', {
+      zugriffsrechte: { sourcing: { can_edit: false, can_delete: false } }
+    }));
+    expect(ps.canEdit('creator_auswahl')).toBe(false);
+    expect(ps.can('creator_auswahl', 'delete')).toBe(false);
+    expect(ps.can('creator_auswahl', 'view')).toBe(true);
+  });
+
+  it('getEntityPermissions loest den Alias auf', () => {
+    ps.setUserPermissions(makeUser('investor'));
+    expect(ps.getEntityPermissions('creator_auswahl')).toEqual(ps.getEntityPermissions('sourcing'));
+  });
+});

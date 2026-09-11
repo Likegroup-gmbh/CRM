@@ -43,14 +43,15 @@ export function renderCustomHeaders(orderedCols, hiddenColumns, isKunde) {
  * @param {(entityId:string, uuid:string)=>string} getValue
  * @param {Array} hiddenColumns
  * @param {boolean} isKunde
+ * @param {boolean} canEdit - false = view-only Rollen (Investor): Werte lesbar, nicht editierbar
  * @returns {string} aneinandergereihte <td>
  */
-export function renderCustomCells(orderedCols, entityId, getValue, hiddenColumns, isKunde) {
+export function renderCustomCells(orderedCols, entityId, getValue, hiddenColumns, isKunde, canEdit = true) {
   return (orderedCols || []).map(col => {
     if (isKunde && !col.visible_for_kunden) return '';
     const hide = isHidden(col, hiddenColumns) ? ' style="display:none;"' : '';
     const value = getValue(entityId, col.id) ?? '';
-    const isEditable = !isKunde;
+    const isEditable = !isKunde && canEdit;
     const content = renderFieldByType(col, entityId, value, isEditable);
     return `<td class="entity-custom-cell cell-textarea" data-custom-col-id="${makeCustomColumnId(col.id)}"${hide}>${content}</td>`;
   }).join('');

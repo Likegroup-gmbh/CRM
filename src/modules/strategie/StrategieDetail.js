@@ -25,6 +25,8 @@ export class StrategieDetail {
     this.items = [];
     this.draggedItem = null;
     this.isKunde = false;
+    this.canEdit = false;
+    this.canCreate = false;
     this.hiddenColumns = [];
     this.customColumns = new EntityCustomColumnsManager({ parentType: 'strategie', parentTable: 'strategie' });
     this._customHeaderDragCleanup = null;
@@ -33,6 +35,10 @@ export class StrategieDetail {
   async init(strategieId) {
     this.strategieId = strategieId;
     this.isKunde = window.isKunde();
+    // Write-Capabilities einmal aufloesen: Investor/Finanzen ist intern
+    // (isKunde=false), aber view-only — Editierbarkeit fragt canEdit, nie die Rolle.
+    this.canEdit = window.canEdit?.('strategie') ?? false;
+    this.canCreate = window.canCreate?.('strategie') ?? false;
 
     try {
       this.strategie = await strategieService.getStrategieById(strategieId);
@@ -88,7 +94,7 @@ export class StrategieDetail {
   }
 
   async render() {
-    const canEdit = window.canEdit?.('strategie') ?? !this.isKunde;
+    const canEdit = this.canEdit;
 
     const html = `
       ${this.renderHeader()}
@@ -243,7 +249,9 @@ export class StrategieDetail {
     window.addEventListener('strategieItemCreated', itemCreatedHandler);
     this._boundEventListeners.add(() => window.removeEventListener('strategieItemCreated', itemCreatedHandler));
 
-    if (!this.isKunde) {
+    // Toolbar, Teilen, Drawer und Kategorien sind Write-/Config-Aktionen:
+    // nur intern UND mit edit-Recht (Investor ist view-only).
+    if (!this.isKunde && this.canEdit) {
       const toolbarMenu = window.content.querySelector('.toolbar-menu');
       if (toolbarMenu) {
         this._boundEventListeners.add(bindToolbarMenu(toolbarMenu));

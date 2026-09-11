@@ -15,7 +15,10 @@ export function cleanupTableEvents(detail) {
 export function bindTableEvents(detail) {
   cleanupTableEvents(detail);
 
-  if (!detail.isKunde) {
+  // Write-Interaktionen (Drag, Aktionsmenü) nur intern UND mit edit-Recht.
+  const canWrite = !detail.isKunde && !!detail.canEdit;
+
+  if (canWrite) {
     bindDragAndDropEvents(detail);
   }
 
@@ -34,7 +37,7 @@ export function bindTableEvents(detail) {
   bindCustomColumnEvents(detail);
   bindPrioSelect(detail);
 
-  if (!detail.isKunde) {
+  if (canWrite) {
     const actionHandler = (e) => {
       const actionItem = e.target.closest('[data-action]');
       if (!actionItem) return;
@@ -282,6 +285,8 @@ export function bindPrioSelect(detail) {
 }
 
 export async function handlePrioChange(detail, itemId, value) {
+  // View-only Rollen (Investor) speichern keine Prio — Kunden duerfen (Feedback).
+  if (!detail.isKunde && !detail.canEdit) return;
   const item = detail.items.find(i => i.id === itemId);
 
   if (value === 'nicht_umsetzen' && item?.video_umgesetzt) {
@@ -429,6 +434,8 @@ export async function handleFieldUpdate(detail, element) {
   if (element.hasAttribute('data-custom-column-id') || element.getAttribute('data-entity') === 'custom') {
     return;
   }
+  // View-only Rollen (Investor) speichern nichts — Kunden-Felder bleiben offen.
+  if (!detail.isKunde && !detail.canEdit) return;
   const itemId = element.dataset.itemId;
   const field = element.dataset.field;
   let value = element.type === 'checkbox' ? element.checked : element.value;

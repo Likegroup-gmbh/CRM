@@ -261,7 +261,10 @@ export function renderVertragActions(vertrag, isAdmin, canEdit, canDelete = isAd
   const signedIcon = `${icon('link')}`;
 
   const hasSignedUrl = !!(vertrag.dropbox_file_url || vertrag.unterschriebener_vertrag_url);
-  const signedActions = hasSignedUrl
+  // Signed-Upload/-Replace/-Remove sind Schreibzugriffe - nur mit canEdit.
+  const signedActions = !canEdit
+    ? ''
+    : hasSignedUrl
     ? `<a href="#" class="action-item" data-action="replace-signed" data-id="${vertrag.id}">
         ${signedIcon}
         Unterschriebenen Vertrag ersetzen

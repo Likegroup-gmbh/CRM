@@ -23,6 +23,10 @@ export function showHowToModal() {
 }
 
 export async function confirmDeleteStrategie(list, id) {
+  if (!window.canDelete?.('strategie')) {
+    window.toastSystem?.show('Sie haben keine Berechtigung für diese Aktion.', 'warning');
+    return;
+  }
   if (window.confirmationModal) {
     const result = await window.confirmationModal.open({
       title: 'Konzept löschen',
@@ -153,6 +157,11 @@ async function handleCreateFormSubmit(list, form) {
 }
 
 export async function openEditDrawer(list, strategieId) {
+  // Capability-Gate: Drawer nie ohne edit-Recht oeffnen (Direktaufruf, Alt-Handler).
+  if (!window.canEdit?.('strategie')) {
+    window.toastSystem?.show('Sie haben keine Berechtigung für diese Aktion.', 'warning');
+    return;
+  }
   closeEditDrawer();
 
   try {

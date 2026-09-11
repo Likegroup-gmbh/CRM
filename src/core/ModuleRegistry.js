@@ -192,6 +192,8 @@ export class ModuleRegistry {
         kampagne: 'kampagne', kooperation: 'kooperation', briefing: 'briefing',
         auftrag: 'auftrag', auftragsdetails: 'auftragsdetails', rechnung: 'rechnung',
         strategie: 'strategie', sourcing: 'sourcing', skripte: 'skripte',
+        // Aliase nach dem Rewrite (/strategie → /konzepte, /sourcing → /castings)
+        konzepte: 'strategie', castings: 'sourcing',
         vertraege: 'vertraege', management: 'management'
       }[segment];
       if (segmentEntity) {
