@@ -1,16 +1,13 @@
 // AdminPage.js
-// Huelle des Adminbereichs (PRD Schritt 8): Route /admin, nur fuer Admins.
-// Die reduzierte Navigation im Adminbereich steuert das NavigationSystem
-// (Admin-Sektionen statt der vollen Sidebar). Diese Huelle kennt die
-// Admin-Unterseiten und delegiert an sie — aktuell nur die
-// Datenqualitaetsanzeige (Schritt 9); weitere Seiten (die herunter-
-// gebrochenen Bereiche von Dashboard bis KI-Nutzung) kommen hier dazu.
+// Huelle fuer die Datenqualitaetsanzeige im Accounting-Bereich
+// (/admin/datenqualitaet). Das Accounting-Dashboard (/admin) ist die
+// Stakeholder-Uebersicht und laeuft nicht mehr durch diese Huelle.
 
 import { DatenqualitaetPage } from './DatenqualitaetPage.js';
 
 const SUB_PAGES = {
   datenqualitaet: {
-    headline: 'Adminbereich – Datenqualität',
+    headline: 'Accounting – Datenqualität',
     create: () => new DatenqualitaetPage(),
   },
 };
@@ -26,7 +23,7 @@ export class AdminPage {
     if (!window.isAdmin?.()) {
       window.setContentSafely(window.content, `
         <div class="empty-state">
-          <p>Kein Zugriff – der Adminbereich ist nur für Admins.</p>
+          <p>Kein Zugriff – der Accounting-Bereich ist nur für Admins.</p>
         </div>
       `);
       return;

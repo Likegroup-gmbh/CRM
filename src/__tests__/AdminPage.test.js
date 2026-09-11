@@ -106,7 +106,7 @@ describe('AdminPage', () => {
     expect(html).toContain('dq-grad--schlecht');
 
     // Headline der Huelle
-    expect(window.setHeadline).toHaveBeenCalledWith('Adminbereich – Datenqualität');
+    expect(window.setHeadline).toHaveBeenCalledWith('Accounting – Datenqualität');
   });
 
   it('faellt bei unbekannter Unterseite auf die Datenqualitaet zurueck', async () => {

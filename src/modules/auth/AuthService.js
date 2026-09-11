@@ -77,7 +77,7 @@ export class AuthService {
       if (data) {
         // Prüfen ob Benutzer freigeschaltet ist
         // Admin ist immer freigeschaltet, andere Rollen benötigen explizite Freischaltung
-        const isFreigeschaltet = data.rolle === 'admin' || data.freigeschaltet === true;
+        const isFreigeschaltet = data.rolle === 'admin' || data.rolle === 'investor' || data.freigeschaltet === true;
         
         if (!isFreigeschaltet) {
           console.log('⚠️ Benutzer nicht freigeschaltet:', data.name);
@@ -708,7 +708,7 @@ export class AuthService {
   // Header-Buttons basierend auf Rolle anpassen
   updateHeaderForRole(rolle) {
     const isKunde = window.isKunde();
-    const isAdmin = typeof window.isAdmin === 'function' && window.isAdmin();
+    const canViewAccounting = typeof window.canViewAccounting === 'function' && window.canViewAccounting();
 
     // Education Button ausblenden für Kunden
     const educationBtn = document.querySelector('.education-btn');
@@ -716,10 +716,10 @@ export class AuthService {
       educationBtn.style.display = isKunde ? 'none' : '';
     }
 
-    // Adminbereich-Button: nur fuer Admins (startet in index.html unsichtbar)
+    // Accounting-Button: Admins und Investoren (startet in index.html unsichtbar)
     const adminBtn = document.querySelector('.admin-btn');
     if (adminBtn) {
-      adminBtn.style.display = isAdmin ? '' : 'none';
+      adminBtn.style.display = canViewAccounting ? '' : 'none';
     }
 
     console.log(`🎨 Header aktualisiert für Rolle: ${rolle}, isKunde: ${isKunde}`);

@@ -501,7 +501,7 @@ async function toggleFreischaltung(userId) {
     const updateData = { freigeschaltet: freischalten };
     if (freischalten) {
       if (user.rolle === 'pending') updateData.rolle = 'mitarbeiter';
-    } else {
+    } else if (user.rolle !== 'admin' && user.rolle !== 'investor') {
       updateData.rolle = 'pending';
       updateData.zugriffsrechte = null;
     }
@@ -568,7 +568,20 @@ export async function setField(dropdown, entityType, entityId, fieldName, fieldV
 
     if (window.supabase) {
       const table = window.dataService?.entities?.[entityType]?.table || entityType;
-      const payload = { [fieldName]: fieldValue };
+      let payload = { [fieldName]: fieldValue };
+      if (entityType === 'benutzer' && fieldName === 'mitarbeiter_klasse_id') {
+        if (fieldValue === '__investor__') {
+          payload = { rolle: 'investor', freigeschaltet: true, mitarbeiter_klasse_id: null };
+        } else {
+          const { data: current } = await window.supabase
+            .from('benutzer')
+            .select('rolle')
+            .eq('id', entityId)
+            .single();
+          payload = { mitarbeiter_klasse_id: fieldValue };
+          if (current?.rolle === 'investor') payload.rolle = 'mitarbeiter';
+        }
+      }
       if (window.dataService?.entities?.[entityType]?.fields?.updated_at) {
         payload.updated_at = new Date().toISOString();
       }

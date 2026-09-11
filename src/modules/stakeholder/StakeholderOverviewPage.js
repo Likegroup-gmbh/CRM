@@ -1,5 +1,5 @@
 // StakeholderOverviewPage.js
-// Stakeholder-Gesamtübersicht (/admin/stakeholder, Admin-only).
+// Stakeholder-Gesamtübersicht (/admin, Accounting-Dashboard).
 // Zeitraum-Filter + Leistungsbereich-Auswahl (GESAMT ohne/mit Contracts, Influencer Marketing, UGC Paid,
 // UGC Organic, Vor-Ort Production, Contracting). Darunter Budget-Karten
 // (Auftragsvolumen, Verfügbares/Offenes Creator Budget, Verbrauchtes Budget,
@@ -276,10 +276,10 @@ export class StakeholderOverviewPage {
   }
 
   async init() {
-    if (!window.isAdmin?.()) {
+    if (!(window.canViewAccounting?.() || window.isAdmin?.())) {
       window.setContentSafely(window.content, `
         <div class="empty-state">
-          <p>Kein Zugriff – diese Seite ist nur für Admins.</p>
+          <p>Kein Zugriff – diese Seite ist nur für den Accounting-Bereich.</p>
         </div>
       `);
       return;
@@ -805,6 +805,14 @@ export class StakeholderOverviewPage {
       `;
     }
 
+    if (!window.isAdmin?.()) {
+      return `
+        <div class="stakeholder-bericht">
+          ${select}
+        </div>
+      `;
+    }
+
     return `
       <div class="stakeholder-bericht">
         ${select}
@@ -848,7 +856,7 @@ export class StakeholderOverviewPage {
           { buttonId: 'btn-view-differenz', label: 'Differenz', active: this.monatsMetrik === 'differenz' },
         ])}
         <div class="stakeholder-monate-meta"
-             title="Der nicht zugeordnete Rest ist ein Datenmangel (fehlende Kampagnenart-Blöcke). Die konkreten Fälle stehen in der Datenqualitätsanzeige im Adminbereich.">
+             title="Der nicht zugeordnete Rest ist ein Datenmangel (fehlende Kampagnenart-Blöcke). Die konkreten Fälle stehen in der Datenqualitätsanzeige im Accounting-Bereich.">
           Stand ${stand}${this.aktiverBerichtsstand ? ' (eingefroren)' : ''}
           ${quote != null ? ` · ${this.fmtPct(quote * 100)} des Umsatzes einem Leistungsbereich zugeordnet` : ''}
           ${window.isAdmin?.() ? ` · <button type="button" class="stakeholder-dq-link" data-stakeholder-dq-link>Fälle in der Datenqualitätsanzeige ansehen</button>` : ''}

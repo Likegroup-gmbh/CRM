@@ -95,7 +95,7 @@ export function renderMitarbeiterDetailPage(detail) {
   const quickActions = [];
 
   const sidebarInfo = detail.renderInfoItems([
-    { icon: 'shield', label: 'Rolle', value: detail.user?.rolle || '-', badge: true, badgeType: detail.user?.rolle === 'admin' ? 'primary' : 'secondary' },
+    { icon: 'shield', label: 'Rolle', value: detail.user?.rolle === 'investor' ? 'Investoren' : (detail.user?.rolle || '-'), badge: true, badgeType: detail.user?.rolle === 'admin' ? 'primary' : 'secondary' },
     { icon: 'tag', label: 'Klasse', value: detail.user?.mitarbeiter_klasse_name || 'Nicht zugewiesen' },
     { icon: 'phone-mobile', label: 'Firmenhandy', value: '-', rawHtml: getFirmenhandyDisplayHtml(detail) },
     { icon: 'check', label: 'Freigeschaltet', value: detail.user?.freigeschaltet ? 'Ja' : 'Nein', badge: true, badgeType: detail.user?.freigeschaltet ? 'success' : 'warning' },

@@ -496,7 +496,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Dashboard-Check auf Basis des Pfads (ohne Query), sonst normale Navigation
     const initialPath = initialRoute.split(/[?#]/)[0];
     if (!initialPath || initialPath === '/' || initialPath === '/dashboard' || initialPath === '/index.html') {
-      moduleRegistry.loadDashboard();
+      if (window.isInvestor?.()) {
+        moduleRegistry.navigateTo('/admin');
+      } else {
+        moduleRegistry.loadDashboard();
+      }
     } else {
       moduleRegistry.navigateTo(initialRoute);
     }
@@ -596,11 +600,11 @@ window.setupHeaderUI = () => {
       });
     }
 
-    // Adminbereich-Button (PRD Schritt 8): nur fuer Admins sichtbar,
+    // Accounting-Button: Admins und Investoren,
     // steht in index.html links vom Education-Button.
     const adminBtn = document.querySelector('.admin-btn');
     if (adminBtn) {
-      adminBtn.style.display = window.isAdmin?.() ? '' : 'none';
+      adminBtn.style.display = window.canViewAccounting?.() ? '' : 'none';
       if (!adminBtn.dataset.bound) {
         adminBtn.dataset.bound = 'true';
         adminBtn.addEventListener('click', (e) => {

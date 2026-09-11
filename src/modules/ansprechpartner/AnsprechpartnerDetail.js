@@ -255,7 +255,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     const canEdit = window.permissionSystem?.checkPermission('ansprechpartner', 'edit') !== false;
     let kundeItem;
     if (this.kundeVerknuepfung) {
-      const kundeLink = `<a href="/admin/kunden/${this.kundeVerknuepfung.id}" onclick="event.preventDefault(); window.navigateTo('/admin/kunden/${this.kundeVerknuepfung.id}')" class="table-link fw-500">${this.sanitize(this.kundeVerknuepfung.name || this.kundeVerknuepfung.email || 'Unbekannt')}</a>`;
+      const kundeLink = `<a href="/kunden-admin/${this.kundeVerknuepfung.id}" onclick="event.preventDefault(); window.navigateTo('/kunden-admin/${this.kundeVerknuepfung.id}')" class="table-link fw-500">${this.sanitize(this.kundeVerknuepfung.name || this.kundeVerknuepfung.email || 'Unbekannt')}</a>`;
       kundeItem = { icon: 'user', label: 'Verknüpfter Kunde', rawHtml: kundeLink };
     } else {
       const btnHtml = `<button class="btn-inline-action" data-action="generate-magic-link" ${!canEdit ? 'disabled' : ''}>Kunden einladen</button>`;

@@ -151,7 +151,7 @@ export class KundenList {
     document.addEventListener('click', (e) => {
       if (e.target && e.target.id === 'btn-kunde-anlegen') {
         e.preventDefault();
-        window.navigateTo('/admin/kunden/new');
+        window.navigateTo('/kunden-admin/new');
       }
     }, { signal });
     // Suche
@@ -350,7 +350,7 @@ export class KundenList {
     // Events
     document.getElementById('btn-kunden-zurueck')?.addEventListener('click', (e) => {
       e.preventDefault();
-      window.navigateTo('/admin/kunden');
+      window.navigateTo('/kunden-admin');
     });
 
     document.getElementById('btn-invite-copy')?.addEventListener('click', (e) => {

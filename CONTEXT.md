@@ -183,14 +183,19 @@ belegt, worauf ein verschicktes Update beruhte. Die Ansicht rechnet immer live; 
 wird nie korrigiert, sondern durch einen neuen Stand ersetzt.
 _Avoid_: Snapshot, Report, Export
 
-**Adminbereich**:
-Eigener Bereich unter /admin, nur fuer Admins. Reduzierte Navigation auf die fuer die
-Administration relevanten Seiten (Datenqualitaet, Stakeholder, Mitarbeiter, Kunden,
-Unternehmen, Geteilte Listen, KI-Nutzung); Einstieg ueber den Schild-Button in der Kopfzeile.
-_Avoid_: Backend, Admin-Panel, Einstellungen
+**Investor**:
+Interner Lesezugang fuer die Finanzuebersicht und die operative Plattform, ohne Schreibrecht.
+_Avoid_: Admin, Mitarbeiter, Finanzen, Gast
+
+**Accounting-Bereich**:
+Eigener Bereich unter /admin fuer Admins und Investoren. Reduzierte Navigation auf Zahlen und Auftrag
+(Dashboard = Stakeholder-Uebersicht, Datenqualitaet, Projekt anlegen, Auftraege,
+Kundenrechnungen, Creatorrechnungen). Datenqualitaet und Projekt anlegen bleiben Admin.
+Einstieg ueber den Schild-Button; die volle App liegt hinter Zurueck zur App.
+_Avoid_: Adminbereich, Backend, Admin-Panel, Einstellungen
 
 **Datenqualitaetsanzeige**:
-Seite im Adminbereich, die Pflegemaengel an Finanzdaten nach Kampagne gruppiert und nach
+Seite im Accounting-Bereich, die Pflegemaengel an Finanzdaten nach Kampagne gruppiert und nach
 betroffenem Geldvolumen sortiert zeigt. Sie benennt die Faelle; korrigiert wird von den Teams.
 Gleicher Ein- und Verkaufspreis ist bewusst kein Mangel (Fee-Modell).
 _Avoid_: Qualitaetsdashboard, Fehlerliste, Audit

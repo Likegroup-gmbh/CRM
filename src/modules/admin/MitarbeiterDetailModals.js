@@ -50,7 +50,10 @@ export async function showChangeRolleModal(detail) {
       .order('name');
 
     if (error) throw error;
-    allRollen = data || [];
+    allRollen = [
+      { id: '__investor__', name: 'Investoren', description: 'Lesezugang zur Plattform und zum Accounting' },
+      ...(data || [])
+    ];
   } catch (err) {
     console.error('Fehler beim Laden der Rollen', err);
     modal.remove();
@@ -73,7 +76,9 @@ export async function showChangeRolleModal(detail) {
     saveBtn.disabled = false;
   };
 
-  const currentKlasseId = detail.user?.mitarbeiter_klasse_id || detail.user?.mitarbeiter_klasse?.id;
+  const currentKlasseId = detail.user?.rolle === 'investor'
+    ? '__investor__'
+    : (detail.user?.mitarbeiter_klasse_id || detail.user?.mitarbeiter_klasse?.id);
   if (currentKlasseId) {
     const match = allRollen.find(r => r.id === currentKlasseId);
     if (match) {
@@ -135,9 +140,15 @@ export async function showChangeRolleModal(detail) {
   saveBtn.addEventListener('click', async () => {
     if (!selectedRolle) return;
     try {
+      const payload = selectedRolle.id === '__investor__'
+        ? { rolle: 'investor', freigeschaltet: true, mitarbeiter_klasse_id: null }
+        : {
+            mitarbeiter_klasse_id: selectedRolle.id,
+            ...(detail.user?.rolle === 'investor' ? { rolle: 'mitarbeiter' } : {})
+          };
       const { error } = await window.supabase
         .from('benutzer')
-        .update({ mitarbeiter_klasse_id: selectedRolle.id })
+        .update(payload)
         .eq('id', detail.userId);
       if (error) throw error;
       modal.remove();

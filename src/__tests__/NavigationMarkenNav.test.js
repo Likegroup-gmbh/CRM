@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { NavigationSystem } from '../modules/navigation/NavigationSystem.js';
 
-describe('NavigationSystem – Stammdaten ohne Marken-Liste', () => {
+describe('NavigationSystem – Kundendaten ohne Marken-Liste', () => {
   beforeEach(() => {
     document.body.innerHTML = '<nav id="main-nav"></nav>';
     window.currentUser = {
@@ -23,7 +23,7 @@ describe('NavigationSystem – Stammdaten ohne Marken-Liste', () => {
     expect(html).not.toMatch(/href="\/marke"/);
   });
 
-  it('zeigt Personas und Produkte in Stammdaten zwischen Unternehmen und Ansprechpartner', () => {
+  it('zeigt Personas und Produkte in Kundendaten nach Unternehmen und Ansprechpartner', () => {
     window.currentUser.permissions = {
       ...window.currentUser.permissions,
       produkt: { can_view: true },
@@ -33,25 +33,28 @@ describe('NavigationSystem – Stammdaten ohne Marken-Liste', () => {
     const nav = new NavigationSystem();
     nav.renderNavigation();
     const html = document.getElementById('main-nav').innerHTML;
+    expect(html).toContain('Kundendaten');
+    expect(html).toContain('Creatordaten');
     const unternehmen = html.indexOf('href="/unternehmen"');
+    const ansprechpartner = html.indexOf('href="/ansprechpartner"');
     const persona = html.indexOf('href="/persona"');
     const produkt = html.indexOf('href="/produkt"');
-    const ansprechpartner = html.indexOf('href="/ansprechpartner"');
     expect(unternehmen).toBeGreaterThan(-1);
-    expect(persona).toBeGreaterThan(unternehmen);
+    expect(ansprechpartner).toBeGreaterThan(unternehmen);
+    expect(persona).toBeGreaterThan(ansprechpartner);
     expect(produkt).toBeGreaterThan(persona);
-    expect(ansprechpartner).toBeGreaterThan(produkt);
   });
 
-  it('zeigt Stakeholder nur im Adminbereich, nicht in der Hauptnavigation', () => {
+  it('zeigt das Accounting-Dashboard nur im Accounting-Bereich, nicht als Stakeholder in der Hauptnavigation', () => {
     const nav = new NavigationSystem();
     nav.renderNavigation('/dashboard');
     expect(document.getElementById('main-nav').innerHTML).not.toMatch(/href="\/stakeholder"/);
 
     nav.syncWithRoute('/admin');
     const html = document.getElementById('main-nav').innerHTML;
-    expect(html).toMatch(/href="\/admin\/stakeholder"/);
-    expect(html).toContain('>Stakeholder<');
+    expect(html).toContain('data-route="/admin"');
+    expect(html).toContain('Creatorrechnungen');
+    expect(html).not.toContain('>Stakeholder<');
   });
 
   it('blendet Stakeholder fuer Nicht-Admins aus', () => {
