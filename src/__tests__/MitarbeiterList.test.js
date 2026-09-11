@@ -105,6 +105,20 @@ describe('MitarbeiterList', () => {
     expect(window.content.innerHTML).toContain('Fay');
   });
 
+  it('weist Mitarbeiter ohne canManageStaff ab, auch mit Dashboard-Recht', async () => {
+    window.content = document.createElement('div');
+    window.setHeadline = vi.fn();
+    window.isAdmin = () => false;
+    window.canManageStaff = () => false;
+    window.canViewPage = () => true;
+    window.checkUserPermission = () => true;
+
+    const list = new MitarbeiterList();
+    await list.init();
+
+    expect(window.content.innerHTML).toContain('Keine Berechtigung');
+  });
+
   it('gruppiert Investoren und zeigt die Rolle Investoren', async () => {
     window.content = document.createElement('div');
     window.setContentSafely = (el, html) => { el.innerHTML = html; };

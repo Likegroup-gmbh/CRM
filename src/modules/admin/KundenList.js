@@ -19,7 +19,7 @@ export class KundenList {
   async init() {
     window.setHeadline('Kunden');
     
-    const isAdmin = window.isAdmin() || window.canViewPage?.('mitarbeiter');
+    const isAdmin = window.isAdmin() || window.canManageStaff?.();
     if (!isAdmin) {
       window.content.innerHTML = `
         <div class="error-message">

@@ -69,6 +69,8 @@ describe('Kunden-Routen-Alias', () => {
     kundenDetail = { init: vi.fn(() => Promise.resolve()), destroy: vi.fn() };
     registry.register('kunden-detail', kundenDetail);
     window.currentUser = { rolle: 'admin' };
+    window.canViewAccounting = () => true;
+    window.isAdmin = () => true;
   });
 
   it('leitet /kunde/:id/edit auf die Kundendetailseite', async () => {
@@ -87,5 +89,38 @@ describe('Kunden-Routen-Alias', () => {
     await registry.navigateTo('/kunden');
     expect(portal.init).toHaveBeenCalled();
     expect(kundenDetail.init).not.toHaveBeenCalled();
+  });
+});
+
+describe('Accounting-Zugang', () => {
+  let registry;
+  let dashboard;
+
+  beforeEach(() => {
+    registry = new ModuleRegistry();
+    dashboard = { init: vi.fn(() => Promise.resolve()), destroy: vi.fn() };
+    registry.register('dashboard', dashboard);
+    window.canViewAccounting = () => false;
+    window.isAdmin = () => false;
+    window.currentUser = { rolle: 'mitarbeiter' };
+  });
+
+  it('leitet Mitarbeiter von /admin auf /dashboard um', async () => {
+    await registry.navigateTo('/admin');
+    expect(dashboard.init).toHaveBeenCalled();
+  });
+
+  it('leitet Mitarbeiter von /admin/auftrag auf /dashboard um', async () => {
+    await registry.navigateTo('/admin/auftrag');
+    expect(dashboard.init).toHaveBeenCalled();
+  });
+
+  it('laesst Investoren auf /admin', async () => {
+    window.canViewAccounting = () => true;
+    const stakeholder = { init: vi.fn(() => Promise.resolve()), destroy: vi.fn() };
+    registry.register('stakeholder', stakeholder);
+    await registry.navigateTo('/admin');
+    expect(stakeholder.init).toHaveBeenCalled();
+    expect(dashboard.init).not.toHaveBeenCalled();
   });
 });

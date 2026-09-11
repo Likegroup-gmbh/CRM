@@ -115,6 +115,15 @@ export class ModuleRegistry {
     // internen Modul-Namen (z. B. /admin/auftrag -> /auftrag).
     const navPath = String(route || '').split(/[?#]/)[0];
 
+    // Accounting-Bereich nur Admins und Investoren — nicht Mitarbeiter/Lead
+    // per Direkt-URL in die /admin-Huelle.
+    const canAccounting = (typeof window.canViewAccounting === 'function' && window.canViewAccounting())
+      || (typeof window.isAdmin === 'function' && window.isAdmin());
+    if ((navPath === '/admin' || navPath.startsWith('/admin/')) && !canAccounting) {
+      console.log('🚫 Navigation blockiert: kein Accounting-Zugang');
+      return this._redirect('/dashboard');
+    }
+
     try {
       // Weggezogene Admin-Seiten: URL auf den Hauptpfad ziehen, sonst
       // bleibt die Sidebar im Accounting-Bereich.

@@ -102,6 +102,20 @@ describe('NavigationSystem Accounting-Bereich', () => {
     expect(html).not.toContain('Creatorrechnungen');
   });
 
+  it('zeigt Mitarbeitern und Leads kein Accounting, auch mit canCreateProject', () => {
+    window.isAdmin = () => false;
+    window.canViewAccounting = () => false;
+    window.canCreateProject = () => true;
+    const nav = new NavigationSystem();
+    nav.renderNavigation('/admin');
+    const html = document.getElementById('main-nav').innerHTML;
+    expect(html).toContain('Zurück zur App');
+    expect(html).not.toContain('Datenqualität');
+    expect(html).not.toContain('Creatorrechnungen');
+    expect(html).not.toContain('/admin/projekt-erstellen');
+    expect(html).not.toContain('/admin/auftrag');
+  });
+
   it('hat in der Hauptnav keinen Projekt-anlegen-CTA', () => {
     const nav = new NavigationSystem();
     nav.renderNavigation('/dashboard');
