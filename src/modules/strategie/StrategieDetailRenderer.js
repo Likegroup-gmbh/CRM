@@ -60,9 +60,13 @@ export function renderItemsTable(detail) {
   const customCount = detail.customColumns ? detail.customColumns.visibleCount(detail.hiddenColumns, detail.isKunde) : 0;
   const cols = visibleFixedColumns(detail);
 
-  // #, Bild, Plattform sind immer da; Drag und Aktionen nur intern
+  // Drag- und Aktions-Spalte sind Write-UI: nur intern UND mit edit-Recht
+  // (Investor ist intern, aber view-only).
+  const showWriteCols = !detail.isKunde && !!detail.canEdit;
+
+  // #, Bild, Plattform sind immer da; Drag und Aktionen nur intern mit edit-Recht
   const fixedCount = 3
-    + (detail.isKunde ? 0 : 2)
+    + (showWriteCols ? 2 : 0)
     + Object.values(cols).filter(Boolean).length;
   const colCount = fixedCount + customCount;
 
@@ -72,7 +76,7 @@ export function renderItemsTable(detail) {
         <thead>
           <tr>
             <th class="col-number">#</th>
-            ${!detail.isKunde ? '<th class="col-drag"></th>' : ''}
+            ${showWriteCols ? '<th class="col-drag"></th>' : ''}
             <th class="col-image">Bild</th>
             <th class="col-platform">Plattform</th>
             ${cols.creator ? '<th class="col-creator">Creator</th>' : ''}
@@ -83,7 +87,7 @@ export function renderItemsTable(detail) {
             ${cols.prio ? '<th class="col-prio">Prio</th>' : ''}
             ${cols.umgesetzt ? '<th class="col-umgesetzt">Umgesetzt</th>' : ''}
             ${detail.customColumns ? detail.customColumns.renderHeaders(detail.hiddenColumns, detail.isKunde) : ''}
-            ${!detail.isKunde ? '<th class="col-actions">Aktionen</th>' : ''}
+            ${showWriteCols ? '<th class="col-actions">Aktionen</th>' : ''}
           </tr>
         </thead>
         <tbody id="items-table-body">
@@ -320,11 +324,15 @@ export function renderItemRow(detail, item, index) {
   const isLinked = !!item.linked_video;
   const isUmgesetzt = !!item.video_umgesetzt;
   const cols = visibleFixedColumns(detail);
-  const readonly = !!window.isGastReadonly?.();
+  // readonly = Gast ohne Feedback-Recht ODER interne view-only Rolle (Investor).
+  // Kunde/Gast mit Feedback behalten ihre Felder (Anmerkung, Prio) — isKunde
+  // deckt beide ab, deshalb blockt !canEdit nur Nicht-Kunden.
+  const readonly = !!window.isGastReadonly?.() || (!detail.isKunde && !detail.canEdit);
+  const showWriteCols = !detail.isKunde && !!detail.canEdit;
 
   const rowClasses = [
     'item-row',
-    !detail.isKunde ? 'draggable' : '',
+    showWriteCols ? 'draggable' : '',
     isIdea ? 'idea-row' : '',
     isUmgesetzt ? 'strategie-item-umgesetzt' : '',
     item.nicht_umsetzen ? 'item-nicht-umsetzen' : '',
@@ -337,7 +345,7 @@ export function renderItemRow(detail, item, index) {
         ${index + 1}
         ${item.skript_freigabe ? `<span class="strategie-skript-badge" title="Für Skript freigegeben">${icon('document-text')}</span>` : ''}
       </td>
-      ${!detail.isKunde ? `
+      ${showWriteCols ? `
         <td class="col-drag drag-handle">
           ${icon('bars-3')}
         </td>
@@ -345,7 +353,7 @@ export function renderItemRow(detail, item, index) {
       ${renderBildCell(item, isIdea, ideaIcon)}
       ${renderPlatformCell(item, platformIcon, externalLinkIcon)}
       ${cols.creator ? renderCreatorCell(detail, item, readonly) : ''}
-      ${cols.beschreibung ? renderClippedTextCell(detail, item, 'beschreibung', 'col-beschreibung', 'Beschreibung...') : ''}
+      ${cols.beschreibung ? renderClippedTextCell(detail, item, 'beschreibung', 'col-beschreibung', 'Beschreibung...', readonly) : ''}
       ${cols.transkript ? renderClippedTextCell(detail, item, 'transkript', 'col-transkript', 'Transkript...', readonly) : ''}
       ${cols.caption ? renderClippedTextCell(detail, item, 'caption', 'col-caption', 'Caption...', readonly) : ''}
       ${cols.anmerkung ? `
@@ -391,8 +399,8 @@ export function renderItemRow(detail, item, index) {
           </label>
         </td>
       ` : ''}
-      ${detail.customColumns ? detail.customColumns.renderCells(item.id, detail.hiddenColumns, detail.isKunde) : ''}
-      ${!detail.isKunde ? `
+      ${detail.customColumns ? detail.customColumns.renderCells(item.id, detail.hiddenColumns, detail.isKunde, detail.canEdit) : ''}
+      ${showWriteCols ? `
         <td class="col-actions">
           <div class="actions-dropdown-container" data-entity-type="strategie_item">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">

@@ -6,9 +6,12 @@ import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 
+// Create ist eine Capability, keine Rolle: Investor/Finanzen (intern, view-only)
+// bekommen keinen Anlegen-Button.
 function canCreateStrategie() {
-  return !window.isKunde() && (window.isAdmin() || window.currentUser?.permissions?.strategie?.can_edit);
+  return window.canCreate?.('strategie') ?? false;
 }
 
 function strategieCreateButtonHtml() {
@@ -19,7 +22,7 @@ function strategieCreateButtonHtml() {
 
 export function renderCompaniesView(list) {
   const isKunde = window.isKunde();
-  const canCreate = !isKunde && (window.isAdmin() || window.currentUser?.permissions?.strategie?.can_edit);
+  const canCreate = canCreateStrategie();
   return `
     <div class="list-container">
       <div class="table-filter-wrapper">
@@ -123,7 +126,7 @@ export function updateCompaniesTable(list) {
 
 export function renderBrandsView(list) {
   const isKunde = window.isKunde();
-  const canCreate = !isKunde && (window.isAdmin() || window.currentUser?.permissions?.strategie?.can_edit);
+  const canCreate = canCreateStrategie();
   const showBrandsSection = !isKunde || list.brandFolders.length > 0;
   const showCompanyOnlySection = !isKunde || list.companyOnlyItems.length > 0;
 
@@ -207,7 +210,6 @@ export function updateBrandsTable(list) {
 
 export function renderItemsRows(list, items) {
   return items.map((strategie) => {
-    const isKunde = window.isKunde();
     const kampagneName = KampagneUtils.getDisplayName(strategie.kampagne);
     return `
       <tr class="table-row-clickable" data-strategie-id="${strategie.id}">
@@ -219,30 +221,7 @@ export function renderItemsRows(list, items) {
         <td>${kampagneName}</td>
         <td>${list.sanitize(strategie.created_by_user?.name || '-')}</td>
         <td class="col-actions">
-          <div class="actions-dropdown-container" data-entity-type="strategie">
-            <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-              ${icon('dots-vertical-filled')}
-            </button>
-            <div class="actions-dropdown">
-              <a href="#" class="action-item" data-action="view-strategie" data-id="${strategie.id}">
-                ${window.ActionsDropdown?.getHeroIcon('view') || ''}
-                Details anzeigen
-              </a>
-              ${!isKunde ? `
-                <a href="#" class="action-item" data-action="edit-strategie" data-id="${strategie.id}">
-                  ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
-                  Bearbeiten
-                </a>
-                ${window.currentUser?.permissions?.strategie?.can_delete ? `
-                  <div class="action-separator"></div>
-                  <a href="#" class="action-item action-danger" data-action="delete-strategie" data-id="${strategie.id}">
-                    ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
-                    Löschen
-                  </a>
-                ` : ''}
-              ` : ''}
-            </div>
-          </div>
+          ${actionBuilder.create('strategie_liste', strategie.id)}
         </td>
       </tr>
     `;
@@ -267,7 +246,7 @@ export function updateCompanyOnlyTable(list) {
 
 export function renderItemsView(list) {
   const isKunde = window.isKunde();
-  const canCreate = !isKunde && (window.isAdmin() || window.currentUser?.permissions?.strategie?.can_edit);
+  const canCreate = canCreateStrategie();
   return `
     <div class="list-container">
       <div class="table-filter-wrapper">

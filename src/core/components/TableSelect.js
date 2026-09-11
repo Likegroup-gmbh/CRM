@@ -52,9 +52,12 @@ function renderOption(option, activeValue) {
  * Ob ein Select fuer den aktuellen Nutzer klickbar ist. Nicht pauschal per
  * Rolle sperren: die Call-Site sagt mit kundeDarfWaehlen explizit, ob der
  * Kunde das Feld setzen darf (z.B. Prio, Kundenfeedback). Default false.
+ * canEdit (Default true = abwaertskompatibel) sperrt view-only Rollen wie
+ * Investor — ausser der Kunde darf explizit waehlen (sein Feedback-Feld).
  */
-export function tableSelectDisabled({ gastReadonly = false, isKunde = false, kundeDarfWaehlen = false } = {}) {
+export function tableSelectDisabled({ gastReadonly = false, isKunde = false, kundeDarfWaehlen = false, canEdit = true } = {}) {
   if (gastReadonly) return true;
+  if (!canEdit && !(isKunde && kundeDarfWaehlen)) return true;
   if (isKunde && !kundeDarfWaehlen) return true;
   return false;
 }

@@ -33,6 +33,18 @@ function viewEdit() {
   return { can_view: true, can_create: false, can_edit: true, can_delete: false };
 }
 
+// --- Entity-Aliase ---
+// UI-/Tabellen-Keys, die auf einen Matrix-Key zeigen: die Casting-Liste heisst
+// in DB und ActionConfig 'creator_auswahl', in der Matrix 'sourcing'.
+// Call-Sites duerfen beide Keys nutzen — der Lookup normalisiert.
+const ENTITY_ALIASES = {
+  creator_auswahl: 'sourcing',
+};
+
+function resolveEntityKey(entity) {
+  return ENTITY_ALIASES[entity] || entity;
+}
+
 // --- Rollen-Matrix (benutzer.rolle) ---
 
 const BASE_PERMISSIONS = {
@@ -277,7 +289,7 @@ export class PermissionSystem {
     if (this.isAdmin) return true;
     if (!this._normalizedRole) return false;
     const v = String(verb || '').replace(/^can_/, '');
-    return !!this.calculatedPermissions?.[entity]?.[`can_${v}`];
+    return !!this.calculatedPermissions?.[resolveEntityKey(entity)]?.[`can_${v}`];
   }
 
   canView(entity)   { return this.can(entity, 'view'); }
@@ -285,10 +297,11 @@ export class PermissionSystem {
   canEdit(entity) {
     if (this.isAdmin) return true;
     if (!this._normalizedRole) return false;
+    const key = resolveEntityKey(entity);
     // Page-Scoped Override aus DB schlaegt die Matrix.
-    const pageOverride = this.pagePermissions?.[entity]?.can_edit;
+    const pageOverride = this.pagePermissions?.[key]?.can_edit;
     if (typeof pageOverride === 'boolean') return pageOverride;
-    return !!this.calculatedPermissions?.[entity]?.can_edit;
+    return !!this.calculatedPermissions?.[key]?.can_edit;
   }
   canDelete(entity) { return this.can(entity, 'delete'); }
 
@@ -333,16 +346,18 @@ export class PermissionSystem {
 
     if (this.isAdmin) return true;
 
+    const key = resolveEntityKey(entity);
+
     // Normalisierung: sowohl 'view' als auch 'can_view' akzeptieren
     const normalized = action.startsWith('can_') ? action.slice(4) : action;
 
     // Page-Scoped Override aus DB
     if (normalized === 'view') {
-      const pageOverride = this.pagePermissions?.[entity]?.can_view;
+      const pageOverride = this.pagePermissions?.[key]?.can_view;
       if (typeof pageOverride === 'boolean') return pageOverride;
     }
 
-    const entityPermissions = this.calculatedPermissions?.[entity];
+    const entityPermissions = this.calculatedPermissions?.[key];
     if (!entityPermissions) {
       console.warn(`⚠️ Keine Berechtigungen für Entity: ${entity}`);
       return false;
@@ -368,7 +383,7 @@ export class PermissionSystem {
 
   getEntityPermissions(entity) {
     if (!this._normalizedRole) return null;
-    return this.calculatedPermissions?.[entity] || null;
+    return this.calculatedPermissions?.[resolveEntityKey(entity)] || null;
   }
 
   // ============================================

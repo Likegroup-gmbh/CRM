@@ -10,6 +10,13 @@ import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
+import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+
+// Create ist eine Capability, keine Rolle: Investor/Finanzen (intern, view-only)
+// bekommen keinen Anlegen-Button.
+function canCreateListe() {
+  return window.canCreate?.('sourcing') ?? false;
+}
 
 export class CreatorAuswahlList {
   constructor() {
@@ -162,8 +169,7 @@ export class CreatorAuswahlList {
   }
 
   renderCompaniesView() {
-    const isKunde = window.isKunde();
-    const canCreate = !isKunde && (window.isAdmin() || window.currentUser?.permissions?.kampagne?.can_edit);
+    const canCreate = canCreateListe();
 
     return `
       <div class="list-container">
@@ -206,7 +212,7 @@ export class CreatorAuswahlList {
 
   // Einheitlicher Empty-State fuer die Sourcing-Hierarchie (Create-Button nur mit Rechten)
   _sourcingEmptyState(title, icon = 'sourcing') {
-    const canCreate = !window.isKunde() && (window.isAdmin() || window.currentUser?.permissions?.kampagne?.can_edit);
+    const canCreate = canCreateListe();
     return {
       icon,
       title,
@@ -264,7 +270,7 @@ export class CreatorAuswahlList {
 
   renderBrandsView() {
     const isKunde = window.isKunde();
-    const canCreate = !isKunde && (window.isAdmin() || window.currentUser?.permissions?.kampagne?.can_edit);
+    const canCreate = canCreateListe();
     const showBrandsSection = !isKunde || this.brandFolders.length > 0;
     const showCompanyOnlySection = !isKunde || this.companyOnlyItems.length > 0;
 
@@ -351,8 +357,11 @@ export class CreatorAuswahlList {
     };
 
     return items.map((liste) => {
-      const isKunde = window.isKunde();
       const kampagneName = KampagneUtils.getDisplayName(liste.kampagne);
+      // data-name nur am rename-liste-Item: der Drawer liest den aktuellen Namen daraus.
+      const actionsHtml = actionBuilder.create('creator_auswahl_liste', liste.id, null, {
+        dataset: (action) => action.id === 'rename-liste' ? { name: liste.name || '' } : null
+      });
       return `
         <tr class="table-row-clickable" data-liste-id="${liste.id}">
           <td class="col-name">
@@ -365,34 +374,7 @@ export class CreatorAuswahlList {
           <td>${this.sanitize(liste.created_by_user?.name || '-')}</td>
           <td>${formatDate(liste.created_at)}</td>
           <td class="col-actions">
-            <div class="actions-dropdown-container" data-entity-type="creator-auswahl">
-              <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
-                ${icon('dots-vertical-filled')}
-              </button>
-              <div class="actions-dropdown">
-                <a href="#" class="action-item" data-action="view-liste" data-id="${liste.id}">
-                  ${window.ActionsDropdown?.getHeroIcon('view') || ''}
-                  Details anzeigen
-                </a>
-                ${!isKunde ? `
-                  <a href="#" class="action-item" data-action="rename-liste" data-id="${liste.id}" data-name="${this.sanitize(liste.name || '')}">
-                    ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
-                    Name bearbeiten
-                  </a>
-                  <a href="#" class="action-item" data-action="edit-liste" data-id="${liste.id}">
-                    ${window.ActionsDropdown?.getHeroIcon('edit') || ''}
-                    Bearbeiten
-                  </a>
-                  ${window.checkUserPermission('sourcing', 'delete') ? `
-                    <div class="action-separator"></div>
-                    <a href="#" class="action-item action-danger" data-action="delete-liste" data-id="${liste.id}">
-                      ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
-                      Löschen
-                    </a>
-                  ` : ''}
-                ` : ''}
-              </div>
-            </div>
+            ${actionsHtml}
           </td>
         </tr>
       `;
@@ -413,7 +395,7 @@ export class CreatorAuswahlList {
 
   renderItemsView() {
     const isKunde = window.isKunde();
-    const canCreate = !isKunde && (window.isAdmin() || window.currentUser?.permissions?.kampagne?.can_edit);
+    const canCreate = canCreateListe();
     return `
       <div class="list-container">
         <div class="table-filter-wrapper">
@@ -626,6 +608,7 @@ export class CreatorAuswahlList {
       const renameBtn = e.target.closest('[data-action="rename-liste"]');
       if (renameBtn) {
         e.preventDefault();
+        if (!window.canEdit?.('sourcing')) return;
         this.openRenameDrawer(renameBtn.dataset.id, renameBtn.dataset.name);
         return;
       }
@@ -633,6 +616,7 @@ export class CreatorAuswahlList {
       const editBtn = e.target.closest('[data-action="edit-liste"]');
       if (editBtn) {
         e.preventDefault();
+        if (!window.canEdit?.('sourcing')) return;
         window.navigateTo(`/castings/${editBtn.dataset.id}/edit`);
         return;
       }
@@ -640,6 +624,7 @@ export class CreatorAuswahlList {
       const deleteBtn = e.target.closest('[data-action="delete-liste"]');
       if (deleteBtn) {
         e.preventDefault();
+        if (!window.canDelete?.('sourcing')) return;
         this.confirmDeleteListe(deleteBtn.dataset.id);
         return;
       }
@@ -660,6 +645,10 @@ export class CreatorAuswahlList {
   }
 
   async confirmDeleteListe(id) {
+    if (!window.canDelete?.('sourcing')) {
+      window.toastSystem?.show('Sie haben keine Berechtigung für diese Aktion.', 'warning');
+      return;
+    }
     if (window.confirmationModal) {
       const result = await window.confirmationModal.open({
         title: 'Casting-Liste löschen',
@@ -690,6 +679,7 @@ export class CreatorAuswahlList {
   }
 
   openRenameDrawer(listeId, currentName) {
+    if (!window.canEdit?.('sourcing')) return;
     this.closeRenameDrawer();
 
     const overlay = document.createElement('div');

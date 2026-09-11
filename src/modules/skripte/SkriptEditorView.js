@@ -188,7 +188,9 @@ export class SkriptEditorView {
 
   /** Dokument selbst nicht editierbar (kein InlineEdit, keine Visual-Buttons). */
   get isReadonly() {
-    return Boolean(window.isKunde?.());
+    // Intern-only-Tools (Liky, Visual-KI, Generator) haengen hieran: Kunde
+    // wie bisher readonly, interne view-only Rollen (Investor) ebenfalls.
+    return Boolean(window.isKunde?.()) || !(window.canEdit?.('skripte') ?? false);
   }
 
   /**
@@ -201,7 +203,10 @@ export class SkriptEditorView {
    */
   get kannDokumentEditieren() {
     if (window.permissionSystem?.isGast) return window.guestShare?.rechte === 'feedback';
-    return true;
+    // Kunden-Edit laeuft ueber den RPC mit Feld-Whitelist - bleibt unveraendert.
+    if (window.isKunde?.()) return true;
+    // Intern: Capability statt Rolle (Investor ist intern, aber view-only).
+    return window.canEdit?.('skripte') ?? false;
   }
 
   /** Liky-Bubble und die Rewrite-Aktionen im Selektionsmenue: nur intern. */
@@ -222,17 +227,17 @@ export class SkriptEditorView {
 
   /** Threads abhaken bleibt intern (serverseitig zusaetzlich per RPC erzwungen). */
   get kannErledigen() {
-    return Boolean(window.isInternal?.());
+    return Boolean(window.isInternal?.()) && (window.canEdit?.('skripte') ?? false);
   }
 
   /** Teilen-Button im Doc-Kopf: nur intern und nur fuer ein geladenes Skript. */
   get kannTeilen() {
-    return Boolean(window.isInternal?.()) && Boolean(this.skript?.id);
+    return Boolean(window.isInternal?.()) && (window.canEdit?.('skripte') ?? false) && Boolean(this.skript?.id);
   }
 
   /** Creator/Kooperation zuweisen: nur intern. */
   get kannZuweisen() {
-    return Boolean(window.isInternal?.());
+    return Boolean(window.isInternal?.()) && (window.canEdit?.('skripte') ?? false);
   }
 
   // ------------------------------------------------------------------

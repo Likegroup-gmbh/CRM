@@ -91,13 +91,14 @@ export class EntityCustomColumnsManager {
     return renderCustomHeaders(this._grouped().trailing, hiddenColumns, isKunde);
   }
 
-  renderCells(entityId, hiddenColumns, isKunde) {
+  renderCells(entityId, hiddenColumns, isKunde, canEdit = true) {
     return renderCustomCells(
       this._grouped().trailing,
       entityId,
       (eId, uuid) => this.getValue(eId, uuid),
       hiddenColumns,
-      isKunde
+      isKunde,
+      canEdit
     );
   }
 
@@ -109,7 +110,7 @@ export class EntityCustomColumnsManager {
   }
 
   /** Zellen der Spalten, die hinter `anchor` verankert sind. */
-  renderCellsAt(anchor, entityId, hiddenColumns, isKunde) {
+  renderCellsAt(anchor, entityId, hiddenColumns, isKunde, canEdit = true) {
     const cols = this._grouped().byAnchor.get(anchor);
     if (!cols?.length) return '';
     return renderCustomCells(
@@ -117,7 +118,8 @@ export class EntityCustomColumnsManager {
       entityId,
       (eId, uuid) => this.getValue(eId, uuid),
       hiddenColumns,
-      isKunde
+      isKunde,
+      canEdit
     );
   }
 

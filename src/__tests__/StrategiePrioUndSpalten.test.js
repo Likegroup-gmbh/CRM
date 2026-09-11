@@ -18,6 +18,7 @@ const FLAGS = ['prio_1', 'prio_2', 'nicht_umsetzen'];
 function detailStub(overrides = {}) {
   return {
     isKunde: false,
+    canEdit: true,
     hiddenColumns: [],
     customColumns: null,
     items: [],

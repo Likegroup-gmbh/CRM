@@ -121,7 +121,9 @@ export class ActionBuilder {
    * Baut ein einzelnes Action-Item
    * @param {object} action - Die Action-Definition
    * @param {string|number} entityId - Die Entity-ID
-   * @param {object} options - Zusätzliche Optionen (disabledActions, igConnected)
+   * @param {object} options - Zusätzliche Optionen (disabledActions, igConnected, dataset)
+   *   options.dataset: Objekt oder Funktion (action) => Objekt mit zusaetzlichen
+   *   data-*-Attributen (z.B. { name: 'Listenname' } → data-name="...").
    * @returns {string} HTML-String
    */
   buildActionItem(action, entityId, options = {}) {
@@ -139,10 +141,18 @@ export class ActionBuilder {
     const disabledClass = isDisabled ? 'action-disabled' : '';
     const disabledAttr = isDisabled ? 'aria-disabled="true"' : '';
 
+    const extraDataset = typeof options.dataset === 'function' ? options.dataset(action) : options.dataset;
+    const datasetHtml = extraDataset
+      ? Object.entries(extraDataset)
+          .filter(([, value]) => value != null)
+          .map(([key, value]) => ` data-${key}="${this.escapeHtml(value)}"`)
+          .join('')
+      : '';
+
     const icon = this.iconRegistry.get(iconName);
-    
+
     return `
-      <a href="#" class="action-item ${dangerClass} ${disabledClass}" data-action="${action.id}" data-id="${entityId}" ${disabledAttr}>
+      <a href="#" class="action-item ${dangerClass} ${disabledClass}" data-action="${action.id}" data-id="${entityId}"${datasetHtml} ${disabledAttr}>
         ${icon}
         ${label}
       </a>

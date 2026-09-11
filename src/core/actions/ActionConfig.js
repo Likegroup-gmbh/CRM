@@ -144,6 +144,34 @@ export const ActionConfigs = {
     kundenActions: ['view']
   },
 
+  // Casting-Listen auf der Folder-Seite /castings (eigene Action-IDs, die
+  // Handler leben in CreatorAuswahlList bzw. ActionsDropdownHandlers).
+  // entity: Capability-Lookup laeuft auf 'sourcing' (Matrix-Key).
+  creator_auswahl_liste: {
+    entity: 'sourcing',
+    actions: [
+      { id: 'view-liste', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
+      { id: 'rename-liste', icon: 'edit', label: 'Name bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      { id: 'edit-liste', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      { id: 'separator' },
+      { id: 'delete-liste', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
+    ],
+    kundenActions: ['view-liste']
+  },
+
+  // Konzepte auf der Folder-Seite /konzepte (Handler in StrategieListEvents
+  // bzw. ActionsDropdownHandlers).
+  strategie_liste: {
+    entity: 'strategie',
+    actions: [
+      { id: 'view-strategie', icon: 'view', label: 'Details anzeigen', roles: ['all'] },
+      { id: 'edit-strategie', icon: 'edit', label: 'Bearbeiten', roles: ['admin', 'mitarbeiter'] },
+      { id: 'separator' },
+      { id: 'delete-strategie', icon: 'delete', label: 'Löschen', danger: true, roles: ['admin', 'mitarbeiter'] }
+    ],
+    kundenActions: ['view-strategie']
+  },
+
   // Contract Actions (Contracting-Auftraege)
   contract: {
     actions: [
@@ -315,7 +343,7 @@ export const ActionConfigs = {
   }
 };
 
-const VIEW_ACTION_IDS = new Set(['view', 'download', 'quickview']);
+const VIEW_ACTION_IDS = new Set(['view', 'download', 'quickview', 'view-liste', 'view-strategie']);
 
 // Welches Verb eine Action braucht. Default: Write-Actions brauchen can_edit,
 // Löschen braucht can_delete, Create-Subactions (add_*) brauchen can_create.
@@ -324,6 +352,11 @@ const ACTION_VERB = {
   delete: 'delete',
   remove_ansprechpartner_link: 'delete',
   delete_creator_adresse: 'delete',
+  'delete-liste': 'delete',
+  'delete-strategie': 'delete',
+  'rename-liste': 'edit',
+  'edit-liste': 'edit',
+  'edit-strategie': 'edit',
   add_to_list: 'create',
   add_ansprechpartner: 'create',
   add_ansprechpartner_unternehmen: 'create',
@@ -357,7 +390,9 @@ function collapseSeparators(actions) {
 // Capability-Filter: fragt das Berechtigung-Modul, nicht Rollen.
 // Admin bekommt alles; für alle anderen entscheidet can(entity, verb).
 // Sonderfall admin-only (z.B. rechnung.status, mitarbeiter.*) bleibt ueber roles geregelt.
-function filterByCapability(entityType, userRole, actions) {
+// capEntity: Matrix-Key fuer den Lookup — Configs mit eigenem entity-Feld
+// (z.B. creator_auswahl_liste → sourcing) fragen dessen Zeile ab.
+function filterByCapability(entityType, userRole, actions, capEntity = entityType) {
   if (!userRole || userRole === 'admin') return actions;
   const ps = window.permissionSystem;
   if (!ps) return actions;
@@ -373,7 +408,7 @@ function filterByCapability(entityType, userRole, actions) {
 
     const verb = verbFor(action);
     if (verb === null) return true;
-    return ps.can(entityType, verb);
+    return ps.can(capEntity, verb);
   }));
 }
 
@@ -401,13 +436,13 @@ export class ActionConfig {
         ...config,
         actions: filterByCapability(entityType, userRole, config.actions.filter(action =>
           config.kundenActions.includes(action.id) || action.id === 'separator'
-        ))
+        ), config.entity)
       };
     }
 
     // Alle anderen Rollen: Capability-Filter entscheidet, nicht die roles-Liste.
     if (userRole && userRole !== 'admin') {
-      return { ...config, actions: filterByCapability(entityType, userRole, config.actions) };
+      return { ...config, actions: filterByCapability(entityType, userRole, config.actions, config.entity) };
     }
 
     // Admin oder keine Rolle: Alle Actions

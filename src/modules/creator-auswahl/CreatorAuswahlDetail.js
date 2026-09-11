@@ -103,7 +103,7 @@ export class CreatorAuswahlDetail {
         window.breadcrumbSystem.updateDetailLabel(this.liste.name);
       }
 
-      if (this.items.length === 0 && !this.isKunde) {
+      if (this.items.length === 0 && !this.isKunde && this._canSourcing('create')) {
         await this.addDrawer.createInitialEmptyRow();
       }
 
@@ -330,10 +330,14 @@ export class CreatorAuswahlDetail {
 
   // --- Rendering ---
 
+  // Zentrale Capability-Abfrage fuer diese View: Investor (Klasse Finanzen) ist
+  // intern (isKunde=false), aber sourcing.create/edit/delete sind false.
+  _canSourcing(verb) {
+    return window.permissionSystem?.can('sourcing', verb) ?? false;
+  }
+
   getRenderContext() {
-    // Capabilities entscheiden, nicht die Rolle. Investor (Klasse Finanzen) ist
-    // intern (isKunde=false), aber sourcing.create/edit/delete sind false.
-    const can = (verb) => window.permissionSystem?.can('sourcing', verb) ?? false;
+    const can = (verb) => this._canSourcing(verb);
     const canCreate = can('create');
     return {
       items: this.getFilteredItems(),
@@ -365,7 +369,7 @@ export class CreatorAuswahlDetail {
     window.content.innerHTML = html;
     this._updateStickyHeights();
 
-    if (!this.isKunde) {
+    if (!this.isKunde && this._canSourcing('edit')) {
       this.renderBulkBar();
     }
   }
@@ -408,7 +412,7 @@ export class CreatorAuswahlDetail {
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
 
-    if (!this.isKunde) {
+    if (!this.isKunde && (this._canSourcing('edit') || this._canSourcing('create') || this._canSourcing('delete'))) {
       const actionClickHandler = (e) => {
         const actionItem = e.target.closest('[data-action]');
         if (!actionItem) return;
@@ -450,7 +454,7 @@ export class CreatorAuswahlDetail {
       this._boundEventListeners.add(() => document.removeEventListener('click', igFetchHandler));
     }
 
-    if (!this.isKunde) {
+    if (!this.isKunde && this._canSourcing('edit')) {
       this.bindToolbarMenu();
 
       const shareBtn = document.getElementById('btn-share-sourcing');
@@ -957,6 +961,10 @@ export class CreatorAuswahlDetail {
   }
 
   async handleFieldUpdate(element) {
+    // Defense in depth: view-only Rollen (Investor) duerfen keine Feld-Updates
+    // schreiben - Kunden-Felder (feedback_kunde, kunden_feedback) bleiben
+    // ueber den isKunde-Pfad unberuehrt.
+    if (!this.isKunde && !this._canSourcing('edit')) return;
     // Custom-Column-Felder werden separat behandelt (CustomDatePicker nutzt ebenfalls data-field)
     if (element.hasAttribute('data-custom-column-id') || element.getAttribute('data-entity') === 'custom') {
       return;

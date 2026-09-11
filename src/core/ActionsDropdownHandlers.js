@@ -136,7 +136,7 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
       break;
 
     case 'delete-liste':
-      if (entityType === 'creator-auswahl' && window.creatorAuswahlList) {
+      if ((entityType === 'creator-auswahl' || entityType === 'creator_auswahl_liste') && window.creatorAuswahlList) {
         window.creatorAuswahlList.confirmDeleteListe(entityId);
       } else {
         await confirmDelete(entityId, entityType);
@@ -144,7 +144,7 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
       break;
 
     case 'rename-liste':
-      if (entityType === 'creator-auswahl' && window.creatorAuswahlList) {
+      if ((entityType === 'creator-auswahl' || entityType === 'creator_auswahl_liste') && window.creatorAuswahlList) {
         const currentName = actionItem?.dataset?.name || '';
         window.creatorAuswahlList.openRenameDrawer(entityId, currentName);
       }
