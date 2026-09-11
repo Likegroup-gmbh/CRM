@@ -86,12 +86,34 @@ describe('StakeholderOverviewPage', () => {
 
   it('zeigt Zugriffsfehler für Nicht-Admins', async () => {
     window.isAdmin = vi.fn(() => false);
+    window.canViewAccounting = vi.fn(() => false);
     const page = createPage();
     await page.init();
     expect(window.setContentSafely).toHaveBeenCalledWith(
       window.content,
       expect.stringContaining('Kein Zugriff')
     );
+  });
+
+  it('lädt als Investor und blendet Berichtsstand sichern aus', async () => {
+    window.isAdmin = vi.fn(() => false);
+    window.canViewAccounting = vi.fn(() => true);
+    window.supabase = createMockSupabase({
+      berichtsstaende: [{ id: 'b1', created_at: '2026-08-09T10:00:00Z', label: 'Investorenupdate August 2026' }]
+    });
+
+    const page = createPage();
+    await page.init();
+    page.activeView = 'monate';
+    page.render();
+    const html = window.setContentSafely.mock.calls.at(-1)[1];
+
+    expect(window.setHeadline).toHaveBeenCalledWith('Stakeholder-Übersicht');
+    expect(html).toContain('id="stakeholder-bericht-select"');
+    expect(html).toContain('Investorenupdate August 2026');
+    expect(html).not.toContain('stakeholder-bericht-sichern');
+    expect(html).not.toContain('stakeholder-bericht-label');
+    expect(html).not.toContain('data-stakeholder-dq-link');
   });
 
   it('lädt Daten und rendert Karten + Kundenliste', async () => {

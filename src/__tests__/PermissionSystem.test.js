@@ -18,12 +18,13 @@ describe('PermissionSystem', () => {
 
   describe('Rollen-Helper', () => {
     const cases = [
-      ['admin',        { isAdmin: true,  isKunde: false, isKundeEditor: false, isMitarbeiter: false, isPending: false, isInternal: true }],
-      ['mitarbeiter',  { isAdmin: false, isKunde: false, isKundeEditor: false, isMitarbeiter: true,  isPending: false, isInternal: true }],
-      ['kunde',        { isAdmin: false, isKunde: true,  isKundeEditor: false, isMitarbeiter: false, isPending: false, isInternal: false }],
-      ['kunde_editor', { isAdmin: false, isKunde: true,  isKundeEditor: true,  isMitarbeiter: false, isPending: false, isInternal: false }],
-      ['pending',      { isAdmin: false, isKunde: false, isKundeEditor: false, isMitarbeiter: false, isPending: true,  isInternal: false }],
-      ['gast',         { isAdmin: false, isKunde: true,  isKundeEditor: false, isMitarbeiter: false, isPending: false, isInternal: false }],
+      ['admin',        { isAdmin: true,  isKunde: false, isKundeEditor: false, isMitarbeiter: false, isInvestor: false, isPending: false, isInternal: true }],
+      ['mitarbeiter',  { isAdmin: false, isKunde: false, isKundeEditor: false, isMitarbeiter: true,  isInvestor: false, isPending: false, isInternal: true }],
+      ['kunde',        { isAdmin: false, isKunde: true,  isKundeEditor: false, isMitarbeiter: false, isInvestor: false, isPending: false, isInternal: false }],
+      ['kunde_editor', { isAdmin: false, isKunde: true,  isKundeEditor: true,  isMitarbeiter: false, isInvestor: false, isPending: false, isInternal: false }],
+      ['pending',      { isAdmin: false, isKunde: false, isKundeEditor: false, isMitarbeiter: false, isInvestor: false, isPending: true,  isInternal: false }],
+      ['gast',         { isAdmin: false, isKunde: true,  isKundeEditor: false, isMitarbeiter: false, isInvestor: false, isPending: false, isInternal: false }],
+      ['investor',     { isAdmin: false, isKunde: false, isKundeEditor: false, isMitarbeiter: false, isInvestor: true,  isPending: false, isInternal: false }],
     ];
 
     it.each(cases)('Rolle "%s" liefert korrekte Helper-Werte', (rolle, expected) => {
@@ -33,6 +34,7 @@ describe('PermissionSystem', () => {
       expect(ps.isKunde).toBe(expected.isKunde);
       expect(ps.isKundeEditor).toBe(expected.isKundeEditor);
       expect(ps.isMitarbeiter).toBe(expected.isMitarbeiter);
+      expect(ps.isInvestor).toBe(expected.isInvestor);
       expect(ps.isPending).toBe(expected.isPending);
       expect(ps.isInternal).toBe(expected.isInternal);
     });
@@ -74,6 +76,18 @@ describe('PermissionSystem', () => {
       ps.setUserPermissions(makeUser('kunde_editor'));
       expect(ps.canSeePricing).toBe(false);
       expect(ps.canBulkDelete).toBe(false);
+    });
+
+    it('Investor sieht Accounting und Preise, legt kein Projekt an', () => {
+      ps.setUserPermissions(makeUser('investor'));
+      expect(ps.canSeePricing).toBe(true);
+      expect(ps.canViewAccounting).toBe(true);
+      expect(ps.canViewContracts).toBe(true);
+      expect(ps.isUnscoped).toBe(true);
+      expect(ps.canManageStaff).toBe(false);
+      expect(ps.canBulkDelete).toBe(false);
+      expect(ps.canCreateProject).toBe(false);
+      expect(ps.isInternal).toBe(false);
     });
   });
 
@@ -164,6 +178,19 @@ describe('PermissionSystem', () => {
       expect(ps.checkPermission('dashboard', 'view')).toBe(true);
       expect(ps.checkPermission('feedback', 'view')).toBe(true);
       expect(ps.checkPermission('kampagne', 'view')).toBe(false);
+    });
+
+    it('Investor sieht Entities, aber nicht edit/delete und keine Verwaltung', () => {
+      ps.setUserPermissions(makeUser('investor'));
+      expect(ps.checkPermission('kampagne', 'view')).toBe(true);
+      expect(ps.checkPermission('kampagne', 'edit')).toBe(false);
+      expect(ps.checkPermission('kampagne', 'delete')).toBe(false);
+      expect(ps.checkPermission('auftrag', 'view')).toBe(true);
+      expect(ps.checkPermission('rechnung', 'view')).toBe(true);
+      expect(ps.checkPermission('rechnung', 'edit')).toBe(false);
+      expect(ps.checkPermission('unternehmen', 'view')).toBe(true);
+      expect(ps.checkPermission('mitarbeiter', 'view')).toBe(false);
+      expect(ps.checkPermission('kunden-admin', 'view')).toBe(false);
     });
 
     it('Gast sieht geteilte Entitäten, sonst nichts', () => {
@@ -329,6 +356,19 @@ describe('Window-Exports (Singleton)', () => {
     permissionSystem.setUserPermissions(makeUser('mitarbeiter'));
     expect(window.isMitarbeiter()).toBe(true);
     expect(window.isInternal()).toBe(true);
+  });
+
+  it('window.isInvestor() und canViewAccounting delegieren an Singleton', () => {
+    permissionSystem.setUserPermissions(makeUser('investor'));
+    expect(window.isInvestor()).toBe(true);
+    expect(window.canViewAccounting()).toBe(true);
+    expect(window.canSeePricing()).toBe(true);
+    expect(window.canCreateProject()).toBe(false);
+    expect(window.isInternal()).toBe(false);
+
+    permissionSystem.setUserPermissions(makeUser('admin'));
+    expect(window.isInvestor()).toBe(false);
+    expect(window.canViewAccounting()).toBe(true);
   });
 
   it('window.canSeePricing() ist false fuer Kunden', () => {

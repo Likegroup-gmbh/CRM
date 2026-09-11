@@ -55,7 +55,7 @@ export function bindMitarbeiterDetail(detail) {
 
         if (isFreigeschaltet) {
           if (detail.user.rolle === 'pending') updateData.rolle = 'mitarbeiter';
-        } else {
+        } else if (detail.user.rolle !== 'admin' && detail.user.rolle !== 'investor') {
           updateData.rolle = 'pending';
           updateData.zugriffsrechte = null;
         }

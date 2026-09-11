@@ -52,6 +52,13 @@ const BASE_PERMISSIONS = {
     sourcing:    { ...V },
     contracts:   { ...V },
   },
+
+  // Investor: volle Plattform lesen, ohne Schreiben und ohne Verwaltung.
+  investor: {
+    ...allOf(V),
+    mitarbeiter:    { ...F },
+    'kunden-admin': { ...F },
+  },
 };
 
 // kunde_editor ist aktuell identisch mit kunde; spaeter koennen hier Abweichungen definiert werden
@@ -120,18 +127,20 @@ export class PermissionSystem {
   get isGastReadonly() { return this.isGast && window.guestShare?.rechte !== 'feedback'; }
   get isKundeEditor() { return this._normalizedRole === 'kunde_editor'; }
   get isMitarbeiter() { return this._normalizedRole === 'mitarbeiter'; }
+  get isInvestor()    { return this._normalizedRole === 'investor'; }
   get isPending()     { return this._normalizedRole === 'pending'; }
   get isInternal()    { return this.isAdmin || this.isMitarbeiter; }
-  get isUnscoped()    { return this.isAdmin || this.isKunde || this._usesKlassePreset; }
+  get isUnscoped()    { return this.isAdmin || this.isKunde || this.isInvestor || this._usesKlassePreset; }
 
   // Feature-basierte Checks (Capabilities)
-  get canSeePricing()      { return this.isInternal; }
+  get canSeePricing()      { return this.isInternal || this.isInvestor; }
   get canManageStaff()     { return this.isAdmin; }
   get canBulkDelete()      { return this.isInternal && !this._usesKlassePreset; }
   get canCreateProject()   { return this.isInternal && !this._usesKlassePreset; }
   get canUseGlobalSearch() { return !this.isPending; }
+  get canViewAccounting()  { return this.isAdmin || this.isInvestor; }
   get canViewContracts() {
-    if (this.isAdmin) return true;
+    if (this.isAdmin || this.isInvestor) return true;
     if (this.isKunde) return !!window.currentUser?.contracting_sicht;
     return false;
   }
@@ -366,6 +375,7 @@ if (typeof window !== 'undefined') {
   window.isGastReadonly = () => permissionSystem.isGastReadonly;
   window.isKundeEditor  = () => permissionSystem.isKundeEditor;
   window.isMitarbeiter  = () => permissionSystem.isMitarbeiter;
+  window.isInvestor     = () => permissionSystem.isInvestor;
   window.isPending      = () => permissionSystem.isPending;
   window.isInternal     = () => permissionSystem.isInternal;
   window.isUnscoped     = () => permissionSystem.isUnscoped;
@@ -376,6 +386,7 @@ if (typeof window !== 'undefined') {
   window.canBulkDelete      = () => permissionSystem.canBulkDelete;
   window.canCreateProject   = () => permissionSystem.canCreateProject;
   window.canUseGlobalSearch = () => permissionSystem.canUseGlobalSearch;
+  window.canViewAccounting  = () => permissionSystem.canViewAccounting;
   window.canViewContracts   = () => permissionSystem.canViewContracts;
 
   window.permissionSystem = permissionSystem;

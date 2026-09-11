@@ -1,5 +1,5 @@
 // DatenqualitaetPage.js
-// Datenqualitaetsanzeige im Adminbereich (PRD Schritt 9): Liste der
+// Datenqualitaetsanzeige im Accounting-Bereich (PRD Schritt 9): Liste der
 // Kampagnen mit Pflegegrad, aufklappbar zu den konkreten Maengeln,
 // sortiert nach betroffenem Geldvolumen. Die Rechenlogik liegt in
 // core/budget/datenqualitaet.js — diese Seite laedt nur und rendert.

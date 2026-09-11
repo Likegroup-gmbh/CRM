@@ -532,7 +532,7 @@ export class KundenDetail extends PersonDetailBase {
     this.clickHandler = async (e) => {
       if (e.target && e.target.id === 'btn-back-kunden') {
         e.preventDefault();
-        window.navigateTo('/admin/kunden');
+        window.navigateTo('/kunden-admin');
         return;
       }
 

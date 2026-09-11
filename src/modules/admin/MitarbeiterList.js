@@ -79,7 +79,7 @@ export class MitarbeiterList {
           this.rows = (fallback || []).map(r => ({
             ...r,
             email: '—',
-            freigeschaltet: r.rolle === 'admin' // Default: Admins sind freigeschaltet
+            freigeschaltet: r.rolle === 'admin' || r.rolle === 'investor'
           }));
         } else {
           this.rows = data || [];
@@ -102,10 +102,13 @@ export class MitarbeiterList {
     return user?.name || 'Unbekannt';
   }
 
-  // Rolle anzeigen: Admin wenn admin, sonst Mitarbeiter-Klasse
+  // Rolle anzeigen: Systemrolle, sonst Mitarbeiter-Klasse
   getRolleDisplay(user) {
     if (user.rolle === 'admin') {
       return `<div class="tags tags-compact"><span class="tag">Admin</span></div>`;
+    }
+    if (user.rolle === 'investor') {
+      return `<div class="tags tags-compact"><span class="tag">Investoren</span></div>`;
     }
     if (user.mitarbeiter_klasse?.name) {
       return `<div class="tags tags-compact"><span class="tag">${window.validatorSystem.sanitizeHtml(user.mitarbeiter_klasse.name)}</span></div>`;
@@ -151,15 +154,16 @@ export class MitarbeiterList {
     // Hierarchie-Reihenfolge definieren
     const hierarchie = [
       { key: 'admin', label: 'Admin', filter: u => u.rolle === 'admin' },
-      { key: 'Management', label: 'Management', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Management' },
-      { key: 'Lead', label: 'Lead', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Lead' },
-      { key: 'Projektmanagement', label: 'Projektmanagement', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Projektmanagement' },
-      { key: 'Strategie', label: 'Strategie', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Strategie' },
-      { key: 'Copywriter', label: 'Copywriter', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Copywriter' },
-      { key: 'Cutter', label: 'Cutter', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Cutter' },
-      { key: 'Back-Office-Buchhaltung', label: 'Back-Office-Buchhaltung', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Back-Office-Buchhaltung' },
-      { key: 'Finanzen', label: 'Finanzen', filter: u => u.rolle !== 'admin' && u.mitarbeiter_klasse?.name === 'Finanzen' },
-      { key: 'ohne', label: 'Ohne Rolle', filter: u => u.rolle !== 'admin' && !u.mitarbeiter_klasse?.name }
+      { key: 'investor', label: 'Investoren', filter: u => u.rolle === 'investor' },
+      { key: 'Management', label: 'Management', filter: u => u.rolle !== 'admin' && u.rolle !== 'investor' && u.mitarbeiter_klasse?.name === 'Management' },
+      { key: 'Lead', label: 'Lead', filter: u => u.rolle !== 'admin' && u.rolle !== 'investor' && u.mitarbeiter_klasse?.name === 'Lead' },
+      { key: 'Projektmanagement', label: 'Projektmanagement', filter: u => u.rolle !== 'admin' && u.rolle !== 'investor' && u.mitarbeiter_klasse?.name === 'Projektmanagement' },
+      { key: 'Strategie', label: 'Strategie', filter: u => u.rolle !== 'admin' && u.rolle !== 'investor' && u.mitarbeiter_klasse?.name === 'Strategie' },
+      { key: 'Copywriter', label: 'Copywriter', filter: u => u.rolle !== 'admin' && u.rolle !== 'investor' && u.mitarbeiter_klasse?.name === 'Copywriter' },
+      { key: 'Cutter', label: 'Cutter', filter: u => u.rolle !== 'admin' && u.rolle !== 'investor' && u.mitarbeiter_klasse?.name === 'Cutter' },
+      { key: 'Back-Office-Buchhaltung', label: 'Back-Office-Buchhaltung', filter: u => u.rolle !== 'admin' && u.rolle !== 'investor' && u.mitarbeiter_klasse?.name === 'Back-Office-Buchhaltung' },
+      { key: 'Finanzen', label: 'Finanzen', filter: u => u.rolle !== 'admin' && u.rolle !== 'investor' && u.mitarbeiter_klasse?.name === 'Finanzen' },
+      { key: 'ohne', label: 'Ohne Rolle', filter: u => u.rolle !== 'admin' && u.rolle !== 'investor' && !u.mitarbeiter_klasse?.name }
     ];
 
     // Gruppierte Tabellen-Sektionen erstellen
@@ -227,9 +231,17 @@ export class MitarbeiterList {
 
   // Render Aktionsmenü für Mitarbeiter
   renderActionsMenu(user) {
+    const klassenOptions = this.mitarbeiterKlassen.map(k => ({ id: k.id, name: k.name }));
+    const statusOptions = [
+      { id: '__investor__', name: 'Investoren' },
+      ...klassenOptions
+    ];
+    const currentStatus = user.rolle === 'investor'
+      ? { id: '__investor__', name: 'Investoren' }
+      : (user.mitarbeiter_klasse ? { id: user.mitarbeiter_klasse.id, name: user.mitarbeiter_klasse.name } : null);
     return actionBuilder.create('mitarbeiter', user.id, null, {
-      statusOptions: this.mitarbeiterKlassen.map(k => ({ id: k.id, name: k.name })),
-      currentStatus: user.mitarbeiter_klasse ? { id: user.mitarbeiter_klasse.id, name: user.mitarbeiter_klasse.name } : null
+      statusOptions,
+      currentStatus
     });
   }
 

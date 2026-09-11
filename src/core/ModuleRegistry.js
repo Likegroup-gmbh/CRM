@@ -110,26 +110,47 @@ export class ModuleRegistry {
     }
 
     // Pfad vor den Alias-Rewrites merken: die Navigations-Bereichswahl
-    // (Haupt- vs. Adminbereich) haengt am sichtbaren Pfad, nicht am
-    // internen Modul-Namen (z. B. /admin/kunden -> kunden-admin).
+    // (Haupt- vs. Accounting-Bereich) haengt am sichtbaren Pfad, nicht am
+    // internen Modul-Namen (z. B. /admin/auftrag -> /auftrag).
     const navPath = String(route || '').split(/[?#]/)[0];
 
     try {
-      // Admin-Nav-Punkte liegen unter /admin/..., die Module selbst aber
-      // unter ihrem bisherigen Pfad. Rewrite nur fuer diese Aliase —
-      // /admin und /admin/datenqualitaet bleiben bei der Admin-Huelle.
-      // navPath oben bleibt der sichtbare /admin-Pfad, damit die Sidebar
-      // im Adminbereich bleibt.
-      const ADMIN_ALIASES = {
+      // Weggezogene Admin-Seiten: URL auf den Hauptpfad ziehen, sonst
+      // bleibt die Sidebar im Accounting-Bereich.
+      const ADMIN_MOVED = {
         kunden: '/kunden-admin',
-        stakeholder: '/stakeholder',
         mitarbeiter: '/mitarbeiter',
         shares: '/shares',
         'ki-usage': '/ki-usage',
         unternehmen: '/unternehmen',
       };
+      // Accounting-Nav-Punkte unter /admin/..., Module unter ihrem
+      // bisherigen Pfad. /admin und /admin/datenqualitaet: Dashboard
+      // wird unten auf Stakeholder umgeschrieben, Datenqualitaet bleibt
+      // bei der Admin-Huelle. navPath bleibt der sichtbare /admin-Pfad.
+      const ADMIN_ALIASES = {
+        dashboard: '/stakeholder',
+        stakeholder: '/stakeholder',
+        'projekt-erstellen': '/projekt-erstellen',
+        auftrag: '/auftrag',
+        ausgangsrechnungen: '/ausgangsrechnungen',
+        rechnung: '/rechnung',
+      };
       const adminAlias = String(route || '').match(/^\/admin\/([^/?#]+)(.*)$/);
-      if (adminAlias && ADMIN_ALIASES[adminAlias[1]]) {
+      if (adminAlias && ADMIN_MOVED[adminAlias[1]]) {
+        const dest = ADMIN_MOVED[adminAlias[1]] + adminAlias[2];
+        try {
+          if (window.history?.replaceState) {
+            window.history.replaceState({ route: dest }, '', dest);
+          }
+        } catch (err) {
+          console.warn('⚠️ History replaceState fehlgeschlagen:', err?.message);
+        }
+        return this._doNavigate(dest, true);
+      }
+      if (navPath === '/admin' || navPath === '/admin/') {
+        route = '/stakeholder';
+      } else if (adminAlias && ADMIN_ALIASES[adminAlias[1]]) {
         route = ADMIN_ALIASES[adminAlias[1]] + adminAlias[2];
       } else if (route === '/kunde' || route.startsWith('/kunde/')) {
         // Aktionsmenü baut /kunde/:id(/edit) — das Modul heißt kunden-admin / kunden-detail.
@@ -209,7 +230,7 @@ export class ModuleRegistry {
       window.breadcrumbSystem.setFromRoute(segment, id || null, { action: action || null });
     }
 
-    // Navigationsbereich (Haupt-Navigation vs. Adminbereich) mit der Route
+    // Navigationsbereich (Haupt-Navigation vs. Accounting-Bereich) mit der Route
     // synchronisieren — auch bei Header-Buttons und Browser-Zurueck, die
     // nicht durch das NavigationSystem selbst laufen.
     window.navigationSystem?.syncWithRoute?.(navPath);

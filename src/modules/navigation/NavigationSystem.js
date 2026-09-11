@@ -18,25 +18,19 @@ export class NavigationSystem {
         ]
       },
       {
-        title: null,
+        title: 'Kundendaten',
         items: [
-          { id: 'projekt-erstellen', label: 'Projekt anlegen', icon: 'projekt-erstellen', url: '/projekt-erstellen' }
+          { id: 'unternehmen', label: 'Unternehmen', icon: 'unternehmen', url: '/unternehmen' },
+          { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'ansprechpartner', url: '/ansprechpartner' },
+          { id: 'persona', label: 'Personas', icon: 'persona', url: '/persona' },
+          { id: 'produkt', label: 'Produkte', icon: 'produkt', url: '/produkt' }
         ]
       },
       {
-        title: 'Stammdaten',
+        title: 'Creatordaten',
         items: [
-          { id: 'unternehmen', label: 'Unternehmen', icon: 'unternehmen', url: '/unternehmen' },
-          { id: 'persona', label: 'Personas', icon: 'persona', url: '/persona' },
-          { id: 'produkt', label: 'Produkte', icon: 'produkt', url: '/produkt' },
-          { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'ansprechpartner', url: '/ansprechpartner' },
-          {
-            id: 'management',
-            label: 'Management',
-            icon: 'management',
-            url: '/management'
-          },
-          { id: 'creator', label: 'Creator', icon: 'creator', url: '/creator' }
+          { id: 'creator', label: 'Creator', icon: 'creator', url: '/creator' },
+          { id: 'management', label: 'Management', icon: 'management', url: '/management' }
         ]
       },
       {
@@ -44,22 +38,15 @@ export class NavigationSystem {
         items: [
           { id: 'auftrag', label: 'Aufträge', icon: 'auftrag', url: '/auftrag' },
           { id: 'ausgangsrechnungen', label: 'Kundenrechnungen', icon: 'ausgangsrechnungen', url: '/ausgangsrechnungen' },
-          { id: 'auftragsdetails', label: 'Auftragsdetails', icon: 'auftragsdetails', url: '/auftragsdetails' }
-        ]
-      },
-      {
-        title: 'Content & Konzepte',
-        items: [
-          // Ausgeblendet, kommt später wieder:
-          // { id: 'kickoff', label: 'Kick-Off', icon: 'kickoff', url: '/kickoff' },
+          { id: 'auftragsdetails', label: 'Auftragsdetails', icon: 'auftragsdetails', url: '/auftragsdetails' },
           { id: 'briefing', label: 'Briefings', icon: 'briefing', url: '/briefing' },
           { id: 'sourcing', label: 'Castings', icon: 'sourcing', url: '/castings' },
           { id: 'strategie', label: 'Konzepte', icon: 'strategie', url: '/konzepte' },
           { id: 'skripte', label: 'Skripte', icon: 'skripte', url: '/skripte' },
           { id: 'kampagne', label: 'Kampagnen', icon: 'kampagne', url: '/kampagne' },
           { id: 'vertraege', label: 'Verträge', icon: 'vertraege', url: '/vertraege' },
-          { id: 'videos', label: 'Videos', icon: 'videos', url: '/videos' },
-          { id: 'rechnung', label: 'Rechnung', icon: 'rechnung', url: '/rechnung' }
+          { id: 'rechnung', label: 'Rechnung', icon: 'rechnung', url: '/rechnung' },
+          { id: 'videos', label: 'Videos', icon: 'videos', url: '/videos' }
         ]
       },
       // Ausgeblendet, aber nicht entfernt:
@@ -70,28 +57,34 @@ export class NavigationSystem {
       //   ]
       // },
       {
+        title: 'Verwaltung',
+        items: [
+          { id: 'mitarbeiter', label: 'Mitarbeiter', icon: 'mitarbeiter', url: '/mitarbeiter' },
+          { id: 'kunden-admin', label: 'Kunden', icon: 'kunden-admin', url: '/kunden-admin' }
+        ]
+      },
+      {
         title: 'Feedback',
         items: [
-          { id: 'feedback', label: 'Feedback', icon: 'feedback', url: '/feedback' }
+          { id: 'feedback', label: 'Feedback', icon: 'feedback', url: '/feedback' },
+          { id: 'shares', label: 'Geteilte Listen', icon: 'shares', url: '/shares' },
+          { id: 'ki-usage', label: 'KI-Nutzung', icon: 'ki-usage', url: '/ki-usage' }
         ]
       }
     ];
 
-    // Adminbereich (PRD Schritt 8): reduzierte Navigation, die nur die fuer
-    // die Administration relevanten Punkte zeigt. Aktiv auf /admin-Routen;
-    // die Huelle legt nur Navigation + Route an, die vollstaendige
-    // Herunterbrechung aller Seiten ist bewusst out of scope.
+    // Accounting-Bereich: reduzierte Navigation fuer Zahlen und Auftrag.
+    // Aktiv auf /admin-Routen; die volle App liegt in der Hauptnav.
     this.adminSections = [
       {
-        title: 'Adminbereich',
+        title: 'Accounting',
         items: [
+          { id: 'stakeholder', label: 'Dashboard', icon: 'stakeholder', url: '/admin' },
           { id: 'admin-datenqualitaet', label: 'Datenqualität', icon: 'admin-datenqualitaet', url: '/admin/datenqualitaet' },
-          { id: 'stakeholder', label: 'Stakeholder', icon: 'stakeholder', url: '/admin/stakeholder' },
-          { id: 'mitarbeiter', label: 'Mitarbeiter', icon: 'mitarbeiter', url: '/admin/mitarbeiter' },
-          { id: 'kunden-admin', label: 'Kunden', icon: 'kunden-admin', url: '/admin/kunden' },
-          { id: 'unternehmen', label: 'Unternehmen', icon: 'unternehmen', url: '/admin/unternehmen' },
-          { id: 'shares', label: 'Geteilte Listen', icon: 'shares', url: '/admin/shares' },
-          { id: 'ki-usage', label: 'KI-Nutzung', icon: 'ki-usage', url: '/admin/ki-usage' }
+          { id: 'projekt-erstellen', label: 'Projekt anlegen', icon: 'projekt-erstellen', url: '/admin/projekt-erstellen' },
+          { id: 'auftrag', label: 'Aufträge', icon: 'auftrag', url: '/admin/auftrag' },
+          { id: 'ausgangsrechnungen', label: 'Kundenrechnungen', icon: 'ausgangsrechnungen', url: '/admin/ausgangsrechnungen' },
+          { id: 'rechnung', label: 'Creatorrechnungen', icon: 'rechnung', url: '/admin/rechnung' }
         ]
       },
       {
@@ -106,10 +99,16 @@ export class NavigationSystem {
     this.area = 'main';
   }
 
-  // Der Adminbereich haengt am Pfad-Praefix, nicht an einem Nav-State —
+  // Der Accounting-Bereich haengt am Pfad-Praefix, nicht an einem Nav-State —
   // so ueberlebt die Bereichswahl Reload und Browser-Zurueck.
   static areaForRoute(route) {
     return String(route || '').startsWith('/admin') ? 'admin' : 'main';
+  }
+
+  static isAccountingDashboard(route) {
+    const path = String(route || '').split(/[?#]/)[0];
+    return path === '/admin' || path === '/admin/'
+      || path === '/admin/dashboard' || path === '/admin/stakeholder';
   }
 
   // Wird von der ModuleRegistry nach jeder Navigation aufgerufen: wechselt
@@ -121,9 +120,9 @@ export class NavigationSystem {
       // der aktiven Route auf das frische DOM.
       this.renderNavigation(route);
     }
-    // /admin ohne Unterseite zeigt die Datenqualitaet — Nav-Punkt mitmarkieren.
-    const effective = area === 'admin' && (route === '/admin' || route === '/admin/')
-      ? '/admin/datenqualitaet'
+    // /admin, /admin/dashboard und /admin/stakeholder sind dasselbe Dashboard.
+    const effective = area === 'admin' && NavigationSystem.isAccountingDashboard(route)
+      ? '/admin'
       : route;
     this.updateActiveRoute(effective);
   }
@@ -145,6 +144,20 @@ export class NavigationSystem {
       // Dashboard ist immer für alle eingeloggten User sichtbar
       if (id === 'dashboard') {
         return true;
+      }
+
+      // Accounting-Nav (ausser Zurück zur App): Admins und Investoren.
+      // Datenqualität und Projekt anlegen bleiben Admin bzw. interne Schreibrechte.
+      if (this.area === 'admin') {
+        if (id === 'admin-datenqualitaet') {
+          return typeof window.isAdmin === 'function' && window.isAdmin();
+        }
+        if (id === 'projekt-erstellen') {
+          return (typeof window.canCreateProject === 'function' && window.canCreateProject())
+            || (typeof window.isAdmin === 'function' && window.isAdmin());
+        }
+        return (typeof window.canViewAccounting === 'function' && window.canViewAccounting())
+          || (typeof window.isAdmin === 'function' && window.isAdmin());
       }
       
       // Nicht freigeschaltete Benutzer dürfen nur das Dashboard sehen
@@ -168,9 +181,10 @@ export class NavigationSystem {
         return typeof window.isAdmin === 'function' && window.isAdmin();
       }
 
-      // Stakeholder-Uebersicht: nur Admins
+      // Stakeholder-Uebersicht: Admins und Investoren
       if (id === 'stakeholder') {
-        return typeof window.isAdmin === 'function' && window.isAdmin();
+        return (typeof window.canViewAccounting === 'function' && window.canViewAccounting())
+          || (typeof window.isAdmin === 'function' && window.isAdmin());
       }
 
       // 1) Page-Scoped Check (DB-Overrides)

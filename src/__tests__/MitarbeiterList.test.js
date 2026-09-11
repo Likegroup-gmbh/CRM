@@ -104,4 +104,34 @@ describe('MitarbeiterList', () => {
     expect(window.content.innerHTML).toContain('Finanzen');
     expect(window.content.innerHTML).toContain('Fay');
   });
+
+  it('gruppiert Investoren und zeigt die Rolle Investoren', async () => {
+    window.content = document.createElement('div');
+    window.setContentSafely = (el, html) => { el.innerHTML = html; };
+
+    const list = new MitarbeiterList();
+    list.rows = [{
+      id: 'i1',
+      vorname: 'Ina',
+      nachname: 'Vestor',
+      email: 'ina@example.com',
+      rolle: 'investor',
+      freigeschaltet: true
+    }, {
+      id: 'p1',
+      vorname: 'Paul',
+      nachname: 'Ending',
+      email: 'paul@example.com',
+      rolle: 'pending',
+      freigeschaltet: false
+    }];
+
+    await list.render();
+
+    expect(window.content.innerHTML).toContain('Investoren');
+    expect(window.content.innerHTML).toContain('Ina');
+    expect(list.getRolleDisplay(list.rows[0])).toContain('Investoren');
+    expect(window.content.innerHTML).toContain('Ohne Rolle');
+    expect(window.content.innerHTML).toContain('Paul');
+  });
 });
