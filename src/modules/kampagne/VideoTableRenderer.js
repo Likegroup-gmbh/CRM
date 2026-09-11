@@ -596,19 +596,24 @@ export class VideoTableRenderer {
   _renderActionsInner(c) {
     const t = c.t;
     const koop = c.koop;
+    const canEdit = window.permissionSystem?.canEdit('kooperation') ?? false;
+    const canDelete = t.canDeleteKooperation();
+    if (!canEdit && !canDelete) return '';
     return `
       <div class="actions-dropdown-container" data-entity-type="kooperation">
         <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
           ${icon('dots-grid', { className: 'w-5 h-5' })}
         </button>
         <div class="actions-dropdown">
-          ${this.renderActionStatusSubmenu(koop)}
+          ${canEdit ? this.renderActionStatusSubmenu(koop) : ''}
+          ${canEdit ? `
           <a href="#" class="action-item" data-action="edit" data-id="${koop.id}" data-return-to="/kampagne/${t.kampagneId}">
             ${icon('pencil-square', { className: 'w-4 h-4' })}
             Bearbeiten
           </a>
-          ${this.renderCreatorUploadItems(koop)}
-          ${t.canDeleteKooperation() ? `
+          ` : ''}
+          ${canEdit ? this.renderCreatorUploadItems(koop) : ''}
+          ${canDelete ? `
             <div class="action-separator"></div>
             <a href="#" class="action-item action-danger" data-action="delete" data-id="${koop.id}">
               ${icon('trash-alt', { className: 'w-4 h-4' })}

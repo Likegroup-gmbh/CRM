@@ -8,7 +8,7 @@
 // in den jeweiligen Detailseiten (Links in den aufgeklappten Maengeln).
 
 import { calculateDatenqualitaet, DATENQUALITAET_PRUEFUNGEN } from '../../core/budget/datenqualitaet.js';
-import { fetchAllRows } from '../../core/fetchAllRows.js';
+import { loadFinanzbestand } from '../../core/budget/finanzbestand.js';
 import { escapeHtml, formatEuro } from '../../core/format.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
@@ -52,38 +52,9 @@ export class DatenqualitaetPage {
 
   async loadData() {
     const supabase = SUPABASE();
-    if (!supabase) throw new Error('Supabase nicht verfügbar');
-
-    // Seitenweise laden (fetchAllRows), damit nichts am PostgREST-Limit
-    // verloren geht — dieselbe Konvention wie in der Stakeholder-Uebersicht.
-    const [auftraege, blocks, kampagnen, kooperationen, videos, rechnungen, creators] = await Promise.all([
-      fetchAllRows(supabase, 'auftrag',
-        'id, auftragsname, titel, nettobetrag, auftragtype, is_draft'),
-      fetchAllRows(supabase, 'auftrag_kampagnenart_blocks',
-        'id, auftrag_id, campaign_type, umsatz_netto'),
-      fetchAllRows(supabase, 'kampagne',
-        'id, kampagnenname, auftrag_id'),
-      fetchAllRows(supabase, 'kooperationen',
-        'id, kampagne_id, creator_id, einkaufspreis_netto, ksk_selbstzahler, ksk_betrag'),
-      fetchAllRows(supabase, 'kooperation_videos',
-        'id, kooperation_id, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, titel, video_name'),
-      fetchAllRows(supabase, 'rechnung',
-        'id, kooperation_id, auftrag_id, kampagne_id, nettobetrag, nettobetrag_steuerfrei, gestellt_am, rechnung_nr'),
-      fetchAllRows(supabase, 'creator',
-        'id, vorname, nachname'),
-    ]);
-
-    this.data = {
-      // Entwuerfe werden hier herausgefiltert; das Kernmodul erwartet
-      // bereits gefilterte Auftraege (Konvention wie Monatsauswertung).
-      auftraege: (auftraege || []).filter(a => a.is_draft !== true),
-      blocks: blocks || [],
-      kampagnen: kampagnen || [],
-      kooperationen: kooperationen || [],
-      videos: videos || [],
-      rechnungen: rechnungen || [],
-      creators: creators || [],
-    };
+    // Finanzbestand teilt sich Datenqualitaet und Stakeholder: die Selects
+    // und die Pagination sitzen dort, nicht in der Page.
+    this.data = await loadFinanzbestand(supabase);
   }
 
   // ---------- Helpers ----------

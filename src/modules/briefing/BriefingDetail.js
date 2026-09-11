@@ -1,11 +1,11 @@
 // BriefingDetail.js (ES6-Modul)
-// Read-only-Dokumentansicht eines Campaign Briefings (campaign_briefings).
+// Dokumentansicht eines Campaign Briefings (campaign_briefings).
 // Rendert die Inhalte datengetrieben aus fieldConfig.js (gleiche
-// Step-/Section-Struktur wie der Generator). Bearbeiten oeffnet den
-// Generator im Edit-Modus (/briefing/:id/edit).
+// Step-/Section-Struktur wie der Generator). Textareas sind inline
+// editierbar; Specs/Tags gehen weiter ueber /briefing/:id/edit.
 
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
-import { renderBriefingDoc } from './BriefingDocView.js';
+import { renderBriefingDoc, bindBriefingDoc } from './BriefingDocView.js';
 import { loadBriefingProdukte } from './BriefingProdukte.js';
 
 export class BriefingDetail {
@@ -14,6 +14,11 @@ export class BriefingDetail {
     this.briefing = null;
     this.compactView = true;
     this._abortController = null;
+    this._docHandle = null;
+  }
+
+  canEdit() {
+    return Boolean(window.isAdmin?.() || window.currentUser?.permissions?.briefing?.can_edit);
   }
 
   async init(briefingId) {
@@ -27,10 +32,9 @@ export class BriefingDetail {
       await this.loadData();
 
       if (window.breadcrumbSystem && this.briefing) {
-        const canEdit = window.isAdmin() || window.currentUser?.permissions?.briefing?.can_edit;
         window.breadcrumbSystem.updateDetailLabel(this.briefing.aktivierung_name || 'Details', {
           id: 'btn-edit-briefing',
-          canEdit
+          canEdit: this.canEdit()
         });
       }
 
@@ -74,6 +78,8 @@ export class BriefingDetail {
   }
 
   async render() {
+    await this._unbindDoc();
+
     if (!this.briefing) {
       this.showNotFound();
       return;
@@ -86,10 +92,31 @@ export class BriefingDetail {
     const html = renderBriefingDoc({
       detail: this,
       compact: this.compactView,
-      canDelete
+      canDelete,
+      canEdit: this.canEdit()
     });
 
     window.setContentSafely(window.content, html);
+    this._bindDoc();
+  }
+
+  _bindDoc() {
+    const root = window.content?.querySelector('.briefing-doc');
+    this._docHandle = bindBriefingDoc(root, {
+      briefingId: this.briefingId,
+      canEdit: this.canEdit(),
+      onSaved: (feld, text) => {
+        if (this.briefing) this.briefing[feld] = text;
+      }
+    });
+  }
+
+  async _unbindDoc() {
+    if (!this._docHandle) return;
+    try {
+      await this._docHandle.destroy();
+    } catch (_) { /* Unmount trotzdem */ }
+    this._docHandle = null;
   }
 
   formatValue(field, value) {
@@ -189,7 +216,9 @@ export class BriefingDetail {
     document.addEventListener('click', (e) => {
       if (e.target.closest('#btn-edit-briefing')) {
         e.preventDefault();
-        window.navigateTo(`/briefing/${this.briefingId}/edit`);
+        this._unbindDoc().finally(() => {
+          window.navigateTo(`/briefing/${this.briefingId}/edit`);
+        });
       }
       if (e.target.closest('#btn-briefing-fields-toggle')) {
         e.preventDefault();
@@ -245,6 +274,7 @@ export class BriefingDetail {
   destroy() {
     this._abortController?.abort();
     this._abortController = null;
+    this._unbindDoc();
     tabDataCache.invalidate('briefing', this.briefingId);
     window.setContentSafely('');
   }

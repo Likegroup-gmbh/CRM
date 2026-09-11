@@ -114,14 +114,15 @@ export class KampagneKooperationenVideoTable {
   }
 
   canDeleteKooperation() {
-    if (this.isKundeRole()) return false;
-    const canDelete = window.currentUser?.permissions?.kooperation?.can_delete;
-    if (typeof canDelete === 'boolean') return canDelete;
-    return window.canSeePricing();
+    return window.permissionSystem?.can('kooperation', 'delete') ?? false;
   }
 
   isFieldEditableForUser(entity, field) {
-    if (window.canSeePricing()) return true;
+    // Editierbarkeit ist eine Capability, keine Rolle: Investor (intern, sieht
+    // Preise) darf nichts pflegen. Erst das Entity-Edit-Recht, dann die
+    // Kunden-Feldliste.
+    const canEditEntity = window.permissionSystem?.canEdit('kooperation') ?? false;
+    if (canEditEntity && !this.isKundeRole()) return true;
 
     // Gast mit reinem Ansehen-Recht: nichts editierbar
     if (window.isGastReadonly?.()) return false;

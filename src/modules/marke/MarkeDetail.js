@@ -61,7 +61,7 @@ export class MarkeDetail extends PersonDetailBase {
       await this.loadCriticalData();
 
       if (window.breadcrumbSystem && this.marke) {
-        const canEdit = window.currentUser?.permissions?.marke?.can_edit !== false;
+        const canEdit = window.canEdit?.('marke') ?? false;
         const breadcrumbOpts = {
           id: 'btn-edit-marke',
           canEdit

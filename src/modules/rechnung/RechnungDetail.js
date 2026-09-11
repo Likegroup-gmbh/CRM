@@ -49,7 +49,7 @@ export class RechnungDetail {
     if (window.breadcrumbSystem && this.data) {
       const isAdmin = window.isAdmin();
       const isBezahlt = this.data?.status === 'Bezahlt';
-      const hasEditPermission = window.currentUser?.permissions?.rechnung?.can_edit !== false;
+      const hasEditPermission = window.canEdit?.('rechnung') ?? false;
       // Bezahlte Rechnungen dürfen nur von Admins bearbeitet werden
       const canEdit = hasEditPermission && (!isBezahlt || isAdmin);
       window.breadcrumbSystem.updateDetailLabel(this.data.rechnung_nr || 'Details', {
