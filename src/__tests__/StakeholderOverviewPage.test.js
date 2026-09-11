@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { StakeholderOverviewPage, elapsedRatio, groupRowsByKundeMarke } from '../modules/stakeholder/StakeholderOverviewPage.js';
 import { calculateMonatsauswertung } from '../core/budget/monatsauswertung.js';
 import { calculateRechnungsstatus } from '../core/budget/rechnungsstatus.js';
+import { invalidateFinanzbestand } from '../core/budget/finanzbestand.js';
 
 // Jede Page bindet document-weite Listener und rendert in das globale
 // window.content. Ohne Cleanup reagieren Pages aus frueheren Tests auf
@@ -82,6 +83,7 @@ describe('StakeholderOverviewPage', () => {
   afterEach(() => {
     while (createdPages.length) createdPages.pop().destroy();
     window.content?.remove();
+    invalidateFinanzbestand();
   });
 
   it('zeigt Zugriffsfehler für Nicht-Admins', async () => {

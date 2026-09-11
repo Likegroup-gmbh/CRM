@@ -1,15 +1,18 @@
 // BriefingDocView.js
-// Read-only Dokumentansicht fuer campaign_briefings.
+// Dokumentansicht fuer campaign_briefings.
 // Klassifiziert fieldConfig-Felder (Hero / Callout / Prosa / Specs / Creator /
-// sekundaer) und rendert die komprimierte bzw. vollstaendige Leseansicht.
+// sekundaer). Textareas sind fuer Mitarbeiter inline editierbar (InlineEdit);
+// Specs, Tags und Uploads bleiben read-only.
 
 import { icon } from '../../core/icons/IconSystem.js';
+import { InlineEdit } from '../../core/components/InlineEdit.js';
 import {
   ANSATZ_OPTIONS,
   BEREICH_LABELS,
   MAERKTE_OPTIONS,
   SPRACHEN_OPTIONS,
   evaluateCondition,
+  getAllFields,
   getStepsForBereich
 } from './create/fieldConfig.js';
 
@@ -64,16 +67,9 @@ const SPEC_LABELS = {
   sonstiges: 'Sonstiges'
 };
 
-const SECTION_ICONS = {
-  'Rolle der Creator': 'clipboard-check',
-  'Konkrete Umsetzung': 'document',
-  'Konkrete Ideen fuer die Umsetzung': 'strategy',
-  'Welche Creator suchen wir?': 'creator',
-  'Was soll erreicht werden?': 'chart-bar',
-  'Produktion': 'video',
-  'Learnings aus vergleichbaren Aktivitaeten': 'lightbulb',
-  'Learnings aus bisherigem bzw. vergleichbarem Content': 'lightbulb'
-};
+const TEXTAREA_FIELDS = new Set(
+  getAllFields().filter(f => f.type === 'textarea').map(f => f.name)
+);
 
 export function stripPrefix(name) {
   return String(name || '').replace(/^(im|pa|os)_/, '');
@@ -105,6 +101,10 @@ function escapeLabel(value) {
     .replace(/"/g, '&quot;');
 }
 
+function rawText(value) {
+  return typeof value === 'string' ? value : '';
+}
+
 function pushGrouped(groups, title, item) {
   let group = groups.find(g => g.title === title);
   if (!group) {
@@ -124,7 +124,7 @@ function flattenGroupRows(field, value, detail) {
     }));
 }
 
-export function collectPresentation(detail) {
+export function collectPresentation(detail, { includeEmptyTextareas = false } = {}) {
   const briefing = detail.briefing || {};
   const steps = getStepsForBereich(briefing.bereich);
   const callout = [];
@@ -144,10 +144,11 @@ export function collectPresentation(detail) {
 
         const value = briefing[field.name];
         const formatted = detail.formatValue(field, value);
-        if (formatted === null) continue;
+        const emptyTextarea = formatted === null && includeEmptyTextareas && field.type === 'textarea';
+        if (formatted === null && !emptyTextarea) continue;
 
         const role = classifyField(field, title);
-        const item = { field, formatted, value };
+        const item = { field, formatted: formatted ?? '', value: value ?? '' };
 
         if (role === 'hero' || role === 'meta') continue;
         if (role === 'callout') {
@@ -247,25 +248,36 @@ function renderHero(detail) {
   `;
 }
 
-function renderCallout(items) {
+function renderEditableText(field, value, className = 'briefing-doc__prose') {
+  const placeholder = field.placeholder || 'Hier schreiben…';
+  return `
+    <div class="${className}" data-feld="${escapeLabel(field.name)}"
+         data-placeholder="${escapeLabel(placeholder)}">${escapeLabel(rawText(value))}</div>
+  `;
+}
+
+function renderCallout(items, { canEdit = false } = {}) {
   if (!items.length) return '';
-  const text = items.map(i => i.formatted).join('\n\n');
+  if (!canEdit) {
+    const text = items.map(i => i.formatted).join('\n\n');
+    return `
+      <aside class="briefing-doc__callout">
+        <div class="briefing-doc__kicker">Thema</div>
+        <div class="briefing-doc__callout-text">${text}</div>
+      </aside>
+    `;
+  }
   return `
     <aside class="briefing-doc__callout">
       <div class="briefing-doc__kicker">Thema</div>
-      <div class="briefing-doc__callout-text">${text}</div>
+      ${items.map(item => renderEditableText(item.field, item.value, 'briefing-doc__callout-text')).join('')}
     </aside>
   `;
 }
 
 function renderHeading(title, detail) {
-  const iconKey = SECTION_ICONS[title];
-  const glyph = iconKey
-    ? icon(iconKey, { className: 'briefing-doc__section-icon', size: 18 })
-    : '';
   return `
     <h2 class="briefing-doc__heading">
-      ${glyph}
       <span>${detail.escape(title)}</span>
     </h2>
   `;
@@ -287,8 +299,18 @@ function renderSpecTable(rows) {
   `;
 }
 
-function renderProseItem(item) {
-  return `<div class="briefing-doc__prose">${item.formatted}</div>`;
+function renderProseItem(item, { canEdit = false, showLabel = false } = {}) {
+  const editable = canEdit && item.field.type === 'textarea';
+  const kicker = showLabel && item.field.label
+    ? `<div class="briefing-doc__kicker">${escapeLabel(item.field.label)}</div>`
+    : '';
+
+  if (!editable) {
+    if (!item.formatted) return '';
+    return `${kicker}<div class="briefing-doc__prose">${item.formatted}</div>`;
+  }
+
+  return `${kicker}${renderEditableText(item.field, item.value)}`;
 }
 
 function itemsToBlocks(items, detail) {
@@ -306,14 +328,19 @@ function itemsToBlocks(items, detail) {
   return { prose, specs };
 }
 
-function renderGroupedSections(groups, detail) {
+function renderGroupedSections(groups, detail, { canEdit = false } = {}) {
   return groups.map(group => {
     const { prose, specs } = itemsToBlocks(group.items, detail);
     if (!prose.length && !specs.length) return '';
+    const editableProse = canEdit ? prose.filter(i => i.field.type === 'textarea') : [];
+    const showLabels = editableProse.length > 1 || editableProse.some(i => !rawText(i.value));
     return `
       <section class="briefing-doc__section">
         ${renderHeading(group.title, detail)}
-        ${prose.map(renderProseItem).join('')}
+        ${prose.map(item => renderProseItem(item, {
+          canEdit,
+          showLabel: showLabels && item.field.type === 'textarea'
+        })).join('')}
         ${renderSpecTable(specs)}
       </section>
     `;
@@ -351,8 +378,15 @@ function renderAdminMeta(detail) {
   `;
 }
 
-export function renderBriefingDoc({ detail, compact = true, canDelete = false }) {
-  const presentation = collectPresentation(detail);
+export function renderBriefingDoc({
+  detail,
+  compact = true,
+  canDelete = false,
+  canEdit = false
+} = {}) {
+  const presentation = collectPresentation(detail, {
+    includeEmptyTextareas: canEdit && !compact
+  });
   const toggleLabel = compact ? 'Alle Felder' : 'Komprimiert';
 
   let prose = presentation.prose;
@@ -363,24 +397,105 @@ export function renderBriefingDoc({ detail, compact = true, canDelete = false })
     [creator, secondary] = mergeByTitle(creator, secondary);
   }
 
+  const editClass = canEdit ? ' briefing-doc--editable' : '';
+
   return `
-    <article class="briefing-doc" data-compact="${compact ? 'true' : 'false'}">
+    <article class="briefing-doc${editClass}" data-compact="${compact ? 'true' : 'false'}">
       <div class="briefing-doc__toolbar">
+        ${canEdit ? '<span class="briefing-doc__status" data-briefing-status hidden>Gespeichert</span>' : ''}
         <button type="button" id="btn-briefing-fields-toggle" class="mdc-btn mdc-btn--secondary mdc-btn--sm">${toggleLabel}</button>
         ${canDelete ? `<button type="button" id="btn-delete-briefing" class="mdc-btn mdc-btn--delete mdc-btn--sm">Löschen</button>` : ''}
       </div>
       ${renderHero(detail)}
       ${compact ? `<p class="briefing-doc__hint">Komprimierte Ansicht — für die komplette Felderliste oben rechts „Alle Felder“ wählen</p>` : ''}
-      ${renderCallout(presentation.callout)}
-      ${renderGroupedSections(prose, detail)}
+      ${renderCallout(presentation.callout, { canEdit })}
+      ${renderGroupedSections(prose, detail, { canEdit })}
       ${presentation.specs.length ? `
         <section class="briefing-doc__section">
           ${renderSpecTable(presentation.specs)}
         </section>
       ` : ''}
-      ${renderGroupedSections(creator, detail)}
-      ${compact ? '' : renderGroupedSections(secondary, detail)}
+      ${renderGroupedSections(creator, detail, { canEdit })}
+      ${compact ? '' : renderGroupedSections(secondary, detail, { canEdit })}
       ${compact ? '' : renderAdminMeta(detail)}
     </article>
   `;
+}
+
+function focusFeldEnd(field) {
+  field.focus();
+  const sel = window.getSelection();
+  const range = document.createRange();
+  range.selectNodeContents(field);
+  range.collapse(false);
+  sel?.removeAllRanges();
+  sel?.addRange(range);
+}
+
+/**
+ * Haengt InlineEdit an die Textarea-Zellen. Specs bleiben read-only.
+ * @returns {{ destroy: Function, inlineEdit: InlineEdit } | null}
+ */
+export function bindBriefingDoc(root, { briefingId, canEdit = false, onSaved } = {}) {
+  if (!root) return null;
+
+  const db = window.supabase;
+  let statusTimer = null;
+  const statusEl = root.querySelector('[data-briefing-status]');
+
+  const showSaved = () => {
+    if (!statusEl) return;
+    statusEl.hidden = false;
+    if (statusTimer) clearTimeout(statusTimer);
+    statusTimer = setTimeout(() => {
+      statusEl.hidden = true;
+    }, 1600);
+  };
+
+  const inlineEdit = new InlineEdit({
+    onSave: async (feld, text) => {
+      if (!TEXTAREA_FIELDS.has(feld)) throw new Error('Feld nicht editierbar');
+      if (!db) throw new Error('Supabase fehlt');
+      const { error } = await db
+        .from('campaign_briefings')
+        .update({ [feld]: text })
+        .eq('id', briefingId);
+      if (error) {
+        window.toastSystem?.show('Speichern fehlgeschlagen.', 'error');
+        throw new Error(error.message);
+      }
+      onSaved?.(feld, text);
+      showSaved();
+    }
+  });
+  inlineEdit.attach(root, { readonly: !canEdit });
+
+  if (!canEdit) {
+    return {
+      inlineEdit,
+      async destroy() {
+        if (statusTimer) clearTimeout(statusTimer);
+        inlineEdit.detach();
+      }
+    };
+  }
+
+  root.querySelectorAll('.briefing-doc__section, .briefing-doc__callout').forEach((section) => {
+    section.addEventListener('mousedown', (e) => {
+      if (e.target.closest('[data-feld], a, button, table, label')) return;
+      const field = section.querySelector('[data-feld]');
+      if (!field) return;
+      e.preventDefault();
+      focusFeldEnd(field);
+    });
+  });
+
+  return {
+    inlineEdit,
+    async destroy() {
+      if (statusTimer) clearTimeout(statusTimer);
+      try { await inlineEdit.flush(); } catch (_) { /* Unmount trotzdem */ }
+      inlineEdit.detach();
+    }
+  };
 }

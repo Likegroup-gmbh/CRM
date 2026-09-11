@@ -10,7 +10,7 @@ import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { STATUS_LABELS, STATUS_TAG_VARIANT, OHNE_MARKE_LABEL, OHNE_KAMPAGNE_LABEL } from './SkripteUtils.js';
 
 export function createButtonHtml() {
-  if (window.isKunde?.()) return '';
+  if (!window.canCreate?.('skripte')) return '';
   return '<button id="btn-skript-new" class="mdc-btn">Neues Skript erstellen</button>'
     + ' <a href="/skripte/dna" class="mdc-btn mdc-btn--secondary">DNA verwalten</a>'
     + ' <a href="/skripte/master" class="mdc-btn mdc-btn--secondary">Master-Regelwerk</a>';

@@ -22,13 +22,12 @@ import {
   BERICHTSSTAND_VERSION,
   buildBerichtsstandPayload,
   saveBerichtsstand,
-  fetchBerichtsstaende,
   fetchBerichtsstand,
 } from './berichtsstandStore.js';
 import { sumPaidInvoiceRows } from '../auftrag/logic/PaymentRowStatus.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
-import { fetchAllRows } from '../../core/fetchAllRows.js';
+import { loadFinanzbestand } from '../../core/budget/finanzbestand.js';
 import { escapeHtml, formatEuro } from '../../core/format.js';
 
 const SUPABASE = () => window.supabase;
@@ -304,54 +303,20 @@ export class StakeholderOverviewPage {
 
   async loadData() {
     const supabase = SUPABASE();
-    if (!supabase) throw new Error('Supabase nicht verfügbar');
+    // Finanzbestand teilt sich Stakeholder und Datenqualitaet: die Selects,
+    // die Pagination und die Berichtsstaende sitzen dort, nicht in der Page.
+    const bestand = await loadFinanzbestand(supabase);
 
-    // Alle Tabellen seitenweise (fetchAllRows), damit nichts am
-    // PostgREST-Zeilenlimit verloren geht.
-    const [auftraege, blocks, kampagnen, koops, videos, details, unternehmen, rechnungen, teilrechnungen] = await Promise.all([
-      fetchAllRows(supabase, 'auftrag',
-        'id, titel, auftragsname, nettobetrag, bruttobetrag, creator_budget, auftragtype, start, ende, created_at, is_draft, unternehmen_id, marke_id, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am, re_faelligkeit, marke:marke_id(id, markenname)'),
-      fetchAllRows(supabase, 'auftrag_kampagnenart_blocks',
-        'id, auftrag_id, campaign_type, campaign_type_label, umsatz_netto, sort_order'),
-      fetchAllRows(supabase, 'kampagne',
-        'id, auftrag_id, videoanzahl, creatoranzahl'),
-      fetchAllRows(supabase, 'kooperationen',
-        'id, kampagne_id, creator_id, videoanzahl, einkaufspreis_netto, verkaufspreis_netto, verkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag'),
-      fetchAllRows(supabase, 'kooperation_videos',
-        'id, kooperation_id, einkaufspreis_netto, verkaufspreis_netto, kampagnenart'),
-      fetchAllRows(supabase, 'auftrag_details',
-        'auftrag_id, campaign_type, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value'),
-      fetchAllRows(supabase, 'unternehmen',
-        'id, firmenname'),
-      // Fremdkosten brauchen Rechnungsdatum und die drei Posten-Quellen
-      // (Honorar netto + steuerfrei, Zusatzkosten; KSK wird berechnet).
-      // Der Zahlungsstand braucht zusaetzlich status/bezahlt_am/zahlungsziel.
-      fetchAllRows(supabase, 'rechnung',
-        'id, kooperation_id, auftrag_id, status, nettobetrag, nettobetrag_steuerfrei, zusatzkosten, gestellt_am, bezahlt_am, zahlungsziel, rechnungstyp'),
-      // Kundenrechnungen: geplante und gestellte Teilrechnungen je Auftrag,
-      // inkl. Zahlungsstatus (ueberwiesen_am) und Faelligkeit.
-      fetchAllRows(supabase, 'auftrag_teilrechnung',
-        'id, auftrag_id, nettobetrag, bruttobetrag, rechnung_gestellt, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am, re_faelligkeit'),
-    ]);
-
-    this.auftraege = (auftraege || []).filter(a => a.is_draft !== true);
-    this.blocks = blocks || [];
-    this.kampagnen = kampagnen || [];
-    this.kooperationen = koops || [];
-    this.videos = videos || [];
-    this.rechnungen = rechnungen || [];
-    this.teilrechnungen = teilrechnungen || [];
-    this.detailsByAuftrag = new Map((details || []).map(d => [d.auftrag_id, d]));
-    this.unternehmenById = new Map((unternehmen || []).map(u => [u.id, u]));
-
-    // Berichtsstände sind ein Add-on: scheitert das Listen-Laden, soll die
-    // Uebersicht trotzdem rendern.
-    try {
-      this.berichtsstaende = await fetchBerichtsstaende(supabase);
-    } catch (e) {
-      console.error('❌ Stakeholder-Übersicht: Berichtsstände konnten nicht geladen werden', e);
-      this.berichtsstaende = [];
-    }
+    this.auftraege = bestand.auftraege;
+    this.blocks = bestand.blocks;
+    this.kampagnen = bestand.kampagnen;
+    this.kooperationen = bestand.kooperationen;
+    this.videos = bestand.videos;
+    this.rechnungen = bestand.rechnungen;
+    this.teilrechnungen = bestand.teilrechnungen;
+    this.detailsByAuftrag = new Map(bestand.details.map(d => [d.auftrag_id, d]));
+    this.unternehmenById = new Map(bestand.unternehmen.map(u => [u.id, u]));
+    this.berichtsstaende = bestand.berichtsstaende;
   }
 
   // ---------- Helpers ----------

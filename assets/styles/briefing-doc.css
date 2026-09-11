@@ -1,6 +1,7 @@
 /* ============================================================
-   Briefing-Dokument (Read-only Detail)
+   Briefing-Dokument (Detail)
    Zentriertes Paper: Hero, Callout, Prosa, Specs-Tabelle.
+   Textareas sind per InlineEdit beschreibbar ([data-feld]).
    Tokens ausschliesslich aus variables.css.
    ============================================================ */
 
@@ -18,6 +19,12 @@
   align-items: center;
   gap: var(--space-sm);
   margin-bottom: var(--space-lg);
+}
+
+.briefing-doc__status {
+  margin-right: auto;
+  font-size: var(--text-xsm);
+  color: var(--text-secondary);
 }
 
 .briefing-doc__hero {
@@ -44,7 +51,7 @@
 .briefing-doc__title {
   margin: 0 0 var(--space-xs);
   font-size: var(--text-xxxl);
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.25;
   color: var(--text-primary);
 }
@@ -95,14 +102,6 @@
   color: var(--text-tertiary);
 }
 
-.briefing-doc__callout-text {
-  font-size: var(--text-md);
-  line-height: 1.55;
-  color: var(--text-primary);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
 .briefing-doc__section {
   margin: 0 0 var(--space-xl);
   padding-bottom: var(--space-xl);
@@ -116,30 +115,46 @@
 }
 
 .briefing-doc__heading {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
   margin: 0 0 var(--space-md);
   font-size: var(--text-lg);
-  font-weight: 600;
+  font-weight: 500;
   color: var(--text-primary);
 }
 
-.briefing-doc__section-icon {
-  color: var(--text-tertiary);
+.briefing-doc--editable .briefing-doc__section:has([data-feld]),
+.briefing-doc--editable .briefing-doc__callout:has([data-feld]) {
+  cursor: text;
 }
 
-.briefing-doc__prose {
+.briefing-doc__prose,
+.briefing-doc__callout-text {
   margin: 0 0 var(--space-md);
   font-size: var(--text-md);
   line-height: 1.6;
-  color: var(--text-primary);
+  color: var(--gray-600);
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-.briefing-doc__prose:last-child {
+.briefing-doc__callout-text {
+  color: var(--text-primary);
+  line-height: 1.55;
+}
+
+.briefing-doc__prose:last-child,
+.briefing-doc__callout-text:last-child {
   margin-bottom: 0;
+}
+
+.briefing-doc [data-feld] {
+  min-height: 1.6em;
+  outline: none;
+  cursor: text;
+}
+
+.briefing-doc [data-feld]:empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-tertiary);
 }
 
 .briefing-doc__specs {

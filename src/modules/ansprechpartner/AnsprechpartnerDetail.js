@@ -47,7 +47,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
       this.updateBreadcrumb();
 
       // Debug: Permission-Check für Edit-Button
-      const canEdit = window.currentUser?.permissions?.ansprechpartner?.can_edit !== false;
+      const canEdit = window.canEdit?.('ansprechpartner') ?? false;
       console.debug('🔐 ANSPRECHPARTNERDETAIL: Permission-Check:', {
         rolle: window.currentUser?.rolle,
         permissions: window.currentUser?.permissions?.ansprechpartner,
@@ -198,7 +198,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     
     if (window.breadcrumbSystem && this.ansprechpartner) {
       const name = [this.ansprechpartner.vorname, this.ansprechpartner.nachname].filter(Boolean).join(' ') || 'Details';
-      const canEdit = window.currentUser?.permissions?.ansprechpartner?.can_edit !== false;
+      const canEdit = window.canEdit?.('ansprechpartner') ?? false;
       
       console.log('🔄 ANSPRECHPARTNERDETAIL: Breadcrumb wird gesetzt', { name, canEdit, id: this.ansprechpartnerId });
       
@@ -726,7 +726,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
 
   // Bearbeitungsformular anzeigen
   showEditForm() {
-    const canEdit = window.currentUser?.permissions?.ansprechpartner?.can_edit !== false;
+    const canEdit = window.canEdit?.('ansprechpartner') ?? false;
     console.debug('🎯 ANSPRECHPARTNERDETAIL: showEditForm() aufgerufen', {
       canEdit,
       rolle: window.currentUser?.rolle,

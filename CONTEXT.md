@@ -189,6 +189,23 @@ Administration relevanten Seiten (Datenqualitaet, Stakeholder, Mitarbeiter, Kund
 Unternehmen, Geteilte Listen, KI-Nutzung); Einstieg ueber den Schild-Button in der Kopfzeile.
 _Avoid_: Backend, Admin-Panel, Einstellungen
 
+**Berechtigung**:
+Das Modul in `src/core/PermissionSystem.js`. UI fragt Capabilities ueber `can(entity, verb)`
+mit den vier Verben `view / create / edit / delete` — nie Rollen wie `isKunde`/`isMitarbeiter`
+und nie Roh-Flags wie `permissions?.x?.can_edit`. Rolle, Mitarbeiter-Klasse, zugriffsrechte
+und das user_permissions-Overlay bleiben Implementation des Moduls. Eine neue Rolle oder
+Klasse ist eine Zeile True/False in der Matrix, kein neuer Code-Pfad. Admin-Toggles schlagen
+die Klassen-Zeile (Klasse ist Default, kein hartes Preset). RLS bleibt die Server-Wahrheit;
+die UI versteckt nur, was ohne Recht eh fehlschluege.
+_Avoid_: Rolle-Check im Renderer, `!isKunde` als Write-Gate, `can_edit !== false`
+
+**Investor**:
+Die Mitarbeiter-Klasse Finanzen. Intern (`rolle = mitarbeiter`, sieht Preise), aber
+view-only: `create`/`edit`/`delete` ueberall false. Buttons und Aktionsmenüs, die nur
+`!isKunde` fragen, sind genau deshalb die Leak-Stellen — die Investor-Ansicht laeuft ueber
+Capabilities, nicht ueber die Rolle.
+_Avoid_: Stakeholder (das ist die Finanzuebersicht), Finanzen-Rolle (das ist die Klasse)
+
 **Datenqualitaetsanzeige**:
 Seite im Adminbereich, die Pflegemaengel an Finanzdaten nach Kampagne gruppiert und nach
 betroffenem Geldvolumen sortiert zeigt. Sie benennt die Faelle; korrigiert wird von den Teams.

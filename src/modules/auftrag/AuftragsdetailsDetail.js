@@ -49,7 +49,7 @@ export class AuftragsdetailsDetail {
       await this.loadDetailsData();
       
       if (window.breadcrumbSystem && this.auftrag) {
-        const canEdit = window.currentUser?.permissions?.auftragsdetails?.can_edit !== false;
+        const canEdit = window.canEdit?.('auftragsdetails') ?? false;
         window.breadcrumbSystem.updateDetailLabel(this.auftrag.auftragsname || 'Details', {
           id: 'btn-edit-details',
           canEdit: canEdit

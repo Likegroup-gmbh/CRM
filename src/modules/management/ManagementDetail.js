@@ -35,7 +35,7 @@ export class ManagementDetail extends PersonDetailBase {
       await this.loadManagementData();
 
       if (window.breadcrumbSystem && this.management) {
-        const canEdit = window.currentUser?.permissions?.management?.can_edit !== false;
+        const canEdit = window.canEdit?.('management') ?? false;
         window.breadcrumbSystem.updateDetailLabel(this.management.firmenname || 'Details', {
           id: 'btn-edit-management',
           canEdit: canEdit
