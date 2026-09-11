@@ -39,11 +39,16 @@ export class NavigationSystem {
           { id: 'auftrag', label: 'Aufträge', icon: 'auftrag', url: '/auftrag' },
           { id: 'ausgangsrechnungen', label: 'Kundenrechnungen', icon: 'ausgangsrechnungen', url: '/ausgangsrechnungen' },
           { id: 'auftragsdetails', label: 'Auftragsdetails', icon: 'auftragsdetails', url: '/auftragsdetails' },
+          { id: 'kampagne', label: 'Kampagnen', icon: 'kampagne', url: '/kampagne' }
+        ]
+      },
+      {
+        title: 'Kampagnenmanagement',
+        items: [
           { id: 'briefing', label: 'Briefings', icon: 'briefing', url: '/briefing' },
           { id: 'sourcing', label: 'Castings', icon: 'sourcing', url: '/castings' },
           { id: 'strategie', label: 'Konzepte', icon: 'strategie', url: '/konzepte' },
           { id: 'skripte', label: 'Skripte', icon: 'skripte', url: '/skripte' },
-          { id: 'kampagne', label: 'Kampagnen', icon: 'kampagne', url: '/kampagne' },
           { id: 'vertraege', label: 'Verträge', icon: 'vertraege', url: '/vertraege' },
           { id: 'rechnung', label: 'Rechnung', icon: 'rechnung', url: '/rechnung' },
           { id: 'videos', label: 'Videos', icon: 'videos', url: '/videos' }
