@@ -89,9 +89,9 @@ export class UnternehmenList extends BasePaginatedList {
         return baseIds.filter(id => nextSet.has(id));
       };
 
-      // Nicht-Admin Filterung
+      // Nicht-unscoped Filterung (Mitarbeiter mit Zuordnung)
       let allowedUnternehmenIds = null;
-      if (!this.isAdmin) {
+      if (!this.isAdmin && !window.isUnscoped?.()) {
         const { data: mitarbeiterUnternehmen, error } = await window.supabase
           .from('mitarbeiter_unternehmen')
           .select('unternehmen_id')
@@ -482,7 +482,7 @@ export class UnternehmenList extends BasePaginatedList {
       ]);
 
       let allowedMarkeIds = null;
-      if (!this.isAdmin) {
+      if (!this.isAdmin && !window.isUnscoped?.()) {
         allowedMarkeIds = new Set(
           await MarkeService.getAllowedMarkeIdsForUser(window.currentUser?.id) || []
         );

@@ -54,15 +54,9 @@ export class KampagneUtils {
       const userId = window.currentUser?.id;
       if (!userId) return [];
       
-      // Admins sehen alles
-      if (this.isUserAdmin()) {
-        if (DEBUG_PERMISSIONS) console.log('🔓 PERMISSIONS: Admin - keine Filterung');
-        return null;
-      }
-      
-      // Kunden: RLS filtert automatisch
-      if (this.isUserKunde()) {
-        if (DEBUG_PERMISSIONS) console.log('🔓 PERMISSIONS: Kunde - RLS filtert');
+      // Unscoped (Admin, Kunde, Investor, Finanzen-Klasse): keine Client-Filterung
+      if (this.isUserAdmin() || this.isUserKunde() || window.isUnscoped?.()) {
+        if (DEBUG_PERMISSIONS) console.log('🔓 PERMISSIONS: unscoped - keine Filterung');
         return null;
       }
 

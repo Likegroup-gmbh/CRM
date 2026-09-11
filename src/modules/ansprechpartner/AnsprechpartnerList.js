@@ -95,7 +95,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
 
     // Nicht-Admin Filterung nur im Unternehmen-Modus erforderlich
     // (Management-Modus zeigt alle Ansprechpartner mit management_id)
-    if (!this.isAdmin && window.supabase && this.mode !== 'management') {
+    if (!this.isAdmin && !window.isUnscoped?.() && window.supabase && this.mode !== 'management') {
       const allowedIds = await this.loadAllowedAnsprechpartnerIds();
       
       if (allowedIds && allowedIds.length === 0) {

@@ -127,6 +127,13 @@ describe('ProduktService.getAllowedProduktScopeForUser', () => {
     expect(scope.all).toBe(true);
   });
 
+  it('Investor wird nicht clientseitig gefiltert', async () => {
+    window.currentUser = { id: 'i1', rolle: 'investor' };
+    const scope = await ProduktService.getAllowedProduktScopeForUser('i1');
+    expect(scope.all).toBe(true);
+    expect(scope.produktIds).toBeNull();
+  });
+
   function scopedSupabase({
     mitarbeiterUnternehmen = [],
     markeMitarbeiter = [],

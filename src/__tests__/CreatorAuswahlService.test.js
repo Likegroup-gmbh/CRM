@@ -4,6 +4,7 @@ import { CreatorAuswahlService } from '../modules/creator-auswahl/CreatorAuswahl
 function setupWindow(overrides = {}) {
   window.isAdmin = vi.fn(() => overrides.isAdmin ?? false);
   window.isKunde = vi.fn(() => overrides.isKunde ?? false);
+  window.isInvestor = vi.fn(() => overrides.isInvestor ?? false);
   window.isMitarbeiter = vi.fn(() => overrides.isMitarbeiter ?? false);
   window.checkUserPermission = vi.fn((entity, action) => {
     if (overrides.permissions === false) return false;
@@ -12,7 +13,7 @@ function setupWindow(overrides = {}) {
   window.currentUser = overrides.currentUser ?? { id: 'user-1', rolle: 'mitarbeiter' };
 }
 
-function createMockSupabase({ listeData, allowedKampagnen, deleteError } = {}) {
+function createMockSupabase({ listeData, listenData, allowedKampagnen, deleteError } = {}) {
   const deleteFn = vi.fn(() => ({
     eq: vi.fn(() => Promise.resolve({ error: deleteError || null })),
   }));
@@ -24,6 +25,10 @@ function createMockSupabase({ listeData, allowedKampagnen, deleteError } = {}) {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               single: vi.fn(() => Promise.resolve({ data: listeData || null, error: null })),
+            })),
+            order: vi.fn(() => Promise.resolve({
+              data: listenData ?? (listeData ? [listeData] : []),
+              error: null
             })),
           })),
           delete: deleteFn,
@@ -161,6 +166,24 @@ describe('CreatorAuswahlService', () => {
       createMockSupabase();
 
       await expect(service.deleteItem('item-1')).rejects.toThrow('Keine Berechtigung');
+    });
+  });
+
+  describe('getAllListen', () => {
+    it('lädt als Investor alle Listen ohne Kampagnen-Filter', async () => {
+      setupWindow({ isInvestor: true, currentUser: { id: 'inv-1', rolle: 'investor' } });
+      createMockSupabase({
+        listenData: [
+          { id: 'l1', kampagne_id: 'k-other', creator_auswahl_items: [{ count: 2 }] },
+          { id: 'l2', kampagne_id: 'k1', creator_auswahl_items: [{ count: 0 }] }
+        ]
+      });
+
+      const listen = await service.getAllListen();
+      expect(listen).toHaveLength(2);
+      expect(window.supabase.from).toHaveBeenCalledWith('creator_auswahl');
+      expect(window.supabase.from).not.toHaveBeenCalledWith('kampagne_mitarbeiter');
+      expect(window.supabase.from).not.toHaveBeenCalledWith('mitarbeiter_unternehmen');
     });
   });
 });
