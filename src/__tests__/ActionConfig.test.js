@@ -1,19 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ActionConfig } from '../core/actions/ActionConfig.js';
 
-describe('ActionConfig can_edit Filter', () => {
+describe('ActionConfig Capability-Filter', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    window.permissionSystem = {
-      getEntityPermissions: vi.fn()
-    };
+    window.permissionSystem = { can: vi.fn() };
   });
 
-  it('blendet edit/delete aus wenn can_edit false', () => {
-    window.permissionSystem.getEntityPermissions.mockReturnValue({
-      can_view: true,
-      can_edit: false
-    });
+  it('blendet edit/delete aus wenn can(edit/delete) false', () => {
+    window.permissionSystem.can.mockReturnValue(false);
 
     const config = ActionConfig.get('kampagne', 'mitarbeiter');
     const ids = config.actions.map(a => a.id);
@@ -23,30 +18,33 @@ describe('ActionConfig can_edit Filter', () => {
     expect(ids).not.toContain('delete');
   });
 
-  it('behält edit wenn can_edit true', () => {
-    window.permissionSystem.getEntityPermissions.mockReturnValue({
-      can_view: true,
-      can_edit: true
-    });
+  it('behält edit wenn can(edit) true, delete bleibt bei can(delete) false', () => {
+    window.permissionSystem.can.mockImplementation((entity, verb) => verb === 'edit');
 
     const config = ActionConfig.get('kampagne', 'mitarbeiter');
     const ids = config.actions.map(a => a.id);
 
     expect(ids).toContain('view');
     expect(ids).toContain('edit');
-    expect(ids).toContain('delete');
+    expect(ids).not.toContain('delete');
   });
 
-  it('Admin bekommt Write-Actions unabhängig von can_edit', () => {
-    window.permissionSystem.getEntityPermissions.mockReturnValue({
-      can_view: true,
-      can_edit: false
-    });
+  it('Admin bekommt Write-Actions unabhängig von can()', () => {
+    window.permissionSystem.can.mockReturnValue(false);
 
     const config = ActionConfig.get('kampagne', 'admin');
     const ids = config.actions.map(a => a.id);
 
     expect(ids).toContain('edit');
     expect(ids).toContain('delete');
+  });
+
+  it('Investor (mitarbeiter, kein edit-Recht) sieht nur view', () => {
+    window.permissionSystem.can.mockReturnValue(false);
+
+    const config = ActionConfig.get('kampagne', 'mitarbeiter');
+    const ids = config.actions.map(a => a.id);
+
+    expect(ids).toEqual(['view']);
   });
 });

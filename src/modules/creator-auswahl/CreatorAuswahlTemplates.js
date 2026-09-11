@@ -406,7 +406,7 @@ export function renderAddSection(ctx = {}) {
           placeholder: 'Name suchen...',
           currentValue: escapeHtml(ctx.searchQuery || '')
         })}
-        ${!ctx.isKunde ? `
+        ${ctx.canCreate ? `
         <button type="button" class="mdc-btn" id="btn-open-add-drawer">
           ${icon('plus-lg')}
           Creator hinzufügen
@@ -556,7 +556,6 @@ export function renderItemsTable(ctx) {
           </tr>
         </tfoot>
         ` : ''}
-      </table>
     </div>
   `;
 }
@@ -1115,17 +1114,19 @@ export function renderItemRow(ctx, item, index) {
             </button>
             <div class="actions-dropdown">
               ${''}
-              ${(item.zusage || item.gebucht) && ctx.liste?.strategie_id ? `
+              ${ctx.canCreate && (item.zusage || item.gebucht) && ctx.liste?.strategie_id ? `
                 <a href="#" class="action-item" data-action="create-videoidee" data-id="${item.id}">
                   ${icon('light-bulb')}
                   Videoidee anlegen
                 </a>
               ` : ''}
               <!-- CRM-Uebernahme vorerst ausgeblendet -->
+              ${ctx.canDelete ? `
               <a href="#" class="action-item action-danger" data-action="delete-item" data-id="${item.id}">
                 ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
                 Löschen
               </a>
+              ` : ''}
             </div>
           </div>
         </td>

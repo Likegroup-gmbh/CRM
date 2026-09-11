@@ -207,16 +207,17 @@ describe('createButtonHtml Kunden', () => {
     vi.restoreAllMocks();
   });
 
-  it('intern zeigt Create-Button', () => {
-    window.isKunde = vi.fn(() => false);
+  // Gate ist jetzt eine Capability (skripte.can_create), keine Rolle mehr.
+  it('create-Recht zeigt Create-Button', () => {
+    window.canCreate = vi.fn((entity) => entity === 'skripte');
     const html = createButtonHtml();
     expect(html).toContain('btn-skript-new');
     expect(html).toContain('/skripte/master');
     expect(html).toContain('/skripte/dna');
   });
 
-  it('Kunde sieht keinen Create-Button', () => {
-    window.isKunde = vi.fn(() => true);
+  it('kein create-Recht (Kunde, Investor) sieht keinen Create-Button', () => {
+    window.canCreate = vi.fn(() => false);
     expect(createButtonHtml()).toBe('');
   });
 });

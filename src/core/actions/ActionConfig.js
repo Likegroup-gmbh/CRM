@@ -317,6 +317,29 @@ export const ActionConfigs = {
 
 const VIEW_ACTION_IDS = new Set(['view', 'download', 'quickview']);
 
+// Welches Verb eine Action braucht. Default: Write-Actions brauchen can_edit,
+// Löschen braucht can_delete, Create-Subactions (add_*) brauchen can_create.
+// 'view'-Artige brauchen nichts (sie sind eh nur sichtbar, wenn die Seite sichtbar ist).
+const ACTION_VERB = {
+  delete: 'delete',
+  remove_ansprechpartner_link: 'delete',
+  delete_creator_adresse: 'delete',
+  add_to_list: 'create',
+  add_ansprechpartner: 'create',
+  add_ansprechpartner_unternehmen: 'create',
+  add_produkt: 'create',
+  add_persona: 'create',
+  rechnung: 'create',        // Rechnung anlegen aus Auftrag
+  'task-create': 'create',
+};
+
+function verbFor(action) {
+  if (VIEW_ACTION_IDS.has(action.id)) return null;
+  if (ACTION_VERB[action.id]) return ACTION_VERB[action.id];
+  // setField-Submenüs (Status ändern), edit_*, set_* und der Rest sind Edits.
+  return 'edit';
+}
+
 function collapseSeparators(actions) {
   const result = [];
   for (const action of actions) {
@@ -331,14 +354,27 @@ function collapseSeparators(actions) {
   return result;
 }
 
-function filterWriteActions(entityType, userRole, actions) {
+// Capability-Filter: fragt das Berechtigung-Modul, nicht Rollen.
+// Admin bekommt alles; für alle anderen entscheidet can(entity, verb).
+// Sonderfall admin-only (z.B. rechnung.status, mitarbeiter.*) bleibt ueber roles geregelt.
+function filterByCapability(entityType, userRole, actions) {
   if (!userRole || userRole === 'admin') return actions;
-  const perms = window.permissionSystem?.getEntityPermissions?.(entityType);
-  if (!perms) return actions;
-  if (perms.can_edit === true) return actions;
-  return collapseSeparators(
-    actions.filter(action => action.id === 'separator' || VIEW_ACTION_IDS.has(action.id))
-  );
+  const ps = window.permissionSystem;
+  if (!ps) return actions;
+
+  return collapseSeparators(actions.filter(action => {
+    if (action.id === 'separator') return true;
+
+    // Harte admin-only-Schranken bleiben Rollen-Sache (RLS laesst sie ohnehin nur admin).
+    if (Array.isArray(action.roles) && action.roles.length && !action.roles.includes('all')
+        && !action.roles.includes(userRole) && action.roles.every(r => r === 'admin')) {
+      return false;
+    }
+
+    const verb = verbFor(action);
+    if (verb === null) return true;
+    return ps.can(entityType, verb);
+  }));
 }
 
 /**
@@ -353,7 +389,7 @@ export class ActionConfig {
    */
   static get(entityType, userRole = null) {
     const config = ActionConfigs[entityType];
-    
+
     if (!config) {
       console.warn(`ActionConfig: Keine Konfiguration für Entity-Type '${entityType}' gefunden`);
       return null;
@@ -363,22 +399,15 @@ export class ActionConfig {
     if (userRole === 'kunde' && config.kundenActions) {
       return {
         ...config,
-        actions: filterWriteActions(entityType, userRole, config.actions.filter(action =>
+        actions: filterByCapability(entityType, userRole, config.actions.filter(action =>
           config.kundenActions.includes(action.id) || action.id === 'separator'
         ))
       };
     }
 
-    // Role-basiertes Filtering für andere Rollen
+    // Alle anderen Rollen: Capability-Filter entscheidet, nicht die roles-Liste.
     if (userRole && userRole !== 'admin') {
-      return {
-        ...config,
-        actions: filterWriteActions(entityType, userRole, config.actions.filter(action => {
-          if (action.id === 'separator') return true;
-          if (!action.roles) return true;
-          return action.roles.includes('all') || action.roles.includes(userRole);
-        }))
-      };
+      return { ...config, actions: filterByCapability(entityType, userRole, config.actions) };
     }
 
     // Admin oder keine Rolle: Alle Actions
