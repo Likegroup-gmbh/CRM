@@ -10,6 +10,7 @@ import {
   currentHistoryRoute
 } from './NavigationScroll.js';
 import { unregisterHeaderChatToggle } from './chat/HeaderChatSlot.js';
+import { invalidateFinanzbestand } from './budget/finanzbestand.js';
 export { OptionsManager };
 
 export class ModuleRegistry {
@@ -162,6 +163,16 @@ export class ModuleRegistry {
 
     const pathOnly = String(route || '').split(/[?#]/)[0];
     const path = pathOnly.replace(/^\//, '');
+
+    // Finanzbestand (Admin-Finanzseiten) halten, solange man im Adminbereich,
+    // auf der Stakeholder-Uebersicht oder auf dem Dashboard bleibt. Sobald die
+    // Route auf eine Detailseite zeigt (Video/Kampagne/Auftrag/Rechnung/…),
+    // wird verworfen — die naechste Datenqualitaet liest frisch.
+    const FINANZBESTAND_KEEP = /^\/?(admin|stakeholder|dashboard)(\/|$)/;
+    if (!FINANZBESTAND_KEEP.test(pathOnly)) {
+      invalidateFinanzbestand();
+    }
+
     const pathParts = path.split('/');
     const [segment, idRaw, actionRaw] = pathParts;
     const idFromPath = idRaw ? idRaw.split('?')[0] : idRaw;
@@ -170,6 +181,31 @@ export class ModuleRegistry {
     // ID-basierten Weichen unten nicht "neu" fuer eine Entity-ID halten.
     const id = idFromPath === 'neu' ? 'new' : idFromPath;
     const action = actionRaw ? actionRaw.split('?')[0] : actionRaw;
+
+    // Route-Guard fuer Anlage- und Bearbeiten-Routen: kein Create/Edit-Recht,
+    // keine Seite — sonst landet z.B. ein Investor per Direkt-URL auf einer
+    // leeren Form, die die RLS dann erst beim Submit ablehnt. Segment → Entitaet.
+    if (id === 'new' || action === 'edit') {
+      const segmentEntity = {
+        unternehmen: 'unternehmen', marke: 'marke', produkt: 'produkt',
+        persona: 'persona', ansprechpartner: 'ansprechpartner', creator: 'creator',
+        kampagne: 'kampagne', kooperation: 'kooperation', briefing: 'briefing',
+        auftrag: 'auftrag', auftragsdetails: 'auftragsdetails', rechnung: 'rechnung',
+        strategie: 'strategie', sourcing: 'sourcing', skripte: 'skripte',
+        vertraege: 'vertraege', management: 'management'
+      }[segment];
+      if (segmentEntity) {
+        const verb = id === 'new' ? 'create' : 'edit';
+        const allowed = id === 'new'
+          ? window.canCreate?.(segmentEntity)
+          : window.canEdit?.(segmentEntity);
+        if (allowed === false) {
+          console.log(`🚫 Navigation blockiert: kein ${verb}-Recht fuer ${segmentEntity}`);
+          window.toastSystem?.show('Sie haben keine Berechtigung für diese Aktion.', 'warning');
+          return;
+        }
+      }
+    }
 
     if (segment === 'creator' && id && id !== 'new') {
       const canViewViaPage = window.canViewPage?.('creator');

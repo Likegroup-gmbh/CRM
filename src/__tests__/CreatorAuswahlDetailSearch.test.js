@@ -162,14 +162,13 @@ describe('CreatorAuswahlTemplates – Suche im UI', () => {
     }
   });
 
-  it('zeigt die Aktions-Buttons nur für interne Nutzer', () => {
-    const htmlIntern = renderAddSection({ ...baseCtx, isKunde: false });
+  it('zeigt die Aktions-Buttons nur mit sourcing.can_create', () => {
+    // Investor/Kunde: create=false → kein Add-Drawer, aber Toolbar (Teilen etc.) bleibt.
+    const htmlIntern = renderAddSection({ ...baseCtx, isKunde: false, canCreate: true });
     expect(htmlIntern).toContain('btn-open-add-drawer');
-    expect(htmlIntern).toContain('btn-sourcing-toolbar-menu');
 
-    const htmlKunde = renderAddSection({ ...baseCtx, isKunde: true });
+    const htmlKunde = renderAddSection({ ...baseCtx, isKunde: true, canCreate: false });
     expect(htmlKunde).not.toContain('btn-open-add-drawer');
-    expect(htmlKunde).not.toContain('btn-sourcing-toolbar-menu');
   });
 
   it('übernimmt den aktuellen Suchwert escaped ins Input', () => {

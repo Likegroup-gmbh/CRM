@@ -61,7 +61,7 @@ export class UnternehmenDetail extends PersonDetailBase {
       await this.loadUnternehmenData();
 
       if (window.breadcrumbSystem && this.unternehmen) {
-        const canEdit = window.currentUser?.permissions?.unternehmen?.can_edit !== false;
+        const canEdit = window.canEdit?.('unternehmen') ?? false;
         const breadcrumbOpts = {
           id: 'btn-edit-unternehmen',
           canEdit

@@ -221,7 +221,8 @@ describe('Sourcing – TKP der Liste', () => {
 
 describe('Sourcing – Kopfzeile der Detailtabelle', () => {
   function kopf(ctx = {}) {
-    const html = renderAddSection({ isKunde: false, ...ctx });
+    // Interner Default hat create-Recht; Kunden-/Investor-Faelle setzen canCreate:false.
+    const html = renderAddSection({ isKunde: false, canCreate: true, ...ctx });
     return new DOMParser().parseFromString(html, 'text/html');
   }
 
@@ -270,7 +271,7 @@ describe('Sourcing – Kopfzeile der Detailtabelle', () => {
     expect(kinder[1].id).toBe('btn-open-add-drawer');
     expect(kinder[2].classList.contains('toolbar-menu')).toBe(true);
 
-    const kundenDoc = kopf({ isKunde: true });
+    const kundenDoc = kopf({ isKunde: true, canCreate: false });
     expect(kundenDoc.querySelector('#sourcing-item-search-input')).not.toBeNull();
     expect(kundenDoc.querySelector('.toolbar-menu')).toBeNull();
     expect(kundenDoc.querySelector('.sourcing-status-filter-submenu')).toBeNull();

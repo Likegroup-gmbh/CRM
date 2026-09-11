@@ -404,7 +404,7 @@ export function renderAddSection(ctx = {}) {
           placeholder: 'Name suchen...',
           currentValue: escapeHtml(ctx.searchQuery || '')
         })}
-        ${!ctx.isKunde ? `
+        ${ctx.canCreate ? `
         <button type="button" class="mdc-btn" id="btn-open-add-drawer">
           ${icon('plus-lg')}
           Creator hinzufügen
@@ -553,7 +553,6 @@ export function renderItemsTable(ctx) {
           </tr>
         </tfoot>
         ` : ''}
-      </table>
     </div>
   `;
 }
@@ -1113,10 +1112,12 @@ export function renderItemRow(ctx, item, index) {
             <div class="actions-dropdown">
               ${''}
               <!-- CRM-Uebernahme vorerst ausgeblendet -->
+              ${ctx.canDelete ? `
               <a href="#" class="action-item action-danger" data-action="delete-item" data-id="${item.id}">
                 ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
                 Löschen
               </a>
+              ` : ''}
             </div>
           </div>
         </td>

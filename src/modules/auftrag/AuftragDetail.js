@@ -55,7 +55,7 @@ export class AuftragDetail extends PersonDetailBase {
       
       // Breadcrumb aktualisieren mit Edit-Button
       if (window.breadcrumbSystem && this.auftrag) {
-        const canEdit = window.currentUser?.permissions?.auftrag?.can_edit !== false;
+        const canEdit = window.canEdit?.('auftrag') ?? false;
         window.breadcrumbSystem.updateDetailLabel(this.auftrag.auftragsname || 'Details', {
           id: 'btn-edit-auftrag',
           canEdit: canEdit

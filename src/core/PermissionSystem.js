@@ -1,36 +1,52 @@
 // PermissionSystem.js (ES6-Modul)
-// Zentrale Berechtigungsverwaltung
+// Zentrale Berechtigungsverwaltung — deep module.
+//
+// Call-Sites fragen Capabilities, nicht Rollen:
+//   permissionSystem.can('kampagne', 'create')  /  window.canCreate('kampagne')
+//   permissionSystem.canEdit('kampagne')
+// Rollen, Mitarbeiter-Klassen, zugriffsrechte-Overrides, user_permissions-Overlay
+// und Guest-Share bleiben Implementation. Neue Rolle/Klasse = eine Matrix-Zeile
+// mit True/False.
 
-// --- Komprimierte Rollen-Matrix (Modul-Konstante, wird nur 1x erzeugt) ---
+// --- Entitäten und Verben ---
 
 const ENTITIES = [
   'creator', 'creator-lists', 'unternehmen', 'marke', 'produkt',
   'persona', 'auftrag', 'auftragsdetails', 'kampagne', 'kooperation', 'briefing',
   'videos', 'rechnung', 'ansprechpartner', 'dashboard', 'tasks',
   'strategie', 'sourcing', 'feedback', 'mitarbeiter',
-  'vertraege', 'kunden-admin', 'contracts', 'skripte'
+  'vertraege', 'kunden-admin', 'contracts', 'skripte', 'management'
 ];
 
-const T = { can_view: true, can_edit: true, can_delete: true };
-const F = { can_view: false, can_edit: false, can_delete: false };
-const V = { can_view: true, can_edit: false, can_delete: false };
+// Vier Verben: view / create / edit / delete. create ist absichtlich kein
+// Subset von edit: Investor sieht Zeilen, legt aber keine an.
+const T = { can_view: true,  can_create: true,  can_edit: true,  can_delete: true  };
+const F = { can_view: false, can_create: false, can_edit: false, can_delete: false };
+const V = { can_view: true,  can_create: false, can_edit: false, can_delete: false };
 
 function allOf(template) {
   return Object.fromEntries(ENTITIES.map(e => [e, { ...template }]));
 }
+
+// Edit-Recht ohne Create (Kunde darf Anmerkungen pflegen, aber nichts anlegen).
+function viewEdit() {
+  return { can_view: true, can_create: false, can_edit: true, can_delete: false };
+}
+
+// --- Rollen-Matrix (benutzer.rolle) ---
 
 const BASE_PERMISSIONS = {
   admin: allOf(T),
 
   mitarbeiter: {
     ...allOf(T),
-    unternehmen:    { can_view: true, can_edit: false, can_delete: true },
-    marke:          { can_view: true, can_edit: false, can_delete: true },
+    unternehmen:    { can_view: true, can_create: false, can_edit: false, can_delete: true },
+    marke:          { can_view: true, can_create: false, can_edit: false, can_delete: true },
     auftrag:        { ...F },
-    auftragsdetails:{ can_view: true, can_edit: false, can_delete: true },
-    rechnung:       { can_view: true, can_edit: true, can_delete: false },
+    auftragsdetails:{ can_view: true, can_create: false, can_edit: false, can_delete: true },
+    rechnung:       { can_view: true, can_create: true,  can_edit: true,  can_delete: false },
     dashboard:      { ...V },
-    tasks:          { can_view: true, can_edit: false, can_delete: true },
+    tasks:          { can_view: true, can_create: false, can_edit: false, can_delete: true },
     mitarbeiter:    { ...F },
     'kunden-admin': { ...F },
     contracts:      { ...F },
@@ -39,7 +55,6 @@ const BASE_PERMISSIONS = {
   kunde: {
     ...allOf(F),
     produkt:     { ...V },
-    persona:     { ...F },
     auftrag:     { ...V },
     kampagne:    { ...V },
     kooperation: { ...V },
@@ -47,8 +62,8 @@ const BASE_PERMISSIONS = {
     skripte:     { ...V },
     videos:      { ...V },
     dashboard:   { ...V },
-    tasks:       { can_view: true, can_edit: true, can_delete: false },
-    strategie:   { can_view: true, can_edit: true, can_delete: false },
+    tasks:       viewEdit(),
+    strategie:   viewEdit(),
     sourcing:    { ...V },
     contracts:   { ...V },
   },
@@ -88,17 +103,28 @@ const PENDING_PERMISSIONS = {
   dashboard: { ...V },
 };
 
-const FINANZEN_PRESET = {
-  ...allOf(F),
-  dashboard: { ...V },
-  auftrag: { ...V },
-  auftragsdetails: { ...V },
-  kampagne: { ...V },
+// --- Klassen-Matrix (mitarbeiter_klasse.name → Zeile) ---
+// Klasse ist die Startzeile, kein hartes Preset mehr: zugriffsrechte-Overrides
+// des Users gelten auch hier (sie schlagen die Klassen-Zeile, Q2 = B).
+//
+// Finanzen = die Investor-Klasse: wie rolle='investor' volle Plattform lesen,
+// view-only, ohne Verwaltung, sieht Preise (canSeePricing via isInvestor).
+const KLASSE_PERMISSIONS = {
+  finanzen: {
+    ...allOf(V),
+    mitarbeiter:    { ...F },
+    'kunden-admin': { ...F },
+  },
 };
 
 function resolveKlasseName(user) {
   const raw = user?.mitarbeiter_klasse?.name ?? user?.mitarbeiter_klasse_name ?? '';
   return String(raw).trim();
+}
+
+function klasseKey(user) {
+  const name = resolveKlasseName(user).toLowerCase();
+  return KLASSE_PERMISSIONS[name] ? name : null;
 }
 
 // --- Permission System Klasse ---
@@ -108,7 +134,7 @@ export class PermissionSystem {
     this.userPermissions = {};
     this.userRole = null;
     this._normalizedRole = '';
-    this._usesKlassePreset = false;
+    this._klasseKey = null;
     this.calculatedPermissions = {};
     this.pagePermissions = {};
     this.tablePermissions = {};
@@ -127,16 +153,18 @@ export class PermissionSystem {
   get isGastReadonly() { return this.isGast && window.guestShare?.rechte !== 'feedback'; }
   get isKundeEditor() { return this._normalizedRole === 'kunde_editor'; }
   get isMitarbeiter() { return this._normalizedRole === 'mitarbeiter'; }
-  get isInvestor()    { return this._normalizedRole === 'investor'; }
   get isPending()     { return this._normalizedRole === 'pending'; }
   get isInternal()    { return this.isAdmin || this.isMitarbeiter; }
-  get isUnscoped()    { return this.isAdmin || this.isKunde || this.isInvestor || this._usesKlassePreset; }
+  // Investor = eigene Rolle (rolle='investor', RLS-Wahrheit) ODER die
+  // Finanzen-Klasse auf rolle=mitarbeiter. Beide Wege fuehren view-only.
+  get isInvestor()    { return this._normalizedRole === 'investor' || this._klasseKey === 'finanzen'; }
+  get isUnscoped()    { return this.isAdmin || this.isKunde || this.isInvestor || !!this._klasseKey; }
 
   // Feature-basierte Checks (Capabilities)
   get canSeePricing()      { return this.isInternal || this.isInvestor; }
   get canManageStaff()     { return this.isAdmin; }
-  get canBulkDelete()      { return this.isInternal && !this._usesKlassePreset; }
-  get canCreateProject()   { return this.isInternal && !this._usesKlassePreset; }
+  get canBulkDelete()      { return this.isInternal && !this._klasseKey; }
+  get canCreateProject()   { return this.isInternal && !this._klasseKey; }
   get canUseGlobalSearch() { return !this.isPending; }
   get canViewAccounting()  { return this.isAdmin || this.isInvestor; }
   get canViewContracts() {
@@ -153,16 +181,16 @@ export class PermissionSystem {
     this.userRole = user.rolle;
     this._normalizedRole = String(user.rolle || '').trim().toLowerCase();
     this.userPermissions = user.zugriffsrechte || {};
-    this._usesKlassePreset = resolveKlasseName(user) === 'Finanzen';
+    this._klasseKey = klasseKey(user);
 
-    let calculatedPermissions;
-    if (this._usesKlassePreset) {
-      calculatedPermissions = structuredClone(FINANZEN_PRESET);
-    } else {
-      calculatedPermissions = this.getPermissionsByRole(this._normalizedRole);
-      if (user?.zugriffsrechte && typeof user.zugriffsrechte === 'object') {
-        calculatedPermissions = this.applyOverrides(calculatedPermissions, user.zugriffsrechte);
-      }
+    // Klasse (falls vorhanden) ist die Startzeile, sonst die Rolle.
+    let calculatedPermissions = this._klasseKey
+      ? structuredClone(KLASSE_PERMISSIONS[this._klasseKey])
+      : this.getPermissionsByRole(this._normalizedRole);
+
+    // Overrides gelten immer — auch ueber einer Klasse (Admin-Toggle schlaegt Klasse).
+    if (user?.zugriffsrechte && typeof user.zugriffsrechte === 'object') {
+      calculatedPermissions = this.applyOverrides(calculatedPermissions, user.zugriffsrechte);
     }
 
     this.calculatedPermissions = calculatedPermissions;
@@ -172,7 +200,7 @@ export class PermissionSystem {
       window.currentUser.permissions = calculatedPermissions;
     }
 
-    console.debug('🔐 Berechtigungen gesetzt:', { role: this.userRole, permissions: calculatedPermissions });
+    console.debug('🔐 Berechtigungen gesetzt:', { role: this.userRole, klasse: this._klasseKey, permissions: calculatedPermissions });
   }
 
   // ============================================
@@ -180,10 +208,10 @@ export class PermissionSystem {
   // ============================================
 
   getPermissionsByRole(normalizedRole) {
-    if (normalizedRole === 'pending') return { ...PENDING_PERMISSIONS };
+    if (normalizedRole === 'pending') return structuredClone(PENDING_PERMISSIONS);
     const matrix = BASE_PERMISSIONS[normalizedRole];
     if (matrix) return structuredClone(matrix);
-    return { ...DEFAULT_PERMISSIONS };
+    return structuredClone(DEFAULT_PERMISSIONS);
   }
 
   // Abwaertskompatibilitaet: alte Signatur getPermissionsByUser(user)
@@ -199,12 +227,14 @@ export class PermissionSystem {
   applyOverrides(perms, overrides) {
     const cloned = structuredClone(perms || {});
     for (const key of Object.keys(overrides || {})) {
-      if (!cloned[key]) cloned[key] = { can_view: false, can_edit: false, can_delete: false };
+      if (!cloned[key]) cloned[key] = { can_view: false, can_create: false, can_edit: false, can_delete: false };
       const ov = overrides[key];
       if (typeof ov === 'boolean') { cloned[key].can_view = ov; continue; }
       if (ov && typeof ov === 'object') {
         if (typeof ov.can_view === 'boolean') cloned[key].can_view = ov.can_view;
+        if (typeof ov.can_create === 'boolean') cloned[key].can_create = ov.can_create;
         if (typeof ov.can_edit === 'boolean') cloned[key].can_edit = ov.can_edit;
+        if (typeof ov.can_delete === 'boolean') cloned[key].can_delete = ov.can_delete;
       }
     }
     return cloned;
@@ -238,25 +268,36 @@ export class PermissionSystem {
   }
 
   // ============================================
-  // Permission-Checks
+  // Capability-Interface (das einzige, was Call-Sites brauchen)
   // ============================================
 
-  canView(entity) {
+  // can('kampagne', 'create') — versteckt den Button, blockt die Route.
+  // Akzeptiert 'view' | 'can_view' | 'create' | 'edit' | 'delete'.
+  can(entity, verb) {
     if (this.isAdmin) return true;
     if (!this._normalizedRole) return false;
-
-    const pageOverride = this.pagePermissions?.[entity]?.can_view;
-    if (typeof pageOverride === 'boolean') return pageOverride;
-    return !!this.calculatedPermissions?.[entity]?.can_view;
+    const v = String(verb || '').replace(/^can_/, '');
+    return !!this.calculatedPermissions?.[entity]?.[`can_${v}`];
   }
 
+  canView(entity)   { return this.can(entity, 'view'); }
+  canCreate(entity) { return this.can(entity, 'create'); }
   canEdit(entity) {
     if (this.isAdmin) return true;
     if (!this._normalizedRole) return false;
-
+    // Page-Scoped Override aus DB schlaegt die Matrix.
     const pageOverride = this.pagePermissions?.[entity]?.can_edit;
     if (typeof pageOverride === 'boolean') return pageOverride;
     return !!this.calculatedPermissions?.[entity]?.can_edit;
+  }
+  canDelete(entity) { return this.can(entity, 'delete'); }
+
+  // Anlegen = create, wobei aeltere Matrizen create noch nicht kennen:
+  // dann zaehlt edit als Create (Abwaertskompatibilitaet waehrend Migration).
+  canCreateOrEdit(entity) {
+    const perms = this.calculatedPermissions?.[entity];
+    if (perms && typeof perms.can_create === 'boolean') return this.canCreate(entity);
+    return this.canEdit(entity);
   }
 
   canViewPage(pageId) {
@@ -338,7 +379,7 @@ export class PermissionSystem {
     this.userPermissions = {};
     this.userRole = null;
     this._normalizedRole = '';
-    this._usesKlassePreset = false;
+    this._klasseKey = null;
     this.calculatedPermissions = {};
     this.pagePermissions = {};
     this.tablePermissions = {};
@@ -363,12 +404,17 @@ if (typeof window !== 'undefined') {
   window.getUserPermissions = () => permissionSystem.getUserPermissions();
   window.getEntityPermissions = (entity) => permissionSystem.getEntityPermissions(entity);
   window.canViewPage = (pageId) => permissionSystem.canViewPage(pageId);
-  window.canView = (entity) => permissionSystem.canView(entity);
-  window.canEdit = (entity) => permissionSystem.canEdit(entity);
   window.canViewTable = (pageId, tableId) => permissionSystem.canViewTable(pageId, tableId);
   window.getDataFilters = (pageId, tableId) => permissionSystem.getDataFilters(pageId, tableId);
 
-  // Neue Rollen-Helper
+  // Capability-Interface
+  window.can       = (entity, verb) => permissionSystem.can(entity, verb);
+  window.canView   = (entity) => permissionSystem.canView(entity);
+  window.canCreate = (entity) => permissionSystem.canCreateOrEdit(entity);
+  window.canEdit   = (entity) => permissionSystem.canEdit(entity);
+  window.canDelete = (entity) => permissionSystem.canDelete(entity);
+
+  // Rollen-Helper (fuer Pricing-/Scoping-Fragen, nicht fuer Write-Gates)
   window.isAdmin        = () => permissionSystem.isAdmin;
   window.isKunde        = () => permissionSystem.isKunde;
   window.isGast         = () => permissionSystem.isGast;

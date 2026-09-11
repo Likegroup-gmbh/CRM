@@ -330,6 +330,10 @@ export class CreatorAuswahlDetail {
   // --- Rendering ---
 
   getRenderContext() {
+    // Capabilities entscheiden, nicht die Rolle. Investor (Klasse Finanzen) ist
+    // intern (isKunde=false), aber sourcing.create/edit/delete sind false.
+    const can = (verb) => window.permissionSystem?.can('sourcing', verb) ?? false;
+    const canCreate = can('create');
     return {
       items: this.getFilteredItems(),
       hasAnyItems: this.items.length > 0,
@@ -339,6 +343,9 @@ export class CreatorAuswahlDetail {
       tabCounts: this.getTabCounts(),
       liste: this.liste,
       isKunde: this.isKunde,
+      canCreate,
+      canEdit: can('edit'),
+      canDelete: can('delete'),
       gastReadonly: window.isGastReadonly?.() || false,
       hiddenColumns: this.hiddenColumns,
       kundenCallActive: this.kundenCallActive,

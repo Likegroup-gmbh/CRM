@@ -88,7 +88,7 @@ export class StrategieDetail {
   }
 
   async render() {
-    const canEdit = !this.isKunde;
+    const canEdit = window.canEdit?.('strategie') ?? !this.isKunde;
 
     const html = `
       ${this.renderHeader()}

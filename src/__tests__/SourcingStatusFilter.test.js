@@ -119,7 +119,7 @@ describe('matchesStatusFilter', () => {
 
 describe('Statusfilter in der Toolbar', () => {
   it('legt Status filtern als Submenu ins Plus-Dropdown', () => {
-    const doc = parse(renderAddSection({ isKunde: false, statusFilter: ['Angefragt'] }));
+    const doc = parse(renderAddSection({ isKunde: false, canCreate: true, statusFilter: ['Angefragt'] }));
     const submenu = doc.querySelector('.sourcing-status-filter-submenu');
     const dropdown = doc.querySelector('.toolbar-menu-dropdown');
 

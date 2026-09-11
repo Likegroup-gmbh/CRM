@@ -418,18 +418,22 @@ describe('Finanzen-Klassen-Preset', () => {
     ps = new PermissionSystem();
   });
 
-  it('sieht nur PM + Dashboard, nichts bearbeiten', () => {
+  it('liest die ganze Plattform view-only (wie rolle=investor), bearbeitet nichts', () => {
     ps.setUserPermissions(finanzenUser());
 
     expect(ps.canView('dashboard')).toBe(true);
     expect(ps.canView('auftrag')).toBe(true);
     expect(ps.canView('auftragsdetails')).toBe(true);
     expect(ps.canView('kampagne')).toBe(true);
+    // Voll lesen wie Investor, aber keine Verwaltung
+    expect(ps.canView('creator')).toBe(true);
+    expect(ps.canView('unternehmen')).toBe(true);
+    expect(ps.canView('briefing')).toBe(true);
+    expect(ps.canView('mitarbeiter')).toBe(false);
+    // Nichts schreiben
     expect(ps.canEdit('auftrag')).toBe(false);
     expect(ps.canEdit('kampagne')).toBe(false);
-    expect(ps.canView('creator')).toBe(false);
-    expect(ps.canView('unternehmen')).toBe(false);
-    expect(ps.canView('briefing')).toBe(false);
+    expect(ps.canCreate('kampagne')).toBe(false);
   });
 
   it('ist unscoped, darf kein Projekt anlegen, sieht Preise', () => {
@@ -442,13 +446,14 @@ describe('Finanzen-Klassen-Preset', () => {
     expect(ps.canSeePricing).toBe(true);
   });
 
-  it('zugriffsrechte weichen das Preset nicht auf', () => {
+  it('zugriffsrechte schlagen die Klassen-Zeile (Q2 = B)', () => {
     ps.setUserPermissions(finanzenUser({
       zugriffsrechte: { creator: { can_view: true, can_edit: true } }
     }));
 
-    expect(ps.canView('creator')).toBe(false);
-    expect(ps.canEdit('creator')).toBe(false);
+    // Klasse ist Startzeile, nicht hartes Preset: Admin-Toggle dreht creator auf.
+    expect(ps.canView('creator')).toBe(true);
+    expect(ps.canEdit('creator')).toBe(true);
     expect(ps.canView('auftrag')).toBe(true);
   });
 
@@ -460,6 +465,28 @@ describe('Finanzen-Klassen-Preset', () => {
     });
     expect(ps.canView('kampagne')).toBe(true);
     expect(ps.canCreateProject).toBe(false);
+  });
+
+  // Investor = Finanzen-Klasse: view-only, kein create/edit/delete irgendwo,
+  // obwohl isInternal/isKunde=false (Pricing bleibt sichtbar).
+  it('Investor (Finanzen) ist view-only: keine Write-Capabilities', () => {
+    ps.setUserPermissions(finanzenUser());
+
+    for (const entity of ['kampagne', 'sourcing', 'strategie', 'skripte', 'creator', 'kooperation', 'briefing']) {
+      expect(ps.can(entity, 'create')).toBe(false);
+      expect(ps.can(entity, 'edit')).toBe(false);
+      expect(ps.can(entity, 'delete')).toBe(false);
+    }
+    expect(ps.canCreate('kampagne')).toBe(false);
+    expect(ps.canEdit('sourcing')).toBe(false);
+    // Views, die der Investor braucht
+    expect(ps.canView('kampagne')).toBe(true);
+    expect(ps.canView('auftrag')).toBe(true);
+    // Intern: Preise sichtbar, aber nichts anlegbar
+    expect(ps.isInternal).toBe(true);
+    expect(ps.isInvestor).toBe(true);
+    expect(ps.canSeePricing).toBe(true);
+    expect(ps.canBulkDelete).toBe(false);
   });
 });
 
