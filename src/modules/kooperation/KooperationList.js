@@ -86,9 +86,9 @@ export class KooperationList {
       }
 
       // Sichtbarkeit: Nicht-Admins nur eigene (assignee_id) ODER solche aus zugewiesenen Kampagnen/Marken/Unternehmen
-      const isAdmin = window.isAdmin();
+      const isUnscoped = window.isAdmin() || window.isUnscoped?.();
       let allowedKampagneIds = [];
-      if (!isAdmin) {
+      if (!isUnscoped) {
         try {
           // 1. Direkt zugeordnete Kampagnen
           const { data: assignedKampagnen } = await window.supabase
@@ -169,7 +169,7 @@ export class KooperationList {
 
       // Für Mitarbeiter: Filtere nach zugewiesenen Kampagnen
       // Für Kunden: RLS-Policies filtern automatisch
-      if (!isAdmin && !window.isKunde()) {
+      if (!isUnscoped && !window.isKunde()) {
         coopQuery = coopQuery.or(`assignee_id.eq.${window.currentUser?.id}${allowedKampagneIds.length ? `,kampagne_id.in.(${allowedKampagneIds.join(',')})` : ''}`);
       }
 

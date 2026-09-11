@@ -21,8 +21,8 @@ export class StrategieService {
   async getAllStrategien() {
     const user = window.currentUser;
 
-    // Admin sieht alle Strategien
-    if (window.isAdmin()) {
+    // Admin und Investor sehen alle Strategien
+    if (window.isAdmin() || window.isInvestor?.()) {
       return this._fetchAllStrategien();
     }
 
@@ -267,7 +267,7 @@ export class StrategieService {
     // Gäste (Share-Link): Zugriff wird serverseitig via RLS auf die geteilte Liste beschränkt
     const user = window.currentUser;
     
-    if (!window.isAdmin() && !window.isGast?.() && data?.kampagne_id) {
+    if (!window.isAdmin() && !window.isInvestor?.() && !window.isGast?.() && data?.kampagne_id) {
       const allowedKampagneIds = await this._getAllowedKampagneIds(user);
       
       if (!allowedKampagneIds.includes(data.kampagne_id)) {

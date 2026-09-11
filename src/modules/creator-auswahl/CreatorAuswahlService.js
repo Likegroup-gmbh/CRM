@@ -26,7 +26,7 @@ export class CreatorAuswahlService {
   async getAllListen() {
     const user = window.currentUser;
     
-    if (window.isAdmin()) {
+    if (window.isAdmin() || window.isInvestor?.()) {
       return this._fetchAllListen();
     }
 

@@ -196,7 +196,7 @@ export class AuftragsdetailsList {
       }
 
       // Sichtbarkeit: Nicht-Admins sehen nur zugewiesene Aufträge
-      const isAdmin = window.isAdmin();
+      const isAdmin = window.isAdmin() || window.isUnscoped?.();
       let allowedAuftragIds = null;
       
       if (!isAdmin && window.currentUser?.id) {

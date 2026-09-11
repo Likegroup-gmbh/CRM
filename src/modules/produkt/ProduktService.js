@@ -97,7 +97,7 @@ const TABELLEN_SELECT = `
 
 function isUnscopedRolle(rolle) {
   const r = String(rolle || '').toLowerCase();
-  return r === 'admin' || r === 'kunde' || r === 'kunde_editor';
+  return r === 'admin' || r === 'kunde' || r === 'kunde_editor' || r === 'investor';
 }
 
 export class ProduktService {
