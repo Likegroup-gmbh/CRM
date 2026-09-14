@@ -55,7 +55,7 @@ export class VideoTableRenderer {
       if (isNaN(date)) return '—';
       return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
     };
-    if (t.isKundeRole() || !t.isFieldEditableForUser('video', fieldName)) {
+    if (!t.isFieldEditableForUser('video', fieldName)) {
       return `<div class="video-deadline-text">${formatDate(video[fieldName])}</div>`;
     }
     const pickerHtml = CustomDatePicker.render({
@@ -91,7 +91,7 @@ export class VideoTableRenderer {
     const handle = koop?.creator?.instagram || koop?.creator?.tiktok || '';
     const chip = renderPlatformChip(url, handle);
 
-    if (t.isKundeRole() || !t.isFieldEditableForUser('video', 'link_live')) {
+    if (!t.isFieldEditableForUser('video', 'link_live')) {
       return renderStaticChip({ href: url, chip, title: 'Video öffnen' })
         || `<span class="stacked-video-empty">-</span>`;
     }
@@ -130,7 +130,7 @@ export class VideoTableRenderer {
     const compact = formatCompactNumber(value);
     const exact = formatExactNumber(value);
 
-    if (t.isKundeRole() || !t.isFieldEditableForUser('video', fieldName)) {
+    if (!t.isFieldEditableForUser('video', fieldName)) {
       return `<div class="video-stats-text" title="${exact}">${compact || '—'}</div>`;
     }
 
@@ -169,13 +169,14 @@ export class VideoTableRenderer {
 
     if (!t.kooperationen || t.kooperationen.length === 0) {
       const isKunde = t.isKundeRole();
+      const canCreateKooperation = window.canCreate?.('kooperation') ?? false;
       return renderEmptyState({
         icon: 'film',
         title: 'Keine Kooperationen vorhanden',
         text: isKunde
           ? 'Es wurden noch keine Kooperationen für diese Kampagne angelegt.'
           : 'Erstelle eine Kooperation, um sie hier mit Videos zu verwalten.',
-        actionsHtml: !isKunde
+        actionsHtml: canCreateKooperation
           ? `<button class="mdc-btn" onclick="window.navigateToNewKooperationFromKampagne('${t.kampagneId}')">Kooperation anlegen</button>`
           : ''
       });
@@ -226,6 +227,7 @@ export class VideoTableRenderer {
     const t = this.table;
     const hiddenColumns = t.hiddenColumns || [];
     const isKunde = t.isKundeRole();
+    const canDragColumns = window.canFeature?.('kampagneTableLayout') ?? false;
     const columns = getOrderedColumns(t.store);
 
     return columns.map(col => {
@@ -233,9 +235,9 @@ export class VideoTableRenderer {
         return renderCustomHeader(col, hiddenColumns, isKunde);
       }
       const vis = t.isColumnVisibleForCustomer(col.id) ? '' : 'style="display:none;"';
-      // Drag nur intern und nur auf verschiebbaren Spalten
+      // Drag nur mit Layout-Feature und nur auf verschiebbaren Spalten
       // (Nr/Creator/Aktionen sind fixiert, configurable: false).
-      const drag = !isKunde && col.configurable !== false ? 'draggable="true"' : '';
+      const drag = canDragColumns && col.configurable !== false ? 'draggable="true"' : '';
       return `<th class="col-header ${col.id}" ${vis} data-col="${col.dataCol}" data-col-id="${col.id}" ${drag}>
         ${col.label}
         <div class="resize-handle resize-handle-col" data-col="${col.dataCol}"></div>
@@ -249,7 +251,7 @@ export class VideoTableRenderer {
     const creator = koop.creator || {};
     const canViewViaPage = window.canViewPage?.('creator');
     const canViewViaPerm = window.currentUser?.permissions?.creator?.can_view;
-    const canViewCreator = !t.isKundeRole() && canViewViaPage !== false && canViewViaPerm !== false;
+    const canViewCreator = canViewViaPage !== false && canViewViaPerm !== false;
     const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
 
     // Header und Body laufen ueber dieselbe Spaltenliste: die Zellen folgen
@@ -371,14 +373,14 @@ export class VideoTableRenderer {
           value="${this.escapeHtml(video.drehort || '')}" placeholder="Drehort"/>
       `), 'video-stack-cell'),
       'col-link-skript': (c) => this._td(c, 'col-link-skript', this.renderVideoFieldStack(c.videos, (video) => {
-        if (c.t.isKundeRole()) {
+        if (!c.t.isFieldEditableForUser('video', 'link_skript')) {
           const url = video.link_skript || '';
           return url
             ? `<a href="${this.escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="external-link-btn stacked-video-link-btn" title="Skript öffnen">${EXTERNAL_LINK_ICON}</a>`
             : `<span class="stacked-video-empty">-</span>`;
         }
         return `
-          <input type="text" class="grid-input stacked-video-input" 
+          <input type="text" class="grid-input stacked-video-input"
             data-entity="video" data-id="${video.id}" data-field="link_skript"
             value="${this.escapeHtml(video.link_skript || '')}" placeholder="Link"/>
         `;
@@ -467,7 +469,7 @@ export class VideoTableRenderer {
   _renderIdeeStrategieInner(c, video) {
     const t = c.t;
     const koop = c.koop;
-    const canLink = !t.isKundeRole();
+    const canLink = window.permissionSystem?.canEditField('video', 'strategie_item_id') ?? false;
     const item = video.strategie_item;
     if (item && (item.screenshot_url || item.video_link)) {
       const videoLink = item.video_link;
@@ -627,7 +629,7 @@ export class VideoTableRenderer {
 
   renderContentCell(koop, video) {
     const t = this.table;
-    const isKunde = t.isKundeRole();
+    const canUpload = window.canFeature?.('mediaUpload') ?? false;
     const folderUrl = video.folder_url;
     const storyFolderUrl = video.story_folder_url;
     const videoUrl = video.file_url || video.link_content || video.asset_url;
@@ -647,7 +649,7 @@ export class VideoTableRenderer {
       buttons.push(`<button type="button" class="external-link-btn media-action-btn" data-action="view-storys" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Storys ansehen">${STORYS_ICON}</button>`);
     }
 
-    if (!isKunde) {
+    if (canUpload) {
       if (hasContent) {
         buttons.push(`<button type="button" class="video-settings-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-file-path="${video.currentAsset?.file_path || ''}" data-video-url="${videoUrl || ''}" title="Video verwalten">${GEAR_ICON}</button>`);
       } else {
@@ -664,7 +666,7 @@ export class VideoTableRenderer {
 
   renderStillsCell(koop, video) {
     const t = this.table;
-    const isKunde = t.isKundeRole();
+    const canUpload = window.canFeature?.('mediaUpload') ?? false;
     const stills = stillsForVideoCell(koop, video);
     const hasStills = stills.length > 0
       || (!Array.isArray(koop._bilder) && !!koop.bilder_folder_url);
@@ -678,7 +680,7 @@ export class VideoTableRenderer {
       buttons.push(`<button type="button" class="external-link-btn media-action-btn" data-action="view-bilder" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="${stillsTitle}">${BILDER_ICON}${countBadge}</button>`);
     }
 
-    if (!isKunde) {
+    if (canUpload) {
       if (hasStills) {
         buttons.push(`<button type="button" class="video-settings-btn stills-settings-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-file-path="" data-video-url="" title="Stills verwalten">${GEAR_ICON}</button>`);
       } else {
@@ -695,7 +697,7 @@ export class VideoTableRenderer {
 
   renderFinaleVersionCell(koop, video) {
     const t = this.table;
-    const isKunde = t.isKundeRole();
+    const canUpload = window.canFeature?.('mediaUpload') ?? false;
     const finals = video.finalAssets || [];
     const stillFinals = finalStills(stillsForVideoCell(koop, video));
 
@@ -714,7 +716,7 @@ export class VideoTableRenderer {
       buttons.push(`<button type="button" class="external-link-btn media-action-btn finale-play-btn finale-still-btn" data-action="play-final-still" data-video-id="${video.id}" data-kooperation-id="${koop.id}" data-asset-id="${asset.id}" title="Finales Still ansehen">${thumb}<span class="finale-variant-label">${this.escapeHtml(label)}</span></button>`);
     });
 
-    if (!isKunde) {
+    if (canUpload) {
       buttons.push(`<button type="button" class="video-upload-btn finale-upload-btn" data-video-id="${video.id}" data-kooperation-id="${koop.id}" title="Finale Version hochladen">${UPLOAD_ICON}${finals.length === 0 && stillFinals.length === 0 ? ' Upload' : ''}</button>`);
     }
 
@@ -727,7 +729,7 @@ export class VideoTableRenderer {
 
   renderSkriptCell(koop, video) {
     const t = this.table;
-    const canLink = !t.isKundeRole();
+    const canLink = window.permissionSystem?.canEditField('video', 'skript_id') ?? false;
     // Share-Gaeste duerfen nicht in den Skript-Editor durchgreifen -
     // Skripte werden nur ueber eigene Skript-Links geteilt.
     const isGast = Boolean(window.isGast?.());
@@ -789,7 +791,7 @@ export class VideoTableRenderer {
 
   renderCreatorUploadItems(koop) {
     const t = this.table;
-    if (t.isKundeRole()) return '';
+    if (!(window.canFeature?.('mediaUpload') ?? false)) return '';
     if (t.kampagneInfo?.keinDropbox) return '';
     if (!koop.creator_id) return '';
 
@@ -823,7 +825,7 @@ export class VideoTableRenderer {
 
   renderActionStatusSubmenu(koop) {
     const t = this.table;
-    if (t.isKundeRole()) return '';
+    if (!(window.permissionSystem?.canEditField('kooperation', 'status_id') ?? false)) return '';
     const statusOptions = t.statusOptions || [];
     if (statusOptions.length === 0) return '';
 
@@ -860,7 +862,8 @@ export class VideoTableRenderer {
   renderStatusSelect(koop) {
     const t = this.table;
     const statusOptions = t.statusOptions || [];
-    const isEditable = !t.isKundeRole() && statusOptions.length > 0;
+    const isEditable = (window.permissionSystem?.canEditField('kooperation', 'status_id') ?? false)
+      && statusOptions.length > 0;
 
     if (!isEditable) return this.renderStatusBadge(koop);
 

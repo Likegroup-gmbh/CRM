@@ -41,6 +41,11 @@ function makeTable({ isKunde = false } = {}) {
   };
 }
 
+// Upload-Feature: Staff darf, Kunde nicht (Investor ebenfalls nicht).
+function mockMediaUpload(allowed) {
+  window.canFeature = vi.fn((name) => (name === 'mediaUpload' ? allowed : false));
+}
+
 function createChainableQuery(result = { data: [], error: null }) {
   const mock = {
     _result: result,
@@ -55,6 +60,14 @@ function createChainableQuery(result = { data: [], error: null }) {
 }
 
 describe('Finale-Spalte – Kunden-Play-Button', () => {
+  beforeEach(() => {
+    mockMediaUpload(false);
+  });
+
+  afterEach(() => {
+    delete window.canFeature;
+  });
+
   it('zeigt ohne finalAssets einen Bindestrich fuer Kunden', () => {
     const table = makeTable({ isKunde: true });
     const renderer = new VideoTableRenderer(table);
@@ -123,7 +136,12 @@ describe('Finale-Spalte – Kunden-Play-Button', () => {
 });
 
 describe('Stills-Spalte', () => {
+  afterEach(() => {
+    delete window.canFeature;
+  });
+
   it('zeigt Upload fuer Staff wenn keine Stills da sind', () => {
+    mockMediaUpload(true);
     const table = makeTable({ isKunde: false });
     const renderer = new VideoTableRenderer(table);
     const html = renderer.renderStillsCell({ id: 'k1', _bilder: [] }, { id: 'v1' });
@@ -131,6 +149,7 @@ describe('Stills-Spalte', () => {
   });
 
   it('zeigt Ansehen ohne Upload fuer Kunden', () => {
+    mockMediaUpload(false);
     const table = makeTable({ isKunde: true });
     const renderer = new VideoTableRenderer(table);
     const html = renderer.renderStillsCell({
@@ -142,6 +161,7 @@ describe('Stills-Spalte', () => {
   });
 
   it('zeigt Ansehen wenn nur ein finales Still existiert', () => {
+    mockMediaUpload(true);
     const table = makeTable({ isKunde: false });
     const renderer = new VideoTableRenderer(table);
     const html = renderer.renderStillsCell({
@@ -155,6 +175,7 @@ describe('Stills-Spalte', () => {
 
 describe('Finale-Spalte – Asset-Hydrate', () => {
   beforeEach(() => {
+    mockMediaUpload(false);
     document.body.innerHTML = `
       <div id="grid">
         <div class="col-finale-version">
@@ -228,6 +249,7 @@ describe('Finale-Spalte – Asset-Hydrate', () => {
 
 describe('Finale-Spalte – Bilder-Hydrate', () => {
   beforeEach(() => {
+    mockMediaUpload(false);
     document.body.innerHTML = `
       <div id="grid">
         <div class="col-finale-version">

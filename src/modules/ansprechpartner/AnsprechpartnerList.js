@@ -239,6 +239,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
     const canEdit = this.canEdit;
     const sanitize = this.sanitize.bind(this);
     const isManagement = this.mode === 'management';
+    const canSeeMail = window.canFeature?.('contactMail') ?? false;
 
     return `
       <tr data-id="${ap.id}">
@@ -273,7 +274,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
         <td>
           ${ap.positionen?.name ? `<div class="tag-list"><span class="tag tag--position">${sanitize(ap.positionen.name)}</span></div>` : '-'}
         </td>
-        <td class="table-cell-center">${ap.email ? `<a href="mailto:${ap.email}" class="external-link-btn" title="${sanitize(ap.email)}">${MAIL_ICON_SVG}</a>` : '-'}</td>
+        ${canSeeMail ? `<td class="table-cell-center">${ap.email ? `<a href="mailto:${ap.email}" class="external-link-btn" title="${sanitize(ap.email)}">${MAIL_ICON_SVG}</a>` : '-'}</td>` : ''}
         <td class="ap-col-nowrap">${PhoneDisplay.render(
           ap.telefonnummer_land?.iso_code,
           ap.telefonnummer_land?.vorwahl,
@@ -297,6 +298,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
     const canBulkDelete = this.canBulkDelete;
     const canEdit = this.canEdit;
     const isManagement = this.mode === 'management';
+    const canSeeMail = window.canFeature?.('contactMail') ?? false;
     const newButtonLabel = isManagement ? 'Neuen Management-Ansprechpartner anlegen' : 'Neuen Ansprechpartner anlegen';
 
     return `
@@ -332,7 +334,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
               <th class="ap-col-nowrap">Stadt</th>
               <th class="ap-col-nowrap">Land</th>
               <th>Position</th>
-              <th class="table-cell-center">Mail</th>
+              ${canSeeMail ? '<th class="table-cell-center">Mail</th>' : ''}
               <th class="ap-col-nowrap">Telefon Mobil</th>
               <th class="table-cell-center">LinkedIn</th>
               <th class="table-cell-center">Newsletter</th>
@@ -343,7 +345,7 @@ export class AnsprechpartnerList extends BasePaginatedList {
           </thead>
           <tbody>
             <tr>
-              <td colspan="${canBulkDelete ? '15' : '14'}" class="no-data">Lade Ansprechpartner...</td>
+              <td colspan="${(canBulkDelete ? 15 : 14) - (canSeeMail ? 0 : 1)}" class="no-data">Lade Ansprechpartner...</td>
             </tr>
           </tbody>
         </table>

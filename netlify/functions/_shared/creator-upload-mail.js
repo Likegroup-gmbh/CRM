@@ -1,19 +1,9 @@
 // _shared/creator-upload-mail.js
 // Einladungs-Mail an den Creator ueber Resend. Bilinguale Platzhalter-Copy
 // (DE zuerst, EN darunter) — Philips finale Vorlagen sind Drop-in.
+// Versand laeuft ueber den zentralen _shared/resend.js Helper.
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-
-function normalizeFrom(raw) {
-  const fallback = 'LikeGroup <uploads@creatorjobs24.de>';
-  const value = String(raw || '').trim();
-  if (!value) return fallback;
-  return value
-    .replace(/\bCreatorJobs24\b/gi, 'LikeGroup')
-    .replace(/\bnoreply@/gi, 'hello@');
-}
-
-const RESEND_FROM = normalizeFrom(process.env.RESEND_FROM);
+const { sendResendMail } = require('./resend');
 
 function escapeHtml(str) {
   return String(str ?? '')
@@ -62,30 +52,12 @@ function buildMailHtml({ creatorVorname, kampagneName, link, expiresAt }) {
  * @returns {Promise<{ ok: boolean, error?: string }>}
  */
 async function sendCreatorUploadMail({ to, creatorVorname, kampagneName, link, expiresAt }) {
-  if (!RESEND_API_KEY) {
-    return { ok: false, error: 'RESEND_API_KEY nicht konfiguriert' };
-  }
   const kamp = kampagneName || '';
-  const resp = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      from: RESEND_FROM,
-      reply_to: RESEND_FROM,
-      to: [to],
-      subject: `Rohmaterial-Upload für ${kamp} / Raw footage upload for ${kamp}`,
-      html: buildMailHtml({ creatorVorname, kampagneName, link, expiresAt }),
-    }),
+  return sendResendMail({
+    to,
+    subject: `Rohmaterial-Upload für ${kamp} / Raw footage upload for ${kamp}`,
+    html: buildMailHtml({ creatorVorname, kampagneName, link, expiresAt }),
   });
-  if (!resp.ok) {
-    const data = await resp.json().catch(() => ({}));
-    console.warn('[creator-upload-mail] Resend fehlgeschlagen:', resp.status, JSON.stringify(data));
-    return { ok: false, error: data.message || `Resend ${resp.status}` };
-  }
-  return { ok: true };
 }
 
 module.exports = { sendCreatorUploadMail };

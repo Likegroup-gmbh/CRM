@@ -92,6 +92,114 @@ describe('PermissionSystem', () => {
   });
 
   // ===========================================
+  // Feature-Matrix (canFeature)
+  // ===========================================
+
+  describe('canFeature', () => {
+    it('Admin darf alle Features', () => {
+      ps.setUserPermissions(makeUser('admin'));
+      for (const f of ['contactMail', 'kampagneTableFilter', 'kampagneTableLayout', 'mediaUpload', 'skriptKommentieren']) {
+        expect(ps.canFeature(f)).toBe(true);
+      }
+    });
+
+    it('Mitarbeiter darf alle Features', () => {
+      ps.setUserPermissions(makeUser('mitarbeiter'));
+      for (const f of ['contactMail', 'kampagneTableFilter', 'kampagneTableLayout', 'mediaUpload', 'skriptKommentieren']) {
+        expect(ps.canFeature(f)).toBe(true);
+      }
+    });
+
+    it('Kunde: Mail/Filter/Kommentieren ja, Layout/Upload nein', () => {
+      ps.setUserPermissions(makeUser('kunde'));
+      expect(ps.canFeature('contactMail')).toBe(true);
+      expect(ps.canFeature('kampagneTableFilter')).toBe(true);
+      expect(ps.canFeature('skriptKommentieren')).toBe(true);
+      expect(ps.canFeature('kampagneTableLayout')).toBe(false);
+      expect(ps.canFeature('mediaUpload')).toBe(false);
+    });
+
+    it('kunde_editor hat dieselbe Feature-Zeile wie kunde', () => {
+      ps.setUserPermissions(makeUser('kunde_editor'));
+      expect(ps.canFeature('contactMail')).toBe(true);
+      expect(ps.canFeature('kampagneTableLayout')).toBe(false);
+      expect(ps.canFeature('mediaUpload')).toBe(false);
+    });
+
+    it('Investor: alle Features aus', () => {
+      ps.setUserPermissions(makeUser('investor'));
+      for (const f of ['contactMail', 'kampagneTableFilter', 'kampagneTableLayout', 'mediaUpload', 'skriptKommentieren']) {
+        expect(ps.canFeature(f)).toBe(false);
+      }
+    });
+
+    it('Finanzen-Klasse bekommt die Investor-Feature-Zeile', () => {
+      ps.setUserPermissions(makeUser('mitarbeiter', { mitarbeiter_klasse_name: 'Finanzen' }));
+      for (const f of ['contactMail', 'kampagneTableFilter', 'kampagneTableLayout', 'mediaUpload', 'skriptKommentieren']) {
+        expect(ps.canFeature(f)).toBe(false);
+      }
+    });
+
+    it('ohne User ist jedes Feature aus', () => {
+      expect(ps.canFeature('contactMail')).toBe(false);
+    });
+  });
+
+  // ===========================================
+  // Feld-Editierbarkeit (canEditField)
+  // ===========================================
+
+  describe('canEditField', () => {
+    it('Admin darf jedes Feld', () => {
+      ps.setUserPermissions(makeUser('admin'));
+      expect(ps.canEditField('kooperation', 'status_id')).toBe(true);
+      expect(ps.canEditField('video', 'content_art')).toBe(true);
+      expect(ps.canEditField('strategie', 'video_umgesetzt')).toBe(true);
+    });
+
+    it('Mitarbeiter: Entity-Edit-Recht entscheidet', () => {
+      ps.setUserPermissions(makeUser('mitarbeiter'));
+      expect(ps.canEditField('kooperation', 'status_id')).toBe(true);
+      expect(ps.canEditField('video', 'content_art')).toBe(true);
+      expect(ps.canEditField('strategie', 'video_umgesetzt')).toBe(true);
+      expect(ps.canEditField('strategie', 'strategie_prio')).toBe(true);
+    });
+
+    it('Kunde: Content Art und Status gesperrt, Umgesetzt offen', () => {
+      ps.setUserPermissions(makeUser('kunde'));
+      expect(ps.canEditField('video', 'content_art')).toBe(false);
+      expect(ps.canEditField('video', 'thema')).toBe(false);
+      expect(ps.canEditField('video', 'caption')).toBe(false);
+      expect(ps.canEditField('kooperation', 'status_id')).toBe(false);
+      expect(ps.canEditField('kooperation', 'vertrag_unterschrieben')).toBe(false);
+      expect(ps.canEditField('strategie', 'video_umgesetzt')).toBe(true);
+      expect(ps.canEditField('strategie', 'strategie_prio')).toBe(true);
+    });
+
+    it('Investor: kein Feld editierbar', () => {
+      ps.setUserPermissions(makeUser('investor'));
+      expect(ps.canEditField('kooperation', 'status_id')).toBe(false);
+      expect(ps.canEditField('video', 'content_art')).toBe(false);
+      expect(ps.canEditField('strategie', 'video_umgesetzt')).toBe(false);
+      expect(ps.canEditField('strategie', 'strategie_prio')).toBe(false);
+    });
+
+    it('Gast readonly: kein Feld editierbar', () => {
+      ps.setUserPermissions(makeUser('gast'));
+      window.guestShare = { rechte: 'ansehen' };
+      expect(ps.canEditField('video', 'thema')).toBe(false);
+      window.guestShare = { rechte: 'feedback' };
+      expect(ps.canEditField('video', 'thema')).toBe(false); // Kunden-Denylist
+      expect(ps.canEditField('strategie', 'video_umgesetzt')).toBe(true);
+      delete window.guestShare;
+    });
+
+    it('ohne User ist kein Feld editierbar', () => {
+      expect(ps.canEditField('kooperation', 'status_id')).toBe(false);
+    });
+  });
+
+  // ===========================================
   // Permission-Matrix
   // ===========================================
 
@@ -191,6 +299,7 @@ describe('PermissionSystem', () => {
       expect(ps.checkPermission('unternehmen', 'view')).toBe(true);
       expect(ps.checkPermission('mitarbeiter', 'view')).toBe(false);
       expect(ps.checkPermission('kunden-admin', 'view')).toBe(false);
+      expect(ps.checkPermission('feedback', 'view')).toBe(false);
     });
 
     it('Gast sieht geteilte Entitäten, sonst nichts', () => {

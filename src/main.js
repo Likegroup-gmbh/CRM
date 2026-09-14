@@ -44,6 +44,7 @@ import '../assets/styles/produkt-doc.css';
 import '../assets/styles/notiz-dokument.css';
 import '../assets/styles/regelwerk-dokument.css';
 import '../assets/styles/briefing-doc.css';
+import '../assets/styles/anschreiben.css';
 import '../assets/styles/utilities.css';
 import '../assets/styles/icons.css';
 import '../assets/styles/floating-menu.css';

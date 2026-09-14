@@ -228,4 +228,24 @@ describe('BriefingDocView', () => {
     const html = renderBriefingDoc({ detail, compact: true, canDelete: false });
     expect(html).not.toContain('briefing-doc__products');
   });
+
+  it('Anschreiben sitzt zwischen Alle Felder und Loeschen, nicht im Print', async () => {
+    const { renderBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
+    const withBtn = renderBriefingDoc({ detail, canAnschreiben: true, canDelete: true });
+    expect(withBtn).toContain('btn-anschreiben-briefing');
+    expect(withBtn).toContain('briefing-doc__top');
+    expect(withBtn.indexOf('briefing-doc__badges')).toBeLessThan(withBtn.indexOf('btn-briefing-fields-toggle'));
+    expect(withBtn.indexOf('btn-briefing-fields-toggle')).toBeLessThan(withBtn.indexOf('btn-anschreiben-briefing'));
+    expect(withBtn.indexOf('btn-anschreiben-briefing')).toBeLessThan(withBtn.indexOf('btn-delete-briefing'));
+    expect(withBtn).not.toContain('briefing-doc__title-row');
+    expect(withBtn).not.toContain('briefing-doc__toolbar');
+
+    const without = renderBriefingDoc({ detail, canAnschreiben: false });
+    expect(without).not.toContain('btn-anschreiben-briefing');
+
+    const print = renderBriefingDoc({ detail, canAnschreiben: true, canDelete: true, print: true });
+    expect(print).not.toContain('btn-anschreiben-briefing');
+    expect(print).not.toContain('btn-briefing-fields-toggle');
+    expect(print).not.toContain('btn-delete-briefing');
+  });
 });

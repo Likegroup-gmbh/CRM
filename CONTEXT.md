@@ -92,6 +92,16 @@ Eine Person auf einem Casting. Nicht der CRM-Creator; die Stammdaten-Identität 
 Darf an mehreren Videoideen des verknüpften Konzepts hängen.
 _Avoid_: Casting-Item, Kandidat, Sourcing-Creator
 
+**Creator**:
+Stammdaten-Entity einer Person (Tabelle `creator`), mit Mail (`mail`) und Management-Zuordnung.
+Nicht der Casting-Eintrag; der kann später zum Creator werden.
+_Avoid_: Casting-Eintrag, Influencer, Kandidat
+
+**Management**:
+Die Talent-Agentur als Stammdaten-Entity (Tabelle `management`), n:m zu Creator über `creator_management`.
+Nicht die Mitarbeiter-Rolle `management`.
+_Avoid_: Agentur-Rolle, Mitarbeiter-Klasse Management
+
 **Videoidee**:
 Eintrag in einem Konzept: verlinkte Videoidee oder reine Idee. Genau eine Umsetzung, nicht
 eine Kernidee mit mehreren Creatorn. Höchstens ein Casting-Eintrag aus dem verknüpften Casting;
@@ -115,6 +125,25 @@ _Avoid_: Kampagnen-Tabelle
 **Eigene Spalte**:
 User-definierte Spalte in der Kooperationstabelle.
 _Avoid_: Custom Column (in der UI)
+
+**Anschreiben**:
+E-Mail mit Dokumentanhang (z.B. Briefing-PDF) an adressierbare Empfänger. Kein CRM-Login,
+kein Link. Pro Empfänger eine eigene Mail.
+_Avoid_: Versand (das ist der Paketversand an Kooperationen), Teilen, Einladen
+
+**Empfänger**:
+Wer ein Anschreiben bekommt: CRM-Creator (`creator.mail`) oder Management (`management.email`),
+jeweils mit ID und Mail. Kein Casting-Eintrag ohne CRM, keine freie Adresse ohne Datensatz.
+_Avoid_: Casting-Eintrag, freie E-Mail
+
+**Mailvorlage**:
+Gespeicherter Betreff und Body mit Platzhaltern für ein Anschreiben. Ein Standard für alle;
+weitere sind privat, optional „für alle nutzbar“.
+_Avoid_: Template (Kollision mit Vertragstemplate), E-Mail-Template
+
+**Zugang**:
+Gast-Link plus Code auf eine geteilte Liste (`list_shares`). Live-Sicht im CRM, kein Anhang.
+_Avoid_: Anschreiben, Teilen
 
 **Rechnung**:
 Eingangsrechnung eines Creators. Der Monat sitzt am Rechnungsdatum.
@@ -184,8 +213,12 @@ wird nie korrigiert, sondern durch einen neuen Stand ersetzt.
 _Avoid_: Snapshot, Report, Export
 
 **Investor**:
-Interner Lesezugang fuer die Finanzuebersicht und die operative Plattform, ohne Schreibrecht.
-_Avoid_: Admin, Mitarbeiter, Finanzen, Gast
+View-only Lesezugang auf Finanzuebersicht und operative Plattform. Zwei Wege, dieselbe
+Einschraenkung: die Rolle `investor` (eigener Login, RLS-Wahrheit) oder die
+Mitarbeiter-Klasse Finanzen (`rolle = mitarbeiter`, sieht Preise). Beide laufen ueber
+dieselbe Feature-Zeile im PermissionSystem: keine Mails bei Ansprechpartnern, keine
+Tabellen-Werkzeuge, keine Uploads, kein Skript-Kommentieren, kein Feedback.
+_Avoid_: Admin, Mitarbeiter, Gast, Stakeholder (das ist die Finanzuebersicht)
 
 **Accounting-Bereich**:
 Eigener Bereich unter /admin fuer Admins und Investoren. Reduzierte Navigation auf Zahlen und Auftrag
@@ -197,19 +230,15 @@ _Avoid_: Adminbereich, Backend, Admin-Panel, Einstellungen
 **Berechtigung**:
 Das Modul in `src/core/PermissionSystem.js`. UI fragt Capabilities ueber `can(entity, verb)`
 mit den vier Verben `view / create / edit / delete` — nie Rollen wie `isKunde`/`isMitarbeiter`
-und nie Roh-Flags wie `permissions?.x?.can_edit`. Rolle, Mitarbeiter-Klasse, zugriffsrechte
-und das user_permissions-Overlay bleiben Implementation des Moduls. Eine neue Rolle oder
-Klasse ist eine Zeile True/False in der Matrix, kein neuer Code-Pfad. Admin-Toggles schlagen
-die Klassen-Zeile (Klasse ist Default, kein hartes Preset). RLS bleibt die Server-Wahrheit;
-die UI versteckt nur, was ohne Recht eh fehlschluege.
+und nie Roh-Flags wie `permissions?.x?.can_edit`. Dazu kommen `canFeature(name)` fuer
+Nicht-Entity-Features (contactMail, kampagneTableFilter, kampagneTableLayout, mediaUpload,
+skriptKommentieren) und `canEditField(entity, field)` fuer die Feld-Editierbarkeit
+(Kunden-Denylist plus optionale FIELD_LOCKS pro Rolle). Rolle, Mitarbeiter-Klasse,
+zugriffsrechte und das user_permissions-Overlay bleiben Implementation des Moduls. Eine
+neue Rolle oder Klasse ist eine Zeile True/False in der Matrix, kein neuer Code-Pfad.
+Admin-Toggles schlagen die Klassen-Zeile (Klasse ist Default, kein hartes Preset). RLS
+bleibt die Server-Wahrheit; die UI versteckt nur, was ohne Recht eh fehlschluege.
 _Avoid_: Rolle-Check im Renderer, `!isKunde` als Write-Gate, `can_edit !== false`
-
-**Investor**:
-Die Mitarbeiter-Klasse Finanzen. Intern (`rolle = mitarbeiter`, sieht Preise), aber
-view-only: `create`/`edit`/`delete` ueberall false. Buttons und Aktionsmenüs, die nur
-`!isKunde` fragen, sind genau deshalb die Leak-Stellen — die Investor-Ansicht laeuft ueber
-Capabilities, nicht ueber die Rolle.
-_Avoid_: Stakeholder (das ist die Finanzuebersicht), Finanzen-Rolle (das ist die Klasse)
 
 **Datenqualitaetsanzeige**:
 Seite im Accounting-Bereich, die Pflegemaengel an Finanzdaten nach Kampagne gruppiert und nach

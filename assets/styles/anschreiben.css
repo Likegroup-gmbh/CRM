@@ -1,0 +1,140 @@
+/* ============================================================
+   Anschreiben (Drawer + Empfaenger-Composer)
+   Rechts-Drawer: Empfaenger-Tags, Vorlage, Betreff/Body, Anhang.
+   Tokens aus variables.css; Drawer-Shell aus modals-drawers.css.
+   ============================================================ */
+
+.anschreiben-drawer .drawer-body {
+  overflow-y: auto;
+}
+
+.anschreiben-section {
+  margin-bottom: var(--space-lg);
+}
+
+.anschreiben-drawer .anschreiben-section:has([data-composer]) {
+  overflow: visible;
+}
+
+.anschreiben-hint {
+  margin: var(--space-xs) 0 0;
+  font-size: var(--text-xsm);
+  color: var(--text-tertiary);
+}
+
+.anschreiben-vorlage-row {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.anschreiben-vorlage-row select {
+  flex: 1;
+}
+
+.anschreiben-anhang {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-md);
+}
+
+.anschreiben-anhang-name {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.anschreiben-feedback {
+  margin: var(--space-md) 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.anschreiben-feedback.is-error {
+  color: var(--color-error, #b91c1c);
+}
+
+/* ─── Empfaenger-Composer ─────────────────────────────────── */
+
+.empfaenger-composer__toggle {
+  display: inline-flex;
+  gap: var(--space-xxs);
+  padding: var(--space-xxs);
+  margin-bottom: var(--space-sm);
+  background: var(--gray-50);
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-md);
+}
+
+.empfaenger-composer__tab {
+  padding: var(--space-xs) var(--space-md);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.empfaenger-composer__tab.is-active {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.empfaenger-composer__suche,
+.empfaenger-composer__kampagne {
+  margin-bottom: var(--space-sm);
+}
+
+.empfaenger-composer__label {
+  display: block;
+  margin-bottom: var(--space-xxs);
+  font-size: var(--text-xsm);
+  color: var(--text-tertiary);
+}
+
+.empfaenger-composer__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.empfaenger-composer__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xxs) var(--space-sm);
+  background: var(--gray-50);
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-full, 999px);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.empfaenger-composer__tag-remove {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: var(--text-sm);
+  line-height: 1;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.empfaenger-composer__tag-remove:hover {
+  color: var(--text-primary);
+}
+
+.empfaenger-composer__skipped {
+  margin: var(--space-xs) 0 0;
+  font-size: var(--text-xsm);
+  color: var(--text-tertiary);
+}

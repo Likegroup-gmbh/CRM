@@ -293,6 +293,7 @@ export function teardownEvents() {
 }
 
 function showColumnVisibilityDrawer(detail) {
+  if (!(window.canFeature?.('kampagneTableLayout') ?? false)) return;
   const drawer = detail.videoColumnVisibilityDrawer;
   if (drawer && (drawer.kampagneId !== detail.kampagneId || drawer.store !== detail.store)) {
     drawer.destroy();
@@ -305,7 +306,7 @@ function showColumnVisibilityDrawer(detail) {
 }
 
 function showCustomColumnsDrawer(detail) {
-  if (window.isKunde()) return;
+  if (!(window.canFeature?.('kampagneTableLayout') ?? false)) return;
   const drawer = detail._customColumnsDrawer;
   if (drawer && (drawer.kampagneId !== detail.kampagneId || drawer.store !== detail.store)) {
     drawer.destroy();

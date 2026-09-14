@@ -195,6 +195,10 @@ export function isColumnVisible(colId, hiddenColumns, isKunde) {
     if (colId === 'col-actions' || colId === 'col-vertrag') return false;
   }
 
+  // Aktionen/Vertrag sind Write-UI: view-only Rollen (Investor) sehen sie nicht
+  const canEdit = window.permissionSystem?.canEdit('kooperation') ?? false;
+  if ((colId === 'col-actions' || colId === 'col-vertrag') && !canEdit) return false;
+
   // Aktionen immer fuer Nicht-Kunden sichtbar
   if (colId === 'col-actions') return true;
 

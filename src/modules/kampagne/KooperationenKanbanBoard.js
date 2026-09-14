@@ -8,6 +8,8 @@ import { renderEmptyState } from '../../core/components/EmptyState.js';
 export class KooperationenKanbanBoard {
   constructor({ isKunde, store, kampagneId }) {
     this.isKunde = isKunde;
+    // Drag & Drop ist ein Write auf kooperation.status_id — Capability statt Rolle.
+    this.canDrag = window.permissionSystem?.canEditField('kooperation', 'status_id') ?? false;
     this.store = store;
     this.kampagneId = kampagneId;
     this.container = null;
@@ -35,7 +37,7 @@ export class KooperationenKanbanBoard {
   init(container) {
     this.container = container;
     this.render();
-    if (!this.isKunde) {
+    if (this.canDrag) {
       this.bindDragDropEvents();
     }
     this._subscribeToUpdates();
@@ -88,7 +90,7 @@ export class KooperationenKanbanBoard {
       }
     });
 
-    const readonlyClass = this.isKunde ? ' kanban-readonly' : '';
+    const readonlyClass = this.canDrag ? '' : ' kanban-readonly';
 
     // Board-Level Empty State bei 0 Kooperationen
     if (kooperationen.length === 0) {
@@ -119,7 +121,7 @@ export class KooperationenKanbanBoard {
 
     this.container.innerHTML = html;
 
-    if (!this.isKunde) {
+    if (this.canDrag) {
       this.bindDragDropEvents();
     }
     this._timers.setTimeout(() => this.initDragToScroll(), 50);
@@ -154,7 +156,7 @@ export class KooperationenKanbanBoard {
       `<span class="kooperation-card-tag">${safe(t)}</span>`
     ).join('');
 
-    const draggable = this.isKunde ? '' : 'draggable="true"';
+    const draggable = this.canDrag ? 'draggable="true"' : '';
 
     return `
       <div class="task-card kooperation-card"
@@ -176,7 +178,7 @@ export class KooperationenKanbanBoard {
   // ========================================
 
   bindDragDropEvents() {
-    if (!this.container || this.isKunde) return;
+    if (!this.container || !this.canDrag) return;
 
     const cards = this.container.querySelectorAll('.kooperation-card[draggable="true"]');
     cards.forEach(card => {

@@ -3,17 +3,20 @@ import { fetchAllRows } from '../core/fetchAllRows.js';
 
 // Die Stakeholder Uebersicht lud frueher jede Tabelle mit einer einzigen
 // Anfrage und verlor still alles ueber dem PostgREST-Limit (1.000 Zeilen).
-// kooperation_videos hat ueber 2.500 Zeilen.
+// kooperation_videos hat ueber 2.500 Zeilen. Seit der parallelen Pagination
+// steht der Gesamt-Count an der ersten Antwort; die Restseiten laufen ohne
+// Wasserfall.
 
 function mockSupabase(pages) {
   const calls = [];
+  const total = pages.reduce((s, p) => s + p.length, 0);
   const query = {
     order() { return this; },
     range(from, to) {
       calls.push([from, to]);
       const pageIdx = Math.floor(from / 1000);
       const data = pages[pageIdx] || [];
-      return Promise.resolve({ data, error: null });
+      return Promise.resolve({ data, error: null, count: total });
     },
   };
   return { from: vi.fn(() => ({ select: () => query })), calls };
@@ -38,7 +41,8 @@ describe('fetchAllRows', () => {
     const rows = await fetchAllRows(sb, 'kooperationen', 'id');
 
     expect(rows).toHaveLength(1000);
-    expect(sb.calls).toHaveLength(2);
+    // Volle erste Seite, Count = 1000: keine weitere Seite noetig.
+    expect(sb.calls).toHaveLength(1);
   });
 
   it('gibt leere Tabellen als leeres Array zurueck', async () => {

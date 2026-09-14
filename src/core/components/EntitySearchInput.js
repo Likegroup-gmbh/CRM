@@ -21,13 +21,15 @@ export class EntitySearchInput {
    * @param {(item) => void} opts.onSelect
    * @param {() => void} [opts.onClose] - ESC/Klick daneben/schliessen
    * @param {string} [opts.emptyText] - Hinweis bei keinen Treffern
+   * @param {boolean} [opts.persistent] - Feld bleibt stehen; close() versteckt nur das Dropdown
    */
-  constructor({ placeholder = 'Suchen...', search, onSelect, onClose = null, emptyText = 'Keine Treffer' }) {
+  constructor({ placeholder = 'Suchen...', search, onSelect, onClose = null, emptyText = 'Keine Treffer', persistent = false }) {
     this.placeholder = placeholder;
     this.search = search;
     this.onSelect = onSelect;
     this.onClose = onClose;
     this.emptyText = emptyText;
+    this.persistent = persistent;
     this.root = null;
     this.items = [];
     this._timer = null;
@@ -112,14 +114,34 @@ export class EntitySearchInput {
 
   pick(item) {
     const cb = this.onSelect;
+    if (this.persistent) {
+      this._hideDropdown();
+      const input = this.root?.querySelector('.rel-add__input');
+      if (input) input.value = '';
+      cb?.(item);
+      return;
+    }
     this.close();
     cb?.(item);
   }
 
   close() {
+    if (this.persistent) {
+      this._hideDropdown();
+      this.onClose?.();
+      return;
+    }
     const cb = this.onClose;
     this.destroy();
     cb?.();
+  }
+
+  _hideDropdown() {
+    clearTimeout(this._timer);
+    this._ladelauf++;
+    const dropdown = this.root?.querySelector('.rel-add__dropdown');
+    if (dropdown) dropdown.hidden = true;
+    this.items = [];
   }
 
   destroy() {

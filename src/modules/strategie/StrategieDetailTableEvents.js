@@ -291,7 +291,9 @@ export function bindPrioSelect(detail) {
 
 export async function handlePrioChange(detail, itemId, value) {
   // View-only Rollen (Investor) speichern keine Prio — Kunden duerfen (Feedback).
-  if (!detail.isKunde && !detail.canEdit) return;
+  if (typeof window.permissionSystem?.canEditField === 'function'
+    && !window.permissionSystem.canEditField('strategie', 'strategie_prio')) return;
+  if (typeof window.permissionSystem?.canEditField !== 'function' && !detail.isKunde && !detail.canEdit) return;
   const item = detail.items.find(i => i.id === itemId);
 
   if (value === 'nicht_umsetzen' && item?.video_umgesetzt) {
@@ -468,10 +470,13 @@ export async function handleFieldUpdate(detail, element) {
   if (element.hasAttribute('data-custom-column-id') || element.getAttribute('data-entity') === 'custom') {
     return;
   }
-  // View-only Rollen (Investor) speichern nichts — Kunden-Felder bleiben offen.
-  if (!detail.isKunde && !detail.canEdit) return;
-  const itemId = element.dataset.itemId;
   const field = element.dataset.field;
+  // Feld-Capability: Kunde darf seine Feedback-Felder (Prio, Anmerkung,
+  // Umgesetzt), Investor nichts. Deckt Umgesetzt, Prio und Textfelder ab.
+  if (!detail.isKunde && !detail.canEdit) return;
+  if (field === 'video_umgesetzt' && typeof window.permissionSystem?.canEditField === 'function'
+    && !window.permissionSystem.canEditField('strategie', 'video_umgesetzt')) return;
+  const itemId = element.dataset.itemId;
   let value = element.type === 'checkbox' ? element.checked : element.value;
 
   const item = detail.items.find(i => i.id === itemId);

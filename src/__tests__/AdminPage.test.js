@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { AdminPage } from '../modules/admin/AdminPage.js';
+import { invalidateFinanzbestand } from '../core/budget/finanzbestand.js';
 
 // AdminPage (PRD Schritt 8) mit der Datenqualitaetsanzeige (Schritt 9).
 // Jede Page bindet document-weite Listener und rendert in das globale
@@ -21,17 +22,30 @@ function createMockSupabase({ auftraege = [], blocks = [], kampagnen = [], koope
     kooperation_videos: videos,
     rechnung: rechnungen,
     creator: creators,
+    auftrag_details: [],
+    unternehmen: [],
+    auftrag_teilrechnung: [],
   };
   // fetchAllRows kettet select().order().range(); die erste Seite liefert
   // hier immer alle Mock-Zeilen (< 1000), also stoppt die Pagination.
+  // berichtsstand hat eine eigene Kette: Liste (select().order()).
   return {
-    from: vi.fn((table) => ({
-      select: vi.fn(() => ({
-        order: vi.fn(() => ({
-          range: vi.fn(() => Promise.resolve({ data: tableData[table] || [], error: null }))
+    from: vi.fn((table) => {
+      if (table === 'berichtsstand') {
+        return {
+          select: vi.fn(() => ({
+            order: vi.fn(() => Promise.resolve({ data: [], error: null }))
+          }))
+        };
+      }
+      return {
+        select: vi.fn(() => ({
+          order: vi.fn(() => ({
+            range: vi.fn(() => Promise.resolve({ data: tableData[table] || [], error: null }))
+          }))
         }))
-      }))
-    }))
+      };
+    })
   };
 }
 
@@ -73,6 +87,7 @@ describe('AdminPage', () => {
   afterEach(() => {
     while (createdPages.length) createdPages.pop().destroy();
     window.content?.remove();
+    invalidateFinanzbestand();
   });
 
   it('zeigt Zugriffsfehler für Nicht-Admins', async () => {

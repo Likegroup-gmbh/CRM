@@ -67,13 +67,13 @@ export const ANSPRECHPARTNER_FILTERS = [
     priority: 6
   }),
 
-  // Email vorhanden
-  createFilterConfig('boolean', {
+  // Email vorhanden (nur sichtbar, wenn die Rolle Mails sehen darf)
+  ...(window.canFeature?.('contactMail') ?? false ? [createFilterConfig('boolean', {
     id: 'has_email',
     label: 'Email vorhanden',
     virtual: true,
     priority: 7
-  }),
+  })] : []),
 
   // Telefon vorhanden
   createFilterConfig('boolean', {
@@ -103,7 +103,7 @@ export const ANSPRECHPARTNER_FILTER_GROUPS = [
   {
     id: 'contact',
     label: 'Kontakt',
-    filters: ['has_email', 'has_phone'],
+    filters: (window.canFeature?.('contactMail') ?? false) ? ['has_email', 'has_phone'] : ['has_phone'],
     expanded: false
   },
 ];

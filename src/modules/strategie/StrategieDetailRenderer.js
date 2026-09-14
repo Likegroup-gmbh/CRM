@@ -316,6 +316,26 @@ function renderCreatorCell(detail, item, readonly) {
   `;
 }
 
+/**
+ * Umgesetzt-Zelle: Klickbar nur mit Feld-Edit-Recht (Kunde darf, Investor
+ * nicht). Ohne Recht steht da nur der Zustand, kein disabled-Toggle.
+ */
+function renderUmgesetztCell(item, readonly) {
+  const isUmgesetzt = !!item.video_umgesetzt;
+  if (readonly) {
+    return `<span class="strategie-umgesetzt-state${isUmgesetzt ? ' is-active' : ''}" title="${isUmgesetzt ? 'Umgesetzt' : 'Nicht umgesetzt'}">${isUmgesetzt ? '✓' : '–'}</span>`;
+  }
+  return `
+    <label class="toggle-switch strategie-umgesetzt-toggle-wrapper">
+      <input type="checkbox"
+        class="strategie-umgesetzt-toggle"
+        data-field="video_umgesetzt"
+        data-item-id="${item.id}"
+        ${isUmgesetzt ? 'checked' : ''}>
+      <span class="toggle-slider"></span>
+    </label>`;
+}
+
 export function renderItemRow(detail, item, index) {
   const platformIcon = getPlatformIcon(item.plattform);
   const externalLinkIcon = `${icon('external-link', { className: 'icon-20' })}`;
@@ -329,6 +349,12 @@ export function renderItemRow(detail, item, index) {
   // deckt beide ab, deshalb blockt !canEdit nur Nicht-Kunden.
   const readonly = !!window.isGastReadonly?.() || (!detail.isKunde && !detail.canEdit);
   const showWriteCols = !detail.isKunde && !!detail.canEdit;
+  // Umgesetzt-Toggle: eigene Feld-Capability (Kunde darf, Investor nicht).
+  // Fallback auf das bisherige Verhalten, wenn das PermissionSystem die
+  // Feld-Matrix noch nicht kennt (aeltere Stubs in Tests).
+  const umgesetztReadonly = typeof window.permissionSystem?.canEditField === 'function'
+    ? !window.permissionSystem.canEditField('strategie', 'video_umgesetzt')
+    : readonly;
 
   const rowClasses = [
     'item-row',
@@ -381,22 +407,17 @@ export function renderItemRow(detail, item, index) {
             disabled: tableSelectDisabled({
               gastReadonly: readonly,
               isKunde: detail.isKunde,
-              kundeDarfWaehlen: true
+              kundeDarfWaehlen: true,
+              canEdit: typeof window.permissionSystem?.canEditField === 'function'
+                ? window.permissionSystem.canEditField('strategie', 'strategie_prio')
+                : true
             })
           })}
         </td>
       ` : ''}
       ${cols.umgesetzt ? `
         <td class="col-umgesetzt u-text-center">
-          <label class="toggle-switch strategie-umgesetzt-toggle-wrapper">
-            <input type="checkbox"
-              class="strategie-umgesetzt-toggle"
-              data-field="video_umgesetzt"
-              data-item-id="${item.id}"
-              ${readonly ? 'disabled' : ''}
-              ${isUmgesetzt ? 'checked' : ''}>
-            <span class="toggle-slider"></span>
-          </label>
+          ${renderUmgesetztCell(item, umgesetztReadonly)}
         </td>
       ` : ''}
       ${detail.customColumns ? detail.customColumns.renderCells(item.id, detail.hiddenColumns, detail.isKunde, detail.canEdit) : ''}

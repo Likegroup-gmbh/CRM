@@ -72,6 +72,7 @@ describe('Live-Link-Zelle', () => {
   it('zeigt Kunden einen anklickbaren Chip statt eines Eingabefelds', () => {
     const table = makeTable();
     table.isKundeRole = () => true;
+    table.isFieldEditableForUser = () => false;
     const cell = renderCell({ id: 'v1', link_live: REEL_URL }, { table });
 
     expect(cell.querySelector('input')).toBeNull();

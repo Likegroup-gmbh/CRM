@@ -152,14 +152,30 @@ export function renderMainPage(state) {
     kooperationSort = 'created_desc'
   } = state;
 
-  const canCreateKooperation = window.currentUser?.permissions?.kooperation?.can_edit || false;
+  const canCreateKooperation = window.canCreate?.('kooperation') ?? false;
   const canShare = typeof window.isInternal === 'function' && window.isInternal();
+  const canTableFilter = window.canFeature?.('kampagneTableFilter') ?? false;
+  const canTableLayout = window.canFeature?.('kampagneTableLayout') ?? false;
 
   const kampagneName = KampagneUtils.getDisplayName(kampagneData) || kampagneData?.kampagnenname || '';
 
   const orgLogoUrl = kampagneData?.marke?.logo_url || kampagneData?.unternehmen?.logo_url || '';
   const orgLogoAlt = kampagneData?.marke?.markenname || kampagneData?.unternehmen?.firmenname || 'Logo';
   const safeLogoUrl = orgLogoUrl ? (window.validatorSystem?.sanitizeUrl(orgLogoUrl) ?? '') : '';
+
+  // Plus-Menue nur rendern, wenn mindestens ein Eintrag drin ist — sonst
+  // haengt bei Rollen ohne Tabellen-Werkzeuge (Investor) ein leeres Menue.
+  const toolbarItemsHtml = `
+    ${canTableFilter ? renderFilterSubmenu({ key: 'status', label: 'Status filtern', icon: FILTER_ICON, options: availableStatuses, selected: selectedStatuses }) : ''}
+    ${canTableFilter ? renderFilterSubmenu({ key: 'tag', label: 'Tags filtern', icon: TAG_ICON, options: availableTags, selected: selectedTags }) : ''}
+    ${canTableFilter ? renderSortSubmenu(kooperationSort) : ''}
+    ${canShare ? renderToolbarMenuItem({ id: 'btn-share-kampagne', title: 'Liste per E-Mail teilen', icon: SHARE_ICON, label: 'Teilen' }) : ''}
+    ${canTableLayout ? `
+      ${renderToolbarMenuItem({ id: 'btn-custom-columns', title: 'Eigene Spalten verwalten', icon: COLUMNS_ICON, label: 'Spalten' })}
+      ${renderToolbarMenuItem({ id: 'btn-column-visibility', title: 'Spalten-Sichtbarkeit anpassen', icon: EYE_ICON, label: 'Sichtbarkeit anpassen' })}
+    ` : ''}
+  `;
+  const hasToolbarItems = toolbarItemsHtml.trim().length > 0;
 
   return `
     ${renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, videoStats, kskUmgebucht)}
@@ -175,19 +191,10 @@ export function renderMainPage(state) {
           currentValue: escapeAttr(searchQuery || '')
         })}
         ${canCreateKooperation ? `<button id="btn-new-kooperation" class="mdc-btn">Kooperation anlegen</button>` : ''}
-        ${renderToolbarMenu({
+        ${hasToolbarItems ? renderToolbarMenu({
           toggleId: 'btn-kampagne-toolbar-menu',
-          itemsHtml: `
-            ${renderFilterSubmenu({ key: 'status', label: 'Status filtern', icon: FILTER_ICON, options: availableStatuses, selected: selectedStatuses })}
-            ${renderFilterSubmenu({ key: 'tag', label: 'Tags filtern', icon: TAG_ICON, options: availableTags, selected: selectedTags })}
-            ${renderSortSubmenu(kooperationSort)}
-            ${canShare ? renderToolbarMenuItem({ id: 'btn-share-kampagne', title: 'Liste per E-Mail teilen', icon: SHARE_ICON, label: 'Teilen' }) : ''}
-            ${!isKunde ? `
-              ${renderToolbarMenuItem({ id: 'btn-custom-columns', title: 'Eigene Spalten verwalten', icon: COLUMNS_ICON, label: 'Spalten' })}
-              ${renderToolbarMenuItem({ id: 'btn-column-visibility', title: 'Spalten-Sichtbarkeit anpassen', icon: EYE_ICON, label: 'Sichtbarkeit anpassen' })}
-            ` : ''}
-          `
-        })}
+          itemsHtml: toolbarItemsHtml
+        }) : ''}
         <div class="view-toggle">
           <button id="btn-view-table" class="mdc-btn mdc-btn--secondary active" title="Tabelle">
             ${icon('table-grid')}

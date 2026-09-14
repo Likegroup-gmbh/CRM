@@ -240,9 +240,10 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
     window.setHeadline(`${fullName} - Details`);
 
     // Person-Config für die Sidebar (nur Avatar im Header)
+    const canSeeMail = window.canFeature?.('contactMail') ?? false;
     const personConfig = {
       name: fullName || 'Unbekannt',
-      email: this.ansprechpartner?.email || '',
+      email: canSeeMail ? (this.ansprechpartner?.email || '') : '',
       subtitle: '',
       avatarUrl: this.ansprechpartner?.profile_image_url,
       avatarOnly: false
@@ -368,6 +369,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
 
   // Rendere Informationen-Tab
   renderInformationen() {
+    const canSeeMail = window.canFeature?.('contactMail') ?? false;
     const kontaktItems = [
       { icon: 'phone-mobile', label: 'Telefon (Mobil)', rawHtml: PhoneDisplay.renderClickable(
         this.ansprechpartner?.telefonnummer_land?.iso_code,
@@ -379,7 +381,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
         this.ansprechpartner?.telefonnummer_office_land?.vorwahl,
         this.ansprechpartner?.telefonnummer_office
       ) || '-' },
-      { icon: 'mail', label: 'E-Mail', value: this.ansprechpartner?.email || '-', mailto: true },
+      canSeeMail ? { icon: 'mail', label: 'E-Mail', value: this.ansprechpartner?.email || '-', mailto: true } : null,
       { icon: 'linkedin', label: 'LinkedIn', rawHtml: this.renderLinkedInLink(this.ansprechpartner?.linkedin) },
       { icon: 'newsletter', label: 'Newsletter (1x/Monat)', rawHtml: this.renderEinwilligungBadge(this.ansprechpartner?.erlaubt_newsletter) },
       { icon: 'invoice', label: 'Rechnungsverantwortlich', rawHtml: this.renderEinwilligungBadge(this.ansprechpartner?.ist_rechnungsverantwortlich) },

@@ -39,6 +39,10 @@ function viewEdit() {
 // Call-Sites duerfen beide Keys nutzen — der Lookup normalisiert.
 const ENTITY_ALIASES = {
   creator_auswahl: 'sourcing',
+  // Feld-Locks sprechen die DB-/UI-Keys an (video, versand), die Matrix
+  // kennt nur die Entity-Keys (videos, kooperation).
+  video: 'videos',
+  versand: 'kooperation',
 };
 
 function resolveEntityKey(entity) {
@@ -85,6 +89,7 @@ const BASE_PERMISSIONS = {
     ...allOf(V),
     mitarbeiter:    { ...F },
     'kunden-admin': { ...F },
+    feedback:       { ...F },
   },
 };
 
@@ -126,8 +131,52 @@ const KLASSE_PERMISSIONS = {
     ...allOf(V),
     mitarbeiter:    { ...F },
     'kunden-admin': { ...F },
+    feedback:       { ...F },
   },
 };
+
+// Feature-Matrix
+// Dinge, die kein Entity-Write sind (Sichtbarkeit von Kontaktdaten, Tabellen-
+// Werkzeuge, Uploads, Kommentar-Funktion). Eine Zeile pro Rolle/Klasse —
+// eine neue Rolle bekommt die Eigenschaften hier zugeschrieben, nicht in
+// den Renderern. Klasse schlaegt Rolle (wie bei den Entity-Permissions).
+// Features: contactMail, kampagneTableFilter, kampagneTableLayout,
+// mediaUpload, skriptKommentieren.
+const FEATURE_MATRIX = {
+  admin:         { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: true,  mediaUpload: true,  skriptKommentieren: true  },
+  mitarbeiter:   { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: true,  mediaUpload: true,  skriptKommentieren: true  },
+  // Kunde: sieht Mails, filtert die Kampagnen-Tabelle und kommentiert Skripte;
+  // Layout-Werkzeuge und Uploads bleiben intern.
+  kunde:         { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: false, mediaUpload: false, skriptKommentieren: true  },
+  kunde_editor:  { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: false, mediaUpload: false, skriptKommentieren: true  },
+  gast:          { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: false, mediaUpload: false, skriptKommentieren: true  },
+  investor:      { contactMail: false, kampagneTableFilter: false, kampagneTableLayout: false, mediaUpload: false, skriptKommentieren: false },
+  pending:       { contactMail: false, kampagneTableFilter: false, kampagneTableLayout: false, mediaUpload: false, skriptKommentieren: false },
+};
+
+// Finanzen-Klasse = Investor-Zeile (gleiche Einschraenkungen).
+const KLASSE_FEATURES = {
+  finanzen: FEATURE_MATRIX.investor,
+};
+
+// --- Feld-Editierbarkeit ---
+// Kunden-Denylist: Kunden duerfen diese Felder nie pflegen (bisher in
+// KampagneKooperationenVideoTable.isFieldEditableForUser).
+const KUNDE_READONLY_FIELDS = {
+  kooperation: ['vertrag_unterschrieben', 'typ', 'nutzungsrechte', 'status_id'],
+  versand: ['versendet', 'tracking_nummer', 'produkt_name', 'produkt_link'],
+  video: [
+    'thema', 'link_produkte', 'link_skript',
+    'caption', 'posting_datum', 'drehort', 'content_art', 'video_name',
+    // Live-Performance ist Reporting: Kunden sehen die Zahlen, pflegen sie aber nicht
+    'link_live', 'stats_views', 'stats_likes', 'stats_comments'
+  ],
+};
+
+// FIELD_LOCKS[rolle][entity]: Felder, die eine Rolle trotz Entity-Edit-Recht
+// nicht aendern darf. Investor hat ohnehin kein Entity-Edit — die Locks sind
+// fuer kuenftige Rollen, die schreiben duerfen, aber einzelne Spalten nicht.
+const FIELD_LOCKS = {};
 
 function resolveKlasseName(user) {
   const raw = user?.mitarbeiter_klasse?.name ?? user?.mitarbeiter_klasse_name ?? '';
@@ -183,6 +232,28 @@ export class PermissionSystem {
     if (this.isAdmin || this.isInvestor) return true;
     if (this.isKunde) return !!window.currentUser?.contracting_sicht;
     return false;
+  }
+
+  // Feature-Matrix: Klasse schlaegt Rolle, sonst Rolle, sonst alles false.
+  canFeature(name) {
+    if (this.isAdmin && !this._klasseKey) return true;
+    if (!this._normalizedRole) return false;
+    const row = (this._klasseKey && KLASSE_FEATURES[this._klasseKey])
+      || FEATURE_MATRIX[this._normalizedRole];
+    return !!row?.[name];
+  }
+
+  // Feld-Editierbarkeit: erst Rollen-Locks, dann Entity-Edit, dann die
+  // Kunden-Denylist. Investor faellt ueber canEdit(entity) raus.
+  canEditField(entity, field) {
+    if (this.isAdmin && !this._klasseKey) return true;
+    if (!this._normalizedRole) return false;
+    if (this.isGastReadonly) return false;
+    if (FIELD_LOCKS[this._normalizedRole]?.[entity]?.includes(field)) return false;
+    if (this.isKunde) {
+      return !KUNDE_READONLY_FIELDS[entity]?.includes(field);
+    }
+    return this.canEdit(entity);
   }
 
   // ============================================
@@ -449,6 +520,8 @@ if (typeof window !== 'undefined') {
   window.canUseGlobalSearch = () => permissionSystem.canUseGlobalSearch;
   window.canViewAccounting  = () => permissionSystem.canViewAccounting;
   window.canViewContracts   = () => permissionSystem.canViewContracts;
+  window.canFeature         = (name) => permissionSystem.canFeature(name);
+  window.canEditField       = (entity, field) => permissionSystem.canEditField(entity, field);
 
   window.permissionSystem = permissionSystem;
 }

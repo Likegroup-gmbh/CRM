@@ -8,7 +8,6 @@ import { VideoSettingsDrawer } from './VideoSettingsDrawer.js';
 import { LinkStrategieItemDrawer } from '../strategie/LinkStrategieItemDrawer.js';
 import { LinkSkriptDrawer } from '../skripte/LinkSkriptDrawer.js';
 import { VideoPlayerLightbox } from '../../core/media/VideoPlayerLightbox.js';
-import { VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
 import { VideoFeedbackSaveController } from '../../core/videoFeedback/VideoFeedbackSaveController.js';
 import { VideoFeedbackBinding } from './VideoFeedbackBinding.js';
 import { VideoTableEventBinder } from './VideoTableEventBinder.js';
@@ -119,30 +118,9 @@ export class KampagneKooperationenVideoTable {
 
   isFieldEditableForUser(entity, field) {
     // Editierbarkeit ist eine Capability, keine Rolle: Investor (intern, sieht
-    // Preise) darf nichts pflegen. Erst das Entity-Edit-Recht, dann die
-    // Kunden-Feldliste.
-    const canEditEntity = window.permissionSystem?.canEdit('kooperation') ?? false;
-    if (canEditEntity && !this.isKundeRole()) return true;
-
-    // Gast mit reinem Ansehen-Recht: nichts editierbar
-    if (window.isGastReadonly?.()) return false;
-
-    if (this.isKundeRole()) {
-      const readOnlyFieldsForKunden = {
-        'kooperation': ['vertrag_unterschrieben', 'typ', 'nutzungsrechte'],
-        'versand': ['versendet', 'tracking_nummer', 'produkt_name', 'produkt_link'],
-        'video': [
-          'thema', 'link_produkte', 'link_skript',
-          ...VIDEO_FEEDBACK_FIELDS.filter(slot => slot.feedback_typ === 'cj').map(slot => slot.field),
-          'caption', 'posting_datum', 'drehort', 'content_art', 'video_name',
-          // Live-Performance ist Reporting: Kunden sehen die Zahlen, pflegen sie aber nicht
-          'link_live', 'stats_views', 'stats_likes', 'stats_comments'
-        ]
-      };
-      return !readOnlyFieldsForKunden[entity]?.includes(field);
-    }
-    
-    return false;
+    // Preise) darf nichts pflegen. Delegiert an die zentrale Feld-Matrix —
+    // Kunden-Denylist und kuenftige Rollen-Locks leben im PermissionSystem.
+    return window.permissionSystem?.canEditField(entity, field) ?? false;
   }
 
   // ========================================
@@ -209,7 +187,10 @@ export class KampagneKooperationenVideoTable {
   isColumnVisibleForCustomer(columnClass) {
     if (columnClass === 'col-nr' || columnClass === 'col-creator' || columnClass === 'col-status') return true;
     if ((columnClass === 'col-kosten' || columnClass === 'col-ek-video') && this.isKundeRole()) return false;
-    if ((columnClass === 'col-actions' || columnClass === 'col-vertrag') && this.isKundeRole()) return false;
+    // Aktionen/Vertrag sind Write-UI: Kunde und view-only Rollen (Investor)
+    // sehen sie nicht.
+    const canEdit = window.permissionSystem?.canEdit('kooperation') ?? false;
+    if ((columnClass === 'col-actions' || columnClass === 'col-vertrag') && (this.isKundeRole() || !canEdit)) return false;
     if (columnClass === 'col-actions') return true;
     return !this.hiddenColumns.includes(columnClass);
   }

@@ -218,11 +218,13 @@ describe('ColumnDragHandler', () => {
         }))
       }))
     };
+    window.canFeature = vi.fn((name) => name === 'kampagneTableLayout');
   });
 
   afterEach(() => {
     document.body.innerHTML = '';
     delete window.supabase;
+    delete window.canFeature;
   });
 
   it('zeigt die Drop-Linie in voller Tabellenhoehe, nicht nur Header-Hoehe', () => {
@@ -266,6 +268,7 @@ describe('ColumnDragHandler', () => {
   });
 
   it('blockt Dragstart fuer Kunden komplett', () => {
+    window.canFeature = vi.fn(() => false);
     const handler = new ColumnDragHandler({ isKundeRole: () => true });
     handler.bind(document.querySelector('table'), new AbortController().signal);
 
@@ -344,6 +347,14 @@ describe('ColumnDragHandler', () => {
 });
 
 describe('Header: draggable nur fuer Staff und nur auf beweglichen Spalten', () => {
+  beforeEach(() => {
+    window.canFeature = vi.fn((name) => name === 'kampagneTableLayout');
+  });
+
+  afterEach(() => {
+    delete window.canFeature;
+  });
+
   it('setzt draggable bei internen Nutzern nicht auf Nr/Creator/Aktionen', () => {
     const store = makeOrderStore(null);
     const host = renderTableHost(makeVideoTable({ store, isKunde: false }));
@@ -356,8 +367,17 @@ describe('Header: draggable nur fuer Staff und nur auf beweglichen Spalten', () 
   });
 
   it('setzt fuer Kunden gar kein draggable', () => {
+    window.canFeature = vi.fn(() => false);
     const store = makeOrderStore(null);
     const host = renderTableHost(makeVideoTable({ store, isKunde: true }));
+
+    expect(host.querySelector('th[draggable="true"]')).toBeNull();
+  });
+
+  it('setzt ohne Layout-Feature (Investor) gar kein draggable', () => {
+    window.canFeature = vi.fn(() => false);
+    const store = makeOrderStore(null);
+    const host = renderTableHost(makeVideoTable({ store, isKunde: false }));
 
     expect(host.querySelector('th[draggable="true"]')).toBeNull();
   });

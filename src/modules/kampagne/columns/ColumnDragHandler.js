@@ -8,7 +8,8 @@
 // Drop-Linie in voller Tabellenhoehe gezeigt.
 //
 // Fixiert: col-nr / col-creator bleiben vorne, col-actions hinten.
-// Drag nur fuer interne Nutzer (!isKunde).
+// Drag nur mit Layout-Feature (kampagneTableLayout) — interne view-only
+// Rollen (Investor) koennen die Reihenfolge nicht aendern.
 
 import { CustomColumnDataLoader } from './CustomColumnDataLoader.js';
 import { getOrderedColumns, getDefaultColumnIds, isCustomColumnId, getBuiltinColumn } from './ColumnRegistry.js';
@@ -70,7 +71,7 @@ export class ColumnDragHandler {
     }
 
     const colId = this._getColId(th);
-    if (!colId || this._isLocked(colId) || this.table.isKundeRole?.()) {
+    if (!colId || this._isLocked(colId) || !(window.canFeature?.('kampagneTableLayout') ?? false)) {
       e.preventDefault();
       return;
     }

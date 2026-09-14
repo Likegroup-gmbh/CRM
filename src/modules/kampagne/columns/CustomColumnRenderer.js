@@ -23,7 +23,7 @@ function escapeHtml(text) {
 
 export function renderCustomHeader(col, hiddenColumns, isKunde) {
   const vis = isColumnVisible(col.id, hiddenColumns, isKunde) ? '' : 'style="display:none;"';
-  const drag = !isKunde ? 'draggable="true"' : '';
+  const drag = (window.canFeature?.('kampagneTableLayout') ?? false) ? 'draggable="true"' : '';
   return `<th class="col-header ${col.id}" ${vis} data-col="${col.dataCol}" data-col-id="${col.id}" ${drag}>
     ${escapeHtml(col.label)}
     <div class="resize-handle resize-handle-col" data-col="${col.dataCol}"></div>
@@ -39,7 +39,9 @@ export function renderCustomCell(col, koop, videos, store, table) {
     return `<td class="grid-cell ${col.id}" data-col-id="${col.id}" ${vis}></td>`;
   }
 
-  const isEditable = !isKunde;
+  // Editierbarkeit ist eine Capability: Investor (intern, view-only) sperrt
+  // genau wie der Kunde — nur ueber das Entity-Edit-Recht, nicht die Rolle.
+  const isEditable = window.permissionSystem?.canEdit('kooperation') ?? false;
 
   if (col.entityType === 'video') {
     return renderVideoLevelCell(col, koop, videos, store, vis, isEditable, table);

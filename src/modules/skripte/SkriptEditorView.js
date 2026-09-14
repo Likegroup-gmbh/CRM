@@ -219,10 +219,11 @@ export class SkriptEditorView {
    * Gaeste ohne Feedback-Recht ('ansehen') bleiben lesend. Share-Gaeste
    * haben keine benutzer-Row: ihr Kommentar laeuft mit created_by = NULL,
    * der DB-Trigger setzt Autor und guest_participant_id aus dem Gast-JWT.
+   * Investor ist komplett raus (Feature skriptKommentieren = false).
    */
   get kannKommentieren() {
     if (window.permissionSystem?.isGast) return window.guestShare?.rechte === 'feedback';
-    return Boolean(window.currentUser?.id);
+    return window.canFeature?.('skriptKommentieren') ?? false;
   }
 
   /** Threads abhaken bleibt intern (serverseitig zusaetzlich per RPC erzwungen). */
