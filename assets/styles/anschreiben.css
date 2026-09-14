@@ -8,6 +8,13 @@
   overflow-y: auto;
 }
 
+.anschreiben-drawer .drawer-footer {
+  flex-shrink: 0;
+  padding: var(--space-md);
+  border-top: 1px solid var(--border-primary);
+  background: var(--bg-primary);
+}
+
 .anschreiben-section {
   margin-bottom: var(--space-lg);
 }

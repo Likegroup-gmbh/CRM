@@ -61,6 +61,10 @@ describe('AnschreibenDrawer', () => {
     expect(document.querySelector('[data-betreff]')).not.toBeNull();
     expect(document.querySelector('[data-body]')).not.toBeNull();
     expect(document.querySelector('[data-pdf-status]').textContent).toBe('glow.pdf');
+    const sendBtn = document.querySelector('.drawer-footer [data-action="send"]');
+    expect(sendBtn).not.toBeNull();
+    expect(sendBtn.textContent).toBe('Senden');
+    expect(document.querySelector('.drawer-body [data-action="send"]')).toBeNull();
     drawer.close();
   });
 
