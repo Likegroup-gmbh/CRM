@@ -7,6 +7,7 @@ import { renderTableSelect, tableSelectDisabled } from '../../core/components/Ta
 import { renderToolbarMenu, renderToolbarMenuItem, renderToolbarListenKopf } from '../../core/components/ToolbarMenu.js';
 import { formatCompactNumber, formatExactNumber } from '../../core/format/compactNumber.js';
 import { renderSourcingIgCell } from './sourcingIgCell.js';
+import { renderMatchingCell } from './sourcingMatching.js';
 import {
   SOURCING_STATUS_OPTIONS,
   SOURCING_STATUS_FILTER_TAGS,
@@ -197,10 +198,10 @@ export function isColumnVisibleForCustomer(columnClass, isKunde, hiddenColumns) 
  *
  * Die Kurzbeschreibung steht direkt hinter dem Namen: sie sagt, wer der
  * Creator ueberhaupt ist, und gehoert damit neben den Namen statt ans Ende
- * hinter alle Preisspalten.
+ * hinter alle Preisspalten. Matching folgt direkt danach (Briefing-Fit).
  */
 export const SOURCING_SPALTEN = [
-  'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-notiz',
+  'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-notiz', 'cp-col-matching',
   'cp-col-typ', 'cp-col-status', 'cp-col-kunden-feedback',
   'cp-col-location', 'cp-col-mail', 'cp-col-telefon',
   'cp-col-link-ig', 'cp-col-follower-ig',
@@ -232,6 +233,7 @@ export const SOURCING_ANKER_SPALTEN = SOURCING_SPALTEN.filter(
 export const SOURCING_SPALTEN_LABELS = {
   'cp-col-bild': 'Bild',
   'cp-col-notiz': 'Kurzbeschreibung',
+  'cp-col-matching': 'Matching',
   'cp-col-typ': 'Creator Art',
   'cp-col-status': 'Status',
   'cp-col-kunden-feedback': 'Kundenfeedback',
@@ -499,6 +501,8 @@ export function renderItemsTable(ctx) {
             <th class="${sticky.name} cp-col-name">Name</th>
             <th class="cp-col-notiz" ${hide('cp-col-notiz')} title="Startet mit der Instagram-Bio, sobald der Creator abgerufen wurde">Kurzbeschreibung</th>
             ${customAt('cp-col-notiz')}
+            <th class="cp-col-matching" ${hide('cp-col-matching')} title="Gesamtscore aus Fit, Track und Fresh – wie gut der Creator zum Briefing passt">Matching</th>
+            ${customAt('cp-col-matching')}
             <th class="cp-col-typ" ${hide('cp-col-typ')}>Creator Art</th>
             ${customAt('cp-col-typ')}
             <th class="cp-col-status" ${hide('cp-col-status')}>Status</th>
@@ -754,9 +758,14 @@ export function ohneEuroZeichen(wert) {
  * wird nur der eingetippte Betrag, damit beim naechsten Bearbeiten nicht
  * "250 € €" im Feld steht.
  */
+function rowCanWrite(ctx, item) {
+  if (item?.isVorschlag) return false;
+  return !ctx.isKunde && (ctx.canEdit ?? true);
+}
+
 function renderPreisFreitextCell(ctx, item, columnClass, field, hide) {
   const wert = ohneEuroZeichen(item[field]);
-  const canWrite = !ctx.isKunde && (ctx.canEdit ?? true);
+  const canWrite = rowCanWrite(ctx, item);
 
   return `
     <td class="cell-textarea ${columnClass}" style="${hide(columnClass)}">
@@ -827,7 +836,11 @@ function renderSourcingStatusCell(ctx, item) {
     itemId: item.id,
     value: status,
     options: SOURCING_STATUS_OPTIONS,
-    disabled: tableSelectDisabled({ gastReadonly: !!ctx.gastReadonly, isKunde: !!ctx.isKunde, canEdit: ctx.canEdit ?? true }),
+    disabled: tableSelectDisabled({
+      gastReadonly: !!ctx.gastReadonly || !!item.isVorschlag,
+      isKunde: !!ctx.isKunde,
+      canEdit: ctx.canEdit ?? true
+    }),
     meta: getSourcingStatusMeta(item, status)
   });
 }
@@ -845,7 +858,12 @@ function renderKundenFeedbackCell(ctx, item) {
     itemId: item.id,
     value: feedback,
     options: KUNDEN_FEEDBACK_OPTIONS,
-    disabled: tableSelectDisabled({ gastReadonly: !!ctx.gastReadonly, isKunde: !!ctx.isKunde, kundeDarfWaehlen: true, canEdit: ctx.canEdit ?? true }),
+    disabled: tableSelectDisabled({
+      gastReadonly: !!ctx.gastReadonly || !!item.isVorschlag,
+      isKunde: !!ctx.isKunde,
+      kundeDarfWaehlen: true,
+      canEdit: ctx.canEdit ?? true
+    }),
     meta: getKundenFeedbackMeta(item, feedback)
   });
 }
@@ -860,7 +878,7 @@ function renderFollowerCell(ctx, item, columnClass, field, hide) {
   const compact = formatCompactNumber(value);
   const exact = formatExactNumber(value);
 
-  if (ctx.isKunde || !(ctx.canEdit ?? true)) {
+  if (!rowCanWrite(ctx, item)) {
     return `
       <td class="${columnClass}" style="${hide(columnClass)}">
         <div class="cell-number__static" title="${exact}">${compact || '-'}</div>
@@ -918,8 +936,8 @@ function renderKontaktCell(ctx, item, columnClass, field, hide) {
     ? `<a href="${schema}${escapeHtml(value)}" class="link-icon-btn" title="${escapeHtml(value)}">${field === 'email' ? MAIL_ICON : EXTERNAL_LINK_ICON}</a>`
     : '';
 
-  // View-only (Investor): Wert bleibt sichtbar, aber kein Input.
-  if (!(ctx.canEdit ?? true)) {
+  // View-only (Investor oder KI-Vorschlag): Wert bleibt sichtbar, aber kein Input.
+  if (!(ctx.canEdit ?? true) || item.isVorschlag) {
     return `
       <td class="cell-textarea ${columnClass}" style="${hide(columnClass)}">
         <div class="links-compact-row">
@@ -976,12 +994,14 @@ function renderBildCell(ctx, item, sticky, hide) {
 
 export function renderItemRow(ctx, item, index) {
   const isLinkedToCRM = !!item.creator_id;
+  const isVorschlag = !!item.isVorschlag;
   const vis = (col) => isColumnVisibleForCustomer(col, ctx.isKunde, ctx.hiddenColumns);
   const hide = (col) => !vis(col) ? ' display:none;' : '';
   const sticky = getStickyClasses(ctx);
   // Write-Capabilities: interne Spalten bleiben sichtbar (Investor sieht
   // Preise), aber Inputs/Drag/Aktionen nur mit Capability.
-  const canWrite = !ctx.isKunde && (ctx.canEdit ?? true);
+  const tableCanWrite = !ctx.isKunde && (ctx.canEdit ?? true);
+  const canWrite = rowCanWrite(ctx, item);
   const hasActions = !ctx.isKunde && ((ctx.canCreate ?? true) || (ctx.canDelete ?? true));
   // Gegenstueck zu customAt() im Tabellenkopf - dieselben Anker, dieselbe Stelle.
   const customAt = (anchor) => ctx.customManager
@@ -989,15 +1009,23 @@ export function renderItemRow(ctx, item, index) {
     : '';
 
   const isBooked = !!item.gebucht;
+  const rowClass = [
+    'item-row',
+    canWrite ? 'draggable' : '',
+    isBooked ? 'item-gebucht' : '',
+    isVorschlag ? 'item-row--vorschlag' : ''
+  ].filter(Boolean).join(' ');
 
   return `
-    <tr class="item-row ${canWrite ? 'draggable' : ''} ${isBooked ? 'item-gebucht' : ''}" data-item-id="${item.id}" draggable="false">
-      ${canWrite ? `
-        <td class="col-drag drag-handle col-sticky-1 cp-col-drag">
+    <tr class="${rowClass}" data-item-id="${item.id}"${isVorschlag ? ` data-vorschlag-id="${item.vorschlagId || item.id}"` : ''} draggable="false">
+      ${tableCanWrite ? `
+        <td class="col-drag ${isVorschlag ? '' : 'drag-handle '}col-sticky-1 cp-col-drag">
+          ${isVorschlag ? '' : `
           <div class="drag-cell-content">
             <input type="checkbox" class="sourcing-item-check" data-item-id="${item.id}">
             ${icon('bars-3')}
           </div>
+          `}
         </td>
       ` : ''}
       ${renderBildCell(ctx, item, sticky, hide)}
@@ -1006,14 +1034,18 @@ export function renderItemRow(ctx, item, index) {
           <div class="cp-name-cell-inner">
             <textarea class="strategie-textarea" data-field="name" data-item-id="${item.id}" placeholder="Name...">${item.name || ''}</textarea>
           </div>
-        ` : `<div class="cell-text-readonly">${item.name || '-'}</div>`}
+        ` : `<div class="cell-text-readonly">${escapeHtml(item.name || '-')}</div>`}
       </td>
       <td class="cell-textarea cp-col-notiz" style="${hide('cp-col-notiz')}">
         ${canWrite ? `
           <textarea class="strategie-textarea" data-field="notiz" data-item-id="${item.id}" placeholder="Kurzbeschreibung...">${item.notiz || ''}</textarea>
-        ` : `<div class="cell-text-readonly">${item.notiz || '-'}</div>`}
+        ` : `<div class="cell-text-readonly">${escapeHtml(item.notiz || '-')}</div>`}
       </td>
       ${customAt('cp-col-notiz')}
+      <td class="cp-col-matching" style="${hide('cp-col-matching')}">
+        ${renderMatchingCell(item.matching_score, item.matching_scores || item.scores || {})}
+      </td>
+      ${customAt('cp-col-matching')}
       <td class="cp-col-typ" style="${hide('cp-col-typ')}">
         ${canWrite ? renderTableSelect({
           field: 'creator_typ',
@@ -1134,12 +1166,21 @@ export function renderItemRow(ctx, item, index) {
       ${ctx.customManager ? ctx.customManager.renderCells(item.id, ctx.hiddenColumns, ctx.isKunde, canWrite) : ''}
       ${hasActions ? `
         <td class="col-actions cp-col-actions">
-          <div class="actions-dropdown-container" data-entity-type="creator_auswahl_item">
+          <div class="actions-dropdown-container" data-entity-type="${isVorschlag ? 'casting_vorschlag' : 'creator_auswahl_item'}">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
               ${icon('dots-vertical-filled')}
             </button>
             <div class="actions-dropdown">
-              ${''}
+              ${isVorschlag ? `
+                <a href="#" class="action-item" data-action="activate-vorschlag" data-id="${item.vorschlagId || item.id}">
+                  ${icon('check-bold')}
+                  Aktivieren
+                </a>
+                <a href="#" class="action-item action-danger" data-action="discard-vorschlag" data-id="${item.vorschlagId || item.id}">
+                  ${window.ActionsDropdown?.getHeroIcon('delete') || icon('trash')}
+                  Verwerfen
+                </a>
+              ` : `
               ${ctx.canCreate && (item.zusage || item.gebucht) && ctx.liste?.strategie_id ? `
                 <a href="#" class="action-item" data-action="create-videoidee" data-id="${item.id}">
                   ${icon('light-bulb')}
@@ -1153,6 +1194,7 @@ export function renderItemRow(ctx, item, index) {
                 Löschen
               </a>
               ` : ''}
+              `}
             </div>
           </div>
         </td>

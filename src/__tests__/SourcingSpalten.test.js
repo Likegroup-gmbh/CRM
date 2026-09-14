@@ -40,30 +40,32 @@ describe('Sourcing – Spaltenreihenfolge', () => {
   it('stellt Bild zwischen Checkbox und Namen, Status und Kundenfeedback hinter die Creator Art', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
 
-    expect(spalten.slice(0, 10)).toEqual([
-      'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-notiz',
+    expect(spalten.slice(0, 11)).toEqual([
+      'cp-col-drag', 'cp-col-bild', 'cp-col-name', 'cp-col-notiz', 'cp-col-matching',
       'cp-col-typ', 'cp-col-status', 'cp-col-kunden-feedback',
       'cp-col-location', 'cp-col-mail', 'cp-col-telefon'
     ]);
   });
 
-  it('stellt die Kurzbeschreibung direkt hinter den Namen, vor die Creator Art', () => {
+  it('stellt die Kurzbeschreibung direkt hinter den Namen, Matching davor die Creator Art', () => {
     const spalten = reihenfolge(rowDoc().querySelectorAll('tr > td'));
     const ab = spalten.indexOf('cp-col-name');
 
-    expect(spalten.slice(ab, ab + 3)).toEqual([
-      'cp-col-name', 'cp-col-notiz', 'cp-col-typ'
+    expect(spalten.slice(ab, ab + 4)).toEqual([
+      'cp-col-name', 'cp-col-notiz', 'cp-col-matching', 'cp-col-typ'
     ]);
     expect(SOURCING_SPALTEN[SOURCING_SPALTEN.indexOf('cp-col-name') + 1])
       .toBe('cp-col-notiz');
+    expect(SOURCING_SPALTEN[SOURCING_SPALTEN.indexOf('cp-col-notiz') + 1])
+      .toBe('cp-col-matching');
   });
 
   it('zieht die Kurzbeschreibung auch im Kopf nach vorne', () => {
     const kopf = reihenfolge(tableDoc([{ id: 'i1' }]).querySelectorAll('thead th'));
     const ab = kopf.indexOf('cp-col-name');
 
-    expect(kopf.slice(ab, ab + 3)).toEqual([
-      'cp-col-name', 'cp-col-notiz', 'cp-col-typ'
+    expect(kopf.slice(ab, ab + 4)).toEqual([
+      'cp-col-name', 'cp-col-notiz', 'cp-col-matching', 'cp-col-typ'
     ]);
   });
 
@@ -172,6 +174,12 @@ describe('Sourcing – Spaltenreihenfolge', () => {
     // Der TikTok-Bezug steht als Icon im Kopf
     expect(ttVideo.querySelector('svg')).not.toBeNull();
     expect(ttStory.querySelector('svg')).not.toBeNull();
+  });
+
+  it('benennt die Matching-Spalte', () => {
+    const doc = tableDoc([{ id: 'i1' }]);
+
+    expect(doc.querySelector('thead th.cp-col-matching').textContent.trim()).toBe('Matching');
   });
 
   it('benennt die Kundenfeedback-Spalte', () => {

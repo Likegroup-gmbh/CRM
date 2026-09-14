@@ -36,6 +36,7 @@ import {
 } from './sourcingStatusOptions.js';
 import { SourcingBuchungDrawer } from './SourcingBuchungDrawer.js';
 import { CastingVorschlagPanel } from './CastingVorschlagPanel.js';
+import { vorschlagToItem } from './CastingVorschlagService.js';
 import { preserveScroll } from '../../core/dom/preserveScroll.js';
 import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
 import { icon } from '../../core/icons/IconSystem.js';
@@ -256,10 +257,27 @@ export class CreatorAuswahlDetail {
 
   // --- Namenssuche & Status-Reiter (Tabs) ---
 
+  kannVorschlaegeSehen() {
+    if (this.isKunde) return false;
+    if (window.isGastReadonly?.()) return false;
+    return true;
+  }
+
+  getVorschlagItems() {
+    if (!this.kannVorschlaegeSehen()) return [];
+    const listeTyp = this.liste?.liste_typ;
+    return (this.vorschlagPanel?.vorschlaege || []).map(v => vorschlagToItem(v, { listeTyp }));
+  }
+
+  getDisplayItems() {
+    return [...this.getVorschlagItems(), ...this.items];
+  }
+
   getSearchFilteredItems() {
     const query = (this.searchQuery || '').trim().toLowerCase();
-    if (!query) return this.items;
-    return this.items.filter(item => (item.name || '').toLowerCase().includes(query));
+    const items = this.getDisplayItems();
+    if (!query) return items;
+    return items.filter(item => (item.name || '').toLowerCase().includes(query));
   }
 
   // Namenssuche und Statusfilter greifen reiteruebergreifend – die Reiter-Zahlen
@@ -343,7 +361,7 @@ export class CreatorAuswahlDetail {
     const canCreate = can('create');
     return {
       items: this.getFilteredItems(),
-      hasAnyItems: this.items.length > 0,
+      hasAnyItems: this.getDisplayItems().length > 0,
       activeTab: this.activeTab,
       searchQuery: this.searchQuery,
       statusFilter: this.statusFilter,
@@ -421,13 +439,21 @@ export class CreatorAuswahlDetail {
       const actionClickHandler = (e) => {
         const actionItem = e.target.closest('[data-action]');
         if (!actionItem) return;
-        const container = actionItem.closest('[data-entity-type="creator_auswahl_item"]');
+        const container = actionItem.closest('[data-entity-type="creator_auswahl_item"], [data-entity-type="casting_vorschlag"]');
         if (!container) return;
 
         const action = actionItem.dataset.action;
         const id = actionItem.dataset.id;
 
         switch (action) {
+          case 'activate-vorschlag':
+            e.preventDefault();
+            this.vorschlagPanel?.aktivieren(id);
+            break;
+          case 'discard-vorschlag':
+            e.preventDefault();
+            this.vorschlagPanel?.verwerfen(id);
+            break;
           case 'delete-item':
             e.preventDefault();
             this.handleDeleteItem(id);

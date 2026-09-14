@@ -7,12 +7,19 @@
 // Vorschlag auf accepted; Verwerfen gilt nur fuer dieses Casting.
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
+import {
+  matchingScore,
+  normalizeInstagramUrl,
+  normalizeTiktokUrl
+} from './sourcingMatching.js';
 
 const ENDPOINT = '/.netlify/functions/casting-vorschlag-background';
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 4 * 60 * 1000;
 
-const VORSCHLAG_SELECT = '*, creator:creator_id(id, vorname, nachname, instagram, tiktok, instagram_follower, tiktok_follower, profilbild_thumb_url)';
+const VORSCHLAG_SELECT = '*, creator:creator_id(id, vorname, nachname, instagram, tiktok, instagram_follower, tiktok_follower, profilbild_thumb_url, profilbild_url, lieferadresse_stadt, mail, telefonnummer, creator_creator_type(creator_type_id(id,name)))';
+
+const ERLAUBTE_TYPEN = ['UGC Paid', 'UGC Organic', 'Influencer', 'Vor-Ort-Produktion', 'Videograf', 'Model'];
 
 function warte(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -32,6 +39,48 @@ export const SLOT_LABELS = {
   adjacent: 'Nachbar',
   explore: 'Neu'
 };
+
+function pickCreatorTyp(creator, listeTyp) {
+  const typen = (creator?.creator_creator_type || [])
+    .map(j => j?.creator_type_id?.name).filter(Boolean);
+  const erlaubterTyp = typen.find(t => ERLAUBTE_TYPEN.includes(t));
+  const fallbackTyp = String(listeTyp || '').toLowerCase() === 'influencer' ? 'Influencer' : 'UGC Paid';
+  return erlaubterTyp || fallbackTyp;
+}
+
+function creatorName(creator) {
+  return `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim() || 'Unbekannt';
+}
+
+/**
+ * Pending-Vorschlag als Tabellen-Item. Kein creator_auswahl_item – die id
+ * ist die Vorschlag-UUID, isVorschlag markiert die virtuelle Zeile.
+ */
+export function vorschlagToItem(vorschlag, { listeTyp } = {}) {
+  const creator = vorschlag?.creator || {};
+  const scores = vorschlag?.scores || {};
+  return {
+    id: vorschlag.id,
+    isVorschlag: true,
+    vorschlagId: vorschlag.id,
+    creator_id: vorschlag.creator_id,
+    name: creatorName(creator),
+    notiz: vorschlag.fit_grund || '',
+    typ: pickCreatorTyp(creator, listeTyp),
+    kategorie: vorschlag.kategorie_hint || null,
+    wohnort: creator.lieferadresse_stadt || null,
+    email: creator.mail || null,
+    telefon: creator.telefonnummer || null,
+    link_instagram: normalizeInstagramUrl(creator.instagram),
+    follower_instagram: Number(creator.instagram_follower) || null,
+    link_tiktok: normalizeTiktokUrl(creator.tiktok),
+    follower_tiktok: Number(creator.tiktok_follower) || null,
+    profile_image_thumb_url: creator.profilbild_thumb_url || null,
+    profile_image_url: creator.profilbild_url || null,
+    matching_score: matchingScore(scores),
+    matching_scores: scores
+  };
+}
 
 export class CastingVorschlagService {
   // --- Lesen ---
@@ -152,30 +201,30 @@ export class CastingVorschlagService {
       .single();
     if (error || !creator) throw new Error('Creator nicht gefunden');
 
-    const typen = (creator.creator_creator_type || [])
-      .map(j => j?.creator_type_id?.name).filter(Boolean);
-    const erlaubterTyp = typen.find(t => ['UGC Paid', 'UGC Organic', 'Influencer', 'Vor-Ort-Produktion', 'Videograf', 'Model'].includes(t));
-    const fallbackTyp = String(listeTyp || '').toLowerCase() === 'influencer' ? 'Influencer' : 'UGC Paid';
-
-    const name = `${creator.vorname || ''} ${creator.nachname || ''}`.trim() || null;
+    const name = creatorName(creator);
     const kategorie = vorschlag.kategorie_hint && kategorien.includes(vorschlag.kategorie_hint)
       ? vorschlag.kategorie_hint
       : null;
+    const scores = vorschlag.scores || {};
 
     const itemData = {
       creator_auswahl_id: listeId,
-      typ: erlaubterTyp || fallbackTyp,
-      name,
-      link_instagram: creator.instagram || null,
+      typ: pickCreatorTyp(creator, listeTyp),
+      name: name === 'Unbekannt' ? null : name,
+      link_instagram: normalizeInstagramUrl(creator.instagram),
       follower_instagram: Number(creator.instagram_follower) || null,
-      link_tiktok: creator.tiktok || null,
+      link_tiktok: normalizeTiktokUrl(creator.tiktok),
       follower_tiktok: Number(creator.tiktok_follower) || null,
       kategorie,
       wohnort: creator.lieferadresse_stadt || null,
       email: creator.mail || null,
       telefon: creator.telefonnummer || null,
-      notiz: creator.notiz || null,
-      creator_id: creator.id
+      notiz: vorschlag.fit_grund || creator.notiz || null,
+      creator_id: creator.id,
+      profile_image_thumb_url: creator.profilbild_thumb_url || null,
+      profile_image_url: creator.profilbild_url || null,
+      matching_score: matchingScore(scores),
+      matching_scores: Object.keys(scores).length ? scores : null
     };
 
     const item = await creatorAuswahlService.createItem(itemData);

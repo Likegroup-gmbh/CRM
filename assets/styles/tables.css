@@ -1838,6 +1838,107 @@ thead {
   background: var(--gray-100);
 }
 
+/* KI-Vorschlag: farbiger Rand + leichter Ton, damit die Zeile wie ein
+   Eintrag wirkt, aber als Vorschlag erkennbar bleibt. */
+.creator-pool-table tbody tr.item-row--vorschlag > td {
+  background: var(--orange-25);
+  box-shadow: inset 0 1px 0 0 var(--color-warning), inset 0 -1px 0 0 var(--color-warning);
+}
+
+.creator-pool-table tbody tr.item-row--vorschlag > td:first-child {
+  box-shadow:
+    inset 2px 1px 0 0 var(--color-warning),
+    inset 0 -1px 0 0 var(--color-warning);
+}
+
+.creator-pool-table tbody tr.item-row--vorschlag > td:last-child {
+  box-shadow:
+    inset -2px 1px 0 0 var(--color-warning),
+    inset 0 -1px 0 0 var(--color-warning);
+}
+
+.creator-pool-table tbody tr.item-row--vorschlag td.col-sticky-1,
+.creator-pool-table tbody tr.item-row--vorschlag td.col-sticky-2,
+.creator-pool-table tbody tr.item-row--vorschlag td.col-sticky-3 {
+  background: var(--orange-25);
+}
+
+.creator-pool-table tbody tr.item-row.item-row--vorschlag:hover td.col-sticky-1,
+.creator-pool-table tbody tr.item-row.item-row--vorschlag:hover td.col-sticky-2,
+.creator-pool-table tbody tr.item-row.item-row--vorschlag:hover td.col-sticky-3 {
+  background: var(--orange-50);
+}
+
+.casting-vorschlag {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm) 0 var(--space-md);
+}
+
+.casting-vorschlag__kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.casting-vorschlag__titel {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.casting-vorschlag__sub,
+.casting-vorschlag__hinweis,
+.casting-vorschlag__fehler,
+.casting-vorschlag__progress {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.casting-vorschlag__fehler {
+  color: var(--color-error);
+}
+
+.creator-pool-table .cp-col-matching {
+  width: 110px;
+  min-width: 110px;
+}
+
+.creator-pool-table td.cp-col-matching {
+  vertical-align: middle;
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.sourcing-matching {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+  min-width: 72px;
+}
+
+.sourcing-matching__track {
+  width: 100%;
+  height: 3px;
+  background: var(--gray-200);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+
+.sourcing-matching__fill {
+  height: 100%;
+  border-radius: var(--radius-xl);
+}
+
+.sourcing-matching__score {
+  font-size: var(--text-xxs);
+  color: var(--text-secondary);
+  line-height: 1;
+  white-space: nowrap;
+}
+
 /* === CREATOR POOL TABLE - FESTE SPALTENBREITEN === */
 
 .creator-pool-table th,

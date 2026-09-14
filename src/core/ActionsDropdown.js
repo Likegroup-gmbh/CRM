@@ -305,6 +305,7 @@ export class ActionsDropdown {
         'comment-delete', 'video-view', 'video-edit', 'video-delete',
         'remove-zuordnung', 'add-to-video', 'unlink-from-video',
         'edit-item', 'delete-item',
+        'activate-vorschlag', 'discard-vorschlag',
         'toggle-skript-freigabe', 'reprocess-item', 'connect-creator'
       ];
       if (customActions.includes(action) || !this.isKnownGlobalAction(action)) {
