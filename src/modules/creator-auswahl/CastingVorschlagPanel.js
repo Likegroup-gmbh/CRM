@@ -25,6 +25,11 @@ export class CastingVorschlagPanel {
     this._token = 0;
     this._onProgress = null;
     this._onFinished = null;
+    // Eigener Listener-Lifecycle: der Shared-Cleanup in
+    // CreatorAuswahlDetail.bindEvents() wuerde einen dort registrierten
+    // Handler sofort wieder entfernen (init: render() vor bindEvents()).
+    this._clickHandler = null;
+    this._boundBlock = null;
   }
 
   get sichtbar() {
@@ -59,6 +64,15 @@ export class CastingVorschlagPanel {
   unmount() {
     this._token++;
     this.unbindProgress();
+    this.unbindClick();
+  }
+
+  unbindClick() {
+    if (this._boundBlock && this._clickHandler) {
+      this._boundBlock.removeEventListener('click', this._clickHandler);
+    }
+    this._boundBlock = null;
+    this._clickHandler = null;
   }
 
   // --- Rendering ---
@@ -140,12 +154,14 @@ export class CastingVorschlagPanel {
 
   bind() {
     const block = document.getElementById('casting-vorschlag-block');
-    if (!block || block.dataset.gebunden) return;
-    block.dataset.gebunden = '1';
-
-    const clickHandler = (e) => this.handleClick(e);
-    block.addEventListener('click', clickHandler);
-    this.detail._boundEventListeners.add(() => block.removeEventListener('click', clickHandler));
+    if (!block) return;
+    // Alter Block (falls noch referenziert) loest seinen Handler selbst;
+    // der neue Block bekommt genau einen. Das Shared-Set des Details wird
+    // bewusst nicht benutzt (siehe Constructor-Kommentar).
+    this.unbindClick();
+    this._boundBlock = block;
+    this._clickHandler = (e) => this.handleClick(e);
+    block.addEventListener('click', this._clickHandler);
   }
 
   bindProgress() {
