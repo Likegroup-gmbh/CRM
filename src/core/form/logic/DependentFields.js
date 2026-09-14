@@ -218,6 +218,22 @@ export class DependentFields {
         filterByMap.get(field.filterBy).push(field);
       }
     });
+
+    // reloadOnChange: Feld haengt primaer an dependsOn, muss aber auch auf
+    // zusaetzliche Eltern reagieren (z.B. briefing_id auf marke_id). Laeuft
+    // ueber denselben Cascade-Loader, der Primaer-Parent bleibt dependsOn.
+    const reloadOnChangeMap = new Map();
+    config.fields.forEach(field => {
+      if (field.reloadOnChange && field.dependsOn && (field.dynamic || field.table)) {
+        const extraParents = Array.isArray(field.reloadOnChange) ? field.reloadOnChange : [field.reloadOnChange];
+        extraParents.forEach(parentName => {
+          if (!reloadOnChangeMap.has(parentName)) {
+            reloadOnChangeMap.set(parentName, []);
+          }
+          reloadOnChangeMap.get(parentName).push(field);
+        });
+      }
+    });
     
     const fieldCache = new Map();
     config.fields.forEach(field => {
@@ -287,6 +303,36 @@ export class DependentFields {
           debounceTimers.delete(timerKey);
         }, 150);
         
+        debounceTimers.set(timerKey, timer);
+      }
+
+      if (reloadOnChangeMap.has(fieldName)) {
+        const timerKey = `reload_${fieldName}`;
+        if (debounceTimers.has(timerKey)) {
+          clearTimeout(debounceTimers.get(timerKey));
+        }
+
+        const timer = setTimeout(async () => {
+          const reloadFields = reloadOnChangeMap.get(fieldName);
+
+          for (const fieldConfig of reloadFields) {
+            const dependentField = fieldCache.get(fieldConfig.name)
+              || form.querySelector(`[name="${fieldConfig.name}"]`);
+            if (!dependentField) continue;
+
+            const primaryParent = form.querySelector(`[name="${fieldConfig.dependsOn}"]`);
+            const primaryValue = primaryParent ? this.getFieldValue(primaryParent) : null;
+
+            if (!primaryValue) {
+              await this.clearDependentField(dependentField, fieldConfig);
+            } else {
+              await this.loadDependentFieldData(dependentField, fieldConfig, primaryValue, form);
+            }
+          }
+
+          debounceTimers.delete(timerKey);
+        }, 150);
+
         debounceTimers.set(timerKey, timer);
       }
     };

@@ -368,6 +368,56 @@ export const cascadeStrategies = {
     }
   },
 
+  // Briefing-Pflicht fuer Casting (sourcing) und Konzept (strategie).
+  // Nur finalisierte Briefings (is_draft = false) des Unternehmens; bei
+  // gesetzter Marke nur Briefings genau dieser Marke. Der Kooperation-Picker
+  // ('briefing_id:kampagne_id') bleibt bewusst ungehaertet (optional, Drafts
+  // inklusive). Leerer Schnitt: Hinweis + Link zum Briefing-Anlegen mit
+  // vorausgefuelltem Unternehmen/Marke, Submit bleibt blockiert.
+  'briefing_id:unternehmen_id': async (parentValue, form, field, fieldConfig, ctx) => {
+    try {
+      const markeField = form?.querySelector('[name="marke_id"]');
+      const markeId = markeField ? (ctx.getFieldValue(markeField) || null) : null;
+
+      let query = window.supabase
+        .from('campaign_briefings')
+        .select('id, aktivierung_name')
+        .eq('unternehmen_id', parentValue)
+        .eq('is_draft', false)
+        .order('created_at', { ascending: false });
+
+      if (markeId) {
+        query = query.eq('marke_id', markeId);
+      }
+
+      const { data: briefings, error } = await query;
+      if (error) {
+        console.error('❌ Fehler beim Laden der Briefings:', error);
+        return;
+      }
+
+      if (!briefings || briefings.length === 0) {
+        const params = new URLSearchParams({ unternehmen: parentValue });
+        if (markeId) params.set('marke', markeId);
+        ctx.setNoOptionsState(
+          field,
+          fieldConfig,
+          `Kein finalisiertes Briefing vorhanden — zuerst anlegen: /briefing/new?${params.toString()}`
+        );
+        return;
+      }
+
+      const options = briefings.map(b => ({
+        value: b.id,
+        label: b.aktivierung_name || `Briefing ${b.id.slice(0, 6)}`
+      }));
+      field.disabled = false;
+      ctx.updateDependentFieldOptions(field, fieldConfig, options);
+    } catch (e) {
+      console.error('❌ Unerwarteter Fehler beim Laden der Briefings:', e);
+    }
+  },
+
   'prefillFromUnternehmen': async (parentValue, form, field, fieldConfig, ctx) => {
     const targetRole = fieldConfig.prefillRole;
 
