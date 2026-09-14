@@ -29,7 +29,7 @@ Personas hängen über die Zuordnung, nicht als Eigentum des Produkts.
 _Avoid_: Artikel, SKU, Offer
 
 **Liky**:
-Der KI-Assistent. Liest Shop-URLs und Kundenbriefings aus, schlägt Personas vor und schreibt im Skript-Editor.
+Der KI-Assistent. Liest Shop-URLs und Kundenbriefings aus, schlägt Personas und Creator für ein Casting vor und schreibt im Skript-Editor.
 Sitzt in der rechten Spalte der Detail-Worksheets (Produkt, Persona).
 _Avoid_: Bot, Chatbot, Copilot
 
@@ -96,6 +96,22 @@ _Avoid_: Casting-Item, Kandidat, Sourcing-Creator
 Stammdaten-Entity einer Person (Tabelle `creator`), mit Mail (`mail`) und Management-Zuordnung.
 Nicht der Casting-Eintrag; der kann später zum Creator werden.
 _Avoid_: Casting-Eintrag, Influencer, Kandidat
+
+**Bedarf**:
+Das gesuchte Creator-Profil eines Castings, abgeleitet aus Briefing, Produkt und akzeptierten Personas.
+_Avoid_: Suche, Zielgruppe, Filter
+
+**Buchungsbild**:
+Die historisch gebuchten bzw. bewerteten Creator zu Marke und Kampagnenart.
+Dient nur als Wiederholungs- und Ablehnungsfilter, nicht als Auswahl.
+_Avoid_: Qualität, Score, Proven-Slot als Auswahl
+
+**Casting-Vorschlag**:
+Ein für ein Casting vorgeschlagener Creator. Wird durch Aktivieren zum Casting-Eintrag.
+_Avoid_: Casting-Eintrag, Kategorie „Vorschläge“, Kandidat
+
+**Aktivieren**:
+Einen Casting-Vorschlag zum Casting-Eintrag mit `creator_id` machen.
 
 **Management**:
 Die Talent-Agentur als Stammdaten-Entity (Tabelle `management`), n:m zu Creator über `creator_management`.

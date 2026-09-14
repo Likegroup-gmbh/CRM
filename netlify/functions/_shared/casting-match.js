@@ -1,0 +1,901 @@
+// casting-match.js
+// Deterministischer Kern der Casting-Creator-Vorschlaege (ADR 0013):
+// Bedarf bauen, Gates, drei Scores (Fit/Track/Fresh), Slots, Validate.
+// Reine Funktionen (testbar) plus die drei DB-Lader. Das LLM schreibt nur
+// fit_grund/risiken auf der Shortlist - es rankt nie den Pool.
+
+const config = require('./casting-match-config');
+
+const {
+  BEREICH_PREFIX,
+  BEREICH_TYP,
+  GROESSEN_BAENDER,
+  NISCHE_TOKENS,
+  NISCHE_NACHBARN,
+  VORAUSSETZUNG_FELDER,
+  GESCHLECHT_SONDER,
+  PROFILES,
+  SCHWELLEN,
+  ANZAHL,
+  MAX_SHORTLIST_IM_PROMPT,
+  exploreDefaultForBriefing
+} = config;
+
+// ---------------------------------------------------------------------------
+// Normierung
+// ---------------------------------------------------------------------------
+
+function norm(value) {
+  return String(value || '').trim().toLowerCase();
+}
+
+function normListe(value) {
+  if (Array.isArray(value)) return value.map(norm).filter(Boolean);
+  if (typeof value === 'string') return value.split(',').map(s => norm(s)).filter(Boolean);
+  return [];
+}
+
+function tokens(text) {
+  return norm(text).split(/[^a-zäöüß0-9]+/i).filter(t => t.length > 2);
+}
+
+/** "25-34" / "25 bis 34" / 25 -> [von, bis] oder null */
+function parseAlterSpanne(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return [value, value];
+  const m = String(value).match(/(\d{1,3})\s*(?:-|bis)\s*(\d{1,3})/);
+  if (m) return [Number(m[1]), Number(m[2])];
+  const einzeln = String(value).match(/(\d{1,3})/);
+  return einzeln ? [Number(einzeln[1]), Number(einzeln[1])] : null;
+}
+
+function spannenSchneiden(a, b) {
+  if (!a || !b) return false;
+  return a[0] <= b[1] && b[0] <= a[1];
+}
+
+// ---------------------------------------------------------------------------
+// Bedarf aus Briefing + Produkte + akzeptierte Personas
+// ---------------------------------------------------------------------------
+
+function bedarfFingerprint(bedarf) {
+  const alter = bedarf.alter
+    ? `${Math.floor(bedarf.alter[0] / 10) * 10}-${Math.floor(bedarf.alter[1] / 10) * 10}`
+    : 'offen';
+  return [
+    bedarf.bereich || 'offen',
+    [...(bedarf.nischen || [])].sort().join('+') || 'offen',
+    [...(bedarf.groessen || [])].sort().join('+') || 'offen',
+    [...(bedarf.geschlechter || [])].sort().join('+') || 'offen',
+    alter,
+    [...(bedarf.maerkte || [])].sort().join('+') || 'offen'
+  ].join('|');
+}
+
+/**
+ * Baut den Bedarf aus einer campaign_briefings-Zeile. Liest nur den aktiven
+ * bereich (im_/pa_/os_), dazu Markt/Sprache/Ansatz/Learnings.
+ */
+function buildBedarf(briefing = {}, { produktIds = [], personas = [] } = {}) {
+  const bereich = briefing.bereich || null;
+  const prefix = BEREICH_PREFIX[bereich] || null;
+  const g = (feld) => (prefix ? briefing[`${prefix}_${feld}`] : null);
+
+  const nischen = normListe(g('nischen')).filter(n => n !== 'keine_vorgabe' && n !== 'sonstiges');
+  const groessen = normListe(g('creator_groessen')).filter(x => x !== 'keine_vorgabe');
+  const voraussetzungen = normListe(g('voraussetzungen'));
+  const merkmale = g('creator_merkmale') && typeof g('creator_merkmale') === 'object' ? g('creator_merkmale') : {};
+
+  const alter = parseAlterSpanne(merkmale.alter);
+  const geschlechter = normListe(merkmale.geschlecht);
+  const standort = String(merkmale.standort || '').trim() || null;
+  const expertise = String(merkmale.expertise || '').trim() || null;
+
+  const umsetzung = String(g('umsetzung') || '').trim() || null;
+  const situationen = String(g('situationen') || '').trim() || null;
+
+  // Learnings nur aus dem aktiven Bereich
+  const learningsText = [g('learnings_text')].filter(Boolean).join('\n').trim() || null;
+
+  const bedarf = {
+    bereich,
+    typ: BEREICH_TYP[bereich] || null,
+    nischen,
+    groessen,
+    voraussetzungen,
+    alter,
+    geschlechter,
+    standort,
+    expertise,
+    umsetzung,
+    situationen,
+    learningsText,
+    maerkte: normListe(briefing.maerkte),
+    sprachen: normListe([...(briefing.sprachen || []), ...(briefing.weitere_sprachen || [])]),
+    kanaele: kanaeleAusBriefing(briefing, prefix),
+    ansatz: briefing.ansatz || null,
+    alwaysOnBestehend: briefing.always_on_bestehend || null,
+    kampagnentypen: normListe(briefing.kampagnentypen),
+    produktIds: [...new Set((produktIds || []).filter(Boolean))],
+    personas: (personas || []).map(p => ({
+      id: p.id || null,
+      name: p.name || null,
+      oberbegriff: p.oberbegriff || null,
+      alter: (p.alter_von != null || p.alter_bis != null)
+        ? [p.alter_von ?? 0, p.alter_bis ?? 99]
+        : parseAlterSpanne(null),
+      geschlecht: norm(p.geschlecht),
+      lebenssituation: norm(p.lebenssituation),
+      pain_points: p.pain_points || null,
+      beduerfnisse: p.beduerfnisse || null
+    }))
+  };
+  bedarf.fingerprint = bedarfFingerprint(bedarf);
+  bedarf.exploreDefault = exploreDefaultForBriefing({
+    ansatz: bedarf.ansatz,
+    alwaysOnBestehend: bedarf.alwaysOnBestehend,
+    kampagnentypen: briefing.kampagnentypen || []
+  });
+  return bedarf;
+}
+
+/** Kanaele aus im_channels/os_channels (instagram/tiktok) bzw. pa_channels (meta/tiktok). */
+function kanaeleAusBriefing(briefing, prefix) {
+  const out = new Set();
+  if (prefix === 'pa') {
+    const ch = briefing.pa_channels;
+    if (ch && typeof ch === 'object') {
+      if (ch.tiktok) out.add('tiktok');
+      if (Array.isArray(ch.meta) && ch.meta.length) out.add('instagram');
+      if (Array.isArray(ch.youtube) && ch.youtube.length) out.add('youtube');
+    } else {
+      out.add('instagram'); out.add('tiktok');
+    }
+    return [...out];
+  }
+  const ch = prefix ? briefing[`${prefix}_channels`] : null;
+  if (ch && typeof ch === 'object') {
+    if (Array.isArray(ch.instagram) && ch.instagram.length) out.add('instagram');
+    if (ch.tiktok) out.add('tiktok');
+    if (Array.isArray(ch.youtube) && ch.youtube.length) out.add('youtube');
+  } else {
+    out.add('instagram'); out.add('tiktok');
+  }
+  return [...out];
+}
+
+/** Offene Creator-Sollzahl -> Vorschlags-Anzahl (2-3x, gedeckelt). */
+function zielAnzahl(offen) {
+  const n = Number(offen);
+  if (!Number.isFinite(n) || n <= 0) return 12;
+  return Math.min(ANZAHL.max, Math.max(ANZAHL.min, Math.round(n * ANZAHL.faktor)));
+}
+
+// ---------------------------------------------------------------------------
+// Kandidaten-Normierung (eine Creator-Zeile + Junctions)
+// ---------------------------------------------------------------------------
+
+function normiereKandidat(c = {}) {
+  const typen = Array.isArray(c.creator_creator_type)
+    ? c.creator_creator_type.map(j => j?.creator_type_id?.name).filter(Boolean)
+    : (c.creator_types || []);
+  const branchen = Array.isArray(c.creator_branchen)
+    ? c.creator_branchen.map(j => j?.branche_id?.name).filter(Boolean)
+    : (c.branchen || []);
+  const sprachen = Array.isArray(c.creator_sprachen)
+    ? c.creator_sprachen.map(j => j?.sprachen?.name).filter(Boolean)
+    : (c.sprachen || []);
+  const mentions = Array.isArray(c.ig_brand_mentions) ? c.ig_brand_mentions : [];
+  return {
+    id: c.id,
+    vorname: c.vorname || '',
+    nachname: c.nachname || '',
+    geschlecht: norm(c.geschlecht),
+    alter: (c.alter_min != null || c.alter_max != null)
+      ? [c.alter_min ?? c.alter_jahre ?? 0, c.alter_max ?? c.alter_jahre ?? 99]
+      : (c.alter_jahre != null ? [c.alter_jahre, c.alter_jahre] : null),
+    alterBekannt: c.alter_min != null || c.alter_max != null || c.alter_jahre != null,
+    typen,
+    branchen,
+    branchenTokens: new Set(normListe(branchen).flatMap(b => [b, ...tokens(b)])),
+    sprachen: normListe(sprachen),
+    land: norm(c.lieferadresse_land),
+    stadt: norm(c.lieferadresse_stadt),
+    plz: String(c.lieferadresse_plz || '').trim(),
+    instagram: String(c.instagram || '').trim(),
+    tiktok: String(c.tiktok || '').trim(),
+    follower: Math.max(Number(c.instagram_follower) || 0, Number(c.tiktok_follower) || 0),
+    mail: String(c.mail || '').trim(),
+    telefon: String(c.telefonnummer || '').trim(),
+    hatHaustier: c.hat_haustier ?? null,
+    hatKinder: c.hat_kinder ?? null,
+    spieltInstrument: c.spielt_instrument ?? null,
+    budget: c.budget_letzte_buchung ?? null,
+    bio: String(c.ig_biography || '').trim(),
+    notiz: String(c.notiz || '').trim(),
+    mentions: mentions.map(m => (typeof m === 'string' ? m : (m?.username || m?.name || ''))).filter(Boolean),
+    er: c.ig_engagement_rate_clean ?? c.ig_engagement_rate ?? null
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Gates (raus oder drin - kein 0.7)
+// ---------------------------------------------------------------------------
+
+/**
+ * buchungsbild: {
+ *   aufDieserListe: Set(creator_id), parallelLive: Set(creator_id),
+ *   abgelehntMarke: Set(creator_id),
+ *   managementIds: Set(creator_id mit Management-Link)
+ * }
+ * Harte Gates nur, wenn Bedarf UND Kandidat das Feld gesetzt haben.
+ * Unbekannt = 0 auf der Dimension, nicht raus.
+ */
+function applyGates(kandidaten, bedarf, buchungsbild = {}) {
+  const aufListe = buchungsbild.aufDieserListe || new Set();
+  const parallel = buchungsbild.parallelLive || new Set();
+  const abgelehnt = buchungsbild.abgelehntMarke || new Set();
+  const mitManagement = buchungsbild.managementIds || new Set();
+
+  const pass = [];
+  const raus = [];
+
+  for (const k of kandidaten) {
+    const drop = (grund) => raus.push({ id: k.id, grund });
+
+    if (aufListe.has(k.id)) { drop('bereits_auf_dieser_liste'); continue; }
+    if (parallel.has(k.id)) { drop('auf_paralleler_live_liste'); continue; }
+    if (abgelehnt.has(k.id)) { drop('von_marke_abgelehnt'); continue; }
+
+    // Sprache: Bedarf gesetzt, Kandidat hat Sprachen, keine schneidet
+    if (bedarf.sprachen?.length && k.sprachen.length) {
+      const hit = bedarf.sprachen.some(s => k.sprachen.some(ks => ks.includes(s) || s.includes(ks)));
+      if (!hit) { drop('sprache_fehlt'); continue; }
+    }
+
+    // Land: Bedarf gesetzt, Kandidat-Land gesetzt, kein Match
+    if (bedarf.maerkte?.length && k.land) {
+      const hit = bedarf.maerkte.some(m => k.land.includes(m) || m.includes(k.land));
+      if (!hit) { drop('land_fehlt'); continue; }
+    }
+
+    // Typ: Bedarf-Typ gegen Creator-Typen (contains, beide Richtungen)
+    if (bedarf.typ && k.typen.length) {
+      const ziel = bedarf.typ === 'UGC Paid' || bedarf.typ === 'UGC Organic' ? 'ugc' : norm(bedarf.typ);
+      const hit = k.typen.some(t => {
+        const nt = norm(t);
+        return nt.includes(ziel) || ziel.includes(nt);
+      });
+      if (!hit) { drop('typ_passt_nicht'); continue; }
+    }
+
+    // Strukturierte Voraussetzungen: nur hart, wenn Bedarf gesetzt UND
+    // Kandidat das Feld kennt UND es false ist
+    let voraussetzungOk = true;
+    for (const v of (bedarf.voraussetzungen || [])) {
+      const feld = VORAUSSETZUNG_FELDER[v];
+      if (!feld) continue;
+      const kandidatWert = feld === 'hat_haustier' ? k.hatHaustier
+        : feld === 'hat_kinder' ? k.hatKinder
+        : k.spieltInstrument;
+      if (kandidatWert === false) { voraussetzungOk = false; break; }
+    }
+    if (!voraussetzungOk) { drop('voraussetzung_fehlt'); continue; }
+
+    // Kontakt: weder Mail noch Management
+    if (!k.mail && !mitManagement.has(k.id)) { drop('nicht_anschreibbar'); continue; }
+
+    // Alter: Bedarf gesetzt, Kandidat bekannt, kein Schnitt
+    if (bedarf.alter && k.alter && !spannenSchneiden(bedarf.alter, k.alter)) {
+      drop('alter_ausserhalb'); continue;
+    }
+
+    pass.push(k);
+  }
+
+  return { pass, raus };
+}
+
+// ---------------------------------------------------------------------------
+// Scores (0-100 je Achse, nicht verrechnet)
+// ---------------------------------------------------------------------------
+
+function nischenTreffer(kandidatTokens, nischen) {
+  let primaer = false;
+  let nachbar = false;
+  for (const n of (nischen || [])) {
+    const toks = NISCHE_TOKENS[n] || [n];
+    if (toks.some(t => kandidatTokens.has(t))) primaer = true;
+    for (const nb of (NISCHE_NACHBARN[n] || [])) {
+      const nbToks = NISCHE_TOKENS[nb] || [nb];
+      if (nbToks.some(t => kandidatTokens.has(t))) nachbar = true;
+    }
+  }
+  return { primaer, nachbar };
+}
+
+function scoreFit(k, bedarf, gewichte) {
+  const coverage = {};
+  let punkte = 0;
+
+  // Nische vs. Branchen
+  const treffer = nischenTreffer(k.branchenTokens, bedarf.nischen);
+  if (!bedarf.nischen?.length) { coverage.nische = 'offen'; }
+  else if (treffer.primaer) { punkte += gewichte.nische; coverage.nische = 'treffer'; }
+  else { coverage.nische = 'kein_treffer'; }
+
+  // Persona-Demo: beste Persona zaehlt
+  if (!bedarf.personas?.length) { coverage.persona = 'offen'; }
+  else {
+    let best = 0;
+    let belegt = false;
+    for (const p of bedarf.personas) {
+      let s = 0;
+      const dim = [];
+      if (p.alter && k.alter) {
+        dim.push(1);
+        if (spannenSchneiden(p.alter, k.alter)) { s += 0.5; belegt = true; }
+      }
+      if (p.geschlecht) {
+        if (!GESCHLECHT_SONDER.includes(k.geschlecht)) {
+          dim.push(1);
+          const pg = norm(p.geschlecht);
+          if ((pg === 'gemischt') || k.geschlecht.includes(pg) || pg.includes(k.geschlecht)) { s += 0.3; belegt = true; }
+        }
+      }
+      if (p.lebenssituation) {
+        const willKinder = /familie|alleinerziehend|eltern/.test(p.lebenssituation);
+        if (willKinder && k.hatKinder !== null) {
+          dim.push(1);
+          if (k.hatKinder === true) { s += 0.2; belegt = true; }
+        }
+      }
+      if (dim.length) best = Math.max(best, s / dim.length);
+    }
+    punkte += best * gewichte.persona;
+    coverage.persona = belegt ? 'treffer' : (best > 0 ? 'teil' : 'kein_treffer');
+  }
+
+  // Groesse im Band (weicher Abfall ausserhalb)
+  if (!bedarf.groessen?.length) { coverage.groesse = 'offen'; }
+  else if (!k.follower) { coverage.groesse = 'unbekannt'; punkte += gewichte.groesse * 0.3; }
+  else {
+    const drin = bedarf.groessen.some(g => {
+      const band = GROESSEN_BAENDER[g];
+      return band && k.follower >= band[0] && k.follower < band[1];
+    });
+    if (drin) { punkte += gewichte.groesse; coverage.groesse = 'treffer'; }
+    else { punkte += gewichte.groesse * 0.3; coverage.groesse = 'ausserhalb'; }
+  }
+
+  // Plattform vorhanden
+  if (!bedarf.kanaele?.length) { coverage.plattform = 'offen'; }
+  else {
+    const hit = (bedarf.kanaele.includes('instagram') && k.instagram)
+      || (bedarf.kanaele.includes('tiktok') && k.tiktok);
+    if (hit) { punkte += gewichte.plattform; coverage.plattform = 'treffer'; }
+    else coverage.plattform = 'kein_treffer';
+  }
+
+  // Brand-Mentions / Bio gegen Produktnische
+  if (!bedarf.nischen?.length) { coverage.mentions = 'offen'; }
+  else {
+    const text = norm([...k.mentions, k.bio].join(' '));
+    const hit = bedarf.nischen.some(n => (NISCHE_TOKENS[n] || [n]).some(t => text.includes(t)));
+    if (hit) { punkte += gewichte.mentions; coverage.mentions = 'treffer'; }
+    else coverage.mentions = 'kein_treffer';
+  }
+
+  // Standort nur wenn gesetzt
+  if (!bedarf.standort) { coverage.standort = 'offen'; }
+  else {
+    const s = norm(bedarf.standort);
+    if ((k.stadt && (k.stadt.includes(s) || s.includes(k.stadt))) || (k.plz && s.includes(k.plz))) {
+      punkte += gewichte.standort; coverage.standort = 'treffer';
+    } else coverage.standort = 'kein_treffer';
+  }
+
+  // Strukturierte Voraussetzungen: bekannt-erfuellt voll, unbekannt halb + Flag
+  const rel = (bedarf.voraussetzungen || []).filter(v => VORAUSSETZUNG_FELDER[v]);
+  if (!rel.length || !gewichte.voraussetzung) { coverage.voraussetzung = 'offen'; }
+  else {
+    let voll = 0;
+    let unbekannt = 0;
+    for (const v of rel) {
+      const feld = VORAUSSETZUNG_FELDER[v];
+      const w = feld === 'hat_haustier' ? k.hatHaustier : feld === 'hat_kinder' ? k.hatKinder : k.spieltInstrument;
+      if (w === true) voll++;
+      else if (w === null || w === undefined) unbekannt++;
+    }
+    punkte += (voll / rel.length) * gewichte.voraussetzung
+      + (unbekannt / rel.length) * gewichte.voraussetzung * 0.5;
+    coverage.voraussetzung = unbekannt ? 'unverified' : 'treffer';
+  }
+
+  // Text-Naehe: Token-Schnitt Umsetzung/Situationen vs. Bio/Notiz (ein Signal)
+  const bedarfText = tokens([bedarf.umsetzung, bedarf.situationen, bedarf.expertise].filter(Boolean).join(' '));
+  if (!bedarfText.length || !gewichte.text) { coverage.text = 'offen'; }
+  else {
+    const profil = new Set([...tokens(k.bio), ...tokens(k.notiz)]);
+    const schnitt = bedarfText.filter(t => profil.has(t)).length;
+    const quote = schnitt / Math.max(1, Math.min(bedarfText.length, 20));
+    punkte += Math.min(1, quote * 3) * gewichte.text;
+    coverage.text = schnitt ? 'treffer' : 'kein_treffer';
+  }
+
+  // Preis-Transparenz (nur Influencer-Profil): bekanntes Budget ist buchbar
+  if (gewichte.preis) {
+    if (k.budget != null) { punkte += gewichte.preis; coverage.preis = 'bekannt'; }
+    else { punkte += gewichte.preis * 0.4; coverage.preis = 'unbekannt'; }
+  } else coverage.preis = 'offen';
+
+  return { wert: Math.round(Math.min(100, punkte)), coverage };
+}
+
+/** Wilson-Lower-Bound: 1/1 ist keine 100 %. */
+function wilson(erfolge, n) {
+  if (!n) return 0;
+  const z = 1.2816; // 80 %
+  const p = erfolge / n;
+  const nenner = 1 + (z * z) / n;
+  const mitte = p + (z * z) / (2 * n);
+  const streu = z * Math.sqrt((p * (1 - p) + (z * z) / (4 * n)) / n);
+  return Math.max(0, (mitte - streu) / nenner);
+}
+
+/**
+ * hist: { castings, prio1, angefragt, gebucht, absagen, videos,
+ *         er (0-100 Skala Prozent), hatMail, hatTelefonOderManagement }
+ */
+function scoreTrack(k, hist = {}, gewichte) {
+  let punkte = 0;
+  const n = hist.castings || 0;
+
+  if (n >= SCHWELLEN.wilsonMinN) {
+    punkte += wilson(hist.prio1 || 0, n) * gewichte.prio;
+    const anfragen = hist.angefragt || 0;
+    punkte += (anfragen ? (hist.gebucht || 0) / anfragen : 0) * gewichte.buchung;
+  } else if (n > 0) {
+    punkte += ((hist.prio1 || 0) / n) * gewichte.prio * 0.5;
+    punkte += ((hist.gebucht || 0) / Math.max(1, hist.angefragt || 0)) * gewichte.buchung * 0.5;
+  }
+  if (hist.videos > 0) punkte += gewichte.videos;
+  if (hist.er != null && Number.isFinite(Number(hist.er))) {
+    punkte += Math.min(1, Number(hist.er) / 5) * gewichte.er;
+  }
+  if (hist.hatMail && (hist.hatTelefonOderManagement)) punkte += gewichte.kontakt;
+  else if (hist.hatMail) punkte += gewichte.kontakt * 0.6;
+
+  // Absagequote: Verfügbarkeit, nicht Qualität - nur Abzug
+  const aq = n ? (hist.absagen || 0) / n : 0;
+  punkte -= Math.min(1, aq * 2) * 10;
+
+  return Math.round(Math.max(0, Math.min(100, punkte)));
+}
+
+/**
+ * freshFlags: { markeGebucht90d, fingerprintDabei, vorgeschlagen3,
+ *               vorschlaege30d, alwaysOnFortfuehren }
+ */
+function scoreFresh(flags = {}, gewichte) {
+  if (flags.alwaysOnFortfuehren) return 100;
+  let wert = 100;
+  if (flags.markeGebucht90d) wert -= gewichte.marke_90d;
+  if (flags.fingerprintDabei) wert -= gewichte.fingerprint;
+  if (flags.vorgeschlagen3) wert -= gewichte.vorgeschlagen3;
+  if (flags.vorschlaege30d) {
+    wert -= gewichte.global * Math.min(1, flags.vorschlaege30d / SCHWELLEN.globalVorschlaegeNorm);
+  }
+  return Math.round(Math.max(0, wert));
+}
+
+/** Profil je Kandidat: mix nimmt das Profil seines typ. */
+function profilFuer(k, listeTyp) {
+  const t = normListe(k.typen).join(' ');
+  if (listeTyp === 'ugc') return PROFILES.ugc;
+  if (listeTyp === 'influencer') return PROFILES.influencer;
+  return t.includes('influencer') ? PROFILES.influencer : PROFILES.ugc;
+}
+
+// ---------------------------------------------------------------------------
+// Slots (Quote statt Top-N)
+// ---------------------------------------------------------------------------
+
+function demoSchluessel(k) {
+  const alterBucket = k.alter ? `${Math.floor(k.alter[0] / 10) * 10}er` : 'offen';
+  const topBranche = norm(k.branchen?.[0] || 'offen');
+  return `${k.geschlecht || 'offen'}|${alterBucket}|${topBranche}`;
+}
+
+/**
+ * scored: [{ k, fit, track, fresh, hist, profileName }]
+ * Quoten: explore ~ f(bias), proven ~ 0.25*(1-bias/2), adjacent ~ 0.15, Rest tight.
+ */
+function fillSlots(scored, { anzahl, exploreBias = 0.45 } = {}) {
+  const n = Math.max(1, anzahl || 12);
+  const exploreN = Math.round(n * (0.15 + 0.5 * exploreBias));
+  const provenN = Math.round(n * 0.25 * (1 - exploreBias / 2));
+  const adjacentN = Math.round(n * 0.15);
+  const tightN = Math.max(0, n - exploreN - provenN - adjacentN);
+
+  const vergeben = new Set();
+  const slots = [];
+  const demoZaehler = {};
+
+  const nachFit = [...scored].sort((a, b) => b.fit - a.fit);
+
+  // Proven: Fit >= 55 und Marke gebucht oder Prio oben
+  for (const s of nachFit) {
+    if (slots.filter(x => x.slot === 'proven').length >= provenN) break;
+    if (vergeben.has(s.k.id)) continue;
+    if (s.fit >= SCHWELLEN.provenFitMin && (s.hist?.markeGebucht || (s.hist?.prioQuote ?? 0) >= 0.5)) {
+      vergeben.add(s.k.id);
+      slots.push({ ...s, slot: 'proven' });
+    }
+  }
+
+  // Explore: frisch, Track oder neu, Fit-Untergrenze
+  const explorePool = [...scored]
+    .filter(s => !vergeben.has(s.k.id))
+    .filter(s => s.fresh >= SCHWELLEN.exploreFreshMin && s.fit >= SCHWELLEN.exploreFitMin)
+    .filter(s => s.track >= SCHWELLEN.exploreTrackMin || (s.hist?.castings || 0) === 0)
+    .sort((a, b) => (b.fresh + b.track) - (a.fresh + a.track));
+  for (const s of explorePool) {
+    if (slots.filter(x => x.slot === 'explore').length >= exploreN) break;
+    vergeben.add(s.k.id);
+    slots.push({ ...s, slot: 'explore' });
+  }
+
+  // Adjacent: Nischen-Nachbar, Fit darf 10-15 tiefer liegen
+  const adjacentPool = nachFit.filter(s => !vergeben.has(s.k.id) && s.adjacent);
+  for (const s of adjacentPool) {
+    if (slots.filter(x => x.slot === 'adjacent').length >= adjacentN) break;
+    vergeben.add(s.k.id);
+    slots.push({ ...s, slot: 'adjacent' });
+  }
+
+  // Tight: hoechstes Fit, frisch genug, paarweise divers
+  for (const s of nachFit) {
+    if (slots.filter(x => x.slot === 'tight').length >= tightN) break;
+    if (vergeben.has(s.k.id)) continue;
+    if (s.fresh < SCHWELLEN.tightFreshMin) continue;
+    const key = demoSchluessel(s.k);
+    if ((demoZaehler[key] || 0) >= 2) continue;
+    demoZaehler[key] = (demoZaehler[key] || 0) + 1;
+    vergeben.add(s.k.id);
+    slots.push({ ...s, slot: 'tight' });
+  }
+
+  // Auffuellen mit bestem Fit, wenn Quoten nicht voll wurden - die
+  // Tight-Diversitaet gilt auch hier: lieber weniger als Duplikate
+  for (const s of nachFit) {
+    if (slots.length >= n) break;
+    if (vergeben.has(s.k.id)) continue;
+    if (!s.adjacent) {
+      const key = demoSchluessel(s.k);
+      if ((demoZaehler[key] || 0) >= 2) continue;
+      demoZaehler[key] = (demoZaehler[key] || 0) + 1;
+    }
+    vergeben.add(s.k.id);
+    slots.push({ ...s, slot: s.adjacent ? 'adjacent' : 'tight' });
+  }
+
+  return slots.slice(0, n);
+}
+
+/** Kategorie-Match: Persona-Name/Oberbegriff oder Typ im Kategorienamen. */
+function matchKategorie(k, kategorien = [], personas = []) {
+  for (const kat of (kategorien || [])) {
+    const nk = norm(kat);
+    if (!nk || nk === 'nicht umsetzen' || nk === 'ohne kategorie') continue;
+    for (const p of (personas || [])) {
+      if (p.name && nk.includes(norm(p.name))) return kat;
+      if (p.oberbegriff && tokens(p.oberbegriff).some(t => nk.includes(t))) return kat;
+    }
+    for (const t of (k.typen || [])) {
+      const nt = norm(t);
+      if (nt && (nk.includes(nt) || nt.includes(nk))) return kat;
+    }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Validate (Modell-Antwort gegen die Shortlist)
+// ---------------------------------------------------------------------------
+
+function validateVorschlaege(json, { shortlistIds = [], slots = {}, personaIds = [] } = {}) {
+  const pool = new Set(shortlistIds);
+  const personaSet = new Set(personaIds);
+  const roh = Array.isArray(json?.vorschlaege) ? json.vorschlaege : [];
+  const sauber = [];
+  const verworfen = [];
+  const gesehen = new Set();
+
+  for (const v of roh) {
+    const id = v?.creator_id || null;
+    if (!id || !pool.has(id)) {
+      verworfen.push({ grund: 'creator_id nicht auf der Shortlist', vorschlag: id });
+      continue;
+    }
+    if (gesehen.has(id)) {
+      verworfen.push({ grund: 'doppelter Vorschlag', vorschlag: id });
+      continue;
+    }
+    const fitGrund = String(v?.fit_grund || '').trim();
+    if (!fitGrund) {
+      verworfen.push({ grund: 'fit_grund ohne belegbares Feld', vorschlag: id });
+      continue;
+    }
+    const slot = ['proven', 'tight', 'adjacent', 'explore'].includes(v?.slot) ? v.slot : (slots[id] || 'tight');
+    const pIds = [...new Set((Array.isArray(v?.persona_ids) ? v.persona_ids : []).filter(p => personaSet.has(p)))];
+    gesehen.add(id);
+    sauber.push({
+      creator_id: id,
+      slot,
+      fit_grund: fitGrund,
+      risiken: v?.risiken ? String(v.risiken).trim() : null,
+      persona_ids: pIds
+    });
+  }
+
+  return { vorschlaege: sauber, verworfen };
+}
+
+// ---------------------------------------------------------------------------
+// Prompt (Modell schreibt nur fit_grund + Risiken auf der Shortlist)
+// ---------------------------------------------------------------------------
+
+const CASTING_TOOL = {
+  name: 'casting_vorschlaege_abgeben',
+  description: 'Begruendet eine vorgelegte Creator-Shortlist fuer ein Casting.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      vorschlaege: {
+        type: 'array',
+        description: 'Genau ein Eintrag je uebernommener Shortlist-ID.',
+        items: {
+          type: 'object',
+          properties: {
+            creator_id: { type: 'string', description: 'ID aus der Shortlist, keine anderen.' },
+            slot: { type: 'string', enum: ['proven', 'tight', 'adjacent', 'explore'] },
+            fit_grund: { type: 'string', description: 'Zwei bis drei Saetze, nur belegbare Felder (Branche, Alter, Typ, Mentions, Historie). Keine Lyrik.' },
+            risiken: { type: ['string', 'null'], description: 'Offene Punkte, z.B. unverified Voraussetzung.' },
+            persona_ids: { type: 'array', items: { type: 'string' }, description: 'Welche Personas aus dem Bedarf treffen.' }
+          },
+          required: ['creator_id', 'slot', 'fit_grund']
+        }
+      }
+    },
+    required: ['vorschlaege']
+  }
+};
+
+function cap(value, max = 300) {
+  const s = String(value || '').trim();
+  return s.length > max ? `${s.slice(0, max)}…` : s;
+}
+
+function fmtKandidat(s) {
+  const k = s.k;
+  const name = `${k.vorname} ${k.nachname}`.trim() || 'Unbekannt';
+  const alter = k.alter ? `${k.alter[0]}-${k.alter[1]}` : 'unbekannt';
+  return [
+    `ID: ${k.id} | Slot: ${s.slot} | Fit ${s.fit} / Track ${s.track} / Fresh ${s.fresh}`,
+    `Name: ${name}, Geschlecht: ${k.geschlecht || 'unbekannt'}, Alter: ${alter}`,
+    `Typen: ${(k.typen || []).join(', ') || 'unbekannt'} | Branchen: ${(k.branchen || []).join(', ') || 'unbekannt'}`,
+    `Follower: ${k.follower || 'unbekannt'} | IG: ${k.instagram || '-'} | TT: ${k.tiktok || '-'}`,
+    k.mentions?.length ? `Mentions: ${k.mentions.slice(0, 5).join(', ')}` : null,
+    k.bio ? `Bio: ${cap(k.bio, 200)}` : null,
+    s.hist ? `Historie: ${s.hist.castings || 0}x im Casting, ${s.hist.prio1 || 0}x Prio, ${s.hist.gebucht || 0}x gebucht` : null
+  ].filter(Boolean).join('\n  ');
+}
+
+function buildPrompt(bedarf, { slots = [], kategorien = [] } = {}) {
+  const stable = 'Du bist Casting-Unterstuetzung einer Creator-Agentur. '
+    + 'Du bekommst eine deterministisch erstellte Shortlist aus der eigenen Creator-Datenbank. '
+    + 'Du waehlst NICHT aus und erfindest KEINE Creator - jede creator_id muss aus der Shortlist stammen.\n\n'
+    + '# GRUNDREGELN (verbindlich)\n'
+    + '1. NICHTS ERFINDEN. fit_grund nennt nur Felder aus der Shortlist (Branche, Alter, Typ, Mentions, Historie).\n'
+    + '2. KEINE LYRIK. "Wirkt authentisch" oder "gute Energy" ist ein Ausschlussgrund - nenne Fakten.\n'
+    + '3. Unbelegte Voraussetzungen (unverified) gehoeren in risiken, nicht in fit_grund.\n'
+    + '4. Weniger ist mehr: uebernimm nur Kandidaten mit tragfaehigem Fit, keine Quote um jeden Preis.\n';
+
+  let task = '# BEDARF\n';
+  task += `Bereich: ${bedarf.bereich || 'offen'} | Typ: ${bedarf.typ || 'offen'}\n`;
+  if (bedarf.nischen?.length) task += `Nischen: ${bedarf.nischen.join(', ')}\n`;
+  if (bedarf.groessen?.length) task += `Groessen: ${bedarf.groessen.join(', ')}\n`;
+  if (bedarf.alter) task += `Alter: ${bedarf.alter[0]}-${bedarf.alter[1]}\n`;
+  if (bedarf.geschlechter?.length) task += `Geschlecht: ${bedarf.geschlechter.join(', ')}\n`;
+  if (bedarf.voraussetzungen?.length) task += `Voraussetzungen: ${bedarf.voraussetzungen.join(', ')}\n`;
+  if (bedarf.umsetzung) task += `Umsetzung: ${cap(bedarf.umsetzung, 500)}\n`;
+  if (bedarf.learningsText) task += `Learnings: ${cap(bedarf.learningsText, 400)}\n`;
+  if (bedarf.personas?.length) {
+    task += '\n# PERSONAS (nur akzeptierte)\n';
+    bedarf.personas.forEach(p => {
+      task += `- ${p.name || '?'}${p.oberbegriff ? ` (${p.oberbegriff})` : ''}`
+        + `${p.pain_points ? `: ${cap(p.pain_points, 200)}` : ''}\n`;
+    });
+  }
+  if (kategorien?.length) task += `\n# KATEGORIEN AUF DER LISTE\n${kategorien.join(', ')}\n`;
+
+  task += `\n# SHORTLIST (${slots.length} Kandidaten, IDs sind verbindlich)\n`;
+  slots.slice(0, MAX_SHORTLIST_IM_PROMPT).forEach(s => { task += `\n---\n${fmtKandidat(s)}\n`; });
+
+  task += '\n# AUFTRAG\nGib das Ergebnis AUSSCHLIESSLICH ueber das Tool '
+    + '"casting_vorschlaege_abgeben" ab: ein Eintrag je uebernommener Shortlist-ID, '
+    + 'fit_grund mit belegbaren Feldern, risiken bei offenen Punkten.';
+
+  return { stable, task };
+}
+
+// ---------------------------------------------------------------------------
+// DB-Lader (Service Role in der Background Function)
+// ---------------------------------------------------------------------------
+
+const KANDIDAT_SELECT = `id,vorname,nachname,mail,telefonnummer,geschlecht,alter_jahre,alter_min,alter_max,
+instagram,instagram_follower,tiktok,tiktok_follower,ig_biography,ig_engagement_rate,ig_engagement_rate_clean,
+ig_brand_mentions,lieferadresse_stadt,lieferadresse_land,lieferadresse_plz,notiz,
+hat_haustier,hat_kinder,spielt_instrument,budget_letzte_buchung,
+creator_creator_type(creator_type_id(id,name)),
+creator_branchen(branche_id(id,name)),
+creator_sprachen(sprachen!sprache_id(id,name))`;
+
+/** Nahtstelle Pool: v1 nur creator, spaeter Union mit sourcing_creator. */
+async function loadCandidates(supabase, bedarf, { limit = 2000 } = {}) {
+  const { data, error } = await supabase.from('creator').select(KANDIDAT_SELECT).limit(limit);
+  if (error) throw error;
+  return (data || []).map(normiereKandidat);
+}
+
+/**
+ * Buchungsbild dieser Marke: Repeat-/Ablehnungs-Signale aus frueheren
+ * Castings plus Kooperationen. Verbrannte IDs kommen in Sets, Kennzahlen
+ * je Creator in histJeCreator.
+ */
+async function loadBuchungsbild(supabase, { markeId, unternehmenId, castingId, fingerprint }) {
+  const bild = {
+    aufDieserListe: new Set(),
+    parallelLive: new Set(),
+    abgelehntMarke: new Set(),
+    managementIds: new Set(),
+    histJeCreator: new Map(),
+    vorgeschlageneFingerprints: new Map()
+  };
+
+  // Items dieses Castings (Gate + Kategorie-Landung lesen woanders)
+  const { data: eigene } = await supabase.from('creator_auswahl_items')
+    .select('creator_id').eq('creator_auswahl_id', castingId);
+  (eigene || []).forEach(r => { if (r.creator_id) bild.aufDieserListe.add(r.creator_id); });
+
+  // Fruehere Castings derselben Marke (Fallback Unternehmen)
+  let listenQuery = supabase.from('creator_auswahl').select('id').neq('id', castingId);
+  if (markeId) listenQuery = listenQuery.eq('marke_id', markeId);
+  else if (unternehmenId) listenQuery = listenQuery.eq('unternehmen_id', unternehmenId);
+  const { data: listen } = await listenQuery;
+  const listenIds = (listen || []).map(l => l.id).filter(Boolean);
+  if (!listenIds.length) return bild;
+
+  const stichtag = new Date();
+  stichtag.setMonth(stichtag.getMonth() - SCHWELLEN.abgelehntMonate);
+  const stichtagIso = stichtag.toISOString();
+
+  const vor90d = new Date();
+  vor90d.setDate(vor90d.getDate() - SCHWELLEN.repeatTage);
+  const vor90dIso = vor90d.toISOString();
+  const vor30d = new Date();
+  vor30d.setDate(vor30d.getDate() - 30);
+  const vor30dIso = vor30d.toISOString();
+
+  const { data: items } = await supabase.from('creator_auswahl_items')
+    .select('creator_id, prio_1, prio_2, abgelehnt, gebucht, angefragt, absage, zusage, created_at, kategorie')
+    .in('creator_auswahl_id', listenIds);
+  for (const it of (items || [])) {
+    if (!it.creator_id) continue;
+    let h = bild.histJeCreator.get(it.creator_id);
+    if (!h) {
+      h = { castings: 0, prio1: 0, angefragt: 0, gebucht: 0, absagen: 0, markeGebucht: false, markeGebucht90d: false, prioQuote: 0 };
+      bild.histJeCreator.set(it.creator_id, h);
+    }
+    h.castings++;
+    if (it.prio_1) h.prio1++;
+    if (it.angefragt || it.zusage || it.gebucht) h.angefragt++;
+    if (it.gebucht) {
+      h.gebucht++;
+      h.markeGebucht = true;
+      if ((it.created_at || '') >= vor90dIso) h.markeGebucht90d = true;
+    }
+    if (it.absage) h.absagen++;
+    if (it.abgelehnt && (it.created_at || '') >= stichtagIso) bild.abgelehntMarke.add(it.creator_id);
+    // Kuerzlich auf einer anderen Live-Liste derselben Marke: nicht doppelt
+    if ((it.created_at || '') >= vor30dIso) bild.parallelLive.add(it.creator_id);
+  }
+  for (const [, h] of bild.histJeCreator) {
+    h.prioQuote = h.castings ? h.prio1 / h.castings : 0;
+  }
+
+  // Videos je Creator (Kooperationen dieser Firma)
+  if (unternehmenId) {
+    const { data: koops } = await supabase.from('kooperationen')
+      .select('id, creator_id').eq('unternehmen_id', unternehmenId);
+    const koopIds = (koops || []).map(k => k.id).filter(Boolean);
+    const creatorJeKoop = new Map((koops || []).filter(k => k.creator_id).map(k => [k.id, k.creator_id]));
+    if (koopIds.length) {
+      const { data: videos } = await supabase.from('kooperation_videos')
+        .select('kooperation_id').in('kooperation_id', koopIds);
+      const videosJeCreator = new Map();
+      for (const v of (videos || [])) {
+        const cid = creatorJeKoop.get(v.kooperation_id);
+        if (cid) videosJeCreator.set(cid, (videosJeCreator.get(cid) || 0) + 1);
+      }
+      for (const [cid, n] of videosJeCreator) {
+        const h = bild.histJeCreator.get(cid) || { castings: 0, prio1: 0, angefragt: 0, gebucht: 0, absagen: 0, markeGebucht: false, prioQuote: 0 };
+        h.videos = n;
+        bild.histJeCreator.set(cid, h);
+      }
+    }
+  }
+
+  return bild;
+}
+
+/** Bedarf-Daten: Briefing, Produkte, akzeptierte Personas, Kategorien. */
+async function loadBedarfData(supabase, casting) {
+  const { data: briefing } = await supabase.from('campaign_briefings')
+    .select('*').eq('id', casting.briefing_id).maybeSingle();
+  if (!briefing) throw new Error('Casting ohne Briefing: ohne Bedarf kein Lauf');
+
+  const { data: links } = await supabase.from('campaign_briefing_produkt')
+    .select('produkt_id').eq('briefing_id', briefing.id);
+  const produktIds = (links || []).map(l => l.produkt_id).filter(Boolean);
+
+  let personas = [];
+  if (produktIds.length) {
+    const { data: vorschlaege } = await supabase.from('produkt_persona_vorschlag')
+      .select('persona_id, persona:persona_id(id, name, oberbegriff, alter_von, alter_bis, geschlecht, lebenssituation, pain_points, beduerfnisse)')
+      .in('produkt_id', produktIds)
+      .eq('status', 'accepted');
+    const gesehen = new Set();
+    for (const v of (vorschlaege || [])) {
+      const p = v.persona;
+      if (p && p.id && !gesehen.has(p.id)) { gesehen.add(p.id); personas.push(p); }
+    }
+  }
+
+  const { data: kategorienZeilen } = await supabase.from('creator_auswahl')
+    .select('teilbereich').eq('id', casting.id).maybeSingle();
+  const kategorien = String(kategorienZeilen?.teilbereich || '').split(',').map(s => s.trim()).filter(Boolean);
+
+  return { briefing, produktIds, personas, kategorien };
+}
+
+module.exports = {
+  ...config,
+  norm,
+  normListe,
+  tokens,
+  parseAlterSpanne,
+  spannenSchneiden,
+  bedarfFingerprint,
+  buildBedarf,
+  kanaeleAusBriefing,
+  zielAnzahl,
+  normiereKandidat,
+  nischenTreffer,
+  applyGates,
+  scoreFit,
+  wilson,
+  scoreTrack,
+  scoreFresh,
+  profilFuer,
+  demoSchluessel,
+  fillSlots,
+  matchKategorie,
+  validateVorschlaege,
+  CASTING_TOOL,
+  buildPrompt,
+  loadCandidates,
+  loadBuchungsbild,
+  loadBedarfData
+};

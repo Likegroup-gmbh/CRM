@@ -35,6 +35,7 @@ import {
   matchesStatusFilter
 } from './sourcingStatusOptions.js';
 import { SourcingBuchungDrawer } from './SourcingBuchungDrawer.js';
+import { CastingVorschlagPanel } from './CastingVorschlagPanel.js';
 import { preserveScroll } from '../../core/dom/preserveScroll.js';
 import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
 import { icon } from '../../core/icons/IconSystem.js';
@@ -60,6 +61,7 @@ export class CreatorAuswahlDetail {
     this.kategorienDrawer = new CreatorAuswahlKategorienDrawer(this);
     this.addDrawer = new CreatorAuswahlAddDrawer(this);
     this.buchungDrawer = new SourcingBuchungDrawer(this);
+    this.vorschlagPanel = new CastingVorschlagPanel(this);
     this.selectedItems = new Set();
     this.customColumns = new EntityCustomColumnsManager({
       parentType: 'sourcing',
@@ -362,11 +364,14 @@ export class CreatorAuswahlDetail {
   async render() {
     const ctx = this.getRenderContext();
     const html = `
+      <div id="casting-vorschlag-block"></div>
       ${renderAddSection(ctx)}
       ${renderTabNavigation(ctx)}
       ${renderItemsTable(ctx)}
     `;
     window.content.innerHTML = html;
+    // Eigene Vorschlag-Zeilen ueber der Liste (nie fuer Kunden/Gaeste)
+    this.vorschlagPanel?.mount?.();
     this._updateStickyHeights();
 
     if (!this.isKunde && this._canSourcing('edit')) {

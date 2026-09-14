@@ -19,7 +19,8 @@ const MODELS = {
   extract: process.env.ANTHROPIC_MODEL_EXTRACT || 'claude-haiku-4-5',
   extract_produkt: process.env.ANTHROPIC_MODEL_EXTRACT_PRODUKT || 'claude-sonnet-4-5',
   extract_briefing: process.env.ANTHROPIC_MODEL_EXTRACT_BRIEFING || 'claude-sonnet-4-5',
-  persona: process.env.ANTHROPIC_MODEL_PERSONA || 'claude-sonnet-4-5'
+  persona: process.env.ANTHROPIC_MODEL_PERSONA || 'claude-sonnet-4-5',
+  casting: process.env.ANTHROPIC_MODEL_CASTING || 'claude-sonnet-4-5'
 };
 
 /** Wird geworfen, wenn timeoutMs greift - der Aufrufer kann so degradiert antworten. */
