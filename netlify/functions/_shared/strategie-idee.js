@@ -214,6 +214,21 @@ function validateIdeen(json, { ausschluss = [], anzahl = ANZAHL } = {}) {
   return { ideen, verworfen };
 }
 
+/** Ideen ohne Link: plattform null, analog addItemPayload. 'idea' knallt gegen strategie_items_plattform_check. */
+function buildVorschlagInsert({ strategieId, idee, sortierung, createdBy }) {
+  return {
+    strategie_id: strategieId,
+    video_link: null,
+    plattform: null,
+    sortierung,
+    teilbereich: null,
+    beschreibung: idee.beschreibung,
+    beschreibung_quelle: 'ki',
+    ist_vorschlag: true,
+    created_by: createdBy
+  };
+}
+
 module.exports = {
   ANZAHL,
   KONZEPT_TOOL,
@@ -221,5 +236,6 @@ module.exports = {
   formatBeschreibung,
   loadIdeeInput,
   buildPrompt,
-  validateIdeen
+  validateIdeen,
+  buildVorschlagInsert
 };

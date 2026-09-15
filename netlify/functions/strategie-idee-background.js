@@ -15,7 +15,8 @@ const {
   KONZEPT_TOOL,
   loadIdeeInput,
   buildPrompt,
-  validateIdeen
+  validateIdeen,
+  buildVorschlagInsert
 } = require('./_shared/strategie-idee');
 
 const THINKING_LABELS = {
@@ -139,16 +140,11 @@ exports.handler = async (event) => {
       .maybeSingle();
     let sortierung = Number.isFinite(maxRow?.sortierung) ? maxRow.sortierung + 1 : 0;
 
-    const rows = geprueft.ideen.map((idee) => ({
-      strategie_id: job.strategie_id,
-      video_link: null,
-      plattform: 'idea',
+    const rows = geprueft.ideen.map((idee) => buildVorschlagInsert({
+      strategieId: job.strategie_id,
+      idee,
       sortierung: sortierung++,
-      teilbereich: null,
-      beschreibung: idee.beschreibung,
-      beschreibung_quelle: 'ki',
-      ist_vorschlag: true,
-      created_by: user.id
+      createdBy: user.id
     }));
 
     const { error: insertError } = await supabase.from('strategie_items').insert(rows);

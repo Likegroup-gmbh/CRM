@@ -12,7 +12,7 @@ import { strategieService } from '../modules/strategie/StrategieService.js';
 import { VideoideeVorschlagService, JOB_START_WATCHDOG_MS } from '../modules/strategie/VideoideeVorschlagService.js';
 
 const require = createRequire(import.meta.url);
-const { formatBeschreibung, validateIdeen, erstzeile, ANZAHL, buildPrompt } = require('../../netlify/functions/_shared/strategie-idee.js');
+const { formatBeschreibung, validateIdeen, erstzeile, ANZAHL, buildPrompt, buildVorschlagInsert } = require('../../netlify/functions/_shared/strategie-idee.js');
 
 function detailStub(overrides = {}) {
   return {
@@ -74,6 +74,19 @@ describe('validateIdeen', () => {
     expect(verworfen.some((v) => v.grund === 'ausschluss')).toBe(true);
     expect(verworfen.some((v) => v.grund === 'ohne_titel')).toBe(true);
     expect(ideen[0].beschreibung).toContain('Neu A');
+  });
+
+  it('schreibt Ideen ohne Link mit plattform null, nicht idea', () => {
+    const row = buildVorschlagInsert({
+      strategieId: 's1',
+      idee: { beschreibung: 'Titel\nPain Point: x' },
+      sortierung: 0,
+      createdBy: 'u1'
+    });
+    expect(row.plattform).toBeNull();
+    expect(row.video_link).toBeNull();
+    expect(row.ist_vorschlag).toBe(true);
+    expect(row.beschreibung_quelle).toBe('ki');
   });
 
   it('baut den Prompt mit Ausschluss und ohne Produkte', () => {
