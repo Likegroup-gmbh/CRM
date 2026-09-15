@@ -8,7 +8,7 @@ import { ALL_TAB, UNDATED_TAB, getCurrentMonthSelection, parseMonthTab } from '.
 import { renderInvoiceMonthSheet, updateInvoiceMonthTabUI } from '../auftrag/logic/InvoiceMonthSheet.js';
 import { ENTITY_RECHNUNG, getRechnungTabKey, hydrateRechnungPdfs, loadCounts, loadRows } from './Monatsblatt.js';
 import { loadRechnungMitarbeiterScope, clearRechnungMitarbeiterScope } from './RechnungMitarbeiterScope.js';
-import { renderPageShell, updateTableRows, updateSingleRow, updateStatusTabCounts, patchPdfCells } from './RechnungListRenderer.js';
+import { renderPageShell, updateTableRows, updateSingleRow, updateStatusTabCounts, patchPdfCells, updateInvoiceSummary } from './RechnungListRenderer.js';
 import { bindRechnungListEvents } from './RechnungListEvents.js';
 import { RechnungListSelection } from './RechnungListSelection.js';
 import * as QuickFilter from './RechnungUnternehmenQuickFilter.js';
@@ -123,7 +123,7 @@ export class RechnungList {
     const { rows } = await loadRows(opts);
     if (requestId !== this._loadRequestId) return;
     this.rechnungen = rows;
-    await this.updateTable(this.getFilteredRechnungen());
+    await this.updateTable(this.getFilteredRechnungen(), { animate: !firstPaint });
     this._loadNotizen();
     this._hydratePdfs(requestId);
     if (withCounts) this._hydrateCounts(opts, requestId);
@@ -169,12 +169,13 @@ export class RechnungList {
     return (this.rechnungen || []).filter(r => r.status === this.activeStatusTab);
   }
 
-  async updateTable(rechnungen) {
+  async updateTable(rechnungen, { animate = false } = {}) {
     await updateTableRows(rechnungen, {
       isAdmin: window.isAdmin(), statusOptions: STATUS_OPTIONS,
       activeStatusTab: this.activeStatusTab, activeTypeTab: this.activeTypeTab,
       currentMonth: this.currentMonth, currentYear: this.currentYear,
-      notizMap: this._notizMap, hasActiveFilters: this.hasActiveFilters()
+      notizMap: this._notizMap, hasActiveFilters: this.hasActiveFilters(),
+      animate
     });
     this.selection.bind(this.rechnungen);
   }
@@ -186,6 +187,7 @@ export class RechnungList {
       blattCounts: this._blattCounts, typeTabs: TYPE_TABS,
       reloadCallback: () => this.loadAndRender()
     });
+    updateInvoiceSummary(this.getFilteredRechnungen());
   }
 
   updateStatusTabCounts() { updateStatusTabCounts(this.rechnungen, STATUS_TABS, this._blattCounts, TYPE_TABS); }

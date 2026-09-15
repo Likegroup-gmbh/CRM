@@ -200,7 +200,8 @@
 
 /* „Bereits bezahlt"-Card auf den Kundenrechnungen: spannt die volle Breite
    ueber den drei Summen-Cards und zeigt Netto/Brutto nebeneinander. */
-#ausgangsrechnungen-summary-cards .summary-cards {
+#ausgangsrechnungen-summary-cards .summary-cards,
+#rechnungen-summary-cards .summary-cards {
   flex-wrap: wrap;
 }
 

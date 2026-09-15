@@ -41,6 +41,7 @@ land,
 gestellt_am,
 zahlungsziel,
 nettobetrag,
+ust_betrag,
 videoanzahl,
 bruttobetrag,
 ksk_pflichtig,
@@ -385,13 +386,22 @@ function statusCountsFromRows(rows, statusIds) {
   return counts;
 }
 
-function sumInvoiceRows(rows) {
+export function sumInvoiceRows(rows) {
   return (rows || []).reduce((acc, row) => {
     acc.nettobetrag += parseFloat(row.nettobetrag) || 0;
     acc.ust_betrag += parseFloat(row.ust_betrag) || 0;
     acc.bruttobetrag += parseFloat(row.bruttobetrag) || 0;
     return acc;
   }, { nettobetrag: 0, ust_betrag: 0, bruttobetrag: 0 });
+}
+
+export function sumPaidRechnungRows(rows) {
+  return (rows || []).reduce((acc, row) => {
+    if (row.status !== 'Bezahlt') return acc;
+    acc.netto += parseFloat(row.nettobetrag) || 0;
+    acc.brutto += parseFloat(row.bruttobetrag) || 0;
+    return acc;
+  }, { netto: 0, brutto: 0 });
 }
 
 function buildRechnungQuery(selectArgs, { year, month, filters, typeTab, allowed, searchParts, skipMonth }) {

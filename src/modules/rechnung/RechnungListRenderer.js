@@ -8,15 +8,28 @@ import { SearchInput } from '../../core/components/SearchInput.js';
 import { renderEmptyState, resolveEmptyState } from '../../core/components/EmptyState.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
 import { renderTabButton } from '../../core/TabUtils.js';
+import { animateNumber } from '../../core/animation/animateNumber.js';
 import { ALL_TAB, formatMonthEmptyText } from '../auftrag/logic/InvoiceMonthFilter.js';
 import { renderBezahltToggle } from './RechnungBezahltToggle.js';
 import { renderVertragCell } from './RechnungVertragColumn.js';
+import { sumInvoiceRows, sumPaidRechnungRows } from './Monatsblatt.js';
 
 const currencyFormatter = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
+const summaryFormatter = new Intl.NumberFormat('de-DE', {
+  style: 'currency', currency: 'EUR',
+  minimumFractionDigits: 0, maximumFractionDigits: 0
+});
 const dateFormatter = new Intl.DateTimeFormat('de-DE');
 
 function formatCurrency(v) { return v == null ? '-' : currencyFormatter.format(v); }
 function formatDate(v) { return v ? dateFormatter.format(new Date(v)) : '-'; }
+export function formatRechnungSummaryCurrency(value) {
+  return summaryFormatter.format(Number(value) || 0);
+}
+
+export function getRechnungColumnCount(isAdmin) {
+  return isAdmin ? 21 : 20;
+}
 
 function getRowClass(rechnung, today) {
   if (rechnung.status === 'Bezahlt') return 'rechnung-row-paid';
@@ -82,6 +95,7 @@ export function renderPageShell({ isAdmin, canEdit, searchQuery, statusTabs, typ
     </div>
 
     <div class="kr-scroll-body">
+    ${renderInvoiceSummaryCards()}
     <div class="data-table-container rechnung-table-container">
       <table class="data-table data-table--nowrap data-table--rechnung">
         <thead>
@@ -110,8 +124,9 @@ export function renderPageShell({ isAdmin, canEdit, searchQuery, statusTabs, typ
           </tr>
         </thead>
         <tbody id="rechnungen-table-body">
-          <tr><td colspan="${isAdmin ? '20' : '19'}" class="loading">Lade Rechnungen...</td></tr>
+          <tr><td colspan="${getRechnungColumnCount(isAdmin)}" class="loading">Lade Rechnungen...</td></tr>
         </tbody>
+        ${renderInvoiceSummaryFoot(isAdmin)}
       </table>
     </div>
     </div>
@@ -121,17 +136,94 @@ export function renderPageShell({ isAdmin, canEdit, searchQuery, statusTabs, typ
   `;
 }
 
+// ────────────────────────── Summary ──────────────────────────
+
+export function renderInvoiceSummaryCards() {
+  const zero = formatRechnungSummaryCurrency(0);
+  const cards = [
+    { field: 'nettobetrag', label: 'Netto' },
+    { field: 'ust_betrag', label: 'Mehrwertsteuer' },
+    { field: 'bruttobetrag', label: 'Brutto' }
+  ];
+  return `
+    <div class="auftragsdetails-summary" id="rechnungen-summary-cards">
+      <div class="summary-cards">
+        <div class="summary-card summary-card--wide" data-summary-card="bezahlt">
+          <div class="summary-card-values">
+            <div class="summary-card-value-block">
+              <div class="summary-value" data-summary-value="bezahlt_netto">${zero}</div>
+              <div class="summary-label">Bereits bezahlt (Netto)</div>
+            </div>
+            <div class="summary-card-value-block">
+              <div class="summary-value" data-summary-value="bezahlt_brutto">${zero}</div>
+              <div class="summary-label">Bereits bezahlt (Brutto)</div>
+            </div>
+          </div>
+        </div>
+        ${cards.map(({ field, label }) => `
+          <div class="summary-card" data-summary-card="${field}">
+            <div class="summary-value" data-summary-value="${field}">${zero}</div>
+            <div class="summary-label">${label}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+export function renderInvoiceSummaryFoot(isAdmin) {
+  const zero = formatRechnungSummaryCurrency(0);
+  const beforeNetto = isAdmin ? 10 : 9;
+  return `
+    <tfoot id="rechnungen-summary">
+      <tr>
+        <td colspan="${beforeNetto}" class="col-summary-label">Summe</td>
+        <td class="col-netto" data-summary="nettobetrag">${zero}</td>
+        <td class="col-videos"></td>
+        <td class="col-preis-video"></td>
+        <td class="col-brutto" data-summary="bruttobetrag">${zero}</td>
+        <td colspan="7"></td>
+      </tr>
+    </tfoot>
+  `;
+}
+
+export function updateInvoiceSummary(rows, { animate = false } = {}) {
+  const totals = sumInvoiceRows(rows);
+  const paid = sumPaidRechnungRows(rows);
+  const foot = document.getElementById('rechnungen-summary');
+  const cards = document.getElementById('rechnungen-summary-cards');
+  const format = formatRechnungSummaryCurrency;
+  const entries = {
+    ...totals,
+    bezahlt_netto: paid.netto,
+    bezahlt_brutto: paid.brutto
+  };
+  Object.entries(entries).forEach(([field, value]) => {
+    const targets = [
+      foot?.querySelector(`[data-summary="${field}"]`),
+      cards?.querySelector(`[data-summary-value="${field}"]`)
+    ];
+    targets.forEach((el) => {
+      if (!el) return;
+      if (animate) animateNumber(el, value, { format });
+      else el.textContent = format(value);
+    });
+  });
+}
+
 // ────────────────────────── Table rows ──────────────────────────
 
-export async function updateTableRows(rechnungen, { isAdmin, statusOptions, activeStatusTab, activeTypeTab, currentMonth, currentYear, notizMap, hasActiveFilters }) {
+export async function updateTableRows(rechnungen, { isAdmin, statusOptions, activeStatusTab, activeTypeTab, currentMonth, currentYear, notizMap, hasActiveFilters, animate = false }) {
   const tbody = document.getElementById('rechnungen-table-body');
   if (!tbody) return;
 
   const canToggleBezahlt = isAdmin;
+  updateInvoiceSummary(rechnungen, { animate });
 
   await TableAnimationHelper.animatedUpdate(tbody, async () => {
     if (!rechnungen || rechnungen.length === 0) {
-      const colspan = tbody.closest('table')?.querySelector('thead tr')?.children?.length || 10;
+      const colspan = tbody.closest('table')?.querySelector('thead tr')?.children?.length || getRechnungColumnCount(isAdmin);
       const isContract = activeTypeTab === 'contracting';
       const entityLabel = isContract ? 'Contracts' : 'Rechnungen';
       const hasMonthFilter = currentMonth !== ALL_TAB;

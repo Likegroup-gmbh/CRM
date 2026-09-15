@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('../core/animation/animateNumber.js');
+
 import {
   ALL_TAB,
   UNDATED_TAB,
@@ -8,6 +11,13 @@ import {
 } from '../modules/auftrag/logic/InvoiceMonthFilter.js';
 import RechnungDataModule from '../core/data/entities/RechnungDataModule.js';
 import { RechnungList, getRechnungTabKey } from '../modules/rechnung/RechnungList.js';
+import { animateNumber } from '../core/animation/animateNumber.js';
+import {
+  formatRechnungSummaryCurrency,
+  getRechnungColumnCount,
+  updateInvoiceSummary
+} from '../modules/rechnung/RechnungListRenderer.js';
+import { sumInvoiceRows, sumPaidRechnungRows } from '../modules/rechnung/Monatsblatt.js';
 
 const rows = [
   { id: 'r1', gestellt_am: '2026-01-10', created_at: '2026-01-01', status: 'Offen' },
@@ -128,6 +138,9 @@ describe('RechnungList Monatssheet', () => {
     expect(stickyHead.querySelector('#rechnung-month-tabs')).toBeNull();
 
     expect(scrollBody.querySelector('#rechnungen-table-body')).toBeTruthy();
+    expect(scrollBody.querySelector('#rechnungen-summary-cards')).toBeTruthy();
+    expect(document.getElementById('rechnungen-summary')).toBeTruthy();
+    expect(stickyHead.querySelector('#rechnungen-summary-cards')).toBeNull();
 
     expect(stickyFoot.querySelector('#rechnung-month-tabs')).toBeTruthy();
     expect(stickyFoot.querySelector('#rechnung-year-select')).toBeTruthy();
@@ -247,5 +260,80 @@ describe('RechnungList Monatssheet', () => {
     expect(list.searchQuery).toBe('acme');
     expect(list.reloadBlatt).toHaveBeenCalledWith({ withCounts: true });
     vi.useRealTimers();
+  });
+});
+
+describe('Rechnung-Monatssummen', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    document.body.innerHTML = '';
+    window.currentUser = { rolle: 'admin' };
+    window.isAdmin = () => true;
+    window.setHeadline = vi.fn();
+    window.setContentSafely = vi.fn((el, html) => { document.body.innerHTML = html; });
+  });
+
+  it('summiert Netto, MwSt und Brutto der uebergebenen Zeilen', () => {
+    expect(sumInvoiceRows([
+      { nettobetrag: 1000, ust_betrag: 190, bruttobetrag: 1190 },
+      { nettobetrag: '2500.50', ust_betrag: '475.10', bruttobetrag: '2975.60' },
+      { nettobetrag: null }
+    ])).toEqual({
+      nettobetrag: 3500.5,
+      ust_betrag: 665.1,
+      bruttobetrag: 4165.6
+    });
+  });
+
+  it('zaehlt nur bezahlte Zeilen in die Bezahlt-Summe', () => {
+    expect(sumPaidRechnungRows([
+      { nettobetrag: 1000, bruttobetrag: 1190, status: 'Bezahlt' },
+      { nettobetrag: 2000, bruttobetrag: 2380, status: 'Offen' }
+    ])).toEqual({ netto: 1000, brutto: 1190 });
+  });
+
+  it('legt Summen-Cards in die Mitte und haelt den tfoot auf Spaltenzahl', () => {
+    const list = new RechnungList();
+    list.render();
+
+    const cards = document.getElementById('rechnungen-summary-cards');
+    const table = document.querySelector('.rechnung-table-container');
+    expect(cards).toBeTruthy();
+    expect(cards.querySelector('[data-summary-card="nettobetrag"] .summary-label').textContent).toBe('Netto');
+    expect(cards.querySelector('[data-summary-card="ust_betrag"] .summary-label').textContent).toBe('Mehrwertsteuer');
+    expect(cards.querySelector('[data-summary-card="bruttobetrag"] .summary-label').textContent).toBe('Brutto');
+    expect(cards.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    const cells = [...document.querySelectorAll('#rechnungen-summary td')];
+    const spans = cells.reduce((sum, td) => sum + (parseInt(td.colSpan, 10) || 1), 0);
+    expect(spans).toBe(getRechnungColumnCount(true));
+  });
+
+  it('schreibt die Summen in Cards und tfoot', () => {
+    const list = new RechnungList();
+    list.render();
+
+    updateInvoiceSummary([
+      { nettobetrag: 1000, ust_betrag: 190, bruttobetrag: 1190, status: 'Bezahlt' },
+      { nettobetrag: 2000, ust_betrag: 380, bruttobetrag: 2380, status: 'Offen' }
+    ]);
+
+    const cards = document.getElementById('rechnungen-summary-cards');
+    const foot = document.getElementById('rechnungen-summary');
+    expect(cards.querySelector('[data-summary-value="nettobetrag"]').textContent)
+      .toBe(formatRechnungSummaryCurrency(3000));
+    expect(cards.querySelector('[data-summary-value="ust_betrag"]').textContent)
+      .toBe(formatRechnungSummaryCurrency(570));
+    expect(cards.querySelector('[data-summary-value="bruttobetrag"]').textContent)
+      .toBe(formatRechnungSummaryCurrency(3570));
+    expect(cards.querySelector('[data-summary-value="bezahlt_netto"]').textContent)
+      .toBe(formatRechnungSummaryCurrency(1000));
+    expect(cards.querySelector('[data-summary-value="bezahlt_brutto"]').textContent)
+      .toBe(formatRechnungSummaryCurrency(1190));
+    expect(foot.querySelector('[data-summary="nettobetrag"]').textContent)
+      .toBe(formatRechnungSummaryCurrency(3000));
+    expect(foot.querySelector('[data-summary="bruttobetrag"]').textContent)
+      .toBe(formatRechnungSummaryCurrency(3570));
+    expect(animateNumber).not.toHaveBeenCalled();
   });
 });

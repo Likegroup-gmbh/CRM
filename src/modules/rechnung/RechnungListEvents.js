@@ -103,7 +103,7 @@ export function bindRechnungListEvents(list, signal) {
       document.querySelectorAll('.rechnung-status-tabs .tab-button').forEach(b => b.classList.remove('active'));
       tabBtn.classList.add('active');
       list.updateStatusTabCounts();
-      list.updateTable(list.getFilteredRechnungen());
+      list.updateTable(list.getFilteredRechnungen(), { animate: true });
     }
   }, { signal });
 
