@@ -413,15 +413,24 @@ function buildRechnungQuery(selectArgs, { year, month, filters, typeTab, allowed
   return applyRechnungPermissions(query, allowed);
 }
 
+export function applyRechnungOrder(query, sortBy) {
+  if (sortBy === 'zahlungsziel') {
+    return query
+      .order('zahlungsziel', { ascending: true, nullsFirst: false })
+      .order('created_at', { ascending: false });
+  }
+  return query
+    .order('gestellt_am', { ascending: false, nullsFirst: false })
+    .order('created_at', { ascending: false });
+}
+
 async function fetchRechnungPages(opts) {
   const rows = [];
   let from = 0;
   while (true) {
     const query = buildRechnungQuery([RECHNUNG_LIST_SELECT], opts);
     if (query?.shortCircuit) return [];
-    const { data, error } = await query
-      .order('gestellt_am', { ascending: false, nullsFirst: false })
-      .order('created_at', { ascending: false })
+    const { data, error } = await applyRechnungOrder(query, opts.sortBy)
       .range(from, from + ROW_PAGE_SIZE - 1);
     if (error) throw error;
     const page = data || [];
@@ -474,7 +483,7 @@ async function hydrateRechnungPdfs(rows) {
   return rows;
 }
 
-async function loadRechnungRows({ year, month, filters, search, typeTab, allowed }) {
+async function loadRechnungRows({ year, month, filters, search, typeTab, allowed, sortBy }) {
   if (!window.supabase) return [];
   const searchParts = await resolveRechnungSearchParts(search);
   const rows = await fetchRechnungPages({
@@ -484,6 +493,7 @@ async function loadRechnungRows({ year, month, filters, search, typeTab, allowed
     typeTab,
     allowed,
     searchParts,
+    sortBy,
     skipMonth: Boolean(searchParts)
   });
   return rows;

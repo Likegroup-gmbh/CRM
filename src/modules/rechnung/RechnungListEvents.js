@@ -187,6 +187,36 @@ export function bindRechnungListEvents(list, signal) {
     list.applyUnternehmenQuickFilter(selectedIds);
   }, { signal });
 
+  // Sort-Quickfilter: toggle / option / click-outside
+  document.addEventListener('click', (e) => {
+    const dropdown = document.getElementById('rechnung-sort-filter-dropdown');
+    const toggleButton = document.getElementById('rechnung-sort-filter-toggle');
+    if (!dropdown || !toggleButton) return;
+
+    if (e.target.closest('#rechnung-sort-filter-toggle')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const willOpen = !dropdown.classList.contains('show');
+      dropdown.classList.toggle('show', willOpen);
+      toggleButton.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      return;
+    }
+
+    const option = e.target.closest('.rechnung-sort-option');
+    if (option && e.target.closest('#rechnung-sort-filter-dropdown')) {
+      e.preventDefault();
+      dropdown.classList.remove('show');
+      toggleButton.setAttribute('aria-expanded', 'false');
+      list.setSortBy(option.dataset.sortBy);
+      return;
+    }
+
+    if (!e.target.closest('#rechnung-sort-filter-container')) {
+      dropdown.classList.remove('show');
+      toggleButton.setAttribute('aria-expanded', 'false');
+    }
+  }, { signal });
+
   // Drag-to-scroll (bind once)
   bindDragToScroll(list, signal);
 }

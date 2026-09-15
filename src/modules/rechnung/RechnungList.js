@@ -12,6 +12,7 @@ import { renderPageShell, updateTableRows, updateSingleRow, updateStatusTabCount
 import { bindRechnungListEvents } from './RechnungListEvents.js';
 import { RechnungListSelection } from './RechnungListSelection.js';
 import * as QuickFilter from './RechnungUnternehmenQuickFilter.js';
+import * as SortFilter from './RechnungSortQuickFilter.js';
 
 export { getRechnungTabKey };
 
@@ -33,6 +34,7 @@ export class RechnungList {
     this._bezahltUpdateInFlight = new Set();
     this.activeStatusTab = 'alle';
     this.activeTypeTab = 'rechnung';
+    this.sortBy = SortFilter.DEFAULT_SORT;
     this.resetToCurrentMonth();
     this.searchQuery = '';
     this._searchDebounceTimer = null;
@@ -108,7 +110,8 @@ export class RechnungList {
     const { unternehmen_ids, ...filters } = rawFilters;
     if (Array.isArray(unternehmen_ids) && unternehmen_ids.length > 0) filters.unternehmen_ids = unternehmen_ids;
     return { entity: ENTITY_RECHNUNG, year: this.currentYear, month: this.currentMonth,
-      filters, search: this.searchQuery, typeTab: this.activeTypeTab, statusIds: STATUS_TABS.map(t => t.id) };
+      filters, search: this.searchQuery, typeTab: this.activeTypeTab, statusIds: STATUS_TABS.map(t => t.id),
+      sortBy: this.sortBy };
   }
 
   async reloadBlatt({ withCounts = false, firstPaint = false } = {}) {
@@ -238,6 +241,15 @@ export class RechnungList {
       onFilterReset: () => this.onFiltersReset()
     });
     await QuickFilter.initializeQuickFilter(document.getElementById('rechnung-unternehmen-filter-container'));
+    SortFilter.initializeSortFilter(document.getElementById('rechnung-sort-filter-container'), this.sortBy);
+  }
+
+  setSortBy(sortBy) {
+    if (!SortFilter.SORT_OPTIONS.some(o => o.id === sortBy)) return;
+    if (sortBy === this.sortBy) return;
+    this.sortBy = sortBy;
+    SortFilter.syncUI(this.sortBy);
+    this.reloadBlatt({ withCounts: false });
   }
 
   onFiltersApplied(filters) {

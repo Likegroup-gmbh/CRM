@@ -75,6 +75,7 @@ export function renderPageShell({ isAdmin, canEdit, searchQuery, statusTabs, typ
           ${SearchInput.render('rechnung', { placeholder: 'Rechnung suchen...', currentValue: searchQuery })}
           <div id="filter-dropdown-container"></div>
           <div id="rechnung-unternehmen-filter-container"></div>
+          <div id="rechnung-sort-filter-container"></div>
         </div>
       </div>
       <div class="table-actions">

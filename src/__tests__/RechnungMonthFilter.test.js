@@ -17,7 +17,7 @@ import {
   getRechnungColumnCount,
   updateInvoiceSummary
 } from '../modules/rechnung/RechnungListRenderer.js';
-import { sumInvoiceRows, sumPaidRechnungRows } from '../modules/rechnung/Monatsblatt.js';
+import { sumInvoiceRows, sumPaidRechnungRows, applyRechnungOrder } from '../modules/rechnung/Monatsblatt.js';
 
 const rows = [
   { id: 'r1', gestellt_am: '2026-01-10', created_at: '2026-01-01', status: 'Offen' },
@@ -335,5 +335,41 @@ describe('Rechnung-Monatssummen', () => {
     expect(foot.querySelector('[data-summary="bruttobetrag"]').textContent)
       .toBe(formatRechnungSummaryCurrency(3570));
     expect(animateNumber).not.toHaveBeenCalled();
+  });
+});
+
+describe('applyRechnungOrder', () => {
+  function mockQuery() {
+    const calls = [];
+    return {
+      calls,
+      order(field, opts) { calls.push([field, opts]); return this; }
+    };
+  }
+
+  it('sortiert standardmaessig nach gestellt_am DESC', () => {
+    const q = mockQuery();
+    applyRechnungOrder(q, 'gestellt_am');
+    expect(q.calls).toEqual([
+      ['gestellt_am', { ascending: false, nullsFirst: false }],
+      ['created_at', { ascending: false }]
+    ]);
+  });
+
+  it('sortiert nach zahlungsziel ASC mit created_at Tiebreaker', () => {
+    const q = mockQuery();
+    applyRechnungOrder(q, 'zahlungsziel');
+    expect(q.calls).toEqual([
+      ['zahlungsziel', { ascending: true, nullsFirst: false }],
+      ['created_at', { ascending: false }]
+    ]);
+  });
+
+  it('faellt bei fehlendem oder unbekanntem sortBy auf gestellt_am zurueck', () => {
+    for (const sortBy of [undefined, null, 'foo']) {
+      const q = mockQuery();
+      applyRechnungOrder(q, sortBy);
+      expect(q.calls[0][0]).toBe('gestellt_am');
+    }
   });
 });
