@@ -1,12 +1,13 @@
 // casting-match.js
-// Deterministischer Kern der Casting-Creator-Vorschlaege (ADR 0013):
-// Bedarf bauen, Gates, drei Scores (Fit/Track/Fresh), Slots, Validate.
-// Reine Funktionen (testbar) plus die drei DB-Lader. Das LLM schreibt nur
-// fit_grund/risiken auf der Shortlist - es rankt nie den Pool.
+// Deterministischer Kern der Casting-Creator-Vorschlaege (ADR 0013/0014):
+// Bedarf bauen, Gates, drei Scores (Fit/Track/Fresh), finaler Matching-Score,
+// Top-N-Ranking, Validate. Reine Funktionen (testbar) plus die drei DB-Lader.
+// Das LLM schreibt nur fit_grund/risiken auf der Shortlist - es rankt nie.
 
 const config = require('./casting-match-config');
 
 const {
+  MATCHING_WEIGHTS,
   BEREICH_PREFIX,
   BEREICH_TYP,
   GROESSEN_BAENDER,
@@ -17,8 +18,7 @@ const {
   PROFILES,
   SCHWELLEN,
   ANZAHL,
-  MAX_SHORTLIST_IM_PROMPT,
-  exploreDefaultForBriefing
+  MAX_SHORTLIST_IM_PROMPT
 } = config;
 
 // ---------------------------------------------------------------------------
@@ -131,11 +131,6 @@ function buildBedarf(briefing = {}, { produktIds = [], personas = [] } = {}) {
     }))
   };
   bedarf.fingerprint = bedarfFingerprint(bedarf);
-  bedarf.exploreDefault = exploreDefaultForBriefing({
-    ansatz: bedarf.ansatz,
-    alwaysOnBestehend: bedarf.alwaysOnBestehend,
-    kampagnentypen: briefing.kampagnentypen || []
-  });
   return bedarf;
 }
 
@@ -386,11 +381,14 @@ function scoreFit(k, bedarf, gewichte) {
     else coverage.mentions = 'kein_treffer';
   }
 
-  // Standort nur wenn gesetzt
+  // Standort nur wenn gesetzt. Stadt, PLZ und Land pruefen - ein
+  // Laender-Bedarf ("Deutschland") muss gegen k.land matchen, sonst
+  // verliert jeder Inlands-Kandidat die Punkte (Bug, ADR 0014).
   if (!bedarf.standort) { coverage.standort = 'offen'; }
   else {
     const s = norm(bedarf.standort);
-    if ((k.stadt && (k.stadt.includes(s) || s.includes(k.stadt))) || (k.plz && s.includes(k.plz))) {
+    const trifft = (wert) => !!wert && (wert.includes(s) || s.includes(wert));
+    if (trifft(k.stadt) || trifft(k.land) || (k.plz && s.includes(k.plz))) {
       punkte += gewichte.standort; coverage.standort = 'treffer';
     } else coverage.standort = 'kein_treffer';
   }
@@ -474,19 +472,40 @@ function scoreTrack(k, hist = {}, gewichte) {
 }
 
 /**
- * freshFlags: { markeGebucht90d, fingerprintDabei, vorgeschlagen3,
- *               vorschlaege30d, alwaysOnFortfuehren }
+ * freshFlags: { markeBuchungen90d (Zaehler), fingerprintDabei,
+ *               vorgeschlagen3, vorschlaege30d, alwaysOnFortfuehren }
+ * Marken-Wiederholung staffelt sich: die erste Buchung in 90 Tagen ist
+ * frei, danach progressiver Abzug (marke_90d_stufen, Index = Anzahl).
  */
 function scoreFresh(flags = {}, gewichte) {
   if (flags.alwaysOnFortfuehren) return 100;
   let wert = 100;
-  if (flags.markeGebucht90d) wert -= gewichte.marke_90d;
+  const stufen = gewichte.marke_90d_stufen || [0, 0, 10, 25, 40];
+  const buchungen = Math.max(0, Number(flags.markeBuchungen90d) || 0);
+  wert -= stufen[Math.min(buchungen, stufen.length - 1)];
   if (flags.fingerprintDabei) wert -= gewichte.fingerprint;
   if (flags.vorgeschlagen3) wert -= gewichte.vorgeschlagen3;
   if (flags.vorschlaege30d) {
     wert -= gewichte.global * Math.min(1, flags.vorschlaege30d / SCHWELLEN.globalVorschlaegeNorm);
   }
   return Math.round(Math.max(0, wert));
+}
+
+/**
+ * Finaler Score (ADR 0014): 0.80 Fit + 0.15 Track + 0.05 Fresh.
+ * Cold-Start ohne Casting-Historie: das Track-Gewicht wird auf Fit
+ * umverteilt, statt mit ~0 einzugehen - kein Neuling-Malus.
+ */
+function matchingScore({ fit, track, fresh, castings } = {}) {
+  const f = Math.max(0, Math.min(100, Number(fit) || 0));
+  const fr = Math.max(0, Math.min(100, Number(fresh) || 0));
+  if (!castings) {
+    const summe = MATCHING_WEIGHTS.fit + MATCHING_WEIGHTS.fresh;
+    return Math.round(Math.min(100, (MATCHING_WEIGHTS.fit * f + MATCHING_WEIGHTS.fresh * fr) / summe));
+  }
+  const t = Math.max(0, Math.min(100, Number(track) || 0));
+  return Math.round(Math.min(100,
+    MATCHING_WEIGHTS.fit * f + MATCHING_WEIGHTS.track * t + MATCHING_WEIGHTS.fresh * fr));
 }
 
 /** Profil je Kandidat: mix nimmt das Profil seines typ. */
@@ -498,89 +517,18 @@ function profilFuer(k, listeTyp) {
 }
 
 // ---------------------------------------------------------------------------
-// Slots (Quote statt Top-N)
+// Ranking (Top-N nach dem finalen Score, ADR 0014 - keine Slot-Quoten mehr)
 // ---------------------------------------------------------------------------
 
-function demoSchluessel(k) {
-  const alterBucket = k.alter ? `${Math.floor(k.alter[0] / 10) * 10}er` : 'offen';
-  const topBranche = norm(k.branchen?.[0] || 'offen');
-  return `${k.geschlecht || 'offen'}|${alterBucket}|${topBranche}`;
-}
-
 /**
- * scored: [{ k, fit, track, fresh, hist, profileName }]
- * Quoten: explore ~ f(bias), proven ~ 0.25*(1-bias/2), adjacent ~ 0.15, Rest tight.
+ * scored: [{ k, fit, track, fresh, matching, hist, profileName }]
+ * Sortiert streng nach Matching absteigend; Tiebreak Fit, dann Fresh.
  */
-function fillSlots(scored, { anzahl, exploreBias = 0.45 } = {}) {
+function topNNachMatching(scored, { anzahl } = {}) {
   const n = Math.max(1, anzahl || 12);
-  const exploreN = Math.round(n * (0.15 + 0.5 * exploreBias));
-  const provenN = Math.round(n * 0.25 * (1 - exploreBias / 2));
-  const adjacentN = Math.round(n * 0.15);
-  const tightN = Math.max(0, n - exploreN - provenN - adjacentN);
-
-  const vergeben = new Set();
-  const slots = [];
-  const demoZaehler = {};
-
-  const nachFit = [...scored].sort((a, b) => b.fit - a.fit);
-
-  // Proven: Fit >= 55 und Marke gebucht oder Prio oben
-  for (const s of nachFit) {
-    if (slots.filter(x => x.slot === 'proven').length >= provenN) break;
-    if (vergeben.has(s.k.id)) continue;
-    if (s.fit >= SCHWELLEN.provenFitMin && (s.hist?.markeGebucht || (s.hist?.prioQuote ?? 0) >= 0.5)) {
-      vergeben.add(s.k.id);
-      slots.push({ ...s, slot: 'proven' });
-    }
-  }
-
-  // Explore: frisch, Track oder neu, Fit-Untergrenze
-  const explorePool = [...scored]
-    .filter(s => !vergeben.has(s.k.id))
-    .filter(s => s.fresh >= SCHWELLEN.exploreFreshMin && s.fit >= SCHWELLEN.exploreFitMin)
-    .filter(s => s.track >= SCHWELLEN.exploreTrackMin || (s.hist?.castings || 0) === 0)
-    .sort((a, b) => (b.fresh + b.track) - (a.fresh + a.track));
-  for (const s of explorePool) {
-    if (slots.filter(x => x.slot === 'explore').length >= exploreN) break;
-    vergeben.add(s.k.id);
-    slots.push({ ...s, slot: 'explore' });
-  }
-
-  // Adjacent: Nischen-Nachbar, Fit darf 10-15 tiefer liegen
-  const adjacentPool = nachFit.filter(s => !vergeben.has(s.k.id) && s.adjacent);
-  for (const s of adjacentPool) {
-    if (slots.filter(x => x.slot === 'adjacent').length >= adjacentN) break;
-    vergeben.add(s.k.id);
-    slots.push({ ...s, slot: 'adjacent' });
-  }
-
-  // Tight: hoechstes Fit, frisch genug, paarweise divers
-  for (const s of nachFit) {
-    if (slots.filter(x => x.slot === 'tight').length >= tightN) break;
-    if (vergeben.has(s.k.id)) continue;
-    if (s.fresh < SCHWELLEN.tightFreshMin) continue;
-    const key = demoSchluessel(s.k);
-    if ((demoZaehler[key] || 0) >= 2) continue;
-    demoZaehler[key] = (demoZaehler[key] || 0) + 1;
-    vergeben.add(s.k.id);
-    slots.push({ ...s, slot: 'tight' });
-  }
-
-  // Auffuellen mit bestem Fit, wenn Quoten nicht voll wurden - die
-  // Tight-Diversitaet gilt auch hier: lieber weniger als Duplikate
-  for (const s of nachFit) {
-    if (slots.length >= n) break;
-    if (vergeben.has(s.k.id)) continue;
-    if (!s.adjacent) {
-      const key = demoSchluessel(s.k);
-      if ((demoZaehler[key] || 0) >= 2) continue;
-      demoZaehler[key] = (demoZaehler[key] || 0) + 1;
-    }
-    vergeben.add(s.k.id);
-    slots.push({ ...s, slot: s.adjacent ? 'adjacent' : 'tight' });
-  }
-
-  return slots.slice(0, n);
+  return [...scored]
+    .sort((a, b) => (b.matching - a.matching) || (b.fit - a.fit) || (b.fresh - a.fresh))
+    .slice(0, n);
 }
 
 /** Kategorie-Match: Persona-Name/Oberbegriff oder Typ im Kategorienamen. */
@@ -604,7 +552,7 @@ function matchKategorie(k, kategorien = [], personas = []) {
 // Validate (Modell-Antwort gegen die Shortlist)
 // ---------------------------------------------------------------------------
 
-function validateVorschlaege(json, { shortlistIds = [], slots = {}, personaIds = [] } = {}) {
+function validateVorschlaege(json, { shortlistIds = [], personaIds = [] } = {}) {
   const pool = new Set(shortlistIds);
   const personaSet = new Set(personaIds);
   const roh = Array.isArray(json?.vorschlaege) ? json.vorschlaege : [];
@@ -627,12 +575,10 @@ function validateVorschlaege(json, { shortlistIds = [], slots = {}, personaIds =
       verworfen.push({ grund: 'fit_grund ohne belegbares Feld', vorschlag: id });
       continue;
     }
-    const slot = ['proven', 'tight', 'adjacent', 'explore'].includes(v?.slot) ? v.slot : (slots[id] || 'tight');
     const pIds = [...new Set((Array.isArray(v?.persona_ids) ? v.persona_ids : []).filter(p => personaSet.has(p)))];
     gesehen.add(id);
     sauber.push({
       creator_id: id,
-      slot,
       fit_grund: fitGrund,
       risiken: v?.risiken ? String(v.risiken).trim() : null,
       persona_ids: pIds
@@ -659,12 +605,11 @@ const CASTING_TOOL = {
           type: 'object',
           properties: {
             creator_id: { type: 'string', description: 'ID aus der Shortlist, keine anderen.' },
-            slot: { type: 'string', enum: ['proven', 'tight', 'adjacent', 'explore'] },
-            fit_grund: { type: 'string', description: 'Zwei bis drei Saetze, nur belegbare Felder (Branche, Alter, Typ, Mentions, Historie). Keine Lyrik.' },
+            fit_grund: { type: 'string', description: 'Zwei bis drei Saetze, nur belegbare Felder (Branche, Alter, Typ, Mentions, Historie). Keine Lyrik, keine Score-Zahlen.' },
             risiken: { type: ['string', 'null'], description: 'Offene Punkte, z.B. unverified Voraussetzung.' },
             persona_ids: { type: 'array', items: { type: 'string' }, description: 'Welche Personas aus dem Bedarf treffen.' }
           },
-          required: ['creator_id', 'slot', 'fit_grund']
+          required: ['creator_id', 'fit_grund']
         }
       }
     },
@@ -682,7 +627,7 @@ function fmtKandidat(s) {
   const name = `${k.vorname} ${k.nachname}`.trim() || 'Unbekannt';
   const alter = k.alter ? `${k.alter[0]}-${k.alter[1]}` : 'unbekannt';
   return [
-    `ID: ${k.id} | Slot: ${s.slot} | Fit ${s.fit} / Track ${s.track} / Fresh ${s.fresh}`,
+    `ID: ${k.id} | Matching ${s.matching}`,
     `Name: ${name}, Geschlecht: ${k.geschlecht || 'unbekannt'}, Alter: ${alter}`,
     `Typen: ${(k.typen || []).join(', ') || 'unbekannt'} | Branchen: ${(k.branchen || []).join(', ') || 'unbekannt'}`,
     `Follower: ${k.follower || 'unbekannt'} | IG: ${k.instagram || '-'} | TT: ${k.tiktok || '-'}`,
@@ -692,7 +637,7 @@ function fmtKandidat(s) {
   ].filter(Boolean).join('\n  ');
 }
 
-function buildPrompt(bedarf, { slots = [], kategorien = [] } = {}) {
+function buildPrompt(bedarf, { shortlist = [], kategorien = [] } = {}) {
   const stable = 'Du bist Casting-Unterstuetzung einer Creator-Agentur. '
     + 'Du bekommst eine deterministisch erstellte Shortlist aus der eigenen Creator-Datenbank. '
     + 'Du waehlst NICHT aus und erfindest KEINE Creator - jede creator_id muss aus der Shortlist stammen.\n\n'
@@ -700,7 +645,8 @@ function buildPrompt(bedarf, { slots = [], kategorien = [] } = {}) {
     + '1. NICHTS ERFINDEN. fit_grund nennt nur Felder aus der Shortlist (Branche, Alter, Typ, Mentions, Historie).\n'
     + '2. KEINE LYRIK. "Wirkt authentisch" oder "gute Energy" ist ein Ausschlussgrund - nenne Fakten.\n'
     + '3. Unbelegte Voraussetzungen (unverified) gehoeren in risiken, nicht in fit_grund.\n'
-    + '4. Weniger ist mehr: uebernimm nur Kandidaten mit tragfaehigem Fit, keine Quote um jeden Preis.\n';
+    + '4. Weniger ist mehr: uebernimm nur Kandidaten mit tragfaehigem Fit, keine Quote um jeden Preis.\n'
+    + '5. KEINE SCORE-ZAHLEN im fit_grund: weder Matching noch Fit/Track/Fresh nennen - der Text erklaert die Passung in Worten.\n';
 
   let task = '# BEDARF\n';
   task += `Bereich: ${bedarf.bereich || 'offen'} | Typ: ${bedarf.typ || 'offen'}\n`;
@@ -720,8 +666,8 @@ function buildPrompt(bedarf, { slots = [], kategorien = [] } = {}) {
   }
   if (kategorien?.length) task += `\n# KATEGORIEN AUF DER LISTE\n${kategorien.join(', ')}\n`;
 
-  task += `\n# SHORTLIST (${slots.length} Kandidaten, IDs sind verbindlich)\n`;
-  slots.slice(0, MAX_SHORTLIST_IM_PROMPT).forEach(s => { task += `\n---\n${fmtKandidat(s)}\n`; });
+  task += `\n# SHORTLIST (${shortlist.length} Kandidaten, IDs sind verbindlich)\n`;
+  shortlist.slice(0, MAX_SHORTLIST_IM_PROMPT).forEach(s => { task += `\n---\n${fmtKandidat(s)}\n`; });
 
   task += '\n# AUFTRAG\nGib das Ergebnis AUSSCHLIESSLICH ueber das Tool '
     + '"casting_vorschlaege_abgeben" ab: ein Eintrag je uebernommener Shortlist-ID, '
@@ -795,7 +741,7 @@ async function loadBuchungsbild(supabase, { markeId, unternehmenId, castingId, f
     if (!it.creator_id) continue;
     let h = bild.histJeCreator.get(it.creator_id);
     if (!h) {
-      h = { castings: 0, prio1: 0, angefragt: 0, gebucht: 0, absagen: 0, markeGebucht: false, markeGebucht90d: false, prioQuote: 0 };
+      h = { castings: 0, prio1: 0, angefragt: 0, gebucht: 0, absagen: 0, markeGebucht: false, markeBuchungen90d: 0, prioQuote: 0 };
       bild.histJeCreator.set(it.creator_id, h);
     }
     h.castings++;
@@ -804,7 +750,7 @@ async function loadBuchungsbild(supabase, { markeId, unternehmenId, castingId, f
     if (it.gebucht) {
       h.gebucht++;
       h.markeGebucht = true;
-      if ((it.created_at || '') >= vor90dIso) h.markeGebucht90d = true;
+      if ((it.created_at || '') >= vor90dIso) h.markeBuchungen90d++;
     }
     if (it.absage) h.absagen++;
     if (it.abgelehnt && (it.created_at || '') >= stichtagIso) bild.abgelehntMarke.add(it.creator_id);
@@ -830,7 +776,7 @@ async function loadBuchungsbild(supabase, { markeId, unternehmenId, castingId, f
         if (cid) videosJeCreator.set(cid, (videosJeCreator.get(cid) || 0) + 1);
       }
       for (const [cid, n] of videosJeCreator) {
-        const h = bild.histJeCreator.get(cid) || { castings: 0, prio1: 0, angefragt: 0, gebucht: 0, absagen: 0, markeGebucht: false, prioQuote: 0 };
+        const h = bild.histJeCreator.get(cid) || { castings: 0, prio1: 0, angefragt: 0, gebucht: 0, absagen: 0, markeGebucht: false, markeBuchungen90d: 0, prioQuote: 0 };
         h.videos = n;
         bild.histJeCreator.set(cid, h);
       }
@@ -888,9 +834,9 @@ module.exports = {
   wilson,
   scoreTrack,
   scoreFresh,
+  matchingScore,
   profilFuer,
-  demoSchluessel,
-  fillSlots,
+  topNNachMatching,
   matchKategorie,
   validateVorschlaege,
   CASTING_TOOL,

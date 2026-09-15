@@ -4,7 +4,12 @@
 // Argument, nie Literale in Formeln. Der Job speichert CONFIG_VERSION, damit
 // alte Listen spaeter noch erklaerbar sind.
 
-const CONFIG_VERSION = 1;
+const CONFIG_VERSION = 2;
+
+// Finaler Score (ADR 0014): ein Wert, Fit lastig. Cold-Start ohne
+// Casting-Historie: das Track-Gewicht wird auf Fit umverteilt (Renorm),
+// statt mit ~0 einzugehen - kein Neuling-Malus.
+const MATCHING_WEIGHTS = { fit: 0.8, track: 0.15, fresh: 0.05 };
 
 // bereich (campaign_briefings) -> Feld-Prefix + Casting-Typ
 const BEREICH_PREFIX = {
@@ -81,27 +86,25 @@ const VORAUSSETZUNG_FELDER = {
 const GESCHLECHT_SONDER = ['paar', 'familie', 'tier'];
 
 // Gewichte je Liste-Typ. mix nimmt pro Kandidat das Profil seines typ.
+// Gewichte je Liste-Typ. mix nimmt pro Kandidat das Profil seines typ.
+// fresh.marke_90d_stufen: Abzug nach Anzahl Marken-Buchungen in 90 Tagen
+// (Index = Anzahl, geclamppt) - die erste Wiederholung ist frei, danach
+// progressiv. Einmal/zweimal gebucht ist kein Negativfaktor.
 const PROFILES = {
   ugc: {
     fit: { nische: 28, persona: 26, voraussetzung: 16, groesse: 6, plattform: 8, mentions: 12, standort: 8, text: 8, preis: 0 },
     track: { prio: 30, buchung: 24, videos: 20, er: 8, kontakt: 8 },
-    fresh: { marke_90d: 20, fingerprint: 25, vorgeschlagen3: 25, global: 15 }
+    fresh: { marke_90d_stufen: [0, 0, 10, 25, 40], fingerprint: 25, vorgeschlagen3: 12, global: 8 }
   },
   influencer: {
     fit: { nische: 22, persona: 16, voraussetzung: 8, groesse: 18, plattform: 8, mentions: 12, standort: 8, text: 8, preis: 16 },
     track: { prio: 22, buchung: 18, videos: 10, er: 22, kontakt: 6 },
-    fresh: { marke_90d: 40, fingerprint: 25, vorgeschlagen3: 25, global: 15 }
+    fresh: { marke_90d_stufen: [0, 0, 10, 25, 40], fingerprint: 25, vorgeschlagen3: 12, global: 8 }
   }
 };
 
 // Schwellen
 const SCHWELLEN = {
-  provenFitMin: 55,
-  tightFreshMin: 40,
-  exploreFreshMin: 70,
-  exploreFitMin: 40,
-  exploreTrackMin: 50,
-  adjacentFitAbzugMax: 15,
   wilsonMinN: 3,
   abgelehntMonate: 12,
   repeatTage: 90,
@@ -111,18 +114,11 @@ const SCHWELLEN = {
 // Anzahl: 2-3x offene Creator-Sollzahl, gedeckelt
 const ANZAHL = { faktor: 2.5, min: 6, max: 20 };
 
-// Explore-Default aus dem Briefing (kein UI-Regler in v1)
-function exploreDefaultForBriefing({ ansatz, alwaysOnBestehend, kampagnentypen = [] } = {}) {
-  if (ansatz === 'always_on' && alwaysOnBestehend === 'fortfuehren') return 0.25;
-  if (ansatz === 'always_on') return 0.4;
-  if ((kampagnentypen || []).includes('produktlaunch')) return 0.55;
-  return 0.45;
-}
-
 const MAX_SHORTLIST_IM_PROMPT = 30;
 
 module.exports = {
   CONFIG_VERSION,
+  MATCHING_WEIGHTS,
   BEREICH_PREFIX,
   BEREICH_TYP,
   GROESSEN_BAENDER,
@@ -133,6 +129,5 @@ module.exports = {
   PROFILES,
   SCHWELLEN,
   ANZAHL,
-  MAX_SHORTLIST_IM_PROMPT,
-  exploreDefaultForBriefing
+  MAX_SHORTLIST_IM_PROMPT
 };

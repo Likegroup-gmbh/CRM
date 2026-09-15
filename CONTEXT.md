@@ -103,12 +103,37 @@ _Avoid_: Suche, Zielgruppe, Filter
 
 **Buchungsbild**:
 Die historisch gebuchten bzw. bewerteten Creator zu Marke und Kampagnenart.
-Dient nur als Wiederholungs- und Ablehnungsfilter, nicht als Auswahl.
-_Avoid_: Qualität, Score, Proven-Slot als Auswahl
+Dient als Wiederholungs- und Ablehnungsfilter (Gates) und liefert die Historie für Track.
+_Avoid_: Qualitätsurteil, Proven-Slot
 
 **Casting-Vorschlag**:
 Ein für ein Casting vorgeschlagener Creator. Wird durch Aktivieren zum Casting-Eintrag.
-_Avoid_: Casting-Eintrag, Kategorie „Vorschläge“, Kandidat
+Auswahl und Reihenfolge folgen streng dem Matching, höchster Match oben.
+_Avoid_: Casting-Eintrag, Kategorie „Vorschläge“, Kandidat, Slot-Portfolio
+
+**Fit**:
+Briefing-Passung eines Creators (0-100): Nische, Persona, Voraussetzungen, Größe,
+Plattform, Mentions, Standort, Text. Unbelegte Dimensionen geben 0 Punkte –
+bewusster Anreiz, Creator-Profile vollständig zu pflegen.
+_Avoid_: Fit Score als eigenständige Kennzahl (ist Bestandteil von Matching)
+
+**Track**:
+Erfolgs-Historie eines Creators im eigenen System (0-100): Prio-Platzierungen,
+Buchungsquote aus Anfragen, Videos, Engagement-Rate, Erreichbarkeit; Absagen ziehen ab.
+_Avoid_: Qualitätsurteil, Erfahrung allgemein
+
+**Fresh**:
+Nicht-Abnutzung eines Creators (0-100): startet bei 100, Abzüge für
+Marken-Wiederholung in 90 Tagen (gestaffelt, die erste ist frei), gleiche Suche
+und kürzliche Vorschläge.
+_Avoid_: Neuheitsbonus, Frische als positives Signal
+
+**Matching**:
+Der eine finale Score eines Casting-Vorschlags (0-100):
+0.80 Fit + 0.15 Track + 0.05 Fresh. Ohne Casting-Historie (Cold-Start) geht das
+Track-Gewicht auf Fit, statt mit ~0 einzugehen. Es gibt keine andere Kennzahl;
+Teil-Scores erscheinen nur im Hover.
+_Avoid_: Fit Score, LLM-Ranking, position als Sortierung
 
 **Aktivieren**:
 Einen Casting-Vorschlag zum Casting-Eintrag mit `creator_id` machen.

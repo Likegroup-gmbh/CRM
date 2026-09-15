@@ -1,9 +1,10 @@
 // CastingMatch.test.js
-// Deterministischer Kern der Casting-Vorschlaege (ADR 0013):
-//   - Bedarf aus dem aktiven Briefing-Bereich, Fingerprint, Explore-Default
+// Deterministischer Kern der Casting-Vorschlaege (ADR 0013/0014):
+//   - Bedarf aus dem aktiven Briefing-Bereich, Fingerprint
 //   - Gates: hart nur bei gesetztem Feld, Unbekannt ist kein Rauswurf
 //   - Scores: Fit/Track/Fresh, Wilson statt 1/1 = 100
-//   - Slots: Quote statt Top-N, Covered-Set beim Regen via Validate
+//   - Matching: ein finaler Score (80/15/5), Renorm bei Cold-Start
+//   - Ranking: Top-N nach Matching, kein Slot-Portfolio mehr
 
 import { describe, it, expect } from 'vitest';
 
@@ -12,15 +13,15 @@ import castingMatch from '../../netlify/functions/_shared/casting-match.js';
 const {
   buildBedarf,
   bedarfFingerprint,
-  exploreDefaultForBriefing,
   zielAnzahl,
   normiereKandidat,
   applyGates,
   scoreFit,
   scoreTrack,
   scoreFresh,
+  matchingScore,
   wilson,
-  fillSlots,
+  topNNachMatching,
   matchKategorie,
   validateVorschlaege,
   PROFILES
@@ -113,14 +114,6 @@ describe('buildBedarf', () => {
     const c = bedarf({ nischen: ['beauty'] });
     expect(bedarfFingerprint(a)).toBe(bedarfFingerprint(b));
     expect(bedarfFingerprint(a)).not.toBe(bedarfFingerprint(c));
-  });
-});
-
-describe('exploreDefaultForBriefing', () => {
-  it('fortfuehren bekommt wenig Explore, Launch viel', () => {
-    expect(exploreDefaultForBriefing({ ansatz: 'always_on', alwaysOnBestehend: 'fortfuehren' })).toBe(0.25);
-    expect(exploreDefaultForBriefing({ ansatz: 'kampagne', kampagnentypen: ['produktlaunch'] })).toBe(0.55);
-    expect(exploreDefaultForBriefing({ ansatz: 'kampagne' })).toBe(0.45);
   });
 });
 
@@ -220,6 +213,23 @@ describe('scoreFit', () => {
     const passtNicht = scoreFit(kandidat({ geschlecht: 'männlich', alter_min: 50, alter_max: 55 }), b, PROFILES.ugc.fit);
     expect(passtNicht.wert).toBeLessThan(passt.wert);
   });
+
+  it('Standort: Laender-Bedarf matcht das Creator-Land (Regression ADR 0014)', () => {
+    // SharkNinja-Befund: Bedarf "Deutschland" vs. lieferadresse_land
+    // "Deutschland" gab faelschlich kein_treffer, weil nur Stadt/PLZ
+    // geprueft wurden.
+    const b = bedarf({ standort: 'Deutschland' });
+    const fit = scoreFit(kandidat(), b, PROFILES.ugc.fit);
+    expect(fit.coverage.standort).toBe('treffer');
+  });
+
+  it('Standort: Stadt-Bedarf matcht die Stadt, fremde Stadt nicht', () => {
+    const b = bedarf({ standort: 'Berlin' });
+    expect(scoreFit(kandidat(), b, PROFILES.ugc.fit).coverage.standort).toBe('treffer');
+    const fremd = kandidat({ lieferadresse_stadt: 'Hamburg', lieferadresse_land: 'Deutschland' });
+    const bMuenchen = bedarf({ standort: 'München' });
+    expect(scoreFit(fremd, bMuenchen, PROFILES.ugc.fit).coverage.standort).toBe('kein_treffer');
+  });
 });
 
 describe('wilson / scoreTrack', () => {
@@ -238,15 +248,51 @@ describe('wilson / scoreTrack', () => {
 });
 
 describe('scoreFresh', () => {
-  it('fortfuehren schaltet Fresh aus, Repeat straft', () => {
-    expect(scoreFresh({ markeGebucht90d: true }, PROFILES.influencer.fresh)).toBeLessThan(100);
-    expect(scoreFresh({ markeGebucht90d: true, alwaysOnFortfuehren: true }, PROFILES.influencer.fresh)).toBe(100);
+  it('fortfuehren schaltet Fresh aus, leer bleibt 100', () => {
+    expect(scoreFresh({ alwaysOnFortfuehren: true, markeBuchungen90d: 3 }, PROFILES.influencer.fresh)).toBe(100);
     expect(scoreFresh({}, PROFILES.influencer.fresh)).toBe(100);
+  });
+
+  it('Marken-Wiederholung staffelt: 1x frei, danach progressiv', () => {
+    const fresh = PROFILES.ugc.fresh;
+    expect(scoreFresh({ markeBuchungen90d: 0 }, fresh)).toBe(100);
+    expect(scoreFresh({ markeBuchungen90d: 1 }, fresh)).toBe(100);
+    expect(scoreFresh({ markeBuchungen90d: 2 }, fresh)).toBe(90);
+    expect(scoreFresh({ markeBuchungen90d: 3 }, fresh)).toBe(75);
+    // geclamppt auf die letzte Stufe
+    expect(scoreFresh({ markeBuchungen90d: 9 }, fresh)).toBe(60);
+  });
+
+  it('Fingerprint und Vorschlags-Abzuege bleiben (halbiert)', () => {
+    const fresh = PROFILES.ugc.fresh;
+    expect(scoreFresh({ fingerprintDabei: true }, fresh)).toBe(75);
+    expect(scoreFresh({ vorgeschlagen3: true }, fresh)).toBe(88);
+  });
+});
+
+describe('matchingScore', () => {
+  it('gewichtet 80/15/5 (finaler Score)', () => {
+    // 0.8*62 + 0.15*26 + 0.05*100 = 49.6 + 3.9 + 5 = 58.5 -> 59
+    expect(matchingScore({ fit: 62, track: 26, fresh: 100, castings: 3 })).toBe(59);
+  });
+
+  it('Cold-Start: ohne Historie geht das Track-Gewicht auf Fit (Renorm)', () => {
+    // (0.8*62 + 0.05*48) / 0.85 = 52 / 0.85 = 61.2 -> 61
+    const kalt = matchingScore({ fit: 62, track: 0, fresh: 48, castings: 0 });
+    expect(kalt).toBe(61);
+    // Neuling wird nicht mehr pauschal unter den Wiederholer gereiht
+    const wiederholer = matchingScore({ fit: 62, track: 10, fresh: 48, castings: 4 });
+    expect(kalt).toBeGreaterThan(wiederholer);
+  });
+
+  it('deckelt bei 100 und fehlende Werte zaehlen als 0', () => {
+    expect(matchingScore({ fit: 100, track: 100, fresh: 100, castings: 5 })).toBe(100);
+    expect(matchingScore({})).toBe(0);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Slots
+// Ranking (Top-N nach Matching, ADR 0014)
 // ---------------------------------------------------------------------------
 
 function scored(id, overrides = {}) {
@@ -257,53 +303,41 @@ function scored(id, overrides = {}) {
     fit: 60,
     track: 60,
     fresh: 80,
+    matching: 60,
     hist: {},
     coverage: {},
-    adjacent: false,
     profileName: 'ugc',
     ...rest
   };
 }
 
-describe('fillSlots', () => {
-  it('füllt die Quote (proven/tight/explore) statt Top-N', () => {
-    const branchen = ['Beauty', 'Health', 'Fashion', 'Fitness'];
-    const liste = Array.from({ length: 20 }, (_, i) => scored(`c${i}`, {
-      fit: 90 - i,
-      hist: i < 3 ? { markeGebucht: true, prioQuote: 0.8 } : {},
-      k: {
-        geschlecht: i % 2 ? 'weiblich' : 'männlich',
-        alter_min: 20 + (i % 4) * 10,
-        alter_max: 29 + (i % 4) * 10,
-        creator_branchen: [{ branche_id: { id: `b${i}`, name: branchen[i % branchen.length] } }]
-      }
-    }));
-    const slots = fillSlots(liste, { anzahl: 12, exploreBias: 0.45 });
-    expect(slots).toHaveLength(12);
-    const nachSlot = slots.reduce((acc, s) => { acc[s.slot] = (acc[s.slot] || 0) + 1; return acc; }, {});
-    expect(nachSlot.proven).toBeGreaterThan(0);
-    expect(nachSlot.explore).toBeGreaterThan(0);
-    // Proven braucht Fit >= 55 und Marken-Historie
-    expect(slots.filter(s => s.slot === 'proven').every(s => s.fit >= 55)).toBe(true);
-  });
-
-  it('Explore braucht Fresh und nimmt auch Unbekannte', () => {
+describe('topNNachMatching', () => {
+  it('sortiert streng nach Matching absteigend - hoechster Match oben', () => {
     const liste = [
-      scored('neu', { fit: 50, track: 10, fresh: 95, hist: { castings: 0 } }),
-      ...Array.from({ length: 10 }, (_, i) => scored(`alt${i}`, { fit: 80 - i, fresh: 10 }))
+      scored('mitte', { matching: 50, fit: 60 }),
+      scored('beste', { matching: 59, fit: 62 }),
+      scored('schlecht', { matching: 28, fit: 40 })
     ];
-    const slots = fillSlots(liste, { anzahl: 6, exploreBias: 0.8 });
-    expect(slots.some(s => s.k.id === 'neu' && s.slot === 'explore')).toBe(true);
+    const top = topNNachMatching(liste, { anzahl: 3 });
+    expect(top.map(s => s.k.id)).toEqual(['beste', 'mitte', 'schlecht']);
   });
 
-  it('Tight ist paarweise divers (max 2 je Demo-Schlüssel, lieber weniger)', () => {
-    const liste = Array.from({ length: 10 }, (_, i) => scored(`c${i}`, { fit: 90 - i, fresh: 90 }));
-    const slots = fillSlots(liste, { anzahl: 8, exploreBias: 0 });
-    expect(slots.length).toBeLessThanOrEqual(8);
-    const tight = slots.filter(s => s.slot === 'tight');
-    const keys = tight.map(s => `${s.k.geschlecht}|${s.k.alter?.[0]}`);
-    const counts = keys.reduce((acc, k) => { acc[k] = (acc[k] || 0) + 1; return acc; }, {});
-    expect(Math.max(...Object.values(counts))).toBeLessThanOrEqual(2);
+  it('Tiebreak: bei Gleichstand entscheidet Fit, dann Fresh', () => {
+    const liste = [
+      scored('a', { matching: 50, fit: 60, fresh: 40 }),
+      scored('b', { matching: 50, fit: 70, fresh: 30 }),
+      scored('c', { matching: 50, fit: 70, fresh: 90 })
+    ];
+    const top = topNNachMatching(liste, { anzahl: 3 });
+    expect(top.map(s => s.k.id)).toEqual(['c', 'b', 'a']);
+  });
+
+  it('schneidet auf anzahl ab', () => {
+    const liste = Array.from({ length: 20 }, (_, i) => scored(`c${i}`, { matching: 100 - i }));
+    const top = topNNachMatching(liste, { anzahl: 12 });
+    expect(top).toHaveLength(12);
+    expect(top[0].k.id).toBe('c0');
+    expect(top[11].k.id).toBe('c11');
   });
 });
 
@@ -326,14 +360,14 @@ describe('matchKategorie', () => {
 });
 
 describe('validateVorschlaege', () => {
-  const ctx = { shortlistIds: ['c1', 'c2'], slots: { c1: 'tight', c2: 'explore' }, personaIds: ['p1'] };
+  const ctx = { shortlistIds: ['c1', 'c2'], personaIds: ['p1'] };
 
   it('nimmt nur Shortlist-IDs mit belegtem fit_grund', () => {
     const { vorschlaege, verworfen } = validateVorschlaege({
       vorschlaege: [
-        { creator_id: 'c1', slot: 'tight', fit_grund: 'Beauty-Branche, 30k Follower', persona_ids: ['p1'] },
-        { creator_id: 'fremd', slot: 'tight', fit_grund: 'Halluziniert' },
-        { creator_id: 'c2', slot: 'explore', fit_grund: '   ' }
+        { creator_id: 'c1', fit_grund: 'Beauty-Branche, 30k Follower', persona_ids: ['p1'] },
+        { creator_id: 'fremd', fit_grund: 'Halluziniert' },
+        { creator_id: 'c2', fit_grund: '   ' }
       ]
     }, ctx);
     expect(vorschlaege).toHaveLength(1);
@@ -344,15 +378,13 @@ describe('validateVorschlaege', () => {
   it('Covered-Set: Doppelte fliegen, fremde persona_ids werden gefiltert', () => {
     const { vorschlaege, verworfen } = validateVorschlaege({
       vorschlaege: [
-        { creator_id: 'c1', slot: 'tight', fit_grund: 'Passt', persona_ids: ['p1', 'fremd'] },
-        { creator_id: 'c1', slot: 'tight', fit_grund: 'Doppelt' },
-        { creator_id: 'c2', slot: 'quatsch', fit_grund: 'Passt auch' }
+        { creator_id: 'c1', fit_grund: 'Passt', persona_ids: ['p1', 'fremd'] },
+        { creator_id: 'c1', fit_grund: 'Doppelt' },
+        { creator_id: 'c2', fit_grund: 'Passt auch' }
       ]
     }, ctx);
     expect(vorschlaege).toHaveLength(2);
     expect(vorschlaege[0].persona_ids).toEqual(['p1']);
     expect(verworfen.some(v => v.grund === 'doppelter Vorschlag')).toBe(true);
-    // Ungültiger Slot fällt auf den zugewiesenen zurück
-    expect(vorschlaege.find(v => v.creator_id === 'c2').slot).toBe('explore');
   });
 });

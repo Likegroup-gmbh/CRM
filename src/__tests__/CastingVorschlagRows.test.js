@@ -20,7 +20,8 @@ const vorschlag = {
   creator_id: 'c-1',
   fit_grund: 'Passt zur Zielgruppe Food 25-34.',
   kategorie_hint: 'Reels',
-  scores: { fit: 58, track: 36, fresh: 100 },
+  scores: { fit: 58, track: 36, fresh: 100, castings: 4 },
+  matching_score: 57,
   creator: {
     id: 'c-1',
     vorname: 'Jessie',
@@ -51,8 +52,15 @@ describe('vorschlagToItem', () => {
     expect(item.email).toBe('jessie@example.com');
     expect(item.typ).toBe('UGC Paid');
     expect(item.kategorie).toBe('Reels');
-    expect(item.matching_score).toBe(59);
-    expect(item.matching_scores).toEqual({ fit: 58, track: 36, fresh: 100 });
+    expect(item.matching_score).toBe(57);
+    expect(item.matching_scores).toEqual({ fit: 58, track: 36, fresh: 100, castings: 4 });
+  });
+
+  it('rechnet den Score selbst, wenn kein persistierter matching_score da ist', () => {
+    const alt = { ...vorschlag, matching_score: null };
+    const item = vorschlagToItem(alt);
+    // 0.8*58 + 0.15*36 + 0.05*100 = 56.8 -> 57
+    expect(item.matching_score).toBe(57);
   });
 });
 
@@ -69,7 +77,7 @@ describe('KI-Vorschlag als Tabellenzeile', () => {
     expect(doc.querySelector('td.cp-col-notiz').textContent)
       .toContain('Passt zur Zielgruppe Food 25-34.');
     expect(doc.querySelector('td.cp-col-matching .sourcing-matching__score').textContent)
-      .toBe('59/100');
+      .toBe('57/100');
     expect(doc.querySelector('td.cp-col-link-ig a').getAttribute('href'))
       .toBe('https://instagram.com/hierkochtjessie');
   });
@@ -138,8 +146,8 @@ describe('CastingVorschlagService.aktivieren', () => {
       notiz: 'Passt zur Zielgruppe Food 25-34.',
       profile_image_thumb_url: 'https://cdn.test/jessie_thumb.avif',
       profile_image_url: 'https://cdn.test/jessie.avif',
-      matching_score: 59,
-      matching_scores: { fit: 58, track: 36, fresh: 100 },
+      matching_score: 57,
+      matching_scores: { fit: 58, track: 36, fresh: 100, castings: 4 },
       creator_id: 'c-1',
       kategorie: 'Reels'
     }));

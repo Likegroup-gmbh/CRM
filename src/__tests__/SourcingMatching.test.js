@@ -9,11 +9,16 @@ import {
 } from '../modules/creator-auswahl/sourcingMatching.js';
 
 describe('sourcingMatching – Score', () => {
-  it('gewichtet Fit 60, Track 25, Fresh 15', () => {
-    expect(matchingScore({ fit: 100, track: 0, fresh: 0 })).toBe(60);
-    expect(matchingScore({ fit: 0, track: 100, fresh: 0 })).toBe(25);
-    expect(matchingScore({ fit: 0, track: 0, fresh: 100 })).toBe(15);
-    expect(matchingScore({ fit: 58, track: 36, fresh: 100 })).toBe(59);
+  it('gewichtet Fit 80, Track 15, Fresh 5 (ADR 0014)', () => {
+    expect(matchingScore({ fit: 100, track: 0, fresh: 0, castings: 5 })).toBe(80);
+    expect(matchingScore({ fit: 0, track: 100, fresh: 0, castings: 5 })).toBe(15);
+    expect(matchingScore({ fit: 0, track: 0, fresh: 100, castings: 5 })).toBe(5);
+    expect(matchingScore({ fit: 58, track: 36, fresh: 100, castings: 5 })).toBe(57);
+  });
+
+  it('Cold-Start ohne Historie: Track-Gewicht geht auf Fit (Renorm)', () => {
+    // (0.8*62 + 0.05*48) / 0.85 = 61.2 -> 61
+    expect(matchingScore({ fit: 62, track: 0, fresh: 48, castings: 0 })).toBe(61);
   });
 
   it('gibt null ohne jeden Teilscore', () => {
@@ -22,12 +27,17 @@ describe('sourcingMatching – Score', () => {
   });
 
   it('behandelt fehlende Teile als 0, sobald einer da ist', () => {
-    expect(matchingScore({ fit: 80 })).toBe(48);
+    expect(matchingScore({ fit: 80, castings: 2 })).toBe(64);
   });
 
   it('baut den Tooltip aus den Rohwerten', () => {
-    expect(matchingScoreTooltip({ fit: 58, track: 36, fresh: 100 }))
+    expect(matchingScoreTooltip({ fit: 58, track: 36, fresh: 100, castings: 4 }))
       .toBe('Fit 58 · Track 36 · Fresh 100');
+  });
+
+  it('markiert Track im Tooltip als nicht verfuegbar bei Cold-Start', () => {
+    expect(matchingScoreTooltip({ fit: 62, track: 0, fresh: 48, castings: 0 }))
+      .toBe('Fit 62 · Track n. v. (neu) · Fresh 48');
   });
 });
 
@@ -52,7 +62,7 @@ describe('sourcingMatching – Ampelfarbe', () => {
   });
 
   it('schreibt genau eine Hintergrundfarbe in den Fill', () => {
-    const html = renderMatchingCell(68, { fit: 70, track: 50, fresh: 90 });
+    const html = renderMatchingCell(68, { fit: 70, track: 50, fresh: 90, castings: 3 });
     const fills = html.match(/background:[^;"]+/g) || [];
 
     expect(html).toContain('68/100');

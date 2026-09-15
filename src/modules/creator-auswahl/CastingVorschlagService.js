@@ -35,13 +35,6 @@ function emitFinished(detail) {
   document.dispatchEvent(new CustomEvent('castingVorschlagFinished', { detail }));
 }
 
-export const SLOT_LABELS = {
-  proven: 'Bewährt',
-  tight: 'Passgenau',
-  adjacent: 'Nachbar',
-  explore: 'Neu'
-};
-
 function pickCreatorTyp(creator, listeTyp) {
   const typen = (creator?.creator_creator_type || [])
     .map(j => j?.creator_type_id?.name).filter(Boolean);
@@ -79,7 +72,7 @@ export function vorschlagToItem(vorschlag, { listeTyp } = {}) {
     follower_tiktok: Number(creator.tiktok_follower) || null,
     profile_image_thumb_url: creator.profilbild_thumb_url || null,
     profile_image_url: creator.profilbild_url || null,
-    matching_score: matchingScore(scores),
+    matching_score: vorschlag.matching_score ?? matchingScore(scores),
     matching_scores: scores
   };
 }
@@ -93,8 +86,8 @@ export class CastingVorschlagService {
       .select(VORSCHLAG_SELECT)
       .eq('casting_id', castingId)
       .eq('status', 'pending')
-      .order('position')
-      .order('created_at');
+      .order('matching_score', { ascending: false, nullsFirst: false })
+      .order('position');
     if (error) throw error;
     return data || [];
   }
@@ -231,7 +224,7 @@ export class CastingVorschlagService {
       creator_id: creator.id,
       profile_image_thumb_url: creator.profilbild_thumb_url || null,
       profile_image_url: creator.profilbild_url || null,
-      matching_score: matchingScore(scores),
+      matching_score: vorschlag.matching_score ?? matchingScore(scores),
       matching_scores: Object.keys(scores).length ? scores : null
     };
 

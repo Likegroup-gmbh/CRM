@@ -266,7 +266,11 @@ export class CreatorAuswahlDetail {
   getVorschlagItems() {
     if (!this.kannVorschlaegeSehen()) return [];
     const listeTyp = this.liste?.liste_typ;
-    return (this.vorschlagPanel?.vorschlaege || []).map(v => vorschlagToItem(v, { listeTyp }));
+    // Streng nach Matching absteigend (ADR 0014); die DB liefert das schon,
+    // die Sortierung hier faengt Alt-Daten ohne matching_score ab.
+    return (this.vorschlagPanel?.vorschlaege || [])
+      .map(v => vorschlagToItem(v, { listeTyp }))
+      .sort((a, b) => (b.matching_score ?? -1) - (a.matching_score ?? -1));
   }
 
   getDisplayItems() {

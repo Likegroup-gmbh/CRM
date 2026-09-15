@@ -1,13 +1,14 @@
 // casting-vorschlag-background.js
-// Netlify Background Function: Creator-Vorschlaege fuer ein Casting (ADR 0013).
+// Netlify Background Function: Creator-Vorschlaege fuer ein Casting (ADR 0013/0014).
 // Muster wie produkt-persona-background: der Client legt die Zeile in
 // casting_vorschlag_jobs an (inkl. Input-Snapshot), POSTet { jobId } hierher
 // und pollt die Zeile. Diese Function schreibt Fortschritt, Ergebnis oder
 // Fehler per Service Role.
 //
 // Ablauf: Bedarf laden -> Kandidaten laden -> Gates -> Fit/Track/Fresh ->
-// Slots -> Claude schreibt fit_grund/Risiken auf der Shortlist -> Validate ->
-// pending-Zeilen ersetzen (kein Worksheet: das Casting existiert schon).
+// Matching -> Top-N -> Claude schreibt fit_grund/Risiken auf der Shortlist
+// -> Validate -> pending-Zeilen ersetzen (kein Worksheet: das Casting
+// existiert schon).
 
 const { createClient } = require('@supabase/supabase-js');
 const { callClaude, MODELS } = require('./_shared/anthropic');
@@ -26,9 +27,9 @@ const {
   scoreFit,
   scoreTrack,
   scoreFresh,
+  matchingScore,
   profilFuer,
-  nischenTreffer,
-  fillSlots,
+  topNNachMatching,
   matchKategorie,
   validateVorschlaege,
   zielAnzahl,
@@ -98,8 +99,6 @@ exports.handler = async (event) => {
     return { statusCode: 409 };
   }
 
-  const input = job.input || {};
-
   let queue = Promise.resolve();
   let progressSteps = [];
   const schreibeStep = (step, msg) => {
@@ -165,7 +164,7 @@ exports.handler = async (event) => {
     // Fresh-Signale aus frueheren Vorschlags-Jobs derselben Marke
     const freshSignale = await ladeFreshSignale(supabase, casting, bedarf);
 
-    // --- Gates + Scores + Slots ---
+    // --- Gates + Scores + Ranking ---
     schreibeStep('werten', `${kandidaten.length} Creator werden geprüft`);
     const { pass, raus } = applyGates(kandidaten, bedarf, bild);
     if (!pass.length) throw new Error('Kein Creator besteht die Grundanforderungen (Sprache, Land, Typ, Kontakt)');
@@ -184,18 +183,19 @@ exports.handler = async (event) => {
         hatMail: !!k.mail,
         hatTelefonOderManagement: !!(k.telefon || bild.managementIds.has(k.id))
       };
-      const treffer = nischenTreffer(k.branchenTokens, bedarf.nischen);
-      const fit = scoreFit(k, bedarf, profile.fit).wert;
-      const coverage = scoreFit(k, bedarf, profile.fit).coverage;
+      const fitErgebnis = scoreFit(k, bedarf, profile.fit);
+      const fit = fitErgebnis.wert;
+      const coverage = fitErgebnis.coverage;
       const track = scoreTrack(k, hist, profile.track);
       const fresh = scoreFresh({
-        markeGebucht90d: !!h.markeGebucht90d,
+        markeBuchungen90d: h.markeBuchungen90d || 0,
         fingerprintDabei: freshSignale.fingerprintDabei.has(k.id),
         vorgeschlagen3: freshSignale.vorgeschlagen3.has(k.id),
         vorschlaege30d: freshSignale.jeCreator30d.get(k.id) || 0,
         alwaysOnFortfuehren: fortfuehren
       }, profile.fresh);
-      return { k, fit, track, fresh, hist, coverage, adjacent: treffer.nachbar && !treffer.primaer, profileName };
+      const matching = matchingScore({ fit, track, fresh, castings: hist.castings || 0 });
+      return { k, fit, track, fresh, matching, hist, coverage, profileName };
     });
 
     // Anzahl aus der Kampagne: 2-3x offene Creator-Sollzahl
@@ -208,13 +208,12 @@ exports.handler = async (event) => {
       }
     }
     const anzahl = zielAnzahl(offen);
-    const exploreBias = Number.isFinite(Number(input.exploreBias)) ? Number(input.exploreBias) : bedarf.exploreDefault;
-    const slots = fillSlots(scored, { anzahl, exploreBias });
-    if (!slots.length) throw new Error('Aus dem bewerteten Pool liess sich kein Mix bilden');
+    const shortlist = topNNachMatching(scored, { anzahl });
+    if (!shortlist.length) throw new Error('Aus dem bewerteten Pool liess sich keine Shortlist bilden');
 
     // --- LLM begruendet die Shortlist ---
-    schreibeStep('generieren', `Claude begründet ${slots.length} Vorschläge`);
-    const { stable, task } = buildPrompt(bedarf, { slots, kategorien });
+    schreibeStep('generieren', `Claude begründet ${shortlist.length} Vorschläge`);
+    const { stable, task } = buildPrompt(bedarf, { shortlist, kategorien });
 
     const result = await callClaude({
       model: MODELS.casting,
@@ -230,10 +229,8 @@ exports.handler = async (event) => {
     }
 
     schreibeStep('pruefen', 'Vorschläge werden validiert');
-    const slotJeId = Object.fromEntries(slots.map(s => [s.k.id, s.slot]));
     const geprueft = validateVorschlaege(result.json, {
-      shortlistIds: slots.map(s => s.k.id),
-      slots: slotJeId,
+      shortlistIds: shortlist.map(s => s.k.id),
       personaIds: bedarf.personas.map(p => p.id).filter(Boolean)
     });
 
@@ -244,20 +241,23 @@ exports.handler = async (event) => {
     await ki.abschliessen({ model: result.model, usage: result.usage });
 
     // --- Persistieren: pending ersetzen (Regen), Aktivierte bleiben ---
-    const slotJeValidiert = new Map(slots.map(s => [s.k.id, s]));
+    // position = Reihenfolge der LLM-Antwort (Interna); die Anzeige sortiert
+    // streng nach matching_score (ADR 0014). slot ist Legacy (NOT NULL).
+    const shortlistJeId = new Map(shortlist.map(s => [s.k.id, s]));
     const rows = geprueft.vorschlaege.map((v, i) => {
-      const s = slotJeValidiert.get(v.creator_id);
+      const s = shortlistJeId.get(v.creator_id);
       return {
         casting_id: casting.id,
         creator_id: v.creator_id,
         status: 'pending',
-        slot: v.slot,
+        slot: 'tight',
         kategorie_hint: matchKategorie(s.k, kategorien, bedarf.personas),
         fit_grund: v.fit_grund,
         risiken: v.risiken,
         persona_ids: v.persona_ids,
         coverage: s.coverage,
-        scores: { fit: s.fit, track: s.track, fresh: s.fresh, profile: s.profileName },
+        scores: { fit: s.fit, track: s.track, fresh: s.fresh, profile: s.profileName, castings: s.hist.castings || 0 },
+        matching_score: s.matching,
         job_id: jobId,
         position: i
       };
@@ -275,7 +275,6 @@ exports.handler = async (event) => {
       verworfen: geprueft.verworfen,
       rausAnzahl: raus.length,
       fingerprint: bedarf.fingerprint,
-      exploreBias,
       config_version: CONFIG_VERSION
     };
 

@@ -1,13 +1,14 @@
 // sourcingMatching.js
-// Gesamtscore und Ampelbalken fuer KI-Casting-Vorschlaege.
-// Fit lastig (Briefing/Ziel), Track und Fresh bleiben im Mix.
+// Gesamtscore und Ampelbalken fuer KI-Casting-Vorschlaege (ADR 0014).
+// Ein finaler Score: Fit lastig, Track als Historie-Signal, Fresh leicht.
+// Cold-Start ohne Casting-Historie: Track-Gewicht geht auf Fit (Renorm).
 // Die Balkenfarbe ist immer einheitlich: der Score bestimmt EINEN Ton
 // auf der Skala Rot → Orange → Gruen, kein Verlauf im Fill.
 
 export const MATCHING_WEIGHTS = Object.freeze({
-  fit: 0.6,
-  track: 0.25,
-  fresh: 0.15
+  fit: 0.8,
+  track: 0.15,
+  fresh: 0.05
 });
 
 const COLOR_STOPS = Object.freeze([
@@ -28,6 +29,13 @@ export function matchingScore(scores = {}) {
   const fresh = clampScore(scores.fresh);
   if (fit == null && track == null && fresh == null) return null;
 
+  // Cold-Start: ohne Casting-Historie Track-Gewicht auf Fit umverteilen
+  if (!Number(scores.castings)) {
+    const summe = MATCHING_WEIGHTS.fit + MATCHING_WEIGHTS.fresh;
+    return Math.round(Math.min(100,
+      (MATCHING_WEIGHTS.fit * (fit ?? 0) + MATCHING_WEIGHTS.fresh * (fresh ?? 0)) / summe));
+  }
+
   const total = MATCHING_WEIGHTS.fit * (fit ?? 0)
     + MATCHING_WEIGHTS.track * (track ?? 0)
     + MATCHING_WEIGHTS.fresh * (fresh ?? 0);
@@ -37,7 +45,9 @@ export function matchingScore(scores = {}) {
 export function matchingScoreTooltip(scores = {}) {
   const parts = [];
   if (scores.fit != null) parts.push(`Fit ${scores.fit}`);
-  if (scores.track != null) parts.push(`Track ${scores.track}`);
+  if (scores.track != null) {
+    parts.push(Number(scores.castings) ? `Track ${scores.track}` : 'Track n. v. (neu)');
+  }
   if (scores.fresh != null) parts.push(`Fresh ${scores.fresh}`);
   return parts.join(' · ');
 }
