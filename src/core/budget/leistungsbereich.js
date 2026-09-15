@@ -49,7 +49,7 @@ export function bereichForCampaignType(campaignType) {
   return CAMPAIGN_TYPE_TO_BEREICH[campaignType] || null;
 }
 
-function isContracting(auftrag) {
+export function isContracting(auftrag) {
   return typeof auftrag?.auftragtype === 'string'
     && auftrag.auftragtype.toLowerCase().includes('contracting');
 }

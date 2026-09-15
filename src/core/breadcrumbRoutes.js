@@ -39,7 +39,7 @@ const ROUTE_CONFIG = {
   ausgangsrechnungen: { label: 'Kundenrechnungen', entity: 'ausgangsrechnungen' },
   profile:            { label: 'Profil',            entity: 'profile' },
   transcribe:         { label: 'Transkription (Test)', entity: 'transcribe' },
-  stakeholder:        { label: 'Stakeholder-Übersicht', entity: 'stakeholder' },
+  stakeholder:        { label: 'Investor-Dashboard', entity: 'stakeholder' },
   skripte:            {
     label: 'Skripte',
     entity: 'skripte',

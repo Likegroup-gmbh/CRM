@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { StakeholderOverviewPage, elapsedRatio, groupRowsByKundeMarke } from '../modules/stakeholder/StakeholderOverviewPage.js';
 import { calculateMonatsauswertung } from '../core/budget/monatsauswertung.js';
 import { calculateRechnungsstatus } from '../core/budget/rechnungsstatus.js';
-import { invalidateFinanzbestand } from '../core/budget/finanzbestand.js';
 
 // Jede Page bindet document-weite Listener und rendert in das globale
 // window.content. Ohne Cleanup reagieren Pages aus frueheren Tests auf
@@ -13,6 +12,12 @@ function createPage() {
   const page = new StakeholderOverviewPage();
   createdPages.push(page);
   return page;
+}
+
+function zahlungsstandZelle(seite, kategorie) {
+  return window.content.querySelector(
+    `[data-zahlungsstand-seite="${seite}"][data-zahlungsstand-kategorie="${kategorie}"]`
+  );
 }
 
 function createMockSupabase({ auftraege = [], blocks = [], kampagnen = [], kooperationen = [], videos = [], details = [], unternehmen = [], rechnungen = [], teilrechnungen = [], berichtsstaende = [], berichtsstandById = null, onBerichtsstandInsert = null } = {}) {
@@ -83,7 +88,6 @@ describe('StakeholderOverviewPage', () => {
   afterEach(() => {
     while (createdPages.length) createdPages.pop().destroy();
     window.content?.remove();
-    invalidateFinanzbestand();
   });
 
   it('zeigt Zugriffsfehler für Nicht-Admins', async () => {
@@ -110,7 +114,7 @@ describe('StakeholderOverviewPage', () => {
     page.render();
     const html = window.setContentSafely.mock.calls.at(-1)[1];
 
-    expect(window.setHeadline).toHaveBeenCalledWith('Stakeholder-Übersicht');
+    expect(window.setHeadline).toHaveBeenCalledWith('Investor-Dashboard');
     expect(html).toContain('id="stakeholder-bericht-select"');
     expect(html).toContain('Investorenupdate August 2026');
     expect(html).not.toContain('stakeholder-bericht-sichern');
@@ -179,15 +183,21 @@ describe('StakeholderOverviewPage', () => {
     const page = createPage();
     await page.init();
 
-    expect(window.setHeadline).toHaveBeenCalledWith('Stakeholder-Übersicht');
+    expect(window.setHeadline).toHaveBeenCalledWith('Investor-Dashboard');
     // init() zeigt zuerst Loading, dann das gerenderte HTML
     const html = window.setContentSafely.mock.calls[1][1];
 
-    // Leistungsbereich als Formular-Select (wie Zeitraum daneben)
+    // Leistungsbereich als Formular-Select (wie Zeitraum daneben),
+    // vor dem Zahlungsstand — beide steuern denselben Auftragskreis.
     expect(html).toContain('id="stakeholder-tab-select"');
+    expect(html.indexOf('id="stakeholder-tab-select"')).toBeLessThan(html.indexOf('Zahlungsstand'));
+    expect(html.indexOf('id="stakeholder-year-select"')).toBeLessThan(html.indexOf('Zahlungsstand'));
+    expect(html).toContain('form-field form-field--inline');
+    expect(html).toContain('form-field form-field--inline stakeholder-year-field');
     expect(html).toContain('form-select');
     expect(html).toContain('GESAMT ohne Contracts');
     expect(html).toContain('GESAMT mit');
+    expect(html).not.toMatch(/GESAMT \(\d+\)/);
     expect(html).toContain('INFLUENCER MARKETING');
     expect(html).toContain('UGC PAID');
 
@@ -211,6 +221,8 @@ describe('StakeholderOverviewPage', () => {
     expect(html).toContain('von');
     expect(html).toContain('UGC: 4,9 % auf EK · Influencer: KSK-Topf');
     expect(html).toContain('Σ Nettobetrag aller Aufträge');
+    expect(html).toContain('nicht die gestellten Kundenrechnungen im Zahlungsstand');
+    expect(html).toContain('Kalkulation — nicht die gestellten Creatorrechnungen im Zahlungsstand');
     expect(html).toContain('Auftragsvolumen − Verbrauchtes Budget');
 
     // Kundenliste vorhanden
@@ -348,10 +360,13 @@ describe('StakeholderOverviewPage', () => {
     // Block mit beiden Seiten und vier Kategorien
     expect(html).toContain('Zahlungsstand');
     expect(html).toContain('Kundenrechnungen');
+    expect(html).toContain('Contractingrechnungen');
     expect(html).toContain('Creatorrechnungen');
     expect(html).toContain('Gestellt');
     expect(html).toContain('Bezahlt');
-    expect(html).toContain('Noch nicht gestellt');
+    expect(html).toContain('KSK nicht gestellt');
+    expect(html).toContain('Zusatz nicht gestellt');
+    expect(html).toContain('Noch nicht gestellt + KSK + Zusatz');
     // Kunden: 10.000 gestellt und offen; Creator: 5.000 + 245 KSK = 5.245 bezahlt
     expect(html).toContain('10.000,00');
     expect(html).toContain('5.245,00');
@@ -425,6 +440,10 @@ describe('StakeholderOverviewPage', () => {
     expect(insertPayload.daten.version).toBe(1);
     expect(insertPayload.daten.monatsauswertung.months).toContain('2026-03');
     expect(insertPayload.daten.zahlungsstand.kunden.gestellt).toBe(10000);
+    expect(insertPayload.daten.zahlungsstand.contracting).toEqual({
+      gestellt: 0, bezahlt: 0, offen: 0, ueberfaellig: 0, nichtGestellt: 0,
+      kskGestellt: 0, zusatzGestellt: 0
+    });
     expect(window.toastSystem.show).toHaveBeenCalledWith(
       expect.stringContaining('gesichert'), 'success'
     );
@@ -493,6 +512,51 @@ describe('StakeholderOverviewPage', () => {
       expect(window.content.innerHTML).not.toContain('stakeholder-bericht-banner');
     });
     expect(window.content.innerHTML).toContain('10.000,00');
+
+    page.destroy();
+    window.content.remove();
+  });
+
+  it('zeigt in alten Berichtsständen ohne contracting-Seite eine leere Contracting-Zeile', async () => {
+    const auftraege = [
+      { id: 'a1', auftragsname: 'A', nettobetrag: 10000, start: '2026-03-01', is_draft: false, unternehmen_id: 'u1', rechnung_gestellt_am: '2026-03-15' }
+    ];
+    const frozen = {
+      version: 1,
+      monatsauswertung: calculateMonatsauswertung({
+        auftraege, blocks: [], kampagnen: [], kooperationen: [], videos: [], rechnungen: [], teilrechnungen: []
+      }),
+      zahlungsstand: {
+        kunden: { gestellt: 111, bezahlt: 0, offen: 111, ueberfaellig: 0, nichtGestellt: 0 },
+        creator: { gestellt: 0, bezahlt: 0, offen: 0, ueberfaellig: 0, nichtGestellt: 0 }
+      }
+    };
+
+    window.supabase = createMockSupabase({
+      auftraege,
+      berichtsstaende: [{ id: 'b-alt', created_at: '2026-08-09T10:00:00Z', label: 'Alter Stand' }],
+      berichtsstandById: { id: 'b-alt', created_at: '2026-08-09T10:00:00Z', label: 'Alter Stand', daten: frozen }
+    });
+    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
+    document.body.appendChild(window.content);
+
+    const page = createPage();
+    await page.init();
+    page.activeView = 'monate';
+    page.render();
+
+    const berichtSelect = document.getElementById('stakeholder-bericht-select');
+    berichtSelect.value = 'b-alt';
+    berichtSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => {
+      expect(window.content.innerHTML).toContain('stakeholder-bericht-banner');
+    });
+
+    const row = [...window.content.querySelectorAll('.stakeholder-status-table tbody tr')]
+      .find(tr => tr.textContent.includes('Contractingrechnungen'));
+    expect(row).toBeTruthy();
+    expect(row.textContent).toContain('0,00 €');
+    expect(window.content.innerHTML).toContain('111,00 €');
 
     page.destroy();
     window.content.remove();
@@ -817,62 +881,13 @@ describe('StakeholderOverviewPage', () => {
 
     const page = createPage();
     await page.init();
-    page.activeTab = 'gesamt_mit';
+    page.activeTab = 'contracting';
     const { totals } = page.aggregate();
 
     expect(totals.agenturFest).toBe(10000);
     expect(totals.agentur).toBe(10000);
     expect(totals.agenturVoll).toBe(10000);
     expect(totals.volumen).toBe(30000);
-  });
-
-  it('schließt Contracting im Default-Tab aus und nimmt es in GESAMT mit auf', async () => {
-    const auftraege = [
-      {
-        id: 'ugc1',
-        auftragsname: 'UGC Auftrag',
-        nettobetrag: 10000,
-        auftragtype: 'UGC/Influencer',
-        start: '2026-01-01',
-        is_draft: false,
-        unternehmen_id: 'u1'
-      },
-      {
-        id: 'c1',
-        auftragsname: 'Retainer',
-        nettobetrag: 30000,
-        auftragtype: 'Contracting',
-        start: '2026-01-01',
-        is_draft: false,
-        unternehmen_id: 'u2'
-      }
-    ];
-    const blocks = [
-      { auftrag_id: 'ugc1', campaign_type: 'ugc_paid', campaign_type_label: 'UGC Paid', umsatz_netto: 10000 }
-    ];
-    const unternehmen = [
-      { id: 'u1', firmenname: 'Ugc GmbH' },
-      { id: 'u2', firmenname: 'Contract GmbH' }
-    ];
-    window.supabase = createMockSupabase({ auftraege, blocks, unternehmen });
-
-    const page = createPage();
-    await page.init();
-
-    expect(page.activeTab).toBe('gesamt_ohne');
-    const ohne = page.aggregate();
-    expect(ohne.rows.map(r => r.auftrag.id)).toEqual(['ugc1']);
-    expect(ohne.totals.volumen).toBe(10000);
-
-    const html = window.setContentSafely.mock.calls[1][1];
-    expect(html).toContain('value="gesamt_ohne" selected');
-    expect(html).toContain('Ugc GmbH');
-    expect(html).not.toContain('Contract GmbH');
-
-    page.activeTab = 'gesamt_mit';
-    const mit = page.aggregate();
-    expect(mit.rows.map(r => r.auftrag.id).sort()).toEqual(['c1', 'ugc1']);
-    expect(mit.totals.volumen).toBe(40000);
   });
 
   it('summiert agentur und agenturVoll pro Kunde+Marke', () => {
@@ -970,19 +985,26 @@ describe('StakeholderOverviewPage', () => {
     expect(html).not.toContain('DARKPOSTING');
   });
 
-  it('summiert bezahlte Kundenrechnungen (Netto/Brutto) und folgt dem Jahr-Filter', async () => {
+  it('summiert bezahlte Rechnungen nur netto und folgt dem Jahr-Filter', async () => {
     const auftraege = [
       // Auftragsebene bezahlt (keine Teilrechnungen)
       { id: 'a1', auftragsname: 'Alt bezahlt', nettobetrag: 1000, bruttobetrag: 1190, ueberwiesen_am: '2025-02-10', start: '2025-01-01', is_draft: false, unternehmen_id: 'u1' },
       // Hat Teilrechnungen -> Auftrags-Betraege duerfen nicht zaehlen
-      { id: 'a2', auftragsname: 'Neu teilweise', nettobetrag: 2000, bruttobetrag: 2380, ueberwiesen_am: null, start: '2026-01-01', is_draft: false, unternehmen_id: 'u1' }
+      { id: 'a2', auftragsname: 'Neu teilweise', nettobetrag: 2000, bruttobetrag: 2380, ueberwiesen_am: null, start: '2026-01-01', is_draft: false, unternehmen_id: 'u1' },
+      {
+        id: 'c1', auftragsname: 'Contract', auftragtype: 'Contracting',
+        nettobetrag: 8000, start: '2026-01-01', is_draft: false, unternehmen_id: 'u1'
+      }
     ];
     const teilrechnungen = [
       { auftrag_id: 'a2', nettobetrag: 500, bruttobetrag: 595, ueberwiesen_am: '2026-03-01' },
       { auftrag_id: 'a2', nettobetrag: 1500, bruttobetrag: 1785, ueberwiesen_am: null }
     ];
+    const rechnungen = [
+      { id: 'cr1', auftrag_id: 'c1', rechnungstyp: 'contracting', status: 'Bezahlt', nettobetrag: 2000 }
+    ];
     const unternehmen = [{ id: 'u1', firmenname: 'Muster GmbH' }];
-    window.supabase = createMockSupabase({ auftraege, teilrechnungen, unternehmen });
+    window.supabase = createMockSupabase({ auftraege, teilrechnungen, rechnungen, unternehmen });
     window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
     document.body.appendChild(window.content);
 
@@ -990,26 +1012,363 @@ describe('StakeholderOverviewPage', () => {
     await page.init();
 
     const nettoEl = () => window.content.querySelector('[data-paid-value="netto"]');
-    const bruttoEl = () => window.content.querySelector('[data-paid-value="brutto"]');
 
-    expect(window.content.innerHTML).toContain('Bereits bezahlt');
-    // Alle Jahre: a1 (1000/1190) + bezahlte Teilrechnung von a2 (500/595)
+    expect(window.content.innerHTML).toContain('Bereits bezahlte Rechnungen');
+    expect(window.content.querySelector('[data-paid-value="brutto"]')).toBeNull();
+    // Default GESAMT ohne Contracts: a1 (1000) + bezahlte Teilrechnung a2 (500)
     expect(nettoEl().textContent).toBe(page.fmtEuro(1500));
-    expect(bruttoEl().textContent).toBe(page.fmtEuro(1785));
+    const statusOhne = page.rechnungsstatus();
+    expect(statusOhne.kunden.bezahlt + statusOhne.contracting.bezahlt).toBe(1500);
 
-    // Jahr 2026: nur a2, davon nur die bezahlte Teilrechnung
+    const tabSelect = document.getElementById('stakeholder-tab-select');
+    tabSelect.value = 'gesamt_mit';
+    tabSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(nettoEl().textContent).toBe(page.fmtEuro(3500));
+    expect(page.rechnungsstatus().kunden.bezahlt + page.rechnungsstatus().contracting.bezahlt)
+      .toBe(3500);
+
+    page.activeTab = 'gesamt_ohne';
+    page.render();
+
+    // Jahr 2026 ohne Contracts: nur a2-Teil
     let select = document.getElementById('stakeholder-year-select');
     select.value = '2026';
     select.dispatchEvent(new Event('change', { bubbles: true }));
     expect(nettoEl().textContent).toBe(page.fmtEuro(500));
-    expect(bruttoEl().textContent).toBe(page.fmtEuro(595));
 
     // Jahr 2025: nur a1 auf Auftragsebene
     select = document.getElementById('stakeholder-year-select');
     select.value = '2025';
     select.dispatchEvent(new Event('change', { bubbles: true }));
     expect(nettoEl().textContent).toBe(page.fmtEuro(1000));
-    expect(bruttoEl().textContent).toBe(page.fmtEuro(1190));
+
+    page.destroy();
+    window.content.remove();
+  });
+
+  it('nimmt Contracting in den Karten nur unter GESAMT mit', async () => {
+    const auftraege = [
+      { id: 'a1', auftragsname: 'Kampagne', nettobetrag: 10000, start: '2026-01-01', is_draft: false, unternehmen_id: 'u1' },
+      {
+        id: 'c1', auftragsname: 'Contract', auftragtype: 'Contracting',
+        nettobetrag: 8000, start: '2026-01-01', is_draft: false, unternehmen_id: 'u1'
+      }
+    ];
+    window.supabase = createMockSupabase({
+      auftraege,
+      rechnungen: [{
+        id: 'cr1', auftrag_id: 'c1', rechnungstyp: 'contracting',
+        status: 'Offen', nettobetrag: 3000
+      }],
+      unternehmen: [{ id: 'u1', firmenname: 'Muster GmbH' }]
+    });
+    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
+    document.body.appendChild(window.content);
+
+    const page = createPage();
+    await page.init();
+
+    expect(page.activeTab).toBe('gesamt_ohne');
+    expect(page.aggregate().totals.volumen).toBe(10000);
+
+    const tabSelect = document.getElementById('stakeholder-tab-select');
+    tabSelect.value = 'gesamt_mit';
+    tabSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(page.aggregate().totals.volumen).toBe(18000);
+
+    expect(zahlungsstandZelle('contracting', 'gestellt').textContent.trim())
+      .toBe(page.fmtEuro(3000));
+    page.activeTab = 'gesamt_ohne';
+    page.render();
+    expect(zahlungsstandZelle('contracting', 'gestellt').textContent.trim())
+      .toBe(page.fmtEuro(0));
+
+    page.destroy();
+    window.content.remove();
+  });
+
+  it('klappt die Belegliste unter der angeklickten Bezahlt-Zelle auf', async () => {
+    const auftraege = [{
+      id: 'a1', auftragsname: 'Kampagne A', nettobetrag: 10000,
+      start: '2026-01-01', is_draft: false, unternehmen_id: 'u1',
+      rechnung_gestellt_am: '2026-03-10', ueberwiesen_am: '2026-04-01'
+    }];
+    window.supabase = createMockSupabase({ auftraege });
+    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
+    document.body.appendChild(window.content);
+
+    const page = createPage();
+    await page.init();
+
+    window.content.querySelector('[data-zahlungsstand-seite="kunden"][data-zahlungsstand-kategorie="bezahlt"]')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    const liste = window.content.querySelector('[data-zahlungsstand-belege="kunden"][data-zahlungsstand-kategorie="bezahlt"]');
+    expect(liste).toBeTruthy();
+    expect(liste.textContent).toContain('Kampagne A');
+    expect(liste.textContent).toContain('Jahr und Leistungsbereich wie die Karten');
+    expect(window.content.querySelector('[data-zahlungsstand-belege-summe]').textContent)
+      .toBe(page.fmtEuro(10000));
+    expect(zahlungsstandZelle('kunden', 'bezahlt').textContent.trim())
+      .toBe(page.fmtEuro(10000));
+
+    zahlungsstandZelle('kunden', 'bezahlt')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(window.content.querySelector('[data-zahlungsstand-belege]')).toBeNull();
+
+    expect(zahlungsstandZelle('kunden', 'bezahlt')).toBeTruthy();
+    expect(zahlungsstandZelle('contracting', 'bezahlt')).toBeTruthy();
+    expect(zahlungsstandZelle('creator', 'bezahlt')).toBeTruthy();
+    expect(zahlungsstandZelle('kunden', 'gestellt')).toBeTruthy();
+    expect(zahlungsstandZelle('kunden', 'offen')).toBeTruthy();
+    expect(zahlungsstandZelle('kunden', 'nichtGestellt')).toBeTruthy();
+
+    page.destroy();
+    window.content.remove();
+  });
+
+  it('Belegliste folgt dem Jahr-Filter', async () => {
+    const auftraege = [
+      {
+        id: 'a1', auftragsname: 'Alt', nettobetrag: 1000, start: '2025-01-01',
+        is_draft: false, unternehmen_id: 'u1', ueberwiesen_am: '2025-02-01'
+      },
+      {
+        id: 'a2', auftragsname: 'Neu', nettobetrag: 2000, start: '2026-01-01',
+        is_draft: false, unternehmen_id: 'u1', ueberwiesen_am: '2026-02-01'
+      }
+    ];
+    window.supabase = createMockSupabase({ auftraege });
+    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
+    document.body.appendChild(window.content);
+
+    const page = createPage();
+    await page.init();
+
+    zahlungsstandZelle('kunden', 'bezahlt')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(window.content.querySelector('[data-zahlungsstand-belege-summe]').textContent)
+      .toBe(page.fmtEuro(3000));
+
+    const select = document.getElementById('stakeholder-year-select');
+    select.value = '2026';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+
+    const liste = window.content.querySelector('[data-zahlungsstand-belege="kunden"]');
+    expect(liste.textContent).toContain('Neu');
+    expect(liste.textContent).not.toContain('Alt');
+    expect(window.content.querySelector('[data-zahlungsstand-belege-summe]').textContent)
+      .toBe(page.fmtEuro(2000));
+    expect(zahlungsstandZelle('kunden', 'bezahlt').textContent.trim())
+      .toBe(page.fmtEuro(2000));
+
+    page.destroy();
+    window.content.remove();
+  });
+
+  it('macht Bezahlt im Berichtsstand nicht klickbar', async () => {
+    const auftraege = [{
+      id: 'a1', auftragsname: 'A', nettobetrag: 10000, start: '2026-03-01',
+      is_draft: false, unternehmen_id: 'u1', rechnung_gestellt_am: '2026-03-15'
+    }];
+    const frozen = {
+      version: 1,
+      monatsauswertung: calculateMonatsauswertung({
+        auftraege, blocks: [], kampagnen: [], kooperationen: [],
+        videos: [], rechnungen: [], teilrechnungen: []
+      }),
+      zahlungsstand: calculateRechnungsstatus({
+        auftraege, kampagnen: [], kooperationen: [], videos: [], rechnungen: [], teilrechnungen: []
+      })
+    };
+
+    window.supabase = createMockSupabase({
+      auftraege,
+      berichtsstaende: [{ id: 'b1', created_at: '2026-08-09T10:00:00Z', label: 'Update' }],
+      berichtsstandById: { id: 'b1', created_at: '2026-08-09T10:00:00Z', label: 'Update', daten: frozen }
+    });
+    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
+    document.body.appendChild(window.content);
+
+    const page = createPage();
+    await page.init();
+    page.activeView = 'monate';
+    page.render();
+
+    const berichtSelect = document.getElementById('stakeholder-bericht-select');
+    berichtSelect.value = 'b1';
+    berichtSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    await vi.waitFor(() => {
+      expect(window.content.innerHTML).toContain('stakeholder-bericht-banner');
+    });
+
+    expect(window.content.querySelector('[data-zahlungsstand-seite]')).toBeNull();
+    expect(window.content.querySelector('[data-zahlungsstand-belege]')).toBeNull();
+
+    page.destroy();
+    window.content.remove();
+  });
+
+  it('wechselt die Belegliste zwischen den drei Bezahlt-Zellen', async () => {
+    const auftraege = [
+      {
+        id: 'a1', auftragsname: 'Kunde A', nettobetrag: 1000, start: '2026-01-01',
+        is_draft: false, unternehmen_id: 'u1', ueberwiesen_am: '2026-02-01'
+      },
+      {
+        id: 'c1', auftragsname: 'Contract', auftragtype: 'Contracting',
+        nettobetrag: 8000, start: '2026-01-01', is_draft: false, unternehmen_id: 'u1'
+      }
+    ];
+    const kampagnen = [{ id: 'k1', auftrag_id: 'a1' }];
+    const kooperationen = [{
+      id: 'koop1', kampagne_id: 'k1', creator_id: 'cr1',
+      einkaufspreis_netto: 5000, ksk_selbstzahler: false
+    }];
+    const rechnungen = [
+      {
+        id: 'r-con', auftrag_id: 'c1', rechnungstyp: 'contracting',
+        rechnung_nr: 'C-1', status: 'Bezahlt', nettobetrag: 3000, bezahlt_am: '2026-03-01'
+      },
+      {
+        id: 'r-cre', auftrag_id: 'a1', kooperation_id: 'koop1', rechnungstyp: 'kampagne',
+        rechnung_nr: 'CR-1', status: 'Bezahlt', nettobetrag: 5000,
+        nettobetrag_steuerfrei: 0, zusatzkosten: 100, bezahlt_am: '2026-04-01'
+      }
+    ];
+    window.supabase = createMockSupabase({ auftraege, kampagnen, kooperationen, rechnungen });
+    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
+    document.body.appendChild(window.content);
+
+    const page = createPage();
+    await page.init();
+    page.activeTab = 'gesamt_mit';
+    page.render();
+
+    zahlungsstandZelle('kunden', 'bezahlt')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(window.content.querySelector('[data-zahlungsstand-belege="kunden"][data-zahlungsstand-kategorie="bezahlt"]')).toBeTruthy();
+
+    zahlungsstandZelle('contracting', 'bezahlt')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(window.content.querySelector('[data-zahlungsstand-belege="kunden"]')).toBeNull();
+    const contractingListe = window.content.querySelector('[data-zahlungsstand-belege="contracting"][data-zahlungsstand-kategorie="bezahlt"]');
+    expect(contractingListe).toBeTruthy();
+    expect(contractingListe.textContent).toContain('C-1');
+    expect(window.content.querySelector('[data-zahlungsstand-belege-summe]').textContent)
+      .toBe(page.fmtEuro(3000));
+    expect(zahlungsstandZelle('contracting', 'bezahlt').textContent.trim())
+      .toBe(page.fmtEuro(3000));
+
+    zahlungsstandZelle('creator', 'bezahlt')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(window.content.querySelector('[data-zahlungsstand-belege="contracting"]')).toBeNull();
+    const creatorListe = window.content.querySelector('[data-zahlungsstand-belege="creator"][data-zahlungsstand-kategorie="bezahlt"]');
+    expect(creatorListe).toBeTruthy();
+    expect(creatorListe.textContent).toContain('Honorar');
+    expect(creatorListe.textContent).toContain('KSK');
+    expect(creatorListe.textContent).toContain('Zusatz');
+    expect(window.content.querySelector('[data-zahlungsstand-belege-summe]').textContent)
+      .toBe(zahlungsstandZelle('creator', 'bezahlt').textContent.trim());
+
+    page.destroy();
+    window.content.remove();
+  });
+
+  it('klappt Gestellt, Offen und Noch nicht gestellt mit Summe gleich der Zelle', async () => {
+    const auftraege = [
+      {
+        id: 'a1', auftragsname: 'Offen A', nettobetrag: 4000, start: '2026-01-01',
+        is_draft: false, unternehmen_id: 'u1', rechnung_gestellt_am: '2026-03-01'
+      },
+      {
+        id: 'a2', auftragsname: 'Rest B', nettobetrag: 2500, start: '2026-01-01',
+        is_draft: false, unternehmen_id: 'u1'
+      }
+    ];
+    window.supabase = createMockSupabase({ auftraege });
+    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
+    document.body.appendChild(window.content);
+
+    const page = createPage();
+    await page.init();
+
+    zahlungsstandZelle('kunden', 'gestellt')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const gestelltListe = window.content.querySelector('[data-zahlungsstand-belege="kunden"][data-zahlungsstand-kategorie="gestellt"]');
+    expect(gestelltListe.textContent).toContain('Offen A');
+    expect(window.content.querySelector('[data-zahlungsstand-belege-summe]').textContent)
+      .toBe(zahlungsstandZelle('kunden', 'gestellt').textContent.trim());
+
+    zahlungsstandZelle('kunden', 'offen')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const offenListe = window.content.querySelector('[data-zahlungsstand-belege="kunden"][data-zahlungsstand-kategorie="offen"]');
+    expect(offenListe.textContent).toContain('Offen A');
+    expect(window.content.querySelector('[data-zahlungsstand-belege-summe]').textContent)
+      .toBe(zahlungsstandZelle('kunden', 'offen').textContent.trim());
+
+    zahlungsstandZelle('kunden', 'nichtGestellt')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const restListe = window.content.querySelector('[data-zahlungsstand-belege="kunden"][data-zahlungsstand-kategorie="nichtGestellt"]');
+    expect(restListe.textContent).toContain('Rest B');
+    expect(restListe.textContent).toContain('Restbetrag');
+    expect(window.content.querySelector('[data-zahlungsstand-belege-summe]').textContent)
+      .toBe(zahlungsstandZelle('kunden', 'nichtGestellt').textContent.trim());
+    expect(window.content.querySelector('[data-zahlungsstand-belege="kunden"][data-zahlungsstand-kategorie="offen"]')).toBeNull();
+
+    page.destroy();
+    window.content.remove();
+  });
+
+  it('zeigt KSK und Zusatz nicht gestellt als Kartenrest, Kunden als 0', async () => {
+    const auftraege = [{
+      id: 'a1', auftragsname: 'Kampagne', nettobetrag: 10000, start: '2026-01-01',
+      is_draft: false, unternehmen_id: 'u1'
+    }];
+    const kampagnen = [{ id: 'k1', auftrag_id: 'a1' }];
+    const kooperationen = [{
+      id: 'koop1', kampagne_id: 'k1', einkaufspreis_netto: 5000,
+      verkaufspreis_zusatzkosten: 200, ksk_selbstzahler: false
+    }];
+    const details = [{ auftrag_id: 'a1', campaign_type: ['ugc_paid'] }];
+    const rechnungen = [{
+      id: 'r1', auftrag_id: 'a1', kooperation_id: 'koop1', rechnungstyp: 'kampagne',
+      status: 'Offen', nettobetrag: 2000, nettobetrag_steuerfrei: 0, zusatzkosten: 50
+    }];
+    window.supabase = createMockSupabase({
+      auftraege, kampagnen, kooperationen, details, rechnungen,
+      unternehmen: [{ id: 'u1', firmenname: 'Muster GmbH' }]
+    });
+    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
+    document.body.appendChild(window.content);
+
+    const page = createPage();
+    await page.init();
+
+    const { totals } = page.aggregate();
+    const status = page.rechnungsstatus();
+    expect(totals.ksk).toBeCloseTo(245, 2);
+    expect(totals.zusatz).toBe(200);
+    expect(status.creator.kskGestellt).toBeCloseTo(98, 2);
+    expect(status.creator.zusatzGestellt).toBe(50);
+    expect(status.creator.nichtGestellt).toBe(3000);
+
+    const kskNicht = totals.ksk - status.creator.kskGestellt;
+    const zusatzNicht = totals.zusatz - status.creator.zusatzGestellt;
+    const inkl = status.creator.nichtGestellt + kskNicht + zusatzNicht;
+
+    expect(window.content.querySelector('[data-zahlungsstand-ksk-nicht="kunden"]').textContent)
+      .toBe(page.fmtEuro(0));
+    expect(window.content.querySelector('[data-zahlungsstand-zusatz-nicht="kunden"]').textContent)
+      .toBe(page.fmtEuro(0));
+    expect(window.content.querySelector('[data-zahlungsstand-nicht-inkl="kunden"]').textContent)
+      .toBe(page.fmtEuro(status.kunden.nichtGestellt));
+    expect(window.content.querySelector('[data-zahlungsstand-ksk-nicht="creator"]').textContent)
+      .toBe(page.fmtEuro(kskNicht));
+    expect(window.content.querySelector('[data-zahlungsstand-zusatz-nicht="creator"]').textContent)
+      .toBe(page.fmtEuro(zusatzNicht));
+    expect(window.content.querySelector('[data-zahlungsstand-nicht-inkl="creator"]').textContent)
+      .toBe(page.fmtEuro(inkl));
 
     page.destroy();
     window.content.remove();

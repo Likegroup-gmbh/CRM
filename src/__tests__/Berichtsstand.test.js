@@ -37,6 +37,13 @@ describe('buildBerichtsstandPayload', () => {
     expect(payload.zahlungsstand).toEqual(zahlungsstand);
   });
 
+  it('laesst alte Stände ohne contracting-Seite unverändert (Version 1)', () => {
+    const zahlungsstand = { kunden: { gestellt: 100 }, creator: { gestellt: 50 } };
+    const payload = buildBerichtsstandPayload({ monatsauswertung: {}, zahlungsstand });
+    expect(payload.version).toBe(1);
+    expect(payload.zahlungsstand.contracting).toBeUndefined();
+  });
+
   it('ist JSON-rundlauffest (keine Funktionen/undefined im Snapshot)', () => {
     const payload = buildBerichtsstandPayload({
       monatsauswertung: { months: ['2026-03'], fn: () => 1, undef: undefined },

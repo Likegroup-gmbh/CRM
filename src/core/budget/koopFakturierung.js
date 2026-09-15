@@ -61,9 +61,10 @@ export function calculateKoopFakturierung({
 
   kooperationen.forEach(k => {
     const auftragId = kampagneToAuftrag.get(k.kampagne_id);
-    // Kooperationen herausgefilterter Auftraege (z. B. Entwuerfe) gehoeren
-    // nicht in die Auswertung; Kooperationen ohne Auftrag schon.
-    if (auftragId && !gueltigeAuftragIds.has(auftragId)) return;
+    // Dieselbe Menge wie die Kalkulationskarten: nur Kooperationen mit
+    // Auftrag im Filter. Ohne Auftrag (oder Entwurf) gehoeren sie in die
+    // Datenqualitaet, nicht in Soll/Rest.
+    if (!auftragId || !gueltigeAuftragIds.has(auftragId)) return;
 
     const ekSoll = koopMitVideos.has(k.id)
       ? (videoEkByKoop.get(k.id) || 0)

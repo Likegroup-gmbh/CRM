@@ -248,7 +248,7 @@ Creatorrechnungen, auch wenn die Speicherung ihn in zwei Woertern festhaelt.
 _Avoid_: Überwiesen, beglichen, erledigt
 
 **Berichtsstand**:
-Ein eingefrorener Stand der Stakeholder-Finanzuebersicht (Monatsauswertung und Zahlungsstand), der
+Ein eingefrorener Stand des Investor-Dashboards (Monatsauswertung und Zahlungsstand), der
 belegt, worauf ein verschicktes Update beruhte. Die Ansicht rechnet immer live; ein Berichtsstand
 wird nie korrigiert, sondern durch einen neuen Stand ersetzt.
 _Avoid_: Snapshot, Report, Export
@@ -259,11 +259,11 @@ Einschraenkung: die Rolle `investor` (eigener Login, RLS-Wahrheit) oder die
 Mitarbeiter-Klasse Finanzen (`rolle = mitarbeiter`, sieht Preise). Beide laufen ueber
 dieselbe Feature-Zeile im PermissionSystem: keine Mails bei Ansprechpartnern, keine
 Tabellen-Werkzeuge, keine Uploads, kein Skript-Kommentieren, kein Feedback.
-_Avoid_: Admin, Mitarbeiter, Gast, Stakeholder (das ist die Finanzuebersicht)
+_Avoid_: Admin, Mitarbeiter, Gast, Stakeholder (alter Name der Finanzuebersicht; jetzt Investor-Dashboard)
 
 **Accounting-Bereich**:
 Eigener Bereich unter /admin fuer Admins und Investoren. Reduzierte Navigation auf Zahlen und Auftrag
-(Dashboard = Stakeholder-Uebersicht, Datenqualitaet, Projekt anlegen, Auftraege,
+(Dashboard = Investor-Dashboard, Datenqualitaet, Projekt anlegen, Auftraege,
 Kundenrechnungen, Creatorrechnungen). Datenqualitaet und Projekt anlegen bleiben Admin.
 Einstieg ueber den Schild-Button; die volle App liegt hinter Zurueck zur App.
 _Avoid_: Adminbereich, Backend, Admin-Panel, Einstellungen

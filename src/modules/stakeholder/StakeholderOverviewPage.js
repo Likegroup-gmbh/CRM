@@ -14,20 +14,22 @@ import { calculateCreatorPaymentSummary } from '../../core/budget/EkVkAgencyFeeH
 import {
   LEISTUNGSBEREICHE,
   LEISTUNGSBEREICH_LABELS,
+  isContracting,
   primaerBereichForAuftrag,
 } from '../../core/budget/leistungsbereich.js';
 import { calculateMonatsauswertung, zuordnungsquote } from '../../core/budget/monatsauswertung.js';
-import { calculateRechnungsstatus } from '../../core/budget/rechnungsstatus.js';
+import { calculateRechnungsstatus, listZahlungsstandBelege, leereRechnungsseite } from '../../core/budget/rechnungsstatus.js';
 import {
   BERICHTSSTAND_VERSION,
   buildBerichtsstandPayload,
   saveBerichtsstand,
+  fetchBerichtsstaende,
   fetchBerichtsstand,
 } from './berichtsstandStore.js';
 import { sumPaidInvoiceRows } from '../auftrag/logic/PaymentRowStatus.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
-import { loadFinanzbestand } from '../../core/budget/finanzbestand.js';
+import { fetchAllRows } from '../../core/fetchAllRows.js';
 import { escapeHtml, formatEuro } from '../../core/format.js';
 
 const SUPABASE = () => window.supabase;
@@ -115,7 +117,7 @@ const MONATS_METRIKEN = {
 const CARD_HINTS = {
   volumen: {
     formula: 'Σ Nettobetrag aller Aufträge',
-    hint: 'was der Kunde beauftragt hat'
+    hint: 'was der Kunde beauftragt hat — nicht die gestellten Kundenrechnungen im Zahlungsstand; folgt Jahr und Leistungsbereich'
   },
   verbraucht: {
     formula: 'Creatoranteil + Agenturanteil + KSK + Zusatzkosten',
@@ -146,8 +148,8 @@ const CARD_HINTS = {
     hint: 'Reise, Lizenzen, Tools, Versand, Payroll'
   },
   bezahlt: {
-    formula: 'Σ Netto/Brutto der Rechnungen mit „Bezahlt am"-Datum',
-    hint: 'nur tatsächlich überwiesene Kundenrechnungen'
+    formula: 'Σ Netto bezahlter Kunden- und Contractingrechnungen',
+    hint: 'folgt Jahr und Leistungsbereich wie der Zahlungsstand'
   }
 };
 
@@ -272,6 +274,7 @@ export class StakeholderOverviewPage {
     this._docClickHandler = null;
     this._docChangeHandler = null;
     this._berichtWahl = 'live';
+    this.zahlungsstandBelegeOffen = null;
   }
 
   async init() {
@@ -284,13 +287,13 @@ export class StakeholderOverviewPage {
       return;
     }
 
-    window.setHeadline('Stakeholder-Übersicht');
+    window.setHeadline('Investor-Dashboard');
     window.setContentSafely(window.content, '<div class="stakeholder-loading">Lade Daten...</div>');
 
     try {
       await this.loadData();
     } catch (e) {
-      console.error('❌ Stakeholder-Übersicht: Daten konnten nicht geladen werden', e);
+      console.error('❌ Investor-Dashboard: Daten konnten nicht geladen werden', e);
       window.setContentSafely(window.content, `
         <div class="empty-state"><p>Fehler beim Laden: ${this.escape(e?.message || 'Unbekannt')}</p></div>
       `);
@@ -303,20 +306,54 @@ export class StakeholderOverviewPage {
 
   async loadData() {
     const supabase = SUPABASE();
-    // Finanzbestand teilt sich Stakeholder und Datenqualitaet: die Selects,
-    // die Pagination und die Berichtsstaende sitzen dort, nicht in der Page.
-    const bestand = await loadFinanzbestand(supabase);
+    if (!supabase) throw new Error('Supabase nicht verfügbar');
 
-    this.auftraege = bestand.auftraege;
-    this.blocks = bestand.blocks;
-    this.kampagnen = bestand.kampagnen;
-    this.kooperationen = bestand.kooperationen;
-    this.videos = bestand.videos;
-    this.rechnungen = bestand.rechnungen;
-    this.teilrechnungen = bestand.teilrechnungen;
-    this.detailsByAuftrag = new Map(bestand.details.map(d => [d.auftrag_id, d]));
-    this.unternehmenById = new Map(bestand.unternehmen.map(u => [u.id, u]));
-    this.berichtsstaende = bestand.berichtsstaende;
+    // Alle Tabellen seitenweise (fetchAllRows), damit nichts am
+    // PostgREST-Zeilenlimit verloren geht.
+    const [auftraege, blocks, kampagnen, koops, videos, details, unternehmen, rechnungen, teilrechnungen] = await Promise.all([
+      fetchAllRows(supabase, 'auftrag',
+        'id, titel, auftragsname, nettobetrag, bruttobetrag, creator_budget, auftragtype, start, ende, created_at, is_draft, unternehmen_id, marke_id, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am, re_faelligkeit, marke:marke_id(id, markenname)'),
+      fetchAllRows(supabase, 'auftrag_kampagnenart_blocks',
+        'id, auftrag_id, campaign_type, campaign_type_label, umsatz_netto, sort_order'),
+      fetchAllRows(supabase, 'kampagne',
+        'id, auftrag_id, videoanzahl, creatoranzahl'),
+      fetchAllRows(supabase, 'kooperationen',
+        'id, name, kampagne_id, creator_id, videoanzahl, einkaufspreis_netto, verkaufspreis_netto, verkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag'),
+      fetchAllRows(supabase, 'kooperation_videos',
+        'id, kooperation_id, einkaufspreis_netto, verkaufspreis_netto, kampagnenart'),
+      fetchAllRows(supabase, 'auftrag_details',
+        'auftrag_id, campaign_type, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value'),
+      fetchAllRows(supabase, 'unternehmen',
+        'id, firmenname'),
+      // Fremdkosten brauchen Rechnungsdatum und die drei Posten-Quellen
+      // (Honorar netto + steuerfrei, Zusatzkosten; KSK wird berechnet).
+      // Der Zahlungsstand braucht zusaetzlich status/bezahlt_am/zahlungsziel.
+      fetchAllRows(supabase, 'rechnung',
+        'id, kooperation_id, auftrag_id, status, nettobetrag, nettobetrag_steuerfrei, zusatzkosten, gestellt_am, bezahlt_am, zahlungsziel, rechnungstyp, rechnung_nr'),
+      // Kundenrechnungen: geplante und gestellte Teilrechnungen je Auftrag,
+      // inkl. Zahlungsstatus (ueberwiesen_am) und Faelligkeit.
+      fetchAllRows(supabase, 'auftrag_teilrechnung',
+        'id, auftrag_id, nettobetrag, bruttobetrag, rechnung_gestellt, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am, re_faelligkeit'),
+    ]);
+
+    this.auftraege = (auftraege || []).filter(a => a.is_draft !== true);
+    this.blocks = blocks || [];
+    this.kampagnen = kampagnen || [];
+    this.kooperationen = koops || [];
+    this.videos = videos || [];
+    this.rechnungen = rechnungen || [];
+    this.teilrechnungen = teilrechnungen || [];
+    this.detailsByAuftrag = new Map((details || []).map(d => [d.auftrag_id, d]));
+    this.unternehmenById = new Map((unternehmen || []).map(u => [u.id, u]));
+
+    // Berichtsstände sind ein Add-on: scheitert das Listen-Laden, soll die
+    // Uebersicht trotzdem rendern.
+    try {
+      this.berichtsstaende = await fetchBerichtsstaende(supabase);
+    } catch (e) {
+      console.error('❌ Investor-Dashboard: Berichtsstände konnten nicht geladen werden', e);
+      this.berichtsstaende = [];
+    }
   }
 
   // ---------- Helpers ----------
@@ -367,6 +404,17 @@ export class StakeholderOverviewPage {
     if (this.selectedYear === 'all') return this.auftraege;
     const year = parseInt(this.selectedYear, 10);
     return this.auftraege.filter(a => this.auftragYear(a) === year);
+  }
+
+  // Dieselbe Menge wie die Kalkulationskarten: Jahr plus Leistungsbereich.
+  auftraegeImFilter() {
+    const blockMap = this.blocksByAuftrag();
+    return this.filteredAuftraege().filter(a => {
+      const tab = this.tabForAuftrag(a, blockMap.get(a.id));
+      if (!isGesamtTab(this.activeTab) && tab !== this.activeTab) return false;
+      if (this.activeTab === TAB_GESAMT_OHNE && tab === TAB_CONTRACTING) return false;
+      return true;
+    });
   }
 
   campaignLabel(type) {
@@ -455,7 +503,7 @@ export class StakeholderOverviewPage {
   }
 
   aggregate() {
-    const auftraege = this.filteredAuftraege();
+    const auftraege = this.auftraegeImFilter();
     const blockMap = this.blocksByAuftrag();
     const koopMap = this.koopsByAuftrag();
     const videoMap = this.videosByKoop();
@@ -477,13 +525,10 @@ export class StakeholderOverviewPage {
     let sumCreatorPaid = 0;
     let sumCreatorOpen = 0;
     let sumPaidNetto = 0;
-    let sumPaidBrutto = 0;
 
     auftraege.forEach(a => {
       const blocks = blockMap.get(a.id) || [];
       const tab = this.tabForAuftrag(a, blocks);
-      if (!isGesamtTab(this.activeTab) && tab !== this.activeTab) return;
-      if (this.activeTab === TAB_GESAMT_OHNE && tab === TAB_CONTRACTING) return;
 
       const details = mergeFeeSource(this.detailsByAuftrag.get(a.id), a);
       const koops = koopMap.get(a.id) || [];
@@ -536,12 +581,17 @@ export class StakeholderOverviewPage {
       sumCreatorPaid += creatorPayment.paid;
       sumCreatorOpen += creatorPayment.open;
 
-      // „Bereits bezahlt": Teilrechnungen haben eigene Betraege/Zahlungsdaten;
-      // ohne Teilrechnungen gilt der Auftrags-Datensatz als eine Rechnungszeile.
-      const trs = trMap.get(a.id) || [];
-      const paid = trs.length > 0 ? sumPaidInvoiceRows(trs) : sumPaidInvoiceRows([a]);
-      sumPaidNetto += paid.netto;
-      sumPaidBrutto += paid.brutto;
+      if (isContracting(a)) {
+        (this.rechnungen || []).forEach(r => {
+          if (r.rechnungstyp !== 'contracting' || r.auftrag_id !== a.id) return;
+          if (r.status !== 'Bezahlt' && (r.bezahlt_am == null || r.bezahlt_am === '')) return;
+          sumPaidNetto += parseFloat(r.nettobetrag) || 0;
+        });
+      } else {
+        const trs = trMap.get(a.id) || [];
+        const paid = trs.length > 0 ? sumPaidInvoiceRows(trs) : sumPaidInvoiceRows([a]);
+        sumPaidNetto += paid.netto;
+      }
 
       rows.push({
         auftrag: a,
@@ -577,8 +627,7 @@ export class StakeholderOverviewPage {
         ksk: sumKsk,
         zusatz: sumZusatz,
         db: sumDb,
-        paidNetto: sumPaidNetto,
-        paidBrutto: sumPaidBrutto
+        paidNetto: sumPaidNetto
       }
     };
   }
@@ -597,7 +646,6 @@ export class StakeholderOverviewPage {
 
     const html = `
       <div class="stakeholder-page">
-        ${this.renderRechnungsstatus()}
         <div class="stakeholder-toolbar">
           ${ViewModeToggle.render([
             { buttonId: 'btn-view-kalkulation', label: 'Kalkulation', active: !isMonate },
@@ -605,13 +653,13 @@ export class StakeholderOverviewPage {
           ])}
           ${!isMonate ? `
           <div class="stakeholder-toolbar-filters">
-            <div class="form-field">
+            <div class="form-field form-field--inline">
               <label for="stakeholder-tab-select">Leistungsbereich</label>
               <select id="stakeholder-tab-select" class="form-select">
                 ${tabOptions}
               </select>
             </div>
-            <div class="form-field stakeholder-year-field">
+            <div class="form-field form-field--inline stakeholder-year-field">
               <label for="stakeholder-year-select">Zeitraum</label>
               <select id="stakeholder-year-select" class="form-select">
                 <option value="all"${this.selectedYear === 'all' ? ' selected' : ''}>Alle Jahre</option>
@@ -620,6 +668,7 @@ export class StakeholderOverviewPage {
             </div>
           </div>` : ''}
         </div>
+        ${this.renderRechnungsstatus()}
 
         ${isMonate ? this.renderMonatsauswertung() : this.renderKalkulationBody()}
       </div>
@@ -649,42 +698,73 @@ export class StakeholderOverviewPage {
     return this._monats;
   }
 
-  // Zahlungsstand als Snapshot "Stand heute" (PRD Schritt 5). Haengt
-  // bewusst nicht am Zeitraum-Filter und steht ueber beiden Ansichten.
+  // Zahlungsstand: dieselben Auftraege wie die Karten (Jahr + Leistungsbereich).
   rechnungsstatus() {
-    if (!this._status) {
-      this._status = calculateRechnungsstatus({
-        auftraege: this.auftraege,
-        kampagnen: this.kampagnen,
-        kooperationen: this.kooperationen,
-        videos: this.videos,
-        rechnungen: this.rechnungen,
-        teilrechnungen: this.teilrechnungen,
-      });
-    }
-    return this._status;
+    return calculateRechnungsstatus({
+      auftraege: this.auftraegeImFilter(),
+      kampagnen: this.kampagnen,
+      kooperationen: this.kooperationen,
+      videos: this.videos,
+      rechnungen: this.rechnungen,
+      teilrechnungen: this.teilrechnungen,
+    });
   }
 
   renderRechnungsstatus() {
     // Im Berichtsstand-Modus zeigt der Block den eingefrorenen Stand,
     // damit die Ansicht konsistent zum gesicherten Update bleibt.
     const eingefroren = this.aktiverBerichtsstand?.daten?.zahlungsstand;
-    const { kunden, creator } = eingefroren || this.rechnungsstatus();
+    const live = eingefroren || this.rechnungsstatus();
+    const kunden = live.kunden;
+    const creator = live.creator;
+    const contracting = live.contracting || leereRechnungsseite();
+    const liveAnsicht = !eingefroren;
+    const offenZelle = liveAnsicht ? this.zahlungsstandBelegeOffen : null;
+    const karten = liveAnsicht ? this.aggregate().totals : { ksk: 0, zusatz: 0 };
+    const creatorKskNicht = karten.ksk - (creator.kskGestellt || 0);
+    const creatorZusatzNicht = karten.zusatz - (creator.zusatzGestellt || 0);
 
-    const offenZelle = (seite) => `
-      <div>${this.fmtEuro(seite.offen)}</div>
-      ${seite.ueberfaellig >= 0.005
-        ? `<div class="stakeholder-status-ueberfaellig">davon überfällig: ${this.fmtEuro(seite.ueberfaellig)}</div>`
-        : ''}
-    `;
+    const extraSpalten = (seite, seiteKey) => {
+      const kskNicht = seiteKey === 'creator' ? creatorKskNicht : 0;
+      const zusatzNicht = seiteKey === 'creator' ? creatorZusatzNicht : 0;
+      const inkl = (seite.nichtGestellt || 0) + kskNicht + zusatzNicht;
+      const zelle = (attr, wert) => `
+        <td class="stakeholder-num${wert < -0.005 ? ' stakeholder-negativ' : ''}"
+            data-zahlungsstand-${attr}="${seiteKey}">${this.fmtEuro(wert)}</td>`;
+      return `${zelle('ksk-nicht', kskNicht)}${zelle('zusatz-nicht', zusatzNicht)}${zelle('nicht-inkl', inkl)}`;
+    };
 
-    const zeile = (label, seite) => `
+    const offenHinweis = (seite) => seite.ueberfaellig >= 0.005
+      ? `<div class="stakeholder-status-ueberfaellig">davon überfällig: ${this.fmtEuro(seite.ueberfaellig)}</div>`
+      : '';
+
+    const zellenWert = (seiteKey, kategorie, wert, { extra = '', negativ = false } = {}) => {
+      const cls = `stakeholder-num${negativ ? ' stakeholder-negativ' : ''}`;
+      if (!liveAnsicht) {
+        return `<td class="${cls}">${this.fmtEuro(wert)}${extra}</td>`;
+      }
+      const open = offenZelle?.seite === seiteKey && offenZelle?.kategorie === kategorie;
+      return `
+        <td class="${cls}">
+          <button type="button"
+                  class="stakeholder-status-zelle${open ? ' is-open' : ''}"
+                  data-zahlungsstand-seite="${seiteKey}"
+                  data-zahlungsstand-kategorie="${kategorie}"
+                  aria-expanded="${open ? 'true' : 'false'}">
+            ${this.fmtEuro(wert)}
+          </button>
+          ${extra}
+        </td>`;
+    };
+
+    const zeile = (label, seite, seiteKey) => `
       <tr>
         <td>${label}</td>
-        <td class="stakeholder-num">${this.fmtEuro(seite.gestellt)}</td>
-        <td class="stakeholder-num">${this.fmtEuro(seite.bezahlt)}</td>
-        <td class="stakeholder-num">${offenZelle(seite)}</td>
-        <td class="stakeholder-num${seite.nichtGestellt < -0.005 ? ' stakeholder-negativ' : ''}">${this.fmtEuro(seite.nichtGestellt)}</td>
+        ${zellenWert(seiteKey, 'gestellt', seite.gestellt)}
+        ${zellenWert(seiteKey, 'bezahlt', seite.bezahlt)}
+        ${zellenWert(seiteKey, 'offen', seite.offen, { extra: offenHinweis(seite) })}
+        ${zellenWert(seiteKey, 'nichtGestellt', seite.nichtGestellt, { negativ: seite.nichtGestellt < -0.005 })}
+        ${extraSpalten(seite, seiteKey)}
       </tr>
     `;
 
@@ -694,7 +774,7 @@ export class StakeholderOverviewPage {
           <h3 class="stakeholder-list-title">Zahlungsstand</h3>
           <p class="stakeholder-list-hint">${eingefroren
             ? `Stand ${this.fmtBerichtsstandDatum(this.aktiverBerichtsstand.created_at)} (eingefrorener Berichtsstand)`
-            : 'Stand heute, unabhängig von Ansicht und Zeitraum'} · Gestellt = Summe aller gestellten Rechnungen · Bezahlt = Zahlung eingegangen · Offen = gestellt, nicht bezahlt · Noch nicht gestellt = Restbetrag aus Auftrag bzw. Kalkulation</p>
+            : 'Stand heute · Jahr und Leistungsbereich wie die Karten'} · Gestellt = Summe aller gestellten Rechnungen · Bezahlt = Zahlung eingegangen · Offen = gestellt, nicht bezahlt · Noch nicht gestellt = Restbetrag aus Auftrag bzw. Kalkulation · KSK/Zusatz nicht gestellt = Kartenwert minus bereits auf Belegen${liveAnsicht ? ' · Betrag anklicken zeigt die Belege bzw. Restbeträge' : ''}</p>
         </div>
         <div class="stakeholder-scroll-x">
         <table class="stakeholder-table stakeholder-status-table">
@@ -705,12 +785,100 @@ export class StakeholderOverviewPage {
               <th class="stakeholder-num">Bezahlt</th>
               <th class="stakeholder-num">Offen</th>
               <th class="stakeholder-num">Noch nicht gestellt</th>
+              <th class="stakeholder-num">KSK nicht gestellt</th>
+              <th class="stakeholder-num">Zusatz nicht gestellt</th>
+              <th class="stakeholder-num">Noch nicht gestellt + KSK + Zusatz</th>
             </tr>
           </thead>
           <tbody>
-            ${zeile('Kundenrechnungen', kunden)}
-            ${zeile('Creatorrechnungen', creator)}
+            ${zeile('Kundenrechnungen', kunden, 'kunden')}
+            ${zeile('Contractingrechnungen', contracting, 'contracting')}
+            ${zeile('Creatorrechnungen', creator, 'creator')}
           </tbody>
+        </table>
+        </div>
+        ${offenZelle ? this.renderZahlungsstandBelege(offenZelle.seite, offenZelle.kategorie) : ''}
+      </div>
+    `;
+  }
+
+  zahlungsstandBelege() {
+    return listZahlungsstandBelege({
+      auftraege: this.auftraegeImFilter(),
+      kampagnen: this.kampagnen,
+      kooperationen: this.kooperationen,
+      videos: this.videos,
+      rechnungen: this.rechnungen,
+      teilrechnungen: this.teilrechnungen,
+    });
+  }
+
+  fmtBelegDatum(iso) {
+    if (!iso) return '–';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '–';
+    return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
+  renderZahlungsstandBelege(seiteKey, kategorie) {
+    const seiten = {
+      kunden: 'Kundenrechnungen',
+      contracting: 'Contractingrechnungen',
+      creator: 'Creatorrechnungen',
+    };
+    const kategorien = {
+      gestellt: 'gestellt',
+      bezahlt: 'bezahlt',
+      offen: 'offen',
+      nichtGestellt: 'noch nicht gestellt',
+    };
+    const datumSpalte = {
+      gestellt: 'Rechnungsdatum',
+      bezahlt: 'Zahlungseingang',
+      offen: 'Fälligkeit',
+      nichtGestellt: '–',
+    };
+    const istRest = kategorie === 'nichtGestellt';
+    const belege = this.zahlungsstandBelege()?.[seiteKey]?.[kategorie] || [];
+    const summe = belege.reduce((s, b) => s + (b.betrag || 0), 0);
+    const zeilen = belege.map(b => {
+      const aufschluss = b.honorar != null
+        ? `<div class="stakeholder-status-beleg-meta">${this.fmtEuro(b.honorar)} Honorar · ${this.fmtEuro(b.ksk)} KSK · ${this.fmtEuro(b.zusatz)} Zusatz</div>`
+        : '';
+      const betragCls = b.betrag < -0.005 ? ' stakeholder-negativ' : '';
+      return `
+        <tr>
+          <td>
+            <a href="${this.escape(b.route)}" class="table-link" data-zahlungsstand-route="${this.escape(b.route)}">${this.escape(b.label)}</a>
+          </td>
+          <td>${this.escape(this.fmtBelegDatum(b.datum))}</td>
+          <td class="stakeholder-num${betragCls}">${this.fmtEuro(b.betrag)}${aufschluss}</td>
+        </tr>`;
+    }).join('');
+    const leer = istRest ? 'Kein Restbetrag.' : 'Keine Belege.';
+    const art = istRest ? 'Restbetrag' : 'Belege';
+
+    return `
+      <div class="stakeholder-status-belege" data-zahlungsstand-belege="${seiteKey}" data-zahlungsstand-kategorie="${kategorie}">
+        <p class="stakeholder-list-hint">${art} zu ${seiten[seiteKey] || seiteKey} · ${kategorien[kategorie] || kategorie} · Jahr und Leistungsbereich wie die Karten</p>
+        <div class="stakeholder-scroll-x">
+        <table class="stakeholder-table stakeholder-status-belege-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>${datumSpalte[kategorie] || 'Datum'}</th>
+              <th class="stakeholder-num">Betrag</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${zeilen || `<tr><td colspan="3">${leer}</td></tr>`}
+          </tbody>
+          <tfoot>
+            <tr>
+              <th colspan="2">Summe</th>
+              <th class="stakeholder-num${summe < -0.005 ? ' stakeholder-negativ' : ''}" data-zahlungsstand-belege-summe>${this.fmtEuro(summe)}</th>
+            </tr>
+          </tfoot>
         </table>
         </div>
       </div>
@@ -1051,24 +1219,14 @@ export class StakeholderOverviewPage {
     const openProgressClass = (pct) => pct <= 10 ? 'stakeholder-progress-fill--danger' : pct <= 25 ? 'stakeholder-progress-fill--warning' : 'stakeholder-progress-fill--success';
 
     return `
-      <div class="stakeholder-cards">
+      <div class="stakeholder-cards stakeholder-cards--kalkulation">
         ${card('Auftragsvolumen = Budget', volumen, 'was der Kunde beauftragt hat', 'jede Buchung verbraucht Budget', { hint: CARD_HINTS.volumen })}
         ${card('Verbrauchtes Budget', verbraucht, 'aufgeschlüsselt in der Zeile darunter', `${this.fmtPct(verbrauchtPct)} des Budgets`, { progress: verbrauchtPct, progressClass: progressClass(verbrauchtPct), hint: CARD_HINTS.verbraucht })}
         ${card(offenLabel, offenValue, offenSub, `${this.fmtPct(offenPct)} offen`, { progress: offenPct, progressClass: openProgressClass(offenPct), hint: offenHint })}
-      </div>
-      <div class="stakeholder-cards stakeholder-cards--paid">
-        <div class="stakeholder-card stakeholder-card--wide">
-          ${cardHead('Bereits bezahlt', CARD_HINTS.bezahlt)}
-          <div class="stakeholder-card-paid-values">
-            <div class="stakeholder-card-paid-value">
-              <div class="stakeholder-card-value" data-paid-value="netto">${this.fmtEuro(totals.paidNetto)}</div>
-              <div class="stakeholder-card-sub">Netto</div>
-            </div>
-            <div class="stakeholder-card-paid-value">
-              <div class="stakeholder-card-value" data-paid-value="brutto">${this.fmtEuro(totals.paidBrutto)}</div>
-              <div class="stakeholder-card-sub">Brutto</div>
-            </div>
-          </div>
+        <div class="stakeholder-card">
+          ${cardHead('Bereits bezahlte Rechnungen', CARD_HINTS.bezahlt)}
+          <div class="stakeholder-card-value" data-paid-value="netto">${this.fmtEuro(totals.paidNetto)}</div>
+          <div class="stakeholder-card-sub">Netto · Kunden und Contracting</div>
         </div>
       </div>
       <div class="stakeholder-cards stakeholder-cards--breakdown">
@@ -1266,6 +1424,7 @@ export class StakeholderOverviewPage {
       this.render();
       return;
     }
+    this.zahlungsstandBelegeOffen = null;
     let stand;
     try {
       stand = await fetchBerichtsstand(SUPABASE(), id);
@@ -1301,7 +1460,10 @@ export class StakeholderOverviewPage {
         // Berichtsstände gehören zur Monatsauswertung: beim Wechsel in die
         // Kalkulation gilt wieder die Live-Rechnung, sonst stuende dort ein
         // eingefrorener Zahlungsstand ohne Weg zurueck.
-        if (this.activeView !== 'monate') this.aktiverBerichtsstand = null;
+        if (this.activeView !== 'monate') {
+          this.aktiverBerichtsstand = null;
+          this.zahlungsstandBelegeOffen = null;
+        }
         this.render();
         return;
       }
@@ -1325,6 +1487,25 @@ export class StakeholderOverviewPage {
       if (e.target.closest('#stakeholder-bericht-sichern')) {
         this.sichereBerichtsstand();
         return;
+      }
+
+      const belegLink = e.target.closest('[data-zahlungsstand-route]');
+      if (belegLink) {
+        e.preventDefault();
+        window.navigateTo(belegLink.getAttribute('data-zahlungsstand-route'));
+        return;
+      }
+
+      const zelleBtn = e.target.closest('[data-zahlungsstand-seite][data-zahlungsstand-kategorie]');
+      if (zelleBtn) {
+        if (this.aktiverBerichtsstand) return;
+        const seite = zelleBtn.getAttribute('data-zahlungsstand-seite');
+        const kategorie = zelleBtn.getAttribute('data-zahlungsstand-kategorie');
+        const offen = this.zahlungsstandBelegeOffen;
+        this.zahlungsstandBelegeOffen = offen?.seite === seite && offen?.kategorie === kategorie
+          ? null
+          : { seite, kategorie };
+        this.render();
       }
     };
     document.addEventListener('click', this._docClickHandler);

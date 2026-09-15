@@ -19,7 +19,7 @@
 }
 
 .stakeholder-year-field {
-  min-width: var(--min-width-lg);
+  min-width: var(--min-width-md);
 }
 
 /* Kategorie-Tabs mit Count-Badges */
@@ -81,22 +81,14 @@
   gap: var(--space-md);
 }
 
+.stakeholder-cards--kalkulation,
 .stakeholder-cards--breakdown {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-/* „Bereits bezahlt"-Card: volle Breite, Netto/Brutto nebeneinander */
-.stakeholder-cards--paid {
-  grid-template-columns: 1fr;
-}
-
-.stakeholder-card-paid-values {
-  display: flex;
-  gap: var(--space-xl);
-}
-
 @media (max-width: 1100px) {
   .stakeholder-cards,
+  .stakeholder-cards--kalkulation,
   .stakeholder-cards--breakdown {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -104,6 +96,7 @@
 
 @media (max-width: 700px) {
   .stakeholder-cards,
+  .stakeholder-cards--kalkulation,
   .stakeholder-cards--breakdown {
     grid-template-columns: 1fr;
   }
@@ -443,15 +436,35 @@
 
 .stakeholder-toolbar-filters {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: var(--space-md);
   flex-wrap: wrap;
+}
+
+.stakeholder-toolbar-filters .form-field {
+  width: auto;
+  margin-bottom: 0;
+  flex-direction: row;
+  align-items: center;
+}
+
+.stakeholder-toolbar-filters .form-field--inline select {
+  flex: 1;
+  width: auto;
+}
+
+.stakeholder-toolbar-filters #stakeholder-tab-select {
+  min-width: 18rem;
+}
+
+.stakeholder-toolbar-filters #stakeholder-year-select {
+  min-width: var(--min-width-md);
 }
 
 .stakeholder-toolbar {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
+  align-items: center;
   gap: var(--space-md);
   flex-wrap: wrap;
   /* Bleibt beim Scrollen stehen: .main-wrapper ist der Scroll-Container,
@@ -604,11 +617,16 @@
   color: var(--text-secondary);
 }
 
-/* Zahlungsstand-Snapshot (PRD Schritt 5): kompakte Tabelle ueber beiden
-   Ansichten. Ueberfaellig ist eine rote Teilzahl innerhalb von "Offen". */
+/* Zahlungsstand: acht Spalten wie die Kundenliste — Mindestbreite +
+   nowrap, der Scroll-Container (.stakeholder-scroll-x) fängt schmale
+   Screens ab. */
 .stakeholder-status-table {
-  max-width: 860px;
-  min-width: 560px;
+  min-width: 1200px;
+}
+
+.stakeholder-status-table th,
+.stakeholder-status-table td {
+  white-space: nowrap;
 }
 
 .stakeholder-status-table td:first-child {
@@ -621,4 +639,41 @@
   font-size: var(--text-xs);
   font-weight: 600;
   color: var(--color-error, #c00);
+}
+
+.stakeholder-status-zelle {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+.stakeholder-status-zelle.is-open {
+  font-weight: 600;
+}
+
+.stakeholder-status-belege {
+  margin-top: var(--space-md);
+}
+
+.stakeholder-status-belege .stakeholder-list-hint {
+  margin-bottom: var(--space-sm);
+}
+
+.stakeholder-status-beleg-meta {
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.stakeholder-status-belege-table tfoot th,
+.stakeholder-status-belege-table tfoot td {
+  border-bottom: none;
+  font-weight: 600;
 }
