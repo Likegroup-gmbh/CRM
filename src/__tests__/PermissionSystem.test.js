@@ -58,9 +58,21 @@ describe('PermissionSystem', () => {
       ps.setUserPermissions(makeUser('mitarbeiter'));
       expect(ps.canSeePricing).toBe(true);
       expect(ps.canManageStaff).toBe(false);
+      expect(ps.canViewAccounting).toBe(false);
       expect(ps.canBulkDelete).toBe(true);
       expect(ps.canCreateProject).toBe(true);
       expect(ps.canUseGlobalSearch).toBe(true);
+    });
+
+    it('Lead hat kein Accounting und keine Mitarbeiterverwaltung', () => {
+      ps.setUserPermissions(makeUser('mitarbeiter', {
+        mitarbeiter_klasse: { name: 'Lead' }
+      }));
+      expect(ps.isMitarbeiter).toBe(true);
+      expect(ps.isInvestor).toBe(false);
+      expect(ps.canViewAccounting).toBe(false);
+      expect(ps.canManageStaff).toBe(false);
+      expect(ps.canCreateProject).toBe(true);
     });
 
     it('Kunde hat keine internen Capabilities', () => {

@@ -26,6 +26,12 @@ export class MitarbeiterDetail extends PersonDetailBase {
   }
 
   async init(id) {
+    if (!window.isAdmin?.() && !window.canManageStaff?.()) {
+      window.setContentSafely?.(window.content, `
+        <div class="error-message"><p>Keine Berechtigung.</p></div>
+      `);
+      return;
+    }
     this.userId = id;
     this.activeMainTab = getTabQueryParam() || 'informationen';
     await this.load();

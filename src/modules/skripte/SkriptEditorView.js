@@ -233,7 +233,7 @@ export class SkriptEditorView {
 
   /** Teilen-Button im Doc-Kopf: nur intern und nur fuer ein geladenes Skript. */
   get kannTeilen() {
-    return Boolean(window.isInternal?.()) && (window.canEdit?.('skripte') ?? false) && Boolean(this.skript?.id);
+    return Boolean(window.isInternal?.()) && (window.canEdit?.('skripte') ?? false) && Boolean(this.skript?.id) && !this.neuModus;
   }
 
   /** Creator/Kooperation zuweisen: nur intern. */

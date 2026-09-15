@@ -335,6 +335,36 @@ export class DependentFields {
 
         debounceTimers.set(timerKey, timer);
       }
+
+      if (reloadOnChangeMap.has(fieldName)) {
+        const timerKey = `reload_${fieldName}`;
+        if (debounceTimers.has(timerKey)) {
+          clearTimeout(debounceTimers.get(timerKey));
+        }
+
+        const timer = setTimeout(async () => {
+          const reloadFields = reloadOnChangeMap.get(fieldName);
+
+          for (const fieldConfig of reloadFields) {
+            const dependentField = fieldCache.get(fieldConfig.name)
+              || form.querySelector(`[name="${fieldConfig.name}"]`);
+            if (!dependentField) continue;
+
+            const primaryParent = form.querySelector(`[name="${fieldConfig.dependsOn}"]`);
+            const primaryValue = primaryParent ? this.getFieldValue(primaryParent) : null;
+
+            if (!primaryValue) {
+              await this.clearDependentField(dependentField, fieldConfig);
+            } else {
+              await this.loadDependentFieldData(dependentField, fieldConfig, primaryValue, form);
+            }
+          }
+
+          debounceTimers.delete(timerKey);
+        }, 150);
+
+        debounceTimers.set(timerKey, timer);
+      }
     };
     
     if (this.formEventHandlers.has(form)) {

@@ -151,9 +151,13 @@ export class NavigationSystem {
         return true;
       }
 
-      // Accounting-Nav (ausser Zurück zur App): Admins und Investoren.
-      // Datenqualität und Projekt anlegen bleiben Admin bzw. interne Schreibrechte.
+      // Accounting-Nav (ausser Zurück zur App): nur Admins und Investoren.
+      // Datenqualität bleibt Admin. Projekt anlegen nur, wer Accounting
+      // sehen darf und anlegen kann — nicht jeder interne Mitarbeiter.
       if (this.area === 'admin') {
+        const accounting = (typeof window.canViewAccounting === 'function' && window.canViewAccounting())
+          || (typeof window.isAdmin === 'function' && window.isAdmin());
+        if (!accounting) return false;
         if (id === 'admin-datenqualitaet') {
           return typeof window.isAdmin === 'function' && window.isAdmin();
         }
@@ -161,8 +165,7 @@ export class NavigationSystem {
           return (typeof window.canCreateProject === 'function' && window.canCreateProject())
             || (typeof window.isAdmin === 'function' && window.isAdmin());
         }
-        return (typeof window.canViewAccounting === 'function' && window.canViewAccounting())
-          || (typeof window.isAdmin === 'function' && window.isAdmin());
+        return true;
       }
       
       // Nicht freigeschaltete Benutzer dürfen nur das Dashboard sehen
