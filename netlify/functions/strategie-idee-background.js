@@ -132,6 +132,12 @@ exports.handler = async (event) => {
 
     await ki.abschliessen({ model: result.model, usage: result.usage });
 
+    // strategie_items.created_by -> benutzer(id), nicht auth.users
+    const { data: benutzer } = await supabase.from('benutzer')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .maybeSingle();
+
     const { data: maxRow } = await supabase.from('strategie_items')
       .select('sortierung')
       .eq('strategie_id', job.strategie_id)
@@ -144,7 +150,7 @@ exports.handler = async (event) => {
       strategieId: job.strategie_id,
       idee,
       sortierung: sortierung++,
-      createdBy: user.id
+      createdBy: benutzer?.id || null
     }));
 
     const { error: insertError } = await supabase.from('strategie_items').insert(rows);

@@ -214,7 +214,8 @@ function validateIdeen(json, { ausschluss = [], anzahl = ANZAHL } = {}) {
   return { ideen, verworfen };
 }
 
-/** Ideen ohne Link: plattform null, analog addItemPayload. 'idea' knallt gegen strategie_items_plattform_check. */
+/** Ideen ohne Link: plattform null, analog addItemPayload. 'idea' knallt gegen strategie_items_plattform_check.
+ *  createdBy ist benutzer.id (FK), nicht auth.users.id. */
 function buildVorschlagInsert({ strategieId, idee, sortierung, createdBy }) {
   return {
     strategie_id: strategieId,

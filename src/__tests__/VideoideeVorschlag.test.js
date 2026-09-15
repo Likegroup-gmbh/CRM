@@ -87,6 +87,7 @@ describe('validateIdeen', () => {
     expect(row.video_link).toBeNull();
     expect(row.ist_vorschlag).toBe(true);
     expect(row.beschreibung_quelle).toBe('ki');
+    expect(row.created_by).toBe('u1');
   });
 
   it('baut den Prompt mit Ausschluss und ohne Produkte', () => {
