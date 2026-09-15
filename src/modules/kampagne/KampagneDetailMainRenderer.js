@@ -149,7 +149,8 @@ export function renderMainPage(state) {
     kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed,
     extraKostenVkSum, ekVkMarginSum, kskUmgebucht, videoStats, isKunde, kampagneId, searchQuery,
     availableStatuses = [], availableTags = [], selectedStatuses = [], selectedTags = [],
-    kooperationSort = 'created_desc'
+    kooperationSort = 'created_desc',
+    kooperationen = [], videos = []
   } = state;
 
   const canCreateKooperation = window.canCreate?.('kooperation') ?? false;
@@ -178,7 +179,7 @@ export function renderMainPage(state) {
   const hasToolbarItems = toolbarItemsHtml.trim().length > 0;
 
   return `
-    ${renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, videoStats, kskUmgebucht)}
+    ${renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, videoStats, kskUmgebucht, { kooperationen, videos, isKunde })}
 
     <div class="page-header">
       <div class="page-header-title-group">
@@ -187,9 +188,10 @@ export function renderMainPage(state) {
       </div>
       <div class="page-header-right">
         ${SearchInput.render('kampagne-koop', {
-          placeholder: 'Name suchen...',
+          placeholder: 'Suchen...',
           currentValue: escapeAttr(searchQuery || '')
         })}
+        ${(window.canFeature?.('mediaDownload') ?? false) ? `<button id="btn-download-finale" class="mdc-btn mdc-btn--secondary" title="Finale Videos der markierten Kooperationen herunterladen">Finale Videos downloaden</button>` : ''}
         ${canCreateKooperation ? `<button id="btn-new-kooperation" class="mdc-btn">Kooperation anlegen</button>` : ''}
         ${hasToolbarItems ? renderToolbarMenu({
           toggleId: 'btn-kampagne-toolbar-menu',

@@ -276,6 +276,9 @@ export class VideoTableEventBinder {
     window.addEventListener('resize', () => t._closeStatusPortal(), { signal });
     window.addEventListener('scroll', () => t._closeStatusPortal(), { signal, capture: true });
 
+    t._finalBulkDownload?.bind(container, signal);
+    t._finalBulkDownload?.syncAfterRender();
+
     t.bindResizeEvents();
     t.bindDragToScroll();
     t.columnDragHandler.bind(container, signal);

@@ -159,6 +159,17 @@ Das hochgeladene Videofile in einer Kooperation (Dropbox-Asset), wird in der
 VideoPlayerLightbox abgespielt. Nicht zu verwechseln mit der Videoidee.
 _Avoid_: Upload, Videodatei
 
+**Video-Nr**:
+Positionsnummer des Kooperationsvideos in der Kooperation (1, 2, 3), Feld `position`.
+Steht im Dropbox-Ordner (`Video_2_...`) und im Dateinamen vor `v{n}` bzw. `final`.
+Nicht die Feedbackschleife.
+_Avoid_: Version (das ist die Feedbackschleife), Videoversion
+
+**Feedbackschleife**:
+Eine Überarbeitungsrunde desselben Kooperationsvideos (`version_number`, max 3).
+Steht im Dateinamen als `v1`/`v2`/`v3` hinter der Video-Nr.
+_Avoid_: Version (alleinstehend), Revision
+
 **Kooperationstabelle**:
 Tabelle auf der Kampagne mit Kooperationen und Video-Stacks.
 _Avoid_: Kampagnen-Tabelle

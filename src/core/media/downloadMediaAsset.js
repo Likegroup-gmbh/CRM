@@ -70,60 +70,93 @@ function triggerHiddenDownload(url, filename) {
 }
 
 /**
+ * Blob-Download mit erzwungenem Dateinamen. Dropbox dl=1 ignoriert das
+ * download-Attribut (Content-Disposition mit Dropbox-Namen), daher wird bei
+ * gesetztem filename ueber den Stream-Link gefetcht und als Blob gespeichert.
+ * Genau eine Datei im RAM, ObjectURL wird danach revoked.
+ * @returns {Promise<boolean>} true bei Erfolg
+ */
+async function tryNamedBlobDownload(asset, filename) {
+  const streamUrl = await resolveStreamUrl({
+    file_path: asset.file_path || null,
+    file_url: asset.file_url || null,
+  });
+  if (!streamUrl) return false;
+  try {
+    const res = await fetch(streamUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const blob = await res.blob();
+    const objUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objUrl;
+    link.download = String(filename || 'download').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'download';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(objUrl), 4000);
+    return true;
+  } catch (err) {
+    console.warn('Blob-Download fehlgeschlagen:', err);
+    return false;
+  }
+}
+
+/**
  * Laedt die aktuell angezeigte Datei direkt herunter (echter Datei-Download).
- * Primaer ueber Dropbox dl=1 (Force-Download), Fallback ueber Blob-Fetch.
+ * Mit filename: Blob-Weg, damit der Wunsch-Name auch bei Dropbox-Altdateien
+ * greift. Ohne filename: Dropbox dl=1 (Force-Download), kein RAM-Verbrauch.
  *
  * @param {{ file_path?: string|null, file_url?: string|null }} asset
  * @param {string} [filename]
+ * @param {{ silent?: boolean }} [opts] - silent: keine eigenen Toasts (Bulk-Downloads)
+ * @returns {Promise<boolean>} true, wenn ein Download angestossen wurde
  */
-export async function downloadMediaAsset(asset, filename) {
+export async function downloadMediaAsset(asset, filename, opts = {}) {
+  const toast = opts.silent ? () => {} : (msg, type) => window.toastSystem?.show(msg, type);
+
   if (!asset || (!asset.file_path && !asset.file_url)) {
-    window.toastSystem?.show('Datei kann nicht heruntergeladen werden.', 'error');
-    return;
+    toast('Datei kann nicht heruntergeladen werden.', 'error');
+    return false;
   }
 
-  window.toastSystem?.show('Download wird vorbereitet...', 'info');
+  toast('Download wird vorbereitet...', 'info');
+
+  if (filename) {
+    const ok = await tryNamedBlobDownload(asset, filename);
+    if (ok) {
+      toast('Download gestartet', 'success');
+      return true;
+    }
+    // Fallback: dl=1 mit Dropbox-Namen (besser als kein Download).
+  }
 
   const downloadUrl = await resolveDownloadUrl(asset);
   if (downloadUrl) {
     triggerHiddenDownload(downloadUrl, filename);
-    window.toastSystem?.show('Download gestartet', 'success');
-    return;
+    toast('Download gestartet', 'success');
+    return true;
   }
 
-  // Fallback: Stream-Link aufloesen. Bei grossen Videos KEIN Blob-Fetch (laedt
-  // sonst die komplette Datei in den Speicher) -> direkt dl=1-Anchor erzwingen.
-  // Nur fuer Bilder lohnt der Blob-Weg (klein, sauberer Dateiname).
+  // Fallback: Stream-Link aufloesen und dl=1 erzwingen.
   const streamUrl = await resolveStreamUrl({
     file_path: asset.file_path || null,
     file_url: asset.file_url || null,
   });
   if (!streamUrl) {
-    window.toastSystem?.show('Datei kann nicht heruntergeladen werden.', 'error');
-    return;
+    toast('Datei kann nicht heruntergeladen werden.', 'error');
+    return false;
   }
 
-  if (looksLikeImage(asset, filename)) {
-    try {
-      const res = await fetch(streamUrl);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const blob = await res.blob();
-      const objUrl = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = objUrl;
-      link.download = String(filename || 'download').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'download';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(objUrl), 4000);
-      window.toastSystem?.show('Download gestartet', 'success');
-      return;
-    } catch (err) {
-      console.warn('Blob-Download fehlgeschlagen, erzwinge Download per dl=1:', err);
+  if (!filename && looksLikeImage(asset, filename)) {
+    const ok = await tryNamedBlobDownload(asset, 'download');
+    if (ok) {
+      toast('Download gestartet', 'success');
+      return true;
     }
   }
 
   const forced = streamUrl + (streamUrl.includes('?') ? '&' : '?') + 'dl=1';
   triggerHiddenDownload(forced, filename);
-  window.toastSystem?.show('Download gestartet', 'success');
+  toast('Download gestartet', 'success');
+  return true;
 }

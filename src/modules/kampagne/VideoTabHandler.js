@@ -463,6 +463,7 @@ export class VideoTabHandler {
       this.drawer.metadaten?.creatorName || '',
       this.drawer.metadaten?.unternehmen || '',
       this.drawer.metadaten?.kampagne || '',
+      this.drawer.metadaten?.videoPosition || 1,
       versionNumber,
       ext
     );

@@ -420,6 +420,66 @@
   background: linear-gradient(to right, rgba(0, 0, 0, 0.06), transparent);
 }
 
+/* === Auswahl-Spalte (Bulk-Download Finals) vor Nr/Creator ===
+   Verschiebt die sticky-Offsets: Checkbox = Spalte 1, Nr = 2, Creator = 3. */
+.kooperation-video-grid.has-final-check {
+  --grid-col-check: 36px;
+}
+
+.kooperation-video-grid.has-final-check th.col-final-check,
+.kooperation-video-grid.has-final-check td.col-final-check {
+  width: var(--grid-col-check);
+  min-width: var(--grid-col-check);
+  text-align: center;
+}
+
+.kooperation-video-grid.has-final-check tbody td:nth-child(1) {
+  left: 0 !important;
+}
+
+.kooperation-video-grid.has-final-check tbody td:nth-child(2) {
+  left: var(--grid-col-check) !important;
+}
+
+.kooperation-video-grid.has-final-check tbody td:nth-child(3) {
+  position: sticky !important;
+  left: calc(var(--grid-col-check) + var(--grid-col-nr)) !important;
+  z-index: 10;
+  background: white;
+}
+
+.kooperation-video-grid.has-final-check thead th.col-header.col-final-check {
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 40 !important;
+  background: var(--gray-50);
+}
+
+.kooperation-video-grid.has-final-check thead th.col-header.col-nr {
+  left: var(--grid-col-check) !important;
+}
+
+.kooperation-video-grid.has-final-check thead th.col-header.col-creator {
+  left: calc(var(--grid-col-check) + var(--grid-col-nr)) !important;
+}
+
+/* Schatten wandert von Spalte 2 (jetzt Nr) auf Spalte 3 (Creator) */
+.kooperation-video-grid.has-final-check tbody td:nth-child(2)::after {
+  content: none;
+}
+
+.kooperation-video-grid.has-final-check tbody td:nth-child(3)::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -0.625rem;
+  bottom: 0;
+  width: 0.625rem;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.06), transparent);
+}
+
 .kooperation-video-grid .grid-cell {
   padding: 0;
   vertical-align: top;

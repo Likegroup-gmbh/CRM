@@ -11,6 +11,7 @@ function buildVersionedFileName_(file, versionNumber, metadaten) {
     metadaten?.creatorName || '',
     metadaten?.unternehmen || '',
     metadaten?.kampagne || '',
+    metadaten?.videoPosition || 1,
     versionNumber,
     ext
   );
@@ -22,6 +23,7 @@ function buildFinalFileName_(file, variantName, metadaten) {
     metadaten?.creatorName || '',
     metadaten?.unternehmen || '',
     metadaten?.kampagne || '',
+    metadaten?.videoPosition || 1,
     variantName,
     ext
   );

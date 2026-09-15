@@ -21,6 +21,7 @@ import { LIVE_LINK_TOOLBAR } from './liveLinkCell.js';
 import { UPLOAD_EVENTS } from '../../core/BackgroundUploadService.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { ColumnDragHandler } from './columns/ColumnDragHandler.js';
+import { FinalVideoBulkDownload } from './FinalVideoBulkDownload.js';
 import { preserveScroll } from '../../core/dom/preserveScroll.js';
 
 export class KampagneKooperationenVideoTable {
@@ -71,6 +72,7 @@ export class KampagneKooperationenVideoTable {
     this._linkStrategieDrawer = new LinkStrategieItemDrawer();
     this._linkSkriptDrawer = new LinkSkriptDrawer();
     this._mediaViewer = new VideoPlayerLightbox(this);
+    this._finalBulkDownload = new FinalVideoBulkDownload(this);
 
     // Die Hover-Toolbar der Live-Link-Spalte laeuft ueber die zentrale Engine.
     // Ihre Aktionen brauchen den StatsFetcher dieser Instanz, also wird die

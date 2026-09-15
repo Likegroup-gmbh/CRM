@@ -190,6 +190,13 @@ export function setupEvents(detail) {
     refreshKooperationenView(detail);
   }, { signal });
 
+  // Bulk-Download: finale Videos der markierten Kooperationen
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('#btn-download-finale')) return;
+    e.preventDefault();
+    detail.kooperationenVideoTable?._finalBulkDownload?.downloadSelected();
+  }, { signal });
+
   // Kooperation anlegen
   const btnNewKooperation = document.getElementById('btn-new-kooperation');
   if (btnNewKooperation) {

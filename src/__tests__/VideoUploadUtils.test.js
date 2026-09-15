@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildVersionedFileName,
+  buildFinalFileName,
+  buildAssetDownloadName,
   getAvailableVersions,
   normalizeExternalUrl,
   isValidExternalUrl,
@@ -15,35 +17,84 @@ import {
 } from '../core/VideoUploadUtils.js';
 
 describe('buildVersionedFileName', () => {
-  it('erzeugt Dateinamen im Format creator_unternehmen_kampagne_v{n}.ext', () => {
-    const name = buildVersionedFileName('Max Mueller', 'Firma GmbH', 'Sommer 2025', 2, 'mov');
-    expect(name).toBe('max_mueller_firma_gmbh_sommer_2025_v2.mov');
+  it('erzeugt Dateinamen im Format creator_unternehmen_kampagne_{position}_v{n}.ext', () => {
+    const name = buildVersionedFileName('Max Mueller', 'Firma GmbH', 'Sommer 2025', 2, 3, 'mov');
+    expect(name).toBe('max_mueller_firma_gmbh_sommer_2025_2_v3.mov');
+  });
+
+  it('faellt ohne Position auf 1 zurueck', () => {
+    const name = buildVersionedFileName('Max Mueller', 'Firma GmbH', 'Sommer 2025', null, 2, 'mov');
+    expect(name).toBe('max_mueller_firma_gmbh_sommer_2025_1_v2.mov');
   });
 
   it('ersetzt Sonderzeichen durch Unterstriche', () => {
-    const name = buildVersionedFileName('Müller & Co.', 'Firma/X', 'Kampagne#1', 1, 'mp4');
+    const name = buildVersionedFileName('Müller & Co.', 'Firma/X', 'Kampagne#1', 1, 1, 'mp4');
     expect(name).not.toMatch(/[&/#üÜ]/);
-    expect(name).toMatch(/^[a-z0-9_]+_v1\.mp4$/);
+    expect(name).toMatch(/^[a-z0-9_]+_1_v1\.mp4$/);
   });
 
   it('kollabiert Doppel-Unterstriche', () => {
-    const name = buildVersionedFileName('Max  Mueller', 'Firma   GmbH', 'Test', 1, 'mp4');
+    const name = buildVersionedFileName('Max  Mueller', 'Firma   GmbH', 'Test', 1, 1, 'mp4');
     expect(name).not.toContain('__');
   });
 
   it('überspringt leere Felder', () => {
-    const name = buildVersionedFileName('', 'Firma', '', 3, 'mp4');
-    expect(name).toBe('firma_v3.mp4');
+    const name = buildVersionedFileName('', 'Firma', '', 2, 3, 'mp4');
+    expect(name).toBe('firma_2_v3.mp4');
   });
 
   it('behandelt komplett leere Felder', () => {
-    const name = buildVersionedFileName('', '', '', 1, 'mp4');
-    expect(name).toBe('v1.mp4');
+    const name = buildVersionedFileName('', '', '', 1, 1, 'mp4');
+    expect(name).toBe('1_v1.mp4');
   });
 
   it('behält die Originale Dateiendung bei', () => {
-    const name = buildVersionedFileName('Creator', 'Firma', 'Kampagne', 2, 'webm');
+    const name = buildVersionedFileName('Creator', 'Firma', 'Kampagne', 3, 2, 'webm');
     expect(name).toMatch(/\.webm$/);
+  });
+});
+
+describe('buildFinalFileName', () => {
+  it('erzeugt Dateinamen im Format creator_unternehmen_kampagne_{position}_final_{variant}.ext', () => {
+    const name = buildFinalFileName('Max Mueller', 'Firma GmbH', 'Sommer 2025', 2, '9:16', 'mp4');
+    expect(name).toBe('max_mueller_firma_gmbh_sommer_2025_2_final_9_16.mp4');
+  });
+
+  it('faellt ohne Position auf 1 zurueck', () => {
+    const name = buildFinalFileName('Creator', 'Firma', 'Kampagne', undefined, '4:5', 'mov');
+    expect(name).toBe('creator_firma_kampagne_1_final_4_5.mov');
+  });
+});
+
+describe('buildAssetDownloadName', () => {
+  const meta = { creatorName: 'Max Mueller', unternehmen: 'Firma GmbH', kampagne: 'Sommer 2025' };
+
+  it('baut fuer Draft-Assets denselben Namen wie der Upload', () => {
+    const name = buildAssetDownloadName(meta, { position: 2 }, {
+      is_final: false, version_number: 3, file_path: '/x/y/alt.mp4',
+    });
+    expect(name).toBe('max_mueller_firma_gmbh_sommer_2025_2_v3.mp4');
+  });
+
+  it('baut fuer finale Assets denselben Namen wie der Upload', () => {
+    const name = buildAssetDownloadName(meta, { position: 1 }, {
+      is_final: true, variant_name: '9:16', file_path: '/x/y/alt.mov',
+    });
+    expect(name).toBe('max_mueller_firma_gmbh_sommer_2025_1_final_9_16.mov');
+  });
+
+  it('nutzt die Extension aus file_url, wenn kein file_path vorhanden', () => {
+    const name = buildAssetDownloadName(meta, { position: 1 }, {
+      is_final: false, version_number: 1, file_url: 'https://www.dropbox.com/s/abc/video.webm?raw=1',
+    });
+    expect(name).toMatch(/\.webm$/);
+  });
+
+  it('faellt ohne Extension im Pfad auf .mp4 zurueck', () => {
+    const name = buildAssetDownloadName(meta, { position: 1 }, {
+      is_final: false, version_number: 1, file_path: '/x/y/ohneendung',
+    });
+    expect(name).toMatch(/_1_v1\.mp4$/);
   });
 });
 

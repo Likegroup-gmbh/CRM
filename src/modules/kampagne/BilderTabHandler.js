@@ -427,6 +427,7 @@ export class BilderTabHandler {
               this.drawer.metadaten?.creatorName || '',
               this.drawer.metadaten?.unternehmen || '',
               this.drawer.metadaten?.kampagne || '',
+              this.drawer.metadaten?.videoPosition || 1,
               item.variantName || STILL_FINAL_VARIANT,
               ext
             )
@@ -434,6 +435,7 @@ export class BilderTabHandler {
               this.drawer.metadaten?.creatorName || '',
               this.drawer.metadaten?.unternehmen || '',
               this.drawer.metadaten?.kampagne || '',
+              this.drawer.metadaten?.videoPosition || 1,
               item.versionNumber || 1,
               ext
             );

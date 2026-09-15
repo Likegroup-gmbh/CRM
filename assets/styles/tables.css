@@ -360,6 +360,21 @@ thead {
   text-align: center;
 }
 
+/* Fixe Auswahl-Spalte der Kooperationstabelle (Bulk-Download finale Videos).
+   Nicht Teil der ColumnRegistry: keine Resize-/Drag-Handles, kompakte Breite. */
+.kooperation-video-grid th.col-final-check,
+.kooperation-video-grid td.col-final-check {
+  width: 36px;
+  min-width: 36px;
+  text-align: center;
+  padding-left: var(--space-sm);
+  padding-right: var(--space-sm);
+}
+
+.kooperation-video-grid .col-final-check input[type="checkbox"] {
+  cursor: pointer;
+}
+
 .data-table .custom-date-picker,
 .kooperation-video-grid .custom-date-picker {
   position: relative;

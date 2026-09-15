@@ -201,9 +201,11 @@ export class VideoTableRenderer {
       this.renderKooperationWithVideos(koop, idx + 1)
     ).join('');
 
+    const hasBulkCheck = window.canFeature?.('mediaDownload') ?? false;
+
     return `
       <div class="grid-wrapper">
-        <table class="grid-table kooperation-video-grid">
+        <table class="grid-table kooperation-video-grid${hasBulkCheck ? ' has-final-check' : ''}">
           <thead>
             <tr>
               ${this.renderHeaderRow()}
@@ -230,7 +232,13 @@ export class VideoTableRenderer {
     const canDragColumns = window.canFeature?.('kampagneTableLayout') ?? false;
     const columns = getOrderedColumns(t.store);
 
-    return columns.map(col => {
+    // Fixe Auswahl-Spalte ganz links (Bulk-Download Finals): nicht Teil der
+    // ColumnRegistry, damit sie weder verschieb-/ausblendbar noch resizable ist.
+    const bulkCheck = (window.canFeature?.('mediaDownload') ?? false)
+      ? `<th class="col-header col-final-check"><input type="checkbox" id="select-all-koop-finals" title="Alle auswählen"></th>`
+      : '';
+
+    return bulkCheck + columns.map(col => {
       if (col.isCustom) {
         return renderCustomHeader(col, hiddenColumns, isKunde);
       }
@@ -247,7 +255,12 @@ export class VideoTableRenderer {
 
   renderKooperationWithVideos(koop, rowNumber) {
     const t = this.table;
-    const videos = t.videos[koop.id] || [];
+    const allVideos = t.videos[koop.id] || [];
+    // Bei aktiver Suche nur die matchenden Video-Zeilen rendern
+    // (Koop-Level-Match -> alle, sonst nur Treffer-Zeilen).
+    const videos = t.store?.getVisibleVideos
+      ? t.store.getVisibleVideos(koop)
+      : allVideos;
     const creator = koop.creator || {};
     const canViewViaPage = window.canViewPage?.('creator');
     const canViewViaPerm = window.currentUser?.permissions?.creator?.can_view;
@@ -258,13 +271,18 @@ export class VideoTableRenderer {
     // der Reihenfolge aus getOrderedColumns (Custom Columns stehen mitten
     // drin, nicht als Block vor den Aktionen). Sonst wandert beim
     // Spalten-Drag nur der Header und der Body bleibt in der alten Reihenfolge.
-    const ctx = { t, koop, videos, creator, canViewCreator, formatDate, rowNumber };
+    const ctx = { t, koop, videos, allVideosCount: allVideos.length, creator, canViewCreator, formatDate, rowNumber };
     const cells = getOrderedColumns(t.store)
       .map(col => this._renderBodyCell(col, ctx))
       .join('\n');
 
+    const bulkCheck = (window.canFeature?.('mediaDownload') ?? false)
+      ? `<td class="grid-cell col-final-check read-only"><input type="checkbox" class="koop-final-check" data-kooperation-id="${koop.id}"${t._finalBulkDownload?.isSelected(koop.id) ? ' checked' : ''}></td>`
+      : '';
+
     return `
       <tr class="kooperation-row" data-kooperation-id="${koop.id}">
+        ${bulkCheck}
         ${cells}
       </tr>
     `;
@@ -306,8 +324,10 @@ export class VideoTableRenderer {
       'col-nutzungsrechte': (c) => this._td(c, 'col-nutzungsrechte', renderNutzungsrechteCell(c.koop), 'cell-centered'),
       'col-start-datum': (c) => this._td(c, 'col-start-datum', c.formatDate(c.koop.created_at), 'read-only'),
       'col-videoanzahl': (c) => this._td(c, 'col-videoanzahl', `${c.koop.videoanzahl || 0}`, 'read-only'),
-      'col-video-nr': (c) => this._td(c, 'col-video-nr', this.renderVideoFieldStack(c.videos, (video, index, total) => {
-        return `<div class="video-nr-text">${index + 1}/${total}</div>`;
+      'col-video-nr': (c) => this._td(c, 'col-video-nr', this.renderVideoFieldStack(c.videos, (video, index) => {
+        // Bei gefilterter Liste (Suche) echte Position zeigen, nicht index+1 —
+        // sonst stuende dort "1/1" statt "2/3".
+        return `<div class="video-nr-text">${video.position || index + 1}/${c.allVideosCount || c.videos.length}</div>`;
       }), 'video-stack-cell'),
       'col-vk-video': (c) => this._td(c, 'col-vk-video', this.renderVideoFieldStack(c.videos, (video) => {
         const vk = video.verkaufspreis_netto != null ? parseFloat(video.verkaufspreis_netto) : null;

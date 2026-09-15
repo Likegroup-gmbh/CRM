@@ -14,20 +14,39 @@ function sanitizeForFilename(str) {
     .replace(/^_|_$/g, '');
 }
 
-export function buildVersionedFileName(creator, unternehmen, kampagne, version, ext) {
+export function buildVersionedFileName(creator, unternehmen, kampagne, videoPosition, version, ext) {
   const parts = [creator, unternehmen, kampagne]
     .map(sanitizeForFilename)
     .filter(Boolean);
 
+  parts.push(String(videoPosition || 1));
   parts.push(`v${version}`);
   return parts.join('_') + '.' + ext;
 }
 
-export function buildFinalFileName(creator, unternehmen, kampagne, variantName, ext) {
-  const parts = [creator, unternehmen, kampagne, 'final', variantName]
+export function buildFinalFileName(creator, unternehmen, kampagne, videoPosition, variantName, ext) {
+  const parts = [creator, unternehmen, kampagne, String(videoPosition || 1), 'final', variantName]
     .map(sanitizeForFilename)
     .filter(Boolean);
   return parts.join('_') + '.' + ext;
+}
+
+/**
+ * Download-Dateiname fuer ein bestehendes Asset: identisch zum Upload-Namen,
+ * damit auch Altdateien (alter Dropbox-Name) beim Download die Video-Nr tragen.
+ * @param {{creatorName?: string, unternehmen?: string, kampagne?: string}} meta
+ * @param {{position?: number}} video
+ * @param {{is_final?: boolean, version_number?: number, variant_name?: string, file_path?: string, file_url?: string}} asset
+ */
+export function buildAssetDownloadName(meta, video, asset) {
+  const path = asset?.file_path || asset?.file_url || '';
+  const extMatch = /\.([a-zA-Z0-9]{2,5})(?:\?|#|$)/.exec(path);
+  const ext = extMatch ? extMatch[1] : 'mp4';
+  const position = video?.position || 1;
+  if (asset?.is_final) {
+    return buildFinalFileName(meta?.creatorName, meta?.unternehmen, meta?.kampagne, position, asset?.variant_name, ext);
+  }
+  return buildVersionedFileName(meta?.creatorName, meta?.unternehmen, meta?.kampagne, position, asset?.version_number || 1, ext);
 }
 
 export function getAvailableVersions(existingVersions, maxVersions = MAX_VERSIONS) {

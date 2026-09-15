@@ -366,8 +366,9 @@ function sanitizeFilePart(str) {
     .replace(/^_|_$/g, '');
 }
 
-function buildVersionedFileName(creatorName, unternehmen, kampagne, version, ext) {
+function buildVersionedFileName(creatorName, unternehmen, kampagne, videoPosition, version, ext) {
   const parts = [creatorName, unternehmen, kampagne].map(sanitizeFilePart).filter(Boolean);
+  parts.push(String(videoPosition || 1));
   parts.push(`v${version}`);
   return parts.join('_') + '.' + ext;
 }
@@ -418,7 +419,7 @@ function buildTargetPath(ctx, job, targetCtx) {
   const videoFolder = thema ? `Video_${pos}_${thema}` : `Video_${pos}`;
 
   if (job.target_type === 'video') {
-    const name = buildVersionedFileName(ctx.creatorName, ctx.unternehmen, ctx.kampagne, job.version_number, job._ext);
+    const name = buildVersionedFileName(ctx.creatorName, ctx.unternehmen, ctx.kampagne, pos, job.version_number, job._ext);
     return {
       filePath: `${base}/Videos/${videoFolder}/Feedbackschleife_${job.version_number}/${name}`,
       folderPath: `${base}/Videos/${videoFolder}`,
@@ -427,7 +428,7 @@ function buildTargetPath(ctx, job, targetCtx) {
 
   if (job.target_type === 'story') {
     const slotIdx = targetCtx.story?.slotIndex || 1;
-    const name = buildVersionedFileName(ctx.creatorName, ctx.unternehmen, ctx.kampagne, job.version_number, job._ext);
+    const name = buildVersionedFileName(ctx.creatorName, ctx.unternehmen, ctx.kampagne, pos, job.version_number, job._ext);
     return {
       filePath: `${base}/Storys/${videoFolder}/Story_${slotIdx}/Feedbackschleife_${job.version_number}/${name}`,
       folderPath: `${base}/Storys/${videoFolder}`,

@@ -16,7 +16,7 @@ import {
   stillsForVideo, stillVersions, stillsForVersion, pickStillAsset, defaultStillSelection, finalStills, pickLatestAsset
 } from '../stills/stillAssets.js';
 import { promoteAssetToFinal, unmarkFinalSlot, markedSlotsForSource } from '../PromoteFinalAsset.js';
-import { FINAL_VARIANTS, getAssetDisplayLabel } from '../VideoUploadUtils.js';
+import { FINAL_VARIANTS, getAssetDisplayLabel, buildAssetDownloadName } from '../VideoUploadUtils.js';
 
 // Container-Formate, die haeufig nicht abspielbar sind -> kein Blob-Caching
 // (laufen ohnehin ueber den Download-Fallback).
@@ -859,14 +859,22 @@ export class VideoPlayerLightbox {
   }
 
   _buildVideoFilename(asset, video) {
-    const base = (video?.video_name || video?.thema || 'Video').trim();
-    const parts = [base];
-    if (asset?.version_number) parts.push(`v${asset.version_number}`);
-    if (asset?.variant_name) parts.push(asset.variant_name);
-    const path = asset?.file_path || video?.currentAsset?.file_path || video?.file_url || '';
-    const extMatch = /\.([a-zA-Z0-9]{2,5})(?:\?|#|$)/.exec(path);
-    const ext = extMatch ? `.${extMatch[1]}` : '.mp4';
-    return `${parts.join('_')}${ext}`;
+    // Gleicher Name wie beim Upload (inkl. Video-Nr), damit der Kunde am
+    // Dateinamen erkennt, um welches Video des Creators es sich handelt.
+    const koop = this.current?.koop;
+    const info = this.table?.kampagneInfo || {};
+    const meta = {
+      creatorName: `${koop?.creator?.vorname || ''} ${koop?.creator?.nachname || ''}`.trim(),
+      unternehmen: info.unternehmen || '',
+      kampagne: info.name || '',
+    };
+    const source = asset || {
+      is_final: false,
+      version_number: null,
+      file_path: video?.currentAsset?.file_path || null,
+      file_url: video?.file_url || video?.link_content || video?.asset_url || null,
+    };
+    return buildAssetDownloadName(meta, video, source);
   }
 
 }

@@ -63,6 +63,7 @@ export async function runVideoReplaceJob(ctx) {
     metadaten?.creatorName || '',
     metadaten?.unternehmen || '',
     metadaten?.kampagne || '',
+    metadaten?.videoPosition || 1,
     versionNumber,
     ext
   );

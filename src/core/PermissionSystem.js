@@ -141,17 +141,17 @@ const KLASSE_PERMISSIONS = {
 // eine neue Rolle bekommt die Eigenschaften hier zugeschrieben, nicht in
 // den Renderern. Klasse schlaegt Rolle (wie bei den Entity-Permissions).
 // Features: contactMail, kampagneTableFilter, kampagneTableLayout,
-// mediaUpload, skriptKommentieren.
+// mediaUpload, mediaDownload, skriptKommentieren.
 const FEATURE_MATRIX = {
-  admin:         { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: true,  mediaUpload: true,  skriptKommentieren: true  },
-  mitarbeiter:   { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: true,  mediaUpload: true,  skriptKommentieren: true  },
-  // Kunde: sieht Mails, filtert die Kampagnen-Tabelle und kommentiert Skripte;
-  // Layout-Werkzeuge und Uploads bleiben intern.
-  kunde:         { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: false, mediaUpload: false, skriptKommentieren: true  },
-  kunde_editor:  { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: false, mediaUpload: false, skriptKommentieren: true  },
-  gast:          { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: false, mediaUpload: false, skriptKommentieren: true  },
-  investor:      { contactMail: false, kampagneTableFilter: false, kampagneTableLayout: false, mediaUpload: false, skriptKommentieren: false },
-  pending:       { contactMail: false, kampagneTableFilter: false, kampagneTableLayout: false, mediaUpload: false, skriptKommentieren: false },
+  admin:         { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: true,  mediaUpload: true,  mediaDownload: true,  skriptKommentieren: true  },
+  mitarbeiter:   { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: true,  mediaUpload: true,  mediaDownload: true,  skriptKommentieren: true  },
+  // Kunde: sieht Mails, filtert die Kampagnen-Tabelle, laedt finale Videos
+  // und kommentiert Skripte; Layout-Werkzeuge und Uploads bleiben intern.
+  kunde:         { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: false, mediaUpload: false, mediaDownload: true,  skriptKommentieren: true  },
+  kunde_editor:  { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: false, mediaUpload: false, mediaDownload: true,  skriptKommentieren: true  },
+  gast:          { contactMail: true,  kampagneTableFilter: true,  kampagneTableLayout: false, mediaUpload: false, mediaDownload: true,  skriptKommentieren: true  },
+  investor:      { contactMail: false, kampagneTableFilter: false, kampagneTableLayout: false, mediaUpload: false, mediaDownload: false, skriptKommentieren: false },
+  pending:       { contactMail: false, kampagneTableFilter: false, kampagneTableLayout: false, mediaUpload: false, mediaDownload: false, skriptKommentieren: false },
 };
 
 // Finanzen-Klasse = Investor-Zeile (gleiche Einschraenkungen).

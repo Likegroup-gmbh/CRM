@@ -99,4 +99,122 @@ describe('KampagneDetailStore – Kooperationen-Namenssuche', () => {
     store.destroy();
     expect(store.searchQuery).toBe('');
   });
+
+  it('matcht über Tags', () => {
+    store.setSearchQuery('ugc');
+    expect(store.getFiltered('alle').map(k => k.id)).toEqual(['k1']);
+  });
+
+  it('matcht über den Status', () => {
+    store.setSearchQuery('angefragt');
+    expect(store.getFiltered('alle').map(k => k.id)).toEqual(['k1']);
+  });
+
+  it('matcht über Thema, Video-Name und Caption der Videos', () => {
+    store.setVideos({
+      k1: [{ id: 'v1', freigabe: true, thema: 'Unboxing Herbst', video_name: 'Hook A', caption: 'Jetzt shoppen' }],
+      k2: [{ id: 'v2', freigabe: false, thema: 'Review', caption: 'Werbung' }],
+    });
+
+    store.setSearchQuery('unboxing');
+    expect(store.getFiltered('alle').map(k => k.id)).toEqual(['k1']);
+
+    store.setSearchQuery('hook a');
+    expect(store.getFiltered('alle').map(k => k.id)).toEqual(['k1']);
+
+    store.setSearchQuery('werbung');
+    expect(store.getFiltered('alle').map(k => k.id)).toEqual(['k2']);
+  });
+
+  it('matcht über die Konzept-Beschreibung (strategie_item)', () => {
+    store.setVideos({
+      k2: [{ id: 'v2', freigabe: false, strategie_item: { beschreibung: 'POV: Morgenroutine' } }],
+    });
+    store.setSearchQuery('morgenroutine');
+    expect(store.getFiltered('alle').map(k => k.id)).toEqual(['k2']);
+  });
+
+  it('matcht über Custom-Text- und Dropdown-Spalten (Koop- und Video-Ebene)', () => {
+    store.customColumns = [
+      { id: 'c1', field_type: 'text', entity_type: 'kooperation' },
+      { id: 'c2', field_type: 'dropdown', entity_type: 'video' },
+      { id: 'c3', field_type: 'number', entity_type: 'kooperation' },
+    ];
+    store.setCustomColumnValue('k2', 'c1', 'Notiz Sommerschluss');
+    store.setCustomColumnValue('v2', 'c2', 'Variante B');
+    store.setCustomColumnValue('k2', 'c3', 42);
+    store.setVideos({ k2: [{ id: 'v2', freigabe: false }] });
+
+    store.setSearchQuery('sommerschluss');
+    expect(store.getFiltered('alle').map(k => k.id)).toEqual(['k2']);
+
+    store.setSearchQuery('variante b');
+    expect(store.getFiltered('alle').map(k => k.id)).toEqual(['k2']);
+
+    // Zahlen-Spalten werden nicht durchsucht
+    store.setSearchQuery('42');
+    expect(store.getFiltered('alle')).toHaveLength(0);
+  });
+});
+
+describe('KampagneDetailStore – getVisibleVideos (Zeilen-Filterung)', () => {
+  let store;
+  const videos = [
+    { id: 'v1', position: 1, thema: 'Apfelringe', caption: 'Snack' },
+    { id: 'v2', position: 2, thema: 'Grilled Cheese', caption: 'Käse' },
+    { id: 'v3', position: 3, thema: 'Halloween Cookie', caption: 'Kürbis' },
+  ];
+
+  beforeEach(() => {
+    store = new KampagneDetailStore('kampagne-1');
+    store.setKooperationen([
+      makeKoop({ id: 'k1', creator: { vorname: 'Nina', nachname: 'Test' } }),
+    ]);
+    store.setVideos({ k1: videos });
+  });
+
+  it('ohne Suche: alle Videos', () => {
+    expect(store.getVisibleVideos(store.kooperationen[0])).toHaveLength(3);
+  });
+
+  it('Video-Match: nur die passende Zeile bleibt sichtbar', () => {
+    store.setSearchQuery('apfelringe');
+    const visible = store.getVisibleVideos(store.kooperationen[0]);
+    expect(visible.map(v => v.id)).toEqual(['v1']);
+  });
+
+  it('Video-Match über Caption filtert ebenfalls auf die Zeile', () => {
+    store.setSearchQuery('kürbis');
+    expect(store.getVisibleVideos(store.kooperationen[0]).map(v => v.id)).toEqual(['v3']);
+  });
+
+  it('Koop-Level-Match (Creator-Name): alle Videos bleiben sichtbar', () => {
+    store.setSearchQuery('nina');
+    expect(store.getVisibleVideos(store.kooperationen[0])).toHaveLength(3);
+  });
+
+  it('Koop-Level-Match über Tag: alle Videos bleiben sichtbar', () => {
+    store.kooperationen[0]._tags = ['UGC'];
+    store.setSearchQuery('ugc');
+    expect(store.getVisibleVideos(store.kooperationen[0])).toHaveLength(3);
+  });
+
+  it('mehrere Video-Treffer: alle Treffer-Zeilen, nicht mehr', () => {
+    store.setVideos({
+      k1: [
+        { id: 'v1', position: 1, caption: 'Toller Kürbis' },
+        { id: 'v2', position: 2, thema: 'Kürbis-Suppe' },
+        { id: 'v3', position: 3, thema: 'Apfelringe' },
+      ],
+    });
+    store.setSearchQuery('kürbis');
+    expect(store.getVisibleVideos(store.kooperationen[0]).map(v => v.id)).toEqual(['v1', 'v2']);
+  });
+
+  it('Video-Custom-Spalte matcht auf Zeilen-Ebene', () => {
+    store.customColumns = [{ id: 'c1', field_type: 'text', entity_type: 'video' }];
+    store.setCustomColumnValue('v2', 'c1', 'Spezialnotiz');
+    store.setSearchQuery('spezialnotiz');
+    expect(store.getVisibleVideos(store.kooperationen[0]).map(v => v.id)).toEqual(['v2']);
+  });
 });

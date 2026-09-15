@@ -126,7 +126,56 @@ export class KampagneDetailStore {
   matchesSearch(koop) {
     const query = (this.searchQuery || '').trim().toLowerCase();
     if (!query) return true;
-    return this.getKoopCreatorName(koop).toLowerCase().includes(query);
+    if (this._matchesKoopLevel(koop, query)) return true;
+    return (this.videos[koop.id] || []).some(v => this._matchesVideoLevel(v, query));
+  }
+
+  /**
+   * Videos, die die Tabelle fuer diese Kooperation rendert. Matcht die Suche
+   * auf Koop-Ebene (Creator/Status/Tags), bleiben alle Videos sichtbar; matcht
+   * sie nur einzelne Videos, werden die anderen Zeilen ausgeblendet.
+   */
+  getVisibleVideos(koop) {
+    const videos = this.videos[koop.id] || [];
+    const query = (this.searchQuery || '').trim().toLowerCase();
+    if (!query) return videos;
+    if (this._matchesKoopLevel(koop, query)) return videos;
+    return videos.filter(v => this._matchesVideoLevel(v, query));
+  }
+
+  /** Koop-Ebene: Creator-Name, Status, Tags, Koop-Custom (text/dropdown). */
+  _matchesKoopLevel(koop, query) {
+    const parts = [
+      this.getKoopCreatorName(koop),
+      koop.status_name || koop.status_ref?.name || '',
+      ...(koop._tags || []),
+    ];
+    for (const col of this.customColumns) {
+      if (col.field_type !== 'text' && col.field_type !== 'dropdown') continue;
+      if (col.entity_type === 'video') continue;
+      parts.push(this.getCustomColumnValue(koop.id, col.id));
+    }
+    return this._anyMatch(parts, query);
+  }
+
+  /** Video-Ebene: Thema, Video-Name, Caption, Konzept-Beschreibung, Video-Custom. */
+  _matchesVideoLevel(video, query) {
+    const parts = [
+      video.thema, video.video_name, video.caption,
+      video.strategie_item?.beschreibung,
+    ];
+    for (const col of this.customColumns) {
+      if (col.field_type !== 'text' && col.field_type !== 'dropdown') continue;
+      if (col.entity_type !== 'video') continue;
+      parts.push(this.getCustomColumnValue(video.id, col.id));
+    }
+    return this._anyMatch(parts, query);
+  }
+
+  _anyMatch(parts, query) {
+    return parts
+      .filter(p => p != null && p !== '')
+      .some(p => String(p).toLowerCase().includes(query));
   }
 
   getFiltered(tab) {
