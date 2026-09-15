@@ -614,7 +614,7 @@ export class AnsprechpartnerDetail extends PersonDetailBase {
             <div id="magic-link-result" class="magic-link-result">
               <div class="form-group">
                 <label class="form-label">Registrierungs-Link</label>
-                <input type="text" id="magic-link-input" class="input input-mono" readonly />
+                <input type="text" id="magic-link-input" class="input" readonly />
               </div>
             </div>
           </div>

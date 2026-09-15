@@ -196,6 +196,17 @@ describe('renderItemRow – Fortschritt der Hintergrund-Verarbeitung', () => {
     expect(renderRow({ video_link: 'https://tiktok.com/x' }).querySelector('[data-action="reprocess-item"]')).toBeTruthy();
     expect(renderRow({ video_link: null }).querySelector('[data-action="reprocess-item"]')).toBeNull();
   });
+
+  it('zeigt bei Ideen ohne Link den Platzhalter, auch wenn ein Screenshot haengen geblieben ist', () => {
+    const doc = renderRow({
+      video_link: null,
+      screenshot_url: 'https://cdn/bild.jpg'
+    });
+
+    expect(doc.querySelector('img.strategie-screenshot')).toBeNull();
+    expect(doc.querySelector('.idea-placeholder')).toBeTruthy();
+    expect(doc.querySelector('.idea-placeholder').textContent).toContain('Idee');
+  });
 });
 
 describe('renderItemsTable – Kopfzeile und colspan', () => {

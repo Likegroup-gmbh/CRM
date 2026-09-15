@@ -104,9 +104,9 @@
 
 .briefing-doc__kicker {
   margin: 0 0 var(--space-xs);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--text-tertiary);
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--gray-800);
 }
 
 .briefing-doc__section {

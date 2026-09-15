@@ -14,7 +14,7 @@ export const JSPDF_URL = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.um
 
 const MARGIN_X = 14;
 const MAX_WIDTH = 182;
-const START_Y_FIRST = 30;
+const START_Y_FIRST = 40;
 const START_Y = 20;
 const MAX_CONTENT_Y = 272;
 

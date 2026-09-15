@@ -259,7 +259,7 @@
   border: 1px solid var(--gray-300);
   border-radius: var(--radius-xl);
   font-size: var(--text-sm);
-  font-family: 'Lexend', sans-serif;
+  font-family: var(--font-sans);
   color: var(--text-primary);
   background: var(--bg-primary);
   cursor: pointer;

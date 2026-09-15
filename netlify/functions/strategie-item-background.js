@@ -22,8 +22,10 @@ const { transcribeVideoOnPage, isTranscribablePlatform, buildNavigateUrl } = req
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
 const { shouldApplyKiBeschreibung } = require('./_shared/ki-beschreibung');
-
-const SCREENSHOT_BUCKET = 'strategie-screenshots';
+const {
+  SCREENSHOT_BUCKET,
+  deletePreviousScreenshot
+} = require('./_shared/strategie-screenshot');
 
 /**
  * Schreibt Fortschritt auf das Item und sammelt parallel das Log fuer den Job.
@@ -176,7 +178,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
 
   const { data: item } = await supabase
     .from('strategie_items')
-    .select('id, strategie_id, video_link, beschreibung, verarbeitung_status')
+    .select('id, strategie_id, video_link, beschreibung, verarbeitung_status, screenshot_url')
     .eq('id', itemId)
     .maybeSingle();
   if (!item) {
@@ -218,8 +220,9 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
     try {
       const buffer = await captureScreenshot(browser, platform, navigateUrl);
       const screenshotUrl = await uploadScreenshot(supabase, buffer, platform);
-      tracker.updateItem({ screenshot_url: screenshotUrl });
+      await tracker.flushItem({ screenshot_url: screenshotUrl });
       tracker.log(`Screenshot gespeichert: ${screenshotUrl}`);
+      await deletePreviousScreenshot(supabase, item.screenshot_url, screenshotUrl);
     } catch (e) {
       screenshotError = e.message;
       tracker.log(`Screenshot fehlgeschlagen: ${e.message}`);

@@ -377,16 +377,8 @@ export function htmlToPlainText(html) {
   if (html == null || html === '') return '';
   const str = String(html);
   const normalized = str.replace(/<br\s*\/?>/gi, '\n');
-  if (!/[<>]/.test(normalized)) {
-    return normalized
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/\u00a0/g, ' ')
-      .trim();
-  }
+  // Immer ueber den DOM-Parser: decodiert alle Entities (u.a. &#x2F;, &#x27;),
+  // die der Validator beim Escapen erzeugt. Kein manueller Replace-Pfad.
   const node = document.createElement('div');
   node.innerHTML = normalized;
   const text = node.innerText ?? node.textContent ?? '';

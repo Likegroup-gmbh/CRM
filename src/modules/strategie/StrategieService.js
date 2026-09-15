@@ -454,6 +454,27 @@ export class StrategieService {
   }
 
   /**
+   * Screenshot aus dem Bucket entfernen. Storage-Fehler blockieren den Caller nicht.
+   */
+  async deleteScreenshot(screenshotUrl) {
+    if (!screenshotUrl) return;
+
+    const storagePath = this.extractStoragePath(screenshotUrl);
+    if (!storagePath) return;
+
+    console.log('🗑️ Lösche Screenshot aus Bucket:', storagePath);
+    const { error: storageError, data: storageData } = await window.supabase.storage
+      .from('strategie-screenshots')
+      .remove([storagePath]);
+
+    if (storageError) {
+      console.warn('❌ Fehler beim Löschen des Screenshots:', storageError);
+    } else {
+      console.log('✅ Screenshot gelöscht:', storageData);
+    }
+  }
+
+  /**
    * Items einer Strategie abrufen (inkl. Verknüpfungs-Status)
    */
   async getStrategieItems(strategieId) {
@@ -553,21 +574,8 @@ export class StrategieService {
 
     console.log('📸 Item-Daten:', item);
 
-    // Screenshot aus dem Storage löschen
     if (item?.screenshot_url) {
-      const storagePath = this.extractStoragePath(item.screenshot_url);
-      if (storagePath) {
-        console.log('🗑️ Lösche Screenshot aus Bucket:', storagePath);
-        const { error: storageError, data: storageData } = await window.supabase.storage
-          .from('strategie-screenshots')
-          .remove([storagePath]);
-
-        if (storageError) {
-          console.warn('❌ Fehler beim Löschen des Screenshots:', storageError);
-        } else {
-          console.log('✅ Screenshot gelöscht:', storageData);
-        }
-      }
+      await this.deleteScreenshot(item.screenshot_url);
     } else {
       console.log('ℹ️ Kein Screenshot vorhanden');
     }

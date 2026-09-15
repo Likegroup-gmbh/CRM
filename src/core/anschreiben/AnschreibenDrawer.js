@@ -57,7 +57,7 @@ export class AnschreibenDrawer {
 
   async open() {
     this._build();
-    await Promise.all([this._loadVorlagen(), this._buildPdf()]);
+    await Promise.all([this.composer.render(), this._loadVorlagen(), this._buildPdf()]);
     this._fillFromVorlage(this._defaultVorlage());
   }
 
@@ -186,7 +186,6 @@ export class AnschreibenDrawer {
       markeId: this.markeId,
       onChange: () => this._updateSendState(),
     });
-    this.composer.render();
 
     this._bind();
   }

@@ -241,7 +241,7 @@ function bindEditItemDrawerEvents(detail, itemId) {
   bindEditCreatorFieldEvents(detail, itemId);
 }
 
-async function handleEditItemSubmit(detail, itemId, formData) {
+export async function handleEditItemSubmit(detail, itemId, formData) {
   const submitBtn = document.querySelector('#edit-item-form button[type="submit"]');
   const originalText = submitBtn?.innerHTML;
   
@@ -300,6 +300,8 @@ async function handleEditItemSubmit(detail, itemId, formData) {
       updates.verarbeitung_fehler = null;
       updates.verarbeitung_step = null;
       updates.verarbeitung_status = videoUrl ? 'pending' : null;
+      updates.screenshot_url = null;
+      await strategieService.deleteScreenshot(item?.screenshot_url);
     }
 
     await strategieService.updateStrategieItem(itemId, updates);

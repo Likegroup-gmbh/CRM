@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const { authErrorBody } = require('../../netlify/functions/_shared/verify-auth.js');
+const { authErrorBody, verifyAuth, isTransientAuthError } = require('../../netlify/functions/_shared/verify-auth.js');
 
 describe('verify-auth – Fehlerkoerper', () => {
   it('macht aus session_not_found eine verstaendliche Meldung', () => {
@@ -34,6 +34,60 @@ describe('verify-auth – Fehlerkoerper', () => {
 
     expect(body.error).toBe('Nicht autorisiert');
     expect(body.session_dead).toBe(false);
+  });
+
+  it('erzwingt bei Auth-Upstream-Timeout keinen Logout', () => {
+    const body = authErrorBody({ code: 'auth_unavailable', error: 'Gateway Timeout' });
+
+    expect(body.error).toBe('Anmeldung gerade nicht prüfbar – bitte nochmal versuchen.');
+    expect(body.session_dead).toBe(false);
+  });
+});
+
+describe('verifyAuth – transiente Auth-Fehler', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('erkennt 504 als transient', () => {
+    expect(isTransientAuthError({ status: 504, message: 'Gateway Timeout' })).toBe(true);
+    expect(isTransientAuthError({ code: 'session_not_found', message: 'Session from session_id claim in JWT does not exist' })).toBe(false);
+  });
+
+  it('wiederholt getUser bei 504 und nimmt den zweiten Treffer', async () => {
+    vi.useFakeTimers();
+    const getUser = vi.fn()
+      .mockResolvedValueOnce({ data: { user: null }, error: { status: 504, message: 'Gateway Timeout' } })
+      .mockResolvedValueOnce({ data: { user: { id: 'u1' } }, error: null });
+
+    const pending = verifyAuth(
+      { headers: { authorization: 'Bearer tok' } },
+      { auth: { getUser } }
+    );
+    await vi.runAllTimersAsync();
+    const result = await pending;
+
+    expect(result.user).toEqual({ id: 'u1' });
+    expect(getUser).toHaveBeenCalledTimes(2);
+  });
+
+  it('gibt nach drei 504 auth_unavailable zurueck', async () => {
+    vi.useFakeTimers();
+    const getUser = vi.fn().mockResolvedValue({
+      data: { user: null },
+      error: { status: 504, message: 'Gateway Timeout' }
+    });
+
+    const pending = verifyAuth(
+      { headers: { authorization: 'Bearer tok' } },
+      { auth: { getUser } }
+    );
+    await vi.runAllTimersAsync();
+    const result = await pending;
+
+    expect(result.user).toBeNull();
+    expect(result.code).toBe('auth_unavailable');
+    expect(getUser).toHaveBeenCalledTimes(3);
   });
 });
 

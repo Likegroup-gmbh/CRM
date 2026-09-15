@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderItemRow } from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
 import {
   vorschlagToItem,
-  CastingVorschlagService
+  CastingVorschlagService,
+  JOB_START_WATCHDOG_MS
 } from '../modules/creator-auswahl/CastingVorschlagService.js';
 
 function baseCtx(overrides = {}) {
@@ -143,5 +144,37 @@ describe('CastingVorschlagService.aktivieren', () => {
       kategorie: 'Reels'
     }));
     spy.mockRestore();
+  });
+});
+
+describe('CastingVorschlagService.starteJob', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    delete window.supabase;
+  });
+
+  it('bricht ab, wenn der Job pending bleibt und nie startet', async () => {
+    vi.useFakeTimers();
+    const jobs = {
+      insert() { return this; },
+      select() { return this; },
+      eq() { return this; },
+      single: vi.fn().mockResolvedValue({ data: { id: 'job-1' }, error: null }),
+      maybeSingle: vi.fn().mockResolvedValue({
+        data: { status: 'pending', progress_step: null, progress_steps: [], result: null, error_message: null },
+        error: null
+      })
+    };
+    window.supabase = {
+      from: vi.fn(() => jobs),
+      auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 'tok', user: { id: 'u1' } } } }) }
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ status: 202, ok: true }));
+
+    const pending = expect(CastingVorschlagService.starteJob({ castingId: 'c1' }))
+      .rejects.toThrow('Die Generierung ist nicht angelaufen');
+    await vi.advanceTimersByTimeAsync(JOB_START_WATCHDOG_MS + 2000);
+    await pending;
   });
 });

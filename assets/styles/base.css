@@ -6,8 +6,21 @@
   box-sizing: border-box;
 }
 
+/* Formularelemente nutzen die Hauptfont (statt UA-Default wie Monospace bei textarea).
+   Eingaben hängen direkt an der Variable: ein Wechsel von --font-sans in
+   variables.css wird automatisch ueberall uebernommen. */
+input,
+textarea {
+  font-family: var(--font-sans);
+}
+
+select,
+button {
+  font-family: inherit;
+}
+
 body {
-  font-family: Inter, sans-serif;
+  font-family: var(--font-sans);
   background-color: var(--gray-50);
   color: var(--text-primary);
   font-size: var(--text-md);

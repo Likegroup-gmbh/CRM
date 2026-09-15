@@ -47,23 +47,13 @@ const THINKING_LABELS = {
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405 };
 
-  const supabaseUrl = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!supabaseUrl || !supabaseKey) {
     console.error('❌ casting-vorschlag-background: Supabase-Konfiguration fehlt');
     return { statusCode: 500 };
   }
   const supabase = createClient(supabaseUrl, supabaseKey);
-
-  const auth = await verifyAuth(event, supabase);
-  if (!auth.user) {
-    return {
-      statusCode: 401,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(authErrorBody(auth))
-    };
-  }
-  const { user } = auth;
 
   let jobId;
   try {
@@ -72,6 +62,29 @@ exports.handler = async (event) => {
     return { statusCode: 400 };
   }
   if (!jobId) return { statusCode: 400 };
+
+  const markJobError = async (message) => {
+    try {
+      await supabase.from('casting_vorschlag_jobs')
+        .update({ status: 'error', error_message: message })
+        .eq('id', jobId)
+        .eq('status', 'pending');
+    } catch (e) {
+      console.error(`[${jobId}] Job-Fehler konnte nicht geschrieben werden:`, e.message);
+    }
+  };
+
+  const auth = await verifyAuth(event, supabase);
+  if (!auth.user) {
+    const body = authErrorBody(auth);
+    if (auth.code === 'auth_unavailable') await markJobError(body.error);
+    return {
+      statusCode: auth.code === 'auth_unavailable' ? 503 : 401,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    };
+  }
+  const { user } = auth;
 
   const { data: job } = await supabase.from('casting_vorschlag_jobs')
     .select('id, casting_id, status, input, created_by')

@@ -410,13 +410,6 @@ input.input-error {
   box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
 }
 
-/* Mono Input für Links/Codes */
-
-.input-mono {
-  font-family: monospace;
-  font-size: 0.8rem;
-}
-
 #ansprechpartner-kampagne-dropdown .dropdown-item {
   padding: var(--space-xs) 12px;
   cursor: pointer;

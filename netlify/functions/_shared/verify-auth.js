@@ -20,8 +20,33 @@ const AUTH_MESSAGES = {
   session_not_found: 'Sitzung abgelaufen – bitte neu anmelden.',
   bad_jwt: 'Sitzung ungültig – bitte neu anmelden.',
   session_expired: 'Sitzung abgelaufen – bitte neu anmelden.',
-  config_missing: 'Serverkonfiguration unvollständig.'
+  config_missing: 'Serverkonfiguration unvollständig.',
+  auth_unavailable: 'Anmeldung gerade nicht prüfbar – bitte nochmal versuchen.'
 };
+
+const TRANSIENT_AUTH_STATUS = new Set([408, 429, 500, 502, 503, 504]);
+const AUTH_RETRY_ATTEMPTS = 3;
+
+function isTransientAuthError(error) {
+  if (!error) return false;
+  if (TRANSIENT_AUTH_STATUS.has(error.status) || TRANSIENT_AUTH_STATUS.has(error.statusCode)) {
+    return true;
+  }
+  const msg = String(error.message || '').toLowerCase();
+  return /gateway|timeout|fetch failed|network|econnreset|503|504|502/.test(msg);
+}
+
+async function getUserWithRetry(client, token) {
+  let last = { data: { user: null }, error: null };
+  for (let attempt = 1; attempt <= AUTH_RETRY_ATTEMPTS; attempt++) {
+    last = await client.auth.getUser(token);
+    if (last?.data?.user) return last;
+    if (!isTransientAuthError(last?.error) || attempt === AUTH_RETRY_ATTEMPTS) return last;
+    console.warn(`[verifyAuth] getUser ${last.error?.status || '?'} – Retry ${attempt}/${AUTH_RETRY_ATTEMPTS}`);
+    await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+  }
+  return last;
+}
 
 /** Codes, bei denen der Client seine Session wegwerfen und neu anmelden soll */
 const SESSION_DEAD_CODES = new Set(['no_token', 'session_not_found', 'session_expired', 'bad_jwt']);
@@ -60,10 +85,15 @@ async function verifyAuth(event, supabase) {
     return { user: null, code: 'config_missing', error: 'Supabase-Konfiguration fehlt' };
   }
 
-  const { data, error } = await client.auth.getUser(token);
+  const { data, error } = await getUserWithRetry(client, token);
   const user = (data && data.user) || null;
 
   if (error || !user) {
+    if (isTransientAuthError(error)) {
+      const message = (error && error.message) || 'Auth-Upstream nicht erreichbar';
+      console.warn(`[verifyAuth] Auth-Upstream nicht erreichbar (HTTP ${error?.status ?? '-'}): ${message}`);
+      return { user: null, code: 'auth_unavailable', error: message };
+    }
     const code = (error && error.code) || 'invalid_token';
     const message = (error && error.message) || 'Kein Benutzer zum Token gefunden';
     console.warn(`[verifyAuth] Token abgelehnt (${code}, HTTP ${error?.status ?? '-'}): ${message}`);
@@ -112,4 +142,11 @@ function authErrorBody(result) {
   };
 }
 
-module.exports = { verifyAuth, requireInternal, authErrorBody, AUTH_MESSAGES, SESSION_DEAD_CODES };
+module.exports = {
+  verifyAuth,
+  requireInternal,
+  authErrorBody,
+  AUTH_MESSAGES,
+  SESSION_DEAD_CODES,
+  isTransientAuthError
+};

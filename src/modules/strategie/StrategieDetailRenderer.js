@@ -177,10 +177,10 @@ function renderBildCell(item, isIdea, ideaIcon) {
   const status = item.verarbeitung_status;
   const laeuft = status === 'processing' || status === 'pending';
 
-  const bild = item.screenshot_url
-    ? `<img src="${escapeAttr(item.screenshot_url)}" alt="Screenshot" class="strategie-screenshot" onclick="window.open('${escapeAttr(item.screenshot_url)}', '_blank')">`
-    : isIdea
-      ? `<div class="idea-placeholder">${ideaIcon}<span>Idee</span></div>`
+  const bild = isIdea
+    ? `<div class="idea-placeholder">${ideaIcon}<span>Idee</span></div>`
+    : item.screenshot_url
+      ? `<img src="${escapeAttr(item.screenshot_url)}" alt="Screenshot" class="strategie-screenshot" onclick="window.open('${escapeAttr(item.screenshot_url)}', '_blank')">`
       : `<div class="strategie-screenshot-placeholder"><span>${laeuft ? 'Lädt...' : 'Kein Bild'}</span></div>`;
 
   if (laeuft) {

@@ -16,6 +16,8 @@ import {
 const ENDPOINT = '/.netlify/functions/casting-vorschlag-background';
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 4 * 60 * 1000;
+/** Function hat den Job nicht angefasst (Auth-504, Worker-Crash, Env). */
+export const JOB_START_WATCHDOG_MS = 25 * 1000;
 
 const VORSCHLAG_SELECT = '*, creator:creator_id(id, vorname, nachname, instagram, tiktok, instagram_follower, tiktok_follower, profilbild_thumb_url, profilbild_url, lieferadresse_stadt, mail, telefonnummer, creator_creator_type(creator_type_id(id,name)))';
 
@@ -134,7 +136,8 @@ export class CastingVorschlagService {
     }
 
     try {
-      const deadline = Date.now() + POLL_TIMEOUT_MS;
+      const startedAt = Date.now();
+      const deadline = startedAt + POLL_TIMEOUT_MS;
       let letzterStep = null;
 
       while (Date.now() < deadline) {
@@ -144,6 +147,11 @@ export class CastingVorschlagService {
           .select('status, progress_step, progress_steps, result, error_message')
           .eq('id', job.id).maybeSingle();
         if (pollError || !row) continue;
+
+        if (row.status === 'pending' && !row.progress_step
+          && Date.now() - startedAt >= JOB_START_WATCHDOG_MS) {
+          throw new Error('Die Generierung ist nicht angelaufen. Bitte nochmal versuchen.');
+        }
 
         if (row.status === 'done') {
           const payload = row.result || {};

@@ -382,6 +382,9 @@ input:-webkit-autofill:focus {
   --accent-primary: var(--primary-500);
   --accent-hover: var(--primary-600);
 
+  /* Hauptfont (einmal ändern, überall übernommen) — Stack wie auf main/live */
+  --font-sans: Inter, sans-serif;
+
   /* Font-Size-Aliase */
   --font-size-sm: var(--text-sm);
   --font-size-lg: var(--text-lg);

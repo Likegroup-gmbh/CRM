@@ -228,9 +228,13 @@ export class BriefingDetail {
   }
 
   escape(s) {
-    const str = String(s ?? '');
-    if (window.validatorSystem?.sanitizeHtml) return window.validatorSystem.sanitizeHtml(str);
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    // Bewusst ohne Validator-Sanitize: Slash (/) braucht kein XSS-Escaping,
+    // und &#x2F; wuerde im PDF als Rohtext landen (siehe htmlToPlainText).
+    return String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 
   bindEvents() {
