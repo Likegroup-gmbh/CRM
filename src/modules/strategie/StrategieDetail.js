@@ -14,6 +14,8 @@ import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCusto
 import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
 import { renderToolbarMenu, renderToolbarMenuItem, renderToolbarListenKopf, bindToolbarMenu } from '../../core/components/ToolbarMenu.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { VideoideeVorschlagPanel } from './VideoideeVorschlagPanel.js';
+import { isVideoideeVorschlag } from './videoideeVorschlag.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -39,6 +41,7 @@ export class StrategieDetail {
     this.hiddenColumns = [];
     this.customColumns = new EntityCustomColumnsManager({ parentType: 'strategie', parentTable: 'strategie' });
     this._customHeaderDragCleanup = null;
+    this.vorschlagPanel = new VideoideeVorschlagPanel(this);
   }
 
   async init(strategieId) {
@@ -91,6 +94,7 @@ export class StrategieDetail {
       window.setHeadline('');
       await this.render();
       this.bindEvents();
+      await this.vorschlagPanel.mount();
 
     } catch (error) {
       console.error('Fehler beim Laden der Strategie:', error);
@@ -108,6 +112,7 @@ export class StrategieDetail {
     const html = `
       ${this.renderHeader()}
       ${canEdit ? this.renderAddItemSection() : ''}
+      <div id="videoidee-vorschlag-block"></div>
       ${this.renderItemsTable()}
     `;
 
@@ -205,6 +210,11 @@ export class StrategieDetail {
   // --- Delegations-Methoden (Renderer) ---
   renderItemsTable() { return renderItemsTable(this); }
   rerenderItemsTable() { _rerenderItemsTable(this); }
+
+  async reloadItems() {
+    this.items = await strategieService.getStrategieItems(this.strategieId);
+    return this.items;
+  }
 
   // --- Delegations-Methoden (Table Events) ---
   _cleanupTableEvents() { cleanupTableEvents(this); }
@@ -466,6 +476,18 @@ export class StrategieDetail {
         table: 'strategie_items',
         filter: `strategie_id=eq.${this.strategieId}`
       }, (payload) => this.handleItemRealtimeUpdate(payload.new))
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'strategie_items',
+        filter: `strategie_id=eq.${this.strategieId}`
+      }, (payload) => this.handleItemRealtimeInsert(payload.new))
+      .on('postgres_changes', {
+        event: 'DELETE',
+        schema: 'public',
+        table: 'strategie_items',
+        filter: `strategie_id=eq.${this.strategieId}`
+      }, (payload) => this.handleItemRealtimeDelete(payload.old))
       .subscribe();
 
     this._boundEventListeners.add(() => this.unsubscribeFromItemUpdates());
@@ -477,13 +499,40 @@ export class StrategieDetail {
     this._itemChannel = null;
   }
 
+  handleItemRealtimeInsert(row) {
+    if (!row?.id) return;
+    if (this.isKunde && isVideoideeVorschlag(row)) return;
+    if (this.items.some((i) => i.id === row.id)) return;
+    this.items.push(row);
+    this.rerenderItemsTable();
+    this.vorschlagPanel?.render?.();
+  }
+
+  handleItemRealtimeDelete(row) {
+    if (!row?.id) return;
+    const next = this.items.filter((i) => i.id !== row.id);
+    if (next.length === this.items.length) return;
+    this.items = next;
+    this.rerenderItemsTable();
+    this.vorschlagPanel?.render?.();
+  }
+
   handleItemRealtimeUpdate(row) {
     if (!row?.id) return;
+    if (this.isKunde && isVideoideeVorschlag(row)) return;
     const item = this.items.find(i => i.id === row.id);
-    if (!item) return;
+    if (!item) {
+      this.handleItemRealtimeInsert(row);
+      return;
+    }
 
-    // linked_video und andere angereicherte Felder haengen nicht an der Zeile
+    const warVorschlag = !!item.ist_vorschlag;
     Object.assign(item, row);
+    if (warVorschlag !== !!item.ist_vorschlag) {
+      this.rerenderItemsTable();
+      this.vorschlagPanel?.render?.();
+      return;
+    }
     updateItemRow(this, row.id);
   }
 
@@ -493,6 +542,7 @@ export class StrategieDetail {
     this._cleanupTableEvents();
     this._destroyDragToScroll();
     this.unsubscribeFromItemUpdates();
+    this.vorschlagPanel?.unmount?.();
     this.removeKategorienDrawer();
     this.removeEditItemDrawer();
     removeStrategieCreatorDrawer();

@@ -75,6 +75,14 @@ export function bindTableEvents(detail) {
           if (actionItem.classList.contains('action-disabled')) return;
           handleSkriptFreigabeToggle(detail, id);
           break;
+        case 'uebernehmen-vorschlag':
+          e.preventDefault();
+          detail.vorschlagPanel?.uebernehmen(id);
+          break;
+        case 'verwerfen-vorschlag':
+          e.preventDefault();
+          detail.vorschlagPanel?.verwerfen(id);
+          break;
       }
     };
     document.addEventListener('click', actionHandler);
@@ -238,6 +246,7 @@ export function bindDragAndDropEvents(detail) {
   });
 
   categoryHeaders.forEach(header => {
+    if (header.dataset.vorschlagGroup === 'true') return;
     const kategorie = header.dataset.kategorie;
     
     const dragoverHandler = (e) => {
@@ -295,6 +304,7 @@ export async function handlePrioChange(detail, itemId, value) {
     && !window.permissionSystem.canEditField('strategie', 'strategie_prio')) return;
   if (typeof window.permissionSystem?.canEditField !== 'function' && !detail.isKunde && !detail.canEdit) return;
   const item = detail.items.find(i => i.id === itemId);
+  if (item?.ist_vorschlag) return;
 
   if (value === 'nicht_umsetzen' && item?.video_umgesetzt) {
     window.toastSystem?.show('Zuerst „Umgesetzt" deaktivieren', 'warning');
@@ -398,11 +408,12 @@ export async function handleReprocessItem(detail, itemId) {
 
 export async function handleCategoryChange(detail, itemId, newKategorie) {
   try {
+    const item = detail.items.find(i => i.id === itemId);
+    if (item?.ist_vorschlag) return;
     const teilbereich = newKategorie === 'Ohne Kategorie' ? null : newKategorie;
     
     await strategieService.updateStrategieItem(itemId, { teilbereich });
     
-    const item = detail.items.find(i => i.id === itemId);
     if (item) {
       item.teilbereich = teilbereich;
     }
@@ -480,6 +491,7 @@ export async function handleFieldUpdate(detail, element) {
   let value = element.type === 'checkbox' ? element.checked : element.value;
 
   const item = detail.items.find(i => i.id === itemId);
+  if (item?.ist_vorschlag && field !== 'beschreibung') return;
 
   if (field === 'video_umgesetzt' && value && item?.nicht_umsetzen) {
     element.checked = false;
@@ -529,9 +541,14 @@ export async function handleSortUpdate(detail) {
   
   allRows.forEach(row => {
     if (row.classList.contains('category-header-row')) {
+      if (row.dataset.vorschlagGroup === 'true') {
+        currentKategorie = '__vorschlag__';
+        return;
+      }
       const kategorieFromData = row.dataset.kategorie;
       currentKategorie = kategorieFromData === 'Ohne Kategorie' ? null : kategorieFromData;
     } else if (row.classList.contains('item-row')) {
+      if (row.dataset.vorschlagId || currentKategorie === '__vorschlag__') return;
       const itemId = row.dataset.itemId;
       const item = detail.items.find(i => i.id === itemId);
       if (item) {
@@ -545,7 +562,8 @@ export async function handleSortUpdate(detail) {
 
   try {
     await strategieService.updateItemsSortierungWithTeilbereich(updatedItems);
-    detail.items = updatedItems;
+    const vorschlaege = detail.items.filter(i => i.ist_vorschlag);
+    detail.items = [...vorschlaege, ...updatedItems];
     
     detail.rerenderItemsTable();
     

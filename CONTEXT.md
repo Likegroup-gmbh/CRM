@@ -29,7 +29,7 @@ Personas hängen über die Zuordnung, nicht als Eigentum des Produkts.
 _Avoid_: Artikel, SKU, Offer
 
 **Liky**:
-Der KI-Assistent. Liest Shop-URLs und Kundenbriefings aus, schlägt Personas und Creator für ein Casting vor und schreibt im Skript-Editor.
+Der KI-Assistent. Liest Shop-URLs und Kundenbriefings aus, schlägt Personas, Creator für ein Casting und Videoideen für ein Konzept vor und schreibt im Skript-Editor.
 Sitzt in der rechten Spalte der Detail-Worksheets (Produkt, Persona).
 _Avoid_: Bot, Chatbot, Copilot
 
@@ -138,6 +138,10 @@ _Avoid_: Fit Score, LLM-Ranking, position als Sortierung
 **Aktivieren**:
 Einen Casting-Vorschlag zum Casting-Eintrag mit `creator_id` machen.
 
+**Übernehmen**:
+Einen Videoidee-Vorschlag zur normalen Videoidee machen (Flag weg, Ohne Kategorie).
+_Avoid_: Aktivieren (Casting), Annehmen (Persona)
+
 **Management**:
 Die Talent-Agentur als Stammdaten-Entity (Tabelle `management`), n:m zu Creator über `creator_management`.
 Nicht die Mitarbeiter-Rolle `management`.
@@ -146,8 +150,13 @@ _Avoid_: Agentur-Rolle, Mitarbeiter-Klasse Management
 **Videoidee**:
 Eintrag in einem Konzept: verlinkte Videoidee oder reine Idee. Genau eine Umsetzung, nicht
 eine Kernidee mit mehreren Creatorn. Höchstens ein Casting-Eintrag aus dem verknüpften Casting;
-zuordenbar einem Kooperationsvideo.
+zuordenbar einem Kooperationsvideo. Kann als Videoidee-Vorschlag entstehen.
 _Avoid_: Idee/Strategie, Referenzvideo, Kernidee
+
+**Videoidee-Vorschlag**:
+KI-generierte Videoidee in einem Konzept, noch nicht übernommen. Dieselbe Zeile wie die
+Videoidee, visuell abgetrennt. Übernehmen macht sie zur normalen Videoidee; Verwerfen löscht sie.
+_Avoid_: Creative Angle, Grobkonzept, Casting-Vorschlag
 
 **Skript-Freigabe**:
 Ausdrückliche Freigabe einer Videoidee für die Skripterstellung. Voraussetzung: zugeordneter

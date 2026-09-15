@@ -15,6 +15,10 @@ export class AddToVideoDrawer {
   }
 
   async open(item, strategie) {
+    if (item?.ist_vorschlag) {
+      window.toastSystem?.show('Erst übernehmen, dann als Videoidee nutzen.', 'warning');
+      return;
+    }
     this.item = item;
     this.strategie = strategie;
     this.kampagneId = strategie.kampagne_id;
@@ -259,6 +263,10 @@ export class AddToVideoDrawer {
         if (koop?.creator?.id && koop.creator.id !== eintragCreatorId) {
           throw new Error('Das Video gehört zu einem anderen Creator als der Casting-Eintrag der Idee.');
         }
+      }
+
+      if (this.item?.ist_vorschlag) {
+        throw new Error('Erst übernehmen, dann als Videoidee nutzen.');
       }
 
       const { error } = await window.supabase

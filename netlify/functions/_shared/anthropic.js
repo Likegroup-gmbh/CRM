@@ -8,6 +8,7 @@
 //   ANTHROPIC_MODEL_EXTRACT_PRODUKT (Default: claude-sonnet-4-5) - Produktseiten: mehr Felder, mehr Interpretation
 //   ANTHROPIC_MODEL_EXTRACT_BRIEFING (Default: claude-sonnet-4-5) - Kundenbriefing-PDF: viele Felder, Mapping
 //   ANTHROPIC_MODEL_PERSONA    (Default: claude-sonnet-4-5) - Persona-Vorschlaege aus dem Produkt
+//   ANTHROPIC_MODEL_KONZEPT    (Default: claude-sonnet-4-5) - Videoideen im Konzept
 
 const ANTHROPIC_API = 'https://api.anthropic.com/v1/messages';
 
@@ -20,7 +21,8 @@ const MODELS = {
   extract_produkt: process.env.ANTHROPIC_MODEL_EXTRACT_PRODUKT || 'claude-sonnet-4-5',
   extract_briefing: process.env.ANTHROPIC_MODEL_EXTRACT_BRIEFING || 'claude-sonnet-4-5',
   persona: process.env.ANTHROPIC_MODEL_PERSONA || 'claude-sonnet-4-5',
-  casting: process.env.ANTHROPIC_MODEL_CASTING || 'claude-sonnet-4-5'
+  casting: process.env.ANTHROPIC_MODEL_CASTING || 'claude-sonnet-4-5',
+  konzept: process.env.ANTHROPIC_MODEL_KONZEPT || 'claude-sonnet-4-5'
 };
 
 /** Wird geworfen, wenn timeoutMs greift - der Aufrufer kann so degradiert antworten. */

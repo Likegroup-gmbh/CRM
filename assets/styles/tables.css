@@ -1884,6 +1884,30 @@ thead {
   background: var(--orange-50);
 }
 
+.casting-vorschlag__aktionen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.strategie-items-table tbody tr.item-row--vorschlag > td {
+  background: var(--orange-25);
+  box-shadow: inset 0 1px 0 0 var(--color-warning), inset 0 -1px 0 0 var(--color-warning);
+}
+
+.strategie-items-table tbody tr.item-row--vorschlag > td:first-child {
+  box-shadow:
+    inset 2px 1px 0 0 var(--color-warning),
+    inset 0 -1px 0 0 var(--color-warning);
+}
+
+.strategie-items-table tbody tr.item-row--vorschlag > td:last-child {
+  box-shadow:
+    inset -2px 1px 0 0 var(--color-warning),
+    inset 0 -1px 0 0 var(--color-warning);
+}
+
 .casting-vorschlag {
   display: flex;
   flex-direction: column;

@@ -7,6 +7,7 @@ import { STRATEGIE_PRIO_OPTIONS, getStrategiePrio } from './strategiePrioOptions
 import { isFixedColumnVisible } from './strategieColumns.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { isVideoideeVorschlag, splitVideoideeVorschlaege } from './videoideeVorschlag.js';
 
 /** Klartext zu verarbeitung_step fuer die Fortschrittsanzeige in der Zeile. */
 const VERARBEITUNG_LABELS = {
@@ -44,7 +45,8 @@ function visibleFixedColumns(detail) {
 }
 
 export function renderItemsTable(detail) {
-  if (detail.items.length === 0) {
+  const { vorschlaege, rest } = splitVideoideeVorschlaege(detail.items);
+  if (rest.length === 0 && vorschlaege.length === 0) {
     return `
       <div class="table-container table-container--empty">
         ${renderEmptyState({
@@ -56,7 +58,7 @@ export function renderItemsTable(detail) {
     `;
   }
 
-  const groupedItems = groupItemsByTeilbereich(detail.items);
+  const groupedItems = groupItemsByTeilbereich(rest);
   const customCount = detail.customColumns ? detail.customColumns.visibleCount(detail.hiddenColumns, detail.isKunde) : 0;
   const cols = visibleFixedColumns(detail);
 
@@ -91,7 +93,7 @@ export function renderItemsTable(detail) {
           </tr>
         </thead>
         <tbody id="items-table-body">
-          ${renderGroupedItems(detail, groupedItems, colCount)}
+          ${renderGroupedItems(detail, groupedItems, colCount, vorschlaege)}
         </tbody>
       </table>
     </div>
@@ -122,9 +124,10 @@ function stripGroupMeta(list) {
  * definierte Kategorien → Orphans → Ohne Kategorie.
  */
 export function reorderStrategieItemsByKategorien(items, orderedKategorien) {
-  const groups = groupItemsByTeilbereich(items);
+  const { vorschlaege, rest } = splitVideoideeVorschlaege(items);
+  const groups = groupItemsByTeilbereich(rest);
   const known = new Set([...orderedKategorien, 'Ohne Kategorie']);
-  const result = [];
+  const result = [...vorschlaege];
 
   for (const kategorie of orderedKategorien) {
     result.push(...stripGroupMeta(groups[kategorie]));
@@ -137,12 +140,27 @@ export function reorderStrategieItemsByKategorien(items, orderedKategorien) {
   return result.map((item, index) => ({ ...item, sortierung: index }));
 }
 
-export function renderGroupedItems(detail, groupedItems, colCount) {
+export function renderGroupedItems(detail, groupedItems, colCount, vorschlaege = []) {
+  const vorschlagBlock = vorschlaege.length
+    ? `
+      <tr class="category-header-row" data-kategorie="KI-Vorschläge" data-vorschlag-group="true">
+        <td colspan="${colCount}" class="category-header-cell">
+          <span class="category-name">KI-Vorschläge</span>
+        </td>
+      </tr>
+      ${vorschlaege.map((item, i) => renderItemRow(detail, item, i)).join('')}
+    `
+    : '';
+
   const definierteKategorien = detail.getTeilbereicheFromStrategie();
   const hatDefinierteKategorien = definierteKategorien.length > 0;
+
+  if (!hatDefinierteKategorien && Object.keys(groupedItems).length === 0) {
+    return vorschlagBlock;
+  }
   
   if (!hatDefinierteKategorien && Object.keys(groupedItems).length === 1 && groupedItems['Ohne Kategorie']) {
-    return groupedItems['Ohne Kategorie']
+    return vorschlagBlock + groupedItems['Ohne Kategorie']
       .map(item => renderItemRow(detail, item, item.globalIndex))
       .join('');
   }
@@ -152,7 +170,7 @@ export function renderGroupedItems(detail, groupedItems, colCount) {
     alleKategorien.push('Ohne Kategorie');
   }
   
-  return alleKategorien.map(kategorie => {
+  return vorschlagBlock + alleKategorien.map(kategorie => {
     const items = groupedItems[kategorie] || [];
     const isEmpty = items.length === 0;
     
@@ -343,53 +361,56 @@ export function renderItemRow(detail, item, index) {
   const isIdea = !item.video_link;
   const isLinked = !!item.linked_video;
   const isUmgesetzt = !!item.video_umgesetzt;
+  const isVorschlag = isVideoideeVorschlag(item);
   const cols = visibleFixedColumns(detail);
   // readonly = Gast ohne Feedback-Recht ODER interne view-only Rolle (Investor).
   // Kunde/Gast mit Feedback behalten ihre Felder (Anmerkung, Prio) — isKunde
   // deckt beide ab, deshalb blockt !canEdit nur Nicht-Kunden.
   const readonly = !!window.isGastReadonly?.() || (!detail.isKunde && !detail.canEdit);
   const showWriteCols = !detail.isKunde && !!detail.canEdit;
+  const vorschlagReadonly = readonly || isVorschlag;
   // Umgesetzt-Toggle: eigene Feld-Capability (Kunde darf, Investor nicht).
   // Fallback auf das bisherige Verhalten, wenn das PermissionSystem die
   // Feld-Matrix noch nicht kennt (aeltere Stubs in Tests).
-  const umgesetztReadonly = typeof window.permissionSystem?.canEditField === 'function'
+  const umgesetztReadonly = isVorschlag || (typeof window.permissionSystem?.canEditField === 'function'
     ? !window.permissionSystem.canEditField('strategie', 'video_umgesetzt')
-    : readonly;
+    : readonly);
 
   const rowClasses = [
     'item-row',
-    showWriteCols ? 'draggable' : '',
+    showWriteCols && !isVorschlag ? 'draggable' : '',
     isIdea ? 'idea-row' : '',
     isUmgesetzt ? 'strategie-item-umgesetzt' : '',
     item.nicht_umsetzen ? 'item-nicht-umsetzen' : '',
     item.skript_freigabe ? 'item-skript-freigabe' : '',
+    isVorschlag ? 'item-row--vorschlag' : '',
   ].filter(Boolean).join(' ');
 
   return `
-    <tr class="${rowClasses}" data-item-id="${item.id}" draggable="false">
+    <tr class="${rowClasses}" data-item-id="${item.id}" ${isVorschlag ? 'data-vorschlag-id="' + item.id + '"' : ''} draggable="false">
       <td class="col-number">
         ${index + 1}
         ${item.skript_freigabe ? `<span class="strategie-skript-badge" title="Für Skript freigegeben">${icon('document-text')}</span>` : ''}
       </td>
       ${showWriteCols ? `
-        <td class="col-drag drag-handle">
-          ${icon('bars-3')}
+        <td class="col-drag ${isVorschlag ? '' : 'drag-handle'}">
+          ${isVorschlag ? '' : icon('bars-3')}
         </td>
       ` : ''}
       ${renderBildCell(item, isIdea, ideaIcon)}
       ${renderPlatformCell(item, platformIcon, externalLinkIcon)}
-      ${cols.creator ? renderCreatorCell(detail, item, readonly) : ''}
+      ${cols.creator ? renderCreatorCell(detail, item, vorschlagReadonly) : ''}
       ${cols.beschreibung ? renderClippedTextCell(detail, item, 'beschreibung', 'col-beschreibung', 'Beschreibung...', readonly) : ''}
-      ${cols.transkript ? renderClippedTextCell(detail, item, 'transkript', 'col-transkript', 'Transkript...', readonly) : ''}
-      ${cols.caption ? renderClippedTextCell(detail, item, 'caption', 'col-caption', 'Caption...', readonly) : ''}
+      ${cols.transkript ? renderClippedTextCell(detail, item, 'transkript', 'col-transkript', 'Transkript...', vorschlagReadonly) : ''}
+      ${cols.caption ? renderClippedTextCell(detail, item, 'caption', 'col-caption', 'Caption...', vorschlagReadonly) : ''}
       ${cols.anmerkung ? `
         <td class="cell-textarea">
           <textarea 
-            class="strategie-textarea ${(detail.isKunde && !readonly) ? '' : 'readonly-textarea'}" 
+            class="strategie-textarea ${(detail.isKunde && !readonly && !isVorschlag) ? '' : 'readonly-textarea'}" 
             placeholder="${(detail.isKunde && !readonly) ? 'Ihre Anmerkung...' : 'Anmerkung Kunde...'}"
             data-field="kunde_anmerkung"
             data-item-id="${item.id}"
-            ${(detail.isKunde && !readonly) ? '' : 'readonly'}
+            ${(detail.isKunde && !readonly && !isVorschlag) ? '' : 'readonly'}
           >${item.kunde_anmerkung || ''}</textarea>
           ${item.kunde_anmerkung && item.kunde_anmerkung_author_name ? `
             <div class="feedback-author-meta strategie-feedback-meta">
@@ -405,9 +426,9 @@ export function renderItemRow(detail, item, index) {
             value: getStrategiePrio(item),
             options: STRATEGIE_PRIO_OPTIONS,
             disabled: tableSelectDisabled({
-              gastReadonly: readonly,
+              gastReadonly: vorschlagReadonly,
               isKunde: detail.isKunde,
-              kundeDarfWaehlen: true,
+              kundeDarfWaehlen: !isVorschlag,
               canEdit: typeof window.permissionSystem?.canEditField === 'function'
                 ? window.permissionSystem.canEditField('strategie', 'strategie_prio')
                 : true
@@ -420,9 +441,38 @@ export function renderItemRow(detail, item, index) {
           ${renderUmgesetztCell(item, umgesetztReadonly)}
         </td>
       ` : ''}
-      ${detail.customColumns ? detail.customColumns.renderCells(item.id, detail.hiddenColumns, detail.isKunde, detail.canEdit) : ''}
+      ${detail.customColumns ? detail.customColumns.renderCells(item.id, detail.hiddenColumns, detail.isKunde, isVorschlag ? false : detail.canEdit) : ''}
       ${showWriteCols ? `
         <td class="col-actions">
+          ${isVorschlag ? renderVorschlagActions(item) : renderItemActions(detail, item, isLinked)}
+        </td>
+      ` : ''}
+    </tr>
+  `;
+}
+
+function renderVorschlagActions(item) {
+  return `
+          <div class="actions-dropdown-container" data-entity-type="videoidee_vorschlag">
+            <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
+              ${icon('dots-vertical-filled')}
+            </button>
+            <div class="actions-dropdown">
+              <a href="#" class="action-item" data-action="uebernehmen-vorschlag" data-id="${item.id}">
+                ${icon('check-bold')}
+                Übernehmen
+              </a>
+              <a href="#" class="action-item action-danger" data-action="verwerfen-vorschlag" data-id="${item.id}">
+                ${window.ActionsDropdown?.getHeroIcon('delete') || icon('trash')}
+                Verwerfen
+              </a>
+            </div>
+          </div>
+  `;
+}
+
+function renderItemActions(detail, item, isLinked) {
+  return `
           <div class="actions-dropdown-container" data-entity-type="strategie_item">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
               ${icon('dots-vertical-filled')}
@@ -461,9 +511,6 @@ export function renderItemRow(detail, item, index) {
               </a>
             </div>
           </div>
-        </td>
-      ` : ''}
-    </tr>
   `;
 }
 

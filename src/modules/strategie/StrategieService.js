@@ -2,6 +2,7 @@
 // Service für Strategie-Datenbank-Operationen
 
 import { assertBriefingForCreate, assertBriefingLinkLock } from '../briefing/BriefingLinkGuard.js';
+import { VIDEOIDEE_VORSCHLAG_ERROR, VORSCHLAG_EDIT_FIELDS } from './videoideeVorschlag.js';
 
 export class StrategieService {
   /**
@@ -478,7 +479,7 @@ export class StrategieService {
    * Items einer Strategie abrufen (inkl. Verknüpfungs-Status)
    */
   async getStrategieItems(strategieId) {
-    const { data, error } = await window.supabase
+    let q = window.supabase
       .from('strategie_items')
       .select(`
         *,
@@ -487,6 +488,11 @@ export class StrategieService {
       `)
       .eq('strategie_id', strategieId)
       .order('sortierung', { ascending: true });
+
+    // Kunde inkl. Gast: keine Videoidee-Vorschlaege (ADR 0015)
+    if (window.isKunde?.()) q = q.eq('ist_vorschlag', false);
+
+    const { data, error } = await q;
 
     if (error) {
       console.error('Fehler beim Abrufen der Strategie-Items:', error);
@@ -540,6 +546,9 @@ export class StrategieService {
    * Strategie-Item aktualisieren
    */
   async updateStrategieItem(id, updates) {
+    const gated = Object.keys(updates || {}).some((k) => !VORSCHLAG_EDIT_FIELDS.includes(k));
+    if (gated) await this.assertKeinVorschlag(id);
+
     const { data, error } = await window.supabase
       .from('strategie_items')
       .update(updates)
@@ -899,10 +908,11 @@ export class StrategieService {
   async assignCastingItem(itemId, auswahlItemId) {
     const { data: item, error: iErr } = await window.supabase
       .from('strategie_items')
-      .select('id, strategie_id, creator_auswahl_item_id')
+      .select('id, strategie_id, creator_auswahl_item_id, ist_vorschlag')
       .eq('id', itemId)
       .single();
     if (iErr || !item) throw new Error('Videoidee nicht gefunden');
+    if (item.ist_vorschlag) throw new Error(VIDEOIDEE_VORSCHLAG_ERROR);
 
     const { data: strategie, error: sErr } = await window.supabase
       .from('strategie')
@@ -941,6 +951,7 @@ export class StrategieService {
    * Loesung der Zuordnung. Blockt, sobald ein Skript aus der Idee existiert.
    */
   async unassignCastingItem(itemId) {
+    await this.assertKeinVorschlag(itemId);
     if (await this.hasSkriptForItem(itemId)) {
       throw new Error('Die Zuordnung ist eingefroren, weil bereits ein Skript aus dieser Idee existiert.');
     }
@@ -957,10 +968,11 @@ export class StrategieService {
   async setSkriptFreigabe(itemId, flag) {
     const { data: item, error } = await window.supabase
       .from('strategie_items')
-      .select('id, creator_auswahl_item_id, nicht_umsetzen')
+      .select('id, creator_auswahl_item_id, nicht_umsetzen, ist_vorschlag')
       .eq('id', itemId)
       .single();
     if (error || !item) throw new Error('Videoidee nicht gefunden');
+    if (item.ist_vorschlag) throw new Error(VIDEOIDEE_VORSCHLAG_ERROR);
 
     if (flag) {
       if (!item.creator_auswahl_item_id) {
@@ -1003,6 +1015,68 @@ export class StrategieService {
       castingId: strategie.creator_auswahl_id,
       items: (data || []).filter(i => i.zusage || i.gebucht)
     };
+  }
+
+  async assertKeinVorschlag(itemId) {
+    const { data, error } = await window.supabase
+      .from('strategie_items')
+      .select('ist_vorschlag')
+      .eq('id', itemId)
+      .single();
+    if (error || !data) throw new Error('Videoidee nicht gefunden');
+    if (data.ist_vorschlag) throw new Error(VIDEOIDEE_VORSCHLAG_ERROR);
+  }
+
+  /**
+   * Videoidee-Vorschlag zur normalen Videoidee machen (ADR 0015).
+   * Flag weg, landet in Ohne Kategorie.
+   */
+  async uebernehmenVideoideeVorschlag(itemId) {
+    const { data, error } = await window.supabase
+      .from('strategie_items')
+      .update({ ist_vorschlag: false, teilbereich: null })
+      .eq('id', itemId)
+      .eq('ist_vorschlag', true)
+      .select()
+      .single();
+    if (error) throw error;
+    if (!data) throw new Error('Kein Videoidee-Vorschlag');
+    return data;
+  }
+
+  async uebernehmenAlleVideoideeVorschlaege(strategieId) {
+    const { data, error } = await window.supabase
+      .from('strategie_items')
+      .update({ ist_vorschlag: false, teilbereich: null })
+      .eq('strategie_id', strategieId)
+      .eq('ist_vorschlag', true)
+      .select('id');
+    if (error) throw error;
+    return data || [];
+  }
+
+  async verwerfenVideoideeVorschlag(itemId) {
+    const { data, error } = await window.supabase
+      .from('strategie_items')
+      .select('id, ist_vorschlag')
+      .eq('id', itemId)
+      .single();
+    if (error || !data) throw new Error('Videoidee nicht gefunden');
+    if (!data.ist_vorschlag) throw new Error('Nur Videoidee-Vorschläge können so verworfen werden.');
+    await this.deleteStrategieItem(itemId);
+  }
+
+  async verwerfenAlleVideoideeVorschlaege(strategieId) {
+    const { data, error } = await window.supabase
+      .from('strategie_items')
+      .select('id')
+      .eq('strategie_id', strategieId)
+      .eq('ist_vorschlag', true);
+    if (error) throw error;
+    for (const row of data || []) {
+      await this.deleteStrategieItem(row.id);
+    }
+    return data || [];
   }
 }
 

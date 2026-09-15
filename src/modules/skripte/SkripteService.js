@@ -127,6 +127,7 @@ export class SkripteService {
       `)
       .eq('skript_freigabe', true)
       .eq('nicht_umsetzen', false)
+      .eq('ist_vorschlag', false)
       .not('creator_auswahl_item_id', 'is', null)
       .eq('strategie.unternehmen_id', unternehmenId)
       .eq('strategie.kampagne_id', kampagneId);

@@ -2,8 +2,10 @@
 // Gruppierte Optionen fuer Strategie-Item-Selects (Drawer + Skript-Generator).
 // Filter/Subtitle kommen vom Caller, der Builder sortiert und formatiert nur.
 
+import { beschreibungErstzeile } from './videoideeVorschlag.js';
+
 export function truncateText(text, max = 80) {
-  const s = String(text || '').trim();
+  const s = beschreibungErstzeile(text) || String(text || '').trim();
   if (s.length <= max) return s || 'Ohne Beschreibung';
   return `${s.slice(0, max - 1)}…`;
 }
@@ -77,7 +79,7 @@ function creatorLabel(item) {
 
 /** Create-Drawer: freigegebene Ideen einer Kampagne, gruppiert nach Konzept. */
 export function buildFreigegebeneVideoideePickerOptions(items) {
-  const usable = (items || []).filter((item) => item.skript_freigabe && !item.nicht_umsetzen);
+  const usable = (items || []).filter((item) => item.skript_freigabe && !item.nicht_umsetzen && !item.ist_vorschlag);
   return buildPickerOptions(usable, {
     groupFor: (item, strategie) => strategie?.name || 'Konzept',
     subtitleFor: (item) => {
