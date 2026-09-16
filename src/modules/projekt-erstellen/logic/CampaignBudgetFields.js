@@ -218,9 +218,20 @@ export function aggregateCampaignBlocksForLegacy(blocks = []) {
 
 /**
  * Berechnet die Soll-Summen (videos, creators) aus der besten verfügbaren Quelle.
- * Priorität: blocks > auftragDetails.gesamt_* > Legacy-Spalten > kampagne-Spalten.
+ * Priorität: preferKampagne ? kampagne-Spalten : blocks > auftragDetails.gesamt_* > Legacy-Spalten > kampagne-Spalten.
  */
-export function getCampaignTargetTotals({ blocks = [], auftragDetails = null, kampagne = null } = {}) {
+export function getCampaignTargetTotals({ blocks = [], auftragDetails = null, kampagne = null, preferKampagne = false } = {}) {
+  if (preferKampagne) {
+    const videos = kampagne?.videoanzahl;
+    const creators = kampagne?.creatoranzahl;
+    if (videos != null || creators != null) {
+      return {
+        videos: parseInt(videos, 10) || 0,
+        creators: parseInt(creators, 10) || 0
+      };
+    }
+  }
+
   const sumBlocks = (blocks || []).reduce((sum, b) => {
     sum.videos += parseInt(b.video_anzahl, 10) || 0;
     sum.creators += parseInt(b.creator_anzahl, 10) || 0;
@@ -318,7 +329,7 @@ export function generateBudgetBlockHtml(block, campaignTypes = [], index = 0) {
           <label for="${ids.umsatz}">Umsatz netto (€)</label>
           <input type="number" id="${ids.umsatz}" data-block-id="${escapeHtml(blockId)}" data-field="umsatz_netto"
                  min="0" step="0.01" value="${v.umsatz_netto ?? ''}" placeholder="z.B. 10000">
-          <small class="form-hint">Anteil dieser Kampagnenart am Auftrags-Nettobetrag</small>
+          <small class="form-hint">Anteil dieser Kampagnenart am Kampagnen-Volumen</small>
         </div>
       </div>
       <div class="form-field form-field--full">

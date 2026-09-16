@@ -2,6 +2,12 @@
 // Event-Binding und -Teardown für die Kampagnen-Detailseite
 
 import { KampagneUtils } from './KampagneUtils.js';
+import {
+  getWorkflowTableRoute,
+  handleWorkflowTableSelect,
+  handleSkriptFreigabeToggle,
+  handleKonzeptPaneAction
+} from './KampagneDetailWorkflow.js';
 import { navigateToNewKooperationFromKampagne } from '../kooperation/kooperationFromKampagne.js';
 import { VideoTableColumnVisibilityDrawer } from './VideoTableColumnVisibilityDrawer.js';
 import { CustomColumnsDrawer } from './columns/CustomColumnsDrawer.js';
@@ -14,10 +20,10 @@ const CHECK_ICON = `
   ${icon('check-bold')}`;
 
 function initToolbarMenu(signal) {
-  const menu = document.querySelector('.page-header-right .toolbar-menu');
-  if (!menu) return;
-  const cleanup = bindToolbarMenu(menu);
-  signal.addEventListener('abort', cleanup, { once: true });
+  document.querySelectorAll('.page-header-right .toolbar-menu').forEach(menu => {
+    const cleanup = bindToolbarMenu(menu);
+    signal.addEventListener('abort', cleanup, { once: true });
+  });
 }
 
 // Filter-Auswahl (Status/Tags) in den Store schreiben, Submenu-DOM syncen
@@ -168,13 +174,77 @@ export function setupEvents(detail) {
     closeToolbarMenu(sortItem.closest('.toolbar-menu'));
   }, { signal });
 
-  // Tab Navigation (Offen / Abgeschlossen / Alle)
+  // Tab Navigation (Offen / Abgeschlossen / Alle) — scoped auf die
+  // Filter-Tabs, damit Workflow-Tabs (data-workflow-tab) hier nicht reinfunken.
   document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.tab-button');
+    const btn = e.target.closest('.kampagne-filter-tabs .tab-button');
     if (btn) {
       e.preventDefault();
       detail.switchTab(btn.dataset.tab);
     }
+  }, { signal });
+
+  // Workflow-Tab Navigation (Briefing / Casting / … / Produktion / …)
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-workflow-tab]');
+    if (!btn) return;
+    e.preventDefault();
+    detail.switchWorkflowTab(btn.dataset.workflowTab);
+  }, { signal });
+
+  // Workflow-Panes: CTAs (data-workflow-nav) + Zeilen-Links
+  document.addEventListener('click', (e) => {
+    const navBtn = e.target.closest('[data-workflow-nav]');
+    if (navBtn) {
+      e.preventDefault();
+      window.navigateTo(navBtn.dataset.workflowNav);
+      return;
+    }
+
+    // Nur Links innerhalb der Listen-Panes abfangen — die Produktion
+    // (Kooperationstabelle) hat ihre eigenen Handler.
+    if (!e.target.closest('.workflow-pane:not([data-pane="produktion"])')) return;
+
+    const vertragEdit = e.target.closest('[data-vertrag-open="edit"]');
+    if (vertragEdit?.dataset.id) {
+      e.preventDefault();
+      window.navigateTo(`/vertraege/${vertragEdit.dataset.id}/edit`);
+      return;
+    }
+
+    const link = e.target.closest('.table-link[data-table][data-id]');
+    if (!link) return;
+    const route = getWorkflowTableRoute(link.dataset.table, link.dataset.id);
+    if (route) {
+      e.preventDefault();
+      window.navigateTo(route);
+    }
+  }, { signal });
+
+  // Workflow-Panes: Skript-Freigabe-Toggle (Konzepte)
+  document.addEventListener('click', (e) => {
+    const toggle = e.target.closest('[data-workflow-action="toggle-skript-freigabe"]');
+    if (!toggle) return;
+    if (!e.target.closest('.workflow-pane')) return;
+    e.preventDefault();
+    handleSkriptFreigabeToggle(detail, toggle.dataset.id);
+  }, { signal });
+
+  document.addEventListener('click', (e) => {
+    const pane = e.target.closest('#workflow-pane-konzepte');
+    if (!pane) return;
+    const actionItem = e.target.closest('[data-action]');
+    if (!actionItem?.closest('[data-entity-type="strategie_item"]')) return;
+    e.preventDefault();
+    handleKonzeptPaneAction(detail, actionItem);
+  }, { signal });
+
+  // Workflow-Panes: Inline-Selects (Skript-Status). Casting läuft über das Worksheet.
+  // tableSelect feuert das Event auf document; hier nur die aus unseren Panes.
+  document.addEventListener('table-select-change', (e) => {
+    const pane = e.detail?.element?.closest('.workflow-pane');
+    if (!pane) return;
+    handleWorkflowTableSelect(detail, e.detail);
   }, { signal });
 
   // Empty-State-Aktion: "Filter zuruecksetzen" (Status- + Tag-Filter + Suche leeren)

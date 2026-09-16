@@ -8,6 +8,7 @@ import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { renderToolbarMenu, renderToolbarMenuItem } from '../../core/components/ToolbarMenu.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { renderWorkflowTabBar, renderWorkflowPanes, DEFAULT_WORKFLOW_TAB } from './KampagneDetailWorkflow.js';
 
 const SHARE_ICON = `
   <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256">
@@ -54,6 +55,11 @@ function escapeAttr(str) {
 
 function sanitize(str) {
   return window.validatorSystem?.sanitizeHtml(String(str)) || '';
+}
+
+function renderCreateChrome(permission, url, label) {
+  if (!(window.canCreate?.(permission) ?? false)) return '';
+  return `<button type="button" class="mdc-btn" data-workflow-nav="${escapeAttr(url)}">${sanitize(label)}</button>`;
 }
 
 // Multi-Select-Submenu (Status/Tags) im Sourcing-Pattern: Hover oeffnet das
@@ -150,7 +156,8 @@ export function renderMainPage(state) {
     extraKostenVkSum, ekVkMarginSum, kskUmgebucht, videoStats, isKunde, kampagneId, searchQuery,
     availableStatuses = [], availableTags = [], selectedStatuses = [], selectedTags = [],
     kooperationSort = 'created_desc',
-    kooperationen = [], videos = []
+    kooperationen = [], videos = [],
+    activeWorkflow = DEFAULT_WORKFLOW_TAB
   } = state;
 
   const canCreateKooperation = window.canCreate?.('kooperation') ?? false;
@@ -178,53 +185,80 @@ export function renderMainPage(state) {
   `;
   const hasToolbarItems = toolbarItemsHtml.trim().length > 0;
 
+  const unternehmenId = kampagneData?.unternehmen_id || '';
+  const markeId = kampagneData?.marke_id || '';
+  const briefingCreateUrl = `/briefing/new?unternehmen=${encodeURIComponent(unternehmenId)}&marke=${encodeURIComponent(markeId)}`;
+  const vertragCreateUrl = `/vertraege/new?unternehmen=${encodeURIComponent(unternehmenId)}`;
+
   return `
     ${renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, videoStats, kskUmgebucht, { kooperationen, videos, isKunde })}
 
-    <div class="page-header">
-      <div class="page-header-title-group">
-        ${safeLogoUrl ? `<img src="${escapeAttr(safeLogoUrl)}" alt="${escapeAttr(orgLogoAlt)}" title="${escapeAttr(orgLogoAlt)}" class="toolbar-entity-logo" loading="lazy" />` : ''}
-        <h2 class="page-header-title">${sanitize(kampagneName)}</h2>
-      </div>
-      <div class="page-header-right">
-        ${SearchInput.render('kampagne-koop', {
-          placeholder: 'Suchen...',
-          currentValue: escapeAttr(searchQuery || '')
-        })}
-        ${(window.canFeature?.('mediaDownload') ?? false) ? `<button id="btn-download-finale" class="mdc-btn mdc-btn--secondary" title="Finale Videos der markierten Kooperationen herunterladen">Finale Videos downloaden</button>` : ''}
-        ${canCreateKooperation ? `<button id="btn-new-kooperation" class="mdc-btn">Kooperation anlegen</button>` : ''}
-        ${hasToolbarItems ? renderToolbarMenu({
-          toggleId: 'btn-kampagne-toolbar-menu',
-          itemsHtml: toolbarItemsHtml
-        }) : ''}
-        <div class="view-toggle">
-          <button id="btn-view-table" class="mdc-btn mdc-btn--secondary active" title="Tabelle">
-            ${icon('table-grid')}
-          </button>
-          <button id="btn-view-kanban" class="mdc-btn mdc-btn--secondary" title="Kanban">
-            ${icon('bookmark')}
-          </button>
+    <div class="kampagne-detail-body" data-workflow="${escapeAttr(activeWorkflow)}">
+      <div class="page-header">
+        <div class="page-header-title-group">
+          ${safeLogoUrl ? `<img src="${escapeAttr(safeLogoUrl)}" alt="${escapeAttr(orgLogoAlt)}" title="${escapeAttr(orgLogoAlt)}" class="toolbar-entity-logo" loading="lazy" />` : ''}
+          <h2 class="page-header-title">${sanitize(kampagneName)}</h2>
+        </div>
+        <div class="page-header-right">
+          <div class="kampagne-tab-chrome" data-chrome="produktion">
+            ${SearchInput.render('kampagne-koop', {
+              placeholder: 'Suchen...',
+              currentValue: escapeAttr(searchQuery || '')
+            })}
+            ${(window.canFeature?.('mediaDownload') ?? false) ? `<button id="btn-download-finale" class="mdc-btn mdc-btn--secondary" title="Finale Videos der markierten Kooperationen herunterladen">Finale Videos downloaden</button>` : ''}
+            ${canCreateKooperation ? `<button id="btn-new-kooperation" class="mdc-btn">Kooperation anlegen</button>` : ''}
+            ${hasToolbarItems ? renderToolbarMenu({
+              toggleId: 'btn-kampagne-toolbar-menu',
+              itemsHtml: toolbarItemsHtml
+            }) : ''}
+            <div class="view-toggle">
+              <button id="btn-view-table" class="mdc-btn mdc-btn--secondary active" title="Tabelle">
+                ${icon('table-grid')}
+              </button>
+              <button id="btn-view-kanban" class="mdc-btn mdc-btn--secondary" title="Kanban">
+                ${icon('bookmark')}
+              </button>
+            </div>
+          </div>
+          <div class="kampagne-tab-chrome" data-chrome="briefing">
+            ${renderCreateChrome('briefing', briefingCreateUrl, 'Briefing anlegen')}
+          </div>
+          <div class="kampagne-tab-chrome" data-chrome="casting" id="kampagne-casting-chrome"></div>
+          <div class="kampagne-tab-chrome" data-chrome="konzepte">
+            ${renderCreateChrome('strategie', '/konzepte', 'Konzept anlegen')}
+          </div>
+          <div class="kampagne-tab-chrome" data-chrome="skripte">
+            ${renderCreateChrome('skripte', '/skripte', 'Skript anlegen')}
+          </div>
+          <div class="kampagne-tab-chrome" data-chrome="vertraege">
+            ${renderCreateChrome('vertraege', vertragCreateUrl, 'Vertrag anlegen')}
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="content-section">
-      <div class="tab-navigation">
-        <button class="tab-button active" data-tab="offen">
-          Offen <span class="tab-count" id="tab-count-offen"></span>
-        </button>
-        <button class="tab-button" data-tab="abgeschlossen">
-          Abgeschlossen <span class="tab-count" id="tab-count-abgeschlossen"></span>
-        </button>
-        <button class="tab-button" data-tab="alle">
-          Alle <span class="tab-count" id="tab-count-alle"></span>
-        </button>
-      </div>
+      ${renderWorkflowTabBar(activeWorkflow)}
 
-      <div class="tab-content">
-        <div class="detail-section">
-          <div id="kooperationen-videos-container"></div>
+      <div class="content-section">
+        <div class="workflow-pane" data-pane="produktion" id="workflow-pane-produktion"${activeWorkflow === 'produktion' ? '' : ' hidden'}>
+          <div class="tab-navigation kampagne-filter-tabs">
+            <button class="tab-button active" data-tab="offen">
+              Offen <span class="tab-count" id="tab-count-offen"></span>
+            </button>
+            <button class="tab-button" data-tab="abgeschlossen">
+              Abgeschlossen <span class="tab-count" id="tab-count-abgeschlossen"></span>
+            </button>
+            <button class="tab-button" data-tab="alle">
+              Alle <span class="tab-count" id="tab-count-alle"></span>
+            </button>
+          </div>
+
+          <div class="tab-content">
+            <div class="detail-section">
+              <div id="kooperationen-videos-container"></div>
+            </div>
+          </div>
         </div>
+        ${renderWorkflowPanes(activeWorkflow)}
       </div>
     </div>
   `;

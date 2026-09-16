@@ -548,6 +548,82 @@ h3.section-title,
   
 }
 
+/* Kampagnen-Detail: Workflow-Tabs (Briefing … Produktion … Auswertung) */
+
+.workflow-pane[hidden] {
+  display: none;
+}
+
+/* Page-Header-Actions: pro Workflow-Tab nur der passende Chrome */
+.kampagne-tab-chrome {
+  display: none;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.kampagne-detail-body[data-workflow="produktion"] .kampagne-tab-chrome[data-chrome="produktion"],
+.kampagne-detail-body[data-workflow="briefing"] .kampagne-tab-chrome[data-chrome="briefing"],
+.kampagne-detail-body[data-workflow="casting"] .kampagne-tab-chrome[data-chrome="casting"],
+.kampagne-detail-body[data-workflow="konzepte"] .kampagne-tab-chrome[data-chrome="konzepte"],
+.kampagne-detail-body[data-workflow="skripte"] .kampagne-tab-chrome[data-chrome="skripte"],
+.kampagne-detail-body[data-workflow="vertraege"] .kampagne-tab-chrome[data-chrome="vertraege"] {
+  display: flex;
+}
+
+#kampagne-casting-chrome #casting-vorschlag-block {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Casting-Worksheet im Kampagnen-Pane: Toolbar/Reiter nicht am Viewport
+   kleben (sonst über den Summary-Cards), Thead ebenfalls ohne Extra-Offset. */
+.kampagne-casting-listen-switcher {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.kampagne-casting-listen-switcher__label {
+  font-size: var(--font-sm);
+  color: var(--text-secondary);
+}
+
+.kampagne-casting-listen-switcher .form-input {
+  max-width: 20rem;
+}
+
+.kampagne-casting-worksheet .add-item-section--compact,
+.kampagne-casting-worksheet .sourcing-tab-navigation {
+  position: static;
+}
+
+.kampagne-casting-worksheet .sourcing-tab-navigation + .table-container .strategie-items-table thead th {
+  top: 0;
+}
+
+/* Inline-Scroll: Tabelle bleibt im Pane, Kampagnen-Chrome (Karten, Workflow-Tabs)
+   und Sidebar rücken nicht mit. */
+.kampagne-detail-body[data-workflow="casting"],
+.kampagne-detail-body[data-workflow="casting"] .content-section,
+.kampagne-detail-body[data-workflow="casting"] .workflow-pane[data-pane="casting"],
+.kampagne-casting-worksheet {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.kampagne-casting-worksheet .creator-pool-table-container,
+.kampagne-casting-worksheet .creator-pool-table-container.drag-scroll-enabled {
+  overflow-x: auto;
+  overflow-y: visible;
+  max-width: 100%;
+  scrollbar-width: none;
+}
+
+.kampagne-casting-worksheet .creator-pool-table-container::-webkit-scrollbar {
+  display: none;
+}
+
 /* Rechnung Status-Tabs (Listenansicht) */
 
 .rechnung-status-tabs {

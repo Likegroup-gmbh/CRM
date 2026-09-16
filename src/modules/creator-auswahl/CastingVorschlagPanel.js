@@ -36,8 +36,13 @@ export class CastingVorschlagPanel {
     return true;
   }
 
+  _getBlock() {
+    return this.detail?._q?.('#casting-vorschlag-block')
+      || document.getElementById('casting-vorschlag-block');
+  }
+
   async mount() {
-    const block = document.getElementById('casting-vorschlag-block');
+    const block = this._getBlock();
     if (!block) return;
     if (!this.sichtbar) {
       block.remove();
@@ -77,11 +82,25 @@ export class CastingVorschlagPanel {
   // --- Rendering ---
 
   render() {
-    const block = document.getElementById('casting-vorschlag-block');
+    const block = this._getBlock();
     if (!block || !this.sichtbar) return;
 
     const count = this.vorschlaege.length;
     const hatListeBriefing = !!this.detail.liste?.briefing_id;
+    const btnTitle = hatListeBriefing
+      ? ''
+      : ' disabled title="Casting ohne Briefing: ohne Bedarf kein Lauf"';
+    const btnHtml = this.laeuft
+      ? `<span class="casting-vorschlag__progress">${esc(this.fortschritt || 'Läuft…')}</span>`
+      : `<button type="button" class="mdc-btn mdc-btn--secondary" id="btn-casting-vorschlag-holen"${btnTitle}>
+          ${icon('sparkles', { className: 'icon-16' })}
+          ${count ? 'Neu vorschlagen' : 'Vorschläge holen'}
+        </button>`;
+
+    if (this.detail.embedded) {
+      block.innerHTML = `${btnHtml}${this.fehler ? `<span class="casting-vorschlag__fehler" title="${esc(this.fehler)}"></span>` : ''}`;
+      return;
+    }
 
     block.innerHTML = `
       <div class="casting-vorschlag">
@@ -91,13 +110,7 @@ export class CastingVorschlagPanel {
             <p class="casting-vorschlag__sub">Aus der eigenen Creator-Datenbank · in der Liste mit Rand markiert</p>
           </div>
           <div class="casting-vorschlag__aktionen">
-            ${this.laeuft
-              ? `<span class="casting-vorschlag__progress">${esc(this.fortschritt || 'Läuft…')}</span>`
-              : `<button type="button" class="mdc-btn mdc-btn--secondary" id="btn-casting-vorschlag-holen"
-                   ${hatListeBriefing ? '' : 'disabled title="Casting ohne Briefing: ohne Bedarf kein Lauf"'}>
-                  ${icon('sparkles', { className: 'icon-16' })}
-                  ${count ? 'Neu vorschlagen' : 'Vorschläge holen'}
-                </button>`}
+            ${btnHtml}
           </div>
         </div>
         ${this.fehler ? `<p class="casting-vorschlag__fehler">${esc(this.fehler)}</p>` : ''}
@@ -115,7 +128,7 @@ export class CastingVorschlagPanel {
   // --- Events ---
 
   bind() {
-    const block = document.getElementById('casting-vorschlag-block');
+    const block = this._getBlock();
     if (!block) return;
     // Alter Block (falls noch referenziert) loest seinen Handler selbst;
     // der neue Block bekommt genau einen. Das Shared-Set des Details wird

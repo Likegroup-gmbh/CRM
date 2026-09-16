@@ -1077,6 +1077,12 @@ input.input-error {
   transition: background-color 0.2s ease;
 }
 
+.searchable-select-item.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .searchable-select-item:hover {
   background-color: var(--bg-secondary);
 }

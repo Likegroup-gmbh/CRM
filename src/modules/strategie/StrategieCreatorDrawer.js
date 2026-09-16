@@ -5,7 +5,7 @@
 // bleibt als Anzeige stehen, wird aber nicht mehr geschrieben.
 
 import { strategieService } from './StrategieService.js';
-import { icon } from '../../core/icons/IconSystem.js';
+import { ensureCastingEintragHatCreator } from '../creator-auswahl/ensureCastingEintragHatCreator.js';
 
 const DRAWER_ID = 'strategie-creator-drawer';
 const OVERLAY_ID = 'strategie-creator-overlay';
@@ -33,8 +33,10 @@ export class StrategieCreatorDrawer {
     this.castingId = null;
   }
 
-  async open(itemId, { onSuccess } = {}) {
-    const item = this.detail.items.find(i => i.id === itemId);
+  async open(itemOrId, { onSuccess } = {}) {
+    const item = typeof itemOrId === 'object' && itemOrId?.id
+      ? itemOrId
+      : this.detail?.items?.find(i => i.id === itemOrId);
     if (!item) {
       window.toastSystem?.show('Item nicht gefunden', 'error');
       return;
@@ -207,15 +209,30 @@ export class StrategieCreatorDrawer {
         btn.classList.add('is-loading');
       }
 
+      const eintrag = this.castingItems.find(e => e.id === this.selectedItemId)
+        || { id: this.selectedItemId };
+      try {
+        await ensureCastingEintragHatCreator(eintrag);
+      } catch (error) {
+        if (error?.cancelled) {
+          if (btn) {
+            btn.disabled = false;
+            btn.classList.remove('is-loading');
+          }
+          return;
+        }
+        throw error;
+      }
+
       await strategieService.assignCastingItem(this.item.id, this.selectedItemId);
 
       this.item.creator_auswahl_item_id = this.selectedItemId;
-      this.item.casting_eintrag = this.castingItems.find(e => e.id === this.selectedItemId) || null;
+      this.item.casting_eintrag = this.castingItems.find(e => e.id === this.selectedItemId) || eintrag || null;
 
       window.toastSystem?.show('Casting-Eintrag zugeordnet', 'success');
       if (this.onSuccess) await this.onSuccess();
       this.close();
-      this.detail.rerenderItemsTable();
+      this.detail?.rerenderItemsTable?.();
     } catch (error) {
       console.error('Fehler beim Zuordnen:', error);
       window.toastSystem?.show(error.message || 'Fehler beim Zuordnen', 'error');
@@ -246,7 +263,7 @@ export class StrategieCreatorDrawer {
       window.toastSystem?.show('Zuordnung gelöst', 'success');
       if (this.onSuccess) await this.onSuccess();
       this.close();
-      this.detail.rerenderItemsTable();
+      this.detail?.rerenderItemsTable?.();
     } catch (error) {
       console.error('Fehler beim Lösen:', error);
       window.toastSystem?.show(error.message || 'Fehler beim Lösen', 'error');

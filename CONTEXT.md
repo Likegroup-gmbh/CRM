@@ -12,6 +12,16 @@ _Avoid_: Firma, Company, Account
 Eine Marke unter genau einem Unternehmen. Hat keine eigene Rechnungsadresse.
 _Avoid_: Brand, Label
 
+**Auftrag**:
+Das Kundenprojekt mit Volumen, Laufzeit und Teilrechnungen. Parent der Kampagnen.
+_Avoid_: Deal, Job, Projekt (in der UI heisst der Anlege-Flow so, die Entity bleibt Auftrag)
+
+**Kampagne**:
+Die operative Einheit unter einem Auftrag. Ein Auftrag kann mehrere Kampagnen haben;
+jede hat eigenes Volumen (aus dem Auftrags-Netto, muss ihn nicht ausschöpfen)
+und eigene Kampagnenarten (Video- und Creator-Soll).
+_Avoid_: Auftrag
+
 **Neuigkeit**:
 Kurzmitteilung über eine Produkt-Änderung an Mitarbeiter (titel + kurztext, Du-Form).
 Wird automatisch aus Commits generiert und erscheint nur als Card auf dem Dashboard.
@@ -224,6 +234,12 @@ _Avoid_: Monatsfilter, Invoice sheet
 Die Unternehmen-/Kampagnen-Hierarchie der Videos-Nav. Zählt Kooperationsvideos, lädt sie nicht.
 _Avoid_: Video-Liste (das ist die paginierte Tabelle), Kooperationstabelle (sitzt auf der Kampagne)
 
+**Kampagnen-Ordnerblatt**:
+Grid-Ansicht der Kampagnen-Übersicht: Unternehmen-/Marken-Hierarchie als Ordner.
+Zählt Kampagnen pro Ordner, lädt sie erst auf der letzten Ebene. Flach unter der
+Marke — der Auftrag ist Spalte, keine eigene Ebene.
+_Avoid_: Ordneransicht, Kampagnen-Explorer
+
 ### Rechnungswesen
 
 **Teilrechnung**:
@@ -247,8 +263,9 @@ gegenueber dem vereinbarten Einkaufspreis, keine offene Verbindlichkeit.
 _Avoid_: Rabatt, Nachlass, Differenz
 
 **Kampagnenart**:
-Die Leistungsform eines Auftragsblocks: UGC Paid, UGC Organic, Influencer Kampagne, Influencer Story,
-Influencer Events, Vor-Ort-Produktion, Whitelisting oder Darkposting.
+Die Leistungsform einer Kampagne: UGC Paid, UGC Organic, Influencer Kampagne, Influencer Story,
+Influencer Events, Vor-Ort-Produktion, Whitelisting oder Darkposting. Sitzt an der Kampagne,
+nicht am Auftrag; ein Auftrag aggregiert die Arten seiner Kampagnen.
 _Avoid_: Kampagnentyp, Format, Chip
 
 **Leistungsbereich**:

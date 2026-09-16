@@ -1,12 +1,11 @@
 // SourcingBuchungDrawer.js
-// Drawer, der nach dem Status "Gebucht" aufgeht: er fuehrt durch die drei
-// Folgeschritte der Buchung - CRM-Uebernahme, Management-Info und Kooperation
-// in der verknuepften Kampagne. Jeder Schritt ist einzeln ausfuehrbar und der
-// Drawer jederzeit schliessbar; der Status "gebucht" selbst haengt nicht von
-// ihm ab (der ist mit dem Status-Update laengst gespeichert).
+// Drawer, der nach dem Status "Gebucht" aufgeht: er fuehrt durch die
+// Folgeschritte der Buchung — Creator anlegen (falls noch keine creator_id),
+// Management-Info und Kooperation in der verknuepften Kampagne.
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { ensureCastingEintragHatCreator } from './ensureCastingEintragHatCreator.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -155,8 +154,8 @@ export class SourcingBuchungDrawer {
       `
       : `
         <p class="drawer-info-text">Der Creator ist noch nicht im CRM. Lege ihn jetzt an, damit Management und Kampagne folgen können.</p>
-        <button type="button" class="mdc-btn mdc-btn--sm" id="btn-buchung-crm-transfer" ${this.busy ? 'disabled' : ''}>
-          Ins CRM übernehmen
+        <button type="button" class="mdc-btn mdc-btn--sm" id="btn-buchung-crm-anlegen" ${this.busy ? 'disabled' : ''}>
+          Creator anlegen
         </button>
       `;
 
@@ -248,8 +247,8 @@ export class SourcingBuchungDrawer {
         window.navigateTo(`/creator/${this.item.creator_id}`);
       });
 
-    body.querySelector('#btn-buchung-crm-transfer')
-      ?.addEventListener('click', () => this.handleCrmTransfer());
+    body.querySelector('#btn-buchung-crm-anlegen')
+      ?.addEventListener('click', () => this.handleCrmAnlegen());
 
     body.querySelector('#btn-buchung-management-assign')
       ?.addEventListener('click', () => this.handleAssignManagement());
@@ -265,6 +264,7 @@ export class SourcingBuchungDrawer {
     try {
       await aktion();
     } catch (error) {
+      if (error?.cancelled) return;
       console.error('Fehler im Buchungs-Drawer:', error);
       window.toastSystem?.show(error.message || 'Aktion fehlgeschlagen', 'error');
     } finally {
@@ -273,19 +273,17 @@ export class SourcingBuchungDrawer {
     }
   }
 
-  async handleCrmTransfer() {
-    await this.mitBusy(async () => {
-      const creator = await creatorAuswahlService.transferToCRM(this.item.id);
-      this.item.creator_id = creator.id;
-      window.toastSystem?.show('Creator ins CRM übernommen', 'success');
-
-      // Die Zeile zeigt die Verknuepfung nicht direkt, aber der Spaeter-Stand
-      // der Tabelle soll stimmen
+  async handleCrmAnlegen() {
+    if (this.busy) return;
+    try {
+      await ensureCastingEintragHatCreator(this.item);
       this.detail.rerenderTable?.();
-
-      // Management und Kooperation haengen an der creator_id - jetzt nachladen
       await this.ladeFolgedaten();
-    });
+    } catch (error) {
+      if (error?.cancelled) return;
+      console.error('Fehler im Buchungs-Drawer:', error);
+      window.toastSystem?.show(error.message || 'Aktion fehlgeschlagen', 'error');
+    }
   }
 
   async handleAssignManagement() {

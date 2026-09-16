@@ -80,6 +80,23 @@ export class CreatorAuswahlService {
     }));
   }
 
+  /**
+   * Casting-Listen einer Kampagne (id + name für Switcher / Empty-Check).
+   */
+  async getListenByKampagneId(kampagneId) {
+    if (!kampagneId) return [];
+    const { data, error } = await window.supabase
+      .from('creator_auswahl')
+      .select('id, name, created_at')
+      .eq('kampagne_id', kampagneId)
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('Fehler beim Abrufen der Casting-Listen:', error);
+      throw error;
+    }
+    return data || [];
+  }
+
   async _getCustomerAccessScope(userId) {
     if (!userId) {
       return { unternehmenIds: [], markeIds: [], kampagneIds: [] };

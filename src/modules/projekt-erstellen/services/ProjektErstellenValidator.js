@@ -1,7 +1,7 @@
 // ProjektErstellenValidator.js
 // Per-Step Pflichtfeld- und Business-Rules-Validation.
 
-import { normalizeCampaignBlocks } from '../logic/CampaignBudgetFields.js';
+import { flattenCampaignBlocks } from '../logic/kampagnenSplit.js';
 
 const parseMoney = (value) => {
   if (value === '' || value == null) return 0;
@@ -66,7 +66,7 @@ export class ProjektErstellenValidator {
     }
     this._validateDateRange(a, errors);
 
-    const blocks = normalizeCampaignBlocks(d);
+    const blocks = flattenCampaignBlocks(formData);
     if (!blocks.length) {
       errors.push('Mindestens eine Kampagnenart muss ausgewählt sein');
     }
@@ -117,10 +117,18 @@ export class ProjektErstellenValidator {
     if (!a.titel || !String(a.titel).trim()) {
       errors.push('Projektname ist ein Pflichtfeld');
     }
-    const blocks = normalizeCampaignBlocks(d);
-    if (!blocks.length) {
+    const slots = Array.isArray(formData.kampagnen) ? formData.kampagnen.filter(Boolean) : [];
+    if (!slots.length) {
       errors.push('Mindestens eine Kampagnenart muss ausgewählt sein');
+    } else {
+      slots.forEach((slot, i) => {
+        const slotBlocks = Array.isArray(slot.campaign_blocks) ? slot.campaign_blocks : [];
+        if (!slotBlocks.length) {
+          errors.push(`Kampagne ${slot.kampagnen_nummer || i + 1} braucht mindestens eine Kampagnenart`);
+        }
+      });
     }
+    const blocks = flattenCampaignBlocks(formData);
     blocks.forEach(block => {
       if (!block.campaign_type) {
         errors.push('Jeder Kampagnenblock braucht eine Kampagnenart');

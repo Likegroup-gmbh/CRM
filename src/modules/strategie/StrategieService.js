@@ -1017,6 +1017,65 @@ export class StrategieService {
     };
   }
 
+  /**
+   * Videoideen des mit einem Casting gepaarten Konzepts, die diesem
+   * Casting-Eintrag zugeordnet werden duerfen. Frei oder bereits dieser
+   * Eintrag: waehlbar. Anderer Eintrag oder Skript-Freeze: disabled.
+   */
+  async getZuordbareVideoideen(strategieId, auswahlItemId) {
+    const { data: strategie, error: sErr } = await window.supabase
+      .from('strategie')
+      .select('id, creator_auswahl_id')
+      .eq('id', strategieId)
+      .single();
+    if (sErr || !strategie) throw new Error('Konzept nicht gefunden');
+    if (!strategie.creator_auswahl_id) return { strategieId: null, items: [] };
+
+    const { data, error } = await window.supabase
+      .from('strategie_items')
+      .select(`
+        id, beschreibung, video_link, creator_auswahl_item_id, ist_vorschlag,
+        casting_eintrag:creator_auswahl_item_id(id, name)
+      `)
+      .eq('strategie_id', strategieId)
+      .order('sortierung', { ascending: true });
+    if (error) throw error;
+
+    const items = (data || []).filter(i => !i.ist_vorschlag);
+    const ids = items.map(i => i.id);
+    const frozenIds = new Set();
+    if (ids.length) {
+      const { data: skripte, error: skErr } = await window.supabase
+        .from('skripte')
+        .select('strategie_item_id')
+        .in('strategie_item_id', ids);
+      if (skErr) throw skErr;
+      (skripte || []).forEach(s => {
+        if (s.strategie_item_id) frozenIds.add(s.strategie_item_id);
+      });
+    }
+
+    return {
+      strategieId: strategie.id,
+      items: items.map(item => {
+        const eigen = item.creator_auswahl_item_id === auswahlItemId;
+        const fremd = !!item.creator_auswahl_item_id && !eigen;
+        const frozen = frozenIds.has(item.id);
+        const disabled = fremd || (frozen && !eigen);
+        let disabledReason = '';
+        if (fremd) {
+          const name = item.casting_eintrag?.name;
+          disabledReason = name
+            ? `Hängt schon an ${name}`
+            : 'Bereits einem anderen Eintrag zugeordnet';
+        } else if (frozen && !eigen) {
+          disabledReason = 'Zuordnung eingefroren (Skript existiert)';
+        }
+        return { ...item, eigen, fremd, frozen, disabled, disabledReason };
+      })
+    };
+  }
+
   async assertKeinVorschlag(itemId) {
     const { data, error } = await window.supabase
       .from('strategie_items')

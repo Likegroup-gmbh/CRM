@@ -226,6 +226,8 @@ export const EntityRegistry = {
       drehort_beschreibung: 'string',
       creatoranzahl: 'number',
       videoanzahl: 'number',
+      volumen: 'number',
+      creator_budget: 'number',
       budget_info: 'string',
       ugc_paid_video_anzahl: 'number',
       ugc_paid_creator_anzahl: 'number',

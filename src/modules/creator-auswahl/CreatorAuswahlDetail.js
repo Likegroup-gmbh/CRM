@@ -38,6 +38,10 @@ import { SourcingBuchungDrawer } from './SourcingBuchungDrawer.js';
 import { CastingVorschlagPanel } from './CastingVorschlagPanel.js';
 import { vorschlagToItem } from './CastingVorschlagService.js';
 import { preserveScroll } from '../../core/dom/preserveScroll.js';
+import {
+  ensureCastingEintragHatCreator
+} from './ensureCastingEintragHatCreator.js';
+import { StrategieVideoideePickerDrawer } from '../strategie/StrategieVideoideePickerDrawer.js';
 import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
@@ -46,6 +50,9 @@ const IG_FETCH_FLASH_MS = 2000;
 export class CreatorAuswahlDetail {
   constructor() {
     this._boundEventListeners = new Set();
+    this.root = null;
+    this.chromeRoot = null;
+    this.embedded = false;
     this.liste = null;
     this.items = [];
     this.isKunde = false;
@@ -74,10 +81,37 @@ export class CreatorAuswahlDetail {
     this._customHeaderDragCleanup = null;
   }
 
+  _getRoot() {
+    return this.root || window.content;
+  }
+
+  _q(selector) {
+    return this._getRoot()?.querySelector(selector)
+      || this.chromeRoot?.querySelector(selector)
+      || null;
+  }
+
+  _qq(selector) {
+    const root = this._getRoot();
+    const fromRoot = root ? [...root.querySelectorAll(selector)] : [];
+    if (!this.chromeRoot) return fromRoot;
+    return fromRoot.concat([...this.chromeRoot.querySelectorAll(selector)]);
+  }
+
+  // Standalone: main-wrapper ist der horizontale Scrollport (sticky Header).
+  // Embedded: der Tabellen-Container, sonst wächst die Kampagnen-View mit.
+  _getHScrollTarget(fallback) {
+    if (this.embedded) return fallback;
+    return document.querySelector('.main-wrapper') || fallback;
+  }
+
   // --- Init & Lifecycle ---
 
-  async init(listeId) {
+  async init(listeId, { root, chromeRoot, embedded } = {}) {
     this.listeId = listeId;
+    this.root = root || window.content;
+    this.chromeRoot = chromeRoot || null;
+    this.embedded = !!embedded;
     this.isKunde = window.isKunde();
     this.searchQuery = '';
     this.statusFilter = [];
@@ -87,7 +121,7 @@ export class CreatorAuswahlDetail {
     // Kontext angemeldet statt global deklariert.
     registerHoverToolbar(SOURCING_IG_TOOLBAR, createSourcingIgToolbarConfig(this));
 
-    if (this.isKunde) {
+    if (!this.embedded && this.isKunde) {
       const quickMenuContainer = document.getElementById('quick-menu-container');
       if (quickMenuContainer) quickMenuContainer.style.display = 'none';
     }
@@ -102,7 +136,7 @@ export class CreatorAuswahlDetail {
 
       this.loadColumnVisibilitySettings();
 
-      if (window.breadcrumbSystem && this.liste) {
+      if (!this.embedded && window.breadcrumbSystem && this.liste) {
         window.breadcrumbSystem.updateDetailLabel(this.liste.name);
       }
 
@@ -110,16 +144,19 @@ export class CreatorAuswahlDetail {
         await this.addDrawer.createInitialEmptyRow();
       }
 
-      window.setHeadline('');
+      if (!this.embedded) window.setHeadline('');
       await this.render();
       this.bindEvents();
     } catch (error) {
       console.error('Fehler beim Laden:', error);
-      window.content.innerHTML = `
-        <div class="error-message">
-          <p>Fehler beim Laden der Casting-Liste</p>
-        </div>
-      `;
+      const rootEl = this._getRoot();
+      if (rootEl) {
+        rootEl.innerHTML = `
+          <div class="error-message">
+            <p>Fehler beim Laden der Casting-Liste</p>
+          </div>
+        `;
+      }
     }
   }
 
@@ -161,6 +198,8 @@ export class CreatorAuswahlDetail {
     unregisterHoverToolbar(SOURCING_IG_TOOLBAR);
     hoverToolbar.close();
 
+    this.vorschlagPanel?.unmount?.();
+
     const bulkBar = document.getElementById('sourcing-bulk-bar');
     if (bulkBar) bulkBar.remove();
     this.closePillDropdown();
@@ -170,7 +209,7 @@ export class CreatorAuswahlDetail {
       this.cleanupFloatingScrollbar = null;
     }
 
-    const container = document.querySelector('.table-container');
+    const container = this._q('.table-container');
     if (container && this._dragMouseDown) {
       container.removeEventListener('mousedown', this._dragMouseDown);
       document.removeEventListener('mousemove', this._dragMouseMove);
@@ -247,10 +286,10 @@ export class CreatorAuswahlDetail {
       localStorage.setItem(callKey, this.kundenCallActive ? 'true' : 'false');
     } catch (error) { /* ignore */ }
 
-    const btn = document.getElementById('btn-kunden-call-toggle');
+    const btn = this._q('#btn-kunden-call-toggle');
     if (btn) btn.classList.toggle('active', this.kundenCallActive);
 
-    document.querySelectorAll('[data-blur-target]').forEach(el => {
+    this._qq('[data-blur-target]').forEach(el => {
       el.classList.toggle('kunden-call-blur', this.kundenCallActive);
     });
   }
@@ -318,9 +357,9 @@ export class CreatorAuswahlDetail {
   clearSearch() {
     if (!this.searchQuery) return;
     this.searchQuery = '';
-    const input = document.getElementById('sourcing-item-search-input');
+    const input = this._q('#sourcing-item-search-input');
     if (input) input.value = '';
-    const clearBtn = document.getElementById('sourcing-item-search-clear');
+    const clearBtn = this._q('#sourcing-item-search-clear');
     if (clearBtn) clearBtn.style.display = 'none';
     this.rerenderTable();
   }
@@ -329,7 +368,7 @@ export class CreatorAuswahlDetail {
     if (!SOURCING_TABS.some(t => t.key === tabName) || tabName === this.activeTab) return;
     this.activeTab = tabName;
 
-    document.querySelectorAll('.sourcing-tab-navigation .tab-button').forEach(btn => {
+    this._qq('.sourcing-tab-navigation .tab-button').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.sourcingTab === tabName);
     });
 
@@ -338,7 +377,7 @@ export class CreatorAuswahlDetail {
 
   updateTabCounts() {
     const counts = this.getTabCounts();
-    document.querySelectorAll('[data-sourcing-tab-count]').forEach(el => {
+    this._qq('[data-sourcing-tab-count]').forEach(el => {
       el.textContent = counts[el.dataset.sourcingTabCount] ?? 0;
     });
   }
@@ -379,19 +418,30 @@ export class CreatorAuswahlDetail {
       hiddenColumns: this.hiddenColumns,
       kundenCallActive: this.kundenCallActive,
       teilbereiche: getTeilbereicheFromListe(this.liste),
-      customManager: this.customColumns
+      customManager: this.customColumns,
+      actionsOnly: this.embedded
     };
   }
 
   async render() {
     const ctx = this.getRenderContext();
-    const html = `
-      <div id="casting-vorschlag-block"></div>
-      ${renderAddSection(ctx)}
-      ${renderTabNavigation(ctx)}
-      ${renderItemsTable(ctx)}
-    `;
-    window.content.innerHTML = html;
+    const rootEl = this._getRoot();
+    if (!rootEl) return;
+
+    if (this.embedded && this.chromeRoot) {
+      this.chromeRoot.innerHTML = renderAddSection(ctx);
+      rootEl.innerHTML = `
+        ${renderTabNavigation(ctx)}
+        ${renderItemsTable(ctx)}
+      `;
+    } else {
+      rootEl.innerHTML = `
+        <div id="casting-vorschlag-block"></div>
+        ${renderAddSection(ctx)}
+        ${renderTabNavigation(ctx)}
+        ${renderItemsTable(ctx)}
+      `;
+    }
     // Eigene Vorschlag-Zeilen ueber der Liste (nie fuer Kunden/Gaeste)
     this.vorschlagPanel?.mount?.();
     this._updateStickyHeights();
@@ -402,21 +452,23 @@ export class CreatorAuswahlDetail {
   }
 
   _updateStickyHeights() {
-    const addSection = window.content.querySelector('.add-item-section--compact');
+    const rootEl = this._getRoot();
+    if (!rootEl) return;
+    const addSection = rootEl.querySelector('.add-item-section--compact');
     const addH = addSection ? addSection.offsetHeight : 0;
-    const tabNav = window.content.querySelector('.sourcing-tab-navigation');
+    const tabNav = rootEl.querySelector('.sourcing-tab-navigation');
     const tabH = tabNav ? tabNav.offsetHeight : 0;
-    window.content.style.setProperty('--sticky-addbar-height', addH + 'px');
-    window.content.style.setProperty('--sticky-add-section-height', (addH + tabH) + 'px');
+    rootEl.style.setProperty('--sticky-addbar-height', addH + 'px');
+    rootEl.style.setProperty('--sticky-add-section-height', (addH + tabH) + 'px');
 
-    const thead = window.content.querySelector('.creator-pool-table thead');
+    const thead = rootEl.querySelector('.creator-pool-table thead');
     if (thead) {
-      window.content.style.setProperty('--sticky-thead-height', thead.offsetHeight + 'px');
+      rootEl.style.setProperty('--sticky-thead-height', thead.offsetHeight + 'px');
     }
   }
 
   rerenderTable(movedItemIds = []) {
-    const tableContainer = document.querySelector('.table-container');
+    const tableContainer = this._q('.table-container');
     if (tableContainer) {
       tableContainer.outerHTML = renderItemsTable(this.getRenderContext());
       this.bindEvents();
@@ -424,7 +476,7 @@ export class CreatorAuswahlDetail {
       this.updateTabCounts();
 
       movedItemIds.forEach(id => {
-        const row = document.querySelector(`.item-row[data-item-id="${id}"]`);
+        const row = this._q(`.item-row[data-item-id="${id}"]`);
         if (row) {
           row.classList.add('kategorie-moving-in');
           row.addEventListener('animationend', () => row.classList.remove('kategorie-moving-in'), { once: true });
@@ -466,13 +518,9 @@ export class CreatorAuswahlDetail {
             e.preventDefault();
             this.handleCreateVideoidee(id);
             break;
-          case 'transfer-to-crm':
+          case 'connect-videoidee':
             e.preventDefault();
-            this.handleTransferToCRM(id);
-            break;
-          case 'view-crm-creator':
-            e.preventDefault();
-            window.navigateTo(`/creator/${id}`);
+            this.handleConnectVideoidee(id);
             break;
         }
       };
@@ -492,7 +540,7 @@ export class CreatorAuswahlDetail {
     if (!this.isKunde && this._canSourcing('edit')) {
       this.bindToolbarMenu();
 
-      const shareBtn = document.getElementById('btn-share-sourcing');
+      const shareBtn = this._q('#btn-share-sourcing');
       if (shareBtn) {
         const handler = () => window.shareListDialog?.open({
           entityType: 'sourcing',
@@ -503,49 +551,49 @@ export class CreatorAuswahlDetail {
         this._boundEventListeners.add(() => shareBtn.removeEventListener('click', handler));
       }
 
-      const kundenCallBtn = document.getElementById('btn-kunden-call-toggle');
+      const kundenCallBtn = this._q('#btn-kunden-call-toggle');
       if (kundenCallBtn) {
         const handler = () => this.toggleKundenCall();
         kundenCallBtn.addEventListener('click', handler);
         this._boundEventListeners.add(() => kundenCallBtn.removeEventListener('click', handler));
       }
 
-      const tabelleAnpassenBtn = document.getElementById('btn-sourcing-tabelle-anpassen');
+      const tabelleAnpassenBtn = this._q('#btn-sourcing-tabelle-anpassen');
       if (tabelleAnpassenBtn) {
         const handler = () => this.showTabelleAnpassenDrawer();
         tabelleAnpassenBtn.addEventListener('click', handler);
         this._boundEventListeners.add(() => tabelleAnpassenBtn.removeEventListener('click', handler));
       }
 
-      const customColumnsBtn = document.getElementById('btn-sourcing-custom-columns');
+      const customColumnsBtn = this._q('#btn-sourcing-custom-columns');
       if (customColumnsBtn) {
         const handler = () => this.customColumns.openManagementDrawer(() => this.rerenderTable());
         customColumnsBtn.addEventListener('click', handler);
         this._boundEventListeners.add(() => customColumnsBtn.removeEventListener('click', handler));
       }
 
-      const kategorienBtn = document.getElementById('btn-manage-kategorien');
+      const kategorienBtn = this._q('#btn-manage-kategorien');
       if (kategorienBtn) {
         const handler = () => this.kategorienDrawer.open();
         kategorienBtn.addEventListener('click', handler);
         this._boundEventListeners.add(() => kategorienBtn.removeEventListener('click', handler));
       }
 
-      const konzeptLinkBtn = document.getElementById('btn-sourcing-konzept-link');
+      const konzeptLinkBtn = this._q('#btn-sourcing-konzept-link');
       if (konzeptLinkBtn) {
         const handler = () => this.handleKonzeptLink();
         konzeptLinkBtn.addEventListener('click', handler);
         this._boundEventListeners.add(() => konzeptLinkBtn.removeEventListener('click', handler));
       }
 
-      const addBtn = document.getElementById('btn-open-add-drawer');
+      const addBtn = this._q('#btn-open-add-drawer');
       if (addBtn) {
         const handler = () => this.addDrawer.open();
         addBtn.addEventListener('click', handler);
         this._boundEventListeners.add(() => addBtn.removeEventListener('click', handler));
       }
 
-      const addEmptyRowBtn = document.getElementById('btn-add-empty-row');
+      const addEmptyRowBtn = this._q('#btn-add-empty-row');
       if (addEmptyRowBtn) {
         const handler = () => {
           this.ensureNewItemVisible();
@@ -568,7 +616,7 @@ export class CreatorAuswahlDetail {
     this._boundEventListeners.add(() => searchAbort.abort());
 
     // Status-Reiter (auch fuer Kunden sichtbar)
-    document.querySelectorAll('.sourcing-tab-navigation .tab-button').forEach(btn => {
+    this._qq('.sourcing-tab-navigation .tab-button').forEach(btn => {
       const handler = (e) => {
         e.preventDefault();
         this.switchTab(btn.dataset.sourcingTab);
@@ -581,7 +629,7 @@ export class CreatorAuswahlDetail {
     this.bindDragToScroll();
 
     // Feld-Updates (Input/Textarea/Select)
-    document.querySelectorAll('input[data-field], textarea[data-field], select[data-field]').forEach(el => {
+    this._qq('input[data-field], textarea[data-field], select[data-field]').forEach(el => {
       const handler = () => this.handleFieldUpdate(el);
       if (el.type === 'checkbox') {
         el.addEventListener('change', handler);
@@ -600,7 +648,8 @@ export class CreatorAuswahlDetail {
     tableSelect.init();
     const selectHandler = (e) => {
       const { field, itemId, value, element } = e.detail || {};
-      if (!element?.closest('.creator-pool-table')) return;
+      const table = element?.closest('.creator-pool-table');
+      if (!table || !this._getRoot()?.contains(table)) return;
 
       if (field === 'sourcing_status') this.handleStatusChange(itemId, value);
       else if (field === 'kunden_feedback') this.handleKundenFeedbackChange(itemId, value);
@@ -615,7 +664,7 @@ export class CreatorAuswahlDetail {
 
     const supportsContentSizing = globalThis.CSS?.supports?.('field-sizing', 'content') === true;
     if (!supportsContentSizing) {
-      document.querySelectorAll('.cp-col-feedback textarea.auto-resize-textarea').forEach(el => {
+      this._qq('.cp-col-feedback textarea.auto-resize-textarea').forEach(el => {
         autoResizeTextarea(el);
         const handler = () => autoResizeTextarea(el);
         el.addEventListener('input', handler);
@@ -630,7 +679,7 @@ export class CreatorAuswahlDetail {
     if (!this.customColumns?.hasColumns) return;
 
     // Inline-Edits der Custom-Felder
-    document.querySelectorAll('.custom-col-input').forEach(el => {
+    this._qq('.custom-col-input').forEach(el => {
       const handler = () => this.customColumns.handleFieldUpdate(el);
       const isChangeOnly = el.type === 'checkbox' || el.tagName === 'SELECT' || el.classList.contains('custom-col-date');
       if (isChangeOnly) {
@@ -647,7 +696,7 @@ export class CreatorAuswahlDetail {
     });
 
     // Upload-Buttons
-    document.querySelectorAll('.custom-upload-btn').forEach(btn => {
+    this._qq('.custom-upload-btn').forEach(btn => {
       const handler = () => this.customColumns.openUploadDrawer(btn, this._buildUploadMetadaten(), () => this.rerenderTable());
       btn.addEventListener('click', handler);
       this._boundEventListeners.add(() => btn.removeEventListener('click', handler));
@@ -655,7 +704,7 @@ export class CreatorAuswahlDetail {
 
     // Header Drag&Drop ueber Hand-Griff (nur Custom-Spalten)
     if (this._customHeaderDragCleanup) this._customHeaderDragCleanup();
-    const thead = document.querySelector('.creator-pool-table thead');
+    const thead = this._q('.creator-pool-table thead');
     this._customHeaderDragCleanup = this.customColumns.bindHeaderDragAndDrop(
       thead,
       () => this.rerenderTable()
@@ -665,7 +714,7 @@ export class CreatorAuswahlDetail {
     });
 
     // Datepicker-Popover fuer Datums-Custom-Felder aktivieren
-    const table = document.querySelector('.creator-pool-table');
+    const table = this._q('.creator-pool-table');
     if (table) {
       const cleanup = CustomDatePicker.bind(table);
       if (cleanup) this._boundEventListeners.add(cleanup);
@@ -684,11 +733,11 @@ export class CreatorAuswahlDetail {
   // --- Drag & Drop ---
 
   bindDragAndDropEvents() {
-    const rows = document.querySelectorAll('.item-row.draggable');
-    const kategorieHeaders = document.querySelectorAll('.kategorie-header-row');
+    const rows = this._qq('.item-row.draggable');
+    const kategorieHeaders = this._qq('.kategorie-header-row');
 
     // Drag nur über Handle aktivieren
-    const handles = document.querySelectorAll('.drag-handle');
+    const handles = this._qq('.drag-handle');
     handles.forEach(handle => {
       const mousedownHandler = () => {
         const row = handle.closest('.item-row');
@@ -720,7 +769,7 @@ export class CreatorAuswahlDetail {
         row.draggable = false;
         this.draggedItem = null;
         this.draggedItemId = null;
-        document.querySelectorAll('.kategorie-header-row.drag-over').forEach(h => h.classList.remove('drag-over'));
+        this._qq('.kategorie-header-row.drag-over').forEach(h => h.classList.remove('drag-over'));
       };
       row.addEventListener('dragend', dragendHandler);
       this._boundEventListeners.add(() => row.removeEventListener('dragend', dragendHandler));
@@ -778,7 +827,8 @@ export class CreatorAuswahlDetail {
   // --- CRUD-Handler ---
 
   async handleSortUpdate() {
-    const tbody = document.getElementById('items-table-body');
+    const tbody = this._q('#items-table-body');
+    if (!tbody) return;
     const rows = Array.from(tbody.querySelectorAll('.item-row'));
     const hatKategorien = getTeilbereicheFromListe(this.liste).length > 0;
 
@@ -839,7 +889,7 @@ export class CreatorAuswahlDetail {
     const item = this.items.find(i => i.id === itemId);
     if (!item) return;
 
-    const linkInput = document.querySelector(`input[data-field="link_instagram"][data-item-id="${itemId}"]`);
+    const linkInput = this._q(`input[data-field="link_instagram"][data-item-id="${itemId}"]`);
     const link = linkInput?.value?.trim();
     // canOpen der Config laesst die Leiste ohne Link nicht aufgehen; kommt hier
     // trotzdem keiner an, ist die Zeile inzwischen weg.
@@ -950,7 +1000,7 @@ export class CreatorAuswahlDetail {
    * ueberdauert, auch wenn der Zeiger inzwischen weitergewandert ist.
    */
   _flashIgFetchSuccess(itemId) {
-    const button = document.querySelector(`.ig-fetch-btn[data-item-id="${itemId}"]`)
+    const button = this._q(`.ig-fetch-btn[data-item-id="${itemId}"]`)
       || document.querySelector('.hover-toolbar [data-hover-action="ig-fetch"]');
     if (!button) {
       hoverToolbar.unpin();
@@ -987,7 +1037,7 @@ export class CreatorAuswahlDetail {
    * Austausch.
    */
   refreshItemRow(itemId) {
-    const row = document.querySelector(`.item-row[data-item-id="${itemId}"]`);
+    const row = this._q(`.item-row[data-item-id="${itemId}"]`);
     const item = this.items.find(i => i.id === itemId);
     if (!row || !item) return;
 
@@ -1129,10 +1179,10 @@ export class CreatorAuswahlDetail {
 
       // Feedback ist Teil des Toolbar-Filters - ein Wechsel kann die Zeile
       // aus der gefilterten Ansicht nehmen, deshalb die ganze Tabelle neu.
-      // preserveScroll: vertikal scrollt das Fenster, horizontal der
-      // main-wrapper - ohne Erhalt springt die Liste nach dem outerHTML-Tausch.
-      const mainWrapper = document.querySelector('.main-wrapper');
-      preserveScroll(() => this.rerenderTable(), { keep: mainWrapper ? [mainWrapper] : [] });
+      // preserveScroll: vertikal das Fenster, horizontal der Scrollport
+      // (main-wrapper standalone, Tabellen-Container embedded).
+      const hScroll = this._getHScrollTarget(this._q('.table-container'));
+      preserveScroll(() => this.rerenderTable(), { keep: hScroll ? [hScroll] : [] });
     } catch (error) {
       console.error('Fehler beim Feedback-Update:', error);
       window.toastSystem?.show('Fehler beim Speichern', 'error');
@@ -1280,27 +1330,36 @@ export class CreatorAuswahlDetail {
     }
   }
 
-  async handleTransferToCRM(itemId) {
-    const result = await window.confirmationModal?.open({
-      title: 'Ins CRM übernehmen?',
-      message: 'Möchten Sie diesen Creator als neuen Eintrag ins CRM übernehmen?',
-      confirmText: 'Übernehmen',
-      cancelText: 'Abbrechen'
-    });
+  /**
+   * Bestehende Videoidee zuordnen. Fehlt creator_id, wird zuerst der
+   * Creator-Drawer geoeffnet (oder ein Instagram-Treffer verknuepft).
+   */
+  async handleConnectVideoidee(itemId) {
+    const item = this.items.find(i => i.id === itemId);
+    if (!item) return;
 
-    if (!result?.confirmed) return;
+    if (!this.liste?.strategie_id) {
+      window.toastSystem?.show('Dieses Casting ist mit keinem Konzept verknüpft', 'warning');
+      return;
+    }
+    if (!item.zusage && !item.gebucht) {
+      window.toastSystem?.show('Nur Einträge mit Status Zusage oder Gebucht können einer Videoidee zugeordnet werden', 'warning');
+      return;
+    }
 
     try {
-      const creator = await creatorAuswahlService.transferToCRM(itemId);
-
-      const item = this.items.find(i => i.id === itemId);
-      if (item) item.creator_id = creator.id;
-
-      window.toastSystem?.show('Creator erfolgreich ins CRM übernommen', 'success');
+      await ensureCastingEintragHatCreator(item);
       this.rerenderTable();
+      const drawer = new StrategieVideoideePickerDrawer();
+      await drawer.open({
+        eintrag: item,
+        strategieId: this.liste.strategie_id,
+        onSuccess: () => this.rerenderTable()
+      });
     } catch (error) {
-      console.error('Fehler bei CRM-Übernahme:', error);
-      window.toastSystem?.show('Fehler bei der CRM-Übernahme', 'error');
+      if (error?.cancelled) return;
+      console.error('Fehler beim Verbinden mit der Videoidee:', error);
+      window.toastSystem?.show(error.message || 'Fehler beim Verbinden', 'error');
     }
   }
 
@@ -1488,10 +1547,10 @@ export class CreatorAuswahlDetail {
       this.cleanupFloatingScrollbar = null;
     }
 
-    const tableWrapper = document.querySelector('.table-container');
+    const tableWrapper = this._q('.table-container');
     if (!tableWrapper) return;
 
-    const scrollTarget = document.querySelector('.main-wrapper') || tableWrapper;
+    const scrollTarget = this._getHScrollTarget(tableWrapper);
 
     const floatingScrollbar = document.createElement('div');
     floatingScrollbar.id = 'floating-scrollbar-creator-auswahl';
@@ -1565,10 +1624,10 @@ export class CreatorAuswahlDetail {
   }
 
   bindDragToScroll() {
-    const container = document.querySelector('.table-container');
+    const container = this._q('.table-container');
     if (!container) return;
 
-    const scrollTarget = document.querySelector('.main-wrapper') || container;
+    const scrollTarget = this._getHScrollTarget(container);
 
     if (this._dragMouseDown) {
       container.removeEventListener('mousedown', this._dragMouseDown);
@@ -1662,23 +1721,23 @@ export class CreatorAuswahlDetail {
   }
 
   bindSelectionEvents() {
-    const selectAll = document.querySelector('.sourcing-select-all');
+    const selectAll = this._q('.sourcing-select-all');
     if (selectAll) {
       const handler = (e) => {
         const checked = e.target.checked;
-        document.querySelectorAll('.sourcing-item-check').forEach(cb => {
+        this._qq('.sourcing-item-check').forEach(cb => {
           cb.checked = checked;
           if (checked) this.selectedItems.add(cb.dataset.itemId);
           else this.selectedItems.delete(cb.dataset.itemId);
         });
-        document.querySelectorAll('.sourcing-group-select').forEach(cb => cb.checked = checked);
+        this._qq('.sourcing-group-select').forEach(cb => cb.checked = checked);
         this.updateBulkBar();
       };
       selectAll.addEventListener('change', handler);
       this._boundEventListeners.add(() => selectAll.removeEventListener('change', handler));
     }
 
-    document.querySelectorAll('.sourcing-group-select').forEach(groupCb => {
+    this._qq('.sourcing-group-select').forEach(groupCb => {
       const handler = () => {
         const checked = groupCb.checked;
         const headerRow = groupCb.closest('.kategorie-header-row');
@@ -1699,7 +1758,7 @@ export class CreatorAuswahlDetail {
       this._boundEventListeners.add(() => groupCb.removeEventListener('change', handler));
     });
 
-    document.querySelectorAll('.sourcing-item-check').forEach(cb => {
+    this._qq('.sourcing-item-check').forEach(cb => {
       const handler = () => {
         if (cb.checked) this.selectedItems.add(cb.dataset.itemId);
         else this.selectedItems.delete(cb.dataset.itemId);
@@ -1713,12 +1772,12 @@ export class CreatorAuswahlDetail {
 
     // Restore selection after re-render
     this.selectedItems.forEach(id => {
-      const cb = document.querySelector(`.sourcing-item-check[data-item-id="${id}"]`);
+      const cb = this._q(`.sourcing-item-check[data-item-id="${id}"]`);
       if (cb) cb.checked = true;
     });
     // Remove stale IDs
     const existingIds = new Set(
-      Array.from(document.querySelectorAll('.sourcing-item-check')).map(cb => cb.dataset.itemId)
+      Array.from(this._qq('.sourcing-item-check')).map(cb => cb.dataset.itemId)
     );
     this.selectedItems.forEach(id => { if (!existingIds.has(id)) this.selectedItems.delete(id); });
 
@@ -1726,9 +1785,9 @@ export class CreatorAuswahlDetail {
   }
 
   updateSelectAllState() {
-    const all = document.querySelectorAll('.sourcing-item-check');
-    const checked = document.querySelectorAll('.sourcing-item-check:checked');
-    const selectAll = document.querySelector('.sourcing-select-all');
+    const all = this._qq('.sourcing-item-check');
+    const checked = this._qq('.sourcing-item-check:checked');
+    const selectAll = this._q('.sourcing-select-all');
     if (selectAll) {
       selectAll.checked = all.length > 0 && checked.length === all.length;
       selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
@@ -1775,7 +1834,7 @@ export class CreatorAuswahlDetail {
   }
 
   bindToolbarMenu() {
-    const menu = document.querySelector('.toolbar-menu');
+    const menu = this._q('.toolbar-menu');
     const dropdown = menu?.querySelector('.toolbar-menu-dropdown');
     if (!menu || !dropdown) return;
 
@@ -1813,7 +1872,7 @@ export class CreatorAuswahlDetail {
   }
 
   _syncStatusFilterSubmenu() {
-    const submenu = document.querySelector('.sourcing-status-filter-submenu');
+    const submenu = this._q('.sourcing-status-filter-submenu');
     if (!submenu) return;
 
     const trigger = submenu.querySelector('.action-item.has-submenu');
@@ -1868,9 +1927,9 @@ export class CreatorAuswahlDetail {
     if (deselectBtn) {
       const handler = () => {
         this.selectedItems.clear();
-        document.querySelectorAll('.sourcing-item-check').forEach(cb => cb.checked = false);
-        document.querySelectorAll('.sourcing-group-select').forEach(cb => { cb.checked = false; cb.indeterminate = false; });
-        const selectAll = document.querySelector('.sourcing-select-all');
+        this._qq('.sourcing-item-check').forEach(cb => cb.checked = false);
+        this._qq('.sourcing-group-select').forEach(cb => { cb.checked = false; cb.indeterminate = false; });
+        const selectAll = this._q('.sourcing-select-all');
         if (selectAll) { selectAll.checked = false; selectAll.indeterminate = false; }
         this.updateBulkBar();
       };
@@ -1901,7 +1960,7 @@ export class CreatorAuswahlDetail {
       }
 
       itemIds.forEach(id => {
-        const row = document.querySelector(`.item-row[data-item-id="${id}"]`);
+        const row = this._q(`.item-row[data-item-id="${id}"]`);
         if (row) row.classList.add('kategorie-moving-out');
       });
 
@@ -1931,7 +1990,7 @@ export class CreatorAuswahlDetail {
   // --- Kategorie-Pill ---
 
   bindPillEvents() {
-    document.querySelectorAll('.kategorie-pill').forEach(pill => {
+    this._qq('.kategorie-pill').forEach(pill => {
       const handler = (e) => {
         e.stopPropagation();
         this.openPillDropdown(pill.dataset.itemId, pill);
@@ -1981,7 +2040,7 @@ export class CreatorAuswahlDetail {
         }
         this.closePillDropdown();
 
-        const row = document.querySelector(`.item-row[data-item-id="${itemId}"]`);
+        const row = this._q(`.item-row[data-item-id="${itemId}"]`);
         if (row) row.classList.add('kategorie-moving-out');
         await new Promise(r => setTimeout(r, 300));
 

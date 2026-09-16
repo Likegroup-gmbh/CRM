@@ -58,6 +58,7 @@ export class ProjektErstellenWizard {
         bruttobetrag: null,
         anzahl_teilrechnungen: 1,
         teilrechnungen: [],
+        kampagnenanzahl: 1,
 
         auftragsbestaetigungen_files: [],
         rechnungen_files: []
@@ -78,7 +79,8 @@ export class ProjektErstellenWizard {
         ksk_type: 'fixed',
         ksk_value: 0
       },
-      kampagne: {}
+      kampagne: {},
+      kampagnen: []
     };
 
     this.persistence = new ProjektErstellenPersistence();
@@ -172,7 +174,8 @@ export class ProjektErstellenWizard {
     this.formData = {
       auftrag: { ...this.formData.auftrag, ...loaded.formData.auftrag },
       details: { ...this.formData.details, ...loaded.formData.details },
-      kampagne: { ...this.formData.kampagne, ...loaded.formData.kampagne }
+      kampagne: { ...this.formData.kampagne, ...loaded.formData.kampagne },
+      kampagnen: loaded.formData.kampagnen || []
     };
     this.editKampagneId = this._resolveKampagneIdFromUrl() || loaded.raw?.kampagne?.id || null;
     this.editRaw = loaded.raw;
@@ -488,6 +491,7 @@ export class ProjektErstellenWizard {
     if (partial.auftrag) this.formData.auftrag = { ...this.formData.auftrag, ...partial.auftrag };
     if (partial.details) this.formData.details = { ...this.formData.details, ...partial.details };
     if (partial.kampagne) this.formData.kampagne = { ...this.formData.kampagne, ...partial.kampagne };
+    if (Array.isArray(partial.kampagnen)) this.formData.kampagnen = partial.kampagnen;
   }
 
   onFormDataChange() {
@@ -602,6 +606,13 @@ export class ProjektErstellenWizard {
           window.toastSystem?.show(
             isContract ? 'Contract erfolgreich angelegt' : 'Projekt erfolgreich angelegt',
             'success'
+          );
+        }
+
+        if (Array.isArray(result.skippedKampagnen) && result.skippedKampagnen.length > 0) {
+          window.toastSystem?.show(
+            `${result.skippedKampagnen.length} Kampagne(n) wurden nicht gelöscht, weil noch Kooperationen daran hängen.`,
+            'warning'
           );
         }
 

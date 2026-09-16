@@ -59,7 +59,8 @@ function resolveTargets(kampagneData) {
   return getCampaignTargetTotals({
     blocks: kampagneData?.campaignBlocks,
     auftragDetails: kampagneData?.auftragDetails,
-    kampagne: kampagneData
+    kampagne: kampagneData,
+    preferKampagne: true
   });
 }
 

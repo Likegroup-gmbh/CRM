@@ -399,14 +399,9 @@ const LINK_ICON = `${icon('link')}`;
 const KATEGORIEN_ICON = `
   ${icon('tag')}`;
 
-export function renderAddSection(ctx = {}) {
+function renderAddSectionActions(ctx = {}) {
   const kundenCallActive = ctx.kundenCallActive || false;
   return `
-    <div class="add-item-section add-item-section--compact">
-      <div class="add-item-actions-left">
-        ${renderListenKopf(ctx)}
-      </div>
-      <div class="add-item-actions-right">
         ${SearchInput.render('sourcing-item', {
           placeholder: 'Name suchen...',
           currentValue: escapeHtml(ctx.searchQuery || '')
@@ -429,6 +424,23 @@ export function renderAddSection(ctx = {}) {
           `
         })}
         ` : ''}
+  `;
+}
+
+export function renderAddSection(ctx = {}) {
+  if (ctx.actionsOnly) {
+    return `
+      ${renderAddSectionActions(ctx)}
+      <div id="casting-vorschlag-block"></div>
+    `;
+  }
+  return `
+    <div class="add-item-section add-item-section--compact">
+      <div class="add-item-actions-left">
+        ${renderListenKopf(ctx)}
+      </div>
+      <div class="add-item-actions-right">
+        ${renderAddSectionActions(ctx)}
       </div>
     </div>
   `;
@@ -1186,8 +1198,11 @@ export function renderItemRow(ctx, item, index) {
                   ${icon('light-bulb')}
                   Videoidee anlegen
                 </a>
+                <a href="#" class="action-item" data-action="connect-videoidee" data-id="${item.id}">
+                  ${icon('user-add')}
+                  Mit Videoidee verbinden
+                </a>
               ` : ''}
-              <!-- CRM-Uebernahme vorerst ausgeblendet -->
               ${ctx.canDelete ? `
               <a href="#" class="action-item action-danger" data-action="delete-item" data-id="${item.id}">
                 ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
