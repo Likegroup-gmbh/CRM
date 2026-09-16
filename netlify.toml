@@ -4,6 +4,11 @@
   command = "npm run build"
   publish = "dist"
 
+# Branch-Deploy v2: Vite backt VITE_* zur Build-Zeit ein.
+# Greift nur, wenn Branch v2 in der Netlify-UI als Branch-Deploy aktiv ist.
+[context.v2.environment]
+  VITE_APP_CHANNEL = "v2"
+
 # Netlify Functions Configuration
 [functions]
   directory = "netlify/functions"

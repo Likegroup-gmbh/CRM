@@ -9,6 +9,7 @@ export const CONFIG = {
   APP: {
     NAME: 'CRM Dashboard',
     VERSION: '2.0.0',
+    CHANNEL: import.meta.env.VITE_APP_CHANNEL || '',
     DEBUG: import.meta.env.DEV, // Nur in Development
     OFFLINE_MODE: import.meta.env.DEV // Nur in Development
   },

@@ -7,6 +7,8 @@ initListenerMonitor();
 
 import { initVersionCheck } from './core/VersionCheck.js';
 initVersionCheck();
+import { initChannelBadge } from './core/ChannelBadge.js';
+initChannelBadge();
 
 // CSS Imports - müssen für Vite-Build hier sein
 import '../assets/styles/variables.css';
@@ -33,6 +35,7 @@ import '../assets/styles/addresses.css';
 import '../assets/styles/tabellen.css';
 import '../assets/styles/toast.css';
 import '../assets/styles/version-check.css';
+import '../assets/styles/channel-badge.css';
 import '../assets/styles/share.css';
 import '../assets/styles/stakeholder.css';
 import '../assets/styles/admin.css';
