@@ -16,9 +16,9 @@ Immer `staging` nach `v2` mergen. Nie `v2` nach `staging`/`main`, bis Cutover.
 cd /Users/deezy/CRM
 npm run dev
 
-# v2
+# v2 — Port 3001 steht in package.json / vite.config
 cd /Users/deezy/CRM-v2
-npm run dev -- --port 3001
+npm run dev
 ```
 
 Badge **v2** oben rechts = richtiger Channel. Fehlt es, bist du auf v1 oder `VITE_APP_CHANNEL` ist leer.
@@ -37,7 +37,7 @@ git fetch origin
 git worktree add --track -b v2 ../CRM-v2 origin/v2
 cp .env ../CRM-v2/.env
 # in CRM-v2: VITE_APP_CHANNEL=v2 setzen
-cd ../CRM-v2 && npm install && npm run dev -- --port 3001
+cd ../CRM-v2 && npm install && npm run dev
 ```
 
 Falls lokaler Branch `v2` schon existiert: `git worktree add ../CRM-v2 v2`.

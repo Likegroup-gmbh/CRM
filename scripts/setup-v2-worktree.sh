@@ -39,5 +39,5 @@ fi
 
 echo
 echo "v2-Worktree: $DEST"
-echo "Start: cd \"$DEST\" && npm run dev -- --port 3001"
+echo "Start: cd \"$DEST\" && npm run dev"
 echo "v1 bleibt wo es ist. Hotfix: dort staging, danach hier: git merge origin/staging"
