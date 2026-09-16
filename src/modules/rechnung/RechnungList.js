@@ -77,6 +77,7 @@ export class RechnungList {
     window.setContentSafely(window.content, renderPageShell({
       isAdmin: window.isAdmin(),
       canEdit: !!window.currentUser?.permissions?.rechnung?.can_edit,
+      showSummary: window.isAdmin() || window.isInvestor?.(),
       searchQuery: this.searchQuery,
       statusTabs: STATUS_TABS, typeTabs: TYPE_TABS,
       activeStatusTab: this.activeStatusTab, activeTypeTab: this.activeTypeTab,
