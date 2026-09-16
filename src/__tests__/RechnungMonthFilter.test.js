@@ -113,6 +113,7 @@ describe('RechnungList Monatssheet', () => {
     document.body.innerHTML = '';
     window.currentUser = { rolle: 'admin' };
     window.isAdmin = () => true;
+    window.isInvestor = () => false;
     window.isKunde = () => false;
     window.isMitarbeiter = () => false;
     window.validatorSystem = { sanitizeHtml: value => value };
@@ -269,6 +270,7 @@ describe('Rechnung-Monatssummen', () => {
     document.body.innerHTML = '';
     window.currentUser = { rolle: 'admin' };
     window.isAdmin = () => true;
+    window.isInvestor = () => false;
     window.setHeadline = vi.fn();
     window.setContentSafely = vi.fn((el, html) => { document.body.innerHTML = html; });
   });
@@ -335,6 +337,33 @@ describe('Rechnung-Monatssummen', () => {
     expect(foot.querySelector('[data-summary="bruttobetrag"]').textContent)
       .toBe(formatRechnungSummaryCurrency(3570));
     expect(animateNumber).not.toHaveBeenCalled();
+  });
+
+  it('blendet Cards und tfoot fuer Mitarbeiter aus', () => {
+    window.currentUser = { rolle: 'mitarbeiter' };
+    window.isAdmin = () => false;
+    window.isInvestor = () => false;
+    window.isMitarbeiter = () => true;
+
+    const list = new RechnungList();
+    list.render();
+
+    expect(document.getElementById('rechnungen-summary-cards')).toBeNull();
+    expect(document.getElementById('rechnungen-summary')).toBeNull();
+    expect(document.getElementById('rechnungen-table-body')).toBeTruthy();
+  });
+
+  it('zeigt Cards und tfoot fuer Investoren', () => {
+    window.currentUser = { rolle: 'investor' };
+    window.isAdmin = () => false;
+    window.isInvestor = () => true;
+    window.isMitarbeiter = () => false;
+
+    const list = new RechnungList();
+    list.render();
+
+    expect(document.getElementById('rechnungen-summary-cards')).toBeTruthy();
+    expect(document.getElementById('rechnungen-summary')).toBeTruthy();
   });
 });
 
