@@ -283,6 +283,19 @@ const BRIEFING_MODULE_FIELDS = {
   ]
 };
 
+const BRIEFING_FLOW_FIELDS = [
+  { name: 'beschreibung', label: 'Schwerpunkt', prio: 1 },
+  { name: 'nischen', label: 'Nische', prio: 1 },
+  { name: 'aufgabe', label: 'Creator-Aufgabe', prio: 1 },
+  { name: 'pflichtinhalte', label: 'Pflichtinhalte', prio: 1 },
+  { name: 'setting', label: 'Setting', prio: 1 },
+  { name: 'vorgaben_ausschluesse', label: 'Vorgaben und Ausschluesse', prio: 1 },
+  { name: 'cta', label: 'CTA', prio: 1 },
+  { name: 'hook_vorgaben', label: 'Hook-/Conversion-Vorgaben', prio: 1 },
+  { name: 'dos_donts', label: 'Do’s und Don’ts', prio: 2 },
+  { name: 'learnings_text', label: 'Learnings', prio: 2 }
+];
+
 const CAMPAIGN_BRIEFING_FIELD_NAMES = [
   ...BRIEFING_MASTER_FIELDS.map((f) => f.name),
   ...Object.values(BRIEFING_MODULE_FIELDS).flat().map((f) => f.name)
@@ -351,8 +364,11 @@ function fmtBriefingValue(value) {
 }
 
 function collectBriefingLines(briefing) {
-  const fields = [...BRIEFING_MASTER_FIELDS];
-  if (BRIEFING_MODULE_FIELDS[briefing.bereich]) {
+  const flow = briefing?.aufgabe || briefing?.nischen || briefing?.pflichtinhalte;
+  const fields = flow
+    ? [...BRIEFING_FLOW_FIELDS, ...BRIEFING_MASTER_FIELDS.filter(f => ['bereich', 'aktivierung_name'].includes(f.name))]
+    : [...BRIEFING_MASTER_FIELDS];
+  if (!flow && BRIEFING_MODULE_FIELDS[briefing.bereich]) {
     fields.push(...BRIEFING_MODULE_FIELDS[briefing.bereich]);
   }
 

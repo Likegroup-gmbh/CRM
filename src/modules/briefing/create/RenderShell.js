@@ -9,7 +9,7 @@ import { PageTransitionHelper } from '../../../core/PageTransitionHelper.js';
 import { icon } from '../../../core/icons/IconSystem.js';
 import { BEREICH_OPTIONS, getStepsForBereich } from './fieldConfig.js';
 import { renderStep } from './FieldRenderer.js';
-import { renderLikyComposer, renderLikySend, renderLikyColumn } from '../../../core/chat/likyComposer.js';
+import { renderLikyComposer, renderLikySend, renderLikyColumn, renderLikyEingabe } from '../../../core/chat/likyComposer.js';
 import { likyCapability } from '../../../core/chat/likyCapabilities.js';
 import { BriefingLikyPanel } from './BriefingLikyPanel.js';
 
@@ -45,10 +45,10 @@ BriefingCreate.prototype.renderStep1 = function() {
   `).join('');
 
   const html = `
-    <div class="form-page pe-fade-in">
+    <div class="form-page form-page--briefing pe-fade-in">
       <div class="pe-type-selection">
-        <h2 class="pe-type-selection__title">Briefing-Bereich auswaehlen</h2>
-        <p class="pe-type-selection__subtitle">Welcher Bereich soll gebrieft werden?</p>
+        <h2 class="pe-type-selection__title">Briefing-Typ auswählen</h2>
+        <p class="pe-type-selection__subtitle">Paid, Organic oder Influencer – der primäre Produktionszweck.</p>
         <div class="pe-type-card-list">
           ${cards}
         </div>
@@ -134,11 +134,11 @@ BriefingCreate.prototype.renderMultistep = function() {
               labelFor: 'briefing-liky-input',
               inputHtml: `
                 <div class="doc-chat__chips" id="briefing-liky-chips"></div>
-                <div class="doc-chat__input">
-                  <input type="text" id="briefing-liky-input" class="doc-chat__eingabe"
-                         autocomplete="off" spellcheck="false"
-                         placeholder="Kundenbriefing (PDF) hier reinziehen …">
-                </div>
+                ${renderLikyEingabe({
+                  id: 'briefing-liky-input',
+                  extraAttrs: 'spellcheck="false"',
+                  placeholder: 'Kundenbriefing (PDF) hier reinziehen …'
+                })}
               `,
               sendHtml: renderLikySend({ id: 'briefing-liky-send', title: 'Absenden' })
             })
@@ -146,13 +146,13 @@ BriefingCreate.prototype.renderMultistep = function() {
         </aside>`;
 
   const html = mitLiky
-    ? `<div class="form-page">
+    ? `<div class="form-page form-page--briefing">
       <div class="doc__shell">
         ${formHtml}
         ${likySide}
       </div>
     </div>`
-    : `<div class="form-page">${formHtml}</div>`;
+    : `<div class="form-page form-page--briefing">${formHtml}</div>`;
 
   window.setContentSafely(window.content, html);
 
@@ -214,7 +214,7 @@ BriefingCreate.prototype.renderProgressBar = function() {
       ${this.currentStep >= 2 ? `
         <button type="button" id="btn-prev" class="mdc-btn mdc-btn--secondary">
           ${icon('arrow-left')}
-          Zurueck
+          Zurück
         </button>
       ` : ''}
       ${this.currentStep < totalSteps ? `
@@ -265,6 +265,7 @@ BriefingCreate.prototype.getFieldContext = function() {
     unternehmen: this.unternehmen,
     marke: this.marken,
     benutzer: this.benutzer,
-    produkt: this.produkte
+    produkt: this.produkte,
+    persona: this.personas
   };
 };

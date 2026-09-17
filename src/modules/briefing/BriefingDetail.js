@@ -54,8 +54,8 @@ export class BriefingDetail {
       .from('campaign_briefings')
       .select(`
         *,
-        unternehmen:unternehmen_id(id, firmenname),
-        marke:marke_id(id, markenname)
+        unternehmen:unternehmen_id(id, firmenname, logo_url),
+        marke:marke_id(id, markenname, logo_url)
       `)
       .eq('id', this.briefingId)
       .single();
@@ -63,6 +63,16 @@ export class BriefingDetail {
     if (error) throw error;
     this.briefing = data;
     this.briefing.produkte = await loadBriefingProdukte(this.briefingId);
+    const personaIds = Array.isArray(data.persona_ids) ? data.persona_ids.filter(Boolean) : [];
+    if (personaIds.length && window.supabase) {
+      const { data: personas } = await window.supabase
+        .from('personas')
+        .select('id, name, oberbegriff')
+        .in('id', personaIds);
+      this.briefing.personas = personas || [];
+    } else {
+      this.briefing.personas = [];
+    }
   }
 
   setupCacheInvalidation() {

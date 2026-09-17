@@ -2,7 +2,7 @@
 // Zwei Modi: extract (PDF -> Felder) und chat (History + formData -> Patches).
 // Feature-Key: pdf_briefing (existiert in ki_requests).
 
-const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
+const { callClaude, extractJson, repairJsonStrings, MODELS } = require('./_shared/anthropic');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { createJobUpdater } = require('./_shared/job-updater');
 const { starteKiRequest } = require('./_shared/ki-log');
@@ -27,17 +27,6 @@ const EXTRACT_TOOL = {
             from: { type: 'string' }
           },
           required: ['value']
-        }
-      },
-      orphans: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            text: { type: 'string' },
-            frage: { type: 'string' }
-          },
-          required: ['text', 'frage']
         }
       },
       missing: { type: 'array', items: { type: 'string' } },
@@ -100,20 +89,119 @@ function buildExtractPrompt({ spec, unternehmenName, markeName, produkte }) {
   if (unternehmenName) task += `Unternehmen: ${unternehmenName}\n`;
   if (markeName) task += `Marke: ${markeName}\n`;
   if (produkte?.length) {
-    task += `Bekannte Produkte: ${produkte.map((p) => p.name).join(', ')}\n`;
+    task += 'Bekannte Produkte (id + name; produkt_id nur aus dieser Liste):\n'
+      + JSON.stringify(produkte.map((p) => ({ id: p.id, name: p.name }))) + '\n';
   }
 
   task += '\n# SPEC\n' + JSON.stringify(spec, null, 2) + '\n\n';
   task += '# REGELN\n'
-    + '- fields: nur Felder, die im PDF belegt sind. kind=fact wenn direkt im Text, '
+    + '- Spec ist geschlossen: nur Felder aus der Spec belegen. Was keinem Feld '
+    + 'zugeordnet werden kann, weglassen. Keine Rueckfragen, keine Extra-Keys. '
+    + 'Kunden-PDFs enthalten oft Irrelevantes (Scope, Kontakte, Zeitplaene).\n'
+    + '- Ignorieren: Ansprechpartner/Kontaktpersonen (sitzen nicht am Briefing), '
+    + 'Agentur-Leistungsbeschreibung, interne Projektplaene, Budget, Legal/'
+    + 'Boilerplate, Deckblatt-Metadaten. Einzelne Meilenstein-Zeilen nicht ablegen.\n'
+    + '- Zeitraum: Kampagnenlaufzeit oder grober Veroeffentlichungszeitraum kompakt '
+    + 'in veroeffentlichungszeitraum (z.B. "KW 46-48 / Go-Live 17.11.2026").\n'
+    + '- fields: Objekt Feldname -> { value, kind, from }. Nur Felder aus der Spec, '
+    + 'die im PDF belegt sind. kind=fact wenn direkt im Text, '
     + 'kind=guess wenn abgeleitet. from = kurzer Quellverweis (Seite/Abschnitt).\n'
-    + '- orphans: Saetze, die du erkannt hast, aber keinem Feld zuordnen kannst. '
-    + 'frage = deine Rueckfrage an den User.\n'
+    + '- value exakt in der Form, die valueShape des Feldes vorgibt. '
+    + 'Enums auf options.value mappen, Formate auf die format-values des Channels. '
+    + 'Keine zusaetzlichen Keys wie "anzahl" oder "vorgaben" in channelGroup-Werten.\n'
     + '- missing: Pflichtfelder, die leer bleiben (z.B. aktivierung_name).\n'
     + '- unternehmen_hint: Name aus dem PDF, passt = ob er zum gewaehlten Unternehmen passt.\n'
-    + '- produkte_hint: Produktnamen aus dem PDF, produkt_id wenn bekannt, sonst null.\n';
+    + '- produkte_hint: Produktnamen aus dem PDF. produkt_id NUR eine id aus '
+    + 'Bekannte Produkte, sonst null. Keine UUID erfinden.\n';
 
   return { stable, task };
+}
+
+function normalizeProduktName(name) {
+  return String(name || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+// Spiegel von src/modules/briefing/create/produktHint.js - Claude liefert
+// IDs unzuverlaessig, deshalb serverseitig gegen den Katalog matchen.
+function resolveProduktHints(hints, katalog) {
+  const list = (katalog || []).filter((p) => p?.id);
+  const byId = new Map(list.map((p) => [String(p.id), p]));
+  return (hints || []).map((hint) => {
+    const name = String(hint?.name || '').trim();
+    const given = hint?.produkt_id ? String(hint.produkt_id).trim() : '';
+    if (given && (!list.length || byId.has(given))) {
+      return { name, produkt_id: given };
+    }
+    const key = normalizeProduktName(name);
+    if (!key) return { name, produkt_id: null };
+    const exact = list.filter((p) => normalizeProduktName(p.name) === key);
+    if (exact.length === 1) return { name, produkt_id: exact[0].id };
+    const contained = list.filter((p) => {
+      const k = normalizeProduktName(p.name);
+      return k && (key.includes(k) || k.includes(key));
+    });
+    if (contained.length === 1) return { name, produkt_id: contained[0].id };
+    return { name, produkt_id: null };
+  });
+}
+
+// Modelle liefern offene Maps gelegentlich als JSON-String oder als Array
+// (die API validiert tool_use.input nicht gegen input_schema). Einmal
+// auspacken. Parse-Fehler duerfen den Payload nicht zu {} machen.
+function parseMaybeJson(value) {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value);
+  } catch (_) { /* weiter */ }
+  try {
+    return JSON.parse(repairJsonStrings(value));
+  } catch (_) { /* weiter */ }
+  try {
+    return extractJson(value);
+  } catch (_) {
+    return null;
+  }
+}
+
+function mapFromArray(items) {
+  const out = {};
+  for (const item of items) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const named = String(item.name || item.key || '').trim();
+    if (named) {
+      const { name: _n, key: _k, ...rest } = item;
+      out[named] = rest;
+      continue;
+    }
+    // [{ aktivierung_name: { value, kind, from } }]
+    const keys = Object.keys(item).filter((k) => !['kind', 'from', 'value', 'force'].includes(k));
+    if (keys.length === 1) out[keys[0]] = item[keys[0]];
+  }
+  return out;
+}
+
+function coerceMap(value, key) {
+  if (value == null) return {};
+  const parsed = parseMaybeJson(value);
+  if (parsed == null) {
+    console.warn(`[${key}] String nicht parsebar`);
+    return {};
+  }
+  if (typeof value === 'string') console.warn(`[${key}] als String geliefert, geparst`);
+  if (Array.isArray(parsed)) {
+    const out = mapFromArray(parsed);
+    if (!Object.keys(out).length && parsed.length) {
+      console.warn(`[${key}] Array ohne erkennbare Feldnamen (${parsed.length} Items)`);
+    }
+    return out;
+  }
+  if (parsed && typeof parsed === 'object') return parsed;
+  return {};
 }
 
 function buildChatPrompt({ spec, history, formData, userText }) {
@@ -134,8 +222,15 @@ function buildChatPrompt({ spec, history, formData, userText }) {
   task += `User: ${userText}\n\n`;
   task += '# REGELN\n'
     + '- reply: deine Antwort an den User.\n'
-    + '- patches: nur Felder, die sich aendern. force=true nur wenn der User '
-    + 'explizit ueberschreiben will (z.B. "Deadline weg").\n';
+    + '- Du siehst KEIN PDF und kein Kundenbriefing. Dir liegen nur der '
+    + 'Formularstand und der Chat vor. Erfinde keine Briefing-Inhalte, Zahlen '
+    + 'oder Termine - wenn etwas fehlt, frag nach.\n'
+    + '- patches: nur Felder, die der User geaendert haben will. '
+    + 'patches.feldname = { value, kind, from }. value exakt in der Form, die '
+    + 'valueShape des Feldes vorgibt (Enums als options.value, KPIs als '
+    + '{ kpi, zielwert }, Channels als { key: [format-values] }).\n'
+    + '- force=true nur wenn der User explizit ueberschreiben will '
+    + '(z.B. "Deadline weg").\n';
 
   return { stable, task };
 }
@@ -262,6 +357,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
 
     const json = result.json || extractJson(result.text);
     if (!json) throw new Error('Keine strukturierte Antwort von Claude');
+    json.fields = coerceMap(json.fields, 'fields');
+    if (modus === 'chat') json.patches = coerceMap(json.patches, 'patches');
+    if (modus === 'extract' && Array.isArray(json.produkte_hint)) {
+      json.produkte_hint = resolveProduktHints(json.produkte_hint, produkte);
+    }
 
     await job.flushAndUpdate({
       status: 'done',
