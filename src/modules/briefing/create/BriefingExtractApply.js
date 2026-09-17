@@ -21,6 +21,32 @@ import { resolveProduktHints } from './produktHint.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Alte Jobs / Modelle liefern fields als JSON-String oder Array. */
+export function coerceFieldMap(value) {
+  if (value == null) return {};
+  let parsed = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+    } catch (_) {
+      return {};
+    }
+  }
+  if (Array.isArray(parsed)) {
+    const out = {};
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+      const name = String(item.name || '').trim();
+      if (!name) continue;
+      const { name: _ignored, ...rest } = item;
+      out[name] = rest;
+    }
+    return out;
+  }
+  if (parsed && typeof parsed === 'object') return parsed;
+  return {};
+}
+
 /** { value, kind, from, force }-Wrapper auspacken (Chat-Patches). */
 function unwrapEntry(entry) {
   if (entry && typeof entry === 'object' && !Array.isArray(entry) && 'value' in entry) {
@@ -245,8 +271,9 @@ export class BriefingExtractApply {
     const applied = [];
     const skipped = [];
     const specByName = new Map(spec.map((f) => [f.name, f]));
+    fields = coerceFieldMap(fields);
 
-    for (const [name, entry] of Object.entries(fields || {})) {
+    for (const [name, entry] of Object.entries(fields)) {
       const specField = specByName.get(name);
       if (!specField || entry?.value == null) continue;
 
@@ -293,8 +320,9 @@ export class BriefingExtractApply {
   applyPatches(patches, spec) {
     const applied = [];
     const specByName = new Map(spec.map((f) => [f.name, f]));
+    patches = coerceFieldMap(patches);
 
-    for (const [name, entry] of Object.entries(patches || {})) {
+    for (const [name, entry] of Object.entries(patches)) {
       const specField = specByName.get(name);
       if (!specField || entry == null) continue;
 

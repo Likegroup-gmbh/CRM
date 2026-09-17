@@ -16,7 +16,7 @@
 
 import { renderThinking, pushStep } from '../../../core/chat/thinking.js';
 import { isLikyPdfName, likyPdfTagHtml } from '../../../core/chat/likyComposer.js';
-import { BriefingExtractApply } from './BriefingExtractApply.js';
+import { BriefingExtractApply, coerceFieldMap } from './BriefingExtractApply.js';
 import { getStepsForBereich } from './fieldConfig.js';
 import { likyCanExtractPdf, likyHasChat } from '../../../core/chat/likyCapabilities.js';
 
@@ -158,13 +158,11 @@ export class BriefingLikyPanel {
         }));
         this.renderTranscript();
       }
-      const fields = lastJob?.result?.fields;
-      if (fields) {
-        for (const [name, entry] of Object.entries(fields)) {
-          this.apply.aiFill.set(name, entry);
-        }
-        this.apply.markVisible();
+      const fields = coerceFieldMap(lastJob?.result?.fields);
+      for (const [name, entry] of Object.entries(fields)) {
+        this.apply.aiFill.set(name, entry);
       }
+      if (Object.keys(fields).length) this.apply.markVisible();
     } catch (error) {
       console.warn('Liky-Verlauf konnte nicht geladen werden:', error);
     }

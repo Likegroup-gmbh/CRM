@@ -17,16 +17,17 @@ const EXTRACT_TOOL = {
     type: 'object',
     properties: {
       fields: {
-        type: 'object',
-        description: 'Feldname -> { value, kind: fact|guess, from }',
-        additionalProperties: {
+        type: 'array',
+        description: 'Erkannte Felder. name nur aus der Spec.',
+        items: {
           type: 'object',
           properties: {
+            name: { type: 'string' },
             value: {},
             kind: { type: 'string', enum: ['fact', 'guess'] },
             from: { type: 'string' }
           },
-          required: ['value']
+          required: ['name', 'value']
         }
       },
       missing: { type: 'array', items: { type: 'string' } },
@@ -60,16 +61,18 @@ const CHAT_TOOL = {
     properties: {
       reply: { type: 'string' },
       patches: {
-        type: 'object',
-        additionalProperties: {
+        type: 'array',
+        description: 'Feld-Patches. name nur aus der Spec.',
+        items: {
           type: 'object',
           properties: {
+            name: { type: 'string' },
             value: {},
             kind: { type: 'string', enum: ['fact', 'guess'] },
             from: { type: 'string' },
             force: { type: 'boolean' }
           },
-          required: ['value']
+          required: ['name', 'value']
         }
       }
     },
@@ -103,7 +106,8 @@ function buildExtractPrompt({ spec, unternehmenName, markeName, produkte }) {
     + 'Boilerplate, Deckblatt-Metadaten. Einzelne Meilenstein-Zeilen nicht ablegen.\n'
     + '- Zeitraum: Kampagnenlaufzeit oder grober Veroeffentlichungszeitraum kompakt '
     + 'in veroeffentlichungszeitraum (z.B. "KW 46-48 / Go-Live 17.11.2026").\n'
-    + '- fields: nur Felder, die im PDF belegt sind. kind=fact wenn direkt im Text, '
+    + '- fields: Array von { name, value, kind, from }. name nur aus der Spec. '
+    + 'Nur Felder, die im PDF belegt sind. kind=fact wenn direkt im Text, '
     + 'kind=guess wenn abgeleitet. from = kurzer Quellverweis (Seite/Abschnitt).\n'
     + '- value exakt in der Form, die valueShape des Feldes vorgibt. '
     + 'Enums auf options.value mappen, Formate auf die format-values des Channels. '
@@ -149,6 +153,35 @@ function resolveProduktHints(hints, katalog) {
   });
 }
 
+// Modelle liefern offene Maps gelegentlich als JSON-String oder als Array
+// (die API validiert tool_use.input nicht gegen input_schema). Einmal
+// auspacken, sonst verwirft der Client alle Felder stillschweigend.
+function coerceMap(value, key) {
+  if (value == null) return {};
+  let parsed = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+      console.warn(`[${key}] als String geliefert, geparst`);
+    } catch (_) {
+      return {};
+    }
+  }
+  if (Array.isArray(parsed)) {
+    const out = {};
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+      const name = String(item.name || '').trim();
+      if (!name) continue;
+      const { name: _ignored, ...rest } = item;
+      out[name] = rest;
+    }
+    return out;
+  }
+  if (parsed && typeof parsed === 'object') return parsed;
+  return {};
+}
+
 function buildChatPrompt({ spec, history, formData, userText }) {
   const stable = 'Du bist Liky, der KI-Assistent im CRM. Du hilfst beim Ausfuellen '
     + 'des Briefing-Formulars. Antworte ausschliesslich ueber das Tool '
@@ -170,8 +203,8 @@ function buildChatPrompt({ spec, history, formData, userText }) {
     + '- Du siehst KEIN PDF und kein Kundenbriefing. Dir liegen nur der '
     + 'Formularstand und der Chat vor. Erfinde keine Briefing-Inhalte, Zahlen '
     + 'oder Termine - wenn etwas fehlt, frag nach.\n'
-    + '- patches: nur Felder, die der User geaendert haben will. '
-    + 'patches.feldname = { value, kind, from }. value exakt in der Form, die '
+    + '- patches: Array von { name, value, kind, from }. name nur aus der Spec. '
+    + 'Nur Felder, die der User geaendert haben will. value exakt in der Form, die '
     + 'valueShape des Feldes vorgibt (Enums als options.value, KPIs als '
     + '{ kpi, zielwert }, Channels als { key: [format-values] }).\n'
     + '- force=true nur wenn der User explizit ueberschreiben will '
@@ -302,6 +335,8 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
 
     const json = result.json || extractJson(result.text);
     if (!json) throw new Error('Keine strukturierte Antwort von Claude');
+    json.fields = coerceMap(json.fields, 'fields');
+    if (modus === 'chat') json.patches = coerceMap(json.patches, 'patches');
     if (modus === 'extract' && Array.isArray(json.produkte_hint)) {
       json.produkte_hint = resolveProduktHints(json.produkte_hint, produkte);
     }
