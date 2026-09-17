@@ -2,7 +2,7 @@
 // Zwei Modi: extract (PDF -> Felder) und chat (History + formData -> Patches).
 // Feature-Key: pdf_briefing (existiert in ki_requests).
 
-const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
+const { callClaude, extractJson, repairJsonStrings, MODELS } = require('./_shared/anthropic');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { createJobUpdater } = require('./_shared/job-updater');
 const { starteKiRequest } = require('./_shared/ki-log');
@@ -17,17 +17,16 @@ const EXTRACT_TOOL = {
     type: 'object',
     properties: {
       fields: {
-        type: 'array',
-        description: 'Erkannte Felder. name nur aus der Spec.',
-        items: {
+        type: 'object',
+        description: 'Feldname -> { value, kind: fact|guess, from }',
+        additionalProperties: {
           type: 'object',
           properties: {
-            name: { type: 'string' },
             value: {},
             kind: { type: 'string', enum: ['fact', 'guess'] },
             from: { type: 'string' }
           },
-          required: ['name', 'value']
+          required: ['value']
         }
       },
       missing: { type: 'array', items: { type: 'string' } },
@@ -61,18 +60,16 @@ const CHAT_TOOL = {
     properties: {
       reply: { type: 'string' },
       patches: {
-        type: 'array',
-        description: 'Feld-Patches. name nur aus der Spec.',
-        items: {
+        type: 'object',
+        additionalProperties: {
           type: 'object',
           properties: {
-            name: { type: 'string' },
             value: {},
             kind: { type: 'string', enum: ['fact', 'guess'] },
             from: { type: 'string' },
             force: { type: 'boolean' }
           },
-          required: ['name', 'value']
+          required: ['value']
         }
       }
     },
@@ -106,8 +103,8 @@ function buildExtractPrompt({ spec, unternehmenName, markeName, produkte }) {
     + 'Boilerplate, Deckblatt-Metadaten. Einzelne Meilenstein-Zeilen nicht ablegen.\n'
     + '- Zeitraum: Kampagnenlaufzeit oder grober Veroeffentlichungszeitraum kompakt '
     + 'in veroeffentlichungszeitraum (z.B. "KW 46-48 / Go-Live 17.11.2026").\n'
-    + '- fields: Array von { name, value, kind, from }. name nur aus der Spec. '
-    + 'Nur Felder, die im PDF belegt sind. kind=fact wenn direkt im Text, '
+    + '- fields: Objekt Feldname -> { value, kind, from }. Nur Felder aus der Spec, '
+    + 'die im PDF belegt sind. kind=fact wenn direkt im Text, '
     + 'kind=guess wenn abgeleitet. from = kurzer Quellverweis (Seite/Abschnitt).\n'
     + '- value exakt in der Form, die valueShape des Feldes vorgibt. '
     + 'Enums auf options.value mappen, Formate auf die format-values des Channels. '
@@ -155,26 +152,51 @@ function resolveProduktHints(hints, katalog) {
 
 // Modelle liefern offene Maps gelegentlich als JSON-String oder als Array
 // (die API validiert tool_use.input nicht gegen input_schema). Einmal
-// auspacken, sonst verwirft der Client alle Felder stillschweigend.
+// auspacken. Parse-Fehler duerfen den Payload nicht zu {} machen.
+function parseMaybeJson(value) {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value);
+  } catch (_) { /* weiter */ }
+  try {
+    return JSON.parse(repairJsonStrings(value));
+  } catch (_) { /* weiter */ }
+  try {
+    return extractJson(value);
+  } catch (_) {
+    return null;
+  }
+}
+
+function mapFromArray(items) {
+  const out = {};
+  for (const item of items) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const named = String(item.name || item.key || '').trim();
+    if (named) {
+      const { name: _n, key: _k, ...rest } = item;
+      out[named] = rest;
+      continue;
+    }
+    // [{ aktivierung_name: { value, kind, from } }]
+    const keys = Object.keys(item).filter((k) => !['kind', 'from', 'value', 'force'].includes(k));
+    if (keys.length === 1) out[keys[0]] = item[keys[0]];
+  }
+  return out;
+}
+
 function coerceMap(value, key) {
   if (value == null) return {};
-  let parsed = value;
-  if (typeof value === 'string') {
-    try {
-      parsed = JSON.parse(value);
-      console.warn(`[${key}] als String geliefert, geparst`);
-    } catch (_) {
-      return {};
-    }
+  const parsed = parseMaybeJson(value);
+  if (parsed == null) {
+    console.warn(`[${key}] String nicht parsebar`);
+    return {};
   }
+  if (typeof value === 'string') console.warn(`[${key}] als String geliefert, geparst`);
   if (Array.isArray(parsed)) {
-    const out = {};
-    for (const item of parsed) {
-      if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
-      const name = String(item.name || '').trim();
-      if (!name) continue;
-      const { name: _ignored, ...rest } = item;
-      out[name] = rest;
+    const out = mapFromArray(parsed);
+    if (!Object.keys(out).length && parsed.length) {
+      console.warn(`[${key}] Array ohne erkennbare Feldnamen (${parsed.length} Items)`);
     }
     return out;
   }
@@ -203,8 +225,8 @@ function buildChatPrompt({ spec, history, formData, userText }) {
     + '- Du siehst KEIN PDF und kein Kundenbriefing. Dir liegen nur der '
     + 'Formularstand und der Chat vor. Erfinde keine Briefing-Inhalte, Zahlen '
     + 'oder Termine - wenn etwas fehlt, frag nach.\n'
-    + '- patches: Array von { name, value, kind, from }. name nur aus der Spec. '
-    + 'Nur Felder, die der User geaendert haben will. value exakt in der Form, die '
+    + '- patches: nur Felder, die der User geaendert haben will. '
+    + 'patches.feldname = { value, kind, from }. value exakt in der Form, die '
     + 'valueShape des Feldes vorgibt (Enums als options.value, KPIs als '
     + '{ kpi, zielwert }, Channels als { key: [format-values] }).\n'
     + '- force=true nur wenn der User explizit ueberschreiben will '

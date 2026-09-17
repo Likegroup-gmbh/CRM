@@ -36,10 +36,14 @@ export function coerceFieldMap(value) {
     const out = {};
     for (const item of parsed) {
       if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
-      const name = String(item.name || '').trim();
-      if (!name) continue;
-      const { name: _ignored, ...rest } = item;
-      out[name] = rest;
+      const named = String(item.name || item.key || '').trim();
+      if (named) {
+        const { name: _n, key: _k, ...rest } = item;
+        out[named] = rest;
+        continue;
+      }
+      const keys = Object.keys(item).filter((k) => !['kind', 'from', 'value', 'force'].includes(k));
+      if (keys.length === 1) out[keys[0]] = item[keys[0]];
     }
     return out;
   }
@@ -275,9 +279,9 @@ export class BriefingExtractApply {
 
     for (const [name, entry] of Object.entries(fields)) {
       const specField = specByName.get(name);
-      if (!specField || entry?.value == null) continue;
+      if (!specField || entry == null) continue;
 
-      const value = normalizeValue(specField, entry.value);
+      const value = normalizeValue(specField, entry);
       if (value == null) continue;
 
       const current = this.briefing.formData[name];
@@ -287,7 +291,11 @@ export class BriefingExtractApply {
       }
 
       this.briefing.formData[name] = value;
-      this.aiFill.set(name, { from: entry.from || null, kind: entry.kind || 'fact' });
+      const kind = entry && typeof entry === 'object' && !Array.isArray(entry) && entry.kind === 'guess'
+        ? 'guess' : 'fact';
+      const from = entry && typeof entry === 'object' && !Array.isArray(entry) && entry.from
+        ? entry.from : null;
+      this.aiFill.set(name, { from, kind });
       applied.push(specField.label || name);
     }
 
