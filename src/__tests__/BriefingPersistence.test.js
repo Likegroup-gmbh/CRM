@@ -43,6 +43,16 @@ function mockSupabase({ row = null, produkte = [] } = {}) {
           }))
         };
       }
+      if (table === 'personas') {
+        const chain = {
+          select: vi.fn(() => chain),
+          eq: vi.fn(() => chain),
+          not: vi.fn(() => chain),
+          order: vi.fn(() => chain),
+          then: (resolve) => resolve({ data: [], error: null })
+        };
+        return chain;
+      }
       if (table === 'produkt') {
         return {
           select: vi.fn(() => ({
@@ -93,29 +103,13 @@ describe('Briefing DataPersistence', () => {
     document.body.innerHTML = `
       <form id="briefing-form">
         <input type="text" name="aktivierung_name" value="Summer Glow">
-        <input type="radio" name="ansatz" value="kampagne" checked>
-        <input type="checkbox" name="im_keine_benchmarks" checked>
-        <input type="checkbox" name="im_funnel_stufen" value="upper" checked>
-        <input type="checkbox" name="im_funnel_stufen" value="lower">
-        <input type="checkbox" name="maerkte" value="deutschland" checked>
-        <input type="text" name="maerkte__custom" value="USA, UK">
-        <input type="text" name="im_creator_merkmale__alter" value="25-34">
-        <input type="text" name="im_creator_merkmale__geschlecht" value="">
-        <input type="text" name="im_creator_merkmale__standort" value="">
-        <input type="text" name="im_creator_merkmale__expertise" value="">
-        <input type="text" name="im_creator_merkmale__sonstiges" value="">
-        <input type="checkbox" name="im_channels__instagram" value="reel" checked>
-        <input type="checkbox" name="im_channels__instagram" value="story">
-        <div data-repeatable="im_kpis">
-          <div data-repeatable-row>
-            <select data-kpi><option value="reichweite" selected>Reichweite</option></select>
-            <input data-zielwert value="100k">
-          </div>
-          <div data-repeatable-row>
-            <select data-kpi><option value="" selected>-</option></select>
-            <input data-zielwert value="">
-          </div>
-        </div>
+        <input type="checkbox" name="nischen" value="beauty" checked>
+        <input type="checkbox" name="nischen" value="fashion">
+        <input type="text" name="creator_merkmale__alter" value="25-34">
+        <input type="text" name="creator_merkmale__geschlecht" value="">
+        <input type="text" name="creator_merkmale__standort" value="">
+        <input type="checkbox" name="publish_channels__instagram" value="reel" checked>
+        <input type="checkbox" name="nutzung_markenkanal" value="true">
       </form>
     `;
 
@@ -123,15 +117,12 @@ describe('Briefing DataPersistence', () => {
     instance.saveCurrentStepData();
 
     expect(instance.formData.aktivierung_name).toBe('Summer Glow');
-    expect(instance.formData.ansatz).toBe('kampagne');
-    expect(instance.formData.im_keine_benchmarks).toBe(true);
-    expect(instance.formData.im_funnel_stufen).toEqual(['upper']);
-    expect(instance.formData.maerkte).toEqual(['deutschland', 'USA', 'UK']);
-    expect(instance.formData.im_creator_merkmale).toEqual({
-      alter: '25-34', geschlecht: '', standort: '', expertise: '', sonstiges: ''
+    expect(instance.formData.nischen).toEqual(['beauty']);
+    expect(instance.formData.creator_merkmale).toEqual({
+      alter: '25-34', geschlecht: '', standort: ''
     });
-    expect(instance.formData.im_channels).toEqual({ instagram: ['reel'] });
-    expect(instance.formData.im_kpis).toEqual([{ kpi: 'reichweite', zielwert: '100k' }]);
+    expect(instance.formData.publish_channels).toEqual({ instagram: ['reel'] });
+    expect(instance.formData.nutzung_markenkanal).toBe(false);
     expect(instance.formData.bereich).toBe('influencer_marketing');
   });
 
@@ -171,46 +162,47 @@ describe('Briefing DataPersistence', () => {
     expect(instance.formData.produkt_ids).toEqual(['p1', 'p3']);
   });
 
-  it('prepareDataForDB leert Felder mit nicht erfuellter Condition', () => {
+  it('prepareDataForDB leert Paid-Felder im Influencer-Briefing und spiegelt Prefix-Spalten', () => {
     const instance = createInstance();
     instance.formData = {
       bereich: 'influencer_marketing',
       unternehmen_id: 'u1',
       aktivierung_name: 'Test',
-      ansatz: 'always_on',
-      // gehoert zu ansatz=kampagne -> muss geleert werden
-      kampagne_thema: 'Alt-Text',
-      kampagnentypen: ['produktlaunch'],
-      // gehoert zu ansatz=always_on -> darf bleiben
-      always_on_thema: 'Dauerbrenner'
+      nischen: ['beauty'],
+      aufgabe: 'Routine filmen',
+      cta: 'Shop now',
+      funnel_stufen: ['upper']
     };
 
     const data = instance.prepareDataForDB();
 
-    expect(data.kampagne_thema).toBeNull();
-    expect(data.kampagnentypen).toBeNull();
-    expect(data.always_on_thema).toBe('Dauerbrenner');
-    expect(data.bereich).toBe('influencer_marketing');
+    expect(data.nischen).toEqual(['beauty']);
+    expect(data.aufgabe).toBe('Routine filmen');
+    expect(data.cta).toBeNull();
+    expect(data.funnel_stufen).toBeNull();
+    expect(data.im_nischen).toEqual(['beauty']);
+    expect(data.im_umsetzung).toBe('Routine filmen');
+    expect(data.persona_ids).toEqual([]);
   });
 
-  it('prepareDataForDB leert Modul-Felder der nicht gewaehlten Bereiche', () => {
+  it('prepareDataForDB speichert flache Voraussetzungen und Sonstige getrennt', () => {
     const instance = createInstance();
     instance.formData = {
       bereich: 'influencer_marketing',
       unternehmen_id: 'u1',
       aktivierung_name: 'Test',
-      im_funnel_stufen: ['upper'],
-      pa_objectives: ['sales'],
-      pa_channels: { meta: ['instagram'] },
-      os_content_ziele: ['reichweite']
+      voraussetzungen: ['kind_familie', 'kueche'],
+      voraussetzungen_sonstiges: 'Wohnung mit Balkon',
+      produkt_erfahrung: 'kennt das Serum'
     };
 
     const data = instance.prepareDataForDB();
 
-    expect(data.im_funnel_stufen).toEqual(['upper']);
-    expect(data.pa_objectives).toBeNull();
-    expect(data.pa_channels).toBeNull();
-    expect(data.os_content_ziele).toBeNull();
+    expect(data.voraussetzungen).toEqual(['kind_familie', 'kueche']);
+    expect(data.voraussetzungen_sonstiges).toBe('Wohnung mit Balkon');
+    expect(data.produkt_erfahrung).toBe('kennt das Serum');
+    expect(data.im_voraussetzungen).toEqual(['kind_familie', 'kueche']);
+    expect(data.im_voraussetzungen_custom).toBe('kennt das Serum');
   });
 
   it('prepareDataForDB mappt leere Werte auf null und Checkboxen auf boolean', () => {
@@ -219,36 +211,14 @@ describe('Briefing DataPersistence', () => {
       bereich: 'influencer_marketing',
       unternehmen_id: 'u1',
       aktivierung_name: '',
-      im_keine_benchmarks: undefined,
-      im_funnel_stufen: []
+      nutzung_markenkanal: undefined
     };
 
     const data = instance.prepareDataForDB();
 
     expect(data.aktivierung_name).toBeNull();
-    expect(data.im_keine_benchmarks).toBe(false);
-    expect(data.im_funnel_stufen).toBeNull();
+    expect(data.nutzung_markenkanal).toBe(false);
     expect(data.marke_id).toBeNull();
-  });
-
-  it('prepareDataForDB koerziert Boolean-Radios auf false statt null (NOT-NULL-Spalten)', () => {
-    const instance = createInstance();
-    instance.formData = {
-      bereich: 'influencer_marketing',
-      unternehmen_id: 'u1',
-      // zusaetzliche_sprachen: Boolean-Radio, unbeantwortet
-      // im_learnings_vorhanden: Boolean-Radio, beantwortet
-      im_learnings_vorhanden: true,
-      // ansatz: Text-Radio, unbeantwortet -> darf null bleiben (nullable Spalte)
-    };
-
-    const data = instance.prepareDataForDB();
-
-    expect(data.zusaetzliche_sprachen).toBe(false);
-    expect(data.im_learnings_vorhanden).toBe(true);
-    expect(data.pa_learnings_vorhanden).toBe(false); // anderer Bereich -> Default false, nicht null
-    expect(data.os_learnings_vorhanden).toBe(false);
-    expect(data.ansatz).toBeNull();
   });
 
   it('saveDraftToDB legt Entwurf an und setzt editId', async () => {
@@ -281,7 +251,7 @@ describe('Briefing DataPersistence', () => {
 
     const instance = createInstance();
     instance.editId = 'briefing-1';
-    instance.formData = { unternehmen_id: 'u1', aktivierung_name: 'Final' };
+    instance.formData = { unternehmen_id: 'u1', aktivierung_name: 'Final', produkt_ids: ['p1'], persona_ids: ['pe1'] };
 
     await instance.handleSubmit();
 
@@ -318,10 +288,10 @@ describe('Briefing DataPersistence', () => {
       unternehmen_id: 'u1',
       marke_id: 'm1',
       aktivierung_name: 'Paid Push',
-      ansatz: 'kampagne',
-      kampagne_thema: 'Launch',
-      pa_objectives: ['sales'],
-      im_funnel_stufen: null
+      beschreibung: 'Launch',
+      paid_objectives: ['sales'],
+      persona_ids: ['pe1'],
+      voraussetzungen: ['kind_familie', 'kueche']
     };
     const { sb } = mockSupabase({ row, produkte: [{ id: 'p1', name: 'Serum' }] });
     window.supabase = sb;
@@ -333,10 +303,12 @@ describe('Briefing DataPersistence', () => {
     expect(instance.isGenerated).toBe(true);
     expect(instance.currentStep).toBe(2);
     expect(instance.formData.aktivierung_name).toBe('Paid Push');
-    expect(instance.formData.pa_objectives).toEqual(['sales']);
-    // null-Spalten landen nicht in formData
-    expect(instance.formData).not.toHaveProperty('im_funnel_stufen');
+    expect(instance.formData.paid_objectives).toEqual(['sales']);
+    expect(instance.formData.beschreibung).toBe('Launch');
+    expect(instance.formData.voraussetzungen).toEqual(['kind_familie', 'kueche']);
+    expect(instance.formData.voraussetzungen_weiter).toBeUndefined();
     expect(instance.formData.marke_id).toBe('m1');
     expect(instance.formData.produkt_ids).toEqual(['p1']);
+    expect(instance.formData.persona_ids).toEqual(['pe1']);
   });
 });

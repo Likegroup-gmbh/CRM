@@ -1077,6 +1077,12 @@ input.input-error {
   transition: background-color 0.2s ease;
 }
 
+.searchable-select-item.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .searchable-select-item:hover {
   background-color: var(--bg-secondary);
 }
@@ -4120,6 +4126,22 @@ input.readonly-field {
   display: block;
 }
 
+.bf-disclosure {
+  margin: var(--space-md) 0;
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-md, 8px);
+  padding: var(--space-sm) var(--space-md);
+}
+
+.bf-disclosure__summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.bf-disclosure__body {
+  margin-top: var(--space-md);
+}
+
 .bf-repeatable {
   display: flex;
   flex-direction: column;
@@ -4157,4 +4179,31 @@ input.readonly-field {
 
 .bf-custom-multi-input {
   margin-top: var(--space-xs);
+}
+
+.form-page--briefing .multistep-content {
+  gap: 4.5rem;
+}
+
+.form-page--briefing .step-section {
+  gap: var(--space-lg);
+}
+
+.form-page--briefing .step-section__header {
+  margin-bottom: var(--space-lg);
+}
+
+.form-page--briefing .form-field {
+  gap: var(--space-sm);
+}
+
+.form-page--briefing .form-field > label {
+  font-size: var(--text-sm);
+  color: var(--gray-900);
+}
+
+.form-page--briefing .bf-channel__title,
+.form-page--briefing .bf-disclosure__summary {
+  font-weight: 400;
+  font-size: var(--text-sm);
 }

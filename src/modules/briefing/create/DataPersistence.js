@@ -4,9 +4,24 @@
 // anhand der Feld-Definitionen aus fieldConfig.js.
 
 import { BriefingCreate } from './BriefingCreateCore.js';
-import { getAllFields, evaluateCondition } from './fieldConfig.js';
+import { getAllFields, flattenFields, FLOW_STEPS, isFieldActive } from './fieldConfig.js';
 import { starteBriefingAuswertung } from './BriefingAuswertung.js';
 import { loadBriefingProdukte, syncBriefingProdukte } from '../BriefingProdukte.js';
+
+function collectableFields() {
+  const fields = [];
+  for (const step of FLOW_STEPS) {
+    for (const section of step.sections) {
+      fields.push(...flattenFields(section.fields).filter(f => f.type !== 'disclosure'));
+    }
+  }
+  const seen = new Set();
+  return fields.filter(f => {
+    if (seen.has(f.name)) return false;
+    seen.add(f.name);
+    return true;
+  });
+}
 
 // ---------------------------------------------------------------
 // Formular -> formData (generisch ueber Feld-Schema)
@@ -15,7 +30,7 @@ BriefingCreate.prototype.saveCurrentStepData = function() {
   const form = document.getElementById('briefing-form');
   if (!form) return;
 
-  for (const field of getAllFields()) {
+  for (const field of collectableFields()) {
     switch (field.type) {
       case 'checkbox': {
         const input = form.querySelector(`input[name="${field.name}"]`);
@@ -122,6 +137,16 @@ BriefingCreate.prototype.saveCurrentStepData = function() {
         }
         break;
       }
+      case 'entityMulti': {
+        const select = form.querySelector(`#${field.name}_hidden`)
+          || form.querySelector(`select[name="${field.name}[]"]`)
+          || form.querySelector(`[data-entity-multi="${field.name}"] select[multiple]`)
+          || form.querySelector(`select#${field.name}`);
+        if (select) {
+          this.formData[field.name] = Array.from(select.selectedOptions).map(o => o.value);
+        }
+        break;
+      }
       default: {
         const input = form.querySelector(`[name="${field.name}"]`);
         if (input) this.formData[field.name] = input.value;
@@ -147,8 +172,6 @@ BriefingCreate.prototype.saveCurrentStepData = function() {
 // ---------------------------------------------------------------
 BriefingCreate.prototype.prepareDataForDB = function() {
   const bereich = this.formData.bereich || this.selectedBereich;
-  const prefixByBereich = { influencer_marketing: 'im_', paid_creator_ads: 'pa_', owned_social: 'os_' };
-  const activePrefix = prefixByBereich[bereich];
 
   const data = {
     bereich,
@@ -158,20 +181,12 @@ BriefingCreate.prototype.prepareDataForDB = function() {
   };
 
   for (const field of getAllFields()) {
-    // Modul-Felder anderer Bereiche explizit leeren
-    const isModuleField = /^(im|pa|os)_/.test(field.name);
-    if (isModuleField && !field.name.startsWith(activePrefix)) {
+    if (!isFieldActive(field.name, { ...this.formData, bereich })) {
       data[field.name] = defaultForField(field);
       continue;
     }
 
     let value = this.formData[field.name];
-
-    // Nicht erfuellte Conditions -> Feld leeren (keine versteckten Alt-Werte)
-    if (field.condition && !evaluateCondition(field.condition, this.formData)) {
-      data[field.name] = defaultForField(field);
-      continue;
-    }
 
     switch (field.type) {
       case 'checkbox':
@@ -179,7 +194,8 @@ BriefingCreate.prototype.prepareDataForDB = function() {
         break;
       case 'checkboxes':
       case 'customMulti':
-        data[field.name] = Array.isArray(value) && value.length ? value : null;
+      case 'entityMulti':
+        data[field.name] = Array.isArray(value) && value.length ? value : (field.name === 'persona_ids' ? [] : null);
         break;
       case 'group':
       case 'channelGroup':
@@ -191,7 +207,6 @@ BriefingCreate.prototype.prepareDataForDB = function() {
         data[field.name] = Array.isArray(value) && value.length ? value : null;
         break;
       case 'radio':
-        // Boolean-Radios mappen auf NOT-NULL-Boolean-Spalten: unbeantwortet = false
         data[field.name] = isBooleanRadio(field)
           ? value === true
           : ((value === '' || value === undefined) ? null : value);
@@ -201,8 +216,9 @@ BriefingCreate.prototype.prepareDataForDB = function() {
     }
   }
 
+  mirrorLegacyColumns(data, bereich);
   return data;
-}
+};
 
 // Radio mit ausschliesslich true/false-Optionen -> boolean-Spalte (NOT NULL DEFAULT false)
 export function isBooleanRadio(field) {
@@ -217,12 +233,37 @@ function defaultForField(field) {
     case 'radio': return isBooleanRadio(field) ? false : null;
     case 'checkboxes':
     case 'customMulti': return null;
+    case 'entityMulti': return field.name === 'persona_ids' ? [] : null;
     case 'group':
     case 'channelGroup':
     case 'repeatableKpi':
     case 'repeatableText':
     case 'repeatableUpload': return null;
     default: return null;
+  }
+}
+
+function mirrorLegacyColumns(data, bereich) {
+  const prefix = { influencer_marketing: 'im_', paid_creator_ads: 'pa_', owned_social: 'os_' }[bereich];
+  if (!prefix) return;
+  data[`${prefix}nischen`] = data.nischen || null;
+  data[`${prefix}creator_groessen`] = data.creator_groessen || null;
+  data[`${prefix}creator_merkmale`] = data.creator_merkmale || null;
+  data[`${prefix}voraussetzungen`] = data.voraussetzungen || null;
+  data[`${prefix}voraussetzungen_custom`] = data.produkt_erfahrung || null;
+  data[`${prefix}umsetzung`] = data.aufgabe || null;
+  data[`${prefix}situationen`] = data.setting || null;
+  if (bereich === 'paid_creator_ads') {
+    data.pa_channels = data.ad_channels || null;
+    data.pa_funnel_stufen = data.funnel_stufen || null;
+    data.pa_objectives = data.paid_objectives || null;
+    data.pa_ziel_url = data.ziel_url || null;
+    data.pa_videolaengen = data.videolaengen || null;
+  } else if (bereich === 'owned_social') {
+    data.os_channels = data.publish_channels || null;
+    data.os_content_ziele = data.content_ziele || null;
+  } else {
+    data.im_channels = data.publish_channels || null;
   }
 }
 
@@ -238,7 +279,7 @@ BriefingCreate.prototype.validateCurrentStep = function() {
     if (field.closest('.hidden')) continue; // conditional-ausgeblendete Felder ignorieren
     if (!field.value) {
       field.focus();
-      window.toastSystem?.show('Bitte fuellen Sie alle Pflichtfelder aus.', 'warning');
+      window.toastSystem?.show('Bitte füllen Sie alle Pflichtfelder aus.', 'warning');
       return false;
     }
   }
@@ -310,11 +351,19 @@ BriefingCreate.prototype.handleSubmit = async function() {
   this.saveCurrentStepData();
 
   if (!this.formData.unternehmen_id) {
-    window.toastSystem?.show('Bitte ein Unternehmen zuordnen (Step "Master").', 'warning');
+    window.toastSystem?.show('Bitte ein Unternehmen zuordnen (Schritt Grundlage).', 'warning');
     return;
   }
   if (!this.formData.aktivierung_name) {
-    window.toastSystem?.show('Bitte einen Namen fuer die Aktivierung vergeben (Step "Master").', 'warning');
+    window.toastSystem?.show('Bitte einen Titel vergeben (Schritt Grundlage).', 'warning');
+    return;
+  }
+  if (!this.formData.produkt_ids?.length) {
+    window.toastSystem?.show('Bitte mindestens ein Produkt zuordnen.', 'warning');
+    return;
+  }
+  if (!this.formData.persona_ids?.length) {
+    window.toastSystem?.show('Bitte mindestens eine Persona zuordnen.', 'warning');
     return;
   }
 
@@ -397,10 +446,12 @@ BriefingCreate.prototype.loadFromDB = async function(id) {
     this.formData.unternehmen_id = briefing.unternehmen_id;
     this.formData.marke_id = briefing.marke_id;
     this.formData.assignee_id = briefing.assignee_id;
+    this.formData.persona_ids = briefing.persona_ids || [];
 
     const produkte = await loadBriefingProdukte(id);
     this.formData.produkt_ids = produkte.map(p => p.id);
     await this.refreshProdukte();
+    await this.refreshPersonas();
 
     this.selectedBereich = briefing.bereich;
     this.isGenerated = true;

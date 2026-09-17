@@ -102,6 +102,16 @@ export class BriefingList {
     return `/briefing?${params}`;
   }
 
+  createUrl() {
+    if (!this.currentUnternehmenId) return '/briefing/new';
+    const params = new URLSearchParams();
+    params.set('unternehmen', this.currentUnternehmenId);
+    if (this.currentMarkeId && !this._ohneMarke) {
+      params.set('marke', this.currentMarkeId);
+    }
+    return `/briefing/new?${params}`;
+  }
+
   syncListUrl() {
     const url = this.listViewMode === 'list' ? '/briefing' : this.listUrl();
     window.history.replaceState({ route: url }, '', url);
@@ -444,7 +454,7 @@ export class BriefingList {
 
       if (e.target.id === 'btn-briefing-new' || e.target.closest('#btn-briefing-new')) {
         e.preventDefault();
-        window.navigateTo('/briefing/new');
+        window.navigateTo(this.createUrl());
       }
     }, { signal });
 

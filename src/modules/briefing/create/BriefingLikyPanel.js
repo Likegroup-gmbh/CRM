@@ -8,13 +8,15 @@
 // (briefing: extract 'pdf', chat true) - nicht in dieser Datei.
 //
 // Ablauf Extract: Drop -> Send -> silent Draft (falls noetig) -> Upload ->
-// Job -> Poll -> Apply (nur leere Felder) -> Rueckfragen als Liky-Turns.
+// Job -> Poll -> Apply (nur leere Felder) -> knapper Ergebnis-Turn.
+// Was nicht in der Spec liegt, wird nicht nachgefragt.
 // Der Verlauf bleibt am Briefing (briefing_chat_messages) und ueberlebt
 // Step-Wechsel ueber das In-Memory-Transcript (renderMultistep baut das
 // DOM bei jedem Step neu).
 
 import { renderThinking, pushStep } from '../../../core/chat/thinking.js';
-import { BriefingExtractApply } from './BriefingExtractApply.js';
+import { isLikyPdfName, likyPdfTagHtml } from '../../../core/chat/likyComposer.js';
+import { BriefingExtractApply, coerceFieldMap } from './BriefingExtractApply.js';
 import { getStepsForBereich } from './fieldConfig.js';
 import { likyCanExtractPdf, likyHasChat } from '../../../core/chat/likyCapabilities.js';
 
@@ -29,6 +31,24 @@ const GRUSS = 'Zieh das Kundenbriefing (PDF) hier rein, dann fülle ich das Form
 
 // Spec wird clientseitig aus fieldConfig abgeleitet und an die Function
 // geschickt. So bleibt fieldConfig die einzige Feld-Quelle.
+// valueShape sagt dem Modell exakt, in welcher Form der Wert erwartet wird -
+// ohne das kommen KPIs als { kpi, ziel } und Channels als
+// [{ format, anzahl, vorgaben }] zurueck und binden nicht an die Widgets.
+function valueShape(field) {
+  switch (field.type) {
+    case 'date': return 'string "YYYY-MM-DD"';
+    case 'checkbox': return 'true | false';
+    case 'radio': return 'ein options.value als string';
+    case 'checkboxes':
+    case 'customMulti': return 'array von options.value (strings)';
+    case 'repeatableKpi': return 'array von { kpi: kpiOptions.value, zielwert: string }';
+    case 'repeatableText': return 'array von strings';
+    case 'channelGroup': return 'object: channel.key -> array von format-values (strings), z.B. { instagram: ["reel","story"] }';
+    case 'group': return 'object mit den Sub-Feldern aus fields, jeder Wert ein string';
+    default: return 'string';
+  }
+}
+
 function buildSpec(bereich) {
   const steps = getStepsForBereich(bereich);
   const fields = [];
@@ -36,10 +56,14 @@ function buildSpec(bereich) {
     for (const section of step.sections || []) {
       for (const field of section.fields || []) {
         if (field.persist === false) continue;
+        // Entity-Felder sind schon gewaehlt (Unternehmen ist Pflicht vor dem
+        // Upload) - das Modell wuerde sonst Namen statt IDs liefern.
+        if (field.type === 'entitySelect' || field.type === 'entityMulti') continue;
         fields.push({
           name: field.name,
           label: field.label,
           type: field.type,
+          valueShape: valueShape(field),
           options: field.options?.map((o) => ({ value: o.value, label: o.label })),
           kpiOptions: field.kpiOptions?.map((o) => ({ value: o.value, label: o.label })),
           channels: field.channels?.map((c) => ({ key: c.key, label: c.label, formats: c.formats || null })),
@@ -51,6 +75,28 @@ function buildSpec(bereich) {
     }
   }
   return fields;
+}
+
+/**
+ * Liky-Text nach dem Extract. Orphans aus alten Jobs werden bewusst
+ * verschluckt: was nicht in der Spec liegt, wird nicht nachgefragt.
+ */
+export function formatExtractResult(result = {}, applied = [], skipped = []) {
+  const lines = [];
+  if (applied.length) lines.push(`${applied.length} Felder gefüllt. Was ich nur vermute, ist markiert.`);
+  if (!applied.length && skipped.length) lines.push('Alles war schon ausgefüllt - ich habe nichts angerührt.');
+  else if (skipped.length) lines.push(`${skipped.length} Felder waren schon voll, die bleiben wie sie sind.`);
+  if (result.missing?.length) {
+    lines.push(`Noch offen: ${result.missing.join(', ')}`);
+  }
+  if (result.unternehmen_hint && !result.unternehmen_hint.passt) {
+    lines.push(`Achtung: Das PDF nennt „${result.unternehmen_hint.name}“ - das gewählte Unternehmen bleibt.`);
+  }
+  const unbekannteProdukte = (result.produkte_hint || []).filter((p) => !p.produkt_id).map((p) => p.name);
+  if (unbekannteProdukte.length) {
+    lines.push(`Produkte nicht im CRM: ${unbekannteProdukte.join(', ')}`);
+  }
+  return lines.join('\n') || 'Fertig, schau es dir an.';
 }
 
 export class BriefingLikyPanel {
@@ -112,13 +158,11 @@ export class BriefingLikyPanel {
         }));
         this.renderTranscript();
       }
-      const fields = lastJob?.result?.fields;
-      if (fields) {
-        for (const [name, entry] of Object.entries(fields)) {
-          this.apply.aiFill.set(name, entry);
-        }
-        this.apply.markVisible();
+      const fields = coerceFieldMap(lastJob?.result?.fields);
+      for (const [name, entry] of Object.entries(fields)) {
+        this.apply.aiFill.set(name, entry);
       }
+      if (Object.keys(fields).length) this.apply.markVisible();
     } catch (error) {
       console.warn('Liky-Verlauf konnte nicht geladen werden:', error);
     }
@@ -198,12 +242,7 @@ export class BriefingLikyPanel {
       chips.innerHTML = '';
       return;
     }
-    chips.innerHTML = `
-      <span class="doc-chat__chip">
-        <span>${this.pendingFile.name}</span>
-        <button type="button" aria-label="Datei entfernen">&times;</button>
-      </span>
-    `;
+    chips.innerHTML = likyPdfTagHtml(this.pendingFile.name, { remove: true });
     chips.querySelector('button')?.addEventListener('click', () => this.clearPendingFile());
   }
 
@@ -255,6 +294,12 @@ export class BriefingLikyPanel {
       const result = await this.runJob('extract', { spec, pdfPath: path });
 
       const { applied, skipped } = this.apply.apply(result.fields || {}, spec);
+      const produkt = this.apply.applyProduktHints(
+        result.produkte_hint,
+        this.briefing.produkte
+      );
+      result.produkte_hint = produkt.hints;
+      applied.push(...produkt.applied);
       this.apply.renderAndMark();
 
       // renderAndMark hat das DOM neu gebaut - frischen Liky-Beitrag oeffnen
@@ -486,26 +531,7 @@ export class BriefingLikyPanel {
       renderThinking(this.slot, this.received, { done: true });
     }
 
-    const lines = [];
-    if (applied.length) lines.push(`${applied.length} Felder gefüllt. Was ich nur vermute, ist markiert.`);
-    if (!applied.length && skipped.length) lines.push('Alles war schon ausgefüllt - ich habe nichts angerührt.');
-    else if (skipped.length) lines.push(`${skipped.length} Felder waren schon voll, die bleiben wie sie sind.`);
-    if (result.orphans?.length) {
-      lines.push('Das konnte ich nicht zuordnen:');
-      for (const o of result.orphans.slice(0, 3)) lines.push(`• ${o.frage}`);
-    }
-    if (result.missing?.length) {
-      lines.push(`Noch offen: ${result.missing.join(', ')}`);
-    }
-    if (result.unternehmen_hint && !result.unternehmen_hint.passt) {
-      lines.push(`Achtung: Das PDF nennt „${result.unternehmen_hint.name}“ - das gewählte Unternehmen bleibt.`);
-    }
-    const unbekannteProdukte = (result.produkte_hint || []).filter((p) => !p.produkt_id).map((p) => p.name);
-    if (unbekannteProdukte.length) {
-      lines.push(`Produkte nicht im CRM: ${unbekannteProdukte.join(', ')}`);
-    }
-
-    const text = lines.join('\n') || 'Fertig, schau es dir an.';
+    const text = formatExtractResult(result, applied, skipped);
     // Den transienten Beitrag durch einen gespeicherten Turn ersetzen
     if (this.turn) this.turn.remove();
     this.turn = null;
@@ -535,6 +561,10 @@ export class BriefingLikyPanel {
   userNode(text) {
     const msg = document.createElement('div');
     msg.className = 'doc-chat__msg doc-chat__msg--user';
+    if (isLikyPdfName(text)) {
+      msg.innerHTML = likyPdfTagHtml(text);
+      return msg;
+    }
     const el = document.createElement('div');
     el.className = 'doc-chat__text';
     el.textContent = text;
