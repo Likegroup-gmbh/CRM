@@ -4,6 +4,7 @@
 // Welle 1 haengt nur an den params-IDs, Welle 2 an den Ergebnissen aus 1.
 
 const { resolveSkriptBereich, loadMasterDocs } = require('../skript-master');
+const { attachAudienceSituations } = require('../audience-situation');
 
 // ---------------------------------------------------------------------------
 // Kontext-Aufbau
@@ -41,7 +42,7 @@ async function loadContext(supabase, params, { schlank = false } = {}) {
 
   const personaPromise = persona_id
     ? supabase.from('personas')
-      .select('id, name, oberbegriff, beschreibung, branche_id, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, kontext, pain_points, interessen, beduerfnisse, kaufmotive, einwaende, tonalitaet, plattformen, content_praeferenzen, produkt_loesung, produktvorteile')
+      .select('id, name, oberbegriff, beschreibung, branche_id, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, pain_points, interessen, beduerfnisse, kaufmotive, einwaende, tonalitaet, plattformen, content_praeferenzen, produkt_loesung, produktvorteile')
       .eq('id', persona_id).single()
     : Promise.resolve({ data: null });
 
@@ -69,6 +70,7 @@ async function loadContext(supabase, params, { schlank = false } = {}) {
   ctx.produkt = produkt;
   ctx.produktVarianten = varianten || [];
   ctx.persona = persona;
+  if (ctx.persona) await attachAudienceSituations(supabase, ctx.persona);
   ctx.kampagne = kampagne;
   ctx.briefing = briefing || null;
 

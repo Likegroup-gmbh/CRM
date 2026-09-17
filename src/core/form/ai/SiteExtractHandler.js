@@ -10,7 +10,8 @@
 // Browser-Fallback und Claude-Call braucht real oft laenger.
 //
 // Freischalten eines weiteren Formulars: `aiExtract: true` am URL-Feld im
-// FormConfig plus ein Spec-Eintrag im Backend.
+// FormConfig plus ein Spec-Eintrag im Backend. Ohne URL-Feld (Persona)
+// ruft das Panel requestExtractJob direkt.
 
 import { ExtractReviewLayer } from './ExtractReviewLayer.js';
 import { applyExtractedLogo, clearExtractedLogo } from './ExtractLogoApplier.js';
@@ -62,7 +63,7 @@ function notifyWarning(message) {
 }
 
 /** Eingabe des Nutzers zu einer vollstaendigen URL machen. */
-function toAbsoluteUrl(rawValue) {
+export function toAbsoluteUrl(rawValue) {
   const value = (rawValue || '').trim();
   if (!value) return null;
   const withProtocol = /^https?:\/\//i.test(value) ? value : `https://${value}`;
@@ -81,6 +82,76 @@ async function getSession() {
 
 function warte(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Job anlegen, Background Function anstossen, Ergebnis aus extract_jobs pollen.
+ * Ohne Formularfeld - PersonaLikyPanel ruft das direkt, der Handler am
+ * URL-Button ebenfalls.
+ * @param {Object} opts
+ * @param {string} opts.entity
+ * @param {string} opts.url
+ * @param {Function} [opts.onStep] - ({ step, label, steps }) => void
+ */
+export async function requestExtractJob({ entity, url, onStep = () => {} } = {}) {
+  const db = window.supabase;
+  const session = await getSession();
+  if (!db || !session) throw new Error('Keine aktive Sitzung');
+  if (!entity || !url) throw new Error('Entity oder URL fehlt');
+
+  const { data: job, error: insertError } = await db.from('extract_jobs')
+    .insert({ url, entity_type: entity, created_by: session.user.id })
+    .select('id').single();
+  if (insertError) throw new Error(`Job konnte nicht angelegt werden: ${insertError.message}`);
+
+  const response = await fetch(ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`
+    },
+    body: JSON.stringify({ jobId: job.id })
+  });
+  if (response.status !== 202 && !response.ok) {
+    throw new Error(`Extraktion konnte nicht gestartet werden (HTTP ${response.status})`);
+  }
+
+  const deadline = Date.now() + POLL_TIMEOUT_MS;
+  let letzterStep = null;
+
+  while (Date.now() < deadline) {
+    await warte(POLL_INTERVAL_MS);
+
+    const { data: row, error: pollError } = await db.from('extract_jobs')
+      .select('status, progress_step, progress_steps, result, error_message')
+      .eq('id', job.id).maybeSingle();
+    if (pollError || !row) continue;
+
+    if (row.status === 'done') {
+      const payload = row.result || {};
+      logExtractDiagnostics({ url, entity, payload });
+      if (!payload.success) throw new Error(payload.error || 'Extraktion ohne Ergebnis beendet');
+      return payload;
+    }
+
+    if (row.status === 'error') {
+      logExtractDiagnostics({ url, entity, payload: row.result || null });
+      throw new Error(row.error_message || 'Extraktion fehlgeschlagen');
+    }
+
+    if (row.progress_step && row.progress_step !== letzterStep) {
+      letzterStep = row.progress_step;
+      const steps = Array.isArray(row.progress_steps) ? row.progress_steps : [];
+      const last = steps[steps.length - 1];
+      onStep({
+        step: last?.step || row.progress_step,
+        label: last?.label || STEP_CHAT_LABELS[row.progress_step] || 'Ich arbeite',
+        steps
+      });
+    }
+  }
+
+  throw new Error('Zeitlimit erreicht - die Extraktion läuft ungewöhnlich lange. Bitte später erneut versuchen.');
 }
 
 class ButtonState {
@@ -198,74 +269,19 @@ export class SiteExtractHandler {
    * pollen. Liefert dasselbe Antwortobjekt wie frueher die synchrone Function.
    */
   async request(url, state) {
-    const db = window.supabase;
-    const session = await getSession();
-    if (!db || !session) throw new Error('Keine aktive Sitzung');
-
-    // 1. Job-Zeile anlegen (RLS: nur eigene Jobs lesbar). URL und Entitaet
-    //    stehen in der Zeile - die Function liest sie von dort, nicht aus
-    //    dem POST-Body.
-    const { data: job, error: insertError } = await db.from('extract_jobs')
-      .insert({ url, entity_type: this.entity, created_by: session.user.id })
-      .select('id').single();
-    if (insertError) throw new Error(`Job konnte nicht angelegt werden: ${insertError.message}`);
-
-    // 2. Background Function anstossen - sie antwortet sofort mit 202,
-    //    der eigentliche Lauf schreibt asynchron in die Job-Zeile
-    const response = await fetch(ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`
-      },
-      body: JSON.stringify({ jobId: job.id })
-    });
-    if (response.status !== 202 && !response.ok) {
-      throw new Error(`Extraktion konnte nicht gestartet werden (HTTP ${response.status})`);
-    }
-
-    // 3. Job-Zeile pollen, bis done oder error
-    const deadline = Date.now() + POLL_TIMEOUT_MS;
-    let letzterStep = null;
-
-    while (Date.now() < deadline) {
-      await warte(POLL_INTERVAL_MS);
-
-      const { data: row, error: pollError } = await db.from('extract_jobs')
-        .select('status, progress_step, progress_steps, result, error_message')
-        .eq('id', job.id).maybeSingle();
-      // Voruebergehende Poll-Fehler (Netz, Zeile noch nicht sichtbar)
-      // aussitzen - der naechste Umlauf kommt in 2s
-      if (pollError || !row) continue;
-
-      if (row.status === 'done') {
-        const payload = row.result || {};
-        logExtractDiagnostics({ url, entity: this.entity, payload });
-        if (!payload.success) throw new Error(payload.error || 'Extraktion ohne Ergebnis beendet');
-        return payload;
-      }
-
-      if (row.status === 'error') {
-        // Diagnose ist im Fehlerfall am wertvollsten
-        logExtractDiagnostics({ url, entity: this.entity, payload: row.result || null });
-        throw new Error(row.error_message || 'Extraktion fehlgeschlagen');
-      }
-
-      if (row.progress_step && row.progress_step !== letzterStep) {
-        letzterStep = row.progress_step;
-        state?.step(STEP_LABELS[row.progress_step] || 'Liest…');
-        const steps = Array.isArray(row.progress_steps) ? row.progress_steps : [];
-        const last = steps[steps.length - 1];
+    return requestExtractJob({
+      entity: this.entity,
+      url,
+      onStep: ({ step, label, steps }) => {
+        state?.step(STEP_LABELS[step] || 'Liest…');
         emit('siteExtractProgress', {
           entity: this.entity,
-          step: last?.step || row.progress_step,
-          label: last?.label || STEP_CHAT_LABELS[row.progress_step] || 'Ich arbeite',
+          step,
+          label,
           steps
         });
       }
-    }
-
-    throw new Error('Zeitlimit erreicht - die Extraktion laeuft ungewoehnlich lange. Bitte spaeter erneut versuchen.');
+    });
   }
 
   /**

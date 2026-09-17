@@ -107,6 +107,9 @@ function buildExtractPrompt({ spec, unternehmenName, markeName, produkte }) {
   task += '# REGELN\n'
     + '- fields: nur Felder, die im PDF belegt sind. kind=fact wenn direkt im Text, '
     + 'kind=guess wenn abgeleitet. from = kurzer Quellverweis (Seite/Abschnitt).\n'
+    + '- value exakt in der Form, die valueShape des Feldes vorgibt. '
+    + 'Enums auf options.value mappen, Formate auf die format-values des Channels. '
+    + 'Keine zusaetzlichen Keys wie "anzahl" oder "vorgaben" in channelGroup-Werten.\n'
     + '- orphans: Saetze, die du erkannt hast, aber keinem Feld zuordnen kannst. '
     + 'frage = deine Rueckfrage an den User.\n'
     + '- missing: Pflichtfelder, die leer bleiben (z.B. aktivierung_name).\n'
@@ -134,8 +137,15 @@ function buildChatPrompt({ spec, history, formData, userText }) {
   task += `User: ${userText}\n\n`;
   task += '# REGELN\n'
     + '- reply: deine Antwort an den User.\n'
-    + '- patches: nur Felder, die sich aendern. force=true nur wenn der User '
-    + 'explizit ueberschreiben will (z.B. "Deadline weg").\n';
+    + '- Du siehst KEIN PDF und kein Kundenbriefing. Dir liegen nur der '
+    + 'Formularstand und der Chat vor. Erfinde keine Briefing-Inhalte, Zahlen '
+    + 'oder Termine - wenn etwas fehlt, frag nach.\n'
+    + '- patches: nur Felder, die der User geaendert haben will. '
+    + 'patches.feldname = { value, kind, from }. value exakt in der Form, die '
+    + 'valueShape des Feldes vorgibt (Enums als options.value, KPIs als '
+    + '{ kpi, zielwert }, Channels als { key: [format-values] }).\n'
+    + '- force=true nur wenn der User explizit ueberschreiben will '
+    + '(z.B. "Deadline weg").\n';
 
   return { stable, task };
 }

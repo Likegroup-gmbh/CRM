@@ -25,6 +25,11 @@ const THINKING_LABELS = {
   bilder: 'Produktbilder zusammengesucht'
 };
 
+const PERSONA_THINKING_LABELS = {
+  ...THINKING_LABELS,
+  auswerten: 'Ich leite die Persona aus der Seite ab'
+};
+
 exports.handler = async (event) => {
   if (event.httpMethod !== 'POST') return { statusCode: 405 };
 
@@ -78,11 +83,12 @@ exports.handler = async (event) => {
   // ein fehlgeschlagener Zwischenstand darf die Extraktion nicht kippen
   let queue = Promise.resolve();
   let progressSteps = [];
+  const labels = job.entity_type === 'persona' ? PERSONA_THINKING_LABELS : THINKING_LABELS;
   const schreibeStep = (step, msg) => {
     if (msg) console.log(`[${jobId}] ${msg}`);
     progressSteps = appendStep(progressSteps, {
       step,
-      label: THINKING_LABELS[step] || msg || 'Ich arbeite'
+      label: labels[step] || msg || 'Ich arbeite'
     });
     const steps = progressSteps;
     queue = queue

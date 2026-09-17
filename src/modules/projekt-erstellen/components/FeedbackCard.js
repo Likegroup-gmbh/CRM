@@ -3,7 +3,7 @@
 // des aktuellen Steps. Nutzt bestehende .detail-card / .detail-section Klassen.
 
 import { AUFTRAG_TYPES, CAMPAIGN_TYPES, RETAINER_TYPES } from '../constants.js';
-import { normalizeCampaignBlocks } from '../logic/CampaignBudgetFields.js';
+import { flattenCampaignBlocks, kampagnenResttopf, parentTotals } from '../logic/kampagnenSplit.js';
 
 const EMPTY_PLACEHOLDER = '—';
 
@@ -244,8 +244,8 @@ export class FeedbackCard {
     return fallbackLabel ? { label: fallbackLabel, imageUrl: null } : null;
   }
 
-  buildCampaignBudgetBlocks(d) {
-    const blocks = normalizeCampaignBlocks(d);
+  buildCampaignBudgetBlocks(formData) {
+    const blocks = flattenCampaignBlocks(formData);
     if (!blocks.length) return '';
 
     const rangeOrDash = (vonRaw, bisRaw) => {
@@ -349,10 +349,7 @@ export class FeedbackCard {
     const leftCol = [
       this.renderSummaryMetric('Angebotsnummer', this.escapeHtml(a.angebotsnummer || ''), !a.angebotsnummer),
       this.renderSummaryMetric('Leistungszeitraum', leistungszeitraum, !leistungszeitraum),
-      this.renderSummaryMetric('Teilrechnungen', teilrechnungen, !teilrechnungen),
-      this.renderSummaryMetric('Auftrag Netto', a.nettobetrag != null && a.nettobetrag !== '' ? formatCurrency(a.nettobetrag) : null, a.nettobetrag == null || a.nettobetrag === ''),
-      this.renderSummaryMetric('Gesamtbudget (netto)', creatorBudget != null ? formatCurrency(creatorBudget) : null, creatorBudget == null),
-      this.renderSummaryMetric('Brutto', a.bruttobetrag != null && a.bruttobetrag !== '' ? formatCurrency(a.bruttobetrag) : null, a.bruttobetrag == null || a.bruttobetrag === '')
+      this.renderSummaryMetric('Teilrechnungen', teilrechnungen, !teilrechnungen)
     ];
 
     const rightCol = this.buildTeilrechnungenSummary(a);
@@ -361,7 +358,18 @@ export class FeedbackCard {
       rightCol.push(...this.buildAgencyMetrics(d));
     }
 
-    return this.renderSummaryGrid([leftCol, rightCol]);
+    const moneyRow = `
+      <div class="projekt-erstellen-summary-metrics projekt-erstellen-summary-metrics--3">
+        ${this.renderSummaryMetric('Auftrag Netto', a.nettobetrag != null && a.nettobetrag !== '' ? formatCurrency(a.nettobetrag) : null, a.nettobetrag == null || a.nettobetrag === '')}
+        ${this.renderSummaryMetric('Gesamtbudget (netto)', creatorBudget != null ? formatCurrency(creatorBudget) : null, creatorBudget == null)}
+        ${this.renderSummaryMetric('Brutto', a.bruttobetrag != null && a.bruttobetrag !== '' ? formatCurrency(a.bruttobetrag) : null, a.bruttobetrag == null || a.bruttobetrag === '')}
+      </div>
+    `;
+
+    return `
+      ${this.renderSummaryGrid([leftCol, rightCol])}
+      ${moneyRow}
+    `;
   }
 
   buildTeilrechnungenSummary(auftrag) {
@@ -383,12 +391,11 @@ export class FeedbackCard {
   }
 
   buildStep3Kampagnenarten(formData) {
-    const d = formData.details || {};
-    const blocks = normalizeCampaignBlocks(d);
+    const blocks = flattenCampaignBlocks(formData);
     const campaignTypeLabels = blocks
       .map(v => CAMPAIGN_TYPES.find(t => t.value === v.campaign_type)?.label || v.campaign_type)
       .join(', ');
-    const campaignBudgetBlocks = this.buildCampaignBudgetBlocks(d);
+    const campaignBudgetBlocks = this.buildCampaignBudgetBlocks(formData);
 
     return `
       ${this.renderSummaryMetric('Kampagnenarten', this.escapeHtml(campaignTypeLabels), !campaignTypeLabels)}
@@ -429,7 +436,7 @@ export class FeedbackCard {
     const a = formData.auftrag || {};
     const d = formData.details || {};
     const name = k.kampagnenname || null;
-    const totals = this.calculateCampaignTotals(normalizeCampaignBlocks(d));
+    const totals = this.calculateCampaignTotals(flattenCampaignBlocks(formData));
 
     const agencyMetrics = this.buildAgencyMetrics(d);
 
@@ -439,7 +446,7 @@ export class FeedbackCard {
         ${this.renderSummaryMetric('Creator gesamt', formatNumber(totals.creators), false)}
         ${this.renderSummaryMetric('Videos gesamt', formatNumber(totals.videos), false)}
       </div>
-      ${this.buildStep3Kampagnenarten(formData)}
+      ${this.buildKampagnenSplitSummary(formData)}
       <div class="projekt-erstellen-summary-metrics">
         ${agencyMetrics.join('')}
       </div>
@@ -448,17 +455,82 @@ export class FeedbackCard {
 
   buildKampagneSummaryInline(formData) {
     const d = formData.details || {};
-    const totals = this.calculateCampaignTotals(normalizeCampaignBlocks(d));
+    const totals = this.calculateCampaignTotals(flattenCampaignBlocks(formData));
     const agencyMetrics = this.buildAgencyMetrics(d);
+    const kampagnenMetrics = this.buildKampagnenSplitSummary(formData);
 
     return `
       <div class="projekt-erstellen-summary-metrics">
         ${this.renderSummaryMetric('Creator gesamt', formatNumber(totals.creators), false)}
         ${this.renderSummaryMetric('Videos gesamt', formatNumber(totals.videos), false)}
       </div>
-      ${this.buildStep3Kampagnenarten(formData)}
+      ${kampagnenMetrics}
       <div class="projekt-erstellen-summary-metrics">
         ${agencyMetrics.join('')}
+      </div>
+    `;
+  }
+
+  buildKampagnenSplitSummary(formData) {
+    const slots = Array.isArray(formData.kampagnen) ? formData.kampagnen : [];
+    if (slots.length === 0) return '';
+
+    const cell = (value, isEmpty = false) => isEmpty || !value
+      ? `<span class="projekt-erstellen-summary-table-empty">${EMPTY_PLACEHOLDER}</span>`
+      : value;
+
+    const rows = slots.map(slot => {
+      const label = (slot.eigener_name && String(slot.eigener_name).trim())
+        || `Kampagne ${slot.kampagnen_nummer || ''}`;
+      const volumen = slot.volumen != null && slot.volumen !== '' ? formatCurrency(slot.volumen) : null;
+      const typeLabels = (slot.campaign_blocks || [])
+        .map(block => CAMPAIGN_TYPES.find(t => t.value === block.campaign_type)?.label || block.campaign_type)
+        .filter(Boolean)
+        .join(', ');
+      const counts = this.calculateCampaignTotals(slot.campaign_blocks || []);
+      const videos = formatNumber(counts.videos || parseInt(slot.videoanzahl, 10) || 0);
+      const creators = formatNumber(counts.creators || parseInt(slot.creatoranzahl, 10) || 0);
+      return `
+        <tr>
+          <td class="col-kampagne">${this.escapeHtml(label)}</td>
+          <td class="col-volumen">${cell(volumen, !volumen)}</td>
+          <td class="col-arten">${cell(typeLabels ? this.escapeHtml(typeLabels) : null, !typeLabels)}</td>
+          <td class="col-count">${videos}</td>
+          <td class="col-count">${creators}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const rest = kampagnenResttopf(slots, parentTotals(formData));
+    const restRow = rest > 0.01
+      ? `
+        <tr class="pe-summary-table-rest">
+          <td class="col-kampagne">Resttopf</td>
+          <td class="col-volumen">${formatCurrency(rest)}</td>
+          <td class="col-arten">${cell(null, true)}</td>
+          <td class="col-count">${cell(null, true)}</td>
+          <td class="col-count">${cell(null, true)}</td>
+        </tr>
+      `
+      : '';
+
+    return `
+      <div class="projekt-erstellen-summary-campaign-table-wrap">
+        <table class="pe-summary-table pe-summary-table--compact projekt-erstellen-summary-kampagnen-table">
+          <thead>
+            <tr>
+              <th>Kampagne</th>
+              <th>Volumen</th>
+              <th>Kampagnenarten</th>
+              <th>Videos</th>
+              <th>Creator</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+            ${restRow}
+          </tbody>
+        </table>
       </div>
     `;
   }

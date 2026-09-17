@@ -6,6 +6,11 @@
 
 # Branch-Deploy v2: Vite backt VITE_* zur Build-Zeit ein.
 # Greift nur, wenn Branch v2 in der Netlify-UI als Branch-Deploy aktiv ist.
+# Chromium-Functions (~60MB Zip) beim ersten v2-Deploy weglassen — der Upload
+# der 42 Zips hängt sonst. Nach erfolgreichem Deploy Script wieder raus und
+# die 4 Functions nachziehen (Liky-URL braucht site-extract-background).
+[context.v2]
+  command = "node scripts/netlify-v2-skip-chromium.js && npm run build"
 [context.v2.environment]
   VITE_APP_CHANNEL = "v2"
 
@@ -15,13 +20,15 @@
   node_bundler = "esbuild"
   # WICHTIG: @sparticuz/chromium MUSS external sein (zu groß für Bundling)
   # sharp: native Binaries, kann esbuild nicht bundlen (instagram-connect)
-  external_node_modules = ["@sparticuz/chromium", "sharp"]
+  # typescript: cosmiconfig (über puppeteer-extra) optional-requires es — ohne
+  # external fällt esbuild auf den nft-Fallback, Chromium-Zips werden fett/langsam.
+  external_node_modules = ["@sparticuz/chromium", "sharp", "typescript"]
 
 # Strategie-Items: Screenshot + Transkription in einem Chromium-Lauf.
 # Background Function (Suffix -background): 15 Min Limit, antwortet sofort 202;
 # Fortschritt und Ergebnis laufen ueber strategie_items (Realtime).
 [functions."strategie-item-background"]
-  external_node_modules = ["@sparticuz/chromium"]
+  external_node_modules = ["@sparticuz/chromium", "typescript"]
 
 # Dropbox Upload Function – Videos können groß sein
 [functions."dropbox-upload"]
@@ -34,7 +41,7 @@
 # Video-Transkription der Testseite /transcribe und des Skript-Generators
 # (Background Function: automatisch 15 Min Timeout, antwortet sofort 202)
 [functions."transcribe-background"]
-  external_node_modules = ["@sparticuz/chromium"]
+  external_node_modules = ["@sparticuz/chromium", "typescript"]
 
 # Rueckfragen vor der Skript-Generierung: Leitfaden-Markdown mit ausliefern
 [functions."skript-fragen-background"]

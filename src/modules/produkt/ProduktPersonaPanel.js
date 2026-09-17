@@ -177,7 +177,7 @@ export class ProduktPersonaPanel {
     return {
       name: quelle.name || 'Persona',
       oberbegriff: quelle.oberbegriff || '',
-      text: quelle.kontext || quelle.beschreibung || karte.fit_grund || ''
+      text: quelle.beschreibung || quelle.pain_points || karte.fit_grund || ''
     };
   }
 

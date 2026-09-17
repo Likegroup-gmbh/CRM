@@ -280,7 +280,7 @@ export class FormSearchableSelect {
         const cleanFilterText = input.value.replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '').trim();
 
         const exactMatch = options.find(opt =>
-          opt.label.toLowerCase() === cleanFilterText.toLowerCase()
+          !opt.disabled && opt.label.toLowerCase() === cleanFilterText.toLowerCase()
         );
 
         if (exactMatch) {
@@ -412,6 +412,11 @@ export class FormSearchableSelect {
     const item = document.createElement('div');
     item.className = 'searchable-select-item';
     this._fillItemContent(item, entry.option, isPhoneField, isCountryField);
+    if (entry.option?.disabled) {
+      item.classList.add('is-disabled');
+      if (entry.option.disabledReason) item.title = entry.option.disabledReason;
+      return item;
+    }
     item.onclick = () => this._selectOption(dropdown, entry.option, isPhoneField, isCountryField);
     item.onmouseenter = () => item.classList.add('hover');
     item.onmouseleave = () => item.classList.remove('hover');

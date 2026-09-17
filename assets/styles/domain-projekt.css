@@ -84,6 +84,11 @@
   margin-bottom: var(--space-md);
 }
 
+.projekt-erstellen-summary-metrics--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: var(--space-md);
+}
+
 .projekt-erstellen-summary-metric {
   min-width: 0;
 }
@@ -131,7 +136,8 @@
 
 @media (max-width: 1200px) {
   .projekt-erstellen-summary-grid,
-  .projekt-erstellen-summary-metrics {
+  .projekt-erstellen-summary-metrics,
+  .projekt-erstellen-summary-metrics--3 {
     grid-template-columns: 1fr;
   }
 }
@@ -290,4 +296,39 @@
 /* StepKampagnenarten: Sektions-Untertitel */
 .pe-kampagnenarten-subtitle {
   margin-bottom: var(--space-sm);
+}
+
+.pe-kampagne-slot {
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md, 8px);
+  padding: var(--space-md);
+  background: var(--bg-secondary, var(--bg-primary));
+}
+
+.pe-kampagne-slot .projekt-erstellen-campaign-block-header .section-subtitle {
+  margin: 0;
+}
+
+.pe-kampagne-slot .btn-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: none;
+  box-shadow: none;
+}
+
+#pe-kampagnen-slots-host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+#pe-kampagne-add-btn {
+  margin-top: var(--space-md);
+}
+
+.projekt-erstellen-umsatz-hint--info {
+  background: var(--gray-50, #f8f8f8);
+  border-color: var(--border-primary);
+  color: var(--gray-700);
 }

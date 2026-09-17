@@ -2,6 +2,7 @@
 // Create/Edit/Delete Drawer und Handler für Strategien
 
 import { strategieService } from './StrategieService.js';
+import { prefillAndLockField } from '../../core/form/data/PrefillHandler.js';
 
 export function showHowToModal() {
   if (window.modalSystem) {
@@ -61,7 +62,7 @@ async function deleteStrategie(list, id) {
   }
 }
 
-export function openCreateDrawer(list) {
+export function openCreateDrawer(list, options = {}) {
   closeCreateDrawer();
 
   const overlay = document.createElement('div');
@@ -73,12 +74,13 @@ export function openCreateDrawer(list) {
   panel.className = 'drawer-panel';
   panel.id = 'strategie-create-drawer';
 
+  const fromKampagne = !!options.prefill?.kampagne_id;
   const header = document.createElement('div');
   header.className = 'drawer-header';
   header.innerHTML = `
     <div>
       <span class="drawer-title">Neues Konzept</span>
-      <p class="drawer-subtitle">Erstellen Sie ein neues Konzept für eine Kampagne</p>
+      <p class="drawer-subtitle">${fromKampagne ? 'Für diese Kampagne' : 'Erstellen Sie ein neues Konzept für eine Kampagne'}</p>
     </div>
     <div>
       <button type="button" class="drawer-close-btn" aria-label="Schließen">&times;</button>
@@ -102,12 +104,16 @@ export function openCreateDrawer(list) {
     panel.classList.add('show');
   });
 
-  window.formSystem.bindFormEvents('strategie', null);
-  const form = panel.querySelector('#strategie-form');
-  if (form) {
+  void (async () => {
+    await window.formSystem.bindFormEvents('strategie', null);
+    const form = panel.querySelector('#strategie-form');
+    if (!form) return;
+
+    if (options.prefill) await applyStrategiePrefill(form, options.prefill);
+
     form.onsubmit = async (e) => {
       e.preventDefault();
-      await handleCreateFormSubmit(list, form);
+      await handleCreateFormSubmit(list, form, options);
     };
     const cancelBtn = form.querySelector('.mdc-btn--cancel');
     if (cancelBtn) {
@@ -116,7 +122,23 @@ export function openCreateDrawer(list) {
         closeCreateDrawer();
       };
     }
+  })();
+}
+
+async function applyStrategiePrefill(form, prefill) {
+  if (prefill.unternehmen_id) {
+    await prefillAndLockField(form, 'unternehmen_id', prefill.unternehmen_id, prefill.unternehmenName || 'Unternehmen');
   }
+  if (prefill.marke_id) {
+    await prefillAndLockField(form, 'marke_id', prefill.marke_id, prefill.markeName || 'Marke');
+  }
+  if (prefill.kampagne_id) {
+    await prefillAndLockField(form, 'kampagne_id', prefill.kampagne_id, prefill.kampagneName || 'Kampagne');
+  }
+  if (prefill.creator_auswahl_id) {
+    await prefillAndLockField(form, 'creator_auswahl_id', prefill.creator_auswahl_id, prefill.creatorAuswahlName || 'Casting');
+  }
+  form.querySelector('#unternehmen_id')?.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
 export function closeCreateDrawer() {
@@ -134,7 +156,7 @@ export function closeCreateDrawer() {
   }
 }
 
-async function handleCreateFormSubmit(list, form) {
+async function handleCreateFormSubmit(list, form, options = {}) {
   try {
     const submitData = window.formSystem.collectSubmitData(form);
     if (!submitData.name || submitData.name.trim() === '') {
@@ -142,11 +164,19 @@ async function handleCreateFormSubmit(list, form) {
       return;
     }
 
+    if (!submitData.creator_auswahl_id && options.prefill?.creator_auswahl_id) {
+      submitData.creator_auswahl_id = options.prefill.creator_auswahl_id;
+    }
+
     const newStrategie = await strategieService.createStrategie(submitData);
     if (newStrategie?.id) {
       window.toastSystem?.show('Konzept erfolgreich erstellt', 'success');
       closeCreateDrawer();
-      window.navigateTo(`/konzepte/${newStrategie.id}`);
+      if (typeof options.onCreated === 'function') {
+        await options.onCreated(newStrategie);
+      } else {
+        window.navigateTo(`/konzepte/${newStrategie.id}`);
+      }
     } else {
       throw new Error('Keine ID zurückgegeben');
     }

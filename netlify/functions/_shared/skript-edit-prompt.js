@@ -11,6 +11,7 @@ const {
 } = require('./skript-context');
 const { loadMasterDocs, fmtMasterBlock } = require('./skript-master');
 const { zusatzInfosMarkdown } = require('./skript-creator-facing');
+const { attachAudienceSituations, fmtAudienceSituations } = require('./audience-situation');
 
 // Transkript-Budget im Edit-Prompt: kompakter als bei der Erstgenerierung,
 // weil das fertige Skript + Verlauf schon viel Kontext belegen
@@ -211,7 +212,7 @@ const EDIT_SKRIPT_COLS = 'id, titel, hook, hook_visuell, hauptteil, hauptteil_vi
 async function loadEditContext(supabase, message) {
   const skriptPromise = supabase.from('skripte')
     .select(EDIT_SKRIPT_COLS + ', unternehmen(firmenname), marke(markenname), produkt(name), '
-      + 'personas(name, oberbegriff, beschreibung, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, kontext, pain_points), '
+      + 'personas(id, name, oberbegriff, beschreibung, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, pain_points), '
       + 'branchen(name)')
     .eq('id', message.skript_id).single();
 
@@ -275,6 +276,8 @@ async function loadEditContext(supabase, message) {
   const [dna, briefing, modus, masterResult] = await Promise.all([
     dnaPromise, briefingPromise, modusPromise, masterPromise
   ]);
+
+  if (skript.personas) await attachAudienceSituations(supabase, skript.personas);
 
   return {
     skript, history, dna, briefing, modus,
@@ -376,7 +379,7 @@ function buildEditPrompt(ctx, message) {
       budgetrahmen: p.budgetrahmen,
       bildungsstand: p.bildungsstand,
       lebenssituation: cap(p.lebenssituation, KONTEXT_MAX.beschreibung),
-      lebensrealitaet: cap(p.kontext, KONTEXT_MAX.beschreibung),
+      'Audience Situations': fmtAudienceSituations(p.audience_situations, KONTEXT_MAX.beschreibung),
       pain_points: cap(p.pain_points, KONTEXT_MAX.beschreibung),
       beschreibung: cap(p.beschreibung, KONTEXT_MAX.beschreibung)
     });

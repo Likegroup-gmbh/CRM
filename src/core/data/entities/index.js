@@ -226,6 +226,8 @@ export const EntityRegistry = {
       drehort_beschreibung: 'string',
       creatoranzahl: 'number',
       videoanzahl: 'number',
+      volumen: 'number',
+      creator_budget: 'number',
       budget_info: 'string',
       ugc_paid_video_anzahl: 'number',
       ugc_paid_creator_anzahl: 'number',
@@ -621,7 +623,6 @@ export const EntityRegistry = {
       budgetrahmen: 'string',
       bildungsstand: 'string',
       lebenssituation: 'string',
-      kontext: 'string',
       pain_points: 'string',
       interessen: 'string',
       beduerfnisse: 'string',
@@ -643,6 +644,25 @@ export const EntityRegistry = {
     filters: ['name', 'oberbegriff', 'unternehmen_id'],
     sortBy: 'created_at',
     sortOrder: 'desc'
+  },
+  audience_situation: {
+    table: 'audience_situation',
+    displayField: 'name',
+    fields: {
+      persona_id: 'uuid',
+      name: 'string',
+      beschreibung: 'string',
+      position: 'number',
+      quelle: 'string',
+      created_at: 'date',
+      updated_at: 'date'
+    },
+    relations: {
+      persona: { table: 'personas', foreignKey: 'persona_id', displayField: 'name' }
+    },
+    filters: ['persona_id', 'name'],
+    sortBy: 'position',
+    sortOrder: 'asc'
   },
   auftrag: {
     table: 'auftrag',

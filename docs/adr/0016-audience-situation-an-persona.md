@@ -1,0 +1,3 @@
+# Audience Situations als Kinder der Persona
+
+Audience Situations sind Stammdaten der Persona (name, beschreibung, position), nicht des Produkt-Links. Dieselbe Mutti an Meal-Kit und Skincare teilt ein Set; der produkt-spezifische Fit bleibt auf `produkt_persona_vorschlag`. `personas.kontext` fällt weg: Alltagstext wird zu einer Seed-Zeile `Alltag` (`quelle=migration`). Die KI läuft nach einem Produkt-Accept nur, wenn noch keine echten Rows existieren (leer oder ausschließlich Seeds) — ein Persona-Flag würde nach dem ersten Lauf für immer kleben, count=0 würde den Altbestand nach dem Seed nie mehr befüllen.

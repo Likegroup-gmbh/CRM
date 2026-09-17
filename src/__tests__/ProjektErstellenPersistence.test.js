@@ -411,6 +411,151 @@ describe('ProjektErstellenPersistence', () => {
       eigener_name: null
     });
   });
+
+  it('legt mehrere Kampagnen mit gesplittetem Volumen an', async () => {
+    const kampagnePayloads = [];
+    let kampagneSeq = 0;
+    window.supabase = {
+      from: vi.fn((table) => {
+        if (table === 'kampagne_art_typen') {
+          return {
+            select: vi.fn(() => ({
+              in: vi.fn(async () => ({ data: [], error: null }))
+            }))
+          };
+        }
+        return {
+          insert: vi.fn((payload) => {
+            inserted[table] = payload;
+            if (table === 'kampagne') {
+              kampagnePayloads.push(payload);
+              kampagneSeq += 1;
+              return createInsertQuery({ id: `kampagne-${kampagneSeq}` });
+            }
+            if (table === 'auftrag') {
+              return createInsertQuery({ id: 'auftrag-1' });
+            }
+            return Promise.resolve({ error: null });
+          })
+        };
+      })
+    };
+
+    const result = await persistence.submit({
+      formData: {
+        auftrag: {
+          unternehmen_id: 'unternehmen-1',
+          marke_id: 'marke-1',
+          titel: 'Split Auftrag',
+          nettobetrag: 90000,
+          kampagnenanzahl: 3
+        },
+        details: {
+          campaign_blocks: [
+            { id: 'b1', campaign_type: 'ugc_paid', video_anzahl: 9, creator_anzahl: 3 }
+          ]
+        },
+        kampagnen: [
+          { kampagnen_nummer: 1, volumen: 20000, videoanzahl: 2, creatoranzahl: 1, eigener_name: 'Launch Q1' },
+          { kampagnen_nummer: 2, volumen: 30000, videoanzahl: 3, creatoranzahl: 1, eigener_name: '  ' },
+          { kampagnen_nummer: 3, volumen: 40000, videoanzahl: 4, creatoranzahl: 1 }
+        ]
+      }
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.kampagneId).toBe('kampagne-1');
+    expect(kampagnePayloads).toHaveLength(3);
+    expect(kampagnePayloads.map(p => p.volumen)).toEqual([20000, 30000, 40000]);
+    expect(kampagnePayloads.map(p => p.videoanzahl)).toEqual([2, 3, 4]);
+    expect(kampagnePayloads[0].kampagnenname).toBe('Split Auftrag');
+    expect(kampagnePayloads[1].kampagnenname).toBe('Split Auftrag (2)');
+    expect(kampagnePayloads.map(p => p.eigener_name)).toEqual(['Launch Q1', null, null]);
+    expect(inserted.auftrag.kampagnenanzahl).toBe(3);
+    expect(inserted.auftrag_kampagnenart_blocks.every(b => b.kampagne_id === 'kampagne-1')).toBe(true);
+  });
+
+  it('speichert Kampagnenart-Bloecke an der jeweiligen kampagne_id', async () => {
+    const kampagnePayloads = [];
+    let kampagneSeq = 0;
+    window.supabase = {
+      from: vi.fn((table) => {
+        if (table === 'kampagne_art_typen') {
+          return {
+            select: vi.fn(() => ({
+              in: vi.fn(async () => ({
+                data: [
+                  { id: 'art-ugc-paid', name: 'UGC Paid' },
+                  { id: 'art-influencer', name: 'Influencer Kampagne' },
+                  { id: 'art-organic', name: 'UGC Organic' }
+                ],
+                error: null
+              }))
+            }))
+          };
+        }
+        return {
+          insert: vi.fn((payload) => {
+            inserted[table] = payload;
+            if (table === 'kampagne') {
+              kampagnePayloads.push(payload);
+              kampagneSeq += 1;
+              return createInsertQuery({ id: `kampagne-${kampagneSeq}` });
+            }
+            if (table === 'auftrag') {
+              return createInsertQuery({ id: 'auftrag-1' });
+            }
+            return Promise.resolve({ error: null });
+          })
+        };
+      })
+    };
+
+    const result = await persistence.submit({
+      formData: {
+        auftrag: {
+          unternehmen_id: 'unternehmen-1',
+          marke_id: 'marke-1',
+          titel: 'Split Auftrag',
+          nettobetrag: 90000,
+          kampagnenanzahl: 3
+        },
+        details: {},
+        kampagnen: [
+          {
+            kampagnen_nummer: 1,
+            volumen: 20000,
+            campaign_blocks: [{ id: 'b1', campaign_type: 'ugc_paid', video_anzahl: 2, creator_anzahl: 1 }]
+          },
+          {
+            kampagnen_nummer: 2,
+            volumen: 30000,
+            campaign_blocks: [{ id: 'b2', campaign_type: 'influencer', video_anzahl: 3, creator_anzahl: 1 }]
+          },
+          {
+            kampagnen_nummer: 3,
+            volumen: 40000,
+            campaign_blocks: [{ id: 'b3', campaign_type: 'ugc_organic', video_anzahl: 4, creator_anzahl: 2 }]
+          }
+        ]
+      }
+    });
+
+    expect(result.success).toBe(true);
+    expect(kampagnePayloads.map(p => p.art_der_kampagne)).toEqual([
+      ['UGC Paid'],
+      ['Influencer Kampagne'],
+      ['UGC Organic']
+    ]);
+    expect(kampagnePayloads.map(p => p.videoanzahl)).toEqual([2, 3, 4]);
+    expect(inserted.auftrag_details.gesamt_videos).toBe(9);
+    expect(inserted.auftrag_details.campaign_type).toEqual(['ugc_paid', 'influencer', 'ugc_organic']);
+    expect(inserted.auftrag_kampagnenart_blocks.map(b => [b.kampagne_id, b.campaign_type])).toEqual([
+      ['kampagne-1', 'ugc_paid'],
+      ['kampagne-2', 'influencer'],
+      ['kampagne-3', 'ugc_organic']
+    ]);
+  });
 });
 
 describe('ProjektErstellenValidator', () => {

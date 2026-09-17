@@ -14,6 +14,11 @@ import { renderPageHtml, updateTable } from './KampagneListRenderers.js';
 import { KampagneCreateHandler } from './KampagneCreateHandler.js';
 import { bindEmptyStateActions } from '../../core/components/EmptyState.js';
 import { getShowCompleted, setShowCompleted, shouldHideCompleted } from './kampagneListPrefs.js';
+import {
+  KampagneGridView,
+  initialKampagneView,
+  clearKampagneFolderQuery
+} from './KampagneGridView.js';
 
 const createHandler = new KampagneCreateHandler();
 
@@ -22,8 +27,9 @@ export class KampagneList {
     this.selectedKampagnen = new Set();
     this._boundEventListeners = new Set();
     this.kampagneArtMap = new Map();
-    this.currentView = 'list'; // 'list' oder 'calendar'
+    this.currentView = 'list'; // 'list' | 'calendar' | 'grid'
     this.calendarView = null;
+    this.gridView = null;
     
     // AbortController und Mount-Status für Race Condition Prevention
     this._abortController = null;
@@ -159,6 +165,8 @@ export class KampagneList {
     if (e.detail.entity === 'kampagne') {
       if (this.currentView === 'calendar' && this.calendarView) {
         this.calendarView.refresh();
+      } else if (this.currentView === 'grid' && this.gridView) {
+        this.gridView.reload();
       } else {
         this.loadData();
       }
@@ -168,6 +176,8 @@ export class KampagneList {
   _handleKampagneUpdated() {
     if (this.currentView === 'calendar' && this.calendarView) {
       this.calendarView.refresh();
+    } else if (this.currentView === 'grid' && this.gridView) {
+      this.gridView.reload();
     } else {
       this.loadData();
     }
@@ -184,6 +194,8 @@ export class KampagneList {
       this._abortController.abort();
     }
     this._abortController = new AbortController();
+
+    this.currentView = initialKampagneView();
     
     window.setHeadline('Kampagnen Übersicht');
     
@@ -237,6 +249,12 @@ export class KampagneList {
     try {
       if (!checkMounted()) return;
       
+      if (this.currentView === 'grid') {
+        if (this.gridView) await this.gridView.reload();
+        else await this.initGridView();
+        return;
+      }
+
       if (this.currentView === 'list') {
         const [, result] = await Promise.all([
           this._shellRendered ? Promise.resolve() : this.initializeFilterBar(),
@@ -296,7 +314,8 @@ export class KampagneList {
     if (this.currentView === 'calendar') {
       await this.initCalendarView();
     }
-    
+
+    this.syncShellForView(this.currentView);
     this.bindEvents();
   }
 
@@ -317,6 +336,39 @@ export class KampagneList {
     
     if (this.searchQuery) {
       this.calendarView.setSearchQuery(this.searchQuery);
+    }
+  }
+
+  async initGridView() {
+    const container = document.getElementById('kampagnen-grid-root');
+    if (!container) return;
+
+    if (this.gridView) {
+      this.gridView.destroy();
+    }
+
+    this.gridView = new KampagneGridView(container);
+    await this.gridView.mount();
+  }
+
+  destroyGridView() {
+    if (!this.gridView) return;
+    this.gridView.destroy();
+    this.gridView = null;
+  }
+
+  syncShellForView(view) {
+    const search = document.querySelector('.kampagne-list-page .search-input-container');
+    const filter = document.getElementById('filter-dropdown-container');
+    if (search) search.hidden = view === 'grid';
+    if (filter) filter.hidden = view === 'grid';
+
+    document.getElementById('btn-view-list')?.classList.toggle('active', view === 'list');
+    document.getElementById('btn-view-grid')?.classList.toggle('active', view === 'grid');
+    document.getElementById('btn-view-calendar')?.classList.toggle('active', view === 'calendar');
+
+    if (view !== 'grid') {
+      clearKampagneFolderQuery();
     }
   }
 
@@ -378,6 +430,7 @@ export class KampagneList {
         void this.calendarView.setSearchQuery(this.searchQuery);
         return;
       }
+      if (this.currentView === 'grid') return;
       
       this.pagination.currentPage = 1;
       this.loadData();
@@ -392,7 +445,7 @@ export class KampagneList {
     SearchInput.bind('kampagne', (value) => this.handleSearch(value));
     this._bindToolbarMenu();
 
-    // View-Toggle (list/calendar)
+    // View-Toggle (list/calendar/grid)
     const switchView = async (targetView) => {
       if (!this._isMounted || this.currentView === targetView) return;
 
@@ -400,29 +453,32 @@ export class KampagneList {
         this.calendarView.destroy();
         this.calendarView = null;
       }
+      if (targetView !== 'grid') {
+        this.destroyGridView();
+      }
 
       this.currentView = targetView;
       this.updateViewClass();
+      this.syncShellForView(targetView);
 
-      // Content-Container updaten ohne Shell neu zu rendern
       const container = document.getElementById('kampagnen-content-container');
       if (container) {
         if (targetView === 'calendar') {
           container.innerHTML = '<div id="calendar-container"></div>';
           await this.initCalendarView();
+        } else if (targetView === 'grid') {
+          container.innerHTML = '<div id="kampagnen-grid-root"></div>';
+          await this.initGridView();
         } else {
           const { renderTableWrapper } = await import('./KampagneListRenderers.js');
           container.innerHTML = renderTableWrapper();
           await this.loadData();
         }
       }
-
-      // View-Toggle Buttons aktualisieren
-      document.getElementById('btn-view-list')?.classList.toggle('active', targetView === 'list');
-      document.getElementById('btn-view-calendar')?.classList.toggle('active', targetView === 'calendar');
     };
 
     document.getElementById('btn-view-list')?.addEventListener('click', () => switchView('list'));
+    document.getElementById('btn-view-grid')?.addEventListener('click', () => switchView('grid'));
     document.getElementById('btn-view-calendar')?.addEventListener('click', () => switchView('calendar'));
 
     if (this.currentView === 'list') {
@@ -464,6 +520,7 @@ export class KampagneList {
         menu.querySelector('.toolbar-menu-dropdown')?.classList.remove('show');
         menu.querySelector('.toolbar-menu-toggle')?.setAttribute('aria-expanded', 'false');
         const plus = document.getElementById('btn-kampagne-list-toolbar-menu');
+        if (this.currentView === 'grid') return;
         filterDropdown.openFromAnchor('kampagne', plus || filterBtn);
       }, { signal: this._abortController.signal });
     }
@@ -477,6 +534,10 @@ export class KampagneList {
     this.pagination.currentPage = 1;
     if (this.currentView === 'calendar' && this.calendarView) {
       this.calendarView.reload();
+      return;
+    }
+    if (this.currentView === 'grid' && this.gridView) {
+      this.gridView.reload();
       return;
     }
     this.loadData();
@@ -641,6 +702,7 @@ export class KampagneList {
       this.calendarView.destroy();
       this.calendarView = null;
     }
+    this.destroyGridView();
     
     const mainContent = document.querySelector('.main-content');
     if (mainContent) {

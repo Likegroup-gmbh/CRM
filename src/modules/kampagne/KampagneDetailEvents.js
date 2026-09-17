@@ -2,7 +2,14 @@
 // Event-Binding und -Teardown für die Kampagnen-Detailseite
 
 import { KampagneUtils } from './KampagneUtils.js';
+import {
+  getWorkflowTableRoute,
+  handleWorkflowTableSelect,
+  handleSkriptFreigabeToggle,
+  handleKonzeptPaneAction
+} from './KampagneDetailWorkflow.js';
 import { navigateToNewKooperationFromKampagne } from '../kooperation/kooperationFromKampagne.js';
+import { handleWorkflowCreate } from './KampagneWorkflowCreate.js';
 import { VideoTableColumnVisibilityDrawer } from './VideoTableColumnVisibilityDrawer.js';
 import { CustomColumnsDrawer } from './columns/CustomColumnsDrawer.js';
 import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
@@ -14,10 +21,10 @@ const CHECK_ICON = `
   ${icon('check-bold')}`;
 
 function initToolbarMenu(signal) {
-  const menu = document.querySelector('.page-header-right .toolbar-menu');
-  if (!menu) return;
-  const cleanup = bindToolbarMenu(menu);
-  signal.addEventListener('abort', cleanup, { once: true });
+  document.querySelectorAll('.page-header-right .toolbar-menu').forEach(menu => {
+    const cleanup = bindToolbarMenu(menu);
+    signal.addEventListener('abort', cleanup, { once: true });
+  });
 }
 
 // Filter-Auswahl (Status/Tags) in den Store schreiben, Submenu-DOM syncen
@@ -168,13 +175,81 @@ export function setupEvents(detail) {
     closeToolbarMenu(sortItem.closest('.toolbar-menu'));
   }, { signal });
 
-  // Tab Navigation (Offen / Abgeschlossen / Alle)
+  // Tab Navigation (Offen / Abgeschlossen / Alle) — scoped auf die
+  // Filter-Tabs, damit Workflow-Tabs (data-workflow-tab) hier nicht reinfunken.
   document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.tab-button');
+    const btn = e.target.closest('.kampagne-filter-tabs .tab-button');
     if (btn) {
       e.preventDefault();
       detail.switchTab(btn.dataset.tab);
     }
+  }, { signal });
+
+  // Workflow-Tab Navigation (Briefing / Casting / … / Produktion / …)
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-workflow-tab]');
+    if (!btn) return;
+    e.preventDefault();
+    detail.switchWorkflowTab(btn.dataset.workflowTab);
+  }, { signal });
+
+  // Workflow-Panes: Create-CTAs (data-create-action) + Zeilen-Links
+  document.addEventListener('click', (e) => {
+    const createBtn = e.target.closest('.kampagne-tab-chrome [data-create-action]');
+    if (createBtn) {
+      e.preventDefault();
+      if (createBtn.disabled || createBtn.getAttribute('aria-disabled') === 'true') return;
+      handleWorkflowCreate(detail, createBtn.dataset.createAction);
+      return;
+    }
+
+    // Nur Links innerhalb der Listen-Panes abfangen — die Produktion
+    // (Kooperationstabelle) hat ihre eigenen Handler.
+    if (!e.target.closest('.workflow-pane:not([data-pane="produktion"])')) return;
+
+    const vertragEdit = e.target.closest('[data-vertrag-open="edit"]');
+    if (vertragEdit?.dataset.id) {
+      e.preventDefault();
+      window.navigateTo(`/vertraege/${vertragEdit.dataset.id}/edit`);
+      return;
+    }
+
+    const link = e.target.closest('.table-link[data-table][data-id]');
+    if (!link) return;
+    const route = getWorkflowTableRoute(link.dataset.table, link.dataset.id);
+    if (route) {
+      e.preventDefault();
+      window.navigateTo(route);
+    }
+  }, { signal });
+
+  // Workflow-Panes: Skript-Freigabe-Toggle (Konzepte)
+  document.addEventListener('click', (e) => {
+    const toggle = e.target.closest('[data-workflow-action="toggle-skript-freigabe"]');
+    if (!toggle) return;
+    if (!e.target.closest('.workflow-pane')) return;
+    e.preventDefault();
+    handleSkriptFreigabeToggle(detail, toggle.dataset.id);
+  }, { signal });
+
+  document.addEventListener('click', (e) => {
+    const actionItem = e.target.closest('[data-action]');
+    if (!actionItem) return;
+    // Portal hängt an body, nicht im Pane — sonst stirbt Creator verbinden an href=#.
+    const fromPane = !!actionItem.closest('#workflow-pane-konzepte [data-entity-type="strategie_item"]');
+    const portal = actionItem.closest('.actions-dropdown-portal');
+    const fromPortal = portal?.dataset?.entityType === 'strategie_item';
+    if (!fromPane && !fromPortal) return;
+    e.preventDefault();
+    handleKonzeptPaneAction(detail, actionItem);
+  }, { signal });
+
+  // Workflow-Panes: Inline-Selects (Skript-Status). Casting läuft über das Worksheet.
+  // tableSelect feuert das Event auf document; hier nur die aus unseren Panes.
+  document.addEventListener('table-select-change', (e) => {
+    const pane = e.detail?.element?.closest('.workflow-pane');
+    if (!pane) return;
+    handleWorkflowTableSelect(detail, e.detail);
   }, { signal });
 
   // Empty-State-Aktion: "Filter zuruecksetzen" (Status- + Tag-Filter + Suche leeren)

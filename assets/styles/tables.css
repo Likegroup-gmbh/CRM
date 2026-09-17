@@ -1692,9 +1692,11 @@ thead {
   overflow-y: visible;
 }
 
-/* main-wrapper muss horizontal scrollen können wenn creator-pool-table drin ist */
+/* main-wrapper muss horizontal scrollen können wenn creator-pool-table drin ist.
+   Im Kampagnen-Pane scrollt der Worksheet-Container selbst — sonst wächst
+   die ganze Kampagnen-View mit der Tabelle. */
 
-.main-wrapper:has(.creator-pool-table-container) {
+.main-wrapper:has(.creator-pool-table-container):not(:has(.kampagne-casting-worksheet)) {
   overflow-x: auto;
 }
 
@@ -2542,6 +2544,24 @@ table.video-versions-table th:last-child { border-right: 1px solid var(--border-
   margin: 0;
   min-width: 680px;
   font-size: var(--text-xsm);
+}
+
+.pe-summary-table--compact {
+  min-width: 0;
+}
+
+.pe-summary-table .col-kampagne {
+  width: 72px;
+  font-weight: 500;
+}
+
+.pe-summary-table .col-volumen {
+  white-space: nowrap;
+}
+
+.pe-summary-table-rest td {
+  color: var(--gray-500);
+  font-style: italic;
 }
 
 .pe-summary-table th,

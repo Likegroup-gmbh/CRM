@@ -4,6 +4,7 @@
 // strukturierte Bloecke, der Client zeigt sie als flagged strategie_items.
 
 const { fmtCampaignBriefing } = require('./skript-context/briefing-felder');
+const { attachAudienceSituations, fmtAudienceSituations } = require('./audience-situation');
 
 const ANZAHL = 5;
 const PRODUKT_FELDER = 'id, name, kurzbeschreibung, usp, pain_points, loesung';
@@ -79,7 +80,10 @@ function fmtPersona(p) {
     p.pain_points ? `Pain: ${cap(p.pain_points, 200)}` : null,
     p.beduerfnisse ? `Beduerfnis: ${cap(p.beduerfnisse, 200)}` : null
   ].filter(Boolean);
-  return teile.length ? `- ${teile.join(' ')}` : null;
+  const as = fmtAudienceSituations(p.audience_situations, 200);
+  const kopf = teile.length ? `- ${teile.join(' ')}` : null;
+  if (!kopf && !as) return null;
+  return as ? `${kopf || '- Persona'}\n  Audience Situations: ${as}` : kopf;
 }
 
 async function loadIdeeInput(supabase, strategieId) {
@@ -123,6 +127,7 @@ async function loadIdeeInput(supabase, strategieId) {
         personas.push(p);
       }
     }
+    await attachAudienceSituations(supabase, personas);
   }
 
   const { data: items } = await supabase.from('strategie_items')

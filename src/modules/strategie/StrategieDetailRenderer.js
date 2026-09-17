@@ -471,7 +471,7 @@ function renderVorschlagActions(item) {
   `;
 }
 
-function renderItemActions(detail, item, isLinked) {
+export function renderItemActions(detail, item, isLinked) {
   return `
           <div class="actions-dropdown-container" data-entity-type="strategie_item">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
@@ -484,7 +484,7 @@ function renderItemActions(detail, item, isLinked) {
               </a>
               <a href="#" class="action-item" data-action="connect-creator" data-id="${item.id}">
                 ${icon('user-add')}
-                ${item.creator_id ? 'Creator ändern' : 'Creator verbinden'}
+                ${item.creator_auswahl_item_id ? 'Creator ändern' : 'Creator verbinden'}
               </a>
               ${item.video_link ? `
                 <a href="#" class="action-item" data-action="reprocess-item" data-id="${item.id}">

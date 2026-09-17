@@ -62,6 +62,10 @@ export function renderPageHtml({ currentView, searchQuery }) {
               ${icon('table-grid')}
               Liste
             </button>
+            <button id="btn-view-grid" class="mdc-btn mdc-btn--secondary ${currentView === 'grid' ? 'active' : ''}">
+              ${icon('folder')}
+              Grid
+            </button>
             ${!isKunde ? `<button id="btn-view-calendar" class="mdc-btn mdc-btn--secondary ${currentView === 'calendar' ? 'active' : ''}">
               ${icon('calendar-days')}
               Kalender
@@ -82,8 +86,9 @@ export function renderPageHtml({ currentView, searchQuery }) {
 
     <div class="content-section">
       <div id="kampagnen-content-container">
-        ${currentView === 'calendar' ? '<div id="calendar-container"></div>' : 
-          renderTableWrapper()}
+        ${currentView === 'calendar' ? '<div id="calendar-container"></div>'
+          : currentView === 'grid' ? '<div id="kampagnen-grid-root"></div>'
+          : renderTableWrapper()}
       </div>
     </div>
   `;

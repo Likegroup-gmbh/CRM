@@ -13,7 +13,9 @@
 // Feldmarkierungen im Input: fact (belegbar von der Produktseite),
 // guess (KI-Extrakt, unsicher), manual (vom Team eingetragen).
 
-const POOL_FELDER = 'id, name, oberbegriff, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, kontext, pain_points, interessen, beduerfnisse, kaufmotive, einwaende, tonalitaet, plattformen, content_praeferenzen, beschreibung';
+const { attachAudienceSituations, fmtAudienceSituations } = require('./audience-situation');
+
+const POOL_FELDER = 'id, name, oberbegriff, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, pain_points, interessen, beduerfnisse, kaufmotive, einwaende, tonalitaet, plattformen, content_praeferenzen, beschreibung';
 
 const MAX_POOL_IM_PROMPT = 12;
 const MAX_VORSCHLAEGE = 6;
@@ -46,7 +48,9 @@ async function loadPoolPersonas(supabase, { markeIds = [], unternehmenId = null 
         .select(POOL_FELDER)
         .in('id', personaIds);
       if (error) throw error;
-      return { pool: data || [], quelle: 'marke' };
+      const pool = data || [];
+      await attachAudienceSituations(supabase, pool);
+      return { pool, quelle: 'marke' };
     }
   }
 
@@ -56,7 +60,9 @@ async function loadPoolPersonas(supabase, { markeIds = [], unternehmenId = null 
       .select(POOL_FELDER)
       .eq('unternehmen_id', unternehmenId);
     if (error) throw error;
-    return { pool: data || [], quelle: 'unternehmen' };
+    const pool = data || [];
+    await attachAudienceSituations(supabase, pool);
+    return { pool, quelle: 'unternehmen' };
   }
 
   return { pool: [], quelle: 'leer' };
@@ -108,7 +114,6 @@ const PERSONA_TOOL = {
                 budgetrahmen: { type: ['string', 'null'], enum: ['niedrig', 'mittel', 'hoch'], description: 'niedrig, mittel oder hoch – genau einer der drei Werte, keine Ranges' },
                 bildungsstand: { type: ['string', 'null'] },
                 lebenssituation: { type: ['string', 'null'], description: 'Single, Familie, Paar ohne Kinder, Alleinerziehend, Student/in, Rentner/in, Mensch mit Behinderung, WG / Wohngemeinschaft' },
-                kontext: { type: ['string', 'null'], description: 'Situation/Alltag: Mediennutzung, Werte, was die Person beschaeftigt' },
                 pain_points: { type: ['string', 'null'], description: 'Konkrete Probleme im Alltag, produktrelevant zuerst' },
                 interessen: { type: ['string', 'null'] },
                 beduerfnisse: { type: ['string', 'null'] },
@@ -147,6 +152,7 @@ function fmtProduktFeld(name, eintrag) {
 
 function fmtPoolPersona(p) {
   const alter = [p.alter_von, p.alter_bis].filter(v => v != null).join('-');
+  const situations = fmtAudienceSituations(p.audience_situations, 200);
   const teile = [
     `ID: ${p.id}`,
     `Name: ${p.name}${p.oberbegriff ? ` (${p.oberbegriff})` : ''}`,
@@ -161,6 +167,7 @@ function fmtPoolPersona(p) {
     p.interessen ? `Interessen: ${cap(p.interessen, 200)}` : null,
     p.tonalitaet ? `Tonalitaet: ${p.tonalitaet}` : null,
     p.plattformen ? `Plattformen: ${cap(p.plattformen, 150)}` : null,
+    situations ? `Audience Situations: ${situations}` : null,
     p.beschreibung ? `Beschreibung: ${cap(p.beschreibung, 300)}` : null
   ].filter(Boolean);
   return teile.join('\n  ');
@@ -361,7 +368,7 @@ function clampBudgetrahmen(value) {
 function sanitizePersonaPayload(persona) {
   const STRING_FELDER = [
     'name', 'oberbegriff', 'geschlecht', 'wohnort_region', 'beruf', 'budgetrahmen',
-    'bildungsstand', 'lebenssituation', 'kontext', 'pain_points', 'interessen',
+    'bildungsstand', 'lebenssituation', 'pain_points', 'interessen',
     'beduerfnisse', 'kaufmotive', 'einwaende', 'tonalitaet', 'plattformen',
     'content_praeferenzen', 'produkt_loesung', 'produktvorteile', 'beschreibung'
   ];

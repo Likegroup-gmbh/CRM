@@ -457,6 +457,18 @@ export class ProduktForm {
       markeIds: this.collectMarkenIds(data)
     });
     this.personaPanel.applySavedState(saved);
+    const anzahl = saved.neuAkzeptiert?.length
+      ? await ProduktPersonaService.starteAudienceSituationJobs(saved.neuAkzeptiert, {
+        produktId,
+        produkt: data
+      }).catch(err => {
+        console.error('Audience-Situation-Jobs:', err);
+        return 0;
+      })
+      : 0;
+    if (anzahl) {
+      window.toastSystem?.success?.('Audience Situations werden im Hintergrund angelegt');
+    }
   }
 
   /** @returns {{feld: string, text: string}|null} */

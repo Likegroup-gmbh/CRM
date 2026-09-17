@@ -3,6 +3,7 @@
 
 import { VideoTableDataLoader } from './VideoTableDataLoader.js';
 import { CustomColumnDataLoader } from './columns/CustomColumnDataLoader.js';
+import { filterBlocksForKampagne } from '../projekt-erstellen/logic/kampagnenSplit.js';
 
 /**
  * Lädt Kampagne-Metadaten (ohne Kooperationen/Videos — die kommen via loadFullTableData).
@@ -55,15 +56,19 @@ export async function loadCriticalData(kampagneId) {
         const [detailsRes, blocksRes] = await Promise.all([
           window.supabase
             .from('auftrag_details')
-            .select('agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, extra_services_enabled, extra_services, gesamt_videos, gesamt_creator, campaign_type')
+            // extra_services_enabled existiert nicht — Toggle steckt in extra_services.
+            .select('agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, extra_services, gesamt_videos, gesamt_creator, campaign_type')
             .eq('auftrag_id', auftragId)
             .maybeSingle(),
           window.supabase
             .from('auftrag_kampagnenart_blocks')
-            .select('video_anzahl, creator_anzahl, campaign_type, sort_order')
+            .select('video_anzahl, creator_anzahl, campaign_type, sort_order, kampagne_id')
             .eq('auftrag_id', auftragId)
             .order('sort_order', { ascending: true })
         ]);
+        if (detailsRes.error) {
+          console.error('❌ KAMPAGNEDETAIL: auftrag_details laden fehlgeschlagen:', detailsRes.error);
+        }
         return { data: detailsRes.data, error: detailsRes.error, blocks: blocksRes.data || [] };
       })
   ]);
@@ -77,7 +82,11 @@ export async function loadCriticalData(kampagneId) {
     .filter(Boolean) || [];
 
   kampagneData.auftragDetails = auftragDetailsResult?.data || null;
-  kampagneData.campaignBlocks = auftragDetailsResult?.blocks || [];
+  kampagneData.campaignBlocks = filterBlocksForKampagne(
+    auftragDetailsResult?.blocks || [],
+    kampagneData.id,
+    { kampagnenNummer: kampagneData.kampagnen_nummer }
+  );
 
   const mitarbeiterData = mitarbeiterResult.data || [];
   kampagneData.mitarbeiter = mitarbeiterData.map(m => ({

@@ -16,6 +16,8 @@ import { PersonaService } from './PersonaService.js';
 import { ProduktPersonaService } from '../produkt/ProduktPersonaService.js';
 import { renderPersonaDoc, bindPersonaDoc } from './PersonaDoc.js';
 import { PersonaProduktPanel } from './PersonaProduktPanel.js';
+import { PersonaAudienceSituationPanel } from './PersonaAudienceSituationPanel.js';
+import { PersonaLikyPanel } from './PersonaLikyPanel.js';
 import { resolveOwnerContext } from '../../core/OwnerContext.js';
 import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
 import { icon } from '../../core/icons/IconSystem.js';
@@ -28,6 +30,8 @@ export class PersonaForm {
     this.persona = null;
     this.markenIds = [];
     this.produktPanel = null;
+    this.situationPanel = null;
+    this.likyPanel = null;
     this._abort = null;
   }
 
@@ -157,6 +161,17 @@ export class PersonaForm {
         || form.querySelector('[name="unternehmen_id"]')?.value
         || null
     });
+
+    this.situationPanel = new PersonaAudienceSituationPanel();
+    await this.situationPanel.mount(form, { personaId: this.personaId });
+
+    this.likyPanel = new PersonaLikyPanel();
+    this.likyPanel.mount(form, {
+      getUnternehmenId: () => this.ctx?.unternehmenId
+        || form.querySelector('[name="unternehmen_id"]')?.value
+        || null,
+      getSituationPanel: () => this.situationPanel
+    });
   }
 
   get zeigtMarkenFeld() {
@@ -251,6 +266,9 @@ export class PersonaForm {
       if (this.produktPanel?.loadFehler) {
         throw new Error('Verknüpfte Produkte konnten nicht geladen werden – bitte Seite neu laden, es wurde nichts gespeichert.');
       }
+      if (this.situationPanel?.loadFehler) {
+        throw new Error('Audience Situations konnten nicht geladen werden – bitte Seite neu laden, es wurde nichts gespeichert.');
+      }
 
       let personaId = this.personaId;
 
@@ -266,6 +284,7 @@ export class PersonaForm {
       // Erst Marken, dann Produkte: saveMarken macht Delete-all und wuerde
       // die beim Produkt-Attach auto-angehaengten Marken sonst wegwischen.
       await ProduktPersonaService.saveForPersona(personaId, this.produktPanel?.getProduktIds() || []);
+      await PersonaService.syncAudienceSituations(personaId, this.situationPanel?.getState() || []);
 
       window.toastSystem?.success?.(this.isEdit ? 'Persona gespeichert' : 'Persona angelegt');
       window.navigateTo(this.returnRoute);
@@ -342,6 +361,10 @@ export class PersonaForm {
     }
     this.produktPanel?.destroy?.();
     this.produktPanel = null;
+    this.situationPanel?.destroy?.();
+    this.situationPanel = null;
+    this.likyPanel?.destroy?.();
+    this.likyPanel = null;
   }
 }
 

@@ -49,6 +49,18 @@ describe('getCampaignTargetTotals', () => {
     expect(result).toEqual({ videos: 17, creators: 6 });
   });
 
+  it('nutzt kampagne-Counts zuerst wenn preferKampagne gesetzt ist', () => {
+    const result = getCampaignTargetTotals({
+      preferKampagne: true,
+      blocks: [
+        { video_anzahl: 10, creator_anzahl: 3, campaign_type: 'ugc_paid' }
+      ],
+      auftragDetails: { gesamt_videos: 99, gesamt_creator: 99 },
+      kampagne: { videoanzahl: 4, creatoranzahl: 1 }
+    });
+    expect(result).toEqual({ videos: 4, creators: 1 });
+  });
+
   it('gibt 0/0 zurück wenn alles leer', () => {
     const result = getCampaignTargetTotals({});
     expect(result).toEqual({ videos: 0, creators: 0 });

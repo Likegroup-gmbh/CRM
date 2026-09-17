@@ -15,7 +15,10 @@ const FEATURE_LABELS = {
   site_extract_unternehmen: 'Webseiten-Extrakt Unternehmen',
   site_extract_marke: 'Webseiten-Extrakt Marke',
   site_extract_produkt: 'Webseiten-Extrakt Produkt',
+  site_extract_persona: 'Webseiten-Extrakt Persona',
   produkt_persona: 'Persona-Vorschläge Produkt',
+  audience_situation: 'Audience Situations',
+  persona_liky: 'Liky Persona',
   briefing_auswertung: 'Briefing-Auswertung'
 };
 

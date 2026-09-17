@@ -2,7 +2,7 @@
 // Step 2 des Projekt-Erstellen-Flows:
 // Block 1: Angebot & Budget (inkl. Leistungszeitraum)
 // Block 2: Dynamische Teilrechnungs-Blöcke (basierend auf anzahl_teilrechnungen)
-// Agenturleistungen nur bei Contracting (bei UGC/Vorort -> StepKampagnenarten)
+// Agenturleistungen nur bei Contracting (bei UGC/Vorort -> StepKampagne)
 
 import { AgencyServicesBlock } from '../components/AgencyServicesBlock.js';
 import { CustomDatePicker } from '../../../core/components/CustomDatePicker.js';

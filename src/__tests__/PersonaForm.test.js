@@ -6,6 +6,8 @@ vi.mock('../modules/persona/PersonaService.js', () => ({
     loadOne: vi.fn(),
     loadMarkenIds: vi.fn(),
     loadProduktIds: vi.fn(),
+    loadAudienceSituations: vi.fn(async () => []),
+    syncAudienceSituations: vi.fn(async () => new Map()),
     searchByName: vi.fn(),
     update: vi.fn(),
     create: vi.fn(),
@@ -94,7 +96,10 @@ describe('PersonaForm', () => {
     const doc = window.content.querySelector('form#persona-form.doc');
     expect(doc).not.toBeNull();
     expect(doc.querySelector('#persona-produkt-panel')).not.toBeNull();
+    expect(doc.querySelector('#persona-audience-situations-panel')).not.toBeNull();
     expect(doc.querySelector('.doc__side')).not.toBeNull();
+    expect(doc.querySelector('#persona-liky-input')?.disabled).toBeFalsy();
+    expect(doc.querySelector('#persona-liky-send')?.disabled).toBeFalsy();
 
     // Produkte-Band wurde mit den verknuepften Produkten befuellt
     expect(ProduktPersonaService.loadProdukteForPersona).toHaveBeenCalledWith('p1');

@@ -2,8 +2,8 @@
 // Die eine Liky-Eingabekarte fuer alle Seiten: Feld oben, Footer mit Meta
 // links und rundem Absende-Button rechts. renderLikyColumn setzt die Karte
 // an den unteren Rand der Spalte, den Verlauf darueber. Produkt (URL),
-// Persona (bald) und Briefing (PDF) rendern denselben Rahmen, damit Liky
-// ueberall gleich aussieht. Styles: .doc__side .doc-chat__* in doc.css.
+// Persona (URL oder Chat) und Briefing (PDF) rendern denselben Rahmen, damit
+// Liky ueberall gleich aussieht. Styles: .doc__side .doc-chat__* in doc.css.
 
 import { icon } from '../icons/IconSystem.js';
 
@@ -16,7 +16,7 @@ import { icon } from '../icons/IconSystem.js';
  * @param {string} opts.inputHtml - das eigentliche Eingabefeld (Seiten-spezifisch)
  * @param {string} opts.sendHtml - der Absende-Button (siehe renderLikySend)
  * @param {boolean} [opts.metaSlot] - data-extract-meta-slot fuer Kosten-Badges
- * @param {boolean} [opts.disabled] - optisch abgesenkter Slot (Persona)
+ * @param {boolean} [opts.disabled] - optisch abgesenkter Slot
  */
 export function renderLikyComposer({
   composerId = null,

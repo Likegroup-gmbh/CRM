@@ -5,6 +5,7 @@
 // Das LLM schreibt nur fit_grund/risiken auf der Shortlist - es rankt nie.
 
 const config = require('./casting-match-config');
+const { attachAudienceSituations, fmtAudienceSituations } = require('./audience-situation');
 
 const {
   MATCHING_WEIGHTS,
@@ -127,7 +128,8 @@ function buildBedarf(briefing = {}, { produktIds = [], personas = [] } = {}) {
       geschlecht: norm(p.geschlecht),
       lebenssituation: norm(p.lebenssituation),
       pain_points: p.pain_points || null,
-      beduerfnisse: p.beduerfnisse || null
+      beduerfnisse: p.beduerfnisse || null,
+      audience_situations: Array.isArray(p.audience_situations) ? p.audience_situations : []
     }))
   };
   bedarf.fingerprint = bedarfFingerprint(bedarf);
@@ -662,6 +664,8 @@ function buildPrompt(bedarf, { shortlist = [], kategorien = [] } = {}) {
     bedarf.personas.forEach(p => {
       task += `- ${p.name || '?'}${p.oberbegriff ? ` (${p.oberbegriff})` : ''}`
         + `${p.pain_points ? `: ${cap(p.pain_points, 200)}` : ''}\n`;
+      const as = fmtAudienceSituations(p.audience_situations, 240);
+      if (as) task += `  Audience Situations: ${as}\n`;
     });
   }
   if (kategorien?.length) task += `\n# KATEGORIEN AUF DER LISTE\n${kategorien.join(', ')}\n`;
@@ -807,6 +811,7 @@ async function loadBedarfData(supabase, casting) {
       const p = v.persona;
       if (p && p.id && !gesehen.has(p.id)) { gesehen.add(p.id); personas.push(p); }
     }
+    await attachAudienceSituations(supabase, personas);
   }
 
   const { data: kategorienZeilen } = await supabase.from('creator_auswahl')

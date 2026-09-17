@@ -22,9 +22,10 @@ function creatorName(item) {
   return item?.creator_name || '–';
 }
 
-export function openSkriptCreateDrawer() {
+export function openSkriptCreateDrawer(prefill) {
   closeSkriptCreateDrawer();
   const drawer = new SkriptCreateDrawer();
+  drawer.prefill = prefill && prefill.kampagne_id ? prefill : null;
   drawer.open();
 }
 
@@ -50,6 +51,7 @@ class SkriptCreateDrawer {
     this.briefings = [];
     this.items = [];
     this.selectedItem = null;
+    this.prefill = null;
   }
 
   el(name) {
@@ -67,6 +69,7 @@ class SkriptCreateDrawer {
       this.loadBranchen()
     ]);
     this.initDisabledDependents();
+    await this.applyPrefill();
   }
 
   mount() {
@@ -82,7 +85,7 @@ class SkriptCreateDrawer {
       <div class="drawer-header">
         <div>
           <span class="drawer-title">Neues Skript</span>
-          <p class="drawer-subtitle">Kontext wählen, dann eine freigegebene Videoidee</p>
+          <p class="drawer-subtitle">${this.prefill?.kampagne_id ? 'Für diese Kampagne' : 'Kontext wählen, dann eine freigegebene Videoidee'}</p>
         </div>
         <button type="button" class="drawer-close-btn" aria-label="Schließen">&times;</button>
       </div>
@@ -186,6 +189,64 @@ class SkriptCreateDrawer {
     const input = wrap?.querySelector('.searchable-select-input');
     if (hidden) hidden.value = value || '';
     if (input) input.value = value ? label : '';
+  }
+
+  ensureOption(name, value, label) {
+    const select = this.el(name);
+    if (!select || !value) return;
+    if (select.querySelector(`option[value="${CSS.escape(value)}"]`)) return;
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = label || value;
+    select.appendChild(opt);
+  }
+
+  lockSearchable(name) {
+    const select = this.el(name);
+    if (!select) return;
+    select.disabled = true;
+    const wrap = select.parentNode?.querySelector('.searchable-select-container');
+    const input = wrap?.querySelector('.searchable-select-input');
+    if (input) {
+      input.disabled = true;
+      input.readOnly = true;
+    }
+    wrap?.classList.add('prefilled-locked');
+    const field = select.closest('.form-field, .form-group');
+    if (field) {
+      field.classList.add('form-field--prefilled');
+      const lbl = field.querySelector('label');
+      if (lbl && !lbl.querySelector('.prefill-badge')) {
+        const badge = document.createElement('span');
+        badge.className = 'prefill-badge';
+        badge.textContent = ' (aus Kampagne)';
+        lbl.appendChild(badge);
+      }
+    }
+  }
+
+  async applyPrefill() {
+    const prefill = this.prefill;
+    if (!prefill?.unternehmen_id) return;
+
+    this.ensureOption('unternehmen', prefill.unternehmen_id, prefill.unternehmenName);
+    this.setSearchableValue('unternehmen', prefill.unternehmen_id);
+    await this.onUnternehmenChange();
+    this.lockSearchable('unternehmen');
+
+    if (prefill.marke_id) {
+      this.ensureOption('marke', prefill.marke_id, prefill.markeName);
+      this.setSearchableValue('marke', prefill.marke_id);
+      await this.onMarkeChange();
+      this.lockSearchable('marke');
+    }
+
+    if (prefill.kampagne_id) {
+      this.ensureOption('kampagne', prefill.kampagne_id, prefill.kampagneName);
+      this.setSearchableValue('kampagne', prefill.kampagne_id);
+      await this.onKampagneChange();
+      this.lockSearchable('kampagne');
+    }
   }
 
   initDisabledDependents() {

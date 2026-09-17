@@ -17,6 +17,7 @@ export const TAB_PERMISSION_MAP = {
   'auftragsdetails': 'auftragsdetails',
   'kampagnen': 'kampagne',
   'briefings': 'briefing',
+  'briefing': 'briefing',
   'kooperationen': 'kooperation',
   'rechnungen': 'rechnung',
   'strategien': 'strategie',
@@ -27,6 +28,12 @@ export const TAB_PERMISSION_MAP = {
   'vertraege': 'vertraege',
   'videos': 'briefing',    // nutzt briefing-Berechtigung (wie Navigation)
   'marken': 'marke',
+  // Workflow-Tabs auf der Kampagnen-Detailseite
+  'casting': 'sourcing',
+  'konzepte': 'strategie',
+  'skripte': 'skripte',
+  'produktion': 'kooperation',
+  'auswertung': null,    // sichtbar für alle, die die Kampagne sehen
   // Personas und Produkte gehoeren dem Unternehmen und stehen auch auf dessen
   // Detailseite - die Marke-Berechtigung waere dort der falsche Massstab.
   'personas': 'unternehmen',

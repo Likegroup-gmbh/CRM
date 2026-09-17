@@ -6,9 +6,9 @@
 // Standalone - aus einer Marke heraus ist die Zuordnung fix.
 //
 // Die Seite rendert als Worksheet ueber den geteilten Doc-Renderer
-// (core/doc/DocPage.js - dort sind die doc*-Angaben dokumentiert). Produkte
-// sind kein Formularfeld mehr: sie haengen als Karten-Band (Slot ganz unten)
-// am Dokument, gepflegt vom PersonaProduktPanel - Persistenz ueber
+// (core/doc/DocPage.js - dort sind die doc*-Angaben dokumentiert). Audience
+// Situations sitzen als Slot in der Lebensrealitaet (ADR 0016). Produkte
+// haengen als Karten-Band ganz unten, Persistenz ueber
 // produkt_persona_vorschlag (ADR 0002).
 
 export const personaConfig = {
@@ -171,17 +171,18 @@ export const personaConfig = {
       section: 'demografie'
     },
 
-    // 3. Lebensrealitaet
+    // 3. Lebensrealitaet — Alltag sitzt in den Audience Situations (ADR 0016)
     {
-      name: 'kontext',
-      label: 'Situation / Alltag',
-      type: 'textarea',
+      name: '_slot_audience_situations',
+      label: '',
+      type: 'hidden',
       required: false,
-      rows: 3,
-      placeholder: 'Alltag, Mediennutzung, Werte, was sie/ihn beschäftigt...',
+      docRole: 'slot',
+      slotId: 'persona-audience-situations-panel',
       docGroup: 'lebensrealitaet',
       section: 'lebensrealitaet',
-      sectionTitle: 'Lebensrealität'
+      sectionTitle: 'Lebensrealität',
+      sectionDescription: 'Audience Situations sind konkrete Momente, in denen diese Persona empfänglich sein kann.'
     },
     { name: 'pain_points', label: 'Pain-Points / Probleme', type: 'textarea', required: false, rows: 3, placeholder: 'Konkrete Probleme und Frustrationen im Alltag...', docList: true, docGroup: 'lebensrealitaet', section: 'lebensrealitaet' },
     { name: 'interessen', label: 'Interessen', type: 'textarea', required: false, rows: 2, placeholder: 'Hobbys, Themen, Communities, denen sie/er folgt...', docList: true, docGroup: 'lebensrealitaet', section: 'lebensrealitaet' },

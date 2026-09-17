@@ -11,6 +11,13 @@ import { updateSummaryCardsDOM, updateVideoStatsCardDOM } from './KampagneDetail
 import { setupEvents, teardownEvents } from './KampagneDetailEvents.js';
 import { showEditForm as _showEditForm } from './KampagneDetailEditHandler.js';
 import { KampagneDetailStore } from './KampagneDetailStore.js';
+import {
+  activateWorkflowTab,
+  refreshWorkflowAfterRender,
+  resolveInitialWorkflowTab,
+  DEFAULT_WORKFLOW_TAB
+} from './KampagneDetailWorkflow.js';
+import { unmountCastingWorksheet } from './KampagneDetailCasting.js';
 
 export class KampagneDetail {
   constructor() {
@@ -31,6 +38,7 @@ export class KampagneDetail {
     this.rechnungen = [];
     this.vertraege = [];
     this.kooperationenVideoTable = null;
+    this.castingWorksheet = null;
     this.kanbanBoard = null;
     this.currentView = 'table';
     this.videoColumnVisibilityDrawer = null;
@@ -38,6 +46,7 @@ export class KampagneDetail {
     this.strategien = [];
     this.briefings = [];
     this.isKunde = false;
+    this.activeWorkflowTab = DEFAULT_WORKFLOW_TAB;
 
     this._isMounted = false;
     this._initPromise = null;
@@ -57,6 +66,7 @@ export class KampagneDetail {
 
     this._isMounted = true;
     this._destroyDrawers();
+    unmountCastingWorksheet(this);
 
     if (this.kooperationenVideoTable) {
       if (typeof this.kooperationenVideoTable.destroy === 'function') {
@@ -75,6 +85,9 @@ export class KampagneDetail {
       this.store.destroy();
       this.store = null;
     }
+
+    // Workflow-Tab aus ?tab= (unbekannt/nicht erlaubt → Produktion)
+    this.activeWorkflowTab = resolveInitialWorkflowTab();
 
     if (window.moduleRegistry?.currentModule !== this) {
       this._isMounted = false;
@@ -178,10 +191,16 @@ export class KampagneDetail {
       availableTags: this.store?.getAvailableTags() || [],
       selectedStatuses: this.store?.selectedStatuses || [],
       selectedTags: this.store?.selectedTags || [],
-      kooperationSort: this.store?.kooperationSort || 'created_desc'
+      kooperationSort: this.store?.kooperationSort || 'created_desc',
+      activeWorkflow: this.activeWorkflowTab,
+      strategien: this.strategien,
+      sourcingListenCount: this.sourcingListenCount
     });
 
     window.setContentSafely(window.content, html);
+
+    // Panes wurden mit dem Re-Render verworfen — aktiven Pane neu füllen.
+    refreshWorkflowAfterRender(this);
   }
 
   _prepareVideoTable(tableData, isKunde) {
@@ -307,11 +326,17 @@ export class KampagneDetail {
     await this.kooperationenVideoTable.loadAssetsAndCommentsForVisible();
   }
 
+  switchWorkflowTab(tabId) {
+    activateWorkflowTab(this, tabId);
+  }
+
   switchTab(tabName) {
     if (!['offen', 'abgeschlossen', 'alle'].includes(tabName)) return;
 
-    document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
-    const activeButton = document.querySelector(`[data-tab="${tabName}"]`);
+    // Scoped auf die Filter-Tabs — die Workflow-Tabs (data-workflow-tab)
+    // teilen sich die .tab-button-Klasse und dürfen hier nicht verlieren.
+    document.querySelectorAll('.kampagne-filter-tabs .tab-button').forEach(btn => btn.classList.remove('active'));
+    const activeButton = document.querySelector(`.kampagne-filter-tabs [data-tab="${tabName}"]`);
     if (activeButton) activeButton.classList.add('active');
 
     if (this.currentView === 'table' && this.kooperationenVideoTable) {
@@ -372,7 +397,7 @@ export class KampagneDetail {
       kampagneId: this.kampagneId
     });
 
-    const activeTab = document.querySelector('.tab-button.active');
+    const activeTab = document.querySelector('.kampagne-filter-tabs .tab-button.active');
     const tabName = activeTab?.dataset?.tab || 'offen';
     this.kanbanBoard.activeFilterTab = tabName;
 
@@ -429,6 +454,8 @@ export class KampagneDetail {
       this.kanbanBoard.destroy();
       this.kanbanBoard = null;
     }
+
+    unmountCastingWorksheet(this);
 
     if (this.store) {
       this.store.destroy();
