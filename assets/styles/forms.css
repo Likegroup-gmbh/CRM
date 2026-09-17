@@ -4193,9 +4193,13 @@ input.readonly-field {
   margin-bottom: var(--space-lg);
 }
 
+.form-page--briefing .form-field {
+  gap: var(--space-sm);
+}
+
 .form-page--briefing .form-field > label {
   font-size: var(--text-sm);
-  color: var(--gray-600);
+  color: var(--gray-900);
 }
 
 .form-page--briefing .bf-channel__title,
