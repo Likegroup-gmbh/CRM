@@ -9,7 +9,7 @@ import { PageTransitionHelper } from '../../../core/PageTransitionHelper.js';
 import { icon } from '../../../core/icons/IconSystem.js';
 import { BEREICH_OPTIONS, getStepsForBereich } from './fieldConfig.js';
 import { renderStep } from './FieldRenderer.js';
-import { renderLikyComposer, renderLikySend, renderLikyColumn } from '../../../core/chat/likyComposer.js';
+import { renderLikyComposer, renderLikySend, renderLikyColumn, renderLikyEingabe } from '../../../core/chat/likyComposer.js';
 import { likyCapability } from '../../../core/chat/likyCapabilities.js';
 import { BriefingLikyPanel } from './BriefingLikyPanel.js';
 
@@ -134,11 +134,11 @@ BriefingCreate.prototype.renderMultistep = function() {
               labelFor: 'briefing-liky-input',
               inputHtml: `
                 <div class="doc-chat__chips" id="briefing-liky-chips"></div>
-                <div class="doc-chat__input">
-                  <input type="text" id="briefing-liky-input" class="doc-chat__eingabe"
-                         autocomplete="off" spellcheck="false"
-                         placeholder="Kundenbriefing (PDF) hier reinziehen …">
-                </div>
+                ${renderLikyEingabe({
+                  id: 'briefing-liky-input',
+                  extraAttrs: 'spellcheck="false"',
+                  placeholder: 'Kundenbriefing (PDF) hier reinziehen …'
+                })}
               `,
               sendHtml: renderLikySend({ id: 'briefing-liky-send', title: 'Absenden' })
             })

@@ -17,8 +17,39 @@
 // in Textfeldern und die Widgets zeigen leer, obwohl formData voll ist.
 
 import { ExtractReviewLayer } from '../../../core/form/ai/ExtractReviewLayer.js';
+import { resolveProduktHints } from './produktHint.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Alte Jobs / Modelle liefern fields als JSON-String oder Array. */
+export function coerceFieldMap(value) {
+  if (value == null) return {};
+  let parsed = value;
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value);
+    } catch (_) {
+      return {};
+    }
+  }
+  if (Array.isArray(parsed)) {
+    const out = {};
+    for (const item of parsed) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+      const named = String(item.name || item.key || '').trim();
+      if (named) {
+        const { name: _n, key: _k, ...rest } = item;
+        out[named] = rest;
+        continue;
+      }
+      const keys = Object.keys(item).filter((k) => !['kind', 'from', 'value', 'force'].includes(k));
+      if (keys.length === 1) out[keys[0]] = item[keys[0]];
+    }
+    return out;
+  }
+  if (parsed && typeof parsed === 'object') return parsed;
+  return {};
+}
 
 /** { value, kind, from, force }-Wrapper auspacken (Chat-Patches). */
 function unwrapEntry(entry) {
@@ -244,12 +275,13 @@ export class BriefingExtractApply {
     const applied = [];
     const skipped = [];
     const specByName = new Map(spec.map((f) => [f.name, f]));
+    fields = coerceFieldMap(fields);
 
-    for (const [name, entry] of Object.entries(fields || {})) {
+    for (const [name, entry] of Object.entries(fields)) {
       const specField = specByName.get(name);
-      if (!specField || entry?.value == null) continue;
+      if (!specField || entry == null) continue;
 
-      const value = normalizeValue(specField, entry.value);
+      const value = normalizeValue(specField, entry);
       if (value == null) continue;
 
       const current = this.briefing.formData[name];
@@ -259,19 +291,46 @@ export class BriefingExtractApply {
       }
 
       this.briefing.formData[name] = value;
-      this.aiFill.set(name, { from: entry.from || null, kind: entry.kind || 'fact' });
+      const kind = entry && typeof entry === 'object' && !Array.isArray(entry) && entry.kind === 'guess'
+        ? 'guess' : 'fact';
+      const from = entry && typeof entry === 'object' && !Array.isArray(entry) && entry.from
+        ? entry.from : null;
+      this.aiFill.set(name, { from, kind });
       applied.push(specField.label || name);
     }
 
     return { applied, skipped };
   }
 
+  /**
+   * Bekannte Produkte aus produkte_hint in produkt_ids schreiben.
+   * Entity-Felder sind nicht in der Spec - ohne das landen existierende
+   * Produkte nie im Formular. Nur wenn produkt_ids noch leer ist.
+   * katalog: Produkte des Unternehmens (id + name), falls Claude die UUID
+   * nicht geliefert hat.
+   * @returns {{ applied: string[], hints: Array<{ name: string, produkt_id: string|null }> }}
+   */
+  applyProduktHints(hints, katalog = []) {
+    const resolved = resolveProduktHints(hints, katalog);
+    const ids = [...new Set(resolved
+      .map((p) => String(p.produkt_id || '').trim())
+      .filter((id) => UUID_RE.test(id)))];
+    if (!ids.length || !this.isEmpty(this.briefing.formData.produkt_ids)) {
+      return { applied: [], hints: resolved };
+    }
+
+    this.briefing.formData.produkt_ids = ids;
+    this.aiFill.set('produkt_ids', { from: 'PDF', kind: 'fact' });
+    return { applied: ['Produkte'], hints: resolved };
+  }
+
   /** Chat-Patches: duerfen vorhandene Werte aendern (Explizite Steuerung). */
   applyPatches(patches, spec) {
     const applied = [];
     const specByName = new Map(spec.map((f) => [f.name, f]));
+    patches = coerceFieldMap(patches);
 
-    for (const [name, entry] of Object.entries(patches || {})) {
+    for (const [name, entry] of Object.entries(patches)) {
       const specField = specByName.get(name);
       if (!specField || entry == null) continue;
 

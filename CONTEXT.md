@@ -90,8 +90,8 @@ _Avoid_: Anhang, Briefing
 
 **Briefing**:
 Das Aktivierungsdokument eines Unternehmens, optional einer Marke. Verbindliche Grundlage
-für Casting und Konzept. Wählt mindestens ein Produkt und mindestens eine Persona.
-Hängt nicht an einer Kampagne.
+für Casting und Konzept; wählt mindestens ein Produkt und eine Persona, hängt nicht an einer Kampagne
+und trägt keinen Ansprechpartner (der sitzt am Unternehmen, der Marke oder der Kampagne).
 _Avoid_: Kampagnen-Briefing (das ist die Tabelle `campaign_briefings`), Kundenbriefing
 
 **Briefing-Typ**:
