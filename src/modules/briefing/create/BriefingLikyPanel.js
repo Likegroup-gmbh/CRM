@@ -29,6 +29,24 @@ const GRUSS = 'Zieh das Kundenbriefing (PDF) hier rein, dann fülle ich das Form
 
 // Spec wird clientseitig aus fieldConfig abgeleitet und an die Function
 // geschickt. So bleibt fieldConfig die einzige Feld-Quelle.
+// valueShape sagt dem Modell exakt, in welcher Form der Wert erwartet wird -
+// ohne das kommen KPIs als { kpi, ziel } und Channels als
+// [{ format, anzahl, vorgaben }] zurueck und binden nicht an die Widgets.
+function valueShape(field) {
+  switch (field.type) {
+    case 'date': return 'string "YYYY-MM-DD"';
+    case 'checkbox': return 'true | false';
+    case 'radio': return 'ein options.value als string';
+    case 'checkboxes':
+    case 'customMulti': return 'array von options.value (strings)';
+    case 'repeatableKpi': return 'array von { kpi: kpiOptions.value, zielwert: string }';
+    case 'repeatableText': return 'array von strings';
+    case 'channelGroup': return 'object: channel.key -> array von format-values (strings), z.B. { instagram: ["reel","story"] }';
+    case 'group': return 'object mit den Sub-Feldern aus fields, jeder Wert ein string';
+    default: return 'string';
+  }
+}
+
 function buildSpec(bereich) {
   const steps = getStepsForBereich(bereich);
   const fields = [];
@@ -36,10 +54,14 @@ function buildSpec(bereich) {
     for (const section of step.sections || []) {
       for (const field of section.fields || []) {
         if (field.persist === false) continue;
+        // Entity-Felder sind schon gewaehlt (Unternehmen ist Pflicht vor dem
+        // Upload) - das Modell wuerde sonst Namen statt IDs liefern.
+        if (field.type === 'entitySelect' || field.type === 'entityMulti') continue;
         fields.push({
           name: field.name,
           label: field.label,
           type: field.type,
+          valueShape: valueShape(field),
           options: field.options?.map((o) => ({ value: o.value, label: o.label })),
           kpiOptions: field.kpiOptions?.map((o) => ({ value: o.value, label: o.label })),
           channels: field.channels?.map((c) => ({ key: c.key, label: c.label, formats: c.formats || null })),
