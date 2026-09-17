@@ -10,6 +10,8 @@
 // Personas ohne unternehmen_id bleiben als globale Zielgruppen fuer die
 // Skript-DNA bestehen und tauchen in beiden Ansichten nicht auf.
 
+import { quelleNachEdit } from './audienceSituationGate.js';
+
 const MARKEN_SELECT = 'marken:persona_marke(marke_id, marke:marke_id(id, markenname))';
 const PRODUKTE_SELECT = 'produkte:produkt_persona_vorschlag(produkt_id, status, produkt:produkt_id(id, name))';
 const BUDGETRAHMEN = ['niedrig', 'mittel', 'hoch'];
@@ -139,6 +141,7 @@ export class PersonaService {
     if (unternehmenId) payload.unternehmen_id = unternehmenId;
     delete payload.marke_ids;
     delete payload.produkt_ids;
+    delete payload.kontext;
     if ('budgetrahmen' in payload) payload.budgetrahmen = clampBudgetrahmen(payload.budgetrahmen);
 
     const result = await window.dataService.createEntity('persona', payload);
@@ -150,6 +153,7 @@ export class PersonaService {
     const payload = { ...data };
     delete payload.marke_ids;
     delete payload.produkt_ids;
+    delete payload.kontext;
     // unternehmen_id steht als Hidden-Feld im Formular und darf nicht wandern
     delete payload.unternehmen_id;
     if ('budgetrahmen' in payload) payload.budgetrahmen = clampBudgetrahmen(payload.budgetrahmen);
@@ -200,6 +204,90 @@ export class PersonaService {
       .map(eintrag => eintrag?.marke?.markenname)
       .filter(Boolean)
       .sort((a, b) => a.localeCompare(b, 'de'));
+  }
+
+  static async loadAudienceSituations(personaId) {
+    const { data, error } = await window.supabase
+      .from('audience_situation')
+      .select('id, persona_id, name, beschreibung, position, quelle')
+      .eq('persona_id', personaId)
+      .order('position')
+      .order('created_at');
+    if (error) throw error;
+    return data || [];
+  }
+
+  /**
+   * Sync wie produkt_use_case: fehlende loeschen, vorhandene updaten, neue
+   * einfuegen. Unveraenderte Migrations-Seeds behalten quelle=migration,
+   * sonst wird jede UI-Zeile zu manual (sonst blockt der erste Save die KI).
+   */
+  static async syncAudienceSituations(personaId, rows = []) {
+    const bestehende = await this.loadAudienceSituations(personaId);
+    const nachId = new Map(bestehende.map(r => [r.id, r]));
+
+    const aktive = [];
+    const gesehen = new Set();
+    for (const row of rows) {
+      if (row?.deleted) continue;
+      const name = String(row.name || '').trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (gesehen.has(key)) continue;
+      gesehen.add(key);
+      aktive.push({
+        ...row,
+        name,
+        beschreibung: String(row.beschreibung || '').trim() || null
+      });
+    }
+
+    const keyToId = new Map();
+    const finalIds = [];
+    for (const [index, row] of aktive.entries()) {
+      let id = row.id && nachId.has(row.id) ? row.id : null;
+      if (!id && row.quelle !== 'ki') {
+        const adoptiert = bestehende.find(b => b.name.toLowerCase() === row.name.toLowerCase() && !finalIds.includes(b.id));
+        if (adoptiert) id = adoptiert.id;
+      }
+      const alt = id ? nachId.get(id) : null;
+      const payload = {
+        persona_id: personaId,
+        name: row.name,
+        beschreibung: row.beschreibung,
+        position: index,
+        quelle: alt ? quelleNachEdit(alt, row) : (row.quelle === 'ki' ? 'ki' : 'manual')
+      };
+
+      if (id) {
+        const { error } = await window.supabase
+          .from('audience_situation')
+          .update(payload)
+          .eq('id', id);
+        if (error) throw error;
+      } else {
+        const { data, error } = await window.supabase
+          .from('audience_situation')
+          .insert([payload])
+          .select('id').single();
+        if (error) throw error;
+        id = data.id;
+      }
+
+      if (row.key) keyToId.set(row.key, id);
+      finalIds.push(id);
+    }
+
+    const zuLoeschen = bestehende.filter(r => !finalIds.includes(r.id)).map(r => r.id);
+    if (zuLoeschen.length) {
+      const { error } = await window.supabase
+        .from('audience_situation')
+        .delete()
+        .in('id', zuLoeschen);
+      if (error) throw error;
+    }
+
+    return keyToId;
   }
 
   /** Produktnamen aus dem eingebetteten Vorschlags-Select, nur accepted. */

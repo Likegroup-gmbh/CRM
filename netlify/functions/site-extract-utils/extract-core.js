@@ -12,6 +12,7 @@ const crypto = require('crypto');
 const { callClaude, extractJson, MODELS, ClaudeTimeoutError } = require('../_shared/anthropic');
 const { calculateCost } = require('../_shared/claude-cost');
 const { SPEC_VERSION, getSpec, buildFieldInstructions, buildSeitentypInstruction, getFieldKinds } = require('../_shared/extract-specs');
+const { validateSituationen } = require('../_shared/audience-situation');
 const { createPageFetcher } = require('./page-fetcher');
 const { distill, toPromptBlock } = require('./html-distill');
 const { classifyPage, TYPEN } = require('./page-classify');
@@ -206,6 +207,13 @@ function normalizeVarianten(raw, spec) {
   return out;
 }
 
+/** Audience Situations des Modells saeubern (2-4, unique Namen). */
+function normalizeAudienceSituations(raw, spec) {
+  if (!spec.audienceSituations) return [];
+  const list = Array.isArray(raw) ? raw : [];
+  return validateSituationen({ situationen: list }).situationen;
+}
+
 /**
  * Fuehrt die komplette Extraktion aus.
  *
@@ -291,6 +299,7 @@ async function runExtraction({ url, entityType, supabase, onStep = () => {} }) {
         logo,
         images,
         varianten: cached.varianten || [],
+        audience_situations: cached.audience_situations || [],
         notes: cached.notes || [],
         cost: { usd: 0, eur: 0, cached: true, saved: cached.cost || null },
         diagnostics: abschluss()
@@ -427,6 +436,7 @@ async function runExtraction({ url, entityType, supabase, onStep = () => {} }) {
         logo: null,
         images: [],
         varianten: [],
+        audience_situations: [],
         notes,
         cost: null,
         diagnostics: abschluss()
@@ -475,6 +485,7 @@ async function runExtraction({ url, entityType, supabase, onStep = () => {} }) {
 
     const fields = normalizeFields(parsed, spec);
     const varianten = normalizeVarianten(parsed._varianten, spec);
+    const audience_situations = normalizeAudienceSituations(parsed._audience_situations, spec);
     if (Array.isArray(parsed._hinweise)) {
       notes.push(...parsed._hinweise.filter((n) => typeof n === 'string').slice(0, 5));
     }
@@ -538,6 +549,7 @@ async function runExtraction({ url, entityType, supabase, onStep = () => {} }) {
         result: {
           fields,
           varianten,
+          audience_situations,
           notes,
           source: main.source,
           seitentyp: klassifikation.typ,
@@ -550,7 +562,7 @@ async function runExtraction({ url, entityType, supabase, onStep = () => {} }) {
       diagnostics.cacheGeschrieben = true;
     }
 
-    return { success: true, cached: false, source: main.source, fields, logo, images, varianten, notes, cost, diagnostics: abschluss() };
+    return { success: true, cached: false, source: main.source, fields, logo, images, varianten, audience_situations, notes, cost, diagnostics: abschluss() };
   } catch (error) {
     diagnostics.abbruch = 'fehler';
     diagnostics.fehler = error.message;

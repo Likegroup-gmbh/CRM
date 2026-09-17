@@ -23,8 +23,10 @@
 // keine Skript-/DNA-Referenz) - sonst bleibt sie stehen.
 
 import { PersonaService } from '../persona/PersonaService.js';
+import { istKiBereit } from '../persona/audienceSituationGate.js';
 
 const ENDPOINT = '/.netlify/functions/produkt-persona-background';
+const AUDIENCE_SITUATION_ENDPOINT = '/.netlify/functions/audience-situation-background';
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 4 * 60 * 1000;
 
@@ -176,6 +178,68 @@ export class ProduktPersonaService {
     return session;
   }
 
+  /**
+   * Fire-and-forget: Audience Situations nach neuem Accept. Save darf daran
+   * nicht scheitern. Pollt nicht — der User verlaesst die Produktseite.
+   */
+  static async starteAudienceSituationJobs(personaIds, { produktId = null, produkt = {} } = {}) {
+    const ids = [...new Set((personaIds || []).filter(Boolean))];
+    if (!ids.length) return 0;
+
+    const db = window.supabase;
+    const session = await this.getSession();
+    if (!db || !session) return 0;
+
+    let gestartet = 0;
+    for (const personaId of ids) {
+      try {
+        const rows = await PersonaService.loadAudienceSituations(personaId);
+        if (!istKiBereit(rows)) continue;
+
+        const { data: laufend } = await db
+          .from('audience_situation_jobs')
+          .select('id')
+          .eq('persona_id', personaId)
+          .in('status', ['pending', 'running'])
+          .limit(1);
+        if (laufend?.length) continue;
+
+        const persona = await PersonaService.loadOne(personaId);
+        const { data: job, error } = await db.from('audience_situation_jobs')
+          .insert({
+            persona_id: personaId,
+            produkt_id: produktId,
+            input: {
+              persona: persona || {},
+              produkt: {
+                name: produkt.name || null,
+                kurzbeschreibung: produkt.kurzbeschreibung || null,
+                usp: produkt.usp || null,
+                pain_points: produkt.pain_points || null,
+                loesung: produkt.loesung || null
+              }
+            },
+            created_by: session.user.id
+          })
+          .select('id').single();
+        if (error) throw error;
+
+        fetch(AUDIENCE_SITUATION_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ jobId: job.id })
+        }).catch(err => console.error('Audience-Situation-Job start fehlgeschlagen:', err));
+        gestartet += 1;
+      } catch (err) {
+        console.error(`Audience Situations für ${personaId} nicht gestartet:`, err);
+      }
+    }
+    return gestartet;
+  }
+
   // --- Flush beim Produkt-Save ---
 
   /**
@@ -183,20 +247,25 @@ export class ProduktPersonaService {
    * die echten IDs), dann Karten, dabei Accept-Materialisierung und
    * compensating writes fuer zurueckgenommene/verworfene Karten.
    *
-   * @returns {Promise<{useCases: Array, karten: Array}>} Stand mit echten IDs
+   * @returns {Promise<{useCases: Array, karten: Array, neuAkzeptiert: string[]}>}
    */
   static async flushOnSave(produktId, { useCases = [], karten = [], verworfeneMatchIds = [] }, { unternehmenId = null, markeIds = [] } = {}) {
     const keyToId = await this.syncUseCases(produktId, useCases);
 
     const ergebnisKarten = [];
+    const neuAkzeptiert = [];
     for (const [index, karte] of karten.entries()) {
+      const warNeuAccept = karte.status === 'accepted' && karte.persisted?.status !== 'accepted';
       const geflusht = await this.flushKarte(produktId, karte, {
         position: index,
         keyToId,
         unternehmenId,
         markeIds
       });
-      if (geflusht) ergebnisKarten.push(geflusht);
+      if (geflusht) {
+        ergebnisKarten.push(geflusht);
+        if (warNeuAccept && geflusht.persona_id) neuAkzeptiert.push(geflusht.persona_id);
+      }
     }
 
     await this.flushVerworfeneMatches(produktId, verworfeneMatchIds, karten);
@@ -205,7 +274,7 @@ export class ProduktPersonaService {
       .filter(uc => !uc.deleted)
       .map((uc, i) => ({ ...uc, id: keyToId.get(uc.key) || uc.id || null, position: i, deleted: false }));
 
-    return { useCases: ergebnisUseCases, karten: ergebnisKarten };
+    return { useCases: ergebnisUseCases, karten: ergebnisKarten, neuAkzeptiert };
   }
 
   /**

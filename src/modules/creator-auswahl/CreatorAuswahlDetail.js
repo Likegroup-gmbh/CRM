@@ -1338,13 +1338,14 @@ export class CreatorAuswahlDetail {
     const item = this.items.find(i => i.id === itemId);
     if (!item) return;
 
-    if (!this.liste?.strategie_id) {
-      window.toastSystem?.show('Dieses Casting ist mit keinem Konzept verknüpft', 'warning');
-      return;
-    }
     if (!item.zusage && !item.gebucht) {
       window.toastSystem?.show('Nur Einträge mit Status Zusage oder Gebucht können einer Videoidee zugeordnet werden', 'warning');
       return;
+    }
+
+    if (!this.liste?.strategie_id) {
+      const linked = await this.showKonzeptPicker();
+      if (!linked || !this.liste?.strategie_id) return;
     }
 
     try {
@@ -1393,9 +1394,18 @@ export class CreatorAuswahlDetail {
       return;
     }
 
-    await this.showKonzeptPicker();
+    const linked = await this.showKonzeptPicker();
+    if (linked) {
+      await this.render();
+      this.bindEvents();
+    }
   }
 
+  /**
+   * Picker fuer unverknuepfte Konzepte derselben Kampagne + Briefing.
+   * @returns {Promise<boolean>} true nach erfolgreichem Link, sonst false
+   *   (Abbruch, kein Kandidat, Ladefehler).
+   */
   async showKonzeptPicker() {
     const { data: konzepte, error } = await window.supabase
       .from('strategie')
@@ -1406,7 +1416,7 @@ export class CreatorAuswahlDetail {
 
     if (error) {
       window.toastSystem?.show('Fehler beim Laden der Konzepte', 'error');
-      return;
+      return false;
     }
 
     const passend = (konzepte || []).filter(s =>
@@ -1415,19 +1425,20 @@ export class CreatorAuswahlDetail {
 
     if (passend.length === 0) {
       window.toastSystem?.show('Kein unverknüpftes Konzept mit gleichem Briefing in dieser Kampagne', 'info');
-      return;
+      return false;
     }
 
-    const overlay = document.createElement('div');
-    overlay.className = 'drawer-overlay';
-    overlay.id = 'sourcing-konzept-picker-overlay';
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'drawer-overlay';
+      overlay.id = 'sourcing-konzept-picker-overlay';
 
-    const panel = document.createElement('div');
-    panel.setAttribute('role', 'dialog');
-    panel.className = 'drawer-panel';
-    panel.id = 'sourcing-konzept-picker';
+      const panel = document.createElement('div');
+      panel.setAttribute('role', 'dialog');
+      panel.className = 'drawer-panel';
+      panel.id = 'sourcing-konzept-picker';
 
-    panel.innerHTML = `
+      panel.innerHTML = `
       <div class="drawer-header">
         <div>
           <span class="drawer-title">Konzept verknüpfen</span>
@@ -1456,61 +1467,65 @@ export class CreatorAuswahlDetail {
       </div>
     `;
 
-    const close = () => {
-      panel.classList.remove('show');
-      overlay.classList.remove('active');
-      setTimeout(() => { overlay.remove(); panel.remove(); }, 250);
-    };
+      let settled = false;
+      const finish = (linked) => {
+        if (settled) return;
+        settled = true;
+        panel.classList.remove('show');
+        overlay.classList.remove('active');
+        setTimeout(() => { overlay.remove(); panel.remove(); }, 250);
+        resolve(!!linked);
+      };
 
-    overlay.addEventListener('click', close);
-    panel.querySelector('.drawer-close-btn').addEventListener('click', close);
-    panel.querySelector('[data-action="close"]').addEventListener('click', close);
+      overlay.addEventListener('click', () => finish(false));
+      panel.querySelector('.drawer-close-btn').addEventListener('click', () => finish(false));
+      panel.querySelector('[data-action="close"]').addEventListener('click', () => finish(false));
 
-    const select = panel.querySelector('#sourcing-konzept-select');
-    const confirmBtn = panel.querySelector('#btn-konzept-link-confirm');
-    select.addEventListener('change', () => { confirmBtn.disabled = !select.value; });
+      const select = panel.querySelector('#sourcing-konzept-select');
+      const confirmBtn = panel.querySelector('#btn-konzept-link-confirm');
+      select.addEventListener('change', () => { confirmBtn.disabled = !select.value; });
 
-    confirmBtn.addEventListener('click', async () => {
-      if (!select.value) return;
-      confirmBtn.disabled = true;
-      try {
-        await strategieService.linkCasting(select.value, this.listeId);
-        window.toastSystem?.show('Konzept verknüpft', 'success');
-        close();
-        this.liste = await creatorAuswahlService.getListeById(this.listeId);
-        await this.render();
-        this.bindEvents();
-      } catch (error) {
-        console.error('Fehler beim Verknüpfen:', error);
-        window.toastSystem?.show(error.message || 'Fehler beim Verknüpfen', 'error');
-        confirmBtn.disabled = false;
-      }
-    });
+      confirmBtn.addEventListener('click', async () => {
+        if (!select.value) return;
+        confirmBtn.disabled = true;
+        try {
+          await strategieService.linkCasting(select.value, this.listeId);
+          window.toastSystem?.show('Konzept verknüpft', 'success');
+          this.liste = await creatorAuswahlService.getListeById(this.listeId);
+          finish(true);
+        } catch (error) {
+          console.error('Fehler beim Verknüpfen:', error);
+          window.toastSystem?.show(error.message || 'Fehler beim Verknüpfen', 'error');
+          confirmBtn.disabled = false;
+        }
+      });
 
-    document.body.appendChild(overlay);
-    document.body.appendChild(panel);
-    requestAnimationFrame(() => {
-      overlay.classList.add('active');
-      panel.classList.add('show');
+      document.body.appendChild(overlay);
+      document.body.appendChild(panel);
+      requestAnimationFrame(() => {
+        overlay.classList.add('active');
+        panel.classList.add('show');
+      });
     });
   }
 
   /**
    * Creator-zuerst: legt eine Videoidee im verknuepften Konzept an, schon
-   * diesem Casting-Eintrag zugeordnet. Nur bei Zusage/Gebucht und nur, wenn
-   * das Casting mit einem Konzept verknuepft ist.
+   * diesem Casting-Eintrag zugeordnet. Nur bei Zusage/Gebucht. Fehlt das
+   * Paar, oeffnet der Picker zuerst denselben Drawer wie „Konzept verknüpfen“.
    */
   async handleCreateVideoidee(itemId) {
     const item = this.items.find(i => i.id === itemId);
     if (!item) return;
 
-    if (!this.liste?.strategie_id) {
-      window.toastSystem?.show('Dieses Casting ist mit keinem Konzept verknüpft', 'warning');
-      return;
-    }
     if (!item.zusage && !item.gebucht) {
       window.toastSystem?.show('Nur Einträge mit Status Zusage oder Gebucht können einer Videoidee zugeordnet werden', 'warning');
       return;
+    }
+
+    if (!this.liste?.strategie_id) {
+      const linked = await this.showKonzeptPicker();
+      if (!linked || !this.liste?.strategie_id) return;
     }
 
     try {

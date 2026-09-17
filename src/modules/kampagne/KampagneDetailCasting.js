@@ -11,8 +11,8 @@ import { KampagneUtils } from './KampagneUtils.js';
 
 const esc = (t) => window.validatorSystem?.sanitizeHtml(String(t ?? '')) || '';
 
-function getCastingChrome() {
-  return document.getElementById('kampagne-casting-chrome');
+function getCastingTools() {
+  return document.getElementById('kampagne-casting-tools');
 }
 
 export function unmountCastingWorksheet(detail) {
@@ -20,8 +20,8 @@ export function unmountCastingWorksheet(detail) {
     detail.castingWorksheet.destroy();
     detail.castingWorksheet = null;
   }
-  const chrome = getCastingChrome();
-  if (chrome) chrome.innerHTML = '';
+  const tools = getCastingTools();
+  if (tools) tools.innerHTML = '';
   closeCreateDrawer();
 }
 
@@ -35,9 +35,9 @@ export async function mountCastingPane(detail) {
     const listen = await creatorAuswahlService.getListenByKampagneId(detail.kampagneId);
     if (!pane.isConnected) return;
     detail._castingListen = listen;
+    detail.sourcingListenCount = listen.length;
 
     if (!listen.length) {
-      fillEmptyCastingChrome(detail);
       pane.innerHTML = renderEmptyCasting();
       return;
     }
@@ -75,16 +75,6 @@ function renderEmptyCasting() {
     title: 'Keine Casting-Liste',
     text: 'Für diese Kampagne wurde noch keine Casting-Liste angelegt.'
   });
-}
-
-function fillEmptyCastingChrome(detail) {
-  const chrome = getCastingChrome();
-  if (!chrome) return;
-  const canCreate = window.canCreate?.('sourcing') ?? false;
-  chrome.innerHTML = canCreate
-    ? '<button type="button" class="mdc-btn" data-casting-create>Casting anlegen</button>'
-    : '';
-  chrome.querySelector('[data-casting-create]')?.addEventListener('click', () => openCreateDrawer(detail));
 }
 
 function renderCastingShell(listen, selectedId) {
@@ -125,12 +115,13 @@ async function mountWorksheet(detail, root, listeId) {
   detail.castingWorksheet = new CreatorAuswahlDetail();
   await detail.castingWorksheet.init(listeId, {
     root,
-    chromeRoot: getCastingChrome(),
+    chromeRoot: getCastingTools(),
     embedded: true
   });
 }
 
-function openCreateDrawer(detail) {
+export function openCastingCreateDrawer(detail, options = {}) {
+  if ((detail._castingListen?.length || detail.sourcingListenCount || 0) > 0) return;
   closeCreateDrawer();
 
   const overlay = document.createElement('div');
@@ -180,7 +171,7 @@ function openCreateDrawer(detail) {
 
     form.onsubmit = async (e) => {
       e.preventDefault();
-      await handleCreateSubmit(detail, form);
+      await handleCreateSubmit(detail, form, options);
     };
 
     const cancelBtn = form.querySelector('.mdc-btn--cancel');
@@ -212,7 +203,7 @@ async function prefillCampaignFields(form, detail) {
   form.querySelector('#unternehmen_id')?.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
-async function handleCreateSubmit(detail, form) {
+async function handleCreateSubmit(detail, form, options = {}) {
   try {
     const submitData = window.formSystem.collectSubmitData(form);
     applySpaltenPreset(submitData);
@@ -238,6 +229,7 @@ async function handleCreateSubmit(detail, form) {
     closeCreateDrawer();
     detail._castingSelectedListeId = newListe.id;
     await remountCastingPane(detail);
+    if (typeof options.onCreated === 'function') await options.onCreated();
   } catch (error) {
     console.error('❌ Fehler beim Erstellen der Casting-Liste:', error);
     window.toastSystem?.show(`Fehler beim Erstellen: ${error.message}`, 'error');

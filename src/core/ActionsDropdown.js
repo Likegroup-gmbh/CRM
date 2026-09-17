@@ -306,9 +306,11 @@ export class ActionsDropdown {
         'remove-zuordnung', 'add-to-video', 'unlink-from-video',
         'edit-item', 'delete-item',
         'activate-vorschlag', 'discard-vorschlag',
-        'toggle-skript-freigabe', 'reprocess-item', 'connect-creator'
+        'toggle-skript-freigabe', 'reprocess-item', 'connect-creator',
+        'create-videoidee', 'connect-videoidee'
       ];
       if (customActions.includes(action) || !this.isKnownGlobalAction(action)) {
+        e.preventDefault();
         this.closeAllDropdowns();
         return;
       }

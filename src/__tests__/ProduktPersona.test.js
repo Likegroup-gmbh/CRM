@@ -20,7 +20,9 @@ vi.mock('../modules/persona/PersonaService.js', () => ({
   PersonaService: {
     create: vi.fn(async () => ({ id: 'persona-neu-1' })),
     saveMarken: vi.fn(async () => {}),
-    remove: vi.fn(async () => {})
+    remove: vi.fn(async () => {}),
+    loadOne: vi.fn(async () => ({ id: 'persona-neu-1', name: 'Lena' })),
+    loadAudienceSituations: vi.fn(async () => [])
   }
 }));
 
@@ -165,13 +167,11 @@ describe('validateVorschlaege (Quality-Mix)', () => {
     expect(out.vorschlaege).toHaveLength(1);
   });
 
-  it('sanitizePersonaPayload laesst nur bekannte Persona-Felder durch', () => {
-    const sauber = sanitizePersonaPayload({ name: 'Lena', marke_ids: ['m1'], _meta: 1, beruf: ' Pflegerin ' });
+  it('sanitizePersonaPayload laesst kontext fallen', () => {
+    const sauber = sanitizePersonaPayload({ name: 'Lena', kontext: 'Alltag', beruf: ' Pflegerin ' });
+    expect(sauber.kontext).toBeUndefined();
     expect(sauber.name).toBe('Lena');
     expect(sauber.beruf).toBe('Pflegerin');
-    expect(sauber.marke_ids).toBeUndefined();
-    expect(sauber._meta).toBeUndefined();
-    expect(sauber.alter_von).toBeNull();
   });
 
   it('sanitizePersonaPayload clampt budgetrahmen auf niedrig/mittel/hoch', () => {
@@ -423,6 +423,7 @@ describe('ProduktPersonaService Accept/Unlink', () => {
     expect(out.useCases[0].id).toBe('uc-real');
     expect(out.karten[0].id).toBe('v-1');
     expect(out.karten[0].persisted.status).toBe('accepted');
+    expect(out.neuAkzeptiert).toEqual(['persona-neu-1']);
 
     // deleted-Row fuer die verworfene Match-ID
     const deletedInsert = window.supabase.chains.find(c =>

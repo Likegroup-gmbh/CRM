@@ -192,7 +192,9 @@ export class KampagneDetail {
       selectedStatuses: this.store?.selectedStatuses || [],
       selectedTags: this.store?.selectedTags || [],
       kooperationSort: this.store?.kooperationSort || 'created_desc',
-      activeWorkflow: this.activeWorkflowTab
+      activeWorkflow: this.activeWorkflowTab,
+      strategien: this.strategien,
+      sourcingListenCount: this.sourcingListenCount
     });
 
     window.setContentSafely(window.content, html);

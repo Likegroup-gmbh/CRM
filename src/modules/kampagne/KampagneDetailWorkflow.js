@@ -24,6 +24,7 @@ import { showEditItemDrawer } from '../strategie/StrategieDetailEditDrawer.js';
 import { AddToVideoDrawer } from '../strategie/AddToVideoDrawer.js';
 import { handleReprocessItem } from '../strategie/StrategieDetailTableEvents.js';
 import { mountCastingPane, unmountCastingWorksheet } from './KampagneDetailCasting.js';
+import { syncWorkflowCreateChrome } from './KampagneWorkflowCreate.js';
 
 export const WORKFLOW_TABS = [
   { id: 'briefing', label: 'Briefing' },
@@ -148,6 +149,7 @@ export async function loadWorkflowPane(detail, tabId) {
     if (detail._workflowLoaded.casting) return;
     await mountCastingPane(detail);
     detail._workflowLoaded.casting = true;
+    syncWorkflowCreateChrome(detail, 'casting');
     return;
   }
 
@@ -444,6 +446,15 @@ async function renderKonzeptePane(detail) {
   const items = await getWorkflowData(detail, 'konzepte', () => loadKonzeptItems(detail));
 
   if (!items.length) {
+    const konzept = (detail.strategien || [])[0];
+    if (konzept?.id) {
+      return renderEmptyState({
+        icon: 'clipboard',
+        title: 'Keine Videoideen vorhanden',
+        text: 'Das Konzept hat noch keine Videoideen.',
+        actionsHtml: `<a href="/konzepte/${esc(konzept.id)}" class="mdc-btn table-link" data-table="strategie" data-id="${esc(konzept.id)}">Konzept öffnen</a>`
+      });
+    }
     return renderEmptyState({
       icon: 'clipboard',
       title: 'Keine Videoideen vorhanden',

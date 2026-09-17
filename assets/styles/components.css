@@ -570,7 +570,13 @@ h3.section-title,
   display: flex;
 }
 
-#kampagne-casting-chrome #casting-vorschlag-block {
+#kampagne-casting-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+#kampagne-casting-tools #casting-vorschlag-block {
   display: inline-flex;
   align-items: center;
 }

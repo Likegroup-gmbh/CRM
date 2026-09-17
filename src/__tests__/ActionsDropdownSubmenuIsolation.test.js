@@ -218,4 +218,24 @@ describe('ActionsDropdown – .submenu-item Isolation', () => {
 
     document.removeEventListener('click', lateSpy);
   });
+
+  it('verhindert href=# Default bei Custom-Actions bevor das Portal entfernt wird', () => {
+    document.body.innerHTML = `
+      <div class="actions-dropdown-container" data-entity-type="strategie_item">
+        <div class="actions-dropdown">
+          <a href="#" class="action-item" data-action="connect-creator" data-id="i1">Creator verbinden</a>
+        </div>
+      </div>`;
+
+    dd = new ActionsDropdown();
+    dd.handleAction = vi.fn();
+    dd.bindGlobalEvents();
+
+    const link = document.querySelector('.action-item[data-action="connect-creator"]');
+    const evt = new MouseEvent('click', { bubbles: true, cancelable: true });
+    link.dispatchEvent(evt);
+
+    expect(evt.defaultPrevented).toBe(true);
+    expect(dd.handleAction).not.toHaveBeenCalled();
+  });
 });

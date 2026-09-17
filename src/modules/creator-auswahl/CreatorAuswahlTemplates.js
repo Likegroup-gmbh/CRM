@@ -1193,7 +1193,7 @@ export function renderItemRow(ctx, item, index) {
                   Verwerfen
                 </a>
               ` : `
-              ${ctx.canCreate && (item.zusage || item.gebucht) && ctx.liste?.strategie_id ? `
+              ${ctx.canCreate && (item.zusage || item.gebucht) ? `
                 <a href="#" class="action-item" data-action="create-videoidee" data-id="${item.id}">
                   ${icon('light-bulb')}
                   Videoidee anlegen

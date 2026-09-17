@@ -4,6 +4,7 @@
 
 const { fmtSection, fmtVarianten, produktPreis, videoLaengeHinweis, kuerzeTranskript, cap, KONTEXT_MAX } = require('./formatter');
 const { fmtCampaignBriefing } = require('./briefing-felder');
+const { fmtAudienceSituations } = require('../audience-situation');
 
 /**
  * Referenzvideo-Sektion fuer den Prompt. Die Vorlage liefert die kreative
@@ -96,7 +97,7 @@ function buildKontextText(ctx, params) {
     budgetrahmen: ctx.persona.budgetrahmen,
     bildungsstand: ctx.persona.bildungsstand,
     lebenssituation: cap(ctx.persona.lebenssituation, KONTEXT_MAX.beschreibung),
-    lebensrealitaet: cap(ctx.persona.kontext, KONTEXT_MAX.beschreibung),
+    'Audience Situations': fmtAudienceSituations(ctx.persona.audience_situations, KONTEXT_MAX.beschreibung),
     pain_points: cap(ctx.persona.pain_points, KONTEXT_MAX.beschreibung),
     interessen: cap(ctx.persona.interessen, KONTEXT_MAX.beschreibung),
     beduerfnisse: cap(ctx.persona.beduerfnisse, KONTEXT_MAX.beschreibung),

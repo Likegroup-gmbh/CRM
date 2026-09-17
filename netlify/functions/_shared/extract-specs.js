@@ -201,6 +201,148 @@ const SPECS = {
         hint: 'Pflichtangaben, Disclaimer oder Kennzeichnungspflichten von der Seite, z.B. "Nahrungsergaenzungsmittel sind kein Ersatz fuer eine ausgewogene Ernaehrung", Altersfreigaben, Warnhinweise. Im Wortlaut der Seite.'
       }
     ]
+  },
+
+  // Persona: typischer Mensch / Empfaenger, nicht das Produkt. Fast alles
+  // ABGELEITET, weil Shop- und Markenseiten die Zielperson selten beim Namen
+  // nennen. Sonnet, weil hier interpretiert werden muss.
+  persona: {
+    followLinks: [],
+    logo: false,
+    audienceSituations: true,
+    model: 'persona',
+    maxTokens: 4000,
+    preamble: 'Du beschreibst den TYP MENSCH, den diese Seite anspricht oder den sie als Persona ausformuliert. Nicht das Produkt, nicht die Firma. Die meisten Felder sind ABGELEITET: nur fuellen, wenn die Seite eine nachvollziehbare Grundlage hergibt (Ansprache, Benefits, Testimonials, About, Zielgruppen-Text). Keine Fantasie-Biografie.',
+    fields: [
+      {
+        name: 'name',
+        label: 'Name / Kurzcharakter',
+        kind: 'guess',
+        hint: 'Ein Vorname, der zu dieser Persona passt, z.B. "Sarah". Kein Firmenname, kein Produktname. Wenn die Seite eine konkrete Person beschreibt, deren Vornamen nehmen.'
+      },
+      {
+        name: 'oberbegriff',
+        label: 'Oberbegriff',
+        kind: 'guess',
+        hint: 'Kurze Kategorie zur Zuordnung, z.B. "Sparsame Studentin", "Berufstaetige Mutter". Kein Satz, kein Produktbezug.'
+      },
+      {
+        name: 'alter_von',
+        label: 'Alter von',
+        kind: 'guess',
+        type: 'number',
+        hint: 'Untere Grenze des Alters als ganze Zahl. Nur wenn die Seite eine Spanne oder ein typisches Alter hergibt.'
+      },
+      {
+        name: 'alter_bis',
+        label: 'Alter bis',
+        kind: 'guess',
+        type: 'number',
+        hint: 'Obere Grenze des Alters als ganze Zahl. Bei einem einzelnen typischen Alter denselben Wert wie alter_von.'
+      },
+      {
+        name: 'geschlecht',
+        label: 'Geschlecht',
+        kind: 'guess',
+        hint: 'Genau einer der Werte: "Weiblich", "Männlich", "Divers", "Gemischt". "Gemischt" wenn die Ansprache beide umfasst. Sonst null.'
+      },
+      {
+        name: 'wohnort_region',
+        label: 'Wohnort / Region',
+        kind: 'guess',
+        hint: 'Typische Region, z.B. "Grossstadt Sueddeutschland". Nur wenn die Seite das hergibt, sonst null.'
+      },
+      {
+        name: 'beruf',
+        label: 'Beruf',
+        kind: 'guess',
+        hint: 'Typischer Beruf oder Taetigkeit, z.B. "Pflegefachkraft", "Studentin BWL".'
+      },
+      {
+        name: 'budgetrahmen',
+        label: 'Budgetrahmen',
+        kind: 'guess',
+        hint: 'Genau einer der Werte: "niedrig", "mittel", "hoch". Aus Preisniveau und Ansprache ableiten.'
+      },
+      {
+        name: 'bildungsstand',
+        label: 'Bildungsstand',
+        kind: 'guess',
+        hint: 'z.B. "Abitur", "Studium", "Ausbildung". Nur bei klarer Grundlage.'
+      },
+      {
+        name: 'lebenssituation',
+        label: 'Lebenssituation',
+        kind: 'guess',
+        hint: 'Genau einer der Werte: "Single", "Familie", "Paar ohne Kinder", "Alleinerziehend", "Student/in", "Rentner/in", "Mensch mit Behinderung", "WG / Wohngemeinschaft".'
+      },
+      {
+        name: 'pain_points',
+        label: 'Pain-Points / Probleme',
+        kind: 'guess',
+        hint: 'Konkrete Probleme aus Sicht dieser Person. Ein Punkt pro Zeile, maximal fuenf. Keine Produktvorteile.'
+      },
+      {
+        name: 'interessen',
+        label: 'Interessen',
+        kind: 'guess',
+        hint: 'Hobbys, Themen, Communities. Ein Eintrag pro Zeile, maximal fuenf.'
+      },
+      {
+        name: 'beduerfnisse',
+        label: 'Beduerfnisse',
+        kind: 'guess',
+        hint: 'Was diese Person wirklich braucht. Ein Punkt pro Zeile, maximal fuenf.'
+      },
+      {
+        name: 'kaufmotive',
+        label: 'Kaufmotive',
+        kind: 'guess',
+        hint: 'Was eine Kaufentscheidung ausloest. Ein Motiv pro Zeile, maximal fuenf.'
+      },
+      {
+        name: 'einwaende',
+        label: 'Einwaende',
+        kind: 'guess',
+        hint: 'Zweifel und Bedenken vor dem Kauf. Ein Punkt pro Zeile, maximal fuenf.'
+      },
+      {
+        name: 'produkt_loesung',
+        label: 'Was loest das Produkt fuer sie/ihn?',
+        kind: 'guess',
+        hint: 'Nur fuellen, wenn die Seite ein konkretes Angebot beschreibt. Welches Problem verschwindet fuer DIESE Person. Sonst null.'
+      },
+      {
+        name: 'produktvorteile',
+        label: 'Relevante Produktvorteile',
+        kind: 'guess',
+        hint: 'Nur fuellen, wenn die Seite ein Angebot beschreibt. Vorteile, die fuer diesen Typ Mensch zaehlen. Ein Vorteil pro Zeile. Sonst null.'
+      },
+      {
+        name: 'tonalitaet',
+        label: 'Tonalitaet der Ansprache',
+        kind: 'guess',
+        hint: 'Wie man diese Person anspricht, z.B. "du, warm, augenzwinkernd". Aus der Tonalitaet der Seite ableiten.'
+      },
+      {
+        name: 'plattformen',
+        label: 'Relevante Plattformen',
+        kind: 'guess',
+        hint: 'Wo diese Person unterwegs ist. Ein Eintrag pro Zeile, z.B. "TikTok", "Instagram Reels".'
+      },
+      {
+        name: 'content_praeferenzen',
+        label: 'Content-Praeferenzen',
+        kind: 'guess',
+        hint: 'Welche Formate funktionieren. Ein Eintrag pro Zeile, z.B. "kurze Hooks", "Vorher-Nachher".'
+      },
+      {
+        name: 'beschreibung',
+        label: 'Beschreibung (frei)',
+        kind: 'guess',
+        hint: 'Zwei bis vier Saetze, wer diese Person ist. Sachlich, keine Werbesprache. Nur was die Seite hergibt.'
+      }
+    ]
   }
 };
 
@@ -214,6 +356,10 @@ VOLLSTAENDIGKEIT IST HIER DAS WICHTIGSTE:
 - "preis" nur setzen, wenn er von der Preisspanne der Kollektion abweicht. "uvp" nur, wenn fuer diese Variante ein Streichpreis genannt wird.
 
 Nur echte Varianten desselben Produkts aufnehmen - keine Mengenrabatte, keine Zubehoer-Empfehlungen, keine "Kunden kauften auch". Auf einer Sortiments- oder Kategorieseite sind die sichtbaren Produktlinien die Varianten. Bei einer Dienstleistung sind es die Tarif- oder Paketstufen. Wenn die Seite nichts dergleichen anbietet: leeres Array.`;
+
+const AUDIENCE_SITUATIONS_INSTRUCTION = `Zusaetzlich das Feld "_audience_situations": Array mit 2 bis 4 Audience Situations dieser Persona. Jeder Eintrag: { "name": <kurzer Titel, z.B. "morgens unter Zeitdruck">, "beschreibung": <ein bis zwei Saetze: wann und warum sie in diesem Moment empfänglich ist, oder null> }.
+
+Audience Situations sind konkrete Lebensmomente der PERSON, keine Einsatzsituationen eines Produkts und keine Demografie. Namen kurz und konkret, keine Produktnamen. QUALITAET VOR QUANTITAET, Ziel 3, distinkt. Wenn die Seite dafuer nichts hergibt: leeres Array.`;
 
 const SELBSTAUSKUNFT_INSTRUCTION = `Zusaetzlich diese zwei Meta-Felder, die nur der Diagnose dienen und nicht ins Formular wandern:
 - "_seitentyp": eines von "produktseite", "sortiment", "dienstleistung", "unternehmensseite", "blockiert" - was die Seite deiner Einschaetzung nach tatsaechlich ist.
@@ -267,11 +413,14 @@ function hasSpec(entityType) {
  * ein formales Schema, und die Hints stehen direkt am Feld.
  */
 function buildFieldInstructions(spec) {
-  const lines = spec.fields.map((f) => {
+  const lines = [];
+  if (spec.preamble) lines.push(spec.preamble, '');
+  for (const f of spec.fields) {
     const art = f.kind === 'fact' ? 'BELEGBAR' : 'ABGELEITET';
-    return `- "${f.name}" (${f.label}, ${art}): ${f.hint}`;
-  });
+    lines.push(`- "${f.name}" (${f.label}, ${art}): ${f.hint}`);
+  }
   if (spec.varianten) lines.push('', VARIANTEN_INSTRUCTION);
+  if (spec.audienceSituations) lines.push('', AUDIENCE_SITUATIONS_INSTRUCTION);
   if (spec.seitentyp) lines.push('', SELBSTAUSKUNFT_INSTRUCTION);
   return lines.join('\n');
 }

@@ -30,13 +30,23 @@ _Avoid_: Report, News, Update-Post, Release-Notes
 
 **Persona**:
 Typ Mensch auf Unternehmensebene, optional mehreren Marken und Produkten zugeordnet.
+Hat Audience Situations als Bestandteil, keine eigene Prozessstufe.
 Der produkt-spezifische Fit (warum, welche Use Cases) sitzt nicht an der Persona, sondern an der Zuordnung.
 _Avoid_: Zielgruppe, Buyer-Persona, Kunde
+
+**Audience Situation**:
+Bestandteil einer Persona. Konkreter Moment, in dem diese Persona empfänglich sein kann.
+Wiederverwendet über die Persona, nicht pro Produkt.
+_Avoid_: Situation, Einsatzsituation, Use Case, Lebenssituation, Setting, Kontext
 
 **Produkt**:
 Angebot eines Unternehmens, optional mehreren Marken zugeordnet.
 Personas hängen über die Zuordnung, nicht als Eigentum des Produkts.
 _Avoid_: Artikel, SKU, Offer
+
+**Use Case**:
+Benannte Einsatzsituation eines Produkts. Sitzt am Produkt, nicht an der Persona.
+_Avoid_: Audience Situation, Situation
 
 **Liky**:
 Der KI-Assistent. Liest Shop-URLs und Kundenbriefings aus, schlägt Personas, Creator für ein Casting und Videoideen für ein Konzept vor und schreibt im Skript-Editor.

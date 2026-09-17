@@ -15,11 +15,16 @@ export const LIKY_CAPABILITIES = {
   unternehmen: { extract: 'url', chat: false, specFrom: 'server' },
   marke: { extract: 'url', chat: false, specFrom: 'server' },
   produkt: { extract: 'url', chat: false, specFrom: 'server' },
+  persona: { extract: 'url', chat: true, specFrom: 'server' },
   briefing: { extract: 'pdf', chat: true, specFrom: 'fieldConfig' }
 };
 
 export function likyCapability(entity) {
   return LIKY_CAPABILITIES[entity] || null;
+}
+
+export function likyCanExtractUrl(entity) {
+  return likyCapability(entity)?.extract === 'url';
 }
 
 export function likyCanExtractPdf(entity) {

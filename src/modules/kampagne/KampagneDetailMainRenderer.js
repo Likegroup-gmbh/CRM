@@ -9,6 +9,7 @@ import { SearchInput } from '../../core/components/SearchInput.js';
 import { renderToolbarMenu, renderToolbarMenuItem } from '../../core/components/ToolbarMenu.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { renderWorkflowTabBar, renderWorkflowPanes, DEFAULT_WORKFLOW_TAB } from './KampagneDetailWorkflow.js';
+import { renderWorkflowCreateChrome } from './KampagneWorkflowCreate.js';
 
 const SHARE_ICON = `
   <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 256 256">
@@ -55,11 +56,6 @@ function escapeAttr(str) {
 
 function sanitize(str) {
   return window.validatorSystem?.sanitizeHtml(String(str)) || '';
-}
-
-function renderCreateChrome(permission, url, label) {
-  if (!(window.canCreate?.(permission) ?? false)) return '';
-  return `<button type="button" class="mdc-btn" data-workflow-nav="${escapeAttr(url)}">${sanitize(label)}</button>`;
 }
 
 // Multi-Select-Submenu (Status/Tags) im Sourcing-Pattern: Hover oeffnet das
@@ -157,7 +153,9 @@ export function renderMainPage(state) {
     availableStatuses = [], availableTags = [], selectedStatuses = [], selectedTags = [],
     kooperationSort = 'created_desc',
     kooperationen = [], videos = [],
-    activeWorkflow = DEFAULT_WORKFLOW_TAB
+    activeWorkflow = DEFAULT_WORKFLOW_TAB,
+    strategien = [],
+    sourcingListenCount = 0
   } = state;
 
   const canCreateKooperation = window.canCreate?.('kooperation') ?? false;
@@ -185,10 +183,7 @@ export function renderMainPage(state) {
   `;
   const hasToolbarItems = toolbarItemsHtml.trim().length > 0;
 
-  const unternehmenId = kampagneData?.unternehmen_id || '';
-  const markeId = kampagneData?.marke_id || '';
-  const briefingCreateUrl = `/briefing/new?unternehmen=${encodeURIComponent(unternehmenId)}&marke=${encodeURIComponent(markeId)}`;
-  const vertragCreateUrl = `/vertraege/new?unternehmen=${encodeURIComponent(unternehmenId)}`;
+  const createCtx = { strategien, sourcingListenCount };
 
   return `
     ${renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, videoStats, kskUmgebucht, { kooperationen, videos, isKunde })}
@@ -221,17 +216,19 @@ export function renderMainPage(state) {
             </div>
           </div>
           <div class="kampagne-tab-chrome" data-chrome="briefing">
-            ${renderCreateChrome('briefing', briefingCreateUrl, 'Briefing anlegen')}
+            ${renderWorkflowCreateChrome('briefing', createCtx)}
           </div>
-          <div class="kampagne-tab-chrome" data-chrome="casting" id="kampagne-casting-chrome"></div>
+          <div class="kampagne-tab-chrome" data-chrome="casting">
+            ${renderWorkflowCreateChrome('casting', createCtx)}
+          </div>
           <div class="kampagne-tab-chrome" data-chrome="konzepte">
-            ${renderCreateChrome('strategie', '/konzepte', 'Konzept anlegen')}
+            ${renderWorkflowCreateChrome('konzepte', createCtx)}
           </div>
           <div class="kampagne-tab-chrome" data-chrome="skripte">
-            ${renderCreateChrome('skripte', '/skripte', 'Skript anlegen')}
+            ${renderWorkflowCreateChrome('skripte', createCtx)}
           </div>
           <div class="kampagne-tab-chrome" data-chrome="vertraege">
-            ${renderCreateChrome('vertraege', vertragCreateUrl, 'Vertrag anlegen')}
+            ${renderWorkflowCreateChrome('vertraege', createCtx)}
           </div>
         </div>
       </div>

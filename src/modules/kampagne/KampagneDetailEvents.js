@@ -9,6 +9,7 @@ import {
   handleKonzeptPaneAction
 } from './KampagneDetailWorkflow.js';
 import { navigateToNewKooperationFromKampagne } from '../kooperation/kooperationFromKampagne.js';
+import { handleWorkflowCreate } from './KampagneWorkflowCreate.js';
 import { VideoTableColumnVisibilityDrawer } from './VideoTableColumnVisibilityDrawer.js';
 import { CustomColumnsDrawer } from './columns/CustomColumnsDrawer.js';
 import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
@@ -192,12 +193,13 @@ export function setupEvents(detail) {
     detail.switchWorkflowTab(btn.dataset.workflowTab);
   }, { signal });
 
-  // Workflow-Panes: CTAs (data-workflow-nav) + Zeilen-Links
+  // Workflow-Panes: Create-CTAs (data-create-action) + Zeilen-Links
   document.addEventListener('click', (e) => {
-    const navBtn = e.target.closest('[data-workflow-nav]');
-    if (navBtn) {
+    const createBtn = e.target.closest('.kampagne-tab-chrome [data-create-action]');
+    if (createBtn) {
       e.preventDefault();
-      window.navigateTo(navBtn.dataset.workflowNav);
+      if (createBtn.disabled || createBtn.getAttribute('aria-disabled') === 'true') return;
+      handleWorkflowCreate(detail, createBtn.dataset.createAction);
       return;
     }
 
@@ -231,10 +233,13 @@ export function setupEvents(detail) {
   }, { signal });
 
   document.addEventListener('click', (e) => {
-    const pane = e.target.closest('#workflow-pane-konzepte');
-    if (!pane) return;
     const actionItem = e.target.closest('[data-action]');
-    if (!actionItem?.closest('[data-entity-type="strategie_item"]')) return;
+    if (!actionItem) return;
+    // Portal hängt an body, nicht im Pane — sonst stirbt Creator verbinden an href=#.
+    const fromPane = !!actionItem.closest('#workflow-pane-konzepte [data-entity-type="strategie_item"]');
+    const portal = actionItem.closest('.actions-dropdown-portal');
+    const fromPortal = portal?.dataset?.entityType === 'strategie_item';
+    if (!fromPane && !fromPortal) return;
     e.preventDefault();
     handleKonzeptPaneAction(detail, actionItem);
   }, { signal });
