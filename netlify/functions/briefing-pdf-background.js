@@ -89,7 +89,8 @@ function buildExtractPrompt({ spec, unternehmenName, markeName, produkte }) {
   if (unternehmenName) task += `Unternehmen: ${unternehmenName}\n`;
   if (markeName) task += `Marke: ${markeName}\n`;
   if (produkte?.length) {
-    task += `Bekannte Produkte: ${produkte.map((p) => p.name).join(', ')}\n`;
+    task += 'Bekannte Produkte (id + name; produkt_id nur aus dieser Liste):\n'
+      + JSON.stringify(produkte.map((p) => ({ id: p.id, name: p.name }))) + '\n';
   }
 
   task += '\n# SPEC\n' + JSON.stringify(spec, null, 2) + '\n\n';
@@ -109,9 +110,43 @@ function buildExtractPrompt({ spec, unternehmenName, markeName, produkte }) {
     + 'Keine zusaetzlichen Keys wie "anzahl" oder "vorgaben" in channelGroup-Werten.\n'
     + '- missing: Pflichtfelder, die leer bleiben (z.B. aktivierung_name).\n'
     + '- unternehmen_hint: Name aus dem PDF, passt = ob er zum gewaehlten Unternehmen passt.\n'
-    + '- produkte_hint: Produktnamen aus dem PDF, produkt_id wenn bekannt, sonst null.\n';
+    + '- produkte_hint: Produktnamen aus dem PDF. produkt_id NUR eine id aus '
+    + 'Bekannte Produkte, sonst null. Keine UUID erfinden.\n';
 
   return { stable, task };
+}
+
+function normalizeProduktName(name) {
+  return String(name || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+// Spiegel von src/modules/briefing/create/produktHint.js - Claude liefert
+// IDs unzuverlaessig, deshalb serverseitig gegen den Katalog matchen.
+function resolveProduktHints(hints, katalog) {
+  const list = (katalog || []).filter((p) => p?.id);
+  const byId = new Map(list.map((p) => [String(p.id), p]));
+  return (hints || []).map((hint) => {
+    const name = String(hint?.name || '').trim();
+    const given = hint?.produkt_id ? String(hint.produkt_id).trim() : '';
+    if (given && (!list.length || byId.has(given))) {
+      return { name, produkt_id: given };
+    }
+    const key = normalizeProduktName(name);
+    if (!key) return { name, produkt_id: null };
+    const exact = list.filter((p) => normalizeProduktName(p.name) === key);
+    if (exact.length === 1) return { name, produkt_id: exact[0].id };
+    const contained = list.filter((p) => {
+      const k = normalizeProduktName(p.name);
+      return k && (key.includes(k) || k.includes(key));
+    });
+    if (contained.length === 1) return { name, produkt_id: contained[0].id };
+    return { name, produkt_id: null };
+  });
 }
 
 function buildChatPrompt({ spec, history, formData, userText }) {
@@ -267,6 +302,9 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
 
     const json = result.json || extractJson(result.text);
     if (!json) throw new Error('Keine strukturierte Antwort von Claude');
+    if (modus === 'extract' && Array.isArray(json.produkte_hint)) {
+      json.produkte_hint = resolveProduktHints(json.produkte_hint, produkte);
+    }
 
     await job.flushAndUpdate({
       status: 'done',

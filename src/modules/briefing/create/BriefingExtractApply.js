@@ -17,6 +17,7 @@
 // in Textfeldern und die Widgets zeigen leer, obwohl formData voll ist.
 
 import { ExtractReviewLayer } from '../../../core/form/ai/ExtractReviewLayer.js';
+import { resolveProduktHints } from './produktHint.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -270,18 +271,22 @@ export class BriefingExtractApply {
    * Bekannte Produkte aus produkte_hint in produkt_ids schreiben.
    * Entity-Felder sind nicht in der Spec - ohne das landen existierende
    * Produkte nie im Formular. Nur wenn produkt_ids noch leer ist.
-   * @returns {string[]} Labels der geschriebenen Felder
+   * katalog: Produkte des Unternehmens (id + name), falls Claude die UUID
+   * nicht geliefert hat.
+   * @returns {{ applied: string[], hints: Array<{ name: string, produkt_id: string|null }> }}
    */
-  applyProduktHints(hints) {
-    const ids = [...new Set((hints || [])
-      .map((p) => String(p?.produkt_id || '').trim())
+  applyProduktHints(hints, katalog = []) {
+    const resolved = resolveProduktHints(hints, katalog);
+    const ids = [...new Set(resolved
+      .map((p) => String(p.produkt_id || '').trim())
       .filter((id) => UUID_RE.test(id)))];
-    if (!ids.length) return [];
-    if (!this.isEmpty(this.briefing.formData.produkt_ids)) return [];
+    if (!ids.length || !this.isEmpty(this.briefing.formData.produkt_ids)) {
+      return { applied: [], hints: resolved };
+    }
 
     this.briefing.formData.produkt_ids = ids;
     this.aiFill.set('produkt_ids', { from: 'PDF', kind: 'fact' });
-    return ['Produkte'];
+    return { applied: ['Produkte'], hints: resolved };
   }
 
   /** Chat-Patches: duerfen vorhandene Werte aendern (Explizite Steuerung). */

@@ -296,7 +296,12 @@ export class BriefingLikyPanel {
       const result = await this.runJob('extract', { spec, pdfPath: path });
 
       const { applied, skipped } = this.apply.apply(result.fields || {}, spec);
-      applied.push(...this.apply.applyProduktHints(result.produkte_hint));
+      const produkt = this.apply.applyProduktHints(
+        result.produkte_hint,
+        this.briefing.produkte
+      );
+      result.produkte_hint = produkt.hints;
+      applied.push(...produkt.applied);
       this.apply.renderAndMark();
 
       // renderAndMark hat das DOM neu gebaut - frischen Liky-Beitrag oeffnen

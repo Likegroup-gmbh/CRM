@@ -184,30 +184,53 @@ describe('BriefingExtractApply.apply (Extract)', () => {
 describe('BriefingExtractApply.applyProduktHints', () => {
   it('schreibt bekannte Produkt-IDs, wenn produkt_ids leer ist', () => {
     const apply = createApply();
-    const labels = apply.applyProduktHints([
+    const { applied, hints } = apply.applyProduktHints([
       { name: 'IRONCLAD FORCE-FIT Leggings', produkt_id: PRODUKT_ID },
       { name: 'Unbekannt', produkt_id: null }
     ]);
     expect(apply.briefing.formData.produkt_ids).toEqual([PRODUKT_ID]);
-    expect(labels).toEqual(['Produkte']);
+    expect(applied).toEqual(['Produkte']);
+    expect(hints[1].produkt_id).toBeNull();
+  });
+
+  it('matched den PDF-Namen gegen den Katalog, auch ohne UUID', () => {
+    const apply = createApply();
+    const { applied, hints } = apply.applyProduktHints(
+      [{ name: 'IRONCLAD FORCE-FIT Leggings', produkt_id: null }],
+      [{ id: PRODUKT_ID, name: 'IRONCLAD FORCE-FIT Leggings' }]
+    );
+    expect(apply.briefing.formData.produkt_ids).toEqual([PRODUKT_ID]);
+    expect(applied).toEqual(['Produkte']);
+    expect(hints[0].produkt_id).toBe(PRODUKT_ID);
+  });
+
+  it('matched Bindestrich/Grossschreibung und Teilnamen eindeutig', () => {
+    const apply = createApply();
+    const { hints } = apply.applyProduktHints(
+      [{ name: 'IRONCLAD FORCE FIT Leggings' }],
+      [{ id: PRODUKT_ID, name: 'Force-Fit Leggings' }]
+    );
+    expect(hints[0].produkt_id).toBe(PRODUKT_ID);
   });
 
   it('laesst vorhandene produkt_ids stehen', () => {
     const apply = createApply({ produkt_ids: ['aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'] });
-    const labels = apply.applyProduktHints([
+    const { applied } = apply.applyProduktHints([
       { name: 'IRONCLAD FORCE-FIT Leggings', produkt_id: PRODUKT_ID }
     ]);
     expect(apply.briefing.formData.produkt_ids).toEqual(['aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee']);
-    expect(labels).toEqual([]);
+    expect(applied).toEqual([]);
   });
 
   it('schreibt nichts, wenn nur unbekannte Produkte kommen', () => {
     const apply = createApply();
-    const labels = apply.applyProduktHints([
-      { name: 'IRONCLAD FORCE-FIT Leggings', produkt_id: null }
-    ]);
+    const { applied, hints } = apply.applyProduktHints(
+      [{ name: 'IRONCLAD FORCE-FIT Leggings', produkt_id: null }],
+      [{ id: PRODUKT_ID, name: 'Anderes Produkt' }]
+    );
     expect(apply.briefing.formData).not.toHaveProperty('produkt_ids');
-    expect(labels).toEqual([]);
+    expect(applied).toEqual([]);
+    expect(hints[0].produkt_id).toBeNull();
   });
 });
 
