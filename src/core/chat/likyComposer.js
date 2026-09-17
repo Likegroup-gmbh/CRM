@@ -2,10 +2,62 @@
 // Die eine Liky-Eingabekarte fuer alle Seiten: Feld oben, Footer mit Meta
 // links und rundem Absende-Button rechts. renderLikyColumn setzt die Karte
 // an den unteren Rand der Spalte, den Verlauf darueber. Produkt (URL),
-// Persona (bald) und Briefing (PDF) rendern denselben Rahmen, damit Liky
-// ueberall gleich aussieht. Styles: .doc__side .doc-chat__* in doc.css.
+// Persona (URL oder Chat) und Briefing (PDF) rendern denselben Rahmen, damit
+// Liky ueberall gleich aussieht. Styles: .doc__side .doc-chat__* in doc.css.
 
 import { icon } from '../icons/IconSystem.js';
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** Ganze Zeile, Dateiname, endet auf .pdf. */
+export function isLikyPdfName(text) {
+  const t = String(text || '').trim();
+  return t.length > 0 && !/\n/.test(t) && /\.pdf$/i.test(t);
+}
+
+/**
+ * Pill wie die Thinking-Steps: PDF-Icon + Dateiname.
+ * @param {string} name
+ * @param {{ remove?: boolean }} [opts] - ×-Button fuer den Composer-Chip
+ */
+export function likyPdfTagHtml(name, { remove = false } = {}) {
+  const label = escapeHtml(String(name || '').trim());
+  const btn = remove
+    ? '<button type="button" aria-label="Datei entfernen">&times;</button>'
+    : '';
+  return `<span class="doc-chat__file">${icon('pdf', { className: 'doc-chat__file-icon' })}<span class="doc-chat__file-name">${label}</span>${btn}</span>`;
+}
+
+/**
+ * Die eine Chat-Eingabe: Textarea, die umbricht und mitwaechst.
+ * Hosts haengen sie in inputHtml (Briefing mit Chips darueber, Persona blank).
+ * @param {Object} opts
+ * @param {string} opts.id
+ * @param {string} [opts.placeholder]
+ * @param {boolean} [opts.disabled]
+ * @param {string} [opts.extraAttrs] - z.B. 'spellcheck="false"'
+ */
+export function renderLikyEingabe({
+  id,
+  placeholder = '',
+  disabled = false,
+  extraAttrs = ''
+}) {
+  return `
+    <div class="doc-chat__input">
+      <textarea id="${id}" class="doc-chat__eingabe" rows="1"
+                autocomplete="off"${disabled ? ' disabled' : ''}${extraAttrs ? ` ${extraAttrs}` : ''}
+                placeholder="${placeholder}"></textarea>
+    </div>
+  `;
+}
 
 /**
  * @param {Object} opts
@@ -16,7 +68,7 @@ import { icon } from '../icons/IconSystem.js';
  * @param {string} opts.inputHtml - das eigentliche Eingabefeld (Seiten-spezifisch)
  * @param {string} opts.sendHtml - der Absende-Button (siehe renderLikySend)
  * @param {boolean} [opts.metaSlot] - data-extract-meta-slot fuer Kosten-Badges
- * @param {boolean} [opts.disabled] - optisch abgesenkter Slot (Persona)
+ * @param {boolean} [opts.disabled] - optisch abgesenkter Slot
  */
 export function renderLikyComposer({
   composerId = null,
