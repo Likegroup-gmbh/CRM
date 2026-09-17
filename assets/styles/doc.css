@@ -852,6 +852,7 @@
    Feld oben, darunter ein Footer mit den Kosten links und Senden rechts. */
 .doc-chat__composer {
   flex: none;
+  min-width: 0;
   padding: var(--space-sm) var(--space-md);
   border: var(--border-xs) solid var(--border-primary);
   border-radius: var(--radius-xl);
@@ -876,6 +877,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
+  min-width: 0;
   margin: 0;
 }
 
@@ -888,6 +890,7 @@
 /* Die Karte ist der Rahmen, deshalb tritt das Feld selbst komplett zurueck */
 .doc__side .doc-chat__input,
 .doc__side .doc-chat__input:focus-within {
+  min-width: 0;
   border: none;
   border-radius: 0;
   background: transparent;
@@ -895,13 +898,19 @@
 }
 
 .doc__side .doc-chat__input .url-input {
+  min-width: 0;
   padding: 0;
   font-size: var(--text-sm);
 }
 
-/* Schlichte Eingabezeile ohne eigenes Feld-Chrome (Liky-Slot) */
+/* Schlichte Eingabezeile ohne eigenes Feld-Chrome (Liky-Slot).
+   Textarea bricht um und waechst mit (field-sizing), bis max-height. */
 .doc__side .doc-chat__eingabe {
+  display: block;
   width: 100%;
+  min-width: 0;
+  min-height: 1.5em;
+  max-height: 8em;
   padding: 0;
   border: none;
   border-radius: 0;
@@ -909,7 +918,14 @@
   box-shadow: none;
   font-family: inherit;
   font-size: var(--text-sm);
+  line-height: 1.5;
   color: var(--gray-900);
+  resize: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  field-sizing: content;
 }
 
 .doc__side .doc-chat__eingabe:focus {
@@ -1029,6 +1045,45 @@
 }
 
 .doc__side .doc-chat__chip button:hover {
+  color: var(--text-primary);
+}
+
+/* PDF-Anhang im Verlauf und Composer: gleiche Pill wie .chat-thinking__step */
+.doc-chat__file {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  max-width: 100%;
+  padding: var(--space-xxs) var(--space-sm);
+  border-radius: var(--radius-xxl);
+  background: var(--gray-100);
+  color: var(--text-primary);
+  font-size: var(--text-xs);
+}
+
+.doc-chat__file-icon {
+  flex: none;
+  width: var(--text-sm);
+  height: var(--text-sm);
+}
+
+.doc-chat__file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-chat__file button {
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.doc-chat__file button:hover {
   color: var(--text-primary);
 }
 

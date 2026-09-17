@@ -4,11 +4,12 @@
 // Extract lieferte KPIs als { kpi, ziel } und Channels als
 // [{ format, anzahl, vorgaben }] und band deshalb nicht an die Widgets.
 // Fixture = gekuerzte Original-Payloads der Jobs f65c9466 (extract) und
-// ac83eaf3 (chat) vom 17.09.2026.
+// ac83eaf3 (chat) vom 17.09.2026, auf die aktuelle fieldConfig gemappt.
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { BriefingExtractApply, normalizeValue } from '../modules/briefing/create/BriefingExtractApply.js';
-import { getAllFields } from '../modules/briefing/create/fieldConfig.js';
+import { formatExtractResult } from '../modules/briefing/create/BriefingLikyPanel.js';
+import { getAllFields, MAERKTE_OPTIONS } from '../modules/briefing/create/fieldConfig.js';
 
 const SPEC = getAllFields();
 const byName = (name) => SPEC.find((f) => f.name === name);
@@ -18,22 +19,31 @@ function createApply(formData = {}) {
   return new BriefingExtractApply(briefing);
 }
 
-// Gekuerzter Extract aus Job f65c9466 (Shapes wie von Claude geliefert)
+const DATE_FIELD = { name: 'go_live', type: 'date' };
+const BOOLEAN_RADIO = {
+  name: 'zusaetzliche_sprachen',
+  type: 'radio',
+  options: [{ value: 'true', label: 'Ja' }, { value: 'false', label: 'Nein' }]
+};
+const CUSTOM_MULTI = { name: 'maerkte', type: 'customMulti', options: MAERKTE_OPTIONS };
+const KPI_FIELD = {
+  name: 'im_kpis',
+  type: 'repeatableKpi',
+  kpiOptions: [
+    { value: 'views', label: 'Views' },
+    { value: 'engagement_rate', label: 'Engagement Rate' },
+    { value: 'reichweite', label: 'Reichweite' }
+  ]
+};
+
+const PRODUKT_ID = 'f47ac10b-58cc-4372-a567-0e02b2c3d479';
+
+// Gekuerzter Extract aus Job f65c9466, Feldnamen der aktuellen Spec
 const IRONCLAD_EXTRACT = {
   aktivierung_name: { value: 'IRONCLAD FORCE-FIT Leggings — Creator-Kampagne', kind: 'fact', from: 'Seite 1' },
-  ansatz: { value: 'kampagne', kind: 'fact' },
-  zusaetzliche_sprachen: { value: 'false', kind: 'fact' },
-  go_live: { value: '2026-11-17', kind: 'fact' },
-  maerkte: { value: ['deutschland', 'oesterreich', 'schweiz'], kind: 'fact' },
-  im_funnel_stufen: { value: ['upper', 'mid'], kind: 'fact' },
-  im_kpis: {
-    value: [
-      { kpi: 'views', ziel: 'kumuliert 3–5 Mio. Views' },
-      { kpi: 'engagement_rate', ziel: 'Ø ≥ 4 %' }
-    ],
-    kind: 'fact'
-  },
-  im_channels: {
+  veroeffentlichungszeitraum: { value: 'KW 46–48 / Go-Live 17.11.2026', kind: 'fact' },
+  funnel_stufen: { value: ['upper', 'mid'], kind: 'fact' },
+  publish_channels: {
     value: {
       instagram: [
         { format: 'reel', anzahl: '1', vorgaben: '20–35 Sek.' },
@@ -43,10 +53,11 @@ const IRONCLAD_EXTRACT = {
     },
     kind: 'fact'
   },
-  im_creator_merkmale: {
-    value: { alter: '22–38 Jahre', geschlecht: 'Vorrangig weiblich', standort: 'DACH', expertise: '', sonstiges: '' },
+  creator_merkmale: {
+    value: { alter: '22–38 Jahre', geschlecht: 'Vorrangig weiblich', standort: 'DACH' },
     kind: 'fact'
   },
+  aufgabe: { value: 'Creator testen die Leggings im Training.', kind: 'fact' },
   unternehmen_id: { value: 'FORGEWORKS AG', kind: 'fact' },
   assignee_id: { value: 'Mara Vogler', kind: 'fact' }
 };
@@ -54,9 +65,8 @@ const IRONCLAD_EXTRACT = {
 // Gekuerzte Chat-Patches aus Job ac83eaf3 ({ value, kind }-Wrapper)
 const IRONCLAD_CHAT = {
   aktivierung_name: { kind: 'fact', value: 'IRONCLAD FORCE-FIT Leggings Launch Kampagne' },
-  creator_rolle: { kind: 'fact', value: 'Creator testen die Leggings im Training.' },
-  im_kpis: { kind: 'fact', value: [{ kpi: 'reichweite', wert: '2.500.000' }] },
-  im_channels: {
+  aufgabe: { kind: 'fact', value: 'Creator testen die Leggings im Training.' },
+  publish_channels: {
     kind: 'fact',
     value: { instagram: { active: true, formats: ['reel', 'story'], deliverables: '2x Reels' } }
   }
@@ -72,33 +82,30 @@ describe('normalizeValue', () => {
   });
 
   it('Date: deutsches Datum wird ISO', () => {
-    const field = byName('go_live');
-    expect(normalizeValue(field, '2026-11-17')).toBe('2026-11-17');
-    expect(normalizeValue(field, '17.11.2026')).toBe('2026-11-17');
+    expect(normalizeValue(DATE_FIELD, '2026-11-17')).toBe('2026-11-17');
+    expect(normalizeValue(DATE_FIELD, '17.11.2026')).toBe('2026-11-17');
   });
 
   it('Radio: Label und value mappen, Boolean-Radio wird Boolean', () => {
-    expect(normalizeValue(byName('ansatz'), 'kampagne')).toBe('kampagne');
-    expect(normalizeValue(byName('ansatz'), 'Kampagne')).toBe('kampagne');
-    expect(normalizeValue(byName('ansatz'), 'quatsch')).toBeNull();
-    expect(normalizeValue(byName('zusaetzliche_sprachen'), 'false')).toBe(false);
-    expect(normalizeValue(byName('zusaetzliche_sprachen'), true)).toBe(true);
+    expect(normalizeValue(byName('rohmaterial'), 'ja')).toBe('ja');
+    expect(normalizeValue(byName('rohmaterial'), 'Ja')).toBe('ja');
+    expect(normalizeValue(byName('rohmaterial'), 'quatsch')).toBeNull();
+    expect(normalizeValue(BOOLEAN_RADIO, 'false')).toBe(false);
+    expect(normalizeValue(BOOLEAN_RADIO, true)).toBe(true);
   });
 
   it('checkboxes: nur bekannte Option-values', () => {
-    const field = byName('im_funnel_stufen');
+    const field = byName('funnel_stufen');
     expect(normalizeValue(field, ['upper', 'Mid Funnel – Consideration', 'quatsch']))
       .toEqual(['upper', 'mid']);
   });
 
   it('customMulti: unbekannte Werte bleiben als Freitext', () => {
-    const field = byName('maerkte');
-    expect(normalizeValue(field, ['deutschland', 'USA'])).toEqual(['deutschland', 'USA']);
+    expect(normalizeValue(CUSTOM_MULTI, ['deutschland', 'USA'])).toEqual(['deutschland', 'USA']);
   });
 
   it('repeatableKpi: ziel/wert werden zu zielwert', () => {
-    const field = byName('im_kpis');
-    expect(normalizeValue(field, [
+    expect(normalizeValue(KPI_FIELD, [
       { kpi: 'views', ziel: '3–5 Mio.' },
       { kpi: 'Engagement Rate', wert: '4 %' }
     ])).toEqual([
@@ -108,7 +115,7 @@ describe('normalizeValue', () => {
   });
 
   it('channelGroup: format-Objekte werden flach, anzahl/vorgaben fallen weg', () => {
-    const field = byName('im_channels');
+    const field = byName('publish_channels');
     expect(normalizeValue(field, {
       instagram: [
         { format: 'reel', anzahl: '1', vorgaben: '20–35 Sek.' },
@@ -120,23 +127,22 @@ describe('normalizeValue', () => {
   });
 
   it('channelGroup: Chat-Shape { active, formats } wird flach', () => {
-    const field = byName('im_channels');
+    const field = byName('publish_channels');
     expect(normalizeValue(field, {
       instagram: { active: true, formats: ['reel', 'story'], deliverables: '2x Reels' }
     })).toEqual({ instagram: ['reel', 'story'] });
   });
 
   it('group: nur bekannte Subkeys, als Strings', () => {
-    const field = byName('im_creator_merkmale');
+    const field = byName('creator_merkmale');
     expect(normalizeValue(field, { alter: '22–38', quatsch: 'x' }))
-      .toEqual({ alter: '22–38', geschlecht: '', standort: '', expertise: '', sonstiges: '' });
+      .toEqual({ alter: '22–38', geschlecht: '', standort: '' });
   });
 
   it('entitySelect: Namen werden verworfen, UUIDs bleiben', () => {
     const field = byName('unternehmen_id');
     expect(normalizeValue(field, 'FORGEWORKS AG')).toBeNull();
-    expect(normalizeValue(field, 'f47ac10b-58cc-4372-a567-0e02b2c3d479'))
-      .toBe('f47ac10b-58cc-4372-a567-0e02b2c3d479');
+    expect(normalizeValue(field, PRODUKT_ID)).toBe(PRODUKT_ID);
   });
 });
 
@@ -152,18 +158,12 @@ describe('BriefingExtractApply.apply (Extract)', () => {
     const data = apply.briefing.formData;
 
     expect(data.aktivierung_name).toBe('IRONCLAD FORCE-FIT Leggings — Creator-Kampagne');
-    expect(data.ansatz).toBe('kampagne');
-    expect(data.zusaetzliche_sprachen).toBe(false);
-    expect(data.go_live).toBe('2026-11-17');
-    expect(data.maerkte).toEqual(['deutschland', 'oesterreich', 'schweiz']);
-    expect(data.im_funnel_stufen).toEqual(['upper', 'mid']);
-    expect(data.im_kpis).toEqual([
-      { kpi: 'views', zielwert: 'kumuliert 3–5 Mio. Views' },
-      { kpi: 'engagement_rate', zielwert: 'Ø ≥ 4 %' }
-    ]);
-    expect(data.im_channels).toEqual({ instagram: ['reel', 'story'], tiktok: ['video'] });
-    expect(data.im_creator_merkmale.alter).toBe('22–38 Jahre');
-    expect(applied.length).toBeGreaterThan(5);
+    expect(data.veroeffentlichungszeitraum).toBe('KW 46–48 / Go-Live 17.11.2026');
+    expect(data.funnel_stufen).toEqual(['upper', 'mid']);
+    expect(data.publish_channels).toEqual({ instagram: ['reel', 'story'], tiktok: ['video'] });
+    expect(data.creator_merkmale.alter).toBe('22–38 Jahre');
+    expect(data.aufgabe).toBe('Creator testen die Leggings im Training.');
+    expect(applied.length).toBeGreaterThan(4);
   });
 
   it('Entity-Felder mit Namen statt UUIDs werden nicht geschrieben', () => {
@@ -176,8 +176,38 @@ describe('BriefingExtractApply.apply (Extract)', () => {
     apply.briefing.formData.aktivierung_name = 'Eigener Name';
     const { applied, skipped } = apply.apply(IRONCLAD_EXTRACT, SPEC);
     expect(apply.briefing.formData.aktivierung_name).toBe('Eigener Name');
-    expect(skipped).toContain('Wie heisst die Aktivierung?');
-    expect(applied).not.toContain('Wie heisst die Aktivierung?');
+    expect(skipped).toContain('Titel');
+    expect(applied).not.toContain('Titel');
+  });
+});
+
+describe('BriefingExtractApply.applyProduktHints', () => {
+  it('schreibt bekannte Produkt-IDs, wenn produkt_ids leer ist', () => {
+    const apply = createApply();
+    const labels = apply.applyProduktHints([
+      { name: 'IRONCLAD FORCE-FIT Leggings', produkt_id: PRODUKT_ID },
+      { name: 'Unbekannt', produkt_id: null }
+    ]);
+    expect(apply.briefing.formData.produkt_ids).toEqual([PRODUKT_ID]);
+    expect(labels).toEqual(['Produkte']);
+  });
+
+  it('laesst vorhandene produkt_ids stehen', () => {
+    const apply = createApply({ produkt_ids: ['aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'] });
+    const labels = apply.applyProduktHints([
+      { name: 'IRONCLAD FORCE-FIT Leggings', produkt_id: PRODUKT_ID }
+    ]);
+    expect(apply.briefing.formData.produkt_ids).toEqual(['aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee']);
+    expect(labels).toEqual([]);
+  });
+
+  it('schreibt nichts, wenn nur unbekannte Produkte kommen', () => {
+    const apply = createApply();
+    const labels = apply.applyProduktHints([
+      { name: 'IRONCLAD FORCE-FIT Leggings', produkt_id: null }
+    ]);
+    expect(apply.briefing.formData).not.toHaveProperty('produkt_ids');
+    expect(labels).toEqual([]);
   });
 });
 
@@ -188,12 +218,10 @@ describe('BriefingExtractApply.applyPatches (Chat)', () => {
     const data = apply.briefing.formData;
 
     expect(data.aktivierung_name).toBe('IRONCLAD FORCE-FIT Leggings Launch Kampagne');
-    expect(data.creator_rolle).toBe('Creator testen die Leggings im Training.');
-    expect(data.im_kpis).toEqual([{ kpi: 'reichweite', zielwert: '2.500.000' }]);
-    expect(data.im_channels).toEqual({ instagram: ['reel', 'story'] });
-    expect(applied.length).toBe(4);
+    expect(data.aufgabe).toBe('Creator testen die Leggings im Training.');
+    expect(data.publish_channels).toEqual({ instagram: ['reel', 'story'] });
+    expect(applied.length).toBe(3);
 
-    // Kein "[object Object]" mehr moeglich
     for (const value of Object.values(data)) {
       expect(String(typeof value === 'object' ? JSON.stringify(value) : value))
         .not.toContain('[object Object]');
@@ -205,5 +233,38 @@ describe('BriefingExtractApply.applyPatches (Chat)', () => {
     apply.applyPatches(IRONCLAD_CHAT, SPEC);
     expect(apply.briefing.formData.aktivierung_name)
       .toBe('IRONCLAD FORCE-FIT Leggings Launch Kampagne');
+  });
+});
+
+describe('formatExtractResult', () => {
+  it('zeigt keine Orphans, auch wenn der Job sie noch liefert', () => {
+    const text = formatExtractResult({
+      orphans: [
+        { text: 'Agentur-Scope', frage: 'Soll der Agentur-Scope in einem separaten Feld erfasst werden?' },
+        { text: 'Mara Vogler', frage: 'Soll die Kontaktperson Mara Vogler in einem separaten Feld gespeichert werden?' }
+      ]
+    }, ['Titel'], []);
+    expect(text).not.toContain('nicht zuordnen');
+    expect(text).not.toContain('Kontaktperson');
+    expect(text).not.toContain('Agentur-Scope');
+    expect(text).toContain('1 Felder gefüllt');
+  });
+
+  it('nennt unbekannte Produkte, nicht die Rueckfrage dazu', () => {
+    const text = formatExtractResult({
+      orphans: [{ text: 'x', frage: 'Soll ich das Produkt anlegen?' }],
+      produkte_hint: [{ name: 'IRONCLAD FORCE-FIT Leggings', produkt_id: null }]
+    }, [], []);
+    expect(text).toContain('Produkte nicht im CRM: IRONCLAD FORCE-FIT Leggings');
+    expect(text).not.toContain('nicht zuordnen');
+    expect(text).not.toContain('anlegen');
+  });
+
+  it('warnt bei abweichendem Unternehmen', () => {
+    const text = formatExtractResult({
+      unternehmen_hint: { name: 'FORGEWORKS AG', passt: false }
+    }, [], []);
+    expect(text).toContain('FORGEWORKS AG');
+    expect(text).toContain('gewählte Unternehmen bleibt');
   });
 });

@@ -8,12 +8,14 @@
 // (briefing: extract 'pdf', chat true) - nicht in dieser Datei.
 //
 // Ablauf Extract: Drop -> Send -> silent Draft (falls noetig) -> Upload ->
-// Job -> Poll -> Apply (nur leere Felder) -> Rueckfragen als Liky-Turns.
+// Job -> Poll -> Apply (nur leere Felder) -> knapper Ergebnis-Turn.
+// Was nicht in der Spec liegt, wird nicht nachgefragt.
 // Der Verlauf bleibt am Briefing (briefing_chat_messages) und ueberlebt
 // Step-Wechsel ueber das In-Memory-Transcript (renderMultistep baut das
 // DOM bei jedem Step neu).
 
 import { renderThinking, pushStep } from '../../../core/chat/thinking.js';
+import { isLikyPdfName, likyPdfTagHtml } from '../../../core/chat/likyComposer.js';
 import { BriefingExtractApply } from './BriefingExtractApply.js';
 import { getStepsForBereich } from './fieldConfig.js';
 import { likyCanExtractPdf, likyHasChat } from '../../../core/chat/likyCapabilities.js';
@@ -73,6 +75,28 @@ function buildSpec(bereich) {
     }
   }
   return fields;
+}
+
+/**
+ * Liky-Text nach dem Extract. Orphans aus alten Jobs werden bewusst
+ * verschluckt: was nicht in der Spec liegt, wird nicht nachgefragt.
+ */
+export function formatExtractResult(result = {}, applied = [], skipped = []) {
+  const lines = [];
+  if (applied.length) lines.push(`${applied.length} Felder gefüllt. Was ich nur vermute, ist markiert.`);
+  if (!applied.length && skipped.length) lines.push('Alles war schon ausgefüllt - ich habe nichts angerührt.');
+  else if (skipped.length) lines.push(`${skipped.length} Felder waren schon voll, die bleiben wie sie sind.`);
+  if (result.missing?.length) {
+    lines.push(`Noch offen: ${result.missing.join(', ')}`);
+  }
+  if (result.unternehmen_hint && !result.unternehmen_hint.passt) {
+    lines.push(`Achtung: Das PDF nennt „${result.unternehmen_hint.name}“ - das gewählte Unternehmen bleibt.`);
+  }
+  const unbekannteProdukte = (result.produkte_hint || []).filter((p) => !p.produkt_id).map((p) => p.name);
+  if (unbekannteProdukte.length) {
+    lines.push(`Produkte nicht im CRM: ${unbekannteProdukte.join(', ')}`);
+  }
+  return lines.join('\n') || 'Fertig, schau es dir an.';
 }
 
 export class BriefingLikyPanel {
@@ -220,12 +244,7 @@ export class BriefingLikyPanel {
       chips.innerHTML = '';
       return;
     }
-    chips.innerHTML = `
-      <span class="doc-chat__chip">
-        <span>${this.pendingFile.name}</span>
-        <button type="button" aria-label="Datei entfernen">&times;</button>
-      </span>
-    `;
+    chips.innerHTML = likyPdfTagHtml(this.pendingFile.name, { remove: true });
     chips.querySelector('button')?.addEventListener('click', () => this.clearPendingFile());
   }
 
@@ -277,6 +296,7 @@ export class BriefingLikyPanel {
       const result = await this.runJob('extract', { spec, pdfPath: path });
 
       const { applied, skipped } = this.apply.apply(result.fields || {}, spec);
+      applied.push(...this.apply.applyProduktHints(result.produkte_hint));
       this.apply.renderAndMark();
 
       // renderAndMark hat das DOM neu gebaut - frischen Liky-Beitrag oeffnen
@@ -508,26 +528,7 @@ export class BriefingLikyPanel {
       renderThinking(this.slot, this.received, { done: true });
     }
 
-    const lines = [];
-    if (applied.length) lines.push(`${applied.length} Felder gefüllt. Was ich nur vermute, ist markiert.`);
-    if (!applied.length && skipped.length) lines.push('Alles war schon ausgefüllt - ich habe nichts angerührt.');
-    else if (skipped.length) lines.push(`${skipped.length} Felder waren schon voll, die bleiben wie sie sind.`);
-    if (result.orphans?.length) {
-      lines.push('Das konnte ich nicht zuordnen:');
-      for (const o of result.orphans.slice(0, 3)) lines.push(`• ${o.frage}`);
-    }
-    if (result.missing?.length) {
-      lines.push(`Noch offen: ${result.missing.join(', ')}`);
-    }
-    if (result.unternehmen_hint && !result.unternehmen_hint.passt) {
-      lines.push(`Achtung: Das PDF nennt „${result.unternehmen_hint.name}“ - das gewählte Unternehmen bleibt.`);
-    }
-    const unbekannteProdukte = (result.produkte_hint || []).filter((p) => !p.produkt_id).map((p) => p.name);
-    if (unbekannteProdukte.length) {
-      lines.push(`Produkte nicht im CRM: ${unbekannteProdukte.join(', ')}`);
-    }
-
-    const text = lines.join('\n') || 'Fertig, schau es dir an.';
+    const text = formatExtractResult(result, applied, skipped);
     // Den transienten Beitrag durch einen gespeicherten Turn ersetzen
     if (this.turn) this.turn.remove();
     this.turn = null;
@@ -557,6 +558,10 @@ export class BriefingLikyPanel {
   userNode(text) {
     const msg = document.createElement('div');
     msg.className = 'doc-chat__msg doc-chat__msg--user';
+    if (isLikyPdfName(text)) {
+      msg.innerHTML = likyPdfTagHtml(text);
+      return msg;
+    }
     const el = document.createElement('div');
     el.className = 'doc-chat__text';
     el.textContent = text;

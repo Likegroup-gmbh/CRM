@@ -266,6 +266,24 @@ export class BriefingExtractApply {
     return { applied, skipped };
   }
 
+  /**
+   * Bekannte Produkte aus produkte_hint in produkt_ids schreiben.
+   * Entity-Felder sind nicht in der Spec - ohne das landen existierende
+   * Produkte nie im Formular. Nur wenn produkt_ids noch leer ist.
+   * @returns {string[]} Labels der geschriebenen Felder
+   */
+  applyProduktHints(hints) {
+    const ids = [...new Set((hints || [])
+      .map((p) => String(p?.produkt_id || '').trim())
+      .filter((id) => UUID_RE.test(id)))];
+    if (!ids.length) return [];
+    if (!this.isEmpty(this.briefing.formData.produkt_ids)) return [];
+
+    this.briefing.formData.produkt_ids = ids;
+    this.aiFill.set('produkt_ids', { from: 'PDF', kind: 'fact' });
+    return ['Produkte'];
+  }
+
   /** Chat-Patches: duerfen vorhandene Werte aendern (Explizite Steuerung). */
   applyPatches(patches, spec) {
     const applied = [];

@@ -29,17 +29,6 @@ const EXTRACT_TOOL = {
           required: ['value']
         }
       },
-      orphans: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            text: { type: 'string' },
-            frage: { type: 'string' }
-          },
-          required: ['text', 'frage']
-        }
-      },
       missing: { type: 'array', items: { type: 'string' } },
       unternehmen_hint: {
         type: 'object',
@@ -105,13 +94,19 @@ function buildExtractPrompt({ spec, unternehmenName, markeName, produkte }) {
 
   task += '\n# SPEC\n' + JSON.stringify(spec, null, 2) + '\n\n';
   task += '# REGELN\n'
+    + '- Spec ist geschlossen: nur Felder aus der Spec belegen. Was keinem Feld '
+    + 'zugeordnet werden kann, weglassen. Keine Rueckfragen, keine Extra-Keys. '
+    + 'Kunden-PDFs enthalten oft Irrelevantes (Scope, Kontakte, Zeitplaene).\n'
+    + '- Ignorieren: Ansprechpartner/Kontaktpersonen (sitzen nicht am Briefing), '
+    + 'Agentur-Leistungsbeschreibung, interne Projektplaene, Budget, Legal/'
+    + 'Boilerplate, Deckblatt-Metadaten. Einzelne Meilenstein-Zeilen nicht ablegen.\n'
+    + '- Zeitraum: Kampagnenlaufzeit oder grober Veroeffentlichungszeitraum kompakt '
+    + 'in veroeffentlichungszeitraum (z.B. "KW 46-48 / Go-Live 17.11.2026").\n'
     + '- fields: nur Felder, die im PDF belegt sind. kind=fact wenn direkt im Text, '
     + 'kind=guess wenn abgeleitet. from = kurzer Quellverweis (Seite/Abschnitt).\n'
     + '- value exakt in der Form, die valueShape des Feldes vorgibt. '
     + 'Enums auf options.value mappen, Formate auf die format-values des Channels. '
     + 'Keine zusaetzlichen Keys wie "anzahl" oder "vorgaben" in channelGroup-Werten.\n'
-    + '- orphans: Saetze, die du erkannt hast, aber keinem Feld zuordnen kannst. '
-    + 'frage = deine Rueckfrage an den User.\n'
     + '- missing: Pflichtfelder, die leer bleiben (z.B. aktivierung_name).\n'
     + '- unternehmen_hint: Name aus dem PDF, passt = ob er zum gewaehlten Unternehmen passt.\n'
     + '- produkte_hint: Produktnamen aus dem PDF, produkt_id wenn bekannt, sonst null.\n';
