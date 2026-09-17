@@ -15,7 +15,7 @@ import {
   getAllFields,
   getStepsForBereich
 } from './create/fieldConfig.js';
-import { resolveBriefingFieldValue } from './briefingLegacy.js';
+import { collectLegacyPresentation, isLegacyBriefing, resolveBriefingFieldValue } from './briefingLegacy.js';
 
 const HERO_KEYS = new Set(['aktivierung_name']);
 const CALLOUT_KEYS = new Set(['beschreibung', 'kampagne_thema', 'always_on_thema']);
@@ -44,7 +44,7 @@ const SPEC_LABELS = {
   kpis: 'Ziele / KPIs',
   objectives: 'Paid Objective',
   content_ziele: 'Content-Ziele',
-  channels: 'Channels',
+  channels: 'Kanäle',
   formatvorgaben: 'Formatvorgaben',
   videolaenge: 'Videolänge',
   videolaengen: 'Videolänge',
@@ -128,6 +128,9 @@ function flattenGroupRows(field, value, detail) {
 
 export function collectPresentation(detail, { includeEmptyTextareas = false, forPdf = false } = {}) {
   const briefing = detail.briefing || {};
+  if (isLegacyBriefing(briefing)) {
+    return collectLegacyPresentation(briefing, (s) => detail.escape(s));
+  }
   const steps = getStepsForBereich(briefing.bereich);
   const callout = [];
   const prose = [];
@@ -520,8 +523,10 @@ export function renderBriefingDoc({
     canEdit = false;
     canAnschreiben = false;
   }
+  const legacy = isLegacyBriefing(detail.briefing);
+  const contentEditable = canEdit && !legacy;
   const presentation = collectPresentation(detail, {
-    includeEmptyTextareas: canEdit && !compact
+    includeEmptyTextareas: contentEditable && !compact
   });
 
   let prose = presentation.prose;
@@ -532,7 +537,7 @@ export function renderBriefingDoc({
     [creator, secondary] = mergeByTitle(creator, secondary);
   }
 
-  const editClass = canEdit ? ' briefing-doc--editable' : '';
+  const editClass = contentEditable ? ' briefing-doc--editable' : '';
   const printClass = print ? ' briefing-doc--print' : '';
   const actionsHtml = print
     ? ''
@@ -542,15 +547,15 @@ export function renderBriefingDoc({
     <article class="briefing-doc${editClass}${printClass}" data-compact="${compact ? 'true' : 'false'}">
       ${renderHero(detail, { actionsHtml })}
       ${compact ? `<p class="briefing-doc__hint">Komprimierte Ansicht — für die komplette Felderliste oben rechts „Alle Felder“ wählen</p>` : ''}
-      ${renderCallout(presentation.callout, { canEdit })}
-      ${renderGroupedSections(prose, detail, { canEdit })}
+      ${renderCallout(presentation.callout, { canEdit: contentEditable })}
+      ${renderGroupedSections(prose, detail, { canEdit: contentEditable })}
       ${presentation.specs.length ? `
         <section class="briefing-doc__section">
           ${renderSpecTable(presentation.specs)}
         </section>
       ` : ''}
-      ${renderGroupedSections(creator, detail, { canEdit })}
-      ${compact ? '' : renderGroupedSections(secondary, detail, { canEdit })}
+      ${renderGroupedSections(creator, detail, { canEdit: contentEditable })}
+      ${compact ? '' : renderGroupedSections(secondary, detail, { canEdit: contentEditable })}
       ${compact ? '' : renderAdminMeta(detail)}
     </article>
   `;
