@@ -11,7 +11,7 @@ vi.mock('../core/pdf/PdfBrand.js', async (importOriginal) => {
 });
 
 import { BriefingDetail } from '../modules/briefing/BriefingDetail.js';
-import { createBriefingPdf } from '../modules/briefing/BriefingPdf.js';
+import { createBriefingPdf, drawBriefingLockup } from '../modules/briefing/BriefingPdf.js';
 import { buildBriefingPdfModel } from '../modules/briefing/BriefingDocView.js';
 import { LIKEGROUP_FOOTER_DE, PDF_BRAND } from '../core/pdf/PdfBrand.js';
 
@@ -60,29 +60,25 @@ class MockJsPDF {
 }
 
 const THEMA = 'UGC-Kampagne für Coca-Cola Light unter dem Motto This Is My Taste.';
-const ROLLE = 'Creator zeigen authentisch, wie Coca-Cola Light in den Alltag passt.';
+const AUFGABE = 'Creator zeigen authentisch, wie Coca-Cola Light in den Alltag passt.';
 const TITLE = 'Coca-Cola Light – This Is My Taste 2026';
 
 function makeDetail() {
   const detail = new BriefingDetail();
   detail.briefing = {
     aktivierung_name: TITLE,
-    ansatz: 'kampagne',
     bereich: 'paid_creator_ads',
     is_draft: false,
-    kampagne_thema: THEMA,
-    creator_rolle: ROLLE,
-    pa_funnel_stufen: ['upper'],
-    pa_videolaengen: ['15s'],
-    pa_learnings_vorhanden: true,
-    pa_learnings_text: 'Hook in den ersten zwei Sekunden',
+    beschreibung: THEMA,
+    aufgabe: AUFGABE,
+    learnings_text: 'Hook in den ersten zwei Sekunden',
+    funnel_stufen: ['upper'],
+    videolaengen: ['15s'],
     unternehmen: { firmenname: 'Ogilvy' },
     marke: { markenname: 'Coca-Cola' },
     produkte: [{ name: 'Coca-Cola Light' }],
-    content_deadline: '2026-09-01',
-    go_live: '2026-10-01',
-    maerkte: ['deutschland'],
-    sprachen: ['deutsch'],
+    personas: [{ name: 'Alltagstrinkerin', oberbegriff: 'Genuss' }],
+    verhandlungshinweis: 'Nutzungsdauer intern auf 3 Monate',
     created_at: '2026-09-09T10:00:00.000Z',
     updated_at: '2026-09-09T12:00:00.000Z',
     assignee: { name: 'Lisa Intern' },
@@ -119,10 +115,13 @@ describe('createBriefingPdf', () => {
     expect(result.blob).toBeInstanceOf(Blob);
     expect(text).toContain(TITLE);
     expect(text).toContain(THEMA);
-    expect(text).toContain(ROLLE);
+    expect(text).toContain(AUFGABE);
     expect(text).toContain('Ogilvy');
     expect(text).toContain('Coca-Cola');
     expect(text).toContain('Coca-Cola Light');
+    expect(text).toContain('Genuss (Alltagstrinkerin)');
+    expect(text).toContain('×');
+    expect(text).not.toContain('Nutzungsdauer intern auf 3 Monate');
     expect(text).toContain('Thema');
     expect(text).toContain('Hook in den ersten zwei Sekunden');
     expect(text).toContain('Upper Funnel');
@@ -155,6 +154,22 @@ describe('createBriefingPdf', () => {
     expect(window.html2canvas).not.toHaveBeenCalled();
     expect(MockJsPDF.last.htmlCalls).toBe(0);
   });
+
+  it('zeichnet LikeGroup × Kundenlogo', () => {
+    const doc = new MockJsPDF();
+    drawBriefingLockup(doc, 'data:image/png;base64,AAA', 'data:image/png;base64,BBB', {
+      customerName: 'Coca-Cola',
+    });
+    expect(doc.images).toHaveLength(2);
+    expect(doc.images[0]).toMatchObject({
+      x: PDF_BRAND.logoLeft.x,
+      y: PDF_BRAND.logoLeft.y,
+    });
+    expect(doc.images[1].x).toBeGreaterThan(doc.images[0].x);
+    expect(doc.images[1].y).toBe(PDF_BRAND.logoLeft.y);
+    expect(doc.rawTexts.join('\n')).toContain('×');
+    expect(doc.rawTexts.join('\n')).not.toContain('Coca-Cola');
+  });
 });
 
 describe('buildBriefingPdfModel', () => {
@@ -172,8 +187,9 @@ describe('buildBriefingPdfModel', () => {
     const dumped = JSON.stringify(model);
     expect(model.title).toBe(TITLE);
     expect(model.subtitle).toBe('Ogilvy · Coca-Cola');
-    expect(model.products).toBe('Coca-Cola Light');
+    expect(model.products).toBe('Coca-Cola Light · Genuss (Alltagstrinkerin)');
     expect(model.sections.some((s) => s.title === 'Thema')).toBe(true);
+    expect(JSON.stringify(model)).not.toContain('Nutzungsdauer intern');
     expect(dumped).not.toContain('Final');
     expect(dumped).not.toContain('Paid Creator Ads');
     expect(dumped).not.toContain('Erstellt');

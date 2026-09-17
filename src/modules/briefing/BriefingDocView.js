@@ -7,33 +7,32 @@
 import { icon } from '../../core/icons/IconSystem.js';
 import { InlineEdit } from '../../core/components/InlineEdit.js';
 import {
-  ANSATZ_OPTIONS,
   BEREICH_LABELS,
   MAERKTE_OPTIONS,
   SPRACHEN_OPTIONS,
   evaluateCondition,
+  flattenFields,
   getAllFields,
   getStepsForBereich
 } from './create/fieldConfig.js';
 
-const HERO_KEYS = new Set(['aktivierung_name', 'ansatz']);
-const CALLOUT_KEYS = new Set(['kampagne_thema', 'always_on_thema']);
+const HERO_KEYS = new Set(['aktivierung_name']);
+const CALLOUT_KEYS = new Set(['beschreibung', 'kampagne_thema', 'always_on_thema']);
 const META_KEYS = new Set(['content_deadline', 'go_live', 'embargo', 'maerkte', 'sprachen']);
 const CREATOR_KEYS = new Set([
-  'creator_groessen', 'nischen', 'creator_merkmale', 'voraussetzungen', 'voraussetzungen_custom'
+  'creator_groessen', 'nischen', 'creator_merkmale', 'voraussetzungen',
+  'voraussetzungen_sonstiges'
 ]);
 const CREATOR_TITLES = new Set(['Welche Creator suchen wir?']);
 const SECONDARY_TITLES = new Set([
+  'Verhandlung',
+  'Zusätzliche Nutzung',
   'Learnings aus vergleichbaren Aktivitaeten',
   'Learnings aus bisherigem bzw. vergleichbarem Content',
-  'Produktion',
-  'Wie soll der Content veroeffentlicht bzw. zusaetzlich genutzt werden?',
-  'Wie soll Traffic bzw. Conversion erzeugt und gemessen werden?',
-  'Welche Deliverables werden benoetigt?',
-  'Wohin sollen die Ads fuehren?',
-  'Zusaetzliche Assets'
+  'Produktion'
 ]);
-const SECONDARY_KEY_RE = /learnings|production_setup|vorort|versand|tracking|reporting|_offen$|_beispiele$|_referenzen$/;
+const SECONDARY_KEY_RE = /learnings|referenzen|dos_donts|verhandlungshinweis|nutzung_|rohmaterial|nutzungsdauer|hauttyp|haartyp|produkt_erfahrung/;
+const PDF_SKIP = new Set(['verhandlungshinweis']);
 const PROSE_TYPES = new Set(['textarea', 'repeatableText']);
 const BLOCK_TYPES = new Set(['textarea', 'repeatableText', 'repeatableUpload', 'url']);
 
@@ -59,7 +58,9 @@ const SPEC_LABELS = {
   creator_groessen: 'Creator-Größe',
   nischen: 'Nische',
   voraussetzungen: 'Voraussetzungen',
-  voraussetzungen_custom: 'Sonstige Voraussetzungen',
+  voraussetzungen_sonstiges: 'Sonstige Voraussetzungen',
+  voraussetzungen_custom: 'Produktspezifische Erfahrung',
+  produkt_erfahrung: 'Produktspezifische Erfahrung',
   alter: 'Alter',
   geschlecht: 'Geschlecht',
   standort: 'Standort',
@@ -82,8 +83,8 @@ export function classifyField(field, sectionTitle = '') {
   if (HERO_KEYS.has(key)) return 'hero';
   if (CALLOUT_KEYS.has(key)) return 'callout';
   if (META_KEYS.has(key)) return 'meta';
-  if (CREATOR_KEYS.has(key) || CREATOR_TITLES.has(sectionTitle)) return 'creator';
   if (SECONDARY_TITLES.has(sectionTitle) || SECONDARY_KEY_RE.test(key)) return 'secondary';
+  if (CREATOR_KEYS.has(key) || CREATOR_TITLES.has(sectionTitle)) return 'creator';
   if (PROSE_TYPES.has(field.type)) return 'prose';
   return 'spec';
 }
@@ -124,7 +125,7 @@ function flattenGroupRows(field, value, detail) {
     }));
 }
 
-export function collectPresentation(detail, { includeEmptyTextareas = false } = {}) {
+export function collectPresentation(detail, { includeEmptyTextareas = false, forPdf = false } = {}) {
   const briefing = detail.briefing || {};
   const steps = getStepsForBereich(briefing.bereich);
   const callout = [];
@@ -138,8 +139,9 @@ export function collectPresentation(detail, { includeEmptyTextareas = false } = 
       if (section.condition && !evaluateCondition(section.condition, briefing)) continue;
       const title = section.title || step.label;
 
-      for (const field of section.fields) {
-        if (field.persist === false || field.type === 'entitySelect' || field.type === 'entityMulti') continue;
+      for (const field of flattenFields(section.fields)) {
+        if (field.persist === false || field.type === 'entitySelect' || field.type === 'entityMulti' || field.type === 'disclosure') continue;
+        if (forPdf && PDF_SKIP.has(field.name)) continue;
         if (field.condition && !evaluateCondition(field.condition, briefing)) continue;
 
         const value = briefing[field.name];
@@ -202,8 +204,17 @@ function renderProducts(detail) {
   const names = (detail.briefing?.produkte || [])
     .map(p => detail.escape(p?.name))
     .filter(Boolean);
-  if (!names.length) return '';
-  return `<p class="briefing-doc__products">${names.join('<span class="briefing-doc__products-sep"> · </span>')}</p>`;
+  const personas = (detail.briefing?.personas || [])
+    .map(p => detail.escape(p?.oberbegriff ? `${p.oberbegriff} (${p.name})` : p?.name))
+    .filter(Boolean);
+  if (!names.length && !personas.length) return '';
+  const productLine = names.length
+    ? `<p class="briefing-doc__products">${names.join('<span class="briefing-doc__products-sep"> · </span>')}</p>`
+    : '';
+  const personaLine = personas.length
+    ? `<p class="briefing-doc__products">${personas.join('<span class="briefing-doc__products-sep"> · </span>')}</p>`
+    : '';
+  return `${productLine}${personaLine}`;
 }
 
 function renderDocActions({ canEdit = false, canDelete = false, canAnschreiben = false, compact = true } = {}) {
@@ -218,9 +229,23 @@ function renderDocActions({ canEdit = false, canDelete = false, canAnschreiben =
   `;
 }
 
+function renderBrandLockup(detail) {
+  const b = detail.briefing || {};
+  const customer = b.marke?.logo_url || b.unternehmen?.logo_url || '';
+  const customerName = b.marke?.markenname || b.unternehmen?.firmenname || 'Kunde';
+  return `
+    <div class="briefing-doc__lockup">
+      <img src="/assets/background/LikeGroup_Logo%201.svg" alt="LikeGroup" class="briefing-doc__lockup-logo">
+      <span class="briefing-doc__lockup-x" aria-hidden="true">×</span>
+      ${customer
+        ? `<img src="${detail.escape(customer)}" alt="${detail.escape(customerName)}" class="briefing-doc__lockup-logo">`
+        : `<span class="briefing-doc__lockup-fallback">${detail.escape(customerName)}</span>`}
+    </div>
+  `;
+}
+
 function renderHero(detail, { actionsHtml = '' } = {}) {
   const b = detail.briefing;
-  const ansatz = optionLabel(ANSATZ_OPTIONS, b.ansatz);
   const bereich = BEREICH_LABELS[b.bereich] || b.bereich;
   const statusClass = b.is_draft ? 'warning' : 'success';
   const statusLabel = b.is_draft ? 'Entwurf' : 'Final';
@@ -234,16 +259,12 @@ function renderHero(detail, { actionsHtml = '' } = {}) {
   let dates = null;
   if (from && to) dates = `${from} bis ${to}`;
   else dates = from || to;
-  const embargo = b.embargo ? `Embargo ${detail.formatDate(b.embargo)}` : null;
-
-  const maerkte = multiLabels(b.maerkte, MAERKTE_OPTIONS).map(s => detail.escape(s)).join(', ');
-  const sprachen = multiLabels(b.sprachen, SPRACHEN_OPTIONS).map(s => detail.escape(s)).join(', ');
 
   return `
     <header class="briefing-doc__hero">
+      ${renderBrandLockup(detail)}
       <div class="briefing-doc__top">
         <div class="briefing-doc__badges">
-          ${ansatz ? `<span class="status-badge info">${detail.escape(ansatz)}</span>` : ''}
           <span class="status-badge ${statusClass}">${statusLabel}</span>
           ${bereich ? `<span class="tag tag--type">${detail.escape(bereich)}</span>` : ''}
         </div>
@@ -255,9 +276,6 @@ function renderHero(detail, { actionsHtml = '' } = {}) {
       <div class="briefing-doc__meta">
         ${renderMetaChip('folder', folder ? detail.escape(folder) : '')}
         ${renderMetaChip('calendar', dates)}
-        ${renderMetaChip('clock', embargo)}
-        ${renderMetaChip('globe', maerkte)}
-        ${renderMetaChip('language', sprachen)}
       </div>
     </header>
   `;
@@ -414,7 +432,7 @@ function groupsToPdfSections(groups, detail) {
  */
 export function buildBriefingPdfModel(detail) {
   const b = detail?.briefing || {};
-  const presentation = collectPresentation(detail);
+  const presentation = collectPresentation(detail, { forPdf: true });
   let prose = presentation.prose;
   let creator = presentation.creator;
   let secondary = presentation.secondary;
@@ -424,7 +442,12 @@ export function buildBriefingPdfModel(detail) {
   const firma = b.unternehmen?.firmenname;
   const marke = b.marke?.markenname;
   const subtitle = [firma, marke].filter(Boolean).join(' · ') || null;
-  const products = (b.produkte || []).map((p) => p?.name).filter(Boolean).join(' · ') || null;
+  const productNames = (b.produkte || []).map((p) => p?.name).filter(Boolean);
+  const personaNames = (b.personas || []).map((p) => {
+    if (!p?.name) return '';
+    return p.oberbegriff ? `${p.oberbegriff} (${p.name})` : p.name;
+  }).filter(Boolean);
+  const products = [...productNames, ...personaNames].join(' · ') || null;
 
   const from = b.content_deadline ? detail.formatDate(b.content_deadline) : null;
   const to = b.go_live ? detail.formatDate(b.go_live) : null;

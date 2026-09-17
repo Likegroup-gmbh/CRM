@@ -8,6 +8,7 @@ import {
   loadLikeGroupLogoPng,
   drawLikeGroupLogo,
   drawLikeGroupFooter,
+  PDF_BRAND,
 } from '../../core/pdf/PdfBrand.js';
 
 export const JSPDF_URL = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
@@ -54,6 +55,66 @@ function sanitizeFilename(name) {
   return `${base || 'Briefing'}.pdf`;
 }
 
+function customerLogoUrl(briefing) {
+  return briefing?.marke?.logo_url || briefing?.unternehmen?.logo_url || '';
+}
+
+function customerDisplayName(briefing) {
+  return briefing?.marke?.markenname || briefing?.unternehmen?.firmenname || '';
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error('Logo konnte nicht gelesen werden'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** PNG/JPEG-Data-URL des Kundenlogos oder null (kein URL, CORS, Tests). */
+export async function loadCustomerLogoPng(url) {
+  if (!url || typeof fetch !== 'function') return null;
+  try {
+    const res = await fetch(url, { mode: 'cors' });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    const type = blob.type || '';
+    if (type.includes('svg') || type === 'image/svg+xml') return null;
+    const dataUrl = await blobToDataUrl(blob);
+    return typeof dataUrl === 'string' && dataUrl.startsWith('data:image/') ? dataUrl : null;
+  } catch {
+    return null;
+  }
+}
+
+function imageFormat(dataUrl) {
+  if (String(dataUrl).startsWith('data:image/jpeg')) return 'JPEG';
+  if (String(dataUrl).startsWith('data:image/webp')) return 'WEBP';
+  return 'PNG';
+}
+
+export function drawBriefingLockup(doc, likeGroupPng, customerPng, { customerName = '' } = {}) {
+  drawLikeGroupLogo(doc, likeGroupPng, { align: 'left' });
+  const { x, y, w, h } = PDF_BRAND.logoLeft;
+  const markX = x + w + 3;
+  const baseline = y + h * 0.72;
+  if (typeof doc.setFont === 'function') doc.setFont('helvetica', 'normal');
+  if (typeof doc.setFontSize === 'function') doc.setFontSize(11);
+  if (typeof doc.setTextColor === 'function') doc.setTextColor(120);
+  doc.text('×', markX, baseline);
+  if (typeof doc.setTextColor === 'function') doc.setTextColor(0);
+  const customerX = markX + 5;
+  if (customerPng && doc.addImage) {
+    doc.addImage(customerPng, imageFormat(customerPng), customerX, y, w, h);
+    return;
+  }
+  if (customerName) {
+    if (typeof doc.setFontSize === 'function') doc.setFontSize(9);
+    doc.text(customerName, customerX, baseline);
+  }
+}
+
 function flowOpts(y, onPageBreak, lineHeight = 5) {
   return {
     x: MARGIN_X,
@@ -74,13 +135,16 @@ export async function createBriefingPdf(detail) {
   if (!detail?.briefing) throw new Error('Kein Briefing geladen');
 
   const jsPDF = await ensureJsPdf();
-  const [model, logoPng] = await Promise.all([
+  const [model, logoPng, customerPng] = await Promise.all([
     Promise.resolve(buildBriefingPdfModel(detail)),
     loadLikeGroupLogoPng(),
+    loadCustomerLogoPng(customerLogoUrl(detail.briefing)),
   ]);
   const doc = new jsPDF();
   doc.setFont('helvetica');
-  drawLikeGroupLogo(doc, logoPng, { align: 'left' });
+  drawBriefingLockup(doc, logoPng, customerPng, {
+    customerName: customerDisplayName(detail.briefing),
+  });
 
   let pageNumber = 1;
   const addFooter = () => {

@@ -84,6 +84,12 @@ BriefingCreate.prototype.bindConditionalEvents = function() {
     // Geaendertes Feld sofort in formData spiegeln, dann Conditions neu auswerten
     this.saveCurrentStepData();
     this.refreshConditions();
+    if (e.target.closest('[data-entity-multi="produkt_ids"]')) {
+      this.refreshPersonas().then(() => {
+        this.prunePersonaIds();
+        this.rebuildPersonaSelect();
+      });
+    }
   });
 };
 
@@ -92,6 +98,15 @@ BriefingCreate.prototype.refreshConditions = function() {
   if (!form) return;
 
   form.querySelectorAll('.bf-conditional').forEach(wrapper => {
+    if (wrapper.dataset.conditionJson) {
+      try {
+        const condition = JSON.parse(wrapper.dataset.conditionJson);
+        wrapper.classList.toggle('hidden', !evaluateCondition(condition, this.formData));
+      } catch (err) {
+        console.warn('Briefing-Condition unlesbar', err);
+      }
+      return;
+    }
     const field = wrapper.dataset.conditionField;
     if (!field) return;
 
@@ -173,7 +188,7 @@ BriefingCreate.prototype.buildRepeatableRow = function(type, index) {
     // KPI-Optionen aus dem sichtbaren Container uebernehmen (erste Zeile als Vorlage)
     const container = document.querySelector('.bf-repeatable[data-repeatable-type="kpi"]');
     const firstSelect = container?.querySelector('select[data-kpi]');
-    const optionsHtml = firstSelect ? firstSelect.innerHTML : '<option value="">KPI waehlen...</option>';
+    const optionsHtml = firstSelect ? firstSelect.innerHTML : '<option value="">KPI wählen...</option>';
     return `
       <div class="bf-repeatable-row" data-repeatable-row>
         <select data-kpi class="bf-repeatable-row__select">${optionsHtml}</select>
@@ -253,9 +268,12 @@ BriefingCreate.prototype.bindCascadeEvents = function() {
       this.formData.unternehmen_id = e.target.value || null;
       this.formData.marke_id = null;
       this.formData.produkt_ids = [];
+      this.formData.persona_ids = [];
       this.rebuildMarkeSelect();
       await this.refreshProdukte();
       this.rebuildProduktSelect();
+      await this.refreshPersonas();
+      this.rebuildPersonaSelect();
     });
   }
 
@@ -266,6 +284,9 @@ BriefingCreate.prototype.bindCascadeEvents = function() {
       await this.refreshProdukte();
       this.pruneProduktIds();
       this.rebuildProduktSelect();
+      await this.refreshPersonas();
+      this.prunePersonaIds();
+      this.rebuildPersonaSelect();
     });
   }
 };
@@ -309,7 +330,7 @@ BriefingCreate.prototype.rebuildProduktSelect = function() {
   produktSelect.disabled = !unternehmenId;
   produktSelect.dataset.placeholder = unternehmenId
     ? 'Produkte suchen und hinzufügen...'
-    : 'Bitte zuerst Unternehmen waehlen...';
+    : 'Bitte zuerst Unternehmen wählen...';
 
   if (unternehmenId && window.formSystem?.createSearchableSelect) {
     window.formSystem.createSearchableSelect(produktSelect, options.map(o => ({
@@ -321,6 +342,61 @@ BriefingCreate.prototype.rebuildProduktSelect = function() {
       type: 'multiselect',
       tagBased: true,
       placeholder: 'Produkte suchen und hinzufügen...'
+    });
+  }
+};
+
+BriefingCreate.prototype.prunePersonaIds = function() {
+  const valid = new Set((this.personas || []).map(p => p.id));
+  this.formData.persona_ids = (this.formData.persona_ids || []).filter(id => valid.has(id));
+};
+
+BriefingCreate.prototype.rebuildPersonaSelect = function() {
+  const wrapper = document.querySelector('[data-entity-multi="persona_ids"]');
+  if (!wrapper) return;
+
+  wrapper.querySelector('.searchable-select-container')?.remove();
+  document.getElementById('persona_ids_hidden')?.remove();
+  wrapper.closest('form')?.querySelector('select[name="persona_ids[]"]')?.remove();
+
+  let personaSelect = wrapper.querySelector('select#persona_ids')
+    || wrapper.querySelector('select[multiple]');
+  if (!personaSelect) {
+    personaSelect = document.createElement('select');
+    personaSelect.id = 'persona_ids';
+    personaSelect.name = 'persona_ids';
+    personaSelect.multiple = true;
+    personaSelect.dataset.searchable = 'true';
+    personaSelect.dataset.tagBased = 'true';
+    const helper = wrapper.querySelector('.field-helper');
+    wrapper.insertBefore(personaSelect, helper);
+  }
+
+  personaSelect.style.display = '';
+  personaSelect.disabled = false;
+
+  const unternehmenId = this.formData.unternehmen_id;
+  const selected = new Set(this.formData.persona_ids || []);
+  const options = unternehmenId ? (this.personas || []) : [];
+
+  personaSelect.innerHTML = options.map(o => `
+    <option value="${escapeHtml(o.id)}" ${selected.has(o.id) ? 'selected' : ''}>${escapeHtml(o.label || o.name || o.id)}</option>
+  `).join('');
+  personaSelect.disabled = !unternehmenId;
+  personaSelect.dataset.placeholder = unternehmenId
+    ? 'Personas suchen und hinzufügen...'
+    : 'Bitte zuerst Unternehmen wählen...';
+
+  if (unternehmenId && window.formSystem?.createSearchableSelect) {
+    window.formSystem.createSearchableSelect(personaSelect, options.map(o => ({
+      value: o.id,
+      label: o.label || o.name || o.id,
+      selected: selected.has(o.id)
+    })), {
+      name: 'persona_ids',
+      type: 'multiselect',
+      tagBased: true,
+      placeholder: 'Personas suchen und hinzufügen...'
     });
   }
 };
@@ -338,7 +414,7 @@ BriefingCreate.prototype.rebuildMarkeSelect = function() {
   const filtered = unternehmenId ? this.marken.filter(m => m.unternehmen_id === unternehmenId) : [];
 
   markeSelect.innerHTML = `
-    <option value="">${unternehmenId ? 'Marke auswaehlen (optional)...' : 'Bitte zuerst Unternehmen waehlen...'}</option>
+    <option value="">${unternehmenId ? 'Marke auswählen (optional)...' : 'Bitte zuerst Unternehmen wählen...'}</option>
     ${filtered.map(m => `<option value="${m.id}">${escapeHtml(m.markenname)}</option>`).join('')}
   `;
   markeSelect.disabled = !unternehmenId;
@@ -411,6 +487,20 @@ BriefingCreate.prototype.initSearchableSelects = function() {
         type: 'multiselect',
         tagBased: true,
         placeholder: 'Produkte suchen und hinzufügen...'
+      });
+    }
+    const personaSelect = document.getElementById('persona_ids');
+    if (personaSelect && window.formSystem?.createSearchableSelect && this.formData.unternehmen_id) {
+      const selected = new Set(this.formData.persona_ids || []);
+      window.formSystem.createSearchableSelect(personaSelect, (this.personas || []).map(p => ({
+        value: p.id,
+        label: p.label || p.name || p.id,
+        selected: selected.has(p.id)
+      })), {
+        name: 'persona_ids',
+        type: 'multiselect',
+        tagBased: true,
+        placeholder: 'Personas suchen und hinzufügen...'
       });
     }
   } finally {

@@ -70,8 +70,35 @@ _Avoid_: Anhang, Briefing
 
 **Briefing**:
 Das Aktivierungsdokument eines Unternehmens, optional einer Marke. Verbindliche Grundlage
-für Casting und Konzept. Hängt nicht an einer Kampagne.
+für Casting und Konzept. Wählt mindestens ein Produkt und mindestens eine Persona.
+Hängt nicht an einer Kampagne.
 _Avoid_: Kampagnen-Briefing (das ist die Tabelle `campaign_briefings`), Kundenbriefing
+
+**Briefing-Typ**:
+Paid, Organic oder Influencer. Der primäre Produktionszweck eines Briefings, nicht die
+spätere Nutzung und nicht die Kampagnenart.
+_Avoid_: Bereich, Kampagnenart, Paid Creator Ads, Owned Social
+
+**Verhandlungshinweis**:
+Interner Hinweis am Briefing für die Vertragsverhandlung, etwa die Nutzungsdauer wenn
+ein Full Buyout nicht möglich ist. Steht nicht auf dem Creator-PDF.
+_Avoid_: Verhandlungsspielraum (das sitzt an den Auftragsdetails)
+
+**Voraussetzungen**:
+Checkbox-Liste der gesuchten Casting-Bedingungen am Briefing.
+_Avoid_: Sonstige Voraussetzungen, Produktspezifische Erfahrung
+
+**Sonstige Voraussetzungen**:
+Freitext für Casting-Bedingungen, die in keine Checkbox passen.
+_Avoid_: Voraussetzungen, Produktspezifische Erfahrung
+
+**Produktspezifische Erfahrung**:
+Ob der Creator die Marke oder das Produkt schon kennt oder selbst genutzt hat.
+_Avoid_: Sonstige Voraussetzungen, Voraussetzungen
+
+**Freigabeprozess**:
+Kundenfreigabe der Inhalte vor Veröffentlichung, am Influencer-Briefing.
+_Avoid_: Skript-Freigabe, Video-Freigabe
 
 **Kundenbriefing**:
 Das vom Kunden gelieferte PDF als Vorlage für ein Briefing. Genau eines pro Briefing.
@@ -161,7 +188,7 @@ _Avoid_: Creative Angle, Grobkonzept, Casting-Vorschlag
 **Skript-Freigabe**:
 Ausdrückliche Freigabe einer Videoidee für die Skripterstellung. Voraussetzung: zugeordneter
 Casting-Eintrag und nicht „Nicht umsetzen“. Gate nur für Neuanlage, nicht für bestehende Skripte.
-_Avoid_: Freigabe (alleinstehend – Kollision mit Video-Freigabe am Kooperationsvideo)
+_Avoid_: Freigabe (alleinstehend – Kollision mit Video-Freigabe am Kooperationsvideo), Freigabeprozess
 
 **Kooperationsvideo**:
 Das hochgeladene Videofile in einer Kooperation (Dropbox-Asset), wird in der

@@ -40,6 +40,32 @@
   border-bottom: var(--border-xs) solid var(--border-primary);
 }
 
+.briefing-doc__lockup {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.briefing-doc__lockup-logo {
+  height: 2rem;
+  width: auto;
+  max-width: 7rem;
+  object-fit: contain;
+}
+
+.briefing-doc__lockup-x {
+  color: var(--text-tertiary);
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+
+.briefing-doc__lockup-fallback {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
 .briefing-doc__badges {
   display: flex;
   flex-wrap: wrap;

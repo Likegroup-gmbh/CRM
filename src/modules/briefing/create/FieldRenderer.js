@@ -22,6 +22,9 @@ export function escapeHtml(value) {
 
 function conditionAttrs(condition) {
   if (!condition) return '';
+  if (condition.all || condition.any) {
+    return `data-condition-json="${escapeHtml(JSON.stringify(condition))}"`;
+  }
   const parts = [`data-condition-field="${escapeHtml(condition.field)}"`];
   if (condition.equals !== undefined) parts.push(`data-condition-equals="${escapeHtml(condition.equals)}"`);
   if (condition.in) parts.push(`data-condition-in="${escapeHtml(condition.in.join(','))}"`);
@@ -251,7 +254,7 @@ function renderChannelGroup(field, formData) {
 function renderRepeatableKpi(field, formData) {
   const rows = Array.isArray(formData[field.name]) ? formData[field.name] : [];
   const optionsHtml = (selected) => `
-    <option value="">KPI waehlen...</option>
+    <option value="">KPI wählen...</option>
     ${field.kpiOptions.map(o => `<option value="${escapeHtml(o.value)}" ${selected === o.value ? 'selected' : ''}>${escapeHtml(o.label)}</option>`).join('')}
   `;
 
@@ -270,7 +273,7 @@ function renderRepeatableKpi(field, formData) {
         ${rows.map(rowHtml).join('')}
       </div>
       <button type="button" class="mdc-btn mdc-btn--secondary bf-repeatable-add" data-repeatable-add="${field.name}">
-        ${icon('plus')} KPI hinzufuegen
+        ${icon('plus')} KPI hinzufügen
       </button>
       ${renderHelper(field)}
     </div>
@@ -294,7 +297,7 @@ function renderRepeatableText(field, formData) {
         ${rows.map(rowHtml).join('')}
       </div>
       <button type="button" class="mdc-btn mdc-btn--secondary bf-repeatable-add" data-repeatable-add="${field.name}">
-        ${icon('plus')} ${escapeHtml(field.itemLabel || 'Eintrag')} hinzufuegen
+        ${icon('plus')} ${escapeHtml(field.itemLabel || 'Eintrag')} hinzufügen
       </button>
       ${renderHelper(field)}
     </div>
@@ -334,7 +337,7 @@ function renderRepeatableUpload(field, formData) {
         ${rows.map(rowHtml).join('')}
       </div>
       <button type="button" class="mdc-btn mdc-btn--secondary bf-repeatable-add" data-repeatable-add="${field.name}">
-        ${icon('plus')} Beispiel hinzufuegen
+        ${icon('plus')} Beispiel hinzufügen
       </button>
       ${renderHelper(field)}
     </div>
@@ -350,7 +353,7 @@ function renderEntityMulti(field, formData, context) {
   if (field.dependsOn && !formData[field.dependsOn]) {
     options = [];
     disabled = true;
-    placeholder = 'Bitte zuerst Unternehmen waehlen...';
+    placeholder = 'Bitte zuerst Unternehmen wählen...';
   }
 
   const opts = options.map(o => `
@@ -377,13 +380,13 @@ function renderEntitySelect(field, formData, context) {
   const current = formData[field.name] ?? '';
   let options = context?.[field.table] || [];
   let disabled = false;
-  let emptyLabel = field.placeholder || 'Auswaehlen...';
+  let emptyLabel = field.placeholder || 'Auswählen...';
 
   if (field.dependsOn) {
     const parentValue = formData[field.dependsOn];
     if (!parentValue) {
       disabled = true;
-      emptyLabel = 'Bitte zuerst Unternehmen waehlen...';
+      emptyLabel = 'Bitte zuerst Unternehmen wählen...';
       options = [];
     } else {
       options = options.filter(o => o[field.dependsOn] === parentValue || o.unternehmen_id === parentValue);
@@ -412,6 +415,16 @@ function renderEntitySelect(field, formData, context) {
 // Public API
 // ---------------------------------------------------------------
 
+function renderDisclosure(field, formData, context) {
+  const inner = (field.fields || []).map(f => renderField(f, formData, context)).join('');
+  return `
+    <details class="bf-disclosure">
+      <summary class="bf-disclosure__summary">${escapeHtml(field.label)}</summary>
+      <div class="bf-disclosure__body">${inner}</div>
+    </details>
+  `;
+}
+
 export function renderField(field, formData, context) {
   let html;
   switch (field.type) {
@@ -430,6 +443,7 @@ export function renderField(field, formData, context) {
     case 'repeatableUpload': html = renderRepeatableUpload(field, formData); break;
     case 'entitySelect': html = renderEntitySelect(field, formData, context); break;
     case 'entityMulti': html = renderEntityMulti(field, formData, context); break;
+    case 'disclosure': html = renderDisclosure(field, formData, context); break;
     default: html = renderTextLike(field, formData, 'text');
   }
   return wrapConditional(html, field.condition, formData);

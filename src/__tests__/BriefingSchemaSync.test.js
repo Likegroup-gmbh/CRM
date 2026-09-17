@@ -22,6 +22,14 @@ const MIGRATION_PATH = join(
 
 const COLUMN_TYPES = ['uuid', 'text', 'boolean', 'jsonb', 'date', 'timestamptz', 'integer', 'numeric', 'bigint', 'real'];
 
+function extractAlterColumns(sql) {
+  const columns = new Set();
+  const re = /ADD COLUMN IF NOT EXISTS ([a-z_][a-z0-9_]*)/gi;
+  let match;
+  while ((match = re.exec(sql)) !== null) columns.add(match[1]);
+  return columns;
+}
+
 function extractColumns(sql) {
   const tableMatch = sql.match(/CREATE TABLE IF NOT EXISTS campaign_briefings\s*\(([\s\S]*?)\n\);/);
   if (!tableMatch) throw new Error('CREATE TABLE campaign_briefings nicht in Migration gefunden');
@@ -48,7 +56,19 @@ function extractNotNullColumns(sql) {
 
 describe('Briefing Schema-Sync (fieldConfig <-> Migration)', () => {
   const sql = readFileSync(MIGRATION_PATH, 'utf8');
-  const columns = extractColumns(sql);
+  const flowSql = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20260916_briefing_flow_felder.sql'),
+    'utf8'
+  );
+  const sonstigesSql = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20260917_briefing_voraussetzungen_sonstiges.sql'),
+    'utf8'
+  );
+  const columns = new Set([
+    ...extractColumns(sql),
+    ...extractAlterColumns(flowSql),
+    ...extractAlterColumns(sonstigesSql)
+  ]);
   const notNullColumns = extractNotNullColumns(sql);
 
   it('Migration enthaelt ueberhaupt Spalten', () => {
