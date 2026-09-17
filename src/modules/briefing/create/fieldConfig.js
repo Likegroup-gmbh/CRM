@@ -155,7 +155,6 @@ export const IM_CHANNELS = [
     { value: 'live', label: 'YouTube Live' }
   ]},
   { key: 'facebook', label: 'Facebook', formats: null },
-  { key: 'linkedin', label: 'LinkedIn', formats: null },
   { key: 'pinterest', label: 'Pinterest', formats: null }
 ];
 
@@ -174,8 +173,7 @@ export const PAID_CHANNELS = [
     { value: 'display', label: 'Display' },
     { value: 'demand_gen', label: 'Demand Gen' }
   ]},
-  { key: 'pinterest', label: 'Pinterest', formats: null },
-  { key: 'linkedin', label: 'LinkedIn', formats: null }
+  { key: 'pinterest', label: 'Pinterest', formats: null }
 ];
 
 export const OWNED_CHANNELS = [
@@ -193,7 +191,6 @@ export const OWNED_CHANNELS = [
     { value: 'longform', label: 'YouTube Long-form' }
   ]},
   { key: 'facebook', label: 'Facebook', formats: null },
-  { key: 'linkedin', label: 'LinkedIn', formats: null },
   { key: 'pinterest', label: 'Pinterest', formats: null }
 ];
 
@@ -233,7 +230,9 @@ export const FLOW_STEPS = [
         condition: PAID,
         fields: [
           { name: 'funnel_stufen', label: 'Funnel-Stufe', type: 'checkboxes', options: FUNNEL_STUFEN_OPTIONS },
-          { name: 'paid_objectives', label: 'Paid Objective', type: 'checkboxes', options: PAID_OBJECTIVES_OPTIONS, compact: true }
+          { name: 'paid_objectives', label: 'Paid Objective', type: 'checkboxes', options: PAID_OBJECTIVES_OPTIONS, compact: true },
+          { name: 'content_deadline', label: 'Content-Deadline', type: 'date' },
+          { name: 'go_live', label: 'Go-Live', type: 'date' }
         ]
       },
       {
@@ -249,6 +248,8 @@ export const FLOW_STEPS = [
         condition: INFLUENCER,
         fields: [
           { name: 'veroeffentlichungszeitraum', label: 'Veröffentlichungszeitraum', type: 'text', placeholder: 'z.B. KW 40–42' },
+          { name: 'content_deadline', label: 'Content-Deadline', type: 'date' },
+          { name: 'go_live', label: 'Go-Live', type: 'date' },
           { name: 'freigabeprozess', label: 'Freigabeprozess', type: 'textarea', rows: 2, placeholder: 'z.B. Freigabe durch den Kunden vor Veröffentlichung, 48 Stunden' }
         ]
       }
@@ -352,6 +353,8 @@ export const FLOW_STEPS = [
           { name: 'cta', label: 'CTA', type: 'text', condition: PAID, placeholder: 'z.B. Jetzt entdecken, Shop-Link in Bio' },
           { name: 'ziel_url', label: 'Ziel-Link / Landingpage', type: 'url', placeholder: 'https://...', condition: PAID },
           { name: 'hook_vorgaben', label: 'Hook- oder Conversion-Vorgaben', type: 'textarea', rows: 2, condition: PAID, placeholder: 'z.B. Problem in Sekunde 1, Benefit vor Sekunde 3' },
+          { name: 'unterschiedliche_hooks', label: 'Unterschiedliche Hooks', type: 'checkbox' },
+          { name: 'hooks_anzahl', label: 'Anzahl der Hooks', type: 'text', placeholder: 'z.B. 3', condition: { field: 'unterschiedliche_hooks', equals: true } },
           { name: 'trendkontext', label: 'Community- oder Trendkontext', type: 'textarea', rows: 2, condition: ORGANIC, placeholder: 'z.B. aktueller Sound, Community-Challenge' },
           { name: 'posting_anforderungen', label: 'Posting-Anforderungen', type: 'textarea', rows: 2, condition: INFLUENCER, placeholder: 'z.B. Reel + 3 Stories, Hashtag X, Markierung der Marke' }
         ]

@@ -7,6 +7,8 @@ import {
   CREATOR_GROESSEN_UGC,
   FLOW_STEPS,
   IM_CHANNELS,
+  OWNED_CHANNELS,
+  PAID_CHANNELS,
   getStepsForBereich,
   getAllFields,
   flattenFields,
@@ -101,11 +103,12 @@ describe('Briefing evaluateCondition', () => {
 
     expect(namesIn('grundlage')).toEqual(expect.arrayContaining([
       'funnel_stufen', 'paid_objectives', 'content_ziele', 'veroeffentlichungszeitraum',
-      'plattformmechanik', 'freigabeprozess'
+      'plattformmechanik', 'freigabeprozess', 'content_deadline', 'go_live'
     ]));
     expect(namesIn('aufgabe')).toContain('art_der_integration');
     expect(namesIn('konzepte')).toEqual(expect.arrayContaining([
       'ad_channels', 'publish_channels', 'cta', 'ziel_url', 'hook_vorgaben',
+      'unterschiedliche_hooks', 'hooks_anzahl',
       'trendkontext', 'posting_anforderungen'
     ]));
     expect(namesIn('konzepte')).not.toContain('plattformmechanik');
@@ -131,12 +134,27 @@ describe('Briefing evaluateCondition', () => {
     })).toBe(true);
   });
 
-  it('Influencer-Plattformen enthalten Facebook, LinkedIn, Pinterest und Live-Formate', () => {
+  it('Influencer-Plattformen enthalten Facebook, Pinterest und Live-Formate, nicht LinkedIn', () => {
     expect(IM_CHANNELS.map(c => c.key)).toEqual([
-      'instagram', 'tiktok', 'youtube', 'facebook', 'linkedin', 'pinterest'
+      'instagram', 'tiktok', 'youtube', 'facebook', 'pinterest'
     ]);
     expect(IM_CHANNELS.find(c => c.key === 'instagram').formats.map(f => f.value)).toContain('live');
     expect(IM_CHANNELS.find(c => c.key === 'facebook').formats).toBeNull();
+    expect(IM_CHANNELS.some(c => c.key === 'linkedin')).toBe(false);
+    expect(PAID_CHANNELS.some(c => c.key === 'linkedin')).toBe(false);
+    expect(OWNED_CHANNELS.some(c => c.key === 'linkedin')).toBe(false);
+  });
+
+  it('Deadlines nur bei Paid und Influencer, Hook-Anzahl nur bei Checkbox', () => {
+    expect(isFieldActive('content_deadline', { bereich: 'paid_creator_ads' })).toBe(true);
+    expect(isFieldActive('go_live', { bereich: 'influencer_marketing' })).toBe(true);
+    expect(isFieldActive('content_deadline', { bereich: 'owned_social' })).toBe(false);
+    expect(isFieldActive('unterschiedliche_hooks', { bereich: 'owned_social' })).toBe(true);
+    expect(isFieldActive('hooks_anzahl', { bereich: 'paid_creator_ads' })).toBe(false);
+    expect(isFieldActive('hooks_anzahl', {
+      bereich: 'paid_creator_ads',
+      unterschiedliche_hooks: true
+    })).toBe(true);
   });
 
   it('Creator-Größe zeigt Follower-Bänder, Werte bleiben intern', () => {

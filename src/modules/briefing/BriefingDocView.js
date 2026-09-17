@@ -15,6 +15,7 @@ import {
   getAllFields,
   getStepsForBereich
 } from './create/fieldConfig.js';
+import { resolveBriefingFieldValue } from './briefingLegacy.js';
 
 const HERO_KEYS = new Set(['aktivierung_name']);
 const CALLOUT_KEYS = new Set(['beschreibung', 'kampagne_thema', 'always_on_thema']);
@@ -144,7 +145,7 @@ export function collectPresentation(detail, { includeEmptyTextareas = false, for
         if (forPdf && PDF_SKIP.has(field.name)) continue;
         if (field.condition && !evaluateCondition(field.condition, briefing)) continue;
 
-        const value = briefing[field.name];
+        const value = resolveBriefingFieldValue(briefing, field.name);
         const formatted = detail.formatValue(field, value);
         const emptyTextarea = formatted === null && includeEmptyTextareas && field.type === 'textarea';
         if (formatted === null && !emptyTextarea) continue;
@@ -235,7 +236,7 @@ function renderBrandLockup(detail) {
   const customerName = b.marke?.markenname || b.unternehmen?.firmenname || 'Kunde';
   return `
     <div class="briefing-doc__lockup">
-      <img src="/assets/background/LikeGroup_Logo%201.svg" alt="LikeGroup" class="briefing-doc__lockup-logo">
+      <img src="/assets/background/LikeGroup_Logo.svg" alt="LikeGroup" class="briefing-doc__lockup-logo">
       <span class="briefing-doc__lockup-x" aria-hidden="true">×</span>
       ${customer
         ? `<img src="${detail.escape(customer)}" alt="${detail.escape(customerName)}" class="briefing-doc__lockup-logo">`
