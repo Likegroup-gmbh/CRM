@@ -570,32 +570,37 @@ h3.section-title,
   display: flex;
 }
 
-#kampagne-casting-tools {
+#kampagne-casting-tools,
+#kampagne-konzept-tools {
   display: inline-flex;
   align-items: center;
   gap: var(--space-sm);
 }
 
-#kampagne-casting-tools #casting-vorschlag-block {
+#kampagne-casting-tools #casting-vorschlag-block,
+#kampagne-konzept-tools #videoidee-vorschlag-block {
   display: inline-flex;
   align-items: center;
 }
 
-/* Casting-Worksheet im Kampagnen-Pane: Toolbar/Reiter nicht am Viewport
+/* Casting-/Konzept-Worksheet im Kampagnen-Pane: Toolbar/Reiter nicht am Viewport
    kleben (sonst über den Summary-Cards), Thead ebenfalls ohne Extra-Offset. */
-.kampagne-casting-listen-switcher {
+.kampagne-casting-listen-switcher,
+.kampagne-konzept-listen-switcher {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
   margin-bottom: var(--space-sm);
 }
 
-.kampagne-casting-listen-switcher__label {
+.kampagne-casting-listen-switcher__label,
+.kampagne-konzept-listen-switcher__label {
   font-size: var(--font-sm);
   color: var(--text-secondary);
 }
 
-.kampagne-casting-listen-switcher .form-input {
+.kampagne-casting-listen-switcher .form-input,
+.kampagne-konzept-listen-switcher .form-input {
   max-width: 20rem;
 }
 
@@ -608,12 +613,24 @@ h3.section-title,
   top: 0;
 }
 
+.kampagne-konzept-worksheet .add-item-section--compact {
+  position: static;
+}
+
+.kampagne-konzept-worksheet .table-container .strategie-items-table thead th {
+  top: 0;
+}
+
 /* Inline-Scroll: Tabelle bleibt im Pane, Kampagnen-Chrome (Karten, Workflow-Tabs)
    und Sidebar rücken nicht mit. */
 .kampagne-detail-body[data-workflow="casting"],
 .kampagne-detail-body[data-workflow="casting"] .content-section,
 .kampagne-detail-body[data-workflow="casting"] .workflow-pane[data-pane="casting"],
-.kampagne-casting-worksheet {
+.kampagne-casting-worksheet,
+.kampagne-detail-body[data-workflow="konzepte"],
+.kampagne-detail-body[data-workflow="konzepte"] .content-section,
+.kampagne-detail-body[data-workflow="konzepte"] .workflow-pane[data-pane="konzepte"],
+.kampagne-konzept-worksheet {
   min-width: 0;
   max-width: 100%;
 }
@@ -627,6 +644,18 @@ h3.section-title,
 }
 
 .kampagne-casting-worksheet .creator-pool-table-container::-webkit-scrollbar {
+  display: none;
+}
+
+.kampagne-konzept-worksheet .table-container,
+.kampagne-konzept-worksheet .table-container.drag-scroll-enabled {
+  overflow-x: auto;
+  overflow-y: visible;
+  max-width: 100%;
+  scrollbar-width: none;
+}
+
+.kampagne-konzept-worksheet .table-container::-webkit-scrollbar {
   display: none;
 }
 

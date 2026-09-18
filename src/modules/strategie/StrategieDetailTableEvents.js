@@ -7,6 +7,30 @@ import { tableSelect } from '../../core/components/TableSelect.js';
 import { buildStrategiePrioUpdates, isStrategiePrio } from './strategiePrioOptions.js';
 import { bindTextClipEvents } from './strategieTextClip.js';
 
+function tableRoot(detail) {
+  return detail._getRoot?.() || window.content;
+}
+
+function q(detail, selector) {
+  if (typeof detail._q === 'function') return detail._q(selector);
+  return tableRoot(detail)?.querySelector(selector) || document.querySelector(selector);
+}
+
+function qAll(detail, selector) {
+  if (typeof detail._qq === 'function') return detail._qq(selector);
+  return [...(tableRoot(detail)?.querySelectorAll(selector) || [])];
+}
+
+function isFromThisWorksheet(detail, el) {
+  if (!el) return false;
+  const root = tableRoot(detail);
+  if (root?.contains(el)) return true;
+  const portal = el.closest?.('.actions-dropdown-portal');
+  if (!portal) return false;
+  const type = portal.dataset?.entityType;
+  return type === 'strategie_item' || type === 'videoidee_vorschlag';
+}
+
 export function cleanupTableEvents(detail) {
   detail._tableEventListeners.forEach(cleanup => cleanup());
   detail._tableEventListeners.clear();
@@ -22,13 +46,13 @@ export function bindTableEvents(detail) {
     bindDragAndDropEvents(detail);
   }
 
-  document.querySelectorAll('input[data-field], textarea[data-field]').forEach(input => {
+  qAll(detail, 'input[data-field], textarea[data-field]').forEach(input => {
     const handler = () => handleFieldUpdate(detail, input);
     input.addEventListener('blur', handler);
     detail._tableEventListeners.add(() => input.removeEventListener('blur', handler));
   });
 
-  document.querySelectorAll('input[type="checkbox"][data-field]').forEach(checkbox => {
+  qAll(detail, 'input[type="checkbox"][data-field]').forEach(checkbox => {
     const handler = () => handleFieldUpdate(detail, checkbox);
     checkbox.addEventListener('change', handler);
     detail._tableEventListeners.add(() => checkbox.removeEventListener('change', handler));
@@ -41,6 +65,7 @@ export function bindTableEvents(detail) {
     const actionHandler = (e) => {
       const actionItem = e.target.closest('[data-action]');
       if (!actionItem) return;
+      if (!isFromThisWorksheet(detail, actionItem)) return;
 
       const action = actionItem.dataset.action;
       const id = actionItem.dataset.id;
@@ -92,6 +117,7 @@ export function bindTableEvents(detail) {
     // Edit-Drawer bindet seine eigenen Buttons)
     const creatorCellHandler = (e) => {
       if (e.target.closest('#edit-item-drawer')) return;
+      if (!isFromThisWorksheet(detail, e.target)) return;
 
       const connectBtn = e.target.closest('.creator-connect-btn');
       if (connectBtn) {
@@ -115,7 +141,8 @@ export function bindTableEvents(detail) {
 }
 
 export function bindDragToScroll(detail) {
-  const container = document.querySelector('.main-wrapper');
+  const fallback = tableRoot(detail)?.querySelector('.table-container');
+  const container = detail._getHScrollTarget?.(fallback) ?? document.querySelector('.main-wrapper');
   if (!container) return;
 
   detail._dragScrollAbort?.abort();
@@ -177,11 +204,11 @@ export function destroyDragToScroll(detail) {
 }
 
 export function bindDragAndDropEvents(detail) {
-  const rows = document.querySelectorAll('.item-row.draggable');
-  const categoryHeaders = document.querySelectorAll('.category-header-row');
+  const rows = qAll(detail, '.item-row.draggable');
+  const categoryHeaders = qAll(detail, '.category-header-row');
 
   // Drag nur über Handle aktivieren
-  const handles = document.querySelectorAll('.drag-handle');
+  const handles = qAll(detail, '.drag-handle');
   handles.forEach(handle => {
     const mousedownHandler = () => {
       const row = handle.closest('.item-row');
@@ -213,7 +240,7 @@ export function bindDragAndDropEvents(detail) {
       row.draggable = false;
       detail.draggedItem = null;
       detail.draggedItemId = null;
-      document.querySelectorAll('.category-header-row').forEach(h => {
+      qAll(detail, '.category-header-row').forEach(h => {
         h.classList.remove('drag-over');
       });
     };
@@ -289,6 +316,7 @@ export function bindPrioSelect(detail) {
     const { field, itemId, value, element } = e.detail || {};
     if (field !== 'strategie_prio') return;
     if (!element?.closest('.strategie-items-table')) return;
+    if (tableRoot(detail) && !tableRoot(detail).contains(element.closest('.strategie-items-table'))) return;
     if (!isStrategiePrio(value)) return;
 
     handlePrioChange(detail, itemId, value);
@@ -440,7 +468,7 @@ function buildUploadMetadaten(detail) {
 export function bindCustomColumnEvents(detail) {
   if (!detail.customColumns?.hasColumns) return;
 
-  document.querySelectorAll('.custom-col-input').forEach(el => {
+  qAll(detail, '.custom-col-input').forEach(el => {
     const handler = () => detail.customColumns.handleFieldUpdate(el);
     const isChangeOnly = el.type === 'checkbox' || el.tagName === 'SELECT' || el.classList.contains('custom-col-date');
     if (isChangeOnly) {
@@ -456,20 +484,20 @@ export function bindCustomColumnEvents(detail) {
     }
   });
 
-  document.querySelectorAll('.custom-upload-btn').forEach(btn => {
+  qAll(detail, '.custom-upload-btn').forEach(btn => {
     const handler = () => detail.customColumns.openUploadDrawer(btn, buildUploadMetadaten(detail), () => detail.rerenderItemsTable());
     btn.addEventListener('click', handler);
     detail._tableEventListeners.add(() => btn.removeEventListener('click', handler));
   });
 
   if (detail._customHeaderDragCleanup) detail._customHeaderDragCleanup();
-  const thead = document.querySelector('.strategie-items-table thead');
+  const thead = q(detail, '.strategie-items-table thead');
   detail._customHeaderDragCleanup = detail.customColumns.bindHeaderDragAndDrop(thead, () => detail.rerenderItemsTable());
   detail._tableEventListeners.add(() => {
     if (detail._customHeaderDragCleanup) { detail._customHeaderDragCleanup(); detail._customHeaderDragCleanup = null; }
   });
 
-  const table = document.querySelector('.strategie-items-table');
+  const table = q(detail, '.strategie-items-table');
   if (table) {
     const cleanup = CustomDatePicker.bind(table);
     if (cleanup) detail._tableEventListeners.add(cleanup);
@@ -533,7 +561,8 @@ export async function updateItemField(detail, itemId, field, value) {
 }
 
 export async function handleSortUpdate(detail) {
-  const tbody = document.getElementById('items-table-body');
+  const tbody = q(detail, '#items-table-body');
+  if (!tbody) return;
   const allRows = Array.from(tbody.querySelectorAll('tr'));
   
   let currentKategorie = null;

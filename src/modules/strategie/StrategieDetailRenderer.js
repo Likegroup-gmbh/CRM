@@ -52,7 +52,7 @@ export function renderItemsTable(detail) {
         ${renderEmptyState({
           icon: 'film',
           title: 'Noch keine Videos hinzugefügt',
-          text: !detail.isKunde ? 'Fügen Sie oben eine Video-URL ein, um zu starten' : ''
+          text: !detail.isKunde ? 'Über Hinzufügen oder Ideen vorschlagen' : ''
         })}
       </div>
     `;
@@ -554,7 +554,8 @@ export function getPlatformIcon(platform) {
  * @returns {boolean} false, wenn die Zeile gerade bearbeitet wird oder fehlt
  */
 export function updateItemRow(detail, itemId) {
-  const row = document.querySelector(`.strategie-items-table tr.item-row[data-item-id="${itemId}"]`);
+  const row = (detail._q?.('.strategie-items-table tr.item-row[data-item-id="' + itemId + '"]')
+    || document.querySelector(`.strategie-items-table tr.item-row[data-item-id="${itemId}"]`));
   if (!row || row.contains(document.activeElement)) return false;
 
   const item = detail.items.find(i => i.id === itemId);
@@ -570,7 +571,8 @@ export function updateItemRow(detail, itemId) {
 }
 
 export function rerenderItemsTable(detail) {
-  const tableContainer = document.querySelector('.table-container');
+  const tableContainer = detail._q?.('.table-container')
+    || document.querySelector('.table-container');
   if (!tableContainer) return;
 
   tableContainer.outerHTML = renderItemsTable(detail);

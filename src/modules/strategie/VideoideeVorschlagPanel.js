@@ -31,12 +31,17 @@ export class VideoideeVorschlagPanel {
     return !!(this.detail.canCreate || this.detail.canEdit);
   }
 
+  _getBlock() {
+    return this.detail?._q?.('#videoidee-vorschlag-block')
+      || document.getElementById('videoidee-vorschlag-block');
+  }
+
   get count() {
     return countVideoideeVorschlaege(this.detail?.items);
   }
 
   async mount() {
-    const block = document.getElementById('videoidee-vorschlag-block');
+    const block = this._getBlock();
     if (!block) return;
     if (!this.sichtbar) {
       block.remove();
@@ -61,7 +66,7 @@ export class VideoideeVorschlagPanel {
   }
 
   render() {
-    const block = document.getElementById('videoidee-vorschlag-block');
+    const block = this._getBlock();
     if (!block || !this.sichtbar) return;
 
     const count = this.count;
@@ -79,6 +84,11 @@ export class VideoideeVorschlagPanel {
             ${holenLabel}
           </button>`
         : '');
+
+    if (this.detail.embedded) {
+      block.innerHTML = `${holenBtn}${this.fehler ? `<span class="casting-vorschlag__fehler" title="${esc(this.fehler)}"></span>` : ''}`;
+      return;
+    }
 
     const bulk = (!this.laeuft && canEdit && count)
       ? `<button type="button" class="mdc-btn mdc-btn--secondary" id="btn-videoidee-vorschlag-alle-uebernehmen">
@@ -112,7 +122,7 @@ export class VideoideeVorschlagPanel {
   }
 
   bind() {
-    const block = document.getElementById('videoidee-vorschlag-block');
+    const block = this._getBlock();
     if (!block) return;
     this.unbindClick();
     this._boundBlock = block;

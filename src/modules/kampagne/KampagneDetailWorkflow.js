@@ -17,13 +17,8 @@ import { STATUS_LABELS, STATUS_TAG_VARIANT } from '../skripte/SkripteUtils.js';
 import { VideoDataLoader } from '../video/VideoDataLoader.js';
 import { BEREICH_LABELS } from '../briefing/create/fieldConfig.js';
 import { renderTableSelect } from '../../core/components/TableSelect.js';
-import { strategieService } from '../strategie/StrategieService.js';
-import { getPlatformIcon, renderItemActions } from '../strategie/StrategieDetailRenderer.js';
-import { StrategieCreatorDrawer } from '../strategie/StrategieCreatorDrawer.js';
-import { showEditItemDrawer } from '../strategie/StrategieDetailEditDrawer.js';
-import { AddToVideoDrawer } from '../strategie/AddToVideoDrawer.js';
-import { handleReprocessItem } from '../strategie/StrategieDetailTableEvents.js';
 import { mountCastingPane, unmountCastingWorksheet } from './KampagneDetailCasting.js';
+import { mountKonzeptPane, unmountKonzeptWorksheet } from './KampagneDetailKonzept.js';
 import { syncWorkflowCreateChrome } from './KampagneWorkflowCreate.js';
 
 export const WORKFLOW_TABS = [
@@ -153,6 +148,15 @@ export async function loadWorkflowPane(detail, tabId) {
     return;
   }
 
+  if (tabId === 'konzepte') {
+    detail._workflowLoaded = detail._workflowLoaded || {};
+    if (detail._workflowLoaded.konzepte) return;
+    await mountKonzeptPane(detail);
+    detail._workflowLoaded.konzepte = true;
+    syncWorkflowCreateChrome(detail, 'konzepte');
+    return;
+  }
+
   const renderer = PANE_RENDERERS[tabId];
   if (!renderer) return;
 
@@ -183,6 +187,7 @@ export async function loadWorkflowPane(detail, tabId) {
  */
 export function refreshWorkflowAfterRender(detail) {
   unmountCastingWorksheet(detail);
+  unmountKonzeptWorksheet(detail);
   detail._workflowLoaded = {};
   detail._workflowData = {};
   const tab = detail.activeWorkflowTab;
@@ -215,7 +220,7 @@ async function patchWorkflowItem(detail, cacheKey, itemId, updates) {
  */
 export async function handleWorkflowTableSelect(detail, { field, itemId, value }) {
   if (!itemId) return;
-  if (field === 'sourcing_status' || field === 'kunden_feedback') return;
+  if (field === 'sourcing_status' || field === 'kunden_feedback' || field === 'strategie_prio') return;
 
   try {
     if (field === 'skript_status') {
@@ -230,115 +235,6 @@ export async function handleWorkflowTableSelect(detail, { field, itemId, value }
   }
 }
 
-/**
- * Skript-Freigabe einer Videoidee (Konzepte-Pane) umschalten.
- * Der Service wirft deutsche Fehler (kein Casting-Eintrag, nicht_umsetzen,
- * Vorschlag) — die landen direkt im Toast.
- */
-export async function handleSkriptFreigabeToggle(detail, itemId) {
-  const list = detail._workflowData?.konzepte;
-  const item = list?.find(i => i.id === itemId);
-  if (!item) return;
-
-  const next = !item.skript_freigabe;
-  try {
-    await strategieService.setSkriptFreigabe(itemId, next);
-    await patchWorkflowItem(detail, 'konzepte', itemId, {
-      skript_freigabe: next,
-      skript_freigabe_am: next ? new Date().toISOString() : null,
-      skript_freigabe_von: next ? (window.currentUser?.id || null) : null
-    });
-    window.toastSystem?.show(
-      next ? 'Für Skript freigegeben' : 'Skript-Freigabe zurückgenommen',
-      'success'
-    );
-  } catch (error) {
-    console.error('❌ KAMPAGNEDETAIL: Skript-Freigabe fehlgeschlagen:', error);
-    window.toastSystem?.show(error.message || 'Fehler bei der Skript-Freigabe', 'error');
-  }
-}
-
-function makeKonzeptAdapter(detail, item) {
-  return {
-    get items() { return detail._workflowData?.konzepte || []; },
-    isKunde: detail.isKunde,
-    canEdit: !detail.isKunde && (window.canEdit?.('strategie') ?? false),
-    strategieId: item?.strategie?.id || null,
-    getTeilbereicheFromStrategie() {
-      return (item?.strategie?.teilbereich || '')
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean);
-    },
-    async rerenderItemsTable() {
-      const pane = document.getElementById('workflow-pane-konzepte');
-      if (pane) pane.innerHTML = await renderKonzeptePane(detail);
-    },
-    showCreatorDrawer(itemId) {
-      const target = this.items.find(i => i.id === itemId);
-      if (!target) return;
-      new StrategieCreatorDrawer().open(target, {
-        onSuccess: () => this.rerenderItemsTable()
-      });
-    }
-  };
-}
-
-export async function handleKonzeptPaneAction(detail, actionItem) {
-  const action = actionItem.dataset.action;
-  const id = actionItem.dataset.id;
-  const items = detail._workflowData?.konzepte || [];
-  const item = items.find(i => i.id === id);
-  if (!item) return;
-
-  const adapter = makeKonzeptAdapter(detail, item);
-
-  switch (action) {
-    case 'connect-creator':
-      adapter.showCreatorDrawer(id);
-      break;
-    case 'toggle-skript-freigabe':
-      if (actionItem.classList.contains('action-disabled')) return;
-      await handleSkriptFreigabeToggle(detail, id);
-      break;
-    case 'edit-item':
-      showEditItemDrawer(adapter, id);
-      break;
-    case 'reprocess-item':
-      await handleReprocessItem(adapter, id);
-      break;
-    case 'add-to-video':
-      await new AddToVideoDrawer().open(item, item.strategie);
-      break;
-    case 'unlink-from-video':
-      window.navigateTo(`/konzepte/${item.strategie?.id}`);
-      break;
-    case 'delete-item': {
-      const result = await window.confirmationModal?.open({
-        title: 'Item löschen?',
-        message: 'Möchten Sie dieses Video wirklich aus der Strategie entfernen?',
-        confirmText: 'Löschen',
-        cancelText: 'Abbrechen',
-        danger: true
-      });
-      if (!result?.confirmed) return;
-      try {
-        await strategieService.deleteStrategieItem(id);
-        detail._workflowData.konzepte = items.filter(i => i.id !== id);
-        window.toastSystem?.show('Item erfolgreich gelöscht', 'success');
-        const pane = document.getElementById('workflow-pane-konzepte');
-        if (pane) pane.innerHTML = await renderKonzeptePane(detail);
-      } catch (error) {
-        console.error('Fehler beim Löschen des Items:', error);
-        window.toastSystem?.show('Fehler beim Löschen', 'error');
-      }
-      break;
-    }
-    default:
-      break;
-  }
-}
-
 /* ------------------------------------------------------------------ */
 /* Lazy-Daten (gecacht pro Detail-Instanz, Reset in refreshWorkflow)   */
 /* ------------------------------------------------------------------ */
@@ -349,25 +245,6 @@ async function getWorkflowData(detail, key, loader) {
     detail._workflowData[key] = await loader();
   }
   return detail._workflowData[key];
-}
-
-// Alle Videoideen aller Konzepte der Kampagne (flach, gemergt).
-// Kunde/Gast: keine Vorschläge (ADR 0015).
-async function loadKonzeptItems(detail) {
-  let q = window.supabase
-    .from('strategie_items')
-    .select(`*,
-      creator:creator_id(id, vorname, nachname),
-      casting_eintrag:creator_auswahl_item_id(id, name, creator_id),
-      strategie:strategie_id!inner(id, name, kampagne_id, teilbereich)`)
-    .eq('strategie.kampagne_id', detail.kampagneId)
-    .order('sortierung', { ascending: true });
-
-  if (window.isKunde?.()) q = q.eq('ist_vorschlag', false);
-
-  const { data, error } = await q;
-  if (error) throw new Error(error.message);
-  return data || [];
 }
 
 async function loadVertraege(detail) {
@@ -429,108 +306,6 @@ function renderBriefingPane(detail) {
             <th>Content-Deadline</th>
             <th>Erstellt am</th>
             <th class="col-actions">Aktionen</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-  `;
-}
-
-const IDEA_ICON = `${icon('light-bulb')}`;
-const FREIGABE_ICON = `${icon('document-text')}`;
-
-// Flache Item-Sicht: alle Videoideen der Konzepte dieser Kampagne,
-// mit Skript-Freigabe-Toggle wie auf der Konzept-Detailseite.
-async function renderKonzeptePane(detail) {
-  const items = await getWorkflowData(detail, 'konzepte', () => loadKonzeptItems(detail));
-
-  if (!items.length) {
-    const konzept = (detail.strategien || [])[0];
-    if (konzept?.id) {
-      return renderEmptyState({
-        icon: 'clipboard',
-        title: 'Keine Videoideen vorhanden',
-        text: 'Das Konzept hat noch keine Videoideen.',
-        actionsHtml: `<a href="/konzepte/${esc(konzept.id)}" class="mdc-btn table-link" data-table="strategie" data-id="${esc(konzept.id)}">Konzept öffnen</a>`
-      });
-    }
-    return renderEmptyState({
-      icon: 'clipboard',
-      title: 'Keine Videoideen vorhanden',
-      text: 'Für diese Kampagne wurden noch keine Videoideen in Konzepten angelegt.'
-    });
-  }
-
-  const canToggle = !detail.isKunde && (window.canEdit?.('strategie') ?? false);
-
-  const rows = items.map(item => {
-    const isIdea = !item.video_link;
-
-    const bildTd = isIdea
-      ? `<div class="idea-placeholder">${IDEA_ICON}<span>Idee</span></div>`
-      : item.screenshot_url
-        ? `<img src="${esc(item.screenshot_url)}" alt="Screenshot" class="strategie-screenshot" loading="lazy" />`
-        : '<div class="strategie-screenshot-placeholder"><span>Kein Bild</span></div>';
-
-    const plattformTd = getPlatformIcon(item.plattform) || '-';
-
-    const beschreibung = (item.beschreibung || item.titel || '').toString();
-    const beschreibungTd = beschreibung
-      ? `<span title="${esc(beschreibung)}">${esc(beschreibung.slice(0, 80))}${beschreibung.length > 80 ? '…' : ''}</span>`
-      : '-';
-
-    const creatorName = item.creator
-      ? `${item.creator.vorname || ''} ${item.creator.nachname || ''}`.trim()
-      : '';
-    const castingName = item.casting_eintrag?.name || '';
-    const creatorTd = item.creator?.id
-      ? `<a href="/creator/${item.creator.id}" class="table-link" data-table="creator" data-id="${item.creator.id}">${esc(creatorName || '—')}</a>`
-      : (castingName ? esc(castingName) : '-');
-
-    const freigabeTd = canToggle
-      ? `<button class="mdc-btn mdc-btn--secondary mdc-btn--sm${item.skript_freigabe ? ' is-active' : ''}"
-           data-workflow-action="toggle-skript-freigabe" data-id="${item.id}"
-           title="${item.skript_freigabe ? 'Skript-Freigabe zurücknehmen' : 'Für Skript freigeben'}">
-           ${FREIGABE_ICON}${item.skript_freigabe ? ' Freigegeben' : ''}
-         </button>`
-      : (item.skript_freigabe
-          ? `<span class="strategie-skript-badge" title="Für Skript freigegeben">${FREIGABE_ICON}</span>`
-          : '-');
-
-    const konzeptTd = item.strategie?.id
-      ? `<a href="/konzepte/${item.strategie.id}" class="table-link" data-table="strategie" data-id="${item.strategie.id}">${esc(item.strategie.name || '—')}</a>`
-      : '-';
-
-    const actionsTd = canToggle
-      ? `<td class="col-actions">${renderItemActions(detail, item, !!item.linked_video?.id)}</td>`
-      : '';
-
-    return `
-      <tr data-item-id="${item.id}" class="${item.skript_freigabe ? 'item-skript-freigabe' : ''}">
-        <td class="col-image">${bildTd}</td>
-        <td>${plattformTd}</td>
-        <td class="col-beschreibung">${beschreibungTd}</td>
-        <td>${creatorTd}</td>
-        <td>${freigabeTd}</td>
-        <td>${konzeptTd}</td>
-        ${actionsTd}
-      </tr>
-    `;
-  }).join('');
-
-  return `
-    <div class="data-table-container">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th class="col-image"></th>
-            <th>Plattform</th>
-            <th>Beschreibung</th>
-            <th>Creator</th>
-            <th>Skript-Freigabe</th>
-            <th>Konzept</th>
-            ${canToggle ? '<th class="col-actions">Aktionen</th>' : ''}
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -746,7 +521,6 @@ function renderAuswertungPane() {
 
 const PANE_RENDERERS = {
   briefing: renderBriefingPane,
-  konzepte: renderKonzeptePane,
   skripte: renderSkriptePane,
   vertraege: renderVertraegePane,
   videos: renderVideosPane,

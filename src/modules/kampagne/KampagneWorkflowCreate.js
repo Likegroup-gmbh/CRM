@@ -5,6 +5,7 @@
 import { resolveCreateAction, renderCreateButton } from '../../core/actions/CreateActionGate.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { openCastingCreateDrawer } from './KampagneDetailCasting.js';
+import { remountKonzeptPane } from './KampagneDetailKonzept.js';
 import { openCreateDrawer as openKonzeptCreateDrawer } from '../strategie/StrategieListCrud.js';
 import { openSkriptCreateDrawer } from '../skripte/SkriptCreateDrawer.js';
 
@@ -90,8 +91,9 @@ export function renderWorkflowCreateChrome(action, detail) {
   const { spec, state } = resolveAction(action, detail);
   if (!spec) return '';
   const button = renderCreateButton({ action, label: spec.label, state });
-  if (action !== 'casting') return button;
-  return `${button}<div id="kampagne-casting-tools"></div>`;
+  if (action === 'casting') return `${button}<div id="kampagne-casting-tools"></div>`;
+  if (action === 'konzepte') return `${button}<div id="kampagne-konzept-tools"></div>`;
+  return button;
 }
 
 export function syncWorkflowCreateChrome(detail, action = null) {
@@ -99,10 +101,13 @@ export function syncWorkflowCreateChrome(detail, action = null) {
   for (const id of ids) {
     const slot = document.querySelector(`.kampagne-tab-chrome[data-chrome="${id}"]`);
     if (!slot) continue;
-    const liveTools = id === 'casting' ? slot.querySelector('#kampagne-casting-tools') : null;
+    const toolsId = id === 'casting'
+      ? 'kampagne-casting-tools'
+      : (id === 'konzepte' ? 'kampagne-konzept-tools' : null);
+    const liveTools = toolsId ? slot.querySelector(`#${toolsId}`) : null;
     slot.innerHTML = renderWorkflowCreateChrome(id, detail);
     if (liveTools) {
-      const placeholder = slot.querySelector('#kampagne-casting-tools');
+      const placeholder = slot.querySelector(`#${toolsId}`);
       if (placeholder) placeholder.replaceWith(liveTools);
     }
   }
@@ -138,11 +143,9 @@ export function handleWorkflowCreate(detail, action) {
       prefill,
       onCreated: async (strategie) => {
         detail.strategien = [...(detail.strategien || []), strategie];
+        detail._konzeptSelectedId = strategie.id;
         syncWorkflowCreateChrome(detail, 'konzepte');
-        if (detail._workflowLoaded) detail._workflowLoaded.konzepte = false;
-        if (detail._workflowData) delete detail._workflowData.konzepte;
-        const { loadWorkflowPane } = await import('./KampagneDetailWorkflow.js');
-        await loadWorkflowPane(detail, 'konzepte');
+        await remountKonzeptPane(detail);
       }
     });
     return;

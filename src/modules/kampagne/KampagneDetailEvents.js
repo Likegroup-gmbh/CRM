@@ -4,9 +4,7 @@
 import { KampagneUtils } from './KampagneUtils.js';
 import {
   getWorkflowTableRoute,
-  handleWorkflowTableSelect,
-  handleSkriptFreigabeToggle,
-  handleKonzeptPaneAction
+  handleWorkflowTableSelect
 } from './KampagneDetailWorkflow.js';
 import { navigateToNewKooperationFromKampagne } from '../kooperation/kooperationFromKampagne.js';
 import { handleWorkflowCreate } from './KampagneWorkflowCreate.js';
@@ -223,32 +221,12 @@ export function setupEvents(detail) {
     }
   }, { signal });
 
-  // Workflow-Panes: Skript-Freigabe-Toggle (Konzepte)
-  document.addEventListener('click', (e) => {
-    const toggle = e.target.closest('[data-workflow-action="toggle-skript-freigabe"]');
-    if (!toggle) return;
-    if (!e.target.closest('.workflow-pane')) return;
-    e.preventDefault();
-    handleSkriptFreigabeToggle(detail, toggle.dataset.id);
-  }, { signal });
-
-  document.addEventListener('click', (e) => {
-    const actionItem = e.target.closest('[data-action]');
-    if (!actionItem) return;
-    // Portal hängt an body, nicht im Pane — sonst stirbt Creator verbinden an href=#.
-    const fromPane = !!actionItem.closest('#workflow-pane-konzepte [data-entity-type="strategie_item"]');
-    const portal = actionItem.closest('.actions-dropdown-portal');
-    const fromPortal = portal?.dataset?.entityType === 'strategie_item';
-    if (!fromPane && !fromPortal) return;
-    e.preventDefault();
-    handleKonzeptPaneAction(detail, actionItem);
-  }, { signal });
-
-  // Workflow-Panes: Inline-Selects (Skript-Status). Casting läuft über das Worksheet.
+  // Workflow-Panes: Inline-Selects (Skript-Status). Casting/Konzepte laufen über das Worksheet.
   // tableSelect feuert das Event auf document; hier nur die aus unseren Panes.
   document.addEventListener('table-select-change', (e) => {
     const pane = e.detail?.element?.closest('.workflow-pane');
     if (!pane) return;
+    if (pane.dataset.pane === 'casting' || pane.dataset.pane === 'konzepte') return;
     handleWorkflowTableSelect(detail, e.detail);
   }, { signal });
 

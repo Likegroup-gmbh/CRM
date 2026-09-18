@@ -137,7 +137,7 @@ export function syncAllTextClips(root = document) {
 }
 
 export function bindTextClipEvents(detail) {
-  const table = document.querySelector('.strategie-items-table');
+  const table = detail._q?.('.strategie-items-table') || document.querySelector('.strategie-items-table');
   if (!table) return;
 
   const onClick = (e) => {

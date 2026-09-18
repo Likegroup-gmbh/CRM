@@ -18,6 +18,7 @@ import {
   DEFAULT_WORKFLOW_TAB
 } from './KampagneDetailWorkflow.js';
 import { unmountCastingWorksheet } from './KampagneDetailCasting.js';
+import { unmountKonzeptWorksheet } from './KampagneDetailKonzept.js';
 
 export class KampagneDetail {
   constructor() {
@@ -39,6 +40,7 @@ export class KampagneDetail {
     this.vertraege = [];
     this.kooperationenVideoTable = null;
     this.castingWorksheet = null;
+    this.konzeptWorksheet = null;
     this.kanbanBoard = null;
     this.currentView = 'table';
     this.videoColumnVisibilityDrawer = null;
@@ -67,6 +69,7 @@ export class KampagneDetail {
     this._isMounted = true;
     this._destroyDrawers();
     unmountCastingWorksheet(this);
+    unmountKonzeptWorksheet(this);
 
     if (this.kooperationenVideoTable) {
       if (typeof this.kooperationenVideoTable.destroy === 'function') {
@@ -456,6 +459,7 @@ export class KampagneDetail {
     }
 
     unmountCastingWorksheet(this);
+    unmountKonzeptWorksheet(this);
 
     if (this.store) {
       this.store.destroy();
