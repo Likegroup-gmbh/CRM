@@ -30,7 +30,6 @@ const {
   matchingScore,
   profilFuer,
   topNNachMatching,
-  matchKategorie,
   validateVorschlaege,
   zielAnzahl,
   CASTING_TOOL,
@@ -128,7 +127,7 @@ exports.handler = async (event) => {
     if (!casting) throw new Error('Casting nicht gefunden');
     if (!casting.briefing_id) throw new Error('Casting ohne Briefing: ohne Bedarf kein Lauf');
 
-    const { briefing, produktIds, personas, kategorien } = await loadBedarfData(supabase, casting);
+    const { briefing, produktIds, personas } = await loadBedarfData(supabase, casting);
     const bedarf = buildBedarf(briefing, { produktIds, personas });
 
     // Substance-Gate: ohne Nische, Groesse, Merkmale und Personas kein Fundament
@@ -213,7 +212,7 @@ exports.handler = async (event) => {
 
     // --- LLM begruendet die Shortlist ---
     schreibeStep('generieren', `Claude begründet ${shortlist.length} Vorschläge`);
-    const { stable, task } = buildPrompt(bedarf, { shortlist, kategorien });
+    const { stable, task } = buildPrompt(bedarf, { shortlist });
 
     const result = await callClaude({
       model: MODELS.casting,
@@ -251,7 +250,7 @@ exports.handler = async (event) => {
         creator_id: v.creator_id,
         status: 'pending',
         slot: 'tight',
-        kategorie_hint: matchKategorie(s.k, kategorien, bedarf.personas),
+        kategorie_hint: null,
         fit_grund: v.fit_grund,
         risiken: v.risiken,
         persona_ids: v.persona_ids,

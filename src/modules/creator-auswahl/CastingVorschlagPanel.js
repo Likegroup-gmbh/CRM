@@ -4,7 +4,6 @@
 // sehen den Block nie.
 
 import { CastingVorschlagService } from './CastingVorschlagService.js';
-import { getTeilbereicheFromListe } from './CreatorAuswahlTemplates.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
 function esc(value) {
@@ -213,7 +212,7 @@ export class CastingVorschlagPanel {
       const item = await CastingVorschlagService.aktivieren(vorschlag, {
         listeId: this.detail.listeId,
         listeTyp: this.detail.liste?.liste_typ,
-        kategorien: getTeilbereicheFromListe(this.detail.liste)
+        personaIds: (this.detail.personas || []).map(p => p.id)
       });
       this.vorschlaege = this.vorschlaege.filter(v => v.id !== vorschlagId);
       this.detail.items.push(item);

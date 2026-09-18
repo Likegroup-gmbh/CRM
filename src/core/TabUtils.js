@@ -30,6 +30,7 @@ export const TAB_PERMISSION_MAP = {
   'marken': 'marke',
   // Workflow-Tabs auf der Kampagnen-Detailseite
   'casting': 'sourcing',
+  'castings': 'sourcing',
   'konzepte': 'strategie',
   'skripte': 'skripte',
   'produktion': 'kooperation',

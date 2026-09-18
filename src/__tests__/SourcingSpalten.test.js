@@ -213,7 +213,9 @@ describe('Sourcing – deaktivierte Spalten (EK/VK)', () => {
   });
 
   it('zaehlt sie nicht in der Spaltenanzahl mit', () => {
-    const doc = tableDoc([{ id: 'i1' }], { liste: { teilbereich: 'Reels' } });
+    const doc = tableDoc([{ id: 'i1', persona_id: 'p1' }], {
+      personas: [{ id: 'p1', name: 'Persona A' }]
+    });
     const colspan = Number(doc.querySelector('.kategorie-header').getAttribute('colspan'));
     const sichtbar = Array.from(doc.querySelectorAll('thead th'))
       .filter(th => !th.getAttribute('style')?.includes('display:none')).length;
@@ -323,6 +325,35 @@ describe('Sourcing – Bild-Spalte', () => {
     const bild = cell('cp-col-bild', { profile_image_url: 'https://cdn.test/p.webp' }, { isKunde: true });
 
     expect(bild.querySelector('img')).not.toBeNull();
+  });
+
+  it('setzt den gruenen Punkt bei vorhandener creator_id', () => {
+    const bild = cell('cp-col-bild', { creator_id: 'c1' });
+    const dot = bild.querySelector('.sourcing-avatar__dot');
+
+    expect(dot.classList.contains('status-dot--active')).toBe(true);
+    expect(dot.getAttribute('title')).toBe('Als Creator angelegt');
+  });
+
+  it('setzt den roten Punkt nur bei Prio plus Zusage ohne Creator', () => {
+    const rot = cell('cp-col-bild', { prio_1: true, zusage: true });
+    expect(rot.querySelector('.sourcing-avatar__dot').classList.contains('status-dot--inactive')).toBe(true);
+
+    expect(cell('cp-col-bild', { zusage: true }).querySelector('.sourcing-avatar__dot')).toBeNull();
+    expect(cell('cp-col-bild', { prio_1: true }).querySelector('.sourcing-avatar__dot')).toBeNull();
+  });
+
+  it('zeigt Kunden und Vorschlaegen keinen Punkt', () => {
+    const kunde = cell('cp-col-bild', { creator_id: 'c1' }, { isKunde: true });
+    expect(kunde.querySelector('.sourcing-avatar__dot')).toBeNull();
+
+    const vorschlag = cell('cp-col-bild', {
+      isVorschlag: true,
+      creator_id: 'c1',
+      prio_1: true,
+      zusage: true
+    });
+    expect(vorschlag.querySelector('.sourcing-avatar__dot')).toBeNull();
   });
 });
 

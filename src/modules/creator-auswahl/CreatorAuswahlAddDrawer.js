@@ -3,7 +3,7 @@
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { CREATOR_TYP_OPTIONS, isAllowedCreatorTyp, normalizeCreatorTyp } from './creatorTypeOptions.js';
-import { getTeilbereicheFromListe, DEAKTIVIERTE_SPALTEN } from './CreatorAuswahlTemplates.js';
+import { DEAKTIVIERTE_SPALTEN } from './CreatorAuswahlTemplates.js';
 import { berechneHiddenColumns } from './sourcingSpaltenPreset.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 
@@ -98,10 +98,10 @@ export class CreatorAuswahlAddDrawer {
       .map(typ => `<option value="${typ}">${typ}</option>`)
       .join('');
 
-    const teilbereiche = getTeilbereicheFromListe(this.detail.liste)
-      .filter(tb => tb !== 'Nicht umsetzen');
-    const kategorieOptionsHtml = teilbereiche
-      .map(tb => `<option value="${escapeAttr(tb)}">${escapeAttr(tb)}</option>`)
+    const personas = this.detail?.personas || [];
+    const defaultPersonaId = personas.length === 1 ? personas[0].id : '';
+    const personaOptionsHtml = personas
+      .map(p => `<option value="${escapeAttr(p.id)}"${p.id === defaultPersonaId ? ' selected' : ''}>${escapeAttr(p.name)}</option>`)
       .join('');
 
     const searchSection = isDatabaseMode ? `
@@ -116,15 +116,15 @@ export class CreatorAuswahlAddDrawer {
       <div id="db-selected-info" class="sourcing-selected-info" style="display: none;"></div>
     ` : '';
 
-    const kategorieFeld = teilbereiche.length > 0 ? `
+    const personaFeld = `
           <div class="form-field">
-            <label class="form-label">Kategorie</label>
-            <select id="creator-kategorie" name="kategorie" class="form-input">
-              <option value="">Ohne Kategorie</option>
-              ${kategorieOptionsHtml}
+            <label class="form-label">Persona *</label>
+            <select id="creator-persona" name="persona_id" class="form-input" required>
+              <option value="">Bitte wählen...</option>
+              ${personaOptionsHtml}
             </select>
           </div>
-    ` : '';
+    `;
 
     // EK/VK folgen demselben Schalter wie die Tabelle, sonst laesst der Drawer
     // Werte in Spalten laufen, die niemand mehr sieht
@@ -159,7 +159,7 @@ export class CreatorAuswahlAddDrawer {
             </select>
           </div>
 
-          ${kategorieFeld}
+          ${personaFeld}
 
           <div class="form-field">
             <label class="form-label">Name *</label>
@@ -453,6 +453,12 @@ export class CreatorAuswahlAddDrawer {
       return;
     }
 
+    const personaId = formData.get('persona_id')?.trim();
+    if (!personaId) {
+      window.toastSystem?.show('Bitte eine Persona wählen', 'warning');
+      return;
+    }
+
     const submitBtn = document.getElementById('submit-btn');
 
     try {
@@ -473,7 +479,7 @@ export class CreatorAuswahlAddDrawer {
         follower_instagram: formData.get('follower_instagram') ? parseInt(formData.get('follower_instagram'), 10) : null,
         link_tiktok: formData.get('link_tiktok')?.trim() || null,
         follower_tiktok: formData.get('follower_tiktok') ? parseInt(formData.get('follower_tiktok'), 10) : null,
-        kategorie: formData.get('kategorie')?.trim() || null,
+        persona_id: personaId,
         wohnort: formData.get('wohnort')?.trim() || null,
         email: formData.get('email')?.trim() || null,
         telefon: formData.get('telefon')?.trim() || null,
@@ -506,6 +512,10 @@ export class CreatorAuswahlAddDrawer {
     }
   }
 
+  _defaultPersonaId() {
+    return this.detail?.personas?.[0]?.id || null;
+  }
+
   async createInitialEmptyRow() {
     try {
       const itemData = {
@@ -517,6 +527,7 @@ export class CreatorAuswahlAddDrawer {
         link_tiktok: null,
         follower_tiktok: null,
         absage: false,
+        persona_id: this._defaultPersonaId(),
         kategorie: null,
         wohnort: null,
         notiz: null,
@@ -549,6 +560,7 @@ export class CreatorAuswahlAddDrawer {
         link_tiktok: null,
         follower_tiktok: null,
         absage: false,
+        persona_id: this._defaultPersonaId(),
         kategorie: null,
         wohnort: null,
         notiz: null,

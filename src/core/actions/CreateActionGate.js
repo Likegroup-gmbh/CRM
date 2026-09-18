@@ -1,6 +1,7 @@
 // CreateActionGate.js
 // Kleines, wiederverwendbares Gate fuer Create-CTAs:
-// Permission + Existenz → rendern / enablen / disablen mit Reason.
+// Permission + Existenz → rendern oder nicht. Existiert die Entity schon,
+// faellt der Button weg (Worksheet-Tools ersetzen ihn).
 
 function escapeAttr(str) {
   return String(str ?? '')
@@ -25,7 +26,7 @@ export function resolveCreateAction({ permission, exists = false, existsReason =
     return { renderable: false, enabled: false, reason: '' };
   }
   if (exists) {
-    return { renderable: true, enabled: false, reason: existsReason || '' };
+    return { renderable: false, enabled: false, reason: existsReason || '' };
   }
   return { renderable: true, enabled: true, reason: '' };
 }

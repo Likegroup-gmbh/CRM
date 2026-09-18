@@ -3,6 +3,11 @@
 
 import { assertBriefingForCreate, assertBriefingLinkLock } from '../briefing/BriefingLinkGuard.js';
 import { VIDEOIDEE_VORSCHLAG_ERROR, VORSCHLAG_EDIT_FIELDS } from './videoideeVorschlag.js';
+import {
+  castingUmsetzungGate,
+  CASTING_UMSETZUNG_GATE_ERROR,
+  CASTING_CREATOR_PFLICHT_ERROR
+} from '../creator-auswahl/sourcingStatusOptions.js';
 
 export class StrategieService {
   /**
@@ -902,7 +907,7 @@ export class StrategieService {
   /**
    * Ordnet einer Videoidee einen Casting-Eintrag zu. Gates:
    * - Konzept muss mit dem Casting des Eintrags verknuepft sein
-   * - Eintrag muss Status Zusage oder Gebucht haben
+   * - Eintrag: Kunden-Prio plus Zusage oder Gebucht plus creator_id
    * - Zuordnung ist eingefroren, sobald ein Skript aus der Idee existiert
    */
   async assignCastingItem(itemId, auswahlItemId) {
@@ -926,7 +931,7 @@ export class StrategieService {
 
     const { data: eintrag, error: eErr } = await window.supabase
       .from('creator_auswahl_items')
-      .select('id, creator_auswahl_id, zusage, gebucht, name, creator_id')
+      .select('id, creator_auswahl_id, zusage, gebucht, prio_1, prio_2, name, creator_id')
       .eq('id', auswahlItemId)
       .single();
     if (eErr || !eintrag) throw new Error('Casting-Eintrag nicht gefunden');
@@ -934,8 +939,11 @@ export class StrategieService {
     if (eintrag.creator_auswahl_id !== strategie.creator_auswahl_id) {
       throw new Error('Der Eintrag gehört nicht zum verknüpften Casting.');
     }
-    if (!eintrag.zusage && !eintrag.gebucht) {
-      throw new Error('Nur Einträge mit Status Zusage oder Gebucht können zugeordnet werden.');
+    if (!castingUmsetzungGate(eintrag)) {
+      throw new Error(CASTING_UMSETZUNG_GATE_ERROR);
+    }
+    if (!eintrag.creator_id) {
+      throw new Error(CASTING_CREATOR_PFLICHT_ERROR);
     }
 
     if (item.creator_auswahl_item_id && item.creator_auswahl_item_id !== auswahlItemId) {
@@ -994,7 +1002,8 @@ export class StrategieService {
 
   /**
    * Eintraege des mit einem Konzept verknuepften Castings, die einer
-   * Videoidee zugeordnet werden duerfen (Status Zusage/Gebucht).
+   * Videoidee zugeordnet werden duerfen (Prio plus Zusage/Gebucht).
+   * Ohne creator_id bleiben sie waehlbar — der Drawer legt den Creator zuerst an.
    */
   async getZuordbareCastingItems(strategieId) {
     const { data: strategie, error: sErr } = await window.supabase
@@ -1006,14 +1015,14 @@ export class StrategieService {
 
     const { data, error } = await window.supabase
       .from('creator_auswahl_items')
-      .select('id, name, creator_id, link_instagram, link_tiktok, zusage, gebucht')
+      .select('id, name, creator_id, link_instagram, link_tiktok, zusage, gebucht, prio_1, prio_2')
       .eq('creator_auswahl_id', strategie.creator_auswahl_id)
       .order('sortierung', { ascending: true });
     if (error) throw error;
 
     return {
       castingId: strategie.creator_auswahl_id,
-      items: (data || []).filter(i => i.zusage || i.gebucht)
+      items: (data || []).filter(i => castingUmsetzungGate(i))
     };
   }
 

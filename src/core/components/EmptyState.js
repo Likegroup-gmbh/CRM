@@ -55,6 +55,7 @@ const EMPTY_ICON_MAP = {
   creator: 'creator',
   megaphone: 'campaign',
   handshake: 'handshake',
+  sourcing: 'sourcing',
   invoice: 'rechnung',
   document: 'document',
   list: 'list-bullet',

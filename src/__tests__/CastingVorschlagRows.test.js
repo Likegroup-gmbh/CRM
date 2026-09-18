@@ -19,7 +19,8 @@ const vorschlag = {
   id: 'v-1',
   creator_id: 'c-1',
   fit_grund: 'Passt zur Zielgruppe Food 25-34.',
-  kategorie_hint: 'Reels',
+  persona_ids: ['p-food'],
+  kategorie_hint: null,
   scores: { fit: 58, track: 36, fresh: 100, castings: 4 },
   matching_score: 57,
   creator: {
@@ -51,7 +52,8 @@ describe('vorschlagToItem', () => {
     expect(item.wohnort).toBe('Köln');
     expect(item.email).toBe('jessie@example.com');
     expect(item.typ).toBe('UGC Paid');
-    expect(item.kategorie).toBe('Reels');
+    expect(item.persona_id).toBe('p-food');
+    expect(item.kategorie).toBeNull();
     expect(item.matching_score).toBe(57);
     expect(item.matching_scores).toEqual({ fit: 58, track: 36, fresh: 100, castings: 4 });
   });
@@ -135,7 +137,7 @@ describe('CastingVorschlagService.aktivieren', () => {
     const item = await CastingVorschlagService.aktivieren(vorschlag, {
       listeId: 'liste-1',
       listeTyp: 'ugc',
-      kategorien: ['Reels']
+      personaIds: ['p-food']
     });
 
     expect(item).toEqual(created);
@@ -149,7 +151,8 @@ describe('CastingVorschlagService.aktivieren', () => {
       matching_score: 57,
       matching_scores: { fit: 58, track: 36, fresh: 100, castings: 4 },
       creator_id: 'c-1',
-      kategorie: 'Reels'
+      persona_id: 'p-food',
+      kategorie: null
     }));
     spy.mockRestore();
   });

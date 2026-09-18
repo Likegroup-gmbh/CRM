@@ -96,6 +96,7 @@ describe('CreatorAuswahlDetail – Namenssuche', () => {
       <button id="sourcing-item-search-clear" style="display:flex;"></button>
     `;
 
+    detail.root = document.body;
     detail.searchQuery = 'anna';
     detail.clearSearch();
 

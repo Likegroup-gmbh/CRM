@@ -106,6 +106,10 @@ export class CreatorListDetail {
                 ${actionsDropdown.getHeroIcon('add-to-campaign')}
                 Zu Kampagne hinzufügen
               </a>
+              <a href="#" class="action-item" data-action="add_to_casting" data-id="${c.id}">
+                ${actionsDropdown.getHeroIcon('add-to-casting')}
+                Zu Casting hinzufügen
+              </a>
             </div>
           </div>
         </td>

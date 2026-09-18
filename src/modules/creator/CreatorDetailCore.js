@@ -19,6 +19,7 @@ export class CreatorDetail extends PersonDetailBase {
     this.creatorAdressen = [];
     this.managements = [];
     this.firmen = [];
+    this.castings = [];
     this.profileCounts = {
       kooperationen: 0,
       videos: 0
@@ -236,6 +237,7 @@ export class CreatorDetail extends PersonDetailBase {
       { tab: 'instagram', label: 'Instagram', isActive: this.activeMainTab === 'instagram' },
       { tab: 'unternehmen', label: 'Unternehmen', count: this.unternehmen?.length || 0, isActive: this.activeMainTab === 'unternehmen' },
       { tab: 'kampagnen', label: 'Kampagnen', count: this.kampagnen?.length || 0, isActive: this.activeMainTab === 'kampagnen' },
+      { tab: 'castings', label: 'Castings', count: this.castings?.length || 0, isActive: this.activeMainTab === 'castings' },
       { tab: 'kooperationen', label: 'Kooperationen', count: this.kooperationen?.length || 0, isActive: this.activeMainTab === 'kooperationen' },
       { tab: 'rechnungen', label: 'Rechnungen', count: this.rechnungen?.length || 0, isActive: this.activeMainTab === 'rechnungen' },
       { tab: 'vertraege', label: 'Verträge', count: this.vertraege?.length || 0, isActive: this.activeMainTab === 'vertraege' },
@@ -260,6 +262,10 @@ export class CreatorDetail extends PersonDetailBase {
 
         <div class="tab-pane ${this.activeMainTab === 'kampagnen' ? 'active' : ''}" id="tab-kampagnen">
           ${this.renderKampagnenContent()}
+        </div>
+
+        <div class="tab-pane ${this.activeMainTab === 'castings' ? 'active' : ''}" id="tab-castings">
+          ${this.renderCastingsContent()}
         </div>
 
         <div class="tab-pane ${this.activeMainTab === 'kooperationen' ? 'active' : ''}" id="tab-kooperationen">

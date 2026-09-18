@@ -533,23 +533,6 @@ function topNNachMatching(scored, { anzahl } = {}) {
     .slice(0, n);
 }
 
-/** Kategorie-Match: Persona-Name/Oberbegriff oder Typ im Kategorienamen. */
-function matchKategorie(k, kategorien = [], personas = []) {
-  for (const kat of (kategorien || [])) {
-    const nk = norm(kat);
-    if (!nk || nk === 'nicht umsetzen' || nk === 'ohne kategorie') continue;
-    for (const p of (personas || [])) {
-      if (p.name && nk.includes(norm(p.name))) return kat;
-      if (p.oberbegriff && tokens(p.oberbegriff).some(t => nk.includes(t))) return kat;
-    }
-    for (const t of (k.typen || [])) {
-      const nt = norm(t);
-      if (nt && (nk.includes(nt) || nt.includes(nk))) return kat;
-    }
-  }
-  return null;
-}
-
 // ---------------------------------------------------------------------------
 // Validate (Modell-Antwort gegen die Shortlist)
 // ---------------------------------------------------------------------------
@@ -639,7 +622,7 @@ function fmtKandidat(s) {
   ].filter(Boolean).join('\n  ');
 }
 
-function buildPrompt(bedarf, { shortlist = [], kategorien = [] } = {}) {
+function buildPrompt(bedarf, { shortlist = [] } = {}) {
   const stable = 'Du bist Casting-Unterstuetzung einer Creator-Agentur. '
     + 'Du bekommst eine deterministisch erstellte Shortlist aus der eigenen Creator-Datenbank. '
     + 'Du waehlst NICHT aus und erfindest KEINE Creator - jede creator_id muss aus der Shortlist stammen.\n\n'
@@ -660,7 +643,7 @@ function buildPrompt(bedarf, { shortlist = [], kategorien = [] } = {}) {
   if (bedarf.umsetzung) task += `Umsetzung: ${cap(bedarf.umsetzung, 500)}\n`;
   if (bedarf.learningsText) task += `Learnings: ${cap(bedarf.learningsText, 400)}\n`;
   if (bedarf.personas?.length) {
-    task += '\n# PERSONAS (nur akzeptierte)\n';
+    task += '\n# PERSONAS (Briefing)\n';
     bedarf.personas.forEach(p => {
       task += `- ${p.name || '?'}${p.oberbegriff ? ` (${p.oberbegriff})` : ''}`
         + `${p.pain_points ? `: ${cap(p.pain_points, 200)}` : ''}\n`;
@@ -668,7 +651,6 @@ function buildPrompt(bedarf, { shortlist = [], kategorien = [] } = {}) {
       if (as) task += `  Audience Situations: ${as}\n`;
     });
   }
-  if (kategorien?.length) task += `\n# KATEGORIEN AUF DER LISTE\n${kategorien.join(', ')}\n`;
 
   task += `\n# SHORTLIST (${shortlist.length} Kandidaten, IDs sind verbindlich)\n`;
   shortlist.slice(0, MAX_SHORTLIST_IM_PROMPT).forEach(s => { task += `\n---\n${fmtKandidat(s)}\n`; });
@@ -790,7 +772,12 @@ async function loadBuchungsbild(supabase, { markeId, unternehmenId, castingId, f
   return bild;
 }
 
-/** Bedarf-Daten: Briefing, Produkte, akzeptierte Personas, Kategorien. */
+function orderPersonasByIds(rows, ids) {
+  const byId = new Map((rows || []).map(p => [p.id, p]));
+  return (ids || []).map(id => byId.get(id)).filter(Boolean);
+}
+
+/** Bedarf-Daten: Briefing, Produkte, Briefing-Personas. */
 async function loadBedarfData(supabase, casting) {
   const { data: briefing } = await supabase.from('campaign_briefings')
     .select('*').eq('id', casting.briefing_id).maybeSingle();
@@ -800,25 +787,19 @@ async function loadBedarfData(supabase, casting) {
     .select('produkt_id').eq('briefing_id', briefing.id);
   const produktIds = (links || []).map(l => l.produkt_id).filter(Boolean);
 
+  const personaIds = Array.isArray(briefing.persona_ids)
+    ? briefing.persona_ids.filter(Boolean)
+    : [];
   let personas = [];
-  if (produktIds.length) {
-    const { data: vorschlaege } = await supabase.from('produkt_persona_vorschlag')
-      .select('persona_id, persona:persona_id(id, name, oberbegriff, alter_von, alter_bis, geschlecht, lebenssituation, pain_points, beduerfnisse)')
-      .in('produkt_id', produktIds)
-      .eq('status', 'accepted');
-    const gesehen = new Set();
-    for (const v of (vorschlaege || [])) {
-      const p = v.persona;
-      if (p && p.id && !gesehen.has(p.id)) { gesehen.add(p.id); personas.push(p); }
-    }
+  if (personaIds.length) {
+    const { data: rows } = await supabase.from('personas')
+      .select('id, name, oberbegriff, alter_von, alter_bis, geschlecht, lebenssituation, pain_points, beduerfnisse')
+      .in('id', personaIds);
+    personas = orderPersonasByIds(rows, personaIds);
     await attachAudienceSituations(supabase, personas);
   }
 
-  const { data: kategorienZeilen } = await supabase.from('creator_auswahl')
-    .select('teilbereich').eq('id', casting.id).maybeSingle();
-  const kategorien = String(kategorienZeilen?.teilbereich || '').split(',').map(s => s.trim()).filter(Boolean);
-
-  return { briefing, produktIds, personas, kategorien };
+  return { briefing, produktIds, personas };
 }
 
 module.exports = {
@@ -842,7 +823,7 @@ module.exports = {
   matchingScore,
   profilFuer,
   topNNachMatching,
-  matchKategorie,
+  orderPersonasByIds,
   validateVorschlaege,
   CASTING_TOOL,
   buildPrompt,

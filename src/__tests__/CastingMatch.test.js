@@ -22,7 +22,7 @@ const {
   matchingScore,
   wilson,
   topNNachMatching,
-  matchKategorie,
+  orderPersonasByIds,
   validateVorschlaege,
   PROFILES
 } = castingMatch;
@@ -345,17 +345,10 @@ describe('topNNachMatching', () => {
 // Kategorie + Validate (Covered-Set)
 // ---------------------------------------------------------------------------
 
-describe('matchKategorie', () => {
-  it('Persona-Name schlägt, "Nicht umsetzen" nie', () => {
-    const k = kandidat();
-    expect(matchKategorie(k, ['Lenas Welt', 'Reels'], [{ name: 'Lena' }])).toBe('Lenas Welt');
-    expect(matchKategorie(k, ['Nicht umsetzen', 'Ohne Kategorie'], [{ name: 'Lena' }])).toBeNull();
-  });
-
-  it('Typ matcht UGC-Kategorien', () => {
-    const k = kandidat();
-    expect(matchKategorie(k, ['UGC Creator', 'Reels'], [])).toBe('UGC Creator');
-    expect(matchKategorie(k, ['Reels', 'Stories'], [])).toBeNull();
+describe('orderPersonasByIds', () => {
+  it('haelt die Briefing-Reihenfolge', () => {
+    const rows = [{ id: 'p2', name: 'B' }, { id: 'p1', name: 'A' }];
+    expect(orderPersonasByIds(rows, ['p1', 'p2']).map(p => p.id)).toEqual(['p1', 'p2']);
   });
 });
 

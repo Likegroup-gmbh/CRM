@@ -8,6 +8,7 @@ import { getSignedDocumentUrl, resolveDocumentUrl } from './DocumentUrlHelper.js
 import { authorizedFetch } from './auth/getAccessToken.js';
 import { ProduktService, produktFormRoute, produktListDetailRoute } from '../modules/produkt/ProduktService.js';
 import { PersonaService, personaFormRoute } from '../modules/persona/PersonaService.js';
+import { openAddCreatorToCastingDrawer } from '../modules/creator-auswahl/AddCreatorToCastingDrawer.js';
 
 // Entity-Types, die keine eigene DB-Tabelle haben und auf eine andere Entity gemappt werden
 const ENTITY_ALIASES = { mitarbeiter: 'benutzer' };
@@ -244,6 +245,10 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
 
     case 'add_to_list':
       dropdown.openAddToListModal(entityId);
+      break;
+
+    case 'add_to_casting':
+      openAddCreatorToCastingDrawer(entityId);
       break;
 
     case 'connect':

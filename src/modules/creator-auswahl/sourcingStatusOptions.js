@@ -65,6 +65,34 @@ export function isKundenFeedback(value) {
   return KUNDEN_FEEDBACK_OPTIONS.some(o => o.value === value);
 }
 
+export function hatKundenPrio(item) {
+  return !!(item?.prio_1 || item?.prio_2);
+}
+
+export function hatZusageOderGebucht(item) {
+  return !!(item?.zusage || item?.gebucht);
+}
+
+/** Videoidee und Creator-Anlage: Kunden-Prio plus Zusage oder Gebucht. */
+export function castingUmsetzungGate(item) {
+  return hatKundenPrio(item) && hatZusageOderGebucht(item);
+}
+
+/**
+ * Interner Avatar-Punkt: gruen = Stammdaten da, rot = Gate offen und noch kein Creator.
+ * @returns {'green'|'red'|null}
+ */
+export function castingCreatorBadge(item) {
+  if (item?.creator_id) return 'green';
+  if (castingUmsetzungGate(item)) return 'red';
+  return null;
+}
+
+export const CASTING_UMSETZUNG_GATE_ERROR =
+  'Nur Einträge mit Kunden-Prio und Status Zusage oder Gebucht können einer Videoidee zugeordnet werden';
+
+export const CASTING_CREATOR_PFLICHT_ERROR = 'Zuerst den Creator anlegen';
+
 /**
  * Vollstaendiges Update-Objekt fuer einen gewaehlten Prozess-Status: genau ein
  * Prozess-Flag wird gesetzt, alle anderen zurueckgenommen. Die Feedback-Flags

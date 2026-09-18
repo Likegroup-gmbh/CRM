@@ -7,13 +7,11 @@ import { SourcingTabelleAnpassenDrawer } from './SourcingTabelleAnpassenDrawer.j
 import { normalizeCreatorTyp, isAllowedCreatorTyp } from './creatorTypeOptions.js';
 import {
   renderAddSection, renderItemsTable, renderTabNavigation, renderItemRow,
-  getTeilbereicheFromListe, isColumnVisibleForCustomer, getVisibleColumnCount,
+  isColumnVisibleForCustomer, getVisibleColumnCount,
   getSourcingTabForItem, SOURCING_TABS, migrateHiddenColumns,
-  SOURCING_ANKER_SPALTEN, SOURCING_SPALTEN_LABELS, DEAKTIVIERTE_SPALTEN,
-  repairSourcingItemKategorien
+  SOURCING_ANKER_SPALTEN, SOURCING_SPALTEN_LABELS, DEAKTIVIERTE_SPALTEN
 } from './CreatorAuswahlTemplates.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
-import { CreatorAuswahlKategorienDrawer } from './CreatorAuswahlKategorienDrawer.js';
 import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
 import { autoResizeTextarea } from '../feedback/FeedbackEventHandler.js';
 import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
@@ -32,9 +30,11 @@ import {
 import {
   buildSourcingStatusUpdates, isSourcingStatus,
   buildKundenFeedbackUpdates, isKundenFeedback,
-  matchesStatusFilter
+  matchesStatusFilter,
+  castingUmsetzungGate,
+  CASTING_UMSETZUNG_GATE_ERROR,
+  CASTING_CREATOR_PFLICHT_ERROR
 } from './sourcingStatusOptions.js';
-import { SourcingBuchungDrawer } from './SourcingBuchungDrawer.js';
 import { CastingVorschlagPanel } from './CastingVorschlagPanel.js';
 import { vorschlagToItem } from './CastingVorschlagService.js';
 import { preserveScroll } from '../../core/dom/preserveScroll.js';
@@ -44,6 +44,14 @@ import {
 import { StrategieVideoideePickerDrawer } from '../strategie/StrategieVideoideePickerDrawer.js';
 import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import {
+  NICHT_UMSETZEN_KATEGORIE,
+  OHNE_PERSONA_KEY,
+  NICHT_UMSETZEN_KEY,
+  personaGroupKey,
+  updatesForGroupKey,
+  applyGroupToItem
+} from './castingPersonaGroups.js';
 
 const IG_FETCH_FLASH_MS = 2000;
 
@@ -66,9 +74,8 @@ export class CreatorAuswahlDetail {
     this.searchQuery = '';
     this.statusFilter = [];
     this.tabelleAnpassenDrawer = null;
-    this.kategorienDrawer = new CreatorAuswahlKategorienDrawer(this);
+    this.personas = [];
     this.addDrawer = new CreatorAuswahlAddDrawer(this);
-    this.buchungDrawer = new SourcingBuchungDrawer(this);
     this.vorschlagPanel = new CastingVorschlagPanel(this);
     this.selectedItems = new Set();
     this.customColumns = new EntityCustomColumnsManager({
@@ -129,7 +136,7 @@ export class CreatorAuswahlDetail {
     try {
       this.liste = await creatorAuswahlService.getListeById(listeId);
       this.items = await creatorAuswahlService.getItems(listeId);
-      await this.persistRepairedKategorien();
+      this.personas = await creatorAuswahlService.loadBriefingPersonas(this.liste);
 
       await this.customColumns.init(listeId);
       await this.customColumns.loadValues(this.items.map(i => i.id));
@@ -140,7 +147,7 @@ export class CreatorAuswahlDetail {
         window.breadcrumbSystem.updateDetailLabel(this.liste.name);
       }
 
-      if (this.items.length === 0 && !this.isKunde && this._canSourcing('create')) {
+      if (this.items.length === 0 && !this.personas.length && !this.isKunde && this._canSourcing('create')) {
         await this.addDrawer.createInitialEmptyRow();
       }
 
@@ -160,37 +167,10 @@ export class CreatorAuswahlDetail {
     }
   }
 
-  async persistRepairedKategorien() {
-    const defined = getTeilbereicheFromListe(this.liste);
-    const { items, changed } = repairSourcingItemKategorien(this.items, defined);
-    this.items = items;
-    if (!changed.length) return;
-
-    const byKategorie = new Map();
-    for (const entry of changed) {
-      const key = entry.kategorie ?? '__null__';
-      if (!byKategorie.has(key)) byKategorie.set(key, []);
-      byKategorie.get(key).push(entry.id);
-    }
-
-    try {
-      for (const [key, ids] of byKategorie) {
-        await creatorAuswahlService.updateItemsKategorie(
-          ids,
-          key === '__null__' ? null : key
-        );
-      }
-    } catch (error) {
-      console.error('Kategorie-Repair fehlgeschlagen:', error);
-    }
-  }
-
   destroy() {
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
     this.addDrawer.remove();
-    this.kategorienDrawer.remove();
-    this.buchungDrawer.remove();
     this.selectedItems.clear();
 
     // Die Engine selbst bleibt stehen, sie gehoert der Anwendung. Nur diese
@@ -308,7 +288,10 @@ export class CreatorAuswahlDetail {
     // Streng nach Matching absteigend (ADR 0014); die DB liefert das schon,
     // die Sortierung hier faengt Alt-Daten ohne matching_score ab.
     return (this.vorschlagPanel?.vorschlaege || [])
-      .map(v => vorschlagToItem(v, { listeTyp }))
+      .map(v => vorschlagToItem(v, {
+        listeTyp,
+        personaIds: (this.personas || []).map(p => p.id)
+      }))
       .sort((a, b) => (b.matching_score ?? -1) - (a.matching_score ?? -1));
   }
 
@@ -417,7 +400,7 @@ export class CreatorAuswahlDetail {
       gastReadonly: window.isGastReadonly?.() || false,
       hiddenColumns: this.hiddenColumns,
       kundenCallActive: this.kundenCallActive,
-      teilbereiche: getTeilbereicheFromListe(this.liste),
+      personas: this.personas || [],
       customManager: this.customColumns,
       actionsOnly: this.embedded
     };
@@ -514,6 +497,10 @@ export class CreatorAuswahlDetail {
             e.preventDefault();
             this.handleDeleteItem(id);
             break;
+          case 'create-creator':
+            e.preventDefault();
+            this.handleCreateCreator(id);
+            break;
           case 'create-videoidee':
             e.preventDefault();
             this.handleCreateVideoidee(id);
@@ -570,13 +557,6 @@ export class CreatorAuswahlDetail {
         const handler = () => this.customColumns.openManagementDrawer(() => this.rerenderTable());
         customColumnsBtn.addEventListener('click', handler);
         this._boundEventListeners.add(() => customColumnsBtn.removeEventListener('click', handler));
-      }
-
-      const kategorienBtn = this._q('#btn-manage-kategorien');
-      if (kategorienBtn) {
-        const handler = () => this.kategorienDrawer.open();
-        kategorienBtn.addEventListener('click', handler);
-        this._boundEventListeners.add(() => kategorienBtn.removeEventListener('click', handler));
       }
 
       const konzeptLinkBtn = this._q('#btn-sourcing-konzept-link');
@@ -814,9 +794,9 @@ export class CreatorAuswahlDetail {
         header.classList.remove('drag-over');
 
         const itemId = this.draggedItemId;
-        const newKategorie = header.dataset.kategorie;
-        if (itemId && newKategorie) {
-          await this.handleCategoryChange(itemId, newKategorie);
+        const groupKey = header.dataset.groupKey;
+        if (itemId && groupKey) {
+          await this.handlePersonaChange(itemId, groupKey, header.dataset.personaId || null);
         }
       };
       header.addEventListener('drop', dropHandler);
@@ -830,28 +810,23 @@ export class CreatorAuswahlDetail {
     const tbody = this._q('#items-table-body');
     if (!tbody) return;
     const rows = Array.from(tbody.querySelectorAll('.item-row'));
-    const hatKategorien = getTeilbereicheFromListe(this.liste).length > 0;
+    const hatGruppen = this._q('.kategorie-header-row');
 
-    // Sichtbare (im aktiven Reiter gefilterte) Zeilen mit neuer Reihenfolge/Kategorie aus dem DOM
+    // Sichtbare (im aktiven Reiter gefilterte) Zeilen mit neuer Reihenfolge/Gruppe aus dem DOM
     const visibleItems = rows.map((row) => {
       const itemId = row.dataset.itemId;
       const item = this.items.find(i => i.id === itemId);
+      if (!item) return null;
 
-      let kategorie = item.kategorie;
+      if (!hatGruppen) return { ...item };
 
-      if (hatKategorien) {
-        let currentHeader = row.previousElementSibling;
-        while (currentHeader && !currentHeader.classList.contains('kategorie-header-row')) {
-          currentHeader = currentHeader.previousElementSibling;
-        }
-        if (currentHeader) {
-          const headerKategorie = currentHeader.dataset.kategorie;
-          kategorie = headerKategorie === 'Ohne Kategorie' ? null : headerKategorie;
-        }
+      let currentHeader = row.previousElementSibling;
+      while (currentHeader && !currentHeader.classList.contains('kategorie-header-row')) {
+        currentHeader = currentHeader.previousElementSibling;
       }
-
-      return { ...item, kategorie };
-    });
+      if (!currentHeader?.dataset.groupKey) return { ...item };
+      return applyGroupToItem(item, currentHeader.dataset.groupKey, currentHeader.dataset.personaId || null);
+    }).filter(Boolean);
 
     // Nicht sichtbare Items (andere Reiter) behalten ihre Position:
     // Gesamtreihenfolge = bisherige Reihenfolge, sichtbare Items in neuer DOM-Reihenfolge eingesetzt
@@ -1148,13 +1123,6 @@ export class CreatorAuswahlDetail {
       }
 
       this.rerenderTable();
-
-      // Gebucht heisst: der Creator geht in die Kampagne. Der Drawer fuehrt
-      // durch CRM-Uebernahme, Management und Kooperation - die Buchung selbst
-      // ist mit dem Status-Update oben laengst gesichert.
-      if (status === 'gebucht' && !this.isKunde && item) {
-        this.buchungDrawer.open(item);
-      }
     } catch (error) {
       console.error('Fehler beim Status-Update:', error);
       window.toastSystem?.show('Fehler beim Speichern', 'error');
@@ -1214,7 +1182,7 @@ export class CreatorAuswahlDetail {
     const item = this.items.find(entry => entry.id === itemId);
     if (!item) return this.items;
 
-    const getKey = (entry) => entry.kategorie || '__OHNE_KATEGORIE__';
+    const getKey = (entry) => personaGroupKey(entry);
     const targetKey = getKey(item);
 
     const categoryIndexes = [];
@@ -1246,41 +1214,21 @@ export class CreatorAuswahlDetail {
   }
 
   async handleNichtUmsetzenChange(itemId, isNichtUmsetzen) {
-    const NICHT_UMSETZEN_KATEGORIE = 'Nicht umsetzen';
-
     try {
       if (isNichtUmsetzen) {
-        const existingKategorien = getTeilbereicheFromListe(this.liste);
-        if (!existingKategorien.includes(NICHT_UMSETZEN_KATEGORIE)) {
-          const updatedKategorien = [...existingKategorien, NICHT_UMSETZEN_KATEGORIE];
-          const teilbereichString = updatedKategorien.join(', ');
-          await creatorAuswahlService.updateListe(this.listeId, { teilbereich: teilbereichString });
-          this.liste.teilbereich = teilbereichString;
-        }
-
-        await creatorAuswahlService.updateItem(itemId, {
-          nicht_umsetzen: true,
-          kategorie: NICHT_UMSETZEN_KATEGORIE
-        });
+        const updates = { nicht_umsetzen: true, kategorie: NICHT_UMSETZEN_KATEGORIE };
+        await creatorAuswahlService.updateItem(itemId, updates);
 
         const item = this.items.find(i => i.id === itemId);
-        if (item) {
-          item.nicht_umsetzen = true;
-          item.kategorie = NICHT_UMSETZEN_KATEGORIE;
-        }
+        if (item) Object.assign(item, updates);
 
         window.toastSystem?.show('Creator als "Nicht umsetzen" markiert', 'info');
       } else {
-        await creatorAuswahlService.updateItem(itemId, {
-          nicht_umsetzen: false,
-          kategorie: null
-        });
+        const updates = { nicht_umsetzen: false, kategorie: null };
+        await creatorAuswahlService.updateItem(itemId, updates);
 
         const item = this.items.find(i => i.id === itemId);
-        if (item) {
-          item.nicht_umsetzen = false;
-          item.kategorie = null;
-        }
+        if (item) Object.assign(item, updates);
 
         window.toastSystem?.show('Creator wieder aktiv', 'success');
       }
@@ -1292,19 +1240,19 @@ export class CreatorAuswahlDetail {
     }
   }
 
-  async handleCategoryChange(itemId, newKategorie) {
+  async handlePersonaChange(itemId, groupKey, personaId = null) {
     try {
-      const kategorie = newKategorie === 'Ohne Kategorie' ? null : newKategorie;
-      await creatorAuswahlService.updateItem(itemId, { kategorie });
+      const updates = updatesForGroupKey(groupKey, personaId);
+      await creatorAuswahlService.updateItem(itemId, updates);
 
       const item = this.items.find(i => i.id === itemId);
-      if (item) item.kategorie = kategorie;
+      if (item) Object.assign(item, updates);
 
       this.rerenderTable([itemId]);
-      window.toastSystem?.show('Kategorie aktualisiert', 'success');
+      window.toastSystem?.show('Persona aktualisiert', 'success');
     } catch (error) {
-      console.error('Fehler beim Ändern der Kategorie:', error);
-      window.toastSystem?.show('Fehler beim Ändern der Kategorie', 'error');
+      console.error('Fehler beim Ändern der Persona:', error);
+      window.toastSystem?.show('Fehler beim Ändern der Persona', 'error');
     }
   }
 
@@ -1331,15 +1279,42 @@ export class CreatorAuswahlDetail {
   }
 
   /**
-   * Bestehende Videoidee zuordnen. Fehlt creator_id, wird zuerst der
-   * Creator-Drawer geoeffnet (oder ein Instagram-Treffer verknuepft).
+   * Stammdaten anlegen oder per Instagram-Treffer verknuepfen.
+   * Nur bei Kunden-Prio plus Zusage/Gebucht und fehlender creator_id.
+   */
+  async handleCreateCreator(itemId) {
+    const item = this.items.find(i => i.id === itemId);
+    if (!item) return;
+
+    if (!castingUmsetzungGate(item)) {
+      window.toastSystem?.show(CASTING_UMSETZUNG_GATE_ERROR, 'warning');
+      return;
+    }
+    if (item.creator_id) return;
+
+    try {
+      await ensureCastingEintragHatCreator(item);
+      this.rerenderTable();
+    } catch (error) {
+      if (error?.cancelled) return;
+      console.error('Fehler beim Anlegen des Creators:', error);
+      window.toastSystem?.show(error.message || 'Fehler beim Anlegen', 'error');
+    }
+  }
+
+  /**
+   * Bestehende Videoidee zuordnen. Braucht Umsetzungsgate und creator_id.
    */
   async handleConnectVideoidee(itemId) {
     const item = this.items.find(i => i.id === itemId);
     if (!item) return;
 
-    if (!item.zusage && !item.gebucht) {
-      window.toastSystem?.show('Nur Einträge mit Status Zusage oder Gebucht können einer Videoidee zugeordnet werden', 'warning');
+    if (!castingUmsetzungGate(item)) {
+      window.toastSystem?.show(CASTING_UMSETZUNG_GATE_ERROR, 'warning');
+      return;
+    }
+    if (!item.creator_id) {
+      window.toastSystem?.show(CASTING_CREATOR_PFLICHT_ERROR, 'warning');
       return;
     }
 
@@ -1349,8 +1324,6 @@ export class CreatorAuswahlDetail {
     }
 
     try {
-      await ensureCastingEintragHatCreator(item);
-      this.rerenderTable();
       const drawer = new StrategieVideoideePickerDrawer();
       await drawer.open({
         eintrag: item,
@@ -1511,15 +1484,19 @@ export class CreatorAuswahlDetail {
 
   /**
    * Creator-zuerst: legt eine Videoidee im verknuepften Konzept an, schon
-   * diesem Casting-Eintrag zugeordnet. Nur bei Zusage/Gebucht. Fehlt das
-   * Paar, oeffnet der Picker zuerst denselben Drawer wie „Konzept verknüpfen“.
+   * diesem Casting-Eintrag zugeordnet. Gate: Prio plus Zusage/Gebucht plus creator_id.
+   * Fehlt das Paar, oeffnet der Picker zuerst denselben Drawer wie „Konzept verknüpfen“.
    */
   async handleCreateVideoidee(itemId) {
     const item = this.items.find(i => i.id === itemId);
     if (!item) return;
 
-    if (!item.zusage && !item.gebucht) {
-      window.toastSystem?.show('Nur Einträge mit Status Zusage oder Gebucht können einer Videoidee zugeordnet werden', 'warning');
+    if (!castingUmsetzungGate(item)) {
+      window.toastSystem?.show(CASTING_UMSETZUNG_GATE_ERROR, 'warning');
+      return;
+    }
+    if (!item.creator_id) {
+      window.toastSystem?.show(CASTING_CREATOR_PFLICHT_ERROR, 'warning');
       return;
     }
 
@@ -1704,12 +1681,11 @@ export class CreatorAuswahlDetail {
   renderBulkBar() {
     let bar = document.getElementById('sourcing-bulk-bar');
 
-    const teilbereiche = getTeilbereicheFromListe(this.liste);
-    const kategorieOptions = [
-      '<option value="">Kategorie zuweisen…</option>',
-      ...teilbereiche.filter(k => k !== 'Nicht umsetzen').map(k => `<option value="${escapeAttr(k)}">${escapeAttr(k)}</option>`),
-      '<option value="Ohne Kategorie">Ohne Kategorie</option>',
-      '<option value="Nicht umsetzen">Nicht umsetzen</option>'
+    const personaOptions = [
+      '<option value="">Persona zuweisen…</option>',
+      ...(this.personas || []).map(p => `<option value="${escapeAttr(p.id)}">${escapeAttr(p.name)}</option>`),
+      '<option value="Ohne Persona">Ohne Persona</option>',
+      `<option value="${NICHT_UMSETZEN_KATEGORIE}">${NICHT_UMSETZEN_KATEGORIE}</option>`
     ].join('');
 
     if (!bar) {
@@ -1720,7 +1696,7 @@ export class CreatorAuswahlDetail {
         <span class="bulk-count" id="sourcing-bulk-count">0 ausgewählt</span>
         <div class="bulk-bar-actions">
           <select class="bulk-kategorie-select" id="sourcing-bulk-kategorie">
-            ${kategorieOptions}
+            ${personaOptions}
           </select>
           <button class="mdc-btn mdc-btn--sm" id="btn-bulk-assign">Zuweisen</button>
           <button class="mdc-btn mdc-btn--secondary mdc-btn--sm" id="btn-bulk-deselect">Auswahl aufheben</button>
@@ -1729,7 +1705,7 @@ export class CreatorAuswahlDetail {
       document.body.appendChild(bar);
     } else {
       const select = bar.querySelector('#sourcing-bulk-kategorie');
-      if (select) select.innerHTML = kategorieOptions;
+      if (select) select.innerHTML = personaOptions;
     }
 
     bar.style.display = 'none';
@@ -1933,7 +1909,7 @@ export class CreatorAuswahlDetail {
   bindBulkBarEvents() {
     const assignBtn = document.getElementById('btn-bulk-assign');
     if (assignBtn) {
-      const handler = () => this.handleBulkKategorieAssign();
+    const handler = () => this.handleBulkPersonaAssign();
       assignBtn.addEventListener('click', handler);
       this._boundEventListeners.add(() => assignBtn.removeEventListener('click', handler));
     }
@@ -1953,39 +1929,33 @@ export class CreatorAuswahlDetail {
     }
   }
 
-  async handleBulkKategorieAssign() {
+  async handleBulkPersonaAssign() {
     const select = document.getElementById('sourcing-bulk-kategorie');
     if (!select || !select.value) {
-      window.toastSystem?.show('Bitte eine Kategorie auswählen', 'warning');
+      window.toastSystem?.show('Bitte eine Persona auswählen', 'warning');
       return;
     }
 
-    const newKategorie = select.value === 'Ohne Kategorie' ? null : select.value;
     const itemIds = Array.from(this.selectedItems);
     if (itemIds.length === 0) return;
 
-    try {
-      if (select.value === 'Nicht umsetzen') {
-        const existingKategorien = getTeilbereicheFromListe(this.liste);
-        if (!existingKategorien.includes('Nicht umsetzen')) {
-          const updatedKategorien = [...existingKategorien, 'Nicht umsetzen'];
-          await creatorAuswahlService.updateListe(this.listeId, { teilbereich: updatedKategorien.join(', ') });
-          this.liste.teilbereich = updatedKategorien.join(', ');
-        }
-      }
+    const groupKey = select.value === NICHT_UMSETZEN_KATEGORIE
+      ? NICHT_UMSETZEN_KEY
+      : select.value === 'Ohne Persona'
+        ? OHNE_PERSONA_KEY
+        : select.value;
+    const updates = updatesForGroupKey(groupKey, groupKey === select.value ? select.value : null);
 
+    try {
       itemIds.forEach(id => {
         const row = this._q(`.item-row[data-item-id="${id}"]`);
         if (row) row.classList.add('kategorie-moving-out');
       });
 
-      await creatorAuswahlService.updateItemsKategorie(itemIds, newKategorie);
+      await creatorAuswahlService.updateItemsGroup(itemIds, updates);
 
       this.items.forEach(item => {
-        if (itemIds.includes(item.id)) {
-          item.kategorie = newKategorie;
-          if (select.value === 'Nicht umsetzen') item.nicht_umsetzen = true;
-        }
+        if (itemIds.includes(item.id)) Object.assign(item, updates);
       });
 
       await new Promise(r => setTimeout(r, 300));
@@ -2026,15 +1996,17 @@ export class CreatorAuswahlDetail {
   openPillDropdown(itemId, pillElement) {
     this.closePillDropdown();
 
-    const teilbereiche = getTeilbereicheFromListe(this.liste);
-    const categories = [...teilbereiche.filter(k => k !== 'Nicht umsetzen'), 'Ohne Kategorie'];
+    const options = [
+      ...(this.personas || []).map(p => ({ key: p.id, personaId: p.id, label: p.name })),
+      { key: OHNE_PERSONA_KEY, personaId: null, label: 'Ohne Persona' }
+    ];
     const currentItem = this.items.find(i => i.id === itemId);
-    const currentKat = currentItem?.kategorie || 'Ohne Kategorie';
+    const currentKey = personaGroupKey(currentItem);
 
     const dropdown = document.createElement('div');
     dropdown.className = 'kategorie-pill-dropdown';
-    dropdown.innerHTML = categories.map(k =>
-      `<div class="kategorie-pill-option${k === currentKat ? ' active' : ''}" data-kategorie="${escapeAttr(k)}">${escapeAttr(k)}</div>`
+    dropdown.innerHTML = options.map(opt =>
+      `<div class="kategorie-pill-option${opt.key === currentKey ? ' active' : ''}" data-group-key="${escapeAttr(opt.key)}" data-persona-id="${escapeAttr(opt.personaId || '')}">${escapeAttr(opt.label)}</div>`
     ).join('');
 
     const rect = pillElement.getBoundingClientRect();
@@ -2048,8 +2020,8 @@ export class CreatorAuswahlDetail {
     dropdown.querySelectorAll('.kategorie-pill-option').forEach(opt => {
       opt.addEventListener('click', async (e) => {
         e.stopPropagation();
-        const newKat = opt.dataset.kategorie;
-        if (newKat === currentKat) {
+        const newKey = opt.dataset.groupKey;
+        if (newKey === currentKey) {
           this.closePillDropdown();
           return;
         }
@@ -2059,7 +2031,7 @@ export class CreatorAuswahlDetail {
         if (row) row.classList.add('kategorie-moving-out');
         await new Promise(r => setTimeout(r, 300));
 
-        await this.handleCategoryChange(itemId, newKat);
+        await this.handlePersonaChange(itemId, newKey, opt.dataset.personaId || null);
       });
     });
   }

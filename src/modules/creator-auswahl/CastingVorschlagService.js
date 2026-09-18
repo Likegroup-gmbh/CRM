@@ -7,11 +7,8 @@
 // Vorschlag auf accepted; Verwerfen gilt nur fuer dieses Casting.
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
-import {
-  matchingScore,
-  normalizeInstagramUrl,
-  normalizeTiktokUrl
-} from './sourcingMatching.js';
+import { matchingScore, normalizeInstagramUrl, normalizeTiktokUrl } from './sourcingMatching.js';
+import { pickFirstPersonaId } from './castingPersonaGroups.js';
 
 const ENDPOINT = '/.netlify/functions/casting-vorschlag-background';
 const POLL_INTERVAL_MS = 2000;
@@ -51,7 +48,7 @@ function creatorName(creator) {
  * Pending-Vorschlag als Tabellen-Item. Kein creator_auswahl_item – die id
  * ist die Vorschlag-UUID, isVorschlag markiert die virtuelle Zeile.
  */
-export function vorschlagToItem(vorschlag, { listeTyp } = {}) {
+export function vorschlagToItem(vorschlag, { listeTyp, personaIds = [] } = {}) {
   const creator = vorschlag?.creator || {};
   const scores = vorschlag?.scores || {};
   return {
@@ -62,7 +59,8 @@ export function vorschlagToItem(vorschlag, { listeTyp } = {}) {
     name: creatorName(creator),
     notiz: vorschlag.fit_grund || '',
     typ: pickCreatorTyp(creator, listeTyp),
-    kategorie: vorschlag.kategorie_hint || null,
+    kategorie: null,
+    persona_id: pickFirstPersonaId(vorschlag.persona_ids, personaIds),
     wohnort: creator.lieferadresse_stadt || null,
     email: creator.mail || null,
     telefon: creator.telefonnummer || null,
@@ -188,11 +186,10 @@ export class CastingVorschlagService {
   // --- Aktivieren / Verwerfen ---
 
   /**
-   * Macht aus dem Vorschlag einen Casting-Eintrag mit creator_id (Kategorie:
-   * kategorie_hint, wenn sie noch existiert, sonst Ohne Kategorie) und setzt
-   * den Vorschlag auf accepted. Gibt das angelegte Item zurueck.
+   * Macht aus dem Vorschlag einen Casting-Eintrag mit creator_id (Persona:
+   * erste Bedarf-Persona aus persona_ids) und setzt den Vorschlag auf accepted.
    */
-  static async aktivieren(vorschlag, { listeId, listeTyp, kategorien = [] } = {}) {
+  static async aktivieren(vorschlag, { listeId, listeTyp, personaIds = [] } = {}) {
     if (!vorschlag?.creator_id) throw new Error('Vorschlag ohne Creator');
 
     const { data: creator, error } = await window.supabase
@@ -203,9 +200,7 @@ export class CastingVorschlagService {
     if (error || !creator) throw new Error('Creator nicht gefunden');
 
     const name = creatorName(creator);
-    const kategorie = vorschlag.kategorie_hint && kategorien.includes(vorschlag.kategorie_hint)
-      ? vorschlag.kategorie_hint
-      : null;
+    const personaId = pickFirstPersonaId(vorschlag.persona_ids, personaIds);
     const scores = vorschlag.scores || {};
 
     const itemData = {
@@ -216,7 +211,8 @@ export class CastingVorschlagService {
       follower_instagram: Number(creator.instagram_follower) || null,
       link_tiktok: normalizeTiktokUrl(creator.tiktok),
       follower_tiktok: Number(creator.tiktok_follower) || null,
-      kategorie,
+      persona_id: personaId,
+      kategorie: null,
       wohnort: creator.lieferadresse_stadt || null,
       email: creator.mail || null,
       telefon: creator.telefonnummer || null,

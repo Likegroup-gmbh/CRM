@@ -5514,27 +5514,6 @@ h3.section-title,
   to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
-/* --- Buchungs-Drawer (Gebucht-Workflow) --- */
-
-.sourcing-buchung-schritt {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-md);
-}
-
-.sourcing-buchung-schritt .drawer-info-text {
-  margin: 0;
-}
-
-.sourcing-buchung-done {
-  display: flex;
-  align-items: center;
-  gap: var(--space-xs);
-  color: var(--success);
-}
-
 /* --- Kategorie-Wechsel Animation --- */
 
 .kategorie-moving-out {

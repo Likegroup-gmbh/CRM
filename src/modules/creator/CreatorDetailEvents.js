@@ -109,6 +109,12 @@ CreatorDetail.prototype.bindEvents = function() {
           console.log('✅ CREATORDETAIL: Adresse-Tab erfolgreich aktualisiert');
         }
       }
+      if (e.detail?.entity === 'creator_auswahl' && e.detail?.creatorId === this.creatorId) {
+        tabDataCache.invalidate('creator', this.creatorId);
+        if (this.activeMainTab === 'castings') {
+          await this.loadTabData('castings');
+        }
+      }
     }, { signal });
 
     window.addEventListener('softRefresh', async (e) => {

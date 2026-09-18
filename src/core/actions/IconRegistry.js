@@ -16,6 +16,7 @@ const KEY_MAP = {
   'add-to-campaign': 'campaign',
   favorite: 'star',
   'add-to-list': 'list-plus',
+  'add-to-casting': 'sourcing',
   unlink: 'minus-circle',
   refresh: 'arrow-path',
   'add-ansprechpartner': 'user-plus',

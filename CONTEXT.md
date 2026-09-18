@@ -8,6 +8,10 @@ Stammdaten und operative Arbeit rund um Firmen, ihre Marken und die Kampagnen da
 Die juristische oder organisatorische Einheit, Parent von Marken. Kann ohne Marke existieren.
 _Avoid_: Firma, Company, Account
 
+**Testunternehmen**:
+Ein Unternehmen, das beim Anlegen als Test markiert ist. Nur Admins sehen es und seinen Unterbaum; Investor-Zahlen enthalten es nicht.
+_Avoid_: Sandbox, intern, Demo, hidden, Stakeholder-Exclude
+
 **Marke**:
 Eine Marke unter genau einem Unternehmen. Hat keine eigene Rechnungsadresse.
 _Avoid_: Brand, Label
@@ -135,9 +139,15 @@ Das Strategie-Dokument einer Kampagne. Sammlung von Videoideen. Unverknüpft ode
 _Avoid_: Strategie (außer Tabelle `strategie`), Strategie-Doc
 
 **Casting-Eintrag**:
-Eine Person auf einem Casting. Nicht der CRM-Creator; die Stammdaten-Identität kann später entstehen.
+Eine Person auf einem Casting, zugeordnet einer Persona des Briefings.
+Nicht der CRM-Creator; die Stammdaten-Identität kann später entstehen.
 Darf an mehreren Videoideen des verknüpften Konzepts hängen.
-_Avoid_: Casting-Item, Kandidat, Sourcing-Creator
+_Avoid_: Casting-Item, Kandidat, Sourcing-Creator, Kategorie
+
+**Kundenfeedback**:
+Die Kundenbewertung eines Casting-Eintrags: Prio 1, Prio 2 oder Abgelehnt.
+Unabhängig vom internen Prozessstatus (Angefragt … Gebucht).
+_Avoid_: Freigabe, Freigabeprozess, Status
 
 **Creator**:
 Stammdaten-Entity einer Person (Tabelle `creator`), mit Mail (`mail`) und Management-Zuordnung.

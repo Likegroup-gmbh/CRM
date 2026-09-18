@@ -28,7 +28,7 @@ const KNOWN_GLOBAL_ACTIONS = new Set([
   'delete-strategie', 'view-strategie', 'edit-strategie', 'remove',
   'rechnung_anpassen', 'download', 'marken', 'auftraege', 'kampagnen',
   'task-create', 'quickview', 'assign-staff', 'assign_staff', 'rechnung',
-  'add_to_campaign', 'favorite', 'add_to_list', 'connect',
+  'add_to_campaign', 'favorite', 'add_to_list', 'add_to_casting', 'connect',
   'add-signed', 'edit-signed', 'replace-signed', 'remove-signed',
   'add_ansprechpartner', 'add_ansprechpartner_kampagne', 'add_ansprechpartner_unternehmen',
   'add_produkt', 'add_persona',
@@ -307,7 +307,7 @@ export class ActionsDropdown {
         'edit-item', 'delete-item',
         'activate-vorschlag', 'discard-vorschlag',
         'toggle-skript-freigabe', 'reprocess-item', 'connect-creator',
-        'create-videoidee', 'connect-videoidee'
+        'create-creator', 'create-videoidee', 'connect-videoidee'
       ];
       if (customActions.includes(action) || !this.isKnownGlobalAction(action)) {
         e.preventDefault();

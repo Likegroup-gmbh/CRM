@@ -91,7 +91,12 @@ CreatorDetail.prototype.loadTabData = async function(tabName) {
             await this.loadKampagnen();
             this.updateKampagnenTab();
             break;
-            
+
+          case 'castings':
+            await this.loadCastings();
+            this.updateCastingsTab();
+            break;
+
           case 'kooperationen':
             await this.loadKooperationen();
             this.updateKooperationenTab();
@@ -175,6 +180,32 @@ CreatorDetail.prototype.loadKampagnen = async function() {
     }
 
     await this.mergeKampagnenFromKooperationen();
+};
+
+CreatorDetail.prototype.loadCastings = async function() {
+    try {
+      const { data, error } = await window.supabase
+        .from('creator_auswahl_items')
+        .select(`
+          id,
+          created_at,
+          angefragt, in_verhandlung, preis_zugesagt, zusage, on_hold, gebucht, absage,
+          prio_1, prio_2, abgelehnt,
+          liste:creator_auswahl_id (
+            id,
+            name,
+            kampagne:kampagne_id ( id, kampagnenname, eigener_name )
+          )
+        `)
+        .eq('creator_id', this.creatorId)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      this.castings = data || [];
+    } catch (e) {
+      console.warn('⚠️ CREATORDETAIL: Castings konnten nicht geladen werden', e);
+      this.castings = [];
+    }
 };
 
 CreatorDetail.prototype.loadKooperationen = async function() {
@@ -408,6 +439,15 @@ CreatorDetail.prototype.updateKampagnenTab = function() {
       container.innerHTML = this.renderKampagnenContent();
       const btn = document.querySelector('.tab-button[data-tab="kampagnen"] .tab-count');
       if (btn) btn.textContent = String(this.kampagnen?.length || 0);
+    }
+};
+
+CreatorDetail.prototype.updateCastingsTab = function() {
+    const container = document.querySelector('#tab-castings');
+    if (container) {
+      container.innerHTML = this.renderCastingsContent();
+      const btn = document.querySelector('.tab-button[data-tab="castings"] .tab-count');
+      if (btn) btn.textContent = String(this.castings?.length || 0);
     }
 };
 

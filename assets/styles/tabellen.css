@@ -2828,6 +2828,19 @@ width: 18em;
   margin-right: 0;
 }
 
+.sourcing-avatar {
+  position: relative;
+  display: inline-flex;
+}
+
+.sourcing-avatar__dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 10px;
+  height: 10px;
+}
+
 /* TD-Zellen mit Logo/Avatar: Elemente nebeneinander anzeigen */
 .col-name-with-icon {
   white-space: nowrap;

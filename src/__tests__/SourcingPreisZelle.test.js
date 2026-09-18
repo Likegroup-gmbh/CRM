@@ -290,7 +290,7 @@ describe('Sourcing – Kopfzeile der Detailtabelle', () => {
     expect(dropdown.querySelector('#btn-kunden-call-toggle').classList.contains('active')).toBe(true);
     expect(dropdown.querySelector('#btn-sourcing-tabelle-anpassen')).not.toBeNull();
     expect(dropdown.querySelector('#btn-sourcing-custom-columns')).not.toBeNull();
-    expect(dropdown.querySelector('#btn-manage-kategorien')).not.toBeNull();
+    expect(dropdown.querySelector('#btn-manage-kategorien')).toBeNull();
     expect(dropdown.querySelector('#btn-open-add-drawer')).toBeNull();
   });
 });

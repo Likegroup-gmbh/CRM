@@ -15,11 +15,17 @@ import {
   getSourcingStatus,
   getSourcingStatusMeta,
   getKundenFeedback,
-  getKundenFeedbackMeta
+  getKundenFeedbackMeta,
+  castingUmsetzungGate,
+  castingCreatorBadge
 } from './sourcingStatusOptions.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
+import {
+  OHNE_PERSONA_KEY,
+  orderedPersonaGroups
+} from './castingPersonaGroups.js';
 
 // --- Shared Helpers ---
 
@@ -32,86 +38,7 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
-export function getTeilbereicheFromListe(liste) {
-  if (!liste?.teilbereich) return [];
-  return liste.teilbereich.split(',').map(tb => tb.trim()).filter(tb => tb);
-}
-
-/**
- * Mappt abgeschnittene Kategorie-Werte (HTML-Attribut vor dem ersten ")
- * zurueck auf den vollen Namen. Bei mehreren Treffern bleibt der stored-Wert.
- */
-export function resolveSourcingKategorie(stored, defined = []) {
-  if (stored == null || stored === '') return stored ?? null;
-  if (!defined.length) return stored;
-  if (defined.includes(stored)) return stored;
-
-  const trimmed = String(stored).trim();
-  if (defined.includes(trimmed)) return trimmed;
-
-  const matches = defined.filter(d => {
-    if (d.startsWith(stored) || (trimmed && d.startsWith(trimmed))) return true;
-    const beforeQuote = d.split('"')[0].trim();
-    return beforeQuote !== '' && beforeQuote === trimmed;
-  });
-  return matches.length === 1 ? matches[0] : stored;
-}
-
-export function repairSourcingItemKategorien(items, defined = []) {
-  const changed = [];
-  const next = items.map(item => {
-    const resolved = resolveSourcingKategorie(item.kategorie, defined);
-    if (resolved !== item.kategorie) {
-      changed.push({ id: item.id, kategorie: resolved });
-      return { ...item, kategorie: resolved };
-    }
-    return item;
-  });
-  return { items: next, changed };
-}
-
-export function groupItemsByKategorie(items, defined = []) {
-  const groups = {};
-  let globalIndex = 0;
-
-  items.forEach(item => {
-    const resolved = resolveSourcingKategorie(item.kategorie, defined);
-    const kategorie = resolved || 'Ohne Kategorie';
-    if (!groups[kategorie]) {
-      groups[kategorie] = [];
-    }
-    groups[kategorie].push({ ...item, globalIndex: globalIndex++ });
-  });
-
-  return groups;
-}
-
-const NICHT_UMSETZEN_KATEGORIE_NAME = 'Nicht umsetzen';
-
-function stripGroupMeta(list) {
-  return (list || []).map(({ globalIndex, ...item }) => item);
-}
-
-/**
- * Schreibt Items in die Anzeigereihenfolge der Tabelle:
- * definierte Kategorien (ohne "Nicht umsetzen") → Orphans → Ohne Kategorie → Nicht umsetzen.
- */
-export function reorderSourcingItemsByKategorien(items, orderedKategorien) {
-  const groups = groupItemsByKategorie(items, orderedKategorien);
-  const known = new Set([...orderedKategorien, 'Ohne Kategorie', NICHT_UMSETZEN_KATEGORIE_NAME]);
-  const result = [];
-
-  for (const kategorie of orderedKategorien.filter(k => k !== NICHT_UMSETZEN_KATEGORIE_NAME)) {
-    result.push(...stripGroupMeta(groups[kategorie]));
-  }
-  for (const kategorie of Object.keys(groups).filter(k => !known.has(k))) {
-    result.push(...stripGroupMeta(groups[kategorie]));
-  }
-  result.push(...stripGroupMeta(groups['Ohne Kategorie']));
-  result.push(...stripGroupMeta(groups[NICHT_UMSETZEN_KATEGORIE_NAME]));
-
-  return result.map((item, index) => ({ ...item, sortierung: index }));
-}
+export { NICHT_UMSETZEN_KATEGORIE } from './castingPersonaGroups.js';
 
 /** Spalten, die es in der Tabelle nicht mehr gibt, aber noch in hidden_columns stehen koennen */
 const ENTFERNTE_SPALTEN = [
@@ -396,9 +323,6 @@ const CUSTOM_COLUMNS_ICON = `
 
 const LINK_ICON = `${icon('link')}`;
 
-const KATEGORIEN_ICON = `
-  ${icon('tag')}`;
-
 function renderAddSectionActions(ctx = {}) {
   const kundenCallActive = ctx.kundenCallActive || false;
   return `
@@ -420,7 +344,6 @@ function renderAddSectionActions(ctx = {}) {
             ${renderToolbarMenuItem({ id: 'btn-kunden-call-toggle', title: 'EK und CPM für Kundenpräsentation ausblenden', icon: KUNDEN_CALL_ICON, label: 'Kunden Call', active: kundenCallActive })}
             ${renderToolbarMenuItem({ id: 'btn-sourcing-tabelle-anpassen', title: 'TKP, Art der Liste und Spalten-Sichtbarkeit', icon: TABELLE_ANPASSEN_ICON, label: 'Tabelle anpassen' })}
             ${renderToolbarMenuItem({ id: 'btn-sourcing-custom-columns', title: 'Eigene Spalten verwalten', icon: CUSTOM_COLUMNS_ICON, label: 'Eigene Spalten' })}
-            ${renderToolbarMenuItem({ id: 'btn-manage-kategorien', title: 'Kategorien verwalten', icon: KATEGORIEN_ICON, label: 'Kategorien' })}
           `
         })}
         ` : ''}
@@ -475,7 +398,7 @@ export function renderItemsTable(ctx) {
       </div>
     `;
   }
-  if (ctx.items.length === 0) {
+  if (ctx.items.length === 0 && !(ctx.personas || []).length) {
     return `
       <div class="table-container table-container--empty">
         ${renderEmptyState({
@@ -583,31 +506,33 @@ export function renderItemsTable(ctx) {
   `;
 }
 
-function renderKategorieHeaderRow(kategorie, items, colCount, ctx, { variant = '' } = {}) {
-  const escaped = escapeAttr(kategorie);
-  const rowExtra = variant === 'rejected' ? ' kategorie-header-row--rejected' : '';
-  const headerExtra = variant === 'rejected'
+function renderPersonaHeaderRow(group, colCount, ctx) {
+  const escapedKey = escapeAttr(group.key);
+  const escapedLabel = escapeAttr(group.label);
+  const personaAttr = group.personaId ? escapeAttr(group.personaId) : '';
+  const rowExtra = group.variant === 'rejected' ? ' kategorie-header-row--rejected' : '';
+  const headerExtra = group.variant === 'rejected'
     ? ' kategorie-header--rejected'
-    : variant === 'default'
+    : group.variant === 'default'
       ? ' kategorie-header--default'
       : '';
-  const label = variant === 'rejected'
-    ? `${NICHT_UMSETZEN_ICON} ${escapeAttr(kategorie)}`
-    : escapeAttr(kategorie);
-  const checkboxTitle = variant === 'default'
-    ? 'Alle ohne Kategorie auswählen'
-    : `Alle in '${kategorie}' auswählen`;
+  const label = group.variant === 'rejected'
+    ? `${NICHT_UMSETZEN_ICON} ${escapedLabel}`
+    : escapedLabel;
+  const checkboxTitle = group.key === OHNE_PERSONA_KEY
+    ? 'Alle ohne Persona auswählen'
+    : `Alle in '${group.label}' auswählen`;
   const checkbox = !ctx.isKunde && (ctx.canEdit ?? true)
-    ? `<input type="checkbox" class="sourcing-group-select" data-kategorie="${escaped}" title="${escapeAttr(checkboxTitle)}">`
+    ? `<input type="checkbox" class="sourcing-group-select" data-group-key="${escapedKey}" title="${escapeAttr(checkboxTitle)}">`
     : '';
 
   return `
-      <tr class="kategorie-header-row${rowExtra}" data-kategorie="${escaped}">
+      <tr class="kategorie-header-row${rowExtra}" data-group-key="${escapedKey}" data-persona-id="${personaAttr}">
         <td colspan="${colCount}" class="kategorie-header${headerExtra}">
           <div class="kategorie-header-content">
             ${checkbox}
             <span class="kategorie-label">${label}</span>
-            <span class="kategorie-count">(${items.length})</span>
+            <span class="kategorie-count">(${group.items.length})</span>
           </div>
         </td>
       </tr>
@@ -615,15 +540,16 @@ function renderKategorieHeaderRow(kategorie, items, colCount, ctx, { variant = '
 }
 
 export function renderGroupedItems(ctx) {
-  const NICHT_UMSETZEN_KATEGORIE = 'Nicht umsetzen';
-  const definierteKategorien = getTeilbereicheFromListe(ctx.liste);
-  const hatDefinierteKategorien = definierteKategorien.length > 0;
+  const personas = ctx.personas || [];
+  const items = ctx.items || [];
 
-  if (!hatDefinierteKategorien) {
-    return ctx.items.map((item, index) => renderItemRow(ctx, item, index)).join('');
+  if (!personas.length) {
+    const orphanGroups = orderedPersonaGroups(items, []);
+    if (orphanGroups.length <= 1 && orphanGroups[0]?.key === OHNE_PERSONA_KEY) {
+      return items.map((item, index) => renderItemRow(ctx, item, index)).join('');
+    }
   }
 
-  const groupedItems = groupItemsByKategorie(ctx.items, definierteKategorien);
   const customCount = ctx.customManager ? ctx.customManager.visibleCount(ctx.hiddenColumns, ctx.isKunde) : 0;
   const canWrite = !ctx.isKunde && (ctx.canEdit ?? true);
   const hasActions = !ctx.isKunde && ((ctx.canCreate ?? true) || (ctx.canDelete ?? true));
@@ -631,33 +557,11 @@ export function renderGroupedItems(ctx) {
 
   let html = '';
   let globalIndex = 0;
-
-  const normaleKategorien = definierteKategorien.filter(k => k !== NICHT_UMSETZEN_KATEGORIE);
-  const knownKeys = new Set([...definierteKategorien, 'Ohne Kategorie', NICHT_UMSETZEN_KATEGORIE]);
-
-  const appendGroup = (kategorie, items, variant) => {
-    html += renderKategorieHeaderRow(kategorie, items, colCount, ctx, { variant });
-    for (const item of items) {
+  for (const group of orderedPersonaGroups(items, personas)) {
+    html += renderPersonaHeaderRow(group, colCount, ctx);
+    for (const item of group.items) {
       html += renderItemRow(ctx, item, globalIndex++);
     }
-  };
-
-  for (const kategorie of normaleKategorien) {
-    appendGroup(kategorie, groupedItems[kategorie] || []);
-  }
-
-  for (const kategorie of Object.keys(groupedItems).filter(k => !knownKeys.has(k))) {
-    appendGroup(kategorie, groupedItems[kategorie]);
-  }
-
-  const ohneKategorie = groupedItems['Ohne Kategorie'] || [];
-  if (ohneKategorie.length > 0 || normaleKategorien.length > 0) {
-    appendGroup('Ohne Kategorie', ohneKategorie, 'default');
-  }
-
-  const nichtUmsetzenItems = groupedItems[NICHT_UMSETZEN_KATEGORIE] || [];
-  if (nichtUmsetzenItems.length > 0 || definierteKategorien.includes(NICHT_UMSETZEN_KATEGORIE)) {
-    appendGroup(NICHT_UMSETZEN_KATEGORIE, nichtUmsetzenItems, 'rejected');
   }
 
   return html;
@@ -1001,7 +905,16 @@ function renderBildCell(ctx, item, sticky, hide) {
     ? `<img src="${escapeHtml(safeUrl)}" alt="${escapeHtml(item.name || 'Profilbild')}" class="table-avatar table-avatar-img table-avatar--sourcing" loading="lazy" />`
     : `<span class="table-avatar table-avatar--sourcing">${escapeHtml(initial)}</span>`;
 
-  return `<td class="cp-col-bild ${sticky.bild}" style="${hide('cp-col-bild')}">${inner}</td>`;
+  const badge = (!ctx.isKunde && !item.isVorschlag) ? castingCreatorBadge(item) : null;
+  const dot = badge === 'green'
+    ? '<span class="status-dot status-dot--active sourcing-avatar__dot" title="Als Creator angelegt"></span>'
+    : badge === 'red'
+      ? '<span class="status-dot status-dot--inactive sourcing-avatar__dot" title="Noch kein Creator"></span>'
+      : '';
+
+  return `<td class="cp-col-bild ${sticky.bild}" style="${hide('cp-col-bild')}">
+    <div class="sourcing-avatar">${inner}${dot}</div>
+  </td>`;
 }
 
 export function renderItemRow(ctx, item, index) {
@@ -1193,7 +1106,13 @@ export function renderItemRow(ctx, item, index) {
                   Verwerfen
                 </a>
               ` : `
-              ${ctx.canCreate && (item.zusage || item.gebucht) ? `
+              ${ctx.canCreate && castingUmsetzungGate(item) && !isLinkedToCRM ? `
+                <a href="#" class="action-item" data-action="create-creator" data-id="${item.id}">
+                  ${icon('user-add')}
+                  Creator anlegen
+                </a>
+              ` : ''}
+              ${ctx.canCreate && castingUmsetzungGate(item) && isLinkedToCRM ? `
                 <a href="#" class="action-item" data-action="create-videoidee" data-id="${item.id}">
                   ${icon('light-bulb')}
                   Videoidee anlegen

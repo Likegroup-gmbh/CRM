@@ -63,7 +63,7 @@ export class CreatorAuswahlService {
         *,
         unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
         marke:marke_id(id, markenname, logo_url),
-        kampagne:kampagne_id(id, kampagnenname),
+        kampagne:kampagne_id(id, kampagnenname, eigener_name),
         created_by_user:created_by(id, name, profile_image_url),
         creator_auswahl_items(count)
       `)
@@ -252,7 +252,7 @@ export class CreatorAuswahlService {
     // Optionale Konzept-Verknuepfung (ADR 0010): laeuft nie direkt in den
     // Insert, sondern wird danach ueber linkCasting beidseitig gesetzt -
     // sonst entstuende ein halbes Paar (nur eine Seite geschrieben).
-    const { strategie_id: konzeptId, ...insertData } = listeData;
+    const { strategie_id: konzeptId, teilbereich: _teilbereich, ...insertData } = listeData;
 
     const { data, error } = await window.supabase
       .from('creator_auswahl')
@@ -358,7 +358,8 @@ export class CreatorAuswahlService {
       .from('creator_auswahl_items')
       .select(`
         *,
-        creator:creator_id(id, vorname, nachname, instagram, tiktok)
+        creator:creator_id(id, vorname, nachname, instagram, tiktok),
+        persona:persona_id(id, name)
       `)
       .eq('creator_auswahl_id', listeId)
       .order('sortierung', { ascending: true });
@@ -369,6 +370,99 @@ export class CreatorAuswahlService {
     }
 
     return data;
+  }
+
+  async getListeIdsForCreator(creatorId) {
+    if (!creatorId) return [];
+    const { data, error } = await window.supabase
+      .from('creator_auswahl_items')
+      .select('creator_auswahl_id')
+      .eq('creator_id', creatorId);
+
+    if (error) {
+      console.error('Fehler beim Abrufen der Casting-Zuordnungen:', error);
+      throw error;
+    }
+
+    return [...new Set((data || []).map((row) => row.creator_auswahl_id).filter(Boolean))];
+  }
+
+  /**
+   * Briefing-Personas der Liste in Array-Reihenfolge.
+   */
+  async loadBriefingPersonas(liste) {
+    const briefingId = liste?.briefing_id;
+    if (!briefingId) return [];
+
+    const { data: briefing, error: briefingError } = await window.supabase
+      .from('campaign_briefings')
+      .select('persona_ids')
+      .eq('id', briefingId)
+      .maybeSingle();
+    if (briefingError) throw briefingError;
+
+    const ids = Array.isArray(briefing?.persona_ids)
+      ? briefing.persona_ids.filter(Boolean)
+      : [];
+    if (!ids.length) return [];
+
+    const { data, error } = await window.supabase
+      .from('personas')
+      .select('id, name, oberbegriff')
+      .in('id', ids);
+    if (error) throw error;
+
+    const byId = new Map((data || []).map(p => [p.id, p]));
+    return ids.map(id => byId.get(id)).filter(Boolean);
+  }
+
+  /**
+   * CRM-Creator als Casting-Eintrag anlegen. Wirft, wenn der Creator
+   * auf dieser Liste schon mit creator_id haengt.
+   */
+  async addCreatorFromStammdaten(listeId, creatorId, personaId) {
+    if (!listeId || !creatorId) {
+      throw new Error('Casting und Creator sind erforderlich');
+    }
+    if (!personaId) {
+      throw new Error('Bitte eine Persona wählen');
+    }
+
+    const { data: existing, error: existingError } = await window.supabase
+      .from('creator_auswahl_items')
+      .select('id')
+      .eq('creator_auswahl_id', listeId)
+      .eq('creator_id', creatorId)
+      .limit(1);
+
+    if (existingError) throw existingError;
+    if (existing?.length) {
+      throw new Error('Creator ist bereits auf diesem Casting');
+    }
+
+    const { data: creator, error: creatorError } = await window.supabase
+      .from('creator')
+      .select('id, vorname, nachname, instagram, instagram_follower, tiktok, tiktok_follower, lieferadresse_stadt, mail, telefonnummer')
+      .eq('id', creatorId)
+      .single();
+
+    if (creatorError) throw creatorError;
+    if (!creator) throw new Error('Creator nicht gefunden');
+
+    const { data: lastRows, error: sortError } = await window.supabase
+      .from('creator_auswahl_items')
+      .select('sortierung')
+      .eq('creator_auswahl_id', listeId)
+      .order('sortierung', { ascending: false, nullsFirst: false })
+      .limit(1);
+
+    if (sortError) throw sortError;
+    const sortierung = (lastRows?.[0]?.sortierung ?? -1) + 1;
+
+    return this.createItem({
+      ...buildCastingEintragFromCreator(creator, listeId, sortierung),
+      persona_id: personaId
+    });
   }
 
   /**
@@ -510,37 +604,38 @@ export class CreatorAuswahlService {
   }
 
   /**
-   * Sortierung und Kategorie mehrerer Items aktualisieren
+   * Sortierung und Persona-Gruppe mehrerer Items aktualisieren
    */
   async updateItemsSortierungWithKategorie(items) {
     const promises = items.map((item, index) =>
       window.supabase
         .from('creator_auswahl_items')
-        .update({ 
+        .update({
           sortierung: index,
-          kategorie: item.kategorie 
+          persona_id: item.persona_id ?? null,
+          kategorie: item.kategorie ?? null
         })
         .eq('id', item.id)
     );
 
     const results = await Promise.all(promises);
-    
+
     const errors = results.filter(r => r.error);
     if (errors.length > 0) {
-      console.error('Fehler beim Aktualisieren der Sortierung/Kategorie:', errors);
+      console.error('Fehler beim Aktualisieren der Sortierung/Persona:', errors);
       throw new Error('Sortierung konnte nicht aktualisiert werden');
     }
   }
 
-  async updateItemsKategorie(itemIds, kategorie) {
+  async updateItemsGroup(itemIds, updates) {
     const { data, error } = await window.supabase
       .from('creator_auswahl_items')
-      .update({ kategorie })
+      .update(updates)
       .in('id', itemIds)
       .select();
 
     if (error) {
-      console.error('Fehler beim Batch-Update der Kategorie:', error);
+      console.error('Fehler beim Batch-Update der Persona-Gruppe:', error);
       throw error;
     }
 
@@ -607,169 +702,6 @@ export class CreatorAuswahlService {
   }
 
   // =====================================================
-  // CRM-ÜBERNAHME
-  // =====================================================
-
-  /**
-   * Creator ins CRM übernehmen. Die Handles kommen aus den Link-Feldern der
-   * Zeile (link_instagram / link_tiktok) - die Legacy-Felder creator_handle
-   * und plattform dienen nur noch als Fallback fuer Altdaten.
-   */
-  async transferToCRM(itemId) {
-    // Item laden
-    const { data: item, error: fetchError } = await window.supabase
-      .from('creator_auswahl_items')
-      .select('*')
-      .eq('id', itemId)
-      .single();
-
-    if (fetchError) throw fetchError;
-    if (!item) throw new Error('Item nicht gefunden');
-
-    // Namen splitten
-    const nameParts = (item.name || '').trim().split(' ');
-    const vorname = nameParts[0] || '';
-    const nachname = nameParts.slice(1).join(' ') || '';
-
-    // Handles aus den Profil-Links, Fallback: Legacy-Felder der Altdaten
-    const instagramHandle = handleAusLink(item.link_instagram)
-      || ((item.plattform === 'instagram' || item.plattform === 'both')
-        ? (item.creator_handle || '').replace('@', '') || null
-        : null);
-    const tiktokHandle = handleAusLink(item.link_tiktok)
-      || ((item.plattform === 'tiktok' || item.plattform === 'both')
-        ? (item.creator_handle || '').replace('@', '') || null
-        : null);
-
-    // Creator erstellen
-    const { data: creator, error: createError } = await window.supabase
-      .from('creator')
-      .insert({
-        vorname,
-        nachname,
-        mail: item.email || null,
-        telefonnummer: item.telefon || null,
-        instagram: instagramHandle,
-        tiktok: tiktokHandle,
-        instagram_follower: item.follower_instagram ?? null,
-        tiktok_follower: item.follower_tiktok ?? null,
-        lieferadresse_stadt: item.wohnort || null,
-        notiz: item.notiz || item.beschreibung || null,
-        profilbild_url: item.profile_image_url || null
-      })
-      .select()
-      .single();
-
-    if (createError) throw createError;
-
-    // Item mit Creator verknüpfen
-    await this.updateItem(itemId, { creator_id: creator.id });
-
-    return creator;
-  }
-
-  // =====================================================
-  // BUCHUNGS-WORKFLOW (Management + Kooperation)
-  // =====================================================
-
-  /**
-   * Aktive Management-Zuordnung eines Creators, inkl. Name des Managements.
-   * @returns {Promise<{ id: string, management: { id: string, firmenname: string } }|null>}
-   */
-  async getAktivesManagement(creatorId) {
-    const { data, error } = await window.supabase
-      .from('creator_management')
-      .select('id, management:management_id(id, firmenname)')
-      .eq('creator_id', creatorId)
-      .eq('ist_aktiv', true)
-      .maybeSingle();
-
-    if (error) {
-      console.error('Fehler beim Laden der Management-Zuordnung:', error);
-      throw error;
-    }
-
-    return data || null;
-  }
-
-  /** Alle Managements fuer die Auswahl im Buchungs-Drawer */
-  async getAlleManagements() {
-    const { data, error } = await window.supabase
-      .from('management')
-      .select('id, firmenname')
-      .order('firmenname', { ascending: true });
-
-    if (error) {
-      console.error('Fehler beim Laden der Managements:', error);
-      throw error;
-    }
-
-    return data || [];
-  }
-
-  /** Weist einem Creator ein Management zu (aktiv) */
-  async assignManagement(creatorId, managementId) {
-    const { data, error } = await window.supabase
-      .from('creator_management')
-      .insert({
-        creator_id: creatorId,
-        management_id: managementId,
-        ist_aktiv: true
-      })
-      .select('id, management:management_id(id, firmenname)')
-      .single();
-
-    if (error) {
-      console.error('Fehler beim Zuweisen des Managements:', error);
-      throw error;
-    }
-
-    return data;
-  }
-
-  /**
-   * Existiert fuer diesen Creator in dieser Kampagne schon eine Kooperation?
-   * Der Duplikat-Check laeuft ueber das Paar kampagne_id + creator_id.
-   */
-  async findKooperation(kampagneId, creatorId) {
-    const { data, error } = await window.supabase
-      .from('kooperationen')
-      .select('id')
-      .eq('kampagne_id', kampagneId)
-      .eq('creator_id', creatorId)
-      .maybeSingle();
-
-    if (error) {
-      console.error('Fehler beim Prüfen der Kooperation:', error);
-      throw error;
-    }
-
-    return data || null;
-  }
-
-  /** Legt die Kooperation eines gebuchten Creators in der Kampagne an */
-  async createKooperation({ name, kampagne_id, creator_id, unternehmen_id }) {
-    const { data, error } = await window.supabase
-      .from('kooperationen')
-      .insert({
-        name,
-        kampagne_id,
-        creator_id,
-        unternehmen_id,
-        status: 'aktiv'
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Fehler beim Anlegen der Kooperation:', error);
-      throw error;
-    }
-
-    return data;
-  }
-
-  // =====================================================
   // DROPDOWN-DATEN
   // =====================================================
 
@@ -803,6 +735,51 @@ export class CreatorAuswahlService {
     if (error) throw error;
     return data;
   }
+}
+
+function parseFollowerCount(value) {
+  if (value == null || value === '') return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.round(value);
+  const str = String(value).trim();
+  if (!str) return null;
+  if (str.includes('+')) return parseInt(str.replace('+', ''), 10) || null;
+  const parts = str.split('-');
+  if (parts.length === 2) {
+    const min = parseInt(parts[0], 10);
+    const max = parseInt(parts[1], 10);
+    if (!Number.isNaN(min) && !Number.isNaN(max)) return Math.round((min + max) / 2);
+  }
+  const parsed = parseInt(str, 10);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function socialProfileUrl(handleOrUrl, kind) {
+  if (!handleOrUrl) return null;
+  const raw = String(handleOrUrl).trim();
+  if (!raw) return null;
+  if (/^https?:\/\//i.test(raw)) return raw;
+  const handle = raw.replace(/^@/, '');
+  return kind === 'tiktok'
+    ? `https://tiktok.com/@${handle}`
+    : `https://instagram.com/${handle}`;
+}
+
+export function buildCastingEintragFromCreator(creator, listeId, sortierung) {
+  const name = `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim() || null;
+  return {
+    creator_auswahl_id: listeId,
+    creator_id: creator?.id || null,
+    typ: 'Influencer',
+    name,
+    link_instagram: socialProfileUrl(creator?.instagram, 'instagram'),
+    follower_instagram: parseFollowerCount(creator?.instagram_follower),
+    link_tiktok: socialProfileUrl(creator?.tiktok, 'tiktok'),
+    follower_tiktok: parseFollowerCount(creator?.tiktok_follower),
+    wohnort: creator?.lieferadresse_stadt || null,
+    email: creator?.mail || null,
+    telefon: creator?.telefonnummer || null,
+    sortierung
+  };
 }
 
 /**

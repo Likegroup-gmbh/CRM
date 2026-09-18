@@ -186,4 +186,11 @@ describe('CreatorAuswahlService', () => {
       expect(window.supabase.from).not.toHaveBeenCalledWith('mitarbeiter_unternehmen');
     });
   });
+
+  describe('addCreatorFromStammdaten', () => {
+    it('verlangt eine Persona', async () => {
+      setupWindow();
+      await expect(service.addCreatorFromStammdaten('l1', 'c1')).rejects.toThrow('Persona');
+    });
+  });
 });
