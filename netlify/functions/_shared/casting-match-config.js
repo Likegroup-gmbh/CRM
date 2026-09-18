@@ -4,7 +4,7 @@
 // Argument, nie Literale in Formeln. Der Job speichert CONFIG_VERSION, damit
 // alte Listen spaeter noch erklaerbar sind.
 
-const CONFIG_VERSION = 2;
+const CONFIG_VERSION = 3;
 
 // Finaler Score (ADR 0014): ein Wert, Fit lastig. Cold-Start ohne
 // Casting-Historie: das Track-Gewicht wird auf Fit umverteilt (Renorm),
@@ -111,10 +111,10 @@ const SCHWELLEN = {
   globalVorschlaegeNorm: 8
 };
 
-// Anzahl: 2-3x offene Creator-Sollzahl, gedeckelt
-const ANZAHL = { faktor: 2.5, min: 6, max: 20 };
+// Pending Casting-Vorschlaege pro Briefing-Persona (ADR 0020)
+const ANZAHL = { proPersona: 6 };
 
-const MAX_SHORTLIST_IM_PROMPT = 30;
+const MAX_SHORTLIST_IM_PROMPT = 48;
 
 module.exports = {
   CONFIG_VERSION,

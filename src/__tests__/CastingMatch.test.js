@@ -13,7 +13,12 @@ import castingMatch from '../../netlify/functions/_shared/casting-match.js';
 const {
   buildBedarf,
   bedarfFingerprint,
-  zielAnzahl,
+  quoteProPersona,
+  bedarfFuerPersona,
+  lueckenJePersona,
+  fuellePersonaQuoten,
+  splitPendingNachPersona,
+  fitGrundDeterministisch,
   normiereKandidat,
   applyGates,
   scoreFit,
@@ -115,14 +120,39 @@ describe('buildBedarf', () => {
     expect(bedarfFingerprint(a)).toBe(bedarfFingerprint(b));
     expect(bedarfFingerprint(a)).not.toBe(bedarfFingerprint(c));
   });
+
+  it('fingerprint unterscheidet Briefing-Personas', () => {
+    const a = bedarf({ personas: [{ id: 'p1' }, { id: 'p2' }] });
+    const b = bedarf({ personas: [{ id: 'p2' }, { id: 'p1' }] });
+    const c = bedarf({ personas: [{ id: 'p1' }] });
+    expect(bedarfFingerprint(a)).toBe(bedarfFingerprint(b));
+    expect(bedarfFingerprint(a)).not.toBe(bedarfFingerprint(c));
+  });
+
+  it('mappt die volle Persona-Karte inkl. Produkt-Fit in den Freitext', () => {
+    const b = buildBedarf(
+      { bereich: 'paid_creator_ads', pa_nischen: ['beauty'] },
+      {
+        personas: [{
+          id: 'p1',
+          name: 'Lena',
+          pain_points: 'keine Zeit am Morgen',
+          interessen: 'Skincare',
+          produktFits: [{ fit_grund: 'Serum fuer den Alltag', use_case_namen: ['morgens'] }]
+        }]
+      }
+    );
+    expect(b.personas[0].pain_points).toBe('keine Zeit am Morgen');
+    const sliced = bedarfFuerPersona(b, b.personas[0]);
+    expect(sliced.personaText).toContain('keine Zeit am Morgen');
+    expect(sliced.personaText).toContain('Skincare');
+    expect(sliced.personaText).toContain('Serum fuer den Alltag');
+  });
 });
 
-describe('zielAnzahl', () => {
-  it('2.5x offen, gedeckelt 6-20, Fallback 12', () => {
-    expect(zielAnzahl(4)).toBe(10);
-    expect(zielAnzahl(1)).toBe(6);
-    expect(zielAnzahl(40)).toBe(20);
-    expect(zielAnzahl(null)).toBe(12);
+describe('quoteProPersona', () => {
+  it('ist 6, unabhaengig vom Kampagnen-Soll', () => {
+    expect(quoteProPersona()).toBe(6);
   });
 });
 
@@ -203,15 +233,24 @@ describe('scoreFit', () => {
     expect(ohne.wert).toBeLessThan(voll.wert);
   });
 
-  it('Persona-Demo zaehlt (Alter + Geschlecht)', () => {
-    const b = bedarf({
-      nischen: [],
-      personas: [{ id: 'p1', name: 'Lena', alter_von: 25, alter_bis: 34, geschlecht: 'weiblich' }]
+  it('Persona-Demo zaehlt (Alter + Geschlecht) gegen eine Karte', () => {
+    const b = bedarfFuerPersona(bedarf({ nischen: [] }), {
+      id: 'p1', name: 'Lena', alter_von: 25, alter_bis: 34, geschlecht: 'weiblich'
     });
     const passt = scoreFit(kandidat(), b, PROFILES.ugc.fit);
     expect(passt.coverage.persona).toBe('treffer');
     const passtNicht = scoreFit(kandidat({ geschlecht: 'männlich', alter_min: 50, alter_max: 55 }), b, PROFILES.ugc.fit);
     expect(passtNicht.wert).toBeLessThan(passt.wert);
+  });
+
+  it('Persona-Freitext geht in die Text-Dimension', () => {
+    const roh = bedarf({ nischen: [], umsetzung: null, situationen: null, expertise: null });
+    const mitPain = bedarfFuerPersona(roh, {
+      id: 'p1', name: 'Lena', pain_points: 'skincare routine berlin'
+    });
+    const k = kandidat({ ig_biography: 'Meine skincare routine in Berlin' });
+    const fit = scoreFit(k, mitPain, PROFILES.ugc.fit);
+    expect(fit.coverage.text).toBe('treffer');
   });
 
   it('Standort: Laender-Bedarf matcht das Creator-Land (Regression ADR 0014)', () => {
@@ -341,6 +380,96 @@ describe('topNNachMatching', () => {
   });
 });
 
+function pair(creatorId, personaId, matching, extra = {}) {
+  return scored(creatorId, { matching, personaId, ...extra });
+}
+
+describe('lueckenJePersona / fuellePersonaQuoten', () => {
+  it('1 Persona => 6, 2 Personas => 12', () => {
+    const eins = Array.from({ length: 10 }, (_, i) => pair(`c${i}`, 'p1', 90 - i));
+    expect(fuellePersonaQuoten(eins, { gapByPersona: { p1: quoteProPersona() } }).assigned).toHaveLength(6);
+
+    const zwei = [];
+    for (let i = 0; i < 20; i++) {
+      zwei.push(pair(`c${i}`, 'p1', 80 - i));
+      zwei.push(pair(`c${i}`, 'p2', 70 - i));
+    }
+    const { assigned } = fuellePersonaQuoten(zwei, {
+      gapByPersona: { p1: quoteProPersona(), p2: quoteProPersona() }
+    });
+    expect(assigned).toHaveLength(12);
+    expect(new Set(assigned.map(a => a.k.id)).size).toBe(12);
+    expect(assigned.filter(a => a.personaId === 'p1')).toHaveLength(6);
+    expect(assigned.filter(a => a.personaId === 'p2')).toHaveLength(6);
+  });
+
+  it('Freeze 4 => Luecke 2', () => {
+    expect(lueckenJePersona(['p1'], { p1: ['a', 'b', 'c', 'd'] })).toEqual({ p1: 2 });
+    const pairs = Array.from({ length: 8 }, (_, i) => pair(`n${i}`, 'p1', 90 - i));
+    const { assigned } = fuellePersonaQuoten(pairs, {
+      gapByPersona: { p1: 2 },
+      takenIds: new Set(['a', 'b', 'c', 'd'])
+    });
+    expect(assigned).toHaveLength(2);
+  });
+
+  it('Greedy: Creator top fuer A und B geht an das hoehere Paar', () => {
+    const pairs = [
+      pair('c1', 'pA', 90),
+      pair('c1', 'pB', 80),
+      pair('c2', 'pA', 70),
+      pair('c2', 'pB', 75)
+    ];
+    const { assigned } = fuellePersonaQuoten(pairs, { gapByPersona: { pA: 1, pB: 1 } });
+    const byCreator = Object.fromEntries(assigned.map(a => [a.k.id, a.personaId]));
+    expect(byCreator.c1).toBe('pA');
+    expect(byCreator.c2).toBe('pB');
+  });
+
+  it('Ohne-Persona-Pending wandern in Luecken, nicht in volle Gruppen', () => {
+    const pairs = [
+      pair('ohne1', 'p1', 50),
+      pair('ohne1', 'p2', 99),
+      pair('pool1', 'p1', 40)
+    ];
+    const { assigned } = fuellePersonaQuoten(pairs, {
+      gapByPersona: { p1: 2, p2: 0 },
+      onlyCreatorIds: new Set(['ohne1'])
+    });
+    expect(assigned).toHaveLength(1);
+    expect(assigned[0].k.id).toBe('ohne1');
+    expect(assigned[0].personaId).toBe('p1');
+  });
+
+  it('LLM streicht 2 => Backfill auf 6 mit derselben Persona', () => {
+    const pairs = Array.from({ length: 10 }, (_, i) => pair(`c${i}`, 'p1', 90 - i));
+    const { assigned: primary } = fuellePersonaQuoten(pairs, { gapByPersona: { p1: 6 } });
+    expect(primary.map(a => a.k.id)).toEqual(['c0', 'c1', 'c2', 'c3', 'c4', 'c5']);
+    const keptIds = new Set(['c0', 'c1', 'c2', 'c3']);
+    const struck = new Set(['c4', 'c5']);
+    const { assigned: backfill } = fuellePersonaQuoten(pairs, {
+      gapByPersona: { p1: 2 },
+      takenIds: new Set([...keptIds, ...struck])
+    });
+    expect(backfill.map(a => a.k.id)).toEqual(['c6', 'c7']);
+    expect(backfill.every(a => a.personaId === 'p1')).toBe(true);
+    expect(fitGrundDeterministisch(backfill[0], { name: 'Lena' })).toContain('Lena');
+  });
+});
+
+describe('splitPendingNachPersona', () => {
+  it('friert zugeordnete pending und sammelt Ohne Persona', () => {
+    const { frozenByPersona, ohne } = splitPendingNachPersona([
+      { id: 'r1', creator_id: 'c1', persona_ids: ['p1'] },
+      { id: 'r2', creator_id: 'c2', persona_ids: [] },
+      { id: 'r3', creator_id: 'c3', persona_ids: ['fremd'] }
+    ], ['p1', 'p2']);
+    expect(frozenByPersona.p1.map(r => r.creator_id)).toEqual(['c1']);
+    expect(frozenByPersona.p2).toEqual([]);
+    expect(ohne.map(r => r.creator_id).sort()).toEqual(['c2', 'c3']);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Kategorie + Validate (Covered-Set)
 // ---------------------------------------------------------------------------
@@ -379,5 +508,17 @@ describe('validateVorschlaege', () => {
     expect(vorschlaege).toHaveLength(2);
     expect(vorschlaege[0].persona_ids).toEqual(['p1']);
     expect(verworfen.some(v => v.grund === 'doppelter Vorschlag')).toBe(true);
+  });
+
+  it('erzwingt die vorgegebene Persona-Zuweisung', () => {
+    const { vorschlaege, verworfen } = validateVorschlaege({
+      vorschlaege: [
+        { creator_id: 'c1', fit_grund: 'Passt', persona_id: 'p1' },
+        { creator_id: 'c2', fit_grund: 'Falsch umgehaengt', persona_id: 'p-fremd' }
+      ]
+    }, { shortlistIds: ['c1', 'c2'], assignedPersonaByCreator: { c1: 'p1', c2: 'p1' } });
+    expect(vorschlaege).toHaveLength(1);
+    expect(vorschlaege[0].persona_ids).toEqual(['p1']);
+    expect(verworfen.some(v => v.grund === 'persona_id weicht von der Zuweisung ab')).toBe(true);
   });
 });

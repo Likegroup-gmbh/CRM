@@ -1,14 +1,14 @@
 // casting-vorschlag-background.js
-// Netlify Background Function: Creator-Vorschlaege fuer ein Casting (ADR 0013/0014).
+// Netlify Background Function: Creator-Vorschlaege fuer ein Casting (ADR 0013/0014/0020).
 // Muster wie produkt-persona-background: der Client legt die Zeile in
 // casting_vorschlag_jobs an (inkl. Input-Snapshot), POSTet { jobId } hierher
 // und pollt die Zeile. Diese Function schreibt Fortschritt, Ergebnis oder
 // Fehler per Service Role.
 //
 // Ablauf: Bedarf laden -> Kandidaten laden -> Gates -> Fit/Track/Fresh ->
-// Matching -> Top-N -> Claude schreibt fit_grund/Risiken auf der Shortlist
-// -> Validate -> pending-Zeilen ersetzen (kein Worksheet: das Casting
-// existiert schon).
+// Matching je Persona -> Quote 6 auffuellen (ADR 0020) -> Claude schreibt
+// fit_grund/Risiken auf den NEUEN Slots -> Validate + Backfill -> pending
+// incremental (Freeze bleibt, kein Delete-all).
 
 const { createClient } = require('@supabase/supabase-js');
 const { callClaude, MODELS } = require('./_shared/anthropic');
@@ -29,9 +29,12 @@ const {
   scoreFresh,
   matchingScore,
   profilFuer,
-  topNNachMatching,
+  bedarfFuerPersona,
+  splitPendingNachPersona,
+  lueckenJePersona,
+  fuellePersonaQuoten,
+  fitGrundDeterministisch,
   validateVorschlaege,
-  zielAnzahl,
   CASTING_TOOL,
   buildPrompt
 } = match;
@@ -129,6 +132,10 @@ exports.handler = async (event) => {
 
     const { briefing, produktIds, personas } = await loadBedarfData(supabase, casting);
     const bedarf = buildBedarf(briefing, { produktIds, personas });
+    const briefingPersonaIds = bedarf.personas.map(p => p.id).filter(Boolean);
+    if (!briefingPersonaIds.length) {
+      throw new Error('Briefing ohne Persona: ohne Gruppen kein Lauf');
+    }
 
     // Substance-Gate: ohne Nische, Groesse, Merkmale und Personas kein Fundament
     const hatBedarf = (bedarf.nischen?.length || bedarf.groessen?.length
@@ -136,11 +143,6 @@ exports.handler = async (event) => {
     if (!hatBedarf) {
       throw new Error('Zu wenig Bedarf: Briefing nennt weder Nische noch Groesse noch Personas');
     }
-
-    ki = await starteKiRequest(supabase, {
-      userId: user.id,
-      feature: 'casting_vorschlag'
-    });
 
     // --- Pool + Buchungsbild ---
     schreibeStep('pool', 'Creator-Pool wird geladen');
@@ -163,15 +165,29 @@ exports.handler = async (event) => {
     // Fresh-Signale aus frueheren Vorschlags-Jobs derselben Marke
     const freshSignale = await ladeFreshSignale(supabase, casting, bedarf);
 
-    // --- Gates + Scores + Ranking ---
+    const { data: pendingRows } = await supabase.from('casting_vorschlag')
+      .select('id, creator_id, persona_ids, fit_grund, risiken, coverage, scores, matching_score')
+      .eq('casting_id', casting.id)
+      .eq('status', 'pending');
+    const pendingThisCasting = new Set((pendingRows || []).map(r => r.creator_id).filter(Boolean));
+    const { frozenByPersona, ohne } = splitPendingNachPersona(pendingRows, briefingPersonaIds);
+    const frozenIds = new Set(Object.values(frozenByPersona).flat().map(r => r.creator_id).filter(Boolean));
+    const ohneIds = new Set(ohne.map(r => r.creator_id).filter(Boolean));
+    const gap0 = lueckenJePersona(briefingPersonaIds, frozenByPersona);
+
+    // --- Gates + Scores je Persona ---
     schreibeStep('werten', `${kandidaten.length} Creator werden geprüft`);
     const { pass, raus } = applyGates(kandidaten, bedarf, bild);
-    if (!pass.length) throw new Error('Kein Creator besteht die Grundanforderungen (Sprache, Land, Typ, Kontakt)');
+    const brauchtNeue = Object.values(gap0).some(n => n > 0) || ohneIds.size > 0;
+    if (!pass.length && brauchtNeue) {
+      throw new Error('Kein Creator besteht die Grundanforderungen (Sprache, Land, Typ, Kontakt)');
+    }
 
     const listeTyp = String(casting.liste_typ || 'mix').toLowerCase();
     const fortfuehren = bedarf.ansatz === 'always_on' && bedarf.alwaysOnBestehend === 'fortfuehren';
 
-    const scored = pass.map(k => {
+    const scoredPairs = [];
+    for (const k of pass) {
       const profile = profilFuer(k, listeTyp);
       const profileName = profile === match.PROFILES?.influencer ? 'influencer' : 'ugc';
       const h = bild.histJeCreator.get(k.id) || {};
@@ -182,95 +198,190 @@ exports.handler = async (event) => {
         hatMail: !!k.mail,
         hatTelefonOderManagement: !!(k.telefon || bild.managementIds.has(k.id))
       };
-      const fitErgebnis = scoreFit(k, bedarf, profile.fit);
-      const fit = fitErgebnis.wert;
-      const coverage = fitErgebnis.coverage;
       const track = scoreTrack(k, hist, profile.track);
+      const selfPending = pendingThisCasting.has(k.id);
       const fresh = scoreFresh({
         markeBuchungen90d: h.markeBuchungen90d || 0,
-        fingerprintDabei: freshSignale.fingerprintDabei.has(k.id),
-        vorgeschlagen3: freshSignale.vorgeschlagen3.has(k.id),
-        vorschlaege30d: freshSignale.jeCreator30d.get(k.id) || 0,
+        fingerprintDabei: freshSignale.fingerprintDabei.has(k.id) && !selfPending,
+        vorgeschlagen3: freshSignale.vorgeschlagen3.has(k.id) && !selfPending,
+        vorschlaege30d: Math.max(0, (freshSignale.jeCreator30d.get(k.id) || 0) - (selfPending ? 1 : 0)),
         alwaysOnFortfuehren: fortfuehren
       }, profile.fresh);
-      const matching = matchingScore({ fit, track, fresh, castings: hist.castings || 0 });
-      return { k, fit, track, fresh, matching, hist, coverage, profileName };
-    });
-
-    // Anzahl aus der Kampagne: 2-3x offene Creator-Sollzahl
-    let offen = null;
-    if (casting.kampagne_id) {
-      const { data: kampagne } = await supabase.from('kampagne')
-        .select('creatoranzahl').eq('id', casting.kampagne_id).maybeSingle();
-      if (kampagne?.creatoranzahl != null) {
-        offen = Math.max(0, Number(kampagne.creatoranzahl) - bild.aufDieserListe.size);
+      for (const persona of bedarf.personas) {
+        const pb = bedarfFuerPersona(bedarf, persona);
+        const fitErgebnis = scoreFit(k, pb, profile.fit);
+        const fit = fitErgebnis.wert;
+        const matching = matchingScore({ fit, track, fresh, castings: hist.castings || 0 });
+        scoredPairs.push({
+          k,
+          personaId: persona.id,
+          persona,
+          fit,
+          track,
+          fresh,
+          matching,
+          hist,
+          coverage: fitErgebnis.coverage,
+          profileName
+        });
       }
     }
-    const anzahl = zielAnzahl(offen);
-    const shortlist = topNNachMatching(scored, { anzahl });
-    if (!shortlist.length) throw new Error('Aus dem bewerteten Pool liess sich keine Shortlist bilden');
 
-    // --- LLM begruendet die Shortlist ---
-    schreibeStep('generieren', `Claude begründet ${shortlist.length} Vorschläge`);
-    const { stable, task } = buildPrompt(bedarf, { shortlist });
-
-    const result = await callClaude({
-      model: MODELS.casting,
-      systemBlocks: [{ text: stable, cache: true }],
-      userPrompt: task,
-      maxTokens: 8000,
-      tool: CASTING_TOOL,
-      toolForced: true
+    const { assigned: ohneAssigned, remaining: gapAfterOhne } = fuellePersonaQuoten(scoredPairs, {
+      gapByPersona: gap0,
+      takenIds: frozenIds,
+      onlyCreatorIds: ohneIds
+    });
+    const takenAfterOhne = new Set([...frozenIds, ...ohneAssigned.map(p => p.k.id)]);
+    const { assigned: neuPrimary } = fuellePersonaQuoten(scoredPairs, {
+      gapByPersona: gapAfterOhne,
+      takenIds: takenAfterOhne
     });
 
-    if (!result.json) {
-      throw new Error('Die KI hat kein strukturiertes Ergebnis geliefert');
+    let geprueft = { vorschlaege: [], verworfen: [] };
+    let kept = [];
+    const struckIds = new Set();
+
+    if (neuPrimary.length) {
+      ki = await starteKiRequest(supabase, {
+        userId: user.id,
+        feature: 'casting_vorschlag'
+      });
+      schreibeStep('generieren', `Claude begründet ${neuPrimary.length} Vorschläge`);
+      const { stable, task } = buildPrompt(bedarf, { shortlist: neuPrimary });
+
+      const result = await callClaude({
+        model: MODELS.casting,
+        systemBlocks: [{ text: stable, cache: true }],
+        userPrompt: task,
+        maxTokens: 8000,
+        tool: CASTING_TOOL,
+        toolForced: true
+      });
+
+      if (!result.json) {
+        throw new Error('Die KI hat kein strukturiertes Ergebnis geliefert');
+      }
+
+      schreibeStep('pruefen', 'Vorschläge werden validiert');
+      const assignedPersonaByCreator = Object.fromEntries(neuPrimary.map(s => [s.k.id, s.personaId]));
+      geprueft = validateVorschlaege(result.json, {
+        shortlistIds: neuPrimary.map(s => s.k.id),
+        assignedPersonaByCreator
+      });
+      kept = geprueft.vorschlaege;
+      const keptIds = new Set(kept.map(v => v.creator_id));
+      for (const s of neuPrimary) {
+        if (!keptIds.has(s.k.id)) struckIds.add(s.k.id);
+      }
+      await ki.abschliessen({ model: result.model, usage: result.usage });
     }
 
-    schreibeStep('pruefen', 'Vorschläge werden validiert');
-    const geprueft = validateVorschlaege(result.json, {
-      shortlistIds: shortlist.map(s => s.k.id),
-      personaIds: bedarf.personas.map(p => p.id).filter(Boolean)
+    const keptByPersona = {};
+    for (const v of kept) {
+      const pid = v.persona_ids?.[0];
+      if (pid) keptByPersona[pid] = (keptByPersona[pid] || 0) + 1;
+    }
+    const gapAfterLlm = {};
+    for (const id of briefingPersonaIds) {
+      gapAfterLlm[id] = Math.max(0, (gapAfterOhne[id] || 0) - (keptByPersona[id] || 0));
+    }
+    const takenFinal = new Set([
+      ...takenAfterOhne,
+      ...kept.map(v => v.creator_id),
+      ...struckIds
+    ]);
+    const { assigned: backfill } = fuellePersonaQuoten(scoredPairs, {
+      gapByPersona: gapAfterLlm,
+      takenIds: takenFinal
     });
 
-    if (!geprueft.vorschlaege.length) {
+    if (neuPrimary.length && !kept.length && !backfill.length && !ohneAssigned.length) {
       throw new Error('Die KI konnte aus der Shortlist keine tragfähigen Vorschläge begründen');
     }
 
-    await ki.abschliessen({ model: result.model, usage: result.usage });
+    const pairJeId = new Map();
+    for (const p of [...ohneAssigned, ...neuPrimary, ...backfill]) {
+      pairJeId.set(p.k.id, p);
+    }
 
-    // --- Persistieren: pending ersetzen (Regen), Aktivierte bleiben ---
-    // position = Reihenfolge der LLM-Antwort (Interna); die Anzeige sortiert
-    // streng nach matching_score (ADR 0014). slot ist Legacy (NOT NULL).
-    const shortlistJeId = new Map(shortlist.map(s => [s.k.id, s]));
-    const rows = geprueft.vorschlaege.map((v, i) => {
-      const s = shortlistJeId.get(v.creator_id);
+    const ohneByCreator = new Map(ohne.map(r => [r.creator_id, r]));
+    for (const pair of ohneAssigned) {
+      const row = ohneByCreator.get(pair.k.id);
+      if (!row?.id) continue;
+      const { error: updErr } = await supabase.from('casting_vorschlag').update({
+        persona_ids: [pair.personaId],
+        matching_score: pair.matching,
+        coverage: pair.coverage,
+        scores: {
+          fit: pair.fit,
+          track: pair.track,
+          fresh: pair.fresh,
+          profile: pair.profileName,
+          castings: pair.hist.castings || 0
+        },
+        job_id: jobId
+      }).eq('id', row.id);
+      if (updErr) throw new Error(`Vorschlag konnte nicht zugeordnet werden: ${updErr.message}`);
+    }
+
+    const insertPairs = [];
+    const seenInsert = new Set();
+    for (const v of kept) {
+      const s = pairJeId.get(v.creator_id);
+      if (!s || seenInsert.has(v.creator_id)) continue;
+      seenInsert.add(v.creator_id);
+      insertPairs.push({ pair: s, fit_grund: v.fit_grund, risiken: v.risiken });
+    }
+    for (const s of backfill) {
+      if (seenInsert.has(s.k.id)) continue;
+      seenInsert.add(s.k.id);
+      insertPairs.push({
+        pair: s,
+        fit_grund: fitGrundDeterministisch(s, s.persona),
+        risiken: null
+      });
+    }
+
+    const rows = insertPairs.map((entry, i) => {
+      const s = entry.pair;
       return {
         casting_id: casting.id,
-        creator_id: v.creator_id,
+        creator_id: s.k.id,
         status: 'pending',
         slot: 'tight',
         kategorie_hint: null,
-        fit_grund: v.fit_grund,
-        risiken: v.risiken,
-        persona_ids: v.persona_ids,
+        fit_grund: entry.fit_grund,
+        risiken: entry.risiken,
+        persona_ids: [s.personaId],
         coverage: s.coverage,
-        scores: { fit: s.fit, track: s.track, fresh: s.fresh, profile: s.profileName, castings: s.hist.castings || 0 },
+        scores: {
+          fit: s.fit,
+          track: s.track,
+          fresh: s.fresh,
+          profile: s.profileName,
+          castings: s.hist.castings || 0
+        },
         matching_score: s.matching,
         job_id: jobId,
         position: i
       };
     });
 
-    await supabase.from('casting_vorschlag').delete()
-      .eq('casting_id', casting.id).eq('status', 'pending');
-    const { error: insertError } = await supabase.from('casting_vorschlag').insert(rows);
-    if (insertError) throw new Error(`Vorschläge konnten nicht gespeichert werden: ${insertError.message}`);
+    if (rows.length) {
+      const { error: insertError } = await supabase.from('casting_vorschlag').insert(rows);
+      if (insertError) throw new Error(`Vorschläge konnten nicht gespeichert werden: ${insertError.message}`);
+    }
 
     const payload = {
       success: true,
-      anzahl: rows.length,
-      vorschlaegeIds: rows.map(r => r.creator_id),
+      anzahl: rows.length + ohneAssigned.length,
+      neu: rows.length,
+      zugeordnet: ohneAssigned.length,
+      vorschlaegeIds: [
+        ...ohneAssigned.map(p => p.k.id),
+        ...rows.map(r => r.creator_id)
+      ],
       verworfen: geprueft.verworfen,
       rausAnzahl: raus.length,
       fingerprint: bedarf.fingerprint,

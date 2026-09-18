@@ -155,7 +155,9 @@ Nicht der Casting-Eintrag; der kann später zum Creator werden.
 _Avoid_: Casting-Eintrag, Influencer, Kandidat
 
 **Bedarf**:
-Das gesuchte Creator-Profil eines Castings, abgeleitet aus Briefing, Produkt und akzeptierten Personas.
+Das gesuchte Creator-Profil eines Castings, abgeleitet aus Briefing, Produkt
+und den Briefing-Personas. Pro Briefing-Persona ein eigener Bedarf
+(Briefing plus diese Karte plus accepted Produkt-Fit).
 _Avoid_: Suche, Zielgruppe, Filter
 
 **Buchungsbild**:
@@ -164,8 +166,10 @@ Dient als Wiederholungs- und Ablehnungsfilter (Gates) und liefert die Historie f
 _Avoid_: Qualitätsurteil, Proven-Slot
 
 **Casting-Vorschlag**:
-Ein für ein Casting vorgeschlagener Creator. Wird durch Aktivieren zum Casting-Eintrag.
-Auswahl und Reihenfolge folgen streng dem Matching, höchster Match oben.
+Ein für ein Casting vorgeschlagener Creator, zugeordnet genau einer Briefing-Persona.
+Wird durch Aktivieren zum Casting-Eintrag.
+Pro Briefing-Persona stehen bis zu sechs pending Vorschläge;
+innerhalb der Gruppe Ranking nach Matching.
 _Avoid_: Casting-Eintrag, Kategorie „Vorschläge“, Kandidat, Slot-Portfolio
 
 **Fit**:

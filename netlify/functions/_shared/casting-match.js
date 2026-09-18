@@ -1,7 +1,7 @@
 // casting-match.js
-// Deterministischer Kern der Casting-Creator-Vorschlaege (ADR 0013/0014):
+// Deterministischer Kern der Casting-Creator-Vorschlaege (ADR 0013/0014/0020):
 // Bedarf bauen, Gates, drei Scores (Fit/Track/Fresh), finaler Matching-Score,
-// Top-N-Ranking, Validate. Reine Funktionen (testbar) plus die drei DB-Lader.
+// Quote 6 pro Briefing-Persona (greedy, exklusiv), Validate.
 // Das LLM schreibt nur fit_grund/risiken auf der Shortlist - es rankt nie.
 
 const config = require('./casting-match-config');
@@ -63,13 +63,15 @@ function bedarfFingerprint(bedarf) {
   const alter = bedarf.alter
     ? `${Math.floor(bedarf.alter[0] / 10) * 10}-${Math.floor(bedarf.alter[1] / 10) * 10}`
     : 'offen';
+  const personaKey = [...(bedarf.personas || []).map(p => p.id).filter(Boolean)].sort().join('+') || 'offen';
   return [
     bedarf.bereich || 'offen',
     [...(bedarf.nischen || [])].sort().join('+') || 'offen',
     [...(bedarf.groessen || [])].sort().join('+') || 'offen',
     [...(bedarf.geschlechter || [])].sort().join('+') || 'offen',
     alter,
-    [...(bedarf.maerkte || [])].sort().join('+') || 'offen'
+    [...(bedarf.maerkte || [])].sort().join('+') || 'offen',
+    personaKey
   ].join('|');
 }
 
@@ -118,22 +120,72 @@ function buildBedarf(briefing = {}, { produktIds = [], personas = [] } = {}) {
     alwaysOnBestehend: briefing.always_on_bestehend || null,
     kampagnentypen: normListe(briefing.kampagnentypen),
     produktIds: [...new Set((produktIds || []).filter(Boolean))],
-    personas: (personas || []).map(p => ({
-      id: p.id || null,
-      name: p.name || null,
-      oberbegriff: p.oberbegriff || null,
-      alter: (p.alter_von != null || p.alter_bis != null)
-        ? [p.alter_von ?? 0, p.alter_bis ?? 99]
-        : parseAlterSpanne(null),
-      geschlecht: norm(p.geschlecht),
-      lebenssituation: norm(p.lebenssituation),
-      pain_points: p.pain_points || null,
-      beduerfnisse: p.beduerfnisse || null,
-      audience_situations: Array.isArray(p.audience_situations) ? p.audience_situations : []
-    }))
+    personas: (personas || []).map(mapPersona)
   };
   bedarf.fingerprint = bedarfFingerprint(bedarf);
   return bedarf;
+}
+
+function mapPersona(p = {}) {
+  const brancheName = p.branche_name || p.branche?.name || p.branchen?.name || null;
+  return {
+    id: p.id || null,
+    name: p.name || null,
+    oberbegriff: p.oberbegriff || null,
+    alter: Array.isArray(p.alter)
+      ? p.alter
+      : ((p.alter_von != null || p.alter_bis != null)
+        ? [p.alter_von ?? 0, p.alter_bis ?? 99]
+        : null),
+    geschlecht: norm(p.geschlecht),
+    wohnort_region: String(p.wohnort_region || '').trim() || null,
+    beruf: String(p.beruf || '').trim() || null,
+    budgetrahmen: p.budgetrahmen || null,
+    bildungsstand: String(p.bildungsstand || '').trim() || null,
+    lebenssituation: norm(p.lebenssituation),
+    branche_id: p.branche_id || null,
+    branche_name: brancheName,
+    pain_points: p.pain_points || null,
+    interessen: p.interessen || null,
+    beduerfnisse: p.beduerfnisse || null,
+    kaufmotive: p.kaufmotive || null,
+    einwaende: p.einwaende || null,
+    produkt_loesung: p.produkt_loesung || null,
+    produktvorteile: p.produktvorteile || null,
+    tonalitaet: p.tonalitaet || null,
+    plattformen: p.plattformen || null,
+    content_praeferenzen: p.content_praeferenzen || null,
+    beschreibung: p.beschreibung || null,
+    audience_situations: Array.isArray(p.audience_situations) ? p.audience_situations : [],
+    produktFits: Array.isArray(p.produktFits) ? p.produktFits : []
+  };
+}
+
+function personaFreitext(p) {
+  if (!p) return '';
+  const as = fmtAudienceSituations(p.audience_situations, 400);
+  const fits = (p.produktFits || [])
+    .map(f => [f.fit_grund, ...(f.use_case_namen || [])].filter(Boolean).join(' '))
+    .filter(Boolean)
+    .join(' ');
+  return [
+    p.oberbegriff, p.beruf, p.bildungsstand, p.budgetrahmen,
+    p.pain_points, p.interessen, p.beduerfnisse,
+    p.kaufmotive, p.einwaende, p.produkt_loesung, p.produktvorteile,
+    p.tonalitaet, p.plattformen, p.content_praeferenzen, p.beschreibung,
+    as, fits
+  ].filter(Boolean).join(' ');
+}
+
+/** Briefing-Bedarf plus genau eine Persona-Karte (Score + Explain). */
+function bedarfFuerPersona(bedarf, persona) {
+  const p = mapPersona(persona);
+  return {
+    ...bedarf,
+    persona: p,
+    personas: [p],
+    personaText: personaFreitext(p)
+  };
 }
 
 /** Kanaele aus im_channels/os_channels (instagram/tiktok) bzw. pa_channels (meta/tiktok). */
@@ -161,11 +213,8 @@ function kanaeleAusBriefing(briefing, prefix) {
   return [...out];
 }
 
-/** Offene Creator-Sollzahl -> Vorschlags-Anzahl (2-3x, gedeckelt). */
-function zielAnzahl(offen) {
-  const n = Number(offen);
-  if (!Number.isFinite(n) || n <= 0) return 12;
-  return Math.min(ANZAHL.max, Math.max(ANZAHL.min, Math.round(n * ANZAHL.faktor)));
+function quoteProPersona() {
+  return ANZAHL.proPersona;
 }
 
 // ---------------------------------------------------------------------------
@@ -311,6 +360,18 @@ function nischenTreffer(kandidatTokens, nischen) {
   return { primaer, nachbar };
 }
 
+function personaLebenslageTrifft(lage, k) {
+  if (!lage) return false;
+  if (/familie|alleinerziehend|eltern/.test(lage)) return k.hatKinder === true;
+  if (lage.includes('ohne kinder') || lage === 'single') return k.hatKinder === false;
+  const profil = new Set([...tokens(k.bio), ...tokens(k.notiz), ...(k.branchen || []).flatMap(tokens)]);
+  if (lage.includes('student')) return ['student', 'studium', 'uni'].some(t => profil.has(t));
+  if (lage.includes('rentner')) return ['rentner', 'pension', 'ruhestand'].some(t => profil.has(t));
+  if (lage.includes('wg')) return profil.has('wg') || profil.has('wohngemeinschaft');
+  if (lage.includes('behinderung')) return ['behinderung', 'disability', 'rollstuhl'].some(t => profil.has(t));
+  return tokens(lage).some(t => profil.has(t));
+}
+
 function scoreFit(k, bedarf, gewichte) {
   const coverage = {};
   let punkte = 0;
@@ -321,36 +382,49 @@ function scoreFit(k, bedarf, gewichte) {
   else if (treffer.primaer) { punkte += gewichte.nische; coverage.nische = 'treffer'; }
   else { coverage.nische = 'kein_treffer'; }
 
-  // Persona-Demo: beste Persona zaehlt
-  if (!bedarf.personas?.length) { coverage.persona = 'offen'; }
-  else {
-    let best = 0;
+  // Persona: genau eine Karte (bedarf.persona bzw. einzige personas[0])
+  const personaKarte = bedarf.persona
+    || ((bedarf.personas || []).length === 1 ? bedarf.personas[0] : null);
+  const persona = personaKarte ? mapPersona(personaKarte) : null;
+  if (!persona || !(persona.alter || persona.geschlecht || persona.lebenssituation
+    || persona.branche_name || persona.wohnort_region)) {
+    coverage.persona = 'offen';
+  } else {
+    let s = 0;
+    const dim = [];
     let belegt = false;
-    for (const p of bedarf.personas) {
-      let s = 0;
-      const dim = [];
-      if (p.alter && k.alter) {
-        dim.push(1);
-        if (spannenSchneiden(p.alter, k.alter)) { s += 0.5; belegt = true; }
-      }
-      if (p.geschlecht) {
-        if (!GESCHLECHT_SONDER.includes(k.geschlecht)) {
-          dim.push(1);
-          const pg = norm(p.geschlecht);
-          if ((pg === 'gemischt') || k.geschlecht.includes(pg) || pg.includes(k.geschlecht)) { s += 0.3; belegt = true; }
-        }
-      }
-      if (p.lebenssituation) {
-        const willKinder = /familie|alleinerziehend|eltern/.test(p.lebenssituation);
-        if (willKinder && k.hatKinder !== null) {
-          dim.push(1);
-          if (k.hatKinder === true) { s += 0.2; belegt = true; }
-        }
-      }
-      if (dim.length) best = Math.max(best, s / dim.length);
+    if (persona.alter && k.alter) {
+      dim.push(1);
+      if (spannenSchneiden(persona.alter, k.alter)) { s += 0.3; belegt = true; }
     }
-    punkte += best * gewichte.persona;
-    coverage.persona = belegt ? 'treffer' : (best > 0 ? 'teil' : 'kein_treffer');
+    if (persona.geschlecht && !GESCHLECHT_SONDER.includes(k.geschlecht)) {
+      dim.push(1);
+      const pg = persona.geschlecht;
+      if ((pg === 'gemischt') || k.geschlecht.includes(pg) || pg.includes(k.geschlecht)) {
+        s += 0.25; belegt = true;
+      }
+    }
+    if (persona.lebenssituation) {
+      dim.push(1);
+      if (personaLebenslageTrifft(persona.lebenssituation, k)) { s += 0.2; belegt = true; }
+    }
+    if (persona.branche_name) {
+      dim.push(1);
+      const toks = tokens(persona.branche_name);
+      if (toks.some(t => k.branchenTokens.has(t))) { s += 0.15; belegt = true; }
+    }
+    if (persona.wohnort_region) {
+      dim.push(1);
+      const sOrt = norm(persona.wohnort_region);
+      const trifft = (wert) => !!wert && (wert.includes(sOrt) || sOrt.includes(wert));
+      if (trifft(k.stadt) || trifft(k.land) || (k.plz && sOrt.includes(k.plz))) {
+        s += 0.1; belegt = true;
+      }
+    }
+    if (dim.length) {
+      punkte += (s / dim.length) * gewichte.persona;
+    }
+    coverage.persona = belegt ? 'treffer' : (s > 0 ? 'teil' : 'kein_treffer');
   }
 
   // Groesse im Band (weicher Abfall ausserhalb)
@@ -413,7 +487,9 @@ function scoreFit(k, bedarf, gewichte) {
   }
 
   // Text-Naehe: Token-Schnitt Umsetzung/Situationen vs. Bio/Notiz (ein Signal)
-  const bedarfText = tokens([bedarf.umsetzung, bedarf.situationen, bedarf.expertise].filter(Boolean).join(' '));
+  const bedarfText = tokens([
+    bedarf.umsetzung, bedarf.situationen, bedarf.expertise, bedarf.personaText
+  ].filter(Boolean).join(' '));
   if (!bedarfText.length || !gewichte.text) { coverage.text = 'offen'; }
   else {
     const profil = new Set([...tokens(k.bio), ...tokens(k.notiz)]);
@@ -519,7 +595,7 @@ function profilFuer(k, listeTyp) {
 }
 
 // ---------------------------------------------------------------------------
-// Ranking (Top-N nach dem finalen Score, ADR 0014 - keine Slot-Quoten mehr)
+// Ranking: Top-N (Legacy) und Quote 6 pro Briefing-Persona (ADR 0020)
 // ---------------------------------------------------------------------------
 
 /**
@@ -527,19 +603,95 @@ function profilFuer(k, listeTyp) {
  * Sortiert streng nach Matching absteigend; Tiebreak Fit, dann Fresh.
  */
 function topNNachMatching(scored, { anzahl } = {}) {
-  const n = Math.max(1, anzahl || 12);
+  const n = Math.max(1, anzahl || quoteProPersona());
   return [...scored]
     .sort((a, b) => (b.matching - a.matching) || (b.fit - a.fit) || (b.fresh - a.fresh))
     .slice(0, n);
+}
+
+function erstePersonaId(personaIds, allowedIds = []) {
+  const ids = Array.isArray(personaIds) ? personaIds.filter(Boolean) : [];
+  if (!ids.length) return null;
+  const allowed = (allowedIds || []).filter(Boolean);
+  if (!allowed.length) return ids[0];
+  const allowedSet = new Set(allowed);
+  return ids.find(id => allowedSet.has(id)) || null;
+}
+
+function splitPendingNachPersona(rows, briefingPersonaIds = []) {
+  const frozenByPersona = {};
+  for (const id of briefingPersonaIds) frozenByPersona[id] = [];
+  const ohne = [];
+  for (const row of rows || []) {
+    const pid = erstePersonaId(row.persona_ids, briefingPersonaIds);
+    if (pid && frozenByPersona[pid]) frozenByPersona[pid].push(row);
+    else ohne.push(row);
+  }
+  return { frozenByPersona, ohne };
+}
+
+function lueckenJePersona(personaIds, frozenByPersona = {}, quote = ANZAHL.proPersona) {
+  const gap = {};
+  for (const id of personaIds || []) {
+    const frozen = frozenByPersona[id];
+    const n = Array.isArray(frozen) ? frozen.length : Number(frozen) || 0;
+    gap[id] = Math.max(0, quote - n);
+  }
+  return gap;
+}
+
+/**
+ * Greedy: hoechstes Matching(Creator, Persona) zuerst, Unique creator_id.
+ * scoredPairs: [{ k, personaId, matching, fit, fresh, ... }]
+ */
+function fuellePersonaQuoten(scoredPairs, { gapByPersona = {}, takenIds = new Set(), onlyCreatorIds = null } = {}) {
+  const remaining = { ...gapByPersona };
+  const taken = new Set(takenIds);
+  const assigned = [];
+  const only = onlyCreatorIds ? new Set(onlyCreatorIds) : null;
+
+  const sorted = [...(scoredPairs || [])].sort((a, b) =>
+    (b.matching - a.matching) || (b.fit - a.fit) || (b.fresh - a.fresh));
+
+  for (const pair of sorted) {
+    const pid = pair.personaId;
+    if (!pid || !(remaining[pid] > 0)) continue;
+    const cid = pair.k?.id || pair.creatorId;
+    if (!cid || taken.has(cid)) continue;
+    if (only && !only.has(cid)) continue;
+    taken.add(cid);
+    remaining[pid] -= 1;
+    assigned.push(pair);
+  }
+  return { assigned, remaining, taken };
+}
+
+function fitGrundDeterministisch(s, persona) {
+  const name = persona?.name || 'Persona';
+  const c = s?.coverage || {};
+  const bits = [];
+  if (c.nische === 'treffer') bits.push('Nische');
+  if (c.persona === 'treffer') bits.push('Persona-Demografie');
+  if (c.groesse === 'treffer') bits.push('Groesse');
+  if (c.plattform === 'treffer') bits.push('Plattform');
+  if (c.mentions === 'treffer') bits.push('Mentions');
+  if (c.standort === 'treffer') bits.push('Standort');
+  if (c.text === 'treffer') bits.push('Profiltext');
+  if (!bits.length) return `Matching fuer ${name}.`;
+  return `${name}: ${bits.join(', ')}.`;
 }
 
 // ---------------------------------------------------------------------------
 // Validate (Modell-Antwort gegen die Shortlist)
 // ---------------------------------------------------------------------------
 
-function validateVorschlaege(json, { shortlistIds = [], personaIds = [] } = {}) {
+function validateVorschlaege(json, { shortlistIds = [], personaIds = [], assignedPersonaByCreator = {} } = {}) {
   const pool = new Set(shortlistIds);
   const personaSet = new Set(personaIds);
+  const assignedMap = assignedPersonaByCreator && typeof assignedPersonaByCreator === 'object'
+    ? assignedPersonaByCreator
+    : {};
+  const hasAssigned = Object.keys(assignedMap).length > 0;
   const roh = Array.isArray(json?.vorschlaege) ? json.vorschlaege : [];
   const sauber = [];
   const verworfen = [];
@@ -560,7 +712,24 @@ function validateVorschlaege(json, { shortlistIds = [], personaIds = [] } = {}) 
       verworfen.push({ grund: 'fit_grund ohne belegbares Feld', vorschlag: id });
       continue;
     }
-    const pIds = [...new Set((Array.isArray(v?.persona_ids) ? v.persona_ids : []).filter(p => personaSet.has(p)))];
+    const rawPid = v?.persona_id
+      || (Array.isArray(v?.persona_ids) ? v.persona_ids.find(Boolean) : null)
+      || null;
+    let pIds;
+    if (hasAssigned) {
+      const assigned = assignedMap[id];
+      if (!assigned) {
+        verworfen.push({ grund: 'keine Persona-Zuweisung', vorschlag: id });
+        continue;
+      }
+      if (rawPid && rawPid !== assigned) {
+        verworfen.push({ grund: 'persona_id weicht von der Zuweisung ab', vorschlag: id });
+        continue;
+      }
+      pIds = [assigned];
+    } else {
+      pIds = [...new Set((Array.isArray(v?.persona_ids) ? v.persona_ids : []).filter(p => personaSet.has(p)))];
+    }
     gesehen.add(id);
     sauber.push({
       creator_id: id,
@@ -592,7 +761,7 @@ const CASTING_TOOL = {
             creator_id: { type: 'string', description: 'ID aus der Shortlist, keine anderen.' },
             fit_grund: { type: 'string', description: 'Zwei bis drei Saetze, nur belegbare Felder (Branche, Alter, Typ, Mentions, Historie). Keine Lyrik, keine Score-Zahlen.' },
             risiken: { type: ['string', 'null'], description: 'Offene Punkte, z.B. unverified Voraussetzung.' },
-            persona_ids: { type: 'array', items: { type: 'string' }, description: 'Welche Personas aus dem Bedarf treffen.' }
+            persona_id: { type: 'string', description: 'Genau die Persona-ID, die am Shortlist-Eintrag steht.' }
           },
           required: ['creator_id', 'fit_grund']
         }
@@ -611,8 +780,12 @@ function fmtKandidat(s) {
   const k = s.k;
   const name = `${k.vorname} ${k.nachname}`.trim() || 'Unbekannt';
   const alter = k.alter ? `${k.alter[0]}-${k.alter[1]}` : 'unbekannt';
+  const personaZeile = s.personaId
+    ? `Persona: ${s.persona?.name || '?'} (${s.personaId})`
+    : null;
   return [
     `ID: ${k.id} | Matching ${s.matching}`,
+    personaZeile,
     `Name: ${name}, Geschlecht: ${k.geschlecht || 'unbekannt'}, Alter: ${alter}`,
     `Typen: ${(k.typen || []).join(', ') || 'unbekannt'} | Branchen: ${(k.branchen || []).join(', ') || 'unbekannt'}`,
     `Follower: ${k.follower || 'unbekannt'} | IG: ${k.instagram || '-'} | TT: ${k.tiktok || '-'}`,
@@ -620,6 +793,40 @@ function fmtKandidat(s) {
     k.bio ? `Bio: ${cap(k.bio, 200)}` : null,
     s.hist ? `Historie: ${s.hist.castings || 0}x im Casting, ${s.hist.prio1 || 0}x Prio, ${s.hist.gebucht || 0}x gebucht` : null
   ].filter(Boolean).join('\n  ');
+}
+
+function fmtPersonaKarte(p) {
+  const persona = mapPersona(p);
+  const lines = [
+    `- ${persona.name || '?'}${persona.oberbegriff ? ` (${persona.oberbegriff})` : ''}`
+      + (persona.id ? ` [${persona.id}]` : '')
+  ];
+  if (persona.alter) lines.push(`  Alter: ${persona.alter[0]}-${persona.alter[1]}`);
+  if (persona.geschlecht) lines.push(`  Geschlecht: ${persona.geschlecht}`);
+  if (persona.wohnort_region) lines.push(`  Wohnort: ${cap(persona.wohnort_region, 120)}`);
+  if (persona.beruf) lines.push(`  Beruf: ${cap(persona.beruf, 120)}`);
+  if (persona.bildungsstand) lines.push(`  Bildung: ${cap(persona.bildungsstand, 80)}`);
+  if (persona.budgetrahmen) lines.push(`  Budgetrahmen: ${persona.budgetrahmen}`);
+  if (persona.lebenssituation) lines.push(`  Lebenssituation: ${persona.lebenssituation}`);
+  if (persona.branche_name) lines.push(`  Branche: ${persona.branche_name}`);
+  if (persona.pain_points) lines.push(`  Pain-Points: ${cap(persona.pain_points, 280)}`);
+  if (persona.interessen) lines.push(`  Interessen: ${cap(persona.interessen, 200)}`);
+  if (persona.beduerfnisse) lines.push(`  Beduerfnisse: ${cap(persona.beduerfnisse, 200)}`);
+  if (persona.kaufmotive) lines.push(`  Kaufmotive: ${cap(persona.kaufmotive, 200)}`);
+  if (persona.einwaende) lines.push(`  Einwaende: ${cap(persona.einwaende, 200)}`);
+  if (persona.produkt_loesung) lines.push(`  Produktloesung: ${cap(persona.produkt_loesung, 240)}`);
+  if (persona.produktvorteile) lines.push(`  Produktvorteile: ${cap(persona.produktvorteile, 200)}`);
+  if (persona.tonalitaet) lines.push(`  Tonalitaet: ${cap(persona.tonalitaet, 120)}`);
+  if (persona.plattformen) lines.push(`  Plattformen: ${cap(persona.plattformen, 160)}`);
+  if (persona.content_praeferenzen) lines.push(`  Content: ${cap(persona.content_praeferenzen, 200)}`);
+  if (persona.beschreibung) lines.push(`  Beschreibung: ${cap(persona.beschreibung, 280)}`);
+  const as = fmtAudienceSituations(persona.audience_situations, 240);
+  if (as) lines.push(`  Audience Situations: ${as}`);
+  for (const fit of (persona.produktFits || [])) {
+    if (fit.fit_grund) lines.push(`  Produkt-Fit: ${cap(fit.fit_grund, 240)}`);
+    if (fit.use_case_namen?.length) lines.push(`  Use Cases: ${fit.use_case_namen.join(', ')}`);
+  }
+  return lines.join('\n');
 }
 
 function buildPrompt(bedarf, { shortlist = [] } = {}) {
@@ -631,7 +838,8 @@ function buildPrompt(bedarf, { shortlist = [] } = {}) {
     + '2. KEINE LYRIK. "Wirkt authentisch" oder "gute Energy" ist ein Ausschlussgrund - nenne Fakten.\n'
     + '3. Unbelegte Voraussetzungen (unverified) gehoeren in risiken, nicht in fit_grund.\n'
     + '4. Weniger ist mehr: uebernimm nur Kandidaten mit tragfaehigem Fit, keine Quote um jeden Preis.\n'
-    + '5. KEINE SCORE-ZAHLEN im fit_grund: weder Matching noch Fit/Track/Fresh nennen - der Text erklaert die Passung in Worten.\n';
+    + '5. KEINE SCORE-ZAHLEN im fit_grund: weder Matching noch Fit/Track/Fresh nennen - der Text erklaert die Passung in Worten.\n'
+    + '6. persona_id am Eintrag ist vorgegeben - nicht aendern, nicht umhaengen.\n';
 
   let task = '# BEDARF\n';
   task += `Bereich: ${bedarf.bereich || 'offen'} | Typ: ${bedarf.typ || 'offen'}\n`;
@@ -644,20 +852,16 @@ function buildPrompt(bedarf, { shortlist = [] } = {}) {
   if (bedarf.learningsText) task += `Learnings: ${cap(bedarf.learningsText, 400)}\n`;
   if (bedarf.personas?.length) {
     task += '\n# PERSONAS (Briefing)\n';
-    bedarf.personas.forEach(p => {
-      task += `- ${p.name || '?'}${p.oberbegriff ? ` (${p.oberbegriff})` : ''}`
-        + `${p.pain_points ? `: ${cap(p.pain_points, 200)}` : ''}\n`;
-      const as = fmtAudienceSituations(p.audience_situations, 240);
-      if (as) task += `  Audience Situations: ${as}\n`;
-    });
+    bedarf.personas.forEach(p => { task += `${fmtPersonaKarte(p)}\n`; });
   }
 
-  task += `\n# SHORTLIST (${shortlist.length} Kandidaten, IDs sind verbindlich)\n`;
+  task += `\n# SHORTLIST (${shortlist.length} Kandidaten, IDs und Persona-Zuweisung sind verbindlich)\n`;
   shortlist.slice(0, MAX_SHORTLIST_IM_PROMPT).forEach(s => { task += `\n---\n${fmtKandidat(s)}\n`; });
 
   task += '\n# AUFTRAG\nGib das Ergebnis AUSSCHLIESSLICH ueber das Tool '
     + '"casting_vorschlaege_abgeben" ab: ein Eintrag je uebernommener Shortlist-ID, '
-    + 'fit_grund mit belegbaren Feldern, risiken bei offenen Punkten.';
+    + 'persona_id wie am Eintrag, fit_grund mit belegbaren Feldern, risiken bei offenen Punkten. '
+    + 'Streichen ist erlaubt; nicht genannte IDs gelten als verworfen.';
 
   return { stable, task };
 }
@@ -793,13 +997,61 @@ async function loadBedarfData(supabase, casting) {
   let personas = [];
   if (personaIds.length) {
     const { data: rows } = await supabase.from('personas')
-      .select('id, name, oberbegriff, alter_von, alter_bis, geschlecht, lebenssituation, pain_points, beduerfnisse')
+      .select('id, name, oberbegriff, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, branche_id, pain_points, interessen, beduerfnisse, kaufmotive, einwaende, produkt_loesung, produktvorteile, tonalitaet, plattformen, content_praeferenzen, beschreibung')
       .in('id', personaIds);
     personas = orderPersonasByIds(rows, personaIds);
     await attachAudienceSituations(supabase, personas);
+    await attachBrancheNamen(supabase, personas);
+    await attachProduktFits(supabase, personas, produktIds);
   }
 
   return { briefing, produktIds, personas };
+}
+
+async function attachBrancheNamen(supabase, personas) {
+  const ids = [...new Set((personas || []).map(p => p.branche_id).filter(Boolean))];
+  if (!ids.length) return personas;
+  const { data } = await supabase.from('branchen').select('id, name').in('id', ids);
+  const byId = new Map((data || []).map(r => [r.id, r.name]));
+  for (const p of personas || []) {
+    p.branche_name = byId.get(p.branche_id) || null;
+  }
+  return personas;
+}
+
+async function attachProduktFits(supabase, personas, produktIds) {
+  const personaIds = (personas || []).map(p => p.id).filter(Boolean);
+  const pids = (produktIds || []).filter(Boolean);
+  if (!personaIds.length || !pids.length) {
+    for (const p of personas || []) p.produktFits = p.produktFits || [];
+    return personas;
+  }
+  const { data: fits } = await supabase.from('produkt_persona_vorschlag')
+    .select('persona_id, produkt_id, fit_grund, use_case_ids')
+    .eq('status', 'accepted')
+    .in('persona_id', personaIds)
+    .in('produkt_id', pids);
+  const rows = fits || [];
+  const ucIds = [...new Set(rows.flatMap(r => r.use_case_ids || []).filter(Boolean))];
+  let ucById = new Map();
+  if (ucIds.length) {
+    const { data: ucs } = await supabase.from('produkt_use_case')
+      .select('id, name').in('id', ucIds);
+    ucById = new Map((ucs || []).map(u => [u.id, u.name]));
+  }
+  const byPersona = new Map();
+  for (const row of rows) {
+    if (!byPersona.has(row.persona_id)) byPersona.set(row.persona_id, []);
+    byPersona.get(row.persona_id).push({
+      produkt_id: row.produkt_id,
+      fit_grund: row.fit_grund || null,
+      use_case_namen: (row.use_case_ids || []).map(id => ucById.get(id)).filter(Boolean)
+    });
+  }
+  for (const p of personas || []) {
+    p.produktFits = byPersona.get(p.id) || [];
+  }
+  return personas;
 }
 
 module.exports = {
@@ -812,7 +1064,16 @@ module.exports = {
   bedarfFingerprint,
   buildBedarf,
   kanaeleAusBriefing,
-  zielAnzahl,
+  quoteProPersona,
+  mapPersona,
+  personaFreitext,
+  bedarfFuerPersona,
+  personaLebenslageTrifft,
+  erstePersonaId,
+  splitPendingNachPersona,
+  lueckenJePersona,
+  fuellePersonaQuoten,
+  fitGrundDeterministisch,
   normiereKandidat,
   nischenTreffer,
   applyGates,

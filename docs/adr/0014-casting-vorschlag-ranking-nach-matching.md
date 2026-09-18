@@ -15,3 +15,5 @@ Unbelegte Fit-Dimensionen geben bewusst 0 Punkte — das ist ein gewollter Anrei
 Profilpflege, keine Score-Schwäche. `position` und `slot` sind Legacy (LLM-Interna
 bzw. NOT NULL-Default), nicht Anzeige-Logik. Der Standort-Fit matcht jetzt auch das
 Creator-Land (Bug: „Deutschland"-Bedarf vs. `lieferadresse_land` fiel durch).
+Die globale Top-N-Auswahl ist durch ADR 0020 ersetzt (Quote 6 pro Briefing-Persona);
+Matching-Formel und Sortierung in der Gruppe bleiben.
