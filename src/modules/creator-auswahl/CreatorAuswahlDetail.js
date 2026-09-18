@@ -807,9 +807,9 @@ export class CreatorAuswahlDetail {
   // --- CRUD-Handler ---
 
   async handleSortUpdate() {
-    const tbody = this._q('#items-table-body');
-    if (!tbody) return;
-    const rows = Array.from(tbody.querySelectorAll('.item-row'));
+    const table = this._q('.creator-pool-table');
+    if (!table) return;
+    const rows = Array.from(table.querySelectorAll('.item-row'));
     const hatGruppen = this._q('.kategorie-header-row');
 
     // Sichtbare (im aktiven Reiter gefilterte) Zeilen mit neuer Reihenfolge/Gruppe aus dem DOM

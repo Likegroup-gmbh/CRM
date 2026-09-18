@@ -613,6 +613,10 @@ h3.section-title,
   top: 0;
 }
 
+.kampagne-casting-worksheet .creator-pool-table .kategorie-header-row > td {
+  top: var(--sticky-thead-height, 37px);
+}
+
 .kampagne-konzept-worksheet .add-item-section--compact {
   position: static;
 }

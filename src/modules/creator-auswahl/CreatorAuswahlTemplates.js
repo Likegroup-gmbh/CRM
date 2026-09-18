@@ -488,9 +488,7 @@ export function renderItemsTable(ctx) {
             ${hasActions ? '<th class="col-actions cp-col-actions">Aktionen</th>' : ''}
           </tr>
         </thead>
-        <tbody id="items-table-body">
-          ${renderGroupedItems(ctx)}
-        </tbody>
+        ${renderGroupedItems(ctx)}
         ${!ctx.isKunde && (ctx.canCreate ?? true) ? `
         <tfoot>
           <tr class="add-row-footer">
@@ -539,6 +537,10 @@ function renderPersonaHeaderRow(group, colCount, ctx) {
     `;
 }
 
+function wrapGroupTbody(groupKey, innerHtml) {
+  return `<tbody class="persona-group-tbody" data-group-key="${escapeAttr(groupKey || OHNE_PERSONA_KEY)}">${innerHtml}</tbody>`;
+}
+
 export function renderGroupedItems(ctx) {
   const personas = ctx.personas || [];
   const items = ctx.items || [];
@@ -546,7 +548,8 @@ export function renderGroupedItems(ctx) {
   if (!personas.length) {
     const orphanGroups = orderedPersonaGroups(items, []);
     if (orphanGroups.length <= 1 && orphanGroups[0]?.key === OHNE_PERSONA_KEY) {
-      return items.map((item, index) => renderItemRow(ctx, item, index)).join('');
+      const rows = items.map((item, index) => renderItemRow(ctx, item, index)).join('');
+      return wrapGroupTbody(OHNE_PERSONA_KEY, rows);
     }
   }
 
@@ -558,10 +561,11 @@ export function renderGroupedItems(ctx) {
   let html = '';
   let globalIndex = 0;
   for (const group of orderedPersonaGroups(items, personas)) {
-    html += renderPersonaHeaderRow(group, colCount, ctx);
+    let inner = renderPersonaHeaderRow(group, colCount, ctx);
     for (const item of group.items) {
-      html += renderItemRow(ctx, item, globalIndex++);
+      inner += renderItemRow(ctx, item, globalIndex++);
     }
+    html += wrapGroupTbody(group.key, inner);
   }
 
   return html;

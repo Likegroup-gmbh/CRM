@@ -26,7 +26,7 @@ function groupedDoc(items, personas = PERSONAS) {
     hiddenColumns: [],
     customManager: null
   });
-  return new DOMParser().parseFromString(`<table><tbody>${html}</tbody></table>`, 'text/html');
+  return new DOMParser().parseFromString(`<table>${html}</table>`, 'text/html');
 }
 
 function headerByLabel(doc, label) {
@@ -86,6 +86,28 @@ describe('renderGroupedItems nach Persona', () => {
     expect(orphan).toBeTruthy();
     expect(orphan.dataset.personaId).toBe('px');
     expect(orphan.querySelector('.kategorie-count').textContent).toBe('(1)');
+  });
+
+  it('legt jede Persona-Gruppe in ein eigenes tbody', () => {
+    const doc = groupedDoc([
+      { id: 'a1', name: 'Anna', persona_id: 'pa' },
+      { id: 'b1', name: 'Ben', persona_id: 'pb' }
+    ]);
+    const tbodys = Array.from(doc.querySelectorAll('tbody.persona-group-tbody'));
+    expect(tbodys.map(t => t.dataset.groupKey)).toEqual(['pa', 'pb']);
+    expect(tbodys[0].querySelector('.kategorie-header-row')?.dataset.groupKey).toBe('pa');
+    expect(tbodys[0].querySelector('.item-row')?.dataset.itemId).toBe('a1');
+    expect(tbodys[1].querySelector('.kategorie-header-row')?.dataset.groupKey).toBe('pb');
+    expect(tbodys[1].querySelector('.item-row')?.dataset.itemId).toBe('b1');
+  });
+
+  it('packt Items ohne Personas in ein einzelnes tbody', () => {
+    const doc = groupedDoc([{ id: 'a1', name: 'Anna', persona_id: null }], []);
+    const tbodys = Array.from(doc.querySelectorAll('tbody.persona-group-tbody'));
+    expect(tbodys).toHaveLength(1);
+    expect(tbodys[0].dataset.groupKey).toBe(OHNE_PERSONA_KEY);
+    expect(tbodys[0].querySelector('.item-row')?.dataset.itemId).toBe('a1');
+    expect(tbodys[0].querySelector('.kategorie-header-row')).toBeNull();
   });
 });
 
