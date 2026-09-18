@@ -12,7 +12,20 @@ import { strategieService } from '../modules/strategie/StrategieService.js';
 import { VideoideeVorschlagService, JOB_START_WATCHDOG_MS } from '../modules/strategie/VideoideeVorschlagService.js';
 
 const require = createRequire(import.meta.url);
-const { formatBeschreibung, validateIdeen, erstzeile, ANZAHL, buildPrompt, buildVorschlagInsert } = require('../../netlify/functions/_shared/strategie-idee.js');
+const {
+  formatBeschreibung,
+  validateIdeen,
+  erstzeile,
+  ANZAHL,
+  buildPrompt,
+  buildVorschlagInsert,
+  normalizeIdeenJson,
+  leerFehler,
+  ideenDiagnose
+} = require('../../netlify/functions/_shared/strategie-idee.js');
+const { parseToolInput } = require('../../netlify/functions/_shared/anthropic.js');
+
+const VOLL = { pain_point: 'x', hook: 'h', kernbotschaft: 'k', ablauf: 'a' };
 
 function detailStub(overrides = {}) {
   return {
@@ -100,6 +113,59 @@ describe('validateIdeen', () => {
     expect(stable).toContain('Creative Angle');
     expect(task).toContain('Alte Idee');
     expect(task).toContain('keine Produkte');
+  });
+
+  it('nimmt ideas/title statt ideen/titel', () => {
+    const { ideen } = validateIdeen({
+      ideas: [{ title: 'Squat zeigt den Bund', ...VOLL }]
+    });
+    expect(ideen.map((i) => i.titel)).toEqual(['Squat zeigt den Bund']);
+  });
+
+  it('nimmt Titel-Alias und JSON-String plus Tool-Wrapper', () => {
+    const payload = {
+      videoideen_abgeben: {
+        ideen: [{ Titel: 'Aus dem String', ...VOLL }]
+      }
+    };
+    const { ideen: fromString } = validateIdeen(JSON.stringify(payload));
+    expect(fromString.map((i) => i.titel)).toEqual(['Aus dem String']);
+
+    const { ideen: fromWrap } = validateIdeen(payload);
+    expect(fromWrap.map((i) => i.titel)).toEqual(['Aus dem String']);
+  });
+
+  it('laesst leeres ideen-Array leer', () => {
+    const { ideen, verworfen } = validateIdeen({ ideen: [] });
+    expect(ideen).toEqual([]);
+    expect(verworfen).toEqual([]);
+    expect(leerFehler({ verworfen: [] })).toContain('leeres Array');
+  });
+
+  it('benennt ohne-Titel und Ausschluss im Fehler', () => {
+    expect(leerFehler({ verworfen: [{ grund: 'ohne_titel' }] })).toContain('ohne Titel');
+    expect(leerFehler({ verworfen: [{ grund: 'ausschluss', titel: 'X' }] })).toContain('alles Ausschluss');
+  });
+});
+
+describe('normalizeIdeenJson / parseToolInput', () => {
+  it('zieht ein Array oben und videoideen-Key', () => {
+    expect(normalizeIdeenJson([{ titel: 'A' }])).toEqual([{ titel: 'A' }]);
+    expect(normalizeIdeenJson({ videoideen: [{ titel: 'B' }] })).toEqual([{ titel: 'B' }]);
+  });
+
+  it('parst tool_use.input als JSON-String, sonst null', () => {
+    expect(parseToolInput('{"ideen":[]}')).toEqual({ ideen: [] });
+    expect(parseToolInput({ ideen: [] })).toEqual({ ideen: [] });
+    expect(parseToolInput('kein json')).toBeNull();
+    expect(parseToolInput('')).toBeNull();
+  });
+
+  it('packt Diagnose mit Keys und stop_reason', () => {
+    const d = ideenDiagnose({ ideas: [] }, { verworfen: [{ grund: 'ohne_titel' }] }, { stop_reason: 'max_tokens' });
+    expect(d.json_keys).toEqual(['ideas']);
+    expect(d.stop_reason).toBe('max_tokens');
+    expect(d.verworfen[0].grund).toBe('ohne_titel');
   });
 });
 

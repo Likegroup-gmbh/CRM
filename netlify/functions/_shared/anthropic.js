@@ -132,10 +132,25 @@ async function callClaude({ model, systemBlocks = [], userPrompt, maxTokens = 40
     text: (data.content || []).filter((c) => c.type === 'text').map((c) => c.text || '').join(''),
     // Strukturierte Antwort des Tool-Calls (null, wenn das Modell trotz
     // 'auto' als Text geantwortet hat -> Aufrufer faellt auf extractJson zurueck)
-    json: (data.content || []).find((c) => c.type === 'tool_use')?.input || null,
+    json: parseToolInput((data.content || []).find((c) => c.type === 'tool_use')?.input),
     usage: data.usage || null,
-    model: data.model
+    model: data.model,
+    stop_reason: data.stop_reason || null
   };
+}
+
+/** tool_use.input ist Objekt; manche Antworten liefern denselben JSON-String. */
+function parseToolInput(input) {
+  if (input == null) return null;
+  if (typeof input === 'object') return input;
+  if (typeof input !== 'string') return null;
+  const s = input.trim();
+  if (!s) return null;
+  try {
+    return JSON.parse(s);
+  } catch (_) {
+    return null;
+  }
 }
 
 /**
@@ -347,4 +362,4 @@ function extractJson(text, { keys = [], onWarn } = {}) {
   }
 }
 
-module.exports = { callClaude, extractJson, repairJsonStrings, extractByKeys, extractXmlParameters, MODELS, ClaudeTimeoutError };
+module.exports = { callClaude, parseToolInput, extractJson, repairJsonStrings, extractByKeys, extractXmlParameters, MODELS, ClaudeTimeoutError };

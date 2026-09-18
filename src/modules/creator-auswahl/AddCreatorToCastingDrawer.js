@@ -1,6 +1,7 @@
 // Drawer: CRM-Creator auf ein Casting setzen (Auto-Suggestion, Mitarbeiter-Scope)
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
+import { personaDisplayLabel } from './castingPersonaGroups.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
@@ -226,7 +227,7 @@ export class AddCreatorToCastingDrawer {
 
     const autoId = personas.length === 1 ? personas[0].id : '';
     select.innerHTML = '<option value="">– Persona wählen –</option>'
-      + personas.map((p) => `<option value="${this.escapeHtml(p.id)}"${p.id === autoId ? ' selected' : ''}>${this.escapeHtml(p.name)}</option>`).join('');
+      + personas.map((p) => `<option value="${this.escapeHtml(p.id)}"${p.id === autoId ? ' selected' : ''}>${this.escapeHtml(personaDisplayLabel(p))}</option>`).join('');
     this.selectedPersonaId = autoId || null;
     this.syncSubmit();
   }

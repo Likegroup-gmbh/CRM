@@ -16,6 +16,8 @@ const {
   loadIdeeInput,
   buildPrompt,
   validateIdeen,
+  leerFehler,
+  ideenDiagnose,
   buildVorschlagInsert
 } = require('./_shared/strategie-idee');
 
@@ -100,6 +102,7 @@ exports.handler = async (event) => {
   schreibeStep('start', 'Videoideen-Vorschläge starten');
 
   let ki = null;
+  let letzterResult = null;
   try {
     const input = await loadIdeeInput(supabase, job.strategie_id);
 
@@ -108,10 +111,8 @@ exports.handler = async (event) => {
       feature: 'strategie_idee'
     });
 
-    schreibeStep('generieren', `Claude entwirft ${ANZAHL} Videoideen`);
     const { stable, task } = buildPrompt(input);
-
-    const result = await callClaude({
+    const rufeClaude = () => callClaude({
       model: MODELS.konzept,
       systemBlocks: [{ text: stable, cache: true }],
       userPrompt: task,
@@ -120,17 +121,47 @@ exports.handler = async (event) => {
       toolForced: true
     });
 
-    if (!result.json) {
-      throw new Error('Die KI hat kein strukturiertes Ergebnis geliefert');
-    }
-
+    schreibeStep('generieren', `Claude entwirft ${ANZAHL} Videoideen`);
+    letzterResult = await rufeClaude();
     schreibeStep('pruefen', 'Ideen werden validiert');
-    const geprueft = validateIdeen(result.json, { ausschluss: input.ausschluss, anzahl: ANZAHL });
+    let geprueft = letzterResult.json
+      ? validateIdeen(letzterResult.json, { ausschluss: input.ausschluss, anzahl: ANZAHL })
+      : { ideen: [], verworfen: [] };
+
     if (!geprueft.ideen.length) {
-      throw new Error('Die KI konnte keine tragfähigen Videoideen liefern');
+      const diagnose = ideenDiagnose(letzterResult.json, geprueft, letzterResult);
+      console.warn(`[${jobId}] Erster Lauf ohne Ideen:`, diagnose);
+      queue = queue
+        .then(() => supabase.from('strategie_idee_jobs')
+          .update({ result: diagnose })
+          .eq('id', jobId))
+        .catch((e) => console.error(`[${jobId}] Diagnose-Update fehlgeschlagen:`, e.message));
+
+      schreibeStep('generieren', 'Ich versuche die Videoideen noch einmal');
+      letzterResult = await rufeClaude();
+      schreibeStep('pruefen', 'Ideen werden validiert');
+      geprueft = letzterResult.json
+        ? validateIdeen(letzterResult.json, { ausschluss: input.ausschluss, anzahl: ANZAHL })
+        : { ideen: [], verworfen: [] };
     }
 
-    await ki.abschliessen({ model: result.model, usage: result.usage });
+    if (!geprueft.ideen.length) {
+      const diagnose = {
+        ...ideenDiagnose(letzterResult.json, geprueft, letzterResult),
+        retry: true
+      };
+      console.warn(`[${jobId}] Retry ohne Ideen:`, diagnose);
+      await queue;
+      await supabase.from('strategie_idee_jobs')
+        .update({ result: diagnose })
+        .eq('id', jobId);
+      if (!letzterResult.json) {
+        throw new Error('Die KI hat kein strukturiertes Ergebnis geliefert');
+      }
+      throw new Error(leerFehler(geprueft));
+    }
+
+    await ki.abschliessen({ model: letzterResult.model, usage: letzterResult.usage });
 
     // strategie_items.created_by -> benutzer(id), nicht auth.users
     const { data: benutzer } = await supabase.from('benutzer')
@@ -169,7 +200,10 @@ exports.handler = async (event) => {
     return { statusCode: 200 };
   } catch (error) {
     console.error(`❌ strategie-idee-background [${jobId}]:`, error.message);
-    if (ki) await ki.fehlgeschlagen(error);
+    if (ki) await ki.fehlgeschlagen(error, {
+      model: letzterResult?.model,
+      usage: letzterResult?.usage
+    });
     try {
       await queue;
       await supabase.from('strategie_idee_jobs')

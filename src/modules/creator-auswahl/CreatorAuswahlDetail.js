@@ -48,6 +48,7 @@ import {
   NICHT_UMSETZEN_KATEGORIE,
   OHNE_PERSONA_KEY,
   NICHT_UMSETZEN_KEY,
+  personaDisplayLabel,
   personaGroupKey,
   updatesForGroupKey,
   applyGroupToItem
@@ -1683,7 +1684,7 @@ export class CreatorAuswahlDetail {
 
     const personaOptions = [
       '<option value="">Persona zuweisen…</option>',
-      ...(this.personas || []).map(p => `<option value="${escapeAttr(p.id)}">${escapeAttr(p.name)}</option>`),
+      ...(this.personas || []).map(p => `<option value="${escapeAttr(p.id)}">${escapeAttr(personaDisplayLabel(p))}</option>`),
       '<option value="Ohne Persona">Ohne Persona</option>',
       `<option value="${NICHT_UMSETZEN_KATEGORIE}">${NICHT_UMSETZEN_KATEGORIE}</option>`
     ].join('');
@@ -1997,7 +1998,7 @@ export class CreatorAuswahlDetail {
     this.closePillDropdown();
 
     const options = [
-      ...(this.personas || []).map(p => ({ key: p.id, personaId: p.id, label: p.name })),
+      ...(this.personas || []).map(p => ({ key: p.id, personaId: p.id, label: personaDisplayLabel(p) })),
       { key: OHNE_PERSONA_KEY, personaId: null, label: 'Ohne Persona' }
     ];
     const currentItem = this.items.find(i => i.id === itemId);

@@ -8,6 +8,7 @@ const { attachAudienceSituations, fmtAudienceSituations } = require('./audience-
 
 const ANZAHL = 5;
 const PRODUKT_FELDER = 'id, name, kurzbeschreibung, usp, pain_points, loesung';
+const PERSONA_FELDER = 'id, name, oberbegriff, pain_points, beduerfnisse';
 
 const KONZEPT_TOOL = {
   name: 'videoideen_abgeben',
@@ -113,22 +114,7 @@ async function loadIdeeInput(supabase, strategieId) {
     produkte = data || [];
   }
 
-  let personas = [];
-  if (produktIds.length) {
-    const { data: vorschlaege } = await supabase.from('produkt_persona_vorschlag')
-      .select('persona_id, persona:persona_id(id, name, oberbegriff, pain_points, beduerfnisse)')
-      .in('produkt_id', produktIds)
-      .eq('status', 'accepted');
-    const gesehen = new Set();
-    for (const v of (vorschlaege || [])) {
-      const p = v.persona;
-      if (p?.id && !gesehen.has(p.id)) {
-        gesehen.add(p.id);
-        personas.push(p);
-      }
-    }
-    await attachAudienceSituations(supabase, personas);
-  }
+  const personas = await loadPersonas(supabase, briefing, produktIds);
 
   const { data: items } = await supabase.from('strategie_items')
     .select('id, beschreibung')
@@ -179,14 +165,106 @@ Gib ${ANZAHL} neue Videoideen ueber das Tool ab.`;
   return { stable, task };
 }
 
+function parseMaybeJson(value) {
+  if (typeof value !== 'string') return value;
+  const s = value.trim();
+  if (!s) return value;
+  try {
+    return JSON.parse(s);
+  } catch (_) {
+    return value;
+  }
+}
+
+function pickIdeenArray(obj) {
+  const parsed = parseMaybeJson(obj);
+  if (Array.isArray(parsed)) return parsed;
+  if (!parsed || typeof parsed !== 'object') return [];
+  for (const key of ['ideen', 'videoideen', 'ideas']) {
+    const val = parseMaybeJson(parsed[key]);
+    if (Array.isArray(val)) return val;
+  }
+  if (parsed.videoideen_abgeben != null) return pickIdeenArray(parsed.videoideen_abgeben);
+  return [];
+}
+
+/** Tool-Input auf ein Ideen-Array ziehen: String, Wrapper, Aliase. */
+function normalizeIdeenJson(json) {
+  return pickIdeenArray(json);
+}
+
+function ideeTitel(raw) {
+  return String(raw?.titel || raw?.title || raw?.Titel || '').trim();
+}
+
+function jsonKeys(json) {
+  if (json == null) return [];
+  if (Array.isArray(json)) return ['<array>'];
+  if (typeof json === 'object') return Object.keys(json).slice(0, 20);
+  return [typeof json];
+}
+
+function ideenDiagnose(json, geprueft, result) {
+  return {
+    json_keys: jsonKeys(json),
+    verworfen: (geprueft?.verworfen || []).slice(0, 20),
+    stop_reason: result?.stop_reason || null
+  };
+}
+
+function leerGrund(geprueft) {
+  const gruende = (geprueft?.verworfen || []).map((v) => v.grund);
+  if (!gruende.length) return 'leeres Array';
+  const unique = [...new Set(gruende)];
+  if (unique.length === 1 && unique[0] === 'ohne_titel') return 'ohne Titel';
+  if (unique.length === 1 && unique[0] === 'ausschluss') return 'alles Ausschluss';
+  if (unique.length === 1 && unique[0] === 'leer') return 'leere Felder';
+  return unique.join(', ');
+}
+
+function leerFehler(geprueft) {
+  return `Die KI konnte keine tragfähigen Videoideen liefern (${leerGrund(geprueft)})`;
+}
+
+async function loadPersonas(supabase, briefing, produktIds) {
+  const personaIds = Array.isArray(briefing?.persona_ids)
+    ? briefing.persona_ids.filter(Boolean)
+    : [];
+  let personas = [];
+
+  if (personaIds.length) {
+    const { data: rows } = await supabase.from('personas')
+      .select(PERSONA_FELDER)
+      .in('id', personaIds);
+    const byId = new Map((rows || []).map((p) => [p.id, p]));
+    personas = personaIds.map((id) => byId.get(id)).filter(Boolean);
+  } else if (produktIds.length) {
+    const { data: vorschlaege } = await supabase.from('produkt_persona_vorschlag')
+      .select(`persona_id, persona:persona_id(${PERSONA_FELDER})`)
+      .in('produkt_id', produktIds)
+      .eq('status', 'accepted');
+    const gesehen = new Set();
+    for (const v of (vorschlaege || [])) {
+      const p = v.persona;
+      if (p?.id && !gesehen.has(p.id)) {
+        gesehen.add(p.id);
+        personas.push(p);
+      }
+    }
+  }
+
+  if (personas.length) await attachAudienceSituations(supabase, personas);
+  return personas;
+}
+
 function validateIdeen(json, { ausschluss = [], anzahl = ANZAHL } = {}) {
-  const raw = Array.isArray(json?.ideen) ? json.ideen : [];
+  const raw = normalizeIdeenJson(json);
   const belegt = new Set((ausschluss || []).map((t) => erstzeile(t).toLowerCase()).filter(Boolean));
   const ideen = [];
   const verworfen = [];
 
   for (const rawIdee of raw) {
-    const titel = String(rawIdee?.titel || '').trim();
+    const titel = ideeTitel(rawIdee);
     if (!titel) {
       verworfen.push({ grund: 'ohne_titel' });
       continue;
@@ -242,6 +320,9 @@ module.exports = {
   formatBeschreibung,
   loadIdeeInput,
   buildPrompt,
+  normalizeIdeenJson,
   validateIdeen,
+  leerFehler,
+  ideenDiagnose,
   buildVorschlagInsert
 };

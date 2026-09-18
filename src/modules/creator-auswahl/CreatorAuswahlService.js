@@ -359,7 +359,7 @@ export class CreatorAuswahlService {
       .select(`
         *,
         creator:creator_id(id, vorname, nachname, instagram, tiktok),
-        persona:persona_id(id, name)
+        persona:persona_id(id, name, oberbegriff)
       `)
       .eq('creator_auswahl_id', listeId)
       .order('sortierung', { ascending: true });

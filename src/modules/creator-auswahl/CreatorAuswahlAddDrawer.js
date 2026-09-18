@@ -6,6 +6,7 @@ import { CREATOR_TYP_OPTIONS, isAllowedCreatorTyp, normalizeCreatorTyp } from '.
 import { DEAKTIVIERTE_SPALTEN } from './CreatorAuswahlTemplates.js';
 import { berechneHiddenColumns } from './sourcingSpaltenPreset.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
+import { personaDisplayLabel } from './castingPersonaGroups.js';
 
 export class CreatorAuswahlAddDrawer {
   constructor(detail) {
@@ -101,7 +102,7 @@ export class CreatorAuswahlAddDrawer {
     const personas = this.detail?.personas || [];
     const defaultPersonaId = personas.length === 1 ? personas[0].id : '';
     const personaOptionsHtml = personas
-      .map(p => `<option value="${escapeAttr(p.id)}"${p.id === defaultPersonaId ? ' selected' : ''}>${escapeAttr(p.name)}</option>`)
+      .map(p => `<option value="${escapeAttr(p.id)}"${p.id === defaultPersonaId ? ' selected' : ''}>${escapeAttr(personaDisplayLabel(p))}</option>`)
       .join('');
 
     const searchSection = isDatabaseMode ? `

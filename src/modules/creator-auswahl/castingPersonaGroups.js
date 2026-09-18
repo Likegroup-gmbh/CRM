@@ -1,8 +1,14 @@
 // Gruppenachse eines Castings: Briefing-Personas statt Freitext-Kategorien (ADR 0019).
 
+import { PersonaService } from '../persona/PersonaService.js';
+
 export const NICHT_UMSETZEN_KATEGORIE = 'Nicht umsetzen';
 export const OHNE_PERSONA_KEY = '__ohne__';
 export const NICHT_UMSETZEN_KEY = '__nicht_umsetzen__';
+
+export function personaDisplayLabel(persona) {
+  return PersonaService.label(persona);
+}
 
 export function isNichtUmsetzen(item) {
   return item?.kategorie === NICHT_UMSETZEN_KATEGORIE || item?.nicht_umsetzen === true;
@@ -43,7 +49,9 @@ export function updatesForGroupKey(groupKey, personaId = null) {
 
 function orphanLabel(items) {
   const first = (items || [])[0];
-  return first?.persona?.name || first?.persona_name || 'Unbekannte Persona';
+  const persona = first?.persona || (first?.persona_name ? { name: first.persona_name } : null);
+  if (!persona?.name && !persona?.oberbegriff) return 'Unbekannte Persona';
+  return personaDisplayLabel(persona);
 }
 
 export function groupItemsByPersona(items = []) {
@@ -69,7 +77,7 @@ export function orderedPersonaGroups(items = [], personas = []) {
     result.push({
       key: persona.id,
       personaId: persona.id,
-      label: persona.name || 'Persona',
+      label: personaDisplayLabel(persona),
       persona,
       items: groups.get(persona.id) || [],
       variant: ''

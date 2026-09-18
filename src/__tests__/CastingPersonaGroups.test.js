@@ -6,6 +6,7 @@ import { CreatorAuswahlDetail } from '../modules/creator-auswahl/CreatorAuswahlD
 import {
   NICHT_UMSETZEN_KATEGORIE,
   OHNE_PERSONA_KEY,
+  personaDisplayLabel,
   pickFirstPersonaId,
   orderPersonasByIds,
   orderedPersonaGroups,
@@ -16,6 +17,7 @@ import {
 const PERSONA_A = { id: 'pa', name: 'Persona A' };
 const PERSONA_B = { id: 'pb', name: 'Persona B' };
 const PERSONAS = [PERSONA_A, PERSONA_B];
+const MARCO = { id: 'pm', name: 'Marco', oberbegriff: 'der sportliche Papa' };
 
 function groupedDoc(items, personas = PERSONAS) {
   const html = renderGroupedItems({
@@ -55,6 +57,25 @@ describe('orderedPersonaGroups', () => {
     expect(groups.map(g => g.label)).toEqual([
       'Persona A', 'Persona B', 'Alt', 'Ohne Persona', 'Nicht umsetzen'
     ]);
+  });
+
+  it('nimmt Oberbegriff · Name als Gruppenlabel', () => {
+    const groups = orderedPersonaGroups([], [MARCO]);
+    expect(groups.map(g => g.label)).toEqual(['der sportliche Papa · Marco']);
+  });
+
+  it('nimmt Oberbegriff auch bei Orphans', () => {
+    const groups = orderedPersonaGroups([
+      { id: 'x1', persona_id: 'px', persona: { name: 'Marco', oberbegriff: 'der sportliche Papa' } }
+    ], []);
+    expect(groups[0].label).toBe('der sportliche Papa · Marco');
+  });
+});
+
+describe('personaDisplayLabel', () => {
+  it('faellt ohne Oberbegriff auf den Namen zurueck', () => {
+    expect(personaDisplayLabel(PERSONA_A)).toBe('Persona A');
+    expect(personaDisplayLabel(MARCO)).toBe('der sportliche Papa · Marco');
   });
 });
 
@@ -99,6 +120,13 @@ describe('renderGroupedItems nach Persona', () => {
     expect(tbodys[0].querySelector('.item-row')?.dataset.itemId).toBe('a1');
     expect(tbodys[1].querySelector('.kategorie-header-row')?.dataset.groupKey).toBe('pb');
     expect(tbodys[1].querySelector('.item-row')?.dataset.itemId).toBe('b1');
+  });
+
+  it('schreibt Oberbegriff · Name in den Gruppenkopf', () => {
+    const doc = groupedDoc([], [MARCO]);
+    const header = headerByLabel(doc, 'der sportliche Papa · Marco');
+    expect(header).toBeTruthy();
+    expect(header.dataset.personaId).toBe('pm');
   });
 
   it('packt Items ohne Personas in ein einzelnes tbody', () => {
@@ -166,6 +194,17 @@ describe('Add-Drawer Persona', () => {
     const option = Array.from(select.querySelectorAll('option')).find(el => el.value === 'pa');
     expect(option.selected).toBe(true);
   });
+
+  it('zeigt Oberbegriff · Name in der Persona-Option', () => {
+    const drawer = new CreatorAuswahlAddDrawer({
+      liste: {},
+      personas: [MARCO],
+      hiddenColumns: []
+    });
+    const doc = new DOMParser().parseFromString(drawer.renderForm(), 'text/html');
+    const option = Array.from(doc.querySelectorAll('#creator-persona option')).find(el => el.value === 'pm');
+    expect(option?.textContent).toBe('der sportliche Papa · Marco');
+  });
 });
 
 describe('CreatorAuswahlDetail – Bulk-Bar Personas', () => {
@@ -183,6 +222,18 @@ describe('CreatorAuswahlDetail – Bulk-Bar Personas', () => {
 
     expect(option).toBeTruthy();
     expect(option.value).toBe('pa');
+    document.getElementById('sourcing-bulk-bar')?.remove();
+  });
+
+  it('zeigt Oberbegriff · Name in der Bulk-Option', () => {
+    const detail = new CreatorAuswahlDetail();
+    detail.personas = [MARCO];
+    detail.renderBulkBar();
+
+    const option = Array.from(document.querySelectorAll('#sourcing-bulk-kategorie option'))
+      .find(el => el.value === 'pm');
+
+    expect(option?.textContent).toBe('der sportliche Papa · Marco');
     document.getElementById('sourcing-bulk-bar')?.remove();
   });
 });

@@ -1473,12 +1473,13 @@ thead {
   top: var(--sticky-add-section-height);
 }
 
-/* z-index nur fuer die mitscrollenden Header. Die links fixierten Spalten sind
-   ausgenommen, damit ihre hoeheren Ebenen (col-sticky: 25-27) greifen -- bei
-   gleichem z-index gewinnt sonst die DOM-Reihenfolge und die scrollenden Header
-   legen sich beim horizontalen Scrollen ueber die fixierten. */
-.add-item-section--compact + .table-container .strategie-items-table thead th:not([class*="col-sticky-"]),
-.sourcing-tab-navigation + .table-container .strategie-items-table thead th:not([class*="col-sticky-"]) {
+/* z-index nur fuer die mitscrollenden Header. Die links fixierten Spalten
+   (col-sticky: 25-27) und die rechte Aktions-Spalte (cp-col-actions: 26) sind
+   ausgenommen -- bei gleichem z-index gewinnt sonst die DOM-Reihenfolge und
+   die scrollenden Header legen sich beim horizontalen Scrollen ueber die
+   fixierten. */
+.add-item-section--compact + .table-container .strategie-items-table thead th:not([class*="col-sticky-"]):not(.cp-col-actions),
+.sourcing-tab-navigation + .table-container .strategie-items-table thead th:not([class*="col-sticky-"]):not(.cp-col-actions) {
   z-index: 14;
 }
 
@@ -2233,6 +2234,53 @@ thead {
 .creator-pool-table .cp-col-actions {
   width: 70px;
   min-width: 70px;
+}
+
+/* Aktions-Spalte: sticky rechts, analog .kooperation-video-grid .col-actions */
+.creator-pool-table thead th.cp-col-actions,
+.creator-pool-table tbody td.cp-col-actions {
+  position: sticky;
+  right: 0;
+  z-index: 20;
+  background: white;
+  border-right: none;
+  border-left: none;
+  box-shadow: inset 1px 0 0 0 var(--gray-200), -4px 0 8px rgba(0, 0, 0, 0.04);
+  overflow: visible;
+}
+
+.creator-pool-table thead th.cp-col-actions {
+  z-index: 26;
+  background: white;
+}
+
+.creator-pool-table tbody tr:hover td.cp-col-actions {
+  background: var(--gray-50);
+}
+
+.creator-pool-table .item-gebucht td.cp-col-actions {
+  background: var(--green-50);
+}
+
+.creator-pool-table tbody tr.item-row.item-gebucht:hover td.cp-col-actions {
+  background: var(--green-50);
+}
+
+.creator-pool-table .item-nicht-umsetzen td.cp-col-actions {
+  background: var(--gray-100);
+}
+
+.creator-pool-table tbody tr.item-row--vorschlag > td.cp-col-actions {
+  background: var(--orange-25);
+  box-shadow:
+    inset -2px 1px 0 0 var(--color-warning),
+    inset 0 -1px 0 0 var(--color-warning),
+    inset 1px 0 0 0 var(--gray-200),
+    -4px 0 8px rgba(0, 0, 0, 0.04);
+}
+
+.creator-pool-table tbody tr.item-row.item-row--vorschlag:hover td.cp-col-actions {
+  background: var(--orange-50);
 }
 
 .creator-pool-table .cell-text-readonly {
