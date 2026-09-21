@@ -368,7 +368,8 @@ export class VertragUploadDrawer {
   async _saveToDb(fileUrl, filePath) {
     const updateData = {
       dropbox_file_url: fileUrl,
-      dropbox_file_path: filePath
+      dropbox_file_path: filePath,
+      status: 'unterschrieben'
     };
 
     if (this.kooperationId) {

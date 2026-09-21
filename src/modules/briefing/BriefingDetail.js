@@ -239,17 +239,12 @@ export class BriefingDetail {
       window.toastSystem?.show('Änderungen konnten nicht gespeichert werden', 'error');
       return;
     }
-    const { AnschreibenDrawer } = await import('../../core/anschreiben/AnschreibenDrawer.js');
-    const { createBriefingPdf } = await import('./BriefingPdf.js');
-    const drawer = new AnschreibenDrawer({
+    const { openAnschreiben } = await import('../../core/anschreiben/openAnschreiben.js');
+    await openAnschreiben({
       dokumentTyp: 'briefing',
       dokumentId: this.briefingId,
-      dokumentName: this.briefing.aktivierung_name || 'Briefing',
-      unternehmenId: this.briefing.unternehmen_id,
-      markeId: this.briefing.marke_id || null,
-      createPdf: () => createBriefingPdf(this),
+      detail: this,
     });
-    drawer.open();
   }
 
   escape(s) {

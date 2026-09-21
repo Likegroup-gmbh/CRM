@@ -4,6 +4,12 @@ import { renderTabButton } from '../../core/TabUtils.js';
 import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
+import {
+  getVertragStatus,
+  vertragStatusLabel,
+  canEditVertragStatusManually,
+  manualStatusOptions,
+} from './vertragStatus.js';
 
 const escapeHtml = (text) => {
   if (!text) return '';
@@ -181,7 +187,7 @@ export function renderVertraegeView({ isAdmin, canBulkDelete, canEdit }, activeT
   `;
 }
 
-export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, isAdmin }) {
+export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, isAdmin, canDelete = canBulkDelete }) {
   const formatDate = (date) => date ? new Date(date).toLocaleDateString('de-DE') : '-';
 
   return vertraege.map(vertrag => {
@@ -214,11 +220,9 @@ export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, is
       unterschriebenHtml = '<span class="text-muted">—</span>';
     }
 
-    const statusBadge = vertrag.is_draft
-      ? '<span class="status-badge status-draft">Entwurf</span>'
-      : '<span class="status-badge status-final">Finalisiert</span>';
+    const statusHtml = renderVertragStatusCell(vertrag, canEdit);
 
-    const actionsHtml = renderVertragActions(vertrag, isAdmin, canEdit, canBulkDelete);
+    const actionsHtml = renderVertragActions(vertrag, isAdmin, canEdit, canDelete);
 
     return `
       <tr class="table-row-clickable" data-vertrag-id="${vertrag.id}" data-vertrag-draft="${vertrag.is_draft ? '1' : '0'}">
@@ -229,7 +233,7 @@ export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, is
         <td class="col-kampagne">
           ${VertragUtils.renderVertragContextHtml(vertrag, escapeHtml)}
         </td>
-        <td class="col-status">${statusBadge}</td>
+        <td class="col-status">${statusHtml}</td>
         <td class="col-typ">
           ${vertrag.typ
             ? `<span class="status-badge ${typClass}">${escapeHtml(vertrag.typ)}</span>`
@@ -251,6 +255,37 @@ export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, is
       </tr>
     `;
   }).join('');
+}
+
+export function renderVertragStatusCell(vertrag, canEdit) {
+  const status = getVertragStatus(vertrag);
+  const label = vertragStatusLabel(status);
+  const statusClass = status === 'kein_vertrag' ? '' : `status-${status}`;
+  const badge = `<span class="status-badge ${statusClass}">${escapeHtml(label === status ? '—' : label)}</span>`;
+
+  if (!canEdit || !canEditVertragStatusManually(status)) {
+    return status === 'kein_vertrag' ? '<span class="text-muted">—</span>' : badge;
+  }
+
+  const chevron = `<span class="status-select-chevron">${icon('chevron-down')}</span>`;
+  const checkSvg = `${icon('check-bold', { className: 'size-5' })}`;
+  const options = manualStatusOptions(status);
+  const items = options.map((opt) => `
+    <a href="#" class="status-dropdown-item" data-status-value="${escapeHtml(opt.value)}" data-id="${vertrag.id}">
+      <span>${escapeHtml(opt.label)}</span>
+    </a>
+  `).join('');
+
+  return `<div class="status-select-wrapper" data-vertrag-id="${vertrag.id}">
+    <span class="status-badge ${statusClass} status-select-trigger" role="button">${escapeHtml(label)} ${chevron}</span>
+    <div class="status-dropdown">
+      <a href="#" class="status-dropdown-item is-active" data-status-value="${escapeHtml(status)}" data-id="${vertrag.id}">
+        <span>${escapeHtml(label)}</span>
+        <span class="submenu-check">${checkSvg}</span>
+      </a>
+      ${items}
+    </div>
+  </div>`;
 }
 
 export function renderVertragActions(vertrag, isAdmin, canEdit, canDelete = isAdmin) {
@@ -306,6 +341,18 @@ export function renderVertragActions(vertrag, isAdmin, canEdit, canDelete = isAd
         <a href="#" class="action-item" data-action="download" data-id="${vertrag.id}">
           ${window.ActionsDropdown?.getHeroIcon('download') || ''}
           PDF herunterladen
+        </a>
+      ` : ''}
+      ${!vertrag.datei_url && canEdit ? `
+        <a href="#" class="action-item" data-action="generate-pdf" data-id="${vertrag.id}">
+          ${window.ActionsDropdown?.getHeroIcon('pdf') || icon('pdf')}
+          PDF erzeugen
+        </a>
+      ` : ''}
+      ${vertrag.datei_url && window.isInternal?.() ? `
+        <a href="#" class="action-item" data-action="anschreiben" data-id="${vertrag.id}">
+          ${window.ActionsDropdown?.getHeroIcon('anschreiben') || icon('mail-send')}
+          Vertrag verschicken
         </a>
       ` : ''}
       ${signedActions}

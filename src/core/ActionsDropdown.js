@@ -30,6 +30,7 @@ const KNOWN_GLOBAL_ACTIONS = new Set([
   'task-create', 'quickview', 'assign-staff', 'assign_staff', 'rechnung',
   'add_to_campaign', 'favorite', 'add_to_list', 'add_to_casting', 'connect',
   'add-signed', 'edit-signed', 'replace-signed', 'remove-signed',
+  'anschreiben',
   'add_ansprechpartner', 'add_ansprechpartner_kampagne', 'add_ansprechpartner_unternehmen',
   'add_produkt', 'add_persona',
   'remove_ansprechpartner_unternehmen', 'remove_ansprechpartner_link',
@@ -135,6 +136,7 @@ export class ActionsDropdown {
         replaceIn('.action-item.action-danger[data-action="delete"]', 'delete');
         replaceIn('.action-item[data-action="rechnungen"]', 'rechnungen');
         replaceIn('.action-item[data-action="auftrag-details"]', 'details');
+        replaceIn('.action-item[data-action="anschreiben"]', 'anschreiben');
         dd.setAttribute('data-icons-normalized', '1');
       });
     } catch (err) {

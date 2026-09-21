@@ -1,11 +1,13 @@
 // KampagneDetailEvents.js
 // Event-Binding und -Teardown für die Kampagnen-Detailseite
 
-import { KampagneUtils } from './KampagneUtils.js';
 import {
   getWorkflowTableRoute,
-  handleWorkflowTableSelect
+  handleWorkflowTableSelect,
+  reloadWorkflowPane
 } from './KampagneDetailWorkflow.js';
+import { handleVertragListAction } from '../vertrag/VertraegeListHandlers.js';
+import { KampagneUtils } from './KampagneUtils.js';
 import { navigateToNewKooperationFromKampagne } from '../kooperation/kooperationFromKampagne.js';
 import { handleWorkflowCreate } from './KampagneWorkflowCreate.js';
 import { VideoTableColumnVisibilityDrawer } from './VideoTableColumnVisibilityDrawer.js';
@@ -343,6 +345,27 @@ export function setupEvents(detail) {
       detail.loadCriticalData().then(() => detail.render());
     }
   }, { signal });
+
+  window.addEventListener('vertrag-signed-action', (e) => {
+    if (detail.activeWorkflowTab !== 'vertraege') return;
+    void handleKampagneVertragListAction(detail, e.detail?.action, e.detail?.vertragId);
+  }, { signal });
+
+  window.addEventListener('vertrag-anschreiben-action', (e) => {
+    if (detail.activeWorkflowTab !== 'vertraege') return;
+    void handleKampagneVertragListAction(detail, 'anschreiben', e.detail?.vertragId);
+  }, { signal });
+
+  window.addEventListener('vertrag-list-action', (e) => {
+    if (detail.activeWorkflowTab !== 'vertraege') return;
+    void handleKampagneVertragListAction(detail, e.detail?.action, e.detail?.vertragId);
+  }, { signal });
+
+  window.addEventListener('anschreibenSent', (e) => {
+    if (e.detail?.dokumentTyp !== 'vertrag') return;
+    if (detail.activeWorkflowTab !== 'vertraege') return;
+    void reloadWorkflowPane(detail, 'vertraege');
+  }, { signal });
 }
 
 export function teardownEvents() {
@@ -380,6 +403,12 @@ function showCustomColumnsDrawer(detail) {
     );
   }
   detail._customColumnsDrawer.open();
+}
+
+function handleKampagneVertragListAction(detail, action, vertragId) {
+  const adapter = detail._vertragListAdapter;
+  if (!adapter || !action || !vertragId) return;
+  return handleVertragListAction(adapter, action, vertragId);
 }
 
 async function deleteKampagne(detail) {

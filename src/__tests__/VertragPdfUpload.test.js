@@ -81,26 +81,35 @@ describe('uploadGeneratedVertragPdf', () => {
     )).rejects.toThrow('rls denied');
   });
 
-  it('gibt null zurück wenn Dropbox keinen fileUrl liefert', async () => {
+  it('wirft wenn Dropbox keinen fileUrl liefert', async () => {
     vi.mocked(uploadVertragPdf).mockResolvedValueOnce({});
-    const result = await uploadGeneratedVertragPdf(
+    await expect(uploadGeneratedVertragPdf(
       makeCtx(),
       makeVertrag(),
       new Blob(['pdf']),
       'Vertrag_EHG_Test.pdf'
-    );
-    expect(result).toBeNull();
+    )).rejects.toThrow('Dropbox-Upload ohne Datei-URL');
     expect(window.supabase.from).not.toHaveBeenCalled();
   });
 
-  it('gibt null zurück wenn der Vertrag keine id hat', async () => {
-    const result = await uploadGeneratedVertragPdf(
+  it('wirft wenn der Vertrag keine id hat', async () => {
+    await expect(uploadGeneratedVertragPdf(
       makeCtx(),
       { ...makeVertrag(), id: null },
       new Blob(['pdf']),
       'Vertrag_EHG_Test.pdf'
-    );
-    expect(result).toBeNull();
+    )).rejects.toThrow('Vertrag ohne ID');
+    expect(window.supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('wirft den Dropbox-Fehler weiter', async () => {
+    vi.mocked(uploadVertragPdf).mockRejectedValueOnce(new Error('token expired'));
+    await expect(uploadGeneratedVertragPdf(
+      makeCtx(),
+      makeVertrag(),
+      new Blob(['pdf']),
+      'Vertrag_EHG_Test.pdf'
+    )).rejects.toThrow('token expired');
     expect(window.supabase.from).not.toHaveBeenCalled();
   });
 });

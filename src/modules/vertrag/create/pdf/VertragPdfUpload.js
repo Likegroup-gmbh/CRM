@@ -45,26 +45,22 @@ async function resolveVertragPathMetadata(ctx, vertrag) {
 }
 
 // Lädt das generierte PDF nach Dropbox hoch und speichert URL/Pfad am Vertrag.
-// Dropbox-Fehler: null, damit der Aufrufer lokal speichern kann.
-// Update-Fehler: throw, damit die Übersicht nicht still ohne Link bleibt.
+// Jeder Fehler wirft — ohne datei_url gilt der Vertrag nicht als erstellt.
 export async function uploadGeneratedVertragPdf(ctx, vertrag, pdfBlob, fileName) {
-  let result = null;
-  try {
-    const metadata = await resolveVertragPathMetadata(ctx, vertrag);
+  const metadata = await resolveVertragPathMetadata(ctx, vertrag);
 
-    // jsPDF .output('blob') liefert ein Blob ohne .name; uploadVertragPdf
-    // braucht aber file.name oder metadata.fileName. Wir packen daher den
-    // Dateinamen in metadata.
-    const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+  // jsPDF .output('blob') liefert ein Blob ohne .name; uploadVertragPdf
+  // braucht aber file.name oder metadata.fileName. Wir packen daher den
+  // Dateinamen in metadata.
+  const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
-    result = await uploadVertragPdf({ metadata, file });
-  } catch (err) {
-    console.warn('⚠️ Vertrag-PDF Upload nach Dropbox fehlgeschlagen:', err);
-    return null;
+  const result = await uploadVertragPdf({ metadata, file });
+  if (!result?.fileUrl) {
+    throw new Error('Dropbox-Upload ohne Datei-URL');
   }
-
-  if (!result?.fileUrl) return null;
-  if (!window.supabase || !vertrag?.id) return null;
+  if (!window.supabase || !vertrag?.id) {
+    throw new Error('Vertrag ohne ID');
+  }
 
   const { error } = await window.supabase
     .from('vertraege')

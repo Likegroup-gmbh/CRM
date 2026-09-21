@@ -95,11 +95,11 @@ describe('EmpfaengerComposer', () => {
       ],
     });
     const composer = createComposer(db);
-    const items = await composer.searchEmpfaenger('l');
+    const items = await composer._loadCreatorOptions();
     expect(db.from).toHaveBeenCalledWith('creator');
-    expect(items.map((i) => i.id)).toEqual(['c1']);
+    expect(items.map((i) => i.value)).toEqual(['c1']);
     expect(items[0].label).toBe('Lisa K');
-    expect(items[0].sub).toBe('lisa@x.de');
+    expect(items[0].description).toBe('lisa@x.de');
   });
 
   it('sucht Managements nur mit Mail', async () => {
@@ -110,50 +110,43 @@ describe('EmpfaengerComposer', () => {
       ],
     });
     const composer = createComposer(db);
-    composer.setTyp('management');
-    const items = await composer.searchEmpfaenger('a');
-    expect(items.map((i) => i.id)).toEqual(['m1']);
+    const items = await composer._loadManagementOptions();
+    expect(items.map((i) => i.value)).toEqual(['m1']);
   });
 
-  it('Kampagne-Bulk im Creator-Modus: Kooperations-Creator mit Mail, Rest gezaehlt', async () => {
+  it('Kampagne expandiert Kooperations-Creator mit Mail, Rest gezaehlt', async () => {
     const db = mockDb({
       kooperationen: [
         { creator: { id: 'c1', vorname: 'A', nachname: '', mail: 'a@x.de' } },
         { creator: { id: 'c2', vorname: 'B', nachname: '', mail: null } },
-        { creator: { id: 'c1', vorname: 'A', nachname: '', mail: 'a@x.de' } }, // dup
+        { creator: { id: 'c1', vorname: 'A', nachname: '', mail: 'a@x.de' } },
         { creator: null },
       ],
     });
     const composer = createComposer(db);
-    const added = await composer.addKampagne('k1');
+    const { empfaenger, skipped } = await composer._resolveKampagneCreators(['k1']);
 
-    expect(added).toBe(1);
-    expect(composer.getEmpfaenger().map((e) => e.id)).toEqual(['c1']);
-    expect(composer.getSkipped()).toBe(1);
+    expect(empfaenger.map((e) => e.id)).toEqual(['c1']);
+    expect(skipped).toBe(1);
     expect(db.from).toHaveBeenCalledWith('kooperationen');
   });
 
-  it('Kampagne-Bulk im Management-Modus: aktive Managements der Creator', async () => {
+  it('Kampagne-Tab bleibt Creator-Empfaenger, nicht Management', async () => {
     const db = mockDb({
-      kooperationen: [{ creator_id: 'c1' }, { creator_id: 'c2' }, { creator_id: 'c1' }],
-      creatorManagement: [
-        { management: { id: 'm1', firmenname: 'A', email: 'a@m.de' } },
-        { management: { id: 'm2', firmenname: 'B', email: null } },
+      kooperationen: [
+        { creator: { id: 'c1', vorname: 'A', nachname: '', mail: 'a@x.de' } },
       ],
     });
     const composer = createComposer(db);
-    composer.setTyp('management');
-    const added = await composer.addKampagne('k1');
-
-    expect(added).toBe(1);
-    expect(composer.getEmpfaenger()[0]).toMatchObject({ typ: 'management', id: 'm1', email: 'a@m.de' });
-    expect(composer.getSkipped()).toBe(1);
+    composer.setTyp('kampagne');
+    const { empfaenger } = await composer._resolveKampagneCreators(['k1']);
+    expect(empfaenger[0].typ).toBe('creator');
   });
 
   it('Kampagne-Suche ist aufs Unternehmen (und Marke) gescoped', async () => {
     const db = mockDb();
     const composer = createComposer(db, { markeId: 'marke1' });
-    await composer.searchKampagne('x');
+    await composer._loadKampagneOptions();
 
     const idx = db.from.mock.calls.findIndex((c) => c[0] === 'kampagne');
     const kampagneChain = db.from.mock.results[idx].value;
@@ -166,7 +159,11 @@ describe('EmpfaengerComposer', () => {
       kooperationen: [{ creator: { id: 'c1', vorname: 'B', nachname: '', mail: null } }],
     });
     const composer = createComposer(db);
-    await composer.addKampagne('k1');
+    composer.setTyp('kampagne');
+    const { empfaenger, skipped } = await composer._resolveKampagneCreators(['k1']);
+    composer.empfaengerByTab.kampagne = empfaenger;
+    composer.skippedByTab.kampagne = skipped;
+    composer._renderSkipped();
 
     const hint = document.querySelector('[data-skipped]');
     expect(hint.hidden).toBe(false);
@@ -175,26 +172,25 @@ describe('EmpfaengerComposer', () => {
 
   it('zeigt das Kampagne-Label', () => {
     createComposer(mockDb());
-    expect(document.querySelector('.empfaenger-composer__label').textContent).toContain('Kampagne');
-    expect(document.querySelector('[data-kampagne-suche] .rel-add')).not.toBeNull();
+    expect(document.querySelector('[data-typ="kampagne"]').textContent).toContain('Kampagne');
+    expect(document.querySelector('#empfaenger-select-kampagne')).not.toBeNull();
   });
 
-  it('Tab-Switch laesst beide Suchfelder im DOM', () => {
-    createComposer(mockDb());
-    expect(document.querySelectorAll('.rel-add')).toHaveLength(2);
+  it('Tab-Switch laesst alle Suchfelder im DOM', () => {
+    const composer = createComposer(mockDb());
+    expect(document.querySelectorAll('[data-searchable]')).toHaveLength(3);
 
-    const tab = document.querySelector('[data-typ="management"]');
-    tab.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-    tab.click();
-
-    expect(document.querySelectorAll('.rel-add')).toHaveLength(2);
-    expect(document.querySelector('[data-suche] .rel-add')).not.toBeNull();
-    expect(document.querySelector('[data-kampagne-suche] .rel-add')).not.toBeNull();
+    composer.setTyp('management');
+    expect(document.querySelectorAll('[data-searchable]')).toHaveLength(3);
+    expect(document.querySelector('[data-panel="management"]').hidden).toBe(false);
+    expect(document.querySelector('[data-panel="creator"]').hidden).toBe(true);
   });
 
-  it('Outside-Click zerstoert die Suchfelder nicht', () => {
-    createComposer(mockDb());
-    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-    expect(document.querySelectorAll('.rel-add')).toHaveLength(2);
+  it('applyPrefill setzt Creator', () => {
+    const composer = createComposer(mockDb());
+    composer.applyPrefill([{ typ: 'creator', id: 'c1', email: 'a@b.de', name: 'A', vorname: 'A' }]);
+    expect(composer.getEmpfaenger()).toEqual([
+      expect.objectContaining({ id: 'c1', email: 'a@b.de', typ: 'creator' }),
+    ]);
   });
 });

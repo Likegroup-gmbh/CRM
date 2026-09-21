@@ -12,6 +12,7 @@ export default {
       contracting_auftrag_id: 'uuid',
       is_draft: 'boolean',
       mehrere_rechnungen_erlaubt: 'boolean',
+      status: 'string',
       created_at: 'date'
     },
     relations: {
@@ -20,7 +21,7 @@ export default {
       creator: { table: 'creator', foreignKey: 'creator_id', displayField: 'vorname' },
       contracting_auftrag: { table: 'auftrag', foreignKey: 'contracting_auftrag_id', displayField: 'auftragsname' }
     },
-    filters: ['typ', 'kunde_unternehmen_id', 'kampagne_id', 'creator_id', 'contracting_auftrag_id'],
+    filters: ['typ', 'kunde_unternehmen_id', 'kampagne_id', 'creator_id', 'contracting_auftrag_id', 'status'],
     sortBy: 'created_at',
     sortOrder: 'desc'
   },

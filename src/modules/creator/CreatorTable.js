@@ -14,6 +14,46 @@ function renderTags(items, tagClass) {
   return `<div class="tags tags-compact">${tags}</div>`;
 }
 
+function escapeAttr(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function canViewCreatorLink() {
+  const isKunde = window.isKunde?.() ?? false;
+  const canViewViaPage = window.canViewPage?.('creator');
+  const canViewViaPerm = window.currentUser?.permissions?.creator?.can_view;
+  return !isKunde && canViewViaPage !== false && canViewViaPerm !== false;
+}
+
+/**
+ * Schlanke Tabellenzelle: Avatar (Thumb, sonst Initiale) + Name + optional Link.
+ * creator: { id, vorname, nachname, name, profilbild_url, profilbild_thumb_url }
+ */
+export function renderCreatorNameCell(creator) {
+  if (!creator) return '<td>-</td>';
+  const name = `${creator.vorname || ''} ${creator.nachname || ''}`.trim() || creator.name || '';
+  if (!name) return '<td>-</td>';
+
+  const safeName = window.validatorSystem?.sanitizeHtml(name) || escapeAttr(name);
+  const avatarSource = creator.profilbild_thumb_url || creator.profilbild_url;
+  const safeAvatarUrl = avatarSource ? (window.validatorSystem?.sanitizeUrl(avatarSource) || null) : null;
+  const initial = (creator.vorname || name || '?')[0].toUpperCase();
+  const avatarHtml = safeAvatarUrl
+    ? `<img src="${safeAvatarUrl}" alt="${escapeAttr(name)}" class="table-avatar table-avatar-img" loading="lazy" />`
+    : `<span class="table-avatar">${escapeAttr(initial)}</span>`;
+
+  const id = creator.id;
+  const nameHtml = id && canViewCreatorLink()
+    ? `<a href="#" class="table-link" data-table="creator" data-id="${escapeAttr(id)}">${safeName}</a>`
+    : safeName;
+
+  return `<td class="col-name-with-icon">${avatarHtml}${nameHtml}</td>`;
+}
+
 export function renderCreatorTable(creators, options = {}) {
   const { showFavoriteAction = false, showFavoritesMenu = false, showSelection = false, showRemoveAction = false, managementId = null, kampagneId = null } = options || {};
   const isKunde = window.isKunde();

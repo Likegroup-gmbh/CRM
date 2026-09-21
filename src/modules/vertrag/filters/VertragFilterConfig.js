@@ -14,6 +14,18 @@ export const VERTRAG_FILTERS = [
     ]
   }),
   createFilterConfig('select', {
+    id: 'status',
+    label: 'Status',
+    options: [
+      { value: 'entwurf', label: 'Entwurf' },
+      { value: 'erstellt', label: 'Erstellt' },
+      { value: 'gesendet', label: 'Gesendet' },
+      { value: 'unterschrieben', label: 'Unterschrieben' },
+      { value: 'verzoegert', label: 'Verzögert' },
+      { value: 'abgelehnt', label: 'Abgelehnt' }
+    ]
+  }),
+  createFilterConfig('select', {
     id: 'kunde_unternehmen_id',
     label: 'Unternehmen',
     table: 'unternehmen',

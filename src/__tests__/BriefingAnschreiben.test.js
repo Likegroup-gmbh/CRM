@@ -1,20 +1,11 @@
 // BriefingDetail._openAnschreiben: Flush vor Drawer, bei Flush-Fehler kein PDF.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-const { open, AnschreibenDrawer, createBriefingPdf } = vi.hoisted(() => {
-  const open = vi.fn();
-  const AnschreibenDrawer = vi.fn(function AnschreibenDrawer() {
-    this.open = open;
-  });
-  const createBriefingPdf = vi.fn(async () => ({
-    blob: new Blob(['%PDF'], { type: 'application/pdf' }),
-    dateiname: 'Glow Up.pdf',
-  }));
-  return { open, AnschreibenDrawer, createBriefingPdf };
-});
+const { openAnschreiben } = vi.hoisted(() => ({
+  openAnschreiben: vi.fn(async () => {}),
+}));
 
-vi.mock('../core/anschreiben/AnschreibenDrawer.js', () => ({ AnschreibenDrawer }));
-vi.mock('../modules/briefing/BriefingPdf.js', () => ({ createBriefingPdf }));
+vi.mock('../core/anschreiben/openAnschreiben.js', () => ({ openAnschreiben }));
 
 import { BriefingDetail } from '../modules/briefing/BriefingDetail.js';
 
@@ -36,9 +27,7 @@ function makeDetail({ flush } = {}) {
 
 describe('BriefingDetail._openAnschreiben', () => {
   beforeEach(() => {
-    open.mockReset();
-    AnschreibenDrawer.mockClear();
-    createBriefingPdf.mockClear();
+    openAnschreiben.mockClear();
     window.isInternal = () => true;
     window.toastSystem = { show: vi.fn() };
   });
@@ -46,14 +35,18 @@ describe('BriefingDetail._openAnschreiben', () => {
   it('flushed InlineEdit bevor der Drawer oeffnet', async () => {
     const order = [];
     const flush = vi.fn(async () => { order.push('flush'); });
-    open.mockImplementation(() => { order.push('open'); });
+    openAnschreiben.mockImplementation(async () => { order.push('open'); });
     const detail = makeDetail({ flush });
 
     await detail._openAnschreiben();
 
     expect(flush).toHaveBeenCalledTimes(1);
-    expect(AnschreibenDrawer).toHaveBeenCalledTimes(1);
-    expect(open).toHaveBeenCalledTimes(1);
+    expect(openAnschreiben).toHaveBeenCalledTimes(1);
+    expect(openAnschreiben).toHaveBeenCalledWith({
+      dokumentTyp: 'briefing',
+      dokumentId: 'b1',
+      detail,
+    });
     expect(order).toEqual(['flush', 'open']);
   });
 
@@ -63,8 +56,7 @@ describe('BriefingDetail._openAnschreiben', () => {
 
     await detail._openAnschreiben();
 
-    expect(AnschreibenDrawer).not.toHaveBeenCalled();
-    expect(open).not.toHaveBeenCalled();
+    expect(openAnschreiben).not.toHaveBeenCalled();
     expect(window.toastSystem.show).toHaveBeenCalledWith(
       'Änderungen konnten nicht gespeichert werden',
       'error'
@@ -77,7 +69,6 @@ describe('BriefingDetail._openAnschreiben', () => {
 
     await detail._openAnschreiben();
 
-    expect(AnschreibenDrawer).toHaveBeenCalledTimes(1);
-    expect(open).toHaveBeenCalledTimes(1);
+    expect(openAnschreiben).toHaveBeenCalledTimes(1);
   });
 });

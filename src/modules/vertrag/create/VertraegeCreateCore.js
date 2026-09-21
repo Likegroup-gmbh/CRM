@@ -25,7 +25,7 @@ export class VertraegeCreate {
     this.kampagnen = [];          // Alle Kampagnen
     this.filteredKampagnen = [];  // Gefiltert nach Kunde
     this.creators = [];
-    this.filteredCreators = [];   // Gefiltert nach Kampagne (via Kooperationen)
+    this.filteredCreators = [];   // Casting Zusage/Gebucht + Kooperation-Union
     this.filteredKooperationen = []; // Kooperationen der gewählten Kampagne
     this.kundeAuftraegePo = [];   // PO-Nummern aus Aufträgen des Kunden
     this.contractingAuftraege = []; // Alle Contracting-Aufträge
@@ -159,21 +159,26 @@ VertraegeCreate.prototype.init = async function(draftId = null) {
     if (draftId) {
       await this.loadDraftFromDB(draftId);
     } else {
-      this.applyQueryPrefill();
+      await this.applyQueryPrefill();
     }
     
     // Rendere Formular
     this.render();
 };
 
-VertraegeCreate.prototype.applyQueryPrefill = function() {
+VertraegeCreate.prototype.applyQueryPrefill = async function() {
     const params = new URLSearchParams(window.location.search);
     const typ = params.get('typ');
     const unternehmen = params.get('unternehmen');
+    const kampagne = params.get('kampagne');
     const auftrag = params.get('auftrag');
 
     if (unternehmen) {
       this.formData.kunde_unternehmen_id = unternehmen;
+    }
+
+    if (kampagne && typ !== 'Contracting') {
+      this.formData.kampagne_id = kampagne;
     }
 
     if (typ === 'Contracting') {
@@ -190,6 +195,21 @@ VertraegeCreate.prototype.applyQueryPrefill = function() {
       }
       this.isGenerated = true;
       this.currentStep = 2;
+    }
+
+    if (this.formData.kunde_unternehmen_id && typeof this.updateFilteredKampagnen === 'function') {
+      this.updateFilteredKampagnen();
+    }
+    if (this.formData.kampagne_id) {
+      if (typeof this.loadPoFromKampagne === 'function') {
+        await this.loadPoFromKampagne(this.formData.kampagne_id);
+      }
+      if (typeof this.updateFilteredCreators === 'function') {
+        await this.updateFilteredCreators();
+      }
+    }
+    if (this.formData.kunde_unternehmen_id || this.formData.kampagne_id) {
+      this._filtersInitialized = true;
     }
 };
 

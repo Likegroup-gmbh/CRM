@@ -883,16 +883,12 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
     const fileName = `${filePrefix}_${vertrag.name || 'Kooperation'}_${new Date().toISOString().split('T')[0]}.pdf`;
 
     const uploadResult = await uploadGeneratedVertragPdf(this, vertrag, pdfBlob, fileName);
-    if (uploadResult?.fileUrl) {
-      console.log('✅ Direktvertrag-PDF nach Dropbox hochgeladen und URL gespeichert');
-    } else {
-      console.warn('⚠️ Dropbox-Upload nicht erfolgreich – PDF wird nur lokal heruntergeladen');
-    }
+    console.log('✅ Direktvertrag-PDF nach Dropbox hochgeladen und URL gespeichert');
     doc.save(fileName);
-
-    console.log('✅ Direktvertrag-PDF generiert');
+    return uploadResult;
   } catch (error) {
     console.error('❌ Fehler bei Direktvertrag-PDF-Generierung:', error);
     window.toastSystem?.show('PDF konnte nicht generiert werden', 'warning');
+    throw error;
   }
 };

@@ -5,7 +5,6 @@ import { PaginationSystem } from '../../core/PaginationSystem.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { modularFilterSystem } from '../../core/filters/ModularFilterSystem.js';
-import { syncVertragCheckbox } from '../../core/VertragSyncHelper.js';
 import { openDocumentUrl } from '../../core/DocumentUrlHelper.js';
 import { resolveEmptyState, bindEmptyStateActions } from '../../core/components/EmptyState.js';
 import { VertragUtils } from './VertragUtils.js';
@@ -21,8 +20,13 @@ import {
 import {
   bindTableDelegation,
   bindSelectionEvents,
+  bindStatusDropdownDismiss,
   openVertragUploadDrawer as _openVertragUploadDrawer,
-  removeSignedContract as _removeSignedContract
+  removeSignedContract as _removeSignedContract,
+  openVertragAnschreiben as _openVertragAnschreiben,
+  handleVertragListAction,
+  downloadVertrag as _downloadVertrag,
+  deleteVertrag as _deleteVertrag
 } from './VertraegeListHandlers.js';
 
 export class VertraegeList {
@@ -355,6 +359,28 @@ export class VertraegeList {
     };
     window.addEventListener('vertrag-signed-action', signedActionHandler);
     this._boundEventListeners.add(() => window.removeEventListener('vertrag-signed-action', signedActionHandler));
+
+    const anschreibenActionHandler = async (e) => {
+      const id = e.detail?.vertragId;
+      if (id) await _openVertragAnschreiben(this, id);
+    };
+    window.addEventListener('vertrag-anschreiben-action', anschreibenActionHandler);
+    this._boundEventListeners.add(() => window.removeEventListener('vertrag-anschreiben-action', anschreibenActionHandler));
+
+    const anschreibenHandler = (e) => {
+      if (e.detail?.dokumentTyp === 'vertrag') this.reloadData();
+    };
+    window.addEventListener('anschreibenSent', anschreibenHandler);
+    this._boundEventListeners.add(() => window.removeEventListener('anschreibenSent', anschreibenHandler));
+
+    const listActionHandler = async (e) => {
+      const { action, vertragId } = e.detail || {};
+      if (vertragId) await handleVertragListAction(this, action, vertragId);
+    };
+    window.addEventListener('vertrag-list-action', listActionHandler);
+    this._boundEventListeners.add(() => window.removeEventListener('vertrag-list-action', listActionHandler));
+
+    bindStatusDropdownDismiss(this);
   }
 
   _bindUnternehmenRowEvents() {
@@ -469,74 +495,11 @@ export class VertraegeList {
   // ============================================
 
   downloadVertrag(id) {
-    const vertrag = this.vertraege.find(v => v.id === id);
-    if (!vertrag?.datei_url) {
-      window.toastSystem?.show('Keine PDF-Datei vorhanden', 'warning');
-      return;
-    }
-    // Privater Bucket: on-demand Signed URL statt gespeicherter Public URL
-    openDocumentUrl(vertrag.datei_url);
+    return _downloadVertrag(this, id);
   }
 
   async deleteVertrag(id) {
-    const result = await window.confirmationModal?.open({
-      title: 'Vertrag löschen?',
-      message: 'Möchten Sie diesen Vertrag wirklich löschen?',
-      confirmText: 'Löschen',
-      cancelText: 'Abbrechen',
-      danger: true
-    });
-    if (!result?.confirmed) return;
-
-    try {
-      const vertrag = this.vertraege.find(v => v.id === id);
-
-      // datei_path kann jetzt entweder ein Supabase-Pfad (legacy) oder
-      // ein Dropbox-Pfad (neu, beginnt mit "/") sein.
-      if (vertrag?.datei_path) {
-        if (vertrag.datei_path.startsWith('/')) {
-          try {
-            await fetch('/.netlify/functions/dropbox-delete-vertrag', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ filePath: vertrag.datei_path })
-            });
-          } catch (dbxErr) {
-            console.warn('Dropbox-Löschung (datei_path) fehlgeschlagen:', dbxErr);
-          }
-        } else {
-          await window.supabase.storage.from('vertraege').remove([vertrag.datei_path]);
-        }
-      }
-      if (vertrag?.unterschriebener_vertrag_path) {
-        await window.supabase.storage.from('unterschriebene-vertraege').remove([vertrag.unterschriebener_vertrag_path]);
-      }
-      if (vertrag?.dropbox_file_path) {
-        try {
-          await fetch('/.netlify/functions/dropbox-delete-vertrag', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ filePath: vertrag.dropbox_file_path })
-          });
-        } catch (dbxErr) {
-          console.warn('Dropbox-Löschung fehlgeschlagen (wird ignoriert):', dbxErr);
-        }
-      }
-
-      const { error } = await window.supabase.from('vertraege').delete().eq('id', id);
-      if (error) throw error;
-
-      const hadSigned = vertrag?.unterschriebener_vertrag_url || vertrag?.dropbox_file_url;
-      if (hadSigned && vertrag?.kooperation_id) {
-        await syncVertragCheckbox(vertrag.kooperation_id, false);
-      }
-
-      window.toastSystem?.show('Vertrag gelöscht', 'success');
-      await this.loadAndRender();
-    } catch (error) {
-      console.error('❌ Fehler beim Löschen:', error);
-      window.toastSystem?.show(`Fehler: ${error.message}`, 'error');
-    }
+    return _deleteVertrag(this, id);
   }
 
   async showDeleteSelectedConfirmation() {

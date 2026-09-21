@@ -4,7 +4,7 @@
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
 import { renderPaginatedText, renderZusatzBestimmung } from './PdfTextFlow.js';
-import { loadLikeGroupLogoPng, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
+import { loadLikeGroupLogoPng, drawLikeGroupLogo, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
 
 VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this.getContractLanguage(vertrag)) {
     try {
@@ -164,7 +164,7 @@ VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this
       // SEITE 1: Titel + Parteien (ZENTRIERT)
       // ============================================
 
-      doc.addImage(logoBase64, 'PNG', 93.6, 10, 22.75, 12.6);
+      drawLikeGroupLogo(doc, logoBase64, { align: 'center' });
 
       doc.setFontSize(18);
       doc.setFont('helvetica', 'bold');
@@ -634,18 +634,14 @@ VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this
       const fileName = `${filePrefix}_${vertrag.name || 'Model'}_${new Date().toISOString().split('T')[0]}.pdf`;
 
       const uploadResult = await uploadGeneratedVertragPdf(this, vertrag, pdfBlob, fileName);
-      if (uploadResult?.fileUrl) {
-        console.log('✅ Model-PDF nach Dropbox hochgeladen und URL gespeichert');
-      } else {
-        console.warn('⚠️ Dropbox-Upload nicht erfolgreich – PDF wird nur lokal heruntergeladen');
-      }
+      console.log('✅ Model-PDF nach Dropbox hochgeladen und URL gespeichert');
       doc.save(fileName);
-
-      console.log('✅ Model-PDF generiert');
+      return uploadResult;
 
     } catch (error) {
       console.error('❌ Fehler bei Model-PDF-Generierung:', error);
       window.toastSystem?.show('PDF konnte nicht generiert werden', 'warning');
+      throw error;
     }
 };
 

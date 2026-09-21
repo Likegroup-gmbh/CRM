@@ -1098,3 +1098,21 @@
   color: var(--gray-500);
   border: 1px solid var(--gray-300);
 }
+
+.vertrag-badge--gesendet {
+  background: var(--primary-100);
+  color: var(--primary-700);
+  border: 1px solid var(--primary-300);
+}
+
+.vertrag-badge--verzoegert {
+  background: var(--warning-100);
+  color: var(--warning-700);
+  border: 1px solid var(--warning-300);
+}
+
+.vertrag-badge--abgelehnt {
+  background: var(--danger-100);
+  color: var(--danger-700);
+  border: 1px solid var(--danger-300);
+}

@@ -62,6 +62,15 @@ _Avoid_: Bot, Chatbot, Copilot
 Rechtliches Dokument zwischen Parteien, wird als PDF generiert. Hat genau einen Vertragstyp.
 _Avoid_: Agreement, Kontrakt
 
+**Vertrag-Status**:
+Lebenszyklus des Vertragsdokuments: Entwurf, Erstellt, Gesendet, Unterschrieben, Verzögert, Abgelehnt.
+Sitzt am Vertrag, nicht an der Kooperation.
+_Avoid_: Finalisiert, Kooperation-Status, Produktionsstatus
+
+**Gesendet**:
+Vertrag-Status nach erfolgreichem Anschreiben mit generiertem PDF.
+_Avoid_: Verschickt, An Creator gesendet, Geöffnet
+
 **Vertragstyp**:
 Art des Vertrags: UGC, Influencer Kooperation, Videograph, Model oder Contracting.
 _Avoid_: Template (das ist das Vertragstemplate)
@@ -265,8 +274,8 @@ User-definierte Spalte in der Kooperationstabelle.
 _Avoid_: Custom Column (in der UI)
 
 **Anschreiben**:
-E-Mail mit Dokumentanhang (z.B. Briefing-PDF) an adressierbare Empfänger. Kein CRM-Login,
-kein Link. Pro Empfänger eine eigene Mail.
+E-Mail mit Dokumentanhang (Briefing-PDF oder Vertrags-PDF) an adressierbare Empfänger. Kein CRM-Login,
+kein Link. Pro Empfänger eine eigene Mail. Ein Modul, mehrere Dokumenttypen.
 _Avoid_: Versand (das ist der Paketversand an Kooperationen), Teilen, Einladen
 
 **Empfänger**:
@@ -275,8 +284,8 @@ jeweils mit ID und Mail. Kein Casting-Eintrag ohne CRM, keine freie Adresse ohne
 _Avoid_: Casting-Eintrag, freie E-Mail
 
 **Mailvorlage**:
-Gespeicherter Betreff und Body mit Platzhaltern für ein Anschreiben. Ein Standard für alle;
-weitere sind privat, optional „für alle nutzbar“.
+Gespeicherter Betreff und Body mit Platzhaltern für ein Anschreiben. Ein Standard pro Dokumenttyp
+(Briefing, Vertrag); weitere sind privat, optional „für alle nutzbar“.
 _Avoid_: Template (Kollision mit Vertragstemplate), E-Mail-Template
 
 **Zugang**:

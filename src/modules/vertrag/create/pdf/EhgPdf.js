@@ -512,12 +512,9 @@ VertraegeCreate.prototype.generateEhgPDF = async function(vertrag, lang = this.g
     const filePrefix = en ? 'EN_Contract_EHG' : 'Vertrag_EHG';
     const fileName = `${filePrefix}_${vertrag.name || 'UGC'}_${new Date().toISOString().split('T')[0]}.pdf`;
     const uploadResult = await uploadGeneratedVertragPdf(this, vertrag, pdfBlob, fileName);
-    if (uploadResult?.fileUrl) {
-      console.log('✅ EHG-Vertrag-PDF nach Dropbox hochgeladen');
-    } else {
-      console.warn('⚠️ Dropbox-Upload nicht erfolgreich – PDF wird nur lokal heruntergeladen');
-    }
+    console.log('✅ EHG-Vertrag-PDF nach Dropbox hochgeladen');
     doc.save(fileName);
+    return uploadResult;
   } catch (error) {
     console.error('❌ Fehler bei EHG-Vertrag-PDF-Generierung:', error);
     window.toastSystem?.show('PDF konnte nicht generiert werden', 'warning');

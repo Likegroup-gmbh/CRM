@@ -33,9 +33,19 @@ function getEntityDisplayName(entityType) {
   return names[entityType] || 'das Element';
 }
 
+function dispatchVertragListAction(action, vertragId) {
+  window.dispatchEvent(new CustomEvent('vertrag-list-action', {
+    detail: { action, vertragId }
+  }));
+}
+
 export async function handleAction(dropdown, action, entityId, entityType, actionItem) {
   switch (action) {
     case 'view':
+      if (entityType === 'vertraege') {
+        dispatchVertragListAction('view', entityId);
+        break;
+      }
       if (entityType === 'produkt') {
         await navigateToProduktForm(entityId);
         break;
@@ -125,10 +135,7 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
         break;
       }
       if (entityType === 'vertraege') {
-        const vertraegeModule = window.moduleRegistry?.modules?.get('vertraege');
-        if (vertraegeModule?.deleteVertrag) {
-          vertraegeModule.deleteVertrag(entityId);
-        }
+        dispatchVertragListAction('delete', entityId);
       } else if (entityType === 'contract') {
         await confirmDelete(entityId, 'auftrag');
       } else {
@@ -185,7 +192,9 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
       break;
 
     case 'download':
-      if (entityType === 'rechnung') {
+      if (entityType === 'vertraege') {
+        dispatchVertragListAction('download', entityId);
+      } else if (entityType === 'rechnung') {
         await handleRechnungDownload(entityId);
       }
       break;
@@ -263,6 +272,18 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
     case 'remove-signed':
       window.dispatchEvent(new CustomEvent('vertrag-signed-action', {
         detail: { action, vertragId: entityId }
+      }));
+      break;
+
+    case 'generate-pdf':
+      if (entityType === 'vertraege') {
+        dispatchVertragListAction('generate-pdf', entityId);
+      }
+      break;
+
+    case 'anschreiben':
+      window.dispatchEvent(new CustomEvent('vertrag-anschreiben-action', {
+        detail: { vertragId: entityId }
       }));
       break;
 

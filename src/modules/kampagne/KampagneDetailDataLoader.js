@@ -338,8 +338,10 @@ export async function loadTabData(tabName, kampagneId) {
         .select(`
           id, name, typ, is_draft, datei_url, datei_path,
           dropbox_file_url, dropbox_file_path, kooperation_id,
-          unterschriebener_vertrag_url, created_at,
-          creator:creator_id(id, vorname, nachname),
+          unterschriebener_vertrag_url, status, created_at,
+          kunde_unternehmen_id,
+          creator:creator_id(id, vorname, nachname, mail),
+          kampagne:kampagne_id(id, kampagnenname, eigener_name, marke:marke_id(id, markenname)),
           kooperation:kooperation_id(id, name)
         `)
         .eq('kampagne_id', kampagneId)
@@ -434,7 +436,7 @@ export async function loadFullTableData(kampagneId, store, isKunde) {
     ),
     batchIn(
       sb.from('vertraege'),
-      'id, name, typ, kooperation_id, datei_url, dropbox_file_url, unterschriebener_vertrag_url, is_draft, created_at',
+      'id, name, typ, kooperation_id, datei_url, dropbox_file_url, unterschriebener_vertrag_url, is_draft, status, created_at',
       'kooperation_id', koopIds
     ),
     batchIn(

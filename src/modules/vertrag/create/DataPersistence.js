@@ -5,6 +5,8 @@ import { VertraegeCreate } from './VertraegeCreateCore.js';
 import { collectParagraphZusaetze } from './paragraphZusatz.js';
 import { collectEhgFelder } from './EhgVertragGating.js';
 import { splitButton } from '../../../core/components/SplitButton.js';
+import { statusOnFinalize } from '../vertragStatus.js';
+import { missingRequiredFields } from './vertragStepValidation.js';
 
 VertraegeCreate.prototype.saveDraftToDB = async function() {
     // Erst aktuelle Formulardaten sammeln!
@@ -19,7 +21,8 @@ VertraegeCreate.prototype.saveDraftToDB = async function() {
 
     try {
       const data = this.prepareDataForDB();
-      data.is_draft = true; // Als Draft markieren
+      data.is_draft = true;
+      data.status = 'entwurf';
       
       console.log('📤 Draft-Daten:', data); // Debug-Log
 
@@ -314,20 +317,12 @@ VertraegeCreate.prototype.prepareDataForDB = function() {
 
 
 VertraegeCreate.prototype.validateCurrentStep = function() {
-    const form = document.getElementById('vertrag-form');
-    if (!form) return true;
+    const missing = missingRequiredFields(document.getElementById('vertrag-form'));
+    if (missing.length === 0) return true;
 
-    // Prüfe required Felder im aktuellen Step
-    const requiredFields = form.querySelectorAll('[required]');
-    for (const field of requiredFields) {
-      if (!field.value) {
-        field.focus();
-        window.toastSystem?.show('Bitte füllen Sie alle Pflichtfelder aus.', 'warning');
-        return false;
-      }
-    }
-
-    return true;
+    missing[0].focus();
+    window.toastSystem?.show('Bitte füllen Sie alle Pflichtfelder aus.', 'warning');
+    return false;
 };
 
 
@@ -474,7 +469,16 @@ VertraegeCreate.prototype.handleSubmit = async function(e, startNewAfter = false
 
     try {
       const data = this.prepareDataForDB();
-      data.is_draft = false; // Kein Draft mehr, finalisiert
+      data.is_draft = false;
+      data.status = 'erstellt';
+      if (this.editId) {
+        const { data: current } = await window.supabase
+          .from('vertraege')
+          .select('status')
+          .eq('id', this.editId)
+          .maybeSingle();
+        data.status = statusOnFinalize(current?.status);
+      }
 
       console.log('📤 Vertragsdaten:', data);
 
@@ -527,7 +531,10 @@ VertraegeCreate.prototype.handleSubmit = async function(e, startNewAfter = false
       if (vertrag._pdfTemplate === 'ehg' && !vertrag.ehg_felder) {
         vertrag.ehg_felder = collectEhgFelder(this.formData, (v) => this.parseCurrencyInput(v));
       }
-      await this.generatePDF(vertrag);
+      const pdf = await this.generatePDF(vertrag);
+      if (!pdf?.fileUrl) {
+        throw new Error('PDF konnte nicht gespeichert werden');
+      }
 
       window.toastSystem?.show(
         isEdit ? 'Vertrag finalisiert!' : 'Vertrag erfolgreich erstellt!', 

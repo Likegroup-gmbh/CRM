@@ -108,4 +108,20 @@ describe('VertragUploadDrawer', () => {
       expect(document.getElementById('vertrag-upload-preview').style.display).toBe('none');
     });
   });
+
+  it('setzt Status unterschrieben beim Speichern', async () => {
+    const update = vi.fn(() => ({
+      eq: () => ({
+        select: () => Promise.resolve({ data: [], error: null }),
+      }),
+    }));
+    window.supabase = { from: vi.fn(() => ({ update })) };
+    drawer.vertragId = 'v1';
+    drawer.kooperationId = null;
+    await drawer._saveToDb('https://dropbox.com/s.pdf', '/v1.pdf');
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({
+      dropbox_file_url: 'https://dropbox.com/s.pdf',
+      status: 'unterschrieben',
+    }));
+  });
 });

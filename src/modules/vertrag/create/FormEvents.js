@@ -6,6 +6,7 @@ import { VertraegeCreate } from './VertraegeCreateCore.js';
 import { KampagneUtils } from '../../kampagne/KampagneUtils.js';
 import { splitButton } from '../../../core/components/SplitButton.js';
 import { SplitButtonConfig } from '../../../core/components/SplitButtonConfig.js';
+import { missingRequiredFields } from './vertragStepValidation.js';
 
 VertraegeCreate.prototype.bindMultistepEvents = function() {
     const cancelBtn = document.getElementById('btn-cancel');
@@ -123,14 +124,7 @@ VertraegeCreate.prototype.updateSubmitDisabled = function() {
 };
 
 VertraegeCreate.prototype.getMissingRequiredFields = function() {
-    const form = document.getElementById('vertrag-form');
-    if (!form) return [];
-    const required = Array.from(form.querySelectorAll('[required]'));
-    return required.filter((field) => {
-      if (field.disabled || field.offsetParent === null) return false;
-      const value = (field.value ?? '').toString().trim();
-      return !value;
-    });
+    return missingRequiredFields(document.getElementById('vertrag-form'));
 };
 
 

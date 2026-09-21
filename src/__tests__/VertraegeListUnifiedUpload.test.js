@@ -13,6 +13,7 @@ describe('VertraegeList Unified Upload', () => {
     document.body.innerHTML = '';
     delete window.ActionsDropdown;
     delete window.validatorSystem;
+    delete window.isInternal;
   });
 
   const baseVertrag = {
@@ -84,12 +85,44 @@ describe('VertraegeList Unified Upload', () => {
       expect(html).not.toContain('data-action="edit-signed"');
     });
 
-    it('zeigt replace-signed und remove-signed wenn signedUrl vorhanden', () => {
-      const signed = { ...baseVertrag, dropbox_file_url: 'https://dropbox.com/signed.pdf' };
-      const html = renderVertraegeTableBody([signed], { canBulkDelete: false, canEdit: true, isAdmin: false });
-      expect(html).toContain('data-action="replace-signed"');
-      expect(html).toContain('data-action="remove-signed"');
-      expect(html).not.toContain('data-action="edit-signed"');
+    it('zeigt Anschreiben wenn intern und PDF vorhanden', () => {
+      window.isInternal = () => true;
+      window.ActionsDropdown = { getHeroIcon: (name) => (name === 'anschreiben' ? 'ICON-ANSCHREIBEN' : '') };
+      const html = renderVertraegeTableBody([baseVertrag], { canBulkDelete: false, canEdit: true, isAdmin: false });
+      expect(html).toContain('data-action="anschreiben"');
+      expect(html).toContain('Vertrag verschicken');
+      expect(html).toContain('ICON-ANSCHREIBEN');
+    });
+
+    it('zeigt kein Anschreiben bei Entwurf', () => {
+      window.isInternal = () => true;
+      const draft = { ...baseVertrag, is_draft: true, datei_url: null };
+      const html = renderVertraegeTableBody([draft], { canBulkDelete: false, canEdit: true, isAdmin: false });
+      expect(html).not.toContain('data-action="anschreiben"');
+      expect(html).not.toContain('data-action="generate-pdf"');
+    });
+
+    it('zeigt PDF erzeugen wenn finalisiert ohne Datei', () => {
+      window.isInternal = () => true;
+      const ohneDatei = { ...baseVertrag, datei_url: null, status: 'erstellt' };
+      const html = renderVertraegeTableBody([ohneDatei], { canBulkDelete: false, canEdit: true, isAdmin: false });
+      expect(html).toContain('data-action="generate-pdf"');
+      expect(html).toContain('PDF erzeugen');
+      expect(html).not.toContain('data-action="anschreiben"');
+    });
+
+    it('zeigt kein PDF erzeugen wenn Datei vorhanden', () => {
+      window.isInternal = () => true;
+      const html = renderVertraegeTableBody([baseVertrag], { canBulkDelete: false, canEdit: true, isAdmin: false });
+      expect(html).not.toContain('data-action="generate-pdf"');
+      expect(html).toContain('data-action="anschreiben"');
+    });
+
+    it('zeigt Status Erstellt statt Finalisiert', () => {
+      const html = renderVertraegeTableBody([baseVertrag], { canBulkDelete: false, canEdit: true, isAdmin: false });
+      expect(html).toContain('Erstellt');
+      expect(html).not.toContain('Finalisiert');
+      expect(html).toContain('status-select-wrapper');
     });
   });
 
@@ -137,6 +170,26 @@ describe('VertraegeList Unified Upload', () => {
       // Actually delegation adds a new listener each time — but since we test the old scenario
       // the key point is testing delegation works
       expect(mockList.openVertragUploadDrawer).toHaveBeenCalled();
+    });
+
+    it('schreibt manuellen Status', async () => {
+      const vertrag = { ...baseVertrag, status: 'erstellt' };
+      const tbody = document.getElementById('vertraege-table-body');
+      tbody.innerHTML = renderVertraegeTableBody([vertrag], { canBulkDelete: false, canEdit: true, isAdmin: false });
+      const update = vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ error: null })) }));
+      window.supabase = { from: vi.fn(() => ({ update })) };
+      window.toastSystem = { show: vi.fn() };
+      const mockList = {
+        vertraege: [vertrag],
+        _boundEventListeners: new Set(),
+        reloadData: vi.fn(async () => {}),
+        getVertragPermissions: () => ({ canEdit: true, isAdmin: false }),
+      };
+      bindTableDelegation(mockList);
+      tbody.querySelector('[data-status-value="verzoegert"]').click();
+      await new Promise((r) => setTimeout(r, 20));
+      expect(update).toHaveBeenCalledWith({ status: 'verzoegert' });
+      expect(mockList.reloadData).toHaveBeenCalled();
     });
   });
 

@@ -72,6 +72,25 @@ export class EmpfaengerComposer {
     this.onChange?.(this.getEmpfaenger());
   }
 
+  applyPrefill(items) {
+    for (const item of items || []) {
+      const email = String(item.email || '').trim();
+      if (!item.id || !email) continue;
+      const tab = item.typ === 'management' ? 'management' : 'creator';
+      this.lookup[tab][item.id] = {
+        id: item.id,
+        email,
+        name: item.name || email,
+        vorname: item.vorname || '',
+      };
+      const prevTab = this.tab;
+      this.tab = tab;
+      this.addOne({ ...item, email });
+      this.tab = prevTab;
+    }
+    this._emit();
+  }
+
   addOne(item) {
     const e = this._normalize(item);
     if (!e) return false;

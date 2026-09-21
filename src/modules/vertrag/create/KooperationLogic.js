@@ -4,6 +4,7 @@
 
 import { VertraegeCreate } from './VertraegeCreateCore.js';
 import { KampagneUtils } from '../../kampagne/KampagneUtils.js';
+import { vertragCreatorIds } from './vertragCreatorFilter.js';
 
 function koopLabel(k) {
   const name = k.name || k.id;
@@ -138,11 +139,14 @@ VertraegeCreate.prototype.updateKooperationField = function() {
     if (!this.formData.creator_id || koopForCreator.length === 0) {
       this.formData.kooperation_id = null;
       field.style.display = 'none';
+      select.required = false;
+      select.removeAttribute('required');
       select.innerHTML = '<option value="">Kooperation auswählen...</option>';
       return;
     }
 
     field.style.display = '';
+    select.required = true;
     select.innerHTML = `
       <option value="">Kooperation auswählen...</option>
       ${koopForCreator.map(k => `<option value="${k.id}">${koopLabel(k)}</option>`).join('')}
@@ -170,8 +174,8 @@ VertraegeCreate.prototype.renderKooperationSelect = function() {
 
     return `
       <div class="form-field" id="kooperation-field" style="${showField ? '' : 'display:none'}">
-        <label for="kooperation_id">Kooperation <span class="required">*</span></label>
-        <select id="kooperation_id" name="kooperation_id" required>
+        <label for="kooperation_id">Kooperation${showField ? ' <span class="required">*</span>' : ''}</label>
+        <select id="kooperation_id" name="kooperation_id"${showField ? ' required' : ''}>
           <option value="">Kooperation auswählen...</option>
           ${koopForCreator.map(k => `
             <option value="${k.id}" ${this.formData.kooperation_id === k.id ? 'selected' : ''}>
@@ -299,19 +303,29 @@ VertraegeCreate.prototype.updateFilteredCreators = async function() {
     }
 
     try {
-      const { data: kooperationen } = await window.supabase
-        .from('kooperationen')
-        .select('id, creator_id, name, einkaufspreis_netto, einkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag, created_at')
-        .eq('kampagne_id', this.formData.kampagne_id);
+      const kampagneId = this.formData.kampagne_id;
 
-      this.filteredKooperationen = kooperationen || [];
+      const [koopResult, castingResult] = await Promise.all([
+        window.supabase
+          .from('kooperationen')
+          .select('id, creator_id, name, einkaufspreis_netto, einkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag, created_at')
+          .eq('kampagne_id', kampagneId),
+        window.supabase
+          .from('creator_auswahl')
+          .select('id, creator_auswahl_items(creator_id, zusage, gebucht)')
+          .eq('kampagne_id', kampagneId)
+      ]);
 
-      if (kooperationen && kooperationen.length > 0) {
-        const creatorIds = [...new Set(kooperationen.map(k => k.creator_id))];
-        this.filteredCreators = this.creators.filter(c => creatorIds.includes(c.id));
-      } else {
-        this.filteredCreators = [];
-      }
+      if (koopResult.error) throw koopResult.error;
+      if (castingResult.error) throw castingResult.error;
+
+      this.filteredKooperationen = koopResult.data || [];
+
+      const castingItems = (castingResult.data || []).flatMap(
+        liste => liste.creator_auswahl_items || []
+      );
+      const creatorIds = vertragCreatorIds(castingItems, this.filteredKooperationen);
+      this.filteredCreators = this.creators.filter(c => creatorIds.includes(c.id));
     } catch (error) {
       console.error('❌ Fehler beim Filtern der Creator:', error);
       this.filteredCreators = [];

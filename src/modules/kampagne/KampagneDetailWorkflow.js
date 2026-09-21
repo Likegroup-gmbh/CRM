@@ -10,10 +10,19 @@
 import { canViewTab, syncTabQueryParam, getTabQueryParam } from '../../core/TabUtils.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
-import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
-import { VertragUtils } from '../vertrag/VertragUtils.js';
+import { icon } from '../../core/icons/IconSystem.js';
+import { renderVertraegeTableBody } from '../vertrag/VertraegeListRenderers.js';
+import {
+  bindTableDelegation,
+  bindStatusDropdownDismiss,
+  downloadVertrag,
+  deleteVertrag,
+  openVertragUploadDrawer
+} from '../vertrag/VertraegeListHandlers.js';
 import { skripteService } from '../skripte/SkripteService.js';
 import { STATUS_LABELS, STATUS_TAG_VARIANT } from '../skripte/SkripteUtils.js';
+import { konzeptCreatorFromSkript } from '../skripte/editor/SkriptEditorDocRenderer.js';
+import { renderCreatorNameCell } from '../creator/CreatorTable.js';
 import { VideoDataLoader } from '../video/VideoDataLoader.js';
 import { BEREICH_LABELS } from '../briefing/create/fieldConfig.js';
 import { renderTableSelect } from '../../core/components/TableSelect.js';
@@ -166,9 +175,14 @@ export async function loadWorkflowPane(detail, tabId) {
 
   pane.innerHTML = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
 
+  if (tabId === 'vertraege') unmountVertraegePane(detail);
+
   try {
     const html = await renderer(detail);
-    if (pane.isConnected) pane.innerHTML = html;
+    if (pane.isConnected) {
+      pane.innerHTML = html;
+      if (tabId === 'vertraege') mountVertraegePane(detail);
+    }
   } catch (error) {
     console.error(`❌ KAMPAGNEDETAIL: Workflow-Pane "${tabId}" fehlgeschlagen:`, error);
     if (pane.isConnected) {
@@ -185,9 +199,16 @@ export async function loadWorkflowPane(detail, tabId) {
  * Nach einem Full-Re-Render (init / softRefresh) sind alle Pane-DOMs und
  * geladenen Daten weg: Flags zurücksetzen und den aktiven Pane neu füllen.
  */
+export async function reloadWorkflowPane(detail, tabId) {
+  if (detail._workflowLoaded) detail._workflowLoaded[tabId] = false;
+  if (detail._workflowData) delete detail._workflowData[tabId];
+  await loadWorkflowPane(detail, tabId);
+}
+
 export function refreshWorkflowAfterRender(detail) {
   unmountCastingWorksheet(detail);
   unmountKonzeptWorksheet(detail);
+  unmountVertraegePane(detail);
   detail._workflowLoaded = {};
   detail._workflowData = {};
   const tab = detail.activeWorkflowTab;
@@ -251,16 +272,68 @@ async function loadVertraege(detail) {
   const { data, error } = await window.supabase
     .from('vertraege')
     .select(`
-      id, name, typ, is_draft, datei_url, datei_path,
-      dropbox_file_url, dropbox_file_path, kooperation_id,
-      unterschriebener_vertrag_url, created_at,
-      creator:creator_id(id, vorname, nachname),
-      kooperation:kooperation_id(id, name)
+      id, name, typ, is_draft, status,
+      datei_url, datei_path,
+      unterschriebener_vertrag_url, unterschriebener_vertrag_path,
+      dropbox_file_url, dropbox_file_path,
+      kooperation_id, created_at,
+      kunde_unternehmen_id, kampagne_id, creator_id, contracting_auftrag_id,
+      kunde:kunde_unternehmen_id (id, firmenname),
+      kampagne:kampagne_id (id, kampagnenname, eigener_name, marke:marke_id (id, markenname)),
+      kooperation:kooperation_id (id, name),
+      creator:creator_id (id, vorname, nachname, mail),
+      contracting_auftrag:contracting_auftrag_id (id, auftragsname, titel)
     `)
     .eq('kampagne_id', detail.kampagneId)
     .order('created_at', { ascending: false });
   if (error) throw new Error(error.message);
   return data || [];
+}
+
+function getKampagneVertragPermissions(detail) {
+  const isKunde = Boolean(detail.isKunde);
+  const isAdmin = !isKunde && window.isAdmin?.() === true;
+  const canEdit = !isKunde && (isAdmin || window.currentUser?.permissions?.vertraege?.can_edit === true);
+  const canDelete = !isKunde && window.canBulkDelete?.() === true;
+  return { isKunde, isAdmin, canEdit, canDelete };
+}
+
+export function createKampagneVertragListAdapter(detail) {
+  const adapter = {
+    get vertraege() { return detail._workflowData?.vertraege || []; },
+    get currentUnternehmenName() { return detail.kampagneData?.unternehmen?.firmenname || ''; },
+    _boundEventListeners: new Set(),
+    reloadData: () => reloadWorkflowPane(detail, 'vertraege'),
+    getVertragPermissions() {
+      const { isAdmin, canEdit, canDelete } = getKampagneVertragPermissions(detail);
+      return {
+        isAdmin,
+        canBulkDelete: canDelete,
+        canView: !detail.isKunde,
+        canEdit
+      };
+    },
+    downloadVertrag(id) { downloadVertrag(adapter, id); },
+    deleteVertrag(id) { return deleteVertrag(adapter, id); },
+    openVertragUploadDrawer(id) { return openVertragUploadDrawer(adapter, id); }
+  };
+  return adapter;
+}
+
+export function unmountVertraegePane(detail) {
+  const adapter = detail._vertragListAdapter;
+  if (!adapter) return;
+  adapter._boundEventListeners.forEach((cleanup) => cleanup());
+  adapter._boundEventListeners.clear();
+  detail._vertragListAdapter = null;
+}
+
+export function mountVertraegePane(detail) {
+  unmountVertraegePane(detail);
+  const adapter = createKampagneVertragListAdapter(detail);
+  detail._vertragListAdapter = adapter;
+  bindTableDelegation(adapter);
+  bindStatusDropdownDismiss(adapter);
 }
 
 /* ------------------------------------------------------------------ */
@@ -350,6 +423,7 @@ async function renderSkriptePane(detail) {
             ${esc(titel)}
           </a>
         </td>
+        ${renderCreatorNameCell(konzeptCreatorFromSkript(s))}
         <td>${statusTd}</td>
         <td>${formatDate(s.created_at)}</td>
         <td class="col-actions">${actionBuilder.create('skripte', s.id)}</td>
@@ -363,6 +437,7 @@ async function renderSkriptePane(detail) {
         <thead>
           <tr>
             <th>Titel</th>
+            <th>Creator</th>
             <th>Status</th>
             <th>Erstellt am</th>
             <th class="col-actions">Aktionen</th>
@@ -374,7 +449,7 @@ async function renderSkriptePane(detail) {
   `;
 }
 
-async function renderVertraegePane(detail) {
+export async function renderVertraegePane(detail) {
   const vertraege = await getWorkflowData(detail, 'vertraege', () => loadVertraege(detail));
 
   if (!vertraege.length) {
@@ -385,36 +460,31 @@ async function renderVertraegePane(detail) {
     });
   }
 
-  const rows = vertraege.map(v => {
-    const creatorName = v.creator ? `${v.creator.vorname || ''} ${v.creator.nachname || ''}`.trim() : '-';
-    const statusLabel = v.is_draft ? 'Entwurf' : 'Final';
-    const statusClass = v.is_draft ? 'draft' : 'aktiv';
-    return `
-      <tr>
-        <td>${VertragUtils.renderVertragNameHtml(v, esc)}</td>
-        <td>${esc(v.typ || '-')}</td>
-        <td><span class="status-badge status-${statusClass}">${statusLabel}</span></td>
-        <td>${v.creator ? `<a href="/creator/${v.creator.id}" class="table-link" data-table="creator" data-id="${v.creator.id}">${esc(creatorName)}</a>` : '-'}</td>
-        <td>${renderPdfLinks(null, v.datei_url)}</td>
-        <td>${formatDate(v.created_at)}</td>
-      </tr>
-    `;
-  }).join('');
+  const { isAdmin, canEdit, canDelete } = getKampagneVertragPermissions(detail);
+  const rows = renderVertraegeTableBody(vertraege, {
+    canBulkDelete: false,
+    canEdit,
+    isAdmin,
+    canDelete
+  });
 
   return `
     <div class="data-table-container">
-      <table class="data-table vertraege-detail-table">
+      <table class="data-table data-table--vertraege">
         <thead>
           <tr>
-            <th>Name</th>
-            <th>Typ</th>
-            <th>Status</th>
-            <th>Creator</th>
-            <th>Datei</th>
-            <th>Erstellt am</th>
+            <th class="col-name">Name</th>
+            <th class="col-kampagne">Kontext</th>
+            <th class="col-status">Status</th>
+            <th class="col-typ">Typ</th>
+            <th class="col-creator">Creator</th>
+            <th class="col-datei">Datei</th>
+            <th class="col-signed">Unterschrieben</th>
+            <th class="col-erstellt-am">Erstellt am</th>
+            <th class="col-actions">Aktionen</th>
           </tr>
         </thead>
-        <tbody>${rows}</tbody>
+        <tbody id="vertraege-table-body">${rows}</tbody>
       </table>
     </div>
   `;

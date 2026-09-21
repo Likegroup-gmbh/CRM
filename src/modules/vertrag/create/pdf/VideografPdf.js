@@ -4,7 +4,7 @@
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
 import { ensureSpace, renderPaginatedText, renderZusatzBestimmung } from './PdfTextFlow.js';
-import { loadLikeGroupLogoPng, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
+import { loadLikeGroupLogoPng, drawLikeGroupLogo, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
 
 VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = this.getContractLanguage(vertrag)) {
     try {
@@ -118,7 +118,7 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
       };
 
       // Logo oben zentriert
-      doc.addImage(logoBase64, 'PNG', 93.6, 10, 22.75, 12.6);
+      drawLikeGroupLogo(doc, logoBase64, { align: 'center' });
 
       // Titel (Logo endet bei y=28, daher Titel ab y=36)
       let y = 36;
@@ -504,18 +504,14 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
       const fileName = `${filePrefix}_${vertrag.name || 'Produktion'}_${new Date().toISOString().split('T')[0]}.pdf`;
 
       const uploadResult = await uploadGeneratedVertragPdf(this, vertrag, pdfBlob, fileName);
-      if (uploadResult?.fileUrl) {
-        console.log('✅ Videograf-PDF nach Dropbox hochgeladen und URL gespeichert');
-      } else {
-        console.warn('⚠️ Dropbox-Upload nicht erfolgreich – PDF wird nur lokal heruntergeladen');
-      }
+      console.log('✅ Videograf-PDF nach Dropbox hochgeladen und URL gespeichert');
       doc.save(fileName);
-
-      console.log('✅ Videograf-PDF generiert');
+      return uploadResult;
 
     } catch (error) {
       console.error('❌ Fehler bei Videograf-PDF-Generierung:', error);
       window.toastSystem?.show('PDF konnte nicht generiert werden', 'warning');
+      throw error;
     }
 };
 

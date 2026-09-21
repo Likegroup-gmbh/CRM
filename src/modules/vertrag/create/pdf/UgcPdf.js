@@ -4,7 +4,7 @@
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
 import { ensureSpace, renderPaginatedText, renderZusatzBestimmung } from './PdfTextFlow.js';
-import { loadLikeGroupLogoPng, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
+import { loadLikeGroupLogoPng, drawLikeGroupLogo, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
 
 VertraegeCreate.prototype.generatePDF = async function(vertrag) {
     const lang = this.getContractLanguage(vertrag);
@@ -23,7 +23,7 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       } catch (e) {
         console.warn('⚠️ jsPDF konnte nicht geladen werden:', e);
         window.toastSystem?.show('PDF-Bibliothek konnte nicht geladen werden', 'warning');
-        return;
+        throw new Error('PDF-Bibliothek konnte nicht geladen werden');
       }
     }
 
@@ -171,7 +171,7 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       // ============================================
 
       // Logo oben zentriert
-      doc.addImage(logoBase64, 'PNG', 93.6, 10, 22.75, 12.6);
+      drawLikeGroupLogo(doc, logoBase64, { align: 'center' });
 
       // Titel (Logo endet bei y=28, daher Titel ab y=36)
       doc.setFontSize(18);
@@ -643,18 +643,14 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
       const fileName = `${filePrefix}_${vertrag.name || 'UGC'}_${new Date().toISOString().split('T')[0]}.pdf`;
 
       const uploadResult = await uploadGeneratedVertragPdf(this, vertrag, pdfBlob, fileName);
-      if (uploadResult?.fileUrl) {
-        console.log('✅ PDF nach Dropbox hochgeladen und URL gespeichert');
-      } else {
-        console.warn('⚠️ Dropbox-Upload nicht erfolgreich – PDF wird nur lokal heruntergeladen');
-      }
+      console.log('✅ PDF nach Dropbox hochgeladen und URL gespeichert');
       doc.save(fileName);
-
-      console.log('✅ PDF generiert');
+      return uploadResult;
 
     } catch (error) {
       console.error('❌ Fehler bei PDF-Generierung:', error);
       window.toastSystem?.show('PDF konnte nicht generiert werden', 'warning');
+      throw error;
     }
 };
 

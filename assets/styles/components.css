@@ -4720,6 +4720,42 @@ h3.section-title,
   border: 1px solid var(--success-300);
 }
 
+.status-erstellt {
+  background: var(--info-100, var(--primary-100));
+  color: var(--info-700, var(--primary-700));
+  border: 1px solid var(--info-300, var(--primary-300));
+}
+
+.status-gesendet {
+  background: var(--primary-100);
+  color: var(--primary-700);
+  border: 1px solid var(--primary-300);
+}
+
+.status-unterschrieben {
+  background: var(--success-100);
+  color: var(--success-700);
+  border: 1px solid var(--success-300);
+}
+
+.status-verzoegert {
+  background: var(--warning-100);
+  color: var(--warning-700);
+  border: 1px solid var(--warning-300);
+}
+
+.status-abgelehnt {
+  background: var(--danger-100);
+  color: var(--danger-700);
+  border: 1px solid var(--danger-300);
+}
+
+.status-entwurf {
+  background: var(--warning-100);
+  color: var(--warning-700);
+  border: 1px solid var(--warning-300);
+}
+
 /* Vertragstyp Badges */
 
 .typ-ugc {

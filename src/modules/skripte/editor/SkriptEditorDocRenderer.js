@@ -34,21 +34,30 @@ function docHeadHtml(skript, extraHtml = '', fallbackName = 'Skript') {
 }
 
 function creatorDisplayName(creator) {
-  return `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim() || 'Creator';
+  const crm = `${creator?.vorname || ''} ${creator?.nachname || ''}`.trim();
+  return crm || creator?.name || 'Creator';
 }
 
-/** Secondary-Button im Doc-Kopf: zuweisen bzw. Bubble + Creator-Name. */
-export function verknuepfungenHtml({ verknuepfungen = [], kannZuweisen = false } = {}) {
-  if (!kannZuweisen) return '';
-  if (!verknuepfungen.length) {
-    return `
-      <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-zuweisen-btn" id="ed-skript-zuweisen"
-        title="Creator zuweisen">
-        <span class="mdc-btn__icon">${icon('user-add')}</span>
-        <span class="mdc-btn__label">Creator zuweisen</span>
-      </button>`;
-  }
+/** Creator am Konzept: CRM-Name, sonst Casting-Name, sonst creator_name. */
+export function konzeptCreatorFromSkript(skript) {
+  const item = skript?.strategie_item;
+  if (!item) return null;
+  const eintrag = item.casting_eintrag;
+  const crm = eintrag?.creator;
+  const crmName = `${crm?.vorname || ''} ${crm?.nachname || ''}`.trim();
+  const name = crmName || eintrag?.name || item.creator_name || '';
+  if (!name) return null;
+  return {
+    id: crm?.id || null,
+    vorname: crm?.vorname || '',
+    nachname: crm?.nachname || '',
+    name,
+    profilbild_url: crm?.profilbild_url || null,
+    profilbild_thumb_url: crm?.profilbild_thumb_url || null
+  };
+}
 
+function creatorsFuerKopf(verknuepfungen, konzeptCreator) {
   const proCreator = new Map();
   for (const row of verknuepfungen) {
     const creator = row.kooperation?.creator;
@@ -56,7 +65,11 @@ export function verknuepfungenHtml({ verknuepfungen = [], kannZuweisen = false }
     const key = creator.id || creatorDisplayName(creator);
     if (!proCreator.has(key)) proCreator.set(key, creator);
   }
-  const creators = [...proCreator.values()];
+  if (proCreator.size) return [...proCreator.values()];
+  return konzeptCreator ? [konzeptCreator] : [];
+}
+
+function creatorChipHtml(creators) {
   const namen = creators.map(creatorDisplayName).join(', ');
   const bubbles = avatarBubbles.renderBubbles(creators.map((c) => ({
     name: creatorDisplayName(c),
@@ -64,11 +77,28 @@ export function verknuepfungenHtml({ verknuepfungen = [], kannZuweisen = false }
     profile_image_url: c.profilbild_thumb_url || c.profilbild_url || null
   })), { maxVisible: creators.length });
   return `
-    <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-zuweisen-btn" id="ed-skript-zuweisen"
+    <button type="button" class="skripte-editor-zuweisen-chip" id="ed-skript-zuweisen"
       title="${escapeHtml(namen)}">
       <span class="skripte-editor-zuweisen-bubbles">${bubbles}</span>
-      <span class="mdc-btn__label skripte-editor-zuweisen-name">${escapeHtml(namen)}</span>
+      <span class="skripte-editor-zuweisen-name">${escapeHtml(namen)}</span>
     </button>`;
+}
+
+/** Doc-Kopf: Zuweisen-CTA oder Chip (Bubble + Name). */
+export function verknuepfungenHtml({
+  verknuepfungen = [], konzeptCreator = null, kannZuweisen = false
+} = {}) {
+  if (!kannZuweisen) return '';
+  const creators = creatorsFuerKopf(verknuepfungen, konzeptCreator);
+  if (!creators.length) {
+    return `
+      <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-zuweisen-btn" id="ed-skript-zuweisen"
+        title="Creator zuweisen">
+        <span class="mdc-btn__icon">${icon('user-add')}</span>
+        <span class="mdc-btn__label">Creator zuweisen</span>
+      </button>`;
+  }
+  return creatorChipHtml(creators);
 }
 
 /** Rueckfragen-Phase: Vorgaben + Hinweis statt (noch leerem) Skript-Inhalt. */

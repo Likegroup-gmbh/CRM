@@ -3,7 +3,6 @@
 // Gate ist generisch (CreateActionGate); hier sitzt nur die Kampagnen-Policy.
 
 import { resolveCreateAction, renderCreateButton } from '../../core/actions/CreateActionGate.js';
-import { KampagneUtils } from './KampagneUtils.js';
 import { openCastingCreateDrawer } from './KampagneDetailCasting.js';
 import { remountKonzeptPane } from './KampagneDetailKonzept.js';
 import { openCreateDrawer as openKonzeptCreateDrawer } from '../strategie/StrategieListCrud.js';
@@ -48,7 +47,8 @@ const ACTION_SPECS = {
     mode: 'navigate',
     url(detail) {
       const u = detail.kampagneData?.unternehmen_id || '';
-      return `/vertraege/new?unternehmen=${encodeURIComponent(u)}`;
+      const k = detail.kampagneId || '';
+      return `/vertraege/new?unternehmen=${encodeURIComponent(u)}&kampagne=${encodeURIComponent(k)}`;
     }
   }
 };
@@ -66,11 +66,8 @@ function campaignPrefill(detail) {
   const k = detail.kampagneData || {};
   return {
     unternehmen_id: k.unternehmen_id,
-    marke_id: k.marke_id,
     kampagne_id: detail.kampagneId,
-    unternehmenName: k.unternehmen?.firmenname || k.unternehmen?.internes_kuerzel || 'Unternehmen',
-    markeName: k.marke?.markenname || 'Marke',
-    kampagneName: KampagneUtils.getDisplayName(k)
+    unternehmenName: k.unternehmen?.firmenname || k.unternehmen?.internes_kuerzel || 'Unternehmen'
   };
 }
 

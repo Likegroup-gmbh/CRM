@@ -6,7 +6,7 @@ import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
 import { renderPaginatedText, renderZusatzBestimmung } from './PdfTextFlow.js';
 import { buildContractingAuftragnehmerLines } from './ContractingAuftragnehmerLines.js';
-import { loadLikeGroupLogoPng, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
+import { loadLikeGroupLogoPng, drawLikeGroupLogo, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
 
 VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang = this.getContractLanguage(vertrag)) {
   try {
@@ -127,7 +127,7 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
     // ============================================
     // SEITE 1: Titel + Vertragsparteien
     // ============================================
-    doc.addImage(logoBase64, 'PNG', 93.6, 10, 22.75, 12.6);
+    drawLikeGroupLogo(doc, logoBase64, { align: 'center' });
 
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
@@ -624,17 +624,13 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
     const fileName = `${filePrefix}_${vertrag.name || 'Contracting'}_${new Date().toISOString().split('T')[0]}.pdf`;
 
     const uploadResult = await uploadGeneratedVertragPdf(this, vertrag, pdfBlob, fileName);
-    if (uploadResult?.fileUrl) {
-      console.log('✅ Contracting-PDF nach Dropbox hochgeladen und URL gespeichert');
-    } else {
-      console.warn('⚠️ Dropbox-Upload nicht erfolgreich – PDF wird nur lokal heruntergeladen');
-    }
+    console.log('✅ Contracting-PDF nach Dropbox hochgeladen und URL gespeichert');
     doc.save(fileName);
-
-    console.log('✅ Contracting-PDF generiert');
+    return uploadResult;
 
   } catch (error) {
     console.error('❌ Fehler bei Contracting-PDF-Generierung:', error);
     window.toastSystem?.show('PDF konnte nicht generiert werden', 'warning');
+    throw error;
   }
 };

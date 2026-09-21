@@ -1,4 +1,6 @@
 import { icon } from './icons/IconSystem.js';
+import { getVertragStatus, vertragStatusLabel } from '../modules/vertrag/vertragStatus.js';
+
 /**
  * VertragSyncHelper.js
  * Synchronisiert kooperationen.vertrag_unterschrieben mit dem tatsächlichen Vertragsstatus.
@@ -44,33 +46,55 @@ function escapeHtml(text) {
   return String(text).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+const STATUS_RANK = {
+  unterschrieben: 6,
+  gesendet: 5,
+  erstellt: 4,
+  verzoegert: 3,
+  abgelehnt: 2,
+  entwurf: 1,
+};
+
+const BADGE_CLASS = {
+  entwurf: 'vertrag-badge--draft',
+  erstellt: 'vertrag-badge--created',
+  gesendet: 'vertrag-badge--gesendet',
+  verzoegert: 'vertrag-badge--verzoegert',
+  abgelehnt: 'vertrag-badge--abgelehnt',
+};
+
+export function pickVertragForAnzeige(vertraege) {
+  const list = vertraege || [];
+  if (!list.length) return null;
+  return list.slice().sort((a, b) => {
+    const ra = STATUS_RANK[getVertragStatus(a)] || 0;
+    const rb = STATUS_RANK[getVertragStatus(b)] || 0;
+    if (rb !== ra) return rb - ra;
+    return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+  })[0];
+}
+
 /**
  * Pure rendering function für die Vertrag-Zelle in der Kampagnen-Tabelle.
  * Zeigt ausschließlich Status-Badges (keine Checkbox).
  */
 export function renderVertragCell(koop) {
-  const vertraege = koop._vertraege || [];
-  const signed = vertraege.find(v => v.dropbox_file_url || v.unterschriebener_vertrag_url);
+  const vertrag = pickVertragForAnzeige(koop._vertraege);
+  if (!vertrag) {
+    return `<span class="vertrag-badge vertrag-badge--none">Noch nicht erstellt</span>`;
+  }
 
-  if (signed) {
-    const url = signed.dropbox_file_url || signed.unterschriebener_vertrag_url;
-    return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="contract-signed-action contract-signed-action--open" title="${escapeHtml(signed.name || 'Vertrag')}">
+  const status = getVertragStatus(vertrag);
+  if (status === 'unterschrieben') {
+    const url = vertrag.dropbox_file_url || vertrag.unterschriebener_vertrag_url;
+    return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="contract-signed-action contract-signed-action--open" title="${escapeHtml(vertrag.name || 'Vertrag')}">
       ${icon('check-circle')}
       Unterschrieben
     </a>`;
   }
 
-  const draft = vertraege.find(v => v.is_draft);
-  if (draft) {
-    return `<span class="vertrag-badge vertrag-badge--draft">Entwurf</span>`;
-  }
-
-  const generated = vertraege.find(v => v.datei_url && !v.is_draft);
-  if (generated) {
-    return `<span class="vertrag-badge vertrag-badge--created" title="${escapeHtml(generated.name || 'Vertrag')}">Erstellt</span>`;
-  }
-
-  return `<span class="vertrag-badge vertrag-badge--none">Noch nicht erstellt</span>`;
+  const cls = BADGE_CLASS[status] || 'vertrag-badge--created';
+  return `<span class="vertrag-badge ${cls}" title="${escapeHtml(vertrag.name || 'Vertrag')}">${escapeHtml(vertragStatusLabel(status))}</span>`;
 }
 
 /**

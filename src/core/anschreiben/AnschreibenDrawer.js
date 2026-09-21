@@ -1,7 +1,7 @@
 // AnschreibenDrawer.js
 // Rechts-Drawer fuer das Anschreiben: Empfaenger-Composer, Mailvorlage,
 // Betreff/Body (editierbar), PDF-Anhang mit Vorschau, Senden.
-// Generisch ueber dokumentTyp/dokumentId — erste Call-Site ist das Briefing.
+// Generisch ueber dokumentTyp/dokumentId. Seiten rufen openAnschreiben().
 
 import { EmpfaengerComposer } from './EmpfaengerComposer.js';
 import { authorizedFetch } from '../auth/getAccessToken.js';
@@ -35,6 +35,8 @@ export class AnschreibenDrawer {
     db = null,
     createPdf,
     pdfContext = null,
+    platzhalter = ['vorname', 'name', 'briefing', 'unternehmen', 'marke'],
+    prefill = [],
   }) {
     this.dokumentTyp = dokumentTyp;
     this.dokumentId = dokumentId;
@@ -44,6 +46,8 @@ export class AnschreibenDrawer {
     this.db = db || window.supabase;
     this.createPdf = createPdf;
     this.pdfContext = pdfContext;
+    this.platzhalter = platzhalter;
+    this.prefill = prefill;
 
     this.overlay = null;
     this.panel = null;
@@ -58,6 +62,7 @@ export class AnschreibenDrawer {
   async open() {
     this._build();
     await Promise.all([this.composer.render(), this._loadVorlagen(), this._buildPdf()]);
+    if (this.prefill?.length) this.composer.applyPrefill(this.prefill);
     this._fillFromVorlage(this._defaultVorlage());
   }
 
@@ -79,7 +84,7 @@ export class AnschreibenDrawer {
   async _loadVorlagen() {
     const { data, error } = await this.db
       .from('mailvorlage')
-      .select('id, name, betreff, body, empfaenger_typ, is_standard, is_shared, created_by')
+      .select('id, name, betreff, body, empfaenger_typ, is_standard, is_shared, created_by, dokument_typ')
       .order('is_standard', { ascending: false })
       .order('name');
     if (error) {
@@ -87,7 +92,7 @@ export class AnschreibenDrawer {
       this.vorlagen = [];
       return;
     }
-    this.vorlagen = data || [];
+    this.vorlagen = (data || []).filter((v) => (v.dokument_typ || 'briefing') === this.dokumentTyp);
     this._renderVorlageSelect();
   }
 
@@ -102,10 +107,16 @@ export class AnschreibenDrawer {
 
   async _buildPdf() {
     const status = this.panel?.querySelector('[data-pdf-status]');
+    const btn = this.panel?.querySelector('[data-action="pdf-preview"]');
     try {
       this.pdf = await this.createPdf(this.pdfContext);
+      if (this.pdf?.serverFallback) {
+        if (status) status.textContent = `${this.pdf.dateiname || 'PDF'} — wird beim Senden geladen`;
+        if (btn) btn.disabled = true;
+        return;
+      }
+      if (!this.pdf?.blob) throw new Error('PDF fehlt');
       if (status) status.textContent = this.pdf.dateiname;
-      const btn = this.panel?.querySelector('[data-action="pdf-preview"]');
       if (btn) btn.disabled = false;
     } catch (err) {
       console.error('PDF-Erzeugung fehlgeschlagen:', err);
@@ -156,7 +167,7 @@ export class AnschreibenDrawer {
         <section class="anschreiben-section">
           <h4 class="drawer-section-title">Text</h4>
           <textarea class="input" data-body rows="8"></textarea>
-          <p class="anschreiben-hint">Platzhalter: {{vorname}} {{name}} {{briefing}} {{unternehmen}} {{marke}}</p>
+          <p class="anschreiben-hint">Platzhalter: ${this.platzhalter.map((p) => `{{${p}}}`).join(' ')}</p>
         </section>
 
         <section class="anschreiben-section">
@@ -261,10 +272,11 @@ export class AnschreibenDrawer {
         betreff,
         body,
         empfaenger_typ: this.composer?.typ || null,
+        dokument_typ: this.dokumentTyp,
         is_shared: isShared,
         created_by: window.currentUser?.id || null,
       })
-      .select('id, name, betreff, body, empfaenger_typ, is_standard, is_shared, created_by')
+      .select('id, name, betreff, body, empfaenger_typ, is_standard, is_shared, created_by, dokument_typ')
       .single();
     if (error) {
       console.error('Vorlage speichern fehlgeschlagen:', error);
@@ -293,7 +305,7 @@ export class AnschreibenDrawer {
       && !this.composer?.isEmpty()
       && Boolean(betreff)
       && Boolean(body)
-      && Boolean(this.pdf?.blob);
+      && Boolean(this.pdf?.blob || this.pdf?.serverFallback);
     btn.disabled = !ready;
   }
 
@@ -310,14 +322,15 @@ export class AnschreibenDrawer {
     const empfaenger = this.composer.getEmpfaenger();
     const betreff = this.panel.querySelector('[data-betreff]').value.trim();
     const body = this.panel.querySelector('[data-body]').value.trim();
-    if (!empfaenger.length || !betreff || !body || !this.pdf?.blob) return;
+    if (!empfaenger.length || !betreff || !body) return;
+    if (!this.pdf?.blob && !this.pdf?.serverFallback) return;
 
     this.sending = true;
     this._updateSendState();
     this._feedback(`Sende an ${empfaenger.length} Empfänger …`);
 
     try {
-      const pdfBase64 = await this._blobToBase64(this.pdf.blob);
+      const pdfBase64 = this.pdf.blob ? await this._blobToBase64(this.pdf.blob) : '';
       const response = await authorizedFetch('/.netlify/functions/anschreiben-send', {
         method: 'POST',
         body: JSON.stringify({
@@ -341,6 +354,9 @@ export class AnschreibenDrawer {
       if (skipped) parts.push(`${skipped} ohne E-Mail übersprungen`);
       this._feedback(parts.join(' · '), Boolean(result.failed));
       window.toastSystem?.show(`Anschreiben: ${parts.join(', ')}`, result.failed ? 'warning' : 'success');
+      window.dispatchEvent(new CustomEvent('anschreibenSent', {
+        detail: { dokumentTyp: this.dokumentTyp, dokumentId: this.dokumentId, sent: result.sent, failed: result.failed },
+      }));
       if (!result.failed) {
         setTimeout(() => this.close(), 1200);
       }

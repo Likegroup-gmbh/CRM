@@ -11,6 +11,8 @@ function chain(result) {
   const c = {
     select: vi.fn(() => c),
     eq: vi.fn(() => c),
+    not: vi.fn(() => c),
+    or: vi.fn(() => c),
     order: vi.fn(() => c),
     insert: vi.fn(() => c),
     single: vi.fn(() => Promise.resolve(result)),
@@ -121,9 +123,21 @@ describe('AnschreibenDrawer', () => {
     const insertArg = db.from.mock.results
       .map((r) => r.value)
       .find((v) => v?.insert?.mock?.calls?.length)?.insert.mock.calls[0][0];
-    expect(insertArg).toMatchObject({ name: 'Neu', is_shared: false, created_by: 'ben1' });
+    expect(insertArg).toMatchObject({ name: 'Neu', is_shared: false, created_by: 'ben1', dokument_typ: 'briefing' });
     window.prompt.mockRestore();
     window.confirm.mockRestore();
+    drawer.close();
+  });
+
+  it('filtert Vorlagen nach dokument_typ', async () => {
+    const mixed = [
+      ...VORLAGEN,
+      { id: 'v-vertrag', name: 'Vertrag', betreff: 'V', body: 'V', empfaenger_typ: null, is_standard: true, is_shared: true, created_by: null, dokument_typ: 'vertrag' },
+    ];
+    mixed[0] = { ...mixed[0], dokument_typ: 'briefing' };
+    const drawer = await openDrawer(mockDb(mixed), { dokumentTyp: 'vertrag' });
+    const options = [...document.querySelectorAll('[data-vorlage-select] option')].map((o) => o.value);
+    expect(options).toEqual(['v-vertrag']);
     drawer.close();
   });
 
@@ -131,5 +145,19 @@ describe('AnschreibenDrawer', () => {
     const drawer = await openDrawer(mockDb());
     document.querySelector('.drawer-footer [data-action="close"]').click();
     expect(document.querySelector('.anschreiben-drawer')).toBeNull();
+  });
+
+  it('erlaubt Senden wenn PDF vom Server kommt', async () => {
+    const drawer = await openDrawer(mockDb(), {
+      createPdf: vi.fn(async () => ({ blob: null, dateiname: 'v.pdf', serverFallback: true })),
+    });
+    drawer.composer.getEmpfaenger = () => [{ typ: 'creator', id: 'c1', email: 'a@b.de' }];
+    drawer.composer.isEmpty = () => false;
+    drawer.panel.querySelector('[data-betreff]').value = 'Betreff';
+    drawer.panel.querySelector('[data-body]').value = 'Body';
+    drawer._updateSendState();
+    expect(drawer.panel.querySelector('[data-action="send"]').disabled).toBe(false);
+    expect(document.querySelector('[data-pdf-status]').textContent).toContain('wird beim Senden geladen');
+    drawer.close();
   });
 });

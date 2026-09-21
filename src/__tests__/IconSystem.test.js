@@ -92,6 +92,8 @@ describe('IconSystem Guard', () => {
     expect(normalizeIconKey('modus-klassisch')).toBe('clapperboard');
     expect(normalizeIconKey('modus-dynamisch')).toBe('spark-doc');
     expect(normalizeIconKey('ai-visual')).toBe('skripte');
+    expect(normalizeIconKey('anschreiben')).toBe('mail-send');
+    expect(ICON_DEFS['mail-send'].body).not.toContain('stroke-width');
   });
 
   it('buildSpriteSvg enthaelt pro Def-Key genau ein <symbol>', () => {

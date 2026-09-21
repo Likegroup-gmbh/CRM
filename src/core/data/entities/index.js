@@ -996,6 +996,7 @@ export const EntityRegistry = {
       kooperation_id: 'uuid',
       contracting_auftrag_id: 'uuid',
       is_draft: 'boolean',
+      status: 'string',
       created_at: 'date'
     },
     relations: {
@@ -1005,7 +1006,7 @@ export const EntityRegistry = {
       kooperation: { table: 'kooperationen', foreignKey: 'kooperation_id', displayField: 'name' },
       contracting_auftrag: { table: 'auftrag', foreignKey: 'contracting_auftrag_id', displayField: 'auftragsname' }
     },
-    filters: ['name', 'typ', 'kunde_unternehmen_id', 'kampagne_id', 'creator_id', 'contracting_auftrag_id', 'is_draft'],
+    filters: ['name', 'typ', 'kunde_unternehmen_id', 'kampagne_id', 'creator_id', 'contracting_auftrag_id', 'is_draft', 'status'],
     sortBy: 'created_at',
     sortOrder: 'desc'
   },

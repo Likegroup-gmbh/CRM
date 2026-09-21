@@ -198,6 +198,14 @@ describe('VertragUtils', () => {
       expect(VertragUtils.getVertragStatus(vertrag)).toBe('entwurf');
     });
 
+    it('gibt gespeicherten Status wenn keine Signatur', () => {
+      expect(VertragUtils.getVertragStatus({
+        status: 'gesendet',
+        datei_url: 'https://x.pdf',
+        is_draft: false
+      })).toBe('gesendet');
+    });
+
     it('gibt "erstellt" bei generiertem PDF ohne Unterschrift', () => {
       const vertrag = { datei_url: 'https://supabase.co/generated.pdf', is_draft: false };
       expect(VertragUtils.getVertragStatus(vertrag)).toBe('erstellt');

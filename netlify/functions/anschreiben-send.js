@@ -15,6 +15,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { randomUUID } = require('crypto');
 const { verifyAuth, requireInternal, authErrorBody } = require('./_shared/verify-auth');
 const { sendResendMail } = require('./_shared/resend');
+const { loadDokumentContext, getDokumentAdapter } = require('./_shared/anschreiben-dokumente');
 
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -94,29 +95,6 @@ async function resolveEmpfaenger(supabase, typ, id) {
   return null;
 }
 
-// ─── Dokument-Kontext ────────────────────────────────────────
-
-async function loadDokumentContext(supabase, dokumentTyp, dokumentId) {
-  if (dokumentTyp !== 'briefing') {
-    return { error: 'Unbekannter dokument_typ' };
-  }
-  const { data, error } = await supabase
-    .from('campaign_briefings')
-    .select('id, aktivierung_name, is_draft, unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname)')
-    .eq('id', dokumentId)
-    .maybeSingle();
-  if (error) throw error;
-  if (!data) return { error: 'Briefing nicht gefunden' };
-  if (data.is_draft) return { error: 'Nur finalisierte Briefings können verschickt werden' };
-  return {
-    ctx: {
-      briefing: data.aktivierung_name || '',
-      unternehmen: data.unternehmen?.firmenname || '',
-      marke: data.marke?.markenname || '',
-    },
-  };
-}
-
 // ─── Kern (injizierte Deps, testbar) ─────────────────────────
 
 /**
@@ -132,14 +110,25 @@ async function sendAnschreiben({ supabase, sendMail, benutzerId }, payload) {
   if (!dokumentTyp || !dokumentId) return { status: 400, body: { error: 'dokumentTyp/dokumentId fehlen' } };
   if (!Array.isArray(empfaenger) || empfaenger.length === 0) return { status: 400, body: { error: 'Keine Empfaenger' } };
   if (!betreff?.trim() || !mailBody?.trim()) return { status: 400, body: { error: 'Betreff/Text fehlen' } };
-  if (!pdfBase64) return { status: 400, body: { error: 'PDF fehlt' } };
-  if (Buffer.byteLength(pdfBase64, 'utf8') > MAX_PDF_BYTES) return { status: 413, body: { error: 'PDF zu gross' } };
 
-  const { ctx, error: docError } = await loadDokumentContext(supabase, dokumentTyp, dokumentId);
+  const adapter = getDokumentAdapter(dokumentTyp);
+  const loaded = await loadDokumentContext(supabase, dokumentTyp, dokumentId);
+  const { ctx, error: docError, defaultFilename } = loaded;
   if (docError) return { status: 400, body: { error: docError } };
 
+  let pdf = pdfBase64;
+  let filename = dateiname;
+  if (!pdf && adapter?.downloadPdf) {
+    const downloaded = await adapter.downloadPdf(supabase, dokumentId);
+    if (downloaded.error) return { status: 400, body: { error: downloaded.error } };
+    pdf = downloaded.pdfBase64;
+    filename = filename || downloaded.dateiname;
+  }
+  if (!pdf) return { status: 400, body: { error: 'PDF fehlt' } };
+  if (Buffer.byteLength(pdf, 'utf8') > MAX_PDF_BYTES) return { status: 413, body: { error: 'PDF zu gross' } };
+
   const batchId = randomUUID();
-  const attachment = [{ filename: dateiname || 'briefing.pdf', content: pdfBase64 }];
+  const attachment = [{ filename: filename || defaultFilename || 'dokument.pdf', content: pdf }];
 
   // Dedup nach (typ, id) — der Composer dedupt schon, der Server vertraut nicht
   const seen = new Set();
@@ -212,6 +201,10 @@ async function sendAnschreiben({ supabase, sendMail, benutzerId }, payload) {
         console.error('[anschreiben-send] Empfaenger fehlgeschlagen:', r.reason);
       }
     }
+  }
+
+  if (sent > 0 && adapter?.afterSend) {
+    await adapter.afterSend(supabase, { dokumentId, sent });
   }
 
   return { status: 200, body: { batchId, sent, failed, total: uniqueEmpfaenger.length } };

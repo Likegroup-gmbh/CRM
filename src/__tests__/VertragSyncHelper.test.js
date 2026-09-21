@@ -121,6 +121,26 @@ describe('VertragSyncHelper', () => {
       expect(html).toContain('Entwurf');
     });
 
+    it('rendert "Gesendet" Badge', () => {
+      const koop = {
+        id: 'k1',
+        _vertraege: [{ id: 'v1', status: 'gesendet', datei_url: 'https://example.com/vertrag.pdf', is_draft: false, name: 'V' }],
+      };
+      const html = renderVertragCell(koop);
+      expect(html).toContain('vertrag-badge--gesendet');
+      expect(html).toContain('Gesendet');
+    });
+
+    it('rendert "Abgelehnt" Badge', () => {
+      const koop = {
+        id: 'k1',
+        _vertraege: [{ id: 'v1', status: 'abgelehnt', datei_url: 'https://example.com/vertrag.pdf', is_draft: false }],
+      };
+      const html = renderVertragCell(koop);
+      expect(html).toContain('vertrag-badge--abgelehnt');
+      expect(html).toContain('Abgelehnt');
+    });
+
     it('rendert "Noch nicht erstellt" Badge wenn kein Vertrag existiert', () => {
       const html = renderVertragCell({ id: 'k1', vertrag_unterschrieben: false, _vertraege: [] });
       expect(html).toContain('vertrag-badge--none');

@@ -1,3 +1,5 @@
+import { getVertragStatus as readVertragStatus } from './vertragStatus.js';
+
 function sanitizePath(str) {
   if (!str) return '';
   return str
@@ -90,15 +92,7 @@ export class VertragUtils {
   }
 
   static getVertragStatus(vertrag) {
-    if (!vertrag) return 'kein_vertrag';
-
-    if (vertrag.dropbox_file_url || vertrag.unterschriebener_vertrag_url) {
-      return 'unterschrieben';
-    }
-    if (vertrag.is_draft) return 'entwurf';
-    if (vertrag.datei_url) return 'erstellt';
-
-    return 'kein_vertrag';
+    return readVertragStatus(vertrag);
   }
 
   static shouldShowVertragstyp(vertraege, creatorId) {
