@@ -634,6 +634,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
+  min-width: 0;
   border: var(--border-xs) solid var(--border-primary);
   border-radius: var(--radius-xl);
   background: var(--bg-primary);
@@ -646,6 +647,11 @@
 }
 
 .skripte-editor-input textarea {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 1.5em;
+  max-height: 8em;
   border: none;
   outline: none;
   resize: none;
@@ -654,6 +660,11 @@
   font-family: inherit;
   background: transparent;
   color: var(--text-primary);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  field-sizing: content;
 }
 
 .skripte-editor-input-footer {
@@ -784,7 +795,7 @@
 }
 
 .skripte-editor-chat-empty {
-  margin: auto;
+  margin-inline: auto;
   text-align: center;
   color: var(--text-secondary);
   font-size: var(--text-sm);

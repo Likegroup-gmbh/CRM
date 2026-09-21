@@ -1,10 +1,10 @@
 // ProduktPersonaService.js
 // Datenzugriff fuer die Persona- und Use-Case-Vorschlaege eines Produkts.
 //
-// Persistenz-Modell (Worksheet-Logik wie Varianten/Bilder): das Panel haelt
-// den kompletten Stand im Speicher, erst der Save des Produkts schreibt ihn
-// (flushOnSave). Dadurch gilt ein Code-Pfad fuer Create- und Edit-Modus und
-// Annehmen/Verwerfen vor dem Save braucht keine compensating writes.
+// Persistenz-Modell: Uebernehmen materialisiert die Persona sofort
+// (Stammdaten unter Unternehmen/Marke). Der Produkt-Save schreibt nur
+// noch den Vorschlags-Link. Ohne Produkt-Id bleibt die Persona stehen,
+// der Link kommt spaeter mit flushOnSave.
 //
 // Karten-Schluessel: Use Cases und Karten referenzieren sich ueber
 // client-seitige keys (persistierte Zeilen: ihre id, neue: temp-Key). Beim
@@ -16,14 +16,15 @@
 //            payload._attached_marke_ids protokolliert, damit ein
 //            Zuruecknehmen genau sie wieder loesen kann)
 //   neu   -> Persona aus payload anlegen (unternehmen_id des Produkts,
-//            marke_ids wie das Produkt), dann persona_id auf den Vorschlag
+//            marke_ids wie das Produkt bzw. Drawer), dann persona_id
 //
 // Verwerfen/Zuruecknehmen einer akzeptierten neuen Persona: die Persona wird
 // hart geloescht, wenn sie unbenutzt ist (keine anderen akzeptierten Links,
-// keine Skript-/DNA-Referenz) - sonst bleibt sie stehen.
+// keine Skript-/DNA-/Briefing-Referenz) - sonst bleibt sie stehen.
 
 import { PersonaService } from '../persona/PersonaService.js';
 import { istKiBereit } from '../persona/audienceSituationGate.js';
+import { recomputeBriefingProdukteForPersona } from '../briefing/BriefingPersonas.js';
 
 const ENDPOINT = '/.netlify/functions/produkt-persona-background';
 const AUDIENCE_SITUATION_ENDPOINT = '/.netlify/functions/audience-situation-background';
@@ -42,6 +43,18 @@ function emitProgress(detail) {
 
 function emitFinished(detail) {
   document.dispatchEvent(new CustomEvent('produktPersonaFinished', { detail }));
+}
+
+function audienceRowsFromPayload(payload) {
+  const raw = payload?._audience_situations;
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter(s => String(s?.name || '').trim())
+    .map(s => ({
+      name: String(s.name).trim(),
+      beschreibung: String(s.beschreibung || '').trim() || null,
+      quelle: 'ki'
+    }));
 }
 
 export class ProduktPersonaService {
@@ -270,6 +283,14 @@ export class ProduktPersonaService {
 
     await this.flushVerworfeneMatches(produktId, verworfeneMatchIds, karten);
 
+    const personaIds = [...new Set([
+      ...ergebnisKarten.map(k => k.persona_id),
+      ...karten.map(k => k.persona_id || k.persisted?.persona_id)
+    ].filter(Boolean))];
+    for (const personaId of personaIds) {
+      await recomputeBriefingProdukteForPersona(personaId);
+    }
+
     const ergebnisUseCases = useCases
       .filter(uc => !uc.deleted)
       .map((uc, i) => ({ ...uc, id: keyToId.get(uc.key) || uc.id || null, position: i, deleted: false }));
@@ -392,6 +413,8 @@ export class ProduktPersonaService {
       let payload = karte.payload || null;
 
       if (!warAkzeptiert) {
+        // Uebernehmen hat neu-Karten oft schon materialisiert (persona_id
+        // gesetzt). materialize legt dann nicht nochmal an.
         const materialisiert = await this.materialize(karte, { unternehmenId, markeIds });
         personaId = materialisiert.personaId;
         payload = materialisiert.payload;
@@ -504,6 +527,10 @@ export class ProduktPersonaService {
     if (!result?.id) throw new Error('Persona konnte nicht angelegt werden');
 
     await PersonaService.saveMarken(result.id, markeIds);
+    const situations = audienceRowsFromPayload(karte.payload);
+    if (situations.length) {
+      await PersonaService.syncAudienceSituations(result.id, situations);
+    }
     const payload = { ...(karte.payload || {}), _attached_marke_ids: [...markeIds] };
     return { personaId: result.id, payload };
   }
@@ -572,7 +599,7 @@ export class ProduktPersonaService {
     return fehlende;
   }
 
-  /** Unbenutzt = kein anderer akzeptierter Link, kein Skript, keine DNA. */
+  /** Unbenutzt = kein anderer akzeptierter Link, kein Skript, keine DNA, kein Briefing. */
   static async personaUnbenutzt(personaId, eigeneVorschlagId = null) {
     let linkQuery = window.supabase
       .from('produkt_persona_vorschlag')
@@ -581,13 +608,14 @@ export class ProduktPersonaService {
       .eq('status', 'accepted');
     if (eigeneVorschlagId) linkQuery = linkQuery.neq('id', eigeneVorschlagId);
 
-    const [links, skripte, dna] = await Promise.all([
+    const [links, skripte, dna, briefings] = await Promise.all([
       linkQuery,
       window.supabase.from('skripte').select('id', { count: 'exact', head: true }).eq('persona_id', personaId),
-      window.supabase.from('skript_dna').select('id', { count: 'exact', head: true }).eq('persona_id', personaId)
+      window.supabase.from('skript_dna').select('id', { count: 'exact', head: true }).eq('persona_id', personaId),
+      window.supabase.from('campaign_briefings').select('id', { count: 'exact', head: true }).contains('persona_ids', [personaId])
     ]);
 
-    return !(links.count > 0 || skripte.count > 0 || dna.count > 0);
+    return !(links.count > 0 || skripte.count > 0 || dna.count > 0 || briefings.count > 0);
   }
 
   // --- Persona-seitige Verknuepfung ---
@@ -688,6 +716,97 @@ export class ProduktPersonaService {
         if (error) throw error;
       }
     }
+
+    await recomputeBriefingProdukteForPersona(personaId);
+  }
+
+  static useCaseIdsFromKarte(karte) {
+    return (karte.useCaseKeys || [])
+      .filter(key => this.isUuid(key));
+  }
+
+  /**
+   * Uebernehmen im Drawer: Persona sofort anlegen (neu) bzw. Marken
+   * anhaengen (match). Existiert das Produkt schon, wird der Vorschlag
+   * sofort geschrieben. Sonst haengt persona_id an der In-Memory-Karte.
+   */
+  static async uebernehmen(karte, { produktId = null, unternehmenId, markeIds = [] } = {}) {
+    if (!unternehmenId) throw new Error('Bitte zuerst ein Unternehmen wählen');
+    const materialisiert = await this.materialize(karte, { unternehmenId, markeIds });
+    const next = {
+      ...karte,
+      status: 'accepted',
+      persona_id: materialisiert.personaId,
+      payload: materialisiert.payload
+    };
+    if (produktId) {
+      const id = await this.upsertVorschlag(karte.id, {
+        produkt_id: produktId,
+        typ: karte.typ,
+        status: 'accepted',
+        persona_id: materialisiert.personaId,
+        payload: materialisiert.payload,
+        fit_grund: karte.fit_grund || null,
+        use_case_ids: this.useCaseIdsFromKarte(next),
+        position: karte.position ?? 0
+      });
+      next.id = id;
+      next.persisted = { status: 'accepted', persona_id: materialisiert.personaId };
+      await recomputeBriefingProdukteForPersona(materialisiert.personaId);
+    } else {
+      next.persisted = null;
+    }
+    return next;
+  }
+
+  /** Speichern nach Uebernehmen: Stammdaten der Live-Persona aktualisieren. */
+  static async aktualisierePersona(karte, { personaPayload, markeIds = [], audienceSituations = [] } = {}) {
+    if (!karte.persona_id) throw new Error('Persona fehlt');
+    await PersonaService.update(karte.persona_id, personaPayload);
+    await PersonaService.saveMarken(karte.persona_id, markeIds);
+    await PersonaService.syncAudienceSituations(karte.persona_id, audienceSituations);
+    const payload = {
+      ...(karte.payload || {}),
+      ...personaPayload,
+      _audience_situations: (audienceSituations || [])
+        .filter(r => !r.deleted && String(r.name || '').trim())
+        .map(r => ({
+          name: String(r.name).trim(),
+          beschreibung: String(r.beschreibung || '').trim() || null
+        }))
+    };
+    return { ...karte, payload };
+  }
+
+  /**
+   * Zuruecknehmen: dematerialize sofort. Persistierte Vorschlags-Zeile
+   * wird pending, sonst bleibt der Stand nur im Panel.
+   */
+  static async zuruecknehmen(karte, { produktId = null } = {}) {
+    const demat = await this.dematerialize(karte);
+    const next = {
+      ...karte,
+      status: 'pending',
+      persona_id: demat.personaId,
+      payload: demat.payload
+    };
+    if (produktId && karte.id) {
+      await this.upsertVorschlag(karte.id, {
+        produkt_id: produktId,
+        typ: karte.typ,
+        status: 'pending',
+        persona_id: demat.personaId,
+        payload: demat.payload,
+        fit_grund: karte.fit_grund || null,
+        use_case_ids: this.useCaseIdsFromKarte(karte),
+        position: karte.position ?? 0
+      });
+      next.persisted = { status: 'pending', persona_id: demat.personaId };
+      if (demat.personaId) await recomputeBriefingProdukteForPersona(demat.personaId);
+    } else {
+      next.persisted = karte.id ? { status: 'pending', persona_id: demat.personaId } : null;
+    }
+    return next;
   }
 
   static isUuid(value) {

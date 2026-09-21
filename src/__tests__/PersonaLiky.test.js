@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createRequire } from 'module';
-import { LIKY_CAPABILITIES, likyHasChat, likyCanExtractUrl } from '../core/chat/likyCapabilities.js';
+import { LIKY_CAPABILITIES, likyHasChat, likyCanExtractUrl, likyCanExtractPdf } from '../core/chat/likyCapabilities.js';
 import { renderPersonaLikySlot } from '../modules/persona/PersonaLikySlot.js';
 import { PersonaLikyPanel, decidePersonaLikyAktion } from '../modules/persona/PersonaLikyPanel.js';
 import { PersonaAudienceSituationPanel } from '../modules/persona/PersonaAudienceSituationPanel.js';
@@ -8,13 +8,20 @@ import { ExtractReviewLayer } from '../core/form/ai/ExtractReviewLayer.js';
 
 const require = createRequire(import.meta.url);
 const { hasSpec, getSpec, buildFieldInstructions } = require('../../netlify/functions/_shared/extract-specs.js');
-const { sanitizePatches, sanitizeChatResult, CHAT_TOOL } = require('../../netlify/functions/_shared/persona-liky.js');
+const { sanitizePatches, sanitizeChatResult, sanitizeExtractResult, CHAT_TOOL, EXTRACT_TOOL } = require('../../netlify/functions/_shared/persona-liky.js');
 
 describe('Liky Capabilities Persona', () => {
-  it('persona: URL-Extract und Chat an', () => {
-    expect(LIKY_CAPABILITIES.persona).toEqual({ extract: 'url', chat: true, specFrom: 'server' });
+  it('persona: URL-Extract, PDF und Chat an', () => {
+    expect(LIKY_CAPABILITIES.persona).toEqual({ extract: ['url', 'pdf'], chat: true, specFrom: 'server' });
     expect(likyCanExtractUrl('persona')).toBe(true);
+    expect(likyCanExtractPdf('persona')).toBe(true);
     expect(likyHasChat('persona')).toBe(true);
+  });
+
+  it('briefing bleibt String-PDF, Helper akzeptiert beides', () => {
+    expect(LIKY_CAPABILITIES.briefing.extract).toBe('pdf');
+    expect(likyCanExtractPdf('briefing')).toBe(true);
+    expect(likyCanExtractUrl('briefing')).toBe(false);
   });
 });
 
@@ -22,9 +29,12 @@ describe('renderPersonaLikySlot', () => {
   it('Composer ist aktiv, kein disabled', () => {
     const html = renderPersonaLikySlot();
     expect(html).toContain('id="persona-liky-feed"');
+    expect(html).toContain('doc-chat__feed chat-log');
     expect(html).toContain('id="persona-liky-input"');
+    expect(html).toContain('<textarea');
     expect(html).toContain('id="persona-liky-send"');
-    expect(html).toContain('Shop-URL oder ein paar Sätze');
+    expect(html).toContain('Shop-URL, PDF oder ein paar Sätze');
+    expect(html).toContain('id="persona-liky-chips"');
     expect(html).not.toContain('disabled');
     expect(html).not.toContain('doc-chat__composer--bald');
     expect(html).not.toContain('data-ai-extract');
@@ -77,6 +87,11 @@ describe('persona-liky Chat-Sanitize', () => {
     expect(CHAT_TOOL.input_schema.required).toContain('reply');
   });
 
+  it('EXTRACT_TOOL heisst persona_extract_abgeben', () => {
+    expect(EXTRACT_TOOL.name).toBe('persona_extract_abgeben');
+    expect(EXTRACT_TOOL.input_schema.required).toContain('fields');
+  });
+
   it('sanitizePatches laesst nur Persona-Felder durch und setzt force', () => {
     const out = sanitizePatches({
       name: { value: 'Sarah', force: true, kind: 'guess' },
@@ -109,6 +124,26 @@ describe('persona-liky Chat-Sanitize', () => {
     });
     expect(wenig.reply).toBe('Verstanden.');
     expect(wenig.audience_situations).toEqual([]);
+  });
+
+  it('sanitizeExtractResult setzt from=PDF und force=false', () => {
+    const out = sanitizeExtractResult({
+      fields: {
+        name: { value: 'Mara', kind: 'fact', from: 'Seite 2' },
+        oberbegriff: 'Berufstätige Mutter',
+        unbekannt: { value: 'x' }
+      },
+      audience_situations: [
+        { name: 'morgens unter Zeitdruck' },
+        { name: 'nach der Schicht' }
+      ]
+    });
+    expect(out.fields.name).toEqual({ value: 'Mara', kind: 'fact', from: 'Seite 2', force: false });
+    expect(out.fields.oberbegriff).toEqual({
+      value: 'Berufstätige Mutter', kind: 'guess', from: 'PDF', force: false
+    });
+    expect(out.fields.unbekannt).toBeUndefined();
+    expect(out.audience_situations).toHaveLength(2);
   });
 });
 
@@ -221,6 +256,50 @@ describe('PersonaLikyPanel Unternehmen-Gate', () => {
     expect(form.querySelector('#persona-liky-input').value).toBe('');
     panel.destroy();
     form.remove();
+  });
+});
+
+describe('PersonaLikyPanel PDF-Chip', () => {
+  let form;
+  let panel;
+
+  beforeEach(() => {
+    form = document.createElement('form');
+    form.innerHTML = `
+      <div class="doc__side">
+        <div id="persona-liky-feed"></div>
+        <div id="persona-liky-composer">
+          <div id="persona-liky-chips"></div>
+          <input id="persona-liky-input">
+          <button type="button" id="persona-liky-send"></button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(form);
+    panel = new PersonaLikyPanel();
+    panel.mount(form);
+  });
+
+  afterEach(() => {
+    panel.destroy();
+    form.remove();
+  });
+
+  it('PDF landet als Chip, Nicht-PDF wird abgelehnt', () => {
+    panel.attachFile(new File(['x'], 'briefing.pdf', { type: 'application/pdf' }));
+    expect(panel.pendingFile?.name).toBe('briefing.pdf');
+    expect(form.querySelector('#persona-liky-chips').textContent).toContain('briefing.pdf');
+
+    panel.attachFile(new File(['x'], 'foto.png', { type: 'image/png' }));
+    expect(panel.pendingFile?.name).toBe('briefing.pdf');
+    expect(form.querySelector('#persona-liky-feed').textContent).toContain('Nur PDF');
+  });
+
+  it('ohne Unternehmen kein PDF-Lauf', async () => {
+    panel.attachFile(new File(['x'], 'briefing.pdf', { type: 'application/pdf' }));
+    await panel.onSend();
+    expect(form.querySelector('#persona-liky-feed').textContent).toContain('Erst das Unternehmen');
+    expect(panel.pendingFile).toBeNull();
   });
 });
 

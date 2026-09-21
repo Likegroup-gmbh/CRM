@@ -4,6 +4,7 @@
 // `this` als DynamicDataLoader-Instanz (für Zugriff auf cache, dataService, etc.).
 
 import { KampagneUtils } from '../../../modules/kampagne/KampagneUtils.js';
+import { isFinalisiert } from '../../finalisiert.js';
 
 // Feldoptionen laden - grosser Dispatcher je nach Feld-Typ
 // `this` = DynamicDataLoader
@@ -216,7 +217,7 @@ async function loadSwitchCaseOptions(entity, field, form) {
 
     case 'auftrag_id': {
       const auftraege = await this.dataService.loadEntities('auftrag');
-      options = auftraege.map(a => ({
+      options = auftraege.filter(isFinalisiert).map(a => ({
         value: a.id,
         label: a.auftragsname || 'Unbekannter Auftrag'
       }));

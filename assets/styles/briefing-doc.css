@@ -81,6 +81,15 @@
   color: var(--text-tertiary);
 }
 
+.briefing-doc__personas {
+  margin: 0 0 var(--space-sm);
+  max-width: 32rem;
+}
+
+.briefing-doc__personas .searchable-select-container {
+  font-weight: 400;
+}
+
 .briefing-doc__title {
   margin: 0 0 var(--space-xs);
   font-size: var(--text-xxxl);

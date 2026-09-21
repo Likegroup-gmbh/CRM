@@ -81,6 +81,28 @@ export const personaConfig = {
       docGroup: 'identitaet',
       section: 'identitaet'
     },
+    {
+      name: 'briefing_ids',
+      label: 'Briefings',
+      type: 'multiselect',
+      required: false,
+      dynamic: true,
+      searchable: true,
+      tagBased: true,
+      table: 'campaign_briefings',
+      displayField: 'aktivierung_name',
+      valueField: 'id',
+      filterBy: 'unternehmen_id',
+      dependsOn: 'unternehmen_id',
+      customField: true,
+      placeholder: 'Briefings suchen und hinzufügen...',
+      helpText: 'Optional. Dieselbe Persona kann an mehreren Briefings hängen.',
+      docRole: 'relations',
+      docLabel: 'Briefings',
+      docHint: 'Optional. Dieselbe Persona kann an mehreren Briefings hängen.',
+      docGroup: 'identitaet',
+      section: 'identitaet'
+    },
 
     // 2. Demografische Merkmale
     {

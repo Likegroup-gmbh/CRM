@@ -7,6 +7,7 @@
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { renderBriefingDoc, bindBriefingDoc } from './BriefingDocView.js';
 import { loadBriefingProdukte } from './BriefingProdukte.js';
+import { bindBriefingPersonaPicker, loadPersonasForBriefing } from './BriefingPersonas.js';
 
 export class BriefingDetail {
   constructor() {
@@ -15,6 +16,7 @@ export class BriefingDetail {
     this.compactView = true;
     this._abortController = null;
     this._docHandle = null;
+    this._personaHandle = null;
   }
 
   canEdit() {
@@ -64,6 +66,7 @@ export class BriefingDetail {
     this.briefing = data;
     this.briefing.produkte = await loadBriefingProdukte(this.briefingId);
     const personaIds = Array.isArray(data.persona_ids) ? data.persona_ids.filter(Boolean) : [];
+    this.briefing.personaOptions = await loadPersonasForBriefing(data.unternehmen_id);
     if (personaIds.length && window.supabase) {
       const { data: personas } = await window.supabase
         .from('personas')
@@ -121,9 +124,21 @@ export class BriefingDetail {
         if (this.briefing) this.briefing[feld] = text;
       }
     });
+    this._personaHandle = bindBriefingPersonaPicker(root, {
+      briefing: this.briefing,
+      canEdit: this.canEdit(),
+      onChanged: async () => {
+        await this.loadData();
+        await this.render();
+      }
+    });
   }
 
   async _unbindDoc() {
+    if (this._personaHandle) {
+      try { this._personaHandle.destroy(); } catch (_) { /* Unmount trotzdem */ }
+      this._personaHandle = null;
+    }
     if (!this._docHandle) return;
     try {
       await this._docHandle.destroy();

@@ -3,6 +3,7 @@
 
 import { strategieService } from './StrategieService.js';
 import { prefillAndLockField } from '../../core/form/data/PrefillHandler.js';
+import { applyFinalisiertFilter } from '../../core/finalisiert.js';
 
 export function showHowToModal() {
   if (window.modalSystem) {
@@ -384,8 +385,8 @@ async function renderEditBriefingField(list, strategie) {
   let query = window.supabase
     .from('campaign_briefings')
     .select('id, aktivierung_name')
-    .eq('unternehmen_id', strategie.unternehmen_id)
-    .eq('is_draft', false)
+    .eq('unternehmen_id', strategie.unternehmen_id);
+  query = applyFinalisiertFilter(query, 'campaign_briefings')
     .order('created_at', { ascending: false });
   if (strategie.marke_id) {
     query = query.eq('marke_id', strategie.marke_id);

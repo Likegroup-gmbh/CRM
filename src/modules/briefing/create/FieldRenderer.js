@@ -207,26 +207,18 @@ function renderChannelGroup(field, formData) {
 
   const blocks = field.channels.map(channel => {
     const channelValue = value[channel.key];
-    if (!channel.formats) {
-      // Toggle-Plattform ohne Unterformate
-      return `
-        <div class="bf-channel">
-          <label class="checkbox-label bf-channel__title">
-            <input type="checkbox" name="${field.name}__${channel.key}" value="true" ${channelValue === true ? 'checked' : ''}>
-            <span>${escapeHtml(channel.label)}</span>
-          </label>
-        </div>
-      `;
-    }
-    const selected = Array.isArray(channelValue) ? channelValue : [];
-    const formats = channel.formats.map(fmt => `
+    const formatOptions = channel.formats || [{ value: 'true', label: channel.label }];
+    const selected = channel.formats
+      ? (Array.isArray(channelValue) ? channelValue : [])
+      : (channelValue === true ? ['true'] : []);
+    const formats = formatOptions.map(fmt => `
       <label class="checkbox-label">
         <input type="checkbox" name="${field.name}__${channel.key}" value="${escapeHtml(fmt.value)}" ${selected.includes(fmt.value) ? 'checked' : ''}>
         <span>${escapeHtml(fmt.label)}</span>
       </label>
     `).join('');
     return `
-      <div class="bf-channel">
+      <div class="bf-channel${channel.formats ? '' : ' bf-channel--toggle'}">
         <div class="bf-channel__title">${escapeHtml(channel.label)}</div>
         <div class="checkbox-group checkbox-group--compact">${formats}</div>
       </div>
@@ -234,7 +226,7 @@ function renderChannelGroup(field, formData) {
   }).join('');
 
   const customBlock = field.customLabel ? `
-    <div class="bf-channel">
+    <div class="bf-channel bf-channel--custom">
       <div class="bf-channel__title">${escapeHtml(field.customLabel)}</div>
       <input type="text" name="${field.name}__weitere" value="${escapeHtml(value.weitere || '')}"
              placeholder="${escapeHtml(field.customPlaceholder || '')}">
@@ -425,6 +417,18 @@ function renderDisclosure(field, formData, context) {
   `;
 }
 
+function classList(...parts) {
+  return parts.filter(Boolean).join(' ');
+}
+
+function renderFieldGroup(field, formData, context) {
+  const layout = field.layout || 'stack';
+  const id = field.id || '';
+  const classes = classList('bf-field-group', `bf-field-group--${layout}`, id && `bf-field-group--${id}`);
+  const inner = (field.fields || []).map(f => renderField(f, formData, context)).join('');
+  return `<div class="${classes}"${id ? ` data-group="${escapeHtml(id)}"` : ''}>${inner}</div>`;
+}
+
 export function renderField(field, formData, context) {
   let html;
   switch (field.type) {
@@ -444,20 +448,27 @@ export function renderField(field, formData, context) {
     case 'entitySelect': html = renderEntitySelect(field, formData, context); break;
     case 'entityMulti': html = renderEntityMulti(field, formData, context); break;
     case 'disclosure': html = renderDisclosure(field, formData, context); break;
+    case 'fieldGroup': html = renderFieldGroup(field, formData, context); break;
     default: html = renderTextLike(field, formData, 'text');
   }
   return wrapConditional(html, field.condition, formData);
 }
 
-export function renderSection(section, formData, context) {
+export function renderSection(section, formData, context, stepId = '') {
   const fields = section.fields.map(f => renderField(f, formData, context)).join('');
   const header = (section.title || section.description) ? `
       <div class="step-section__header">
         ${section.title ? `<h3>${escapeHtml(section.title)}</h3>` : ''}
         ${section.description ? `<p class="step-description">${escapeHtml(section.description)}</p>` : ''}
       </div>` : '';
+  const sectionId = section.id || '';
+  const classes = classList('step-section', sectionId && `step-section--${sectionId}`);
+  const dataAttrs = classList(
+    sectionId && `data-section="${escapeHtml(sectionId)}"`,
+    stepId && `data-step="${escapeHtml(stepId)}"`
+  );
   const html = `
-    <div class="step-section">${header}
+    <div class="${classes}"${dataAttrs ? ` ${dataAttrs}` : ''}>${header}
       ${fields}
     </div>
   `;
@@ -465,5 +476,8 @@ export function renderSection(section, formData, context) {
 }
 
 export function renderStep(stepDef, formData, context) {
-  return stepDef.sections.map(s => renderSection(s, formData, context)).join('');
+  const stepId = stepDef.id || '';
+  const sections = stepDef.sections.map(s => renderSection(s, formData, context, stepId)).join('');
+  const classes = classList('bf-step', stepId && `bf-step--${stepId}`);
+  return `<div class="${classes}"${stepId ? ` data-step="${escapeHtml(stepId)}"` : ''}>${sections}</div>`;
 }

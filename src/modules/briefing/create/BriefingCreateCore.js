@@ -5,7 +5,6 @@
 // Struktur 1:1 wie src/modules/vertrag/create/.
 
 import { loadProdukteForBriefing } from '../BriefingProdukte.js';
-import { loadPersonasForBriefing } from '../BriefingPersonas.js';
 import { OHNE_QUERY } from '../BriefingFolders.js';
 
 export class BriefingCreate {
@@ -17,7 +16,6 @@ export class BriefingCreate {
     this.marken = [];
     this.benutzer = [];
     this.produkte = [];
-    this.personas = [];
     this.isGenerated = false;
     this.editId = null;
     this._isRendering = false;
@@ -62,7 +60,6 @@ BriefingCreate.prototype.init = async function(editId = null) {
   } else {
     this.applyQueryPrefill();
     await this.refreshProdukte();
-    await this.refreshPersonas();
   }
 
   this.render();
@@ -99,7 +96,6 @@ BriefingCreate.prototype.loadStammdaten = async function() {
       .order('name');
     this.benutzer = benutzer || [];
     await this.refreshProdukte();
-    await this.refreshPersonas();
   } catch (error) {
     console.error('Fehler beim Laden der Stammdaten:', error);
   }
@@ -114,19 +110,6 @@ BriefingCreate.prototype.refreshProdukte = async function() {
   } catch (error) {
     console.error('Fehler beim Laden der Produkte:', error);
     this.produkte = [];
-  }
-};
-
-BriefingCreate.prototype.refreshPersonas = async function() {
-  try {
-    this.personas = await loadPersonasForBriefing(
-      this.formData.unternehmen_id,
-      this.formData.marke_id,
-      this.formData.produkt_ids
-    );
-  } catch (error) {
-    console.error('Fehler beim Laden der Personas:', error);
-    this.personas = [];
   }
 };
 

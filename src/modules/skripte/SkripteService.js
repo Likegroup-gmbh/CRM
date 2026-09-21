@@ -6,6 +6,7 @@ import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER, SKRIPT_BEREICHE, MASTER_BEREICHE } from './skripteKonstanten.js';
 import { planeVersionsRows } from './versionsNummerierung.js';
 import { briefingVorgaben } from './briefingVorgaben.js';
+import { applyFinalisiertFilter } from '../../core/finalisiert.js';
 
 export { FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER, SKRIPT_BEREICHE, MASTER_BEREICHE };
 
@@ -170,8 +171,8 @@ export class SkripteService {
 
     let q = this.db.from('campaign_briefings')
       .select('id, aktivierung_name, bereich, is_draft, im_funnel_stufen, pa_funnel_stufen, pa_videolaengen, im_formatvorgaben, os_formatvorgaben')
-      .eq('unternehmen_id', unternehmenId)
-      .eq('is_draft', false);
+      .eq('unternehmen_id', unternehmenId);
+    q = applyFinalisiertFilter(q, 'campaign_briefings');
 
     if (markeId) q = q.or(`marke_id.eq.${markeId},marke_id.is.null`);
 

@@ -126,42 +126,6 @@ describe('Briefing DataPersistence', () => {
     expect(instance.formData.bereich).toBe('influencer_marketing');
   });
 
-  it('saveCurrentStepData sammelt produkt_ids aus der Multi-Auswahl', () => {
-    document.body.innerHTML = `
-      <form id="briefing-form">
-        <div data-entity-multi="produkt_ids">
-          <select id="produkt_ids" name="produkt_ids" multiple>
-            <option value="p1" selected>Serum</option>
-            <option value="p2">Creme</option>
-            <option value="p3" selected>Toner</option>
-          </select>
-        </div>
-      </form>
-    `;
-
-    const instance = createInstance();
-    instance.saveCurrentStepData();
-    expect(instance.formData.produkt_ids).toEqual(['p1', 'p3']);
-  });
-
-  it('saveCurrentStepData liest produkt_ids aus dem Hidden-Select des Tag-Widgets', () => {
-    document.body.innerHTML = `
-      <form id="briefing-form">
-        <div data-entity-multi="produkt_ids">
-          <input type="text" id="produkt_ids" name="produkt_ids">
-          <select id="produkt_ids_hidden" name="produkt_ids[]" multiple>
-            <option value="p1" selected>Serum</option>
-            <option value="p3" selected>Toner</option>
-          </select>
-        </div>
-      </form>
-    `;
-
-    const instance = createInstance();
-    instance.saveCurrentStepData();
-    expect(instance.formData.produkt_ids).toEqual(['p1', 'p3']);
-  });
-
   it('prepareDataForDB leert Paid-Felder im Influencer-Briefing und spiegelt Prefix-Spalten', () => {
     const instance = createInstance();
     instance.formData = {
@@ -182,7 +146,8 @@ describe('Briefing DataPersistence', () => {
     expect(data.funnel_stufen).toBeNull();
     expect(data.im_nischen).toEqual(['beauty']);
     expect(data.im_umsetzung).toBe('Routine filmen');
-    expect(data.persona_ids).toEqual([]);
+    expect(data).not.toHaveProperty('persona_ids');
+    expect(data).not.toHaveProperty('produkt_ids');
   });
 
   it('prepareDataForDB speichert flache Voraussetzungen und Sonstige getrennt', () => {
@@ -227,7 +192,7 @@ describe('Briefing DataPersistence', () => {
     window.supabase = sb;
 
     const instance = createInstance();
-    instance.formData = { unternehmen_id: 'u1', aktivierung_name: 'Draft', produkt_ids: ['p1', 'p2'] };
+    instance.formData = { unternehmen_id: 'u1', aktivierung_name: 'Draft' };
 
     await instance.saveDraftToDB();
 
@@ -235,12 +200,10 @@ describe('Briefing DataPersistence', () => {
     expect(calls.insert[0].is_draft).toBe(true);
     expect(calls.insert[0].aktivierung_name).toBe('Draft');
     expect(calls.insert[0]).not.toHaveProperty('produkt_ids');
+    expect(calls.insert[0]).not.toHaveProperty('persona_ids');
     expect(instance.editId).toBe('briefing-1');
-    expect(calls.junctionDelete).toBe(1);
-    expect(calls.junctionInsert[0]).toEqual([
-      { briefing_id: 'briefing-1', produkt_id: 'p1' },
-      { briefing_id: 'briefing-1', produkt_id: 'p2' }
-    ]);
+    expect(calls.junctionDelete).toBe(0);
+    expect(calls.junctionInsert).toEqual([]);
     vi.useRealTimers();
   });
 
@@ -251,7 +214,7 @@ describe('Briefing DataPersistence', () => {
 
     const instance = createInstance();
     instance.editId = 'briefing-1';
-    instance.formData = { unternehmen_id: 'u1', aktivierung_name: 'Final', produkt_ids: ['p1'], persona_ids: ['pe1'] };
+    instance.formData = { unternehmen_id: 'u1', aktivierung_name: 'Final' };
 
     await instance.handleSubmit();
 
@@ -308,7 +271,7 @@ describe('Briefing DataPersistence', () => {
     expect(instance.formData.voraussetzungen).toEqual(['kind_familie', 'kueche']);
     expect(instance.formData.voraussetzungen_weiter).toBeUndefined();
     expect(instance.formData.marke_id).toBe('m1');
-    expect(instance.formData.produkt_ids).toEqual(['p1']);
-    expect(instance.formData.persona_ids).toEqual(['pe1']);
+    expect(instance.formData).not.toHaveProperty('produkt_ids');
+    expect(instance.formData).not.toHaveProperty('persona_ids');
   });
 });

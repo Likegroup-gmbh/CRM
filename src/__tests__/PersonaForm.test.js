@@ -23,6 +23,11 @@ vi.mock('../modules/produkt/ProduktPersonaService.js', () => ({
   }
 }));
 
+vi.mock('../modules/briefing/BriefingPersonas.js', () => ({
+  loadBriefingIdsForPersona: vi.fn(async () => []),
+  setPersonaBriefings: vi.fn(async () => {})
+}));
+
 vi.mock('../core/OwnerContext.js', () => ({
   resolveOwnerContext: vi.fn()
 }));
@@ -104,6 +109,9 @@ describe('PersonaForm', () => {
     // Produkte-Band wurde mit den verknuepften Produkten befuellt
     expect(ProduktPersonaService.loadProdukteForPersona).toHaveBeenCalledWith('p1');
     expect(form.produktPanel.getProduktIds()).toEqual(['prod-1']);
+
+    const { loadBriefingIdsForPersona } = await import('../modules/briefing/BriefingPersonas.js');
+    expect(loadBriefingIdsForPersona).toHaveBeenCalledWith('p1', { nurFinalisiert: true });
   });
 
   it('standalone new: kein Laden, leerer Kontext', async () => {
@@ -157,5 +165,12 @@ describe('PersonaForm', () => {
     expect(form.collectMarkenIds({ marke_ids: ['a', 'b'] })).toEqual(['a', 'b']);
     expect(form.collectMarkenIds({ marke_ids: 'a' })).toEqual(['a']);
     expect(form.collectMarkenIds({})).toEqual([]);
+  });
+
+  it('collectBriefingIds normalisiert das Tag-Feld auf ein Array', () => {
+    setPath('/persona/new');
+    expect(form.collectBriefingIds({ briefing_ids: ['b1', 'b2'] })).toEqual(['b1', 'b2']);
+    expect(form.collectBriefingIds({ briefing_ids: 'b1' })).toEqual(['b1']);
+    expect(form.collectBriefingIds({})).toEqual([]);
   });
 });

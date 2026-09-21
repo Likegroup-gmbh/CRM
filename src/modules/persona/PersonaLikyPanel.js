@@ -1,20 +1,23 @@
 // PersonaLikyPanel.js
-// Rechte Spalte am Persona-Worksheet: URL-Extract (extract_jobs) oder
-// Freitext-Chat (persona_liky_jobs). Ein Composer, Send entscheidet.
-// Was Liky darf, steht in likyCapabilities (persona: extract url, chat true).
+// Rechte Spalte am Persona-Worksheet: URL-Extract (extract_jobs),
+// PDF-Extract oder Freitext-Chat (persona_liky_jobs). Ein Composer, Send entscheidet.
+// Was Liky darf, steht in likyCapabilities (persona: extract url+pdf, chat true).
 
 import { renderThinking, pushStep } from '../../core/chat/thinking.js';
+import { isLikyPdfName, likyPdfTagHtml } from '../../core/chat/likyComposer.js';
 import { ExtractReviewLayer } from '../../core/form/ai/ExtractReviewLayer.js';
 import { ExtractCostBadge } from '../../core/form/ai/ExtractCostBadge.js';
 import { toAbsoluteUrl, requestExtractJob } from '../../core/form/ai/SiteExtractHandler.js';
-import { likyHasChat, likyCanExtractUrl } from '../../core/chat/likyCapabilities.js';
+import { likyHasChat, likyCanExtractUrl, likyCanExtractPdf } from '../../core/chat/likyCapabilities.js';
+import { bindChatLog } from '../../core/chat/chatLog.js';
 
 const ENTITY = 'persona';
 const CHAT_ENDPOINT = '/.netlify/functions/persona-liky-background';
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 3 * 60 * 1000;
+const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
-const GRUSS = 'Schick mir eine Shop-URL oder beschreib die Persona in ein paar Sätzen. '
+const GRUSS = 'Schick mir eine Shop-URL, ein PDF oder beschreib die Persona in ein paar Sätzen. '
   + 'Ich fülle das Dokument. Was du selbst geschrieben hast, bleibt stehen.';
 
 const SNAPSHOT_FELDER = [
@@ -47,7 +50,9 @@ export class PersonaLikyPanel {
     this.turn = null;
     this.slot = null;
     this.received = [];
+    this.pendingFile = null;
     this._abort = null;
+    this._chatLog = null;
   }
 
   mount(form, { getUnternehmenId = null, getSituationPanel = null } = {}) {
@@ -60,8 +65,10 @@ export class PersonaLikyPanel {
     this.getSituationPanel = getSituationPanel;
     this.review = new ExtractReviewLayer(this.form);
     this.feed.setAttribute('aria-live', 'polite');
+    this._chatLog = bindChatLog(this.feed);
     this.renderTranscript();
     this.bindComposer();
+    this.renderChip();
   }
 
   bindComposer() {
@@ -69,6 +76,7 @@ export class PersonaLikyPanel {
     const opts = { signal: this._abort.signal };
     const send = document.getElementById('persona-liky-send');
     const input = document.getElementById('persona-liky-input');
+    const composer = document.getElementById('persona-liky-composer');
     if (!send || !input) return;
 
     send.addEventListener('click', () => this.onSend(), opts);
@@ -78,11 +86,90 @@ export class PersonaLikyPanel {
         this.onSend();
       }
     }, opts);
+
+    if (!likyCanExtractPdf(ENTITY) || !composer) return;
+
+    input.addEventListener('paste', (e) => {
+      const file = [...(e.clipboardData?.files || [])][0];
+      if (file) {
+        e.preventDefault();
+        this.attachFile(file);
+      }
+    }, opts);
+
+    const side = this.feed.closest('.doc__side') || composer;
+    side.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      composer.classList.add('is-dragover');
+    }, opts);
+    side.addEventListener('dragleave', (e) => {
+      if (!side.contains(e.relatedTarget)) {
+        composer.classList.remove('is-dragover');
+      }
+    }, opts);
+    side.addEventListener('drop', (e) => {
+      e.preventDefault();
+      composer.classList.remove('is-dragover');
+      const file = e.dataTransfer?.files?.[0];
+      if (file) this.attachFile(file);
+    }, opts);
+  }
+
+  attachFile(file) {
+    if (!likyCanExtractPdf(ENTITY)) {
+      this.pushLiky('PDF-Auslesen ist auf dieser Seite ausgeschaltet.');
+      return;
+    }
+    if (file.type !== 'application/pdf') {
+      this.pushLiky('Nur PDF. Kein Word, kein PNG.');
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      this.pushLiky('Zu groß. Maximal 20 MB.');
+      return;
+    }
+    this.pendingFile = file;
+    this.renderChip();
+  }
+
+  clearPendingFile() {
+    this.pendingFile = null;
+    this.renderChip();
+  }
+
+  renderChip() {
+    const chips = document.getElementById('persona-liky-chips');
+    if (!chips) return;
+    if (!this.pendingFile) {
+      chips.innerHTML = '';
+      return;
+    }
+    chips.innerHTML = likyPdfTagHtml(this.pendingFile.name, { remove: true });
+    chips.querySelector('button')?.addEventListener('click', () => this.clearPendingFile());
   }
 
   async onSend() {
     if (this.running) return;
     const input = document.getElementById('persona-liky-input');
+
+    if (this.pendingFile) {
+      const file = this.pendingFile;
+      this.clearPendingFile();
+      if (input) input.value = '';
+      if (!this.unternehmenId()) {
+        this.pushUser(file.name);
+        this.pushLiky('Erst das Unternehmen wählen, dann das PDF.');
+        return;
+      }
+      if (!likyCanExtractPdf(ENTITY)) {
+        this.pushUser(file.name);
+        this.pushLiky('PDF-Auslesen ist auf dieser Seite ausgeschaltet.');
+        return;
+      }
+      await this.runPdfExtract(file);
+      return;
+    }
+
     const entscheidung = decidePersonaLikyAktion(input?.value);
     if (!entscheidung) return;
     if (input) input.value = '';
@@ -155,19 +242,58 @@ export class PersonaLikyPanel {
     }
   }
 
+  async runPdfExtract(file) {
+    this.setRunning(true);
+    this.pushUser(file.name);
+    this.openLikyTurn();
+    this.review?.revertAll();
+
+    const send = document.getElementById('persona-liky-send');
+    const costBadge = new ExtractCostBadge(this.form, send);
+    costBadge.clear();
+
+    try {
+      const pdfPath = await this.uploadPdf(file);
+      const result = await this.runLikyJob('extract', { pdfPath });
+      const { applied } = this.applyFields(result.fields || {});
+      const situations = this.applySituations(result.audience_situations);
+      costBadge.show(result);
+      this.finishExtract({ ok: true, applied, situations, felder: Object.keys(result.fields || {}).length });
+    } catch (error) {
+      console.error('Persona-PDF-Extract:', error);
+      this.finishExtract({ ok: false, error: error.message });
+    } finally {
+      this.setRunning(false);
+    }
+  }
+
+  async uploadPdf(file) {
+    const session = await window.supabase?.auth?.getSession();
+    const userId = session?.data?.session?.user?.id;
+    if (!userId) throw new Error('Keine aktive Sitzung');
+
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = `persona-liky/${userId}/${Date.now()}_${safeName}`;
+    const { error } = await window.supabase.storage
+      .from('documents')
+      .upload(path, file, { upsert: false });
+    if (error) throw new Error(`Upload fehlgeschlagen: ${error.message}`);
+    return path;
+  }
+
   finishExtract({ ok, applied = [], situations = false, felder = 0, error = null }) {
     if (this.slot && this.received.length) {
       renderThinking(this.slot, this.received, { done: true });
     }
     if (!ok) {
-      this.addError(error || 'Prüf die Adresse und versuch es nochmal.');
+      this.addError(error || 'Prüf die Quelle und versuch es nochmal.');
       return;
     }
     const lines = [];
     if (applied.length || situations) {
       lines.push('Fertig, schau es dir an. Was ich nur vermute, ist im Dokument markiert.');
     } else if (!felder) {
-      lines.push('Auf der Seite war nichts Brauchbares zu finden.');
+      lines.push('Da war nichts Brauchbares zu finden.');
     } else {
       lines.push('Alles war schon ausgefüllt – ich habe nichts angerührt.');
     }
@@ -184,7 +310,14 @@ export class PersonaLikyPanel {
     this.openLikyTurn();
 
     try {
-      const result = await this.runChatJob(text);
+      const result = await this.runLikyJob('chat', {
+        userText: text,
+        formData: this.snapshot(),
+        history: this.transcript.slice(-20).map((t) => ({
+          rolle: t.rolle === 'user' ? 'user' : 'assistant',
+          inhalt: t.text
+        }))
+      });
       const patches = result.patches || {};
       const { applied } = this.applyFields(patches);
       const situations = this.applySituations(result.audience_situations);
@@ -198,7 +331,7 @@ export class PersonaLikyPanel {
     }
   }
 
-  async runChatJob(userText) {
+  async runLikyJob(modus, extra) {
     const session = await window.supabase?.auth?.getSession();
     const token = session?.data?.session?.access_token;
     if (!token) throw new Error('Keine aktive Sitzung');
@@ -206,7 +339,7 @@ export class PersonaLikyPanel {
     const { data: job, error: insertError } = await window.supabase
       .from('persona_liky_jobs')
       .insert({
-        modus: 'chat',
+        modus,
         created_by: session.data.session.user.id
       })
       .select('id')
@@ -218,12 +351,8 @@ export class PersonaLikyPanel {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({
         jobId: job.id,
-        userText,
-        formData: this.snapshot(),
-        history: this.transcript.slice(-20).map((t) => ({
-          rolle: t.rolle === 'user' ? 'user' : 'assistant',
-          inhalt: t.text
-        }))
+        modus,
+        ...extra
       })
     });
     if (response.status !== 202 && !response.ok) {
@@ -330,7 +459,7 @@ export class PersonaLikyPanel {
     if (!text) return;
     this.transcript.push({ rolle: 'user', text });
     this.feed?.appendChild(this.userNode(text));
-    this.scrollToEnd();
+    this._chatLog?.pin({ force: true });
   }
 
   pushLiky(text) {
@@ -349,7 +478,7 @@ export class PersonaLikyPanel {
     for (const turn of turns) {
       this.feed.appendChild(turn.rolle === 'user' ? this.userNode(turn.text) : this.likyNode(turn.text));
     }
-    this.scrollToEnd();
+    this._chatLog?.pin({ force: true });
   }
 
   openLikyTurn() {
@@ -399,6 +528,10 @@ export class PersonaLikyPanel {
   userNode(text) {
     const msg = document.createElement('div');
     msg.className = 'doc-chat__msg doc-chat__msg--user';
+    if (isLikyPdfName(text)) {
+      msg.innerHTML = likyPdfTagHtml(text);
+      return msg;
+    }
     const el = document.createElement('div');
     el.className = 'doc-chat__text';
     el.textContent = text;
@@ -434,10 +567,12 @@ export class PersonaLikyPanel {
   }
 
   scrollToEnd() {
-    if (this.feed) this.feed.scrollTop = this.feed.scrollHeight;
+    this._chatLog?.pin();
   }
 
   destroy() {
+    this._chatLog?.destroy();
+    this._chatLog = null;
     if (this._abort) {
       try { this._abort.abort(); } catch (_) { /* noop */ }
       this._abort = null;
@@ -446,6 +581,7 @@ export class PersonaLikyPanel {
     this.turn = null;
     this.slot = null;
     this.received = [];
+    this.pendingFile = null;
     this.review = null;
     this.form = null;
     this.feed = null;

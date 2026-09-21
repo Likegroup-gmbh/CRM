@@ -7,6 +7,7 @@
 import { addVideoRow, buildVideoSelectOptions } from '../../core/form/logic/events/VideosFields.js';
 import { setup as setupKooperationTags } from '../../core/form/logic/events/KooperationTagsEvents.js';
 import { makeRecalcAllPrices, attachVideoStepper, refreshStepperUI } from './KooperationStepperBinder.js';
+import { applyFinalisiertFilter } from '../../core/finalisiert.js';
 
 export class KooperationEditLoader {
   // Einstiegspunkt: alle Daten parallel laden + Felder befüllen
@@ -191,11 +192,13 @@ export class KooperationEditLoader {
 
   async _loadBriefings(unternehmenId) {
     if (!unternehmenId || !window.supabase) return [];
-    const { data } = await window.supabase
-      .from('campaign_briefings')
-      .select('id, aktivierung_name')
-      .eq('unternehmen_id', unternehmenId)
-      .order('aktivierung_name');
+    const { data } = await applyFinalisiertFilter(
+      window.supabase
+        .from('campaign_briefings')
+        .select('id, aktivierung_name')
+        .eq('unternehmen_id', unternehmenId),
+      'campaign_briefings'
+    ).order('aktivierung_name');
     return data || [];
   }
 

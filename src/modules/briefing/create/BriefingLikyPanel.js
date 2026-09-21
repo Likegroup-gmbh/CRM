@@ -17,8 +17,9 @@
 import { renderThinking, pushStep } from '../../../core/chat/thinking.js';
 import { isLikyPdfName, likyPdfTagHtml } from '../../../core/chat/likyComposer.js';
 import { BriefingExtractApply, coerceFieldMap } from './BriefingExtractApply.js';
-import { getStepsForBereich } from './fieldConfig.js';
+import { flattenFields, getStepsForBereich } from './fieldConfig.js';
 import { likyCanExtractPdf, likyHasChat } from '../../../core/chat/likyCapabilities.js';
+import { bindChatLog } from '../../../core/chat/chatLog.js';
 
 const ENTITY = 'briefing';
 const ENDPOINT = '/.netlify/functions/briefing-pdf-background';
@@ -49,12 +50,12 @@ function valueShape(field) {
   }
 }
 
-function buildSpec(bereich) {
+export function buildSpec(bereich) {
   const steps = getStepsForBereich(bereich);
   const fields = [];
   for (const step of steps) {
     for (const section of step.sections || []) {
-      for (const field of section.fields || []) {
+      for (const field of flattenFields(section.fields)) {
         if (field.persist === false) continue;
         // Entity-Felder sind schon gewaehlt (Unternehmen ist Pflicht vor dem
         // Upload) - das Modell wuerde sonst Namen statt IDs liefern.
@@ -113,14 +114,18 @@ export class BriefingLikyPanel {
     this.turn = null;
     this.slot = null;
     this.received = [];
+    this._chatLog = null;
   }
 
   /** Nach jedem renderMultistep: DOM-Refs neu holen, Verlauf wiederzeichnen. */
   mount() {
+    this._chatLog?.destroy();
+    this._chatLog = null;
     this.side = document.querySelector('.briefing-liky-side');
     this.feed = document.getElementById('briefing-liky-feed');
     if (!this.side || !this.feed) return;
 
+    this._chatLog = bindChatLog(this.feed);
     this.apply.setForm(document.getElementById('briefing-form'));
     this.turn = null;
     this.slot = null;
@@ -488,7 +493,7 @@ export class BriefingLikyPanel {
     for (const turn of turns) {
       this.feed.appendChild(turn.rolle === 'user' ? this.userNode(turn.text) : this.likyNode(turn.text));
     }
-    this.scrollToEnd();
+    this._chatLog?.pin({ force: true });
   }
 
   /** Transienter Beitrag mit Thinking-Slot fuer den laufenden Job. */
@@ -600,10 +605,12 @@ export class BriefingLikyPanel {
   }
 
   scrollToEnd() {
-    if (this.feed) this.feed.scrollTop = this.feed.scrollHeight;
+    this._chatLog?.pin();
   }
 
   destroy() {
+    this._chatLog?.destroy();
+    this._chatLog = null;
     this.transcript = [];
     this.hydrated = false;
     this.pendingFile = null;

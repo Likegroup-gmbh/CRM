@@ -303,25 +303,14 @@ export class BriefingExtractApply {
   }
 
   /**
-   * Bekannte Produkte aus produkte_hint in produkt_ids schreiben.
-   * Entity-Felder sind nicht in der Spec - ohne das landen existierende
-   * Produkte nie im Formular. Nur wenn produkt_ids noch leer ist.
-   * katalog: Produkte des Unternehmens (id + name), falls Claude die UUID
-   * nicht geliefert hat.
+   * Loest Produktnamen aus dem PDF gegen den Katalog auf, schreibt sie
+   * aber nicht mehr ins Briefing (Produkte kommen nur ueber Persona-Fit).
+   * Die aufgeloesten Hints bleiben fuer die Chat-Meldung.
    * @returns {{ applied: string[], hints: Array<{ name: string, produkt_id: string|null }> }}
    */
   applyProduktHints(hints, katalog = []) {
     const resolved = resolveProduktHints(hints, katalog);
-    const ids = [...new Set(resolved
-      .map((p) => String(p.produkt_id || '').trim())
-      .filter((id) => UUID_RE.test(id)))];
-    if (!ids.length || !this.isEmpty(this.briefing.formData.produkt_ids)) {
-      return { applied: [], hints: resolved };
-    }
-
-    this.briefing.formData.produkt_ids = ids;
-    this.aiFill.set('produkt_ids', { from: 'PDF', kind: 'fact' });
-    return { applied: ['Produkte'], hints: resolved };
+    return { applied: [], hints: resolved };
   }
 
   /** Chat-Patches: duerfen vorhandene Werte aendern (Explizite Steuerung). */

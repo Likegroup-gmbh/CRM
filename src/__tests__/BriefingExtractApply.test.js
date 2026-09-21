@@ -182,14 +182,14 @@ describe('BriefingExtractApply.apply (Extract)', () => {
 });
 
 describe('BriefingExtractApply.applyProduktHints', () => {
-  it('schreibt bekannte Produkt-IDs, wenn produkt_ids leer ist', () => {
+  it('schreibt keine produkt_ids mehr ins Formular', () => {
     const apply = createApply();
     const { applied, hints } = apply.applyProduktHints([
       { name: 'IRONCLAD FORCE-FIT Leggings', produkt_id: PRODUKT_ID },
       { name: 'Unbekannt', produkt_id: null }
     ]);
-    expect(apply.briefing.formData.produkt_ids).toEqual([PRODUKT_ID]);
-    expect(applied).toEqual(['Produkte']);
+    expect(apply.briefing.formData).not.toHaveProperty('produkt_ids');
+    expect(applied).toEqual([]);
     expect(hints[1].produkt_id).toBeNull();
   });
 
@@ -199,8 +199,8 @@ describe('BriefingExtractApply.applyProduktHints', () => {
       [{ name: 'IRONCLAD FORCE-FIT Leggings', produkt_id: null }],
       [{ id: PRODUKT_ID, name: 'IRONCLAD FORCE-FIT Leggings' }]
     );
-    expect(apply.briefing.formData.produkt_ids).toEqual([PRODUKT_ID]);
-    expect(applied).toEqual(['Produkte']);
+    expect(apply.briefing.formData).not.toHaveProperty('produkt_ids');
+    expect(applied).toEqual([]);
     expect(hints[0].produkt_id).toBe(PRODUKT_ID);
   });
 
@@ -213,7 +213,7 @@ describe('BriefingExtractApply.applyProduktHints', () => {
     expect(hints[0].produkt_id).toBe(PRODUKT_ID);
   });
 
-  it('laesst vorhandene produkt_ids stehen', () => {
+  it('laesst formData unangetastet, auch wenn schon produkt_ids da waren', () => {
     const apply = createApply({ produkt_ids: ['aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'] });
     const { applied } = apply.applyProduktHints([
       { name: 'IRONCLAD FORCE-FIT Leggings', produkt_id: PRODUKT_ID }

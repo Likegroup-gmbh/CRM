@@ -114,7 +114,8 @@ const PERSONA_TOOL = {
                 budgetrahmen: { type: ['string', 'null'], enum: ['niedrig', 'mittel', 'hoch'], description: 'niedrig, mittel oder hoch – genau einer der drei Werte, keine Ranges' },
                 bildungsstand: { type: ['string', 'null'] },
                 lebenssituation: { type: ['string', 'null'], description: 'Single, Familie, Paar ohne Kinder, Alleinerziehend, Student/in, Rentner/in, Mensch mit Behinderung, WG / Wohngemeinschaft' },
-                pain_points: { type: ['string', 'null'], description: 'Konkrete Probleme im Alltag, produktrelevant zuerst' },
+                branche_id: { type: ['string', 'null'], description: 'UUID einer Branche, nur wenn sie im Auftrag steht. Keine erfundenen IDs.' },
+                pain_points: { type: ['string', 'null'], description: 'Konkrete Alltagsprobleme dieser Person. Ein Punkt pro Zeile, maximal fuenf. Keine Produktvorteile, keine Kampagnenideen.' },
                 interessen: { type: ['string', 'null'] },
                 beduerfnisse: { type: ['string', 'null'] },
                 kaufmotive: { type: ['string', 'null'] },
@@ -122,9 +123,21 @@ const PERSONA_TOOL = {
                 tonalitaet: { type: ['string', 'null'], description: 'Wie die Person angesprochen werden will' },
                 plattformen: { type: ['string', 'null'] },
                 content_praeferenzen: { type: ['string', 'null'] },
-                produkt_loesung: { type: ['string', 'null'], description: 'Was das Produkt fuer diesen Menschentyp loest - allgemein formuliert, keine SKU-Details wie Preise oder Modellnamen' },
+                produkt_loesung: { type: ['string', 'null'], description: 'Was Angebote dieses Typs fuer DIESE Person loesen - allgemein, keine SKU, keine Kampagne' },
                 produktvorteile: { type: ['string', 'null'], description: 'Welche Vorteile fuer diesen Typ zaehlen - typbezogen, nicht SKU-scharf' },
-                beschreibung: { type: ['string', 'null'], description: 'Freie Zusammenfassung: wer ist das, zwei bis vier Saetze' }
+                beschreibung: { type: ['string', 'null'], description: 'Zwei bis vier sachliche Saetze, wer diese Person ist. Kein Storytelling, keine Werbesprache.' },
+                _audience_situations: {
+                  type: 'array',
+                  description: '2 bis 4 Empfangsmomente der Person: Alltag, wann sie empfänglich ist. Keine Produkt-Use-Cases, keine Content- oder Kampagnenideen.',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      name: { type: 'string', description: 'Kurzer Titel, z.B. "morgens unter Zeitdruck"' },
+                      beschreibung: { type: ['string', 'null'], description: 'Ein bis zwei Saetze: wann und warum sie in diesem Moment empfänglich ist' }
+                    },
+                    required: ['name']
+                  }
+                }
               },
               required: ['name']
             }
@@ -188,27 +201,31 @@ function fmtPoolPersona(p) {
  * }
  */
 function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
-  let stable = 'Du bist ein erfahrener Zielgruppen-Stratege fuer Creator-Marketing. '
-    + 'Du entwirfst Personas, die spaeter in Kampagnen, Briefings und Video-Skripten '
-    + 'als Zielgruppe dienen. Deine Vorschlaege prueft ein Mensch, bevor sie gespeichert werden.\n\n';
+  let stable = 'Du beschreibst TYPEN MENSCH, die zum Produkt passen. Keine Zielgruppe, keine Kampagnenstrategie, keine Content-Ideen. '
+    + 'Eine Persona ist ein Typ Mensch auf Unternehmensebene. Der produkt-spezifische Fit gehoert in fit_grund und Use Cases, nicht in die Persona-Felder. '
+    + 'Deine Vorschlaege prueft ein Mensch, bevor sie uebernommen werden.\n\n';
 
   stable += '# GRUNDREGELN (verbindlich)\n'
     + '1. NICHTS ERFINDEN. Jede Persona und jeder Use Case leitet sich aus den Produkt- und Marken-Fakten ab. '
     + 'Was nicht fundierbar ist, bleibt leer oder wird als begruendete Hypothese formuliert ("vermutlich ..., weil ...").\n'
     + '2. KEINE KLISCHEES. Demografie ist nie die Identitaet. "Studentin, 22, mag Instagram" ist kein Ergebnis. '
-    + 'Pain Points, Kaufmotive und Einwaende sind konkret und produktbezogen, keine Allgemeinplaetze.\n'
+    + 'Pain Points, Kaufmotive und Einwaende sind konkret und alltagsnah, keine Allgemeinplaetze.\n'
     + '3. FELDMARKIERUNGEN beachten: BELEGBAR ist Fakt, ABGELEITET ist unsicher (nicht als Wahrheit verkaufen), '
     + 'MANUELL hat hoechste Verlaesslichkeit.\n'
     + '4. QUALITAET VOR QUANTITAET. Lieber drei tragfaehige Karten als sechs aufgeblaehte. '
     + 'Keine schwachen Matches aufpumpen, keine neuen Personas ohne echte Luecke.\n'
-    + '5. Neue Personas sind MENSCHEN, keine Produkt-Fact-Sheets. produkt_loesung und produktvorteile '
-    + 'beschreiben den Typ Mensch allgemein - keine Preise, Modellnamen oder SKU-Details.\n';
+    + '5. Neue Personas sind MENSCHEN, keine Produkt-Fact-Sheets. Persona-Felder: kurz, sachlich, abgeleitet. '
+    + 'Keine Fantasie-Biografie, kein Storytelling, keine Kampagnenrichtung. '
+    + 'produkt_loesung und produktvorteile beschreiben den Typ Mensch allgemein - keine Preise, Modellnamen oder SKU-Details.\n'
+    + '6. Audience Situations im Persona-Profil: 2 bis 4 konkrete Alltag-/Empfangsmomente der Person. '
+    + 'Keine Einsatzsituation des Produkts, keine Videoidee, keine Kampagnenrichtung.\n'
+    + '7. fit_grund und Use Cases duerfen den Produkt-Fit nennen. Diese Ideen nicht in beschreibung, pain_points, '
+    + 'kaufmotive oder Audience Situations kopieren.\n';
 
   if (pool.length) {
     stable += '\n# HOUSE-STYLE (verbindlich fuer neue Personas)\n'
-      + 'Die Marke pflegt ihre Personas in einem bestimmten Stil. Neue Entwuerfe muessen sich daran messen: '
-      + 'gleiche Tiefe, gleiche Art der Pain-Formulierung, gleiches Naming (Name + Oberbegriff). '
-      + 'Die Beispiele unten sind die Stil-Referenz - schreibe neue Personas so, als gehoerten sie in dieselbe Liste.\n';
+      + 'Nur Naming und Oberbegriff am Stil der bestehenden Personas ausrichten. '
+      + 'Keine langen Bios nachbauen.\n';
   }
 
   // --- Task ---
@@ -252,7 +269,7 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
 
   const behalten = Array.isArray(input.behalten) ? input.behalten : [];
   if (behalten.length) {
-    task += '\n# BEREITS AKZEPTIERT (freeze - nicht duplizieren, nicht noch einmal vorschlagen)\n';
+    task += '\n# BEREITS UEBERNOMMEN (freeze - nicht duplizieren, nicht noch einmal vorschlagen)\n';
     behalten.forEach((b) => { task += `- ${b.name}${b.typ === 'match' ? ' (bestehende Persona)' : ' (neuer Entwurf)'}\n`; });
   }
 
@@ -280,7 +297,8 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
   task += '\n# AUSGABEFORMAT\nGib das Ergebnis AUSSCHLIESSLICH ueber das Tool "persona_vorschlaege_abgeben" ab. '
     + 'use_case_indices sind 0-basiert auf die gemeinsame Liste (bestehende zuerst, dann deine generierten). '
     + 'Jede Karte braucht mindestens einen Use-Case-Bezug. '
-    + 'Bei "neu" das volle Profil fuellen, aber nur soweit fundierbar - leere Felder sind erlaubt, Klischees nicht.';
+    + 'Bei "neu" das volle Profil fuellen, aber nur soweit fundierbar - leere Felder sind erlaubt, Klischees nicht. '
+    + '_audience_situations: 2 bis 4 Empfangsmomente der Person, keine Produkt-Use-Cases.';
 
   return { stable, task };
 }
@@ -364,6 +382,27 @@ function clampBudgetrahmen(value) {
   return hits.length === 1 ? hits[0] : null;
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function sanitizeAudienceSituations(raw) {
+  const list = Array.isArray(raw) ? raw : [];
+  const gesehen = new Set();
+  const out = [];
+  for (const s of list) {
+    const name = String(s?.name || '').trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (gesehen.has(key)) continue;
+    gesehen.add(key);
+    out.push({
+      name,
+      beschreibung: s?.beschreibung ? String(s.beschreibung).trim() || null : null
+    });
+    if (out.length >= 4) break;
+  }
+  return out;
+}
+
 /** Nur bekannte Persona-Felder durchlassen, Strings trimmen, Leeres zu null. */
 function sanitizePersonaPayload(persona) {
   const STRING_FELDER = [
@@ -378,10 +417,15 @@ function sanitizePersonaPayload(persona) {
     out[feld] = (wert === null || wert === undefined || !String(wert).trim()) ? null : String(wert).trim();
   }
   out.budgetrahmen = clampBudgetrahmen(out.budgetrahmen);
+  const branche = String(persona.branche_id || '').trim();
+  out.branche_id = UUID_RE.test(branche) ? branche : null;
   for (const feld of ['alter_von', 'alter_bis']) {
     const zahl = Number(persona[feld]);
     out[feld] = Number.isInteger(zahl) && zahl >= 0 && zahl <= 120 ? zahl : null;
   }
+  out._audience_situations = sanitizeAudienceSituations(
+    persona._audience_situations || persona.audience_situations
+  );
   return out;
 }
 

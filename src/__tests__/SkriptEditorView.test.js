@@ -308,6 +308,7 @@ describe('SkriptEditorView Layout', () => {
     const chat = document.getElementById('ed-chat');
     expect(chat).not.toBeNull();
     expect(chat.querySelector('#ed-chat-log')).not.toBeNull();
+    expect(chat.querySelector('#ed-chat-log').classList.contains('chat-log')).toBe(true);
     expect(chat.querySelector('.skripte-editor-inputwrap')).not.toBeNull();
     expect(chat.querySelector('#ed-input')).not.toBeNull();
     expect(chat.querySelector('#ed-send')).not.toBeNull();

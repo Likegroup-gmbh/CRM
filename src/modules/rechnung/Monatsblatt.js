@@ -11,8 +11,10 @@ import {
   getInvoiceTabKey,
   hasInvoiceNumber
 } from '../auftrag/logic/InvoiceMonthFilter.js';
-import { FINAL_AUFTRAG_OR_FILTER } from '../auftrag/AuftragListDataLoader.js';
+import { FINAL_AUFTRAG_OR_FILTER, isFinalAuftrag } from '../../core/finalisiert.js';
 import { sortRowsByPrefixedNumberDesc } from '../auftrag/logic/PrefixedNumberSort.js';
+
+export { isFinalAuftrag };
 
 export const ENTITY_RECHNUNG = 'rechnung';
 export const ENTITY_KUNDENRECHNUNG = 'kundenrechnung';
@@ -108,10 +110,6 @@ created_by:created_by_id(id, name, profile_image_url, profile_image_thumb_url),
 auftrag_details(id),
 kampagne_arten:auftrag_kampagne_art(art:kampagne_art_id(id, name))
 `;
-
-export function isFinalAuftrag(row) {
-  return row?.is_draft !== true;
-}
 
 export function monthDateBounds(year, monthIndex) {
   const start = new Date(Date.UTC(year, monthIndex, 1));

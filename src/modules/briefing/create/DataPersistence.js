@@ -6,7 +6,6 @@
 import { BriefingCreate } from './BriefingCreateCore.js';
 import { getAllFields, flattenFields, FLOW_STEPS, isFieldActive } from './fieldConfig.js';
 import { starteBriefingAuswertung } from './BriefingAuswertung.js';
-import { loadBriefingProdukte, syncBriefingProdukte } from '../BriefingProdukte.js';
 
 function collectableFields() {
   const fields = [];
@@ -157,14 +156,6 @@ BriefingCreate.prototype.saveCurrentStepData = function() {
   if (this.selectedBereich && !this.formData.bereich) {
     this.formData.bereich = this.selectedBereich;
   }
-
-  const produktSelect = form.querySelector('#produkt_ids_hidden')
-    || form.querySelector('select[name="produkt_ids[]"]')
-    || form.querySelector('[data-entity-multi="produkt_ids"] select[multiple]')
-    || form.querySelector('select#produkt_ids');
-  if (produktSelect) {
-    this.formData.produkt_ids = Array.from(produktSelect.selectedOptions).map(o => o.value);
-  }
 };
 
 // ---------------------------------------------------------------
@@ -195,7 +186,7 @@ BriefingCreate.prototype.prepareDataForDB = function() {
       case 'checkboxes':
       case 'customMulti':
       case 'entityMulti':
-        data[field.name] = Array.isArray(value) && value.length ? value : (field.name === 'persona_ids' ? [] : null);
+        data[field.name] = Array.isArray(value) && value.length ? value : null;
         break;
       case 'group':
       case 'channelGroup':
@@ -232,8 +223,8 @@ function defaultForField(field) {
     case 'checkbox': return false;
     case 'radio': return isBooleanRadio(field) ? false : null;
     case 'checkboxes':
-    case 'customMulti': return null;
-    case 'entityMulti': return field.name === 'persona_ids' ? [] : null;
+    case 'customMulti':
+    case 'entityMulti': return null;
     case 'group':
     case 'channelGroup':
     case 'repeatableKpi':
@@ -331,7 +322,6 @@ BriefingCreate.prototype.persistDraft = async function() {
       .update(data)
       .eq('id', this.editId);
     if (error) throw error;
-    await syncBriefingProdukte(this.editId, this.formData.produkt_ids);
     return this.editId;
   }
 
@@ -342,7 +332,6 @@ BriefingCreate.prototype.persistDraft = async function() {
     .single();
   if (error) throw error;
   this.editId = created.id;
-  await syncBriefingProdukte(this.editId, this.formData.produkt_ids);
   return created.id;
 };
 
@@ -356,14 +345,6 @@ BriefingCreate.prototype.handleSubmit = async function() {
   }
   if (!this.formData.aktivierung_name) {
     window.toastSystem?.show('Bitte einen Titel vergeben (Schritt Grundlage).', 'warning');
-    return;
-  }
-  if (!this.formData.produkt_ids?.length) {
-    window.toastSystem?.show('Bitte mindestens ein Produkt zuordnen.', 'warning');
-    return;
-  }
-  if (!this.formData.persona_ids?.length) {
-    window.toastSystem?.show('Bitte mindestens eine Persona zuordnen.', 'warning');
     return;
   }
 
@@ -393,8 +374,6 @@ BriefingCreate.prototype.handleSubmit = async function() {
       if (error) throw error;
       this.editId = created.id;
     }
-
-    await syncBriefingProdukte(this.editId, this.formData.produkt_ids);
 
     let auswertungOk = false;
     try {
@@ -446,12 +425,7 @@ BriefingCreate.prototype.loadFromDB = async function(id) {
     this.formData.unternehmen_id = briefing.unternehmen_id;
     this.formData.marke_id = briefing.marke_id;
     this.formData.assignee_id = briefing.assignee_id;
-    this.formData.persona_ids = briefing.persona_ids || [];
-
-    const produkte = await loadBriefingProdukte(id);
-    this.formData.produkt_ids = produkte.map(p => p.id);
     await this.refreshProdukte();
-    await this.refreshPersonas();
 
     this.selectedBereich = briefing.bereich;
     this.isGenerated = true;

@@ -171,7 +171,7 @@ export class PersonaAudienceSituationPanel {
           </button>
         </div>
         ${liste.length ? `<ol class="produkt-usecases__list">${rows}</ol>` : ''}
-        ${!liste.length ? '<p class="produkt-usecases__leer">Noch keine Audience Situations – per Klick auf „Hinzufügen“ oder nach dem Annehmen am Produkt.</p>' : ''}
+        ${!liste.length ? '<p class="produkt-usecases__leer">Noch keine Audience Situations – per Klick auf „Hinzufügen“ oder nach dem Übernehmen am Produkt.</p>' : ''}
       </div>
     `;
   }

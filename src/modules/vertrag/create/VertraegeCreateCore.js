@@ -13,6 +13,7 @@
 import { KampagneUtils } from '../../kampagne/KampagneUtils.js';
 import CONFIG from '../../../core/ConfigSystem.js';
 import { expandParagraphZusaetze, expandAwarenessFelder, expandEhgFelder } from './paragraphZusatz.js';
+import { applyFinalisiertFilter } from '../../../core/finalisiert.js';
 
 export class VertraegeCreate {
   constructor() {
@@ -382,11 +383,13 @@ VertraegeCreate.prototype.loadStammdaten = async function() {
       console.log('📊 VERTRAG: Creator geladen:', this.creators.length);
 
       // Lade Contracting-Aufträge (für Contracting-Vertragstyp)
-      const { data: contractingAuftraege } = await window.supabase
-        .from('auftrag')
-        .select('id, auftragsname, titel, unternehmen_id, po, angebotsnummer, marke_id')
-        .eq('auftragtype', 'Contracting')
-        .order('created_at', { ascending: false });
+      const { data: contractingAuftraege } = await applyFinalisiertFilter(
+        window.supabase
+          .from('auftrag')
+          .select('id, auftragsname, titel, unternehmen_id, po, angebotsnummer, marke_id')
+          .eq('auftragtype', 'Contracting'),
+        'auftrag'
+      ).order('created_at', { ascending: false });
 
       this.contractingAuftraege = contractingAuftraege || [];
       console.log('📊 VERTRAG: Contracting-Aufträge geladen:', this.contractingAuftraege.length);

@@ -21,6 +21,17 @@ export const unternehmenConfig = {
     { name: 'firmenname', label: 'Firmenname', type: 'text', required: true, validation: { type: 'text', minLength: 2 }, section: 'stammdaten' },
     { name: 'internes_kuerzel', label: 'Internes Kürzel', type: 'text', required: false, placeholder: 'z.B. ABC', section: 'stammdaten' },
     {
+      name: 'ist_test',
+      label: 'Testunternehmen',
+      type: 'toggle',
+      required: false,
+      defaultValue: false,
+      createOnly: true,
+      adminOnly: true,
+      helpText: 'Nur für Admins sichtbar, nie in Investor-Zahlen. Nach dem Anlegen nicht mehr änderbar.',
+      section: 'stammdaten'
+    },
+    {
       name: 'beschreibung',
       label: 'Kurzbeschreibung',
       type: 'textarea',

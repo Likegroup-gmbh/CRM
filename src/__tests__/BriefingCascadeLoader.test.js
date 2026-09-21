@@ -5,16 +5,21 @@ import { DependentFields } from '../core/form/logic/DependentFields.js';
 
 function createQuery({ data = [], error = null } = {}) {
   const eqs = [];
+  const ors = [];
   const query = {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn((column, value) => {
       eqs.push([column, value]);
       return query;
     }),
+    or: vi.fn((expr) => {
+      ors.push(expr);
+      return query;
+    }),
     order: vi.fn().mockReturnThis(),
     then: (resolve, reject) => Promise.resolve({ data, error }).then(resolve, reject)
   };
-  return { query, eqs };
+  return { query, eqs, ors };
 }
 
 describe('briefing_id:unternehmen_id cascade', () => {
@@ -166,5 +171,64 @@ describe('briefing_id reloadOnChange', () => {
     const briefingReload = loadSpy.mock.calls.find((call) => call[1]?.name === 'briefing_id');
     expect(briefingReload).toBeTruthy();
     expect(briefingReload[2]).toBe('u1');
+  });
+});
+
+describe('briefing_id:kampagne_id cascade', () => {
+  afterEach(() => {
+    delete window.supabase;
+    vi.restoreAllMocks();
+  });
+
+  it('laedt nur finalisierte Briefings', async () => {
+    const briefing = createQuery({
+      data: [{ id: 'br-1', aktivierung_name: 'Final' }]
+    });
+    const kampagneQuery = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn(async () => ({ data: { unternehmen_id: 'u1' }, error: null }))
+    };
+    window.supabase = {
+      from: vi.fn((table) => (table === 'kampagne' ? kampagneQuery : briefing.query))
+    };
+
+    const field = { disabled: true };
+    const ctx = { updateDependentFieldOptions: vi.fn() };
+    const strategy = findStrategy({ name: 'briefing_id', dependsOn: 'kampagne_id' });
+    await strategy('k1', {}, field, { name: 'briefing_id' }, ctx);
+
+    expect(briefing.eqs).toEqual([
+      ['unternehmen_id', 'u1'],
+      ['is_draft', false]
+    ]);
+    expect(ctx.updateDependentFieldOptions).toHaveBeenCalledWith(
+      field,
+      { name: 'briefing_id' },
+      [{ value: 'br-1', label: 'Final' }]
+    );
+  });
+});
+
+describe('auftrag_id cascade', () => {
+  afterEach(() => {
+    delete window.supabase;
+    vi.restoreAllMocks();
+  });
+
+  it('filtert Auftrag-Entwuerfe (null oder false)', async () => {
+    const { query, ors } = createQuery({
+      data: [{ id: 'a1', auftragsname: 'Live', marke_id: null }]
+    });
+    window.supabase = { from: vi.fn(() => query) };
+
+    const field = { disabled: true };
+    const ctx = { updateDependentFieldOptions: vi.fn() };
+    const form = { querySelector: () => ({ value: '' }) };
+    const strategy = findStrategy({ name: 'auftrag_id', dependsOn: 'unternehmen_id' });
+    await strategy('u1', form, field, { name: 'auftrag_id' }, ctx);
+
+    expect(window.supabase.from).toHaveBeenCalledWith('auftrag');
+    expect(ors).toEqual(['is_draft.is.null,is_draft.eq.false']);
   });
 });

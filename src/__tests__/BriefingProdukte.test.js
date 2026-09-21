@@ -5,7 +5,8 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
   loadProdukteForBriefing,
   loadBriefingProdukte,
-  syncBriefingProdukte
+  syncBriefingProdukte,
+  recomputeBriefingProdukte
 } from '../modules/briefing/BriefingProdukte.js';
 
 describe('BriefingProdukte', () => {
@@ -89,5 +90,59 @@ describe('BriefingProdukte', () => {
 
     const rows = await loadBriefingProdukte('b1');
     expect(rows.map(r => r.name)).toEqual(['Alpha', 'Zebra']);
+  });
+
+  it('recompute schreibt die Union der accepted Fits', async () => {
+    const deleted = [];
+    const inserted = [];
+    window.supabase = {
+      from: (table) => {
+        if (table === 'campaign_briefings') {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({ data: { persona_ids: ['pe1', 'pe2'] }, error: null })
+              })
+            })
+          };
+        }
+        if (table === 'produkt_persona_vorschlag') {
+          return {
+            select: () => ({
+              in: () => ({
+                eq: async () => ({
+                  data: [
+                    { produkt_id: 'p1' },
+                    { produkt_id: 'p1' },
+                    { produkt_id: 'p2' }
+                  ],
+                  error: null
+                })
+              })
+            })
+          };
+        }
+        expect(table).toBe('campaign_briefing_produkt');
+        return {
+          delete: () => ({
+            eq: async (_col, id) => {
+              deleted.push(id);
+              return { error: null };
+            }
+          }),
+          insert: async (rows) => {
+            inserted.push(rows);
+            return { error: null };
+          }
+        };
+      }
+    };
+
+    await recomputeBriefingProdukte('b1');
+    expect(deleted).toEqual(['b1']);
+    expect(inserted[0]).toEqual([
+      { briefing_id: 'b1', produkt_id: 'p1' },
+      { briefing_id: 'b1', produkt_id: 'p2' }
+    ]);
   });
 });

@@ -199,58 +199,68 @@ const ORGANIC = { field: 'bereich', equals: 'owned_social' };
 const INFLUENCER = { field: 'bereich', equals: 'influencer_marketing' };
 const ORGANIC_OR_INFLUENCER = { field: 'bereich', in: ['owned_social', 'influencer_marketing'] };
 
+function fieldGroup(id, layout, fields) {
+  return { type: 'fieldGroup', id, layout, persist: false, fields };
+}
+
 export const FLOW_STEPS = [
   {
     id: 'grundlage',
     label: 'Grundlage',
     sections: [
       {
+        id: 'zuordnung',
         title: 'Zuordnung',
         fields: [
-          { name: 'unternehmen_id', label: 'Unternehmen', type: 'entitySelect', table: 'unternehmen', displayField: 'firmenname', required: true, placeholder: 'Unternehmen auswählen...' },
-          { name: 'marke_id', label: 'Marke (optional)', type: 'entitySelect', table: 'marke', displayField: 'markenname', dependsOn: 'unternehmen_id', placeholder: 'Marke auswählen...' },
-          { name: 'aktivierung_name', label: 'Titel', type: 'text', required: true, placeholder: 'z.B. Make-up September' },
-          { name: 'beschreibung', label: 'Schwerpunkt (optional)', type: 'textarea', rows: 2, placeholder: 'Worum geht es in diesem Briefing?' },
-          {
-            name: 'produkt_ids', label: 'Produkte', type: 'entityMulti',
-            table: 'produkt', displayField: 'name', persist: false, dependsOn: 'unternehmen_id', required: true,
-            placeholder: 'Produkte suchen und hinzufügen...',
-            helper: 'Mindestens eines. Mehrere, wenn Aufgabe und Persona zusammenpassen.'
-          },
-          {
-            name: 'persona_ids', label: 'Personas', type: 'entityMulti',
-            table: 'persona', displayField: 'label', dependsOn: 'unternehmen_id', required: true,
-            placeholder: 'Personas suchen und hinzufügen...',
-            helper: 'Mindestens eine. Akzeptierte Produkt-Personas stehen oben.'
-          }
+          fieldGroup('zuordnung-entities', 'stack', [
+            { name: 'unternehmen_id', label: 'Unternehmen', type: 'entitySelect', table: 'unternehmen', displayField: 'firmenname', required: true, placeholder: 'Unternehmen auswählen...' },
+            { name: 'marke_id', label: 'Marke (optional)', type: 'entitySelect', table: 'marke', displayField: 'markenname', dependsOn: 'unternehmen_id', placeholder: 'Marke auswählen...' }
+          ]),
+          fieldGroup('zuordnung-titel', 'stack', [
+            { name: 'aktivierung_name', label: 'Titel', type: 'text', required: true, placeholder: 'z.B. Make-up September' },
+            { name: 'beschreibung', label: 'Schwerpunkt (optional)', type: 'textarea', rows: 2, placeholder: 'Worum geht es in diesem Briefing?' }
+          ])
         ]
       },
       {
+        id: 'paid-zweck',
         title: 'Paid-Zweck',
         condition: PAID,
         fields: [
-          { name: 'funnel_stufen', label: 'Funnel-Stufe', type: 'checkboxes', options: FUNNEL_STUFEN_OPTIONS },
-          { name: 'paid_objectives', label: 'Paid Objective', type: 'checkboxes', options: PAID_OBJECTIVES_OPTIONS, compact: true },
-          { name: 'content_deadline', label: 'Content-Deadline', type: 'date' },
-          { name: 'go_live', label: 'Go-Live', type: 'date' }
+          fieldGroup('paid-ziele', 'stack', [
+            { name: 'funnel_stufen', label: 'Funnel-Stufe', type: 'checkboxes', options: FUNNEL_STUFEN_OPTIONS },
+            { name: 'paid_objectives', label: 'Paid Objective', type: 'checkboxes', options: PAID_OBJECTIVES_OPTIONS, compact: true }
+          ]),
+          fieldGroup('paid-termine', 'row', [
+            { name: 'content_deadline', label: 'Content-Deadline', type: 'date' },
+            { name: 'go_live', label: 'Go-Live', type: 'date' }
+          ])
         ]
       },
       {
+        id: 'organic-zweck',
         title: 'Organic-Zweck',
         condition: ORGANIC,
         fields: [
-          { name: 'content_ziele', label: 'Organisches Content-Ziel', type: 'checkboxes', options: OWNED_CONTENT_ZIELE_OPTIONS, compact: true },
-          { name: 'plattformmechanik', label: 'Gewünschte Plattformmechanik', type: 'textarea', rows: 2, placeholder: 'z.B. Duett, Stich, Serie, Trend-Sound' }
+          fieldGroup('organic-ziele', 'stack', [
+            { name: 'content_ziele', label: 'Organisches Content-Ziel', type: 'checkboxes', options: OWNED_CONTENT_ZIELE_OPTIONS, compact: true },
+            { name: 'plattformmechanik', label: 'Gewünschte Plattformmechanik', type: 'textarea', rows: 2, placeholder: 'z.B. Duett, Stich, Serie, Trend-Sound' }
+          ])
         ]
       },
       {
+        id: 'zeitraum',
         title: 'Zeitraum',
         condition: INFLUENCER,
         fields: [
-          { name: 'veroeffentlichungszeitraum', label: 'Veröffentlichungszeitraum', type: 'text', placeholder: 'z.B. KW 40–42' },
-          { name: 'content_deadline', label: 'Content-Deadline', type: 'date' },
-          { name: 'go_live', label: 'Go-Live', type: 'date' },
-          { name: 'freigabeprozess', label: 'Freigabeprozess', type: 'textarea', rows: 2, placeholder: 'z.B. Freigabe durch den Kunden vor Veröffentlichung, 48 Stunden' }
+          fieldGroup('zeitraum-termine', 'row', [
+            { name: 'veroeffentlichungszeitraum', label: 'Veröffentlichungszeitraum', type: 'text', placeholder: 'z.B. KW 40–42' },
+            { name: 'content_deadline', label: 'Content-Deadline', type: 'date' },
+            { name: 'go_live', label: 'Go-Live', type: 'date' }
+          ]),
+          fieldGroup('zeitraum-freigabe', 'stack', [
+            { name: 'freigabeprozess', label: 'Freigabeprozess', type: 'textarea', rows: 2, placeholder: 'z.B. Freigabe durch den Kunden vor Veröffentlichung, 48 Stunden' }
+          ])
         ]
       }
     ]
@@ -260,31 +270,36 @@ export const FLOW_STEPS = [
     label: 'Casting',
     sections: [
       {
+        id: 'casting-suche',
         title: 'Welche Creator suchen wir?',
         fields: [
-          { name: 'nischen', label: 'Nische / Content-Schwerpunkt', type: 'checkboxes', options: NISCHEN_OPTIONS, compact: true },
-          {
-            name: 'creator_merkmale', label: 'Merkmale', type: 'group',
-            fields: [
-              { name: 'alter', label: 'Alter / Altersspanne', type: 'text', placeholder: 'z.B. 25-34' },
-              { name: 'geschlecht', label: 'Geschlecht', type: 'text', placeholder: 'z.B. weiblich, divers, keine Vorgabe' },
-              { name: 'standort', label: 'Standort', type: 'text', placeholder: 'z.B. DACH, Berlin, keine Vorgabe' }
-            ]
-          },
-          { name: 'creator_groessen', label: 'Creator-Größe (falls relevant)', type: 'checkboxes', options: CREATOR_GROESSEN_UGC },
-          { name: 'voraussetzungen', label: 'Voraussetzungen', type: 'checkboxes', options: VORAUSSETZUNGEN_OPTIONS, compact: true },
-          { name: 'voraussetzungen_sonstiges', label: 'Sonstige Voraussetzungen', type: 'textarea', rows: 2, placeholder: 'z.B. Wohnung mit Balkon' },
-          { name: 'produkt_erfahrung', label: 'Produktspezifische Erfahrung', type: 'textarea', rows: 2, placeholder: 'z.B. hat das Produkt schon selbst genutzt' },
-          {
-            type: 'disclosure',
-            name: 'aussehen',
-            persist: false,
-            label: 'Aussehen',
-            fields: [
-              { name: 'hauttyp', label: 'Hauttyp', type: 'text', placeholder: 'z.B. Mischhaut, sensible Haut' },
-              { name: 'haartyp', label: 'Haartyp', type: 'text', placeholder: 'z.B. lockig, coloriert' }
-            ]
-          }
+          fieldGroup('casting-profil', 'stack', [
+            { name: 'nischen', label: 'Nische / Content-Schwerpunkt', type: 'checkboxes', options: NISCHEN_OPTIONS, compact: true },
+            {
+              name: 'creator_merkmale', label: 'Merkmale', type: 'group',
+              fields: [
+                { name: 'alter', label: 'Alter / Altersspanne', type: 'text', placeholder: 'z.B. 25-34' },
+                { name: 'geschlecht', label: 'Geschlecht', type: 'text', placeholder: 'z.B. weiblich, divers, keine Vorgabe' },
+                { name: 'standort', label: 'Standort', type: 'text', placeholder: 'z.B. DACH, Berlin, keine Vorgabe' }
+              ]
+            },
+            { name: 'creator_groessen', label: 'Creator-Größe (falls relevant)', type: 'checkboxes', options: CREATOR_GROESSEN_UGC }
+          ]),
+          fieldGroup('casting-voraussetzungen', 'stack', [
+            { name: 'voraussetzungen', label: 'Voraussetzungen', type: 'checkboxes', options: VORAUSSETZUNGEN_OPTIONS, compact: true },
+            { name: 'voraussetzungen_sonstiges', label: 'Sonstige Voraussetzungen', type: 'textarea', rows: 2, placeholder: 'z.B. Wohnung mit Balkon' },
+            { name: 'produkt_erfahrung', label: 'Produktspezifische Erfahrung', type: 'textarea', rows: 2, placeholder: 'z.B. hat das Produkt schon selbst genutzt' },
+            {
+              type: 'disclosure',
+              name: 'aussehen',
+              persist: false,
+              label: 'Aussehen',
+              fields: [
+                { name: 'hauttyp', label: 'Hauttyp', type: 'text', placeholder: 'z.B. Mischhaut, sensible Haut' },
+                { name: 'haartyp', label: 'Haartyp', type: 'text', placeholder: 'z.B. lockig, coloriert' }
+              ]
+            }
+          ])
         ]
       }
     ]
@@ -294,18 +309,23 @@ export const FLOW_STEPS = [
     label: 'Aufgabe',
     sections: [
       {
+        id: 'aufgabe-umsetzung',
         title: 'Was sollen die Creator umsetzen?',
         fields: [
-          { name: 'aufgabe', label: 'Konkrete Aufgabe und gewünschte Produktanwendung', type: 'textarea', rows: 4, placeholder: 'z.B. Produkt in der Abendroutine zeigen, Nutzen im Alltag glaubhaft einbauen' },
-          {
-            name: 'art_der_integration', label: 'Art der Integration', type: 'textarea', rows: 2,
-            condition: INFLUENCER,
-            placeholder: 'z.B. Dedicated Video, Integration in bestehende Formate, Mention'
-          },
-          { name: 'beteiligte_personen', label: 'Beteiligte Personen', type: 'textarea', rows: 2, placeholder: 'z.B. allein, mit Partner oder Kind' },
-          { name: 'setting', label: 'Gewünschtes Setting', type: 'textarea', rows: 2, placeholder: 'z.B. Zuhause in der Küche, Tageslicht' },
-          { name: 'produktionsvoraussetzungen', label: 'Besondere Produktionsvoraussetzungen', type: 'textarea', rows: 2, placeholder: 'z.B. nur Indoor, kein Filialdreh ohne Absprache' },
-          { name: 'vorgaben_ausschluesse', label: 'Wichtige Vorgaben und Ausschlüsse', type: 'textarea', rows: 3, placeholder: 'z.B. keine Konkurrenzprodukte, keine Kinder oder Tiere im Bild' }
+          fieldGroup('aufgabe-kern', 'stack', [
+            { name: 'aufgabe', label: 'Konkrete Aufgabe und gewünschte Produktanwendung', type: 'textarea', rows: 4, placeholder: 'z.B. Produkt in der Abendroutine zeigen, Nutzen im Alltag glaubhaft einbauen' },
+            {
+              name: 'art_der_integration', label: 'Art der Integration', type: 'textarea', rows: 2,
+              condition: INFLUENCER,
+              placeholder: 'z.B. Dedicated Video, Integration in bestehende Formate, Mention'
+            },
+            { name: 'beteiligte_personen', label: 'Beteiligte Personen', type: 'textarea', rows: 2, placeholder: 'z.B. allein, mit Partner oder Kind' },
+            { name: 'setting', label: 'Gewünschtes Setting', type: 'textarea', rows: 2, placeholder: 'z.B. Zuhause in der Küche, Tageslicht' }
+          ]),
+          fieldGroup('aufgabe-grenzen', 'stack', [
+            { name: 'produktionsvoraussetzungen', label: 'Besondere Produktionsvoraussetzungen', type: 'textarea', rows: 2, placeholder: 'z.B. nur Indoor, kein Filialdreh ohne Absprache' },
+            { name: 'vorgaben_ausschluesse', label: 'Wichtige Vorgaben und Ausschlüsse', type: 'textarea', rows: 3, placeholder: 'z.B. keine Konkurrenzprodukte, keine Kinder oder Tiere im Bild' }
+          ])
         ]
       }
     ]
@@ -315,48 +335,62 @@ export const FLOW_STEPS = [
     label: 'Konzepte',
     sections: [
       {
+        id: 'kreative-umsetzung',
         title: 'Was ist bei der kreativen Umsetzung zu beachten?',
         fields: [
-          { name: 'umsetzungsideen', label: 'Vorhandene Umsetzungsideen', type: 'textarea', rows: 3, placeholder: 'z.B. Vorher-Nachher, Problem-Lösung in 20 Sekunden' },
-          { name: 'referenzen', label: 'Referenzen und Beispiele', type: 'repeatableUpload', max: 3 },
-          { name: 'learnings_text', label: 'Learnings aus vergangenen Produktionen', type: 'textarea', rows: 3, placeholder: 'z.B. Hook in den ersten zwei Sekunden, nicht zu werblich' },
-          { name: 'pflichtinhalte', label: 'Pflichtinhalte', type: 'textarea', rows: 3, placeholder: 'z.B. Produktname nennen, Benefit X zeigen, Disclaimer' },
-          { name: 'dos_donts', label: 'Kommunikative Do’s und Don’ts', type: 'textarea', rows: 3, placeholder: 'z.B. Do: authentisch. Don’t: Scripted Sales Pitch' }
+          fieldGroup('konzept-ideen', 'stack', [
+            { name: 'umsetzungsideen', label: 'Vorhandene Umsetzungsideen', type: 'textarea', rows: 3, placeholder: 'z.B. Vorher-Nachher, Problem-Lösung in 20 Sekunden' },
+            { name: 'referenzen', label: 'Referenzen und Beispiele', type: 'repeatableUpload', max: 3 },
+            { name: 'learnings_text', label: 'Learnings aus vergangenen Produktionen', type: 'textarea', rows: 3, placeholder: 'z.B. Hook in den ersten zwei Sekunden, nicht zu werblich' }
+          ]),
+          fieldGroup('konzept-pflicht', 'stack', [
+            { name: 'pflichtinhalte', label: 'Pflichtinhalte', type: 'textarea', rows: 3, placeholder: 'z.B. Produktname nennen, Benefit X zeigen, Disclaimer' },
+            { name: 'dos_donts', label: 'Kommunikative Do’s und Don’ts', type: 'textarea', rows: 3, placeholder: 'z.B. Do: authentisch. Don’t: Scripted Sales Pitch' }
+          ])
         ]
       },
       {
+        id: 'kanaele',
         title: 'Kanäle',
         fields: [
-          {
-            name: 'ad_channels', label: 'Ad-Plattformen', type: 'channelGroup', channels: PAID_CHANNELS,
-            customLabel: SONSTIGE_PLATTFORMEN, customPlaceholder: 'z.B. Snapchat, Twitch...',
-            condition: PAID
-          },
-          {
-            name: 'publish_channels', label: 'Veröffentlichungs-Plattformen', type: 'channelGroup', channels: IM_CHANNELS,
-            customLabel: SONSTIGE_PLATTFORMEN, customPlaceholder: 'z.B. Pinterest Pin, Twitch Stream...',
-            condition: INFLUENCER
-          },
-          {
-            name: 'publish_channels', label: 'Veröffentlichungs-Plattformen', type: 'channelGroup', channels: OWNED_CHANNELS,
-            customLabel: SONSTIGE_PLATTFORMEN, customPlaceholder: 'z.B. Snapchat, Twitch...',
-            condition: ORGANIC
-          },
-          {
-            name: 'videolaengen', label: 'Gewünschte Videolängen', type: 'checkboxes', options: VIDEOLAENGEN_OPTIONS, compact: true,
-            condition: PAID
-          },
-          {
-            name: 'videolaenge_text', label: 'Gewünschte Videolängen', type: 'text', placeholder: 'z.B. 30–60 Sek.',
-            condition: ORGANIC_OR_INFLUENCER
-          },
-          { name: 'cta', label: 'CTA', type: 'text', condition: PAID, placeholder: 'z.B. Jetzt entdecken, Shop-Link in Bio' },
-          { name: 'ziel_url', label: 'Ziel-Link / Landingpage', type: 'url', placeholder: 'https://...', condition: PAID },
-          { name: 'hook_vorgaben', label: 'Hook- oder Conversion-Vorgaben', type: 'textarea', rows: 2, condition: PAID, placeholder: 'z.B. Problem in Sekunde 1, Benefit vor Sekunde 3' },
-          { name: 'unterschiedliche_hooks', label: 'Unterschiedliche Hooks', type: 'checkbox' },
-          { name: 'hooks_anzahl', label: 'Anzahl der Hooks', type: 'text', placeholder: 'z.B. 3', condition: { field: 'unterschiedliche_hooks', equals: true } },
-          { name: 'trendkontext', label: 'Community- oder Trendkontext', type: 'textarea', rows: 2, condition: ORGANIC, placeholder: 'z.B. aktueller Sound, Community-Challenge' },
-          { name: 'posting_anforderungen', label: 'Posting-Anforderungen', type: 'textarea', rows: 2, condition: INFLUENCER, placeholder: 'z.B. Reel + 3 Stories, Hashtag X, Markierung der Marke' }
+          fieldGroup('kanaele-plattformen', 'stack', [
+            {
+              name: 'ad_channels', label: 'Ad-Plattformen', type: 'channelGroup', channels: PAID_CHANNELS,
+              customLabel: SONSTIGE_PLATTFORMEN, customPlaceholder: 'z.B. Snapchat, Twitch...',
+              condition: PAID
+            },
+            {
+              name: 'publish_channels', label: 'Veröffentlichungs-Plattformen', type: 'channelGroup', channels: IM_CHANNELS,
+              customLabel: SONSTIGE_PLATTFORMEN, customPlaceholder: 'z.B. Pinterest Pin, Twitch Stream...',
+              condition: INFLUENCER
+            },
+            {
+              name: 'publish_channels', label: 'Veröffentlichungs-Plattformen', type: 'channelGroup', channels: OWNED_CHANNELS,
+              customLabel: SONSTIGE_PLATTFORMEN, customPlaceholder: 'z.B. Snapchat, Twitch...',
+              condition: ORGANIC
+            }
+          ]),
+          fieldGroup('kanaele-laenge', 'stack', [
+            {
+              name: 'videolaengen', label: 'Gewünschte Videolängen', type: 'checkboxes', options: VIDEOLAENGEN_OPTIONS, compact: true,
+              condition: PAID
+            },
+            {
+              name: 'videolaenge_text', label: 'Gewünschte Videolängen', type: 'text', placeholder: 'z.B. 30–60 Sek.',
+              condition: ORGANIC_OR_INFLUENCER
+            }
+          ]),
+          fieldGroup('kanaele-paid-cta', 'stack', [
+            { name: 'cta', label: 'CTA', type: 'text', condition: PAID, placeholder: 'z.B. Jetzt entdecken, Shop-Link in Bio' },
+            { name: 'ziel_url', label: 'Ziel-Link / Landingpage', type: 'url', placeholder: 'https://...', condition: PAID },
+            { name: 'hook_vorgaben', label: 'Hook- oder Conversion-Vorgaben', type: 'textarea', rows: 2, condition: PAID, placeholder: 'z.B. Problem in Sekunde 1, Benefit vor Sekunde 3' },
+            { name: 'unterschiedliche_hooks', label: 'Unterschiedliche Hooks', type: 'checkbox' },
+            { name: 'hooks_anzahl', label: 'Anzahl der Hooks', type: 'text', placeholder: 'z.B. 3', condition: { field: 'unterschiedliche_hooks', equals: true } }
+          ]),
+          fieldGroup('kanaele-kontext', 'stack', [
+            { name: 'trendkontext', label: 'Community- oder Trendkontext', type: 'textarea', rows: 2, condition: ORGANIC, placeholder: 'z.B. aktueller Sound, Community-Challenge' },
+            { name: 'posting_anforderungen', label: 'Posting-Anforderungen', type: 'textarea', rows: 2, condition: INFLUENCER, placeholder: 'z.B. Reel + 3 Stories, Hashtag X, Markierung der Marke' }
+          ])
         ]
       }
     ]
@@ -366,17 +400,23 @@ export const FLOW_STEPS = [
     label: 'Vertrag',
     sections: [
       {
+        id: 'nutzung',
         title: 'Zusätzliche Nutzung',
         fields: [
-          { name: 'nutzung_markenkanal', label: 'Nutzung auf den Kanälen der Marke', type: 'checkbox' },
-          { name: 'nutzung_paid_media', label: 'Paid-Media-Nutzung', type: 'checkbox' },
-          { name: 'nutzung_creator_kanal', label: 'Veröffentlichung auf dem Kanal des Creators', type: 'checkbox' },
-          { name: 'nutzung_whitelisting', label: 'Whitelisting, Spark Ads oder Partnership Ads', type: 'checkbox' },
-          { name: 'nutzungsdauer', label: 'Nutzungsdauer', type: 'text', placeholder: 'z.B. 6 Monate, Full Buyout' },
-          { name: 'rohmaterial', label: 'Rohmaterial erforderlich', type: 'radio', options: ROHMATERIAL_OPTIONS }
+          fieldGroup('nutzung-flags', 'wrap', [
+            { name: 'nutzung_markenkanal', label: 'Nutzung auf den Kanälen der Marke', type: 'checkbox' },
+            { name: 'nutzung_paid_media', label: 'Paid-Media-Nutzung', type: 'checkbox' },
+            { name: 'nutzung_creator_kanal', label: 'Veröffentlichung auf dem Kanal des Creators', type: 'checkbox' },
+            { name: 'nutzung_whitelisting', label: 'Whitelisting, Spark Ads oder Partnership Ads', type: 'checkbox' }
+          ]),
+          fieldGroup('nutzung-details', 'stack', [
+            { name: 'nutzungsdauer', label: 'Nutzungsdauer', type: 'text', placeholder: 'z.B. 6 Monate, Full Buyout' },
+            { name: 'rohmaterial', label: 'Rohmaterial erforderlich', type: 'radio', options: ROHMATERIAL_OPTIONS }
+          ])
         ]
       },
       {
+        id: 'weitere-plattformen-paid',
         title: 'Weitere Plattformen',
         condition: {
           all: [
@@ -395,6 +435,7 @@ export const FLOW_STEPS = [
         ]
       },
       {
+        id: 'weitere-plattformen-organic',
         title: 'Weitere Plattformen',
         condition: {
           all: [
@@ -413,6 +454,7 @@ export const FLOW_STEPS = [
         ]
       },
       {
+        id: 'verhandlung',
         title: 'Verhandlung',
         fields: [
           {
@@ -436,7 +478,7 @@ export const MODULE_STEPS = {
 export function flattenFields(fields = []) {
   const out = [];
   for (const field of fields) {
-    if (field.type === 'disclosure') {
+    if (field.type === 'disclosure' || field.type === 'fieldGroup') {
       out.push(...flattenFields(field.fields || []));
     } else {
       out.push(field);

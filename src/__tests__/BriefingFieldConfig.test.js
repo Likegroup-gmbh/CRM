@@ -46,13 +46,17 @@ describe('Briefing fieldConfig Schema', () => {
     const required = fields.filter(f => f.required).map(f => f.name);
     expect(required).toContain('unternehmen_id');
     expect(required).toContain('aktivierung_name');
-    expect(required).toContain('produkt_ids');
-    expect(required).toContain('persona_ids');
+    expect(required).not.toContain('produkt_ids');
+    expect(required).not.toContain('persona_ids');
   });
 
-  it('produkt_ids liegt nicht in getAllFields (kein DB-Feld)', () => {
-    expect(getAllFields().map(f => f.name)).not.toContain('produkt_ids');
-    expect(getAllFields().map(f => f.name)).toContain('persona_ids');
+  it('Produkte und Personas sitzen nicht im Create-Schema', () => {
+    const names = [
+      ...getAllFields().map(f => f.name),
+      ...flattenFields(FLOW_STEPS[0].sections.flatMap(s => s.fields)).map(f => f.name)
+    ];
+    expect(names).not.toContain('produkt_ids');
+    expect(names).not.toContain('persona_ids');
   });
 
   it('Optionslisten haben value + label', () => {
@@ -117,8 +121,8 @@ describe('Briefing evaluateCondition', () => {
       'voraussetzungen', 'voraussetzungen_sonstiges', 'produkt_erfahrung'
     ]));
     expect(namesIn('casting')).not.toContain('voraussetzungen_weiter');
-    const castingFields = FLOW_STEPS.find(s => s.id === 'casting').sections[0].fields.map(f => f.name);
-    expect(castingFields.indexOf('produkt_erfahrung')).toBeLessThan(castingFields.indexOf('aussehen'));
+    const castingFields = flattenFields(FLOW_STEPS.find(s => s.id === 'casting').sections[0].fields).map(f => f.name);
+    expect(castingFields.indexOf('produkt_erfahrung')).toBeLessThan(castingFields.indexOf('hauttyp'));
     expect(namesIn('vertrag')).toEqual(expect.arrayContaining([
       'nutzung_markenkanal', 'nutzung_paid_media', 'verhandlungshinweis'
     ]));
@@ -173,5 +177,32 @@ describe('Briefing evaluateCondition', () => {
       .filter(f => f.type === 'channelGroup');
     expect(groups.length).toBeGreaterThan(0);
     expect(groups.every(f => f.customLabel === 'Sonstige Plattformen')).toBe(true);
+  });
+
+  it('jede Section hat eine eindeutige id', () => {
+    const ids = FLOW_STEPS.flatMap(s => s.sections.map(sec => sec.id));
+    expect(ids.every(Boolean)).toBe(true);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toEqual([
+      'zuordnung', 'paid-zweck', 'organic-zweck', 'zeitraum',
+      'casting-suche',
+      'aufgabe-umsetzung',
+      'kreative-umsetzung', 'kanaele',
+      'nutzung', 'weitere-plattformen-paid', 'weitere-plattformen-organic', 'verhandlung'
+    ]);
+  });
+
+  it('flattenFields packt fieldGroup aus, Nutzungs-Checkboxen bleiben findbar', () => {
+    const vertrag = FLOW_STEPS.find(s => s.id === 'vertrag');
+    const nutzung = vertrag.sections.find(s => s.id === 'nutzung');
+    expect(nutzung.fields.map(f => f.type)).toEqual(['fieldGroup', 'fieldGroup']);
+    expect(nutzung.fields[0]).toMatchObject({ id: 'nutzung-flags', layout: 'wrap' });
+
+    const names = flattenFields(nutzung.fields).map(f => f.name);
+    expect(names).toEqual([
+      'nutzung_markenkanal', 'nutzung_paid_media', 'nutzung_creator_kanal',
+      'nutzung_whitelisting', 'nutzungsdauer', 'rohmaterial'
+    ]);
+    expect(flattenFields(nutzung.fields).some(f => f.type === 'fieldGroup')).toBe(false);
   });
 });

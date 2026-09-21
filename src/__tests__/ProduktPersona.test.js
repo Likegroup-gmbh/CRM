@@ -22,7 +22,9 @@ vi.mock('../modules/persona/PersonaService.js', () => ({
     saveMarken: vi.fn(async () => {}),
     remove: vi.fn(async () => {}),
     loadOne: vi.fn(async () => ({ id: 'persona-neu-1', name: 'Lena' })),
-    loadAudienceSituations: vi.fn(async () => [])
+    loadAudienceSituations: vi.fn(async () => []),
+    syncAudienceSituations: vi.fn(async () => {}),
+    update: vi.fn(async () => ({ id: 'persona-neu-1' }))
   }
 }));
 
@@ -32,6 +34,10 @@ vi.mock('../modules/produkt/ProduktPersonaDrawer.js', () => ({
     close() {}
     remove() {}
   }
+}));
+
+vi.mock('../modules/briefing/BriefingPersonas.js', () => ({
+  recomputeBriefingProdukteForPersona: vi.fn(async () => {})
 }));
 
 // ---------------------------------------------------------------------------
@@ -46,7 +52,7 @@ function createSupabaseMock(responder) {
     auth: { getSession: async () => ({ data: { session: null } }) },
     from(table) {
       const chain = { table, ops: [] };
-      for (const m of ['select', 'insert', 'update', 'delete', 'eq', 'neq', 'in', 'order', 'limit']) {
+      for (const m of ['select', 'insert', 'update', 'delete', 'eq', 'neq', 'in', 'contains', 'order', 'limit']) {
         chain[m] = (...args) => { chain.ops.push([m, ...args]); return chain; };
       }
       chain.single = () => { chain.ops.push(['single']); return chain; };
@@ -182,6 +188,23 @@ describe('validateVorschlaege (Quality-Mix)', () => {
     expect(sanitizePersonaPayload({ name: 'A', budgetrahmen: '' }).budgetrahmen).toBeNull();
     expect(sanitizePersonaPayload({ name: 'A', budgetrahmen: null }).budgetrahmen).toBeNull();
   });
+
+  it('sanitizePersonaPayload uebernimmt Audience Situations und valide branche_id', () => {
+    const sauber = sanitizePersonaPayload({
+      name: 'Lena',
+      branche_id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+      _audience_situations: [
+        { name: ' morgens unter Zeitdruck ', beschreibung: 'Kind fertig machen' },
+        { name: 'morgens unter Zeitdruck' },
+        { name: '  ' }
+      ]
+    });
+    expect(sauber.branche_id).toBe('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
+    expect(sauber._audience_situations).toEqual([
+      { name: 'morgens unter Zeitdruck', beschreibung: 'Kind fertig machen' }
+    ]);
+    expect(sanitizePersonaPayload({ name: 'A', branche_id: 'keine-uuid' }).branche_id).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -209,9 +232,13 @@ describe('buildPrompt', () => {
     expect(task).toContain('ABGELEITET');
     expect(task).toContain('MANUELL');
     expect(task).toContain('Sandra');
-    expect(task).toContain('BEREITS AKZEPTIERT');
+    expect(task).toContain('BEREITS UEBERNOMMEN');
     expect(stable).toContain('NICHTS ERFINDEN');
     expect(stable).toContain('KEINE KLISCHEES');
+    expect(stable).toContain('TYPEN MENSCH');
+    expect(stable).not.toContain('Zielgruppen-Stratege');
+    expect(stable).not.toContain('als Zielgruppe dienen');
+    expect(task).toContain('_audience_situations');
   });
 
   it('nutzt bestehende Personas als House-Style und Match-Pool', () => {
@@ -219,6 +246,8 @@ describe('buildPrompt', () => {
     const { stable, task } = buildPrompt(input, { pool, poolQuelle: 'marke' });
 
     expect(stable).toContain('HOUSE-STYLE');
+    expect(stable).toContain('Nur Naming und Oberbegriff');
+    expect(stable).toContain('Keine langen Bios');
     expect(task).toContain('Sandra');
     expect(task).toContain('BESTEHENDE PERSONAS der Produkt-Marken');
   });
@@ -326,6 +355,79 @@ describe('ProduktPersonaService Accept/Unlink', () => {
 
     expect(PersonaService.remove).not.toHaveBeenCalled();
     expect(out.personaId).toBe('p-neu');
+  });
+
+  it('dematerialize (neu, in Briefing referenziert) behaelt die Persona', async () => {
+    window.supabase = createSupabaseMock((chain) => {
+      if (chain.table === 'campaign_briefings') return { count: 1, error: null };
+      if (hatOp(chain, 'select') && chain.ops.some(o => o[0] === 'select' && o[2]?.head)) {
+        return { count: 0, error: null };
+      }
+      return { data: [], error: null };
+    });
+
+    const karte = { id: 'v1', typ: 'neu', persona_id: 'p-neu', payload: { name: 'Lena' } };
+    const out = await ProduktPersonaService.dematerialize(karte);
+
+    expect(PersonaService.remove).not.toHaveBeenCalled();
+    expect(out.personaId).toBe('p-neu');
+  });
+
+  it('materialize (neu) schreibt Audience Situations aus dem Payload', async () => {
+    window.supabase = createSupabaseMock(() => ({ data: [], error: null }));
+
+    await ProduktPersonaService.materialize({
+      typ: 'neu',
+      persona_id: null,
+      payload: {
+        name: 'Lena',
+        _audience_situations: [{ name: 'morgens unter Zeitdruck', beschreibung: 'Kind fertig machen' }]
+      }
+    }, { unternehmenId: 'u1', markeIds: [] });
+
+    expect(PersonaService.syncAudienceSituations).toHaveBeenCalledWith('persona-neu-1', [
+      { name: 'morgens unter Zeitdruck', beschreibung: 'Kind fertig machen', quelle: 'ki' }
+    ]);
+  });
+
+  it('flushKarte (accepted neu mit persona_id) legt nicht nochmal an', async () => {
+    window.supabase = createSupabaseMock((chain) => {
+      if (chain.table === 'produkt_persona_vorschlag' && hatOp(chain, 'insert')) {
+        return { data: { id: 'v-1' }, error: null };
+      }
+      if (chain.table === 'persona_marke' && hatOp(chain, 'select')) {
+        return { data: [], error: null };
+      }
+      return { data: [], error: null };
+    });
+
+    PersonaService.create.mockClear();
+    const karte = {
+      key: 'k1', id: null, typ: 'neu', status: 'accepted',
+      persona_id: 'persona-neu-1', payload: { name: 'Lena' }, fit_grund: 'fit',
+      useCaseKeys: [], persisted: null
+    };
+    await ProduktPersonaService.flushKarte('prod-1', karte, {
+      position: 0, keyToId: new Map(), unternehmenId: 'u1', markeIds: []
+    });
+
+    expect(PersonaService.create).not.toHaveBeenCalled();
+  });
+
+  it('uebernehmen ohne Produkt-Id legt die Persona an, schreibt aber keinen Vorschlag', async () => {
+    window.supabase = createSupabaseMock(() => ({ data: [], error: null }));
+
+    const out = await ProduktPersonaService.uebernehmen({
+      key: 'k1', id: null, typ: 'neu', status: 'pending',
+      persona_id: null, payload: { name: 'Lena' }, fit_grund: 'fit',
+      useCaseKeys: [], position: 0
+    }, { produktId: null, unternehmenId: 'u1', markeIds: ['m1'] });
+
+    expect(out.status).toBe('accepted');
+    expect(out.persona_id).toBe('persona-neu-1');
+    expect(out.persisted).toBeNull();
+    expect(PersonaService.create).toHaveBeenCalled();
+    expect(window.supabase.chains.some(c => c.table === 'produkt_persona_vorschlag')).toBe(false);
   });
 
   it('flushKarte (accepted neu) mappt Use-Case-Keys auf echte IDs', async () => {
@@ -664,30 +766,34 @@ describe('ProduktPersonaPanel', () => {
     expect(ProduktPersonaService.starteJob).not.toHaveBeenCalled();
   });
 
-  it('Annehmen/Zuruecknehmen/Verwerfen sind reine State-Wechsel vor dem Save', () => {
+  it('Save-Toast: pending-Karten und laufender Job blocken, Verwerfen ist ein State-Wechsel', async () => {
     form = mountPanel();
-    return startePanel(form).then(async (p) => {
-      panel = p;
-      panel.karten = [
-        { key: 'k1', id: null, typ: 'match', status: 'pending', persona_id: 'p1', useCaseKeys: [], position: 0 },
-        { key: 'k2', id: 'v2', typ: 'neu', status: 'pending', persona_id: 'p2', payload: { name: 'X' }, useCaseKeys: [], position: 1, persisted: { status: 'pending', persona_id: null } }
-      ];
+    panel = await startePanel(form);
+    panel.karten = [
+      { key: 'k1', id: null, typ: 'match', status: 'pending', persona_id: 'p1', useCaseKeys: [], position: 0 },
+      { key: 'k2', id: 'v2', typ: 'neu', status: 'pending', persona_id: null, payload: { name: 'X' }, useCaseKeys: [], position: 1, persisted: { status: 'pending', persona_id: null } }
+    ];
+    panel.render();
 
-      panel.acceptKarte('k1');
-      expect(panel.karten[0].status).toBe('accepted');
+    expect(panel.saveBlockGrund()).toContain('2 Persona-Vorschläge nicht übernommen');
+    expect(panel.root().querySelector('[data-persona-action="accept"]')).toBeNull();
+    expect(panel.root().querySelector('[data-persona-action="accept-alle"]')).toBeNull();
+    expect(panel.root().querySelector('[data-persona-action="open"]')).toBeTruthy();
 
-      panel.zurueckKarte('k1');
-      expect(panel.karten[0].status).toBe('pending');
+    panel.jobRunning = true;
+    expect(panel.saveBlockGrund()).toContain('noch generiert');
+    panel.jobRunning = false;
 
-      // unpersistierte Karte: Verwerfen entfernt sie und merkt die Match-ID
-      panel.verwerfKarte('k1');
-      expect(panel.karten.some(k => k.key === 'k1')).toBe(false);
-      expect(panel.verworfeneMatchIds).toContain('p1');
+    panel.karten[0].status = 'accepted';
+    expect(panel.saveBlockGrund()).toContain('1 Persona-Vorschlag nicht übernommen');
+    panel.karten[0].status = 'pending';
 
-      // persistierte Karte: Verwerfen markiert deleted, Zeile bleibt fuer den Flush
-      panel.verwerfKarte('k2');
-      expect(panel.karten[0].status).toBe('deleted');
-    });
+    await panel.verwerfKarte('k1');
+    expect(panel.karten.some(k => k.key === 'k1')).toBe(false);
+    expect(panel.verworfeneMatchIds).toContain('p1');
+
+    await panel.verwerfKarte('k2');
+    expect(panel.karten[0].status).toBe('deleted');
   });
 
   it('applySavedState mappt temp-Keys auf echte IDs, auch in den Karten-Refs', () => {

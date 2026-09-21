@@ -21,9 +21,7 @@ export class NavigationSystem {
         title: 'Kundendaten',
         items: [
           { id: 'unternehmen', label: 'Unternehmen', icon: 'unternehmen', url: '/unternehmen' },
-          { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'ansprechpartner', url: '/ansprechpartner' },
-          { id: 'persona', label: 'Personas', icon: 'persona', url: '/persona' },
-          { id: 'produkt', label: 'Produkte', icon: 'produkt', url: '/produkt' }
+          { id: 'ansprechpartner', label: 'Ansprechpartner', icon: 'ansprechpartner', url: '/ansprechpartner' }
         ]
       },
       {
@@ -46,6 +44,8 @@ export class NavigationSystem {
         title: 'Kampagnenmanagement',
         items: [
           { id: 'briefing', label: 'Briefings', icon: 'briefing', url: '/briefing' },
+          { id: 'persona', label: 'Personas', icon: 'persona', url: '/persona' },
+          { id: 'produkt', label: 'Produkte', icon: 'produkt', url: '/produkt' },
           { id: 'sourcing', label: 'Castings', icon: 'sourcing', url: '/castings' },
           { id: 'strategie', label: 'Konzepte', icon: 'strategie', url: '/konzepte' },
           { id: 'skripte', label: 'Skripte', icon: 'skripte', url: '/skripte' },

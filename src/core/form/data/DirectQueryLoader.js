@@ -9,6 +9,7 @@ import {
   applyBrancheJunctionSelected,
   applyRelationTableSelected
 } from './EditModeSelectedHelper.js';
+import { applyFinalisiertFilter } from '../../finalisiert.js';
 
 export async function loadDirectQueryOptions(field, form) {
   try {
@@ -129,9 +130,7 @@ async function loadFilteredByParent(field, form) {
     .select('*')
     .eq(field.filterBy, parentValue);
 
-  if (field.table === 'vertraege') {
-    filteredQuery = filteredQuery.eq('is_draft', false);
-  }
+  filteredQuery = applyFinalisiertFilter(filteredQuery, field.table);
 
   const { data: filteredData, error } = await filteredQuery
     .order(field.displayField || 'name', { ascending: true });
@@ -265,6 +264,8 @@ async function loadGenericTable(field) {
   if (field.filter) {
     query = query.or(field.filter);
   }
+
+  query = applyFinalisiertFilter(query, field.table);
 
   const result = await query;
 

@@ -1,4 +1,5 @@
 import { renderThinking, pushStep } from '../../core/chat/thinking.js';
+import { bindChatLog } from '../../core/chat/chatLog.js';
 // ProduktExtractPanel.js
 // Der Verlauf unter der URL-Eingabe in der rechten Spalte. Aufgebaut wie der
 // Chat im Skript-Editor: Liky begruesst, die eingegebene Adresse erscheint als
@@ -20,13 +21,17 @@ export class ProduktExtractPanel {
     this.turn = null;
     this.slot = null;
     this.received = [];
+    this._chatLog = null;
   }
 
   /** @param {HTMLFormElement} form - traegt das vom Renderer gebaute Panel */
   mount(form) {
+    this._chatLog?.destroy();
+    this._chatLog = null;
     this.root = form?.querySelector('#produkt-extract-feed') || null;
     if (!this.root) return;
 
+    this._chatLog = bindChatLog(this.root);
     this.root.setAttribute('aria-live', 'polite');
     this.reset();
     this.addLikyTurn(GRUSS);
@@ -93,7 +98,7 @@ export class ProduktExtractPanel {
     msg.appendChild(text);
 
     this.root.appendChild(msg);
-    this.scrollToEnd();
+    this._chatLog?.pin({ force: true });
   }
 
   /**
@@ -189,10 +194,12 @@ export class ProduktExtractPanel {
 
   /** Der Verlauf scrollt selbst, der neueste Beitrag soll sichtbar bleiben. */
   scrollToEnd() {
-    if (this.root) this.root.scrollTop = this.root.scrollHeight;
+    this._chatLog?.pin();
   }
 
   destroy() {
+    this._chatLog?.destroy();
+    this._chatLog = null;
     if (this._abort) {
       try { this._abort.abort(); } catch (_) { /* noop */ }
       this._abort = null;

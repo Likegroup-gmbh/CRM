@@ -108,6 +108,8 @@ ${icon('x-mark', { stroke: 2, className: 'w-6 h-6' })}
       
       // Felder mit editOnly nur im Edit-Modus anzeigen
       if (field.editOnly && !data?._isEditMode) continue;
+      if (field.createOnly && data?._isEditMode) continue;
+      if (field.adminOnly && !window.isAdmin?.()) continue;
 
       // readonlyExceptEdit: Im Edit-Mode readonly aufheben, im Create-Mode readonly setzen
       if (field.readonlyExceptEdit && data?._isEditMode) {
@@ -510,6 +512,9 @@ ${icon('x-mark', { stroke: 2, className: 'w-6 h-6' })}
 
       case 'toggle':
         const isToggled = value === 'on' || value === true || value === 'true' || value === 1 ? 'checked' : '';
+        const toggleHelp = field.helpText
+          ? `<p class="form-section__description">${this.validator.sanitizeHtml(field.helpText)}</p>`
+          : '';
         return `
           <div class="form-field">
             <label class="toggle-container">
@@ -519,6 +524,7 @@ ${icon('x-mark', { stroke: 2, className: 'w-6 h-6' })}
                 <span class="toggle-slider"></span>
               </div>
             </label>
+            ${toggleHelp}
           </div>
         `;
 

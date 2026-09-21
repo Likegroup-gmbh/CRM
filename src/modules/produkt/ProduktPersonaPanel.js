@@ -3,9 +3,9 @@
 // Produkt-Worksheet. Zwei Slots, ein Panel: Use-Case-Liste und 3er-Karten-Grid
 // mit Icon-Aktionen (einzeln und alle).
 //
-// Der Stand lebt komplett im Speicher und wird erst mit dem Produkt-Save
-// geschrieben (ProduktPersonaService.flushOnSave) - Annehmen, Zuruecknehmen
-// und Verwerfen vor dem Save sind reine State-Wechsel.
+// Der Stand lebt im Speicher. Uebernehmen im Drawer legt die Persona
+// sofort an. Der Produkt-Save schreibt den Vorschlags-Link.
+// Pending-Karten blocken den Save per Toast.
 //
 // Trigger: automatisch nach einem Site-Extract (siteExtractFinished), aber
 // nur wenn noch keine Karten existieren. Sonst per Icon, sobald das
@@ -335,9 +335,8 @@ export class ProduktPersonaPanel {
   }
 
   /**
-   * Manuell gewaehlte Persona als sofort akzeptierte Match-Karte. Beim Save
-   * laeuft sie durch denselben flushKarte-Pfad wie ein angenommener
-   * KI-Vorschlag (Materialisierung inkl. Marken-Attach).
+   * Manuell gewaehlte Persona als Match-Karte. Uebernehmen passiert im
+   * Drawer; hier landet sie erstmal pending, damit der Save-Toast greift.
    */
   addPersonaKarte(item) {
     if (this.karten.some(k => k.status !== 'deleted' && k.persona_id === item.id)) return;
@@ -345,7 +344,7 @@ export class ProduktPersonaPanel {
       key: tempKey('karte'),
       id: null,
       typ: 'match',
-      status: 'accepted',
+      status: 'pending',
       persona_id: item.id,
       persona: item.data || null,
       payload: null,
@@ -357,24 +356,34 @@ export class ProduktPersonaPanel {
     this.render();
   }
 
-  acceptKarte(key) {
-    const karte = this.karten.find(k => k.key === key);
-    if (!karte || karte.status !== 'pending') return;
-    karte.status = 'accepted';
-    this.render();
-  }
-
-  zurueckKarte(key) {
+  async zurueckKarte(key) {
     const karte = this.karten.find(k => k.key === key);
     if (!karte || karte.status !== 'accepted') return;
-    karte.status = 'pending';
-    this.render();
+    try {
+      const next = await ProduktPersonaService.zuruecknehmen(karte, {
+        produktId: this.produktId
+      });
+      Object.assign(karte, next);
+      this.render();
+    } catch (err) {
+      console.error('Zurücknehmen fehlgeschlagen:', err);
+      window.toastSystem?.error?.(err.message || 'Zurücknehmen fehlgeschlagen');
+    }
   }
 
-  verwerfKarte(key) {
+  async verwerfKarte(key) {
     const idx = this.karten.findIndex(k => k.key === key);
     if (idx === -1) return;
     const karte = this.karten[idx];
+    try {
+      if (karte.status === 'accepted') {
+        await ProduktPersonaService.zuruecknehmen(karte, { produktId: this.produktId });
+      }
+    } catch (err) {
+      console.error('Verwerfen fehlgeschlagen:', err);
+      window.toastSystem?.error?.(err.message || 'Verwerfen fehlgeschlagen');
+      return;
+    }
     if (karte.typ === 'match' && karte.persona_id) {
       this.verworfeneMatchIds = [...new Set([...this.verworfeneMatchIds, karte.persona_id])];
     }
@@ -388,14 +397,8 @@ export class ProduktPersonaPanel {
 
   regenKarte(key) {
     const karte = this.karten.find(k => k.key === key);
-    if (!karte || this.jobRunning) return;
-    this.verwerfKarte(key);
-    this.startJob('karte', karte);
-  }
-
-  acceptAlle() {
-    this.karten.forEach(k => { if (k.status === 'pending') k.status = 'accepted'; });
-    this.render();
+    if (!karte || this.jobRunning || karte.status === 'accepted') return;
+    void this.verwerfKarte(key).then(() => this.startJob('karte', karte));
   }
 
   verwerfAlle() {
@@ -466,17 +469,21 @@ export class ProduktPersonaPanel {
       const aktionen = {
         'open': () => this.openDrawer(key),
         'add-persona': () => this.toggleSuche(),
-        'accept': () => this.acceptKarte(key),
         'zurueck': () => this.zurueckKarte(key),
         'verwerfen': () => this.verwerfKarte(key),
         'regen-karte': () => this.regenKarte(key),
         'regen-alle': () => this.regenAlle(),
-        'accept-alle': () => this.acceptAlle(),
         'verwerf-alle': () => this.verwerfAlle(),
         'add-usecase': () => this.addUseCase(),
         'remove-usecase': () => this.removeUseCase(key)
       };
       aktionen[name]?.();
+      return;
+    }
+
+    const card = e.target.closest('.rel-card[data-key]');
+    if (card && this.root()?.contains(card)) {
+      this.openDrawer(card.dataset.key);
     }
   }
 
@@ -515,8 +522,39 @@ export class ProduktPersonaPanel {
     this.drawer.open({
       karte,
       persona,
-      unternehmenId: this.kontext?.getUnternehmenId?.() || null
+      unternehmenId: this.kontext?.getUnternehmenId?.() || null,
+      markeIds: this.kontext?.getMarkeIds?.() || [],
+      produktId: this.produktId,
+      onChange: (next) => this.applyKarte(next)
     });
+  }
+
+  applyKarte(next) {
+    if (!next?.key) return;
+    const idx = this.karten.findIndex(k => k.key === next.key);
+    if (idx === -1) return;
+    this.karten[idx] = { ...this.karten[idx], ...next };
+    this.render();
+  }
+
+  pendingKarten() {
+    return this.aktiveKarten().filter(k => k.status === 'pending');
+  }
+
+  /** Text fuer den Save-Block, oder null wenn Speichern ok ist. */
+  saveBlockGrund() {
+    if (this.jobRunning) {
+      return 'Persona-Vorschläge werden noch generiert. Bitte warten.';
+    }
+    const n = this.pendingKarten().length;
+    if (!n) return null;
+    return n === 1
+      ? 'Noch 1 Persona-Vorschlag nicht übernommen. Übernehmen legt sie unter Personas an — Speichern allein reicht nicht.'
+      : `Noch ${n} Persona-Vorschläge nicht übernommen. Übernehmen legt sie unter Personas an — Speichern allein reicht nicht.`;
+  }
+
+  scrollIntoView() {
+    this.root()?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   // --- Save-Flush ---
@@ -638,7 +676,6 @@ export class ProduktPersonaPanel {
           <div class="rel-panel__aktionen">
             ${iconBtn('add-persona', 'plus-sign', 'Bestehende Persona hinzufügen', { disabled: this.jobRunning })}
             ${iconBtn('regen-alle', 'arrow-path', regenLabel, { disabled: this.jobRunning || !gateOk })}
-            ${iconBtn('accept-alle', 'check-bold', 'Alle annehmen', { disabled: !pending.length || this.jobRunning })}
             ${iconBtn('verwerf-alle', 'trash', 'Alle verwerfen', { disabled: !pending.length || this.jobRunning })}
           </div>
         </div>
@@ -651,17 +688,16 @@ export class ProduktPersonaPanel {
   renderKarte(karte) {
     const daten = this.kartenDaten(karte);
     const akzeptiert = karte.status === 'accepted';
+    const matchLesen = akzeptiert && karte.typ === 'match';
 
     return `
       <article class="rel-card${akzeptiert ? ' rel-card--accepted' : ''}" data-key="${karte.key}">
         <header class="rel-card__kopf">
           <span class="rel-card__name">${escapeHtml(daten.name)}</span>
           <div class="rel-card__aktionen">
-            ${iconBtn('open', 'document-text', 'Details öffnen')}
-            ${akzeptiert
-              ? iconBtn('zurueck', 'check-bold', 'Zurücknehmen', { active: true })
-              : iconBtn('accept', 'check-bold', 'Annehmen')}
-            ${iconBtn('regen-karte', 'arrow-path', 'Neu generieren', { disabled: this.jobRunning })}
+            ${iconBtn('open', matchLesen ? 'document-text' : 'pencil-square', matchLesen ? 'Details öffnen' : 'Bearbeiten')}
+            ${akzeptiert ? iconBtn('zurueck', 'check-bold', 'Zurücknehmen', { active: true }) : ''}
+            ${iconBtn('regen-karte', 'arrow-path', 'Neu generieren', { disabled: this.jobRunning || akzeptiert })}
             ${iconBtn('verwerfen', 'trash', 'Verwerfen')}
           </div>
         </header>

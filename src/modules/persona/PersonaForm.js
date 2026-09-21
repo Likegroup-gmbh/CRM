@@ -21,6 +21,7 @@ import { PersonaLikyPanel } from './PersonaLikyPanel.js';
 import { resolveOwnerContext } from '../../core/OwnerContext.js';
 import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { loadBriefingIdsForPersona, setPersonaBriefings } from '../briefing/BriefingPersonas.js';
 
 export class PersonaForm {
   constructor() {
@@ -29,6 +30,7 @@ export class PersonaForm {
     this.personaId = null;
     this.persona = null;
     this.markenIds = [];
+    this.briefingIds = [];
     this.produktPanel = null;
     this.situationPanel = null;
     this.likyPanel = null;
@@ -57,6 +59,7 @@ export class PersonaForm {
     }
     this.persona = null;
     this.markenIds = [];
+    this.briefingIds = [];
 
     try {
       if (this.isStandalone) {
@@ -68,6 +71,7 @@ export class PersonaForm {
             return;
           }
           this.markenIds = await PersonaService.loadMarkenIds(this.personaId);
+          this.briefingIds = await loadBriefingIdsForPersona(this.personaId, { nurFinalisiert: true });
         }
         this.ctx = {
           typ: 'persona',
@@ -93,6 +97,7 @@ export class PersonaForm {
             return;
           }
           this.markenIds = await PersonaService.loadMarkenIds(this.personaId);
+          this.briefingIds = await loadBriefingIdsForPersona(this.personaId, { nurFinalisiert: true });
         }
       }
     } catch (err) {
@@ -135,7 +140,7 @@ export class PersonaForm {
     }
 
     const formData = this.isEdit
-      ? { ...this.persona, marke_ids: this.markenIds, _isEditMode: true, _entityId: this.persona.id }
+      ? { ...this.persona, marke_ids: this.markenIds, briefing_ids: this.briefingIds, _isEditMode: true, _entityId: this.persona.id }
       : null;
 
     window.content.innerHTML = renderPersonaDoc(formData, {
@@ -284,6 +289,7 @@ export class PersonaForm {
       // Erst Marken, dann Produkte: saveMarken macht Delete-all und wuerde
       // die beim Produkt-Attach auto-angehaengten Marken sonst wegwischen.
       await ProduktPersonaService.saveForPersona(personaId, this.produktPanel?.getProduktIds() || []);
+      await setPersonaBriefings(personaId, this.collectBriefingIds(data));
       await PersonaService.syncAudienceSituations(personaId, this.situationPanel?.getState() || []);
 
       window.toastSystem?.success?.(this.isEdit ? 'Persona gespeichert' : 'Persona angelegt');
@@ -309,6 +315,12 @@ export class PersonaForm {
       return [...new Set([...this.markenIds, this.ctx.markeId].filter(Boolean))];
     }
     const werte = data.marke_ids;
+    if (Array.isArray(werte)) return werte;
+    return werte ? [werte] : [];
+  }
+
+  collectBriefingIds(data) {
+    const werte = data?.briefing_ids;
     if (Array.isArray(werte)) return werte;
     return werte ? [werte] : [];
   }

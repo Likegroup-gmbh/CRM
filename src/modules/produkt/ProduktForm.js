@@ -383,6 +383,14 @@ export class ProduktForm {
       return;
     }
 
+    const personaBlock = this.personaPanel?.saveBlockGrund?.();
+    if (personaBlock) {
+      window.toastSystem?.error?.(personaBlock);
+      this.personaPanel.scrollIntoView();
+      this.releaseSubmitBtn(submitBtn);
+      return;
+    }
+
     const preisFehler = this.validatePreisRange(data);
     if (preisFehler) {
       this.showFieldErrors(form, { [preisFehler.feld]: preisFehler.text });

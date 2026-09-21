@@ -4117,7 +4117,30 @@ input.readonly-field {
 
 .bf-channel {
   padding: var(--space-sm) 0;
-  
+}
+
+.form-page--briefing .bf-channels {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.form-page--briefing .bf-channel {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  gap: var(--space-xs);
+}
+
+.form-page--briefing .bf-channel__title {
+  margin-bottom: 0;
+  min-height: 1.25rem;
+  line-height: 1.25rem;
+}
+
+.form-page--briefing .bf-channel--custom {
+  min-width: 16rem;
+  flex: 1 1 16rem;
 }
 
 .bf-channel__title {
@@ -4179,6 +4202,37 @@ input.readonly-field {
 
 .bf-custom-multi-input {
   margin-top: var(--space-xs);
+}
+
+.bf-field-group--wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.bf-field-group--wrap > .form-field,
+.bf-field-group--wrap > .bf-conditional {
+  width: auto;
+  flex: 0 0 auto;
+  margin-bottom: 0;
+}
+
+.bf-field-group--row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-md);
+}
+
+.bf-field-group--row > .form-field,
+.bf-field-group--row > .bf-conditional {
+  width: auto;
+  margin-bottom: 0;
+}
+
+.bf-field-group--stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
 }
 
 .form-page--briefing .multistep-content {

@@ -17,6 +17,7 @@
 
 import { bindCollapsible } from '../../core/collapsiblePanel.js';
 import { ChatPanelShell } from '../../core/chat/ChatPanelShell.js';
+import { bindChatLog, isNearEnd, scrollToEnd } from '../../core/chat/chatLog.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { revealLines, cancelLineReveal } from '../../core/animation/lineReveal.js';
 import { skripteService } from './SkripteService.js';
@@ -75,24 +76,6 @@ function prepareRevealTargets(row) {
   }
   for (const f of row.querySelectorAll(MSG_FOOTER_SEL)) f.style.display = 'none';
   return textByTarget;
-}
-
-function bindRevealScroll(logEl) {
-  const follow = { current: logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 120 };
-  let pinning = false;
-  const onScroll = () => {
-    if (pinning) return;
-    follow.current = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 120;
-  };
-  logEl.addEventListener('scroll', onScroll, { passive: true });
-  const pin = () => {
-    if (!follow.current) return;
-    pinning = true;
-    logEl.scrollTop = logEl.scrollHeight;
-    pinning = false;
-  };
-  const stop = () => logEl.removeEventListener('scroll', onScroll);
-  return { pin, stop };
 }
 
 /** Erst Kommentar, dann Vorschlag; Footer (Buttons) erst nach dem Reveal. */
@@ -172,6 +155,7 @@ export class SkriptEditorView {
     this._modiGeladen = false;
     this._listeCollapse = null;
     this._likyShell = null;
+    this._chatLog = null;
 
     // Controller (Fachlogik), jeweils mit Blick auf diese Fassade
     this._generation = new SkriptEditorGeneration(this);
@@ -485,6 +469,8 @@ export class SkriptEditorView {
   }
 
   async cleanup() {
+    this._chatLog?.destroy();
+    this._chatLog = null;
     this._likyShell?.destroy();
     this._likyShell = null;
     try { await this.inlineEdit.flush(); } catch (_) { /* Abbau trotzdem */ }
@@ -588,6 +574,8 @@ export class SkriptEditorView {
   // ------------------------------------------------------------------
   /** Shell nur fuer interne User; Kunden/Readonly sehen keinen Einstieg. */
   mountLikyChat() {
+    this._chatLog?.destroy();
+    this._chatLog = null;
     this._likyShell?.destroy();
     this._likyShell = null;
     if (!this.kannAiAktionen) return;
@@ -605,7 +593,7 @@ export class SkriptEditorView {
           <span class="skripte-editor-msg-name">Liky</span>
         </span>`,
       bodyHtml: `
-        <div class="skripte-editor-chat-log" id="ed-chat-log"></div>
+        <div class="skripte-editor-chat-log chat-log" id="ed-chat-log"></div>
         <div class="skripte-editor-inputwrap">
           <div class="skripte-editor-chip" id="ed-chip" hidden></div>
           <div class="skripte-editor-input">
@@ -618,11 +606,9 @@ export class SkriptEditorView {
             </div>
           </div>
         </div>`,
-      onOpen: () => {
-        const log = document.getElementById('ed-chat-log');
-        if (log) log.scrollTop = log.scrollHeight;
-      }
+      onOpen: () => this._chatLog?.pin({ force: true })
     });
+    this._chatLog = bindChatLog(document.getElementById('ed-chat-log'));
 
     const { offen, size } = this._likyShell.getStoredState();
     if (offen) this._likyShell.open({ size: size || undefined, persist: false });
@@ -800,7 +786,7 @@ export class SkriptEditorView {
 
     // Scrollposition erhalten: nur ans Ende springen, wenn der User schon
     // (nahezu) unten war oder gerade selbst etwas abgeschickt hat
-    const warUnten = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    const warUnten = this._chatLog?.isFollowing() ?? isNearEnd(el);
     const vorherigerScroll = el.scrollTop;
 
     el.innerHTML = this.versionsHinweisHtml()
@@ -813,7 +799,8 @@ export class SkriptEditorView {
     this.bindGenRetry(el);
 
     if (forceScroll || warUnten) {
-      el.scrollTop = el.scrollHeight;
+      if (this._chatLog) this._chatLog.pin({ force: true });
+      else scrollToEnd(el);
     } else {
       el.scrollTop = vorherigerScroll;
     }
@@ -836,9 +823,8 @@ export class SkriptEditorView {
     const newRow = tpl.content.firstElementChild;
     if (!newRow) return;
 
-    // Follow-State VOR dem Insert: nach einem Riesenblock waere
-    // scrollHeight-scrollTop nicht mehr < 120, obwohl der User unten war.
-    const { pin, stop } = bindRevealScroll(el);
+    // Follow-State sitzt am persistenten _chatLog (vor dem Insert lesen).
+    const pin = () => this._chatLog?.pin();
     const textByTarget = animateText ? prepareRevealTargets(newRow) : [];
 
     const existing = el.querySelector(`[data-msg-row="${m.id}"]`);
@@ -858,9 +844,7 @@ export class SkriptEditorView {
     pin();
 
     if (animateText) {
-      revealMessageRow(newRow, { pin, textByTarget }).finally(stop);
-    } else {
-      stop();
+      revealMessageRow(newRow, { pin, textByTarget });
     }
   }
 

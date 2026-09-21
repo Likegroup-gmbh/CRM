@@ -2,14 +2,24 @@
 // Rechte Spalte des Persona-Worksheets: der Liky-Chat. Composer und Verlauf
 // kommen aus likyComposer.js, das Panel (PersonaLikyPanel.js) fuellt den
 // Feed und verdrahtet Send. Was Liky hier darf, steht in likyCapabilities
-// (persona: extract url, chat true).
+// (persona: extract url+pdf, chat true).
 
-import { renderLikyComposer, renderLikySend, renderLikyColumn } from '../../core/chat/likyComposer.js';
-import { likyCapability } from '../../core/chat/likyCapabilities.js';
+import { renderLikyComposer, renderLikySend, renderLikyColumn, renderLikyEingabe } from '../../core/chat/likyComposer.js';
+import { likyCapability, likyCanExtractPdf, likyCanExtractUrl } from '../../core/chat/likyCapabilities.js';
+
+export function personaLikyPlaceholder() {
+  const url = likyCanExtractUrl('persona');
+  const pdf = likyCanExtractPdf('persona');
+  if (url && pdf) return 'Shop-URL, PDF oder ein paar Sätze zur Persona…';
+  if (url) return 'Shop-URL oder ein paar Sätze zur Persona…';
+  if (pdf) return 'PDF oder ein paar Sätze zur Persona…';
+  return 'Ein paar Sätze zur Persona…';
+}
 
 export function renderPersonaLikySlot() {
   const cap = likyCapability('persona');
   const enabled = Boolean(cap);
+  const mitPdf = enabled && likyCanExtractPdf('persona');
 
   return renderLikyColumn({
     feedId: 'persona-liky-feed',
@@ -19,11 +29,12 @@ export function renderPersonaLikySlot() {
       labelFor: 'persona-liky-input',
       disabled: !enabled,
       inputHtml: `
-        <div class="doc-chat__input">
-          <input type="text" id="persona-liky-input" class="doc-chat__eingabe"
-                 ${enabled ? '' : 'disabled '}autocomplete="off"
-                 placeholder="${enabled ? 'Shop-URL oder ein paar Sätze zur Persona…' : 'Liky für Personas folgt …'}">
-        </div>
+        ${mitPdf ? '<div class="doc-chat__chips" id="persona-liky-chips"></div>' : ''}
+        ${renderLikyEingabe({
+          id: 'persona-liky-input',
+          disabled: !enabled,
+          placeholder: enabled ? personaLikyPlaceholder() : 'Liky für Personas folgt …'
+        })}
       `,
       sendHtml: renderLikySend({
         id: 'persona-liky-send',

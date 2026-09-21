@@ -6,10 +6,9 @@ import { modularFilterSystem as filterSystem } from '../../core/filters/ModularF
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { AuftragFilterLogic } from './filters/AuftragFilterLogic.js';
 import { sortRowsByPrefixedNumberDesc } from './logic/PrefixedNumberSort.js';
+import { FINAL_AUFTRAG_OR_FILTER } from '../../core/finalisiert.js';
 
-// PostgREST-Filter gegen Entwuerfe: neq('is_draft', true) wuerde NULL-Zeilen
-// (Altbestand) mit ausblenden, darum explizit "null ODER false".
-export const FINAL_AUFTRAG_OR_FILTER = 'is_draft.is.null,is_draft.eq.false';
+export { FINAL_AUFTRAG_OR_FILTER };
 
 const AUFTRAG_LIST_SELECT = `
         id,

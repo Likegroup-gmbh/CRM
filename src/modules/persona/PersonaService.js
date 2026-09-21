@@ -141,6 +141,7 @@ export class PersonaService {
     if (unternehmenId) payload.unternehmen_id = unternehmenId;
     delete payload.marke_ids;
     delete payload.produkt_ids;
+    delete payload.briefing_ids;
     delete payload.kontext;
     if ('budgetrahmen' in payload) payload.budgetrahmen = clampBudgetrahmen(payload.budgetrahmen);
 
@@ -153,6 +154,7 @@ export class PersonaService {
     const payload = { ...data };
     delete payload.marke_ids;
     delete payload.produkt_ids;
+    delete payload.briefing_ids;
     delete payload.kontext;
     // unternehmen_id steht als Hidden-Feld im Formular und darf nicht wandern
     delete payload.unternehmen_id;

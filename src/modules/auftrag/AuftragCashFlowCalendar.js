@@ -7,6 +7,7 @@ import { tableExport } from '../../core/TableExport.js';
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { renderEmptyStateRow } from '../../core/components/EmptyState.js';
 import { getInvoiceDisplayDate } from './logic/InvoiceDisplayDate.js';
+import { isTestUnternehmen } from '../../core/budget/testunternehmen.js';
 
 export class AuftragCashFlowCalendar {
   constructor() {
@@ -55,7 +56,7 @@ export class AuftragCashFlowCalendar {
         .from('auftrag')
         .select(`
           *,
-          unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
+          unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url, ist_test),
           marke:marke_id(id, markenname, logo_url),
           teilrechnungen:auftrag_teilrechnung(id, position, nettobetrag, ust_betrag, bruttobetrag, re_nr, re_faelligkeit, erwarteter_monat_zahlungseingang, rechnung_gestellt, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am)
         `);
@@ -80,7 +81,7 @@ export class AuftragCashFlowCalendar {
         return;
       }
 
-      this.auftraege = data || [];
+      this.auftraege = (data || []).filter((a) => !isTestUnternehmen(a.unternehmen));
       console.log(`✅ ${this.auftraege.length} Aufträge geladen`);
       
       // Daten gruppieren

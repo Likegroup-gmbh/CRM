@@ -16,12 +16,15 @@ export function renderUnternehmenDetailPage(detail) {
     detail.activeMainTab = 'informationen';
   }
 
-  window.setHeadline(`${detail.unternehmen?.firmenname || 'Unternehmen'} - Details`);
+  const name = detail.unternehmen?.firmenname || 'Unternehmen';
+  window.setHeadline(detail.unternehmen?.ist_test ? `${name} · Test - Details` : `${name} - Details`);
 
   const personConfig = {
     name: detail.unternehmen?.firmenname || 'Unbekannt',
     email: '',
-    subtitle: detail.unternehmen?.branchen_names?.join(', ') || 'Unternehmen',
+    subtitle: detail.unternehmen?.ist_test
+      ? 'Testunternehmen'
+      : (detail.unternehmen?.branchen_names?.join(', ') || 'Unternehmen'),
     avatarUrl: detail.unternehmen?.logo_url,
     avatarOnly: false
   };
@@ -33,6 +36,7 @@ export function renderUnternehmenDetailPage(detail) {
     : null;
 
   const sidebarInfo = detail.renderInfoItems([
+    ...(detail.unternehmen?.ist_test ? [{ icon: 'info', label: 'Testunternehmen', value: 'Nur Admins, nicht in den Zahlen' }] : []),
     ...(detail.unternehmen?.internes_kuerzel ? [{ icon: 'info', label: 'Internes Kürzel', value: detail.unternehmen.internes_kuerzel }] : []),
     ...(detail.unternehmen?.beschreibung ? [{ icon: 'info', label: 'Kurzbeschreibung', value: detail.unternehmen.beschreibung }] : []),
     { icon: 'tag', label: 'Branchen', value: detail.unternehmen?.branchen_names?.join(', ') || '-' },

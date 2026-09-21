@@ -13,6 +13,7 @@ import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { UnternehmenService } from './services/UnternehmenService.js';
 import { MarkeService } from '../marke/services/MarkeService.js';
 import { icon } from '../../core/icons/IconSystem.js';
+import { testunternehmenBadgeHtml } from '../../core/budget/testunternehmen.js';
 
 export class UnternehmenList extends BasePaginatedList {
   constructor() {
@@ -268,6 +269,7 @@ export class UnternehmenList extends BasePaginatedList {
           <a href="#" class="table-link" data-table="unternehmen" data-id="${u.id}">
             ${sanitize(u.internes_kuerzel || u.firmenname || '')}
           </a>
+          ${u.ist_test ? ` ${testunternehmenBadgeHtml()}` : ''}
         </td>
         <td class="col-stadt">${sanitize(u.rechnungsadresse_stadt || '-')}</td>
         <td class="col-land">${sanitize(u.rechnungsadresse_land || '-')}</td>

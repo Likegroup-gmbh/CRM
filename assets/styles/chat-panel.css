@@ -108,6 +108,12 @@
   overflow: hidden;
 }
 
+/* Verlauf: Restflaeche nach oben, Messages sitzen am unteren Rand.
+   Bei Overflow wird margin-top:auto zu 0, Scroll bleibt normal. */
+.chat-log > :first-child {
+  margin-top: auto;
+}
+
 /* --- FAB (Trigger 'fab') ------------------------------------------------ */
 
 .chat-panel__fab {

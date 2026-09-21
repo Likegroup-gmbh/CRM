@@ -33,7 +33,7 @@ Es gibt keine Detail-Seite, kein Archiv und keine Screenshots.
 _Avoid_: Report, News, Update-Post, Release-Notes
 
 **Persona**:
-Typ Mensch auf Unternehmensebene, optional mehreren Marken und Produkten zugeordnet.
+Typ Mensch auf Unternehmensebene, optional mehreren Marken, Produkten und Briefings zugeordnet.
 Hat Audience Situations als Bestandteil, keine eigene Prozessstufe.
 Der produkt-spezifische Fit (warum, welche Use Cases) sitzt nicht an der Persona, sondern an der Zuordnung.
 _Avoid_: Zielgruppe, Buyer-Persona, Kunde
@@ -94,9 +94,20 @@ _Avoid_: Anhang, Briefing
 
 **Briefing**:
 Das Aktivierungsdokument eines Unternehmens, optional einer Marke. Verbindliche Grundlage
-für Casting und Konzept; wählt mindestens ein Produkt und eine Persona, hängt nicht an einer Kampagne
+für Casting und Konzept. Personas hängen über Zuordnung, Produkte nur über den accepted Fit
+dieser Personas; beim Anlegen ist beides nicht Pflicht. Hängt nicht an einer Kampagne
 und trägt keinen Ansprechpartner (der sitzt am Unternehmen, der Marke oder der Kampagne).
 _Avoid_: Kampagnen-Briefing (das ist die Tabelle `campaign_briefings`), Kundenbriefing
+
+**Entwurf**:
+Briefing, Vertrag oder Auftrag, der noch nicht verbindlich ist. Andere Entities
+verknüpfen ihn nicht über Picker; der eigene Editor bleibt beschreibbar.
+_Avoid_: Draft, unpublished, nicht live
+
+**Finalisiert**:
+Briefing, Vertrag oder Auftrag, der kein Entwurf mehr ist. Auftrag-Altbestand ohne Flag
+gilt als finalisiert.
+_Avoid_: Final, published, live, aktiv (Prozessstatus bzw. Regelwerk)
 
 **Briefing-Typ**:
 Paid, Organic oder Influencer. Der primäre Produktionszweck eines Briefings, nicht die
@@ -200,7 +211,7 @@ _Avoid_: Fit Score, LLM-Ranking, position als Sortierung
 Einen Casting-Vorschlag zum Casting-Eintrag mit `creator_id` machen.
 
 **Übernehmen**:
-Einen Videoidee-Vorschlag zur normalen Videoidee machen (Flag weg, Ohne Kategorie).
+Einen KI-Vorschlag zur Stammdaten-Entity machen: Videoidee-Vorschlag wird zur normalen Videoidee (Flag weg, Ohne Kategorie); Persona-Vorschlag `typ=neu` wird zur Persona unter Unternehmen/Marke. Speichern des Produkts allein übernimmt keine Persona.
 _Avoid_: Aktivieren (Casting), Annehmen (Persona)
 
 **Management**:

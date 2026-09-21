@@ -53,3 +53,31 @@ export async function syncBriefingProdukte(briefingId, produktIds) {
     .insert(ids.map(produkt_id => ({ briefing_id: briefingId, produkt_id })));
   if (error) throw error;
 }
+
+/** Projektion: Union der accepted Fits der Briefing-Personas (ADR 0021). */
+export async function recomputeBriefingProdukte(briefingId) {
+  if (!briefingId || !window.supabase) return;
+
+  const { data: briefing, error } = await window.supabase
+    .from('campaign_briefings')
+    .select('persona_ids')
+    .eq('id', briefingId)
+    .single();
+  if (error) throw error;
+
+  const personaIds = Array.isArray(briefing?.persona_ids)
+    ? briefing.persona_ids.filter(Boolean)
+    : [];
+  let produktIds = [];
+  if (personaIds.length) {
+    const { data: rows, error: vErr } = await window.supabase
+      .from('produkt_persona_vorschlag')
+      .select('produkt_id')
+      .in('persona_id', personaIds)
+      .eq('status', 'accepted');
+    if (vErr) throw vErr;
+    produktIds = [...new Set((rows || []).map(r => r.produkt_id).filter(Boolean))];
+  }
+
+  await syncBriefingProdukte(briefingId, produktIds);
+}

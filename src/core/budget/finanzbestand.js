@@ -16,6 +16,7 @@
 
 import { fetchAllRows } from '../fetchAllRows.js';
 import { fetchBerichtsstaende } from '../../modules/stakeholder/berichtsstandStore.js';
+import { dropTestunternehmenBestand } from './testunternehmen.js';
 
 let cached = null;
 let inFlight = null;
@@ -42,7 +43,7 @@ const FINANZBESTAND_SELECTS = [
   ['auftrag_details',
     'auftrag_id, campaign_type, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value'],
   ['unternehmen',
-    'id, firmenname'],
+    'id, firmenname, ist_test'],
   ['auftrag_teilrechnung',
     'id, auftrag_id, nettobetrag, bruttobetrag, rechnung_gestellt, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am, re_faelligkeit'],
 ];
@@ -62,10 +63,10 @@ async function load(supabase) {
     creators, details, unternehmen, teilrechnungen] = entries;
   const berichtsstaende = await berichtsstaendePromise;
 
-  return {
-    // Entwuerfe werden hier gefiltert; die Rechenkerne (Datenqualitaet,
-    // Monatsauswertung) erwarten bereits gefilterte Auftraege.
-    auftraege: (auftraege || []).filter(a => a.is_draft !== true),
+  return dropTestunternehmenBestand({
+    // Entwuerfe und Testunternehmen werden im Helper gefiltert; die
+    // Rechenkerne (Datenqualitaet, Monatsauswertung) erwarten das schon.
+    auftraege: auftraege || [],
     blocks: blocks || [],
     kampagnen: kampagnen || [],
     kooperationen: kooperationen || [],
@@ -76,7 +77,7 @@ async function load(supabase) {
     unternehmen: unternehmen || [],
     teilrechnungen: teilrechnungen || [],
     berichtsstaende: berichtsstaende || [],
-  };
+  });
 }
 
 export async function loadFinanzbestand(supabase) {

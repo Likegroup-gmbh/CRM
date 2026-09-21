@@ -13,4 +13,4 @@ Der Link hängt bewusst am Kind und nicht als `kampagne.briefing_id` an der Kamp
 
 - Casting/Konzept tragen `briefing_id` nullable (Grandfather), `ON DELETE RESTRICT`.
 - Kooperation und Skript behalten ihren optionalen `briefing_id`; die Pflicht gilt vorerst nur für Casting/Konzept.
-- Der Kooperation-Picker (`briefing_id:kampagne_id` in `CascadeStrategies.js`) bleibt ungehärtet; Casting/Konzept nutzen einen eigenen Loader (finalisiert, Marke hart).
+- Picker laden nur finalisierte Briefings (auch Kooperation); siehe ADR 0022.

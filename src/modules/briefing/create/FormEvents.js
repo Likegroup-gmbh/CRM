@@ -84,12 +84,6 @@ BriefingCreate.prototype.bindConditionalEvents = function() {
     // Geaendertes Feld sofort in formData spiegeln, dann Conditions neu auswerten
     this.saveCurrentStepData();
     this.refreshConditions();
-    if (e.target.closest('[data-entity-multi="produkt_ids"]')) {
-      this.refreshPersonas().then(() => {
-        this.prunePersonaIds();
-        this.rebuildPersonaSelect();
-      });
-    }
   });
 };
 
@@ -267,13 +261,8 @@ BriefingCreate.prototype.bindCascadeEvents = function() {
     unternehmenSelect.addEventListener('change', async (e) => {
       this.formData.unternehmen_id = e.target.value || null;
       this.formData.marke_id = null;
-      this.formData.produkt_ids = [];
-      this.formData.persona_ids = [];
       this.rebuildMarkeSelect();
       await this.refreshProdukte();
-      this.rebuildProduktSelect();
-      await this.refreshPersonas();
-      this.rebuildPersonaSelect();
     });
   }
 
@@ -282,121 +271,6 @@ BriefingCreate.prototype.bindCascadeEvents = function() {
     markeSelect.addEventListener('change', async (e) => {
       this.formData.marke_id = e.target.value || null;
       await this.refreshProdukte();
-      this.pruneProduktIds();
-      this.rebuildProduktSelect();
-      await this.refreshPersonas();
-      this.prunePersonaIds();
-      this.rebuildPersonaSelect();
-    });
-  }
-};
-
-BriefingCreate.prototype.pruneProduktIds = function() {
-  const valid = new Set((this.produkte || []).map(p => p.id));
-  this.formData.produkt_ids = (this.formData.produkt_ids || []).filter(id => valid.has(id));
-};
-
-BriefingCreate.prototype.rebuildProduktSelect = function() {
-  const wrapper = document.querySelector('[data-entity-multi="produkt_ids"]');
-  if (!wrapper) return;
-
-  wrapper.querySelector('.searchable-select-container')?.remove();
-  document.getElementById('produkt_ids_hidden')?.remove();
-  wrapper.closest('form')?.querySelector('select[name="produkt_ids[]"]')?.remove();
-
-  let produktSelect = wrapper.querySelector('select#produkt_ids')
-    || wrapper.querySelector('select[multiple]');
-  if (!produktSelect) {
-    produktSelect = document.createElement('select');
-    produktSelect.id = 'produkt_ids';
-    produktSelect.name = 'produkt_ids';
-    produktSelect.multiple = true;
-    produktSelect.dataset.searchable = 'true';
-    produktSelect.dataset.tagBased = 'true';
-    const helper = wrapper.querySelector('.field-helper');
-    wrapper.insertBefore(produktSelect, helper);
-  }
-
-  produktSelect.style.display = '';
-  produktSelect.disabled = false;
-
-  const unternehmenId = this.formData.unternehmen_id;
-  const selected = new Set(this.formData.produkt_ids || []);
-  const options = unternehmenId ? (this.produkte || []) : [];
-
-  produktSelect.innerHTML = options.map(o => `
-    <option value="${escapeHtml(o.id)}" ${selected.has(o.id) ? 'selected' : ''}>${escapeHtml(o.name || o.id)}</option>
-  `).join('');
-  produktSelect.disabled = !unternehmenId;
-  produktSelect.dataset.placeholder = unternehmenId
-    ? 'Produkte suchen und hinzufügen...'
-    : 'Bitte zuerst Unternehmen wählen...';
-
-  if (unternehmenId && window.formSystem?.createSearchableSelect) {
-    window.formSystem.createSearchableSelect(produktSelect, options.map(o => ({
-      value: o.id,
-      label: o.name || o.id,
-      selected: selected.has(o.id)
-    })), {
-      name: 'produkt_ids',
-      type: 'multiselect',
-      tagBased: true,
-      placeholder: 'Produkte suchen und hinzufügen...'
-    });
-  }
-};
-
-BriefingCreate.prototype.prunePersonaIds = function() {
-  const valid = new Set((this.personas || []).map(p => p.id));
-  this.formData.persona_ids = (this.formData.persona_ids || []).filter(id => valid.has(id));
-};
-
-BriefingCreate.prototype.rebuildPersonaSelect = function() {
-  const wrapper = document.querySelector('[data-entity-multi="persona_ids"]');
-  if (!wrapper) return;
-
-  wrapper.querySelector('.searchable-select-container')?.remove();
-  document.getElementById('persona_ids_hidden')?.remove();
-  wrapper.closest('form')?.querySelector('select[name="persona_ids[]"]')?.remove();
-
-  let personaSelect = wrapper.querySelector('select#persona_ids')
-    || wrapper.querySelector('select[multiple]');
-  if (!personaSelect) {
-    personaSelect = document.createElement('select');
-    personaSelect.id = 'persona_ids';
-    personaSelect.name = 'persona_ids';
-    personaSelect.multiple = true;
-    personaSelect.dataset.searchable = 'true';
-    personaSelect.dataset.tagBased = 'true';
-    const helper = wrapper.querySelector('.field-helper');
-    wrapper.insertBefore(personaSelect, helper);
-  }
-
-  personaSelect.style.display = '';
-  personaSelect.disabled = false;
-
-  const unternehmenId = this.formData.unternehmen_id;
-  const selected = new Set(this.formData.persona_ids || []);
-  const options = unternehmenId ? (this.personas || []) : [];
-
-  personaSelect.innerHTML = options.map(o => `
-    <option value="${escapeHtml(o.id)}" ${selected.has(o.id) ? 'selected' : ''}>${escapeHtml(o.label || o.name || o.id)}</option>
-  `).join('');
-  personaSelect.disabled = !unternehmenId;
-  personaSelect.dataset.placeholder = unternehmenId
-    ? 'Personas suchen und hinzufügen...'
-    : 'Bitte zuerst Unternehmen wählen...';
-
-  if (unternehmenId && window.formSystem?.createSearchableSelect) {
-    window.formSystem.createSearchableSelect(personaSelect, options.map(o => ({
-      value: o.id,
-      label: o.label || o.name || o.id,
-      selected: selected.has(o.id)
-    })), {
-      name: 'persona_ids',
-      type: 'multiselect',
-      tagBased: true,
-      placeholder: 'Personas suchen und hinzufügen...'
     });
   }
 };
@@ -472,35 +346,6 @@ BriefingCreate.prototype.initSearchableSelects = function() {
         name: 'assignee_id',
         placeholder: 'Mitarbeiter suchen...',
         value: this.formData.assignee_id || null
-      });
-    }
-
-    const produktSelect = document.getElementById('produkt_ids');
-    if (produktSelect && window.formSystem?.createSearchableSelect && this.formData.unternehmen_id) {
-      const selected = new Set(this.formData.produkt_ids || []);
-      window.formSystem.createSearchableSelect(produktSelect, (this.produkte || []).map(p => ({
-        value: p.id,
-        label: p.name || p.id,
-        selected: selected.has(p.id)
-      })), {
-        name: 'produkt_ids',
-        type: 'multiselect',
-        tagBased: true,
-        placeholder: 'Produkte suchen und hinzufügen...'
-      });
-    }
-    const personaSelect = document.getElementById('persona_ids');
-    if (personaSelect && window.formSystem?.createSearchableSelect && this.formData.unternehmen_id) {
-      const selected = new Set(this.formData.persona_ids || []);
-      window.formSystem.createSearchableSelect(personaSelect, (this.personas || []).map(p => ({
-        value: p.id,
-        label: p.label || p.name || p.id,
-        selected: selected.has(p.id)
-      })), {
-        name: 'persona_ids',
-        type: 'multiselect',
-        tagBased: true,
-        placeholder: 'Personas suchen und hinzufügen...'
       });
     }
   } finally {

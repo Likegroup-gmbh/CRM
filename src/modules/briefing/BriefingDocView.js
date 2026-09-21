@@ -204,17 +204,36 @@ function renderMetaChip(iconKey, text) {
   `;
 }
 
-function renderProducts(detail) {
+function renderProducts(detail, { canEdit = false } = {}) {
   const names = (detail.briefing?.produkte || [])
     .map(p => detail.escape(p?.name))
     .filter(Boolean);
   const personas = (detail.briefing?.personas || [])
     .map(p => detail.escape(p?.oberbegriff ? `${p.oberbegriff} (${p.name})` : p?.name))
     .filter(Boolean);
-  if (!names.length && !personas.length) return '';
   const productLine = names.length
     ? `<p class="briefing-doc__products">${names.join('<span class="briefing-doc__products-sep"> · </span>')}</p>`
     : '';
+
+  if (canEdit) {
+    const selected = new Set((detail.briefing?.persona_ids || []).filter(Boolean));
+    const options = (detail.briefing?.personaOptions || []).map(p => {
+      const label = p.label || (p.oberbegriff ? `${p.oberbegriff} (${p.name})` : (p.name || p.id));
+      return `<option value="${detail.escape(p.id)}" ${selected.has(p.id) ? 'selected' : ''}>${detail.escape(label)}</option>`;
+    }).join('');
+    return `
+      ${productLine}
+      <div class="briefing-doc__personas" data-entity-multi="persona_ids">
+        <select id="briefing_persona_ids" name="briefing_persona_ids" multiple
+                data-searchable="true" data-tag-based="true"
+                data-placeholder="Personas suchen und hinzufügen...">
+          ${options}
+        </select>
+      </div>
+    `;
+  }
+
+  if (!names.length && !personas.length) return '';
   const personaLine = personas.length
     ? `<p class="briefing-doc__products">${personas.join('<span class="briefing-doc__products-sep"> · </span>')}</p>`
     : '';
@@ -248,7 +267,7 @@ function renderBrandLockup(detail) {
   `;
 }
 
-function renderHero(detail, { actionsHtml = '' } = {}) {
+function renderHero(detail, { actionsHtml = '', canEdit = false } = {}) {
   const b = detail.briefing;
   const bereich = BEREICH_LABELS[b.bereich] || b.bereich;
   const statusClass = b.is_draft ? 'warning' : 'success';
@@ -274,7 +293,7 @@ function renderHero(detail, { actionsHtml = '' } = {}) {
         </div>
         ${actionsHtml}
       </div>
-      ${renderProducts(detail)}
+      ${renderProducts(detail, { canEdit })}
       <h1 class="briefing-doc__title">${detail.escape(b.aktivierung_name || 'Briefing')}</h1>
       ${subtitle ? `<p class="briefing-doc__subtitle">${subtitle}</p>` : ''}
       <div class="briefing-doc__meta">
@@ -545,7 +564,7 @@ export function renderBriefingDoc({
 
   return `
     <article class="briefing-doc${editClass}${printClass}" data-compact="${compact ? 'true' : 'false'}">
-      ${renderHero(detail, { actionsHtml })}
+      ${renderHero(detail, { actionsHtml, canEdit })}
       ${compact ? `<p class="briefing-doc__hint">Komprimierte Ansicht — für die komplette Felderliste oben rechts „Alle Felder“ wählen</p>` : ''}
       ${renderCallout(presentation.callout, { canEdit: contentEditable })}
       ${renderGroupedSections(prose, detail, { canEdit: contentEditable })}

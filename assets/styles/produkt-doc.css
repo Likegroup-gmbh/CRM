@@ -169,6 +169,37 @@
   margin-top: var(--space-lg);
   display: flex;
   justify-content: flex-end;
+  gap: var(--space-sm);
+}
+
+#produkt-persona-drawer .doc {
+  min-height: 0;
+}
+
+#produkt-persona-drawer .doc__shell {
+  display: block;
+  grid-template-columns: minmax(0, 1fr);
+  overflow: visible;
+  flex: none;
+  border-bottom: none;
+}
+
+#produkt-persona-drawer .doc__main {
+  border-right: none;
+}
+
+#produkt-persona-drawer .doc__scroll {
+  overflow: visible;
+  flex: none;
+}
+
+#produkt-persona-drawer .doc__actions {
+  position: sticky;
+  bottom: 0;
+}
+
+#produkt-persona-panel .rel-card {
+  cursor: pointer;
 }
 
 /* Read-only-Profil: spiegelt die Form-Struktur ohne eigene Eingabefelder */

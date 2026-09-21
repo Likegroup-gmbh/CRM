@@ -23,7 +23,7 @@ describe('NavigationSystem – Kundendaten ohne Marken-Liste', () => {
     expect(html).not.toMatch(/href="\/marke"/);
   });
 
-  it('zeigt Personas und Produkte in Kundendaten nach Unternehmen und Ansprechpartner', () => {
+  it('zeigt in Kundendaten nur Unternehmen und Ansprechpartner', () => {
     window.currentUser.permissions = {
       ...window.currentUser.permissions,
       produkt: { can_view: true },
@@ -37,12 +37,11 @@ describe('NavigationSystem – Kundendaten ohne Marken-Liste', () => {
     expect(html).toContain('Creatordaten');
     const unternehmen = html.indexOf('href="/unternehmen"');
     const ansprechpartner = html.indexOf('href="/ansprechpartner"');
-    const persona = html.indexOf('href="/persona"');
-    const produkt = html.indexOf('href="/produkt"');
     expect(unternehmen).toBeGreaterThan(-1);
     expect(ansprechpartner).toBeGreaterThan(unternehmen);
-    expect(persona).toBeGreaterThan(ansprechpartner);
-    expect(produkt).toBeGreaterThan(persona);
+    const kundendaten = document.querySelector('[data-section="Kundendaten"]');
+    const hrefs = [...kundendaten.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'));
+    expect(hrefs).toEqual(['/unternehmen', '/ansprechpartner']);
   });
 
   it('zeigt das Accounting-Dashboard nur im Accounting-Bereich, nicht als Stakeholder in der Hauptnavigation', () => {
@@ -75,6 +74,8 @@ describe('NavigationSystem – Kundendaten ohne Marken-Liste', () => {
     const kampagnenHrefs = [...kampagnen.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'));
     expect(kampagnenHrefs).toEqual([
       '/briefing',
+      '/persona',
+      '/produkt',
       '/castings',
       '/konzepte',
       '/skripte',
