@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const { buildPrompt } = require('../../netlify/functions/skript-generate-background.js');
+const { buildPrompt, SKRIPT_TOOL, buildErstgenerierungVersionRow } = require('../../netlify/functions/skript-generate-background.js');
 const { resolveSkriptBereich, fmtMasterBlock } = require('../../netlify/functions/_shared/skript-master.js');
 const { buildEditPrompt } = require('../../netlify/functions/skript-edit-background.js');
 
@@ -39,7 +39,8 @@ describe('buildPrompt Master + inhalt_md', () => {
     expect(task).toContain('inhalt_md');
     expect(task).toContain('hook, hauptteil, cta');
     expect(task).toContain('NICHT in inhalt_md');
-    expect(task).toContain('varianten');
+    expect(task).toContain('hook_varianten');
+    expect(task).not.toContain('Array "varianten"');
     expect(task).toContain('Owned Social');
     expect(task).toContain('ZEITMARKER');
     expect(task).toContain('Sek. 0–3');
@@ -81,6 +82,39 @@ describe('fmtMasterBlock', () => {
   });
 });
 
+describe('Generator Spoken-Hooks ohne Extra-Versionen', () => {
+  it('Tool hat hook_varianten als String-Array, keine vollen Skript-Kopien', () => {
+    expect(SKRIPT_TOOL.input_schema.properties.hook_varianten).toMatchObject({
+      type: 'array',
+      items: { type: 'string' }
+    });
+    expect(SKRIPT_TOOL.input_schema.properties.varianten).toBeUndefined();
+  });
+
+  it('Erstgenerierung schreibt Spoken-Hooks in v1, keine B/C-Rows', () => {
+    const row = buildErstgenerierungVersionRow({
+      skriptId: 's1',
+      parsed: { titel: 'T' },
+      felder: { hook: 'A', hauptteil: 'M', cta: 'C', hook_visuell: 'V' },
+      hook_varianten: {
+        hook_variante_1: 'Zweiter',
+        hook_variante_2: 'Dritter',
+        hook_variante_3: null
+      },
+      inhaltMd: '## Kopf',
+      userId: 'u1'
+    });
+    expect(row.version_nr).toBe(1);
+    expect(row.sub_nr).toBe(0);
+    expect(row.hook_variante_1).toBe('Zweiter');
+    expect(row.hook_variante_2).toBe('Dritter');
+    expect(row.hook_variante_3).toBeNull();
+    expect(row.hook).toBe('A');
+    expect(row.hook_visuell).toBe('V');
+    expect([row].map((r) => r.version_nr)).toEqual([1]);
+  });
+});
+
 describe('buildEditPrompt Master-Dokument', () => {
   it('zeigt inhalt_md statt Hook/Hauptteil/CTA', () => {
     const { task } = buildEditPrompt({
@@ -94,5 +128,25 @@ describe('buildEditPrompt Master-Dokument', () => {
     expect(task).toContain('## Hook-Paket');
     expect(task).not.toContain('HOOK:\n');
     expect(task).toContain('##-Sektionen');
+  });
+
+  it('hook_variante ist Grid-Sektion mit Spoken-Prompt, nicht Master', () => {
+    const { task } = buildEditPrompt({
+      skript: {
+        titel: 'Test',
+        hook: 'Haupt-Hook',
+        hook_variante_1: 'Zweiter Einstieg',
+        prompt_kontext: {}
+      },
+      history: [],
+      dna: [],
+      briefing: null,
+      master: []
+    }, { aktion: 'kuerzen', sektion: 'hook_variante_1', inhalt: '' });
+
+    expect(task).toContain('HOOK-VARIANTEN');
+    expect(task).toContain('Zweiter Einstieg');
+    expect(task).toContain('Was gesagt wird');
+    expect(task).not.toContain('##-Sektionen');
   });
 });

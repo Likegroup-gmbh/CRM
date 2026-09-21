@@ -546,7 +546,7 @@ export const ICON_ALIASES = {
   'neu-schreiben': 'rewrite',
   kuerzen: 'shorten',
   laenger: 'lengthen',
-  'anderer-ton': 'tone',
+  'hook-transfer': 'arrows-right-left',
   'feedback-geben': 'chat-dots',
   'chat-bot': 'ai-chat',
   liky: 'ai-chat',

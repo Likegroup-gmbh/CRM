@@ -6,7 +6,7 @@
 import { skripteService } from '../SkripteService.js';
 import { skriptKommentarService } from '../SkriptKommentarService.js';
 import { skriptAuftrag } from '../SkriptAuftrag.js';
-import { AKTION_LABELS, VISUELL_FIELD } from './skriptEditorKonstanten.js';
+import { AKTION_LABELS, VISUELL_FIELD, GRID_SEKTIONEN, HOOK_VARIANTE_FELDER, SEKTION_LABELS_KURZ } from './skriptEditorKonstanten.js';
 import { pendingThinking } from '../../../core/chat/thinking.js';
 import { sektionAnzeige, sektionAnzeigeKurz, skriptStand, manuellBeschreibung } from './skriptEditorVisuellHelfer.js';
 import { istMasterSkript, replaceMasterSektion, masterSektionBody } from '../master/skriptMasterFormat.js';
@@ -229,13 +229,13 @@ export class SkriptEditorChatActions {
     if (v.acceptLaeuft) return;
 
     const sektion = msg.sektion;
-    if (!['hook', 'hauptteil', 'cta'].includes(sektion)) {
+    if (!GRID_SEKTIONEN.includes(sektion)) {
       if (istMasterSkript(v.skript)) {
         await this.acceptMasterVorschlag(msg);
         return;
       }
     }
-    if (!['hook', 'hauptteil', 'cta'].includes(sektion) || !msg.vorschlag_text) {
+    if (!GRID_SEKTIONEN.includes(sektion) || !msg.vorschlag_text) {
       window.toastSystem?.error('Vorschlag kann nicht zugeordnet werden');
       return;
     }
@@ -353,6 +353,46 @@ export class SkriptEditorChatActions {
     } catch (err) {
       window.toastSystem?.error(err.message);
       btns.forEach((b) => { b.disabled = false; });
+    } finally {
+      v.acceptLaeuft = false;
+    }
+  }
+
+  async hookUebertragen(feld) {
+    const v = this.view;
+    if (!v.skript || v.isReadonly) return;
+    if (!HOOK_VARIANTE_FELDER.includes(feld)) return;
+    if (v.acceptLaeuft) return;
+
+    const variante = v.skript[feld] || '';
+    if (!variante.trim()) return;
+
+    const vorherigerStand = skriptStand(v.skript);
+    await v.inlineEdit.flush();
+
+    const haupt = v.skript.hook || '';
+    v.acceptLaeuft = true;
+    try {
+      v.skript.hook = variante;
+      v.skript[feld] = haupt;
+      await skripteService.updateSkript(v.skript.id, { hook: variante, [feld]: haupt || null });
+      const neueVersion = await skripteService.createVersion(
+        v.skript,
+        `${AKTION_LABELS.hook_uebertragen} · ${SEKTION_LABELS_KURZ[feld]}`,
+        vorherigerStand,
+        v.aktiveVersion
+      );
+      v.aktiveVersion = neueVersion;
+      v.skript.aktive_version_nr = neueVersion.version_nr;
+      v.skript.aktive_sub_nr = neueVersion.sub_nr;
+      v.versionen = await skripteService.getVersionen(v.skript.id);
+      v.renderDoc();
+      v.renderVersionSelect();
+      window.toastSystem?.success(`Übernommen – jetzt ${skripteService.versionLabel(neueVersion)}`);
+    } catch (err) {
+      window.toastSystem?.error(err.message);
+      v.skript.hook = haupt;
+      v.skript[feld] = variante;
     } finally {
       v.acceptLaeuft = false;
     }

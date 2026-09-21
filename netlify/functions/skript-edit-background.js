@@ -13,7 +13,7 @@ const { beansprucheNachricht, autorisiereSkript, istNachrichtAbgebrochen } = req
 const { setThinking } = require('./_shared/thinking');
 const {
   loadEditContext, buildEditPrompt, stripToolXml, letzterZeitstempel, formatZeitstempel,
-  ladeVisuellStil, brauchtVisualStil, resolveModusSlug, EDIT_BRIEFING_MAX
+  ladeVisuellStil, brauchtVisualStil, resolveModusSlug, EDIT_BRIEFING_MAX, GRID_SEKTIONEN
 } = require('./_shared/skript-edit-prompt');
 
 // Tool-Call fuer strukturierte Antworten. Bei Schreib-Aktionen laeuft
@@ -125,7 +125,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     const parsedSektion = (parsed.sektion || '').trim() || null;
     const sektion = istMaster
       ? (parsedSektion || message.sektion)
-      : (['hook', 'hauptteil', 'cta'].includes(parsedSektion) ? parsedSektion : message.sektion);
+      : (GRID_SEKTIONEN.includes(parsedSektion) ? parsedSektion : message.sektion);
 
     await setThinking(supabase, 'skript_chat_messages', messageId, {
       step: 'speichern',

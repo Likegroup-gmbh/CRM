@@ -6,7 +6,8 @@
 // - Bestandsskripte ohne Versionen bekommen lazy v1 (Stand VOR der Aenderung).
 
 const SNAPSHOT_FIELDS = [
-  'titel', 'hook', 'hauptteil', 'cta', 'hook_visuell', 'hauptteil_visuell', 'cta_visuell', 'inhalt_md'
+  'titel', 'hook', 'hauptteil', 'cta', 'hook_visuell', 'hauptteil_visuell', 'cta_visuell',
+  'hook_variante_1', 'hook_variante_2', 'hook_variante_3', 'inhalt_md'
 ];
 
 function snapshotRow(skriptId, stand, { versionNr, subNr, beschreibung, userId }) {

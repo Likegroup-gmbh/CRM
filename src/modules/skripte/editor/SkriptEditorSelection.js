@@ -7,7 +7,7 @@
 import { escapeHtml } from '../SkripteUtils.js';
 import {
   AKTION_LABELS, AKTION_ICONS, AI_SELEKTION_AKTIONEN, FORMAT_AKTIONEN,
-    PLACEHOLDER_AKTION, PLACEHOLDER_DEFAULT
+  PLACEHOLDER_AKTION, PLACEHOLDER_DEFAULT, HOOK_VARIANTE_FELDER
 } from './skriptEditorKonstanten.js';
 import { sektionAnzeige } from './skriptEditorVisuellHelfer.js';
 import { openFloatingMenu } from '../../../core/components/FloatingMenu.js';
@@ -96,6 +96,14 @@ export class SkriptEditorSelection {
     }));
     // Formatierung ganz oben im Menue
     if (formatierungItem) items.unshift(formatierungItem);
+    if (v.kannAiAktionen && HOOK_VARIANTE_FELDER.includes(feld)) {
+      items.push({
+        id: 'hook_uebertragen',
+        iconHtml: AKTION_ICONS.hook_uebertragen,
+        label: AKTION_LABELS.hook_uebertragen,
+        data: { aktion: 'hook_uebertragen' }
+      });
+    }
 
     openFloatingMenu({
       el: menu,
@@ -115,6 +123,11 @@ export class SkriptEditorSelection {
       this.clearPending();
       this.view.startNeuerKommentar(selektion);
       return;
+    }
+    if (aktion === 'hook_uebertragen') {
+      const feld = this.view.selektion?.feld;
+      this.clearPending();
+      return this.view.hookUebertragen(feld);
     }
     if (FORMAT_AKTIONEN[aktion]) {
       this.view.formatiereSelektion(aktion);

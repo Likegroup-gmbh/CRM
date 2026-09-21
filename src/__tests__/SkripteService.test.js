@@ -75,7 +75,32 @@ describe('SkripteService.loadSkripte', () => {
     expect(select).toHaveBeenCalledWith(expect.stringContaining('hook_visuell'));
     expect(select).toHaveBeenCalledWith(expect.stringContaining('hauptteil_visuell'));
     expect(select).toHaveBeenCalledWith(expect.stringContaining('cta_visuell'));
-    expect(select).toHaveBeenCalledWith(expect.stringContaining('inhalt_md'));
+    expect(select).toHaveBeenCalledWith(expect.stringContaining('hook_variante_1'));
+    expect(select).toHaveBeenCalledWith(expect.stringContaining('hook_variante_2'));
+    expect(select).toHaveBeenCalledWith(expect.stringContaining('hook_variante_3'));
+  });
+
+  it('wechsleVersion schreibt Spoken-Hooks zurueck', async () => {
+    setupWindow({ isMitarbeiter: true });
+    const update = vi.fn(() => ({
+      eq: vi.fn(() => Promise.resolve({ error: null }))
+    }));
+    window.supabase.from = vi.fn(() => ({ update }));
+    const service = new SkripteService();
+    await service.wechsleVersion('s1', {
+      titel: 'T', hook: 'Alt', hauptteil: 'M', cta: 'C',
+      hook_visuell: null, hauptteil_visuell: null, cta_visuell: null,
+      hook_variante_1: 'Zweiter', hook_variante_2: null, hook_variante_3: 'Dritter',
+      inhalt_md: null, version_nr: 1, sub_nr: 0
+    });
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({
+      hook: 'Alt',
+      hook_variante_1: 'Zweiter',
+      hook_variante_2: null,
+      hook_variante_3: 'Dritter',
+      aktive_version_nr: 1,
+      aktive_sub_nr: 0
+    }));
   });
 
   it('wirft bei Query-Fehler statt still [] zu liefern', async () => {
@@ -251,12 +276,23 @@ describe('SkripteService.createSkriptStub / updateSkriptStub', () => {
     setupWindow();
     let inserted = null;
     window.supabase.auth = { getUser: vi.fn(async () => ({ data: { user: { id: 'user-1' } } })) };
-    window.supabase.from = vi.fn(() => ({
-      insert: vi.fn((row) => {
-        inserted = row;
-        return { select: () => ({ single: async () => ({ data: { id: 's1', ...row }, error: null }) }) };
-      })
-    }));
+    window.supabase.from = vi.fn((table) => {
+      if (table === 'campaign_briefings') {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: async () => ({ data: null, error: null })
+            }))
+          }))
+        };
+      }
+      return {
+        insert: vi.fn((row) => {
+          inserted = row;
+          return { select: () => ({ single: async () => ({ data: { id: 's1', ...row }, error: null }) }) };
+        })
+      };
+    });
 
     await service.createSkriptStub({
       unternehmen_id: 'u1',

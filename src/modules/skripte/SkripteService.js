@@ -495,7 +495,7 @@ export class SkripteService {
   // ------------------------------------------------------------------
   async getVersionen(skriptId) {
     const { data, error } = await this.db.from('skript_versionen')
-      .select('id, version_nr, sub_nr, titel, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, inhalt_md, aenderung_beschreibung, created_at')
+      .select('id, version_nr, sub_nr, titel, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, hook_variante_1, hook_variante_2, hook_variante_3, inhalt_md, aenderung_beschreibung, created_at')
       .eq('skript_id', skriptId).order('version_nr').order('sub_nr');
     if (error) throw new Error(error.message);
     return data || [];
@@ -560,6 +560,9 @@ export class SkripteService {
       hook_visuell: version.hook_visuell ?? null,
       hauptteil_visuell: version.hauptteil_visuell ?? null,
       cta_visuell: version.cta_visuell ?? null,
+      hook_variante_1: version.hook_variante_1 ?? null,
+      hook_variante_2: version.hook_variante_2 ?? null,
+      hook_variante_3: version.hook_variante_3 ?? null,
       inhalt_md: version.inhalt_md ?? null,
       aktive_version_nr: version.version_nr,
       aktive_sub_nr: version.sub_nr || 0

@@ -383,6 +383,33 @@ function normalizeToolVarianten(raw, basis) {
   }).filter(Boolean);
 }
 
+function spokenHookAusEintrag(raw, basisHook) {
+  const hook = nonempty(typeof raw === 'string' ? raw : raw?.hook);
+  if (!hook || hook === basisHook) return null;
+  return hook;
+}
+
+function spokenHooksAusListe(list, basisHook) {
+  if (!Array.isArray(list)) return [];
+  return list.map((item) => spokenHookAusEintrag(item, basisHook)).filter(Boolean);
+}
+
+/** Spoken-only: hook_varianten-Strings, sonst varianten[].hook, sonst quoted Opener im MD. */
+function mapHookVariantenSpalten(parsedTool, md, basis) {
+  const basisHook = basis?.hook || null;
+  const fromStrings = spokenHooksAusListe(parsedTool?.hook_varianten, basisHook);
+  const fromOld = spokenHooksAusListe(parsedTool?.varianten, basisHook);
+  const fromMd = extractOpenerBullets(md || '', basis || {})
+    .map((v) => spokenHookAusEintrag(v.felder?.hook, basisHook))
+    .filter(Boolean);
+  const all = (fromStrings.length ? fromStrings : (fromOld.length ? fromOld : fromMd)).slice(0, 3);
+  return {
+    hook_variante_1: all[0] || null,
+    hook_variante_2: all[1] || null,
+    hook_variante_3: all[2] || null
+  };
+}
+
 function extractSkriptAusMaster(md, parsedTool = {}) {
   const sections = parseMasterSektionen(md);
   const allTables = [];
@@ -412,8 +439,9 @@ function extractSkriptAusMaster(md, parsedTool = {}) {
   );
   const varianten = (fromTool.length ? fromTool : fromMd)
     .map((v) => ({ ...v, felder: splitSkriptFelder(v.felder) }));
+  const hook_varianten = mapHookVariantenSpalten(parsedTool, md, felder);
 
-  return { felder, varianten, inhalt_md: zusatzInfosMarkdown(md) };
+  return { felder, varianten, hook_varianten, inhalt_md: zusatzInfosMarkdown(md) };
 }
 
 function hatPersistiertesGrid(skript) {
@@ -451,6 +479,7 @@ function gridFelderFuerSkript(skript) {
 
 module.exports = {
   extractSkriptAusMaster,
+  mapHookVariantenSpalten,
   zusatzInfosMarkdown,
   hatZusatzInfos,
   hatGridInhalt,

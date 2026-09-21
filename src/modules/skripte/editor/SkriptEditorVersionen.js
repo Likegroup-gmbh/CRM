@@ -139,6 +139,9 @@ export class SkriptEditorVersionen {
         hook_visuell: version.hook_visuell ?? null,
         hauptteil_visuell: version.hauptteil_visuell ?? null,
         cta_visuell: version.cta_visuell ?? null,
+        hook_variante_1: version.hook_variante_1 ?? null,
+        hook_variante_2: version.hook_variante_2 ?? null,
+        hook_variante_3: version.hook_variante_3 ?? null,
         inhalt_md: version.inhalt_md ?? null,
         aktive_version_nr: nr,
         aktive_sub_nr: sub

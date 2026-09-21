@@ -33,22 +33,10 @@ const SKRIPT_TOOL = {
       hook_visuell: { type: 'string', description: 'Was zu sehen ist im Hook (Variante A). Jeder Zeitmarker (Sek. 0–3:) beginnt einen neuen Absatz, Leerzeile dazwischen. On-Screen-Text am jeweiligen Beat.' },
       hauptteil_visuell: { type: 'string', description: 'Was zu sehen ist im Hauptteil (Variante A). Jeder Zeitmarker beginnt einen neuen Absatz, Leerzeile dazwischen. On-Screen-Text am jeweiligen Beat.' },
       cta_visuell: { type: 'string', description: 'Was zu sehen ist im CTA (Variante A). Jeder Zeitmarker beginnt einen neuen Absatz, Leerzeile dazwischen. On-Screen-Text am jeweiligen Beat.' },
-      varianten: {
+      hook_varianten: {
         type: 'array',
-        description: 'Genau zwei alternative Skript-Varianten (B und C). Nicht in inhalt_md wiederholen.',
-        items: {
-          type: 'object',
-          properties: {
-            label: { type: 'string', description: 'B oder C' },
-            beschreibung: { type: 'string', description: 'Kurzer Unterschied zur Hauptvariante' },
-            hook: { type: 'string' },
-            hauptteil: { type: 'string' },
-            cta: { type: 'string' },
-            hook_visuell: { type: 'string' },
-            hauptteil_visuell: { type: 'string' },
-            cta_visuell: { type: 'string' }
-          }
-        }
+        description: 'Zwei bis drei alternative gesprochene Hooks, deutlich anders als Variante A. Nur Sprechertext, kein Visual, kein Hauptteil/CTA. Nicht in inhalt_md wiederholen.',
+        items: { type: 'string' }
       }
     },
     required: ['titel', 'inhalt_md']
@@ -103,7 +91,7 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
   }
 
   task += '\n# AUSGABEFORMAT\nGib das Dokument AUSSCHLIESSLICH ueber das Tool "skript_abgeben" ab '
-    + '(Felder: titel, inhalt_md, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, varianten).\n'
+    + '(Felder: titel, inhalt_md, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, hook_varianten).\n'
     + `Bereich: ${bereichLabel}. Folge dem drehfertigen Aufbau im MASTER-BEREICH-Dokument. `
     + 'inhalt_md = NUR Zusatzinfos: Produktionskopf, Timing, Brand-Hinweise, Shotlist, Pflicht-Shots, '
     + 'On-Screen-Liste, Schnitt/Sound. Mit ##-Ueberschriften nach den Hauptbloecken '
@@ -116,8 +104,8 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
     + 'Format „Sek. 0–3: …“. Links (gesagt) und rechts (sehen) dieselbe Absatz-Anzahl. '
     + 'On-Screen-Text gehoert zum Beat, nicht als Liste ans Ende. '
     + 'Marker alle paar Sekunden, nicht sekündlich. Niemals alle Marker in einen Fliesstext packen.\n'
-    + 'Varianten B und C: Array "varianten" (label B/C, beschreibung, abweichende Felder). '
-    + 'Meist nur Hook/Opener anders, Hauptteil und CTA gleich. NICHT in inhalt_md wiederholen.\n'
+    + 'hook_varianten: genau zwei oder drei alternative GESPROCHENE Hooks, deutlich anders als Variante A. '
+    + 'Nur Sprechertext, kein Visual, kein Hauptteil/CTA. NICHT in inhalt_md wiederholen.\n'
     + 'Tabellen als Markdown-Tabellen. Innerhalb der Texte typografische Anfuehrungszeichen (\u201e\u2026\u201c) statt gerader (") verwenden.\n'
     + 'WICHTIG - nichts erfinden: Behaupte im Skript NICHTS ueber Angebote, Features, Aktionen oder Konditionen '
     + '(z.B. Partnerkarten, Rabatte, Gratis-Extras), das nicht ausdruecklich '
@@ -250,16 +238,21 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     job.step('speichern', 'Fast fertig – ich speichere…');
     const parsed = result.json || extractJson(result.text, {
       keys: ['titel', 'inhalt_md', 'hook', 'hauptteil', 'cta',
-        'hook_visuell', 'hauptteil_visuell', 'cta_visuell', 'varianten'],
+        'hook_visuell', 'hauptteil_visuell', 'cta_visuell', 'hook_varianten', 'varianten'],
       onWarn: (msg) => job.log(msg)
     });
     if (!(parsed.inhalt_md || '').trim()) {
       throw new Error('Antwort unvollstaendig (inhalt_md fehlt)');
     }
-    const { felder, varianten, inhalt_md: extraMd } = extractSkriptAusMaster(parsed.inhalt_md, parsed);
+    const { felder, hook_varianten, inhalt_md: extraMd } = extractSkriptAusMaster(parsed.inhalt_md, parsed);
     const inhaltMd = extraMd || '';
-    if (varianten.length) {
-      job.log(`${varianten.length} Alternative(n) als eigene Versionen`);
+    const hookSlots = [
+      hook_varianten?.hook_variante_1,
+      hook_varianten?.hook_variante_2,
+      hook_varianten?.hook_variante_3
+    ].filter(Boolean);
+    if (hookSlots.length) {
+      job.log(`${hookSlots.length} alternative Hook(s)`);
     }
 
     // Bestehendes prompt_kontext (Stub) fuer den Merge laden: der
@@ -291,6 +284,9 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       hook_visuell: felder.hook_visuell,
       hauptteil_visuell: felder.hauptteil_visuell,
       cta_visuell: felder.cta_visuell,
+      hook_variante_1: hook_varianten?.hook_variante_1 || null,
+      hook_variante_2: hook_varianten?.hook_variante_2 || null,
+      hook_variante_3: hook_varianten?.hook_variante_3 || null,
       aktive_version_nr: 1,
       aktive_sub_nr: 0,
       video_idee: payload.video_idee || null,
@@ -335,39 +331,15 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       skript = data;
     }
 
-    // v1 = Hauptvariante. Weitere Opener/Hooks/CTAs als v2, v3, …
-    const versionRows = [
-      {
-        skript_id: skript.id,
-        version_nr: 1,
-        sub_nr: 0,
-        titel: parsed.titel || null,
-        inhalt_md: inhaltMd,
-        hook: felder.hook,
-        hauptteil: felder.hauptteil,
-        cta: felder.cta,
-        hook_visuell: felder.hook_visuell,
-        hauptteil_visuell: felder.hauptteil_visuell,
-        cta_visuell: felder.cta_visuell,
-        aenderung_beschreibung: 'Erstgenerierung',
-        created_by: user.id
-      },
-      ...varianten.map((v, i) => ({
-        skript_id: skript.id,
-        version_nr: i + 2,
-        sub_nr: 0,
-        titel: parsed.titel || null,
-        inhalt_md: inhaltMd,
-        hook: v.felder.hook,
-        hauptteil: v.felder.hauptteil,
-        cta: v.felder.cta,
-        hook_visuell: v.felder.hook_visuell,
-        hauptteil_visuell: v.felder.hauptteil_visuell,
-        cta_visuell: v.felder.cta_visuell,
-        aenderung_beschreibung: v.beschreibung,
-        created_by: user.id
-      }))
-    ];
+    // v1 = Arbeitskopie inkl. Hook-Varianten. Keine Extra-Versionen fuer B/C.
+    const versionRows = [buildErstgenerierungVersionRow({
+      skriptId: skript.id,
+      parsed,
+      felder,
+      hook_varianten,
+      inhaltMd,
+      userId: user.id
+    })];
     const { error: versionError } = await supabase.from('skript_versionen').insert(versionRows);
     if (versionError) job.log(`Hinweis: Versions-Snapshots fehlgeschlagen (${versionError.message})`);
 
@@ -387,4 +359,27 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
   }
 });
 
+function buildErstgenerierungVersionRow({ skriptId, parsed, felder, hook_varianten, inhaltMd, userId }) {
+  return {
+    skript_id: skriptId,
+    version_nr: 1,
+    sub_nr: 0,
+    titel: parsed.titel || null,
+    inhalt_md: inhaltMd,
+    hook: felder.hook,
+    hauptteil: felder.hauptteil,
+    cta: felder.cta,
+    hook_visuell: felder.hook_visuell,
+    hauptteil_visuell: felder.hauptteil_visuell,
+    cta_visuell: felder.cta_visuell,
+    hook_variante_1: hook_varianten?.hook_variante_1 || null,
+    hook_variante_2: hook_varianten?.hook_variante_2 || null,
+    hook_variante_3: hook_varianten?.hook_variante_3 || null,
+    aenderung_beschreibung: 'Erstgenerierung',
+    created_by: userId
+  };
+}
+
 exports.buildPrompt = buildPrompt;
+exports.SKRIPT_TOOL = SKRIPT_TOOL;
+exports.buildErstgenerierungVersionRow = buildErstgenerierungVersionRow;

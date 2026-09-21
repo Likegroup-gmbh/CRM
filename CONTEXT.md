@@ -34,6 +34,7 @@ _Avoid_: Report, News, Update-Post, Release-Notes
 
 **Persona**:
 Typ Mensch auf Unternehmensebene, optional mehreren Marken, Produkten und Briefings zugeordnet.
+Liky am Produkt legt zuerst den breitesten tragfähigen Typ vor; engere Typen sind eigene Personas.
 Hat Audience Situations als Bestandteil, keine eigene Prozessstufe.
 Der produkt-spezifische Fit (warum, welche Use Cases) sitzt nicht an der Persona, sondern an der Zuordnung.
 _Avoid_: Zielgruppe, Buyer-Persona, Kunde
@@ -234,6 +235,10 @@ _Avoid_: Creative Angle, Grobkonzept, Casting-Vorschlag
 Ausdrückliche Freigabe einer Videoidee für die Skripterstellung. Voraussetzung: zugeordneter
 Casting-Eintrag und nicht „Nicht umsetzen“. Gate nur für Neuanlage, nicht für bestehende Skripte.
 _Avoid_: Freigabe (alleinstehend – Kollision mit Video-Freigabe am Kooperationsvideo), Freigabeprozess
+
+**Hook-Variante**:
+Alternativer gesprochener Opener am selben Skript (Hook 1–3). Keine eigene Version.
+_Avoid_: Variante, Alternative Version, Hook-Option
 
 **Kooperationsvideo**:
 Das hochgeladene Videofile in einer Kooperation (Dropbox-Asset), wird in der

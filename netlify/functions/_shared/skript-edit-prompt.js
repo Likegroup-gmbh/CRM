@@ -21,6 +21,8 @@ const EDIT_REFERENZ_TRANSKRIPT_MAX = 4000;
 const EDIT_BRIEFING_MAX = 4000;
 const EDIT_BRIEFING_EXTRAKT_MAX = 4000;
 
+const GRID_SEKTIONEN = ['hook', 'hauptteil', 'cta', 'hook_variante_1', 'hook_variante_2', 'hook_variante_3'];
+
 const AKTION_LABELS = {
   neu_schreiben: 'Neu schreiben',
   kuerzen: 'Kürzen',
@@ -205,7 +207,8 @@ function buildVisuellZeitplan(skript, sektion) {
 // ---------------------------------------------------------------------------
 // Enge Spalten statt select('*'): der Edit-Prompt braucht nur die
 // Skript-Texte, die Meta-Vorgaben und die Scope-/Kontext-IDs.
-const EDIT_SKRIPT_COLS = 'id, titel, hook, hook_visuell, hauptteil, hauptteil_visuell, cta, cta_visuell, inhalt_md, '
+const EDIT_SKRIPT_COLS = 'id, titel, hook, hook_visuell, hauptteil, hauptteil_visuell, cta, cta_visuell, '
+  + 'hook_variante_1, hook_variante_2, hook_variante_3, inhalt_md, '
   + 'tonalitaet, video_laenge, funnel_stufe, video_idee, location, regieanweisung, prompt_kontext, '
   + 'mit_dna, branche_id, persona_id, marke_id, briefing_id, bereich';
 
@@ -303,7 +306,7 @@ function buildEditPrompt(ctx, message) {
   const hatGrid = Boolean(skript.hook || skript.hauptteil || skript.cta
     || skript.hook_visuell || skript.hauptteil_visuell || skript.cta_visuell);
   const istMasterSektion = Boolean(skript.inhalt_md)
-    && !['hook', 'hauptteil', 'cta'].includes(message.sektion);
+    && !GRID_SEKTIONEN.includes(message.sektion);
   const istMaster = Boolean(skript.inhalt_md) && !hatGrid;
 
   const visualSpalte = !istMaster && brauchtVisualStil(message);
@@ -337,6 +340,12 @@ function buildEditPrompt(ctx, message) {
     task += `HAUPTTEIL (was zu sehen ist):\n${skript.hauptteil_visuell || '-'}\n\n`;
     task += `CTA:\n${skript.cta || '-'}\n`;
     task += `CTA (was zu sehen ist):\n${skript.cta_visuell || '-'}\n`;
+    if (skript.hook_variante_1 || skript.hook_variante_2 || skript.hook_variante_3) {
+      task += '\nHOOK-VARIANTEN:\n';
+      if (skript.hook_variante_1) task += `Hook 1:\n${skript.hook_variante_1}\n`;
+      if (skript.hook_variante_2) task += `Hook 2:\n${skript.hook_variante_2}\n`;
+      if (skript.hook_variante_3) task += `Hook 3:\n${skript.hook_variante_3}\n`;
+    }
     if (skript.inhalt_md) {
       const extra = zusatzInfosMarkdown(skript.inhalt_md);
       if (extra.trim()) task += `\n# ZUSAETZLICHE INFOS\n${extra}\n`;
@@ -522,5 +531,6 @@ module.exports = {
   ladeVisuellStil,
   brauchtVisualStil,
   resolveModusSlug,
-  EDIT_BRIEFING_MAX
+  EDIT_BRIEFING_MAX,
+  GRID_SEKTIONEN
 };

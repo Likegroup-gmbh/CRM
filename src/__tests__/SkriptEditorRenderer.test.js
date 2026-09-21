@@ -187,6 +187,36 @@ describe('SkriptEditorDocRenderer', () => {
     expect(html).not.toContain('Creator-facing');
   });
 
+  it('skriptDocHtml zeigt Hook-Varianten intern nur wenn befuellt', () => {
+    const leer = skriptDocHtml({
+      skript: { titel: 'T', hook: 'A', hauptteil: 'M', cta: 'E' },
+      messages: [], isReadonly: false, docHeadActionsHtml: '', vorgabenPanelHtml: '',
+      zeigeHookVarianten: true
+    });
+    expect(leer).not.toContain('Hook-Varianten');
+    expect(leer).not.toContain('data-feld="hook_variante_1"');
+
+    const html = skriptDocHtml({
+      skript: { titel: 'T', hook: 'A', hauptteil: 'M', cta: 'E', hook_variante_1: 'Zweiter Einstieg' },
+      messages: [], isReadonly: false, docHeadActionsHtml: '', vorgabenPanelHtml: '',
+      zeigeHookVarianten: true
+    });
+    expect(html).toContain('Hook-Varianten');
+    expect(html).toContain('Zweiter Einstieg');
+    expect(html).toContain('data-feld="hook_variante_1"');
+    expect(html).toContain('Was gesagt wird');
+  });
+
+  it('skriptDocHtml blendet Hook-Varianten bei readonly aus', () => {
+    const html = skriptDocHtml({
+      skript: { titel: 'T', hook: 'A', hauptteil: 'M', cta: 'E', hook_variante_1: 'Zweiter' },
+      messages: [], isReadonly: true, docHeadActionsHtml: '', vorgabenPanelHtml: '',
+      zeigeHookVarianten: false
+    });
+    expect(html).not.toContain('Hook-Varianten');
+    expect(html).not.toContain('Zweiter');
+  });
+
   it('skriptDocHtml wechselt bei inhalt_md auf Markdown-Sektionen', () => {
     const html = skriptDocHtml({
       skript: { titel: 'T', inhalt_md: '## Produktionskopf\nArbeitstitel: X' },

@@ -64,9 +64,26 @@ vi.mock('../core/icons/IconSystem.js', () => ({
 
 import { SkriptEditorView } from '../modules/skripte/SkriptEditorView.js';
 
+function ensureLocalStorage() {
+  if (typeof globalThis.localStorage?.clear === 'function') return;
+  const store = Object.create(null);
+  const api = {
+    getItem: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? store[k] : null),
+    setItem: (k, v) => { store[k] = String(v); },
+    removeItem: (k) => { delete store[k]; },
+    clear: () => { Object.keys(store).forEach((k) => { delete store[k]; }); },
+    key: (i) => Object.keys(store)[i] ?? null,
+    get length() { return Object.keys(store).length; }
+  };
+  Object.defineProperty(globalThis, 'localStorage', { value: api, configurable: true, writable: true });
+}
+
 function setupWindow() {
+  ensureLocalStorage();
   window.isKunde = vi.fn(() => false);
   window.isAdmin = vi.fn(() => true);
+  window.isInternal = vi.fn(() => true);
+  window.canEdit = vi.fn(() => true);
   window.currentUser = { id: 'user-1', rolle: 'admin' };
   window.setHeadline = vi.fn();
   window.breadcrumbSystem = { updateBreadcrumb: vi.fn() };
@@ -816,6 +833,38 @@ describe('SkriptEditorView Inline-Edit', () => {
     expect(mockService.updateSkript).toHaveBeenCalledWith('s1', { hook: 'Neuer Hook' });
     expect(mockService.createVersion).toHaveBeenCalled();
     expect(mockService.createVersion.mock.calls[0][1]).toBe('Manuell · Hook');
+  });
+
+  it('hookUebertragen tauscht Spoken-Hook, Visual bleibt, eine Version', async () => {
+    window.canEdit = vi.fn(() => true);
+    window.toastSystem = { success: vi.fn(), error: vi.fn() };
+    mockService.loadSkript.mockResolvedValue({
+      ...skript,
+      hook: 'Haupt-Hook',
+      hook_visuell: 'Haupt-Bild',
+      hook_variante_1: 'Alt-Hook'
+    });
+    mockService.createVersion.mockResolvedValue({ version_nr: 2, sub_nr: 0 });
+    mockService.getVersionen.mockResolvedValue([
+      { version_nr: 1, sub_nr: 0 },
+      { version_nr: 2, sub_nr: 0, aenderung_beschreibung: 'Hook übertragen · Hook 1' }
+    ]);
+
+    await view.render(container, 's1');
+    expect(container.querySelector('.skripte-editor-hook-varianten')).not.toBeNull();
+    expect(container.querySelector('[data-feld="hook_variante_1"]').textContent).toContain('Alt-Hook');
+
+    await view.hookUebertragen('hook_variante_1');
+
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
+      hook: 'Alt-Hook',
+      hook_variante_1: 'Haupt-Hook'
+    });
+    expect(view.skript.hook).toBe('Alt-Hook');
+    expect(view.skript.hook_variante_1).toBe('Haupt-Hook');
+    expect(view.skript.hook_visuell).toBe('Haupt-Bild');
+    expect(mockService.createVersion).toHaveBeenCalledTimes(1);
+    expect(mockService.createVersion.mock.calls[0][1]).toBe('Hook übertragen · Hook 1');
   });
 
   it('applyVisuellVorschlag waehrend Hook-Focus laesst Hook-DOM stehen', async () => {

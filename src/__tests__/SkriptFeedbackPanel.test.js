@@ -212,6 +212,25 @@ describe('Selektionsmenue je Rolle', () => {
     expect(view.setLikyOffen).toHaveBeenCalledWith(true);
     expect(view.startNeuerKommentar).not.toHaveBeenCalled();
   });
+
+  it('zeigt Hook übertragen nur auf Varianten-Zellen', () => {
+    container.querySelector('.skripte-editor-sektion-text').dataset.sektion = 'hook_variante_1';
+    container.querySelector('.skripte-editor-sektion-text').dataset.feld = 'hook_variante_1';
+    view.hookUebertragen = vi.fn();
+    const selection = new SkriptEditorSelection(view);
+    selection.checkSelection();
+    const labels = [...document.querySelectorAll('#ed-selmenu button')].map((b) => b.dataset.id);
+    expect(labels).toContain('hook_uebertragen');
+    document.querySelector('#ed-selmenu button[data-id="hook_uebertragen"]').click();
+    expect(view.hookUebertragen).toHaveBeenCalledWith('hook_variante_1');
+    expect(view.pendingAktion).toBeNull();
+  });
+
+  it('zeigt Hook übertragen nicht auf dem Haupthook', () => {
+    new SkriptEditorSelection(view).checkSelection();
+    const labels = [...document.querySelectorAll('#ed-selmenu button')].map((b) => b.dataset.id);
+    expect(labels).not.toContain('hook_uebertragen');
+  });
 });
 
 describe('SkriptFeedbackPanel', () => {
