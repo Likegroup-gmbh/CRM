@@ -6,9 +6,9 @@
 
 # Branch-Deploy v2: Vite backt VITE_* zur Build-Zeit ein.
 # Greift nur, wenn Branch v2 in der Netlify-UI als Branch-Deploy aktiv ist.
-# Chromium-Functions (~60MB Zip) beim ersten v2-Deploy weglassen — der Upload
-# der 42 Zips hängt sonst. Nach erfolgreichem Deploy Script wieder raus und
-# die 4 Functions nachziehen (Liky-URL braucht site-extract-background).
+# Chromium-Functions (~60MB Zip): drei bleiben im Skip (creator-scrape,
+# strategie-item-background, transcribe-background). site-extract-background
+# ist wieder im Deploy — Liky-URL / Produkt-Auslesen braucht sie.
 [context.v2]
   command = "node scripts/netlify-v2-skip-chromium.js && npm run build"
 [context.v2.environment]

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// Nur im Netlify-Build-Container (context.v2). Erstes Branch-Deploy hängt
-// am Upload von 4× ~60MB Chromium-Zips. Die Entry-Points fliegen raus,
-// Vite + die restlichen Functions gehen durch. Staging/main unberührt.
+// Nur im Netlify-Build-Container (context.v2). Chromium-Zips (~60MB) haengen
+// den Function-Upload. site-extract-background ist wieder live (Liky-URL /
+// Produkt-Auslesen). Die drei restlichen erst nachziehen, wenn der Deploy
+// mit einer zusaetzlichen Chromium-Function durch ist. Staging/main unberuehrt.
 const fs = require('fs');
 const path = require('path');
 
@@ -9,7 +10,6 @@ const root = path.join(__dirname, '..');
 const dest = path.join(root, 'netlify/_v2_skip_chromium');
 const files = [
   'creator-scrape.js',
-  'site-extract-background.js',
   'strategie-item-background.js',
   'transcribe-background.js'
 ];
