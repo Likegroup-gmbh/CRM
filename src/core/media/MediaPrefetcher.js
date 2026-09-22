@@ -52,10 +52,9 @@ export class MediaPrefetcher {
       this._prefetchTimerId = null;
       if (token === this.ctx._srcToken) this.prefetchNeighbors();
     };
-    // Erst starten, wenn das AKTIVE Video durchgehend abspielbar ist
-    // (canplaythrough) -> der Voll-Blob-Prewarm der Nachbarn zieht keine
-    // Bandbreite vom ersten Start ab. Timeout als Fallback, falls das Event
-    // (z.B. bei sehr grossen Dateien) lange ausbleibt.
+    // Nur fuer Story/Still/.mov. Kooperationsvideos startet die Playback-Session
+    // nach Headroom, nicht hier. canplaythrough oder 4s, damit der erste Start
+    // die Leitung nicht mit Nachbar-Downloads teilt.
     if (video) {
       if (video.readyState >= 4) run();
       else video.addEventListener('canplaythrough', run, { once: true });
@@ -64,7 +63,7 @@ export class MediaPrefetcher {
     this._prefetchTimerId = setTimeout(run, 4000);
   }
 
-  prefetchNeighbors() {
+  prefetchNeighbors({ signal } = {}) {
     const { items, index, storyVersions, storyAsset } = this.ctx;
     const blobTasks = []; // Bild/Story: vollstaendig als Blob vorwaermen
 
@@ -98,21 +97,29 @@ export class MediaPrefetcher {
         .catch(() => {});
     });
 
-    // Video-Nachbarn (naechste Videos in beide Richtungen, da Storys/Bilder
-    // dazwischen liegen koennen): cachebare voll als Blob vorwaermen, riskante
-    // (.mov etc.) nur mit Metadaten (schnelles erstes Bild).
-    const videoIndices = this._nearestVideoIndices({ back: 1, ahead: 2 });
+    // Ein Video-Nachbar (lieber voraus, sonst zurueck). Storys/Bilder bleiben
+    // kleine Blob-Tasks oben. Riskante Container nur als Metadaten.
+    // signal: die Playback-Session bricht den Video-Blob bei `waiting` ab.
+    const videoIndices = this._oneVideoNeighbor();
     Promise.all(videoIndices.map(i => this._resolveVideoTask(items[i])))
       .then(tasks => {
+        if (signal?.aborted) return;
         const metaUrls = [];
         for (const t of tasks) {
           if (!t) continue;
           if (t.risky) { metaUrls.push(t.url); continue; }
-          MediaCache.ensure(t.key, t.url);
+          MediaCache.ensure(t.key, t.url, signal ? { signal } : undefined);
         }
-        this._prefetchBytes(metaUrls);
+        if (!signal?.aborted) this._prefetchBytes(metaUrls);
       })
       .catch(() => {});
+  }
+
+  /** Ein Video-Nachbar: das naechste voraus, sonst das naechste zurueck. */
+  _oneVideoNeighbor() {
+    const ahead = this._nearestVideoIndices({ back: 0, ahead: 1 });
+    if (ahead.length) return ahead;
+    return this._nearestVideoIndices({ back: 1, ahead: 0 });
   }
 
   /** Indizes der naechsten Video-Items in beide Richtungen (vom aktuellen aus). */

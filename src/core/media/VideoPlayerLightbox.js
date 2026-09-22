@@ -10,6 +10,7 @@ import { MediaPrefetcher } from './MediaPrefetcher.js';
 import { VideoPlayerView } from './VideoPlayerView.js';
 import { VideoPlaybackController } from './VideoPlaybackController.js';
 import { VideoElementPool } from './VideoElementPool.js';
+import { PlaybackSession } from './PlaybackSession.js';
 import * as MediaCache from './MediaCache.js';
 import { perfLog, perfNow, mediaLog } from './mediaPerf.js';
 import {
@@ -28,8 +29,9 @@ const RISKY_VIDEO_EXT = /\.(mov|avi|mkv|m4v)(?:\?|#|$)/i;
  *   pro Video das Video + seine Storys, danach die Bilder der Koop.
  * - Prev/Next blaettert durchgaengig ueber alle Typen.
  * - Rendering (VideoPlayerView), Asset-/Versionslogik (VideoAssetLoader),
- *   Prefetch (MediaPrefetcher) und Player-Steuerung (VideoPlaybackController)
- *   sind in eigene Module ausgelagert; diese Klasse haelt State/Lifecycle.
+ *   Prefetch (MediaPrefetcher), Player-Steuerung (VideoPlaybackController)
+ *   und das aktive Kooperationsvideo (PlaybackSession) sind ausgelagert;
+ *   diese Klasse haelt State/Lifecycle.
  */
 export class VideoPlayerLightbox {
   constructor(table) {
@@ -52,8 +54,6 @@ export class VideoPlayerLightbox {
     this.src = null;
     this.fallbackUrl = null;
     this._srcToken = 0;
-    // Key des aktuell in der Stage sichtbaren Videos (fuers Offscreen-Parken).
-    this._activeVideoKey = null;
 
     // Module
     this.itemBuilder = new MediaItemBuilder(table);
@@ -62,6 +62,12 @@ export class VideoPlayerLightbox {
     this.view = new VideoPlayerView(this);
     this.playback = new VideoPlaybackController();
     this.videoPool = new VideoElementPool();
+    this.session = new PlaybackSession({ pool: this.videoPool, playback: this.playback });
+  }
+
+  /** Key des aktuell sichtbaren Kooperationsvideos (Pool). Session haelt ihn. */
+  get _activeVideoKey() {
+    return this.session.activeKey;
   }
 
   get current() {
@@ -165,8 +171,7 @@ export class VideoPlayerLightbox {
         MediaCache.unpin();
         this.prefetcher.cleanup();
         this.playback.unmount();
-        this.videoPool.clear();
-        this._activeVideoKey = null;
+        this.session.close();
       },
     });
 
@@ -437,7 +442,7 @@ export class VideoPlayerLightbox {
         .then(url => { if (url && token === this._srcToken) this.fallbackUrl = url; })
         .catch(() => {});
       this.prefetcher.prefetchNeighborAssets();
-      this.prefetcher.scheduleNeighborPrefetch();
+      this._armPlayback(token, key, null, label);
       return;
     }
 
@@ -456,46 +461,36 @@ export class VideoPlayerLightbox {
 
     const path = lookup.file_path || lookup.file_url || '';
     const cacheable = !!key && !!resolved && !RISKY_VIDEO_EXT.test(path);
-    if (cacheable) {
-      // Befuellen, waehrend das Medium ohnehin betrachtet wird. Sobald der Blob
-      // fertig ist, wird das laufende <video> darauf umgestellt -> das (spaeter
-      // geparkte) Element haengt am Blob statt an der Dropbox-URL.
-      MediaCache.ensure(key, resolved).then(blobUrl => {
-        if (blobUrl) {
-          mediaLog(`"${label}" ist jetzt gecached - beim Zurueck/erneut Oeffnen sofort.`);
-          if (token === this._srcToken) this._upgradeActiveToBlob(key, blobUrl);
-        } else {
-          mediaLog(`"${label}" konnte nicht gecached werden (zu gross oder CORS) - laedt erneut vom Netz.`);
-        }
-      });
-    }
-
     this.prefetcher.prefetchNeighborAssets();
-    this.prefetcher.scheduleNeighborPrefetch();
+    this._armPlayback(token, key, cacheable ? resolved : null, label);
   }
 
   /**
-   * Stellt das aktuell sichtbare Stage-Video auf die fertige Blob-URL um, ohne
-   * Position/Play-Status zu verlieren. Dropbox-Stream-URLs (max-age=60) wuerden
-   * beim Parken/Reattach den Puffer verlieren und neu laden – der Blob nicht.
+   * Poolbares Kooperationsvideo: Blob und Nachbar-Prefetch erst nach Headroom.
+   * Alles andere (Story, Still, .mov) behaelt den bisherigen Prefetch-Takt.
    */
-  _upgradeActiveToBlob(key, blobUrl) {
-    if (!this.lightbox.isOpen() || this._activeVideoKey !== key) return;
+  _armPlayback(token, key, streamUrl, label) {
     const stage = this.lightbox.contentEl?.querySelector('.media-viewer-stage');
     const video = stage?.querySelector('.vpl-video');
-    if (!video || video.src === blobUrl) return;
-
-    const t = video.currentTime;
-    const wasPaused = video.paused;
-    this.src = blobUrl;
-    video.src = blobUrl;
-    const restore = () => {
-      try { if (Number.isFinite(t) && t > 0) video.currentTime = t; } catch (_) { /* noop */ }
-      if (!wasPaused) video.play().catch(() => {});
-    };
-    if (video.readyState >= 1) restore();
-    else video.addEventListener('loadedmetadata', restore, { once: true });
-    perfLog('blob-upgrade', { key });
+    if (this._activeVideoKey && this._activeVideoKey === key && video) {
+      this.session.fillWhenReady(video, {
+        key,
+        streamUrl,
+        prefetch: (signal) => this.prefetcher.prefetchNeighbors?.({ signal }),
+        onBlob: (blobUrl) => {
+          if (token !== this._srcToken || !this.lightbox.isOpen()) return;
+          if (blobUrl) {
+            this.src = blobUrl;
+            mediaLog(`"${label}" ist jetzt gecached - beim Zurueck/erneut Oeffnen sofort.`);
+            perfLog('blob-upgrade', { key });
+          } else {
+            mediaLog(`"${label}" konnte nicht gecached werden (zu gross oder CORS) - laedt erneut vom Netz.`);
+          }
+        },
+      });
+      return;
+    }
+    this.prefetcher.scheduleNeighborPrefetch?.();
   }
 
   _applySrc() {
@@ -511,40 +506,26 @@ export class VideoPlayerLightbox {
     // Re-Download, Poster + gesehener Bereich sofort. Listener am Subtree sind
     // intakt; nur der document-gebundene Fullscreen-Listener muss neu.
     const label = this._mediaLabel();
-    const parked = poolable ? this.videoPool.take(key) : null;
-    if (parked) {
-      stage.replaceChildren(...Array.from(parked.childNodes));
-      this.playback.rearmFullscreen(stage);
-      this._activeVideoKey = key;
-      perfLog('pool-hit', { key });
+    const reused = this.session.present(stage, {
+      key,
+      poolable,
+      renderFresh: () => {
+        stage.innerHTML = this.view.renderStageInner();
+        this._bindFormatHint(stage);
+        const videoEl = stage.querySelector('video');
+        if (videoEl) {
+          videoEl.addEventListener('error', () => this._onVideoError(), { once: true });
+        }
+        // Altes Stage-Video wurde durch innerHTML ersetzt -> document-Listener
+        // des vorherigen Mounts entbinden, bevor neu gemountet wird.
+        this.playback.unmount();
+        this.playback.mount(stage);
+      },
+    });
+    if (reused) {
       mediaLog(`"${label}" sofort aus Speicher wiederverwendet (kein Laden).`);
-      // Falls inzwischen ein Blob bereitsteht, das geparkte Element aber noch an
-      // der Dropbox-URL haengt: auf Blob umstellen (Position erhalten) -> kein
-      // erneutes Netz-Laden beim Zurueckblaettern.
-      const blobUrl = MediaCache.getObjectUrl(key);
-      const video = stage.querySelector('.vpl-video');
-      if (blobUrl && video && video.src !== blobUrl) {
-        const t = video.currentTime;
-        video.src = blobUrl;
-        video.addEventListener('loadedmetadata', () => {
-          try { if (Number.isFinite(t) && t > 0) video.currentTime = t; } catch (_) { /* noop */ }
-        }, { once: true });
-        perfLog('blob-upgrade', { key, via: 'pool' });
-      }
       return;
     }
-
-    stage.innerHTML = this.view.renderStageInner();
-    this._bindFormatHint(stage);
-    const videoEl = stage.querySelector('video');
-    if (videoEl) {
-      videoEl.addEventListener('error', () => this._onVideoError(), { once: true });
-    }
-    // Altes Stage-Video wurde durch innerHTML ersetzt -> document-Listener
-    // des vorherigen Mounts entbinden, bevor neu gemountet wird.
-    this.playback.unmount();
-    this.playback.mount(stage);
-    this._activeVideoKey = poolable ? key : null;
 
     if (item?.type === 'video') {
       if (this.src && this.src.startsWith('blob:')) {
@@ -563,16 +544,8 @@ export class VideoPlayerLightbox {
    * aktuelle Medium kein cachebares Video war (_activeVideoKey === null).
    */
   _parkStageVideo() {
-    const key = this._activeVideoKey;
-    if (!key) return;
-    this._activeVideoKey = null;
     const stage = this.lightbox.contentEl?.querySelector('.media-viewer-stage');
-    const video = stage?.querySelector('.vpl-video');
-    if (!video) return;
-    try { video.pause(); } catch (_) { /* still */ }
-    const wrapper = document.createElement('div');
-    wrapper.append(...Array.from(stage.childNodes));
-    this.videoPool.park(key, wrapper);
+    this.session.park(stage);
   }
 
   _bindFormatHint(stage) {

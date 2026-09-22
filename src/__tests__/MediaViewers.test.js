@@ -1094,12 +1094,19 @@ describe('VideoPlayerLightbox._resolveSrc – Blob-first & Blob-Upgrade', () => 
 
     await player._resolveSrc();
 
-    // Zunaechst Dropbox-Stream-URL (Cache-Miss).
+    // Zunaechst Dropbox-Stream-URL (Cache-Miss). Ohne Headroom kein Blob-Download.
     const v = player.lightbox.contentEl.querySelector('.vpl-video');
     expect(v.getAttribute('src')).toContain('https://dl/v1.mp4');
     expect(player._activeVideoKey).toBe('video:a1:t1');
+    expect(global.fetch.mock.calls.some(call => call[0] === 'https://dl/v1.mp4')).toBe(false);
 
-    // Sobald der Blob fertig ist, upgradet das aktive Element.
+    // Headroom: Puffer liegt voraus, erst dann ensure + Src-Tausch.
+    Object.defineProperty(v, 'buffered', {
+      configurable: true,
+      get: () => ({ length: 1, start: () => 0, end: () => 30 }),
+    });
+    v.dispatchEvent(new Event('progress'));
+
     await vi.waitFor(() => {
       const cur = player.lightbox.contentEl.querySelector('.vpl-video');
       expect(cur.getAttribute('src')).toContain('blob:obj-1');
