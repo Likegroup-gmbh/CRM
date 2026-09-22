@@ -5,6 +5,7 @@
 const { getSpec, buildFieldInstructions } = require('./extract-specs');
 const { sanitizePersonaPayload } = require('./produkt-persona');
 const { validateSituationen } = require('./audience-situation');
+const { extractJson, repairJsonStrings } = require('./anthropic');
 
 const EXTRACT_TOOL = {
   name: 'persona_extract_abgeben',
@@ -122,9 +123,18 @@ function buildChatPrompt({ history, formData, userText }) {
   }
   task += `User: ${userText}\n\n`;
   task += '# REGELN\n'
-    + '- reply: deine Antwort an den User.\n'
-    + '- patches: nur Felder, die sich aendern. force=true nur wenn der User '
-    + 'explizit ueberschreiben will.\n'
+    + '- reply: deine Antwort an den User. Ein Reply ohne patches aendert das Formular nicht.\n'
+    + '- patches: jedes Feld, das sich aendern soll, als { value, kind, from }. '
+    + 'Ein Aenderungswunsch ohne patches ist wirkungslos. force setzt der Server.\n'
+    + '- alter_von und alter_bis immer zusammen. Fehlt eine konkrete Zahl '
+    + '(z.B. "zu alt"), waehle eine passende juengere Spanne und nenne die Annahme im reply.\n'
+    + '- Wenn Name oder Alter sich aendern, schreib im selben Patch jedes Textfeld um, '
+    + 'das den alten Namen oder das alte Alter noch behauptet: beschreibung, oberbegriff, '
+    + 'beruf. lebenssituation nur, wenn die Kategorie nicht mehr passt. Sonst nichts erfinden '
+    + 'und keine anderen Felder anfassen.\n'
+    + '- Selects nur mit den exakten Optionen: geschlecht "Weiblich"|"Männlich"|"Divers"|"Gemischt", '
+    + 'budgetrahmen "niedrig"|"mittel"|"hoch", lebenssituation "Single"|"Familie"|"Paar ohne Kinder"|'
+    + '"Alleinerziehend"|"Student/in"|"Rentner/in"|"Mensch mit Behinderung"|"WG / Wohngemeinschaft".\n'
     + '- audience_situations: 2 bis 4 konkrete Empfangsmomente der Person, '
     + 'keine Produkt-Use-Cases. Nur setzen wenn noch keine da sind oder der User '
     + 'neue will. Sonst weglassen.\n';
@@ -137,12 +147,66 @@ function patchValue(entry) {
   return entry;
 }
 
+// Modelle liefern offene Maps gelegentlich als JSON-String oder als Array
+// (die API validiert tool_use.input nicht gegen input_schema).
+function parseMaybeJson(value) {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value);
+  } catch (_) { /* weiter */ }
+  try {
+    return JSON.parse(repairJsonStrings(value));
+  } catch (_) { /* weiter */ }
+  try {
+    return extractJson(value);
+  } catch (_) {
+    return null;
+  }
+}
+
+const PATCH_META = new Set(['kind', 'from', 'value', 'force']);
+
+function mapFromArray(items) {
+  const out = {};
+  for (const item of items) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) continue;
+    const keys = Object.keys(item).filter((k) => !PATCH_META.has(k));
+    if (keys.length === 1) {
+      const only = keys[0];
+      const asLabel = (only === 'name' || only === 'key')
+        && typeof item[only] === 'string'
+        && 'value' in item;
+      if (!asLabel) {
+        out[only] = item[only];
+        continue;
+      }
+    }
+    const named = typeof item.name === 'string'
+      ? item.name.trim()
+      : (typeof item.key === 'string' ? item.key.trim() : '');
+    if (!named) continue;
+    const { name: _n, key: _k, ...rest } = item;
+    if (!Object.keys(rest).length) continue;
+    out[named] = rest;
+  }
+  return out;
+}
+
+function coercePatchMap(value) {
+  if (value == null) return {};
+  const parsed = parseMaybeJson(value);
+  if (parsed == null) return {};
+  if (Array.isArray(parsed)) return mapFromArray(parsed);
+  if (typeof parsed === 'object') return parsed;
+  return {};
+}
+
 /** Nur bekannte Persona-Felder, mit force/kind aus dem Tool-Call. */
 function sanitizePatches(raw, { defaultFrom = 'Chat' } = {}) {
   const out = {};
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+  const map = coercePatchMap(raw);
 
-  for (const [name, entry] of Object.entries(raw)) {
+  for (const [name, entry] of Object.entries(map)) {
     const value = patchValue(entry);
     const cleaned = sanitizePersonaPayload({ [name]: value });
     if (cleaned[name] == null || cleaned[name] === '') continue;
@@ -170,6 +234,7 @@ function sanitizeSituationen(json) {
 function sanitizeChatResult(json) {
   const reply = String(json?.reply || '').trim() || 'Verstanden.';
   const patches = sanitizePatches(json?.patches);
+  for (const entry of Object.values(patches)) entry.force = true;
   const { situationen, verworfen } = sanitizeSituationen(json);
   return { reply, patches, audience_situations: situationen, verworfen };
 }

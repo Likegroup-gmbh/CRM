@@ -228,7 +228,9 @@ function buildChatPrompt({ spec, history, formData, userText }) {
     + '- patches: nur Felder, die der User geaendert haben will. '
     + 'patches.feldname = { value, kind, from }. value exakt in der Form, die '
     + 'valueShape des Feldes vorgibt (Enums als options.value, KPIs als '
-    + '{ kpi, zielwert }, Channels als { key: [format-values] }).\n'
+    + '{ kpi, zielwert }, Channels als { key: [format-values] }). '
+    + 'Ein Aenderungswunsch gehoert immer in patches. Ein Reply ohne patches '
+    + 'aendert das Formular nicht.\n'
     + '- force=true nur wenn der User explizit ueberschreiben will '
     + '(z.B. "Deadline weg").\n';
 

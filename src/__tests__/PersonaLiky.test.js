@@ -8,7 +8,7 @@ import { ExtractReviewLayer } from '../core/form/ai/ExtractReviewLayer.js';
 
 const require = createRequire(import.meta.url);
 const { hasSpec, getSpec, buildFieldInstructions } = require('../../netlify/functions/_shared/extract-specs.js');
-const { sanitizePatches, sanitizeChatResult, sanitizeExtractResult, CHAT_TOOL, EXTRACT_TOOL } = require('../../netlify/functions/_shared/persona-liky.js');
+const { sanitizePatches, sanitizeChatResult, sanitizeExtractResult, buildChatPrompt, CHAT_TOOL, EXTRACT_TOOL } = require('../../netlify/functions/_shared/persona-liky.js');
 
 describe('Liky Capabilities Persona', () => {
   it('persona: URL-Extract, PDF und Chat an', () => {
@@ -116,6 +116,7 @@ describe('persona-liky Chat-Sanitize', () => {
     });
     expect(ok.reply).toBe('Passt.');
     expect(ok.patches.name.value).toBe('Lena');
+    expect(ok.patches.name.force).toBe(true);
     expect(ok.audience_situations).toHaveLength(2);
 
     const wenig = sanitizeChatResult({
@@ -124,6 +125,35 @@ describe('persona-liky Chat-Sanitize', () => {
     });
     expect(wenig.reply).toBe('Verstanden.');
     expect(wenig.audience_situations).toEqual([]);
+  });
+
+  it('sanitizePatches packt Array und JSON-String aus', () => {
+    const ausArray = sanitizePatches([
+      { name: 'name', value: 'Nora' },
+      { alter_von: 22 },
+      { name: { value: 'Lena', kind: 'fact' } }
+    ]);
+    expect(ausArray.name.value).toBe('Lena');
+    expect(ausArray.name.kind).toBe('fact');
+    expect(ausArray.alter_von.value).toBe(22);
+
+    const ausString = sanitizePatches('{"oberbegriff":{"value":"Studentin"}}');
+    expect(ausString.oberbegriff.value).toBe('Studentin');
+
+    const chat = sanitizeChatResult({
+      reply: 'ok',
+      patches: [{ name: { value: 'Mia' } }, { alter_bis: 30 }]
+    });
+    expect(chat.patches.name).toMatchObject({ value: 'Mia', force: true });
+    expect(chat.patches.alter_bis.value).toBe(30);
+    expect(chat.patches.alter_bis.force).toBe(true);
+  });
+
+  it('buildChatPrompt verlangt Patches und zieht Alter und Name mit', () => {
+    const { task } = buildChatPrompt({ userText: 'Die Persona ist zu alt', formData: { name: 'Sarah' } });
+    expect(task).toContain('Ein Reply ohne patches aendert das Formular nicht');
+    expect(task).toContain('alter_von und alter_bis immer zusammen');
+    expect(task).toContain('alten Namen oder das alte Alter');
   });
 
   it('sanitizeExtractResult setzt from=PDF und force=false', () => {
@@ -190,6 +220,17 @@ describe('PersonaLikyPanel.applyFields', () => {
     expect(form.querySelector('[name="oberbegriff"]').value).toBe('Berufstätige Mutter');
   });
 
+  it('overwrite schreibt gefuellte Felder auch ohne force', () => {
+    const { applied, skipped } = panel.applyFields({
+      name: { value: 'Nora' },
+      oberbegriff: { value: 'Berufstätige Mutter' }
+    }, { overwrite: true });
+    expect(form.querySelector('[name="name"]').value).toBe('Nora');
+    expect(form.querySelector('[name="oberbegriff"]').value).toBe('Berufstätige Mutter');
+    expect(applied).toEqual(['name', 'oberbegriff']);
+    expect(skipped).toEqual([]);
+  });
+
   it('verwirft Select-Werte, die keine Option sind', () => {
     panel.applyFields({ geschlecht: { value: 'Apache Helicopter' } });
     expect(form.querySelector('[name="geschlecht"]').value).toBe('');
@@ -237,6 +278,24 @@ describe('PersonaAudienceSituationPanel.applyKi', () => {
     ])).toBe(true);
     expect(panel.rows.some(r => r.id === 's1' && r.deleted)).toBe(true);
     expect(panel.visible().every(r => r.quelle === 'ki')).toBe(true);
+  });
+
+  it('replace tauscht bestehende Zeilen und markiert persistierte geloescht', async () => {
+    await panel.mount(form, { personaId: null });
+    panel.rows = [{
+      key: 's1', id: 's1', name: 'Alltag', beschreibung: 'Kita', quelle: 'ki', deleted: false
+    }];
+    expect(panel.applyKi([
+      { name: 'abends auf der Couch' },
+      { name: 'im Zug' }
+    ])).toBe(false);
+
+    expect(panel.applyKi([
+      { name: 'abends auf der Couch', beschreibung: 'Serie' },
+      { name: 'im Zug' }
+    ], { replace: true })).toBe(true);
+    expect(panel.rows.some(r => r.id === 's1' && r.deleted)).toBe(true);
+    expect(panel.visible().map(r => r.name)).toEqual(['abends auf der Couch', 'im Zug']);
   });
 });
 

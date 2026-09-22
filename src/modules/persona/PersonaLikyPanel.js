@@ -319,9 +319,12 @@ export class PersonaLikyPanel {
         }))
       });
       const patches = result.patches || {};
-      const { applied } = this.applyFields(patches);
-      const situations = this.applySituations(result.audience_situations);
-      const reply = result.reply || (applied.length ? 'Habe Felder angepasst.' : 'Verstanden.');
+      const { applied } = this.applyFields(patches, { overwrite: true });
+      const situations = this.applySituations(result.audience_situations, { replace: true });
+      let reply = result.reply || (applied.length ? 'Habe Felder angepasst.' : 'Verstanden.');
+      if (Object.keys(patches).length && !applied.length) {
+        reply = 'Nichts davon ist im Dokument gelandet.';
+      }
       this.closeTurnWith(situations ? `${reply} Audience Situations liegen im Dokument.` : reply);
     } catch (error) {
       console.error('Persona-Chat:', error);
@@ -412,7 +415,7 @@ export class PersonaLikyPanel {
   // ---------------------------------------------------------------
   // Apply
   // ---------------------------------------------------------------
-  applyFields(fields) {
+  applyFields(fields, { overwrite = false } = {}) {
     const applied = [];
     const skipped = [];
     if (!this.review) return { applied, skipped };
@@ -431,8 +434,8 @@ export class PersonaLikyPanel {
         if (!ok) continue;
       }
 
-      const overwrite = !!raw.force;
-      if (!overwrite && String(input.value || '').trim()) {
+      const doOverwrite = overwrite || !!raw.force;
+      if (!doOverwrite && String(input.value || '').trim()) {
         skipped.push(name);
         continue;
       }
@@ -446,10 +449,10 @@ export class PersonaLikyPanel {
     return { applied, skipped };
   }
 
-  applySituations(situationen) {
+  applySituations(situationen, { replace = false } = {}) {
     const panel = this.getSituationPanel?.();
     if (!panel?.applyKi) return false;
-    return panel.applyKi(situationen);
+    return panel.applyKi(situationen, { replace });
   }
 
   // ---------------------------------------------------------------

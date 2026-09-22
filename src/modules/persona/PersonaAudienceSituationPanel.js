@@ -117,18 +117,21 @@ export class PersonaAudienceSituationPanel {
   }
 
   /**
-   * KI-Vorschlaege uebernehmen. Nur wenn das Panel leer ist oder ausschliesslich
-   * Seeds hat (istKiBereit). Persistierte Seeds werden zum Loeschen markiert.
+   * KI-Vorschlaege uebernehmen. Ohne replace nur wenn das Panel leer ist oder
+   * ausschliesslich Seeds hat (istKiBereit). replace schreibt einen Chat-Wunsch
+   * auch ueber bestehende Zeilen. Persistierte Zeilen werden zum Loeschen markiert.
    * @returns {boolean} true, wenn geschrieben
    */
-  applyKi(situationen) {
+  applyKi(situationen, { replace = false } = {}) {
     const list = Array.isArray(situationen)
       ? situationen.filter(s => String(s?.name || '').trim())
       : [];
     if (!list.length) return false;
-    if (!istKiBereit(this.visible())) return false;
+    if (!replace && !istKiBereit(this.visible())) return false;
 
-    const deleted = this.rows.filter(r => r.id && (r.deleted || r.quelle === 'migration'));
+    const deleted = replace
+      ? this.rows.filter(r => r.id)
+      : this.rows.filter(r => r.id && (r.deleted || r.quelle === 'migration'));
     for (const row of deleted) row.deleted = true;
 
     this.rows = [
