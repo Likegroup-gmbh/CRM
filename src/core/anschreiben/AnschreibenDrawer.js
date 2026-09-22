@@ -25,6 +25,8 @@ export class AnschreibenDrawer {
    * @param {Object} [opts.db] - Supabase-Client (Tests)
    * @param {(detail: Object) => Promise<{ blob: Blob, dateiname: string }>} opts.createPdf
    * @param {Object} [opts.pdfContext] - Kontext fuer createPdf (z.B. BriefingDetail)
+   * @param {boolean} [opts.empfaengerFest] - Anzeige statt Picker
+   * @param {Array} [opts.prefill]
    */
   constructor({
     dokumentTyp,
@@ -37,6 +39,7 @@ export class AnschreibenDrawer {
     pdfContext = null,
     platzhalter = ['vorname', 'name', 'briefing', 'unternehmen', 'marke'],
     prefill = [],
+    empfaengerFest = false,
   }) {
     this.dokumentTyp = dokumentTyp;
     this.dokumentId = dokumentId;
@@ -48,6 +51,7 @@ export class AnschreibenDrawer {
     this.pdfContext = pdfContext;
     this.platzhalter = platzhalter;
     this.prefill = prefill;
+    this.empfaengerFest = Boolean(empfaengerFest);
 
     this.overlay = null;
     this.panel = null;
@@ -195,6 +199,8 @@ export class AnschreibenDrawer {
       db: this.db,
       unternehmenId: this.unternehmenId,
       markeId: this.markeId,
+      empfaengerFest: this.empfaengerFest,
+      prefill: this.prefill,
       onChange: () => this._updateSendState(),
     });
 

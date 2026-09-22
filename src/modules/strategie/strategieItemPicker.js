@@ -77,7 +77,7 @@ function creatorLabel(item) {
   return item.creator_name || 'Creator';
 }
 
-/** Create-Drawer: freigegebene Ideen einer Kampagne, gruppiert nach Konzept. */
+/** Create-Drawer: freigegebene Ideen eines Konzepts. */
 export function buildFreigegebeneVideoideePickerOptions(items) {
   const usable = (items || []).filter((item) => item.skript_freigabe && !item.nicht_umsetzen && !item.ist_vorschlag);
   return buildPickerOptions(usable, {

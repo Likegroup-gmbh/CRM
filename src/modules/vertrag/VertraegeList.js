@@ -20,7 +20,6 @@ import {
 import {
   bindTableDelegation,
   bindSelectionEvents,
-  bindStatusDropdownDismiss,
   openVertragUploadDrawer as _openVertragUploadDrawer,
   removeSignedContract as _removeSignedContract,
   openVertragAnschreiben as _openVertragAnschreiben,
@@ -379,8 +378,6 @@ export class VertraegeList {
     };
     window.addEventListener('vertrag-list-action', listActionHandler);
     this._boundEventListeners.add(() => window.removeEventListener('vertrag-list-action', listActionHandler));
-
-    bindStatusDropdownDismiss(this);
   }
 
   _bindUnternehmenRowEvents() {

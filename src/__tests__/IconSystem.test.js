@@ -122,6 +122,12 @@ describe('IconSystem Guard', () => {
     expect(icon('plus')).not.toContain('crm-icon--filled');
   });
 
+  it('skript-freigabe ist zentral verfuegbar ohne stroke-width im Def', () => {
+    expect(hasIcon('skript-freigabe')).toBe(true);
+    expect(ICON_DEFS['skript-freigabe'].viewBox).toBe('0 0 24 24');
+    expect(ICON_DEFS['skript-freigabe'].body).not.toContain('stroke-width');
+  });
+
   it('Liky/Chat-Icons sind zentral verfuegbar (ai-chat, arrows-collapse, chat-bot Alias)', () => {
     expect(hasIcon('ai-chat')).toBe(true);
     expect(hasIcon('arrows-collapse')).toBe(true);

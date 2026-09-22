@@ -17,7 +17,6 @@ export class VideoideeVorschlagPanel {
     this.detail = detail;
     this.laeuft = false;
     this.fortschritt = '';
-    this.fehler = '';
     this._token = 0;
     this._onProgress = null;
     this._onFinished = null;
@@ -85,11 +84,6 @@ export class VideoideeVorschlagPanel {
           </button>`
         : '');
 
-    if (this.detail.embedded) {
-      block.innerHTML = `${holenBtn}${this.fehler ? `<span class="casting-vorschlag__fehler" title="${esc(this.fehler)}"></span>` : ''}`;
-      return;
-    }
-
     const bulk = (!this.laeuft && canEdit && count)
       ? `<button type="button" class="mdc-btn mdc-btn--secondary" id="btn-videoidee-vorschlag-alle-uebernehmen">
            ${icon('check-bold', { className: 'icon-16' })}
@@ -101,24 +95,7 @@ export class VideoideeVorschlagPanel {
          </button>`
       : '';
 
-    block.innerHTML = `
-      <div class="casting-vorschlag videoidee-vorschlag">
-        <div class="casting-vorschlag__kopf">
-          <div>
-            <span class="casting-vorschlag__titel">KI-Vorschläge ${count ? `(${count})` : ''}</span>
-            <p class="casting-vorschlag__sub">Aus Briefing, Produkt und Personas · in der Liste mit Rand markiert</p>
-          </div>
-          <div class="casting-vorschlag__aktionen">
-            ${holenBtn}
-            ${bulk}
-          </div>
-        </div>
-        ${this.fehler ? `<p class="casting-vorschlag__fehler">${esc(this.fehler)}</p>` : ''}
-        ${!hatBriefing && !count
-          ? '<p class="casting-vorschlag__hinweis">Dieses Konzept hat kein Briefing – ohne Briefing gibt es keine Vorschläge.</p>'
-          : ''}
-      </div>
-    `;
+    block.innerHTML = `${holenBtn}${bulk}`;
   }
 
   bind() {
@@ -174,7 +151,6 @@ export class VideoideeVorschlagPanel {
   async holen() {
     if (this.laeuft) return;
     this.laeuft = true;
-    this.fehler = '';
     this.fortschritt = 'Videoideen sind unterwegs…';
     this.bindProgress();
     this.render();
@@ -184,9 +160,9 @@ export class VideoideeVorschlagPanel {
       console.error('Fehler bei den Videoidee-Vorschlägen:', error);
       this.laeuft = false;
       this.fortschritt = '';
-      this.fehler = error.message || 'Generierung fehlgeschlagen.';
       this.unbindProgress();
       this.render();
+      window.toastSystem?.show(error.message || 'Generierung fehlgeschlagen.', 'error');
       return;
     }
     if (!this.laeuft) return;

@@ -17,8 +17,12 @@ import { ExtractReviewLayer } from './ExtractReviewLayer.js';
 import { applyExtractedLogo, clearExtractedLogo } from './ExtractLogoApplier.js';
 import { ExtractCostBadge } from './ExtractCostBadge.js';
 import { logExtractDiagnostics, nullergebnisHinweis } from './ExtractDiagnostics.js';
+import { likyCanExtractPdf } from '../../chat/likyCapabilities.js';
+import { likyPdfTagHtml } from '../../chat/likyComposer.js';
 
 const ENDPOINT = '/.netlify/functions/site-extract-background';
+const PDF_ENDPOINT = '/.netlify/functions/produkt-pdf-background';
+const PDF_MAX_BYTES = 20 * 1024 * 1024;
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 3 * 60 * 1000;
 
@@ -91,9 +95,10 @@ function warte(ms) {
  * @param {Object} opts
  * @param {string} opts.entity
  * @param {string} opts.url
+ * @param {string} [opts.endpoint] - Default Shop-URL. Produkt-PDF geht an produkt-pdf-background.
  * @param {Function} [opts.onStep] - ({ step, label, steps }) => void
  */
-export async function requestExtractJob({ entity, url, onStep = () => {} } = {}) {
+export async function requestExtractJob({ entity, url, endpoint = ENDPOINT, onStep = () => {} } = {}) {
   const db = window.supabase;
   const session = await getSession();
   if (!db || !session) throw new Error('Keine aktive Sitzung');
@@ -104,7 +109,7 @@ export async function requestExtractJob({ entity, url, onStep = () => {} } = {})
     .select('id').single();
   if (insertError) throw new Error(`Job konnte nicht angelegt werden: ${insertError.message}`);
 
-  const response = await fetch(ENDPOINT, {
+  const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -188,14 +193,138 @@ export class SiteExtractHandler {
     this.entity = entity;
     this.review = new ExtractReviewLayer(form);
     this.running = false;
+    this.pendingPdf = null;
   }
 
   bind() {
     const buttons = this.form.querySelectorAll('[data-ai-extract]');
     buttons.forEach((button) => {
-      button.addEventListener('click', () => this.run(button));
+      button.addEventListener('click', () => {
+        if (this.pendingPdf) {
+          const file = this.pendingPdf;
+          this.clearPendingPdf();
+          this.runPdf(button, file);
+          return;
+        }
+        this.run(button);
+      });
     });
+    if (likyCanExtractPdf(this.entity)) this.bindPdfDrop();
     return buttons.length;
+  }
+
+  bindPdfDrop() {
+    const side = this.form.querySelector('.doc__side');
+    const composer = this.form.querySelector('#produkt-liky-composer');
+    if (!side || !composer) return;
+
+    side.addEventListener('dragover', (e) => {
+      if (![...(e.dataTransfer?.types || [])].includes('Files')) return;
+      e.preventDefault();
+      composer.classList.add('is-dragover');
+    });
+    side.addEventListener('dragleave', (e) => {
+      if (!side.contains(e.relatedTarget)) composer.classList.remove('is-dragover');
+    });
+    side.addEventListener('drop', (e) => {
+      const file = e.dataTransfer?.files?.[0];
+      if (!file) return;
+      e.preventDefault();
+      composer.classList.remove('is-dragover');
+      this.attachPdf(file);
+    });
+
+    this.form.querySelector('[data-url-field="true"]')?.addEventListener('paste', (e) => {
+      const file = [...(e.clipboardData?.files || [])][0];
+      if (!file) return;
+      e.preventDefault();
+      this.attachPdf(file);
+    });
+  }
+
+  attachPdf(file) {
+    const istPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name || '');
+    if (!istPdf) {
+      notifyError('Nur PDF.');
+      return;
+    }
+    if (file.size > PDF_MAX_BYTES) {
+      notifyError('PDF zu groß. Maximal 20 MB.');
+      return;
+    }
+    this.pendingPdf = file;
+    this.renderPdfChip();
+  }
+
+  clearPendingPdf() {
+    this.pendingPdf = null;
+    this.renderPdfChip();
+  }
+
+  renderPdfChip() {
+    const chips = this.form.querySelector('#produkt-liky-chips');
+    if (!chips) return;
+    if (!this.pendingPdf) {
+      chips.innerHTML = '';
+      return;
+    }
+    chips.innerHTML = likyPdfTagHtml(this.pendingPdf.name, { remove: true });
+    chips.querySelector('button')?.addEventListener('click', () => this.clearPendingPdf());
+  }
+
+  async runPdf(button, file) {
+    if (this.running) return;
+    const state = new ButtonState(button);
+    const session = await getSession();
+    if (!window.supabase || !session) {
+      notifyError('Keine aktive Sitzung');
+      return;
+    }
+
+    this.running = true;
+    state.busy();
+    emit('siteExtractStarted', { entity: this.entity, form: this.form, url: file.name });
+    emit('siteExtractProgress', { entity: this.entity, step: 'start', label: 'Ich lese das PDF' });
+
+    try {
+      this.review.revertAll();
+      const path = await this.uploadPdf(file, session.user.id);
+      const result = await this.request(`pdf:${path}`, state, PDF_ENDPOINT);
+      this.applyFields(result.fields || {}, null);
+      new ExtractCostBadge(this.form, button).show(result);
+      this.announce(result);
+      const felder = Object.keys(result.fields || {}).length;
+      if (!felder) notifyWarning(nullergebnisHinweis(result));
+      emit('siteExtractFinished', {
+        entity: this.entity,
+        form: this.form,
+        ok: true,
+        felder,
+        fields: result.fields || {}
+      });
+    } catch (error) {
+      notifyError(`PDF konnte nicht ausgelesen werden: ${error.message}`);
+      emit('siteExtractFinished', {
+        entity: this.entity,
+        form: this.form,
+        ok: false,
+        error: error.message
+      });
+    } finally {
+      state.idle();
+      this.running = false;
+    }
+  }
+
+  async uploadPdf(file, userId) {
+    const safeName = String(file.name || 'produkt.pdf').replace(/[^a-zA-Z0-9._-]/g, '_');
+    const dateiname = /\.pdf$/i.test(safeName) ? safeName : `${safeName}.pdf`;
+    const path = `produkt-pdfs/${userId}/${Date.now()}_${dateiname}`;
+    const { error } = await window.supabase.storage
+      .from('documents')
+      .upload(path, file, { upsert: false, contentType: 'application/pdf' });
+    if (error) throw new Error(`Upload fehlgeschlagen: ${error.message}`);
+    return path;
   }
 
   async run(button) {
@@ -268,10 +397,11 @@ export class SiteExtractHandler {
    * Job anlegen, Background Function anstossen, Ergebnis aus extract_jobs
    * pollen. Liefert dasselbe Antwortobjekt wie frueher die synchrone Function.
    */
-  async request(url, state) {
+  async request(url, state, endpoint = ENDPOINT) {
     return requestExtractJob({
       entity: this.entity,
       url,
+      endpoint,
       onStep: ({ step, label, steps }) => {
         state?.step(STEP_LABELS[step] || 'Liest…');
         emit('siteExtractProgress', {

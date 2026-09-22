@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderItemRow } from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
+import { renderItemRow } from '../modules/creator-auswahl/castingItemRow.js';
 import {
   CREATOR_TYP_OPTIONS,
   CREATOR_TYP_SELECT_OPTIONS,

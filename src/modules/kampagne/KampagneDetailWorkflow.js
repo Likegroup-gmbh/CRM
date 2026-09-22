@@ -14,7 +14,6 @@ import { icon } from '../../core/icons/IconSystem.js';
 import { renderVertraegeTableBody } from '../vertrag/VertraegeListRenderers.js';
 import {
   bindTableDelegation,
-  bindStatusDropdownDismiss,
   downloadVertrag,
   deleteVertrag,
   openVertragUploadDrawer
@@ -272,7 +271,7 @@ async function loadVertraege(detail) {
   const { data, error } = await window.supabase
     .from('vertraege')
     .select(`
-      id, name, typ, is_draft, status,
+      id, name, typ, is_draft, status, gesendet_am,
       datei_url, datei_path,
       unterschriebener_vertrag_url, unterschriebener_vertrag_path,
       dropbox_file_url, dropbox_file_path,
@@ -333,7 +332,6 @@ export function mountVertraegePane(detail) {
   const adapter = createKampagneVertragListAdapter(detail);
   detail._vertragListAdapter = adapter;
   bindTableDelegation(adapter);
-  bindStatusDropdownDismiss(adapter);
 }
 
 /* ------------------------------------------------------------------ */

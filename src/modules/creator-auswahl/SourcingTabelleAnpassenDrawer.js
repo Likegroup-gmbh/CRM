@@ -12,10 +12,10 @@
 
 import {
   DEAKTIVIERTE_SPALTEN,
-  getListenTkp,
   SOURCING_SPALTEN,
   SOURCING_SPALTEN_LABELS
 } from './CreatorAuswahlTemplates.js';
+import { getListenTkp } from './castingPreisZellen.js';
 import {
   LISTE_TYP_OPTIONEN,
   PLATTFORM_OPTIONEN,

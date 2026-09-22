@@ -74,8 +74,8 @@ describe('NavigationSystem – Kundendaten ohne Marken-Liste', () => {
     const kampagnenHrefs = [...kampagnen.querySelectorAll('a[href]')].map((a) => a.getAttribute('href'));
     expect(kampagnenHrefs).toEqual([
       '/briefing',
-      '/persona',
       '/produkt',
+      '/persona',
       '/castings',
       '/konzepte',
       '/skripte',

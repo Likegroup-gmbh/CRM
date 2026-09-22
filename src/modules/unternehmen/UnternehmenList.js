@@ -1,19 +1,32 @@
 // UnternehmenList.js (ES6-Modul)
-// Unternehmen-Liste mit neuem Filtersystem und Pagination
-// Basiert auf BasePaginatedList
+// Unternehmen-Liste: Orchestrierung. Daten, Zeilen, Create und Mitarbeiter-Filter liegen daneben.
 
 import { BasePaginatedList } from '../../core/BasePaginatedList.js';
 import { modularFilterSystem as filterSystem } from '../../core/filters/ModularFilterSystem.js';
 import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { sortDropdown } from '../../core/components/SortDropdown.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
-import { actionBuilder } from '../../core/actions/ActionBuilder.js';
-import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
-import { UnternehmenService } from './services/UnternehmenService.js';
 import { MarkeService } from '../marke/services/MarkeService.js';
-import { icon } from '../../core/icons/IconSystem.js';
-import { testunternehmenBadgeHtml } from '../../core/budget/testunternehmen.js';
+import { unternehmenCreate } from './UnternehmenCreate.js';
+import {
+  loadUnternehmenPage,
+  loadAnsprechpartnerMap,
+  loadMitarbeiterMap,
+  loadMarkenMap,
+  loadMarkeMitarbeiterMap
+} from './UnternehmenListQueries.js';
+import {
+  renderUnternehmenRow,
+  renderNestedMarkeRow,
+  renderRowGroup
+} from './UnternehmenListRows.js';
+import {
+  initializeMitarbeiterQuickFilter,
+  bindMitarbeiterQuickFilterEvents,
+  getSelectedMitarbeiterFilterIds,
+  syncMitarbeiterQuickFilterUI
+} from './UnternehmenListMitarbeiterFilter.js';
 
 export class UnternehmenList extends BasePaginatedList {
   constructor() {
@@ -29,11 +42,9 @@ export class UnternehmenList extends BasePaginatedList {
       checkboxClass: 'unternehmen-check',
       selectAllId: 'select-all-unternehmen'
     });
-    
-    // Alias für Kompatibilität
+
     this.selectedUnternehmen = this.selectedItems;
 
-    // Erlaubte IDs für Nicht-Admins
     this._allowedUnternehmenIds = null;
     this._mitarbeiterQuickFilterOptions = [];
     this._expandedIds = new Set();
@@ -45,9 +56,6 @@ export class UnternehmenList extends BasePaginatedList {
     return window.isAdmin() || window.currentUser?.permissions?.marke?.can_edit || false;
   }
 
-  /**
-   * Empty-State der Liste (ohne aktive Filter)
-   */
   getEmptyState() {
     const canEdit = window.isAdmin?.() || window.currentUser?.permissions?.unternehmen?.can_edit;
     return {
@@ -59,247 +67,46 @@ export class UnternehmenList extends BasePaginatedList {
       actionsHtml: canEdit ? '<button id="btn-unternehmen-new" class="mdc-btn">Neues Unternehmen anlegen</button>' : ''
     };
   }
-  
-  // ══════════════════════════════════════════════════════════════════════════
-  // ÜBERSCHRIEBENE METHODEN FÜR PERMISSION-HANDLING
-  // ══════════════════════════════════════════════════════════════════════════
-  
-  /**
-   * Setzt entity-spezifische Caches zurück bei Permission-Änderungen
-   * @override
-   */
+
   resetEntityCaches() {
     console.log('🔄 UNTERNEHMENLISTE: Cache zurückgesetzt');
     this._allowedUnternehmenIds = null;
   }
-  
-  // ══════════════════════════════════════════════════════════════════════════
-  // IMPLEMENTIERUNG DER ABSTRAKTEN METHODEN
-  // ══════════════════════════════════════════════════════════════════════════
-  
-  /**
-   * Lädt die Unternehmen-Daten für eine Seite
-   * Mit komplexer Mitarbeiter-Filterung für Nicht-Admins
-   */
+
   async loadPageData(page, limit, filters) {
-    try {
-      const intersectIds = (baseIds, nextIds) => {
-        if (!Array.isArray(nextIds) || nextIds.length === 0) return [];
-        if (!Array.isArray(baseIds)) return [...new Set(nextIds)];
-        const nextSet = new Set(nextIds);
-        return baseIds.filter(id => nextSet.has(id));
-      };
-
-      // Nicht-unscoped Filterung (Mitarbeiter mit Zuordnung)
-      let allowedUnternehmenIds = null;
-      if (!this.isAdmin && !window.isUnscoped?.()) {
-        const { data: mitarbeiterUnternehmen, error } = await window.supabase
-          .from('mitarbeiter_unternehmen')
-          .select('unternehmen_id')
-          .eq('mitarbeiter_id', window.currentUser?.id);
-        
-        if (error) {
-          console.error('❌ UNTERNEHMENLISTE: Fehler beim Laden der Zuordnungen:', error);
-        }
-        
-        allowedUnternehmenIds = (mitarbeiterUnternehmen || [])
-          .map(r => r.unternehmen_id)
-          .filter(Boolean);
-        
-        if (allowedUnternehmenIds.length === 0) {
-          return { data: [], total: 0 };
-        }
-      }
-      
-      // Berechne Range für Supabase
-      const from = (page - 1) * limit;
-      const to = from + limit - 1;
-      
-      // Basis-Query
-      let query = window.supabase
-        .from('unternehmen')
-        .select(`
-          *,
-          unternehmen_branchen (
-            branche_id,
-            branchen (id, name)
-          )
-        `, { count: 'exact' })
-        .order(this.currentSort.field, { ascending: this.currentSort.ascending });
-      
-      // Alle ID-basierten Einschränkungen über Schnittmengen kombinieren
-      let constrainedUnternehmenIds = Array.isArray(allowedUnternehmenIds)
-        ? [...allowedUnternehmenIds]
-        : null;
-      
-      // Branche-Filter
-      if (filters.branche_id) {
-        const { data: links } = await window.supabase
-          .from('unternehmen_branchen')
-          .select('unternehmen_id')
-          .eq('branche_id', filters.branche_id);
-        
-        const brancheUnternehmenIds = (links || []).map(r => r.unternehmen_id).filter(Boolean);
-        
-        if (brancheUnternehmenIds.length === 0) {
-          return { data: [], total: 0 };
-        }
-        
-        constrainedUnternehmenIds = intersectIds(constrainedUnternehmenIds, brancheUnternehmenIds);
-      }
-
-      // Mitarbeiter-Filter (Mehrfachauswahl)
-      const selectedMitarbeiterIds = Array.isArray(filters.mitarbeiter_ids)
-        ? filters.mitarbeiter_ids.map(id => String(id).trim()).filter(Boolean)
-        : [];
-
-      if (selectedMitarbeiterIds.length > 0) {
-        const { data: mitarbeiterLinks, error: mitarbeiterFilterError } = await window.supabase
-          .from('mitarbeiter_unternehmen')
-          .select('unternehmen_id')
-          .in('mitarbeiter_id', selectedMitarbeiterIds);
-
-        if (mitarbeiterFilterError) {
-          console.error('❌ UNTERNEHMENLISTE: Fehler beim Mitarbeiter-Filter:', mitarbeiterFilterError);
-          throw mitarbeiterFilterError;
-        }
-
-        const mitarbeiterUnternehmenIds = [...new Set(
-          (mitarbeiterLinks || []).map(row => row.unternehmen_id).filter(Boolean)
-        )];
-
-        if (mitarbeiterUnternehmenIds.length === 0) {
-          return { data: [], total: 0 };
-        }
-
-        constrainedUnternehmenIds = intersectIds(constrainedUnternehmenIds, mitarbeiterUnternehmenIds);
-      }
-
-      if (Array.isArray(constrainedUnternehmenIds)) {
-        if (constrainedUnternehmenIds.length === 0) {
-          return { data: [], total: 0 };
-        }
-        query = query.in('id', constrainedUnternehmenIds);
-      }
-      
-      // Multi-Spalten-Suche: firmenname, internes_kuerzel, webseite, invoice_email + Markennamen
-      if (filters.name) {
-        const search = filters.name;
-        const { data: matchM } = await window.supabase
-          .from('marke').select('unternehmen_id').ilike('markenname', `%${search}%`);
-        const orParts = [
-          `firmenname.ilike.%${search}%`,
-          `internes_kuerzel.ilike.%${search}%`,
-          `webseite.ilike.%${search}%`,
-          `invoice_email.ilike.%${search}%`
-        ];
-        if (matchM?.length) {
-          const ids = [...new Set(matchM.map(m => m.unternehmen_id).filter(Boolean))];
-          if (ids.length) orParts.push(`id.in.(${ids.join(',')})`);
-        }
-        query = query.or(orParts.join(','));
-      }
-      if (filters.firmenname) {
-        query = query.ilike('firmenname', `%${filters.firmenname}%`);
-      }
-      if (filters.status) {
-        query = query.eq('status', filters.status);
-      }
-      if (filters.rechnungsadresse_stadt) {
-        query = query.ilike('rechnungsadresse_stadt', `%${filters.rechnungsadresse_stadt}%`);
-      }
-      if (filters.rechnungsadresse_land) {
-        query = query.ilike('rechnungsadresse_land', `%${filters.rechnungsadresse_land}%`);
-      }
-      
-      // Pagination anwenden
-      query = query.range(from, to);
-      
-      const { data, error, count } = await query;
-      
-      if (error) throw error;
-      
-      // Branchen-Daten transformieren
-      const transformedData = (data || []).map(unternehmen => {
-        if (unternehmen.unternehmen_branchen) {
-          unternehmen.branchen = unternehmen.unternehmen_branchen
-            .map(ub => ub.branchen)
-            .filter(Boolean);
-          delete unternehmen.unternehmen_branchen;
-        } else {
-          unternehmen.branchen = [];
-        }
-        return unternehmen;
-      });
-      
-      return {
-        data: transformedData,
-        total: count || 0
-      };
-      
-    } catch (error) {
-      console.error('❌ Fehler beim Laden der Unternehmen:', error);
-      throw error;
-    }
+    return loadUnternehmenPage({
+      page,
+      limit,
+      filters,
+      sort: this.currentSort,
+      isAdmin: this.isAdmin
+    });
   }
-  
-  /**
-   * Rendert eine einzelne Unternehmen-Zeile
-   */
+
+  _rowCtx() {
+    return {
+      sanitize: (value) => this.sanitize(value),
+      canBulkDelete: this.canBulkDelete,
+      expandedIds: this._expandedIds,
+      matchedMarkeIds: this._matchedMarkeIds
+    };
+  }
+
   renderSingleRow(u) {
-    const canBulkDelete = this.canBulkDelete;
-    const sanitize = this.sanitize.bind(this);
-    
-    const allMitarbeiter = u._mitarbeiter || [];
-    const management = allMitarbeiter.filter(m => m.role === 'management');
-    const leads = allMitarbeiter.filter(m => m.role === 'lead_mitarbeiter');
-    const mitarbeiter = allMitarbeiter.filter(m => m.role === 'mitarbeiter');
-    const marken = u._marken || [];
-    const expanded = this._expandedIds.has(u.id);
-    const chevron = marken.length > 0
-      ? `<button type="button" class="unternehmen-marken-toggle" data-id="${u.id}" aria-expanded="${expanded ? 'true' : 'false'}" aria-label="Marken ${expanded ? 'einklappen' : 'aufklappen'}">${icon('chevron-down')}</button>`
-      : '';
-    
-    return `
-      <tr data-id="${u.id}">
-        ${canBulkDelete ? `<td class="col-checkbox"><input type="checkbox" class="unternehmen-check" data-id="${u.id}"></td>` : ''}
-        <td class="col-name">
-          ${chevron}
-          ${u.logo_url ? `<img src="${u.logo_url}" class="table-logo" width="24" height="24" alt="" />` : ''}
-          <a href="#" class="table-link" data-table="unternehmen" data-id="${u.id}">
-            ${sanitize(u.internes_kuerzel || u.firmenname || '')}
-          </a>
-          ${u.ist_test ? ` ${testunternehmenBadgeHtml()}` : ''}
-        </td>
-        <td class="col-stadt">${sanitize(u.rechnungsadresse_stadt || '-')}</td>
-        <td class="col-land">${sanitize(u.rechnungsadresse_land || '-')}</td>
-        <td class="col-webseite table-cell-center">${u.webseite ? `<a href="${UnternehmenService.sanitizeUrl(u.webseite)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${sanitize(u.webseite)}">${icon('external-link')}</a>` : '-'}</td>
-        <td class="col-branche">${this.renderBrancheTags(u.branchen)}</td>
-        <td class="col-ansprechpartner">${this.renderAnsprechpartnerList(u._ansprechpartner)}</td>
-        <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(management)}</td>
-        <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(leads)}</td>
-        <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(mitarbeiter)}</td>
-        <td class="col-actions">
-          ${actionBuilder.create('unternehmen', u.id)}
-        </td>
-      </tr>
-    `;
+    return renderUnternehmenRow(u, this._rowCtx());
   }
-  
-  /**
-   * Rendert den Shell-Content (Struktur ohne Daten)
-   */
+
   renderShellContent() {
     const canBulkDelete = this.canBulkDelete;
     const canEdit = this.canEdit;
-    
+
     return `
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div class="filter-left">
-            ${SearchInput.render('unternehmen', { 
-              placeholder: 'Unternehmen suchen...', 
-              currentValue: this.searchQuery 
+            ${SearchInput.render('unternehmen', {
+              placeholder: 'Unternehmen suchen...',
+              currentValue: this.searchQuery
             })}
             <div id="sort-dropdown-container"></div>
             <div id="filter-dropdown-container"></div>
@@ -339,18 +146,11 @@ export class UnternehmenList extends BasePaginatedList {
           </tbody>
         </table>
       </div>
-      
+
       <div class="pagination-container" id="pagination-unternehmen"></div>
     `;
   }
-  
-  // ══════════════════════════════════════════════════════════════════════════
-  // ÜBERSCHRIEBENE METHODEN
-  // ══════════════════════════════════════════════════════════════════════════
-  
-  /**
-   * Initialisiert die Filter-Bar
-   */
+
   async initializeFilterBar() {
     const sortContainer = document.getElementById('sort-dropdown-container');
     if (sortContainer) {
@@ -360,7 +160,7 @@ export class UnternehmenList extends BasePaginatedList {
         onSortChange: (sortConfig) => this.onSortChange(sortConfig)
       });
     }
-    
+
     const filterContainer = document.getElementById('filter-dropdown-container');
     if (filterContainer) {
       await filterDropdown.init('unternehmen', filterContainer, {
@@ -369,17 +169,12 @@ export class UnternehmenList extends BasePaginatedList {
       });
     }
 
-    await this.initializeMitarbeiterQuickFilter();
+    await initializeMitarbeiterQuickFilter(this);
   }
-  
-  /**
-   * Zusätzliche Events binden
-   */
+
   bindAdditionalEvents(signal) {
-    // Suchfeld Events über globale Komponente
     SearchInput.bind('unternehmen', (value) => this.handleSearch(value), signal);
-    
-    // Neues Unternehmen anlegen Button
+
     document.addEventListener('click', (e) => {
       if (e.target.id === 'btn-unternehmen-new' || e.target.id === 'btn-unternehmen-new-filter') {
         e.preventDefault();
@@ -407,64 +202,24 @@ export class UnternehmenList extends BasePaginatedList {
       }
     }, { signal });
 
-    document.addEventListener('click', (e) => {
-      const container = document.getElementById('unternehmen-mitarbeiter-filter-container');
-      const dropdown = document.getElementById('mitarbeiter-quick-filter-dropdown');
-      const toggleButton = document.getElementById('mitarbeiter-quick-filter-toggle');
-      if (!container || !dropdown || !toggleButton) return;
-
-      const clickedToggleButton = e.target.closest('#mitarbeiter-quick-filter-toggle');
-      if (clickedToggleButton) {
-        e.preventDefault();
-        e.stopPropagation();
-        const willOpen = !dropdown.classList.contains('show');
-        dropdown.classList.toggle('show', willOpen);
-        toggleButton.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
-        return;
-      }
-
-      const clickedReset = e.target.closest('#mitarbeiter-quick-filter-reset');
-      if (clickedReset) {
-        e.preventDefault();
-        this.applyMitarbeiterQuickFilter([]);
-        return;
-      }
-
-      if (!e.target.closest('#unternehmen-mitarbeiter-filter-container')) {
-        dropdown.classList.remove('show');
-        toggleButton.setAttribute('aria-expanded', 'false');
-      }
-    }, { signal });
-
-    document.addEventListener('change', (e) => {
-      if (!e.target.classList.contains('mitarbeiter-quick-filter-toggle-input')) return;
-
-      const selectedIds = Array.from(
-        document.querySelectorAll('.mitarbeiter-quick-filter-toggle-input:checked')
-      ).map(input => input.value).filter(Boolean);
-
-      this.applyMitarbeiterQuickFilter(selectedIds);
-    }, { signal });
+    bindMitarbeiterQuickFilterEvents(this, signal);
   }
 
   onFiltersApplied(filters) {
-    const selectedMitarbeiterIds = this.getSelectedMitarbeiterFilterIds();
+    const selectedMitarbeiterIds = getSelectedMitarbeiterFilterIds();
     const mergedFilters = { ...(filters || {}) };
     if (selectedMitarbeiterIds.length > 0) {
       mergedFilters.mitarbeiter_ids = selectedMitarbeiterIds;
     }
     super.onFiltersApplied(mergedFilters);
-    this.syncMitarbeiterQuickFilterUI();
+    syncMitarbeiterQuickFilterUI(this);
   }
 
   onFiltersReset() {
     super.onFiltersReset();
-    this.syncMitarbeiterQuickFilterUI();
+    syncMitarbeiterQuickFilterUI(this);
   }
-  
-  /**
-   * Überschriebene updateTable mit Ansprechpartner/Mitarbeiter-Loading
-   */
+
   async updateTable(unternehmen) {
     const tbody = document.querySelector(this.options.tbodySelector);
     if (!tbody) return;
@@ -475,12 +230,11 @@ export class UnternehmenList extends BasePaginatedList {
         return;
       }
 
-      // Kontakte und Mitarbeiter für alle Unternehmen laden
       const unternehmenIds = unternehmen.map(u => u.id).filter(Boolean);
       const [apMap, mitarbeiterMap, markenMap] = await Promise.all([
-        this.loadAnsprechpartnerMap(unternehmenIds),
-        this.loadMitarbeiterMap(unternehmenIds),
-        this.loadMarkenMap(unternehmenIds)
+        loadAnsprechpartnerMap(unternehmenIds),
+        loadMitarbeiterMap(unternehmenIds),
+        loadMarkenMap(unternehmenIds)
       ]);
 
       let allowedMarkeIds = null;
@@ -500,7 +254,7 @@ export class UnternehmenList extends BasePaginatedList {
       });
 
       const visibleMarkeIds = unternehmen.flatMap(u => u._marken || []).map(m => m.id).filter(Boolean);
-      const markeMitarbeiterMap = await this.loadMarkeMitarbeiterMap(visibleMarkeIds);
+      const markeMitarbeiterMap = await loadMarkeMitarbeiterMap(visibleMarkeIds);
       unternehmen.forEach(u => {
         (u._marken || []).forEach(m => {
           m._mitarbeiter = markeMitarbeiterMap.get(m.id) || [];
@@ -535,7 +289,7 @@ export class UnternehmenList extends BasePaginatedList {
   _renderRows() {
     const tbody = document.querySelector(this.options.tbodySelector);
     if (!tbody) return;
-    tbody.innerHTML = this._unternehmenRows.map(u => this.renderRowGroup(u)).join('');
+    tbody.innerHTML = this._unternehmenRows.map(u => renderRowGroup(u, this._rowCtx())).join('');
     tbody.querySelectorAll(`.${this.options.checkboxClass}`).forEach(cb => {
       if (cb.dataset.id && this.selectedItems.has(cb.dataset.id)) cb.checked = true;
     });
@@ -561,698 +315,22 @@ export class UnternehmenList extends BasePaginatedList {
     }
 
     this._expandedIds.add(id);
-    parentTr.insertAdjacentHTML('afterend', (u._marken || []).map(m => this.renderNestedMarkeRow(m, id)).join(''));
+    parentTr.insertAdjacentHTML(
+      'afterend',
+      (u._marken || []).map(m => renderNestedMarkeRow(m, id, this._rowCtx())).join('')
+    );
     toggle.setAttribute('aria-expanded', 'true');
     toggle.setAttribute('aria-label', 'Marken einklappen');
   }
 
-  renderRowGroup(u) {
-    const expanded = this._expandedIds.has(u.id);
-    const marken = expanded ? (u._marken || []) : [];
-    return this.renderSingleRow(u) + marken.map(m => this.renderNestedMarkeRow(m, u.id)).join('');
-  }
-
-  renderNestedMarkeRow(marke, parentId = marke.unternehmen_id) {
-    const canBulkDelete = this.canBulkDelete;
-    const sanitize = this.sanitize.bind(this);
-    const name = sanitize(marke.markenname || '');
-    const avatar = marke.logo_url
-      ? `<img src="${marke.logo_url}" class="table-logo" width="24" height="24" alt="" />`
-      : `<span class="table-avatar">${(marke.markenname || '?')[0].toUpperCase()}</span>`;
-    const allMitarbeiter = marke._mitarbeiter || [];
-    const management = allMitarbeiter.filter(m => m.role === 'management');
-    const leads = allMitarbeiter.filter(m => m.role === 'lead_mitarbeiter');
-    const mitarbeiter = allMitarbeiter.filter(m => m.role !== 'management' && m.role !== 'lead_mitarbeiter');
-    const website = marke.webseite
-      ? `<a href="${UnternehmenService.sanitizeUrl(marke.webseite)}" target="_blank" rel="noopener noreferrer" class="external-link-btn" title="${sanitize(marke.webseite)}">${icon('external-link')}</a>`
-      : '-';
-    const matchClass = this._matchedMarkeIds.has(marke.id) ? ' is-search-match' : '';
-
-    return `
-      <tr class="nested-marke-row${matchClass}" data-id="${marke.id}" data-parent-id="${parentId || ''}">
-        ${canBulkDelete ? `<td class="col-checkbox"></td>` : ''}
-        <td class="col-name col-name-with-icon">
-          ${avatar}
-          <a href="#" class="table-link" data-table="marke" data-id="${marke.id}">
-            ${name}
-          </a>
-        </td>
-        <td class="col-stadt"></td>
-        <td class="col-land"></td>
-        <td class="col-webseite table-cell-center">${website}</td>
-        <td class="col-branche">${this.renderBrancheTags(marke.branchen)}</td>
-        <td class="col-ansprechpartner">${this.renderAnsprechpartnerList(marke.ansprechpartner)}</td>
-        <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(management)}</td>
-        <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(leads)}</td>
-        <td class="col-mitarbeiter">${this.renderMitarbeiterByRole(mitarbeiter)}</td>
-        <td class="col-actions">
-          ${actionBuilder.create('marke', marke.id)}
-        </td>
-      </tr>
-    `;
-  }
-
-  async loadMarkenMap(unternehmenIds) {
-    const map = new Map();
-    try {
-      if (!window.supabase || !Array.isArray(unternehmenIds) || unternehmenIds.length === 0) {
-        return map;
-      }
-
-      const { data, error } = await window.supabase
-        .from('marke')
-        .select(`
-          id, markenname, logo_url, webseite, unternehmen_id,
-          branchen:marke_branchen(branche:branche_id(id, name)),
-          ansprechpartner:ansprechpartner_marke(ansprechpartner:ansprechpartner_id(id, vorname, nachname, email, profile_image_url))
-        `)
-        .in('unternehmen_id', unternehmenIds);
-
-      if (error) {
-        console.warn('⚠️ Konnte Marken nicht laden:', error);
-        return map;
-      }
-
-      (data || []).forEach(raw => {
-        if (!raw?.unternehmen_id) return;
-        const marke = {
-          ...raw,
-          branchen: (raw.branchen || []).map(b => b.branche).filter(Boolean),
-          ansprechpartner: (raw.ansprechpartner || []).map(a => a.ansprechpartner).filter(Boolean)
-        };
-        const list = map.get(marke.unternehmen_id) || [];
-        list.push(marke);
-        map.set(marke.unternehmen_id, list);
-      });
-
-      for (const list of map.values()) {
-        list.sort((a, b) =>
-          (a.markenname || '').localeCompare(b.markenname || '', 'de', { sensitivity: 'base' })
-        );
-      }
-    } catch (e) {
-      console.warn('⚠️ loadMarkenMap Fehler:', e);
-    }
-    return map;
-  }
-
-  async loadMarkeMitarbeiterMap(markeIds) {
-    const map = new Map();
-    try {
-      if (!window.supabase || !Array.isArray(markeIds) || markeIds.length === 0) {
-        return map;
-      }
-      const { data, error } = await window.supabase
-        .from('marke_mitarbeiter')
-        .select('marke_id, role, benutzer:mitarbeiter_id (id, name, profile_image_url)')
-        .in('marke_id', markeIds);
-      if (error) {
-        console.warn('⚠️ Konnte Marken-Mitarbeiter nicht laden:', error);
-        return map;
-      }
-      (data || []).forEach(item => {
-        if (!item.benutzer) return;
-        const list = map.get(item.marke_id) || [];
-        list.push({ ...item.benutzer, role: item.role || 'mitarbeiter' });
-        map.set(item.marke_id, list);
-      });
-    } catch (e) {
-      console.warn('⚠️ loadMarkeMitarbeiterMap Fehler:', e);
-    }
-    return map;
-  }
-  
-  // ══════════════════════════════════════════════════════════════════════════
-  // UNTERNEHMEN-SPEZIFISCHE METHODEN
-  // ══════════════════════════════════════════════════════════════════════════
-  
-  /**
-   * Render Branche Tags
-   */
-  renderBrancheTags(branchen) {
-    if (!branchen || (Array.isArray(branchen) && branchen.length === 0)) return '-';
-
-    if (typeof branchen === 'object' && !Array.isArray(branchen) && branchen.name) {
-      return `<div class="tags tags-compact"><span class="tag tag--branche">${this.sanitize(branchen.name)}</span></div>`;
-    }
-
-    if (typeof branchen === 'string') {
-      const parts = branchen.split(',').map(s => s.trim()).filter(Boolean);
-      if (parts.length === 0) return '-';
-      const inner = parts.map(label => `<span class="tag tag--branche">${this.sanitize(label)}</span>`).join('');
-      return `<div class="tags tags-compact">${inner}</div>`;
-    }
-
-    if (Array.isArray(branchen)) {
-      const inner = branchen.map(b => {
-        const label = typeof b === 'object' ? (b.name || b.label || b) : b;
-        return `<span class="tag tag--branche">${this.sanitize(String(label).trim())}</span>`;
-      }).join('');
-      return `<div class="tags tags-compact">${inner}</div>`;
-    }
-
-    if (typeof branchen === 'object') {
-      const label = branchen.name || branchen.label;
-      return label ? `<div class="tags tags-compact"><span class="tag tag--branche">${this.sanitize(label)}</span></div>` : '-';
-    }
-
-    return '-';
-  }
-
-  /**
-   * Ansprechpartner-Map laden
-   */
-  async loadAnsprechpartnerMap(unternehmenIds) {
-    const map = new Map();
-    try {
-      if (!window.supabase || !Array.isArray(unternehmenIds) || unternehmenIds.length === 0) {
-        return map;
-      }
-      
-      const { data, error } = await window.supabase
-        .from('ansprechpartner_unternehmen')
-        .select(`
-          unternehmen_id,
-          ansprechpartner:ansprechpartner_id (
-            id, vorname, nachname, email, profile_image_url
-          )
-        `)
-        .in('unternehmen_id', unternehmenIds);
-        
-      if (error) {
-        console.warn('⚠️ Konnte Ansprechpartner nicht laden:', error);
-        return map;
-      }
-      
-      (data || []).forEach(item => {
-        if (!item.ansprechpartner) return;
-        
-        const unternehmenId = item.unternehmen_id;
-        const list = map.get(unternehmenId) || [];
-        list.push(item.ansprechpartner);
-        map.set(unternehmenId, list);
-      });
-      
-    } catch (e) {
-      console.warn('⚠️ loadAnsprechpartnerMap Fehler:', e);
-    }
-    return map;
-  }
-
-  /**
-   * Mitarbeiter-Map laden
-   */
-  async loadMitarbeiterMap(unternehmenIds) {
-    const map = new Map();
-    try {
-      if (!window.supabase || !Array.isArray(unternehmenIds) || unternehmenIds.length === 0) {
-        return map;
-      }
-      
-      const { data, error } = await window.supabase
-        .from('mitarbeiter_unternehmen')
-        .select(`
-          unternehmen_id,
-          role,
-          benutzer:mitarbeiter_id (id, name, profile_image_url)
-        `)
-        .in('unternehmen_id', unternehmenIds);
-        
-      if (error) {
-        console.warn('⚠️ Konnte Mitarbeiter nicht laden:', error);
-        return map;
-      }
-      
-      (data || []).forEach(item => {
-        if (!item.benutzer) return;
-        
-        const unternehmenId = item.unternehmen_id;
-        const mitarbeiter = { ...item.benutzer, role: item.role || 'mitarbeiter' };
-        
-        const list = map.get(unternehmenId) || [];
-        list.push(mitarbeiter);
-        map.set(unternehmenId, list);
-      });
-      
-    } catch (e) {
-      console.warn('⚠️ loadMitarbeiterMap Fehler:', e);
-    }
-    return map;
-  }
-
-  /**
-   * Mitarbeiter nach Rolle rendern
-   */
-  renderMitarbeiterByRole(list) {
-    if (!list || list.length === 0) return '-';
-    
-    const items = list
-      .filter(m => m && m.name)
-      .map(m => ({
-        name: m.name,
-        type: 'person',
-        id: m.id,
-        entityType: 'mitarbeiter',
-        profile_image_url: m.profile_image_url || null
-      }));
-    
-    return avatarBubbles.renderBubbles(items);
-  }
-
-  /**
-   * Ansprechpartner-Liste rendern
-   */
-  renderAnsprechpartnerList(list) {
-    if (!list || list.length === 0) return '-';
-    
-    const items = list
-      .filter(ap => ap && ap.vorname && ap.nachname)
-      .map(ap => ({
-        name: `${ap.vorname} ${ap.nachname}`,
-        type: 'person',
-        id: ap.id,
-        entityType: 'ansprechpartner',
-        profile_image_url: ap.profile_image_url || null
-      }));
-    
-    return avatarBubbles.renderBubbles(items);
-  }
-
-  /**
-   * Prüfe ob aktive Filter vorhanden
-   */
   hasActiveFilters() {
     const filters = filterSystem.getFilters('unternehmen');
     return Object.keys(filters).length > 0;
   }
 
-  async initializeMitarbeiterQuickFilter() {
-    const container = document.getElementById('unternehmen-mitarbeiter-filter-container');
-    if (!container) return;
-
-    this._mitarbeiterQuickFilterOptions = await this.loadMitarbeiterQuickFilterOptions();
-    container.innerHTML = this.renderMitarbeiterQuickFilterHtml();
-  }
-
-  async loadMitarbeiterQuickFilterOptions() {
-    try {
-      // Primärquelle: benutzer (damit auch nicht-zugeordnete Mitarbeiter angezeigt werden)
-      let data = [];
-
-      const { data: activeUsers, error: activeUsersError } = await window.supabase
-        .from('benutzer')
-        .select('id, name, rolle, freigeschaltet')
-        .in('rolle', ['admin', 'mitarbeiter'])
-        .eq('freigeschaltet', true);
-
-      if (activeUsersError) {
-        // Fallback für Instanzen ohne freigeschaltet-Spalte oder bei inkompatiblen Schemas
-        const { data: fallbackUsers, error: fallbackError } = await window.supabase
-          .from('benutzer')
-          .select('id, name, rolle')
-          .in('rolle', ['admin', 'mitarbeiter']);
-
-        if (fallbackError) {
-          console.warn('⚠️ UNTERNEHMENLISTE: Mitarbeiterfilter konnte nicht geladen werden:', fallbackError);
-          return [];
-        }
-
-        data = fallbackUsers || [];
-      } else {
-        data = activeUsers || [];
-      }
-
-      return (data || [])
-        .filter(user => user?.id && user?.name)
-        .filter(user => {
-          const name = String(user.name || '').toLowerCase();
-          // Auf Wunsch explizit ausblenden
-          if (name.includes('oliver') && (name.includes('mageldanz') || name.includes('mackeldanz'))) {
-            return false;
-          }
-          if (name.includes('alpha foods test')) {
-            return false;
-          }
-          return true;
-        })
-        .map(user => ({ id: user.id, name: user.name }))
-        .sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' }));
-    } catch (error) {
-      console.warn('⚠️ UNTERNEHMENLISTE: Fehler bei Mitarbeiterfilter-Optionen:', error);
-      return [];
-    }
-  }
-
-  getSelectedMitarbeiterFilterIds() {
-    const currentFilters = filterSystem.getFilters('unternehmen');
-    const ids = currentFilters?.mitarbeiter_ids;
-    if (!Array.isArray(ids)) return [];
-    return ids.map(id => String(id).trim()).filter(Boolean);
-  }
-
-  renderMitarbeiterQuickFilterHtml() {
-    const selectedIds = this.getSelectedMitarbeiterFilterIds();
-    const selectedSet = new Set(selectedIds);
-    const selectedCount = selectedIds.length;
-    const hasOptions = this._mitarbeiterQuickFilterOptions.length > 0;
-    const optionsHtml = hasOptions
-      ? this._mitarbeiterQuickFilterOptions.map((m, index) => {
-          const inputId = `unternehmen-mitarbeiter-filter-${index}`;
-          const checked = selectedSet.has(m.id) ? 'checked' : '';
-          const safeLabel = this.sanitize(m.name);
-
-          return `
-            <label class="filter-checkbox-option" for="${inputId}">
-              <span class="toggle-text">${safeLabel}</span>
-              <span class="toggle-switch">
-                <input type="checkbox"
-                       id="${inputId}"
-                       class="mitarbeiter-quick-filter-toggle-input"
-                       value="${m.id}"
-                       aria-label="${safeLabel}"
-                       ${checked}>
-                <span class="toggle-slider"></span>
-              </span>
-            </label>
-          `;
-        }).join('')
-      : '<div class="filter-dropdown-empty">Keine Mitarbeiter gefunden</div>';
-
-    return `
-      <div class="filter-dropdown-container">
-        <button id="mitarbeiter-quick-filter-toggle"
-                class="filter-dropdown-toggle"
-                aria-expanded="false"
-                aria-label="Mitarbeiter filtern">
-          ${icon('user-plus')}
-          <span>Mitarbeiter</span>
-          ${selectedCount > 0 ? `<span class="filter-count-badge">${selectedCount}</span>` : ''}
-        </button>
-
-        <div id="mitarbeiter-quick-filter-dropdown" class="filter-dropdown">
-          <div class="filter-dropdown-header">
-            <span class="filter-dropdown-title">Mitarbeiter filtern</span>
-            <button id="mitarbeiter-quick-filter-reset" class="mdc-btn mdc-btn--secondary" ${selectedCount === 0 ? 'disabled' : ''}>
-              Zurücksetzen
-            </button>
-          </div>
-          <div class="filter-submenu-body mitarbeiter-quick-filter-body">
-            <div class="filter-submenu-checkboxes mitarbeiter-quick-filter-list">
-              ${optionsHtml}
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  syncMitarbeiterQuickFilterUI() {
-    const container = document.getElementById('unternehmen-mitarbeiter-filter-container');
-    if (!container) return;
-    container.innerHTML = this.renderMitarbeiterQuickFilterHtml();
-  }
-
-  applyMitarbeiterQuickFilter(selectedIds) {
-    const normalizedIds = Array.isArray(selectedIds)
-      ? selectedIds.map(id => String(id).trim()).filter(Boolean)
-      : [];
-
-    const currentFilters = filterSystem.getFilters('unternehmen') || {};
-    const nextFilters = { ...currentFilters };
-
-    if (normalizedIds.length > 0) {
-      nextFilters.mitarbeiter_ids = normalizedIds;
-    } else {
-      delete nextFilters.mitarbeiter_ids;
-    }
-
-    filterSystem.applyFilters('unternehmen', nextFilters);
-    this.pagination.currentPage = 1;
-    this.loadDataDebounced(100);
-    this.updateMitarbeiterQuickFilterMeta(normalizedIds.length);
-  }
-
-  updateMitarbeiterQuickFilterMeta(selectedCount) {
-    const toggleButton = document.getElementById('mitarbeiter-quick-filter-toggle');
-    const resetButton = document.getElementById('mitarbeiter-quick-filter-reset');
-    if (!toggleButton) return;
-
-    let badge = toggleButton.querySelector('.filter-count-badge');
-    if (selectedCount > 0) {
-      if (!badge) {
-        toggleButton.insertAdjacentHTML('beforeend', `<span class="filter-count-badge">${selectedCount}</span>`);
-      } else {
-        badge.textContent = String(selectedCount);
-      }
-    } else if (badge) {
-      badge.remove();
-    }
-
-    if (resetButton) {
-      resetButton.disabled = selectedCount === 0;
-    }
-  }
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // CREATE FORM (für Routing)
-  // ══════════════════════════════════════════════════════════════════════════
-
   showCreateForm() {
-    console.log('🎯 Zeige Unternehmen-Erstellungsformular');
-    window.setHeadline('Neues Unternehmen anlegen');
-    
-    if (window.breadcrumbSystem) {
-      window.breadcrumbSystem.updateDetailLabel('Neues Unternehmen');
-    }
-    
-    const formHtml = window.formSystem.renderFormOnly('unternehmen');
-    window.content.innerHTML = `
-      <div class="form-page">
-        ${formHtml}
-      </div>
-    `;
-
-    window.formSystem.bindFormEvents('unternehmen', null);
-    
-    const form = document.getElementById('unternehmen-form');
-    if (form) {
-      form.onsubmit = async (e) => {
-        e.preventDefault();
-        await this.handleFormSubmit();
-      };
-      
-      this.setupDuplicateValidation(form);
-    }
-  }
-
-  setupDuplicateValidation(form) {
-    const firmennameField = form.querySelector('#firmenname, input[name="firmenname"]');
-    if (!firmennameField) return;
-
-    let messageContainer = firmennameField.parentElement.querySelector('.duplicate-message-container');
-    if (!messageContainer) {
-      messageContainer = document.createElement('div');
-      messageContainer.className = 'duplicate-message-container';
-      firmennameField.parentElement.appendChild(messageContainer);
-    }
-
-    firmennameField.addEventListener('blur', async (e) => {
-      await this.validateUnternehmenDuplicate(e.target.value, messageContainer);
-    });
-
-    firmennameField.addEventListener('input', () => {
-      this.clearDuplicateMessages(messageContainer);
-      this.enableSubmitButton();
-    });
-  }
-
-  async validateUnternehmenDuplicate(firmenname, messageContainer) {
-    if (!firmenname || firmenname.trim().length < 2) {
-      this.clearDuplicateMessages(messageContainer);
-      return;
-    }
-
-    if (!window.duplicateChecker) return;
-
-    try {
-      const result = await window.duplicateChecker.checkUnternehmen(firmenname, null);
-
-      if (result.exact) {
-        this.showDuplicateError(messageContainer, result.similar);
-        this.disableSubmitButton(true);
-      } else if (result.similar.length > 0) {
-        this.showDuplicateWarning(messageContainer, result.similar);
-        this.enableSubmitButton();
-      } else {
-        this.clearDuplicateMessages(messageContainer);
-        this.enableSubmitButton();
-      }
-    } catch (error) {
-      console.error('❌ Fehler bei Duplikat-Validierung:', error);
-    }
-  }
-
-  showDuplicateError(container, entries) {
-    container.innerHTML = `
-      <div class="duplicate-error">
-        <strong>Dieser Firmenname existiert bereits!</strong>
-        ${entries.length > 0 ? `
-          <ul class="duplicate-list">
-            ${entries.map(entry => `
-              <li class="duplicate-list-item">
-                <a href="javascript:void(0)" class="duplicate-link" data-entity-id="${entry.id}">
-                  ${entry.logo_url ? `<img src="${entry.logo_url}" alt="${entry.firmenname}" class="duplicate-avatar" />` : '<div class="duplicate-avatar duplicate-avatar-placeholder"></div>'}
-                  <span class="duplicate-name">${entry.firmenname}</span>
-                </a>
-              </li>
-            `).join('')}
-          </ul>
-        ` : ''}
-      </div>
-    `;
-    this.bindDuplicateLinks(container, 'unternehmen');
-  }
-
-  showDuplicateWarning(container, entries) {
-    container.innerHTML = `
-      <div class="duplicate-warning">
-        <strong>Folgende ähnliche Einträge gefunden:</strong>
-        <ul class="duplicate-list">
-          ${entries.map(entry => `
-            <li class="duplicate-list-item">
-              <a href="javascript:void(0)" class="duplicate-link" data-entity-id="${entry.id}">
-                ${entry.logo_url ? `<img src="${entry.logo_url}" alt="${entry.firmenname}" class="duplicate-avatar" />` : '<div class="duplicate-avatar duplicate-avatar-placeholder"></div>'}
-                <span class="duplicate-name">${entry.firmenname}</span>
-              </a>
-            </li>
-          `).join('')}
-        </ul>
-      </div>
-    `;
-    this.bindDuplicateLinks(container, 'unternehmen');
-  }
-
-  bindDuplicateLinks(container, entityType) {
-    container.querySelectorAll('.duplicate-link[data-entity-id]').forEach(link => {
-      link.addEventListener('click', (e) => {
-        e.preventDefault();
-        const id = e.currentTarget.dataset.entityId;
-        if (id && window.navigationSystem) {
-          window.navigationSystem.navigateTo(`/${entityType}/${id}`);
-        }
-      });
-    });
-  }
-
-  clearDuplicateMessages(container) {
-    if (container) container.innerHTML = '';
-  }
-
-  disableSubmitButton(disable) {
-    const form = document.getElementById('unternehmen-form');
-    const submitBtn = form?.querySelector('button[type="submit"]');
-    if (submitBtn) {
-      submitBtn.disabled = disable;
-      submitBtn.style.opacity = disable ? '0.5' : '1';
-      submitBtn.style.cursor = disable ? 'not-allowed' : 'pointer';
-    }
-  }
-
-  enableSubmitButton() {
-    this.disableSubmitButton(false);
-  }
-
-  async handleFormSubmit() {
-    try {
-      const form = document.getElementById('unternehmen-form');
-      const submitData = window.formSystem.collectSubmitData(form);
-
-      const validation = window.validatorSystem.validateForm(submitData, {
-        firmenname: { type: 'text', minLength: 2, required: true },
-        invoice_email: { type: 'email' }
-      });
-      
-      if (!validation.isValid) {
-        this.showValidationErrors(validation.errors);
-        return;
-      }
-
-      const result = await window.dataService.createEntity('unternehmen', submitData);
-
-      if (result.success && result.id) {
-        try {
-          const { RelationTables } = await import('../../core/form/logic/RelationTables.js');
-          const relationTables = new RelationTables();
-          await relationTables.handleRelationTables('unternehmen', result.id, submitData, form);
-        } catch (relationError) {
-          console.error('❌ Junction Tables Fehler:', relationError);
-        }
-
-        try {
-          await this.saveMitarbeiterRoles(result.id, submitData);
-        } catch (mitarbeiterErr) {
-          console.error('❌ Mitarbeiter-Rollen Fehler:', mitarbeiterErr);
-        }
-        
-        try {
-          await this.uploadLogo(result.id, form);
-        } catch (logoErr) {
-          console.error('❌ Logo-Upload Fehler:', logoErr);
-        }
-
-        this.showSuccessMessage('Unternehmen erfolgreich erstellt!');
-        
-        window.dispatchEvent(new CustomEvent('entityUpdated', { 
-          detail: { entity: 'unternehmen', id: result.id, action: 'created' } 
-        }));
-      } else {
-        throw new Error(result.error || 'Unbekannter Fehler');
-      }
-
-    } catch (error) {
-      console.error('❌ Formular-Submit Fehler:', error);
-      this.showErrorMessage(error.message);
-    }
-  }
-
-  showValidationErrors(errors) {
-    document.querySelectorAll('.field-error').forEach(el => el.remove());
-
-    Object.entries(errors).forEach(([field, message]) => {
-      const fieldElement = document.querySelector(`[name="${field}"]`);
-      if (fieldElement) {
-        const errorElement = document.createElement('div');
-        errorElement.className = 'field-error';
-        errorElement.textContent = message;
-        fieldElement.parentNode.appendChild(errorElement);
-      }
-    });
-  }
-
-  showSuccessMessage(message) {
-    const successDiv = document.createElement('div');
-    successDiv.className = 'alert alert-success';
-    successDiv.textContent = message;
-    const form = document.getElementById('unternehmen-form');
-    if (form) form.parentNode.insertBefore(successDiv, form);
-  }
-
-  showErrorMessage(message) {
-    const errorDiv = document.createElement('div');
-    errorDiv.className = 'alert alert-error';
-    errorDiv.textContent = message;
-    const form = document.getElementById('unternehmen-form');
-    if (form) form.parentNode.insertBefore(errorDiv, form);
-  }
-
-  async saveMitarbeiterRoles(unternehmenId, data) {
-    return UnternehmenService.saveMitarbeiterRoles(unternehmenId, data, { deleteExisting: false });
-  }
-
-  async uploadLogo(unternehmenId, form) {
-    return UnternehmenService.uploadLogo(unternehmenId, form);
+    unternehmenCreate.showCreateForm();
   }
 }
 
-// Exportiere Instanz für globale Nutzung
 export const unternehmenList = new UnternehmenList();

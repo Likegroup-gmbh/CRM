@@ -431,10 +431,31 @@ export class ProfileDetailV2 extends PersonDetailBase {
       items.push({ icon: 'phone-mobile', label: 'Firmenhandy', value: '-', rawHtml: firmenhandyHtml });
     }
 
+    const geburtsdatumLabel = this.formatDateOnly(this.user?.geburtsdatum);
+    items.push({
+      icon: 'calendar',
+      label: 'Geburtsdatum',
+      value: geburtsdatumLabel,
+      rawHtml: geburtsdatumLabel === '-' ? '-' : undefined
+    });
+
     items.push({ icon: 'language', label: 'Sprachen', value: sprachenText });
     items.push({ icon: 'clock', label: 'Mitglied seit', value: this.formatDate(this.user?.created_at) });
 
     return this.renderInfoItems(items);
+  }
+
+  dateInputValue(value) {
+    if (!value) return '';
+    const iso = String(value).slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : '';
+  }
+
+  formatDateOnly(value) {
+    const iso = this.dateInputValue(value);
+    if (!iso) return '-';
+    const [year, month, day] = iso.split('-');
+    return `${day}.${month}.${year}`;
   }
 
   getFirmenhandyDisplayHtml() {
@@ -792,6 +813,11 @@ export class ProfileDetailV2 extends PersonDetailBase {
           <input type="text" id="profile-name" class="form-input" value="${this.sanitize(this.user?.name || '')}" placeholder="Vollständiger Name" required>
         </div>
 
+        <div class="form-field">
+          <label for="profile-geburtsdatum">Geburtsdatum</label>
+          <input type="date" id="profile-geburtsdatum" class="form-input" value="${this.sanitize(this.dateInputValue(this.user?.geburtsdatum))}">
+        </div>
+
         <div class="form-row form-row--gap-sm">
           <div class="form-field form-field--48">
             <label for="profile-firmenhandy-land">Land (Firmenhandy)</label>
@@ -922,6 +948,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
     console.log('🔄 handleProfileSave: Start');
     
     const nameInput = document.getElementById('profile-name');
+    const geburtsdatumInput = document.getElementById('profile-geburtsdatum');
     const firmenhandyInput = document.getElementById('profile-firmenhandy');
     const firmenhandyLandInput = document.getElementById('profile-firmenhandy-land');
     const saveBtn = document.getElementById('profile-save-btn');
@@ -935,6 +962,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
       return;
     }
 
+    const geburtsdatum = this.dateInputValue(geburtsdatumInput?.value) || null;
     const firmenhandy = firmenhandyInput?.value?.trim() || null;
     const firmenhandyLandId = firmenhandyLandInput?.value || null;
     if (firmenhandy && !firmenhandyLandId) {
@@ -997,6 +1025,7 @@ export class ProfileDetailV2 extends PersonDetailBase {
         .from('benutzer')
         .update({
           name: nameInput.value.trim(),
+          geburtsdatum,
           telefonnummer_firmenhandy: firmenhandy,
           telefonnummer_firmenhandy_land_id: firmenhandyLandId
         })
@@ -1011,11 +1040,13 @@ export class ProfileDetailV2 extends PersonDetailBase {
       
       // User-Daten und currentUser aktualisieren
       this.user.name = nameInput.value.trim();
+      this.user.geburtsdatum = geburtsdatum;
       this.user.telefonnummer_firmenhandy = firmenhandy;
       this.user.telefonnummer_firmenhandy_land_id = firmenhandyLandId;
       this.user.telefonnummer_firmenhandy_land = this.euLaender.find(land => land.id === firmenhandyLandId) || null;
       if (window.currentUser) {
         window.currentUser.name = nameInput.value.trim();
+        window.currentUser.geburtsdatum = geburtsdatum;
         window.currentUser.telefonnummer_firmenhandy = firmenhandy;
         window.currentUser.telefonnummer_firmenhandy_land_id = firmenhandyLandId;
       }

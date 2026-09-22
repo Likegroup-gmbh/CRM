@@ -7,8 +7,6 @@ import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 import {
   getVertragStatus,
   vertragStatusLabel,
-  canEditVertragStatusManually,
-  manualStatusOptions,
 } from './vertragStatus.js';
 
 const escapeHtml = (text) => {
@@ -220,7 +218,7 @@ export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, is
       unterschriebenHtml = '<span class="text-muted">—</span>';
     }
 
-    const statusHtml = renderVertragStatusCell(vertrag, canEdit);
+    const statusHtml = renderVertragStatusCell(vertrag);
 
     const actionsHtml = renderVertragActions(vertrag, isAdmin, canEdit, canDelete);
 
@@ -257,35 +255,12 @@ export function renderVertraegeTableBody(vertraege, { canBulkDelete, canEdit, is
   }).join('');
 }
 
-export function renderVertragStatusCell(vertrag, canEdit) {
+export function renderVertragStatusCell(vertrag) {
   const status = getVertragStatus(vertrag);
   const label = vertragStatusLabel(status);
-  const statusClass = status === 'kein_vertrag' ? '' : `status-${status}`;
-  const badge = `<span class="status-badge ${statusClass}">${escapeHtml(label === status ? '—' : label)}</span>`;
-
-  if (!canEdit || !canEditVertragStatusManually(status)) {
-    return status === 'kein_vertrag' ? '<span class="text-muted">—</span>' : badge;
-  }
-
-  const chevron = `<span class="status-select-chevron">${icon('chevron-down')}</span>`;
-  const checkSvg = `${icon('check-bold', { className: 'size-5' })}`;
-  const options = manualStatusOptions(status);
-  const items = options.map((opt) => `
-    <a href="#" class="status-dropdown-item" data-status-value="${escapeHtml(opt.value)}" data-id="${vertrag.id}">
-      <span>${escapeHtml(opt.label)}</span>
-    </a>
-  `).join('');
-
-  return `<div class="status-select-wrapper" data-vertrag-id="${vertrag.id}">
-    <span class="status-badge ${statusClass} status-select-trigger" role="button">${escapeHtml(label)} ${chevron}</span>
-    <div class="status-dropdown">
-      <a href="#" class="status-dropdown-item is-active" data-status-value="${escapeHtml(status)}" data-id="${vertrag.id}">
-        <span>${escapeHtml(label)}</span>
-        <span class="submenu-check">${checkSvg}</span>
-      </a>
-      ${items}
-    </div>
-  </div>`;
+  if (status === 'kein_vertrag') return '<span class="text-muted">—</span>';
+  const text = label === status ? '—' : label;
+  return `<span class="status-badge status-${status}">${escapeHtml(text)}</span>`;
 }
 
 export function renderVertragActions(vertrag, isAdmin, canEdit, canDelete = isAdmin) {

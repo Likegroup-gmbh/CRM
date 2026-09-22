@@ -578,9 +578,19 @@ h3.section-title,
 }
 
 #kampagne-casting-tools #casting-vorschlag-block,
-#kampagne-konzept-tools #videoidee-vorschlag-block {
+#kampagne-konzept-tools #videoidee-vorschlag-block,
+.add-item-actions-right #casting-vorschlag-block,
+.add-item-actions-right #videoidee-vorschlag-block {
   display: inline-flex;
   align-items: center;
+  gap: var(--space-sm);
+}
+
+#kampagne-casting-tools #casting-vorschlag-block:empty,
+#kampagne-konzept-tools #videoidee-vorschlag-block:empty,
+.add-item-actions-right #casting-vorschlag-block:empty,
+.add-item-actions-right #videoidee-vorschlag-block:empty {
+  display: none;
 }
 
 /* Casting-/Konzept-Worksheet im Kampagnen-Pane: Toolbar/Reiter nicht am Viewport

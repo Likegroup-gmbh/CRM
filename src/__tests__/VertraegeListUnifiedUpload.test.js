@@ -122,7 +122,8 @@ describe('VertraegeList Unified Upload', () => {
       const html = renderVertraegeTableBody([baseVertrag], { canBulkDelete: false, canEdit: true, isAdmin: false });
       expect(html).toContain('Erstellt');
       expect(html).not.toContain('Finalisiert');
-      expect(html).toContain('status-select-wrapper');
+      expect(html).toContain('status-badge status-erstellt');
+      expect(html).not.toContain('status-select-wrapper');
     });
   });
 
@@ -170,26 +171,6 @@ describe('VertraegeList Unified Upload', () => {
       // Actually delegation adds a new listener each time — but since we test the old scenario
       // the key point is testing delegation works
       expect(mockList.openVertragUploadDrawer).toHaveBeenCalled();
-    });
-
-    it('schreibt manuellen Status', async () => {
-      const vertrag = { ...baseVertrag, status: 'erstellt' };
-      const tbody = document.getElementById('vertraege-table-body');
-      tbody.innerHTML = renderVertraegeTableBody([vertrag], { canBulkDelete: false, canEdit: true, isAdmin: false });
-      const update = vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ error: null })) }));
-      window.supabase = { from: vi.fn(() => ({ update })) };
-      window.toastSystem = { show: vi.fn() };
-      const mockList = {
-        vertraege: [vertrag],
-        _boundEventListeners: new Set(),
-        reloadData: vi.fn(async () => {}),
-        getVertragPermissions: () => ({ canEdit: true, isAdmin: false }),
-      };
-      bindTableDelegation(mockList);
-      tbody.querySelector('[data-status-value="verzoegert"]').click();
-      await new Promise((r) => setTimeout(r, 20));
-      expect(update).toHaveBeenCalledWith({ status: 'verzoegert' });
-      expect(mockList.reloadData).toHaveBeenCalled();
     });
   });
 

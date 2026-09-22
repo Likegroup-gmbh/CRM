@@ -1,4 +1,5 @@
 import { modularFilterSystem } from '../../core/filters/ModularFilterSystem.js';
+import { applyVertragStatusFilter } from './vertragStatus.js';
 
 export async function loadUnternehmenName(unternehmenId) {
   try {
@@ -69,7 +70,7 @@ export async function loadVertraege(unternehmenId, pagination, { typeFilter = 'v
   countQuery = applyTypeFilter(countQuery);
 
   if (filters.typ) countQuery = countQuery.eq('typ', filters.typ);
-  if (filters.status) countQuery = countQuery.eq('status', filters.status);
+  countQuery = applyVertragStatusFilter(countQuery, filters.status);
   if (filters.kampagne_id) countQuery = countQuery.eq('kampagne_id', filters.kampagne_id);
   if (filters.creator_id) countQuery = countQuery.eq('creator_id', filters.creator_id);
 
@@ -81,6 +82,7 @@ export async function loadVertraege(unternehmenId, pagination, { typeFilter = 'v
       typ,
       is_draft,
       status,
+      gesendet_am,
       datei_url,
       datei_path,
       unterschriebener_vertrag_url,
@@ -125,7 +127,7 @@ export async function loadVertraege(unternehmenId, pagination, { typeFilter = 'v
   dataQuery = applyTypeFilter(dataQuery);
 
   if (filters.typ) dataQuery = dataQuery.eq('typ', filters.typ);
-  if (filters.status) dataQuery = dataQuery.eq('status', filters.status);
+  dataQuery = applyVertragStatusFilter(dataQuery, filters.status);
   if (filters.kampagne_id) dataQuery = dataQuery.eq('kampagne_id', filters.kampagne_id);
   if (filters.creator_id) dataQuery = dataQuery.eq('creator_id', filters.creator_id);
 

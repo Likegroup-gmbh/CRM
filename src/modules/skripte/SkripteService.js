@@ -2,11 +2,9 @@
 // Datenzugriff fuer den Skript-Generator (Layer 1).
 // Alle Queries laufen ueber window.supabase (RLS: intern voll, Kunden nur eigener Scope).
 
-import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER, SKRIPT_BEREICHE, MASTER_BEREICHE } from './skripteKonstanten.js';
 import { planeVersionsRows } from './versionsNummerierung.js';
 import { briefingVorgaben } from './briefingVorgaben.js';
-import { applyFinalisiertFilter } from '../../core/finalisiert.js';
 
 export { FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER, SKRIPT_BEREICHE, MASTER_BEREICHE };
 
@@ -45,37 +43,19 @@ export class SkripteService {
   }
 
   /**
-   * Kampagnen zum Kontext: mit Marke nach marke_id gefiltert, ohne Marke
-   * (Unternehmen ohne Marken bzw. "Keine" gewaehlt) nach unternehmen_id.
+   * Konzepte zum Create-Drawer. Ohne Unternehmen keine Treffer; Kampagne
+   * filtert den Prefill aus dem Kampagnen-Workflow.
    */
-  async loadKampagnen({ markeId = null, unternehmenId = null } = {}) {
-    const allowedIds = await KampagneUtils.loadAllowedKampagneIds();
-    if (allowedIds !== null && allowedIds.length === 0) return [];
+  async loadKonzepte({ unternehmenId, kampagneId = null } = {}) {
+    if (!unternehmenId) return [];
 
-    let q = this.db.from('kampagne')
-      .select('id, kampagnenname, eigener_name, marke_id, unternehmen_id')
-      .order('created_at', { ascending: false });
-    if (markeId) q = q.eq('marke_id', markeId);
-    else if (unternehmenId) q = q.eq('unternehmen_id', unternehmenId);
-    if (allowedIds !== null) q = q.in('id', allowedIds);
-    const { data } = await q;
-    return data || [];
-  }
+    let q = this.db.from('strategie')
+      .select('id, name, unternehmen_id, marke_id, kampagne_id, briefing_id')
+      .eq('unternehmen_id', unternehmenId);
+    if (kampagneId) q = q.eq('kampagne_id', kampagneId);
 
-  /**
-   * Produkte zum Kontext. Die Marken-Zuordnung liegt in produkt_marke, deshalb
-   * filtert der Marken-Fall ueber einen Inner-Join statt ueber eine Spalte.
-   */
-  async loadProdukte({ markeId = null, unternehmenId = null } = {}) {
-    let q = markeId
-      ? this.db.from('produkt')
-          .select('id, name, unternehmen_id, treffer:produkt_marke!inner(marke_id)')
-          .eq('treffer.marke_id', markeId)
-      : this.db.from('produkt').select('id, name, unternehmen_id');
-
-    if (!markeId && unternehmenId) q = q.eq('unternehmen_id', unternehmenId);
-
-    const { data } = await q.order('name');
+    const { data, error } = await q.order('created_at', { ascending: false });
+    if (error) throw new Error(error.message);
     return data || [];
   }
 
@@ -108,16 +88,16 @@ export class SkripteService {
 
   /**
    * Videoideen, die im Konzept fuer die Skripterstellung freigegeben sind.
-   * Ohne Kampagne keine Treffer – der Drawer filtert immer auf eine Kampagne.
+   * Ohne Konzept keine Treffer – der Drawer filtert immer auf ein Konzept.
    */
-  async loadFreigegebeneVideoideen({ unternehmenId, markeId = null, kampagneId = null } = {}) {
-    if (!unternehmenId || !kampagneId) return [];
+  async loadFreigegebeneVideoideen({ unternehmenId, strategieId = null } = {}) {
+    if (!unternehmenId || !strategieId) return [];
 
-    let q = this.db.from('strategie_items')
+    const q = this.db.from('strategie_items')
       .select(`
         id, strategie_id, video_link, plattform, beschreibung, transkript_quelle,
         creator_name, creator_auswahl_item_id, screenshot_url, nicht_umsetzen, skript_freigabe,
-        casting_eintrag:creator_auswahl_item_id(id, name, creator_id, creator:creator_id(vorname, nachname)),
+        casting_eintrag:creator_auswahl_item_id(id, name, persona_id, creator_id, creator:creator_id(vorname, nachname)),
         strategie:strategie_id!inner(
           id, name, unternehmen_id, marke_id, kampagne_id, briefing_id,
           unternehmen:unternehmen_id(id, firmenname, branche_id),
@@ -131,9 +111,7 @@ export class SkripteService {
       .eq('ist_vorschlag', false)
       .not('creator_auswahl_item_id', 'is', null)
       .eq('strategie.unternehmen_id', unternehmenId)
-      .eq('strategie.kampagne_id', kampagneId);
-
-    if (markeId) q = q.eq('strategie.marke_id', markeId);
+      .eq('strategie_id', strategieId);
 
     const { data, error } = await q.order('sortierung');
     if (error) throw new Error(error.message);
@@ -162,23 +140,18 @@ export class SkripteService {
   }
 
   /**
-   * Campaign-Briefings zum Kontext: immer am Unternehmen, bei Markenwahl
-   * zusaetzlich markenspezifische ODER unternehmensweite (marke_id IS NULL).
-   * Drafts (inkl. migrierter Huellen) bleiben draussen.
+   * Accepted Produkt-Fits einer Persona. 0/1/n entscheidet der Resolver,
+   * nicht der Caller.
    */
-  async loadBriefings(unternehmenId, markeId = null) {
-    if (!unternehmenId) return [];
+  async loadAcceptedProduktIds(personaId) {
+    if (!personaId) return [];
 
-    let q = this.db.from('campaign_briefings')
-      .select('id, aktivierung_name, bereich, is_draft, im_funnel_stufen, pa_funnel_stufen, pa_videolaengen, im_formatvorgaben, os_formatvorgaben')
-      .eq('unternehmen_id', unternehmenId);
-    q = applyFinalisiertFilter(q, 'campaign_briefings');
-
-    if (markeId) q = q.or(`marke_id.eq.${markeId},marke_id.is.null`);
-
-    const { data, error } = await q.order('updated_at', { ascending: false });
+    const { data, error } = await this.db.from('produkt_persona_vorschlag')
+      .select('produkt_id')
+      .eq('persona_id', personaId)
+      .eq('status', 'accepted');
     if (error) throw new Error(error.message);
-    return data || [];
+    return [...new Set((data || []).map((r) => r.produkt_id).filter(Boolean))];
   }
 
   /** Anzeige-Label einer Persona: "Oberbegriff (Name)", Fallback nur Name. */
@@ -220,7 +193,16 @@ export class SkripteService {
     // hauptteil/cta bleiben draussen (nie angezeigt),
     // hook nur als Titel-Fallback (Renderer schneidet auf 50/80 Zeichen)
     let query = this.db.from('skripte')
-      .select('id, titel, unternehmen_id, marke_id, kampagne_id, branche_id, hook, herkunft, status, mit_dna, model, funnel_stufe, created_at, unternehmen(id, firmenname, internes_kuerzel, logo_url), marke(id, markenname, logo_url), kampagne(id, kampagnenname, eigener_name), branchen(name), briefing:briefing_id(id, aktivierung_name), produkt(id, name), personas(id, name), strategie_item:strategie_item_id(strategie:strategie_id(id, name))')
+      .select(`id, titel, unternehmen_id, marke_id, kampagne_id, branche_id, hook, herkunft, status, mit_dna, model, funnel_stufe, created_at, unternehmen(id, firmenname, internes_kuerzel, logo_url), marke(id, markenname, logo_url), kampagne(id, kampagnenname, eigener_name), branchen(name),
+        briefing:briefing_id(id, aktivierung_name), produkt(id, name), personas(id, name),
+        strategie_item:strategie_item_id(
+          id, creator_name, creator_auswahl_item_id,
+          strategie:strategie_id(id, name),
+          casting_eintrag:creator_auswahl_item_id(
+            id, name, creator_id,
+            creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url)
+          )
+        )`)
       .order('created_at', { ascending: false })
       .limit(200);
 
@@ -235,7 +217,14 @@ export class SkripteService {
 
   async loadSkript(id) {
     const { data, error } = await this.db.from('skripte')
-      .select('*, unternehmen(firmenname, logo_url), marke(markenname, logo_url), kampagne(kampagnenname, eigener_name), produkt(name), personas(name, oberbegriff), branchen(name), briefing:campaign_briefings(aktivierung_name, bereich)')
+      .select(`*, unternehmen(firmenname, logo_url), marke(markenname, logo_url), kampagne(kampagnenname, eigener_name), produkt(name), personas(name, oberbegriff), branchen(name), briefing:campaign_briefings(aktivierung_name, bereich),
+        strategie_item:strategie_item_id(
+          id, creator_name, creator_auswahl_item_id,
+          casting_eintrag:creator_auswahl_item_id(
+            id, name, creator_id,
+            creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url)
+          )
+        )`)
       .eq('id', id).maybeSingle();
 
     if (error) throw new Error(error.message);

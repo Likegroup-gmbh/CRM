@@ -27,9 +27,9 @@ function cap(value, max = 400) {
 }
 
 /**
- * Match-Pool: erst die Personas der Produkt-Marken, leer -> Fallback auf
- * das Unternehmen. Globale DNA-Personas (unternehmen_id IS NULL) sind
- * bewusst nie Teil des Pools.
+ * House-Style-Pool: erst die Personas der Produkt-Marken, leer -> Fallback
+ * auf das Unternehmen. Globale DNA-Personas (unternehmen_id IS NULL) sind
+ * bewusst nie Teil des Pools. Der Pool ist nur Stil-Referenz, kein Match.
  */
 async function loadPoolPersonas(supabase, { markeIds = [], unternehmenId = null } = {}) {
   const ids = [...new Set((markeIds || []).filter(Boolean))];
@@ -91,7 +91,7 @@ const PERSONA_TOOL = {
       },
       vorschlaege: {
         type: 'array',
-        description: 'Persona-Karten: Mix aus Matches auf bestehende Personas und neuen Entwuerfen.',
+        description: 'Genau eine neue Persona (typ immer neu). Kein Match auf bestehende.',
         items: {
           type: 'object',
           properties: {
@@ -194,9 +194,9 @@ function fmtPoolPersona(p) {
  *   felder: { name: {value, kind} | string, ... },
  *   markeNamen: string[], unternehmenName: string|null,
  *   bestehendeUseCases: [{ name, beschreibung }],
- *   modus: 'initial' | 'alle' | 'karte',
+ *   modus: 'initial' | 'weitere' | 'karte',
  *   anzahlZiel: number,
- *   behalten: [{ typ, name }],        // akzeptierte Karten (freeze)
+ *   behalten: [{ typ, name }],        // aktive Karten (freeze)
  *   ersetzteKarte: { typ } | null     // karte-Modus
  * }
  */
@@ -212,8 +212,8 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
     + 'Pain Points, Kaufmotive und Einwaende sind konkret und alltagsnah, keine Allgemeinplaetze.\n'
     + '3. FELDMARKIERUNGEN beachten: BELEGBAR ist Fakt, ABGELEITET ist unsicher (nicht als Wahrheit verkaufen), '
     + 'MANUELL hat hoechste Verlaesslichkeit.\n'
-    + '4. QUALITAET VOR QUANTITAET. Lieber drei tragfaehige Karten als sechs aufgeblaehte. '
-    + 'Keine schwachen Matches aufpumpen, keine neuen Personas ohne echte Luecke.\n'
+    + '4. QUALITAET VOR QUANTITAET. Genau eine Persona: der breiteste tragfaehige Typ, der zum Produkt passt. '
+    + 'Kein Szenen-Schnitt, keine Nische um der Nische willen. Trotzdem konkret: Pain Points und Kaufmotive sitzen, keine Demografie-Huelsen.\n'
     + '5. Neue Personas sind MENSCHEN, keine Produkt-Fact-Sheets. Persona-Felder: kurz, sachlich, abgeleitet. '
     + 'Keine Fantasie-Biografie, kein Storytelling, keine Kampagnenrichtung. '
     + 'produkt_loesung und produktvorteile beschreiben den Typ Mensch allgemein - keine Preise, Modellnamen oder SKU-Details.\n'
@@ -256,7 +256,7 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
 
   if (pool.length) {
     const quelleLabel = poolQuelle === 'marke' ? 'der Produkt-Marken' : 'des Unternehmens (Fallback, Marke hat keine eigenen)';
-    task += `\n# BESTEHENDE PERSONAS ${quelleLabel} (Match-Pool UND Stil-Referenz)\n`;
+    task += `\n# BESTEHENDE PERSONAS ${quelleLabel} (nur Stil-Referenz, kein Match)\n`;
     pool.slice(0, MAX_POOL_IM_PROMPT).forEach((p) => {
       task += `\n---\n${fmtPoolPersona(p)}\n`;
     });
@@ -264,35 +264,26 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
       task += `\n(weitere ${pool.length - MAX_POOL_IM_PROMPT} Pool-Personas nicht gezeigt)\n`;
     }
   } else {
-    task += '\n# BESTEHENDE PERSONAS\nKeine vorhanden - alle Karten sind neue Entwuerfe.\n';
+    task += '\n# BESTEHENDE PERSONAS\nKeine vorhanden - entwirf eine neue Persona.\n';
   }
 
   const behalten = Array.isArray(input.behalten) ? input.behalten : [];
   if (behalten.length) {
-    task += '\n# BEREITS UEBERNOMMEN (freeze - nicht duplizieren, nicht noch einmal vorschlagen)\n';
+    task += '\n# BEREITS AUF KARTEN (freeze - nicht duplizieren, nicht noch einmal vorschlagen)\n';
     behalten.forEach((b) => { task += `- ${b.name}${b.typ === 'match' ? ' (bestehende Persona)' : ' (neuer Entwurf)'}\n`; });
   }
 
   task += '\n# AUFTRAG\n';
   if (input.modus === 'karte') {
-    task += 'Ersetze GENAU EINE verworfene Karte. ';
-    if (input.ersetzteKarte?.typ === 'match') {
-      task += 'Die verworfene Karte war ein Match: schlage bevorzugt eine ANDERE bestehende Persona aus dem Pool vor, '
-        + 'die wirklich passt und noch auf keiner Karte liegt. Gibt es keine solche, entwirf eine neue Luecken-Persona. ';
-    } else {
-      task += 'Entwirf eine neue Persona fuer eine echte Luecke - oder ein Match, wenn eine Pool-Persona deutlich besser passt. ';
-    }
-    task += 'Gib genau EINEN Eintrag in "vorschlaege" ab.\n';
+    task += 'Ersetze GENAU EINE verworfene Karte durch eine neue Persona. ';
+  } else if (input.modus === 'weitere') {
+    task += 'Lege GENAU EINE weitere neue Persona dazu. Anderer Typ als das Covered-Set, weiterhin der naechst-breiteste tragfaehige Typ – keine Nische. ';
   } else {
-    const ziel = Math.min(Math.max(input.anzahlZiel || MAX_VORSCHLAEGE, 1), MAX_VORSCHLAEGE);
-    task += `Erstelle bis zu ${ziel} Persona-Karten als Mix:\n`
-      + '- MATCHES auf bestehende Personas, aber NUR bei echtem Fit (Ziel: 2-3, wenn so viele wirklich passen). '
-      + 'fit_grund nennt konkret, welche Pain Points/Beduerfnisse der Persona auf welche Produktfakten treffen.\n'
-      + '- NEUE Personas nur fuer echte Luecken, die keine Pool-Persona abdeckt. '
-      + 'luecken_begruendung sagt in einem Satz, warum keine Bestehende passt.\n'
-      + '- Keine Quote um jeden Preis: passt weniger, liefere weniger. '
-      + 'Gematchte Personas nie als "neu" nachbauen (Covered-Set).\n';
+    task += 'Erstelle GENAU EINE neue Persona. Der breiteste tragfaehige Typ Mensch, der zum Produkt passt. ';
   }
+  task += 'typ immer "neu". Kein Szenen-Schnitt, keine Nische, keine Quote, kein Match auf bestehende Personas – Wiederverwenden macht der Mensch manuell. '
+    + 'fit_grund nennt konkret, welche Pain Points/Beduerfnisse auf welche Produktfakten treffen. '
+    + 'Gib genau EINEN Eintrag in "vorschlaege" ab.\n';
 
   task += '\n# AUSGABEFORMAT\nGib das Ergebnis AUSSCHLIESSLICH ueber das Tool "persona_vorschlaege_abgeben" ab. '
     + 'use_case_indices sind 0-basiert auf die gemeinsame Liste (bestehende zuerst, dann deine generierten). '
@@ -305,13 +296,12 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
 
 /**
  * Validiert und beschneidet die Modell-Antwort.
- * - match ohne bekannte Pool-ID -> verworfen (kein Halluzinations-Link)
+ * - match -> verworfen (KI matcht nicht, Wiederverwenden ist manuell)
  * - neu ohne persona.name -> verworfen
  * - use_case_indices ausserhalb der Liste -> gefiltert; Karte ohne gueltigen
  *   Bezug fliegt raus
  */
-function validateVorschlaege(json, { poolIds = [], useCaseCount = 0, maxVorschlaege = MAX_VORSCHLAEGE } = {}) {
-  const poolSet = new Set(poolIds);
+function validateVorschlaege(json, { useCaseCount = 0, maxVorschlaege = 1 } = {}) {
   const roh = Array.isArray(json?.vorschlaege) ? json.vorschlaege : [];
   const sauber = [];
   const verworfen = [];
@@ -326,18 +316,7 @@ function validateVorschlaege(json, { poolIds = [], useCaseCount = 0, maxVorschla
     }
 
     if (v.typ === 'match') {
-      if (!v.persona_id || !poolSet.has(v.persona_id)) {
-        verworfen.push({ grund: 'match mit unbekannter Pool-ID', vorschlag: v?.persona_id || null });
-        continue;
-      }
-      sauber.push({
-        typ: 'match',
-        persona_id: v.persona_id,
-        fit_grund: String(v.fit_grund || '').trim(),
-        use_case_indices: indices,
-        persona: null,
-        luecken_begruendung: null
-      });
+      verworfen.push({ grund: 'KI-Match nicht erlaubt', vorschlag: v?.persona_id || null });
       continue;
     }
 

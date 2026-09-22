@@ -9,6 +9,8 @@ import { filterDropdown } from '../../core/filters/FilterDropdown.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { STATUS_LABELS, STATUS_TAG_VARIANT, OHNE_MARKE_LABEL, OHNE_KAMPAGNE_LABEL } from './SkripteUtils.js';
 import { renderVerknuepfungen, namedLinks } from '../../core/ui/tableVerknuepfungen.js';
+import { konzeptCreatorFromSkript } from './editor/SkriptEditorDocRenderer.js';
+import { renderCreatorNameCell } from '../creator/CreatorTable.js';
 
 export function createButtonHtml() {
   if (!window.canCreate?.('skripte')) return '';
@@ -90,6 +92,7 @@ export function renderItemsRows(list, items) {
             ${list.sanitize(titel)}
           </a>
         </td>
+        ${renderCreatorNameCell(konzeptCreatorFromSkript(s))}
         <td>${renderStatus(s.status)}</td>
         <td>${datum}</td>
         <td>${renderVerknuepfungen(namedLinks(s.briefing, { labelKey: 'aktivierung_name', kind: 'briefing' }))}</td>
@@ -102,7 +105,7 @@ export function renderItemsRows(list, items) {
   }).join('');
 }
 
-function itemsEmptyRow(list, title, colspan = 8) {
+function itemsEmptyRow(list, title, colspan = 9) {
   const html = resolveEmptyState({
     hasActiveFilters: list.hasActiveFilters(),
     states: {
@@ -319,8 +322,9 @@ export function renderCampaignsView(list) {
             <thead>
               <tr>
                 <th class="col-name">Titel</th>
+                <th>Creator</th>
                 <th>Status</th>
-                <th>Datum</th>
+                <th>Erstellt am</th>
                 <th>Briefing</th>
                 <th>Produkt</th>
                 <th>Persona</th>
@@ -431,8 +435,9 @@ export function renderItemsView(list) {
           <thead>
             <tr>
               <th class="col-name">Titel</th>
+              <th>Creator</th>
               <th>Status</th>
-              <th>Datum</th>
+              <th>Erstellt am</th>
               <th>Briefing</th>
               <th>Produkt</th>
               <th>Persona</th>
@@ -441,7 +446,7 @@ export function renderItemsView(list) {
             </tr>
           </thead>
           <tbody id="skripte-table-body">
-            <tr><td colspan="8" class="loading">Lade Skripte...</td></tr>
+            <tr><td colspan="9" class="loading">Lade Skripte...</td></tr>
           </tbody>
         </table>
       </div>

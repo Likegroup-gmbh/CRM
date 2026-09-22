@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import {
   messageHtml, genStatusBubbleHtml, aktionTagHtml, chatLeerHtml, versionsHinweisHtml
 } from '../modules/skripte/editor/SkriptEditorChatRenderer.js';
-import { fragenModusHtml, skriptDocHtml, masterDocHtml } from '../modules/skripte/editor/SkriptEditorDocRenderer.js';
+import { fragenModusHtml, skriptDocHtml, masterDocHtml, verknuepfungenHtml, konzeptCreatorFromSkript } from '../modules/skripte/editor/SkriptEditorDocRenderer.js';
 
 describe('SkriptEditorChatRenderer', () => {
   it('User-Message rendert Inhalt und Selektion, escaped HTML', () => {
@@ -238,5 +238,102 @@ describe('SkriptEditorDocRenderer', () => {
     });
     expect(html).toContain('<table');
     expect(html).toContain('gesagt');
+  });
+});
+
+describe('verknuepfungenHtml', () => {
+  it('ohne Creator: CTA Creator zuweisen', () => {
+    const html = verknuepfungenHtml({ kannZuweisen: true });
+    expect(html).toContain('Creator zuweisen');
+    expect(html).toContain('id="ed-skript-zuweisen"');
+    expect(html).toContain('skripte-editor-zuweisen-btn');
+    expect(html).not.toContain('skripte-editor-zuweisen-chip');
+  });
+
+  it('Video-Creator: Chip mit Name, kein CTA', () => {
+    const html = verknuepfungenHtml({
+      kannZuweisen: true,
+      verknuepfungen: [{
+        kooperation: { creator: { id: 'c1', vorname: 'Anna', nachname: 'Meyer' } }
+      }]
+    });
+    expect(html).toContain('Anna Meyer');
+    expect(html).toContain('skripte-editor-zuweisen-chip');
+    expect(html).not.toContain('Creator zuweisen');
+  });
+
+  it('nur Konzept-Creator: Chip mit Name, kein CTA', () => {
+    const html = verknuepfungenHtml({
+      kannZuweisen: true,
+      konzeptCreator: { vorname: 'Tim', nachname: 'Berg', name: 'Tim Berg' }
+    });
+    expect(html).toContain('Tim Berg');
+    expect(html).toContain('skripte-editor-zuweisen-chip');
+    expect(html).not.toContain('Creator zuweisen');
+  });
+
+  it('Video-Creator schlaegt Konzept-Creator', () => {
+    const html = verknuepfungenHtml({
+      kannZuweisen: true,
+      verknuepfungen: [{
+        kooperation: { creator: { id: 'c1', vorname: 'Anna', nachname: 'Meyer' } }
+      }],
+      konzeptCreator: { vorname: 'Tim', nachname: 'Berg', name: 'Tim Berg' }
+    });
+    expect(html).toContain('Anna Meyer');
+    expect(html).not.toContain('Tim Berg');
+  });
+
+  it('ohne kannZuweisen leer', () => {
+    expect(verknuepfungenHtml({
+      kannZuweisen: false,
+      konzeptCreator: { name: 'Tim Berg' }
+    })).toBe('');
+  });
+});
+
+describe('konzeptCreatorFromSkript', () => {
+  it('nimmt CRM-Namen vor Casting-Namen', () => {
+    const creator = konzeptCreatorFromSkript({
+      strategie_item: {
+        creator_name: 'Fallback',
+        casting_eintrag: {
+          name: 'Casting Name',
+          creator: {
+            id: 'c1', vorname: 'Lea', nachname: 'Hoff',
+            profilbild_url: 'https://img/full.jpg',
+            profilbild_thumb_url: 'https://img/thumb.jpg'
+          }
+        }
+      }
+    });
+    expect(creator).toMatchObject({
+      id: 'c1',
+      vorname: 'Lea',
+      nachname: 'Hoff',
+      name: 'Lea Hoff',
+      profilbild_thumb_url: 'https://img/thumb.jpg'
+    });
+  });
+
+  it('faellt auf Casting-Name zurueck', () => {
+    const creator = konzeptCreatorFromSkript({
+      strategie_item: {
+        creator_name: 'Alt',
+        casting_eintrag: { name: 'Casting Name', creator: null }
+      }
+    });
+    expect(creator.name).toBe('Casting Name');
+    expect(creator.id).toBeNull();
+  });
+
+  it('faellt auf creator_name zurueck', () => {
+    expect(konzeptCreatorFromSkript({
+      strategie_item: { creator_name: 'Nur Name' }
+    })?.name).toBe('Nur Name');
+  });
+
+  it('ohne strategie_item null', () => {
+    expect(konzeptCreatorFromSkript({ titel: 'X' })).toBeNull();
   });
 });

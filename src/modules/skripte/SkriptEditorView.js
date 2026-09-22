@@ -30,7 +30,7 @@ import {
 } from './editor/skriptEditorKonstanten.js';
 import {
   fragenModusHtml, skriptDocHtml, docHeadActionsHtml, vorgabenPanelHtml,
-  verknuepfungenHtml
+  verknuepfungenHtml, konzeptCreatorFromSkript
 } from './editor/SkriptEditorDocRenderer.js';
 import {
   chatLeerHtml, genStatusBubbleHtml, messageHtml, versionsHinweisHtml
@@ -735,6 +735,7 @@ export class SkriptEditorView {
   renderVerknuepfungenHtml() {
     return verknuepfungenHtml({
       verknuepfungen: this.verknuepfungen,
+      konzeptCreator: konzeptCreatorFromSkript(this.skript),
       kannZuweisen: this.kannZuweisen
     });
   }

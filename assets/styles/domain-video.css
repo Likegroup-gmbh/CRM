@@ -776,6 +776,15 @@
   min-width: 160px;
 }
 
+.media-viewer-control.vpl-promote {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  align-self: flex-start;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
 .media-viewer-control label {
   font-size: 0.72rem;
   font-weight: 600;

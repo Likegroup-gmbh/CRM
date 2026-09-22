@@ -9,6 +9,8 @@ import { getClientAdapter } from './typen/index.js';
  * @param {string} opts.dokumentTyp
  * @param {string} opts.dokumentId
  * @param {Object} [opts.db]
+ * @param {boolean} [opts.empfaengerFest] - Call-Site sticht Adapter
+ * @param {Array} [opts.prefill] - Call-Site sticht Adapter
  * @returns {Promise<AnschreibenDrawer|null>}
  */
 export async function openAnschreiben(opts) {
@@ -25,7 +27,8 @@ export async function openAnschreiben(opts) {
     db: opts.db,
     createPdf: () => adapter.createPdf(prepared),
     platzhalter: adapter.platzhalter,
-    prefill: prepared.prefill || [],
+    prefill: opts.prefill ?? prepared.prefill ?? [],
+    empfaengerFest: opts.empfaengerFest ?? prepared.empfaengerFest ?? false,
   });
   await drawer.open();
   return drawer;

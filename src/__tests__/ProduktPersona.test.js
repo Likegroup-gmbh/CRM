@@ -5,7 +5,7 @@
 //   - Prompt-Regeln (fact/guess, Covered-Set, Karten-Modus)
 //   - Accept/Unlink (persona_marke-Attach, Materialisierung, Unused-Check)
 //   - Retry-Schutz des Save-Flushs
-//   - Panel: Regen-Exclusion, kein Auto-Reextract, Karten-Aktionen
+//   - Panel: Startrun=1, Weitere, Regen ohne Match-Fill, kein Auto-Reextract
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
@@ -144,33 +144,35 @@ describe('validateVorschlaege (Quality-Mix)', () => {
     ]
   };
 
-  it('verwirft Halluzinations-Matches, Namenlose und Karten ohne Use-Case-Bezug', () => {
-    const out = validateVorschlaege(basis, { poolIds: ['p1'], useCaseCount: 2 });
+  it('verwirft KI-Matches, Namenlose und Karten ohne Use-Case-Bezug', () => {
+    const out = validateVorschlaege(basis, { useCaseCount: 2 });
 
-    expect(out.vorschlaege).toHaveLength(2);
-    expect(out.verworfen).toHaveLength(3);
+    expect(out.vorschlaege).toHaveLength(1);
+    expect(out.verworfen).toHaveLength(4);
+    expect(out.verworfen.filter(v => v.grund === 'KI-Match nicht erlaubt')).toHaveLength(2);
 
-    const match = out.vorschlaege.find(v => v.typ === 'match');
-    expect(match.persona_id).toBe('p1');
-    // Ungueltiger Index 99 ist raus, gueltige bleiben
-    expect(match.use_case_indices).toEqual([0, 1]);
-
-    const neu = out.vorschlaege.find(v => v.typ === 'neu');
+    const neu = out.vorschlaege[0];
+    expect(neu.typ).toBe('neu');
     expect(neu.persona.name).toBe('Lena');
     expect(neu.persona.alter_von).toBe(30);
-    // ausserhalb 0-120 -> null
     expect(neu.persona.alter_bis).toBeNull();
-    // unbekannte Felder kommen nicht durch
     expect(neu.persona.geheim).toBeUndefined();
     expect(neu.luecken_begruendung).toContain('Keine Bestehende');
 
-    // Use Cases: getrimmt, leere raus
     expect(out.use_cases).toEqual([{ name: 'Morgens vor der Arbeit', beschreibung: null }]);
   });
 
-  it('kappt die Kartenanzahl (Karten-Modus: genau eine)', () => {
-    const out = validateVorschlaege(basis, { poolIds: ['p1'], useCaseCount: 2, maxVorschlaege: 1 });
+  it('kappt die Kartenanzahl auf genau eine', () => {
+    const json = {
+      use_cases: [{ name: 'Morgens' }],
+      vorschlaege: [
+        { typ: 'neu', persona: { name: 'Lena' }, fit_grund: 'a', use_case_indices: [0] },
+        { typ: 'neu', persona: { name: 'Tim' }, fit_grund: 'b', use_case_indices: [0] }
+      ]
+    };
+    const out = validateVorschlaege(json, { useCaseCount: 1, maxVorschlaege: 1 });
     expect(out.vorschlaege).toHaveLength(1);
+    expect(out.vorschlaege[0].persona.name).toBe('Lena');
   });
 
   it('sanitizePersonaPayload laesst kontext fallen', () => {
@@ -220,8 +222,8 @@ describe('buildPrompt', () => {
     },
     markeNamen: ['Nordwind'],
     bestehendeUseCases: [{ name: 'Morgens vor der Arbeit', beschreibung: null }],
-    modus: 'alle',
-    anzahlZiel: 5,
+    modus: 'initial',
+    anzahlZiel: 1,
     behalten: [{ typ: 'match', name: 'Sandra' }]
   };
 
@@ -232,7 +234,7 @@ describe('buildPrompt', () => {
     expect(task).toContain('ABGELEITET');
     expect(task).toContain('MANUELL');
     expect(task).toContain('Sandra');
-    expect(task).toContain('BEREITS UEBERNOMMEN');
+    expect(task).toContain('BEREITS AUF KARTEN');
     expect(stable).toContain('NICHTS ERFINDEN');
     expect(stable).toContain('KEINE KLISCHEES');
     expect(stable).toContain('TYPEN MENSCH');
@@ -241,7 +243,7 @@ describe('buildPrompt', () => {
     expect(task).toContain('_audience_situations');
   });
 
-  it('nutzt bestehende Personas als House-Style und Match-Pool', () => {
+  it('nutzt bestehende Personas nur als House-Style, nicht als Match-Pool', () => {
     const pool = [{ id: 'p1', name: 'Sandra', oberbegriff: 'Effiziente Mutter', pain_points: 'Zeitdruck' }];
     const { stable, task } = buildPrompt(input, { pool, poolQuelle: 'marke' });
 
@@ -250,15 +252,31 @@ describe('buildPrompt', () => {
     expect(stable).toContain('Keine langen Bios');
     expect(task).toContain('Sandra');
     expect(task).toContain('BESTEHENDE PERSONAS der Produkt-Marken');
+    expect(task).toContain('nur Stil-Referenz, kein Match');
+    expect(task).not.toContain('Match-Pool');
   });
 
-  it('Karten-Modus Match: naechstbeste bestehende Persona, sonst Luecken-Persona', () => {
+  it('Startrun und Weitere verlangen genau eine neue, breite Persona', () => {
+    const { stable, task } = buildPrompt(input, { pool: [], poolQuelle: 'leer' });
+    expect(stable).toContain('breiteste tragfaehige Typ');
+    expect(task).toContain('GENAU EINE neue Persona');
+    expect(task).toContain('Kein Szenen-Schnitt');
+    expect(task).toContain('kein Match');
+    expect(task).not.toContain('MATCHES auf bestehende');
+    expect(task).not.toContain('Ziel: 2-3');
+
+    const weitere = buildPrompt({ ...input, modus: 'weitere' }, { pool: [], poolQuelle: 'leer' });
+    expect(weitere.task).toContain('GENAU EINE weitere neue Persona');
+  });
+
+  it('Karten-Modus ersetzt durch eine neue Persona, ohne Pool-Match', () => {
     const { task } = buildPrompt(
       { ...input, modus: 'karte', ersetzteKarte: { typ: 'match' } },
       { pool: [], poolQuelle: 'leer' }
     );
     expect(task).toContain('GENAU EINE');
-    expect(task).toContain('ANDERE bestehende Persona');
+    expect(task).toContain('typ immer "neu"');
+    expect(task).not.toContain('ANDERE bestehende Persona');
   });
 
   it('ohne bestehende Use Cases: erst Einsatzsituationen generieren, dann mappen', () => {
@@ -682,7 +700,48 @@ describe('ProduktPersonaPanel', () => {
 
   const tick = () => new Promise(r => setTimeout(r, 0));
 
-  it('Regen-Exclusion: verworfene und liegende Persona-IDs gehen in den Ausschluss', async () => {
+  it('Startrun fragt genau eine neue Karte ab', async () => {
+    form = mountPanel();
+    panel = await startePanel(form);
+
+    panel.regenAlle();
+    await tick();
+
+    const input = ProduktPersonaService.starteJob.mock.calls[0][0].input;
+    expect(input.modus).toBe('initial');
+    expect(input.anzahlZiel).toBe(1);
+  });
+
+  it('Weitere legt eine Karte dazu, ohne pending Matches zu loeschen', async () => {
+    form = mountPanel();
+    panel = await startePanel(form);
+
+    panel.karten = [
+      {
+        key: 'k1', id: null, typ: 'match', status: 'pending', persona_id: 'p-auf-karte',
+        persona: { name: 'Sandra' }, useCaseKeys: [], position: 0
+      },
+      { key: 'k2', id: null, typ: 'neu', status: 'accepted', persona_id: 'p-akzeptiert', payload: { name: 'Neu' }, useCaseKeys: [], position: 1 }
+    ];
+    panel.verworfeneMatchIds = ['p-verworfen'];
+
+    panel.weitereVorschlagen();
+    await tick();
+
+    const input = ProduktPersonaService.starteJob.mock.calls[0][0].input;
+    expect(input.modus).toBe('weitere');
+    expect(input.anzahlZiel).toBe(1);
+    expect(input.ausschluss_persona_ids).toEqual(
+      expect.arrayContaining(['p-verworfen', 'p-auf-karte', 'p-akzeptiert'])
+    );
+    expect(input.behalten).toEqual(expect.arrayContaining([
+      { typ: 'match', name: 'Sandra' },
+      { typ: 'neu', name: 'Neu' }
+    ]));
+    expect(panel.karten.some(k => k.persona_id === 'p-auf-karte' && k.status !== 'deleted')).toBe(true);
+  });
+
+  it('Regen-alle mit accepted startet keinen Job und fasst manuelle Matches nicht an', async () => {
     form = mountPanel();
     panel = await startePanel(form);
 
@@ -690,34 +749,67 @@ describe('ProduktPersonaPanel', () => {
       { key: 'k1', id: null, typ: 'match', status: 'pending', persona_id: 'p-auf-karte', useCaseKeys: [], position: 0 },
       { key: 'k2', id: null, typ: 'neu', status: 'accepted', persona_id: 'p-akzeptiert', payload: { name: 'Neu' }, useCaseKeys: [], position: 1 }
     ];
-    panel.verworfeneMatchIds = ['p-verworfen'];
+
+    panel.regenAlle();
+    await tick();
+
+    expect(ProduktPersonaService.starteJob).not.toHaveBeenCalled();
+    expect(panel.karten.some(k => k.persona_id === 'p-auf-karte' && k.status !== 'deleted')).toBe(true);
+  });
+
+  it('Regen-alle ersetzt nur pending KI-Karten', async () => {
+    form = mountPanel();
+    panel = await startePanel(form);
+
+    panel.karten = [
+      { key: 'k1', id: null, typ: 'neu', status: 'pending', persona_id: null, payload: { name: 'Alt' }, useCaseKeys: [], position: 0 },
+      { key: 'k2', id: null, typ: 'match', status: 'pending', persona_id: 'p-manual', useCaseKeys: [], position: 1 }
+    ];
 
     panel.regenAlle();
     await tick();
 
     const input = ProduktPersonaService.starteJob.mock.calls[0][0].input;
-    expect(input.modus).toBe('alle');
-    expect(input.ausschluss_persona_ids).toEqual(
-      expect.arrayContaining(['p-verworfen', 'p-auf-karte', 'p-akzeptiert'])
-    );
-    // akzeptierte Karte bleibt als Freeze im Auftrag
-    expect(input.behalten).toEqual([{ typ: 'neu', name: 'Neu' }]);
-    // die pending Match-Karte wurde durch den Regen verworfen
-    expect(panel.karten.some(k => k.persona_id === 'p-auf-karte' && k.status !== 'deleted')).toBe(false);
+    expect(input.modus).toBe('initial');
+    expect(input.anzahlZiel).toBe(1);
+    expect(panel.karten.some(k => k.key === 'k1' && k.status !== 'deleted')).toBe(false);
+    expect(panel.karten.some(k => k.persona_id === 'p-manual' && k.status !== 'deleted')).toBe(true);
   });
 
   it('Karten-Modus fragt genau eine Karte ab', async () => {
     form = mountPanel();
     panel = await startePanel(form);
 
-    panel.karten = [{ key: 'k1', id: null, typ: 'match', status: 'pending', persona_id: 'p1', useCaseKeys: [], position: 0 }];
+    panel.karten = [{
+      key: 'k1', id: null, typ: 'neu', status: 'pending', persona_id: null,
+      payload: { name: 'Alt' }, useCaseKeys: [], position: 0
+    }];
     panel.regenKarte('k1');
     await tick();
 
     const input = ProduktPersonaService.starteJob.mock.calls[0][0].input;
     expect(input.modus).toBe('karte');
     expect(input.anzahlZiel).toBe(1);
-    expect(input.ersetzteKarte).toEqual({ typ: 'match' });
+    expect(input.ersetzteKarte).toEqual({ typ: 'neu' });
+  });
+
+  it('Startrun zeigt ein Skeleton, Weitere-Button erst mit Karte', async () => {
+    form = mountPanel();
+    panel = await startePanel(form);
+    panel.jobRunning = true;
+    panel.render();
+
+    expect(panel.root().querySelectorAll('.rel-card--skeleton')).toHaveLength(1);
+    expect(panel.root().querySelector('[data-persona-action="weitere"]').disabled).toBe(true);
+
+    panel.jobRunning = false;
+    panel.karten = [{
+      key: 'k1', id: null, typ: 'neu', status: 'accepted',
+      persona_id: 'p1', payload: { name: 'Lena' }, useCaseKeys: [], position: 0
+    }];
+    panel.render();
+    expect(panel.root().querySelector('[data-persona-action="weitere"]').disabled).toBe(false);
+    expect(panel.root().querySelector('[data-persona-action="regen-alle"]').disabled).toBe(true);
   });
 
   it('kein Auto-Reextract: das zweite siteExtractFinished startet keinen Job mehr', async () => {
@@ -731,6 +823,8 @@ describe('ProduktPersonaPanel', () => {
     document.dispatchEvent(fertig());
     await tick();
     expect(ProduktPersonaService.starteJob).toHaveBeenCalledTimes(1);
+    expect(ProduktPersonaService.starteJob.mock.calls[0][0].input.modus).toBe('initial');
+    expect(ProduktPersonaService.starteJob.mock.calls[0][0].input.anzahlZiel).toBe(1);
     // der Extract-Guess landet als Seed
     expect(panel.extractSeed).toBe('morgens');
     // Karte aus dem Job-Ergebnis liegt vor
@@ -820,5 +914,32 @@ describe('ProduktPersonaPanel', () => {
       expect(panel.karten[0].key).toBe('v-real');
       expect(panel.karten[0].useCaseKeys).toEqual(['uc-real']);
     });
+  });
+
+  it('Plus-Karte: Drawer bekommt die volle Persona, nicht den Such-Stub', async () => {
+    const voll = {
+      id: 'p-pdf',
+      name: 'Mutti am Morgen',
+      oberbegriff: 'Zeitgedrückte Mutter',
+      beschreibung: 'Zwei Kinder, 6:30-Chaos',
+      pain_points: 'Keine Zeit für sich'
+    };
+    PersonaService.loadOne.mockResolvedValue(voll);
+
+    form = mountPanel();
+    panel = await startePanel(form);
+    vi.spyOn(panel.drawer, 'open');
+
+    panel.addPersonaKarte({
+      id: 'p-pdf',
+      label: 'Mutti am Morgen',
+      data: { id: 'p-pdf', name: 'Mutti am Morgen', oberbegriff: 'Zeitgedrückte Mutter' }
+    });
+
+    await panel.openDrawer(panel.karten[0].key);
+
+    expect(PersonaService.loadOne).toHaveBeenCalledWith('p-pdf', { unternehmenId: 'u1' });
+    expect(panel.drawer.open).toHaveBeenCalledTimes(1);
+    expect(panel.drawer.open.mock.calls[0][0].persona).toEqual(voll);
   });
 });

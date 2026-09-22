@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import {
-  renderAddSection, renderItemsTable,
-  SOURCING_TABS, getSourcingTabForItem
-} from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
+import { renderAddSection, renderItemsTable } from '../modules/creator-auswahl/castingTableRender.js';
+import { SOURCING_TABS, getSourcingTabForItem } from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
 import {
   SOURCING_STATUS_FILTER_TAGS,
   SOURCING_STATUS_OPTIONS,

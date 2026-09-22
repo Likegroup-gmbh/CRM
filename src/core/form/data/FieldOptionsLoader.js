@@ -5,6 +5,7 @@
 
 import { KampagneUtils } from '../../../modules/kampagne/KampagneUtils.js';
 import { isFinalisiert } from '../../finalisiert.js';
+import { fetchAllRows } from '../../fetchAllRows.js';
 
 // Feldoptionen laden - grosser Dispatcher je nach Feld-Typ
 // `this` = DynamicDataLoader
@@ -336,33 +337,15 @@ export async function loadKooperationenOhneRechnung() {
       return [];
     }
 
-    const { data: rechnungen, error: rErr } = await window.supabase
-      .from('rechnung')
-      .select('kooperation_id')
-      .not('kooperation_id', 'is', null);
-    if (rErr) {
-      console.error('❌ Fehler beim Laden vorhandener Rechnungen:', rErr);
-      return [];
-    }
-    const mitRechnung = new Set((rechnungen || []).map(r => r.kooperation_id).filter(Boolean));
-
-    const { data: alleKoops, error: kErr } = await window.supabase
-      .from('kooperationen')
-      .select('id, name, kampagne_id, creator_id, created_at')
-      .order('created_at', { ascending: false });
-    if (kErr) {
-      console.error('❌ Fehler beim Laden der Kooperationen:', kErr);
-      return [];
-    }
-
-    // Kooperationen mit Rechnung nur behalten, wenn ihr Vertrag Mehrfachrechnungen erlaubt
-    const koopsMitRechnung = (alleKoops || []).filter(k => mitRechnung.has(k.id));
-    let mehrfachErlaubt = new Set();
-    if (koopsMitRechnung.length > 0) {
-      const { getKooperationIdsMitMehrfachRechnung } = await import('../../../modules/rechnung/RechnungVertragZuordnung.js');
-      mehrfachErlaubt = await getKooperationIdsMitMehrfachRechnung(koopsMitRechnung);
-    }
-    const koops = (alleKoops || []).filter(k => !mitRechnung.has(k.id) || mehrfachErlaubt.has(k.id));
+    // View filtert serverseitig: keine Rechnung, ausser Mehrfachrechnung.
+    // fetchAllRows, damit das PostgREST-Limit die aelteren nicht abschneidet.
+    const alleKoops = await fetchAllRows(
+      window.supabase,
+      'kooperationen_fuer_rechnung',
+      'id, name, kampagne_id, creator_id, created_at, hat_rechnung'
+    );
+    alleKoops.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const koops = alleKoops;
 
     let kampagneMap = {};
     let kampagneUnternehmenMap = {};
@@ -438,7 +421,7 @@ export async function loadKooperationenOhneRechnung() {
 
       const subtitleParts = [];
       if (tagMap[k.id]?.length) subtitleParts.push(tagMap[k.id].join(', '));
-      if (mitRechnung.has(k.id)) subtitleParts.push('Rechnung vorhanden – Mehrfachrechnung aktiv');
+      if (k.hat_rechnung) subtitleParts.push('Rechnung vorhanden – Mehrfachrechnung aktiv');
 
       return {
         value: k.id,

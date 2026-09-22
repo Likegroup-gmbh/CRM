@@ -576,11 +576,14 @@ export class VideoPlayerLightbox {
   }
 
   _bindFormatHint(stage) {
-    const closeBtn = stage?.querySelector('.vpl-format-hint-close');
-    if (!closeBtn) return;
-    closeBtn.addEventListener('click', () => {
-      closeBtn.closest('.vpl-format-hint')?.classList.add('is-hidden');
-    });
+    const hint = stage?.querySelector('.vpl-format-hint');
+    if (!hint) return;
+    const hide = () => hint.classList.add('is-hidden');
+    hint.querySelector('.vpl-format-hint-close')?.addEventListener('click', hide);
+    const video = stage.querySelector('.vpl-video');
+    if (!video) return;
+    if (!video.paused || video.currentTime > 0) hide();
+    else video.addEventListener('playing', hide, { once: true });
   }
 
   _onVideoError() {

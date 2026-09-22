@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { renderItemsTable } from '../modules/creator-auswahl/castingTableRender.js';
 import {
-  renderItemsTable,
   SOURCING_ANKER_SPALTEN,
   SOURCING_SPALTEN,
   SOURCING_SPALTEN_LABELS,

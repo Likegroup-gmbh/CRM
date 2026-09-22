@@ -138,23 +138,19 @@ export class StrategieDetail {
   }
 
   async render() {
-    const canEdit = this.canEdit;
+    const showActions = this.canEdit || this.canCreate;
     const rootEl = this._getRoot();
     if (!rootEl) return;
 
     if (this.embedded && this.chromeRoot) {
-      this.chromeRoot.innerHTML = `
-        ${canEdit ? this.renderAddItemActions() : ''}
-        <div id="videoidee-vorschlag-block"></div>
-      `;
+      this.chromeRoot.innerHTML = showActions ? this.renderAddItemActions() : '';
       rootEl.innerHTML = this.renderItemsTable();
       return;
     }
 
     rootEl.innerHTML = `
       ${this.renderHeader()}
-      ${canEdit ? this.renderAddItemSection() : ''}
-      <div id="videoidee-vorschlag-block"></div>
+      ${showActions ? this.renderAddItemSection() : ''}
       ${this.renderItemsTable()}
     `;
 
@@ -178,21 +174,27 @@ export class StrategieDetail {
     const sichtbarkeitIcon = `${icon('eye-outline')}`;
     const customColumnsIcon = `${icon('bars-3')}`;
 
-    return `
+    const primary = this.canEdit ? `
           <button type="button" class="mdc-btn" id="btn-open-add-drawer">
             ${icon('plus-lg', { className: 'icon-16' })}
             Hinzufügen
           </button>
-          ${renderToolbarMenu({
-            toggleId: 'btn-strategie-toolbar-menu',
-            itemsHtml: `
+    ` : '';
+    const menu = this.canEdit ? renderToolbarMenu({
+      toggleId: 'btn-strategie-toolbar-menu',
+      itemsHtml: `
               ${renderToolbarMenuItem({ id: 'btn-share-strategie', title: 'Liste per E-Mail teilen', icon: shareIcon, label: 'Teilen' })}
               ${renderToolbarMenuItem({ id: 'btn-strategie-casting-link', title: this.strategie?.creator_auswahl_id ? 'Casting-Verknüpfung lösen' : 'Casting verknüpfen', icon: icon('link'), label: this.strategie?.creator_auswahl_id ? 'Casting lösen' : 'Casting verknüpfen' })}
               ${renderToolbarMenuItem({ id: 'btn-manage-kategorien', title: 'Kategorien verwalten', icon: kategorienIcon, label: 'Kategorien' })}
               ${renderToolbarMenuItem({ id: 'btn-strategie-detail-column-visibility', title: 'Spalten-Sichtbarkeit', icon: sichtbarkeitIcon, label: 'Sichtbarkeit anpassen' })}
               ${renderToolbarMenuItem({ id: 'btn-strategie-custom-columns', title: 'Eigene Spalten verwalten', icon: customColumnsIcon, label: 'Eigene Spalten' })}
             `
-          })}
+    }) : '';
+
+    return `
+          ${primary}
+          <div id="videoidee-vorschlag-block"></div>
+          ${menu}
     `;
   }
 

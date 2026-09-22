@@ -4,7 +4,7 @@
 import { iconRegistry } from './actions/IconRegistry.js';
 import { actionBuilder } from './actions/ActionBuilder.js';
 
-import { handleAction, setField, addToFavorites } from './ActionsDropdownHandlers.js';
+import { handleAction, setField, addToFavorites, GLOBAL_ACTIONS } from './ActionsDropdownHandlers.js';
 import {
   openAddAnsprechpartnerModal,
   openAddAnsprechpartnerToUnternehmenModal,
@@ -19,25 +19,6 @@ import {
   openAddToListModal,
   openAddAnsprechpartnerToKampagneModal
 } from './ActionsDropdownModals.js';
-
-// Spiegel der Cases aus handleAction (ActionsDropdownHandlers.js).
-// Nur diese Actions darf der globale Click-Handler claimen.
-const KNOWN_GLOBAL_ACTIONS = new Set([
-  'view', 'edit', 'continue', 'delete', 'delete-liste', 'rename-liste',
-  'creator-upload-send', 'creator-upload-resend', 'creator-upload-copy', 'creator-upload-revoke',
-  'delete-strategie', 'view-strategie', 'edit-strategie', 'remove',
-  'rechnung_anpassen', 'download', 'marken', 'auftraege', 'kampagnen',
-  'task-create', 'quickview', 'assign-staff', 'assign_staff', 'rechnung',
-  'add_to_campaign', 'favorite', 'add_to_list', 'add_to_casting', 'connect',
-  'add-signed', 'edit-signed', 'replace-signed', 'remove-signed',
-  'anschreiben',
-  'add_ansprechpartner', 'add_ansprechpartner_kampagne', 'add_ansprechpartner_unternehmen',
-  'add_produkt', 'add_persona',
-  'remove_ansprechpartner_unternehmen', 'remove_ansprechpartner_link',
-  'edit_creator_adresse', 'set_standard_adresse', 'set_hauptadresse_standard',
-  'delete_creator_adresse', 'unassign-kampagne',
-  'freischalten', 'details', 'auftrag-details'
-]);
 
 export class ActionsDropdown {
   constructor() {
@@ -111,7 +92,7 @@ export class ActionsDropdown {
   // Actions, die der globale Switch in ActionsDropdownHandlers wirklich bedient.
   // Alles andere ist page-eigen und wird nicht geclaimt.
   isKnownGlobalAction(action) {
-    return KNOWN_GLOBAL_ACTIONS.has(action);
+    return GLOBAL_ACTIONS.has(action);
   }
 
   // --- Portal-UI ---

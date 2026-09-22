@@ -85,6 +85,10 @@
 [functions."creator-upload-cleanup"]
   schedule = "@daily"
 
+# Vertrag-Status: Gesendet ohne Unterschrift nach 30 Tagen → Verzögert
+[functions."vertrag-status-verzoegert"]
+  schedule = "@daily"
+
 # Auth-Seiten direkt ausliefern (NICHT auf index.html umleiten)
 [[redirects]]
   from = "/src/auth/*"

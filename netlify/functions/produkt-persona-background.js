@@ -20,8 +20,7 @@ const {
   PERSONA_TOOL,
   buildPrompt,
   loadPoolPersonas,
-  validateVorschlaege,
-  MAX_VORSCHLAEGE
+  validateVorschlaege
 } = require('./_shared/produkt-persona');
 
 const THINKING_LABELS = {
@@ -112,7 +111,7 @@ exports.handler = async (event) => {
       feature: 'produkt_persona'
     });
 
-    schreibeStep('pool', 'Match-Pool wird geladen');
+    schreibeStep('pool', 'Bestehende Personas werden geladen');
     const { pool, quelle } = await loadPoolPersonas(supabase, {
       markeIds: input.marke_ids || [],
       unternehmenId: job.unternehmen_id || null
@@ -142,9 +141,8 @@ exports.handler = async (event) => {
     schreibeStep('pruefen', 'Vorschlaege werden validiert');
     const bestehendeCount = Array.isArray(input.bestehende_use_cases) ? input.bestehende_use_cases.length : 0;
     const geprueft = validateVorschlaege(result.json, {
-      poolIds: matchPool.map(p => p.id),
       useCaseCount: bestehendeCount + (Array.isArray(result.json?.use_cases) ? result.json.use_cases.length : 0),
-      maxVorschlaege: input.modus === 'karte' ? 1 : MAX_VORSCHLAEGE
+      maxVorschlaege: 1
     });
 
     if (!geprueft.vorschlaege.length) {

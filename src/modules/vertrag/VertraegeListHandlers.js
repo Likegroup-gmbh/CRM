@@ -2,12 +2,7 @@ import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 import { syncVertragCheckbox } from '../../core/VertragSyncHelper.js';
 import { openDocumentUrl } from '../../core/DocumentUrlHelper.js';
 import { VertragUtils } from './VertragUtils.js';
-import {
-  canEditVertragStatusManually,
-  fallbackStatusAfterUnsigned,
-  getVertragStatus,
-  VERTRAG_STATUS,
-} from './vertragStatus.js';
+import { fallbackStatusAfterUnsigned } from './vertragStatus.js';
 
 export function bindTableDelegation(list) {
   const tbody = document.getElementById('vertraege-table-body');
@@ -34,26 +29,6 @@ export function bindTableDelegation(list) {
       return;
     }
 
-    const statusItem = target.closest('.status-dropdown-item[data-status-value]');
-    if (statusItem) {
-      e.preventDefault();
-      e.stopPropagation();
-      await handleStatusChange(list, statusItem.dataset.id, statusItem.dataset.statusValue);
-      return;
-    }
-
-    const statusTrigger = target.closest('.status-select-trigger');
-    if (statusTrigger) {
-      e.preventDefault();
-      e.stopPropagation();
-      const wrapper = statusTrigger.closest('.status-select-wrapper');
-      document.querySelectorAll('.status-select-wrapper.show').forEach((w) => {
-        if (w !== wrapper) w.classList.remove('show');
-      });
-      wrapper?.classList.toggle('show');
-      return;
-    }
-
     // Action-Items aus dem Dropdown
     const actionItem = target.closest('.action-item[data-action]');
     if (actionItem) {
@@ -66,7 +41,6 @@ export function bindTableDelegation(list) {
 
     // Row-Click → Detail
     if (target.closest('.actions-dropdown-container')) return;
-    if (target.closest('.status-select-wrapper')) return;
     if (target.closest('input[type="checkbox"]')) return;
     if (target.closest('a')) return;
 
@@ -78,15 +52,6 @@ export function bindTableDelegation(list) {
 
   tbody.addEventListener('click', handler);
   list._boundEventListeners.add(() => tbody.removeEventListener('click', handler));
-}
-
-export function bindStatusDropdownDismiss(list) {
-  const closeStatus = (e) => {
-    if (e.target.closest?.('.status-select-wrapper')) return;
-    document.querySelectorAll('.status-select-wrapper.show').forEach((w) => w.classList.remove('show'));
-  };
-  document.addEventListener('click', closeStatus);
-  list._boundEventListeners.add(() => document.removeEventListener('click', closeStatus));
 }
 
 function openVertragRecord(list, id) {
@@ -101,40 +66,6 @@ function openVertragRecord(list, id) {
     return;
   }
   window.toastSystem?.show('Keine PDF-Datei vorhanden', 'warning');
-}
-
-async function handleStatusChange(list, id, value) {
-  if (!list.getVertragPermissions().canEdit) {
-    window.toastSystem?.show('Keine Berechtigung, den Status zu ändern.', 'warning');
-    return;
-  }
-  const vertrag = list.vertraege?.find(v => v.id === id);
-  if (!vertrag) return;
-  if (!canEditVertragStatusManually(getVertragStatus(vertrag))) return;
-
-  let next = value;
-  if (value === '__zurueck') {
-    next = await fallbackStatusAfterUnsigned(window.supabase, id);
-  }
-  if (next === getVertragStatus(vertrag)) {
-    document.querySelectorAll('.status-select-wrapper.show').forEach((w) => w.classList.remove('show'));
-    return;
-  }
-  if (next !== VERTRAG_STATUS.VERZOEGERT && next !== VERTRAG_STATUS.ABGELEHNT
-    && next !== VERTRAG_STATUS.ERSTELLT && next !== VERTRAG_STATUS.GESENDET) {
-    return;
-  }
-
-  const { error } = await window.supabase
-    .from('vertraege')
-    .update({ status: next })
-    .eq('id', id);
-  if (error) {
-    window.toastSystem?.show(`Status konnte nicht gesetzt werden: ${error.message}`, 'error');
-    return;
-  }
-  window.toastSystem?.show('Status aktualisiert', 'success');
-  await list.reloadData();
 }
 
 export async function openVertragAnschreiben(list, id) {

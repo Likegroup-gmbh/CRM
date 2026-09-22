@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
+import { renderItemRow } from '../modules/creator-auswahl/castingItemRow.js';
+import { renderItemsTable } from '../modules/creator-auswahl/castingTableRender.js';
 import {
-  renderItemRow,
-  renderItemsTable,
   isColumnVisibleForCustomer,
   getVisibleColumnCount,
   getStickyClasses,

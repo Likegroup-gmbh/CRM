@@ -1,11 +1,19 @@
 // EmpfaengerComposer.js
-// Empfänger-Auswahl für ein Anschreiben: Tabs Creator | Management | Kampagne,
-// jeweils das zentrale tag-basierte Auto-Suggest (FormSystem).
+// Empfänger für ein Anschreiben. Kernel-Flag empfaengerFest:
+// true = Anzeige (kein Picker), false = Tabs Creator | Management | Kampagne.
 // Kampagne expandiert auf Kooperations-Creators. Nur adressierbare Empfänger
 // (ID + Mail); ohne Mail wird übersprungen und gezählt.
 // Kein Casting, kein Konzept, keine freien Adressen — siehe ADR 0012.
 
 import { OptionsManager } from '../form/data/OptionsManager.js';
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
 
 const TABS = ['creator', 'management', 'kampagne'];
 
@@ -39,23 +47,39 @@ export class EmpfaengerComposer {
    * @param {Object} opts.db - Supabase-Client (für Tests mockbar)
    * @param {string} opts.unternehmenId - Scope für die Kampagne-Suche
    * @param {string} [opts.markeId] - zusaetzlicher Scope
+   * @param {boolean} [opts.empfaengerFest] - Anzeige statt Picker
+   * @param {Array} [opts.prefill]
    * @param {(empfaenger: Array) => void} [opts.onChange]
    */
-  constructor({ container, db, unternehmenId, markeId = null, onChange = null }) {
+  constructor({
+    container,
+    db,
+    unternehmenId,
+    markeId = null,
+    empfaengerFest = false,
+    prefill = [],
+    onChange = null,
+  }) {
     this.container = container;
     this.db = db;
     this.unternehmenId = unternehmenId;
     this.markeId = markeId;
+    this.empfaengerFest = Boolean(empfaengerFest);
+    this.prefill = prefill;
     this.onChange = onChange;
 
     this.tab = 'creator';
     this.empfaengerByTab = { creator: [], management: [], kampagne: [] };
     this.skippedByTab = { creator: 0, management: 0, kampagne: 0 };
     this.lookup = { creator: {}, management: {} };
+    this.festItems = [];
     this._kampagneLauf = 0;
   }
 
   get typ() {
+    if (this.empfaengerFest) {
+      return this.festItems[0]?.typ === 'management' ? 'management' : 'creator';
+    }
     return this.tab === 'management' ? 'management' : 'creator';
   }
 
@@ -63,9 +87,17 @@ export class EmpfaengerComposer {
 
   key(e) { return `${e.typ}:${e.id}`; }
 
-  getEmpfaenger() { return [...this.empfaengerByTab[this.tab]]; }
-  getSkipped() { return this.skippedByTab[this.tab] || 0; }
-  isEmpty() { return this.empfaengerByTab[this.tab].length === 0; }
+  getEmpfaenger() {
+    if (this.empfaengerFest) return this.festItems.filter((e) => e.email);
+    return [...this.empfaengerByTab[this.tab]];
+  }
+
+  getSkipped() {
+    if (this.empfaengerFest) return this.festItems.filter((e) => !e.email).length;
+    return this.skippedByTab[this.tab] || 0;
+  }
+
+  isEmpty() { return this.getEmpfaenger().length === 0; }
 
   _emit() {
     this._renderSkipped();
@@ -73,6 +105,10 @@ export class EmpfaengerComposer {
   }
 
   applyPrefill(items) {
+    if (this.empfaengerFest) {
+      this._applyFest(items);
+      return;
+    }
     for (const item of items || []) {
       const email = String(item.email || '').trim();
       if (!item.id || !email) continue;
@@ -91,7 +127,26 @@ export class EmpfaengerComposer {
     this._emit();
   }
 
+  _applyFest(items) {
+    this.festItems = [];
+    for (const item of items || []) {
+      if (!item.id) continue;
+      const email = String(item.email || '').trim();
+      const typ = item.typ === 'management' ? 'management' : 'creator';
+      this.festItems.push({
+        typ,
+        id: item.id,
+        email,
+        name: item.name || email,
+        vorname: item.vorname || '',
+      });
+    }
+    this._renderFest();
+    this._emit();
+  }
+
   addOne(item) {
+    if (this.empfaengerFest) return false;
     const e = this._normalize(item);
     if (!e) return false;
     const bucket = this.empfaengerByTab[this.tab];
@@ -102,6 +157,7 @@ export class EmpfaengerComposer {
   }
 
   remove(typ, id) {
+    if (this.empfaengerFest) return;
     const k = `${typ}:${id}`;
     const bucket = this.empfaengerByTab[this.tab];
     const before = bucket.length;
@@ -110,6 +166,7 @@ export class EmpfaengerComposer {
   }
 
   setTyp(typ) {
+    if (this.empfaengerFest) return;
     if (!TABS.includes(typ) || typ === this.tab) return;
     this.tab = typ;
     this._renderToggle();
@@ -294,6 +351,11 @@ export class EmpfaengerComposer {
   // ─── Render ───────────────────────────────────────────────
 
   async render() {
+    if (this.empfaengerFest) {
+      this.applyPrefill(this.prefill);
+      return;
+    }
+
     this.container.innerHTML = `
       <div class="empfaenger-composer">
         <div class="empfaenger-composer__toggle" role="tablist">
@@ -362,9 +424,37 @@ export class EmpfaengerComposer {
     });
   }
 
+  _renderFest() {
+    const rows = this.festItems.map((e) => {
+      const label = e.name || e.email || '';
+      const initial = (e.vorname || label || '?')[0].toUpperCase();
+      const mail = e.email || 'keine E-Mail';
+      return `
+        <div class="empfaenger-fest__row">
+          <span class="table-avatar">${escapeHtml(initial)}</span>
+          <div class="empfaenger-fest__meta">
+            <span class="empfaenger-fest__name">${escapeHtml(label)}</span>
+            <span class="empfaenger-fest__mail">${escapeHtml(mail)}</span>
+          </div>
+        </div>`;
+    }).join('');
+
+    this.container.innerHTML = `
+      <div class="empfaenger-fest">
+        ${rows || '<p class="empfaenger-fest__leer">Kein Empfänger am Dokument</p>'}
+        <p class="empfaenger-composer__skipped" data-skipped hidden></p>
+      </div>
+    `;
+  }
+
   _renderSkipped() {
     const skipped = this.container.querySelector('[data-skipped]');
     if (!skipped) return;
+    if (this.empfaengerFest) {
+      skipped.hidden = true;
+      skipped.textContent = '';
+      return;
+    }
     const count = this.getSkipped();
     skipped.hidden = count === 0;
     skipped.textContent = count > 0 ? `${count} ohne E-Mail übersprungen` : '';

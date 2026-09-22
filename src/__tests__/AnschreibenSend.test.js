@@ -217,7 +217,9 @@ describe('sendAnschreiben', () => {
     );
     expect(res.status).toBe(200);
     expect(res.body.sent).toBe(1);
-    expect(supabase._vertragUpdates).toContainEqual({ status: 'gesendet' });
+    expect(supabase._vertragUpdates).toHaveLength(1);
+    expect(supabase._vertragUpdates[0]).toEqual(expect.objectContaining({ status: 'gesendet' }));
+    expect(Date.parse(supabase._vertragUpdates[0].gesendet_am)).not.toBeNaN();
   });
 
   it('lehnt Vertrags-Entwurf ab', async () => {
@@ -277,7 +279,9 @@ describe('sendAnschreiben', () => {
       expect(res.status).toBe(200);
       expect(sendMail).toHaveBeenCalledTimes(1);
       expect(fetch).toHaveBeenCalledWith('https://dropbox.com/v?raw=1');
-      expect(supabase._vertragUpdates).toContainEqual({ status: 'gesendet' });
+      expect(supabase._vertragUpdates).toHaveLength(1);
+      expect(supabase._vertragUpdates[0]).toEqual(expect.objectContaining({ status: 'gesendet' }));
+      expect(Date.parse(supabase._vertragUpdates[0].gesendet_am)).not.toBeNaN();
     } finally {
       vi.unstubAllGlobals();
     }

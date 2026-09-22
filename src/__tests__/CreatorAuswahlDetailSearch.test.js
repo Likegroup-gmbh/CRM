@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { CreatorAuswahlDetail } from '../modules/creator-auswahl/CreatorAuswahlDetail.js';
-import { renderItemsTable, renderAddSection } from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
+import { renderItemsTable, renderAddSection } from '../modules/creator-auswahl/castingTableRender.js';
 
 function makeItem(overrides = {}) {
   return {

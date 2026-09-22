@@ -64,12 +64,16 @@ _Avoid_: Agreement, Kontrakt
 
 **Vertrag-Status**:
 Lebenszyklus des Vertragsdokuments: Entwurf, Erstellt, Gesendet, Unterschrieben, Verzögert, Abgelehnt.
-Sitzt am Vertrag, nicht an der Kooperation.
+Sitzt am Vertrag, nicht an der Kooperation. Wird nicht manuell gesetzt.
 _Avoid_: Finalisiert, Kooperation-Status, Produktionsstatus
 
 **Gesendet**:
 Vertrag-Status nach erfolgreichem Anschreiben mit generiertem PDF.
 _Avoid_: Verschickt, An Creator gesendet, Geöffnet
+
+**Verzögert**:
+Vertrag-Status, 30 Tage nach Anschreiben ohne unterschriebenes PDF.
+_Avoid_: Überfällig, Ausstehend
 
 **Vertragstyp**:
 Art des Vertrags: UGC, Influencer Kooperation, Videograph, Model oder Contracting.
@@ -280,7 +284,9 @@ _Avoid_: Versand (das ist der Paketversand an Kooperationen), Teilen, Einladen
 
 **Empfänger**:
 Wer ein Anschreiben bekommt: CRM-Creator (`creator.mail`) oder Management (`management.email`),
-jeweils mit ID und Mail. Kein Casting-Eintrag ohne CRM, keine freie Adresse ohne Datensatz.
+jeweils mit ID und Mail. Kann am Dokument feststehen (dann Anzeige) oder im Anschreiben gewählt
+werden — gesteuert am Anschreiben-Kernel, nicht pro Seite.
+Kein Casting-Eintrag ohne CRM, keine freie Adresse ohne Datensatz.
 _Avoid_: Casting-Eintrag, freie E-Mail
 
 **Mailvorlage**:

@@ -9,7 +9,9 @@
 // unternehmen_id ist im Nested-Flow ein Hidden-Feld aus dem Kontext. Im
 // Standalone (/produkt/new, /produkt/:id) ist es ein sichtbares Select
 // (docRole 'owner'). marke_ids rendert nur im Unternehmens-Kontext und im
-// Standalone - aus einer Marke heraus ist die Zuordnung fix.
+// Standalone - aus einer Marke heraus ist die Zuordnung fix. briefing_ids
+// ist immer da (Tag-Multiselect, gefiltert nach Unternehmen) und landet
+// in campaign_briefing_produkt, nicht in der produkt-Zeile.
 //
 // Die doc*-Angaben steuern das Worksheet-Layout im geteilten Doc-Renderer
 // (core/doc/DocPage.js - dort ist der kanonische Ueberblick dokumentiert).
@@ -34,7 +36,7 @@ export const produktConfig = {
       docSlot: 'side',
       section: 'auslesen',
       sectionTitle: 'Mit der Produktseite starten',
-      sectionDescription: 'Adresse eintragen und "Auslesen" klicken: Beschreibung, USP, Preis und Produktbilder kommen aus der Shop-Seite. Nur leere Felder werden gefüllt, eigene Eingaben bleiben unangetastet.'
+      sectionDescription: 'Adresse eintragen und "Auslesen" klicken, oder ein Produkt-PDF auf Liky ziehen. Beschreibung, USP, Preis und Produktbilder kommen aus der Quelle. Nur leere Felder werden gefüllt, eigene Eingaben bleiben unangetastet.'
     },
 
     // 2. Was ist es
@@ -86,6 +88,29 @@ export const produktConfig = {
       docRole: 'relations',
       docLabel: 'Marken',
       docHint: 'Optional. Ohne Marke gehört das Produkt nur dem Unternehmen.',
+      docGroup: 'inhalt',
+      section: 'basis'
+    },
+    {
+      name: 'briefing_ids',
+      label: 'Briefings',
+      type: 'multiselect',
+      required: false,
+      dynamic: true,
+      searchable: true,
+      tagBased: true,
+      customField: true,
+      table: 'campaign_briefings',
+      displayField: 'aktivierung_name',
+      valueField: 'id',
+      filterBy: 'unternehmen_id',
+      relationTable: 'campaign_briefing_produkt',
+      relationField: 'briefing_id',
+      relationEntityField: 'produkt_id',
+      placeholder: 'Briefings suchen und hinzufügen...',
+      docRole: 'relations',
+      docLabel: 'Briefings',
+      docHint: 'Optional. Briefings dieses Unternehmens, auch Entwürfe.',
       docGroup: 'inhalt',
       section: 'basis'
     },

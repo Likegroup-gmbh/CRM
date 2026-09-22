@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderItemRow } from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
+import { renderItemRow } from '../modules/creator-auswahl/castingItemRow.js';
+import { CastingVorschlagPanel } from '../modules/creator-auswahl/CastingVorschlagPanel.js';
 import {
   vorschlagToItem,
   CastingVorschlagService,
@@ -187,5 +188,28 @@ describe('CastingVorschlagService.starteJob', () => {
       .rejects.toThrow('Die Generierung ist nicht angelaufen');
     await vi.advanceTimersByTimeAsync(JOB_START_WATCHDOG_MS + 2000);
     await pending;
+  });
+});
+
+describe('CastingVorschlagPanel in der Aktionszeile', () => {
+  it('rendert nur den Holen-Button, ohne KI-Kopf', () => {
+    document.body.innerHTML = `
+      <div class="add-item-actions-right">
+        <button id="btn-open-add-drawer">Creator hinzufügen</button>
+        <div id="casting-vorschlag-block"></div>
+      </div>`;
+    const panel = new CastingVorschlagPanel({
+      isKunde: false,
+      liste: { briefing_id: 'b1' },
+      _q: (sel) => document.querySelector(sel)
+    });
+    panel.render();
+
+    const block = document.getElementById('casting-vorschlag-block');
+    expect(block.closest('.add-item-actions-right')).not.toBeNull();
+    expect(block.querySelector('#btn-casting-vorschlag-holen').textContent).toContain('Vorschläge holen');
+    expect(block.querySelector('.casting-vorschlag__titel')).toBeNull();
+    expect(block.textContent).not.toContain('KI-Vorschläge');
+    document.body.innerHTML = '';
   });
 });

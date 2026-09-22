@@ -12,7 +12,8 @@
 // mitten im Dokument.
 //
 // Im Unternehmens- und Listen-Kontext traegt das Dokument ein Marken-
-// Multiselect. Aus einer Marke heraus ist die Zuordnung fix.
+// Multiselect. Aus einer Marke heraus ist die Zuordnung fix. Briefings
+// sind in jedem Kontext ein Tag-Multiselect.
 
 import { ProduktService, MAX_BILDER, isStandaloneProduktPath } from './ProduktService.js';
 import { ProduktVariantenPanel } from './ProduktVarianten.js';
@@ -32,6 +33,7 @@ export class ProduktForm {
     this.produktId = null;
     this.produkt = null;
     this.markenIds = [];
+    this.briefingIds = [];
     this.varianten = [];
     this.bilder = [];
     this.variantenPanel = null;
@@ -74,6 +76,7 @@ export class ProduktForm {
       : new URLSearchParams(window.location.search).get('produkt');
     this.produkt = null;
     this.markenIds = [];
+    this.briefingIds = [];
     this.varianten = [];
     this.bilder = [];
 
@@ -89,10 +92,11 @@ export class ProduktForm {
           window.navigateTo(this.returnRoute);
           return;
         }
-        [this.varianten, this.bilder, this.markenIds] = await Promise.all([
+        [this.varianten, this.bilder, this.markenIds, this.briefingIds] = await Promise.all([
           ProduktService.loadVarianten(this.produktId),
           ProduktService.loadBilder(this.produktId),
-          ProduktService.loadMarkenIds(this.produktId)
+          ProduktService.loadMarkenIds(this.produktId),
+          ProduktService.loadBriefingIds(this.produktId)
         ]);
       }
     } catch (err) {
@@ -140,7 +144,7 @@ export class ProduktForm {
     });
 
     const formData = this.isEdit
-      ? { ...this.produkt, marke_ids: this.markenIds, _isEditMode: true, _entityId: this.produkt.id }
+      ? { ...this.produkt, marke_ids: this.markenIds, briefing_ids: this.briefingIds, _isEditMode: true, _entityId: this.produkt.id }
       : null;
 
     window.content.innerHTML = renderProduktDoc(formData, {
@@ -152,7 +156,7 @@ export class ProduktForm {
     const form = document.getElementById('produkt-form');
     bindProduktDoc(form, formData);
 
-    // Searchable-Selects und filterBy (Marke nach Firma) muessen stehen,
+    // Searchable-Selects und filterBy (Marke und Briefing nach Firma) muessen stehen,
     // bevor applyUnternehmenScope die Firmenliste setzt.
     await window.formSystem.bindFormEvents('produkt', formData);
 
@@ -213,10 +217,12 @@ export class ProduktForm {
   syncMarkenFeldSichtbarkeit() {
     if (!this.isStandalone) return;
     const form = document.getElementById('produkt-form');
-    const section = form?.querySelector('[data-doc-field="marke_ids"]');
-    if (!section) return;
+    if (!form) return;
     const value = form.querySelector('[name="unternehmen_id"]')?.value;
-    section.hidden = !value;
+    for (const name of ['marke_ids', 'briefing_ids']) {
+      const section = form.querySelector(`[data-doc-field="${name}"]`);
+      if (section) section.hidden = !value;
+    }
   }
 
   /**
@@ -419,6 +425,7 @@ export class ProduktForm {
       }
 
       await ProduktService.saveMarken(produktId, this.collectMarkenIds(data));
+      await ProduktService.saveBriefings(produktId, this.collectBriefingIds(data));
       await ProduktService.saveVarianten(produktId, this.variantenPanel?.getVarianten() || []);
       await this.saveBilder(produktId);
       await this.saveVariantenBilder(produktId);
@@ -431,6 +438,13 @@ export class ProduktForm {
       window.toastSystem?.error?.('Fehler beim Speichern: ' + err.message);
       this.releaseSubmitBtn(submitBtn);
     }
+  }
+
+  /** Tag-Feld ist in jedem Kontext sichtbar, leere Auswahl loest alle Briefings. */
+  collectBriefingIds(data) {
+    const werte = data.briefing_ids;
+    if (Array.isArray(werte)) return werte;
+    return werte ? [werte] : [];
   }
 
   /**

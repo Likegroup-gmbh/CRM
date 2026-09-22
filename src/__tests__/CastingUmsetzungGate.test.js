@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { renderItemRow } from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
+import { renderItemRow } from '../modules/creator-auswahl/castingItemRow.js';
 import {
   hatKundenPrio,
   hatZusageOderGebucht,

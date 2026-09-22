@@ -45,8 +45,30 @@ describe('openAnschreiben', () => {
       dokumentId: 'b1',
       dokumentName: 'Glow',
       unternehmenId: 'u1',
+      empfaengerFest: false,
     });
     expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it('Call-Site sticht Adapter: empfaengerFest true plus Prefill', async () => {
+    const detail = {
+      briefing: {
+        is_draft: false,
+        aktivierung_name: 'Glow',
+        unternehmen_id: 'u1',
+      },
+    };
+    await openAnschreiben({
+      dokumentTyp: 'briefing',
+      dokumentId: 'b1',
+      detail,
+      empfaengerFest: true,
+      prefill: [{ typ: 'creator', id: 'c1', email: 'a@b.de', name: 'A' }],
+    });
+    expect(AnschreibenDrawer.mock.calls[0][0]).toMatchObject({
+      empfaengerFest: true,
+      prefill: [expect.objectContaining({ id: 'c1', email: 'a@b.de' })],
+    });
   });
 
   it('oeffnet Vertrag-Drawer mit Prefill Creator', async () => {
@@ -63,7 +85,42 @@ describe('openAnschreiben', () => {
     expect(opts.prefill).toEqual([
       expect.objectContaining({ id: 'c1', email: 'max@x.de', typ: 'creator' }),
     ]);
+    expect(opts.empfaengerFest).toBe(true);
     expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it('Vertrag ohne Creator laesst empfaengerFest false', async () => {
+    await openAnschreiben({
+      dokumentTyp: 'vertrag',
+      dokumentId: 'v1',
+      vertrag: {
+        is_draft: false,
+        datei_url: 'https://dropbox.com/v.pdf',
+        name: 'Contracting',
+        kunde_unternehmen_id: 'u1',
+      },
+    });
+    expect(AnschreibenDrawer.mock.calls[0][0].empfaengerFest).toBe(false);
+    expect(AnschreibenDrawer.mock.calls[0][0].prefill).toEqual([]);
+  });
+
+  it('Vertrag-Creator ohne Mail bleibt feststehend', async () => {
+    await openAnschreiben({
+      dokumentTyp: 'vertrag',
+      dokumentId: 'v1',
+      vertrag: {
+        is_draft: false,
+        datei_url: 'https://dropbox.com/v.pdf',
+        name: 'UGC Max',
+        kunde_unternehmen_id: 'u1',
+        creator: { id: 'c1', vorname: 'Max', nachname: 'M', mail: '' },
+      },
+    });
+    const opts = AnschreibenDrawer.mock.calls[0][0];
+    expect(opts.empfaengerFest).toBe(true);
+    expect(opts.prefill).toEqual([
+      expect.objectContaining({ id: 'c1', email: '', name: 'Max M' }),
+    ]);
   });
 
   it('lehnt Vertrags-Entwurf ab', async () => {

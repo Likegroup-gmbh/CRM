@@ -160,4 +160,25 @@ describe('AnschreibenDrawer', () => {
     expect(document.querySelector('[data-pdf-status]').textContent).toContain('wird beim Senden geladen');
     drawer.close();
   });
+
+  it('empfaengerFest zeigt Anzeige statt Picker und erlaubt Senden', async () => {
+    const drawer = await openDrawer(mockDb(), {
+      empfaengerFest: true,
+      prefill: [{ typ: 'creator', id: 'c1', email: 'a@b.de', name: 'Anna', vorname: 'Anna' }],
+    });
+    expect(document.querySelector('.empfaenger-composer__toggle')).toBeNull();
+    expect(document.querySelector('.empfaenger-fest__name').textContent).toBe('Anna');
+    expect(document.querySelector('[data-action="send"]').disabled).toBe(false);
+    drawer.close();
+  });
+
+  it('empfaengerFest ohne Mail haelt Senden disabled', async () => {
+    const drawer = await openDrawer(mockDb(), {
+      empfaengerFest: true,
+      prefill: [{ typ: 'creator', id: 'c1', email: '', name: 'Anna' }],
+    });
+    expect(document.querySelector('.empfaenger-fest__name').textContent).toBe('Anna');
+    expect(document.querySelector('[data-action="send"]').disabled).toBe(true);
+    drawer.close();
+  });
 });

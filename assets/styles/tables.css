@@ -1923,6 +1923,7 @@ thead {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-md);
+  padding: var(--space-xs);
 }
 
 .casting-vorschlag__titel {

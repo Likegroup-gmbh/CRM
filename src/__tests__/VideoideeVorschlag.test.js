@@ -10,6 +10,7 @@ import {
 import { truncateText, buildFreigegebeneVideoideePickerOptions } from '../modules/strategie/strategieItemPicker.js';
 import { strategieService } from '../modules/strategie/StrategieService.js';
 import { VideoideeVorschlagService, JOB_START_WATCHDOG_MS } from '../modules/strategie/VideoideeVorschlagService.js';
+import { StrategieDetail } from '../modules/strategie/StrategieDetail.js';
 
 const require = createRequire(import.meta.url);
 const {
@@ -209,6 +210,49 @@ describe('KI-Vorschlag als Tabellenzeile', () => {
     const doc = renderRow({ beschreibung: 'Normale Idee' });
     expect(doc.querySelector('tr.item-row').classList.contains('item-row--vorschlag')).toBe(false);
     expect(doc.querySelector('[data-action="delete-item"]')).not.toBeNull();
+  });
+});
+
+describe('VideoideeVorschlagPanel in der Aktionszeile', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('legt den Block zwischen Hinzufügen und Plus-Menü, ohne KI-Kopf', () => {
+    const detail = new StrategieDetail();
+    detail.canEdit = true;
+    detail.canCreate = true;
+    detail.strategie = { name: 'Sommer', briefing_id: 'b1' };
+    const html = detail.renderAddItemSection();
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const rechts = doc.querySelector('.add-item-actions-right');
+    const kinder = Array.from(rechts.children);
+
+    expect(kinder[0].id).toBe('btn-open-add-drawer');
+    expect(kinder[1].id).toBe('videoidee-vorschlag-block');
+    expect(kinder[2].classList.contains('toolbar-menu')).toBe(true);
+
+    document.body.innerHTML = html;
+    detail.items = [{ id: 'v1', ist_vorschlag: true }];
+    detail.vorschlagPanel.render();
+
+    const block = document.getElementById('videoidee-vorschlag-block');
+    expect(block.querySelector('#btn-videoidee-vorschlag-holen').textContent).toContain('Weitere Ideen');
+    expect(block.querySelector('#btn-videoidee-vorschlag-alle-uebernehmen')).not.toBeNull();
+    expect(block.querySelector('#btn-videoidee-vorschlag-alle-verwerfen')).not.toBeNull();
+    expect(block.querySelector('.casting-vorschlag__titel')).toBeNull();
+    expect(block.textContent).not.toContain('KI-Vorschläge');
+  });
+
+  it('zeigt bei nur canCreate die Zeile mit dem Block, ohne Hinzufügen', () => {
+    const detail = new StrategieDetail();
+    detail.canEdit = false;
+    detail.canCreate = true;
+    detail.strategie = { name: 'Sommer' };
+    const doc = new DOMParser().parseFromString(detail.renderAddItemSection(), 'text/html');
+
+    expect(doc.querySelector('#btn-open-add-drawer')).toBeNull();
+    expect(doc.querySelector('#videoidee-vorschlag-block').closest('.add-item-actions-right')).not.toBeNull();
   });
 });
 

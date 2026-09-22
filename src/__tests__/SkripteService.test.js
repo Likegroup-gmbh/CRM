@@ -53,6 +53,8 @@ describe('SkripteService.loadSkripte', () => {
     expect(select).toHaveBeenCalledWith(expect.stringContaining('unternehmen(id, firmenname, internes_kuerzel, logo_url)'));
     expect(select).toHaveBeenCalledWith(expect.stringContaining('marke(id, markenname, logo_url)'));
     expect(select).toHaveBeenCalledWith(expect.stringContaining('kampagne(id, kampagnenname, eigener_name)'));
+    expect(select).toHaveBeenCalledWith(expect.stringContaining('strategie_item:strategie_item_id'));
+    expect(select).toHaveBeenCalledWith(expect.stringContaining('creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url)'));
     // Listen-Loader zieht die dicken Content-Felder nicht mit
     const selectArg = select.mock.calls[0][0];
     expect(selectArg).not.toContain('hauptteil');
@@ -175,16 +177,17 @@ describe('SkripteService.loadSkript', () => {
   it('gibt Skript zurueck', async () => {
     setupWindow({ isAdmin: true });
 
-    window.supabase.from = vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          maybeSingle: vi.fn(() => Promise.resolve({ data: skript(), error: null }))
-        }))
+    const select = vi.fn(() => ({
+      eq: vi.fn(() => ({
+        maybeSingle: vi.fn(() => Promise.resolve({ data: skript(), error: null }))
       }))
     }));
+    window.supabase.from = vi.fn(() => ({ select }));
 
     const result = await service.loadSkript('s1');
     expect(result).not.toBeNull();
+    expect(select).toHaveBeenCalledWith(expect.stringContaining('strategie_item:strategie_item_id('));
+    expect(select).toHaveBeenCalledWith(expect.stringContaining('profilbild_thumb_url'));
   });
 
   it('nicht sichtbar (RLS) -> null, kein Fehler', async () => {
@@ -217,17 +220,19 @@ describe('SkripteService.loadSkript', () => {
   });
 });
 
-function mockBriefingsBuilder(rows, captured) {
+function mockQueryBuilder(rows, captured) {
   const api = {
-    select: vi.fn(() => api),
+    select: vi.fn((cols) => { captured.select = cols; return api; }),
     eq: vi.fn((k, v) => { captured.eq[k] = v; return api; }),
-    or: vi.fn((expr) => { captured.or = expr; return api; }),
-    order: vi.fn(() => Promise.resolve({ data: rows, error: null }))
+    not: vi.fn((col, op, val) => { captured.not = [col, op, val]; return api; }),
+    in: vi.fn((k, v) => { captured.in = [k, v]; return api; }),
+    order: vi.fn(() => Promise.resolve({ data: rows, error: null })),
+    then: (resolve, reject) => Promise.resolve({ data: rows, error: null }).then(resolve, reject)
   };
   return api;
 }
 
-describe('SkripteService.loadBriefings', () => {
+describe('SkripteService.loadKonzepte', () => {
   let service;
 
   beforeEach(() => {
@@ -236,32 +241,92 @@ describe('SkripteService.loadBriefings', () => {
 
   it('ohne Unternehmen leere Liste, keine Query', async () => {
     setupWindow();
-    const result = await service.loadBriefings(null);
+    const result = await service.loadKonzepte({});
     expect(result).toEqual([]);
     expect(window.supabase.from).not.toHaveBeenCalled();
   });
 
-  it('filtert Unternehmen + is_draft=false, ohne Marke kein or()', async () => {
+  it('filtert auf unternehmen_id', async () => {
     setupWindow();
-    const captured = { eq: {}, or: null };
-    const rows = [{ id: 'b1', aktivierung_name: 'Glow', bereich: 'influencer_marketing', is_draft: false }];
-    window.supabase.from = vi.fn(() => mockBriefingsBuilder(rows, captured));
+    const captured = { eq: {}, select: null };
+    const rows = [{ id: 'st-1', name: 'Sommer' }];
+    window.supabase.from = vi.fn(() => mockQueryBuilder(rows, captured));
 
-    const result = await service.loadBriefings('u1');
-    expect(window.supabase.from).toHaveBeenCalledWith('campaign_briefings');
+    const result = await service.loadKonzepte({ unternehmenId: 'u1' });
+    expect(window.supabase.from).toHaveBeenCalledWith('strategie');
     expect(captured.eq.unternehmen_id).toBe('u1');
-    expect(captured.eq.is_draft).toBe(false);
-    expect(captured.or).toBeNull();
+    expect(captured.eq.kampagne_id).toBeUndefined();
     expect(result).toEqual(rows);
   });
 
-  it('mit Marke: marke_id = Y OR marke_id IS NULL', async () => {
+  it('Prefill filtert zusaetzlich auf kampagne_id', async () => {
     setupWindow();
-    const captured = { eq: {}, or: null };
-    window.supabase.from = vi.fn(() => mockBriefingsBuilder([], captured));
+    const captured = { eq: {}, select: null };
+    window.supabase.from = vi.fn(() => mockQueryBuilder([], captured));
 
-    await service.loadBriefings('u1', 'm9');
-    expect(captured.or).toBe('marke_id.eq.m9,marke_id.is.null');
+    await service.loadKonzepte({ unternehmenId: 'u1', kampagneId: 'k9' });
+    expect(captured.eq.unternehmen_id).toBe('u1');
+    expect(captured.eq.kampagne_id).toBe('k9');
+  });
+});
+
+describe('SkripteService.loadFreigegebeneVideoideen', () => {
+  let service;
+
+  beforeEach(() => {
+    service = new SkripteService();
+  });
+
+  it('ohne Konzept leere Liste, keine Query', async () => {
+    setupWindow();
+    expect(await service.loadFreigegebeneVideoideen({ unternehmenId: 'u1' })).toEqual([]);
+    expect(await service.loadFreigegebeneVideoideen({ strategieId: 'st-1' })).toEqual([]);
+    expect(window.supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('filtert auf strategie_id und joined persona_id', async () => {
+    setupWindow();
+    const captured = { eq: {}, select: null };
+    window.supabase.from = vi.fn((table) => {
+      if (table === 'skripte') return mockQueryBuilder([], { eq: {} });
+      return mockQueryBuilder([], captured);
+    });
+
+    await service.loadFreigegebeneVideoideen({ unternehmenId: 'u1', strategieId: 'st-1' });
+    expect(window.supabase.from).toHaveBeenCalledWith('strategie_items');
+    expect(captured.eq.strategie_id).toBe('st-1');
+    expect(captured.eq['strategie.unternehmen_id']).toBe('u1');
+    expect(captured.select).toContain('persona_id');
+  });
+});
+
+describe('SkripteService.loadAcceptedProduktIds', () => {
+  let service;
+
+  beforeEach(() => {
+    service = new SkripteService();
+  });
+
+  it('ohne Persona leere Liste, keine Query', async () => {
+    setupWindow();
+    expect(await service.loadAcceptedProduktIds(null)).toEqual([]);
+    expect(window.supabase.from).not.toHaveBeenCalled();
+  });
+
+  it('dedupliziert accepted Fits', async () => {
+    setupWindow();
+    const captured = { eq: {} };
+    window.supabase.from = vi.fn(() => mockQueryBuilder([
+      { produkt_id: 'pr-1' },
+      { produkt_id: 'pr-1' },
+      { produkt_id: 'pr-2' }
+    ], captured));
+
+    const ids = await service.loadAcceptedProduktIds('p1');
+    expect(window.supabase.from).toHaveBeenCalledWith('produkt_persona_vorschlag');
+    expect(captured.eq.persona_id).toBe('p1');
+    expect(captured.eq.status).toBe('accepted');
+    expect(ids).toEqual(['pr-1', 'pr-2']);
   });
 });
 

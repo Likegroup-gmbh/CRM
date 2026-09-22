@@ -1,14 +1,12 @@
 // SkriptCreateDrawer.js
 // Rechter Create-Drawer analog Konzept/Casting.
-// Kaskade: Unternehmen → Marke → Kampagne → Produkt → Persona → Branche →
-// Briefing → Video aus Konzept. Skript-DNA entfaellt (Master-Regelwerk).
+// Kaskade: Unternehmen → Konzept → Videoidee. Rest aus der Kette.
 
 import { skripteService } from './SkripteService.js';
 import { escapeHtml } from './SkripteUtils.js';
-import { PersonaService } from '../persona/PersonaService.js';
-import { BEREICH_LABELS } from '../briefing/create/fieldConfig.js';
 import { buildFreigegebeneVideoideePickerOptions } from '../strategie/strategieItemPicker.js';
 import { buildReferenzVideoPayload } from './strategieVorlage.js';
+import { resolveSkriptCreatePayload } from './skriptCreateKontext.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
 const DRAWER_ID = 'skript-create-drawer';
@@ -25,7 +23,7 @@ function creatorName(item) {
 export function openSkriptCreateDrawer(prefill) {
   closeSkriptCreateDrawer();
   const drawer = new SkriptCreateDrawer();
-  drawer.prefill = prefill && prefill.kampagne_id ? prefill : null;
+  drawer.prefill = prefill && prefill.unternehmen_id ? prefill : null;
   drawer.open();
 }
 
@@ -46,9 +44,7 @@ export function closeSkriptCreateDrawer() {
 class SkriptCreateDrawer {
   constructor() {
     this.unternehmen = [];
-    this.marken = [];
-    this.branchen = [];
-    this.briefings = [];
+    this.konzepte = [];
     this.items = [];
     this.selectedItem = null;
     this.prefill = null;
@@ -64,10 +60,7 @@ class SkriptCreateDrawer {
       document.getElementById(DRAWER_ID)?.classList.add('show');
     });
     this.bindStatic();
-    await Promise.all([
-      this.loadUnternehmen(),
-      this.loadBranchen()
-    ]);
+    await this.loadUnternehmen();
     this.initDisabledDependents();
     await this.applyPrefill();
   }
@@ -85,7 +78,7 @@ class SkriptCreateDrawer {
       <div class="drawer-header">
         <div>
           <span class="drawer-title">Neues Skript</span>
-          <p class="drawer-subtitle">${this.prefill?.kampagne_id ? 'Für diese Kampagne' : 'Kontext wählen, dann eine freigegebene Videoidee'}</p>
+          <p class="drawer-subtitle">${this.prefill?.kampagne_id ? 'Für diese Kampagne' : 'Unternehmen, Konzept, dann eine freigegebene Videoidee'}</p>
         </div>
         <button type="button" class="drawer-close-btn" aria-label="Schließen">&times;</button>
       </div>
@@ -96,33 +89,13 @@ class SkriptCreateDrawer {
             <select id="${PREFIX}-unternehmen" class="form-input"><option value="">Laden...</option></select>
           </div>
           <div class="form-field">
-            <label for="${PREFIX}-marke">Marke</label>
-            <select id="${PREFIX}-marke" class="form-input" disabled><option value="">– Erst Unternehmen wählen –</option></select>
+            <label for="${PREFIX}-konzept">Konzept *</label>
+            <select id="${PREFIX}-konzept" class="form-input" disabled><option value="">– Erst Unternehmen wählen –</option></select>
           </div>
           <div class="form-field">
-            <label for="${PREFIX}-kampagne">Kampagne *</label>
-            <select id="${PREFIX}-kampagne" class="form-input" disabled><option value="">– Erst Unternehmen wählen –</option></select>
-          </div>
-          <div class="form-field">
-            <label for="${PREFIX}-produkt">Produkt</label>
-            <select id="${PREFIX}-produkt" class="form-input" disabled><option value="">– Erst Unternehmen wählen –</option></select>
-          </div>
-          <div class="form-field">
-            <label for="${PREFIX}-persona">Persona</label>
-            <select id="${PREFIX}-persona" class="form-input" disabled><option value="">– Erst Unternehmen wählen –</option></select>
-          </div>
-          <div class="form-field">
-            <label for="${PREFIX}-branche">Branche</label>
-            <select id="${PREFIX}-branche" class="form-input"><option value="">Laden...</option></select>
-          </div>
-          <div class="form-field">
-            <label for="${PREFIX}-briefing">Briefing</label>
-            <select id="${PREFIX}-briefing" class="form-input" disabled><option value="">– Erst Unternehmen wählen –</option></select>
-          </div>
-          <div class="form-field">
-            <label for="${PREFIX}-videoidee">Video aus Konzept *</label>
-            <select id="${PREFIX}-videoidee" class="form-input" disabled><option value="">– Erst Kampagne wählen –</option></select>
-            <span class="skripte-hint" id="${PREFIX}-videoidee-hint">Wähle zuerst eine Kampagne.</span>
+            <label for="${PREFIX}-videoidee">Videoidee *</label>
+            <select id="${PREFIX}-videoidee" class="form-input" disabled><option value="">– Erst Konzept wählen –</option></select>
+            <span class="skripte-hint" id="${PREFIX}-videoidee-hint">Wähle zuerst ein Konzept.</span>
           </div>
           <div class="form-field" id="${PREFIX}-kontext" hidden>
             <label>Creator</label>
@@ -151,8 +124,7 @@ class SkriptCreateDrawer {
 
   bindStatic() {
     this.el('unternehmen')?.addEventListener('change', () => this.onUnternehmenChange());
-    this.el('marke')?.addEventListener('change', () => this.onMarkeChange());
-    this.el('kampagne')?.addEventListener('change', () => this.onKampagneChange());
+    this.el('konzept')?.addEventListener('change', () => this.onKonzeptChange());
     this.el('videoidee')?.addEventListener('change', () => this.onVideoideeChange());
     const form = document.getElementById(`${PREFIX}-form`);
     form?.addEventListener('submit', (e) => {
@@ -194,7 +166,7 @@ class SkriptCreateDrawer {
   ensureOption(name, value, label) {
     const select = this.el(name);
     if (!select || !value) return;
-    if (select.querySelector(`option[value="${CSS.escape(value)}"]`)) return;
+    if ([...select.options].some((o) => o.value === value)) return;
     const opt = document.createElement('option');
     opt.value = value;
     opt.textContent = label || value;
@@ -234,31 +206,21 @@ class SkriptCreateDrawer {
     await this.onUnternehmenChange();
     this.lockSearchable('unternehmen');
 
-    if (prefill.marke_id) {
-      this.ensureOption('marke', prefill.marke_id, prefill.markeName);
-      this.setSearchableValue('marke', prefill.marke_id);
-      await this.onMarkeChange();
-      this.lockSearchable('marke');
-    }
-
-    if (prefill.kampagne_id) {
-      this.ensureOption('kampagne', prefill.kampagne_id, prefill.kampagneName);
-      this.setSearchableValue('kampagne', prefill.kampagne_id);
-      await this.onKampagneChange();
-      this.lockSearchable('kampagne');
+    if (this.konzepte.length === 1) {
+      this.setSearchableValue('konzept', this.konzepte[0].id);
+      await this.onKonzeptChange();
+      this.lockSearchable('konzept');
     }
   }
 
   initDisabledDependents() {
-    const empty = '– Erst Unternehmen wählen –';
-    this.refreshSearchableSelect('marke', [], { placeholder: 'Marke suchen…', emptyLabel: empty });
-    this.refreshSearchableSelect('kampagne', [], { placeholder: 'Kampagne suchen…', emptyLabel: empty });
-    this.refreshSearchableSelect('produkt', [], { placeholder: 'Produkt suchen…', emptyLabel: empty });
-    this.refreshSearchableSelect('persona', [], { placeholder: 'Persona suchen…', emptyLabel: empty });
-    this.refreshSearchableSelect('briefing', [], { placeholder: 'Briefing suchen…', emptyLabel: empty });
+    this.refreshSearchableSelect('konzept', [], {
+      placeholder: 'Konzept suchen…',
+      emptyLabel: '– Erst Unternehmen wählen –'
+    });
     this.refreshSearchableSelect('videoidee', [], {
       placeholder: 'Videoidee suchen…',
-      emptyLabel: '– Erst Kampagne wählen –'
+      emptyLabel: '– Erst Konzept wählen –'
     });
   }
 
@@ -270,190 +232,70 @@ class SkriptCreateDrawer {
     })), { placeholder: 'Unternehmen suchen…', emptyLabel: '– Unternehmen wählen –' });
   }
 
-  async loadBranchen() {
-    this.branchen = await skripteService.loadBranchen();
-    this.refreshSearchableSelect('branche', this.branchen.map((b) => ({
-      value: b.id,
-      label: b.name
-    })), { placeholder: 'Branche suchen…', emptyLabel: '– Keine –' });
-  }
-
   async onUnternehmenChange() {
-    const unternehmenId = this.el('unternehmen')?.value;
-    const markeSelect = this.el('marke');
     this.clearVideoidee();
+    this.setSearchableValue('konzept', '');
+    await this.loadKonzepte();
+    await this.loadVideoideen();
+  }
+
+  async onKonzeptChange() {
+    this.clearVideoidee();
+    await this.loadVideoideen();
+  }
+
+  async loadKonzepte() {
+    const unternehmenId = this.el('unternehmen')?.value || null;
+    const select = this.el('konzept');
+    if (!select) return;
 
     if (!unternehmenId) {
-      if (markeSelect) markeSelect.disabled = true;
-      this.refreshSearchableSelect('marke', [], {
-        placeholder: 'Marke suchen…',
+      this.konzepte = [];
+      select.disabled = true;
+      this.refreshSearchableSelect('konzept', [], {
+        placeholder: 'Konzept suchen…',
         emptyLabel: '– Erst Unternehmen wählen –'
       });
-      this.setSearchableValue('kampagne', '');
-      await Promise.all([
-        this.loadKampagnen(),
-        this.loadProdukteUndPersonas(),
-        this.loadBriefings()
-      ]);
-      await this.loadVideoideen();
       return;
     }
 
-    const unternehmen = this.unternehmen.find((u) => u.id === unternehmenId);
-    if (unternehmen?.branche_id) this.setSearchableValue('branche', unternehmen.branche_id);
-
-    this.marken = await skripteService.loadMarken(unternehmenId);
-    if (markeSelect) markeSelect.disabled = false;
-    this.refreshSearchableSelect('marke', this.marken.map((m) => ({
-      value: m.id,
-      label: m.markenname
-    })), {
-      placeholder: 'Marke suchen…',
-      emptyLabel: this.marken.length ? '– Keine –' : '– Keine Marke vorhanden –'
+    this.konzepte = await skripteService.loadKonzepte({
+      unternehmenId,
+      kampagneId: this.prefill?.kampagne_id || null
     });
-
-    this.setSearchableValue('kampagne', '');
-    await Promise.all([
-      this.loadKampagnen(),
-      this.loadProdukteUndPersonas(),
-      this.loadBriefings()
-    ]);
-    await this.loadVideoideen();
-  }
-
-  async onMarkeChange() {
-    const markeId = this.el('marke')?.value;
-    const marke = this.marken.find((m) => m.id === markeId);
-    if (marke?.branche_id) this.setSearchableValue('branche', marke.branche_id);
-    this.clearVideoidee();
-    this.setSearchableValue('kampagne', '');
-    await Promise.all([
-      this.loadKampagnen(),
-      this.loadProdukteUndPersonas(),
-      this.loadBriefings()
-    ]);
-    await this.loadVideoideen();
-  }
-
-  async onKampagneChange() {
-    this.clearVideoidee();
-    await this.loadVideoideen();
-  }
-
-  async loadKampagnen() {
-    const unternehmenId = this.el('unternehmen')?.value || null;
-    const markeId = this.el('marke')?.value || null;
-    const select = this.el('kampagne');
-    if (!select) return;
-
-    if (!unternehmenId) {
-      select.disabled = true;
-      this.refreshSearchableSelect('kampagne', [], {
-        placeholder: 'Kampagne suchen…',
-        emptyLabel: '– Erst Unternehmen wählen –'
-      });
-      return;
-    }
-
-    const kampagnen = await skripteService.loadKampagnen({ markeId, unternehmenId });
     select.disabled = false;
-    this.refreshSearchableSelect('kampagne', kampagnen.map((k) => ({
+    this.refreshSearchableSelect('konzept', this.konzepte.map((k) => ({
       value: k.id,
-      label: k.eigener_name || k.kampagnenname || k.id
-    })), { placeholder: 'Kampagne suchen…', emptyLabel: '– Kampagne wählen –' });
-  }
-
-  async loadProdukteUndPersonas() {
-    const unternehmenId = this.el('unternehmen')?.value || null;
-    const markeId = this.el('marke')?.value || null;
-    const produktSelect = this.el('produkt');
-    const personaSelect = this.el('persona');
-    if (!produktSelect || !personaSelect) return;
-
-    if (!unternehmenId) {
-      produktSelect.disabled = true;
-      personaSelect.disabled = true;
-      this.refreshSearchableSelect('produkt', [], {
-        placeholder: 'Produkt suchen…',
-        emptyLabel: '– Erst Unternehmen wählen –'
-      });
-      this.refreshSearchableSelect('persona', [], {
-        placeholder: 'Persona suchen…',
-        emptyLabel: '– Erst Unternehmen wählen –'
-      });
-      return;
-    }
-
-    const [produkte, personas] = await Promise.all([
-      skripteService.loadProdukte({ markeId, unternehmenId }),
-      markeId
-        ? PersonaService.loadForContext({ markeId })
-        : PersonaService.loadForContext({ unternehmenId })
-    ]);
-
-    produktSelect.disabled = false;
-    this.refreshSearchableSelect('produkt', produkte.map((p) => ({
-      value: p.id,
-      label: p.name
-    })), { placeholder: 'Produkt suchen…', emptyLabel: '– Keins –' });
-
-    personaSelect.disabled = false;
-    this.refreshSearchableSelect('persona', personas.map((p) => ({
-      value: p.id,
-      label: skripteService.personaLabel(p)
-    })), { placeholder: 'Persona suchen…', emptyLabel: '– Keine –' });
-  }
-
-  async loadBriefings() {
-    const unternehmenId = this.el('unternehmen')?.value || null;
-    const markeId = this.el('marke')?.value || null;
-    const select = this.el('briefing');
-    if (!select) return;
-
-    if (!unternehmenId) {
-      this.briefings = [];
-      select.disabled = true;
-      this.refreshSearchableSelect('briefing', [], {
-        placeholder: 'Briefing suchen…',
-        emptyLabel: '– Erst Unternehmen wählen –'
-      });
-      return;
-    }
-
-    this.briefings = await skripteService.loadBriefings(unternehmenId, markeId || null);
-    select.disabled = false;
-    this.refreshSearchableSelect('briefing', this.briefings.map((b) => {
-      const bereich = BEREICH_LABELS[b.bereich] || '';
-      const name = b.aktivierung_name || 'Unbenanntes Briefing';
-      return { value: b.id, label: bereich ? `${name} (${bereich})` : name };
-    }), { placeholder: 'Briefing suchen…', emptyLabel: '– Keins –' });
+      label: k.name || 'Unbenanntes Konzept'
+    })), {
+      placeholder: 'Konzept suchen…',
+      emptyLabel: this.konzepte.length ? '– Konzept wählen –' : '– Kein Konzept vorhanden –'
+    });
   }
 
   async loadVideoideen() {
     const unternehmenId = this.el('unternehmen')?.value || null;
-    const markeId = this.el('marke')?.value || null;
-    const kampagneId = this.el('kampagne')?.value || null;
+    const strategieId = this.el('konzept')?.value || null;
     const select = this.el('videoidee');
     const hint = this.el('videoidee-hint');
     if (!select) return;
 
     this.clearVideoidee();
 
-    if (!kampagneId) {
+    if (!strategieId) {
       this.items = [];
       select.disabled = true;
       this.refreshSearchableSelect('videoidee', [], {
         placeholder: 'Videoidee suchen…',
-        emptyLabel: '– Erst Kampagne wählen –'
+        emptyLabel: '– Erst Konzept wählen –'
       });
-      if (hint) hint.textContent = 'Wähle zuerst eine Kampagne.';
+      if (hint) hint.textContent = 'Wähle zuerst ein Konzept.';
       return;
     }
 
     this.items = await skripteService.loadFreigegebeneVideoideen({
       unternehmenId,
-      markeId: markeId || null,
-      kampagneId
+      strategieId
     });
     const options = buildFreigegebeneVideoideePickerOptions(this.items);
     select.disabled = options.length === 0;
@@ -468,7 +310,7 @@ class SkriptCreateDrawer {
         hint.querySelector('a')?.addEventListener('click', (e) => {
           e.preventDefault();
           closeSkriptCreateDrawer();
-          window.navigateTo?.('/konzepte');
+          window.navigateTo?.(`/konzepte/${strategieId}`);
         });
       } else {
         hint.textContent = 'Nur Ideen, die im Konzept ausdrücklich freigegeben wurden.';
@@ -481,11 +323,6 @@ class SkriptCreateDrawer {
     const item = this.items.find((i) => i.id === id) || null;
     this.selectedItem = item;
     this.renderCreator(item);
-
-    const briefingId = item?.strategie?.briefing_id;
-    if (briefingId && this.el('briefing') && !this.el('briefing').value) {
-      this.setSearchableValue('briefing', briefingId);
-    }
   }
 
   clearVideoidee() {
@@ -509,14 +346,14 @@ class SkriptCreateDrawer {
 
   async submit() {
     const unternehmenId = this.el('unternehmen')?.value;
-    const kampagneId = this.el('kampagne')?.value;
+    const strategieId = this.el('konzept')?.value;
     const itemId = this.el('videoidee')?.value;
     if (!unternehmenId) {
       window.toastSystem?.show('Bitte ein Unternehmen wählen', 'error');
       return;
     }
-    if (!kampagneId) {
-      window.toastSystem?.show('Bitte eine Kampagne wählen', 'error');
+    if (!strategieId) {
+      window.toastSystem?.show('Bitte ein Konzept wählen', 'error');
       return;
     }
     if (!itemId) {
@@ -540,26 +377,13 @@ class SkriptCreateDrawer {
     try {
       const voll = await skripteService.loadStrategieItem(itemId);
       const item = { ...basis, ...(voll || {}) };
-      const strategie = item.strategie || {};
       const videoIdee = (item.beschreibung || '').trim();
       if (!videoIdee) throw new Error('Die Videoidee hat keine Beschreibung');
 
-      const briefingId = this.el('briefing')?.value || strategie.briefing_id || null;
-      const briefing = this.briefings.find((b) => b.id === briefingId) || strategie.briefing || null;
-
+      const personaId = item.casting_eintrag?.persona_id || null;
+      const produktIds = await skripteService.loadAcceptedProduktIds(personaId);
       const payload = {
-        unternehmen_id: unternehmenId,
-        marke_id: this.el('marke')?.value || strategie.marke_id || null,
-        kampagne_id: kampagneId,
-        produkt_id: this.el('produkt')?.value || null,
-        persona_id: this.el('persona')?.value || null,
-        branche_id: this.el('branche')?.value || null,
-        briefing_id: briefingId,
-        briefing,
-        bereich: briefing?.bereich || strategie.briefing?.bereich || null,
-        strategie_item_id: item.id,
-        video_idee: videoIdee,
-        mit_dna: false,
+        ...resolveSkriptCreatePayload(item, { produktIds }),
         referenz_video: buildReferenzVideoPayload({
           strategieItemId: item.id,
           url: item.video_link,

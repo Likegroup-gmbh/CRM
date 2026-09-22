@@ -4,7 +4,7 @@
 // Argument, nie Literale in Formeln. Der Job speichert CONFIG_VERSION, damit
 // alte Listen spaeter noch erklaerbar sind.
 
-const CONFIG_VERSION = 3;
+const CONFIG_VERSION = 4;
 
 // Finaler Score (ADR 0014): ein Wert, Fit lastig. Cold-Start ohne
 // Casting-Historie: das Track-Gewicht wird auf Fit umverteilt (Renorm),
@@ -106,7 +106,6 @@ const PROFILES = {
 // Schwellen
 const SCHWELLEN = {
   wilsonMinN: 3,
-  abgelehntMonate: 12,
   repeatTage: 90,
   globalVorschlaegeNorm: 8
 };

@@ -1,13 +1,12 @@
 import { describe, it, expect } from 'vitest';
+import { renderItemRow } from '../modules/creator-auswahl/castingItemRow.js';
+import { renderItemsTable, renderAddSection } from '../modules/creator-auswahl/castingTableRender.js';
 import {
-  renderItemRow,
-  renderItemsTable,
-  renderAddSection,
   berechnePreisAusViews,
   getListenTkp,
   ohneEuroZeichen,
   DEFAULT_TKP
-} from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
+} from '../modules/creator-auswahl/castingPreisZellen.js';
 
 function renderCell(columnClass, item, ctx = {}) {
   const html = renderItemRow({ isKunde: false, hiddenColumns: [], ...ctx }, { id: 'i1', ...item }, 0);
@@ -269,7 +268,9 @@ describe('Sourcing – Kopfzeile der Detailtabelle', () => {
 
     expect(kinder[0].querySelector('#sourcing-item-search-input')).not.toBeNull();
     expect(kinder[1].id).toBe('btn-open-add-drawer');
-    expect(kinder[2].classList.contains('toolbar-menu')).toBe(true);
+    expect(kinder[2].id).toBe('casting-vorschlag-block');
+    expect(kinder[2].closest('.add-item-actions-right')).not.toBeNull();
+    expect(kinder[3].classList.contains('toolbar-menu')).toBe(true);
 
     const kundenDoc = kopf({ isKunde: true, canCreate: false });
     expect(kundenDoc.querySelector('#sourcing-item-search-input')).not.toBeNull();

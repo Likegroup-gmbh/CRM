@@ -965,6 +965,53 @@ describe('VideoElementPool – Offscreen-Retention', () => {
   });
 });
 
+describe('VideoPlayerLightbox._bindFormatHint – Hinweis bei Playback ausblenden', () => {
+  function stageWithHint({ paused = true, currentTime = 0 } = {}) {
+    const stage = document.createElement('div');
+    stage.innerHTML = `
+      <video class="vpl-video"></video>
+      <div class="vpl-format-hint">
+        <span class="vpl-format-hint-text">Hinweis</span>
+        <button type="button" class="vpl-format-hint-close">x</button>
+      </div>`;
+    const video = stage.querySelector('.vpl-video');
+    Object.defineProperty(video, 'paused', { get: () => paused });
+    Object.defineProperty(video, 'currentTime', { get: () => currentTime, configurable: true });
+    return stage;
+  }
+
+  function bind(stage) {
+    const player = new VideoPlayerLightbox(makeFakeTable([], {}));
+    player._bindFormatHint(stage);
+    return stage.querySelector('.vpl-format-hint');
+  }
+
+  it('blendet den Hinweis aus, sobald das Video spielt', () => {
+    const stage = stageWithHint();
+    const hint = bind(stage);
+    expect(hint.classList.contains('is-hidden')).toBe(false);
+    stage.querySelector('.vpl-video').dispatchEvent(new Event('playing'));
+    expect(hint.classList.contains('is-hidden')).toBe(true);
+  });
+
+  it('blendet den Hinweis sofort aus, wenn das Video bereits laeuft', () => {
+    const hint = bind(stageWithHint({ paused: false }));
+    expect(hint.classList.contains('is-hidden')).toBe(true);
+  });
+
+  it('blendet den Hinweis sofort aus, wenn bereits fortgeschritten', () => {
+    const hint = bind(stageWithHint({ currentTime: 4.2 }));
+    expect(hint.classList.contains('is-hidden')).toBe(true);
+  });
+
+  it('Close-Button blendet den Hinweis aus', () => {
+    const stage = stageWithHint();
+    const hint = bind(stage);
+    stage.querySelector('.vpl-format-hint-close').click();
+    expect(hint.classList.contains('is-hidden')).toBe(true);
+  });
+});
+
 describe('VideoPlayerLightbox._applySrc – Element-Retention beim Zurueckblaettern', () => {
   function makePlayer(koops, videos) {
     const table = makeFakeTable(koops, videos);

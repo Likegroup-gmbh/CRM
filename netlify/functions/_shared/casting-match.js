@@ -270,18 +270,16 @@ function normiereKandidat(c = {}) {
 
 /**
  * buchungsbild: {
- *   aufDieserListe: Set(creator_id), parallelLive: Set(creator_id),
- *   abgelehntMarke: Set(creator_id),
- *   managementIds: Set(creator_id mit Management-Link)
+ *   aufDieserListe: Set(creator_id), parallelLive: Set(creator_id)
  * }
  * Harte Gates nur, wenn Bedarf UND Kandidat das Feld gesetzt haben.
  * Unbekannt = 0 auf der Dimension, nicht raus.
+ * Marken-Ablehnung und fehlende Mail/Management gaten nicht:
+ * Ablehnung war situationsbezogen, Kontakt ist Track-Bonus.
  */
 function applyGates(kandidaten, bedarf, buchungsbild = {}) {
   const aufListe = buchungsbild.aufDieserListe || new Set();
   const parallel = buchungsbild.parallelLive || new Set();
-  const abgelehnt = buchungsbild.abgelehntMarke || new Set();
-  const mitManagement = buchungsbild.managementIds || new Set();
 
   const pass = [];
   const raus = [];
@@ -291,7 +289,6 @@ function applyGates(kandidaten, bedarf, buchungsbild = {}) {
 
     if (aufListe.has(k.id)) { drop('bereits_auf_dieser_liste'); continue; }
     if (parallel.has(k.id)) { drop('auf_paralleler_live_liste'); continue; }
-    if (abgelehnt.has(k.id)) { drop('von_marke_abgelehnt'); continue; }
 
     // Sprache: Bedarf gesetzt, Kandidat hat Sprachen, keine schneidet
     if (bedarf.sprachen?.length && k.sprachen.length) {
@@ -327,9 +324,6 @@ function applyGates(kandidaten, bedarf, buchungsbild = {}) {
       if (kandidatWert === false) { voraussetzungOk = false; break; }
     }
     if (!voraussetzungOk) { drop('voraussetzung_fehlt'); continue; }
-
-    // Kontakt: weder Mail noch Management
-    if (!k.mail && !mitManagement.has(k.id)) { drop('nicht_anschreibbar'); continue; }
 
     // Alter: Bedarf gesetzt, Kandidat bekannt, kein Schnitt
     if (bedarf.alter && k.alter && !spannenSchneiden(bedarf.alter, k.alter)) {
@@ -886,15 +880,14 @@ async function loadCandidates(supabase, bedarf, { limit = 2000 } = {}) {
 }
 
 /**
- * Buchungsbild dieser Marke: Repeat-/Ablehnungs-Signale aus frueheren
- * Castings plus Kooperationen. Verbrannte IDs kommen in Sets, Kennzahlen
- * je Creator in histJeCreator.
+ * Buchungsbild dieser Marke: Repeat-Signale aus frueheren Castings plus
+ * Kooperationen. Doppelte IDs kommen in Sets, Kennzahlen je Creator in
+ * histJeCreator.
  */
 async function loadBuchungsbild(supabase, { markeId, unternehmenId, castingId, fingerprint }) {
   const bild = {
     aufDieserListe: new Set(),
     parallelLive: new Set(),
-    abgelehntMarke: new Set(),
     managementIds: new Set(),
     histJeCreator: new Map(),
     vorgeschlageneFingerprints: new Map()
@@ -913,10 +906,6 @@ async function loadBuchungsbild(supabase, { markeId, unternehmenId, castingId, f
   const listenIds = (listen || []).map(l => l.id).filter(Boolean);
   if (!listenIds.length) return bild;
 
-  const stichtag = new Date();
-  stichtag.setMonth(stichtag.getMonth() - SCHWELLEN.abgelehntMonate);
-  const stichtagIso = stichtag.toISOString();
-
   const vor90d = new Date();
   vor90d.setDate(vor90d.getDate() - SCHWELLEN.repeatTage);
   const vor90dIso = vor90d.toISOString();
@@ -925,7 +914,7 @@ async function loadBuchungsbild(supabase, { markeId, unternehmenId, castingId, f
   const vor30dIso = vor30d.toISOString();
 
   const { data: items } = await supabase.from('creator_auswahl_items')
-    .select('creator_id, prio_1, prio_2, abgelehnt, gebucht, angefragt, absage, zusage, created_at, kategorie')
+    .select('creator_id, prio_1, prio_2, gebucht, angefragt, absage, zusage, created_at, kategorie')
     .in('creator_auswahl_id', listenIds);
   for (const it of (items || [])) {
     if (!it.creator_id) continue;
@@ -943,7 +932,6 @@ async function loadBuchungsbild(supabase, { markeId, unternehmenId, castingId, f
       if ((it.created_at || '') >= vor90dIso) h.markeBuchungen90d++;
     }
     if (it.absage) h.absagen++;
-    if (it.abgelehnt && (it.created_at || '') >= stichtagIso) bild.abgelehntMarke.add(it.creator_id);
     // Kuerzlich auf einer anderen Live-Liste derselben Marke: nicht doppelt
     if ((it.created_at || '') >= vor30dIso) bild.parallelLive.add(it.creator_id);
   }

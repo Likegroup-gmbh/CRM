@@ -55,6 +55,25 @@ describe('DirectQueryLoader Final-Filter', () => {
     expect(options).toEqual([{ value: 'b1', label: 'Final', description: undefined }]);
   });
 
+  it('includeDrafts lässt Entwürfe im Briefing-Picker', async () => {
+    const { query, eqs } = createQuery({
+      data: [{ id: 'b2', aktivierung_name: 'Entwurf' }]
+    });
+    window.supabase = { from: vi.fn(() => query) };
+
+    const options = await loadDirectQueryOptions({
+      table: 'campaign_briefings',
+      filterBy: 'unternehmen_id',
+      displayField: 'aktivierung_name',
+      valueField: 'id',
+      name: 'briefing_ids',
+      includeDrafts: true
+    }, fakeForm());
+
+    expect(eqs).toEqual([['unternehmen_id', 'u1']]);
+    expect(options).toEqual([{ value: 'b2', label: 'Entwurf', description: undefined }]);
+  });
+
   it('filtert vertraege per filterBy auf is_draft=false', async () => {
     const { query, eqs } = createQuery({ data: [] });
     window.supabase = { from: vi.fn(() => query) };

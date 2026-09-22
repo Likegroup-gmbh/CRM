@@ -11,6 +11,11 @@ import {
 } from './EditModeSelectedHelper.js';
 import { applyFinalisiertFilter } from '../../finalisiert.js';
 
+function applyPickerFinalFilter(query, field) {
+  if (field.includeDrafts) return query;
+  return applyFinalisiertFilter(query, field.table);
+}
+
 export async function loadDirectQueryOptions(field, form) {
   try {
     if (!field.table) {
@@ -130,7 +135,7 @@ async function loadFilteredByParent(field, form) {
     .select('*')
     .eq(field.filterBy, parentValue);
 
-  filteredQuery = applyFinalisiertFilter(filteredQuery, field.table);
+  filteredQuery = applyPickerFinalFilter(filteredQuery, field);
 
   const { data: filteredData, error } = await filteredQuery
     .order(field.displayField || 'name', { ascending: true });
@@ -265,7 +270,7 @@ async function loadGenericTable(field) {
     query = query.or(field.filter);
   }
 
-  query = applyFinalisiertFilter(query, field.table);
+  query = applyPickerFinalFilter(query, field);
 
   const result = await query;
 

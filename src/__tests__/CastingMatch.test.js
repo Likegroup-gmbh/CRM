@@ -173,14 +173,14 @@ describe('applyGates', () => {
     expect(pass).toHaveLength(1);
   });
 
-  it('wirft bereits gelistete und marken-abgelehnte raus', () => {
+  it('wirft bereits gelistete raus, Marken-Ablehnung gatet nicht', () => {
     const ks = [kandidat({ id: 'a' }), kandidat({ id: 'b' })];
     const { pass, raus } = applyGates(ks, bedarf(), {
       aufDieserListe: new Set(['a']),
       abgelehntMarke: new Set(['b'])
     });
-    expect(pass).toHaveLength(0);
-    expect(raus.map(r => r.grund).sort()).toEqual(['bereits_auf_dieser_liste', 'von_marke_abgelehnt']);
+    expect(pass.map(k => k.id)).toEqual(['b']);
+    expect(raus.map(r => r.grund)).toEqual(['bereits_auf_dieser_liste']);
   });
 
   it('Sprache und Land gaten nur bei beidseitig gesetztem Feld', () => {
@@ -206,11 +206,11 @@ describe('applyGates', () => {
     expect(fit.coverage.voraussetzung).toBe('unverified');
   });
 
-  it('Kontakt: Mail oder Management, sonst raus', () => {
+  it('Kontakt: fehlende Mail gatet nicht', () => {
     const ohneMail = kandidat({ mail: '' });
-    expect(applyGates([ohneMail], bedarf(), {}).raus[0].grund).toBe('nicht_anschreibbar');
-    const mitManagement = applyGates([ohneMail], bedarf(), { managementIds: new Set(['c1']) });
-    expect(mitManagement.pass).toHaveLength(1);
+    const { pass, raus } = applyGates([ohneMail], bedarf(), {});
+    expect(pass).toHaveLength(1);
+    expect(raus).toHaveLength(0);
   });
 
   it('Alter ohne Schnitt fliegt', () => {

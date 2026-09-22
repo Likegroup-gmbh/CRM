@@ -1,146 +1,50 @@
 // ActionsDropdownHandlers.js
-// Action-Switch, Delete, Field-Updates, Rechnungs-/Adress-Hilfen
+// Action-Router. Navigation, Delete und setField leben in src/core/actions/.
 
-import { deleteVideoFull, deleteDropboxCascade } from './VideoDeleteHelper.js';
-import { deleteUnternehmenCascade, collectDependentIds } from '../modules/unternehmen/services/UnternehmenDeleteService.js';
-import { rechnungNotizModal } from '../modules/rechnung/RechnungNotizModal.js';
 import { getSignedDocumentUrl, resolveDocumentUrl } from './DocumentUrlHelper.js';
 import { authorizedFetch } from './auth/getAccessToken.js';
-import { ProduktService, produktFormRoute, produktListDetailRoute } from '../modules/produkt/ProduktService.js';
-import { PersonaService, personaFormRoute } from '../modules/persona/PersonaService.js';
 import { openAddCreatorToCastingDrawer } from '../modules/creator-auswahl/AddCreatorToCastingDrawer.js';
+import { handleView, handleEdit, handleContinue, dispatchVertragListAction } from './actions/actionNavigate.js';
+import { handleDelete, confirmDelete } from './actions/actionDelete.js';
+import { setField } from './actions/actionSetField.js';
 
-// Entity-Types, die keine eigene DB-Tabelle haben und auf eine andere Entity gemappt werden
-const ENTITY_ALIASES = { mitarbeiter: 'benutzer' };
+export { setField };
 
-function getEntityDisplayName(entityType) {
-  const names = {
-    creator: 'den Creator',
-    unternehmen: 'das Unternehmen',
-    marke: 'die Marke',
-    produkt: 'das Produkt',
-    persona: 'die Persona',
-    strategie: 'das Konzept',
-    creator_auswahl: 'die Casting-Liste',
-    auftrag: 'den Auftrag',
-    auftragsdetails: 'die Auftragsdetails',
-    auftrag_details: 'die Auftragsdetails',
-    kooperation: 'die Kooperation',
-    briefing: 'das Briefing',
-    kampagne: 'die Kampagne',
-    skripte: 'das Skript'
-  };
-  return names[entityType] || 'das Element';
-}
-
-function dispatchVertragListAction(action, vertragId) {
-  window.dispatchEvent(new CustomEvent('vertrag-list-action', {
-    detail: { action, vertragId }
-  }));
-}
+// Menge der Cases in handleAction — Quelle für isKnownGlobalAction.
+export const GLOBAL_ACTIONS = new Set([
+  'view', 'edit', 'continue', 'delete', 'delete-liste', 'rename-liste',
+  'creator-upload-send', 'creator-upload-resend', 'creator-upload-copy', 'creator-upload-revoke',
+  'delete-strategie', 'view-strategie', 'edit-strategie', 'remove',
+  'rechnung_anpassen', 'download', 'marken', 'auftraege', 'kampagnen',
+  'task-create', 'quickview', 'assign-staff', 'assign_staff',
+  'add_to_campaign', 'favorite', 'add_to_list', 'add_to_casting', 'connect',
+  'add-signed', 'edit-signed', 'replace-signed', 'remove-signed',
+  'generate-pdf',
+  'anschreiben',
+  'add_ansprechpartner', 'add_ansprechpartner_kampagne', 'add_ansprechpartner_unternehmen',
+  'add_produkt', 'add_persona',
+  'remove_ansprechpartner_unternehmen', 'remove_ansprechpartner_link',
+  'edit_creator_adresse', 'set_standard_adresse', 'set_hauptadresse_standard',
+  'delete_creator_adresse', 'unassign-kampagne',
+  'freischalten', 'details', 'auftrag-details'
+]);
 
 export async function handleAction(dropdown, action, entityId, entityType, actionItem) {
   switch (action) {
     case 'view':
-      if (entityType === 'vertraege') {
-        dispatchVertragListAction('view', entityId);
-        break;
-      }
-      if (entityType === 'produkt') {
-        await navigateToProduktForm(entityId);
-        break;
-      }
-      if (entityType === 'persona') {
-        await navigateToPersonaForm(entityId);
-        break;
-      }
-      if (entityType === 'strategie') {
-        window.navigateTo(`/konzepte/${entityId}`);
-        break;
-      }
-      if (entityType === 'creator_auswahl') {
-        window.navigateTo(`/castings/${entityId}`);
-        break;
-      }
-      if (entityType === 'contract') {
-        window.navigateTo(`/contracts/${entityId}`);
-      } else {
-        window.navigateTo(`/${entityType}/${entityId}`);
-      }
+      await handleView(entityId, entityType);
       break;
 
     case 'edit':
-      if (entityType === 'produkt') {
-        await navigateToProduktForm(entityId);
-        break;
-      }
-      if (entityType === 'persona') {
-        await navigateToPersonaForm(entityId);
-        break;
-      }
-      if (entityType === 'strategie') {
-        window.navigateTo(`/konzepte/${entityId}/edit`);
-        break;
-      }
-      if (entityType === 'creator_auswahl') {
-        window.navigateTo(`/castings/${entityId}/edit`);
-        break;
-      }
-      if (entityType === 'auftrag' || entityType === 'contract') {
-        window.navigateTo(`/projekt-erstellen/edit/${entityId}`);
-        break;
-      }
-      if (entityType === 'auftragsdetails') {
-        const auftragId = await resolveAuftragIdForDetails(entityId);
-        if (auftragId) {
-          window.navigateTo(`/projekt-erstellen/edit/${auftragId}`);
-          break;
-        }
-      }
-      if (entityType === 'kampagne') {
-        const auftragId = await resolveAuftragIdForKampagne(entityId);
-        if (auftragId) {
-          window.navigateTo(`/projekt-erstellen/edit/${auftragId}?step=kampagnen`);
-          break;
-        }
-      }
-      {
-        const returnTo = actionItem?.dataset?.returnTo;
-        const editRoute = returnTo
-          ? `/${entityType}/${entityId}/edit?returnTo=${encodeURIComponent(returnTo)}`
-          : `/${entityType}/${entityId}/edit`;
-        window.navigateTo(editRoute);
-      }
+      await handleEdit(entityId, entityType, actionItem);
       break;
 
     case 'continue':
-      window.navigateTo(`/vertraege/${entityId}/edit`);
+      handleContinue(entityId);
       break;
 
     case 'delete':
-      if (entityType === 'produkt') {
-        await confirmDeleteProdukt(entityId);
-        break;
-      }
-      if (entityType === 'persona') {
-        await confirmDeletePersona(entityId);
-        break;
-      }
-      if (entityType === 'strategie') {
-        await confirmDeleteStrategieStandalone(entityId);
-        break;
-      }
-      if (entityType === 'creator_auswahl') {
-        await confirmDeleteCreatorAuswahl(entityId);
-        break;
-      }
-      if (entityType === 'vertraege') {
-        dispatchVertragListAction('delete', entityId);
-      } else if (entityType === 'contract') {
-        await confirmDelete(entityId, 'auftrag');
-      } else {
-        await confirmDelete(entityId, entityType);
-      }
+      await handleDelete(entityId, entityType);
       break;
 
     case 'delete-liste':
@@ -237,9 +141,6 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
         }
         dropdown.openAssignMarkeStaffModal(entityId);
       }
-      break;
-
-    case 'rechnung':
       break;
 
     case 'add_to_campaign':
@@ -409,32 +310,6 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
       break;
     }
 
-    case 'video-view':
-      window.navigateTo(`/video/${entityId}`);
-      break;
-    case 'video-edit':
-      window.navigateTo(`/video/${entityId}`);
-      break;
-    case 'video-delete': {
-      const message = 'Möchten Sie wirklich dieses Video löschen? Diese Aktion kann nicht rückgängig gemacht werden.';
-      let proceed = false;
-      if (window.confirmationModal) {
-        const res = await window.confirmationModal.open({ title: 'Löschvorgang bestätigen', message, confirmText: 'Endgültig löschen', cancelText: 'Abbrechen', danger: true });
-        proceed = !!res?.confirmed;
-      } else {
-        proceed = confirm(message);
-      }
-      if (!proceed) break;
-      const result = await deleteVideoFull(entityId);
-      if (result?.success) {
-        window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'kooperation_videos', action: 'deleted', id: entityId } }));
-      } else {
-        console.error('Video-Löschung fehlgeschlagen:', result?.error);
-        alert('Video konnte nicht gelöscht werden: ' + (result?.error || 'Unbekannter Fehler'));
-      }
-      break;
-    }
-
     case 'freischalten':
       await toggleFreischaltung(entityId);
       break;
@@ -478,7 +353,6 @@ export async function connectInstagramSilent(creatorId) {
   }
 }
 
-// Instagram Connect/Refresh: holt Profil-Daten via Netlify Function in die creator-Tabelle
 async function handleInstagramConnect(creatorId) {
   window.toastSystem?.show('Instagram-Daten werden geladen...', 'info');
 
@@ -506,14 +380,11 @@ async function handleInstagramConnect(creatorId) {
     }));
   } catch (err) {
     console.error('Instagram-Connect fehlgeschlagen:', err);
-    // Bei toter Session hat authorizedFetch schon Hinweis und Logout uebernommen
     if (err.sessionDead) return;
     window.toastSystem?.show(`Instagram-Connect fehlgeschlagen: ${err.message}`, 'error');
   }
 }
 
-// Freischalten/Sperren eines Benutzers (Mitarbeiter-Liste)
-// Gleiche Rollenlogik wie MitarbeiterDetailEvents: pending <-> mitarbeiter
 async function toggleFreischaltung(userId) {
   try {
     const { data: user, error: loadError } = await window.supabase
@@ -552,116 +423,6 @@ async function handleRemoveZuordnung(entityId, entityType) {
   await window.kundenDetail.removeZuordnung(entityId, entityType);
 }
 
-async function resolveAuftragIdForDetails(detailsId) {
-  if (!detailsId || !window.supabase) return null;
-  try {
-    const { data, error } = await window.supabase
-      .from('auftrag_details')
-      .select('auftrag_id')
-      .eq('id', detailsId)
-      .single();
-    if (error) throw error;
-    return data?.auftrag_id || null;
-  } catch {
-    return null;
-  }
-}
-
-async function resolveAuftragIdForKampagne(kampagneId) {
-  if (!kampagneId || !window.supabase) return null;
-  try {
-    const { data, error } = await window.supabase
-      .from('kampagne')
-      .select('auftrag_id')
-      .eq('id', kampagneId)
-      .single();
-    if (error) throw error;
-    return data?.auftrag_id || null;
-  } catch {
-    return null;
-  }
-}
-
-export async function setField(dropdown, entityType, entityId, fieldName, fieldValue) {
-  try {
-    entityType = ENTITY_ALIASES[entityType] || entityType;
-
-    // Rückfrage-Notiz Intercept für Rechnungen
-    if (entityType === 'rechnung' && fieldName === 'status') {
-      const interceptResult = await _handleRechnungNotizIntercept(entityId, fieldValue);
-      if (interceptResult === 'cancelled') return;
-    }
-
-    if (window.supabase) {
-      const table = window.dataService?.entities?.[entityType]?.table || entityType;
-      let payload = { [fieldName]: fieldValue };
-      if (entityType === 'benutzer' && fieldName === 'mitarbeiter_klasse_id') {
-        if (fieldValue === '__investor__') {
-          payload = { rolle: 'investor', freigeschaltet: true, mitarbeiter_klasse_id: null };
-        } else {
-          const { data: current } = await window.supabase
-            .from('benutzer')
-            .select('rolle')
-            .eq('id', entityId)
-            .single();
-          payload = { mitarbeiter_klasse_id: fieldValue };
-          if (current?.rolle === 'investor') payload.rolle = 'mitarbeiter';
-        }
-      }
-      if (window.dataService?.entities?.[entityType]?.fields?.updated_at) {
-        payload.updated_at = new Date().toISOString();
-      }
-      const { error } = await window.supabase.from(table).update(payload).eq('id', entityId);
-      if (error) throw error;
-    } else if (window.dataService?.updateEntity) {
-      const res = await window.dataService.updateEntity(entityType, entityId, { [fieldName]: fieldValue });
-      if (!res?.success) throw new Error(res?.error || 'Update fehlgeschlagen');
-    } else {
-      throw new Error('Kein Update-Mechanismus verfügbar');
-    }
-    window.dispatchEvent(new CustomEvent('entityUpdated', {
-      detail: { entity: entityType, action: 'updated', id: entityId, field: fieldName, value: fieldValue }
-    }));
-  } catch (err) {
-    console.error('setField fehlgeschlagen', err);
-    alert('Aktualisierung fehlgeschlagen.');
-  }
-}
-
-async function _handleRechnungNotizIntercept(rechnungId, newStatus) {
-  if (newStatus === 'Rückfrage') {
-    const result = await rechnungNotizModal.open({ rechnungId, mode: 'create' });
-    if (result.action === 'save' && result.text) {
-      await rechnungNotizModal.saveNotiz(rechnungId, result.text);
-    }
-    // Status-Wechsel passiert IMMER (Notiz ist optional)
-    return 'proceed';
-  }
-
-  // Nur prüfen wenn Rechnung aktuell auf Rückfrage steht
-  const { data: current } = await window.supabase
-    .from('rechnung')
-    .select('status')
-    .eq('id', rechnungId)
-    .single();
-  if (current?.status !== 'Rückfrage') return 'proceed';
-
-  const hasNotiz = await rechnungNotizModal.hasNotiz(rechnungId);
-  if (hasNotiz) {
-    const deleteConfirm = await window.confirmationModal.open({
-      title: 'Rückfrage-Notiz löschen?',
-      message: 'Diese Rechnung hat eine Rückfrage-Notiz. Soll die Notiz beim Status-Wechsel gelöscht werden?',
-      confirmText: 'Ja, löschen',
-      cancelText: 'Nein, behalten',
-      danger: false
-    });
-    if (deleteConfirm?.confirmed) {
-      await rechnungNotizModal.deleteNotiz(rechnungId);
-    }
-  }
-  return 'proceed';
-}
-
 export async function addToFavorites(dropdown, creatorId, kampagneId) {
   try {
     if (!kampagneId) {
@@ -681,285 +442,6 @@ export async function addToFavorites(dropdown, creatorId, kampagneId) {
     console.error('Fehler beim Hinzufügen zu Favoriten', err);
     alert('Hinzufügen zu Favoriten fehlgeschlagen.');
   }
-}
-
-async function navigateToProduktForm(produktId) {
-  const markeDetail = window.moduleRegistry?.modules?.get('marke-detail');
-  if (markeDetail?.markeId && location.pathname.includes('/marke/')) {
-    window.navigateTo(`/marke/${markeDetail.markeId}/produkt?produkt=${produktId}`);
-    return;
-  }
-  const unternehmenDetail = window.moduleRegistry?.modules?.get('unternehmen-detail');
-  if (unternehmenDetail?.unternehmenId && location.pathname.includes('/unternehmen/')) {
-    window.navigateTo(produktFormRoute(unternehmenDetail.unternehmenId, produktId));
-    return;
-  }
-  window.navigateTo(produktListDetailRoute(produktId));
-}
-
-async function confirmDeleteProdukt(entityId) {
-  const message = 'Möchten Sie wirklich das Produkt löschen? Diese Aktion kann nicht rückgängig gemacht werden.';
-  let proceed = false;
-  if (window.confirmationModal) {
-    const res = await window.confirmationModal.open({
-      title: 'Löschvorgang bestätigen',
-      message,
-      confirmText: 'Endgültig löschen',
-      cancelText: 'Abbrechen',
-      danger: true
-    });
-    proceed = !!res?.confirmed;
-  } else {
-    proceed = confirm(message);
-  }
-  if (!proceed) return;
-
-  try {
-    await ProduktService.remove(entityId);
-    window.dispatchEvent(new CustomEvent('entityUpdated', {
-      detail: { entity: 'produkt', action: 'deleted', id: entityId }
-    }));
-  } catch (err) {
-    console.error('Produkt-Löschung fehlgeschlagen:', err);
-    window.toastSystem?.error?.('Produkt konnte nicht gelöscht werden.');
-  }
-}
-
-async function navigateToPersonaForm(personaId) {
-  const markeDetail = window.moduleRegistry?.modules?.get('marke-detail');
-  if (markeDetail?.markeId && location.pathname.includes('/marke/')) {
-    window.navigateTo(personaFormRoute('marke', markeDetail.markeId, personaId));
-    return;
-  }
-  const unternehmenDetail = window.moduleRegistry?.modules?.get('unternehmen-detail');
-  if (unternehmenDetail?.unternehmenId && location.pathname.includes('/unternehmen/')) {
-    window.navigateTo(personaFormRoute('unternehmen', unternehmenDetail.unternehmenId, personaId));
-    return;
-  }
-  const { data, error } = await window.supabase
-    .from('personas')
-    .select('unternehmen_id')
-    .eq('id', personaId)
-    .maybeSingle();
-  if (error || !data?.unternehmen_id) {
-    window.toastSystem?.error?.('Persona konnte nicht geöffnet werden.');
-    return;
-  }
-  window.navigateTo(personaFormRoute('unternehmen', data.unternehmen_id, personaId));
-}
-
-async function confirmDeletePersona(entityId) {
-  const message = 'Möchten Sie wirklich die Persona löschen? Diese Aktion kann nicht rückgängig gemacht werden.';
-  let proceed = false;
-  if (window.confirmationModal) {
-    const res = await window.confirmationModal.open({
-      title: 'Löschvorgang bestätigen',
-      message,
-      confirmText: 'Endgültig löschen',
-      cancelText: 'Abbrechen',
-      danger: true
-    });
-    proceed = !!res?.confirmed;
-  } else {
-    proceed = confirm(message);
-  }
-  if (!proceed) return;
-
-  try {
-    await PersonaService.remove(entityId);
-    window.dispatchEvent(new CustomEvent('entityUpdated', {
-      detail: { entity: 'persona', action: 'deleted', id: entityId }
-    }));
-  } catch (err) {
-    console.error('Persona-Löschung fehlgeschlagen:', err);
-    window.toastSystem?.error?.('Persona konnte nicht gelöscht werden.');
-  }
-}
-
-async function confirmDeleteStrategieStandalone(entityId) {
-  const message = 'Möchten Sie dieses Konzept wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.';
-  let proceed = false;
-  if (window.confirmationModal) {
-    const res = await window.confirmationModal.open({
-      title: 'Konzept löschen',
-      message,
-      confirmText: 'Löschen',
-      cancelText: 'Abbrechen',
-      danger: true
-    });
-    proceed = !!res?.confirmed;
-  } else {
-    proceed = confirm(message);
-  }
-  if (!proceed) return;
-
-  try {
-    const { error } = await window.supabase.from('strategie').delete().eq('id', entityId);
-    if (error) throw error;
-    window.toastSystem?.show('Konzept erfolgreich gelöscht', 'success');
-    window.dispatchEvent(new CustomEvent('entityUpdated', {
-      detail: { entity: 'strategie', action: 'deleted', id: entityId }
-    }));
-    if (window.strategieList) {
-      window.strategieList._forceReload = true;
-      window.strategieList.strategien = [];
-    }
-  } catch (err) {
-    console.error('Strategie-Löschung fehlgeschlagen:', err);
-    window.toastSystem?.show('Fehler beim Löschen des Konzepts', 'error');
-  }
-}
-
-async function confirmDeleteCreatorAuswahl(entityId) {
-  const message = 'Möchten Sie diese Casting-Liste wirklich löschen? Alle zugeordneten Creator werden entfernt.';
-  let proceed = false;
-  if (window.confirmationModal) {
-    const res = await window.confirmationModal.open({
-      title: 'Casting-Liste löschen',
-      message,
-      confirmText: 'Löschen',
-      cancelText: 'Abbrechen',
-      danger: true
-    });
-    proceed = !!res?.confirmed;
-  } else {
-    proceed = confirm(message);
-  }
-  if (!proceed) return;
-
-  try {
-    const { creatorAuswahlService } = await import('../modules/creator-auswahl/CreatorAuswahlService.js');
-    await creatorAuswahlService.deleteListe(entityId);
-    window.toastSystem?.show('Casting-Liste erfolgreich gelöscht', 'success');
-    window.dispatchEvent(new CustomEvent('entityUpdated', {
-      detail: { entity: 'creator_auswahl', action: 'deleted', id: entityId }
-    }));
-  } catch (err) {
-    console.error('Sourcing-Löschung fehlgeschlagen:', err);
-    window.toastSystem?.show('Fehler beim Löschen der Casting-Liste', 'error');
-  }
-}
-
-async function confirmDelete(entityId, entityType) {
-  if (entityType === 'unternehmen') {
-    return _confirmDeleteUnternehmen(entityId);
-  }
-
-  const entityName = getEntityDisplayName(entityType);
-  const message = `Möchten Sie wirklich ${entityName} löschen? Diese Aktion kann nicht rückgängig gemacht werden.`;
-  let proceed = false;
-  if (window.confirmationModal) {
-    const res = await window.confirmationModal.open({ title: 'Löschvorgang bestätigen', message, confirmText: 'Endgültig löschen', cancelText: 'Abbrechen', danger: true });
-    proceed = !!res?.confirmed;
-  } else {
-    proceed = confirm(message);
-  }
-  if (!proceed) return;
-
-  if (entityType === 'kampagne' || entityType === 'kooperation') {
-    await deleteDropboxCascade(entityType, entityId).catch(err =>
-      console.warn('Dropbox-Cascade Warnung:', err)
-    );
-  }
-
-  const result = await window.dataService.deleteEntity(entityType, entityId);
-  if (result?.success) {
-    window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: entityType, action: 'deleted', id: entityId } }));
-  }
-}
-
-async function _confirmDeleteUnternehmen(entityId) {
-  const LABELS = {
-    vertraege: 'Verträge', briefings: 'Briefings', kampagne: 'Kampagnen',
-    auftrag: 'Aufträge', produkt: 'Produkte', marke: 'Marken',
-  };
-
-  const deps = await collectDependentIds(entityId);
-  const lines = Object.entries(deps)
-    .filter(([, ids]) => ids.length > 0)
-    .map(([table, ids]) => `• ${ids.length} ${LABELS[table] || table}`);
-
-  const summary = lines.length > 0
-    ? `Folgende zugehörige Daten werden unwiderruflich entfernt:\n\n${lines.join('\n')}\n\nInklusive aller Dropbox-Dateien und Storage-Dateien.`
-    : 'Dieses Unternehmen hat keine zugehörigen Daten.';
-
-  const message = `Möchten Sie wirklich das Unternehmen löschen?\n\n${summary}\n\nDiese Aktion kann nicht rückgängig gemacht werden.`;
-
-  let proceed = false;
-  if (window.confirmationModal) {
-    const res = await window.confirmationModal.open({
-      title: 'Unternehmen vollständig löschen', message,
-      confirmText: 'Endgültig löschen', cancelText: 'Abbrechen', danger: true,
-    });
-    proceed = !!res?.confirmed;
-  } else {
-    proceed = confirm(message);
-  }
-  if (!proceed) return;
-
-  const progressModal = _createProgressModal();
-
-  const result = await deleteUnternehmenCascade(entityId, {
-    userId: window.currentUser?.id,
-    onProgress: ({ step, count }) => {
-      const stepLabels = { ...LABELS, storage: 'Storage-Dateien', dropbox: 'Dropbox-Dateien', unternehmen: 'Unternehmen' };
-      progressModal.update(`Lösche ${stepLabels[step] || step} (${count})...`);
-    },
-  });
-
-  progressModal.close();
-
-  const deletedLines = Object.entries(result.deleted)
-    .map(([table, count]) => `✓ ${count} ${LABELS[table] || table}`);
-  const errorLines = result.errors
-    .map(e => `✗ ${e.step}: ${e.error}`);
-
-  const resultMessage = [
-    result.success ? 'Unternehmen wurde erfolgreich gelöscht.' : 'Unternehmen konnte nicht vollständig gelöscht werden.',
-    '', ...deletedLines,
-    ...(errorLines.length > 0 ? ['', 'Fehlgeschlagen:', ...errorLines] : []),
-  ].join('\n');
-
-  if (window.confirmationModal) {
-    await window.confirmationModal.open({
-      title: result.success ? 'Löschung abgeschlossen' : 'Löschung mit Fehlern',
-      message: resultMessage, confirmText: 'OK', cancelText: 'Schließen', danger: !result.success,
-    });
-  } else {
-    alert(resultMessage);
-  }
-
-  if (result.success) {
-    window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'unternehmen', action: 'deleted', id: entityId } }));
-  }
-}
-
-function _createProgressModal() {
-  const modal = document.createElement('div');
-  modal.className = 'modal overlay-modal';
-  modal.innerHTML = `
-    <div class="modal-dialog">
-      <div class="modal-header"><h3>Löschvorgang läuft...</h3></div>
-      <div class="modal-body">
-        <p class="delete-progress-text">Vorbereitung...</p>
-        <div class="progress-bar-container" style="width:100%;height:4px;background:var(--border-color,#e0e0e0);border-radius:2px;margin-top:12px;overflow:hidden">
-          <div class="progress-bar-fill" style="width:0%;height:100%;background:var(--primary-color,#3b82f6);transition:width 0.3s"></div>
-        </div>
-      </div>
-    </div>`;
-  document.body.appendChild(modal);
-
-  let stepCount = 0;
-  return {
-    update(text) {
-      stepCount++;
-      const textEl = modal.querySelector('.delete-progress-text');
-      const barEl = modal.querySelector('.progress-bar-fill');
-      if (textEl) textEl.textContent = text;
-      if (barEl) barEl.style.width = `${Math.min(stepCount * 14, 95)}%`;
-    },
-    close() { modal.remove(); },
-  };
 }
 
 async function setStandardAdresse(adresseId, creatorId) {
@@ -1027,7 +509,6 @@ async function handleRechnungDownload(rechnungId) {
       downloadUrls = await Promise.all(pdfs.map(async (p) => {
         let url = p.file_url || '';
         if (p.file_path && !p.file_path.startsWith('/')) {
-          // Privater Bucket: kurzlebige Signed URL statt Public URL
           url = await getSignedDocumentUrl('rechnungen', p.file_path).catch(() => url);
         } else {
           url = await resolveDocumentUrl(url);

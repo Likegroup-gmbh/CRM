@@ -44,8 +44,8 @@ export class NavigationSystem {
         title: 'Kampagnenmanagement',
         items: [
           { id: 'briefing', label: 'Briefings', icon: 'briefing', url: '/briefing' },
-          { id: 'persona', label: 'Personas', icon: 'persona', url: '/persona' },
           { id: 'produkt', label: 'Produkte', icon: 'produkt', url: '/produkt' },
+          { id: 'persona', label: 'Personas', icon: 'persona', url: '/persona' },
           { id: 'sourcing', label: 'Castings', icon: 'sourcing', url: '/castings' },
           { id: 'strategie', label: 'Konzepte', icon: 'strategie', url: '/konzepte' },
           { id: 'skripte', label: 'Skripte', icon: 'skripte', url: '/skripte' },

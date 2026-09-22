@@ -75,14 +75,15 @@ async function afterSendVertrag(supabase, { dokumentId, sent }) {
   if (!sent) return;
   const { data, error } = await supabase
     .from('vertraege')
-    .select('status')
+    .select('status, dropbox_file_url, unterschriebener_vertrag_url')
     .eq('id', dokumentId)
     .maybeSingle();
   if (error) throw error;
   if (data?.status === 'unterschrieben') return;
+  if (data?.dropbox_file_url || data?.unterschriebener_vertrag_url) return;
   const { error: updateError } = await supabase
     .from('vertraege')
-    .update({ status: 'gesendet' })
+    .update({ status: 'gesendet', gesendet_am: new Date().toISOString() })
     .eq('id', dokumentId);
   if (updateError) throw updateError;
 }

@@ -48,7 +48,8 @@ describe('Kampagne Vertraege-Pane', () => {
     expect(html).toContain('col-kampagne');
     expect(html).toContain('col-signed');
     expect(html).toContain('col-actions');
-    expect(html).toContain('status-select-wrapper');
+    expect(html).toContain('status-badge status-erstellt');
+    expect(html).not.toContain('status-select-wrapper');
     expect(html).toContain('contract-signed-action--upload');
     expect(html).not.toContain('col-checkbox');
   });

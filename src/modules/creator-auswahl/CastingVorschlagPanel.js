@@ -18,7 +18,6 @@ export class CastingVorschlagPanel {
     this.vorschlaege = [];
     this.laeuft = false;
     this.fortschritt = '';
-    this.fehler = '';
     this._token = 0;
     this._onProgress = null;
     this._onFinished = null;
@@ -59,8 +58,7 @@ export class CastingVorschlagPanel {
     } catch (error) {
       if (token !== this._token) return;
       console.error('Fehler beim Laden der Casting-Vorschläge:', error);
-      this.fehler = 'Vorschläge konnten nicht geladen werden.';
-      this.render();
+      window.toastSystem?.show('Vorschläge konnten nicht geladen werden.', 'error');
     }
   }
 
@@ -89,35 +87,12 @@ export class CastingVorschlagPanel {
     const btnTitle = hatListeBriefing
       ? ''
       : ' disabled title="Casting ohne Briefing: ohne Bedarf kein Lauf"';
-    const btnHtml = this.laeuft
+    block.innerHTML = this.laeuft
       ? `<span class="casting-vorschlag__progress">${esc(this.fortschritt || 'Läuft…')}</span>`
       : `<button type="button" class="mdc-btn mdc-btn--secondary" id="btn-casting-vorschlag-holen"${btnTitle}>
           ${icon('sparkles', { className: 'icon-16' })}
           ${count ? 'Neu vorschlagen' : 'Vorschläge holen'}
         </button>`;
-
-    if (this.detail.embedded) {
-      block.innerHTML = `${btnHtml}${this.fehler ? `<span class="casting-vorschlag__fehler" title="${esc(this.fehler)}"></span>` : ''}`;
-      return;
-    }
-
-    block.innerHTML = `
-      <div class="casting-vorschlag">
-        <div class="casting-vorschlag__kopf">
-          <div>
-            <span class="casting-vorschlag__titel">KI-Vorschläge ${count ? `(${count})` : ''}</span>
-            <p class="casting-vorschlag__sub">Aus der eigenen Creator-Datenbank · in der Liste mit Rand markiert</p>
-          </div>
-          <div class="casting-vorschlag__aktionen">
-            ${btnHtml}
-          </div>
-        </div>
-        ${this.fehler ? `<p class="casting-vorschlag__fehler">${esc(this.fehler)}</p>` : ''}
-        ${!hatListeBriefing && !count
-          ? '<p class="casting-vorschlag__hinweis">Dieses Casting hat kein Briefing – ohne Bedarf gibt es keine Vorschläge.</p>'
-          : ''}
-      </div>
-    `;
   }
 
   syncTable() {
@@ -172,7 +147,6 @@ export class CastingVorschlagPanel {
   async holen() {
     if (this.laeuft) return;
     this.laeuft = true;
-    this.fehler = '';
     this.fortschritt = 'Vorschläge sind unterwegs…';
     this.bindProgress();
     this.render();
@@ -182,9 +156,9 @@ export class CastingVorschlagPanel {
       console.error('Fehler bei den Casting-Vorschlägen:', error);
       this.laeuft = false;
       this.fortschritt = '';
-      this.fehler = error.message || 'Generierung fehlgeschlagen.';
       this.unbindProgress();
       this.render();
+      window.toastSystem?.show(error.message || 'Generierung fehlgeschlagen.', 'error');
       return;
     }
     // Erfolgspfad: _onFinished setzt laeuft zurueck und laedt neu

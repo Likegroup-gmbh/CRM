@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { renderItemRow, migrateHiddenColumns } from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
+import { renderItemRow } from '../modules/creator-auswahl/castingItemRow.js';
+import { migrateHiddenColumns } from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
 import {
   getSourcingStatus,
   getKundenFeedback,

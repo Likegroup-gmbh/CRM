@@ -24,10 +24,10 @@ export const vertragAdapter = {
     }
     if (!window.isInternal?.()) return null;
 
-    const prefill = [];
     const creator = vertrag.creator;
-    const mail = String(creator?.mail || '').trim();
-    if (creator?.id && mail) {
+    const prefill = [];
+    if (creator?.id) {
+      const mail = String(creator.mail || '').trim();
       prefill.push({
         typ: 'creator',
         id: creator.id,
@@ -44,6 +44,7 @@ export const vertragAdapter = {
       dateiUrl: vertrag.datei_url,
       dateiname: fileName(vertrag),
       prefill,
+      empfaengerFest: Boolean(creator?.id),
     };
   },
 

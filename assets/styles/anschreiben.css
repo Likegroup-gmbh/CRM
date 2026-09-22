@@ -114,3 +114,33 @@
   font-size: var(--text-xsm);
   color: var(--text-tertiary);
 }
+
+.empfaenger-fest {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.empfaenger-fest__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.empfaenger-fest__meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.empfaenger-fest__name {
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.empfaenger-fest__mail,
+.empfaenger-fest__leer {
+  font-size: var(--text-xsm);
+  color: var(--text-tertiary);
+}

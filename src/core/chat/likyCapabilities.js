@@ -14,7 +14,7 @@
 export const LIKY_CAPABILITIES = {
   unternehmen: { extract: 'url', chat: false, specFrom: 'server' },
   marke: { extract: 'url', chat: false, specFrom: 'server' },
-  produkt: { extract: 'url', chat: false, specFrom: 'server' },
+  produkt: { extract: ['url', 'pdf'], chat: false, specFrom: 'server' },
   persona: { extract: ['url', 'pdf'], chat: true, specFrom: 'server' },
   briefing: { extract: 'pdf', chat: true, specFrom: 'fieldConfig' }
 };

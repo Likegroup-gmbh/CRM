@@ -390,7 +390,7 @@ export function renderItemRow(detail, item, index) {
     <tr class="${rowClasses}" data-item-id="${item.id}" ${isVorschlag ? 'data-vorschlag-id="' + item.id + '"' : ''} draggable="false">
       <td class="col-number">
         ${index + 1}
-        ${item.skript_freigabe ? `<span class="strategie-skript-badge" title="Für Skript freigegeben">${icon('document-text')}</span>` : ''}
+        ${item.skript_freigabe ? `<span class="strategie-skript-badge" title="Für Skript freigegeben">${icon('skript-freigabe')}</span>` : ''}
       </td>
       ${showWriteCols ? `
         <td class="col-drag ${isVorschlag ? '' : 'drag-handle'}">
@@ -531,7 +531,7 @@ function renderSkriptFreigabeAction(item) {
                 data-action="toggle-skript-freigabe" data-id="${item.id}"
                 ${disabled ? 'aria-disabled="true"' : ''}
                 title="${escapeAttr(title)}">
-                ${icon('document-text')}
+                ${icon('skript-freigabe')}
                 ${aktiv ? 'Skript-Freigabe zurücknehmen' : 'Für Skript freigeben'}
               </a>
   `;

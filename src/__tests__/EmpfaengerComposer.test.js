@@ -193,4 +193,45 @@ describe('EmpfaengerComposer', () => {
       expect.objectContaining({ id: 'c1', email: 'a@b.de', typ: 'creator' }),
     ]);
   });
+
+  describe('empfaengerFest', () => {
+    it('zeigt Name und Mail ohne Tabs und ohne Options-Queries', () => {
+      const db = mockDb();
+      const composer = createComposer(db, {
+        empfaengerFest: true,
+        prefill: [{ typ: 'creator', id: 'c1', email: 'max@x.de', name: 'Max M', vorname: 'Max' }],
+      });
+      expect(document.querySelector('.empfaenger-composer__toggle')).toBeNull();
+      expect(document.querySelector('[data-searchable]')).toBeNull();
+      expect(document.querySelector('.empfaenger-fest__name').textContent).toBe('Max M');
+      expect(document.querySelector('.empfaenger-fest__mail').textContent).toBe('max@x.de');
+      expect(composer.getEmpfaenger()).toEqual([
+        expect.objectContaining({ id: 'c1', email: 'max@x.de', typ: 'creator' }),
+      ]);
+      expect(composer.isEmpty()).toBe(false);
+      expect(db.from).not.toHaveBeenCalled();
+    });
+
+    it('ohne Mail: Anzeige, isEmpty, Senden-Liste leer', () => {
+      const composer = createComposer(mockDb(), {
+        empfaengerFest: true,
+        prefill: [{ typ: 'creator', id: 'c1', email: '', name: 'Max M', vorname: 'Max' }],
+      });
+      expect(document.querySelector('.empfaenger-fest__name').textContent).toBe('Max M');
+      expect(document.querySelector('.empfaenger-fest__mail').textContent).toBe('keine E-Mail');
+      expect(composer.isEmpty()).toBe(true);
+      expect(composer.getEmpfaenger()).toEqual([]);
+    });
+
+    it('addOne und setTyp sind no-op', () => {
+      const composer = createComposer(mockDb(), {
+        empfaengerFest: true,
+        prefill: [{ typ: 'creator', id: 'c1', email: 'a@b.de', name: 'A' }],
+      });
+      expect(composer.addOne({ id: 'c2', email: 'b@b.de', name: 'B' })).toBe(false);
+      composer.setTyp('management');
+      expect(composer.typ).toBe('creator');
+      expect(composer.getEmpfaenger()).toHaveLength(1);
+    });
+  });
 });
