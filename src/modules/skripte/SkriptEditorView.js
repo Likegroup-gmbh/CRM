@@ -369,7 +369,8 @@ export class SkriptEditorView {
       window.shareListDialog?.open({
         entityType: 'skript',
         entityId: this.skript.id,
-        entityName: this.skript.titel || 'Skript'
+        entityName: this.skript.titel || 'Skript',
+        kampagneId: this.skript.kampagne_id || null
       });
     });
   }

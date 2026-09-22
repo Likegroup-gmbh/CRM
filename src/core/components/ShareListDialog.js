@@ -8,17 +8,19 @@ export class ShareListDialog {
     this.entityType = null;
     this.entityId = null;
     this.entityName = '';
+    this.kampagneId = null;
     this.codes = {};
     this.emails = [];
     this._emailSearchTimer = null;
     this._emailSearchGen = 0;
   }
 
-  open({ entityType, entityId, entityName = '' }) {
+  open({ entityType, entityId, entityName = '', kampagneId = null }) {
     if (!window.isInternal?.()) return;
     this.entityType = entityType;
     this.entityId = entityId;
     this.entityName = entityName;
+    this.kampagneId = kampagneId || null;
     this.codes = {};
     this.emails = [];
     this.render();
@@ -37,6 +39,35 @@ export class ShareListDialog {
     return this.entityType === 'skript'
       ? [['ansehen', 'Nur ansehen'], ['feedback', 'Ansehen + Bearbeiten']]
       : [['ansehen', 'Nur ansehen'], ['feedback', 'Ansehen + Feedback']];
+  }
+
+  kannKampagneTeilen() {
+    return this.entityType === 'skript' && Boolean(this.kampagneId);
+  }
+
+  skriptScope() {
+    if (!this.kannKampagneTeilen()) return 'einzeln';
+    const checked = this.overlay?.querySelector('input[name="share-skript-scope"]:checked');
+    return checked?.value === 'einzeln' ? 'einzeln' : 'kampagne';
+  }
+
+  skriptScopeField() {
+    if (!this.kannKampagneTeilen()) return '';
+    return `
+      <div class="form-group">
+        <span class="form-label">Umfang</span>
+        <div class="share-scope-options">
+          <label class="share-scope-option">
+            <input type="radio" name="share-skript-scope" value="kampagne" checked>
+            Alle Skripte dieser Kampagne
+          </label>
+          <label class="share-scope-option">
+            <input type="radio" name="share-skript-scope" value="einzeln">
+            Nur dieses Skript
+          </label>
+        </div>
+      </div>
+    `;
   }
 
   render() {
@@ -62,6 +93,7 @@ export class ShareListDialog {
                 ${this.rechteOptions().map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}
               </select>
             </div>
+            ${this.skriptScopeField()}
             <div class="form-group">
               <label class="form-label" for="share-email-tag-input">Per E-Mail versenden (optional)</label>
               <div class="tag-input-container" id="share-email-tag-container">
@@ -268,6 +300,7 @@ export class ShareListDialog {
           rechte: rechteSelect?.value || 'ansehen',
           endsWithKampagne: true,
           emails: [...this.emails],
+          ...(this.entityType === 'skript' ? { skriptScope: this.skriptScope() } : {}),
         },
       });
 
@@ -318,24 +351,43 @@ export class ShareListDialog {
     });
   }
 
+  async siblingSkriptIds() {
+    if (!this.kannKampagneTeilen()) return null;
+    const { data, error } = await window.supabase
+      .from('skripte')
+      .select('id')
+      .eq('kampagne_id', this.kampagneId);
+    if (error) return null;
+    const ids = (data || []).map((row) => row.id).filter(Boolean);
+    if (!ids.includes(this.entityId)) ids.push(this.entityId);
+    return ids;
+  }
+
   async loadShares() {
     const container = this.overlay?.querySelector('#share-recipients');
     if (!container) return;
 
-    const { data, error } = await window.supabase
+    const siblingIds = await this.siblingSkriptIds();
+    let query = window.supabase
       .from('list_shares')
-      .select('id, token, label, rechte, created_at, last_access_at, expires_at, ends_with_kampagne, share_participants(id, name, last_seen_at)')
+      .select('id, token, label, rechte, entity_id, skript_scope, created_at, last_access_at, expires_at, ends_with_kampagne, share_participants(id, name, last_seen_at)')
       .eq('entity_type', this.entityType)
-      .eq('entity_id', this.entityId)
-      .is('revoked_at', null)
-      .order('created_at', { ascending: false });
+      .is('revoked_at', null);
+    query = siblingIds
+      ? query.in('entity_id', siblingIds)
+      : query.eq('entity_id', this.entityId);
+
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
       container.className = '';
       container.innerHTML = '<p class="share-dialog-empty">Fehler beim Laden.</p>';
       return;
     }
-    if (!data || data.length === 0) {
+    const rows = (data || []).filter((share) => (
+      !siblingIds || share.entity_id === this.entityId || share.skript_scope === 'kampagne'
+    ));
+    if (rows.length === 0) {
       container.className = '';
       container.innerHTML = '<p class="share-dialog-empty">Noch keine Zugänge.</p>';
       return;
@@ -343,13 +395,14 @@ export class ShareListDialog {
 
     const origin = window.location.origin;
     container.className = 'share-access-list';
-    container.innerHTML = data.map((share) => {
+    container.innerHTML = rows.map((share) => {
       const lastAccess = share.last_access_at
         ? `zuletzt ${new Date(share.last_access_at).toLocaleDateString('de-DE')}`
         : 'noch nicht geöffnet';
       const expiry = share.expires_at
         ? `bis ${new Date(share.expires_at).toLocaleDateString('de-DE')}`
         : (share.ends_with_kampagne ? 'endet mit Kampagne' : 'ohne Ablauf');
+      const scopeText = share.skript_scope === 'kampagne' ? ' · alle Skripte' : '';
       const participants = (share.share_participants || [])
         .map((p) => p.name)
         .filter(Boolean);
@@ -359,7 +412,7 @@ export class ShareListDialog {
         <div class="share-recipient-row share-access-row" data-share-id="${share.id}">
           <div class="share-recipient-info">
             <span class="share-recipient-email">${this.escape(share.label || 'Zugang')}</span>
-            <span class="share-recipient-meta">${lastAccess} · ${expiry}${participants.length ? ` · ${this.escape(participants.join(', '))}` : ''}</span>
+            <span class="share-recipient-meta">${lastAccess} · ${expiry}${scopeText}${participants.length ? ` · ${this.escape(participants.join(', '))}` : ''}</span>
             ${freshCode ? `<span class="share-fresh-code">Code: ${this.escape(freshCode)}</span>` : ''}
           </div>
           <div class="share-recipient-actions">

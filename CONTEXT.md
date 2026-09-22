@@ -295,7 +295,7 @@ Gespeicherter Betreff und Body mit Platzhaltern für ein Anschreiben. Ein Standa
 _Avoid_: Template (Kollision mit Vertragstemplate), E-Mail-Template
 
 **Zugang**:
-Gast-Link plus Code auf eine geteilte Liste (`list_shares`). Live-Sicht im CRM, kein Anhang.
+Gast-Link plus Code auf eine geteilte Liste (`list_shares`). Bei einem Skript wahlweise dieses Skript oder alle Skripte derselben Kampagne, auch später entstandene. Live-Sicht im CRM, kein Anhang.
 _Avoid_: Anschreiben, Teilen
 
 **Rechnung**:

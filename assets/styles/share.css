@@ -164,6 +164,20 @@
   margin: 0;
 }
 
+.share-scope-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.share-scope-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
 .share-recipient-row {
   display: flex;
   align-items: center;

@@ -159,15 +159,29 @@ function buildInviteEmail(params: {
   link: string;
   code: string;
   message?: string;
+  allScripts?: boolean;
 }): string {
   const article = params.entityArticle || 'die';
   const articleCapitalized = article === 'das' ? 'Ein' : 'Eine';
   const isSkript = params.entityLabel === 'Skript';
-  const rechteText = params.rechte === 'feedback'
-    ? (isSkript
-      ? `Sie können ${article} ${params.entityLabel} ansehen, kommentieren und Änderungen vornehmen.`
-      : `Sie können ${article} ${params.entityLabel} ansehen und Feedback geben.`)
-    : `Sie können ${article} ${params.entityLabel} ansehen.`;
+  const allScripts = Boolean(params.allScripts);
+  const rechteText = allScripts
+    ? (params.rechte === 'feedback'
+      ? 'Sie können die Skripte ansehen, kommentieren und Änderungen vornehmen.'
+      : 'Sie können die Skripte ansehen.')
+    : (params.rechte === 'feedback'
+      ? (isSkript
+        ? `Sie können ${article} ${params.entityLabel} ansehen, kommentieren und Änderungen vornehmen.`
+        : `Sie können ${article} ${params.entityLabel} ansehen und Feedback geben.`)
+      : `Sie können ${article} ${params.entityLabel} ansehen.`);
+  const heading = allScripts
+    ? 'Die Skripte einer Kampagne wurden mit Ihnen geteilt'
+    : `${articleCapitalized} ${params.entityLabel} wurde mit Ihnen geteilt`;
+  const lead = allScripts
+    ? `${escapeHtml(params.sharedByName)} hat die Skripte der Kampagne <strong>${escapeHtml(params.entityName)}</strong> mit Ihnen geteilt.`
+    : `${escapeHtml(params.sharedByName)} hat ${article} ${escapeHtml(params.entityLabel)} <strong>${escapeHtml(params.entityName)}</strong> mit Ihnen geteilt.`;
+  const buttonLabel = allScripts ? 'Skripte öffnen' : `${params.entityLabel} öffnen`;
+  const title = allScripts ? 'Skripte geteilt' : `${params.entityLabel} geteilt`;
   const messageBlock = params.message
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;">
             <tr><td style="padding:12px 16px;background:#f4f4f5;border-left:3px solid #d4d4d4;border-radius:4px;">
@@ -178,19 +192,19 @@ function buildInviteEmail(params: {
     : '';
   return `<!DOCTYPE html>
 <html lang="de">
-<head><meta charset="utf-8"><title>${escapeHtml(params.entityLabel)} geteilt</title></head>
+<head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head>
 <body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;">
     <tr><td align="center" style="padding:40px 20px;">
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;max-width:600px;width:100%;">
         <tr><td style="padding:32px 40px;color:#1a1a1a;font-size:15px;line-height:1.6;">
-          <h2 style="margin:0 0 16px 0;font-size:20px;">${articleCapitalized} ${escapeHtml(params.entityLabel)} wurde mit Ihnen geteilt</h2>
-          <p style="margin:0 0 16px 0;">${escapeHtml(params.sharedByName)} hat ${article} ${escapeHtml(params.entityLabel)} <strong>${escapeHtml(params.entityName)}</strong> mit Ihnen geteilt.</p>
+          <h2 style="margin:0 0 16px 0;font-size:20px;">${escapeHtml(heading)}</h2>
+          <p style="margin:0 0 16px 0;">${lead}</p>
           <p style="margin:0 0 24px 0;">${rechteText} Leiten Sie diese Mail gerne an Kolleginnen und Kollegen weiter.</p>
           ${messageBlock}
           <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px 0;">
             <tr><td style="border-radius:6px;background:#4f46e5;">
-              <a href="${params.link}" style="display:inline-block;padding:12px 28px;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;">${escapeHtml(params.entityLabel)} öffnen</a>
+              <a href="${params.link}" style="display:inline-block;padding:12px 28px;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;">${escapeHtml(buttonLabel)}</a>
             </td></tr>
           </table>
           <p style="margin:0 0 8px 0;color:#1a1a1a;font-size:15px;">Ihr Zugangscode:</p>
@@ -252,6 +266,27 @@ async function entityName(admin: ReturnType<typeof createClient>, entityType: st
     ? entityId
     : ((entity as { kampagne_id?: string | null }).kampagne_id ?? null);
   return { name, kampagneId };
+}
+
+async function kampagneDisplayName(
+  admin: ReturnType<typeof createClient>,
+  kampagneId: string | null,
+): Promise<string | null> {
+  if (!kampagneId) return null;
+  const { data } = await admin
+    .from('kampagne')
+    .select('eigener_name, kampagnenname')
+    .eq('id', kampagneId)
+    .maybeSingle();
+  if (!data) return null;
+  const eigener = String(data.eigener_name ?? '').trim();
+  const name = String(data.kampagnenname ?? '').trim();
+  return eigener || name || null;
+}
+
+function inviteSubject(label: string, name: string, allScripts: boolean): string {
+  if (allScripts) return `Skripte der Kampagne „${name}" wurden mit Ihnen geteilt`;
+  return `${label} „${name}" wurde mit Ihnen geteilt`;
 }
 
 async function sendInviteMails(params: {
@@ -523,6 +558,19 @@ serve(async (req: Request) => {
     const info = await entityName(admin, entityType, entityId);
     if (!info) return jsonRes({ error: 'Liste nicht gefunden.' }, 404, headers);
 
+    const skriptScopeRaw = String(body.skriptScope ?? 'einzeln');
+    let skriptScope = 'einzeln';
+    if (entityType === 'skript') {
+      if (!['einzeln', 'kampagne'].includes(skriptScopeRaw)) {
+        return jsonRes({ error: 'Ungültiger Skript-Umfang.' }, 400, headers);
+      }
+      if (skriptScopeRaw === 'kampagne' && !info.kampagneId) {
+        return jsonRes({ error: 'Ohne Kampagne kann nur dieses Skript geteilt werden.' }, 400, headers);
+      }
+      skriptScope = skriptScopeRaw;
+    }
+    const allScripts = entityType === 'skript' && skriptScope === 'kampagne';
+
     let expiresAt: string | null = null;
     if (expiresAtRaw) {
       const d = new Date(expiresAtRaw);
@@ -545,6 +593,7 @@ serve(async (req: Request) => {
         code_hash: codeHash,
         expires_at: expiresAt,
         ends_with_kampagne: endsWithKampagne && Boolean(info.kampagneId),
+        skript_scope: skriptScope,
         created_by: staff.id,
       })
       .select('id')
@@ -557,20 +606,24 @@ serve(async (req: Request) => {
 
     const origin = req.headers.get('origin') || Deno.env.get('APP_BASE_URL') || '';
     const link = `${origin}/share/${token}`;
+    const mailName = allScripts
+      ? (await kampagneDisplayName(admin, info.kampagneId)) || info.name
+      : info.name;
 
     const mailResult = await sendInviteMails({
       emails,
       fromEmail: normalizeFromEmail(Deno.env.get('SHARE_FROM_EMAIL')),
-      subject: `${entityConfig.label} „${info.name}" wurde mit Ihnen geteilt`,
+      subject: inviteSubject(entityConfig.label, mailName, allScripts),
       html: buildInviteEmail({
         entityLabel: entityConfig.label,
         entityArticle: entityConfig.article,
-        entityName: info.name,
+        entityName: mailName,
         sharedByName: staff.name || 'Ihr Ansprechpartner',
         rechte,
         link,
         code,
         message: message || undefined,
+        allScripts,
       }),
     });
 
@@ -648,7 +701,7 @@ serve(async (req: Request) => {
     if (emails.length === 0) return jsonRes({ error: 'Bitte mindestens eine E-Mail angeben.' }, 400, headers);
     const { data: share } = await admin
       .from('list_shares')
-      .select('id, token, entity_type, entity_id, rechte, label, revoked_at')
+      .select('id, token, entity_type, entity_id, rechte, label, revoked_at, skript_scope')
       .eq('id', shareId)
       .maybeSingle();
     if (!share || share.revoked_at) return jsonRes({ error: 'Zugang nicht gefunden.' }, 404, headers);
@@ -661,19 +714,24 @@ serve(async (req: Request) => {
     if (!/^\d{6}$/.test(code)) {
       return jsonRes({ error: 'Zum erneuten Versand bitte zuerst den Code rotieren und den neuen Code mitsenden.' }, 400, headers);
     }
+    const allScripts = share.entity_type === 'skript' && share.skript_scope === 'kampagne';
+    const mailName = allScripts
+      ? (await kampagneDisplayName(admin, info?.kampagneId ?? null)) || info?.name || share.label
+      : (info?.name || share.label || 'Unbenannt');
     const mailResult = await sendInviteMails({
       emails,
       fromEmail: normalizeFromEmail(Deno.env.get('SHARE_FROM_EMAIL')),
-      subject: `${entityConfig?.label || 'Liste'} „${info?.name || share.label}" wurde mit Ihnen geteilt`,
+      subject: inviteSubject(entityConfig?.label || 'Liste', mailName, allScripts),
       html: buildInviteEmail({
         entityLabel: entityConfig?.label || 'Liste',
         entityArticle: entityConfig?.article || 'die',
-        entityName: info?.name || share.label || 'Unbenannt',
+        entityName: mailName,
         sharedByName: staff.name || 'Ihr Ansprechpartner',
         rechte: share.rechte,
         link,
         code,
         message: String(body.message ?? '').trim().slice(0, 500) || undefined,
+        allScripts,
       }),
     });
     if (mailResult.error && mailResult.sent === 0) return jsonRes({ error: mailResult.error }, 502, headers);
