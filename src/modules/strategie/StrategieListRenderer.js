@@ -7,6 +7,12 @@ import { renderEmptyState, renderEmptyStateRow } from '../../core/components/Emp
 import { icon } from '../../core/icons/IconSystem.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import {
+  renderVerknuepfungen,
+  namedLinks,
+  skriptLinks,
+  skripteAusStrategie
+} from '../../core/ui/tableVerknuepfungen.js';
 
 // Create ist eine Capability, keine Rolle: Investor/Finanzen (intern, view-only)
 // bekommen keinen Anlegen-Button.
@@ -171,6 +177,9 @@ export function renderBrandsView(list) {
                 <th>Name</th>
                 <th>Kampagne</th>
                 <th>Erstellt von</th>
+                <th>Briefing</th>
+                <th>Casting</th>
+                <th>Skript</th>
                 <th>Aktionen</th>
               </tr>
             </thead>
@@ -220,6 +229,9 @@ export function renderItemsRows(list, items) {
         </td>
         <td>${kampagneName}</td>
         <td>${list.sanitize(strategie.created_by_user?.name || '-')}</td>
+        <td>${renderVerknuepfungen(namedLinks(strategie.briefing, { labelKey: 'aktivierung_name', kind: 'briefing' }))}</td>
+        <td>${renderVerknuepfungen(namedLinks(strategie.creator_auswahl, { labelKey: 'name', kind: 'casting' }))}</td>
+        <td>${renderVerknuepfungen(skriptLinks(skripteAusStrategie(strategie)))}</td>
         <td class="col-actions">
           ${actionBuilder.create('strategie_liste', strategie.id)}
         </td>
@@ -237,7 +249,7 @@ export function updateCompanyOnlyTable(list) {
       icon: 'building',
       title: 'Keine unternehmensweiten Konzepte ohne Marke',
       actionsHtml: strategieCreateButtonHtml()
-    }, 4);
+    }, 7);
     return;
   }
 
@@ -270,11 +282,14 @@ export function renderItemsView(list) {
               <th class="col-name">Name</th>
               <th class="col-kampagne">Kampagne</th>
               <th class="col-erstellt-von">Erstellt von</th>
+              <th>Briefing</th>
+              <th>Casting</th>
+              <th>Skript</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody id="strategien-table-body">
-            <tr><td colspan="4" class="table-empty-cell">Lade Konzepte...</td></tr>
+            <tr><td colspan="7" class="table-empty-cell">Lade Konzepte...</td></tr>
           </tbody>
         </table>
       </div>
@@ -292,7 +307,7 @@ export function updateItemsTable(list) {
       icon: 'clipboard',
       title: 'Keine Konzepte für diese Marke vorhanden',
       actionsHtml: strategieCreateButtonHtml()
-    }, 4);
+    }, 7);
     list.pagination.updateTotal(0);
     list.pagination.render();
     return;

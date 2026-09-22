@@ -11,6 +11,12 @@ import { renderEmptyState, renderEmptyStateRow } from '../../core/components/Emp
 import { icon } from '../../core/icons/IconSystem.js';
 import { fillFoldersGrid } from '../../core/components/GridFiller.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
+import {
+  renderVerknuepfungen,
+  namedLinks,
+  skriptLinks,
+  skripteAusStrategie
+} from '../../core/ui/tableVerknuepfungen.js';
 
 // Create ist eine Capability, keine Rolle: Investor/Finanzen (intern, view-only)
 // bekommen keinen Anlegen-Button.
@@ -316,6 +322,9 @@ export class CreatorAuswahlList {
                   <th>Creator</th>
                   <th>Erstellt von</th>
                   <th>Erstellt am</th>
+                  <th>Briefing</th>
+                  <th>Konzept</th>
+                  <th>Skript</th>
                   <th>Aktionen</th>
                 </tr>
               </thead>
@@ -373,6 +382,9 @@ export class CreatorAuswahlList {
           <td>${liste.item_count ?? 0}</td>
           <td>${this.sanitize(liste.created_by_user?.name || '-')}</td>
           <td>${formatDate(liste.created_at)}</td>
+          <td>${renderVerknuepfungen(namedLinks(liste.briefing, { labelKey: 'aktivierung_name', kind: 'briefing' }))}</td>
+          <td>${renderVerknuepfungen(namedLinks(liste.strategie, { labelKey: 'name', kind: 'konzept' }))}</td>
+          <td>${renderVerknuepfungen(skriptLinks(skripteAusStrategie(liste.strategie)))}</td>
           <td class="col-actions">
             ${actionsHtml}
           </td>
@@ -386,7 +398,7 @@ export class CreatorAuswahlList {
     if (!tbody) return;
 
     if (this.companyOnlyItems.length === 0) {
-      tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine unternehmensweiten Einträge ohne Marke', 'building'), 6);
+      tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine unternehmensweiten Einträge ohne Marke', 'building'), 9);
       return;
     }
 
@@ -420,11 +432,14 @@ export class CreatorAuswahlList {
                 <th class="ca-col-creator-count">Creator</th>
                 <th class="ca-col-erstellt-von">Erstellt von</th>
                 <th class="ca-col-erstellt-am">Erstellt am</th>
+                <th>Briefing</th>
+                <th>Konzept</th>
+                <th>Skript</th>
                 <th class="col-actions">Aktionen</th>
               </tr>
             </thead>
             <tbody id="creator-auswahl-table-body">
-              <tr><td colspan="6" class="table-state-cell">Lade Casting-Listen...</td></tr>
+              <tr><td colspan="9" class="table-state-cell">Lade Casting-Listen...</td></tr>
             </tbody>
           </table>
         </div>
@@ -438,7 +453,7 @@ export class CreatorAuswahlList {
     if (!tbody) return;
 
     if (this.currentItems.length === 0) {
-      tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine Casting-Listen für diese Marke vorhanden'), 6);
+      tbody.innerHTML = renderEmptyStateRow(this._sourcingEmptyState('Keine Casting-Listen für diese Marke vorhanden'), 9);
       this.pagination.updateTotal(0);
       this.pagination.render();
       return;

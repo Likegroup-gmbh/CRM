@@ -23,6 +23,22 @@
   text-decoration-color: var(--gray-500);
 }
 
+.table-link-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xxxs);
+  min-width: 8rem;
+}
+
+.table-link-stack .table-link {
+  display: block;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .table-link.email-link {
   color: #557ce9;
   text-decoration-color: rgba(129, 157, 239, 0.4);

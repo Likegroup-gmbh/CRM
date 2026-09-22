@@ -11,6 +11,13 @@ import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { resolveEmptyState, bindEmptyStateActions } from '../../core/components/EmptyState.js';
 import { BEREICH_LABELS } from './create/fieldConfig.js';
 import {
+  renderVerknuepfungen,
+  namedLinks,
+  skriptLinks,
+  produktLinksFromJunction,
+  attachPersonasToBriefings
+} from '../../core/ui/tableVerknuepfungen.js';
+import {
   buildCompanyFolders,
   buildBrandFolders,
   buildCurrentItems,
@@ -292,9 +299,13 @@ export class BriefingList {
       .select(`
         id, aktivierung_name, bereich, is_draft, ansatz,
         content_deadline, go_live, created_at, updated_at,
-        unternehmen_id, marke_id,
+        unternehmen_id, marke_id, persona_ids,
         unternehmen:unternehmen_id(id, firmenname, logo_url),
-        marke:marke_id(id, markenname, logo_url)
+        marke:marke_id(id, markenname, logo_url),
+        produkte:campaign_briefing_produkt(produkt:produkt_id(id, name)),
+        creator_auswahl(id, name),
+        strategie(id, name),
+        skripte(id, titel)
       `)
       .order('created_at', { ascending: false });
 
@@ -329,7 +340,25 @@ export class BriefingList {
 
     const { data, error } = await query;
     if (error) throw error;
-    return data || [];
+    const rows = data || [];
+    const personaIds = [...new Set(rows.flatMap((row) => row.persona_ids || []).filter(Boolean))];
+    const personas = await this.fetchPersonasByIds(personaIds);
+    return attachPersonasToBriefings(rows, personas);
+  }
+
+  async fetchPersonasByIds(ids) {
+    if (!ids.length || !window.supabase) return [];
+    const all = [];
+    for (let i = 0; i < ids.length; i += 80) {
+      const chunk = ids.slice(i, i + 80);
+      const { data, error } = await window.supabase
+        .from('personas')
+        .select('id, name')
+        .in('id', chunk);
+      if (error) throw error;
+      all.push(...(data || []));
+    }
+    return all;
   }
 
   async render() {
@@ -367,12 +396,17 @@ export class BriefingList {
               <th>Bereich</th>
               <th>Status</th>
               <th>Content Deadline</th>
+              <th>Produkte</th>
+              <th>Personas</th>
+              <th>Casting</th>
+              <th>Konzept</th>
+              <th>Skript</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody id="briefings-table-body">
             <tr>
-              <td colspan="${canBulkDelete ? '8' : '7'}" class="loading">Lade Briefings...</td>
+              <td colspan="${canBulkDelete ? '13' : '12'}" class="loading">Lade Briefings...</td>
             </tr>
           </tbody>
         </table>
@@ -688,6 +722,11 @@ export class BriefingList {
         <td>${this.renderBereich(b.bereich)}</td>
         <td>${this.renderStatus(b.is_draft)}</td>
         <td>${b.content_deadline ? new Date(b.content_deadline).toLocaleDateString('de-DE') : '-'}</td>
+        <td>${renderVerknuepfungen(produktLinksFromJunction(b.produkte))}</td>
+        <td>${renderVerknuepfungen(namedLinks(b.verknuepfte_personas, { labelKey: 'name', kind: 'persona' }))}</td>
+        <td>${renderVerknuepfungen(namedLinks(b.creator_auswahl, { labelKey: 'name', kind: 'casting' }))}</td>
+        <td>${renderVerknuepfungen(namedLinks(b.strategie, { labelKey: 'name', kind: 'konzept' }))}</td>
+        <td>${renderVerknuepfungen(skriptLinks(b.skripte))}</td>
         <td class="col-actions">
           ${actionBuilder.create('briefing', b.id)}
         </td>
@@ -703,7 +742,7 @@ export class BriefingList {
 
     await TableAnimationHelper.animatedUpdate(tbody, async () => {
       if (!items || items.length === 0) {
-        const colspan = tbody.closest('table')?.querySelector('thead tr')?.children?.length || 8;
+        const colspan = tbody.closest('table')?.querySelector('thead tr')?.children?.length || 12;
         const html = resolveEmptyState({
           hasActiveFilters: this.hasActiveFilters(),
           states: {

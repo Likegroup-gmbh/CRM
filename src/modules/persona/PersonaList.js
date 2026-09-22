@@ -13,6 +13,13 @@ import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { PersonaFilterLogic } from './filters/PersonaFilterLogic.js';
 import { PersonaService } from './PersonaService.js';
 import {
+  renderVerknuepfungen,
+  namedLinks,
+  skriptLinks,
+  acceptedProduktLinks,
+  attachBriefingsToPersonas
+} from '../../core/ui/tableVerknuepfungen.js';
+import {
   buildCompanyFolders,
   buildBrandFolders,
   buildCurrentItems,
@@ -33,7 +40,9 @@ import {
 const PERSONA_LIST_SELECT = `
   *,
   unternehmen:unternehmen_id(id, firmenname, internes_kuerzel, logo_url),
-  marken:persona_marke(marke_id, marke:marke_id(id, markenname, logo_url))
+  marken:persona_marke(marke_id, marke:marke_id(id, markenname, logo_url)),
+  produkte:produkt_persona_vorschlag(status, produkt:produkt_id(id, name)),
+  skripte(id, titel)
 `;
 
 export class PersonaList extends BasePaginatedList {
@@ -46,7 +55,7 @@ export class PersonaList extends BasePaginatedList {
       sortAscending: true,
       paginationContainerId: 'pagination-persona',
       tbodySelector: '.data-table tbody',
-      tableColspan: 10,
+      tableColspan: 13,
       checkboxClass: 'persona-check',
       selectAllId: 'select-all-personas'
     });
@@ -217,7 +226,26 @@ export class PersonaList extends BasePaginatedList {
       .order('name', { ascending: true });
 
     if (error) throw error;
-    return data || [];
+    return this.attachBriefings(data || []);
+  }
+
+  async attachBriefings(personas) {
+    const ids = (personas || []).map((persona) => persona.id).filter(Boolean);
+    if (!ids.length || !window.supabase) return personas || [];
+
+    const briefings = [];
+    for (let i = 0; i < ids.length; i += 80) {
+      const chunk = ids.slice(i, i + 80);
+      const { data, error } = await window.supabase
+        .from('campaign_briefings')
+        .select('id, aktivierung_name, persona_ids')
+        .overlaps('persona_ids', chunk);
+      if (error) throw error;
+      briefings.push(...(data || []));
+    }
+
+    const unique = [...new Map(briefings.map((row) => [row.id, row])).values()];
+    return attachBriefingsToPersonas(personas, unique);
   }
 
   buildCurrentFolders() {
@@ -351,7 +379,7 @@ export class PersonaList extends BasePaginatedList {
       const { data, error, count } = await query;
       if (error) throw error;
 
-      return { data: data || [], total: count || 0 };
+      return { data: await this.attachBriefings(data || []), total: count || 0 };
     } catch (error) {
       console.error('❌ Fehler beim Laden der Personas:', error);
       throw error;
@@ -378,6 +406,9 @@ export class PersonaList extends BasePaginatedList {
         <td>${sanitize(persona.geschlecht || '-')}</td>
         <td>${sanitize(persona.wohnort_region || '-')}</td>
         <td>${this._formatDate(persona.created_at)}</td>
+        <td>${renderVerknuepfungen(acceptedProduktLinks(persona.produkte))}</td>
+        <td>${renderVerknuepfungen(namedLinks(persona.verknuepfte_briefings, { labelKey: 'aktivierung_name', kind: 'briefing' }))}</td>
+        <td>${renderVerknuepfungen(skriptLinks(persona.skripte))}</td>
         <td class="col-actions">
           ${actionBuilder.create('persona', persona.id)}
         </td>
@@ -451,12 +482,15 @@ export class PersonaList extends BasePaginatedList {
               <th>Geschlecht</th>
               <th>Region</th>
               <th>Erstellt</th>
+              <th>Produkte</th>
+              <th>Briefings</th>
+              <th>Skripte</th>
               <th class="col-actions">Aktionen</th>
             </tr>
           </thead>
           <tbody>
             <tr>
-              <td colspan="${canBulkDelete ? '10' : '9'}" class="no-data">Lade Personas...</td>
+              <td colspan="${canBulkDelete ? '13' : '12'}" class="no-data">Lade Personas...</td>
             </tr>
           </tbody>
         </table>

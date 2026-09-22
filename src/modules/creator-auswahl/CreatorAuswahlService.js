@@ -65,7 +65,9 @@ export class CreatorAuswahlService {
         marke:marke_id(id, markenname, logo_url),
         kampagne:kampagne_id(id, kampagnenname, eigener_name),
         created_by_user:created_by(id, name, profile_image_url),
-        creator_auswahl_items(count)
+        creator_auswahl_items(count),
+        briefing:briefing_id(id, aktivierung_name),
+        strategie:strategie_id(id, name, strategie_items(skripte(id, titel)))
       `)
       .order('created_at', { ascending: false });
 

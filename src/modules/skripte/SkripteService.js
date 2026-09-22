@@ -220,7 +220,7 @@ export class SkripteService {
     // hauptteil/cta bleiben draussen (nie angezeigt),
     // hook nur als Titel-Fallback (Renderer schneidet auf 50/80 Zeichen)
     let query = this.db.from('skripte')
-      .select('id, titel, unternehmen_id, marke_id, kampagne_id, branche_id, hook, herkunft, status, mit_dna, model, funnel_stufe, created_at, unternehmen(id, firmenname, internes_kuerzel, logo_url), marke(id, markenname, logo_url), kampagne(id, kampagnenname, eigener_name), branchen(name)')
+      .select('id, titel, unternehmen_id, marke_id, kampagne_id, branche_id, hook, herkunft, status, mit_dna, model, funnel_stufe, created_at, unternehmen(id, firmenname, internes_kuerzel, logo_url), marke(id, markenname, logo_url), kampagne(id, kampagnenname, eigener_name), branchen(name), briefing:briefing_id(id, aktivierung_name), produkt(id, name), personas(id, name), strategie_item:strategie_item_id(strategie:strategie_id(id, name))')
       .order('created_at', { ascending: false })
       .limit(200);
 

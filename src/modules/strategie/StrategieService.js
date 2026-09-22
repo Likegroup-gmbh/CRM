@@ -68,7 +68,10 @@ export class StrategieService {
         marke:marke_id(id, markenname, logo_url, unternehmen:unternehmen_id(internes_kuerzel)),
         kampagne:kampagne_id(id, kampagnenname, eigener_name),
         auftrag:auftrag_id(id, auftragsname),
-        created_by_user:created_by(id, name, profile_image_url)
+        created_by_user:created_by(id, name, profile_image_url),
+        briefing:briefing_id(id, aktivierung_name),
+        creator_auswahl:creator_auswahl_id(id, name),
+        strategie_items(skripte(id, titel))
       `)
       .order('created_at', { ascending: false });
 
