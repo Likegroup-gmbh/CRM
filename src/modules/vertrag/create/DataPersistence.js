@@ -76,6 +76,7 @@ VertraegeCreate.prototype.prepareDataForDB = function() {
       name: this.formData.name || null,
       kunde_unternehmen_id: this.formData.kunde_unternehmen_id || null,
       kampagne_id: typ === 'Contracting' ? null : (this.formData.kampagne_id || null),
+      produktion_id: typ === 'Contracting' ? null : (this.formData.produktion_id || null),
       creator_id: this.formData.creator_id || null,
       kooperation_id: typ === 'Contracting' ? null : (this.formData.kooperation_id || null),
       contracting_auftrag_id: typ === 'Contracting' ? (this.formData.contracting_auftrag_id || null) : null,

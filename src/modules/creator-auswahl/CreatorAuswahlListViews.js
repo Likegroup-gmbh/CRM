@@ -17,7 +17,8 @@ import {
 // Create ist eine Capability, keine Rolle: Investor/Finanzen (intern, view-only)
 // bekommen keinen Anlegen-Button.
 function canCreateListe() {
-  return window.canCreate?.('sourcing') ?? false;
+  // Casting entsteht beim Finalisieren des Briefings, nicht über diese Liste.
+  return false;
 }
 
 export function buildCompanyFolders() {

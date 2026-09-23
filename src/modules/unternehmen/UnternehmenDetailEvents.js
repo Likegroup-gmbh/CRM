@@ -2,6 +2,7 @@
 // Event-Binding und Drag-to-Scroll für Unternehmen-Detailseite
 
 import { activateSecondaryNavTab, getSecondaryNavTabFromEvent } from '../../core/TabUtils.js';
+import { openPersonaCreateDrawer } from '../persona/PersonaCreateDrawer.js';
 
 export function bindUnternehmenDetailEvents(detail) {
   detail.bindSidebarTabs();
@@ -47,7 +48,11 @@ export function bindUnternehmenDetailEvents(detail) {
 
     if (e.target.closest('.persona-create-btn')) {
       e.preventDefault();
-      window.navigateTo(`${basis}/persona`);
+      openPersonaCreateDrawer({
+        origin: 'unternehmen',
+        unternehmen_id: detail.unternehmenId,
+        unternehmenName: detail.unternehmen?.firmenname || null
+      });
       return;
     }
 

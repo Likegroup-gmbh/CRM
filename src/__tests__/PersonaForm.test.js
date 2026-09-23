@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { PersonaForm } from '../modules/persona/PersonaForm.js';
+import { resolveOwnerContext } from '../core/OwnerContext.js';
 
 vi.mock('../modules/persona/PersonaService.js', () => ({
   PersonaService: {
@@ -19,7 +20,8 @@ vi.mock('../modules/persona/PersonaService.js', () => ({
 vi.mock('../modules/produkt/ProduktPersonaService.js', () => ({
   ProduktPersonaService: {
     saveForPersona: vi.fn(async () => {}),
-    loadProdukteForPersona: vi.fn(async () => [])
+    loadProdukteForPersona: vi.fn(async () => []),
+    starteAudienceSituationJobs: vi.fn(async () => 0)
   }
 }));
 
@@ -105,6 +107,9 @@ describe('PersonaForm', () => {
     expect(doc.querySelector('.doc__side')).not.toBeNull();
     expect(doc.querySelector('#persona-liky-input')?.disabled).toBeFalsy();
     expect(doc.querySelector('#persona-liky-send')?.disabled).toBeFalsy();
+    expect(doc.querySelector('[data-doc-field="unternehmen_id"]')).not.toBeNull();
+    expect(doc.querySelector('[data-doc-field="marke_ids"]')).not.toBeNull();
+    expect(doc.querySelector('[data-doc-field="briefing_ids"]')).not.toBeNull();
 
     // Produkte-Band wurde mit den verknuepften Produkten befuellt
     expect(ProduktPersonaService.loadProdukteForPersona).toHaveBeenCalledWith('p1');
@@ -114,19 +119,63 @@ describe('PersonaForm', () => {
     expect(loadBriefingIdsForPersona).toHaveBeenCalledWith('p1', { nurFinalisiert: true });
   });
 
-  it('standalone new: kein Laden, leerer Kontext', async () => {
+  it('standalone new ohne Zuordnung geht zur Liste zurück', async () => {
     setPath('/persona/new');
 
     await form.init('new');
 
-    expect(form.personaId).toBeNull();
-    expect(form.persona).toBeNull();
-    expect(form.ctx.listPath).toBe('/persona');
-    expect(window.breadcrumbSystem.updateBreadcrumb).toHaveBeenCalledWith(
-      expect.any(Array),
-      null,
-      { switcher: null }
-    );
+    expect(window.navigateTo).toHaveBeenCalledWith('/persona');
+    expect(window.content.querySelector('#persona-form')).toBeNull();
+  });
+
+  it('standalone new versteckt die Zuordnung und setzt das Produkt', async () => {
+    setPath('/persona/new?unternehmen=u1&marke=m1&briefing=b1&produkt=p1');
+
+    await form.init('new');
+
+    const doc = window.content.querySelector('form#persona-form');
+    expect(doc).not.toBeNull();
+    expect(doc.querySelector('[data-doc-field="unternehmen_id"]')).toBeNull();
+    expect(doc.querySelector('[data-doc-field="marke_ids"]')).toBeNull();
+    expect(doc.querySelector('[data-doc-field="briefing_ids"]')).toBeNull();
+    expect(doc.querySelector('input[type="hidden"][name="unternehmen_id"]').value).toBe('u1');
+    expect(form.collectMarkenIds({})).toEqual(['m1']);
+    expect(form.collectBriefingIds({})).toEqual(['b1']);
+    expect(doc.querySelector('[data-rel-action="add-produkt"]')).toBeNull();
+    expect(doc.querySelector('[data-rel-action="entfernen"]')).toBeNull();
+    expect(doc.querySelector('[data-rel-action="open"]')).not.toBeNull();
+    expect(form.produktPanel.getProduktIds()).toEqual(['p1']);
+  });
+
+  it('standalone new ohne Produkt lässt das Band offen', async () => {
+    setPath('/persona/new?unternehmen=u1&marke=m1&briefing=b1');
+
+    await form.init('new');
+
+    const doc = window.content.querySelector('form#persona-form');
+    expect(doc).not.toBeNull();
+    expect(doc.querySelector('[data-rel-action="add-produkt"]')).not.toBeNull();
+    expect(form.produktPanel.getProduktIds()).toEqual([]);
+    expect(form.createScope.produktId).toBeNull();
+  });
+
+  it('nested create ohne Briefing und Produkt geht zum Personas-Tab', async () => {
+    setPath('/unternehmen/u1/persona');
+    resolveOwnerContext.mockResolvedValue({
+      markeId: null,
+      unternehmenId: 'u1',
+      owner: { id: 'u1' },
+      basePath: '/unternehmen/u1',
+      listPath: '/unternehmen',
+      listLabel: 'Unternehmen',
+      ownerLabel: 'Acme',
+      markenAnzahl: 2
+    });
+
+    await form.init('u1');
+
+    expect(window.navigateTo).toHaveBeenCalledWith('/unternehmen/u1?tab=personas');
+    expect(window.content.querySelector('#persona-form')).toBeNull();
   });
 
   it('standalone: Persona nicht gefunden leitet zur Liste', async () => {
@@ -138,6 +187,40 @@ describe('PersonaForm', () => {
 
     expect(window.toastSystem.error).toHaveBeenCalledWith('Persona nicht gefunden');
     expect(window.navigateTo).toHaveBeenCalledWith('/persona');
+  });
+
+  it('speichern ohne Produkt startet Audience Situations', async () => {
+    setPath('/persona/new?unternehmen=u1&marke=m1&briefing=b1');
+    const { PersonaService } = await import('../modules/persona/PersonaService.js');
+    const { ProduktPersonaService } = await import('../modules/produkt/ProduktPersonaService.js');
+    PersonaService.create.mockResolvedValue({ id: 'p-neu' });
+    ProduktPersonaService.starteAudienceSituationJobs.mockResolvedValueOnce(1);
+    window.validatorSystem = { validateForm: vi.fn(() => ({ isValid: true, errors: {} })) };
+    window.formSystem.collectSubmitData.mockReturnValue({ name: 'Sarah', unternehmen_id: 'u1' });
+
+    await form.init('new');
+    await form.handleSubmit();
+
+    expect(ProduktPersonaService.saveForPersona).toHaveBeenCalledWith('p-neu', []);
+    expect(ProduktPersonaService.starteAudienceSituationJobs).toHaveBeenCalledWith(['p-neu'], {
+      produktId: null,
+      produkt: {}
+    });
+  });
+
+  it('speichern mit Produkt startet keine Audience Situations', async () => {
+    setPath('/persona/new?unternehmen=u1&marke=m1&briefing=b1&produkt=p1');
+    const { PersonaService } = await import('../modules/persona/PersonaService.js');
+    const { ProduktPersonaService } = await import('../modules/produkt/ProduktPersonaService.js');
+    PersonaService.create.mockResolvedValue({ id: 'p-neu' });
+    window.validatorSystem = { validateForm: vi.fn(() => ({ isValid: true, errors: {} })) };
+    window.formSystem.collectSubmitData.mockReturnValue({ name: 'Sarah', unternehmen_id: 'u1' });
+
+    await form.init('new');
+    await form.handleSubmit();
+
+    expect(ProduktPersonaService.saveForPersona).toHaveBeenCalledWith('p-neu', ['p1']);
+    expect(ProduktPersonaService.starteAudienceSituationJobs).not.toHaveBeenCalled();
   });
 
   it('blockiert den Save, wenn das Produkt-Panel einen Ladefehler hat', async () => {

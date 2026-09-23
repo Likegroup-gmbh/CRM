@@ -267,12 +267,7 @@ export function applySpaltenPreset(submitData) {
 }
 
 export function showCreateForm() {
-  if (window.location.pathname !== '/castings') {
-    window.navigateTo('/castings');
-    setTimeout(() => this.openCreateDrawer(), 100);
-  } else {
-    this.openCreateDrawer();
-  }
+  window.toastSystem?.show('Casting entsteht beim Finalisieren des Briefings.', 'info');
 }
 
 export const creatorAuswahlListDrawersMethods = {

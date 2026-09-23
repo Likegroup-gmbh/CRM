@@ -46,13 +46,14 @@ export class SkripteService {
    * Konzepte zum Create-Drawer. Ohne Unternehmen keine Treffer; Kampagne
    * filtert den Prefill aus dem Kampagnen-Workflow.
    */
-  async loadKonzepte({ unternehmenId, kampagneId = null } = {}) {
+  async loadKonzepte({ unternehmenId, kampagneId = null, produktionId = null } = {}) {
     if (!unternehmenId) return [];
 
     let q = this.db.from('strategie')
       .select('id, name, unternehmen_id, marke_id, kampagne_id, briefing_id')
       .eq('unternehmen_id', unternehmenId);
     if (kampagneId) q = q.eq('kampagne_id', kampagneId);
+    if (produktionId) q = q.eq('produktion_id', produktionId);
 
     const { data, error } = await q.order('created_at', { ascending: false });
     if (error) throw new Error(error.message);
@@ -189,7 +190,7 @@ export class SkripteService {
    * Editor auf eine Kampagne; null = explizit „ohne Kampagne“. Ohne Argument
    * bleibt das bisherige Verhalten (alles, Limit 200) fuer SkriptList.
    */
-  async loadSkripte({ kampagneId } = {}) {
+  async loadSkripte({ kampagneId, produktionId = null } = {}) {
     // hauptteil/cta bleiben draussen (nie angezeigt),
     // hook nur als Titel-Fallback (Renderer schneidet auf 50/80 Zeichen)
     let query = this.db.from('skripte')
@@ -208,6 +209,7 @@ export class SkripteService {
 
     if (kampagneId) query = query.eq('kampagne_id', kampagneId);
     else if (kampagneId === null) query = query.is('kampagne_id', null);
+    if (produktionId) query = query.eq('produktion_id', produktionId);
 
     const { data, error } = await query;
 
@@ -349,6 +351,7 @@ export class SkripteService {
       unternehmen_id: enriched.unternehmen_id || null,
       marke_id: enriched.marke_id || null,
       kampagne_id: enriched.kampagne_id || null,
+      produktion_id: enriched.produktion_id || null,
       produkt_id: enriched.produkt_id || null,
       persona_id: enriched.persona_id || null,
       branche_id: enriched.branche_id || null,

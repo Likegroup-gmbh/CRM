@@ -1,11 +1,7 @@
-// KampagneDetailWorkflow.js
-// Workflow-Tabs auf der Kampagnen-Detailseite:
+// Workflow-Tabs auf der Produktions-Detailseite:
 // Briefing, Casting, Konzepte, Skripte, Verträge, Produktion (Default), Videos, Auswertung.
 //
-// Produktion ist die heutige Kooperationstabelle — sie bleibt gemountet und wird
-// nur per DOM-hide versteckt. Casting mountet das volle Worksheet
-// (CreatorAuswahlDetail). Alle anderen Panes werden lazy beim ersten
-// Tab-Besuch gefüllt (kampagnen-gefilterte Listen).
+// Der Tab „Produktion“ ist die Kooperationstabelle. Auf der Kampagne gibt es diese Tabs nicht.
 
 import { canViewTab, syncTabQueryParam, getTabQueryParam } from '../../core/TabUtils.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
@@ -19,6 +15,7 @@ import {
   openVertragUploadDrawer
 } from '../vertrag/VertraegeListHandlers.js';
 import { skripteService } from '../skripte/SkripteService.js';
+import { scopeByProduktion } from '../produktion/ProduktionService.js';
 import { STATUS_LABELS, STATUS_TAG_VARIANT } from '../skripte/SkripteUtils.js';
 import { konzeptCreatorFromSkript } from '../skripte/editor/SkriptEditorDocRenderer.js';
 import { renderCreatorNameCell } from '../creator/CreatorTable.js';
@@ -73,8 +70,9 @@ export function getVisibleWorkflowTabs() {
  */
 export function resolveInitialWorkflowTab() {
   const fromUrl = getTabQueryParam();
+  const normalized = fromUrl === 'kooperation' ? 'produktion' : fromUrl;
   const visible = getVisibleWorkflowTabs().map(t => t.id);
-  return visible.includes(fromUrl) ? fromUrl : DEFAULT_WORKFLOW_TAB;
+  return visible.includes(normalized) ? normalized : DEFAULT_WORKFLOW_TAB;
 }
 
 /**
@@ -268,23 +266,27 @@ async function getWorkflowData(detail, key, loader) {
 }
 
 async function loadVertraege(detail) {
-  const { data, error } = await window.supabase
-    .from('vertraege')
-    .select(`
-      id, name, typ, is_draft, status, gesendet_am,
-      datei_url, datei_path,
-      unterschriebener_vertrag_url, unterschriebener_vertrag_path,
-      dropbox_file_url, dropbox_file_path,
-      kooperation_id, created_at,
-      kunde_unternehmen_id, kampagne_id, creator_id, contracting_auftrag_id,
-      kunde:kunde_unternehmen_id (id, firmenname),
-      kampagne:kampagne_id (id, kampagnenname, eigener_name, marke:marke_id (id, markenname)),
-      kooperation:kooperation_id (id, name),
-      creator:creator_id (id, vorname, nachname, mail),
-      contracting_auftrag:contracting_auftrag_id (id, auftragsname, titel)
-    `)
-    .eq('kampagne_id', detail.kampagneId)
-    .order('created_at', { ascending: false });
+  const query = scopeByProduktion(
+    window.supabase
+      .from('vertraege')
+      .select(`
+        id, name, typ, is_draft, status, gesendet_am,
+        datei_url, datei_path,
+        unterschriebener_vertrag_url, unterschriebener_vertrag_path,
+        dropbox_file_url, dropbox_file_path,
+        kooperation_id, created_at,
+        kunde_unternehmen_id, kampagne_id, creator_id, contracting_auftrag_id,
+        kunde:kunde_unternehmen_id (id, firmenname),
+        kampagne:kampagne_id (id, kampagnenname, eigener_name, marke:marke_id (id, markenname)),
+        kooperation:kooperation_id (id, name),
+        creator:creator_id (id, vorname, nachname, mail),
+        contracting_auftrag:contracting_auftrag_id (id, auftragsname, titel)
+      `)
+      .eq('kampagne_id', detail.kampagneId)
+      .order('created_at', { ascending: false }),
+    detail.produktionId
+  );
+  const { data, error } = await query;
   if (error) throw new Error(error.message);
   return data || [];
 }
@@ -338,8 +340,7 @@ export function mountVertraegePane(detail) {
 /* Pane-Renderer                                                       */
 /* ------------------------------------------------------------------ */
 
-// Briefing hängt heute am Unternehmen (Loader in KampagneDetailDataLoader),
-// nicht an der Kampagne — Produkt/Persona-Umzug kommt später.
+// Briefing der Produktion: direkt oder über Casting, Konzept, Skripte, Kooperationen.
 function renderBriefingPane(detail) {
   const briefings = detail.briefings || [];
 
@@ -347,7 +348,7 @@ function renderBriefingPane(detail) {
     return renderEmptyState({
       icon: 'document',
       title: 'Keine Briefings vorhanden',
-      text: 'Für dieses Unternehmen wurden noch keine Briefings erstellt.'
+      text: 'Für diese Produktion wurde noch kein Briefing zugeordnet.'
     });
   }
 
@@ -387,7 +388,10 @@ function renderBriefingPane(detail) {
 
 async function renderSkriptePane(detail) {
   const skripte = await getWorkflowData(detail, 'skripte', () =>
-    skripteService.loadSkripte({ kampagneId: detail.kampagneId })
+    skripteService.loadSkripte({
+      kampagneId: detail.kampagneId,
+      produktionId: detail.produktionId || null
+    })
   );
 
   if (!skripte.length) {
@@ -492,7 +496,12 @@ export async function renderVertraegePane(detail) {
 // ohne Kampagne-Spalte und ohne Ordner-Nav.
 async function renderVideosPane(detail) {
   const { videos } = await getWorkflowData(detail, 'videos', () =>
-    VideoDataLoader.loadVideos({ kampagneId: detail.kampagneId, from: 0, to: 199 })
+    VideoDataLoader.loadVideos({
+      kampagneId: detail.kampagneId,
+      produktionId: detail.produktionId || null,
+      from: 0,
+      to: 199
+    })
   );
 
   if (!videos.length) {
@@ -583,7 +592,7 @@ function renderAuswertungPane() {
   return renderEmptyState({
     icon: 'info',
     title: 'Auswertung folgt',
-    text: 'Für diese Kampagne liegt noch keine Auswertung vor.'
+    text: 'Für diese Produktion liegt noch keine Auswertung vor.'
   });
 }
 

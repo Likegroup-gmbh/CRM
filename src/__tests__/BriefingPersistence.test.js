@@ -19,10 +19,27 @@ function createInstance() {
   return instance;
 }
 
+function looseChain() {
+  const query = {
+    select: vi.fn(() => query),
+    eq: vi.fn(() => query),
+    insert: vi.fn(() => query),
+    update: vi.fn(() => query),
+    delete: vi.fn(() => query),
+    maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+    single: vi.fn(async () => ({ data: { id: 'row-1' }, error: null })),
+    then: (resolve, reject) => Promise.resolve({ data: [], error: null }).then(resolve, reject)
+  };
+  return query;
+}
+
 function mockSupabase({ row = null, produkte = [] } = {}) {
   const calls = { insert: [], update: [], junctionInsert: [], junctionDelete: 0 };
   const sb = {
     from: vi.fn((table) => {
+      if (table === 'produktion' || table === 'creator_auswahl' || table === 'strategie') {
+        return looseChain();
+      }
       if (table === 'campaign_briefing_produkt') {
         return {
           delete: vi.fn(() => ({
@@ -214,7 +231,12 @@ describe('Briefing DataPersistence', () => {
 
     const instance = createInstance();
     instance.editId = 'briefing-1';
-    instance.formData = { unternehmen_id: 'u1', aktivierung_name: 'Final' };
+    instance.formData = {
+      unternehmen_id: 'u1',
+      aktivierung_name: 'Final',
+      kampagne_id: 'k1',
+      produkt_id: 'p1'
+    };
 
     await instance.handleSubmit();
 

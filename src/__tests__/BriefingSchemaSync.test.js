@@ -68,11 +68,16 @@ describe('Briefing Schema-Sync (fieldConfig <-> Migration)', () => {
     join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20260917_briefing_hooks_varianten.sql'),
     'utf8'
   );
+  const linieSql = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20260925_briefing_linie_tkp.sql'),
+    'utf8'
+  );
   const columns = new Set([
     ...extractColumns(sql),
     ...extractAlterColumns(flowSql),
     ...extractAlterColumns(sonstigesSql),
-    ...extractAlterColumns(hooksSql)
+    ...extractAlterColumns(hooksSql),
+    ...extractAlterColumns(linieSql)
   ]);
   const notNullColumns = extractNotNullColumns(sql);
 

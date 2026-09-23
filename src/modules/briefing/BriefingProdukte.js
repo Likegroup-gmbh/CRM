@@ -54,16 +54,35 @@ export async function syncBriefingProdukte(briefingId, produktIds) {
   if (error) throw error;
 }
 
-/** Projektion: Union der accepted Fits der Briefing-Personas (ADR 0021). */
+/**
+ * Das Produkt der Produktion ist das einzige Briefing-Produkt (ADR 0029).
+ * Ohne gesetztes Produkt bleibt die Persona-Union für Altbestand (ADR 0021).
+ */
 export async function recomputeBriefingProdukte(briefingId) {
   if (!briefingId || !window.supabase) return;
 
   const { data: briefing, error } = await window.supabase
     .from('campaign_briefings')
-    .select('persona_ids')
+    .select('persona_ids, produkt_id')
     .eq('id', briefingId)
     .single();
   if (error) throw error;
+
+  if (briefing?.produkt_id) {
+    await syncBriefingProdukte(briefingId, [briefing.produkt_id]);
+    return;
+  }
+
+  const { data: produktion, error: produktionError } = await window.supabase
+    .from('produktion')
+    .select('produkt_id')
+    .eq('briefing_id', briefingId)
+    .maybeSingle();
+  if (produktionError) throw produktionError;
+  if (produktion?.produkt_id) {
+    await syncBriefingProdukte(briefingId, [produktion.produkt_id]);
+    return;
+  }
 
   const personaIds = Array.isArray(briefing?.persona_ids)
     ? briefing.persona_ids.filter(Boolean)

@@ -10,6 +10,8 @@ import { handleVertragListAction } from '../vertrag/VertraegeListHandlers.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { navigateToNewKooperationFromKampagne } from '../kooperation/kooperationFromKampagne.js';
 import { handleWorkflowCreate } from './KampagneWorkflowCreate.js';
+import { openProduktionBriefingDrawer } from '../produktion/ProduktionBriefingDrawer.js';
+import { emptyProduktionId } from '../produktion/ProduktionService.js';
 import { VideoTableColumnVisibilityDrawer } from './VideoTableColumnVisibilityDrawer.js';
 import { CustomColumnsDrawer } from './columns/CustomColumnsDrawer.js';
 import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
@@ -136,6 +138,19 @@ export function setupEvents(detail) {
 
   initToolbarMenu(signal);
   initKooperationenSearch(detail, signal);
+
+  document.getElementById('btn-new-produktion')?.addEventListener('click', () => {
+    openProduktionBriefingDrawer(detail, {
+      produktionId: emptyProduktionId(detail.produktionen)
+    });
+  }, { signal });
+
+  document.querySelectorAll('a[data-table="produktion"]').forEach(link => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (link.dataset.id) window.navigateTo(`/produktion/${link.dataset.id}`);
+    }, { signal });
+  });
 
   // Plus-Menü: Filter-Submenus (Status/Tags, Multi-Select)
   document.addEventListener('click', (e) => {

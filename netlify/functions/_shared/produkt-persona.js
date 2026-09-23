@@ -14,6 +14,12 @@
 // guess (KI-Extrakt, unsicher), manual (vom Team eingetragen).
 
 const { attachAudienceSituations, fmtAudienceSituations } = require('./audience-situation');
+const {
+  UNISEX_VORNMEN,
+  nameIstUnisex,
+  kanonischerUnisexName,
+  gefilterteUnisexNamen
+} = require('./unisex-vornamen');
 
 const POOL_FELDER = 'id, name, oberbegriff, alter_von, alter_bis, geschlecht, wohnort_region, beruf, budgetrahmen, bildungsstand, lebenssituation, pain_points, interessen, beduerfnisse, kaufmotive, einwaende, tonalitaet, plattformen, content_praeferenzen, beschreibung';
 
@@ -150,6 +156,25 @@ const PERSONA_TOOL = {
   }
 };
 
+function modusBrauchtUnisexName(modus) {
+  const wert = modus || 'initial';
+  return wert === 'initial' || wert === 'karte';
+}
+
+/** Kopie des Tool-Schemas. Bei Unisex ist der Vorname eine feste Liste. */
+function personaTool({ unisexNamen = false, namen = [] } = {}) {
+  const tool = JSON.parse(JSON.stringify(PERSONA_TOOL));
+  if (!unisexNamen) return tool;
+  const props = tool.input_schema.properties.vorschlaege.items.properties.persona.properties;
+  const liste = namen.length ? namen : [...UNISEX_VORNMEN];
+  props.name.enum = liste;
+  props.name.description = 'Genau einer dieser Vornamen. Kein anderer Name.';
+  props.geschlecht.enum = ['Gemischt'];
+  props.geschlecht.description = 'Immer Gemischt.';
+  props.oberbegriff.description = 'Geschlechtsneutrale Kategorie, z.B. "Berufstaetige mit wenig Zeit am Morgen".';
+  return tool;
+}
+
 const KIND_LABELS = {
   fact: 'BELEGBAR (von der Produktseite uebernommen)',
   guess: 'ABGELEITET (KI-Extrakt, unsicher - nicht als gesicherte Wahrheit behandeln)',
@@ -197,7 +222,7 @@ function fmtPoolPersona(p) {
  *   modus: 'initial' | 'weitere' | 'karte',
  *   anzahlZiel: number,
  *   behalten: [{ typ, name }],        // aktive Karten (freeze)
- *   ersetzteKarte: { typ } | null     // karte-Modus
+ *   ersetzteKarte: { typ, name } | null     // karte-Modus, name = verworfener Vorname
  * }
  */
 function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
@@ -273,9 +298,20 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
     behalten.forEach((b) => { task += `- ${b.name}${b.typ === 'match' ? ' (bestehende Persona)' : ' (neuer Entwurf)'}\n`; });
   }
 
+  const unisex = modusBrauchtUnisexName(input.modus);
+  const unisexListe = unisex
+    ? gefilterteUnisexNamen({
+      poolNamen: (pool || []).map((p) => p?.name),
+      verworfenerName: input.ersetzteKarte?.name
+    })
+    : [];
+
   task += '\n# AUFTRAG\n';
   if (input.modus === 'karte') {
     task += 'Ersetze GENAU EINE verworfene Karte durch eine neue Persona. ';
+    task += 'Dieselbe Rolle wie die verworfene Karte. Weiterhin der breiteste Typ, nicht enger schneiden, nicht auf ein Geschlecht ziehen. ';
+    const alt = String(input.ersetzteKarte?.name || '').trim();
+    if (alt) task += `Diesen Vornamen nicht wiederverwenden: ${alt}. `;
   } else if (input.modus === 'weitere') {
     task += 'Lege GENAU EINE weitere neue Persona dazu. Anderer Typ als das Covered-Set, weiterhin der naechst-breiteste tragfaehige Typ – keine Nische. ';
   } else {
@@ -284,6 +320,14 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
   task += 'typ immer "neu". Kein Szenen-Schnitt, keine Nische, keine Quote, kein Match auf bestehende Personas – Wiederverwenden macht der Mensch manuell. '
     + 'fit_grund nennt konkret, welche Pain Points/Beduerfnisse auf welche Produktfakten treffen. '
     + 'Gib genau EINEN Eintrag in "vorschlaege" ab.\n';
+
+  if (unisex) {
+    task += 'Vorname nur aus dieser Liste, exakt eine Schreibweise: '
+      + unisexListe.join(', ') + '. '
+      + 'House-Style gilt fuer den Vornamen nicht. '
+      + 'geschlecht ist "Gemischt". '
+      + 'oberbegriff, beruf und beschreibung ohne -in/-er und ohne sie/er.\n';
+  }
 
   task += '\n# AUSGABEFORMAT\nGib das Ergebnis AUSSCHLIESSLICH ueber das Tool "persona_vorschlaege_abgeben" ab. '
     + 'use_case_indices sind 0-basiert auf die gemeinsame Liste (bestehende zuerst, dann deine generierten). '
@@ -300,8 +344,9 @@ function buildPrompt(input, { pool = [], poolQuelle = 'leer' } = {}) {
  * - neu ohne persona.name -> verworfen
  * - use_case_indices ausserhalb der Liste -> gefiltert; Karte ohne gueltigen
  *   Bezug fliegt raus
+ * - unisexNamen: Vorname muss aus der Unisex-Liste kommen, geschlecht wird Gemischt
  */
-function validateVorschlaege(json, { useCaseCount = 0, maxVorschlaege = 1 } = {}) {
+function validateVorschlaege(json, { useCaseCount = 0, maxVorschlaege = 1, unisexNamen = false } = {}) {
   const roh = Array.isArray(json?.vorschlaege) ? json.vorschlaege : [];
   const sauber = [];
   const verworfen = [];
@@ -326,13 +371,24 @@ function validateVorschlaege(json, { useCaseCount = 0, maxVorschlaege = 1 } = {}
       continue;
     }
 
+    if (unisexNamen && !nameIstUnisex(persona.name)) {
+      verworfen.push({ grund: 'kein Unisex-Vorname', vorschlag: String(persona.name).trim() });
+      continue;
+    }
+
+    const payload = sanitizePersonaPayload(persona);
+    if (unisexNamen) {
+      payload.name = kanonischerUnisexName(persona.name);
+      payload.geschlecht = 'Gemischt';
+    }
+
     sauber.push({
       typ: 'neu',
       persona_id: null,
       fit_grund: String(v.fit_grund || '').trim(),
       use_case_indices: indices,
       luecken_begruendung: v.luecken_begruendung ? String(v.luecken_begruendung).trim() : null,
-      persona: sanitizePersonaPayload(persona)
+      persona: payload
     });
   }
 
@@ -410,6 +466,9 @@ function sanitizePersonaPayload(persona) {
 
 module.exports = {
   PERSONA_TOOL,
+  personaTool,
+  modusBrauchtUnisexName,
+  gefilterteUnisexNamen,
   buildPrompt,
   loadPoolPersonas,
   validateVorschlaege,

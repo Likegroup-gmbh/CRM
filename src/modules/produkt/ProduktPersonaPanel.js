@@ -218,7 +218,9 @@ export class ProduktPersonaPanel {
       ausschluss_persona_ids: [...ausschluss],
       behalten,
       anzahlZiel: 1,
-      ersetzteKarte: ersetzteKarte ? { typ: ersetzteKarte.typ } : null
+      ersetzteKarte: ersetzteKarte
+        ? { typ: ersetzteKarte.typ, name: this.kartenDaten(ersetzteKarte).name }
+        : null
     };
 
     try {

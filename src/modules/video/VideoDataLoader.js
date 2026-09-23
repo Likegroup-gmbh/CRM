@@ -74,11 +74,11 @@ export class VideoDataLoader {
    * RLS beschraenkt automatisch - kein Client-Filter noetig.
    * @returns {Promise<{videos: Array, total: number}>}
    */
-  static async loadVideos({ kampagneId, activeFilters, from, to }) {
+  static async loadVideos({ kampagneId, produktionId = null, activeFilters, from, to }) {
     if (!window.supabase) return { videos: [], total: 0 };
 
-    // Conditional inner join for kampagne filtering
-    const koopJoin = kampagneId ? '!inner' : '';
+    const scopeKoop = Boolean(kampagneId || produktionId);
+    const koopJoin = scopeKoop ? '!inner' : '';
 
     const selectFields = `
       id, kooperation_id, position, titel, content_art, status, posting_datum, thema, link_content, folder_url,
@@ -90,8 +90,8 @@ export class VideoDataLoader {
       )
     `;
 
-    const countSelect = kampagneId
-      ? 'id, kooperation:kooperation_id!inner(kampagne_id)'
+    const countSelect = scopeKoop
+      ? 'id, kooperation:kooperation_id!inner(kampagne_id, produktion_id)'
       : '*';
 
     let countQuery = window.supabase
@@ -100,6 +100,9 @@ export class VideoDataLoader {
 
     if (kampagneId) {
       countQuery = countQuery.eq('kooperation.kampagne_id', kampagneId);
+    }
+    if (produktionId) {
+      countQuery = countQuery.eq('kooperation.produktion_id', produktionId);
     }
     countQuery = VideoFilterLogic.buildSupabaseQuery(countQuery, activeFilters);
 
@@ -111,6 +114,9 @@ export class VideoDataLoader {
 
     if (kampagneId) {
       videoQuery = videoQuery.eq('kooperation.kampagne_id', kampagneId);
+    }
+    if (produktionId) {
+      videoQuery = videoQuery.eq('kooperation.produktion_id', produktionId);
     }
     videoQuery = VideoFilterLogic.buildSupabaseQuery(videoQuery, activeFilters);
 

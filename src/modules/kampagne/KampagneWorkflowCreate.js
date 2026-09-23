@@ -3,14 +3,12 @@
 // Gate ist generisch (CreateActionGate); hier sitzt nur die Kampagnen-Policy.
 
 import { resolveCreateAction, renderCreateButton } from '../../core/actions/CreateActionGate.js';
-import { openCastingCreateDrawer } from './KampagneDetailCasting.js';
-import { remountKonzeptPane } from './KampagneDetailKonzept.js';
-import { openCreateDrawer as openKonzeptCreateDrawer } from '../strategie/StrategieListCrud.js';
 import { openSkriptCreateDrawer } from '../skripte/SkriptCreateDrawer.js';
+import { lineNames } from '../produktion/produktionNames.js';
+import { openProduktionBriefingDrawer } from '../produktion/ProduktionBriefingDrawer.js';
 
 const EXISTS_REASON = {
-  casting: 'Für diese Kampagne existiert bereits eine Casting-Liste.',
-  konzepte: 'Für diese Kampagne existiert bereits ein Konzept.'
+  briefing: 'Diese Produktion hat bereits ein Briefing.'
 };
 
 const ACTION_SPECS = {
@@ -18,23 +16,17 @@ const ACTION_SPECS = {
     permission: 'briefing',
     label: 'Briefing anlegen',
     mode: 'navigate',
+    exists(detail) {
+      const ids = detail.produktion?.resolvedBriefingIds;
+      if (Array.isArray(ids) && ids.length > 0) return true;
+      if (detail.produktion?.briefing_id) return true;
+      return (detail.briefings || []).length > 0;
+    },
     url(detail) {
       const u = detail.kampagneData?.unternehmen_id || '';
       const m = detail.kampagneData?.marke_id || '';
       return `/briefing/new?unternehmen=${encodeURIComponent(u)}&marke=${encodeURIComponent(m)}`;
     }
-  },
-  casting: {
-    permission: 'sourcing',
-    label: 'Casting anlegen',
-    mode: 'drawer',
-    exists: hasCasting
-  },
-  konzepte: {
-    permission: 'strategie',
-    label: 'Konzept anlegen',
-    mode: 'drawer',
-    exists: hasKonzept
   },
   skripte: {
     permission: 'skripte',
@@ -48,25 +40,26 @@ const ACTION_SPECS = {
     url(detail) {
       const u = detail.kampagneData?.unternehmen_id || '';
       const k = detail.kampagneId || '';
-      return `/vertraege/new?unternehmen=${encodeURIComponent(u)}&kampagne=${encodeURIComponent(k)}`;
+      const params = new URLSearchParams({ unternehmen: u, kampagne: k });
+      if (detail.produktionId) params.set('produktion', detail.produktionId);
+      return `/vertraege/new?${params.toString()}`;
     }
   }
 };
 
-function hasCasting(detail) {
-  if (Array.isArray(detail._castingListen) && detail._castingListen.length > 0) return true;
-  return (detail.sourcingListenCount || 0) > 0;
-}
-
-function hasKonzept(detail) {
-  return (detail.strategien || []).length > 0;
-}
-
 function campaignPrefill(detail) {
   const k = detail.kampagneData || {};
+  const names = lineNames(detail.lineTitle);
   return {
     unternehmen_id: k.unternehmen_id,
     kampagne_id: detail.kampagneId,
+    produktion_id: detail.produktionId || null,
+    briefing_id: detail.produktion?.briefing_id
+      || (detail.produktion?.resolvedBriefingIds?.length === 1 ? detail.produktion.resolvedBriefingIds[0] : null)
+      || null,
+    lineTitle: detail.lineTitle || '',
+    castingName: names.casting,
+    konzeptName: names.konzept,
     unternehmenName: k.unternehmen?.firmenname || k.unternehmen?.internes_kuerzel || 'Unternehmen'
   };
 }
@@ -86,10 +79,10 @@ function resolveAction(action, detail) {
 
 export function renderWorkflowCreateChrome(action, detail) {
   const { spec, state } = resolveAction(action, detail);
-  if (!spec) return '';
-  const button = renderCreateButton({ action, label: spec.label, state });
+  const button = spec ? renderCreateButton({ action, label: spec.label, state }) : '';
   if (action === 'casting') return `${button}<div id="kampagne-casting-tools"></div>`;
   if (action === 'konzepte') return `${button}<div id="kampagne-konzept-tools"></div>`;
+  if (!spec) return '';
   return button;
 }
 
@@ -114,37 +107,13 @@ export function handleWorkflowCreate(detail, action) {
   const { spec, state } = resolveAction(action, detail);
   if (!spec || !state.enabled) return;
 
+  if (action === 'briefing') {
+    openProduktionBriefingDrawer(detail, { produktionId: detail.produktionId || null });
+    return;
+  }
+
   if (spec.mode === 'navigate') {
     window.navigateTo(spec.url(detail));
-    return;
-  }
-
-  if (action === 'casting') {
-    openCastingCreateDrawer(detail, {
-      onCreated: () => {
-        detail.sourcingListenCount = detail._castingListen?.length || 1;
-        syncWorkflowCreateChrome(detail, 'casting');
-      }
-    });
-    return;
-  }
-
-  if (action === 'konzepte') {
-    const prefill = campaignPrefill(detail);
-    const listen = detail._castingListen || [];
-    if (listen.length === 1) {
-      prefill.creator_auswahl_id = listen[0].id;
-      prefill.creatorAuswahlName = listen[0].name || 'Casting';
-    }
-    openKonzeptCreateDrawer(null, {
-      prefill,
-      onCreated: async (strategie) => {
-        detail.strategien = [...(detail.strategien || []), strategie];
-        detail._konzeptSelectedId = strategie.id;
-        syncWorkflowCreateChrome(detail, 'konzepte');
-        await remountKonzeptPane(detail);
-      }
-    });
     return;
   }
 

@@ -2,7 +2,9 @@
 // Eigene Seite zum Anlegen und Bearbeiten einer Persona.
 // Routen: /marke/:markeId/persona und /unternehmen/:unternehmenId/persona
 //         (Bearbeiten jeweils mit ?persona=:id)
-//         /persona/new und /persona/:id (Standalone aus der Liste)
+//         /persona/new?unternehmen&marke&briefing und /persona/:id
+//         (produkt in der URL nur, wenn beim Anlegen eins gewählt wurde)
+//         (Anlegen nur nach dem Create-Drawer, sonst zurück zur Liste)
 //
 // Die Seite ist ein Worksheet wie das Produkt (core/doc/DocPage.js via
 // PersonaDoc.js): mittig das Schreibdokument, rechts der Liky-Slot, ganz
@@ -22,6 +24,7 @@ import { resolveOwnerContext } from '../../core/OwnerContext.js';
 import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { loadBriefingIdsForPersona, setPersonaBriefings } from '../briefing/BriefingPersonas.js';
+import { readCreateScope, resolveCreateScopeLabels } from './personaCreateScope.js';
 
 export class PersonaForm {
   constructor() {
@@ -60,6 +63,8 @@ export class PersonaForm {
     this.persona = null;
     this.markenIds = [];
     this.briefingIds = [];
+    this.createScope = null;
+    this.createLabels = null;
 
     try {
       if (this.isStandalone) {
@@ -100,6 +105,16 @@ export class PersonaForm {
           this.briefingIds = await loadBriefingIdsForPersona(this.personaId, { nurFinalisiert: true });
         }
       }
+
+      if (!this.isEdit) {
+        this.createScope = readCreateScope(window.location.search, this.isStandalone ? null : this.ctx);
+        if (!this.createScope) {
+          window.navigateTo(this.returnRoute);
+          return;
+        }
+        this.ctx.unternehmenId = this.createScope.unternehmenId;
+        this.createLabels = await resolveCreateScopeLabels(this.createScope);
+      }
     } catch (err) {
       console.error('Persona-Formular konnte nicht geladen werden:', err);
       window.ErrorHandler?.handle?.(err, 'PersonaForm.init');
@@ -139,14 +154,16 @@ export class PersonaForm {
       });
     }
 
+    const scopeCreate = !this.isEdit && this.createScope;
     const formData = this.isEdit
       ? { ...this.persona, marke_ids: this.markenIds, briefing_ids: this.briefingIds, _isEditMode: true, _entityId: this.persona.id }
-      : null;
+      : (scopeCreate ? { unternehmen_id: this.createScope.unternehmenId } : null);
 
     window.content.innerHTML = renderPersonaDoc(formData, {
-      mitMarkenFeld: this.zeigtMarkenFeld,
-      mitUnternehmenFeld: this.isStandalone,
-      unternehmenId: this.ctx?.unternehmenId || null
+      mitMarkenFeld: scopeCreate ? false : this.zeigtMarkenFeld,
+      mitUnternehmenFeld: scopeCreate ? false : this.isStandalone,
+      mitBriefingFeld: !scopeCreate,
+      unternehmenId: this.createScope?.unternehmenId || this.ctx?.unternehmenId || null
     });
 
     const form = document.getElementById('persona-form');
@@ -156,13 +173,23 @@ export class PersonaForm {
       this.prepareStandalone(form);
     }
 
-    // Searchable-Selects und Tag-Multiselect (Unternehmen, Branche, Marken)
+    // Searchable-Selects und Tag-Multiselect (Unternehmen, Branche, Marken).
+    // Beim Anlegen sind Unternehmen, Marke und Briefing schon im Drawer
+    // gesetzt und tauchen hier nicht mehr auf.
     await window.formSystem.bindFormEvents('persona', formData);
 
+    const produktGewaehlt = scopeCreate && this.createScope.produktId;
     this.produktPanel = new PersonaProduktPanel();
     await this.produktPanel.mount(form, {
       personaId: this.personaId,
-      getUnternehmenId: () => this.ctx?.unternehmenId
+      gesperrt: !!produktGewaehlt,
+      initialProdukt: produktGewaehlt ? {
+        id: this.createScope.produktId,
+        label: this.createLabels?.produktName || 'Produkt',
+        sub: this.createLabels?.produktSub || ''
+      } : null,
+      getUnternehmenId: () => this.createScope?.unternehmenId
+        || this.ctx?.unternehmenId
         || form.querySelector('[name="unternehmen_id"]')?.value
         || null
     });
@@ -172,7 +199,8 @@ export class PersonaForm {
 
     this.likyPanel = new PersonaLikyPanel();
     this.likyPanel.mount(form, {
-      getUnternehmenId: () => this.ctx?.unternehmenId
+      getUnternehmenId: () => this.createScope?.unternehmenId
+        || this.ctx?.unternehmenId
         || form.querySelector('[name="unternehmen_id"]')?.value
         || null,
       getSituationPanel: () => this.situationPanel
@@ -288,9 +316,23 @@ export class PersonaForm {
       await PersonaService.saveMarken(personaId, this.collectMarkenIds(data));
       // Erst Marken, dann Produkte: saveMarken macht Delete-all und wuerde
       // die beim Produkt-Attach auto-angehaengten Marken sonst wegwischen.
-      await ProduktPersonaService.saveForPersona(personaId, this.produktPanel?.getProduktIds() || []);
+      const produktIds = this.produktPanel?.getProduktIds() || [];
+      await ProduktPersonaService.saveForPersona(personaId, produktIds);
       await setPersonaBriefings(personaId, this.collectBriefingIds(data));
       await PersonaService.syncAudienceSituations(personaId, this.situationPanel?.getState() || []);
+
+      if (!produktIds.length) {
+        const anzahl = await ProduktPersonaService.starteAudienceSituationJobs([personaId], {
+          produktId: null,
+          produkt: {}
+        }).catch((err) => {
+          console.error('Audience-Situation-Jobs:', err);
+          return 0;
+        });
+        if (anzahl) {
+          window.toastSystem?.success?.('Audience Situations werden im Hintergrund angelegt');
+        }
+      }
 
       window.toastSystem?.success?.(this.isEdit ? 'Persona gespeichert' : 'Persona angelegt');
       window.navigateTo(this.returnRoute);
@@ -306,6 +348,7 @@ export class PersonaForm {
    * Marke heraus kommt sie nur dazu. Sonst zaehlt genau die Auswahl im Tag-Feld.
    */
   collectMarkenIds(data) {
+    if (!this.isEdit && this.createScope?.markeId) return [this.createScope.markeId];
     if (this.isStandalone) {
       const werte = data.marke_ids;
       if (Array.isArray(werte)) return werte;
@@ -320,6 +363,7 @@ export class PersonaForm {
   }
 
   collectBriefingIds(data) {
+    if (!this.isEdit && this.createScope?.briefingId) return [this.createScope.briefingId];
     const werte = data?.briefing_ids;
     if (Array.isArray(werte)) return werte;
     return werte ? [werte] : [];

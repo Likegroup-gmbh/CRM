@@ -202,9 +202,20 @@ BriefingCreate.prototype.prepareDataForDB = function() {
           ? value === true
           : ((value === '' || value === undefined) ? null : value);
         break;
+      case 'number': {
+        const n = Number(value);
+        data[field.name] = (value === '' || value === undefined || value === null || Number.isNaN(n))
+          ? null
+          : n;
+        break;
+      }
       default:
         data[field.name] = (value === '' || value === undefined) ? null : value;
     }
+  }
+
+  if (bereich === 'influencer_marketing' && (data.tkp === null || data.tkp === undefined)) {
+    data.tkp = 25;
   }
 
   mirrorLegacyColumns(data, bereich);
@@ -347,6 +358,12 @@ BriefingCreate.prototype.handleSubmit = async function() {
     window.toastSystem?.show('Bitte einen Titel vergeben (Schritt Grundlage).', 'warning');
     return;
   }
+  const kampagneId = this.formData.kampagne_id || this._produktionKontext?.kampagneId || null;
+  const produktId = this.formData.produkt_id || this._produktionKontext?.produktId || null;
+  if (!kampagneId || !produktId) {
+    window.toastSystem?.show('Bitte Kampagne und Produkt zuordnen (Schritt Grundlage).', 'warning');
+    return;
+  }
 
   const submitBtn = document.getElementById('btn-submit');
   const isEdit = !!this.editId;
@@ -383,6 +400,25 @@ BriefingCreate.prototype.handleSubmit = async function() {
       console.warn('KI-Auswertung:', auswertungError);
     }
 
+    const { ensureBriefingLine } = await import('../../produktion/ProduktionService.js');
+    const produktion = await ensureBriefingLine({
+      briefing: {
+        id: this.editId,
+        is_draft: false,
+        aktivierung_name: data.aktivierung_name,
+        bereich: data.bereich,
+        publish_channels: data.publish_channels,
+        tkp: data.tkp,
+        unternehmen_id: data.unternehmen_id,
+        marke_id: data.marke_id,
+        kampagne_id: kampagneId,
+        produkt_id: produktId
+      },
+      kampagneId,
+      produktId,
+      produktionId: this._produktionKontext?.produktionId || null
+    });
+
     window.toastSystem?.show(
       auswertungOk
         ? 'Briefing gespeichert – KI-Auswertung läuft im Hintergrund'
@@ -391,7 +427,7 @@ BriefingCreate.prototype.handleSubmit = async function() {
     );
 
     setTimeout(() => {
-      window.navigateTo('/briefing');
+      window.navigateTo(produktion?.id ? `/produktion/${produktion.id}` : '/briefing');
     }, 500);
   } catch (error) {
     console.error('Fehler beim Speichern:', error);
@@ -425,6 +461,23 @@ BriefingCreate.prototype.loadFromDB = async function(id) {
     this.formData.unternehmen_id = briefing.unternehmen_id;
     this.formData.marke_id = briefing.marke_id;
     this.formData.assignee_id = briefing.assignee_id;
+
+    const { data: produktion } = await window.supabase
+      .from('produktion')
+      .select('id, kampagne_id, produkt_id')
+      .eq('briefing_id', id)
+      .maybeSingle();
+    if (produktion?.id) {
+      if (produktion.kampagne_id) this.formData.kampagne_id = produktion.kampagne_id;
+      if (produktion.produkt_id) this.formData.produkt_id = produktion.produkt_id;
+      this._produktionKontext = {
+        kampagneId: this.formData.kampagne_id,
+        produktId: this.formData.produkt_id,
+        produktionId: produktion.id
+      };
+      this._linieGesperrt = !!(this.formData.kampagne_id && this.formData.produkt_id);
+    }
+
     await this.refreshProdukte();
 
     this.selectedBereich = briefing.bereich;

@@ -156,30 +156,30 @@ describe('StepKampagne Split-UX', () => {
     expect(step.wizard.formData.kampagnen[0].campaign_blocks[0].campaign_type).toBe('ugc_paid');
   });
 
-  it('gibt einer neuen Kampagne den Rest und laesst Arten auf der bestehenden', () => {
+  it('legt im Anlegen keine zweite Kampagne an und setzt den vollen Topf', () => {
     const step = createStep({
       details: { campaign_blocks: [{ id: 'b1', campaign_type: 'ugc_paid', video_anzahl: 9, creator_anzahl: 3 }] }
     });
     step._syncFromParents();
     step.wizard.formData.kampagnen[0].volumen = 20000;
     step._addSlot();
+    expect(step.wizard.formData.kampagnen).toHaveLength(1);
+    step._syncFromParents();
     const slots = step.wizard.formData.kampagnen;
-    expect(slots).toHaveLength(2);
-    expect(parentTotals(step.wizard.formData).volumen).toBe(90000);
-    expect(slots[0].volumen).toBe(20000);
-    expect(slots[1].volumen).toBe(70000);
+    expect(slots).toHaveLength(1);
+    expect(slots[0].volumen).toBe(90000);
     expect(slots[0].campaign_blocks).toHaveLength(1);
-    expect(slots[1].campaign_blocks).toEqual([]);
   });
 
-  it('behaelt manuelle Werte beim ersten Enter ohne Parent-Aenderung', () => {
+  it('behaelt im Edit einen abweichenden Topf und legt keine weitere Kampagne an', () => {
     const step = createStep({
       kampagnen: [{ id: 'k1', kampagnen_nummer: 1, volumen: 20000, campaign_blocks: [] }]
     });
+    step.wizard.isEditMode = true;
     step._syncFromParents();
     expect(step.wizard.formData.kampagnen[0].volumen).toBe(20000);
-    step._syncFromParents();
-    expect(step.wizard.formData.kampagnen[0].volumen).toBe(20000);
+    step._addSlot();
+    expect(step.wizard.formData.kampagnen).toHaveLength(1);
   });
 
   function renderThreeSlots() {
@@ -187,6 +187,7 @@ describe('StepKampagne Split-UX', () => {
       auftrag: { titel: 'Split' },
       kampagnen: distributeKampagnen(3, { volumen: 90000 })
     });
+    step.wizard.isEditMode = true;
     const host = document.createElement('div');
     document.body.appendChild(host);
     step._syncFromParents();
@@ -201,9 +202,7 @@ describe('StepKampagne Split-UX', () => {
     expect(host.querySelector('.pe-kampagne-videos')).toBeNull();
     expect(host.querySelector('#pe-kampagnen-host')).toBeNull();
     expect(host.querySelector('#field-pe-kampagnenanzahl')).toBeNull();
-    const addBtn = host.querySelector('#pe-kampagne-add-btn');
-    expect(addBtn).toBeTruthy();
-    expect(addBtn.textContent).toBe('Weitere Kampagne hinzufügen');
+    expect(host.querySelector('#pe-kampagne-add-btn')).toBeNull();
     const removeBtns = host.querySelectorAll('[data-action="remove-kampagne"]');
     expect(removeBtns).toHaveLength(3);
     expect(removeBtns[0].querySelector('svg')).toBeTruthy();
@@ -236,10 +235,9 @@ describe('StepKampagne Split-UX', () => {
     step.bindEvents();
     expect(host.querySelectorAll('.pe-kampagne-slot')).toHaveLength(1);
     expect(host.textContent).toContain('Kampagne 1 von 1');
+    expect(host.textContent).toContain('gesamter Auftrags-Topf');
     expect(host.querySelector('[data-action="remove-kampagne"]')).toBeNull();
-    const addBtn = host.querySelector('#pe-kampagne-add-btn');
-    expect(addBtn).toBeTruthy();
-    expect(addBtn.textContent).toBe('Weitere Kampagne hinzufügen');
+    expect(host.querySelector('#pe-kampagne-add-btn')).toBeNull();
     expect(host.querySelector('.pe-kampagne-name')).toBeTruthy();
     host.remove();
   });
@@ -259,10 +257,10 @@ describe('StepKampagne Split-UX', () => {
     expect(nameInput.value).toBe('Launch Q1');
     nameInput.value = 'Relaunch Q2';
     nameInput.dispatchEvent(new Event('input', { bubbles: true }));
-    host.querySelector('#pe-kampagne-add-btn').click();
+    step._renderSlots();
+    expect(step.wizard.formData.kampagnen).toHaveLength(1);
     expect(step.wizard.formData.kampagnen[0].eigener_name).toBe('Relaunch Q2');
     expect(host.querySelector('.pe-kampagne-name[data-kampagne-index="0"]').value).toBe('Relaunch Q2');
-    expect(host.querySelector('.pe-kampagne-name[data-kampagne-index="1"]').value).toBe('');
     host.remove();
   });
 });

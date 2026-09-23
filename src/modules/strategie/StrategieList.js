@@ -258,12 +258,7 @@ export class StrategieList {
   }
 
   showCreateForm() {
-    if (window.location.pathname !== '/konzepte') {
-      window.navigateTo('/konzepte');
-      setTimeout(() => this.openCreateDrawer(), 100);
-    } else {
-      this.openCreateDrawer();
-    }
+    window.toastSystem?.show('Konzept entsteht beim Finalisieren des Briefings.', 'info');
   }
 
   destroy() {

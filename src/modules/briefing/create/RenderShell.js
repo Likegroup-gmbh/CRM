@@ -264,8 +264,10 @@ BriefingCreate.prototype.getFieldContext = function() {
   return {
     unternehmen: this.unternehmen,
     marke: this.marken,
+    kampagne: this.kampagnen,
     benutzer: this.benutzer,
     produkt: this.produkte,
-    persona: this.personas
+    persona: this.personas,
+    linieGesperrt: !!this._linieGesperrt
   };
 };

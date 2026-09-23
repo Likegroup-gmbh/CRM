@@ -300,7 +300,7 @@ export class StrategieService {
     }
 
     // Leere Strings in UUID-Feldern zu null konvertieren
-    const uuidFields = ['unternehmen_id', 'marke_id', 'kampagne_id', 'auftrag_id', 'briefing_id'];
+    const uuidFields = ['unternehmen_id', 'marke_id', 'kampagne_id', 'produktion_id', 'auftrag_id', 'briefing_id'];
     for (const field of uuidFields) {
       if (strategieData[field] === '') {
         strategieData[field] = null;
@@ -353,7 +353,7 @@ export class StrategieService {
     }
 
     // Leere Strings in UUID-Feldern zu null konvertieren
-    const uuidFields = ['unternehmen_id', 'marke_id', 'kampagne_id', 'auftrag_id', 'briefing_id'];
+    const uuidFields = ['unternehmen_id', 'marke_id', 'kampagne_id', 'produktion_id', 'auftrag_id', 'briefing_id'];
     for (const field of uuidFields) {
       if (updates[field] === '') {
         updates[field] = null;

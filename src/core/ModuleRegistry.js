@@ -468,7 +468,15 @@ export class ModuleRegistry {
     else if (id && segment === 'kampagne' && id !== 'new') {
       moduleKey = 'kampagne-detail';
       module = this.modules.get(moduleKey);
+      if (module) module._openAsProduktion = false;
       console.log(`🎯 Kampagnen-Details erkannt, verwende Modul: ${moduleKey}`);
+    }
+
+    if (id && segment === 'produktion' && id !== 'new') {
+      moduleKey = 'kampagne-detail';
+      module = this.modules.get(moduleKey);
+      if (module) module._openAsProduktion = true;
+      console.log(`🎯 Produktion erkannt, verwende Modul: ${moduleKey}`);
     }
 
     if (id && segment === 'contracts' && id !== 'new') {

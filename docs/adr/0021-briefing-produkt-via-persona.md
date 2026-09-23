@@ -1,5 +1,7 @@
 # Briefing-Produkte nur über den Persona-Fit
 
+Die Produkt-Union aus Persona-Fits gilt nicht mehr, sobald das Briefing ein Produkt hat. Das ersetzt ADR 0029: das Produkt der Produktion ist das einzige Briefing-Produkt.
+
 Ein Briefing wählt Personas (`campaign_briefings.persona_ids`). Die Briefing-Produkte sind die Union der accepted `produkt_persona_vorschlag`-Zeilen dieser Personas. `campaign_briefing_produkt` bleibt die Lesetabelle für Casting und Konzept, wird aber nur noch als Projektion geschrieben, nicht mehr per Picker am Briefing.
 
 Membership bleibt das Array `persona_ids`: Casting, Bedarf und ADR 0019 lesen es bereits. Ein `personas.briefing_id` würde die n:n-Wiederverwendung (dieselbe Mutti an Sommer und Weihnachten) zerlegen. Ein Direkt-Picker parallel zur Kette würde wieder zwei Wahrheiten führen.

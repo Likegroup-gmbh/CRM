@@ -47,6 +47,11 @@ export class KampagneDetail {
     this._customColumnsDrawer = null;
     this.strategien = [];
     this.briefings = [];
+    this.produktionen = [];
+    this.produktion = null;
+    this.produktionId = null;
+    this.mode = 'overview';
+    this.lineTitle = '';
     this.isKunde = false;
     this.activeWorkflowTab = DEFAULT_WORKFLOW_TAB;
 
@@ -58,13 +63,37 @@ export class KampagneDetail {
   async init(kampagneId) {
     console.log('🎯 KAMPAGNEDETAIL: Initialisiere Kampagnen-Detailseite für ID:', kampagneId);
 
+    const openAsProduktion = this._openAsProduktion === true;
+    this._openAsProduktion = false;
+    this.mode = 'overview';
+    this.produktion = null;
+    this.produktionId = null;
+    this.lineTitle = '';
+
+    if (openAsProduktion) {
+      const { loadProduktion } = await import('../produktion/ProduktionService.js');
+      const produktion = await loadProduktion(kampagneId);
+      if (!produktion?.kampagne_id) {
+        this._isMounted = true;
+        renderNotFound('Produktion');
+        return;
+      }
+      this.produktion = produktion;
+      this.produktionId = produktion.id;
+      this.lineTitle = produktion.briefing?.aktivierung_name || produktion.name || '';
+      this.mode = 'workflow';
+      kampagneId = produktion.kampagne_id;
+    }
+
     const previousKampagneId = this.kampagneId;
+    const routeKey = `${this.mode}:${this.produktionId || kampagneId}`;
     this.kampagneId = kampagneId;
 
-    if (this._initPromise && previousKampagneId === kampagneId) {
+    if (this._initPromise && this._routeKey === routeKey && previousKampagneId === kampagneId) {
       console.log('⚠️ KAMPAGNEDETAIL: Init bereits in Arbeit für diese Kampagne, warte...');
       return this._initPromise;
     }
+    this._routeKey = routeKey;
 
     this._isMounted = true;
     this._destroyDrawers();
@@ -108,26 +137,39 @@ export class KampagneDetail {
 
         const [, tableData] = await Promise.all([
           this.loadCriticalData(),
-          loadFullTableData(this.kampagneId, this.store, isKunde)
+          loadFullTableData(this.kampagneId, this.store, isKunde, {
+            produktionId: this.mode === 'workflow' ? this.produktionId : null
+          })
         ]);
 
         if (!this._isMounted) return;
 
         if (window.breadcrumbSystem && this.kampagneData) {
           const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
-          window.breadcrumbSystem.updateDetailLabel(KampagneUtils.getDisplayName(this.kampagneData), {
+          const label = this.mode === 'workflow'
+            ? (this.lineTitle || this.produktion?.name || 'Produktion')
+            : KampagneUtils.getDisplayName(this.kampagneData);
+          window.breadcrumbSystem.updateDetailLabel(label, {
             id: 'btn-edit-kampagne',
-            canEdit
+            canEdit: this.mode !== 'workflow' && canEdit
           });
         }
 
         this._prepareVideoTable(tableData, isKunde);
+        if (this.mode === 'overview' && this.kooperationenVideoTable) {
+          if (typeof this.kooperationenVideoTable.destroy === 'function') {
+            this.kooperationenVideoTable.destroy();
+          }
+          this.kooperationenVideoTable = null;
+        }
 
         await this.render();
 
         setupEvents(this);
 
-        await this._mountVideoTable();
+        if (this.mode !== 'overview') {
+          await this._mountVideoTable();
+        }
 
         const _renderTime = performance.now() - _initStart;
         console.log(`✅ KAMPAGNEDETAIL: Komplett geladen und gerendert in ${_renderTime.toFixed(0)}ms`);
@@ -151,11 +193,20 @@ export class KampagneDetail {
     console.log('🔄 KAMPAGNEDETAIL: Lade kritische Daten parallel...');
     const startTime = performance.now();
     try {
-      const data = await _loadCriticalData(this.kampagneId);
+      const resolvedIds = this.produktion?.resolvedBriefingIds;
+      const briefingIds = Array.isArray(resolvedIds) && resolvedIds.length
+        ? resolvedIds
+        : (this.produktion?.briefing_id ? [this.produktion.briefing_id] : []);
+      const data = await _loadCriticalData(this.kampagneId, {
+        produktionId: this.produktionId,
+        briefingId: briefingIds.length === 1 ? briefingIds[0] : null,
+        briefingIds
+      });
 
       this.kampagneData = data.kampagneData;
       this.strategien = data.strategien;
       this.briefings = data.briefings;
+      this.produktionen = data.produktionen || [];
       this.sourcingListenCount = data.sourcingListenCount;
       this.vertraegeCount = data.vertraegeCount;
       this.rechnungenCount = data.rechnungenCount;
@@ -174,7 +225,10 @@ export class KampagneDetail {
       return;
     }
 
-    window.setHeadline(`Kampagne: ${KampagneUtils.getDisplayName(this.kampagneData)}`);
+    const headlineName = this.mode === 'workflow'
+      ? (this.lineTitle || this.produktion?.name || 'Produktion')
+      : KampagneUtils.getDisplayName(this.kampagneData);
+    window.setHeadline(this.mode === 'workflow' ? `Produktion: ${headlineName}` : `Kampagne: ${headlineName}`);
 
     this.isKunde = window.isKunde();
 
@@ -197,13 +251,17 @@ export class KampagneDetail {
       kooperationSort: this.store?.kooperationSort || 'created_desc',
       activeWorkflow: this.activeWorkflowTab,
       strategien: this.strategien,
-      sourcingListenCount: this.sourcingListenCount
+      sourcingListenCount: this.sourcingListenCount,
+      mode: this.mode,
+      produktionen: this.produktionen || [],
+      lineTitle: this.lineTitle
     });
 
     window.setContentSafely(window.content, html);
 
-    // Panes wurden mit dem Re-Render verworfen — aktiven Pane neu füllen.
-    refreshWorkflowAfterRender(this);
+    if (this.mode !== 'overview') {
+      refreshWorkflowAfterRender(this);
+    }
   }
 
   _prepareVideoTable(tableData, isKunde) {

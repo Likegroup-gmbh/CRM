@@ -732,7 +732,8 @@ export class KooperationList {
           unternehmen_id: cache.unternehmen_id,
           marke_id: cache.marke_id,
           unternehmen: cache.unternehmen,
-          marke: cache.marke
+          marke: cache.marke,
+          produktion_id: cache.produktion_id || urlParams.get('produktion_id') || null
         };
         // Cache leeren nach Verwendung
         delete window.kooperationPrefillCache;
@@ -767,6 +768,7 @@ export class KooperationList {
         // formData mit allen Prefill-Daten erstellen
         formData = {
           kampagne_id: kampagneId,
+          produktion_id: kampagne.produktion_id || urlParams.get('produktion_id') || null,
           unternehmen_id: kampagne.unternehmen_id,
           marke_id: kampagne.marke_id || null,
           _prefillFromKampagne: true,
@@ -851,6 +853,7 @@ export class KooperationList {
           if (!submitData.marke_id && prefill._hasMarke && prefill.marke_id) {
             submitData.marke_id = prefill.marke_id;
           }
+          if (prefill.produktion_id) submitData.produktion_id = prefill.produktion_id;
         } catch (e) {
           console.warn('⚠️ KOOPERATION: Prefill-Daten konnten nicht gelesen werden', e);
         }
@@ -893,6 +896,7 @@ export class KooperationList {
 
         const redirect = resolveKooperationCreateRedirect({
           kampagneId,
+          produktionId: submitData.produktion_id || new URLSearchParams(window.location.search).get('produktion_id'),
           newKooperationId: result.id
         });
         setTimeout(() => {

@@ -106,6 +106,15 @@ describe('BriefingProdukte', () => {
             })
           };
         }
+        if (table === 'produktion') {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({ data: null, error: null })
+              })
+            })
+          };
+        }
         if (table === 'produkt_persona_vorschlag') {
           return {
             select: () => ({
@@ -144,5 +153,40 @@ describe('BriefingProdukte', () => {
       { briefing_id: 'b1', produkt_id: 'p1' },
       { briefing_id: 'b1', produkt_id: 'p2' }
     ]);
+  });
+
+  it('schreibt nur das Produktions-Produkt, nicht die Persona-Union', async () => {
+    const inserted = [];
+    window.supabase = {
+      from: (table) => {
+        if (table === 'campaign_briefings') {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: { persona_ids: ['pe1'], produkt_id: 'serum' },
+                  error: null
+                })
+              })
+            })
+          };
+        }
+        if (table === 'produkt_persona_vorschlag') {
+          throw new Error('Persona-Union darf das Produkt nicht erweitern');
+        }
+        return {
+          delete: () => ({
+            eq: async () => ({ error: null })
+          }),
+          insert: async (rows) => {
+            inserted.push(rows);
+            return { error: null };
+          }
+        };
+      }
+    };
+
+    await recomputeBriefingProdukte('b1');
+    expect(inserted[0]).toEqual([{ briefing_id: 'b1', produkt_id: 'serum' }]);
   });
 });

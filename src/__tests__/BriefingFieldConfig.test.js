@@ -46,6 +46,9 @@ describe('Briefing fieldConfig Schema', () => {
     const required = fields.filter(f => f.required).map(f => f.name);
     expect(required).toContain('unternehmen_id');
     expect(required).toContain('aktivierung_name');
+    expect(required).toContain('kampagne_id');
+    expect(required).toContain('produkt_id');
+    expect(required).toContain('tkp');
     expect(required).not.toContain('produkt_ids');
     expect(required).not.toContain('persona_ids');
   });

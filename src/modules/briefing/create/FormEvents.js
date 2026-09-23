@@ -261,8 +261,13 @@ BriefingCreate.prototype.bindCascadeEvents = function() {
     unternehmenSelect.addEventListener('change', async (e) => {
       this.formData.unternehmen_id = e.target.value || null;
       this.formData.marke_id = null;
+      if (!this._linieGesperrt) {
+        this.formData.kampagne_id = null;
+        this.formData.produkt_id = null;
+      }
       this.rebuildMarkeSelect();
       await this.refreshProdukte();
+      this.rebuildLinieSelects();
     });
   }
 
@@ -270,7 +275,60 @@ BriefingCreate.prototype.bindCascadeEvents = function() {
   if (markeSelect) {
     markeSelect.addEventListener('change', async (e) => {
       this.formData.marke_id = e.target.value || null;
+      if (!this._linieGesperrt) this.formData.kampagne_id = null;
       await this.refreshProdukte();
+      this.rebuildLinieSelects();
+    });
+  }
+};
+
+BriefingCreate.prototype.rebuildLinieSelects = function() {
+  const unternehmenId = this.formData.unternehmen_id;
+  const markeId = this.formData.marke_id;
+  const kampagnen = (this.kampagnen || []).filter(k => {
+    if (!unternehmenId || k.unternehmen_id !== unternehmenId) return false;
+    if (markeId && k.marke_id && k.marke_id !== markeId) return false;
+    return true;
+  });
+  this.rebuildEntitySelect('kampagne_id', kampagnen, {
+    labelKey: 'label',
+    placeholder: unternehmenId ? 'Kampagne auswählen...' : 'Bitte zuerst Unternehmen wählen...',
+    locked: this._linieGesperrt
+  });
+  this.rebuildEntitySelect('produkt_id', this.produkte || [], {
+    labelKey: 'name',
+    placeholder: unternehmenId ? 'Produkt auswählen...' : 'Bitte zuerst Unternehmen wählen...',
+    locked: this._linieGesperrt
+  });
+};
+
+BriefingCreate.prototype.rebuildEntitySelect = function(name, options, { labelKey, placeholder, locked }) {
+  const select = document.getElementById(name);
+  if (!select) return;
+
+  const container = select.closest('.form-field');
+  const oldSearchable = container?.querySelector('.searchable-select-container');
+  if (oldSearchable) oldSearchable.remove();
+  select.style.display = '';
+
+  const current = this.formData[name] || '';
+  const enabled = !!this.formData.unternehmen_id && !locked;
+  select.innerHTML = `
+    <option value="">${escapeHtml(placeholder)}</option>
+    ${options.map(o => `<option value="${o.id}" ${current === o.id ? 'selected' : ''}>${escapeHtml(o[labelKey] || o.id)}</option>`).join('')}
+  `;
+  select.disabled = !enabled;
+  select.value = current;
+
+  if (enabled && window.formSystem?.createSearchableSelect) {
+    window.formSystem.createSearchableSelect(select, options.map(o => ({
+      value: o.id,
+      label: o[labelKey] || o.id,
+      selected: o.id === current
+    })), {
+      name,
+      placeholder,
+      value: current || null
     });
   }
 };
@@ -333,6 +391,38 @@ BriefingCreate.prototype.initSearchableSelects = function() {
         name: 'marke_id',
         placeholder: 'Marke suchen...',
         value: this.formData.marke_id || null
+      });
+    }
+
+    const kampagneSelect = document.getElementById('kampagne_id');
+    if (kampagneSelect && !kampagneSelect.disabled && window.formSystem?.createSearchableSelect && this.formData.unternehmen_id) {
+      const markeId = this.formData.marke_id;
+      const filtered = (this.kampagnen || []).filter(k => {
+        if (k.unternehmen_id !== this.formData.unternehmen_id) return false;
+        if (markeId && k.marke_id && k.marke_id !== markeId) return false;
+        return true;
+      });
+      window.formSystem.createSearchableSelect(kampagneSelect, filtered.map(k => ({
+        value: k.id,
+        label: k.label,
+        selected: k.id === this.formData.kampagne_id
+      })), {
+        name: 'kampagne_id',
+        placeholder: 'Kampagne suchen...',
+        value: this.formData.kampagne_id || null
+      });
+    }
+
+    const produktSelect = document.getElementById('produkt_id');
+    if (produktSelect && !produktSelect.disabled && window.formSystem?.createSearchableSelect && this.formData.unternehmen_id) {
+      window.formSystem.createSearchableSelect(produktSelect, (this.produkte || []).map(p => ({
+        value: p.id,
+        label: p.name,
+        selected: p.id === this.formData.produkt_id
+      })), {
+        name: 'produkt_id',
+        placeholder: 'Produkt suchen...',
+        value: this.formData.produkt_id || null
       });
     }
 

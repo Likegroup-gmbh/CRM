@@ -17,14 +17,20 @@ Eine Marke unter genau einem Unternehmen. Hat keine eigene Rechnungsadresse.
 _Avoid_: Brand, Label
 
 **Auftrag**:
-Das Kundenprojekt mit Volumen, Laufzeit und Teilrechnungen. Parent der Kampagnen.
+Das Kundenprojekt mit Volumen, Laufzeit und Teilrechnungen. Ein neuer Auftrag hat genau eine Kampagne. Bestand darf mehrere Kampagnen aus dem früheren Split haben; deren Volumen wird nicht zusammengelegt.
 _Avoid_: Deal, Job, Projekt (in der UI heisst der Anlege-Flow so, die Entity bleibt Auftrag)
 
 **Kampagne**:
-Die operative Einheit unter einem Auftrag. Ein Auftrag kann mehrere Kampagnen haben;
-jede hat eigenes Volumen (aus dem Auftrags-Netto, muss ihn nicht ausschöpfen)
-und eigene Kampagnenarten (Video- und Creator-Soll).
-_Avoid_: Auftrag
+Überübersicht unter einem Auftrag. Hält den Budget-Topf, die Kampagnenarten und das Video- und Creator-Soll. Parent der Produktionen. Die Seite zeigt Summe und Soll, keine Workflow-Tabs.
+_Avoid_: Überkampagne, Auftrag
+
+**Produktion**:
+Lauf unter genau einer Kampagne für genau ein Produkt. Entsteht mit dem Briefing, Anzeigename ist der Briefing-Titel. Kein eigenes Volumen und kein eigenes Soll. Darunter hängen Casting, Konzept, Skripte, Verträge, Kooperationen, Videos und Auswertung.
+_Avoid_: Kooperation, Vor-Ort-Produktion
+
+**Kooperation**:
+Creator-Buchung innerhalb einer Produktion. Dieselbe Person in einer zweiten Produktion ist ein eigener Datensatz und zählt erneut auf das Creator-Soll der Kampagne. Liegt in der Produktion im Tab Produktion.
+_Avoid_: Produktion als Name der Buchung
 
 **Neuigkeit**:
 Kurzmitteilung über eine Produkt-Änderung an Mitarbeiter (titel + kurztext, Du-Form).
@@ -107,10 +113,7 @@ geht es dem Vertragstext vor.
 _Avoid_: Anhang, Briefing
 
 **Briefing**:
-Das Aktivierungsdokument eines Unternehmens, optional einer Marke. Verbindliche Grundlage
-für Casting und Konzept. Personas hängen über Zuordnung, Produkte nur über den accepted Fit
-dieser Personas; beim Anlegen ist beides nicht Pflicht. Hängt nicht an einer Kampagne
-und trägt keinen Ansprechpartner (der sitzt am Unternehmen, der Marke oder der Kampagne).
+Das Aktivierungsdokument eines Unternehmens, optional einer Marke. Ablage bleibt dort, die Firmenliste zeigt alle. Operativ genau einer Produktion zugeordnet und nicht wiederverwendet. Hat genau das Produkt dieser Produktion. Titel frei, Vorschlag ist der Kampagnenname. Verbindliche Grundlage für Casting und Konzept dieser Produktion.
 _Avoid_: Kampagnen-Briefing (das ist die Tabelle `campaign_briefings`), Kundenbriefing
 
 **Entwurf**:
@@ -156,11 +159,11 @@ Nicht das Briefing selbst.
 _Avoid_: Briefing, Quelldokument, Kundendokument
 
 **Casting**:
-Die Creator-Auswahlliste einer Kampagne. Unverknüpft oder 1:1 mit einem Konzept.
-_Avoid_: Sourcing (außer Code/Route), Creator-Liste
+Die Creator-Auswahlliste einer Produktion. Entsteht mit dem Finalisieren des Briefings. Heißt `{Briefing-Titel} Casting` und folgt der Umbenennung des Briefings. 1:1 mit dem Konzept dieser Produktion.
+_Avoid_: Sourcing (außer Code/Route), Creator-Liste, Art der Liste
 
 **Konzept**:
-Das Strategie-Dokument einer Kampagne. Sammlung von Videoideen. Unverknüpft oder 1:1 mit einem Casting.
+Das Strategie-Dokument einer Produktion. Entsteht mit dem Finalisieren des Briefings. Heißt `{Briefing-Titel} Konzept` und folgt der Umbenennung des Briefings. Sammlung von Videoideen. 1:1 mit dem Casting dieser Produktion.
 _Avoid_: Strategie (außer Tabelle `strategie`), Strategie-Doc
 
 **Casting-Eintrag**:
@@ -270,7 +273,7 @@ Steht im Dateinamen als `v1`/`v2`/`v3` hinter der Video-Nr.
 _Avoid_: Version (alleinstehend), Revision
 
 **Kooperationstabelle**:
-Tabelle auf der Kampagne mit Kooperationen und Video-Stacks.
+Tabelle auf der Produktion mit Kooperationen und Video-Stacks. Tab-Label innerhalb der Produktion ist Produktion.
 _Avoid_: Kampagnen-Tabelle
 
 **Eigene Spalte**:
@@ -347,7 +350,7 @@ _Avoid_: Rabatt, Nachlass, Differenz
 **Kampagnenart**:
 Die Leistungsform einer Kampagne: UGC Paid, UGC Organic, Influencer Kampagne, Influencer Story,
 Influencer Events, Vor-Ort-Produktion, Whitelisting oder Darkposting. Sitzt an der Kampagne,
-nicht am Auftrag; ein Auftrag aggregiert die Arten seiner Kampagnen.
+nicht an der Produktion und nicht am Auftrag. Video-Soll und Creator-Soll gelten für die ganze Kampagne; jede Kooperation zählt, auch wenn dieselbe Person in zwei Produktionen gebucht ist.
 _Avoid_: Kampagnentyp, Format, Chip
 
 **Leistungsbereich**:

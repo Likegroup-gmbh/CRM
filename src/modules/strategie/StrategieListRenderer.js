@@ -17,7 +17,8 @@ import {
 // Create ist eine Capability, keine Rolle: Investor/Finanzen (intern, view-only)
 // bekommen keinen Anlegen-Button.
 function canCreateStrategie() {
-  return window.canCreate?.('strategie') ?? false;
+  // Konzept entsteht beim Finalisieren des Briefings, nicht über diese Liste.
+  return false;
 }
 
 function strategieCreateButtonHtml() {
@@ -80,7 +81,7 @@ export function updateCompaniesGrid(list) {
     grid.innerHTML = `<div class="grid-span-all">${renderEmptyState({
       icon: 'clipboard',
       title: 'Keine Konzepte vorhanden',
-      text: canCreateStrategie() ? 'Legen Sie Ihr erstes Konzept an, um loszulegen.' : 'Es wurden noch keine Konzepte für Sie freigegeben.',
+      text: 'Konzepte entstehen beim Finalisieren des Briefings.',
       actionsHtml: strategieCreateButtonHtml()
     })}</div>`;
     return;
@@ -111,7 +112,7 @@ export function updateCompaniesTable(list) {
     tbody.innerHTML = renderEmptyStateRow({
       icon: 'clipboard',
       title: 'Keine Konzepte vorhanden',
-      text: canCreateStrategie() ? 'Legen Sie Ihr erstes Konzept an, um loszulegen.' : 'Es wurden noch keine Konzepte für Sie freigegeben.',
+      text: 'Konzepte entstehen beim Finalisieren des Briefings.',
       actionsHtml: strategieCreateButtonHtml()
     }, 2);
     return;

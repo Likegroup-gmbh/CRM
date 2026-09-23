@@ -180,6 +180,8 @@ VertraegeCreate.prototype.applyQueryPrefill = async function() {
     if (kampagne && typ !== 'Contracting') {
       this.formData.kampagne_id = kampagne;
     }
+    const produktion = params.get('produktion');
+    if (produktion && typ !== 'Contracting') this.formData.produktion_id = produktion;
 
     if (typ === 'Contracting') {
       this.selectedTyp = 'Contracting';

@@ -261,7 +261,8 @@ class SkriptCreateDrawer {
 
     this.konzepte = await skripteService.loadKonzepte({
       unternehmenId,
-      kampagneId: this.prefill?.kampagne_id || null
+      kampagneId: this.prefill?.kampagne_id || null,
+      produktionId: this.prefill?.produktion_id || null
     });
     select.disabled = false;
     this.refreshSearchableSelect('konzept', this.konzepte.map((k) => ({
@@ -384,6 +385,7 @@ class SkriptCreateDrawer {
       const produktIds = await skripteService.loadAcceptedProduktIds(personaId);
       const payload = {
         ...resolveSkriptCreatePayload(item, { produktIds }),
+        produktion_id: this.prefill?.produktion_id || null,
         referenz_video: buildReferenzVideoPayload({
           strategieItemId: item.id,
           url: item.video_link,

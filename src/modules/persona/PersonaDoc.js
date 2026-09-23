@@ -16,12 +16,14 @@ const FORM_ID = 'persona-form';
  * @param {Object} [ctx]
  * @param {boolean} [ctx.mitMarkenFeld] - Marken-Multiselect zeigen (Unternehmens-Kontext/Standalone)
  * @param {boolean} [ctx.mitUnternehmenFeld] - Unternehmenswahl im Standalone
+ * @param {boolean} [ctx.mitBriefingFeld] - Briefing-Multiselect; beim Anlegen aus
  * @param {string|null} [ctx.unternehmenId] - Besitzer, geht als Hidden-Feld mit
  * @returns {string}
  */
-export function renderPersonaDoc(data = null, { mitMarkenFeld = false, mitUnternehmenFeld = false, unternehmenId = null } = {}) {
+export function renderPersonaDoc(data = null, { mitMarkenFeld = false, mitUnternehmenFeld = false, mitBriefingFeld = true, unternehmenId = null } = {}) {
   const fields = personaConfig.fields.filter(f => {
     if (f.name === 'marke_ids' && !mitMarkenFeld) return false;
+    if (f.name === 'briefing_ids' && !mitBriefingFeld) return false;
     if (f.docRole === 'owner' && !mitUnternehmenFeld) return false;
     return true;
   });

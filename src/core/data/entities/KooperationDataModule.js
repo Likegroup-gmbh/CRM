@@ -6,6 +6,7 @@ export default {
       name: 'string',
       creator_id: 'uuid',
       kampagne_id: 'uuid',
+      produktion_id: 'uuid',
       briefing_id: 'uuid',
       unternehmen_id: 'uuid',
       einkaufspreis_netto: 'number',

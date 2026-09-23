@@ -12,7 +12,7 @@ export function showHowToModal() {
       content: `
         <div class="how-to-content">
           <p><strong>1. Konzept erstellen</strong></p>
-          <p>Klicke auf "Neues Konzept anlegen" und wähle Unternehmen, Marke und Kampagne aus.</p>
+          <p>Ein Konzept entsteht beim Finalisieren des Briefings.</p>
           <p><strong>2. Items hinzufügen</strong></p>
           <p>Füge Video-Konzepte, Hooks und andere Elemente zum Konzept hinzu.</p>
           <p><strong>3. Mit Kunden teilen</strong></p>
@@ -160,9 +160,17 @@ export function closeCreateDrawer() {
 async function handleCreateFormSubmit(list, form, options = {}) {
   try {
     const submitData = window.formSystem.collectSubmitData(form);
+    if (options.prefill?.konzeptName) {
+      submitData.name = options.prefill.konzeptName;
+    }
     if (!submitData.name || submitData.name.trim() === '') {
       window.toastSystem?.show('Bitte geben Sie einen Konzeptnamen ein', 'error');
       return;
+    }
+
+    if (options.prefill?.produktion_id) submitData.produktion_id = options.prefill.produktion_id;
+    if (options.prefill?.briefing_id && !submitData.briefing_id) {
+      submitData.briefing_id = options.prefill.briefing_id;
     }
 
     if (!submitData.creator_auswahl_id && options.prefill?.creator_auswahl_id) {

@@ -10,11 +10,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 import produktPersona from '../../netlify/functions/_shared/produkt-persona.js';
+import { UNISEX_VORNMEN } from '../../netlify/functions/_shared/unisex-vornamen.js';
 import { ProduktPersonaService } from '../modules/produkt/ProduktPersonaService.js';
 import { PersonaService } from '../modules/persona/PersonaService.js';
 import { ProduktPersonaPanel } from '../modules/produkt/ProduktPersonaPanel.js';
 
-const { loadPoolPersonas, buildPrompt, validateVorschlaege, sanitizePersonaPayload } = produktPersona;
+const {
+  loadPoolPersonas, buildPrompt, validateVorschlaege, sanitizePersonaPayload,
+  personaTool, gefilterteUnisexNamen, PERSONA_TOOL
+} = produktPersona;
 
 vi.mock('../modules/persona/PersonaService.js', () => ({
   PersonaService: {
@@ -175,6 +179,47 @@ describe('validateVorschlaege (Quality-Mix)', () => {
     expect(out.vorschlaege[0].persona.name).toBe('Lena');
   });
 
+  it('Unisex-Flag verwirft geschlechtliche Namen und kanonisiert Treffer', () => {
+    const verworfen = validateVorschlaege({
+      vorschlaege: [
+        { typ: 'neu', persona: { name: 'Lena', geschlecht: 'Weiblich' }, fit_grund: 'x', use_case_indices: [0] }
+      ]
+    }, { useCaseCount: 1, unisexNamen: true });
+    expect(verworfen.vorschlaege).toHaveLength(0);
+    expect(verworfen.verworfen).toEqual([{ grund: 'kein Unisex-Vorname', vorschlag: 'Lena' }]);
+
+    const treffer = validateVorschlaege({
+      vorschlaege: [
+        { typ: 'neu', persona: { name: ' luka ', geschlecht: 'Maennlich' }, fit_grund: 'x', use_case_indices: [0] }
+      ]
+    }, { useCaseCount: 1, unisexNamen: true });
+    expect(treffer.vorschlaege).toHaveLength(1);
+    expect(treffer.vorschlaege[0].persona.name).toBe('Luka');
+    expect(treffer.vorschlaege[0].persona.geschlecht).toBe('Gemischt');
+  });
+
+  it('ohne Unisex-Flag bleibt ein geschlechtlicher Name gueltig', () => {
+    const out = validateVorschlaege({
+      vorschlaege: [
+        { typ: 'neu', persona: { name: 'Lena', geschlecht: 'Weiblich' }, fit_grund: 'x', use_case_indices: [0] }
+      ]
+    }, { useCaseCount: 1 });
+    expect(out.vorschlaege[0].persona.name).toBe('Lena');
+    expect(out.vorschlaege[0].persona.geschlecht).toBe('Weiblich');
+  });
+
+  it('personaTool setzt die Unisex-Liste nur wenn verlangt', () => {
+    const frei = personaTool();
+    const nameFeld = frei.input_schema.properties.vorschlaege.items.properties.persona.properties.name;
+    expect(nameFeld.enum).toBeUndefined();
+
+    const eng = personaTool({ unisexNamen: true, namen: ['Lou', 'Sam'] });
+    const engName = eng.input_schema.properties.vorschlaege.items.properties.persona.properties;
+    expect(engName.name.enum).toEqual(['Lou', 'Sam']);
+    expect(engName.geschlecht.enum).toEqual(['Gemischt']);
+    expect(PERSONA_TOOL.input_schema.properties.vorschlaege.items.properties.persona.properties.name.enum).toBeUndefined();
+  });
+
   it('sanitizePersonaPayload laesst kontext fallen', () => {
     const sauber = sanitizePersonaPayload({ name: 'Lena', kontext: 'Alltag', beruf: ' Pflegerin ' });
     expect(sauber.kontext).toBeUndefined();
@@ -267,16 +312,51 @@ describe('buildPrompt', () => {
 
     const weitere = buildPrompt({ ...input, modus: 'weitere' }, { pool: [], poolQuelle: 'leer' });
     expect(weitere.task).toContain('GENAU EINE weitere neue Persona');
+    expect(weitere.task).not.toContain(UNISEX_VORNMEN.join(', '));
+    expect(weitere.task).not.toContain('geschlecht ist "Gemischt"');
+  });
+
+  it('Startrun und Karten-Ersatz verlangen Unisex-Namen und Gemischt', () => {
+    const { task } = buildPrompt(input, { pool: [], poolQuelle: 'leer' });
+    expect(task).toContain(UNISEX_VORNMEN.join(', '));
+    expect(task).toContain('geschlecht ist "Gemischt"');
+    expect(task).toContain('House-Style gilt fuer den Vornamen nicht');
+
+    const karte = buildPrompt(
+      { ...input, modus: 'karte', ersetzteKarte: { typ: 'neu', name: 'Lena' } },
+      { pool: [], poolQuelle: 'leer' }
+    );
+    expect(karte.task).toContain(UNISEX_VORNMEN.join(', '));
+    expect(karte.task).toContain('geschlecht ist "Gemischt"');
+    expect(karte.task).toContain('nicht enger');
+    expect(karte.task).toContain('Diesen Vornamen nicht wiederverwenden: Lena');
+  });
+
+  it('belegte Pool-Namen und der verworfene Vorname fehlen in der Unisex-Liste', () => {
+    const namen = gefilterteUnisexNamen({ poolNamen: ['Luca', 'Alex'], verworfenerName: 'kim' });
+    expect(namen).not.toContain('Luca');
+    expect(namen).not.toContain('Alex');
+    expect(namen).not.toContain('Kim');
+    expect(namen).toContain('Lou');
+
+    const { task } = buildPrompt(
+      { ...input, modus: 'karte', ersetzteKarte: { typ: 'neu', name: 'Sam' } },
+      { pool: [{ id: 'p1', name: 'Luca' }], poolQuelle: 'marke' }
+    );
+    expect(task).not.toContain('Luca,');
+    expect(task).toContain('Diesen Vornamen nicht wiederverwenden: Sam');
+    expect(task).not.toMatch(/Schreibweise:.*\bSam\b/);
   });
 
   it('Karten-Modus ersetzt durch eine neue Persona, ohne Pool-Match', () => {
     const { task } = buildPrompt(
-      { ...input, modus: 'karte', ersetzteKarte: { typ: 'match' } },
+      { ...input, modus: 'karte', ersetzteKarte: { typ: 'match', name: 'Lena' } },
       { pool: [], poolQuelle: 'leer' }
     );
     expect(task).toContain('GENAU EINE');
     expect(task).toContain('typ immer "neu"');
     expect(task).not.toContain('ANDERE bestehende Persona');
+    expect(task).toContain('nicht enger');
   });
 
   it('ohne bestehende Use Cases: erst Einsatzsituationen generieren, dann mappen', () => {
@@ -790,7 +870,7 @@ describe('ProduktPersonaPanel', () => {
     const input = ProduktPersonaService.starteJob.mock.calls[0][0].input;
     expect(input.modus).toBe('karte');
     expect(input.anzahlZiel).toBe(1);
-    expect(input.ersetzteKarte).toEqual({ typ: 'neu' });
+    expect(input.ersetzteKarte).toEqual({ typ: 'neu', name: 'Alt' });
   });
 
   it('Startrun zeigt ein Skeleton, Weitere-Button erst mit Karte', async () => {

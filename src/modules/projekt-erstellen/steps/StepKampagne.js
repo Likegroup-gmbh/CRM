@@ -1,13 +1,13 @@
 // StepKampagne.js
-// Dritter Wizard-Step (Non-Contracting): Projektname + N Kampagnen-Karten
-// (Volumen + Kampagnenarten) + Agenturleistungen einmal unten.
+// Dritter Wizard-Step (Non-Contracting): Projektname + eine Kampagne
+// (voller Topf + Kampagnenarten) + Agenturleistungen einmal unten.
+// Edit von Altsplits zeigt die bestehenden Karten, legt aber keine neue an.
 
 import { TitelGenerator } from '../components/TitelGenerator.js';
 import { AgencyServicesBlock } from '../components/AgencyServicesBlock.js';
 import { icon } from '../../../core/icons/IconSystem.js';
 import { parseCurrencyInput } from '../../../core/utils/parseCurrency.js';
 import {
-  addKampagneSlot,
   distributeKampagnen,
   flattenCampaignBlocks,
   kampagnenSplitHint,
@@ -52,7 +52,6 @@ export class StepKampagne {
 
         <div class="projekt-erstellen-subsection">
           <div id="pe-kampagnen-slots-host"></div>
-          <button type="button" class="mdc-btn mdc-btn--secondary" id="pe-kampagne-add-btn">Weitere Kampagne hinzufügen</button>
           <div id="pe-kampagnen-split-hint" class="projekt-erstellen-umsatz-hint" style="display:none;"></div>
         </div>
 
@@ -92,6 +91,22 @@ export class StepKampagne {
     if (!fd.auftrag) fd.auftrag = {};
     const totals = parentTotals(fd);
     const slots = Array.isArray(fd.kampagnen) ? fd.kampagnen : [];
+
+    if (!this.wizard.isEditMode && slots.length !== 1) {
+      const blocks = flattenCampaignBlocks(fd);
+      const first = slots[0] || {};
+      this._setKampagnen([distributeKampagnen(1, totals, [{
+        ...first,
+        campaign_blocks: blocks.length ? blocks : (first.campaign_blocks || [])
+      }])[0]]);
+      return;
+    }
+
+    if (!this.wizard.isEditMode && slots.length === 1 && slots[0].volumen !== totals.volumen) {
+      this._setKampagnen(distributeKampagnen(1, totals, slots));
+      return;
+    }
+
     const prev = fd._kampagnenSplitFrom;
 
     if (slots.length === 0) {
@@ -115,10 +130,7 @@ export class StepKampagne {
   }
 
   _addSlot() {
-    this._collectArten();
-    this._collectSlotsFromDom();
-    const fd = this.wizard.formData;
-    this._setKampagnen(addKampagneSlot(fd.kampagnen || [], parentTotals(fd)));
+    return;
   }
 
   _removeSlot(index) {
@@ -160,10 +172,15 @@ export class StepKampagne {
           <label>Name</label>
           <input type="text" class="pe-kampagne-name" data-kampagne-index="${i}" value="${this.escape(slot.eigener_name)}" placeholder="Optional, sonst Projektname" autocomplete="off">
         </div>
+        ${this.wizard.isEditMode && count > 1 ? `
         <div class="form-field">
           <label>Volumen (€)</label>
           <input type="text" inputmode="decimal" class="pe-kampagne-volumen" data-kampagne-index="${i}" value="${slot.volumen ?? ''}">
-        </div>
+        </div>` : `
+        <div class="form-field">
+          <label>Volumen</label>
+          <div class="mdc-input mdc-input--readonly">${slot.volumen ?? 0} € · gesamter Auftrags-Topf</div>
+        </div>`}
         <div id="pe-slot-${i}-arten-host"></div>
       </div>
     `).join('');
@@ -323,12 +340,6 @@ export class StepKampagne {
       this.wizard.formData.auftrag.titel,
       this.wizard.formData.auftrag.titel_manuell_geaendert
     );
-
-    this._el('#pe-kampagne-add-btn')?.addEventListener('click', () => {
-      this._addSlot();
-      this._renderSlots();
-      this.wizard.updateFeedback();
-    });
 
     this._mountAgency();
   }

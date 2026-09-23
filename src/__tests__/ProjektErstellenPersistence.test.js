@@ -412,7 +412,7 @@ describe('ProjektErstellenPersistence', () => {
     });
   });
 
-  it('legt mehrere Kampagnen mit gesplittetem Volumen an', async () => {
+  it('legt eine Kampagne mit dem vollen Topf an', async () => {
     const kampagnePayloads = [];
     let kampagneSeq = 0;
     window.supabase = {
@@ -465,17 +465,16 @@ describe('ProjektErstellenPersistence', () => {
 
     expect(result.success).toBe(true);
     expect(result.kampagneId).toBe('kampagne-1');
-    expect(kampagnePayloads).toHaveLength(3);
-    expect(kampagnePayloads.map(p => p.volumen)).toEqual([20000, 30000, 40000]);
-    expect(kampagnePayloads.map(p => p.videoanzahl)).toEqual([2, 3, 4]);
+    expect(kampagnePayloads).toHaveLength(1);
+    expect(kampagnePayloads[0].volumen).toBe(90000);
+    expect(kampagnePayloads[0].videoanzahl).toBe(9);
     expect(kampagnePayloads[0].kampagnenname).toBe('Split Auftrag');
-    expect(kampagnePayloads[1].kampagnenname).toBe('Split Auftrag (2)');
-    expect(kampagnePayloads.map(p => p.eigener_name)).toEqual(['Launch Q1', null, null]);
-    expect(inserted.auftrag.kampagnenanzahl).toBe(3);
+    expect(kampagnePayloads[0].eigener_name).toBe('Launch Q1');
+    expect(inserted.auftrag.kampagnenanzahl).toBe(1);
     expect(inserted.auftrag_kampagnenart_blocks.every(b => b.kampagne_id === 'kampagne-1')).toBe(true);
   });
 
-  it('speichert Kampagnenart-Bloecke an der jeweiligen kampagne_id', async () => {
+  it('legt alle Kampagnenarten an der einen Kampagne ab', async () => {
     const kampagnePayloads = [];
     let kampagneSeq = 0;
     window.supabase = {
@@ -542,18 +541,20 @@ describe('ProjektErstellenPersistence', () => {
     });
 
     expect(result.success).toBe(true);
-    expect(kampagnePayloads.map(p => p.art_der_kampagne)).toEqual([
-      ['UGC Paid'],
-      ['Influencer Kampagne'],
-      ['UGC Organic']
+    expect(kampagnePayloads).toHaveLength(1);
+    expect(kampagnePayloads[0].art_der_kampagne).toEqual([
+      'UGC Paid',
+      'Influencer Kampagne',
+      'UGC Organic'
     ]);
-    expect(kampagnePayloads.map(p => p.videoanzahl)).toEqual([2, 3, 4]);
+    expect(kampagnePayloads[0].videoanzahl).toBe(9);
+    expect(kampagnePayloads[0].volumen).toBe(90000);
     expect(inserted.auftrag_details.gesamt_videos).toBe(9);
     expect(inserted.auftrag_details.campaign_type).toEqual(['ugc_paid', 'influencer', 'ugc_organic']);
     expect(inserted.auftrag_kampagnenart_blocks.map(b => [b.kampagne_id, b.campaign_type])).toEqual([
       ['kampagne-1', 'ugc_paid'],
-      ['kampagne-2', 'influencer'],
-      ['kampagne-3', 'ugc_organic']
+      ['kampagne-1', 'influencer'],
+      ['kampagne-1', 'ugc_organic']
     ]);
   });
 });

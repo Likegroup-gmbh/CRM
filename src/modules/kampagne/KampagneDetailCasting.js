@@ -8,6 +8,7 @@ import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { prefillAndLockField } from '../../core/form/data/PrefillHandler.js';
 import { AutoGeneration } from '../../core/form/logic/AutoGeneration.js';
 import { KampagneUtils } from './KampagneUtils.js';
+import { lineNames } from '../produktion/produktionNames.js';
 
 const esc = (t) => window.validatorSystem?.sanitizeHtml(String(t ?? '')) || '';
 
@@ -32,7 +33,9 @@ export async function mountCastingPane(detail) {
   pane.innerHTML = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
 
   try {
-    const listen = await creatorAuswahlService.getListenByKampagneId(detail.kampagneId);
+    const listen = await creatorAuswahlService.getListenByKampagneId(detail.kampagneId, {
+      produktionId: detail.produktionId || null
+    });
     if (!pane.isConnected) return;
     detail._castingListen = listen;
     detail.sourcingListenCount = listen.length;
@@ -209,10 +212,14 @@ async function handleCreateSubmit(detail, form, options = {}) {
     applySpaltenPreset(submitData);
 
     if (!submitData.kampagne_id) submitData.kampagne_id = detail.kampagneId;
+    if (detail.produktionId) submitData.produktion_id = detail.produktionId;
     if (!submitData.unternehmen_id) submitData.unternehmen_id = detail.kampagneData?.unternehmen_id;
     if (!submitData.marke_id) submitData.marke_id = detail.kampagneData?.marke_id;
+    if (detail.produktion?.briefing_id) submitData.briefing_id = detail.produktion.briefing_id;
 
-    if (!submitData.name || submitData.name.trim() === '') {
+    const forced = lineNames(detail.lineTitle).casting;
+    if (forced) submitData.name = forced;
+    else if (!submitData.name || submitData.name.trim() === '') {
       const auto = new AutoGeneration();
       const generatedName = await auto.autoGenerateSourcingName(
         submitData.kampagne_id,

@@ -85,13 +85,15 @@ export class CreatorAuswahlService {
   /**
    * Casting-Listen einer Kampagne (id + name für Switcher / Empty-Check).
    */
-  async getListenByKampagneId(kampagneId) {
+  async getListenByKampagneId(kampagneId, { produktionId } = {}) {
     if (!kampagneId) return [];
-    const { data, error } = await window.supabase
+    let query = window.supabase
       .from('creator_auswahl')
       .select('id, name, created_at')
       .eq('kampagne_id', kampagneId)
       .order('created_at', { ascending: false });
+    if (produktionId) query = query.eq('produktion_id', produktionId);
+    const { data, error } = await query;
     if (error) {
       console.error('Fehler beim Abrufen der Casting-Listen:', error);
       throw error;

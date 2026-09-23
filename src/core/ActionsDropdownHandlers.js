@@ -7,6 +7,7 @@ import { openAddCreatorToCastingDrawer } from '../modules/creator-auswahl/AddCre
 import { handleView, handleEdit, handleContinue, dispatchVertragListAction } from './actions/actionNavigate.js';
 import { handleDelete, confirmDelete } from './actions/actionDelete.js';
 import { setField } from './actions/actionSetField.js';
+import { openPersonaCreateDrawer } from '../modules/persona/PersonaCreateDrawer.js';
 
 export { setField };
 
@@ -204,9 +205,26 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
       window.navigateTo(`/${entityType}/${entityId}/produkt`);
       break;
 
-    case 'add_persona':
-      window.navigateTo(`/${entityType}/${entityId}/persona`);
+    case 'add_persona': {
+      if (entityType === 'marke') {
+        const detail = window.moduleRegistry?.modules?.get('marke-detail');
+        openPersonaCreateDrawer({
+          origin: 'marke',
+          marke_id: entityId,
+          unternehmen_id: detail?.marke?.unternehmen_id || null,
+          unternehmenName: detail?.marke?.unternehmen?.firmenname || null,
+          markeName: detail?.marke?.markenname || null
+        });
+      } else {
+        const detail = window.moduleRegistry?.modules?.get('unternehmen-detail');
+        openPersonaCreateDrawer({
+          origin: 'unternehmen',
+          unternehmen_id: entityId,
+          unternehmenName: detail?.unternehmen?.firmenname || null
+        });
+      }
       break;
+    }
 
     case 'remove_ansprechpartner_unternehmen':
       dropdown.openRemoveAnsprechpartnerFromUnternehmenModal(entityId);

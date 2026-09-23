@@ -18,6 +18,7 @@ export function resolveSkriptCreatePayload(item, { produktIds = [] } = {}) {
     unternehmen_id: strategie.unternehmen_id || unternehmen.id || null,
     marke_id: strategie.marke_id || marke.id || null,
     kampagne_id: strategie.kampagne_id || strategie.kampagne?.id || null,
+    produktion_id: strategie.produktion_id || null,
     briefing_id: strategie.briefing_id || briefing?.id || null,
     briefing,
     bereich: briefing?.bereich || null,

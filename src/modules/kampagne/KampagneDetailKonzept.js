@@ -63,11 +63,13 @@ export async function remountKonzeptPane(detail) {
 }
 
 async function loadKonzepte(detail) {
-  const { data, error } = await window.supabase
+  let query = window.supabase
     .from('strategie')
     .select('id, name')
     .eq('kampagne_id', detail.kampagneId)
     .order('created_at', { ascending: true });
+  if (detail.produktionId) query = query.eq('produktion_id', detail.produktionId);
+  const { data, error } = await query;
   if (error) throw new Error(error.message);
   return data || [];
 }

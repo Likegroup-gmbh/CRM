@@ -7,6 +7,7 @@ export default {
       typ: 'string',
       kunde_unternehmen_id: 'uuid',
       kampagne_id: 'uuid',
+      produktion_id: 'uuid',
       creator_id: 'uuid',
       kooperation_id: 'uuid',
       contracting_auftrag_id: 'uuid',

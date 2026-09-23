@@ -4,6 +4,7 @@
 import { activateSecondaryNavTab, getSecondaryNavTabFromEvent } from '../../core/TabUtils.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { loadMarkeTabData } from './MarkeDetailLoader.js';
+import { openPersonaCreateDrawer } from '../persona/PersonaCreateDrawer.js';
 
 export function bindMarkeDetailEvents(detail) {
   detail.bindSidebarTabs();
@@ -32,7 +33,13 @@ export function bindMarkeDetailEvents(detail) {
     // Persona anlegen (eigene Seite)
     if (e.target.closest('.persona-create-btn')) {
       e.preventDefault();
-      window.navigateTo(`/marke/${detail.markeId}/persona`);
+      openPersonaCreateDrawer({
+        origin: 'marke',
+        unternehmen_id: detail.marke?.unternehmen_id || null,
+        unternehmenName: detail.marke?.unternehmen?.firmenname || null,
+        marke_id: detail.markeId,
+        markeName: detail.marke?.markenname || null
+      });
       return;
     }
 

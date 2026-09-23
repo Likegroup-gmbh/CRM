@@ -17,11 +17,25 @@ const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 const { starteKiRequest } = require('./_shared/ki-log');
 const { appendStep } = require('./_shared/thinking');
 const {
-  PERSONA_TOOL,
+  personaTool,
+  modusBrauchtUnisexName,
+  gefilterteUnisexNamen,
   buildPrompt,
   loadPoolPersonas,
   validateVorschlaege
 } = require('./_shared/produkt-persona');
+
+function usageZusammen(a, b) {
+  if (!b) return a || null;
+  if (!a) return b;
+  const sum = { ...b };
+  for (const key of ['input_tokens', 'output_tokens', 'cache_read_input_tokens', 'cache_creation_input_tokens']) {
+    if (typeof a[key] === 'number' || typeof b[key] === 'number') {
+      sum[key] = (a[key] || 0) + (b[key] || 0);
+    }
+  }
+  return sum;
+}
 
 const THINKING_LABELS = {
   start: 'Ich lese das Produkt',
@@ -123,27 +137,55 @@ exports.handler = async (event) => {
     const matchPool = pool.filter(p => !ausgeschlossen.has(p.id));
 
     schreibeStep('generieren', `Claude entwirft (Pool: ${matchPool.length} aus ${quelle})`);
-    const { stable, task } = buildPrompt(input, { pool: matchPool, poolQuelle: quelle });
-
-    const result = await callClaude({
-      model: MODELS.persona,
-      systemBlocks: [{ text: stable, cache: true }],
-      userPrompt: task,
-      maxTokens: 8000,
-      tool: PERSONA_TOOL,
-      toolForced: true
+    const unisexNamen = modusBrauchtUnisexName(input.modus);
+    const verworfenerName = input.ersetzteKarte?.name || null;
+    const erlaubteNamen = gefilterteUnisexNamen({
+      poolNamen: matchPool.map((p) => p.name),
+      verworfenerName
     });
+    const { stable, task } = buildPrompt(input, { pool: matchPool, poolQuelle: quelle });
+    const tool = personaTool({ unisexNamen, namen: erlaubteNamen });
+    const bestehendeCount = Array.isArray(input.bestehende_use_cases) ? input.bestehende_use_cases.length : 0;
 
-    if (!result.json) {
-      throw new Error('Die KI hat kein strukturiertes Ergebnis geliefert');
+    const entwerfen = async (userPrompt) => {
+      const antwort = await callClaude({
+        model: MODELS.persona,
+        systemBlocks: [{ text: stable, cache: true }],
+        userPrompt,
+        maxTokens: 8000,
+        tool,
+        toolForced: true
+      });
+      if (!antwort.json) {
+        throw new Error('Die KI hat kein strukturiertes Ergebnis geliefert');
+      }
+      return {
+        antwort,
+        geprueft: validateVorschlaege(antwort.json, {
+          useCaseCount: bestehendeCount + (Array.isArray(antwort.json?.use_cases) ? antwort.json.use_cases.length : 0),
+          maxVorschlaege: 1,
+          unisexNamen
+        })
+      };
+    };
+
+    let { antwort: result, geprueft } = await entwerfen(task);
+
+    const unisexDaneben = unisexNamen
+      && !geprueft.vorschlaege.length
+      && geprueft.verworfen.some((v) => v.grund === 'kein Unisex-Vorname');
+    if (unisexDaneben) {
+      const abgelehnt = geprueft.verworfen
+        .filter((v) => v.grund === 'kein Unisex-Vorname' && v.vorschlag)
+        .map((v) => v.vorschlag);
+      const korrektur = `${task}\n\n# KORREKTUR\nDer Vorname ${abgelehnt.join(', ') || 'des letzten Entwurfs'} ist nicht erlaubt. `
+        + `Nimm genau einen aus dieser Liste: ${erlaubteNamen.join(', ')}. Kein anderer Name.`;
+      const zweiter = await entwerfen(korrektur);
+      result = { ...zweiter.antwort, usage: usageZusammen(result.usage, zweiter.antwort.usage) };
+      geprueft = zweiter.geprueft;
     }
 
     schreibeStep('pruefen', 'Vorschlaege werden validiert');
-    const bestehendeCount = Array.isArray(input.bestehende_use_cases) ? input.bestehende_use_cases.length : 0;
-    const geprueft = validateVorschlaege(result.json, {
-      useCaseCount: bestehendeCount + (Array.isArray(result.json?.use_cases) ? result.json.use_cases.length : 0),
-      maxVorschlaege: 1
-    });
 
     if (!geprueft.vorschlaege.length) {
       throw new Error('Die KI konnte aus den Produktdaten keine tragfähigen Persona-Vorschläge ableiten');

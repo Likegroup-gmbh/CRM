@@ -56,7 +56,8 @@ describe('SkriptCreateDrawer', () => {
 
     expect(skripteService.loadKonzepte).toHaveBeenCalledWith({
       unternehmenId: 'u1',
-      kampagneId: 'k1'
+      kampagneId: 'k1',
+      produktionId: null
     });
     expect(document.getElementById('skcreate-konzept').value).toBe('st-1');
     expect(document.getElementById('skcreate-konzept').disabled).toBe(true);

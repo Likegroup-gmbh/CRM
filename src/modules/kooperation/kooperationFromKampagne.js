@@ -1,9 +1,10 @@
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
-export function setKooperationPrefillCache(kampagneId, kampagneData) {
+export function setKooperationPrefillCache(kampagneId, kampagneData, produktionId = null) {
   if (!kampagneId || !kampagneData) return;
   window.kooperationPrefillCache = {
     kampagne_id: kampagneId,
+    produktion_id: produktionId || null,
     kampagnenname: KampagneUtils.getDisplayName(kampagneData),
     eigener_name: kampagneData.eigener_name,
     unternehmen_id: kampagneData.unternehmen_id,
@@ -14,10 +15,13 @@ export function setKooperationPrefillCache(kampagneId, kampagneData) {
   };
 }
 
-export function navigateToNewKooperationFromKampagne(kampagneId, kampagneData = null) {
+export function navigateToNewKooperationFromKampagne(kampagneId, kampagneData = null, produktionId = null) {
   const data = kampagneData || window.kampagneDetail?.kampagneData || null;
-  setKooperationPrefillCache(kampagneId, data);
-  window.navigateTo(`/kooperation/new?kampagne_id=${kampagneId}`);
+  const produktion = produktionId || window.kampagneDetail?.produktionId || null;
+  setKooperationPrefillCache(kampagneId, data, produktion);
+  const params = new URLSearchParams({ kampagne_id: kampagneId });
+  if (produktion) params.set('produktion_id', produktion);
+  window.navigateTo(`/kooperation/new?${params.toString()}`);
 }
 
 export function resolveKampagneIdFromCreateContext({ submitData, form, search } = {}) {
@@ -36,7 +40,8 @@ export function resolveKampagneIdFromCreateContext({ submitData, form, search } 
   return urlParams.get('kampagne_id') || null;
 }
 
-export function resolveKooperationCreateRedirect({ kampagneId, newKooperationId } = {}) {
+export function resolveKooperationCreateRedirect({ kampagneId, produktionId, newKooperationId } = {}) {
+  if (produktionId) return `/produktion/${produktionId}`;
   if (kampagneId) return `/kampagne/${kampagneId}`;
   return `/kooperation/${newKooperationId}`;
 }

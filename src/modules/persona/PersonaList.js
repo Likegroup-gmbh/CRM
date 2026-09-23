@@ -36,6 +36,7 @@ import {
   renderBrandsView, updateBrandsGrid,
   renderItemsView, updateItemsTable as _updateItemsTable
 } from './PersonaFolderRenderer.js';
+import { openPersonaCreateDrawer } from './PersonaCreateDrawer.js';
 
 const PERSONA_LIST_SELECT = `
   *,
@@ -578,7 +579,7 @@ export class PersonaList extends BasePaginatedList {
 
       if (e.target.id === 'btn-persona-new' || e.target.closest('#btn-persona-new')) {
         e.preventDefault();
-        window.navigateTo(withFolderQuery('/persona/new'));
+        this.openCreateDrawer();
       }
     }, { signal });
   }
@@ -588,8 +589,19 @@ export class PersonaList extends BasePaginatedList {
     window.navigateTo(withFolderQuery(`/persona/${personaId}`));
   }
 
+  openCreateDrawer() {
+    const folder = this.currentFolder();
+    openPersonaCreateDrawer({
+      origin: 'liste',
+      unternehmen_id: folder.unternehmenId || null,
+      unternehmenName: folder.unternehmenName || null,
+      marke_id: folder.ohneMarke ? null : (folder.markeId || null),
+      markeName: folder.ohneMarke ? null : (folder.markeName || null)
+    });
+  }
+
   showCreateForm() {
-    window.navigateTo(withFolderQuery('/persona/new'));
+    this.openCreateDrawer();
   }
 
   async updateTable(personas) {

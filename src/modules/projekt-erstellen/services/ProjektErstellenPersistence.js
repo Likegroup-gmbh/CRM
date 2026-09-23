@@ -235,6 +235,23 @@ export class ProjektErstellenPersistence {
     return payload;
   }
 
+  _asSingleKampagne(formData) {
+    const blocks = flattenCampaignBlocks(formData);
+    const slots = normalizeKampagnenSlots(formData);
+    const first = slots[0] || {};
+    return {
+      ...formData,
+      auftrag: { ...(formData.auftrag || {}), kampagnenanzahl: 1 },
+      kampagnen: [{
+        ...first,
+        kampagnen_nummer: 1,
+        volumen: this.roundMoney(formData?.auftrag?.nettobetrag),
+        eigener_name: first.eigener_name,
+        campaign_blocks: blocks
+      }]
+    };
+  }
+
   _resolveKampagnenSlots(formData, { kampagneId = null, existingKampagnen = [] } = {}) {
     const slots = normalizeKampagnenSlots(formData);
     slots.forEach((slot, i) => {
@@ -757,6 +774,7 @@ export class ProjektErstellenPersistence {
   async submit({ formData }) {
     const isContracting = formData.auftrag?.auftragtype === 'Contracting';
     if (isContracting) return this.submitContracting({ formData });
+    formData = this._asSingleKampagne(formData);
 
     const supabase = SUPABASE();
     if (!supabase) return { success: false, error: 'Supabase nicht verfügbar' };

@@ -119,12 +119,12 @@ export function renderPageLoading() {
   `;
 }
 
-export function renderNotFound() {
-  window.setHeadline('Kampagne nicht gefunden');
+export function renderNotFound(entity = 'Kampagne') {
+  window.setHeadline(`${entity} nicht gefunden`);
   window.content.innerHTML = `
     <div class="error-message">
-      <h2>Kampagne nicht gefunden</h2>
-      <p>Die angeforderte Kampagne konnte nicht gefunden werden.</p>
+      <h2>${entity} nicht gefunden</h2>
+      <p>Die angeforderte ${entity} konnte nicht gefunden werden.</p>
     </div>
   `;
 }
@@ -164,6 +164,8 @@ export function renderMainPage(state) {
   const canTableLayout = window.canFeature?.('kampagneTableLayout') ?? false;
 
   const kampagneName = KampagneUtils.getDisplayName(kampagneData) || kampagneData?.kampagnenname || '';
+  const pageTitle = state.mode === 'workflow' && state.lineTitle ? state.lineTitle : kampagneName;
+  const showSummary = state.mode !== 'workflow';
 
   const orgLogoUrl = kampagneData?.marke?.logo_url || kampagneData?.unternehmen?.logo_url || '';
   const orgLogoAlt = kampagneData?.marke?.markenname || kampagneData?.unternehmen?.firmenname || 'Logo';
@@ -185,14 +187,23 @@ export function renderMainPage(state) {
 
   const createCtx = { strategien, sourcingListenCount };
 
+  if (state.mode === 'overview') {
+    return renderKampagneOverview({
+      ...state,
+      kampagneName,
+      safeLogoUrl,
+      orgLogoAlt
+    });
+  }
+
   return `
-    ${renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, videoStats, kskUmgebucht, { kooperationen, videos, isKunde })}
+    ${showSummary ? renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, videoStats, kskUmgebucht, { kooperationen, videos, isKunde }) : ''}
 
     <div class="kampagne-detail-body" data-workflow="${escapeAttr(activeWorkflow)}">
       <div class="page-header">
         <div class="page-header-title-group">
           ${safeLogoUrl ? `<img src="${escapeAttr(safeLogoUrl)}" alt="${escapeAttr(orgLogoAlt)}" title="${escapeAttr(orgLogoAlt)}" class="toolbar-entity-logo" loading="lazy" />` : ''}
-          <h2 class="page-header-title">${sanitize(kampagneName)}</h2>
+          <h2 class="page-header-title">${sanitize(pageTitle)}</h2>
         </div>
         <div class="page-header-right">
           <div class="kampagne-tab-chrome" data-chrome="produktion">
@@ -259,6 +270,77 @@ export function renderMainPage(state) {
       </div>
     </div>
   `;
+}
+
+function campaignPot(kampagneData) {
+  return parseFloat(
+    kampagneData?.auftrag?.creator_budget ||
+    kampagneData?.auftrag?.gesamt_budget ||
+    kampagneData?.auftrag?.nettobetrag || 0
+  ) || 0;
+}
+
+function renderProduktionBudget(used, total) {
+  if (total <= 0) return '<span class="text-muted">–</span>';
+  const amount = parseFloat(used) || 0;
+  const pct = KampagneUtils.getProgressPercentage(amount, total);
+  let colorClass = '';
+  if (pct >= 90) colorClass = 'summary-progress-fill--danger';
+  else if (pct >= 75) colorClass = 'summary-progress-fill--warning';
+  return `
+    <div class="budget-progress-cell">
+      <div class="summary-progress">
+        <div class="summary-progress-fill ${colorClass}" style="width: ${pct}%"></div>
+      </div>
+      <span class="budget-progress-label">${KampagneUtils.formatCurrency(amount)} · ${pct}%</span>
+    </div>`;
+}
+
+function renderKampagneOverview({
+  kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed,
+  extraKostenVkSum, ekVkMarginSum, kskUmgebucht, videoStats, isKunde,
+  kooperationen = [], videos = [], produktionen = [],
+  kampagneName, safeLogoUrl, orgLogoAlt
+}) {
+  const canCreateBriefing = window.canCreate?.('briefing') ?? false;
+  const pot = campaignPot(kampagneData);
+  const rows = (produktionen || []).map(p => {
+    const produkt = p.produkt?.name || '–';
+    const briefing = p.briefing?.aktivierung_name || '–';
+    return `
+      <tr>
+        <td><a href="/produktion/${p.id}" class="table-link" data-table="produktion" data-id="${p.id}">${sanitize(p.name || briefing || 'Produktion')}</a></td>
+        <td>${sanitize(produkt)}</td>
+        <td>${sanitize(briefing)}</td>
+        <td>${renderProduktionBudget(p.budgetUsed, pot)}</td>
+      </tr>`;
+  }).join('');
+
+  return `
+    ${renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, videoStats, kskUmgebucht, { kooperationen, videos, isKunde })}
+    <div class="kampagne-detail-body">
+      <div class="page-header">
+        <div class="page-header-title-group">
+          ${safeLogoUrl ? `<img src="${escapeAttr(safeLogoUrl)}" alt="${escapeAttr(orgLogoAlt)}" class="toolbar-entity-logo" loading="lazy" />` : ''}
+          <h2 class="page-header-title">${sanitize(kampagneName)}</h2>
+        </div>
+        <div class="page-header-right">
+          ${canCreateBriefing ? `<button type="button" id="btn-new-produktion" class="mdc-btn">Briefing anlegen</button>` : ''}
+        </div>
+      </div>
+      <div class="content-section">
+        <div class="data-table-container">
+          <table class="data-table">
+            <thead>
+              <tr><th>Produktion</th><th>Produkt</th><th>Briefing</th><th>Verbrauch</th></tr>
+            </thead>
+            <tbody>
+              ${rows || `<tr><td colspan="4">Noch keine Produktion. Briefing anlegen startet die erste.</td></tr>`}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
 }
 
 function renderInfoCards(kampagneData, koopBudgetSum, isKunde) {

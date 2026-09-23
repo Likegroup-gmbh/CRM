@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { PersonaList } from '../modules/persona/PersonaList.js';
+import { openPersonaCreateDrawer } from '../modules/persona/PersonaCreateDrawer.js';
+
+vi.mock('../modules/persona/PersonaCreateDrawer.js', () => ({
+  openPersonaCreateDrawer: vi.fn()
+}));
 import { NUR_UNTERNEHMEN_LABEL, OHNE_QUERY } from '../modules/persona/PersonaFolders.js';
 import {
   renderCompaniesView,
@@ -26,6 +31,7 @@ describe('PersonaList URLs', () => {
     window.isAdmin = () => true;
     window.isKunde = () => false;
     window.currentUser = { rolle: 'admin', permissions: { persona: { can_view: true, can_edit: true } } };
+    openPersonaCreateDrawer.mockClear();
     list = new PersonaList();
   });
 
@@ -49,6 +55,36 @@ describe('PersonaList URLs', () => {
     expect(list.viewMode).toBe('items');
     expect(list._ohneMarke).toBe(true);
     expect(list.listUrl()).toContain('marke=ohne');
+  });
+
+  it('Anlegen öffnet den Drawer, Ordner sperrt Unternehmen und Marke', () => {
+    list.currentUnternehmenId = 'u1';
+    list.currentUnternehmenName = 'Acme';
+    list.currentMarkeId = 'm1';
+    list.currentMarkeName = 'Clear';
+    list.openCreateDrawer();
+    expect(openPersonaCreateDrawer).toHaveBeenCalledWith({
+      origin: 'liste',
+      unternehmen_id: 'u1',
+      unternehmenName: 'Acme',
+      marke_id: 'm1',
+      markeName: 'Clear'
+    });
+  });
+
+  it('Ordner ohne Marke sperrt nur das Unternehmen', () => {
+    list.currentUnternehmenId = 'u1';
+    list.currentUnternehmenName = 'Acme';
+    list._ohneMarke = true;
+    list.currentMarkeId = 'm1';
+    list.showCreateForm();
+    expect(openPersonaCreateDrawer).toHaveBeenCalledWith({
+      origin: 'liste',
+      unternehmen_id: 'u1',
+      unternehmenName: 'Acme',
+      marke_id: null,
+      markeName: null
+    });
   });
 
   it('Liste setzt die URL auf /persona zurueck', () => {

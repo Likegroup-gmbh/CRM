@@ -42,7 +42,8 @@ function wrapConditional(html, condition, formData) {
 
 function renderLabel(field) {
   const required = field.required ? ' <span class="required">*</span>' : '';
-  return `<label ${field.type === 'text' || field.type === 'url' || field.type === 'date' ? `for="${field.name}"` : ''}>${escapeHtml(field.label)}${required}</label>`;
+  const withFor = field.type === 'text' || field.type === 'url' || field.type === 'date' || field.type === 'number';
+  return `<label ${withFor ? `for="${field.name}"` : ''}>${escapeHtml(field.label)}${required}</label>`;
 }
 
 function renderHelper(field) {
@@ -52,6 +53,25 @@ function renderHelper(field) {
 // ---------------------------------------------------------------
 // Einzelne Feldtypen
 // ---------------------------------------------------------------
+
+function renderNumber(field, formData) {
+  const raw = formData[field.name];
+  const value = raw === undefined || raw === null || raw === ''
+    ? (field.defaultValue ?? '')
+    : raw;
+  return `
+    <div class="form-field">
+      ${renderLabel(field)}
+      <input type="number" id="${field.name}" name="${field.name}"
+             value="${escapeHtml(value)}"
+             ${field.min !== undefined ? `min="${escapeHtml(field.min)}"` : ''}
+             ${field.step ? `step="${escapeHtml(field.step)}"` : ''}
+             ${field.placeholder ? `placeholder="${escapeHtml(field.placeholder)}"` : ''}
+             ${field.required ? 'required' : ''}>
+      ${renderHelper(field)}
+    </div>
+  `;
+}
 
 function renderTextLike(field, formData, inputType) {
   const value = formData[field.name] ?? '';
@@ -385,6 +405,18 @@ function renderEntitySelect(field, formData, context) {
     }
   }
 
+  if (field.scopeMarke && formData.marke_id) {
+    options = options.filter(o => !o.marke_id || o.marke_id === formData.marke_id);
+  }
+
+  if (field.lockWithLinie && context?.linieGesperrt) {
+    disabled = true;
+    if (current && !options.some(o => o.id === current)) {
+      const kept = (context?.[field.table] || []).find(o => o.id === current);
+      if (kept) options = [kept, ...options];
+    }
+  }
+
   const opts = options.map(o => `
     <option value="${o.id}" ${current === o.id ? 'selected' : ''}>${escapeHtml(o[field.displayField] || o.id)}</option>
   `).join('');
@@ -433,6 +465,7 @@ export function renderField(field, formData, context) {
   let html;
   switch (field.type) {
     case 'text': html = renderTextLike(field, formData, 'text'); break;
+    case 'number': html = renderNumber(field, formData); break;
     case 'url': html = renderTextLike(field, formData, 'url'); break;
     case 'date': html = renderDate(field, formData); break;
     case 'textarea': html = renderTextarea(field, formData); break;

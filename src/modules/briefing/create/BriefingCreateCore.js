@@ -14,8 +14,10 @@ export class BriefingCreate {
     this.formData = {};
     this.unternehmen = [];
     this.marken = [];
+    this.kampagnen = [];
     this.benutzer = [];
     this.produkte = [];
+    this._linieGesperrt = false;
     this.isGenerated = false;
     this.editId = null;
     this._isRendering = false;
@@ -69,9 +71,20 @@ BriefingCreate.prototype.applyQueryPrefill = function() {
   const params = new URLSearchParams(window.location.search);
   const unternehmen = params.get('unternehmen');
   const marke = params.get('marke');
+  const kampagne = params.get('kampagne');
+  const produkt = params.get('produkt');
+  const titel = params.get('titel');
+  const produktion = params.get('produktion');
 
   if (unternehmen) this.formData.unternehmen_id = unternehmen;
   if (marke && marke !== OHNE_QUERY) this.formData.marke_id = marke;
+  if (titel) this.formData.aktivierung_name = titel;
+  if (kampagne) this.formData.kampagne_id = kampagne;
+  if (produkt) this.formData.produkt_id = produkt;
+  this._linieGesperrt = !!(kampagne && produkt);
+  this._produktionKontext = (kampagne && produkt)
+    ? { kampagneId: kampagne, produktId: produkt, produktionId: produktion || null }
+    : null;
 };
 
 BriefingCreate.prototype.loadStammdaten = async function() {
@@ -95,6 +108,17 @@ BriefingCreate.prototype.loadStammdaten = async function() {
       .select('id, name')
       .order('name');
     this.benutzer = benutzer || [];
+
+    const { data: kampagnen } = await window.supabase
+      .from('kampagne')
+      .select('id, kampagnenname, eigener_name, unternehmen_id, marke_id')
+      .order('kampagnenname');
+    this.kampagnen = (kampagnen || []).map(k => ({
+      id: k.id,
+      label: k.eigener_name || k.kampagnenname || 'Unbenannte Kampagne',
+      unternehmen_id: k.unternehmen_id,
+      marke_id: k.marke_id
+    }));
     await this.refreshProdukte();
   } catch (error) {
     console.error('Fehler beim Laden der Stammdaten:', error);
@@ -119,6 +143,8 @@ BriefingCreate.prototype.resetForm = function() {
   this.formData = {};
   this.isGenerated = false;
   this.editId = null;
+  this._linieGesperrt = false;
+  this._produktionKontext = null;
   this._isRendering = false;
   this._isInitializing = false;
   this.likyPanel = null;

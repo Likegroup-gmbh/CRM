@@ -17,6 +17,7 @@ const ROUTE_CONFIG = {
   'projekt-erstellen': { label: 'Projekt anlegen',   entity: 'projekt-erstellen' },
   auftragsdetails:    { label: 'Auftragsdetails',   entity: 'auftragsdetails' },
   kampagne:           { label: 'Kampagne',          entity: 'kampagne' },
+  produktion:         { label: 'Produktion',        entity: 'kampagne' },
   strategie:          { label: 'Strategien',        entity: 'strategie' },
   sourcing:           { label: 'Sourcing',          entity: 'sourcing' },
   konzepte:           { label: 'Konzepte',          entity: 'strategie' },
