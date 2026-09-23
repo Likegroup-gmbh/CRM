@@ -349,4 +349,19 @@ describe('docHeadActionsHtml', () => {
     expect(ohne).not.toContain('id="ed-share"');
     expect(ohne).not.toContain('id="ed-anschreiben"');
   });
+
+  it('zeigt Freigeben nur mit kannFreigeben', () => {
+    const html = docHeadActionsHtml({ kannFreigeben: true });
+    expect(html).toContain('id="ed-freigeben"');
+    expect(html).toContain('>Freigeben<');
+
+    const ohne = docHeadActionsHtml({ kannFreigeben: false });
+    expect(ohne).not.toContain('id="ed-freigeben"');
+  });
+
+  it('zeigt bei Status freigegeben ein Badge und keinen Button', () => {
+    const html = docHeadActionsHtml({ status: 'freigegeben', kannFreigeben: false });
+    expect(html).toContain('Freigegeben');
+    expect(html).not.toContain('id="ed-freigeben"');
+  });
 });

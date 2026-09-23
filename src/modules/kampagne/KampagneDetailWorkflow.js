@@ -244,6 +244,9 @@ export async function handleWorkflowTableSelect(detail, { field, itemId, value }
     if (field === 'skript_status') {
       if (detail.isKunde) return;
       await skripteService.updateSkript(itemId, { status: value });
+      if (value === 'freigegeben') {
+        await skripteService.markiereVideosSkriptFreigegeben(itemId);
+      }
       await patchWorkflowItem(detail, 'skripte', itemId, { status: value });
       window.toastSystem?.show('Skript-Status aktualisiert', 'success');
     }

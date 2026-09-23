@@ -256,6 +256,10 @@ Ausdrückliche Freigabe einer Videoidee für die Skripterstellung. Voraussetzung
 Casting-Eintrag und nicht „Nicht umsetzen“. Gate nur für Neuanlage, nicht für bestehende Skripte.
 _Avoid_: Freigabe (alleinstehend – Kollision mit Video-Freigabe am Kooperationsvideo), Freigabeprozess
 
+**Kundenfreigabe**:
+Der Kunde gibt ein Skript frei, das intern bereits Final ist. Danach gilt das Skript als freigegeben für weitere Aktionen, und die Skript-Freigabe am verknüpften Kooperationsvideo ist gesetzt.
+_Avoid_: Skript-Freigabe, Final
+
 **Hook-Variante**:
 Alternativer gesprochener Opener am selben Skript (Hook 1–3). Keine eigene Version.
 _Avoid_: Variante, Alternative Version, Hook-Option

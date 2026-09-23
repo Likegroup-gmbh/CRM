@@ -51,6 +51,7 @@ describe('SkriptList Smoke', () => {
     expect(STATUS_LABELS.fragen).toBe('Rückfragen offen');
     expect(STATUS_LABELS.entwurf).toBe('Entwurf');
     expect(STATUS_LABELS.final).toBe('Final');
+    expect(STATUS_LABELS.freigegeben).toBe('Freigegeben');
   });
 });
 

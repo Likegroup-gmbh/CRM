@@ -323,6 +323,26 @@ export class SkripteService {
     return data;
   }
 
+  /**
+   * Gast mit Bearbeiten-Recht gibt ein finales Skript frei. Der RPC setzt
+   * den Status und hakt die Checkbox an allen verknüpften Videos.
+   */
+  async freigebenSkriptGast(skriptId) {
+    const { error } = await this.db.rpc('freigeben_skript_gast', {
+      p_skript_id: skriptId
+    });
+    if (error) throw new Error(error.message);
+  }
+
+  /** Intern: Checkbox „Skript freigegeben“ an allen Videos dieses Skripts. */
+  async markiereVideosSkriptFreigegeben(skriptId) {
+    const { error } = await this.db
+      .from('kooperation_videos')
+      .update({ skript_freigegeben: true })
+      .eq('skript_id', skriptId);
+    if (error) throw new Error(error.message);
+  }
+
   async importSkript(payload) {
     const { data: { user } } = await this.db.auth.getUser();
     const { data, error } = await this.db.from('skripte')

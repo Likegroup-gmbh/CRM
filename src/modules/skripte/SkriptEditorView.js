@@ -220,6 +220,13 @@ export class SkriptEditorView {
     return Boolean(window.isInternal?.()) && (window.canEdit?.('skripte') ?? false) && Boolean(this.skript?.id) && !this.neuModus;
   }
 
+  /** Freigeben: nur Share-Gast mit Bearbeiten-Recht, und nur aus Status Final. */
+  get kannFreigeben() {
+    return Boolean(window.permissionSystem?.isGast)
+      && window.guestShare?.rechte === 'feedback'
+      && this.skript?.status === 'final';
+  }
+
   /** Creator/Kooperation zuweisen: nur intern. */
   get kannZuweisen() {
     return Boolean(window.isInternal?.()) && (window.canEdit?.('skripte') ?? false);
@@ -366,6 +373,35 @@ export class SkriptEditorView {
   bindDocHeadActions(el) {
     this.bindShareButton(el);
     this.bindAnschreibenButton(el);
+    this.bindFreigebenButton(el);
+  }
+
+  docHeadActions() {
+    return docHeadActionsHtml({
+      kannTeilen: this.kannTeilen,
+      kannFreigeben: this.kannFreigeben,
+      status: this.skript?.status || '',
+      verknuepfungenHtml: this.renderVerknuepfungenHtml()
+    });
+  }
+
+  bindFreigebenButton(el) {
+    el.querySelector('#ed-freigeben')?.addEventListener('click', () => this.freigeben());
+  }
+
+  async freigeben() {
+    if (!this.kannFreigeben || !this.skript?.id) return;
+    const btn = document.getElementById('ed-freigeben');
+    if (btn) btn.disabled = true;
+    try {
+      await skripteService.freigebenSkriptGast(this.skript.id);
+      this.skript.status = 'freigegeben';
+      this.renderDoc();
+      window.toastSystem?.show('Skript freigegeben', 'success');
+    } catch (error) {
+      if (btn) btn.disabled = false;
+      window.toastSystem?.show(error.message || 'Freigabe fehlgeschlagen', 'error');
+    }
   }
 
   bindShareButton(el) {
@@ -709,10 +745,7 @@ export class SkriptEditorView {
       el.innerHTML = fragenModusHtml({
         skript: this.skript,
         genStatus: this.genStatus,
-        docHeadActionsHtml: docHeadActionsHtml({
-          kannTeilen: this.kannTeilen,
-          verknuepfungenHtml: this.renderVerknuepfungenHtml()
-        }),
+        docHeadActionsHtml: this.docHeadActions(),
         vorgabenPanelHtml: vorgabenPanelHtml(this.skript)
       });
       el.querySelector('#ed-fragen-gen')?.addEventListener('click', () => this.startGenerationAusFragen());
@@ -731,10 +764,7 @@ export class SkriptEditorView {
       skript: this.skript,
       messages: this.messages,
       isReadonly: this.isReadonly,
-      docHeadActionsHtml: docHeadActionsHtml({
-        kannTeilen: this.kannTeilen,
-        verknuepfungenHtml: this.renderVerknuepfungenHtml()
-      }),
+      docHeadActionsHtml: this.docHeadActions(),
       vorgabenPanelHtml: vorgabenPanelHtml(this.skript),
       docTab: this.docTab || 'skript',
       zeigeHookVarianten: this.kannAiAktionen

@@ -268,10 +268,23 @@ export function skriptDocHtml({
   `;
 }
 
-/** Doc-Kopf: Version, optional Teilen, dann Creator-Zuweisen. */
-export function docHeadActionsHtml({ kannTeilen = false, verknuepfungenHtml = '' } = {}) {
+/** Doc-Kopf: Version, Kundenfreigabe, optional Teilen, dann Creator-Zuweisen. */
+export function docHeadActionsHtml({
+  kannTeilen = false, kannFreigeben = false, status = '', verknuepfungenHtml = ''
+} = {}) {
+  const freigabeBadge = status === 'freigegeben'
+    ? `<span class="skripte-badge skripte-badge--success" title="Vom Kunden freigegeben">Freigegeben</span>`
+    : '';
+  const freigebenBtn = kannFreigeben ? `
+    <button type="button" class="mdc-btn skripte-editor-share-btn" id="ed-freigeben"
+      title="Skript freigeben">
+      <span class="mdc-btn__icon">${icon('check')}</span>
+      <span class="mdc-btn__label">Freigeben</span>
+    </button>` : '';
   return `
     <div class="skripte-editor-version" id="ed-version-wrap"></div>
+    ${freigabeBadge}
+    ${freigebenBtn}
     ${kannTeilen ? `
     <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-share"
       title="Skript per Link teilen">
