@@ -18,6 +18,8 @@ const MAX_WIDTH = 182;
 const START_Y_FIRST = 40;
 const START_Y = 20;
 const MAX_CONTENT_Y = 272;
+const PDF_IMAGE_MAX_EDGE = 256;
+const PDF_IMAGE_JPEG_QUALITY = 0.85;
 
 let jsPdfPromise = null;
 
@@ -94,6 +96,53 @@ function imageFormat(dataUrl) {
   return 'PNG';
 }
 
+/**
+ * Bild-Data-URL als JPEG, längste Kante max. 256px.
+ * jsPDF legt PNG unkomprimiert in voller Pixelzahl ab; AVIF kann es gar nicht.
+ * PNG geht mit durchs Canvas, sonst bleibt ein großes Logo unangetastet.
+ * Ohne Canvas wird das Bild ausgelassen.
+ */
+export function toPdfImageDataUrl(dataUrl) {
+  if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) return Promise.resolve(null);
+  const canRaster = typeof OffscreenCanvas !== 'undefined'
+    && typeof Image !== 'undefined'
+    && typeof document !== 'undefined';
+  if (!canRaster) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const srcW = img.naturalWidth || img.width;
+        const srcH = img.naturalHeight || img.height;
+        if (!srcW || !srcH) {
+          resolve(null);
+          return;
+        }
+        const scale = Math.min(1, PDF_IMAGE_MAX_EDGE / Math.max(srcW, srcH));
+        const width = Math.max(1, Math.round(srcW * scale));
+        const height = Math.max(1, Math.round(srcH * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        const jpeg = canvas.toDataURL('image/jpeg', PDF_IMAGE_JPEG_QUALITY);
+        resolve(typeof jpeg === 'string' && jpeg.startsWith('data:image/jpeg') ? jpeg : null);
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
+  });
+}
+
 export function drawBriefingLockup(doc, likeGroupPng, customerPng, { customerName = '' } = {}) {
   drawLikeGroupLogo(doc, likeGroupPng, { align: 'left' });
   const { x, y, w, h } = PDF_BRAND.logoLeft;
@@ -106,7 +155,7 @@ export function drawBriefingLockup(doc, likeGroupPng, customerPng, { customerNam
   if (typeof doc.setTextColor === 'function') doc.setTextColor(0);
   const customerX = markX + 5;
   if (customerPng && doc.addImage) {
-    doc.addImage(customerPng, imageFormat(customerPng), customerX, y, w, h);
+    doc.addImage(customerPng, imageFormat(customerPng), customerX, y, w, h, undefined, 'FAST');
     return;
   }
   if (customerName) {
@@ -135,14 +184,15 @@ export async function createBriefingPdf(detail) {
   if (!detail?.briefing) throw new Error('Kein Briefing geladen');
 
   const jsPDF = await ensureJsPdf();
-  const [model, logoPng, customerPng] = await Promise.all([
+  const [model, logoPng, customerRaw] = await Promise.all([
     Promise.resolve(buildBriefingPdfModel(detail)),
     loadLikeGroupLogoPng(),
     loadCustomerLogoPng(customerLogoUrl(detail.briefing)),
   ]);
+  const customerImage = customerRaw ? await toPdfImageDataUrl(customerRaw) : null;
   const doc = new jsPDF();
   doc.setFont('helvetica');
-  drawBriefingLockup(doc, logoPng, customerPng, {
+  drawBriefingLockup(doc, logoPng, customerImage, {
     customerName: customerDisplayName(detail.briefing),
   });
 

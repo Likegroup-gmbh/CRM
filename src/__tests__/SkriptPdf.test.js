@@ -13,8 +13,9 @@ vi.mock('../modules/briefing/BriefingPdf.js', async (importOriginal) => {
   };
 });
 
-import { loadCustomerLogoPng } from '../modules/briefing/BriefingPdf.js';
-import { createSkriptAnhang, creatorFuerAnschreiben, toPngDataUrl } from '../modules/skripte/SkriptPdf.js';
+import { loadCustomerLogoPng, toPdfImageDataUrl } from '../modules/briefing/BriefingPdf.js';
+import { createSkriptAnhang, creatorFuerAnschreiben } from '../modules/skripte/SkriptPdf.js';
+import { PDF_BRAND } from '../core/pdf/PdfBrand.js';
 
 class MockJsPDF {
   static last = null;
@@ -35,7 +36,9 @@ class MockJsPDF {
   text(value) { this.textCalls.push(String(value ?? '')); }
   splitTextToSize(text) { return [String(text ?? '')]; }
   addPage() { this.addPageCount += 1; }
-  addImage(src, type, x, y, w, h) { this.images.push({ src, type, x, y, w, h }); }
+  addImage(src, type, x, y, w, h, alias, compression) {
+    this.images.push({ src, type, x, y, w, h, alias, compression });
+  }
   output() { return new Blob(['%PDF'], { type: 'application/pdf' }); }
 }
 
@@ -55,20 +58,80 @@ const ANNA = {
 
 beforeEach(() => {
   window.jspdf = { jsPDF: MockJsPDF };
-  MockJsPDF.prototype.addImage = function addImage(src, type, x, y, w, h) {
-    this.images.push({ src, type, x, y, w, h });
+  MockJsPDF.prototype.addImage = function addImage(src, type, x, y, w, h, alias, compression) {
+    this.images.push({ src, type, x, y, w, h, alias, compression });
   };
   loadCustomerLogoPng.mockImplementation(async (url) => (url ? 'data:image/png;base64,CUST' : null));
 });
 
-describe('toPngDataUrl', () => {
-  it('gibt ohne Canvas nur PNG durch', async () => {
+function installRaster({ width, height, dataUrl = 'data:image/jpeg;base64,RASTER' }) {
+  const prev = globalThis.OffscreenCanvas;
+  globalThis.OffscreenCanvas = class OffscreenCanvas {};
+  const OriginalImage = globalThis.Image;
+  const canvases = [];
+  globalThis.Image = class {
+    set src(_value) {
+      this.naturalWidth = width;
+      this.naturalHeight = height;
+      this.onload();
+    }
+  };
+  const create = document.createElement.bind(document);
+  const spy = vi.spyOn(document, 'createElement').mockImplementation((tag) => {
+    if (tag !== 'canvas') return create(tag);
+    const canvas = {
+      width: 0,
+      height: 0,
+      getContext: () => ({ fillRect() {}, drawImage() {} }),
+      toDataURL: (type, quality) => {
+        canvases.push({ width: canvas.width, height: canvas.height, type, quality });
+        return dataUrl;
+      },
+    };
+    return canvas;
+  });
+  return {
+    canvases,
+    restore() {
+      spy.mockRestore();
+      globalThis.Image = OriginalImage;
+      if (prev) globalThis.OffscreenCanvas = prev;
+      else delete globalThis.OffscreenCanvas;
+    },
+  };
+}
+
+describe('toPdfImageDataUrl', () => {
+  it('skaliert auf 256px und liefert JPEG, auch aus PNG', async () => {
+    const raster = installRaster({ width: 640, height: 400 });
+    try {
+      const jpeg = await toPdfImageDataUrl('data:image/png;base64,CUST');
+      expect(jpeg).toBe('data:image/jpeg;base64,RASTER');
+      expect(raster.canvases).toEqual([
+        { width: 256, height: 160, type: 'image/jpeg', quality: 0.85 },
+      ]);
+    } finally {
+      raster.restore();
+    }
+  });
+
+  it('vergroessert kleine Bilder nicht', async () => {
+    const raster = installRaster({ width: 20, height: 20 });
+    try {
+      await toPdfImageDataUrl('data:image/avif;base64,AAAA');
+      expect(raster.canvases[0]).toMatchObject({ width: 20, height: 20, type: 'image/jpeg' });
+    } finally {
+      raster.restore();
+    }
+  });
+
+  it('laesst ohne Canvas alles weg', async () => {
     const prev = globalThis.OffscreenCanvas;
     delete globalThis.OffscreenCanvas;
     try {
-      expect(await toPngDataUrl('data:image/png;base64,CUST')).toBe('data:image/png;base64,CUST');
-      expect(await toPngDataUrl('data:image/avif;base64,AAAA')).toBeNull();
-      expect(await toPngDataUrl('')).toBeNull();
+      expect(await toPdfImageDataUrl('data:image/png;base64,CUST')).toBeNull();
+      expect(await toPdfImageDataUrl('data:image/avif;base64,AAAA')).toBeNull();
+      expect(await toPdfImageDataUrl('')).toBeNull();
     } finally {
       if (prev) globalThis.OffscreenCanvas = prev;
     }
@@ -101,42 +164,40 @@ describe('creatorFuerAnschreiben', () => {
 });
 
 describe('createSkriptAnhang', () => {
-  it('zeichnet Tabelle, Lockup und genau ein Creator-Bild', async () => {
-    const result = await createSkriptAnhang([ANNA], { dateiname: 'Eins.pdf' });
-    expect(result.dateiname).toBe('Eins.pdf');
-    expect(result.blob).toBeInstanceOf(Blob);
-    const doc = MockJsPDF.last;
-    expect(doc.textCalls).toEqual(expect.arrayContaining([
-      '×', 'Anna A', 'Eins', 'Was gesagt wird', 'Was zu sehen ist', 'Hook', 'Hauptteil', 'CTA', 'Erster Satz', 'Close-up',
-    ]));
-    expect(doc.textCalls).not.toContain('GEHEIM');
-    const creatorImages = doc.images.filter((img) => img.w === 18 && img.h === 18);
-    expect(creatorImages).toHaveLength(1);
-    expect(creatorImages[0].type).toBe('PNG');
-    expect(doc.addPageCount).toBe(0);
+  it('zeichnet Tabelle, Lockup und genau ein Creator-Bild als JPEG', async () => {
+    const raster = installRaster({ width: 640, height: 640 });
+    try {
+      const result = await createSkriptAnhang([ANNA], { dateiname: 'Eins.pdf' });
+      expect(result.dateiname).toBe('Eins.pdf');
+      expect(result.blob).toBeInstanceOf(Blob);
+      const doc = MockJsPDF.last;
+      expect(doc.textCalls).toEqual(expect.arrayContaining([
+        '×', 'Anna A', 'Eins', 'Was gesagt wird', 'Was zu sehen ist', 'Hook', 'Hauptteil', 'CTA', 'Erster Satz', 'Close-up',
+      ]));
+      expect(doc.textCalls).not.toContain('GEHEIM');
+      const creatorImages = doc.images.filter((img) => img.w === 18 && img.h === 18);
+      expect(creatorImages).toEqual([
+        expect.objectContaining({
+          src: 'data:image/jpeg;base64,RASTER',
+          type: 'JPEG',
+          compression: 'FAST',
+        }),
+      ]);
+      const customer = doc.images.find((img) => img.w === PDF_BRAND.logoLeft.w && img.x !== PDF_BRAND.logoLeft.x);
+      expect(customer).toMatchObject({
+        src: 'data:image/jpeg;base64,RASTER',
+        type: 'JPEG',
+        compression: 'FAST',
+      });
+      expect(raster.canvases.every((c) => c.width <= 256 && c.height <= 256)).toBe(true);
+      expect(doc.addPageCount).toBe(0);
+    } finally {
+      raster.restore();
+    }
   });
 
-  it('zeichnet AVIF als PNG, wenn Canvas da ist', async () => {
-    const prev = globalThis.OffscreenCanvas;
-    globalThis.OffscreenCanvas = class OffscreenCanvas {};
-    const OriginalImage = globalThis.Image;
-    globalThis.Image = class {
-      set src(_value) {
-        this.naturalWidth = 20;
-        this.naturalHeight = 20;
-        this.onload();
-      }
-    };
-    const create = document.createElement.bind(document);
-    const spy = vi.spyOn(document, 'createElement').mockImplementation((tag) => {
-      if (tag !== 'canvas') return create(tag);
-      return {
-        width: 0,
-        height: 0,
-        getContext: () => ({ drawImage() {} }),
-        toDataURL: () => 'data:image/png;base64,RASTER',
-      };
-    });
+  it('zeichnet AVIF als JPEG, wenn Canvas da ist', async () => {
+    const raster = installRaster({ width: 20, height: 20 });
     loadCustomerLogoPng.mockImplementation(async (url) => (
       String(url).includes('anna') ? 'data:image/avif;base64,AAAA' : 'data:image/png;base64,CUST'
     ));
@@ -144,14 +205,11 @@ describe('createSkriptAnhang', () => {
       await createSkriptAnhang([ANNA], { dateiname: 'Eins.pdf' });
       const creatorImages = MockJsPDF.last.images.filter((img) => img.w === 18);
       expect(creatorImages).toEqual([
-        expect.objectContaining({ src: 'data:image/png;base64,RASTER', type: 'PNG' }),
+        expect.objectContaining({ src: 'data:image/jpeg;base64,RASTER', type: 'JPEG', compression: 'FAST' }),
       ]);
       expect(MockJsPDF.last.textCalls).toContain('Anna A');
     } finally {
-      spy.mockRestore();
-      globalThis.Image = OriginalImage;
-      if (prev) globalThis.OffscreenCanvas = prev;
-      else delete globalThis.OffscreenCanvas;
+      raster.restore();
     }
   });
 
@@ -171,18 +229,23 @@ describe('createSkriptAnhang', () => {
     }
   });
 
-  it('kaputtes PNG kippt das PDF nicht', async () => {
+  it('kaputtes Bild kippt das PDF nicht', async () => {
+    const raster = installRaster({ width: 20, height: 20, dataUrl: 'data:image/jpeg;base64,BROKEN' });
     loadCustomerLogoPng.mockImplementation(async (url) => (
       String(url).includes('anna') ? 'data:image/png;base64,BROKEN' : 'data:image/png;base64,CUST'
     ));
-    MockJsPDF.prototype.addImage = function addImage(src, type, x, y, w, h) {
-      if (String(src).includes('BROKEN')) throw new Error('Incomplete or corrupt PNG file');
-      this.images.push({ src, type, x, y, w, h });
+    MockJsPDF.prototype.addImage = function addImage(src, type, x, y, w, h, alias, compression) {
+      if (w === 18) throw new Error('Incomplete or corrupt PNG file');
+      this.images.push({ src, type, x, y, w, h, alias, compression });
     };
-    const result = await createSkriptAnhang([ANNA], { dateiname: 'Eins.pdf' });
-    expect(result.blob).toBeInstanceOf(Blob);
-    expect(MockJsPDF.last.textCalls).toContain('Anna A');
-    expect(MockJsPDF.last.images.filter((img) => img.w === 18)).toHaveLength(0);
+    try {
+      const result = await createSkriptAnhang([ANNA], { dateiname: 'Eins.pdf' });
+      expect(result.blob).toBeInstanceOf(Blob);
+      expect(MockJsPDF.last.textCalls).toContain('Anna A');
+      expect(MockJsPDF.last.images.filter((img) => img.w === 18)).toHaveLength(0);
+    } finally {
+      raster.restore();
+    }
   });
 
   it('laesst die Creator-Zeile weg, leere Felder bleiben leer', async () => {

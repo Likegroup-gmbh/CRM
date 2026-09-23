@@ -3,7 +3,7 @@
 // dann die Editor-Tabelle Hook / Hauptteil / CTA. Keine Hook-Varianten, kein Zusatz.
 
 import { konzeptCreatorFromSkript } from './editor/SkriptEditorDocRenderer.js';
-import { drawBriefingLockup, loadCustomerLogoPng } from '../briefing/BriefingPdf.js';
+import { drawBriefingLockup, loadCustomerLogoPng, toPdfImageDataUrl } from '../briefing/BriefingPdf.js';
 import {
   loadLikeGroupLogoPng,
   drawLikeGroupFooter,
@@ -65,47 +65,6 @@ function uniquePdfName(titel, used) {
   used.set(base, n + 1);
   if (!n) return base;
   return base.replace(/\.pdf$/i, `-${n + 1}.pdf`);
-}
-
-/**
- * Beliebige Bild-Data-URL als PNG. jsPDF scheitert an AVIF, wenn man es als PNG ausgibt.
- * PNG geht direkt durch. Ohne Canvas wird alles andere ausgelassen.
- */
-export function toPngDataUrl(dataUrl) {
-  if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) return Promise.resolve(null);
-  if (dataUrl.startsWith('data:image/png')) return Promise.resolve(dataUrl);
-  const canRaster = typeof OffscreenCanvas !== 'undefined'
-    && typeof Image !== 'undefined'
-    && typeof document !== 'undefined';
-  if (!canRaster) return Promise.resolve(null);
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.onload = () => {
-      try {
-        const width = img.naturalWidth || img.width;
-        const height = img.naturalHeight || img.height;
-        if (!width || !height) {
-          resolve(null);
-          return;
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          resolve(null);
-          return;
-        }
-        ctx.drawImage(img, 0, 0);
-        const png = canvas.toDataURL('image/png');
-        resolve(typeof png === 'string' && png.startsWith('data:image/png') ? png : null);
-      } catch {
-        resolve(null);
-      }
-    };
-    img.onerror = () => resolve(null);
-    img.src = dataUrl;
-  });
 }
 
 function plain(text) {
@@ -198,10 +157,10 @@ function drawTable(doc, item, startY, newPage) {
   return y;
 }
 
-function placePng(doc, dataUrl, x, y, w, h) {
+function placeImage(doc, dataUrl, x, y, w, h) {
   if (!dataUrl || !doc.addImage) return false;
   try {
-    doc.addImage(dataUrl, 'PNG', x, y, w, h);
+    doc.addImage(dataUrl, 'JPEG', x, y, w, h, undefined, 'FAST');
     return true;
   } catch (err) {
     console.warn('Creator-Bild übersprungen:', err);
@@ -210,14 +169,15 @@ function placePng(doc, dataUrl, x, y, w, h) {
 }
 
 async function drawItem(doc, item, ctx) {
-  const customerPng = await ctx.logo(item.customerLogoUrl);
+  const customerRaw = await ctx.logo(item.customerLogoUrl);
+  const customerImage = customerRaw ? await toPdfImageDataUrl(customerRaw) : null;
   const creatorRaw = item.creator?.bildUrl ? await ctx.logo(item.creator.bildUrl) : null;
-  const creatorPng = creatorRaw ? await toPngDataUrl(creatorRaw) : null;
-  drawBriefingLockup(doc, ctx.logoPng, customerPng, { customerName: item.customerName || '' });
+  const creatorImage = creatorRaw ? await toPdfImageDataUrl(creatorRaw) : null;
+  drawBriefingLockup(doc, ctx.logoPng, customerImage, { customerName: item.customerName || '' });
 
   let y = 28;
   if (item.creator?.name) {
-    const placed = placePng(doc, creatorPng, MARGIN_X, y, CREATOR_SIZE, CREATOR_SIZE);
+    const placed = placeImage(doc, creatorImage, MARGIN_X, y, CREATOR_SIZE, CREATOR_SIZE);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12);
     doc.setTextColor(0);
