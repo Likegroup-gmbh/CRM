@@ -1,6 +1,9 @@
 // anschreiben-send.js
 // Anschreiben: E-Mail mit PDF-Anhang an adressierbare Empfaenger
-// (creator.mail / management.email). Eine Mail pro Empfaenger, kein BCC.
+// (creator.mail / management.email, am Skript auch ansprechpartner.email).
+// Eine Mail pro Empfaenger, kein BCC. Mehrere PDFs sind mehrere Anhaenge
+// derselben Mail. Skript haengt die PDFs an den Empfaenger, jeder bekommt
+// nur seine Skripte. Briefing und Vertrag bleiben beim gemeinsamen Anhang.
 // Server ist Quelle: Empfaenger werden hier per ID aufgeloest und die
 // Platzhalter serverseitig gemerged — der Client schickt nur IDs + Template.
 //
@@ -92,7 +95,39 @@ async function resolveEmpfaenger(supabase, typ, id) {
     if (!data?.email) return null;
     return { email: data.email, vorname: '', name: data.firmenname || '' };
   }
+  if (typ === 'ansprechpartner') {
+    const { data, error } = await supabase
+      .from('ansprechpartner')
+      .select('id, vorname, nachname, email')
+      .eq('id', id)
+      .maybeSingle();
+    if (error) throw error;
+    if (!data?.email) return null;
+    return {
+      email: data.email,
+      vorname: data.vorname || '',
+      name: [data.vorname, data.nachname].filter(Boolean).join(' '),
+    };
+  }
   return null;
+}
+
+function attachmentsFromPayload({ pdfs, pdfBase64, dateiname, defaultFilename }) {
+  if (Array.isArray(pdfs) && pdfs.length > 0) {
+    const list = [];
+    for (const item of pdfs) {
+      if (!item?.pdfBase64) return { error: 'PDF fehlt' };
+      list.push({
+        filename: item.dateiname || defaultFilename || 'skript.pdf',
+        content: item.pdfBase64,
+      });
+    }
+    return { list };
+  }
+  if (!pdfBase64) return { error: 'PDF fehlt' };
+  return {
+    list: [{ filename: dateiname || defaultFilename || 'dokument.pdf', content: pdfBase64 }],
+  };
 }
 
 // ─── Kern (injizierte Deps, testbar) ─────────────────────────
@@ -102,11 +137,11 @@ async function resolveEmpfaenger(supabase, typ, id) {
  * @param {Object} deps.supabase - Service-Client
  * @param {(mail: Object) => Promise<{ok: boolean, id?: string, error?: string}>} deps.sendMail
  * @param {string} deps.benutzerId - created_by fuer das Log
- * @param {Object} payload - { dokumentTyp, dokumentId, empfaenger, betreff, body, vorlageId, dateiname, pdfBase64 }
+ * @param {Object} payload - { dokumentTyp, dokumentId, empfaenger, betreff, body, vorlageId, dateiname, pdfBase64, pdfs }
  * @returns {Promise<{ status: number, body: Object }>}
  */
 async function sendAnschreiben({ supabase, sendMail, benutzerId }, payload) {
-  const { dokumentTyp, dokumentId, empfaenger, betreff, body: mailBody, vorlageId, dateiname, pdfBase64 } = payload;
+  const { dokumentTyp, dokumentId, empfaenger, betreff, body: mailBody, vorlageId, dateiname, pdfBase64, pdfs } = payload;
   if (!dokumentTyp || !dokumentId) return { status: 400, body: { error: 'dokumentTyp/dokumentId fehlen' } };
   if (!Array.isArray(empfaenger) || empfaenger.length === 0) return { status: 400, body: { error: 'Keine Empfaenger' } };
   if (!betreff?.trim() || !mailBody?.trim()) return { status: 400, body: { error: 'Betreff/Text fehlen' } };
@@ -116,20 +151,6 @@ async function sendAnschreiben({ supabase, sendMail, benutzerId }, payload) {
   const { ctx, error: docError, defaultFilename } = loaded;
   if (docError) return { status: 400, body: { error: docError } };
 
-  let pdf = pdfBase64;
-  let filename = dateiname;
-  if (!pdf && adapter?.downloadPdf) {
-    const downloaded = await adapter.downloadPdf(supabase, dokumentId);
-    if (downloaded.error) return { status: 400, body: { error: downloaded.error } };
-    pdf = downloaded.pdfBase64;
-    filename = filename || downloaded.dateiname;
-  }
-  if (!pdf) return { status: 400, body: { error: 'PDF fehlt' } };
-  if (Buffer.byteLength(pdf, 'utf8') > MAX_PDF_BYTES) return { status: 413, body: { error: 'PDF zu gross' } };
-
-  const batchId = randomUUID();
-  const attachment = [{ filename: filename || defaultFilename || 'dokument.pdf', content: pdf }];
-
   // Dedup nach (typ, id) — der Composer dedupt schon, der Server vertraut nicht
   const seen = new Set();
   const uniqueEmpfaenger = empfaenger.filter((e) => {
@@ -138,6 +159,43 @@ async function sendAnschreiben({ supabase, sendMail, benutzerId }, payload) {
     seen.add(k);
     return true;
   });
+
+  const perRecipient = uniqueEmpfaenger.some((e) => Array.isArray(e.pdfs) && e.pdfs.length);
+  const attachmentByKey = new Map();
+  let sharedAttachment = null;
+
+  if (perRecipient) {
+    for (const e of uniqueEmpfaenger) {
+      if (!Array.isArray(e.pdfs) || !e.pdfs.length) continue;
+      const packed = attachmentsFromPayload({ pdfs: e.pdfs, defaultFilename });
+      if (packed.error) return { status: 400, body: { error: packed.error } };
+      const bytes = packed.list.reduce((sum, item) => sum + Buffer.byteLength(item.content, 'utf8'), 0);
+      if (bytes > MAX_PDF_BYTES) return { status: 413, body: { error: 'PDF zu gross' } };
+      attachmentByKey.set(`${e.typ}:${e.id}`, packed.list);
+    }
+  } else {
+    let resolvedPdfs = pdfs;
+    let resolvedBase64 = pdfBase64;
+    let resolvedName = dateiname;
+    if (!(Array.isArray(resolvedPdfs) && resolvedPdfs.length) && !resolvedBase64 && adapter?.downloadPdf) {
+      const downloaded = await adapter.downloadPdf(supabase, dokumentId);
+      if (downloaded.error) return { status: 400, body: { error: downloaded.error } };
+      resolvedBase64 = downloaded.pdfBase64;
+      resolvedName = resolvedName || downloaded.dateiname;
+    }
+    const packed = attachmentsFromPayload({
+      pdfs: resolvedPdfs,
+      pdfBase64: resolvedBase64,
+      dateiname: resolvedName,
+      defaultFilename,
+    });
+    if (packed.error) return { status: 400, body: { error: packed.error } };
+    const attachmentBytes = packed.list.reduce((sum, item) => sum + Buffer.byteLength(item.content, 'utf8'), 0);
+    if (attachmentBytes > MAX_PDF_BYTES) return { status: 413, body: { error: 'PDF zu gross' } };
+    sharedAttachment = packed.list;
+  }
+
+  const batchId = randomUUID();
 
   // Log-Zeilen zuerst pending
   const rows = uniqueEmpfaenger.map((e) => ({
@@ -181,6 +239,12 @@ async function sendAnschreiben({ supabase, sendMail, benutzerId }, payload) {
     const subject = mergeTemplate(betreff, mergedCtx);
     const html = textToHtml(mergeTemplate(mailBody, mergedCtx));
 
+    const attachment = attachmentByKey.get(`${e.typ}:${e.id}`) || sharedAttachment;
+    if (!attachment?.length) {
+      failed += 1;
+      await update({ status: 'error', error: 'PDF fehlt' });
+      return;
+    }
     const result = await sendMail({ to: resolved.email, subject, html, attachments: attachment });
     if (result.ok) {
       sent += 1;

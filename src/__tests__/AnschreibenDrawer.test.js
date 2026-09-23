@@ -2,6 +2,7 @@
 // Senden-Gate (Empfaenger + Betreff + Body + PDF), Plus-Save privat.
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { AnschreibenDrawer } from '../core/anschreiben/AnschreibenDrawer.js';
+import { authorizedFetch } from '../core/auth/getAccessToken.js';
 
 vi.mock('../core/auth/getAccessToken.js', () => ({
   authorizedFetch: vi.fn(),
@@ -169,6 +170,68 @@ describe('AnschreibenDrawer', () => {
     expect(document.querySelector('.empfaenger-composer__toggle')).toBeNull();
     expect(document.querySelector('.empfaenger-fest__name').textContent).toBe('Anna');
     expect(document.querySelector('[data-action="send"]').disabled).toBe(false);
+    drawer.close();
+  });
+
+  it('Extras bauen das PDF neu und mehrere PDFs gehen als Liste raus', async () => {
+    const createPdf = vi.fn()
+      .mockResolvedValueOnce({ blob: new Blob(['%PDF']), dateiname: 'eins.pdf' })
+      .mockResolvedValueOnce({
+        pdfs: [
+          { blob: new Blob(['a']), dateiname: 'a.pdf' },
+          { blob: new Blob(['b']), dateiname: 'b.pdf' },
+        ],
+      });
+    let onChange;
+    const drawer = await openDrawer(mockDb(), {
+      createPdf,
+      mountExtras(container, hooks) {
+        onChange = hooks.onChange;
+        container.innerHTML = '<span data-extras>schalter</span>';
+      },
+      rewriteMail: (text) => text.replace('{{skript}}', 'Sommer'),
+    });
+    expect(document.querySelector('[data-extras]')).not.toBeNull();
+    expect(createPdf).toHaveBeenCalledTimes(1);
+    await onChange();
+    expect(createPdf).toHaveBeenCalledTimes(2);
+    expect(document.querySelector('[data-pdf-status]').textContent).toBe('a.pdf, b.pdf');
+
+    drawer.composer.addOne({ id: 'c1', email: 'a@b.de', name: 'A' });
+    drawer.panel.querySelector('[data-betreff]').value = 'Skript: {{skript}}';
+    authorizedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ sent: 1, failed: 0 }),
+    });
+    await drawer._send();
+    const body = JSON.parse(authorizedFetch.mock.calls.at(-1)[1].body);
+    expect(body.betreff).toBe('Skript: Sommer');
+    expect(body.pdfs).toHaveLength(2);
+    expect(body.pdfs[0].dateiname).toBe('a.pdf');
+    expect(body.pdfBase64).toBe('');
+    drawer.close();
+  });
+
+  it('legt PDFs pro Empfaenger in den Versand', async () => {
+    const buildAnhaenge = vi.fn(async (empfaenger) => empfaenger.map((person) => ({
+      empfaenger: person,
+      pdfs: [{ blob: new Blob([person.id]), dateiname: `${person.id}.pdf` }],
+    })));
+    const drawer = await openDrawer(mockDb(), { buildAnhaenge });
+    drawer.composer.addOne({ id: 'c1', email: 'a@b.de', name: 'Anna' });
+    drawer.composer.addOne({ id: 'c2', email: 'b@b.de', name: 'Bea' });
+    await drawer._buildPdf();
+    drawer.panel.querySelector('[data-betreff]').value = 'Skript';
+    drawer.panel.querySelector('[data-body]').value = 'Hallo';
+    authorizedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ sent: 2, failed: 0 }),
+    });
+    await drawer._send();
+    const body = JSON.parse(authorizedFetch.mock.calls.at(-1)[1].body);
+    expect(body.pdfs).toBeUndefined();
+    expect(body.pdfBase64).toBe('');
+    expect(body.empfaenger.map((e) => e.pdfs[0].dateiname)).toEqual(['c1.pdf', 'c2.pdf']);
     drawer.close();
   });
 

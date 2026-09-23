@@ -247,6 +247,10 @@ KI-generierte Videoidee in einem Konzept, noch nicht übernommen. Dieselbe Zeile
 Videoidee, visuell abgetrennt. Übernehmen macht sie zur normalen Videoidee; Verwerfen löscht sie.
 _Avoid_: Creative Angle, Grobkonzept, Casting-Vorschlag
 
+**Skript**:
+Text für genau ein Video und genau einen Creator: den der verknüpften Kooperation, sonst den Creator der Videoidee.
+_Avoid_: Drehbuch, Copy
+
 **Skript-Freigabe**:
 Ausdrückliche Freigabe einer Videoidee für die Skripterstellung. Voraussetzung: zugeordneter
 Casting-Eintrag und nicht „Nicht umsetzen“. Gate nur für Neuanlage, nicht für bestehende Skripte.
@@ -281,20 +285,26 @@ User-definierte Spalte in der Kooperationstabelle.
 _Avoid_: Custom Column (in der UI)
 
 **Anschreiben**:
-E-Mail mit Dokumentanhang (Briefing-PDF oder Vertrags-PDF) an adressierbare Empfänger. Kein CRM-Login,
-kein Link. Pro Empfänger eine eigene Mail. Ein Modul, mehrere Dokumenttypen.
+E-Mail mit Dokumentanhang (Briefing-PDF, Vertrags-PDF oder Skript-PDF) an adressierbare Empfänger.
+Kein CRM-Login, kein Link. Pro Empfänger eine eigene Mail. Ein Modul, mehrere Dokumenttypen.
 _Avoid_: Versand (das ist der Paketversand an Kooperationen), Teilen, Einladen
 
 **Empfänger**:
 Wer ein Anschreiben bekommt: CRM-Creator (`creator.mail`) oder Management (`management.email`),
-jeweils mit ID und Mail. Kann am Dokument feststehen (dann Anzeige) oder im Anschreiben gewählt
+jeweils mit ID und Mail. Am Skript-Anschreiben auch ein Ansprechpartner (`ansprechpartner.email`)
+des Unternehmens, und der Marke wenn das Skript eine hat.
+Kann am Dokument feststehen (dann Anzeige) oder im Anschreiben gewählt
 werden — gesteuert am Anschreiben-Kernel, nicht pro Seite.
+Am Skript-Anschreiben sind die wählbaren Creator die, denen ein Skript im aktuellen Umfang gehört:
+das Kooperation-Video, sonst der Casting-Creator der Videoidee. Das Management ist nur deren aktive
+Zuordnung, die Kampagne nur die des Skripts. Der Anhang eines Creators sind nur seine Skripte,
+der eines Managements die seiner Creator, der eines Ansprechpartners der ganze Umfang.
 Kein Casting-Eintrag ohne CRM, keine freie Adresse ohne Datensatz.
 _Avoid_: Casting-Eintrag, freie E-Mail
 
 **Mailvorlage**:
 Gespeicherter Betreff und Body mit Platzhaltern für ein Anschreiben. Ein Standard pro Dokumenttyp
-(Briefing, Vertrag); weitere sind privat, optional „für alle nutzbar“.
+(Briefing, Vertrag, Skript); weitere sind privat, optional „für alle nutzbar“.
 _Avoid_: Template (Kollision mit Vertragstemplate), E-Mail-Template
 
 **Zugang**:

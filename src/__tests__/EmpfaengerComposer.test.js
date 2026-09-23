@@ -223,6 +223,91 @@ describe('EmpfaengerComposer', () => {
       expect(composer.getEmpfaenger()).toEqual([]);
     });
 
+    it('zeigt Ansprechpartner nur auf Anforderung und zaehlt Kontakte ohne Mail', async () => {
+      createComposer(mockDb());
+      expect(document.querySelector('[data-typ="ansprechpartner"]')).toBeNull();
+      document.body.innerHTML = '';
+
+      const db = mockDb();
+      db.from.mockImplementation((table) => {
+        if (table === 'ansprechpartner_unternehmen') {
+          return chain({
+            data: [
+              { ansprechpartner: { id: 'ap1', vorname: 'Kim', nachname: 'S', email: 'kim@firma.de' } },
+              { ansprechpartner: { id: 'ap2', vorname: 'Leer', nachname: 'O', email: '' } },
+            ],
+            error: null,
+          });
+        }
+        if (table === 'ansprechpartner_marke') {
+          return chain({
+            data: [
+              { ansprechpartner: { id: 'ap1', vorname: 'Kim', nachname: 'S', email: 'kim@firma.de' } },
+            ],
+            error: null,
+          });
+        }
+        return chain({ data: [], error: null });
+      });
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const composer = new EmpfaengerComposer({
+        container,
+        db,
+        unternehmenId: 'u1',
+        markeId: 'm1',
+        extraTabs: ['ansprechpartner'],
+      });
+      await composer.render();
+      expect(document.querySelector('[data-typ="ansprechpartner"]')).not.toBeNull();
+      expect(composer.lookup.ansprechpartner.ap1.email).toBe('kim@firma.de');
+      expect(composer.lookup.ansprechpartner.ap2).toBeUndefined();
+      composer.setTyp('ansprechpartner');
+      expect(composer.typ).toBe('ansprechpartner');
+      expect(container.querySelector('[data-skipped]').textContent).toBe('1 ohne E-Mail übersprungen');
+      expect(composer.addOne({ id: 'ap3', email: '', name: 'X' })).toBe(false);
+    });
+
+    it('Skript-Pool ersetzt die Stammdaten und wirft fremde Creator raus', async () => {
+      const db = mockDb({
+        creator: [{ id: 'fremd', vorname: 'Alle', nachname: 'X', mail: 'alle@x.de' }],
+      });
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      const composer = new EmpfaengerComposer({
+        container,
+        db,
+        unternehmenId: 'u1',
+        empfaengerScope: {
+          creators: [{ id: 'c1', email: 'anna@x.de', name: 'Anna', vorname: 'Anna' }],
+          managements: [{ id: 'm1', email: 'info@m.de', name: 'Agentur', vorname: '' }],
+          kampagne: { id: 'k1', label: 'Sommer' },
+          skippedCreator: 1,
+          managementCreators: { m1: ['c1'] },
+        },
+      });
+      await composer.render();
+      expect(db.from).not.toHaveBeenCalledWith('creator');
+      expect(db.from).not.toHaveBeenCalledWith('management');
+      expect(db.from).not.toHaveBeenCalledWith('kampagne');
+      expect(composer.lookup.creator.c1.email).toBe('anna@x.de');
+      expect(composer.skippedByTab.creator).toBe(1);
+      const { empfaenger } = await composer._resolveKampagneCreators(['k1']);
+      expect(empfaenger.map((e) => e.id)).toEqual(['c1']);
+      expect(await composer._resolveKampagneCreators(['andere'])).toEqual({ empfaenger: [], skipped: 0 });
+
+      composer.addOne({ id: 'c1', email: 'anna@x.de', name: 'Anna' });
+      await composer.setEmpfaengerScope({
+        creators: [{ id: 'c2', email: 'bea@x.de', name: 'Bea', vorname: 'Bea' }],
+        managements: [],
+        kampagne: { id: 'k1', label: 'Sommer' },
+        managementCreators: {},
+      });
+      expect(composer.getEmpfaenger()).toEqual([]);
+      expect(composer.lookup.creator.c1).toBeUndefined();
+      expect(composer.lookup.creator.c2.email).toBe('bea@x.de');
+    });
+
     it('addOne und setTyp sind no-op', () => {
       const composer = createComposer(mockDb(), {
         empfaengerFest: true,

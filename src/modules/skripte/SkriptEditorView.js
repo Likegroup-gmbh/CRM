@@ -363,6 +363,11 @@ export class SkriptEditorView {
     ]);
   }
 
+  bindDocHeadActions(el) {
+    this.bindShareButton(el);
+    this.bindAnschreibenButton(el);
+  }
+
   bindShareButton(el) {
     el.querySelector('#ed-share')?.addEventListener('click', () => {
       if (!this.kannTeilen) return;
@@ -372,6 +377,22 @@ export class SkriptEditorView {
         entityName: this.skript.titel || 'Skript',
         kampagneId: this.skript.kampagne_id || null
       });
+    });
+  }
+
+  bindAnschreibenButton(el) {
+    el.querySelector('#ed-anschreiben')?.addEventListener('click', () => {
+      if (!this.kannTeilen) return;
+      this.openSkriptAnschreiben();
+    });
+  }
+
+  async openSkriptAnschreiben() {
+    const { openAnschreiben } = await import('../../core/anschreiben/openAnschreiben.js');
+    await openAnschreiben({
+      dokumentTyp: 'skript',
+      dokumentId: this.skript.id,
+      skript: this.skript,
     });
   }
 
@@ -695,7 +716,7 @@ export class SkriptEditorView {
         vorgabenPanelHtml: vorgabenPanelHtml(this.skript)
       });
       el.querySelector('#ed-fragen-gen')?.addEventListener('click', () => this.startGenerationAusFragen());
-      this.bindShareButton(el);
+      this.bindDocHeadActions(el);
       this.bindVerknuepfungen(el);
       const input = document.getElementById('ed-input');
       if (input && !input.disabled) input.placeholder = PLACEHOLDER_FRAGEN;
@@ -724,7 +745,7 @@ export class SkriptEditorView {
         this.renderDoc();
       });
     });
-    this.bindShareButton(el);
+    this.bindDocHeadActions(el);
     el.querySelectorAll('.skripte-editor-visual-btn').forEach((btn) => {
       btn.addEventListener('click', () => this.openVisuellModusMenu(btn));
     });

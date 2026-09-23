@@ -48,6 +48,25 @@ async function loadVertrag(supabase, dokumentId) {
   };
 }
 
+async function loadSkript(supabase, dokumentId) {
+  const { data, error } = await supabase
+    .from('skripte')
+    .select('id, titel, kampagne:kampagne_id(kampagnenname, eigener_name), unternehmen:unternehmen_id(firmenname), marke:marke_id(markenname)')
+    .eq('id', dokumentId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return { error: 'Skript nicht gefunden' };
+  return {
+    ctx: {
+      skript: data.titel || '',
+      kampagne: data.kampagne?.kampagnenname || data.kampagne?.eigener_name || '',
+      unternehmen: data.unternehmen?.firmenname || '',
+      marke: data.marke?.markenname || '',
+    },
+    defaultFilename: 'skript.pdf',
+  };
+}
+
 function asDownloadUrl(url) {
   const raw = String(url || '').trim();
   if (!raw) return '';
@@ -91,6 +110,7 @@ async function afterSendVertrag(supabase, { dokumentId, sent }) {
 const DOKUMENTE = {
   briefing: { loadContext: loadBriefing },
   vertrag: { loadContext: loadVertrag, afterSend: afterSendVertrag, downloadPdf: downloadVertragPdf },
+  skript: { loadContext: loadSkript },
 };
 
 async function loadDokumentContext(supabase, dokumentTyp, dokumentId) {

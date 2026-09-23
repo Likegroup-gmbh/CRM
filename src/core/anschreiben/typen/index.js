@@ -1,8 +1,10 @@
 import { briefingAdapter } from './briefing.js';
+import { skriptAdapter } from './skript.js';
 import { vertragAdapter } from './vertrag.js';
 
 const CLIENT_ADAPTERS = {
   briefing: briefingAdapter,
+  skript: skriptAdapter,
   vertrag: vertragAdapter,
 };
 

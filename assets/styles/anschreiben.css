@@ -39,6 +39,20 @@
   flex: 1;
 }
 
+.anschreiben-extras {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
+.anschreiben-schalter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
 .anschreiben-anhang {
   display: flex;
   align-items: center;

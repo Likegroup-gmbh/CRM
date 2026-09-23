@@ -14,7 +14,10 @@ vi.mock('../core/anschreiben/AnschreibenDrawer.js', () => ({ AnschreibenDrawer }
 const { createBriefingPdf } = vi.hoisted(() => ({
   createBriefingPdf: vi.fn(async () => ({ blob: new Blob(['%PDF']), dateiname: 'b.pdf' })),
 }));
-vi.mock('../modules/briefing/BriefingPdf.js', () => ({ createBriefingPdf }));
+vi.mock('../modules/briefing/BriefingPdf.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, createBriefingPdf };
+});
 
 const { fetchDokumentPdf } = vi.hoisted(() => ({
   fetchDokumentPdf: vi.fn(async () => ({ blob: new Blob(['%PDF']), dateiname: 'v.pdf' })),

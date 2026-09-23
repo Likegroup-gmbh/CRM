@@ -4,7 +4,7 @@ import { describe, it, expect } from 'vitest';
 import {
   messageHtml, genStatusBubbleHtml, aktionTagHtml, chatLeerHtml, versionsHinweisHtml
 } from '../modules/skripte/editor/SkriptEditorChatRenderer.js';
-import { fragenModusHtml, skriptDocHtml, masterDocHtml, verknuepfungenHtml, konzeptCreatorFromSkript } from '../modules/skripte/editor/SkriptEditorDocRenderer.js';
+import { fragenModusHtml, skriptDocHtml, masterDocHtml, verknuepfungenHtml, konzeptCreatorFromSkript, docHeadActionsHtml } from '../modules/skripte/editor/SkriptEditorDocRenderer.js';
 
 describe('SkriptEditorChatRenderer', () => {
   it('User-Message rendert Inhalt und Selektion, escaped HTML', () => {
@@ -335,5 +335,18 @@ describe('konzeptCreatorFromSkript', () => {
 
   it('ohne strategie_item null', () => {
     expect(konzeptCreatorFromSkript({ titel: 'X' })).toBeNull();
+  });
+});
+
+describe('docHeadActionsHtml', () => {
+  it('zeigt Senden neben Teilen unter demselben Gate', () => {
+    const html = docHeadActionsHtml({ kannTeilen: true });
+    expect(html).toContain('id="ed-share"');
+    expect(html.indexOf('id="ed-share"')).toBeLessThan(html.indexOf('id="ed-anschreiben"'));
+    expect(html).toContain('>Senden<');
+
+    const ohne = docHeadActionsHtml({ kannTeilen: false });
+    expect(ohne).not.toContain('id="ed-share"');
+    expect(ohne).not.toContain('id="ed-anschreiben"');
   });
 });

@@ -27,6 +27,11 @@ export class AnschreibenDrawer {
    * @param {Object} [opts.pdfContext] - Kontext fuer createPdf (z.B. BriefingDetail)
    * @param {boolean} [opts.empfaengerFest] - Anzeige statt Picker
    * @param {Array} [opts.prefill]
+   * @param {string[]} [opts.extraTabs]
+   * @param {(db: Object) => Promise<Object>} [opts.loadEmpfaengerScope]
+   * @param {(empfaenger: Array) => Promise<Array>} [opts.buildAnhaenge]
+   * @param {(container: HTMLElement, hooks: { onChange: () => void }) => void} [opts.mountExtras]
+   * @param {(text: string) => string} [opts.rewriteMail]
    */
   constructor({
     dokumentTyp,
@@ -40,6 +45,11 @@ export class AnschreibenDrawer {
     platzhalter = ['vorname', 'name', 'briefing', 'unternehmen', 'marke'],
     prefill = [],
     empfaengerFest = false,
+    extraTabs = [],
+    loadEmpfaengerScope = null,
+    buildAnhaenge = null,
+    mountExtras = null,
+    rewriteMail = null,
   }) {
     this.dokumentTyp = dokumentTyp;
     this.dokumentId = dokumentId;
@@ -52,6 +62,11 @@ export class AnschreibenDrawer {
     this.platzhalter = platzhalter;
     this.prefill = prefill;
     this.empfaengerFest = Boolean(empfaengerFest);
+    this.extraTabs = extraTabs;
+    this.loadEmpfaengerScope = loadEmpfaengerScope;
+    this.buildAnhaenge = buildAnhaenge;
+    this.mountExtras = mountExtras;
+    this.rewriteMail = rewriteMail;
 
     this.overlay = null;
     this.panel = null;
@@ -65,6 +80,15 @@ export class AnschreibenDrawer {
 
   async open() {
     this._build();
+    if (this.loadEmpfaengerScope) {
+      try {
+        this.composer.empfaengerScope = await this.loadEmpfaengerScope(this.db);
+        this.composer.managementCreators = this.composer.empfaengerScope?.managementCreators || {};
+      } catch (err) {
+        console.error('Empfänger-Scope laden fehlgeschlagen:', err);
+        this.composer.empfaengerScope = { creators: [], managements: [], kampagne: null };
+      }
+    }
     await Promise.all([this.composer.render(), this._loadVorlagen(), this._buildPdf()]);
     if (this.prefill?.length) this.composer.applyPrefill(this.prefill);
     this._fillFromVorlage(this._defaultVorlage());
@@ -110,22 +134,50 @@ export class AnschreibenDrawer {
   }
 
   async _buildPdf() {
+    const lauf = (this._pdfLauf = (this._pdfLauf || 0) + 1);
     const status = this.panel?.querySelector('[data-pdf-status]');
     const btn = this.panel?.querySelector('[data-action="pdf-preview"]');
+    this.pdf = null;
+    this._updateSendState();
+    if (status) status.textContent = 'PDF wird erzeugt …';
+    if (btn) btn.disabled = true;
     try {
-      this.pdf = await this.createPdf(this.pdfContext);
-      if (this.pdf?.serverFallback) {
-        if (status) status.textContent = `${this.pdf.dateiname || 'PDF'} — wird beim Senden geladen`;
-        if (btn) btn.disabled = true;
+      const hint = {
+        ...(this.pdfContext || {}),
+        empfaenger: this.composer?.getEmpfaenger()?.[0] || null,
+      };
+      const result = await this.createPdf(hint);
+      if (lauf !== this._pdfLauf) return;
+      if (result?.empty) {
+        this.pdf = null;
+        if (status) status.textContent = 'Keine Skripte für diesen Empfänger';
         return;
       }
-      if (!this.pdf?.blob) throw new Error('PDF fehlt');
+      if (result?.serverFallback) {
+        this.pdf = result;
+        if (status) status.textContent = `${result.dateiname || 'PDF'} — wird beim Senden geladen`;
+        return;
+      }
+      if (result?.pdfs?.length) {
+        this.pdf = {
+          pdfs: result.pdfs,
+          dateiname: result.pdfs.map((item) => item.dateiname).filter(Boolean).join(', '),
+        };
+        if (status) status.textContent = this.pdf.dateiname;
+        if (btn) btn.disabled = false;
+        return;
+      }
+      if (!result?.blob) throw new Error('PDF fehlt');
+      this.pdf = result;
       if (status) status.textContent = this.pdf.dateiname;
       if (btn) btn.disabled = false;
     } catch (err) {
+      if (lauf !== this._pdfLauf) return;
       console.error('PDF-Erzeugung fehlgeschlagen:', err);
       if (status) status.textContent = 'PDF konnte nicht erzeugt werden';
       window.toastSystem?.show('PDF konnte nicht erzeugt werden', 'error');
+    } finally {
+      if (lauf === this._pdfLauf) this._updateSendState();
     }
   }
 
@@ -201,10 +253,34 @@ export class AnschreibenDrawer {
       markeId: this.markeId,
       empfaengerFest: this.empfaengerFest,
       prefill: this.prefill,
-      onChange: () => this._updateSendState(),
+      extraTabs: this.extraTabs,
+      onChange: () => {
+        this._updateSendState();
+        if (this.buildAnhaenge) this._buildPdf();
+      },
     });
 
+    if (this.mountExtras) {
+      const host = document.createElement('div');
+      host.className = 'anschreiben-extras';
+      this.panel.querySelector('.anschreiben-vorlage-row')?.insertAdjacentElement('afterend', host);
+      this.mountExtras(host, { onChange: () => this._onExtrasChange() });
+    }
+
     this._bind();
+  }
+
+  async _onExtrasChange() {
+    if (this.loadEmpfaengerScope) {
+      try {
+        const scope = await this.loadEmpfaengerScope(this.db);
+        await this.composer.setEmpfaengerScope(scope);
+      } catch (err) {
+        console.error('Empfänger-Scope laden fehlgeschlagen:', err);
+        await this.composer.setEmpfaengerScope({ creators: [], managements: [], kampagne: null });
+      }
+    }
+    await this._buildPdf();
   }
 
   _bind() {
@@ -296,10 +372,13 @@ export class AnschreibenDrawer {
   }
 
   _previewPdf() {
-    if (!this.pdf?.blob) return;
-    const url = URL.createObjectURL(this.pdf.blob);
-    window.open(url, '_blank', 'noopener');
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    const items = this.pdf?.pdfs?.length ? this.pdf.pdfs : [this.pdf];
+    for (const item of items) {
+      if (!item?.blob) continue;
+      const url = URL.createObjectURL(item.blob);
+      window.open(url, '_blank', 'noopener');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    }
   }
 
   _updateSendState() {
@@ -311,7 +390,7 @@ export class AnschreibenDrawer {
       && !this.composer?.isEmpty()
       && Boolean(betreff)
       && Boolean(body)
-      && Boolean(this.pdf?.blob || this.pdf?.serverFallback);
+      && Boolean(this.pdf?.blob || this.pdf?.pdfs?.length || this.pdf?.serverFallback);
     btn.disabled = !ready;
   }
 
@@ -329,26 +408,53 @@ export class AnschreibenDrawer {
     const betreff = this.panel.querySelector('[data-betreff]').value.trim();
     const body = this.panel.querySelector('[data-body]').value.trim();
     if (!empfaenger.length || !betreff || !body) return;
-    if (!this.pdf?.blob && !this.pdf?.serverFallback) return;
+    if (!this.pdf?.blob && !this.pdf?.pdfs?.length && !this.pdf?.serverFallback) return;
 
     this.sending = true;
     this._updateSendState();
     this._feedback(`Sende an ${empfaenger.length} Empfänger …`);
 
     try {
-      const pdfBase64 = this.pdf.blob ? await this._blobToBase64(this.pdf.blob) : '';
+      const mailBetreff = this.rewriteMail ? this.rewriteMail(betreff) : betreff;
+      const mailBody = this.rewriteMail ? this.rewriteMail(body) : body;
+      const payload = {
+        dokumentTyp: this.dokumentTyp,
+        dokumentId: this.dokumentId,
+        empfaenger,
+        betreff: mailBetreff,
+        body: mailBody,
+        vorlageId: this.vorlageId,
+        dateiname: this.pdf?.dateiname || '',
+        pdfBase64: '',
+      };
+      if (this.buildAnhaenge) {
+        const built = await this.buildAnhaenge(empfaenger);
+        if (!built.length) throw new Error('Keine Skripte für die Empfänger');
+        payload.empfaenger = [];
+        for (const row of built) {
+          const pdfs = [];
+          for (const item of row.pdfs) {
+            pdfs.push({
+              dateiname: item.dateiname,
+              pdfBase64: await this._blobToBase64(item.blob),
+            });
+          }
+          payload.empfaenger.push({ ...row.empfaenger, pdfs });
+        }
+      } else if (this.pdf?.pdfs?.length) {
+        payload.pdfs = [];
+        for (const item of this.pdf.pdfs) {
+          payload.pdfs.push({
+            dateiname: item.dateiname,
+            pdfBase64: await this._blobToBase64(item.blob),
+          });
+        }
+      } else if (this.pdf?.blob) {
+        payload.pdfBase64 = await this._blobToBase64(this.pdf.blob);
+      }
       const response = await authorizedFetch('/.netlify/functions/anschreiben-send', {
         method: 'POST',
-        body: JSON.stringify({
-          dokumentTyp: this.dokumentTyp,
-          dokumentId: this.dokumentId,
-          empfaenger,
-          betreff,
-          body,
-          vorlageId: this.vorlageId,
-          dateiname: this.pdf.dateiname,
-          pdfBase64,
-        }),
+        body: JSON.stringify(payload),
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) {

@@ -277,6 +277,11 @@ export function docHeadActionsHtml({ kannTeilen = false, verknuepfungenHtml = ''
       title="Skript per Link teilen">
       <span class="mdc-btn__icon">${icon('share-alt')}</span>
       <span class="mdc-btn__label">Teilen</span>
+    </button>
+    <button type="button" class="mdc-btn mdc-btn--secondary skripte-editor-share-btn" id="ed-anschreiben"
+      title="Skript per E-Mail senden">
+      <span class="mdc-btn__icon">${icon('anschreiben')}</span>
+      <span class="mdc-btn__label">Senden</span>
     </button>` : ''}
     ${verknuepfungenHtml}
   `;

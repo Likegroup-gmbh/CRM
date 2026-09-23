@@ -25,10 +25,17 @@ export async function openAnschreiben(opts) {
     unternehmenId: prepared.unternehmenId,
     markeId: prepared.markeId || null,
     db: opts.db,
-    createPdf: () => adapter.createPdf(prepared),
+    createPdf: (hint) => adapter.createPdf(prepared, opts.db, hint),
     platzhalter: adapter.platzhalter,
     prefill: opts.prefill ?? prepared.prefill ?? [],
     empfaengerFest: opts.empfaengerFest ?? prepared.empfaengerFest ?? false,
+    extraTabs: prepared.extraTabs || [],
+    loadEmpfaengerScope: prepared.loadEmpfaengerScope || null,
+    buildAnhaenge: adapter.buildAnhaenge
+      ? (empfaenger) => adapter.buildAnhaenge(prepared, opts.db, empfaenger)
+      : null,
+    mountExtras: prepared.mountExtras || null,
+    rewriteMail: prepared.rewriteMail || null,
   });
   await drawer.open();
   return drawer;
