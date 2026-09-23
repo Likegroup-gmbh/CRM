@@ -5,7 +5,7 @@ import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
 const {
-  buildEditPrompt, stripToolXml, letzterZeitstempel,
+  buildEditPrompt, mapEditResult, stripToolXml, letzterZeitstempel,
   brauchtVisualStil, resolveModusSlug
 } = require('../../netlify/functions/skript-edit-background.js');
 
@@ -269,12 +269,88 @@ describe('buildEditPrompt Visual-Stil', () => {
     expect(stable).not.toContain('HOOK (was zu sehen ist)');
   });
 
-  it('chat ohne Markierung: Spoken-Pfad, kein Visual-Stil', () => {
+  it('chat auf Grid: Live-Stand, Spaltenwahl, visueller Stil', () => {
     const { stable, task } = buildEditPrompt(baseCtx(), MESSAGE);
-    expect(task).toContain('# SPALTE: Was gesagt wird');
-    expect(stable).not.toContain('# VISUELLER STIL');
+    expect(task.indexOf('Bei Widerspruch gilt der Block')).toBeLessThan(task.indexOf('# AKTUELLES SKRIPT'));
+    expect(task).toContain('# SPALTE\n');
+    expect(task).toContain('spalte=visuell');
+    expect(task).toContain('ganze_sektion=true');
+    expect(task).toContain('derselben Sektion');
+    expect(task).toContain('Felder: antwort, sektion, vorschlag_text, spalte, ganze_sektion');
+    expect(task).not.toContain('# SPALTE: Was gesagt wird');
+    expect(task).not.toContain('kein neues Storyboard');
+    expect(stable).toContain('# VISUELLER STIL');
     expect(stable).not.toContain('VISUAL-BEISPIELE');
     expect(stable).not.toContain('DARF-NICHT-IM-CHAT');
+  });
+
+  it('chat mit Visual-Markierung bleibt Neubau-fähig, kein Storyboard-Lock', () => {
+    const { task } = buildEditPrompt(baseCtx(), {
+      aktion: 'chat',
+      sektion: 'hook',
+      ist_visuell: true,
+      selektion_text: 'Alter Shot',
+      inhalt: 'Bitte nur das Visual an den gesprochenen Text anpassen'
+    });
+    expect(task).toContain('ganze_sektion=true');
+    expect(task).toContain('Alte Regie nur behalten');
+    expect(task).not.toContain('kein neues Storyboard');
+    expect(task).not.toContain('Zeitmarker und Blöcke stehen lassen. Ändere nur was verlangt wird');
+  });
+
+  it('chat: Wortbudget nur für Sprechertext', () => {
+    const { task } = buildEditPrompt(baseCtx({
+      skript: { video_laenge: '15-30' }
+    }), MESSAGE);
+    expect(task).toContain('HARTES WORT-BUDGET gilt nur für Sprechertext');
+    expect(task).toContain('Visuelle Regie zählt nicht ins Wortbudget');
+    expect(task).not.toContain('HARTES WORT-BUDGET: Das Gesamt-Skript');
+  });
+});
+
+describe('mapEditResult', () => {
+  const msg = {
+    aktion: 'chat',
+    ist_visuell: false,
+    selektion_text: 'Alter Shot'
+  };
+
+  it('spalte visuell setzt die Visual-Spalte', () => {
+    expect(mapEditResult(msg, { spalte: 'visuell', ganze_sektion: false })).toEqual({
+      ist_visuell: true,
+      selektion_text: 'Alter Shot'
+    });
+  });
+
+  it('ganze_sektion leert die Selektion', () => {
+    expect(mapEditResult(msg, { spalte: 'visuell', ganze_sektion: true })).toEqual({
+      ist_visuell: true,
+      selektion_text: null
+    });
+  });
+
+  it('spalte gesprochen setzt das Send-Flag zurück', () => {
+    expect(mapEditResult({ ...msg, ist_visuell: true }, { spalte: 'gesprochen' })).toEqual({
+      ist_visuell: false,
+      selektion_text: 'Alter Shot'
+    });
+  });
+
+  it('ohne spalte bleibt das Send-Flag', () => {
+    expect(mapEditResult({ ...msg, ist_visuell: true }, {})).toEqual({
+      ist_visuell: true,
+      selektion_text: 'Alter Shot'
+    });
+  });
+
+  it('Kuerzen ignoriert spalte und ganze_sektion', () => {
+    expect(mapEditResult(
+      { aktion: 'kuerzen', ist_visuell: false, selektion_text: 'Kennst du das?' },
+      { spalte: 'visuell', ganze_sektion: true }
+    )).toEqual({
+      ist_visuell: false,
+      selektion_text: 'Kennst du das?'
+    });
   });
 });
 

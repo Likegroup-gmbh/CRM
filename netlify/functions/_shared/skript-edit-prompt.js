@@ -310,8 +310,10 @@ function buildEditPrompt(ctx, message) {
   const istMaster = Boolean(skript.inhalt_md) && !hatGrid;
 
   const visualSpalte = !istMaster && brauchtVisualStil(message);
+  // Freier Chat auf einem Grid darf die Spalte selbst wählen – dafür braucht er das Format.
+  const chatWaehltSpalte = message.aktion === 'chat' && hatGrid && !istMaster;
 
-  // Block 1 (stabil, cachebar): Rolle + Master + DNA (+ Visual-Stil/Few-Shots nur Visual-Spalte)
+  // Block 1 (stabil, cachebar): Rolle + Master + DNA (+ Visual-Stil, wenn die Visual-Spalte geschrieben werden kann)
   let stable = 'Du bist ein erfahrener Creative Director fuer Social-Video-Content '
     + 'und ueberarbeitest ein bestehendes deutsches Video-Konzept im Dialog mit einem Mitarbeiter. '
     + 'Du aenderst NUR was verlangt wird und erhaeltst Ton und Stil des restlichen Dokuments.\n';
@@ -325,13 +327,15 @@ function buildEditPrompt(ctx, message) {
     }
   }
 
-  if (visualSpalte) {
+  if (visualSpalte || chatWaehltSpalte) {
     stable += '\n# VISUELLER STIL (verbindliches Format fuer "Was zu sehen ist")\n'
       + ladeVisuellStil() + '\n';
   }
 
   // Block 2 (variabel): Skript + Verlauf + Auftrag
-  let task = '# AKTUELLES SKRIPT\n';
+  let task = 'Dieser Block ist der Stand jetzt, beide Spalten, alle Sektionen. '
+    + 'Chat-Verlauf und markierte Stelle können älter sein. Bei Widerspruch gilt der Block.\n'
+    + '# AKTUELLES SKRIPT\n';
   if (skript.titel) task += `Titel: ${skript.titel}\n`;
   if (hatGrid) {
     task += `HOOK:\n${skript.hook || '-'}\n`;
@@ -441,6 +445,19 @@ function buildEditPrompt(ctx, message) {
   if (istMasterSektion) {
     task += '\n# FORMAT\nDas Dokument ist Markdown mit ##-Sektionen. '
       + 'vorschlag_text ersetzt die markierte Stelle oder die komplette Sektion (ohne die ##-Ueberschrift).\n';
+  } else if (chatWaehltSpalte) {
+    task += '\n# SPALTE\n'
+      + 'Du darfst die Spalte wählen. Default ist gesprochen (spalte=gesprochen), '
+      + 'wenn der User den Sprechertext meint oder es unklar ist.\n'
+      + 'Wenn der User nur „Was zu sehen ist“ ändern will, oder das Visual nicht mehr zum gesprochenen Text passt:\n'
+      + '- spalte=visuell. Den gesprochenen Text nicht ändern und nicht in vorschlag_text schreiben (außer Overlay-Text).\n'
+      + '- sektion = genau eine von hook, hauptteil, cta. Andere Sektionen nicht anfassen.\n'
+      + '- ganze_sektion=true, wenn das Visual dieser Sektion an den aktuellen Sprechertext derselben Sektion angepasst werden soll.\n'
+      + '- vorschlag_text ist dann die komplette neue Regie dieser einen Sektion, abgeleitet aus dem Sprechertext derselben Sektion in AKTUELLES SKRIPT. '
+      + 'Alte Regie nur behalten, wo sie zum aktuellen Sprechertext noch passt.\n'
+      + '- In antwort sagen, welche Sektion dran war.\n'
+      + 'Kleine Änderung an einer markierten Visual-Stelle: spalte=visuell, ganze_sektion=false, '
+      + 'nur die markierte Stelle, Zeitmarker und Blöcke stehen lassen.\n';
   } else if (visualSpalte) {
     task += '\n# SPALTE: Was zu sehen ist\n'
       + 'Nur visuelle Regie anfassen, den gesprochenen Text unverändert lassen.\n';
@@ -459,8 +476,9 @@ function buildEditPrompt(ctx, message) {
   }
   task += `\n${AKTION_ANWEISUNGEN[message.aktion] || AKTION_ANWEISUNGEN.chat}\n`;
 
-  // Rewrite auf markierte Visual-Regie (nicht der Visual-Button, der aus Spoken generiert)
-  if (message.ist_visuell && message.aktion !== 'visuell') {
+  // Rewrite auf markierte Visual-Regie (nicht der Visual-Button, der aus Spoken generiert).
+  // Freier Chat regelt Patch vs. Neubau selbst über spalte/ganze_sektion.
+  if (message.ist_visuell && message.aktion !== 'visuell' && message.aktion !== 'chat') {
     task += '\nDie markierte Stelle stammt aus "Was zu sehen ist" (visuelle Regie, kein Sprechertext).\n'
       + 'Schreibe visuell weiter: Text Overlay, Visual, B-Roll. KEINEN Sprechertext.\n'
       + 'Behalte Produktionsformat und den gewählten Regie-Modus. Zeitmarker und Blöcke stehen lassen. '
@@ -489,7 +507,9 @@ function buildEditPrompt(ctx, message) {
   }
 
   task += '\n# AUSGABEFORMAT\nAntworte AUSSCHLIESSLICH ueber das Tool "aenderung_abgeben" '
-    + '(Felder: antwort, sektion, vorschlag_text).\n'
+    + (chatWaehltSpalte
+      ? '(Felder: antwort, sektion, vorschlag_text, spalte, ganze_sektion).\n'
+      : '(Felder: antwort, sektion, vorschlag_text).\n')
     + 'Regeln:\n'
     + '- Innerhalb der Texte typografische Anfuehrungszeichen („…“) statt gerader (") verwenden.\n'
     + (dna.length
@@ -498,19 +518,47 @@ function buildEditPrompt(ctx, message) {
     + '- vorschlag_text muss zur Zielgruppe passen (siehe ZIELGRUPPEN-PERSONA) und den Ton des restlichen Skripts erhalten.\n'
     + '- vorschlag_text darf die LEITPLANKEN (Must-haves, rechtliche Vorgaben) nicht verletzen.\n'
     + '- Nichts erfinden: Behaupte NICHTS ueber Angebote, Features, Aktionen oder Konditionen, das nicht im CAMPAIGN-BRIEFING bzw. Briefing-Extrakt, den LEITPLANKEN oder dem bestehenden Skript steht. Vorschlaege duerfen den Briefing-Fakten nicht widersprechen.\n'
-    + '- Wenn eine markierte Stelle vorliegt, ist vorschlag_text NUR der Ersatztext fuer genau diese Stelle (nicht die ganze Sektion).\n'
-    + '- Ohne markierte Stelle, aber mit klarem Aenderungswunsch: vorschlag_text = komplette neue Version der betroffenen Sektion, sektion entsprechend setzen.\n'
+    + (chatWaehltSpalte
+      ? '- spalte=visuell und ganze_sektion=true: vorschlag_text ist die komplette Visual-Zelle der einen Sektion, abgeleitet aus dem Sprechertext derselben Sektion. Die markierte Stelle begrenzt den Vorschlag dann nicht.\n'
+        + '- spalte=visuell und ganze_sektion=false: vorschlag_text ist nur der Ersatz der markierten Visual-Stelle.\n'
+        + '- spalte=gesprochen: nur Sprechertext. Wenn eine markierte Stelle vorliegt, ist vorschlag_text NUR der Ersatz fuer genau diese Stelle.\n'
+        + '- Bei reinen Fragen: vorschlag_text = null, sektion = null, spalte = null.\n'
+      : '- Wenn eine markierte Stelle vorliegt, ist vorschlag_text NUR der Ersatztext fuer genau diese Stelle (nicht die ganze Sektion).\n'
+        + '- Ohne markierte Stelle, aber mit klarem Aenderungswunsch: vorschlag_text = komplette neue Version der betroffenen Sektion, sektion entsprechend setzen.\n'
+        + '- Bei reinen Fragen/Rueckfragen: vorschlag_text = null, sektion = null.\n')
     + (istMasterSektion
       ? '- sektion ist der Slug der ##-Ueberschrift (klein, Bindestriche, ohne Umlaute), nicht hook/hauptteil/cta.\n'
       : '')
-    + '- Bei reinen Fragen/Rueckfragen: vorschlag_text = null, sektion = null.\n'
     + '- Schlage pro Antwort maximal EINE Aenderung vor.'
-    + (!message.ist_visuell && skript.video_laenge
-      ? '\n- HARTES WORT-BUDGET: Das Gesamt-Skript muss zur Video-Laenge passen '
-        + `(${videoLaengeHinweis(skript.video_laenge)}). Auch bei "Laenger schreiben" darf das Gesamt-Budget nicht gesprengt werden - im Zweifel lieber knapp bleiben.`
-      : '');
+    + (chatWaehltSpalte && skript.video_laenge
+      ? '\n- HARTES WORT-BUDGET gilt nur für Sprechertext (spalte=gesprochen): Das Gesamt-Skript muss zur Video-Laenge passen '
+        + `(${videoLaengeHinweis(skript.video_laenge)}). Visuelle Regie zählt nicht ins Wortbudget.`
+      : (!message.ist_visuell && skript.video_laenge
+        ? '\n- HARTES WORT-BUDGET: Das Gesamt-Skript muss zur Video-Laenge passen '
+          + `(${videoLaengeHinweis(skript.video_laenge)}). Auch bei "Laenger schreiben" darf das Gesamt-Budget nicht gesprengt werden - im Zweifel lieber knapp bleiben.`
+        : ''));
 
   return { stable, task };
+}
+
+/**
+ * Spalte und Zell-Umfang aus dem Tool-Call.
+ * Nur freier Chat darf die Spalte wechseln. spalte "visuell" setzt ist_visuell,
+ * "gesprochen" setzt es zurück, sonst bleibt das Send-Flag.
+ * ganze_sektion leert die Selektion, damit Accept die ganze Zelle ersetzt.
+ */
+function mapEditResult(message, parsed) {
+  const chat = message?.aktion === 'chat';
+  const spalte = chat ? parsed?.spalte : null;
+  let ist_visuell = !!message?.ist_visuell;
+  if (spalte === 'visuell') ist_visuell = true;
+  else if (spalte === 'gesprochen') ist_visuell = false;
+
+  const ganze = chat && parsed?.ganze_sektion === true;
+  return {
+    ist_visuell,
+    selektion_text: ganze ? null : (message?.selektion_text ?? null)
+  };
 }
 
 /** Schneidet geleaktes Anthropic-Tool-XML am ersten Marker ab. */
@@ -525,6 +573,7 @@ function stripToolXml(text) {
 module.exports = {
   loadEditContext,
   buildEditPrompt,
+  mapEditResult,
   stripToolXml,
   letzterZeitstempel,
   formatZeitstempel,

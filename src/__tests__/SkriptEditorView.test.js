@@ -807,6 +807,28 @@ describe('SkriptEditorView Inline-Edit', () => {
     expect(mockService.createVersion.mock.calls[0][1]).toBe('Kürzen · Hook Visual');
   });
 
+  it('acceptVorschlag mit ist_visuell und ohne Selektion ersetzt die ganze Visual-Zelle', async () => {
+    window.toastSystem = { success: vi.fn(), error: vi.fn() };
+    await view.render(container, 's1');
+    view.skript.hook_visuell = 'Alter Shot und noch eine Szene';
+    view.skript.hook = 'Hook-Text';
+
+    await view.acceptVorschlag({
+      id: 'm3',
+      sektion: 'hook',
+      ist_visuell: true,
+      aktion: 'chat',
+      selektion_text: null,
+      vorschlag_text: 'Text Overlay: Neu\n\nVisual: Creator zeigt das Serum.'
+    });
+
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
+      hook_visuell: 'Text Overlay: Neu\n\nVisual: Creator zeigt das Serum.'
+    });
+    expect(view.skript.hook).toBe('Hook-Text');
+    expect(view.skript.hook_visuell).not.toContain('Alter Shot');
+  });
+
   it('Tippen in Zelle loescht pending Selektion', async () => {
     await view.render(container, 's1');
     view.selektion = { sektion: 'hook', text: 'Hook-Text' };
@@ -929,6 +951,25 @@ describe('SkriptEditorView Trigger-Fehler (502/503 am Gateway)', () => {
     if (view.pollInterval) { clearInterval(view.pollInterval); view.pollInterval = null; }
     container.remove();
     vi.clearAllMocks();
+  });
+
+  it('flusht Inline-Edits vor dem Anlegen der Chat-Messages', async () => {
+    await view.render(container, 's1');
+    const order = [];
+    vi.spyOn(view.inlineEdit, 'flush').mockImplementation(async () => { order.push('flush'); });
+    mockService.createChatMessage.mockReset();
+    mockService.createChatMessage.mockImplementation(async (row) => {
+      order.push('create');
+      return { id: row.rolle === 'user' ? 'u1' : 'a1', skript_id: 's1', ...row };
+    });
+
+    await view.sendMessagePair({
+      aktion: 'chat', sektion: 'gesamt', selektion_text: null, inhalt: 'hi'
+    });
+
+    expect(order[0]).toBe('flush');
+    expect(order.indexOf('flush')).toBeLessThan(order.indexOf('create'));
+    expect(order.filter((step) => step === 'create')).toHaveLength(2);
   });
 
   it('transienter Invoke-Fehler: kein Toast, Message bleibt pending (Poll regelt)', async () => {

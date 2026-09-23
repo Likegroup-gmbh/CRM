@@ -79,6 +79,10 @@ export class SkriptEditorChatActions {
     const v = this.view;
     let assistantMsg;
     try {
+      // Der Edit-Job liest den Skriptstand aus der DB. Offene Zellen sind bis
+      // Flush oder Blur nur lokal – sonst sieht der Bot den Stand von vor der letzten Eingabe.
+      await v.inlineEdit?.flush();
+
       const userMsg = await skripteService.createChatMessage({
         skript_id: v.skript.id,
         rolle: 'user',

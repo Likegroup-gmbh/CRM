@@ -1,9 +1,8 @@
 // Netlify Background Function: Skript-Editor (Chat-basierte Ueberarbeitung)
 // Die pending Assistant-Message in skript_chat_messages IST der Job:
 //   pending -> running -> vorschlag (mit vorschlag_text) | fertig (nur Antwort) | error
-// Modellwahl: alle Schreib-Aktionen (Neu schreiben / Kuerzen / Laenger /
-// Anderer Ton) -> edit_write (Opus mit Extended Thinking),
-// freier Chat / Rueckfragen -> edit_fast (Haiku).
+// Modellwahl: Schreib-Aktionen und freier Chat -> edit_write (Opus mit
+// Extended Thinking). Rueckfragen laufen ueber skript-fragen-background.
 // Kontext + Prompt-Bau: _shared/skript-edit-prompt.js
 
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
@@ -12,7 +11,7 @@ const { starteKiRequest } = require('./_shared/ki-log');
 const { beansprucheNachricht, autorisiereSkript, istNachrichtAbgebrochen } = require('./_shared/skript-auftrag');
 const { setThinking } = require('./_shared/thinking');
 const {
-  loadEditContext, buildEditPrompt, stripToolXml, letzterZeitstempel, formatZeitstempel,
+  loadEditContext, buildEditPrompt, mapEditResult, stripToolXml, letzterZeitstempel, formatZeitstempel,
   ladeVisuellStil, brauchtVisualStil, resolveModusSlug, EDIT_BRIEFING_MAX, GRID_SEKTIONEN
 } = require('./_shared/skript-edit-prompt');
 
@@ -27,7 +26,15 @@ const EDIT_TOOL = {
     properties: {
       antwort: { type: 'string', description: 'Kurze Erklaerung fuer den User (1-3 Saetze, Deutsch)' },
       sektion: { type: ['string', 'null'], description: 'Betroffene Sektion (hook/hauptteil/cta oder ##-Slug) oder null' },
-      vorschlag_text: { type: ['string', 'null'], description: 'Neuer Text oder null' }
+      vorschlag_text: { type: ['string', 'null'], description: 'Neuer Text oder null' },
+      spalte: {
+        type: ['string', 'null'],
+        description: 'Nur freier Chat: gesprochen, visuell oder null. Welche Spalte vorschlag_text ersetzt.'
+      },
+      ganze_sektion: {
+        type: 'boolean',
+        description: 'Nur freier Chat: true = vorschlag_text ersetzt die ganze Zelle der Sektion, nicht nur die markierte Stelle.'
+      }
     },
     required: ['antwort', 'sektion', 'vorschlag_text']
   }
@@ -88,9 +95,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       return { statusCode: 200 };
     }
 
-    // Modellwahl: Schreiben immer mit dem starken Modell + Extended Thinking,
-    // nur freier Chat (Fragen/Rueckfragen) mit dem guenstigen
-    const istSchreibAktion = ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton', 'feedback', 'visuell'].includes(message.aktion);
+    // Schreiben und freier Chat: Opus + Thinking. Eine Visual-Zelle passt nicht
+    // in 2048 Haiku-Tokens, und die Spaltenwahl braucht das staerkere Modell.
+    // Rueckfragen gehen nicht durch diesen Handler.
+    const istSchreibAktion = message.aktion === 'chat'
+      || ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton', 'feedback', 'visuell'].includes(message.aktion);
 
     await setThinking(supabase, 'skript_chat_messages', messageId, {
       step: 'schreiben',
@@ -118,7 +127,9 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       return { statusCode: 200 };
     }
 
-    const parsed = result.json || extractJson(result.text, { keys: ['antwort', 'sektion', 'vorschlag_text'] });
+    const parsed = result.json || extractJson(result.text, {
+      keys: ['antwort', 'sektion', 'vorschlag_text', 'spalte', 'ganze_sektion']
+    });
     const vorschlag = stripToolXml(parsed.vorschlag_text);
     const antwort = stripToolXml(parsed.antwort);
     const istMaster = Boolean(ctx.skript?.inhalt_md);
@@ -126,6 +137,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     const sektion = istMaster
       ? (parsedSektion || message.sektion)
       : (GRID_SEKTIONEN.includes(parsedSektion) ? parsedSektion : message.sektion);
+    const spalte = mapEditResult(message, parsed);
 
     await setThinking(supabase, 'skript_chat_messages', messageId, {
       step: 'speichern',
@@ -138,6 +150,8 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       inhalt: antwort,
       vorschlag_text: vorschlag,
       sektion: sektion || message.sektion,
+      ist_visuell: spalte.ist_visuell,
+      selektion_text: spalte.selektion_text,
       model: result.model,
       usage: result.usage
     }).eq('id', messageId);
@@ -153,6 +167,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
 
 // Re-Exports fuer die Tests (SkriptEditPrompt.test.js importiert von hier)
 exports.buildEditPrompt = buildEditPrompt;
+exports.mapEditResult = mapEditResult;
 exports.stripToolXml = stripToolXml;
 exports.letzterZeitstempel = letzterZeitstempel;
 exports.formatZeitstempel = formatZeitstempel;
