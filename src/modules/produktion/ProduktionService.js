@@ -274,14 +274,13 @@ export async function createProduktionForBriefing({ kampagneId, briefingId, prod
   if (!window.supabase) throw new Error('Supabase nicht verfügbar');
   if (!kampagneId) throw new Error('Kampagne fehlt');
   if (!briefingId) throw new Error('Briefing fehlt');
-  if (!produktId) throw new Error('Produkt fehlt');
 
   const names = lineNames(titel);
   const payload = {
     briefing_id: briefingId,
-    produkt_id: produktId,
     name: names.produktion || titel || 'Produktion'
   };
+  if (produktId) payload.produkt_id = produktId;
 
   if (produktionId) {
     const { data, error } = await window.supabase
@@ -336,7 +335,7 @@ function hiddenForNewList(preset) {
 export async function ensureBriefingLine({ briefing, kampagneId, produktId, produktionId = null }) {
   if (!briefing?.id) throw new Error('Briefing fehlt');
   if (briefing.is_draft) return null;
-  if (!kampagneId || !produktId) throw new Error('Kampagne und Produkt sind Pflicht.');
+  if (!kampagneId) throw new Error('Kampagne ist Pflicht.');
 
   const produktion = await createProduktionForBriefing({
     kampagneId,
@@ -347,17 +346,18 @@ export async function ensureBriefingLine({ briefing, kampagneId, produktId, prod
   });
 
   const names = lineNames(briefing.aktivierung_name);
+  const patch = {
+    briefing_id: briefing.id,
+    name: names.produktion || briefing.aktivierung_name || 'Produktion'
+  };
+  if (produktId) patch.produkt_id = produktId;
   const { error: patchError } = await window.supabase
     .from('produktion')
-    .update({
-      briefing_id: briefing.id,
-      produkt_id: produktId,
-      name: names.produktion || briefing.aktivierung_name || 'Produktion'
-    })
+    .update(patch)
     .eq('id', produktion.id);
   if (patchError) throw patchError;
 
-  await syncBriefingProdukte(briefing.id, [produktId]);
+  if (produktId) await syncBriefingProdukte(briefing.id, [produktId]);
 
   const preset = castingPresetFromBriefing(briefing);
   await syncCastings(produktion.id, briefing, kampagneId, names, preset);

@@ -47,8 +47,8 @@ describe('Briefing fieldConfig Schema', () => {
     expect(required).toContain('unternehmen_id');
     expect(required).toContain('aktivierung_name');
     expect(required).toContain('kampagne_id');
-    expect(required).toContain('produkt_id');
     expect(required).toContain('tkp');
+    expect(required).not.toContain('produkt_id');
     expect(required).not.toContain('produkt_ids');
     expect(required).not.toContain('persona_ids');
   });
@@ -58,6 +58,7 @@ describe('Briefing fieldConfig Schema', () => {
       ...getAllFields().map(f => f.name),
       ...flattenFields(FLOW_STEPS[0].sections.flatMap(s => s.fields)).map(f => f.name)
     ];
+    expect(names).not.toContain('produkt_id');
     expect(names).not.toContain('produkt_ids');
     expect(names).not.toContain('persona_ids');
   });

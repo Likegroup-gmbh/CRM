@@ -215,8 +215,7 @@ export const FLOW_STEPS = [
           fieldGroup('zuordnung-entities', 'stack', [
             { name: 'unternehmen_id', label: 'Unternehmen', type: 'entitySelect', table: 'unternehmen', displayField: 'firmenname', required: true, placeholder: 'Unternehmen auswählen...' },
             { name: 'marke_id', label: 'Marke (optional)', type: 'entitySelect', table: 'marke', displayField: 'markenname', dependsOn: 'unternehmen_id', placeholder: 'Marke auswählen...' },
-            { name: 'kampagne_id', label: 'Kampagne', type: 'entitySelect', table: 'kampagne', displayField: 'label', dependsOn: 'unternehmen_id', scopeMarke: true, lockWithLinie: true, required: true, placeholder: 'Kampagne auswählen...' },
-            { name: 'produkt_id', label: 'Produkt', type: 'entitySelect', table: 'produkt', displayField: 'name', dependsOn: 'unternehmen_id', lockWithLinie: true, required: true, placeholder: 'Produkt auswählen...' }
+            { name: 'kampagne_id', label: 'Kampagne', type: 'entitySelect', table: 'kampagne', displayField: 'label', dependsOn: 'unternehmen_id', scopeMarke: true, lockWithLinie: true, required: true, placeholder: 'Kampagne auswählen...' }
           ]),
           fieldGroup('zuordnung-titel', 'stack', [
             { name: 'aktivierung_name', label: 'Titel', type: 'text', required: true, placeholder: 'z.B. Make-up September' },

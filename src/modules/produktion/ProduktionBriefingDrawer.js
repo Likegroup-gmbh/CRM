@@ -1,8 +1,7 @@
 // ProduktionBriefingDrawer.js
-// Auf der Kampagne: Titel und Produkt, dann Briefing-Anlage. Die speichert die Produktion.
+// Auf der Kampagne: Titel, dann Briefing-Anlage. Das Produkt entsteht danach.
 
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
-import { loadProdukteForBriefing } from '../briefing/BriefingProdukte.js';
 
 function esc(value) {
   return window.validatorSystem?.sanitizeHtml(String(value ?? '')) || '';
@@ -10,13 +9,7 @@ function esc(value) {
 
 export async function openProduktionBriefingDrawer(detail, { produktionId = null } = {}) {
   const k = detail.kampagneData || {};
-  const produkte = await loadProdukteForBriefing(k.unternehmen_id, k.marke_id);
   const defaultTitel = detail.lineTitle || KampagneUtils.getDisplayName(k) || '';
-  const selectedProdukt = detail.produktion?.produkt_id || '';
-  const options = produkte.map(p => {
-    const selected = p.id === selectedProdukt ? ' selected' : '';
-    return `<option value="${esc(p.id)}"${selected}>${esc(p.name)}</option>`;
-  }).join('');
 
   const modal = document.createElement('div');
   modal.className = 'modal overlay-modal';
@@ -31,13 +24,6 @@ export async function openProduktionBriefingDrawer(detail, { produktionId = null
           <label for="produktion-briefing-titel">Titel</label>
           <input id="produktion-briefing-titel" name="titel" class="form-input" value="${esc(defaultTitel)}" required>
         </div>
-        <div class="form-field">
-          <label for="produktion-briefing-produkt">Produkt</label>
-          <select id="produktion-briefing-produkt" name="produkt" class="form-input" required>
-            <option value="">Produkt wählen…</option>
-            ${options}
-          </select>
-        </div>
       </form>
       <div class="modal-footer">
         <button type="button" class="mdc-btn mdc-btn--secondary" data-action="cancel">Abbrechen</button>
@@ -50,19 +36,18 @@ export async function openProduktionBriefingDrawer(detail, { produktionId = null
   modal.querySelector('[data-action="cancel"]').onclick = close;
   modal.querySelector('[data-action="confirm"]').onclick = () => {
     const titel = modal.querySelector('[name="titel"]').value.trim();
-    const produkt = modal.querySelector('[name="produkt"]').value;
-    if (!titel || !produkt) {
-      window.toastSystem?.show('Titel und Produkt sind Pflicht.', 'warning');
+    if (!titel) {
+      window.toastSystem?.show('Titel ist Pflicht.', 'warning');
       return;
     }
     const params = new URLSearchParams({
       unternehmen: k.unternehmen_id || '',
       marke: k.marke_id || '',
       kampagne: detail.kampagneId || '',
-      produkt,
       titel
     });
     if (produktionId) params.set('produktion', produktionId);
+    if (detail.produktion?.produkt_id) params.set('produkt', detail.produktion.produkt_id);
     close();
     window.navigateTo(`/briefing/new?${params.toString()}`);
   };

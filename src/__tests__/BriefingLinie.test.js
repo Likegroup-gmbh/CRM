@@ -221,6 +221,20 @@ describe('ensureBriefingLine', () => {
     expect(db.rows.creator_auswahl[0].strategie_id).toBe(konzeptId);
   });
 
+  it('legt die Linie ohne Produkt an, wenn das Produkt noch nicht existiert', async () => {
+    const produktion = await ensureBriefingLine({
+      briefing: { ...influencer, produkt_id: null },
+      kampagneId: 'kamp-1',
+      produktId: null
+    });
+
+    expect(produktion.id).toBeTruthy();
+    expect(db.rows.produktion[0].produkt_id).toBeUndefined();
+    expect(db.rows.creator_auswahl).toHaveLength(1);
+    expect(db.rows.strategie).toHaveLength(1);
+    expect(db.rows.campaign_briefing_produkt).toHaveLength(0);
+  });
+
   it('legt bei einem Entwurf nichts an', async () => {
     const result = await ensureBriefingLine({
       briefing: { ...influencer, is_draft: true },

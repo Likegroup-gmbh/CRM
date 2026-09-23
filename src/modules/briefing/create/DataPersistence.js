@@ -360,8 +360,8 @@ BriefingCreate.prototype.handleSubmit = async function() {
   }
   const kampagneId = this.formData.kampagne_id || this._produktionKontext?.kampagneId || null;
   const produktId = this.formData.produkt_id || this._produktionKontext?.produktId || null;
-  if (!kampagneId || !produktId) {
-    window.toastSystem?.show('Bitte Kampagne und Produkt zuordnen (Schritt Grundlage).', 'warning');
+  if (!kampagneId) {
+    window.toastSystem?.show('Bitte eine Kampagne zuordnen (Schritt Grundlage).', 'warning');
     return;
   }
 
@@ -475,7 +475,7 @@ BriefingCreate.prototype.loadFromDB = async function(id) {
         produktId: this.formData.produkt_id,
         produktionId: produktion.id
       };
-      this._linieGesperrt = !!(this.formData.kampagne_id && this.formData.produkt_id);
+      this._linieGesperrt = !!this.formData.kampagne_id;
     }
 
     await this.refreshProdukte();

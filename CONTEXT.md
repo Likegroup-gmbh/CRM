@@ -25,7 +25,7 @@ _Avoid_: Deal, Job, Projekt (in der UI heisst der Anlege-Flow so, die Entity ble
 _Avoid_: Überkampagne, Auftrag
 
 **Produktion**:
-Lauf unter genau einer Kampagne für genau ein Produkt. Entsteht mit dem Briefing, Anzeigename ist der Briefing-Titel. Kein eigenes Volumen und kein eigenes Soll. Darunter hängen Casting, Konzept, Skripte, Verträge, Kooperationen, Videos und Auswertung.
+Lauf unter genau einer Kampagne. Entsteht mit dem Briefing, das Produkt kommt danach und hängt dann an dieser Produktion. Anzeigename ist der Briefing-Titel. Kein eigenes Volumen und kein eigenes Soll. Darunter hängen Casting, Konzept, Skripte, Verträge, Kooperationen, Videos und Auswertung.
 _Avoid_: Kooperation, Vor-Ort-Produktion
 
 **Kooperation**:
@@ -113,7 +113,7 @@ geht es dem Vertragstext vor.
 _Avoid_: Anhang, Briefing
 
 **Briefing**:
-Das Aktivierungsdokument eines Unternehmens, optional einer Marke. Ablage bleibt dort, die Firmenliste zeigt alle. Operativ genau einer Produktion zugeordnet und nicht wiederverwendet. Hat genau das Produkt dieser Produktion. Titel frei, Vorschlag ist der Kampagnenname. Verbindliche Grundlage für Casting und Konzept dieser Produktion.
+Das Aktivierungsdokument eines Unternehmens, optional einer Marke. Ablage bleibt dort, die Firmenliste zeigt alle. Operativ genau einer Produktion zugeordnet und nicht wiederverwendet. Beim Anlegen wird kein Produkt gewählt; das Produkt entsteht danach. Titel frei, Vorschlag ist der Kampagnenname. Verbindliche Grundlage für Casting und Konzept dieser Produktion.
 _Avoid_: Kampagnen-Briefing (das ist die Tabelle `campaign_briefings`), Kundenbriefing
 
 **Entwurf**:

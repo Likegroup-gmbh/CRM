@@ -81,9 +81,9 @@ BriefingCreate.prototype.applyQueryPrefill = function() {
   if (titel) this.formData.aktivierung_name = titel;
   if (kampagne) this.formData.kampagne_id = kampagne;
   if (produkt) this.formData.produkt_id = produkt;
-  this._linieGesperrt = !!(kampagne && produkt);
-  this._produktionKontext = (kampagne && produkt)
-    ? { kampagneId: kampagne, produktId: produkt, produktionId: produktion || null }
+  this._linieGesperrt = !!kampagne;
+  this._produktionKontext = kampagne
+    ? { kampagneId: kampagne, produktId: produkt || null, produktionId: produktion || null }
     : null;
 };
 

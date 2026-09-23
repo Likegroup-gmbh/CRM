@@ -261,10 +261,7 @@ BriefingCreate.prototype.bindCascadeEvents = function() {
     unternehmenSelect.addEventListener('change', async (e) => {
       this.formData.unternehmen_id = e.target.value || null;
       this.formData.marke_id = null;
-      if (!this._linieGesperrt) {
-        this.formData.kampagne_id = null;
-        this.formData.produkt_id = null;
-      }
+      if (!this._linieGesperrt) this.formData.kampagne_id = null;
       this.rebuildMarkeSelect();
       await this.refreshProdukte();
       this.rebuildLinieSelects();
@@ -293,11 +290,6 @@ BriefingCreate.prototype.rebuildLinieSelects = function() {
   this.rebuildEntitySelect('kampagne_id', kampagnen, {
     labelKey: 'label',
     placeholder: unternehmenId ? 'Kampagne auswählen...' : 'Bitte zuerst Unternehmen wählen...',
-    locked: this._linieGesperrt
-  });
-  this.rebuildEntitySelect('produkt_id', this.produkte || [], {
-    labelKey: 'name',
-    placeholder: unternehmenId ? 'Produkt auswählen...' : 'Bitte zuerst Unternehmen wählen...',
     locked: this._linieGesperrt
   });
 };
@@ -410,19 +402,6 @@ BriefingCreate.prototype.initSearchableSelects = function() {
         name: 'kampagne_id',
         placeholder: 'Kampagne suchen...',
         value: this.formData.kampagne_id || null
-      });
-    }
-
-    const produktSelect = document.getElementById('produkt_id');
-    if (produktSelect && !produktSelect.disabled && window.formSystem?.createSearchableSelect && this.formData.unternehmen_id) {
-      window.formSystem.createSearchableSelect(produktSelect, (this.produkte || []).map(p => ({
-        value: p.id,
-        label: p.name,
-        selected: p.id === this.formData.produkt_id
-      })), {
-        name: 'produkt_id',
-        placeholder: 'Produkt suchen...',
-        value: this.formData.produkt_id || null
       });
     }
 
