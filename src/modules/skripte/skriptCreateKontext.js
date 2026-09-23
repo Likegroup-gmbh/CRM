@@ -1,6 +1,7 @@
 // skriptCreateKontext.js
 // Ableitung des Generator-Payloads aus Videoidee → Konzept → Casting-Eintrag.
-// Produkt: genau ein accepted Fit der Persona, sonst null (kein Picker).
+// Produkt: die ID an der Videoidee. Ohne die bleibt der Persona-Fit
+// (genau ein accepted Fit, sonst null) fuer Altbestand vor der Spalte.
 
 export function pickProduktId(produktIds) {
   const ids = [...new Set((produktIds || []).filter(Boolean))];
@@ -24,7 +25,7 @@ export function resolveSkriptCreatePayload(item, { produktIds = [] } = {}) {
     bereich: briefing?.bereich || null,
     branche_id: marke.branche_id || unternehmen.branche_id || null,
     persona_id: eintrag?.persona_id || null,
-    produkt_id: pickProduktId(produktIds),
+    produkt_id: item?.produkt_id || pickProduktId(produktIds),
     strategie_item_id: item?.id || null,
     video_idee: (item?.beschreibung || '').trim() || null,
     mit_dna: false

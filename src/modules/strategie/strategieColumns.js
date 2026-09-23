@@ -10,6 +10,7 @@
 
 export const STRATEGIE_FIXED_COLUMNS = Object.freeze([
   { key: 'creator', label: 'Creator' },
+  { key: 'produkt', label: 'Produkt' },
   { key: 'beschreibung', label: 'Beschreibung' },
   { key: 'transkript', label: 'Transkript' },
   { key: 'caption', label: 'Caption' },

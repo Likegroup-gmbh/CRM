@@ -35,6 +35,7 @@ function visibleFixedColumns(detail) {
   const visible = (key) => isFixedColumnVisible(detail.hiddenColumns, key);
   return {
     creator: visible('creator'),
+    produkt: visible('produkt'),
     beschreibung: visible('beschreibung'),
     transkript: visible('transkript'),
     caption: visible('caption'),
@@ -82,6 +83,7 @@ export function renderItemsTable(detail) {
             <th class="col-image">Bild</th>
             <th class="col-platform">Plattform</th>
             ${cols.creator ? '<th class="col-creator">Creator</th>' : ''}
+            ${cols.produkt ? '<th class="col-produkt">Produkt</th>' : ''}
             ${cols.beschreibung ? '<th class="col-beschreibung">Beschreibung</th>' : ''}
             ${cols.transkript ? '<th class="col-transkript">Transkript</th>' : ''}
             ${cols.caption ? '<th class="col-caption">Caption</th>' : ''}
@@ -335,6 +337,46 @@ function renderCreatorCell(detail, item, readonly) {
 }
 
 /**
+ * Produkt-Zelle: ein Produkt aus dem Briefing der Produktion. Plus oeffnet
+ * den Produkt-Drawer, x loest die Zuordnung.
+ */
+function renderProduktCell(detail, item, readonly) {
+  const canEdit = !detail.isKunde && !readonly;
+  const name = (item.produkt?.name || '').trim();
+  const hatProdukt = !!item.produkt_id;
+
+  const connectBtn = canEdit
+    ? `<button type="button" class="creator-cell-btn produkt-connect-btn" data-item-id="${item.id}" title="Produkt zuordnen" aria-label="Produkt zuordnen">${icon('cube')}</button>`
+    : '';
+
+  if (hatProdukt) {
+    const label = escapeHtml(name || 'Unbekannt');
+    const nameHtml = `<a href="/produkt/${item.produkt_id}" class="table-link creator-cell-link" onclick="event.preventDefault(); window.navigateTo('/produkt/${item.produkt_id}')">${label}</a>`;
+    const unlinkBtn = canEdit
+      ? `<button type="button" class="creator-cell-btn produkt-unlink-btn" data-item-id="${item.id}" title="Zuordnung lösen" aria-label="Zuordnung lösen">${icon('x-mark')}</button>`
+      : '';
+
+    return `
+      <td class="cell-textarea col-produkt">
+        <div class="creator-cell">
+          ${nameHtml}
+          <span class="creator-cell-actions">${connectBtn}${unlinkBtn}</span>
+        </div>
+      </td>
+    `;
+  }
+
+  return `
+    <td class="cell-textarea col-produkt">
+      <div class="creator-cell">
+        <span class="strategie-cell-muted">–</span>
+        ${connectBtn}
+      </div>
+    </td>
+  `;
+}
+
+/**
  * Umgesetzt-Zelle: Klickbar nur mit Feld-Edit-Recht (Kunde darf, Investor
  * nicht). Ohne Recht steht da nur der Zustand, kein disabled-Toggle.
  */
@@ -400,6 +442,7 @@ export function renderItemRow(detail, item, index) {
       ${renderBildCell(item, isIdea, ideaIcon)}
       ${renderPlatformCell(item, platformIcon, externalLinkIcon)}
       ${cols.creator ? renderCreatorCell(detail, item, vorschlagReadonly) : ''}
+      ${cols.produkt ? renderProduktCell(detail, item, vorschlagReadonly) : ''}
       ${cols.beschreibung ? renderClippedTextCell(detail, item, 'beschreibung', 'col-beschreibung', 'Beschreibung...', readonly) : ''}
       ${cols.transkript ? renderClippedTextCell(detail, item, 'transkript', 'col-transkript', 'Transkript...', vorschlagReadonly) : ''}
       ${cols.caption ? renderClippedTextCell(detail, item, 'caption', 'col-caption', 'Caption...', vorschlagReadonly) : ''}
@@ -485,6 +528,10 @@ export function renderItemActions(detail, item, isLinked) {
               <a href="#" class="action-item" data-action="connect-creator" data-id="${item.id}">
                 ${icon('user-add')}
                 ${item.creator_auswahl_item_id ? 'Creator ändern' : 'Creator verbinden'}
+              </a>
+              <a href="#" class="action-item" data-action="connect-produkt" data-id="${item.id}">
+                ${icon('cube')}
+                ${item.produkt_id ? 'Produkt ändern' : 'Produkt verbinden'}
               </a>
               ${item.video_link ? `
                 <a href="#" class="action-item" data-action="reprocess-item" data-id="${item.id}">

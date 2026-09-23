@@ -9,6 +9,7 @@ import { showEditItemDrawer as _showEditItemDrawer, removeEditItemDrawer, closeE
 import { showKategorienModal as _showKategorienModal, removeKategorienDrawer } from './StrategieDetailKategorienDrawer.js';
 import { handleDeleteItem as _handleDeleteItem, handleAddToVideo as _handleAddToVideo, handleUnlinkFromVideo as _handleUnlinkFromVideo } from './StrategieDetailItemActions.js';
 import { StrategieCreatorDrawer, removeStrategieCreatorDrawer } from './StrategieCreatorDrawer.js';
+import { StrategieProduktDrawer, removeStrategieProduktDrawer } from './StrategieProduktDrawer.js';
 import { StrategieDetailColumnVisibilityDrawer } from './StrategieDetailColumnVisibilityDrawer.js';
 import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
 import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.js';
@@ -283,6 +284,11 @@ export class StrategieDetail {
   // --- Creator-Verknüpfung ---
   showCreatorDrawer(itemId) {
     const drawer = new StrategieCreatorDrawer(this);
+    drawer.open(itemId);
+  }
+
+  showProduktDrawer(itemId) {
+    const drawer = new StrategieProduktDrawer(this);
     drawer.open(itemId);
   }
 
@@ -593,6 +599,7 @@ export class StrategieDetail {
     this.removeKategorienDrawer();
     this.removeEditItemDrawer();
     removeStrategieCreatorDrawer();
+    removeStrategieProduktDrawer();
   }
 }
 

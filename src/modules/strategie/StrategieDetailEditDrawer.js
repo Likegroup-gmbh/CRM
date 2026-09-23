@@ -5,7 +5,8 @@ import { strategieService } from './StrategieService.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { StrategieCreatorDrawer } from './StrategieCreatorDrawer.js';
-import { handleCreatorUnlink } from './StrategieDetailTableEvents.js';
+import { StrategieProduktDrawer } from './StrategieProduktDrawer.js';
+import { handleCreatorUnlink, handleProduktUnlink } from './StrategieDetailTableEvents.js';
 
 const DRAWER_ID = 'edit-item-drawer';
 
@@ -115,6 +116,7 @@ function renderEditItemDrawerBody(detail, item) {
       </div>
 
       ${renderEditCreatorField(item)}
+      ${renderEditProduktField(item)}
 
       <div class="form-field">
         <label for="edit-beschreibung">Beschreibung</label>
@@ -199,6 +201,69 @@ function renderEditCreatorField(item) {
   `;
 }
 
+function renderEditProduktField(item) {
+  const name = (item.produkt?.name || '').trim();
+  const hatProdukt = !!item.produkt_id;
+  const label = escapeHtml(name || 'Unbekannt');
+
+  if (hatProdukt) {
+    return `
+      <div class="form-field form-field--produkt">
+        <label>Produkt</label>
+        <div class="creator-cell creator-cell--drawer">
+          <a href="/produkt/${item.produkt_id}" class="table-link" onclick="event.preventDefault(); window.navigateTo('/produkt/${item.produkt_id}')">${label}</a>
+          <span class="creator-cell-actions">
+            <button type="button" class="mdc-btn mdc-btn--secondary" id="btn-edit-produkt-change">
+              <span class="mdc-btn__label">Ändern</span>
+            </button>
+            <button type="button" class="mdc-btn mdc-btn--danger" id="btn-edit-produkt-unlink">
+              <span class="mdc-btn__label">Lösen</span>
+            </button>
+          </span>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="form-field form-field--produkt">
+      <label>Produkt</label>
+      <div class="creator-cell creator-cell--drawer">
+        <span class="strategie-cell-muted">–</span>
+        <button type="button" class="creator-cell-btn" id="btn-edit-produkt-connect" title="Produkt zuordnen" aria-label="Produkt zuordnen">${icon('cube')}</button>
+      </div>
+    </div>
+  `;
+}
+
+function refreshEditProduktField(detail, itemId) {
+  const item = detail.items.find(i => i.id === itemId);
+  const field = document.querySelector('#edit-item-form .form-field--produkt');
+  if (!item || !field) return;
+
+  const tmp = document.createElement('div');
+  tmp.innerHTML = renderEditProduktField(item);
+  field.replaceWith(tmp.firstElementChild);
+  bindEditProduktFieldEvents(detail, itemId);
+}
+
+function bindEditProduktFieldEvents(detail, itemId) {
+  const form = document.getElementById('edit-item-form');
+  if (!form) return;
+
+  const openProduktDrawer = () => {
+    const drawer = new StrategieProduktDrawer(detail);
+    drawer.open(itemId, { onSuccess: () => refreshEditProduktField(detail, itemId) });
+  };
+
+  form.querySelector('#btn-edit-produkt-connect')?.addEventListener('click', openProduktDrawer);
+  form.querySelector('#btn-edit-produkt-change')?.addEventListener('click', openProduktDrawer);
+  form.querySelector('#btn-edit-produkt-unlink')?.addEventListener('click', async () => {
+    const done = await handleProduktUnlink(detail, itemId);
+    if (done) refreshEditProduktField(detail, itemId);
+  });
+}
+
 function refreshEditCreatorField(detail, itemId) {
   const item = detail.items.find(i => i.id === itemId);
   const field = document.querySelector('#edit-item-form .form-field--creator');
@@ -239,6 +304,7 @@ function bindEditItemDrawerEvents(detail, itemId) {
   });
 
   bindEditCreatorFieldEvents(detail, itemId);
+  bindEditProduktFieldEvents(detail, itemId);
 }
 
 export async function handleEditItemSubmit(detail, itemId, formData) {

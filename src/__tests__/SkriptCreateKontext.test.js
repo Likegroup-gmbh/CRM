@@ -72,6 +72,13 @@ describe('resolveSkriptCreatePayload', () => {
     expect(resolveSkriptCreatePayload(item(), { produktIds: ['pr-1', 'pr-2'] }).produkt_id).toBeNull();
   });
 
+  it('Produkt an der Idee schlägt die Persona-Fits', () => {
+    const payload = resolveSkriptCreatePayload(item({ produkt_id: 'pr-konzept' }), {
+      produktIds: ['pr-1', 'pr-2']
+    });
+    expect(payload.produkt_id).toBe('pr-konzept');
+  });
+
   it('leeres Item bleibt null-sicher', () => {
     const payload = resolveSkriptCreatePayload(null);
     expect(payload.unternehmen_id).toBeNull();

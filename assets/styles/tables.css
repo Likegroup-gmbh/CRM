@@ -1667,7 +1667,8 @@ thead {
 
 /* Creator-Spalte */
 
-.strategie-items-table .col-creator {
+.strategie-items-table .col-creator,
+.strategie-items-table .col-produkt {
   min-width: calc(var(--space-xxl) * 3);
 }
 

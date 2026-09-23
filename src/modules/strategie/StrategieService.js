@@ -2,6 +2,7 @@
 // Service für Strategie-Datenbank-Operationen
 
 import { assertBriefingForCreate, assertBriefingLinkLock } from '../briefing/BriefingLinkGuard.js';
+import { loadBriefingProdukte } from '../briefing/BriefingProdukte.js';
 import { VIDEOIDEE_VORSCHLAG_ERROR, VORSCHLAG_EDIT_FIELDS } from './videoideeVorschlag.js';
 import {
   castingUmsetzungGate,
@@ -492,6 +493,7 @@ export class StrategieService {
       .select(`
         *,
         creator:creator_id(id, vorname, nachname, instagram, tiktok),
+        produkt:produkt_id(id, name),
         casting_eintrag:creator_auswahl_item_id(id, name, creator_id, link_instagram, link_tiktok, zusage, gebucht, creator:creator_id(id, vorname, nachname))
       `)
       .eq('strategie_id', strategieId)
@@ -973,13 +975,74 @@ export class StrategieService {
   }
 
   /**
+   * Produkte des Briefings an diesem Konzept. Ohne Briefing leer.
+   */
+  async getBriefingProdukte(strategieId) {
+    if (!strategieId) return [];
+    const { data: strategie, error } = await window.supabase
+      .from('strategie')
+      .select('id, briefing_id')
+      .eq('id', strategieId)
+      .single();
+    if (error || !strategie?.briefing_id) return [];
+    return loadBriefingProdukte(strategie.briefing_id);
+  }
+
+  /**
+   * Ordnet einer Videoidee ein Produkt aus dem Briefing des Konzepts zu.
+   * Eingefroren, sobald ein Skript aus der Idee existiert.
+   */
+  async assignProdukt(itemId, produktId) {
+    const { data: item, error: iErr } = await window.supabase
+      .from('strategie_items')
+      .select('id, strategie_id, produkt_id, ist_vorschlag')
+      .eq('id', itemId)
+      .single();
+    if (iErr || !item) throw new Error('Videoidee nicht gefunden');
+    if (item.ist_vorschlag) throw new Error(VIDEOIDEE_VORSCHLAG_ERROR);
+    if (!produktId) throw new Error('Kein Produkt gewählt.');
+
+    if (item.produkt_id && item.produkt_id !== produktId) {
+      if (await this.hasSkriptForItem(itemId)) {
+        throw new Error('Die Zuordnung ist eingefroren, weil bereits ein Skript aus dieser Idee existiert.');
+      }
+    }
+
+    const produkte = await this.getBriefingProdukte(item.strategie_id);
+    const produkt = produkte.find(p => p.id === produktId);
+    if (!produkt) throw new Error('Das Produkt gehört nicht zum Briefing dieses Konzepts.');
+
+    await this.updateStrategieItem(itemId, { produkt_id: produktId });
+    return produkt;
+  }
+
+  /**
+   * Loest die Produkt-Zuordnung. Blockt, sobald ein Skript aus der Idee
+   * existiert. Nimmt die Skript-Freigabe mit, sonst bliebe eine Freigabe
+   * ohne Produkt stehen.
+   */
+  async unassignProdukt(itemId) {
+    await this.assertKeinVorschlag(itemId);
+    if (await this.hasSkriptForItem(itemId)) {
+      throw new Error('Die Zuordnung ist eingefroren, weil bereits ein Skript aus dieser Idee existiert.');
+    }
+    await this.updateStrategieItem(itemId, {
+      produkt_id: null,
+      ...skriptFreigabeClearPatch()
+    });
+  }
+
+  /**
    * Skript-Freigabe setzen oder zuruecknehmen. Gate nur fuer Neuanlage.
    * Freigeben nur mit Casting-Eintrag und ohne „Nicht umsetzen“.
+   * Ohne Produkt und mit genau einem Briefing-Produkt wird das gesetzt.
+   * Bei mehreren Produkten ohne Zuordnung bleibt die Freigabe zu.
+   * Gibt das automatisch gesetzte Produkt zurueck, sonst null.
    */
   async setSkriptFreigabe(itemId, flag) {
     const { data: item, error } = await window.supabase
       .from('strategie_items')
-      .select('id, creator_auswahl_item_id, nicht_umsetzen, ist_vorschlag')
+      .select('id, strategie_id, creator_auswahl_item_id, nicht_umsetzen, ist_vorschlag, produkt_id')
       .eq('id', itemId)
       .single();
     if (error || !item) throw new Error('Videoidee nicht gefunden');
@@ -992,15 +1055,28 @@ export class StrategieService {
       if (item.nicht_umsetzen) {
         throw new Error('Ideen mit „Nicht umsetzen“ können nicht freigegeben werden.');
       }
-      await this.updateStrategieItem(itemId, {
+
+      let produkt = null;
+      if (!item.produkt_id) {
+        const produkte = await this.getBriefingProdukte(item.strategie_id);
+        if (produkte.length > 1) {
+          throw new Error('Zuerst ein Produkt zuordnen.');
+        }
+        if (produkte.length === 1) produkt = produkte[0];
+      }
+
+      const patch = {
         skript_freigabe: true,
         skript_freigabe_am: new Date().toISOString(),
         skript_freigabe_von: window.currentUser?.id || null
-      });
-      return;
+      };
+      if (produkt) patch.produkt_id = produkt.id;
+      await this.updateStrategieItem(itemId, patch);
+      return produkt;
     }
 
     await this.updateStrategieItem(itemId, skriptFreigabeClearPatch());
+    return null;
   }
 
   /**

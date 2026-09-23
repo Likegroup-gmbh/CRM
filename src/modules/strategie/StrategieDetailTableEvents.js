@@ -79,6 +79,10 @@ export function bindTableEvents(detail) {
           e.preventDefault();
           detail.showCreatorDrawer(id);
           break;
+        case 'connect-produkt':
+          e.preventDefault();
+          detail.showProduktDrawer(id);
+          break;
         case 'reprocess-item':
           e.preventDefault();
           handleReprocessItem(detail, id);
@@ -134,6 +138,26 @@ export function bindTableEvents(detail) {
     };
     document.addEventListener('click', creatorCellHandler);
     detail._tableEventListeners.add(() => document.removeEventListener('click', creatorCellHandler));
+
+    const produktCellHandler = (e) => {
+      if (e.target.closest('#edit-item-drawer')) return;
+      if (!isFromThisWorksheet(detail, e.target)) return;
+
+      const connectBtn = e.target.closest('.produkt-connect-btn');
+      if (connectBtn) {
+        e.preventDefault();
+        detail.showProduktDrawer(connectBtn.dataset.itemId);
+        return;
+      }
+
+      const unlinkBtn = e.target.closest('.produkt-unlink-btn');
+      if (unlinkBtn) {
+        e.preventDefault();
+        handleProduktUnlink(detail, unlinkBtn.dataset.itemId);
+      }
+    };
+    document.addEventListener('click', produktCellHandler);
+    detail._tableEventListeners.add(() => document.removeEventListener('click', produktCellHandler));
   }
 
   bindDragToScroll(detail);
@@ -393,16 +417,50 @@ export async function handleCreatorUnlink(detail, itemId) {
   }
 }
 
+export async function handleProduktUnlink(detail, itemId) {
+  const item = detail.items.find(i => i.id === itemId);
+  if (!item?.produkt_id) return false;
+
+  const result = await window.confirmationModal?.open({
+    title: 'Zuordnung lösen?',
+    message: 'Die Zuordnung zum Produkt wird gelöst.',
+    confirmText: 'Lösen',
+    cancelText: 'Abbrechen',
+    danger: true
+  });
+  if (!result?.confirmed) return false;
+
+  try {
+    await strategieService.unassignProdukt(itemId);
+    item.produkt_id = null;
+    item.produkt = null;
+    item.skript_freigabe = false;
+    item.skript_freigabe_am = null;
+    item.skript_freigabe_von = null;
+    detail.rerenderItemsTable();
+    window.toastSystem?.show('Zuordnung gelöst', 'success');
+    return true;
+  } catch (error) {
+    console.error('Fehler beim Lösen der Produkt-Zuordnung:', error);
+    window.toastSystem?.show(error.message || 'Fehler beim Lösen', 'error');
+    return false;
+  }
+}
+
 export async function handleSkriptFreigabeToggle(detail, itemId) {
   const item = detail.items.find(i => i.id === itemId);
   if (!item) return;
 
   const next = !item.skript_freigabe;
   try {
-    await strategieService.setSkriptFreigabe(itemId, next);
+    const produkt = await strategieService.setSkriptFreigabe(itemId, next);
     item.skript_freigabe = next;
     item.skript_freigabe_am = next ? new Date().toISOString() : null;
     item.skript_freigabe_von = next ? (window.currentUser?.id || null) : null;
+    if (produkt) {
+      item.produkt_id = produkt.id;
+      item.produkt = produkt;
+    }
     detail.rerenderItemsTable();
     window.toastSystem?.show(
       next ? 'Für Skript freigegeben' : 'Skript-Freigabe zurückgenommen',
