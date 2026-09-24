@@ -462,7 +462,7 @@ describe('SkriptEditorView Layout', () => {
     mockService.versionLabel.mockImplementation((v) => `v${v?.version_nr || 1}`);
   });
 
-  it('Liste rendert Mini-Cards mit pinker Badge und Datum', async () => {
+  it('Liste rendert Mini-Cards mit Datum, ohne Marken-Tag', async () => {
     await view.render(container, 's1');
 
     const nav = container.querySelector('nav.skripte-editor-liste');
@@ -474,9 +474,9 @@ describe('SkriptEditorView Layout', () => {
     expect(item.tagName).toBe('A');
     expect(item.getAttribute('href')).toBe('/skripte/s1');
     expect(item.getAttribute('aria-current')).toBe('page');
-    const badge = item.querySelector('.skripte-badge--pink');
-    expect(badge).not.toBeNull();
-    expect(badge.textContent).toBe('MUS');
+    expect(item.querySelector('.skripte-badge--pink')).toBeNull();
+    expect(item.querySelector('.skripte-editor-liste-creator-name')).toBeNull();
+    expect(item.textContent).not.toContain('MUS');
     expect(item.querySelector('.skripte-editor-liste-datum')).not.toBeNull();
     expect(item.querySelector('.skripte-editor-liste-titel').textContent).toBe('Test-Skript');
 
@@ -492,6 +492,75 @@ describe('SkriptEditorView Layout', () => {
     expect(toggle.tagName).toBe('BUTTON');
     expect(container.querySelector('.skripte-editor--liste-collapsed')).toBeNull();
     expect(localStorage.getItem('skripte-liste-collapsed')).toBeNull();
+  });
+
+  it('Liste zeigt Creator-Bubble, Video-Creator schlaegt Konzept-Creator', async () => {
+    const offen = {
+      ...skript,
+      strategie_item: { creator_name: 'Tim Berg' },
+      kooperation_videos: [{
+        kooperation: { creator: { id: 'c9', vorname: 'Lea', nachname: 'Alt' } }
+      }]
+    };
+    const konzept = {
+      ...skript,
+      id: 's2',
+      titel: 'Konzept-Skript',
+      strategie_item: { creator_name: 'Tim Berg' }
+    };
+    const zugewiesen = {
+      ...skript,
+      id: 's3',
+      titel: 'Zugewiesen',
+      strategie_item: { creator_name: 'Tim Berg' },
+      kooperation_videos: [{
+        kooperation: { creator: { id: 'c3', vorname: 'Lea', nachname: 'Alt' } }
+      }]
+    };
+    mockService.loadSkript.mockResolvedValue({ ...offen });
+    mockService.loadSkriptVerknuepfungen.mockResolvedValueOnce([{
+      kooperation: { creator: { id: 'c1', vorname: 'Anna', nachname: 'Meyer' } }
+    }]);
+    mockService.loadSkripte.mockResolvedValue([offen, konzept, zugewiesen]);
+
+    await view.render(container, 's1');
+
+    expect(container.querySelector('.skripte-badge--pink')).toBeNull();
+
+    const offenEl = container.querySelector('.skripte-editor-liste-item[data-id="s1"]');
+    expect(offenEl.querySelector('.skripte-editor-liste-creator-name').textContent).toBe('Anna Meyer');
+    expect(offenEl.querySelector('.avatar-bubble')).not.toBeNull();
+    expect(offenEl.textContent).not.toContain('Tim Berg');
+    expect(offenEl.textContent).not.toContain('Lea Alt');
+
+    const konzeptEl = container.querySelector('.skripte-editor-liste-item[data-id="s2"]');
+    expect(konzeptEl.querySelector('.skripte-editor-liste-creator-name').textContent).toBe('Tim Berg');
+    expect(konzeptEl.querySelector('.avatar-bubble')).not.toBeNull();
+    expect(konzeptEl.querySelector('.skripte-badge--pink')).toBeNull();
+
+    const zugewiesenEl = container.querySelector('.skripte-editor-liste-item[data-id="s3"]');
+    expect(zugewiesenEl.querySelector('.skripte-editor-liste-creator-name').textContent).toBe('Lea Alt');
+    expect(zugewiesenEl.textContent).not.toContain('Tim Berg');
+  });
+
+  it('Liste zeigt Gast-Creator wenn die Joins leer sind', async () => {
+    mockService.loadSkript.mockResolvedValue({ ...skript });
+    mockService.loadSkripte.mockResolvedValue([{
+      ...skript,
+      liste_creators: [{
+        vorname: 'Anna',
+        nachname: 'Meyer',
+        name: 'Anna Meyer',
+        profilbild_thumb_url: 'https://cdn.example/a.webp'
+      }]
+    }]);
+
+    await view.render(container, 's1');
+
+    const item = container.querySelector('.skripte-editor-liste-item');
+    expect(item.querySelector('.skripte-badge--pink')).toBeNull();
+    expect(item.querySelector('.skripte-editor-liste-creator-name').textContent).toBe('Anna Meyer');
+    expect(item.querySelector('.avatar-bubble img')?.getAttribute('src')).toBe('https://cdn.example/a.webp');
   });
 
   it('bestehendes Skript stellt collapsed-Pref aus Storage wieder her', async () => {

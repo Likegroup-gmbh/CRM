@@ -46,7 +46,7 @@
    Die dritte Spalte steht allen Rollen offen - Kunden kommentieren dort. */
 .skripte-editor-shell {
   display: grid;
-  grid-template-columns: var(--panel-md) minmax(0, 1fr) var(--panel-lg);
+  grid-template-columns: calc(var(--panel-md) * 1.15) minmax(0, 1fr) var(--panel-lg);
   grid-template-rows: minmax(0, 1fr);
   transition: grid-template-columns 0.3s ease;
 
@@ -175,6 +175,32 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-xs);
+}
+
+.skripte-editor-liste-creator {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xxs);
+  min-width: 0;
+  flex: 1;
+}
+
+.skripte-editor-liste-creator-bubbles {
+  --avatar-size: 28px;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.skripte-editor-liste-creator-bubbles .avatar-bubble {
+  border-width: var(--border-xs);
+}
+
+.skripte-editor-liste-creator-name {
+  font-size: var(--text-xs);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .skripte-editor-liste-datum {

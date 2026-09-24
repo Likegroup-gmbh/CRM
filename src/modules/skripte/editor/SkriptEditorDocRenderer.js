@@ -57,9 +57,16 @@ export function konzeptCreatorFromSkript(skript) {
   };
 }
 
-function creatorsFuerKopf(verknuepfungen, konzeptCreator) {
+/** Sidebar: Video-/Konzept-Creator, sonst die Gast-Anzeige (liste_creators). */
+export function creatorsFuerListe(skript, verknuepfungen) {
+  const resolved = creatorsFuerKopf(verknuepfungen, konzeptCreatorFromSkript(skript));
+  if (resolved.length) return resolved;
+  return Array.isArray(skript?.liste_creators) ? skript.liste_creators : [];
+}
+
+export function creatorsFuerKopf(verknuepfungen, konzeptCreator) {
   const proCreator = new Map();
-  for (const row of verknuepfungen) {
+  for (const row of verknuepfungen || []) {
     const creator = row.kooperation?.creator;
     if (!creator) continue;
     const key = creator.id || creatorDisplayName(creator);
@@ -69,17 +76,31 @@ function creatorsFuerKopf(verknuepfungen, konzeptCreator) {
   return konzeptCreator ? [konzeptCreator] : [];
 }
 
-function creatorChipHtml(creators) {
-  const namen = creators.map(creatorDisplayName).join(', ');
-  const bubbles = avatarBubbles.renderBubbles(creators.map((c) => ({
+function creatorBubblesHtml(creators) {
+  return avatarBubbles.renderBubbles(creators.map((c) => ({
     name: creatorDisplayName(c),
     type: 'person',
     profile_image_url: c.profilbild_thumb_url || c.profilbild_url || null
   })), { maxVisible: creators.length });
+}
+
+/** Sidebar-Zeile: Bubble + Name, kein Button (die Zeile ist schon ein Link). */
+export function listeCreatorHtml(creators) {
+  if (!creators?.length) return '';
+  const namen = creators.map(creatorDisplayName).join(', ');
+  return `
+    <span class="skripte-editor-liste-creator" title="${escapeHtml(namen)}">
+      <span class="skripte-editor-liste-creator-bubbles">${creatorBubblesHtml(creators)}</span>
+      <span class="skripte-editor-liste-creator-name">${escapeHtml(namen)}</span>
+    </span>`;
+}
+
+function creatorChipHtml(creators) {
+  const namen = creators.map(creatorDisplayName).join(', ');
   return `
     <button type="button" class="skripte-editor-zuweisen-chip" id="ed-skript-zuweisen"
       title="${escapeHtml(namen)}">
-      <span class="skripte-editor-zuweisen-bubbles">${bubbles}</span>
+      <span class="skripte-editor-zuweisen-bubbles">${creatorBubblesHtml(creators)}</span>
       <span class="skripte-editor-zuweisen-name">${escapeHtml(namen)}</span>
     </button>`;
 }

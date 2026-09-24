@@ -8,6 +8,7 @@ import {
   loadLikeGroupLogoPng,
   drawLikeGroupLogo,
   drawLikeGroupFooter,
+  containInBox,
   PDF_BRAND,
 } from '../../core/pdf/PdfBrand.js';
 
@@ -97,7 +98,7 @@ function imageFormat(dataUrl) {
 }
 
 /**
- * Bild-Data-URL als JPEG, längste Kante max. 256px.
+ * Bild als JPEG, längste Kante max. 256px, plus Pixelmasse fürs Seitenverhältnis.
  * jsPDF legt PNG unkomprimiert in voller Pixelzahl ab; AVIF kann es gar nicht.
  * PNG geht mit durchs Canvas, sonst bleibt ein großes Logo unangetastet.
  * Ohne Canvas wird das Bild ausgelassen.
@@ -133,7 +134,11 @@ export function toPdfImageDataUrl(dataUrl) {
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
         const jpeg = canvas.toDataURL('image/jpeg', PDF_IMAGE_JPEG_QUALITY);
-        resolve(typeof jpeg === 'string' && jpeg.startsWith('data:image/jpeg') ? jpeg : null);
+        if (typeof jpeg !== 'string' || !jpeg.startsWith('data:image/jpeg')) {
+          resolve(null);
+          return;
+        }
+        resolve({ dataUrl: jpeg, width, height });
       } catch {
         resolve(null);
       }
@@ -154,8 +159,11 @@ export function drawBriefingLockup(doc, likeGroupPng, customerPng, { customerNam
   doc.text('×', markX, baseline);
   if (typeof doc.setTextColor === 'function') doc.setTextColor(0);
   const customerX = markX + 5;
-  if (customerPng && doc.addImage) {
-    doc.addImage(customerPng, imageFormat(customerPng), customerX, y, w, h, undefined, 'FAST');
+  const customerSrc = customerPng?.dataUrl || (typeof customerPng === 'string' ? customerPng : '');
+  if (customerSrc && doc.addImage) {
+    const fitted = containInBox(customerPng?.width, customerPng?.height, w, h);
+    const imageY = y + (h - fitted.h) / 2;
+    doc.addImage(customerSrc, imageFormat(customerSrc), customerX, imageY, fitted.w, fitted.h, undefined, 'FAST');
     return;
   }
   if (customerName) {

@@ -29,6 +29,14 @@ describe('Master-Seed-Templates', () => {
     expect(SEEDS.basis.length).toBeGreaterThan(10000);
   });
 
+  it('Basis enthaelt visuelle Leitplanken fuer die Creator-Spalte', () => {
+    expect(SEEDS.basis).toContain('## Visuelle Leitplanken für die Creator-Spalte');
+    expect(SEEDS.basis).toContain('Creator spricht direkt in die Kamera.');
+    expect(SEEDS.basis).toContain('unpassendes Stockmaterial');
+    expect(SEEDS.basis).toContain('Bitte setze das Video natürlich');
+    expect(SEEDS.basis).toContain('Cuts, Zooms und Übergänge bleiben im Schnittteil');
+  });
+
   it('Owned liefert Szenenplan-Tabelle als Ausgabe-Template', () => {
     expect(SEEDS.owned_social).toContain('## 1.14 Drehfertiger Aufbau');
     expect(SEEDS.owned_social).toContain('### C. Szenenplan');
@@ -99,5 +107,22 @@ describe('Prompt-Assembly mit echten Seeds', () => {
     expect(task).toContain('Ruhige Bloecke, 5-10s.');
     expect(stable).not.toContain('Ruhige Bloecke, 5-10s.');
     expect(stable).toContain('## 1.14');
+  });
+
+  it('visuelle Leitplanken landen im Stable-Block, nicht im Task', () => {
+    const master = docsFor('paid_creator_ads');
+    const { stable, task } = buildPrompt({
+      dna: [],
+      beispiele: [],
+      antiPatterns: [],
+      master,
+      bereich: 'paid_creator_ads'
+    }, { video_idee: 'Testdreh' });
+
+    expect(stable).toContain('## Visuelle Leitplanken für die Creator-Spalte');
+    expect(stable).toContain('Creator spricht direkt in die Kamera.');
+    expect(fmtMasterBlock(master)).toContain('unpassendes Stockmaterial');
+    expect(task).not.toContain('## Visuelle Leitplanken für die Creator-Spalte');
+    expect(task).not.toContain('Creator spricht direkt in die Kamera.');
   });
 });

@@ -34,6 +34,7 @@ describe('SkripteService.loadSkripte', () => {
   });
 
   afterEach(() => {
+    delete window.permissionSystem;
     vi.restoreAllMocks();
   });
 
@@ -55,6 +56,7 @@ describe('SkripteService.loadSkripte', () => {
     expect(select).toHaveBeenCalledWith(expect.stringContaining('kampagne(id, kampagnenname, eigener_name)'));
     expect(select).toHaveBeenCalledWith(expect.stringContaining('strategie_item:strategie_item_id'));
     expect(select).toHaveBeenCalledWith(expect.stringContaining('creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url)'));
+    expect(select).toHaveBeenCalledWith(expect.stringContaining('kooperation_videos('));
     // Listen-Loader zieht die dicken Content-Felder nicht mit
     const selectArg = select.mock.calls[0][0];
     expect(selectArg).not.toContain('hauptteil');
@@ -146,6 +148,39 @@ describe('SkripteService.loadSkripte', () => {
     const result = await service.loadSkripte({ kampagneId: null });
     expect(result).toHaveLength(1);
     expect(is).toHaveBeenCalledWith('kampagne_id', null);
+  });
+
+  it('haengt fuer Gaeste liste_creators aus skript_creator_anzeige an', async () => {
+    setupWindow({ isAdmin: true });
+    window.permissionSystem = { isGast: true };
+    const rows = [skript({ id: 'a' })];
+    const rpc = vi.fn(() => Promise.resolve({
+      data: [{
+        skript_id: 'a',
+        vorname: 'Anna',
+        nachname: 'Meyer',
+        name: 'Anna Meyer',
+        profilbild_url: null,
+        profilbild_thumb_url: 'https://cdn.example/a.webp'
+      }],
+      error: null
+    }));
+    const select = vi.fn(() => ({
+      order: vi.fn(() => ({
+        limit: vi.fn(() => Promise.resolve({ data: rows, error: null }))
+      }))
+    }));
+    window.supabase.from = vi.fn(() => ({ select }));
+    window.supabase.rpc = rpc;
+
+    const result = await service.loadSkripte();
+    expect(rpc).toHaveBeenCalledWith('skript_creator_anzeige', { p_ids: ['a'] });
+    expect(result[0].liste_creators).toEqual([expect.objectContaining({
+      vorname: 'Anna',
+      nachname: 'Meyer',
+      profilbild_thumb_url: 'https://cdn.example/a.webp'
+    })]);
+    delete window.permissionSystem;
   });
 
   it('ohne Argument bleibt das bisherige Verhalten (kein eq/is)', async () => {

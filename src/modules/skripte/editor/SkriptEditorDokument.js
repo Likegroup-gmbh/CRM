@@ -167,6 +167,7 @@ SkriptEditorView.prototype.openKooperationDrawer = function() {
     onSuccess: async () => {
       await this.reloadVerknuepfungen();
       this.renderDoc();
+      this.renderListe();
     }
   });
 };

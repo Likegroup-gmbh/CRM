@@ -204,6 +204,12 @@ export class SkripteService {
             id, name, creator_id,
             creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url)
           )
+        ),
+        kooperation_videos(
+          id,
+          kooperation:kooperation_id(
+            creator:creator_id(id, vorname, nachname, profilbild_url, profilbild_thumb_url)
+          )
         )`)
       .order('created_at', { ascending: false })
       .limit(200);
@@ -215,7 +221,30 @@ export class SkripteService {
     const { data, error } = await query;
 
     if (error) throw new Error(error.message);
-    return data || [];
+    return this.attachListeCreators(data || []);
+  }
+
+  /**
+   * Share-Gaeste sehen Creator-Joins nicht (RLS haengt an Kampagne/Strategie).
+   * Die Anzeige kommt deshalb aus skript_creator_anzeige, nur fuer Skripte
+   * des aktuellen Zugangs.
+   */
+  async attachListeCreators(skripte) {
+    if (!window.permissionSystem?.isGast || !skripte?.length) return skripte;
+    const ids = skripte.map((s) => s.id).filter(Boolean);
+    if (!ids.length) return skripte;
+    const { data, error } = await this.db.rpc('skript_creator_anzeige', { p_ids: ids });
+    if (error) {
+      console.warn('Creator-Anzeige fuer Gaeste fehlgeschlagen:', error.message);
+      return skripte;
+    }
+    const byId = new Map();
+    for (const row of data || []) {
+      const list = byId.get(row.skript_id) || [];
+      list.push(row);
+      byId.set(row.skript_id, list);
+    }
+    return skripte.map((s) => ({ ...s, liste_creators: byId.get(s.id) || [] }));
   }
 
   async loadSkript(id) {

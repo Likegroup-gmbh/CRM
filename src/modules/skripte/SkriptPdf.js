@@ -7,6 +7,8 @@ import { loadCustomerLogoPng, toPdfImageDataUrl } from '../briefing/BriefingPdf.
 import {
   loadLikeGroupLogoPng,
   drawLikeGroupFooter,
+  containInBox,
+  LIKEGROUP_LOGO_PX,
   PDF_BRAND,
 } from '../../core/pdf/PdfBrand.js';
 
@@ -283,15 +285,17 @@ function placeImage(doc, dataUrl, x, y, w, h) {
   }
 }
 
-function drawSkriptLockup(doc, likeGroupPng, customerPng, customerName) {
+function drawSkriptLockup(doc, likeGroupPng, customerImage, customerName) {
   const box = PDF_BRAND.logoLeft;
-  const w = box.w * LOCKUP_SCALE;
-  const h = box.h * LOCKUP_SCALE;
+  const slotW = box.w * LOCKUP_SCALE;
+  const slotH = box.h * LOCKUP_SCALE;
   if (likeGroupPng && doc.addImage) {
-    doc.addImage(likeGroupPng, 'PNG', box.x, box.y, w, h);
+    const fitted = containInBox(LIKEGROUP_LOGO_PX.w, LIKEGROUP_LOGO_PX.h, slotW, slotH);
+    const imageY = box.y + (slotH - fitted.h) / 2;
+    doc.addImage(likeGroupPng, 'PNG', box.x, imageY, fitted.w, fitted.h);
   }
-  const markX = box.x + w + LOCKUP_GAP;
-  const baseline = box.y + h * 0.72;
+  const markX = box.x + slotW + LOCKUP_GAP;
+  const baseline = box.y + slotH * 0.72;
   if (typeof doc.setFont === 'function') doc.setFont('helvetica', 'normal');
   if (typeof doc.setFontSize === 'function') doc.setFontSize(11 * LOCKUP_SCALE);
   if (typeof doc.setTextColor === 'function') doc.setTextColor(120);
@@ -299,8 +303,11 @@ function drawSkriptLockup(doc, likeGroupPng, customerPng, customerName) {
   if (typeof doc.setTextColor === 'function') doc.setTextColor(0);
   const xWidth = typeof doc.getTextWidth === 'function' ? doc.getTextWidth('×') : 2;
   const customerX = markX + xWidth + LOCKUP_GAP_AFTER_X;
-  if (customerPng && doc.addImage) {
-    doc.addImage(customerPng, 'JPEG', customerX, box.y, w, h, undefined, 'FAST');
+  const customerSrc = customerImage?.dataUrl || '';
+  if (customerSrc && doc.addImage) {
+    const fitted = containInBox(customerImage.width, customerImage.height, slotW, slotH);
+    const imageY = box.y + (slotH - fitted.h) / 2;
+    doc.addImage(customerSrc, 'JPEG', customerX, imageY, fitted.w, fitted.h, undefined, 'FAST');
     return;
   }
   if (customerName) {
@@ -340,7 +347,7 @@ function drawCreatorCard(doc, item, image, y) {
   doc.rect(MARGIN_X, y, TABLE_W, CARD_H);
   const name = item.creator?.name || '';
   if (name) {
-    const placed = placeImage(doc, image, MARGIN_X + 3, y + 2, CREATOR_SIZE, CREATOR_SIZE);
+    const placed = placeImage(doc, image?.dataUrl || image, MARGIN_X + 3, y + 2, CREATOR_SIZE, CREATOR_SIZE);
     const textX = placed ? MARGIN_X + CREATOR_SIZE + 6 : MARGIN_X + 4;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);

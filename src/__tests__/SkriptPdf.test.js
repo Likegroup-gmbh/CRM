@@ -115,7 +115,11 @@ describe('toPdfImageDataUrl', () => {
     const raster = installRaster({ width: 640, height: 400 });
     try {
       const jpeg = await toPdfImageDataUrl('data:image/png;base64,CUST');
-      expect(jpeg).toBe('data:image/jpeg;base64,RASTER');
+      expect(jpeg).toEqual({
+        dataUrl: 'data:image/jpeg;base64,RASTER',
+        width: 256,
+        height: 160,
+      });
       expect(raster.canvases).toEqual([
         { width: 256, height: 160, type: 'image/jpeg', quality: 0.85 },
       ]);
@@ -253,15 +257,19 @@ describe('createSkriptAnhang', () => {
         }),
       ]);
       const like = doc.images.find((img) => img.x === PDF_BRAND.logoLeft.x);
-      expect(like.w).toBeCloseTo(PDF_BRAND.logoLeft.w * 0.85);
-      expect(like.h).toBeCloseTo(PDF_BRAND.logoLeft.h * 0.85);
+      const slotW = PDF_BRAND.logoLeft.w * 0.85;
+      const slotH = PDF_BRAND.logoLeft.h * 0.85;
+      expect(like.w).toBeCloseTo(slotW);
+      expect(like.h).toBeCloseTo(slotW * (66 / 120));
+      expect(like.w / like.h).toBeCloseTo(120 / 66);
       const customer = doc.images.find((img) => img.type === 'JPEG' && img.h !== 12);
       expect(customer).toMatchObject({
         src: 'data:image/jpeg;base64,RASTER',
         type: 'JPEG',
         compression: 'FAST',
       });
-      expect(customer.w).toBeCloseTo(PDF_BRAND.logoLeft.w * 0.85);
+      expect(customer.w).toBeCloseTo(customer.h);
+      expect(customer.h).toBeCloseTo(slotH);
       expect(customer.x).toBeGreaterThan(like.x + like.w + 6);
       expect(doc.textCalls).not.toContain('https://instagram.com/reel/abc');
       expect(doc.textCalls).not.toContain('instagram.com/anna');

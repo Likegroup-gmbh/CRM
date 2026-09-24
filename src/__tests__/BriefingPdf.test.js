@@ -128,10 +128,8 @@ describe('createBriefingPdf', () => {
     expect(text).toContain('15 Sek.');
     expect(text).toContain(LIKEGROUP_FOOTER_DE);
     expect(text).toContain('Seite 1');
-    expect(MockJsPDF.last.images[0]).toMatchObject({
-      x: PDF_BRAND.logoLeft.x,
-      y: PDF_BRAND.logoLeft.y,
-    });
+    expect(MockJsPDF.last.images[0].x).toBe(PDF_BRAND.logoLeft.x);
+    expect(MockJsPDF.last.images[0].w / MockJsPDF.last.images[0].h).toBeCloseTo(120 / 66);
 
     expect(text).not.toContain('Final');
     expect(text).not.toContain('Paid Creator Ads');
@@ -155,18 +153,23 @@ describe('createBriefingPdf', () => {
     expect(MockJsPDF.last.htmlCalls).toBe(0);
   });
 
-  it('zeichnet LikeGroup × Kundenlogo', () => {
+  it('zeichnet LikeGroup × Kundenlogo, Quadrat bleibt quadratisch', () => {
     const doc = new MockJsPDF();
-    drawBriefingLockup(doc, 'data:image/png;base64,AAA', 'data:image/png;base64,BBB', {
+    drawBriefingLockup(doc, 'data:image/png;base64,AAA', {
+      dataUrl: 'data:image/png;base64,BBB',
+      width: 400,
+      height: 400,
+    }, {
       customerName: 'Coca-Cola',
     });
     expect(doc.images).toHaveLength(2);
-    expect(doc.images[0]).toMatchObject({
-      x: PDF_BRAND.logoLeft.x,
-      y: PDF_BRAND.logoLeft.y,
-    });
-    expect(doc.images[1].x).toBeGreaterThan(doc.images[0].x);
-    expect(doc.images[1].y).toBe(PDF_BRAND.logoLeft.y);
+    expect(doc.images[0].x).toBe(PDF_BRAND.logoLeft.x);
+    expect(doc.images[0].w / doc.images[0].h).toBeCloseTo(120 / 66);
+    const customer = doc.images[1];
+    expect(customer.x).toBeGreaterThan(doc.images[0].x);
+    expect(customer.w).toBeCloseTo(customer.h);
+    expect(customer.w).toBeCloseTo(PDF_BRAND.logoLeft.h);
+    expect(customer.w).toBeLessThan(PDF_BRAND.logoLeft.w);
     expect(doc.rawTexts.join('\n')).toContain('×');
     expect(doc.rawTexts.join('\n')).not.toContain('Coca-Cola');
   });

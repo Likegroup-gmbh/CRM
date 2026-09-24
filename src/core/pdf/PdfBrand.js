@@ -33,6 +33,19 @@ export const PDF_BRAND = {
   logoCenter: { x: 93.6, y: 10, w: 22.75, h: 12.6 },
 };
 
+/** Pixelmasse des LikeGroup-SVG (viewBox 120×66). */
+export const LIKEGROUP_LOGO_PX = { w: 120, h: 66 };
+
+/**
+ * Bild in eine Box legen, Seitenverhältnis bleibt (object-fit: contain).
+ * Ohne Masse fällt es auf die volle Box zurück.
+ */
+export function containInBox(srcW, srcH, maxW, maxH) {
+  if (!srcW || !srcH || !maxW || !maxH) return { w: maxW, h: maxH };
+  const scale = Math.min(maxW / srcW, maxH / srcH);
+  return { w: srcW * scale, h: srcH * scale };
+}
+
 export const LIKEGROUP_LOGO_SVG = `<svg width="120" height="66" viewBox="0 0 120 66" fill="none" xmlns="http://www.w3.org/2000/svg">
 <g clip-path="url(#clip0_4719_236)">
 <path d="M65.7855 50.1389V47.153H64.2168V60.8863H65.7855V53.7794C65.7855 50.6035 67.8717 48.5575 71.1445 48.5575H71.4975V46.9418H71.1445C68.7105 46.9418 66.8153 48.1536 65.7855 50.1468V50.1415V50.1389Z" fill="#0D0D0D"/>
@@ -95,7 +108,10 @@ export function loadLikeGroupLogoPng() {
 export function drawLikeGroupLogo(doc, png, { align = 'left' } = {}) {
   if (!png || !doc?.addImage) return;
   const box = align === 'center' ? PDF_BRAND.logoCenter : PDF_BRAND.logoLeft;
-  doc.addImage(png, 'PNG', box.x, box.y, box.w, box.h);
+  const { w, h } = containInBox(LIKEGROUP_LOGO_PX.w, LIKEGROUP_LOGO_PX.h, box.w, box.h);
+  const x = align === 'center' ? box.x + (box.w - w) / 2 : box.x;
+  const y = box.y + (box.h - h) / 2;
+  doc.addImage(png, 'PNG', x, y, w, h);
 }
 
 export function drawLikeGroupFooter(doc, { page, lang = 'de', y = PDF_BRAND.footerY } = {}) {

@@ -6,6 +6,7 @@ import { matchesKampagne } from '../SkriptList.js';
 import { openSkriptCreateDrawer } from '../SkriptCreateDrawer.js';
 import { escapeHtml, formatDate, skriptEditorPath } from '../SkripteUtils.js';
 import { SkriptEditorView } from './SkriptEditorViewCore.js';
+import { creatorsFuerListe, listeCreatorHtml } from './SkriptEditorDocRenderer.js';
 
 /**
  * Einzelnes Skript in der Sidebar-Liste upserten statt nach jeder
@@ -68,16 +69,16 @@ SkriptEditorView.prototype.renderListe = function() {
   const kampagneId = this.skript?.kampagne_id ?? null;
   const items = this.skripte.filter((s) => s.id === this.skript?.id || matchesKampagne(s, kampagneId));
   el.innerHTML = items.map((s) => {
-    const badgeText = s.unternehmen?.internes_kuerzel
-      || s.unternehmen?.firmenname
-      || s.marke?.markenname
-      || 'Skripte';
     const aktiv = s.id === this.skript?.id;
+    const verknuepfungen = aktiv
+      ? (this.verknuepfungen || [])
+      : (s.kooperation_videos || []);
+    const creators = creatorsFuerListe(s, verknuepfungen);
     return `
       <a href="${skriptEditorPath(s.id)}" class="skripte-editor-liste-item ${aktiv ? 'active' : ''}"
         data-id="${s.id}"${aktiv ? ' aria-current="page"' : ''}>
         <span class="skripte-editor-liste-top">
-          <span class="skripte-badge skripte-badge--pink">${escapeHtml(badgeText)}</span>
+          ${listeCreatorHtml(creators) || '<span class="skripte-editor-liste-creator"></span>'}
           <span class="skripte-editor-liste-datum">${escapeHtml(formatDate(s.created_at))}</span>
         </span>
         <span class="skripte-editor-liste-titel">${escapeHtml(s.titel || s.hook?.slice(0, 50) || '(ohne Titel)')}</span>
