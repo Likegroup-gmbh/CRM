@@ -156,6 +156,24 @@ describe('persona-liky Chat-Sanitize', () => {
     expect(task).toContain('alten Namen oder das alte Alter');
   });
 
+  it('buildChatPrompt legt den Verlauf in messages', () => {
+    const { task, messages } = buildChatPrompt({
+      userText: 'Die Persona ist zu alt',
+      formData: { name: 'Sarah' },
+      history: [
+        { rolle: 'user', inhalt: 'Sie heisst Sarah' },
+        { rolle: 'assistant', inhalt: 'Alles klar.' },
+        { rolle: 'user', inhalt: 'Die Persona ist zu alt' }
+      ]
+    });
+    expect(task).not.toContain('Chat-Verlauf:');
+    expect(messages[0]).toEqual({ role: 'user', content: 'Sie heisst Sarah' });
+    expect(messages[1]).toEqual({ role: 'assistant', content: 'Alles klar.' });
+    expect(messages[messages.length - 1].role).toBe('user');
+    expect(messages[messages.length - 1].content).toContain('User: Die Persona ist zu alt');
+    expect(messages.filter((m) => m.content === 'Die Persona ist zu alt')).toHaveLength(0);
+  });
+
   it('sanitizeExtractResult setzt from=PDF und force=false', () => {
     const out = sanitizeExtractResult({
       fields: {

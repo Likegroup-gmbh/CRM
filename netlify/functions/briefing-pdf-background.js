@@ -3,6 +3,7 @@
 // Feature-Key: pdf_briefing (existiert in ki_requests).
 
 const { callClaude, extractJson, repairJsonStrings, MODELS } = require('./_shared/anthropic');
+const { verlaufZuMessages } = require('./_shared/chat-verlauf');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { createJobUpdater } = require('./_shared/job-updater');
 const { starteKiRequest } = require('./_shared/ki-log');
@@ -212,13 +213,6 @@ function buildChatPrompt({ spec, history, formData, userText }) {
   let task = '# KONTEXT\n';
   task += 'Spec: ' + JSON.stringify(spec, null, 2) + '\n\n';
   task += 'Aktueller Formularstand: ' + JSON.stringify(formData, null, 2) + '\n\n';
-  if (history?.length) {
-    task += 'Chat-Verlauf:\n';
-    for (const msg of history.slice(-10)) {
-      task += `${msg.rolle}: ${msg.inhalt}\n`;
-    }
-    task += '\n';
-  }
   task += `User: ${userText}\n\n`;
   task += '# REGELN\n'
     + '- reply: deine Antwort an den User.\n'
@@ -234,7 +228,11 @@ function buildChatPrompt({ spec, history, formData, userText }) {
     + '- force=true nur wenn der User explizit ueberschreiben will '
     + '(z.B. "Deadline weg").\n';
 
-  return { stable, task };
+  return {
+    stable,
+    task,
+    messages: verlaufZuMessages(history, { task, limit: 10, dropTrailingUser: userText })
+  };
 }
 
 exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
@@ -344,11 +342,12 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       });
     } else {
       job.step('antworten', 'Ich denke nach…');
-      const { stable, task } = buildChatPrompt({ spec, history, formData, userText });
+      const { stable, task, messages } = buildChatPrompt({ spec, history, formData, userText });
       result = await callClaude({
         model,
         systemBlocks: [{ text: stable, cache: true }],
         userPrompt: task,
+        messages,
         maxTokens: 4096,
         tool: CHAT_TOOL,
         timeoutMs: 120000

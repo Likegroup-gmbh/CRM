@@ -88,7 +88,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
         }
       }).eq('id', ctx.skript.id);
     }
-    const { stable, task } = buildEditPrompt(ctx, message);
+    const { stable, task, messages } = buildEditPrompt(ctx, message);
 
     // Abbruch waehrend des Kontext-Ladens: kein Claude-Call mehr
     if (await istNachrichtAbgebrochen(supabase, messageId)) {
@@ -110,6 +110,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       model: istSchreibAktion ? MODELS.edit_write : MODELS.edit_fast,
       systemBlocks: [{ text: stable, cache: true }],
       userPrompt: task,
+      messages,
       // Schreib-Aktionen brauchen Luft: max_tokens umfasst auch die
       // Thinking-Tokens - 2048 wuerde bei langem Hauptteil truncaten
       maxTokens: istSchreibAktion ? 8192 : 2048,

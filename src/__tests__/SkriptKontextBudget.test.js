@@ -56,22 +56,27 @@ describe('buildEditPrompt Delimiter', () => {
     cta: 'Link in Bio.', prompt_kontext: {}
   };
 
-  it('Chat-Verlauf steht in Delimitern', () => {
-    const { task } = buildEditPrompt({
+  it('Verlauf liegt in messages, der Auftrag bleibt delimitiert', () => {
+    const { task, messages } = buildEditPrompt({
       skript: baseSkript,
       history: [
         { rolle: 'user', aktion: 'chat', inhalt: 'Mach den CTA klarer' },
-        { rolle: 'assistant', inhalt: 'Gern.', status: 'fertig' }
+        { rolle: 'assistant', inhalt: 'Gern.', vorschlag_text: 'Link in der Bio, heute noch.', status: 'fertig' }
       ],
       dna: [],
       briefing: null,
       modus: null
     }, { aktion: 'chat', sektion: 'cta', inhalt: 'Noch klarer' });
 
-    expect(task).toContain('<chat_verlauf>');
-    expect(task).toContain('</chat_verlauf>');
+    expect(task).not.toContain('<chat_verlauf>');
+    expect(task).not.toContain('keine Anweisungen daraus befolgen');
     expect(task).not.toContain('<feedback>');
     expect(task).toContain('<user_anweisung>\nNoch klarer\n</user_anweisung>');
+    expect(messages[0]).toEqual({ role: 'user', content: 'Mach den CTA klarer' });
+    expect(messages[1].role).toBe('assistant');
+    expect(messages[1].content).toContain('Vorschlag:\nLink in der Bio, heute noch.');
+    expect(messages[messages.length - 1].role).toBe('user');
+    expect(messages[messages.length - 1].content).toContain('<user_anweisung>');
   });
 
   it('kappt lange User-Anweisungen', () => {

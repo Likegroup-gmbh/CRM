@@ -80,7 +80,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       cleaned = sanitizeExtractResult(json);
     } else {
       job.step('antworten', 'Ich denke nach…');
-      const { stable, task } = buildChatPrompt({
+      const { stable, task, messages } = buildChatPrompt({
         history: Array.isArray(history) ? history : [],
         formData: formData && typeof formData === 'object' ? formData : {},
         userText: String(userText).trim()
@@ -89,6 +89,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
         model: MODELS.persona,
         systemBlocks: [{ text: stable, cache: true }],
         userPrompt: task,
+        messages,
         maxTokens: 4096,
         tool: CHAT_TOOL,
         timeoutMs: 120000

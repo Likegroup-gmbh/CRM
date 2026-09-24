@@ -271,7 +271,7 @@ describe('buildEditPrompt Visual-Stil', () => {
 
   it('chat auf Grid: Live-Stand, Spaltenwahl, visueller Stil', () => {
     const { stable, task } = buildEditPrompt(baseCtx(), MESSAGE);
-    expect(task.indexOf('Bei Widerspruch gilt der Block')).toBeLessThan(task.indexOf('# AKTUELLES SKRIPT'));
+    expect(task.indexOf('ist der Vorschlag die Basis')).toBeLessThan(task.indexOf('# AKTUELLES SKRIPT'));
     expect(task).toContain('# SPALTE\n');
     expect(task).toContain('spalte=visuell');
     expect(task).toContain('ganze_sektion=true');
@@ -296,6 +296,45 @@ describe('buildEditPrompt Visual-Stil', () => {
     expect(task).toContain('Alte Regie nur behalten');
     expect(task).not.toContain('kein neues Storyboard');
     expect(task).not.toContain('Zeitmarker und Blöcke stehen lassen. Ändere nur was verlangt wird');
+  });
+
+  it('abgelehnter Vorschlag bleibt Assistant-Turn und ist im Auftrag verboten', () => {
+    const text = 'Kennst du das Gefuehl am Morgen';
+    const { task, messages } = buildEditPrompt({
+      ...baseCtx(),
+      history: [
+        { rolle: 'user', inhalt: 'Hook neu' },
+        { rolle: 'assistant', inhalt: 'Hier.', vorschlag_text: text, status: 'abgelehnt' }
+      ]
+    }, MESSAGE);
+    expect(task).toContain('Der letzte Vorschlag wurde abgelehnt');
+    expect(task).not.toContain(text);
+    expect(messages[1].content).toContain(`Vorschlag:\n${text}`);
+  });
+
+  it('offener Vorschlag ist Assistant-Turn und steht nicht nochmal im Auftrag', () => {
+    const text = 'Stell dir vor der Wecker klingelt';
+    const { task, messages } = buildEditPrompt({
+      ...baseCtx(),
+      history: [
+        { rolle: 'user', inhalt: 'Hook neu' },
+        { rolle: 'assistant', inhalt: 'Neuer Versuch.', vorschlag_text: text, status: 'vorschlag' }
+      ]
+    }, MESSAGE);
+    expect(task).not.toContain('Der letzte Vorschlag wurde abgelehnt');
+    expect(task).not.toContain(text);
+    expect(messages.some((m) => m.role === 'assistant' && m.content.includes(text))).toBe(true);
+  });
+
+  it('pending Assistant kommt nicht in den Verlauf', () => {
+    const { messages } = buildEditPrompt({
+      ...baseCtx(),
+      history: [
+        { rolle: 'user', inhalt: 'Hook neu' },
+        { rolle: 'assistant', inhalt: 'warte', vorschlag_text: 'NICHT-ZEIGEN', status: 'pending' }
+      ]
+    }, MESSAGE);
+    expect(messages.some((m) => String(m.content).includes('NICHT-ZEIGEN'))).toBe(false);
   });
 
   it('chat: Wortbudget nur für Sprechertext', () => {

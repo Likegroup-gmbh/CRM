@@ -51,8 +51,10 @@ class ClaudeTimeoutError extends Error {
  * toolForced: erzwingt den Tool-Call (tool_choice type 'tool'). Mit Extended
  * Thinking erlaubt Anthropic nur 'auto'/'none' - dann wird still auf 'auto'
  * degradiert und der Aufrufer braucht einen Text-Fallback via extractJson.
+ * messages: optionaler User/Assistant-Verlauf. Gesetzt, ersetzt er die eine
+ * User-Message aus userPrompt. Sonst bleibt es bei einer User-Message.
  */
-async function callClaude({ model, systemBlocks = [], userPrompt, maxTokens = 4096, thinking = false, thinkingBudget = 2048, timeoutMs = 0, tool = null, toolForced = true, document = null }) {
+async function callClaude({ model, systemBlocks = [], userPrompt, messages = null, maxTokens = 4096, thinking = false, thinkingBudget = 2048, timeoutMs = 0, tool = null, toolForced = true, document = null }) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY nicht gesetzt');
 
@@ -74,20 +76,8 @@ async function callClaude({ model, systemBlocks = [], userPrompt, maxTokens = 40
     }
     : {};
 
-  // PDF als Document-Block vor dem Text, damit das Modell erst das Dokument
-  // sieht und dann die Aufgabe. base64 ohne data:-Prefix.
-  const content = [];
-  if (document?.base64) {
-    content.push({
-      type: 'document',
-      source: {
-        type: 'base64',
-        media_type: document.mediaType || 'application/pdf',
-        data: document.base64
-      }
-    });
-  }
-  content.push({ type: 'text', text: userPrompt });
+  // PDF als Document-Block vor dem Text der letzten User-Message.
+  const apiMessages = buildApiMessages({ userPrompt, messages, document });
 
   const controller = timeoutMs > 0 ? new AbortController() : null;
   // Der Timer laeuft ueber Request UND Body-Lesen: bei non-streaming haelt
@@ -110,7 +100,7 @@ async function callClaude({ model, systemBlocks = [], userPrompt, maxTokens = 40
         ...(thinking ? { thinking: { type: 'enabled', budget_tokens: thinkingBudget } } : {}),
         ...toolParams,
         ...(system.length ? { system } : {}),
-        messages: [{ role: 'user', content }]
+        messages: apiMessages
       }),
       ...(controller ? { signal: controller.signal } : {})
     });
@@ -137,6 +127,38 @@ async function callClaude({ model, systemBlocks = [], userPrompt, maxTokens = 40
     model: data.model,
     stop_reason: data.stop_reason || null
   };
+}
+
+function documentBlock(document) {
+  if (!document?.base64) return null;
+  return {
+    type: 'document',
+    source: {
+      type: 'base64',
+      media_type: document.mediaType || 'application/pdf',
+      data: document.base64
+    }
+  };
+}
+
+/** messages, sonst eine User-Message. Dokument haengt an der letzten User-Message. */
+function buildApiMessages({ userPrompt, messages, document }) {
+  const doc = documentBlock(document);
+  if (Array.isArray(messages) && messages.length) {
+    const out = messages.map((m) => ({ role: m.role, content: m.content }));
+    if (!doc) return out;
+    for (let i = out.length - 1; i >= 0; i--) {
+      if (out[i].role !== 'user') continue;
+      const text = typeof out[i].content === 'string' ? out[i].content : (userPrompt || '');
+      out[i] = { role: 'user', content: [doc, { type: 'text', text }] };
+      break;
+    }
+    return out;
+  }
+  const content = [];
+  if (doc) content.push(doc);
+  content.push({ type: 'text', text: userPrompt });
+  return [{ role: 'user', content }];
 }
 
 /** tool_use.input ist Objekt; manche Antworten liefern denselben JSON-String. */

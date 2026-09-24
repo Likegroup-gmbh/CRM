@@ -6,6 +6,7 @@ const { getSpec, buildFieldInstructions } = require('./extract-specs');
 const { sanitizePersonaPayload } = require('./produkt-persona');
 const { validateSituationen } = require('./audience-situation');
 const { extractJson, repairJsonStrings } = require('./anthropic');
+const { verlaufZuMessages } = require('./chat-verlauf');
 
 const EXTRACT_TOOL = {
   name: 'persona_extract_abgeben',
@@ -114,13 +115,6 @@ function buildChatPrompt({ history, formData, userText }) {
 
   let task = '# FELDER\n' + fieldCatalog() + '\n\n';
   task += 'Aktueller Formularstand: ' + JSON.stringify(formData || {}, null, 2) + '\n\n';
-  if (history?.length) {
-    task += 'Chat-Verlauf:\n';
-    for (const msg of history.slice(-10)) {
-      task += `${msg.rolle}: ${msg.inhalt}\n`;
-    }
-    task += '\n';
-  }
   task += `User: ${userText}\n\n`;
   task += '# REGELN\n'
     + '- reply: deine Antwort an den User. Ein Reply ohne patches aendert das Formular nicht.\n'
@@ -139,7 +133,11 @@ function buildChatPrompt({ history, formData, userText }) {
     + 'keine Produkt-Use-Cases. Nur setzen wenn noch keine da sind oder der User '
     + 'neue will. Sonst weglassen.\n';
 
-  return { stable, task };
+  return {
+    stable,
+    task,
+    messages: verlaufZuMessages(history, { task, limit: 10, dropTrailingUser: userText })
+  };
 }
 
 function patchValue(entry) {
