@@ -3413,7 +3413,7 @@ th[draggable="true"]:active {
   color: var(--text-secondary);
 }
 
-/* Leerer Tabellen-Container (z.B. StrategieDetailRenderer, CreatorAuswahlTemplates) */
+/* Leerer Tabellen-Container (z.B. StrategieDetailRenderer, castingTableRender) */
 .table-container--empty {
   text-align: center;
   padding: var(--space-xxl);

@@ -699,6 +699,17 @@
   box-sizing: border-box;
 }
 
+#video-upload-drawer .link-share-mode.drawer-tab-nav {
+  padding: 0;
+}
+
+#video-upload-drawer .link-folder-section .form-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: text;
+}
+
 #video-upload-drawer .video-upload-drawer-content,
 #video-upload-drawer .storys-upload-drawer-content,
 #video-upload-drawer .bilder-upload-drawer-content {

@@ -3,6 +3,7 @@
 
 import { produktFormRoute, produktListDetailRoute } from '../../modules/produkt/ProduktService.js';
 import { personaFormRoute } from '../../modules/persona/PersonaService.js';
+import { isAllowedHerkunft, withHerkunft } from '../navHerkunft.js';
 
 const VIEW_ROUTES = {
   strategie: (id) => `/konzepte/${id}`,
@@ -66,11 +67,9 @@ export async function handleEdit(entityId, entityType, actionItem) {
     return;
   }
 
-  const returnTo = actionItem?.dataset?.returnTo;
-  const editRoute = returnTo
-    ? `/${entityType}/${entityId}/edit?returnTo=${encodeURIComponent(returnTo)}`
-    : `/${entityType}/${entityId}/edit`;
-  window.navigateTo(editRoute);
+  const requested = actionItem?.dataset?.returnTo;
+  const herkunft = requested && isAllowedHerkunft(requested) ? requested : undefined;
+  window.navigateTo(withHerkunft(`/${entityType}/${entityId}/edit`, herkunft));
 }
 
 export function handleContinue(entityId) {

@@ -4,9 +4,10 @@
 // Unternehmen->Marke-Kaskade, Searchable Selects.
 
 import { BriefingCreate } from './BriefingCreateCore.js';
-import { evaluateCondition } from './fieldConfig.js';
+import { evaluateCondition, getAllFields } from './fieldConfig.js';
 import { escapeHtml } from './FieldRenderer.js';
 import { icon } from '../../../core/icons/IconSystem.js';
+import { backTarget } from '../../../core/navHerkunft.js';
 
 BriefingCreate.prototype.bindMultistepEvents = function() {
   const cancelBtn = document.getElementById('btn-cancel');
@@ -17,7 +18,7 @@ BriefingCreate.prototype.bindMultistepEvents = function() {
 
   if (cancelBtn) {
     cancelBtn.addEventListener('click', () => {
-      window.navigateTo('/briefing');
+      window.navigateTo(backTarget('/briefing'));
     });
   }
 
@@ -417,7 +418,64 @@ BriefingCreate.prototype.initSearchableSelects = function() {
         value: this.formData.assignee_id || null
       });
     }
+
+    void this.initNutzungsdauerSelect();
   } finally {
     setTimeout(() => { this._isInitializing = false; }, 100);
   }
+};
+
+function uniqueLabels(labels) {
+  const out = [];
+  const seen = new Set();
+  for (const raw of labels) {
+    const label = String(raw ?? '').trim();
+    const key = label.toLowerCase();
+    if (!label || seen.has(key)) continue;
+    seen.add(key);
+    out.push(label);
+  }
+  return out;
+}
+
+// Einfaches Searchable-Select mit allowCreate (nicht tagBased/Multiselect).
+// Vorgaben plus Katalog. createLookupEntry schreibt nur displayField;
+// label_norm setzt die Tabelle selbst.
+BriefingCreate.prototype.initNutzungsdauerSelect = async function() {
+  const select = document.getElementById('nutzungsdauer');
+  if (!select || !window.formSystem?.createSearchableSelect) return;
+
+  const field = getAllFields().find(item => item.name === 'nutzungsdauer');
+  if (!field?.allowCreate) return;
+
+  let extras = [];
+  if (window.supabase) {
+    const { data, error } = await window.supabase
+      .from(field.table)
+      .select(field.displayField)
+      .order(field.displayField, { ascending: true });
+    if (error) console.error('Nutzungsdauer-Katalog laden fehlgeschlagen:', error);
+    else extras = (data || []).map(row => row[field.displayField]);
+  }
+
+  const current = String(this.formData.nutzungsdauer || '').trim();
+  const currentKey = current.toLowerCase();
+  const labels = uniqueLabels([
+    ...(field.options || []).map(opt => opt.label),
+    ...extras,
+    current
+  ]);
+
+  window.formSystem.createSearchableSelect(select, labels.map(label => ({
+    value: label,
+    label,
+    selected: Boolean(currentKey) && label.toLowerCase() === currentKey
+  })), {
+    name: field.name,
+    placeholder: field.placeholder,
+    allowCreate: true,
+    table: field.table,
+    displayField: field.displayField,
+    valueField: field.valueField
+  });
 };

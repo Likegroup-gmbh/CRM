@@ -22,6 +22,7 @@ class MockJsPDF {
   constructor() {
     this.textCalls = [];
     this.images = [];
+    this.links = [];
     this.addPageCount = 0;
     this._size = 10;
     MockJsPDF.last = this;
@@ -32,8 +33,14 @@ class MockJsPDF {
   getFont() { return { fontName: 'helvetica', fontStyle: 'normal' }; }
   setTextColor() {}
   setDrawColor() {}
+  setFillColor() {}
+  setLineWidth() {}
+  setCharSpace() {}
+  line() {}
   rect() {}
   text(value) { this.textCalls.push(String(value ?? '')); }
+  getTextWidth(value) { return String(value ?? '').length * 1.6; }
+  link(x, y, w, h, options) { this.links.push({ x, y, w, h, url: options?.url }); }
   splitTextToSize(text) { return [String(text ?? '')]; }
   addPage() { this.addPageCount += 1; }
   addImage(src, type, x, y, w, h, alias, compression) {
@@ -51,9 +58,11 @@ const ANNA = {
   hauptteil_visuell: '',
   cta_visuell: '',
   hook_variante_1: 'GEHEIM',
-  creator: { name: 'Anna A', bildUrl: 'http://anna' },
+  creator: { name: 'Anna A', bildUrl: 'http://anna', instagram: '@anna' },
+  produktName: 'FORCE-FIT',
   customerName: 'VHV',
   customerLogoUrl: 'http://logo',
+  videoUrl: 'https://instagram.com/reel/abc',
 };
 
 beforeEach(() => {
@@ -142,20 +151,78 @@ describe('creatorFuerAnschreiben', () => {
   it('nimmt den Creator der Verknuepfung, Bild vor Thumb', () => {
     const creator = creatorFuerAnschreiben({ titel: 'X' }, [
       { position: 2, kooperation: { creator: { vorname: 'Zed', nachname: 'Z', profilbild_url: 'http://zed' } } },
-      { position: 1, kooperation: { creator: { vorname: 'Anna', nachname: 'A', profilbild_url: 'http://anna', profilbild_thumb_url: 'http://thumb' } } },
+      { position: 1, kooperation: { creator: { vorname: 'Anna', nachname: 'A', profilbild_url: 'http://anna', profilbild_thumb_url: 'http://thumb', instagram: '@anna' } } },
     ]);
-    expect(creator).toEqual({ name: 'Anna A', bildUrl: 'http://anna' });
+    expect(creator).toEqual({ name: 'Anna A', bildUrl: 'http://anna', instagram: '@anna' });
   });
 
   it('faellt auf den Creator der Videoidee zurueck', () => {
     const creator = creatorFuerAnschreiben({
       strategie_item: {
         casting_eintrag: {
-          creator: { vorname: 'Bea', nachname: 'B', profilbild_thumb_url: 'http://bea' },
+          creator: { vorname: 'Bea', nachname: 'B', profilbild_thumb_url: 'http://bea', instagram: 'https://instagram.com/bea/' },
         },
       },
     }, []);
-    expect(creator).toEqual({ name: 'Bea B', bildUrl: 'http://bea' });
+    expect(creator).toEqual({
+      name: 'Bea B',
+      bildUrl: 'http://bea',
+      instagram: 'https://instagram.com/bea/',
+    });
+  });
+
+  it('nimmt Instagram aus der Casting-Liste, auch ohne CRM-Creator', () => {
+    const creator = creatorFuerAnschreiben({
+      strategie_item: {
+        casting_eintrag: {
+          name: 'Jolina',
+          link_instagram: 'https://www.instagram.com/jolina/',
+        },
+      },
+    }, []);
+    expect(creator).toEqual({
+      name: 'Jolina',
+      bildUrl: '',
+      instagram: 'https://www.instagram.com/jolina/',
+    });
+  });
+
+  it('Casting-Instagram schlaegt den Handle am Creator', () => {
+    const creator = creatorFuerAnschreiben({
+      strategie_item: {
+        casting_eintrag: { link_instagram: 'https://instagram.com/casting' },
+      },
+    }, [
+      { position: 1, kooperation: { creator: { vorname: 'Anna', nachname: 'A', profilbild_url: 'http://anna', instagram: '@anna' } } },
+    ]);
+    expect(creator.name).toBe('Anna A');
+    expect(creator.instagram).toBe('https://instagram.com/casting');
+  });
+
+  it('beschriftet die Plattform, nicht die Account-URL', async () => {
+    await createSkriptAnhang([{
+      titel: 'X',
+      creator: { name: 'Jolina' },
+      instagram: 'https://www.instagram.com/jolina/',
+      tiktok: 'https://www.tiktok.com/@jolina',
+      videoUrl: 'https://example.com/reel',
+    }]);
+    const doc = MockJsPDF.last;
+    expect(doc.textCalls).toEqual(expect.arrayContaining(['Instagram', 'TikTok', 'Beispiel-Video']));
+    expect(doc.textCalls.join(' ')).not.toContain('jolina');
+    expect(doc.links.map((link) => link.url)).toEqual(expect.arrayContaining([
+      'https://instagram.com/jolina',
+      'https://www.tiktok.com/@jolina',
+      'https://example.com/reel',
+    ]));
+
+    await createSkriptAnhang([{
+      titel: 'Y',
+      creator: { name: 'Jolina' },
+      instagram: 'https://linktr.ee/jolina',
+    }]);
+    expect(MockJsPDF.last.textCalls).toContain('Social Media');
+    expect(MockJsPDF.last.links.map((link) => link.url)).toContain('https://linktr.ee/jolina');
   });
 
   it('ohne Verknuepfung null', () => {
@@ -172,10 +239,12 @@ describe('createSkriptAnhang', () => {
       expect(result.blob).toBeInstanceOf(Blob);
       const doc = MockJsPDF.last;
       expect(doc.textCalls).toEqual(expect.arrayContaining([
-        '×', 'Anna A', 'Eins', 'Was gesagt wird', 'Was zu sehen ist', 'Hook', 'Hauptteil', 'CTA', 'Erster Satz', 'Close-up',
+        '×', 'VHV FORCE-FIT × Anna A –', '„Eins“', 'CREATOR', 'Anna A',
+        'Instagram', 'Beispiel-Video', 'WAS GESAGT WIRD', 'WAS ZU SEHEN IST',
+        'HOOK', 'HAUPTTEIL', 'CTA', 'Erster Satz', 'Close-up',
       ]));
       expect(doc.textCalls).not.toContain('GEHEIM');
-      const creatorImages = doc.images.filter((img) => img.w === 18 && img.h === 18);
+      const creatorImages = doc.images.filter((img) => img.w === 12 && img.h === 12);
       expect(creatorImages).toEqual([
         expect.objectContaining({
           src: 'data:image/jpeg;base64,RASTER',
@@ -183,12 +252,23 @@ describe('createSkriptAnhang', () => {
           compression: 'FAST',
         }),
       ]);
-      const customer = doc.images.find((img) => img.w === PDF_BRAND.logoLeft.w && img.x !== PDF_BRAND.logoLeft.x);
+      const like = doc.images.find((img) => img.x === PDF_BRAND.logoLeft.x);
+      expect(like.w).toBeCloseTo(PDF_BRAND.logoLeft.w * 0.85);
+      expect(like.h).toBeCloseTo(PDF_BRAND.logoLeft.h * 0.85);
+      const customer = doc.images.find((img) => img.type === 'JPEG' && img.h !== 12);
       expect(customer).toMatchObject({
         src: 'data:image/jpeg;base64,RASTER',
         type: 'JPEG',
         compression: 'FAST',
       });
+      expect(customer.w).toBeCloseTo(PDF_BRAND.logoLeft.w * 0.85);
+      expect(customer.x).toBeGreaterThan(like.x + like.w + 6);
+      expect(doc.textCalls).not.toContain('https://instagram.com/reel/abc');
+      expect(doc.textCalls).not.toContain('instagram.com/anna');
+      expect(doc.links).toEqual([
+        expect.objectContaining({ url: 'https://instagram.com/anna' }),
+        expect.objectContaining({ url: 'https://instagram.com/reel/abc' }),
+      ]);
       expect(raster.canvases.every((c) => c.width <= 256 && c.height <= 256)).toBe(true);
       expect(doc.addPageCount).toBe(0);
     } finally {
@@ -203,7 +283,7 @@ describe('createSkriptAnhang', () => {
     ));
     try {
       await createSkriptAnhang([ANNA], { dateiname: 'Eins.pdf' });
-      const creatorImages = MockJsPDF.last.images.filter((img) => img.w === 18);
+      const creatorImages = MockJsPDF.last.images.filter((img) => img.w === 12);
       expect(creatorImages).toEqual([
         expect.objectContaining({ src: 'data:image/jpeg;base64,RASTER', type: 'JPEG', compression: 'FAST' }),
       ]);
@@ -223,7 +303,7 @@ describe('createSkriptAnhang', () => {
       const result = await createSkriptAnhang([ANNA], { dateiname: 'Eins.pdf' });
       expect(result.blob).toBeInstanceOf(Blob);
       expect(MockJsPDF.last.textCalls).toContain('Anna A');
-      expect(MockJsPDF.last.images.filter((img) => img.w === 18)).toHaveLength(0);
+      expect(MockJsPDF.last.images.filter((img) => img.w === 12)).toHaveLength(0);
     } finally {
       if (prev) globalThis.OffscreenCanvas = prev;
     }
@@ -235,14 +315,14 @@ describe('createSkriptAnhang', () => {
       String(url).includes('anna') ? 'data:image/png;base64,BROKEN' : 'data:image/png;base64,CUST'
     ));
     MockJsPDF.prototype.addImage = function addImage(src, type, x, y, w, h, alias, compression) {
-      if (w === 18) throw new Error('Incomplete or corrupt PNG file');
+      if (w === 12) throw new Error('Incomplete or corrupt PNG file');
       this.images.push({ src, type, x, y, w, h, alias, compression });
     };
     try {
       const result = await createSkriptAnhang([ANNA], { dateiname: 'Eins.pdf' });
       expect(result.blob).toBeInstanceOf(Blob);
       expect(MockJsPDF.last.textCalls).toContain('Anna A');
-      expect(MockJsPDF.last.images.filter((img) => img.w === 18)).toHaveLength(0);
+      expect(MockJsPDF.last.images.filter((img) => img.w === 12)).toHaveLength(0);
     } finally {
       raster.restore();
     }
@@ -260,9 +340,13 @@ describe('createSkriptAnhang', () => {
       creator: null,
     }], { dateiname: 'Leer.pdf' });
     const doc = MockJsPDF.last;
-    expect(doc.textCalls).toEqual(expect.arrayContaining(['Hook', 'Hauptteil', 'CTA']));
+    expect(doc.textCalls).toEqual(expect.arrayContaining(['„Leer“', 'HOOK', 'HAUPTTEIL', 'CTA']));
+    expect(doc.textCalls).not.toContain('SKRIPT');
+    expect(doc.textCalls).not.toContain('Beispiel-Video');
     expect(doc.textCalls).not.toContain('Anna A');
-    expect(doc.images.filter((img) => img.w === 18)).toHaveLength(0);
+    expect(doc.textCalls).not.toContain('CREATOR');
+    expect(doc.links).toEqual([]);
+    expect(doc.images.filter((img) => img.w === 12)).toHaveLength(0);
   });
 
   it('Sammel-PDF bricht pro Skript um', async () => {

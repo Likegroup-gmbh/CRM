@@ -11,6 +11,15 @@ export const BEREICH_OPTIONS = [
 
 export const BEREICH_LABELS = Object.fromEntries(BEREICH_OPTIONS.map(b => [b.value, b.label]));
 
+export const NUTZUNGSDAUER_PRESETS = [
+  '1 Monat',
+  '3 Monate',
+  '6 Monate',
+  '12 Monate',
+  '24 Monate',
+  '90 Monate'
+];
+
 export const ANSATZ_OPTIONS = [
   { value: 'kampagne', label: 'Kampagne' },
   { value: 'always_on', label: 'Always-on' }
@@ -357,7 +366,8 @@ export const FLOW_STEPS = [
           ]),
           fieldGroup('konzept-pflicht', 'stack', [
             { name: 'pflichtinhalte', label: 'Pflichtinhalte', type: 'textarea', rows: 3, placeholder: 'z.B. Produktname nennen, Benefit X zeigen, Disclaimer' },
-            { name: 'dos_donts', label: 'Kommunikative Do’s und Don’ts', type: 'textarea', rows: 3, placeholder: 'z.B. Do: authentisch. Don’t: Scripted Sales Pitch' }
+            { name: 'dos', label: 'Do’s', type: 'textarea', rows: 3, placeholder: 'z.B. authentisch, Produktname in den ersten 3 Sekunden' },
+            { name: 'donts', label: 'Don’ts', type: 'textarea', rows: 3, placeholder: 'z.B. kein Scripted Sales Pitch, nicht „klinisch getestet“ sagen' }
           ])
         ]
       },
@@ -422,7 +432,13 @@ export const FLOW_STEPS = [
             { name: 'nutzung_whitelisting', label: 'Whitelisting, Spark Ads oder Partnership Ads', type: 'checkbox' }
           ]),
           fieldGroup('nutzung-details', 'stack', [
-            { name: 'nutzungsdauer', label: 'Nutzungsdauer', type: 'text', placeholder: 'z.B. 6 Monate, Full Buyout' },
+            {
+              name: 'nutzungsdauer', label: 'Nutzungsdauer', type: 'select',
+              searchable: true, allowCreate: true,
+              table: 'nutzungsdauer_optionen', displayField: 'label', valueField: 'label',
+              options: NUTZUNGSDAUER_PRESETS.map(label => ({ value: label, label })),
+              placeholder: 'z.B. 6 Monate, Full Buyout'
+            },
             { name: 'rohmaterial', label: 'Rohmaterial erforderlich', type: 'radio', options: ROHMATERIAL_OPTIONS }
           ])
         ]

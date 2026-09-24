@@ -58,6 +58,7 @@ function buildPrompt({ briefingText, firma, marke, branche, beschreibung }) {
     + '(Influencer Marketing, Paid Creator Ads, Owned Social). '
     + 'Du schreibst knappe, umsetzbare Auswertungen auf Deutsch. '
     + 'Nichts erfinden: nur aus Briefing und Stammdaten ableiten. '
+    + 'Donts im Leitplanken-Block sind Verbote und duerfen in der Empfehlung nicht gebrochen werden. '
     + 'Was fehlt, gehoert in Offene Punkte – nicht als Fakt behaupten.';
 
   let task = '# AUFTRAG\nWerte das Campaign-Briefing aus und liefere vier Sektionen '

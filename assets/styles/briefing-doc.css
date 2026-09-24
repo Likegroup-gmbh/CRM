@@ -5,12 +5,50 @@
    Tokens ausschliesslich aus variables.css.
    ============================================================ */
 
+.main-wrapper:has(> .briefing-detail) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.briefing-detail {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.briefing-doc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  min-height: calc(var(--space-sm) * 2 + var(--space-xs) * 2 + 1.5 * var(--text-sm) + var(--border-xs) * 3);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: var(--border-xs) solid var(--border-primary);
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+.briefing-detail__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-lg);
+}
+
 .briefing-doc {
   max-width: 48rem;
   width: 100%;
   margin: 0 auto;
   padding-top: var(--space-lg);
   padding-bottom: var(--space-xxl);
+}
+
+.briefing-detail .briefing-doc {
+  padding-top: 0;
 }
 
 .briefing-doc__top {
@@ -79,15 +117,6 @@
   font-size: var(--text-sm);
   font-weight: 500;
   color: var(--text-tertiary);
-}
-
-.briefing-doc__personas {
-  margin: 0 0 var(--space-sm);
-  max-width: 32rem;
-}
-
-.briefing-doc__personas .searchable-select-container {
-  font-weight: 400;
 }
 
 .briefing-doc__title {
@@ -202,6 +231,7 @@
 .briefing-doc__specs {
   width: 100%;
   border-collapse: collapse;
+  background: var(--gray-50);
 }
 
 .briefing-doc__specs th,

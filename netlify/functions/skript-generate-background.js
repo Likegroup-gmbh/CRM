@@ -55,7 +55,9 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
     + '(Owned Media, Paid Ads, Influencer-Konzepte; TikTok, Instagram Reels). '
     + 'Du schreibst drehfertige Konzepte nach dem verbindlichen Master-Regelwerk. '
     + 'Die drei Systeme Owned, Paid und Influencer duerfen nicht vermischt werden. '
-    + 'Fehlende Produktfakten, Claims, Preise, Offers, Bewertungen oder Ergebnisse darfst du niemals erfinden.\n';
+    + 'Fehlende Produktfakten, Claims, Preise, Offers, Bewertungen oder Ergebnisse darfst du niemals erfinden. '
+    + 'Donts im Leitplanken-Block sind Verbote und duerfen im Skript nicht vorkommen. '
+    + 'Dos nur, wo der Fakt belegt ist.\n';
 
   stable += fmtMasterBlock(master);
 

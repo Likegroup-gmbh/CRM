@@ -7,6 +7,7 @@ import { collectEhgFelder } from './EhgVertragGating.js';
 import { splitButton } from '../../../core/components/SplitButton.js';
 import { statusOnFinalize } from '../vertragStatus.js';
 import { missingRequiredFields } from './vertragStepValidation.js';
+import { backTarget } from '../../../core/navHerkunft.js';
 
 VertraegeCreate.prototype.saveDraftToDB = async function() {
     // Erst aktuelle Formulardaten sammeln!
@@ -52,7 +53,7 @@ VertraegeCreate.prototype.saveDraftToDB = async function() {
 
       // Zur Liste navigieren
       setTimeout(() => {
-        window.navigateTo('/vertraege');
+        window.navigateTo(backTarget('/vertraege'));
       }, 500);
 
     } catch (error) {
@@ -552,7 +553,7 @@ VertraegeCreate.prototype.handleSubmit = async function(e, startNewAfter = false
       } else {
         // Zur Liste navigieren
         setTimeout(() => {
-          window.navigateTo('/vertraege');
+          window.navigateTo(backTarget('/vertraege'));
         }, 500);
       }
 

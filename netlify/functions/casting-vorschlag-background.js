@@ -36,7 +36,12 @@ const {
   fitGrundDeterministisch,
   validateVorschlaege,
   CASTING_TOOL,
-  buildPrompt
+  buildPrompt,
+  sanitizeLesung,
+  leerLesung,
+  personaProfilPasst,
+  DONT_LESUNG_TOOL,
+  buildDontLesungPrompt
 } = match;
 
 const THINKING_LABELS = {
@@ -176,8 +181,32 @@ exports.handler = async (event) => {
     const gap0 = lueckenJePersona(briefingPersonaIds, frozenByPersona);
 
     // --- Gates + Scores je Persona ---
+    schreibeStep('lesen', bedarf.donts ? 'Don’ts werden gelesen' : 'Keine Don’ts');
+    let lesung = leerLesung();
+    if (bedarf.donts) {
+      let leseKi = null;
+      try {
+        leseKi = await starteKiRequest(supabase, { userId: user.id, feature: 'casting_donts' });
+        const lesePrompt = buildDontLesungPrompt(bedarf);
+        const gelesen = await callClaude({
+          model: MODELS.distill,
+          systemBlocks: [{ text: lesePrompt.stable, cache: true }],
+          userPrompt: lesePrompt.task,
+          maxTokens: 1200,
+          tool: DONT_LESUNG_TOOL,
+          toolForced: true
+        });
+        lesung = sanitizeLesung(gelesen.json, bedarf);
+        await leseKi.abschliessen({ model: gelesen.model, usage: gelesen.usage });
+      } catch (err) {
+        await leseKi?.fehlgeschlagen(err);
+        lesung = leerLesung();
+        schreibeStep('lesen', 'Don’ts nicht gelesen, Checkbox-Gates gelten');
+      }
+    }
+
     schreibeStep('werten', `${kandidaten.length} Creator werden geprüft`);
-    const { pass, raus } = applyGates(kandidaten, bedarf, bild);
+    const { pass, raus } = applyGates(kandidaten, bedarf, bild, lesung);
     const brauchtNeue = Object.values(gap0).some(n => n > 0) || ohneIds.size > 0;
     if (!pass.length && brauchtNeue) {
       throw new Error('Kein Creator besteht die Grundanforderungen (Sprache, Land, Typ)');
@@ -208,6 +237,7 @@ exports.handler = async (event) => {
         alwaysOnFortfuehren: fortfuehren
       }, profile.fresh);
       for (const persona of bedarf.personas) {
+        if (!personaProfilPasst(k, persona)) continue;
         const pb = bedarfFuerPersona(bedarf, persona);
         const fitErgebnis = scoreFit(k, pb, profile.fit);
         const fit = fitErgebnis.wert;

@@ -2,7 +2,7 @@
 // TKP, Reels-Preis und die Preis-Zellen der Casting-Tabelle
 
 import { formatExactNumber } from '../../core/format/compactNumber.js';
-import { escapeHtml } from './CreatorAuswahlTemplates.js';
+import { escapeHtml } from '../../core/format.js';
 
 /** 740500 -> "740,5K", 6000 -> "6,0K", 850 -> "850" */
 function formatReachShort(views) {

@@ -2,6 +2,7 @@
 // Datenzugriff fuer den Skript-Generator (Layer 1).
 // Alle Queries laufen ueber window.supabase (RLS: intern voll, Kunden nur eigener Scope).
 
+import { dropAnschreibenWarm } from '../../core/anschreiben/openAnschreiben.js';
 import { FUNNEL_STUFEN, VIDEO_LAENGEN, DNA_LAYER, SKRIPT_BEREICHE, MASTER_BEREICHE } from './skripteKonstanten.js';
 import { planeVersionsRows } from './versionsNummerierung.js';
 import { briefingVorgaben } from './briefingVorgaben.js';
@@ -236,6 +237,7 @@ export class SkripteService {
   async updateSkript(id, patch) {
     const { error } = await this.db.from('skripte').update(patch).eq('id', id);
     if (error) throw new Error(error.message);
+    dropAnschreibenWarm('skript', id);
   }
 
   /**

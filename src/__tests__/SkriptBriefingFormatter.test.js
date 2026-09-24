@@ -92,6 +92,31 @@ describe('fmtCampaignBriefing', () => {
     expect(text).toContain('https://cta.example');
   });
 
+  it('Donts stehen vor dem Budget und werden nicht gekuerzt', () => {
+    const donts = 'VERBOT '.repeat(40).trim();
+    const text = fmtCampaignBriefing({
+      bereich: 'influencer_marketing',
+      aktivierung_name: 'Kurz',
+      im_learnings_text: 'y'.repeat(5000),
+      donts,
+      dos: 'Produktname in den ersten drei Sekunden'
+    }, { max: 400 });
+    expect(text).toContain(donts);
+    expect(text).toContain('# DOS');
+    expect(text.indexOf('# DONTS')).toBeLessThan(text.indexOf('# CAMPAIGN-BRIEFING'));
+    expect(text.indexOf('# DOS')).toBeGreaterThan(text.indexOf('# DONTS'));
+  });
+
+  it('alter Mischtext gilt, solange die neuen Felder leer sind', () => {
+    const text = fmtCampaignBriefing({
+      bereich: 'influencer_marketing',
+      aktivierung_name: 'Alt',
+      dos_donts: 'Do: authentisch. Dont: kein Sales-Pitch'
+    });
+    expect(text).toContain('Do: authentisch. Dont: kein Sales-Pitch');
+    expect(text).not.toContain('# DOS');
+  });
+
   it('Default-Budget ist BRIEFING_MAX', () => {
     expect(BRIEFING_MAX).toBe(6000);
   });

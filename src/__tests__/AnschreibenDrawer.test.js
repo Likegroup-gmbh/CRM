@@ -33,6 +33,33 @@ function mockDb(vorlagen = VORLAGEN) {
   return { from: vi.fn((t) => (t === 'mailvorlage' ? mailvorlage : chain({ data: [], error: null }))) };
 }
 
+async function expectPaintWhenReady(db, opts = {}) {
+  let release;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const drawer = new AnschreibenDrawer({
+    dokumentTyp: 'briefing',
+    dokumentId: 'b1',
+    dokumentName: 'Glow Up',
+    unternehmenId: 'u1',
+    db,
+    createPdf: () => gate.then(() => ({ blob: new Blob(['%PDF']), dateiname: 'glow.pdf' })),
+    ...opts,
+  });
+  const opening = drawer.open();
+  const panel = document.querySelector('.anschreiben-drawer');
+  expect(panel.classList.contains('show')).toBe(false);
+  expect(panel.querySelector('[data-betreff]').value).toBe('');
+  expect(panel.querySelector('[data-pdf-status]').textContent).toBe('');
+  release();
+  await opening;
+  expect(panel.querySelector('[data-betreff]').value).toBe('Briefing: {{briefing}}');
+  expect(panel.querySelector('[data-body]').value).toBe('Hallo {{vorname}}');
+  expect(panel.querySelector('[data-pdf-status]').textContent).toBe('glow.pdf');
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  expect(panel.classList.contains('show')).toBe(true);
+  drawer.close();
+}
+
 async function openDrawer(db, opts = {}) {
   const drawer = new AnschreibenDrawer({
     dokumentTyp: 'briefing',
@@ -233,6 +260,13 @@ describe('AnschreibenDrawer', () => {
     expect(body.pdfBase64).toBe('');
     expect(body.empfaenger.map((e) => e.pdfs[0].dateiname)).toEqual(['c1.pdf', 'c2.pdf']);
     drawer.close();
+  });
+
+  it('Briefing und Vertrag bleiben zu, bis der Snapshot steht', async () => {
+    await expectPaintWhenReady(mockDb());
+    document.body.innerHTML = '';
+    const vertragVorlagen = VORLAGEN.map((v) => ({ ...v, dokument_typ: 'vertrag' }));
+    await expectPaintWhenReady(mockDb(vertragVorlagen), { dokumentTyp: 'vertrag' });
   });
 
   it('empfaengerFest ohne Mail haelt Senden disabled', async () => {

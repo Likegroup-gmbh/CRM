@@ -17,6 +17,7 @@ import { renderToolbarMenu, renderToolbarMenuItem, renderToolbarListenKopf, bind
 import { icon } from '../../core/icons/IconSystem.js';
 import { VideoideeVorschlagPanel } from './VideoideeVorschlagPanel.js';
 import { isVideoideeVorschlag } from './videoideeVorschlag.js';
+import { showProduktionLeaf } from '../../core/navHerkunft.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -90,34 +91,37 @@ export class StrategieDetail {
       await this.customColumns.loadValues(this.items.map(i => i.id));
 
       if (!this.embedded && window.breadcrumbSystem && this.strategie) {
-        const crumbs = [
-          { label: 'Konzepte', url: '/konzepte', clickable: true }
-        ];
+        const shown = await showProduktionLeaf(this.strategie.name);
+        if (!shown) {
+          const crumbs = [
+            { label: 'Konzepte', url: '/konzepte', clickable: true }
+          ];
 
-        if (this.strategie.unternehmen) {
-          const uName = encodeURIComponent(this.strategie.unternehmen.firmenname);
-          const uId = this.strategie.unternehmen_id;
-          crumbs.push({
-            label: this.strategie.unternehmen.firmenname,
-            url: `/konzepte?unternehmen=${uId}&unternehmen_name=${uName}`,
-            clickable: true
-          });
+          if (this.strategie.unternehmen) {
+            const uName = encodeURIComponent(this.strategie.unternehmen.firmenname);
+            const uId = this.strategie.unternehmen_id;
+            crumbs.push({
+              label: this.strategie.unternehmen.firmenname,
+              url: `/konzepte?unternehmen=${uId}&unternehmen_name=${uName}`,
+              clickable: true
+            });
+          }
+
+          if (this.strategie.marke) {
+            const uName = encodeURIComponent(this.strategie.unternehmen?.firmenname || '');
+            const uId = this.strategie.unternehmen_id;
+            const mName = encodeURIComponent(this.strategie.marke.markenname);
+            const mId = this.strategie.marke_id;
+            crumbs.push({
+              label: this.strategie.marke.markenname,
+              url: `/konzepte?unternehmen=${uId}&unternehmen_name=${uName}&marke=${mId}&marke_name=${mName}`,
+              clickable: true
+            });
+          }
+
+          crumbs.push({ label: this.strategie.name, url: '#', clickable: false });
+          window.breadcrumbSystem.updateBreadcrumb(crumbs);
         }
-
-        if (this.strategie.marke) {
-          const uName = encodeURIComponent(this.strategie.unternehmen?.firmenname || '');
-          const uId = this.strategie.unternehmen_id;
-          const mName = encodeURIComponent(this.strategie.marke.markenname);
-          const mId = this.strategie.marke_id;
-          crumbs.push({
-            label: this.strategie.marke.markenname,
-            url: `/konzepte?unternehmen=${uId}&unternehmen_name=${uName}&marke=${mId}&marke_name=${mName}`,
-            clickable: true
-          });
-        }
-
-        crumbs.push({ label: this.strategie.name, url: '#', clickable: false });
-        window.breadcrumbSystem.updateBreadcrumb(crumbs);
       }
 
       if (!this.embedded) window.setHeadline('');

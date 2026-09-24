@@ -1,7 +1,7 @@
 // CastingMatch.test.js
 // Deterministischer Kern der Casting-Vorschlaege (ADR 0013/0014):
 //   - Bedarf aus dem aktiven Briefing-Bereich, Fingerprint
-//   - Gates: hart nur bei gesetztem Feld, Unbekannt ist kein Rauswurf
+//   - Gates: abgefragtes Profilfeld, leer oder daneben ist raus
 //   - Scores: Fit/Track/Fresh, Wilson statt 1/1 = 100
 //   - Matching: ein finaler Score (80/15/5), Renorm bei Cold-Start
 //   - Ranking: Top-N nach Matching, kein Slot-Portfolio mehr
@@ -29,7 +29,9 @@ const {
   topNNachMatching,
   orderPersonasByIds,
   validateVorschlaege,
-  PROFILES
+  PROFILES,
+  sanitizeLesung,
+  personaProfilPasst
 } = castingMatch;
 
 // ---------------------------------------------------------------------------
@@ -183,27 +185,25 @@ describe('applyGates', () => {
     expect(raus.map(r => r.grund)).toEqual(['bereits_auf_dieser_liste']);
   });
 
-  it('Sprache und Land gaten nur bei beidseitig gesetztem Feld', () => {
+  it('Sprache und Land: falsch oder leer fliegt, sobald danach gefragt wird', () => {
     const englisch = kandidat({ creator_sprachen: [{ sprachen: { id: 's2', name: 'Englisch' } }] });
     expect(applyGates([englisch], bedarf(), {}).raus[0].grund).toBe('sprache_fehlt');
 
     const oesterreich = kandidat({ lieferadresse_land: 'Österreich' });
     expect(applyGates([oesterreich], bedarf(), {}).raus[0].grund).toBe('land_fehlt');
 
-    // Kandidat ohne Land-Angabe bleibt drin
     const ohneLand = kandidat({ lieferadresse_land: null });
-    expect(applyGates([ohneLand], bedarf(), {}).pass).toHaveLength(1);
+    expect(applyGates([ohneLand], bedarf(), {}).raus[0].grund).toBe('land_fehlt');
+    expect(applyGates([ohneLand], bedarf({ maerkte: [] }), {}).pass).toHaveLength(1);
   });
 
-  it('Voraussetzung: false fliegt, null bleibt mit unverified-Flag', () => {
+  it('Voraussetzung: false und null fliegen, true bleibt', () => {
     const b = bedarf({ voraussetzungen: ['haustier'] });
     const nein = kandidat({ hat_haustier: false });
     expect(applyGates([nein], b, {}).raus[0].grund).toBe('voraussetzung_fehlt');
     const unbekannt = kandidat({ hat_haustier: null });
-    const { pass } = applyGates([unbekannt], b, {});
-    expect(pass).toHaveLength(1);
-    const fit = scoreFit(pass[0], b, PROFILES.ugc.fit);
-    expect(fit.coverage.voraussetzung).toBe('unverified');
+    expect(applyGates([unbekannt], b, {}).raus[0].grund).toBe('voraussetzung_fehlt');
+    expect(applyGates([kandidat({ hat_haustier: true })], b, {}).pass).toHaveLength(1);
   });
 
   it('Kontakt: fehlende Mail gatet nicht', () => {
@@ -216,6 +216,46 @@ describe('applyGates', () => {
   it('Alter ohne Schnitt fliegt', () => {
     const alt = kandidat({ alter_min: 50, alter_max: 60 });
     expect(applyGates([alt], bedarf(), {}).raus[0].grund).toBe('alter_ausserhalb');
+  });
+
+  it('leeres Alter, falsches Geschlecht, falsche und benachbarte Nische, unbekannte Groesse fliegen', () => {
+    expect(applyGates([kandidat({ alter_min: null, alter_max: null, alter_jahre: null })], bedarf(), {}).raus[0].grund)
+      .toBe('alter_ausserhalb');
+    expect(applyGates([kandidat({ geschlecht: 'männlich' })], bedarf(), {}).raus[0].grund)
+      .toBe('geschlecht_fehlt');
+    const lifestyle = kandidat({ creator_branchen: [{ branche_id: { id: 'b2', name: 'Lifestyle' } }] });
+    expect(applyGates([lifestyle], bedarf(), {}).raus[0].grund).toBe('nische_fehlt');
+    const ohneBranche = kandidat({ creator_branchen: [] });
+    expect(applyGates([ohneBranche], bedarf(), {}).raus[0].grund).toBe('nische_fehlt');
+    const ohneFollower = kandidat({ instagram_follower: null, tiktok_follower: null });
+    expect(applyGates([ohneFollower], bedarf(), {}).raus[0].grund).toBe('groesse_fehlt');
+  });
+
+  it('Tattoo in der Caption fliegt, leere Bio bleibt, Satzverbot wirft niemanden', () => {
+    const tattoo = kandidat({ ig_recent_posts: [{ caption: 'Mein neues Tattoo' }] });
+    expect(applyGates([tattoo], bedarf(), {}, { suchbegriffe: ['tattoo'], satz: [], ausschluss: {} }).raus[0].grund)
+      .toBe('profiltext');
+    const leer = kandidat({ ig_biography: '', notiz: '', ig_recent_posts: [] });
+    expect(applyGates([leer], bedarf(), {}, { suchbegriffe: ['tattoo'], satz: ['nicht klinisch getestet'], ausschluss: {} }).pass)
+      .toHaveLength(1);
+  });
+
+  it('Persona-Alter und Geschlecht gelten nur fuer diese Karte', () => {
+    const frau = kandidat();
+    expect(personaProfilPasst(frau, { alter: [25, 34], geschlecht: 'männlich' })).toBe(false);
+    expect(personaProfilPasst(frau, { alter: [25, 34], geschlecht: 'weiblich' })).toBe(true);
+    const ohneAlter = kandidat({ alter_min: null, alter_max: null, alter_jahre: null });
+    expect(personaProfilPasst(ohneAlter, { alter: [25, 34], geschlecht: 'weiblich' })).toBe(false);
+  });
+
+  it('Dont keine Macros dreht angehaktes Micro nicht um', () => {
+    const lesung = sanitizeLesung({
+      suchbegriffe: [],
+      satz: [],
+      ausschluss: { groesse: ['micro', 'macro'] }
+    }, bedarf({ groessen: ['micro'] }));
+    expect(lesung.ausschluss.groesse).toBeUndefined();
+    expect(applyGates([kandidat()], bedarf({ groessen: ['micro'] }), {}, lesung).pass).toHaveLength(1);
   });
 });
 

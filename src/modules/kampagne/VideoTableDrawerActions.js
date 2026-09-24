@@ -31,6 +31,7 @@ export class VideoTableDrawerActions {
       marke: t.kampagneInfo?.marke || '',
       kampagne: t.kampagneInfo?.name || '',
       creatorName,
+      folderUrl: video?.folder_url || '',
       bilderFolderUrl: koop?.bilder_folder_url || null,
       videos: videos.map(v => ({ id: v.id, position: v.position || 1, thema: v.thema || '' }))
     };
@@ -172,6 +173,7 @@ export class VideoTableDrawerActions {
       videoUrl,
       filePath,
       videoTitel: video?.thema || 'Video',
+      folderUrl: video?.folder_url || '',
       videos: videos.map(v => ({ id: v.id, position: v.position || 1, thema: v.thema || '' })),
       initialTab,
       onReupload: () => this.openUploadDrawer(videoId, kooperationId),
@@ -180,6 +182,11 @@ export class VideoTableDrawerActions {
       onDelete: () => this.executeVideoDelete(videoId, kooperationId),
       onBilderChanged: () => this.refreshBilderForKoop(kooperationId),
       onFinaleChanged: () => this.refreshFinalAssetsForVideo(videoId, kooperationId),
+      onFolderCleared: () => {
+        if (t.store) t.store.updateVideo(videoId, { folder_url: null });
+        else if (video) video.folder_url = null;
+        t.refilter();
+      },
     });
   }
 

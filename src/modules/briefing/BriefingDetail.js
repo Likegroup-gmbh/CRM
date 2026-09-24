@@ -4,10 +4,11 @@
 // Step-/Section-Struktur wie der Generator). Textareas sind inline
 // editierbar; Specs/Tags gehen weiter ueber /briefing/:id/edit.
 
+import { dropAnschreibenWarm, warmAnschreiben } from '../../core/anschreiben/openAnschreiben.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { renderBriefingDoc, bindBriefingDoc } from './BriefingDocView.js';
 import { loadBriefingProdukte } from './BriefingProdukte.js';
-import { bindBriefingPersonaPicker, loadPersonasForBriefing } from './BriefingPersonas.js';
+import { backTarget, showProduktionLeaf, withHerkunft } from '../../core/navHerkunft.js';
 
 export class BriefingDetail {
   constructor() {
@@ -16,7 +17,6 @@ export class BriefingDetail {
     this.compactView = true;
     this._abortController = null;
     this._docHandle = null;
-    this._personaHandle = null;
   }
 
   canEdit() {
@@ -34,10 +34,10 @@ export class BriefingDetail {
       await this.loadData();
 
       if (window.breadcrumbSystem && this.briefing) {
-        window.breadcrumbSystem.updateDetailLabel(this.briefing.aktivierung_name || 'Details', {
-          id: 'btn-edit-briefing',
-          canEdit: this.canEdit()
-        });
+        const label = this.briefing.aktivierung_name || 'Details';
+        const editButton = { id: 'btn-edit-briefing', canEdit: this.canEdit() };
+        const shown = await showProduktionLeaf(label, editButton);
+        if (!shown) window.breadcrumbSystem.updateDetailLabel(label, editButton);
       }
 
       await this.render();
@@ -66,7 +66,6 @@ export class BriefingDetail {
     this.briefing = data;
     this.briefing.produkte = await loadBriefingProdukte(this.briefingId);
     const personaIds = Array.isArray(data.persona_ids) ? data.persona_ids.filter(Boolean) : [];
-    this.briefing.personaOptions = await loadPersonasForBriefing(data.unternehmen_id);
     if (personaIds.length && window.supabase) {
       const { data: personas } = await window.supabase
         .from('personas')
@@ -76,12 +75,23 @@ export class BriefingDetail {
     } else {
       this.briefing.personas = [];
     }
+    this.warmBriefingAnschreiben();
+  }
+
+  warmBriefingAnschreiben() {
+    if (!this.briefing || this.briefing.is_draft || !window.isInternal?.()) return;
+    warmAnschreiben({
+      dokumentTyp: 'briefing',
+      dokumentId: this.briefingId,
+      detail: this,
+    }).catch((err) => console.error('Anschreiben vorwärmen fehlgeschlagen:', err));
   }
 
   setupCacheInvalidation() {
     const signal = this._abortController?.signal;
     window.addEventListener('entityUpdated', (e) => {
       if (e.detail.entity === 'briefing' && e.detail.id === this.briefingId) {
+        dropAnschreibenWarm('briefing', this.briefingId);
         tabDataCache.invalidate('briefing', this.briefingId);
         if (e.detail.action === 'updated') {
           this.loadData().then(() => this.render());
@@ -124,21 +134,9 @@ export class BriefingDetail {
         if (this.briefing) this.briefing[feld] = text;
       }
     });
-    this._personaHandle = bindBriefingPersonaPicker(root, {
-      briefing: this.briefing,
-      canEdit: this.canEdit(),
-      onChanged: async () => {
-        await this.loadData();
-        await this.render();
-      }
-    });
   }
 
   async _unbindDoc() {
-    if (this._personaHandle) {
-      try { this._personaHandle.destroy(); } catch (_) { /* Unmount trotzdem */ }
-      this._personaHandle = null;
-    }
     if (!this._docHandle) return;
     try {
       await this._docHandle.destroy();
@@ -266,7 +264,7 @@ export class BriefingDetail {
       if (e.target.closest('#btn-edit-briefing')) {
         e.preventDefault();
         this._unbindDoc().finally(() => {
-          window.navigateTo(`/briefing/${this.briefingId}/edit`);
+          window.navigateTo(withHerkunft(`/briefing/${this.briefingId}/edit`));
         });
       }
       if (e.target.closest('#btn-briefing-fields-toggle')) {
@@ -281,7 +279,7 @@ export class BriefingDetail {
     }, { signal });
 
     document.addEventListener('click', async (e) => {
-      if (e.target.id === 'btn-delete-briefing') {
+      if (e.target.closest('#btn-delete-briefing')) {
         e.preventDefault();
         const doDelete = async () => {
           try {
@@ -291,7 +289,7 @@ export class BriefingDetail {
               .eq('id', this.briefingId);
             if (error) throw error;
             window.dispatchEvent(new CustomEvent('entityUpdated', { detail: { entity: 'briefing', action: 'deleted', id: this.briefingId } }));
-            window.navigateTo('/briefing');
+            window.navigateTo(backTarget('/briefing'));
           } catch (err) {
             console.error('Fehler beim Löschen des Briefings:', err);
             window.toastSystem?.show('Löschen fehlgeschlagen.', 'error');

@@ -125,3 +125,49 @@ describe('renderEntityMulti', () => {
     expect(html).not.toContain('checkbox-label');
   });
 });
+
+describe('Nutzungsdauer Searchable-Select', () => {
+  afterEach(() => {
+    delete window.formSystem;
+    delete window.supabase;
+    document.body.innerHTML = '';
+  });
+
+  it('hängt Vorgaben und Katalog an das einfache Select mit allowCreate', async () => {
+    const { renderField } = await import('../modules/briefing/create/FieldRenderer.js');
+    const { getAllFields } = await import('../modules/briefing/create/fieldConfig.js');
+    const field = getAllFields().find(item => item.name === 'nutzungsdauer');
+
+    document.body.innerHTML = `<form id="briefing-form">${renderField(field, { nutzungsdauer: 'bis auf Weiteres' }, {})}</form>`;
+    const select = document.getElementById('nutzungsdauer');
+    expect(select.multiple).toBe(false);
+    expect(select.dataset.tagBased).toBeUndefined();
+    expect(select.querySelector('option[value="bis auf Weiteres"]')).toBeTruthy();
+
+    const order = vi.fn(async () => ({ data: [{ label: 'Full Buyout' }], error: null }));
+    window.supabase = { from: vi.fn(() => ({ select: vi.fn(() => ({ order })) })) };
+    window.formSystem = { createSearchableSelect: vi.fn() };
+
+    const instance = createInstance();
+    instance.formData = { nutzungsdauer: 'bis auf Weiteres' };
+    await instance.initNutzungsdauerSelect();
+
+    expect(window.supabase.from).toHaveBeenCalledWith('nutzungsdauer_optionen');
+    const [el, options, config] = window.formSystem.createSearchableSelect.mock.calls[0];
+    expect(el).toBe(select);
+    expect(options.map(option => option.label)).toEqual([
+      '1 Monat', '3 Monate', '6 Monate', '12 Monate', '24 Monate', '90 Monate',
+      'Full Buyout', 'bis auf Weiteres'
+    ]);
+    expect(options.filter(option => option.selected).map(option => option.label)).toEqual(['bis auf Weiteres']);
+    expect(config).toEqual({
+      name: 'nutzungsdauer',
+      placeholder: 'z.B. 6 Monate, Full Buyout',
+      allowCreate: true,
+      table: 'nutzungsdauer_optionen',
+      displayField: 'label',
+      valueField: 'label'
+    });
+    expect(config.tagBased).toBeUndefined();
+  });
+});

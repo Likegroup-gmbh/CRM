@@ -2,6 +2,7 @@
 // Auf der Kampagne: Titel, dann Briefing-Anlage. Das Produkt entsteht danach.
 
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
+import { withProduktionHerkunft } from '../../core/navHerkunft.js';
 
 function esc(value) {
   return window.validatorSystem?.sanitizeHtml(String(value ?? '')) || '';
@@ -49,7 +50,11 @@ export async function openProduktionBriefingDrawer(detail, { produktionId = null
     if (produktionId) params.set('produktion', produktionId);
     if (detail.produktion?.produkt_id) params.set('produkt', detail.produktion.produkt_id);
     close();
-    window.navigateTo(`/briefing/new?${params.toString()}`);
+    window.navigateTo(withProduktionHerkunft(
+      `/briefing/new?${params.toString()}`,
+      produktionId,
+      'briefing'
+    ));
   };
   document.body.appendChild(modal);
 }

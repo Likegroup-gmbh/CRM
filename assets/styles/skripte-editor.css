@@ -225,7 +225,7 @@
   min-width: 0;
 }
 
-/* Creator-Button im Doc-Kopf: Bubble kompakt, Name gekuerzt */
+/* Creator-Button im Doc-Kopf: Standard-Bubble, Name gekuerzt */
 .skripte-editor-zuweisen-btn {
   flex-shrink: 0;
 }
@@ -248,12 +248,6 @@
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
-}
-
-.skripte-editor-zuweisen-bubbles .avatar-bubble {
-  --avatar-size: 20px;
-  font-size: 0.55rem;
-  border-width: 2px;
 }
 
 .skripte-editor-zuweisen-name {

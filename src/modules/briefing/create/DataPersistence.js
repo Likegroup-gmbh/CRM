@@ -6,6 +6,7 @@
 import { BriefingCreate } from './BriefingCreateCore.js';
 import { getAllFields, flattenFields, FLOW_STEPS, isFieldActive } from './fieldConfig.js';
 import { starteBriefingAuswertung } from './BriefingAuswertung.js';
+import { backTarget } from '../../../core/navHerkunft.js';
 
 function collectableFields() {
   const fields = [];
@@ -305,7 +306,7 @@ BriefingCreate.prototype.saveDraftToDB = async function() {
     await this.persistDraft();
     window.toastSystem?.show(this.editId ? 'Entwurf aktualisiert!' : 'Entwurf gespeichert!', 'success');
     setTimeout(() => {
-      window.navigateTo('/briefing');
+      window.navigateTo(backTarget('/briefing'));
     }, 500);
   } catch (error) {
     console.error('Fehler beim Speichern des Entwurfs:', error);
@@ -427,7 +428,7 @@ BriefingCreate.prototype.handleSubmit = async function() {
     );
 
     setTimeout(() => {
-      window.navigateTo(produktion?.id ? `/produktion/${produktion.id}` : '/briefing');
+      window.navigateTo(produktion?.id ? `/produktion/${produktion.id}` : backTarget('/briefing'));
     }, 500);
   } catch (error) {
     console.error('Fehler beim Speichern:', error);

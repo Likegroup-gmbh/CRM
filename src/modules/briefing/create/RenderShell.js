@@ -12,6 +12,7 @@ import { renderStep } from './FieldRenderer.js';
 import { renderLikyComposer, renderLikySend, renderLikyColumn, renderLikyEingabe } from '../../../core/chat/likyComposer.js';
 import { likyCapability } from '../../../core/chat/likyCapabilities.js';
 import { BriefingLikyPanel } from './BriefingLikyPanel.js';
+import { backTarget } from '../../../core/navHerkunft.js';
 
 BriefingCreate.prototype.render = function() {
   if (this._isRendering) {
@@ -53,7 +54,7 @@ BriefingCreate.prototype.renderStep1 = function() {
           ${cards}
         </div>
         <div class="pe-type-selection__actions">
-          <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.navigateTo('/briefing')">
+          <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.navigateTo('${backTarget('/briefing').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">
             <span class="mdc-btn__label">Abbrechen</span>
           </button>
           <button type="button" id="btn-generate" class="mdc-btn" ${this.selectedBereich ? '' : 'disabled'}>

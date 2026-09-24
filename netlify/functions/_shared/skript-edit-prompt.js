@@ -316,7 +316,8 @@ function buildEditPrompt(ctx, message) {
   // Block 1 (stabil, cachebar): Rolle + Master + DNA (+ Visual-Stil, wenn die Visual-Spalte geschrieben werden kann)
   let stable = 'Du bist ein erfahrener Creative Director fuer Social-Video-Content '
     + 'und ueberarbeitest ein bestehendes deutsches Video-Konzept im Dialog mit einem Mitarbeiter. '
-    + 'Du aenderst NUR was verlangt wird und erhaeltst Ton und Stil des restlichen Dokuments.\n';
+    + 'Du aenderst NUR was verlangt wird und erhaeltst Ton und Stil des restlichen Dokuments. '
+    + 'Donts im Leitplanken-Block bleiben Verbote. Dos nur, wo der Fakt belegt ist.\n';
 
   stable += fmtMasterBlock(master);
 

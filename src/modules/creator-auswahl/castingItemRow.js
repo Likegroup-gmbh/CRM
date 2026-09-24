@@ -4,6 +4,7 @@
 import { CREATOR_TYP_SELECT_OPTIONS } from './creatorTypeOptions.js';
 import { renderTableSelect, tableSelectDisabled } from '../../core/components/TableSelect.js';
 import { formatCompactNumber, formatExactNumber } from '../../core/format/compactNumber.js';
+import { escapeHtml } from '../../core/format.js';
 import { renderSourcingIgCell } from './sourcingIgCell.js';
 import { renderMatchingCell } from './sourcingMatching.js';
 import {
@@ -17,15 +18,8 @@ import {
   castingCreatorBadge
 } from './sourcingStatusOptions.js';
 import { icon } from '../../core/icons/IconSystem.js';
-import {
-  escapeHtml,
-  isColumnVisibleForCustomer,
-  getStickyClasses,
-  EXTERNAL_LINK_ICON,
-  MAIL_ICON,
-  INSTAGRAM_ICON,
-  TIKTOK_ICON
-} from './CreatorAuswahlTemplates.js';
+import { isColumnVisibleForCustomer, getStickyClasses } from './sourcingSpaltenSichtbarkeit.js';
+import { EXTERNAL_LINK_ICON, MAIL_ICON, INSTAGRAM_ICON, TIKTOK_ICON } from './sourcingIcons.js';
 import {
   rowCanWrite,
   renderPreisFreitextCell,

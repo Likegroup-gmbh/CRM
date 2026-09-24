@@ -1,25 +1,35 @@
 // SkriptPdf.js
-// Anschreiben-PDF: Lockup wie das Briefing, darunter ein Creator (Bild + Name),
-// dann die Editor-Tabelle Hook / Hauptteil / CTA. Keine Hook-Varianten, kein Zusatz.
+// Anschreiben-PDF nach der LikeBase-Vorlage, schwarz/weiss:
+// Lockup, Marke × Creator, Titel, Creator-Karte, dann Hook / Hauptteil / CTA.
 
 import { konzeptCreatorFromSkript } from './editor/SkriptEditorDocRenderer.js';
-import { drawBriefingLockup, loadCustomerLogoPng, toPdfImageDataUrl } from '../briefing/BriefingPdf.js';
+import { loadCustomerLogoPng, toPdfImageDataUrl } from '../briefing/BriefingPdf.js';
 import {
   loadLikeGroupLogoPng,
   drawLikeGroupFooter,
+  PDF_BRAND,
 } from '../../core/pdf/PdfBrand.js';
 
 export const JSPDF_URL = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
 
 const MARGIN_X = 14;
-const COLS = [{ w: 28 }, { w: 77 }, { w: 77 }];
+const COLS = [{ w: 33 }, { w: 74.5 }, { w: 74.5 }];
 const TABLE_W = 182;
 const MAX_CONTENT_Y = 272;
-const CREATOR_SIZE = 18;
+const CREATOR_SIZE = 12;
+const CARD_H = 16;
 const LINE = 4.2;
+const CELL_PAD = 3;
+const LOCKUP_SCALE = 0.85;
+const LOCKUP_GAP = 6;
+const LOCKUP_GAP_AFTER_X = 8;
+const RULE = [227, 224, 230];
+const HEADER_FILL = [246, 244, 247];
+const HEADER_TEXT = [92, 87, 98];
+const MUTED = [122, 117, 128];
 const ROWS = [
-  ['Hook', 'hook', 'hook_visuell'],
-  ['Hauptteil', 'hauptteil', 'hauptteil_visuell'],
+  ['HOOK', 'hook', 'hook_visuell'],
+  ['HAUPTTEIL', 'hauptteil', 'hauptteil_visuell'],
   ['CTA', 'cta', 'cta_visuell'],
 ];
 
@@ -77,8 +87,16 @@ function plain(text) {
 function linesOf(doc, text, width) {
   const value = plain(text);
   if (!value) return [''];
-  const lines = doc.splitTextToSize(value, Math.max(8, width - 3));
+  const lines = doc.splitTextToSize(value, Math.max(8, width));
   return lines?.length ? lines : [''];
+}
+
+function ascentMm(pt) {
+  return pt * 0.352778 * 0.73;
+}
+
+function descentMm(pt) {
+  return pt * 0.352778 * 0.21;
 }
 
 function creatorAusVerknuepfungen(rows) {
@@ -89,64 +107,161 @@ function creatorAusVerknuepfungen(rows) {
     const name = [creator.vorname, creator.nachname].filter(Boolean).join(' ').trim();
     const bildUrl = creator.profilbild_url || creator.profilbild_thumb_url || '';
     if (!name && !bildUrl) continue;
-    return { name: name || 'Creator', bildUrl };
+    return { name: name || 'Creator', bildUrl, instagram: String(creator.instagram || '').trim() };
   }
   return null;
 }
 
-/** Genau ein Creator: Kooperation, sonst der der Videoidee. */
+function instagramAusCasting(skript) {
+  return String(skript?.strategie_item?.casting_eintrag?.link_instagram || '').trim();
+}
+
+/** Genau ein Creator: Kooperation, sonst der der Videoidee. Instagram aus der Casting-Liste. */
 export function creatorFuerAnschreiben(skript, verknuepfungen) {
   const ausKooperation = creatorAusVerknuepfungen(verknuepfungen);
-  if (ausKooperation) return ausKooperation;
   const konzept = konzeptCreatorFromSkript(skript);
-  if (!konzept?.name) return null;
-  return {
+  const base = ausKooperation || (konzept?.name ? {
     name: konzept.name,
     bildUrl: konzept.profilbild_url || konzept.profilbild_thumb_url || '',
-  };
+    instagram: '',
+  } : null);
+  if (!base) return null;
+  const vomCreator = String(
+    base.instagram
+    || skript?.strategie_item?.casting_eintrag?.creator?.instagram
+    || ''
+  ).trim();
+  return { ...base, instagram: instagramAusCasting(skript) || vomCreator };
+}
+
+function tiktokUrl(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return '';
+  if (/tiktok\.com/i.test(value)) return httpUrl(value);
+  const handle = value.replace(/^@/, '').split(/[/?#]/)[0].trim();
+  if (!handle) return '';
+  return `https://www.tiktok.com/@${encodeURIComponent(handle)}`;
+}
+
+function socialZiel(raw, feld) {
+  const value = String(raw || '').trim();
+  if (!value) return null;
+  const lower = value.toLowerCase();
+  if (lower.includes('tiktok.com')) {
+    const url = tiktokUrl(value);
+    return url ? { label: 'TikTok', url } : null;
+  }
+  if (lower.includes('instagram.com') || lower.includes('instagr.am')) {
+    const url = instagramUrl(value);
+    return url ? { label: 'Instagram', url } : null;
+  }
+  if (!/^https?:\/\//i.test(value) && !value.includes('.')) {
+    const url = feld === 'tiktok' ? tiktokUrl(value) : instagramUrl(value);
+    const label = feld === 'tiktok' ? 'TikTok' : 'Instagram';
+    return url ? { label, url } : null;
+  }
+  const url = httpUrl(value);
+  return url ? { label: 'Social Media', url } : null;
+}
+
+function socialKarteLinks(item) {
+  const kandidaten = [
+    socialZiel(item.instagram || item.creator?.instagram, 'instagram'),
+    socialZiel(item.tiktok || item.creator?.tiktok, 'tiktok'),
+  ];
+  const links = [];
+  const gesehen = new Set();
+  for (const ziel of kandidaten) {
+    if (!ziel || gesehen.has(ziel.url)) continue;
+    gesehen.add(ziel.url);
+    links.push(ziel);
+  }
+  return links;
+}
+
+/** Anzeige rechts in der Creator-Karte: instagram.com/{handle}. */
+export function instagramZeile(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return '';
+  const fromUrl = value.match(/(?:https?:\/\/)?(?:www\.)?instagram\.com\/([^/?#]+)/i);
+  const handle = (fromUrl?.[1] || value).replace(/^@/, '').replace(/\/$/, '').trim();
+  if (!handle) return '';
+  return `instagram.com/${handle}`;
+}
+
+function instagramUrl(raw) {
+  const zeile = instagramZeile(raw);
+  if (!zeile) return '';
+  const handle = zeile.slice('instagram.com/'.length);
+  return `https://instagram.com/${encodeURIComponent(handle)}`;
+}
+
+function headlineOf(item) {
+  const brand = [item.customerName, item.produktName].map((part) => plain(part)).filter(Boolean).join(' ');
+  const creator = plain(item.creator?.name);
+  if (brand && creator) return `${brand} × ${creator} –`;
+  return brand;
 }
 
 function drawHeader(doc, y, newPage) {
-  const h = 8;
+  const pt = 8;
+  const h = CELL_PAD + ascentMm(pt) + descentMm(pt) + CELL_PAD;
   if (y + h > MAX_CONTENT_Y) y = newPage();
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(80);
-  doc.setDrawColor(210);
-  const headers = ['', 'Was gesagt wird', 'Was zu sehen ist'];
+  doc.setFillColor(...HEADER_FILL);
+  doc.setDrawColor(...RULE);
+  if (typeof doc.setLineWidth === 'function') doc.setLineWidth(0.2);
   let x = MARGIN_X;
-  headers.forEach((text, i) => {
-    doc.rect(x, y, COLS[i].w, h);
-    if (text) doc.text(text, x + 1.5, y + 5.2);
-    x += COLS[i].w;
+  COLS.forEach((col) => {
+    doc.rect(x, y, col.w, h, 'FD');
+    x += col.w;
   });
+  const headers = ['WAS GESAGT WIRD', 'WAS ZU SEHEN IST'];
+  const baseline = y + CELL_PAD + ascentMm(pt);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(pt);
+  doc.setTextColor(...HEADER_TEXT);
+  doc.text(headers[0], MARGIN_X + COLS[0].w + CELL_PAD, baseline);
+  doc.text(headers[1], MARGIN_X + COLS[0].w + COLS[1].w + CELL_PAD, baseline);
   doc.setTextColor(0);
   return y + h;
 }
 
 function drawRow(doc, y, h, cells) {
-  doc.setFontSize(9);
-  doc.setDrawColor(210);
+  doc.setDrawColor(...RULE);
+  if (typeof doc.setLineWidth === 'function') doc.setLineWidth(0.2);
   let x = MARGIN_X;
   cells.forEach((lines, i) => {
     doc.rect(x, y, COLS[i].w, h);
-    doc.setFont('helvetica', i === 0 ? 'bold' : 'normal');
+    if (i === 0) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(0);
+    } else {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(0);
+    }
+    const baseline = y + CELL_PAD + ascentMm(9);
     lines.forEach((line, li) => {
-      if (line) doc.text(line, x + 1.5, y + 4 + li * LINE);
+      if (line) doc.text(line, x + CELL_PAD, baseline + li * LINE);
     });
     x += COLS[i].w;
   });
 }
 
 function drawTable(doc, item, startY, newPage) {
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
   let y = drawHeader(doc, startY, newPage);
   for (const [label, gesagtKey, gesehenKey] of ROWS) {
-    const cells = [
-      linesOf(doc, label, COLS[0].w),
-      linesOf(doc, item[gesagtKey], COLS[1].w),
-      linesOf(doc, item[gesehenKey], COLS[2].w),
-    ];
-    const h = Math.max(...cells.map((ls) => ls.length)) * LINE + 3;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    const inner = (col) => col.w - CELL_PAD * 2;
+    const gesagt = linesOf(doc, item[gesagtKey], inner(COLS[1]));
+    const gesehen = linesOf(doc, item[gesehenKey], inner(COLS[2]));
+    const cells = [[label], gesagt, gesehen];
+    const lines = Math.max(gesagt.length, gesehen.length, 1);
+    const h = CELL_PAD + ascentMm(9) + (lines - 1) * LINE + descentMm(9) + CELL_PAD;
     if (y + h > MAX_CONTENT_Y) {
       y = newPage();
       y = drawHeader(doc, y, newPage);
@@ -168,32 +283,117 @@ function placeImage(doc, dataUrl, x, y, w, h) {
   }
 }
 
+function drawSkriptLockup(doc, likeGroupPng, customerPng, customerName) {
+  const box = PDF_BRAND.logoLeft;
+  const w = box.w * LOCKUP_SCALE;
+  const h = box.h * LOCKUP_SCALE;
+  if (likeGroupPng && doc.addImage) {
+    doc.addImage(likeGroupPng, 'PNG', box.x, box.y, w, h);
+  }
+  const markX = box.x + w + LOCKUP_GAP;
+  const baseline = box.y + h * 0.72;
+  if (typeof doc.setFont === 'function') doc.setFont('helvetica', 'normal');
+  if (typeof doc.setFontSize === 'function') doc.setFontSize(11 * LOCKUP_SCALE);
+  if (typeof doc.setTextColor === 'function') doc.setTextColor(120);
+  doc.text('×', markX, baseline);
+  if (typeof doc.setTextColor === 'function') doc.setTextColor(0);
+  const xWidth = typeof doc.getTextWidth === 'function' ? doc.getTextWidth('×') : 2;
+  const customerX = markX + xWidth + LOCKUP_GAP_AFTER_X;
+  if (customerPng && doc.addImage) {
+    doc.addImage(customerPng, 'JPEG', customerX, box.y, w, h, undefined, 'FAST');
+    return;
+  }
+  if (customerName) {
+    if (typeof doc.setFontSize === 'function') doc.setFontSize(9 * LOCKUP_SCALE);
+    doc.text(customerName, customerX, baseline);
+  }
+}
+
+function httpUrl(raw) {
+  const value = String(raw || '').trim();
+  if (!value || /\s/.test(value)) return '';
+  if (/^https?:\/\//i.test(value)) return value;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(value)) return '';
+  return `https://${value.replace(/^\/\//, '')}`;
+}
+
+function drawRightLink(doc, label, url, rightX, baseline) {
+  const href = httpUrl(url);
+  if (!label || !href) return 0;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(...MUTED);
+  const width = typeof doc.getTextWidth === 'function' ? doc.getTextWidth(label) : label.length * 1.6;
+  const x = rightX - width;
+  doc.text(label, x, baseline);
+  doc.setDrawColor(...MUTED);
+  if (typeof doc.setLineWidth === 'function') doc.setLineWidth(0.15);
+  if (typeof doc.line === 'function') doc.line(x, baseline + 0.6, x + width, baseline + 0.6);
+  if (typeof doc.link === 'function') doc.link(x, baseline - 3.2, width, 3.8, { url: href });
+  doc.setTextColor(0);
+  return width;
+}
+
+function drawCreatorCard(doc, item, image, y) {
+  doc.setDrawColor(...RULE);
+  if (typeof doc.setLineWidth === 'function') doc.setLineWidth(0.25);
+  doc.rect(MARGIN_X, y, TABLE_W, CARD_H);
+  const name = item.creator?.name || '';
+  if (name) {
+    const placed = placeImage(doc, image, MARGIN_X + 3, y + 2, CREATOR_SIZE, CREATOR_SIZE);
+    const textX = placed ? MARGIN_X + CREATOR_SIZE + 6 : MARGIN_X + 4;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(0);
+    doc.text('CREATOR', textX, y + 6);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.text(name, textX, y + 11.5);
+  }
+  let right = MARGIN_X + TABLE_W - 4;
+  for (const link of socialKarteLinks(item).slice().reverse()) {
+    const width = drawRightLink(doc, link.label, link.url, right, y + 11.5);
+    if (width) right -= width + 5;
+  }
+  drawRightLink(doc, 'Beispiel-Video', item.videoUrl, right, y + 11.5);
+  return y + CARD_H;
+}
+
+function drawBlock(doc, y, text, newPage) {
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(13.5);
+  doc.setTextColor(0);
+  for (const line of linesOf(doc, text, TABLE_W)) {
+    if (y > MAX_CONTENT_Y) y = newPage();
+    if (line) doc.text(line, MARGIN_X, y);
+    y += 6.5;
+  }
+  return y;
+}
+
 async function drawItem(doc, item, ctx) {
   const customerRaw = await ctx.logo(item.customerLogoUrl);
   const customerImage = customerRaw ? await toPdfImageDataUrl(customerRaw) : null;
   const creatorRaw = item.creator?.bildUrl ? await ctx.logo(item.creator.bildUrl) : null;
   const creatorImage = creatorRaw ? await toPdfImageDataUrl(creatorRaw) : null;
-  drawBriefingLockup(doc, ctx.logoPng, customerImage, { customerName: item.customerName || '' });
+  drawSkriptLockup(doc, ctx.logoPng, customerImage, item.customerName || '');
 
-  let y = 28;
-  if (item.creator?.name) {
-    const placed = placeImage(doc, creatorImage, MARGIN_X, y, CREATOR_SIZE, CREATOR_SIZE);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.setTextColor(0);
-    const nameX = placed ? MARGIN_X + CREATOR_SIZE + 3 : MARGIN_X;
-    doc.text(item.creator.name, nameX, y + (placed ? CREATOR_SIZE * 0.62 : 5));
-    y += (placed ? CREATOR_SIZE : 8) + 4;
+  doc.setDrawColor(...RULE);
+  if (typeof doc.setLineWidth === 'function') doc.setLineWidth(0.2);
+  if (typeof doc.line === 'function') doc.line(MARGIN_X, 26, MARGIN_X + TABLE_W, 26);
+
+  let y = 34;
+
+  const headline = headlineOf(item);
+  if (headline) y = drawBlock(doc, y, headline, ctx.newPage);
+  y = drawBlock(doc, y, `„${plain(item.titel) || 'Skript'}“`, ctx.newPage);
+  y += 3;
+
+  if (item.creator?.name || httpUrl(item.videoUrl)) {
+    if (y + CARD_H > MAX_CONTENT_Y) y = ctx.newPage();
+    y = drawCreatorCard(doc, item, creatorImage, y) + 4;
   }
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  for (const line of linesOf(doc, item.titel || 'Skript', TABLE_W)) {
-    if (y > MAX_CONTENT_Y) y = ctx.newPage();
-    if (line) doc.text(line, MARGIN_X, y);
-    y += 6;
-  }
-  y += 2;
   drawTable(doc, item, y, ctx.newPage);
 }
 

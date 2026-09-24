@@ -6,6 +6,7 @@ import { finalStills, stillsForVideoCell } from '../../core/stills/stillAssets.j
 import { STILL_FINAL_VARIANT } from '../../core/PromoteFinalAsset.js';
 import { toRawDropboxUrl, canPreviewImageAsset } from '../../core/VideoUploadUtils.js';
 import { escapeHtml } from './videoTableFieldCells.js';
+import { withProduktionHerkunft } from '../../core/navHerkunft.js';
 
 const LINK_ICON = `${icon('link')}`;
 const PLAY_ICON = `${icon('play-circle')}`;
@@ -57,7 +58,11 @@ export function renderIdeeStrategieInner(ctx, video) {
           </button>
         `;
     }
-    const href = videoLink || `/konzepte/${item.strategie_id}`;
+    const href = videoLink || withProduktionHerkunft(
+      `/konzepte/${item.strategie_id}`,
+      ctx.t?.produktionId,
+      'produktion'
+    );
     const targetAttr = videoLink ? ' target="_blank" rel="noopener noreferrer"' : '';
     return `
         <a href="${href}" class="thema-thumbnail-link${videoLink ? ' thema-thumbnail-link--playable' : ''}" title="${escapeHtml(beschreibung)}"${targetAttr}>
@@ -78,7 +83,7 @@ export function renderIdeeStrategieInner(ctx, video) {
   return `<span class="no-strategie-hint">Noch kein Thema/Konzept verknüpft</span>`;
 }
 
-export function renderSkriptCell(koop, video) {
+export function renderSkriptCell(koop, video, table = null) {
   const canLink = window.permissionSystem?.canEditField('video', 'skript_id') ?? false;
   // Share-Gaeste duerfen nicht in den Skript-Editor durchgreifen -
   // Skripte werden nur ueber eigene Skript-Links geteilt.
@@ -88,7 +93,7 @@ export function renderSkriptCell(koop, video) {
   const titel = (skript?.titel || '').trim() || 'Skript';
 
   if (skriptId) {
-    const href = `/skripte/${skriptId}`;
+    const href = withProduktionHerkunft(`/skripte/${skriptId}`, table?.produktionId, 'produktion');
     if (isGast) {
       return `
           <span class="skript-link-cell skript-link-cell--static">

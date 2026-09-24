@@ -271,7 +271,7 @@ export class VideoUploadDrawer {
     overlay?.addEventListener('click', () => this.close());
     closeBtn?.addEventListener('click', () => this.close());
 
-    panel?.querySelectorAll('.drawer-tab-btn').forEach(btn => {
+    panel?.querySelectorAll('.drawer-tab-btn[data-drawer-tab]').forEach(btn => {
       btn.addEventListener('click', () => this._switchTab(btn.dataset.drawerTab));
     });
 

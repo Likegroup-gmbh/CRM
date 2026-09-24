@@ -4,6 +4,7 @@
 import { getCachedCreatorUploadStatus } from './CreatorUploadActions.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { escapeHtml } from './videoTableFieldCells.js';
+import { produktionReturnPath } from '../../core/navHerkunft.js';
 
 const INSTAGRAM_ICON = `${icon('instagram')}`;
 const TIKTOK_ICON = `${icon('tiktok')}`;
@@ -109,7 +110,7 @@ export function renderActionsInner(ctx) {
         <div class="actions-dropdown">
           ${canEdit ? renderActionStatusSubmenu(ctx.t, koop) : ''}
           ${canEdit ? `
-          <a href="#" class="action-item" data-action="edit" data-id="${koop.id}" data-return-to="/kampagne/${ctx.t.kampagneId}">
+          <a href="#" class="action-item" data-action="edit" data-id="${koop.id}" data-return-to="${escapeHtml(ctx.t.produktionId ? produktionReturnPath(ctx.t.produktionId, 'produktion') : `/kampagne/${ctx.t.kampagneId}`)}">
             ${icon('pencil-square', { className: 'w-4 h-4' })}
             Bearbeiten
           </a>

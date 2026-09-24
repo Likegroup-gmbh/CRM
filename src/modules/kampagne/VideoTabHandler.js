@@ -22,6 +22,8 @@ export class VideoTabHandler {
     this._isUploading = false;
     this._existingVersions = [];
     this._existingAssets = [];
+    this._linkMode = 'video';
+    this._folderUrl = '';
     this._onVideoDoneBound = (e) => this._onVideoDoneEvent(e);
   }
 
@@ -35,6 +37,8 @@ export class VideoTabHandler {
     this._queue = [];
     this._isUploading = false;
     this._existingAssets = [];
+    this._folderUrl = this.drawer.metadaten?.folderUrl || '';
+    this._linkMode = this._folderUrl ? 'folder' : 'video';
     window.removeEventListener(UPLOAD_EVENTS.VIDEO_DONE, this._onVideoDoneBound);
   }
 
@@ -130,18 +134,47 @@ export class VideoTabHandler {
     `;
   }
 
+  _renderLinkModeNav() {
+    const isFolder = this._linkMode === 'folder';
+    return `
+      <div class="drawer-tab-nav link-share-mode" role="tablist">
+        <button type="button" class="drawer-tab-btn ${isFolder ? '' : 'active'}" data-link-mode="video" role="tab" aria-selected="${isFolder ? 'false' : 'true'}">Video-Link</button>
+        <button type="button" class="drawer-tab-btn ${isFolder ? 'active' : ''}" data-link-mode="folder" role="tab" aria-selected="${isFolder ? 'true' : 'false'}">Ordner teilen</button>
+      </div>
+    `;
+  }
+
+  _renderFolderFields() {
+    return `
+      <div class="link-folder-section">
+        <label class="custom-upload-label" for="video-folder-url-input">OneDrive- / SharePoint-Ordner</label>
+        <input type="url" id="video-folder-url-input" class="form-input"
+          value="${escapeHtml(this._folderUrl || '')}"
+          placeholder="https://….sharepoint.com/…" />
+        <p class="dropzone-hint">Der Kunde öffnet den Ordner und schaut die Videos dort.</p>
+      </div>
+    `;
+  }
+
+  _renderVideoLinkFields() {
+    return `
+      <div class="link-add-section">
+        <button type="button" class="mdc-btn upload-drawer-btn--secondary" id="video-link-add-btn">
+          ${mdcBtnIcon(ICON_PLUS_16)}
+          <span class="mdc-btn__label">Link hinzufügen</span>
+        </button>
+      </div>
+      <div class="upload-file-list" id="video-upload-queue"></div>
+    `;
+  }
+
   _renderLinkTab(activeTab) {
+    const isFolder = this._linkMode === 'folder';
     return `
       <div id="upload-tab-video" style="${activeTab !== 'video' ? 'display:none' : ''}">
         <div class="video-upload-drawer-content">
-          <div class="link-add-section">
-            <button type="button" class="mdc-btn upload-drawer-btn--secondary" id="video-link-add-btn">
-              ${mdcBtnIcon(ICON_PLUS_16)}
-              <span class="mdc-btn__label">Link hinzufügen</span>
-            </button>
-          </div>
-
-          <div class="upload-file-list" id="video-upload-queue"></div>
+          ${this._renderLinkModeNav()}
+          ${isFolder ? this._renderFolderFields() : this._renderVideoLinkFields()}
 
           <div class="upload-error-msg" id="video-upload-error" style="display:none;"></div>
 
@@ -175,7 +208,12 @@ export class VideoTabHandler {
 
     cancelBtn?.addEventListener('click', () => this.drawer.close());
     submitBtn?.addEventListener('click', () => {
-      if (this._queue.length > 0 && !this._isUploading) {
+      if (this._isUploading) return;
+      if (this.drawer.useExternalLinks && this._linkMode === 'folder') {
+        this._handleFolderSubmit();
+        return;
+      }
+      if (this._queue.length > 0) {
         if (this.drawer.useExternalLinks) {
           this._handleLinkSubmit();
         } else {
@@ -185,8 +223,19 @@ export class VideoTabHandler {
     });
 
     if (this.drawer.useExternalLinks) {
-      const addLinkBtn = document.getElementById('video-link-add-btn');
-      addLinkBtn?.addEventListener('click', () => this._addLinkEntry());
+      panel?.querySelectorAll('[data-link-mode]').forEach(btn => {
+        btn.addEventListener('click', () => this._setLinkMode(btn.dataset.linkMode));
+      });
+      if (this._linkMode === 'folder') {
+        const folderInput = document.getElementById('video-folder-url-input');
+        folderInput?.addEventListener('input', () => {
+          this._folderUrl = folderInput.value;
+          this._updateSubmitButtonState();
+        });
+      } else {
+        const addLinkBtn = document.getElementById('video-link-add-btn');
+        addLinkBtn?.addEventListener('click', () => this._addLinkEntry());
+      }
     } else {
       const dropzone = document.getElementById('video-upload-dropzone');
       const fileInput = document.getElementById('video-upload-file-input');
@@ -378,6 +427,63 @@ export class VideoTabHandler {
 
   // ─── External Link Mode ────────────────────────────────────
 
+  _setLinkMode(mode) {
+    if (mode !== 'video' && mode !== 'folder') return;
+    if (mode === this._linkMode) return;
+    if (this._linkMode === 'folder') {
+      const input = document.getElementById('video-folder-url-input');
+      if (input) this._folderUrl = input.value;
+    }
+    this._linkMode = mode;
+    const pane = document.getElementById('upload-tab-video');
+    const panel = document.getElementById(this.drawer.drawerId);
+    if (!pane || !panel) return;
+    pane.outerHTML = this._renderLinkTab(this.drawer._activeTab);
+    this.bindEvents(panel);
+    if (mode === 'video') this._renderQueue();
+    this._loadExistingVideoAssets();
+  }
+
+  async _handleFolderSubmit() {
+    if (this._isUploading) return;
+    this.hideError();
+
+    const folderUrl = normalizeExternalUrl(this._folderUrl);
+    if (!isValidExternalUrl(folderUrl)) {
+      this.showError('Bitte eine gültige URL eingeben (https://...)');
+      return;
+    }
+
+    this._isUploading = true;
+    this._updateSubmitButtonState();
+
+    try {
+      const { error } = await window.supabase
+        .from('kooperation_videos')
+        .update({ folder_url: folderUrl })
+        .eq('id', this.drawer.videoId);
+      if (error) throw error;
+
+      this._folderUrl = folderUrl;
+      if (this.drawer.metadaten) this.drawer.metadaten.folderUrl = folderUrl;
+      const input = document.getElementById('video-folder-url-input');
+      if (input) input.value = folderUrl;
+      this._isUploading = false;
+      this._updateSubmitButtonState();
+
+      const videoName = this.drawer.metadaten?.videoName || null;
+      if (typeof this.drawer.onSuccess === 'function') {
+        this.drawer.onSuccess(null, null, videoName, folderUrl);
+      }
+      window.toastSystem?.success?.('Ordner gespeichert');
+    } catch (err) {
+      console.error('[VideoTabHandler] Ordner-Submit fehlgeschlagen:', err);
+      this.showError(err.message || 'Speichern fehlgeschlagen');
+      this._isUploading = false;
+      this._updateSubmitButtonState();
+    }
+  }
+
   _addLinkEntry() {
     if (this.drawer.preselectFinal) {
       this._queue.push({ url: '', variantName: FINAL_VARIANTS[0], versionNumber: 1, isFinal: true });
@@ -472,6 +578,10 @@ export class VideoTabHandler {
   _updateSubmitButtonState() {
     const submitBtn = document.getElementById('video-upload-submit-btn');
     if (!submitBtn) return;
+    if (this.drawer.useExternalLinks && this._linkMode === 'folder') {
+      submitBtn.disabled = this._isUploading || !(this._folderUrl || '').trim();
+      return;
+    }
     const hasItems = this._queue.length > 0;
     const allVariantsNamed = this._queue.every(q => q.variantName.trim().length > 0);
     if (this.drawer.useExternalLinks) {

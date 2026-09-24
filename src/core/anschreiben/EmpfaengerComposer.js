@@ -9,6 +9,7 @@
 // Kein Casting, kein Konzept, keine freien Adressen — siehe ADR 0012 und 0029.
 
 import { OptionsManager } from '../form/data/OptionsManager.js';
+import { loadAnsprechpartnerRows } from './snapshot.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -315,49 +316,32 @@ export class EmpfaengerComposer {
     }));
   }
 
-  async _pullAnsprechpartner(table, column, id, byId) {
-    if (!id) return 0;
-    const { data, error } = await this.db
-      .from(table)
-      .select('ansprechpartner:ansprechpartner_id(id, vorname, nachname, email)')
-      .eq(column, id);
-    if (error) throw error;
-    let skipped = 0;
-    for (const row of data || []) {
-      const ap = row.ansprechpartner;
-      if (!ap?.id || byId.has(ap.id)) continue;
-      const email = String(ap.email || '').trim();
-      if (!email) {
-        skipped += 1;
-        byId.set(ap.id, null);
-        continue;
-      }
-      byId.set(ap.id, { ...ap, email });
-    }
-    return skipped;
-  }
-
   async _loadAnsprechpartnerOptions() {
-    const byId = new Map();
-    const skippedUnternehmen = await this._pullAnsprechpartner(
-      'ansprechpartner_unternehmen', 'unternehmen_id', this.unternehmenId, byId
-    );
-    const skippedMarke = await this._pullAnsprechpartner(
-      'ansprechpartner_marke', 'marke_id', this.markeId, byId
-    );
-    this.skippedByTab.ansprechpartner = skippedUnternehmen + skippedMarke;
+    let rows;
+    let skipped;
+    if (Array.isArray(this.empfaengerScope?.ansprechpartner)) {
+      rows = this.empfaengerScope.ansprechpartner;
+      skipped = this.empfaengerScope.skippedAnsprechpartner || 0;
+    } else {
+      const loaded = await loadAnsprechpartnerRows(this.db, {
+        unternehmenId: this.unternehmenId,
+        markeId: this.markeId,
+      });
+      rows = loaded.rows;
+      skipped = loaded.skipped;
+    }
+    this.skippedByTab.ansprechpartner = skipped;
     const options = [];
     this.lookup.ansprechpartner = {};
-    for (const ap of byId.values()) {
-      if (!ap) continue;
-      const name = [ap.vorname, ap.nachname].filter(Boolean).join(' ') || ap.email;
+    for (const ap of rows) {
+      if (!ap?.id || !ap.email) continue;
       this.lookup.ansprechpartner[ap.id] = {
         id: ap.id,
         email: ap.email,
-        name,
+        name: ap.name || ap.email,
         vorname: ap.vorname || '',
       };
-      options.push({ value: ap.id, label: name, description: ap.email });
+      options.push({ value: ap.id, label: ap.name || ap.email, description: ap.email });
     }
     return options;
   }

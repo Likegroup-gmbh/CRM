@@ -2,10 +2,11 @@
 // Event-Binding und -Teardown für die Kampagnen-Detailseite
 
 import {
-  getWorkflowTableRoute,
+  workflowExitRoute,
   handleWorkflowTableSelect,
   reloadWorkflowPane
 } from './KampagneDetailWorkflow.js';
+import { withProduktionHerkunft } from '../../core/navHerkunft.js';
 import { handleVertragListAction } from '../vertrag/VertraegeListHandlers.js';
 import { KampagneUtils } from './KampagneUtils.js';
 import { navigateToNewKooperationFromKampagne } from '../kooperation/kooperationFromKampagne.js';
@@ -222,16 +223,25 @@ export function setupEvents(detail) {
     // (Kooperationstabelle) hat ihre eigenen Handler.
     if (!e.target.closest('.workflow-pane:not([data-pane="produktion"])')) return;
 
+    const herkunft = {
+      produktionId: detail.produktionId,
+      tab: detail.activeWorkflowTab
+    };
+
     const vertragEdit = e.target.closest('[data-vertrag-open="edit"]');
     if (vertragEdit?.dataset.id) {
       e.preventDefault();
-      window.navigateTo(`/vertraege/${vertragEdit.dataset.id}/edit`);
+      window.navigateTo(withProduktionHerkunft(
+        `/vertraege/${vertragEdit.dataset.id}/edit`,
+        herkunft.produktionId,
+        herkunft.tab
+      ));
       return;
     }
 
     const link = e.target.closest('.table-link[data-table][data-id]');
     if (!link) return;
-    const route = getWorkflowTableRoute(link.dataset.table, link.dataset.id);
+    const route = workflowExitRoute(link.dataset.table, link.dataset.id, herkunft);
     if (route) {
       e.preventDefault();
       window.navigateTo(route);
@@ -272,7 +282,7 @@ export function setupEvents(detail) {
   if (btnNewKooperation) {
     btnNewKooperation.addEventListener('click', (e) => {
       e.preventDefault();
-      navigateToNewKooperationFromKampagne(detail.kampagneId, detail.kampagneData);
+      navigateToNewKooperationFromKampagne(detail.kampagneId, detail.kampagneData, detail.produktionId);
     }, { signal });
   }
 

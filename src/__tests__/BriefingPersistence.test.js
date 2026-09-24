@@ -127,6 +127,7 @@ describe('Briefing DataPersistence', () => {
         <input type="text" name="creator_merkmale__standort" value="">
         <input type="checkbox" name="publish_channels__instagram" value="reel" checked>
         <input type="checkbox" name="nutzung_markenkanal" value="true">
+        <input type="hidden" name="nutzungsdauer" value="12 Monate">
       </form>
     `;
 
@@ -140,6 +141,7 @@ describe('Briefing DataPersistence', () => {
     });
     expect(instance.formData.publish_channels).toEqual({ instagram: ['reel'] });
     expect(instance.formData.nutzung_markenkanal).toBe(false);
+    expect(instance.formData.nutzungsdauer).toBe('12 Monate');
     expect(instance.formData.bereich).toBe('influencer_marketing');
   });
 
@@ -157,6 +159,7 @@ describe('Briefing DataPersistence', () => {
 
     const data = instance.prepareDataForDB();
 
+    expect(data.nutzungsdauer).toBeNull();
     expect(data.nischen).toEqual(['beauty']);
     expect(data.aufgabe).toBe('Routine filmen');
     expect(data.cta).toBeNull();
@@ -175,7 +178,8 @@ describe('Briefing DataPersistence', () => {
       aktivierung_name: 'Test',
       voraussetzungen: ['kind_familie', 'kueche'],
       voraussetzungen_sonstiges: 'Wohnung mit Balkon',
-      produkt_erfahrung: 'kennt das Serum'
+      produkt_erfahrung: 'kennt das Serum',
+      nutzungsdauer: '90 Monate'
     };
 
     const data = instance.prepareDataForDB();
@@ -183,6 +187,7 @@ describe('Briefing DataPersistence', () => {
     expect(data.voraussetzungen).toEqual(['kind_familie', 'kueche']);
     expect(data.voraussetzungen_sonstiges).toBe('Wohnung mit Balkon');
     expect(data.produkt_erfahrung).toBe('kennt das Serum');
+    expect(data.nutzungsdauer).toBe('90 Monate');
     expect(data.im_voraussetzungen).toEqual(['kind_familie', 'kueche']);
     expect(data.im_voraussetzungen_custom).toBe('kennt das Serum');
   });

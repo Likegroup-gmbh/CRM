@@ -6,18 +6,16 @@ import { renderToolbarMenu, renderToolbarMenuItem, renderToolbarListenKopf } fro
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
+import { escapeHtml } from '../../core/format.js';
 import { SOURCING_STATUS_FILTER_TAGS } from './sourcingStatusOptions.js';
 import { OHNE_PERSONA_KEY, orderedPersonaGroups } from './castingPersonaGroups.js';
 import {
-  escapeHtml,
   isColumnVisibleForCustomer,
   getVisibleColumnCount,
-  getStickyClasses,
-  SOURCING_TABS,
-  INSTAGRAM_ICON,
-  TIKTOK_ICON,
-  NICHT_UMSETZEN_ICON
-} from './CreatorAuswahlTemplates.js';
+  getStickyClasses
+} from './sourcingSpaltenSichtbarkeit.js';
+import { SOURCING_TABS } from './sourcingTabs.js';
+import { INSTAGRAM_ICON, TIKTOK_ICON, NICHT_UMSETZEN_ICON } from './sourcingIcons.js';
 import { getListenTkp, reelsPreisTooltip } from './castingPreisZellen.js';
 import { renderItemRow } from './castingItemRow.js';
 

@@ -4,7 +4,7 @@
 // Argument, nie Literale in Formeln. Der Job speichert CONFIG_VERSION, damit
 // alte Listen spaeter noch erklaerbar sind.
 
-const CONFIG_VERSION = 4;
+const CONFIG_VERSION = 5;
 
 // Finaler Score (ADR 0014): ein Wert, Fit lastig. Cold-Start ohne
 // Casting-Historie: das Track-Gewicht wird auf Fit umverteilt (Renorm),

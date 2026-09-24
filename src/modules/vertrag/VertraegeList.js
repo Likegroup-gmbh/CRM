@@ -359,6 +359,24 @@ export class VertraegeList {
     window.addEventListener('vertrag-signed-action', signedActionHandler);
     this._boundEventListeners.add(() => window.removeEventListener('vertrag-signed-action', signedActionHandler));
 
+    const warmVertragAnschreiben = (e) => {
+      const toggle = e.target.closest?.('.actions-toggle');
+      if (!toggle) return;
+      const container = toggle.closest('[data-entity-type="vertraege"]');
+      if (!container || !window.isInternal?.()) return;
+      const id = container.querySelector('[data-action="anschreiben"]')?.dataset.id;
+      if (!id) return;
+      const vertrag = this.vertraege?.find((row) => row.id === id);
+      if (!vertrag || vertrag.is_draft || !vertrag.datei_url) return;
+      import('../../core/anschreiben/openAnschreiben.js').then(({ warmAnschreiben }) => {
+        warmAnschreiben({ dokumentTyp: 'vertrag', dokumentId: id, vertrag }).catch((err) => {
+          console.error('Anschreiben vorwärmen fehlgeschlagen:', err);
+        });
+      });
+    };
+    document.addEventListener('click', warmVertragAnschreiben, true);
+    this._boundEventListeners.add(() => document.removeEventListener('click', warmVertragAnschreiben, true));
+
     const anschreibenActionHandler = async (e) => {
       const id = e.detail?.vertragId;
       if (id) await _openVertragAnschreiben(this, id);

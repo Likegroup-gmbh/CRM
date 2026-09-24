@@ -7,7 +7,7 @@ import {
   DEAKTIVIERTE_SPALTEN,
   SOURCING_SPALTEN,
   SOURCING_SPALTEN_LABELS
-} from './CreatorAuswahlTemplates.js';
+} from './sourcingSpaltenKatalog.js';
 
 /** Spaltenreihenfolge im Drawer, abgeleitet aus SOURCING_SPALTEN */
 const SPALTEN_LABELS = SOURCING_SPALTEN

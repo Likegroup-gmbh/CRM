@@ -5,7 +5,7 @@ import {
   SOURCING_SPALTEN,
   SOURCING_SPALTEN_LABELS,
   DEAKTIVIERTE_SPALTEN
-} from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
+} from '../modules/creator-auswahl/sourcingSpaltenKatalog.js';
 import { EntityCustomColumnsManager } from '../core/customColumns/EntityCustomColumnsManager.js';
 import { renderCustomHeaders } from '../core/customColumns/EntityCustomColumnRenderer.js';
 import {

@@ -13,7 +13,8 @@ import {
   getAllFields,
   flattenFields,
   evaluateCondition,
-  isFieldActive
+  isFieldActive,
+  NUTZUNGSDAUER_PRESETS
 } from '../modules/briefing/create/fieldConfig.js';
 
 describe('Briefing fieldConfig Schema', () => {
@@ -206,6 +207,18 @@ describe('Briefing evaluateCondition', () => {
     expect(names).toEqual([
       'nutzung_markenkanal', 'nutzung_paid_media', 'nutzung_creator_kanal',
       'nutzung_whitelisting', 'nutzungsdauer', 'rohmaterial'
+    ]);
+    expect(flattenFields(nutzung.fields).find(f => f.name === 'nutzungsdauer')).toMatchObject({
+      type: 'select',
+      searchable: true,
+      allowCreate: true,
+      table: 'nutzungsdauer_optionen',
+      displayField: 'label',
+      valueField: 'label',
+      options: NUTZUNGSDAUER_PRESETS.map(label => ({ value: label, label }))
+    });
+    expect(NUTZUNGSDAUER_PRESETS).toEqual([
+      '1 Monat', '3 Monate', '6 Monate', '12 Monate', '24 Monate', '90 Monate'
     ]);
     expect(flattenFields(nutzung.fields).some(f => f.type === 'fieldGroup')).toBe(false);
   });

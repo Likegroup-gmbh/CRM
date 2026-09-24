@@ -1,17 +1,22 @@
 // Skript-Anschreiben: Empfaenger inkl. Ansprechpartner, Umfang/Anhang neben der Vorlage.
+// Der Skript-Pool liegt einmal am prepared-Objekt. Scope, PDF und Versand lesen ihn.
 
+import { loadAnsprechpartnerRows } from '../snapshot.js';
 import { creatorFuerAnschreiben, createSkriptAnhang, sanitizeSkriptFilename } from '../../../modules/skripte/SkriptPdf.js';
+
+const CREATOR_FELDER = 'id, vorname, nachname, mail, instagram, tiktok, profilbild_url, profilbild_thumb_url';
 
 const SKRIPT_SELECT = `
   id, titel, created_at, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell,
   unternehmen:unternehmen_id(firmenname, logo_url),
   marke:marke_id(markenname, logo_url),
+  produkt:produkt_id(name),
   kampagne:kampagne_id(kampagnenname, eigener_name),
   strategie_item:strategie_item_id(
-    id, creator_name,
+    id, creator_name, video_link,
     casting_eintrag:creator_auswahl_item_id(
-      id, name,
-      creator:creator_id(id, vorname, nachname, mail, profilbild_url, profilbild_thumb_url)
+      id, name, link_instagram, link_tiktok,
+      creator:creator_id(${CREATOR_FELDER})
     )
   )
 `;
@@ -36,6 +41,7 @@ function profileOf(creator) {
     mail: creator.mail || '',
     profilbild_url: creator.profilbild_url || '',
     profilbild_thumb_url: creator.profilbild_thumb_url || '',
+    instagram: creator.instagram || '',
   };
 }
 
@@ -101,6 +107,7 @@ function anzeigeFuer(profil, fallback) {
   return {
     name: name || 'Creator',
     bildUrl: profil?.profilbild_url || profil?.profilbild_thumb_url || fallback?.bildUrl || '',
+    instagram: profil?.instagram || fallback?.instagram || '',
   };
 }
 
@@ -148,9 +155,92 @@ export async function loadManagementScope(db, creatorIds) {
   return [...byId.values()];
 }
 
-async function managementMap(db, items) {
+function poolQuery(prepared) {
+  const anhang = prepared.anhang || {};
+  if (anhang.kampagneId) {
+    return { dokumentId: prepared.dokumentId, anhang: { ...anhang, alle: true } };
+  }
+  return { dokumentId: prepared.dokumentId, anhang };
+}
+
+function itemsForAnhang(items, prepared) {
+  if (prepared.anhang?.alle || !prepared.anhang?.kampagneId) return items;
+  return items.filter((item) => item.id === prepared.dokumentId);
+}
+
+async function loadPool(db, prepared) {
+  const items = await loadSkriptPdfItems(db, poolQuery(prepared));
   const managements = await loadManagementScope(db, creatorIdsImPool(items));
-  return Object.fromEntries(managements.map((m) => [m.id, m.creatorIds]));
+  return {
+    items,
+    managements,
+    managementCreators: Object.fromEntries(managements.map((m) => [m.id, m.creatorIds])),
+  };
+}
+
+function ensureSkriptPool(db, prepared) {
+  if (!prepared._poolPromise) {
+    prepared._poolPromise = loadPool(db, prepared).catch((err) => {
+      prepared._poolPromise = null;
+      throw err;
+    });
+  }
+  return prepared._poolPromise;
+}
+
+function ensureAnsprechpartner(db, prepared) {
+  if (!prepared._ansprechpartnerPromise) {
+    prepared._ansprechpartnerPromise = loadAnsprechpartnerRows(db, {
+      unternehmenId: prepared.unternehmenId,
+      markeId: prepared.markeId,
+    }).catch((err) => {
+      prepared._ansprechpartnerPromise = null;
+      throw err;
+    });
+  }
+  return prepared._ansprechpartnerPromise;
+}
+
+function scopeFromPool(pool, prepared, ansprechpartner) {
+  const items = itemsForAnhang(pool.items, prepared);
+  const { creators, skipped } = poolCreators(items);
+  const ids = new Set(creatorIdsImPool(items));
+  const managements = pool.managements
+    .map((m) => ({ ...m, creatorIds: m.creatorIds.filter((id) => ids.has(id)) }))
+    .filter((m) => m.creatorIds.length);
+  return {
+    creators,
+    managements,
+    managementCreators: Object.fromEntries(managements.map((m) => [m.id, m.creatorIds])),
+    kampagne: prepared.anhang?.kampagneId
+      ? { id: prepared.anhang.kampagneId, label: prepared.anhang.kampagneName || 'Kampagne' }
+      : null,
+    skippedCreator: skipped,
+    ansprechpartner: ansprechpartner?.rows || [],
+    skippedAnsprechpartner: ansprechpartner?.skipped || 0,
+  };
+}
+
+export async function loadPreparedSkriptScope(db, prepared) {
+  const [pool, ansprechpartner] = await Promise.all([
+    ensureSkriptPool(db, prepared),
+    ensureAnsprechpartner(db, prepared).catch((err) => {
+      console.error('Ansprechpartner laden fehlgeschlagen:', err);
+      return { rows: [], skipped: 0 };
+    }),
+  ]);
+  return scopeFromPool(pool, prepared, ansprechpartner);
+}
+
+async function pdfFromPool(db, prepared, empfaenger) {
+  const pool = await ensureSkriptPool(db, prepared);
+  let subset = itemsForAnhang(pool.items, prepared);
+  if (empfaenger) {
+    subset = skripteFuerEmpfaenger(subset, empfaenger, pool.managementCreators);
+  }
+  if (!subset.length) return { empty: true };
+  const proSkript = Boolean(prepared.anhang?.alle && prepared.anhang?.proSkript);
+  return createSkriptAnhang(subset, { dateiname: anhangDateiname(prepared, proSkript), proSkript });
 }
 
 function anhangDateiname(prepared, proSkript) {
@@ -211,7 +301,7 @@ export async function loadSkriptPdfItems(db, { dokumentId, anhang }) {
   if (ids.length) {
     const { data: videos, error: videoError } = await db
       .from('kooperation_videos')
-      .select('skript_id, position, kooperation:kooperation_id(creator:creator_id(id, vorname, nachname, mail, profilbild_url, profilbild_thumb_url))')
+      .select(`skript_id, position, kooperation:kooperation_id(creator:creator_id(${CREATOR_FELDER}))`)
       .in('skript_id', ids);
     if (videoError) throw new Error(videoError.message || 'Creator konnte nicht geladen werden');
     for (const row of videos || []) {
@@ -224,6 +314,7 @@ export async function loadSkriptPdfItems(db, { dokumentId, anhang }) {
   return skripte.map((skript) => {
     const links = verknuepfungen.get(skript.id) || [];
     const creators = creatorProfileFuerSkript(skript, links);
+    const creator = creatorFuerAnschreiben(skript, links);
     return {
       id: skript.id,
       titel: skript.titel || 'Skript',
@@ -235,7 +326,15 @@ export async function loadSkriptPdfItems(db, { dokumentId, anhang }) {
       cta_visuell: skript.cta_visuell || '',
       creators,
       creatorIds: creators.map((c) => c.id),
-      creator: creatorFuerAnschreiben(skript, links),
+      creator,
+      instagram: creator?.instagram || '',
+      tiktok: String(
+        skript?.strategie_item?.casting_eintrag?.link_tiktok
+        || skript?.strategie_item?.casting_eintrag?.creator?.tiktok
+        || ''
+      ).trim(),
+      produktName: skript?.produkt?.name || '',
+      videoUrl: skript?.strategie_item?.video_link || '',
       ...customerOf(skript),
       kampagneName: kampagneName(skript),
     };
@@ -272,55 +371,39 @@ export const skriptAdapter = {
       kampagneName: kampagneName(skript),
     };
 
-    return {
+    const prepared = {
       dokumentId: opts.dokumentId,
       dokumentName: skript.titel || 'Skript',
       unternehmenId: skript.unternehmen_id,
       markeId: skript.marke_id || null,
       extraTabs: ['ansprechpartner'],
       anhang,
-      loadEmpfaengerScope(db) {
-        return loadSkriptEmpfaengerScope(db, { dokumentId: opts.dokumentId, anhang });
-      },
-      mountExtras(container, { onChange }) {
-        renderSkriptSchalter(container, anhang, onChange);
-      },
-      rewriteMail(text) {
-        if (!anhang.alle || !anhang.kampagneName) return text;
-        return String(text ?? '').replace(/\{\{skript\}\}/g, anhang.kampagneName);
-      },
     };
+    prepared.loadEmpfaengerScope = (db) => loadPreparedSkriptScope(db, prepared);
+    prepared.mountExtras = (container, { onChange }) => {
+      renderSkriptSchalter(container, anhang, onChange);
+    };
+    prepared.rewriteMail = (text) => {
+      if (!anhang.alle || !anhang.kampagneName) return text;
+      return String(text ?? '').replace(/\{\{skript\}\}/g, anhang.kampagneName);
+    };
+    return prepared;
   },
 
   async createPdf(prepared, db, hint) {
     const client = db || window.supabase;
-    const items = await loadSkriptPdfItems(client, {
-      dokumentId: prepared.dokumentId,
-      anhang: prepared.anhang,
-    });
-    const empfaenger = hint?.empfaenger || null;
-    let subset = items;
-    if (empfaenger) {
-      const map = await managementMap(client, items);
-      subset = skripteFuerEmpfaenger(items, empfaenger, map);
-    }
-    if (!subset.length) return { empty: true };
-    const proSkript = Boolean(prepared.anhang?.alle && prepared.anhang?.proSkript);
-    return createSkriptAnhang(subset, { dateiname: anhangDateiname(prepared, proSkript), proSkript });
+    return pdfFromPool(client, prepared, hint?.empfaenger || null);
   },
 
   async buildAnhaenge(prepared, db, empfaenger) {
     const client = db || window.supabase;
-    const items = await loadSkriptPdfItems(client, {
-      dokumentId: prepared.dokumentId,
-      anhang: prepared.anhang,
-    });
-    const map = await managementMap(client, items);
+    const pool = await ensureSkriptPool(client, prepared);
+    const items = itemsForAnhang(pool.items, prepared);
     const proSkript = Boolean(prepared.anhang?.alle && prepared.anhang?.proSkript);
     const dateiname = anhangDateiname(prepared, proSkript);
     const out = [];
     for (const person of empfaenger || []) {
-      const subset = skripteFuerEmpfaenger(items, person, map);
+      const subset = skripteFuerEmpfaenger(items, person, pool.managementCreators);
       if (!subset.length) continue;
       const pdf = await createSkriptAnhang(subset, { dateiname, proSkript });
       const pdfs = pdf.pdfs?.length ? pdf.pdfs : [pdf];

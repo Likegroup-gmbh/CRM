@@ -136,9 +136,25 @@ Interner Hinweis am Briefing für die Vertragsverhandlung, etwa die Nutzungsdaue
 ein Full Buyout nicht möglich ist. Steht nicht auf dem Creator-PDF.
 _Avoid_: Verhandlungsspielraum (das sitzt an den Auftragsdetails)
 
+**Don't**:
+Kommunikative Vorgabe am Briefing, was nicht getan werden darf. Wird vor dem Matching gelesen. Trifft er ein Profilfeld, schließt fehlende oder widersprechende Angabe den Creator aus. Trifft er nur den Profiltext, schließt er nur bei einem Beleg aus. Betrifft er die Formulierung, bindet er Konzept und Skript und ist kein Personenfilter.
+_Avoid_: Do, Vorgaben und Ausschlüsse, Voraussetzung, Do’s und Don’ts (das alte Sammelfeld), EHG-Unterlage Do’s & Don’ts
+
+**Do**:
+Kommunikative Vorgabe am Briefing, was der Inhalt tun soll. Wird nach den Don’ts mitbedacht und ist kein Ausschluss.
+_Avoid_: Don’t, Pflichtinhalt, Do’s und Don’ts (das alte Sammelfeld)
+
+**Profilfeld**:
+Vordefiniertes Feld am Creator, das eine Suche abfragen kann: Alter, Geschlecht, Branche, Creator-Typ, Sprache, Follower-Größe, Standort, Plattform, Hat Kinder, Hat Haustier, Spielt Instrument. Leer oder daneben schließt aus.
+_Avoid_: Profiltext
+
+**Profiltext**:
+Freitext am Creator, den er selbst schreibt oder der von Instagram kommt: Bio, Notiz, Captions, Mentions. Ein Treffer belegt einen Personen-Don’t, ein fehlender Treffer ist kein K.-o.
+_Avoid_: Profilfeld
+
 **Voraussetzungen**:
 Checkbox-Liste der gesuchten Casting-Bedingungen am Briefing.
-_Avoid_: Sonstige Voraussetzungen, Produktspezifische Erfahrung
+_Avoid_: Sonstige Voraussetzungen, Produktspezifische Erfahrung, Don’t
 
 **Sonstige Voraussetzungen**:
 Freitext für Casting-Bedingungen, die in keine Checkbox passen.
@@ -202,9 +218,9 @@ _Avoid_: Casting-Eintrag, Kategorie „Vorschläge“, Kandidat, Slot-Portfolio
 
 **Fit**:
 Briefing-Passung eines Creators (0-100): Nische, Persona, Voraussetzungen, Größe,
-Plattform, Mentions, Standort, Text. Unbelegte Dimensionen geben 0 Punkte –
-bewusster Anreiz, Creator-Profile vollständig zu pflegen.
-_Avoid_: Fit Score als eigenständige Kennzahl (ist Bestandteil von Matching)
+Plattform, Mentions, Standort, Text. Eine abgefragte Angabe, die der Datensatz nicht
+beantworten kann oder die nicht trifft, schließt den Creator aus.
+_Avoid_: Fit Score als eigenständige Kennzahl (ist Bestandteil von Matching), 0 Punkte bei unbelegt, Raten
 
 **Track**:
 Erfolgs-Historie eines Creators im eigenen System (0-100): Prio-Platzierungen,

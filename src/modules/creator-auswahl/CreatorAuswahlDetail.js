@@ -4,11 +4,13 @@
 
 import { creatorAuswahlService } from './CreatorAuswahlService.js';
 import { SourcingTabelleAnpassenDrawer } from './SourcingTabelleAnpassenDrawer.js';
+import { renderTabNavigation, getSourcingTabForItem, SOURCING_TABS } from './sourcingTabs.js';
+import { migrateHiddenColumns } from './sourcingSpaltenSichtbarkeit.js';
 import {
-  renderTabNavigation,
-  getSourcingTabForItem, SOURCING_TABS, migrateHiddenColumns,
-  SOURCING_ANKER_SPALTEN, SOURCING_SPALTEN_LABELS, DEAKTIVIERTE_SPALTEN
-} from './CreatorAuswahlTemplates.js';
+  SOURCING_ANKER_SPALTEN,
+  SOURCING_SPALTEN_LABELS,
+  DEAKTIVIERTE_SPALTEN
+} from './sourcingSpaltenKatalog.js';
 import { renderAddSection, renderItemsTable } from './castingTableRender.js';
 import { CreatorAuswahlAddDrawer } from './CreatorAuswahlAddDrawer.js';
 import { EntityCustomColumnsManager } from '../../core/customColumns/EntityCustomColumnsManager.js';
@@ -25,6 +27,7 @@ import { castingDetailTableUxMethods } from './CastingDetailTableUx.js';
 import { castingDetailRowActionsMethods } from './CastingDetailRowActions.js';
 import { castingDetailLinksMethods } from './CastingDetailLinks.js';
 import { castingDetailBulkMethods } from './CastingDetailBulk.js';
+import { showProduktionLeaf } from '../../core/navHerkunft.js';
 
 export class CreatorAuswahlDetail {
   constructor() {
@@ -115,7 +118,8 @@ export class CreatorAuswahlDetail {
       this.loadColumnVisibilitySettings();
 
       if (!this.embedded && window.breadcrumbSystem && this.liste) {
-        window.breadcrumbSystem.updateDetailLabel(this.liste.name);
+        const shown = await showProduktionLeaf(this.liste.name);
+        if (!shown) window.breadcrumbSystem.updateDetailLabel(this.liste.name);
       }
 
       if (this.items.length === 0 && !this.personas.length && !this.isKunde && this._canSourcing('create')) {

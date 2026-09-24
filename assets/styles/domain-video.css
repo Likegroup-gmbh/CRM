@@ -403,6 +403,13 @@
 
 .video-version-delete-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.video-settings-folder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
 .video-settings-actions {
   display: flex;
   flex-direction: row;

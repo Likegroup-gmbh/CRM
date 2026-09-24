@@ -16,6 +16,9 @@ function createSettingsSupabase({
   storyAssets = [],
   bilderAssets = [],
 } = {}) {
+  const update = vi.fn(() => ({
+    eq: vi.fn(() => Promise.resolve({ error: null })),
+  }));
   return {
     from: vi.fn((table) => ({
       select: vi.fn(() => {
@@ -24,10 +27,12 @@ function createSettingsSupabase({
         if (table === 'kooperation_bilder_asset') return makeSelectChain(bilderAssets);
         return makeSelectChain([]);
       }),
+      update,
       delete: vi.fn(() => ({
         eq: vi.fn(() => Promise.resolve({ error: null })),
       })),
     })),
+    _update: update,
   };
 }
 
@@ -43,6 +48,33 @@ describe('VideoSettingsDrawer', () => {
   afterEach(() => {
     drawer.removeDrawer();
     vi.unstubAllGlobals();
+  });
+
+  it('zeigt geteilten Ordner und entfernt ihn', async () => {
+    window.supabase = createSettingsSupabase();
+    const onFolderCleared = vi.fn();
+    const url = 'https://contoso.sharepoint.com/:f:/g/abc';
+
+    await drawer.open({
+      videoId: 'vid-1',
+      kooperationId: 'koop-1',
+      folderUrl: url,
+      onFolderCleared,
+    });
+
+    const body = document.getElementById('video-settings-drawer-body');
+    expect(body.textContent).toContain('Geteilter Ordner');
+    expect(body.textContent).not.toContain('Noch kein Video vorhanden');
+    expect(body.querySelector('.video-settings-file-link')?.getAttribute('href')).toBe(url);
+
+    document.getElementById('video-settings-folder-remove').click();
+    await vi.waitFor(() => expect(onFolderCleared).toHaveBeenCalled());
+
+    expect(window.supabase._update).toHaveBeenCalledWith({ folder_url: null });
+    expect(window.supabase.from).toHaveBeenCalledWith('kooperation_videos');
+    const after = document.getElementById('video-settings-drawer-body');
+    expect(after.textContent).toContain('Noch kein Video vorhanden');
+    expect(document.getElementById('video-settings-folder-remove')).toBeNull();
   });
 
   it('zeigt externen Video-Link mit Label und URL-Zeile', async () => {

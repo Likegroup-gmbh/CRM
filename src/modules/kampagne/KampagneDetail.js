@@ -19,6 +19,7 @@ import {
 } from './KampagneDetailWorkflow.js';
 import { unmountCastingWorksheet } from './KampagneDetailCasting.js';
 import { unmountKonzeptWorksheet } from './KampagneDetailKonzept.js';
+import { produktionCrumbList } from '../../core/navHerkunft.js';
 
 export class KampagneDetail {
   constructor() {
@@ -145,14 +146,20 @@ export class KampagneDetail {
         if (!this._isMounted) return;
 
         if (window.breadcrumbSystem && this.kampagneData) {
-          const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
-          const label = this.mode === 'workflow'
-            ? (this.lineTitle || this.produktion?.name || 'Produktion')
-            : KampagneUtils.getDisplayName(this.kampagneData);
-          window.breadcrumbSystem.updateDetailLabel(label, {
-            id: 'btn-edit-kampagne',
-            canEdit: this.mode !== 'workflow' && canEdit
-          });
+          if (this.mode === 'workflow') {
+            window.breadcrumbSystem.updateBreadcrumb(produktionCrumbList({
+              kampagneId: this.kampagneId,
+              kampagneName: KampagneUtils.getDisplayName(this.kampagneData),
+              produktionId: this.produktionId,
+              produktionTitle: this.lineTitle || this.produktion?.name || 'Produktion'
+            }), null, { switcher: null });
+          } else {
+            const canEdit = window.currentUser?.permissions?.kampagne?.can_edit || false;
+            window.breadcrumbSystem.updateDetailLabel(KampagneUtils.getDisplayName(this.kampagneData), {
+              id: 'btn-edit-kampagne',
+              canEdit
+            });
+          }
         }
 
         this._prepareVideoTable(tableData, isKunde);
@@ -266,6 +273,7 @@ export class KampagneDetail {
 
   _prepareVideoTable(tableData, isKunde) {
     this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId, this.store);
+    this.kooperationenVideoTable.produktionId = this.mode === 'workflow' ? this.produktionId : null;
     this.kooperationenVideoTable.statusOptions = tableData?.statusOptions || [];
 
     const hiddenCols = this.kampagneData?.video_table_hidden_columns;
@@ -469,6 +477,7 @@ export class KampagneDetail {
   async _remountVideoTable() {
     if (!this.store) return;
     this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId, this.store);
+    this.kooperationenVideoTable.produktionId = this.mode === 'workflow' ? this.produktionId : null;
     this.kooperationenVideoTable.statusOptions = this.store.statusOptions || [];
 
     const hiddenCols = this.kampagneData?.video_table_hidden_columns;

@@ -6,6 +6,7 @@
 
 import { loadProdukteForBriefing } from '../BriefingProdukte.js';
 import { OHNE_QUERY } from '../BriefingFolders.js';
+import { showProduktionLeaf } from '../../../core/navHerkunft.js';
 
 export class BriefingCreate {
   constructor() {
@@ -41,8 +42,10 @@ BriefingCreate.prototype.init = async function(editId = null) {
 
   window.setHeadline(editId ? 'Briefing bearbeiten' : 'Neues Briefing');
 
-  if (window.breadcrumbSystem) {
-    window.breadcrumbSystem.updateDetailLabel(editId ? 'Bearbeiten' : 'Neues Briefing');
+  const crumbLabel = editId ? 'Bearbeiten' : 'Neues Briefing';
+  const shown = await showProduktionLeaf(crumbLabel);
+  if (!shown && window.breadcrumbSystem) {
+    window.breadcrumbSystem.updateDetailLabel(crumbLabel);
   }
 
   const { canEdit } = this.getBriefingPermissions();

@@ -46,6 +46,30 @@ function renderLabel(field) {
   return `<label ${withFor ? `for="${field.name}"` : ''}>${escapeHtml(field.label)}${required}</label>`;
 }
 
+function renderSelect(field, formData) {
+  const current = String(formData[field.name] ?? '').trim();
+  const options = field.options || [];
+  const known = options.some(opt => opt.value === current);
+  const extra = current && !known
+    ? `<option value="${escapeHtml(current)}" selected>${escapeHtml(current)}</option>`
+    : '';
+  const opts = options.map(opt => `
+    <option value="${escapeHtml(opt.value)}" ${current === opt.value ? 'selected' : ''}>${escapeHtml(opt.label)}</option>
+  `).join('');
+  return `
+    <div class="form-field">
+      ${renderLabel(field)}
+      <select id="${escapeHtml(field.name)}" name="${escapeHtml(field.name)}" data-searchable="true"
+              data-placeholder="${escapeHtml(field.placeholder || 'Auswählen...')}">
+        <option value="">${escapeHtml(field.placeholder || 'Auswählen...')}</option>
+        ${opts}
+        ${extra}
+      </select>
+      ${renderHelper(field)}
+    </div>
+  `;
+}
+
 function renderHelper(field) {
   return field.helper ? `<p class="field-helper">${escapeHtml(field.helper)}</p>` : '';
 }
@@ -480,6 +504,7 @@ export function renderField(field, formData, context) {
     case 'repeatableUpload': html = renderRepeatableUpload(field, formData); break;
     case 'entitySelect': html = renderEntitySelect(field, formData, context); break;
     case 'entityMulti': html = renderEntityMulti(field, formData, context); break;
+    case 'select': html = renderSelect(field, formData); break;
     case 'disclosure': html = renderDisclosure(field, formData, context); break;
     case 'fieldGroup': html = renderFieldGroup(field, formData, context); break;
     default: html = renderTextLike(field, formData, 'text');
@@ -502,7 +527,7 @@ export function renderSection(section, formData, context, stepId = '') {
   );
   const html = `
     <div class="${classes}"${dataAttrs ? ` ${dataAttrs}` : ''}>${header}
-      ${fields}
+      <div class="step-section__body">${fields}</div>
     </div>
   `;
   return wrapConditional(html, section.condition, formData);

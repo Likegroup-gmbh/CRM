@@ -11,6 +11,7 @@ import {
   resolveKampagneIdFromCreateContext,
   resolveKooperationCreateRedirect
 } from './kooperationFromKampagne.js';
+import { parseProduktionHerkunft, produktionReturnPath, readHerkunft, showProduktionLeaf } from '../../core/navHerkunft.js';
 import { deleteDropboxCascade } from '../../core/VideoDeleteHelper.js';
 import { resolveEmptyState, bindEmptyStateActions } from '../../core/components/EmptyState.js';
 
@@ -710,6 +711,7 @@ export class KooperationList {
   async showCreateForm() {
     console.log('🎯 Zeige Kooperations-Erstellungsformular');
     window.setHeadline('Neue Kooperation anlegen');
+    await showProduktionLeaf('Neue Kooperation');
     
     // Prüfe auf kampagne_id Query-Parameter
     const urlParams = new URLSearchParams(window.location.search);
@@ -894,11 +896,14 @@ export class KooperationList {
           }
         }));
 
-        const redirect = resolveKooperationCreateRedirect({
-          kampagneId,
-          produktionId: submitData.produktion_id || new URLSearchParams(window.location.search).get('produktion_id'),
-          newKooperationId: result.id
-        });
+        const herkunft = parseProduktionHerkunft(readHerkunft());
+        const redirect = herkunft
+          ? produktionReturnPath(herkunft.produktionId, herkunft.tab)
+          : resolveKooperationCreateRedirect({
+            kampagneId,
+            produktionId: submitData.produktion_id || new URLSearchParams(window.location.search).get('produktion_id'),
+            newKooperationId: result.id
+          });
         setTimeout(() => {
           window.navigateTo(redirect);
         }, 1500);

@@ -142,6 +142,8 @@ Jede Idee ist ein eigener Creative Angle auf das Produkt: distinkter Blickwinkel
 Regeln:
 - Deutsch, Du-Form in Hook und Ablauf nur wenn es zur Marke passt, sonst neutral.
 - Keine erfundenen Produktfeatures, Preise, Claims. Nur was im Briefing oder Produkt steht.
+- Donts im Briefing sind Verbote. Eine Idee, die ein Dont bricht, wird nicht abgegeben.
+- Dos nur, wo der Fakt im Briefing oder Produkt steht.
 - Titel = merkbare Kurzform des Hooks, eine Zeile, keine Anfuehrungszeichen.
 - Pain Point, Hook, Kernbotschaft, grober Ablauf: konkret, keine Agenturlyrik.
 - Ablauf: 2–4 Schritte, was passiert, keine Kameraanweisung.

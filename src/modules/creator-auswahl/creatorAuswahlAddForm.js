@@ -3,7 +3,7 @@
 // (Prototype-Mixin von CreatorAuswahlAddDrawer)
 
 import { CREATOR_TYP_OPTIONS } from './creatorTypeOptions.js';
-import { DEAKTIVIERTE_SPALTEN } from './CreatorAuswahlTemplates.js';
+import { DEAKTIVIERTE_SPALTEN } from './sourcingSpaltenKatalog.js';
 import { berechneHiddenColumns } from './sourcingSpaltenPreset.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { personaDisplayLabel } from './castingPersonaGroups.js';

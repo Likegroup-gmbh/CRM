@@ -3,6 +3,7 @@ import { icon } from '../icons/IconSystem.js';
 import { UploaderField } from './fields/UploaderField.js';
 import { PhoneNumberField } from './fields/PhoneNumberField.js';
 import { CountryField } from './fields/CountryField.js';
+import { backTarget } from '../navHerkunft.js';
 
 export class FormRenderer {
   constructor() {
@@ -236,7 +237,7 @@ ${icon('x-mark', { stroke: 2, className: 'w-6 h-6' })}
       <form id="${entity}-form" data-entity="${entity}" data-entity-id="${data?.id || data?._entityId || ''}" data-is-edit-mode="${data?._isEditMode ? 'true' : 'false'}">
         ${parts.join('')}
         <div class="form-actions">
-          <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.navigateTo('/${entity}')">
+          <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.navigateTo('${backTarget(`/${entity}`).replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">
             <span class="mdc-btn__icon" aria-hidden="true">${this.getCancelIcon()}</span>
             <span class="mdc-btn__label">Abbrechen</span>
           </button>

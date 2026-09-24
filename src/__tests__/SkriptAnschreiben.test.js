@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { dropAnschreibenWarm, warmAnschreiben } from '../core/anschreiben/openAnschreiben.js';
 import {
   skriptAdapter,
   loadSkriptPdfItems,
@@ -7,6 +8,17 @@ import {
   creatorProfileFuerSkript,
   skripteFuerEmpfaenger,
 } from '../core/anschreiben/typen/skript.js';
+
+vi.mock('../modules/skripte/SkriptPdf.js', async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    createSkriptAnhang: vi.fn(async (_subset, opts) => ({
+      blob: new Blob(['%PDF']),
+      dateiname: opts?.dateiname || 'skript.pdf',
+    })),
+  };
+});
 
 function chain(result) {
   const query = {
@@ -89,6 +101,7 @@ describe('loadSkriptPdfItems', () => {
                 hook_visuell: 'V1',
                 hauptteil_visuell: '',
                 cta_visuell: '',
+                produkt: { name: 'FORCE-FIT' },
                 kampagne: { kampagnenname: 'Sommer' },
                 unternehmen: { firmenname: 'VHV', logo_url: 'http://logo' },
                 marke: null,
@@ -104,8 +117,12 @@ describe('loadSkriptPdfItems', () => {
                 hauptteil_visuell: '',
                 cta_visuell: '',
                 strategie_item: {
+                  video_link: 'https://instagram.com/reel/bea',
                   casting_eintrag: {
-                    creator: { vorname: 'Bea', nachname: 'B', profilbild_url: 'http://bea' },
+                    name: 'Bea',
+                    link_instagram: 'https://www.instagram.com/aus-casting/',
+                    link_tiktok: 'https://www.tiktok.com/@aus-casting',
+                    creator: { vorname: 'Bea', nachname: 'B', profilbild_url: 'http://bea', instagram: 'bea' },
                   },
                 },
               },
@@ -115,7 +132,7 @@ describe('loadSkriptPdfItems', () => {
         }
         return chain({
           data: [
-            { skript_id: 's1', position: 1, kooperation: { creator: { vorname: 'Anna', nachname: 'A', profilbild_url: 'http://anna' } } },
+            { skript_id: 's1', position: 1, kooperation: { creator: { vorname: 'Anna', nachname: 'A', profilbild_url: 'http://anna', instagram: '@anna' } } },
           ],
           error: null,
         });
@@ -126,11 +143,23 @@ describe('loadSkriptPdfItems', () => {
       anhang: { alle: true, kampagneId: 'k1' },
     });
     expect(items).toHaveLength(2);
-    expect(items[0].creator).toEqual({ name: 'Anna A', bildUrl: 'http://anna' });
+    expect(items[0].creator).toEqual({ name: 'Anna A', bildUrl: 'http://anna', instagram: '@anna' });
+    expect(items[0].instagram).toBe('@anna');
     expect(items[0].hook).toBe('H1');
     expect(items[0].hauptteil).toBe('');
     expect(items[0].customerName).toBe('VHV');
-    expect(items[1].creator).toEqual({ name: 'Bea B', bildUrl: 'http://bea' });
+    expect(items[0].produktName).toBe('FORCE-FIT');
+    expect(items[0].videoUrl).toBe('');
+    expect(items[1].videoUrl).toBe('https://instagram.com/reel/bea');
+    expect(items[1].creator).toEqual({
+      name: 'Bea B',
+      bildUrl: 'http://bea',
+      instagram: 'https://www.instagram.com/aus-casting/',
+    });
+    expect(items[1].instagram).toBe('https://www.instagram.com/aus-casting/');
+    expect(items[1].tiktok).toBe('https://www.tiktok.com/@aus-casting');
+    expect(items[0].tiktok).toBe('');
+    expect(items[1].produktName).toBe('');
     expect(items[1].hook).toBe('');
     expect(items[0].creatorIds).toEqual([]);
     expect(items[1].creatorIds).toEqual([]);
@@ -173,7 +202,7 @@ describe('Skript-Creator-Zuordnung', () => {
     ];
     const fuerAnna = skripteFuerEmpfaenger(items, { typ: 'creator', id: 'c-anna' });
     expect(fuerAnna.map((item) => item.id)).toEqual(['s1', 's3']);
-    expect(fuerAnna[1].creator).toEqual({ name: 'Anna A', bildUrl: 'http://anna' });
+    expect(fuerAnna[1].creator).toEqual({ name: 'Anna A', bildUrl: 'http://anna', instagram: '' });
     const fuerManagement = skripteFuerEmpfaenger(
       items,
       { typ: 'management', id: 'm1' },
@@ -217,5 +246,69 @@ describe('Skript-Creator-Zuordnung', () => {
     expect(scope.managementCreators.m1).toEqual(['c-anna']);
     expect(scope.kampagne).toEqual({ id: 'k1', label: 'Sommer' });
     expect(db.from).not.toHaveBeenCalledWith('creator');
+  });
+});
+
+describe('Skript-Pool', () => {
+  it('laedt Skripte einmal fuer Scope, PDF und Versand, auch nach dem Umfang-Schalter', async () => {
+    const prepared = await skriptAdapter.prepare({
+      dokumentId: 's1',
+      skript: {
+        id: 's1',
+        titel: 'Hook',
+        unternehmen_id: 'u1',
+        marke_id: 'm1',
+        kampagne_id: 'k1',
+        kampagne: { kampagnenname: 'Sommer' },
+      },
+    });
+    const db = {
+      from: vi.fn(() => chain({
+        data: [
+          { id: 's1', titel: 'Eins', strategie_item: null },
+          { id: 's2', titel: 'Zwei', strategie_item: null },
+        ],
+        error: null,
+      })),
+    };
+
+    await Promise.all([
+      prepared.loadEmpfaengerScope(db),
+      skriptAdapter.createPdf(prepared, db, {}),
+    ]);
+    prepared.anhang.alle = true;
+    await Promise.all([
+      prepared.loadEmpfaengerScope(db),
+      skriptAdapter.createPdf(prepared, db, {}),
+    ]);
+    await skriptAdapter.buildAnhaenge(prepared, db, [
+      { typ: 'ansprechpartner', id: 'ap1', email: 'a@b.de' },
+    ]);
+
+    const skriptLoads = db.from.mock.calls.filter((call) => call[0] === 'skripte');
+    expect(skriptLoads).toHaveLength(1);
+  });
+
+  it('dropAnschreibenWarm laedt den Skript-Pool neu', async () => {
+    const skript = {
+      id: 's-warm',
+      titel: 'Hook',
+      unternehmen_id: 'u1',
+      kampagne_id: 'k1',
+      kampagne: { kampagnenname: 'Sommer' },
+    };
+    const db = {
+      from: vi.fn(() => chain({
+        data: [{ id: 's-warm', titel: 'Hook', strategie_item: null }],
+        error: null,
+      })),
+    };
+    const opts = { dokumentTyp: 'skript', dokumentId: 's-warm', skript, db };
+    dropAnschreibenWarm('skript', 's-warm');
+    await warmAnschreiben(opts);
+    dropAnschreibenWarm('skript', 's-warm');
+    await warmAnschreiben(opts);
+    const skriptLoads = db.from.mock.calls.filter((call) => call[0] === 'skripte');
+    expect(skriptLoads).toHaveLength(2);
   });
 });

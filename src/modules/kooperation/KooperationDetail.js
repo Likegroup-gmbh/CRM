@@ -18,6 +18,7 @@ import {
   VIDEO_FEEDBACK_FIELDS
 } from '../../core/VideoFeedbackBuckets.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
+import { parseProduktionHerkunft, produktionReturnPath, readHerkunft, showProduktionLeaf } from '../../core/navHerkunft.js';
 
 export class KooperationDetail extends PersonDetailBase {
   constructor() {
@@ -50,8 +51,7 @@ export class KooperationDetail extends PersonDetailBase {
   async init(kooperationId) {
     console.log('🎯 KOOPERATIONDETAIL: Initialisiere für ID:', kooperationId);
 
-    const currentUrl = new URL(window.location.href);
-    this.returnToRoute = currentUrl.searchParams.get('returnTo') || null;
+    this.returnToRoute = readHerkunft();
     this.kooperationId = kooperationId;
     this.activeMainTab = getTabQueryParam() || 'informationen';
 
@@ -65,10 +65,10 @@ export class KooperationDetail extends PersonDetailBase {
 
       if (window.breadcrumbSystem && this.kooperation) {
         const canEdit = window.currentUser?.permissions?.kooperation?.can_edit || false;
-        window.breadcrumbSystem.updateDetailLabel(this.kooperation.name || 'Details', {
-          id: 'btn-edit-kooperation',
-          canEdit: canEdit
-        });
+        const label = this.kooperation.name || 'Details';
+        const editButton = { id: 'btn-edit-kooperation', canEdit };
+        const shown = await showProduktionLeaf(label, editButton);
+        if (!shown) window.breadcrumbSystem.updateDetailLabel(label, editButton);
       }
 
       this.render();
@@ -89,8 +89,7 @@ export class KooperationDetail extends PersonDetailBase {
   async initForEdit(kooperationId) {
     console.log('⚡ KOOPERATIONDETAIL: Fast-Path initForEdit für ID:', kooperationId);
 
-    const currentUrl = new URL(window.location.href);
-    this.returnToRoute = currentUrl.searchParams.get('returnTo') || null;
+    this.returnToRoute = readHerkunft();
     this.kooperationId = kooperationId;
 
     if (window.moduleRegistry?.currentModule !== this) {
@@ -120,7 +119,9 @@ export class KooperationDetail extends PersonDetailBase {
       this.kooperation = data;
 
       if (window.breadcrumbSystem) {
-        window.breadcrumbSystem.updateDetailLabel(data.name || 'Bearbeiten', { canEdit: false });
+        const label = data.name || 'Bearbeiten';
+        const shown = await showProduktionLeaf(label, { canEdit: false });
+        if (!shown) window.breadcrumbSystem.updateDetailLabel(label, { canEdit: false });
       }
 
       await this.showEditForm();
@@ -491,8 +492,23 @@ export class KooperationDetail extends PersonDetailBase {
   // INFO TAB (rendered into Sidebar via PersonDetailBase)
   // ============================================
 
+  _kampagneZiel() {
+    const parsed = parseProduktionHerkunft(this.returnToRoute);
+    if (parsed) {
+      return {
+        route: produktionReturnPath(parsed.produktionId, parsed.tab),
+        label: 'Produktion anzeigen'
+      };
+    }
+    return {
+      route: `/kampagne/${this.kampagne?.id || ''}`,
+      label: 'Kampagne Details anzeigen'
+    };
+  }
+
   renderInfoDetails() {
     const isKunde = window.isKunde();
+    const kampagneZiel = this._kampagneZiel();
     const allgemeinItems = this.renderInfoItems([
       ...(!isKunde ? [{ icon: 'currency', label: 'Einkaufspreis', value: this.formatCurrency(this.kooperation.einkaufspreis_gesamt) }] : []),
       { icon: 'currency', label: 'Verkaufspreis', value: this.formatCurrency(this.kooperation.verkaufspreis_gesamt) }
@@ -528,7 +544,7 @@ export class KooperationDetail extends PersonDetailBase {
           { icon: 'tag', label: 'Marke', value: this.kampagne.marke?.markenname || '-' }
         ])}
         <div class="detail-actions">
-          <button onclick="window.navigateTo('/kampagne/${this.kampagne.id}')" class="mdc-btn mdc-btn--secondary">Kampagne Details anzeigen</button>
+          <button onclick="window.navigateTo('${kampagneZiel.route}')" class="mdc-btn mdc-btn--secondary">${kampagneZiel.label}</button>
         </div>
       </div>
     ` : '';
@@ -972,7 +988,8 @@ export class KooperationDetail extends PersonDetailBase {
     window.setHeadline('Kooperation bearbeiten');
 
     if (window.breadcrumbSystem && this.kooperation) {
-      window.breadcrumbSystem.updateDetailLabel('Bearbeiten', { canEdit: false });
+      const shown = await showProduktionLeaf('Bearbeiten', { canEdit: false });
+      if (!shown) window.breadcrumbSystem.updateDetailLabel('Bearbeiten', { canEdit: false });
     }
 
     const formData = { ...this.kooperation };

@@ -292,7 +292,6 @@ const BRIEFING_FLOW_FIELDS = [
   { name: 'vorgaben_ausschluesse', label: 'Vorgaben und Ausschluesse', prio: 1 },
   { name: 'cta', label: 'CTA', prio: 1 },
   { name: 'hook_vorgaben', label: 'Hook-/Conversion-Vorgaben', prio: 1 },
-  { name: 'dos_donts', label: 'Do’s und Don’ts', prio: 2 },
   { name: 'learnings_text', label: 'Learnings', prio: 2 }
 ];
 
@@ -383,15 +382,40 @@ function collectBriefingLines(briefing) {
   return lines;
 }
 
+function leitplankenAusBriefing(briefing) {
+  const dos = String(briefing?.dos || '').trim();
+  const donts = String(briefing?.donts || '').trim();
+  if (dos || donts) return { dos, donts };
+  const alt = String(briefing?.dos_donts || '').trim();
+  return alt ? { dos: '', donts: alt } : { dos: '', donts: '' };
+}
+
+function fmtLeitplanken(briefing) {
+  const { dos, donts } = leitplankenAusBriefing(briefing);
+  if (!dos && !donts) return '';
+  let out = '\n# LEITPLANKEN (vor dem restlichen Briefing, nicht kuerzen)\n';
+  if (donts) {
+    out += '# DONTS (Verbote. Nicht uebertreten. Was nicht im Briefing, am Produkt oder am Creator steht, wird nicht behauptet.)\n';
+    out += `${donts}\n`;
+  }
+  if (dos) {
+    out += '# DOS (Mitnehmen, wo die Daten es hergeben. Kein Ausschluss. Ein fehlender Fakt wird weggelassen.)\n';
+    out += `${dos}\n`;
+  }
+  return out;
+}
+
 /**
  * Campaign-Briefing als Prompt-Sektion. Master + nur das aktive Modul.
  * Leere Felder fallen raus. Bei Budget-Ueberschreitung bleiben Prio-1-Felder
- * (Umsetzung, CTA, Sprache) zuerst erhalten.
+ * (Umsetzung, CTA, Sprache) zuerst erhalten. Donts und Dos stehen davor
+ * und werden nicht gekuerzt.
  */
 function fmtCampaignBriefing(briefing, { max = BRIEFING_MAX } = {}) {
   if (!briefing) return '';
+  const leit = fmtLeitplanken(briefing);
   const lines = collectBriefingLines(briefing);
-  if (!lines.length) return '';
+  if (!lines.length && !leit) return '';
 
   lines.sort((a, b) => a.prio - b.prio || 0);
 
@@ -407,8 +431,9 @@ function fmtCampaignBriefing(briefing, { max = BRIEFING_MAX } = {}) {
     }
     body = next;
   }
-  if (!body.trim()) return '';
-  return header + body;
+  const dump = body.trim() ? header + body : '';
+  if (!leit && !dump) return '';
+  return leit + dump;
 }
 
 /** Sprache aus dem Briefing, wenn sie vom Deutsch-Default abweicht. */
@@ -422,5 +447,5 @@ function briefingSkriptSprache(briefing) {
 }
 
 module.exports = {
-  fmtCampaignBriefing, briefingSkriptSprache, BRIEFING_MAX, CAMPAIGN_BRIEFING_FIELD_NAMES
+  fmtCampaignBriefing, fmtLeitplanken, leitplankenAusBriefing, briefingSkriptSprache, BRIEFING_MAX, CAMPAIGN_BRIEFING_FIELD_NAMES
 };

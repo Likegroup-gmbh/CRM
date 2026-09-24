@@ -32,7 +32,7 @@ const SECONDARY_TITLES = new Set([
   'Learnings aus bisherigem bzw. vergleichbarem Content',
   'Produktion'
 ]);
-const SECONDARY_KEY_RE = /learnings|referenzen|dos_donts|verhandlungshinweis|nutzung_|rohmaterial|nutzungsdauer|hauttyp|haartyp|produkt_erfahrung/;
+const SECONDARY_KEY_RE = /learnings|referenzen|verhandlungshinweis|nutzung_|rohmaterial|nutzungsdauer|hauttyp|haartyp|produkt_erfahrung/;
 const PDF_SKIP = new Set(['verhandlungshinweis']);
 const PROSE_TYPES = new Set(['textarea', 'repeatableText']);
 const BLOCK_TYPES = new Set(['textarea', 'repeatableText', 'repeatableUpload', 'url']);
@@ -182,6 +182,16 @@ export function collectPresentation(detail, { includeEmptyTextareas = false, for
     }
   }
 
+  const dosLeer = !String(briefing.dos || '').trim() && !String(briefing.donts || '').trim();
+  const alt = String(briefing.dos_donts || '').trim();
+  if (dosLeer && alt) {
+    pushGrouped(prose, 'Was ist bei der kreativen Umsetzung zu beachten?', {
+      field: { name: 'dos_donts', label: 'Kommunikative Do’s und Don’ts', type: 'textarea' },
+      formatted: detail.escape(alt),
+      value: alt
+    });
+  }
+
   return { callout, prose, specs, creator, secondary };
 }
 
@@ -204,40 +214,29 @@ function renderMetaChip(iconKey, text) {
   `;
 }
 
-function renderProducts(detail, { canEdit = false } = {}) {
+function renderProducts(detail) {
   const names = (detail.briefing?.produkte || [])
     .map(p => detail.escape(p?.name))
     .filter(Boolean);
   const personas = (detail.briefing?.personas || [])
     .map(p => detail.escape(p?.oberbegriff ? `${p.oberbegriff} (${p.name})` : p?.name))
     .filter(Boolean);
+  if (!names.length && !personas.length) return '';
   const productLine = names.length
     ? `<p class="briefing-doc__products">${names.join('<span class="briefing-doc__products-sep"> · </span>')}</p>`
     : '';
-
-  if (canEdit) {
-    const selected = new Set((detail.briefing?.persona_ids || []).filter(Boolean));
-    const options = (detail.briefing?.personaOptions || []).map(p => {
-      const label = p.label || (p.oberbegriff ? `${p.oberbegriff} (${p.name})` : (p.name || p.id));
-      return `<option value="${detail.escape(p.id)}" ${selected.has(p.id) ? 'selected' : ''}>${detail.escape(label)}</option>`;
-    }).join('');
-    return `
-      ${productLine}
-      <div class="briefing-doc__personas" data-entity-multi="persona_ids">
-        <select id="briefing_persona_ids" name="briefing_persona_ids" multiple
-                data-searchable="true" data-tag-based="true"
-                data-placeholder="Personas suchen und hinzufügen...">
-          ${options}
-        </select>
-      </div>
-    `;
-  }
-
-  if (!names.length && !personas.length) return '';
   const personaLine = personas.length
     ? `<p class="briefing-doc__products">${personas.join('<span class="briefing-doc__products-sep"> · </span>')}</p>`
     : '';
   return `${productLine}${personaLine}`;
+}
+
+function renderActionButton({ id, label, title, variant = 'secondary', iconName }) {
+  return `
+    <button type="button" id="${id}" class="mdc-btn mdc-btn--${variant}" title="${escapeLabel(title || label)}">
+      <span class="mdc-btn__icon">${icon(iconName)}</span>
+      <span class="mdc-btn__label">${escapeLabel(label)}</span>
+    </button>`;
 }
 
 function renderDocActions({ canEdit = false, canDelete = false, canAnschreiben = false, compact = true } = {}) {
@@ -245,9 +244,25 @@ function renderDocActions({ canEdit = false, canDelete = false, canAnschreiben =
   return `
     <div class="briefing-doc__actions">
       ${canEdit ? '<span class="briefing-doc__status" data-briefing-status hidden>Gespeichert</span>' : ''}
-      <button type="button" id="btn-briefing-fields-toggle" class="mdc-btn mdc-btn--secondary mdc-btn--sm">${toggleLabel}</button>
-      ${canAnschreiben ? '<button type="button" id="btn-anschreiben-briefing" class="mdc-btn mdc-btn--secondary mdc-btn--sm">Anschreiben</button>' : ''}
-      ${canDelete ? '<button type="button" id="btn-delete-briefing" class="mdc-btn mdc-btn--delete mdc-btn--sm">Löschen</button>' : ''}
+      ${renderActionButton({
+        id: 'btn-briefing-fields-toggle',
+        label: toggleLabel,
+        title: compact ? 'Alle Felder anzeigen' : 'Ansicht komprimieren',
+        iconName: compact ? 'list-bullet' : 'arrows-collapse'
+      })}
+      ${canAnschreiben ? renderActionButton({
+        id: 'btn-anschreiben-briefing',
+        label: 'Anschreiben',
+        title: 'Briefing per E-Mail senden',
+        iconName: 'anschreiben'
+      }) : ''}
+      ${canDelete ? renderActionButton({
+        id: 'btn-delete-briefing',
+        label: 'Löschen',
+        title: 'Briefing löschen',
+        variant: 'delete',
+        iconName: 'trash'
+      }) : ''}
     </div>
   `;
 }
@@ -267,7 +282,7 @@ function renderBrandLockup(detail) {
   `;
 }
 
-function renderHero(detail, { actionsHtml = '', canEdit = false } = {}) {
+function renderHero(detail) {
   const b = detail.briefing;
   const bereich = BEREICH_LABELS[b.bereich] || b.bereich;
   const statusClass = b.is_draft ? 'warning' : 'success';
@@ -291,9 +306,8 @@ function renderHero(detail, { actionsHtml = '', canEdit = false } = {}) {
           <span class="status-badge ${statusClass}">${statusLabel}</span>
           ${bereich ? `<span class="tag tag--type">${detail.escape(bereich)}</span>` : ''}
         </div>
-        ${actionsHtml}
       </div>
-      ${renderProducts(detail, { canEdit })}
+      ${renderProducts(detail)}
       <h1 class="briefing-doc__title">${detail.escape(b.aktivierung_name || 'Briefing')}</h1>
       ${subtitle ? `<p class="briefing-doc__subtitle">${subtitle}</p>` : ''}
       <div class="briefing-doc__meta">
@@ -558,13 +572,10 @@ export function renderBriefingDoc({
 
   const editClass = contentEditable ? ' briefing-doc--editable' : '';
   const printClass = print ? ' briefing-doc--print' : '';
-  const actionsHtml = print
-    ? ''
-    : renderDocActions({ canEdit, canDelete, canAnschreiben, compact });
 
-  return `
+  const article = `
     <article class="briefing-doc${editClass}${printClass}" data-compact="${compact ? 'true' : 'false'}">
-      ${renderHero(detail, { actionsHtml, canEdit })}
+      ${renderHero(detail)}
       ${compact ? `<p class="briefing-doc__hint">Komprimierte Ansicht — für die komplette Felderliste oben rechts „Alle Felder“ wählen</p>` : ''}
       ${renderCallout(presentation.callout, { canEdit: contentEditable })}
       ${renderGroupedSections(prose, detail, { canEdit: contentEditable })}
@@ -577,6 +588,19 @@ export function renderBriefingDoc({
       ${compact ? '' : renderGroupedSections(secondary, detail, { canEdit: contentEditable })}
       ${compact ? '' : renderAdminMeta(detail)}
     </article>
+  `;
+
+  if (print) return article;
+
+  return `
+    <div class="briefing-detail">
+      <header class="briefing-doc-head">
+        ${renderDocActions({ canEdit, canDelete, canAnschreiben, compact })}
+      </header>
+      <div class="briefing-detail__scroll">
+        ${article}
+      </div>
+    </div>
   `;
 }
 
@@ -599,7 +623,8 @@ export function bindBriefingDoc(root, { briefingId, canEdit = false, onSaved } =
 
   const db = window.supabase;
   let statusTimer = null;
-  const statusEl = root.querySelector('[data-briefing-status]');
+  const statusEl = root.closest('.briefing-detail')?.querySelector('[data-briefing-status]')
+    || root.querySelector('[data-briefing-status]');
 
   const showSaved = () => {
     if (!statusEl) return;

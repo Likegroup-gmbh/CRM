@@ -106,7 +106,7 @@ export class VideoTableRenderer {
           ? 'Es wurden noch keine Kooperationen für diese Kampagne angelegt.'
           : 'Erstelle eine Kooperation, um sie hier mit Videos zu verwalten.',
         actionsHtml: canCreateKooperation
-          ? `<button class="mdc-btn" onclick="window.navigateToNewKooperationFromKampagne('${t.kampagneId}')">Kooperation anlegen</button>`
+          ? `<button class="mdc-btn" onclick="window.navigateToNewKooperationFromKampagne('${t.kampagneId}', null, '${t.produktionId || ''}')">Kooperation anlegen</button>`
           : ''
       });
     }
@@ -260,7 +260,7 @@ export class VideoTableRenderer {
       'col-video-typ': (c) => this._stackTd(c, 'col-video-typ', (video) => renderVideoTypInner(video)),
       'col-thema': (c) => this._stackTd(c, 'col-thema', (video) => renderThemaInner(c, video)),
       'col-idee-strategie': (c) => this._stackTd(c, 'col-idee-strategie', (video) => renderIdeeStrategieInner(c, video)),
-      'col-skript': (c) => this._stackTd(c, 'col-skript', (video) => renderSkriptCell(c.koop, video)),
+      'col-skript': (c) => this._stackTd(c, 'col-skript', (video) => renderSkriptCell(c.koop, video, c.t)),
       'col-organic-paid': (c) => this._stackTd(c, 'col-organic-paid', (video) => renderOrganicPaidInner(c, video)),
       'col-produkt': (c) => this._stackTd(c, 'col-produkt', (video) => renderProduktInner(c, video)),
       'col-lieferadresse': (c) => this._stackTd(c, 'col-lieferadresse', (video) => renderLieferadresseInner(c, video)),

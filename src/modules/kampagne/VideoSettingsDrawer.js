@@ -36,12 +36,13 @@ export class VideoSettingsDrawer {
     this._expandedRounds = new Set();
   }
 
-  async open({ videoId, kooperationId, videoUrl, filePath, videoTitel, videos, onReupload, onStorysReupload, onBilderReupload, onDelete, onBilderChanged, onFinaleChanged, initialTab = 'videos' }) {
+  async open({ videoId, kooperationId, videoUrl, filePath, videoTitel, folderUrl, videos, onReupload, onStorysReupload, onBilderReupload, onDelete, onBilderChanged, onFinaleChanged, onFolderCleared, initialTab = 'videos' }) {
     this.videoId = videoId;
     this.kooperationId = kooperationId;
     this.videoUrl = videoUrl;
     this.filePath = filePath;
     this.videoTitel = videoTitel || 'Video';
+    this.folderUrl = folderUrl || '';
     this.videos = (videos || []).slice().sort((a, b) => (a.position || 1) - (b.position || 1));
     this.onReupload = onReupload;
     this.onStorysReupload = onStorysReupload;
@@ -49,6 +50,7 @@ export class VideoSettingsDrawer {
     this.onDelete = onDelete;
     this.onBilderChanged = onBilderChanged || null;
     this.onFinaleChanged = onFinaleChanged || null;
+    this.onFolderCleared = onFolderCleared || null;
     this._activeTab = initialTab === 'bilder' ? 'bilder' : (initialTab === 'storys' ? 'storys' : 'videos');
     this._expandedRounds = new Set();
     this.assets = [];
@@ -343,7 +345,9 @@ export class VideoSettingsDrawer {
     if (hasLegacy) {
       contentHtml = this._renderLegacyVideoBlock();
     } else if (!hasAssets && !finalAssets.length) {
-      contentHtml = '<p class="video-settings-no-file">Noch kein Video vorhanden</p>';
+      contentHtml = this.folderUrl
+        ? ''
+        : '<p class="video-settings-no-file">Noch kein Video vorhanden</p>';
     } else {
       const grouped = {};
       for (const asset of loopAssets) {
@@ -410,9 +414,21 @@ export class VideoSettingsDrawer {
       contentHtml += '</div>';
     }
 
+    const folderHtml = this.folderUrl ? `
+      <div class="video-settings-folder">
+        <span class="existing-images-title">Geteilter Ordner</span>
+        ${this._renderFileLinkBlock(this.folderUrl)}
+      </div>
+    ` : '';
+
+    const removeFolderBtn = this.folderUrl
+      ? `<button type="button" class="mdc-btn mdc-btn--danger" id="video-settings-folder-remove">Ordner entfernen</button>`
+      : '';
+
     return `
       <div id="settings-tab-videos" style="${this._activeTab !== 'videos' ? 'display:none' : ''}">
         <div class="video-settings-section">
+          ${folderHtml}
           ${contentHtml}
         </div>
         <div class="video-settings-actions">
@@ -420,6 +436,7 @@ export class VideoSettingsDrawer {
             ${icon('upload')}
             ${uploadBtnText}
           </button>
+          ${removeFolderBtn}
         </div>
       </div>
     `;
@@ -681,6 +698,26 @@ export class VideoSettingsDrawer {
       }
     });
 
+    const removeFolderBtn = document.getElementById('video-settings-folder-remove');
+    removeFolderBtn?.addEventListener('click', async () => {
+      if (!confirm('Geteilten Ordner entfernen?')) return;
+      removeFolderBtn.disabled = true;
+      try {
+        const { error } = await window.supabase
+          .from('kooperation_videos')
+          .update({ folder_url: null })
+          .eq('id', this.videoId);
+        if (error) throw error;
+        this.folderUrl = '';
+        await this.onFolderCleared?.();
+        this.renderContent();
+        this.bindEvents();
+      } catch (err) {
+        alert('Entfernen fehlgeschlagen: ' + (err.message || 'Unbekannter Fehler'));
+        removeFolderBtn.disabled = false;
+      }
+    });
+
     const storysReuploadBtn = document.getElementById('storys-settings-reupload-btn');
     storysReuploadBtn?.addEventListener('click', () => {
       this.close();
@@ -729,6 +766,7 @@ export class VideoSettingsDrawer {
             videoUrl: this.videoUrl,
             filePath: this.filePath,
             videoTitel: this.videoTitel,
+            folderUrl: this.folderUrl,
             videos: this.videos,
             onReupload: this.onReupload,
             onStorysReupload: this.onStorysReupload,
@@ -736,6 +774,7 @@ export class VideoSettingsDrawer {
             onDelete: this.onDelete,
             onBilderChanged: this.onBilderChanged,
             onFinaleChanged: this.onFinaleChanged,
+            onFolderCleared: this.onFolderCleared,
             initialTab: this._activeTab,
           });
         } catch (err) {

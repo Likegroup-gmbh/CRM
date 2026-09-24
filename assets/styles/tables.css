@@ -1717,7 +1717,7 @@ thead {
 /* Sticky-Spalten: Echte Borders werden durch box-shadow ersetzt (bleiben beim Scrollen sichtbar) */
 
 /* Die linke Spaltengruppe bleibt beim Querscrollen stehen. Welche Spalte welche
-   Position einnimmt, entscheidet getStickyClasses() in CreatorAuswahlTemplates.js:
+   Position einnimmt, entscheidet getStickyClasses() in sourcingSpaltenSichtbarkeit.js:
    intern Checkbox > Bild > Name, in der Kundenansicht faellt die Checkbox weg.
    Die left-Offsets ergeben sich hier kumulativ aus den Spaltenbreiten. */
 

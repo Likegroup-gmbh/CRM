@@ -6,6 +6,7 @@ import { VertraegeCreate } from './VertraegeCreateCore.js';
 import { PageTransitionHelper } from '../../../core/PageTransitionHelper.js';
 import { icon } from '../../../core/icons/IconSystem.js';
 import { splitButton } from '../../../core/components/SplitButton.js';
+import { backTarget } from '../../../core/navHerkunft.js';
 
 VertraegeCreate.prototype.render = function() {
     // Verhindere doppeltes Rendern
@@ -58,7 +59,7 @@ VertraegeCreate.prototype.renderStep1 = function() {
             ${cards}
           </div>
           <div class="pe-type-selection__actions">
-            <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.navigateTo('/vertraege')">
+            <button type="button" class="mdc-btn mdc-btn--cancel" onclick="window.navigateTo('${backTarget('/vertraege').replace(/\\/g, '\\\\').replace(/'/g, "\\'")}')">
               <span class="mdc-btn__label">Abbrechen</span>
             </button>
             <button type="button" id="btn-generate" class="mdc-btn" ${this.selectedTyp ? '' : 'disabled'}>

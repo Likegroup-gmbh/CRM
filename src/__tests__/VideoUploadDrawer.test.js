@@ -264,6 +264,63 @@ describe('VideoUploadDrawer', () => {
     });
   });
 
+  describe('Ordner teilen', () => {
+    it('zeigt Video-Link und Ordner teilen im Kein-Dropbox-Tab', async () => {
+      window.supabase = createMockSupabase([]);
+      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true }, vi.fn());
+
+      expect(document.querySelector('[data-link-mode="video"]')?.classList.contains('active')).toBe(true);
+      expect(document.querySelector('[data-link-mode="folder"]')).not.toBeNull();
+      expect(document.getElementById('video-link-add-btn')).not.toBeNull();
+      expect(document.getElementById('video-folder-url-input')).toBeNull();
+    });
+
+    it('wechselt in den Ordner-Modus', async () => {
+      window.supabase = createMockSupabase([]);
+      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true }, vi.fn());
+
+      document.querySelector('[data-link-mode="folder"]').click();
+
+      expect(document.querySelector('[data-link-mode="folder"]')?.classList.contains('active')).toBe(true);
+      expect(document.getElementById('video-link-add-btn')).toBeNull();
+      expect(document.getElementById('video-folder-url-input')).not.toBeNull();
+      expect(document.getElementById('video-upload-submit-btn').disabled).toBe(true);
+    });
+
+    it('startet im Ordner-Modus wenn folderUrl gesetzt ist', async () => {
+      window.supabase = createMockSupabase([]);
+      const url = 'https://contoso.sharepoint.com/:f:/g/abc';
+      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true, folderUrl: url }, vi.fn());
+
+      expect(document.getElementById('video-folder-url-input')?.value).toBe(url);
+      expect(document.querySelector('[data-link-mode="folder"]')?.classList.contains('active')).toBe(true);
+      expect(document.getElementById('video-upload-submit-btn').disabled).toBe(false);
+    });
+
+    it('speichert folder_url ohne Asset und ohne link_content', async () => {
+      const sb = createTrackingSupabase([]);
+      window.supabase = sb;
+      const onSuccess = vi.fn();
+      const url = 'https://contoso.sharepoint.com/:f:/g/abc';
+      await drawer.open('video-1', { ...defaultMetadaten, keinDropbox: true }, onSuccess);
+
+      document.querySelector('[data-link-mode="folder"]').click();
+      const input = document.getElementById('video-folder-url-input');
+      input.value = url;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      document.getElementById('video-upload-submit-btn').click();
+
+      await vi.waitFor(() => expect(onSuccess).toHaveBeenCalled());
+
+      const videoUpdates = sb._log.filter(e => e.op === 'update' && e.table === 'kooperation_videos');
+      expect(videoUpdates).toEqual([
+        { op: 'update', table: 'kooperation_videos', data: { folder_url: url } }
+      ]);
+      expect(sb._log.find(e => e.op === 'insert')).toBeUndefined();
+      expect(onSuccess).toHaveBeenCalledWith(null, null, 'Testvideo', url);
+    });
+  });
+
   describe('Kein-Dropbox Header-Chip', () => {
     it('zeigt aktiven Chip wenn keinDropbox in Metadaten gesetzt ist', async () => {
       window.supabase = createMockSupabase([]);

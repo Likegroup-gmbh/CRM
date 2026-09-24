@@ -4,11 +4,13 @@ import { renderItemsTable } from '../modules/creator-auswahl/castingTableRender.
 import {
   isColumnVisibleForCustomer,
   getVisibleColumnCount,
-  getStickyClasses,
+  getStickyClasses
+} from '../modules/creator-auswahl/sourcingSpaltenSichtbarkeit.js';
+import {
   DEAKTIVIERTE_SPALTEN,
   TIKTOK_SPALTEN,
   SOURCING_SPALTEN
-} from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
+} from '../modules/creator-auswahl/sourcingSpaltenKatalog.js';
 import { SourcingTabelleAnpassenDrawer } from '../modules/creator-auswahl/SourcingTabelleAnpassenDrawer.js';
 
 function baseCtx(overrides = {}) {

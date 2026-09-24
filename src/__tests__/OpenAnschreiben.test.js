@@ -1,5 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { openAnschreiben } from '../core/anschreiben/openAnschreiben.js';
+import { dropAnschreibenWarm, openAnschreiben, warmAnschreiben } from '../core/anschreiben/openAnschreiben.js';
+
+function chain(result) {
+  const query = {
+    select: () => query,
+    eq: () => query,
+    in: () => query,
+    order: () => query,
+    not: () => query,
+    then: (resolve) => Promise.resolve(result).then(resolve),
+  };
+  return query;
+}
 
 const { open, AnschreibenDrawer } = vi.hoisted(() => {
   const open = vi.fn(async () => {});
@@ -28,8 +40,13 @@ describe('openAnschreiben', () => {
   beforeEach(() => {
     open.mockClear();
     AnschreibenDrawer.mockClear();
+    createBriefingPdf.mockClear();
+    dropAnschreibenWarm('briefing', 'b1');
+    dropAnschreibenWarm('briefing', 'b-slow');
+    dropAnschreibenWarm('vertrag', 'v1');
     window.isInternal = () => true;
     window.toastSystem = { show: vi.fn() };
+    window.supabase = { from: () => chain({ data: [], error: null }) };
   });
 
   it('oeffnet Briefing-Drawer ueber den zentralen Einstieg', async () => {
@@ -136,8 +153,36 @@ describe('openAnschreiben', () => {
     expect(window.toastSystem.show).toHaveBeenCalled();
   });
 
+  it('zweiter Open waehrend des Warmlaufs baut einen Drawer', async () => {
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    createBriefingPdf.mockImplementationOnce(() => gate.then(() => ({ blob: new Blob(['%PDF']), dateiname: 'b.pdf' })));
+    const detail = {
+      briefing: { is_draft: false, aktivierung_name: 'Glow', unternehmen_id: 'u1' },
+    };
+    const opts = { dokumentTyp: 'briefing', dokumentId: 'b-slow', detail };
+    const first = openAnschreiben(opts);
+    const second = openAnschreiben(opts);
+    release();
+    await Promise.all([first, second]);
+    expect(AnschreibenDrawer).toHaveBeenCalledTimes(1);
+    expect(open).toHaveBeenCalledTimes(1);
+  });
+
+  it('Open nach Warmlauf erzeugt das PDF nicht noch einmal', async () => {
+    const detail = {
+      briefing: { is_draft: false, aktivierung_name: 'Glow', unternehmen_id: 'u1' },
+    };
+    const opts = { dokumentTyp: 'briefing', dokumentId: 'b1', detail };
+    await warmAnschreiben(opts);
+    expect(createBriefingPdf).toHaveBeenCalledTimes(1);
+    await openAnschreiben(opts);
+    expect(createBriefingPdf).toHaveBeenCalledTimes(1);
+    expect(open.mock.calls[0][0]).toMatchObject({ pdfStatus: 'ready' });
+  });
+
   it('Vertrags-PDF faellt auf Server zurueck wenn Fetch scheitert', async () => {
-    fetchDokumentPdf.mockRejectedValueOnce(new Error('CORS'));
+    fetchDokumentPdf.mockRejectedValue(new Error('CORS'));
     const vertrag = {
       is_draft: false,
       datei_url: 'https://dropbox.com/v.pdf',

@@ -25,8 +25,14 @@ describe('Briefing FieldRenderer Hierarchie', () => {
     expect(zuordnung).toBeTruthy();
     expect(zuordnung.dataset.section).toBe('zuordnung');
     expect(zuordnung.dataset.step).toBe('grundlage');
-    expect(zuordnung.querySelector('[data-group="zuordnung-entities"]')).toBeTruthy();
-    expect(zuordnung.querySelector('.bf-field-group--stack')).toBeTruthy();
+
+    const body = zuordnung.querySelector(':scope > .step-section__body');
+    expect(zuordnung.querySelector(':scope > .step-section__header')).toBeTruthy();
+    expect(body).toBeTruthy();
+    expect([...body.querySelectorAll(':scope > .bf-field-group')].map(el => el.dataset.group)).toEqual([
+      'zuordnung-entities',
+      'zuordnung-titel'
+    ]);
   });
 
   it('nutzung-flags ist eine Wrap-Gruppe mit den vier Checkboxen', () => {

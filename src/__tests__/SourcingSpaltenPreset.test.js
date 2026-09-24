@@ -9,7 +9,7 @@ import {
   PRESET_SPALTEN,
   STANDARD_VERSTECKTE_SPALTEN
 } from '../modules/creator-auswahl/sourcingSpaltenPreset.js';
-import { SOURCING_SPALTEN } from '../modules/creator-auswahl/CreatorAuswahlTemplates.js';
+import { SOURCING_SPALTEN } from '../modules/creator-auswahl/sourcingSpaltenKatalog.js';
 
 /** Alle Spalten, die das Preset ueberhaupt anfassen kann */
 const STEUERBAR = [...IG_BASIS_SPALTEN, ...IG_REELS_SPALTEN, ...IG_STORY_SPALTEN, ...TT_SPALTEN];

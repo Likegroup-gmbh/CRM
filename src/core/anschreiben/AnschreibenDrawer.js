@@ -4,6 +4,7 @@
 // Generisch ueber dokumentTyp/dokumentId. Seiten rufen openAnschreiben().
 
 import { EmpfaengerComposer } from './EmpfaengerComposer.js';
+import { loadAnschreibenSnapshot, loadPdfResult } from './snapshot.js';
 import { authorizedFetch } from '../auth/getAccessToken.js';
 
 function escapeHtml(value) {
@@ -76,22 +77,55 @@ export class AnschreibenDrawer {
     this.pdf = null; // { blob, dateiname }
     this.sending = false;
     this._abort = null;
+    this._painting = false;
+    this._pdfPending = false;
   }
 
-  async open() {
+  _snapshotArgs({ vorlagen = true, empfaenger = null } = {}) {
+    return {
+      db: this.db,
+      dokumentTyp: this.dokumentTyp,
+      loadEmpfaengerScope: this.loadEmpfaengerScope,
+      createPdf: (hint) => this.createPdf(hint),
+      pdfHint: {
+        ...(this.pdfContext || {}),
+        empfaenger: empfaenger ?? this.composer?.getEmpfaenger()?.[0] ?? null,
+      },
+      vorlagen,
+    };
+  }
+
+  async open(snapshot) {
     this._build();
-    if (this.loadEmpfaengerScope) {
-      try {
-        this.composer.empfaengerScope = await this.loadEmpfaengerScope(this.db);
-        this.composer.managementCreators = this.composer.empfaengerScope?.managementCreators || {};
-      } catch (err) {
-        console.error('Empfänger-Scope laden fehlgeschlagen:', err);
-        this.composer.empfaengerScope = { creators: [], managements: [], kampagne: null };
+    const ready = snapshot || await loadAnschreibenSnapshot(this._snapshotArgs());
+    if (!this.panel) return;
+    await this._paint(ready);
+    if (!this.panel) return;
+    this._reveal();
+  }
+
+  async _paint(snapshot) {
+    this._painting = true;
+    try {
+      if (snapshot.empfaengerScope) {
+        this.composer.empfaengerScope = snapshot.empfaengerScope;
+        this.composer.managementCreators = snapshot.empfaengerScope.managementCreators || {};
       }
+      await this.composer.render();
+      if (this.prefill?.length) this.composer.applyPrefill(this.prefill);
+      this.vorlagen = snapshot.vorlagen || [];
+      this._renderVorlageSelect();
+      this._fillFromVorlage(this._defaultVorlage());
+      this._applyPdfResult(snapshot);
+    } finally {
+      this._painting = false;
     }
-    await Promise.all([this.composer.render(), this._loadVorlagen(), this._buildPdf()]);
-    if (this.prefill?.length) this.composer.applyPrefill(this.prefill);
-    this._fillFromVorlage(this._defaultVorlage());
+  }
+
+  _reveal() {
+    if (!this.overlay || !this.panel) return;
+    this.overlay.hidden = false;
+    requestAnimationFrame(() => this.panel?.classList.add('show'));
   }
 
   close() {
@@ -109,21 +143,6 @@ export class AnschreibenDrawer {
 
   // ─── Daten ────────────────────────────────────────────────
 
-  async _loadVorlagen() {
-    const { data, error } = await this.db
-      .from('mailvorlage')
-      .select('id, name, betreff, body, empfaenger_typ, is_standard, is_shared, created_by, dokument_typ')
-      .order('is_standard', { ascending: false })
-      .order('name');
-    if (error) {
-      console.error('Mailvorlagen laden fehlgeschlagen:', error);
-      this.vorlagen = [];
-      return;
-    }
-    this.vorlagen = (data || []).filter((v) => (v.dokument_typ || 'briefing') === this.dokumentTyp);
-    this._renderVorlageSelect();
-  }
-
   _defaultVorlage() {
     return this.vorlagen.find((v) => v.is_standard) || this.vorlagen[0] || null;
   }
@@ -133,52 +152,39 @@ export class AnschreibenDrawer {
     return this.vorlagen.filter((v) => !v.empfaenger_typ || v.empfaenger_typ === typ);
   }
 
-  async _buildPdf() {
-    const lauf = (this._pdfLauf = (this._pdfLauf || 0) + 1);
+  _applyPdfResult(result) {
     const status = this.panel?.querySelector('[data-pdf-status]');
     const btn = this.panel?.querySelector('[data-action="pdf-preview"]');
-    this.pdf = null;
-    this._updateSendState();
-    if (status) status.textContent = 'PDF wird erzeugt …';
-    if (btn) btn.disabled = true;
-    try {
-      const hint = {
-        ...(this.pdfContext || {}),
-        empfaenger: this.composer?.getEmpfaenger()?.[0] || null,
-      };
-      const result = await this.createPdf(hint);
-      if (lauf !== this._pdfLauf) return;
-      if (result?.empty) {
-        this.pdf = null;
-        if (status) status.textContent = 'Keine Skripte für diesen Empfänger';
-        return;
-      }
-      if (result?.serverFallback) {
-        this.pdf = result;
-        if (status) status.textContent = `${result.dateiname || 'PDF'} — wird beim Senden geladen`;
-        return;
-      }
-      if (result?.pdfs?.length) {
-        this.pdf = {
-          pdfs: result.pdfs,
-          dateiname: result.pdfs.map((item) => item.dateiname).filter(Boolean).join(', '),
-        };
-        if (status) status.textContent = this.pdf.dateiname;
-        if (btn) btn.disabled = false;
-        return;
-      }
-      if (!result?.blob) throw new Error('PDF fehlt');
-      this.pdf = result;
-      if (status) status.textContent = this.pdf.dateiname;
-      if (btn) btn.disabled = false;
-    } catch (err) {
-      if (lauf !== this._pdfLauf) return;
-      console.error('PDF-Erzeugung fehlgeschlagen:', err);
+    this.pdf = result?.pdf || null;
+    if (result?.pdfStatus === 'empty') {
+      if (status) status.textContent = 'Keine Skripte für diesen Empfänger';
+      if (btn) btn.disabled = true;
+    } else if (result?.pdfStatus === 'server') {
+      if (status) status.textContent = `${this.pdf?.dateiname || 'PDF'} — wird beim Senden geladen`;
+      if (btn) btn.disabled = true;
+    } else if (result?.pdfStatus === 'error' || !this.pdf) {
       if (status) status.textContent = 'PDF konnte nicht erzeugt werden';
+      if (btn) btn.disabled = true;
       window.toastSystem?.show('PDF konnte nicht erzeugt werden', 'error');
-    } finally {
-      if (lauf === this._pdfLauf) this._updateSendState();
+    } else {
+      if (status) status.textContent = this.pdf.dateiname || '';
+      if (btn) btn.disabled = !(this.pdf.blob || this.pdf.pdfs?.length);
     }
+    this._updateSendState();
+  }
+
+  async _buildPdf() {
+    const lauf = (this._pdfLauf = (this._pdfLauf || 0) + 1);
+    this._pdfPending = true;
+    this._updateSendState();
+    const hint = {
+      ...(this.pdfContext || {}),
+      empfaenger: this.composer?.getEmpfaenger()?.[0] || null,
+    };
+    const result = await loadPdfResult((next) => this.createPdf(next), hint);
+    if (lauf !== this._pdfLauf || !this.panel) return;
+    this._pdfPending = false;
+    this._applyPdfResult(result);
   }
 
   // ─── Render ───────────────────────────────────────────────
@@ -229,7 +235,7 @@ export class AnschreibenDrawer {
         <section class="anschreiben-section">
           <h4 class="drawer-section-title">Anhang</h4>
           <div class="anschreiben-anhang">
-            <span class="anschreiben-anhang-name" data-pdf-status>PDF wird erzeugt …</span>
+            <span class="anschreiben-anhang-name" data-pdf-status></span>
             <button type="button" class="mdc-btn mdc-btn--secondary mdc-btn--sm" data-action="pdf-preview" disabled>Im neuen Tab öffnen</button>
           </div>
         </section>
@@ -242,9 +248,9 @@ export class AnschreibenDrawer {
       </div>
     `;
 
+    this.overlay.hidden = true;
     document.body.appendChild(this.overlay);
     document.body.appendChild(this.panel);
-    requestAnimationFrame(() => this.panel?.classList.add('show'));
 
     this.composer = new EmpfaengerComposer({
       container: this.panel.querySelector('[data-composer]'),
@@ -256,7 +262,7 @@ export class AnschreibenDrawer {
       extraTabs: this.extraTabs,
       onChange: () => {
         this._updateSendState();
-        if (this.buildAnhaenge) this._buildPdf();
+        if (this.buildAnhaenge && !this._painting) this._buildPdf();
       },
     });
 
@@ -271,16 +277,27 @@ export class AnschreibenDrawer {
   }
 
   async _onExtrasChange() {
-    if (this.loadEmpfaengerScope) {
-      try {
-        const scope = await this.loadEmpfaengerScope(this.db);
-        await this.composer.setEmpfaengerScope(scope);
-      } catch (err) {
-        console.error('Empfänger-Scope laden fehlgeschlagen:', err);
-        await this.composer.setEmpfaengerScope({ creators: [], managements: [], kampagne: null });
+    const lauf = (this._extrasLauf = (this._extrasLauf || 0) + 1);
+    this._painting = true;
+    this._pdfPending = true;
+    this._updateSendState();
+    try {
+      const snapshot = await loadAnschreibenSnapshot(this._snapshotArgs({ vorlagen: false }));
+      if (lauf !== this._extrasLauf || !this.panel) return;
+      if (snapshot.empfaengerScope) {
+        await this.composer.setEmpfaengerScope(snapshot.empfaengerScope);
       }
+      if (lauf !== this._extrasLauf || !this.panel) return;
+      this._pdfPending = false;
+      this._applyPdfResult(snapshot);
+    } catch (err) {
+      if (lauf !== this._extrasLauf || !this.panel) return;
+      console.error('Anhang aktualisieren fehlgeschlagen:', err);
+      this._pdfPending = false;
+      this._applyPdfResult({ pdf: null, pdfStatus: 'error' });
+    } finally {
+      if (lauf === this._extrasLauf) this._painting = false;
     }
-    await this._buildPdf();
   }
 
   _bind() {
@@ -387,6 +404,7 @@ export class AnschreibenDrawer {
     const betreff = this.panel.querySelector('[data-betreff]').value.trim();
     const body = this.panel.querySelector('[data-body]').value.trim();
     const ready = !this.sending
+      && !this._pdfPending
       && !this.composer?.isEmpty()
       && Boolean(betreff)
       && Boolean(body)

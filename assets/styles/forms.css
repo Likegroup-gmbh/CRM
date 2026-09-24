@@ -4239,12 +4239,24 @@ input.readonly-field {
   gap: 4.5rem;
 }
 
+.form-page--briefing .bf-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxl);
+}
+
 .form-page--briefing .step-section {
   gap: var(--space-lg);
 }
 
 .form-page--briefing .step-section__header {
-  margin-bottom: var(--space-lg);
+  margin-bottom: 0;
+}
+
+.form-page--briefing .step-section__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
 }
 
 .form-page--briefing .form-field {

@@ -2,49 +2,11 @@
 // Membership Briefing <-> Persona (campaign_briefings.persona_ids) und
 // die daraus abgeleiteten Briefing-Produkte (ADR 0021).
 
-import { PersonaService } from '../persona/PersonaService.js';
 import { recomputeBriefingProdukte } from './BriefingProdukte.js';
 import { applyFinalisiertFilter, isFinalisiert } from '../../core/finalisiert.js';
 
-function personaLabel(p) {
-  if (!p) return '';
-  return p.oberbegriff ? `${p.oberbegriff} (${p.name})` : (p.name || p.id);
-}
-
-function isAcceptedForProdukte(persona, produktIds) {
-  if (!produktIds?.length) return false;
-  const wanted = new Set(produktIds);
-  return (persona.produkte || []).some(link =>
-    wanted.has(link.produkt_id) && link.status === 'accepted'
-  );
-}
-
 function uniqueIds(ids) {
   return [...new Set((ids || []).filter(Boolean))];
-}
-
-function collectMultiSelectIds(wrapper, fieldName) {
-  if (!wrapper) return [];
-  const select = wrapper.querySelector(`#${fieldName}_hidden`)
-    || wrapper.querySelector(`select[name="${fieldName}[]"]`)
-    || wrapper.querySelector('select[multiple]')
-    || wrapper.querySelector(`select#${fieldName}`);
-  if (!select) return [];
-  return Array.from(select.selectedOptions).map(o => o.value).filter(Boolean);
-}
-
-export async function loadPersonasForBriefing(unternehmenId, markeId = null, produktIds = []) {
-  if (!unternehmenId || !window.supabase) return [];
-  const rows = await PersonaService.loadForContext({ unternehmenId, markeId });
-  const ids = uniqueIds(produktIds);
-  return [...rows]
-    .sort((a, b) => {
-      const aHit = isAcceptedForProdukte(a, ids) ? 0 : 1;
-      const bHit = isAcceptedForProdukte(b, ids) ? 0 : 1;
-      if (aHit !== bHit) return aHit - bHit;
-      return personaLabel(a).localeCompare(personaLabel(b), 'de');
-    })
-    .map(p => ({ id: p.id, label: personaLabel(p), name: p.name }));
 }
 
 export async function loadBriefingIdsForPersona(personaId, { nurFinalisiert = false } = {}) {
@@ -168,50 +130,4 @@ export async function setPersonaBriefings(personaId, briefingIds) {
     if (error) throw error;
     await recomputeBriefingProdukte(briefing.id);
   }
-}
-
-export function bindBriefingPersonaPicker(root, { briefing, canEdit, onChanged } = {}) {
-  const wrapper = root?.querySelector('[data-entity-multi="persona_ids"]');
-  const select = wrapper?.querySelector('select#briefing_persona_ids');
-  if (!canEdit || !wrapper || !select || !briefing?.id) return { destroy() {} };
-
-  const selected = new Set((briefing.persona_ids || []).filter(Boolean));
-  const options = (briefing.personaOptions || []).map(p => ({
-    value: p.id,
-    label: p.label || p.name || p.id,
-    selected: selected.has(p.id)
-  }));
-
-  if (window.formSystem?.createSearchableSelect) {
-    window.formSystem.createSearchableSelect(select, options, {
-      name: 'briefing_persona_ids',
-      type: 'multiselect',
-      tagBased: true,
-      placeholder: 'Personas suchen und hinzufügen...'
-    });
-  }
-
-  let ready = false;
-  let busy = false;
-  setTimeout(() => { ready = true; }, 100);
-  const onChange = async () => {
-    if (!ready || busy) return;
-    busy = true;
-    try {
-      const ids = collectMultiSelectIds(wrapper, 'briefing_persona_ids');
-      await setBriefingPersonas(briefing.id, ids);
-      await onChanged?.();
-    } catch (err) {
-      console.error('Briefing-Personas speichern fehlgeschlagen:', err);
-      window.toastSystem?.show(err.message || 'Personas konnten nicht gespeichert werden', 'error');
-    } finally {
-      busy = false;
-    }
-  };
-  wrapper.addEventListener('change', onChange);
-  return {
-    destroy() {
-      wrapper.removeEventListener('change', onChange);
-    }
-  };
 }

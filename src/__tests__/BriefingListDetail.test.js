@@ -249,7 +249,10 @@ describe('BriefingDocView', () => {
     expect(html).toContain('briefing-doc__products');
     expect(html.indexOf('Barrier Repair Serum')).toBeLessThan(html.indexOf('Sommer-Launch TEWH'));
     expect(html.indexOf('Night Cream')).toBeLessThan(html.indexOf('Sommer-Launch TEWH'));
-    expect(html).toContain('mdc-btn--delete mdc-btn--sm');
+    expect(html).toContain('mdc-btn mdc-btn--delete');
+    expect(html).toContain('mdc-btn__label');
+    expect(html).toContain('#crm-icon-trash');
+    expect(html).not.toContain('mdc-btn--sm');
   });
 
   it('ohne Produkte und Personas keine Zeile ueber der Headline', async () => {
@@ -262,18 +265,29 @@ describe('BriefingDocView', () => {
   it('Anschreiben sitzt zwischen Alle Felder und Loeschen, nicht im Print', async () => {
     const { renderBriefingDoc } = await import('../modules/briefing/BriefingDocView.js');
     const withBtn = renderBriefingDoc({ detail, canAnschreiben: true, canDelete: true });
+    expect(withBtn).toContain('briefing-doc-head');
     expect(withBtn).toContain('btn-anschreiben-briefing');
-    expect(withBtn).toContain('briefing-doc__top');
-    expect(withBtn.indexOf('briefing-doc__badges')).toBeLessThan(withBtn.indexOf('btn-briefing-fields-toggle'));
+    expect(withBtn).toContain('mdc-btn__icon');
+    expect(withBtn).toContain('mdc-btn__label');
+    expect(withBtn).toContain('#crm-icon-list-bullet');
+    expect(withBtn).toContain('#crm-icon-mail-send');
+    expect(withBtn).toContain('#crm-icon-trash');
+    expect(withBtn).not.toContain('mdc-btn--sm');
+    expect(withBtn.indexOf('briefing-doc-head')).toBeLessThan(withBtn.indexOf('btn-briefing-fields-toggle'));
     expect(withBtn.indexOf('btn-briefing-fields-toggle')).toBeLessThan(withBtn.indexOf('btn-anschreiben-briefing'));
     expect(withBtn.indexOf('btn-anschreiben-briefing')).toBeLessThan(withBtn.indexOf('btn-delete-briefing'));
+    expect(withBtn.indexOf('btn-delete-briefing')).toBeLessThan(withBtn.indexOf('briefing-doc__badges'));
     expect(withBtn).not.toContain('briefing-doc__title-row');
     expect(withBtn).not.toContain('briefing-doc__toolbar');
+
+    const expanded = renderBriefingDoc({ detail, compact: false, canAnschreiben: true });
+    expect(expanded).toContain('#crm-icon-arrows-collapse');
 
     const without = renderBriefingDoc({ detail, canAnschreiben: false });
     expect(without).not.toContain('btn-anschreiben-briefing');
 
     const print = renderBriefingDoc({ detail, canAnschreiben: true, canDelete: true, print: true });
+    expect(print).not.toContain('briefing-doc-head');
     expect(print).not.toContain('btn-anschreiben-briefing');
     expect(print).not.toContain('btn-briefing-fields-toggle');
     expect(print).not.toContain('btn-delete-briefing');
