@@ -32,7 +32,7 @@ export class StakeholderOverviewPage {
     this.teilrechnungen = [];
     this.detailsByAuftrag = new Map();
     this.unternehmenById = new Map();
-    this.selectedYear = 'all';
+    this.selectedYear = String(new Date().getFullYear());
     this.activeTab = TAB_GESAMT_OHNE;
     // Monatsauswertung (ADR 0006): eigene Ansicht neben der Kalkulation.
     this.activeView = 'kalkulation'; // 'kalkulation' | 'monate'

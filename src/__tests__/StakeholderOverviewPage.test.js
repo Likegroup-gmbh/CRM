@@ -576,13 +576,23 @@ describe('StakeholderOverviewPage', () => {
     window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
     document.body.appendChild(window.content);
 
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-25T12:00:00Z'));
+
     const page = createPage();
     await page.init();
 
+    let select = document.getElementById('stakeholder-year-select');
+    expect(select.value).toBe('2026');
+    expect(window.content.innerHTML).not.toContain('Jan. 2025');
+    expect(window.content.innerHTML).toContain('Jan. 2026');
+
+    select.value = 'all';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
     expect(window.content.innerHTML).toContain('Jan. 2025');
     expect(window.content.innerHTML).toContain('Jan. 2026');
 
-    let select = document.getElementById('stakeholder-year-select');
+    select = document.getElementById('stakeholder-year-select');
     select.value = '2026';
     select.dispatchEvent(new Event('change', { bubbles: true }));
 
@@ -599,6 +609,7 @@ describe('StakeholderOverviewPage', () => {
 
     page.destroy();
     window.content.remove();
+    vi.useRealTimers();
   });
 
   it('rechnet nur die Influencer-Agentur-Fee zeitanteilig, EK/VK und Volumen bleiben Ist', async () => {
@@ -1020,6 +1031,7 @@ describe('StakeholderOverviewPage', () => {
     document.body.appendChild(window.content);
 
     const page = createPage();
+    page.selectedYear = 'all';
     await page.init();
 
     const bezahltEl = () => window.content.querySelector('[data-volumen-bezahlt]');
@@ -1032,8 +1044,9 @@ describe('StakeholderOverviewPage', () => {
     const tabSelect = document.getElementById('stakeholder-tab-select');
     tabSelect.value = 'gesamt_mit';
     tabSelect.dispatchEvent(new Event('change', { bubbles: true }));
-    // Contracting bleibt in der Zahlungsstand-Zeile, nicht in der Volumen-Kachel.
-    expect(bezahltEl().textContent.trim()).toBe(page.fmtEuro(1500));
+    // Kachel summiert Kunden (1500) und Contracting (2000). Die Tabelle bleibt getrennt.
+    expect(bezahltEl().textContent.trim()).toBe(page.fmtEuro(3500));
+    expect(page.rechnungsstatus().kunden.bezahlt).toBe(1500);
     expect(page.rechnungsstatus().contracting.bezahlt).toBe(2000);
 
     page.activeTab = 'gesamt_ohne';
@@ -1085,12 +1098,37 @@ describe('StakeholderOverviewPage', () => {
     tabSelect.dispatchEvent(new Event('change', { bubbles: true }));
     expect(page.aggregate().totals.volumen).toBe(18000);
 
+    const kachel = (attr) => window.content.querySelector(`[${attr}]`).textContent.trim();
+    // Kampagne ohne Beleg: 10000 noch nicht gestellt. Contract: 3000 gestellt/offen, 5000 Rest.
+    expect(kachel('data-volumen-gestellt')).toBe(page.fmtEuro(3000));
+    expect(kachel('data-volumen-offen')).toBe(page.fmtEuro(3000));
+    expect(kachel('data-volumen-bezahlt')).toBe(page.fmtEuro(0));
+    expect(kachel('data-volumen-nicht-gestellt')).toBe(page.fmtEuro(15000));
+
     expect(zahlungsstandZelle('contracting', 'gestellt').textContent.trim())
       .toBe(page.fmtEuro(3000));
-    page.activeTab = 'gesamt_ohne';
-    page.render();
+    expect(zahlungsstandZelle('kunden', 'gestellt').textContent.trim())
+      .toBe(page.fmtEuro(0));
+
+    const contractingSelect = document.getElementById('stakeholder-tab-select');
+    contractingSelect.value = 'contracting';
+    contractingSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(kachel('data-volumen-gestellt')).toBe(page.fmtEuro(3000));
+    expect(kachel('data-volumen-offen')).toBe(page.fmtEuro(3000));
+    expect(kachel('data-volumen-bezahlt')).toBe(page.fmtEuro(0));
+    expect(kachel('data-volumen-nicht-gestellt')).toBe(page.fmtEuro(5000));
+    expect(zahlungsstandZelle('contracting', 'gestellt').textContent.trim())
+      .toBe(page.fmtEuro(3000));
+    expect(zahlungsstandZelle('kunden', 'gestellt').textContent.trim())
+      .toBe(page.fmtEuro(0));
+
+    const ohneSelect = document.getElementById('stakeholder-tab-select');
+    ohneSelect.value = 'gesamt_ohne';
+    ohneSelect.dispatchEvent(new Event('change', { bubbles: true }));
     expect(zahlungsstandZelle('contracting', 'gestellt').textContent.trim())
       .toBe(page.fmtEuro(0));
+    expect(kachel('data-volumen-gestellt')).toBe(page.fmtEuro(0));
+    expect(kachel('data-volumen-offen')).toBe(page.fmtEuro(0));
 
     page.destroy();
     window.content.remove();
@@ -1152,6 +1190,7 @@ describe('StakeholderOverviewPage', () => {
     document.body.appendChild(window.content);
 
     const page = createPage();
+    page.selectedYear = 'all';
     await page.init();
 
     zahlungsstandZelle('kunden', 'bezahlt')

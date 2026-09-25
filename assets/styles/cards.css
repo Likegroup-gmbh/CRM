@@ -198,6 +198,11 @@
   line-height: 1.6;
 }
 
+.summary-card-breakdown-line--overdue {
+  color: var(--color-error, #c00);
+  font-weight: 600;
+}
+
 /* „Bereits bezahlt"-Card auf den Kundenrechnungen: spannt die volle Breite
    ueber den drei Summen-Cards und zeigt Netto/Brutto nebeneinander. */
 #ausgangsrechnungen-summary-cards .summary-cards,

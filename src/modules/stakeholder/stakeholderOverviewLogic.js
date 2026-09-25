@@ -170,7 +170,7 @@ export function auftragYear(a) {
 }
 
 export function availableYears(page) {
-  const years = new Set();
+  const years = new Set([new Date().getFullYear()]);
   page.auftraege.forEach(a => {
     const y = auftragYear(a);
     if (y) years.add(y);

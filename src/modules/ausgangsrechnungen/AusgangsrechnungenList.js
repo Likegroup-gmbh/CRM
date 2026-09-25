@@ -20,7 +20,7 @@ import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
-import { getPaymentRowStatusClass, sumPaidInvoiceRows } from '../auftrag/logic/PaymentRowStatus.js';
+import { getPaymentRowStatusClass, isInvoiceRowPaid, isReFaelligkeitOverdue, sumPaidInvoiceRows } from '../auftrag/logic/PaymentRowStatus.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { AuftragCashFlowCalendar } from '../auftrag/AuftragCashFlowCalendar.js';
@@ -259,17 +259,34 @@ export class AusgangsrechnungenList {
   renderInvoiceSummaryCards() {
     const zero = this.formatSummaryCurrency(0);
     const cards = [
-      { field: 'nettobetrag', label: 'Netto gesamt' },
-      { field: 're_datum_netto', label: 'Netto mit RE-Datum' },
-      { field: 'bezahlt_netto', label: 'Netto bereits bezahlt' }
+      { field: 'nettobetrag', label: 'Netto Umsatz', mwst: true },
+      { field: 're_datum_netto', label: 'Netto Rechnungen gestellt' },
+      { field: 'bezahlt_netto', label: 'Netto Rechnungen bereits bezahlt' },
+      { field: 'bezahlt_abzgl_gestellt', label: 'Netto bezahlt abzgl. gestellt', ueberfaellig: true }
     ];
     return `
       <div class="auftragsdetails-summary" id="ausgangsrechnungen-summary-cards">
         <div class="summary-cards">
-          ${cards.map(({ field, label }) => `
+          ${cards.map(({ field, label, mwst, ueberfaellig }) => `
             <div class="summary-card" data-summary-card="${field}">
               <div class="summary-value" data-summary-value="${field}">${zero}</div>
               <div class="summary-label">${label}</div>
+              ${mwst ? `
+                <div class="summary-card-breakdown">
+                  <div class="summary-card-breakdown-line">
+                    <span>davon MwSt</span>
+                    <span data-summary-value="ust_betrag">${zero}</span>
+                  </div>
+                </div>
+              ` : ''}
+              ${ueberfaellig ? `
+                <div class="summary-card-breakdown">
+                  <div class="summary-card-breakdown-line summary-card-breakdown-line--overdue">
+                    <span>davon überfällig</span>
+                    <span data-summary-value="ueberfaellig_netto">${zero}</span>
+                  </div>
+                </div>
+              ` : ''}
             </div>
           `).join('')}
         </div>
@@ -368,6 +385,16 @@ export class AusgangsrechnungenList {
     }, { nettobetrag: 0, ust_betrag: 0, bruttobetrag: 0 });
   }
 
+  // Netto der unbezahlten Zeilen, deren Fälligkeit vor heute liegt.
+  // Dieselbe Regel wie die rote Zeilenmarkierung: bezahlt schlägt überfällig.
+  sumUeberfaelligNetto(rows) {
+    return (rows || []).reduce((sum, row) => {
+      if (isInvoiceRowPaid(row)) return sum;
+      if (!isReFaelligkeitOverdue(row?.re_faelligkeit)) return sum;
+      return sum + (parseFloat(row.nettobetrag) || 0);
+    }, 0);
+  }
+
   // Netto der Zeilen mit gesetztem RE-Datum (rechnung_gestellt_am).
   sumReDatumNetto(rows) {
     return (rows || []).reduce((sum, row) => {
@@ -383,10 +410,13 @@ export class AusgangsrechnungenList {
     const foot = document.getElementById('ausgangsrechnungen-summary');
     const cards = document.getElementById('ausgangsrechnungen-summary-cards');
     const format = (v) => this.formatSummaryCurrency(v);
+    const reDatumNetto = this.sumReDatumNetto(rows);
     const entries = {
       ...totals,
-      re_datum_netto: this.sumReDatumNetto(rows),
-      bezahlt_netto: paid.netto
+      re_datum_netto: reDatumNetto,
+      bezahlt_netto: paid.netto,
+      bezahlt_abzgl_gestellt: paid.netto - reDatumNetto,
+      ueberfaellig_netto: this.sumUeberfaelligNetto(rows)
     };
     Object.entries(entries).forEach(([field, value]) => {
       const targets = [

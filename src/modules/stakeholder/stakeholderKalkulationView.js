@@ -171,14 +171,17 @@ export function renderCards(page, totals, isInfluencerTab) {
     }),
   ];
 
-  // Zahlungsstand der Kundenseite, dieselben Spalten wie die Tabelle.
-  // Offen bleibt hier der unbezahlte Teil; Überfällig ist nur die Teilmenge.
-  const kundenStatus = rechnungsstatus(page).kunden;
-  const kGestellt = kundenStatus.gestellt || 0;
-  const kBezahlt = kundenStatus.bezahlt || 0;
-  const kOffen = kundenStatus.offen || 0;
-  const kUeberfaellig = kundenStatus.ueberfaellig || 0;
-  const kNichtGestellt = kundenStatus.nichtGestellt || 0;
+  // Dieselben Spalten wie die Tabelle, über Kunden- und Contractingrechnungen
+  // der aktuell gefilterten Aufträge. Offen bleibt der unbezahlte Teil;
+  // Überfällig ist nur die Teilmenge.
+  const zahlungsstand = rechnungsstatus(page);
+  const contractingStatus = zahlungsstand.contracting || {};
+  const summe = (key) => (zahlungsstand.kunden[key] || 0) + (contractingStatus[key] || 0);
+  const kGestellt = summe('gestellt');
+  const kBezahlt = summe('bezahlt');
+  const kOffen = summe('offen');
+  const kUeberfaellig = summe('ueberfaellig');
+  const kNichtGestellt = summe('nichtGestellt');
   const gestelltPct = volumen > 0 ? (kGestellt / volumen) * 100 : 0;
   const volumenLines = [
     breakdownLine('Gestellt', page.fmtEuro(kGestellt), {
