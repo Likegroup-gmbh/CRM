@@ -288,21 +288,22 @@ describe('Kundenrechnungen-Monatssummen', () => {
     expect(spans).toBe(list.getListColumnCount());
   });
 
-  it('rendert Summary-Cards fuer Netto, Mehrwertsteuer und Brutto ueber der Tabelle', () => {
+  it('rendert drei Netto-Kacheln ueber der Tabelle', () => {
     const list = new AusgangsrechnungenList();
     renderFullPage(list);
 
     const cards = document.getElementById('ausgangsrechnungen-summary-cards');
     expect(cards).not.toBeNull();
-    expect(cards.querySelector('[data-summary-card="nettobetrag"] .summary-label').textContent).toBe('Netto');
-    expect(cards.querySelector('[data-summary-card="ust_betrag"] .summary-label').textContent).toBe('Mehrwertsteuer');
-    expect(cards.querySelector('[data-summary-card="bruttobetrag"] .summary-label').textContent).toBe('Brutto');
+    expect(cards.querySelector('[data-summary-card="nettobetrag"] .summary-label').textContent).toBe('Netto gesamt');
+    expect(cards.querySelector('[data-summary-card="re_datum_netto"] .summary-label').textContent).toBe('Netto mit RE-Datum');
+    expect(cards.querySelector('[data-summary-card="bezahlt_netto"] .summary-label').textContent).toBe('Netto bereits bezahlt');
+    expect(cards.querySelectorAll('.summary-card')).toHaveLength(3);
     // Cards sitzen oberhalb der Tabelle
     const table = document.getElementById('auftrag-table-container');
     expect(cards.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('schreibt die Summen auch in die Cards, nicht nur in den tfoot', () => {
+  it('schreibt Netto gesamt in die Kachel und MwSt/Brutto nur in den tfoot', () => {
     const list = new AusgangsrechnungenList();
     renderFullPage(list);
 
@@ -312,11 +313,14 @@ describe('Kundenrechnungen-Monatssummen', () => {
     ]);
 
     const cards = document.getElementById('ausgangsrechnungen-summary-cards');
+    const foot = document.getElementById('ausgangsrechnungen-summary');
     expect(cards.querySelector('[data-summary-value="nettobetrag"]').textContent)
       .toBe(list.formatSummaryCurrency(2000));
-    expect(cards.querySelector('[data-summary-value="ust_betrag"]').textContent)
+    expect(cards.querySelector('[data-summary-value="ust_betrag"]')).toBeNull();
+    expect(cards.querySelector('[data-summary-value="bruttobetrag"]')).toBeNull();
+    expect(foot.querySelector('[data-summary="ust_betrag"]').textContent)
       .toBe(list.formatSummaryCurrency(380));
-    expect(cards.querySelector('[data-summary-value="bruttobetrag"]').textContent)
+    expect(foot.querySelector('[data-summary="bruttobetrag"]').textContent)
       .toBe(list.formatSummaryCurrency(2380));
     expect(animateNumber).not.toHaveBeenCalled();
   });
@@ -333,8 +337,8 @@ describe('Kundenrechnungen-Monatssummen', () => {
 
     const cards = document.getElementById('ausgangsrechnungen-summary-cards');
     const foot = document.getElementById('ausgangsrechnungen-summary');
-    // 3 Summen-Felder x 2 Surfaces (Card + tfoot) + 2 Bezahlt-Werte (nur Card)
-    expect(animateNumber).toHaveBeenCalledTimes(8);
+    // Netto: Karte + tfoot. MwSt/Brutto: nur tfoot. RE-Datum und Bezahlt: nur Karte.
+    expect(animateNumber).toHaveBeenCalledTimes(6);
     expect(animateNumber).toHaveBeenCalledWith(
       cards.querySelector('[data-summary-value="nettobetrag"]'),
       1000,
@@ -345,9 +349,9 @@ describe('Kundenrechnungen-Monatssummen', () => {
       1190,
       { format: expect.any(Function) }
     );
-    // Zeile ohne ueberwiesen_am -> Bezahlt-Card animiert auf 0
+    // Zeile ohne ueberwiesen_am -> Bezahlt-Kachel animiert auf 0
     expect(animateNumber).toHaveBeenCalledWith(
-      cards.querySelector('[data-summary-value="bezahlt_brutto"]'),
+      cards.querySelector('[data-summary-value="bezahlt_netto"]'),
       0,
       { format: expect.any(Function) }
     );
@@ -355,22 +359,23 @@ describe('Kundenrechnungen-Monatssummen', () => {
     expect(format(1234.5)).toBe(list.formatSummaryCurrency(1234.5));
   });
 
-  it('zeigt auf der Bezahlt-Card nur ueberwiesene Zeilen (Netto + Brutto)', () => {
+  it('zaehlt RE-Datum- und Bezahlt-Netto getrennt von der Gesamtsumme', () => {
     const list = new AusgangsrechnungenList();
     renderFullPage(list);
 
     list.updateInvoiceSummary([
-      { nettobetrag: 1000, ust_betrag: 190, bruttobetrag: 1190, ueberwiesen_am: '2026-09-01' },
-      { nettobetrag: 2000, ust_betrag: 380, bruttobetrag: 2380, ueberwiesen_am: null }
+      { nettobetrag: 1000, ust_betrag: 190, bruttobetrag: 1190, rechnung_gestellt_am: '2026-08-01', ueberwiesen_am: '2026-09-01' },
+      { nettobetrag: 2000, ust_betrag: 380, bruttobetrag: 2380, rechnung_gestellt_am: '2026-08-15', ueberwiesen_am: null },
+      { nettobetrag: 500, ust_betrag: 95, bruttobetrag: 595, rechnung_gestellt_am: null, ueberwiesen_am: null },
+      { nettobetrag: 100, rechnung_gestellt_am: '' }
     ]);
 
     const cards = document.getElementById('ausgangsrechnungen-summary-cards');
+    expect(cards.querySelector('[data-summary-value="nettobetrag"]').textContent)
+      .toBe(list.formatSummaryCurrency(3600));
+    expect(cards.querySelector('[data-summary-value="re_datum_netto"]').textContent)
+      .toBe(list.formatSummaryCurrency(3000));
     expect(cards.querySelector('[data-summary-value="bezahlt_netto"]').textContent)
       .toBe(list.formatSummaryCurrency(1000));
-    expect(cards.querySelector('[data-summary-value="bezahlt_brutto"]').textContent)
-      .toBe(list.formatSummaryCurrency(1190));
-    // Gesamt-Summen bleiben unveraendert ueber alle Zeilen
-    expect(cards.querySelector('[data-summary-value="bruttobetrag"]').textContent)
-      .toBe(list.formatSummaryCurrency(3570));
   });
 });

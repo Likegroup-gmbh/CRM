@@ -259,25 +259,13 @@ export class AusgangsrechnungenList {
   renderInvoiceSummaryCards() {
     const zero = this.formatSummaryCurrency(0);
     const cards = [
-      { field: 'nettobetrag', label: 'Netto' },
-      { field: 'ust_betrag', label: 'Mehrwertsteuer' },
-      { field: 'bruttobetrag', label: 'Brutto' }
+      { field: 'nettobetrag', label: 'Netto gesamt' },
+      { field: 're_datum_netto', label: 'Netto mit RE-Datum' },
+      { field: 'bezahlt_netto', label: 'Netto bereits bezahlt' }
     ];
     return `
       <div class="auftragsdetails-summary" id="ausgangsrechnungen-summary-cards">
         <div class="summary-cards">
-          <div class="summary-card summary-card--wide" data-summary-card="bezahlt">
-            <div class="summary-card-values">
-              <div class="summary-card-value-block">
-                <div class="summary-value" data-summary-value="bezahlt_netto">${zero}</div>
-                <div class="summary-label">Bereits bezahlt (Netto)</div>
-              </div>
-              <div class="summary-card-value-block">
-                <div class="summary-value" data-summary-value="bezahlt_brutto">${zero}</div>
-                <div class="summary-label">Bereits bezahlt (Brutto)</div>
-              </div>
-            </div>
-          </div>
           ${cards.map(({ field, label }) => `
             <div class="summary-card" data-summary-card="${field}">
               <div class="summary-value" data-summary-value="${field}">${zero}</div>
@@ -380,6 +368,15 @@ export class AusgangsrechnungenList {
     }, { nettobetrag: 0, ust_betrag: 0, bruttobetrag: 0 });
   }
 
+  // Netto der Zeilen mit gesetztem RE-Datum (rechnung_gestellt_am).
+  sumReDatumNetto(rows) {
+    return (rows || []).reduce((sum, row) => {
+      const datum = row?.rechnung_gestellt_am;
+      if (datum === undefined || datum === null || datum === '') return sum;
+      return sum + (parseFloat(row.nettobetrag) || 0);
+    }, 0);
+  }
+
   updateInvoiceSummary(rows, { animate = false } = {}) {
     const totals = this.sumInvoiceRows(rows);
     const paid = sumPaidInvoiceRows(rows);
@@ -388,8 +385,8 @@ export class AusgangsrechnungenList {
     const format = (v) => this.formatSummaryCurrency(v);
     const entries = {
       ...totals,
-      bezahlt_netto: paid.netto,
-      bezahlt_brutto: paid.brutto
+      re_datum_netto: this.sumReDatumNetto(rows),
+      bezahlt_netto: paid.netto
     };
     Object.entries(entries).forEach(([field, value]) => {
       const targets = [
