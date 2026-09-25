@@ -228,9 +228,13 @@ function applyRechnungPermissions(query, allowed) {
   return query.or(parts.join(','));
 }
 
-function applyAuftragMode(query, mode) {
-  if (mode === 'contracts') return query.eq('auftragtype', 'Contracting');
-  return query.neq('auftragtype', 'Contracting');
+// Entspricht gehoertZuAuftragMode: NULL bleibt, nur ein Typ mit „contracting“ fällt raus.
+// not.ilike allein würde NULL verwerfen, deshalb das is.null davor.
+export const NICHT_CONTRACTING_OR = 'auftragtype.is.null,auftragtype.not.ilike.%contracting%';
+
+export function applyAuftragMode(query, mode) {
+  if (mode === 'contracts') return query.ilike('auftragtype', '%contracting%');
+  return query.or(NICHT_CONTRACTING_OR);
 }
 
 function applyTeilrechnungFields(row, tr) {

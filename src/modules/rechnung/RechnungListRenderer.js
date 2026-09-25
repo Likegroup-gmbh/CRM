@@ -15,10 +15,7 @@ import { renderVertragCell } from './RechnungVertragColumn.js';
 import { summarizeRechnungRows } from './invoiceCardTotals.js';
 
 const currencyFormatter = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
-const summaryFormatter = new Intl.NumberFormat('de-DE', {
-  style: 'currency', currency: 'EUR',
-  minimumFractionDigits: 0, maximumFractionDigits: 0
-});
+const summaryFormatter = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
 const dateFormatter = new Intl.DateTimeFormat('de-DE');
 
 function formatCurrency(v) { return v == null ? '-' : currencyFormatter.format(v); }

@@ -28,11 +28,15 @@ const CARD_HINTS = {
   },
   creator: {
     formula: 'Σ Einkaufspreise (EK) der gebuchten Videos',
-    hint: 'Kopfwert ist die Kalkulation. Netto, Bezahlt und Unbezahlt kommen aus den Rechnungen. Überfällig und noch nicht gestellt stecken in Unbezahlt.'
+    hint: 'Kopfwert ist die Kalkulation. Netto, Bezahlt und Unbezahlt kommen aus den Rechnungen. Überfällig steckt in Unbezahlt. Noch nicht gestellt = Creatoranteil − Rechnungs-Netto.'
   },
-  agentur: {
-    formula: 'Feste Fee + EK/VK-Differenz',
-    hint: 'Influencer-Fee wird zeitanteilig über die Laufzeit erkannt'
+  festAgentur: {
+    formula: 'Hinterlegte Agentur-Fee',
+    hint: 'Entspricht vereinfacht Auftragsvolumen − Creator-Kosten. KSK und Zusatzkosten bleiben außen. Angezeigt wird die hinterlegte Fee, nicht eine neu gerechnete Differenz.'
+  },
+  ekvkAgentur: {
+    formula: 'Gebuchter VK − zugehöriger EK',
+    hint: 'Nur Zeilen mit beiden Preisen. Unvollständig bepreiste Zeilen bleiben im gebuchten VK, zählen aber nicht als realisiert.'
   },
   ksk: {
     formula: 'UGC: 4,9 % auf EK · Influencer: KSK-Topf',
@@ -69,7 +73,6 @@ export function renderCards(page, totals, isInfluencerTab) {
   const verbraucht = totals.verbraucht;
   const verfuegbar = totals.verfuegbar;
   const creator = totals.creator;
-  const agentur = totals.agentur;
   const ksk = totals.ksk;
   const zusatz = totals.zusatz;
 
@@ -77,7 +80,6 @@ export function renderCards(page, totals, isInfluencerTab) {
   // Die Balkenbreite wird erst beim Rendern begrenzt.
   const verbrauchtPct = volumen > 0 ? (verbraucht / volumen) * 100 : 0;
   const offenPct = volumen > 0 ? 100 - verbrauchtPct : 0;
-  const quote = verbraucht > 0 ? (agentur / verbraucht) * 100 : 0;
 
   const offenLabel = isInfluencerTab ? 'Offenes Creator Budget' : 'Verfügbares Budget';
   const offenSub = isInfluencerTab ? 'noch nicht gebucht' : 'noch nicht gebucht';
@@ -148,7 +150,10 @@ export function renderCards(page, totals, isInfluencerTab) {
   const creatorBezahlt = creatorKarten.bezahlt_netto || 0;
   const creatorUnbezahlt = creatorKarten.unbezahlt_netto || 0;
   const creatorUeberfaellig = creatorKarten.ueberfaellig_netto || 0;
-  const creatorNichtGestellt = creatorKarten.nicht_gestellt_netto || 0;
+  // Kalkulierter Creatoranteil abzüglich bereits erfasster Rechnungen.
+  // Rechnungen ohne gestellt_am stecken schon im Netto; der Rest der
+  // Kalkulation steht in keiner Zeile und wäre sonst 0.
+  const creatorNichtGestellt = creator - creatorNetto;
   const creatorOffenLines = [
     breakdownLine('Netto', page.fmtEuro(creatorNetto), {
       attr: 'data-creator-netto',
@@ -167,7 +172,6 @@ export function renderCards(page, totals, isInfluencerTab) {
       attr: 'data-creator-ueberfaellig',
     }),
     breakdownLine('Noch nicht gestellt', page.fmtEuro(creatorNichtGestellt), {
-      cls: 'stakeholder-card-breakdown-line--deep',
       attr: 'data-creator-nicht-gestellt',
       negativ: creatorNichtGestellt < -0.005,
     }),
@@ -219,10 +223,13 @@ export function renderCards(page, totals, isInfluencerTab) {
     </div>
     <div class="stakeholder-cards stakeholder-cards--breakdown">
       ${breakdownCard('Creatoranteil', creator, `${page.fmtEuro(creatorBezahlt)} von ${page.fmtEuro(creatorNetto)} Rechnungs-Netto bezahlt`, creatorOffenLines, `${page.fmtPct(verbraucht > 0 ? (creator / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (creator / verbraucht) * 100 : 0, hint: CARD_HINTS.creator })}
-      ${breakdownCard('Agenturanteil', agentur, `${page.fmtEuro(agentur)} von ${page.fmtEuro(totals.agenturVoll)} eingelöst`, [
-        ['Fest vereinbart', page.fmtEuro(totals.agenturFest)],
-        ['EK/VK-Differenz', page.fmtEuro(totals.agenturMargin)]
-      ], `${page.fmtPct(quote)} Quote`, { progress: quote, hint: CARD_HINTS.agentur })}
+      ${breakdownCard('Fest vereinbarter Agenturanteil', totals.festAgentur, null, [
+        ['Gesamtauftragsvolumen', page.fmtEuro(totals.festVolumen)]
+      ], null, { hint: CARD_HINTS.festAgentur })}
+      ${breakdownCard('Agenturanteil aus EK-/VK-Differenz', totals.ekvkRealisiert, null, [
+        ['Gesamtauftragsvolumen', page.fmtEuro(totals.ekvkVolumen)],
+        ['Bereits gebuchtes VK-Volumen', page.fmtEuro(totals.ekvkVk)]
+      ], null, { hint: CARD_HINTS.ekvkAgentur })}
       ${breakdownCard('KSK-Abgabe', ksk, 'Künstlersozialabgabe auf Honorare', null, `${page.fmtPct(verbraucht > 0 ? (ksk / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (ksk / verbraucht) * 100 : 0, hint: CARD_HINTS.ksk })}
       ${breakdownCard('Zusatzkosten', zusatz, 'Reise, Lizenzen, Tools, Versand, Payroll', null, `${page.fmtPct(verbraucht > 0 ? (zusatz / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (zusatz / verbraucht) * 100 : 0, hint: CARD_HINTS.zusatz })}
     </div>

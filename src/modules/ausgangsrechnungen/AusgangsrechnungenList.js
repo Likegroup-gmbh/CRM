@@ -13,7 +13,7 @@ import {
   parseMonthTab
 } from '../auftrag/logic/InvoiceMonthFilter.js';
 import { renderInvoiceMonthSheet, updateInvoiceMonthTabUI } from '../auftrag/logic/InvoiceMonthSheet.js';
-import { ENTITY_KUNDENRECHNUNG, isFinalAuftrag as isFinalAuftragRow, loadCounts, loadRows } from '../rechnung/Monatsblatt.js';
+import { ENTITY_KUNDENRECHNUNG, applyAuftragMode, isFinalAuftrag as isFinalAuftragRow, loadCounts, loadRows } from '../rechnung/Monatsblatt.js';
 import { animateNumber } from '../../core/animation/animateNumber.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
@@ -622,9 +622,7 @@ export class AusgangsrechnungenList {
     try {
       const inactiveTab = this.activeTab === 'contracts' ? 'auftraege' : 'contracts';
       let query = window.supabase.from('auftrag').select('*', { count: 'estimated', head: true });
-      query = inactiveTab === 'contracts'
-        ? query.eq('auftragtype', 'Contracting')
-        : query.neq('auftragtype', 'Contracting');
+      query = applyAuftragMode(query, inactiveTab === 'contracts' ? 'contracts' : 'auftraege');
       const { count } = await query;
       this.updateTabCount(inactiveTab, count || 0);
     } catch (error) {

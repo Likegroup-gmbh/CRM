@@ -54,6 +54,13 @@ export function isContracting(auftrag) {
     && auftrag.auftragtype.toLowerCase().includes('contracting');
 }
 
+// Dieselbe Zuordnung wie der PostgREST-Filter in Monatsblatt.applyAuftragMode.
+// NULL ist kein Contracting und bleibt in der Kundenrechnungs-Liste.
+export function gehoertZuAuftragMode(auftrag, mode) {
+  const contracting = isContracting(auftrag);
+  return mode === 'contracts' ? contracting : !contracting;
+}
+
 function bereicheOfBlocks(blocks) {
   const bereiche = new Set();
   (blocks || []).forEach(b => {

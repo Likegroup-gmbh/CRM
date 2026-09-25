@@ -3,9 +3,11 @@ import {
   LEISTUNGSBEREICHE,
   LEISTUNGSBEREICH_LABELS,
   bereichForCampaignType,
+  gehoertZuAuftragMode,
   leistungsbereichForAuftrag,
   primaerBereichForAuftrag,
 } from '../core/budget/leistungsbereich.js';
+import { NICHT_CONTRACTING_OR } from '../modules/rechnung/Monatsblatt.js';
 
 // ADR 0006 / PRD Schritt 2: Der Leistungsbereich ist die Achse der
 // Monatsauswertung. Eine einzige Quelle bildet Kampagnenarten auf Bereiche ab;
@@ -30,6 +32,25 @@ describe('bereichForCampaignType', () => {
     expect(bereichForCampaignType('sonstiges')).toBeNull();
     expect(bereichForCampaignType(null)).toBeNull();
     expect(bereichForCampaignType(undefined)).toBeNull();
+  });
+});
+
+describe('gehoertZuAuftragMode', () => {
+  it('lässt Aufträge ohne Typ in der Nicht-Contract-Menge', () => {
+    expect(gehoertZuAuftragMode({ auftragtype: null }, 'auftraege')).toBe(true);
+    expect(gehoertZuAuftragMode({}, 'auftraege')).toBe(true);
+    expect(gehoertZuAuftragMode({ auftragtype: null }, 'contracts')).toBe(false);
+  });
+
+  it('nimmt Contracting nur in den Contract-Modus, unabhängig von der Schreibweise', () => {
+    expect(gehoertZuAuftragMode({ auftragtype: 'Contracting' }, 'auftraege')).toBe(false);
+    expect(gehoertZuAuftragMode({ auftragtype: 'contracting' }, 'contracts')).toBe(true);
+    expect(gehoertZuAuftragMode({ auftragtype: 'UGC/Influencer' }, 'auftraege')).toBe(true);
+  });
+
+  it('verwirft NULL im PostgREST-Filter nicht', () => {
+    expect(NICHT_CONTRACTING_OR).toContain('auftragtype.is.null');
+    expect(NICHT_CONTRACTING_OR).toContain('auftragtype.not.ilike.%contracting%');
   });
 });
 

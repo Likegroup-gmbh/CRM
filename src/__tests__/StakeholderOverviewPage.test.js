@@ -209,15 +209,18 @@ describe('StakeholderOverviewPage', () => {
     expect(html).toContain('Bezahlt');
     expect(html).toContain('Unbezahlt');
     expect(html).toContain('bezahlt');
-    expect(html).toContain('Agenturanteil');
+    expect(html).toContain('Fest vereinbarter Agenturanteil');
+    expect(html).toContain('Agenturanteil aus EK-/VK-Differenz');
     expect(html).toContain('KSK-Abgabe');
     expect(html).toContain('Zusatzkosten');
 
     // Formel-Tooltips auf den Karten
     expect(html).toContain('stakeholder-card-info');
     expect(html).toContain('Creatoranteil + Agenturanteil + KSK + Zusatzkosten');
-    expect(html).toContain('Feste Fee + EK/VK-Differenz');
-    expect(html).toContain('eingelöst');
+    expect(html).toContain('Hinterlegte Agentur-Fee');
+    expect(html).toContain('Gebuchter VK − zugehöriger EK');
+    expect(html).toContain('Unvollständig bepreiste Zeilen bleiben im gebuchten VK');
+    expect(html).not.toContain('eingelöst');
     expect(html).toContain('von');
     expect(html).toContain('UGC: 4,9 % auf EK · Influencer: KSK-Topf');
     expect(html).toContain('Σ Nettobetrag aller Aufträge');
@@ -230,7 +233,7 @@ describe('StakeholderOverviewPage', () => {
     expect(html).toContain('Muster GmbH');
     expect(html).toContain('Beispiel AG');
     expect(html).toContain('FESTE FEE');
-    expect(html).toContain('EK/VK');
+    expect(html).toContain('Agenturanteil aus EK-/VK-Differenz');
 
     // Tabellen-Spalten in CFO-Reihenfolge (Kundenliste — nicht der
     // Zahlungsstand-Block, der früher im HTML steht)
@@ -693,9 +696,16 @@ describe('StakeholderOverviewPage', () => {
     expect(totals.agenturFest).toBeCloseTo(44000 * ratio + 2000, 5);
     expect(totals.agenturVoll).toBe(47300);
 
+    // Beide haben eine Fee: Kachel 1 bekommt die volle Fee, die Video-Marge bleibt draussen.
+    expect(totals.festAgentur).toBe(46000);
+    expect(totals.festVolumen).toBe(120000);
+    expect(totals.ekvkVolumen).toBe(0);
+    expect(totals.ekvkVk).toBe(0);
+    expect(totals.ekvkRealisiert).toBe(0);
+
     const html = window.setContentSafely.mock.calls[1][1];
-    expect(html).toContain('eingelöst');
-    expect(html).toContain('von');
+    expect(html).toContain('Fest vereinbarter Agenturanteil');
+    expect(html).not.toContain('eingelöst');
     expect(html).toContain('stakeholder-agentur');
 
     vi.useRealTimers();
@@ -850,8 +860,7 @@ describe('StakeholderOverviewPage', () => {
     expect(window.content.querySelector('[data-creator-unbezahlt]').textContent.trim()).toBe(page.fmtEuro(80));
     expect(creator.nicht_gestellt_netto).toBe(80);
     expect(creator.ueberfaellig_netto).toBe(0);
-    expect(creator.nicht_gestellt_netto).toBeLessThanOrEqual(creator.unbezahlt_netto);
-    expect(window.content.querySelector('[data-creator-nicht-gestellt]').textContent.trim()).toBe(page.fmtEuro(80));
+    expect(window.content.querySelector('[data-creator-nicht-gestellt]').textContent.trim()).toBe(page.fmtEuro(totals.creator - creator.nettobetrag));
     expect(window.content.querySelector('[data-creator-ueberfaellig]').textContent.trim()).toBe(page.fmtEuro(0));
   });
 
@@ -918,6 +927,71 @@ describe('StakeholderOverviewPage', () => {
     expect(totals.agentur).toBe(10000);
     expect(totals.agenturVoll).toBe(10000);
     expect(totals.volumen).toBe(30000);
+    expect(totals.festAgentur).toBe(10000);
+    expect(totals.festVolumen).toBe(30000);
+  });
+
+  it('teilt die Agentur-Kacheln: Fee-Auftrag nur fest, Auftrag ohne Fee nur EK/VK', async () => {
+    const auftraege = [
+      {
+        id: 'fee',
+        auftragsname: 'Mit Fee',
+        nettobetrag: 50000,
+        start: '2026-03-01',
+        is_draft: false,
+        unternehmen_id: 'u1'
+      },
+      {
+        id: 'marge',
+        auftragsname: 'Nur Marge',
+        nettobetrag: 20000,
+        start: '2026-03-01',
+        is_draft: false,
+        unternehmen_id: 'u2'
+      }
+    ];
+    const blocks = [
+      { auftrag_id: 'fee', campaign_type: 'ugc_paid', campaign_type_label: 'UGC Paid', umsatz_netto: 50000 },
+      { auftrag_id: 'marge', campaign_type: 'ugc_paid', campaign_type_label: 'UGC Paid', umsatz_netto: 20000 }
+    ];
+    const kampagnen = [
+      { id: 'k-fee', auftrag_id: 'fee', videoanzahl: 1, creatoranzahl: 1 },
+      { id: 'k-marge', auftrag_id: 'marge', videoanzahl: 1, creatoranzahl: 1 }
+    ];
+    const kooperationen = [
+      { id: 'koop-fee', kampagne_id: 'k-fee', creator_id: 'c1', videoanzahl: 1 },
+      { id: 'koop-marge', kampagne_id: 'k-marge', creator_id: 'c2', videoanzahl: 1 }
+    ];
+    const videos = [
+      { id: 'v-fee', kooperation_id: 'koop-fee', einkaufspreis_netto: 2000, verkaufspreis_netto: 3000 },
+      { id: 'v-marge', kooperation_id: 'koop-marge', einkaufspreis_netto: 400, verkaufspreis_netto: 1000 }
+    ];
+    const details = [
+      { auftrag_id: 'fee', campaign_type: ['ugc_paid'], agency_services_enabled: true, percentage_fee_enabled: true, percentage_fee_value: '10000' }
+    ];
+    const unternehmen = [
+      { id: 'u1', firmenname: 'Fee GmbH' },
+      { id: 'u2', firmenname: 'Marge GmbH' }
+    ];
+
+    window.supabase = createMockSupabase({ auftraege, blocks, kampagnen, kooperationen, videos, details, unternehmen });
+
+    const page = createPage();
+    await page.init();
+    const { totals } = page.aggregate();
+
+    expect(totals.festVolumen).toBe(50000);
+    expect(totals.festAgentur).toBe(10000);
+    expect(totals.ekvkVolumen).toBe(20000);
+    expect(totals.ekvkVk).toBe(1000);
+    expect(totals.ekvkRealisiert).toBe(600);
+    expect(totals.festVolumen + totals.ekvkVolumen).toBe(totals.volumen);
+
+    const html = window.setContentSafely.mock.calls[1][1];
+    expect(html).toContain('Fest vereinbarter Agenturanteil');
+    expect(html).toContain('Agenturanteil aus EK-/VK-Differenz');
+    expect(html).toContain('Gesamtauftragsvolumen');
+    expect(html).toContain('Bereits gebuchtes VK-Volumen');
   });
 
   it('summiert agentur und agenturVoll pro Kunde+Marke', () => {

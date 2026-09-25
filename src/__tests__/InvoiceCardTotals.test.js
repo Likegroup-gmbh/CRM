@@ -92,4 +92,28 @@ describe('Karten-Summen sind eine Quelle', () => {
     expect(summen.contracting.nettobetrag).toBe(999);
     expect(summen.contracting.unbezahlt_netto).toBe(999);
   });
+
+  it('Creator-Rechnung ohne Kooperation zählt über auftrag_id', () => {
+    const page = {
+      auftraege: [
+        { id: 'a1', auftragsname: 'Ganz', nettobetrag: 1000, is_draft: false, start: '2026-01-01' },
+      ],
+      teilrechnungen: [],
+      rechnungen: [
+        { id: 'r-direct', auftrag_id: 'a1', status: 'Offen', nettobetrag: 80, ust_betrag: 0, bruttobetrag: 80, rechnungstyp: 'kampagne' },
+        { id: 'r-kampagne', kampagne_id: 'k1', status: 'Bezahlt', nettobetrag: 20, ust_betrag: 0, bruttobetrag: 20, rechnungstyp: 'kampagne' },
+        { id: 'r-lose', status: 'Offen', nettobetrag: 650, rechnungstyp: 'kampagne' },
+      ],
+      kampagnen: [{ id: 'k1', auftrag_id: 'a1' }],
+      kooperationen: [],
+      blocks: [],
+      selectedYear: 'all',
+      activeTab: 'gesamt_mit',
+    };
+
+    const summen = kartenSummen(page);
+    expect(summen.creator.nettobetrag).toBe(100);
+    expect(summen.creator.bezahlt_netto).toBe(20);
+    expect(summen.creator.unbezahlt_netto).toBe(80);
+  });
 });

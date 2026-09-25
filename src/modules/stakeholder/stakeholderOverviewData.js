@@ -104,6 +104,11 @@ export function aggregate(page) {
   let sumDb = 0;
   let sumCreatorPaid = 0;
   let sumCreatorOpen = 0;
+  let sumFestVolumen = 0;
+  let sumFestAgentur = 0;
+  let sumEkvkVolumen = 0;
+  let sumEkvkVk = 0;
+  let sumEkvkRealisiert = 0;
 
   auftraege.forEach(a => {
     const blocks = blockMap.get(a.id) || [];
@@ -160,6 +165,18 @@ export function aggregate(page) {
     sumCreatorPaid += creatorPayment.paid;
     sumCreatorOpen += creatorPayment.open;
 
+    // Kacheln: Auftrag mit hinterlegter Fee nur in „fest“, sonst nur in EK/VK.
+    // Die Fee steht voll (nicht zeitanteilig). Die Marge eines Fee-Auftrags
+    // wird hier nicht addiert.
+    if (feeRaw > 0) {
+      sumFestVolumen += volumen;
+      sumFestAgentur += feeRaw;
+    } else {
+      sumEkvkVolumen += volumen;
+      sumEkvkVk += summary.vkSum || 0;
+      sumEkvkRealisiert += summary.ekVkMarginSum || 0;
+    }
+
     rows.push({
       auftrag: a,
       details,
@@ -193,7 +210,12 @@ export function aggregate(page) {
       agenturVoll: sumAgenturVoll,
       ksk: sumKsk,
       zusatz: sumZusatz,
-      db: sumDb
+      db: sumDb,
+      festVolumen: sumFestVolumen,
+      festAgentur: sumFestAgentur,
+      ekvkVolumen: sumEkvkVolumen,
+      ekvkVk: sumEkvkVk,
+      ekvkRealisiert: sumEkvkRealisiert
     }
   };
 }
@@ -261,8 +283,18 @@ function auftragIdVonKoop(koop, kampagneToAuftrag) {
   return koop ? (kampagneToAuftrag.get(koop.kampagne_id) || null) : null;
 }
 
-// Dieselbe Zuordnung wie bisher: Creator nur mit Kooperation im Filter,
-// Contracting nur wenn der Auftrag nicht herausgefiltert ist.
+// Auftrag der Rechnung: direkte Id, sonst Kampagne, sonst Kooperation.
+function auftragIdVonRechnung(rechnung, koop, kampagneToAuftrag) {
+  if (rechnung.auftrag_id) return rechnung.auftrag_id;
+  if (rechnung.kampagne_id) {
+    const vonKampagne = kampagneToAuftrag.get(rechnung.kampagne_id);
+    if (vonKampagne) return vonKampagne;
+  }
+  return auftragIdVonKoop(koop, kampagneToAuftrag);
+}
+
+// Creator: Auftrag über auftrag_id, Kampagne oder Kooperation, und der Auftrag
+// muss im Filter liegen. Contracting ohne Auftrag bleibt in der Summe.
 function rechnungenImFilter(page) {
   const ids = new Set(auftraegeImFilter(page).map(a => a.id));
   const koopById = new Map((page.kooperationen || []).map(k => [k.id, k]));
@@ -271,13 +303,12 @@ function rechnungenImFilter(page) {
   const contracting = [];
   for (const rechnung of page.rechnungen || []) {
     const koop = rechnung.kooperation_id ? koopById.get(rechnung.kooperation_id) : null;
+    const auftragId = auftragIdVonRechnung(rechnung, koop, kampagneToAuftrag);
     if (rechnung.rechnungstyp === 'contracting') {
-      const auftragId = rechnung.auftrag_id || auftragIdVonKoop(koop, kampagneToAuftrag);
       if (auftragId && !ids.has(auftragId)) continue;
       contracting.push(rechnung);
       continue;
     }
-    const auftragId = auftragIdVonKoop(koop, kampagneToAuftrag);
     if (!auftragId || !ids.has(auftragId)) continue;
     creator.push(rechnung);
   }
