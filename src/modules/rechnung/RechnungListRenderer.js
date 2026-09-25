@@ -142,29 +142,26 @@ export function renderPageShell({ isAdmin, canEdit, searchQuery, statusTabs, typ
 export function renderInvoiceSummaryCards() {
   const zero = formatRechnungSummaryCurrency(0);
   const cards = [
+    { field: 'koop_creator_kosten', label: 'Creator-Kosten' },
     { field: 'nettobetrag', label: 'Netto' },
-    { field: 'ust_betrag', label: 'Mehrwertsteuer' },
-    { field: 'bruttobetrag', label: 'Brutto' }
+    { field: 'creator_kosten', label: 'Netto Creator Kosten', mwst: true },
+    { field: 'bezahlt_netto', label: 'Bereits bezahlt (Netto)' }
   ];
   return `
     <div class="auftragsdetails-summary" id="rechnungen-summary-cards">
       <div class="summary-cards">
-        <div class="summary-card summary-card--wide" data-summary-card="bezahlt">
-          <div class="summary-card-values">
-            <div class="summary-card-value-block">
-              <div class="summary-value" data-summary-value="bezahlt_netto">${zero}</div>
-              <div class="summary-label">Bereits bezahlt (Netto)</div>
-            </div>
-            <div class="summary-card-value-block">
-              <div class="summary-value" data-summary-value="bezahlt_brutto">${zero}</div>
-              <div class="summary-label">Bereits bezahlt (Brutto)</div>
-            </div>
-          </div>
-        </div>
-        ${cards.map(({ field, label }) => `
+        ${cards.map(({ field, label, mwst }) => `
           <div class="summary-card" data-summary-card="${field}">
             <div class="summary-value" data-summary-value="${field}">${zero}</div>
             <div class="summary-label">${label}</div>
+            ${mwst ? `
+              <div class="summary-card-breakdown">
+                <div class="summary-card-breakdown-line">
+                  <span>abzuführende MwSt</span>
+                  <span data-summary-value="ust_betrag">${zero}</span>
+                </div>
+              </div>
+            ` : ''}
           </div>
         `).join('')}
       </div>
@@ -189,7 +186,7 @@ export function renderInvoiceSummaryFoot(isAdmin) {
   `;
 }
 
-export function updateInvoiceSummary(rows, { animate = false } = {}) {
+export function updateInvoiceSummary(rows, { animate = false, creatorKosten = 0 } = {}) {
   const totals = sumInvoiceRows(rows);
   const paid = sumPaidRechnungRows(rows);
   const foot = document.getElementById('rechnungen-summary');
@@ -197,8 +194,9 @@ export function updateInvoiceSummary(rows, { animate = false } = {}) {
   const format = formatRechnungSummaryCurrency;
   const entries = {
     ...totals,
-    bezahlt_netto: paid.netto,
-    bezahlt_brutto: paid.brutto
+    koop_creator_kosten: Number(creatorKosten) || 0,
+    creator_kosten: totals.nettobetrag,
+    bezahlt_netto: paid.netto
   };
   Object.entries(entries).forEach(([field, value]) => {
     const targets = [
@@ -215,12 +213,12 @@ export function updateInvoiceSummary(rows, { animate = false } = {}) {
 
 // ────────────────────────── Table rows ──────────────────────────
 
-export async function updateTableRows(rechnungen, { isAdmin, statusOptions, activeStatusTab, activeTypeTab, currentMonth, currentYear, notizMap, hasActiveFilters, animate = false }) {
+export async function updateTableRows(rechnungen, { isAdmin, statusOptions, activeStatusTab, activeTypeTab, currentMonth, currentYear, notizMap, hasActiveFilters, animate = false, creatorKosten = 0 }) {
   const tbody = document.getElementById('rechnungen-table-body');
   if (!tbody) return;
 
   const canToggleBezahlt = isAdmin;
-  updateInvoiceSummary(rechnungen, { animate });
+  updateInvoiceSummary(rechnungen, { animate, creatorKosten });
 
   await TableAnimationHelper.animatedUpdate(tbody, async () => {
     if (!rechnungen || rechnungen.length === 0) {

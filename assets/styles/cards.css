@@ -203,22 +203,6 @@
   font-weight: 600;
 }
 
-/* „Bereits bezahlt"-Card auf den Kundenrechnungen: spannt die volle Breite
-   ueber den drei Summen-Cards und zeigt Netto/Brutto nebeneinander. */
-#ausgangsrechnungen-summary-cards .summary-cards,
-#rechnungen-summary-cards .summary-cards {
-  flex-wrap: wrap;
-}
-
-.summary-card--wide {
-  flex: 1 1 100%;
-}
-
-.summary-card-values {
-  display: flex;
-  gap: var(--space-xl);
-}
-
 /* Live-Performance: klare Hierarchie mit Views als Hero, Likes und Kommentare
    als Split darunter. Overline schafft Kontext ohne Icon-Beiwerk. */
 

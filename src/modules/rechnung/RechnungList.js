@@ -7,6 +7,7 @@ import { SearchInput } from '../../core/components/SearchInput.js';
 import { ALL_TAB, UNDATED_TAB, getCurrentMonthSelection, parseMonthTab } from '../auftrag/logic/InvoiceMonthFilter.js';
 import { renderInvoiceMonthSheet, updateInvoiceMonthTabUI } from '../auftrag/logic/InvoiceMonthSheet.js';
 import { ENTITY_RECHNUNG, getRechnungTabKey, hydrateRechnungPdfs, loadCounts, loadRows } from './Monatsblatt.js';
+import { loadKooperationCreatorKosten } from './creatorKostenSumme.js';
 import { loadRechnungMitarbeiterScope, clearRechnungMitarbeiterScope } from './RechnungMitarbeiterScope.js';
 import { renderPageShell, updateTableRows, updateSingleRow, updateStatusTabCounts, patchPdfCells, updateInvoiceSummary } from './RechnungListRenderer.js';
 import { bindRechnungListEvents } from './RechnungListEvents.js';
@@ -40,6 +41,8 @@ export class RechnungList {
     this._searchDebounceTimer = null;
     this._blattCounts = { months: { undated: 0, alle: 0, months: Array(12).fill(0) }, type: { rechnung: 0, contracting: 0 } };
     this._loadRequestId = 0;
+    this._creatorKostenSumme = 0;
+    this._creatorKostenKey = null;
   }
 
   get statusOptions() { return STATUS_OPTIONS; }
@@ -123,9 +126,13 @@ export class RechnungList {
     const opts = this._blattOpts();
     if (!window.isAdmin() && window.isMitarbeiter()) opts.allowed = await loadRechnungMitarbeiterScope();
 
-    const { rows } = await loadRows(opts);
+    const [{ rows }, creatorKosten] = await Promise.all([
+      loadRows(opts),
+      this._loadCreatorKosten(opts)
+    ]);
     if (requestId !== this._loadRequestId) return;
     this.rechnungen = rows;
+    this._creatorKostenSumme = creatorKosten;
     await this.updateTable(this.getFilteredRechnungen(), { animate: !firstPaint });
     this._loadNotizen();
     this._hydratePdfs(requestId);
@@ -172,13 +179,39 @@ export class RechnungList {
     return (this.rechnungen || []).filter(r => r.status === this.activeStatusTab);
   }
 
+  async _loadCreatorKosten(opts) {
+    const key = JSON.stringify({
+      unternehmen: opts.filters?.unternehmen_ids || [],
+      koops: opts.allowed?.koopIds || null
+    });
+    if (key === this._creatorKostenKey) return this._creatorKostenSumme;
+    if (this._creatorKostenPromise?.key === key) return this._creatorKostenPromise.promise;
+
+    this._creatorKostenKeyWanted = key;
+    const promise = loadKooperationCreatorKosten({
+      allowed: opts.allowed,
+      unternehmenIds: opts.filters?.unternehmen_ids
+    }).then(summe => {
+      if (this._creatorKostenKeyWanted !== key) return summe;
+      this._creatorKostenSumme = summe;
+      this._creatorKostenKey = key;
+      return summe;
+    }).catch(error => {
+      console.warn('⚠️ Creator-Kosten konnten nicht geladen werden:', error);
+      return this._creatorKostenSumme || 0;
+    });
+    this._creatorKostenPromise = { key, promise };
+    return promise;
+  }
+
   async updateTable(rechnungen, { animate = false } = {}) {
     await updateTableRows(rechnungen, {
       isAdmin: window.isAdmin(), statusOptions: STATUS_OPTIONS,
       activeStatusTab: this.activeStatusTab, activeTypeTab: this.activeTypeTab,
       currentMonth: this.currentMonth, currentYear: this.currentYear,
       notizMap: this._notizMap, hasActiveFilters: this.hasActiveFilters(),
-      animate
+      animate,
+      creatorKosten: this._creatorKostenSumme
     });
     this.selection.bind(this.rechnungen);
   }
@@ -190,7 +223,7 @@ export class RechnungList {
       blattCounts: this._blattCounts, typeTabs: TYPE_TABS,
       reloadCallback: () => this.loadAndRender()
     });
-    updateInvoiceSummary(this.getFilteredRechnungen());
+    updateInvoiceSummary(this.getFilteredRechnungen(), { creatorKosten: this._creatorKostenSumme });
   }
 
   updateStatusTabCounts() { updateStatusTabCounts(this.rechnungen, STATUS_TABS, this._blattCounts, TYPE_TABS); }

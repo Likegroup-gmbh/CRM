@@ -262,7 +262,7 @@ export class AusgangsrechnungenList {
       { field: 'nettobetrag', label: 'Netto Umsatz', mwst: true },
       { field: 're_datum_netto', label: 'Netto Rechnungen gestellt' },
       { field: 'bezahlt_netto', label: 'Netto Rechnungen bereits bezahlt' },
-      { field: 'bezahlt_abzgl_gestellt', label: 'Netto bezahlt abzgl. gestellt', ueberfaellig: true }
+      { field: 'unbezahlt_netto', label: 'Netto Rechnungen unbezahlt', ueberfaellig: true }
     ];
     return `
       <div class="auftragsdetails-summary" id="ausgangsrechnungen-summary-cards">
@@ -274,7 +274,7 @@ export class AusgangsrechnungenList {
               ${mwst ? `
                 <div class="summary-card-breakdown">
                   <div class="summary-card-breakdown-line">
-                    <span>davon MwSt</span>
+                    <span>abzuführende MwSt</span>
                     <span data-summary-value="ust_betrag">${zero}</span>
                   </div>
                 </div>
@@ -385,6 +385,14 @@ export class AusgangsrechnungenList {
     }, { nettobetrag: 0, ust_betrag: 0, bruttobetrag: 0 });
   }
 
+  // Netto aller nicht bezahlten Zeilen. Positiv, kein Saldo aus bezahlt minus gestellt.
+  sumUnbezahltNetto(rows) {
+    return (rows || []).reduce((sum, row) => {
+      if (isInvoiceRowPaid(row)) return sum;
+      return sum + (parseFloat(row.nettobetrag) || 0);
+    }, 0);
+  }
+
   // Netto der unbezahlten Zeilen, deren Fälligkeit vor heute liegt.
   // Dieselbe Regel wie die rote Zeilenmarkierung: bezahlt schlägt überfällig.
   sumUeberfaelligNetto(rows) {
@@ -415,7 +423,7 @@ export class AusgangsrechnungenList {
       ...totals,
       re_datum_netto: reDatumNetto,
       bezahlt_netto: paid.netto,
-      bezahlt_abzgl_gestellt: paid.netto - reDatumNetto,
+      unbezahlt_netto: this.sumUnbezahltNetto(rows),
       ueberfaellig_netto: this.sumUeberfaelligNetto(rows)
     };
     Object.entries(entries).forEach(([field, value]) => {

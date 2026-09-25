@@ -299,9 +299,11 @@ describe('Rechnung-Monatssummen', () => {
     const cards = document.getElementById('rechnungen-summary-cards');
     const table = document.querySelector('.rechnung-table-container');
     expect(cards).toBeTruthy();
-    expect(cards.querySelector('[data-summary-card="nettobetrag"] .summary-label').textContent).toBe('Netto');
-    expect(cards.querySelector('[data-summary-card="ust_betrag"] .summary-label').textContent).toBe('Mehrwertsteuer');
-    expect(cards.querySelector('[data-summary-card="bruttobetrag"] .summary-label').textContent).toBe('Brutto');
+    const labels = [...cards.querySelectorAll('.summary-card .summary-label')].map(el => el.textContent);
+    expect(labels).toEqual(['Creator-Kosten', 'Netto', 'Netto Creator Kosten', 'Bereits bezahlt (Netto)']);
+    expect(cards.querySelector('[data-summary-card="creator_kosten"] .summary-card-breakdown').textContent).toContain('abzuführende MwSt');
+    expect(cards.querySelector('[data-summary-value="bezahlt_brutto"]')).toBeNull();
+    expect(cards.querySelectorAll('.summary-card')).toHaveLength(4);
     expect(cards.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     const cells = [...document.querySelectorAll('#rechnungen-summary td')];
@@ -316,20 +318,21 @@ describe('Rechnung-Monatssummen', () => {
     updateInvoiceSummary([
       { nettobetrag: 1000, ust_betrag: 190, bruttobetrag: 1190, status: 'Bezahlt' },
       { nettobetrag: 2000, ust_betrag: 380, bruttobetrag: 2380, status: 'Offen' }
-    ]);
+    ], { creatorKosten: 500000 });
 
     const cards = document.getElementById('rechnungen-summary-cards');
     const foot = document.getElementById('rechnungen-summary');
+    expect(cards.querySelector('[data-summary-value="koop_creator_kosten"]').textContent)
+      .toBe(formatRechnungSummaryCurrency(500000));
     expect(cards.querySelector('[data-summary-value="nettobetrag"]').textContent)
       .toBe(formatRechnungSummaryCurrency(3000));
-    expect(cards.querySelector('[data-summary-value="ust_betrag"]').textContent)
+    expect(cards.querySelector('[data-summary-value="creator_kosten"]').textContent)
+      .toBe(formatRechnungSummaryCurrency(3000));
+    expect(cards.querySelector('[data-summary-card="creator_kosten"] [data-summary-value="ust_betrag"]').textContent)
       .toBe(formatRechnungSummaryCurrency(570));
-    expect(cards.querySelector('[data-summary-value="bruttobetrag"]').textContent)
-      .toBe(formatRechnungSummaryCurrency(3570));
     expect(cards.querySelector('[data-summary-value="bezahlt_netto"]').textContent)
       .toBe(formatRechnungSummaryCurrency(1000));
-    expect(cards.querySelector('[data-summary-value="bezahlt_brutto"]').textContent)
-      .toBe(formatRechnungSummaryCurrency(1190));
+    expect(cards.querySelector('[data-summary-value="bezahlt_brutto"]')).toBeNull();
     expect(foot.querySelector('[data-summary="nettobetrag"]').textContent)
       .toBe(formatRechnungSummaryCurrency(3000));
     expect(foot.querySelector('[data-summary="bruttobetrag"]').textContent)
