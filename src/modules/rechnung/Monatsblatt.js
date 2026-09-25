@@ -13,6 +13,9 @@ import {
 } from '../auftrag/logic/InvoiceMonthFilter.js';
 import { FINAL_AUFTRAG_OR_FILTER, isFinalAuftrag } from '../../core/finalisiert.js';
 import { sortRowsByPrefixedNumberDesc } from '../auftrag/logic/PrefixedNumberSort.js';
+import { sumInvoiceRows, sumPaidRechnungRows } from './invoiceCardTotals.js';
+
+export { sumInvoiceRows, sumPaidRechnungRows };
 
 export { isFinalAuftrag };
 
@@ -230,59 +233,73 @@ function applyAuftragMode(query, mode) {
   return query.neq('auftragtype', 'Contracting');
 }
 
-function explodeTeilrechnungen(auftraege, teilrechnungen, createdByFallbacks) {
+function applyTeilrechnungFields(row, tr) {
+  for (const field of TR_FIELDS) {
+    if (tr[field] !== undefined) row[field] = tr[field];
+  }
+  return row;
+}
+
+// Eine Zeile je Teilrechnung, sonst der Auftrag selbst. Dieselbe Aufteilung
+// wie die Kundenrechnungs-Liste, damit Kachelsumme und Dashboard dieselben
+// Beträge sehen.
+export function kundenrechnungZeilen(auftraege, teilrechnungen) {
   const trByAuftrag = new Map();
   for (const tr of (teilrechnungen || [])) {
     if (!trByAuftrag.has(tr.auftrag_id)) trByAuftrag.set(tr.auftrag_id, []);
     trByAuftrag.get(tr.auftrag_id).push(tr);
   }
 
-  const exploded = [];
+  const rows = [];
   for (const auftrag of (auftraege || []).filter(isFinalAuftrag)) {
-    const details = auftrag.auftrag_details;
-    const detailsId = Array.isArray(details) ? details[0]?.id : details?.id;
-    const base = {
-      ...auftrag,
-      has_auftragsdetails: Boolean(detailsId),
-      auftragsdetails_id: detailsId || null,
-      created_by: auftrag.created_by || createdByFallbacks.get(auftrag.created_by_id) || null,
-      unternehmen: auftrag.unternehmen ? {
-        id: auftrag.unternehmen.id,
-        firmenname: auftrag.unternehmen.firmenname,
-        internes_kuerzel: auftrag.unternehmen.internes_kuerzel,
-        logo_url: auftrag.unternehmen.logo_url,
-        logo_thumb_url: auftrag.unternehmen.logo_thumb_url
-      } : null,
-      marke: auftrag.marke ? {
-        id: auftrag.marke.id,
-        markenname: auftrag.marke.markenname,
-        logo_url: auftrag.marke.logo_url,
-        logo_thumb_url: auftrag.marke.logo_thumb_url
-      } : null,
-      art_der_kampagne: (auftrag.kampagne_arten || [])
-        .map(ka => ka.art?.name)
-        .filter(Boolean)
-    };
-
     const trs = trByAuftrag.get(auftrag.id);
     if (trs?.length) {
       const total = trs.length;
       for (const tr of trs) {
-        const row = { ...base };
-        for (const field of TR_FIELDS) {
-          if (tr[field] !== undefined) row[field] = tr[field];
-        }
+        const row = applyTeilrechnungFields({ ...auftrag }, tr);
         row.teilrechnung_id = tr.id;
         row._teilrechnung = { position: tr.position, total, label: `${tr.position} von ${total}` };
-        exploded.push(row);
+        rows.push(row);
       }
     } else {
-      base.teilrechnung_id = null;
-      base._teilrechnung = { position: 1, total: 1, label: '1 von 1' };
-      exploded.push(base);
+      rows.push({
+        ...auftrag,
+        teilrechnung_id: null,
+        _teilrechnung: { position: 1, total: 1, label: '1 von 1' }
+      });
     }
   }
-  return exploded;
+  return rows;
+}
+
+function decorateKundenrechnungZeile(row, createdByFallbacks) {
+  const details = row.auftrag_details;
+  const detailsId = Array.isArray(details) ? details[0]?.id : details?.id;
+  row.has_auftragsdetails = Boolean(detailsId);
+  row.auftragsdetails_id = detailsId || null;
+  row.created_by = row.created_by || createdByFallbacks.get(row.created_by_id) || null;
+  row.unternehmen = row.unternehmen ? {
+    id: row.unternehmen.id,
+    firmenname: row.unternehmen.firmenname,
+    internes_kuerzel: row.unternehmen.internes_kuerzel,
+    logo_url: row.unternehmen.logo_url,
+    logo_thumb_url: row.unternehmen.logo_thumb_url
+  } : null;
+  row.marke = row.marke ? {
+    id: row.marke.id,
+    markenname: row.marke.markenname,
+    logo_url: row.marke.logo_url,
+    logo_thumb_url: row.marke.logo_thumb_url
+  } : null;
+  row.art_der_kampagne = (row.kampagne_arten || [])
+    .map(ka => ka.art?.name)
+    .filter(Boolean);
+  return row;
+}
+
+function explodeTeilrechnungen(auftraege, teilrechnungen, createdByFallbacks) {
+  return kundenrechnungZeilen(auftraege, teilrechnungen)
+    .map(row => decorateKundenrechnungZeile(row, createdByFallbacks));
 }
 
 async function loadCreatedByFallbacks(auftraege) {
@@ -382,24 +399,6 @@ function statusCountsFromRows(rows, statusIds) {
     if (row.status && counts[row.status] != null) counts[row.status] += 1;
   }
   return counts;
-}
-
-export function sumInvoiceRows(rows) {
-  return (rows || []).reduce((acc, row) => {
-    acc.nettobetrag += parseFloat(row.nettobetrag) || 0;
-    acc.ust_betrag += parseFloat(row.ust_betrag) || 0;
-    acc.bruttobetrag += parseFloat(row.bruttobetrag) || 0;
-    return acc;
-  }, { nettobetrag: 0, ust_betrag: 0, bruttobetrag: 0 });
-}
-
-export function sumPaidRechnungRows(rows) {
-  return (rows || []).reduce((acc, row) => {
-    if (row.status !== 'Bezahlt') return acc;
-    acc.netto += parseFloat(row.nettobetrag) || 0;
-    acc.brutto += parseFloat(row.bruttobetrag) || 0;
-    return acc;
-  }, { netto: 0, brutto: 0 });
 }
 
 function buildRechnungQuery(selectArgs, { year, month, filters, typeTab, allowed, searchParts, skipMonth }) {

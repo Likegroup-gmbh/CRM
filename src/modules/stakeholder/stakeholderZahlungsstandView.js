@@ -1,7 +1,9 @@
 // Zahlungsstand-Tabelle und aufklappbare Belegliste.
+// Live-Zahlen sind die Kachelsummen. Alte Berichtsstände (gestellt/offen)
+// rendern weiter mit dem eingefrorenen Schema.
 
 import { leereRechnungsseite } from '../../core/budget/rechnungsstatus.js';
-import { aggregate, rechnungsstatus, zahlungsstandBelege } from './stakeholderOverviewData.js';
+import { kartenBelege, kartenSummen } from './stakeholderOverviewData.js';
 import { fmtBerichtsstandDatum } from './stakeholderMonatsView.js';
 
 const BELEG_SEITEN = {
@@ -11,44 +13,146 @@ const BELEG_SEITEN = {
 };
 
 const BELEG_KATEGORIEN = {
+  netto: 'Netto',
   gestellt: 'gestellt',
   bezahlt: 'bezahlt',
+  unbezahlt: 'unbezahlt',
+  ueberfaellig: 'davon überfällig',
+  ust: 'MwSt',
+  brutto: 'Brutto',
   offen: 'offen',
   nichtGestellt: 'noch nicht gestellt',
 };
 
 const BELEG_DATUM_SPALTE = {
+  netto: 'Rechnungsdatum',
   gestellt: 'Rechnungsdatum',
   bezahlt: 'Zahlungseingang',
+  unbezahlt: 'Fälligkeit',
+  ueberfaellig: 'Fälligkeit',
+  ust: 'Rechnungsdatum',
+  brutto: 'Rechnungsdatum',
   offen: 'Fälligkeit',
   nichtGestellt: '–',
 };
 
-function zahlungsstandHint(page, eingefroren, liveAnsicht) {
+const KUNDEN_SPALTEN = [
+  ['netto', 'Netto', 'nettobetrag'],
+  ['gestellt', 'Gestellt', 're_datum_netto'],
+  ['bezahlt', 'Bezahlt', 'bezahlt_netto'],
+  ['unbezahlt', 'Unbezahlt', 'unbezahlt_netto'],
+  ['ueberfaellig', 'davon überfällig', 'ueberfaellig_netto'],
+];
+
+const RECHNUNG_SPALTEN = [
+  ['netto', 'Netto', 'nettobetrag'],
+  ['bezahlt', 'Bezahlt', 'bezahlt_netto'],
+  ['unbezahlt', 'Unbezahlt', 'unbezahlt_netto'],
+  ['ust', 'MwSt', 'ust_betrag'],
+  ['brutto', 'Brutto', 'bruttobetrag'],
+];
+
+function isLegacyZahlungsstand(stand) {
+  const kunden = stand?.kunden;
+  if (!kunden) return false;
+  return kunden.re_datum_netto == null && kunden.gestellt != null;
+}
+
+function zahlungsstandHint(page, eingefroren, liveAnsicht, legacy) {
   const stand = eingefroren
     ? `Stand ${fmtBerichtsstandDatum(page.aktiverBerichtsstand.created_at)} (eingefrorener Berichtsstand)`
     : 'Stand heute · Jahr und Leistungsbereich wie die Karten';
-  const klick = liveAnsicht ? ' · Betrag anklicken zeigt die Belege bzw. Restbeträge' : '';
-  return `${stand} · Gestellt = Summe aller gestellten Rechnungen · Bezahlt = Zahlung eingegangen · Offen = gestellt, nicht bezahlt · Noch nicht gestellt = Restbetrag aus Auftrag bzw. Kalkulation · KSK/Zusatz nicht gestellt = Kartenwert minus bereits auf Belegen${klick}`;
+  const klick = liveAnsicht ? ' · Betrag anklicken zeigt die Belege' : '';
+  const regel = legacy
+    ? 'Gestellt = Summe aller gestellten Rechnungen · Bezahlt = Zahlung eingegangen · Offen = gestellt, nicht bezahlt · Noch nicht gestellt = Restbetrag aus Auftrag bzw. Kalkulation'
+    : 'Kundenrechnungen: Netto, Gestellt, Bezahlt, Unbezahlt, überfällig wie die Kacheln · Rechnungen: Netto, Bezahlt, Unbezahlt, MwSt, Brutto wie die Kacheln · Unbezahlt = Netto − Bezahlt';
+  return `${stand} · ${regel}${klick}`;
+}
+
+function zellenWert(page, seiteKey, kategorie, wert, { extra = '', negativ = false, klickbar = true } = {}) {
+  const cls = `stakeholder-num${negativ ? ' stakeholder-negativ' : ''}`;
+  if (!klickbar) {
+    return `<td class="${cls}">${page.fmtEuro(wert)}${extra}</td>`;
+  }
+  const offen = page.zahlungsstandBelegeOffen;
+  const open = offen?.seite === seiteKey && offen?.kategorie === kategorie;
+  return `
+    <td class="${cls}">
+      <button type="button"
+              class="stakeholder-status-zelle${open ? ' is-open' : ''}"
+              data-zahlungsstand-seite="${seiteKey}"
+              data-zahlungsstand-kategorie="${kategorie}"
+              aria-expanded="${open ? 'true' : 'false'}">
+        ${page.fmtEuro(wert)}
+      </button>
+      ${extra}
+    </td>`;
+}
+
+function spaltenZeile(page, label, seiteKey, seite, spalten, klickbar) {
+  const zellen = spalten.map(([kategorie, , feld]) => {
+    const wert = seite?.[feld] || 0;
+    return zellenWert(page, seiteKey, kategorie, wert, {
+      klickbar,
+      negativ: wert < -0.005,
+    });
+  }).join('');
+  return `<tr><td>${label}</td>${zellen}</tr>`;
+}
+
+function tabellenKopf(spalten) {
+  return spalten.map(([, label]) => `<th class="stakeholder-num">${label}</th>`).join('');
 }
 
 export function renderRechnungsstatus(page) {
-  // Im Berichtsstand-Modus zeigt der Block den eingefrorenen Stand,
-  // damit die Ansicht konsistent zum gesicherten Update bleibt.
   const eingefroren = page.aktiverBerichtsstand?.daten?.zahlungsstand;
-  const live = eingefroren || rechnungsstatus(page);
-  const kunden = live.kunden;
-  const creator = live.creator;
-  const contracting = live.contracting || leereRechnungsseite();
+  if (eingefroren && isLegacyZahlungsstand(eingefroren)) {
+    return renderLegacyZahlungsstand(page, eingefroren);
+  }
+  const live = eingefroren || kartenSummen(page);
   const liveAnsicht = !eingefroren;
   const offenZelle = liveAnsicht ? page.zahlungsstandBelegeOffen : null;
-  const karten = liveAnsicht ? aggregate(page).totals : { ksk: 0, zusatz: 0 };
-  const creatorKskNicht = karten.ksk - (creator.kskGestellt || 0);
-  const creatorZusatzNicht = karten.zusatz - (creator.zusatzGestellt || 0);
+
+  return `
+    <div class="stakeholder-list-card stakeholder-status">
+      <div class="stakeholder-list-header">
+        <h3 class="stakeholder-list-title">Zahlungsstand</h3>
+        <p class="stakeholder-list-hint">${zahlungsstandHint(page, Boolean(eingefroren), liveAnsicht, false)}</p>
+      </div>
+      <div class="stakeholder-scroll-x">
+      <table class="stakeholder-table stakeholder-status-table">
+        <thead>
+          <tr><th>Kundenrechnungen</th>${tabellenKopf(KUNDEN_SPALTEN)}</tr>
+        </thead>
+        <tbody>
+          ${spaltenZeile(page, 'Kundenrechnungen', 'kunden', live.kunden, KUNDEN_SPALTEN, liveAnsicht)}
+        </tbody>
+      </table>
+      </div>
+      <div class="stakeholder-scroll-x">
+      <table class="stakeholder-table stakeholder-status-table">
+        <thead>
+          <tr><th>Rechnungen</th>${tabellenKopf(RECHNUNG_SPALTEN)}</tr>
+        </thead>
+        <tbody>
+          ${spaltenZeile(page, 'Creatorrechnungen', 'creator', live.creator, RECHNUNG_SPALTEN, liveAnsicht)}
+          ${spaltenZeile(page, 'Contractingrechnungen', 'contracting', live.contracting, RECHNUNG_SPALTEN, liveAnsicht)}
+        </tbody>
+      </table>
+      </div>
+      ${offenZelle ? renderZahlungsstandBelege(page, offenZelle.seite, offenZelle.kategorie) : ''}
+    </div>
+  `;
+}
+
+function renderLegacyZahlungsstand(page, live) {
+  const kunden = live.kunden;
+  const creator = live.creator || leereRechnungsseite();
+  const contracting = live.contracting || leereRechnungsseite();
 
   const extraSpalten = (seite, seiteKey) => {
-    const kskNicht = seiteKey === 'creator' ? creatorKskNicht : 0;
-    const zusatzNicht = seiteKey === 'creator' ? creatorZusatzNicht : 0;
+    const kskNicht = seiteKey === 'creator' ? -(seite.kskGestellt || 0) : 0;
+    const zusatzNicht = seiteKey === 'creator' ? -(seite.zusatzGestellt || 0) : 0;
     const inkl = (seite.nichtGestellt || 0) + kskNicht + zusatzNicht;
     const zelle = (attr, wert) => `
       <td class="stakeholder-num${wert < -0.005 ? ' stakeholder-negativ' : ''}"
@@ -60,32 +164,13 @@ export function renderRechnungsstatus(page) {
     ? `<div class="stakeholder-status-ueberfaellig">davon überfällig: ${page.fmtEuro(seite.ueberfaellig)}</div>`
     : '';
 
-  const zellenWert = (seiteKey, kategorie, wert, { extra = '', negativ = false } = {}) => {
-    const cls = `stakeholder-num${negativ ? ' stakeholder-negativ' : ''}`;
-    if (!liveAnsicht) {
-      return `<td class="${cls}">${page.fmtEuro(wert)}${extra}</td>`;
-    }
-    const open = offenZelle?.seite === seiteKey && offenZelle?.kategorie === kategorie;
-    return `
-      <td class="${cls}">
-        <button type="button"
-                class="stakeholder-status-zelle${open ? ' is-open' : ''}"
-                data-zahlungsstand-seite="${seiteKey}"
-                data-zahlungsstand-kategorie="${kategorie}"
-                aria-expanded="${open ? 'true' : 'false'}">
-          ${page.fmtEuro(wert)}
-        </button>
-        ${extra}
-      </td>`;
-  };
-
   const zeile = (label, seite, seiteKey) => `
     <tr>
       <td>${label}</td>
-      ${zellenWert(seiteKey, 'gestellt', seite.gestellt)}
-      ${zellenWert(seiteKey, 'bezahlt', seite.bezahlt)}
-      ${zellenWert(seiteKey, 'offen', seite.offen, { extra: offenHinweis(seite) })}
-      ${zellenWert(seiteKey, 'nichtGestellt', seite.nichtGestellt, { negativ: seite.nichtGestellt < -0.005 })}
+      <td class="stakeholder-num">${page.fmtEuro(seite.gestellt || 0)}</td>
+      <td class="stakeholder-num">${page.fmtEuro(seite.bezahlt || 0)}</td>
+      <td class="stakeholder-num">${page.fmtEuro(seite.offen || 0)}${offenHinweis(seite)}</td>
+      <td class="stakeholder-num${(seite.nichtGestellt || 0) < -0.005 ? ' stakeholder-negativ' : ''}">${page.fmtEuro(seite.nichtGestellt || 0)}</td>
       ${extraSpalten(seite, seiteKey)}
     </tr>
   `;
@@ -94,7 +179,7 @@ export function renderRechnungsstatus(page) {
     <div class="stakeholder-list-card stakeholder-status">
       <div class="stakeholder-list-header">
         <h3 class="stakeholder-list-title">Zahlungsstand</h3>
-        <p class="stakeholder-list-hint">${zahlungsstandHint(page, eingefroren, liveAnsicht)}</p>
+        <p class="stakeholder-list-hint">${zahlungsstandHint(page, true, false, true)}</p>
       </div>
       <div class="stakeholder-scroll-x">
       <table class="stakeholder-table stakeholder-status-table">
@@ -117,7 +202,6 @@ export function renderRechnungsstatus(page) {
         </tbody>
       </table>
       </div>
-      ${offenZelle ? renderZahlungsstandBelege(page, offenZelle.seite, offenZelle.kategorie) : ''}
     </div>
   `;
 }
@@ -130,13 +214,9 @@ export function fmtBelegDatum(iso) {
 }
 
 export function renderZahlungsstandBelege(page, seiteKey, kategorie) {
-  const istRest = kategorie === 'nichtGestellt';
-  const belege = zahlungsstandBelege(page)?.[seiteKey]?.[kategorie] || [];
+  const belege = kartenBelege(page)?.[seiteKey]?.[kategorie] || [];
   const summe = belege.reduce((s, b) => s + (b.betrag || 0), 0);
   const zeilen = belege.map(b => {
-    const aufschluss = b.honorar != null
-      ? `<div class="stakeholder-status-beleg-meta">${page.fmtEuro(b.honorar)} Honorar · ${page.fmtEuro(b.ksk)} KSK · ${page.fmtEuro(b.zusatz)} Zusatz</div>`
-      : '';
     const betragCls = b.betrag < -0.005 ? ' stakeholder-negativ' : '';
     return `
       <tr>
@@ -144,15 +224,13 @@ export function renderZahlungsstandBelege(page, seiteKey, kategorie) {
           <a href="${page.escape(b.route)}" class="table-link" data-zahlungsstand-route="${page.escape(b.route)}">${page.escape(b.label)}</a>
         </td>
         <td>${page.escape(fmtBelegDatum(b.datum))}</td>
-        <td class="stakeholder-num${betragCls}">${page.fmtEuro(b.betrag)}${aufschluss}</td>
+        <td class="stakeholder-num${betragCls}">${page.fmtEuro(b.betrag)}</td>
       </tr>`;
   }).join('');
-  const leer = istRest ? 'Kein Restbetrag.' : 'Keine Belege.';
-  const art = istRest ? 'Restbetrag' : 'Belege';
 
   return `
     <div class="stakeholder-status-belege" data-zahlungsstand-belege="${seiteKey}" data-zahlungsstand-kategorie="${kategorie}">
-      <p class="stakeholder-list-hint">${art} zu ${BELEG_SEITEN[seiteKey] || seiteKey} · ${BELEG_KATEGORIEN[kategorie] || kategorie} · Jahr und Leistungsbereich wie die Karten</p>
+      <p class="stakeholder-list-hint">Belege zu ${BELEG_SEITEN[seiteKey] || seiteKey} · ${BELEG_KATEGORIEN[kategorie] || kategorie} · Jahr und Leistungsbereich wie die Karten</p>
       <div class="stakeholder-scroll-x">
       <table class="stakeholder-table stakeholder-status-belege-table">
         <thead>
@@ -163,7 +241,7 @@ export function renderZahlungsstandBelege(page, seiteKey, kategorie) {
           </tr>
         </thead>
         <tbody>
-          ${zeilen || `<tr><td colspan="3">${leer}</td></tr>`}
+          ${zeilen || '<tr><td colspan="3">Keine Belege.</td></tr>'}
         </tbody>
         <tfoot>
           <tr>

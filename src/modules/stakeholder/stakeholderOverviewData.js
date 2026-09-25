@@ -5,7 +5,13 @@ import { getChipFromKampagnenartName } from '../projekt-erstellen/logic/Campaign
 import { calculateBudgetOverview } from '../../core/budget/calculateBudgetOverview.js';
 import { calculateCreatorPaymentSummary } from '../../core/budget/EkVkAgencyFeeHelper.js';
 import { calculateMonatsauswertung } from '../../core/budget/monatsauswertung.js';
-import { calculateRechnungsstatus, listZahlungsstandBelege } from '../../core/budget/rechnungsstatus.js';
+import { isInvoiceRowPaid, isReFaelligkeitOverdue } from '../auftrag/logic/PaymentRowStatus.js';
+import {
+  hatRechnungsdatum,
+  summarizeKundenrechnungRows,
+  summarizeRechnungRows,
+} from '../rechnung/invoiceCardTotals.js';
+import { kundenrechnungZeilen } from '../rechnung/Monatsblatt.js';
 import { fetchBerichtsstaende } from './berichtsstandStore.js';
 import { fetchAllRows } from '../../core/fetchAllRows.js';
 import {
@@ -34,7 +40,7 @@ export async function loadData(page) {
   // PostgREST-Zeilenlimit verloren geht.
   const [auftraege, blocks, kampagnen, koops, videos, details, unternehmen, rechnungen, teilrechnungen] = await Promise.all([
     fetchAllRows(supabase, 'auftrag',
-      'id, titel, auftragsname, nettobetrag, bruttobetrag, creator_budget, auftragtype, start, ende, created_at, is_draft, unternehmen_id, marke_id, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am, re_faelligkeit, marke:marke_id(id, markenname)'),
+      'id, titel, auftragsname, nettobetrag, ust_betrag, bruttobetrag, creator_budget, auftragtype, start, ende, created_at, is_draft, unternehmen_id, marke_id, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am, re_faelligkeit, marke:marke_id(id, markenname)'),
     fetchAllRows(supabase, 'auftrag_kampagnenart_blocks',
       'id, auftrag_id, campaign_type, campaign_type_label, umsatz_netto, sort_order'),
     fetchAllRows(supabase, 'kampagne',
@@ -51,11 +57,11 @@ export async function loadData(page) {
     // (Honorar netto + steuerfrei, Zusatzkosten; KSK wird berechnet).
     // Der Zahlungsstand braucht zusaetzlich status/bezahlt_am/zahlungsziel.
     fetchAllRows(supabase, 'rechnung',
-      'id, kooperation_id, auftrag_id, status, nettobetrag, nettobetrag_steuerfrei, zusatzkosten, gestellt_am, bezahlt_am, zahlungsziel, rechnungstyp, rechnung_nr'),
+      'id, kooperation_id, auftrag_id, status, nettobetrag, ust_betrag, bruttobetrag, nettobetrag_steuerfrei, zusatzkosten, gestellt_am, bezahlt_am, zahlungsziel, rechnungstyp, rechnung_nr'),
     // Kundenrechnungen: geplante und gestellte Teilrechnungen je Auftrag,
     // inkl. Zahlungsstatus (ueberwiesen_am) und Faelligkeit.
     fetchAllRows(supabase, 'auftrag_teilrechnung',
-      'id, auftrag_id, nettobetrag, bruttobetrag, rechnung_gestellt, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am, re_faelligkeit'),
+      'id, auftrag_id, nettobetrag, ust_betrag, bruttobetrag, rechnung_gestellt, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am, re_faelligkeit'),
   ]);
 
   page.auftraege = (auftraege || []).filter(a => a.is_draft !== true);
@@ -247,25 +253,132 @@ export function monatsauswertung(page) {
   return page._monats;
 }
 
-// Zahlungsstand: dieselben Auftraege wie die Karten (Jahr + Leistungsbereich).
-export function rechnungsstatus(page) {
-  return calculateRechnungsstatus({
-    auftraege: auftraegeImFilter(page),
-    kampagnen: page.kampagnen,
-    kooperationen: page.kooperationen,
-    videos: page.videos,
-    rechnungen: page.rechnungen,
-    teilrechnungen: page.teilrechnungen,
-  });
+function betrag(v) {
+  return parseFloat(v) || 0;
 }
 
-export function zahlungsstandBelege(page) {
-  return listZahlungsstandBelege({
-    auftraege: auftraegeImFilter(page),
-    kampagnen: page.kampagnen,
-    kooperationen: page.kooperationen,
-    videos: page.videos,
-    rechnungen: page.rechnungen,
-    teilrechnungen: page.teilrechnungen,
-  });
+function auftragIdVonKoop(koop, kampagneToAuftrag) {
+  return koop ? (kampagneToAuftrag.get(koop.kampagne_id) || null) : null;
+}
+
+// Dieselbe Zuordnung wie bisher: Creator nur mit Kooperation im Filter,
+// Contracting nur wenn der Auftrag nicht herausgefiltert ist.
+function rechnungenImFilter(page) {
+  const ids = new Set(auftraegeImFilter(page).map(a => a.id));
+  const koopById = new Map((page.kooperationen || []).map(k => [k.id, k]));
+  const kampagneToAuftrag = new Map((page.kampagnen || []).map(k => [k.id, k.auftrag_id]));
+  const creator = [];
+  const contracting = [];
+  for (const rechnung of page.rechnungen || []) {
+    const koop = rechnung.kooperation_id ? koopById.get(rechnung.kooperation_id) : null;
+    if (rechnung.rechnungstyp === 'contracting') {
+      const auftragId = rechnung.auftrag_id || auftragIdVonKoop(koop, kampagneToAuftrag);
+      if (auftragId && !ids.has(auftragId)) continue;
+      contracting.push(rechnung);
+      continue;
+    }
+    const auftragId = auftragIdVonKoop(koop, kampagneToAuftrag);
+    if (!auftragId || !ids.has(auftragId)) continue;
+    creator.push(rechnung);
+  }
+  return { creator, contracting, auftragById: new Map(auftraegeImFilter(page).map(a => [a.id, a])) };
+}
+
+function kundenZeilenImFilter(page) {
+  const auftraege = auftraegeImFilter(page);
+  const ids = new Set(auftraege.map(a => a.id));
+  const teile = (page.teilrechnungen || []).filter(t => ids.has(t.auftrag_id));
+  return kundenrechnungZeilen(auftraege, teile);
+}
+
+// Kachelsummen für den gefilterten Auftragskreis (Jahr + Leistungsbereich).
+// Kunden aus Kundenrechnungen, Creator und Contracting aus Rechnungen.
+export function kartenSummen(page) {
+  const { creator, contracting } = rechnungenImFilter(page);
+  return {
+    kunden: summarizeKundenrechnungRows(kundenZeilenImFilter(page)),
+    creator: summarizeRechnungRows(creator),
+    contracting: summarizeRechnungRows(contracting),
+  };
+}
+
+function sortBelege(list) {
+  return list.slice().sort((a, b) => (b.betrag || 0) - (a.betrag || 0));
+}
+
+function pushBeleg(bucket, kategorie, fields) {
+  bucket[kategorie].push({ kategorie, ...fields });
+}
+
+function leereKundenBelege() {
+  return { netto: [], gestellt: [], bezahlt: [], unbezahlt: [], ueberfaellig: [] };
+}
+
+function leereRechnungBelege() {
+  return { netto: [], bezahlt: [], unbezahlt: [], ust: [], brutto: [] };
+}
+
+function kundenLabel(row) {
+  return (row?.auftragsname || row?.titel || '').trim() || 'Auftrag';
+}
+
+// Belege zu einer Zelle. Summe je Kategorie = kartenSummen(...).seite.feld.
+export function kartenBelege(page) {
+  const kunden = leereKundenBelege();
+  for (const row of kundenZeilenImFilter(page)) {
+    const netto = betrag(row.nettobetrag);
+    const basis = {
+      seite: 'kunden',
+      id: row.teilrechnung_id || row.id,
+      label: kundenLabel(row),
+      route: `/auftrag/${row.id}`,
+    };
+    pushBeleg(kunden, 'netto', { ...basis, datum: row.rechnung_gestellt_am || null, betrag: netto });
+    if (hatRechnungsdatum(row)) {
+      pushBeleg(kunden, 'gestellt', { ...basis, datum: row.rechnung_gestellt_am || null, betrag: netto });
+    }
+    if (isInvoiceRowPaid(row)) {
+      pushBeleg(kunden, 'bezahlt', { ...basis, datum: row.ueberwiesen_am || null, betrag: netto });
+    } else {
+      pushBeleg(kunden, 'unbezahlt', { ...basis, datum: row.re_faelligkeit || null, betrag: netto });
+      if (isReFaelligkeitOverdue(row?.re_faelligkeit)) {
+        pushBeleg(kunden, 'ueberfaellig', { ...basis, datum: row.re_faelligkeit || null, betrag: netto });
+      }
+    }
+  }
+
+  const { creator, contracting, auftragById } = rechnungenImFilter(page);
+  const rechnungBelege = (rows, seite) => {
+    const bucket = leereRechnungBelege();
+    for (const rechnung of rows) {
+      const auftrag = rechnung.auftrag_id ? auftragById.get(rechnung.auftrag_id) : null;
+      const label = (rechnung.rechnung_nr || '').trim() || kundenLabel(auftrag);
+      const basis = {
+        seite,
+        id: rechnung.id,
+        label,
+        route: `/rechnung/${rechnung.id}`,
+      };
+      const netto = betrag(rechnung.nettobetrag);
+      pushBeleg(bucket, 'netto', { ...basis, datum: rechnung.gestellt_am || null, betrag: netto });
+      pushBeleg(bucket, 'ust', { ...basis, datum: rechnung.gestellt_am || null, betrag: betrag(rechnung.ust_betrag) });
+      pushBeleg(bucket, 'brutto', { ...basis, datum: rechnung.gestellt_am || null, betrag: betrag(rechnung.bruttobetrag) });
+      if (rechnung.status === 'Bezahlt') {
+        pushBeleg(bucket, 'bezahlt', { ...basis, datum: rechnung.bezahlt_am || null, betrag: netto });
+      } else {
+        pushBeleg(bucket, 'unbezahlt', { ...basis, datum: rechnung.zahlungsziel || null, betrag: netto });
+      }
+    }
+    return bucket;
+  };
+
+  const sortSeite = (seite) => Object.fromEntries(
+    Object.entries(seite).map(([key, list]) => [key, sortBelege(list)])
+  );
+
+  return {
+    kunden: sortSeite(kunden),
+    creator: sortSeite(rechnungBelege(creator, 'creator')),
+    contracting: sortSeite(rechnungBelege(contracting, 'contracting')),
+  };
 }

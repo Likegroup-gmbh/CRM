@@ -12,7 +12,7 @@ import { animateNumber } from '../../core/animation/animateNumber.js';
 import { ALL_TAB, formatMonthEmptyText } from '../auftrag/logic/InvoiceMonthFilter.js';
 import { renderBezahltToggle } from './RechnungBezahltToggle.js';
 import { renderVertragCell } from './RechnungVertragColumn.js';
-import { sumInvoiceRows, sumPaidRechnungRows } from './Monatsblatt.js';
+import { summarizeRechnungRows } from './invoiceCardTotals.js';
 
 const currencyFormatter = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
 const summaryFormatter = new Intl.NumberFormat('de-DE', {
@@ -142,15 +142,15 @@ export function renderPageShell({ isAdmin, canEdit, searchQuery, statusTabs, typ
 export function renderInvoiceSummaryCards() {
   const zero = formatRechnungSummaryCurrency(0);
   const cards = [
-    { field: 'koop_creator_kosten', label: 'Creator-Kosten' },
-    { field: 'nettobetrag', label: 'Netto' },
-    { field: 'creator_kosten', label: 'Netto Creator Kosten', mwst: true },
-    { field: 'bezahlt_netto', label: 'Bereits bezahlt (Netto)' }
+    { field: 'koop_creator_kosten', label: 'Netto Creator Kosten' },
+    { field: 'gestellt_netto', label: 'Netto Creator Kosten gestellt', mwst: true },
+    { field: 'bezahlt_netto', label: 'Netto Creator Kosten bezahlt' },
+    { field: 'offen_netto', label: 'Netto Creator Kosten unbezahlt', ueberfaellig: true }
   ];
   return `
     <div class="auftragsdetails-summary" id="rechnungen-summary-cards">
       <div class="summary-cards">
-        ${cards.map(({ field, label, mwst }) => `
+        ${cards.map(({ field, label, mwst, ueberfaellig }) => `
           <div class="summary-card" data-summary-card="${field}">
             <div class="summary-value" data-summary-value="${field}">${zero}</div>
             <div class="summary-label">${label}</div>
@@ -158,7 +158,15 @@ export function renderInvoiceSummaryCards() {
               <div class="summary-card-breakdown">
                 <div class="summary-card-breakdown-line">
                   <span>abzuführende MwSt</span>
-                  <span data-summary-value="ust_betrag">${zero}</span>
+                  <span data-summary-value="gestellt_ust">${zero}</span>
+                </div>
+              </div>
+            ` : ''}
+            ${ueberfaellig ? `
+              <div class="summary-card-breakdown">
+                <div class="summary-card-breakdown-line summary-card-breakdown-line--overdue">
+                  <span>davon überfällig</span>
+                  <span data-summary-value="ueberfaellig_netto">${zero}</span>
                 </div>
               </div>
             ` : ''}
@@ -187,16 +195,19 @@ export function renderInvoiceSummaryFoot(isAdmin) {
 }
 
 export function updateInvoiceSummary(rows, { animate = false, creatorKosten = 0 } = {}) {
-  const totals = sumInvoiceRows(rows);
-  const paid = sumPaidRechnungRows(rows);
+  const summary = summarizeRechnungRows(rows);
   const foot = document.getElementById('rechnungen-summary');
   const cards = document.getElementById('rechnungen-summary-cards');
   const format = formatRechnungSummaryCurrency;
   const entries = {
-    ...totals,
+    nettobetrag: summary.nettobetrag,
+    bruttobetrag: summary.bruttobetrag,
     koop_creator_kosten: Number(creatorKosten) || 0,
-    creator_kosten: totals.nettobetrag,
-    bezahlt_netto: paid.netto
+    gestellt_netto: summary.gestellt_netto,
+    gestellt_ust: summary.gestellt_ust,
+    bezahlt_netto: summary.bezahlt_netto,
+    offen_netto: summary.offen_netto,
+    ueberfaellig_netto: summary.ueberfaellig_netto
   };
   Object.entries(entries).forEach(([field, value]) => {
     const targets = [

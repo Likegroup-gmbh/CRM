@@ -4,7 +4,7 @@
 // Stand gesichert und wieder geladen, damit ein verschicktes Update
 // später belegt werden kann. Kein Update/Delete — Belegcharakter.
 
-export const BERICHTSSTAND_VERSION = 1;
+export const BERICHTSSTAND_VERSION = 2;
 
 // JSON-Rundlauf stellt sicher, dass der Stand serialisierbar ist
 // (keine Funktionen/undefined) und sich nicht mehr verändert, wenn

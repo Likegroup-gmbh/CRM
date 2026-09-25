@@ -300,8 +300,15 @@ describe('Rechnung-Monatssummen', () => {
     const table = document.querySelector('.rechnung-table-container');
     expect(cards).toBeTruthy();
     const labels = [...cards.querySelectorAll('.summary-card .summary-label')].map(el => el.textContent);
-    expect(labels).toEqual(['Creator-Kosten', 'Netto', 'Netto Creator Kosten', 'Bereits bezahlt (Netto)']);
-    expect(cards.querySelector('[data-summary-card="creator_kosten"] .summary-card-breakdown').textContent).toContain('abzuführende MwSt');
+    expect(labels).toEqual([
+      'Netto Creator Kosten',
+      'Netto Creator Kosten gestellt',
+      'Netto Creator Kosten bezahlt',
+      'Netto Creator Kosten unbezahlt'
+    ]);
+    expect(cards.querySelector('[data-summary-card="gestellt_netto"] .summary-card-breakdown').textContent).toContain('abzuführende MwSt');
+    expect(cards.querySelector('[data-summary-card="offen_netto"] .summary-card-breakdown').textContent).toContain('davon überfällig');
+    expect(cards.querySelector('[data-summary-card="nettobetrag"]')).toBeNull();
     expect(cards.querySelector('[data-summary-value="bezahlt_brutto"]')).toBeNull();
     expect(cards.querySelectorAll('.summary-card')).toHaveLength(4);
     expect(cards.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -316,27 +323,31 @@ describe('Rechnung-Monatssummen', () => {
     list.render();
 
     updateInvoiceSummary([
-      { nettobetrag: 1000, ust_betrag: 190, bruttobetrag: 1190, status: 'Bezahlt' },
-      { nettobetrag: 2000, ust_betrag: 380, bruttobetrag: 2380, status: 'Offen' }
+      { nettobetrag: 1000, ust_betrag: 190, bruttobetrag: 1190, status: 'Bezahlt', gestellt_am: '2026-08-01', zahlungsziel: '2020-01-01' },
+      { nettobetrag: 2000, ust_betrag: 380, bruttobetrag: 2380, status: 'Offen', gestellt_am: '2026-08-15', zahlungsziel: '2020-01-01' },
+      { nettobetrag: 400, ust_betrag: 76, bruttobetrag: 476, status: 'Offen', gestellt_am: '2026-08-20', zahlungsziel: '2099-01-01' },
+      { nettobetrag: 50, ust_betrag: 9.5, bruttobetrag: 59.5, status: 'Offen', gestellt_am: null, zahlungsziel: '2020-01-01' }
     ], { creatorKosten: 500000 });
 
     const cards = document.getElementById('rechnungen-summary-cards');
     const foot = document.getElementById('rechnungen-summary');
     expect(cards.querySelector('[data-summary-value="koop_creator_kosten"]').textContent)
       .toBe(formatRechnungSummaryCurrency(500000));
-    expect(cards.querySelector('[data-summary-value="nettobetrag"]').textContent)
-      .toBe(formatRechnungSummaryCurrency(3000));
-    expect(cards.querySelector('[data-summary-value="creator_kosten"]').textContent)
-      .toBe(formatRechnungSummaryCurrency(3000));
-    expect(cards.querySelector('[data-summary-card="creator_kosten"] [data-summary-value="ust_betrag"]').textContent)
-      .toBe(formatRechnungSummaryCurrency(570));
+    expect(cards.querySelector('[data-summary-value="gestellt_netto"]').textContent)
+      .toBe(formatRechnungSummaryCurrency(3400));
+    expect(cards.querySelector('[data-summary-card="gestellt_netto"] [data-summary-value="gestellt_ust"]').textContent)
+      .toBe(formatRechnungSummaryCurrency(646));
     expect(cards.querySelector('[data-summary-value="bezahlt_netto"]').textContent)
       .toBe(formatRechnungSummaryCurrency(1000));
+    expect(cards.querySelector('[data-summary-value="offen_netto"]').textContent)
+      .toBe(formatRechnungSummaryCurrency(2400));
+    expect(cards.querySelector('[data-summary-value="ueberfaellig_netto"]').textContent)
+      .toBe(formatRechnungSummaryCurrency(2000));
     expect(cards.querySelector('[data-summary-value="bezahlt_brutto"]')).toBeNull();
     expect(foot.querySelector('[data-summary="nettobetrag"]').textContent)
-      .toBe(formatRechnungSummaryCurrency(3000));
+      .toBe(formatRechnungSummaryCurrency(3450));
     expect(foot.querySelector('[data-summary="bruttobetrag"]').textContent)
-      .toBe(formatRechnungSummaryCurrency(3570));
+      .toBe(formatRechnungSummaryCurrency(4105.5));
     expect(animateNumber).not.toHaveBeenCalled();
   });
 });

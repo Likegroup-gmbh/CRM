@@ -1,7 +1,7 @@
 // Kalkulationskarten und Kundenliste der Stakeholder-Übersicht.
 
 import { icon } from '../../core/icons/IconSystem.js';
-import { aggregate, influencerOffenesCreatorBudget, rechnungsstatus } from './stakeholderOverviewData.js';
+import { aggregate, influencerOffenesCreatorBudget, kartenSummen } from './stakeholderOverviewData.js';
 import {
   TAB_INFLUENCER,
   groupRowsByKundeMarke,
@@ -12,7 +12,7 @@ import {
 const CARD_HINTS = {
   volumen: {
     formula: 'Σ Nettobetrag aller Aufträge',
-    hint: 'Gestellt + Noch nicht gestellt. Gestellt = Bezahlt + Offen. Überfällig steckt in Offen und zählt nicht extra.'
+    hint: 'Gestellt, Bezahlt und Unbezahlt aus den Kundenrechnungen. Überfällig und noch nicht gestellt stecken in Unbezahlt.'
   },
   verbraucht: {
     formula: 'Creatoranteil + Agenturanteil + KSK + Zusatzkosten',
@@ -28,7 +28,7 @@ const CARD_HINTS = {
   },
   creator: {
     formula: 'Σ Einkaufspreise (EK) der gebuchten Videos',
-    hint: 'Kopfwert ist die Kalkulation. Offen = Unbezahlt + Noch nicht gestellt. Unbezahlt enthält KSK und Zusatz der offenen Belege, Noch nicht gestellt ist der honorarbasierte Rest — deshalb nicht Kalkulation minus Bezahlt. Überfällig steckt in Unbezahlt.'
+    hint: 'Kopfwert ist die Kalkulation. Netto, Bezahlt und Unbezahlt kommen aus den Rechnungen. Überfällig und noch nicht gestellt stecken in Unbezahlt.'
   },
   agentur: {
     formula: 'Feste Fee + EK/VK-Differenz',
@@ -141,47 +141,45 @@ export function renderCards(page, totals, isInfluencerTab) {
       ${foot ? `<div class="stakeholder-card-foot">${foot}</div>` : ''}
     </div>`;
 
-  // Zahlungsstand der Creatorseite. seite.offen bleibt Unbezahlt;
-  // die Kachel summiert nur hier. Überfällig ist Teilmenge, kein Summand.
-  const creatorStatus = rechnungsstatus(page).creator;
-  const unbezahlt = creatorStatus.offen || 0;
-  const ueberfaellig = creatorStatus.ueberfaellig || 0;
-  const nichtGestellt = creatorStatus.nichtGestellt || 0;
-  const offenSumme = unbezahlt + nichtGestellt;
+  // Zahlungszeilen aus den Kacheln: Creator aus Rechnungen, Volumen aus Kundenrechnungen.
+  const karten = kartenSummen(page);
+  const creatorKarten = karten.creator;
+  const creatorNetto = creatorKarten.nettobetrag || 0;
+  const creatorBezahlt = creatorKarten.bezahlt_netto || 0;
+  const creatorUnbezahlt = creatorKarten.unbezahlt_netto || 0;
+  const creatorUeberfaellig = creatorKarten.ueberfaellig_netto || 0;
+  const creatorNichtGestellt = creatorKarten.nicht_gestellt_netto || 0;
   const creatorOffenLines = [
-    breakdownLine('Bezahlt', page.fmtEuro(totals.creatorPaid)),
-    breakdownLine('Offen', page.fmtEuro(offenSumme), {
-      attr: 'data-creator-offen',
-      negativ: offenSumme < -0.005,
+    breakdownLine('Netto', page.fmtEuro(creatorNetto), {
+      attr: 'data-creator-netto',
     }),
-    breakdownLine('Unbezahlt', page.fmtEuro(unbezahlt), {
+    breakdownLine('Bezahlt', page.fmtEuro(creatorBezahlt), {
+      cls: 'stakeholder-card-breakdown-line--sub',
+      attr: 'data-creator-bezahlt',
+    }),
+    breakdownLine('Unbezahlt', page.fmtEuro(creatorUnbezahlt), {
       cls: 'stakeholder-card-breakdown-line--sub',
       attr: 'data-creator-unbezahlt',
-      negativ: unbezahlt < -0.005,
+      negativ: creatorUnbezahlt < -0.005,
     }),
-    ...(ueberfaellig >= 0.005 ? [breakdownLine('davon überfällig', page.fmtEuro(ueberfaellig), {
+    breakdownLine('davon überfällig', page.fmtEuro(creatorUeberfaellig), {
       cls: 'stakeholder-card-breakdown-line--deep stakeholder-status-ueberfaellig',
       attr: 'data-creator-ueberfaellig',
-    })] : []),
-    breakdownLine('Noch nicht gestellt', page.fmtEuro(nichtGestellt), {
-      cls: 'stakeholder-card-breakdown-line--sub',
+    }),
+    breakdownLine('Noch nicht gestellt', page.fmtEuro(creatorNichtGestellt), {
+      cls: 'stakeholder-card-breakdown-line--deep',
       attr: 'data-creator-nicht-gestellt',
-      negativ: nichtGestellt < -0.005,
-      info: 'Gebuchter Einkauf, zu dem noch keine oder noch keine volle Rechnung da ist.',
+      negativ: creatorNichtGestellt < -0.005,
     }),
   ];
 
-  // Dieselben Spalten wie die Tabelle, über Kunden- und Contractingrechnungen
-  // der aktuell gefilterten Aufträge. Offen bleibt der unbezahlte Teil;
-  // Überfällig ist nur die Teilmenge.
-  const zahlungsstand = rechnungsstatus(page);
-  const contractingStatus = zahlungsstand.contracting || {};
-  const summe = (key) => (zahlungsstand.kunden[key] || 0) + (contractingStatus[key] || 0);
-  const kGestellt = summe('gestellt');
-  const kBezahlt = summe('bezahlt');
-  const kOffen = summe('offen');
-  const kUeberfaellig = summe('ueberfaellig');
-  const kNichtGestellt = summe('nichtGestellt');
+  // Auftragsvolumen-Zahlungszeilen nur aus Kundenrechnungen.
+  const kundenKarten = karten.kunden;
+  const kGestellt = kundenKarten.re_datum_netto || 0;
+  const kBezahlt = kundenKarten.bezahlt_netto || 0;
+  const kUnbezahlt = kundenKarten.unbezahlt_netto || 0;
+  const kUeberfaellig = kundenKarten.ueberfaellig_netto || 0;
+  const kNichtGestellt = kundenKarten.nicht_gestellt_netto || 0;
   const gestelltPct = volumen > 0 ? (kGestellt / volumen) * 100 : 0;
   const volumenLines = [
     breakdownLine('Gestellt', page.fmtEuro(kGestellt), {
@@ -192,20 +190,19 @@ export function renderCards(page, totals, isInfluencerTab) {
       cls: 'stakeholder-card-breakdown-line--sub',
       attr: 'data-volumen-bezahlt',
     }),
-    breakdownLine('Offen', page.fmtEuro(kOffen), {
+    breakdownLine('Unbezahlt', page.fmtEuro(kUnbezahlt), {
       cls: 'stakeholder-card-breakdown-line--sub',
-      attr: 'data-volumen-offen',
-      negativ: kOffen < -0.005,
+      attr: 'data-volumen-unbezahlt',
+      negativ: kUnbezahlt < -0.005,
     }),
-    ...(kUeberfaellig >= 0.005 ? [breakdownLine('davon überfällig', page.fmtEuro(kUeberfaellig), {
+    breakdownLine('davon überfällig', page.fmtEuro(kUeberfaellig), {
       cls: 'stakeholder-card-breakdown-line--deep stakeholder-status-ueberfaellig',
       attr: 'data-volumen-ueberfaellig',
-    })] : []),
+    }),
     breakdownLine('Noch nicht gestellt', page.fmtEuro(kNichtGestellt), {
-      cls: 'stakeholder-card-breakdown-line--part',
+      cls: 'stakeholder-card-breakdown-line--deep',
       attr: 'data-volumen-nicht-gestellt',
       negativ: kNichtGestellt < -0.005,
-      info: 'Beauftragtes Volumen, zu dem noch keine oder noch keine volle Rechnung da ist.',
     }),
   ];
 
@@ -219,7 +216,7 @@ export function renderCards(page, totals, isInfluencerTab) {
       ${card(offenLabel, offenValue, offenSub, `${page.fmtPct(offenPct)} offen`, { progress: offenPct, progressClass: openProgressClass(offenPct), hint: offenHint })}
     </div>
     <div class="stakeholder-cards stakeholder-cards--breakdown">
-      ${breakdownCard('Creatoranteil', creator, `${page.fmtEuro(totals.creatorPaid)} von ${page.fmtEuro(creator)} bezahlt`, creatorOffenLines, `${page.fmtPct(verbraucht > 0 ? (creator / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (creator / verbraucht) * 100 : 0, hint: CARD_HINTS.creator })}
+      ${breakdownCard('Creatoranteil', creator, `${page.fmtEuro(creatorBezahlt)} von ${page.fmtEuro(creatorNetto)} Rechnungs-Netto bezahlt`, creatorOffenLines, `${page.fmtPct(verbraucht > 0 ? (creator / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (creator / verbraucht) * 100 : 0, hint: CARD_HINTS.creator })}
       ${breakdownCard('Agenturanteil', agentur, `${page.fmtEuro(agentur)} von ${page.fmtEuro(totals.agenturVoll)} eingelöst`, [
         ['Fest vereinbart', page.fmtEuro(totals.agenturFest)],
         ['EK/VK-Differenz', page.fmtEuro(totals.agenturMargin)]

@@ -20,7 +20,8 @@ import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
-import { getPaymentRowStatusClass, isInvoiceRowPaid, isReFaelligkeitOverdue, sumPaidInvoiceRows } from '../auftrag/logic/PaymentRowStatus.js';
+import { getPaymentRowStatusClass } from '../auftrag/logic/PaymentRowStatus.js';
+import { summarizeKundenrechnungRows } from '../rechnung/invoiceCardTotals.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { AuftragCashFlowCalendar } from '../auftrag/AuftragCashFlowCalendar.js';
@@ -377,54 +378,27 @@ export class AusgangsrechnungenList {
   }
 
   sumInvoiceRows(rows) {
-    return (rows || []).reduce((acc, row) => {
-      acc.nettobetrag += parseFloat(row.nettobetrag) || 0;
-      acc.ust_betrag += parseFloat(row.ust_betrag) || 0;
-      acc.bruttobetrag += parseFloat(row.bruttobetrag) || 0;
-      return acc;
-    }, { nettobetrag: 0, ust_betrag: 0, bruttobetrag: 0 });
-  }
-
-  // Netto aller nicht bezahlten Zeilen. Positiv, kein Saldo aus bezahlt minus gestellt.
-  sumUnbezahltNetto(rows) {
-    return (rows || []).reduce((sum, row) => {
-      if (isInvoiceRowPaid(row)) return sum;
-      return sum + (parseFloat(row.nettobetrag) || 0);
-    }, 0);
-  }
-
-  // Netto der unbezahlten Zeilen, deren Fälligkeit vor heute liegt.
-  // Dieselbe Regel wie die rote Zeilenmarkierung: bezahlt schlägt überfällig.
-  sumUeberfaelligNetto(rows) {
-    return (rows || []).reduce((sum, row) => {
-      if (isInvoiceRowPaid(row)) return sum;
-      if (!isReFaelligkeitOverdue(row?.re_faelligkeit)) return sum;
-      return sum + (parseFloat(row.nettobetrag) || 0);
-    }, 0);
-  }
-
-  // Netto der Zeilen mit gesetztem RE-Datum (rechnung_gestellt_am).
-  sumReDatumNetto(rows) {
-    return (rows || []).reduce((sum, row) => {
-      const datum = row?.rechnung_gestellt_am;
-      if (datum === undefined || datum === null || datum === '') return sum;
-      return sum + (parseFloat(row.nettobetrag) || 0);
-    }, 0);
+    const summary = summarizeKundenrechnungRows(rows);
+    return {
+      nettobetrag: summary.nettobetrag,
+      ust_betrag: summary.ust_betrag,
+      bruttobetrag: summary.bruttobetrag
+    };
   }
 
   updateInvoiceSummary(rows, { animate = false } = {}) {
-    const totals = this.sumInvoiceRows(rows);
-    const paid = sumPaidInvoiceRows(rows);
+    const summary = summarizeKundenrechnungRows(rows);
     const foot = document.getElementById('ausgangsrechnungen-summary');
     const cards = document.getElementById('ausgangsrechnungen-summary-cards');
     const format = (v) => this.formatSummaryCurrency(v);
-    const reDatumNetto = this.sumReDatumNetto(rows);
     const entries = {
-      ...totals,
-      re_datum_netto: reDatumNetto,
-      bezahlt_netto: paid.netto,
-      unbezahlt_netto: this.sumUnbezahltNetto(rows),
-      ueberfaellig_netto: this.sumUeberfaelligNetto(rows)
+      nettobetrag: summary.nettobetrag,
+      ust_betrag: summary.ust_betrag,
+      bruttobetrag: summary.bruttobetrag,
+      re_datum_netto: summary.re_datum_netto,
+      bezahlt_netto: summary.bezahlt_netto,
+      unbezahlt_netto: summary.unbezahlt_netto,
+      ueberfaellig_netto: summary.ueberfaellig_netto
     };
     Object.entries(entries).forEach(([field, value]) => {
       const targets = [

@@ -5,7 +5,7 @@
 
 import { escapeHtml, formatEuro } from '../../core/format.js';
 import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
-import { aggregate as aggregateOverview, loadData as loadStakeholderData, rechnungsstatus as berechneRechnungsstatus } from './stakeholderOverviewData.js';
+import { aggregate as aggregateOverview, kartenSummen as berechneKartenSummen, loadData as loadStakeholderData } from './stakeholderOverviewData.js';
 import { renderKalkulationBody } from './stakeholderKalkulationView.js';
 import { TAB_GESAMT_OHNE, availableYears, tabCounts, visibleTabs } from './stakeholderOverviewLogic.js';
 import { oeffneBerichtsstand, renderMonatsauswertung, sichereBerichtsstand } from './stakeholderMonatsView.js';
@@ -98,8 +98,8 @@ export class StakeholderOverviewPage {
     return aggregateOverview(this);
   }
 
-  rechnungsstatus() {
-    return berechneRechnungsstatus(this);
+  kartenSummen() {
+    return berechneKartenSummen(this);
   }
 
   render() {

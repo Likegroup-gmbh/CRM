@@ -12,7 +12,7 @@ import {
   fetchBerichtsstand,
   saveBerichtsstand,
 } from './berichtsstandStore.js';
-import { monatsauswertung, rechnungsstatus } from './stakeholderOverviewData.js';
+import { kartenSummen, monatsauswertung } from './stakeholderOverviewData.js';
 
 const SUPABASE = () => window.supabase;
 
@@ -309,7 +309,7 @@ export async function sichereBerichtsstand(page) {
   try {
     const daten = buildBerichtsstandPayload({
       monatsauswertung: monatsauswertung(page),
-      zahlungsstand: rechnungsstatus(page),
+      zahlungsstand: kartenSummen(page),
     });
     const createdBy = window.currentUser?.auth_user_id || null;
     const row = await saveBerichtsstand(SUPABASE(), { label, daten, createdBy });
@@ -344,7 +344,8 @@ export async function oeffneBerichtsstand(page, id) {
   }
   // Spaet eintreffende Antwort verwerfen, wenn inzwischen umgeschaltet wurde.
   if (page._berichtWahl !== id) return;
-  if (stand.daten?.version !== BERICHTSSTAND_VERSION) {
+  // Version 1 ist das alte Zahlungsstand-Schema und bleibt lesbar.
+  if (stand.daten?.version !== 1 && stand.daten?.version !== BERICHTSSTAND_VERSION) {
     window.toastSystem?.show('Dieser Berichtsstand hat ein unbekanntes Format und kann nicht angezeigt werden', 'error');
     return;
   }
