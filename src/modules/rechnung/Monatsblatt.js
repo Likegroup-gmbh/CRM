@@ -142,7 +142,10 @@ function applyRechnungType(query, typeTab) {
 }
 
 function applyRechnungMonth(query, year, month) {
-  if (month === ALL_TAB) return query;
+  if (month === ALL_TAB) {
+    const y = Number(year);
+    return query.gte('gestellt_am', `${y}-01-01`).lt('gestellt_am', `${y + 1}-01-01`);
+  }
   if (month === UNDATED_TAB) return query.is('gestellt_am', null);
   if (month === NO_RENR_TAB) return query;
   const { start, end } = monthDateBounds(year, month);
@@ -520,7 +523,7 @@ async function loadRechnungCounts({ year, filters, search, typeTab, allowed, sta
     ...extra
   });
 
-  const allQuery = typed({});
+  const allQuery = typed({ skipMonth: false });
   if (allQuery?.shortCircuit) {
     return { months: emptyCounts(), status: emptyStatusCounts(statusIds), type: { rechnung: 0, contracting: 0 } };
   }

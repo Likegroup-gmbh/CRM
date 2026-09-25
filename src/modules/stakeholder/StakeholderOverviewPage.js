@@ -1,7 +1,7 @@
 // StakeholderOverviewPage.js
 // Fassade der Stakeholder-Gesamtübersicht (/admin, Accounting-Dashboard).
-// Zeitraum-Filter + Leistungsbereich-Auswahl, Budget-Karten, Kundenliste,
-// Zahlungsstand und Monatsauswertung. Rechenquelle: calculateBudgetOverview.
+// Zeitraum-Filter + Leistungsbereich-Auswahl, Budget-Karten, Kundenliste
+// und Monatsauswertung. Rechenquelle: calculateBudgetOverview.
 
 import { escapeHtml, formatEuro } from '../../core/format.js';
 import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
@@ -9,7 +9,6 @@ import { aggregate as aggregateOverview, kartenSummen as berechneKartenSummen, l
 import { renderKalkulationBody } from './stakeholderKalkulationView.js';
 import { TAB_GESAMT_OHNE, availableYears, tabCounts, visibleTabs } from './stakeholderOverviewLogic.js';
 import { oeffneBerichtsstand, renderMonatsauswertung, sichereBerichtsstand } from './stakeholderMonatsView.js';
-import { onZahlungsstandClick, renderRechnungsstatus } from './stakeholderZahlungsstandView.js';
 
 export {
   elapsedRatio,
@@ -48,7 +47,6 @@ export class StakeholderOverviewPage {
     this._docClickHandler = null;
     this._docChangeHandler = null;
     this._berichtWahl = 'live';
-    this.zahlungsstandBelegeOffen = null;
   }
 
   async init() {
@@ -136,7 +134,6 @@ export class StakeholderOverviewPage {
             </div>
           </div>` : ''}
         </div>
-        ${renderRechnungsstatus(this)}
 
         ${isMonate ? renderMonatsauswertung(this) : renderKalkulationBody(this)}
       </div>
@@ -160,11 +157,9 @@ export class StakeholderOverviewPage {
       if (viewBtn) {
         this.activeView = viewBtn.id === 'btn-view-monate' ? 'monate' : 'kalkulation';
         // Berichtsstände gehören zur Monatsauswertung: beim Wechsel in die
-        // Kalkulation gilt wieder die Live-Rechnung, sonst stuende dort ein
-        // eingefrorener Zahlungsstand ohne Weg zurueck.
+        // Kalkulation gilt wieder die Live-Rechnung.
         if (this.activeView !== 'monate') {
           this.aktiverBerichtsstand = null;
-          this.zahlungsstandBelegeOffen = null;
         }
         this.render();
         return;
@@ -190,8 +185,6 @@ export class StakeholderOverviewPage {
         sichereBerichtsstand(this);
         return;
       }
-
-      if (onZahlungsstandClick(this, e)) return;
     };
     document.addEventListener('click', this._docClickHandler);
 

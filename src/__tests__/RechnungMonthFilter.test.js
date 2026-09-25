@@ -67,15 +67,16 @@ describe('Rechnung Monatsfilter', () => {
     expect(undated2019.map(r => r.id)).toEqual(['r4', 'r5']);
   });
 
-  it('gibt im Alle-Tab jede Zeile jahr- und monatsunabhaengig zurueck', () => {
-    expect(filterRowsByMonthYear(rows, { year: 2026, month: ALL_TAB }, getRechnungTabKey)).toEqual(rows);
+  it('gibt im Alle-Tab nur Zeilen des gewaehlten Jahres zurueck', () => {
+    expect(filterRowsByMonthYear(rows, { year: 2026, month: ALL_TAB }, getRechnungTabKey).map(r => r.id)).toEqual(['r1', 'r2']);
+    expect(filterRowsByMonthYear(rows, { year: 2019, month: ALL_TAB }, getRechnungTabKey)).toEqual([]);
   });
 
   it('zaehlt Monate und Ohne-Datum separat', () => {
     expect(countRowsByMonth(rows, 2026, getRechnungTabKey)).toEqual({
       undated: 2,
       'no-renr': 0,
-      alle: rows.length,
+      alle: 2,
       months: [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     });
   });
@@ -201,7 +202,7 @@ describe('RechnungList Monatssheet', () => {
     list._blattCounts = {
       months: {
         undated: 2,
-        alle: rows.length,
+        alle: 2,
         months: [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
       }
     };
@@ -211,7 +212,7 @@ describe('RechnungList Monatssheet', () => {
     expect(document.querySelector('#rechnung-month-tabs [data-month-count="0"]').textContent).toBe('2');
     expect(document.querySelector('#rechnung-month-tabs [data-month-count="2"]').textContent).toBe('0');
     expect(document.querySelector(`#rechnung-month-tabs [data-month-count="${UNDATED_TAB}"]`).textContent).toBe('2');
-    expect(document.querySelector(`#rechnung-month-tabs [data-month-count="${ALL_TAB}"]`).textContent).toBe(String(rows.length));
+    expect(document.querySelector(`#rechnung-month-tabs [data-month-count="${ALL_TAB}"]`).textContent).toBe('2');
     expect(document.querySelector('#rechnung-month-tabs .tab-button[data-tab="0"]').classList.contains('active')).toBe(true);
   });
 

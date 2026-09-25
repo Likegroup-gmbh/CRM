@@ -51,16 +51,16 @@ describe('InvoiceMonthFilter', () => {
     expect(filterRowsByMonthYear(rows, { year: 2026, month: UNDATED_TAB }).map(r => r.id)).not.toContain('a5');
   });
 
-  it('gibt im Alle-Tab jede Zeile jahr- und monatsunabhaengig zurueck', () => {
-    expect(filterRowsByMonthYear(rows, { year: 2026, month: ALL_TAB })).toEqual(rows);
-    expect(filterRowsByMonthYear(rows, { year: 2019, month: ALL_TAB })).toEqual(rows);
+  it('gibt im Alle-Tab nur Zeilen des gewaehlten Jahres zurueck', () => {
+    expect(filterRowsByMonthYear(rows, { year: 2026, month: ALL_TAB }).map(r => r.id)).toEqual(['a1', 'a2']);
+    expect(filterRowsByMonthYear(rows, { year: 2019, month: ALL_TAB })).toEqual([]);
   });
 
   it('zaehlt Monate, Ohne-Datum und Ohne-RE-Nr separat', () => {
     expect(countRowsByMonth(rows, 2026)).toEqual({
       undated: 1,
       'no-renr': 1,
-      alle: rows.length,
+      alle: 2,
       months: [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
     });
   });
@@ -69,7 +69,7 @@ describe('InvoiceMonthFilter', () => {
     expect(formatMonthEmptyText(7, 2026)).toBe('Keine Rechnungen im August 2026.');
     expect(formatMonthEmptyText(UNDATED_TAB, 2026)).toBe('Keine Rechnungen ohne Datum.');
     expect(formatMonthEmptyText(NO_RENR_TAB, 2026)).toBe('Keine Rechnungen ohne Rechnungsnummer.');
-    expect(formatMonthEmptyText(ALL_TAB, 2026)).toBe('Keine Rechnungen vorhanden.');
+    expect(formatMonthEmptyText(ALL_TAB, 2026)).toBe('Keine Rechnungen in 2026.');
   });
 
   it('findet Cache-Zeilen ueber Teilrechnungs- oder Auftrags-ID', () => {

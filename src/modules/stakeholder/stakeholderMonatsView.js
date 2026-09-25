@@ -333,7 +333,6 @@ export async function oeffneBerichtsstand(page, id) {
     page.render();
     return;
   }
-  page.zahlungsstandBelegeOffen = null;
   let stand;
   try {
     stand = await fetchBerichtsstand(SUPABASE(), id);

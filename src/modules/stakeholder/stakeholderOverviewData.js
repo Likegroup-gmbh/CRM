@@ -5,9 +5,7 @@ import { getChipFromKampagnenartName } from '../projekt-erstellen/logic/Campaign
 import { calculateBudgetOverview } from '../../core/budget/calculateBudgetOverview.js';
 import { calculateCreatorPaymentSummary } from '../../core/budget/EkVkAgencyFeeHelper.js';
 import { calculateMonatsauswertung } from '../../core/budget/monatsauswertung.js';
-import { isInvoiceRowPaid, isReFaelligkeitOverdue } from '../auftrag/logic/PaymentRowStatus.js';
 import {
-  hatRechnungsdatum,
   summarizeKundenrechnungRows,
   summarizeRechnungRows,
 } from '../rechnung/invoiceCardTotals.js';
@@ -55,7 +53,7 @@ export async function loadData(page) {
       'id, firmenname'),
     // Fremdkosten brauchen Rechnungsdatum und die drei Posten-Quellen
     // (Honorar netto + steuerfrei, Zusatzkosten; KSK wird berechnet).
-    // Der Zahlungsstand braucht zusaetzlich status/bezahlt_am/zahlungsziel.
+    // Kachelsummen brauchen zusaetzlich status/bezahlt_am/zahlungsziel.
     fetchAllRows(supabase, 'rechnung',
       'id, kooperation_id, auftrag_id, status, nettobetrag, ust_betrag, bruttobetrag, nettobetrag_steuerfrei, zusatzkosten, gestellt_am, bezahlt_am, zahlungsziel, rechnungstyp, rechnung_nr'),
     // Kundenrechnungen: geplante und gestellte Teilrechnungen je Auftrag,
@@ -165,17 +163,17 @@ export function aggregate(page) {
     sumCreatorPaid += creatorPayment.paid;
     sumCreatorOpen += creatorPayment.open;
 
-    // Kacheln: Auftrag mit hinterlegter Fee nur in „fest“, sonst nur in EK/VK.
-    // Die Fee steht voll (nicht zeitanteilig). Die Marge eines Fee-Auftrags
-    // wird hier nicht addiert.
+    // Volumen bleibt exklusiv: Fee-Auftrag nur in „fest“, sonst nur in EK/VK.
+    // Die Fee steht voll (nicht zeitanteilig). Die EK/VK-Marge zählt immer,
+    // auch wenn derselbe Auftrag zusätzlich eine Fee hat.
     if (feeRaw > 0) {
       sumFestVolumen += volumen;
       sumFestAgentur += feeRaw;
     } else {
       sumEkvkVolumen += volumen;
-      sumEkvkVk += summary.vkSum || 0;
-      sumEkvkRealisiert += summary.ekVkMarginSum || 0;
     }
+    sumEkvkVk += summary.vkSum || 0;
+    sumEkvkRealisiert += summary.ekVkMarginSum || 0;
 
     rows.push({
       auftrag: a,
@@ -275,10 +273,6 @@ export function monatsauswertung(page) {
   return page._monats;
 }
 
-function betrag(v) {
-  return parseFloat(v) || 0;
-}
-
 function auftragIdVonKoop(koop, kampagneToAuftrag) {
   return koop ? (kampagneToAuftrag.get(koop.kampagne_id) || null) : null;
 }
@@ -330,86 +324,5 @@ export function kartenSummen(page) {
     kunden: summarizeKundenrechnungRows(kundenZeilenImFilter(page)),
     creator: summarizeRechnungRows(creator),
     contracting: summarizeRechnungRows(contracting),
-  };
-}
-
-function sortBelege(list) {
-  return list.slice().sort((a, b) => (b.betrag || 0) - (a.betrag || 0));
-}
-
-function pushBeleg(bucket, kategorie, fields) {
-  bucket[kategorie].push({ kategorie, ...fields });
-}
-
-function leereKundenBelege() {
-  return { netto: [], gestellt: [], bezahlt: [], unbezahlt: [], ueberfaellig: [] };
-}
-
-function leereRechnungBelege() {
-  return { netto: [], bezahlt: [], unbezahlt: [], ust: [], brutto: [] };
-}
-
-function kundenLabel(row) {
-  return (row?.auftragsname || row?.titel || '').trim() || 'Auftrag';
-}
-
-// Belege zu einer Zelle. Summe je Kategorie = kartenSummen(...).seite.feld.
-export function kartenBelege(page) {
-  const kunden = leereKundenBelege();
-  for (const row of kundenZeilenImFilter(page)) {
-    const netto = betrag(row.nettobetrag);
-    const basis = {
-      seite: 'kunden',
-      id: row.teilrechnung_id || row.id,
-      label: kundenLabel(row),
-      route: `/auftrag/${row.id}`,
-    };
-    pushBeleg(kunden, 'netto', { ...basis, datum: row.rechnung_gestellt_am || null, betrag: netto });
-    if (hatRechnungsdatum(row)) {
-      pushBeleg(kunden, 'gestellt', { ...basis, datum: row.rechnung_gestellt_am || null, betrag: netto });
-    }
-    if (isInvoiceRowPaid(row)) {
-      pushBeleg(kunden, 'bezahlt', { ...basis, datum: row.ueberwiesen_am || null, betrag: netto });
-    } else {
-      pushBeleg(kunden, 'unbezahlt', { ...basis, datum: row.re_faelligkeit || null, betrag: netto });
-      if (isReFaelligkeitOverdue(row?.re_faelligkeit)) {
-        pushBeleg(kunden, 'ueberfaellig', { ...basis, datum: row.re_faelligkeit || null, betrag: netto });
-      }
-    }
-  }
-
-  const { creator, contracting, auftragById } = rechnungenImFilter(page);
-  const rechnungBelege = (rows, seite) => {
-    const bucket = leereRechnungBelege();
-    for (const rechnung of rows) {
-      const auftrag = rechnung.auftrag_id ? auftragById.get(rechnung.auftrag_id) : null;
-      const label = (rechnung.rechnung_nr || '').trim() || kundenLabel(auftrag);
-      const basis = {
-        seite,
-        id: rechnung.id,
-        label,
-        route: `/rechnung/${rechnung.id}`,
-      };
-      const netto = betrag(rechnung.nettobetrag);
-      pushBeleg(bucket, 'netto', { ...basis, datum: rechnung.gestellt_am || null, betrag: netto });
-      pushBeleg(bucket, 'ust', { ...basis, datum: rechnung.gestellt_am || null, betrag: betrag(rechnung.ust_betrag) });
-      pushBeleg(bucket, 'brutto', { ...basis, datum: rechnung.gestellt_am || null, betrag: betrag(rechnung.bruttobetrag) });
-      if (rechnung.status === 'Bezahlt') {
-        pushBeleg(bucket, 'bezahlt', { ...basis, datum: rechnung.bezahlt_am || null, betrag: netto });
-      } else {
-        pushBeleg(bucket, 'unbezahlt', { ...basis, datum: rechnung.zahlungsziel || null, betrag: netto });
-      }
-    }
-    return bucket;
-  };
-
-  const sortSeite = (seite) => Object.fromEntries(
-    Object.entries(seite).map(([key, list]) => [key, sortBelege(list)])
-  );
-
-  return {
-    kunden: sortSeite(kunden),
-    creator: sortSeite(rechnungBelege(creator, 'creator')),
-    contracting: sortSeite(rechnungBelege(contracting, 'contracting')),
   };
 }

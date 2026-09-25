@@ -82,7 +82,7 @@
 }
 
 .stakeholder-cards--kalkulation {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .stakeholder-cards--breakdown {
@@ -209,9 +209,25 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Die drei Haupt-KPIs duerfen groesser als die Breakdown-Karten */
+/* Die Haupt-KPIs duerfen groesser als die Breakdown-Karten */
 .stakeholder-cards:not(.stakeholder-cards--breakdown) .stakeholder-card-value {
   font-size: var(--text-xxxl);
+}
+
+.stakeholder-card--stack {
+  gap: 0;
+}
+
+.stakeholder-card-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.stakeholder-card-block + .stakeholder-card-block {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--border-primary);
 }
 
 .stakeholder-card-sub {
@@ -648,63 +664,9 @@
   color: var(--text-secondary);
 }
 
-/* Zahlungsstand: acht Spalten wie die Kundenliste — Mindestbreite +
-   nowrap, der Scroll-Container (.stakeholder-scroll-x) fängt schmale
-   Screens ab. */
-.stakeholder-status-table {
-  min-width: 1200px;
-}
-
-.stakeholder-status-table th,
-.stakeholder-status-table td {
-  white-space: nowrap;
-}
-
-.stakeholder-status-table td:first-child {
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
 .stakeholder-status-ueberfaellig {
   margin-top: 2px;
   font-size: var(--text-xs);
   font-weight: 600;
   color: var(--color-error, #c00);
-}
-
-.stakeholder-status-zelle {
-  background: none;
-  border: none;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  white-space: nowrap;
-}
-
-.stakeholder-status-zelle.is-open {
-  font-weight: 600;
-}
-
-.stakeholder-status-belege {
-  margin-top: var(--space-md);
-}
-
-.stakeholder-status-belege .stakeholder-list-hint {
-  margin-bottom: var(--space-sm);
-}
-
-.stakeholder-status-beleg-meta {
-  margin-top: 2px;
-  font-size: var(--text-xs);
-  font-weight: 400;
-  color: var(--text-secondary);
-}
-
-.stakeholder-status-belege-table tfoot th,
-.stakeholder-status-belege-table tfoot td {
-  border-bottom: none;
-  font-weight: 600;
 }

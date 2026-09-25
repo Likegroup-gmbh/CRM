@@ -100,6 +100,27 @@ describe('Monatsblatt Rechnung', () => {
     expect(rowQuery.calls.lt).toContainEqual(['gestellt_am', '2026-02-01']);
   });
 
+  it('begrenzt Alle auf das gewaehlte Jahr', async () => {
+    const queries = installSupabase({ rows: [{ id: 'r1' }], count: 4 });
+    await loadRows({ year: 2026, month: ALL_TAB, typeTab: 'rechnung' });
+    const result = await loadCounts({
+      year: 2026,
+      month: ALL_TAB,
+      typeTab: 'rechnung',
+      statusIds: ['alle', 'Offen']
+    });
+
+    const rowQuery = rechnungQueries(queries).find(query => !query.calls.selectOpts?.head);
+    expect(rowQuery.calls.gte).toContainEqual(['gestellt_am', '2026-01-01']);
+    expect(rowQuery.calls.lt).toContainEqual(['gestellt_am', '2027-01-01']);
+
+    const alleQuery = rechnungQueries(queries).find(query =>
+      query.calls.selectOpts?.head && query.calls.gte.some(args => args[0] === 'gestellt_am' && args[1] === '2026-01-01')
+    );
+    expect(alleQuery.calls.lt).toContainEqual(['gestellt_am', '2027-01-01']);
+    expect(result.months.alle).toBe(4);
+  });
+
   it('laedt PDFs separat und nicht im Row-Select', async () => {
     const pdfs = [{ id: 'p1', rechnung_id: 'r1', file_name: 'a.pdf', file_path: 'a.pdf', file_url: 'https://x/a.pdf' }];
     const queries = installSupabase({ rows: [{ id: 'r1' }], pdfs });

@@ -36,7 +36,7 @@ const CARD_HINTS = {
   },
   ekvkAgentur: {
     formula: 'Gebuchter VK − zugehöriger EK',
-    hint: 'Nur Zeilen mit beiden Preisen. Unvollständig bepreiste Zeilen bleiben im gebuchten VK, zählen aber nicht als realisiert.'
+    hint: 'Gilt für alle Aufträge, auch wenn zusätzlich eine Fee hinterlegt ist. Nur Zeilen mit beiden Preisen. Unvollständig bepreiste Zeilen bleiben im gebuchten VK, zählen aber nicht als realisiert.'
   },
   ksk: {
     formula: 'UGC: 4,9 % auf EK · Influencer: KSK-Topf',
@@ -101,8 +101,8 @@ export function renderCards(page, totals, isInfluencerTab) {
         </button>` : ''}
     </div>`;
 
-  const card = (label, value, sub, foot, opts = {}) => `
-    <div class="stakeholder-card">
+  const metricBlock = (label, value, sub, foot, opts = {}) => `
+    <div class="stakeholder-card-block">
       ${cardHead(label, opts.hint)}
       <div class="stakeholder-card-value">${page.fmtEuro(value)}</div>
       ${sub ? `<div class="stakeholder-card-sub">${sub}</div>` : ''}
@@ -218,8 +218,10 @@ export function renderCards(page, totals, isInfluencerTab) {
   return `
     <div class="stakeholder-cards stakeholder-cards--kalkulation">
       ${breakdownCard('Auftragsvolumen = Budget', volumen, `${page.fmtEuro(kGestellt)} von ${page.fmtEuro(volumen)} gestellt`, volumenLines, `${page.fmtPct(gestelltPct)} gestellt`, { progress: gestelltPct, hint: CARD_HINTS.volumen })}
-      ${card('Verbrauchtes Budget', verbraucht, 'aufgeschlüsselt in der Zeile darunter', `${page.fmtPct(verbrauchtPct)} des Budgets`, { progress: verbrauchtPct, progressClass: progressClass(verbrauchtPct), hint: CARD_HINTS.verbraucht })}
-      ${card(offenLabel, offenValue, offenSub, `${page.fmtPct(offenPct)} offen`, { progress: offenPct, progressClass: openProgressClass(offenPct), hint: offenHint })}
+      <div class="stakeholder-card stakeholder-card--stack">
+        ${metricBlock('Verbrauchtes Budget', verbraucht, 'aufgeschlüsselt in der Zeile darunter', `${page.fmtPct(verbrauchtPct)} des Budgets`, { progress: verbrauchtPct, progressClass: progressClass(verbrauchtPct), hint: CARD_HINTS.verbraucht })}
+        ${metricBlock(offenLabel, offenValue, offenSub, `${page.fmtPct(offenPct)} offen`, { progress: offenPct, progressClass: openProgressClass(offenPct), hint: offenHint })}
+      </div>
     </div>
     <div class="stakeholder-cards stakeholder-cards--breakdown">
       ${breakdownCard('Creatoranteil', creator, `${page.fmtEuro(creatorBezahlt)} von ${page.fmtEuro(creatorNetto)} Rechnungs-Netto bezahlt`, creatorOffenLines, `${page.fmtPct(verbraucht > 0 ? (creator / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (creator / verbraucht) * 100 : 0, hint: CARD_HINTS.creator })}

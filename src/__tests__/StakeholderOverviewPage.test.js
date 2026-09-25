@@ -14,12 +14,6 @@ function createPage() {
   return page;
 }
 
-function zahlungsstandZelle(seite, kategorie) {
-  return window.content.querySelector(
-    `[data-zahlungsstand-seite="${seite}"][data-zahlungsstand-kategorie="${kategorie}"]`
-  );
-}
-
 function createMockSupabase({ auftraege = [], blocks = [], kampagnen = [], kooperationen = [], videos = [], details = [], unternehmen = [], rechnungen = [], teilrechnungen = [], berichtsstaende = [], berichtsstandById = null, onBerichtsstandInsert = null } = {}) {
   const tableData = {
     auftrag: { data: auftraege, error: null },
@@ -187,11 +181,9 @@ describe('StakeholderOverviewPage', () => {
     // init() zeigt zuerst Loading, dann das gerenderte HTML
     const html = window.setContentSafely.mock.calls[1][1];
 
-    // Leistungsbereich als Formular-Select (wie Zeitraum daneben),
-    // vor dem Zahlungsstand — beide steuern denselben Auftragskreis.
     expect(html).toContain('id="stakeholder-tab-select"');
-    expect(html.indexOf('id="stakeholder-tab-select"')).toBeLessThan(html.indexOf('Zahlungsstand'));
-    expect(html.indexOf('id="stakeholder-year-select"')).toBeLessThan(html.indexOf('Zahlungsstand'));
+    expect(html).toContain('id="stakeholder-year-select"');
+    expect(html).not.toContain('Zahlungsstand');
     expect(html).toContain('form-field form-field--inline');
     expect(html).toContain('form-field form-field--inline stakeholder-year-field');
     expect(html).toContain('form-select');
@@ -201,10 +193,17 @@ describe('StakeholderOverviewPage', () => {
     expect(html).toContain('INFLUENCER MARKETING');
     expect(html).toContain('UGC PAID');
 
-    // Karten vorhanden
+    // Karten vorhanden: Verbrauchtes und Verfügbares in einer Kachel, Verbrauchtes oben
     expect(html).toContain('Auftragsvolumen = Budget');
     expect(html).toContain('Verfügbares Budget');
     expect(html).toContain('Verbrauchtes Budget');
+    const stackStart = html.indexOf('stakeholder-card--stack');
+    const breakdownStart = html.indexOf('stakeholder-cards--breakdown');
+    const stackHtml = html.slice(stackStart, breakdownStart);
+    expect(stackHtml).toContain('Verbrauchtes Budget');
+    expect(stackHtml).toContain('Verfügbares Budget');
+    expect(stackHtml.indexOf('Verbrauchtes Budget')).toBeLessThan(stackHtml.indexOf('Verfügbares Budget'));
+    expect(stackHtml.match(/stakeholder-card-block/g)).toHaveLength(2);
     expect(html).toContain('Creatoranteil');
     expect(html).toContain('Bezahlt');
     expect(html).toContain('Unbezahlt');
@@ -225,7 +224,6 @@ describe('StakeholderOverviewPage', () => {
     expect(html).toContain('UGC: 4,9 % auf EK · Influencer: KSK-Topf');
     expect(html).toContain('Σ Nettobetrag aller Aufträge');
     expect(html).toContain('Gestellt, Bezahlt und Unbezahlt aus den Kundenrechnungen');
-    expect(html).toContain('Unbezahlt = Netto − Bezahlt');
     expect(html).toContain('Auftragsvolumen − Verbrauchtes Budget');
 
     // Kundenliste vorhanden
@@ -235,8 +233,7 @@ describe('StakeholderOverviewPage', () => {
     expect(html).toContain('FESTE FEE');
     expect(html).toContain('Agenturanteil aus EK-/VK-Differenz');
 
-    // Tabellen-Spalten in CFO-Reihenfolge (Kundenliste — nicht der
-    // Zahlungsstand-Block, der früher im HTML steht)
+    // Tabellen-Spalten der Kundenliste in CFO-Reihenfolge
     const kundenCard = html.split('Kunden nach Umsatz')[1] || '';
     const thead = kundenCard.match(/<thead>[\s\S]*?<\/thead>/)?.[0] || '';
     expect(thead).toContain('Kunde');
@@ -328,58 +325,6 @@ describe('StakeholderOverviewPage', () => {
     page.render();
     const htmlBuch = window.setContentSafely.mock.calls.at(-1)[1];
     expect(htmlBuch).toContain('Buchhaltungssicht');
-  });
-
-  it('zeigt den Zahlungsstand als Snapshot in beiden Ansichten', async () => {
-    const auftraege = [{
-      id: 'a1',
-      auftragsname: 'UGC Auftrag',
-      nettobetrag: 10000,
-      creator_budget: 8000,
-      auftragtype: 'UGC/Influencer',
-      start: '2026-01-01',
-      is_draft: false,
-      unternehmen_id: 'u1',
-      rechnung_gestellt_am: '2026-03-10',
-      ueberwiesen: false,
-      ueberwiesen_am: null,
-      re_faelligkeit: '2026-12-31'
-    }];
-    const blocks = [{ auftrag_id: 'a1', campaign_type: 'ugc_paid', campaign_type_label: 'UGC Paid', umsatz_netto: 10000 }];
-    const kampagnen = [{ id: 'k1', auftrag_id: 'a1', videoanzahl: 5, creatoranzahl: 2 }];
-    const kooperationen = [{ id: 'koop1', kampagne_id: 'k1', creator_id: 'c1', einkaufspreis_netto: 5000, ksk_selbstzahler: false }];
-    const rechnungen = [{
-      id: 'r1', auftrag_id: 'a1', kooperation_id: 'koop1', status: 'Bezahlt', rechnungstyp: 'kampagne',
-      nettobetrag: 5000, nettobetrag_steuerfrei: 0, zusatzkosten: 0,
-      gestellt_am: '2026-06-01', bezahlt_am: '2026-07-01', zahlungsziel: '2026-07-15'
-    }];
-
-    window.supabase = createMockSupabase({ auftraege, blocks, kampagnen, kooperationen, rechnungen });
-
-    const page = createPage();
-    await page.init();
-    const html = window.setContentSafely.mock.calls[1][1];
-
-    // Block mit beiden Seiten und vier Kategorien
-    expect(html).toContain('Zahlungsstand');
-    expect(html).toContain('Kundenrechnungen');
-    expect(html).toContain('Contractingrechnungen');
-    expect(html).toContain('Creatorrechnungen');
-    expect(html).toContain('Gestellt');
-    expect(html).toContain('Bezahlt');
-    expect(html).toContain('Unbezahlt');
-    expect(html).not.toContain('KSK nicht gestellt');
-    expect(html).not.toContain('Noch nicht gestellt + KSK + Zusatz');
-    // Kunden: 10.000 gestellt. Creator: 5.000 Netto, ohne KSK-Aufschlag.
-    expect(html).toContain('10.000,00');
-    expect(html).toContain('5.000,00');
-    expect(html).not.toContain('5.245,00');
-
-    // Der Snapshot steht auch über der Monatsauswertung
-    page.activeView = 'monate';
-    page.render();
-    const htmlMonate = window.setContentSafely.mock.calls.at(-1)[1];
-    expect(htmlMonate).toContain('Zahlungsstand');
   });
 
   it('zeigt die Berichtsstand-Leiste in der Monatsauswertung', async () => {
@@ -508,9 +453,8 @@ describe('StakeholderOverviewPage', () => {
     expect(html).toContain('Berichtsstand vom 09.08.2026');
     expect(html).toContain('Investorenupdate August 2026');
     expect(html).toContain('eingefroren');
-    // Matrix und Zahlungsstand zeigen die eingefrorenen Werte
     expect(html).toContain('99.999,00');
-    expect(html).toContain('eingefrorener Berichtsstand');
+    expect(html).not.toContain('Zahlungsstand');
 
     // Zurueck zur Live-Ansicht
     const liveSelect = document.getElementById('stakeholder-bericht-select');
@@ -520,51 +464,6 @@ describe('StakeholderOverviewPage', () => {
       expect(window.content.innerHTML).not.toContain('stakeholder-bericht-banner');
     });
     expect(window.content.innerHTML).toContain('10.000,00');
-
-    page.destroy();
-    window.content.remove();
-  });
-
-  it('zeigt in alten Berichtsständen ohne contracting-Seite eine leere Contracting-Zeile', async () => {
-    const auftraege = [
-      { id: 'a1', auftragsname: 'A', nettobetrag: 10000, start: '2026-03-01', is_draft: false, unternehmen_id: 'u1', rechnung_gestellt_am: '2026-03-15' }
-    ];
-    const frozen = {
-      version: 1,
-      monatsauswertung: calculateMonatsauswertung({
-        auftraege, blocks: [], kampagnen: [], kooperationen: [], videos: [], rechnungen: [], teilrechnungen: []
-      }),
-      zahlungsstand: {
-        kunden: { gestellt: 111, bezahlt: 0, offen: 111, ueberfaellig: 0, nichtGestellt: 0 },
-        creator: { gestellt: 0, bezahlt: 0, offen: 0, ueberfaellig: 0, nichtGestellt: 0 }
-      }
-    };
-
-    window.supabase = createMockSupabase({
-      auftraege,
-      berichtsstaende: [{ id: 'b-alt', created_at: '2026-08-09T10:00:00Z', label: 'Alter Stand' }],
-      berichtsstandById: { id: 'b-alt', created_at: '2026-08-09T10:00:00Z', label: 'Alter Stand', daten: frozen }
-    });
-    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
-    document.body.appendChild(window.content);
-
-    const page = createPage();
-    await page.init();
-    page.activeView = 'monate';
-    page.render();
-
-    const berichtSelect = document.getElementById('stakeholder-bericht-select');
-    berichtSelect.value = 'b-alt';
-    berichtSelect.dispatchEvent(new Event('change', { bubbles: true }));
-    await vi.waitFor(() => {
-      expect(window.content.innerHTML).toContain('stakeholder-bericht-banner');
-    });
-
-    const row = [...window.content.querySelectorAll('.stakeholder-status-table tbody tr')]
-      .find(tr => tr.textContent.includes('Contractingrechnungen'));
-    expect(row).toBeTruthy();
-    expect(row.textContent).toContain('0,00 €');
-    expect(window.content.innerHTML).toContain('111,00 €');
 
     page.destroy();
     window.content.remove();
@@ -696,12 +595,13 @@ describe('StakeholderOverviewPage', () => {
     expect(totals.agenturFest).toBeCloseTo(44000 * ratio + 2000, 5);
     expect(totals.agenturVoll).toBe(47300);
 
-    // Beide haben eine Fee: Kachel 1 bekommt die volle Fee, die Video-Marge bleibt draussen.
+    // Beide haben eine Fee: Volumen und Fee nur in Kachel 1.
+    // Die Video-Marge zählt trotzdem in der EK/VK-Kachel (3000−2000 + 800−500).
     expect(totals.festAgentur).toBe(46000);
     expect(totals.festVolumen).toBe(120000);
     expect(totals.ekvkVolumen).toBe(0);
-    expect(totals.ekvkVk).toBe(0);
-    expect(totals.ekvkRealisiert).toBe(0);
+    expect(totals.ekvkVk).toBe(3800);
+    expect(totals.ekvkRealisiert).toBe(1300);
 
     const html = window.setContentSafely.mock.calls[1][1];
     expect(html).toContain('Fest vereinbarter Agenturanteil');
@@ -931,7 +831,7 @@ describe('StakeholderOverviewPage', () => {
     expect(totals.festVolumen).toBe(30000);
   });
 
-  it('teilt die Agentur-Kacheln: Fee-Auftrag nur fest, Auftrag ohne Fee nur EK/VK', async () => {
+  it('teilt das Auftragsvolumen, zählt die EK/VK-Marge aber bei jedem Auftrag', async () => {
     const auftraege = [
       {
         id: 'fee',
@@ -983,8 +883,9 @@ describe('StakeholderOverviewPage', () => {
     expect(totals.festVolumen).toBe(50000);
     expect(totals.festAgentur).toBe(10000);
     expect(totals.ekvkVolumen).toBe(20000);
-    expect(totals.ekvkVk).toBe(1000);
-    expect(totals.ekvkRealisiert).toBe(600);
+    // VK und Marge des Fee-Auftrags (3000 bzw. 1000) zählen mit, das Volumen nicht.
+    expect(totals.ekvkVk).toBe(4000);
+    expect(totals.ekvkRealisiert).toBe(1600);
     expect(totals.festVolumen + totals.ekvkVolumen).toBe(totals.volumen);
 
     const html = window.setContentSafely.mock.calls[1][1];
@@ -1126,11 +1027,9 @@ describe('StakeholderOverviewPage', () => {
     const tabSelect = document.getElementById('stakeholder-tab-select');
     tabSelect.value = 'gesamt_mit';
     tabSelect.dispatchEvent(new Event('change', { bubbles: true }));
-    // Auftragsvolumen bleibt die Kundenrechnung. Contracting-Beleg 2000 nur im Zahlungsstand.
     expect(bezahltEl().textContent.trim()).toBe(page.fmtEuro(1500));
     expect(page.kartenSummen().kunden.bezahlt_netto).toBe(1500);
     expect(page.kartenSummen().contracting.bezahlt_netto).toBe(2000);
-    expect(zahlungsstandZelle('contracting', 'bezahlt').textContent.trim()).toBe(page.fmtEuro(2000));
 
     page.activeTab = 'gesamt_ohne';
     page.render();
@@ -1183,18 +1082,10 @@ describe('StakeholderOverviewPage', () => {
 
     const kachel = (attr) => window.content.querySelector(`[${attr}]`).textContent.trim();
     // Beide Aufträge ohne Rechnungsdatum: Gestellt 0, Unbezahlt = 18000.
-    // Der Contracting-Beleg 3000 steht nur im Zahlungsstand, nicht im Volumen.
     expect(kachel('data-volumen-gestellt')).toBe(page.fmtEuro(0));
     expect(kachel('data-volumen-unbezahlt')).toBe(page.fmtEuro(18000));
     expect(kachel('data-volumen-bezahlt')).toBe(page.fmtEuro(0));
     expect(kachel('data-volumen-nicht-gestellt')).toBe(page.fmtEuro(18000));
-
-    expect(zahlungsstandZelle('contracting', 'netto').textContent.trim())
-      .toBe(page.fmtEuro(3000));
-    expect(zahlungsstandZelle('contracting', 'unbezahlt').textContent.trim())
-      .toBe(page.fmtEuro(3000));
-    expect(zahlungsstandZelle('kunden', 'unbezahlt').textContent.trim())
-      .toBe(page.fmtEuro(18000));
 
     const contractingSelect = document.getElementById('stakeholder-tab-select');
     contractingSelect.value = 'contracting';
@@ -1202,16 +1093,10 @@ describe('StakeholderOverviewPage', () => {
     expect(kachel('data-volumen-gestellt')).toBe(page.fmtEuro(0));
     expect(kachel('data-volumen-unbezahlt')).toBe(page.fmtEuro(8000));
     expect(kachel('data-volumen-bezahlt')).toBe(page.fmtEuro(0));
-    expect(zahlungsstandZelle('contracting', 'netto').textContent.trim())
-      .toBe(page.fmtEuro(3000));
-    expect(zahlungsstandZelle('kunden', 'unbezahlt').textContent.trim())
-      .toBe(page.fmtEuro(8000));
 
     const ohneSelect = document.getElementById('stakeholder-tab-select');
     ohneSelect.value = 'gesamt_ohne';
     ohneSelect.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(zahlungsstandZelle('contracting', 'netto').textContent.trim())
-      .toBe(page.fmtEuro(0));
     expect(kachel('data-volumen-gestellt')).toBe(page.fmtEuro(0));
     expect(kachel('data-volumen-unbezahlt')).toBe(page.fmtEuro(10000));
 
@@ -1219,195 +1104,7 @@ describe('StakeholderOverviewPage', () => {
     window.content.remove();
   });
 
-  it('klappt die Belegliste unter der angeklickten Bezahlt-Zelle auf', async () => {
-    const auftraege = [{
-      id: 'a1', auftragsname: 'Kampagne A', nettobetrag: 10000,
-      start: '2026-01-01', is_draft: false, unternehmen_id: 'u1',
-      rechnung_gestellt_am: '2026-03-10', ueberwiesen_am: '2026-04-01'
-    }];
-    window.supabase = createMockSupabase({ auftraege });
-    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
-    document.body.appendChild(window.content);
-
-    const page = createPage();
-    await page.init();
-
-    window.content.querySelector('[data-zahlungsstand-seite="kunden"][data-zahlungsstand-kategorie="bezahlt"]')
-      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
-
-    const liste = window.content.querySelector('[data-zahlungsstand-belege="kunden"][data-zahlungsstand-kategorie="bezahlt"]');
-    expect(liste).toBeTruthy();
-    expect(liste.textContent).toContain('Kampagne A');
-    expect(liste.textContent).toContain('Jahr und Leistungsbereich wie die Karten');
-    expect(window.content.querySelector('[data-zahlungsstand-belege-summe]').textContent)
-      .toBe(page.fmtEuro(10000));
-    expect(zahlungsstandZelle('kunden', 'bezahlt').textContent.trim())
-      .toBe(page.fmtEuro(10000));
-
-    zahlungsstandZelle('kunden', 'bezahlt')
-      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(window.content.querySelector('[data-zahlungsstand-belege]')).toBeNull();
-
-    expect(zahlungsstandZelle('kunden', 'bezahlt')).toBeTruthy();
-    expect(zahlungsstandZelle('contracting', 'bezahlt')).toBeTruthy();
-    expect(zahlungsstandZelle('creator', 'bezahlt')).toBeTruthy();
-    expect(zahlungsstandZelle('kunden', 'gestellt')).toBeTruthy();
-    expect(zahlungsstandZelle('kunden', 'unbezahlt')).toBeTruthy();
-    expect(zahlungsstandZelle('kunden', 'nichtGestellt')).toBeNull();
-
-    page.destroy();
-    window.content.remove();
-  });
-
-  it('Belegliste folgt dem Jahr-Filter', async () => {
-    const auftraege = [
-      {
-        id: 'a1', auftragsname: 'Alt', nettobetrag: 1000, start: '2025-01-01',
-        is_draft: false, unternehmen_id: 'u1', ueberwiesen_am: '2025-02-01'
-      },
-      {
-        id: 'a2', auftragsname: 'Neu', nettobetrag: 2000, start: '2026-01-01',
-        is_draft: false, unternehmen_id: 'u1', ueberwiesen_am: '2026-02-01'
-      }
-    ];
-    window.supabase = createMockSupabase({ auftraege });
-    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
-    document.body.appendChild(window.content);
-
-    const page = createPage();
-    page.selectedYear = 'all';
-    await page.init();
-
-    zahlungsstandZelle('kunden', 'bezahlt')
-      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(window.content.querySelector('[data-zahlungsstand-belege-summe]').textContent)
-      .toBe(page.fmtEuro(3000));
-
-    const select = document.getElementById('stakeholder-year-select');
-    select.value = '2026';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-
-    const liste = window.content.querySelector('[data-zahlungsstand-belege="kunden"]');
-    expect(liste.textContent).toContain('Neu');
-    expect(liste.textContent).not.toContain('Alt');
-    expect(window.content.querySelector('[data-zahlungsstand-belege-summe]').textContent)
-      .toBe(page.fmtEuro(2000));
-    expect(zahlungsstandZelle('kunden', 'bezahlt').textContent.trim())
-      .toBe(page.fmtEuro(2000));
-
-    page.destroy();
-    window.content.remove();
-  });
-
-  it('macht Bezahlt im Berichtsstand nicht klickbar', async () => {
-    const auftraege = [{
-      id: 'a1', auftragsname: 'A', nettobetrag: 10000, start: '2026-03-01',
-      is_draft: false, unternehmen_id: 'u1', rechnung_gestellt_am: '2026-03-15'
-    }];
-    const frozen = {
-      version: 1,
-      monatsauswertung: calculateMonatsauswertung({
-        auftraege, blocks: [], kampagnen: [], kooperationen: [],
-        videos: [], rechnungen: [], teilrechnungen: []
-      }),
-      zahlungsstand: calculateRechnungsstatus({
-        auftraege, kampagnen: [], kooperationen: [], videos: [], rechnungen: [], teilrechnungen: []
-      })
-    };
-
-    window.supabase = createMockSupabase({
-      auftraege,
-      berichtsstaende: [{ id: 'b1', created_at: '2026-08-09T10:00:00Z', label: 'Update' }],
-      berichtsstandById: { id: 'b1', created_at: '2026-08-09T10:00:00Z', label: 'Update', daten: frozen }
-    });
-    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
-    document.body.appendChild(window.content);
-
-    const page = createPage();
-    await page.init();
-    page.activeView = 'monate';
-    page.render();
-
-    const berichtSelect = document.getElementById('stakeholder-bericht-select');
-    berichtSelect.value = 'b1';
-    berichtSelect.dispatchEvent(new Event('change', { bubbles: true }));
-    await vi.waitFor(() => {
-      expect(window.content.innerHTML).toContain('stakeholder-bericht-banner');
-    });
-
-    expect(window.content.querySelector('[data-zahlungsstand-seite]')).toBeNull();
-    expect(window.content.querySelector('[data-zahlungsstand-belege]')).toBeNull();
-
-    page.destroy();
-    window.content.remove();
-  });
-
-  it('wechselt die Belegliste zwischen den drei Bezahlt-Zellen', async () => {
-    const auftraege = [
-      {
-        id: 'a1', auftragsname: 'Kunde A', nettobetrag: 1000, start: '2026-01-01',
-        is_draft: false, unternehmen_id: 'u1', ueberwiesen_am: '2026-02-01'
-      },
-      {
-        id: 'c1', auftragsname: 'Contract', auftragtype: 'Contracting',
-        nettobetrag: 8000, start: '2026-01-01', is_draft: false, unternehmen_id: 'u1'
-      }
-    ];
-    const kampagnen = [{ id: 'k1', auftrag_id: 'a1' }];
-    const kooperationen = [{
-      id: 'koop1', kampagne_id: 'k1', creator_id: 'cr1',
-      einkaufspreis_netto: 5000, ksk_selbstzahler: false
-    }];
-    const rechnungen = [
-      {
-        id: 'r-con', auftrag_id: 'c1', rechnungstyp: 'contracting',
-        rechnung_nr: 'C-1', status: 'Bezahlt', nettobetrag: 3000, bezahlt_am: '2026-03-01'
-      },
-      {
-        id: 'r-cre', auftrag_id: 'a1', kooperation_id: 'koop1', rechnungstyp: 'kampagne',
-        rechnung_nr: 'CR-1', status: 'Bezahlt', nettobetrag: 5000,
-        nettobetrag_steuerfrei: 0, zusatzkosten: 100, bezahlt_am: '2026-04-01'
-      }
-    ];
-    window.supabase = createMockSupabase({ auftraege, kampagnen, kooperationen, rechnungen });
-    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
-    document.body.appendChild(window.content);
-
-    const page = createPage();
-    await page.init();
-    page.activeTab = 'gesamt_mit';
-    page.render();
-
-    zahlungsstandZelle('kunden', 'bezahlt')
-      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(window.content.querySelector('[data-zahlungsstand-belege="kunden"][data-zahlungsstand-kategorie="bezahlt"]')).toBeTruthy();
-
-    zahlungsstandZelle('contracting', 'bezahlt')
-      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(window.content.querySelector('[data-zahlungsstand-belege="kunden"]')).toBeNull();
-    const contractingListe = window.content.querySelector('[data-zahlungsstand-belege="contracting"][data-zahlungsstand-kategorie="bezahlt"]');
-    expect(contractingListe).toBeTruthy();
-    expect(contractingListe.textContent).toContain('C-1');
-    expect(window.content.querySelector('[data-zahlungsstand-belege-summe]').textContent)
-      .toBe(page.fmtEuro(3000));
-    expect(zahlungsstandZelle('contracting', 'bezahlt').textContent.trim())
-      .toBe(page.fmtEuro(3000));
-
-    zahlungsstandZelle('creator', 'bezahlt')
-      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    expect(window.content.querySelector('[data-zahlungsstand-belege="contracting"]')).toBeNull();
-    const creatorListe = window.content.querySelector('[data-zahlungsstand-belege="creator"][data-zahlungsstand-kategorie="bezahlt"]');
-    expect(creatorListe).toBeTruthy();
-    expect(creatorListe.textContent).toContain('CR-1');
-    expect(creatorListe.textContent).not.toContain('Honorar');
-    expect(window.content.querySelector('[data-zahlungsstand-belege-summe]').textContent)
-      .toBe(zahlungsstandZelle('creator', 'bezahlt').textContent.trim());
-
-    page.destroy();
-    window.content.remove();
-  });
-
-  it('klappt Gestellt, Offen und Noch nicht gestellt mit Summe gleich der Zelle', async () => {
+  it('zeigt Gestellt, Bezahlt, Unbezahlt und Überfällig auf der Volumenkarte', async () => {
     const auftraege = [
       {
         id: 'a1', auftragsname: 'Offen A', nettobetrag: 4000, start: '2026-01-01',
@@ -1438,31 +1135,6 @@ describe('StakeholderOverviewPage', () => {
     const volumen = page.aggregate().totals.volumen;
     expect(wert('data-volumen-nicht-gestellt')).toBe(page.fmtEuro(volumen - kunden.re_datum_netto));
     expect(window.content.innerHTML).toContain(`${page.fmtPct(volumen > 0 ? (kunden.re_datum_netto / volumen) * 100 : 0)} gestellt`);
-
-    zahlungsstandZelle('kunden', 'gestellt')
-      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    const gestelltListe = window.content.querySelector('[data-zahlungsstand-belege="kunden"][data-zahlungsstand-kategorie="gestellt"]');
-    expect(gestelltListe.textContent).toContain('Offen A');
-    expect(gestelltListe.textContent).not.toContain('Rest B');
-    expect(window.content.querySelector('[data-zahlungsstand-belege-summe]').textContent)
-      .toBe(zahlungsstandZelle('kunden', 'gestellt').textContent.trim());
-
-    zahlungsstandZelle('kunden', 'unbezahlt')
-      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    const unbezahltListe = window.content.querySelector('[data-zahlungsstand-belege="kunden"][data-zahlungsstand-kategorie="unbezahlt"]');
-    expect(unbezahltListe.textContent).toContain('Offen A');
-    expect(unbezahltListe.textContent).toContain('Rest B');
-    expect(window.content.querySelector('[data-zahlungsstand-belege-summe]').textContent)
-      .toBe(zahlungsstandZelle('kunden', 'unbezahlt').textContent.trim());
-
-    zahlungsstandZelle('kunden', 'ueberfaellig')
-      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
-    const ueberfaelligListe = window.content.querySelector('[data-zahlungsstand-belege="kunden"][data-zahlungsstand-kategorie="ueberfaellig"]');
-    expect(ueberfaelligListe.textContent).toContain('Offen A');
-    expect(ueberfaelligListe.textContent).not.toContain('Rest B');
-    expect(window.content.querySelector('[data-zahlungsstand-belege-summe]').textContent)
-      .toBe(zahlungsstandZelle('kunden', 'ueberfaellig').textContent.trim());
-    expect(window.content.querySelector('[data-zahlungsstand-belege="kunden"][data-zahlungsstand-kategorie="unbezahlt"]')).toBeNull();
 
     page.destroy();
     window.content.remove();
@@ -1526,10 +1198,6 @@ describe('StakeholderOverviewPage', () => {
     expect(karten.creator.nettobetrag).toBe(2000);
     expect(karten.creator.bezahlt_netto).toBe(0);
     expect(karten.creator.unbezahlt_netto).toBe(2000);
-    expect(window.content.querySelector('[data-zahlungsstand-ksk-nicht]')).toBeNull();
-    expect(window.content.querySelector('[data-zahlungsstand-zusatz-nicht]')).toBeNull();
-    expect(zahlungsstandZelle('creator', 'netto').textContent.trim()).toBe(page.fmtEuro(2000));
-    expect(zahlungsstandZelle('creator', 'unbezahlt').textContent.trim()).toBe(page.fmtEuro(2000));
 
     page.destroy();
     window.content.remove();
