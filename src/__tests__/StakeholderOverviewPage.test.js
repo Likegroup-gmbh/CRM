@@ -1361,10 +1361,8 @@ describe('StakeholderOverviewPage', () => {
     expect(wert('data-volumen-bezahlt')).toBe(page.fmtEuro(kunden.bezahlt_netto));
     expect(wert('data-volumen-unbezahlt')).toBe(page.fmtEuro(kunden.unbezahlt_netto));
     expect(wert('data-volumen-ueberfaellig')).toBe(page.fmtEuro(kunden.ueberfaellig_netto));
-    expect(kunden.nicht_gestellt_netto).toBe(2500);
-    expect(kunden.nicht_gestellt_netto).toBeLessThanOrEqual(kunden.unbezahlt_netto);
-    expect(wert('data-volumen-nicht-gestellt')).toBe(page.fmtEuro(2500));
     const volumen = page.aggregate().totals.volumen;
+    expect(wert('data-volumen-nicht-gestellt')).toBe(page.fmtEuro(volumen - kunden.re_datum_netto));
     expect(window.content.innerHTML).toContain(`${page.fmtPct(volumen > 0 ? (kunden.re_datum_netto / volumen) * 100 : 0)} gestellt`);
 
     zahlungsstandZelle('kunden', 'gestellt')
@@ -1391,6 +1389,32 @@ describe('StakeholderOverviewPage', () => {
     expect(window.content.querySelector('[data-zahlungsstand-belege-summe]').textContent)
       .toBe(zahlungsstandZelle('kunden', 'ueberfaellig').textContent.trim());
     expect(window.content.querySelector('[data-zahlungsstand-belege="kunden"][data-zahlungsstand-kategorie="unbezahlt"]')).toBeNull();
+
+    page.destroy();
+    window.content.remove();
+  });
+
+  it('Noch nicht gestellt ist Auftragsvolumen minus Gestellt, nicht der Zeilenrest ohne Datum', async () => {
+    const auftraege = [{
+      id: 'a1', auftragsname: 'Teilweise fakturiert', nettobetrag: 10000,
+      start: '2026-01-01', is_draft: false, unternehmen_id: 'u1'
+    }];
+    const teilrechnungen = [{
+      id: 't1', auftrag_id: 'a1', position: 1, nettobetrag: 2000,
+      rechnung_gestellt_am: '2026-03-01'
+    }];
+    window.supabase = createMockSupabase({ auftraege, teilrechnungen });
+    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
+    document.body.appendChild(window.content);
+
+    const page = createPage();
+    await page.init();
+
+    const wert = (attr) => window.content.querySelector(`[${attr}]`).textContent.trim();
+    expect(page.kartenSummen().kunden.nicht_gestellt_netto).toBe(0);
+    expect(page.kartenSummen().kunden.re_datum_netto).toBe(2000);
+    expect(wert('data-volumen-gestellt')).toBe(page.fmtEuro(2000));
+    expect(wert('data-volumen-nicht-gestellt')).toBe(page.fmtEuro(8000));
 
     page.destroy();
     window.content.remove();

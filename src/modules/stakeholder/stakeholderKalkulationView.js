@@ -12,7 +12,7 @@ import {
 const CARD_HINTS = {
   volumen: {
     formula: 'Σ Nettobetrag aller Aufträge',
-    hint: 'Gestellt, Bezahlt und Unbezahlt aus den Kundenrechnungen. Überfällig und noch nicht gestellt stecken in Unbezahlt.'
+    hint: 'Gestellt, Bezahlt und Unbezahlt aus den Kundenrechnungen. Überfällig steckt in Unbezahlt. Noch nicht gestellt = Auftragsvolumen − Gestellt.'
   },
   verbraucht: {
     formula: 'Creatoranteil + Agenturanteil + KSK + Zusatzkosten',
@@ -179,7 +179,10 @@ export function renderCards(page, totals, isInfluencerTab) {
   const kBezahlt = kundenKarten.bezahlt_netto || 0;
   const kUnbezahlt = kundenKarten.unbezahlt_netto || 0;
   const kUeberfaellig = kundenKarten.ueberfaellig_netto || 0;
-  const kNichtGestellt = kundenKarten.nicht_gestellt_netto || 0;
+  // Auftragsnetto abzüglich gestellter Kundenrechnungszeilen. Teilrechnungen
+  // ersetzen in der Liste nur den fakturierten Teil; der offene Rest des
+  // Auftrags steht in keiner Zeile und wäre sonst 0.
+  const kNichtGestellt = volumen - kGestellt;
   const gestelltPct = volumen > 0 ? (kGestellt / volumen) * 100 : 0;
   const volumenLines = [
     breakdownLine('Gestellt', page.fmtEuro(kGestellt), {
@@ -200,7 +203,6 @@ export function renderCards(page, totals, isInfluencerTab) {
       attr: 'data-volumen-ueberfaellig',
     }),
     breakdownLine('Noch nicht gestellt', page.fmtEuro(kNichtGestellt), {
-      cls: 'stakeholder-card-breakdown-line--deep',
       attr: 'data-volumen-nicht-gestellt',
       negativ: kNichtGestellt < -0.005,
     }),
