@@ -66,6 +66,7 @@ input:-webkit-autofill:focus {
   --radius-4: 0.25rem;     /* 4px */
 
   /* Border Width */
+  --border-xxs: 0.75px;
   --border-xs: 1px;
   --border-sm: 2px;
   --border-md: 3px;

@@ -4253,6 +4253,89 @@ input.readonly-field {
   margin-bottom: 0;
 }
 
+.sek-spanne {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  max-width: 28rem;
+}
+
+.sek-spanne__track {
+  position: relative;
+  height: 2.25rem;
+  touch-action: none;
+  cursor: pointer;
+}
+
+.sek-spanne__rail,
+.sek-spanne__fill {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+}
+
+.sek-spanne__rail {
+  left: 0;
+  right: 0;
+  background: var(--border-primary);
+}
+
+.sek-spanne__fill {
+  background: var(--text-primary);
+}
+
+.sek-spanne__handle {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  border: 2px solid var(--text-primary);
+  border-radius: 50%;
+  background: var(--bg-primary);
+  transform: translate(-50%, -50%);
+  cursor: grab;
+}
+
+.sek-spanne__handle[data-handle="bis"] {
+  z-index: 2;
+}
+
+.sek-spanne.is-empty .sek-spanne__fill,
+.sek-spanne.is-empty .sek-spanne__handle,
+.sek-spanne.is-empty .sek-spanne__leeren {
+  display: none;
+}
+
+.sek-spanne__nums {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.sek-spanne__nums input {
+  width: 5.5rem;
+  flex: 0 0 auto;
+}
+
+.sek-spanne__bis {
+  color: var(--text-tertiary);
+}
+
+.sek-spanne__leeren {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .form-page--briefing .step-section__body {
   display: flex;
   flex-direction: column;

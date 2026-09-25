@@ -17,6 +17,7 @@ const { starteKiRequest } = require('./_shared/ki-log');
 const { beansprucheNachricht, autorisiereSkript, istNachrichtAbgebrochen } = require('./_shared/skript-auftrag');
 const { setThinking } = require('./_shared/thinking');
 const { verlaufZuMessages } = require('./_shared/chat-verlauf');
+const { logPrompt } = require('./_shared/prompt-log');
 
 // Erzwungener Tool-Call: strukturell garantiertes JSON statt Text-Parsing
 const FRAGEN_TOOL = {
@@ -183,6 +184,7 @@ async function verarbeiteRueckfrage({ supabase, user, payload }) {
     const history = (historyRaw || []).filter((h) => (h.inhalt || '').trim());
 
     const { stable, task, messages } = buildFragenPrompt(ctx, params, history);
+    logPrompt({ job: 'skript_rueckfragen', id: message.skript_id, aktion: 'rueckfrage', stable, task, messages });
 
     // Abbruch waehrend des Kontext-Ladens: kein Claude-Call mehr
     if (await istNachrichtAbgebrochen(supabase, messageId)) {

@@ -139,6 +139,13 @@ describe('normalizeValue', () => {
       .toEqual({ alter: '22–38', geschlecht: '', standort: '' });
   });
 
+  it('Videolänge wird ein Intervall', () => {
+    const field = byName('videolaenge');
+    expect(normalizeValue(field, '8–17 Sek.')).toEqual({ von: 8, bis: 17 });
+    expect(normalizeValue(field, { von: 12, bis: 14 })).toEqual({ von: 12, bis: 14 });
+    expect(normalizeValue(field, 'so lang wie nötig')).toBeNull();
+  });
+
   it('entitySelect: Namen werden verworfen, UUIDs bleiben', () => {
     const field = byName('unternehmen_id');
     expect(normalizeValue(field, 'FORGEWORKS AG')).toBeNull();

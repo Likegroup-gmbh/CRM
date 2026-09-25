@@ -156,6 +156,42 @@ function renderRadio(field, formData) {
   `;
 }
 
+function sekundeProzent(n, min, max) {
+  if (max === min) return 0;
+  return ((n - min) / (max - min)) * 100;
+}
+
+function renderSekundenSpanne(field, formData) {
+  const min = field.min ?? 1;
+  const max = field.max ?? 180;
+  const raw = formData[field.name];
+  const von = Number.isFinite(raw?.von) ? raw.von : null;
+  const bis = Number.isFinite(raw?.bis) ? raw.bis : null;
+  const leer = von == null || bis == null;
+  const vonPct = leer ? 0 : sekundeProzent(von, min, max);
+  const bisPct = leer ? 0 : sekundeProzent(bis, min, max);
+  const fill = `left:${vonPct}%;width:${Math.max(0, bisPct - vonPct)}%`;
+  return `
+    <div class="form-field" data-sekunden-spanne="${escapeHtml(field.name)}" data-min="${min}" data-max="${max}" data-von="${leer ? '' : von}" data-bis="${leer ? '' : bis}">
+      ${renderLabel(field)}
+      <div class="sek-spanne${leer ? ' is-empty' : ''}">
+        <div class="sek-spanne__track" data-track>
+          <div class="sek-spanne__rail"></div>
+          <div class="sek-spanne__fill" data-fill style="${fill}"></div>
+          <button type="button" class="sek-spanne__handle" data-handle="von" style="left:${vonPct}%" aria-label="Von"></button>
+          <button type="button" class="sek-spanne__handle" data-handle="bis" style="left:${bisPct}%" aria-label="Bis"></button>
+        </div>
+        <div class="sek-spanne__nums">
+          <input type="text" inputmode="numeric" autocomplete="off" data-sek="von" placeholder="von" value="${leer ? '' : von}" aria-label="Von Sekunden">
+          <span class="sek-spanne__bis">bis</span>
+          <input type="text" inputmode="numeric" autocomplete="off" data-sek="bis" placeholder="bis" value="${leer ? '' : bis}" aria-label="Bis Sekunden">
+          <button type="button" class="sek-spanne__leeren" data-leeren>Leeren</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderCheckbox(field, formData) {
   const checked = formData[field.name] === true;
   return `
@@ -496,6 +532,7 @@ export function renderField(field, formData, context) {
     case 'radio': html = renderRadio(field, formData); break;
     case 'checkbox': html = renderCheckbox(field, formData); break;
     case 'checkboxes': html = renderCheckboxes(field, formData); break;
+    case 'sekundenSpanne': html = renderSekundenSpanne(field, formData); break;
     case 'customMulti': html = renderCustomMulti(field, formData); break;
     case 'group': html = renderGroup(field, formData); break;
     case 'channelGroup': html = renderChannelGroup(field, formData); break;

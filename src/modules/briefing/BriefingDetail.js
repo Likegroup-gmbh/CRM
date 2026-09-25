@@ -5,6 +5,7 @@
 // editierbar; Specs/Tags gehen weiter ueber /briefing/:id/edit.
 
 import { dropAnschreibenWarm, warmAnschreiben } from '../../core/anschreiben/openAnschreiben.js';
+import { formatVideolaenge, tokenLabel } from './videolaenge.js';
 import { tabDataCache } from '../../core/loaders/TabDataCache.js';
 import { renderBriefingDoc, bindBriefingDoc } from './BriefingDocView.js';
 import { loadBriefingProdukte } from './BriefingProdukte.js';
@@ -157,6 +158,21 @@ export class BriefingDetail {
       case 'radio': {
         const opt = field.options?.find(o => String(o.value) === String(value));
         return this.escape(opt?.label || value);
+      }
+      case 'sekundenSpanne': {
+        if (!value || typeof value !== 'object') return null;
+        if (value.art === 'intervall') {
+          const text = formatVideolaenge(value.von, value.bis);
+          return text ? this.escape(text) : null;
+        }
+        if (value.art === 'tokens') {
+          if (!Array.isArray(value.values) || !value.values.length) return null;
+          return value.values
+            .map(v => `<span class="tag tag--type">${this.escape(tokenLabel(v))}</span>`)
+            .join(' ');
+        }
+        if (value.art === 'text') return this.escape(value.text);
+        return null;
       }
       case 'checkboxes':
       case 'customMulti': {

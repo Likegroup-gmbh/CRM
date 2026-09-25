@@ -76,13 +76,18 @@ describe('Briefing Schema-Sync (fieldConfig <-> Migration)', () => {
     join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20260926_briefing_dos_donts.sql'),
     'utf8'
   );
+  const laengeSql = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), '../../supabase/migrations/20260924124935_videolaenge_sekundenintervall.sql'),
+    'utf8'
+  );
   const columns = new Set([
     ...extractColumns(sql),
     ...extractAlterColumns(flowSql),
     ...extractAlterColumns(sonstigesSql),
     ...extractAlterColumns(hooksSql),
     ...extractAlterColumns(linieSql),
-    ...extractAlterColumns(dosSql)
+    ...extractAlterColumns(dosSql),
+    ...extractAlterColumns(laengeSql)
   ]);
   const notNullColumns = extractNotNullColumns(sql);
 
@@ -91,7 +96,7 @@ describe('Briefing Schema-Sync (fieldConfig <-> Migration)', () => {
   });
 
   it('jeder Feldname aus getAllFields() existiert als Spalte', () => {
-    const fieldNames = getAllFields().map(f => f.name);
+    const fieldNames = getAllFields().flatMap(f => f.columns || [f.name]);
     const missing = fieldNames.filter(name => !columns.has(name));
     expect(missing).toEqual([]);
   });

@@ -9,6 +9,7 @@ import { SEND_ICON, PLACEHOLDER_DEFAULT, PLACEHOLDER_NEU } from './skriptEditorK
 import {
   chatLeerHtml, genStatusBubbleHtml, messageHtml, versionsHinweisHtml
 } from './SkriptEditorChatRenderer.js';
+import { istVeraltet } from './skriptEditorVeraltet.js';
 import { SkriptEditorView } from './SkriptEditorViewCore.js';
 
 const MSG_TEXT_SEL = '.skripte-editor-msg-text, .skripte-editor-vorschlag-text';
@@ -223,7 +224,8 @@ SkriptEditorView.prototype.upsertMessageRow = function(m, { animateText = false 
 SkriptEditorView.prototype.renderMessage = function(m) {
   return messageHtml(m, {
     istFragenModus: this.istFragenModus(),
-    genLaeuft: !!this.genStatus?.laeuft
+    genLaeuft: !!this.genStatus?.laeuft,
+    veraltet: istVeraltet(m, this.messages, this.skript)
   });
 };
 

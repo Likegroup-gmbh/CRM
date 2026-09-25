@@ -221,8 +221,8 @@ describe('StakeholderOverviewPage', () => {
     expect(html).toContain('von');
     expect(html).toContain('UGC: 4,9 % auf EK · Influencer: KSK-Topf');
     expect(html).toContain('Σ Nettobetrag aller Aufträge');
-    expect(html).toContain('nicht die gestellten Kundenrechnungen im Zahlungsstand');
-    expect(html).toContain('Kalkulation — nicht die gestellten Creatorrechnungen im Zahlungsstand');
+    expect(html).toContain('Gestellt + Noch nicht gestellt');
+    expect(html).toContain('Offen = Unbezahlt + Noch nicht gestellt');
     expect(html).toContain('Auftragsvolumen − Verbrauchtes Budget');
 
     // Kundenliste vorhanden
@@ -805,11 +805,12 @@ describe('StakeholderOverviewPage', () => {
     const unternehmen = [{ id: 'u1', firmenname: 'Muster GmbH' }];
     const rechnungen = [
       { auftrag_id: 'a1', kooperation_id: 'koop1', status: 'Bezahlt', nettobetrag: 150, rechnungstyp: 'kampagne' },
-      { auftrag_id: 'a1', kooperation_id: 'koop1', status: 'Offen', nettobetrag: 80, rechnungstyp: 'kampagne' },
+      { auftrag_id: 'a1', kooperation_id: 'koop1', status: 'Offen', nettobetrag: 80, zahlungsziel: '2020-01-01', rechnungstyp: 'kampagne' },
       { auftrag_id: 'a1', kooperation_id: 'koop1', status: 'Bezahlt', nettobetrag: 999, rechnungstyp: 'contracting' }
     ];
 
     window.supabase = createMockSupabase({ auftraege, blocks, kampagnen, kooperationen, videos, details, unternehmen, rechnungen });
+    window.setContentSafely = vi.fn((el, html) => { el.innerHTML = html; });
 
     const page = createPage();
     await page.init();
@@ -819,10 +820,20 @@ describe('StakeholderOverviewPage', () => {
     expect(totals.creatorPaid).toBe(150);
     expect(totals.creatorOpen).toBe(250);
 
-    const html = window.setContentSafely.mock.calls[1][1];
+    const creator = page.rechnungsstatus().creator;
+    const offenSumme = creator.offen + creator.nichtGestellt;
+    expect(creator.ueberfaellig).toBeGreaterThan(0);
+    expect(creator.ueberfaellig).toBeLessThanOrEqual(creator.offen);
+    expect(offenSumme).not.toBeCloseTo(creator.offen + creator.nichtGestellt + creator.ueberfaellig);
+
+    const html = window.content.innerHTML;
     expect(html).toContain('150,00 € von 400,00 € bezahlt');
     expect(html).toContain('Bezahlt');
-    expect(html).toContain('Offen');
+    expect(window.content.querySelector('[data-creator-offen]').textContent.trim()).toBe(page.fmtEuro(offenSumme));
+    expect(window.content.querySelector('[data-creator-unbezahlt]').textContent.trim()).toBe(page.fmtEuro(creator.offen));
+    expect(window.content.querySelector('[data-creator-ueberfaellig]').textContent.trim()).toBe(page.fmtEuro(creator.ueberfaellig));
+    expect(window.content.querySelector('[data-creator-nicht-gestellt]').textContent.trim()).toBe(page.fmtEuro(creator.nichtGestellt));
+    expect(html).toContain('Gebuchter Einkauf, zu dem noch keine oder noch keine volle Rechnung da ist.');
   });
 
   it('gruppiert Kundenliste nach Unternehmen und sortiert nach Volumen', async () => {
@@ -1011,21 +1022,19 @@ describe('StakeholderOverviewPage', () => {
     const page = createPage();
     await page.init();
 
-    const nettoEl = () => window.content.querySelector('[data-paid-value="netto"]');
+    const bezahltEl = () => window.content.querySelector('[data-volumen-bezahlt]');
 
-    expect(window.content.innerHTML).toContain('Bereits bezahlte Rechnungen');
-    expect(window.content.querySelector('[data-paid-value="brutto"]')).toBeNull();
+    expect(window.content.innerHTML).not.toContain('Bereits bezahlte Rechnungen');
     // Default GESAMT ohne Contracts: a1 (1000) + bezahlte Teilrechnung a2 (500)
-    expect(nettoEl().textContent).toBe(page.fmtEuro(1500));
-    const statusOhne = page.rechnungsstatus();
-    expect(statusOhne.kunden.bezahlt + statusOhne.contracting.bezahlt).toBe(1500);
+    expect(bezahltEl().textContent.trim()).toBe(page.fmtEuro(1500));
+    expect(page.rechnungsstatus().kunden.bezahlt).toBe(1500);
 
     const tabSelect = document.getElementById('stakeholder-tab-select');
     tabSelect.value = 'gesamt_mit';
     tabSelect.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(nettoEl().textContent).toBe(page.fmtEuro(3500));
-    expect(page.rechnungsstatus().kunden.bezahlt + page.rechnungsstatus().contracting.bezahlt)
-      .toBe(3500);
+    // Contracting bleibt in der Zahlungsstand-Zeile, nicht in der Volumen-Kachel.
+    expect(bezahltEl().textContent.trim()).toBe(page.fmtEuro(1500));
+    expect(page.rechnungsstatus().contracting.bezahlt).toBe(2000);
 
     page.activeTab = 'gesamt_ohne';
     page.render();
@@ -1034,13 +1043,13 @@ describe('StakeholderOverviewPage', () => {
     let select = document.getElementById('stakeholder-year-select');
     select.value = '2026';
     select.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(nettoEl().textContent).toBe(page.fmtEuro(500));
+    expect(bezahltEl().textContent.trim()).toBe(page.fmtEuro(500));
 
     // Jahr 2025: nur a1 auf Auftragsebene
     select = document.getElementById('stakeholder-year-select');
     select.value = '2025';
     select.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(nettoEl().textContent).toBe(page.fmtEuro(1000));
+    expect(bezahltEl().textContent.trim()).toBe(page.fmtEuro(1000));
 
     page.destroy();
     window.content.remove();
@@ -1279,7 +1288,8 @@ describe('StakeholderOverviewPage', () => {
     const auftraege = [
       {
         id: 'a1', auftragsname: 'Offen A', nettobetrag: 4000, start: '2026-01-01',
-        is_draft: false, unternehmen_id: 'u1', rechnung_gestellt_am: '2026-03-01'
+        is_draft: false, unternehmen_id: 'u1', rechnung_gestellt_am: '2026-03-01',
+        re_faelligkeit: '2020-01-01'
       },
       {
         id: 'a2', auftragsname: 'Rest B', nettobetrag: 2500, start: '2026-01-01',
@@ -1292,6 +1302,19 @@ describe('StakeholderOverviewPage', () => {
 
     const page = createPage();
     await page.init();
+
+    const kunden = page.rechnungsstatus().kunden;
+    expect(kunden.ueberfaellig).toBeGreaterThan(0);
+    expect(kunden.ueberfaellig).toBeLessThanOrEqual(kunden.offen);
+    const wert = (attr) => window.content.querySelector(`[${attr}]`).textContent.trim();
+    expect(wert('data-volumen-gestellt')).toBe(page.fmtEuro(kunden.gestellt));
+    expect(wert('data-volumen-bezahlt')).toBe(page.fmtEuro(kunden.bezahlt));
+    expect(wert('data-volumen-offen')).toBe(page.fmtEuro(kunden.offen));
+    expect(wert('data-volumen-ueberfaellig')).toBe(page.fmtEuro(kunden.ueberfaellig));
+    expect(wert('data-volumen-nicht-gestellt')).toBe(page.fmtEuro(kunden.nichtGestellt));
+    expect(window.content.innerHTML).toContain('Beauftragtes Volumen, zu dem noch keine oder noch keine volle Rechnung da ist.');
+    const volumen = page.aggregate().totals.volumen;
+    expect(window.content.innerHTML).toContain(`${page.fmtPct(volumen > 0 ? (kunden.gestellt / volumen) * 100 : 0)} gestellt`);
 
     zahlungsstandZelle('kunden', 'gestellt')
       .dispatchEvent(new MouseEvent('click', { bubbles: true }));

@@ -119,6 +119,7 @@ export class SkriptEditorVisuell {
 
       await skripteService.updateChatMessage(msg.id, { status: 'angenommen' });
       msg.status = 'angenommen';
+      msg.updated_at = new Date().toISOString();
 
       const focused = v.inlineEdit.focusedFeld();
       if (focused && focused !== feld) {

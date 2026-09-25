@@ -336,6 +336,24 @@ describe('createSkriptAnhang', () => {
     }
   });
 
+  it('filtert Emoji und kombinierende Umlaute, laesst WinAnsi-Satzzeichen stehen', async () => {
+    await createSkriptAnhang([{
+      titel: 'Plus',
+      hook: 'za\u0308hlt \u{1F600} und (2\u{1F464} 3\u{1F464} 4\u{1F464} 5)',
+      hook_visuell: '\u201ENetz\u201C \u2013 bleibt',
+      hauptteil: '',
+      cta: '',
+      hauptteil_visuell: '',
+      cta_visuell: '',
+      creator: { name: 'Ann_a \u{1F600}' },
+    }], { dateiname: 'Plus.pdf' });
+    const joined = MockJsPDF.last.textCalls.join('\n');
+    expect(joined).toContain('zählt und (2 3 4 5)');
+    expect(joined).toContain('\u201ENetz\u201C \u2013 bleibt');
+    expect(joined).toContain('Ann_a');
+    expect(joined).not.toMatch(/\p{Extended_Pictographic}/u);
+  });
+
   it('laesst die Creator-Zeile weg, leere Felder bleiben leer', async () => {
     await createSkriptAnhang([{
       titel: 'Leer',

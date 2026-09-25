@@ -13,19 +13,9 @@ import {
   mappedEhgLieferbestandteile
 } from '../EhgVertragGating.js';
 import { loadLikeGroupLogoPng, drawLikeGroupLogo, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
+import { normalizePdfWinAnsi } from '../../../../core/pdf/pdfWinAnsi.js';
 
-// jsPDF Helvetica spricht WinAnsi. Typografische Anführungszeichen und
-// Gedankenstriche aus der EHG-Vorlage werfen sonst vor dem Upload.
-export function normalizePdfWinAnsi(value) {
-  if (Array.isArray(value)) return value.map(normalizePdfWinAnsi);
-  if (typeof value !== 'string') return value;
-  return value
-    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
-    .replace(/[\u201C\u201D\u201E\u201F]/g, '"')
-    .replace(/[\u2013\u2014\u2212]/g, '-')
-    .replace(/\u2026/g, '...')
-    .replace(/[\u00A0\u202F\u2009\u200A]/g, ' ');
-}
+export { normalizePdfWinAnsi };
 
 function bindPdfWinAnsi(doc) {
   const originalText = doc.text.bind(doc);

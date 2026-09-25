@@ -10,6 +10,7 @@ import { AKTION_LABELS, VISUELL_FIELD, GRID_SEKTIONEN, HOOK_VARIANTE_FELDER, SEK
 import { pendingThinking } from '../../../core/chat/thinking.js';
 import { sektionAnzeige, sektionAnzeigeKurz, skriptStand, manuellBeschreibung } from './skriptEditorVisuellHelfer.js';
 import { istMasterSkript, replaceMasterSektion, masterSektionBody } from '../master/skriptMasterFormat.js';
+import { istVeraltet } from './skriptEditorVeraltet.js';
 
 export class SkriptEditorChatActions {
   constructor(view) {
@@ -231,6 +232,11 @@ export class SkriptEditorChatActions {
     if (msg.aktion === 'visuell') return v.applyVisuellVorschlag(msg);
     // Doppelklick-Guard: parallele Accepts kollidieren auf version_nr
     if (v.acceptLaeuft) return;
+    if (istVeraltet(msg, v.messages, v.skript)) {
+      window.toastSystem?.error('Vorschlag ist veraltet – die Sektion wurde danach geändert');
+      v.renderChat();
+      return;
+    }
 
     const sektion = msg.sektion;
     if (!GRID_SEKTIONEN.includes(sektion)) {
@@ -289,6 +295,7 @@ export class SkriptEditorChatActions {
 
       await skripteService.updateChatMessage(msg.id, { status: 'angenommen' });
       msg.status = 'angenommen';
+      msg.updated_at = new Date().toISOString();
 
       v.renderDoc();
       v.renderChat();
@@ -350,6 +357,7 @@ export class SkriptEditorChatActions {
       v.versionen = await skripteService.getVersionen(v.skript.id);
       await skripteService.updateChatMessage(msg.id, { status: 'angenommen' });
       msg.status = 'angenommen';
+      msg.updated_at = new Date().toISOString();
       v.renderDoc();
       v.renderChat();
       v.renderVersionSelect();

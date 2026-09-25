@@ -5,6 +5,9 @@
 
 import { BriefingCreate } from './BriefingCreateCore.js';
 import { evaluateCondition, getAllFields } from './fieldConfig.js';
+import {
+  commitZahl, sekundeAnPosition, spreize, zieheGriff
+} from '../videolaenge.js';
 import { escapeHtml } from './FieldRenderer.js';
 import { icon } from '../../../core/icons/IconSystem.js';
 import { backTarget } from '../../../core/navHerkunft.js';
@@ -71,6 +74,114 @@ BriefingCreate.prototype.bindMultistepEvents = function() {
   this.bindConditionalEvents();
   this.bindRepeatableEvents();
   this.bindCascadeEvents();
+  this.bindSekundenSpanne();
+};
+
+function spanneLesen(root) {
+  const von = root.dataset.von;
+  const bis = root.dataset.bis;
+  if (von === '' || bis === '' || von == null || bis == null) return null;
+  return { von: Number(von), bis: Number(bis) };
+}
+
+function spanneSchreiben(root, iv, { forceInputs = false } = {}) {
+  const min = Number(root.dataset.min) || 1;
+  const max = Number(root.dataset.max) || 180;
+  const leer = !iv;
+  root.dataset.von = leer ? '' : String(iv.von);
+  root.dataset.bis = leer ? '' : String(iv.bis);
+  root.querySelector('.sek-spanne')?.classList.toggle('is-empty', leer);
+
+  const pct = (n) => (max === min ? 0 : ((n - min) / (max - min)) * 100);
+  const vonPct = leer ? 0 : pct(iv.von);
+  const bisPct = leer ? 0 : pct(iv.bis);
+  const fill = root.querySelector('[data-fill]');
+  if (fill) {
+    fill.style.left = `${vonPct}%`;
+    fill.style.width = `${Math.max(0, bisPct - vonPct)}%`;
+  }
+  const vonHandle = root.querySelector('[data-handle="von"]');
+  const bisHandle = root.querySelector('[data-handle="bis"]');
+  if (vonHandle) vonHandle.style.left = `${vonPct}%`;
+  if (bisHandle) bisHandle.style.left = `${bisPct}%`;
+
+  const aktiv = forceInputs ? null : document.activeElement;
+  const vonInput = root.querySelector('[data-sek="von"]');
+  const bisInput = root.querySelector('[data-sek="bis"]');
+  if (vonInput && aktiv !== vonInput) vonInput.value = leer ? '' : String(iv.von);
+  if (bisInput && aktiv !== bisInput) bisInput.value = leer ? '' : String(iv.bis);
+}
+
+function sekundeAmZeiger(root, event) {
+  const track = root.querySelector('[data-track]');
+  const rect = track.getBoundingClientRect();
+  const ratio = rect.width ? (event.clientX - rect.left) / rect.width : 0;
+  return sekundeAnPosition(ratio, Number(root.dataset.min) || 1, Number(root.dataset.max) || 180);
+}
+
+BriefingCreate.prototype.bindSekundenSpanne = function() {
+  const form = document.getElementById('briefing-form');
+  if (!form) return;
+
+  form.querySelectorAll('[data-sekunden-spanne]').forEach(root => {
+    const track = root.querySelector('[data-track]');
+    track?.addEventListener('pointerdown', (e) => {
+      if (e.button != null && e.button !== 0) return;
+      const handle = e.target.closest?.('[data-handle]');
+      const start = spanneLesen(root);
+      if (start && start.von !== start.bis && !handle) return;
+
+      const sek = sekundeAmZeiger(root, e);
+      let mode;
+      let anchor = null;
+      if (start && start.von !== start.bis && handle) {
+        mode = handle.dataset.handle;
+      } else {
+        mode = 'spread';
+        anchor = (start && start.von === start.bis && handle) ? start.von : sek;
+        spanneSchreiben(root, { von: anchor, bis: anchor });
+      }
+
+      const move = (ev) => {
+        const jetzt = sekundeAmZeiger(root, ev);
+        const next = mode === 'spread'
+          ? spreize(anchor, jetzt)
+          : zieheGriff({ von: start.von, bis: start.bis, seite: mode, sekunde: jetzt });
+        if (next) spanneSchreiben(root, next);
+      };
+      const up = () => {
+        document.removeEventListener('pointermove', move);
+        document.removeEventListener('pointerup', up);
+        document.removeEventListener('pointercancel', up);
+      };
+      document.addEventListener('pointermove', move);
+      document.addEventListener('pointerup', up);
+      document.addEventListener('pointercancel', up);
+    });
+
+    root.querySelectorAll('[data-sek]').forEach(input => {
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          input.blur();
+        }
+      });
+      input.addEventListener('blur', () => {
+        const state = spanneLesen(root);
+        const next = commitZahl({
+          von: state?.von ?? null,
+          bis: state?.bis ?? null,
+          seite: input.dataset.sek,
+          roh: input.value
+        });
+        spanneSchreiben(root, next, { forceInputs: true });
+      });
+    });
+
+    root.querySelector('[data-leeren]')?.addEventListener('click', () => {
+      spanneSchreiben(root, null, { forceInputs: true });
+    });
+  });
 };
 
 // ---------------------------------------------------------------

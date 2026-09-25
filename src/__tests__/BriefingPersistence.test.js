@@ -7,7 +7,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { BriefingCreate } from '../modules/briefing/create/BriefingCreateCore.js';
 import { starteBriefingAuswertung } from '../modules/briefing/create/BriefingAuswertung.js';
+import { renderField } from '../modules/briefing/create/FieldRenderer.js';
 import '../modules/briefing/create/DataPersistence.js';
+import '../modules/briefing/create/FormEvents.js';
 
 vi.mock('../modules/briefing/create/BriefingAuswertung.js', () => ({
   starteBriefingAuswertung: vi.fn().mockResolvedValue({ id: 'job-1' })
@@ -145,6 +147,40 @@ describe('Briefing DataPersistence', () => {
     expect(instance.formData.bereich).toBe('influencer_marketing');
   });
 
+  it('saveCurrentStepData liest die Videolänge aus dem Slider', () => {
+    document.body.innerHTML = `
+      <form id="briefing-form">
+        <div data-sekunden-spanne="videolaenge" data-von="12" data-bis="14"></div>
+      </form>
+    `;
+    const instance = createInstance();
+    instance.saveCurrentStepData();
+    expect(instance.formData.videolaenge).toEqual({ von: 12, bis: 14 });
+  });
+
+  it('Blur auf einer leeren Seite setzt beide Sekunden, Leeren räumt ab', () => {
+    document.body.innerHTML = `<form id="briefing-form">${renderField({
+      name: 'videolaenge', label: 'Videolänge', type: 'sekundenSpanne', min: 1, max: 180
+    }, {})}</form>`;
+    const instance = new BriefingCreate();
+    instance.bindSekundenSpanne();
+
+    const von = document.querySelector('[data-sek="von"]');
+    von.value = '8';
+    von.dispatchEvent(new Event('blur'));
+
+    const root = document.querySelector('[data-sekunden-spanne]');
+    expect(root.dataset.von).toBe('8');
+    expect(root.dataset.bis).toBe('8');
+    expect(document.querySelector('[data-sek="bis"]').value).toBe('8');
+    expect(root.querySelector('.sek-spanne').classList.contains('is-empty')).toBe(false);
+
+    root.querySelector('[data-leeren]').click();
+    expect(root.dataset.von).toBe('');
+    expect(root.dataset.bis).toBe('');
+    expect(root.querySelector('.sek-spanne').classList.contains('is-empty')).toBe(true);
+  });
+
   it('prepareDataForDB leert Paid-Felder im Influencer-Briefing und spiegelt Prefix-Spalten', () => {
     const instance = createInstance();
     instance.formData = {
@@ -206,6 +242,28 @@ describe('Briefing DataPersistence', () => {
     expect(data.aktivierung_name).toBeNull();
     expect(data.nutzung_markenkanal).toBe(false);
     expect(data.marke_id).toBeNull();
+    expect(data.videolaenge_von).toBeNull();
+    expect(data.videolaenge_bis).toBeNull();
+    expect(data).not.toHaveProperty('videolaenge');
+    expect(data).not.toHaveProperty('pa_videolaengen');
+  });
+
+  it('prepareDataForDB schreibt das Sekundenintervall und lässt Altspalten weg', () => {
+    const instance = createInstance();
+    instance.selectedBereich = 'paid_creator_ads';
+    instance.formData = {
+      bereich: 'paid_creator_ads',
+      unternehmen_id: 'u1',
+      aktivierung_name: 'Ads',
+      videolaenge: { von: 8, bis: 17 }
+    };
+
+    const data = instance.prepareDataForDB();
+
+    expect(data.videolaenge_von).toBe(8);
+    expect(data.videolaenge_bis).toBe(17);
+    expect(data).not.toHaveProperty('videolaenge');
+    expect(data).not.toHaveProperty('pa_videolaengen');
   });
 
   it('saveDraftToDB legt Entwurf an und setzt editId', async () => {
@@ -300,5 +358,23 @@ describe('Briefing DataPersistence', () => {
     expect(instance.formData.marke_id).toBe('m1');
     expect(instance.formData).not.toHaveProperty('produkt_ids');
     expect(instance.formData).not.toHaveProperty('persona_ids');
+  });
+
+  it('loadFromDB übersetzt alte Tokens in das Intervall', async () => {
+    const row = {
+      id: 'briefing-1',
+      bereich: 'paid_creator_ads',
+      unternehmen_id: 'u1',
+      aktivierung_name: 'Paid Push',
+      videolaengen: ['15s', '60s'],
+      pa_videolaengen: ['6s']
+    };
+    const { sb } = mockSupabase({ row });
+    window.supabase = sb;
+
+    const instance = new BriefingCreate();
+    await instance.loadFromDB('briefing-1');
+
+    expect(instance.formData.videolaenge).toEqual({ von: 15, bis: 60 });
   });
 });

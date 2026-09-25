@@ -4,11 +4,9 @@
 import { getChipFromKampagnenartName } from '../projekt-erstellen/logic/CampaignBudgetFields.js';
 import { calculateBudgetOverview } from '../../core/budget/calculateBudgetOverview.js';
 import { calculateCreatorPaymentSummary } from '../../core/budget/EkVkAgencyFeeHelper.js';
-import { isContracting } from '../../core/budget/leistungsbereich.js';
 import { calculateMonatsauswertung } from '../../core/budget/monatsauswertung.js';
 import { calculateRechnungsstatus, listZahlungsstandBelege } from '../../core/budget/rechnungsstatus.js';
 import { fetchBerichtsstaende } from './berichtsstandStore.js';
-import { sumPaidInvoiceRows } from '../auftrag/logic/PaymentRowStatus.js';
 import { fetchAllRows } from '../../core/fetchAllRows.js';
 import {
   INFLUENCER_CHIPS,
@@ -23,7 +21,6 @@ import {
   resolvePercentageFee,
   resolveVolumen,
   tabForAuftrag,
-  teilrechnungenByAuftrag,
   videosByKoop,
 } from './stakeholderOverviewLogic.js';
 
@@ -87,8 +84,6 @@ export function aggregate(page) {
   const koopMap = koopsByAuftrag(page);
   const videoMap = videosByKoop(page);
   const kampMap = kampagnenByAuftrag(page);
-  const trMap = teilrechnungenByAuftrag(page);
-
   const rows = [];
   let sumVolumen = 0;
   let sumVerfuegbar = 0;
@@ -103,7 +98,6 @@ export function aggregate(page) {
   let sumDb = 0;
   let sumCreatorPaid = 0;
   let sumCreatorOpen = 0;
-  let sumPaidNetto = 0;
 
   auftraege.forEach(a => {
     const blocks = blockMap.get(a.id) || [];
@@ -160,18 +154,6 @@ export function aggregate(page) {
     sumCreatorPaid += creatorPayment.paid;
     sumCreatorOpen += creatorPayment.open;
 
-    if (isContracting(a)) {
-      (page.rechnungen || []).forEach(r => {
-        if (r.rechnungstyp !== 'contracting' || r.auftrag_id !== a.id) return;
-        if (r.status !== 'Bezahlt' && (r.bezahlt_am == null || r.bezahlt_am === '')) return;
-        sumPaidNetto += parseFloat(r.nettobetrag) || 0;
-      });
-    } else {
-      const trs = trMap.get(a.id) || [];
-      const paid = trs.length > 0 ? sumPaidInvoiceRows(trs) : sumPaidInvoiceRows([a]);
-      sumPaidNetto += paid.netto;
-    }
-
     rows.push({
       auftrag: a,
       details,
@@ -205,8 +187,7 @@ export function aggregate(page) {
       agenturVoll: sumAgenturVoll,
       ksk: sumKsk,
       zusatz: sumZusatz,
-      db: sumDb,
-      paidNetto: sumPaidNetto
+      db: sumDb
     }
   };
 }

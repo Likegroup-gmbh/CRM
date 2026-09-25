@@ -105,7 +105,7 @@ export class SkripteService {
           unternehmen:unternehmen_id(id, firmenname, branche_id),
           marke:marke_id(id, markenname, branche_id),
           kampagne:kampagne_id(id, kampagnenname, eigener_name),
-          briefing:briefing_id(id, aktivierung_name, bereich, im_funnel_stufen, pa_funnel_stufen, pa_videolaengen, im_formatvorgaben, os_formatvorgaben)
+          briefing:briefing_id(id, aktivierung_name, bereich, im_funnel_stufen, pa_funnel_stufen, pa_videolaengen, videolaengen, videolaenge_text, videolaenge_von, videolaenge_bis, im_formatvorgaben, os_formatvorgaben)
         )
       `)
       .eq('skript_freigabe', true)
@@ -445,7 +445,7 @@ export class SkripteService {
 
   async _loadBriefingVorgaben(briefingId) {
     const { data, error } = await this.db.from('campaign_briefings')
-      .select('id, aktivierung_name, bereich, im_funnel_stufen, pa_funnel_stufen, pa_videolaengen, im_formatvorgaben, os_formatvorgaben')
+      .select('id, aktivierung_name, bereich, im_funnel_stufen, pa_funnel_stufen, pa_videolaengen, videolaengen, videolaenge_text, videolaenge_von, videolaenge_bis, im_formatvorgaben, os_formatvorgaben')
       .eq('id', briefingId)
       .maybeSingle();
     if (error) throw new Error(error.message);

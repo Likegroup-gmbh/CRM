@@ -20,9 +20,14 @@ function baseCtx(overrides = {}) {
       prompt_kontext: {},
       ...(overrides.skript || {})
     },
-    history: [],
-    dna: [],
-    briefing: overrides.briefing ?? null,
+    history: overrides.history || [],
+    rueckfragen: overrides.rueckfragen || '',
+    kontext: {
+      dna: [],
+      master: [],
+      briefing: overrides.briefing ?? null,
+      ...(overrides.kontext || {})
+    },
     modus: overrides.modus ?? null
   };
 }
@@ -44,7 +49,6 @@ describe('buildEditPrompt Briefing-Pfade', () => {
     expect(task).toContain('Summer Glow');
     expect(task).toContain('https://shop.example/glow');
     expect(task).toContain('GLOW20');
-    expect(task).toContain('CAMPAIGN-BRIEFING bzw. Briefing-Extrakt');
     expect(task).not.toContain('PDF-BRIEFING');
     expect(task).not.toContain('BRIEFING-EXTRAKT');
   });

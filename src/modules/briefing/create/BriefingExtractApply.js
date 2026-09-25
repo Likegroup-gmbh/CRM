@@ -17,6 +17,7 @@
 // in Textfeldern und die Widgets zeigen leer, obwohl formData voll ist.
 
 import { ExtractReviewLayer } from '../../../core/form/ai/ExtractReviewLayer.js';
+import { intervallOderNull, videolaengeAusAlt } from '../videolaenge.js';
 import { resolveProduktHints } from './produktHint.js';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -236,6 +237,12 @@ export function normalizeValue(field, raw) {
       return asChannelGroup(field, value);
     case 'group':
       return asGroup(field, value);
+    case 'sekundenSpanne': {
+      if (value && typeof value === 'object' && value.von != null && value.bis != null) {
+        return intervallOderNull(value.von, value.bis);
+      }
+      return videolaengeAusAlt({ videolaenge_text: asText(value) });
+    }
     case 'entitySelect':
       // Extract/Chat liefern Namen ("FORGEWORKS AG"), keine IDs - nicht raten
       return UUID_RE.test(asText(value).trim()) ? asText(value).trim() : null;

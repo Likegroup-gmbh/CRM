@@ -11,6 +11,7 @@ import {
   LIKEGROUP_LOGO_PX,
   PDF_BRAND,
 } from '../../core/pdf/PdfBrand.js';
+import { stripNonWinAnsi } from '../../core/pdf/pdfWinAnsi.js';
 
 export const JSPDF_URL = 'https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js';
 
@@ -80,9 +81,9 @@ function uniquePdfName(titel, used) {
 }
 
 function plain(text) {
-  return String(text ?? '')
+  return stripNonWinAnsi(String(text ?? '')
     .replace(/<[^>]+>/g, '')
-    .replace(/[*_]{1,3}/g, '')
+    .replace(/[*_]{1,3}/g, ''))
     .trim();
 }
 
@@ -310,9 +311,10 @@ function drawSkriptLockup(doc, likeGroupPng, customerImage, customerName) {
     doc.addImage(customerSrc, 'JPEG', customerX, imageY, fitted.w, fitted.h, undefined, 'FAST');
     return;
   }
-  if (customerName) {
+  const customerLabel = stripNonWinAnsi(customerName || '').trim();
+  if (customerLabel) {
     if (typeof doc.setFontSize === 'function') doc.setFontSize(9 * LOCKUP_SCALE);
-    doc.text(customerName, customerX, baseline);
+    doc.text(customerLabel, customerX, baseline);
   }
 }
 
@@ -345,7 +347,7 @@ function drawCreatorCard(doc, item, image, y) {
   doc.setDrawColor(...RULE);
   if (typeof doc.setLineWidth === 'function') doc.setLineWidth(0.25);
   doc.rect(MARGIN_X, y, TABLE_W, CARD_H);
-  const name = item.creator?.name || '';
+  const name = stripNonWinAnsi(item.creator?.name || '').trim();
   if (name) {
     const placed = placeImage(doc, image?.dataUrl || image, MARGIN_X + 3, y + 2, CREATOR_SIZE, CREATOR_SIZE);
     const textX = placed ? MARGIN_X + CREATOR_SIZE + 6 : MARGIN_X + 4;

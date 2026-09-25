@@ -5,6 +5,7 @@
 
 import { BriefingCreate } from './BriefingCreateCore.js';
 import { getAllFields, flattenFields, FLOW_STEPS, isFieldActive } from './fieldConfig.js';
+import { intervallOderNull, videolaengeAusBriefing } from '../videolaenge.js';
 import { starteBriefingAuswertung } from './BriefingAuswertung.js';
 import { backTarget } from '../../../core/navHerkunft.js';
 
@@ -128,6 +129,17 @@ BriefingCreate.prototype.saveCurrentStepData = function() {
         }
         break;
       }
+      case 'sekundenSpanne': {
+        const root = form.querySelector(`[data-sekunden-spanne="${field.name}"]`);
+        if (root) {
+          const von = root.dataset.von;
+          const bis = root.dataset.bis;
+          this.formData[field.name] = (von === '' || bis === '')
+            ? null
+            : intervallOderNull(von, bis);
+        }
+        break;
+      }
       case 'radio': {
         const checked = form.querySelector(`input[name="${field.name}"]:checked`);
         if (checked) {
@@ -173,6 +185,7 @@ BriefingCreate.prototype.prepareDataForDB = function() {
   };
 
   for (const field of getAllFields()) {
+    if (field.type === 'sekundenSpanne') continue;
     if (!isFieldActive(field.name, { ...this.formData, bereich })) {
       data[field.name] = defaultForField(field);
       continue;
@@ -219,6 +232,10 @@ BriefingCreate.prototype.prepareDataForDB = function() {
     data.tkp = 25;
   }
 
+  const laenge = intervallOderNull(this.formData.videolaenge?.von, this.formData.videolaenge?.bis);
+  data.videolaenge_von = laenge?.von ?? null;
+  data.videolaenge_bis = laenge?.bis ?? null;
+
   mirrorLegacyColumns(data, bereich);
   return data;
 };
@@ -261,7 +278,6 @@ function mirrorLegacyColumns(data, bereich) {
     data.pa_funnel_stufen = data.funnel_stufen || null;
     data.pa_objectives = data.paid_objectives || null;
     data.pa_ziel_url = data.ziel_url || null;
-    data.pa_videolaengen = data.videolaengen || null;
   } else if (bereich === 'owned_social') {
     data.os_channels = data.publish_channels || null;
     data.os_content_ziele = data.content_ziele || null;
@@ -458,6 +474,9 @@ BriefingCreate.prototype.loadFromDB = async function(id) {
         this.formData[field.name] = briefing[field.name];
       }
     }
+    const laenge = videolaengeAusBriefing(briefing);
+    if (laenge) this.formData.videolaenge = laenge;
+
     this.formData.bereich = briefing.bereich;
     this.formData.unternehmen_id = briefing.unternehmen_id;
     this.formData.marke_id = briefing.marke_id;

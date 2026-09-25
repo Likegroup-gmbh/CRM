@@ -70,7 +70,7 @@ export function aktionTagHtml(m) {
   return `<span class="skripte-editor-tag">${iconHtml}${escapeHtml(AKTION_LABELS[m.aktion])}${sektion}</span>`;
 }
 
-export function messageHtml(m, { istFragenModus = false, genLaeuft = false } = {}) {
+export function messageHtml(m, { istFragenModus = false, genLaeuft = false, veraltet = false } = {}) {
   if (m.rolle === 'user') {
     return `
       <div class="skripte-editor-msg skripte-editor-msg--user" data-msg-row="${m.id}">
@@ -139,6 +139,15 @@ export function messageHtml(m, { istFragenModus = false, genLaeuft = false } = {
     }
   } else if (m.aktion === 'visuell' && m.status === 'vorschlag') {
     footer = `<p class="skripte-hint">Visual wird automatisch übernommen …</p>`;
+  } else if (m.status === 'vorschlag' && veraltet) {
+    footer = `
+      <div class="skripte-editor-msg-state">${badge('Veraltet', 'neutral')}</div>
+      <p class="skripte-hint">Veraltet: Sektion wurde danach geändert.</p>
+      <div class="skripte-editor-msg-actions">
+        <button class="skripte-editor-pill-btn" data-msg-action="reject" data-msg-id="${m.id}">Änderung ablehnen</button>
+        <button class="skripte-editor-pill-btn" data-msg-action="retry" data-msg-id="${m.id}">Neu schreiben</button>
+      </div>
+    `;
   } else if (m.status === 'vorschlag') {
     footer = `
       <div class="skripte-editor-msg-actions">

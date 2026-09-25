@@ -120,9 +120,7 @@ describe('buildEditPrompt Master-Dokument', () => {
     const { task } = buildEditPrompt({
       skript: { titel: 'Test', inhalt_md: '## Hook-Paket\nAudio: hi', prompt_kontext: {} },
       history: [],
-      dna: [],
-      briefing: null,
-      master: MASTER
+      kontext: { dna: [], briefing: null, master: MASTER }
     }, { aktion: 'chat', sektion: 'hook-paket', inhalt: 'Kuerzer' });
 
     expect(task).toContain('## Hook-Paket');
@@ -139,9 +137,7 @@ describe('buildEditPrompt Master-Dokument', () => {
         prompt_kontext: {}
       },
       history: [],
-      dna: [],
-      briefing: null,
-      master: []
+      kontext: { dna: [], briefing: null, master: [] }
     }, { aktion: 'kuerzen', sektion: 'hook_variante_1', inhalt: '' });
 
     expect(task).toContain('HOOK-VARIANTEN');

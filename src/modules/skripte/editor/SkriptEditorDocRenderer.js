@@ -4,6 +4,7 @@
 // Alles pure Funktionen: State rein, HTML-String raus.
 
 import { skripteService, FUNNEL_STUFEN, VIDEO_LAENGEN, SKRIPT_BEREICHE } from '../SkripteService.js';
+import { formatVideoLaengeSchluessel } from '../../briefing/videolaenge.js';
 import { escapeHtml } from '../SkripteUtils.js';
 import { renderInlineMd } from '../../../core/utils/inlineFormat.js';
 import { istMasterSkript, renderMasterMarkdownHtml } from '../master/skriptMasterFormat.js';
@@ -357,7 +358,7 @@ export function vorgabenPanelHtml(skript) {
     ['Branche', s.branchen?.name],
     ['Bereich', s.bereich ? (SKRIPT_BEREICHE[s.bereich] || s.bereich) : null],
     ['Regie-Modus', s.prompt_kontext?.modus || s.prompt_kontext?.generator_payload?.modus || null],
-    ['Video-Länge', s.video_laenge ? (VIDEO_LAENGEN[s.video_laenge] || s.video_laenge) : null],
+    ['Video-Länge', s.video_laenge ? (VIDEO_LAENGEN[s.video_laenge] || formatVideoLaengeSchluessel(s.video_laenge) || s.video_laenge) : null],
     ['Funnel-Stufe', s.funnel_stufe ? (FUNNEL_STUFEN[s.funnel_stufe] || s.funnel_stufe) : null],
     ['Tonalität', s.tonalitaet],
     ['Skript-DNA', s.mit_dna === false ? 'Ohne DNA (Blindvergleich)' : 'Mit DNA'],

@@ -81,7 +81,10 @@
   gap: var(--space-md);
 }
 
-.stakeholder-cards--kalkulation,
+.stakeholder-cards--kalkulation {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .stakeholder-cards--breakdown {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -229,6 +232,34 @@
   justify-content: space-between;
   gap: var(--space-sm);
   line-height: 1.6;
+}
+
+.stakeholder-card-breakdown-line--part {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.stakeholder-card-breakdown-line--part:not(:first-child) {
+  margin-top: 6px;
+}
+
+.stakeholder-card-breakdown-line--sub {
+  padding-left: var(--space-sm);
+}
+
+.stakeholder-card-breakdown-line--deep {
+  padding-left: var(--space-lg);
+}
+
+.stakeholder-card-breakdown-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.stakeholder-card-info--inline {
+  margin: 0;
+  padding: 0;
 }
 
 .stakeholder-progress {

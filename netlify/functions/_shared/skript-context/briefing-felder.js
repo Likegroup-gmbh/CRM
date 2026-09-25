@@ -2,9 +2,33 @@
 // Campaign-Briefing: Feld-Config (Master + Module), Enum-Labels und der
 // Formatter als Prompt-Sektion mit Token-Budget.
 
-const { kuerzeTranskript } = require('./formatter');
+const { kuerzeTranskript, cap } = require('./formatter');
 
 const BRIEFING_MAX = 6000;
+const SETTING_MAX = 1500;
+
+const BEREICH_PREFIX = {
+  influencer_marketing: 'im_',
+  paid_creator_ads: 'pa_',
+  owned_social: 'os_'
+};
+
+// Stehen in eigenen Bloecken (DONTS, CREATOR-VORGABEN, SETTING) vor dem
+// kuerzbaren Body. Die Prefix-Spalten sind Spiegel aus mirrorLegacyColumns.
+const EIGENER_BLOCK_FELDER = new Set([
+  'creator_merkmale', 'beteiligte_personen', 'vorgaben_ausschluesse', 'setting',
+  'im_creator_merkmale', 'pa_creator_merkmale', 'os_creator_merkmale',
+  'im_situationen', 'pa_situationen', 'os_situationen'
+]);
+
+const MERKMAL_LABELS = {
+  alter: 'Alter',
+  standort: 'Standort',
+  expertise: 'Expertise',
+  sonstiges: 'Sonstiges'
+};
+
+const HARTES_GESCHLECHT = /^(nur\s+)?(weiblich|männlich|divers)$/;
 
 const BEREICH_LABELS = {
   influencer_marketing: 'Influencer Marketing',
@@ -373,6 +397,7 @@ function collectBriefingLines(briefing) {
 
   const lines = [];
   for (const field of fields) {
+    if (EIGENER_BLOCK_FELDER.has(field.name)) continue;
     let raw = briefing[field.name];
     if (field.name === 'bereich') raw = BEREICH_LABELS[briefing.bereich] || briefing.bereich;
     const formatted = fmtBriefingValue(raw);
@@ -392,17 +417,72 @@ function leitplankenAusBriefing(briefing) {
 
 function fmtLeitplanken(briefing) {
   const { dos, donts } = leitplankenAusBriefing(briefing);
-  if (!dos && !donts) return '';
+  const ausschluesse = String(briefing?.vorgaben_ausschluesse || '').trim();
+  if (!dos && !donts && !ausschluesse) return '';
   let out = '\n# LEITPLANKEN (vor dem restlichen Briefing, nicht kuerzen)\n';
-  if (donts) {
+  if (donts || ausschluesse) {
     out += '# DONTS (Verbote. Nicht uebertreten. Was nicht im Briefing, am Produkt oder am Creator steht, wird nicht behauptet.)\n';
-    out += `${donts}\n`;
+    if (donts) out += `${donts}\n`;
+    if (ausschluesse) out += `Ausschluesse aus dem Briefing:\n${ausschluesse}\n`;
   }
   if (dos) {
     out += '# DOS (Mitnehmen, wo die Daten es hergeben. Kein Ausschluss. Ein fehlender Fakt wird weggelassen.)\n';
     out += `${dos}\n`;
   }
   return out;
+}
+
+function merkmaleGefuellt(obj) {
+  if (!obj) return false;
+  if (typeof obj !== 'object') return String(obj).trim() !== '';
+  return Object.values(obj).some((v) => v != null && String(v).trim() !== '');
+}
+
+/** creator_merkmale, sonst der Spiegel zum Bereich - nie beide. */
+function creatorMerkmale(briefing) {
+  if (merkmaleGefuellt(briefing?.creator_merkmale)) return briefing.creator_merkmale;
+  const prefix = BEREICH_PREFIX[briefing?.bereich];
+  const spiegel = prefix ? briefing[`${prefix}creator_merkmale`] : null;
+  return merkmaleGefuellt(spiegel) ? spiegel : null;
+}
+
+function istHartesGeschlecht(wert) {
+  return HARTES_GESCHLECHT.test(String(wert || '').trim().toLowerCase().replace(/\s+/g, ' '));
+}
+
+function fmtCreatorVorgaben(briefing) {
+  const merkmale = creatorMerkmale(briefing);
+  const personen = String(briefing?.beteiligte_personen || '').trim();
+  const zeilen = [];
+
+  if (merkmale && typeof merkmale === 'object') {
+    const geschlecht = String(merkmale.geschlecht || '').trim();
+    if (geschlecht) {
+      const zeile = `Creator-Geschlecht (nur die Person vor der Kamera, nicht die Zielgruppe): ${geschlecht}`;
+      zeilen.push(istHartesGeschlecht(geschlecht) ? `- HART: ${zeile}` : `- ${zeile}`);
+    }
+    for (const [key, value] of Object.entries(merkmale)) {
+      if (key === 'geschlecht' || value == null || String(value).trim() === '') continue;
+      zeilen.push(`- ${MERKMAL_LABELS[key] || key}: ${labelValue(String(value).trim())}`);
+    }
+  } else if (merkmale) {
+    zeilen.push(`- Creator-Merkmale: ${String(merkmale).trim()}`);
+  }
+  if (personen) zeilen.push(`- Beteiligte Personen: ${personen}`);
+
+  if (!zeilen.length) return '';
+  return '\n# CREATOR-VORGABEN (nicht kuerzen)\n' + zeilen.join('\n') + '\n';
+}
+
+function fmtSetting(briefing) {
+  let setting = String(briefing?.setting || '').trim();
+  if (!setting) {
+    const prefix = BEREICH_PREFIX[briefing?.bereich];
+    setting = prefix ? String(briefing[`${prefix}situationen`] || '').trim() : '';
+  }
+  if (!setting) return '';
+  return '\n# SETTING (Wunschvorgabe, keine harte Grenze. Gilt, solange die Anweisung keinen anderen Ort nennt.)\n'
+    + `${cap(setting, SETTING_MAX)}\n`;
 }
 
 /**
@@ -413,7 +493,7 @@ function fmtLeitplanken(briefing) {
  */
 function fmtCampaignBriefing(briefing, { max = BRIEFING_MAX } = {}) {
   if (!briefing) return '';
-  const leit = fmtLeitplanken(briefing);
+  const leit = fmtLeitplanken(briefing) + fmtCreatorVorgaben(briefing) + fmtSetting(briefing);
   const lines = collectBriefingLines(briefing);
   if (!lines.length && !leit) return '';
 
@@ -447,5 +527,6 @@ function briefingSkriptSprache(briefing) {
 }
 
 module.exports = {
-  fmtCampaignBriefing, fmtLeitplanken, leitplankenAusBriefing, briefingSkriptSprache, BRIEFING_MAX, CAMPAIGN_BRIEFING_FIELD_NAMES
+  fmtCampaignBriefing, fmtLeitplanken, fmtCreatorVorgaben, fmtSetting, leitplankenAusBriefing,
+  briefingSkriptSprache, BRIEFING_MAX, SETTING_MAX, CAMPAIGN_BRIEFING_FIELD_NAMES
 };

@@ -225,16 +225,6 @@ export function kampagnenByAuftrag(page) {
   return map;
 }
 
-// Teilrechnungen nach auftrag_id gruppieren (fuer die „Bereits bezahlt"-Card)
-export function teilrechnungenByAuftrag(page) {
-  const map = new Map();
-  (page.teilrechnungen || []).forEach(tr => {
-    if (!map.has(tr.auftrag_id)) map.set(tr.auftrag_id, []);
-    map.get(tr.auftrag_id).push(tr);
-  });
-  return map;
-}
-
 // Die Zuordnung Kampagnenart -> Bereich kommt aus leistungsbereich.js;
 // hier entscheidet nur noch die Tab-Prioritaet (Mehrbereichs-Auftraege
 // erscheinen im Tab ihres Schwerpunkts).

@@ -10,9 +10,10 @@ const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
 const { beansprucheNachricht, autorisiereSkript, istNachrichtAbgebrochen } = require('./_shared/skript-auftrag');
 const { setThinking } = require('./_shared/thinking');
+const { logPrompt } = require('./_shared/prompt-log');
 const {
   loadEditContext, buildEditPrompt, mapEditResult, stripToolXml, letzterZeitstempel, formatZeitstempel,
-  ladeVisuellStil, brauchtVisualStil, resolveModusSlug, EDIT_BRIEFING_MAX, GRID_SEKTIONEN
+  ladeVisuellStil, brauchtVisualStil, resolveModusSlug, editParams, GRID_SEKTIONEN
 } = require('./_shared/skript-edit-prompt');
 
 // Tool-Call fuer strukturierte Antworten. Bei Schreib-Aktionen laeuft
@@ -78,17 +79,18 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     ki = await starteKiRequest(supabase, { userId: user.id, feature: 'skript_editor' });
 
     const ctx = await loadEditContext(supabase, message);
-    if (ctx.masterVersionen?.length) {
+    if (ctx.kontext.masterVersionen?.length) {
       const bestehend = ctx.skript.prompt_kontext || {};
       await supabase.from('skripte').update({
         prompt_kontext: {
           ...bestehend,
-          master_versionen: ctx.masterVersionen,
-          bereich: ctx.skript.bereich || bestehend.bereich || null
+          master_versionen: ctx.kontext.masterVersionen,
+          bereich: ctx.skript.bereich || ctx.kontext.bereich || bestehend.bereich || null
         }
       }).eq('id', ctx.skript.id);
     }
     const { stable, task, messages } = buildEditPrompt(ctx, message);
+    logPrompt({ job: 'skript_editor', id: message.skript_id, aktion: message.aktion, stable, task, messages });
 
     // Abbruch waehrend des Kontext-Ladens: kein Claude-Call mehr
     if (await istNachrichtAbgebrochen(supabase, messageId)) {
@@ -175,4 +177,4 @@ exports.formatZeitstempel = formatZeitstempel;
 exports.ladeVisuellStil = ladeVisuellStil;
 exports.brauchtVisualStil = brauchtVisualStil;
 exports.resolveModusSlug = resolveModusSlug;
-exports.EDIT_BRIEFING_MAX = EDIT_BRIEFING_MAX;
+exports.editParams = editParams;

@@ -63,8 +63,7 @@ describe('buildEditPrompt Delimiter', () => {
         { rolle: 'user', aktion: 'chat', inhalt: 'Mach den CTA klarer' },
         { rolle: 'assistant', inhalt: 'Gern.', vorschlag_text: 'Link in der Bio, heute noch.', status: 'fertig' }
       ],
-      dna: [],
-      briefing: null,
+      kontext: { dna: [], briefing: null },
       modus: null
     }, { aktion: 'chat', sektion: 'cta', inhalt: 'Noch klarer' });
 
@@ -82,7 +81,7 @@ describe('buildEditPrompt Delimiter', () => {
   it('kappt lange User-Anweisungen', () => {
     const lang = 'u'.repeat(KONTEXT_MAX.userText + 500);
     const { task } = buildEditPrompt({
-      skript: baseSkript, history: [], dna: [], briefing: null,
+      skript: baseSkript, history: [], kontext: { dna: [], briefing: null },
       modus: null
     }, { aktion: 'chat', sektion: 'cta', inhalt: lang });
     expect(task).not.toContain(lang);

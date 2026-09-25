@@ -131,6 +131,10 @@ Paid, Organic oder Influencer. Der primäre Produktionszweck eines Briefings, ni
 spätere Nutzung und nicht die Kampagnenart.
 _Avoid_: Bereich, Kampagnenart, Paid Creator Ads, Owned Social
 
+**Videolänge**:
+Geschlossenes Intervall in ganzen Sekunden am Briefing, von und bis inklusive. Von darf gleich bis sein. Leer heißt, es ist keine Videolänge vorgegeben. Beim Anlegen eines Skripts wird das Intervall kopiert; das Skript zeigt es an. Eine spätere Änderung am Briefing gilt für neue Skripte.
+_Avoid_: Videolängen, Nutzungsdauer, Video-Mindestlänge
+
 **Verhandlungshinweis**:
 Interner Hinweis am Briefing für die Vertragsverhandlung, etwa die Nutzungsdauer wenn
 ein Full Buyout nicht möglich ist. Steht nicht auf dem Creator-PDF.
@@ -398,6 +402,18 @@ _Avoid_: Direkte Kosten, Creator-Kosten, COGS
 Eine gestellte Rechnung, deren Zahlung eingegangen ist. Derselbe Begriff gilt fuer Kunden- und
 Creatorrechnungen, auch wenn die Speicherung ihn in zwei Woertern festhaelt.
 _Avoid_: Überwiesen, beglichen, erledigt
+
+**Unbezahlt**:
+Eine gestellte Rechnung, deren Zahlung noch nicht eingegangen ist.
+_Avoid_: Offen, ausstehend
+
+**Überfällig**:
+Eine unbezahlte Rechnung, deren Zahlungsziel überschritten ist. Teilmenge von Unbezahlt, kein eigener Summand.
+_Avoid_: Mahnung, Verzug
+
+**Offen**:
+Unbezahlt plus noch nicht gestellter Restbetrag auf der Creatoranteil-Kachel. Überfällig steckt in Unbezahlt.
+_Avoid_: Offener Posten, Rest
 
 **Berichtsstand**:
 Ein eingefrorener Stand des Investor-Dashboards (Monatsauswertung und Zahlungsstand), der

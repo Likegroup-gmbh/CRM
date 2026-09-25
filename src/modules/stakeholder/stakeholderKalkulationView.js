@@ -1,7 +1,7 @@
 // Kalkulationskarten und Kundenliste der Stakeholder-Übersicht.
 
 import { icon } from '../../core/icons/IconSystem.js';
-import { aggregate, influencerOffenesCreatorBudget } from './stakeholderOverviewData.js';
+import { aggregate, influencerOffenesCreatorBudget, rechnungsstatus } from './stakeholderOverviewData.js';
 import {
   TAB_INFLUENCER,
   groupRowsByKundeMarke,
@@ -12,7 +12,7 @@ import {
 const CARD_HINTS = {
   volumen: {
     formula: 'Σ Nettobetrag aller Aufträge',
-    hint: 'was der Kunde beauftragt hat — nicht die gestellten Kundenrechnungen im Zahlungsstand; folgt Jahr und Leistungsbereich'
+    hint: 'Gestellt + Noch nicht gestellt. Gestellt = Bezahlt + Offen. Überfällig steckt in Offen und zählt nicht extra.'
   },
   verbraucht: {
     formula: 'Creatoranteil + Agenturanteil + KSK + Zusatzkosten',
@@ -28,7 +28,7 @@ const CARD_HINTS = {
   },
   creator: {
     formula: 'Σ Einkaufspreise (EK) der gebuchten Videos',
-    hint: 'Kalkulation — nicht die gestellten Creatorrechnungen im Zahlungsstand'
+    hint: 'Kopfwert ist die Kalkulation. Offen = Unbezahlt + Noch nicht gestellt. Unbezahlt enthält KSK und Zusatz der offenen Belege, Noch nicht gestellt ist der honorarbasierte Rest — deshalb nicht Kalkulation minus Bezahlt. Überfällig steckt in Unbezahlt.'
   },
   agentur: {
     formula: 'Feste Fee + EK/VK-Differenz',
@@ -41,10 +41,6 @@ const CARD_HINTS = {
   zusatz: {
     formula: 'Σ Zusatzkosten der Kooperationen',
     hint: 'Reise, Lizenzen, Tools, Versand, Payroll'
-  },
-  bezahlt: {
-    formula: 'Σ Netto bezahlter Kunden- und Contractingrechnungen',
-    hint: 'folgt Jahr und Leistungsbereich wie der Zahlungsstand'
   }
 };
 
@@ -115,6 +111,18 @@ export function renderCards(page, totals, isInfluencerTab) {
       ${foot ? `<div class="stakeholder-card-foot">${foot}</div>` : ''}
     </div>`;
 
+  const breakdownLine = (label, value, { cls = '', attr = '', negativ = false, info = '' } = {}) => {
+    const classes = ['stakeholder-card-breakdown-line', cls].filter(Boolean).join(' ');
+    const wertCls = negativ ? ' class="stakeholder-negativ"' : '';
+    const data = attr ? ` ${attr}` : '';
+    const infoBtn = info ? `
+      <button type="button" class="stakeholder-card-info stakeholder-card-info--inline" aria-label="${page.escape(label)}">
+        ${icon('question-mark-circle', { stroke: 1, size: 14 })}
+        <span class="stakeholder-card-tooltip" role="tooltip">${page.escape(info)}</span>
+      </button>` : '';
+    return `<div class="${classes}"><span>${label}</span><span class="stakeholder-card-breakdown-end"><span${wertCls}${data}>${value}</span>${infoBtn}</span></div>`;
+  };
+
   const breakdownCard = (label, value, sub, lines, foot, opts = {}) => `
     <div class="stakeholder-card">
       ${cardHead(label, opts.hint)}
@@ -122,7 +130,9 @@ export function renderCards(page, totals, isInfluencerTab) {
       ${sub ? `<div class="stakeholder-card-sub">${sub}</div>` : ''}
       ${lines?.length ? `
         <div class="stakeholder-card-breakdown">
-          ${lines.map(l => `<div class="stakeholder-card-breakdown-line"><span>${l[0]}</span><span>${l[1]}</span></div>`).join('')}
+          ${lines.map(l => typeof l === 'string'
+            ? l
+            : `<div class="stakeholder-card-breakdown-line"><span>${l[0]}</span><span>${l[1]}</span></div>`).join('')}
         </div>` : ''}
       ${opts.progress != null ? `
         <div class="stakeholder-progress">
@@ -131,25 +141,82 @@ export function renderCards(page, totals, isInfluencerTab) {
       ${foot ? `<div class="stakeholder-card-foot">${foot}</div>` : ''}
     </div>`;
 
+  // Zahlungsstand der Creatorseite. seite.offen bleibt Unbezahlt;
+  // die Kachel summiert nur hier. Überfällig ist Teilmenge, kein Summand.
+  const creatorStatus = rechnungsstatus(page).creator;
+  const unbezahlt = creatorStatus.offen || 0;
+  const ueberfaellig = creatorStatus.ueberfaellig || 0;
+  const nichtGestellt = creatorStatus.nichtGestellt || 0;
+  const offenSumme = unbezahlt + nichtGestellt;
+  const creatorOffenLines = [
+    breakdownLine('Bezahlt', page.fmtEuro(totals.creatorPaid)),
+    breakdownLine('Offen', page.fmtEuro(offenSumme), {
+      attr: 'data-creator-offen',
+      negativ: offenSumme < -0.005,
+    }),
+    breakdownLine('Unbezahlt', page.fmtEuro(unbezahlt), {
+      cls: 'stakeholder-card-breakdown-line--sub',
+      attr: 'data-creator-unbezahlt',
+      negativ: unbezahlt < -0.005,
+    }),
+    ...(ueberfaellig >= 0.005 ? [breakdownLine('davon überfällig', page.fmtEuro(ueberfaellig), {
+      cls: 'stakeholder-card-breakdown-line--deep stakeholder-status-ueberfaellig',
+      attr: 'data-creator-ueberfaellig',
+    })] : []),
+    breakdownLine('Noch nicht gestellt', page.fmtEuro(nichtGestellt), {
+      cls: 'stakeholder-card-breakdown-line--sub',
+      attr: 'data-creator-nicht-gestellt',
+      negativ: nichtGestellt < -0.005,
+      info: 'Gebuchter Einkauf, zu dem noch keine oder noch keine volle Rechnung da ist.',
+    }),
+  ];
+
+  // Zahlungsstand der Kundenseite, dieselben Spalten wie die Tabelle.
+  // Offen bleibt hier der unbezahlte Teil; Überfällig ist nur die Teilmenge.
+  const kundenStatus = rechnungsstatus(page).kunden;
+  const kGestellt = kundenStatus.gestellt || 0;
+  const kBezahlt = kundenStatus.bezahlt || 0;
+  const kOffen = kundenStatus.offen || 0;
+  const kUeberfaellig = kundenStatus.ueberfaellig || 0;
+  const kNichtGestellt = kundenStatus.nichtGestellt || 0;
+  const gestelltPct = volumen > 0 ? (kGestellt / volumen) * 100 : 0;
+  const volumenLines = [
+    breakdownLine('Gestellt', page.fmtEuro(kGestellt), {
+      cls: 'stakeholder-card-breakdown-line--part',
+      attr: 'data-volumen-gestellt',
+    }),
+    breakdownLine('Bezahlt', page.fmtEuro(kBezahlt), {
+      cls: 'stakeholder-card-breakdown-line--sub',
+      attr: 'data-volumen-bezahlt',
+    }),
+    breakdownLine('Offen', page.fmtEuro(kOffen), {
+      cls: 'stakeholder-card-breakdown-line--sub',
+      attr: 'data-volumen-offen',
+      negativ: kOffen < -0.005,
+    }),
+    ...(kUeberfaellig >= 0.005 ? [breakdownLine('davon überfällig', page.fmtEuro(kUeberfaellig), {
+      cls: 'stakeholder-card-breakdown-line--deep stakeholder-status-ueberfaellig',
+      attr: 'data-volumen-ueberfaellig',
+    })] : []),
+    breakdownLine('Noch nicht gestellt', page.fmtEuro(kNichtGestellt), {
+      cls: 'stakeholder-card-breakdown-line--part',
+      attr: 'data-volumen-nicht-gestellt',
+      negativ: kNichtGestellt < -0.005,
+      info: 'Beauftragtes Volumen, zu dem noch keine oder noch keine volle Rechnung da ist.',
+    }),
+  ];
+
   const progressClass = (pct) => pct >= 90 ? 'stakeholder-progress-fill--danger' : pct >= 75 ? 'stakeholder-progress-fill--warning' : '';
   const openProgressClass = (pct) => pct <= 10 ? 'stakeholder-progress-fill--danger' : pct <= 25 ? 'stakeholder-progress-fill--warning' : 'stakeholder-progress-fill--success';
 
   return `
     <div class="stakeholder-cards stakeholder-cards--kalkulation">
-      ${card('Auftragsvolumen = Budget', volumen, 'was der Kunde beauftragt hat', 'jede Buchung verbraucht Budget', { hint: CARD_HINTS.volumen })}
+      ${breakdownCard('Auftragsvolumen = Budget', volumen, `${page.fmtEuro(kGestellt)} von ${page.fmtEuro(volumen)} gestellt`, volumenLines, `${page.fmtPct(gestelltPct)} gestellt`, { progress: gestelltPct, hint: CARD_HINTS.volumen })}
       ${card('Verbrauchtes Budget', verbraucht, 'aufgeschlüsselt in der Zeile darunter', `${page.fmtPct(verbrauchtPct)} des Budgets`, { progress: verbrauchtPct, progressClass: progressClass(verbrauchtPct), hint: CARD_HINTS.verbraucht })}
       ${card(offenLabel, offenValue, offenSub, `${page.fmtPct(offenPct)} offen`, { progress: offenPct, progressClass: openProgressClass(offenPct), hint: offenHint })}
-      <div class="stakeholder-card">
-        ${cardHead('Bereits bezahlte Rechnungen', CARD_HINTS.bezahlt)}
-        <div class="stakeholder-card-value" data-paid-value="netto">${page.fmtEuro(totals.paidNetto)}</div>
-        <div class="stakeholder-card-sub">Netto · Kunden und Contracting</div>
-      </div>
     </div>
     <div class="stakeholder-cards stakeholder-cards--breakdown">
-      ${breakdownCard('Creatoranteil', creator, `${page.fmtEuro(totals.creatorPaid)} von ${page.fmtEuro(creator)} bezahlt`, [
-        ['Bezahlt', page.fmtEuro(totals.creatorPaid)],
-        ['Offen', page.fmtEuro(totals.creatorOpen)]
-      ], `${page.fmtPct(verbraucht > 0 ? (creator / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (creator / verbraucht) * 100 : 0, hint: CARD_HINTS.creator })}
+      ${breakdownCard('Creatoranteil', creator, `${page.fmtEuro(totals.creatorPaid)} von ${page.fmtEuro(creator)} bezahlt`, creatorOffenLines, `${page.fmtPct(verbraucht > 0 ? (creator / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (creator / verbraucht) * 100 : 0, hint: CARD_HINTS.creator })}
       ${breakdownCard('Agenturanteil', agentur, `${page.fmtEuro(agentur)} von ${page.fmtEuro(totals.agenturVoll)} eingelöst`, [
         ['Fest vereinbart', page.fmtEuro(totals.agenturFest)],
         ['EK/VK-Differenz', page.fmtEuro(totals.agenturMargin)]

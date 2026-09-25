@@ -127,17 +127,6 @@ export const OWNED_CONTENT_ZIELE_OPTIONS = [
   { value: 'sonstiges', label: 'Sonstiges' }
 ];
 
-export const VIDEOLAENGEN_OPTIONS = [
-  { value: '6s', label: '6 Sek.' },
-  { value: '10s', label: '10 Sek.' },
-  { value: '15s', label: '15 Sek.' },
-  { value: '20s', label: '20 Sek.' },
-  { value: '30s', label: '30 Sek.' },
-  { value: '60s', label: '60 Sek.' },
-  { value: 'individuell', label: 'Individuell' },
-  { value: 'agenturempfehlung', label: 'Agenturempfehlung' }
-];
-
 export const ROHMATERIAL_OPTIONS = [
   { value: 'ja', label: 'Ja' },
   { value: 'nein', label: 'Nein' }
@@ -394,12 +383,9 @@ export const FLOW_STEPS = [
           ]),
           fieldGroup('kanaele-laenge', 'stack', [
             {
-              name: 'videolaengen', label: 'Gewünschte Videolängen', type: 'checkboxes', options: VIDEOLAENGEN_OPTIONS, compact: true,
-              condition: PAID
-            },
-            {
-              name: 'videolaenge_text', label: 'Gewünschte Videolängen', type: 'text', placeholder: 'z.B. 30–60 Sek.',
-              condition: ORGANIC_OR_INFLUENCER
+              name: 'videolaenge', label: 'Videolänge', type: 'sekundenSpanne',
+              min: 1, max: 180,
+              columns: ['videolaenge_von', 'videolaenge_bis']
             }
           ]),
           fieldGroup('kanaele-paid-cta', 'stack', [

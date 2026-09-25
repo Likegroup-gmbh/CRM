@@ -1,5 +1,7 @@
 // Detail/PDF: FLOW-Felder, sonst v1-Prefix-Katalog. Nicht fuer Edit.
 
+import { anzeigeWert } from './videolaenge.js';
+
 const PREFIX = {
   influencer_marketing: 'im_',
   paid_creator_ads: 'pa_',
@@ -353,6 +355,7 @@ export function isLegacyBriefing(briefing) {
 }
 
 export function resolveBriefingFieldValue(briefing, fieldName) {
+  if (fieldName === 'videolaenge') return anzeigeWert(briefing);
   const current = briefing?.[fieldName];
   if (!isEmpty(current)) return current;
 

@@ -12,6 +12,8 @@ const { extractSkriptAusMaster } = require('./_shared/skript-creator-facing');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { createJobUpdater } = require('./_shared/job-updater');
 const { starteKiRequest } = require('./_shared/ki-log');
+const { logPrompt } = require('./_shared/prompt-log');
+const { loadRueckfragenDialog, fmtRueckfragenBlock } = require('./_shared/skript-rueckfragen');
 const { beansprucheJob, autorisiereSkript, hatLaufendenJob, istJobAbgebrochen } = require('./_shared/skript-auftrag');
 
 // Erzwungener Tool-Call: die API serialisiert das JSON selbst, unescapte
@@ -42,6 +44,10 @@ const SKRIPT_TOOL = {
     required: ['titel', 'inhalt_md']
   }
 };
+
+const HARTE_GRENZEN_GENERIERUNG = 'Harte Grenzen: alles unter # DONTS und jede Zeile mit HART: in # CREATOR-VORGABEN. '
+  + 'Die harten Grenzen schlagen auch die Video-Idee und jede Rueckfrage. '
+  + 'Widerspricht die Video-Idee einer harten Grenze: Grenze einhalten und den Konflikt in inhalt_md unter ## Abweichungen benennen.';
 
 // ---------------------------------------------------------------------------
 // Prompt-Bau (Kontext-Aufbau + Sektions-Formatierung: _shared/skript-context)
@@ -80,12 +86,11 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
     task += `\n# SKRIPT-SPRACHE\nLaut Campaign-Briefing: ${sprache}. Schreibe das Skript in dieser Sprache (nicht automatisch auf Deutsch).\n`;
   }
 
+  if (ctx.briefing) task += `\n${HARTE_GRENZEN_GENERIERUNG}\n`;
+
   // Vorab geklaerte Rueckfragen (Slot-Filling-Dialog vor der Generierung).
   // User-Freitext: delimitiert, damit daraus keine Prompt-Anweisung wird.
-  if (rueckfragenDialog) {
-    task += '\n# GEKLAERTE RUECKFRAGEN (verbindliche Antworten des Users - haben Vorrang vor widerspruechlichen CRM-Daten)\n'
-      + '<rueckfragen_dialog>\n' + rueckfragenDialog + '\n</rueckfragen_dialog>\n';
-  }
+  task += fmtRueckfragenBlock(rueckfragenDialog);
 
   const bereichLabel = MASTER_BEREICH_LABELS[ctx.bereich] || ctx.bereich || 'unbekannt';
   if (ctx.modus?.inhalt) {
@@ -195,20 +200,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       + `${ctx.briefing ? ', Briefing' : ''}${ctx.produkt ? ', Produkt' : ''}${ctx.modus ? `, Modus ${ctx.modus.slug}` : ''}`);
 
     // Rueckfragen-Stub: geklaerten Frage/Antwort-Dialog in den Prompt aufnehmen
-    let rueckfragenDialog = '';
-    if (payload.skript_id) {
-      const { data: dialog } = await supabase.from('skript_chat_messages')
-        .select('rolle, inhalt')
-        .eq('skript_id', payload.skript_id).eq('aktion', 'rueckfrage')
-        .order('created_at');
-      rueckfragenDialog = (dialog || [])
-        .filter((m) => (m.inhalt || '').trim())
-        .map((m) => `${m.rolle === 'user' ? 'User' : 'Liky'}: ${m.inhalt.trim()}`)
-        .join('\n');
-      if (rueckfragenDialog) job.log('Geklaerte Rueckfragen fliessen in den Prompt ein');
-    }
+    const rueckfragenDialog = await loadRueckfragenDialog(supabase, payload.skript_id);
+    if (rueckfragenDialog) job.log('Geklaerte Rueckfragen fliessen in den Prompt ein');
 
     const { stable, task } = buildPrompt(ctx, payload, rueckfragenDialog);
+    logPrompt({ job: 'skript_generierung', id: payload.skript_id || `job:${jobId}`, stable, task });
     const model = MODELS.write;
 
     // Abbruch waehrend des Kontext-Ladens: kein Claude-Call mehr
