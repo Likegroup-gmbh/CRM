@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { StakeholderOverviewPage, elapsedRatio, groupRowsByKundeMarke } from '../modules/stakeholder/StakeholderOverviewPage.js';
+import { StakeholderOverviewPage, elapsedRatio, groupRowsByKundeMarke } from '../modules/stakeholder/kern/StakeholderOverviewPage.js';
 import { calculateMonatsauswertung } from '../core/budget/monatsauswertung.js';
 import { calculateRechnungsstatus } from '../core/budget/rechnungsstatus.js';
+import { invalidateFinanzbestand } from '../core/budget/finanzbestand.js';
 
 // Jede Page bindet document-weite Listener und rendert in das globale
 // window.content. Ohne Cleanup reagieren Pages aus frueheren Tests auf
@@ -72,6 +73,7 @@ function createMockSupabase({ auftraege = [], blocks = [], kampagnen = [], koope
 describe('StakeholderOverviewPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    invalidateFinanzbestand();
     window.setHeadline = vi.fn();
     window.setContentSafely = vi.fn();
     window.content = document.createElement('div');

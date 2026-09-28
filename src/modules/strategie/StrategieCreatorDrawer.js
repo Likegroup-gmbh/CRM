@@ -6,6 +6,15 @@
 
 import { strategieService } from './StrategieService.js';
 import { ensureCastingEintragHatCreator } from '../creator-auswahl/ensureCastingEintragHatCreator.js';
+import { refreshItemActions } from './StrategieDetailRenderer.js';
+
+function writeLiveItem(detail, item, patch) {
+  const live = detail?.items?.find(i => i.id === item?.id) || item;
+  if (!live) return null;
+  Object.assign(live, patch);
+  if (live !== item) Object.assign(item, patch);
+  return live;
+}
 
 const DRAWER_ID = 'strategie-creator-drawer';
 const OVERLAY_ID = 'strategie-creator-overlay';
@@ -226,11 +235,14 @@ export class StrategieCreatorDrawer {
 
       await strategieService.assignCastingItem(this.item.id, this.selectedItemId);
 
-      this.item.creator_auswahl_item_id = this.selectedItemId;
-      this.item.casting_eintrag = this.castingItems.find(e => e.id === this.selectedItemId) || eintrag || null;
+      const live = writeLiveItem(this.detail, this.item, {
+        creator_auswahl_item_id: this.selectedItemId,
+        casting_eintrag: this.castingItems.find(e => e.id === this.selectedItemId) || eintrag || null
+      });
 
       window.toastSystem?.show('Casting-Eintrag zugeordnet', 'success');
       if (this.onSuccess) await this.onSuccess();
+      refreshItemActions(this.detail, live?.id);
       this.close();
       this.detail?.rerenderItemsTable?.();
     } catch (error) {
@@ -257,11 +269,14 @@ export class StrategieCreatorDrawer {
 
     try {
       await strategieService.unassignCastingItem(this.item.id);
-      this.item.creator_auswahl_item_id = null;
-      this.item.casting_eintrag = null;
+      const live = writeLiveItem(this.detail, this.item, {
+        creator_auswahl_item_id: null,
+        casting_eintrag: null
+      });
 
       window.toastSystem?.show('Zuordnung gelöst', 'success');
       if (this.onSuccess) await this.onSuccess();
+      refreshItemActions(this.detail, live?.id);
       this.close();
       this.detail?.rerenderItemsTable?.();
     } catch (error) {

@@ -93,7 +93,7 @@ export async function handleAction(dropdown, action, entityId, entityType, actio
       break;
 
     case 'rechnung_anpassen':
-      await openRechnungAnpassenDrawer(entityId);
+      await openRechnungAnpassenDrawer(entityId, { teilrechnungId: actionItem?.dataset?.teilrechnungId || null });
       break;
 
     case 'download':
@@ -502,11 +502,11 @@ async function setHauptadresseStandard(creatorId) {
   }
 }
 
-async function openRechnungAnpassenDrawer(auftragId) {
+async function openRechnungAnpassenDrawer(auftragId, { teilrechnungId = null } = {}) {
   try {
     const { RechnungAnpassenDrawer } = await import('/src/modules/auftrag/RechnungAnpassenDrawer.js');
     const drawer = new RechnungAnpassenDrawer();
-    await drawer.open(auftragId);
+    await drawer.open(auftragId, { teilrechnungId });
   } catch (error) {
     console.error('Fehler beim Öffnen des Rechnung-Anpassen-Drawers:', error);
     alert('Fehler beim Öffnen: ' + (error.message || 'Unbekannter Fehler'));

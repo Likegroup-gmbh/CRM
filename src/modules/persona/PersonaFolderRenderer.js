@@ -53,6 +53,11 @@ function folderToolbar({ backId, listViewMode }) {
   `;
 }
 
+function nodeById(list, id) {
+  if (typeof list?.byId === 'function') return list.byId(id);
+  return document.getElementById(id);
+}
+
 function countLabel(count) {
   return `${count} ${count === 1 ? 'Persona' : 'Personas'}`;
 }
@@ -96,7 +101,7 @@ export function renderCompaniesView(list) {
 }
 
 export function updateCompaniesGrid(list) {
-  const grid = document.getElementById('companies-grid');
+  const grid = nodeById(list, 'companies-grid');
   if (!grid) return;
 
   if (!list.companyFolders.length) {
@@ -126,7 +131,7 @@ export function renderBrandsView(list) {
 }
 
 export function updateBrandsGrid(list) {
-  const grid = document.getElementById('brands-grid');
+  const grid = nodeById(list, 'brands-grid');
   if (!grid) return;
 
   if (!list.brandFolders.length) {
@@ -189,7 +194,7 @@ export function renderItemsView(list) {
 }
 
 export function updateItemsTable(list) {
-  const tbody = document.getElementById('personas-items-body');
+  const tbody = nodeById(list, 'personas-items-body');
   if (!tbody) return;
 
   if (!list.currentItems.length) {

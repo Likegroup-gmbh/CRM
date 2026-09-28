@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  applyProduktionVerbrauch,
   createProduktionForBriefing,
   emptyProduktionId,
+  listAllProduktionen,
   resolveProduktionLinks,
   sumBudgetByProduktion
 } from '../modules/produktion/ProduktionService.js';
@@ -172,5 +174,123 @@ describe('sumBudgetByProduktion', () => {
 
     expect(sums.get('p1')).toBe(1250.5);
     expect(sums.get('p2')).toBe(0);
+  });
+});
+
+function produktionQuery(rows) {
+  const query = {
+    select: vi.fn(() => query),
+    order: vi.fn(() => query),
+    range: vi.fn(() => Promise.resolve({ data: rows, error: null, count: rows.length }))
+  };
+  return query;
+}
+
+describe('listAllProduktionen', () => {
+  const rows = [
+    { id: 'p1', name: 'Alt', created_at: '2026-01-01' },
+    { id: 'p2', name: 'Neu', created_at: '2026-02-01' }
+  ];
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('liest die Summe aus produktion_verbrauch und nicht aus den Video-Zeilen', async () => {
+    let releaseBudget;
+    const budgetGate = new Promise(resolve => { releaseBudget = resolve; });
+    window.supabase = {
+      from: vi.fn((table) => {
+        if (table === 'produktion') return produktionQuery(rows);
+        if (table === 'produktion_verbrauch') {
+          return {
+            select: vi.fn(() => budgetGate.then(() => ({
+              data: [{ produktion_id: 'p2', budget_used: '10.5' }],
+              error: null
+            })))
+          };
+        }
+        throw new Error(`unerwartete Tabelle ${table}`);
+      })
+    };
+
+    const seen = [];
+    const pending = listAllProduktionen({
+      onRows: (next) => seen.push(next.map(row => row.budgetUsed))
+    });
+
+    await vi.waitFor(() => expect(seen).toHaveLength(1));
+    expect(seen[0]).toEqual([undefined, undefined]);
+    expect(window.supabase.from).not.toHaveBeenCalledWith('kooperation_videos');
+    expect(window.supabase.from).not.toHaveBeenCalledWith('kooperationen');
+    expect(window.supabase.from).not.toHaveBeenCalledWith('personas');
+
+    releaseBudget();
+    const result = await pending;
+
+    expect(result.map(row => row.id)).toEqual(['p2', 'p1']);
+    expect(result.map(row => row.budgetUsed)).toEqual([10.5, 0]);
+  });
+
+  it('liefert die Zeilen auch ohne Summe, wenn die View fehlschlägt', async () => {
+    const error = new Error('view fehlt');
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    window.supabase = {
+      from: vi.fn((table) => {
+        if (table === 'produktion') return produktionQuery(rows);
+        return { select: vi.fn(() => Promise.resolve({ data: null, error })) };
+      })
+    };
+
+    const seen = [];
+    const result = await listAllProduktionen({ onRows: (next) => seen.push(next) });
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0].every(row => row.budgetUsed == null)).toBe(true);
+    expect(result).toBe(seen[0]);
+    expect(console.error).toHaveBeenCalledWith('Produktion-Verbrauch nicht geladen', error);
+  });
+
+  it('hängt Personas aus persona_ids an das Briefing', async () => {
+    const withBriefing = [{
+      id: 'p1',
+      name: 'Senf',
+      created_at: '2026-02-01',
+      briefing: { id: 'b1', aktivierung_name: 'Brief', persona_ids: ['persona-1', 'persona-2'] }
+    }];
+    window.supabase = {
+      from: vi.fn((table) => {
+        if (table === 'produktion') return produktionQuery(withBriefing);
+        if (table === 'personas') {
+          return {
+            select: vi.fn(() => ({
+              in: vi.fn(() => Promise.resolve({
+                data: [{ id: 'persona-1', name: 'Anna' }],
+                error: null
+              }))
+            }))
+          };
+        }
+        if (table === 'produktion_verbrauch') {
+          return { select: vi.fn(() => Promise.resolve({ data: [], error: null })) };
+        }
+        throw new Error(`unerwartete Tabelle ${table}`);
+      })
+    };
+
+    const result = await listAllProduktionen();
+
+    expect(window.supabase.from).toHaveBeenCalledWith('personas');
+    expect(result[0].briefing.verknuepfte_personas).toEqual([{ id: 'persona-1', name: 'Anna' }]);
+  });
+});
+
+describe('applyProduktionVerbrauch', () => {
+  it('schreibt die Summe auf die passende Produktion', () => {
+    const next = applyProduktionVerbrauch(
+      [{ id: 'p1' }, { id: 'p2' }],
+      [{ produktion_id: 'p1', budget_used: '4' }]
+    );
+    expect(next.map(row => row.budgetUsed)).toEqual([4, 0]);
   });
 });

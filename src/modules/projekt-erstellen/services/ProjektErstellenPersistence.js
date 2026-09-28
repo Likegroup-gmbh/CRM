@@ -367,27 +367,34 @@ export class ProjektErstellenPersistence {
     }, {});
   }
 
-  buildTeilrechnungPayloads(fd, auftragId) {
+  // Zahlungsstand (ueberwiesen/ueberwiesen_am) gehoert der Liste, nicht dem Wizard.
+  // Beim Edit wird er deshalb nicht mitgeschrieben.
+  buildTeilrechnungPayloads(fd, auftragId, { includePaymentStatus = true } = {}) {
     const trs = fd?.auftrag?.teilrechnungen;
     if (!Array.isArray(trs) || trs.length === 0) return [];
 
-    return trs.map((tr, i) => ({
-      auftrag_id: auftragId,
-      position: tr.position ?? (i + 1),
-      nettobetrag: this.roundMoney(tr.nettobetrag),
-      ust_prozent: tr.ust_prozent ?? 19,
-      ust_betrag: this.roundMoney(tr.ust_betrag),
-      bruttobetrag: this.roundMoney(tr.bruttobetrag),
-      re_nr: this.normalizeTextValue(tr.re_nr),
-      externe_po: this.normalizeTextValue(tr.externe_po),
-      rechnung_gestellt: !!tr.rechnung_gestellt,
-      rechnung_gestellt_am: tr.rechnung_gestellt_am || null,
-      re_faelligkeit: tr.re_faelligkeit || null,
-      erwarteter_monat_zahlungseingang: tr.erwarteter_monat_zahlungseingang || null,
-      ueberwiesen: !!tr.ueberwiesen,
-      ueberwiesen_am: tr.ueberwiesen_am || null,
-      notiz: this.normalizeTextValue(tr.notiz)
-    }));
+    return trs.map((tr, i) => {
+      const payload = {
+        auftrag_id: auftragId,
+        position: tr.position ?? (i + 1),
+        nettobetrag: this.roundMoney(tr.nettobetrag),
+        ust_prozent: tr.ust_prozent ?? 19,
+        ust_betrag: this.roundMoney(tr.ust_betrag),
+        bruttobetrag: this.roundMoney(tr.bruttobetrag),
+        re_nr: this.normalizeTextValue(tr.re_nr),
+        externe_po: this.normalizeTextValue(tr.externe_po),
+        rechnung_gestellt: !!tr.rechnung_gestellt,
+        rechnung_gestellt_am: tr.rechnung_gestellt_am || null,
+        re_faelligkeit: tr.re_faelligkeit || null,
+        erwarteter_monat_zahlungseingang: tr.erwarteter_monat_zahlungseingang || null,
+        notiz: this.normalizeTextValue(tr.notiz)
+      };
+      if (includePaymentStatus) {
+        payload.ueberwiesen = !!tr.ueberwiesen;
+        payload.ueberwiesen_am = tr.ueberwiesen_am || null;
+      }
+      return payload;
+    });
   }
 
   async _saveTeilrechnungen(supabase, formData, auftragId, { deleteFirst = false } = {}) {
@@ -405,6 +412,49 @@ export class ProjektErstellenPersistence {
         .from('auftrag_teilrechnung')
         .insert(payloads);
       if (trErr) throw trErr;
+    }
+  }
+
+  // Edit: pro Position updaten, neue Positionen einfuegen, entfernte loeschen.
+  // Der Zahlungsstand bleibt unangetastet, damit ein in der Liste gesetztes
+  // ueberwiesen_am nicht durch den Formularstand beim Oeffnen ueberschrieben wird.
+  async _syncTeilrechnungen(supabase, formData, auftragId) {
+    const payloads = this.buildTeilrechnungPayloads(formData, auftragId, { includePaymentStatus: false });
+    const keepPositions = new Set(payloads.map(p => p.position));
+
+    const { data: existing, error: loadErr } = await supabase
+      .from('auftrag_teilrechnung')
+      .select('id, position')
+      .eq('auftrag_id', auftragId);
+    if (loadErr) throw loadErr;
+
+    const existingByPosition = new Map((existing || []).map(row => [row.position, row.id]));
+
+    for (const payload of payloads) {
+      const existingId = existingByPosition.get(payload.position);
+      if (existingId) {
+        const { error: updErr } = await supabase
+          .from('auftrag_teilrechnung')
+          .update(payload)
+          .eq('id', existingId);
+        if (updErr) throw updErr;
+      } else {
+        const { error: insErr } = await supabase
+          .from('auftrag_teilrechnung')
+          .insert(payload);
+        if (insErr) throw insErr;
+      }
+    }
+
+    const removeIds = (existing || [])
+      .filter(row => !keepPositions.has(row.position))
+      .map(row => row.id);
+    if (removeIds.length > 0) {
+      const { error: delErr } = await supabase
+        .from('auftrag_teilrechnung')
+        .delete()
+        .in('id', removeIds);
+      if (delErr) throw delErr;
     }
   }
 
@@ -719,8 +769,8 @@ export class ProjektErstellenPersistence {
         if (blocksErr) throw blocksErr;
       }
 
-      // 5) Teilrechnungen: delete + reinsert
-      await this._saveTeilrechnungen(supabase, formData, auftragId, { deleteFirst: true });
+      // 5) Teilrechnungen: pro Position updaten, Zahlungsstand bleibt stehen
+      await this._syncTeilrechnungen(supabase, formData, auftragId);
 
       // 6) ansprechpartner_kampagne synchronisieren
       await this._syncAnsprechpartner(supabase, savedIds, auftragPayload.ansprechpartner_id, { deleteFirst: true });
@@ -759,7 +809,7 @@ export class ProjektErstellenPersistence {
       const createdById = existingRaw?.details ? null : await getCurrentBenutzerId();
       await this._saveContractingDetails(supabase, formData, auftragId, { createdById });
 
-      await this._saveTeilrechnungen(supabase, formData, auftragId, { deleteFirst: true });
+      await this._syncTeilrechnungen(supabase, formData, auftragId);
 
       return { success: true, auftragId };
     } catch (e) {

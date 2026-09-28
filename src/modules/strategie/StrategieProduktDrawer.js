@@ -3,6 +3,15 @@
 // des Konzepts. Quelle ist die Briefing-Liste, nicht der ganze Katalog.
 
 import { strategieService } from './StrategieService.js';
+import { refreshItemActions } from './StrategieDetailRenderer.js';
+
+function writeLiveItem(detail, item, patch) {
+  const live = detail?.items?.find(i => i.id === item?.id) || item;
+  if (!live) return null;
+  Object.assign(live, patch);
+  if (live !== item) Object.assign(item, patch);
+  return live;
+}
 
 const DRAWER_ID = 'strategie-produkt-drawer';
 const OVERLAY_ID = 'strategie-produkt-overlay';
@@ -194,11 +203,14 @@ export class StrategieProduktDrawer {
       }
 
       const produkt = await strategieService.assignProdukt(this.item.id, this.selectedProduktId);
-      this.item.produkt_id = produkt.id;
-      this.item.produkt = produkt;
+      const live = writeLiveItem(this.detail, this.item, {
+        produkt_id: this.selectedProduktId || produkt?.id || null,
+        produkt
+      });
 
       window.toastSystem?.show('Produkt zugeordnet', 'success');
       if (this.onSuccess) await this.onSuccess();
+      refreshItemActions(this.detail, live?.id);
       this.close();
       this.detail?.rerenderItemsTable?.();
     } catch (error) {
@@ -225,14 +237,17 @@ export class StrategieProduktDrawer {
 
     try {
       await strategieService.unassignProdukt(this.item.id);
-      this.item.produkt_id = null;
-      this.item.produkt = null;
-      this.item.skript_freigabe = false;
-      this.item.skript_freigabe_am = null;
-      this.item.skript_freigabe_von = null;
+      const live = writeLiveItem(this.detail, this.item, {
+        produkt_id: null,
+        produkt: null,
+        skript_freigabe: false,
+        skript_freigabe_am: null,
+        skript_freigabe_von: null
+      });
 
       window.toastSystem?.show('Zuordnung gelöst', 'success');
       if (this.onSuccess) await this.onSuccess();
+      refreshItemActions(this.detail, live?.id);
       this.close();
       this.detail?.rerenderItemsTable?.();
     } catch (error) {

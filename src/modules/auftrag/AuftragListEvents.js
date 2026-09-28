@@ -265,7 +265,8 @@ AuftragList.prototype.bindGlobalDelegatedEvents = function() {
       e.detail.id;
 
     if (isInlineBillingUpdate) {
-      this.syncInlineBillingUpdate(e.detail.id, e.detail.field, e.detail.value);
+      const rowId = e.detail.auftragId || e.detail.id;
+      this.syncInlineBillingUpdate(rowId, e.detail.field, e.detail.value);
       this.onInlineBillingUpdated?.(e.detail);
       return;
     }

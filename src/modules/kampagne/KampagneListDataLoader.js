@@ -73,7 +73,7 @@ export function buildRpcFilters(activeFilters, { searchQuery = '' } = {}) {
  * Lädt Kampagnen mit allen Relationen über eine einzige RPC.
  * Gibt { data, count, kampagneArtMap } zurück.
  */
-export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQuery = '' } = {}) {
+export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQuery = '', folder = null } = {}) {
   const startTime = performance.now();
 
   try {
@@ -87,6 +87,16 @@ export async function loadKampagnenWithRelations(page = 1, limit = 25, { searchQ
 
     const searchParam = searchQuery || activeFilters.kampagnenname || null;
     const rpcFilters = buildRpcFilters(activeFilters, { searchQuery: searchParam || '' });
+
+    if (folder?.unternehmenId) {
+      rpcFilters.unternehmen_id = folder.unternehmenId;
+      if (folder.ohneMarke) {
+        rpcFilters.ohne_marke = true;
+        delete rpcFilters.marke_id;
+      } else if (folder.markeId) {
+        rpcFilters.marke_id = folder.markeId;
+      }
+    }
 
     debugLog('🔍 KAMPAGNELIST: RPC-Call mit filters:', rpcFilters, 'search:', searchParam);
 

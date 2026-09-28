@@ -3,6 +3,7 @@
 
 import { VideoTableDataLoader } from './VideoTableDataLoader.js';
 import { CustomColumnDataLoader } from './columns/CustomColumnDataLoader.js';
+import { loadKonzeptInhalte, zuordnenKonzeptInhalte } from './konzeptInhalte.js';
 import { filterBlocksForKampagne } from '../projekt-erstellen/logic/kampagnenSplit.js';
 import { listProduktionen, scopeByProduktion } from '../produktion/ProduktionService.js';
 
@@ -399,8 +400,8 @@ export async function loadFullTableData(kampagneId, store, isKunde, scope = {}) 
 
   const kampagneJoin = 'kampagne:kampagne_id (id, kampagnenname, eigener_name, unternehmen:unternehmen_id(id, firmenname), marke:marke_id(id, markenname))';
   const koopSelect = isKunde
-    ? `id, name, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, bilder_folder_url, status_id, status, status_ref:status_id(id, name), ${kampagneJoin}`
-    : `id, name, einkaufspreis_netto, einkaufspreis_gesamt, verkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, bilder_folder_url, status_id, status, status_ref:status_id(id, name), ${kampagneJoin}`;
+    ? `id, name, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, produktion_id, bilder_folder_url, status_id, status, status_ref:status_id(id, name), ${kampagneJoin}`
+    : `id, name, einkaufspreis_netto, einkaufspreis_gesamt, verkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, produktion_id, bilder_folder_url, status_id, status, status_ref:status_id(id, name), ${kampagneJoin}`;
 
   const kooperationenResult = await scopeByProduktion(
     window.supabase
@@ -509,7 +510,7 @@ export async function loadFullTableData(kampagneId, store, isKunde, scope = {}) 
       .filter(Boolean);
   });
 
-  const videosByKoopId = {};
+  let videosByKoopId = {};
   allVideos.forEach(video => {
     if (!videosByKoopId[video.kooperation_id]) {
       videosByKoopId[video.kooperation_id] = [];
@@ -520,6 +521,16 @@ export async function loadFullTableData(kampagneId, store, isKunde, scope = {}) 
       file_url: video.asset_url || null
     });
   });
+
+  try {
+    const { ideen, skripte } = await loadKonzeptInhalte(sb, {
+      kampagneId,
+      produktionId: scope.produktionId || null
+    });
+    videosByKoopId = zuordnenKonzeptInhalte(kooperationen, videosByKoopId, ideen, skripte);
+  } catch (e) {
+    console.warn('⚠️ KAMPAGNEDETAIL: Konzept-Inhalte konnten nicht zugeordnet werden:', e);
+  }
 
   const versandMap = {};
   versandInfos.forEach(info => {

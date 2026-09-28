@@ -1,13 +1,13 @@
 // Kalkulationskarten und Kundenliste der Stakeholder-Übersicht.
 
-import { icon } from '../../core/icons/IconSystem.js';
-import { aggregate, influencerOffenesCreatorBudget, kartenSummen } from './stakeholderOverviewData.js';
+import { icon } from '../../../core/icons/IconSystem.js';
+import { aggregate, influencerOffenesCreatorBudget, kartenSummen } from '../daten/stakeholderOverviewData.js';
 import {
   TAB_INFLUENCER,
   groupRowsByKundeMarke,
   groupTypBadges,
   groupZeitraum,
-} from './stakeholderOverviewLogic.js';
+} from '../kern/stakeholderOverviewLogic.js';
 
 const CARD_HINTS = {
   volumen: {

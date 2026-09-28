@@ -10,11 +10,13 @@ import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
+import { withHerkunft } from '../../core/navHerkunft.js';
 import { ProduktFilterLogic } from './filters/ProduktFilterLogic.js';
 import {
   ProduktService,
   produktListDetailRoute
 } from './ProduktService.js';
+import { loadBriefingProdukte } from '../briefing/BriefingProdukte.js';
 import {
   renderVerknuepfungen,
   skriptLinks,
@@ -33,6 +35,7 @@ import {
   renderBrandsView, updateBrandsGrid,
   renderItemsView, updateItemsTable as _updateItemsTable
 } from './ProduktFolderRenderer.js';
+import { markenEbeneEntfaellt } from '../../core/folderListNav.js';
 
 const PRODUKT_LIST_SELECT = `
   *,
@@ -62,6 +65,8 @@ export class ProduktList extends BasePaginatedList {
 
     this._lastScope = null;
     this._allProdukte = null;
+    this.embedScope = null;
+    this._embedProduktIds = null;
 
     this.viewMode = 'companies';
     this.listViewMode = 'grid';
@@ -91,6 +96,7 @@ export class ProduktList extends BasePaginatedList {
   resetEntityCaches() {
     this._lastScope = null;
     this._allProdukte = null;
+    this._embedProduktIds = null;
   }
 
   applyQueryParams(params) {
@@ -148,12 +154,13 @@ export class ProduktList extends BasePaginatedList {
   }
 
   syncListUrl() {
+    if (this.embedded) return;
     const url = this.listViewMode === 'list' ? '/produkt' : this.listUrl();
     window.history.replaceState({ route: url }, '', url);
   }
 
   updateBreadcrumbDisplay() {
-    if (!window.breadcrumbSystem) return;
+    if (this.embedded || !window.breadcrumbSystem) return;
 
     if (this.listViewMode === 'list' || this.viewMode === 'companies') {
       window.breadcrumbSystem.updateBreadcrumb([
@@ -166,7 +173,7 @@ export class ProduktList extends BasePaginatedList {
       { label: 'Produkte', url: '/produkt', clickable: true }
     ];
 
-    if (this.viewMode === 'brands') {
+    if (this.viewMode === 'brands' || this.markenEbeneWeg()) {
       crumbs.push({ label: this.currentUnternehmenName || 'Unternehmen', url: '#', clickable: false });
       window.breadcrumbSystem.updateBreadcrumb(crumbs);
       return;
@@ -183,6 +190,40 @@ export class ProduktList extends BasePaginatedList {
       clickable: false
     });
     window.breadcrumbSystem.updateBreadcrumb(crumbs);
+  }
+
+  async mountEmbedded(root, scope = {}) {
+    this.embedded = true;
+    this.embedScope = scope || {};
+    this._embedProduktIds = null;
+    this.mountRoot = root;
+    this._destroyed = false;
+    this.options.enableDynamicResize = false;
+    this.viewMode = 'companies';
+    this.listViewMode = 'list';
+    this.currentUnternehmenId = null;
+    this.currentUnternehmenName = null;
+    this.currentMarkeId = null;
+    this.currentMarkeName = null;
+    this._ohneMarke = false;
+    this._shellRendered = false;
+    this._allProdukte = null;
+    this._lastScope = null;
+
+    const canView = await this.checkViewPermission();
+    if (!canView) {
+      this.renderNoPermission();
+      return;
+    }
+
+    const additionalPermissions = await this.checkAdditionalPermissions();
+    if (!additionalPermissions) return;
+
+    if (window.bulkActionSystem) {
+      window.bulkActionSystem.registerList(this.entityType, this);
+    }
+
+    await this.loadAndRender();
   }
 
   async init() {
@@ -224,6 +265,7 @@ export class ProduktList extends BasePaginatedList {
     this._shellRendered = false;
     await this.ensureAllProdukte();
     this.buildCurrentFolders();
+    this.applyMarkenEbeneSprung();
     this.renderFolderView();
     this.bindEvents();
 
@@ -243,6 +285,7 @@ export class ProduktList extends BasePaginatedList {
       this._allProdukte = null;
       await this.ensureAllProdukte();
       this.buildCurrentFolders();
+      this.applyMarkenEbeneSprung();
       this.renderFolderView();
       if (this.viewMode === 'items') {
         this.pagination.init('pagination-produkt-items', {
@@ -271,6 +314,20 @@ export class ProduktList extends BasePaginatedList {
     this._lastScope = scope;
     if (scope.all) return null;
     return scope.produktIds || [];
+  }
+
+  async resolveEmbedProduktIds() {
+    if (this._embedProduktIds) return this._embedProduktIds;
+    const produktId = this.embedScope?.produktId || null;
+    const briefingId = this.embedScope?.briefingId || null;
+    let ids = [];
+    if (produktId) ids = [produktId];
+    else if (briefingId) {
+      const products = await loadBriefingProdukte(briefingId);
+      ids = products.map(p => p.id).filter(Boolean);
+    }
+    this._embedProduktIds = ids;
+    return ids;
   }
 
   async loadAllProdukte() {
@@ -308,6 +365,33 @@ export class ProduktList extends BasePaginatedList {
     });
   }
 
+  markenEbeneWeg() {
+    if (!this._ohneMarke || !this.currentUnternehmenId) return false;
+    const folders = buildBrandFolders(this._allProdukte || [], this.currentUnternehmenId);
+    const echte = folders.filter((folder) => folder.id && !folder.virtual).length;
+    const ohne = folders.filter((folder) => folder.virtual).reduce((sum, folder) => sum + (folder.count || 0), 0);
+    return markenEbeneEntfaellt(echte, ohne);
+  }
+
+  applyMarkenEbeneSprung() {
+    if (this.viewMode !== 'brands' || !this.currentUnternehmenId) return;
+    const folders = buildBrandFolders(this._allProdukte || [], this.currentUnternehmenId);
+    const echte = folders.filter((folder) => folder.id && !folder.virtual).length;
+    const ohne = folders.filter((folder) => folder.virtual).reduce((sum, folder) => sum + (folder.count || 0), 0);
+    if (!markenEbeneEntfaellt(echte, ohne)) return;
+    this.viewMode = 'items';
+    this._ohneMarke = true;
+    this.currentMarkeId = null;
+    this.currentMarkeName = NUR_UNTERNEHMEN_LABEL;
+    if (this.pagination) this.pagination.currentPage = 1;
+    this.buildCurrentFolders();
+  }
+
+  backFromItems() {
+    if (this.markenEbeneWeg()) this.switchToCompaniesView();
+    else this.switchToBrandsView(this.currentUnternehmenId, this.currentUnternehmenName);
+  }
+
   renderFolderView() {
     this.updateBreadcrumbDisplay();
     this.syncListUrl();
@@ -317,7 +401,7 @@ export class ProduktList extends BasePaginatedList {
     else if (this.viewMode === 'brands') html = renderBrandsView(this);
     else html = renderItemsView(this);
 
-    window.setContentSafely(window.content, html);
+    this.writeContent(html);
 
     if (this.viewMode === 'companies') updateCompaniesGrid(this);
     else if (this.viewMode === 'brands') updateBrandsGrid(this);
@@ -355,6 +439,7 @@ export class ProduktList extends BasePaginatedList {
   }
 
   setListViewMode(mode) {
+    if (this.embedScope) return;
     if (this.listViewMode === mode && (mode === 'list' || this.viewMode === 'companies')) return;
     this.listViewMode = mode;
     this.viewMode = 'companies';
@@ -375,6 +460,15 @@ export class ProduktList extends BasePaginatedList {
       const allowedIds = await this.resolveAllowedProduktIds();
       if (allowedIds && allowedIds.length === 0) return { data: [], total: 0 };
 
+      const embedIds = this.embedScope ? await this.resolveEmbedProduktIds() : null;
+      if (embedIds && embedIds.length === 0) return { data: [], total: 0 };
+
+      let ids = allowedIds;
+      if (embedIds) {
+        ids = ids ? ids.filter(id => embedIds.includes(id)) : embedIds;
+        if (!ids.length) return { data: [], total: 0 };
+      }
+
       const from = (page - 1) * limit;
       const to = from + limit - 1;
 
@@ -383,9 +477,7 @@ export class ProduktList extends BasePaginatedList {
         .select(PRODUKT_LIST_SELECT, { count: 'exact' })
         .order(this.currentSort.field, { ascending: this.currentSort.ascending });
 
-      if (allowedIds) {
-        query = query.in('id', allowedIds);
-      }
+      if (ids) query = query.in('id', ids);
 
       if (filters.marke_id) {
         const { data: markenTreffer } = await window.supabase
@@ -507,7 +599,7 @@ export class ProduktList extends BasePaginatedList {
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div class="filter-left">
-            ${ViewModeToggle.render([
+            ${this.embedScope ? '' : ViewModeToggle.render([
               { buttonId: 'btn-view-list', label: 'Liste', icon: 'list', active: this.listViewMode === 'list' },
               { buttonId: 'btn-view-grid', label: 'Grid', icon: 'grid', active: this.listViewMode === 'grid' }
             ])}
@@ -557,8 +649,13 @@ export class ProduktList extends BasePaginatedList {
     `;
   }
 
+  resolveDetailRoute(itemId) {
+    const route = produktListDetailRoute(itemId);
+    return this.embedded ? withHerkunft(route) : route;
+  }
+
   async initializeFilterBar() {
-    const sortContainer = document.getElementById('sort-dropdown-container');
+    const sortContainer = this.byId('sort-dropdown-container');
     if (sortContainer) {
       sortDropdown.init('produkt', sortContainer, {
         nameField: 'name',
@@ -567,7 +664,7 @@ export class ProduktList extends BasePaginatedList {
       });
     }
 
-    const filterContainer = document.getElementById('filter-dropdown-container');
+    const filterContainer = this.byId('filter-dropdown-container');
     if (filterContainer) {
       await filterDropdown.init('produkt', filterContainer, {
         onFilterApply: (filters) => this.onFiltersApplied(filters),
@@ -577,11 +674,11 @@ export class ProduktList extends BasePaginatedList {
   }
 
   bindAdditionalEvents(signal) {
-    if (document.getElementById('produkt-search-input')) {
+    if (this.byId('produkt-search-input')) {
       SearchInput.bind('produkt', (value) => this.handleSearch(value), signal);
     }
 
-    document.addEventListener('click', (e) => {
+    this.eventRoot().addEventListener('click', (e) => {
       const listBtn = e.target.closest('#btn-view-list');
       if (listBtn) {
         e.preventDefault();
@@ -606,7 +703,7 @@ export class ProduktList extends BasePaginatedList {
       const backBrands = e.target.closest('#btn-back-to-brands');
       if (backBrands) {
         e.preventDefault();
-        this.switchToBrandsView(this.currentUnternehmenId, this.currentUnternehmenName);
+        this.backFromItems();
         return;
       }
 
@@ -635,22 +732,30 @@ export class ProduktList extends BasePaginatedList {
 
       if (e.target.id === 'btn-produkt-new' || e.target.id === 'btn-produkt-new-filter') {
         e.preventDefault();
-        window.navigateTo('/produkt/new');
+        this.showCreateForm();
       }
     }, { signal });
   }
 
   openProdukt(produktId) {
     if (!produktId) return;
-    window.navigateTo(produktListDetailRoute(produktId));
+    window.navigateTo(this.resolveDetailRoute(produktId));
   }
 
   showCreateForm() {
-    window.navigateTo('/produkt/new');
+    const params = new URLSearchParams();
+    const scope = this.embedScope;
+    if (scope?.unternehmenId) params.set('unternehmen', scope.unternehmenId);
+    if (scope?.markeId) params.set('marke', scope.markeId);
+    if (scope?.briefingId) params.set('briefing', scope.briefingId);
+    if (scope?.produktionId) params.set('produktion', scope.produktionId);
+    const qs = params.toString();
+    const route = qs ? `/produkt/new?${qs}` : '/produkt/new';
+    window.navigateTo(this.embedded ? withHerkunft(route) : route);
   }
 
   async updateTable(produkte) {
-    const tbody = document.querySelector(this.options.tbodySelector);
+    const tbody = this.query(this.options.tbodySelector);
     if (!tbody) return;
 
     await TableAnimationHelper.animatedUpdate(tbody, () => {
@@ -669,6 +774,8 @@ export class ProduktList extends BasePaginatedList {
 
   destroy() {
     super.destroy();
+    this.embedScope = null;
+    this._embedProduktIds = null;
     this._allProdukte = null;
     this.companyFolders = [];
     this.brandFolders = [];

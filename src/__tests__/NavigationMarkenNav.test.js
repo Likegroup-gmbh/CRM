@@ -79,11 +79,14 @@ describe('NavigationSystem – Kundendaten ohne Marken-Liste', () => {
       '/castings',
       '/konzepte',
       '/skripte',
+      '/produktionen',
       '/vertraege',
       '/rechnung',
       '/videos'
     ]);
     expect(projekt.innerHTML).not.toContain('Briefings');
+    expect(kampagnen.innerHTML).toContain('>Produktion<');
+    expect(kampagnen.innerHTML).not.toContain('>Kooperation<');
     expect(kampagnen.innerHTML).toContain('Briefings');
     expect(kampagnen.innerHTML).toContain('Castings');
   });

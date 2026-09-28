@@ -1,6 +1,7 @@
 // ProduktionService.js
 // Anlegen der Produktion zum Briefing und Auflisten unter der Kampagne.
 
+import { fetchAllRows } from '../../core/fetchAllRows.js';
 import { lineNames } from './produktionNames.js';
 import { castingPresetFromBriefing } from './castingPresetFromBriefing.js';
 import { berechneHiddenColumns, STANDARD_VERSTECKTE_SPALTEN, wendePresetAn } from '../creator-auswahl/sourcingSpaltenPreset.js';
@@ -243,6 +244,112 @@ async function attachProduktionBudget(rows, kampagneId) {
 
   const sums = sumBudgetByProduktion(koops || [], videos);
   return rows.map(row => ({ ...row, budgetUsed: sums.get(row.id) || 0 }));
+}
+
+const PRODUKTION_LIST_SELECT = `
+  id, name, kampagne_id, produkt_id, briefing_id, created_at,
+  produkt:produkt_id(id, name),
+  briefing:briefing_id(
+    id, aktivierung_name, persona_ids,
+    produkte:campaign_briefing_produkt(produkt:produkt_id(id, name))
+  ),
+  kampagne:kampagne_id(
+    id, kampagnenname, eigener_name,
+    auftrag:auftrag_id(creator_budget, gesamt_budget, nettobetrag)
+  ),
+  creator_auswahl(id, name),
+  strategie(id, name),
+  skripte(id, titel, hook),
+  vertraege(id, name)
+`;
+
+async function attachProduktionPersonas(rows) {
+  const ids = uniqueIds((rows || []).flatMap(row => row.briefing?.persona_ids || []));
+  if (!ids.length || !window.supabase) return rows || [];
+
+  const { data, error } = await window.supabase
+    .from('personas')
+    .select('id, name')
+    .in('id', ids);
+  if (error) throw error;
+
+  const byId = new Map((data || []).map(persona => [persona.id, persona]));
+  return rows.map(row => {
+    if (!row.briefing) return row;
+    const verknuepfte_personas = (row.briefing.persona_ids || [])
+      .map(id => byId.get(id))
+      .filter(Boolean);
+    return { ...row, briefing: { ...row.briefing, verknuepfte_personas } };
+  });
+}
+
+export function applyProduktionVerbrauch(rows, verbrauch) {
+  const sums = new Map();
+  for (const row of verbrauch || []) {
+    if (!row?.produktion_id) continue;
+    sums.set(row.produktion_id, parseFloat(row.budget_used) || 0);
+  }
+  return (rows || []).map(row => ({
+    ...row,
+    budgetUsed: sums.get(row.id) || 0
+  }));
+}
+
+function loadProduktionVerbrauch() {
+  return window.supabase
+    .from('produktion_verbrauch')
+    .select('produktion_id, budget_used')
+    .then(({ data, error }) => {
+      if (error) throw error;
+      return data || [];
+    });
+}
+
+/**
+ * Alle sichtbaren Produktionen, neueste zuerst.
+ * Verbrauch kommt aus produktion_verbrauch (eine Summe je Produktion), nicht
+ * aus allen Video-Zeilen. onRows feuert, sobald die Produktionen da sind —
+ * mit budgetUsed, wenn die Summe schon da ist, sonst ohne.
+ * Kein attachProduktionLinks: das schreibt fehlende FKs und gehört nicht in die Liste.
+ */
+export async function listAllProduktionen({ onRows } = {}) {
+  if (!window.supabase) {
+    onRows?.([]);
+    return [];
+  }
+
+  const rowsPromise = fetchAllRows(window.supabase, 'produktion', PRODUKTION_LIST_SELECT)
+    .then(rows => {
+      rows.sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+      return rows;
+    });
+  const budgetPromise = Promise.resolve()
+    .then(loadProduktionVerbrauch)
+    .then(
+      data => ({ ok: true, data }),
+      error => ({ ok: false, error })
+    );
+
+  const rows = await attachProduktionPersonas(await rowsPromise);
+  const winner = await Promise.race([
+    budgetPromise,
+    Promise.resolve(null)
+  ]);
+
+  if (winner?.ok) {
+    const withBudget = applyProduktionVerbrauch(rows, winner.data);
+    onRows?.(withBudget);
+    return withBudget;
+  }
+
+  onRows?.(rows);
+
+  const result = winner || await budgetPromise;
+  if (!result.ok) {
+    console.error('Produktion-Verbrauch nicht geladen', result.error);
+    return rows;
+  }
+  return applyProduktionVerbrauch(rows, result.data);
 }
 
 export async function listProduktionen(kampagneId) {

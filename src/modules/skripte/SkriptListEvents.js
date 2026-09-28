@@ -35,7 +35,7 @@ export function bindEvents(list) {
 
   on(document.getElementById('btn-back-to-brands'), 'click', (e) => {
     e.preventDefault();
-    list.switchToBrandsView(list.currentUnternehmenId, list.currentUnternehmenName);
+    list.backFromMarken();
   });
 
   on(document.getElementById('btn-back-to-campaigns'), 'click', (e) => {

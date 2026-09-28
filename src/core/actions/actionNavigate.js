@@ -109,26 +109,26 @@ async function resolveAuftragIdForKampagne(kampagneId) {
 async function navigateToProduktForm(produktId) {
   const markeDetail = window.moduleRegistry?.modules?.get('marke-detail');
   if (markeDetail?.markeId && location.pathname.includes('/marke/')) {
-    window.navigateTo(`/marke/${markeDetail.markeId}/produkt?produkt=${produktId}`);
+    window.navigateTo(withHerkunft(`/marke/${markeDetail.markeId}/produkt?produkt=${produktId}`));
     return;
   }
   const unternehmenDetail = window.moduleRegistry?.modules?.get('unternehmen-detail');
   if (unternehmenDetail?.unternehmenId && location.pathname.includes('/unternehmen/')) {
-    window.navigateTo(produktFormRoute(unternehmenDetail.unternehmenId, produktId));
+    window.navigateTo(withHerkunft(produktFormRoute(unternehmenDetail.unternehmenId, produktId)));
     return;
   }
-  window.navigateTo(produktListDetailRoute(produktId));
+  window.navigateTo(withHerkunft(produktListDetailRoute(produktId)));
 }
 
 async function navigateToPersonaForm(personaId) {
   const markeDetail = window.moduleRegistry?.modules?.get('marke-detail');
   if (markeDetail?.markeId && location.pathname.includes('/marke/')) {
-    window.navigateTo(personaFormRoute('marke', markeDetail.markeId, personaId));
+    window.navigateTo(withHerkunft(personaFormRoute('marke', markeDetail.markeId, personaId)));
     return;
   }
   const unternehmenDetail = window.moduleRegistry?.modules?.get('unternehmen-detail');
   if (unternehmenDetail?.unternehmenId && location.pathname.includes('/unternehmen/')) {
-    window.navigateTo(personaFormRoute('unternehmen', unternehmenDetail.unternehmenId, personaId));
+    window.navigateTo(withHerkunft(personaFormRoute('unternehmen', unternehmenDetail.unternehmenId, personaId)));
     return;
   }
   const { data, error } = await window.supabase
@@ -140,5 +140,5 @@ async function navigateToPersonaForm(personaId) {
     window.toastSystem?.error?.('Persona konnte nicht geöffnet werden.');
     return;
   }
-  window.navigateTo(personaFormRoute('unternehmen', data.unternehmen_id, personaId));
+  window.navigateTo(withHerkunft(personaFormRoute('unternehmen', data.unternehmen_id, personaId)));
 }

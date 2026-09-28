@@ -13,9 +13,13 @@
 // dasselbe Promise statt denselben Scan zu starten. Nicht StaticDataCache
 // (24h, Stammdaten) — der Bestand gilt nur innerhalb des Adminbereichs;
 // ModuleRegistry.invalidiert ihn, sobald die Route hinausfuehrt.
+//
+// Der Load geht ueber stakeholder_finanzbestand(): ein Call, Rolle einmal
+// geprueft, ohne die pro-Zeile-RLS der Einzel-Selects. Fehlt die Funktion
+// (lokale DB ohne Migration), bleibt der Tabellen-Scan als Fallback.
 
-import { fetchAllRows } from '../fetchAllRows.js';
-import { fetchBerichtsstaende } from '../../modules/stakeholder/berichtsstandStore.js';
+import { fetchAllRows, fetchAllRowsWave } from '../fetchAllRows.js';
+import { fetchBerichtsstaende } from './berichtsstandStore.js';
 import { dropTestunternehmenBestand } from './testunternehmen.js';
 
 let cached = null;
@@ -27,7 +31,7 @@ let inFlight = null;
 // teilrechnungen und den Zahlungsstand an rechnung.
 const FINANZBESTAND_SELECTS = [
   ['auftrag',
-    'id, titel, auftragsname, nettobetrag, bruttobetrag, creator_budget, auftragtype, start, ende, created_at, is_draft, unternehmen_id, marke_id, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am, re_faelligkeit, marke:marke_id(id, markenname)'],
+    'id, titel, auftragsname, nettobetrag, ust_betrag, bruttobetrag, creator_budget, auftragtype, start, ende, created_at, is_draft, unternehmen_id, marke_id, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am, re_faelligkeit, marke:marke_id(id, markenname)'],
   ['auftrag_kampagnenart_blocks',
     'id, auftrag_id, campaign_type, campaign_type_label, umsatz_netto, sort_order'],
   ['kampagne',
@@ -37,7 +41,7 @@ const FINANZBESTAND_SELECTS = [
   ['kooperation_videos',
     'id, kooperation_id, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, titel, video_name'],
   ['rechnung',
-    'id, kooperation_id, auftrag_id, kampagne_id, status, nettobetrag, nettobetrag_steuerfrei, zusatzkosten, gestellt_am, bezahlt_am, zahlungsziel, rechnungstyp, rechnung_nr'],
+    'id, kooperation_id, auftrag_id, kampagne_id, status, nettobetrag, ust_betrag, bruttobetrag, nettobetrag_steuerfrei, zusatzkosten, gestellt_am, bezahlt_am, zahlungsziel, rechnungstyp, rechnung_nr'],
   ['creator',
     'id, vorname, nachname'],
   ['auftrag_details',
@@ -45,10 +49,53 @@ const FINANZBESTAND_SELECTS = [
   ['unternehmen',
     'id, firmenname, ist_test'],
   ['auftrag_teilrechnung',
-    'id, auftrag_id, nettobetrag, bruttobetrag, rechnung_gestellt, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am, re_faelligkeit'],
+    'id, auftrag_id, nettobetrag, ust_betrag, bruttobetrag, rechnung_gestellt, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am, re_faelligkeit'],
 ];
 
-async function load(supabase) {
+// Nur die Tabellen, die im Load paginieren. Eine Welle auf allen zehn
+// würde die Verbindung mit Leer-Requests zuschütten.
+const WAVE_TABLES = new Set(['kooperationen', 'kooperation_videos']);
+
+function isMissingFinanzbestandRpc(error) {
+  const code = error?.code;
+  if (code === 'PGRST202' || code === '42883') return true;
+  const message = String(error?.message || '');
+  return /could not find the function/i.test(message)
+    || /function .* does not exist/i.test(message);
+}
+
+function bestandFromBundle(bundle) {
+  return {
+    auftraege: bundle.auftraege || [],
+    blocks: bundle.blocks || [],
+    kampagnen: bundle.kampagnen || [],
+    kooperationen: bundle.kooperationen || [],
+    videos: bundle.videos || [],
+    rechnungen: bundle.rechnungen || [],
+    creators: bundle.creators || [],
+    details: bundle.details || [],
+    unternehmen: bundle.unternehmen || [],
+    teilrechnungen: bundle.teilrechnungen || [],
+    berichtsstaende: bundle.berichtsstaende || [],
+  };
+}
+
+// null = Funktion fehlt, Caller faellt auf den Tabellen-Scan zurueck.
+// Jeder andere Fehler (forbidden, Netz) wirft — kein stiller Zweit-Scan.
+async function loadViaRpc(supabase) {
+  if (typeof supabase.rpc !== 'function') return null;
+  const { data, error } = await supabase.rpc('stakeholder_finanzbestand');
+  if (error) {
+    if (isMissingFinanzbestandRpc(error)) return null;
+    throw error;
+  }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error('Finanzbestand-RPC lieferte kein Objekt');
+  }
+  return dropTestunternehmenBestand(bestandFromBundle(data));
+}
+
+async function loadViaTables(supabase) {
   // Berichtsstaende im selben Durchgang statt als Wasserfall danach.
   // Add-on-Charakter bleibt: scheitert die Liste, faellt sie auf [].
   const berichtsstaendePromise = fetchBerichtsstaende(supabase).catch((e) => {
@@ -57,7 +104,11 @@ async function load(supabase) {
   });
 
   const entries = await Promise.all(
-    FINANZBESTAND_SELECTS.map(([table, select]) => fetchAllRows(supabase, table, select)),
+    FINANZBESTAND_SELECTS.map(([table, select]) => (
+      WAVE_TABLES.has(table)
+        ? fetchAllRowsWave(supabase, table, select)
+        : fetchAllRows(supabase, table, select)
+    )),
   );
   const [auftraege, blocks, kampagnen, kooperationen, videos, rechnungen,
     creators, details, unternehmen, teilrechnungen] = entries;
@@ -78,6 +129,12 @@ async function load(supabase) {
     teilrechnungen: teilrechnungen || [],
     berichtsstaende: berichtsstaende || [],
   });
+}
+
+async function load(supabase) {
+  const viaRpc = await loadViaRpc(supabase);
+  if (viaRpc) return viaRpc;
+  return loadViaTables(supabase);
 }
 
 export async function loadFinanzbestand(supabase) {

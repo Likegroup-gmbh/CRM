@@ -3,7 +3,7 @@
 
 import { strategieService } from './StrategieService.js';
 import { AddItemDrawer } from './AddItemDrawer.js';
-import { renderItemsTable, rerenderItemsTable as _rerenderItemsTable, updateItemRow } from './StrategieDetailRenderer.js';
+import { renderItemsTable, rerenderItemsTable as _rerenderItemsTable, updateItemRow, refreshItemActions } from './StrategieDetailRenderer.js';
 import { bindTableEvents, cleanupTableEvents, destroyDragToScroll } from './StrategieDetailTableEvents.js';
 import { showEditItemDrawer as _showEditItemDrawer, removeEditItemDrawer, closeEditItemDrawer as _closeEditItemDrawer } from './StrategieDetailEditDrawer.js';
 import { showKategorienModal as _showKategorienModal, removeKategorienDrawer } from './StrategieDetailKategorienDrawer.js';
@@ -18,6 +18,17 @@ import { icon } from '../../core/icons/IconSystem.js';
 import { VideoideeVorschlagPanel } from './VideoideeVorschlagPanel.js';
 import { isVideoideeVorschlag } from './videoideeVorschlag.js';
 import { showProduktionLeaf } from '../../core/navHerkunft.js';
+
+const REALTIME_JOINS = ['produkt', 'casting_eintrag', 'creator', 'linked_video'];
+
+function mergeRealtimeRow(item, row) {
+  const kept = {};
+  for (const key of REALTIME_JOINS) {
+    if (row?.[key] == null && item?.[key] != null) kept[key] = item[key];
+  }
+  Object.assign(item, row);
+  Object.assign(item, kept);
+}
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -584,13 +595,13 @@ export class StrategieDetail {
     }
 
     const warVorschlag = !!item.ist_vorschlag;
-    Object.assign(item, row);
+    mergeRealtimeRow(item, row);
     if (warVorschlag !== !!item.ist_vorschlag) {
       this.rerenderItemsTable();
       this.vorschlagPanel?.render?.();
       return;
     }
-    updateItemRow(this, row.id);
+    if (!updateItemRow(this, row.id)) refreshItemActions(this, row.id);
   }
 
   destroy() {

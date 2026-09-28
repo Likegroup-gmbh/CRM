@@ -5,43 +5,18 @@
 // auftrag_details/kampagne-Spalten, damit bestehende Ansichten weiter Daten sehen.
 
 import { getKampagnenartConfig } from '../../auftrag/logic/KampagnenartenMapping.js';
+import {
+  CHIP_PREFIX_MAP,
+  PREFIX_TO_CHIP_MAP,
+  getChipFromKampagnenartName,
+  sumBlockUmsatz,
+} from '../../auftrag/logic/kampagnenartChip.js';
 
-export const CHIP_PREFIX_MAP = {
-  ugc_paid: 'ugc_paid',
-  ugc_organic: 'ugc_organic',
-  influencer: 'influencer',
-  vorort_produktion: 'vor_ort',
-  story: 'story',
-  event: 'event',
-  whitelisting: 'whitelisting',
-  darkposting: 'darkposting'
-};
+export { CHIP_PREFIX_MAP, PREFIX_TO_CHIP_MAP, getChipFromKampagnenartName, sumBlockUmsatz };
 
 // Chips die KEINE Legacy-Spalten in auftrag_details / kampagne haben.
 // Deren Daten werden ausschliesslich in auftrag_kampagnenart_blocks persistiert.
 export const CHIPS_WITHOUT_LEGACY_COLUMNS = new Set(['whitelisting', 'darkposting', 'event']);
-
-// Reverse-Map: prefix -> chipValue (z.B. 'vor_ort' -> 'vorort_produktion')
-export const PREFIX_TO_CHIP_MAP = Object.entries(CHIP_PREFIX_MAP).reduce((acc, [chip, prefix]) => {
-  acc[prefix] = chip;
-  return acc;
-}, {});
-
-/**
- * Wandelt einen kampagne_art_typen.name (z.B. "UGC Paid", "Vor-Ort-Produktion")
- * in den entsprechenden Wizard-Slug (CAMPAIGN_TYPES.value, z.B. "ugc_paid",
- * "vorort_produktion") um. Geht ueber das KAMPAGNENARTEN_MAPPING.prefix als
- * Bruecke und sucht den Chip im invertierten CHIP_PREFIX_MAP.
- *
- * @param {string} name DB-Anzeigename aus kampagne_art_typen
- * @returns {string|null} Wizard-Slug oder null wenn nicht zuordenbar
- */
-export function getChipFromKampagnenartName(name) {
-  if (!name) return null;
-  const config = getKampagnenartConfig(name);
-  if (!config?.prefix) return null;
-  return PREFIX_TO_CHIP_MAP[config.prefix] || null;
-}
 
 export const BUDGET_FIELD_SUFFIXES = [
   'einkaufspreis_netto_von',
@@ -147,21 +122,6 @@ export function normalizeCampaignBlocks(details = {}) {
     campaign_type: chipValue,
     ...(legacyBudgets[chipValue] || {})
   }, chipValue));
-}
-
-/**
- * Summiert die gepflegten Block-Umsaetze (umsatz_netto). Blocks ohne Wert
- * zaehlen als 0; hasAny zeigt an, ob ueberhaupt ein Wert gepflegt ist.
- */
-export function sumBlockUmsatz(blocks = []) {
-  return (blocks || []).reduce((acc, block) => {
-    const n = parseNum(block.umsatz_netto);
-    if (n != null) {
-      acc.sum += n;
-      acc.hasAny = true;
-    }
-    return acc;
-  }, { sum: 0, hasAny: false });
 }
 
 export function getCampaignTypesFromBlocks(blocks = [], { unique = false } = {}) {

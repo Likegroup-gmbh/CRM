@@ -6,6 +6,8 @@ import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
 import { tableSelect } from '../../core/components/TableSelect.js';
 import { buildStrategiePrioUpdates, isStrategiePrio } from './strategiePrioOptions.js';
 import { bindTextClipEvents } from './strategieTextClip.js';
+import { startProduktionFromItem } from '../kooperation/produktionStart.js';
+import { refreshItemActions } from './StrategieDetailRenderer.js';
 
 function tableRoot(detail) {
   return detail._getRoot?.() || window.content;
@@ -61,6 +63,15 @@ export function bindTableEvents(detail) {
   bindCustomColumnEvents(detail);
   bindPrioSelect(detail);
 
+  const refreshOnOpen = (e) => {
+    const toggle = e.target.closest?.('.actions-toggle');
+    if (!toggle || !isFromThisWorksheet(detail, toggle)) return;
+    const itemId = toggle.closest('tr.item-row')?.dataset.itemId;
+    if (itemId) refreshItemActions(detail, itemId);
+  };
+  document.addEventListener('click', refreshOnOpen, true);
+  detail._tableEventListeners.add(() => document.removeEventListener('click', refreshOnOpen, true));
+
   if (canWrite) {
     const actionHandler = (e) => {
       const actionItem = e.target.closest('[data-action]');
@@ -103,6 +114,11 @@ export function bindTableEvents(detail) {
           e.preventDefault();
           if (actionItem.classList.contains('action-disabled')) return;
           handleSkriptFreigabeToggle(detail, id);
+          break;
+        case 'start-produktion':
+          e.preventDefault();
+          if (actionItem.classList.contains('action-disabled')) return;
+          startProduktionFromItem(detail, id);
           break;
         case 'uebernehmen-vorschlag':
           e.preventDefault();
@@ -359,7 +375,7 @@ export async function handlePrioChange(detail, itemId, value) {
   if (item?.ist_vorschlag) return;
 
   if (value === 'nicht_umsetzen' && item?.video_umgesetzt) {
-    window.toastSystem?.show('Zuerst „Umgesetzt" deaktivieren', 'warning');
+    window.toastSystem?.show('Zuerst „Umsetzen" deaktivieren', 'warning');
     detail.rerenderItemsTable();
     return;
   }
@@ -407,6 +423,7 @@ export async function handleCreatorUnlink(detail, itemId) {
     item.skript_freigabe = false;
     item.skript_freigabe_am = null;
     item.skript_freigabe_von = null;
+    refreshItemActions(detail, itemId);
     detail.rerenderItemsTable();
     window.toastSystem?.show('Zuordnung gelöst', 'success');
     return true;
@@ -437,6 +454,7 @@ export async function handleProduktUnlink(detail, itemId) {
     item.skript_freigabe = false;
     item.skript_freigabe_am = null;
     item.skript_freigabe_von = null;
+    refreshItemActions(detail, itemId);
     detail.rerenderItemsTable();
     window.toastSystem?.show('Zuordnung gelöst', 'success');
     return true;
@@ -612,6 +630,7 @@ export async function updateItemField(detail, itemId, field, value) {
 
     const item = detail.items.find(i => i.id === itemId);
     if (item) Object.assign(item, updates);
+    if (field === 'video_umgesetzt') refreshItemActions(detail, itemId);
   } catch (error) {
     console.error('Fehler beim Aktualisieren des Items:', error);
     window.toastSystem?.show('Fehler beim Speichern', 'error');

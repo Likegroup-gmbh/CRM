@@ -1,5 +1,6 @@
 // Workflow-Tabs auf der Produktions-Detailseite:
-// Briefing, Casting, Konzepte, Skripte, Verträge, Produktion (Default), Videos, Auswertung.
+// Briefing, Produkte, Personas, Casting, Konzepte, Skripte, Verträge,
+// Produktion (Default), Videos, Auswertung.
 //
 // Der Tab „Produktion“ ist die Kooperationstabelle. Auf der Kampagne gibt es diese Tabs nicht.
 
@@ -24,11 +25,18 @@ import { BEREICH_LABELS } from '../briefing/create/fieldConfig.js';
 import { renderTableSelect } from '../../core/components/TableSelect.js';
 import { mountCastingPane, unmountCastingWorksheet } from './KampagneDetailCasting.js';
 import { mountKonzeptPane, unmountKonzeptWorksheet } from './KampagneDetailKonzept.js';
+import {
+  mountPersonasPane,
+  mountProduktePane,
+  unmountKatalogPanes
+} from './KampagneDetailKatalog.js';
 import { syncWorkflowCreateChrome } from './KampagneWorkflowCreate.js';
 import { withProduktionHerkunft } from '../../core/navHerkunft.js';
 
 export const WORKFLOW_TABS = [
   { id: 'briefing', label: 'Briefing' },
+  { id: 'produkte', label: 'Produkte' },
+  { id: 'personas', label: 'Personas' },
   { id: 'casting', label: 'Casting' },
   { id: 'konzepte', label: 'Konzepte' },
   { id: 'skripte', label: 'Skripte' },
@@ -170,6 +178,22 @@ export async function loadWorkflowPane(detail, tabId) {
     return;
   }
 
+  if (tabId === 'produkte') {
+    detail._workflowLoaded = detail._workflowLoaded || {};
+    if (detail._workflowLoaded.produkte) return;
+    await mountProduktePane(detail);
+    detail._workflowLoaded.produkte = true;
+    return;
+  }
+
+  if (tabId === 'personas') {
+    detail._workflowLoaded = detail._workflowLoaded || {};
+    if (detail._workflowLoaded.personas) return;
+    await mountPersonasPane(detail);
+    detail._workflowLoaded.personas = true;
+    return;
+  }
+
   const renderer = PANE_RENDERERS[tabId];
   if (!renderer) return;
 
@@ -213,6 +237,7 @@ export function refreshWorkflowAfterRender(detail) {
   unmountCastingWorksheet(detail);
   unmountKonzeptWorksheet(detail);
   unmountVertraegePane(detail);
+  unmountKatalogPanes(detail);
   detail._workflowLoaded = {};
   detail._workflowData = {};
   const tab = detail.activeWorkflowTab;

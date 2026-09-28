@@ -13,8 +13,11 @@ import {
 } from '../auftrag/logic/InvoiceMonthFilter.js';
 import { FINAL_AUFTRAG_OR_FILTER, isFinalAuftrag } from '../../core/finalisiert.js';
 import { sortRowsByPrefixedNumberDesc } from '../auftrag/logic/PrefixedNumberSort.js';
+import { isInvoiceRowPaid } from '../auftrag/logic/PaymentRowStatus.js';
 import { sumInvoiceRows, sumPaidRechnungRows } from './invoiceCardTotals.js';
+import { kundenrechnungZeilen, TR_FIELDS } from '../../core/budget/kundenrechnungZeilen.js';
 
+export { kundenrechnungZeilen, TR_FIELDS };
 export { sumInvoiceRows, sumPaidRechnungRows };
 
 export { isFinalAuftrag };
@@ -28,13 +31,6 @@ export function getRechnungTabKey(row) {
   if (Number.isNaN(date.getTime())) return UNDATED_TAB;
   return { year: date.getFullYear(), month: date.getMonth() };
 }
-
-const TR_FIELDS = [
-  're_nr', 'externe_po', 'nettobetrag', 'ust_betrag', 'bruttobetrag',
-  'rechnung_gestellt', 'rechnung_gestellt_am', 're_faelligkeit',
-  'erwarteter_monat_zahlungseingang',
-  'ueberwiesen', 'ueberwiesen_am'
-];
 
 const RECHNUNG_LIST_SELECT = `
 id,
@@ -69,6 +65,42 @@ vertrag:vertrag_id(id, name, unterschriebener_vertrag_url, dropbox_file_url, dat
 const RECHNUNG_PDF_SELECT = 'id, rechnung_id, file_name, file_path, file_url';
 const ROW_PAGE_SIZE = 1000;
 const PDF_ID_CHUNK = 200;
+const IN_CHUNK = 200;
+
+// PostgREST kappt still bei ROW_PAGE_SIZE. Alles, was gefiltert laedt, laeuft
+// seitenweise mit stabiler Sortierung, damit keine Zeile verloren geht.
+async function fetchPaged(queryFactory) {
+  const rows = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await queryFactory()
+      .order('id', { ascending: true })
+      .range(from, from + ROW_PAGE_SIZE - 1);
+    if (error) throw error;
+    const page = data || [];
+    rows.push(...page);
+    if (page.length < ROW_PAGE_SIZE) break;
+    from += ROW_PAGE_SIZE;
+  }
+  return rows;
+}
+
+function chunk(list, size) {
+  const out = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+}
+
+// .in() mit langen Listen in Bloecken, jeder Block seitenweise.
+async function fetchInChunks(table, select, column, values, extraOrder = null) {
+  if (!values.length) return [];
+  const pages = await Promise.all(chunk(values, IN_CHUNK).map(part => {
+    let query = window.supabase.from(table).select(select).in(column, part);
+    if (extraOrder) query = query.order(extraOrder, { ascending: true });
+    return fetchPaged(() => query);
+  }));
+  return pages.flat();
+}
 
 const KUNDEN_SLIM_SELECT = `
 id,
@@ -240,44 +272,9 @@ export function applyAuftragMode(query, mode) {
   return query.or(NICHT_CONTRACTING_OR);
 }
 
-function applyTeilrechnungFields(row, tr) {
-  for (const field of TR_FIELDS) {
-    if (tr[field] !== undefined) row[field] = tr[field];
-  }
-  return row;
-}
-
 // Eine Zeile je Teilrechnung, sonst der Auftrag selbst. Dieselbe Aufteilung
 // wie die Kundenrechnungs-Liste, damit Kachelsumme und Dashboard dieselben
-// Beträge sehen.
-export function kundenrechnungZeilen(auftraege, teilrechnungen) {
-  const trByAuftrag = new Map();
-  for (const tr of (teilrechnungen || [])) {
-    if (!trByAuftrag.has(tr.auftrag_id)) trByAuftrag.set(tr.auftrag_id, []);
-    trByAuftrag.get(tr.auftrag_id).push(tr);
-  }
-
-  const rows = [];
-  for (const auftrag of (auftraege || []).filter(isFinalAuftrag)) {
-    const trs = trByAuftrag.get(auftrag.id);
-    if (trs?.length) {
-      const total = trs.length;
-      for (const tr of trs) {
-        const row = applyTeilrechnungFields({ ...auftrag }, tr);
-        row.teilrechnung_id = tr.id;
-        row._teilrechnung = { position: tr.position, total, label: `${tr.position} von ${total}` };
-        rows.push(row);
-      }
-    } else {
-      rows.push({
-        ...auftrag,
-        teilrechnung_id: null,
-        _teilrechnung: { position: 1, total: 1, label: '1 von 1' }
-      });
-    }
-  }
-  return rows;
-}
+// Beträge sehen. Implementierung: src/core/budget/kundenrechnungZeilen.js.
 
 function decorateKundenrechnungZeile(row, createdByFallbacks) {
   const details = row.auftrag_details;
@@ -381,9 +378,8 @@ async function resolveKundenIds(filters, search, mode) {
   delete rest.auftragsname;
   query = applyAuftragFilters(query, rest);
 
-  const { data, error } = await query;
-  if (error) throw error;
-  return mergeTeilrechnungSearchIds((data || []).map(r => r.id), searchTerm, mode);
+  const ids = (await fetchPaged(() => query)).map(r => r.id);
+  return mergeTeilrechnungSearchIds(ids, searchTerm, mode);
 }
 
 function applyAuftragFilters(query, filters = {}) {
@@ -393,10 +389,16 @@ function applyAuftragFilters(query, filters = {}) {
   if (filters.rechnung_gestellt !== undefined && filters.rechnung_gestellt !== '') {
     query = query.eq('rechnung_gestellt', filters.rechnung_gestellt);
   }
-  if (filters.ueberwiesen !== undefined && filters.ueberwiesen !== '') {
-    query = query.eq('ueberwiesen', filters.ueberwiesen);
-  }
+  // filters.ueberwiesen wird bewusst NICHT auf den Auftragskopf angewendet.
+  // Der Zahlungsstand sitzt an der Teilrechnung, sobald welche existieren;
+  // gefiltert wird nach dem Explodieren auf den Zeilen (isInvoiceRowPaid).
   return query;
+}
+
+function filterRowsByPaid(rows, ueberwiesenFilter) {
+  if (ueberwiesenFilter === undefined || ueberwiesenFilter === '') return rows;
+  const wantPaid = ueberwiesenFilter === true || ueberwiesenFilter === 'true';
+  return (rows || []).filter(row => isInvoiceRowPaid(row) === wantPaid);
 }
 
 function statusCountsFromRows(rows, statusIds) {
@@ -559,15 +561,14 @@ async function loadKundenRows({ year, month, filters, search, mode }) {
   const auftragIds = await resolveKundenIds(filters, search, mode);
   if (!auftragIds.length) return [];
 
-  const [{ data: slim, error: slimError }, { data: teilrechnungen, error: trError }] = await Promise.all([
-    window.supabase.from('auftrag').select(KUNDEN_SLIM_SELECT).in('id', auftragIds),
-    window.supabase.from('auftrag_teilrechnung').select('*').in('auftrag_id', auftragIds).order('position', { ascending: true })
+  const [slim, teilrechnungen] = await Promise.all([
+    fetchInChunks('auftrag', KUNDEN_SLIM_SELECT, 'id', auftragIds),
+    fetchInChunks('auftrag_teilrechnung', '*', 'auftrag_id', auftragIds, 'position')
   ]);
-  if (slimError) throw slimError;
-  if (trError) throw trError;
 
-  const exploded = explodeTeilrechnungen(slim || [], teilrechnungen, new Map());
-  const sortedKeys = sortRowsByPrefixedNumberDesc(exploded, 're_nr');
+  const exploded = explodeTeilrechnungen(slim, teilrechnungen, new Map());
+  const paidFiltered = filterRowsByPaid(exploded, filters?.ueberwiesen);
+  const sortedKeys = sortRowsByPrefixedNumberDesc(paidFiltered, 're_nr');
   const visible = mode === 'contracts'
     ? sortedKeys
     : filterRowsByMonthYear(sortedKeys, { year, month });
@@ -575,18 +576,15 @@ async function loadKundenRows({ year, month, filters, search, mode }) {
   if (!visible.length) return [];
 
   const visibleAuftragIds = [...new Set(visible.map(row => row.id))];
-  const { data: fat, error: fatError } = await window.supabase
-    .from('auftrag')
-    .select(KUNDEN_ROW_SELECT)
-    .in('id', visibleAuftragIds);
-  if (fatError) throw fatError;
+  const fat = await fetchInChunks('auftrag', KUNDEN_ROW_SELECT, 'id', visibleAuftragIds);
 
-  const createdByFallbacks = await loadCreatedByFallbacks(fat || []);
+  const createdByFallbacks = await loadCreatedByFallbacks(fat);
   const visibleTrs = (teilrechnungen || []).filter(tr => visibleAuftragIds.includes(tr.auftrag_id));
-  const fatExploded = explodeTeilrechnungen(fat || [], visibleTrs, createdByFallbacks);
+  const fatExploded = explodeTeilrechnungen(fat, visibleTrs, createdByFallbacks);
+  const fatPaidFiltered = filterRowsByPaid(fatExploded, filters?.ueberwiesen);
   const monthFiltered = mode === 'contracts'
-    ? fatExploded
-    : filterRowsByMonthYear(fatExploded, { year, month });
+    ? fatPaidFiltered
+    : filterRowsByMonthYear(fatPaidFiltered, { year, month });
   return sortRowsByPrefixedNumberDesc(monthFiltered, 're_nr');
 }
 
@@ -596,18 +594,19 @@ async function loadKundenCounts({ year, filters, search, mode }) {
   const auftragIds = await resolveKundenIds(filters, search, mode);
   if (!auftragIds.length) return { months: emptyCounts() };
 
-  const [{ data: slim, error: slimError }, { data: teilrechnungen, error: trError }] = await Promise.all([
-    window.supabase.from('auftrag').select(KUNDEN_SLIM_SELECT).in('id', auftragIds),
-    window.supabase
-      .from('auftrag_teilrechnung')
-      .select('id, auftrag_id, re_nr, rechnung_gestellt_am, ueberwiesen_am, erwarteter_monat_zahlungseingang, re_faelligkeit, position')
-      .in('auftrag_id', auftragIds)
+  const [slim, teilrechnungen] = await Promise.all([
+    fetchInChunks('auftrag', KUNDEN_SLIM_SELECT, 'id', auftragIds),
+    fetchInChunks(
+      'auftrag_teilrechnung',
+      'id, auftrag_id, re_nr, rechnung_gestellt_am, ueberwiesen_am, erwarteter_monat_zahlungseingang, re_faelligkeit, position',
+      'auftrag_id',
+      auftragIds
+    )
   ]);
-  if (slimError) throw slimError;
-  if (trError) throw trError;
 
-  const exploded = explodeTeilrechnungen(slim || [], teilrechnungen, new Map());
-  return { months: countRowsByMonth(exploded, year, getInvoiceTabKey) };
+  const exploded = explodeTeilrechnungen(slim, teilrechnungen, new Map());
+  const paidFiltered = filterRowsByPaid(exploded, filters?.ueberwiesen);
+  return { months: countRowsByMonth(paidFiltered, year, getInvoiceTabKey) };
 }
 
 export async function loadRows(opts = {}) {
@@ -639,4 +638,4 @@ export async function loadBlatt(opts = {}) {
   };
 }
 
-export { hasInvoiceNumber, hydrateRechnungPdfs, TR_FIELDS };
+export { hasInvoiceNumber, hydrateRechnungPdfs };

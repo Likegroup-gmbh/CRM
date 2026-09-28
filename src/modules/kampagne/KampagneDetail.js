@@ -19,6 +19,7 @@ import {
 } from './KampagneDetailWorkflow.js';
 import { unmountCastingWorksheet } from './KampagneDetailCasting.js';
 import { unmountKonzeptWorksheet } from './KampagneDetailKonzept.js';
+import { unmountKatalogPanes } from './KampagneDetailKatalog.js';
 import { produktionCrumbList } from '../../core/navHerkunft.js';
 
 export class KampagneDetail {
@@ -100,6 +101,7 @@ export class KampagneDetail {
     this._destroyDrawers();
     unmountCastingWorksheet(this);
     unmountKonzeptWorksheet(this);
+    unmountKatalogPanes(this);
 
     if (this.kooperationenVideoTable) {
       if (typeof this.kooperationenVideoTable.destroy === 'function') {
@@ -281,6 +283,7 @@ export class KampagneDetail {
       this.kooperationenVideoTable.hiddenColumns = hiddenCols;
     }
 
+    this.kooperationenVideoTable.reloadKooperationen = () => this.reloadKooperationTable();
     this.kooperationenVideoTable._dataLoaded = true;
     this._pendingTableData = tableData;
 
@@ -349,6 +352,35 @@ export class KampagneDetail {
     updateVideoStatsCardDOM(summary.videoStats, { animate });
   }
 
+  // Nach Anlegen nachziehen. Läufe hintereinander: ein Realtime-Insert
+  // vor den Videos darf den späteren Stand (entityUpdated) nicht überschreiben.
+  async reloadKooperationTable() {
+    if (!this._isMounted || !this.store || !this.kampagneId) return;
+    if (this._koopReloadRunning) {
+      this._koopReloadQueued = true;
+      return;
+    }
+    this._koopReloadRunning = true;
+    try {
+      await loadFullTableData(this.kampagneId, this.store, this.isKunde, {
+        produktionId: this.mode === 'workflow' ? this.produktionId : null
+      });
+      if (!this._isMounted) return;
+      this._refreshSummaryCards();
+      if (this.currentView === 'kanban' && this.kanbanBoard) {
+        this.kanbanBoard.render();
+      } else {
+        await this.kooperationenVideoTable?.refilter();
+      }
+    } finally {
+      this._koopReloadRunning = false;
+      if (this._koopReloadQueued) {
+        this._koopReloadQueued = false;
+        void this.reloadKooperationTable();
+      }
+    }
+  }
+
   async _mountVideoTable() {
     if (!this.kooperationenVideoTable) return;
 
@@ -380,6 +412,9 @@ export class KampagneDetail {
           const evtDetail = e.detail || {};
           if (evtDetail.entity === 'kooperation' && evtDetail.action === 'deleted' && evtDetail.id) {
             await this.kooperationenVideoTable.handleKooperationDeletedById(evtDetail.id, 'entityUpdated');
+          }
+          if (evtDetail.entity === 'kooperation' && evtDetail.action === 'created') {
+            await this.reloadKooperationTable();
           }
         };
         window.addEventListener('entityUpdated', this.kooperationenVideoTable._entityUpdatedHandler);
@@ -477,6 +512,7 @@ export class KampagneDetail {
   async _remountVideoTable() {
     if (!this.store) return;
     this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId, this.store);
+    this.kooperationenVideoTable.reloadKooperationen = () => this.reloadKooperationTable();
     this.kooperationenVideoTable.produktionId = this.mode === 'workflow' ? this.produktionId : null;
     this.kooperationenVideoTable.statusOptions = this.store.statusOptions || [];
 
@@ -527,6 +563,7 @@ export class KampagneDetail {
 
     unmountCastingWorksheet(this);
     unmountKonzeptWorksheet(this);
+    unmountKatalogPanes(this);
 
     if (this.store) {
       this.store.destroy();

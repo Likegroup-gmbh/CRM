@@ -10,15 +10,18 @@ import { bindToolbarMenu } from '../../core/components/ToolbarMenu.js';
 
 import { debugLog, debounce, bindDragToScroll, destroyDragToScroll } from './KampagneListUtils.js';
 import { loadKampagnenWithRelations, loadUserPermissions } from './KampagneListDataLoader.js';
-import { renderPageHtml, updateTable } from './KampagneListRenderers.js';
+import { renderPageHtml, renderTableWrapper, updateTable, renderFolderRows } from './KampagneListRenderers.js';
 import { KampagneCreateHandler } from './KampagneCreateHandler.js';
 import { bindEmptyStateActions } from '../../core/components/EmptyState.js';
 import { getShowCompleted, setShowCompleted, shouldHideCompleted } from './kampagneListPrefs.js';
 import {
   KampagneGridView,
   initialKampagneView,
-  clearKampagneFolderQuery
+  setKampagneAnsicht,
+  loadKampagnenGrid
 } from './KampagneGridView.js';
+import { parseFolderQuery, folderListUrl, folderCrumbs, NUR_UNTERNEHMEN_LABEL, markenEbeneEntfaellt } from '../../core/folderListNav.js';
+import { icon } from '../../core/icons/IconSystem.js';
 
 const createHandler = new KampagneCreateHandler();
 
@@ -245,10 +248,10 @@ export class KampagneList {
 
   async loadData() {
     const checkMounted = () => this._isMounted && !this._abortController?.signal.aborted;
-    
+
     try {
       if (!checkMounted()) return;
-      
+
       if (this.currentView === 'grid') {
         if (this.gridView) await this.gridView.reload();
         else await this.initGridView();
@@ -256,12 +259,31 @@ export class KampagneList {
       }
 
       if (this.currentView === 'list') {
+        const folder = parseFolderQuery(window.location.search);
+        const hasQuery = this.hasActiveFilters();
+
+        if (folder.viewMode !== 'items' && !hasQuery) {
+          await this._loadFolderRows(folder);
+          return;
+        }
+
+        if (folder.ohneMarke && !hasQuery && !this._markenEbeneBekannt(folder)) {
+          await this._resolveMarkenEbeneWeg(folder);
+          this.updateBreadcrumbForFolder(folder);
+        }
+
+        const scope = hasQuery ? null : folder;
+        const container = document.getElementById('kampagnen-content-container');
+        if (container && !container.querySelector('.data-table--kampagne')) {
+          container.innerHTML = renderTableWrapper();
+        }
+
         const [, result] = await Promise.all([
           this._shellRendered ? Promise.resolve() : this.initializeFilterBar(),
           loadKampagnenWithRelations(
             this.pagination.currentPage,
             this.pagination.itemsPerPage,
-            { searchQuery: this.searchQuery }
+            { searchQuery: this.searchQuery, folder: scope }
           )
         ]);
 
@@ -286,6 +308,132 @@ export class KampagneList {
       if (error.name === 'AbortError') return;
       window.ErrorHandler.handle(error, 'KampagneList.loadData');
     }
+  }
+
+  _rememberMarkenEbene(unternehmenId, weg) {
+    this._markenEbeneWegFirma = unternehmenId;
+    this._markenEbeneWeg = !!weg;
+    this._markenEbeneWegKnown = true;
+  }
+
+  _markenEbeneBekannt(folder) {
+    return !!(this._markenEbeneWegKnown && this._markenEbeneWegFirma === folder?.unternehmenId);
+  }
+
+  _istMarkenEbeneWeg(folder) {
+    return !!(folder?.ohneMarke && this._markenEbeneBekannt(folder) && this._markenEbeneWeg);
+  }
+
+  async _resolveMarkenEbeneWeg(folder) {
+    if (!folder?.ohneMarke || !folder.unternehmenId) return false;
+    if (this._markenEbeneBekannt(folder)) return this._markenEbeneWeg;
+    const data = await loadKampagnenGrid(
+      { unternehmenId: folder.unternehmenId, viewMode: 'brands' },
+      shouldHideCompleted(this.searchQuery)
+    );
+    const weg = markenEbeneEntfaellt((data?.marken || []).length, data?.ohne_marke_count || 0);
+    this._rememberMarkenEbene(folder.unternehmenId, weg);
+    return weg;
+  }
+
+  async _loadFolderRows(folder) {
+    const container = document.getElementById('kampagnen-content-container');
+    if (!container) return;
+
+    const mode = folder.viewMode || 'companies';
+
+    try {
+      const data = await loadKampagnenGrid(folder, shouldHideCompleted(this.searchQuery));
+      if (!this._isMounted) return;
+
+      if (mode === 'brands') {
+        const weg = markenEbeneEntfaellt((data?.marken || []).length, data?.ohne_marke_count || 0);
+        this._rememberMarkenEbene(folder.unternehmenId, weg);
+        if (weg) {
+          return this._navigateFolder({
+            viewMode: 'items',
+            unternehmenId: folder.unternehmenId,
+            unternehmenName: folder.unternehmenName,
+            markeId: null,
+            markeName: NUR_UNTERNEHMEN_LABEL,
+            ohneMarke: true
+          });
+        }
+      }
+
+      container.innerHTML = this._folderShell(mode, '');
+      const tbody = document.getElementById('kampagnen-folder-body');
+      if (!tbody) return;
+
+      if (mode === 'companies') {
+        tbody.innerHTML = renderFolderRows(data?.unternehmen || [], { mode: 'companies' });
+      } else {
+        const folders = [...(data?.marken || [])];
+        if ((data?.ohne_marke_count || 0) > 0) {
+          folders.push({
+            id: null,
+            markenname: NUR_UNTERNEHMEN_LABEL,
+            logo_url: null,
+            count: data.ohne_marke_count,
+            virtual: true
+          });
+        }
+        tbody.innerHTML = renderFolderRows(folders, { mode: 'brands' });
+      }
+      this.pagination.updateTotal(0);
+      this.pagination.render();
+    } catch (error) {
+      if (!this._isMounted) return;
+      window.ErrorHandler?.handle(error, 'KampagneList._loadFolderRows');
+      const tbody = document.getElementById('kampagnen-folder-body');
+      if (tbody) tbody.innerHTML = '<tr><td colspan="3" class="error-message">Ordner konnten nicht geladen werden.</td></tr>';
+    }
+  }
+
+  _folderShell(mode, rowsHtml) {
+    const back = mode === 'brands'
+      ? `<button type="button" id="btn-back-to-companies" class="mdc-btn mdc-btn--secondary">${icon('arrow-left')} Zurück</button>`
+      : '';
+    return `
+      <div class="list-container">
+        ${back ? `<div class="table-filter-wrapper"><div class="filter-bar"><div class="filter-left">${back}</div></div></div>` : ''}
+        <div class="table-container">
+          <table class="data-table data-table--kampagne-folders">
+            <thead>
+              <tr>
+                <th class="col-thumb">Bild</th>
+                <th class="col-folder-name">Name</th>
+                <th class="col-folder-count">Anzahl</th>
+              </tr>
+            </thead>
+            <tbody id="kampagnen-folder-body">${rowsHtml}</tbody>
+          </table>
+        </div>
+        <div class="pagination-container" id="pagination-kampagne"></div>
+      </div>
+    `;
+  }
+
+  updateBreadcrumbForFolder(folder) {
+    if (!window.breadcrumbSystem) return;
+    if (!folder?.unternehmenId || folder.viewMode === 'companies') {
+      window.breadcrumbSystem.updateBreadcrumb([
+        { label: 'Kampagnen', url: '/kampagne', clickable: false }
+      ]);
+      return;
+    }
+    const crumbs = folderCrumbs({
+      listLabel: 'Kampagnen',
+      basePath: '/kampagne',
+      folder,
+      markenEbeneWeg: this._istMarkenEbeneWeg(folder)
+    }).map((crumb) => {
+      if (!crumb.url || crumb.url === '#') return crumb;
+      const url = new URL(crumb.url, window.location.origin);
+      url.searchParams.delete('ansicht');
+      return { ...crumb, url: `${url.pathname}${url.search}` };
+    });
+    window.breadcrumbSystem.updateBreadcrumb(crumbs);
   }
 
   /**
@@ -317,6 +465,10 @@ export class KampagneList {
 
     this.syncShellForView(this.currentView);
     this.bindEvents();
+
+    if (this.currentView === 'list') {
+      this.updateBreadcrumbForFolder(parseFolderQuery(window.location.search));
+    }
   }
 
   // ========================================
@@ -349,6 +501,13 @@ export class KampagneList {
 
     this.gridView = new KampagneGridView(container);
     await this.gridView.mount();
+    if (this.gridView) {
+      const folder = this.gridView.currentFolder();
+      if (folder.ohneMarke) {
+        this._rememberMarkenEbene(folder.unternehmenId, !!this.gridView.markenEbeneWeg);
+      }
+      this.updateBreadcrumbForFolder(folder);
+    }
   }
 
   destroyGridView() {
@@ -366,10 +525,6 @@ export class KampagneList {
     document.getElementById('btn-view-list')?.classList.toggle('active', view === 'list');
     document.getElementById('btn-view-grid')?.classList.toggle('active', view === 'grid');
     document.getElementById('btn-view-calendar')?.classList.toggle('active', view === 'calendar');
-
-    if (view !== 'grid') {
-      clearKampagneFolderQuery();
-    }
   }
 
   async initializeFilterBar() {
@@ -391,6 +546,7 @@ export class KampagneList {
     filterSystem.applyFilters('kampagne', filters);
     this.pagination.currentPage = 1;
     this.updateToolbarFilterBadge();
+    this.updateBreadcrumbForFolder(null);
     this._debouncedLoadAndRender();
   }
 
@@ -399,6 +555,7 @@ export class KampagneList {
     filterSystem.resetFilters('kampagne');
     this.pagination.currentPage = 1;
     this.updateToolbarFilterBadge();
+    this.updateBreadcrumbForFolder(parseFolderQuery(window.location.search));
     this.loadData();
   }
 
@@ -425,14 +582,19 @@ export class KampagneList {
     if (this._searchDebounceTimer) clearTimeout(this._searchDebounceTimer);
     this._searchDebounceTimer = setTimeout(() => {
       this.searchQuery = query.trim();
-      
+
       if (this.currentView === 'calendar' && this.calendarView) {
         void this.calendarView.setSearchQuery(this.searchQuery);
         return;
       }
       if (this.currentView === 'grid') return;
-      
+
       this.pagination.currentPage = 1;
+      if (this.searchQuery) {
+        this.updateBreadcrumbForFolder(null);
+      } else {
+        this.updateBreadcrumbForFolder(parseFolderQuery(window.location.search));
+      }
       this.loadData();
     }, 300);
   }
@@ -444,6 +606,7 @@ export class KampagneList {
   bindEvents() {
     SearchInput.bind('kampagne', (value) => this.handleSearch(value));
     this._bindToolbarMenu();
+    this._bindFolderClicks();
 
     // View-Toggle (list/calendar/grid)
     const switchView = async (targetView) => {
@@ -460,6 +623,9 @@ export class KampagneList {
       this.currentView = targetView;
       this.updateViewClass();
       this.syncShellForView(targetView);
+      if (targetView !== 'calendar') {
+        setKampagneAnsicht(targetView);
+      }
 
       const container = document.getElementById('kampagnen-content-container');
       if (container) {
@@ -470,8 +636,6 @@ export class KampagneList {
           container.innerHTML = '<div id="kampagnen-grid-root"></div>';
           await this.initGridView();
         } else {
-          const { renderTableWrapper } = await import('./KampagneListRenderers.js');
-          container.innerHTML = renderTableWrapper();
           await this.loadData();
         }
       }
@@ -497,6 +661,64 @@ export class KampagneList {
       'reset-filters': () => this.onFiltersReset(),
       'show-completed': () => this.applyShowCompleted(true)
     }, { signal: this._abortController.signal });
+  }
+
+  _bindFolderClicks() {
+    const container = document.getElementById('kampagnen-content-container');
+    if (!container) return;
+    container.addEventListener('click', (e) => {
+      if (this.currentView !== 'list') return;
+      const back = e.target.closest('#btn-back-to-companies');
+      if (back) {
+        e.preventDefault();
+        this._navigateFolder({ viewMode: 'companies' });
+        return;
+      }
+      const row = e.target.closest('.kampagne-folder-row');
+      if (!row) return;
+      e.preventDefault();
+      if (row.dataset.unternehmenId) {
+        this._navigateFolder({
+          viewMode: 'brands',
+          unternehmenId: row.dataset.unternehmenId,
+          unternehmenName: row.dataset.unternehmenName
+        });
+        return;
+      }
+      const current = parseFolderQuery(window.location.search);
+      if (row.dataset.ohneMarke === '1') {
+        this._navigateFolder({
+          viewMode: 'items',
+          unternehmenId: current.unternehmenId,
+          unternehmenName: current.unternehmenName,
+          markeId: null,
+          markeName: row.dataset.markeName,
+          ohneMarke: true
+        });
+        return;
+      }
+      if (row.dataset.markeId) {
+        this._navigateFolder({
+          viewMode: 'items',
+          unternehmenId: current.unternehmenId,
+          unternehmenName: current.unternehmenName,
+          markeId: row.dataset.markeId,
+          markeName: row.dataset.markeName,
+          ohneMarke: false
+        });
+      }
+    }, { signal: this._abortController.signal });
+  }
+
+  _navigateFolder(folder) {
+    const url = folderListUrl('/kampagne', folder, folder.viewMode);
+    const parsed = new URL(url, window.location.origin);
+    parsed.searchParams.delete('ansicht');
+    const clean = `${parsed.pathname}${parsed.search}`;
+    window.history.replaceState({ route: clean }, '', clean);
+    this.pagination.currentPage = 1;
+    this.updateBreadcrumbForFolder(folder);
+    return this.loadData();
   }
 
   _bindToolbarMenu() {

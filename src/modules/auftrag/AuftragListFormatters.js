@@ -4,7 +4,7 @@
 import { AuftragList } from './AuftragListCore.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { CustomDatePicker } from '../../core/components/CustomDatePicker.js';
-import { getPaymentRowStatusClass } from './logic/PaymentRowStatus.js';
+import { getPaymentRowStatusClass, isInvoiceRowPaid } from './logic/PaymentRowStatus.js';
 import { defaultReNrPrefix, isBareReNrPrefix } from './logic/PrefixedNumberSort.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
@@ -72,12 +72,22 @@ AuftragList.prototype.renderBillingDateCell = function(auftrag, boolField, dateF
   if (!this.isAdmin) {
     return this.formatBoolean(Boolean(auftrag[dateField]));
   }
+  // Zahlungsstand sitzt an der Teilrechnung, sobald welche existieren.
+  // Wenn der Aufrufer bereits eine Teilrechnung als Ziel übergibt (paidRow),
+  // diese direkt verwenden.
+  const isTeilrechnung = Boolean(auftrag.auftrag_id);
+  const trs = auftrag.teilrechnungen || [];
+  const target = boolField === 'ueberwiesen' && !isTeilrechnung && trs.length > 0
+    ? trs.find(tr => !isInvoiceRowPaid(tr)) || trs[trs.length - 1]
+    : auftrag;
+  const entity = target !== auftrag || isTeilrechnung ? 'auftrag_teilrechnung' : 'auftrag';
   const label = boolField === 'rechnung_gestellt' ? 'Rechnung gestellt am' : 'Ueberwiesen am';
   return CustomDatePicker.render({
-    id: auftrag.id,
+    id: target.id,
+    entity,
     field: boolField,
     dateField,
-    value: auftrag[dateField],
+    value: target[dateField],
     label,
     inputClass: 'auftrag-inline-date-input'
   });
@@ -112,6 +122,9 @@ AuftragList.prototype.syncInlineBillingUpdate = function(rowId, dateField, value
     row.dataset.rechnungGestellt = String(Boolean(value));
   } else if (dateField === 'ueberwiesen_am') {
     row.dataset.ueberwiesen = String(Boolean(value));
+    // Bezahlt am-Spalte der Zeile synchronisieren
+    const bezahltCell = row.querySelector('.col-ueberwiesen');
+    if (bezahltCell) bezahltCell.textContent = value ? this.formatDate(value) : '-';
   }
   this.updateAuftragRowStatusClass(row);
 
@@ -242,6 +255,9 @@ AuftragList.prototype.handleInlineBillingDateChange = async function(input) {
           row.dataset.rechnungGestellt = String(Boolean(nextValue));
         } else if (field === 'ueberwiesen') {
           row.dataset.ueberwiesen = String(Boolean(nextValue));
+          // Bezahlt am-Spalte der Zeile synchronisieren (Teilrechnung oder Kopf)
+          const bezahltCell = row.querySelector('.col-ueberwiesen');
+          if (bezahltCell) bezahltCell.textContent = nextValue ? this.formatDate(nextValue) : '-';
         }
         this.updateAuftragRowStatusClass(row);
       }
@@ -253,7 +269,10 @@ AuftragList.prototype.handleInlineBillingDateChange = async function(input) {
         action: 'updated',
         id: auftragId,
         field: isSimpleDateField ? field : dateField,
-        value: nextValue || null
+        value: nextValue || null,
+        // Bei Teilrechnungs-Updates die Auftrags-ID mitgeben, damit
+        // syncInlineBillingUpdate die richtige Zeile findet.
+        auftragId: entity === 'auftrag_teilrechnung' ? input.closest('tr')?.dataset?.id : undefined
       }
     }));
   } catch (error) {

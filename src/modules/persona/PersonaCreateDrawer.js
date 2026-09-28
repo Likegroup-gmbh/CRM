@@ -344,6 +344,16 @@ class PersonaCreateDrawer {
     this.setSearchableValue('marke', prefill.marke_id);
     await this.onMarkeChange();
     this.lockSearchable('marke');
+
+    if (!prefill.briefing_id) return;
+    this.ensureOption('briefing', prefill.briefing_id, prefill.briefingName);
+    this.setSearchableValue('briefing', prefill.briefing_id);
+    await this.onBriefingChange();
+    this.lockSearchable('briefing');
+
+    if (!prefill.produkt_id) return;
+    this.ensureOption('produkt', prefill.produkt_id, prefill.produktName);
+    this.setSearchableValue('produkt', prefill.produkt_id);
   }
 
   async onUnternehmenChange() {

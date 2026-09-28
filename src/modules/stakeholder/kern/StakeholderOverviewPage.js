@@ -3,12 +3,12 @@
 // Zeitraum-Filter + Leistungsbereich-Auswahl, Budget-Karten, Kundenliste
 // und Monatsauswertung. Rechenquelle: calculateBudgetOverview.
 
-import { escapeHtml, formatEuro } from '../../core/format.js';
-import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
-import { aggregate as aggregateOverview, kartenSummen as berechneKartenSummen, loadData as loadStakeholderData } from './stakeholderOverviewData.js';
-import { renderKalkulationBody } from './stakeholderKalkulationView.js';
+import { escapeHtml, formatEuro } from '../../../core/format.js';
+import { ViewModeToggle } from '../../../core/components/ViewModeToggle.js';
+import { aggregate as aggregateOverview, kartenSummen as berechneKartenSummen, loadData as loadStakeholderData } from '../daten/stakeholderOverviewData.js';
+import { renderKalkulationBody } from '../ansichten/stakeholderKalkulationView.js';
 import { TAB_GESAMT_OHNE, availableYears, tabCounts, visibleTabs } from './stakeholderOverviewLogic.js';
-import { oeffneBerichtsstand, renderMonatsauswertung, sichereBerichtsstand } from './stakeholderMonatsView.js';
+import { oeffneBerichtsstand, renderMonatsauswertung, sichereBerichtsstand } from '../ansichten/stakeholderMonatsView.js';
 
 export {
   elapsedRatio,

@@ -10,6 +10,7 @@ import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
+import { withHerkunft } from '../../core/navHerkunft.js';
 import { PersonaFilterLogic } from './filters/PersonaFilterLogic.js';
 import { PersonaService } from './PersonaService.js';
 import {
@@ -29,7 +30,8 @@ import {
   parseFolderQuery,
   folderListUrl,
   folderCrumbs,
-  withFolderQuery
+  withFolderQuery,
+  markenEbeneEntfaellt
 } from '../../core/folderListNav.js';
 import {
   renderCompaniesView, updateCompaniesGrid,
@@ -62,6 +64,8 @@ export class PersonaList extends BasePaginatedList {
     });
 
     this._allPersonas = null;
+    this.embedScope = null;
+    this._embedPersonaIds = null;
 
     this.viewMode = 'companies';
     this.listViewMode = 'grid';
@@ -90,6 +94,7 @@ export class PersonaList extends BasePaginatedList {
 
   resetEntityCaches() {
     this._allPersonas = null;
+    this._embedPersonaIds = null;
   }
 
   applyQueryParams(params) {
@@ -118,12 +123,13 @@ export class PersonaList extends BasePaginatedList {
   }
 
   syncListUrl() {
+    if (this.embedded) return;
     const url = this.listViewMode === 'list' ? '/persona' : this.listUrl();
     window.history.replaceState({ route: url }, '', url);
   }
 
   updateBreadcrumbDisplay() {
-    if (!window.breadcrumbSystem) return;
+    if (this.embedded || !window.breadcrumbSystem) return;
 
     if (this.listViewMode === 'list' || this.viewMode === 'companies') {
       window.breadcrumbSystem.updateBreadcrumb([
@@ -135,8 +141,42 @@ export class PersonaList extends BasePaginatedList {
     window.breadcrumbSystem.updateBreadcrumb(folderCrumbs({
       listLabel: 'Personas',
       basePath: '/persona',
-      folder: this.currentFolder()
+      folder: this.currentFolder(),
+      markenEbeneWeg: this.markenEbeneWeg()
     }));
+  }
+
+  async mountEmbedded(root, scope = {}) {
+    this.embedded = true;
+    this.embedScope = scope || {};
+    this._embedPersonaIds = null;
+    this.mountRoot = root;
+    this._destroyed = false;
+    this.options.enableDynamicResize = false;
+    this.viewMode = 'companies';
+    this.listViewMode = 'list';
+    this.currentUnternehmenId = null;
+    this.currentUnternehmenName = null;
+    this.currentMarkeId = null;
+    this.currentMarkeName = null;
+    this._ohneMarke = false;
+    this._shellRendered = false;
+    this._allPersonas = null;
+
+    const canView = await this.checkViewPermission();
+    if (!canView) {
+      this.renderNoPermission();
+      return;
+    }
+
+    const additionalPermissions = await this.checkAdditionalPermissions();
+    if (!additionalPermissions) return;
+
+    if (window.bulkActionSystem) {
+      window.bulkActionSystem.registerList(this.entityType, this);
+    }
+
+    await this.loadAndRender();
   }
 
   async init() {
@@ -178,6 +218,7 @@ export class PersonaList extends BasePaginatedList {
     this._shellRendered = false;
     await this.ensureAllPersonas();
     this.buildCurrentFolders();
+    this.applyMarkenEbeneSprung();
     this.renderFolderView();
     this.bindEvents();
 
@@ -197,6 +238,7 @@ export class PersonaList extends BasePaginatedList {
       this._allPersonas = null;
       await this.ensureAllPersonas();
       this.buildCurrentFolders();
+      this.applyMarkenEbeneSprung();
       this.renderFolderView();
       if (this.viewMode === 'items') {
         this.pagination.init('pagination-persona-items', {
@@ -215,6 +257,23 @@ export class PersonaList extends BasePaginatedList {
     if (this._allPersonas) return this._allPersonas;
     this._allPersonas = await this.loadAllPersonas();
     return this._allPersonas;
+  }
+
+  async resolveEmbedPersonaIds() {
+    if (this._embedPersonaIds) return this._embedPersonaIds;
+    const briefingId = this.embedScope?.briefingId || null;
+    if (!briefingId || !window.supabase) {
+      this._embedPersonaIds = [];
+      return this._embedPersonaIds;
+    }
+    const { data, error } = await window.supabase
+      .from('campaign_briefings')
+      .select('persona_ids')
+      .eq('id', briefingId)
+      .maybeSingle();
+    if (error) throw error;
+    this._embedPersonaIds = (data?.persona_ids || []).filter(Boolean);
+    return this._embedPersonaIds;
   }
 
   async loadAllPersonas() {
@@ -266,6 +325,33 @@ export class PersonaList extends BasePaginatedList {
     });
   }
 
+  markenEbeneWeg() {
+    if (!this._ohneMarke || !this.currentUnternehmenId) return false;
+    const folders = buildBrandFolders(this._allPersonas || [], this.currentUnternehmenId);
+    const echte = folders.filter((folder) => folder.id && !folder.virtual).length;
+    const ohne = folders.filter((folder) => folder.virtual).reduce((sum, folder) => sum + (folder.count || 0), 0);
+    return markenEbeneEntfaellt(echte, ohne);
+  }
+
+  applyMarkenEbeneSprung() {
+    if (this.viewMode !== 'brands' || !this.currentUnternehmenId) return;
+    const folders = buildBrandFolders(this._allPersonas || [], this.currentUnternehmenId);
+    const echte = folders.filter((folder) => folder.id && !folder.virtual).length;
+    const ohne = folders.filter((folder) => folder.virtual).reduce((sum, folder) => sum + (folder.count || 0), 0);
+    if (!markenEbeneEntfaellt(echte, ohne)) return;
+    this.viewMode = 'items';
+    this._ohneMarke = true;
+    this.currentMarkeId = null;
+    this.currentMarkeName = NUR_UNTERNEHMEN_LABEL;
+    if (this.pagination) this.pagination.currentPage = 1;
+    this.buildCurrentFolders();
+  }
+
+  backFromItems() {
+    if (this.markenEbeneWeg()) this.switchToCompaniesView();
+    else this.switchToBrandsView(this.currentUnternehmenId, this.currentUnternehmenName);
+  }
+
   renderFolderView() {
     this.updateBreadcrumbDisplay();
     this.syncListUrl();
@@ -275,7 +361,7 @@ export class PersonaList extends BasePaginatedList {
     else if (this.viewMode === 'brands') html = renderBrandsView(this);
     else html = renderItemsView(this);
 
-    window.setContentSafely(window.content, html);
+    this.writeContent(html);
 
     if (this.viewMode === 'companies') updateCompaniesGrid(this);
     else if (this.viewMode === 'brands') updateBrandsGrid(this);
@@ -313,6 +399,7 @@ export class PersonaList extends BasePaginatedList {
   }
 
   setListViewMode(mode) {
+    if (this.embedScope) return;
     if (this.listViewMode === mode && (mode === 'list' || this.viewMode === 'companies')) return;
     this.listViewMode = mode;
     this.viewMode = 'companies';
@@ -330,6 +417,9 @@ export class PersonaList extends BasePaginatedList {
     try {
       if (!window.supabase) return { data: [], total: 0 };
 
+      const embedIds = this.embedScope ? await this.resolveEmbedPersonaIds() : null;
+      if (embedIds && embedIds.length === 0) return { data: [], total: 0 };
+
       const from = (page - 1) * limit;
       const to = from + limit - 1;
 
@@ -338,6 +428,8 @@ export class PersonaList extends BasePaginatedList {
         .select(PERSONA_LIST_SELECT, { count: 'exact' })
         .not('unternehmen_id', 'is', null)
         .order(this.currentSort.field, { ascending: this.currentSort.ascending });
+
+      if (embedIds) query = query.in('id', embedIds);
 
       if (filters.marke_id) {
         const { data: markenTreffer } = await window.supabase
@@ -450,7 +542,7 @@ export class PersonaList extends BasePaginatedList {
       <div class="table-filter-wrapper">
         <div class="filter-bar">
           <div class="filter-left">
-            ${ViewModeToggle.render([
+            ${this.embedScope ? '' : ViewModeToggle.render([
               { buttonId: 'btn-view-list', label: 'Liste', icon: 'list', active: this.listViewMode === 'list' },
               { buttonId: 'btn-view-grid', label: 'Grid', icon: 'grid', active: this.listViewMode === 'grid' }
             ])}
@@ -501,8 +593,13 @@ export class PersonaList extends BasePaginatedList {
     `;
   }
 
+  resolveDetailRoute(itemId) {
+    const route = withFolderQuery(`/persona/${itemId}`);
+    return this.embedded ? withHerkunft(route) : route;
+  }
+
   async initializeFilterBar() {
-    const sortContainer = document.getElementById('sort-dropdown-container');
+    const sortContainer = this.byId('sort-dropdown-container');
     if (sortContainer) {
       sortDropdown.init('persona', sortContainer, {
         nameField: 'name',
@@ -511,7 +608,7 @@ export class PersonaList extends BasePaginatedList {
       });
     }
 
-    const filterContainer = document.getElementById('filter-dropdown-container');
+    const filterContainer = this.byId('filter-dropdown-container');
     if (filterContainer) {
       await filterDropdown.init('persona', filterContainer, {
         onFilterApply: (filters) => this.onFiltersApplied(filters),
@@ -521,11 +618,11 @@ export class PersonaList extends BasePaginatedList {
   }
 
   bindAdditionalEvents(signal) {
-    if (document.getElementById('persona-search-input')) {
+    if (this.byId('persona-search-input')) {
       SearchInput.bind('persona', (value) => this.handleSearch(value), signal);
     }
 
-    document.addEventListener('click', (e) => {
+    this.eventRoot().addEventListener('click', (e) => {
       const listBtn = e.target.closest('#btn-view-list');
       if (listBtn) {
         e.preventDefault();
@@ -550,7 +647,7 @@ export class PersonaList extends BasePaginatedList {
       const backBrands = e.target.closest('#btn-back-to-brands');
       if (backBrands) {
         e.preventDefault();
-        this.switchToBrandsView(this.currentUnternehmenId, this.currentUnternehmenName);
+        this.backFromItems();
         return;
       }
 
@@ -586,18 +683,28 @@ export class PersonaList extends BasePaginatedList {
 
   openPersona(personaId) {
     if (!personaId) return;
-    window.navigateTo(withFolderQuery(`/persona/${personaId}`));
+    window.navigateTo(this.resolveDetailRoute(personaId));
   }
 
   openCreateDrawer() {
     const folder = this.currentFolder();
-    openPersonaCreateDrawer({
+    const scope = this.embedScope;
+    const prefill = {
       origin: 'liste',
-      unternehmen_id: folder.unternehmenId || null,
-      unternehmenName: folder.unternehmenName || null,
-      marke_id: folder.ohneMarke ? null : (folder.markeId || null),
-      markeName: folder.ohneMarke ? null : (folder.markeName || null)
-    });
+      unternehmen_id: scope?.unternehmenId || folder.unternehmenId || null,
+      unternehmenName: scope?.unternehmenName || folder.unternehmenName || null,
+      marke_id: scope?.markeId || (folder.ohneMarke ? null : (folder.markeId || null)),
+      markeName: scope?.markeName || (folder.ohneMarke ? null : (folder.markeName || null))
+    };
+    if (scope?.briefingId) {
+      prefill.briefing_id = scope.briefingId;
+      prefill.briefingName = scope.briefingName || null;
+    }
+    if (scope?.produktId) {
+      prefill.produkt_id = scope.produktId;
+      prefill.produktName = scope.produktName || null;
+    }
+    openPersonaCreateDrawer(prefill);
   }
 
   showCreateForm() {
@@ -605,7 +712,7 @@ export class PersonaList extends BasePaginatedList {
   }
 
   async updateTable(personas) {
-    const tbody = document.querySelector(this.options.tbodySelector);
+    const tbody = this.query(this.options.tbodySelector);
     if (!tbody) return;
 
     await TableAnimationHelper.animatedUpdate(tbody, () => {
@@ -624,6 +731,8 @@ export class PersonaList extends BasePaginatedList {
 
   destroy() {
     super.destroy();
+    this.embedScope = null;
+    this._embedPersonaIds = null;
     this._allPersonas = null;
     this.companyFolders = [];
     this.brandFolders = [];

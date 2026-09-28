@@ -50,6 +50,14 @@ describe('Kampagne als Überübersicht, Produktion als Workflow', () => {
     expect(html).toContain('data-workflow-tab="produktion"');
     expect(html).toMatch(/data-workflow-tab="produktion">\s*Produktion\s*</);
     expect(html).toContain('data-workflow-tab="casting"');
+    const briefing = html.indexOf('data-workflow-tab="briefing"');
+    const produkte = html.indexOf('data-workflow-tab="produkte"');
+    const personas = html.indexOf('data-workflow-tab="personas"');
+    const casting = html.indexOf('data-workflow-tab="casting"');
+    expect(briefing).toBeGreaterThan(-1);
+    expect(briefing).toBeLessThan(produkte);
+    expect(produkte).toBeLessThan(personas);
+    expect(personas).toBeLessThan(casting);
     expect(html).not.toContain('summary-cards');
   });
 

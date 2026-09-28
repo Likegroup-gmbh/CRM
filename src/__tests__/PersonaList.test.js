@@ -87,6 +87,62 @@ describe('PersonaList URLs', () => {
     });
   });
 
+  it('Firma ohne Marke springt auf die Liste', () => {
+    list.viewMode = 'brands';
+    list.currentUnternehmenId = 'u1';
+    list.currentUnternehmenName = 'Acme';
+    list._allPersonas = [{
+      id: 'p1',
+      unternehmen_id: 'u1',
+      unternehmen: { id: 'u1', firmenname: 'Acme' },
+      marken: []
+    }];
+    list.applyMarkenEbeneSprung();
+    expect(list.viewMode).toBe('items');
+    expect(list._ohneMarke).toBe(true);
+    expect(list.markenEbeneWeg()).toBe(true);
+  });
+
+  it('Marke plus Nur Unternehmen bleibt die Marken-Ebene', () => {
+    list.viewMode = 'brands';
+    list.currentUnternehmenId = 'u1';
+    list._allPersonas = [
+      {
+        id: 'p1',
+        unternehmen_id: 'u1',
+        unternehmen: { id: 'u1', firmenname: 'Acme' },
+        marken: []
+      },
+      {
+        id: 'p2',
+        unternehmen_id: 'u1',
+        unternehmen: { id: 'u1', firmenname: 'Acme' },
+        marken: [{ marke: { id: 'm1', markenname: 'Clear' } }]
+      }
+    ];
+    list.applyMarkenEbeneSprung();
+    expect(list.viewMode).toBe('brands');
+    expect(list.markenEbeneWeg()).toBe(false);
+  });
+
+  it('Zurück von der übersprungenen Liste geht zu den Unternehmen', () => {
+    list.viewMode = 'items';
+    list._ohneMarke = true;
+    list.currentUnternehmenId = 'u1';
+    list.currentUnternehmenName = 'Acme';
+    list._allPersonas = [{
+      id: 'p1',
+      unternehmen_id: 'u1',
+      unternehmen: { id: 'u1', firmenname: 'Acme' },
+      marken: []
+    }];
+    const companies = vi.spyOn(list, 'switchToCompaniesView').mockImplementation(() => {});
+    const brands = vi.spyOn(list, 'switchToBrandsView').mockImplementation(() => {});
+    list.backFromItems();
+    expect(companies).toHaveBeenCalled();
+    expect(brands).not.toHaveBeenCalled();
+  });
+
   it('Liste setzt die URL auf /persona zurueck', () => {
     list.listViewMode = 'list';
     list.currentUnternehmenId = 'u1';

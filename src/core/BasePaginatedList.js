@@ -93,6 +93,43 @@ export class BasePaginatedList {
     // Gecachte Werte
     this._isAdmin = null;
     this._canEdit = null;
+
+    // Embedded: Liste rendert in ein fremdes Root (Produktions-Tab), nicht in window.content.
+    this.embedded = false;
+    this.mountRoot = null;
+  }
+
+  byId(id) {
+    if (!id) return null;
+    if (!this.mountRoot) return document.getElementById(id);
+    return this.mountRoot.querySelector(`#${id}`);
+  }
+
+  query(selector) {
+    return (this.mountRoot || document).querySelector(selector);
+  }
+
+  queryAll(selector) {
+    return (this.mountRoot || document).querySelectorAll(selector);
+  }
+
+  eventRoot() {
+    return this.mountRoot || document;
+  }
+
+  contentTarget() {
+    if (this.mountRoot) return this.mountRoot;
+    return window.content || document.getElementById('dashboard-content');
+  }
+
+  writeContent(html) {
+    const content = this.contentTarget();
+    if (!content) return;
+    if (this.mountRoot || typeof window.setContentSafely !== 'function') {
+      content.innerHTML = html;
+      return;
+    }
+    window.setContentSafely(content, html);
   }
   
   // ══════════════════════════════════════════════════════════════════════════
@@ -212,7 +249,7 @@ export class BasePaginatedList {
     
     // 3) Tabelle komplett verstecken um Flackern zu verhindern
     // Verwendet spezielle Klasse die Daten vollständig ausblendet (nicht nur dimmt)
-    const tbody = document.querySelector(this.options.tbodySelector);
+    const tbody = this.query(this.options.tbodySelector);
     if (tbody) {
       tbody.classList.add('table-permission-loading');
       tbody.classList.remove('table-loading-overlay'); // Falls gesetzt
@@ -223,7 +260,7 @@ export class BasePaginatedList {
       await this.loadData();
       
       // 5) Nach dem Laden: Permission-Loading entfernen
-      const tbodyAfter = document.querySelector(this.options.tbodySelector);
+      const tbodyAfter = this.query(this.options.tbodySelector);
       if (tbodyAfter) {
         tbodyAfter.classList.remove('table-permission-loading');
       }
@@ -309,14 +346,11 @@ export class BasePaginatedList {
    * Rendert die "Keine Berechtigung"-Meldung
    */
   renderNoPermission() {
-    const content = window.content || document.getElementById('dashboard-content');
-    if (content) {
-      content.innerHTML = `
-        <div class="error-message">
-          <p>Sie haben keine Berechtigung, ${this.options.breadcrumbLabel} anzuzeigen.</p>
-        </div>
-      `;
-    }
+    this.writeContent(`
+      <div class="error-message">
+        <p>Sie haben keine Berechtigung, ${this.options.breadcrumbLabel} anzuzeigen.</p>
+      </div>
+    `);
   }
   
   /**
@@ -325,16 +359,7 @@ export class BasePaginatedList {
   async renderShell() {
     if (this._shellRendered) return;
     
-    const shellHtml = this.renderShellContent();
-    const content = window.content || document.getElementById('dashboard-content');
-    
-    if (content) {
-      if (window.setContentSafely) {
-        window.setContentSafely(content, shellHtml);
-      } else {
-        content.innerHTML = shellHtml;
-      }
-    }
+    this.writeContent(this.renderShellContent());
     
     this._shellRendered = true;
     
@@ -408,7 +433,7 @@ export class BasePaginatedList {
     const startTime = performance.now();
     
     // Loading-Overlay anzeigen
-    const tbody = document.querySelector(this.options.tbodySelector);
+    const tbody = this.query(this.options.tbodySelector);
     TableAnimationHelper.showLoadingOverlay(tbody);
     
     try {
@@ -461,7 +486,7 @@ export class BasePaginatedList {
       if (currentRequestId === this._requestCounter) {
         this._loadingInProgress = false;
         // Loading-Overlay ausblenden (Safety-Net)
-        const tbodyFinal = document.querySelector(this.options.tbodySelector);
+        const tbodyFinal = this.query(this.options.tbodySelector);
         TableAnimationHelper.hideLoadingOverlay(tbodyFinal);
       }
     }
@@ -481,7 +506,7 @@ export class BasePaginatedList {
    * Aktualisiert die Tabelle mit neuen Daten
    */
   async updateTable(items) {
-    const tbody = document.querySelector(this.options.tbodySelector);
+    const tbody = this.query(this.options.tbodySelector);
     if (!tbody) return;
 
     await TableAnimationHelper.animatedUpdate(tbody, () => {
@@ -538,7 +563,7 @@ export class BasePaginatedList {
    * Zeigt einen Fehler in der Tabelle an
    */
   showErrorInTable(message) {
-    const tbody = document.querySelector(this.options.tbodySelector);
+    const tbody = this.query(this.options.tbodySelector);
     if (tbody) {
       tbody.innerHTML = `
         <tr>
@@ -564,21 +589,22 @@ export class BasePaginatedList {
     }
     this._abortController = new AbortController();
     const signal = this._abortController.signal;
+    const root = this.eventRoot();
     
     // Entity-spezifische Detail-Links
-    document.addEventListener('click', (e) => {
+    root.addEventListener('click', (e) => {
       if (e.target.classList.contains('table-link') && e.target.dataset.table === this.entityType) {
         e.preventDefault();
         const itemId = e.target.dataset.id;
         console.log(`🎯 ${this.entityType.toUpperCase()}LIST: Navigiere zu Details:`, itemId);
-        window.navigateTo(`/${this.entityType}/${itemId}`);
+        window.navigateTo(this.resolveDetailRoute(itemId));
       }
     }, { signal });
     
     // Select-All Checkbox
-    document.addEventListener('change', (e) => {
+    root.addEventListener('change', (e) => {
       if (e.target.id === this.options.selectAllId) {
-        const checkboxes = document.querySelectorAll(`.${this.options.checkboxClass}`);
+        const checkboxes = this.queryAll(`.${this.options.checkboxClass}`);
         const isChecked = e.target.checked;
         
         checkboxes.forEach(cb => {
@@ -595,7 +621,7 @@ export class BasePaginatedList {
     }, { signal });
     
     // Einzelne Checkboxen
-    document.addEventListener('change', (e) => {
+    root.addEventListener('change', (e) => {
       if (e.target.classList.contains(this.options.checkboxClass)) {
         if (e.target.checked && e.target.dataset.id) {
           this.selectedItems.add(e.target.dataset.id);
@@ -608,15 +634,15 @@ export class BasePaginatedList {
     }, { signal });
     
     // Alle auswählen Button
-    document.addEventListener('click', (e) => {
+    root.addEventListener('click', (e) => {
       if (e.target.id === 'btn-select-all') {
         e.preventDefault();
-        const checkboxes = document.querySelectorAll(`.${this.options.checkboxClass}`);
+        const checkboxes = this.queryAll(`.${this.options.checkboxClass}`);
         checkboxes.forEach(cb => {
           cb.checked = true;
           if (cb.dataset.id) this.selectedItems.add(cb.dataset.id);
         });
-        const selectAllHeader = document.getElementById(this.options.selectAllId);
+        const selectAllHeader = this.byId(this.options.selectAllId);
         if (selectAllHeader) {
           selectAllHeader.indeterminate = false;
           selectAllHeader.checked = true;
@@ -626,7 +652,7 @@ export class BasePaginatedList {
     }, { signal });
     
     // Auswahl aufheben Button
-    document.addEventListener('click', (e) => {
+    root.addEventListener('click', (e) => {
       if (e.target.id === 'btn-deselect-all') {
         e.preventDefault();
         this.deselectAll();
@@ -656,12 +682,12 @@ export class BasePaginatedList {
     }, { signal });
     
     // Empty-State-Actions (z.B. "Filter zurücksetzen" im filtered-State)
-    bindEmptyStateActions(document, {
+    bindEmptyStateActions(root, {
       'reset-filters': () => this.onFiltersReset()
     }, { signal });
 
     // Filter-Tag X-Buttons
-    document.addEventListener('click', (e) => {
+    root.addEventListener('click', (e) => {
       if (e.target.classList.contains('tag-x')) {
         e.preventDefault();
         e.stopPropagation();
@@ -691,10 +717,10 @@ export class BasePaginatedList {
    */
   updateSelection() {
     const selectedCount = this.selectedItems.size;
-    const selectedCountElement = document.getElementById('selected-count');
-    const selectBtn = document.getElementById('btn-select-all');
-    const deselectBtn = document.getElementById('btn-deselect-all');
-    const deleteBtn = document.getElementById('btn-delete-selected');
+    const selectedCountElement = this.byId('selected-count');
+    const selectBtn = this.byId('btn-select-all');
+    const deselectBtn = this.byId('btn-deselect-all');
+    const deleteBtn = this.byId('btn-delete-selected');
     
     if (selectedCountElement) {
       selectedCountElement.textContent = `${selectedCount} ausgewählt`;
@@ -718,12 +744,12 @@ export class BasePaginatedList {
    * Aktualisiert den Status der Select-All Checkbox
    */
   updateSelectAllCheckbox() {
-    const selectAllCheckbox = document.getElementById(this.options.selectAllId);
-    const individualCheckboxes = document.querySelectorAll(`.${this.options.checkboxClass}`);
+    const selectAllCheckbox = this.byId(this.options.selectAllId);
+    const individualCheckboxes = this.queryAll(`.${this.options.checkboxClass}`);
     
     if (!selectAllCheckbox || individualCheckboxes.length === 0) return;
     
-    const checkedBoxes = document.querySelectorAll(`.${this.options.checkboxClass}:checked`);
+    const checkedBoxes = this.queryAll(`.${this.options.checkboxClass}:checked`);
     const allChecked = checkedBoxes.length === individualCheckboxes.length;
     const someChecked = checkedBoxes.length > 0;
     
@@ -737,10 +763,10 @@ export class BasePaginatedList {
   deselectAll() {
     this.selectedItems.clear();
     
-    const checkboxes = document.querySelectorAll(`.${this.options.checkboxClass}`);
+    const checkboxes = this.queryAll(`.${this.options.checkboxClass}`);
     checkboxes.forEach(cb => { cb.checked = false; });
     
-    const selectAllCheckbox = document.getElementById(this.options.selectAllId);
+    const selectAllCheckbox = this.byId(this.options.selectAllId);
     if (selectAllCheckbox) {
       selectAllCheckbox.checked = false;
       selectAllCheckbox.indeterminate = false;
@@ -843,6 +869,10 @@ export class BasePaginatedList {
   /**
    * Sanitize-Helper
    */
+  resolveDetailRoute(itemId) {
+    return `/${this.entityType}/${itemId}`;
+  }
+
   sanitize(value) {
     return window.validatorSystem?.sanitizeHtml(value) || value || '';
   }

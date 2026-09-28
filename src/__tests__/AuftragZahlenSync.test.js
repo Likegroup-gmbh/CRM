@@ -13,7 +13,7 @@ vi.mock('../core/animation/animateNumber.js');
 import { ModuleRegistry } from '../core/ModuleRegistry.js';
 import { ProjektErstellenPersistence } from '../modules/projekt-erstellen/services/ProjektErstellenPersistence.js';
 import { ProjektErstellenWizard } from '../modules/projekt-erstellen/ProjektErstellenWizard.js';
-import { resolveVolumen } from '../modules/stakeholder/StakeholderOverviewPage.js';
+import { resolveVolumen } from '../modules/stakeholder/kern/StakeholderOverviewPage.js';
 import { AusgangsrechnungenList } from '../modules/ausgangsrechnungen/AusgangsrechnungenList.js';
 import { animateNumber } from '../core/animation/animateNumber.js';
 import { StepDetails } from '../modules/projekt-erstellen/steps/StepDetails.js';
@@ -113,6 +113,7 @@ describe('Contracting speichert Agenturleistungen in auftrag_details', () => {
         update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
         delete: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
         insert: vi.fn(async () => ({ error: null })),
+        select: vi.fn(() => ({ eq: vi.fn(async () => ({ data: [], error: null })) })),
         upsert: vi.fn(async (payload) => {
           upserted[table] = payload;
           return { error: null };

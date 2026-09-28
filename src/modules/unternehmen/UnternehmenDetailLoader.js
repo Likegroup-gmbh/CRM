@@ -4,6 +4,49 @@
 import { PersonaService } from '../persona/PersonaService.js';
 import { ProduktService } from '../produkt/ProduktService.js';
 
+const AUFTRAG_SELECT = '*, marke:marke_id(id, markenname, logo_url), ansprechpartner:ansprechpartner_id(id, vorname, nachname, profile_image_url), created_by:created_by_id(id, name, profile_image_url)';
+
+// PostgREST kappt still bei 1000 Zeilen. Auftrag und Teilrechnung laufen
+// seitenweise, damit eine bezahlte Teilrechnung nicht am Limit verloren geht.
+async function fetchAuftraege(supabase, unternehmenId) {
+  const rows = [];
+  let from = 0;
+  const pageSize = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from('auftrag')
+      .select(AUFTRAG_SELECT)
+      .eq('unternehmen_id', unternehmenId)
+      .order('created_at', { ascending: false })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if ((data || []).length < pageSize) break;
+    from += pageSize;
+  }
+  return rows;
+}
+
+async function fetchTeilrechnungen(supabase, auftragIds) {
+  if (!auftragIds.length) return [];
+  const rows = [];
+  let from = 0;
+  const pageSize = 1000;
+  while (true) {
+    const { data, error } = await supabase
+      .from('auftrag_teilrechnung')
+      .select('*')
+      .in('auftrag_id', auftragIds)
+      .order('position', { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    rows.push(...(data || []));
+    if ((data || []).length < pageSize) break;
+    from += pageSize;
+  }
+  return rows;
+}
+
 export async function loadUnternehmenData(detail) {
   try {
     // ========== BATCH 1: Alle unabhängigen Abfragen parallel ==========
@@ -26,7 +69,7 @@ export async function loadUnternehmenData(detail) {
       window.supabase.from('unternehmen').select('*').eq('id', detail.unternehmenId).single(),
       window.supabase.from('unternehmen_branchen').select('branche_id, branchen:branche_id (id, name)').eq('unternehmen_id', detail.unternehmenId),
       window.supabase.from('marke').select('*').eq('unternehmen_id', detail.unternehmenId),
-      window.supabase.from('auftrag').select('*, marke:marke_id(id, markenname, logo_url), ansprechpartner:ansprechpartner_id(id, vorname, nachname, profile_image_url), created_by:created_by_id(id, name, profile_image_url)').eq('unternehmen_id', detail.unternehmenId).order('created_at', { ascending: false }),
+      fetchAuftraege(window.supabase, detail.unternehmenId).then(data => ({ data, error: null })).catch(error => ({ data: null, error })),
       window.supabase.from('campaign_briefings').select('id, aktivierung_name, bereich, is_draft, content_deadline, unternehmen_id, marke_id, created_at, marke:marke_id(id, markenname, logo_url)').eq('unternehmen_id', detail.unternehmenId).order('created_at', { ascending: false }),
       window.supabase.from('kampagne').select('id, kampagnenname, eigener_name, status, start, deadline, art_der_kampagne, creatoranzahl, videoanzahl, unternehmen_id, auftrag_id, marke:marke_id(id, markenname, logo_url)').eq('unternehmen_id', detail.unternehmenId).order('created_at', { ascending: false }),
       window.supabase.from('rechnung').select('id, rechnung_nr, rechnungstyp, status, nettobetrag, bruttobetrag, gestellt_am, zahlungsziel, bezahlt_am, po_nummer, land, videoanzahl, created_at, pdf_url, auftrag:auftrag_id(id, auftragsname), kampagne:kampagne_id(id, kampagnenname, eigener_name), creator:creator_id(id, vorname, nachname), created_by:created_by_id(id, name, profile_image_url), rechnung_pdfs(id, file_name, file_path, file_url)').eq('unternehmen_id', detail.unternehmenId).order('gestellt_am', { ascending: false }),
@@ -106,10 +149,7 @@ export async function loadUnternehmenData(detail) {
             .order('created_at', { ascending: false })
         : Promise.resolve({ data: [] }),
       auftragIds.length > 0
-        ? window.supabase.from('auftrag_teilrechnung')
-            .select('*')
-            .in('auftrag_id', auftragIds)
-            .order('position', { ascending: true })
+        ? fetchTeilrechnungen(window.supabase, auftragIds).then(data => ({ data, error: null })).catch(error => ({ data: null, error }))
         : Promise.resolve({ data: [] })
     ]);
 
@@ -127,6 +167,10 @@ export async function loadUnternehmenData(detail) {
     for (const tr of teilrechnungen) {
       if (!trByAuftrag.has(tr.auftrag_id)) trByAuftrag.set(tr.auftrag_id, []);
       trByAuftrag.get(tr.auftrag_id).push(tr);
+    }
+    // Auftrags-Zeilen lesen den Zahlungsstand ihrer Teilrechnungen
+    for (const auftrag of detail.auftraege) {
+      auftrag.teilrechnungen = trByAuftrag.get(auftrag.id) || [];
     }
 
     const exploded = [];

@@ -49,6 +49,7 @@ export class NavigationSystem {
           { id: 'sourcing', label: 'Castings', icon: 'sourcing', url: '/castings' },
           { id: 'strategie', label: 'Konzepte', icon: 'strategie', url: '/konzepte' },
           { id: 'skripte', label: 'Skripte', icon: 'skripte', url: '/skripte' },
+          { id: 'kooperation', label: 'Produktion', icon: 'kooperation', url: '/produktionen' },
           { id: 'vertraege', label: 'Verträge', icon: 'vertraege', url: '/vertraege' },
           { id: 'rechnung', label: 'Rechnung', icon: 'rechnung', url: '/rechnung' },
           { id: 'videos', label: 'Videos', icon: 'videos', url: '/videos' }

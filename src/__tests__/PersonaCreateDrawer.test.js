@@ -183,6 +183,34 @@ describe('PersonaCreateDrawer', () => {
     expect(document.getElementById('pccreate-submit').disabled).toBe(true);
   });
 
+  it('Prefill sperrt auch das Briefing der Produktion', async () => {
+    openPersonaCreateDrawer({
+      origin: 'liste',
+      unternehmen_id: 'u1',
+      unternehmenName: 'Hautica',
+      marke_id: 'm1',
+      markeName: 'Clear',
+      briefing_id: 'b1',
+      briefingName: 'Sommer',
+      produkt_id: 'p1',
+      produktName: 'Case'
+    });
+
+    await vi.waitFor(() => {
+      expect(document.getElementById('pccreate-briefing').value).toBe('b1');
+      expect(document.getElementById('pccreate-briefing').disabled).toBe(true);
+    });
+    expect(document.getElementById('pccreate-unternehmen').disabled).toBe(true);
+    expect(document.getElementById('pccreate-marke').disabled).toBe(true);
+    expect(document.getElementById('pccreate-produkt').value).toBe('p1');
+    expect(document.getElementById('pccreate-submit').disabled).toBe(false);
+
+    document.getElementById('pccreate-submit').click();
+    expect(window.navigateTo).toHaveBeenCalledWith(
+      '/persona/new?unternehmen=u1&marke=m1&briefing=b1&produkt=p1'
+    );
+  });
+
   it('Prefill sperrt Unternehmen und Marke', async () => {
     openPersonaCreateDrawer({
       origin: 'unternehmen',

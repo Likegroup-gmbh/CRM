@@ -22,6 +22,8 @@ vi.mock('../modules/kampagne/KampagneListDataLoader.js', () => ({
   loadUserPermissions: vi.fn(async () => ({}))
 }));
 
+import { loadKampagnenWithRelations } from '../modules/kampagne/KampagneListDataLoader.js';
+
 vi.mock('../modules/kampagne/KampagneCalendarView.js', () => ({
   KampagneCalendarView: class {
     async init() {}
@@ -37,13 +39,13 @@ import { renderPageHtml } from '../modules/kampagne/KampagneListRenderers.js';
 import { KampagneList } from '../modules/kampagne/KampagneList.js';
 import {
   buildGridRpcParams,
-  clearKampagneFolderQuery,
   groupKampagnenGrid,
   initialKampagneView,
   isMissingGridRpc,
   KampagneGridView,
   loadKampagnenGrid,
-  resetGridRpcAvailability
+  resetGridRpcAvailability,
+  setKampagneAnsicht
 } from '../modules/kampagne/KampagneGridView.js';
 
 function mockLocation(search = '') {
@@ -56,8 +58,43 @@ describe('initialKampagneView', () => {
     expect(initialKampagneView('?foo=1')).toBe('list');
   });
 
-  it('startet auf Grid wenn Unternehmen in der Query steht', () => {
+  it('startet auf Grid wenn Unternehmen in der Query steht (Legacy ohne ansicht)', () => {
     expect(initialKampagneView('?unternehmen=u1&unternehmen_name=Acme')).toBe('grid');
+  });
+
+  it('ansicht=liste erzwingt Liste auch mit Ordner', () => {
+    expect(initialKampagneView('?ansicht=liste&unternehmen=u1')).toBe('list');
+  });
+
+  it('ansicht=grid erzwingt Grid auch ohne Ordner', () => {
+    expect(initialKampagneView('?ansicht=grid')).toBe('grid');
+  });
+});
+
+describe('setKampagneAnsicht', () => {
+  beforeEach(() => {
+    mockLocation('?unternehmen=u1&unternehmen_name=Acme&ansicht=grid');
+  });
+
+  it('setzt ansicht=grid und behält Ordner', () => {
+    setKampagneAnsicht('grid');
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get('ansicht')).toBe('grid');
+    expect(params.get('unternehmen')).toBe('u1');
+  });
+
+  it('entfernt ansicht bei liste und behält Ordner', () => {
+    setKampagneAnsicht('list');
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get('ansicht')).toBeNull();
+    expect(params.get('unternehmen')).toBe('u1');
+  });
+
+  it('lässt ansicht bei kalender unverändert', () => {
+    setKampagneAnsicht('calendar');
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get('ansicht')).toBe('grid');
+    expect(params.get('unternehmen')).toBe('u1');
   });
 });
 
@@ -221,7 +258,34 @@ describe('KampagneGridView Folder-Transitions', () => {
     window.navigateTo = vi.fn();
     window.ErrorHandler = { handle: vi.fn() };
     window.supabase = {
-      rpc: vi.fn(async (_name, params) => {
+      rpc: vi.fn(async (name, params) => {
+        if (name === 'get_kampagnen_list') {
+          return {
+            data: {
+              rows: [{
+                id: 'k1',
+                kampagnenname: 'Sommer',
+                eigener_name: 'Sommer intern',
+                start: '2026-06-01',
+                deadline_post_produktion: '2026-07-01',
+                volumen: 10000,
+                is_completed: false,
+                created_at: '2026-01-01',
+                unternehmen: { id: 'u1', firmenname: 'Acme' },
+                marke: { id: 'm1', markenname: 'BrandX' },
+                auftrag: { id: 'a1', auftragsname: 'Auftrag A' },
+                art_der_kampagne: [],
+                mitarbeiter: [],
+                ansprechpartner: [],
+                _budgetUsed: 0,
+                _budgetTotal: 10000
+              }],
+              total_count: 1,
+              art_typen: []
+            },
+            error: null
+          };
+        }
         if (!params.p_unternehmen_id) {
           return {
             data: {
@@ -292,11 +356,50 @@ describe('KampagneGridView Folder-Transitions', () => {
       ohneMarke: false
     });
     expect(window.location.search).toContain('marke=m1');
-    expect(window.supabase.rpc).toHaveBeenLastCalledWith(
-      'get_kampagnen_grid',
-      expect.objectContaining({ p_unternehmen_id: 'u1', p_marke_id: 'm1', p_ohne_marke: false })
+    expect(window.location.search).toContain('ansicht=grid');
+    expect(loadKampagnenWithRelations).toHaveBeenCalledWith(
+      1,
+      25,
+      expect.objectContaining({
+        folder: expect.objectContaining({ unternehmenId: 'u1', markeId: 'm1' })
+      })
     );
-    expect(document.querySelector('.kampagne-grid-open')?.dataset.id).toBe('k1');
+    expect(document.getElementById('kampagnen-table-body')).toBeTruthy();
+    view.destroy();
+  });
+
+  it('ohne echte Marke öffnet die Übersicht und Zurück geht zu den Unternehmen', async () => {
+    window.supabase.rpc = vi.fn(async (name, params) => {
+      if (name === 'get_kampagnen_list') {
+        return { data: { rows: [], total_count: 0, art_typen: [] }, error: null };
+      }
+      if (!params.p_unternehmen_id) {
+        return {
+          data: { ebene: 'companies', unternehmen: [{ id: 'u1', firmenname: 'Acme', count: 1 }] },
+          error: null
+        };
+      }
+      if (params.p_ohne_marke || params.p_marke_id) {
+        return { data: { ebene: 'items', kampagnen: [] }, error: null };
+      }
+      return { data: { ebene: 'brands', marken: [], ohne_marke_count: 2 }, error: null };
+    });
+
+    const view = new KampagneGridView(document.getElementById('kampagnen-grid-root'));
+    await view.mount();
+    await view.switchToBrands('u1', 'Acme');
+
+    expect(view.currentFolder()).toMatchObject({ viewMode: 'items', ohneMarke: true, unternehmenId: 'u1' });
+    expect(new URLSearchParams(window.location.search).get('marke')).toBe('ohne');
+    expect(document.querySelector('[data-ohne-marke="1"]')).toBeNull();
+    expect(document.getElementById('kampagnen-table-body')).toBeTruthy();
+
+    const crumbs = window.breadcrumbSystem.updateBreadcrumb.mock.calls.at(-1)[0];
+    expect(crumbs.map((crumb) => crumb.label)).toEqual(['Kampagnen', 'Acme']);
+    expect(crumbs[1].clickable).toBe(false);
+
+    document.getElementById('btn-back-to-brands').click();
+    await vi.waitFor(() => expect(view.currentFolder().viewMode).toBe('companies'));
     view.destroy();
   });
 
@@ -311,9 +414,12 @@ describe('KampagneGridView Folder-Transitions', () => {
       markeId: null
     });
     expect(new URLSearchParams(window.location.search).get('marke')).toBe('ohne');
-    expect(window.supabase.rpc).toHaveBeenLastCalledWith(
-      'get_kampagnen_grid',
-      expect.objectContaining({ p_ohne_marke: true, p_marke_id: null })
+    expect(loadKampagnenWithRelations).toHaveBeenCalledWith(
+      1,
+      25,
+      expect.objectContaining({
+        folder: expect.objectContaining({ unternehmenId: 'u1', ohneMarke: true })
+      })
     );
     view.destroy();
   });
@@ -385,18 +491,159 @@ describe('KampagneList view-switch + Grid-Button', () => {
     expect(list.gridView).toBeTruthy();
 
     document.getElementById('btn-view-list').click();
-    await vi.waitFor(() => expect(document.getElementById('kampagnen-table-body')).toBeTruthy());
+    await vi.waitFor(() => expect(document.getElementById('kampagnen-folder-body')).toBeTruthy());
     expect(list.currentView).toBe('list');
     expect(list.gridView).toBeNull();
     list.destroy();
   });
 });
 
-describe('clearKampagneFolderQuery', () => {
-  it('entfernt die Folder-Query', () => {
+describe('KampagneList Ordner-Zeilen', () => {
+  beforeEach(() => {
+    setShowCompleted(false);
+    mockLocation('');
+    window.isKunde = () => false;
+    window.isMitarbeiter = () => false;
+    window.isAdmin = () => true;
+    window.canBulkDelete = () => false;
+    window.currentUser = { permissions: { kampagne: { can_edit: true } } };
+    window.validatorSystem = { sanitizeHtml: (s) => s, sanitizeUrl: (s) => s };
+    window.breadcrumbSystem = { updateBreadcrumb: vi.fn() };
+    window.ErrorHandler = { handle: vi.fn() };
+    window.supabase = {
+      rpc: vi.fn(async (name, params) => {
+        if (name === 'get_kampagnen_grid') {
+          if (!params.p_unternehmen_id) {
+            return {
+              data: {
+                ebene: 'companies',
+                unternehmen: [{ id: 'u1', firmenname: 'Acme', logo_url: null, count: 2 }]
+              },
+              error: null
+            };
+          }
+          return {
+            data: {
+              ebene: 'brands',
+              marken: [{ id: 'm1', markenname: 'BrandX', logo_url: null, count: 1 }],
+              ohne_marke_count: 1
+            },
+            error: null
+          };
+        }
+        return { data: { rows: [], total_count: 0, art_typen: [] }, error: null };
+      })
+    };
+    window.setContentSafely = (el, html) => { el.innerHTML = html; };
+    window.content = document.createElement('div');
+  });
+
+  it('zeigt Unternehmen als Zeilen auf der Liste', async () => {
+    document.body.innerHTML = `
+      <div class="kampagne-list-page">
+        ${renderPageHtml({ currentView: 'list', searchQuery: '' })}
+      </div>
+    `;
+    const list = new KampagneList();
+    list._isMounted = true;
+    list._abortController = new AbortController();
+    list._shellRendered = true;
+    list.currentView = 'list';
+    list.bindEvents();
+    await list.loadData();
+
+    expect(document.getElementById('kampagnen-folder-body')).toBeTruthy();
+    expect(document.querySelector('.kampagne-folder-row')?.dataset.unternehmenId).toBe('u1');
+    expect(document.querySelector('.kampagne-folder-row .col-folder-name')?.textContent).toBe('Acme');
+    expect(document.querySelector('.kampagne-folder-row .col-folder-count')?.textContent).toBe('2 Kampagnen');
+    list.destroy();
+  });
+
+  it('ohne echte Marke zeigt die Übersicht statt Nur Unternehmen', async () => {
+    window.supabase.rpc = vi.fn(async (name, params) => {
+      if (name !== 'get_kampagnen_grid') {
+        return { data: { rows: [], total_count: 0, art_typen: [] }, error: null };
+      }
+      if (!params?.p_unternehmen_id || params.p_ohne_marke) {
+        return {
+          data: params?.p_unternehmen_id
+            ? { ebene: 'items' }
+            : { ebene: 'companies', unternehmen: [] },
+          error: null
+        };
+      }
+      return { data: { ebene: 'brands', marken: [], ohne_marke_count: 1 }, error: null };
+    });
     mockLocation('?unternehmen=u1&unternehmen_name=Acme');
-    clearKampagneFolderQuery();
-    expect(window.location.pathname).toBe('/kampagne');
-    expect(window.location.search).toBe('');
+    document.body.innerHTML = `
+      <div class="kampagne-list-page">
+        ${renderPageHtml({ currentView: 'list', searchQuery: '' })}
+      </div>
+    `;
+    const list = new KampagneList();
+    list._isMounted = true;
+    list._abortController = new AbortController();
+    list._shellRendered = true;
+    list.currentView = 'list';
+    list.bindEvents();
+    await list.loadData();
+
+    expect(document.querySelector('[data-ohne-marke="1"]')).toBeNull();
+    expect(document.getElementById('kampagnen-table-body')).toBeTruthy();
+    expect(new URLSearchParams(window.location.search).get('marke')).toBe('ohne');
+    const crumbs = window.breadcrumbSystem.updateBreadcrumb.mock.calls.at(-1)[0];
+    expect(crumbs.map((crumb) => crumb.label)).toEqual(['Kampagnen', 'Acme']);
+    list.destroy();
+  });
+
+  it('zeigt Marken als Zeilen inklusive Nur Unternehmen', async () => {
+    mockLocation('?unternehmen=u1&unternehmen_name=Acme');
+    document.body.innerHTML = `
+      <div class="kampagne-list-page">
+        ${renderPageHtml({ currentView: 'list', searchQuery: '' })}
+      </div>
+    `;
+    const list = new KampagneList();
+    list._isMounted = true;
+    list._abortController = new AbortController();
+    list._shellRendered = true;
+    list.currentView = 'list';
+    list.bindEvents();
+    await list.loadData();
+
+    const rows = document.querySelectorAll('.kampagne-folder-row');
+    expect(rows.length).toBe(2);
+    expect(rows[0].dataset.markeId).toBe('m1');
+    expect(rows[1].dataset.ohneMarke).toBe('1');
+    expect(rows[1].querySelector('.col-folder-name')?.textContent).toBe('Nur Unternehmen');
+    list.destroy();
+  });
+
+  it('Suche hebt die Ordner auf und zeigt die flache Übersicht', async () => {
+    document.body.innerHTML = `
+      <div class="kampagne-list-page">
+        ${renderPageHtml({ currentView: 'list', searchQuery: '' })}
+      </div>
+    `;
+    const list = new KampagneList();
+    list._isMounted = true;
+    list._abortController = new AbortController();
+    list._shellRendered = true;
+    list.currentView = 'list';
+    list.bindEvents();
+    await list.loadData();
+    expect(document.getElementById('kampagnen-folder-body')).toBeTruthy();
+
+    list.searchQuery = 'Sommer';
+    await list.loadData();
+
+    expect(document.getElementById('kampagnen-table-body')).toBeTruthy();
+    expect(document.getElementById('kampagnen-folder-body')).toBeNull();
+    expect(loadKampagnenWithRelations).toHaveBeenCalledWith(
+      1,
+      25,
+      expect.objectContaining({ searchQuery: 'Sommer' })
+    );
+    list.destroy();
   });
 });

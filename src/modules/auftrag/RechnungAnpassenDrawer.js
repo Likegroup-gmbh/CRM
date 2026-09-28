@@ -7,12 +7,17 @@ export class RechnungAnpassenDrawer {
     this.drawerId = 'rechnung-anpassen-drawer';
     this.auftragId = null;
     this.auftragData = null;
+    // Angeklickte Zeile aus der Kundenrechnungsliste. null = Aufruf ohne
+    // Zeilenkontext (z.B. Auftragsliste), dann eine Sektion pro Teilrechnung.
+    this.teilrechnungId = null;
+    this.teilrechnungen = [];
   }
 
   // Öffne Drawer
-  async open(auftragId) {
+  async open(auftragId, { teilrechnungId = null } = {}) {
     console.log('📋 RECHNUNG-ANPASSEN: Öffne Drawer für Auftrag:', auftragId);
     this.auftragId = auftragId;
+    this.teilrechnungId = teilrechnungId;
 
     try {
       await this.createDrawer();
@@ -129,59 +134,71 @@ export class RechnungAnpassenDrawer {
     }
 
     this.auftragData = data;
-    console.log('✅ Auftragsdaten geladen:', this.auftragData);
+
+    const { data: teilrechnungen, error: trError } = await window.supabase
+      .from('auftrag_teilrechnung')
+      .select('id, position, rechnung_gestellt, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am')
+      .eq('auftrag_id', this.auftragId)
+      .order('position', { ascending: true });
+    if (trError) {
+      console.error('❌ Fehler beim Laden der Teilrechnungen:', trError);
+      throw trError;
+    }
+    this.teilrechnungen = teilrechnungen || [];
+
+    console.log('✅ Auftragsdaten geladen:', this.auftragData, this.teilrechnungen.length, 'Teilrechnungen');
   }
 
-  // Rendere Formular
-  renderForm() {
-    const body = document.getElementById(`${this.drawerId}-body`);
-    if (!body) return;
+  // Eine Zeile = eine Teilrechnung oder der Auftragskopf.
+  _rows() {
+    if (this.teilrechnungId) {
+      const tr = this.teilrechnungen.find(t => t.id === this.teilrechnungId);
+      if (tr) return [{ ...tr, _label: `Teilrechnung ${tr.position} von ${this.teilrechnungen.length}`, _trId: tr.id }];
+    }
+    if (this.teilrechnungen.length > 0) {
+      return this.teilrechnungen.map(tr => ({
+        ...tr,
+        _label: `Teilrechnung ${tr.position} von ${this.teilrechnungen.length}`,
+        _trId: tr.id
+      }));
+    }
+    return [{ ...this.auftragData, _label: null, _trId: null }];
+  }
 
-    const rechnungGestellt = this.auftragData.rechnung_gestellt || false;
-    const rechnungGestelltAm = this.formatDateForInput(this.auftragData.rechnung_gestellt_am);
-    const ueberwiesen = this.auftragData.ueberwiesen || false;
-    const ueberwiesenAm = this.formatDateForInput(this.auftragData.ueberwiesen_am);
+  _renderRowFields(row, suffix) {
+    const rechnungGestellt = row.rechnung_gestellt || false;
+    const rechnungGestelltAm = this.formatDateForInput(row.rechnung_gestellt_am);
+    const ueberwiesen = row.ueberwiesen || false;
+    const ueberwiesenAm = this.formatDateForInput(row.ueberwiesen_am);
 
-    body.innerHTML = `
-      <div class="form-section">
-        <h3 class="form-section-title">Rechnungsinformationen</h3>
-        
-        <!-- Rechnung gestellt -->
+    return `
+      <div class="form-section" data-tr-row="${row._trId || ''}">
+        ${row._label ? `<h3 class="form-section-title">${row._label}</h3>` : ''}
         <div class="form-field">
           <label class="toggle-container">
             <span>Rechnung gestellt</span>
             <div class="toggle-switch">
-              <input type="checkbox" id="rechnung_gestellt" ${rechnungGestellt ? 'checked' : ''}>
+              <input type="checkbox" id="rechnung_gestellt_${suffix}" data-suffix="${suffix}" class="drawer-toggle-rechnung" ${rechnungGestellt ? 'checked' : ''}>
               <span class="toggle-slider"></span>
             </div>
           </label>
         </div>
-        
-        <!-- Rechnung gestellt am -->
-        <div class="form-field" id="rechnung_gestellt_am_field" style="display: ${rechnungGestellt ? 'flex' : 'none'}">
-          <label for="rechnung_gestellt_am">gestellt am</label>
-          <input type="date" id="rechnung_gestellt_am" value="${rechnungGestelltAm}">
+        <div class="form-field" id="rechnung_gestellt_am_field_${suffix}" style="display: ${rechnungGestellt ? 'flex' : 'none'}">
+          <label for="rechnung_gestellt_am_${suffix}">gestellt am</label>
+          <input type="date" id="rechnung_gestellt_am_${suffix}" value="${rechnungGestelltAm}">
         </div>
-      </div>
-
-      <div class="form-section">
-        <h3 class="form-section-title">Zahlungsinformationen</h3>
-        
-        <!-- Überwiesen -->
         <div class="form-field">
           <label class="toggle-container">
             <span>Überwiesen</span>
             <div class="toggle-switch">
-              <input type="checkbox" id="ueberwiesen" ${ueberwiesen ? 'checked' : ''}>
+              <input type="checkbox" id="ueberwiesen_${suffix}" data-suffix="${suffix}" class="drawer-toggle-ueberwiesen" ${ueberwiesen ? 'checked' : ''}>
               <span class="toggle-slider"></span>
             </div>
           </label>
         </div>
-        
-        <!-- Überwiesen am -->
-        <div class="form-field" id="ueberwiesen_am_field" style="display: ${ueberwiesen ? 'flex' : 'none'}">
-          <label for="ueberwiesen_am">Überwiesen am</label>
-          <input type="date" id="ueberwiesen_am" value="${ueberwiesenAm}">
+        <div class="form-field" id="ueberwiesen_am_field_${suffix}" style="display: ${ueberwiesen ? 'flex' : 'none'}">
+          <label for="ueberwiesen_am_${suffix}">Überwiesen am</label>
+          <input type="date" id="ueberwiesen_am_${suffix}" value="${ueberwiesenAm}">
         </div>
       </div>
     `;
@@ -202,23 +219,28 @@ export class RechnungAnpassenDrawer {
     }
   }
 
+  // Rendere Formular
+  renderForm() {
+    const body = document.getElementById(`${this.drawerId}-body`);
+    if (!body) return;
+
+    const rows = this._rows();
+    body.innerHTML = rows.map((row, i) => this._renderRowFields(row, i)).join('');
+  }
+
   // Binde Events
   bindEvents() {
-    // Toggle-Änderungen
-    const rechnungGestelltToggle = document.getElementById('rechnung_gestellt');
-    const ueberwiesenToggle = document.getElementById('ueberwiesen');
-
-    if (rechnungGestelltToggle) {
-      rechnungGestelltToggle.addEventListener('change', (e) => {
-        this.handleToggleChange('rechnung_gestellt', e.target.checked);
+    // Toggle-Änderungen (eine Zeile pro Teilrechnung bzw. der Kopf)
+    document.querySelectorAll(`#${this.drawerId} .drawer-toggle-rechnung`).forEach(toggle => {
+      toggle.addEventListener('change', (e) => {
+        this.handleToggleChange('rechnung_gestellt', e.target.checked, e.target.dataset.suffix);
       });
-    }
-
-    if (ueberwiesenToggle) {
-      ueberwiesenToggle.addEventListener('change', (e) => {
-        this.handleToggleChange('ueberwiesen', e.target.checked);
+    });
+    document.querySelectorAll(`#${this.drawerId} .drawer-toggle-ueberwiesen`).forEach(toggle => {
+      toggle.addEventListener('change', (e) => {
+        this.handleToggleChange('ueberwiesen', e.target.checked, e.target.dataset.suffix);
       });
-    }
+    });
 
     // Footer Buttons
     const footer = document.querySelector(`#${this.drawerId} .drawer-footer`);
@@ -241,11 +263,11 @@ export class RechnungAnpassenDrawer {
   }
 
   // Handle Toggle-Änderung
-  handleToggleChange(toggleId, checked) {
+  handleToggleChange(toggleId, checked, suffix) {
     console.log(`🔄 Toggle geändert: ${toggleId} = ${checked}`);
     
-    const fieldId = `${toggleId}_am_field`;
-    const dateFieldId = `${toggleId}_am`;
+    const fieldId = `${toggleId}_am_field_${suffix}`;
+    const dateFieldId = `${toggleId}_am_${suffix}`;
     
     const field = document.getElementById(fieldId);
     const dateField = document.getElementById(dateFieldId);
@@ -276,39 +298,64 @@ export class RechnungAnpassenDrawer {
     }
 
     try {
-      // Sammle Werte
-      const rechnungGestellt = document.getElementById('rechnung_gestellt').checked;
-      const rechnungGestelltAm = document.getElementById('rechnung_gestellt_am').value || null;
-      const ueberwiesen = document.getElementById('ueberwiesen').checked;
-      const ueberwiesenAm = document.getElementById('ueberwiesen_am').value || null;
+      const rows = this._rows();
+      const touchedTrIds = [];
+      let kopfGeschrieben = false;
 
-      const updates = {
-        rechnung_gestellt: rechnungGestellt,
-        rechnung_gestellt_am: rechnungGestellt ? rechnungGestelltAm : null,
-        ueberwiesen: ueberwiesen,
-        ueberwiesen_am: ueberwiesen ? ueberwiesenAm : null
-      };
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const rechnungGestellt = document.getElementById(`rechnung_gestellt_${i}`).checked;
+        const rechnungGestelltAm = document.getElementById(`rechnung_gestellt_am_${i}`).value || null;
+        const ueberwiesen = document.getElementById(`ueberwiesen_${i}`).checked;
+        const ueberwiesenAm = document.getElementById(`ueberwiesen_am_${i}`).value || null;
 
-      console.log('  📝 Updates:', updates);
+        const updates = {
+          rechnung_gestellt: rechnungGestellt,
+          rechnung_gestellt_am: rechnungGestellt ? rechnungGestelltAm : null,
+          ueberwiesen: ueberwiesen,
+          ueberwiesen_am: ueberwiesen ? ueberwiesenAm : null
+        };
 
-      // Update in Supabase
-      const { error } = await window.supabase
-        .from('auftrag')
-        .update(updates)
-        .eq('id', this.auftragId);
+        if (row._trId) {
+          // Nur geänderte Teilrechnungen schreiben
+          const unveraendert =
+            Boolean(row.rechnung_gestellt) === updates.rechnung_gestellt &&
+            this.formatDateForInput(row.rechnung_gestellt_am) === (updates.rechnung_gestellt_am || '') &&
+            Boolean(row.ueberwiesen) === updates.ueberwiesen &&
+            this.formatDateForInput(row.ueberwiesen_am) === (updates.ueberwiesen_am || '');
+          if (unveraendert) continue;
 
-      if (error) {
-        console.error('❌ Fehler beim Speichern:', error);
-        this.showError('Fehler beim Speichern der Änderungen.');
-        return;
+          console.log(`  📝 Updates Teilrechnung ${row._trId}:`, updates);
+          const { error } = await window.supabase
+            .from('auftrag_teilrechnung')
+            .update(updates)
+            .eq('id', row._trId);
+          if (error) throw error;
+          touchedTrIds.push(row._trId);
+        } else {
+          console.log('  📝 Updates Auftrag:', updates);
+          const { error } = await window.supabase
+            .from('auftrag')
+            .update(updates)
+            .eq('id', this.auftragId);
+          if (error) throw error;
+          kopfGeschrieben = true;
+        }
       }
 
       console.log('✅ Erfolgreich gespeichert');
-      
+
       // Trigger Event für Neu-Laden
-      window.dispatchEvent(new CustomEvent('entityUpdated', {
-        detail: { entity: 'auftrag', id: this.auftragId }
-      }));
+      if (kopfGeschrieben) {
+        window.dispatchEvent(new CustomEvent('entityUpdated', {
+          detail: { entity: 'auftrag', id: this.auftragId }
+        }));
+      }
+      for (const trId of touchedTrIds) {
+        window.dispatchEvent(new CustomEvent('entityUpdated', {
+          detail: { entity: 'auftrag_teilrechnung', id: trId }
+        }));
+      }
 
       // Zeige Erfolg
       this.showSuccess();

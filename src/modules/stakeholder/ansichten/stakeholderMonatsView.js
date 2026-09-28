@@ -3,16 +3,16 @@
 import {
   LEISTUNGSBEREICHE,
   LEISTUNGSBEREICH_LABELS,
-} from '../../core/budget/leistungsbereich.js';
-import { zuordnungsquote } from '../../core/budget/monatsauswertung.js';
-import { ViewModeToggle } from '../../core/components/ViewModeToggle.js';
+} from '../../../core/budget/leistungsbereich.js';
+import { zuordnungsquote } from '../../../core/budget/monatsauswertung.js';
+import { ViewModeToggle } from '../../../core/components/ViewModeToggle.js';
 import {
   BERICHTSSTAND_VERSION,
   buildBerichtsstandPayload,
   fetchBerichtsstand,
   saveBerichtsstand,
-} from './berichtsstandStore.js';
-import { kartenSummen, monatsauswertung } from './stakeholderOverviewData.js';
+} from '../../../core/budget/berichtsstandStore.js';
+import { kartenSummen, monatsauswertung } from '../daten/stakeholderOverviewData.js';
 
 const SUPABASE = () => window.supabase;
 

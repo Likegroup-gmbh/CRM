@@ -262,6 +262,11 @@ eine Kernidee mit mehreren Creatorn. Höchstens ein Casting-Eintrag aus dem verk
 zuordenbar einem Kooperationsvideo. Kann als Videoidee-Vorschlag entstehen.
 _Avoid_: Idee/Strategie, Referenzvideo, Kernidee
 
+**Umsetzen**:
+Markierung an einer Videoidee, dass für den zugeordneten Creator die Kooperation dieser
+Produktion gestartet werden darf. Pro Creator eine Kooperation.
+_Avoid_: Umgesetzt
+
 **Videoidee-Vorschlag**:
 KI-generierte Videoidee in einem Konzept, noch nicht übernommen. Dieselbe Zeile wie die
 Videoidee, visuell abgetrennt. Übernehmen macht sie zur normalen Videoidee; Verwerfen löscht sie.
@@ -354,9 +359,12 @@ Die Unternehmen-/Kampagnen-Hierarchie der Videos-Nav. Zählt Kooperationsvideos,
 _Avoid_: Video-Liste (das ist die paginierte Tabelle), Kooperationstabelle (sitzt auf der Kampagne)
 
 **Kampagnen-Ordnerblatt**:
-Grid-Ansicht der Kampagnen-Übersicht: Unternehmen-/Marken-Hierarchie als Ordner.
+Die Unternehmen-/Marken-Hierarchie der Kampagnen-Übersicht. Liste zeigt die Ordner
+als Zeilen, Grid als Karten; die letzte Ebene ist in beiden die Kampagnen-Übersicht.
 Zählt Kampagnen pro Ordner, lädt sie erst auf der letzten Ebene. Flach unter der
-Marke — der Auftrag ist Spalte, keine eigene Ebene.
+Marke — der Auftrag ist weder Ebene noch Spalte. Gibt es unter dem Unternehmen keine
+Marke, entfällt diese Ebene und die Liste öffnet direkt. Gesetzte Suche hebt die Ordner nur
+auf der Liste in der Anzeige auf; das Grid hat keine Suche.
 _Avoid_: Ordneransicht, Kampagnen-Explorer
 
 ### Rechnungswesen
@@ -401,6 +409,7 @@ _Avoid_: Direkte Kosten, Creator-Kosten, COGS
 **Bezahlt**:
 Eine gestellte Rechnung, deren Zahlung eingegangen ist. Derselbe Begriff gilt fuer Kunden- und
 Creatorrechnungen, auch wenn die Speicherung ihn in zwei Woertern festhaelt.
+Bei Kundenrechnungen sitzt der Zahlungsstand an der Teilrechnung, nicht am Auftrag, sobald Teilrechnungen existieren.
 _Avoid_: Überwiesen, beglichen, erledigt
 
 **Unbezahlt**:

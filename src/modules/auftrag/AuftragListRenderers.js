@@ -6,7 +6,7 @@ import { avatarBubbles } from '../../core/components/AvatarBubbles.js';
 import { actionBuilder } from '../../core/actions/ActionBuilder.js';
 import { TableAnimationHelper } from '../../core/TableAnimationHelper.js';
 import { renderAuftragAmpel } from './logic/AuftragStatusUtils.js';
-import { getPaymentRowStatusClass } from './logic/PaymentRowStatus.js';
+import { getPaymentRowStatusClass, isInvoiceRowPaid } from './logic/PaymentRowStatus.js';
 import { resolveEmptyState } from '../../core/components/EmptyState.js';
 
 AuftragList.prototype.renderCreatedBy = function(user) {
@@ -140,12 +140,31 @@ AuftragList.prototype.renderListView = function(mode = 'auftraege') {
 };
 
 AuftragList.prototype._renderLegacyRow = function(auftrag, actionEntity) {
-  const paymentStatusClass = getPaymentRowStatusClass(auftrag);
   const detailsLink = actionEntity === 'contract'
     ? this.renderContractDetailsLink(auftrag)
     : this.renderAuftragsdetailsLink(auftrag);
+  // Zahlungsstand sitzt an der Teilrechnung, sobald welche existieren.
+  const trs = auftrag.teilrechnungen || [];
+  const hatTeilrechnungen = trs.length > 0;
+  const paidRow = hatTeilrechnungen
+    ? trs.find(tr => !isInvoiceRowPaid(tr)) || trs[trs.length - 1]
+    : auftrag;
+  const bezahltAm = hatTeilrechnungen
+    ? (trs.every(tr => isInvoiceRowPaid(tr))
+        ? trs.map(tr => tr.ueberwiesen_am).filter(Boolean).sort().slice(-1)[0]
+        : null)
+    : auftrag.ueberwiesen_am;
+  const paymentStatusClass = hatTeilrechnungen
+    ? getPaymentRowStatusClass({
+        ueberwiesen: Boolean(bezahltAm),
+        ueberwiesen_am: bezahltAm,
+        rechnung_gestellt: auftrag.rechnung_gestellt,
+        rechnung_gestellt_am: auftrag.rechnung_gestellt_am,
+        re_faelligkeit: auftrag.re_faelligkeit
+      })
+    : getPaymentRowStatusClass(auftrag);
   return `
-  <tr data-id="${auftrag.id}" data-tr-id="${auftrag.id}" class="${paymentStatusClass}" data-rechnung-gestellt="${Boolean(auftrag.rechnung_gestellt_am)}" data-ueberwiesen="${Boolean(auftrag.ueberwiesen_am)}" data-re-faelligkeit="${auftrag.re_faelligkeit || ''}">
+  <tr data-id="${auftrag.id}" data-tr-id="${paidRow.id}" class="${paymentStatusClass}" data-rechnung-gestellt="${Boolean(auftrag.rechnung_gestellt_am)}" data-ueberwiesen="${Boolean(bezahltAm)}" data-re-faelligkeit="${auftrag.re_faelligkeit || ''}">
     ${this.isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
     <td class="col-unternehmen">${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
     <td class="col-marke">${this.formatMarkeTag(auftrag.marke)}</td>
@@ -160,8 +179,8 @@ AuftragList.prototype._renderLegacyRow = function(auftrag, actionEntity) {
     <td class="col-ust">${this.formatCurrency(auftrag.ust_betrag)}</td>
     <td class="col-brutto">${this.formatCurrency(auftrag.bruttobetrag)}</td>
     <td class="col-re-gestellt table-cell-center">${this.renderBillingDateCell(auftrag, 'rechnung_gestellt', 'rechnung_gestellt_am')}</td>
-    <td class="col-ueberwiesen-bool table-cell-center">${this.renderBillingDateCell(auftrag, 'ueberwiesen', 'ueberwiesen_am')}</td>
-    <td class="col-ueberwiesen">${this.formatDate(auftrag.ueberwiesen_am)}</td>
+    <td class="col-ueberwiesen-bool table-cell-center">${this.renderBillingDateCell(paidRow, 'ueberwiesen', 'ueberwiesen_am')}</td>
+    <td class="col-ueberwiesen">${this.formatDate(bezahltAm)}</td>
     ${!this.isKunde ? `<td class="col-ansprechpartner">${this.formatAnsprechpartner(auftrag.ansprechpartner)}</td>` : ''}
     <td class="col-erstellt-von">${this.renderCreatedBy(auftrag.created_by)}</td>
     <td class="col-status">${renderAuftragAmpel(auftrag.status)}</td>
@@ -173,11 +192,30 @@ AuftragList.prototype._renderLegacyRow = function(auftrag, actionEntity) {
 };
 
 AuftragList.prototype._renderAuftraegeRow = function(auftrag) {
-  const paymentStatusClass = getPaymentRowStatusClass(auftrag);
   const detailsLink = this.renderAuftragsdetailsLink(auftrag);
   const teilrechnungen = auftrag.anzahl_teilrechnungen ?? 1;
+  // Zahlungsstand sitzt an der Teilrechnung, sobald welche existieren.
+  const trs = auftrag.teilrechnungen || [];
+  const hatTeilrechnungen = trs.length > 0;
+  const bezahltAm = hatTeilrechnungen
+    ? (trs.every(tr => isInvoiceRowPaid(tr))
+        ? trs.map(tr => tr.ueberwiesen_am).filter(Boolean).sort().slice(-1)[0]
+        : null)
+    : auftrag.ueberwiesen_am;
+  const paidRow = hatTeilrechnungen
+    ? trs.find(tr => !isInvoiceRowPaid(tr)) || trs[trs.length - 1]
+    : auftrag;
+  const paymentStatusClass = hatTeilrechnungen
+    ? getPaymentRowStatusClass({
+        ueberwiesen: Boolean(bezahltAm),
+        ueberwiesen_am: bezahltAm,
+        rechnung_gestellt: auftrag.rechnung_gestellt,
+        rechnung_gestellt_am: auftrag.rechnung_gestellt_am,
+        re_faelligkeit: auftrag.re_faelligkeit
+      })
+    : getPaymentRowStatusClass(auftrag);
   return `
-  <tr data-id="${auftrag.id}" data-tr-id="${auftrag.id}" class="${paymentStatusClass}" data-rechnung-gestellt="${Boolean(auftrag.rechnung_gestellt_am)}" data-ueberwiesen="${Boolean(auftrag.ueberwiesen_am)}" data-re-faelligkeit="${auftrag.re_faelligkeit || ''}">
+  <tr data-id="${auftrag.id}" data-tr-id="${paidRow.id}" class="${paymentStatusClass}" data-rechnung-gestellt="${Boolean(auftrag.rechnung_gestellt_am)}" data-ueberwiesen="${Boolean(bezahltAm)}" data-re-faelligkeit="${auftrag.re_faelligkeit || ''}">
     ${this.isAdmin ? `<td class="col-checkbox"><input type="checkbox" class="auftrag-check" data-id="${auftrag.id}"></td>` : ''}
     <td class="col-unternehmen">${this.formatUnternehmenTag(auftrag.unternehmen)}</td>
     <td class="col-marke">${this.formatMarkeTag(auftrag.marke)}</td>

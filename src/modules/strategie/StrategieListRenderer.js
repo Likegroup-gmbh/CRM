@@ -134,7 +134,7 @@ export function updateCompaniesTable(list) {
 export function renderBrandsView(list) {
   const isKunde = window.isKunde();
   const canCreate = canCreateStrategie();
-  const showBrandsSection = !isKunde || list.brandFolders.length > 0;
+  const showBrandsSection = list.brandFolders.length > 0;
   const showCompanyOnlySection = !isKunde || list.companyOnlyItems.length > 0;
 
   return `

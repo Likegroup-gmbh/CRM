@@ -73,15 +73,23 @@ export class AuftragCashFlowCalendar {
       query = query.order('unternehmen_id', { ascending: true })
                    .order('marke_id', { ascending: true });
 
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('❌ Fehler beim Laden der Cash Flow Daten:', error);
-        this.auftraege = [];
-        return;
+      // Seitenweise laden: PostgREST kappt still bei 1000 Zeilen.
+      const pageSize = 1000;
+      const data = [];
+      let from = 0;
+      while (true) {
+        const { data: page, error } = await query.range(from, from + pageSize - 1);
+        if (error) {
+          console.error('❌ Fehler beim Laden der Cash Flow Daten:', error);
+          this.auftraege = [];
+          return;
+        }
+        data.push(...(page || []));
+        if ((page || []).length < pageSize) break;
+        from += pageSize;
       }
 
-      this.auftraege = (data || []).filter((a) => !isTestUnternehmen(a.unternehmen));
+      this.auftraege = data.filter((a) => !isTestUnternehmen(a.unternehmen));
       console.log(`✅ ${this.auftraege.length} Aufträge geladen`);
       
       // Daten gruppieren

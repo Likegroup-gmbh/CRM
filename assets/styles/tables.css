@@ -899,6 +899,20 @@ thead {
   background-color: var(--gray-50);
 }
 
+/* Bild-Spalte: nur so breit wie Logo plus Header „Bild“, Rest geht an den Namen.
+   Gleiche Klasse wie die Produktliste (td.col-thumb). */
+
+.data-table th.col-thumb,
+.data-table td.col-thumb {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.data-table--kampagne-folders .col-folder-count {
+  width: 1%;
+  white-space: nowrap;
+}
+
 /* ID/Nummer Spalten - kompakt */
 
 .data-table th.id-col,

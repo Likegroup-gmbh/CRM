@@ -35,10 +35,7 @@ export class VideoTableRealtimeHandler {
 
   initRealtimeSubscription() {
     if (this.table._realtimeChannel) return;
-
-    if (!this.table.kooperationen || this.table.kooperationen.length === 0) {
-      return;
-    }
+    if (!window.supabase?.channel) return;
 
     this.table._realtimeChannel = window.supabase
       .channel(`kampagne-koops-videos-${this.table.kampagneId}`, {
@@ -153,8 +150,14 @@ export class VideoTableRealtimeHandler {
     this.table.refilter();
   }
 
-  async handleNewKooperation() {
-    if (this._isOwnUpdate()) return;
+  async handleNewKooperation(payload) {
+    const row = payload?.new || {};
+    if (row.kampagne_id !== this.table.kampagneId) return;
+    if (this.table.produktionId && row.produktion_id !== this.table.produktionId) return;
+    if (typeof this.table.reloadKooperationen === 'function') {
+      await this.table.reloadKooperationen();
+      return;
+    }
     this.table.refilter();
   }
 

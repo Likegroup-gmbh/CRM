@@ -267,6 +267,15 @@ export class AuftragDetail extends PersonDetailBase {
       } else {
         this.auftragsDetails = null;
       }
+
+      // Teilrechnungen laden (Zahlungsstand sitzt an der Teilrechnung,
+      // sobald welche existieren — der Kopf ist dann kein Zahlungsstand mehr)
+      const { data: teilrechnungen } = await window.supabase
+        .from('auftrag_teilrechnung')
+        .select('id, position, ueberwiesen, ueberwiesen_am')
+        .eq('auftrag_id', this.auftragId)
+        .order('position', { ascending: true });
+      this.teilrechnungen = teilrechnungen || [];
       
       // Art der Kampagne verarbeiten (aus Junction-Table) und Namen laden
       if (!artDerKampagneResult.error && artDerKampagneResult.data) {
@@ -861,14 +870,7 @@ export class AuftragDetail extends PersonDetailBase {
                 ? '<span class="status-badge status-erfolg">Ja</span>'
                 : '<span class="status-badge status-offen">Nein</span>'
             })}
-            ${this.renderDetailItem({
-              icon: 'check',
-              label: 'Überwiesen:',
-              value: a.ueberwiesen
-                ? '<span class="status-badge status-erfolg">Ja</span>'
-                : '<span class="status-badge status-offen">Nein</span>'
-            })}
-            ${a.ueberwiesen_am ? this.renderDetailItem({ icon: 'calendar', label: 'Überwiesen am:', value: formatDate(a.ueberwiesen_am) }) : ''}
+            ${this.renderUeberwiesenItems(a)}
           </div>
           
           <!-- Zeitstempel -->
@@ -882,6 +884,33 @@ export class AuftragDetail extends PersonDetailBase {
     `;
   }
   
+  // Überwiesen-Items der Budget-Karte. Bei Teilrechnungen je Position das
+  // Datum der Teilrechnung; ohne Teilrechnungen der Auftragskopf.
+  renderUeberwiesenItems(a) {
+    const trs = this.teilrechnungen || [];
+    if (!trs.length) {
+      return `
+        ${this.renderDetailItem({
+          icon: 'check',
+          label: 'Überwiesen:',
+          value: a.ueberwiesen
+            ? '<span class="status-badge status-erfolg">Ja</span>'
+            : '<span class="status-badge status-offen">Nein</span>'
+        })}
+        ${a.ueberwiesen_am ? this.renderDetailItem({ icon: 'calendar', label: 'Überwiesen am:', value: formatDate(a.ueberwiesen_am) }) : ''}
+      `;
+    }
+    return trs.map(tr => `
+      ${this.renderDetailItem({
+        icon: 'check',
+        label: `Überwiesen (Teilrechnung ${tr.position}):`,
+        value: tr.ueberwiesen_am
+          ? `<span class="status-badge status-erfolg">${formatDate(tr.ueberwiesen_am)}</span>`
+          : '<span class="status-badge status-offen">Offen</span>'
+      })}
+    `).join('');
+  }
+
   // Rendere Finanzen-Tab (Budget + Rechnungen)
   renderFinanzenTab() {
     return `

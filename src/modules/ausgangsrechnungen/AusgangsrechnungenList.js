@@ -514,7 +514,8 @@ export class AusgangsrechnungenList {
           <td class="col-erstellt-von">${this.renderCreatedBy(auftrag.created_by)}</td>
           ${!this.isKunde ? `<td class="col-actions">${actionBuilder.create(actionEntity, auftrag.id, window.currentUser, {
             statusOptions: this.statusOptions,
-            currentStatus: { id: auftrag.status || 'Beauftragt', name: auftrag.status || 'Beauftragt' }
+            currentStatus: { id: auftrag.status || 'Beauftragt', name: auftrag.status || 'Beauftragt' },
+            dataset: auftrag.teilrechnung_id ? { teilrechnungId: auftrag.teilrechnung_id } : null
           })}</td>` : ''}
         </tr>
       `;
@@ -602,6 +603,7 @@ export class AusgangsrechnungenList {
     if (Number.isNaN(next) && next !== UNDATED_TAB && next !== NO_RENR_TAB && next !== ALL_TAB) return;
     if (next === this.currentMonth) return;
     this.currentMonth = next;
+    this.updateMonthTabUI();
     this.reloadBlatt({ withCounts: false, animate: true });
   }
 
@@ -609,6 +611,7 @@ export class AusgangsrechnungenList {
     const nextYear = parseInt(year, 10);
     if (Number.isNaN(nextYear) || nextYear === this.currentYear) return;
     this.currentYear = nextYear;
+    this.updateMonthTabUI();
     this.reloadBlatt({ withCounts: true, animate: true });
   }
 

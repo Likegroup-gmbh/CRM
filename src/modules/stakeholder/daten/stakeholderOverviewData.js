@@ -1,17 +1,18 @@
 // Laden und Rechnen der Stakeholder-Übersicht.
 // Schreibt geladene Zeilen auf die Page; Aggregation und Status sind reine Aufrufe.
+// Der Bestand kommt aus dem gemeinsamen Finanzbestand (core/budget), der
+// Entwürfe und Testunternehmen schon filtert und im Adminbereich cached.
 
-import { getChipFromKampagnenartName } from '../projekt-erstellen/logic/CampaignBudgetFields.js';
-import { calculateBudgetOverview } from '../../core/budget/calculateBudgetOverview.js';
-import { calculateCreatorPaymentSummary } from '../../core/budget/EkVkAgencyFeeHelper.js';
-import { calculateMonatsauswertung } from '../../core/budget/monatsauswertung.js';
+import { getChipFromKampagnenartName } from '../../auftrag/logic/kampagnenartChip.js';
+import { calculateBudgetOverview } from '../../../core/budget/calculateBudgetOverview.js';
+import { calculateCreatorPaymentSummary } from '../../../core/budget/EkVkAgencyFeeHelper.js';
+import { loadFinanzbestand } from '../../../core/budget/finanzbestand.js';
+import { calculateMonatsauswertung } from '../../../core/budget/monatsauswertung.js';
 import {
   summarizeKundenrechnungRows,
   summarizeRechnungRows,
-} from '../rechnung/invoiceCardTotals.js';
-import { kundenrechnungZeilen } from '../rechnung/Monatsblatt.js';
-import { fetchBerichtsstaende } from './berichtsstandStore.js';
-import { fetchAllRows } from '../../core/fetchAllRows.js';
+} from '../../rechnung/invoiceCardTotals.js';
+import { kundenrechnungZeilen } from '../../../core/budget/kundenrechnungZeilen.js';
 import {
   INFLUENCER_CHIPS,
   TAB_INFLUENCER,
@@ -26,7 +27,7 @@ import {
   resolveVolumen,
   tabForAuftrag,
   videosByKoop,
-} from './stakeholderOverviewLogic.js';
+} from '../kern/stakeholderOverviewLogic.js';
 
 const SUPABASE = () => window.supabase;
 
@@ -34,52 +35,18 @@ export async function loadData(page) {
   const supabase = SUPABASE();
   if (!supabase) throw new Error('Supabase nicht verfügbar');
 
-  // Alle Tabellen seitenweise (fetchAllRows), damit nichts am
-  // PostgREST-Zeilenlimit verloren geht.
-  const [auftraege, blocks, kampagnen, koops, videos, details, unternehmen, rechnungen, teilrechnungen] = await Promise.all([
-    fetchAllRows(supabase, 'auftrag',
-      'id, titel, auftragsname, nettobetrag, ust_betrag, bruttobetrag, creator_budget, auftragtype, start, ende, created_at, is_draft, unternehmen_id, marke_id, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am, re_faelligkeit, marke:marke_id(id, markenname)'),
-    fetchAllRows(supabase, 'auftrag_kampagnenart_blocks',
-      'id, auftrag_id, campaign_type, campaign_type_label, umsatz_netto, sort_order'),
-    fetchAllRows(supabase, 'kampagne',
-      'id, auftrag_id, videoanzahl, creatoranzahl'),
-    fetchAllRows(supabase, 'kooperationen',
-      'id, name, kampagne_id, creator_id, videoanzahl, einkaufspreis_netto, verkaufspreis_netto, verkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag'),
-    fetchAllRows(supabase, 'kooperation_videos',
-      'id, kooperation_id, einkaufspreis_netto, verkaufspreis_netto, kampagnenart'),
-    fetchAllRows(supabase, 'auftrag_details',
-      'auftrag_id, campaign_type, agency_services_enabled, percentage_fee_enabled, percentage_fee_value, ksk_enabled, ksk_value'),
-    fetchAllRows(supabase, 'unternehmen',
-      'id, firmenname'),
-    // Fremdkosten brauchen Rechnungsdatum und die drei Posten-Quellen
-    // (Honorar netto + steuerfrei, Zusatzkosten; KSK wird berechnet).
-    // Kachelsummen brauchen zusaetzlich status/bezahlt_am/zahlungsziel.
-    fetchAllRows(supabase, 'rechnung',
-      'id, kooperation_id, auftrag_id, status, nettobetrag, ust_betrag, bruttobetrag, nettobetrag_steuerfrei, zusatzkosten, gestellt_am, bezahlt_am, zahlungsziel, rechnungstyp, rechnung_nr'),
-    // Kundenrechnungen: geplante und gestellte Teilrechnungen je Auftrag,
-    // inkl. Zahlungsstatus (ueberwiesen_am) und Faelligkeit.
-    fetchAllRows(supabase, 'auftrag_teilrechnung',
-      'id, auftrag_id, nettobetrag, ust_betrag, bruttobetrag, rechnung_gestellt, rechnung_gestellt_am, ueberwiesen, ueberwiesen_am, re_faelligkeit'),
-  ]);
+  const bestand = await loadFinanzbestand(supabase);
 
-  page.auftraege = (auftraege || []).filter(a => a.is_draft !== true);
-  page.blocks = blocks || [];
-  page.kampagnen = kampagnen || [];
-  page.kooperationen = koops || [];
-  page.videos = videos || [];
-  page.rechnungen = rechnungen || [];
-  page.teilrechnungen = teilrechnungen || [];
-  page.detailsByAuftrag = new Map((details || []).map(d => [d.auftrag_id, d]));
-  page.unternehmenById = new Map((unternehmen || []).map(u => [u.id, u]));
-
-  // Berichtsstände sind ein Add-on: scheitert das Listen-Laden, soll die
-  // Uebersicht trotzdem rendern.
-  try {
-    page.berichtsstaende = await fetchBerichtsstaende(supabase);
-  } catch (e) {
-    console.error('❌ Investor-Dashboard: Berichtsstände konnten nicht geladen werden', e);
-    page.berichtsstaende = [];
-  }
+  page.auftraege = bestand.auftraege;
+  page.blocks = bestand.blocks;
+  page.kampagnen = bestand.kampagnen;
+  page.kooperationen = bestand.kooperationen;
+  page.videos = bestand.videos;
+  page.rechnungen = bestand.rechnungen;
+  page.teilrechnungen = bestand.teilrechnungen;
+  page.detailsByAuftrag = new Map((bestand.details || []).map(d => [d.auftrag_id, d]));
+  page.unternehmenById = new Map((bestand.unternehmen || []).map(u => [u.id, u]));
+  page.berichtsstaende = bestand.berichtsstaende;
 }
 
 export function aggregate(page) {

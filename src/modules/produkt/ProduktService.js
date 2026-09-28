@@ -378,6 +378,28 @@ export class ProduktService {
     return (data || []).map(row => row.briefing_id);
   }
 
+  /**
+   * Hängt das Produkt an die Produktion, solange dort noch keins steht.
+   * Ein gesetztes Produkt bleibt.
+   */
+  static async attachToProduktionIfEmpty(produktionId, produktId) {
+    if (!produktionId || !produktId || !window.supabase) return;
+    const { data, error } = await window.supabase
+      .from('produktion')
+      .select('produkt_id')
+      .eq('id', produktionId)
+      .maybeSingle();
+    if (error) throw error;
+    if (data?.produkt_id) return;
+
+    const { error: updateError } = await window.supabase
+      .from('produktion')
+      .update({ produkt_id: produktId })
+      .eq('id', produktionId)
+      .is('produkt_id', null);
+    if (updateError) throw updateError;
+  }
+
   /** Setzt die Briefing-Zuordnung auf genau diese Liste. Leer loescht alle. */
   static async saveBriefings(produktId, briefingIds = []) {
     const { error: deleteError } = await window.supabase

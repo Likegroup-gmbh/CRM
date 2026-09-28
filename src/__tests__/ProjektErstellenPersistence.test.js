@@ -367,6 +367,10 @@ describe('ProjektErstellenPersistence', () => {
 
         if (table === 'auftrag_teilrechnung') {
           return {
+            select: vi.fn(() => ({
+              eq: vi.fn(async () => ({ data: [], error: null }))
+            })),
+            update: vi.fn(() => chainEq()),
             delete: vi.fn(() => chainEq()),
             insert: vi.fn(async () => ({ error: null }))
           };
@@ -410,6 +414,205 @@ describe('ProjektErstellenPersistence', () => {
       kampagnenname: 'EDEKA Z: Booster + The Real Taste',
       eigener_name: null
     });
+  });
+
+  it('lässt beim Edit den Zahlungsstand bestehender Teilrechnungen stehen', async () => {
+    const trUpdates = [];
+    const trInserts = [];
+    const trDeletes = [];
+
+    const chainEq = () => ({
+      eq: vi.fn(async () => ({ error: null }))
+    });
+
+    window.supabase = {
+      from: vi.fn((table) => {
+        if (table === 'kampagne_art_typen') {
+          return {
+            select: vi.fn(() => ({
+              in: vi.fn(async () => ({ data: [], error: null }))
+            }))
+          };
+        }
+        if (table === 'auftrag') {
+          return { update: vi.fn(() => chainEq()) };
+        }
+        if (table === 'auftrag_details') {
+          return { upsert: vi.fn(async () => ({ error: null })) };
+        }
+        if (table === 'kampagne') {
+          return { update: vi.fn(() => chainEq()) };
+        }
+        if (table === 'auftrag_kampagnenart_blocks') {
+          return {
+            delete: vi.fn(() => chainEq()),
+            insert: vi.fn(async () => ({ error: null }))
+          };
+        }
+        if (table === 'ansprechpartner_kampagne') {
+          return {
+            delete: vi.fn(() => chainEq()),
+            insert: vi.fn(async () => ({ error: null }))
+          };
+        }
+        if (table === 'auftrag_teilrechnung') {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(async () => ({
+                data: [
+                  { id: 'tr-1', position: 1 },
+                  { id: 'tr-2', position: 2 }
+                ],
+                error: null
+              }))
+            })),
+            update: vi.fn((payload) => {
+              trUpdates.push(payload);
+              return chainEq();
+            }),
+            insert: vi.fn((payload) => {
+              trInserts.push(payload);
+              return Promise.resolve({ error: null });
+            }),
+            delete: vi.fn(() => ({
+              in: vi.fn((col, ids) => {
+                trDeletes.push(...ids);
+                return Promise.resolve({ error: null });
+              })
+            }))
+          };
+        }
+        return { insert: vi.fn(async () => ({ error: null })) };
+      })
+    };
+
+    const result = await persistence.submitEdit({
+      auftragId: 'auftrag-1',
+      kampagneId: 'kampagne-1',
+      existingRaw: {
+        auftrag: { status: 'active', is_draft: false },
+        details: { campaign_type: [] }
+      },
+      formData: {
+        auftrag: {
+          unternehmen_id: 'unternehmen-1',
+          marke_id: 'marke-1',
+          ansprechpartner_id: 'ansprechpartner-1',
+          titel: 'Test',
+          start: '2026-03-01',
+          ende: '2026-06-30',
+          anzahl_teilrechnungen: 2,
+          teilrechnungen: [
+            { position: 1, nettobetrag: 1000, ust_prozent: 19, ust_betrag: 190, bruttobetrag: 1190 },
+            { position: 2, nettobetrag: 2000, ust_prozent: 19, ust_betrag: 380, bruttobetrag: 2380 }
+          ]
+        },
+        details: { campaign_type: [] },
+        kampagne: { kampagnenname: 'Test' }
+      }
+    });
+
+    expect(result.success).toBe(true);
+    expect(trUpdates).toHaveLength(2);
+    for (const payload of trUpdates) {
+      expect(payload).not.toHaveProperty('ueberwiesen');
+      expect(payload).not.toHaveProperty('ueberwiesen_am');
+    }
+    expect(trInserts).toHaveLength(0);
+    expect(trDeletes).toHaveLength(0);
+  });
+
+  it('löscht beim Edit nur die entfernten Positionen', async () => {
+    const trDeletes = [];
+
+    const chainEq = () => ({
+      eq: vi.fn(async () => ({ error: null }))
+    });
+
+    window.supabase = {
+      from: vi.fn((table) => {
+        if (table === 'kampagne_art_typen') {
+          return {
+            select: vi.fn(() => ({
+              in: vi.fn(async () => ({ data: [], error: null }))
+            }))
+          };
+        }
+        if (table === 'auftrag') {
+          return { update: vi.fn(() => chainEq()) };
+        }
+        if (table === 'auftrag_details') {
+          return { upsert: vi.fn(async () => ({ error: null })) };
+        }
+        if (table === 'kampagne') {
+          return { update: vi.fn(() => chainEq()) };
+        }
+        if (table === 'auftrag_kampagnenart_blocks') {
+          return {
+            delete: vi.fn(() => chainEq()),
+            insert: vi.fn(async () => ({ error: null }))
+          };
+        }
+        if (table === 'ansprechpartner_kampagne') {
+          return {
+            delete: vi.fn(() => chainEq()),
+            insert: vi.fn(async () => ({ error: null }))
+          };
+        }
+        if (table === 'auftrag_teilrechnung') {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(async () => ({
+                data: [
+                  { id: 'tr-1', position: 1 },
+                  { id: 'tr-2', position: 2 },
+                  { id: 'tr-3', position: 3 }
+                ],
+                error: null
+              }))
+            })),
+            update: vi.fn(() => chainEq()),
+            insert: vi.fn(async () => ({ error: null })),
+            delete: vi.fn(() => ({
+              in: vi.fn((col, ids) => {
+                trDeletes.push(...ids);
+                return Promise.resolve({ error: null });
+              })
+            }))
+          };
+        }
+        return { insert: vi.fn(async () => ({ error: null })) };
+      })
+    };
+
+    const result = await persistence.submitEdit({
+      auftragId: 'auftrag-1',
+      kampagneId: 'kampagne-1',
+      existingRaw: {
+        auftrag: { status: 'active', is_draft: false },
+        details: { campaign_type: [] }
+      },
+      formData: {
+        auftrag: {
+          unternehmen_id: 'unternehmen-1',
+          marke_id: 'marke-1',
+          ansprechpartner_id: 'ansprechpartner-1',
+          titel: 'Test',
+          start: '2026-03-01',
+          ende: '2026-06-30',
+          anzahl_teilrechnungen: 2,
+          teilrechnungen: [
+            { position: 1, nettobetrag: 1000, ust_prozent: 19, ust_betrag: 190, bruttobetrag: 1190 },
+            { position: 2, nettobetrag: 2000, ust_prozent: 19, ust_betrag: 380, bruttobetrag: 2380 }
+          ]
+        },
+        details: { campaign_type: [] },
+        kampagne: { kampagnenname: 'Test' }
+      }
+    });
+
+    expect(result.success).toBe(true);
+    expect(trDeletes).toEqual(['tr-3']);
   });
 
   it('legt eine Kampagne mit dem vollen Topf an', async () => {

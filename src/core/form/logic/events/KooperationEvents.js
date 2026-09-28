@@ -223,6 +223,16 @@ export async function setup(form, ctx) {
     }
 
     try {
+      const currentKoopId = form.dataset.entityId;
+      const koopPromise = (async () => {
+        let koopQuery = window.supabase
+          .from('kooperationen')
+          .select('id, videoanzahl')
+          .eq('kampagne_id', kampagneId);
+        if (currentKoopId) koopQuery = koopQuery.neq('id', currentKoopId);
+        return koopQuery;
+      })().catch((error) => ({ data: null, error }));
+
       const { data: kampagne, error: kampagneError } = await window.supabase
         .from('kampagne')
         .select('videoanzahl, auftrag_id, ugc_paid_video_anzahl, ugc_organic_video_anzahl, influencer_video_anzahl, story_video_anzahl, vor_ort_video_anzahl, ugc_video_anzahl, igc_video_anzahl')
@@ -233,44 +243,55 @@ export async function setup(form, ctx) {
         return;
       }
 
-      try {
-        if (kampagne?.auftrag_id) {
-          const { data: auftragArten, error: artError } = await window.supabase
-            .from('auftrag_kampagne_art')
-            .select('kampagne_art_id')
-            .eq('auftrag_id', kampagne.auftrag_id);
-          if (!artError && auftragArten && auftragArten.length > 0) {
-            const artIds = auftragArten.map(a => a.kampagne_art_id).filter(Boolean);
-            if (artIds.length > 0) {
-              const { data: artTypen } = await window.supabase
-                .from('kampagne_art_typen')
-                .select('name')
-                .in('id', artIds);
-              kampagnenartenOptions = (artTypen || []).map(t => t.name).filter(Boolean);
+      const loadKampagnenarten = async () => {
+        try {
+          if (kampagne?.auftrag_id) {
+            const { data: auftragArten, error: artError } = await window.supabase
+              .from('auftrag_kampagne_art')
+              .select('kampagne_art_id')
+              .eq('auftrag_id', kampagne.auftrag_id);
+            if (!artError && auftragArten && auftragArten.length > 0) {
+              const artIds = auftragArten.map(a => a.kampagne_art_id).filter(Boolean);
+              if (artIds.length > 0) {
+                const { data: artTypen } = await window.supabase
+                  .from('kampagne_art_typen')
+                  .select('name')
+                  .in('id', artIds);
+                const names = (artTypen || []).map(t => t.name).filter(Boolean);
+                if (names.length > 0) return names;
+              }
             }
           }
-        }
-        if (kampagnenartenOptions.length === 0) {
           const { data: alleArten } = await window.supabase
             .from('kampagne_art_typen')
             .select('name')
             .order('sort_order', { ascending: true });
-          kampagnenartenOptions = (alleArten || []).map(t => t.name).filter(Boolean);
+          return (alleArten || []).map(t => t.name).filter(Boolean);
+        } catch (e) {
+          console.warn('⚠️ Kampagnenarten konnten nicht geladen werden:', e);
+          return [];
         }
-      } catch (e) {
-        console.warn('⚠️ Kampagnenarten konnten nicht geladen werden:', e);
-      }
+      };
 
-      let blockTotal = 0;
-      if (kampagne?.auftrag_id) {
+      const loadBlockTotal = async () => {
+        if (!kampagne?.auftrag_id) return 0;
         try {
           const { data: blocks } = await window.supabase
             .from('auftrag_kampagnenart_blocks')
             .select('video_anzahl')
             .eq('auftrag_id', kampagne.auftrag_id);
-          blockTotal = (blocks || []).reduce((sum, b) => sum + (parseInt(b.video_anzahl, 10) || 0), 0);
-        } catch (_) { /* ignore */ }
-      }
+          return (blocks || []).reduce((sum, b) => sum + (parseInt(b.video_anzahl, 10) || 0), 0);
+        } catch (_) {
+          return 0;
+        }
+      };
+
+      const [arten, blockTotal, koopResult] = await Promise.all([
+        loadKampagnenarten(),
+        loadBlockTotal(),
+        koopPromise
+      ]);
+      kampagnenartenOptions = arten;
 
       const newFieldsSum =
         (parseInt(kampagne?.ugc_paid_video_anzahl, 10) || 0) +
@@ -285,17 +306,7 @@ export async function setup(form, ctx) {
         (parseInt(kampagne?.vor_ort_video_anzahl, 10) || 0);
       const totalVideos = blockTotal || newFieldsSum || legacyFieldsSum || (kampagne?.videoanzahl ?? 0);
 
-      const currentKoopId = form.dataset.entityId;
-      let koopQuery = window.supabase
-        .from('kooperationen')
-        .select('id, videoanzahl')
-        .eq('kampagne_id', kampagneId);
-      
-      if (currentKoopId) {
-        koopQuery = koopQuery.neq('id', currentKoopId);
-      }
-      
-      const { data: existingKoops, error: koopError } = await koopQuery;
+      const { data: existingKoops, error: koopError } = koopResult;
       if (koopError) {
         console.error('❌ Fehler beim Laden der Kooperationen (videoanzahl):', koopError);
         return;
@@ -400,8 +411,8 @@ export async function setup(form, ctx) {
     });
   }
 
-  updateVideoLimits();
-  
+  await updateVideoLimits();
+
   if (form.dataset.prefillFromKampagne === 'true' || form.dataset.isEditMode === 'true') {
     setTimeout(() => {
       updateVideoLimits();

@@ -13,6 +13,7 @@ import {
 } from './SkriptListRenderer.js';
 import { bindEvents as _bindEvents } from './SkriptListEvents.js';
 import { OHNE_QUERY, OHNE_MARKE_LABEL, OHNE_KAMPAGNE_LABEL } from './SkripteUtils.js';
+import { markenEbeneEntfaellt } from '../../core/folderListNav.js';
 
 export { OHNE_QUERY, OHNE_MARKE_LABEL, OHNE_KAMPAGNE_LABEL };
 
@@ -158,8 +159,10 @@ export class SkriptList {
       }
 
       if (this.viewMode === 'companies') this.buildCompanyFolders();
-      else if (this.viewMode === 'brands') this.buildBrandFolders();
-      else if (this.viewMode === 'campaigns') this.buildCampaignFolders();
+      else if (this.viewMode === 'brands') {
+        this.buildBrandFolders();
+        this.applyMarkenEbeneSprung();
+      } else if (this.viewMode === 'campaigns') this.buildCampaignFolders();
       else this.buildCurrentItems();
 
       this.render();
@@ -286,6 +289,33 @@ export class SkriptList {
     this.currentItems = this.applyStatusFilter(scoped);
   }
 
+  markenEbeneWeg() {
+    if (this.currentMarkeId || !this.currentUnternehmenId) return false;
+    if (this.viewMode !== 'campaigns' && this.viewMode !== 'items') return false;
+    const scoped = scopedByUnternehmen(this.skripte, this.currentUnternehmenId);
+    const echte = new Set(scoped.filter((item) => item.marke_id).map((item) => item.marke_id)).size;
+    const ohne = scoped.filter((item) => !item.marke_id).length;
+    return markenEbeneEntfaellt(echte, ohne);
+  }
+
+  applyMarkenEbeneSprung() {
+    if (this.viewMode !== 'brands' || !this.currentUnternehmenId) return;
+    const echte = this.brandFolders.filter((folder) => folder.id && !folder.virtual).length;
+    const ohne = this.unbrandedItems?.length || 0;
+    if (!markenEbeneEntfaellt(echte, ohne)) return;
+    this.viewMode = 'campaigns';
+    this.currentMarkeId = null;
+    this.currentMarkeName = OHNE_MARKE_LABEL;
+    this.currentKampagneId = null;
+    this.currentKampagneName = null;
+    this.buildCampaignFolders();
+  }
+
+  backFromMarken() {
+    if (this.markenEbeneWeg()) this.switchToCompaniesView();
+    else this.switchToBrandsView(this.currentUnternehmenId, this.currentUnternehmenName);
+  }
+
   updateBreadcrumbDisplay() {
     if (!window.breadcrumbSystem) return;
     if (this.viewMode === 'companies') return;
@@ -294,7 +324,7 @@ export class SkriptList {
       { label: 'Skripte', url: '/skripte', clickable: true }
     ];
 
-    if (this.viewMode === 'brands') {
+    if (this.viewMode === 'brands' || (this.viewMode === 'campaigns' && this.markenEbeneWeg())) {
       crumbs.push({ label: this.currentUnternehmenName || 'Unternehmen', url: '#', clickable: false });
       window.breadcrumbSystem.updateBreadcrumb(crumbs);
       return;
@@ -302,12 +332,22 @@ export class SkriptList {
 
     crumbs.push({
       label: this.currentUnternehmenName || 'Unternehmen',
-      url: this.listUrl('brands'),
+      url: this.markenEbeneWeg() ? this.listUrl('campaigns') : this.listUrl('brands'),
       clickable: true
     });
 
     if (this.viewMode === 'campaigns') {
       crumbs.push({ label: this.currentMarkeName || OHNE_MARKE_LABEL, url: '#', clickable: false });
+      window.breadcrumbSystem.updateBreadcrumb(crumbs);
+      return;
+    }
+
+    if (this.markenEbeneWeg()) {
+      crumbs.push({
+        label: this.currentKampagneName || OHNE_KAMPAGNE_LABEL,
+        url: '#',
+        clickable: false
+      });
       window.breadcrumbSystem.updateBreadcrumb(crumbs);
       return;
     }

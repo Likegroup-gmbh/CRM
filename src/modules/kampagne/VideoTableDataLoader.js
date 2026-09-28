@@ -8,6 +8,7 @@ import {
   VIDEO_FEEDBACK_SELECT
 } from '../../core/VideoFeedbackBuckets.js';
 import { CustomColumnDataLoader } from './columns/CustomColumnDataLoader.js';
+import { loadKonzeptInhalte, zuordnenKonzeptInhalte } from './konzeptInhalte.js';
 import { BILDER_ASSET_SELECT, pickLatestAsset } from '../../core/stills/stillAssets.js';
 
 export class VideoTableDataLoader {
@@ -90,8 +91,8 @@ export class VideoTableDataLoader {
         const kampagneJoin = 'kampagne:kampagne_id (id, kampagnenname, eigener_name, unternehmen:unternehmen_id(id, firmenname, kein_dropbox), marke:marke_id(id, markenname))';
         const statusJoin = 'status_ref:status_id(id, name)';
         const koopSelect = isKunde
-          ? `id, name, status_id, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, bilder_folder_url, ${statusJoin}, ${kampagneJoin}`
-          : `id, name, status_id, einkaufspreis_netto, einkaufspreis_gesamt, verkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, bilder_folder_url, ${statusJoin}, ${kampagneJoin}`;
+          ? `id, name, status_id, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, produktion_id, bilder_folder_url, ${statusJoin}, ${kampagneJoin}`
+          : `id, name, status_id, einkaufspreis_netto, einkaufspreis_gesamt, verkaufspreis_zusatzkosten, ksk_selbstzahler, ksk_betrag, posting_datum, vertrag_unterschrieben, nutzungsrechte, tracking_link, typ, videoanzahl, created_at, creator_id, produktion_id, bilder_folder_url, ${statusJoin}, ${kampagneJoin}`;
 
         const kooperationenResult = await window.supabase
           .from('kooperationen')
@@ -214,6 +215,16 @@ export class VideoTableDataLoader {
         }
         t.videos[video.kooperation_id].push(enrichedVideo);
       });
+
+      try {
+        const { ideen, skripte } = await loadKonzeptInhalte(sb, {
+          kampagneId: t.kampagneId,
+          produktionId: t.produktionId || null
+        });
+        t.videos = zuordnenKonzeptInhalte(t.kooperationen, t.videos, ideen, skripte);
+      } catch (e) {
+        console.warn('⚠️ Konzept-Inhalte konnten nicht zugeordnet werden:', e);
+      }
 
       t.videoComments = {};
       t.versandInfos = {};

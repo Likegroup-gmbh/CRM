@@ -8,7 +8,7 @@ import {
   saveBerichtsstand,
   fetchBerichtsstaende,
   fetchBerichtsstand,
-} from '../modules/stakeholder/berichtsstandStore.js';
+} from '../core/budget/berichtsstandStore.js';
 
 function mockSupabase({ insertResult, listResult, singleResult } = {}) {
   const insert = vi.fn(() => ({

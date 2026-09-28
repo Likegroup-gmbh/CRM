@@ -5,6 +5,17 @@ import { iconRegistry } from './IconRegistry.js';
 import { ActionConfig } from './ActionConfig.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
+function resolveItemState(action, options = {}) {
+  const fromMap = options.actionStates?.[action.id];
+  if (fromMap?.mode === 'hidden' || fromMap?.mode === 'disabled' || fromMap?.mode === 'enabled') {
+    return { mode: fromMap.mode, title: fromMap.title || '' };
+  }
+  if (Array.isArray(options.disabledActions) && options.disabledActions.includes(action.id)) {
+    return { mode: 'disabled', title: '' };
+  }
+  return { mode: 'enabled', title: '' };
+}
+
 function collapseSeparators(actions) {
   const result = [];
   for (const action of actions) {
@@ -104,6 +115,14 @@ export class ActionBuilder {
       );
     }
 
+    const visibleActions = filteredActions.filter(action => {
+      if (action.id === 'separator') return true;
+      return resolveItemState(action, options).mode !== 'hidden';
+    });
+    if (visibleActions.length !== filteredActions.length) {
+      filteredActions = collapseSeparators(visibleActions);
+    }
+
     return filteredActions.map(action => {
       if (action.id === 'separator') {
         return this.buildSeparator();
@@ -121,12 +140,16 @@ export class ActionBuilder {
    * Baut ein einzelnes Action-Item
    * @param {object} action - Die Action-Definition
    * @param {string|number} entityId - Die Entity-ID
-   * @param {object} options - Zusätzliche Optionen (disabledActions, igConnected, dataset)
+   * @param {object} options - Zusätzliche Optionen (disabledActions, actionStates, igConnected, dataset)
+   *   options.actionStates: { [actionId]: { mode: 'enabled'|'disabled'|'hidden', title } }
    *   options.dataset: Objekt oder Funktion (action) => Objekt mit zusaetzlichen
    *   data-*-Attributen (z.B. { name: 'Listenname' } → data-name="...").
    * @returns {string} HTML-String
    */
   buildActionItem(action, entityId, options = {}) {
+    const state = resolveItemState(action, options);
+    if (state.mode === 'hidden') return '';
+
     const dangerClass = action.danger ? 'action-danger' : '';
 
     // Connect-Action: nach erfolgreichem Connect als "Refresh" darstellen
@@ -137,9 +160,11 @@ export class ActionBuilder {
       iconName = 'ig-refresh';
     }
 
-    const isDisabled = Array.isArray(options.disabledActions) && options.disabledActions.includes(action.id);
-    const disabledClass = isDisabled ? 'action-disabled' : '';
-    const disabledAttr = isDisabled ? 'aria-disabled="true"' : '';
+    const disabledClass = state.mode === 'disabled' ? 'action-disabled' : '';
+    const disabledAttr = state.mode === 'disabled' ? ' aria-disabled="true"' : '';
+    const titleAttr = state.mode === 'disabled' && state.title
+      ? ` title="${this.escapeHtml(state.title)}"`
+      : '';
 
     const extraDataset = typeof options.dataset === 'function' ? options.dataset(action) : options.dataset;
     const datasetHtml = extraDataset
@@ -152,7 +177,7 @@ export class ActionBuilder {
     const icon = this.iconRegistry.get(iconName);
 
     return `
-      <a href="#" class="action-item ${dangerClass} ${disabledClass}" data-action="${action.id}" data-id="${entityId}"${datasetHtml} ${disabledAttr}>
+      <a href="#" class="action-item ${dangerClass} ${disabledClass}" data-action="${action.id}" data-id="${entityId}"${datasetHtml}${titleAttr}${disabledAttr}>
         ${icon}
         ${label}
       </a>

@@ -16,7 +16,7 @@ export const STRATEGIE_FIXED_COLUMNS = Object.freeze([
   { key: 'caption', label: 'Caption' },
   { key: 'anmerkung', label: 'Anmerkung Kunde' },
   { key: 'prio', label: 'Prio' },
-  { key: 'umgesetzt', label: 'Umgesetzt' }
+  { key: 'umgesetzt', label: 'Umsetzen' }
 ]);
 
 // Keys hier eintragen, wenn eine feste Spalte standardmaessig aus sein soll.

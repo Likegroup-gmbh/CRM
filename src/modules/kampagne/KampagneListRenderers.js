@@ -284,6 +284,44 @@ export function renderArtTags(artArray) {
   return `<div class="tags tags-compact">${inner}</div>`;
 }
 
+export function renderFolderRows(folders, { mode }) {
+  if (!folders.length) {
+    const html = resolveEmptyState({
+      hasActiveFilters: false,
+      states: {
+        default: {
+          icon: 'megaphone',
+          title: mode === 'companies' ? 'Keine Kampagnen vorhanden' : 'Keine Marken mit Kampagnen',
+          text: mode === 'companies'
+            ? 'Es wurden noch keine Kampagnen angelegt.'
+            : 'Für dieses Unternehmen gibt es noch keine Kampagnen.'
+        }
+      }
+    }, 'default');
+    return `<tr><td colspan="3" class="empty-state-cell">${html}</td></tr>`;
+  }
+
+  return folders.map((folder) => {
+    const name = mode === 'companies' ? folder.firmenname : folder.markenname;
+    const logo = folder.logo_url
+      ? `<img src="${window.validatorSystem.sanitizeHtml(folder.logo_url)}" alt="${window.validatorSystem.sanitizeHtml(name)}" class="table-logo" width="24" height="24">`
+      : icon('folder-open');
+    const countLabel = `${folder.count} ${folder.count === 1 ? 'Kampagne' : 'Kampagnen'}`;
+    const attrs = mode === 'companies'
+      ? `data-unternehmen-id="${folder.id}" data-unternehmen-name="${window.validatorSystem.sanitizeHtml(name)}"`
+      : folder.virtual
+        ? `data-ohne-marke="1" data-marke-name="${window.validatorSystem.sanitizeHtml(name)}"`
+        : `data-marke-id="${folder.id}" data-marke-name="${window.validatorSystem.sanitizeHtml(name)}"`;
+    return `
+      <tr class="kampagne-folder-row" ${attrs}>
+        <td class="col-thumb">${logo}</td>
+        <td class="col-folder-name table-link">${window.validatorSystem.sanitizeHtml(name)}</td>
+        <td class="col-folder-count">${countLabel}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
 export function renderMitarbeiter(users) {
   if (!users || users.length === 0) {
     return '-';

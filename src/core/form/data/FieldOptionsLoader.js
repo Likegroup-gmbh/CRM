@@ -18,6 +18,13 @@ export async function loadFieldOptions(entity, field, form) {
       return;
     }
 
+    // Kontext-Anlage: Zuordnung ist ein Hidden-Input oder verstecktes Select.
+    // Optionen nachladen würde den schon gesetzten Wert überschreiben.
+    const mounted = form?.querySelector?.(`[name="${field.name}"]`);
+    if (mounted && (mounted.tagName !== 'SELECT' || mounted.hasAttribute('hidden'))) {
+      return;
+    }
+
     if (!this.dataService) {
       console.error('❌ DataService ist nicht verfügbar in DynamicDataLoader');
       this.dataService = window.dataService;

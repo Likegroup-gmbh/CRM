@@ -8,7 +8,6 @@ import { toRawDropboxUrl, canPreviewImageAsset } from '../../core/VideoUploadUti
 import { escapeHtml } from './videoTableFieldCells.js';
 import { withProduktionHerkunft } from '../../core/navHerkunft.js';
 
-const LINK_ICON = `${icon('link')}`;
 const PLAY_ICON = `${icon('play-circle')}`;
 const FOLDER_ICON = `${icon('folder-open')}`;
 const STORYS_ICON = `${icon('device-phone')}`;
@@ -16,60 +15,28 @@ const BILDER_ICON = `${icon('photo')}`;
 const GEAR_ICON = `${icon('cog')}`;
 const UPLOAD_ICON = `${icon('upload')}`;
 const SKRIPT_ICON = `${icon('skripte', { className: 'w-4 h-4' })}`;
-const SKRIPT_EDIT_ICON = `${icon('pencil-square', { className: 'w-4 h-4' })}`;
+const IDEE_ICON = `${icon('lightbulb', { className: 'w-4 h-4' })}`;
+
+function renderIdeeInhalt(ctx, item) {
+  const beschreibung = item.beschreibung || 'Konzept-Idee';
+  const title = escapeHtml(beschreibung);
+  const conceptHref = item.strategie_id
+    ? withProduktionHerkunft(`/konzepte/${item.strategie_id}`, ctx.t?.produktionId, 'produktion')
+    : '';
+  const inner = `${IDEE_ICON}<span class="skript-link-title">${title}</span>`;
+
+  if (!conceptHref) {
+    return `<span class="thema-link-btn skript-link-open" title="${title}">${inner}</span>`;
+  }
+
+  return `<a href="${escapeHtml(conceptHref)}" class="thema-link-btn skript-link-open" title="${title}">${inner}</a>`;
+}
 
 export function renderIdeeStrategieInner(ctx, video) {
   const koop = ctx.koop;
   const canLink = window.permissionSystem?.canEditField('video', 'strategie_item_id') ?? false;
   const item = video.strategie_item;
-  if (item && (item.screenshot_url || item.video_link)) {
-    const videoLink = item.video_link;
-    const screenshotUrl = item.screenshot_url;
-    const beschreibung = item.beschreibung || 'Konzept-Idee';
-    const thumbHtml = screenshotUrl
-      ? `<img src="${screenshotUrl}" alt="Thema" class="thema-thumbnail" />`
-      : `<span class="thema-thumbnail thema-thumbnail--placeholder">${PLAY_ICON}</span>`;
-    if (canLink) {
-      // Verlinkte Videoidee: Bild oeffnet das Video in neuem Tab,
-      // der Verknuepfungs-Drawer wandert auf das Link-Icon daneben.
-      if (videoLink) {
-        return `
-            <span class="thema-item-actions">
-              <a href="${videoLink}" class="thema-thumbnail-link thema-thumbnail-link--playable"
-                title="${escapeHtml(beschreibung)}" target="_blank" rel="noopener noreferrer">
-                ${thumbHtml}
-              </a>
-              <button type="button" class="thema-relink-btn"
-                data-action="link-strategie-item"
-                data-video-id="${video.id}"
-                data-kooperation-id="${koop.id}"
-                title="Verknüpfung ändern">${LINK_ICON}</button>
-            </span>
-          `;
-      }
-      // Reine Idee ohne Video-Link: Klick oeffnet weiterhin den Drawer.
-      return `
-          <button type="button" class="thema-link-btn thema-link-btn--linked"
-            data-action="link-strategie-item"
-            data-video-id="${video.id}"
-            data-kooperation-id="${koop.id}"
-            title="${escapeHtml(beschreibung)}">
-            ${thumbHtml}
-          </button>
-        `;
-    }
-    const href = videoLink || withProduktionHerkunft(
-      `/konzepte/${item.strategie_id}`,
-      ctx.t?.produktionId,
-      'produktion'
-    );
-    const targetAttr = videoLink ? ' target="_blank" rel="noopener noreferrer"' : '';
-    return `
-        <a href="${href}" class="thema-thumbnail-link${videoLink ? ' thema-thumbnail-link--playable' : ''}" title="${escapeHtml(beschreibung)}"${targetAttr}>
-          ${thumbHtml}
-        </a>
-      `;
-  }
+  if (item) return renderIdeeInhalt(ctx, item);
   if (canLink) {
     return `
         <button type="button" class="thema-link-btn"
@@ -103,22 +70,12 @@ export function renderSkriptCell(koop, video, table = null) {
     }
     if (canLink) {
       return `
-          <div class="skript-link-cell">
-            <button type="button" class="thema-link-btn skript-link-open"
-              data-action="open-skript"
-              data-skript-id="${skriptId}"
-              title="${escapeHtml(titel)}">
-              ${SKRIPT_ICON}<span class="skript-link-title">${escapeHtml(titel)}</span>
-            </button>
-            <button type="button" class="skript-link-edit-btn"
-              data-action="link-skript"
-              data-video-id="${video.id}"
-              data-kooperation-id="${koop.id}"
-              title="Verknüpfung ändern"
-              aria-label="Verknüpfung ändern">
-              ${SKRIPT_EDIT_ICON}
-            </button>
-          </div>
+          <button type="button" class="thema-link-btn skript-link-open"
+            data-action="open-skript"
+            data-skript-id="${skriptId}"
+            title="${escapeHtml(titel)}">
+            ${SKRIPT_ICON}<span class="skript-link-title">${escapeHtml(titel)}</span>
+          </button>
         `;
     }
     return `
@@ -129,6 +86,10 @@ export function renderSkriptCell(koop, video, table = null) {
           ${SKRIPT_ICON}<span class="skript-link-title">${escapeHtml(titel)}</span>
         </a>
       `;
+  }
+
+  if (video.strategie_item) {
+    return `<span class="no-strategie-hint">Noch kein Skript verknüpft</span>`;
   }
 
   if (canLink) {

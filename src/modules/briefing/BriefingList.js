@@ -24,6 +24,7 @@ import {
   OHNE_MARKE_LABEL,
   OHNE_QUERY
 } from './BriefingFolders.js';
+import { markenEbeneEntfaellt } from '../../core/folderListNav.js';
 import {
   renderCompaniesView, updateCompaniesGrid,
   renderBrandsView, updateBrandsGrid,
@@ -138,7 +139,7 @@ export class BriefingList {
       { label: 'Briefings', url: '/briefing', clickable: true }
     ];
 
-    if (this.viewMode === 'brands') {
+    if (this.viewMode === 'brands' || this.markenEbeneWeg()) {
       crumbs.push({ label: this.currentUnternehmenName || 'Unternehmen', url: '#', clickable: false });
       window.breadcrumbSystem.updateBreadcrumb(crumbs);
       return;
@@ -208,6 +209,7 @@ export class BriefingList {
       }
 
       this.buildCurrentFolders();
+      this.applyMarkenEbeneSprung();
       this.renderFolderView();
 
       if (this.viewMode === 'items') {
@@ -232,6 +234,32 @@ export class BriefingList {
       markeId: this.currentMarkeId,
       ohneMarke: this._ohneMarke
     });
+  }
+
+  markenEbeneWeg() {
+    if (!this._ohneMarke || !this.currentUnternehmenId) return false;
+    const folders = buildBrandFolders(this.briefings, this.currentUnternehmenId);
+    const echte = folders.filter((folder) => folder.id && !folder.virtual).length;
+    const ohne = folders.filter((folder) => folder.virtual).reduce((sum, folder) => sum + (folder.count || 0), 0);
+    return markenEbeneEntfaellt(echte, ohne);
+  }
+
+  applyMarkenEbeneSprung() {
+    if (this.viewMode !== 'brands' || !this.currentUnternehmenId) return;
+    const folders = buildBrandFolders(this.briefings, this.currentUnternehmenId);
+    const echte = folders.filter((folder) => folder.id && !folder.virtual).length;
+    const ohne = folders.filter((folder) => folder.virtual).reduce((sum, folder) => sum + (folder.count || 0), 0);
+    if (!markenEbeneEntfaellt(echte, ohne)) return;
+    this.viewMode = 'items';
+    this._ohneMarke = true;
+    this.currentMarkeId = null;
+    this.currentMarkeName = OHNE_MARKE_LABEL;
+    this.buildCurrentFolders();
+  }
+
+  backFromItems() {
+    if (this.markenEbeneWeg()) this.switchToCompaniesView();
+    else this.switchToBrandsView(this.currentUnternehmenId, this.currentUnternehmenName);
   }
 
   renderFolderView() {
@@ -466,7 +494,7 @@ export class BriefingList {
       const backBrands = e.target.closest('#btn-back-to-brands');
       if (backBrands) {
         e.preventDefault();
-        this.switchToBrandsView(this.currentUnternehmenId, this.currentUnternehmenName);
+        this.backFromItems();
         return;
       }
 

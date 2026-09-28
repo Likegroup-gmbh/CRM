@@ -22,6 +22,7 @@ import { PersonaAudienceSituationPanel } from './PersonaAudienceSituationPanel.j
 import { PersonaLikyPanel } from './PersonaLikyPanel.js';
 import { resolveOwnerContext } from '../../core/OwnerContext.js';
 import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
+import { backTarget } from '../../core/navHerkunft.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { loadBriefingIdsForPersona, setPersonaBriefings } from '../briefing/BriefingPersonas.js';
 import { readCreateScope, resolveCreateScopeLabels } from './personaCreateScope.js';
@@ -49,7 +50,8 @@ export class PersonaForm {
   }
 
   get returnRoute() {
-    return this.isStandalone ? '/persona' : `${this.ctx.basePath}?tab=personas`;
+    const fallback = this.isStandalone ? '/persona' : `${this.ctx.basePath}?tab=personas`;
+    return backTarget(fallback);
   }
 
   async init(ownerId) {

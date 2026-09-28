@@ -1,8 +1,8 @@
 // Filter, Tab-Zuordnung und Gruppierung der Stakeholder-Übersicht.
 // Reine Funktionen: Jahr, Leistungsbereich, Index-Maps, Fee/Volumen.
 
-import { sumBlockUmsatz } from '../projekt-erstellen/logic/CampaignBudgetFields.js';
-import { primaerBereichForAuftrag } from '../../core/budget/leistungsbereich.js';
+import { sumBlockUmsatz } from '../../auftrag/logic/kampagnenartChip.js';
+import { primaerBereichForAuftrag } from '../../../core/budget/leistungsbereich.js';
 
 export const TAB_GESAMT = 'gesamt';
 export const TAB_GESAMT_OHNE = 'gesamt_ohne';

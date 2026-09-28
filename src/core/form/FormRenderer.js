@@ -4,6 +4,7 @@ import { UploaderField } from './fields/UploaderField.js';
 import { PhoneNumberField } from './fields/PhoneNumberField.js';
 import { CountryField } from './fields/CountryField.js';
 import { backTarget } from '../navHerkunft.js';
+import { applyKontextAnlage } from '../../modules/kooperation/produktionStart.js';
 
 export class FormRenderer {
   constructor() {
@@ -74,7 +75,7 @@ ${icon('x-mark', { stroke: 2, className: 'w-6 h-6' })}
     const config = this.getFormConfig(entity);
     if (!config) return '';
 
-    const fields = config.fields || [];
+    const fields = data?._kontextAnlage ? applyKontextAnlage(config.fields || []) : (config.fields || []);
     // Zweispaltige Gruppen: Video-/Preisfelder und Budget-Paare (USt und Deckungsbeitrag)
     const twoColNames = new Set([
       'influencer','influencer_preis','ugc','ugc_preis','vor_ort_produktion','vor_ort_preis',
@@ -260,7 +261,12 @@ ${icon('x-mark', { stroke: 2, className: 'w-6 h-6' })}
 
     switch (field.type) {
       case 'hidden':
-        return `<input type="hidden" name="${field.name}" id="${fieldId}" value="${value || field.defaultValue || ''}">`;
+        return `<input type="hidden" name="${field.name}" id="${fieldId}" value="${this.validator.sanitizeHtml(value || field.defaultValue || '')}">`;
+
+      case 'hidden-select': {
+        const selected = this.validator.sanitizeHtml(value || '');
+        return `<select name="${field.name}" id="${fieldId}" hidden><option value="${selected}" selected>${selected}</option></select>`;
+      }
 
       case 'text':
       case 'email':

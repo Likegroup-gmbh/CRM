@@ -63,6 +63,17 @@ export function namedLinks(rows, { labelKey, kind }) {
     .map((row) => ({ id: row.id, label: row[labelKey], kind }));
 }
 
+export function vertragLinks(rows) {
+  return asList(rows)
+    .filter((row) => row?.id && row.name)
+    .map((row) => ({
+      id: row.id,
+      label: row.name,
+      kind: 'vertrag',
+      route: `/vertraege/${encodeURIComponent(row.id)}/edit`
+    }));
+}
+
 export function skriptLinks(rows) {
   return asList(rows)
     .filter((row) => row?.id)

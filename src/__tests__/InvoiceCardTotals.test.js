@@ -5,7 +5,7 @@ import {
   summarizeRechnungRows,
 } from '../modules/rechnung/invoiceCardTotals.js';
 import { kundenrechnungZeilen } from '../modules/rechnung/Monatsblatt.js';
-import { kartenSummen } from '../modules/stakeholder/stakeholderOverviewData.js';
+import { kartenSummen } from '../modules/stakeholder/daten/stakeholderOverviewData.js';
 
 const kundenZeilen = [
   { id: 'a1', nettobetrag: 1000, ust_betrag: 190, bruttobetrag: 1190, rechnung_gestellt_am: '2026-08-01', ueberwiesen_am: '2026-09-01' },

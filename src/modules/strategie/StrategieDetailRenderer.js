@@ -8,6 +8,8 @@ import { isFixedColumnVisible } from './strategieColumns.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { isVideoideeVorschlag, splitVideoideeVorschlaege } from './videoideeVorschlag.js';
+import { actionState } from '../../core/actions/actionState.js';
+import { produktionStartChecks } from '../kooperation/produktionStart.js';
 
 /** Klartext zu verarbeitung_step fuer die Fortschrittsanzeige in der Zeile. */
 const VERARBEITUNG_LABELS = {
@@ -89,7 +91,7 @@ export function renderItemsTable(detail) {
             ${cols.caption ? '<th class="col-caption">Caption</th>' : ''}
             ${cols.anmerkung ? '<th class="col-anmerkung">Anmerkung Kunde</th>' : ''}
             ${cols.prio ? '<th class="col-prio">Prio</th>' : ''}
-            ${cols.umgesetzt ? '<th class="col-umgesetzt">Umgesetzt</th>' : ''}
+            ${cols.umgesetzt ? '<th class="col-umgesetzt">Umsetzen</th>' : ''}
             ${detail.customColumns ? detail.customColumns.renderHeaders(detail.hiddenColumns, detail.isKunde) : ''}
             ${showWriteCols ? '<th class="col-actions">Aktionen</th>' : ''}
           </tr>
@@ -383,7 +385,7 @@ function renderProduktCell(detail, item, readonly) {
 function renderUmgesetztCell(item, readonly) {
   const isUmgesetzt = !!item.video_umgesetzt;
   if (readonly) {
-    return `<span class="strategie-umgesetzt-state${isUmgesetzt ? ' is-active' : ''}" title="${isUmgesetzt ? 'Umgesetzt' : 'Nicht umgesetzt'}">${isUmgesetzt ? '✓' : '–'}</span>`;
+    return `<span class="strategie-umgesetzt-state${isUmgesetzt ? ' is-active' : ''}" title="${isUmgesetzt ? 'Umsetzen' : 'Nicht umsetzen'}">${isUmgesetzt ? '✓' : '–'}</span>`;
   }
   return `
     <label class="toggle-switch strategie-umgesetzt-toggle-wrapper">
@@ -540,6 +542,7 @@ export function renderItemActions(detail, item, isLinked) {
                 </a>
               ` : ''}
               ${renderSkriptFreigabeAction(item)}
+              ${renderProduktionStartAction(item)}
               ${isLinked ? `
                 <a href="#" class="action-item action-warning" data-action="unlink-from-video" data-id="${item.id}" data-video-id="${item.linked_video.id}">
                   ${window.ActionsDropdown?.getHeroIcon('unlink') || ''}
@@ -558,6 +561,22 @@ export function renderItemActions(detail, item, isLinked) {
               </a>
             </div>
           </div>
+  `;
+}
+
+function renderProduktionStartAction(item) {
+  const state = actionState(produktionStartChecks(item));
+  if (state.mode === 'hidden') return '';
+  const disabled = state.mode === 'disabled';
+  const title = disabled ? state.title : 'Produktion starten';
+  return `
+              <a href="#" class="action-item${disabled ? ' action-disabled' : ''}"
+                data-action="start-produktion" data-id="${item.id}"
+                ${disabled ? 'aria-disabled="true"' : ''}
+                title="${escapeAttr(title)}">
+                ${icon('rocket')}
+                Produktion starten
+              </a>
   `;
 }
 
@@ -593,20 +612,59 @@ export function getPlatformIcon(platform) {
   return icons[platform] || '';
 }
 
+function findItemRow(detail, itemId) {
+  const selector = `.strategie-items-table tr.item-row[data-item-id="${itemId}"]`;
+  return detail._q?.(selector) || document.querySelector(selector);
+}
+
+/**
+ * Nur das Aktionsmenü der Zeile neu bauen, plus ein offenes Portal derselben
+ * Zeile. Textfelder bleiben stehen.
+ */
+export function refreshItemActions(detail, itemId) {
+  if (!detail || itemId == null) return false;
+  const item = detail.items?.find(i => i.id === itemId);
+  const row = findItemRow(detail, itemId);
+  const dropdown = row?.querySelector('.actions-dropdown');
+  if (!item || !dropdown) return false;
+
+  const html = isVideoideeVorschlag(item)
+    ? renderVorschlagActions(item)
+    : renderItemActions(detail, item, !!item.linked_video);
+  const next = document.createElement('div');
+  next.innerHTML = html;
+  const fresh = next.querySelector('.actions-dropdown');
+  if (!fresh) return false;
+
+  dropdown.innerHTML = fresh.innerHTML;
+
+  const toggle = row.querySelector('.actions-toggle');
+  const portal = document.querySelector('.actions-dropdown-portal');
+  if (portal && toggle && portal._sourceToggle === toggle) {
+    portal.innerHTML = fresh.innerHTML;
+  }
+  return true;
+}
+
 /**
  * Nur eine Zeile neu zeichnen - fuer Realtime-Updates aus der Background
  * Function. Ein Komplett-Rerender wuerde offene Textareas mitsamt Eingabe
  * wegwerfen; aus demselben Grund bleibt eine Zeile mit Fokus unangetastet.
+ * Das Aktionsmenü wird trotzdem nachgezogen.
  *
  * @returns {boolean} false, wenn die Zeile gerade bearbeitet wird oder fehlt
  */
 export function updateItemRow(detail, itemId) {
-  const row = (detail._q?.('.strategie-items-table tr.item-row[data-item-id="' + itemId + '"]')
-    || document.querySelector(`.strategie-items-table tr.item-row[data-item-id="${itemId}"]`));
-  if (!row || row.contains(document.activeElement)) return false;
+  const row = findItemRow(detail, itemId);
+  if (!row) return false;
 
   const item = detail.items.find(i => i.id === itemId);
   if (!item) return false;
+
+  if (row.contains(document.activeElement)) {
+    refreshItemActions(detail, itemId);
+    return false;
+  }
 
   // Die laufende Nummer haengt an der Gruppierung, nicht am Array-Index
   const angezeigteNummer = parseInt(row.querySelector('.col-number')?.textContent ?? '', 10);

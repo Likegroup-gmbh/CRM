@@ -155,3 +155,75 @@ describe('Monatsblatt Rechnung', () => {
     expect(result.type.contracting).toBe(4);
   });
 });
+
+describe('Monatsblatt Kundenrechnung', () => {
+  beforeEach(() => {
+    delete window.supabase;
+  });
+
+  it('filtert ueberwiesen auf den explodierten Zeilen, nicht auf dem Auftragskopf', async () => {
+    const auftraege = [
+      { id: 'a1', re_nr: 'RE-1', rechnung_gestellt_am: '2026-01-10', ueberwiesen_am: null, auftragtype: 'UGC', is_draft: false }
+    ];
+    const teilrechnungen = [
+      { id: 'tr-1', auftrag_id: 'a1', position: 1, re_nr: 'RE-1-1', rechnung_gestellt_am: '2026-01-10', ueberwiesen_am: '2026-01-20', ueberwiesen: true },
+      { id: 'tr-2', auftrag_id: 'a1', position: 2, re_nr: 'RE-1-2', rechnung_gestellt_am: '2026-01-10', ueberwiesen_am: null, ueberwiesen: false }
+    ];
+
+    window.supabase = {
+      from(table) {
+        if (table === 'auftrag') {
+          return createChain(table, () => ({ data: auftraege, error: null }));
+        }
+        if (table === 'auftrag_teilrechnung') {
+          return createChain(table, () => ({ data: teilrechnungen, error: null }));
+        }
+        return createChain(table, () => ({ data: [], error: null }));
+      }
+    };
+
+    const { rows } = await loadRows({
+      entity: 'kundenrechnung',
+      year: 2026,
+      month: 0,
+      filters: { ueberwiesen: true },
+      mode: 'auftraege'
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].teilrechnung_id).toBe('tr-1');
+  });
+
+  it('zeigt unbezahlte Teilrechnungen bei ueberwiesen=false', async () => {
+    const auftraege = [
+      { id: 'a1', re_nr: 'RE-1', rechnung_gestellt_am: '2026-01-10', ueberwiesen_am: null, auftragtype: 'UGC', is_draft: false }
+    ];
+    const teilrechnungen = [
+      { id: 'tr-1', auftrag_id: 'a1', position: 1, re_nr: 'RE-1-1', rechnung_gestellt_am: '2026-01-10', ueberwiesen_am: '2026-01-20', ueberwiesen: true },
+      { id: 'tr-2', auftrag_id: 'a1', position: 2, re_nr: 'RE-1-2', rechnung_gestellt_am: '2026-01-10', ueberwiesen_am: null, ueberwiesen: false }
+    ];
+
+    window.supabase = {
+      from(table) {
+        if (table === 'auftrag') {
+          return createChain(table, () => ({ data: auftraege, error: null }));
+        }
+        if (table === 'auftrag_teilrechnung') {
+          return createChain(table, () => ({ data: teilrechnungen, error: null }));
+        }
+        return createChain(table, () => ({ data: [], error: null }));
+      }
+    };
+
+    const { rows } = await loadRows({
+      entity: 'kundenrechnung',
+      year: 2026,
+      month: 0,
+      filters: { ueberwiesen: false },
+      mode: 'auftraege'
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0].teilrechnung_id).toBe('tr-2');
+  });
+});

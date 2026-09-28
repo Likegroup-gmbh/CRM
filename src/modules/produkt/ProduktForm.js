@@ -25,6 +25,7 @@ import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import { produktConfig } from '../../core/form/config/ProduktFormConfig.js';
 import { resolveOwnerContext } from '../../core/OwnerContext.js';
 import { nestedSwitcherContext } from '../../core/breadcrumbSwitcher.js';
+import { backTarget } from '../../core/navHerkunft.js';
 import { icon } from '../../core/icons/IconSystem.js';
 
 export class ProduktForm {
@@ -41,6 +42,7 @@ export class ProduktForm {
     this.personaPanel = null;
     this.uploader = null;
     this._abort = null;
+    this.createScope = null;
   }
 
   get isEdit() {
@@ -52,8 +54,8 @@ export class ProduktForm {
   }
 
   get returnRoute() {
-    if (this.isStandalone) return '/produkt';
-    return `${this.ctx.basePath}?tab=produkte`;
+    const fallback = this.isStandalone ? '/produkt' : `${this.ctx.basePath}?tab=produkte`;
+    return backTarget(fallback);
   }
 
   get zeigtMarkenFeld() {
@@ -74,6 +76,7 @@ export class ProduktForm {
     this.produktId = standalone
       ? (pathId && pathId !== 'new' ? pathId : null)
       : new URLSearchParams(window.location.search).get('produkt');
+    this.createScope = this.produktId ? null : readProduktCreateScope(window.location.search);
     this.produkt = null;
     this.markenIds = [];
     this.briefingIds = [];
@@ -145,7 +148,7 @@ export class ProduktForm {
 
     const formData = this.isEdit
       ? { ...this.produkt, marke_ids: this.markenIds, briefing_ids: this.briefingIds, _isEditMode: true, _entityId: this.produkt.id }
-      : null;
+      : this.createFormData();
 
     window.content.innerHTML = renderProduktDoc(formData, {
       mitMarkenFeld: this.zeigtMarkenFeld,
@@ -195,7 +198,13 @@ export class ProduktForm {
     if (!select) return;
 
     const rows = await ProduktService.loadCreateUnternehmenOptions(window.currentUser?.id);
-    const options = rows.map(u => ({ value: u.id, label: u.firmenname }));
+    const wanted = this.createScope?.unternehmenId || null;
+    const options = rows.map(u => ({
+      value: u.id,
+      label: u.firmenname,
+      selected: !!wanted && u.id === wanted
+    }));
+    if (wanted) select.value = wanted;
     if (window.formSystem?.reinitializeSearchableSelect) {
       window.formSystem.reinitializeSearchableSelect(select, options, {
         placeholder: 'Unternehmen suchen und auswählen...',
@@ -413,7 +422,7 @@ export class ProduktForm {
       if (this.isEdit) {
         await ProduktService.update(this.produktId, data);
       } else {
-        const unternehmenId = this.ctx.unternehmenId || data.unternehmen_id;
+        const unternehmenId = this.ctx.unternehmenId || data.unternehmen_id || this.createScope?.unternehmenId;
         if (!unternehmenId) {
           this.showFieldErrors(form, { unternehmen_id: 'Bitte ein Unternehmen wählen' });
           window.toastSystem?.error?.('Bitte ein Unternehmen wählen');
@@ -426,6 +435,9 @@ export class ProduktForm {
 
       await ProduktService.saveMarken(produktId, this.collectMarkenIds(data));
       await ProduktService.saveBriefings(produktId, this.collectBriefingIds(data));
+      if (!this.isEdit && this.createScope?.produktionId) {
+        await ProduktService.attachToProduktionIfEmpty(this.createScope.produktionId, produktId);
+      }
       await ProduktService.saveVarianten(produktId, this.variantenPanel?.getVarianten() || []);
       await this.saveBilder(produktId);
       await this.saveVariantenBilder(produktId);
@@ -443,8 +455,11 @@ export class ProduktForm {
   /** Tag-Feld ist in jedem Kontext sichtbar, leere Auswahl loest alle Briefings. */
   collectBriefingIds(data) {
     const werte = data.briefing_ids;
-    if (Array.isArray(werte)) return werte;
-    return werte ? [werte] : [];
+    const fromForm = Array.isArray(werte) ? werte : (werte ? [werte] : []);
+    if (!this.isEdit && this.createScope?.briefingId) {
+      return [...new Set([...fromForm, this.createScope.briefingId].filter(Boolean))];
+    }
+    return fromForm;
   }
 
   /**
@@ -452,12 +467,27 @@ export class ProduktForm {
    * Marke heraus kommt sie nur dazu. Sonst zaehlt genau die Auswahl im Tag-Feld.
    */
   collectMarkenIds(data) {
+    let ids;
     if (!this.zeigtMarkenFeld) {
-      return [...new Set([...this.markenIds, this.ctx.markeId].filter(Boolean))];
+      ids = [...new Set([...this.markenIds, this.ctx.markeId].filter(Boolean))];
+    } else {
+      const werte = data.marke_ids;
+      ids = Array.isArray(werte) ? werte : (werte ? [werte] : []);
     }
-    const werte = data.marke_ids;
-    if (Array.isArray(werte)) return werte;
-    return werte ? [werte] : [];
+    if (!this.isEdit && this.createScope?.markeId) {
+      ids = [...new Set([...ids, this.createScope.markeId].filter(Boolean))];
+    }
+    return ids;
+  }
+
+  createFormData() {
+    const scope = this.createScope;
+    if (!scope?.unternehmenId && !scope?.markeId && !scope?.briefingId) return null;
+    return {
+      unternehmen_id: scope.unternehmenId || '',
+      marke_ids: scope.markeId ? [scope.markeId] : [],
+      briefing_ids: scope.briefingId ? [scope.briefingId] : []
+    };
   }
 
   /** Aktuelle Marken-Auswahl aus dem Formular (fuer den Persona-Job vor dem Save). */
@@ -643,6 +673,21 @@ export class ProduktForm {
     this.uploader?.destroy?.();
     this.uploader = null;
   }
+}
+
+function readProduktCreateScope(search) {
+  const params = new URLSearchParams(String(search || '').replace(/^\?/, ''));
+  const unternehmenId = params.get('unternehmen');
+  const markeId = params.get('marke');
+  const briefingId = params.get('briefing');
+  const produktionId = params.get('produktion');
+  if (!unternehmenId && !markeId && !briefingId && !produktionId) return null;
+  return {
+    unternehmenId: unternehmenId || null,
+    markeId: markeId || null,
+    briefingId: briefingId || null,
+    produktionId: produktionId || null
+  };
 }
 
 function standaloneProduktContext() {

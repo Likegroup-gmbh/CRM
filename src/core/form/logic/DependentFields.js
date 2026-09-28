@@ -2,6 +2,14 @@ import { KampagneUtils } from '../../../modules/kampagne/KampagneUtils.js';
 import { findStrategy } from './CascadeStrategies.js';
 import { FieldStateHelpers } from './FieldStateHelpers.js';
 
+// Kontext-Anlage: Zuordnung steht schon fest (Hidden-Input oder verstecktes
+// Select). Nachladen oder Leeren würde den Wert überschreiben.
+function isLockedKontextField(field) {
+  if (!field) return false;
+  if (field.type === 'hidden') return true;
+  return field.hasAttribute?.('hidden') === true;
+}
+
 export class DependentFields {
   constructor(autoGeneration) {
     this.autoGeneration = autoGeneration;
@@ -457,6 +465,7 @@ export class DependentFields {
   }
 
   clearDependentField(field, fieldConfig) {
+    if (isLockedKontextField(field)) return;
     if (field.dataset.prefilled === 'true') {
       return;
     }
@@ -535,6 +544,7 @@ export class DependentFields {
 
   // Daten für abhängiges Feld laden (Dispatcher → CascadeStrategies)
   async loadDependentFieldData(field, fieldConfig, parentValue, form) {
+    if (isLockedKontextField(field)) return;
     if (!this.dynamicDataLoader) {
       console.error('DynamicDataLoader nicht verfügbar');
       return;

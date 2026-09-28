@@ -5,9 +5,14 @@ import { loadFinanzbestand, invalidateFinanzbestand } from '../core/budget/finan
 // denselben Bestand teilen, ohne ihn doppelt zu scannen — und der Cache
 // muss zwischen den Tests weg, sonst leckt er in die naechste Spec.
 
-function createMockSupabase({ auftraege = [], berichtsstaende = [], berichtsstandError = null } = {}) {
+function createMockSupabase({
+  auftraege = [],
+  berichtsstaende = [],
+  berichtsstandError = null,
+  rpc = null,
+} = {}) {
   const calls = [];
-  return {
+  const client = {
     calls,
     from: vi.fn((table) => {
       if (table === 'berichtsstand') {
@@ -36,7 +41,26 @@ function createMockSupabase({ auftraege = [], berichtsstaende = [], berichtsstan
       };
     })
   };
+  if (rpc) client.rpc = rpc;
+  return client;
 }
+
+const RPC_BUNDLE = {
+  auftraege: [
+    { id: 'a1', is_draft: false, unternehmen_id: 'u1' },
+    { id: 'a2', is_draft: true, unternehmen_id: 'u1' },
+  ],
+  blocks: [{ id: 'b1', auftrag_id: 'a1' }],
+  kampagnen: [],
+  kooperationen: [],
+  videos: [],
+  rechnungen: [],
+  creators: [{ id: 'c1', vorname: 'Ada' }],
+  details: [],
+  unternehmen: [{ id: 'u1', firmenname: 'Firma', ist_test: false }],
+  teilrechnungen: [],
+  berichtsstaende: [{ id: 's1', label: 'Stand' }],
+};
 
 describe('loadFinanzbestand', () => {
   beforeEach(() => {
@@ -91,5 +115,48 @@ describe('loadFinanzbestand', () => {
     const bestand = await loadFinanzbestand(sb);
     expect(bestand.auftraege).toHaveLength(1);
     expect(bestand.berichtsstaende).toEqual([]);
+  });
+
+  it('nimmt den Bestand aus dem RPC und scannt die Tabellen nicht', async () => {
+    const rpc = vi.fn(async () => ({ data: RPC_BUNDLE, error: null }));
+    const sb = createMockSupabase({ rpc });
+    const bestand = await loadFinanzbestand(sb);
+
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith('stakeholder_finanzbestand');
+    expect(sb.from).not.toHaveBeenCalled();
+    expect(bestand.auftraege.map(a => a.id)).toEqual(['a1']);
+    expect(bestand.blocks).toEqual(RPC_BUNDLE.blocks);
+    expect(bestand.creators).toEqual(RPC_BUNDLE.creators);
+    expect(bestand.berichtsstaende).toEqual(RPC_BUNDLE.berichtsstaende);
+  });
+
+  it('faellt auf den Tabellen-Scan zurueck, wenn die Funktion fehlt', async () => {
+    const rpc = vi.fn(async () => ({
+      data: null,
+      error: { code: 'PGRST202', message: 'Could not find the function stakeholder_finanzbestand' },
+    }));
+    const sb = createMockSupabase({
+      auftraege: [{ id: 'a1', is_draft: false }],
+      rpc,
+    });
+    const bestand = await loadFinanzbestand(sb);
+
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(bestand.auftraege).toEqual([{ id: 'a1', is_draft: false }]);
+    expect(sb.calls.filter(([t]) => t === 'auftrag')).toHaveLength(1);
+    expect(sb.calls.map(([t]) => t)).toEqual(expect.arrayContaining([
+      'auftrag', 'kooperation_videos', 'rechnung',
+    ]));
+  });
+
+  it('wirft einen RPC-Fehler, der nicht "Funktion fehlt" ist', async () => {
+    const rpc = vi.fn(async () => ({
+      data: null,
+      error: { code: '42501', message: 'forbidden' },
+    }));
+    const sb = createMockSupabase({ rpc });
+    await expect(loadFinanzbestand(sb)).rejects.toMatchObject({ code: '42501' });
+    expect(sb.from).not.toHaveBeenCalled();
   });
 });
