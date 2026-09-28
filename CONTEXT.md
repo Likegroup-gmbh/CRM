@@ -257,10 +257,26 @@ Nicht die Mitarbeiter-Rolle `management`.
 _Avoid_: Agentur-Rolle, Mitarbeiter-Klasse Management
 
 **Videoidee**:
-Eintrag in einem Konzept: verlinkte Videoidee oder reine Idee. Genau eine Umsetzung, nicht
+Eintrag in einem Konzept: Videoreferenz oder Idee. Genau eine Umsetzung, nicht
 eine Kernidee mit mehreren Creatorn. Höchstens ein Casting-Eintrag aus dem verknüpften Casting;
 zuordenbar einem Kooperationsvideo. Kann als Videoidee-Vorschlag entstehen.
-_Avoid_: Idee/Strategie, Referenzvideo, Kernidee
+_Avoid_: Konzeptidee, Kernidee
+
+**Videoreferenz**:
+Videoidee mit Videolink. Trägt eine Umsetzungsvorgabe.
+_Avoid_: Referenzvideo, verlinkte Videoidee
+
+**Idee**:
+Videoidee ohne Videolink. Tab beim Hinzufügen, nicht das Konzept und nicht der Videoidee-Vorschlag.
+_Avoid_: Konzeptidee, Konzept
+
+**Umsetzungsvorgabe**:
+Pflichttext an einer Videoreferenz: was davon umgesetzt werden soll. Sieht nur das Team.
+_Avoid_: Was gefällt dir
+
+**Kundenadaption**:
+Text an einer Videoidee, wie eine Videoreferenz für diesen Kunden laufen könnte. An einer Idee bleibt sie leer, bis jemand sie schreibt.
+_Avoid_: Beschreibung, Videoidee-Vorschlag
 
 **Umsetzen**:
 Markierung an einer Videoidee, dass für den zugeordneten Creator die Kooperation dieser

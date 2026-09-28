@@ -1,6 +1,7 @@
 // StrategieService.js
 // Service für Strategie-Datenbank-Operationen
 
+import { authorizedFetch } from '../../core/auth/getAccessToken.js';
 import { assertBriefingForCreate, assertBriefingLinkLock } from '../briefing/BriefingLinkGuard.js';
 import { loadBriefingProdukte } from '../briefing/BriefingProdukte.js';
 import { VIDEOIDEE_VORSCHLAG_ERROR, VORSCHLAG_EDIT_FIELDS } from './videoideeVorschlag.js';
@@ -9,6 +10,28 @@ import {
   CASTING_UMSETZUNG_GATE_ERROR,
   CASTING_CREATOR_PFLICHT_ERROR
 } from '../creator-auswahl/sourcingStatusOptions.js';
+
+const ITEM_RELATIONS = `
+  creator:creator_id(id, vorname, nachname, instagram, tiktok),
+  produkt:produkt_id(id, name),
+  casting_eintrag:creator_auswahl_item_id(id, name, creator_id, link_instagram, link_tiktok, zusage, gebucht, creator:creator_id(id, vorname, nachname))
+`;
+
+// Kunde: keine Umsetzungsvorgabe. select * wuerde sie mitliefern.
+const KUNDE_ITEM_COLUMNS = [
+  'id', 'strategie_id', 'video_link', 'plattform', 'sortierung', 'teilbereich',
+  'beschreibung', 'beschreibung_quelle', 'screenshot_url', 'creator_id', 'creator_name',
+  'creator_auswahl_item_id', 'produkt_id', 'transkript', 'transkript_quelle', 'caption',
+  'transcription_job_id', 'verarbeitung_status', 'verarbeitung_step', 'verarbeitung_fehler',
+  'ist_vorschlag', 'kunde_anmerkung', 'kunde_anmerkung_author_name', 'kunde_anmerkung_updated_at',
+  'prio_1', 'prio_2', 'nicht_umsetzen', 'video_umgesetzt',
+  'skript_freigabe', 'skript_freigabe_am', 'skript_freigabe_von',
+  'kundenadaption', 'kundenadaption_quelle', 'created_at', 'updated_at', 'created_by'
+].join(', ');
+
+export function strategieItemsSelect(isKunde) {
+  return isKunde ? `${KUNDE_ITEM_COLUMNS}, ${ITEM_RELATIONS}` : `*, ${ITEM_RELATIONS}`;
+}
 
 export class StrategieService {
   /**
@@ -488,19 +511,15 @@ export class StrategieService {
    * Items einer Strategie abrufen (inkl. Verknüpfungs-Status)
    */
   async getStrategieItems(strategieId) {
+    const isKunde = !!window.isKunde?.();
     let q = window.supabase
       .from('strategie_items')
-      .select(`
-        *,
-        creator:creator_id(id, vorname, nachname, instagram, tiktok),
-        produkt:produkt_id(id, name),
-        casting_eintrag:creator_auswahl_item_id(id, name, creator_id, link_instagram, link_tiktok, zusage, gebucht, creator:creator_id(id, vorname, nachname))
-      `)
+      .select(strategieItemsSelect(isKunde))
       .eq('strategie_id', strategieId)
       .order('sortierung', { ascending: true });
 
     // Kunde inkl. Gast: keine Videoidee-Vorschlaege (ADR 0015)
-    if (window.isKunde?.()) q = q.eq('ist_vorschlag', false);
+    if (isKunde) q = q.eq('ist_vorschlag', false);
 
     const { data, error } = await q;
 
@@ -704,8 +723,24 @@ export class StrategieService {
   }
 
   /**
-   * Item erneut verarbeiten (Screenshot und Transkript neu holen).
+   * Kundenadaption neu schreiben. Ersetzt vorhandenen Text. Kein erneutes Scrapen.
    */
+  async generiereKundenadaption(itemId) {
+    const response = await authorizedFetch('/.netlify/functions/kundenadaption', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ itemId })
+    });
+    let body = {};
+    try {
+      body = await response.json();
+    } catch (_) { /* leerer Body */ }
+    if (!response.ok) {
+      throw new Error(body.error || 'Kundenadaption fehlgeschlagen');
+    }
+    return body.kundenadaption;
+  }
+
   async reprocessItem(itemId) {
     await this.updateStrategieItem(itemId, {
       verarbeitung_status: 'pending',

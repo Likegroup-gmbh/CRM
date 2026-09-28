@@ -20,6 +20,7 @@ const VERARBEITUNG_LABELS = {
   download: 'Video laden...',
   whisper: 'Transkription...',
   description: 'Beschreibung...',
+  adaption: 'Kundenadaption...',
   done: 'Fertig'
 };
 
@@ -39,6 +40,8 @@ function visibleFixedColumns(detail) {
     creator: visible('creator'),
     produkt: visible('produkt'),
     beschreibung: visible('beschreibung'),
+    umsetzungsvorgabe: !detail.isKunde && visible('umsetzungsvorgabe'),
+    kundenadaption: visible('kundenadaption'),
     transkript: visible('transkript'),
     caption: visible('caption'),
     anmerkung: visible('anmerkung'),
@@ -87,6 +90,8 @@ export function renderItemsTable(detail) {
             ${cols.creator ? '<th class="col-creator">Creator</th>' : ''}
             ${cols.produkt ? '<th class="col-produkt">Produkt</th>' : ''}
             ${cols.beschreibung ? '<th class="col-beschreibung">Beschreibung</th>' : ''}
+            ${cols.umsetzungsvorgabe ? '<th class="col-umsetzungsvorgabe">Umsetzungsvorgabe</th>' : ''}
+            ${cols.kundenadaption ? '<th class="col-kundenadaption">Kundenadaption</th>' : ''}
             ${cols.transkript ? '<th class="col-transkript">Transkript</th>' : ''}
             ${cols.caption ? '<th class="col-caption">Caption</th>' : ''}
             ${cols.anmerkung ? '<th class="col-anmerkung">Anmerkung Kunde</th>' : ''}
@@ -446,6 +451,8 @@ export function renderItemRow(detail, item, index) {
       ${cols.creator ? renderCreatorCell(detail, item, vorschlagReadonly) : ''}
       ${cols.produkt ? renderProduktCell(detail, item, vorschlagReadonly) : ''}
       ${cols.beschreibung ? renderClippedTextCell(detail, item, 'beschreibung', 'col-beschreibung', 'Beschreibung...', readonly) : ''}
+      ${cols.umsetzungsvorgabe ? renderClippedTextCell(detail, item, 'umsetzungsvorgabe', 'col-umsetzungsvorgabe', 'Was sollen wir umsetzen?', vorschlagReadonly || !item.video_link) : ''}
+      ${cols.kundenadaption ? renderClippedTextCell(detail, item, 'kundenadaption', 'col-kundenadaption', 'Kundenadaption...', vorschlagReadonly) : ''}
       ${cols.transkript ? renderClippedTextCell(detail, item, 'transkript', 'col-transkript', 'Transkript...', vorschlagReadonly) : ''}
       ${cols.caption ? renderClippedTextCell(detail, item, 'caption', 'col-caption', 'Caption...', vorschlagReadonly) : ''}
       ${cols.anmerkung ? `
@@ -516,6 +523,24 @@ function renderVorschlagActions(item) {
   `;
 }
 
+function renderKundenadaptionAction(item) {
+  const vorgabe = String(item.umsetzungsvorgabe || '').trim();
+  const transkript = String(item.transkript || '').trim();
+  const disabled = !vorgabe || !transkript;
+  const title = !vorgabe
+    ? 'Zuerst die Umsetzungsvorgabe setzen'
+    : (!transkript ? 'Zuerst das Transkript abwarten' : 'Kundenadaption neu generieren');
+  return `
+                <a href="#" class="action-item${disabled ? ' action-disabled' : ''}"
+                  data-action="generiere-kundenadaption" data-id="${item.id}"
+                  ${disabled ? 'aria-disabled="true"' : ''}
+                  title="${escapeAttr(title)}">
+                  ${icon('sparkles')}
+                  Neu generieren
+                </a>
+  `;
+}
+
 export function renderItemActions(detail, item, isLinked) {
   return `
           <div class="actions-dropdown-container" data-entity-type="strategie_item">
@@ -540,6 +565,7 @@ export function renderItemActions(detail, item, isLinked) {
                   ${window.ActionsDropdown?.getHeroIcon('refresh') || ''}
                   Neu verarbeiten
                 </a>
+                ${renderKundenadaptionAction(item)}
               ` : ''}
               ${renderSkriptFreigabeAction(item)}
               ${renderProduktionStartAction(item)}

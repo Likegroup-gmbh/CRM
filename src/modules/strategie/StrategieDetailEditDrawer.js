@@ -7,6 +7,7 @@ import { icon } from '../../core/icons/IconSystem.js';
 import { StrategieCreatorDrawer } from './StrategieCreatorDrawer.js';
 import { StrategieProduktDrawer } from './StrategieProduktDrawer.js';
 import { handleCreatorUnlink, handleProduktUnlink } from './StrategieDetailTableEvents.js';
+import { resolveVideoideeForm } from './addItemPayload.js';
 
 const DRAWER_ID = 'edit-item-drawer';
 
@@ -53,7 +54,8 @@ export function showEditItemDrawer(detail, itemId) {
   
   const subtitle = document.createElement('p');
   subtitle.className = 'drawer-subtitle';
-  subtitle.textContent = item.video_link ? 'Video-Eintrag anpassen' : 'Idee anpassen';
+  subtitle.id = 'edit-item-drawer-subtitle';
+  subtitle.textContent = item.video_link ? 'Videoreferenz anpassen' : 'Idee anpassen';
   
   headerLeft.appendChild(title);
   headerLeft.appendChild(subtitle);
@@ -92,19 +94,38 @@ export function showEditItemDrawer(detail, itemId) {
 
 function renderEditItemDrawerBody(detail, item) {
   const teilbereiche = detail.getTeilbereicheFromStrategie();
-  
+  const referenz = !!item.video_link;
+
   return `
     <form id="edit-item-form" class="drawer-form">
-      <div class="form-field">
-        <label for="edit-video-url">Video-URL (optional)</label>
-        <input 
-          type="url" 
-          id="edit-video-url" 
-          name="video_link" 
-          class="form-input" 
-          value="${item.video_link || ''}"
-          placeholder="https://tiktok.com/... oder https://instagram.com/reel/... – leer für Idee"
-        >
+      <input type="hidden" name="art" id="edit-item-art" value="${referenz ? 'videoreferenz' : 'idee'}">
+      <div class="drawer-tab-nav" role="tablist">
+        <button type="button" class="drawer-tab-btn ${referenz ? 'active' : ''}" data-edit-art="videoreferenz" role="tab" aria-selected="${referenz ? 'true' : 'false'}">Videoreferenz</button>
+        <button type="button" class="drawer-tab-btn ${referenz ? '' : 'active'}" data-edit-art="idee" role="tab" aria-selected="${referenz ? 'false' : 'true'}">Idee</button>
+      </div>
+
+      <div data-art-panel="videoreferenz" ${referenz ? '' : 'hidden'}>
+        <div class="form-field">
+          <label for="edit-video-url">Video-URL</label>
+          <input
+            type="url"
+            id="edit-video-url"
+            name="video_link"
+            class="form-input"
+            value="${escapeAttr(item.video_link || '')}"
+            placeholder="https://tiktok.com/... oder https://instagram.com/reel/..."
+          >
+        </div>
+        <div class="form-field">
+          <label for="edit-umsetzungsvorgabe">Was sollen wir von diesem Video umsetzen?</label>
+          <textarea
+            id="edit-umsetzungsvorgabe"
+            name="umsetzungsvorgabe"
+            class="form-input"
+            rows="3"
+            placeholder="Zum Beispiel nur die Hook, der Schnitt oder die Situation."
+          >${escapeHtml(item.umsetzungsvorgabe || '')}</textarea>
+        </div>
       </div>
 
       <div class="form-field">
@@ -125,8 +146,8 @@ function renderEditItemDrawerBody(detail, item) {
           name="beschreibung" 
           class="form-input" 
           rows="3"
-          placeholder="Beschreibung für das Video/die Idee..."
-        >${item.beschreibung || ''}</textarea>
+          placeholder="Beschreibung für das Video oder die Idee..."
+        >${escapeHtml(item.beschreibung || '')}</textarea>
       </div>
 
       <div class="drawer-footer">
@@ -303,6 +324,23 @@ function bindEditItemDrawerEvents(detail, itemId) {
     await handleEditItemSubmit(detail, itemId, new FormData(form));
   });
 
+  form?.querySelectorAll('[data-edit-art]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const art = btn.dataset.editArt === 'idee' ? 'idee' : 'videoreferenz';
+      const hidden = form.querySelector('#edit-item-art');
+      if (hidden) hidden.value = art;
+      form.querySelectorAll('[data-edit-art]').forEach(tab => {
+        const active = tab.dataset.editArt === art;
+        tab.classList.toggle('active', active);
+        tab.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      const panel = form.querySelector('[data-art-panel="videoreferenz"]');
+      if (panel) panel.hidden = art !== 'videoreferenz';
+      const subtitle = document.getElementById('edit-item-drawer-subtitle');
+      if (subtitle) subtitle.textContent = art === 'videoreferenz' ? 'Videoreferenz anpassen' : 'Idee anpassen';
+    });
+  });
+
   bindEditCreatorFieldEvents(detail, itemId);
   bindEditProduktFieldEvents(detail, itemId);
 }
@@ -317,11 +355,27 @@ export async function handleEditItemSubmit(detail, itemId, formData) {
       submitBtn.innerHTML = 'Speichern...';
     }
 
-    const videoUrl = formData.get('video_link')?.trim() || null;
-    const teilbereich = formData.get('teilbereich') || null;
-    const beschreibung = formData.get('beschreibung')?.trim() || null;
-
     const item = detail.items.find(i => i.id === itemId);
+    const resolved = resolveVideoideeForm({
+      art: formData.get('art') || (formData.get('video_link')?.trim() ? 'videoreferenz' : 'idee'),
+      url: formData.get('video_link'),
+      beschreibung: formData.get('beschreibung'),
+      umsetzungsvorgabe: formData.get('umsetzungsvorgabe'),
+      kategorie: formData.get('teilbereich') || null
+    });
+    if (!resolved.ok) {
+      window.toastSystem?.show(resolved.error, 'warning');
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+      }
+      return;
+    }
+
+    const videoUrl = resolved.url;
+    const teilbereich = resolved.kategorie;
+    const beschreibung = resolved.beschreibung;
+    const umsetzungsvorgabe = resolved.umsetzungsvorgabe;
     const urlGeaendert = (videoUrl || null) !== (item?.video_link || null);
 
     // Nur neue Links werden geprueft - bestehende YouTube-Eintraege aus der Zeit
@@ -347,6 +401,7 @@ export async function handleEditItemSubmit(detail, itemId, formData) {
       video_link: videoUrl,
       teilbereich: teilbereich,
       beschreibung: beschreibung,
+      umsetzungsvorgabe,
       plattform: platform
     };
 
@@ -368,6 +423,12 @@ export async function handleEditItemSubmit(detail, itemId, formData) {
       updates.verarbeitung_status = videoUrl ? 'pending' : null;
       updates.screenshot_url = null;
       await strategieService.deleteScreenshot(item?.screenshot_url);
+      // Anderer Link: die alte Adaption gehoert zum vorigen Video.
+      // Idee zu Videoreferenz laesst handgeschriebenen Text stehen.
+      if (item?.video_link && videoUrl) {
+        updates.kundenadaption = null;
+        updates.kundenadaption_quelle = null;
+      }
     }
 
     await strategieService.updateStrategieItem(itemId, updates);

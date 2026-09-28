@@ -1,0 +1,3 @@
+# Kundenadaption ist eine eigene Spalte, kein Videoidee-Vorschlag
+
+Eine Videoreferenz braucht neben der Beschreibung einen Text, wie das Video für diesen Kunden laufen könnte. Der landet in `kundenadaption`, nicht in `beschreibung` und nicht als Videoidee-Vorschlag: die Beschreibung bleibt die des Referenzvideos, der Vorschlag bleibt die fünf Ideen aus Briefing, Produkt und Personas. Die Umsetzungsvorgabe ist die interne Vorgabe ans Modell und für den Kunden nicht sichtbar. Die KI schreibt nur in eine leere Kundenadaption, einmal nach Caption; „Neu generieren“ ersetzt den Text. Eine Idee bleibt leer, bis jemand tippt.

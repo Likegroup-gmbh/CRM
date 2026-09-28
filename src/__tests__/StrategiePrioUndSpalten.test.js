@@ -197,6 +197,45 @@ describe('renderItemRow – Fortschritt der Hintergrund-Verarbeitung', () => {
     expect(renderRow({ video_link: null }).querySelector('[data-action="reprocess-item"]')).toBeNull();
   });
 
+  it('zeigt Umsetzungsvorgabe und Kundenadaption, die Vorgabe nur fuer das Team', () => {
+    const team = renderRow({
+      video_link: 'https://tiktok.com/x',
+      umsetzungsvorgabe: 'Nur die Hook',
+      kundenadaption: 'So laeuft es.',
+      transkript: 'Hook'
+    });
+    expect(team.querySelector('textarea[data-field="umsetzungsvorgabe"]').textContent).toBe('Nur die Hook');
+    expect(team.querySelector('textarea[data-field="kundenadaption"]').textContent).toBe('So laeuft es.');
+    expect(team.querySelector('[data-action="generiere-kundenadaption"]').classList.contains('action-disabled')).toBe(false);
+
+    const kunde = renderRow({
+      video_link: 'https://tiktok.com/x',
+      umsetzungsvorgabe: 'Nur die Hook',
+      kundenadaption: 'So laeuft es.'
+    }, { isKunde: true });
+    expect(kunde.querySelector('td.col-umsetzungsvorgabe')).toBeNull();
+    expect(kunde.querySelector('td.col-kundenadaption .cell-text-readonly').textContent).toBe('So laeuft es.');
+    expect(kunde.querySelector('[data-action="generiere-kundenadaption"]')).toBeNull();
+  });
+
+  it('sperrt die Vorgabe an einer Idee und Neu generieren ohne Transkript', () => {
+    const idee = renderRow({ video_link: null, umsetzungsvorgabe: 'sollte leer sein' });
+    expect(idee.querySelector('textarea[data-field="umsetzungsvorgabe"]').hasAttribute('readonly')).toBe(true);
+    expect(idee.querySelector('[data-action="generiere-kundenadaption"]')).toBeNull();
+
+    const ohneTranskript = renderRow({
+      video_link: 'https://tiktok.com/x',
+      umsetzungsvorgabe: 'Hook'
+    });
+    expect(ohneTranskript.querySelector('[data-action="generiere-kundenadaption"]').classList.contains('action-disabled')).toBe(true);
+  });
+
+  it('sperrt Kundenadaption und Vorgabe an einem Videoidee-Vorschlag', () => {
+    const doc = renderRow({ ist_vorschlag: true, video_link: null });
+    expect(doc.querySelector('textarea[data-field="kundenadaption"]').hasAttribute('readonly')).toBe(true);
+    expect(doc.querySelector('textarea[data-field="umsetzungsvorgabe"]').hasAttribute('readonly')).toBe(true);
+  });
+
   it('zeigt bei Ideen ohne Link den Platzhalter, auch wenn ein Screenshot haengen geblieben ist', () => {
     const doc = renderRow({
       video_link: null,

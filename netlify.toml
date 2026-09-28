@@ -30,6 +30,10 @@
 [functions."strategie-item-background"]
   external_node_modules = ["@sparticuz/chromium", "typescript"]
 
+# Kundenadaption neu schreiben: ein Claude-Call, kein Scrapen.
+[functions."kundenadaption"]
+  timeout = 60
+
 # Dropbox Upload Function – Videos können groß sein
 [functions."dropbox-upload"]
   timeout = 300

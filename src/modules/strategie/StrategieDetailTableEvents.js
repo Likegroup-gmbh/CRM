@@ -7,7 +7,7 @@ import { tableSelect } from '../../core/components/TableSelect.js';
 import { buildStrategiePrioUpdates, isStrategiePrio } from './strategiePrioOptions.js';
 import { bindTextClipEvents } from './strategieTextClip.js';
 import { startProduktionFromItem } from '../kooperation/produktionStart.js';
-import { refreshItemActions } from './StrategieDetailRenderer.js';
+import { refreshItemActions, updateItemRow } from './StrategieDetailRenderer.js';
 
 function tableRoot(detail) {
   return detail._getRoot?.() || window.content;
@@ -97,6 +97,11 @@ export function bindTableEvents(detail) {
         case 'reprocess-item':
           e.preventDefault();
           handleReprocessItem(detail, id);
+          break;
+        case 'generiere-kundenadaption':
+          e.preventDefault();
+          if (actionItem.classList.contains('action-disabled')) return;
+          handleKundenadaption(detail, id);
           break;
         case 'delete-item':
           e.preventDefault();
@@ -491,6 +496,23 @@ export async function handleSkriptFreigabeToggle(detail, itemId) {
 }
 
 /** Screenshot und Transkript neu holen - auch fuer Items aus der Zeit davor. */
+export async function handleKundenadaption(detail, itemId) {
+  const item = detail.items.find(i => i.id === itemId);
+  if (!item?.video_link) return;
+  if (!String(item.umsetzungsvorgabe || '').trim() || !String(item.transkript || '').trim()) return;
+
+  try {
+    window.toastSystem?.show('Kundenadaption wird geschrieben', 'info');
+    const text = await strategieService.generiereKundenadaption(itemId);
+    Object.assign(item, { kundenadaption: text, kundenadaption_quelle: 'ki' });
+    if (!updateItemRow(detail, itemId)) detail.rerenderItemsTable();
+    window.toastSystem?.show('Kundenadaption aktualisiert', 'success');
+  } catch (error) {
+    console.error('Kundenadaption fehlgeschlagen:', error);
+    window.toastSystem?.show(error.message || 'Kundenadaption fehlgeschlagen', 'error');
+  }
+}
+
 export async function handleReprocessItem(detail, itemId) {
   const item = detail.items.find(i => i.id === itemId);
   if (!item?.video_link) return;
@@ -624,6 +646,9 @@ export async function updateItemField(detail, itemId, field, value) {
     // Von Hand geschriebene Beschreibungen werden als solche markiert
     if (field === 'beschreibung') {
       updates.beschreibung_quelle = value ? 'user' : null;
+    }
+    if (field === 'kundenadaption') {
+      updates.kundenadaption_quelle = value ? 'user' : null;
     }
 
     await strategieService.updateStrategieItem(itemId, updates);

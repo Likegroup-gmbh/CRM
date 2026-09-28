@@ -320,6 +320,8 @@ module.exports = {
   KONZEPT_TOOL,
   erstzeile,
   formatBeschreibung,
+  fmtProdukt,
+  fmtPersona,
   loadIdeeInput,
   buildPrompt,
   normalizeIdeenJson,

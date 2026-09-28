@@ -7,7 +7,7 @@
 import { strategieService } from './StrategieService.js';
 import { escapeAttr } from '../../core/VideoUploadUtils.js';
 import { icon } from '../../core/icons/IconSystem.js';
-import { buildAddItemQueueEntry, buildStrategieItemInsert } from './addItemPayload.js';
+import { buildAddItemQueueEntry, buildStrategieItemInsert, resolveVideoideeForm } from './addItemPayload.js';
 
 export class AddItemDrawer {
   constructor() {
@@ -15,6 +15,7 @@ export class AddItemDrawer {
     this.strategie = null;
     this.strategieId = null;
     this.teilbereiche = [];
+    this.art = 'videoreferenz';
 
     // Queue System: { id, url, kategorie, beschreibung, platform,
     //                 status: 'pending'|'processing'|'done'|'error', error }
@@ -29,6 +30,7 @@ export class AddItemDrawer {
     this.strategie = strategie;
     this.strategieId = strategie.id;
     this.teilbereiche = teilbereiche;
+    this.art = 'videoreferenz';
     this.queue = [];
     this.isProcessing = false;
     
@@ -61,11 +63,12 @@ export class AddItemDrawer {
     const headerLeft = document.createElement('div');
     const title = document.createElement('span');
     title.className = 'drawer-title';
-    title.textContent = 'Video/Idee hinzufügen';
+    title.textContent = 'Hinzufügen';
     
     const subtitle = document.createElement('p');
     subtitle.className = 'drawer-subtitle';
-    subtitle.textContent = 'Video-URL oder Idee. Screenshot und Transkript entstehen automatisch. Beschreibung nur, wenn das Feld leer bleibt.';
+    subtitle.id = 'add-item-drawer-subtitle';
+    subtitle.textContent = 'Videoreferenz: Link und was wir davon umsetzen. Idee: nur die Beschreibung.';
     
     headerLeft.appendChild(title);
     headerLeft.appendChild(subtitle);
@@ -110,21 +113,41 @@ export class AddItemDrawer {
     const body = document.getElementById(`${this.drawerId}-body`);
     if (!body) return;
 
+    const referenz = this.art !== 'idee';
     body.innerHTML = `
-      <!-- Input-Bereich -->
       <form id="add-item-form" class="add-item-drawer-form" data-no-submit-guard="true">
-        <div class="add-item-drawer-form-row">
-          <div class="form-field form-field--grow">
-            <label for="drawer-video-url">Video-URL</label>
-            <input 
-              type="url" 
-              id="drawer-video-url" 
-              class="form-input" 
-              placeholder="https://tiktok.com/... oder https://instagram.com/reel/... – leer lassen für eine Idee"
-              autocomplete="off"
-            >
+        <div class="drawer-tab-nav" role="tablist">
+          <button type="button" class="drawer-tab-btn ${referenz ? 'active' : ''}" data-add-art="videoreferenz" role="tab" aria-selected="${referenz ? 'true' : 'false'}">Videoreferenz</button>
+          <button type="button" class="drawer-tab-btn ${referenz ? '' : 'active'}" data-add-art="idee" role="tab" aria-selected="${referenz ? 'false' : 'true'}">Idee</button>
+        </div>
+
+        <div data-art-panel="videoreferenz" ${referenz ? '' : 'hidden'}>
+          <div class="add-item-drawer-form-row">
+            <div class="form-field form-field--grow">
+              <label for="drawer-video-url">Video-URL</label>
+              <input
+                type="url"
+                id="drawer-video-url"
+                class="form-input"
+                placeholder="https://tiktok.com/... oder https://instagram.com/reel/..."
+                autocomplete="off"
+              >
+            </div>
           </div>
-          
+          <div class="add-item-drawer-form-row add-item-drawer-form-row--full">
+            <div class="form-field form-field--full">
+              <label for="drawer-umsetzungsvorgabe">Was sollen wir von diesem Video umsetzen?</label>
+              <textarea
+                id="drawer-umsetzungsvorgabe"
+                class="form-input"
+                rows="3"
+                placeholder="Zum Beispiel nur die Hook, der Schnitt oder die Situation."
+              ></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="add-item-drawer-form-row">
           <div class="form-field">
             <label for="drawer-kategorie">Kategorie</label>
             <select id="drawer-kategorie" class="form-input">
@@ -141,7 +164,7 @@ export class AddItemDrawer {
               id="drawer-beschreibung"
               class="form-input"
               rows="2"
-              placeholder="Eigene Worte bleiben. Leer lassen – dann füllt die KI."
+              placeholder="${referenz ? 'Eigene Worte bleiben. Leer lassen – dann füllt die KI.' : 'Worum geht es in der Idee?'}"
             ></textarea>
           </div>
         </div>
@@ -196,7 +219,30 @@ export class AddItemDrawer {
       this.handleAddToQueue();
     });
 
+    form?.querySelectorAll('[data-add-art]').forEach(btn => {
+      btn.addEventListener('click', () => this.setArt(btn.dataset.addArt));
+    });
+
     closeBtn?.addEventListener('click', () => this.handleClose());
+  }
+
+  setArt(art) {
+    this.art = art === 'idee' ? 'idee' : 'videoreferenz';
+    const referenz = this.art === 'videoreferenz';
+    const form = document.getElementById('add-item-form');
+    form?.querySelectorAll('[data-add-art]').forEach(btn => {
+      const active = btn.dataset.addArt === this.art;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    const panel = form?.querySelector('[data-art-panel="videoreferenz"]');
+    if (panel) panel.hidden = !referenz;
+    const beschreibung = document.getElementById('drawer-beschreibung');
+    if (beschreibung) {
+      beschreibung.placeholder = referenz
+        ? 'Eigene Worte bleiben. Leer lassen – dann füllt die KI.'
+        : 'Worum geht es in der Idee?';
+    }
   }
 
   /**
@@ -206,21 +252,29 @@ export class AddItemDrawer {
     const urlInput = document.getElementById('drawer-video-url');
     const kategorieSelect = document.getElementById('drawer-kategorie');
     const beschreibungInput = document.getElementById('drawer-beschreibung');
-    
-    const url = urlInput?.value?.trim() || null;
-    const kategorie = kategorieSelect?.value || null;
-    const beschreibung = beschreibungInput?.value?.trim() || null;
+    const vorgabeInput = document.getElementById('drawer-umsetzungsvorgabe');
 
-    // URL-Validierung: Nur TikTok, Instagram oder leer (Idee)
-    if (url && !this.isAllowedUrl(url)) {
-      window.toastSystem?.show('Nur TikTok- und Instagram-Links sind erlaubt', 'warning');
+    const resolved = resolveVideoideeForm({
+      art: this.art,
+      url: urlInput?.value,
+      beschreibung: beschreibungInput?.value,
+      umsetzungsvorgabe: vorgabeInput?.value,
+      kategorie: kategorieSelect?.value || null
+    });
+    if (!resolved.ok) {
+      window.toastSystem?.show(resolved.error, 'warning');
+      const focus = resolved.error.includes('URL')
+        ? urlInput
+        : (resolved.error.includes('umsetzen') ? vorgabeInput : beschreibungInput);
+      focus?.focus();
       return;
     }
 
-    // Ohne URL ist eine Beschreibung Pflicht
-    if (!url && !beschreibung) {
-      window.toastSystem?.show('Ohne Video-URL bitte eine Beschreibung angeben', 'warning');
-      beschreibungInput?.focus();
+    const { url, kategorie, beschreibung, umsetzungsvorgabe } = resolved;
+
+    if (url && !this.isAllowedUrl(url)) {
+      window.toastSystem?.show('Nur TikTok- und Instagram-Links sind erlaubt', 'warning');
+      urlInput?.focus();
       return;
     }
 
@@ -240,13 +294,14 @@ export class AddItemDrawer {
       url,
       kategorie,
       beschreibung,
+      umsetzungsvorgabe,
       platform: this.detectPlatform(url)
     }));
 
-    // Inputs leeren
-    urlInput.value = '';
+    if (urlInput) urlInput.value = '';
+    if (vorgabeInput) vorgabeInput.value = '';
     if (beschreibungInput) beschreibungInput.value = '';
-    urlInput.focus();
+    (url ? urlInput : beschreibungInput)?.focus();
 
     // Queue rendern
     this.renderQueue();
@@ -411,7 +466,7 @@ export class AddItemDrawer {
     // Die eigentliche Arbeit passiert danach in der Background Function; hier
     // wird nur angelegt und angestossen, deshalb kein Zeit-Balken mehr.
     const statusText = item.status === 'done'
-      ? (item.url ? 'Angelegt – Screenshot & Transkript laufen im Hintergrund' : 'Idee angelegt')
+      ? (item.url ? 'Angelegt – Screenshot, Transkript und Kundenadaption laufen' : 'Idee angelegt')
       : item.status === 'error' ? (item.error || 'Fehlgeschlagen')
         : item.status === 'processing' ? 'Wird angelegt...' : 'Wartet...';
 
@@ -440,6 +495,7 @@ export class AddItemDrawer {
             <span class="queue-item-url">${this.escapeHtml(displayUrl)}</span>
             ${item.kategorie ? `<span class="queue-item-kategorie">${this.escapeHtml(item.kategorie)}</span>` : ''}
             ${item.beschreibung ? `<span class="queue-item-beschreibung">${this.escapeHtml(item.beschreibung)}</span>` : ''}
+            ${item.umsetzungsvorgabe ? `<span class="queue-item-beschreibung">${this.escapeHtml(item.umsetzungsvorgabe)}</span>` : ''}
             ${progressHtml}
           </div>
           <div class="queue-item-right">
@@ -513,7 +569,7 @@ export class AddItemDrawer {
         detail: { strategieId: this.strategieId }
       }));
 
-      const msg = nextItem.url ? 'Video hinzugefügt – Verarbeitung läuft' : 'Idee hinzugefügt';
+      const msg = nextItem.url ? 'Videoreferenz hinzugefügt – Verarbeitung läuft' : 'Idee hinzugefügt';
       window.toastSystem?.show(msg, 'success');
 
     } catch (error) {

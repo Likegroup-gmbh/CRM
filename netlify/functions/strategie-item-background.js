@@ -22,6 +22,7 @@ const { transcribeVideoOnPage, isTranscribablePlatform, buildNavigateUrl } = req
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
 const { shouldApplyKiBeschreibung } = require('./_shared/ki-beschreibung');
+const { schreibeKundenadaptionWennLeer } = require('./_shared/kundenadaption');
 const {
   SCREENSHOT_BUCKET,
   deletePreviousScreenshot
@@ -199,6 +200,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
   let browser;
   let screenshotError = null;
   let transcriptError = null;
+  let result = null;
 
   await supabase.from('strategie_items')
     .update({
@@ -276,7 +278,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
     }
 
     try {
-      const result = await transcribeVideoOnPage({
+      result = await transcribeVideoOnPage({
         page: await setupPage(browser, 'other'),
         platform,
         url,
@@ -337,7 +339,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
     } catch (e) {
       transcriptError = e.message;
       tracker.log(`FEHLER Transkription: ${e.message}`);
-      await ki.fehlgeschlagen(e);
+      await ki?.fehlgeschlagen(e);
       await tracker.flushJob({
         status: 'error',
         error_message: e.message,
@@ -345,9 +347,27 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
       });
     }
 
+    let adaptionFehler = null;
+    if (!transcriptError) {
+      try {
+        await schreibeKundenadaptionWennLeer(supabase, {
+          userId: user.id,
+          itemId,
+          strategieId: item.strategie_id,
+          transkript: result?.transcript,
+          caption: result?.caption,
+          onStep: () => tracker.step('adaption', 'Kundenadaption')
+        });
+      } catch (e) {
+        adaptionFehler = e.message;
+        tracker.log(`Kundenadaption: ${e.message}`);
+      }
+    }
+
     const fehler = [
       screenshotError ? `Screenshot: ${screenshotError}` : null,
-      transcriptError ? `Transkript: ${transcriptError}` : null
+      transcriptError ? `Transkript: ${transcriptError}` : null,
+      adaptionFehler ? `Kundenadaption: ${adaptionFehler}` : null
     ].filter(Boolean).join(' | ') || null;
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);

@@ -569,6 +569,7 @@ export class StrategieDetail {
 
   handleItemRealtimeInsert(row) {
     if (!row?.id) return;
+    if (this.isKunde) delete row.umsetzungsvorgabe;
     if (this.isKunde && isVideoideeVorschlag(row)) return;
     if (this.items.some((i) => i.id === row.id)) return;
     this.items.push(row);
@@ -587,6 +588,7 @@ export class StrategieDetail {
 
   handleItemRealtimeUpdate(row) {
     if (!row?.id) return;
+    if (this.isKunde) delete row.umsetzungsvorgabe;
     if (this.isKunde && isVideoideeVorschlag(row)) return;
     const item = this.items.find(i => i.id === row.id);
     if (!item) {

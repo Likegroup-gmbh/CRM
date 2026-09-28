@@ -19,7 +19,8 @@ const FEATURE_LABELS = {
   produkt_persona: 'Persona-Vorschläge Produkt',
   audience_situation: 'Audience Situations',
   persona_liky: 'Liky Persona',
-  briefing_auswertung: 'Briefing-Auswertung'
+  briefing_auswertung: 'Briefing-Auswertung',
+  kundenadaption: 'Kundenadaption'
 };
 
 const STATUS_META = {
