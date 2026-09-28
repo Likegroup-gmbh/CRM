@@ -23,6 +23,7 @@ const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
 const { shouldApplyKiBeschreibung } = require('./_shared/ki-beschreibung');
 const { schreibeKundenadaptionWennLeer } = require('./_shared/kundenadaption');
+const { verarbeitungAbschluss } = require('./_shared/verarbeitung-abschluss');
 const {
   SCREENSHOT_BUCKET,
   deletePreviousScreenshot
@@ -40,7 +41,10 @@ function createItemUpdater(supabase, itemId) {
 
   const enqueue = (patch) => {
     queue = queue
-      .then(() => supabase.from('strategie_items').update(patch).eq('id', itemId))
+      .then(async () => {
+        const { error } = await supabase.from('strategie_items').update(patch).eq('id', itemId);
+        if (error) console.error(`[${itemId}] Item-Write fehlgeschlagen:`, error.message);
+      })
       .catch((e) => console.error(`[${itemId}] Item-Write fehlgeschlagen:`, e.message));
   };
 
@@ -48,7 +52,10 @@ function createItemUpdater(supabase, itemId) {
     if (!jobId) return;
     const id = jobId;
     queue = queue
-      .then(() => supabase.from('transcription_jobs').update({ ...patch, logs }).eq('id', id))
+      .then(async () => {
+        const { error } = await supabase.from('transcription_jobs').update({ ...patch, logs }).eq('id', id);
+        if (error) console.error(`[${itemId}] Job-Write fehlgeschlagen:`, error.message);
+      })
       .catch((e) => console.error(`[${itemId}] Job-Write fehlgeschlagen:`, e.message));
   };
 
@@ -76,12 +83,20 @@ function createItemUpdater(supabase, itemId) {
     },
     async flushItem(patch) {
       await queue;
-      await supabase.from('strategie_items').update(patch).eq('id', itemId);
+      const { error } = await supabase.from('strategie_items').update(patch).eq('id', itemId);
+      if (error) {
+        console.error(`[${itemId}] Item-Write fehlgeschlagen:`, error.message);
+        throw new Error(error.message);
+      }
     },
     async flushJob(patch) {
       if (!jobId) { await queue; return; }
       await queue;
-      await supabase.from('transcription_jobs').update({ ...patch, logs }).eq('id', jobId);
+      const { error } = await supabase.from('transcription_jobs').update({ ...patch, logs }).eq('id', jobId);
+      if (error) {
+        console.error(`[${itemId}] Job-Write fehlgeschlagen:`, error.message);
+        throw new Error(error.message);
+      }
     }
   };
 }
@@ -177,11 +192,12 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
     return { statusCode: 400, body: 'itemId erforderlich' };
   }
 
-  const { data: item } = await supabase
+  const { data: item, error: loadError } = await supabase
     .from('strategie_items')
     .select('id, strategie_id, video_link, beschreibung, verarbeitung_status, screenshot_url')
     .eq('id', itemId)
     .maybeSingle();
+  if (loadError) throw new Error(loadError.message);
   if (!item) {
     return { statusCode: 404, body: 'Item nicht gefunden' };
   }
@@ -200,18 +216,20 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
   let browser;
   let screenshotError = null;
   let transcriptError = null;
+  let beschreibungFehler = null;
   let result = null;
 
-  await supabase.from('strategie_items')
-    .update({
-      verarbeitung_status: 'processing',
-      verarbeitung_step: 'browser',
-      verarbeitung_fehler: null,
-      plattform: platform
-    })
-    .eq('id', itemId);
-
   try {
+    const { error: startError } = await supabase.from('strategie_items')
+      .update({
+        verarbeitung_status: 'processing',
+        verarbeitung_step: 'browser',
+        verarbeitung_fehler: null,
+        plattform: platform
+      })
+      .eq('id', itemId);
+    if (startError) throw new Error(startError.message);
+
     tracker.log(`Start: ${platform} - ${url}`);
 
     // Desktop-Default; die Screenshot-Page bekommt ihren Mobile-Viewport selbst
@@ -233,16 +251,17 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
     // --- Transkription ------------------------------------------------------
     if (!isTranscribablePlatform(platform)) {
       tracker.log(`Keine Transkription fuer ${platform} - nur Screenshot`);
+      const abschluss = verarbeitungAbschluss({ screenshotError });
       await tracker.flushItem({
-        verarbeitung_status: screenshotError ? 'error' : 'done',
+        verarbeitung_status: abschluss.verarbeitung_status,
         verarbeitung_step: 'done',
-        verarbeitung_fehler: screenshotError
+        verarbeitung_fehler: abschluss.verarbeitung_fehler
       });
       await triggerNextPending(supabase, event, item.strategie_id, itemId);
       return { statusCode: 200 };
     }
 
-    const { data: job } = await supabase
+    const { data: job, error: jobError } = await supabase
       .from('transcription_jobs')
       .insert({
         url,
@@ -253,6 +272,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
       })
       .select('id')
       .single();
+    if (jobError) throw new Error(jobError.message);
     if (job) {
       tracker.attachJob(job.id);
       tracker.updateItem({ transcription_job_id: job.id });
@@ -286,6 +306,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
         aiToken,
         onStep: (step, msg) => tracker.step(step, msg),
         onLog: (msg) => tracker.log(msg),
+        onCaption: (caption) => tracker.flushItem({ caption }),
         onVideoData: (videoData) => {
           if (videoData.durationSeconds) tracker.updateJob({ duration_seconds: videoData.durationSeconds });
         },
@@ -296,28 +317,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
       });
       await ki.abschliessen({ model: 'cloudflare-whisper-llama' });
 
-      tracker.updateItem({
+      await tracker.flushItem({
         transkript: result.transcript,
         transkript_quelle: result.transcriptSource,
         caption: result.caption
       });
-
-      // Vorhandene Beschreibungen bleiben unangetastet - die KI-Fassung steht
-      // weiterhin im Job. Frischer Read, falls zwischendurch jemand getippt hat.
-      if (result.description) {
-        const { data: current } = await supabase
-          .from('strategie_items')
-          .select('beschreibung')
-          .eq('id', itemId)
-          .maybeSingle();
-        if (shouldApplyKiBeschreibung(current?.beschreibung)) {
-          const { error: descError } = await supabase
-            .from('strategie_items')
-            .update({ beschreibung: result.description, beschreibung_quelle: 'ki' })
-            .eq('id', itemId);
-          if (descError) tracker.log(`Beschreibung nicht uebernommen: ${descError.message}`);
-        }
-      }
 
       await tracker.flushJob({
         status: 'done',
@@ -347,8 +351,31 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
       });
     }
 
+    // Vorhandene Beschreibungen bleiben unangetastet. Die KI-Fassung steht
+    // weiterhin im Job. Frischer Read, falls zwischendurch jemand getippt hat.
+    if (!transcriptError && result?.description) {
+      try {
+        const { data: current, error: readError } = await supabase
+          .from('strategie_items')
+          .select('beschreibung')
+          .eq('id', itemId)
+          .maybeSingle();
+        if (readError) throw new Error(readError.message);
+        if (shouldApplyKiBeschreibung(current?.beschreibung)) {
+          const { error: descError } = await supabase
+            .from('strategie_items')
+            .update({ beschreibung: result.description, beschreibung_quelle: 'ki' })
+            .eq('id', itemId);
+          if (descError) throw new Error(descError.message);
+        }
+      } catch (e) {
+        beschreibungFehler = e.message;
+        tracker.log(`Beschreibung nicht uebernommen: ${e.message}`);
+      }
+    }
+
     let adaptionFehler = null;
-    if (!transcriptError) {
+    if (!transcriptError && !beschreibungFehler) {
       try {
         await schreibeKundenadaptionWennLeer(supabase, {
           userId: user.id,
@@ -364,19 +391,20 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
       }
     }
 
-    const fehler = [
-      screenshotError ? `Screenshot: ${screenshotError}` : null,
-      transcriptError ? `Transkript: ${transcriptError}` : null,
-      adaptionFehler ? `Kundenadaption: ${adaptionFehler}` : null
-    ].filter(Boolean).join(' | ') || null;
+    const abschluss = verarbeitungAbschluss({
+      screenshotError,
+      transcriptError,
+      beschreibungFehler,
+      adaptionFehler
+    });
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[${itemId}] Fertig in ${elapsed}s${fehler ? ` (${fehler})` : ''}`);
+    console.log(`[${itemId}] Fertig in ${elapsed}s${abschluss.verarbeitung_fehler ? ` (${abschluss.verarbeitung_fehler})` : ''}`);
 
     await tracker.flushItem({
-      verarbeitung_status: fehler ? 'error' : 'done',
+      verarbeitung_status: abschluss.verarbeitung_status,
       verarbeitung_step: 'done',
-      verarbeitung_fehler: fehler
+      verarbeitung_fehler: abschluss.verarbeitung_fehler
     });
 
     await triggerNextPending(supabase, event, item.strategie_id, itemId);

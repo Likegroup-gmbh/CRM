@@ -228,12 +228,23 @@ function renderBildCell(item, isIdea, ideaIcon) {
   }
 
   if (status === 'error') {
+    const fehler = item.verarbeitung_fehler || 'Unbekannter Fehler';
     return `
       <td class="col-image">
         ${bild}
-        <div class="verarbeitung-status verarbeitung-status--fehler" title="${escapeAttr(item.verarbeitung_fehler || 'Unbekannter Fehler')}">
-          Verarbeitung fehlgeschlagen
+        <div class="verarbeitung-status verarbeitung-status--fehler" title="${escapeAttr(fehler)}">
+          <span>Verarbeitung fehlgeschlagen</span>
+          <span class="verarbeitung-fehler-text">${escapeHtml(fehler)}</span>
         </div>
+      </td>
+    `;
+  }
+
+  if (status === 'done' && item.verarbeitung_fehler) {
+    return `
+      <td class="col-image">
+        ${bild}
+        <div class="verarbeitung-status verarbeitung-status--hinweis">${escapeHtml(item.verarbeitung_fehler)}</div>
       </td>
     `;
   }

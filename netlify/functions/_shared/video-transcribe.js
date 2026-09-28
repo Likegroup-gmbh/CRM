@@ -21,6 +21,42 @@ const {
 const CF_API_BASE = 'https://api.cloudflare.com/client/v4/accounts';
 const WHISPER_MODEL = '@cf/openai/whisper-large-v3-turbo';
 const LLM_MODEL = '@cf/meta/llama-3.1-8b-instruct';
+const WHISPER_ATTEMPTS = 3;
+const WHISPER_RETRY_MS = 1000;
+
+function isWhisperAuthError(status, message) {
+  if (Number(status) === 401) return true;
+  return /authentication error/i.test(String(message || ''));
+}
+
+function whisperFehler(status, message) {
+  const detail = String(message || '').trim() || `HTTP ${status}`;
+  const err = new Error(`Whisper fehlgeschlagen: ${detail} (HTTP ${status})`);
+  err.status = status;
+  err.auth = isWhisperAuthError(status, detail);
+  return err;
+}
+
+/** Auth-Fehler wiederholen, jeden anderen Fehler sofort durchreichen. */
+async function withWhisperRetry(attempt, {
+  attempts = WHISPER_ATTEMPTS,
+  pauseMs = WHISPER_RETRY_MS,
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  onRetry = () => {}
+} = {}) {
+  let last;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await attempt(i);
+    } catch (e) {
+      last = e;
+      if (!isWhisperAuthError(e.status, e.message) || i === attempts) throw e;
+      onRetry(i, e);
+      await sleep(pauseMs);
+    }
+  }
+  throw last;
+}
 
 /** Plattformen, fuer die eine Tonspur bzw. Untertitel erreichbar sind. */
 const TRANSCRIBABLE_PLATFORMS = Object.freeze(['tiktok', 'instagram']);
@@ -39,7 +75,7 @@ function buildNavigateUrl(platform, url) {
   return url;
 }
 
-async function runWhisper(videoBuffer, accountId, aiToken) {
+async function runWhisperOnce(videoBuffer, accountId, aiToken) {
   const base64Audio = videoBuffer.toString('base64');
   const res = await fetch(`${CF_API_BASE}/${accountId}/ai/run/${WHISPER_MODEL}`, {
     method: 'POST',
@@ -52,10 +88,17 @@ async function runWhisper(videoBuffer, accountId, aiToken) {
 
   const json = await res.json();
   if (!res.ok || !json.success) {
-    const errMsg = (json.errors || []).map(e => e.message).join('; ') || `HTTP ${res.status}`;
-    throw new Error(`Whisper fehlgeschlagen: ${errMsg}`);
+    const errMsg = (json.errors || []).map(e => e.message).join('; ');
+    throw whisperFehler(res.status, errMsg);
   }
   return (json.result?.text || '').trim();
+}
+
+async function runWhisper(videoBuffer, accountId, aiToken, opts = {}) {
+  return withWhisperRetry(
+    () => runWhisperOnce(videoBuffer, accountId, aiToken),
+    { onRetry: opts.onRetry }
+  );
 }
 
 async function runDescription(transcript, caption, accountId, aiToken) {
@@ -135,6 +178,8 @@ async function collectVideoData({ page, platform, navigateUrl, onStep = () => {}
  * @param {Function} [opts.onStep]         (step, message) fuer den Fortschritt
  * @param {Function} [opts.onLog]          (message) fuer reine Log-Zeilen
  * @param {Function} [opts.onVideoData]    (videoData) sobald die Metadaten stehen
+ * @param {Function} [opts.onCaption]      (caption) sobald die Post-Caption da ist,
+ *                                         noch vor Whisper
  * @param {Function} [opts.releaseBrowser] Wird aufgerufen, sobald der Browser nicht
  *                                         mehr gebraucht wird (Whisper laeuft remote)
  */
@@ -147,6 +192,7 @@ async function transcribeVideoOnPage({
   onStep = () => {},
   onLog = () => {},
   onVideoData = () => {},
+  onCaption = () => {},
   releaseBrowser = null
 }) {
   if (!accountId || !aiToken) {
@@ -162,6 +208,7 @@ async function transcribeVideoOnPage({
   const videoData = await collectVideoData({ page, platform, navigateUrl, onStep, onLog });
   if (videoData.error) throw new Error(videoData.error);
   onVideoData(videoData);
+  if (videoData.caption) await onCaption(videoData.caption);
 
   let transcript = null;
   let transcriptSource = 'whisper';
@@ -191,7 +238,9 @@ async function transcribeVideoOnPage({
     if (releaseBrowser) await releaseBrowser();
 
     onStep('whisper', 'Whisper-Transkription (Cloudflare Workers AI)...');
-    transcript = await runWhisper(videoBuffer, accountId, aiToken);
+    transcript = await runWhisper(videoBuffer, accountId, aiToken, {
+      onRetry: (attempt, err) => onLog(`Whisper erneut (${attempt + 1}/${WHISPER_ATTEMPTS}): ${err.message}`)
+    });
     onLog(`Transkript: ${transcript.length} Zeichen`);
   } else if (releaseBrowser) {
     await releaseBrowser();
@@ -222,7 +271,10 @@ async function transcribeVideoOnPage({
 
 module.exports = {
   TRANSCRIBABLE_PLATFORMS,
+  WHISPER_ATTEMPTS,
   isTranscribablePlatform,
+  isWhisperAuthError,
+  withWhisperRetry,
   buildNavigateUrl,
   collectVideoData,
   transcribeVideoOnPage,

@@ -183,8 +183,21 @@ describe('renderItemRow – Fortschritt der Hintergrund-Verarbeitung', () => {
     });
 
     expect(doc.querySelector('img.strategie-screenshot')).toBeTruthy();
-    expect(doc.querySelector('.verarbeitung-status--fehler').getAttribute('title'))
-      .toBe('Transkript: Whisper fehlgeschlagen');
+    const fehler = doc.querySelector('.verarbeitung-status--fehler');
+    expect(fehler.getAttribute('title')).toBe('Transkript: Whisper fehlgeschlagen');
+    expect(fehler.querySelector('.verarbeitung-fehler-text').textContent).toBe('Transkript: Whisper fehlgeschlagen');
+  });
+
+  it('zeigt einen Adaptionsfehler als Hinweis, ohne den Lauf als fehlgeschlagen zu markieren', () => {
+    const doc = renderRow({
+      video_link: 'https://tiktok.com/x',
+      screenshot_url: 'https://cdn/bild.jpg',
+      verarbeitung_status: 'done',
+      verarbeitung_fehler: 'Kundenadaption: Die KI hat keine Kundenadaption geliefert'
+    });
+    expect(doc.querySelector('.verarbeitung-status--fehler')).toBeNull();
+    expect(doc.querySelector('.verarbeitung-status--hinweis').textContent)
+      .toBe('Kundenadaption: Die KI hat keine Kundenadaption geliefert');
   });
 
   it('zeigt nichts an, wenn die Verarbeitung durch ist', () => {

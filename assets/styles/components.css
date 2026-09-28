@@ -3245,8 +3245,20 @@ h3.section-title,
 }
 
 .verarbeitung-status--fehler {
+  flex-direction: column;
+  gap: 2px;
+  max-width: 140px;
   color: var(--danger);
   cursor: help;
+}
+
+.verarbeitung-fehler-text {
+  font-weight: 400;
+}
+
+.verarbeitung-status--hinweis {
+  max-width: 140px;
+  color: var(--text-secondary);
 }
 
 /* Add Item Section */
