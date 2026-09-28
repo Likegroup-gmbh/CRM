@@ -21,10 +21,15 @@ describe('kundenadaptionBlocker', () => {
     expect(kundenadaptionBlocker(referenz)).toBeNull();
   });
 
-  it('blockt Idee, fehlende Vorgabe und fehlendes Transkript', () => {
+  it('blockt Idee, fehlende Vorgabe und fehlendes Material', () => {
     expect(kundenadaptionBlocker({ ...referenz, video_link: null })).toBe('Nur eine Videoreferenz');
     expect(kundenadaptionBlocker({ ...referenz, umsetzungsvorgabe: '  ' })).toBe('Umsetzungsvorgabe fehlt');
-    expect(kundenadaptionBlocker({ ...referenz, transkript: '' })).toBe('Transkript fehlt');
+    expect(kundenadaptionBlocker({ ...referenz, transkript: '' })).toBe('Transkript, Caption oder Beschreibung fehlt');
+  });
+
+  it('laesst Caption oder Beschreibung ohne Transkript durch', () => {
+    expect(kundenadaptionBlocker({ ...referenz, transkript: '', caption: 'lecker' })).toBeNull();
+    expect(kundenadaptionBlocker({ ...referenz, transkript: '', beschreibung: 'Sandwich-Video' })).toBeNull();
   });
 });
 
@@ -65,6 +70,21 @@ describe('buildKundenadaptionPrompt', () => {
     expect(stable).toContain('Umsetzungsvorgabe ist der Fokus');
     expect(task.indexOf('Nur die Hook')).toBeLessThan(task.indexOf('Schau mal'));
     expect(task).toContain('Toastie');
+    expect(task).not.toContain('Transkript nicht verfuegbar');
+  });
+
+  it('weist ohne Transkript auf Umsetzungsvorgabe und Caption hin', () => {
+    const { task } = buildKundenadaptionPrompt({
+      briefing: {},
+      produkte: [],
+      personas: [],
+      item: {
+        umsetzungsvorgabe: 'Nur die Hook',
+        caption: 'lecker',
+        transkript: '  '
+      }
+    });
+    expect(task).toContain('Transkript nicht verfuegbar, stuetze dich auf Umsetzungsvorgabe und Caption.');
   });
 });
 

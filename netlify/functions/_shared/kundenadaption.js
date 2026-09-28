@@ -29,10 +29,15 @@ const KUNDENADAPTION_TOOL = {
   }
 };
 
+function hatAdaptionsmaterial(item) {
+  return [item?.transkript, item?.caption, item?.beschreibung]
+    .some((wert) => String(wert || '').trim());
+}
+
 function kundenadaptionBlocker(item) {
   if (!item?.video_link) return 'Nur eine Videoreferenz';
   if (!String(item.umsetzungsvorgabe || '').trim()) return 'Umsetzungsvorgabe fehlt';
-  if (!String(item.transkript || '').trim()) return 'Transkript fehlt';
+  if (!hatAdaptionsmaterial(item)) return 'Transkript, Caption oder Beschreibung fehlt';
   return null;
 }
 
@@ -54,7 +59,11 @@ function buildKundenadaptionPrompt({ briefing, produkte, personas, item } = {}) 
   const vorgabe = cap(item?.umsetzungsvorgabe, 2000);
   const beschreibung = cap(item?.beschreibung, 2000) || '(keine Beschreibung)';
   const caption = cap(item?.caption, 2000) || '(keine Caption)';
+  const transkriptRoh = String(item?.transkript || '').trim();
   const transkript = kuerzeTranskript(item?.transkript) || '(kein Transkript)';
+  const transkriptHinweis = transkriptRoh
+    ? ''
+    : 'Transkript nicht verfuegbar, stuetze dich auf Umsetzungsvorgabe und Caption.\n\n';
 
   const stable = `Du schreibst die Kundenadaption einer Videoreferenz fuer eine Creator-Agentur.
 Der Kunde soll sehen, wie DIESES Video fuer ihn funktionieren koennte. Nicht ein neues Konzept, kein Skript, keine Shotliste.
@@ -77,7 +86,7 @@ Caption:
 ${caption}
 
 Transkript:
-${transkript}
+${transkriptHinweis}${transkript}
 
 Briefing:
 ${briefingText}
@@ -139,7 +148,6 @@ async function schreibeKundenadaptionWennLeer(supabase, {
     transkript: String(transkript || current.transkript || '').trim() || null,
     caption: caption ?? current.caption
   };
-  if (!String(item.transkript || '').trim()) throw new Error('Transkript fehlt');
 
   onStep?.();
   const text = await generiereKundenadaptionText(supabase, { userId, strategieId, item });

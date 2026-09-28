@@ -375,20 +375,18 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
     }
 
     let adaptionFehler = null;
-    if (!transcriptError && !beschreibungFehler) {
-      try {
-        await schreibeKundenadaptionWennLeer(supabase, {
-          userId: user.id,
-          itemId,
-          strategieId: item.strategie_id,
-          transkript: result?.transcript,
-          caption: result?.caption,
-          onStep: () => tracker.step('adaption', 'Kundenadaption')
-        });
-      } catch (e) {
-        adaptionFehler = e.message;
-        tracker.log(`Kundenadaption: ${e.message}`);
-      }
+    try {
+      await schreibeKundenadaptionWennLeer(supabase, {
+        userId: user.id,
+        itemId,
+        strategieId: item.strategie_id,
+        transkript: result?.transcript,
+        caption: result?.caption,
+        onStep: () => tracker.step('adaption', 'Kundenadaption')
+      });
+    } catch (e) {
+      adaptionFehler = e.message;
+      tracker.log(`Kundenadaption: ${e.message}`);
     }
 
     const abschluss = verarbeitungAbschluss({

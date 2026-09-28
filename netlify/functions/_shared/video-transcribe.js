@@ -29,7 +29,19 @@ function isWhisperAuthError(status, message) {
   return /authentication error/i.test(String(message || ''));
 }
 
+/** Echter 401 ist ein kaputter Token. Nur die sporadische Meldung ohne 401 lohnt einen Retry. */
+function isRetryableWhisperAuth(status, message) {
+  if (Number(status) === 401) return false;
+  return /authentication error/i.test(String(message || ''));
+}
+
 function whisperFehler(status, message) {
+  if (Number(status) === 401) {
+    const err = new Error('Whisper fehlgeschlagen: Cloudflare-Token abgelehnt (401), CLOUDFLARE_AI_TOKEN pruefen');
+    err.status = 401;
+    err.auth = true;
+    return err;
+  }
   const detail = String(message || '').trim() || `HTTP ${status}`;
   const err = new Error(`Whisper fehlgeschlagen: ${detail} (HTTP ${status})`);
   err.status = status;
@@ -37,7 +49,7 @@ function whisperFehler(status, message) {
   return err;
 }
 
-/** Auth-Fehler wiederholen, jeden anderen Fehler sofort durchreichen. */
+/** Sporadische Auth-Meldung wiederholen, echten 401 und jeden anderen Fehler sofort durchreichen. */
 async function withWhisperRetry(attempt, {
   attempts = WHISPER_ATTEMPTS,
   pauseMs = WHISPER_RETRY_MS,
@@ -50,7 +62,7 @@ async function withWhisperRetry(attempt, {
       return await attempt(i);
     } catch (e) {
       last = e;
-      if (!isWhisperAuthError(e.status, e.message) || i === attempts) throw e;
+      if (!isRetryableWhisperAuth(e.status, e.message) || i === attempts) throw e;
       onRetry(i, e);
       await sleep(pauseMs);
     }
@@ -274,6 +286,8 @@ module.exports = {
   WHISPER_ATTEMPTS,
   isTranscribablePlatform,
   isWhisperAuthError,
+  isRetryableWhisperAuth,
+  whisperFehler,
   withWhisperRetry,
   buildNavigateUrl,
   collectVideoData,

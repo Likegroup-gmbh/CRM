@@ -2,12 +2,17 @@ import { describe, it, expect } from 'vitest';
 import { createRequire } from 'module';
 
 const require = createRequire(import.meta.url);
-const { isWhisperAuthError, withWhisperRetry } = require('../../netlify/functions/_shared/video-transcribe.js');
+const {
+  isWhisperAuthError,
+  isRetryableWhisperAuth,
+  whisperFehler,
+  withWhisperRetry
+} = require('../../netlify/functions/_shared/video-transcribe.js');
 const { verarbeitungAbschluss } = require('../../netlify/functions/_shared/verarbeitung-abschluss.js');
 
-function authError() {
-  const err = new Error('Whisper fehlgeschlagen: Authentication error (HTTP 401)');
-  err.status = 401;
+function softAuthError() {
+  const err = new Error('Whisper fehlgeschlagen: Authentication error (HTTP 200)');
+  err.status = 200;
   return err;
 }
 
@@ -23,25 +28,51 @@ describe('isWhisperAuthError', () => {
   });
 });
 
+describe('isRetryableWhisperAuth', () => {
+  it('wiederholt nur die Meldung ohne echten 401', () => {
+    expect(isRetryableWhisperAuth(401, 'Authentication error')).toBe(false);
+    expect(isRetryableWhisperAuth(200, 'Authentication error')).toBe(true);
+    expect(isRetryableWhisperAuth(400, 'audio too long')).toBe(false);
+  });
+});
+
+describe('whisperFehler', () => {
+  it('nennt bei 401 den Token und haengt keinen Retry daran', () => {
+    const err = whisperFehler(401, 'Authentication error');
+    expect(err.message).toBe('Whisper fehlgeschlagen: Cloudflare-Token abgelehnt (401), CLOUDFLARE_AI_TOKEN pruefen');
+    expect(err.status).toBe(401);
+    expect(isRetryableWhisperAuth(err.status, err.message)).toBe(false);
+  });
+});
+
 describe('withWhisperRetry', () => {
-  it('wiederholt einen Auth-Fehler und gibt beim zweiten Versuch zurueck', async () => {
+  it('wiederholt eine sporadische Auth-Meldung und gibt beim zweiten Versuch zurueck', async () => {
     const calls = [];
     const text = await withWhisperRetry(async (i) => {
       calls.push(i);
-      if (i === 1) throw authError();
+      if (i === 1) throw softAuthError();
       return 'transkript';
     }, { sleep: async () => {} });
     expect(text).toBe('transkript');
     expect(calls).toEqual([1, 2]);
   });
 
-  it('gibt nach drei Auth-Fehlern auf', async () => {
+  it('gibt nach drei sporadischen Auth-Meldungen auf', async () => {
     let calls = 0;
     await expect(withWhisperRetry(async () => {
       calls += 1;
-      throw authError();
+      throw softAuthError();
     }, { sleep: async () => {} })).rejects.toThrow(/Authentication error/);
     expect(calls).toBe(3);
+  });
+
+  it('wiederholt einen echten HTTP 401 nicht', async () => {
+    let calls = 0;
+    await expect(withWhisperRetry(async () => {
+      calls += 1;
+      throw whisperFehler(401, 'Authentication error');
+    }, { sleep: async () => {} })).rejects.toThrow(/CLOUDFLARE_AI_TOKEN pruefen/);
+    expect(calls).toBe(1);
   });
 
   it('wiederholt einen anderen Fehler nicht', async () => {
