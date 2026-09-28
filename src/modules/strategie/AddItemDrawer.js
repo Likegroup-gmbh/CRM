@@ -551,13 +551,21 @@ export class AddItemDrawer {
         })
       );
 
+      let processingFailed = false;
       if (nextItem.url) {
-        // Schlaegt der Trigger fehl, bleibt das Item auf 'pending' und laesst
-        // sich ueber "Neu verarbeiten" nachziehen - das Item selbst ist da.
+        // Schlaegt der Trigger fehl (z.B. 404, weil die Function nicht deployed
+        // ist), bleibt das Item sonst ewig auf 'pending'. Stattdessen Fehler
+        // schreiben — "Neu verarbeiten" zieht es danach nach.
         try {
           await strategieService.enqueueItemProcessing(this.strategieId, created.id);
         } catch (e) {
+          processingFailed = true;
           console.warn('Verarbeitung konnte nicht gestartet werden:', e);
+          await strategieService.updateStrategieItem(created.id, {
+            verarbeitung_status: 'error',
+            verarbeitung_fehler: `Verarbeitung konnte nicht gestartet werden (${e.message}) – bitte neu verarbeiten`
+          });
+          window.toastSystem?.show('Videoreferenz angelegt, Verarbeitung fehlgeschlagen – bitte neu verarbeiten', 'warning');
         }
       }
 
@@ -569,8 +577,10 @@ export class AddItemDrawer {
         detail: { strategieId: this.strategieId }
       }));
 
-      const msg = nextItem.url ? 'Videoreferenz hinzugefügt – Verarbeitung läuft' : 'Idee hinzugefügt';
-      window.toastSystem?.show(msg, 'success');
+      if (!processingFailed) {
+        const msg = nextItem.url ? 'Videoreferenz hinzugefügt – Verarbeitung läuft' : 'Idee hinzugefügt';
+        window.toastSystem?.show(msg, 'success');
+      }
 
     } catch (error) {
       console.error('Fehler beim Verarbeiten:', error);

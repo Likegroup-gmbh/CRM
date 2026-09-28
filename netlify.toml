@@ -6,11 +6,11 @@
 
 # Branch-Deploy v2: Vite backt VITE_* zur Build-Zeit ein.
 # Greift nur, wenn Branch v2 in der Netlify-UI als Branch-Deploy aktiv ist.
-# Chromium-Functions (~60MB Zip): drei bleiben im Skip (creator-scrape,
-# strategie-item-background, transcribe-background). site-extract-background
-# ist wieder im Deploy — Liky-URL / Produkt-Auslesen braucht sie.
+# Chromium-Functions (strategie-item-background, transcribe-background,
+# creator-scrape, site-extract-background) laufen mit — der fruehere Skip
+# hat sie auf v2 mit 404 beantwortet.
 [context.v2]
-  command = "node scripts/netlify-v2-skip-chromium.js && npm run build"
+  command = "npm run build"
 [context.v2.environment]
   VITE_APP_CHANNEL = "v2"
 
