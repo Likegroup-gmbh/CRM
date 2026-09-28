@@ -120,12 +120,16 @@ export function renderWorkflowPanes(activeTab) {
 /* ------------------------------------------------------------------ */
 
 /**
- * Workflow-Tab aktivieren: Wrapper-Attribut (steuert Produktion-Chrome via
- * CSS), Button-States, Panes, URL. Produktion wird nicht neu gemountet.
+ * Workflow-Tab aktivieren: den verlassenen Tab schließen (Listener weg),
+ * Wrapper-Attribut (steuert Produktion-Chrome via CSS), Button-States, Panes, URL.
+ * Die Kooperationstabelle auf „Produktion“ bleibt gemountet.
  */
 export function activateWorkflowTab(detail, tabId, { syncUrl = true } = {}) {
   const visible = getVisibleWorkflowTabs().map(t => t.id);
   if (!visible.includes(tabId)) return;
+
+  const previous = detail.activeWorkflowTab;
+  if (previous && previous !== tabId) suspendWorkflowTab(detail, previous);
 
   detail.activeWorkflowTab = tabId;
 
@@ -149,12 +153,36 @@ export function activateWorkflowTab(detail, tabId, { syncUrl = true } = {}) {
     return;
   }
 
-  void loadWorkflowPane(detail, tabId);
+  return loadWorkflowPane(detail, tabId);
 }
 
 /**
- * Pane lazy füllen (nur beim ersten Besuch). Bei Fehler landet ein
- * Empty-State im Pane, der Rest der Seite bleibt unberührt.
+ * Verlassenen Workflow-Tab abbauen: eingebundene Seite destroyen, Pane leeren,
+ * Loaded-Flag zurück. `_workflowData` bleibt, damit der nächste Besuch aus
+ * dem Cache rendern kann. Produktion wird nicht angefasst.
+ */
+export function suspendWorkflowTab(detail, tabId) {
+  if (!tabId || tabId === 'produktion') return;
+
+  if (tabId === 'produkte' || tabId === 'personas') {
+    unmountKatalogPanes(detail);
+  } else if (tabId === 'casting') {
+    unmountCastingWorksheet(detail);
+  } else if (tabId === 'konzepte') {
+    unmountKonzeptWorksheet(detail);
+  } else if (tabId === 'vertraege') {
+    unmountVertraegePane(detail);
+  }
+
+  const pane = document.getElementById(`workflow-pane-${tabId}`);
+  if (pane) pane.innerHTML = '';
+
+  if (detail._workflowLoaded) detail._workflowLoaded[tabId] = false;
+}
+
+/**
+ * Pane füllen, wenn es nicht geladen ist. Nach suspendWorkflowTab mountet
+ * der nächste Besuch neu. Bei Fehler landet ein Empty-State im Pane.
  */
 export async function loadWorkflowPane(detail, tabId) {
   const pane = document.getElementById(`workflow-pane-${tabId}`);
