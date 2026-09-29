@@ -18,11 +18,14 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-  # WICHTIG: @sparticuz/chromium MUSS external sein (zu groß für Bundling)
+  # WICHTIG: @sparticuz/chromium ist absichtlich NICHT external: esbuild bundlet
+  # nur das JS-Geruest, das 63-MB-Binary laedt browser-setup.js zur Laufzeit aus
+  # dem Release-Tarball nach (CHROMIUM_PACK_URL). Als external wuerde das Binary
+  # in jeden Function-Zip kopiert und der Deploy-Upload haengt.
   # sharp: native Binaries, kann esbuild nicht bundlen (instagram-connect)
   # typescript: cosmiconfig (über puppeteer-extra) optional-requires es — ohne
   # external fällt esbuild auf den nft-Fallback, Chromium-Zips werden fett/langsam.
-  external_node_modules = ["@sparticuz/chromium", "sharp", "typescript"]
+  external_node_modules = ["sharp", "typescript"]
 
 # Strategie-Items: Screenshot + Transkription in einem Chromium-Lauf.
 # Background Function (Suffix -background): 15 Min Limit, antwortet sofort 202;
@@ -30,11 +33,11 @@
 # puppeteer-extra bleibt external: esbuild macht aus lazy-cache ein
 # require('kind-of'), das im Lambda fehlt (502 beim Laden).
 [functions."strategie-item-background"]
-  external_node_modules = ["@sparticuz/chromium", "typescript", "puppeteer-core", "puppeteer-extra", "puppeteer-extra-plugin", "puppeteer-extra-plugin-stealth", "puppeteer-extra-plugin-user-preferences", "puppeteer-extra-plugin-user-data-dir", "merge-deep", "clone-deep", "shallow-clone", "kind-of", "lazy-cache", "for-own", "for-in", "is-plain-object", "isobject", "is-buffer", "is-extendable", "mixin-object", "arr-union", "debug", "ms", "deepmerge", "fs-extra", "rimraf"]
+  external_node_modules = ["typescript","puppeteer-core", "puppeteer-extra", "puppeteer-extra-plugin", "puppeteer-extra-plugin-stealth", "puppeteer-extra-plugin-user-preferences", "puppeteer-extra-plugin-user-data-dir", "merge-deep", "clone-deep", "shallow-clone", "kind-of", "lazy-cache", "for-own", "for-in", "is-plain-object", "isobject", "is-buffer", "is-extendable", "mixin-object", "arr-union", "debug", "ms", "deepmerge", "fs-extra", "rimraf"]
   included_files = ["node_modules/puppeteer-core/**", "node_modules/puppeteer-extra/**", "node_modules/puppeteer-extra-plugin/**", "node_modules/puppeteer-extra-plugin-stealth/**", "node_modules/puppeteer-extra-plugin-user-preferences/**", "node_modules/puppeteer-extra-plugin-user-data-dir/**", "node_modules/merge-deep/**", "node_modules/clone-deep/**", "node_modules/shallow-clone/**", "node_modules/kind-of/**", "node_modules/lazy-cache/**", "node_modules/for-own/**", "node_modules/for-in/**", "node_modules/is-plain-object/**", "node_modules/isobject/**", "node_modules/is-buffer/**", "node_modules/is-extendable/**", "node_modules/mixin-object/**", "node_modules/arr-union/**", "node_modules/debug/**", "node_modules/ms/**", "node_modules/deepmerge/**", "node_modules/fs-extra/**", "node_modules/rimraf/**"]
 
 [functions."creator-scrape"]
-  external_node_modules = ["@sparticuz/chromium", "typescript", "puppeteer-core", "puppeteer-extra", "puppeteer-extra-plugin", "puppeteer-extra-plugin-stealth", "puppeteer-extra-plugin-user-preferences", "puppeteer-extra-plugin-user-data-dir", "merge-deep", "clone-deep", "shallow-clone", "kind-of", "lazy-cache", "for-own", "for-in", "is-plain-object", "isobject", "is-buffer", "is-extendable", "mixin-object", "arr-union", "debug", "ms", "deepmerge", "fs-extra", "rimraf"]
+  external_node_modules = ["typescript","puppeteer-core", "puppeteer-extra", "puppeteer-extra-plugin", "puppeteer-extra-plugin-stealth", "puppeteer-extra-plugin-user-preferences", "puppeteer-extra-plugin-user-data-dir", "merge-deep", "clone-deep", "shallow-clone", "kind-of", "lazy-cache", "for-own", "for-in", "is-plain-object", "isobject", "is-buffer", "is-extendable", "mixin-object", "arr-union", "debug", "ms", "deepmerge", "fs-extra", "rimraf"]
   included_files = ["node_modules/puppeteer-core/**", "node_modules/puppeteer-extra/**", "node_modules/puppeteer-extra-plugin/**", "node_modules/puppeteer-extra-plugin-stealth/**", "node_modules/puppeteer-extra-plugin-user-preferences/**", "node_modules/puppeteer-extra-plugin-user-data-dir/**", "node_modules/merge-deep/**", "node_modules/clone-deep/**", "node_modules/shallow-clone/**", "node_modules/kind-of/**", "node_modules/lazy-cache/**", "node_modules/for-own/**", "node_modules/for-in/**", "node_modules/is-plain-object/**", "node_modules/isobject/**", "node_modules/is-buffer/**", "node_modules/is-extendable/**", "node_modules/mixin-object/**", "node_modules/arr-union/**", "node_modules/debug/**", "node_modules/ms/**", "node_modules/deepmerge/**", "node_modules/fs-extra/**", "node_modules/rimraf/**"]
 
 # Kundenadaption neu schreiben: ein Claude-Call, kein Scrapen.
@@ -52,7 +55,7 @@
 # Video-Transkription der Testseite /transcribe und des Skript-Generators
 # (Background Function: automatisch 15 Min Timeout, antwortet sofort 202)
 [functions."transcribe-background"]
-  external_node_modules = ["@sparticuz/chromium", "typescript", "puppeteer-core", "puppeteer-extra", "puppeteer-extra-plugin", "puppeteer-extra-plugin-stealth", "puppeteer-extra-plugin-user-preferences", "puppeteer-extra-plugin-user-data-dir", "merge-deep", "clone-deep", "shallow-clone", "kind-of", "lazy-cache", "for-own", "for-in", "is-plain-object", "isobject", "is-buffer", "is-extendable", "mixin-object", "arr-union", "debug", "ms", "deepmerge", "fs-extra", "rimraf"]
+  external_node_modules = ["typescript","puppeteer-core", "puppeteer-extra", "puppeteer-extra-plugin", "puppeteer-extra-plugin-stealth", "puppeteer-extra-plugin-user-preferences", "puppeteer-extra-plugin-user-data-dir", "merge-deep", "clone-deep", "shallow-clone", "kind-of", "lazy-cache", "for-own", "for-in", "is-plain-object", "isobject", "is-buffer", "is-extendable", "mixin-object", "arr-union", "debug", "ms", "deepmerge", "fs-extra", "rimraf"]
   included_files = ["node_modules/puppeteer-core/**", "node_modules/puppeteer-extra/**", "node_modules/puppeteer-extra-plugin/**", "node_modules/puppeteer-extra-plugin-stealth/**", "node_modules/puppeteer-extra-plugin-user-preferences/**", "node_modules/puppeteer-extra-plugin-user-data-dir/**", "node_modules/merge-deep/**", "node_modules/clone-deep/**", "node_modules/shallow-clone/**", "node_modules/kind-of/**", "node_modules/lazy-cache/**", "node_modules/for-own/**", "node_modules/for-in/**", "node_modules/is-plain-object/**", "node_modules/isobject/**", "node_modules/is-buffer/**", "node_modules/is-extendable/**", "node_modules/mixin-object/**", "node_modules/arr-union/**", "node_modules/debug/**", "node_modules/ms/**", "node_modules/deepmerge/**", "node_modules/fs-extra/**", "node_modules/rimraf/**"]
 
 # Rueckfragen vor der Skript-Generierung: Leitfaden-Markdown mit ausliefern
@@ -80,7 +83,7 @@
 [functions."site-extract-background"]
   # memory = 2048 entfernt: Custom Memory erfordert Pro-Plan mit Credit-Preisen,
   # sonst schlaegt der ganze Deploy fehl. Default ist 1024 MB.
-  external_node_modules = ["@sparticuz/chromium", "sharp", "typescript", "puppeteer-core", "puppeteer-extra", "puppeteer-extra-plugin", "puppeteer-extra-plugin-stealth", "puppeteer-extra-plugin-user-preferences", "puppeteer-extra-plugin-user-data-dir", "merge-deep", "clone-deep", "shallow-clone", "kind-of", "lazy-cache", "for-own", "for-in", "is-plain-object", "isobject", "is-buffer", "is-extendable", "mixin-object", "arr-union", "debug", "ms", "deepmerge", "fs-extra", "rimraf"]
+  external_node_modules = ["sharp", "typescript", "puppeteer-core", "puppeteer-extra", "puppeteer-extra-plugin", "puppeteer-extra-plugin-stealth", "puppeteer-extra-plugin-user-preferences", "puppeteer-extra-plugin-user-data-dir", "merge-deep", "clone-deep", "shallow-clone", "kind-of", "lazy-cache", "for-own", "for-in", "is-plain-object", "isobject", "is-buffer", "is-extendable", "mixin-object", "arr-union", "debug", "ms", "deepmerge", "fs-extra", "rimraf"]
   included_files = ["node_modules/puppeteer-core/**", "node_modules/puppeteer-extra/**", "node_modules/puppeteer-extra-plugin/**", "node_modules/puppeteer-extra-plugin-stealth/**", "node_modules/puppeteer-extra-plugin-user-preferences/**", "node_modules/puppeteer-extra-plugin-user-data-dir/**", "node_modules/merge-deep/**", "node_modules/clone-deep/**", "node_modules/shallow-clone/**", "node_modules/kind-of/**", "node_modules/lazy-cache/**", "node_modules/for-own/**", "node_modules/for-in/**", "node_modules/is-plain-object/**", "node_modules/isobject/**", "node_modules/is-buffer/**", "node_modules/is-extendable/**", "node_modules/mixin-object/**", "node_modules/arr-union/**", "node_modules/debug/**", "node_modules/ms/**", "node_modules/deepmerge/**", "node_modules/fs-extra/**", "node_modules/rimraf/**"]
 
 # Raeumt taeglich die Temp-Produktbilder, die die KI-Extraktion angelegt hat,
