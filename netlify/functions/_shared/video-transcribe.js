@@ -24,7 +24,7 @@ const LLM_MODEL = '@cf/meta/llama-3.1-8b-instruct';
 const WHISPER_ATTEMPTS = 3;
 const WHISPER_RETRY_MS = 1000;
 /** Steht im Job-Log. Fehlt die Zeile, laeuft ein aelterer Function-Build. */
-const PIPELINE_BUILD = '20260929b';
+const PIPELINE_BUILD = '20260929c';
 
 function isWhisperAuthError(status, message) {
   if (Number(status) === 401) return true;
