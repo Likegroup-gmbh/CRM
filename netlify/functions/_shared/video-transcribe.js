@@ -70,6 +70,21 @@ async function withWhisperRetry(attempt, {
   throw last;
 }
 
+/** Netlify-Formulare liefern gern ein trailing Newline mit - Cloudflare antwortet darauf 401. */
+function cloudflareCredentials(env = process.env) {
+  return {
+    accountId: String(env.CLOUDFLARE_ACCOUNT_ID || '').trim(),
+    aiToken: String(env.CLOUDFLARE_AI_TOKEN || '').trim()
+  };
+}
+
+/** Nur die letzten vier Zeichen und die Laenge - genug, um V1- und V2-Deploy zu unterscheiden. */
+function fingerprint(wert) {
+  const s = String(wert || '');
+  if (!s) return '(leer)';
+  return `…${s.slice(-4)} (${s.length} Zeichen)`;
+}
+
 /** Plattformen, fuer die eine Tonspur bzw. Untertitel erreichbar sind. */
 const TRANSCRIBABLE_PLATFORMS = Object.freeze(['tiktok', 'instagram']);
 
@@ -210,6 +225,7 @@ async function transcribeVideoOnPage({
   if (!accountId || !aiToken) {
     throw new Error('CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_AI_TOKEN nicht gesetzt (Netlify Env-Vars)');
   }
+  onLog(`Cloudflare: Account ${fingerprint(accountId)}, Token ${fingerprint(aiToken)}`);
   if (!isTranscribablePlatform(platform)) {
     throw new Error(`Plattform nicht unterstuetzt: ${platform} (nur TikTok/Instagram)`);
   }
@@ -284,6 +300,8 @@ async function transcribeVideoOnPage({
 module.exports = {
   TRANSCRIBABLE_PLATFORMS,
   WHISPER_ATTEMPTS,
+  cloudflareCredentials,
+  fingerprint,
   isTranscribablePlatform,
   isWhisperAuthError,
   isRetryableWhisperAuth,

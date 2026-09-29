@@ -11,7 +11,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const { detectPlatform } = require('./screenshot-utils/constants');
 const { launchBrowser, setupPage } = require('./screenshot-utils/browser-setup');
-const { transcribeVideoOnPage, isTranscribablePlatform } = require('./_shared/video-transcribe');
+const { transcribeVideoOnPage, isTranscribablePlatform, cloudflareCredentials } = require('./_shared/video-transcribe');
 const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 
 /**
@@ -65,8 +65,7 @@ exports.handler = async (event) => {
 
   const supabaseUrl = process.env.SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_KEY;
-  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-  const aiToken = process.env.CLOUDFLARE_AI_TOKEN;
+  const { accountId, aiToken } = cloudflareCredentials();
 
   if (!supabaseUrl || !supabaseKey) {
     console.error('Supabase config missing');

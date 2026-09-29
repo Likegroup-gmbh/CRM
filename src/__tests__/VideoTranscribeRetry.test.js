@@ -6,7 +6,9 @@ const {
   isWhisperAuthError,
   isRetryableWhisperAuth,
   whisperFehler,
-  withWhisperRetry
+  withWhisperRetry,
+  cloudflareCredentials,
+  fingerprint
 } = require('../../netlify/functions/_shared/video-transcribe.js');
 const { verarbeitungAbschluss } = require('../../netlify/functions/_shared/verarbeitung-abschluss.js');
 
@@ -84,6 +86,31 @@ describe('withWhisperRetry', () => {
       throw err;
     }, { sleep: async () => {} })).rejects.toThrow(/audio too long/);
     expect(calls).toBe(1);
+  });
+});
+
+describe('cloudflareCredentials', () => {
+  it('entfernt Leerzeichen und Zeilenumbrueche aus den Netlify-Werten', () => {
+    const creds = cloudflareCredentials({
+      CLOUDFLARE_ACCOUNT_ID: '  acc-123\n',
+      CLOUDFLARE_AI_TOKEN: 'tok-456\r\n'
+    });
+    expect(creds).toEqual({ accountId: 'acc-123', aiToken: 'tok-456' });
+  });
+
+  it('liefert leere Strings, wenn nichts gesetzt ist', () => {
+    expect(cloudflareCredentials({})).toEqual({ accountId: '', aiToken: '' });
+  });
+});
+
+describe('fingerprint', () => {
+  it('zeigt nur die letzten vier Zeichen und die Laenge', () => {
+    expect(fingerprint('abcdef1234567890')).toBe('…7890 (16 Zeichen)');
+  });
+
+  it('kennzeichnet leere Werte', () => {
+    expect(fingerprint('')).toBe('(leer)');
+    expect(fingerprint(undefined)).toBe('(leer)');
   });
 });
 

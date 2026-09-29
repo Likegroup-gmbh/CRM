@@ -18,7 +18,7 @@ const { launchBrowser, setupPage } = require('./screenshot-utils/browser-setup')
 const { handleInstagramPopups, takeInstagramScreenshot } = require('./screenshot-utils/platform-instagram');
 const { handleTikTokPopups, takeTikTokScreenshot } = require('./screenshot-utils/platform-tiktok');
 const { handleYouTubeInteraction, takeYouTubeScreenshot } = require('./screenshot-utils/platform-youtube');
-const { transcribeVideoOnPage, isTranscribablePlatform, buildNavigateUrl } = require('./_shared/video-transcribe');
+const { transcribeVideoOnPage, isTranscribablePlatform, buildNavigateUrl, cloudflareCredentials } = require('./_shared/video-transcribe');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
 const { shouldApplyKiBeschreibung } = require('./_shared/ki-beschreibung');
@@ -184,8 +184,7 @@ async function triggerNextPending(supabase, event, strategieId, currentItemId) {
 }
 
 exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) => {
-  const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-  const aiToken = process.env.CLOUDFLARE_AI_TOKEN;
+  const { accountId, aiToken } = cloudflareCredentials();
 
   const { itemId } = payload;
   if (!itemId) {
