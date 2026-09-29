@@ -18,7 +18,7 @@ const { launchBrowser, setupPage } = require('./screenshot-utils/browser-setup')
 const { handleInstagramPopups, takeInstagramScreenshot } = require('./screenshot-utils/platform-instagram');
 const { handleTikTokPopups, takeTikTokScreenshot } = require('./screenshot-utils/platform-tiktok');
 const { handleYouTubeInteraction, takeYouTubeScreenshot } = require('./screenshot-utils/platform-youtube');
-const { transcribeVideoOnPage, isTranscribablePlatform, buildNavigateUrl, cloudflareCredentials } = require('./_shared/video-transcribe');
+const { transcribeVideoOnPage, isTranscribablePlatform, buildNavigateUrl, cloudflareCredentials, fingerprint, PIPELINE_BUILD } = require('./_shared/video-transcribe');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { starteKiRequest } = require('./_shared/ki-log');
 const { shouldApplyKiBeschreibung } = require('./_shared/ki-beschreibung');
@@ -276,6 +276,9 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
       tracker.attachJob(job.id);
       tracker.updateItem({ transcription_job_id: job.id });
     }
+    const creds = cloudflareCredentials();
+    tracker.log(`Build ${PIPELINE_BUILD} | Cloudflare: Account ${fingerprint(creds.accountId)}, Token ${fingerprint(creds.aiToken)}`);
+    await tracker.flushJob({});
 
     // KI-Aufrufe (Whisper/Llama) zaehlen: Frequenz-Limit + Protokoll-Zeile.
     // Bei Limit das Item offen lassen und die Kette stoppen - spaeter
@@ -306,6 +309,10 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
         onStep: (step, msg) => tracker.step(step, msg),
         onLog: (msg) => tracker.log(msg),
         onCaption: (caption) => tracker.flushItem({ caption }),
+        onTranscript: (transcript, source) => tracker.flushItem({
+          transkript: transcript,
+          transkript_quelle: source
+        }),
         onVideoData: (videoData) => {
           if (videoData.durationSeconds) tracker.updateJob({ duration_seconds: videoData.durationSeconds });
         },
@@ -340,8 +347,13 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload, event }) =
         completed_at: new Date().toISOString()
       });
     } catch (e) {
-      transcriptError = e.message;
-      tracker.log(`FEHLER Transkription: ${e.message}`);
+      if (e.descriptionFailed) {
+        beschreibungFehler = e.message;
+        tracker.log(`Beschreibung fehlgeschlagen: ${e.message}`);
+      } else {
+        transcriptError = e.message;
+        tracker.log(`FEHLER Transkription: ${e.message}`);
+      }
       await ki?.fehlgeschlagen(e);
       await tracker.flushJob({
         status: 'error',

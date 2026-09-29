@@ -23,6 +23,8 @@ const WHISPER_MODEL = '@cf/openai/whisper-large-v3-turbo';
 const LLM_MODEL = '@cf/meta/llama-3.1-8b-instruct';
 const WHISPER_ATTEMPTS = 3;
 const WHISPER_RETRY_MS = 1000;
+/** Steht im Job-Log. Fehlt die Zeile, laeuft ein aelterer Function-Build. */
+const PIPELINE_BUILD = '20260929b';
 
 function isWhisperAuthError(status, message) {
   if (Number(status) === 401) return true;
@@ -207,6 +209,8 @@ async function collectVideoData({ page, platform, navigateUrl, onStep = () => {}
  * @param {Function} [opts.onVideoData]    (videoData) sobald die Metadaten stehen
  * @param {Function} [opts.onCaption]      (caption) sobald die Post-Caption da ist,
  *                                         noch vor Whisper
+ * @param {Function} [opts.onTranscript]   (transcript, source) sobald das Transkript
+ *                                         steht, noch vor der Llama-Beschreibung
  * @param {Function} [opts.releaseBrowser] Wird aufgerufen, sobald der Browser nicht
  *                                         mehr gebraucht wird (Whisper laeuft remote)
  */
@@ -220,6 +224,7 @@ async function transcribeVideoOnPage({
   onLog = () => {},
   onVideoData = () => {},
   onCaption = () => {},
+  onTranscript = () => {},
   releaseBrowser = null
 }) {
   if (!accountId || !aiToken) {
@@ -278,8 +283,18 @@ async function transcribeVideoOnPage({
     throw new Error('Transkript ist leer (Video ohne Sprache?)');
   }
 
+  await onTranscript(transcript, transcriptSource);
+
   onStep('description', 'Beschreibung generieren (Llama 3.1)...');
-  const description = await runDescription(transcript, videoData.caption, accountId, aiToken);
+  let description;
+  try {
+    description = await runDescription(transcript, videoData.caption, accountId, aiToken);
+  } catch (e) {
+    onLog(`Beschreibung fehlgeschlagen: ${e.message}`);
+    const err = new Error(e.message);
+    err.descriptionFailed = true;
+    throw err;
+  }
 
   return {
     transcript,
@@ -300,6 +315,7 @@ async function transcribeVideoOnPage({
 module.exports = {
   TRANSCRIBABLE_PLATFORMS,
   WHISPER_ATTEMPTS,
+  PIPELINE_BUILD,
   cloudflareCredentials,
   fingerprint,
   isTranscribablePlatform,

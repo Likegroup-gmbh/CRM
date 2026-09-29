@@ -11,7 +11,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const { detectPlatform } = require('./screenshot-utils/constants');
 const { launchBrowser, setupPage } = require('./screenshot-utils/browser-setup');
-const { transcribeVideoOnPage, isTranscribablePlatform, cloudflareCredentials } = require('./_shared/video-transcribe');
+const { transcribeVideoOnPage, isTranscribablePlatform, cloudflareCredentials, fingerprint, PIPELINE_BUILD } = require('./_shared/video-transcribe');
 const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 
 /**
@@ -121,6 +121,7 @@ exports.handler = async (event) => {
 
     job.update({ status: 'processing', platform });
     job.step('browser', `Start: ${platform} - ${url}`);
+    job.log(`Build ${PIPELINE_BUILD} | Cloudflare: Account ${fingerprint(accountId)}, Token ${fingerprint(aiToken)}`);
     job.log('Browser mit Stealth Mode starten...');
 
     // Desktop-UA erzwingen ('other'): Instagram zeigt mit Mobile-UA nur eine
