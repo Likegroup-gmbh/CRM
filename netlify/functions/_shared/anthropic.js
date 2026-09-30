@@ -7,6 +7,7 @@
 //   ANTHROPIC_MODEL_EXTRACT    (Default: claude-haiku-4-5) - Webseiten-Extraktion (site-extract)
 //   ANTHROPIC_MODEL_EXTRACT_PRODUKT (Default: claude-sonnet-4-5) - Produktseiten: mehr Felder, mehr Interpretation
 //   ANTHROPIC_MODEL_EXTRACT_BRIEFING (Default: claude-sonnet-4-5) - Kundenbriefing-PDF: viele Felder, Mapping
+//   ANTHROPIC_MODEL_EXTRACT_RECHNUNG (Default: claude-sonnet-4-5) - Creator-Rechnungs-PDF: Betraege, Datum, Steuer
 //   ANTHROPIC_MODEL_PERSONA    (Default: claude-sonnet-4-5) - Persona-Vorschlaege aus dem Produkt
 //   ANTHROPIC_MODEL_KONZEPT    (Default: claude-sonnet-4-5) - Videoideen im Konzept
 
@@ -20,6 +21,7 @@ const MODELS = {
   extract: process.env.ANTHROPIC_MODEL_EXTRACT || 'claude-haiku-4-5',
   extract_produkt: process.env.ANTHROPIC_MODEL_EXTRACT_PRODUKT || 'claude-sonnet-4-5',
   extract_briefing: process.env.ANTHROPIC_MODEL_EXTRACT_BRIEFING || 'claude-sonnet-4-5',
+  extract_rechnung: process.env.ANTHROPIC_MODEL_EXTRACT_RECHNUNG || 'claude-sonnet-4-5',
   persona: process.env.ANTHROPIC_MODEL_PERSONA || 'claude-sonnet-4-5',
   casting: process.env.ANTHROPIC_MODEL_CASTING || 'claude-sonnet-4-5',
   konzept: process.env.ANTHROPIC_MODEL_KONZEPT || 'claude-sonnet-4-5'

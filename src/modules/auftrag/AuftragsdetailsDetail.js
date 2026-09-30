@@ -400,6 +400,13 @@ export class AuftragsdetailsDetail {
           </div>
         </div>
 
+        ${canViewInternalBudget && d.abrechnung_hinweis ? `
+        <div class="notice-box notice-info">
+          <strong>Abrechnungshinweis (intern)</strong>
+          ${sanitize(d.abrechnung_hinweis)}
+        </div>
+        ` : ''}
+
         <!-- Kategorien-Übersicht Tabelle -->
         ${this.renderKategorienTable()}
 

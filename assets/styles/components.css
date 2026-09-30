@@ -810,6 +810,38 @@ h3.section-title,
   color: var(--color-info);
 }
 
+/* Rechnungs-PDF-Auslesung (ADR 0016): Upload-Karte ueber dem Anlege-Formular */
+
+.rechnung-extract-card {
+  margin-bottom: var(--space-lg);
+}
+
+.rechnung-extract-drop {
+  cursor: pointer;
+}
+
+.rechnung-extract-drop.is-dragover {
+  border-color: var(--color-primary, #4a7dff);
+  background: var(--color-info-light);
+}
+
+.rechnung-extract-status:empty,
+#rechnung-koop-vorschlag:empty {
+  display: none;
+}
+
+.rechnung-extract-status .notice-box,
+.rechnung-koop-vorschlag-box {
+  margin-top: var(--space-sm);
+  margin-bottom: 0;
+}
+
+.rechnung-koop-vorschlag-actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-sm);
+}
+
 /* Segmented Control fuer Rechnungstyp-Auswahl */
 
 .rechnung-type-switcher {

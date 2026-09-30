@@ -19,13 +19,14 @@ export const rechnungConfig = {
     // Status & Datum
     { name: 'status', label: 'Status', type: 'select', required: true, options: ['Offen', 'Rückfrage', 'Bezahlt', 'An Qonto gesendet', 'Marc an Qonto gesendet'], section: 'status', row: 'statusrow' },
     { name: 'geprueft', label: 'Geprüft', type: 'toggle', required: false, section: 'status', row: 'statusrow' },
+    { name: 'ist_schlussrechnung', label: 'Schlussrechnung', type: 'toggle', required: false, defaultValue: false, helpText: 'Letzte Rechnung zu dieser Kooperation — ein offener Restbetrag gilt als Minderabrechnung, die Kooperation ist damit abgerechnet.', section: 'status' },
     { name: 'gestellt_am', label: 'Gestellt am', type: 'date', required: true, section: 'status', row: 'datumrow' },
     { name: 'zahlungsziel', label: 'Zahlungsziel', type: 'date', required: true, section: 'status', row: 'datumrow' },
     { name: 'bezahlt_am', label: 'Bezahlt am', type: 'date', required: false, section: 'status' },
     // Eingabefelder
     { name: 'nettobetrag', label: 'Betrag (Netto)', type: 'number', required: true, validation: { type: 'number', min: 0 }, section: 'betraege', row: 'betragrow' },
     { name: 'zusatzkosten', label: 'Zusatzkosten', type: 'number', required: false, validation: { type: 'number', min: 0 }, section: 'betraege', row: 'betragrow' },
-    { name: 'ksk_betrag', label: 'KSK-Aufschlag (Selbstzahler)', type: 'number', required: false, readonly: true, validation: { type: 'number', min: 0 }, helpText: 'Aus der Kooperation übernommen – der Creator zahlt die KSK selbst. Teil der USt-Basis.', section: 'betraege' },
+    { name: 'ksk_betrag', label: 'KSK-Aufschlag (Selbstzahler)', type: 'number', required: false, validation: { type: 'number', min: 0 }, helpText: 'Nur ausfüllen, wenn der Creator die KSK auf seiner Rechnung ausweist (Selbstzahler). KSK (4,9 %) darf nur auf die Creator-Leistung berechnet werden — Agenturleistung muss separat ausgewiesen sein. Teil der USt-Basis.', section: 'betraege' },
     { name: 'nettobetrag_steuerfrei', label: 'Steuerfreier Betrag (0% USt)', type: 'number', required: false, validation: { type: 'number', min: 0 }, helpText: 'Für Anteile der Rechnung ohne Umsatzsteuer – wird zum Bruttobetrag addiert, aber nicht besteuert.', section: 'betraege', row: 'steuerfreirow' },
     { name: 'zusatzkosten_brutto', label: 'Zusatzkosten als Brutto (inkl. USt)', type: 'toggle', required: false, defaultValue: false, helpText: 'Aktivieren, wenn die Zusatzkosten bereits die USt enthalten (durchlaufender Posten)', section: 'betraege', row: 'togglerow' },
     { name: 'ust_aktiv', label: 'Umsatzsteuer berechnen', type: 'toggle', required: false, defaultValue: true, helpText: 'Ausschalten, wenn der Creator keine Umsatzsteuer ausweist', section: 'betraege', row: 'togglerow' },

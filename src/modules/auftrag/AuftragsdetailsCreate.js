@@ -227,7 +227,13 @@ export class AuftragsdetailsCreateController {
             kampagnenField.value = auftrag.kampagnenanzahl;
             kampagnenField.style.backgroundColor = '#f5f5f5';
           }
-          
+
+          // 4b. Abrechnungshinweis (ADR 0015) vorausfüllen
+          const hinweisField = document.getElementById('abrechnung_hinweis');
+          if (hinweisField) {
+            hinweisField.value = details.abrechnung_hinweis || '';
+          }
+
           // 5. Kampagnenart-Selection Section anzeigen
           const selectionSection = document.getElementById('kampagnenart-selection-section');
           if (selectionSection) {

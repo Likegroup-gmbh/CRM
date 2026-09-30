@@ -78,7 +78,8 @@ export class ProjektErstellenWizard {
         percentage_fee_base: 'total_budget',
         ksk_enabled: false,
         ksk_type: 'fixed',
-        ksk_value: 0
+        ksk_value: 0,
+        abrechnung_hinweis: ''
       },
       kampagne: {},
       kampagnen: [],

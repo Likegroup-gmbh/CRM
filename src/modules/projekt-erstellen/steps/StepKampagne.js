@@ -45,6 +45,7 @@ export class StepKampagne {
     this.host = host;
     const a = this.wizard.formData.auftrag || {};
     this._syncFromParents();
+    const d = this.wizard.formData.details || {};
 
     host.innerHTML = `
       <div class="form-section projekt-erstellen-section-stack">
@@ -63,6 +64,15 @@ export class StepKampagne {
         </div>
 
         <div id="pe-agency-host"></div>
+
+        <div class="projekt-erstellen-subsection">
+          <h5 class="section-subtitle">Abrechnung</h5>
+          <div class="form-field">
+            <label for="field-pe-abrechnung_hinweis">Abrechnungshinweis (Zusatzkosten/Honorar)</label>
+            <textarea id="field-pe-abrechnung_hinweis" rows="2" placeholder="z. B. „Programmteilnahmen laufen über das Honorar, Reisekosten separat als Zusatzkosten"">${this.escape(d.abrechnung_hinweis)}</textarea>
+            <small class="form-hint">Nur für die interne Übersicht — erscheint nicht im Angebot oder anderen Kunden-Dokumenten. Nur füllen bei Ausnahmen vom Standard (Zusatzkosten separat ausgewiesen). Wird beim Anlegen von Creator-Rechnungen zu diesem Projekt eingeblendet.</small>
+          </div>
+        </div>
 
       </div>
     `;
@@ -350,6 +360,12 @@ export class StepKampagne {
     );
 
     this._mountAgency();
+
+    document.getElementById('field-pe-abrechnung_hinweis')?.addEventListener('input', (e) => {
+      if (!this.wizard.formData.details) this.wizard.formData.details = {};
+      this.wizard.formData.details.abrechnung_hinweis = e.target.value;
+      this.wizard.onFormDataChange();
+    });
   }
 
   _mountAgency() {
@@ -400,6 +416,11 @@ export class StepKampagne {
     const agencyData = this.agencyBlock ? this.agencyBlock.getValue() : {};
     const blocks = flattenCampaignBlocks(this.wizard.formData);
 
+    const hinweisInput = document.getElementById('field-pe-abrechnung_hinweis');
+    const abrechnungHinweis = hinweisInput
+      ? (hinweisInput.value.trim() || null)
+      : (this.wizard.formData.details?.abrechnung_hinweis || null);
+
     return {
       auftrag: {
         titel,
@@ -410,7 +431,8 @@ export class StepKampagne {
         ...agencyData,
         campaign_blocks: blocks,
         campaign_type: getCampaignTypesFromBlocks(blocks),
-        campaign_budgets: aggregateCampaignBlocksForLegacy(blocks)
+        campaign_budgets: aggregateCampaignBlocksForLegacy(blocks),
+        abrechnung_hinweis: abrechnungHinweis
       },
       kampagne: {},
       kampagnen: this.wizard.formData.kampagnen || []

@@ -53,6 +53,7 @@ export default {
       vor_ort_mitarbeiter_verkaufspreis_netto_bis: 'number',
       gesamt_videos: 'number',
       gesamt_creator: 'number',
+      abrechnung_hinweis: 'text',
       created_by_id: 'uuid'
     },
     relations: {

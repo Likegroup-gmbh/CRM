@@ -192,6 +192,7 @@ export class ProjektErstellenPersistence {
       ksk_enabled: !!d.ksk_enabled,
       ksk_type: d.ksk_type || 'fixed',
       ksk_value: d.ksk_value ?? 0,
+      abrechnung_hinweis: this.normalizeTextValue(d.abrechnung_hinweis),
       ...budgetColumns
     };
   }
