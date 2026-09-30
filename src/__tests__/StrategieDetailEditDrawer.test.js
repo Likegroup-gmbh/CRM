@@ -209,7 +209,8 @@ describe('Videoidee-Drawer', () => {
     expect(document.querySelector('.videoidee-doc__shot')?.tagName).toBe('DIV');
     expect(document.querySelector('.videoidee-props .strategie-umgesetzt-state, .videoidee-props [data-field="video_umgesetzt"]')).toBeTruthy();
     expect(document.querySelector('.videoidee-drawer__header [data-videoidee-prio]')).toBeNull();
-    expect(document.querySelector('[data-videoidee-section="anmerkung"]')).toBeTruthy();
+    expect(document.querySelector('[data-videoidee-section="anmerkung"]')).toBeNull();
+    expect(document.querySelector('[data-videoidee-section="kundenadaption"]')).toBeNull();
     expect(document.querySelector('.videoidee-drawer__footer').textContent).not.toContain('Anmerkung');
   });
 
@@ -358,6 +359,36 @@ describe('Videoidee-Drawer', () => {
     expect(document.querySelector('[data-action="verwerfen-vorschlag"]')).toBeTruthy();
     expect(document.querySelector('#edit-item-drawer textarea[data-field="beschreibung"]')).toBeNull();
     expect(document.querySelector('[data-videoidee-section="beschreibung"]').textContent).toContain('Sandwich');
+    expect(document.querySelector('[data-videoidee-section="anmerkung"]')).toBeNull();
+    expect(document.querySelector('[data-videoidee-section="kundenadaption"]')).toBeNull();
+  });
+
+  it('setzt Leerzeilen zwischen den Beschreibungs-Labels', () => {
+    open([{
+      id: 'i1',
+      ist_vorschlag: true,
+      video_link: null,
+      beschreibung: 'Titel\nPain Point: Müde\nHook: Aufwachen\nKernbotschaft: Kaffee\nAblauf: Trinken'
+    }]);
+
+    expect(document.querySelector('.videoidee-doc__prose').textContent).toBe([
+      'Titel',
+      'Pain Point: Müde',
+      'Hook: Aufwachen',
+      'Kernbotschaft: Kaffee',
+      'Ablauf: Trinken'
+    ].join('\n\n'));
+  });
+
+  it('zeigt Kundenadaption und Anmerkung nur mit Video-Link oder vorhandenem Text', () => {
+    open([{ id: 'i1', video_link: null, beschreibung: 'Idee', kunde_anmerkung: 'Passt' }]);
+    expect(document.querySelector('[data-videoidee-section="anmerkung"]').textContent).toContain('Passt');
+    expect(document.querySelector('[data-videoidee-section="kundenadaption"]')).toBeNull();
+
+    removeEditItemDrawer();
+    open([{ id: 'i1', video_link: 'https://tiktok.com/x', beschreibung: 'Ref' }]);
+    expect(document.querySelector('[data-videoidee-section="anmerkung"]')).toBeTruthy();
+    expect(document.querySelector('[data-videoidee-section="kundenadaption"]')).toBeTruthy();
   });
 
   it('blendet leere Inhaltsabschnitte fuer den Kunden aus', () => {
@@ -369,7 +400,7 @@ describe('Videoidee-Drawer', () => {
     expect(document.querySelector('[data-videoidee-section="beschreibung"]')).toBeNull();
     expect(document.querySelector('[data-videoidee-section="umsetzungsvorgabe"]')).toBeNull();
     expect(document.querySelector('[data-videoidee-section="kundenadaption"]').textContent).toContain('So laeuft es');
-    expect(document.querySelector('[data-field="kunde_anmerkung"]')).toBeTruthy();
+    expect(document.querySelector('[data-videoidee-section="anmerkung"]')).toBeNull();
   });
 
   it('schaltet mit Weiter zur naechsten Videoidee', async () => {

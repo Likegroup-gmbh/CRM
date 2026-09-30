@@ -14,7 +14,7 @@ import {
 } from './StrategieDetailTableEvents.js';
 import { resolveVideoideeForm } from './addItemPayload.js';
 import { getPlatformIcon, groupItemsByTeilbereich, renderSkriptFreigabeStatus } from './StrategieDetailRenderer.js';
-import { splitVideoideeVorschlaege, isVideoideeVorschlag } from './videoideeVorschlag.js';
+import { splitVideoideeVorschlaege, isVideoideeVorschlag, beschreibungMitAbsaetzen } from './videoideeVorschlag.js';
 import { STRATEGIE_PRIO_OPTIONS, getStrategiePrio } from './strategiePrioOptions.js';
 import { renderTableSelect, tableSelectDisabled, tableSelect } from '../../core/components/TableSelect.js';
 import { renderCustomField } from '../../core/customColumns/EntityCustomColumnRenderer.js';
@@ -148,9 +148,14 @@ function collapsibleSection(name, title, body) {
   `;
 }
 
+function fieldText(item, field) {
+  const raw = item[field] || '';
+  return field === 'beschreibung' ? beschreibungMitAbsaetzen(raw) : raw;
+}
+
 function proseOrField(detail, item, field, placeholder) {
   const editable = contentEditable(detail, item);
-  const value = item[field] || '';
+  const value = fieldText(item, field);
   if (!editable) {
     return `<div class="videoidee-doc__prose">${escapeHtml(value) || '–'}</div>`;
   }
@@ -443,13 +448,18 @@ function visibleCustomColumns(detail) {
   });
 }
 
+function renderKundenadaption(detail, item) {
+  if (!item.video_link && !hasText(item.kundenadaption)) return '';
+  return renderTextSection(detail, item, 'kundenadaption', 'Kundenadaption', 'kundenadaption', 'Kundenadaption...');
+}
+
 function renderBody(detail, item) {
   return [
     renderKopf(detail, item),
     renderTextSection(detail, item, 'beschreibung', 'Beschreibung', 'beschreibung', 'Beschreibung...'),
     renderTranskript(detail, item),
     renderUmsetzungsvorgabe(detail, item),
-    renderTextSection(detail, item, 'kundenadaption', 'Kundenadaption', 'kundenadaption', 'Kundenadaption...'),
+    renderKundenadaption(detail, item),
     renderAnmerkung(detail, item),
     renderCaption(detail, item)
   ].join('');
@@ -474,6 +484,7 @@ function renderUmsetzen(detail, item) {
 }
 
 function renderAnmerkung(detail, item) {
+  if (!item.video_link && !hasText(item.kunde_anmerkung)) return '';
   const editable = anmerkungEditable(detail, item);
   const meta = item.kunde_anmerkung && item.kunde_anmerkung_author_name
     ? `<div class="feedback-author-meta">${escapeHtml(item.kunde_anmerkung_author_name)}${item.kunde_anmerkung_updated_at ? ` · ${new Date(item.kunde_anmerkung_updated_at).toLocaleDateString('de-DE')}` : ''}</div>`
@@ -967,7 +978,7 @@ function patchFields(panel, item) {
     if (!field || field === 'strategie_prio' || !(field in item)) return;
     const tag = el.tagName;
     if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') return;
-    const value = field === 'teilbereich' ? (item.teilbereich || '') : item[field];
+    const value = field === 'teilbereich' ? (item.teilbereich || '') : fieldText(item, field);
     if (el.type === 'checkbox') el.checked = !!value;
     else el.value = value ?? '';
     el.dataset.videoideeSaved = fieldSignature(el);

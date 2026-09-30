@@ -16,6 +16,19 @@ export function beschreibungErstzeile(text) {
   return s.split('\n')[0].trim();
 }
 
+const BESCHREIBUNG_LABELS = ['Pain Point:', 'Hook:', 'Kernbotschaft:', 'Ablauf:'];
+
+/** Leerzeile vor den festen Labels, wenn davor nur ein einzelner Umbruch steht. */
+export function beschreibungMitAbsaetzen(text) {
+  let s = String(text || '').replace(/\r\n/g, '\n').trim();
+  if (!s) return '';
+  for (const label of BESCHREIBUNG_LABELS) {
+    const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    s = s.replace(new RegExp(`([^\\n])\\n(${escaped})`, 'g'), '$1\n\n$2');
+  }
+  return s;
+}
+
 export function countVideoideeVorschlaege(items) {
   return (items || []).filter(isVideoideeVorschlag).length;
 }

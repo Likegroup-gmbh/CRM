@@ -2067,9 +2067,9 @@ thead {
 }
 
 .creator-pool-table .cp-col-notiz {
-  width: clamp(150px, 17.5vw, 228px);
-  min-width: 150px;
-  max-width: 228px;
+  width: clamp(225px, 26.25vw, 342px);
+  min-width: 225px;
+  max-width: 342px;
 }
 
 .creator-pool-table td.cp-col-notiz {

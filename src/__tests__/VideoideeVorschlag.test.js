@@ -4,6 +4,7 @@ import { renderItemRow, renderItemsTable, reorderStrategieItemsByKategorien } fr
 import {
   isVideoideeVorschlag,
   beschreibungErstzeile,
+  beschreibungMitAbsaetzen,
   splitVideoideeVorschlaege,
   VIDEOIDEE_VORSCHLAG_ERROR
 } from '../modules/strategie/videoideeVorschlag.js';
@@ -67,11 +68,27 @@ describe('beschreibungErstzeile / formatBeschreibung', () => {
       kernbotschaft: 'Protein zum Frühstück',
       ablauf: 'Aufwachen, Mix, Trinken'
     });
-    expect(text.startsWith('Morgens ohne Kaffee')).toBe(true);
-    expect(text).toContain('Pain Point: Kein Kick');
-    expect(text).toContain('Hook: Ich bin 11 und fertig');
-    expect(text).toContain('Kernbotschaft: Protein zum Frühstück');
-    expect(text).toContain('Ablauf: Aufwachen, Mix, Trinken');
+    expect(text).toBe([
+      'Morgens ohne Kaffee',
+      'Pain Point: Kein Kick',
+      'Hook: Ich bin 11 und fertig',
+      'Kernbotschaft: Protein zum Frühstück',
+      'Ablauf: Aufwachen, Mix, Trinken'
+    ].join('\n\n'));
+  });
+
+  it('setzt Leerzeilen vor die Labels und laesst gesetzte stehen', () => {
+    const eng = 'Titel\nPain Point: x\nHook: y\nKernbotschaft: z\nAblauf: a';
+    const weit = beschreibungMitAbsaetzen(eng);
+    expect(weit).toBe([
+      'Titel',
+      'Pain Point: x',
+      'Hook: y',
+      'Kernbotschaft: z',
+      'Ablauf: a'
+    ].join('\n\n'));
+    expect(beschreibungMitAbsaetzen(weit)).toBe(weit);
+    expect(beschreibungErstzeile(weit)).toBe('Titel');
   });
 });
 

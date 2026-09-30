@@ -67,16 +67,14 @@ function erstzeile(text) {
 }
 
 function formatBeschreibung({ titel, pain_point, hook, kernbotschaft, ablauf } = {}) {
-  const kopf = String(titel || '').trim();
-  const zeilen = [
-    kopf,
-    '',
-    pain_point ? `Pain Point: ${String(pain_point).trim()}` : null,
-    hook ? `Hook: ${String(hook).trim()}` : null,
-    kernbotschaft ? `Kernbotschaft: ${String(kernbotschaft).trim()}` : null,
-    ablauf ? `Ablauf: ${String(ablauf).trim()}` : null
-  ].filter((z) => z !== null);
-  return zeilen.join('\n').trim();
+  const bloecke = [
+    String(titel || '').trim(),
+    pain_point ? `Pain Point: ${String(pain_point).trim()}` : '',
+    hook ? `Hook: ${String(hook).trim()}` : '',
+    kernbotschaft ? `Kernbotschaft: ${String(kernbotschaft).trim()}` : '',
+    ablauf ? `Ablauf: ${String(ablauf).trim()}` : ''
+  ].filter(Boolean);
+  return bloecke.join('\n\n');
 }
 
 function fmtProdukt(p) {
