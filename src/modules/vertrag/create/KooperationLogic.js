@@ -183,20 +183,9 @@ VertraegeCreate.prototype.renderKooperationSelect = function() {
     `;
 };
 
-// Toggle "Mehrere Rechnungen erlaubt" fuer kooperationsbasierte Vertragstypen.
-// Schaltet die Kooperation im Rechnung-Formular auch nach der ersten Rechnung frei
-// (siehe loadKooperationenOhneRechnung in FieldOptionsLoader.js).
-VertraegeCreate.prototype.renderMehrfachRechnungToggle = function() {
-    return `
-      <div class="form-field">
-        <label class="checkbox-label">
-          <input type="checkbox" id="mehrere_rechnungen_erlaubt" name="mehrere_rechnungen_erlaubt" value="true"
-                 ${this.formData.mehrere_rechnungen_erlaubt ? 'checked' : ''}>
-          <span>Dieser Vertrag kann mehrere Rechnungen beinhalten</span>
-        </label>
-      </div>
-    `;
-};
+// Der Toggle "Mehrere Rechnungen erlaubt" ist mit ADR 0004/0015 entfallen:
+// die Freigabe fuer weitere Rechnungen ergibt sich aus dem Restbetrag,
+// nicht mehr aus einem Vertrags-Flag.
 
 VertraegeCreate.prototype.applyKooperationVerguetung = function(kooperationId) {
     if (!kooperationId) return;
