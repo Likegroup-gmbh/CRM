@@ -277,7 +277,8 @@ export function skriptDocHtml({
   zeigeHookVarianten = false
 }) {
   const extraMd = skript.inhalt_md ? zusatzInfosMarkdown(skript.inhalt_md) : '';
-  const showExtra = hatZusatzInfos(skript.inhalt_md);
+  const pruefung = pruefungHtml(skript);
+  const showExtra = hatZusatzInfos(skript.inhalt_md) || Boolean(pruefung);
   const showGrid = hatGridInhalt(skript);
 
   if (istMasterSkript(skript) && !showGrid) {
@@ -294,7 +295,6 @@ export function skriptDocHtml({
   return `
     ${docHeadHtml(skript, docHeadActionsHtml, 'Skript')}
     ${titelZelleHtml(skript)}
-    ${pruefungHtml(skript)}
     ${vorgabenPanelHtml}
     ${showExtra ? docTabsHtml(activeTab) : ''}
     <div class="skripte-editor-doc-panel" data-editor-tab-panel="skript"${activeTab === 'zusatz' ? ' hidden' : ''}>
@@ -303,6 +303,7 @@ export function skriptDocHtml({
     </div>
     ${showExtra ? `
     <div class="skripte-editor-doc-panel skripte-editor-doc-panel--zusatz" data-editor-tab-panel="zusatz"${activeTab === 'skript' ? ' hidden' : ''}>
+      ${pruefung}
       <div class="skripte-editor-doc-box skripte-editor-doc-box--md">
         ${renderMasterMarkdownHtml(extraMd, escapeHtml, { feld: null })}
       </div>

@@ -248,8 +248,11 @@ describe('SkriptEditorView Layout', () => {
     await view.render(container, 's1');
 
     expect(document.querySelector('.skripte-editor-festlegungen').textContent).toContain('nur ein Creator');
-    expect(container.querySelector('.skripte-editor-pruefung').textContent).toContain('90 Wörter');
-    expect(container.querySelector('.skripte-editor-pruefung').textContent).toContain('heilt alles');
+    const zusatzPanel = container.querySelector('[data-editor-tab-panel="zusatz"]');
+    expect(zusatzPanel).not.toBeNull();
+    expect(zusatzPanel.querySelector('.skripte-editor-pruefung').textContent).toContain('90 Wörter');
+    expect(zusatzPanel.querySelector('.skripte-editor-pruefung').textContent).toContain('heilt alles');
+    expect(container.querySelector('[data-editor-tab-panel="skript"] .skripte-editor-pruefung')).toBeNull();
 
     document.querySelector('[data-msg-action="festlegung-loeschen"]').click();
     await new Promise((r) => setTimeout(r, 0));
