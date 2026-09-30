@@ -67,6 +67,49 @@ export function calculateKoopAbrechenbarkeit({ kooperationen = [], videos = [], 
   return ergebnis;
 }
 
+// Rechnungsstatus je Kooperation fuer die Auftragsdetails-Uebersicht
+// (ADR 0015): „Bezahlt" erst, wenn das Honorar-Soll per bezahlter Rechnung
+// erreicht ist oder eine bezahlte Schlussrechnung existiert (Minderabrechnung).
+// Bezahlte Betraege unter dem Soll werden als „Teilweise bezahlt" ausgewiesen,
+// statt alle Videos der Kooperation pauschal als bezahlt zu markieren.
+// Wie ueberall in ADR 0015 zaehlt nur das Honorar (netto + steuerfrei) —
+// KSK bleibt ein separates Konto. Ohne pruefbares Soll (soll <= 0) faellt
+// eine bezahlte Rechnung weich auf „Bezahlt" zurueck.
+// Rueckgabe: { koopId: status } — Kooperationen ohne Rechnung fehlen in der
+// Map, die UI zeigt dann „Nicht erstellt".
+export function buildKoopRechnungsStatusMap({ kooperationen = [], videos = [], rechnungen = [] } = {}) {
+  const abrechenbarkeit = calculateKoopAbrechenbarkeit({ kooperationen, videos, rechnungen });
+
+  const rechnungenByKoop = new Map();
+  rechnungen.forEach(r => {
+    if (!r.kooperation_id) return;
+    const list = rechnungenByKoop.get(r.kooperation_id) || [];
+    list.push(r);
+    rechnungenByKoop.set(r.kooperation_id, list);
+  });
+
+  const map = {};
+  rechnungenByKoop.forEach((list, koopId) => {
+    const bezahlt = list.filter(r => r.status === 'Bezahlt');
+    const bezahltHonorar = bezahlt.reduce((s, r) => s + betrag(r.nettobetrag) + betrag(r.nettobetrag_steuerfrei), 0);
+    const hatBezahlteSchlussrechnung = bezahlt.some(r => r.ist_schlussrechnung);
+    const soll = abrechenbarkeit.get(koopId)?.soll ?? 0;
+
+    if (hatBezahlteSchlussrechnung || (bezahltHonorar > 0 && (soll <= 0 || bezahltHonorar >= soll - 0.005))) {
+      map[koopId] = 'Bezahlt';
+    } else if (bezahltHonorar > 0) {
+      map[koopId] = 'Teilweise bezahlt';
+    } else {
+      // Keine bezahlte Rechnung: den Status der neuesten Rechnung zeigen
+      // (z. B. „Offen"), statt bei mehreren Rechnungen eine zufaellige.
+      const neueste = [...list].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))[0];
+      map[koopId] = neueste?.status || 'Offen';
+    }
+  });
+
+  return map;
+}
+
 export function calculateKoopFakturierung({
   kooperationen = [],
   videos = [],

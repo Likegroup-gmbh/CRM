@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateKoopAbrechenbarkeit } from '../core/budget/koopFakturierung.js';
+import { calculateKoopAbrechenbarkeit, buildKoopRechnungsStatusMap } from '../core/budget/koopFakturierung.js';
 
 // ADR 0004/0015: Der Kooperations-Selektor der Rechnungserstellung entscheidet
 // ueber den Restbetrag. fakturiert = nettobetrag + nettobetrag_steuerfrei
@@ -144,5 +144,120 @@ describe('calculateKoopAbrechenbarkeit', () => {
       rechnungen: [rechnung({ nettobetrag: 600, zusatzkosten: 100 })],
     });
     expect(map.get('k1').rest).toBe(400);
+  });
+});
+
+// ADR 0015: Der Rechnungsstatus in den Auftragsdetails kennt „Teilweise
+// bezahlt" — bezahltes Honorar unter dem Soll, statt alle Videos der
+// Kooperation pauschal als bezahlt zu markieren (Fall Sue Giers/CryoGlow:
+// 6.000 von 12.000 bezahlt, beide Videos zeigten „Bezahlt").
+describe('buildKoopRechnungsStatusMap', () => {
+  const koop = (over = {}) => ({
+    id: 'k1',
+    einkaufspreis_netto: 12000,
+    ...over,
+  });
+  const rechnung = (over = {}) => ({
+    kooperation_id: 'k1',
+    status: 'Offen',
+    nettobetrag: 0,
+    nettobetrag_steuerfrei: 0,
+    ksk_betrag: 0,
+    ist_schlussrechnung: false,
+    created_at: '2026-09-01',
+    ...over,
+  });
+
+  it('Kooperation ohne Rechnung fehlt in der Map (UI zeigt „Nicht erstellt")', () => {
+    const map = buildKoopRechnungsStatusMap({ kooperationen: [koop()], rechnungen: [] });
+    expect(map.k1).toBeUndefined();
+  });
+
+  it('unbezahlte Rechnung zeigt ihren eigenen Status', () => {
+    const map = buildKoopRechnungsStatusMap({
+      kooperationen: [koop()],
+      rechnungen: [rechnung({ nettobetrag: 6000, status: 'Offen' })],
+    });
+    expect(map.k1).toBe('Offen');
+  });
+
+  it('bei mehreren unbezahlten Rechnungen gewinnt die neueste', () => {
+    const map = buildKoopRechnungsStatusMap({
+      kooperationen: [koop()],
+      rechnungen: [
+        rechnung({ nettobetrag: 6000, status: 'Storniert', created_at: '2026-09-01' }),
+        rechnung({ nettobetrag: 6000, status: 'Offen', created_at: '2026-09-20' }),
+      ],
+    });
+    expect(map.k1).toBe('Offen');
+  });
+
+  it('teilbezahlte Kooperation (6.000 von 12.000) wird „Teilweise bezahlt"', () => {
+    const map = buildKoopRechnungsStatusMap({
+      kooperationen: [koop()],
+      rechnungen: [rechnung({ nettobetrag: 6000, status: 'Bezahlt' })],
+    });
+    expect(map.k1).toBe('Teilweise bezahlt');
+  });
+
+  it('voll bezahlte Kooperation wird „Bezahlt"', () => {
+    const map = buildKoopRechnungsStatusMap({
+      kooperationen: [koop()],
+      rechnungen: [
+        rechnung({ nettobetrag: 6000, status: 'Bezahlt' }),
+        rechnung({ nettobetrag: 6000, status: 'Bezahlt', created_at: '2026-09-25' }),
+      ],
+    });
+    expect(map.k1).toBe('Bezahlt');
+  });
+
+  it('bezahlte Schlussrechnung schliesst trotz Rest ab (Minderabrechnung)', () => {
+    const map = buildKoopRechnungsStatusMap({
+      kooperationen: [koop()],
+      rechnungen: [
+        rechnung({ nettobetrag: 6000, status: 'Bezahlt' }),
+        rechnung({ nettobetrag: 4000, status: 'Bezahlt', ist_schlussrechnung: true, created_at: '2026-09-25' }),
+      ],
+    });
+    expect(map.k1).toBe('Bezahlt');
+  });
+
+  it('unbezahlte Schlussrechnung schliesst nicht ab', () => {
+    const map = buildKoopRechnungsStatusMap({
+      kooperationen: [koop()],
+      rechnungen: [
+        rechnung({ nettobetrag: 6000, status: 'Bezahlt' }),
+        rechnung({ nettobetrag: 4000, status: 'Offen', ist_schlussrechnung: true, created_at: '2026-09-25' }),
+      ],
+    });
+    expect(map.k1).toBe('Teilweise bezahlt');
+  });
+
+  it('ohne pruefbares Soll faellt eine bezahlte Rechnung weich auf „Bezahlt"', () => {
+    const map = buildKoopRechnungsStatusMap({
+      kooperationen: [koop({ einkaufspreis_netto: null })],
+      rechnungen: [rechnung({ nettobetrag: 6000, status: 'Bezahlt' })],
+    });
+    expect(map.k1).toBe('Bezahlt');
+  });
+
+  it('KSK zaehlt nicht auf das bezahlte Honorar (separates Konto)', () => {
+    const map = buildKoopRechnungsStatusMap({
+      kooperationen: [koop({ einkaufspreis_netto: 6000 })],
+      rechnungen: [rechnung({ nettobetrag: 5700, ksk_betrag: 300, status: 'Bezahlt' })],
+    });
+    expect(map.k1).toBe('Teilweise bezahlt');
+  });
+
+  it('Soll folgt den Video-EK, wenn Videos gepflegt sind', () => {
+    const map = buildKoopRechnungsStatusMap({
+      kooperationen: [koop()],
+      videos: [
+        { kooperation_id: 'k1', einkaufspreis_netto: 6000 },
+        { kooperation_id: 'k1', einkaufspreis_netto: 6000 },
+      ],
+      rechnungen: [rechnung({ nettobetrag: 6000, status: 'Bezahlt' })],
+    });
+    expect(map.k1).toBe('Teilweise bezahlt');
   });
 });

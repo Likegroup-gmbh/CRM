@@ -1939,6 +1939,11 @@ h3.section-title,
   color: var(--green-800);
 }
 
+.status-teilweise-bezahlt {
+  background: var(--warning-bg);
+  color: #856404;
+}
+
 .status-erfolg {
   background: var(--green-50);
   color: var(--green-800);
