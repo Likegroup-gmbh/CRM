@@ -400,6 +400,13 @@ export class AuftragsdetailsDetail {
           </div>
         </div>
 
+        ${d.abrechnung_hinweis ? `
+        <div class="notice-box notice-info">
+          <strong>Abrechnungshinweis</strong>
+          ${sanitize(d.abrechnung_hinweis)}
+        </div>
+        ` : ''}
+
         <!-- Kategorien-Übersicht Tabelle -->
         ${this.renderKategorienTable()}
 

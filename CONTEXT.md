@@ -227,7 +227,7 @@ gekennzeichnet, damit die Buchhaltung nicht doppelt zahlt.
 _Avoid_: KSK-pflichtig (Contracting-Seite), KSK abgeführt
 
 **Abrechnungshinweis**:
-Freitext-Regelung auf dem Auftrag, wie Kosten abgerechnet werden, wenn sie vom Standard abweicht
+Freitext-Regelung in den Auftragsdetails, wie Kosten abgerechnet werden, wenn sie vom Standard abweicht
 (Zusatzkosten separat ausgewiesen). Wird beim Anlegen einer Creator-Rechnung eingeblendet.
 Beispiel Juniper: Programmteilnahmen laufen über das Honorar, Reisekosten bleiben Zusatzkosten.
 Bewusst Freitext, weil die Ausnahme pro Kostenart gilt, nicht pro Auftrag.

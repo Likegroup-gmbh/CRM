@@ -80,7 +80,6 @@ export const auftragConfig = {
     { name: 'ust_prozent', label: 'USt (%)', type: 'number', required: false, validation: { type: 'number', min: 0, max: 100 }, readonly: true, defaultValue: 19, section: 'finanzen' },
     { name: 'ust_betrag', label: 'USt Betrag', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['nettobetrag','ust_prozent'], section: 'finanzen' },
     { name: 'bruttobetrag', label: 'Brutto Gesamtbudget', type: 'number', required: false, validation: { type: 'number', min: 0 }, readonly: true, calculatedFrom: ['nettobetrag','ust_betrag'], section: 'finanzen' },
-    { name: 'abrechnung_hinweis', label: 'Abrechnungshinweis (Zusatzkosten/Honorar)', type: 'textarea', required: false, rows: 2, section: 'finanzen', helpText: 'Wird beim Anlegen von Creator-Rechnungen zu diesem Auftrag eingeblendet — z. B. „Programmteilnahmen laufen über das Honorar, Reisekosten separat als Zusatzkosten".' },
     // Überwiesen + Uploader ohne Section
     { name: 'ueberwiesen', label: 'Überwiesen', type: 'toggle', required: false },
     { name: 'ueberwiesen_am', label: 'Überwiesen am', type: 'date', required: false, placeholder: 'Datum wann Zahlung überwiesen wurde', dependsOn: 'ueberwiesen' },

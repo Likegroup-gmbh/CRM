@@ -557,7 +557,7 @@ export async function setup(form, ctx) {
         ? window.supabase.from('unternehmen').select('id, firmenname').eq('id', koop.unternehmen_id).single()
         : Promise.resolve({ data: null }),
       koop?.kampagne_id
-        ? window.supabase.from('kampagne').select('id, kampagnenname, eigener_name, auftrag_id, auftrag:auftrag_id(id, auftragsname, abrechnung_hinweis)').eq('id', koop.kampagne_id).single()
+        ? window.supabase.from('kampagne').select('id, kampagnenname, eigener_name, auftrag_id, auftrag:auftrag_id(id, auftragsname, auftrag_details(abrechnung_hinweis))').eq('id', koop.kampagne_id).single()
         : Promise.resolve({ data: null }),
       koop?.creator_id
         ? window.supabase.from('creator').select('id, vorname, nachname, umsatzsteuerpflichtig, ksk_selbstzahler, lieferadresse_land, rechnungsadresse_abweichend, rechnungsadresse_land').eq('id', koop.creator_id).single()
@@ -591,8 +591,8 @@ export async function setup(form, ctx) {
     }
     fillSelect(auftragField, auftragsId, auftragsName || (auftragsId ? 'Unbenannter Auftrag' : ''));
 
-    // Abrechnungshinweis des Auftrags einblenden (z.B. Juniper-Regelung)
-    updateAbrechnungHinweis(form, kampagneResult.data?.auftrag?.abrechnung_hinweis);
+    // Abrechnungshinweis aus den Auftragsdetails einblenden (z.B. Juniper-Regelung)
+    updateAbrechnungHinweis(form, kampagneResult.data?.auftrag?.auftrag_details?.[0]?.abrechnung_hinweis);
 
     if (!auftragsId && auftragField) {
       const container = auftragField.parentNode.querySelector('.searchable-select-container');

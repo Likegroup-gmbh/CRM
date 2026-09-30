@@ -29,7 +29,6 @@ export default {
       rechnung_gestellt_am: 'date',
       ueberwiesen: 'boolean',
       ueberwiesen_am: 'date',
-      abrechnung_hinweis: 'string',
       anzahl_teilrechnungen: 'number',
       created_by_id: 'uuid'
     },
