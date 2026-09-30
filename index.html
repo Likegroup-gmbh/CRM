@@ -36,7 +36,10 @@
   <div id="login-root"></div>
   <div id="app-root" class="page-wrapper" style="display: none;">
     <script>
-      if (localStorage.getItem('sidebar-collapsed') === 'true') {
+      // Gespeicherte Präferenz oder schmaler Viewport (Sidebar klappt bei
+      // ≤768px automatisch ein, siehe NavigationSystem._bindSidebarAutoCollapse)
+      if (localStorage.getItem('sidebar-collapsed') === 'true'
+          || window.matchMedia('(max-width: 768px)').matches) {
         document.currentScript.parentElement.classList.add('sidebar-collapsed');
       }
     </script>

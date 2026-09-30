@@ -77,29 +77,13 @@
 
 .stakeholder-cards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* Inhaltsgetrieben statt fixer Viewport-Breakpoints: auto-fit stapelt die
+     Kacheln, sobald eine Spalte schmaler als 276 px wuerde — die Breite, die
+     ein siebenstelliger Euro-Betrag in --text-xxxl samt Karten-Padding
+     braucht. So bricht kein Wert mehr aus der Kachel aus, bevor die Kacheln
+     umbrechen. min(100%, …) verhindert Overflow auf sehr schmalen Screens. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 276px), 1fr));
   gap: var(--space-md);
-}
-
-.stakeholder-cards--kalkulation,
-.stakeholder-cards--breakdown {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-@media (max-width: 1100px) {
-  .stakeholder-cards,
-  .stakeholder-cards--kalkulation,
-  .stakeholder-cards--breakdown {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 700px) {
-  .stakeholder-cards,
-  .stakeholder-cards--kalkulation,
-  .stakeholder-cards--breakdown {
-    grid-template-columns: 1fr;
-  }
 }
 
 .stakeholder-card {
@@ -227,6 +211,9 @@
 .stakeholder-card-breakdown-line {
   display: flex;
   justify-content: space-between;
+  /* Bei sehr schmalen Karten rutscht der Wert unter das Label, statt
+     ueber den Kartenrand hinauszulaufen. */
+  flex-wrap: wrap;
   gap: var(--space-sm);
   line-height: 1.6;
 }
@@ -259,6 +246,23 @@
 .stakeholder-card-foot {
   font-size: var(--text-xs);
   color: var(--text-secondary);
+}
+
+/* Gestapelte Kachel: zwei Kennzahlen untereinander in einer Karte */
+.stakeholder-card--stack {
+  gap: 0;
+}
+
+.stakeholder-card-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.stakeholder-card-block + .stakeholder-card-block {
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--border-primary);
 }
 
 /* Kundenliste */
@@ -338,6 +342,46 @@
 .stakeholder-table--kunden td:nth-child(2) {
   white-space: normal;
   min-width: 160px;
+}
+
+/* Kundenliste scrollt vertikal wie horizontal im eigenen Container. Die
+   max-height ist so bemessen, dass die Tabelle bei max. Seitenscroll mit
+   ~14 px Abstand unter der sticky Toolbar andockt (Kartenkopf laeuft
+   dabei unter die Toolbar). */
+.stakeholder-scroll-x--kunden {
+  overflow-y: auto;
+  max-height: calc(100vh - 140px);
+}
+
+/* Kopfzeile bleibt beim vertikalen Scrollen im Container stehen. top: -2px
+   laesst die Zelle 2 px ueber die Clip-Kante hinausragen (wird abgeschnitten),
+   damit durch Rundung keine 1-px-Zeile scrollenden Inhalts aufblitzt. */
+.stakeholder-scroll-x--kunden .stakeholder-table--kunden thead th {
+  position: sticky;
+  top: -2px;
+  z-index: 3;
+  background: var(--bg-primary);
+}
+
+/* Nur die Kunde-Spalte (2) dockt beim horizontalen Scrollen links an;
+   die #-Spalte laeuft darunter weg. Der negative left-Wert kompensiert
+   das horizontale Padding von .stakeholder-scroll-x: Die Zelle klebt an
+   dessen Padding-Kante statt an der Content-Kante, damit vorbeiscrollende
+   Spalten nicht als Textfragmente im Padding-Streifen durchblitzen. Die
+   zusaetzlichen 2 px ragen ueber die Clip-Kante hinaus (werden
+   abgeschnitten), damit durch Rundung keine 1-px-Spalte aufblitzt. */
+.stakeholder-table--kunden th:nth-child(2),
+.stakeholder-table--kunden td:nth-child(2) {
+  position: sticky;
+  left: calc(-1 * var(--space-md) - 2px);
+  z-index: 2;
+  background: var(--bg-primary);
+  box-shadow: 1px 0 0 var(--border-primary);
+}
+
+/* Ecke (Kopfzeile x Kunde-Spalte) liegt ueber beiden */
+.stakeholder-table--kunden thead th:nth-child(2) {
+  z-index: 4;
 }
 
 .stakeholder-kunde {
@@ -552,6 +596,19 @@
 .stakeholder-matrix th,
 .stakeholder-matrix td {
   white-space: nowrap;
+}
+
+/* Erste Spalte (Leistungsbereich/Posten) bleibt beim horizontalen Scrollen
+   stehen — gleiche Technik wie die Kunde-Spalte der Kundenliste: negativer
+   left-Wert kompensiert das Container-Padding, 2 px Overshoot verhindert
+   1-px-Blitzer an der Clip-Kante. */
+.stakeholder-matrix th:first-child,
+.stakeholder-matrix td:first-child {
+  position: sticky;
+  left: calc(-1 * var(--space-md) - 2px);
+  z-index: 2;
+  background: var(--bg-primary);
+  box-shadow: 1px 0 0 var(--border-primary);
 }
 
 .stakeholder-matrix td.stakeholder-num,

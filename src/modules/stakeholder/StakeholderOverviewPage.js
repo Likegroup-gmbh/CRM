@@ -639,6 +639,10 @@ export class StakeholderOverviewPage {
     const counts = this.tabCounts();
     const tabs = this.visibleTabs();
     const isMonate = this.activeView === 'monate';
+    // Zeitraum gilt in beiden Ansichten; die Jahresoptionen kommen in der
+    // Monatsauswertung aus den Rechnungsmonaten statt aus den Auftraegen.
+    const yearOptions = isMonate ? this.monatsYears() : years;
+    const effektivesJahr = isMonate ? this.effektivesMonatsJahr() : this.selectedYear;
 
     const tabOptions = tabs.map(t => `
       <option value="${t.key}"${this.activeTab === t.key ? ' selected' : ''}>${this.escape(t.label)} (${counts.get(t.key) || 0})</option>
@@ -651,22 +655,22 @@ export class StakeholderOverviewPage {
             { buttonId: 'btn-view-kalkulation', label: 'Kalkulation', active: !isMonate },
             { buttonId: 'btn-view-monate', label: 'Monatsauswertung', active: isMonate },
           ])}
-          ${!isMonate ? `
           <div class="stakeholder-toolbar-filters">
+            ${!isMonate ? `
             <div class="form-field form-field--inline">
               <label for="stakeholder-tab-select">Leistungsbereich</label>
               <select id="stakeholder-tab-select" class="form-select">
                 ${tabOptions}
               </select>
-            </div>
+            </div>` : ''}
             <div class="form-field form-field--inline stakeholder-year-field">
               <label for="stakeholder-year-select">Zeitraum</label>
               <select id="stakeholder-year-select" class="form-select">
-                <option value="all"${this.selectedYear === 'all' ? ' selected' : ''}>Alle Jahre</option>
-                ${years.map(y => `<option value="${y}"${String(this.selectedYear) === String(y) ? ' selected' : ''}>${y}</option>`).join('')}
+                <option value="all"${effektivesJahr === 'all' ? ' selected' : ''}>Alle Jahre</option>
+                ${yearOptions.map(y => `<option value="${y}"${String(effektivesJahr) === String(y) ? ' selected' : ''}>${y}</option>`).join('')}
               </select>
             </div>
-          </div>` : ''}
+          </div>
         </div>
         ${this.renderRechnungsstatus()}
 
@@ -906,6 +910,32 @@ export class StakeholderOverviewPage {
     return this.aktiverBerichtsstand?.daten?.monatsauswertung || this.monatsauswertung();
   }
 
+  // Jahre der Monatsauswertung aus den Rechnungsmonaten (nicht Auftragsjahre).
+  monatsYears() {
+    const years = new Set();
+    (this.aktiveMonatsauswertung().months || []).forEach(m => {
+      const y = parseInt(m.slice(0, 4), 10);
+      if (Number.isFinite(y)) years.add(y);
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }
+
+  // Das gewaehlte Jahr gilt in der Monatsauswertung nur, wenn es dort
+  // Rechnungsmonate hat — sonst faellt das Select auf "Alle Jahre" zurueck.
+  effektivesMonatsJahr() {
+    if (this.selectedYear === 'all') return 'all';
+    return this.monatsYears().includes(parseInt(this.selectedYear, 10)) ? this.selectedYear : 'all';
+  }
+
+  // Zeitraum-Filter wie auf dem Kalkulationsblatt: nur die Monatsspalten
+  // des gewaehlten Jahres. Die Monatswerte selbst bleiben unveraendert,
+  // darum greift der Filter auch bei eingefrorenen Berichtsstaenden.
+  gefilterteMonate(auswertung) {
+    const jahr = this.effektivesMonatsJahr();
+    if (jahr === 'all') return auswertung.months;
+    return auswertung.months.filter(m => m.startsWith(`${jahr}-`));
+  }
+
   defaultBerichtsstandLabel() {
     return `Investorenupdate ${new Date().toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })}`;
   }
@@ -966,6 +996,7 @@ export class StakeholderOverviewPage {
     const stand = this.aktiverBerichtsstand
       ? this.fmtBerichtsstandDatum(this.aktiverBerichtsstand.created_at)
       : new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const months = this.gefilterteMonate(auswertung);
 
     return `
       <div class="stakeholder-monate-toolbar">
@@ -996,8 +1027,8 @@ export class StakeholderOverviewPage {
         </div>
       </div>
       ${this.renderBerichtsstandLeiste()}
-      ${this.renderMonatsMatrix(view, auswertung.months)}
-      ${this.renderFremdkostenPosten(view, auswertung.months)}
+      ${this.renderMonatsMatrix(view, months)}
+      ${this.renderFremdkostenPosten(view, months)}
       ${this.renderSonderzeilen(auswertung.sonderzeilen)}
     `;
   }
@@ -1215,6 +1246,20 @@ export class StakeholderOverviewPage {
         ${foot ? `<div class="stakeholder-card-foot">${foot}</div>` : ''}
       </div>`;
 
+    // Ein Block innerhalb einer gestapelten Kachel (stakeholder-card--stack):
+    // eigener Wert, Sub, Progress und Info-Tooltip unter einem eigenen Label.
+    const metricBlock = (label, value, sub, foot, opts = {}) => `
+      <div class="stakeholder-card-block">
+        ${cardHead(label, opts.hint)}
+        <div class="stakeholder-card-value">${this.fmtEuro(value)}</div>
+        ${sub ? `<div class="stakeholder-card-sub">${sub}</div>` : ''}
+        ${opts.progress != null ? `
+          <div class="stakeholder-progress">
+            <div class="stakeholder-progress-fill${opts.progressClass ? ` ${opts.progressClass}` : ''}" style="width: ${Math.min(100, Math.max(0, opts.progress))}%"></div>
+          </div>` : ''}
+        ${foot ? `<div class="stakeholder-card-foot">${foot}</div>` : ''}
+      </div>`;
+
     const progressClass = (pct) => pct >= 90 ? 'stakeholder-progress-fill--danger' : pct >= 75 ? 'stakeholder-progress-fill--warning' : '';
     const openProgressClass = (pct) => pct <= 10 ? 'stakeholder-progress-fill--danger' : pct <= 25 ? 'stakeholder-progress-fill--warning' : 'stakeholder-progress-fill--success';
 
@@ -1238,8 +1283,10 @@ export class StakeholderOverviewPage {
           ['Fest vereinbart', this.fmtEuro(totals.agenturFest)],
           ['EK/VK-Differenz', this.fmtEuro(totals.agenturMargin)]
         ], `${this.fmtPct(quote)} Quote`, { progress: quote, hint: CARD_HINTS.agentur })}
-        ${breakdownCard('KSK-Abgabe', ksk, 'Künstlersozialabgabe auf Honorare', null, `${this.fmtPct(verbraucht > 0 ? (ksk / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (ksk / verbraucht) * 100 : 0, hint: CARD_HINTS.ksk })}
-        ${breakdownCard('Zusatzkosten', zusatz, 'Reise, Lizenzen, Tools, Versand, Payroll', null, `${this.fmtPct(verbraucht > 0 ? (zusatz / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (zusatz / verbraucht) * 100 : 0, hint: CARD_HINTS.zusatz })}
+        <div class="stakeholder-card stakeholder-card--stack">
+          ${metricBlock('KSK-Abgabe', ksk, 'Künstlersozialabgabe auf Honorare', `${this.fmtPct(verbraucht > 0 ? (ksk / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (ksk / verbraucht) * 100 : 0, hint: CARD_HINTS.ksk })}
+          ${metricBlock('Zusatzkosten', zusatz, 'Reise, Lizenzen, Tools, Versand, Payroll', `${this.fmtPct(verbraucht > 0 ? (zusatz / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (zusatz / verbraucht) * 100 : 0, hint: CARD_HINTS.zusatz })}
+        </div>
       </div>
     `;
   }
@@ -1348,7 +1395,7 @@ export class StakeholderOverviewPage {
           <h3 class="stakeholder-list-title">Kunden nach Umsatz</h3>
           <p class="stakeholder-list-hint">Spalten wie Karten · ${kundenLabel}</p>
         </div>
-        <div class="stakeholder-scroll-x">
+        <div class="stakeholder-scroll-x stakeholder-scroll-x--kunden">
         <table class="stakeholder-table stakeholder-table--kunden">
           <thead>
             <tr>

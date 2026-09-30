@@ -446,10 +446,50 @@ export class NavigationSystem {
       collapsedClass: 'sidebar-collapsed',
       storageKey: 'sidebar-collapsed'
     });
+    this._bindSidebarAutoCollapse('sidebar-collapsed');
+  }
+
+  // Schmaler Viewport (≤768px, passt zur Media Query in components.css):
+  // Die Sidebar klappt von alleine zur Icon-Leiste ein, damit sie nicht
+  // über dem Inhalt liegt. Die gespeicherte Nutzer-Präferenz wird dabei
+  // nicht angefasst; zurück auf breitem Viewport gilt wieder sie (Default:
+  // ausgeklappt). Manuelles Auf-/Zuklappen per Toggle bleibt jederzeit
+  // möglich.
+  _bindSidebarAutoCollapse(storageKey) {
+    if (!this._sidebarCollapse || this._sidebarAutoCollapseMq) return;
+    if (typeof window.matchMedia !== 'function') return; // z. B. jsdom
+    const mq = window.matchMedia('(max-width: 768px)');
+    const sync = () => {
+      if (mq.matches) {
+        this._sidebarCollapse.setCollapsed(true, { persist: false });
+      } else {
+        this._sidebarCollapse.setCollapsed(
+          localStorage.getItem(storageKey) === 'true',
+          { persist: false }
+        );
+      }
+    };
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', sync);
+    } else if (typeof mq.addListener === 'function') {
+      mq.addListener(sync); // ältere Browser
+    }
+    this._sidebarAutoCollapseMq = mq;
+    this._sidebarAutoCollapseSync = sync;
+    sync();
   }
 
   // Cleanup
   destroy() {
+    if (this._sidebarAutoCollapseMq && this._sidebarAutoCollapseSync) {
+      if (typeof this._sidebarAutoCollapseMq.removeEventListener === 'function') {
+        this._sidebarAutoCollapseMq.removeEventListener('change', this._sidebarAutoCollapseSync);
+      } else if (typeof this._sidebarAutoCollapseMq.removeListener === 'function') {
+        this._sidebarAutoCollapseMq.removeListener(this._sidebarAutoCollapseSync);
+      }
+      this._sidebarAutoCollapseMq = null;
+      this._sidebarAutoCollapseSync = null;
+    }
     this._sidebarCollapse?.destroy();
     this._sidebarCollapse = null;
     console.log('🗑️ NavigationSystem: Destroy aufgerufen');
