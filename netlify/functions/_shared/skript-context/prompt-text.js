@@ -82,6 +82,17 @@ function buildKontextText(ctx, params) {
     shop_url: ctx.produkt.url
   });
   text += fmtVarianten(ctx.produktVarianten);
+  // Zugewiesener Creator: Status steht fest, keine Rueckfrage dazu.
+  if (ctx.creator) {
+    text += fmtSection('Creator', {
+      status: 'zugewiesen',
+      name: ctx.creator.name,
+      instagram: ctx.creator.instagram,
+      tiktok: ctx.creator.tiktok,
+      bio: cap(ctx.creator.bio, KONTEXT_MAX.beschreibung)
+    });
+    text += 'Der Creator steht fest. Keine Rueckfrage zum Creator-Status und keine creatorunabhaengige Fassung anbieten.\n';
+  }
   text += fmtSection('Kampagne', ctx.kampagne && {
     kampagnenname: ctx.kampagne.kampagnenname,
     ziele: cap(ctx.kampagne.ziele, KONTEXT_MAX.beschreibung),

@@ -12,7 +12,7 @@ const { attachAudienceSituations } = require('../audience-situation');
 // options.schlank (Fragen-Pfad): DNA nur als Metadaten (Name/Typ/Version) -
 // der Fragen-Prompt braucht die Inhalte nicht, nur welche Layer aktiv sind.
 async function loadContext(supabase, params, { schlank = false } = {}) {
-  const { unternehmen_id, marke_id, kampagne_id, produkt_id, persona_id, branche_id, briefing_id, mit_dna, dna_id } = params;
+  const { unternehmen_id, marke_id, kampagne_id, produkt_id, persona_id, branche_id, briefing_id, mit_dna, dna_id, strategie_item_id } = params;
   const ctx = { dnaVersionen: [], master: [], masterVersionen: [] };
 
   // Welle 1: alle Quellen, die nur an params-IDs haengen (nicht voneinander)
@@ -57,12 +57,20 @@ async function loadContext(supabase, params, { schlank = false } = {}) {
       .select('*').eq('id', briefing_id).single()
     : Promise.resolve({ data: null });
 
+  // Zugewiesener Creator der Videoidee: Casting-Eintrag + CRM-Creator.
+  // Casting-notiz bleibt bewusst draussen (interne Notiz, kein Prompt-Stoff).
+  const creatorPromise = strategie_item_id
+    ? supabase.from('strategie_items')
+      .select('creator_name, casting_eintrag:creator_auswahl_item_id(name, creator:creator_id(vorname, nachname, instagram, tiktok, ig_biography))')
+      .eq('id', strategie_item_id).maybeSingle()
+    : Promise.resolve({ data: null });
+
   const [
     { data: unternehmen }, { data: marke }, { data: produkt }, { data: varianten },
-    { data: persona }, { data: kampagne }, { data: briefing }
+    { data: persona }, { data: kampagne }, { data: briefing }, { data: strategieItem }
   ] = await Promise.all([
     unternehmenPromise, markePromise, produktPromise, variantenPromise,
-    personaPromise, kampagnePromise, briefingPromise
+    personaPromise, kampagnePromise, briefingPromise, creatorPromise
   ]);
 
   ctx.unternehmen = unternehmen;
@@ -73,6 +81,22 @@ async function loadContext(supabase, params, { schlank = false } = {}) {
   if (ctx.persona) await attachAudienceSituations(supabase, ctx.persona);
   ctx.kampagne = kampagne;
   ctx.briefing = briefing || null;
+
+  // Creator der Videoidee (Casting-Eintrag hat Vorrang vor dem Freitext-Feld).
+  const eintrag = strategieItem?.casting_eintrag || null;
+  const crmCreator = eintrag?.creator || null;
+  const creatorName = eintrag?.name
+    || [crmCreator?.vorname, crmCreator?.nachname].filter(Boolean).join(' ').trim()
+    || strategieItem?.creator_name
+    || null;
+  ctx.creator = creatorName
+    ? {
+        name: creatorName,
+        instagram: crmCreator?.instagram || null,
+        tiktok: crmCreator?.tiktok || null,
+        bio: crmCreator?.ig_biography || null
+      }
+    : null;
 
   // Branche: explizite Wahl aus der UI hat Vorrang vor Marke/Unternehmen/Persona
   ctx.brancheId = branche_id || ctx.marke?.branche_id || ctx.unternehmen?.branche_id || null;

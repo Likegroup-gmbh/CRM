@@ -256,7 +256,7 @@ function buildVisuellZeitplan(skript, sektion) {
 const EDIT_SKRIPT_COLS = 'id, titel, hook, hook_visuell, hauptteil, hauptteil_visuell, cta, cta_visuell, '
   + 'hook_variante_1, hook_variante_2, hook_variante_3, inhalt_md, '
   + 'tonalitaet, video_laenge, funnel_stufe, video_idee, location, regieanweisung, prompt_kontext, festlegungen, festgezogen, '
-  + 'mit_dna, branche_id, persona_id, marke_id, briefing_id, bereich, unternehmen_id, kampagne_id, produkt_id';
+  + 'mit_dna, branche_id, persona_id, marke_id, briefing_id, bereich, unternehmen_id, kampagne_id, produkt_id, strategie_item_id';
 
 const EDIT_VERLAUF_LIMIT = 12;
 
@@ -277,6 +277,7 @@ function editParams(skript) {
     bereich: skript?.bereich || null,
     mit_dna: skript?.mit_dna,
     video_idee: skript?.video_idee || null,
+    strategie_item_id: skript?.strategie_item_id || pk.generator_payload?.strategie_item_id || null,
     location: skript?.location || null,
     video_laenge: skript?.video_laenge || null,
     funnel_stufe: skript?.funnel_stufe || null,

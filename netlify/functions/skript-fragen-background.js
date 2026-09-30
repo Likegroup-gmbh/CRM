@@ -93,7 +93,9 @@ function buildFragenPrompt(ctx, params, history) {
     + '- fertig=false: nachricht enthaelt deine naechste(n) Rueckfrage(n) (max. 2, die wichtigste zuerst).\n'
     + '- fertig=true: alle kritischen Punkte sind geklaert (oder es gab nichts zu klaeren). '
     + 'nachricht fasst in 1-2 Saetzen zusammen, was du aus den Antworten mitnimmst, und sagt, dass du bereit bist.\n'
-    + '- Stelle KEINE Frage, deren Antwort bereits im CAMPAIGN-BRIEFING, in den CRM-Daten oder im bisherigen Dialog steht.';
+    + '- Stelle KEINE Frage, deren Antwort bereits im CAMPAIGN-BRIEFING, in den CRM-Daten oder im bisherigen Dialog steht.\n'
+    + '- Steht im CRM-Kontext eine Creator-Sektion mit status "zugewiesen", ist der Creator final: '
+    + 'keine Frage zum Creator-Status und keine creatorunabhaengige Fassung anbieten.';
 
   return {
     stable,

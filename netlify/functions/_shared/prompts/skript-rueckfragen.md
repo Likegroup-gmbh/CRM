@@ -67,6 +67,10 @@ ob es das wirklich gibt.
 5. **Rechtliches/Must-haves:** Gibt es Pflicht-Aussagen oder No-Gos aus
    Briefing/Kickoff, die mit der Video-Idee kollidieren?
 
+**Creator-Status:** Steht in den CRM-Daten eine Creator-Sektion mit
+`status: zugewiesen`, ist der Creator final. Dazu keine Rückfrage stellen
+und keine creatorunabhängige Fassung anbieten.
+
 ## Regeln für die Fragen
 
 - Stelle pro Runde maximal 2 Fragen – die wichtigste zuerst.
