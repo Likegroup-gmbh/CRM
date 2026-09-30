@@ -48,6 +48,12 @@ export class ModuleRegistry {
         await this._restoreScrollAfterNav();
       }
       return result;
+    } catch (error) {
+      // Das Quell-Modul ist zu diesem Zeitpunkt schon zerstört — ohne
+      // sichtbare Meldung bliebe eine Zombie-Seite ohne Feedback stehen.
+      console.error('❌ Navigation fehlgeschlagen:', route, error);
+      window.toastSystem?.show('Die Seite konnte nicht geladen werden. Bitte neu laden.', 'error');
+      return null;
     } finally {
       this._isNavigating = false;
     }

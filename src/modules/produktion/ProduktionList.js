@@ -12,8 +12,10 @@ import {
   vertragLinks
 } from '../../core/ui/tableVerknuepfungen.js';
 import { listAllProduktionen } from './ProduktionService.js';
+import { verbrauchZeilenProKampagne } from './produktionsbudget.js';
+import { bindDragToScroll, destroyDragToScroll } from '../kampagne/KampagneListUtils.js';
 
-const COLUMN_COUNT = 10;
+const COLUMN_COUNT = 11;
 
 function selectorId(id) {
   const value = String(id);
@@ -26,19 +28,9 @@ function esc(value) {
   return window.validatorSystem?.sanitizeHtml(text) ?? text;
 }
 
-function campaignPot(kampagne) {
-  return parseFloat(
-    kampagne?.auftrag?.creator_budget ||
-    kampagne?.auftrag?.gesamt_budget ||
-    kampagne?.auftrag?.nettobetrag || 0
-  ) || 0;
-}
-
-function budgetDecke(produktion) {
-  if (produktion?.budget != null && produktion.budget !== '') {
-    return parseFloat(produktion.budget) || 0;
-  }
-  return campaignPot(produktion?.kampagne);
+function renderBudget(eigenesBudget) {
+  if (eigenesBudget == null) return '<span class="text-muted">–</span>';
+  return KampagneUtils.formatCurrency(eigenesBudget);
 }
 
 function renderVerbrauch(used, total) {
@@ -102,7 +94,7 @@ function produktionProduktLinks(produktion) {
   return links;
 }
 
-function renderRow(produktion) {
+function renderRow(produktion, zeile) {
   const briefingName = produktion.briefing?.aktivierung_name || '';
   const name = produktion.name || briefingName || 'Produktion';
   const briefing = briefingName || '–';
@@ -121,13 +113,17 @@ function renderRow(produktion) {
       <td>${renderVerknuepfungen(namedLinks(produktion.strategie, { labelKey: 'name', kind: 'konzept' }))}</td>
       <td>${renderVerknuepfungen(skriptLinks(produktion.skripte))}</td>
       <td>${renderVerknuepfungen(vertragLinks(produktion.vertraege))}</td>
-      <td>${renderVerbrauch(produktion.budgetUsed, budgetDecke(produktion))}</td>
+      <td>${renderBudget(zeile?.eigenesBudget)}</td>
+      <td>${renderVerbrauch(zeile?.used ?? null, zeile?.total ?? 0)}</td>
     </tr>`;
 }
 
 export function renderProduktionBody(produktionen, searchQuery = '') {
   const visible = (produktionen || []).filter(row => matchesProduktionSearch(row, searchQuery));
-  if (visible.length) return visible.map(renderRow).join('');
+  // Geteilter Topf rechnet über alle Produktionen der Kampagne, nicht nur
+  // über die per Suche sichtbaren Zeilen.
+  const zeilen = verbrauchZeilenProKampagne(produktionen || []);
+  if (visible.length) return visible.map(row => renderRow(row, zeilen.get(row.id))).join('');
   return `<tr><td colspan="${COLUMN_COUNT}" class="empty-state-cell">${resolveEmptyState({
     hasActiveFilters: Boolean(String(searchQuery || '').trim()),
     states: {
@@ -151,7 +147,8 @@ export function renderProduktionListHtml(produktionen, { searchQuery = '' } = {}
           })}
         </div>
       </div>
-      <div class="data-table-container">
+    </div>
+    <div class="data-table-container">
         <table class="data-table">
           <thead>
             <tr>
@@ -164,6 +161,7 @@ export function renderProduktionListHtml(produktionen, { searchQuery = '' } = {}
               <th>Konzept</th>
               <th>Skripte</th>
               <th>Verträge</th>
+              <th>Budget</th>
               <th>Verbrauch</th>
             </tr>
           </thead>
@@ -171,7 +169,6 @@ export function renderProduktionListHtml(produktionen, { searchQuery = '' } = {}
             ${renderProduktionBody(produktionen, searchQuery)}
           </tbody>
         </table>
-      </div>
     </div>`;
 }
 
@@ -181,6 +178,10 @@ export class ProduktionList {
     this.rows = [];
     this.searchQuery = '';
     this._shellReady = false;
+    this.isDragging = false;
+    this.startX = 0;
+    this.scrollLeft = 0;
+    this.dragScrollContainer = null;
   }
 
   async init() {
@@ -244,8 +245,10 @@ export class ProduktionList {
     this.rows = produktionen || [];
     const root = window.content;
     if (!root) return;
-    for (const produktion of produktionen || []) {
-      if (produktion?.budgetUsed == null || produktion.id == null) continue;
+    const zeilen = verbrauchZeilenProKampagne(this.rows);
+    for (const produktion of this.rows) {
+      const zeile = produktion?.id != null ? zeilen.get(produktion.id) : null;
+      if (!zeile || zeile.used == null) continue;
       const id = selectorId(produktion.id);
       if (!id) continue;
       const link = root.querySelector(
@@ -253,13 +256,14 @@ export class ProduktionList {
       );
       const cell = link?.closest('tr')?.lastElementChild;
       if (!cell) continue;
-      cell.innerHTML = renderVerbrauch(produktion.budgetUsed, budgetDecke(produktion));
+      cell.innerHTML = renderVerbrauch(zeile.used, zeile.total);
     }
   }
 
   bindEvents() {
     const signal = this._abort?.signal;
     if (!signal || signal.aborted) return;
+    bindDragToScroll(this);
     SearchInput.bind('produktion', (value) => {
       this.searchQuery = value;
       this.renderBody();
@@ -293,6 +297,7 @@ export class ProduktionList {
     this._abort?.abort();
     this._abort = null;
     this._shellReady = false;
+    destroyDragToScroll(this);
   }
 }
 

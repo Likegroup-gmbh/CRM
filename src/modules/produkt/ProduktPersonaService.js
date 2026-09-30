@@ -24,7 +24,7 @@
 
 import { PersonaService } from '../persona/PersonaService.js';
 import { istKiBereit } from '../persona/audienceSituationGate.js';
-import { recomputeBriefingProdukteForPersona } from '../briefing/BriefingPersonas.js';
+import { recomputeBriefingProdukteForPersona, addPersonaToBriefing, removePersonaFromBriefing } from '../briefing/BriefingPersonas.js';
 
 const ENDPOINT = '/.netlify/functions/produkt-persona-background';
 const AUDIENCE_SITUATION_ENDPOINT = '/.netlify/functions/audience-situation-background';
@@ -262,7 +262,7 @@ export class ProduktPersonaService {
    *
    * @returns {Promise<{useCases: Array, karten: Array, neuAkzeptiert: string[]}>}
    */
-  static async flushOnSave(produktId, { useCases = [], karten = [], verworfeneMatchIds = [] }, { unternehmenId = null, markeIds = [] } = {}) {
+  static async flushOnSave(produktId, { useCases = [], karten = [], verworfeneMatchIds = [] }, { unternehmenId = null, markeIds = [], briefingId = null } = {}) {
     const keyToId = await this.syncUseCases(produktId, useCases);
 
     const ergebnisKarten = [];
@@ -273,7 +273,8 @@ export class ProduktPersonaService {
         position: index,
         keyToId,
         unternehmenId,
-        markeIds
+        markeIds,
+        briefingId
       });
       if (geflusht) {
         ergebnisKarten.push(geflusht);
@@ -388,7 +389,7 @@ export class ProduktPersonaService {
    * Eine Karte schreiben. Gibt den Karten-Stand nach dem Flush zurueck
    * (oder null, wenn eine unpersistierte Karte verworfen wurde).
    */
-  static async flushKarte(produktId, karte, { position, keyToId, unternehmenId, markeIds }) {
+  static async flushKarte(produktId, karte, { position, keyToId, unternehmenId, markeIds, briefingId = null }) {
     const useCaseIds = (karte.useCaseKeys || [])
       .map(key => keyToId.get(key) || (this.isUuid(key) ? key : null))
       .filter(Boolean);
@@ -418,6 +419,9 @@ export class ProduktPersonaService {
         const materialisiert = await this.materialize(karte, { unternehmenId, markeIds });
         personaId = materialisiert.personaId;
         payload = materialisiert.payload;
+        // Accept ohne Drawer-Uebernehmen (In-Memory-Karte): Kontext-Briefing
+        // hier nachziehen. attachKontextBriefing ist idempotent.
+        payload = await this.attachKontextBriefing(briefingId, personaId, payload);
       }
 
       const row = {
@@ -538,11 +542,15 @@ export class ProduktPersonaService {
   /**
    * Akzeptanz rueckgaengig: Match verliert die durch den Accept hinzugefuegten
    * Marken-Links, Neu verliert die Persona, wenn sie unbenutzt ist.
+   * Durch den Accept ans Kontext-Briefing gehaengte Verknuepfungen
+   * (_attached_briefing_ids) werden zuerst geloest - sonst gilt eine
+   * Neu-Persona ueber genau dieses Briefing als benutzt und bliebe stehen.
    * Gibt { personaId, payload } fuer den weiteren Verbleib der Karte zurueck.
    */
   static async dematerialize(karte) {
-    const payload = { ...(karte.payload || {}) };
+    let payload = { ...(karte.payload || {}) };
     const attached = Array.isArray(payload._attached_marke_ids) ? payload._attached_marke_ids : [];
+    const attachedBriefings = Array.isArray(payload._attached_briefing_ids) ? payload._attached_briefing_ids : [];
 
     if (attached.length && karte.persona_id) {
       await window.supabase
@@ -552,6 +560,13 @@ export class ProduktPersonaService {
         .in('marke_id', attached);
     }
     delete payload._attached_marke_ids;
+
+    if (attachedBriefings.length && karte.persona_id) {
+      for (const briefingId of attachedBriefings) {
+        await removePersonaFromBriefing(briefingId, karte.persona_id);
+      }
+    }
+    delete payload._attached_briefing_ids;
 
     if (karte.typ === 'neu' && karte.persona_id) {
       const unbenutzt = await this.personaUnbenutzt(karte.persona_id, karte.id);
@@ -729,15 +744,22 @@ export class ProduktPersonaService {
    * Uebernehmen im Drawer: Persona sofort anlegen (neu) bzw. Marken
    * anhaengen (match). Existiert das Produkt schon, wird der Vorschlag
    * sofort geschrieben. Sonst haengt persona_id an der In-Memory-Karte.
+   *
+   * briefingId = Kontext-Briefing der Produktion, aus der das Formular
+   * geoeffnet wurde: die Persona wird zusaetzlich in dessen persona_ids
+   * gehaengt (Personas-Tab, /produktionen-Spalte und Casting lesen genau
+   * dieses Array). Der Attach landet in payload._attached_briefing_ids,
+   * damit Zuruecknehmen genau ihn wieder loest.
    */
-  static async uebernehmen(karte, { produktId = null, unternehmenId, markeIds = [] } = {}) {
+  static async uebernehmen(karte, { produktId = null, unternehmenId, markeIds = [], briefingId = null } = {}) {
     if (!unternehmenId) throw new Error('Bitte zuerst ein Unternehmen wählen');
     const materialisiert = await this.materialize(karte, { unternehmenId, markeIds });
+    const payload = await this.attachKontextBriefing(briefingId, materialisiert.personaId, materialisiert.payload);
     const next = {
       ...karte,
       status: 'accepted',
       persona_id: materialisiert.personaId,
-      payload: materialisiert.payload
+      payload
     };
     if (produktId) {
       const id = await this.upsertVorschlag(karte.id, {
@@ -745,7 +767,7 @@ export class ProduktPersonaService {
         typ: karte.typ,
         status: 'accepted',
         persona_id: materialisiert.personaId,
-        payload: materialisiert.payload,
+        payload,
         fit_grund: karte.fit_grund || null,
         use_case_ids: this.useCaseIdsFromKarte(next),
         position: karte.position ?? 0
@@ -757,6 +779,20 @@ export class ProduktPersonaService {
       next.persisted = null;
     }
     return next;
+  }
+
+  /**
+   * Persona ins Kontext-Briefing haengen und den Attach im payload
+   * protokollieren. Nur tatsaechlich neue Links werden vermerkt - sonst
+   * wuerde Zuruecknehmen eine Verknuepfung loesen, die nicht durch diesen
+   * Accept entstanden ist.
+   */
+  static async attachKontextBriefing(briefingId, personaId, payload) {
+    if (!briefingId || !personaId) return payload;
+    const attached = await addPersonaToBriefing(briefingId, personaId);
+    if (!attached) return payload;
+    const bisher = Array.isArray(payload?._attached_briefing_ids) ? payload._attached_briefing_ids : [];
+    return { ...(payload || {}), _attached_briefing_ids: [...new Set([...bisher, briefingId])] };
   }
 
   /** Speichern nach Uebernehmen: Stammdaten der Live-Persona aktualisieren. */

@@ -81,4 +81,56 @@ describe('Kampagne als Überübersicht, Produktion als Workflow', () => {
     expect(html).toContain('style="width: 31%"');
     expect(html).toContain('31%');
   });
+
+  it('rechnet den Balken gegen das Budget der Kampagne statt des Auftrags', () => {
+    const html = renderMainPage({
+      mode: 'overview',
+      kampagneData: {
+        kampagnenname: 'Burger',
+        volumen: 25000,
+        auftrag: { nettobetrag: 90000, creator_budget: 40000 }
+      },
+      produktionen: [{
+        id: 'p1',
+        name: 'Next Magenta',
+        briefing: { aktivierung_name: 'Next Magenta' },
+        budgetUsed: 12500
+      }]
+    });
+
+    expect(html).toContain('style="width: 50%"');
+    expect(html).toContain('50%');
+  });
+
+  it('rechnet den Verbrauch der anderen Produktionen im geteilten Topf gegen', () => {
+    const html = renderMainPage({
+      mode: 'overview',
+      kampagneData,
+      produktionen: [
+        { id: 'p1', name: 'Produktion A', briefing: { aktivierung_name: 'A' }, budgetUsed: 12500 },
+        { id: 'p2', name: 'Produktion B', briefing: { aktivierung_name: 'B' }, budgetUsed: 7500 }
+      ]
+    });
+
+    // 12.500 + 7.500 = 20.000 von 40.000 -> beide Balken zeigen 50%
+    expect(html.match(/style="width: 50%"/g)).toHaveLength(2);
+    expect(html.match(/20\.000,00/g)).toHaveLength(2);
+  });
+
+  it('zeigt die Budget-Spalte mit eigenem Budget oder Platzhalter', () => {
+    const html = renderMainPage({
+      mode: 'overview',
+      kampagneData,
+      produktionen: [
+        { id: 'p1', name: 'Produktion A', briefing: { aktivierung_name: 'A' }, budget: 15000, budgetUsed: 1000 },
+        { id: 'p2', name: 'Produktion B', briefing: { aktivierung_name: 'B' }, budgetUsed: 500 }
+      ]
+    });
+
+    expect(html).toContain('<th>Budget</th>');
+    expect(html).toContain('15.000,00');
+    expect(html).toContain('<span class="text-muted">–</span>');
+    // Eigenes Budget: nur eigener Verbrauch (1.000 / 15.000 = 7%)
+    expect(html).toContain('style="width: 7%"');
+  });
 });

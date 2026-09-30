@@ -742,7 +742,14 @@ export class ProduktList extends BasePaginatedList {
 
   openProdukt(produktId) {
     if (!produktId) return;
-    window.navigateTo(this.resolveDetailRoute(produktId));
+    let route = this.resolveDetailRoute(produktId);
+    // Edit aus dem Produkte-Tab einer Produktion: das Kontext-Briefing
+    // mitgeben, damit Uebernehmen die Persona auch dorthin haengt.
+    const briefingId = this.embedScope?.briefingId;
+    if (briefingId) {
+      route += `${route.includes('?') ? '&' : '?'}briefing=${encodeURIComponent(briefingId)}`;
+    }
+    window.navigateTo(route);
   }
 
   showCreateForm() {

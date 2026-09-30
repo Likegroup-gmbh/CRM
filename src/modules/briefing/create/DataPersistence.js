@@ -464,7 +464,11 @@ BriefingCreate.prototype.handleSubmit = async function() {
     );
 
     setTimeout(() => {
-      window.navigateTo(produktion?.id ? `/produktion/${produktion.id}` : backTarget('/briefing'));
+      const ziel = produktion?.id ? `/produktion/${produktion.id}` : backTarget('/briefing');
+      Promise.resolve(window.navigateTo(ziel)).catch((navError) => {
+        console.error('Weiterleitung nach dem Speichern fehlgeschlagen:', navError);
+        window.toastSystem?.show('Gespeichert, aber die Weiterleitung ist fehlgeschlagen. Bitte Seite neu laden.', 'error');
+      });
     }, 500);
   } catch (error) {
     console.error('Fehler beim Speichern:', error);

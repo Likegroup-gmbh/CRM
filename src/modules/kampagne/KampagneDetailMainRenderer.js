@@ -2,6 +2,7 @@
 // Haupt-Rendering für die Kampagnen-Detailseite (Page-Layout, Tabs, Skeleton)
 
 import { KampagneUtils } from './KampagneUtils.js';
+import { kampagneBudgetPot, verbrauchZeilen } from '../produktion/produktionsbudget.js';
 import { renderSummaryCards } from './KampagneDetailSummaryCards.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { renderToolbarMenu, renderToolbarMenuItem } from '../../core/components/ToolbarMenu.js';
@@ -255,23 +256,12 @@ export function renderMainPage(state) {
   `;
 }
 
-function campaignPot(kampagneData) {
-  return parseFloat(
-    kampagneData?.auftrag?.creator_budget ||
-    kampagneData?.auftrag?.gesamt_budget ||
-    kampagneData?.auftrag?.nettobetrag || 0
-  ) || 0;
-}
-
 function renderProduktionsbudget(produktion, kampagneData) {
   if (!produktion) return '';
   const verbrauch = parseFloat(produktion.budgetUsed) || 0;
-  const decke = produktion.budget != null && produktion.budget !== ''
-    ? parseFloat(produktion.budget) || 0
-    : parseFloat(kampagneData?.volumen) || parseFloat(kampagneData?.auftrag?.nettobetrag) || 0;
-  const label = produktion.budget != null && produktion.budget !== ''
-    ? 'Produktionsbudget'
-    : 'Volumen der Kampagne';
+  const eigen = produktion.budget != null && produktion.budget !== '';
+  const decke = eigen ? parseFloat(produktion.budget) || 0 : kampagneBudgetPot(kampagneData);
+  const label = eigen ? 'Produktionsbudget' : 'Budget der Kampagne';
   return `<p class="text-muted">${label} ${KampagneUtils.formatCurrency(decke)} · Verbrauch ${KampagneUtils.formatCurrency(verbrauch)}</p>`;
 }
 
@@ -298,16 +288,21 @@ function renderKampagneOverview({
   kampagneName, safeLogoUrl, orgLogoAlt
 }) {
   const canCreateBriefing = window.canCreate?.('briefing') ?? false;
-  const pot = campaignPot(kampagneData);
-  const rows = (produktionen || []).map(p => {
+  const zeilen = verbrauchZeilen(produktionen || [], kampagneBudgetPot(kampagneData));
+  const rows = (produktionen || []).map((p, index) => {
     const produkt = p.produkt?.name || '–';
     const briefing = p.briefing?.aktivierung_name || '–';
+    const zeile = zeilen[index] || { eigenesBudget: null, used: null, total: 0 };
+    const budgetZelle = zeile.eigenesBudget != null
+      ? KampagneUtils.formatCurrency(zeile.eigenesBudget)
+      : '<span class="text-muted">–</span>';
     return `
       <tr>
         <td><a href="/produktion/${p.id}" class="table-link" data-table="produktion" data-id="${p.id}">${sanitize(p.name || briefing || 'Produktion')}</a></td>
         <td>${sanitize(produkt)}</td>
         <td>${sanitize(briefing)}</td>
-        <td>${renderProduktionBudget(p.budgetUsed, p.budget != null && p.budget !== '' ? parseFloat(p.budget) || 0 : pot)}</td>
+        <td>${budgetZelle}</td>
+        <td>${renderProduktionBudget(zeile.used, zeile.total)}</td>
       </tr>`;
   }).join('');
 
@@ -327,10 +322,10 @@ function renderKampagneOverview({
         <div class="data-table-container">
           <table class="data-table">
             <thead>
-              <tr><th>Produktion</th><th>Produkt</th><th>Briefing</th><th>Verbrauch</th></tr>
+              <tr><th>Produktion</th><th>Produkt</th><th>Briefing</th><th>Budget</th><th>Verbrauch</th></tr>
             </thead>
             <tbody>
-              ${rows || `<tr><td colspan="4">Noch keine Produktion. Briefing anlegen startet die erste.</td></tr>`}
+              ${rows || `<tr><td colspan="5">Noch keine Produktion. Briefing anlegen startet die erste.</td></tr>`}
             </tbody>
           </table>
         </div>

@@ -44,6 +44,7 @@ export class ProduktForm {
     this.uploader = null;
     this._abort = null;
     this.createScope = null;
+    this.kontextBriefingId = null;
   }
 
   get isEdit() {
@@ -78,6 +79,11 @@ export class ProduktForm {
       ? (pathId && pathId !== 'new' ? pathId : null)
       : new URLSearchParams(window.location.search).get('produkt');
     this.createScope = this.produktId ? null : readProduktCreateScope(window.location.search);
+    // Kontext-Briefing der Produktion: im Create ueber den Scope, im Edit
+    // ueber den URL-Param (ProduktList.openProdukt haengt ihn an).
+    this.kontextBriefingId = this.createScope?.briefingId
+      || new URLSearchParams(window.location.search).get('briefing')
+      || null;
     this.produkt = null;
     this.markenIds = [];
     this.briefingIds = [];
@@ -180,6 +186,7 @@ export class ProduktForm {
     await this.personaPanel.mount(form, {
       produktId: this.produktId,
       markeId: this.ctx.markeId || null,
+      briefingId: this.kontextBriefingId,
       getUnternehmenId: () => this.ctx.unternehmenId
         || form.querySelector('[name="unternehmen_id"]')?.value
         || null,
@@ -530,7 +537,8 @@ export class ProduktForm {
     if (!this.personaPanel?.isFlushBereit()) return;
     const saved = await ProduktPersonaService.flushOnSave(produktId, this.personaPanel.getState(), {
       unternehmenId: this.ctx.unternehmenId || data.unternehmen_id,
-      markeIds: this.collectMarkenIds(data)
+      markeIds: this.collectMarkenIds(data),
+      briefingId: this.kontextBriefingId
     });
     this.personaPanel.applySavedState(saved);
     const anzahl = saved.neuAkzeptiert?.length

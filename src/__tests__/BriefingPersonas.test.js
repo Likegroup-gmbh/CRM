@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { setBriefingPersonas, setPersonaBriefings } from '../modules/briefing/BriefingPersonas.js';
+import { setBriefingPersonas, setPersonaBriefings, addPersonaToBriefing, removePersonaFromBriefing } from '../modules/briefing/BriefingPersonas.js';
 
 vi.mock('../modules/briefing/BriefingProdukte.js', async () => {
   const actual = await vi.importActual('../modules/briefing/BriefingProdukte.js');
@@ -173,5 +173,162 @@ describe('BriefingPersonas Membership', () => {
     expect(updates).toEqual([
       expect.objectContaining({ _id: 'b-final', persona_ids: [] })
     ]);
+  });
+});
+
+describe('addPersonaToBriefing / removePersonaFromBriefing', () => {
+  afterEach(() => {
+    delete window.supabase;
+    vi.clearAllMocks();
+  });
+
+  function mockAddScope({ briefing, persona, markeVorhanden = false }) {
+    const updates = [];
+    const markeInserts = [];
+    window.supabase = {
+      from: (table) => {
+        if (table === 'campaign_briefings') {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({ data: briefing, error: null })
+              })
+            }),
+            update: (data) => {
+              updates.push(data);
+              return { eq: async () => ({ error: null }) };
+            }
+          };
+        }
+        if (table === 'personas') {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({ data: persona, error: null })
+              })
+            })
+          };
+        }
+        if (table === 'persona_marke') {
+          return {
+            select: () => ({
+              eq: () => ({
+                eq: () => ({
+                  maybeSingle: async () => ({ data: markeVorhanden ? { marke_id: briefing?.marke_id } : null, error: null })
+                })
+              })
+            }),
+            insert: async (rows) => {
+              markeInserts.push(rows);
+              return { error: null };
+            }
+          };
+        }
+        throw new Error(`unerwartete Tabelle ${table}`);
+      }
+    };
+    return { updates, markeInserts };
+  }
+
+  it('haengt die Persona an, ergaenzt die Briefing-Marke und rechnet nach', async () => {
+    const { updates, markeInserts } = mockAddScope({
+      briefing: { id: 'b1', unternehmen_id: 'u1', marke_id: 'm1', persona_ids: [] },
+      persona: { id: 'pe1', unternehmen_id: 'u1' }
+    });
+
+    const { recomputeBriefingProdukte } = await import('../modules/briefing/BriefingProdukte.js');
+    const added = await addPersonaToBriefing('b1', 'pe1');
+
+    expect(added).toBe(true);
+    expect(updates[0].persona_ids).toEqual(['pe1']);
+    expect(markeInserts).toEqual([{ persona_id: 'pe1', marke_id: 'm1' }]);
+    expect(recomputeBriefingProdukte).toHaveBeenCalledWith('b1');
+  });
+
+  it('ist idempotent: bereits verknuepfte Persona wird nicht nochmal geschrieben', async () => {
+    const { updates, markeInserts } = mockAddScope({
+      briefing: { id: 'b1', unternehmen_id: 'u1', marke_id: 'm1', persona_ids: ['pe1'] },
+      persona: { id: 'pe1', unternehmen_id: 'u1' }
+    });
+
+    const added = await addPersonaToBriefing('b1', 'pe1');
+
+    expect(added).toBe(false);
+    expect(updates).toHaveLength(0);
+    expect(markeInserts).toHaveLength(0);
+  });
+
+  it('lehnt Personas eines anderen Unternehmens ab', async () => {
+    const { updates } = mockAddScope({
+      briefing: { id: 'b1', unternehmen_id: 'u1', marke_id: null, persona_ids: [] },
+      persona: { id: 'pe1', unternehmen_id: 'u2' }
+    });
+
+    const added = await addPersonaToBriefing('b1', 'pe1');
+
+    expect(added).toBe(false);
+    expect(updates).toHaveLength(0);
+  });
+
+  it('removePersonaFromBriefing loest die Verknuepfung und rechnet nach', async () => {
+    const updates = [];
+    window.supabase = {
+      from: (table) => {
+        if (table === 'campaign_briefings') {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: { id: 'b1', persona_ids: ['pe1', 'pe2'] },
+                  error: null
+                })
+              })
+            }),
+            update: (data) => {
+              updates.push(data);
+              return { eq: async () => ({ error: null }) };
+            }
+          };
+        }
+        throw new Error(`unerwartete Tabelle ${table}`);
+      }
+    };
+
+    const { recomputeBriefingProdukte } = await import('../modules/briefing/BriefingProdukte.js');
+    const removed = await removePersonaFromBriefing('b1', 'pe1');
+
+    expect(removed).toBe(true);
+    expect(updates[0].persona_ids).toEqual(['pe2']);
+    expect(recomputeBriefingProdukte).toHaveBeenCalledWith('b1');
+  });
+
+  it('removePersonaFromBriefing ist idempotent', async () => {
+    const updates = [];
+    window.supabase = {
+      from: (table) => {
+        if (table === 'campaign_briefings') {
+          return {
+            select: () => ({
+              eq: () => ({
+                maybeSingle: async () => ({
+                  data: { id: 'b1', persona_ids: ['pe2'] },
+                  error: null
+                })
+              })
+            }),
+            update: (data) => {
+              updates.push(data);
+              return { eq: async () => ({ error: null }) };
+            }
+          };
+        }
+        throw new Error(`unerwartete Tabelle ${table}`);
+      }
+    };
+
+    const removed = await removePersonaFromBriefing('b1', 'pe1');
+
+    expect(removed).toBe(false);
+    expect(updates).toHaveLength(0);
   });
 });

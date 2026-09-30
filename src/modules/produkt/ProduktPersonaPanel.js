@@ -536,6 +536,7 @@ export class ProduktPersonaPanel {
       unternehmenId: this.kontext?.getUnternehmenId?.() || null,
       markeIds: this.kontext?.getMarkeIds?.() || [],
       produktId: this.produktId,
+      briefingId: this.kontext?.briefingId || null,
       onChange: (next) => this.applyKarte(next)
     });
   }

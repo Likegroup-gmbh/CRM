@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { ProjektErstellenValidator } from '../modules/projekt-erstellen/services/ProjektErstellenValidator.js';
 import {
+  kampagneBudgetPot,
   preisBleibtImBudget,
-  validateProduktionsbudgets
+  validateProduktionsbudgets,
+  verbrauchZeilen,
+  verbrauchZeilenProKampagne
 } from '../modules/produktion/produktionsbudget.js';
 import { renderMainPage } from '../modules/kampagne/KampagneDetailMainRenderer.js';
 import { StepProduktion } from '../modules/projekt-erstellen/steps/StepProduktion.js';
@@ -53,6 +56,54 @@ describe('Produktionsbudget', () => {
     expect(preisBleibtImBudget({ verbrauch: 14000, delta: 2000, decke: 15000 })).toBe(false);
     expect(preisBleibtImBudget({ verbrauch: 14000, delta: 1000, decke: 15000 })).toBe(true);
     expect(preisBleibtImBudget({ verbrauch: 0, delta: 100, decke: null })).toBe(true);
+  });
+
+  it('Topf: Kampagnen-Budget schlägt Auftrags-Budget', () => {
+    const auftrag = { creator_budget: 40000, gesamt_budget: 60000, nettobetrag: 90000 };
+    expect(kampagneBudgetPot({ creator_budget: 30000, volumen: 25000, auftrag })).toBe(30000);
+    expect(kampagneBudgetPot({ volumen: 25000, auftrag })).toBe(25000);
+    expect(kampagneBudgetPot({ auftrag })).toBe(40000);
+    expect(kampagneBudgetPot({ auftrag: { gesamt_budget: 60000, nettobetrag: 90000 } })).toBe(60000);
+    expect(kampagneBudgetPot({ auftrag: { nettobetrag: 90000 } })).toBe(90000);
+    expect(kampagneBudgetPot(null)).toBe(0);
+  });
+
+  it('Verbrauchszeilen: eigenes Budget trägt nur den eigenen Verbrauch', () => {
+    const [zeile] = verbrauchZeilen([
+      { id: 'p1', budget: 15000, budgetUsed: 1000 }
+    ], 40000);
+    expect(zeile).toEqual({ eigenesBudget: 15000, used: 1000, total: 15000 });
+  });
+
+  it('Verbrauchszeilen: budget-lose Produktionen rechnen den Verbrauch der anderen gegen', () => {
+    const zeilen = verbrauchZeilen([
+      { id: 'p1', budget: null, budgetUsed: 12500 },
+      { id: 'p2', budgetUsed: 7500 },
+      { id: 'p3', budget: 20000, budgetUsed: 2000 }
+    ], 40000);
+    expect(zeilen[0]).toEqual({ eigenesBudget: null, used: 20000, total: 40000 });
+    expect(zeilen[1]).toEqual({ eigenesBudget: null, used: 20000, total: 40000 });
+    expect(zeilen[2]).toEqual({ eigenesBudget: 20000, used: 2000, total: 20000 });
+  });
+
+  it('Verbrauchszeilen: used bleibt null, solange der Verbrauch fehlt', () => {
+    const [geteilt, eigen] = verbrauchZeilen([
+      { id: 'p1', budget: null },
+      { id: 'p2', budget: 15000 }
+    ], 40000);
+    expect(geteilt.used).toBeNull();
+    expect(eigen.used).toBeNull();
+  });
+
+  it('Verbrauchszeilen pro Kampagne: jede Kampagne rechnet mit ihrem eigenen Topf', () => {
+    const zeilen = verbrauchZeilenProKampagne([
+      { id: 'p1', kampagne_id: 'k1', budgetUsed: 10000, kampagne: { id: 'k1', volumen: 50000 } },
+      { id: 'p2', kampagne_id: 'k1', budgetUsed: 5000, kampagne: { id: 'k1', volumen: 50000 } },
+      { id: 'p3', kampagne_id: 'k2', budgetUsed: 3000, kampagne: { id: 'k2', auftrag: { nettobetrag: 20000 } } }
+    ]);
+    expect(zeilen.get('p1')).toEqual({ eigenesBudget: null, used: 15000, total: 50000 });
+    expect(zeilen.get('p2')).toEqual({ eigenesBudget: null, used: 15000, total: 50000 });
+    expect(zeilen.get('p3')).toEqual({ eigenesBudget: null, used: 3000, total: 20000 });
   });
 
   it('hängt die Produktion an den Wizard', () => {

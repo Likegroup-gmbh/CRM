@@ -86,6 +86,75 @@ export async function setBriefingPersonas(briefingId, personaIds) {
   await recomputeBriefingProdukte(briefingId);
 }
 
+/**
+ * Einzelne Persona an ein Briefing haengen (z.B. beim Uebernehmen eines
+ * Produkt-Persona-Fits im Produktions-Kontext). Idempotent: true nur, wenn
+ * die Persona tatsaechlich neu hinzukam - der Aufrufer protokolliert den
+ * Attach, damit ein Zuruecknehmen genau ihn wieder loesen kann.
+ */
+export async function addPersonaToBriefing(briefingId, personaId) {
+  if (!briefingId || !personaId || !window.supabase) return false;
+
+  const { data: briefing, error: bErr } = await window.supabase
+    .from('campaign_briefings')
+    .select('id, unternehmen_id, marke_id, persona_ids')
+    .eq('id', briefingId)
+    .maybeSingle();
+  if (bErr) throw bErr;
+  if (!briefing) return false;
+
+  const { data: persona, error: pErr } = await window.supabase
+    .from('personas')
+    .select('id, unternehmen_id')
+    .eq('id', personaId)
+    .maybeSingle();
+  if (pErr) throw pErr;
+  if (!persona || persona.unternehmen_id !== briefing.unternehmen_id) return false;
+
+  const members = new Set((briefing.persona_ids || []).filter(Boolean));
+  if (members.has(personaId)) return false;
+  members.add(personaId);
+
+  const { error } = await window.supabase
+    .from('campaign_briefings')
+    .update({ persona_ids: [...members] })
+    .eq('id', briefingId);
+  if (error) throw error;
+
+  if (briefing.marke_id) await ensurePersonaMarke(personaId, briefing.marke_id);
+  await recomputeBriefingProdukte(briefingId);
+  return true;
+}
+
+/**
+ * Einzelne Persona aus einem Briefing loesen (Zuruecknehmen des Fits).
+ * Idempotent. Die persona_marke bleibt wie bei setPersonaBriefings stehen.
+ */
+export async function removePersonaFromBriefing(briefingId, personaId) {
+  if (!briefingId || !personaId || !window.supabase) return false;
+
+  const { data: briefing, error: bErr } = await window.supabase
+    .from('campaign_briefings')
+    .select('id, persona_ids')
+    .eq('id', briefingId)
+    .maybeSingle();
+  if (bErr) throw bErr;
+  if (!briefing) return false;
+
+  const members = new Set((briefing.persona_ids || []).filter(Boolean));
+  if (!members.has(personaId)) return false;
+  members.delete(personaId);
+
+  const { error } = await window.supabase
+    .from('campaign_briefings')
+    .update({ persona_ids: [...members] })
+    .eq('id', briefingId);
+  if (error) throw error;
+
+  await recomputeBriefingProdukte(briefingId);
+  return true;
+}
+
 export async function setPersonaBriefings(personaId, briefingIds) {
   if (!personaId || !window.supabase) return;
   const soll = uniqueIds(briefingIds);

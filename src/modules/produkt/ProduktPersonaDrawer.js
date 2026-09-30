@@ -40,6 +40,7 @@ export class ProduktPersonaDrawer {
    * @param {string|null} opts.unternehmenId
    * @param {string[]} [opts.markeIds]
    * @param {string|null} [opts.produktId]
+   * @param {string|null} [opts.briefingId] - Kontext-Briefing der Produktion
    * @param {(karte: Object) => void} [opts.onChange]
    */
   open(opts) {
@@ -302,7 +303,8 @@ export class ProduktPersonaDrawer {
     return ProduktPersonaService.uebernehmen(karte, {
       produktId: this._opts.produktId || null,
       unternehmenId: this._opts.unternehmenId,
-      markeIds
+      markeIds,
+      briefingId: this._opts.briefingId || null
     });
   }
 

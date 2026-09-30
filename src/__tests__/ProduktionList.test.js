@@ -102,6 +102,64 @@ describe('globale Produktionsliste', () => {
     expect(html).toContain('budget-pending');
     expect(html).not.toContain('budget-progress-cell');
   });
+
+  it('zeigt die Budget-Spalte mit eigenem Budget oder Platzhalter', () => {
+    const html = renderProduktionListHtml([
+      {
+        id: 'p1',
+        name: 'Senf',
+        budget: 15000,
+        budgetUsed: 1000,
+        kampagne: { id: 'k1', eigener_name: 'Burger', auftrag: { creator_budget: 40000 } }
+      },
+      {
+        id: 'p2',
+        name: 'Ketchup',
+        budgetUsed: 500,
+        kampagne: { id: 'k1', eigener_name: 'Burger', auftrag: { creator_budget: 40000 } }
+      }
+    ]);
+
+    expect(html).toContain('>Budget<');
+    expect(html).toContain('15.000,00');
+    expect(html).toContain('<span class="text-muted">–</span>');
+    // Eigenes Budget: 1.000 / 15.000 = 7%
+    expect(html).toContain('style="width: 7%"');
+  });
+
+  it('rechnet den Verbrauch budget-loser Produktionen derselben Kampagne gegen', () => {
+    const kampagne = { id: 'k1', eigener_name: 'Burger', auftrag: { creator_budget: 40000 } };
+    const html = renderProduktionListHtml([
+      { id: 'p1', name: 'Senf', budgetUsed: 1000, kampagne },
+      { id: 'p2', name: 'Ketchup', budgetUsed: 1000, kampagne }
+    ]);
+
+    // 1.000 + 1.000 = 2.000 von 40.000 -> beide Balken zeigen 5%
+    expect(html.match(/style="width: 5%"/g)).toHaveLength(2);
+    expect(html.match(/2\.000,00/g)).toHaveLength(2);
+  });
+
+  it('trennt den geteilten Topf zwischen Kampagnen und nutzt das Kampagnen-Budget', () => {
+    const html = renderProduktionListHtml([
+      {
+        id: 'p1',
+        name: 'Senf',
+        budgetUsed: 15000,
+        kampagne: { id: 'k1', eigener_name: 'Burger', volumen: 25000, creator_budget: 30000, auftrag: { creator_budget: 40000 } }
+      },
+      {
+        id: 'p2',
+        name: 'Ketchup',
+        budgetUsed: 1000,
+        kampagne: { id: 'k2', eigener_name: 'Safari', auftrag: { creator_budget: 40000 } }
+      }
+    ]);
+
+    // k1: Kampagnen-Budget 30.000 schlägt Auftrag -> 15.000 / 30.000 = 50%
+    expect(html).toContain('style="width: 50%"');
+    // k2: eigener Topf, nur eigener Verbrauch -> 1.000 / 40.000 = 3%
+    expect(html).toContain('style="width: 3%"');
+  });
 });
 
 describe('ProduktionList.init', () => {
@@ -188,5 +246,21 @@ describe('ProduktionList.init', () => {
     expect(window.content.innerHTML).toContain('budget-progress-cell');
     list.destroy();
     window.content.remove();
+  });
+
+  it('aktiviert Drag-to-Scroll und räumt es beim Verlassen ab', async () => {
+    listAllProduktionen.mockImplementation(({ onRows }) => {
+      onRows([row]);
+      return Promise.resolve([{ ...row, budgetUsed: 1000 }]);
+    });
+
+    const list = new ProduktionList();
+    await list.init();
+
+    const container = window.content.querySelector('.data-table-container');
+    expect(container.classList.contains('drag-scroll-enabled')).toBe(true);
+
+    list.destroy();
+    expect(container.classList.contains('drag-scroll-enabled')).toBe(false);
   });
 });

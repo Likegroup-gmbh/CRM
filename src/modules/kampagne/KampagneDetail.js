@@ -71,8 +71,27 @@ export class KampagneDetail {
     this.lineTitle = '';
 
     if (openAsProduktion) {
-      const { loadProduktion } = await import('../produktion/ProduktionService.js');
-      const produktion = await loadProduktion(kampagneId);
+      // Loading sofort zeigen: das Quell-Modul ist schon zerstört, ohne
+      // Skeleton bliebe bei einem Fehler hier die alte (tote) Seite stehen.
+      this._showLoading();
+      let produktion = null;
+      try {
+        const { loadProduktion } = await import('../produktion/ProduktionService.js');
+        produktion = await loadProduktion(kampagneId);
+      } catch (error) {
+        console.error('❌ KAMPAGNEDETAIL: Produktion konnte nicht geladen werden:', error);
+        this._isMounted = true;
+        window.ErrorHandler?.handle?.(error, 'KampagneDetail.init');
+        window.toastSystem?.show('Produktion konnte nicht geladen werden. Bitte Seite neu laden.', 'error');
+        window.setHeadline('Produktion nicht erreichbar');
+        window.content.innerHTML = `
+          <div class="error-message">
+            <h2>Produktion konnte nicht geladen werden</h2>
+            <p>Bitte Seite neu laden oder später erneut versuchen.</p>
+          </div>
+        `;
+        return;
+      }
       if (!produktion?.kampagne_id) {
         this._isMounted = true;
         renderNotFound('Produktion');

@@ -25,6 +25,8 @@ function looseChain() {
   const query = {
     select: vi.fn(() => query),
     eq: vi.fn(() => query),
+    not: vi.fn(() => query),
+    limit: vi.fn(() => query),
     insert: vi.fn(() => query),
     update: vi.fn(() => query),
     delete: vi.fn(() => query),
