@@ -87,13 +87,14 @@ function removeRestbetragHinweis(form) {
   form.querySelector(`#${RESTBETRAG_HINWEIS_ID}`)?.remove();
 }
 
-function updateRestbetragHinweis(form, abrechenbarkeit, { nettoInput, nettoSteuerfreiInput, kskInput }) {
+function updateRestbetragHinweis(form, abrechenbarkeit, { nettoInput, nettoSteuerfreiInput }) {
   removeRestbetragHinweis(form);
   if (!abrechenbarkeit || abrechenbarkeit.soll <= 0) return;
 
+  // Nur das Honorar zaehlt gegen den Restbetrag — der KSK-Selbstzahler-
+  // Aufschlag ist ein separates Konto (ADR 0015, Entscheid Marc 30.09.2026).
   const eingegeben = (parseFloat(nettoInput?.value) || 0)
-    + (parseFloat(nettoSteuerfreiInput?.value) || 0)
-    + (parseFloat(kskInput?.value) || 0);
+    + (parseFloat(nettoSteuerfreiInput?.value) || 0);
   const { soll, fakturiert, rest, anzahlRechnungen } = abrechenbarkeit;
 
   const ueber = eingegeben - rest;
@@ -119,6 +120,70 @@ function updateRestbetragHinweis(form, abrechenbarkeit, { nettoInput, nettoSteue
       Noch abrechenbar: ${_formatEuro(Math.max(rest, 0))}
     `;
   }
+
+  const koopField = findSelect(form, 'kooperation_id');
+  const koopGroup = koopField?.closest('.form-field') || koopField?.closest('.form-row-group');
+  if (koopGroup) {
+    koopGroup.insertAdjacentElement('afterend', banner);
+  } else {
+    form.prepend(banner);
+  }
+}
+
+// === KSK-Warnungen (ADR 0015, Entscheid Marc 30.09.2026) ===
+// Der KSK-Selbstzahler-Aufschlag ist ein separates Konto. Zwei weiche
+// Warnungen gegen Doppelzahlung: KSK auf einer Nicht-Selbstzahler-
+// Kooperation, und KSK, die auf einer frueheren Rechnung derselben
+// Kooperation schon abgerechnet wurde. Blockiert nie.
+const KSK_HINWEIS_ID = 'rechnung-ksk-hinweis';
+
+// kskSelbstzahler: true/false sobald eine Kooperation gewaehlt ist, null
+// solange keine gewaehlt ist (dann ist nichts pruefbar).
+function updateKskHinweis(form, { kskSelbstzahler, fakturiertKsk }, kskInput) {
+  form.querySelector(`#${KSK_HINWEIS_ID}`)?.remove();
+  const eingegeben = parseFloat(kskInput?.value) || 0;
+  if (eingegeben <= 0) return;
+
+  const warnungen = [];
+  if (kskSelbstzahler === false) {
+    warnungen.push('Diese Kooperation ist nicht als KSK-Selbstzahler markiert — die KSK zahlen wir normalerweise direkt an die Künstlersozialkasse, nicht an den Creator.');
+  }
+  if ((fakturiertKsk || 0) > 0) {
+    warnungen.push(`KSK wurde für diese Kooperation bereits abgerechnet (${_formatEuro(fakturiertKsk)}) — nicht doppelt berechnen.`);
+  }
+  if (!warnungen.length) return;
+
+  const banner = document.createElement('div');
+  banner.id = KSK_HINWEIS_ID;
+  banner.className = 'notice-box notice-warning';
+  banner.innerHTML = `<strong>KSK prüfen</strong>${warnungen.join('<br>')}`;
+  const kskGroup = kskInput.closest('.form-field') || kskInput.closest('.form-row-group');
+  if (kskGroup) {
+    kskGroup.insertAdjacentElement('afterend', banner);
+  } else {
+    form.prepend(banner);
+  }
+}
+
+// === Abrechnungshinweis des Auftrags (ADR 0015) ===
+// Freitext auf dem Auftrag, z.B. die Juniper-Regelung "Programmteilnahmen
+// laufen ueber das Honorar, Reisekosten separat als Zusatzkosten". Wird beim
+// Anlegen der Rechnung eingeblendet, damit die Regelung nicht verstaubt.
+const ABRECHNUNG_HINWEIS_ID = 'rechnung-abrechnung-hinweis';
+
+function updateAbrechnungHinweis(form, hinweis) {
+  form.querySelector(`#${ABRECHNUNG_HINWEIS_ID}`)?.remove();
+  const text = (hinweis || '').trim();
+  if (!text) return;
+
+  const banner = document.createElement('div');
+  banner.id = ABRECHNUNG_HINWEIS_ID;
+  banner.className = 'notice-box notice-info';
+  const strong = document.createElement('strong');
+  strong.textContent = 'Abrechnungshinweis zum Auftrag';
+  const span = document.createElement('span');
+  span.textContent = text;
+  banner.append(strong, span);
 
   const koopField = findSelect(form, 'kooperation_id');
   const koopGroup = koopField?.closest('.form-field') || koopField?.closest('.form-row-group');
@@ -388,13 +453,17 @@ export async function setup(form, ctx) {
   // Abrechenbarkeit der aktuell gewaehlten Kooperation (null im Edit-Mode
   // bzw. solange keine Kooperation gewaehlt ist)
   let aktuelleAbrechenbarkeit = null;
+  // Tri-State: null = keine Kooperation gewaehlt (nichts pruefbar)
+  let aktuelleKoopKskSelbstzahler = null;
 
   const onKoopChange = async () => {
     const koopId = koopSelect.value;
     if (!koopId) {
       hideVertragWarning(form);
       aktuelleAbrechenbarkeit = null;
+      aktuelleKoopKskSelbstzahler = null;
       removeRestbetragHinweis(form);
+      updateAbrechnungHinweis(form, null);
       const fieldsToReset = [
         { field: auftragField, placeholder: 'Auftrag wird automatisch gesetzt' },
         { field: unternehmenField, placeholder: 'Unternehmen wird automatisch gesetzt' },
@@ -447,11 +516,14 @@ export async function setup(form, ctx) {
     const vertragCheck = await findSignedVertragForKooperation(koopId);
     if (!vertragCheck.ok) {
       aktuelleAbrechenbarkeit = null;
+      aktuelleKoopKskSelbstzahler = null;
       removeRestbetragHinweis(form);
+      updateAbrechnungHinweis(form, null);
       showVertragWarning(form, vertragCheck.message);
       return;
     }
     hideVertragWarning(form);
+    aktuelleKoopKskSelbstzahler = koop?.ksk_selbstzahler === true;
 
     // Abrechenbarkeit der Kooperation bestimmen (ADR 0004/0015): gestellte
     // Rechnungen + Video-EK laden, Restbetrag fuer Prefill und Warnung.
@@ -482,7 +554,7 @@ export async function setup(form, ctx) {
         ? window.supabase.from('unternehmen').select('id, firmenname').eq('id', koop.unternehmen_id).single()
         : Promise.resolve({ data: null }),
       koop?.kampagne_id
-        ? window.supabase.from('kampagne').select('id, kampagnenname, eigener_name, auftrag_id, auftrag:auftrag_id(id, auftragsname)').eq('id', koop.kampagne_id).single()
+        ? window.supabase.from('kampagne').select('id, kampagnenname, eigener_name, auftrag_id, auftrag:auftrag_id(id, auftragsname, abrechnung_hinweis)').eq('id', koop.kampagne_id).single()
         : Promise.resolve({ data: null }),
       koop?.creator_id
         ? window.supabase.from('creator').select('id, vorname, nachname, umsatzsteuerpflichtig, lieferadresse_land, rechnungsadresse_abweichend, rechnungsadresse_land').eq('id', koop.creator_id).single()
@@ -509,6 +581,9 @@ export async function setup(form, ctx) {
       fillSelect(kampagneField, koop?.kampagne_id || '', kampLabel);
     }
     fillSelect(auftragField, auftragsId, auftragsName || (auftragsId ? 'Unbenannter Auftrag' : ''));
+
+    // Abrechnungshinweis des Auftrags einblenden (z.B. Juniper-Regelung)
+    updateAbrechnungHinweis(form, kampagneResult.data?.auftrag?.abrechnung_hinweis);
 
     if (!auftragsId && auftragField) {
       const container = auftragField.parentNode.querySelector('.searchable-select-container');
@@ -592,7 +667,11 @@ export async function setup(form, ctx) {
     });
     // Restbetrag-Hinweis laeuft mit (im Edit-Mode ist aktuelleAbrechenbarkeit
     // null und der Hinweis damit ein No-Op)
-    updateRestbetragHinweis(form, aktuelleAbrechenbarkeit, { nettoInput, nettoSteuerfreiInput, kskInput });
+    updateRestbetragHinweis(form, aktuelleAbrechenbarkeit, { nettoInput, nettoSteuerfreiInput });
+    updateKskHinweis(form, {
+      kskSelbstzahler: aktuelleKoopKskSelbstzahler,
+      fakturiertKsk: aktuelleAbrechenbarkeit?.fakturiertKsk || 0
+    }, kskInput);
   };
 
   const debouncedBerechne = debounce(berechneRechnung, 50);

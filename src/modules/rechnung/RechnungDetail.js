@@ -133,8 +133,18 @@ export class RechnungDetail {
     const formatCurrency = (v) => v == null ? '-' : new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v);
     const formatDate = (v) => v ? new Intl.DateTimeFormat('de-DE').format(new Date(v)) : '-';
 
+    const kskBetrag = parseFloat(this.data?.ksk_betrag) || 0;
+    const kskSelbstzahlerBox = kskBetrag > 0 && this.data?.rechnungstyp !== 'contracting' ? `
+      <div class="notice-box notice-warning">
+        <strong>KSK-Selbstzahler</strong>
+        Der KSK-Betrag (${formatCurrency(kskBetrag)}) ist Teil dieser Rechnung und geht an den Creator —
+        er führt die KSK selbst ab. Keine separate Abgabe an die Künstlersozialkasse veranlassen, sonst Doppelzahlung.
+      </div>
+    ` : '';
+
     const html = `
       <div class="content-section">
+        ${kskSelbstzahlerBox}
         <div class="detail-grid">
           <div class="detail-card">
             <h3>Allgemein</h3>
@@ -151,7 +161,7 @@ export class RechnungDetail {
             <div class="detail-item"><label>Bezahlt am</label><span>${formatDate(this.data?.bezahlt_am)}</span></div>
             <div class="detail-item"><label>Nettobetrag</label><span>${formatCurrency(this.data?.nettobetrag)}</span></div>
             ${(parseFloat(this.data?.nettobetrag_steuerfrei) || 0) > 0 ? `<div class="detail-item"><label>Steuerfreier Betrag (0% USt)</label><span>${formatCurrency(this.data?.nettobetrag_steuerfrei)}</span></div>` : ''}
-            ${(parseFloat(this.data?.ksk_betrag) || 0) > 0 ? `<div class="detail-item"><label>KSK-Aufschlag (Selbstzahler)</label><span>${formatCurrency(this.data?.ksk_betrag)}</span></div>` : ''}
+            ${(parseFloat(this.data?.ksk_betrag) || 0) > 0 ? `<div class="detail-item"><label>KSK (Creator führt selbst ab)</label><span>${formatCurrency(this.data?.ksk_betrag)}</span></div>` : ''}
             <div class="detail-item"><label>Zusatzkosten${this.data?.zusatzkosten_brutto ? ' (brutto)' : ''}</label><span>${formatCurrency(this.data?.zusatzkosten)}</span></div>
             <div class="detail-item"><label>Bruttobetrag</label><span>${formatCurrency(this.data?.bruttobetrag)}</span></div>
             ${this.data?.rechnungstyp === 'contracting' ? `<div class="detail-item"><label>KSK-pflichtig</label><span>${this.data?.ksk_pflichtig ? 'Ja' : 'Nein'}</span></div>` : ''}

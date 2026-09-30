@@ -190,7 +190,21 @@ describe('Sonderzeilen statt stiller Luecken', () => {
     expect(r.sonderzeilen.nochNichtFakturiert.faelle).toBe(1);
   });
 
-  it('Selbstzahler-Soll enthaelt den KSK-Aufschlag, weil die Rechnung ihn mitfakturiert', () => {
+  it('Selbstzahler-Soll ist reines Honorar — der KSK-Aufschlag beruehrt den Rest nicht (ADR 0015)', () => {
+    const r = calculateMonatsauswertung(base({
+      kooperationen: [{ ...KOOP_A1, ksk_selbstzahler: true, ksk_betrag: 245 }],
+      rechnungen: [{
+        id: 'r1', auftrag_id: 'a1', kooperation_id: 'ko1', status: 'Bezahlt',
+        nettobetrag: 5000, nettobetrag_steuerfrei: 0, ksk_betrag: 245, zusatzkosten: 0, gestellt_am: '2026-06-01',
+      }],
+    }));
+    // Soll 5000 Honorar, fakturiert 5000 Honorar -> nichts offen. Die 245
+    // KSK sind ein separates Konto und tauchen weder im Soll noch im Rest auf.
+    expect(r.sonderzeilen.nochNichtFakturiert.faelle).toBe(0);
+    expect(r.sonderzeilen.ueberfakturiert.faelle).toBe(0);
+  });
+
+  it('KSK in der Nettosumme gebacken wird als Ueberfakturierung ausgewiesen (ADR 0007/0015)', () => {
     const r = calculateMonatsauswertung(base({
       kooperationen: [{ ...KOOP_A1, ksk_selbstzahler: true, ksk_betrag: 245 }],
       rechnungen: [{
@@ -198,9 +212,11 @@ describe('Sonderzeilen statt stiller Luecken', () => {
         nettobetrag: 5245, nettobetrag_steuerfrei: 0, zusatzkosten: 0, gestellt_am: '2026-06-01',
       }],
     }));
-    // Soll 5000 + 245 Aufschlag = 5245, fakturiert 5245 -> nichts offen.
+    // Soll 5000 Honorar, fakturiert 5245 (KSK in netto versteckt) -> 245
+    // ueberfakturiert. Genau dieses Muster soll sichtbar werden.
     expect(r.sonderzeilen.nochNichtFakturiert.faelle).toBe(0);
-    expect(r.sonderzeilen.ueberfakturiert.faelle).toBe(0);
+    expect(r.sonderzeilen.ueberfakturiert.betrag).toBe(245);
+    expect(r.sonderzeilen.ueberfakturiert.faelle).toBe(1);
   });
 
   it('Rechnungen zu Entwurfs-Auftraegen verunreinigen weder Matrix noch Sonderzeilen', () => {
