@@ -139,7 +139,7 @@ export function renderLikySend({
     <button type="button"${id ? ` id="${id}"` : ''}
             class="doc-chat__send${extraClasses ? ` ${extraClasses}` : ''}"
             title="${title}" aria-label="${title}"${attrs ? ` ${attrs}` : ''}${disabled ? ' disabled' : ''}>
-      ${icon('paper-airplane')}
+      ${icon('send')}
       <span class="spinner-small${spinnerClass ? ` ${spinnerClass}` : ''}"></span>
     </button>
   `;

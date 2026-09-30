@@ -3,6 +3,7 @@
 // den Generierung und Rueckfragen teilen.
 
 const { fmtSection, fmtVarianten, produktPreis, videoLaengeHinweis, kuerzeTranskript, cap, KONTEXT_MAX } = require('./formatter');
+const { fmtReferenzKarte } = require('../skript-referenz-karte');
 const { fmtCampaignBriefing } = require('./briefing-felder');
 const { fmtAudienceSituations } = require('../audience-situation');
 
@@ -110,8 +111,9 @@ function buildKontextText(ctx, params) {
     relevante_produktvorteile: cap(ctx.persona.produktvorteile, KONTEXT_MAX.beschreibung),
     beschreibung: cap(ctx.persona.beschreibung, KONTEXT_MAX.beschreibung)
   });
-  // Videovorlage VOR den Vorgaben: kreative Basis, klar delimitiert
-  text += buildReferenzText(params.referenz_video);
+  // Videovorlage: Karte statt Rohtranskript, wenn der Auftrag das verlangt.
+  if (params.referenz_karte) text += fmtReferenzKarte(params.referenz_karte);
+  else if (!params.nur_karte) text += buildReferenzText(params.referenz_video);
   // Campaign-Briefing VOR den Video-Vorgaben: Kampagnen-/Umsetzungsquelle.
   // Per-Video-Vorgaben (Laenge, Funnel, Ton) schlagen Briefing-Defaults.
   text += fmtCampaignBriefing(ctx.briefing);

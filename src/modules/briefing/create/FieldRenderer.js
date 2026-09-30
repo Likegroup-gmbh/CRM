@@ -115,7 +115,7 @@ function renderTextarea(field, formData) {
   const value = formData[field.name] ?? '';
   return `
     <div class="form-field">
-      ${renderLabel(field)}
+      ${field.hideLabel ? '' : renderLabel(field)}
       <textarea id="${field.name}" name="${field.name}" rows="${field.rows || 3}"
                 ${field.placeholder ? `placeholder="${escapeHtml(field.placeholder)}"` : ''}
                 ${field.required ? 'required' : ''}>${escapeHtml(value)}</textarea>
@@ -291,9 +291,11 @@ function renderChannelGroup(field, formData) {
     const selected = channel.formats
       ? (Array.isArray(channelValue) ? channelValue : [])
       : (channelValue === true ? ['true'] : []);
+    const chipIcon = channel.key === 'pinterest' ? 'pinterest' : null;
     const formats = formatOptions.map(fmt => `
-      <label class="checkbox-label">
+      <label class="checkbox-label${chipIcon ? ' checkbox-label--icon' : ''}">
         <input type="checkbox" name="${field.name}__${channel.key}" value="${escapeHtml(fmt.value)}" ${selected.includes(fmt.value) ? 'checked' : ''}>
+        ${chipIcon ? `<span class="checkbox-label__icon" aria-hidden="true">${icon(chipIcon)}</span>` : ''}
         <span>${escapeHtml(fmt.label)}</span>
       </label>
     `).join('');
@@ -402,15 +404,16 @@ function renderRepeatableUpload(field, formData) {
     `;
   };
 
-  return `
-    <div class="form-field">
-      ${renderLabel(field)}
-      <div class="bf-repeatable" data-repeatable="${field.name}" data-repeatable-type="upload" data-max="${field.max || 3}">
-        ${rows.map(rowHtml).join('')}
-      </div>
+  const addButton = field.hideAdd ? '' : `
       <button type="button" class="mdc-btn mdc-btn--secondary bf-repeatable-add" data-repeatable-add="${field.name}">
         ${icon('plus')} Beispiel hinzufügen
-      </button>
+      </button>`;
+
+  return `
+    <div class="form-field">
+      ${field.hideLabel ? '' : renderLabel(field)}
+      <div class="bf-repeatable" data-repeatable="${field.name}" data-repeatable-type="upload" data-max="${field.max || 3}">${rows.map(rowHtml).join('')}</div>
+      ${addButton}
       ${renderHelper(field)}
     </div>
   `;
@@ -513,7 +516,41 @@ function classList(...parts) {
   return parts.filter(Boolean).join(' ');
 }
 
+function renderSplitHeaderGroup(field, formData, context) {
+  const [left, right] = field.fields || [];
+  const id = field.id || '';
+  const classes = classList('bf-field-group', 'bf-field-group--split-header', id && `bf-field-group--${id}`);
+  const required = left?.required ? ' <span class="required">*</span>' : '';
+  const leftLabel = left
+    ? `<label for="${escapeHtml(left.name)}">${escapeHtml(left.label || '')}${required}</label>`
+    : '';
+  const rightLabel = right
+    ? `<span class="bf-split-header__label">${escapeHtml(right.label || '')}</span>`
+    : '';
+  const addButton = right
+    ? `<button type="button" class="mdc-btn mdc-btn--secondary bf-repeatable-add" data-repeatable-add="${escapeHtml(right.name)}">${icon('plus')} Beispiel hinzufügen</button>`
+    : '';
+  const bodies = [
+    left ? renderField({ ...left, hideLabel: true }, formData, context) : '',
+    right ? renderField({ ...right, hideLabel: true, hideAdd: true }, formData, context) : ''
+  ].join('');
+
+  return `
+    <div class="${classes}"${id ? ` data-group="${escapeHtml(id)}"` : ''}>
+      <div class="bf-split-header">
+        ${leftLabel}
+        <div class="bf-split-header__side">
+          ${rightLabel}
+          ${addButton}
+        </div>
+      </div>
+      ${bodies}
+    </div>
+  `;
+}
+
 function renderFieldGroup(field, formData, context) {
+  if (field.layout === 'splitHeader') return renderSplitHeaderGroup(field, formData, context);
   const layout = field.layout || 'stack';
   const id = field.id || '';
   const classes = classList('bf-field-group', `bf-field-group--${layout}`, id && `bf-field-group--${id}`);

@@ -23,14 +23,14 @@
 export const produktConfig = {
   title: 'Neues Produkt anlegen',
   fields: [
-    // 1. Auslesen - steht ganz oben, damit die Shop-URL vor dem manuellen
-    // Tippen eingegeben wird und die Felder darunter fuellen kann.
+    // 1. Auslesen - nur der Chat-Trigger, nicht die gespeicherte Produkt-URL.
+    // name darf nicht "url" sein: sonst kollidiert das Composer-Input mit dem
+    // Dokumentfeld und collectSubmitData macht aus zwei Werten ein Array.
     {
-      name: 'url',
+      name: 'extract_quelle',
       label: 'Shop-URL',
       type: 'url',
       required: false,
-      validation: { type: 'url' },
       placeholder: 'https://muster-shop.de/products/produktname',
       aiExtract: true,
       docSlot: 'side',
@@ -51,6 +51,18 @@ export const produktConfig = {
       section: 'basis',
       sectionTitle: 'Was ist das Produkt?',
       sectionDescription: 'Die Kollektion trägt die gemeinsame Basis. Unterschiede wie Farbe oder Modell kommen als Varianten dazu.'
+    },
+    {
+      name: 'url',
+      label: 'Produkt-URL',
+      type: 'url',
+      required: true,
+      validation: { type: 'url' },
+      placeholder: 'https://muster-shop.de/products/produktname',
+      docLabel: 'Produkt-URL',
+      docHint: 'Kommt aus der Shop-URL im Chat oder aus dem PDF. Sonst hier eintragen.',
+      docGroup: 'inhalt',
+      section: 'basis'
     },
     {
       name: 'unternehmen_id',

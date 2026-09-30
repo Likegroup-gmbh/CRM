@@ -13,7 +13,8 @@
 /* Eine flache Shell ueber die volle Hoehe mit Hairline-Trennern, genau wie
    .skripte-editor-shell. Gescrollt wird nur innerhalb der Spalten - deshalb
    gibt der Wrapper seinen eigenen Scroll ab. */
-.main-wrapper:has(> .doc) {
+.main-wrapper:has(> .doc),
+.main-wrapper:has(.form-page > .doc__shell) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -41,16 +42,20 @@
 }
 
 /* Multistep in der linken Spalte (Briefing): gleiche Shell wie .doc,
-   Formular statt .doc__main. Seitenrand kommt von --doc-pad-x. */
+   Formular statt .doc__main. Seitenrand kommt von --doc-pad-x.
+   Die Seite fuellt die Restflaeche unter der Progress-Leiste, damit
+   Formular und Chat intern scrollen statt den Wrapper mitzuziehen. */
 .form-page:has(> .doc__shell) {
   padding: 0;
   border-right: none;
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - 128px);
+  flex: 1;
+  min-height: 0;
 }
 
 .main-wrapper:has(.doc__shell) > .multistep-progress {
+  flex-shrink: 0;
   padding-left: var(--space-md);
   padding-right: var(--space-md);
 }
@@ -1467,13 +1472,16 @@
    Dokument neben dem Panel zu wenig Platz fuer die Tabellen. Einspaltig
    verliert die Shell ihre Vollhoehe, gescrollt wird wieder die ganze Seite. */
 @media (max-width: 1280px) {
-  .main-wrapper:has(> .doc) {
+  .main-wrapper:has(> .doc),
+  .main-wrapper:has(.form-page > .doc__shell) {
     display: block;
     overflow-y: auto;
   }
 
-  .doc {
+  .doc,
+  .form-page:has(> .doc__shell) {
     display: block;
+    flex: none;
     min-height: 0;
   }
 

@@ -2,7 +2,7 @@
 // Drawer zur Verwaltung der Spalten-Sichtbarkeit für Kunden in der Video-Tabelle
 
 import { VIDEO_FEEDBACK_FIELDS } from '../../core/VideoFeedbackBuckets.js';
-import { getConfigurableColumns } from './columns/ColumnRegistry.js';
+import { getConfigurableColumns, isColumnPreferredVisible, setColumnPreferredVisible } from './columns/ColumnRegistry.js';
 
 export class VideoTableColumnVisibilityDrawer {
   constructor(kampagneId, store) {
@@ -180,7 +180,7 @@ export class VideoTableColumnVisibilityDrawer {
   // Rendere den Inhalt des Drawers
   renderContent() {
     const rows = this.columns.map(col => {
-      const isVisible = !this.hiddenColumns.includes(col.className);
+      const isVisible = isColumnPreferredVisible(col.className, this.hiddenColumns);
       return `
         <tr>
           <td class="video-visibility-table__cell-left">${col.label}</td>
@@ -242,7 +242,7 @@ export class VideoTableColumnVisibilityDrawer {
     const toggles = body.querySelectorAll('.column-visibility-toggle');
     toggles.forEach((toggle) => {
       const columnClass = toggle.dataset.column;
-      toggle.checked = !this.hiddenColumns.includes(columnClass);
+      toggle.checked = isColumnPreferredVisible(columnClass, this.hiddenColumns);
     });
   }
 
@@ -251,15 +251,7 @@ export class VideoTableColumnVisibilityDrawer {
     const columnClass = event.target.dataset.column;
     const isVisible = event.target.checked;
 
-    if (isVisible) {
-      // Spalte sichtbar machen (aus hiddenColumns entfernen)
-      this.hiddenColumns = this.hiddenColumns.filter(col => col !== columnClass);
-    } else {
-      // Spalte verstecken (zu hiddenColumns hinzufügen)
-      if (!this.hiddenColumns.includes(columnClass)) {
-        this.hiddenColumns.push(columnClass);
-      }
-    }
+    this.hiddenColumns = setColumnPreferredVisible(this.hiddenColumns, columnClass, isVisible);
 
     // Auto-Save
     await this.saveSettings();
@@ -273,15 +265,12 @@ export class VideoTableColumnVisibilityDrawer {
     const toggles = body.querySelectorAll('.column-visibility-toggle');
     const allChecked = Array.from(toggles).every(t => t.checked);
 
-    if (allChecked) {
-      // Alle verstecken
-      this.hiddenColumns = this.columns.map(col => col.className);
-      toggles.forEach(t => t.checked = false);
-    } else {
-      // Alle sichtbar machen
-      this.hiddenColumns = [];
-      toggles.forEach(t => t.checked = true);
-    }
+    const columnIds = this.columns.map(col => col.className);
+    this.hiddenColumns = columnIds.reduce(
+      (list, colId) => setColumnPreferredVisible(list, colId, !allChecked),
+      []
+    );
+    toggles.forEach(t => { t.checked = !allChecked; });
 
     // Speichern
     await this.saveSettings();

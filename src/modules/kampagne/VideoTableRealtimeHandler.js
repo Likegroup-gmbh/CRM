@@ -34,6 +34,7 @@ export class VideoTableRealtimeHandler {
   }
 
   initRealtimeSubscription() {
+    if (this._destroyed) return;
     if (this.table._realtimeChannel) return;
     if (!window.supabase?.channel) return;
 
@@ -93,7 +94,10 @@ export class VideoTableRealtimeHandler {
       .subscribe((status, err) => {
         if (status === 'CHANNEL_ERROR') {
           console.error('REALTIME: Channel Error:', err);
-          setTimeout(() => {
+          clearTimeout(this._reconnectTimer);
+          this._reconnectTimer = setTimeout(() => {
+            this._reconnectTimer = null;
+            if (this._destroyed) return;
             this.cleanup();
             this.initRealtimeSubscription();
           }, 5000);
@@ -390,7 +394,14 @@ export class VideoTableRealtimeHandler {
     });
   }
 
+  destroy() {
+    this._destroyed = true;
+    this.cleanup();
+  }
+
   cleanup() {
+    clearTimeout(this._reconnectTimer);
+    this._reconnectTimer = null;
     if (this.table._realtimeChannel) {
       window.supabase.removeChannel(this.table._realtimeChannel);
       this.table._realtimeChannel = null;

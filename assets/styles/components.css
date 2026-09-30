@@ -497,37 +497,6 @@ h3.section-title,
   background: var(--gray-200);
 }
 
-.tab-deadline {
-  display: inline-flex;
-  align-items: center;
-  margin-left: var(--space-xs);
-  font-size: 0.65rem;
-  font-weight: 500;
-  color: var(--gray-500);
-  white-space: nowrap;
-}
-
-.tab-deadline--soon {
-  color: var(--orange-600);
-}
-
-.tab-deadline--overdue {
-  color: var(--red-600);
-  font-weight: 600;
-}
-
-.tab-button.active .tab-deadline {
-  color: var(--gray-600);
-}
-
-.tab-button.active .tab-deadline--soon {
-  color: var(--orange-600);
-}
-
-.tab-button.active .tab-deadline--overdue {
-  color: var(--red-600);
-}
-
 /* Active Tab Indicator Line */
 
 .tab-content {

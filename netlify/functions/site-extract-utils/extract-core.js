@@ -110,6 +110,10 @@ function normalizeFields(raw, spec) {
       value = normalizeWebsite(value);
       if (!value) continue;
     }
+    if (field.name === 'url') {
+      value = normalizeProduktUrl(value);
+      if (!value) continue;
+    }
     if (field.name === 'invoice_email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) continue;
     if (field.type === 'number') {
       value = normalizeNumber(value);
@@ -124,6 +128,24 @@ function normalizeFields(raw, spec) {
   }
 
   return fields;
+}
+
+/** Produkt-URL behaelt den Pfad. Ohne echten Host (Punkt in der Domain) fliegt sie raus. */
+function normalizeProduktUrl(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  const explicit = text.match(/https?:\/\/[^\s<>"']+/i);
+  const bare = text.match(/(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^\s<>"']*)?/i);
+  const raw = (explicit || bare)?.[0]?.replace(/[),.;]+$/, '') || '';
+  if (!raw) return '';
+  try {
+    const u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+    if (!['http:', 'https:'].includes(u.protocol)) return '';
+    if (!u.hostname.includes('.')) return '';
+    return u.href;
+  } catch {
+    return '';
+  }
 }
 
 function normalizeWebsite(value) {

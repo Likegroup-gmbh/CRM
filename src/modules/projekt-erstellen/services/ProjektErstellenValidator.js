@@ -2,6 +2,7 @@
 // Per-Step Pflichtfeld- und Business-Rules-Validation.
 
 import { flattenCampaignBlocks } from '../logic/kampagnenSplit.js';
+import { validateAllProduktionsbudgets } from '../../produktion/produktionsbudget.js';
 
 const parseMoney = (value) => {
   if (value === '' || value == null) return 0;
@@ -20,6 +21,7 @@ export class ProjektErstellenValidator {
         : this.validateStepDetailsOnly(formData);
     }
     if (step === 4) return this.validateStepKampagne(formData);
+    if (step === 5) return this.validateStepProduktion(formData);
     return { valid: true, errors: [] };
   }
 
@@ -155,6 +157,13 @@ export class ProjektErstellenValidator {
       this._validateAgencyFull(d, a, errors);
     }
     return { valid: errors.length === 0, errors };
+  }
+
+  validateStepProduktion(formData) {
+    const slots = Array.isArray(formData.kampagnen) && formData.kampagnen.length
+      ? formData.kampagnen
+      : [{ kampagnen_nummer: 1, volumen: formData.auftrag?.nettobetrag || 0 }];
+    return validateAllProduktionsbudgets(formData.produktionen || [], slots);
   }
 
   _validateDateRange(a, errors) {

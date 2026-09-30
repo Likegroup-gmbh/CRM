@@ -224,7 +224,8 @@ describe('SkriptEditorView Layout', () => {
 
     // Linke Zelle selektierbar, rechte nicht
     const textZellen = container.querySelectorAll('.skripte-editor-sektion-text');
-    expect(textZellen.length).toBe(3);
+    expect(textZellen.length).toBe(4);
+    expect(container.querySelector('.skripte-editor-titel[data-feld="titel"]')).not.toBeNull();
     const visualZellen = container.querySelectorAll('.skripte-editor-sektion-visual');
     expect(visualZellen.length).toBe(3);
     expect(visualZellen[0].classList.contains('skripte-editor-sektion-text')).toBe(false);
@@ -235,6 +236,26 @@ describe('SkriptEditorView Layout', () => {
     // Wand-Button in jeder rechten Zelle
     const visualBtns = container.querySelectorAll('.skripte-editor-visual-btn');
     expect(visualBtns.length).toBe(3);
+  });
+
+  it('zeigt Festlegungen und Pruefung, Entfernen leert die Zeile', async () => {
+    mockService.loadSkript.mockResolvedValue({
+      ...skript,
+      festlegungen: [{ text: 'nur ein Creator', quelle: 'anweisung' }],
+      pruefung: { laenge: { status: 'ueber', worte: 90, min: 35, max: 70 }, claims: ['heilt alles'] }
+    });
+    mockService.updateSkript.mockResolvedValue({});
+    await view.render(container, 's1');
+
+    expect(document.querySelector('.skripte-editor-festlegungen').textContent).toContain('nur ein Creator');
+    expect(container.querySelector('.skripte-editor-pruefung').textContent).toContain('90 Wörter');
+    expect(container.querySelector('.skripte-editor-pruefung').textContent).toContain('heilt alles');
+
+    document.querySelector('[data-msg-action="festlegung-loeschen"]').click();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', { festlegungen: [] });
+    expect(document.querySelector('.skripte-editor-festlegungen')).toBeNull();
   });
 
   it('Sidebar rendert nur Skripte derselben Kampagne', async () => {
@@ -661,7 +682,10 @@ describe('SkriptEditorView Layout', () => {
     await view.render(container, 's1');
     await new Promise((r) => setTimeout(r, 0));
 
-    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', { hook_visuell: 'Reload-Visual' });
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
+      hook_visuell: 'Reload-Visual',
+      festgezogen: ['hook_visuell']
+    });
     expect(view.skript.hook_visuell).toBe('Reload-Visual');
     expect(view.skript.hook).toBe('Hook-Text');
   });
@@ -690,7 +714,10 @@ describe('SkriptEditorView Layout', () => {
     view.applyMessageUpdate(msg, 'UPDATE');
     await new Promise((r) => setTimeout(r, 0));
 
-    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', { hook_visuell: 'Neuer Visual-Text' });
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
+      hook_visuell: 'Neuer Visual-Text',
+      festgezogen: ['hook_visuell']
+    });
     expect(mockService.createVersion).toHaveBeenCalled();
     expect(mockService.updateChatMessage).toHaveBeenCalledWith('m1', { status: 'angenommen' });
     expect(view.skript.hook_visuell).toBe('Neuer Visual-Text');
@@ -790,12 +817,12 @@ describe('SkriptEditorView Inline-Edit', () => {
     vi.clearAllMocks();
   });
 
-  it('Nicht-Kunde: 6 Zellen editable, leerer Hook ohne Gedankenstrich', async () => {
+  it('Nicht-Kunde: Titel plus 6 Zellen editable, leerer Hook ohne Gedankenstrich', async () => {
     mockService.loadSkript.mockResolvedValue({ ...skript, hook: '' });
     await view.render(container, 's1');
 
     const zellen = container.querySelectorAll('[data-feld]');
-    expect(zellen.length).toBe(6);
+    expect(zellen.length).toBe(7);
     zellen.forEach((el) => {
       expect(el.getAttribute('contenteditable')).toBe('plaintext-only');
     });
@@ -809,7 +836,7 @@ describe('SkriptEditorView Inline-Edit', () => {
     await view.render(container, 's1');
 
     const zellen = container.querySelectorAll('[data-feld]');
-    expect(zellen.length).toBe(6);
+    expect(zellen.length).toBe(7);
     zellen.forEach((el) => {
       expect(el.getAttribute('contenteditable')).toBe('plaintext-only');
     });
@@ -850,7 +877,10 @@ describe('SkriptEditorView Inline-Edit', () => {
       vorschlag_text: 'Close-up Pfanne'
     });
 
-    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', { hauptteil_visuell: 'Close-up Pfanne' });
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
+      hauptteil_visuell: 'Close-up Pfanne',
+      festgezogen: ['hauptteil_visuell']
+    });
     expect(mockService.updateSkript).not.toHaveBeenCalledWith('s1', expect.objectContaining({ hauptteil: expect.anything() }));
     expect(view.skript.hauptteil_visuell).toBe('Close-up Pfanne');
     expect(view.skript.hauptteil).toBe('Hauptteil-Text');
@@ -870,7 +900,10 @@ describe('SkriptEditorView Inline-Edit', () => {
       vorschlag_text: 'Neuer Shot'
     });
 
-    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', { hook_visuell: 'Neuer Shot' });
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
+      hook_visuell: 'Neuer Shot',
+      festgezogen: ['hook_visuell']
+    });
     expect(view.skript.hook_visuell).toBe('Neuer Shot');
     expect(view.skript.hook).toBe('Hook-Text');
     expect(mockService.createVersion.mock.calls[0][1]).toBe('Kürzen · Hook Visual');
@@ -892,7 +925,8 @@ describe('SkriptEditorView Inline-Edit', () => {
     });
 
     expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
-      hook_visuell: 'Text Overlay: Neu\n\nVisual: Creator zeigt das Serum.'
+      hook_visuell: 'Text Overlay: Neu\n\nVisual: Creator zeigt das Serum.',
+      festgezogen: ['hook_visuell']
     });
     expect(view.skript.hook).toBe('Hook-Text');
     expect(view.skript.hook_visuell).not.toContain('Alter Shot');

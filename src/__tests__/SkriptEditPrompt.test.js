@@ -89,23 +89,17 @@ describe('buildEditPrompt aktion visuell', () => {
     expect(task).toContain('Aktion: Visual');
     expect(task).toContain('Sektion: HOOK');
     expect(task).toContain('Markierte Stelle:\n"""Kennst du das?"""');
-    expect(task).toContain('VISUELLE REGIE');
     expect(task).toContain('KEINEN zweiten Sprechertext');
-    expect(task).toContain('Der gesprochene Text bleibt unverändert');
-    expect(task).toContain('vorschlag_text = visuelle Regie fuer "Was zu sehen ist"');
+    expect(task).toContain('Der gesprochene Text bleibt unveraendert');
+    expect(task).toContain('vorschlag_text = ein schlichter Satz pro Beat');
     expect(task).toContain('KEIN gesprochener Text, keine Sprecher-Anweisungen');
-    expect(task).toContain('# ZEITPLAN UND KONTINUITAET');
-    expect(task).toContain('Beginne bei 0:00.');
-    expect(task).toContain('5–10');
-    expect(task).toContain('B-Roll (ca. 10 Sek.)');
-    expect(task).toContain('M:SS–M:SS');
-    expect(task).toContain('Text Overlay');
-    expect(task).toContain('Produktionsbriefing');
-    expect(task).toContain('Stil, Orte und Props konsistent halten');
+    expect(task).toContain('Ein schlichter Satz pro gesprochenem Beat');
+    expect(task).toContain('Keine Zeitmarker');
+    expect(task).not.toContain('# ZEITPLAN UND KONTINUITAET');
     expect(task).not.toContain('Jeder Shot MUSS einen Zeitstempel');
   });
 
-  it('visuell Hauptteil: Start = letzter Hook-Zeitstempel', () => {
+  it('visuell Hauptteil setzt keine Modell-Zeitmarker', () => {
     const { task } = buildEditPrompt(baseCtx({
       skript: { hook_visuell: '0:00–0:03 Close-up Gesicht' }
     }), {
@@ -115,13 +109,12 @@ describe('buildEditPrompt aktion visuell', () => {
       inhalt: 'Visual zu Hauptteil'
     });
 
-    expect(task).toContain('# ZEITPLAN UND KONTINUITAET');
-    expect(task).toContain('Die Sektion davor (Hook) endet bei 0:03.');
-    expect(task).toContain('Dein erster Block MUSS bei 0:03 beginnen');
+    expect(task).toContain('Keine Zeitmarker');
     expect(task).not.toContain('Beginne bei 0:00.');
+    expect(task).not.toContain('Dein erster Block MUSS bei 0:03 beginnen');
   });
 
-  it('visuell CTA: Start = Ende Hauptteil, letzter Shot = Video-Ende', () => {
+  it('visuell CTA setzt das Video-Ende nicht als Modell-Marker', () => {
     const { task } = buildEditPrompt(baseCtx({
       skript: {
         hook_visuell: '0:00–0:03 Close-up',
@@ -135,9 +128,8 @@ describe('buildEditPrompt aktion visuell', () => {
       inhalt: 'Visual zu CTA'
     });
 
-    expect(task).toContain('Die Sektion davor (Hauptteil) endet bei 0:12.');
-    expect(task).toContain('Dein erster Block MUSS bei 0:12 beginnen');
-    expect(task).toContain('Der letzte Block soll bei 0:30 enden');
+    expect(task).toContain('Keine Zeitmarker');
+    expect(task).not.toContain('Der letzte Block soll bei 0:30 enden');
   });
 
   it('visuell mit Modus: REGIE-MODUS-Block', () => {
@@ -206,9 +198,8 @@ describe('buildEditPrompt ist_visuell Rewrite', () => {
     expect(task).toContain('Close-up Gesicht');
     expect(task).toContain('stammt aus "Was zu sehen ist"');
     expect(task).toContain('KEINEN Sprechertext');
-    expect(task).toContain('Text Overlay, Visual, B-Roll');
-    expect(task).toContain('kein neues Storyboard');
-    expect(task).toContain('Zeitmarker und Blöcke stehen lassen');
+    expect(task).toContain('Keine Zeitmarker, keine Shotlist');
+    expect(task).not.toContain('Text Overlay, Visual, B-Roll');
     expect(task).not.toContain('HARTES WORT-BUDGET');
     expect(task).not.toContain('# ZEITPLAN UND KONTINUITAET');
   });
@@ -260,10 +251,9 @@ describe('buildEditPrompt Visual-Stil', () => {
   it('legt Stil-Dokument in den stable-Block', () => {
     const { stable } = buildEditPrompt(baseCtx(), VISUELL_MSG);
     expect(stable).toContain('# VISUELLER STIL');
-    expect(stable).toContain('Text Overlay');
-    expect(stable).toContain('B-Roll');
-    expect(stable).toContain('Anti-Beispiel');
-    expect(stable).toContain('Whip-Pan');
+    expect(stable).toContain('Ein schlichter Satz pro Beat');
+    expect(stable).toContain('Keine Zeitmarker');
+    expect(stable).not.toContain('Whip-Pan');
   });
 
   it('legt keine fremden Visual-Skripte in den Prompt', () => {

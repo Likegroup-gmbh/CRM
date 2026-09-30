@@ -88,7 +88,22 @@ export class CreatorAuswahlDetail {
 
   // --- Init & Lifecycle ---
 
-  async init(listeId, { root, chromeRoot, embedded } = {}) {
+  // Stufen-Fetch für init und den Produktions-Prefetch.
+  // Stufe 1 braucht nur die listeId, Stufe 2 die liste bzw. die items.
+  async _fetchDataStages(listeId) {
+    const [liste, items] = await Promise.all([
+      creatorAuswahlService.getListeById(listeId),
+      creatorAuswahlService.getItems(listeId),
+      this.customColumns.init(listeId)
+    ]);
+    const [personas] = await Promise.all([
+      creatorAuswahlService.loadBriefingPersonas(liste),
+      this.customColumns.loadValues(items.map(i => i.id))
+    ]);
+    return { liste, items, personas };
+  }
+
+  async init(listeId, { root, chromeRoot, embedded, prefetched } = {}) {
     this.listeId = listeId;
     this.root = root || window.content;
     this.chromeRoot = chromeRoot || null;
@@ -101,6 +116,7 @@ export class CreatorAuswahlDetail {
     // Ihre Abruf-Aktion braucht diese Instanz, also wird die Config hier mit
     // Kontext angemeldet statt global deklariert.
     registerHoverToolbar(SOURCING_IG_TOOLBAR, createSourcingIgToolbarConfig(this));
+    this._hoverRegistered = true;
 
     if (!this.embedded && this.isKunde) {
       const quickMenuContainer = document.getElementById('quick-menu-container');
@@ -108,12 +124,10 @@ export class CreatorAuswahlDetail {
     }
 
     try {
-      this.liste = await creatorAuswahlService.getListeById(listeId);
-      this.items = await creatorAuswahlService.getItems(listeId);
-      this.personas = await creatorAuswahlService.loadBriefingPersonas(this.liste);
-
-      await this.customColumns.init(listeId);
-      await this.customColumns.loadValues(this.items.map(i => i.id));
+      const { liste, items, personas } = prefetched || await this._fetchDataStages(listeId);
+      this.liste = liste;
+      this.items = items;
+      this.personas = personas;
 
       this.loadColumnVisibilitySettings();
 
@@ -143,6 +157,8 @@ export class CreatorAuswahlDetail {
   }
 
   destroy() {
+    if (this._tornDown) return;
+    this._tornDown = true;
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
     this.addDrawer.remove();
@@ -150,7 +166,11 @@ export class CreatorAuswahlDetail {
 
     // Die Engine selbst bleibt stehen, sie gehoert der Anwendung. Nur diese
     // Config verweist auf eine Instanz, die es gleich nicht mehr gibt.
-    unregisterHoverToolbar(SOURCING_IG_TOOLBAR);
+    // Prefetch-Instanzen, die nie gemountet wurden, haben nichts angemeldet.
+    if (this._hoverRegistered) {
+      unregisterHoverToolbar(SOURCING_IG_TOOLBAR);
+      this._hoverRegistered = false;
+    }
     hoverToolbar.close();
 
     this.vorschlagPanel?.unmount?.();

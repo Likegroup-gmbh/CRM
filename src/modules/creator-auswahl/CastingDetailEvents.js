@@ -180,10 +180,6 @@ export function bindEvents() {
   document.addEventListener('table-select-change', selectHandler);
   this._boundEventListeners.add(() => document.removeEventListener('table-select-change', selectHandler));
 
-  if (window.ActionsDropdown) {
-    window.ActionsDropdown.init();
-  }
-
   const supportsContentSizing = globalThis.CSS?.supports?.('field-sizing', 'content') === true;
   if (!supportsContentSizing) {
     this._qq('.cp-col-feedback textarea.auto-resize-textarea').forEach(el => {

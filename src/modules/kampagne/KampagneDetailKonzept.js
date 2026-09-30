@@ -3,14 +3,17 @@
 
 import { StrategieDetail } from '../strategie/StrategieDetail.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
+import { bumpPaneGen, isPaneGenCurrent, paneGeneration } from './KampagneDetailWorkflow.js';
 
 const esc = (t) => window.validatorSystem?.sanitizeHtml(String(t ?? '')) || '';
+const SPINNER = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
 
 function getKonzeptTools() {
   return document.getElementById('kampagne-konzept-tools');
 }
 
 export function unmountKonzeptWorksheet(detail) {
+  bumpPaneGen(detail, 'konzepte');
   if (detail.konzeptWorksheet) {
     detail.konzeptWorksheet.destroy();
     detail.konzeptWorksheet = null;
@@ -19,18 +22,80 @@ export function unmountKonzeptWorksheet(detail) {
   if (tools) tools.innerHTML = '';
 }
 
+function prefetchStillCurrent(detail, gen) {
+  return (detail._prefetchGen || 0) === gen && detail._isMounted !== false;
+}
+
+function konzeptStillCurrent(detail, gen, pane) {
+  return isPaneGenCurrent(detail, 'konzepte', gen) && pane.isConnected;
+}
+
+function dropWorksheet(worksheet, detail) {
+  if (worksheet && worksheet !== detail.konzeptWorksheet) worksheet.destroy();
+}
+
+/**
+ * Konzept-Liste und, wenn eins da ist, Strategie plus Items plus Spalten.
+ * Fehler wirft der Aufrufer weg. Eine veraltete Generation räumt ab.
+ */
+export async function loadKonzeptPrefetch(detail, gen) {
+  const listen = await loadKonzepte(detail);
+  if (!prefetchStillCurrent(detail, gen)) return null;
+  if (!listen.length) return { listen, selectedId: null, worksheet: null };
+
+  const selectedId = listen.some(l => l.id === detail._konzeptSelectedId)
+    ? detail._konzeptSelectedId
+    : listen[0].id;
+  const worksheet = new StrategieDetail();
+  try {
+    await worksheet.prepareEmbedded(selectedId);
+  } catch (error) {
+    worksheet.destroy();
+    throw error;
+  }
+  if (!prefetchStillCurrent(detail, gen)) {
+    worksheet.destroy();
+    return null;
+  }
+  return { listen, selectedId, worksheet };
+}
+
+async function takeKonzeptPrefetch(detail) {
+  const tracked = detail._konzeptPrefetch;
+  if (!tracked) return null;
+  tracked.consumed = true;
+  detail._konzeptPrefetch = null;
+  return tracked.promise;
+}
+
 export async function mountKonzeptPane(detail) {
   const pane = document.getElementById('workflow-pane-konzepte');
   if (!pane) return;
+  const gen = paneGeneration(detail, 'konzepte');
 
-  pane.innerHTML = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
+  const tracked = detail._konzeptPrefetch;
+  const warm = !!(tracked?.settled && tracked.value);
+  if (!warm) pane.innerHTML = SPINNER;
+
+  let prefetched = null;
+  if (tracked) {
+    prefetched = await takeKonzeptPrefetch(detail);
+    if (!konzeptStillCurrent(detail, gen, pane)) {
+      dropWorksheet(prefetched?.worksheet, detail);
+      return;
+    }
+  }
 
   try {
-    const listen = await loadKonzepte(detail);
-    if (!pane.isConnected) return;
+    const listen = prefetched?.listen || await loadKonzepte(detail);
+    if (!konzeptStillCurrent(detail, gen, pane)) {
+      dropWorksheet(prefetched?.worksheet, detail);
+      return;
+    }
     detail.strategien = listen;
 
     if (!listen.length) {
+      dropWorksheet(prefetched?.worksheet, detail);
       pane.innerHTML = renderEmptyKonzept();
       return;
     }
@@ -40,9 +105,14 @@ export async function mountKonzeptPane(detail) {
       : listen[0].id;
     detail._konzeptSelectedId = selectedId;
 
+    const warmWorksheet = prefetched?.worksheet && prefetched.selectedId === selectedId
+      ? prefetched.worksheet
+      : null;
+    if (prefetched?.worksheet && !warmWorksheet) prefetched.worksheet.destroy();
+
     pane.innerHTML = renderKonzeptShell(listen, selectedId);
     bindSwitcher(detail, pane);
-    await mountWorksheet(detail, pane.querySelector('.kampagne-konzept-worksheet'), selectedId);
+    await mountWorksheet(detail, pane.querySelector('.kampagne-konzept-worksheet'), selectedId, warmWorksheet);
   } catch (error) {
     console.error('❌ KAMPAGNEDETAIL: Konzept-Pane fehlgeschlagen:', error);
     if (pane.isConnected) {
@@ -53,13 +123,6 @@ export async function mountKonzeptPane(detail) {
       });
     }
   }
-}
-
-export async function remountKonzeptPane(detail) {
-  unmountKonzeptWorksheet(detail);
-  if (detail._workflowLoaded) detail._workflowLoaded.konzepte = false;
-  await mountKonzeptPane(detail);
-  if (detail._workflowLoaded) detail._workflowLoaded.konzepte = true;
 }
 
 async function loadKonzepte(detail) {
@@ -115,12 +178,24 @@ function bindSwitcher(detail, pane) {
   });
 }
 
-async function mountWorksheet(detail, root, strategieId) {
+async function mountWorksheet(detail, root, strategieId, existing) {
   if (!root) return;
-  detail.konzeptWorksheet = new StrategieDetail();
-  await detail.konzeptWorksheet.init(strategieId, {
-    root,
-    chromeRoot: getKonzeptTools(),
-    embedded: true
-  });
+  const gen = paneGeneration(detail, 'konzepte');
+  const worksheet = existing || new StrategieDetail();
+  detail.konzeptWorksheet = worksheet;
+  try {
+    await worksheet.init(strategieId, {
+      root,
+      chromeRoot: getKonzeptTools(),
+      embedded: true
+    });
+  } catch (error) {
+    worksheet.destroy();
+    if (detail.konzeptWorksheet === worksheet) detail.konzeptWorksheet = null;
+    throw error;
+  }
+  if (!isPaneGenCurrent(detail, 'konzepte', gen) || !root.isConnected) {
+    worksheet.destroy();
+    if (detail.konzeptWorksheet === worksheet) detail.konzeptWorksheet = null;
+  }
 }

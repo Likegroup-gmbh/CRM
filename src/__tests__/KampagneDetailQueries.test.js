@@ -103,12 +103,14 @@ describe('KampagneDetail – Mitarbeiter-Rollen Query-Konsolidierung', () => {
     expect(detail.kampagneData.creator_sourcing_ids).toEqual(['cs1']);
   });
 
-  it('lädt Kooperationen-Summary in loadCriticalData (für Summary Cards)', async () => {
+  it('lädt Kooperationen nicht in loadCriticalData (die kommen über loadFullTableData)', async () => {
     const fromCalls = setupSupabaseMock([]);
 
     await detail.loadCriticalData();
 
-    expect(fromCalls['kooperationen']).toBe(1);
+    expect(fromCalls['kooperationen']).toBeUndefined();
+    expect(fromCalls['vertraege']).toBeUndefined();
+    expect(fromCalls['rechnung']).toBeUndefined();
   });
 
   it('referenziert kein nicht-existierendes loadKampagneData in Event-Handlern', async () => {

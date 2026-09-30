@@ -72,7 +72,7 @@ describe('Prompt-Assembly mit echten Seeds', () => {
     ['owned_social', '1.14', 'Szenenplan'],
     ['paid_creator_ads', '2.19', 'Variantenübersicht'],
     ['influencer_marketing', '3.13', 'Konzeptkarte']
-  ])('%s: Template landet im cachebaren Stable-Block, nicht im Task', (bereich, nr, marker) => {
+  ])('%s: Ausgabe-Template fliegt aus dem Prompt, Leiter bleibt', (bereich, nr, marker) => {
     const master = docsFor(bereich);
     const { stable, task } = buildPrompt({
       dna: [{ name: 'Global', layer_typ: 'global', version: 1, inhalt: 'DNA-Regel' }],
@@ -82,8 +82,15 @@ describe('Prompt-Assembly mit echten Seeds', () => {
       bereich
     }, { video_idee: 'Testdreh', modus: 'dynamisch' });
 
-    expect(stable).toContain(nr);
-    expect(stable).toContain(marker);
+    expect(stable).not.toContain(nr);
+    expect(stable).not.toContain(marker);
+    expect(task).toContain('# LEITER');
+    if (bereich === 'paid_creator_ads') {
+      expect(task).toContain('# PAID');
+      expect(task).not.toContain('Empfehlung von Person zu Person');
+    } else {
+      expect(task).toContain('Empfehlung von Person zu Person');
+    }
     expect(stable.indexOf('MASTER-REGELWERK')).toBeLessThan(stable.indexOf('SKRIPT-DNA'));
     expect(fmtMasterBlock(master).length).toBeGreaterThan(20000);
     expect(task).not.toContain(SEEDS.basis.slice(0, 80));
@@ -106,7 +113,8 @@ describe('Prompt-Assembly mit echten Seeds', () => {
     expect(task).toContain('REGIE-MODUS: Klassisch');
     expect(task).toContain('Ruhige Bloecke, 5-10s.');
     expect(stable).not.toContain('Ruhige Bloecke, 5-10s.');
-    expect(stable).toContain('## 1.14');
+    expect(stable).not.toContain('## 1.14');
+    expect(task).toContain('# STANDARDTON UND AUFBAU');
   });
 
   it('visuelle Leitplanken landen im Stable-Block, nicht im Task', () => {

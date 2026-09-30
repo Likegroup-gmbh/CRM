@@ -23,8 +23,8 @@ import { renderCreatorNameCell } from '../creator/CreatorTable.js';
 import { VideoDataLoader } from '../video/VideoDataLoader.js';
 import { BEREICH_LABELS } from '../briefing/create/fieldConfig.js';
 import { renderTableSelect } from '../../core/components/TableSelect.js';
-import { mountCastingPane, unmountCastingWorksheet } from './KampagneDetailCasting.js';
-import { mountKonzeptPane, unmountKonzeptWorksheet } from './KampagneDetailKonzept.js';
+import { mountCastingPane, unmountCastingWorksheet, loadCastingPrefetch } from './KampagneDetailCasting.js';
+import { mountKonzeptPane, unmountKonzeptWorksheet, loadKonzeptPrefetch } from './KampagneDetailKonzept.js';
 import {
   mountPersonasPane,
   mountProduktePane,
@@ -119,6 +119,82 @@ export function renderWorkflowPanes(activeTab) {
 /* Switch                                                              */
 /* ------------------------------------------------------------------ */
 
+// Pane-Generation: suspend/unmount zählt hoch. Ein Mount, der über einen
+// Tab-Wechsel oder Destroy hinweg awaited, sieht den alten Wert und räumt ab,
+// statt Listener an ein verwaistes Worksheet zu hängen.
+export function paneGeneration(detail, tabId) {
+  return detail._paneGen?.[tabId] || 0;
+}
+
+export function bumpPaneGen(detail, tabId) {
+  if (!tabId) return;
+  detail._paneGen = detail._paneGen || {};
+  detail._paneGen[tabId] = paneGeneration(detail, tabId) + 1;
+}
+
+export function isPaneGenCurrent(detail, tabId, gen) {
+  return paneGeneration(detail, tabId) === gen;
+}
+
+// Prefetch-Handle: settled/value lassen den Tab entscheiden, ob der Spinner
+// noch nötig ist. Die Promise ist dieselbe, die der Klick awaited.
+function trackPrefetch(factory) {
+  const tracked = { settled: false, value: null, consumed: false, promise: null };
+  tracked.promise = Promise.resolve()
+    .then(factory)
+    .then((value) => {
+      tracked.settled = true;
+      tracked.value = value;
+      return value;
+    })
+    .catch((error) => {
+      console.warn('⚠️ Workflow-Prefetch fehlgeschlagen:', error);
+      tracked.settled = true;
+      tracked.value = null;
+      return null;
+    });
+  return tracked;
+}
+
+function discardPrefetchWorksheet(detail, tracked, mountedKey) {
+  if (!tracked || tracked.consumed) return;
+  const drop = (value) => {
+    if (tracked.consumed) return;
+    const worksheet = value?.worksheet;
+    if (!worksheet || worksheet === detail[mountedKey]) return;
+    worksheet.destroy();
+  };
+  if (tracked.settled) drop(tracked.value);
+  else tracked.promise.then(drop);
+}
+
+/**
+ * Konzept- und Casting-Daten holen, sobald die Produktion steht und der
+ * aktive Tab Produktion ist. Ein zweiter Aufruf hängt sich nicht daneben.
+ */
+export function startWorkflowPrefetch(detail) {
+  if (!window.supabase) return;
+  if (detail.mode !== 'workflow') return;
+  if (detail.activeWorkflowTab !== 'produktion') return;
+  if (detail._konzeptPrefetch || detail._castingPrefetch) return;
+  const gen = detail._prefetchGen || 0;
+  detail._konzeptPrefetch = trackPrefetch(() => loadKonzeptPrefetch(detail, gen));
+  detail._castingPrefetch = trackPrefetch(() => loadCastingPrefetch(detail, gen));
+}
+
+/**
+ * Laufenden Prefetch verwerfen. In-flight Fetches sehen die neue Generation
+ * und zerstören ihr Worksheet selbst. Schon fertige, ungenutzte Instanzen
+ * werden hier abgebaut.
+ */
+export function cancelWorkflowPrefetch(detail) {
+  detail._prefetchGen = (detail._prefetchGen || 0) + 1;
+  discardPrefetchWorksheet(detail, detail._konzeptPrefetch, 'konzeptWorksheet');
+  discardPrefetchWorksheet(detail, detail._castingPrefetch, 'castingWorksheet');
+  detail._konzeptPrefetch = null;
+  detail._castingPrefetch = null;
+}
+
 /**
  * Workflow-Tab aktivieren: den verlassenen Tab schließen (Listener weg),
  * Wrapper-Attribut (steuert Produktion-Chrome via CSS), Button-States, Panes, URL.
@@ -158,11 +234,16 @@ export function activateWorkflowTab(detail, tabId, { syncUrl = true } = {}) {
 
 /**
  * Verlassenen Workflow-Tab abbauen: eingebundene Seite destroyen, Pane leeren,
- * Loaded-Flag zurück. `_workflowData` bleibt, damit der nächste Besuch aus
- * dem Cache rendern kann. Produktion wird nicht angefasst.
+ * Loaded-Flag zurück. Produktion wird nicht angefasst.
  */
 export function suspendWorkflowTab(detail, tabId) {
   if (!tabId || tabId === 'produktion') return;
+
+  // Konzept/Casting/Katalog zählen in ihrem eigenen unmount mit. Die übrigen
+  // Panes haben keinen Worksheet-unmount, hier reicht der Zähler.
+  if (tabId !== 'konzepte' && tabId !== 'casting' && tabId !== 'produkte' && tabId !== 'personas') {
+    bumpPaneGen(detail, tabId);
+  }
 
   if (tabId === 'produkte' || tabId === 'personas') {
     unmountKatalogPanes(detail);
@@ -181,8 +262,9 @@ export function suspendWorkflowTab(detail, tabId) {
 }
 
 /**
- * Pane füllen, wenn es nicht geladen ist. Nach suspendWorkflowTab mountet
- * der nächste Besuch neu. Bei Fehler landet ein Empty-State im Pane.
+ * Pane füllen. Nach suspendWorkflowTab mountet der nächste Besuch neu.
+ * Liegt ein Prefetch, rendert der Pane daraus. Bei Fehler landet ein
+ * Empty-State im Pane.
  */
 export async function loadWorkflowPane(detail, tabId) {
   const pane = document.getElementById(`workflow-pane-${tabId}`);
@@ -191,8 +273,13 @@ export async function loadWorkflowPane(detail, tabId) {
   if (tabId === 'casting') {
     detail._workflowLoaded = detail._workflowLoaded || {};
     if (detail._workflowLoaded.casting) return;
-    await mountCastingPane(detail);
+    const gen = paneGeneration(detail, 'casting');
     detail._workflowLoaded.casting = true;
+    await mountCastingPane(detail);
+    if (!isPaneGenCurrent(detail, 'casting', gen)) {
+      detail._workflowLoaded.casting = false;
+      return;
+    }
     syncWorkflowCreateChrome(detail, 'casting');
     return;
   }
@@ -200,8 +287,13 @@ export async function loadWorkflowPane(detail, tabId) {
   if (tabId === 'konzepte') {
     detail._workflowLoaded = detail._workflowLoaded || {};
     if (detail._workflowLoaded.konzepte) return;
-    await mountKonzeptPane(detail);
+    const gen = paneGeneration(detail, 'konzepte');
     detail._workflowLoaded.konzepte = true;
+    await mountKonzeptPane(detail);
+    if (!isPaneGenCurrent(detail, 'konzepte', gen)) {
+      detail._workflowLoaded.konzepte = false;
+      return;
+    }
     syncWorkflowCreateChrome(detail, 'konzepte');
     return;
   }
@@ -209,16 +301,26 @@ export async function loadWorkflowPane(detail, tabId) {
   if (tabId === 'produkte') {
     detail._workflowLoaded = detail._workflowLoaded || {};
     if (detail._workflowLoaded.produkte) return;
-    await mountProduktePane(detail);
+    const gen = paneGeneration(detail, 'produkte');
     detail._workflowLoaded.produkte = true;
+    await mountProduktePane(detail);
+    if (!isPaneGenCurrent(detail, 'produkte', gen)) {
+      detail._workflowLoaded.produkte = false;
+      return;
+    }
     return;
   }
 
   if (tabId === 'personas') {
     detail._workflowLoaded = detail._workflowLoaded || {};
     if (detail._workflowLoaded.personas) return;
-    await mountPersonasPane(detail);
+    const gen = paneGeneration(detail, 'personas');
     detail._workflowLoaded.personas = true;
+    await mountPersonasPane(detail);
+    if (!isPaneGenCurrent(detail, 'personas', gen)) {
+      detail._workflowLoaded.personas = false;
+      return;
+    }
     return;
   }
 
@@ -227,6 +329,7 @@ export async function loadWorkflowPane(detail, tabId) {
 
   detail._workflowLoaded = detail._workflowLoaded || {};
   if (detail._workflowLoaded[tabId]) return;
+  const gen = paneGeneration(detail, tabId);
   detail._workflowLoaded[tabId] = true;
 
   pane.innerHTML = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
@@ -235,12 +338,15 @@ export async function loadWorkflowPane(detail, tabId) {
 
   try {
     const html = await renderer(detail);
-    if (pane.isConnected) {
-      pane.innerHTML = html;
-      if (tabId === 'vertraege') mountVertraegePane(detail);
+    if (!isPaneGenCurrent(detail, tabId, gen) || !pane.isConnected) {
+      detail._workflowLoaded[tabId] = false;
+      return;
     }
+    pane.innerHTML = html;
+    if (tabId === 'vertraege') mountVertraegePane(detail);
   } catch (error) {
     console.error(`❌ KAMPAGNEDETAIL: Workflow-Pane "${tabId}" fehlgeschlagen:`, error);
+    detail._workflowLoaded[tabId] = false;
     if (pane.isConnected) {
       pane.innerHTML = renderEmptyState({
         icon: 'info',

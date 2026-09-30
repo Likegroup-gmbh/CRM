@@ -211,13 +211,13 @@ export class ProduktList extends BasePaginatedList {
     this._lastScope = null;
 
     const canView = await this.checkViewPermission();
-    if (!canView) {
-      this.renderNoPermission();
+    if (this._destroyed || !canView) {
+      if (!this._destroyed && !canView) this.renderNoPermission();
       return;
     }
 
     const additionalPermissions = await this.checkAdditionalPermissions();
-    if (!additionalPermissions) return;
+    if (this._destroyed || !additionalPermissions) return;
 
     if (window.bulkActionSystem) {
       window.bulkActionSystem.registerList(this.entityType, this);
@@ -227,6 +227,7 @@ export class ProduktList extends BasePaginatedList {
   }
 
   async init() {
+    this._destroyed = false;
     this.applyQueryParams(new URLSearchParams(window.location.search));
 
     if (window.setHeadline) {
@@ -234,13 +235,13 @@ export class ProduktList extends BasePaginatedList {
     }
 
     const canView = await this.checkViewPermission();
-    if (!canView) {
-      this.renderNoPermission();
+    if (this._destroyed || !canView) {
+      if (!this._destroyed && !canView) this.renderNoPermission();
       return;
     }
 
     const additionalPermissions = await this.checkAdditionalPermissions();
-    if (!additionalPermissions) return;
+    if (this._destroyed || !additionalPermissions) return;
 
     if (window.bulkActionSystem) {
       window.bulkActionSystem.registerList(this.entityType, this);
@@ -254,6 +255,7 @@ export class ProduktList extends BasePaginatedList {
       this.viewMode = 'companies';
       this._shellRendered = false;
       await this.renderShell();
+      if (this._destroyed) return;
       this.initializePagination();
       this.bindEvents();
       this.updateBreadcrumbDisplay();
@@ -264,6 +266,7 @@ export class ProduktList extends BasePaginatedList {
 
     this._shellRendered = false;
     await this.ensureAllProdukte();
+    if (this._destroyed) return;
     this.buildCurrentFolders();
     this.applyMarkenEbeneSprung();
     this.renderFolderView();

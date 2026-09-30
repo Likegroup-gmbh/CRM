@@ -18,6 +18,7 @@ export const STRATEGIE_FIXED_COLUMNS = Object.freeze([
   { key: 'caption', label: 'Caption' },
   { key: 'anmerkung', label: 'Anmerkung Kunde' },
   { key: 'prio', label: 'Prio' },
+  { key: 'status', label: 'Status' },
   { key: 'umgesetzt', label: 'Umsetzen' }
 ]);
 

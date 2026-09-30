@@ -377,9 +377,29 @@ BriefingCreate.prototype.handleSubmit = async function() {
   }
   const kampagneId = this.formData.kampagne_id || this._produktionKontext?.kampagneId || null;
   const produktId = this.formData.produkt_id || this._produktionKontext?.produktId || null;
+  const produktionId = this.formData.ziel_produktion_id || this._produktionKontext?.produktionId || null;
   if (!kampagneId) {
     window.toastSystem?.show('Bitte eine Kampagne zuordnen (Schritt Grundlage).', 'warning');
     return;
+  }
+  if (window.supabase) {
+    const { data: geplante, error: geplantError } = await window.supabase
+      .from('produktion')
+      .select('id, budget, briefing_id')
+      .eq('kampagne_id', kampagneId);
+    if (geplantError) {
+      window.toastSystem?.show('Produktionen konnten nicht geladen werden.', 'error');
+      return;
+    }
+    const regime = (geplante || []).some(row => row.budget != null);
+    if (regime) {
+      const ziel = (geplante || []).find(row => row.id === produktionId);
+      const frei = !!ziel && (!ziel.briefing_id || ziel.briefing_id === this.editId);
+      if (!frei) {
+        window.toastSystem?.show('Bitte eine freie Produktion wählen. Sonst im Auftrag eine anlegen.', 'warning');
+        return;
+      }
+    }
   }
 
   const submitBtn = document.getElementById('btn-submit');
@@ -433,7 +453,7 @@ BriefingCreate.prototype.handleSubmit = async function() {
       },
       kampagneId,
       produktId,
-      produktionId: this._produktionKontext?.produktionId || null
+      produktionId
     });
 
     window.toastSystem?.show(

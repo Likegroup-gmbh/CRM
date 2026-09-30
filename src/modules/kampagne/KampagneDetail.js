@@ -15,8 +15,12 @@ import {
   activateWorkflowTab,
   refreshWorkflowAfterRender,
   resolveInitialWorkflowTab,
-  DEFAULT_WORKFLOW_TAB
+  DEFAULT_WORKFLOW_TAB,
+  unmountVertraegePane,
+  startWorkflowPrefetch,
+  cancelWorkflowPrefetch
 } from './KampagneDetailWorkflow.js';
+import { nutzungsrechteModal } from './NutzungsrechteModal.js';
 import { unmountCastingWorksheet } from './KampagneDetailCasting.js';
 import { unmountKonzeptWorksheet } from './KampagneDetailKonzept.js';
 import { unmountKatalogPanes } from './KampagneDetailKatalog.js';
@@ -27,8 +31,6 @@ export class KampagneDetail {
     this.kampagneId = null;
     this.kampagneData = null;
     this.store = null;
-    this.creator = [];
-    this.kooperationen = [];
     this.koopBudgetSum = 0;
     this.koopVideosUsed = 0;
     this.koopCreatorsUsed = 0;
@@ -36,10 +38,6 @@ export class KampagneDetail {
     this.ekVkMarginSum = 0;
     this.kskUmgebucht = 0;
     this.videoStats = { views: 0, likes: 0, comments: 0 };
-    this.sourcingCreators = [];
-    this.favoriten = [];
-    this.rechnungen = [];
-    this.vertraege = [];
     this.kooperationenVideoTable = null;
     this.castingWorksheet = null;
     this.konzeptWorksheet = null;
@@ -98,6 +96,7 @@ export class KampagneDetail {
     this._routeKey = routeKey;
 
     this._isMounted = true;
+    cancelWorkflowPrefetch(this);
     this._destroyDrawers();
     unmountCastingWorksheet(this);
     unmountKonzeptWorksheet(this);
@@ -164,13 +163,8 @@ export class KampagneDetail {
           }
         }
 
-        this._prepareVideoTable(tableData, isKunde);
-        if (this.mode === 'overview' && this.kooperationenVideoTable) {
-          if (typeof this.kooperationenVideoTable.destroy === 'function') {
-            this.kooperationenVideoTable.destroy();
-          }
-          this.kooperationenVideoTable = null;
-        }
+        this._applySummaryFromStore();
+        if (this.mode !== 'overview') this._createVideoTable(tableData);
 
         await this.render();
 
@@ -217,8 +211,6 @@ export class KampagneDetail {
       this.briefings = data.briefings;
       this.produktionen = data.produktionen || [];
       this.sourcingListenCount = data.sourcingListenCount;
-      this.vertraegeCount = data.vertraegeCount;
-      this.rechnungenCount = data.rechnungenCount;
 
       const loadTime = (performance.now() - startTime).toFixed(0);
       console.log(`✅ KAMPAGNEDETAIL: Kritische Daten geladen in ${loadTime}ms`);
@@ -263,6 +255,7 @@ export class KampagneDetail {
       sourcingListenCount: this.sourcingListenCount,
       mode: this.mode,
       produktionen: this.produktionen || [],
+      produktion: this.produktion,
       lineTitle: this.lineTitle
     });
 
@@ -273,20 +266,7 @@ export class KampagneDetail {
     }
   }
 
-  _prepareVideoTable(tableData, isKunde) {
-    this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId, this.store);
-    this.kooperationenVideoTable.produktionId = this.mode === 'workflow' ? this.produktionId : null;
-    this.kooperationenVideoTable.statusOptions = tableData?.statusOptions || [];
-
-    const hiddenCols = this.kampagneData?.video_table_hidden_columns;
-    if (hiddenCols) {
-      this.kooperationenVideoTable.hiddenColumns = hiddenCols;
-    }
-
-    this.kooperationenVideoTable.reloadKooperationen = () => this.reloadKooperationTable();
-    this.kooperationenVideoTable._dataLoaded = true;
-    this._pendingTableData = tableData;
-
+  _applySummaryFromStore() {
     const summary = this.store.calculateSummary();
     this.koopBudgetSum = summary.koopBudgetSum;
     this.koopVideosUsed = summary.koopVideosUsed;
@@ -298,6 +278,20 @@ export class KampagneDetail {
 
     this._bindVideoStatsCard();
     this._bindFilteredSummaryCards();
+  }
+
+  _createVideoTable(tableData) {
+    this.kooperationenVideoTable = new KampagneKooperationenVideoTable(this.kampagneId, this.store);
+    this.kooperationenVideoTable.produktionId = this.mode === 'workflow' ? this.produktionId : null;
+    this.kooperationenVideoTable.statusOptions = tableData?.statusOptions || [];
+
+    const hiddenCols = this.kampagneData?.video_table_hidden_columns;
+    if (hiddenCols) {
+      this.kooperationenVideoTable.hiddenColumns = hiddenCols;
+    }
+
+    this.kooperationenVideoTable.reloadKooperationen = () => this.reloadKooperationTable();
+    this.kooperationenVideoTable._dataLoaded = true;
   }
 
   /**
@@ -407,27 +401,15 @@ export class KampagneDetail {
       };
       window.addEventListener('video-column-visibility-changed', this._visibilityHandler);
 
-      if (!this.kooperationenVideoTable._entityUpdatedHandler) {
-        this.kooperationenVideoTable._entityUpdatedHandler = async (e) => {
-          const evtDetail = e.detail || {};
-          if (evtDetail.entity === 'kooperation' && evtDetail.action === 'deleted' && evtDetail.id) {
-            await this.kooperationenVideoTable.handleKooperationDeletedById(evtDetail.id, 'entityUpdated');
-          }
-          if (evtDetail.entity === 'kooperation' && evtDetail.action === 'created') {
-            await this.reloadKooperationTable();
-          }
-        };
-        window.addEventListener('entityUpdated', this.kooperationenVideoTable._entityUpdatedHandler);
-      }
-
+      this.kooperationenVideoTable.attachGlobalHandlers(this);
       this.kooperationenVideoTable.updateTabCounts();
     }
 
     updateSummaryCardsDOM(this.kampagneData, this.koopBudgetSum, this.koopVideosUsed, this.koopCreatorsUsed, this.extraKostenVkSum, this.ekVkMarginSum, this.kskUmgebucht);
     updateVideoStatsCardDOM(this.videoStats);
 
-    this._pendingTableData = null;
     await this.kooperationenVideoTable.loadAssetsAndCommentsForVisible();
+    startWorkflowPrefetch(this);
   }
 
   switchWorkflowTab(tabId) {
@@ -474,6 +456,10 @@ export class KampagneDetail {
   }
 
   _unmountVideoTable() {
+    if (this._visibilityHandler) {
+      window.removeEventListener('video-column-visibility-changed', this._visibilityHandler);
+      this._visibilityHandler = null;
+    }
     if (this.kooperationenVideoTable && typeof this.kooperationenVideoTable.destroy === 'function') {
       this.kooperationenVideoTable.destroy();
       this.kooperationenVideoTable = null;
@@ -542,6 +528,7 @@ export class KampagneDetail {
 
     this._isMounted = false;
     this._initPromise = null;
+    cancelWorkflowPrefetch(this);
 
     teardownEvents();
     this._destroyDrawers();
@@ -564,6 +551,8 @@ export class KampagneDetail {
     unmountCastingWorksheet(this);
     unmountKonzeptWorksheet(this);
     unmountKatalogPanes(this);
+    unmountVertraegePane(this);
+    nutzungsrechteModal._close();
 
     if (this.store) {
       this.store.destroy();

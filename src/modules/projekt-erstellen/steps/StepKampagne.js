@@ -8,6 +8,13 @@ import { AgencyServicesBlock } from '../components/AgencyServicesBlock.js';
 import { icon } from '../../../core/icons/IconSystem.js';
 import { parseCurrencyInput } from '../../../core/utils/parseCurrency.js';
 import {
+  bindMoneyInput,
+  editMoneyInput,
+  formatMoneyInput,
+  renderMoneyInput,
+  setMoneyInputValue
+} from '../../../core/form/moneyInput.js';
+import {
   distributeKampagnen,
   flattenCampaignBlocks,
   kampagnenSplitHint,
@@ -174,12 +181,12 @@ export class StepKampagne {
         </div>
         ${this.wizard.isEditMode && count > 1 ? `
         <div class="form-field">
-          <label>Volumen (€)</label>
-          <input type="text" inputmode="decimal" class="pe-kampagne-volumen" data-kampagne-index="${i}" value="${slot.volumen ?? ''}">
+          <label>Volumen</label>
+          ${renderMoneyInput({ className: 'pe-kampagne-volumen', value: slot.volumen, attrs: { 'data-kampagne-index': i } })}
         </div>` : `
         <div class="form-field">
           <label>Volumen</label>
-          <div class="mdc-input mdc-input--readonly">${slot.volumen ?? 0} € · gesamter Auftrags-Topf</div>
+          <div class="mdc-input mdc-input--readonly">${formatMoneyInput(slot.volumen ?? 0) || '0,00'} € · gesamter Auftrags-Topf</div>
         </div>`}
         <div id="pe-slot-${i}-arten-host"></div>
       </div>
@@ -192,10 +199,11 @@ export class StepKampagne {
 
   _bindSlotEvents(host) {
     host.querySelectorAll('.pe-kampagne-volumen').forEach(input => {
+      bindMoneyInput(input);
       input.addEventListener('paste', () => {
         setTimeout(() => {
           const parsed = parseCurrencyInput(input.value);
-          if (parsed != null) input.value = parsed;
+          if (parsed != null) input.value = editMoneyInput(parsed);
         }, 0);
       });
       input.addEventListener('input', () => {
@@ -210,7 +218,7 @@ export class StepKampagne {
           capped,
           totals
         );
-        if (totals.volumen > 0 && parsed > totals.volumen) input.value = capped;
+        if (totals.volumen > 0 && parsed > totals.volumen) input.value = editMoneyInput(capped);
         this._syncOtherVolumenInputs(idx);
         this._updateHint();
         this.wizard.updateFeedback();
@@ -244,7 +252,7 @@ export class StepKampagne {
     (this.wizard.formData.kampagnen || []).forEach((slot, i) => {
       if (i === keepIndex) return;
       const el = this._el(`.pe-kampagne-volumen[data-kampagne-index="${i}"]`);
-      if (el) el.value = slot.volumen ?? '';
+      setMoneyInputValue(el, slot.volumen);
     });
   }
 

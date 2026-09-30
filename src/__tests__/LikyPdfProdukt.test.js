@@ -18,7 +18,11 @@ describe('Produkt-PDF Schalter', () => {
     const html = renderProduktDoc(null, { mitMarkenFeld: true, mitUnternehmenFeld: false, unternehmenId: 'u1' });
     expect(html).toContain('id="produkt-liky-chips"');
     expect(html).toContain('Shop-URL oder PDF');
-    expect(html).toContain('name="url"');
+    expect(html).toContain('name="extract_quelle"');
+    expect(html).toContain('data-ai-extract="extract_quelle"');
+    expect(html.match(/name="url"/g)).toHaveLength(1);
+    expect(html).toContain('Produkt-URL');
+    expect(html).toContain('data-doc-field="url"');
   });
 
   it('akzeptiert nur den eigenen Produkt-PDF-Pfad', () => {

@@ -6,6 +6,7 @@ import { StepAuftragstyp } from './steps/StepAuftragstyp.js';
 import { StepBasisdaten } from './steps/StepBasisdaten.js';
 import { StepDetails } from './steps/StepDetails.js';
 import { StepKampagne } from './steps/StepKampagne.js';
+import { StepProduktion } from './steps/StepProduktion.js';
 import { FeedbackCard } from './components/FeedbackCard.js';
 import { WizardProgressBar } from './components/WizardProgressBar.js';
 import { ProjektErstellenPersistence } from './services/ProjektErstellenPersistence.js';
@@ -80,7 +81,8 @@ export class ProjektErstellenWizard {
         ksk_value: 0
       },
       kampagne: {},
-      kampagnen: []
+      kampagnen: [],
+      produktionen: []
     };
 
     this.persistence = new ProjektErstellenPersistence();
@@ -101,17 +103,21 @@ export class ProjektErstellenWizard {
   getStepLabels() {
     return this.isContracting
       ? ['Basisdaten', 'Finanzen']
-      : ['Basisdaten', 'Details', 'Kampagne'];
+      : ['Basisdaten', 'Details', 'Kampagne', 'Produktion'];
   }
 
   buildSteps() {
     if (this.isEditMode) {
       const steps = [new StepBasisdaten(this), new StepDetails(this)];
-      if (!this.isContracting) steps.push(new StepKampagne(this));
+      if (!this.isContracting) {
+        steps.push(new StepKampagne(this), new StepProduktion(this));
+      }
       return steps;
     }
     const steps = [new StepAuftragstyp(this), new StepBasisdaten(this), new StepDetails(this)];
-    if (!this.isContracting) steps.push(new StepKampagne(this));
+    if (!this.isContracting) {
+      steps.push(new StepKampagne(this), new StepProduktion(this));
+    }
     return steps;
   }
 
@@ -175,7 +181,8 @@ export class ProjektErstellenWizard {
       auftrag: { ...this.formData.auftrag, ...loaded.formData.auftrag },
       details: { ...this.formData.details, ...loaded.formData.details },
       kampagne: { ...this.formData.kampagne, ...loaded.formData.kampagne },
-      kampagnen: loaded.formData.kampagnen || []
+      kampagnen: loaded.formData.kampagnen || [],
+      produktionen: loaded.formData.produktionen || []
     };
     this.editKampagneId = this._resolveKampagneIdFromUrl() || loaded.raw?.kampagne?.id || null;
     this.editRaw = loaded.raw;
@@ -198,7 +205,7 @@ export class ProjektErstellenWizard {
 
   _resolveInitialStep(named) {
     const labels = this.getStepLabels().map(l => l.toLowerCase());
-    const STEP_MAP = { basis: 'basisdaten', details: 'details', kampagnen: 'kampagne', finanzen: 'finanzen' };
+    const STEP_MAP = { basis: 'basisdaten', details: 'details', kampagnen: 'kampagne', finanzen: 'finanzen', produktion: 'produktion' };
 
     // 1) Explizit übergebener Name
     let key = named;
@@ -492,6 +499,7 @@ export class ProjektErstellenWizard {
     if (partial.details) this.formData.details = { ...this.formData.details, ...partial.details };
     if (partial.kampagne) this.formData.kampagne = { ...this.formData.kampagne, ...partial.kampagne };
     if (Array.isArray(partial.kampagnen)) this.formData.kampagnen = partial.kampagnen;
+    if (Array.isArray(partial.produktionen)) this.formData.produktionen = partial.produktionen;
   }
 
   onFormDataChange() {

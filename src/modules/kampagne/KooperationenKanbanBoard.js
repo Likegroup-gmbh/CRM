@@ -105,6 +105,7 @@ export class KooperationenKanbanBoard {
           })}
         </div>
       `;
+      this.initFloatingScrollbar();
       return;
     }
 
@@ -124,6 +125,7 @@ export class KooperationenKanbanBoard {
     if (this.canDrag) {
       this.bindDragDropEvents();
     }
+    this.initFloatingScrollbar();
     this._timers.setTimeout(() => this.initDragToScroll(), 50);
   }
 
@@ -394,12 +396,15 @@ export class KooperationenKanbanBoard {
     checkVisibility();
     this._timers.setTimeout(() => { updateScrollbar(); checkVisibility(); }, 500);
 
+    this._scrollbarAbort?.abort();
+    this._scrollbarAbort = new AbortController();
     const handleResize = () => { updateScrollbar(); checkVisibility(); };
-    window.addEventListener('resize', handleResize, { signal: this._abortController?.signal });
+    window.addEventListener('resize', handleResize, { signal: this._scrollbarAbort.signal });
 
     this._cleanupFloatingScrollbar = () => {
       floatingScrollbar.remove();
-      window.removeEventListener('resize', handleResize);
+      this._scrollbarAbort?.abort();
+      this._scrollbarAbort = null;
       floatingScrollbar.removeEventListener('scroll', handleFloatingScroll);
       kanbanBoard.removeEventListener('scroll', handleBoardScroll);
     };

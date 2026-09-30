@@ -39,13 +39,37 @@ async function loadMasterDocs(supabase, bereich, { schlank = false } = {}) {
   };
 }
 
+const VORLAGEN_RE = /drehfertiger aufbau|beispielstruktur|shotlist/i;
+
+/** Output-Vorlagen raus. Strategische Regeln und die Bereichstrennung bleiben. */
+function stripMasterVorlagen(md) {
+  if (!md) return '';
+  const lines = String(md).split('\n');
+  const out = [];
+  let skipLevel = 0;
+  for (const line of lines) {
+    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+    if (heading) {
+      const level = heading[1].length;
+      if (skipLevel && level <= skipLevel) skipLevel = 0;
+      if (!skipLevel && VORLAGEN_RE.test(heading[2])) {
+        skipLevel = level;
+        continue;
+      }
+    }
+    if (!skipLevel) out.push(line);
+  }
+  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 function fmtMasterBlock(docs) {
   if (!docs?.length) return '';
   let out = '\n# MASTER-REGELWERK (verbindlich - Bereichssysteme nicht vermischen)\n';
   for (const d of docs) {
     const label = MASTER_BEREICH_LABELS[d.bereich] || d.bereich;
+    const inhalt = stripMasterVorlagen(d.inhalt);
     out += `\n--- ${d.name ? `"${d.name}" - ` : ''}${label} (v${d.version}) ---\n`;
-    if (d.inhalt) out += `${d.inhalt}\n`;
+    if (inhalt) out += `${inhalt}\n`;
   }
   return out;
 }
@@ -55,5 +79,6 @@ module.exports = {
   MASTER_BEREICH_LABELS,
   resolveSkriptBereich,
   loadMasterDocs,
-  fmtMasterBlock
+  fmtMasterBlock,
+  stripMasterVorlagen
 };

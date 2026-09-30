@@ -57,8 +57,12 @@ export class EntityCustomColumnsManager {
       parentTable: this.parentTable,
       orderColumn: this.orderColumn
     });
-    this.columns = await this.dataLoader.loadColumns();
-    this.order = (await this.dataLoader.loadColumnOrder()) || this.columns.map(c => makeCustomColumnId(c.id));
+    const [columns, order] = await Promise.all([
+      this.dataLoader.loadColumns(),
+      this.dataLoader.loadColumnOrder()
+    ]);
+    this.columns = columns;
+    this.order = order || columns.map(c => makeCustomColumnId(c.id));
   }
 
   async loadValues(entityIds) {

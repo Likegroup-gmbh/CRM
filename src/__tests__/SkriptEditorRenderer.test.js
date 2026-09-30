@@ -88,7 +88,7 @@ describe('SkriptEditorChatRenderer', () => {
     expect(aktionTagHtml({ aktion: 'chat' })).toBe('');
     expect(aktionTagHtml({})).toBe('');
     const tag = aktionTagHtml({ aktion: 'neu_schreiben', sektion: 'cta' });
-    expect(tag).toContain('Neu schreiben');
+    expect(tag).toContain('Neu formulieren');
     expect(tag).toContain('CTA');
   });
 

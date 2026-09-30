@@ -3,12 +3,8 @@
 
 import { CreatorAuswahlDetail } from '../creator-auswahl/CreatorAuswahlDetail.js';
 import { creatorAuswahlService } from '../creator-auswahl/CreatorAuswahlService.js';
-import { berechneHiddenColumns, STANDARD_VERSTECKTE_SPALTEN } from '../creator-auswahl/sourcingSpaltenPreset.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
-import { prefillAndLockField } from '../../core/form/data/PrefillHandler.js';
-import { AutoGeneration } from '../../core/form/logic/AutoGeneration.js';
-import { KampagneUtils } from './KampagneUtils.js';
-import { lineNames } from '../produktion/produktionNames.js';
+import { bumpPaneGen, isPaneGenCurrent, paneGeneration } from './KampagneDetailWorkflow.js';
 
 const esc = (t) => window.validatorSystem?.sanitizeHtml(String(t ?? '')) || '';
 
@@ -17,30 +13,99 @@ function getCastingTools() {
 }
 
 export function unmountCastingWorksheet(detail) {
+  bumpPaneGen(detail, 'casting');
   if (detail.castingWorksheet) {
     detail.castingWorksheet.destroy();
     detail.castingWorksheet = null;
   }
   const tools = getCastingTools();
   if (tools) tools.innerHTML = '';
-  closeCreateDrawer();
+}
+
+const SPINNER = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
+
+function castingStillCurrent(detail, gen, pane) {
+  return isPaneGenCurrent(detail, 'casting', gen) && pane.isConnected;
+}
+
+function prefetchStillCurrent(detail, gen) {
+  return (detail._prefetchGen || 0) === gen && detail._isMounted !== false;
+}
+
+async function loadCastingListen(detail) {
+  return creatorAuswahlService.getListenByKampagneId(detail.kampagneId, {
+    produktionId: detail.produktionId || null
+  });
+}
+
+/**
+ * Listen-Index und, wenn eine Liste da ist, die Worksheet-Daten. Fehler
+ * wirft der Aufrufer (trackPrefetch) weg. Eine veraltete Generation räumt
+ * das Worksheet ab und liefert null.
+ */
+export async function loadCastingPrefetch(detail, gen) {
+  const listen = await loadCastingListen(detail);
+  if (!prefetchStillCurrent(detail, gen)) return null;
+  if (!listen.length) return { listen, selectedId: null, worksheet: null };
+
+  const selectedId = listen.some(l => l.id === detail._castingSelectedListeId)
+    ? detail._castingSelectedListeId
+    : listen[0].id;
+  const worksheet = new CreatorAuswahlDetail();
+  try {
+    worksheet._prefetchPayload = await worksheet._fetchDataStages(selectedId);
+  } catch (error) {
+    worksheet.destroy();
+    throw error;
+  }
+  if (!prefetchStillCurrent(detail, gen)) {
+    worksheet.destroy();
+    return null;
+  }
+  return { listen, selectedId, worksheet };
+}
+
+async function takeCastingPrefetch(detail) {
+  const tracked = detail._castingPrefetch;
+  if (!tracked) return null;
+  tracked.consumed = true;
+  detail._castingPrefetch = null;
+  return tracked.promise;
+}
+
+function dropWorksheet(worksheet, detail) {
+  if (worksheet && worksheet !== detail.castingWorksheet) worksheet.destroy();
 }
 
 export async function mountCastingPane(detail) {
   const pane = document.getElementById('workflow-pane-casting');
   if (!pane) return;
+  const gen = paneGeneration(detail, 'casting');
 
-  pane.innerHTML = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
+  const tracked = detail._castingPrefetch;
+  const warm = !!(tracked?.settled && tracked.value);
+  if (!warm) pane.innerHTML = SPINNER;
+
+  let prefetched = null;
+  if (tracked) {
+    prefetched = await takeCastingPrefetch(detail);
+    if (!castingStillCurrent(detail, gen, pane)) {
+      dropWorksheet(prefetched?.worksheet, detail);
+      return;
+    }
+  }
 
   try {
-    const listen = await creatorAuswahlService.getListenByKampagneId(detail.kampagneId, {
-      produktionId: detail.produktionId || null
-    });
-    if (!pane.isConnected) return;
+    const listen = prefetched?.listen || await loadCastingListen(detail);
+    if (!castingStillCurrent(detail, gen, pane)) {
+      dropWorksheet(prefetched?.worksheet, detail);
+      return;
+    }
     detail._castingListen = listen;
     detail.sourcingListenCount = listen.length;
 
     if (!listen.length) {
+      dropWorksheet(prefetched?.worksheet, detail);
       pane.innerHTML = renderEmptyCasting();
       return;
     }
@@ -50,9 +115,14 @@ export async function mountCastingPane(detail) {
       : listen[0].id;
     detail._castingSelectedListeId = selectedId;
 
+    const warmWorksheet = prefetched?.worksheet && prefetched.selectedId === selectedId
+      ? prefetched.worksheet
+      : null;
+    if (prefetched?.worksheet && !warmWorksheet) prefetched.worksheet.destroy();
+
     pane.innerHTML = renderCastingShell(listen, selectedId);
     bindSwitcher(detail, pane);
-    await mountWorksheet(detail, pane.querySelector('.kampagne-casting-worksheet'), selectedId);
+    await mountWorksheet(detail, pane.querySelector('.kampagne-casting-worksheet'), selectedId, warmWorksheet);
   } catch (error) {
     console.error('❌ KAMPAGNEDETAIL: Casting-Pane fehlgeschlagen:', error);
     if (pane.isConnected) {
@@ -63,13 +133,6 @@ export async function mountCastingPane(detail) {
       });
     }
   }
-}
-
-async function remountCastingPane(detail) {
-  unmountCastingWorksheet(detail);
-  if (detail._workflowLoaded) detail._workflowLoaded.casting = false;
-  await mountCastingPane(detail);
-  if (detail._workflowLoaded) detail._workflowLoaded.casting = true;
 }
 
 function renderEmptyCasting() {
@@ -113,158 +176,25 @@ function bindSwitcher(detail, pane) {
   });
 }
 
-async function mountWorksheet(detail, root, listeId) {
+async function mountWorksheet(detail, root, listeId, existing) {
   if (!root) return;
-  detail.castingWorksheet = new CreatorAuswahlDetail();
-  await detail.castingWorksheet.init(listeId, {
-    root,
-    chromeRoot: getCastingTools(),
-    embedded: true
-  });
-}
-
-export function openCastingCreateDrawer(detail, options = {}) {
-  if ((detail._castingListen?.length || detail.sourcingListenCount || 0) > 0) return;
-  closeCreateDrawer();
-
-  const overlay = document.createElement('div');
-  overlay.className = 'drawer-overlay';
-  overlay.id = 'kampagne-casting-create-overlay';
-
-  const panel = document.createElement('div');
-  panel.setAttribute('role', 'dialog');
-  panel.className = 'drawer-panel';
-  panel.id = 'kampagne-casting-create-drawer';
-
-  const header = document.createElement('div');
-  header.className = 'drawer-header';
-  header.innerHTML = `
-    <div>
-      <span class="drawer-title">Neue Casting-Liste</span>
-      <p class="drawer-subtitle">Für diese Kampagne</p>
-    </div>
-    <div>
-      <button type="button" class="drawer-close-btn" aria-label="Schließen">&times;</button>
-    </div>
-  `;
-
-  const body = document.createElement('div');
-  body.className = 'drawer-body';
-  body.innerHTML = window.formSystem.renderFormOnly('sourcing');
-
-  panel.appendChild(header);
-  panel.appendChild(body);
-
-  overlay.addEventListener('click', () => closeCreateDrawer());
-  header.querySelector('.drawer-close-btn').addEventListener('click', () => closeCreateDrawer());
-
-  document.body.appendChild(overlay);
-  document.body.appendChild(panel);
-
-  requestAnimationFrame(() => {
-    panel.classList.add('show');
-  });
-
-  void (async () => {
-    await window.formSystem.bindFormEvents('sourcing', null);
-    const form = panel.querySelector('#sourcing-form');
-    if (!form) return;
-
-    await prefillCampaignFields(form, detail);
-
-    form.onsubmit = async (e) => {
-      e.preventDefault();
-      await handleCreateSubmit(detail, form, options);
-    };
-
-    const cancelBtn = form.querySelector('.mdc-btn--cancel');
-    if (cancelBtn) {
-      cancelBtn.onclick = (e) => {
-        e.preventDefault();
-        closeCreateDrawer();
-      };
-    }
-  })();
-}
-
-async function prefillCampaignFields(form, detail) {
-  const k = detail.kampagneData || {};
-  const unternehmenName = k.unternehmen?.firmenname || k.unternehmen?.internes_kuerzel || 'Unternehmen';
-  const markeName = k.marke?.markenname || 'Marke';
-  const kampagneName = KampagneUtils.getDisplayName(k);
-
-  if (k.unternehmen_id) {
-    await prefillAndLockField(form, 'unternehmen_id', k.unternehmen_id, unternehmenName);
-  }
-  if (k.marke_id) {
-    await prefillAndLockField(form, 'marke_id', k.marke_id, markeName);
-  }
-  if (detail.kampagneId) {
-    await prefillAndLockField(form, 'kampagne_id', detail.kampagneId, kampagneName);
-  }
-
-  form.querySelector('#unternehmen_id')?.dispatchEvent(new Event('change', { bubbles: true }));
-}
-
-async function handleCreateSubmit(detail, form, options = {}) {
+  const gen = paneGeneration(detail, 'casting');
+  const worksheet = existing || new CreatorAuswahlDetail();
+  detail.castingWorksheet = worksheet;
   try {
-    const submitData = window.formSystem.collectSubmitData(form);
-    applySpaltenPreset(submitData);
-
-    if (!submitData.kampagne_id) submitData.kampagne_id = detail.kampagneId;
-    if (detail.produktionId) submitData.produktion_id = detail.produktionId;
-    if (!submitData.unternehmen_id) submitData.unternehmen_id = detail.kampagneData?.unternehmen_id;
-    if (!submitData.marke_id) submitData.marke_id = detail.kampagneData?.marke_id;
-    if (detail.produktion?.briefing_id) submitData.briefing_id = detail.produktion.briefing_id;
-
-    const forced = lineNames(detail.lineTitle).casting;
-    if (forced) submitData.name = forced;
-    else if (!submitData.name || submitData.name.trim() === '') {
-      const auto = new AutoGeneration();
-      const generatedName = await auto.autoGenerateSourcingName(
-        submitData.kampagne_id,
-        submitData.marke_id,
-        submitData.unternehmen_id
-      );
-      if (generatedName) submitData.name = generatedName;
-    }
-
-    const newListe = await creatorAuswahlService.createListe(submitData);
-    if (!newListe?.id) throw new Error('Keine ID zurückgegeben');
-
-    window.toastSystem?.show('Casting-Liste erfolgreich erstellt', 'success');
-    closeCreateDrawer();
-    detail._castingSelectedListeId = newListe.id;
-    await remountCastingPane(detail);
-    if (typeof options.onCreated === 'function') await options.onCreated();
+    await worksheet.init(listeId, {
+      root,
+      chromeRoot: getCastingTools(),
+      embedded: true,
+      prefetched: existing?._prefetchPayload || null
+    });
   } catch (error) {
-    console.error('❌ Fehler beim Erstellen der Casting-Liste:', error);
-    window.toastSystem?.show(`Fehler beim Erstellen: ${error.message}`, 'error');
+    worksheet.destroy();
+    if (detail.castingWorksheet === worksheet) detail.castingWorksheet = null;
+    throw error;
   }
-}
-
-function applySpaltenPreset(submitData) {
-  submitData.hidden_columns = [
-    ...berechneHiddenColumns(submitData),
-    ...STANDARD_VERSTECKTE_SPALTEN
-  ];
-  if (!submitData.plattformen) submitData.plattformen = null;
-  if (!submitData.ig_formate) submitData.ig_formate = null;
-  const tkp = Number(submitData.tkp);
-  submitData.tkp = Number.isFinite(tkp) && tkp >= 0 ? tkp : 25;
-}
-
-function closeCreateDrawer() {
-  const overlay = document.getElementById('kampagne-casting-create-overlay');
-  const panel = document.getElementById('kampagne-casting-create-drawer');
-
-  if (panel) {
-    panel.classList.remove('show');
-    setTimeout(() => {
-      overlay?.remove();
-      panel?.remove();
-    }, 300);
-  } else {
-    overlay?.remove();
+  if (!isPaneGenCurrent(detail, 'casting', gen) || !root.isConnected) {
+    worksheet.destroy();
+    if (detail.castingWorksheet === worksheet) detail.castingWorksheet = null;
   }
 }

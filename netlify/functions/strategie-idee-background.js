@@ -11,8 +11,8 @@ const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
 const { starteKiRequest } = require('./_shared/ki-log');
 const { appendStep } = require('./_shared/thinking');
 const {
-  ANZAHL,
-  KONZEPT_TOOL,
+  normalisiereAnzahl,
+  konzeptTool,
   loadIdeeInput,
   buildPrompt,
   validateIdeen,
@@ -70,7 +70,7 @@ exports.handler = async (event) => {
   const { user } = auth;
 
   const { data: job } = await supabase.from('strategie_idee_jobs')
-    .select('id, strategie_id, status, created_by')
+    .select('id, strategie_id, status, created_by, input')
     .eq('id', jobId).single();
   if (!job || job.created_by !== user.id) {
     console.error(`❌ strategie-idee-background: Job ${jobId} nicht gefunden oder fremd`);
@@ -81,13 +81,19 @@ exports.handler = async (event) => {
     return { statusCode: 409 };
   }
 
+  const anzahl = normalisiereAnzahl(job.input);
+  const labels = {
+    ...THINKING_LABELS,
+    generieren: `Claude entwirft ${anzahl} Videoideen`
+  };
+
   let queue = Promise.resolve();
   let progressSteps = [];
   const schreibeStep = (step, msg) => {
     if (msg) console.log(`[${jobId}] ${msg}`);
     progressSteps = appendStep(progressSteps, {
       step,
-      label: THINKING_LABELS[step] || msg || 'Ich arbeite'
+      label: labels[step] || msg || 'Ich arbeite'
     });
     const steps = progressSteps;
     queue = queue
@@ -111,21 +117,22 @@ exports.handler = async (event) => {
       feature: 'strategie_idee'
     });
 
-    const { stable, task } = buildPrompt(input);
+    const { stable, task } = buildPrompt({ ...input, anzahl });
+    const tool = konzeptTool(anzahl);
     const rufeClaude = () => callClaude({
       model: MODELS.konzept,
       systemBlocks: [{ text: stable, cache: true }],
       userPrompt: task,
       maxTokens: 8000,
-      tool: KONZEPT_TOOL,
+      tool,
       toolForced: true
     });
 
-    schreibeStep('generieren', `Claude entwirft ${ANZAHL} Videoideen`);
+    schreibeStep('generieren', `Claude entwirft ${anzahl} Videoideen`);
     letzterResult = await rufeClaude();
     schreibeStep('pruefen', 'Ideen werden validiert');
     let geprueft = letzterResult.json
-      ? validateIdeen(letzterResult.json, { ausschluss: input.ausschluss, anzahl: ANZAHL })
+      ? validateIdeen(letzterResult.json, { ausschluss: input.ausschluss, anzahl })
       : { ideen: [], verworfen: [] };
 
     if (!geprueft.ideen.length) {
@@ -141,7 +148,7 @@ exports.handler = async (event) => {
       letzterResult = await rufeClaude();
       schreibeStep('pruefen', 'Ideen werden validiert');
       geprueft = letzterResult.json
-        ? validateIdeen(letzterResult.json, { ausschluss: input.ausschluss, anzahl: ANZAHL })
+        ? validateIdeen(letzterResult.json, { ausschluss: input.ausschluss, anzahl })
         : { ideen: [], verworfen: [] };
     }
 

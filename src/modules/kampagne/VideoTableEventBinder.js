@@ -125,8 +125,6 @@ export class VideoTableEventBinder {
       }
     }, { signal });
 
-    t.initAutoResizeTextareas();
-
     container.addEventListener('click', (e) => {
       const uploadBtn = e.target.closest('.video-upload-btn');
       if (uploadBtn) {
@@ -216,12 +214,6 @@ export class VideoTableEventBinder {
     }, { signal });
 
     container.addEventListener('click', (e) => {
-      const linkBtn = e.target.closest('[data-action="link-strategie-item"]');
-      if (linkBtn) {
-        e.preventDefault();
-        t._openLinkStrategieDrawer(linkBtn);
-        return;
-      }
       const openSkript = e.target.closest('[data-action="open-skript"]');
       if (openSkript) {
         e.preventDefault();
@@ -252,24 +244,22 @@ export class VideoTableEventBinder {
       }
     }, { signal });
 
-    // Item-Click an document, da Portal an document.body haengt (nicht im container)
+    // Item-Click an document, da Portal an document.body haengt (nicht im container).
+    // Klick daneben schliesst. Beides ein Listener.
     document.addEventListener('click', (e) => {
       const item = e.target.closest('.status-dropdown-portal .status-dropdown-item, .status-select-wrapper .status-dropdown-item');
-      if (!item) return;
-      // preventDefault: <a href="#"> wuerde sonst zum Seiten-Anfang scrollen
-      e.preventDefault();
-      e.stopPropagation();
-      const portal = item.closest('.status-dropdown-portal');
-      const wrapper = item.closest('.status-select-wrapper');
-      const koopId = portal?.dataset.kooperationId || wrapper?.dataset.kooperationId;
-      const newValue = item.dataset.value || null;
-      t._closeStatusPortal();
-      if (koopId) {
-        t._handleStatusDropdownChange(koopId, newValue);
+      if (item) {
+        // preventDefault: <a href="#"> wuerde sonst zum Seiten-Anfang scrollen
+        e.preventDefault();
+        e.stopPropagation();
+        const portal = item.closest('.status-dropdown-portal');
+        const wrapper = item.closest('.status-select-wrapper');
+        const koopId = portal?.dataset.kooperationId || wrapper?.dataset.kooperationId;
+        const newValue = item.dataset.value || null;
+        t._closeStatusPortal();
+        if (koopId) t._handleStatusDropdownChange(koopId, newValue);
+        return;
       }
-    }, { signal });
-
-    document.addEventListener('click', (e) => {
       if (e.target.closest('.status-select-wrapper') || e.target.closest('.status-dropdown-portal')) return;
       t._closeStatusPortal();
     }, { signal });
@@ -281,7 +271,6 @@ export class VideoTableEventBinder {
     t._finalBulkDownload?.syncAfterRender();
 
     t.bindResizeEvents();
-    t.bindDragToScroll();
     t.columnDragHandler.bind(container, signal);
   }
 }

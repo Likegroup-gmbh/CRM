@@ -8,6 +8,7 @@ import { buildStrategiePrioUpdates, isStrategiePrio } from './strategiePrioOptio
 import { bindTextClipEvents } from './strategieTextClip.js';
 import { startProduktionFromItem } from '../kooperation/produktionStart.js';
 import { refreshItemActions, updateItemRow } from './StrategieDetailRenderer.js';
+import { syncCustomPeer, syncVideoideeField } from './videoideeFieldSync.js';
 
 function tableRoot(detail) {
   return detail._getRoot?.() || window.content;
@@ -60,6 +61,24 @@ export function bindTableEvents(detail) {
     detail._tableEventListeners.add(() => checkbox.removeEventListener('change', handler));
   });
 
+  const openVideoidee = (e) => {
+    const btn = e.target.closest?.('[data-action="open-videoidee"]');
+    if (btn && isFromThisWorksheet(detail, btn)) {
+      e.preventDefault();
+      detail.showEditItemDrawer(btn.dataset.itemId);
+      return;
+    }
+    if (!detail.isKunde) return;
+    const cell = e.target.closest?.('.cell-text-readonly');
+    if (!cell || !isFromThisWorksheet(detail, cell)) return;
+    if (e.target.closest('a, button')) return;
+    const row = cell.closest('tr.item-row');
+    if (!row?.dataset.itemId) return;
+    detail.showEditItemDrawer(row.dataset.itemId);
+  };
+  document.addEventListener('click', openVideoidee);
+  detail._tableEventListeners.add(() => document.removeEventListener('click', openVideoidee));
+
   bindCustomColumnEvents(detail);
   bindPrioSelect(detail);
 
@@ -106,14 +125,6 @@ export function bindTableEvents(detail) {
         case 'delete-item':
           e.preventDefault();
           detail.handleDeleteItem(id);
-          break;
-        case 'add-to-video':
-          e.preventDefault();
-          detail.handleAddToVideo(id);
-          break;
-        case 'unlink-from-video':
-          e.preventDefault();
-          detail.handleUnlinkFromVideo(id, actionItem.dataset.videoId);
           break;
         case 'toggle-skript-freigabe':
           e.preventDefault();
@@ -360,8 +371,10 @@ export function bindPrioSelect(detail) {
   const handler = (e) => {
     const { field, itemId, value, element } = e.detail || {};
     if (field !== 'strategie_prio') return;
-    if (!element?.closest('.strategie-items-table')) return;
-    if (tableRoot(detail) && !tableRoot(detail).contains(element.closest('.strategie-items-table'))) return;
+    const inTable = element?.closest('.strategie-items-table');
+    const inDrawer = element?.closest('#edit-item-drawer');
+    if (!inTable && !inDrawer) return;
+    if (inTable && tableRoot(detail) && !tableRoot(detail).contains(inTable)) return;
     if (!isStrategiePrio(value)) return;
 
     handlePrioChange(detail, itemId, value);
@@ -567,7 +580,10 @@ export function bindCustomColumnEvents(detail) {
   if (!detail.customColumns?.hasColumns) return;
 
   qAll(detail, '.custom-col-input').forEach(el => {
-    const handler = () => detail.customColumns.handleFieldUpdate(el);
+    const handler = async () => {
+      const ok = await detail.customColumns.handleFieldUpdate(el);
+      if (ok) syncCustomPeer(el);
+    };
     const isChangeOnly = el.type === 'checkbox' || el.tagName === 'SELECT' || el.classList.contains('custom-col-date');
     if (isChangeOnly) {
       el.addEventListener('change', handler);
@@ -625,14 +641,14 @@ export async function handleFieldUpdate(detail, element) {
     return;
   }
 
-  await updateItemField(detail, itemId, field, value);
+  await updateItemField(detail, itemId, field, value, element);
 
   if (field === 'video_umgesetzt') {
     element.closest('tr.item-row')?.classList.toggle('strategie-item-umgesetzt', !!value);
   }
 }
 
-export async function updateItemField(detail, itemId, field, value) {
+export async function updateItemField(detail, itemId, field, value, sourceEl) {
   try {
     const updates = { [field]: value };
 
@@ -655,6 +671,7 @@ export async function updateItemField(detail, itemId, field, value) {
 
     const item = detail.items.find(i => i.id === itemId);
     if (item) Object.assign(item, updates);
+    syncVideoideeField(itemId, field, value, sourceEl);
     if (field === 'video_umgesetzt') refreshItemActions(detail, itemId);
   } catch (error) {
     console.error('Fehler beim Aktualisieren des Items:', error);

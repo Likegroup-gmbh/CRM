@@ -25,8 +25,12 @@ _Avoid_: Deal, Job, Projekt (in der UI heisst der Anlege-Flow so, die Entity ble
 _Avoid_: Überkampagne, Auftrag
 
 **Produktion**:
-Lauf unter genau einer Kampagne. Entsteht mit dem Briefing, das Produkt kommt danach und hängt dann an dieser Produktion. Anzeigename ist der Briefing-Titel. Kein eigenes Volumen und kein eigenes Soll. Darunter hängen Casting, Konzept, Skripte, Verträge, Kooperationen, Videos und Auswertung.
-_Avoid_: Kooperation, Vor-Ort-Produktion
+Lauf unter genau einer Kampagne. Mit Briefing heißt sie wie das Briefing, das Produkt kommt danach; ohne Briefing hat sie einen freien Namen und ein Produktionsbudget. Kein eigenes Soll. Darunter hängen Casting, Konzept, Skripte, Verträge, Kooperationen, Videos und Auswertung.
+_Avoid_: Kooperation, Vor-Ort-Produktion, Geist
+
+**Produktionsbudget**:
+Betrag, mit dem eine Produktion arbeitet, geschnitten aus dem Volumen ihrer Kampagne. Leer heißt, sie teilt sich das Volumen mit den anderen ohne Budget.
+_Avoid_: Creator-Budget, Kooperation, Geist, Anteil
 
 **Kooperation**:
 Creator-Buchung innerhalb einer Produktion. Dieselbe Person in einer zweiten Produktion ist ein eigener Datensatz und zählt erneut auf das Creator-Soll der Kampagne. Liegt in der Produktion im Tab Produktion.
@@ -289,7 +293,7 @@ Videoidee, visuell abgetrennt. Übernehmen macht sie zur normalen Videoidee; Ver
 _Avoid_: Creative Angle, Grobkonzept, Casting-Vorschlag
 
 **Skript**:
-Text für genau ein Video und genau einen Creator: den der verknüpften Kooperation, sonst den Creator der Videoidee.
+Text für genau ein Video und genau einen Creator: den der verknüpften Kooperation, sonst den Creator der Videoidee. Organic und Influencer sind eine Empfehlung von Person zu Person, außer ein Don't oder das Briefing verlangt etwas anderes. Paid bleibt ein Performance-Creative.
 _Avoid_: Drehbuch, Copy
 
 **Skript-Freigabe**:
@@ -304,6 +308,34 @@ _Avoid_: Skript-Freigabe, Final
 **Hook-Variante**:
 Alternativer gesprochener Opener am selben Skript (Hook 1–3). Keine eigene Version.
 _Avoid_: Variante, Alternative Version, Hook-Option
+
+**Skript-Titel**:
+Arbeitstitel des Skripts. Eigene Zelle im Editor, nicht der On-Screen-Text.
+_Avoid_: Headline, On-Screen-Text
+
+**Neuformulierung**:
+Auftrag im Editor, dieselbe Geschichte neu zu formulieren. Funktion, Figuren, Setting und Aussage bleiben.
+_Avoid_: Neu schreiben, Neue Geschichte, Hook-Variante
+
+**Neue Geschichte**:
+Auftrag im Editor, Situation und Einstieg zu wechseln. Claims, Don'ts und Besetzung bleiben.
+_Avoid_: Neuformulierung, Hook-Variante, Videoidee
+
+**Festgezogen**:
+Zelle eines Skripts, die ein späterer Auftrag nicht ersetzen darf, solange der Auftrag nicht genau diese Zelle verlangt. Ein Satz darin ist nur geschützt, wenn er markiert ist.
+_Avoid_: Freigabe, Skript-Freigabe, Kundenfreigabe
+
+**Festlegung**:
+Fakt am Skript, der ab dann in jedem weiteren Auftrag gilt, ohne ihn neu zu nennen. Entsteht aus einer ausdrücklichen Anweisung oder einer Ablehnung, nicht aus dem angenommenen Wortlaut. Zum Beispiel die Besetzung, ein abgelehnter Ansatz oder ein Tarifverbot.
+_Avoid_: Feedback, Kundenfeedback, Feedbackschleife, Don't
+
+**Skript-Aufbau**:
+Gesprochene Reihenfolge bei Organic und Influencer: Alltag, Problem, Produkt, CTA. Das Produkt kommt erst danach und sagt, was es ist, wie es funktioniert und warum es hilft. Der CTA ist eine Empfehlung. Tarife nur, wenn das Briefing sie zum Thema macht. Paid folgt dem Funnel-Aufbau des Masters.
+_Avoid_: Storytelling, Story, Beat
+
+**Alltag**:
+Der konkrete Moment am Anfang des Skripts, bevor das Produkt vorkommt. Eine Audience Situation der Persona, wenn sie eine hat.
+_Avoid_: Situation, Setting, Audience Situation
 
 **Kooperationsvideo**:
 Das hochgeladene Videofile in einer Kooperation (Dropbox-Asset), wird in der

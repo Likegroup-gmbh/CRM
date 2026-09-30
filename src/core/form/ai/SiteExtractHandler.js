@@ -234,7 +234,7 @@ export class SiteExtractHandler {
       this.attachPdf(file);
     });
 
-    this.form.querySelector('[data-url-field="true"]')?.addEventListener('paste', (e) => {
+    side.querySelector('[data-url-field="true"]')?.addEventListener('paste', (e) => {
       const file = [...(e.clipboardData?.files || [])][0];
       if (!file) return;
       e.preventDefault();
@@ -283,7 +283,7 @@ export class SiteExtractHandler {
 
     this.running = true;
     state.busy();
-    emit('siteExtractStarted', { entity: this.entity, form: this.form, url: file.name });
+    emit('siteExtractStarted', { entity: this.entity, form: this.form, url: file.name, via: 'pdf' });
     emit('siteExtractProgress', { entity: this.entity, step: 'start', label: 'Ich lese das PDF' });
 
     try {
@@ -299,6 +299,7 @@ export class SiteExtractHandler {
         entity: this.entity,
         form: this.form,
         ok: true,
+        via: 'pdf',
         felder,
         fields: result.fields || {}
       });
@@ -308,6 +309,7 @@ export class SiteExtractHandler {
         entity: this.entity,
         form: this.form,
         ok: false,
+        via: 'pdf',
         error: error.message
       });
     } finally {

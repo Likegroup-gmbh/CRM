@@ -46,6 +46,7 @@ function visibleFixedColumns(detail) {
     caption: visible('caption'),
     anmerkung: visible('anmerkung'),
     prio: visible('prio'),
+    status: !detail.isKunde && visible('status'),
     umgesetzt: visible('umgesetzt')
   };
 }
@@ -96,6 +97,7 @@ export function renderItemsTable(detail) {
             ${cols.caption ? '<th class="col-caption">Caption</th>' : ''}
             ${cols.anmerkung ? '<th class="col-anmerkung">Anmerkung Kunde</th>' : ''}
             ${cols.prio ? '<th class="col-prio">Prio</th>' : ''}
+            ${cols.status ? '<th class="col-status">Status</th>' : ''}
             ${cols.umgesetzt ? '<th class="col-umgesetzt">Umsetzen</th>' : ''}
             ${detail.customColumns ? detail.customColumns.renderHeaders(detail.hiddenColumns, detail.isKunde) : ''}
             ${showWriteCols ? '<th class="col-actions">Aktionen</th>' : ''}
@@ -252,10 +254,14 @@ function renderBildCell(item, isIdea, ideaIcon) {
   return `<td class="col-image">${bild}</td>`;
 }
 
+function openVideoideeId() {
+  if (typeof document === 'undefined') return null;
+  return document.getElementById('edit-item-drawer')?.dataset.itemId || null;
+}
+
 /**
- * Beschreibung, Transkript und Caption: Clip mit Mehr/Weniger.
- * Der Quellen-Tag zeigt, ob Whisper transkribiert oder die Untertitel
- * des Posts mitgenommen wurden.
+ * Beschreibung, Transkript und Caption bleiben auf Bildhöhe abgeschnitten.
+ * Der volle Text liegt zusätzlich im Videoidee-Drawer.
  */
 function renderClippedTextCell(detail, item, field, cssClass, placeholder, readonly) {
   const value = item[field] || '';
@@ -276,7 +282,6 @@ function renderClippedTextCell(detail, item, field, cssClass, placeholder, reado
         <div class="strategie-text-clip__body">
           ${inner}
         </div>
-        <button type="button" class="strategie-text-more" hidden aria-expanded="false" aria-label="Mehr anzeigen" title="Mehr anzeigen">${icon('eye')}</button>
       </div>
     </td>
   `;
@@ -398,6 +403,12 @@ function renderProduktCell(detail, item, readonly) {
  * Umgesetzt-Zelle: Klickbar nur mit Feld-Edit-Recht (Kunde darf, Investor
  * nicht). Ohne Recht steht da nur der Zustand, kein disabled-Toggle.
  */
+/** Freigabe als Badge. Leer heißt Gedankenstrich, kein Status „Offen“. */
+export function renderSkriptFreigabeStatus(item) {
+  if (!item?.skript_freigabe) return '–';
+  return '<span class="status-badge success">Freigegeben</span>';
+}
+
 function renderUmgesetztCell(item, readonly) {
   const isUmgesetzt = !!item.video_umgesetzt;
   if (readonly) {
@@ -419,7 +430,6 @@ export function renderItemRow(detail, item, index) {
   const externalLinkIcon = `${icon('external-link', { className: 'icon-20' })}`;
   const ideaIcon = `${icon('light-bulb')}`;
   const isIdea = !item.video_link;
-  const isLinked = !!item.linked_video;
   const isUmgesetzt = !!item.video_umgesetzt;
   const isVorschlag = isVideoideeVorschlag(item);
   const cols = visibleFixedColumns(detail);
@@ -442,15 +452,17 @@ export function renderItemRow(detail, item, index) {
     isIdea ? 'idea-row' : '',
     isUmgesetzt ? 'strategie-item-umgesetzt' : '',
     item.nicht_umsetzen ? 'item-nicht-umsetzen' : '',
-    item.skript_freigabe ? 'item-skript-freigabe' : '',
     isVorschlag ? 'item-row--vorschlag' : '',
+    openVideoideeId() === String(item.id) ? 'is-videoidee-open' : '',
   ].filter(Boolean).join(' ');
 
   return `
     <tr class="${rowClasses}" data-item-id="${item.id}" ${isVorschlag ? 'data-vorschlag-id="' + item.id + '"' : ''} draggable="false">
       <td class="col-number">
-        ${index + 1}
-        ${item.skript_freigabe ? `<span class="strategie-skript-badge" title="Für Skript freigegeben">${icon('skript-freigabe')}</span>` : ''}
+        <span class="col-number__stack">
+          <span class="col-number__index">${index + 1}</span>
+          <button type="button" class="videoidee-open-btn" data-action="open-videoidee" data-item-id="${item.id}" aria-label="Videoidee öffnen" title="Videoidee öffnen">${icon('arrows-expand')}</button>
+        </span>
       </td>
       ${showWriteCols ? `
         <td class="col-drag ${isVorschlag ? '' : 'drag-handle'}">
@@ -499,6 +511,7 @@ export function renderItemRow(detail, item, index) {
           })}
         </td>
       ` : ''}
+      ${cols.status ? `<td class="col-status">${renderSkriptFreigabeStatus(item)}</td>` : ''}
       ${cols.umgesetzt ? `
         <td class="col-umgesetzt u-text-center">
           ${renderUmgesetztCell(item, umgesetztReadonly)}
@@ -507,7 +520,7 @@ export function renderItemRow(detail, item, index) {
       ${detail.customColumns ? detail.customColumns.renderCells(item.id, detail.hiddenColumns, detail.isKunde, isVorschlag ? false : detail.canEdit) : ''}
       ${showWriteCols ? `
         <td class="col-actions">
-          ${isVorschlag ? renderVorschlagActions(item) : renderItemActions(detail, item, isLinked)}
+          ${isVorschlag ? renderVorschlagActions(item) : renderItemActions(detail, item)}
         </td>
       ` : ''}
     </tr>
@@ -552,7 +565,7 @@ function renderKundenadaptionAction(item) {
   `;
 }
 
-export function renderItemActions(detail, item, isLinked) {
+export function renderItemActions(detail, item) {
   return `
           <div class="actions-dropdown-container" data-entity-type="strategie_item">
             <button class="actions-toggle" aria-expanded="false" aria-label="Aktionen">
@@ -580,17 +593,6 @@ export function renderItemActions(detail, item, isLinked) {
               ` : ''}
               ${renderSkriptFreigabeAction(item)}
               ${renderProduktionStartAction(item)}
-              ${isLinked ? `
-                <a href="#" class="action-item action-warning" data-action="unlink-from-video" data-id="${item.id}" data-video-id="${item.linked_video.id}">
-                  ${window.ActionsDropdown?.getHeroIcon('unlink') || ''}
-                  Idee von Video entfernen
-                </a>
-              ` : `
-                <a href="#" class="action-item" data-action="add-to-video" data-id="${item.id}">
-                  ${window.ActionsDropdown?.getHeroIcon('add-to-list') || ''}
-                  Zu Video hinzufügen
-                </a>
-              `}
               <div class="action-separator"></div>
               <a href="#" class="action-item action-danger" data-action="delete-item" data-id="${item.id}">
                 ${window.ActionsDropdown?.getHeroIcon('delete') || ''}
@@ -667,7 +669,7 @@ export function refreshItemActions(detail, itemId) {
 
   const html = isVideoideeVorschlag(item)
     ? renderVorschlagActions(item)
-    : renderItemActions(detail, item, !!item.linked_video);
+    : renderItemActions(detail, item);
   const next = document.createElement('div');
   next.innerHTML = html;
   const fresh = next.querySelector('.actions-dropdown');
@@ -709,6 +711,7 @@ export function updateItemRow(detail, itemId) {
 
   row.outerHTML = renderItemRow(detail, item, index);
   detail._bindTableEvents();
+  document.dispatchEvent(new CustomEvent('videoidee-table-rendered'));
   return true;
 }
 
@@ -718,6 +721,7 @@ export function rerenderItemsTable(detail) {
   if (!tableContainer) return;
 
   tableContainer.outerHTML = renderItemsTable(detail);
-  
+
   detail._bindTableEvents();
+  document.dispatchEvent(new CustomEvent('videoidee-table-rendered'));
 }

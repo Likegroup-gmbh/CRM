@@ -5,6 +5,7 @@
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { ProduktList } from '../produkt/ProduktList.js';
 import { PersonaList } from '../persona/PersonaList.js';
+import { bumpPaneGen, isPaneGenCurrent, paneGeneration } from './KampagneDetailWorkflow.js';
 
 export function katalogScope(detail) {
   const produktion = detail?.produktion || {};
@@ -35,6 +36,8 @@ function unmountList(detail, key) {
 }
 
 export function unmountKatalogPanes(detail) {
+  bumpPaneGen(detail, 'produkte');
+  bumpPaneGen(detail, 'personas');
   unmountList(detail, 'produktList');
   unmountList(detail, 'personaList');
 }
@@ -42,6 +45,7 @@ export function unmountKatalogPanes(detail) {
 async function mountList(detail, { tabId, key, List }) {
   const pane = document.getElementById(`workflow-pane-${tabId}`);
   if (!pane) return;
+  const gen = paneGeneration(detail, tabId);
 
   unmountList(detail, key);
   pane.innerHTML = '<div class="table-loading-container"><div class="table-loading-spinner"></div></div>';
@@ -51,6 +55,10 @@ async function mountList(detail, { tabId, key, List }) {
 
   try {
     await list.mountEmbedded(pane, katalogScope(detail));
+    if (!isPaneGenCurrent(detail, tabId, gen) || !pane.isConnected) {
+      list.destroy();
+      if (detail[key] === list) detail[key] = null;
+    }
   } catch (error) {
     console.error(`❌ KAMPAGNEDETAIL: ${tabId}-Pane fehlgeschlagen:`, error);
     if (pane.isConnected) {

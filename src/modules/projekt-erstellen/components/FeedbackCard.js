@@ -4,6 +4,7 @@
 
 import { AUFTRAG_TYPES, CAMPAIGN_TYPES, RETAINER_TYPES } from '../constants.js';
 import { flattenCampaignBlocks, kampagnenResttopf, parentTotals } from '../logic/kampagnenSplit.js';
+import { budgetOrNull } from '../../produktion/produktionsbudget.js';
 
 const EMPTY_PLACEHOLDER = '—';
 
@@ -109,6 +110,7 @@ export class FeedbackCard {
         ${this.renderSummarySection('Basisdaten', this.buildStep1(formData))}
         ${this.renderSummarySection(isContracting ? 'Finanzen' : 'Details', this.buildStep2(formData))}
         ${isContracting ? '' : this.renderSummarySection('Kampagne', this.buildStepKampagne(formData))}
+        ${isContracting ? '' : this.renderSummarySection('Produktion', this.buildProduktionen(formData))}
       </div>
     `;
   }
@@ -179,6 +181,58 @@ export class FeedbackCard {
       <div class="projekt-erstellen-summary-item">
         <div class="projekt-erstellen-summary-label">${label}</div>
         ${value}
+      </div>
+    `;
+  }
+
+  buildProduktionen(formData) {
+    const rows = Array.isArray(formData.produktionen) ? formData.produktionen : [];
+    const gesetzt = rows.filter(row => budgetOrNull(row.budget) != null);
+    if (!gesetzt.length) {
+      return this.renderSummaryMetric('Produktionsbudget', null, true);
+    }
+
+    const slots = Array.isArray(formData.kampagnen) ? formData.kampagnen : [];
+    const showKampagne = slots.length > 1;
+    const kampagneLabel = (row) => {
+      const slot = slots.find(item => {
+        if (row.kampagne_id && item.id) return row.kampagne_id === item.id;
+        return (row.kampagnen_nummer || 1) === (item.kampagnen_nummer || 1);
+      });
+      const name = (slot?.eigener_name && String(slot.eigener_name).trim())
+        || slot?.kampagnenname
+        || '';
+      return name || `Kampagne ${slot?.kampagnen_nummer || row.kampagnen_nummer || 1}`;
+    };
+
+    const body = gesetzt.map(row => {
+      const name = this.escapeHtml((row.name || '').trim() || 'Produktion');
+      const kampagneCell = showKampagne
+        ? `<td>${this.escapeHtml(kampagneLabel(row))}</td>`
+        : '';
+      return `
+        <tr>
+          <td class="col-kampagne">${name}</td>
+          ${kampagneCell}
+          <td class="col-volumen">${formatCurrency(row.budget)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="projekt-erstellen-summary-campaign-table-wrap">
+        <table class="pe-summary-table pe-summary-table--compact projekt-erstellen-summary-produktionen-table">
+          <thead>
+            <tr>
+              <th>Produktion</th>
+              ${showKampagne ? '<th>Kampagne</th>' : ''}
+              <th>Budget</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${body}
+          </tbody>
+        </table>
       </div>
     `;
   }

@@ -213,7 +213,8 @@ export const FLOW_STEPS = [
           fieldGroup('zuordnung-entities', 'stack', [
             { name: 'unternehmen_id', label: 'Unternehmen', type: 'entitySelect', table: 'unternehmen', displayField: 'firmenname', required: true, placeholder: 'Unternehmen auswählen...' },
             { name: 'marke_id', label: 'Marke (optional)', type: 'entitySelect', table: 'marke', displayField: 'markenname', dependsOn: 'unternehmen_id', placeholder: 'Marke auswählen...' },
-            { name: 'kampagne_id', label: 'Kampagne', type: 'entitySelect', table: 'kampagne', displayField: 'label', dependsOn: 'unternehmen_id', scopeMarke: true, lockWithLinie: true, required: true, placeholder: 'Kampagne auswählen...' }
+            { name: 'kampagne_id', label: 'Kampagne', type: 'entitySelect', table: 'kampagne', displayField: 'label', dependsOn: 'unternehmen_id', scopeMarke: true, lockWithLinie: true, required: true, placeholder: 'Kampagne auswählen...' },
+            { name: 'ziel_produktion_id', label: 'Produktion', type: 'entitySelect', displayField: 'name', dependsOn: 'kampagne_id', placeholder: 'Produktion auswählen...' }
           ]),
           fieldGroup('zuordnung-titel', 'stack', [
             { name: 'aktivierung_name', label: 'Titel', type: 'text', required: true, placeholder: 'z.B. Make-up September' },
@@ -349,8 +350,10 @@ export const FLOW_STEPS = [
         title: 'Was ist bei der kreativen Umsetzung zu beachten?',
         fields: [
           fieldGroup('konzept-ideen', 'stack', [
-            { name: 'umsetzungsideen', label: 'Vorhandene Umsetzungsideen', type: 'textarea', rows: 3, placeholder: 'z.B. Vorher-Nachher, Problem-Lösung in 20 Sekunden' },
-            { name: 'referenzen', label: 'Referenzen und Beispiele', type: 'repeatableUpload', max: 3 },
+            fieldGroup('konzept-ideen-kopf', 'splitHeader', [
+              { name: 'umsetzungsideen', label: 'Vorhandene Umsetzungsideen', type: 'textarea', rows: 3, placeholder: 'z.B. Vorher-Nachher, Problem-Lösung in 20 Sekunden' },
+              { name: 'referenzen', label: 'Referenzen und Beispiele', type: 'repeatableUpload', max: 3 }
+            ]),
             { name: 'learnings_text', label: 'Learnings aus vergangenen Produktionen', type: 'textarea', rows: 3, placeholder: 'z.B. Hook in den ersten zwei Sekunden, nicht zu werblich' }
           ]),
           fieldGroup('konzept-pflicht', 'stack', [
@@ -383,7 +386,7 @@ export const FLOW_STEPS = [
           ]),
           fieldGroup('kanaele-laenge', 'stack', [
             {
-              name: 'videolaenge', label: 'Videolänge', type: 'sekundenSpanne',
+              name: 'videolaenge', label: 'Videolänge in Sekunden', type: 'sekundenSpanne',
               min: 1, max: 180,
               columns: ['videolaenge_von', 'videolaenge_bis']
             }

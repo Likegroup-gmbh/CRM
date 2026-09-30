@@ -1,4 +1,5 @@
 import { deleteVideoFull } from '../../VideoDeleteHelper.js';
+import { assertVerkaufspreisDelta } from '../../../modules/produktion/produktionsbudget.js';
 
 // Kapselt die gesamte Video-Logik für Kooperationen (Create, Edit-Merge, Validation).
 // Wird von FormSystem per Delegation genutzt.
@@ -122,7 +123,21 @@ export class FormVideoHandler {
       }
     } catch (error) {
       console.error('❌ Fehler in handleKooperationVideos:', error);
+      if (String(error?.message || '').startsWith('Verkaufspreis')) {
+        window.toastSystem?.show(error.message, 'error');
+      }
     }
+  }
+
+  async _assertPreise(kooperationId, delta) {
+    if (!window.supabase || !delta || delta <= 0) return;
+    const { data, error } = await window.supabase
+      .from('kooperationen')
+      .select('produktion_id')
+      .eq('id', kooperationId)
+      .maybeSingle();
+    if (error) throw error;
+    await assertVerkaufspreisDelta(window.supabase, data?.produktion_id, delta);
   }
 
   // Stepper-Daten aus dem Formular auslesen
@@ -173,6 +188,9 @@ export class FormVideoHandler {
       });
     }
 
+    const summe = rows.reduce((sum, row) => sum + (parseFloat(row.verkaufspreis_netto) || 0), 0);
+    await this._assertPreise(kooperationId, summe);
+
     const { data: inserted, error } = await window.supabase
       .from('kooperation_videos')
       .insert(rows)
@@ -200,6 +218,9 @@ export class FormVideoHandler {
 
     const existingVideos = existing || [];
     const currentCount = existingVideos.length;
+    const alt = existingVideos.slice(0, videoanzahl).reduce((sum, video) => sum + (parseFloat(video.verkaufspreis_netto) || 0), 0);
+    const neu = manualRows.slice(0, videoanzahl).reduce((sum, row) => sum + (parseFloat(row?.verkaufspreis_netto) || 0), 0);
+    await this._assertPreise(kooperationId, neu - alt);
 
     const updatePromises = existingVideos.slice(0, videoanzahl).map((video, idx) => {
       const manual = manualRows[idx];

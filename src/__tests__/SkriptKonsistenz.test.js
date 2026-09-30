@@ -184,13 +184,18 @@ describe('buildEditPrompt: gleicher Kontext wie die Generierung', () => {
     expect(task).toContain(lang);
   });
 
-  it('Videovorlage aus dem Snapshot laeuft durch buildReferenzText', () => {
+  it('Chat sieht die Videovorlage nicht, Neue Geschichte nur die Karte', () => {
     const transkript = 't'.repeat(6000);
-    const { task } = buildEditPrompt(ctx({
-      skript: { prompt_kontext: { referenz_video: { transkript_verwendet: transkript } } }
-    }), CHAT_GRID);
-    expect(task).toContain('## VIDEOVORLAGE');
-    expect(task).toContain(transkript);
+    const karte = { hook_mechanik: 'Frage in den Raum', pace: 'schnell', cta_mechanik: 'Einladung' };
+    const mitVorlage = ctx({
+      skript: { prompt_kontext: { referenz_video: { transkript_verwendet: transkript }, referenz_karte: karte } }
+    });
+    const chat = buildEditPrompt(mitVorlage, CHAT_GRID);
+    expect(chat.task).not.toContain(transkript);
+    expect(chat.task).not.toContain('Frage in den Raum');
+    const geschichte = buildEditPrompt(mitVorlage, { aktion: 'neue_geschichte', sektion: 'hook' });
+    expect(geschichte.task).toContain('Hook-Mechanik: Frage in den Raum');
+    expect(geschichte.task).not.toContain(transkript);
   });
 
   it('Sprache englisch: Sprach-Satz im Task, System ohne "deutsches"', () => {
@@ -247,9 +252,50 @@ describe('buildEditPrompt: VERBINDLICHE REGELN in allen Zweigen', () => {
   });
 
   it('neu_schreiben behaelt Figuren und Setting', () => {
-    const { task } = buildEditPrompt(ctx(), { aktion: 'neu_schreiben', sektion: 'hook', selektion_text: 'Kennst du das?' });
+    const { task } = buildEditPrompt(ctx({
+      kontext: { dna: [{ name: 'Global', layer_typ: 'global', version: 1, inhalt: 'No-Go' }] }
+    }), { aktion: 'neu_schreiben', sektion: 'hook', selektion_text: 'Kennst du das?' });
     expect(task).toContain('Figuren, Setting, Produktaussagen und die Aussage bleiben');
     expect(task).not.toContain('nichts aus dem bisherigen Wortlaut.');
+    expect(task).toContain('# LEITER');
+    expect(task).not.toContain('DNA hat Vorrang');
+    expect(task).toContain('Anweisung schlaegt die DNA beim Ton');
+  });
+
+  it('neue_geschichte wechselt Situation und Einstieg', () => {
+    const { task } = buildEditPrompt(ctx(), { aktion: 'neue_geschichte', sektion: 'hook' });
+    expect(task).toContain('andere Situation, anderer Einstieg');
+    expect(task).not.toContain('Figuren, Setting, Produktaussagen und die Aussage bleiben');
+    expect(task).toContain('Claims, Don\'ts und die Besetzung bleiben');
+  });
+
+  it('Paid bekommt keinen Empfehlungsbau', () => {
+    const { task } = buildEditPrompt(ctx({ skript: { bereich: 'paid_creator_ads' } }), CHAT_GRID);
+    expect(task).toContain('# PAID');
+    expect(task).not.toContain('Empfehlung von Person zu Person');
+    expect(task).not.toContain('# STANDARDTON UND AUFBAU');
+  });
+
+  it('Festlegungen stehen im Auftrag, der Verlauf nur die letzten zwei Turns', () => {
+    const history = [
+      { rolle: 'user', inhalt: 'ALT-EINS', status: 'done' },
+      { rolle: 'assistant', inhalt: 'A1', status: 'done' },
+      { rolle: 'user', inhalt: 'ZWEI', status: 'done' },
+      { rolle: 'assistant', inhalt: 'A2', status: 'done' },
+      { rolle: 'user', inhalt: 'NEU-DREI', status: 'done' },
+      { rolle: 'assistant', inhalt: 'A3', status: 'done' }
+    ];
+    const { task, messages } = buildEditPrompt(ctx({
+      history,
+      skript: { festlegungen: [{ text: 'nur ein Creator', quelle: 'anweisung' }], festgezogen: ['hook'] }
+    }), { aktion: 'chat', sektion: 'hauptteil', inhalt: 'kuerzer' });
+    expect(task).toContain('# FESTLEGUNGEN');
+    expect(task).toContain('nur ein Creator');
+    expect(task).toContain('# FESTGEZOGEN');
+    expect(task).toContain('hook');
+    const text = messages.map((m) => m.content).join('\n');
+    expect(text).not.toContain('ALT-EINS');
+    expect(text).toContain('NEU-DREI');
   });
 
   it('Chat-Visual behaelt Figuren, Orte und Props', () => {

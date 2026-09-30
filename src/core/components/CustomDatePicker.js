@@ -257,13 +257,19 @@ export class CustomDatePicker {
       root.removeEventListener('mousedown', handleNativeMousedown, eventOptions);
       root.removeEventListener('click', handleClick, eventOptions);
       root.removeEventListener('keydown', handleKeydown, eventOptions);
-      if (this._activePicker && root.contains(this._activePicker)) {
+      const picker = this._activePicker;
+      if (picker && (root.contains(picker) || !picker.isConnected)) {
         this.closeActivePicker();
       }
       this._boundRoots.delete(root);
     };
 
     this._boundRoots.set(root, { cleanup });
+    if (signal) {
+      signal.addEventListener('abort', () => {
+        if (this._boundRoots.get(root)?.cleanup === cleanup) cleanup();
+      }, { once: true });
+    }
     return cleanup;
   }
 

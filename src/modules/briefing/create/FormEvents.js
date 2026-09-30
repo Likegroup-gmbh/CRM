@@ -75,6 +75,7 @@ BriefingCreate.prototype.bindMultistepEvents = function() {
   this.bindRepeatableEvents();
   this.bindCascadeEvents();
   this.bindSekundenSpanne();
+  void this.syncZielProduktion();
 };
 
 function spanneLesen(root) {
@@ -196,7 +197,67 @@ BriefingCreate.prototype.bindConditionalEvents = function() {
     // Geaendertes Feld sofort in formData spiegeln, dann Conditions neu auswerten
     this.saveCurrentStepData();
     this.refreshConditions();
+    if (e.target?.id === 'kampagne_id' && !this._linieGesperrt) {
+      this.formData.ziel_produktion_id = null;
+      void this.syncZielProduktion();
+    }
   });
+};
+
+function produktionOptionLabel(row) {
+  const name = row?.name || 'Produktion';
+  if (row?.budget == null) return name;
+  const betrag = Number(row.budget).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+  return `${name} · ${betrag}`;
+}
+
+BriefingCreate.prototype.syncZielProduktion = async function() {
+  const select = document.getElementById('ziel_produktion_id');
+  if (!select || !window.supabase) return;
+  const field = select.closest('.form-field');
+  const kampagneId = this.formData.kampagne_id || this._produktionKontext?.kampagneId || null;
+  if (!kampagneId) {
+    field?.classList.add('hidden');
+    select.required = false;
+    this._produktionPflicht = false;
+    return;
+  }
+
+  const { data, error } = await window.supabase
+    .from('produktion')
+    .select('id, name, budget, briefing_id')
+    .eq('kampagne_id', kampagneId)
+    .order('created_at', { ascending: true });
+  if (error) {
+    console.warn('Produktionen für das Briefing nicht geladen', error);
+    return;
+  }
+
+  const rows = data || [];
+  const regime = rows.some(row => row.budget != null);
+  const boundId = this._produktionKontext?.produktionId || null;
+  const bound = rows.find(row => row.id === boundId) || null;
+  if (!regime) {
+    field?.classList.add('hidden');
+    select.required = false;
+    this._produktionPflicht = false;
+    if (!boundId) this.formData.ziel_produktion_id = null;
+    return;
+  }
+
+  field?.classList.remove('hidden');
+  const freie = rows.filter(row => !row.briefing_id || row.id === boundId);
+  const current = this.formData.ziel_produktion_id || boundId || '';
+  const placeholder = freie.length ? 'Produktion auswählen...' : 'Keine freie Produktion';
+  select.innerHTML = `<option value="">${placeholder}</option>${freie.map(row => `
+    <option value="${row.id}">${window.validatorSystem?.sanitizeHtml(produktionOptionLabel(row)) || produktionOptionLabel(row)}</option>
+  `).join('')}`;
+  select.value = freie.some(row => row.id === current) ? current : '';
+  const locked = !!(bound?.briefing_id);
+  select.disabled = locked;
+  select.required = !locked;
+  this._produktionPflicht = !locked;
+  this.formData.ziel_produktion_id = select.value || null;
 };
 
 BriefingCreate.prototype.refreshConditions = function() {

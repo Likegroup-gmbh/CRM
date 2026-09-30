@@ -190,27 +190,6 @@ export class VideoTableDrawerActions {
     });
   }
 
-  async openLinkStrategieDrawer(btn) {
-    const t = this.table;
-    const videoId = btn.dataset.videoId;
-    const kooperationId = btn.dataset.kooperationId;
-    const koop = t.kooperationen.find(k => k.id === kooperationId);
-    const videos = t.videos[kooperationId] || [];
-    const video = videos.find(v => v.id === videoId);
-
-    if (!video || !koop) {
-      window.toastSystem?.show('Video nicht gefunden', 'error');
-      return;
-    }
-
-    await t._linkStrategieDrawer.open({
-      video,
-      kooperation: koop,
-      kampagneId: t.kampagneId,
-      onSuccess: () => this.reloadAfterStrategieLink()
-    });
-  }
-
   async openLinkSkriptDrawer(btn) {
     const t = this.table;
     const videoId = btn.dataset.videoId;

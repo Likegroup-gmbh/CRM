@@ -284,6 +284,8 @@ export class BasePaginatedList {
    * Hauptinitialisierung - wird von außen aufgerufen
    */
   async init() {
+    this._destroyed = false;
+
     // Headline setzen
     if (window.setHeadline) {
       window.setHeadline(this.options.headline);
@@ -583,6 +585,8 @@ export class BasePaginatedList {
    * Bindet alle Event-Listener
    */
   bindEvents() {
+    if (this._destroyed) return;
+
     // Cleanup vorheriger Listener
     if (this._abortController) {
       this._abortController.abort();
@@ -892,9 +896,11 @@ export class BasePaginatedList {
    * Cleanup-Methode für Komponenten-Zerstörung
    */
   destroy() {
+    if (this._destroyed) return;
     console.log(`${this.entityType}List: Cleaning up...`);
-    
-    // Markiere als zerstört um laufende async Operationen zu stoppen
+
+    // Bleibt true, bis init()/mountEmbedded neu startet. Sonst bindet ein
+    // noch laufender Mount nach dem Destroy wieder Listener.
     this._destroyed = true;
     
     // AbortController alle Event-Listener auf einmal entfernen
@@ -930,10 +936,7 @@ export class BasePaginatedList {
     
     // Shell-Flag zurücksetzen
     this._shellRendered = false;
-    
-    // Destroyed-Flag zurücksetzen für Wiederverwendung
-    this._destroyed = false;
-    
+
     // Permission-Cache invalidieren
     this.invalidatePermissionCache();
   }

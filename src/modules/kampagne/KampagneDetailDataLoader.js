@@ -183,7 +183,7 @@ export async function loadCriticalData(kampagneId, scope = {}) {
   }
 
   // Notizen, Ratings, Strategien, Briefings & Tab-Counts parallel laden
-  const [strategienResult, briefingsResult, sourcingCountResult, vertraegeCountResult, rechnungenCountResult, produktionen] = await Promise.all([
+  const [strategienResult, briefingsResult, sourcingCountResult, produktionen] = await Promise.all([
     scopeByProduktion(
       window.supabase
         .from('strategie')
@@ -210,17 +210,6 @@ export async function loadCriticalData(kampagneId, scope = {}) {
         .eq('kampagne_id', kampagneId),
       produktionId
     ),
-    scopeByProduktion(
-      window.supabase
-        .from('vertraege')
-        .select('id', { count: 'exact', head: true })
-        .eq('kampagne_id', kampagneId),
-      produktionId
-    ),
-    window.supabase
-      .from('rechnung')
-      .select('id', { count: 'exact', head: true })
-      .eq('kampagne_id', kampagneId),
     produktionId ? Promise.resolve([]) : listProduktionen(kampagneId)
   ]);
 
@@ -232,8 +221,6 @@ export async function loadCriticalData(kampagneId, scope = {}) {
   const briefings = briefingsResult.data || [];
 
   const sourcingListenCount = sourcingCountResult.count || 0;
-  const vertraegeCount = vertraegeCountResult.count || 0;
-  const rechnungenCount = rechnungenCountResult.count || 0;
 
   const loadTime = (performance.now() - startTime).toFixed(0);
   console.log(`✅ KAMPAGNEDETAIL: Kritische Daten geladen in ${loadTime}ms`);
@@ -243,151 +230,8 @@ export async function loadCriticalData(kampagneId, scope = {}) {
     strategien,
     briefings,
     sourcingListenCount,
-    vertraegeCount,
-    rechnungenCount,
     produktionen
   };
-}
-
-/**
- * Lädt Tab-spezifische Daten on-demand.
- * Gibt die geladenen Daten zurück.
- */
-export async function loadTabData(tabName, kampagneId) {
-  console.log(`🔄 KAMPAGNEDETAIL: Lade Daten für Tab: ${tabName}`);
-  const startTime = performance.now();
-
-  let result = null;
-
-  switch (tabName) {
-    case 'creators': {
-      const { data } = await window.supabase
-        .from('kampagne_creator')
-        .select(`
-          *,
-          creator:creator_id(
-            id, vorname, nachname, instagram, instagram_follower,
-            tiktok, tiktok_follower, mail, telefonnummer
-          )
-        `)
-        .eq('kampagne_id', kampagneId);
-      result = { creator: data || [] };
-      break;
-    }
-    case 'sourcing': {
-      const { data } = await window.supabase
-        .from('kampagne_creator_sourcing')
-        .select(`
-          id,
-          creator:creator_id (
-            id, vorname, nachname,
-            creator_types:creator_creator_type(creator_type:creator_type_id(name)),
-            sprachen:creator_sprachen(sprachen:sprache_id(name)),
-            branchen:creator_branchen(branchen_creator:branche_id(name)),
-            instagram_follower, tiktok_follower,
-            lieferadresse_stadt, lieferadresse_land
-          )
-        `)
-        .eq('kampagne_id', kampagneId);
-
-      result = {
-        sourcingCreators: (data || []).map(row => {
-          const c = row.creator || {};
-          return {
-            id: c.id, vorname: c.vorname, nachname: c.nachname,
-            creator_types: (c.creator_types || []).map(x => x.creator_type).filter(Boolean),
-            sprachen: (c.sprachen || []).map(x => x.sprachen).filter(Boolean),
-            branchen: (c.branchen || []).map(x => x.branchen_creator).filter(Boolean),
-            instagram_follower: c.instagram_follower, tiktok_follower: c.tiktok_follower,
-            lieferadresse_stadt: c.lieferadresse_stadt, lieferadresse_land: c.lieferadresse_land,
-          };
-        })
-      };
-      break;
-    }
-    case 'favs': {
-      const { data } = await window.supabase
-        .from('kampagne_creator_favoriten')
-        .select(`
-          id,
-          creator:creator_id (
-            id, vorname, nachname,
-            creator_types:creator_creator_type(creator_type:creator_type_id(name)),
-            sprachen:creator_sprachen(sprachen:sprache_id(name)),
-            branchen:creator_branchen(branchen_creator:branche_id(name)),
-            instagram_follower, tiktok_follower,
-            lieferadresse_stadt, lieferadresse_land
-          )
-        `)
-        .eq('kampagne_id', kampagneId);
-
-      result = {
-        favoriten: (data || []).map(row => {
-          const c = row.creator || {};
-          return {
-            id: c.id, vorname: c.vorname, nachname: c.nachname,
-            creator_types: (c.creator_types || []).map(x => x.creator_type).filter(Boolean),
-            sprachen: (c.sprachen || []).map(x => x.sprachen).filter(Boolean),
-            branchen: (c.branchen || []).map(x => x.branchen_creator).filter(Boolean),
-            instagram_follower: c.instagram_follower, tiktok_follower: c.tiktok_follower,
-            lieferadresse_stadt: c.lieferadresse_stadt, lieferadresse_land: c.lieferadresse_land,
-          };
-        })
-      };
-      break;
-    }
-    case 'rechnungen': {
-      const { data } = await window.supabase
-        .from('rechnung')
-        .select(`
-          id, rechnung_nr, status, nettobetrag, bruttobetrag,
-          gestellt_am, bezahlt_am, pdf_url,
-          kooperation:kooperation_id(id, name),
-          creator:creator_id(id, vorname, nachname)
-        `)
-        .eq('kampagne_id', kampagneId)
-        .order('gestellt_am', { ascending: false });
-      result = { rechnungen: data || [] };
-      break;
-    }
-    case 'vertraege': {
-      const { data } = await window.supabase
-        .from('vertraege')
-        .select(`
-          id, name, typ, is_draft, datei_url, datei_path,
-          dropbox_file_url, dropbox_file_path, kooperation_id,
-          unterschriebener_vertrag_url, status, gesendet_am, created_at,
-          kunde_unternehmen_id,
-          creator:creator_id(id, vorname, nachname, mail),
-          kampagne:kampagne_id(id, kampagnenname, eigener_name, marke:marke_id(id, markenname)),
-          kooperation:kooperation_id(id, name)
-        `)
-        .eq('kampagne_id', kampagneId)
-        .order('created_at', { ascending: false });
-      result = { vertraege: data || [] };
-      break;
-    }
-    case 'sourcing-listen': {
-      const { data } = await window.supabase
-        .from('creator_auswahl')
-        .select(`
-          id, name, created_at,
-          kampagne:kampagne_id(id, kampagnenname),
-          unternehmen:unternehmen_id(id, firmenname, logo_url, internes_kuerzel),
-          marke:marke_id(id, markenname, logo_url),
-          created_by_user:created_by(id, name, profile_image_url)
-        `)
-        .eq('kampagne_id', kampagneId)
-        .order('created_at', { ascending: false });
-      result = { sourcingListen: data || [] };
-      break;
-    }
-  }
-
-  const loadTime = (performance.now() - startTime).toFixed(0);
-  console.log(`✅ KAMPAGNEDETAIL: Tab ${tabName} Daten geladen in ${loadTime}ms`);
-
-  return result;
 }
 
 /**
@@ -446,7 +290,7 @@ export async function loadFullTableData(kampagneId, store, isKunde, scope = {}) 
   const [videosResult, creatorsResult, vertraegeResult, versandResult, statusResult, tagsResult, rechnungResult, customColsResult, colOrderResult] = await Promise.allSettled([
     batchIn(
       sb.from('kooperation_videos'),
-      'id, kooperation_id, position, asset_url, content_art, caption, freigabe, link_content, folder_url, story_folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, link_live, stats_views, stats_likes, stats_comments, stats_fetched_at, stats_error, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, skript_deadline, content_deadline, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id, video_link), skript_id, skript:skript_id(id, titel, status)',
+      'id, kooperation_id, position, asset_url, content_art, caption, freigabe, link_content, folder_url, story_folder_url, link_produkte, thema, link_skript, skript_freigegeben, drehort, video_name, posting_datum, link_live, stats_views, stats_likes, stats_comments, stats_fetched_at, stats_error, einkaufspreis_netto, verkaufspreis_netto, kampagnenart, skript_deadline, content_deadline, strategie_item_id, strategie_item:strategie_item_id(id, screenshot_url, beschreibung, strategie_id, video_link, produkt:produkt_id(id, name)), skript_id, skript:skript_id(id, titel, status)',
       'kooperation_id', koopIds,
       q => q.order('position', { ascending: true })
     ),

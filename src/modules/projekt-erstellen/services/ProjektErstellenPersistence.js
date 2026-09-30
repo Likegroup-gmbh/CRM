@@ -20,6 +20,7 @@ import {
   normalizeKampagnenSlots
 } from '../logic/kampagnenSplit.js';
 import { uploadAuftragsbestaetigungen } from '../../../core/AuftragsbestaetigungUploader.js';
+import { budgetOrNull } from '../../produktion/produktionsbudget.js';
 
 const SUPABASE = () => window.supabase;
 
@@ -775,6 +776,8 @@ export class ProjektErstellenPersistence {
       // 6) ansprechpartner_kampagne synchronisieren
       await this._syncAnsprechpartner(supabase, savedIds, auftragPayload.ansprechpartner_id, { deleteFirst: true });
 
+      await this._syncProduktionen(supabase, formData, slots, savedIds, existingRaw?.produktionen || []);
+
       return { success: true, auftragId, kampagneId: savedKampagneId, skippedKampagnen };
     } catch (e) {
       const friendly = this.friendlyError(e, 'Projekt konnte nicht aktualisiert werden');
@@ -906,6 +909,8 @@ export class ProjektErstellenPersistence {
 
         await this._syncAnsprechpartner(supabase, savedIds, auftragPayload.ansprechpartner_id);
 
+        await this._syncProduktionen(supabase, formData, slots, savedIds, []);
+
         return { success: true, auftragId: savedAuftragId, kampagneId: savedKampagneId };
       } catch (innerErr) {
         // Rollback: verwaisten Auftrag loeschen
@@ -923,6 +928,52 @@ export class ProjektErstellenPersistence {
         raw: e
       });
       return { success: false, error: friendly };
+    }
+  }
+
+  async _syncProduktionen(supabase, formData, slots, savedIds, existingRows = []) {
+    const idByNummer = new Map();
+    slots.forEach((slot, index) => {
+      idByNummer.set(slot.kampagnen_nummer || index + 1, savedIds[index] || slot.id || null);
+    });
+
+    const incoming = (formData.produktionen || []).map(row => ({
+      ...row,
+      kampagne_id: row.kampagne_id || idByNummer.get(row.kampagnen_nummer || 1) || null,
+      budget: budgetOrNull(row.budget)
+    })).filter(row => row.kampagne_id);
+
+    const previous = new Map((existingRows || []).map(row => [row.id, row]));
+    const updates = incoming.filter(row => row.id).sort((a, b) => {
+      const aOld = budgetOrNull(previous.get(a.id)?.budget) || 0;
+      const bOld = budgetOrNull(previous.get(b.id)?.budget) || 0;
+      return ((a.budget || 0) - aOld) - ((b.budget || 0) - bOld);
+    });
+    const kept = new Set();
+
+    for (const row of updates) {
+      kept.add(row.id);
+      const patch = { budget: row.budget };
+      if (!row.briefing_id) {
+        patch.name = (row.name || '').trim() || 'Produktion';
+      }
+      const { error } = await supabase.from('produktion').update(patch).eq('id', row.id);
+      if (error) throw error;
+    }
+
+    for (const row of incoming.filter(item => !item.id && item.budget != null)) {
+      const { error } = await supabase.from('produktion').insert({
+        kampagne_id: row.kampagne_id,
+        name: (row.name || '').trim() || 'Produktion',
+        budget: row.budget
+      });
+      if (error) throw error;
+    }
+
+    for (const old of existingRows || []) {
+      if (!old?.id || kept.has(old.id) || old.briefing_id) continue;
+      const { error } = await supabase.from('produktion').delete().eq('id', old.id);
+      if (error) throw error;
     }
   }
 

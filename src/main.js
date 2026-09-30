@@ -42,6 +42,7 @@ import '../assets/styles/admin.css';
 import '../assets/styles/skripte.css';
 import '../assets/styles/chat-thinking.css';
 import '../assets/styles/chat-panel.css';
+import '../assets/styles/chat-inline-question.css';
 import '../assets/styles/doc.css';
 import '../assets/styles/produkt-doc.css';
 import '../assets/styles/notiz-dokument.css';

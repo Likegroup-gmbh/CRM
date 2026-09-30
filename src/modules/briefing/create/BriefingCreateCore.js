@@ -64,6 +64,7 @@ BriefingCreate.prototype.init = async function(editId = null) {
     await this.loadFromDB(editId);
   } else {
     this.applyQueryPrefill();
+    this.formData.videolaenge = { von: 15, bis: 20 };
     await this.refreshProdukte();
   }
 
@@ -83,6 +84,7 @@ BriefingCreate.prototype.applyQueryPrefill = function() {
   if (marke && marke !== OHNE_QUERY) this.formData.marke_id = marke;
   if (titel) this.formData.aktivierung_name = titel;
   if (kampagne) this.formData.kampagne_id = kampagne;
+  if (produktion) this.formData.ziel_produktion_id = produktion;
   if (produkt) this.formData.produkt_id = produkt;
   this._linieGesperrt = !!kampagne;
   this._produktionKontext = kampagne

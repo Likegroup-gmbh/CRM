@@ -1,8 +1,8 @@
 // Netlify Background Function: Skript-Editor (Chat-basierte Ueberarbeitung)
 // Die pending Assistant-Message in skript_chat_messages IST der Job:
 //   pending -> running -> vorschlag (mit vorschlag_text) | fertig (nur Antwort) | error
-// Modellwahl: Schreib-Aktionen und freier Chat -> edit_write (Opus mit
-// Extended Thinking). Rueckfragen laufen ueber skript-fragen-background.
+// Modellwahl: nur neue_geschichte auf edit_write mit Thinking.
+// Alles andere edit_fast, ohne Thinking. Rueckfragen laufen woanders.
 // Kontext + Prompt-Bau: _shared/skript-edit-prompt.js
 
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
@@ -11,6 +11,8 @@ const { starteKiRequest } = require('./_shared/ki-log');
 const { beansprucheNachricht, autorisiereSkript, istNachrichtAbgebrochen } = require('./_shared/skript-auftrag');
 const { setThinking } = require('./_shared/thinking');
 const { logPrompt } = require('./_shared/prompt-log');
+const { karteAusReferenz } = require('./_shared/skript-referenz-karte');
+const { stempelSekunden, pruefeSkript } = require('./_shared/skript-context/formatter');
 const {
   loadEditContext, buildEditPrompt, mapEditResult, stripToolXml, letzterZeitstempel, formatZeitstempel,
   ladeVisuellStil, brauchtVisualStil, resolveModusSlug, editParams, GRID_SEKTIONEN
@@ -26,8 +28,10 @@ const EDIT_TOOL = {
     type: 'object',
     properties: {
       antwort: { type: 'string', description: 'Kurze Erklaerung fuer den User (1-3 Saetze, Deutsch)' },
-      sektion: { type: ['string', 'null'], description: 'Betroffene Sektion (hook/hauptteil/cta oder ##-Slug) oder null' },
-      vorschlag_text: { type: ['string', 'null'], description: 'Neuer Text oder null' },
+      sektion: { type: ['string', 'null'], description: 'Betroffene Sektion (hook/hauptteil/cta/titel oder ##-Slug) oder null' },
+      vorschlag_text: { type: ['string', 'null'], description: 'Neuer Text oder null. Bei sektion=titel der neue Skript-Titel.' },
+      titel: { type: ['string', 'null'], description: 'Neuer Skript-Titel, nur wenn der Titel sich aendern soll. Sonst null.' },
+      festlegung: { type: ['string', 'null'], description: 'Dauerhafte Vorgabe aus der Anweisung, sonst null. Nicht der vorgeschlagene Wortlaut.' },
       spalte: {
         type: ['string', 'null'],
         description: 'Nur freier Chat: gesprochen, visuell oder null. Welche Spalte vorschlag_text ersetzt.'
@@ -79,6 +83,19 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     ki = await starteKiRequest(supabase, { userId: user.id, feature: 'skript_editor' });
 
     const ctx = await loadEditContext(supabase, message);
+    if (message.aktion === 'neue_geschichte') {
+      const pk = ctx.skript.prompt_kontext || {};
+      const video = pk.referenz_video || pk.generator_payload?.referenz_video;
+      if (!pk.referenz_karte && video) {
+        const karte = await karteAusReferenz(video);
+        if (karte) {
+          ctx.skript.prompt_kontext = { ...pk, referenz_karte: karte };
+          await supabase.from('skripte').update({
+            prompt_kontext: ctx.skript.prompt_kontext
+          }).eq('id', ctx.skript.id);
+        }
+      }
+    }
     if (ctx.kontext.masterVersionen?.length) {
       const bestehend = ctx.skript.prompt_kontext || {};
       await supabase.from('skripte').update({
@@ -97,27 +114,21 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       return { statusCode: 200 };
     }
 
-    // Schreiben und freier Chat: Opus + Thinking. Eine Visual-Zelle passt nicht
-    // in 2048 Haiku-Tokens, und die Spaltenwahl braucht das staerkere Modell.
-    // Rueckfragen gehen nicht durch diesen Handler.
-    const istSchreibAktion = message.aktion === 'chat'
-      || ['neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton', 'feedback', 'visuell'].includes(message.aktion);
+    const stark = message.aktion === 'neue_geschichte';
 
     await setThinking(supabase, 'skript_chat_messages', messageId, {
       step: 'schreiben',
-      label: istSchreibAktion ? 'Ich formuliere den Vorschlag…' : 'Ich formuliere die Antwort…'
+      label: 'Ich formuliere den Vorschlag…'
     });
 
     const result = await callClaude({
-      model: istSchreibAktion ? MODELS.edit_write : MODELS.edit_fast,
+      model: stark ? MODELS.edit_write : MODELS.edit_fast,
       systemBlocks: [{ text: stable, cache: true }],
       userPrompt: task,
       messages,
-      // Schreib-Aktionen brauchen Luft: max_tokens umfasst auch die
-      // Thinking-Tokens - 2048 wuerde bei langem Hauptteil truncaten
-      maxTokens: istSchreibAktion ? 8192 : 2048,
-      thinking: istSchreibAktion,
-      thinkingBudget: 2048,
+      maxTokens: stark ? 8192 : 4096,
+      thinking: stark,
+      thinkingBudget: stark ? 2048 : undefined,
       tool: EDIT_TOOL,
       // Konservativ: ein haengender Claude-Call soll nicht bis zum
       // Netlify-Limit blockieren, sondern als Chat-Fehler sichtbar werden
@@ -131,16 +142,67 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     }
 
     const parsed = result.json || extractJson(result.text, {
-      keys: ['antwort', 'sektion', 'vorschlag_text', 'spalte', 'ganze_sektion']
+      keys: ['antwort', 'sektion', 'vorschlag_text', 'spalte', 'ganze_sektion', 'titel', 'festlegung']
     });
-    const vorschlag = stripToolXml(parsed.vorschlag_text);
+    let vorschlag = stripToolXml(parsed.vorschlag_text);
     const antwort = stripToolXml(parsed.antwort);
     const istMaster = Boolean(ctx.skript?.inhalt_md);
     const parsedSektion = (parsed.sektion || '').trim() || null;
-    const sektion = istMaster
+    const titelWunsch = stripToolXml(parsed.titel);
+    let sektion = istMaster
       ? (parsedSektion || message.sektion)
-      : (GRID_SEKTIONEN.includes(parsedSektion) ? parsedSektion : message.sektion);
+      : (GRID_SEKTIONEN.includes(parsedSektion) || parsedSektion === 'titel'
+        ? parsedSektion
+        : message.sektion);
+    if (titelWunsch && (sektion === 'titel' || !vorschlag)) {
+      vorschlag = titelWunsch;
+      sektion = 'titel';
+    }
     const spalte = mapEditResult(message, parsed);
+    const gezogen = Array.isArray(ctx.skript.festgezogen) ? ctx.skript.festgezogen : [];
+    const getroffen = sektion === 'titel'
+      ? 'titel'
+      : (spalte.ist_visuell ? `${sektion}_visuell` : sektion);
+    const ziel = message.ist_visuell || message.aktion === 'visuell'
+      ? `${message.sektion}_visuell`
+      : message.sektion;
+    if (gezogen.includes(getroffen) && getroffen !== ziel) vorschlag = null;
+    if (spalte.ist_visuell && vorschlag && !spalte.selektion_text && ['hook', 'hauptteil', 'cta'].includes(sektion)) {
+      const visKey = `${sektion}_visuell`;
+      const draft = {
+        hook: ctx.skript.hook,
+        hauptteil: ctx.skript.hauptteil,
+        cta: ctx.skript.cta,
+        hook_visuell: ctx.skript.hook_visuell,
+        hauptteil_visuell: ctx.skript.hauptteil_visuell,
+        cta_visuell: ctx.skript.cta_visuell
+      };
+      draft[visKey] = vorschlag;
+      vorschlag = stempelSekunden(draft)[visKey] || vorschlag;
+    }
+
+    const festlegungText = stripToolXml(parsed.festlegung);
+    if (festlegungText) {
+      const liste = Array.isArray(ctx.skript.festlegungen) ? ctx.skript.festlegungen.slice() : [];
+      if (!liste.some((f) => f?.text === festlegungText)) {
+        liste.push({ text: festlegungText, quelle: 'anweisung' });
+        await supabase.from('skripte').update({ festlegungen: liste }).eq('id', ctx.skript.id);
+      }
+    }
+    if (message.aktion === 'neue_geschichte' && vorschlag && ['hook', 'hauptteil', 'cta'].includes(sektion) && !spalte.ist_visuell) {
+      const felder = {
+        hook: ctx.skript.hook,
+        hauptteil: ctx.skript.hauptteil,
+        cta: ctx.skript.cta,
+        [sektion]: vorschlag
+      };
+      await supabase.from('skripte').update({
+        pruefung: pruefeSkript(felder, {
+          video_laenge: ctx.skript.video_laenge,
+          verbotene_claims: ctx.kontext?.produkt?.verbotene_claims
+        })
+      }).eq('id', ctx.skript.id);
+    }
 
     await setThinking(supabase, 'skript_chat_messages', messageId, {
       step: 'speichern',
@@ -148,13 +210,12 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     });
 
     await supabase.from('skript_chat_messages').update({
-      // Vorschlag ohne konkrete Sektion kann nicht angewendet werden -> nur Antwort
       status: vorschlag && sektion && sektion !== 'gesamt' ? 'vorschlag' : 'fertig',
       inhalt: antwort,
       vorschlag_text: vorschlag,
       sektion: sektion || message.sektion,
-      ist_visuell: spalte.ist_visuell,
-      selektion_text: spalte.selektion_text,
+      ist_visuell: sektion === 'titel' ? false : spalte.ist_visuell,
+      selektion_text: sektion === 'titel' ? null : spalte.selektion_text,
       model: result.model,
       usage: result.usage
     }).eq('id', messageId);

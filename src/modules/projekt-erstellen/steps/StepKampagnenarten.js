@@ -13,6 +13,8 @@ import {
   CAMPAIGN_BLOCK_FIELD_SUFFIXES
 } from '../logic/CampaignBudgetFields.js';
 import { flattenCampaignBlocks } from '../logic/kampagnenSplit.js';
+import { bindMoneyInputs } from '../../../core/form/moneyInput.js';
+import { parseCurrencyInput } from '../../../core/utils/parseCurrency.js';
 
 export function ensureProjektErstellenSharedStyles() {
   if (document.getElementById('projekt-erstellen-shared-styles')) return;
@@ -250,9 +252,11 @@ export class StepKampagnenarten {
 
         if (field === 'budget_info') {
           block[field] = el.value || '';
-        } else {
+        } else if (field === 'video_anzahl' || field === 'creator_anzahl') {
           const raw = el.value;
           block[field] = raw === '' || raw == null ? null : (isNaN(parseFloat(raw)) ? null : parseFloat(raw));
+        } else {
+          block[field] = parseCurrencyInput(el.value);
         }
 
         this.syncBlocksIntoState(blocks);
@@ -262,6 +266,8 @@ export class StepKampagnenarten {
         }
       });
     });
+
+    bindMoneyInputs(host);
   }
 
   collectBudgetsIntoState() {

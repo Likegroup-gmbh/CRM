@@ -7,7 +7,10 @@
 
 const { callClaude, extractJson, MODELS } = require('./_shared/anthropic');
 const { loadContext, loadReferenzVideo, buildKontextText, videoLaengeHinweis, briefingSkriptSprache, cap, KONTEXT_MAX } = require('./_shared/skript-context');
+const { stempelSekunden, pruefeSkript } = require('./_shared/skript-context/formatter');
+const { karteAusReferenz } = require('./_shared/skript-referenz-karte');
 const { fmtMasterBlock, MASTER_BEREICH_LABELS } = require('./_shared/skript-master');
+const { vertragBlock, DNA_KOPF } = require('./_shared/skript-vertrag');
 const { extractSkriptAusMaster } = require('./_shared/skript-creator-facing');
 const { withSkriptHandler } = require('./_shared/skript-handler');
 const { createJobUpdater } = require('./_shared/job-updater');
@@ -68,7 +71,7 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
   stable += fmtMasterBlock(master);
 
   if (dna.length) {
-    stable += '\n# SKRIPT-DNA (verbindliches Regelwerk, geschichtet - spaetere Layer haben Vorrang)\n';
+    stable += DNA_KOPF;
     for (const d of dna) {
       stable += `\n--- ${d.name ? `"${d.name}" - ` : ''}Layer: ${d.layer_typ} (v${d.version}) ---\n${cap(d.inhalt, KONTEXT_MAX.dna)}\n`;
     }
@@ -99,18 +102,16 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
 
   task += '\n# AUSGABEFORMAT\nGib das Dokument AUSSCHLIESSLICH ueber das Tool "skript_abgeben" ab '
     + '(Felder: titel, inhalt_md, hook, hauptteil, cta, hook_visuell, hauptteil_visuell, cta_visuell, hook_varianten).\n'
-    + `Bereich: ${bereichLabel}. Folge dem drehfertigen Aufbau im MASTER-BEREICH-Dokument. `
-    + 'inhalt_md = NUR Zusatzinfos: Produktionskopf, Timing, Brand-Hinweise, Shotlist, Pflicht-Shots, '
-    + 'On-Screen-Liste, Schnitt/Sound. Mit ##-Ueberschriften nach den Hauptbloecken '
+    + `Bereich: ${bereichLabel}. `
+    + 'inhalt_md = NUR Zusatzinfos: Produktionskopf, Brand-Hinweise, Pflicht-Shots aus dem Briefing. '
+    + 'Keine Shotlist, kein Storyboard. Mit ##-Ueberschriften nach den Hauptbloecken '
     + '(nicht nach Unterpunkten A/B/C als ##).\n'
     + 'NICHT in inhalt_md: Creator-facing-Tabelle, Variantenuebersicht, alternative Opener/Hooks/CTAs, '
     + 'Zweispalter "gesprochen / zu sehen". Diese Inhalte gehoeren AUSSCHLIESSLICH in die Skript-Felder.\n'
     + 'Variante A: hook/hauptteil/cta (gesprochen) plus hook_visuell/hauptteil_visuell/cta_visuell '
     + '(was zu sehen ist) – direkt mitgenerieren.\n'
-    + 'ZEITMARKER: Jeder Beat beginnt einen neuen Absatz (Leerzeile dazwischen), '
-    + 'Format „Sek. 0–3: …“. Links (gesagt) und rechts (sehen) dieselbe Absatz-Anzahl. '
-    + 'On-Screen-Text gehoert zum Beat, nicht als Liste ans Ende. '
-    + 'Marker alle paar Sekunden, nicht sekündlich. Niemals alle Marker in einen Fliesstext packen.\n'
+    + 'WAS ZU SEHEN IST: ein schlichter Satz pro Beat, gleiche Absatz-Anzahl wie der gesprochene Text derselben Sektion. '
+    + 'Keine Zeitmarker, keine Shotlist, kein Produktions-Storyboard. Sekunden setzt das System nach dem Schreiben.\n'
     + 'hook_varianten: genau zwei oder drei alternative GESPROCHENE Hooks, deutlich anders als Variante A. '
     + 'Nur Sprechertext, kein Visual, kein Hauptteil/CTA. NICHT in inhalt_md wiederholen.\n'
     + 'Tabellen als Markdown-Tabellen. Innerhalb der Texte typografische Anfuehrungszeichen (\u201e\u2026\u201c) statt gerader (") verwenden.\n'
@@ -140,6 +141,8 @@ function buildPrompt(ctx, params, rueckfragenDialog = '') {
       + 'Dieses Budget ist verbindlich - dimensioniere vor allem den Hauptteil entsprechend. '
       + 'Im Zweifel lieber knapp unter dem Budget bleiben als darueber.';
   }
+
+  task += vertragBlock(ctx.bereich);
 
   return { stable, task };
 }
@@ -180,6 +183,12 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     // anreichern. Der validierte Snapshot ersetzt die Client-Angaben.
     const referenzVideo = await loadReferenzVideo(supabase, payload);
     payload.referenz_video = referenzVideo;
+    payload.nur_karte = true;
+    if (referenzVideo) {
+      job.step('karte', 'Ich reduziere die Videovorlage auf die Bauweise…');
+      payload.referenz_karte = await karteAusReferenz(referenzVideo);
+      job.log(payload.referenz_karte ? 'Videovorlage als Karte' : 'Keine Karte aus der Videovorlage');
+    }
     job.log(referenzVideo
       ? `Videovorlage: ${referenzVideo.quelle === 'strategie_item' ? `Strategie-Item (${referenzVideo.platform || 'unbekannt'})` : referenzVideo.quelle === 'job' ? `Transkriptions-Job (${referenzVideo.platform || 'unbekannt'})` : 'manuelles Transkript'}, ${referenzVideo.transkript_verwendet.length} Zeichen`
       : 'Keine Videovorlage - Aufbau kommt aus DNA');
@@ -242,7 +251,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     if (!(parsed.inhalt_md || '').trim()) {
       throw new Error('Antwort unvollstaendig (inhalt_md fehlt)');
     }
-    const { felder, hook_varianten, inhalt_md: extraMd } = extractSkriptAusMaster(parsed.inhalt_md, parsed);
+    const extrahiert = extractSkriptAusMaster(parsed.inhalt_md, parsed);
+    const stempel = stempelSekunden(extrahiert.felder);
+    const felder = { ...extrahiert.felder, ...stempel };
+    const hook_varianten = extrahiert.hook_varianten;
+    const extraMd = extrahiert.inhalt_md;
     const inhaltMd = extraMd || '';
     const hookSlots = [
       hook_varianten?.hook_variante_1,
@@ -297,12 +310,17 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       status: 'entwurf',
       mit_dna: payload.mit_dna !== false,
       model: result.model,
+      pruefung: pruefeSkript(felder, {
+        video_laenge: payload.video_laenge,
+        verbotene_claims: ctx.produkt?.verbotene_claims
+      }),
       // Merge statt Replace: generator_payload (Retry/Anzeige) und der
       // Referenz-Snapshot muessen die Generierung ueberleben
       prompt_kontext: {
         ...bestehenderKontext,
         generator_payload: generatorPayload,
         referenz_video: referenzVideo,
+        referenz_karte: payload.referenz_karte || null,
         dna_versionen: ctx.dnaVersionen,
         master_versionen: ctx.masterVersionen,
         bereich: ctx.bereich,

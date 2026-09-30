@@ -83,23 +83,51 @@ export class ProjektErstellenEditLoader {
       .filter(Boolean);
 
     const teilrechnungen = teilrechnungenResult.error ? [] : (teilrechnungenResult.data || []);
+    const produktionen = await this._loadProduktionen(supabase, kampagnen);
 
     const kampagne = kampagnen[0] || null;
-    const formData = this.toFormData({ auftrag, details, kampagne, kampagnen, blocks, junctionArtNames, teilrechnungen });
+    const formData = this.toFormData({ auftrag, details, kampagne, kampagnen, blocks, junctionArtNames, teilrechnungen, produktionen });
 
     return {
       formData,
-      raw: { auftrag, details, kampagne, kampagnen, blocks, junctionArtNames, teilrechnungen }
+      raw: { auftrag, details, kampagne, kampagnen, blocks, junctionArtNames, teilrechnungen, produktionen }
     };
   }
 
-  toFormData({ auftrag, details, kampagne, kampagnen = [], blocks, junctionArtNames = [], teilrechnungen = [] }) {
+  async _loadProduktionen(supabase, kampagnen) {
+    const ids = (kampagnen || []).map(row => row.id).filter(Boolean);
+    if (!ids.length) return [];
+    const { data, error } = await supabase
+      .from('produktion')
+      .select('id, name, kampagne_id, briefing_id, budget')
+      .in('kampagne_id', ids)
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    const rows = data || [];
+    const produktionIds = rows.map(row => row.id);
+    if (!produktionIds.length) return [];
+    const { data: verbrauch, error: verbrauchError } = await supabase
+      .from('produktion_verbrauch')
+      .select('produktion_id, budget_used')
+      .in('produktion_id', produktionIds);
+    if (verbrauchError) throw verbrauchError;
+    const used = new Map((verbrauch || []).map(row => [row.produktion_id, parseFloat(row.budget_used) || 0]));
+    const nummerById = new Map((kampagnen || []).map(row => [row.id, row.kampagnen_nummer || 1]));
+    return rows.map(row => ({
+      ...row,
+      kampagnen_nummer: nummerById.get(row.kampagne_id) || 1,
+      verbrauch: used.get(row.id) || 0
+    }));
+  }
+
+  toFormData({ auftrag, details, kampagne, kampagnen = [], blocks, junctionArtNames = [], teilrechnungen = [], produktionen = [] }) {
     const mappedKampagnen = this.mapKampagnen(kampagnen, auftrag, blocks);
     return {
       auftrag: this.mapAuftrag(auftrag, teilrechnungen, mappedKampagnen.length),
       details: this.mapDetails(details, blocks, junctionArtNames, kampagne, auftrag),
       kampagne: this.mapKampagne(kampagne, auftrag),
-      kampagnen: mappedKampagnen
+      kampagnen: mappedKampagnen,
+      produktionen
     };
   }
 

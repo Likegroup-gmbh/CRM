@@ -25,7 +25,7 @@ const DEFAULT_COLUMNS = [
   { id: 'col-idee-strategie', label: 'Idee/Konzept', dataCol: '11b', configurable: true },
   { id: 'col-skript', label: 'Skript', dataCol: '11c', configurable: true },
   { id: 'col-organic-paid', label: 'Content/Art', dataCol: '12', configurable: true },
-  { id: 'col-produkt', label: 'Produkte', dataCol: '13', configurable: true },
+  { id: 'col-produkt', label: 'Produkt', dataCol: '13', configurable: true },
   { id: 'col-lieferadresse', label: 'Lieferadresse', dataCol: '14', configurable: true },
   { id: 'col-telefon', label: 'Telefonnummer', dataCol: '14b', configurable: true },
   { id: 'col-paket-tracking', label: 'Tracking', dataCol: '15', configurable: true },
@@ -54,6 +54,31 @@ const DEFAULT_COLUMNS = [
 ];
 
 const BUILTIN_MAP = new Map(DEFAULT_COLUMNS.map(c => [c.id, c]));
+
+// Ohne Eintrag ausgeblendet. Sichtbar nur mit `show:${id}` in hidden_columns,
+// damit eine leere Liste sie nicht wieder aufblendet.
+const DEFAULT_HIDDEN_COLUMNS = new Set(['col-idee-strategie', 'col-skript']);
+
+export function showColumnKey(colId) {
+  return `show:${colId}`;
+}
+
+export function isColumnPreferredVisible(colId, hiddenColumns) {
+  const list = hiddenColumns || [];
+  if (DEFAULT_HIDDEN_COLUMNS.has(colId)) return list.includes(showColumnKey(colId));
+  return !list.includes(colId);
+}
+
+export function setColumnPreferredVisible(hiddenColumns, colId, visible) {
+  const showKey = showColumnKey(colId);
+  const list = (hiddenColumns || []).filter(id => id !== colId && id !== showKey);
+  if (DEFAULT_HIDDEN_COLUMNS.has(colId)) {
+    list.push(visible ? showKey : colId);
+    return list;
+  }
+  if (!visible) list.push(colId);
+  return list;
+}
 
 const CUSTOM_COL_PREFIX = 'custom:';
 
@@ -202,13 +227,7 @@ export function isColumnVisible(colId, hiddenColumns, isKunde) {
   // Aktionen immer fuer Nicht-Kunden sichtbar
   if (colId === 'col-actions') return true;
 
-  // Custom Columns: Kunden-Sichtbarkeit pruefen
-  if (isCustomColumnId(colId)) {
-    // hiddenColumns Check gilt auch fuer Custom Cols
-    return !hiddenColumns.includes(colId);
-  }
-
-  return !hiddenColumns.includes(colId);
+  return isColumnPreferredVisible(colId, hiddenColumns);
 }
 
 /**

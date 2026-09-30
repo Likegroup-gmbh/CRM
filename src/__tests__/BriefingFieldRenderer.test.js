@@ -74,7 +74,37 @@ describe('Briefing FieldRenderer Hierarchie', () => {
     expect(tiktok.querySelector('.bf-channel__title').tagName).toBe('DIV');
     expect(tiktok.querySelector('.bf-channel__title').classList.contains('checkbox-label')).toBe(false);
     expect(tiktok.querySelector('.checkbox-group .checkbox-label span').textContent.trim()).toBe('TikTok');
+
+    const pinterest = blocks.find(b => b.querySelector('.bf-channel__title')?.textContent.trim() === 'Pinterest');
+    const pinterestChip = pinterest.querySelector('.checkbox-label--icon');
+    expect(pinterestChip.querySelector('.checkbox-label__icon use').getAttribute('href')).toBe('#crm-icon-pinterest');
+    expect(pinterestChip.querySelector('input[type="checkbox"]')).toBeTruthy();
     expect(root.querySelector('.bf-channel--custom')).toBeTruthy();
+  });
+
+  it('legt Umsetzungsideen und Referenzen in eine Header-Zeile', () => {
+    const html = renderStep(FLOW_STEPS.find(s => s.id === 'konzepte'), {}, {});
+    const root = parse(html);
+    const group = root.querySelector('[data-group="konzept-ideen-kopf"]');
+    const header = group.querySelector(':scope > .bf-split-header');
+    const textarea = group.querySelector('textarea#umsetzungsideen');
+    const repeatable = group.querySelector('[data-repeatable="referenzen"]');
+    const add = header.querySelector('[data-repeatable-add="referenzen"]');
+
+    expect(group.classList.contains('bf-field-group--split-header')).toBe(true);
+    expect(header.querySelector('label[for="umsetzungsideen"]').textContent).toContain('Vorhandene Umsetzungsideen');
+    expect(header.querySelector('.bf-split-header__label').textContent).toBe('Referenzen und Beispiele');
+    expect(add.textContent).toContain('Beispiel hinzufügen');
+    expect(textarea.closest('.form-field').querySelector('label')).toBeNull();
+    expect(repeatable.closest('.form-field').querySelector('[data-repeatable-add]')).toBeNull();
+    expect(header.compareDocumentPosition(textarea) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(textarea.compareDocumentPosition(repeatable) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(repeatable.childElementCount).toBe(0);
+
+    const ideen = root.querySelector('[data-group="konzept-ideen"]');
+    const groups = [...ideen.children].map(el => el.dataset.group || el.querySelector('textarea, input')?.name);
+    expect(groups[0]).toBe('konzept-ideen-kopf');
+    expect(ideen.querySelector('textarea#learnings_text')).toBeTruthy();
   });
 });
 

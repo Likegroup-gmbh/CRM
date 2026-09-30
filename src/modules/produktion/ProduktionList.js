@@ -34,6 +34,13 @@ function campaignPot(kampagne) {
   ) || 0;
 }
 
+function budgetDecke(produktion) {
+  if (produktion?.budget != null && produktion.budget !== '') {
+    return parseFloat(produktion.budget) || 0;
+  }
+  return campaignPot(produktion?.kampagne);
+}
+
 function renderVerbrauch(used, total) {
   if (used == null) return '<span class="text-muted budget-pending">…</span>';
   if (total <= 0) return '<span class="text-muted">–</span>';
@@ -114,7 +121,7 @@ function renderRow(produktion) {
       <td>${renderVerknuepfungen(namedLinks(produktion.strategie, { labelKey: 'name', kind: 'konzept' }))}</td>
       <td>${renderVerknuepfungen(skriptLinks(produktion.skripte))}</td>
       <td>${renderVerknuepfungen(vertragLinks(produktion.vertraege))}</td>
-      <td>${renderVerbrauch(produktion.budgetUsed, campaignPot(kampagne))}</td>
+      <td>${renderVerbrauch(produktion.budgetUsed, budgetDecke(produktion))}</td>
     </tr>`;
 }
 
@@ -246,7 +253,7 @@ export class ProduktionList {
       );
       const cell = link?.closest('tr')?.lastElementChild;
       if (!cell) continue;
-      cell.innerHTML = renderVerbrauch(produktion.budgetUsed, campaignPot(produktion.kampagne));
+      cell.innerHTML = renderVerbrauch(produktion.budgetUsed, budgetDecke(produktion));
     }
   }
 

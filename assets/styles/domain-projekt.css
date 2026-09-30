@@ -332,3 +332,114 @@
   border-color: var(--border-primary);
   color: var(--gray-700);
 }
+
+.projekt-erstellen-prod-table-wrap {
+  margin-top: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.projekt-erstellen-step-host .projekt-erstellen-prod-table .cell-input {
+  width: 100%;
+  padding: var(--space-xxs) 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  color: var(--gray-900);
+}
+
+.projekt-erstellen-step-host .projekt-erstellen-prod-table .cell-input:hover {
+  box-shadow: inset 0 -1px 0 0 var(--gray-200);
+}
+
+.projekt-erstellen-step-host .projekt-erstellen-prod-table .cell-input:focus {
+  border: none;
+  outline: none;
+  box-shadow: inset 0 -1px 0 0 var(--gray-900);
+  background: transparent;
+}
+
+.projekt-erstellen-step-host .projekt-erstellen-prod-table .cell-input[readonly] {
+  color: var(--gray-700);
+  box-shadow: none;
+}
+
+.projekt-erstellen-prod-table th.col-actions,
+.projekt-erstellen-prod-table td.col-actions {
+  width: 48px;
+  white-space: nowrap;
+}
+
+.projekt-erstellen-step-host .money-field {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-xl);
+  background: var(--bg-primary);
+  padding-right: var(--space-sm);
+  transition: border-color 0.2s;
+}
+
+.projekt-erstellen-step-host .money-field:focus-within {
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.projekt-erstellen-step-host .money-field:has(input[readonly]) {
+  background: var(--gray-100);
+}
+
+.projekt-erstellen-step-host .money-field:has(input[readonly]):focus-within {
+  border-color: var(--gray-300);
+  box-shadow: none;
+}
+
+.projekt-erstellen-step-host .money-field__input,
+.projekt-erstellen-step-host .money-field__input:focus,
+.projekt-erstellen-step-host .money-field__input[readonly],
+.projekt-erstellen-step-host .money-field__input[readonly]:focus {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  border: none;
+  box-shadow: none;
+  outline: none;
+  background: transparent;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+  padding: var(--space-xs);
+  cursor: text;
+}
+
+.projekt-erstellen-step-host .money-field__input[readonly] {
+  cursor: default;
+  color: var(--text-secondary);
+}
+
+.projekt-erstellen-step-host .money-field__suffix {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+  line-height: 1;
+}
+
+.projekt-erstellen-step-host .price-range-inputs .money-field {
+  flex: 1;
+}
+
+.projekt-erstellen-step-host .projekt-erstellen-prod-table .money-field {
+  border-radius: var(--radius-md, 8px);
+}
+
+.projekt-erstellen-summary-produktionen-table .col-kampagne {
+  width: auto;
+}

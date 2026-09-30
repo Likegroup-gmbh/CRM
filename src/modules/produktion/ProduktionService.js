@@ -247,7 +247,7 @@ async function attachProduktionBudget(rows, kampagneId) {
 }
 
 const PRODUKTION_LIST_SELECT = `
-  id, name, kampagne_id, produkt_id, briefing_id, created_at,
+  id, name, budget, kampagne_id, produkt_id, briefing_id, created_at,
   produkt:produkt_id(id, name),
   briefing:briefing_id(
     id, aktivierung_name, persona_ids,
@@ -330,7 +330,8 @@ export async function listAllProduktionen({ onRows } = {}) {
       error => ({ ok: false, error })
     );
 
-  const rows = await attachProduktionPersonas(await rowsPromise);
+  const rows = (await attachProduktionPersonas(await rowsPromise))
+    .filter(row => row.briefing_id);
   const winner = await Promise.race([
     budgetPromise,
     Promise.resolve(null)
@@ -356,8 +357,9 @@ export async function listProduktionen(kampagneId) {
   if (!kampagneId || !window.supabase) return [];
   const { data, error } = await window.supabase
     .from('produktion')
-    .select('id, name, kampagne_id, produkt_id, briefing_id, created_at, produkt:produkt_id(id, name), briefing:briefing_id(id, aktivierung_name)')
+    .select('id, name, budget, kampagne_id, produkt_id, briefing_id, created_at, produkt:produkt_id(id, name), briefing:briefing_id(id, aktivierung_name)')
     .eq('kampagne_id', kampagneId)
+    .not('briefing_id', 'is', null)
     .order('created_at', { ascending: true });
   if (error) throw error;
   const linked = await attachProduktionLinks(data || []);
@@ -368,13 +370,33 @@ export async function loadProduktion(produktionId) {
   if (!produktionId || !window.supabase) return null;
   const { data, error } = await window.supabase
     .from('produktion')
-    .select('id, name, kampagne_id, produkt_id, briefing_id, created_at, produkt:produkt_id(id, name), briefing:briefing_id(id, aktivierung_name, bereich, is_draft, content_deadline, created_at)')
+    .select('id, name, budget, kampagne_id, produkt_id, briefing_id, created_at, produkt:produkt_id(id, name), briefing:briefing_id(id, aktivierung_name, bereich, is_draft, content_deadline, created_at)')
     .eq('id', produktionId)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
   const [linked] = await attachProduktionLinks([data]);
-  return linked;
+  const { data: verbrauch, error: verbrauchError } = await window.supabase
+    .from('produktion_verbrauch')
+    .select('budget_used')
+    .eq('produktion_id', produktionId)
+    .maybeSingle();
+  if (verbrauchError) throw verbrauchError;
+  return {
+    ...linked,
+    budgetUsed: parseFloat(verbrauch?.budget_used) || 0
+  };
+}
+
+async function kampagneHatProduktionsbudget(kampagneId) {
+  const { data, error } = await window.supabase
+    .from('produktion')
+    .select('id')
+    .eq('kampagne_id', kampagneId)
+    .not('budget', 'is', null)
+    .limit(1);
+  if (error) throw error;
+  return (data || []).length > 0;
 }
 
 export async function createProduktionForBriefing({ kampagneId, briefingId, produktId, titel, produktionId = null }) {
@@ -390,6 +412,18 @@ export async function createProduktionForBriefing({ kampagneId, briefingId, prod
   if (produktId) payload.produkt_id = produktId;
 
   if (produktionId) {
+    const { data: current, error: loadError } = await window.supabase
+      .from('produktion')
+      .select('id, briefing_id')
+      .eq('id', produktionId)
+      .eq('kampagne_id', kampagneId)
+      .maybeSingle();
+    if (loadError) throw loadError;
+    if (!current) throw new Error('Produktion nicht gefunden');
+    if (current.briefing_id && current.briefing_id !== briefingId) {
+      throw new Error('Diese Produktion ist schon einem Briefing zugeordnet.');
+    }
+
     const { data, error } = await window.supabase
       .from('produktion')
       .update(payload)
@@ -443,6 +477,10 @@ export async function ensureBriefingLine({ briefing, kampagneId, produktId, prod
   if (!briefing?.id) throw new Error('Briefing fehlt');
   if (briefing.is_draft) return null;
   if (!kampagneId) throw new Error('Kampagne ist Pflicht.');
+
+  if (!produktionId && await kampagneHatProduktionsbudget(kampagneId)) {
+    throw new Error('Bitte eine freie Produktion wählen.');
+  }
 
   const produktion = await createProduktionForBriefing({
     kampagneId,

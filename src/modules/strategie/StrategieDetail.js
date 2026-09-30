@@ -7,7 +7,7 @@ import { renderItemsTable, rerenderItemsTable as _rerenderItemsTable, updateItem
 import { bindTableEvents, cleanupTableEvents, destroyDragToScroll } from './StrategieDetailTableEvents.js';
 import { showEditItemDrawer as _showEditItemDrawer, removeEditItemDrawer, closeEditItemDrawer as _closeEditItemDrawer } from './StrategieDetailEditDrawer.js';
 import { showKategorienModal as _showKategorienModal, removeKategorienDrawer } from './StrategieDetailKategorienDrawer.js';
-import { handleDeleteItem as _handleDeleteItem, handleAddToVideo as _handleAddToVideo, handleUnlinkFromVideo as _handleUnlinkFromVideo } from './StrategieDetailItemActions.js';
+import { handleDeleteItem as _handleDeleteItem } from './StrategieDetailItemActions.js';
 import { StrategieCreatorDrawer, removeStrategieCreatorDrawer } from './StrategieCreatorDrawer.js';
 import { StrategieProduktDrawer, removeStrategieProduktDrawer } from './StrategieProduktDrawer.js';
 import { StrategieDetailColumnVisibilityDrawer } from './StrategieDetailColumnVisibilityDrawer.js';
@@ -16,10 +16,11 @@ import { makeCustomColumnId } from '../../core/customColumns/entityColumnUtils.j
 import { renderToolbarMenu, renderToolbarMenuItem, renderToolbarListenKopf, bindToolbarMenu } from '../../core/components/ToolbarMenu.js';
 import { icon } from '../../core/icons/IconSystem.js';
 import { VideoideeVorschlagPanel } from './VideoideeVorschlagPanel.js';
+import { KonzeptLikyPanel } from './KonzeptLikyPanel.js';
 import { isVideoideeVorschlag } from './videoideeVorschlag.js';
 import { showProduktionLeaf } from '../../core/navHerkunft.js';
 
-const REALTIME_JOINS = ['produkt', 'casting_eintrag', 'creator', 'linked_video'];
+const REALTIME_JOINS = ['produkt', 'casting_eintrag', 'creator'];
 
 function mergeRealtimeRow(item, row) {
   const kept = {};
@@ -55,6 +56,7 @@ export class StrategieDetail {
     this.customColumns = new EntityCustomColumnsManager({ parentType: 'strategie', parentTable: 'strategie' });
     this._customHeaderDragCleanup = null;
     this.vorschlagPanel = new VideoideeVorschlagPanel(this);
+    this.konzeptLiky = new KonzeptLikyPanel(this);
     this.root = null;
     this.chromeRoot = null;
     this.embedded = false;
@@ -82,24 +84,49 @@ export class StrategieDetail {
     return document.querySelector('.main-wrapper') || fallback;
   }
 
-  async init(strategieId, { root, chromeRoot, embedded } = {}) {
-    this.strategieId = strategieId;
-    this.root = root || window.content;
-    this.chromeRoot = chromeRoot || null;
-    this.embedded = !!embedded;
+  _applyCaps() {
     this.isKunde = window.isKunde();
     // Write-Capabilities einmal aufloesen: Investor/Finanzen ist intern
     // (isKunde=false), aber view-only — Editierbarkeit fragt canEdit, nie die Rolle.
     this.canEdit = window.canEdit?.('strategie') ?? false;
     this.canCreate = window.canCreate?.('strategie') ?? false;
+  }
+
+  // Stufe 1: Strategie, Items und Spaltendefinition parallel.
+  // Stufe 2: Zellwerte, die Spalten- und Item-IDs brauchen.
+  // Eingebettet überspringt die Kampagnen-Berechtigungsquery — die Produktion
+  // ist schon geladen, RLS gilt auf dem Select weiter.
+  async _loadStages(strategieId) {
+    const [strategie, items] = await Promise.all([
+      strategieService.getStrategieById(strategieId, { skipAccessCheck: !!this.embedded }),
+      strategieService.getStrategieItems(strategieId),
+      this.customColumns.init(strategieId)
+    ]);
+    this.strategie = strategie;
+    this.items = items;
+    this.hiddenColumns = Array.isArray(strategie?.hidden_columns) ? strategie.hidden_columns : [];
+    await this.customColumns.loadValues(this.items.map(i => i.id));
+    this._prepared = true;
+  }
+
+  // Prefetch: Daten laden, noch nicht rendern. init() sieht _prepared und
+  // überspringt den Fetch.
+  async prepareEmbedded(strategieId) {
+    this.strategieId = strategieId;
+    this.embedded = true;
+    this._applyCaps();
+    await this._loadStages(strategieId);
+  }
+
+  async init(strategieId, { root, chromeRoot, embedded } = {}) {
+    this.strategieId = strategieId;
+    this.root = root || window.content;
+    this.chromeRoot = chromeRoot || null;
+    this.embedded = !!embedded;
+    this._applyCaps();
 
     try {
-      this.strategie = await strategieService.getStrategieById(strategieId);
-      this.items = await strategieService.getStrategieItems(strategieId);
-
-      this.hiddenColumns = Array.isArray(this.strategie?.hidden_columns) ? this.strategie.hidden_columns : [];
-      await this.customColumns.init(strategieId);
-      await this.customColumns.loadValues(this.items.map(i => i.id));
+      if (!this._prepared) await this._loadStages(strategieId);
 
       if (!this.embedded && window.breadcrumbSystem && this.strategie) {
         const shown = await showProduktionLeaf(this.strategie.name);
@@ -138,7 +165,8 @@ export class StrategieDetail {
       if (!this.embedded) window.setHeadline('');
       await this.render();
       this.bindEvents();
-      await this.vorschlagPanel.mount();
+      void this.vorschlagPanel.mount();
+      this.konzeptLiky.mount();
 
     } catch (error) {
       console.error('Fehler beim Laden der Strategie:', error);
@@ -293,8 +321,6 @@ export class StrategieDetail {
 
   // --- Delegations-Methoden (Item Actions) ---
   handleDeleteItem(itemId) { return _handleDeleteItem(this, itemId); }
-  handleAddToVideo(itemId) { return _handleAddToVideo(this, itemId); }
-  handleUnlinkFromVideo(itemId, videoId) { return _handleUnlinkFromVideo(this, itemId, videoId); }
 
   // --- Creator-Verknüpfung ---
   showCreatorDrawer(itemId) {
@@ -451,14 +477,6 @@ export class StrategieDetail {
     this._boundEventListeners.clear();
     this._cleanupTableEvents();
 
-    const linkHandler = async (event) => {
-      const { itemId } = event.detail;
-      this.items = await strategieService.getStrategieItems(this.strategieId);
-      this.rerenderItemsTable();
-    };
-    window.addEventListener('strategieItemLinked', linkHandler);
-    this._boundEventListeners.add(() => window.removeEventListener('strategieItemLinked', linkHandler));
-
     const itemCreatedHandler = async (event) => {
       if (event.detail?.strategieId === this.strategieId) {
         this.items = await strategieService.getStrategieItems(this.strategieId);
@@ -607,12 +625,15 @@ export class StrategieDetail {
   }
 
   destroy() {
+    if (this._tornDown) return;
+    this._tornDown = true;
     this._boundEventListeners.forEach(cleanup => cleanup());
     this._boundEventListeners.clear();
     this._cleanupTableEvents();
     this._destroyDragToScroll();
     this.unsubscribeFromItemUpdates();
     this.vorschlagPanel?.unmount?.();
+    this.konzeptLiky?.destroy();
     this.removeKategorienDrawer();
     this.removeEditItemDrawer();
     removeStrategieCreatorDrawer();

@@ -21,6 +21,7 @@ import { ProduktExtractPanel } from './ProduktExtractPanel.js';
 import { ProduktPersonaPanel } from './ProduktPersonaPanel.js';
 import { ProduktPersonaService } from './ProduktPersonaService.js';
 import { renderProduktDoc, bindProduktDoc, refreshDocHeights } from './ProduktDoc.js';
+import { bindProduktUrlSync, markPdfUrlSource } from './produktUrlSync.js';
 import { UploaderField } from '../../core/form/fields/UploaderField.js';
 import { produktConfig } from '../../core/form/config/ProduktFormConfig.js';
 import { resolveOwnerContext } from '../../core/OwnerContext.js';
@@ -341,6 +342,8 @@ export class ProduktForm {
       }, opts);
     }
 
+    bindProduktUrlSync(form, { signal });
+
     // Ergebnisse der KI-Extraktion abholen: Bilder und Varianten kommen
     // zusaetzlich zu den Textfeldern, die der ExtractReviewLayer selbst setzt.
     document.addEventListener('siteExtractApplied', (e) => {
@@ -349,11 +352,26 @@ export class ProduktForm {
       this.applyExtractedVarianten(e.detail.varianten || []);
     }, opts);
 
+    // War die Produkt-URL vor dem PDF leer, darf der extrahierte Link sie
+    // als automatische Quelle markieren. Sonst bleibt Chat oder Handarbeit.
+    let urlLeerVorPdf = false;
+    document.addEventListener('siteExtractStarted', (e) => {
+      if (e.detail?.entity !== 'produkt' || e.detail?.via !== 'pdf') return;
+      urlLeerVorPdf = !form.querySelector('[name="url"]')?.value.trim();
+    }, opts);
+
     // Die uebernommenen Texte sind laenger als die leeren Felder - die
     // Abschnitte muessen danach auf ihre neue Hoehe wachsen.
     document.addEventListener('siteExtractFinished', (e) => {
       if (e.detail?.entity !== 'produkt') return;
       refreshDocHeights(form);
+      if (e.detail.ok && e.detail.via === 'pdf' && urlLeerVorPdf) {
+        markPdfUrlSource(
+          form.querySelector('[name="url"]'),
+          e.detail.fields?.url?.value,
+          { wasEmpty: true }
+        );
+      }
     }, opts);
 
     if (this.isEdit) {
@@ -389,9 +407,15 @@ export class ProduktForm {
     this.clearFieldErrors(form);
     const validation = window.validatorSystem.validateForm(data, {
       name: { type: 'text', minLength: 2, required: true },
+      url: { type: 'url', required: true },
       ...(this.zeigtUnternehmenFeld ? { unternehmen_id: { type: 'text', required: true } } : {})
     });
     if (!validation.isValid) {
+      if (validation.errors.url === 'url ist erforderlich') {
+        validation.errors.url = 'Produkt-URL ist erforderlich';
+      } else if (validation.errors.url === 'Ungültige URL') {
+        validation.errors.url = 'Produkt-URL ist keine gültige Adresse';
+      }
       this.showFieldErrors(form, validation.errors);
       window.toastSystem?.error?.('Bitte Pflichtfelder ausfüllen');
       this.releaseSubmitBtn(submitBtn);

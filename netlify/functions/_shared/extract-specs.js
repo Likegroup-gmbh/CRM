@@ -120,6 +120,12 @@ const SPECS = {
     maxTokens: 4000,
     fields: [
       {
+        name: 'url',
+        label: 'Produkt-URL',
+        kind: 'fact',
+        hint: 'Die kanonische Produkt- oder Shop-Seite genau dieses Produkts, als absolute https-URL. Nur wenn sie im Dokument steht (Produktlink, QR-Ziel, "online kaufen"). Sonst weglassen. Keine Social-Profile, kein Impressum, keine Footer-Links, keine Dateipfade.'
+      },
+      {
         name: 'name',
         label: 'Produktname',
         kind: 'fact',

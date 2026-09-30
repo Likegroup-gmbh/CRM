@@ -8,6 +8,12 @@ import { AgencyServicesBlock } from '../components/AgencyServicesBlock.js';
 import { CustomDatePicker } from '../../../core/components/CustomDatePicker.js';
 import { generateAuftragTitle } from '../components/TitelGenerator.js';
 import { parseCurrencyInput } from '../../../core/utils/parseCurrency.js';
+import {
+  bindMoneyInputs,
+  editMoneyInput,
+  renderMoneyInput,
+  setMoneyInputValue
+} from '../../../core/form/moneyInput.js';
 
 const DEFAULT_UST_PROZENT = 19;
 
@@ -105,9 +111,9 @@ export class StepDetails {
     const nettoEl = document.getElementById('field-pe-nettobetrag');
     const ustEl = document.getElementById('field-pe-ust_betrag');
     const bruttoEl = document.getElementById('field-pe-bruttobetrag');
-    if (nettoEl) nettoEl.value = a.nettobetrag ?? '';
-    if (ustEl) ustEl.value = a.ust_betrag ?? '';
-    if (bruttoEl) bruttoEl.value = a.bruttobetrag ?? '';
+    setMoneyInputValue(nettoEl, a.nettobetrag);
+    setMoneyInputValue(ustEl, a.ust_betrag);
+    setMoneyInputValue(bruttoEl, a.bruttobetrag);
   }
 
   render(host) {
@@ -161,17 +167,17 @@ export class StepDetails {
 
           <div class="form-two-col">
             <div class="form-field form-field--half">
-              <label for="field-pe-nettobetrag">Netto (€)</label>
-              <input type="text" inputmode="decimal" id="field-pe-nettobetrag" value="${a.nettobetrag ?? ''}">
+              <label for="field-pe-nettobetrag">Netto</label>
+              ${renderMoneyInput({ id: 'field-pe-nettobetrag', value: a.nettobetrag })}
             </div>
             <div class="form-field form-field--half">
-              <label for="field-pe-ust_betrag">MwSt-Gesamtbetrag (€)</label>
-              <input type="text" inputmode="decimal" id="field-pe-ust_betrag" value="${a.ust_betrag ?? ''}" readonly>
+              <label for="field-pe-ust_betrag">USt</label>
+              ${renderMoneyInput({ id: 'field-pe-ust_betrag', value: a.ust_betrag, readonly: true })}
             </div>
           </div>
           <div class="form-field form-field--half">
-            <label for="field-pe-bruttobetrag">Bruttobetrag (€)</label>
-            <input type="text" inputmode="decimal" id="field-pe-bruttobetrag" value="${a.bruttobetrag ?? ''}" readonly>
+            <label for="field-pe-bruttobetrag">Brutto</label>
+            ${renderMoneyInput({ id: 'field-pe-bruttobetrag', value: a.bruttobetrag, readonly: true })}
           </div>
         </div>
 
@@ -183,6 +189,7 @@ export class StepDetails {
     `;
 
     this._renderTeilrechnungsBlocks();
+    bindMoneyInputs(host);
   }
 
   _renderTeilrechnungsBlocks() {
@@ -199,17 +206,17 @@ export class StepDetails {
 
         <div class="form-two-col">
           <div class="form-field form-field--half">
-            <label>Netto (€)</label>
-            <input type="text" inputmode="decimal" class="pe-tr-nettobetrag" data-tr-index="${i}" value="${tr.nettobetrag ?? ''}">
+            <label>Netto</label>
+            ${renderMoneyInput({ className: 'pe-tr-nettobetrag', value: tr.nettobetrag, attrs: { 'data-tr-index': i } })}
           </div>
           <div class="form-field form-field--half">
-            <label>USt-Betrag (€)</label>
-            <input type="text" inputmode="decimal" class="pe-tr-ust_betrag" data-tr-index="${i}" value="${tr.ust_betrag ?? ''}" readonly>
+            <label>USt</label>
+            ${renderMoneyInput({ className: 'pe-tr-ust_betrag', value: tr.ust_betrag, readonly: true, attrs: { 'data-tr-index': i } })}
           </div>
         </div>
         <div class="form-field form-field--half">
-          <label>Bruttobetrag (€)</label>
-          <input type="text" inputmode="decimal" class="pe-tr-bruttobetrag" data-tr-index="${i}" value="${tr.bruttobetrag ?? ''}" readonly>
+          <label>Brutto</label>
+          ${renderMoneyInput({ className: 'pe-tr-bruttobetrag', value: tr.bruttobetrag, readonly: true, attrs: { 'data-tr-index': i } })}
         </div>
 
         <div class="form-two-col">
@@ -240,6 +247,7 @@ export class StepDetails {
     `).join('');
 
     this._bindTeilrechnungsEvents(host);
+    bindMoneyInputs(host);
   }
 
   _bindTeilrechnungsEvents(host) {
@@ -247,7 +255,7 @@ export class StepDetails {
       input.addEventListener('paste', () => {
         setTimeout(() => {
           const parsed = parseCurrencyInput(input.value);
-          if (parsed != null) input.value = parsed;
+          if (parsed != null) input.value = editMoneyInput(parsed);
           input.dispatchEvent(new Event('input', { bubbles: true }));
         }, 0);
       });
@@ -262,8 +270,8 @@ export class StepDetails {
         const block = input.closest('.pe-teilrechnung-block');
         const ustEl = block?.querySelector('.pe-tr-ust_betrag');
         const bruttoEl = block?.querySelector('.pe-tr-bruttobetrag');
-        if (ustEl) ustEl.value = tr.ust_betrag;
-        if (bruttoEl) bruttoEl.value = tr.bruttobetrag;
+        setMoneyInputValue(ustEl, tr.ust_betrag);
+        setMoneyInputValue(bruttoEl, tr.bruttobetrag);
 
         this._sumUpFromTeilrechnungen();
         this._updateAuftragBruttoFields();
@@ -461,8 +469,8 @@ export class StepDetails {
       if (net != null) {
         const u = +(net * DEFAULT_UST_PROZENT / 100).toFixed(2);
         const b = +(net + u).toFixed(2);
-        if (ustBetragEl) ustBetragEl.value = u;
-        if (bruttoEl) bruttoEl.value = b;
+        setMoneyInputValue(ustBetragEl, u);
+        setMoneyInputValue(bruttoEl, b);
         this.wizard.formData.auftrag.ust_prozent = DEFAULT_UST_PROZENT;
         this.wizard.formData.auftrag.ust_betrag = u;
         this.wizard.formData.auftrag.bruttobetrag = b;
@@ -473,7 +481,7 @@ export class StepDetails {
     const handleNettoPaste = () => {
       setTimeout(() => {
         const parsed = parseCurrencyInput(nettoEl.value);
-        if (parsed != null) nettoEl.value = parsed;
+        if (parsed != null) nettoEl.value = editMoneyInput(parsed);
         nettoEl.dispatchEvent(new Event('input', { bubbles: true }));
       }, 0);
     };

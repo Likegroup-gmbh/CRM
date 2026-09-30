@@ -107,7 +107,8 @@ export class SkriptEditorVisuell {
       await v.inlineEdit.flush();
       const vorherigerStand = skriptStand(v.skript);
 
-      await skripteService.updateSkript(v.skript.id, { [feld]: msg.vorschlag_text });
+      const festgezogen = v._chatActions.mitFestgezogen(feld);
+      await skripteService.updateSkript(v.skript.id, { [feld]: msg.vorschlag_text, festgezogen });
       v.skript[feld] = msg.vorschlag_text;
 
       const beschreibung = `Visual · ${SEKTION_LABELS_KURZ[sektion]}`;

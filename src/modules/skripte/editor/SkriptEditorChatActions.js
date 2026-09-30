@@ -184,6 +184,20 @@ export class SkriptEditorChatActions {
   // ------------------------------------------------------------------
   async handleMessageAction(action, messageId) {
     const v = this.view;
+    if (action === 'festlegung-loeschen') {
+      const index = Number(messageId);
+      const liste = Array.isArray(v.skript?.festlegungen) ? v.skript.festlegungen.slice() : [];
+      if (!Number.isInteger(index) || index < 0 || index >= liste.length) return;
+      liste.splice(index, 1);
+      try {
+        await skripteService.updateSkript(v.skript.id, { festlegungen: liste });
+        v.skript.festlegungen = liste;
+        v.renderChat();
+      } catch (err) {
+        window.toastSystem?.error(err.message);
+      }
+      return;
+    }
     const msg = v.messages.find((m) => m.id === messageId);
     if (!msg) return;
 
@@ -215,6 +229,7 @@ export class SkriptEditorChatActions {
       try {
         await skripteService.updateChatMessage(msg.id, { status: 'abgelehnt' });
         msg.status = 'abgelehnt';
+        await this.festlegungAusAblehnung(msg);
         v.renderChat();
       } catch (err) {
         window.toastSystem?.error(err.message);
@@ -239,25 +254,28 @@ export class SkriptEditorChatActions {
     }
 
     const sektion = msg.sektion;
-    if (!GRID_SEKTIONEN.includes(sektion)) {
+    const istTitel = sektion === 'titel';
+    if (!istTitel && !GRID_SEKTIONEN.includes(sektion)) {
       if (istMasterSkript(v.skript)) {
         await this.acceptMasterVorschlag(msg);
         return;
       }
     }
-    if (!GRID_SEKTIONEN.includes(sektion) || !msg.vorschlag_text) {
+    if ((!istTitel && !GRID_SEKTIONEN.includes(sektion)) || !msg.vorschlag_text) {
       window.toastSystem?.error('Vorschlag kann nicht zugeordnet werden');
       return;
     }
 
-    const feld = msg.ist_visuell ? VISUELL_FIELD[sektion] : sektion;
+    const feld = istTitel ? 'titel' : (msg.ist_visuell ? VISUELL_FIELD[sektion] : sektion);
     if (!feld) {
       window.toastSystem?.error('Vorschlag kann nicht zugeordnet werden');
       return;
     }
     const alt = v.skript[feld] || '';
     let neu;
-    if (msg.selektion_text && alt.includes(msg.selektion_text)) {
+    if (istTitel) {
+      neu = msg.vorschlag_text;
+    } else if (msg.selektion_text && alt.includes(msg.selektion_text)) {
       neu = alt.replace(msg.selektion_text, msg.vorschlag_text);
     } else if (msg.selektion_text) {
       // Markierte Stelle existiert nicht mehr (Sektion wurde zwischenzeitlich
@@ -283,7 +301,8 @@ export class SkriptEditorChatActions {
     btns.forEach((b) => { b.disabled = true; });
 
     try {
-      await skripteService.updateSkript(v.skript.id, { [feld]: neu });
+      const festgezogen = this.mitFestgezogen(feld);
+      await skripteService.updateSkript(v.skript.id, { [feld]: neu, festgezogen });
       v.skript[feld] = neu;
 
       const beschreibung = `${AKTION_LABELS[msg.aktion] || 'Änderung'} · ${sektionAnzeigeKurz(sektion, msg.ist_visuell)}`;
@@ -408,6 +427,42 @@ export class SkriptEditorChatActions {
     } finally {
       v.acceptLaeuft = false;
     }
+  }
+
+  mitFestgezogen(feld) {
+    const liste = Array.isArray(this.view.skript?.festgezogen) ? this.view.skript.festgezogen.slice() : [];
+    if (feld && !liste.includes(feld)) liste.push(feld);
+    this.view.skript.festgezogen = liste;
+    return liste;
+  }
+
+  async haengeFestlegung(text, quelle) {
+    const v = this.view;
+    const t = String(text || '').trim();
+    if (!t || !v.skript) return;
+    const liste = Array.isArray(v.skript.festlegungen) ? v.skript.festlegungen.slice() : [];
+    if (liste.some((f) => f?.text === t)) return;
+    liste.push({ text: t, quelle });
+    await skripteService.updateSkript(v.skript.id, { festlegungen: liste });
+    v.skript.festlegungen = liste;
+  }
+
+  async festlegungAusAblehnung(msg) {
+    const v = this.view;
+    const idx = v.messages.findIndex((m) => m.id === msg.id);
+    let anweisung = '';
+    for (let i = idx - 1; i >= 0; i--) {
+      if (v.messages[i].rolle === 'user') {
+        anweisung = v.messages[i].inhalt || '';
+        break;
+      }
+    }
+    const stueck = String(msg.vorschlag_text || '').trim().slice(0, 180);
+    const text = [
+      anweisung.trim(),
+      stueck ? `Diesen Vorschlag nicht wiederholen: ${stueck}` : 'Diesen Vorschlag nicht wiederholen.'
+    ].filter(Boolean).join(' — ');
+    await this.haengeFestlegung(text, 'ablehnung');
   }
 
   async saveManuell(feld, text, vorherText) {

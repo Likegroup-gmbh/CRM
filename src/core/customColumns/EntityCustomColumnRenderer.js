@@ -57,6 +57,10 @@ export function renderCustomCells(orderedCols, entityId, getValue, hiddenColumns
   }).join('');
 }
 
+export function renderCustomField(col, entityId, value, isEditable) {
+  return renderFieldByType(col, entityId, value, isEditable);
+}
+
 function renderFieldByType(col, entityId, value, isEditable) {
   const attrs = `data-custom-column-id="${col.id}" data-entity-id="${entityId}"`;
   switch (col.field_type) {

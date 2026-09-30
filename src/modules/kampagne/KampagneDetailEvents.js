@@ -153,64 +153,56 @@ export function setupEvents(detail) {
     }, { signal });
   });
 
-  // Plus-Menü: Filter-Submenus (Status/Tags, Multi-Select)
+  // Ein document-Click statt einem Listener pro Aktion. Reihenfolge wie vorher,
+  // erster Treffer gewinnt. Selektoren überlappen sich nicht.
   document.addEventListener('click', (e) => {
-    const reset = e.target.closest('[data-filter-reset]');
-    if (reset) {
+    const filterReset = e.target.closest('[data-filter-reset]');
+    if (filterReset) {
       e.preventDefault();
-      applyFilterSelection(detail, reset.dataset.filterReset, []);
+      applyFilterSelection(detail, filterReset.dataset.filterReset, []);
       return;
     }
 
-    const item = e.target.closest('.submenu-item[data-filter-key]');
-    if (!item) return;
-    e.preventDefault();
-
-    const key = item.dataset.filterKey;
-    const value = item.dataset.filterValue;
-    const store = detail.store;
-    if (!key || value == null || !store) return;
-
-    const current = key === 'status' ? store.selectedStatuses : store.selectedTags;
-    const next = current.includes(value)
-      ? current.filter(v => v !== value)
-      : [...current, value];
-    applyFilterSelection(detail, key, next);
-  }, { signal });
-
-  // Plus-Menü: Sortierung (Single-Select, Menü schliesst nach Wahl)
-  document.addEventListener('click', (e) => {
-    const sortItem = e.target.closest('.submenu-item[data-sort-value]');
-    if (!sortItem) return;
-    e.preventDefault();
-
-    const value = sortItem.dataset.sortValue;
-    detail.store?.setKooperationSort(value);
-    syncSortSubmenu(value);
-    refreshKooperationenView(detail);
-    closeToolbarMenu(sortItem.closest('.toolbar-menu'));
-  }, { signal });
-
-  // Tab Navigation (Offen / Abgeschlossen / Alle) — scoped auf die
-  // Filter-Tabs, damit Workflow-Tabs (data-workflow-tab) hier nicht reinfunken.
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('.kampagne-filter-tabs .tab-button');
-    if (btn) {
+    const filterItem = e.target.closest('.submenu-item[data-filter-key]');
+    if (filterItem) {
       e.preventDefault();
-      detail.switchTab(btn.dataset.tab);
+      const key = filterItem.dataset.filterKey;
+      const value = filterItem.dataset.filterValue;
+      const store = detail.store;
+      if (!key || value == null || !store) return;
+      const current = key === 'status' ? store.selectedStatuses : store.selectedTags;
+      const next = current.includes(value)
+        ? current.filter(v => v !== value)
+        : [...current, value];
+      applyFilterSelection(detail, key, next);
+      return;
     }
-  }, { signal });
 
-  // Workflow-Tab Navigation (Briefing / Casting / … / Produktion / …)
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-workflow-tab]');
-    if (!btn) return;
-    e.preventDefault();
-    detail.switchWorkflowTab(btn.dataset.workflowTab);
-  }, { signal });
+    const sortItem = e.target.closest('.submenu-item[data-sort-value]');
+    if (sortItem) {
+      e.preventDefault();
+      const value = sortItem.dataset.sortValue;
+      detail.store?.setKooperationSort(value);
+      syncSortSubmenu(value);
+      refreshKooperationenView(detail);
+      closeToolbarMenu(sortItem.closest('.toolbar-menu'));
+      return;
+    }
 
-  // Workflow-Panes: Create-CTAs (data-create-action) + Zeilen-Links
-  document.addEventListener('click', (e) => {
+    const filterTab = e.target.closest('.kampagne-filter-tabs .tab-button');
+    if (filterTab) {
+      e.preventDefault();
+      detail.switchTab(filterTab.dataset.tab);
+      return;
+    }
+
+    const workflowTab = e.target.closest('[data-workflow-tab]');
+    if (workflowTab) {
+      e.preventDefault();
+      detail.switchWorkflowTab(workflowTab.dataset.workflowTab);
+      return;
+    }
+
     const createBtn = e.target.closest('.kampagne-tab-chrome [data-create-action]');
     if (createBtn) {
       e.preventDefault();
@@ -219,32 +211,89 @@ export function setupEvents(detail) {
       return;
     }
 
-    // Nur Links innerhalb der Listen-Panes abfangen — die Produktion
-    // (Kooperationstabelle) hat ihre eigenen Handler.
-    if (!e.target.closest('.workflow-pane:not([data-pane="produktion"])')) return;
+    if (e.target.closest('.workflow-pane:not([data-pane="produktion"])')) {
+      const herkunft = {
+        produktionId: detail.produktionId,
+        tab: detail.activeWorkflowTab
+      };
+      const vertragEdit = e.target.closest('[data-vertrag-open="edit"]');
+      if (vertragEdit?.dataset.id) {
+        e.preventDefault();
+        window.navigateTo(withProduktionHerkunft(
+          `/vertraege/${vertragEdit.dataset.id}/edit`,
+          herkunft.produktionId,
+          herkunft.tab
+        ));
+        return;
+      }
+      const link = e.target.closest('.table-link[data-table][data-id]');
+      const route = link && workflowExitRoute(link.dataset.table, link.dataset.id, herkunft);
+      if (route) {
+        e.preventDefault();
+        window.navigateTo(route);
+        return;
+      }
+    }
 
-    const herkunft = {
-      produktionId: detail.produktionId,
-      tab: detail.activeWorkflowTab
-    };
-
-    const vertragEdit = e.target.closest('[data-vertrag-open="edit"]');
-    if (vertragEdit?.dataset.id) {
+    const emptyReset = e.target.closest('[data-empty-action="reset-filters"]');
+    if (emptyReset) {
       e.preventDefault();
-      window.navigateTo(withProduktionHerkunft(
-        `/vertraege/${vertragEdit.dataset.id}/edit`,
-        herkunft.produktionId,
-        herkunft.tab
-      ));
+      detail.store?.setSelectedStatuses([]);
+      detail.store?.setSelectedTags([]);
+      syncFilterSubmenu('status', []);
+      syncFilterSubmenu('tag', []);
+      clearKooperationenSearch(detail);
+      refreshKooperationenView(detail);
       return;
     }
 
-    const link = e.target.closest('.table-link[data-table][data-id]');
-    if (!link) return;
-    const route = workflowExitRoute(link.dataset.table, link.dataset.id, herkunft);
-    if (route) {
+    if (e.target.closest('#btn-download-finale')) {
       e.preventDefault();
-      window.navigateTo(route);
+      detail.kooperationenVideoTable?._finalBulkDownload?.downloadSelected();
+      return;
+    }
+
+    if (e.target.closest('#btn-edit-kampagne') || e.target.closest('#btn-edit-kampagne-bottom')) {
+      e.preventDefault();
+      const auftragId = detail.kampagneData?.auftrag_id;
+      if (auftragId) {
+        window.navigateTo(`/projekt-erstellen/edit/${auftragId}?step=kampagnen&kampagneId=${detail.kampagneId}`);
+      } else {
+        console.warn('⚠️ Keine auftrag_id auf Kampagne – Fallback auf Wizard-Neuanlage');
+        window.navigateTo('/projekt-erstellen');
+      }
+      return;
+    }
+
+    if (e.target.closest('#btn-column-visibility')) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      showColumnVisibilityDrawer(detail);
+      return;
+    }
+
+    if (e.target.closest('#btn-custom-columns')) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      showCustomColumnsDrawer(detail);
+      return;
+    }
+
+    if (e.target.closest('#btn-view-table')) {
+      e.preventDefault();
+      detail.switchView('table');
+      return;
+    }
+    if (e.target.closest('#btn-view-kanban')) {
+      e.preventDefault();
+      detail.switchView('kanban');
+      return;
+    }
+
+    if (e.target.id === 'btn-delete-kampagne') {
+      e.preventDefault();
+      const confirmed = confirm('Sind Sie sicher, dass Sie diese Kampagne löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.');
+      if (confirmed) deleteKampagne(detail);
     }
   }, { signal });
 
@@ -255,26 +304,6 @@ export function setupEvents(detail) {
     if (!pane) return;
     if (pane.dataset.pane === 'casting' || pane.dataset.pane === 'konzepte') return;
     handleWorkflowTableSelect(detail, e.detail);
-  }, { signal });
-
-  // Empty-State-Aktion: "Filter zuruecksetzen" (Status- + Tag-Filter + Suche leeren)
-  document.addEventListener('click', (e) => {
-    const resetBtn = e.target.closest('[data-empty-action="reset-filters"]');
-    if (!resetBtn) return;
-    e.preventDefault();
-    detail.store?.setSelectedStatuses([]);
-    detail.store?.setSelectedTags([]);
-    syncFilterSubmenu('status', []);
-    syncFilterSubmenu('tag', []);
-    clearKooperationenSearch(detail);
-    refreshKooperationenView(detail);
-  }, { signal });
-
-  // Bulk-Download: finale Videos der markierten Kooperationen
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('#btn-download-finale')) return;
-    e.preventDefault();
-    detail.kooperationenVideoTable?._finalBulkDownload?.downloadSelected();
   }, { signal });
 
   // Kooperation anlegen
@@ -299,69 +328,27 @@ export function setupEvents(detail) {
     }, { signal });
   }
 
-  // Bearbeiten Button → Wizard mit auftrag_id
-  document.addEventListener('click', async (e) => {
-    if (e.target.closest('#btn-edit-kampagne') || e.target.closest('#btn-edit-kampagne-bottom')) {
-      e.preventDefault();
-      const auftragId = detail.kampagneData?.auftrag_id;
-      if (auftragId) {
-        window.navigateTo(`/projekt-erstellen/edit/${auftragId}?step=kampagnen&kampagneId=${detail.kampagneId}`);
-      } else {
-        console.warn('⚠️ Keine auftrag_id auf Kampagne – Fallback auf Wizard-Neuanlage');
-        window.navigateTo('/projekt-erstellen');
-      }
-    }
-  }, { signal });
-
-  // Spalten-Sichtbarkeit
-  document.addEventListener('click', (e) => {
-    if (e.target.closest('#btn-column-visibility')) {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      showColumnVisibilityDrawer(detail);
-    }
-  }, { signal });
-
-  // Custom Columns verwalten
-  document.addEventListener('click', (e) => {
-    if (e.target.closest('#btn-custom-columns')) {
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      showCustomColumnsDrawer(detail);
-    }
-  }, { signal });
-
-  // View-Switch (Tabelle / Kanban)
-  document.addEventListener('click', (e) => {
-    if (e.target.closest('#btn-view-table')) {
-      e.preventDefault();
-      detail.switchView('table');
-    } else if (e.target.closest('#btn-view-kanban')) {
-      e.preventDefault();
-      detail.switchView('kanban');
-    }
-  }, { signal });
-
-  // Löschen
-  document.addEventListener('click', (e) => {
-    if (e.target.id === 'btn-delete-kampagne') {
-      e.preventDefault();
-      const confirmed = confirm('Sind Sie sicher, dass Sie diese Kampagne löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.');
-      if (confirmed) deleteKampagne(detail);
-    }
-  }, { signal });
-
   // Soft-Refresh
   window.addEventListener('softRefresh', async () => {
     const hasActiveForm = document.querySelector('form.edit-form, .drawer.show, .modal.show');
     if (hasActiveForm) return;
-    if (!detail.kampagneId || !location.pathname.includes('/kampagne/')) return;
+    const path = location.pathname;
+    if (!detail.kampagneId || (!path.includes('/kampagne/') && !path.includes('/produktion/'))) return;
 
     console.log('🔄 KAMPAGNEDETAIL: Soft-Refresh - lade Daten neu');
     await detail.loadCriticalData();
     detail.render();
     teardownEvents();
     setupEvents(detail);
+    if (detail.mode !== 'overview') {
+      if (detail.currentView === 'kanban') {
+        detail.kanbanBoard?.destroy();
+        detail.kanbanBoard = null;
+        detail._mountKanban();
+      } else {
+        await detail._mountVideoTable();
+      }
+    }
   }, { signal });
 
   // Ansprechpartner entityUpdated

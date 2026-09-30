@@ -7,6 +7,7 @@ vi.mock('../modules/kampagne/KampagneDetailDataLoader.js', () => ({
 
 import { loadFullTableData } from '../modules/kampagne/KampagneDetailDataLoader.js';
 import { KampagneDetail } from '../modules/kampagne/KampagneDetail.js';
+import { KampagneKooperationenVideoTable } from '../modules/kampagne/KampagneKooperationenVideoTable.js';
 import { VideoTableRealtimeHandler } from '../modules/kampagne/VideoTableRealtimeHandler.js';
 
 function detailStub() {
@@ -80,7 +81,10 @@ describe('Produktion-Tab nach dem Anlegen', () => {
       updateTabCounts: () => {},
       loadAssetsAndCommentsForVisible: async () => {},
       handleKooperationDeletedById: vi.fn(),
-      refilter: vi.fn()
+      refilter: vi.fn(),
+      attachGlobalHandlers(host) {
+        KampagneKooperationenVideoTable.prototype.attachGlobalHandlers.call(this, host);
+      }
     };
 
     await detail._mountVideoTable();

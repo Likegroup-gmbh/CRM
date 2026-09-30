@@ -24,10 +24,6 @@ export function getStrategiePrio(item) {
   return PRIO_PRIORITY.find(flag => item[flag]) || STRATEGIE_PRIO_OFFEN;
 }
 
-export function getStrategiePrioOption(value) {
-  return STRATEGIE_PRIO_OPTIONS.find(o => o.value === value) || null;
-}
-
 export function isStrategiePrio(value) {
   return STRATEGIE_PRIO_OPTIONS.some(o => o.value === value);
 }

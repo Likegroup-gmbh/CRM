@@ -158,6 +158,19 @@ describe('Briefing DataPersistence', () => {
     expect(instance.formData.videolaenge).toEqual({ von: 12, bis: 14 });
   });
 
+  it('Videolänge 15–20 zeigt beide Griffe und den Strich', () => {
+    document.body.innerHTML = `<form id="briefing-form">${renderField({
+      name: 'videolaenge', label: 'Videolänge in Sekunden', type: 'sekundenSpanne', min: 1, max: 180
+    }, { videolaenge: { von: 15, bis: 20 } })}</form>`;
+
+    const root = document.querySelector('[data-sekunden-spanne]');
+    expect(root.querySelector('.sek-spanne').classList.contains('is-empty')).toBe(false);
+    expect(document.querySelector('[data-sek="von"]').value).toBe('15');
+    expect(document.querySelector('[data-sek="bis"]').value).toBe('20');
+    expect(root.querySelector('[data-handle="von"]').style.left).not.toBe(root.querySelector('[data-handle="bis"]').style.left);
+    expect(root.querySelector('[data-fill]').style.width).not.toBe('0%');
+  });
+
   it('Blur auf einer leeren Seite setzt beide Sekunden, Leeren räumt ab', () => {
     document.body.innerHTML = `<form id="briefing-form">${renderField({
       name: 'videolaenge', label: 'Videolänge', type: 'sekundenSpanne', min: 1, max: 180

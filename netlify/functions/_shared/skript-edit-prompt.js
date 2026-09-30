@@ -11,6 +11,7 @@ const {
   cap, KONTEXT_MAX, BRIEFING_MAX
 } = require('./skript-context');
 const { fmtMasterBlock } = require('./skript-master');
+const { vertragBlock, DNA_KOPF } = require('./skript-vertrag');
 const { zusatzInfosMarkdown } = require('./skript-creator-facing');
 const { verlaufZuMessages } = require('./chat-verlauf');
 const { loadRueckfragenDialog, fmtRueckfragenBlock } = require('./skript-rueckfragen');
@@ -30,7 +31,8 @@ Nichts erfinden, was nicht im Briefing, in den Leitplanken, den Rueckfragen oder
 const GRID_SEKTIONEN = ['hook', 'hauptteil', 'cta', 'hook_variante_1', 'hook_variante_2', 'hook_variante_3'];
 
 const AKTION_LABELS = {
-  neu_schreiben: 'Neu schreiben',
+  neu_schreiben: 'Neu formulieren',
+  neue_geschichte: 'Neue Geschichte',
   kuerzen: 'Kürzen',
   laenger: 'Länger machen',
   anderer_ton: 'Anderer Ton',
@@ -41,12 +43,13 @@ const AKTION_LABELS = {
 
 const AKTION_ANWEISUNGEN = {
   neu_schreiben: 'Schreibe die Stelle neu. Gleiche Funktion im Video, anderer Einstieg, andere Saetze. Figuren, Setting, Produktaussagen und die Aussage bleiben: die Formulierung aendert sich, nicht der Inhalt.',
+  neue_geschichte: 'Schreibe eine andere Geschichte: andere Situation, anderer Einstieg. Ein anderer Drehort allein reicht nicht. Claims, Don\'ts und die Besetzung bleiben. Hook-Varianten nicht anfassen.',
   kuerzen: 'Kürze die markierte Stelle deutlich. Kernaussage und Ton beibehalten, Füllwörter und Redundanz raus.',
   laenger: 'Baue die markierte Stelle aus: mehr Detail, mehr Emotion oder ein konkretes Beispiel – ohne zu labern.',
   anderer_ton: 'Schreibe die markierte Stelle in einem anderen Ton um. Beachte die Ton-Vorgabe des Users, falls vorhanden.',
   feedback: 'Der User hat die markierte Stelle bewertet und strukturiertes Feedback gegeben (Score, Begründung, ggf. eine Vorgabe "So sollte es sein"). Überarbeite die markierte Stelle so, dass das Feedback vollständig umgesetzt wird. Eine Vorgabe "So sollte es sein" ist verbindlich: übernimm ihre Richtung, aber formuliere sie sauber im Ton des restlichen Skripts aus.',
   chat: 'Setze das Feedback um. „Neu“, „andere Formulierung“, „nicht so“ heisst anderer Text, keine Variante des letzten Vorschlags. Fehlende Fakten: nachfragen statt erfinden.',
-  visuell: 'Der gesamte gesprochene Text der Sektion steht unter "Markierte Stelle". Schreibe dazu die VISUELLE REGIE für "Was zu sehen ist" im Produktionsformat: Text Overlay, Visual, B-Roll – so wie in einem echten Creator-Briefing, kein Filmhochschul-Storyboard. KEINEN zweiten Sprechertext, keine gesprochenen Worte. Der gesprochene Text bleibt unverändert. Leitplanken und Briefing-Fakten gelten auch für On-Screen-Texte und Claims. Baue auf der visuellen Regie der vorherigen Sektionen auf (Kontinuitaet von Stil, Orten, Props) und setze Zeitmarker nahtlos an deren letzten Block an – nicht bei 0:00 neu starten, ausser bei der Hook.'
+  visuell: 'Der gesamte gesprochene Text der Sektion steht unter "Markierte Stelle". Schreibe dazu einen schlichten Satz pro Beat fuer "Was zu sehen ist". Gleiche Absatz-Anzahl wie der gesprochene Text. Keine Zeitmarker, keine Shotlist, kein Storyboard. KEINEN zweiten Sprechertext, keine gesprochenen Worte. Der gesprochene Text bleibt unveraendert. Leitplanken und Briefing-Fakten gelten auch fuer On-Screen-Texte. Orte und Props aus den anderen Sektionen behalten.'
 };
 
 const VERLAUF_SKIP = new Set(['error', 'cancelled', 'pending', 'running']);
@@ -77,17 +80,18 @@ function letzterEnthaltenerAssistant(history) {
   return null;
 }
 
+const PROMPT_VERLAUF_ZEILEN = 4;
+
 function mitVerlauf(stable, task, history) {
   return {
     stable,
     task,
-    messages: verlaufZuMessages(history, { task, format: skriptVerlaufFormat })
+    messages: verlaufZuMessages(history, { task, format: skriptVerlaufFormat, limit: PROMPT_VERLAUF_ZEILEN })
   };
 }
 
-const VISUELL_STIL_FALLBACK = 'Schreibe visuelle Regie wie ein Produktions-Briefing: Text Overlay, Visual, B-Roll. '
-  + 'Zeitmarker alle 5–10 Sekunden oder „ca. 10 Sek.“, nicht sekündlich. '
-  + 'Jeder Zeitmarker beginnt einen neuen Absatz, Leerzeile dazwischen. Kein Filmhochschul-Storyboard.';
+const VISUELL_STIL_FALLBACK = 'Ein schlichter Satz pro Beat, was zu sehen ist. '
+  + 'Keine Zeitmarker, keine Shotlist, kein Storyboard.';
 
 let visuellStilCache = null;
 
@@ -251,7 +255,7 @@ function buildVisuellZeitplan(skript, sektion) {
 // Skript-Texte, die Meta-Vorgaben und die Scope-/Kontext-IDs.
 const EDIT_SKRIPT_COLS = 'id, titel, hook, hook_visuell, hauptteil, hauptteil_visuell, cta, cta_visuell, '
   + 'hook_variante_1, hook_variante_2, hook_variante_3, inhalt_md, '
-  + 'tonalitaet, video_laenge, funnel_stufe, video_idee, location, regieanweisung, prompt_kontext, '
+  + 'tonalitaet, video_laenge, funnel_stufe, video_idee, location, regieanweisung, prompt_kontext, festlegungen, festgezogen, '
   + 'mit_dna, branche_id, persona_id, marke_id, briefing_id, bereich, unternehmen_id, kampagne_id, produkt_id';
 
 const EDIT_VERLAUF_LIMIT = 12;
@@ -279,6 +283,42 @@ function editParams(skript) {
     tonalitaet: skript?.tonalitaet || null,
     referenz_video: pk.referenz_video || pk.generator_payload?.referenz_video || null
   };
+}
+
+/** Neue Geschichte sieht nur die Karte. Alle anderen Aufträge sehen die Vorlage nicht. */
+function editKontextParams(skript, message) {
+  const params = editParams(skript);
+  params.nur_karte = true;
+  if (message?.aktion === 'neue_geschichte') {
+    params.referenz_karte = skript?.prompt_kontext?.referenz_karte || null;
+  } else {
+    params.referenz_video = null;
+    params.referenz_karte = null;
+  }
+  return params;
+}
+
+function zielZelle(message) {
+  if (!message?.sektion || message.sektion === 'gesamt') return null;
+  if (message.sektion === 'titel') return 'titel';
+  if (message.ist_visuell || message.aktion === 'visuell') return `${message.sektion}_visuell`;
+  return message.sektion;
+}
+
+function festgezogenBlock(skript, message) {
+  const alle = Array.isArray(skript?.festgezogen) ? skript.festgezogen : [];
+  const ziel = zielZelle(message);
+  const gesperrt = alle.filter((z) => z && z !== ziel);
+  if (!gesperrt.length) return '';
+  return `\n# FESTGEZOGEN\nDiese Zellen nicht zurueckgeben und nicht umschreiben: ${gesperrt.join(', ')}. `
+    + 'Nur die Zelle aus dem Auftrag darf sich aendern. Ein Satz ist nur geschuetzt, wenn er markiert ist.\n';
+}
+
+function festlegungBlock(skript) {
+  const liste = Array.isArray(skript?.festlegungen) ? skript.festlegungen : [];
+  const zeilen = liste.map((f) => (typeof f === 'string' ? f : f?.text)).filter(Boolean);
+  if (!zeilen.length) return '';
+  return `\n# FESTLEGUNGEN\nDiese Fakten gelten, ohne sie neu zu erklaeren:\n${zeilen.map((z) => `- ${z}`).join('\n')}\n`;
 }
 
 async function loadEditContext(supabase, message) {
@@ -358,7 +398,7 @@ function buildEditPrompt(ctx, message) {
   stable += fmtMasterBlock(master);
 
   if (dna.length) {
-    stable += '\n# SKRIPT-DNA (verbindliches Regelwerk, geschichtet - spaetere Layer haben Vorrang)\n';
+    stable += DNA_KOPF;
     for (const d of dna) {
       stable += `\n--- ${d.name ? `"${d.name}" - ` : ''}Layer: ${d.layer_typ} (v${d.version}) ---\n${cap(d.inhalt, KONTEXT_MAX.dna)}\n`;
     }
@@ -405,7 +445,7 @@ function buildEditPrompt(ctx, message) {
 
   // Derselbe Kontext wie bei Generierung und Rueckfragen (inkl. Videovorlage
   // aus dem Snapshot und vollem Campaign-Briefing)
-  const kontextText = buildKontextText(kontext, editParams(skript));
+  const kontextText = buildKontextText(kontext, editKontextParams(skript, message));
   if (kontextText.trim()) task += `\n# KONTEXT\n${kontextText}`;
 
   const sprache = briefingSkriptSprache(kontext.briefing);
@@ -457,6 +497,8 @@ function buildEditPrompt(ctx, message) {
     task += '\nDer letzte Vorschlag wurde abgelehnt. Formulierungen daraus nicht wiederverwenden.\n';
   }
 
+  task += festgezogenBlock(skript, message);
+  task += festlegungBlock(skript);
   task += VERBINDLICHE_REGELN;
 
   task += '\n# AUFTRAG\n';
@@ -475,9 +517,7 @@ function buildEditPrompt(ctx, message) {
   // Freier Chat regelt Patch vs. Neubau selbst über spalte/ganze_sektion.
   if (message.ist_visuell && message.aktion !== 'visuell' && message.aktion !== 'chat') {
     task += '\nDie markierte Stelle stammt aus "Was zu sehen ist" (visuelle Regie, kein Sprechertext).\n'
-      + 'Schreibe visuell weiter: Text Overlay, Visual, B-Roll. KEINEN Sprechertext.\n'
-      + 'Behalte Produktionsformat und den gewählten Regie-Modus. Zeitmarker und Blöcke stehen lassen. '
-      + 'Ändere nur was verlangt wird – kein neues Storyboard, keine neue Zeitkette.\n'
+      + 'Schreibe einen schlichten Satz. KEINEN Sprechertext. Keine Zeitmarker, keine Shotlist.\n'
       + 'vorschlag_text ist der Ersatz fuer genau die markierte visuelle Stelle (nicht den gesprochenen Text).\n';
     if (modus?.inhalt) {
       task += `\n# REGIE-MODUS: ${modus.name}\n${modus.inhalt}\n`;
@@ -485,20 +525,22 @@ function buildEditPrompt(ctx, message) {
   }
 
   if (message.aktion === 'visuell') {
-    task += buildVisuellZeitplan(skript, message.sektion);
+    task += '\n# VISUELL\nEin schlichter Satz pro gesprochenem Beat. Keine Zeitmarker. Orte und Props der anderen Sektionen behalten.\n';
     if (modus?.inhalt) {
       task += `\n# REGIE-MODUS: ${modus.name}\n${modus.inhalt}\n`;
     }
     task += '\n# AUSGABEFORMAT\nAntworte AUSSCHLIESSLICH ueber das Tool "aenderung_abgeben" '
       + '(Felder: antwort, sektion, vorschlag_text).\n'
       + 'Regeln:\n'
-      + '- vorschlag_text = visuelle Regie fuer "Was zu sehen ist" (Text Overlay, Visual, B-Roll – Produktionsbriefing, kein Sekunden-Storyboard).\n'
+      + '- vorschlag_text = ein schlichter Satz pro Beat fuer "Was zu sehen ist". Keine Zeitmarker, keine Shotlist.\n'
       + '- KEIN gesprochener Text, keine Sprecher-Anweisungen, keine woertliche Rede.\n'
       + '- sektion = die Sektion aus dem Auftrag.\n'
       + '- antwort = kurze Bestaetigung (1 Satz, Deutsch).\n'
       + '- Innerhalb der Texte typografische Anfuehrungszeichen („…“) statt gerader (") verwenden.\n'
       + '- vorschlag_text darf die LEITPLANKEN (Must-haves, rechtliche Vorgaben) nicht verletzen.\n'
-      + '- Verletzt die Anweisung eine harte Grenze: vorschlag_text = null, antwort nennt die blockierende Vorgabe.\n';
+      + '- Verletzt die Anweisung eine harte Grenze: vorschlag_text = null, antwort nennt die blockierende Vorgabe.\n'
+      + '- festlegung nur setzen, wenn die Anweisung eine dauerhafte Vorgabe ist. Sonst null. Niemals den angenommenen Wortlaut.\n';
+    task += vertragBlock(skript.bereich || kontext.bereich);
     return mitVerlauf(stable, task, history);
   }
 
@@ -509,7 +551,7 @@ function buildEditPrompt(ctx, message) {
     + 'Regeln:\n'
     + '- Innerhalb der Texte typografische Anfuehrungszeichen („…“) statt gerader (") verwenden.\n'
     + (dna.length
-      ? '- vorschlag_text MUSS die SKRIPT-DNA einhalten (Ton, Stil, Wortwahl, No-Gos) - auch beim Kuerzen und Verlaengern. Die DNA hat Vorrang vor eigenen stilistischen Praeferenzen.\n'
+      ? '- DNA-No-Gos und Markenworte gelten. Eine ausdrueckliche Anweisung schlaegt die DNA beim Ton.\n'
       : '')
     + '- vorschlag_text muss zur Zielgruppe passen (siehe Zielgruppen-Persona) und den Ton des restlichen Skripts erhalten.\n'
     + '- vorschlag_text darf die LEITPLANKEN (Must-haves, rechtliche Vorgaben) nicht verletzen.\n'
@@ -531,8 +573,10 @@ function buildEditPrompt(ctx, message) {
       : (!message.ist_visuell && skript.video_laenge
         ? '\n- HARTES WORT-BUDGET: Das Gesamt-Skript muss zur Video-Laenge passen '
           + `(${videoLaengeHinweis(skript.video_laenge)}). Auch bei "Laenger schreiben" darf das Gesamt-Budget nicht gesprengt werden - im Zweifel lieber knapp bleiben.`
-        : ''));
+        : ''))
+    + '\n- festlegung nur setzen, wenn die Anweisung eine dauerhafte Vorgabe ist (Besetzung, Verbot, abgelehnter Ansatz). Sonst null. Niemals den vorgeschlagenen Wortlaut.\n';
 
+  task += vertragBlock(skript.bereich || kontext.bereich);
   return mitVerlauf(stable, task, history);
 }
 

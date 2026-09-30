@@ -1,0 +1,289 @@
+/* Inline-Frage im Chat-Verlauf. Unabhaengig von .doc-chat und .skripte-editor,
+   damit jeder Liky-Host dieselbe Karte einhaengen kann. */
+
+.chat-ask {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-xs);
+  width: 100%;
+  max-width: 100%;
+}
+
+.chat-ask__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-xl);
+  background: var(--bg-primary);
+  
+}
+
+.chat-ask__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.chat-ask__ring {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-xxl);
+  background: conic-gradient(var(--gray-900) calc(var(--p) * 1%), var(--gray-200) 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 0);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 0);
+}
+
+.chat-ask__prompt {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.chat-ask__options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xxs);
+}
+
+.chat-ask__option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: var(--space-xs) var(--space-sm);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-ask__option:hover:not(:disabled) {
+  background: var(--gray-100);
+}
+
+.chat-ask__option:disabled {
+  cursor: default;
+}
+
+.chat-ask__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--gray-300);
+  border-radius: var(--radius-xxl);
+  color: var(--text-inverse);
+}
+
+.chat-ask__check {
+  width: 12px;
+  height: 12px;
+  opacity: 0;
+}
+
+.chat-ask__option.is-selected .chat-ask__mark {
+  border-color: var(--gray-900);
+  background: var(--gray-900);
+}
+
+.chat-ask__option.is-selected .chat-ask__check {
+  opacity: 1;
+}
+
+.chat-ask__form {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.chat-ask__field {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-xs) var(--space-sm);
+  appearance: textfield;
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-xl);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+.chat-ask__field[type="number"]::-webkit-outer-spin-button,
+.chat-ask__field[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.chat-ask__field:focus {
+  outline: none;
+  border-color: var(--gray-900);
+}
+
+.chat-ask__field:disabled {
+  color: var(--text-secondary);
+  background: var(--gray-100);
+}
+
+.chat-ask__send {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--icon-lg);
+  height: var(--icon-lg);
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-xxl);
+  background: var(--gray-900);
+  color: var(--text-inverse);
+  cursor: pointer;
+}
+
+.chat-ask__send svg {
+  width: var(--icon-xs);
+  height: var(--icon-xs);
+}
+
+.chat-ask__send:disabled {
+  background: var(--gray-300);
+  cursor: default;
+}
+
+.chat-ask__hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.chat-ask[data-answered="true"] .chat-ask__hint {
+  display: none;
+}
+
+/* Verlauf, den Hosts ohne eigenes Message-CSS nutzen (Konzept). */
+.chat-turn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  max-width: 100%;
+  font-size: var(--text-sm);
+}
+
+.chat-turn--user {
+  align-self: flex-end;
+  align-items: flex-end;
+  max-width: 90%;
+  color: var(--text-primary);
+  text-align: right;
+}
+
+.chat-turn--liky {
+  align-self: stretch;
+  align-items: flex-start;
+}
+
+.chat-turn__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.chat-turn__avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--icon-md);
+  height: var(--icon-md);
+  border-radius: var(--radius-xxl);
+  background:
+    radial-gradient(circle at 25% 20%, var(--gray-400) 0%, transparent 55%),
+    radial-gradient(circle at 80% 30%, var(--gray-600) 0%, transparent 60%),
+    radial-gradient(circle at 65% 85%, var(--gray-500) 0%, transparent 55%),
+    radial-gradient(circle at 15% 80%, var(--gray-800) 0%, transparent 60%),
+    var(--gray-900);
+  color: var(--text-inverse);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+}
+
+.chat-turn__name {
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.chat-turn__text {
+  margin: 0;
+  color: var(--text-primary);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-turn__thinking {
+  margin: 0;
+}
+
+.chat-turn__error {
+  margin: 0;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-md);
+  background: var(--danger-bg);
+  color: var(--red-800);
+}
+
+.konzept-liky__log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+}
+
+.konzept-liky__composer {
+  flex-shrink: 0;
+  padding: 0 var(--space-lg) var(--space-lg);
+}
+
+.konzept-liky__input textarea {
+  display: block;
+  width: 100%;
+  min-height: 2.5em;
+  padding: var(--space-sm) var(--space-md);
+  border: var(--border-xs) solid var(--border-primary);
+  border-radius: var(--radius-xl);
+  background: var(--bg-primary);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  resize: none;
+  cursor: not-allowed;
+}
+
+.konzept-liky__input textarea:disabled {
+  background: var(--gray-50, var(--bg-primary));
+  opacity: 0.85;
+}

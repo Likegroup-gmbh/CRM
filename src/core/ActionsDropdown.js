@@ -286,7 +286,7 @@ export class ActionsDropdown {
       // Page-eigene Actions: nur Dropdown schliessen, Handler laeuft auf der Seite.
       const customActions = [
         'comment-delete', 'video-view', 'video-edit', 'video-delete',
-        'remove-zuordnung', 'add-to-video', 'unlink-from-video',
+        'remove-zuordnung',
         'edit-item', 'delete-item',
         'activate-vorschlag', 'discard-vorschlag',
         'toggle-skript-freigabe', 'reprocess-item', 'connect-creator',

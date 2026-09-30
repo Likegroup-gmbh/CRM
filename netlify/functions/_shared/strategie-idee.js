@@ -7,37 +7,53 @@ const { fmtCampaignBriefing } = require('./skript-context/briefing-felder');
 const { attachAudienceSituations, fmtAudienceSituations } = require('./audience-situation');
 
 const ANZAHL = 5;
+const ANZAHL_MIN = 1;
+const ANZAHL_MAX = 12;
 const PRODUKT_FELDER = 'id, name, kurzbeschreibung, usp, pain_points, loesung';
 const PERSONA_FELDER = 'id, name, oberbegriff, pain_points, beduerfnisse';
 
-const KONZEPT_TOOL = {
-  name: 'videoideen_abgeben',
-  description: 'Gibt Videoideen fuer ein Konzept ab. Jede Idee ist ein eigener Creative Angle.',
-  input_schema: {
-    type: 'object',
-    properties: {
-      ideen: {
-        type: 'array',
-        description: `Genau ${ANZAHL} distinkte Videoideen, nicht Varianten derselben Idee.`,
-        items: {
-          type: 'object',
-          properties: {
-            titel: {
-              type: 'string',
-              description: 'Kurzer merkbare Titel, gleichzeitig der Hook in einem Satz. Keine Anfuehrungszeichen.'
+/** job.input.anzahl: Integer, sonst 5, Clamp 1–12. Fehlend bleibt der alte Default. */
+function normalisiereAnzahl(input) {
+  const raw = input && typeof input === 'object' ? input.anzahl : undefined;
+  if (raw == null || raw === '') return ANZAHL;
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  if (!Number.isInteger(n)) return ANZAHL;
+  return Math.min(ANZAHL_MAX, Math.max(ANZAHL_MIN, n));
+}
+
+function konzeptTool(anzahl = ANZAHL) {
+  const n = normalisiereAnzahl({ anzahl });
+  return {
+    name: 'videoideen_abgeben',
+    description: 'Gibt Videoideen fuer ein Konzept ab. Jede Idee ist ein eigener Creative Angle.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        ideen: {
+          type: 'array',
+          description: `Genau ${n} distinkte Videoideen, nicht Varianten derselben Idee.`,
+          items: {
+            type: 'object',
+            properties: {
+              titel: {
+                type: 'string',
+                description: 'Kurzer merkbare Titel, gleichzeitig der Hook in einem Satz. Keine Anfuehrungszeichen.'
+              },
+              pain_point: { type: 'string', description: 'Welchen Pain die Idee angreift, ein bis zwei Saetze.' },
+              hook: { type: 'string', description: 'Gesprochener oder sichtbarer Aufmacher der ersten Sekunden.' },
+              kernbotschaft: { type: 'string', description: 'Was haengen bleiben soll, ein Satz.' },
+              ablauf: { type: 'string', description: 'Grober Ablauf in zwei bis vier Schritten, keine Shotliste.' }
             },
-            pain_point: { type: 'string', description: 'Welchen Pain die Idee angreift, ein bis zwei Saetze.' },
-            hook: { type: 'string', description: 'Gesprochener oder sichtbarer Aufmacher der ersten Sekunden.' },
-            kernbotschaft: { type: 'string', description: 'Was haengen bleiben soll, ein Satz.' },
-            ablauf: { type: 'string', description: 'Grober Ablauf in zwei bis vier Schritten, keine Shotliste.' }
-          },
-          required: ['titel', 'pain_point', 'hook', 'kernbotschaft', 'ablauf']
+            required: ['titel', 'pain_point', 'hook', 'kernbotschaft', 'ablauf']
+          }
         }
-      }
-    },
-    required: ['ideen']
-  }
-};
+      },
+      required: ['ideen']
+    }
+  };
+}
+
+const KONZEPT_TOOL = konzeptTool(ANZAHL);
 
 function cap(value, max = 400) {
   const s = String(value || '').trim();
@@ -128,7 +144,8 @@ async function loadIdeeInput(supabase, strategieId) {
   return { strategie, briefing, produkte, personas, ausschluss, vorhandeneAnzahl: (items || []).length };
 }
 
-function buildPrompt({ briefing, produkte, personas, ausschluss } = {}) {
+function buildPrompt({ briefing, produkte, personas, ausschluss, anzahl } = {}) {
+  const n = normalisiereAnzahl({ anzahl });
   const briefingText = fmtCampaignBriefing(briefing) || '(Briefing ohne auswertbare Felder)';
   const produktText = (produkte || []).map(fmtProdukt).filter(Boolean).join('\n') || '(keine Produkte am Briefing)';
   const personaText = (personas || []).map(fmtPersona).filter(Boolean).join('\n') || '(keine akzeptierten Personas)';
@@ -147,7 +164,7 @@ Regeln:
 - Titel = merkbare Kurzform des Hooks, eine Zeile, keine Anfuehrungszeichen.
 - Pain Point, Hook, Kernbotschaft, grober Ablauf: konkret, keine Agenturlyrik.
 - Ablauf: 2–4 Schritte, was passiert, keine Kameraanweisung.
-- Genau ${ANZAHL} Ideen, quer ueber die Produkte (nicht ${ANZAHL} pro Produkt). Ohne Produkt nur aus dem Briefing.
+- Genau ${n} Ideen, quer ueber die Produkte (nicht ${n} pro Produkt). Ohne Produkt nur aus dem Briefing.
 - Keine Idee, deren Titel einer ausgeschlossenen Erstzeile entspricht (Gross/Klein egal).`;
 
   const task = `Briefing:
@@ -162,7 +179,7 @@ ${personaText}
 Bereits vorhandene Ideen (nicht wiederholen):
 ${ausschlussText}
 
-Gib ${ANZAHL} neue Videoideen ueber das Tool ab.`;
+Gib ${n} neue Videoideen ueber das Tool ab.`;
 
   return { stable, task };
 }
@@ -317,7 +334,11 @@ function buildVorschlagInsert({ strategieId, idee, sortierung, createdBy }) {
 
 module.exports = {
   ANZAHL,
+  ANZAHL_MIN,
+  ANZAHL_MAX,
   KONZEPT_TOOL,
+  normalisiereAnzahl,
+  konzeptTool,
   erstzeile,
   formatBeschreibung,
   fmtProdukt,

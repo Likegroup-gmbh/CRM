@@ -33,20 +33,8 @@ function renderIdeeInhalt(ctx, item) {
 }
 
 export function renderIdeeStrategieInner(ctx, video) {
-  const koop = ctx.koop;
-  const canLink = window.permissionSystem?.canEditField('video', 'strategie_item_id') ?? false;
   const item = video.strategie_item;
   if (item) return renderIdeeInhalt(ctx, item);
-  if (canLink) {
-    return `
-        <button type="button" class="thema-link-btn"
-          data-action="link-strategie-item"
-          data-video-id="${video.id}"
-          data-kooperation-id="${koop.id}">
-          Idee verknüpfen
-        </button>
-      `;
-  }
   return `<span class="no-strategie-hint">Noch kein Thema/Konzept verknüpft</span>`;
 }
 

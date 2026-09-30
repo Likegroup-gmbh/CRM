@@ -3,8 +3,6 @@
 
 import { KampagneUtils } from './KampagneUtils.js';
 import { renderSummaryCards } from './KampagneDetailSummaryCards.js';
-import { renderAnsprechpartner } from './KampagneDetailTabRenderers.js';
-import { renderAuftragAmpel } from '../auftrag/logic/AuftragStatusUtils.js';
 import { SearchInput } from '../../core/components/SearchInput.js';
 import { renderToolbarMenu, renderToolbarMenuItem } from '../../core/components/ToolbarMenu.js';
 import { icon } from '../../core/icons/IconSystem.js';
@@ -129,19 +127,6 @@ export function renderNotFound(entity = 'Kampagne') {
   `;
 }
 
-export function formatDeadlineBadge(dateStr) {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-  const diffDays = Math.ceil((d - now) / (1000 * 60 * 60 * 24));
-  let cls = 'tab-deadline';
-  if (diffDays < 0) cls += ' tab-deadline--overdue';
-  else if (diffDays <= 7) cls += ' tab-deadline--soon';
-  const label = d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
-  return `<span class="${cls}">bis ${label}</span>`;
-}
-
 /**
  * Rendert die komplette Detailseite.
  * @param {object} state - { kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, isKunde, kampagneId }
@@ -165,7 +150,6 @@ export function renderMainPage(state) {
 
   const kampagneName = KampagneUtils.getDisplayName(kampagneData) || kampagneData?.kampagnenname || '';
   const pageTitle = state.mode === 'workflow' && state.lineTitle ? state.lineTitle : kampagneName;
-  const showSummary = state.mode !== 'workflow';
 
   const orgLogoUrl = kampagneData?.marke?.logo_url || kampagneData?.unternehmen?.logo_url || '';
   const orgLogoAlt = kampagneData?.marke?.markenname || kampagneData?.unternehmen?.firmenname || 'Logo';
@@ -197,13 +181,12 @@ export function renderMainPage(state) {
   }
 
   return `
-    ${showSummary ? renderSummaryCards(kampagneData, koopBudgetSum, koopVideosUsed, koopCreatorsUsed, extraKostenVkSum, ekVkMarginSum, videoStats, kskUmgebucht, { kooperationen, videos, isKunde }) : ''}
-
     <div class="kampagne-detail-body" data-workflow="${escapeAttr(activeWorkflow)}">
       <div class="page-header">
         <div class="page-header-title-group">
           ${safeLogoUrl ? `<img src="${escapeAttr(safeLogoUrl)}" alt="${escapeAttr(orgLogoAlt)}" title="${escapeAttr(orgLogoAlt)}" class="toolbar-entity-logo" loading="lazy" />` : ''}
           <h2 class="page-header-title">${sanitize(pageTitle)}</h2>
+          ${renderProduktionsbudget(state.produktion, state.kampagneData)}
         </div>
         <div class="page-header-right">
           <div class="kampagne-tab-chrome" data-chrome="produktion">
@@ -280,6 +263,18 @@ function campaignPot(kampagneData) {
   ) || 0;
 }
 
+function renderProduktionsbudget(produktion, kampagneData) {
+  if (!produktion) return '';
+  const verbrauch = parseFloat(produktion.budgetUsed) || 0;
+  const decke = produktion.budget != null && produktion.budget !== ''
+    ? parseFloat(produktion.budget) || 0
+    : parseFloat(kampagneData?.volumen) || parseFloat(kampagneData?.auftrag?.nettobetrag) || 0;
+  const label = produktion.budget != null && produktion.budget !== ''
+    ? 'Produktionsbudget'
+    : 'Volumen der Kampagne';
+  return `<p class="text-muted">${label} ${KampagneUtils.formatCurrency(decke)} · Verbrauch ${KampagneUtils.formatCurrency(verbrauch)}</p>`;
+}
+
 function renderProduktionBudget(used, total) {
   if (total <= 0) return '<span class="text-muted">–</span>';
   const amount = parseFloat(used) || 0;
@@ -312,7 +307,7 @@ function renderKampagneOverview({
         <td><a href="/produktion/${p.id}" class="table-link" data-table="produktion" data-id="${p.id}">${sanitize(p.name || briefing || 'Produktion')}</a></td>
         <td>${sanitize(produkt)}</td>
         <td>${sanitize(briefing)}</td>
-        <td>${renderProduktionBudget(p.budgetUsed, pot)}</td>
+        <td>${renderProduktionBudget(p.budgetUsed, p.budget != null && p.budget !== '' ? parseFloat(p.budget) || 0 : pot)}</td>
       </tr>`;
   }).join('');
 
@@ -341,95 +336,4 @@ function renderKampagneOverview({
         </div>
       </div>
     </div>`;
-}
-
-function renderInfoCards(kampagneData, koopBudgetSum, isKunde) {
-  return `
-    <div class="detail-card">
-      <h3 class="section-title">Kampagnen-Informationen</h3>
-      <div class="detail-grid-2">
-        <div class="detail-item">
-          <label>Kampagnenname:</label>
-          <span>${window.validatorSystem.sanitizeHtml(KampagneUtils.getDisplayName(kampagneData))}</span>
-        </div>
-        ${kampagneData.eigener_name ? `
-        <div class="detail-item">
-          <label>Auto-generiert:</label>
-          <span class="text-muted">${window.validatorSystem.sanitizeHtml(kampagneData.kampagnenname || '-')}</span>
-        </div>` : ''}
-        <div class="detail-item">
-          <label>Art der Kampagne:</label>
-          <span>${KampagneUtils.formatArray(kampagneData.kampagne_art_typen)}</span>
-        </div>
-        <div class="detail-item">
-          <label>Kampagnen-Nummer:</label>
-          <span>${kampagneData.kampagnen_nummer || '-'}</span>
-        </div>
-        <div class="detail-item">
-          <label>Start:</label>
-          <span>${KampagneUtils.formatDate(kampagneData.start)}</span>
-        </div>
-        <div class="detail-item">
-          <label>Drehort:</label>
-          <span>${window.validatorSystem.sanitizeHtml(kampagneData.drehort || '-')}</span>
-        </div>
-        <div class="detail-item">
-          <label>Creator Anzahl:</label>
-          <span>${kampagneData.creatoranzahl || 0}</span>
-        </div>
-        <div class="detail-item">
-          <label>Video Anzahl:</label>
-          <span>${kampagneData.videoanzahl || 0}</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="detail-card">
-      <h3 class="section-title">Deadlines</h3>
-      <div class="detail-grid">
-        <div class="detail-item"><label>Briefing:</label><span>${KampagneUtils.formatDate(kampagneData.deadline_briefing)}</span></div>
-        <div class="detail-item"><label>Konzepte:</label><span>${KampagneUtils.formatDate(kampagneData.deadline_strategie)}</span></div>
-        <div class="detail-item"><label>Skripte:</label><span>${KampagneUtils.formatDate(kampagneData.deadline_skripte)}</span></div>
-        <div class="detail-item"><label>Castings:</label><span>${KampagneUtils.formatDate(kampagneData.deadline_creator_sourcing)}</span></div>
-        <div class="detail-item"><label>Video Produktion:</label><span>${KampagneUtils.formatDate(kampagneData.deadline_video_produktion)}</span></div>
-        <div class="detail-item"><label>Post Produktion:</label><span>${KampagneUtils.formatDate(kampagneData.deadline_post_produktion)}</span></div>
-      </div>
-    </div>
-
-    <div class="detail-card">
-      <h3 class="section-title">Budget</h3>
-      <div class="detail-item">
-        <label>Budget Info:</label>
-        <span>${window.validatorSystem.sanitizeHtml(kampagneData.budget_info || '-')}</span>
-      </div>
-    </div>
-
-    <div class="detail-card">
-      <h3 class="section-title">Unternehmen</h3>
-      <div class="detail-item"><label>Firmenname:</label><span>${window.validatorSystem.sanitizeHtml(kampagneData.unternehmen?.firmenname || 'Unbekannt')}</span></div>
-      <div class="detail-item"><label>Webseite:</label><span>${kampagneData.unternehmen?.webseite ? `<a href="${kampagneData.unternehmen.webseite}" target="_blank">${kampagneData.unternehmen.webseite}</a>` : '-'}</span></div>
-      <div class="detail-item"><label>Branche:</label><span>${window.validatorSystem.sanitizeHtml(kampagneData.unternehmen?.branche_id || '-')}</span></div>
-    </div>
-
-    <div class="detail-card">
-      <h3 class="section-title">Marke</h3>
-      <div class="detail-item"><label>Markenname:</label><span>${window.validatorSystem.sanitizeHtml(kampagneData.marke?.markenname || 'Unbekannt')}</span></div>
-      <div class="detail-item"><label>Webseite:</label><span>${kampagneData.marke?.webseite ? `<a href="${kampagneData.marke.webseite}" target="_blank">${kampagneData.marke.webseite}</a>` : '-'}</span></div>
-    </div>
-
-    <div class="detail-card">
-      <h3 class="section-title">Auftrag</h3>
-      <div class="detail-item"><label>Auftragsname:</label><span>${window.validatorSystem.sanitizeHtml(kampagneData.auftrag?.auftragsname || 'Unbekannt')}</span></div>
-      <div class="detail-item"><label>Status:</label><span>${renderAuftragAmpel(kampagneData.auftrag?.status)}</span></div>
-      <div class="detail-item"><label>Gesamt Budget:</label><span>${KampagneUtils.formatCurrency(kampagneData.auftrag?.gesamt_budget)}${koopBudgetSum ? ` (aufgebraucht: ${KampagneUtils.formatCurrency(koopBudgetSum)})` : ''}</span></div>
-      <div class="detail-item"><label>Creator Budget:</label><span>${KampagneUtils.formatCurrency(kampagneData.auftrag?.creator_budget)}${koopBudgetSum ? ` (aufgebraucht: ${KampagneUtils.formatCurrency(koopBudgetSum)})` : ''}</span></div>
-    </div>
-
-    <div class="detail-card">
-      <h3 class="section-title">Ansprechpartner</h3>
-      <div class="detail-item">
-        ${renderAnsprechpartner(kampagneData.ansprechpartner)}
-      </div>
-    </div>
-  `;
 }

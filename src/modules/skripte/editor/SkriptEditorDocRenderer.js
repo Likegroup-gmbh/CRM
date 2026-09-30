@@ -19,6 +19,25 @@ import {
 } from './skriptEditorKonstanten.js';
 import { visuellGuardGrund, visuellVorgaengerTitle } from './skriptEditorVisuellHelfer.js';
 
+function titelZelleHtml(skript) {
+  return `<div class="skripte-editor-titel skripte-editor-sektion-text" data-sektion="titel" data-feld="titel" data-placeholder="Skript-Titel">${escapeHtml(skript?.titel || '')}</div>`;
+}
+
+function pruefungHtml(skript) {
+  const p = skript?.pruefung;
+  if (!p) return '';
+  const teile = [];
+  if (p.laenge && p.laenge.status && p.laenge.status !== 'ok') {
+    const richtung = p.laenge.status === 'ueber' ? 'darüber' : 'darunter';
+    teile.push(`${p.laenge.worte} Wörter, ${richtung} von ${p.laenge.min}–${p.laenge.max}.`);
+  }
+  if (Array.isArray(p.claims) && p.claims.length) {
+    teile.push(`Verbotene Claims: ${p.claims.join(', ')}.`);
+  }
+  if (!teile.length) return '';
+  return `<p class="skripte-editor-pruefung">${escapeHtml(teile.join(' '))}</p>`;
+}
+
 /** Logo (Marke, sonst Unternehmen) + Skripttitel – gleiche Klassen wie Strategie/Sourcing. */
 function docHeadHtml(skript, extraHtml = '', fallbackName = 'Skript') {
   const marke = skript?.marke;
@@ -274,6 +293,8 @@ export function skriptDocHtml({
 
   return `
     ${docHeadHtml(skript, docHeadActionsHtml, 'Skript')}
+    ${titelZelleHtml(skript)}
+    ${pruefungHtml(skript)}
     ${vorgabenPanelHtml}
     ${showExtra ? docTabsHtml(activeTab) : ''}
     <div class="skripte-editor-doc-panel" data-editor-tab-panel="skript"${activeTab === 'zusatz' ? ' hidden' : ''}>

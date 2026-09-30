@@ -19,6 +19,8 @@ const {
   erstzeile,
   ANZAHL,
   buildPrompt,
+  normalisiereAnzahl,
+  konzeptTool,
   buildVorschlagInsert,
   normalizeIdeenJson,
   leerFehler,
@@ -102,6 +104,30 @@ describe('validateIdeen', () => {
     expect(row.ist_vorschlag).toBe(true);
     expect(row.beschreibung_quelle).toBe('ki');
     expect(row.created_by).toBe('u1');
+  });
+
+  it('normalisiert die Anzahl: fehlend 5, Clamp 1–12', () => {
+    expect(normalisiereAnzahl()).toBe(5);
+    expect(normalisiereAnzahl({})).toBe(5);
+    expect(normalisiereAnzahl({ anzahl: null })).toBe(5);
+    expect(normalisiereAnzahl({ anzahl: 0 })).toBe(1);
+    expect(normalisiereAnzahl({ anzahl: 99 })).toBe(12);
+    expect(normalisiereAnzahl({ anzahl: 7 })).toBe(7);
+    expect(normalisiereAnzahl({ anzahl: 1.5 })).toBe(5);
+  });
+
+  it('schreibt die Anzahl in Prompt und Tool', () => {
+    const { stable, task } = buildPrompt({
+      briefing: {},
+      produkte: [],
+      personas: [],
+      ausschluss: [],
+      anzahl: 8
+    });
+    expect(stable).toContain('Genau 8 Ideen');
+    expect(task).toContain('Gib 8 neue Videoideen');
+    expect(konzeptTool(8).input_schema.properties.ideen.description).toContain('Genau 8');
+    expect(konzeptTool().input_schema.properties.ideen.description).toContain('Genau 5');
   });
 
   it('baut den Prompt mit Ausschluss und ohne Produkte', () => {
@@ -242,6 +268,28 @@ describe('VideoideeVorschlagPanel in der Aktionszeile', () => {
     expect(block.querySelector('#btn-videoidee-vorschlag-alle-verwerfen')).not.toBeNull();
     expect(block.querySelector('.casting-vorschlag__titel')).toBeNull();
     expect(block.textContent).not.toContain('KI-Vorschläge');
+  });
+
+  it('öffnet die Anzahl-Frage, statt den Job sofort zu starten', () => {
+    const detail = new StrategieDetail();
+    const fragAnzahl = vi.fn();
+    detail.konzeptLiky = {
+      blockiert: () => false,
+      fokussieren: vi.fn(),
+      fragAnzahl
+    };
+    detail.vorschlagPanel.holen();
+    expect(fragAnzahl).toHaveBeenCalledTimes(1);
+  });
+
+  it('fokussiert nur, solange Frage oder Job läuft', () => {
+    const detail = new StrategieDetail();
+    const fragAnzahl = vi.fn();
+    const fokussieren = vi.fn();
+    detail.konzeptLiky = { blockiert: () => true, fokussieren, fragAnzahl };
+    detail.vorschlagPanel.holen();
+    expect(fokussieren).toHaveBeenCalledTimes(1);
+    expect(fragAnzahl).not.toHaveBeenCalled();
   });
 
   it('zeigt bei nur canCreate die Zeile mit dem Block, ohne Hinzufügen', () => {

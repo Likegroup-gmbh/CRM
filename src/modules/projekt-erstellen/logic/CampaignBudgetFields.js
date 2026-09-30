@@ -5,6 +5,8 @@
 // auftrag_details/kampagne-Spalten, damit bestehende Ansichten weiter Daten sehen.
 
 import { getKampagnenartConfig } from '../../auftrag/logic/KampagnenartenMapping.js';
+import { parseCurrencyInput } from '../../../core/utils/parseCurrency.js';
+import { renderMoneyInput } from '../../../core/form/moneyInput.js';
 import {
   CHIP_PREFIX_MAP,
   PREFIX_TO_CHIP_MAP,
@@ -264,31 +266,26 @@ export function generateBudgetBlockHtml(block, campaignTypes = [], index = 0) {
         <div class="form-field form-field--half">
           <label>Einkaufspreis (Netto)</label>
           <div class="price-range-inputs">
-            <input type="number" id="${ids.ek_von}" data-block-id="${escapeHtml(blockId)}" data-field="einkaufspreis_netto_von"
-                   min="0" step="0.01" value="${v.einkaufspreis_netto_von ?? ''}" placeholder="Von">
+            ${renderMoneyInput({ id: ids.ek_von, value: v.einkaufspreis_netto_von, attrs: { 'data-block-id': blockId, 'data-field': 'einkaufspreis_netto_von' } })}
             <span class="range-separator">–</span>
-            <input type="number" id="${ids.ek_bis}" data-block-id="${escapeHtml(blockId)}" data-field="einkaufspreis_netto_bis"
-                   min="0" step="0.01" value="${v.einkaufspreis_netto_bis ?? ''}" placeholder="Bis">
+            ${renderMoneyInput({ id: ids.ek_bis, value: v.einkaufspreis_netto_bis, attrs: { 'data-block-id': blockId, 'data-field': 'einkaufspreis_netto_bis' } })}
           </div>
           <small class="form-hint">Preis pro Einheit</small>
         </div>
         <div class="form-field form-field--half">
           <label>Verkaufspreis (Netto)</label>
           <div class="price-range-inputs">
-            <input type="number" id="${ids.vk_von}" data-block-id="${escapeHtml(blockId)}" data-field="verkaufspreis_netto_von"
-                   min="0" step="0.01" value="${v.verkaufspreis_netto_von ?? ''}" placeholder="Von">
+            ${renderMoneyInput({ id: ids.vk_von, value: v.verkaufspreis_netto_von, attrs: { 'data-block-id': blockId, 'data-field': 'verkaufspreis_netto_von' } })}
             <span class="range-separator">–</span>
-            <input type="number" id="${ids.vk_bis}" data-block-id="${escapeHtml(blockId)}" data-field="verkaufspreis_netto_bis"
-                   min="0" step="0.01" value="${v.verkaufspreis_netto_bis ?? ''}" placeholder="Bis">
+            ${renderMoneyInput({ id: ids.vk_bis, value: v.verkaufspreis_netto_bis, attrs: { 'data-block-id': blockId, 'data-field': 'verkaufspreis_netto_bis' } })}
           </div>
           <small class="form-hint">Preis pro Einheit</small>
         </div>
       </div>
       <div class="form-two-col">
         <div class="form-field form-field--half">
-          <label for="${ids.umsatz}">Umsatz netto (€)</label>
-          <input type="number" id="${ids.umsatz}" data-block-id="${escapeHtml(blockId)}" data-field="umsatz_netto"
-                 min="0" step="0.01" value="${v.umsatz_netto ?? ''}" placeholder="z.B. 10000">
+          <label for="${ids.umsatz}">Umsatz netto</label>
+          ${renderMoneyInput({ id: ids.umsatz, value: v.umsatz_netto, attrs: { 'data-block-id': blockId, 'data-field': 'umsatz_netto' } })}
           <small class="form-hint">Anteil dieser Kampagnenart am Kampagnen-Volumen</small>
         </div>
       </div>
@@ -319,8 +316,10 @@ export function readBudgetValuesFromDom(blockId) {
     }
     if (suffix === 'budget_info') {
       result[suffix] = el.value || '';
-    } else {
+    } else if (COUNT_FIELD_SUFFIXES.includes(suffix)) {
       result[suffix] = parseNum(el.value);
+    } else {
+      result[suffix] = parseCurrencyInput(el.value);
     }
   });
   return result;

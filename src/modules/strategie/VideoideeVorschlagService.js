@@ -3,7 +3,7 @@
 // Das Konzept existiert; der Job inseriert flagged strategie_items.
 // Uebernehmen nimmt das Flag, Verwerfen loescht die Zeile. Weitere addiert.
 
-import { strategieService } from './StrategieService.js';
+import { deleteStrategieItem } from './service/strategieItems.js';
 
 const ENDPOINT = '/.netlify/functions/strategie-idee-background';
 const POLL_INTERVAL_MS = 2000;
@@ -115,19 +115,55 @@ export class VideoideeVorschlagService {
     return session;
   }
 
-  static uebernehmen(itemId) {
-    return strategieService.uebernehmenVideoideeVorschlag(itemId);
+  /**
+   * Videoidee-Vorschlag zur normalen Videoidee machen (ADR 0015).
+   * Flag weg, landet in Ohne Kategorie.
+   */
+  static async uebernehmen(itemId) {
+    const { data, error } = await window.supabase
+      .from('strategie_items')
+      .update({ ist_vorschlag: false, teilbereich: null })
+      .eq('id', itemId)
+      .eq('ist_vorschlag', true)
+      .select()
+      .single();
+    if (error) throw error;
+    if (!data) throw new Error('Kein Videoidee-Vorschlag');
+    return data;
   }
 
-  static uebernehmenAlle(strategieId) {
-    return strategieService.uebernehmenAlleVideoideeVorschlaege(strategieId);
+  static async uebernehmenAlle(strategieId) {
+    const { data, error } = await window.supabase
+      .from('strategie_items')
+      .update({ ist_vorschlag: false, teilbereich: null })
+      .eq('strategie_id', strategieId)
+      .eq('ist_vorschlag', true)
+      .select('id');
+    if (error) throw error;
+    return data || [];
   }
 
-  static verwerfen(itemId) {
-    return strategieService.verwerfenVideoideeVorschlag(itemId);
+  static async verwerfen(itemId) {
+    const { data, error } = await window.supabase
+      .from('strategie_items')
+      .select('id, ist_vorschlag')
+      .eq('id', itemId)
+      .single();
+    if (error || !data) throw new Error('Videoidee nicht gefunden');
+    if (!data.ist_vorschlag) throw new Error('Nur Videoidee-Vorschläge können so verworfen werden.');
+    await deleteStrategieItem(itemId);
   }
 
-  static verwerfenAlle(strategieId) {
-    return strategieService.verwerfenAlleVideoideeVorschlaege(strategieId);
+  static async verwerfenAlle(strategieId) {
+    const { data, error } = await window.supabase
+      .from('strategie_items')
+      .select('id')
+      .eq('strategie_id', strategieId)
+      .eq('ist_vorschlag', true);
+    if (error) throw error;
+    for (const row of data || []) {
+      await deleteStrategieItem(row.id);
+    }
+    return data || [];
   }
 }

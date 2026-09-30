@@ -33,7 +33,7 @@ describe('buildPrompt Master + inhalt_md', () => {
 
     expect(stable).toContain('MASTER-REGELWERK');
     expect(stable).toContain('Nichts erfinden.');
-    expect(stable).toContain('Drehfertiger Aufbau');
+    expect(stable).not.toContain('Drehfertiger Aufbau');
     expect(stable.indexOf('MASTER-REGELWERK')).toBeLessThan(stable.indexOf('SKRIPT-DNA'));
     expect(stable).toContain('DNA-Regel');
     expect(task).toContain('inhalt_md');
@@ -42,8 +42,10 @@ describe('buildPrompt Master + inhalt_md', () => {
     expect(task).toContain('hook_varianten');
     expect(task).not.toContain('Array "varianten"');
     expect(task).toContain('Owned Social');
-    expect(task).toContain('ZEITMARKER');
-    expect(task).toContain('Sek. 0–3');
+    expect(task).toContain('WAS ZU SEHEN IST');
+    expect(task).toContain('# LEITER');
+    expect(task).toContain('# STANDARDTON UND AUFBAU');
+    expect(task).not.toContain('Sek. 0–3');
     expect(stable).not.toContain('ERFOLGREICHE BEISPIEL');
     expect(stable).not.toContain('ANTI-PATTERNS');
   });

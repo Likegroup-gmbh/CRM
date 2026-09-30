@@ -4,7 +4,7 @@
 import { ChatPanelShell } from '../../../core/chat/ChatPanelShell.js';
 import { bindChatLog, isNearEnd, scrollToEnd } from '../../../core/chat/chatLog.js';
 import { revealLines, cancelLineReveal } from '../../../core/animation/lineReveal.js';
-import { formatUsageCost } from '../SkripteUtils.js';
+import { formatUsageCost, escapeHtml } from '../SkripteUtils.js';
 import { SEND_ICON, PLACEHOLDER_DEFAULT, PLACEHOLDER_NEU } from './skriptEditorKonstanten.js';
 import {
   chatLeerHtml, genStatusBubbleHtml, messageHtml, versionsHinweisHtml
@@ -144,15 +144,30 @@ SkriptEditorView.prototype.updateLikyDot = function() {
   this._likyShell.setDot(aktiv);
 };
 
+function festlegungenHtml(skript) {
+  const liste = Array.isArray(skript?.festlegungen) ? skript.festlegungen : [];
+  if (!liste.length) return '';
+  const zeilen = liste.map((f, i) => {
+    const text = escapeHtml(typeof f === 'string' ? f : (f?.text || ''));
+    return `<li>${text} <button type="button" data-msg-action="festlegung-loeschen" data-msg-id="${i}">Entfernen</button></li>`;
+  }).join('');
+  return `<div class="skripte-editor-festlegungen"><p>Festlegungen</p><ul>${zeilen}</ul></div>`;
+}
+
 SkriptEditorView.prototype.renderChat = function({ forceScroll = false } = {}) {
   const el = document.getElementById('ed-chat-log');
   if (!el) return;
   this.updateLikyDot();
+  const kopf = festlegungenHtml(this.skript);
 
   if (!this.messages.length) {
-    el.innerHTML = this.versionsHinweisHtml()
+    el.innerHTML = kopf
+      + this.versionsHinweisHtml()
       + genStatusBubbleHtml(this.genStatus)
       + chatLeerHtml();
+    el.querySelectorAll('[data-msg-action]').forEach((btn) => {
+      btn.addEventListener('click', () => this.handleMessageAction(btn.dataset.msgAction, btn.dataset.msgId));
+    });
     this.bindGenRetry(el);
     return;
   }
@@ -162,7 +177,8 @@ SkriptEditorView.prototype.renderChat = function({ forceScroll = false } = {}) {
   const warUnten = this._chatLog?.isFollowing() ?? isNearEnd(el);
   const vorherigerScroll = el.scrollTop;
 
-  el.innerHTML = this.versionsHinweisHtml()
+  el.innerHTML = kopf
+    + this.versionsHinweisHtml()
     + this.messages.map((m) => this.renderMessage(m)).join('')
     + genStatusBubbleHtml(this.genStatus);
 

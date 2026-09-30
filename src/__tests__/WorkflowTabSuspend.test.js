@@ -22,41 +22,104 @@ function detailStub() {
     currentView: 'table',
     kampagneId: 'k1',
     produktionId: 'p1',
+    _isMounted: true,
     _workflowLoaded: { casting: true },
     _workflowData: { skripte: [{ id: 's1' }] },
-    castingWorksheet: { destroy: vi.fn() },
+    _castingListen: [{ id: 'L1', name: 'Casting A' }],
+    castingWorksheet: {
+      listeId: 'L1',
+      destroy: vi.fn()
+    },
     kooperationenVideoTable: { updateTabCounts: vi.fn(), destroy: vi.fn() }
   };
 }
 
-describe('Workflow-Tab schließen', () => {
+describe('Workflow-Tab schließen (Casting)', () => {
   afterEach(() => {
     document.body.innerHTML = '';
     vi.restoreAllMocks();
   });
 
-  it('zerstört das Casting-Worksheet beim Wechsel und lädt es beim Zurückkommen neu', async () => {
+  it('baut das Casting-Worksheet beim Wechsel ab', async () => {
     window.isAdmin = () => true;
     shell();
     const detail = detailStub();
-    const destroy = detail.castingWorksheet.destroy;
-    vi.spyOn(creatorAuswahlService, 'getListenByKampagneId').mockResolvedValue([]);
+    const { destroy } = detail.castingWorksheet;
 
     await activateWorkflowTab(detail, 'produktion');
 
     expect(destroy).toHaveBeenCalled();
     expect(detail.castingWorksheet).toBeNull();
-    expect(detail._workflowLoaded.casting).toBe(false);
     expect(document.getElementById('workflow-pane-casting').innerHTML).toBe('');
     expect(detail.kooperationenVideoTable.destroy).not.toHaveBeenCalled();
     expect(detail.kooperationenVideoTable.updateTabCounts).toHaveBeenCalled();
-    expect(detail._workflowData.skripte).toEqual([{ id: 's1' }]);
+  });
+
+  it('mountet beim Erstbesuch über denselben Pfad', async () => {
+    window.isAdmin = () => true;
+    shell();
+    const detail = detailStub();
+    detail.castingWorksheet = null;
+    detail.activeWorkflowTab = 'produktion';
+    detail._workflowLoaded = {};
+    vi.spyOn(creatorAuswahlService, 'getListenByKampagneId').mockResolvedValue([]);
 
     await activateWorkflowTab(detail, 'casting');
 
     expect(creatorAuswahlService.getListenByKampagneId).toHaveBeenCalledWith('k1', { produktionId: 'p1' });
-    expect(detail._workflowLoaded.casting).toBe(true);
     expect(document.getElementById('workflow-pane-casting').textContent).toContain('Keine Casting-Liste');
+  });
+
+  it('rendert einen fertigen Prefetch ohne zweiten Listen-Fetch und ohne Spinner', async () => {
+    window.isAdmin = () => true;
+    shell();
+    const detail = detailStub();
+    detail.castingWorksheet = null;
+    detail.activeWorkflowTab = 'produktion';
+    detail._workflowLoaded = {};
+    detail._castingPrefetch = {
+      settled: true,
+      consumed: false,
+      value: { listen: [], selectedId: null, worksheet: null },
+      promise: Promise.resolve({ listen: [], selectedId: null, worksheet: null })
+    };
+    const fetchListen = vi.spyOn(creatorAuswahlService, 'getListenByKampagneId');
+
+    await activateWorkflowTab(detail, 'casting');
+
+    expect(fetchListen).not.toHaveBeenCalled();
+    expect(detail._castingPrefetch).toBeNull();
+    const pane = document.getElementById('workflow-pane-casting');
+    expect(pane.textContent).toContain('Keine Casting-Liste');
+    expect(pane.querySelector('.table-loading-spinner')).toBeNull();
+  });
+
+  it('verwirft einen stale Mount, wenn inzwischen weggeschaltet wurde', async () => {
+    window.isAdmin = () => true;
+    shell();
+    const detail = detailStub();
+    detail.castingWorksheet = null;
+    detail.activeWorkflowTab = 'produktion';
+    detail._workflowLoaded = {};
+
+    let resolveListen;
+    vi.spyOn(creatorAuswahlService, 'getListenByKampagneId')
+      .mockImplementation(() => new Promise((resolve) => { resolveListen = resolve; }));
+
+    const first = activateWorkflowTab(detail, 'casting');
+    await activateWorkflowTab(detail, 'produktion');
+    resolveListen([]);
+    await first;
+
+    expect(document.getElementById('workflow-pane-casting').innerHTML).toBe('');
+    expect(detail._workflowLoaded.casting).toBe(false);
+  });
+});
+
+describe('Workflow-Tab schließen (nicht migrierte Panes)', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+    vi.restoreAllMocks();
   });
 
   it('leert ein HTML-Pane und behält den Daten-Cache', async () => {

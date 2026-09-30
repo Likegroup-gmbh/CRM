@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderItemRow, renderItemsTable, reorderStrategieItemsByKategorien } from '../modules/strategie/StrategieDetailRenderer.js';
-import { syncRowTextClips, toggleTextClip } from '../modules/strategie/strategieTextClip.js';
+import { syncRowTextClips } from '../modules/strategie/strategieTextClip.js';
 import {
   getStrategiePrio,
   buildStrategiePrioUpdates,
@@ -283,6 +283,16 @@ describe('renderItemsTable – Kopfzeile und colspan', () => {
     expect(Number(gruppe.getAttribute('colspan'))).toBe(spalten);
   });
 
+  it('setzt Status direkt nach Prio', () => {
+    const html = renderItemsTable(detailStub({ items }));
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const header = [...doc.querySelectorAll('thead th')].map(th => th.textContent.trim());
+    const prio = header.indexOf('Prio');
+
+    expect(header[prio + 1]).toBe('Status');
+    expect(header[prio + 2]).toBe('Umsetzen');
+  });
+
   it('hat Plattform und keinen separaten Link-Header', () => {
     const html = renderItemsTable(detailStub({ items }));
     const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -291,6 +301,39 @@ describe('renderItemsTable – Kopfzeile und colspan', () => {
     expect(header).toContain('Plattform');
     expect(header).not.toContain('Link');
     expect(doc.querySelector('th.col-link')).toBeNull();
+  });
+});
+
+describe('renderItemRow – Skript-Freigabe als Status', () => {
+  it('zeigt den Badge, wenn die Videoidee für ein Skript freigegeben ist', () => {
+    const doc = renderRow({ skript_freigabe: true });
+    const badge = doc.querySelector('td.col-status .status-badge');
+
+    expect(badge).toBeTruthy();
+    expect(badge.classList.contains('success')).toBe(true);
+    expect(badge.textContent).toBe('Freigegeben');
+    expect(doc.querySelector('.strategie-skript-badge')).toBeNull();
+    expect(doc.querySelector('.item-skript-freigabe')).toBeNull();
+  });
+
+  it('zeigt einen Gedankenstrich, wenn die Freigabe fehlt', () => {
+    const doc = renderRow({ skript_freigabe: false });
+
+    expect(doc.querySelector('td.col-status .status-badge')).toBeNull();
+    expect(doc.querySelector('td.col-status').textContent.trim()).toBe('–');
+  });
+
+  it('blendet die Spalte für den Kunden aus', () => {
+    const doc = renderRow({ skript_freigabe: true }, { isKunde: true });
+    const html = renderItemsTable(detailStub({
+      isKunde: true,
+      items: [{ id: 'i1', teilbereich: 'A', skript_freigabe: true }]
+    }));
+    const table = new DOMParser().parseFromString(html, 'text/html');
+
+    expect(doc.querySelector('td.col-status')).toBeNull();
+    expect(doc.querySelector('.strategie-skript-badge')).toBeNull();
+    expect([...table.querySelectorAll('thead th')].map(th => th.textContent.trim())).not.toContain('Status');
   });
 });
 
@@ -327,39 +370,19 @@ describe('renderItemRow – Text-Clips', () => {
     for (const sel of ['td.col-beschreibung', 'td.col-transkript', 'td.col-caption']) {
       const clip = doc.querySelector(`${sel} .strategie-text-clip`);
       expect(clip).toBeTruthy();
-      const btn = clip.querySelector('.strategie-text-more');
-      expect(btn).toBeTruthy();
-      expect(btn.getAttribute('aria-label')).toBe('Mehr anzeigen');
-      expect(btn.querySelector('.crm-icon')).toBeTruthy();
+      expect(clip.querySelector('.strategie-text-clip__toggle')).toBeNull();
+      expect(clip.querySelector('.strategie-text-clip__body').hidden).toBe(false);
+      expect(clip.querySelector('.strategie-text-more')).toBeNull();
     }
+
+    const open = doc.querySelector('[data-action="open-videoidee"]');
+    expect(open).toBeTruthy();
+    expect(open.getAttribute('aria-label')).toBe('Videoidee öffnen');
   });
 });
 
 describe('strategieTextClip', () => {
-  it('setzt die Row-Klasse wenn eine Zelle aufgeht', () => {
-    const doc = renderRow({ beschreibung: 'B', transkript: 'T', caption: 'C' });
-    const row = doc.querySelector('tr.item-row');
-    const beschreibung = row.querySelector('td.col-beschreibung .strategie-text-clip');
-    const transkript = row.querySelector('td.col-transkript .strategie-text-clip');
-
-    toggleTextClip(beschreibung);
-    expect(beschreibung.classList.contains('is-expanded')).toBe(true);
-    expect(row.classList.contains('has-expanded-text')).toBe(true);
-    expect(transkript.classList.contains('is-expanded')).toBe(false);
-    expect(beschreibung.querySelector('.strategie-text-more').getAttribute('aria-label')).toBe('Weniger anzeigen');
-
-    toggleTextClip(beschreibung);
-    expect(row.classList.contains('has-expanded-text')).toBe(false);
-  });
-
-  it('laesst den Mehr-Button bei kurzem Text versteckt', () => {
-    const doc = renderRow({ beschreibung: 'Kurz', transkript: 'Auch kurz', caption: 'C' });
-    const row = doc.querySelector('tr.item-row');
-    syncRowTextClips(row);
-    expect(row.querySelectorAll('.strategie-text-more:not([hidden])')).toHaveLength(0);
-  });
-
-  it('zeigt Mehr wenn der Inhalt die Clip-Hoehe sprengt', () => {
+  it('setzt is-truncated wenn der Inhalt die Clip-Hoehe sprengt', () => {
     const doc = renderRow({ transkript: 'Lang' });
     const clip = doc.querySelector('td.col-transkript .strategie-text-clip');
     const body = clip.querySelector('.strategie-text-clip__body');
@@ -370,11 +393,16 @@ describe('strategieTextClip', () => {
 
     syncRowTextClips(clip.closest('tr'));
 
-    const btn = clip.querySelector('.strategie-text-more');
-    expect(btn.hidden).toBe(false);
-    expect(btn.getAttribute('aria-label')).toBe('Mehr anzeigen');
-    expect(btn.querySelector('.crm-icon')).toBeTruthy();
     expect(clip.classList.contains('is-truncated')).toBe(true);
+    expect(clip.classList.contains('is-expanded')).toBe(false);
+    expect(clip.closest('tr').classList.contains('has-expanded-text')).toBe(false);
+  });
+
+  it('laesst kurzen Text ungeklappt', () => {
+    const doc = renderRow({ beschreibung: 'Kurz', transkript: 'Auch kurz', caption: 'C' });
+    const row = doc.querySelector('tr.item-row');
+    syncRowTextClips(row);
+    expect(row.querySelector('.is-truncated')).toBeNull();
   });
 });
 

@@ -1,5 +1,5 @@
 // strategieItemPicker.js
-// Gruppierte Optionen fuer Strategie-Item-Selects (Drawer + Skript-Generator).
+// Gruppierte Optionen fuer Strategie-Item-Selects (Skript-Generator).
 // Filter/Subtitle kommen vom Caller, der Builder sortiert und formatiert nur.
 
 import { beschreibungErstzeile } from './videoideeVorschlag.js';
@@ -38,35 +38,6 @@ export function buildPickerOptions(items, { strategieMap = null, subtitleFor, gr
   });
 
   return sortPickerOptions(options);
-}
-
-/** Drawer: freie Items + das am aktuellen Video haengende. */
-export function buildStrategieItemPickerOptions(strategien, items, linkedByItemId, currentVideoId) {
-  const strategieMap = new Map((strategien || []).map((s) => [s.id, s]));
-  const filtered = (items || []).filter((item) => {
-    const linkedVideoId = linkedByItemId.get(item.id);
-    return !linkedVideoId || linkedVideoId === currentVideoId;
-  });
-
-  return buildPickerOptions(filtered, {
-    strategieMap,
-    subtitleFor: (item) => (item.video_link ? 'Mit Referenz-Video' : 'Idee ohne Link')
-  });
-}
-
-/** Skript-Generator: alle umsetzbaren Items der Kampagne, Transkript sichtbar. */
-export function buildSkriptVorlagePickerOptions(items) {
-  const usable = (items || []).filter((item) => !item.nicht_umsetzen);
-  return buildPickerOptions(usable, {
-    subtitleFor: (item) => {
-      const base = item.video_link ? 'Mit Referenz-Video' : 'Idee ohne Link';
-      // transkript_quelle als schlankes Flag - das Transkript selbst laedt
-      // der Picker nicht (kommt beim Select bzw. serverseitig aus der DB)
-      const hatTranskript = item.transkript_quelle || (item.transkript || '').trim();
-      const creator = item.creator_auswahl_item_id ? 'Creator zugeordnet' : 'Kein Creator';
-      return `${base} · ${hatTranskript ? 'Mit Transkript' : 'Ohne Transkript'} · ${creator}`;
-    }
-  });
 }
 
 function creatorLabel(item) {

@@ -423,6 +423,7 @@ export class BriefingList {
               <th>Marke</th>
               <th>Bereich</th>
               <th>Status</th>
+              <th>Erstellt am</th>
               <th>Content Deadline</th>
               <th>Produkte</th>
               <th>Personas</th>
@@ -434,7 +435,7 @@ export class BriefingList {
           </thead>
           <tbody id="briefings-table-body">
             <tr>
-              <td colspan="${canBulkDelete ? '13' : '12'}" class="loading">Lade Briefings...</td>
+              <td colspan="${canBulkDelete ? '14' : '13'}" class="loading">Lade Briefings...</td>
             </tr>
           </tbody>
         </table>
@@ -749,6 +750,7 @@ export class BriefingList {
         <td>${this.renderMarke(b)}</td>
         <td>${this.renderBereich(b.bereich)}</td>
         <td>${this.renderStatus(b.is_draft)}</td>
+        <td>${b.created_at ? new Date(b.created_at).toLocaleDateString('de-DE') : '-'}</td>
         <td>${b.content_deadline ? new Date(b.content_deadline).toLocaleDateString('de-DE') : '-'}</td>
         <td>${renderVerknuepfungen(produktLinksFromJunction(b.produkte))}</td>
         <td>${renderVerknuepfungen(namedLinks(b.verknuepfte_personas, { labelKey: 'name', kind: 'persona' }))}</td>
@@ -770,7 +772,7 @@ export class BriefingList {
 
     await TableAnimationHelper.animatedUpdate(tbody, async () => {
       if (!items || items.length === 0) {
-        const colspan = tbody.closest('table')?.querySelector('thead tr')?.children?.length || 12;
+        const colspan = tbody.closest('table')?.querySelector('thead tr')?.children?.length || 13;
         const html = resolveEmptyState({
           hasActiveFilters: this.hasActiveFilters(),
           states: {

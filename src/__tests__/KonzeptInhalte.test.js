@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { zuordnenKonzeptInhalte } from '../modules/kampagne/konzeptInhalte.js';
 import { renderIdeeStrategieInner, renderSkriptCell } from '../modules/kampagne/videoTableMediaCells.js';
+import { renderProduktInner } from '../modules/kampagne/videoTableKoopCells.js';
 
 function idee(overrides) {
   return {
@@ -208,10 +209,36 @@ describe('Idee- und Skript-Zelle', () => {
     expect(html).not.toContain('Skript verknüpfen');
   });
 
-  it('behält den Verknüpfen-Button, wenn nichts auflöst', () => {
+  it('zeigt den Leerhinweis, wenn keine Idee auflöst, und den Skript-Button', () => {
     const ideeHtml = renderIdeeStrategieInner(ctx, { id: 'v1' });
     const skriptHtml = renderSkriptCell({ id: 'koop-1' }, { id: 'v1' });
-    expect(ideeHtml).toContain('Idee verknüpfen');
+    expect(ideeHtml).toContain('Noch kein Thema/Konzept verknüpft');
+    expect(ideeHtml).not.toContain('Idee verknüpfen');
     expect(skriptHtml).toContain('Skript verknüpfen');
+  });
+});
+
+describe('Produkt-Zelle', () => {
+  it('verlinkt das Produkt der Videoidee', () => {
+    const html = renderProduktInner(null, {
+      id: 'v1',
+      strategie_item: { produkt: { id: 'p1', name: 'Serum' } }
+    });
+    expect(html).toContain('Serum');
+    expect(html).toContain('href="/produkt/p1"');
+    expect(html).toContain("navigateTo('/produkt/p1')");
+    expect(html).not.toContain('produkt-connect-btn');
+    expect(html).not.toContain('produkt-unlink-btn');
+  });
+
+  it('zeigt einen Strich ohne Produkt', () => {
+    const html = renderProduktInner(null, {
+      id: 'v1',
+      strategie_item: { id: 'i1' }
+    });
+    expect(html).toContain('–');
+    expect(html).not.toContain('/produkt/');
+    expect(html).not.toContain('produkt-connect-btn');
+    expect(html).not.toContain('produkt-unlink-btn');
   });
 });

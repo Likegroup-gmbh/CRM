@@ -32,28 +32,12 @@ export function renderTagsInner(koop) {
     : '<span class="text-muted">-</span>';
 }
 
-export function renderProduktInner(ctx, video) {
-  const versandForVideo = ctx.t.getVersandForVideo(video.id);
-  return `
-      <input type="text" class="grid-input stacked-video-input" 
-        data-entity="versand" 
-        data-id="${versandForVideo?.id || 'new'}"
-        data-video-id="${video.id}"
-        data-kooperation-id="${ctx.koop.id}"
-        data-field="produkt_name"
-        ${!ctx.t.isFieldEditableForUser('versand', 'produkt_name') ? 'readonly' : ''}
-        value="${escapeHtml(versandForVideo?.produkt_name || '')}" 
-        placeholder="Produktname"/>
-      <input type="url" class="grid-input stacked-video-input" 
-        data-entity="versand" 
-        data-id="${versandForVideo?.id || 'new'}"
-        data-video-id="${video.id}"
-        data-kooperation-id="${ctx.koop.id}"
-        data-field="produkt_link"
-        ${!ctx.t.isFieldEditableForUser('versand', 'produkt_link') ? 'readonly' : ''}
-        value="${escapeHtml(versandForVideo?.produkt_link || '')}" 
-        placeholder="Produktlink (optional)"/>
-    `;
+export function renderProduktInner(_ctx, video) {
+  const produkt = video?.strategie_item?.produkt;
+  if (!produkt?.id) return '<span class="strategie-cell-muted">–</span>';
+  const label = escapeHtml((produkt.name || '').trim() || 'Unbekannt');
+  const href = `/produkt/${produkt.id}`;
+  return `<a href="${href}" class="table-link creator-cell-link" onclick="event.preventDefault(); window.navigateTo('${href}')">${label}</a>`;
 }
 
 export function renderLieferadresseInner(ctx, video) {

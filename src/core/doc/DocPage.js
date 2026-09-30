@@ -187,6 +187,11 @@ function renderTitle(field) {
   `;
 }
 
+/** URL-Felder markieren, damit UrlHelper beim Speichern das Schema ergaenzt. */
+function urlFieldAttr(field) {
+  return field.type === 'url' ? ' data-url-field="true"' : '';
+}
+
 /**
  * Frei beschreibbarer Abschnitt: feste Ueberschrift, darunter Text ohne
  * Rahmen. rows="1" plus Autogrow laesst den Block mitwachsen.
@@ -204,7 +209,7 @@ function renderTextSection(field) {
                 placeholder="${attr(field.placeholder || '')}"></textarea>`
     : `<input type="text" id="${attr(id)}" name="${attr(field.name)}"
               class="${cls}" autocomplete="off" spellcheck="false"
-              placeholder="${attr(field.placeholder || '')}">`;
+              placeholder="${attr(field.placeholder || '')}"${urlFieldAttr(field)}>`;
   return `
     <section class="form-field doc__section" data-doc-field="${attr(field.name)}"${field.docHidden ? ' hidden' : ''}>
       <label for="${attr(id)}">${text(field.docLabel || field.label)}</label>
@@ -256,7 +261,7 @@ function renderInlineCard(field) {
         <input type="text" id="${attr(id)}" name="${attr(field.name)}"
                class="doc__input" autocomplete="off" spellcheck="false"
                placeholder="${attr(field.placeholder || '')}"
-               aria-label="${attr(field.label)}">
+               aria-label="${attr(field.label)}"${urlFieldAttr(field)}>
       </div>
     `;
   }

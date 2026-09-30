@@ -182,7 +182,7 @@ describe('Selektionsmenue je Rolle', () => {
   it('zeigt intern Kommentieren plus die AI-Aktionen', () => {
     new SkriptEditorSelection(view).checkSelection();
     const labels = [...document.querySelectorAll('#ed-selmenu button')].map((b) => b.dataset.id);
-    expect(labels).toEqual(['kommentieren', 'neu_schreiben', 'kuerzen', 'laenger', 'anderer_ton']);
+    expect(labels).toEqual(['kommentieren', 'neu_schreiben', 'neue_geschichte', 'kuerzen', 'laenger', 'anderer_ton']);
   });
 
   it('zeigt dem Kunden nur Kommentieren', () => {

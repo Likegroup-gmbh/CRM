@@ -7,6 +7,7 @@ import { saveVideoFeedbackSlot } from '../../core/videoFeedback/VideoFeedbackRep
 import { saveStillFeedbackSlot } from '../../core/videoFeedback/StillFeedbackRepository.js';
 import { CustomColumnFieldHandler } from './columns/CustomColumnFieldHandler.js';
 import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
+import { assertVerkaufspreisDelta } from '../produktion/produktionsbudget.js';
 
 /**
  * Overlay einer kompakt formatierten Zahlenzelle nachziehen. Der Input haelt
@@ -198,7 +199,25 @@ export class VideoTableFieldHandler {
           console.log(`✅ Kooperation Status aktualisiert: ${statusName}`);
         } else {
           const tableName = entity === 'kooperation' ? 'kooperationen' : 'kooperation_videos';
-          
+
+          if (entity === 'video' && fieldName === 'verkaufspreis_netto') {
+            const { data: video, error: videoError } = await window.supabase
+              .from('kooperation_videos')
+              .select('verkaufspreis_netto, kooperation_id')
+              .eq('id', id)
+              .maybeSingle();
+            if (videoError) throw videoError;
+            const { data: koop, error: koopError } = await window.supabase
+              .from('kooperationen')
+              .select('produktion_id')
+              .eq('id', video?.kooperation_id || kooperationId)
+              .maybeSingle();
+            if (koopError) throw koopError;
+            const alt = parseFloat(video?.verkaufspreis_netto) || 0;
+            const neu = parseFloat(value) || 0;
+            await assertVerkaufspreisDelta(window.supabase, koop?.produktion_id, neu - alt);
+          }
+
           const { error } = await window.supabase
             .from(tableName)
             .update({ [fieldName]: value })
@@ -240,6 +259,9 @@ export class VideoTableFieldHandler {
 
     } catch (error) {
       console.error(`❌ Fehler beim Speichern von ${entity}.${fieldName}:`, error);
+      if (String(error?.message || '').startsWith('Verkaufspreis')) {
+        window.toastSystem?.show(error.message, 'error');
+      }
       field.classList.add('save-error');
       setTimeout(() => field.classList.remove('save-error'), 2000);
       

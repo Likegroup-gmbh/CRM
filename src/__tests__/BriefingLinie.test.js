@@ -14,8 +14,17 @@ function memoryDb() {
   };
   let seq = 1;
 
+  function matchesFilter(row, col, val) {
+    if (val && typeof val === 'object' && val.op === 'is') {
+      const isNull = row[col] == null;
+      const matches = val.val === null ? isNull : !isNull;
+      return val.not ? !matches : matches;
+    }
+    return row[col] === val;
+  }
+
   function match(table, filters) {
-    return rows[table].filter(row => filters.every(([col, val]) => row[col] === val));
+    return (rows[table] || []).filter(row => filters.every(([col, val]) => matchesFilter(row, col, val)));
   }
 
   function from(table) {
@@ -26,6 +35,11 @@ function memoryDb() {
         state.filters.push([col, val]);
         return query;
       },
+      not: (col, op, val) => {
+        state.filters.push([col, { op, val, not: true }]);
+        return query;
+      },
+      limit: () => query,
       insert: (row) => {
         state.op = 'insert';
         state.insertRow = row;
@@ -233,6 +247,59 @@ describe('ensureBriefingLine', () => {
     expect(db.rows.creator_auswahl).toHaveLength(1);
     expect(db.rows.strategie).toHaveLength(1);
     expect(db.rows.campaign_briefing_produkt).toHaveLength(0);
+  });
+
+  it('verbindet eine freie Produktion und legt keine zweite an', async () => {
+    db.rows.produktion.push({
+      id: 'prod-frei',
+      kampagne_id: 'kamp-1',
+      name: 'Produktion 1',
+      budget: 15000,
+      briefing_id: null
+    });
+
+    const produktion = await ensureBriefingLine({
+      briefing: influencer,
+      kampagneId: 'kamp-1',
+      produktionId: 'prod-frei'
+    });
+
+    expect(produktion.id).toBe('prod-frei');
+    expect(db.rows.produktion).toHaveLength(1);
+    expect(db.rows.produktion[0].briefing_id).toBe('brief-1');
+    expect(db.rows.produktion[0].name).toBe('Serum September');
+    expect(db.rows.creator_auswahl).toHaveLength(1);
+  });
+
+  it('legt keine Produktion an, wenn die Kampagne schon Budgets hat', async () => {
+    db.rows.produktion.push({
+      id: 'prod-frei',
+      kampagne_id: 'kamp-1',
+      budget: 15000,
+      briefing_id: null
+    });
+
+    await expect(ensureBriefingLine({
+      briefing: influencer,
+      kampagneId: 'kamp-1'
+    })).rejects.toThrow('freie Produktion');
+    expect(db.rows.produktion).toHaveLength(1);
+    expect(db.rows.creator_auswahl).toHaveLength(0);
+  });
+
+  it('belegt eine schon gebundene Produktion nicht erneut', async () => {
+    db.rows.produktion.push({
+      id: 'prod-belegt',
+      kampagne_id: 'kamp-1',
+      budget: 15000,
+      briefing_id: 'anderes-briefing'
+    });
+
+    await expect(ensureBriefingLine({
+      briefing: influencer,
+      kampagneId: 'kamp-1',
+      produktionId: 'prod-belegt'
+    })).rejects.toThrow('schon einem Briefing');
   });
 
   it('legt bei einem Entwurf nichts an', async () => {

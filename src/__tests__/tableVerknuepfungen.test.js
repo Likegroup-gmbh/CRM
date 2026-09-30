@@ -117,6 +117,46 @@ describe('Listen-Zeilen', () => {
     }
   });
 
+  it('Erstellt am steht zwischen Status und Content Deadline', () => {
+    const createdAt = '2026-03-15T12:00:00.000Z';
+    const createdLabel = new Date(createdAt).toLocaleDateString('de-DE');
+    const deadline = '2026-06-20';
+    const deadlineLabel = new Date(deadline).toLocaleDateString('de-DE');
+
+    const row = new BriefingList().renderBriefingRow({
+      id: 'b1',
+      aktivierung_name: 'Summer',
+      is_draft: false,
+      created_at: createdAt,
+      content_deadline: deadline
+    }, { checkbox: false });
+    const statusAt = row.indexOf('Final');
+    const createdAtPos = row.indexOf(createdLabel);
+    const deadlineAt = row.indexOf(deadlineLabel);
+    expect(statusAt).toBeGreaterThan(-1);
+    expect(createdAtPos).toBeGreaterThan(statusAt);
+    expect(deadlineAt).toBeGreaterThan(createdAtPos);
+
+    const headers = (html) => [...html.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/g)]
+      .map((match) => match[1].replace(/<[^>]+>/g, '').trim())
+      .filter(Boolean);
+
+    const expected = ['Status', 'Erstellt am', 'Content Deadline'];
+    const folderHeaders = headers(renderBriefingItems({}));
+    expect(folderHeaders.slice(folderHeaders.indexOf('Status'), folderHeaders.indexOf('Status') + 3)).toEqual(expected);
+    expect(renderBriefingItems({})).toContain('colspan="13"');
+
+    const content = document.createElement('div');
+    window.content = content;
+    window.setContentSafely = (_el, html) => { content.innerHTML = html; };
+    const list = new BriefingList();
+    return list.render().then(() => {
+      const listHeaders = headers(content.innerHTML);
+      expect(listHeaders.slice(listHeaders.indexOf('Status'), listHeaders.indexOf('Status') + 3)).toEqual(expected);
+      expect(content.innerHTML).toContain('colspan="13"');
+    });
+  });
+
   it('Persona- und Produkt-Zeile verlinken nur akzeptierte Vorschläge', () => {
     const persona = new PersonaList().renderSingleRow({
       id: 'p1',

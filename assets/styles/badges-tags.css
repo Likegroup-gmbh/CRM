@@ -734,16 +734,6 @@
   color: var(--orange-800);
 }
 
-.add-to-video-preview .preview-type-badge {
-  display: inline-block;
-  padding: var(--space-xxs) var(--space-sm);
-  font-size: var(--text-xs);
-  background: var(--amber-100);
-  color: var(--amber-700);
-  border-radius: var(--radius-sm);
-  width: fit-content;
-}
-
 /* Feedback Area Badge */
 
 .feedback-area-badge {
