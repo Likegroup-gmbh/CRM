@@ -373,14 +373,24 @@ export async function setup(form, ctx) {
   const bruttoInput = form.querySelector('input[name="bruttobetrag"]');
   const landInput = form.querySelector('input[name="land"]');
 
-  // KSK-Feld nur zeigen, wenn ein Aufschlag existiert (Selbstzahler-Kooperation)
+  // Abrechenbarkeit der aktuell gewaehlten Kooperation (null im Edit-Mode
+  // bzw. solange keine Kooperation gewaehlt ist)
+  let aktuelleAbrechenbarkeit = null;
+  // Tri-State: null = keine Kooperation gewaehlt (nichts pruefbar)
+  let aktuelleKoopKskSelbstzahler = null;
+
+  // KSK-Feld nur zeigen, wenn es relevant ist: Aufschlag eingetragen oder
+  // Selbstzahler-Kooperation (dann kann er eingetragen werden). Sofort beim
+  // Setup aufrufen — sonst flackert das Feld kurz sichtbar auf.
   const updateKskVisibility = () => {
     if (!kskInput) return;
     const wrapper = kskInput.closest('.form-field');
     if (!wrapper) return;
-    const sichtbar = (parseFloat(kskInput.value) || 0) > 0;
+    const sichtbar = (parseFloat(kskInput.value) || 0) > 0
+      || aktuelleKoopKskSelbstzahler === true;
     wrapper.style.display = sichtbar ? '' : 'none';
   };
+  updateKskVisibility();
 
   // Im Edit-Modus: Kooperation + abhängige Selects komplett sperren
   if (isEditMode) {
@@ -450,12 +460,6 @@ export async function setup(form, ctx) {
     if (hidden) hidden.value = value || '';
   };
 
-  // Abrechenbarkeit der aktuell gewaehlten Kooperation (null im Edit-Mode
-  // bzw. solange keine Kooperation gewaehlt ist)
-  let aktuelleAbrechenbarkeit = null;
-  // Tri-State: null = keine Kooperation gewaehlt (nichts pruefbar)
-  let aktuelleKoopKskSelbstzahler = null;
-
   const onKoopChange = async () => {
     const koopId = koopSelect.value;
     if (!koopId) {
@@ -523,7 +527,6 @@ export async function setup(form, ctx) {
       return;
     }
     hideVertragWarning(form);
-    aktuelleKoopKskSelbstzahler = koop?.ksk_selbstzahler === true;
 
     // Abrechenbarkeit der Kooperation bestimmen (ADR 0004/0015): gestellte
     // Rechnungen + Video-EK laden, Restbetrag fuer Prefill und Warnung.
@@ -557,9 +560,15 @@ export async function setup(form, ctx) {
         ? window.supabase.from('kampagne').select('id, kampagnenname, eigener_name, auftrag_id, auftrag:auftrag_id(id, auftragsname, abrechnung_hinweis)').eq('id', koop.kampagne_id).single()
         : Promise.resolve({ data: null }),
       koop?.creator_id
-        ? window.supabase.from('creator').select('id, vorname, nachname, umsatzsteuerpflichtig, lieferadresse_land, rechnungsadresse_abweichend, rechnungsadresse_land').eq('id', koop.creator_id).single()
+        ? window.supabase.from('creator').select('id, vorname, nachname, umsatzsteuerpflichtig, ksk_selbstzahler, lieferadresse_land, rechnungsadresse_abweichend, rechnungsadresse_land').eq('id', koop.creator_id).single()
         : Promise.resolve({ data: null })
     ]);
+
+    // Selbstzahler gilt, wenn Kooperation ODER Creator-Stammdaten es sagen —
+    // das Creator-Flag wirkt so auch fuer Kooperationen, die vor dem Flag
+    // angelegt wurden.
+    aktuelleKoopKskSelbstzahler = koop?.ksk_selbstzahler === true
+      || creatorResult.data?.ksk_selbstzahler === true;
 
     // Unternehmen setzen
     const unternehmenLabel = unternehmenResult.data?.firmenname || '';
@@ -680,6 +689,7 @@ export async function setup(form, ctx) {
   if (nettoInput) nettoInput.addEventListener('input', debouncedBerechne);
   if (nettoSteuerfreiInput) nettoSteuerfreiInput.addEventListener('input', debouncedBerechne);
   if (zusatzInput) zusatzInput.addEventListener('input', debouncedBerechne);
+  if (kskInput) kskInput.addEventListener('input', debouncedBerechne);
   if (skontoToggle) skontoToggle.addEventListener('change', berechneRechnung);
   if (zusatzBruttoToggle) zusatzBruttoToggle.addEventListener('change', berechneRechnung);
   if (ustProzentInput) {
