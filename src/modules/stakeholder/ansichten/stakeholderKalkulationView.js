@@ -232,8 +232,10 @@ export function renderCards(page, totals, isInfluencerTab) {
         ['Gesamtauftragsvolumen', page.fmtEuro(totals.ekvkVolumen)],
         ['Bereits gebuchtes VK-Volumen', page.fmtEuro(totals.ekvkVk)]
       ], null, { hint: CARD_HINTS.ekvkAgentur })}
-      ${breakdownCard('KSK-Abgabe', ksk, 'Künstlersozialabgabe auf Honorare', null, `${page.fmtPct(verbraucht > 0 ? (ksk / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (ksk / verbraucht) * 100 : 0, hint: CARD_HINTS.ksk })}
-      ${breakdownCard('Zusatzkosten', zusatz, 'Reise, Lizenzen, Tools, Versand, Payroll', null, `${page.fmtPct(verbraucht > 0 ? (zusatz / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (zusatz / verbraucht) * 100 : 0, hint: CARD_HINTS.zusatz })}
+      <div class="stakeholder-card stakeholder-card--stack">
+        ${metricBlock('KSK-Abgabe', ksk, 'Künstlersozialabgabe auf Honorare', `${page.fmtPct(verbraucht > 0 ? (ksk / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (ksk / verbraucht) * 100 : 0, hint: CARD_HINTS.ksk })}
+        ${metricBlock('Zusatzkosten', zusatz, 'Reise, Lizenzen, Tools, Versand, Payroll', `${page.fmtPct(verbraucht > 0 ? (zusatz / verbraucht) * 100 : 0)} · gebucht`, { progress: verbraucht > 0 ? (zusatz / verbraucht) * 100 : 0, hint: CARD_HINTS.zusatz })}
+      </div>
     </div>
   `;
 }
@@ -302,7 +304,7 @@ export function renderKundenListe(page, rows, totals, isInfluencerTab) {
         <h3 class="stakeholder-list-title">Kunden nach Umsatz</h3>
         <p class="stakeholder-list-hint">Spalten wie Karten · ${kundenLabel}</p>
       </div>
-      <div class="stakeholder-scroll-x">
+      <div class="stakeholder-scroll-x stakeholder-scroll-x--kunden">
       <table class="stakeholder-table stakeholder-table--kunden">
         <thead>
           <tr>

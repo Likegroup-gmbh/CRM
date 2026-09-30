@@ -1204,4 +1204,128 @@ describe('StakeholderOverviewPage', () => {
     page.destroy();
     window.content.remove();
   });
+
+  it('filtert die Monatsauswertung nach Zeitraum', async () => {
+    const auftraege = [
+      {
+        id: 'a1', auftragsname: 'Auftrag 2025', nettobetrag: 10000,
+        auftragtype: 'UGC/Influencer', start: '2025-08-01', is_draft: false,
+        unternehmen_id: 'u1', rechnung_gestellt_am: '2025-09-15'
+      },
+      {
+        id: 'a2', auftragsname: 'Auftrag 2026', nettobetrag: 20000,
+        auftragtype: 'UGC/Influencer', start: '2026-01-10', is_draft: false,
+        unternehmen_id: 'u1', rechnung_gestellt_am: '2026-03-10'
+      }
+    ];
+    const blocks = [
+      { auftrag_id: 'a1', campaign_type: 'ugc_paid', campaign_type_label: 'UGC Paid', umsatz_netto: 10000 },
+      { auftrag_id: 'a2', campaign_type: 'ugc_paid', campaign_type_label: 'UGC Paid', umsatz_netto: 20000 }
+    ];
+    window.supabase = createMockSupabase({ auftraege, blocks });
+
+    const page = createPage();
+    await page.init();
+    page.activeView = 'monate';
+    page.selectedYear = 'all';
+    page.render();
+    let html = window.setContentSafely.mock.calls.at(-1)[1];
+
+    // Zeitraum-Select ist auch in der Monatsauswertung sichtbar,
+    // der Leistungsbereich bleibt der Kalkulation vorbehalten.
+    expect(html).toContain('id="stakeholder-year-select"');
+    expect(html).not.toContain('id="stakeholder-tab-select"');
+    // Alle Jahre: beide Rechnungsmonate als Spalten
+    expect(html).toContain('Sept. 25');
+    expect(html).toContain('März 26');
+
+    // Nur 2026: der September-2025-Umsatz verschwindet aus der Matrix
+    page.selectedYear = '2026';
+    page.render();
+    html = window.setContentSafely.mock.calls.at(-1)[1];
+    expect(html).toContain('März 26');
+    expect(html).not.toContain('Sept. 25');
+    expect(html).toContain('<option value="2026" selected>');
+
+    // Nur 2025: umgekehrt bleibt nur der September-2025-Umsatz
+    page.selectedYear = '2025';
+    page.render();
+    html = window.setContentSafely.mock.calls.at(-1)[1];
+    expect(html).toContain('Sept. 25');
+    expect(html).not.toContain('März 26');
+  });
+
+  it('fasst KSK-Abgabe und Zusatzkosten in einer gestapelten Kachel zusammen', async () => {
+    const auftraege = [{
+      id: 'a1', auftragsname: 'Kampagne', nettobetrag: 10000, start: '2026-01-01',
+      is_draft: false, unternehmen_id: 'u1'
+    }];
+    const kampagnen = [{ id: 'k1', auftrag_id: 'a1' }];
+    const kooperationen = [{
+      id: 'koop1', kampagne_id: 'k1', einkaufspreis_netto: 5000,
+      verkaufspreis_zusatzkosten: 200, ksk_selbstzahler: false
+    }];
+    window.supabase = createMockSupabase({ auftraege, kampagnen, kooperationen });
+
+    const page = createPage();
+    await page.init();
+    page.selectedYear = 'all';
+    page.render();
+    const html = window.setContentSafely.mock.calls.at(-1)[1];
+    const breakdown = html.split('stakeholder-cards--breakdown')[1] || '';
+
+    // Vier Kacheln statt fuenf: Creatoranteil, Fest vereinbart, EK/VK, KSK+Zusatz gestapelt
+    expect(breakdown.split('class="stakeholder-card"').length - 1).toBe(3);
+    expect(breakdown.split('class="stakeholder-card stakeholder-card--stack"').length - 1).toBe(1);
+
+    // Die Stapel-Kachel enthaelt beide Kennzahlen untereinander
+    const stapel = (breakdown.split('stakeholder-card--stack')[1] || '').split('stakeholder-list-card')[0] || '';
+    expect(stapel).toContain('KSK-Abgabe');
+    expect(stapel).toContain('Zusatzkosten');
+  });
+
+  it('rendert die Kundenliste in einem eigenen Scroll-Container für Sticky-Kopf und -Spalte', async () => {
+    const auftraege = [{
+      id: 'a1', auftragsname: 'Kampagne', nettobetrag: 10000, start: '2026-01-01',
+      is_draft: false, unternehmen_id: 'u1'
+    }];
+    window.supabase = createMockSupabase({
+      auftraege,
+      unternehmen: [{ id: 'u1', firmenname: 'Muster GmbH' }]
+    });
+
+    const page = createPage();
+    await page.init();
+    page.selectedYear = 'all';
+    page.render();
+    const html = window.setContentSafely.mock.calls.at(-1)[1];
+
+    expect(html).toContain('stakeholder-scroll-x stakeholder-scroll-x--kunden');
+  });
+
+  it('rendert jede Monatsmatrix in einem Scroll-Container für die sticky erste Spalte', async () => {
+    const auftraege = [{
+      id: 'a1', auftragsname: 'Auftrag 2026', nettobetrag: 10000,
+      auftragtype: 'UGC/Influencer', start: '2026-01-10', is_draft: false,
+      unternehmen_id: 'u1', rechnung_gestellt_am: '2026-03-10'
+    }];
+    const blocks = [
+      { auftrag_id: 'a1', campaign_type: 'ugc_paid', campaign_type_label: 'UGC Paid', umsatz_netto: 10000 }
+    ];
+    window.supabase = createMockSupabase({ auftraege, blocks });
+
+    const page = createPage();
+    await page.init();
+    page.activeView = 'monate';
+    page.selectedYear = 'all';
+    page.render();
+    const html = window.setContentSafely.mock.calls.at(-1)[1];
+
+    // Die erste Spalte (Leistungsbereich/Posten) pinnt per CSS — das setzt
+    // voraus, dass jede Matrix direkt in einem .stakeholder-scroll-x liegt.
+    const matrices = html.match(/stakeholder-table stakeholder-matrix/g) || [];
+    const wrapped = html.match(/stakeholder-scroll-x">\s*<table class="stakeholder-table stakeholder-matrix/g) || [];
+    expect(matrices.length).toBeGreaterThan(0);
+    expect(wrapped.length).toBe(matrices.length);
+  });
 });

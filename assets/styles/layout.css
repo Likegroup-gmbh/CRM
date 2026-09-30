@@ -250,6 +250,22 @@
   margin-left: var(--sidebar-width-collapsed);
 }
 
+/* ===== SIDEBAR BEI SCHMALEM VIEWPORT (≤768px) =====
+   Die Sidebar hat sonst keinen eigenen Hintergrund (die graue Fläche ist der
+   body, der durchscheint). Ausgeklappt liegt sie bei schmalem Viewport als
+   Overlay ÜBER dem Inhalt und braucht deshalb eine deckende Fläche plus
+   Schatten, damit die Menüpunkte lesbar bleiben. Eingeklappt ist gray-50
+   identisch zum body-Hintergrund — kein sichtbarer Unterschied. */
+@media (max-width: 768px) {
+  .sidebar {
+    background: var(--gray-50);
+  }
+
+  #app-root:not(.sidebar-collapsed) .sidebar {
+    box-shadow: var(--shadow-lg);
+  }
+}
+
 /* ===== NAVIGATION ===== */
 .nav-list {
   list-style: none;

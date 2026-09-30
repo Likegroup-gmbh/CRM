@@ -184,6 +184,34 @@ export function filteredAuftraege(page) {
   return page.auftraege.filter(a => auftragYear(a) === year);
 }
 
+// Jahre der Monatsauswertung aus den Rechnungsmonaten (nicht Auftragsjahre).
+// Wie availableYears ist das laufende Jahr immer dabei, damit der
+// Default-Zeitraum (aktuelles Jahr) waehlbar bleibt.
+export function monatsYears(months) {
+  const years = new Set([new Date().getFullYear()]);
+  (months || []).forEach(m => {
+    const y = parseInt(m.slice(0, 4), 10);
+    if (Number.isFinite(y)) years.add(y);
+  });
+  return Array.from(years).sort((a, b) => b - a);
+}
+
+// Das gewaehlte Jahr gilt in der Monatsauswertung nur, wenn es dort
+// Rechnungsmonate hat — sonst faellt das Select auf "Alle Jahre" zurueck.
+export function effektivesMonatsJahr(page, months) {
+  if (page.selectedYear === 'all') return 'all';
+  return monatsYears(months).includes(parseInt(page.selectedYear, 10)) ? page.selectedYear : 'all';
+}
+
+// Zeitraum-Filter wie auf dem Kalkulationsblatt: nur die Monatsspalten
+// des gewaehlten Jahres. Die Monatswerte selbst bleiben unveraendert,
+// darum greift der Filter auch bei eingefrorenen Berichtsstaenden.
+export function gefilterteMonate(page, months) {
+  const jahr = effektivesMonatsJahr(page, months);
+  if (jahr === 'all') return months;
+  return months.filter(m => m.startsWith(`${jahr}-`));
+}
+
 export function blocksByAuftrag(page) {
   const map = new Map();
   page.blocks.forEach(b => {

@@ -13,6 +13,7 @@ import {
   saveBerichtsstand,
 } from '../../../core/budget/berichtsstandStore.js';
 import { kartenSummen, monatsauswertung } from '../daten/stakeholderOverviewData.js';
+import { gefilterteMonate } from '../kern/stakeholderOverviewLogic.js';
 
 const SUPABASE = () => window.supabase;
 
@@ -113,6 +114,7 @@ export function renderMonatsauswertung(page) {
   const stand = page.aktiverBerichtsstand
     ? fmtBerichtsstandDatum(page.aktiverBerichtsstand.created_at)
     : new Date().toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const months = gefilterteMonate(page, auswertung.months);
 
   return `
     <div class="stakeholder-monate-toolbar">
@@ -143,8 +145,8 @@ export function renderMonatsauswertung(page) {
       </div>
     </div>
     ${renderBerichtsstandLeiste(page)}
-    ${renderMonatsMatrix(page, view, auswertung.months)}
-    ${renderFremdkostenPosten(page, view, auswertung.months)}
+    ${renderMonatsMatrix(page, view, months)}
+    ${renderFremdkostenPosten(page, view, months)}
     ${renderSonderzeilen(page, auswertung.sonderzeilen)}
   `;
 }

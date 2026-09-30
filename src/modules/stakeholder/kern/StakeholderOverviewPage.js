@@ -7,8 +7,8 @@ import { escapeHtml, formatEuro } from '../../../core/format.js';
 import { ViewModeToggle } from '../../../core/components/ViewModeToggle.js';
 import { aggregate as aggregateOverview, kartenSummen as berechneKartenSummen, loadData as loadStakeholderData } from '../daten/stakeholderOverviewData.js';
 import { renderKalkulationBody } from '../ansichten/stakeholderKalkulationView.js';
-import { TAB_GESAMT_OHNE, availableYears, tabCounts, visibleTabs } from './stakeholderOverviewLogic.js';
-import { oeffneBerichtsstand, renderMonatsauswertung, sichereBerichtsstand } from '../ansichten/stakeholderMonatsView.js';
+import { TAB_GESAMT_OHNE, availableYears, effektivesMonatsJahr, monatsYears, tabCounts, visibleTabs } from './stakeholderOverviewLogic.js';
+import { aktiveMonatsauswertung, oeffneBerichtsstand, renderMonatsauswertung, sichereBerichtsstand } from '../ansichten/stakeholderMonatsView.js';
 
 export {
   elapsedRatio,
@@ -105,6 +105,11 @@ export class StakeholderOverviewPage {
     const counts = tabCounts(this);
     const tabs = visibleTabs(this);
     const isMonate = this.activeView === 'monate';
+    // Zeitraum gilt in beiden Ansichten; die Jahresoptionen kommen in der
+    // Monatsauswertung aus den Rechnungsmonaten statt aus den Auftraegen.
+    const monatsMonate = isMonate ? aktiveMonatsauswertung(this).months : null;
+    const yearOptions = isMonate ? monatsYears(monatsMonate) : years;
+    const effektivesJahr = isMonate ? effektivesMonatsJahr(this, monatsMonate) : this.selectedYear;
 
     const tabOptions = tabs.map(t => `
       <option value="${t.key}"${this.activeTab === t.key ? ' selected' : ''}>${this.escape(t.label)} (${counts.get(t.key) || 0})</option>
@@ -117,22 +122,22 @@ export class StakeholderOverviewPage {
             { buttonId: 'btn-view-kalkulation', label: 'Kalkulation', active: !isMonate },
             { buttonId: 'btn-view-monate', label: 'Monatsauswertung', active: isMonate },
           ])}
-          ${!isMonate ? `
           <div class="stakeholder-toolbar-filters">
+            ${!isMonate ? `
             <div class="form-field form-field--inline">
               <label for="stakeholder-tab-select">Leistungsbereich</label>
               <select id="stakeholder-tab-select" class="form-select">
                 ${tabOptions}
               </select>
-            </div>
+            </div>` : ''}
             <div class="form-field form-field--inline stakeholder-year-field">
               <label for="stakeholder-year-select">Zeitraum</label>
               <select id="stakeholder-year-select" class="form-select">
-                <option value="all"${this.selectedYear === 'all' ? ' selected' : ''}>Alle Jahre</option>
-                ${years.map(y => `<option value="${y}"${String(this.selectedYear) === String(y) ? ' selected' : ''}>${y}</option>`).join('')}
+                <option value="all"${effektivesJahr === 'all' ? ' selected' : ''}>Alle Jahre</option>
+                ${yearOptions.map(y => `<option value="${y}"${String(effektivesJahr) === String(y) ? ' selected' : ''}>${y}</option>`).join('')}
               </select>
             </div>
-          </div>` : ''}
+          </div>
         </div>
 
         ${isMonate ? renderMonatsauswertung(this) : renderKalkulationBody(this)}
