@@ -36,7 +36,7 @@ export class StepKampagne {
           <div class="form-field">
             <label for="field-pe-abrechnung_hinweis">Abrechnungshinweis (Zusatzkosten/Honorar)</label>
             <textarea id="field-pe-abrechnung_hinweis" rows="2" placeholder="z. B. „Programmteilnahmen laufen über das Honorar, Reisekosten separat als Zusatzkosten"">${this.escape(d.abrechnung_hinweis)}</textarea>
-            <small class="form-hint">Nur füllen bei Ausnahmen vom Standard (Zusatzkosten separat ausgewiesen). Wird beim Anlegen von Creator-Rechnungen zu diesem Projekt eingeblendet.</small>
+            <small class="form-hint">Nur für die interne Übersicht — erscheint nicht im Angebot oder anderen Kunden-Dokumenten. Nur füllen bei Ausnahmen vom Standard (Zusatzkosten separat ausgewiesen). Wird beim Anlegen von Creator-Rechnungen zu diesem Projekt eingeblendet.</small>
           </div>
         </div>
 

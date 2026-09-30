@@ -400,9 +400,9 @@ export class AuftragsdetailsDetail {
           </div>
         </div>
 
-        ${d.abrechnung_hinweis ? `
+        ${canViewInternalBudget && d.abrechnung_hinweis ? `
         <div class="notice-box notice-info">
-          <strong>Abrechnungshinweis</strong>
+          <strong>Abrechnungshinweis (intern)</strong>
           ${sanitize(d.abrechnung_hinweis)}
         </div>
         ` : ''}
