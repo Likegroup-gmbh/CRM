@@ -191,6 +191,7 @@ export class ProduktForm {
         || form.querySelector('[name="unternehmen_id"]')?.value
         || null,
       getMarkeIds: () => this.currentMarkeIds(),
+      getBriefingIds: () => this.currentBriefingIds(),
       legacyEinsatzsituation: this.produkt?.einsatzsituation || null
     });
   }
@@ -529,6 +530,17 @@ export class ProduktForm {
   }
 
   /**
+   * Briefing-Kontext fuer die Personas: das Kontext-Briefing der Produktion
+   * plus die aktuell im Tag-Feld gewaehlten Briefings. Uebernehmen haengt
+   * die Persona an alle davon (Wasserfall Briefing -> Casting/Konzepte).
+   */
+  currentBriefingIds() {
+    const form = document.getElementById('produkt-form');
+    const data = form ? window.formSystem.collectSubmitData(form) : {};
+    return [...new Set([this.kontextBriefingId, ...this.collectBriefingIds(data)].filter(Boolean))];
+  }
+
+  /**
    * Use Cases und Persona-Vorschlaege werden erst mit dem Produkt-Save
    * persistiert. Ein Flush-Fehler bricht den Save ab (catch aussen), damit
    * Accept-Entscheidungen nicht still verloren gehen.
@@ -538,7 +550,7 @@ export class ProduktForm {
     const saved = await ProduktPersonaService.flushOnSave(produktId, this.personaPanel.getState(), {
       unternehmenId: this.ctx.unternehmenId || data.unternehmen_id,
       markeIds: this.collectMarkenIds(data),
-      briefingId: this.kontextBriefingId
+      briefingIds: this.currentBriefingIds()
     });
     this.personaPanel.applySavedState(saved);
     const anzahl = saved.neuAkzeptiert?.length

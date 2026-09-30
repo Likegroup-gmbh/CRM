@@ -19,9 +19,12 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;');
 }
 
-function drawerFields() {
+// Marke/Briefing kommen fix aus dem Produkt-Kontext - keine Auswahl im Drawer
+const DRAWER_SKIP_FIELDS = new Set(['_slot_produkte', 'marke_ids', 'briefing_ids']);
+
+export function drawerFields() {
   return personaConfig.fields.filter(f =>
-    f.name !== '_slot_produkte' && f.docRole !== 'owner'
+    !DRAWER_SKIP_FIELDS.has(f.name) && f.docRole !== 'owner'
   );
 }
 
@@ -30,6 +33,7 @@ export class ProduktPersonaDrawer {
     this.drawerId = 'produkt-persona-drawer';
     this.situationPanel = null;
     this._opts = null;
+    this._markeIds = [];
     this._abort = null;
   }
 
@@ -38,9 +42,9 @@ export class ProduktPersonaDrawer {
    * @param {Object} opts.karte
    * @param {Object} opts.persona
    * @param {string|null} opts.unternehmenId
-   * @param {string[]} [opts.markeIds]
+   * @param {string[]} [opts.markeIds] - Marken des Produkts (fix, keine Auswahl im Drawer)
    * @param {string|null} [opts.produktId]
-   * @param {string|null} [opts.briefingId] - Kontext-Briefing der Produktion
+   * @param {string[]} [opts.briefingIds] - Briefings des Produkts (Kontext + Formular-Auswahl)
    * @param {(karte: Object) => void} [opts.onChange]
    */
   open(opts) {
@@ -49,6 +53,10 @@ export class ProduktPersonaDrawer {
     if (!persona || !karte) return;
 
     this._opts = opts;
+    // Edit/Bestand behaelt seine Marken, neu erbt die Produkt-Marken
+    this._markeIds = Array.isArray(persona.marke_ids) && persona.marke_ids.length
+      ? [...persona.marke_ids]
+      : [...(opts.markeIds || [])];
     this._abort = new AbortController();
 
     const istMatch = karte.typ === 'match';
@@ -140,12 +148,8 @@ export class ProduktPersonaDrawer {
 
   renderNeu(body, karte, persona, unternehmenId) {
     const accepted = karte.status === 'accepted' && karte.persona_id;
-    const markeIds = Array.isArray(persona.marke_ids) && persona.marke_ids.length
-      ? persona.marke_ids
-      : (this._opts.markeIds || []);
     const formData = {
       ...persona,
-      marke_ids: markeIds,
       unternehmen_id: unternehmenId || persona.unternehmen_id || '',
       ...(accepted ? { _isEditMode: true, _entityId: karte.persona_id } : {})
     };
@@ -220,16 +224,14 @@ export class ProduktPersonaDrawer {
 
   collectForm(form) {
     const data = window.formSystem?.collectSubmitData?.(form) || {};
-    const markeIds = Array.isArray(data.marke_ids)
-      ? data.marke_ids.filter(Boolean)
-      : (data.marke_ids ? [data.marke_ids] : []);
+    // Marke/Briefing/Unternehmen kommen aus dem Produkt-Kontext, nicht aus dem Formular
     delete data.marke_ids;
     delete data.unternehmen_id;
     delete data.produkt_ids;
     delete data.briefing_ids;
     delete data._slot_audience_situations;
     delete data._slot_produkte;
-    return { data, markeIds };
+    return { data, markeIds: [...this._markeIds] };
   }
 
   async handleMatchUebernehmen() {
@@ -304,7 +306,7 @@ export class ProduktPersonaDrawer {
       produktId: this._opts.produktId || null,
       unternehmenId: this._opts.unternehmenId,
       markeIds,
-      briefingId: this._opts.briefingId || null
+      briefingIds: this._opts.briefingIds || []
     });
   }
 

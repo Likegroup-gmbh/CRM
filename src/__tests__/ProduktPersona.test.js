@@ -530,7 +530,7 @@ describe('ProduktPersonaService Accept/Unlink', () => {
     expect(window.supabase.chains.some(c => c.table === 'produkt_persona_vorschlag')).toBe(false);
   });
 
-  it('uebernehmen mit briefingId haengt die Persona ans Kontext-Briefing und protokolliert den Attach', async () => {
+  it('uebernehmen mit briefingIds haengt die Persona ans Kontext-Briefing und protokolliert den Attach', async () => {
     const { addPersonaToBriefing } = await import('../modules/briefing/BriefingPersonas.js');
     addPersonaToBriefing.mockResolvedValue(true);
     window.supabase = createSupabaseMock(() => ({ data: [], error: null }));
@@ -539,13 +539,29 @@ describe('ProduktPersonaService Accept/Unlink', () => {
       key: 'k1', id: null, typ: 'neu', status: 'pending',
       persona_id: null, payload: { name: 'Lena' }, fit_grund: 'fit',
       useCaseKeys: [], position: 0
-    }, { produktId: null, unternehmenId: 'u1', markeIds: [], briefingId: 'b1' });
+    }, { produktId: null, unternehmenId: 'u1', markeIds: [], briefingIds: ['b1'] });
 
     expect(addPersonaToBriefing).toHaveBeenCalledWith('b1', 'persona-neu-1');
     expect(out.payload._attached_briefing_ids).toEqual(['b1']);
   });
 
-  it('uebernehmen ohne briefingId laesst das Briefing unangetastet', async () => {
+  it('uebernehmen mit mehreren briefingIds haengt die Persona an alle Briefings', async () => {
+    const { addPersonaToBriefing } = await import('../modules/briefing/BriefingPersonas.js');
+    addPersonaToBriefing.mockResolvedValue(true);
+    window.supabase = createSupabaseMock(() => ({ data: [], error: null }));
+
+    const out = await ProduktPersonaService.uebernehmen({
+      key: 'k1', id: null, typ: 'neu', status: 'pending',
+      persona_id: null, payload: { name: 'Lena' }, fit_grund: 'fit',
+      useCaseKeys: [], position: 0
+    }, { produktId: null, unternehmenId: 'u1', markeIds: [], briefingIds: ['b1', 'b2'] });
+
+    expect(addPersonaToBriefing).toHaveBeenCalledWith('b1', 'persona-neu-1');
+    expect(addPersonaToBriefing).toHaveBeenCalledWith('b2', 'persona-neu-1');
+    expect(out.payload._attached_briefing_ids).toEqual(['b1', 'b2']);
+  });
+
+  it('uebernehmen ohne briefingIds laesst das Briefing unangetastet', async () => {
     const { addPersonaToBriefing } = await import('../modules/briefing/BriefingPersonas.js');
     window.supabase = createSupabaseMock(() => ({ data: [], error: null }));
 
@@ -568,7 +584,7 @@ describe('ProduktPersonaService Accept/Unlink', () => {
       key: 'k1', id: null, typ: 'match', status: 'pending',
       persona_id: 'p-bekannt', payload: null, fit_grund: 'fit',
       useCaseKeys: [], position: 0
-    }, { produktId: null, unternehmenId: 'u1', markeIds: [], briefingId: 'b1' });
+    }, { produktId: null, unternehmenId: 'u1', markeIds: [], briefingIds: ['b1'] });
 
     expect(addPersonaToBriefing).toHaveBeenCalledWith('b1', 'p-bekannt');
     expect(out.payload?._attached_briefing_ids).toBeUndefined();
@@ -597,7 +613,7 @@ describe('ProduktPersonaService Accept/Unlink', () => {
     expect(out.payload._attached_briefing_ids).toBeUndefined();
   });
 
-  it('flushOnSave attacht bei neu akzeptierter Karte das Kontext-Briefing', async () => {
+  it('flushOnSave attacht bei neu akzeptierter Karte die Briefings des Produkts', async () => {
     const { addPersonaToBriefing } = await import('../modules/briefing/BriefingPersonas.js');
     addPersonaToBriefing.mockResolvedValue(true);
     window.supabase = createSupabaseMock((chain) => {
@@ -618,11 +634,22 @@ describe('ProduktPersonaService Accept/Unlink', () => {
     };
 
     const out = await ProduktPersonaService.flushOnSave('prod-1', state, {
-      unternehmenId: 'u1', markeIds: [], briefingId: 'b1'
+      unternehmenId: 'u1', markeIds: [], briefingIds: ['b1', 'b2']
     });
 
     expect(addPersonaToBriefing).toHaveBeenCalledWith('b1', 'persona-neu-1');
-    expect(out.karten[0].payload._attached_briefing_ids).toEqual(['b1']);
+    expect(addPersonaToBriefing).toHaveBeenCalledWith('b2', 'persona-neu-1');
+    expect(out.karten[0].payload._attached_briefing_ids).toEqual(['b1', 'b2']);
+  });
+
+  it('drawerFields laesst Unternehmen/Marke/Briefing weg - der Kontext kommt vom Produkt', async () => {
+    const actual = await vi.importActual('../modules/produkt/ProduktPersonaDrawer.js');
+    const namen = actual.drawerFields().map(f => f.name);
+    expect(namen).not.toContain('unternehmen_id');
+    expect(namen).not.toContain('marke_ids');
+    expect(namen).not.toContain('briefing_ids');
+    expect(namen).not.toContain('_slot_produkte');
+    expect(namen).toContain('name');
   });
 
   it('flushKarte (accepted neu) mappt Use-Case-Keys auf echte IDs', async () => {

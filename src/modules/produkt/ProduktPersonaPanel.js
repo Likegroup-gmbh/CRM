@@ -47,7 +47,7 @@ function iconBtn(action, iconKey, label, { disabled = false, active = false } = 
 export class ProduktPersonaPanel {
   constructor() {
     this.form = null;
-    this.kontext = null; // { produktId, unternehmenId, markeId, getMarkeIds, legacyEinsatzsituation }
+    this.kontext = null; // { produktId, unternehmenId, markeId, getMarkeIds, getBriefingIds, legacyEinsatzsituation }
     this.useCases = [];
     this.karten = [];
     this.verworfeneMatchIds = [];
@@ -65,7 +65,7 @@ export class ProduktPersonaPanel {
 
   /**
    * @param {HTMLFormElement} form
-   * @param {Object} kontext - { produktId, unternehmenId, markeId, getMarkeIds, legacyEinsatzsituation }
+   * @param {Object} kontext - { produktId, unternehmenId, markeId, getMarkeIds, getBriefingIds, legacyEinsatzsituation }
    */
   async mount(form, kontext) {
     this._abort?.abort();
@@ -536,7 +536,7 @@ export class ProduktPersonaPanel {
       unternehmenId: this.kontext?.getUnternehmenId?.() || null,
       markeIds: this.kontext?.getMarkeIds?.() || [],
       produktId: this.produktId,
-      briefingId: this.kontext?.briefingId || null,
+      briefingIds: this.kontext?.getBriefingIds?.() || [],
       onChange: (next) => this.applyKarte(next)
     });
   }

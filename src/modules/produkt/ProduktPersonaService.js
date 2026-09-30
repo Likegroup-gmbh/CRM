@@ -262,7 +262,7 @@ export class ProduktPersonaService {
    *
    * @returns {Promise<{useCases: Array, karten: Array, neuAkzeptiert: string[]}>}
    */
-  static async flushOnSave(produktId, { useCases = [], karten = [], verworfeneMatchIds = [] }, { unternehmenId = null, markeIds = [], briefingId = null } = {}) {
+  static async flushOnSave(produktId, { useCases = [], karten = [], verworfeneMatchIds = [] }, { unternehmenId = null, markeIds = [], briefingIds = [] } = {}) {
     const keyToId = await this.syncUseCases(produktId, useCases);
 
     const ergebnisKarten = [];
@@ -274,7 +274,7 @@ export class ProduktPersonaService {
         keyToId,
         unternehmenId,
         markeIds,
-        briefingId
+        briefingIds
       });
       if (geflusht) {
         ergebnisKarten.push(geflusht);
@@ -389,7 +389,7 @@ export class ProduktPersonaService {
    * Eine Karte schreiben. Gibt den Karten-Stand nach dem Flush zurueck
    * (oder null, wenn eine unpersistierte Karte verworfen wurde).
    */
-  static async flushKarte(produktId, karte, { position, keyToId, unternehmenId, markeIds, briefingId = null }) {
+  static async flushKarte(produktId, karte, { position, keyToId, unternehmenId, markeIds, briefingIds = [] }) {
     const useCaseIds = (karte.useCaseKeys || [])
       .map(key => keyToId.get(key) || (this.isUuid(key) ? key : null))
       .filter(Boolean);
@@ -419,9 +419,9 @@ export class ProduktPersonaService {
         const materialisiert = await this.materialize(karte, { unternehmenId, markeIds });
         personaId = materialisiert.personaId;
         payload = materialisiert.payload;
-        // Accept ohne Drawer-Uebernehmen (In-Memory-Karte): Kontext-Briefing
-        // hier nachziehen. attachKontextBriefing ist idempotent.
-        payload = await this.attachKontextBriefing(briefingId, personaId, payload);
+        // Accept ohne Drawer-Uebernehmen (In-Memory-Karte): Briefings des
+        // Produkts hier nachziehen. attachKontextBriefing ist idempotent.
+        payload = await this.attachKontextBriefings(briefingIds, personaId, payload);
       }
 
       const row = {
@@ -745,16 +745,16 @@ export class ProduktPersonaService {
    * anhaengen (match). Existiert das Produkt schon, wird der Vorschlag
    * sofort geschrieben. Sonst haengt persona_id an der In-Memory-Karte.
    *
-   * briefingId = Kontext-Briefing der Produktion, aus der das Formular
-   * geoeffnet wurde: die Persona wird zusaetzlich in dessen persona_ids
-   * gehaengt (Personas-Tab, /produktionen-Spalte und Casting lesen genau
-   * dieses Array). Der Attach landet in payload._attached_briefing_ids,
-   * damit Zuruecknehmen genau ihn wieder loest.
+   * briefingIds = Briefings des Produkts (Kontext-Briefing der Produktion
+   * plus die im Formular getaggten): die Persona wird zusaetzlich in deren
+   * persona_ids gehaengt (Personas-Tab, /produktionen-Spalte und Casting
+   * lesen genau dieses Array). Die Attaches landen in
+   * payload._attached_briefing_ids, damit Zuruecknehmen genau sie wieder loest.
    */
-  static async uebernehmen(karte, { produktId = null, unternehmenId, markeIds = [], briefingId = null } = {}) {
+  static async uebernehmen(karte, { produktId = null, unternehmenId, markeIds = [], briefingIds = [] } = {}) {
     if (!unternehmenId) throw new Error('Bitte zuerst ein Unternehmen wählen');
     const materialisiert = await this.materialize(karte, { unternehmenId, markeIds });
-    const payload = await this.attachKontextBriefing(briefingId, materialisiert.personaId, materialisiert.payload);
+    const payload = await this.attachKontextBriefings(briefingIds, materialisiert.personaId, materialisiert.payload);
     const next = {
       ...karte,
       status: 'accepted',
@@ -777,6 +777,15 @@ export class ProduktPersonaService {
       await recomputeBriefingProdukteForPersona(materialisiert.personaId);
     } else {
       next.persisted = null;
+    }
+    return next;
+  }
+
+  /** Alle Briefings des Produkts anhaengen (siehe attachKontextBriefing). */
+  static async attachKontextBriefings(briefingIds, personaId, payload) {
+    let next = payload;
+    for (const briefingId of [...new Set((briefingIds || []).filter(Boolean))]) {
+      next = await this.attachKontextBriefing(briefingId, personaId, next);
     }
     return next;
   }
