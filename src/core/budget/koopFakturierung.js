@@ -11,6 +11,59 @@ function betrag(v) {
   return parseFloat(v) || 0;
 }
 
+// Abrechenbarkeit fuer den Kooperations-Selektor der Rechnungserstellung
+// (ADR 0004, ADR 0015). Gleiche Soll-Basis wie das Reporting (Video-EK
+// schlaegt Kooperations-EK, KSK-Aufschlag bei Selbstzahlern), aber
+// fakturiert inklusive des auf der Rechnung ausgewiesenen KSK-Aufschlags:
+// er ist Teil der vertraglichen Verguetung und muss den Restbetrag
+// verbrauchen. Zusatzkosten bleiben aussen vor (durchlaufende Posten).
+// Rueckgabe: Map(koopId -> { soll, fakturiert, rest, anzahlRechnungen,
+// hatSchlussrechnung, abrechenbar }).
+export function calculateKoopAbrechenbarkeit({ kooperationen = [], videos = [], rechnungen = [] } = {}) {
+  const videoEkByKoop = new Map();
+  const koopMitVideos = new Set();
+  videos.forEach(v => {
+    if (!v.kooperation_id) return;
+    koopMitVideos.add(v.kooperation_id);
+    videoEkByKoop.set(
+      v.kooperation_id,
+      (videoEkByKoop.get(v.kooperation_id) || 0) + betrag(v.einkaufspreis_netto)
+    );
+  });
+
+  const fakturiertByKoop = new Map();
+  const anzahlByKoop = new Map();
+  const schlussrechnungByKoop = new Set();
+  rechnungen.forEach(r => {
+    if (!r.kooperation_id) return;
+    const zeile = betrag(r.nettobetrag) + betrag(r.nettobetrag_steuerfrei) + betrag(r.ksk_betrag);
+    fakturiertByKoop.set(r.kooperation_id, (fakturiertByKoop.get(r.kooperation_id) || 0) + zeile);
+    anzahlByKoop.set(r.kooperation_id, (anzahlByKoop.get(r.kooperation_id) || 0) + 1);
+    if (r.ist_schlussrechnung) schlussrechnungByKoop.add(r.kooperation_id);
+  });
+
+  const ergebnis = new Map();
+  kooperationen.forEach(k => {
+    const ekSoll = koopMitVideos.has(k.id)
+      ? (videoEkByKoop.get(k.id) || 0)
+      : betrag(k.einkaufspreis_netto);
+    const soll = ekSoll + (k.ksk_selbstzahler ? betrag(k.ksk_betrag) : 0);
+    const fakturiert = fakturiertByKoop.get(k.id) || 0;
+    const rest = soll - fakturiert;
+    const anzahlRechnungen = anzahlByKoop.get(k.id) || 0;
+    const hatSchlussrechnung = schlussrechnungByKoop.has(k.id);
+
+    // Weich (ADR 0004): ohne Rechnung immer abrechenbar; ohne pruefbares
+    // Soll (soll <= 0) ebenfalls — die Regel sperrt nur bei pruefbarem Soll.
+    const abrechenbar = !hatSchlussrechnung
+      && (anzahlRechnungen === 0 || soll <= 0 || rest > 0.005);
+
+    ergebnis.set(k.id, { soll, fakturiert, rest, anzahlRechnungen, hatSchlussrechnung, abrechenbar });
+  });
+
+  return ergebnis;
+}
+
 export function calculateKoopFakturierung({
   kooperationen = [],
   videos = [],

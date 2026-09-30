@@ -1,5 +1,6 @@
 import { KampagneUtils } from '../../../../modules/kampagne/KampagneUtils.js';
 import { findSignedVertragForKooperation } from '../../../../modules/rechnung/RechnungVertragZuordnung.js';
+import { calculateKoopAbrechenbarkeit } from '../../../budget/koopFakturierung.js';
 
 let _debounceTimer = null;
 
@@ -73,6 +74,59 @@ function hideVertragWarning(form) {
 
   const submitBtn = form.querySelector('button[type="submit"]');
   if (submitBtn) submitBtn.disabled = false;
+}
+
+// === Restbetrag-Hinweis (ADR 0004/0015) ===
+// Zeigt bei teilfakturierten Kooperationen den noch abrechenbaren Betrag und
+// warnt weich, wenn die eingegebene Rechnung ihn uebersteigt. Blockiert nie.
+const RESTBETRAG_HINWEIS_ID = 'rechnung-restbetrag-hinweis';
+
+const _formatEuro = (v) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v ?? 0);
+
+function removeRestbetragHinweis(form) {
+  form.querySelector(`#${RESTBETRAG_HINWEIS_ID}`)?.remove();
+}
+
+function updateRestbetragHinweis(form, abrechenbarkeit, { nettoInput, nettoSteuerfreiInput, kskInput }) {
+  removeRestbetragHinweis(form);
+  if (!abrechenbarkeit || abrechenbarkeit.soll <= 0) return;
+
+  const eingegeben = (parseFloat(nettoInput?.value) || 0)
+    + (parseFloat(nettoSteuerfreiInput?.value) || 0)
+    + (parseFloat(kskInput?.value) || 0);
+  const { soll, fakturiert, rest, anzahlRechnungen } = abrechenbarkeit;
+
+  const ueber = eingegeben - rest;
+  const istUeberschreitung = eingegeben > 0 && ueber > 0.005;
+  // Ohne vorherige Rechnung und ohne Ueberschreitung gibt es nichts zu sagen.
+  if (!istUeberschreitung && anzahlRechnungen === 0) return;
+
+  const banner = document.createElement('div');
+  banner.id = RESTBETRAG_HINWEIS_ID;
+  if (istUeberschreitung) {
+    banner.className = 'notice-box notice-warning';
+    banner.innerHTML = `
+      <strong>Restbetrag überschritten</strong>
+      Diese Rechnung übersteigt den noch abrechenbaren Betrag um ${_formatEuro(ueber)}
+      (Soll: ${_formatEuro(soll)}, bereits fakturiert: ${_formatEuro(fakturiert)}).
+      Speichern ist trotzdem möglich — bitte Betrag und Kooperation prüfen.
+    `;
+  } else {
+    banner.className = 'notice-box notice-info';
+    banner.innerHTML = `
+      <strong>Teilrechnung</strong>
+      Bereits fakturiert: ${_formatEuro(fakturiert)} von ${_formatEuro(soll)} ·
+      Noch abrechenbar: ${_formatEuro(Math.max(rest, 0))}
+    `;
+  }
+
+  const koopField = findSelect(form, 'kooperation_id');
+  const koopGroup = koopField?.closest('.form-field') || koopField?.closest('.form-row-group');
+  if (koopGroup) {
+    koopGroup.insertAdjacentElement('afterend', banner);
+  } else {
+    form.prepend(banner);
+  }
 }
 
 // Wiederverwendbare Berechnungslogik fuer USt/Brutto — wird auch von RechnungContractingEvents importiert.
@@ -207,6 +261,8 @@ export function finalizeRechnungSubmitData(form, submitData) {
   if (skontoToggle) submitData.skonto = skontoToggle.checked;
   const geprueftToggle = form.querySelector('input[name="geprueft"]');
   if (geprueftToggle) submitData.geprueft = geprueftToggle.checked;
+  const schlussrechnungToggle = form.querySelector('input[name="ist_schlussrechnung"]');
+  if (schlussrechnungToggle) submitData.ist_schlussrechnung = schlussrechnungToggle.checked;
   const kskToggle = form.querySelector('input[name="ksk_pflichtig"]');
   if (kskToggle) submitData.ksk_pflichtig = kskToggle.checked;
   const zusatzBruttoToggle = form.querySelector('input[name="zusatzkosten_brutto"]');
@@ -329,10 +385,16 @@ export async function setup(form, ctx) {
     if (hidden) hidden.value = value || '';
   };
 
+  // Abrechenbarkeit der aktuell gewaehlten Kooperation (null im Edit-Mode
+  // bzw. solange keine Kooperation gewaehlt ist)
+  let aktuelleAbrechenbarkeit = null;
+
   const onKoopChange = async () => {
     const koopId = koopSelect.value;
     if (!koopId) {
       hideVertragWarning(form);
+      aktuelleAbrechenbarkeit = null;
+      removeRestbetragHinweis(form);
       const fieldsToReset = [
         { field: auftragField, placeholder: 'Auftrag wird automatisch gesetzt' },
         { field: unternehmenField, placeholder: 'Unternehmen wird automatisch gesetzt' },
@@ -384,10 +446,35 @@ export async function setup(form, ctx) {
     // Vertrag-Prefilter: prüfen ob finaler Vertrag vorhanden
     const vertragCheck = await findSignedVertragForKooperation(koopId);
     if (!vertragCheck.ok) {
+      aktuelleAbrechenbarkeit = null;
+      removeRestbetragHinweis(form);
       showVertragWarning(form, vertragCheck.message);
       return;
     }
     hideVertragWarning(form);
+
+    // Abrechenbarkeit der Kooperation bestimmen (ADR 0004/0015): gestellte
+    // Rechnungen + Video-EK laden, Restbetrag fuer Prefill und Warnung.
+    try {
+      const [{ data: koopRechnungen }, { data: koopVideos }] = await Promise.all([
+        window.supabase
+          .from('rechnung')
+          .select('kooperation_id, nettobetrag, nettobetrag_steuerfrei, ksk_betrag, ist_schlussrechnung')
+          .eq('kooperation_id', koopId),
+        window.supabase
+          .from('kooperation_videos')
+          .select('kooperation_id, einkaufspreis_netto')
+          .eq('kooperation_id', koopId)
+      ]);
+      aktuelleAbrechenbarkeit = calculateKoopAbrechenbarkeit({
+        kooperationen: [koop],
+        videos: koopVideos || [],
+        rechnungen: koopRechnungen || []
+      }).get(koopId) || null;
+    } catch (e) {
+      console.warn('⚠️ Abrechenbarkeit konnte nicht bestimmt werden:', e);
+      aktuelleAbrechenbarkeit = null;
+    }
 
     // Parallele Queries: Unternehmen, Kampagne+Auftrag, Creator
     const [unternehmenResult, kampagneResult, creatorResult] = await Promise.all([
@@ -458,16 +545,32 @@ export async function setup(form, ctx) {
 
     // Videoanzahl + Beträge aus Kooperation
     if (videoInput) videoInput.value = koop?.videoanzahl || '';
-    const netto = parseFloat(koop?.einkaufspreis_netto || 0) || 0;
-    const zusatz = parseFloat(koop?.einkaufspreis_zusatzkosten || 0) || 0;
-    const ksk = koop?.ksk_selbstzahler ? (parseFloat(koop?.ksk_betrag) || 0) : 0;
-    const brutto = (koop?.einkaufspreis_gesamt != null) ? koop.einkaufspreis_gesamt : (netto + zusatz + ksk);
-    if (nettoInput) nettoInput.value = netto ? String(netto) : '';
-    if (zusatzInput) zusatzInput.value = zusatz ? String(zusatz) : '';
-    if (kskInput) kskInput.value = ksk ? String(ksk) : '';
+    const hatRechnungen = (aktuelleAbrechenbarkeit?.anzahlRechnungen || 0) > 0;
+    if (hatRechnungen) {
+      // Folgerechnung: Restbetrag vorbefuellen (inkl. evtl. offenem
+      // KSK-Aufschlag — rechnerisch verhaelt er sich wie Netto). Zusatzkosten
+      // und KSK-Feld nicht erneut vorschlagen, sie stehen typischerweise auf
+      // der ersten Rechnung; der Mitarbeiter korrigiert anhand des PDFs.
+      const rest = Math.max(aktuelleAbrechenbarkeit.rest, 0);
+      if (nettoInput) nettoInput.value = rest ? rest.toFixed(2) : '';
+      if (zusatzInput) zusatzInput.value = '';
+      if (kskInput) kskInput.value = '';
+    } else {
+      const netto = parseFloat(koop?.einkaufspreis_netto || 0) || 0;
+      const zusatz = parseFloat(koop?.einkaufspreis_zusatzkosten || 0) || 0;
+      const ksk = koop?.ksk_selbstzahler ? (parseFloat(koop?.ksk_betrag) || 0) : 0;
+      const brutto = (koop?.einkaufspreis_gesamt != null) ? koop.einkaufspreis_gesamt : (netto + zusatz + ksk);
+      if (nettoInput) nettoInput.value = netto ? String(netto) : '';
+      if (zusatzInput) zusatzInput.value = zusatz ? String(zusatz) : '';
+      if (kskInput) kskInput.value = ksk ? String(ksk) : '';
+      if (bruttoInput) bruttoInput.value = isNaN(brutto) ? '' : String(brutto);
+    }
     updateKskVisibility();
-    if (bruttoInput) bruttoInput.value = isNaN(brutto) ? '' : String(brutto);
     berechneRechnung();
+
+    // Signal fuer die PDF-Auslesung (ADR 0016): nach deren Kooperations-
+    // Uebernahme gewinnen die PDF-Werte den Prefill zurueck.
+    form.dispatchEvent(new CustomEvent('rechnung:koop-prefilled', { detail: { koopId } }));
   };
 
   // === Live-Berechnung für UST, Skonto und Brutto ===
@@ -487,6 +590,9 @@ export async function setup(form, ctx) {
       skontoBetragInput, nettoNachSkontoInput,
       ustBetragInput, bruttoInput
     });
+    // Restbetrag-Hinweis laeuft mit (im Edit-Mode ist aktuelleAbrechenbarkeit
+    // null und der Hinweis damit ein No-Op)
+    updateRestbetragHinweis(form, aktuelleAbrechenbarkeit, { nettoInput, nettoSteuerfreiInput, kskInput });
   };
 
   const debouncedBerechne = debounce(berechneRechnung, 50);

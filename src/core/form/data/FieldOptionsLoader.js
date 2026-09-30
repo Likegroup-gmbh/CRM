@@ -5,6 +5,8 @@
 
 import { KampagneUtils } from '../../../modules/kampagne/KampagneUtils.js';
 
+const formatEuro = (v) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v ?? 0);
+
 // Feldoptionen laden - grosser Dispatcher je nach Feld-Typ
 // `this` = DynamicDataLoader
 export async function loadFieldOptions(entity, field, form) {
@@ -323,8 +325,10 @@ async function loadSwitchCaseOptions(entity, field, form) {
 }
 
 // Kooperationen fuer das Rechnung-Formular laden (mit Mitarbeiter-Filterung).
-// Kooperationen mit bestehender Rechnung sind normalerweise ausgeschlossen -
-// ausser ihr Vertrag hat mehrere_rechnungen_erlaubt = true (Mehrfachrechnung).
+// Freigabe ueber den Restbetrag (ADR 0004/0015): solange die gestellten
+// Rechnungen das Soll nicht erreichen und keine Schlussrechnung existiert,
+// bleibt die Kooperation abrechenbar. Das Vertrags-Flag
+// mehrere_rechnungen_erlaubt hat keine Funktion mehr.
 export async function loadKooperationenOhneRechnung() {
   if (!window.supabase) return [];
   try {
@@ -337,7 +341,7 @@ export async function loadKooperationenOhneRechnung() {
 
     const { data: rechnungen, error: rErr } = await window.supabase
       .from('rechnung')
-      .select('kooperation_id')
+      .select('kooperation_id, nettobetrag, nettobetrag_steuerfrei, ksk_betrag, ist_schlussrechnung')
       .not('kooperation_id', 'is', null);
     if (rErr) {
       console.error('❌ Fehler beim Laden vorhandener Rechnungen:', rErr);
@@ -347,21 +351,33 @@ export async function loadKooperationenOhneRechnung() {
 
     const { data: alleKoops, error: kErr } = await window.supabase
       .from('kooperationen')
-      .select('id, name, kampagne_id, creator_id, created_at')
+      .select('id, name, kampagne_id, creator_id, created_at, einkaufspreis_netto, ksk_selbstzahler, ksk_betrag')
       .order('created_at', { ascending: false });
     if (kErr) {
       console.error('❌ Fehler beim Laden der Kooperationen:', kErr);
       return [];
     }
 
-    // Kooperationen mit Rechnung nur behalten, wenn ihr Vertrag Mehrfachrechnungen erlaubt
-    const koopsMitRechnung = (alleKoops || []).filter(k => mitRechnung.has(k.id));
-    let mehrfachErlaubt = new Set();
-    if (koopsMitRechnung.length > 0) {
-      const { getKooperationIdsMitMehrfachRechnung } = await import('../../../modules/rechnung/RechnungVertragZuordnung.js');
-      mehrfachErlaubt = await getKooperationIdsMitMehrfachRechnung(koopsMitRechnung);
+    // Video-EK schlaegt den Kooperations-EK (Konvention aus koopFakturierung).
+    // Seitenweise laden (ueber 2.500 Zeilen) — ein .in() ueber alle
+    // Kooperationen mit Rechnung wuerde das PostgREST-URL-Limit sprengen.
+    let videos = [];
+    if (mitRechnung.size > 0) {
+      try {
+        const { fetchAllRows } = await import('../../fetchAllRows.js');
+        videos = await fetchAllRows(window.supabase, 'kooperation_videos', 'kooperation_id, einkaufspreis_netto');
+      } catch (vErr) {
+        console.warn('⚠️ Kooperations-Videos konnten nicht geladen werden:', vErr);
+      }
     }
-    const koops = (alleKoops || []).filter(k => !mitRechnung.has(k.id) || mehrfachErlaubt.has(k.id));
+
+    const { calculateKoopAbrechenbarkeit } = await import('../../budget/koopFakturierung.js');
+    const abrechenbarkeit = calculateKoopAbrechenbarkeit({
+      kooperationen: alleKoops || [],
+      videos,
+      rechnungen: rechnungen || []
+    });
+    const koops = (alleKoops || []).filter(k => abrechenbarkeit.get(k.id)?.abrechenbar !== false);
 
     let kampagneMap = {};
     let kampagneUnternehmenMap = {};
@@ -437,7 +453,14 @@ export async function loadKooperationenOhneRechnung() {
 
       const subtitleParts = [];
       if (tagMap[k.id]?.length) subtitleParts.push(tagMap[k.id].join(', '));
-      if (mitRechnung.has(k.id)) subtitleParts.push('Rechnung vorhanden – Mehrfachrechnung aktiv');
+      if (mitRechnung.has(k.id)) {
+        const info = abrechenbarkeit.get(k.id);
+        if (info && info.soll > 0) {
+          subtitleParts.push(`Bereits fakturiert: ${formatEuro(info.fakturiert)} · Noch abrechenbar: ${formatEuro(Math.max(info.rest, 0))}`);
+        } else {
+          subtitleParts.push('Bereits fakturiert – Soll nicht gepflegt');
+        }
+      }
 
       return {
         value: k.id,

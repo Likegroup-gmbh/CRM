@@ -678,12 +678,6 @@ VertraegeCreate.prototype.renderModelStep5 = function() {
       </div>
       <div class="step-section">
         <div class="step-section__header">
-          <h3>Rechnungsstellung</h3>
-        </div>
-        ${this.renderMehrfachRechnungToggle()}
-      </div>
-      <div class="step-section">
-        <div class="step-section__header">
           <h3>Weitere Bestimmungen</h3>
         </div>
         <div class="form-field">

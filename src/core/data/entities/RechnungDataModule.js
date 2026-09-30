@@ -23,6 +23,7 @@ export default {
       bezahlt_am: 'date',
       status: 'string',
       geprueft: 'boolean',
+      ist_schlussrechnung: 'boolean',
       skonto: 'boolean',
       land: 'string',
       pdf_url: 'string',

@@ -19,6 +19,7 @@ export const rechnungConfig = {
     // Status & Datum
     { name: 'status', label: 'Status', type: 'select', required: true, options: ['Offen', 'Rückfrage', 'Bezahlt', 'An Qonto gesendet', 'Marc an Qonto gesendet'], section: 'status', row: 'statusrow' },
     { name: 'geprueft', label: 'Geprüft', type: 'toggle', required: false, section: 'status', row: 'statusrow' },
+    { name: 'ist_schlussrechnung', label: 'Schlussrechnung', type: 'toggle', required: false, defaultValue: false, helpText: 'Letzte Rechnung zu dieser Kooperation — ein offener Restbetrag gilt als Minderabrechnung, die Kooperation ist damit abgerechnet.', section: 'status' },
     { name: 'gestellt_am', label: 'Gestellt am', type: 'date', required: true, section: 'status', row: 'datumrow' },
     { name: 'zahlungsziel', label: 'Zahlungsziel', type: 'date', required: true, section: 'status', row: 'datumrow' },
     { name: 'bezahlt_am', label: 'Bezahlt am', type: 'date', required: false, section: 'status' },

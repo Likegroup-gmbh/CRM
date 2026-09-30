@@ -214,6 +214,8 @@ _Avoid_: Abschlagsrechnung, Anzahlung, Rate
 **Restbetrag**:
 Sollbetrag minus Summe der bereits gestellten Rechnungen. Beziffert, was noch abgerechnet werden darf,
 und ist damit die einzige Bedingung dafür, ob eine weitere Teilrechnung möglich ist.
+Die Summe zählt das Honorar inklusive des auf der Rechnung ausgewiesenen KSK-Aufschlags;
+Zusatzkosten bleiben außen vor (durchlaufende Posten).
 _Avoid_: Offener Posten, Differenz, Rest
 
 **Schlussrechnung**:

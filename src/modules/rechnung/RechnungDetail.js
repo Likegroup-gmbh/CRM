@@ -7,6 +7,8 @@ import { finalizeRechnungSubmitData } from '../../core/form/logic/events/Rechnun
 import { rechnungNotizModal } from './RechnungNotizModal.js';
 import { renderEmptyState } from '../../core/components/EmptyState.js';
 import { icon, renderPdfLinks } from '../../core/icons/IconSystem.js';
+import { RechnungPdfExtract, renderRechnungExtractCard } from './RechnungPdfExtract.js';
+import { likyCanExtractPdf } from '../../core/chat/likyCapabilities.js';
 
 // Pfade die mit "/" anfangen sind Dropbox-Pfade (neue Uploads), alle anderen
 // sind Legacy Supabase Storage-Pfade. Für Dropbox-Pfade reicht die
@@ -142,6 +144,7 @@ export class RechnungDetail {
             <div class="detail-item"><label>Unternehmen</label><span>${this.data?.unternehmen?.firmenname || '-'}</span></div>
             <div class="detail-item"><label>Auftrag</label><span>${this.data?.auftrag ? `<a href="#" class="table-link" data-table="auftragsdetails" data-id="${this.data.auftrag.auftrag_details?.[0]?.id || this.data.auftrag.id}">${this.data.auftrag.auftragsname || '-'}</a>` : '-'}</span></div>
             <div class="detail-item"><label>Status</label><span>${this.data?.status || '-'}</span></div>
+            ${this.data?.ist_schlussrechnung ? `<div class="detail-item"><label>Schlussrechnung</label><span>Ja — Kooperation abgerechnet</span></div>` : ''}
             <div class="detail-item"><label>Erstellt von</label><span>${this.data?.created_by?.name || '-'}</span></div>
             <div class="detail-item"><label>Gestellt am</label><span>${formatDate(this.data?.gestellt_am)}</span></div>
             <div class="detail-item"><label>Zahlungsziel</label><span>${formatDate(this.data?.zahlungsziel)}</span></div>
@@ -222,12 +225,17 @@ export class RechnungDetail {
     this._currentCreateType = type;
     const entity = type === 'contracting' ? 'rechnung_contracting' : 'rechnung';
     const formHtml = window.formSystem.renderFormOnly(entity);
+    // PDF-Auslesung (ADR 0016) nur fuer Creator-Rechnungen, nicht Contracting
+    const extractCard = type === 'kampagne' && likyCanExtractPdf('rechnung')
+      ? renderRechnungExtractCard()
+      : '';
 
     window.content.innerHTML = `
       <div class="form-split-container">
         <div class="form-split-left">
           <div class="form-page">
             ${renderSegmentedControl(type)}
+            ${extractCard}
             ${formHtml}
           </div>
         </div>
@@ -238,6 +246,10 @@ export class RechnungDetail {
     window.formSystem.bindFormEvents(entity, null);
 
     const form = document.getElementById(`${entity}-form`);
+    if (extractCard && form) {
+      this.pdfExtract = new RechnungPdfExtract();
+      this.pdfExtract.bind(window.content, form);
+    }
     if (form) {
       form.onsubmit = async (e) => {
         e.preventDefault();
