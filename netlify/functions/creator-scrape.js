@@ -7,6 +7,7 @@ const puppeteerExtra = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const { createClient } = require('@supabase/supabase-js');
 const { verifyAuth, authErrorBody } = require('./_shared/verify-auth');
+const { chromiumExecutablePath } = require('./screenshot-utils/chromium-path');
 
 // Stealth Plugin mit allen Evasions
 const stealth = StealthPlugin({
@@ -625,7 +626,7 @@ exports.handler = async (event, context) => {
         '--disable-gpu'
       ],
       defaultViewport: { width: 430, height: 932 },
-      executablePath: await chromium.executablePath(),
+      executablePath: await chromiumExecutablePath(),
       headless: 'new',
       ignoreDefaultArgs: ['--enable-automation']
     });
