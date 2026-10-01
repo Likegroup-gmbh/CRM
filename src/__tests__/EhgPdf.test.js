@@ -140,6 +140,7 @@ describe('EhgPdf', () => {
     expect(all).not.toContain('Falsche CRM-Straße');
 
     expect(all).toContain('§ 6 Rechte von EHG als begünstigte Dritte');
+    expect(all).toContain('§ 7 Haftung der Agentur');
     expect(all).toContain('§ 328 BGB');
     expect(all).toContain('EHG kann im eigenen Namen die vertragsgemäße Erstellung');
     expect(all).toContain('Schadensersatz-, Aufwendungsersatz-, Nachweis- und Freistellungsansprüche');

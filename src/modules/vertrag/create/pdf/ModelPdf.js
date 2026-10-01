@@ -5,6 +5,7 @@ import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
 import { renderPaginatedText, renderZusatzBestimmung } from './PdfTextFlow.js';
 import { loadLikeGroupLogoPng, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
+import { drawDrittbeguenstigtenKlausel } from './DrittbeguenstigtenKlausel.js';
 
 VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this.getContractLanguage(vertrag)) {
     try {
@@ -614,6 +615,14 @@ VertraegeCreate.prototype.generateModelPDF = async function(vertrag, lang = this
         y += 8;
         y = renderPaginatedText(doc, vertrag.weitere_bestimmungen, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
       }
+
+      y = drawDrittbeguenstigtenKlausel(doc, {
+        firmenname: kunde?.firmenname,
+        lang,
+        y,
+        maxContentY: MAX_CONTENT_Y,
+        onPageBreak
+      });
 
       // Unterschriften
       y += 20;
