@@ -37,6 +37,12 @@ export class AuftragsdetailsCreateView {
             <div class="form-field form-field--half"></div>
           </div>
 
+          <div class="form-field">
+            <label for="abrechnung_hinweis">Abrechnungshinweis (Zusatzkosten/Honorar)</label>
+            <textarea id="abrechnung_hinweis" name="abrechnung_hinweis" rows="2" placeholder="z. B. „Programmteilnahmen laufen über das Honorar, Reisekosten separat als Zusatzkosten""></textarea>
+            <small class="form-hint">Nur für die interne Übersicht — erscheint nicht im Angebot oder anderen Kunden-Dokumenten. Nur füllen bei Ausnahmen vom Standard (Zusatzkosten separat ausgewiesen). Wird beim Anlegen von Creator-Rechnungen zu diesem Auftrag eingeblendet.</small>
+          </div>
+
           <div id="kampagnenart-selection-section" class="details-section" style="display: none;">
             <h3>Art der Kampagne</h3>
             <p class="form-hint">Wählen Sie die Kampagnenarten für diesen Auftrag aus und klicken Sie auf "Aktivieren".</p>

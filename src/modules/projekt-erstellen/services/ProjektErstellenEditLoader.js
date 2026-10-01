@@ -245,6 +245,7 @@ export class ProjektErstellenEditLoader {
         ksk_enabled: false,
         ksk_type: 'fixed',
         ksk_value: 0,
+        abrechnung_hinweis: '',
         ...(contractingFees || {})
       };
     }
@@ -266,6 +267,7 @@ export class ProjektErstellenEditLoader {
       ksk_enabled: !!details.ksk_enabled,
       ksk_type: details.ksk_type || 'fixed',
       ksk_value: details.ksk_value ?? 0,
+      abrechnung_hinweis: details.abrechnung_hinweis || '',
       ...(contractingFees || {})
     };
   }

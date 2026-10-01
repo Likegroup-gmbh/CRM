@@ -2,6 +2,7 @@
 // Auftragsdetails-Detailseite ohne Tabs - direkte Anzeige der Informationen
 
 import { renderAgencyFeeCardHtml, renderKskCardHtml, calculateCreatorPaymentSummary, renderCreatorAnteilCardHtml } from '../../core/budget/EkVkAgencyFeeHelper.js';
+import { buildKoopRechnungsStatusMap } from '../../core/budget/koopFakturierung.js';
 import { calculateBudgetOverview, getBudgetCardVariant } from '../../core/budget/calculateBudgetOverview.js';
 import { summeKskSelbstzahler } from '../../core/budget/kskSelbstzahler.js';
 import { renderEmptyState, renderEmptyStateRow } from '../../core/components/EmptyState.js';
@@ -197,10 +198,11 @@ export class AuftragsdetailsDetail {
         this.videos = videos || [];
         console.log('✅ AUFTRAGSDETAILSDETAIL: Videos geladen:', this.videos.length);
 
-        // Rechnungen pro Kooperation laden (Status + Netto für Creatoranteil-Breakdown)
+        // Rechnungen pro Kooperation laden (Status + Betraege fuer Creatoranteil-Breakdown
+        // und die Status-Ableitung „Teilweise bezahlt" aus ADR 0015)
         const { data: rechnungen, error: rechnungError } = await window.supabase
           .from('rechnung')
-          .select('id, status, nettobetrag, kooperation_id, rechnungstyp')
+          .select('id, status, nettobetrag, nettobetrag_steuerfrei, ist_schlussrechnung, kooperation_id, rechnungstyp, created_at')
           .in('kooperation_id', koopIds);
 
         if (rechnungError) {
@@ -209,10 +211,11 @@ export class AuftragsdetailsDetail {
           this.rechnungStatusMap = {};
         } else {
           this.rechnungen = rechnungen || [];
-          this.rechnungStatusMap = this.rechnungen.reduce((acc, r) => {
-            if (r.kooperation_id) acc[r.kooperation_id] = r.status;
-            return acc;
-          }, {});
+          this.rechnungStatusMap = buildKoopRechnungsStatusMap({
+            kooperationen: this.kooperationen,
+            videos: this.videos,
+            rechnungen: this.rechnungen
+          });
           console.log('✅ AUFTRAGSDETAILSDETAIL: Rechnungsstatus geladen für', Object.keys(this.rechnungStatusMap).length, 'Kooperationen');
         }
       } else {
@@ -399,6 +402,13 @@ export class AuftragsdetailsDetail {
             ${!canViewInternalBudget ? renderAgencyFeeCardHtml(agencyFeeSummary, formatCurrency, { canSeePricing: false }) : ''}
           </div>
         </div>
+
+        ${canViewInternalBudget && d.abrechnung_hinweis ? `
+        <div class="notice-box notice-info">
+          <strong>Abrechnungshinweis (intern)</strong>
+          ${sanitize(d.abrechnung_hinweis)}
+        </div>
+        ` : ''}
 
         <!-- Kategorien-Übersicht Tabelle -->
         ${this.renderKategorienTable()}

@@ -3,6 +3,43 @@
 // Wird als Handler in FormSystem instanziert; FormSystem delegiert die öffentlichen Methoden.
 import { OptionsManager } from '../data/OptionsManager.js';
 
+// Programmatisch dieselbe Auswahl setzen wie ein Klick im Dropdown.
+// PDF-Auslesung und _selectOption teilen sich diesen Weg, damit die
+// DOM-Struktur des Searchable-Selects nur hier steht.
+export function applySearchableSelection(selectEl, { value, label, optionLabel, dataset } = {}) {
+  if (!selectEl || value == null) return false;
+
+  let optionElement = Array.from(selectEl.options).find(opt => opt.value === value);
+  if (!optionElement) {
+    optionElement = document.createElement('option');
+    optionElement.value = value;
+    optionElement.textContent = optionLabel ?? label ?? '';
+    selectEl.appendChild(optionElement);
+  }
+  if (dataset) {
+    Object.entries(dataset).forEach(([key, val]) => {
+      if (val != null && val !== '') optionElement.dataset[key] = val;
+    });
+  }
+
+  selectEl.value = value;
+
+  const container = selectEl.parentNode?.querySelector('.searchable-select-container');
+  const hidden = document.getElementById(`${selectEl.id}_value`)
+    || document.getElementById(`${selectEl.id}-hidden`)
+    || container?.querySelector('input[type="hidden"]');
+  if (hidden) hidden.value = value;
+
+  const input = container?.querySelector('.searchable-select-input');
+  if (input) {
+    input.value = label ?? '';
+    if (input.hasAttribute('data-was-required')) input.setCustomValidity('');
+  }
+
+  selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+  return true;
+}
+
 export class FormSearchableSelect {
   constructor(optionsManager) {
     this.optionsManager = optionsManager;
@@ -474,38 +511,24 @@ export class FormSearchableSelect {
   // Click-Handler für Dropdown-Item
   _selectOption(dropdown, option, isPhoneField, isCountryField) {
     const selectEl = dropdown.parentNode.parentNode.querySelector('select');
-
-    let optionElement = Array.from(selectEl.options).find(opt => opt.value === option.value);
-    if (!optionElement) {
-      optionElement = document.createElement('option');
-      optionElement.value = option.value;
-      optionElement.textContent = option.label;
-      if (option.isoCode) optionElement.dataset.isoCode = option.isoCode;
-      if (option.vorwahl) optionElement.dataset.vorwahl = option.vorwahl;
-      selectEl.appendChild(optionElement);
-    }
-
-    selectEl.value = option.value;
-
-    const hiddenInput = dropdown.parentNode.querySelector('input[type="hidden"]');
-    if (hiddenInput) hiddenInput.value = option.value;
-
-    const input = dropdown.parentNode.querySelector('.searchable-select-input');
-
+    let label = option.label;
     if (isPhoneField && option.isoCode) {
-      const flagEmoji = this.isoToFlagEmoji(option.isoCode);
       const vorwahl = option.vorwahl || '';
       const countryName = option.label.replace(/^\+\d+\s*/, '').trim();
-      input.value = `${flagEmoji} ${vorwahl} ${countryName}`.trim();
+      label = `${this.isoToFlagEmoji(option.isoCode)} ${vorwahl} ${countryName}`.trim();
     } else if (isCountryField && option.isoCode) {
-      input.value = `${this.isoToFlagEmoji(option.isoCode)} ${option.label}`.trim();
-    } else {
-      input.value = option.label;
+      label = `${this.isoToFlagEmoji(option.isoCode)} ${option.label}`.trim();
     }
 
-    if (input.hasAttribute('data-was-required')) input.setCustomValidity('');
-
-    selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+    applySearchableSelection(selectEl, {
+      value: option.value,
+      label,
+      optionLabel: option.label,
+      dataset: {
+        isoCode: option.isoCode,
+        vorwahl: option.vorwahl
+      }
+    });
     dropdown.classList.remove('show');
   }
 

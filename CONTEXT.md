@@ -287,7 +287,25 @@ _Avoid_: Abschlagsrechnung, Anzahlung, Rate
 **Restbetrag**:
 Sollbetrag minus Summe der bereits gestellten Rechnungen. Beziffert, was noch abgerechnet werden darf,
 und ist damit die einzige Bedingung dafür, ob eine weitere Teilrechnung möglich ist.
+Die Summe zählt nur das Honorar (Netto plus steuerfreie Anteile); der KSK-Selbstzahler-Aufschlag
+und Zusatzkosten bleiben außen vor (separates Konto bzw. durchlaufende Posten).
 _Avoid_: Offener Posten, Differenz, Rest
+
+**KSK-Selbstzahler**:
+Ausnahmefall: Der Creator weist die Künstlersozialabgabe (4,9 %) als Aufschlag auf seiner Rechnung aus
+und führt sie selbst ab — die Agentur zahlt nichts an die KSK. Der Aufschlag ist ein separates Konto:
+Er berührt weder Restbetrag noch Gesamtbudget und darf nur auf die Creator-Leistung berechnet werden
+(Agenturleistung muss separat ausgewiesen sein). Auf der Rechnung als „Creator führt selbst ab"
+gekennzeichnet, damit die Buchhaltung nicht doppelt zahlt.
+_Avoid_: KSK-pflichtig (Contracting-Seite), KSK abgeführt
+
+**Abrechnungshinweis**:
+Rein interner Freitext in den Auftragsdetails, wie Kosten abgerechnet werden, wenn sie vom Standard abweicht
+(Zusatzkosten separat ausgewiesen). Erscheint in keinem Kunden-Dokument; Detailansicht nur für interne Rollen.
+Wird beim Anlegen einer Creator-Rechnung eingeblendet.
+Beispiel Juniper: Programmteilnahmen laufen über das Honorar, Reisekosten bleiben Zusatzkosten.
+Bewusst Freitext, weil die Ausnahme pro Kostenart gilt, nicht pro Auftrag.
+_Avoid_: Zusatzkosten-Flag, Honorar-Option
 
 **Schlussrechnung**:
 Die als letzte markierte Teilrechnung einer Kooperation. Nur nötig, wenn ein Restbetrag offen bleibt:

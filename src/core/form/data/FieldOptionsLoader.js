@@ -5,6 +5,9 @@
 
 import { KampagneUtils } from '../../../modules/kampagne/KampagneUtils.js';
 import { fetchAllRows } from '../../fetchAllRows.js';
+import { calculateKoopAbrechenbarkeit } from '../../budget/koopFakturierung.js';
+import { RECHNUNG_ABRECHEN_SELECT, VIDEO_EK_SELECT } from '../../budget/koopAbrechenbarkeitLaden.js';
+import { formatEuro } from '../../format.js';
 
 // Feldoptionen laden - grosser Dispatcher je nach Feld-Typ
 // `this` = DynamicDataLoader
@@ -324,8 +327,10 @@ async function loadSwitchCaseOptions(entity, field, form) {
 }
 
 // Kooperationen fuer das Rechnung-Formular laden (mit Mitarbeiter-Filterung).
-// Kooperationen mit bestehender Rechnung sind normalerweise ausgeschlossen -
-// ausser ihr Vertrag hat mehrere_rechnungen_erlaubt = true (Mehrfachrechnung).
+// Freigabe ueber den Restbetrag (ADR 0004/0015): solange die gestellten
+// Rechnungen das Soll nicht erreichen und keine Schlussrechnung existiert,
+// bleibt die Kooperation abrechenbar. Das Vertrags-Flag
+// mehrere_rechnungen_erlaubt hat keine Funktion mehr.
 export async function loadKooperationenOhneRechnung() {
   if (!window.supabase) return [];
   try {
@@ -336,15 +341,46 @@ export async function loadKooperationenOhneRechnung() {
       return [];
     }
 
-    // View filtert serverseitig: keine Rechnung, ausser Mehrfachrechnung.
-    // fetchAllRows, damit das PostgREST-Limit die aelteren nicht abschneidet.
-    const alleKoops = await fetchAllRows(
-      window.supabase,
-      'kooperationen_fuer_rechnung',
-      'id, name, kampagne_id, creator_id, created_at, hat_rechnung'
-    );
+    // Seitenweise laden, damit das PostgREST-Limit aeltere Zeilen nicht
+    // abschneidet. Die View kooperationen_fuer_rechnung kennt den
+    // Restbetrag nicht, deshalb rechnen wir hier.
+    let rechnungen;
+    try {
+      rechnungen = await fetchAllRows(window.supabase, 'rechnung', RECHNUNG_ABRECHEN_SELECT);
+    } catch (rErr) {
+      console.error('❌ Fehler beim Laden vorhandener Rechnungen:', rErr);
+      return [];
+    }
+    const mitRechnung = new Set((rechnungen || []).map(r => r.kooperation_id).filter(Boolean));
+
+    let alleKoops;
+    try {
+      alleKoops = await fetchAllRows(
+        window.supabase,
+        'kooperationen',
+        'id, name, kampagne_id, creator_id, created_at, einkaufspreis_netto, ksk_selbstzahler, ksk_betrag'
+      );
+    } catch (kErr) {
+      console.error('❌ Fehler beim Laden der Kooperationen:', kErr);
+      return [];
+    }
     alleKoops.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-    const koops = alleKoops;
+
+    let videos = [];
+    if (mitRechnung.size > 0) {
+      try {
+        videos = await fetchAllRows(window.supabase, 'kooperation_videos', VIDEO_EK_SELECT);
+      } catch (vErr) {
+        console.warn('⚠️ Kooperations-Videos konnten nicht geladen werden:', vErr);
+      }
+    }
+
+    const abrechenbarkeit = calculateKoopAbrechenbarkeit({
+      kooperationen: alleKoops,
+      videos,
+      rechnungen
+    });
+    const koops = alleKoops.filter(k => abrechenbarkeit.get(k.id)?.abrechenbar !== false);
 
     let kampagneMap = {};
     let kampagneUnternehmenMap = {};
@@ -420,7 +456,17 @@ export async function loadKooperationenOhneRechnung() {
 
       const subtitleParts = [];
       if (tagMap[k.id]?.length) subtitleParts.push(tagMap[k.id].join(', '));
-      if (k.hat_rechnung) subtitleParts.push('Rechnung vorhanden – Mehrfachrechnung aktiv');
+      if (mitRechnung.has(k.id)) {
+        const info = abrechenbarkeit.get(k.id);
+        if (info && info.soll > 0) {
+          subtitleParts.push(`Bereits fakturiert: ${formatEuro(info.fakturiert)} · Noch abrechenbar: ${formatEuro(Math.max(info.rest, 0))}`);
+        } else {
+          subtitleParts.push('Bereits fakturiert – Soll nicht gepflegt');
+        }
+        if (info?.fakturiertKsk > 0) {
+          subtitleParts.push(`KSK (Creator führt selbst ab): ${formatEuro(info.fakturiertKsk)}`);
+        }
+      }
 
       return {
         value: k.id,
