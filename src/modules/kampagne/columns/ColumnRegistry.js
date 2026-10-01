@@ -57,7 +57,7 @@ const BUILTIN_MAP = new Map(DEFAULT_COLUMNS.map(c => [c.id, c]));
 
 // Ohne Eintrag ausgeblendet. Sichtbar nur mit `show:${id}` in hidden_columns,
 // damit eine leere Liste sie nicht wieder aufblendet.
-const DEFAULT_HIDDEN_COLUMNS = new Set(['col-idee-strategie', 'col-skript']);
+const DEFAULT_HIDDEN_COLUMNS = new Set(['col-idee-strategie', 'col-skript', 'col-tags', 'col-thema', 'col-link-skript']);
 
 export function showColumnKey(colId) {
   return `show:${colId}`;

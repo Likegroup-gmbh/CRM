@@ -5,7 +5,7 @@ import { ChatPanelShell } from '../../../core/chat/ChatPanelShell.js';
 import { bindChatLog, isNearEnd, scrollToEnd } from '../../../core/chat/chatLog.js';
 import { revealLines, cancelLineReveal } from '../../../core/animation/lineReveal.js';
 import { formatUsageCost, escapeHtml } from '../SkripteUtils.js';
-import { SEND_ICON, PLACEHOLDER_DEFAULT, PLACEHOLDER_NEU } from './skriptEditorKonstanten.js';
+import { SEND_ICON, STOP_ICON, PLACEHOLDER_DEFAULT, PLACEHOLDER_NEU } from './skriptEditorKonstanten.js';
 import {
   chatLeerHtml, genStatusBubbleHtml, messageHtml, versionsHinweisHtml
 } from './SkriptEditorChatRenderer.js';
@@ -110,7 +110,7 @@ SkriptEditorView.prototype.mountLikyChat = function() {
           <div class="skripte-editor-input-footer">
             <div class="skripte-editor-input-actions">
               <span class="skripte-editor-cost" id="ed-cost"></span>
-              <button id="ed-send" class="skripte-editor-send" title="Senden" aria-label="Senden">${SEND_ICON}</button>
+              <button id="ed-send" class="skripte-editor-send" title="Senden" aria-label="Senden"><span class="skripte-editor-send-icon skripte-editor-send-icon--send">${SEND_ICON}</span><span class="skripte-editor-send-icon skripte-editor-send-icon--stop">${STOP_ICON}</span></button>
             </div>
           </div>
         </div>
@@ -158,6 +158,7 @@ SkriptEditorView.prototype.renderChat = function({ forceScroll = false } = {}) {
   const el = document.getElementById('ed-chat-log');
   if (!el) return;
   this.updateLikyDot();
+  this.updateSendButton();
   const kopf = festlegungenHtml(this.skript);
 
   if (!this.messages.length) {
@@ -230,6 +231,7 @@ SkriptEditorView.prototype.upsertMessageRow = function(m, { animateText = false 
     btn.addEventListener('click', () => this.handleMessageAction(btn.dataset.msgAction, btn.dataset.msgId));
   });
   this.updateLikyDot();
+  this.updateSendButton();
   pin();
 
   if (animateText) {
@@ -285,4 +287,33 @@ SkriptEditorView.prototype.setChatInputAktiv = function(aktiv) {
     input.placeholder = aktiv ? PLACEHOLDER_DEFAULT : PLACEHOLDER_NEU;
   }
   if (send) send.disabled = !aktiv;
+};
+
+/** Laeuft gerade ein Auftrag (Chat/Fragen/Visuell-Message oder Generierung)? */
+SkriptEditorView.prototype.likyLaeuft = function() {
+  return Boolean(this.genStatus?.laeuft)
+    || this.messages.some((m) => m.rolle === 'assistant'
+      && (m.status === 'pending' || m.status === 'running'));
+};
+
+/** Send-Button: idle = Pfeil, busy = Stopp-Icon (klickbar, Klick bricht ab). */
+SkriptEditorView.prototype.updateSendButton = function() {
+  const send = document.getElementById('ed-send');
+  if (!send || send.disabled) return;
+  const busy = this.likyLaeuft();
+  send.classList.toggle('is-stop', busy);
+  const title = busy ? 'Antwort stoppen' : 'Senden';
+  send.title = title;
+  send.setAttribute('aria-label', title);
+};
+
+/** Klick auf den Send-Button im Lauf: laufenden Auftrag abbrechen. */
+SkriptEditorView.prototype.stopLikyLauf = async function() {
+  if (this.genStatus?.laeuft) {
+    await this.brichGenerationAb();
+    return;
+  }
+  const offen = [...this.messages].reverse().find((m) => m.rolle === 'assistant'
+    && (m.status === 'pending' || m.status === 'running'));
+  if (offen) await this.handleMessageAction('cancel', offen.id);
 };

@@ -154,9 +154,26 @@ describe('validateIdeen', () => {
       personas: [],
       ausschluss: ['Alte Idee']
     });
-    expect(stable).toContain('Creative Angle');
+    expect(stable).toContain('neue Situation');
+    expect(stable).toContain('nicht die Geschichte');
     expect(task).toContain('Alte Idee');
     expect(task).toContain('keine Produkte');
+  });
+
+  it('haelt die Faktengrenze hart und stellt Personas vor das Briefing', () => {
+    const { stable, task } = buildPrompt({
+      briefing: { bereich: 'influencer_marketing', donts: 'Keine Heilversprechen' },
+      produkte: [{ name: 'Protein' }],
+      personas: [{ name: 'Mara', audience_situations: [] }],
+      ausschluss: []
+    });
+    expect(stable).toContain('Keine erfundenen Produktfeatures');
+    expect(stable).toContain('Donts im Briefing sind Verbote');
+    expect(stable).toContain('Audience Situations');
+    expect(stable).toContain('nicht umformulieren');
+    expect(stable).toContain('Anderer Drehort');
+    expect(task.indexOf('Personas:')).toBeLessThan(task.indexOf('Briefing'));
+    expect(task).toContain('Grenze und Kontext');
   });
 
   it('nimmt ideas/title statt ideen/titel', () => {

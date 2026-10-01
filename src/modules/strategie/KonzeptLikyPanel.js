@@ -1,13 +1,16 @@
 // KonzeptLikyPanel.js
-// Header-Chat auf dem Konzept. Kein freier LLM: die untere Box bleibt zu.
-// "Ideen vorschlagen" stellt die Anzahl als Inline-Frage und startet danach
-// den bestehenden Job mit input.anzahl.
+// Header-Chat auf dem Konzept (ADR 0036). "Ideen vorschlagen" stellt die
+// Anzahl als Inline-Frage und startet den bestehenden Job mit input.anzahl.
+// Danach ist der Composer frei: Feedback laeuft ueber konzept_chat_messages
+// an konzept-chat-background und wirkt nur auf Videoidee-Vorschlaege.
 
 import { ChatPanelShell } from '../../core/chat/ChatPanelShell.js';
 import { bindChatLog } from '../../core/chat/chatLog.js';
 import { mountInlineQuestion } from '../../core/chat/inlineQuestion.js';
 import { pushStep, renderThinking } from '../../core/chat/thinking.js';
+import { renderLikyEingabe, renderLikySend, setLikySendBusy } from '../../core/chat/likyComposer.js';
 import { VideoideeVorschlagService } from './VideoideeVorschlagService.js';
+import { KonzeptChatService } from './KonzeptChatService.js';
 
 // Gleicher Clamp wie normalisiereAnzahl in strategie-idee.js.
 const ANZAHL_MIN = 1;
@@ -40,6 +43,9 @@ export class KonzeptLikyPanel {
     this._steps = [];
     this._thinkingEl = null;
     this._onProgress = null;
+    this._onChatProgress = null;
+    this._verlaufGeladen = false;
+    this._pendingAktion = null;
   }
 
   get sichtbar() {
@@ -69,13 +75,22 @@ export class KonzeptLikyPanel {
         <div class="chat-log konzept-liky__log" id="konzept-liky-log"></div>
         <div class="konzept-liky__composer">
           <div class="konzept-liky__input">
-            <textarea id="konzept-liky-input" rows="2" disabled placeholder="Antwort kommt in die Karte."></textarea>
+            ${renderLikyEingabe({
+              id: 'konzept-liky-input',
+              placeholder: 'Feedback zu den Vorschlägen…'
+            })}
+            ${renderLikySend({
+              id: 'konzept-liky-send',
+              title: 'An Liky schicken'
+            })}
           </div>
         </div>`,
       onOpen: () => this._pin(true)
     });
 
     this._log = bindChatLog(this._feed());
+    this._bindComposer();
+    void this._ladeVerlauf();
     const { offen, size } = this._shell.getStoredState();
     if (offen) this._shell.open({ size: size || undefined, persist: false });
   }
@@ -84,6 +99,7 @@ export class KonzeptLikyPanel {
     this._question?.destroy();
     this._question = null;
     this._unbindJob();
+    this._unbindChatProgress();
     this._log?.destroy();
     this._log = null;
     this._shell?.destroy();
@@ -93,6 +109,8 @@ export class KonzeptLikyPanel {
     this._laeuft = false;
     this._steps = [];
     this._thinkingEl = null;
+    this._verlaufGeladen = false;
+    this._pendingAktion = null;
   }
 
   fokussieren() {
@@ -109,6 +127,7 @@ export class KonzeptLikyPanel {
     if (!feed) return;
 
     this._hooks = hooks;
+    this._pendingAktion = hooks.pendingAktion || null;
     this._frageOffen = true;
 
     const turn = document.createElement('div');
@@ -130,7 +149,85 @@ export class KonzeptLikyPanel {
       onAnswer: (answer) => { void this._starte(answer); },
       setComposerEnabled: () => this._lockComposer()
     });
+    this._lockComposer();
     this._pin(true);
+  }
+
+  async _ladeVerlauf() {
+    if (this._verlaufGeladen) return;
+    this._verlaufGeladen = true;
+    const rows = await KonzeptChatService.ladeVerlauf(this.detail.strategieId);
+    if (!this._shell) return;
+    for (const row of rows) {
+      if (row.rolle === 'user') this._pushUser(row.inhalt || '');
+      else if (row.status === 'error') this._pushError(row.error_message || 'Antwort fehlgeschlagen.');
+      else this._pushLiky(row.inhalt || '');
+    }
+    this._pin(true);
+  }
+
+  _bindComposer() {
+    const input = document.getElementById('konzept-liky-input');
+    const send = document.getElementById('konzept-liky-send');
+    if (!input || !send) return;
+    send.addEventListener('click', () => { void this._sende(); });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        void this._sende();
+      }
+    });
+  }
+
+  async _sende() {
+    if (this.blockiert()) return;
+    const input = document.getElementById('konzept-liky-input');
+    const text = String(input?.value || '').trim();
+    if (!text) return;
+    input.value = '';
+
+    this._pushUser(text);
+    this._laeuft = true;
+    this._steps = [];
+    this._thinkingEl = null;
+    this._setComposerBusy(true);
+
+    try {
+      const row = await KonzeptChatService.sendeNachricht({
+        strategieId: this.detail.strategieId,
+        inhalt: text
+      });
+      this._doneThinking();
+      if (row.braucht_anzahl) {
+        this._pushLiky(row.inhalt || 'Erledigt.');
+        await this._neuLaden();
+        // neu ohne Zahl: die Karte fragt nach, der Satz bleibt gemerkt.
+        this._laeuft = false;
+        this._setComposerBusy(false);
+        this.fragAnzahl({ pendingAktion: { text } });
+        return;
+      }
+      this._pushLiky(row.inhalt || 'Erledigt.');
+      await this._neuLaden();
+    } catch (error) {
+      console.error('Fehler im Konzept-Chat:', error);
+      this._doneThinking();
+      this._pushError(error.message || 'Antwort fehlgeschlagen.');
+      window.toastSystem?.show(error.message || 'Antwort fehlgeschlagen.', 'error');
+    } finally {
+      this._laeuft = false;
+      this._setComposerBusy(false);
+    }
+  }
+
+  async _neuLaden() {
+    try {
+      this.detail.items = await this.detail.reloadItems();
+      this.detail.rerenderItemsTable();
+      this.detail.vorschlagPanel?.render?.();
+    } catch (error) {
+      console.error('Fehler beim Neuladen der Videoideen:', error);
+    }
   }
 
   async _starte(answer) {
@@ -141,6 +238,34 @@ export class KonzeptLikyPanel {
     this._laeuft = true;
     this._steps = [];
     this._thinkingEl = null;
+    this._setComposerBusy(true);
+
+    // Aus dem Chat: die Zahl geht als eigene Nachricht an die Function,
+    // die den offenen neu/ersetzen-Plan damit ausfuehrt.
+    if (this._pendingAktion) {
+      const pending = this._pendingAktion;
+      this._pendingAktion = null;
+      this._bindChatProgress();
+      try {
+        const row = await KonzeptChatService.sendeNachricht({
+          strategieId: this.detail.strategieId,
+          inhalt: `${pending.text} – ${anzahl} neue`
+        });
+        this._doneThinking();
+        this._pushLiky(row.inhalt || 'Erledigt.');
+        await this._neuLaden();
+      } catch (error) {
+        console.error('Fehler im Konzept-Chat:', error);
+        this._doneThinking();
+        this._pushError(error.message || 'Antwort fehlgeschlagen.');
+        window.toastSystem?.show(error.message || 'Antwort fehlgeschlagen.', 'error');
+      } finally {
+        this._laeuft = false;
+        this._setComposerBusy(false);
+      }
+      return;
+    }
+
     this._bindJob();
     this._hooks?.onStart?.();
 
@@ -163,6 +288,7 @@ export class KonzeptLikyPanel {
     } finally {
       this._laeuft = false;
       this._unbindJob();
+      this._setComposerBusy(false);
       this._hooks?.onSettled?.();
       this._hooks = null;
     }
@@ -174,7 +300,16 @@ export class KonzeptLikyPanel {
 
   _lockComposer() {
     const input = document.getElementById('konzept-liky-input');
+    const send = document.getElementById('konzept-liky-send');
     if (input) input.disabled = true;
+    if (send) send.disabled = true;
+  }
+
+  _setComposerBusy(busy) {
+    const input = document.getElementById('konzept-liky-input');
+    const send = document.getElementById('konzept-liky-send');
+    if (input) input.disabled = busy;
+    if (send) setLikySendBusy(send, busy);
   }
 
   _pin(force = false) {
@@ -232,6 +367,23 @@ export class KonzeptLikyPanel {
       document.removeEventListener('videoideeVorschlagProgress', this._onProgress);
     }
     this._onProgress = null;
+  }
+
+  _bindChatProgress() {
+    this._unbindChatProgress();
+    this._onChatProgress = (e) => {
+      const steps = e.detail?.steps;
+      if (Array.isArray(steps) && steps.length) this._steps = steps;
+      this._renderThinking(false);
+    };
+    document.addEventListener('konzeptChatProgress', this._onChatProgress);
+  }
+
+  _unbindChatProgress() {
+    if (this._onChatProgress) {
+      document.removeEventListener('konzeptChatProgress', this._onChatProgress);
+    }
+    this._onChatProgress = null;
   }
 
   _renderThinking(done) {

@@ -277,7 +277,7 @@ exports.handler = async (event) => {
         userId: user.id,
         feature: 'casting_vorschlag'
       });
-      schreibeStep('generieren', `Claude begründet ${neuPrimary.length} Vorschläge`);
+      schreibeStep('generieren', `Liky begründet ${neuPrimary.length} Vorschläge`);
       const { stable, task } = buildPrompt(bedarf, { shortlist: neuPrimary });
 
       const result = await callClaude({

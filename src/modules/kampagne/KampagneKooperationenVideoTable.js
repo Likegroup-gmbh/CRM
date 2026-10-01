@@ -290,6 +290,7 @@ export class KampagneKooperationenVideoTable {
 
   // window-Listener, die der Produktions-Mount braucht. init() läuft dort nicht.
   attachGlobalHandlers(detail) {
+    this._detail = detail || null;
     if (!this._uploadDoneHandler) {
       this._uploadDoneHandler = () => {
         this._reloadAfterStrategieLink();

@@ -107,7 +107,7 @@ exports.handler = async (event) => {
     });
 
     const input = job.input || {};
-    schreibeStep('generieren', 'Claude entwirft Audience Situations');
+    schreibeStep('generieren', 'Liky entwirft Audience Situations');
     const { stable, task } = buildPrompt({
       persona: input.persona || {},
       produkt: input.produkt || {}

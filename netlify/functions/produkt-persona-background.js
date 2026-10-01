@@ -136,7 +136,7 @@ exports.handler = async (event) => {
     const ausgeschlossen = new Set(input.ausschluss_persona_ids || []);
     const matchPool = pool.filter(p => !ausgeschlossen.has(p.id));
 
-    schreibeStep('generieren', `Claude entwirft (Pool: ${matchPool.length} aus ${quelle})`);
+    schreibeStep('generieren', `Liky entwirft (Pool: ${matchPool.length} aus ${quelle})`);
     const unisexNamen = modusBrauchtUnisexName(input.modus);
     const verworfenerName = input.ersetzteKarte?.name || null;
     const erlaubteNamen = gefilterteUnisexNamen({

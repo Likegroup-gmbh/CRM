@@ -31,7 +31,7 @@ function konzeptTool(anzahl = ANZAHL) {
       properties: {
         ideen: {
           type: 'array',
-          description: `Genau ${n} distinkte Videoideen, nicht Varianten derselben Idee.`,
+          description: `Genau ${n} distinkte Videoideen: verschiedene Situationen, nicht dieselbe Szene anders formuliert.`,
           items: {
             type: 'object',
             properties: {
@@ -142,7 +142,7 @@ async function loadIdeeInput(supabase, strategieId) {
   return { strategie, briefing, produkte, personas, ausschluss, vorhandeneAnzahl: (items || []).length };
 }
 
-function buildPrompt({ briefing, produkte, personas, ausschluss, anzahl } = {}) {
+function buildPrompt({ briefing, produkte, personas, ausschluss, anzahl, hinweis } = {}) {
   const n = normalisiereAnzahl({ anzahl });
   const briefingText = fmtCampaignBriefing(briefing) || '(Briefing ohne auswertbare Felder)';
   const produktText = (produkte || []).map(fmtProdukt).filter(Boolean).join('\n') || '(keine Produkte am Briefing)';
@@ -152,31 +152,40 @@ function buildPrompt({ briefing, produkte, personas, ausschluss, anzahl } = {}) 
     : '(noch keine Ideen im Konzept)';
 
   const stable = `Du schreibst Videoideen fuer ein Kampagnen-Konzept einer Creator-Agentur.
-Jede Idee ist ein eigener Creative Angle auf das Produkt: distinkter Blickwinkel, nicht eine Umformulierung.
+Eine Idee ist eine neue Situation, kein Nacherzaehlen des Briefings. Das Briefing ist die Grenze, nicht die Geschichte.
 
-Regeln:
-- Deutsch, Du-Form in Hook und Ablauf nur wenn es zur Marke passt, sonst neutral.
+Grenze (hart):
 - Keine erfundenen Produktfeatures, Preise, Claims. Nur was im Briefing oder Produkt steht.
 - Donts im Briefing sind Verbote. Eine Idee, die ein Dont bricht, wird nicht abgegeben.
-- Dos nur, wo der Fakt im Briefing oder Produkt steht.
+- Pflichtinhalte, Hook-Vorgaben, CTA und Creator-Vorgaben muessen in der Idee gehen. Sie sind die Grenze, nicht der Ablauf.
+- Dos sind Soll, kein Lock.
+
+Geschichte:
+- Starte in einem konkreten Moment aus dem Leben der Persona. Hat sie Audience Situations, nimm eine davon.
+- Das Produkt kommt in diesen Moment, es ist nicht der Aufmacher.
+- Aufgabe, Schwerpunkt, Kundenideen, Umsetzungstext und Hook-Wortlaut aus dem Briefing nicht umformulieren und nicht als Ablauf abschreiben.
+
+Form:
+- Deutsch, Du-Form in Hook und Ablauf nur wenn es zur Marke passt, sonst neutral.
 - Titel = merkbare Kurzform des Hooks, eine Zeile, keine Anfuehrungszeichen.
 - Pain Point, Hook, Kernbotschaft, grober Ablauf: konkret, keine Agenturlyrik.
 - Ablauf: 2–4 Schritte, was passiert, keine Kameraanweisung.
 - Genau ${n} Ideen, quer ueber die Produkte (nicht ${n} pro Produkt). Ohne Produkt nur aus dem Briefing.
+- Die Ideen unterscheiden sich in Situation und Einstieg. Anderer Drehort oder andere Formulierung derselben Szene reicht nicht.
 - Keine Idee, deren Titel einer ausgeschlossenen Erstzeile entspricht (Gross/Klein egal).`;
 
-  const task = `Briefing:
-${briefingText}
+  const task = `Personas:
+${personaText}
 
 Produkte:
 ${produktText}
 
-Personas:
-${personaText}
+Briefing (Grenze und Kontext, nicht die Geschichte):
+${briefingText}
 
 Bereits vorhandene Ideen (nicht wiederholen):
 ${ausschlussText}
-
+${hinweis ? `\nHinweis aus dem Team (beruecksichtigen):\n${cap(hinweis, 600)}\n` : ''}
 Gib ${n} neue Videoideen ueber das Tool ab.`;
 
   return { stable, task };

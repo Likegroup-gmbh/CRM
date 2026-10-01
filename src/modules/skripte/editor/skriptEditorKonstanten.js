@@ -53,6 +53,7 @@ export const FORMAT_AKTIONEN = {
 };
 
 export const SEND_ICON = icon('send');
+export const STOP_ICON = icon('stop');
 
 export const SEKTION_LABELS = {
   hook: 'HOOK', hauptteil: 'HAUPTTEIL', cta: 'CTA', gesamt: 'GESAMT', titel: 'TITEL',

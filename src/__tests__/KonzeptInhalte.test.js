@@ -48,6 +48,24 @@ describe('zuordnenKonzeptInhalte', () => {
     expect(videos['koop-1'][0].strategie_item).toBeUndefined();
   });
 
+  it('leitet skript_freigegeben bei virtueller Zuordnung aus dem Skript-Status ab', () => {
+    const videos = { 'koop-1': [video('v1', 1), video('v2', 2)] };
+    const ideen = [
+      idee({ id: 'i1', sortierung: 1, creator_id: 'c1' }),
+      idee({ id: 'i2', sortierung: 2, creator_id: 'c1' })
+    ];
+    const skripte = [
+      { id: 'sk1', titel: 'Frei', status: 'freigegeben', strategie_item_id: 'i1', created_at: '2026-01-01T00:00:00Z' },
+      { id: 'sk2', titel: 'Entwurf', status: 'entwurf', strategie_item_id: 'i2', created_at: '2026-01-01T00:00:00Z' }
+    ];
+
+    const result = zuordnenKonzeptInhalte([KOOP], videos, ideen, skripte);
+
+    expect(result['koop-1'][0].skript_freigegeben).toBe(true);
+    expect(result['koop-1'][0]._skriptAusKonzept).toBe(true);
+    expect(result['koop-1'][1].skript_freigegeben).toBe(false);
+  });
+
   it('lässt eine gespeicherte Idee gewinnen und vergibt sie nicht nochmal', () => {
     const videos = {
       'koop-1': [
@@ -219,6 +237,20 @@ describe('Idee- und Skript-Zelle', () => {
 });
 
 describe('Produkt-Zelle', () => {
+  it('reicht das Produkt der zugeordneten Idee bis in die Zelle durch', () => {
+    const videos = { 'koop-1': [video('v1', 1)] };
+    const ideen = [
+      idee({ id: 'i1', sortierung: 1, creator_id: 'c1', produkt: { id: 'p1', name: 'Serum' } })
+    ];
+
+    const result = zuordnenKonzeptInhalte([KOOP], videos, ideen, []);
+
+    expect(result['koop-1'][0].strategie_item.produkt).toEqual({ id: 'p1', name: 'Serum' });
+    const html = renderProduktInner(null, result['koop-1'][0]);
+    expect(html).toContain('Serum');
+    expect(html).toContain('href="/produkt/p1"');
+  });
+
   it('verlinkt das Produkt der Videoidee', () => {
     const html = renderProduktInner(null, {
       id: 'v1',

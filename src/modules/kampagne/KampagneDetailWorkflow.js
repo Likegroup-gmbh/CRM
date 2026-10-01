@@ -32,6 +32,7 @@ import {
 } from './KampagneDetailKatalog.js';
 import { syncWorkflowCreateChrome } from './KampagneWorkflowCreate.js';
 import { withProduktionHerkunft } from '../../core/navHerkunft.js';
+import { skriptFreigegebenFuerStatus, syncSkriptFreigabeLocal } from './skriptFreigabeSync.js';
 
 export const WORKFLOW_TABS = [
   { id: 'briefing', label: 'Briefing' },
@@ -386,7 +387,7 @@ export function refreshWorkflowAfterRender(detail) {
 
 // Item im gecachten Pane-Datensatz patchen und das Pane mit dem vorhandenen
 // Renderer neu schreiben — kein Refetch, Daten liegen schon im Cache.
-async function patchWorkflowItem(detail, cacheKey, itemId, updates) {
+export async function patchWorkflowItem(detail, cacheKey, itemId, updates) {
   const list = detail._workflowData?.[cacheKey];
   const item = list?.find(i => i.id === itemId);
   if (item) Object.assign(item, updates);
@@ -410,10 +411,11 @@ export async function handleWorkflowTableSelect(detail, { field, itemId, value }
     if (field === 'skript_status') {
       if (detail.isKunde) return;
       await skripteService.updateSkript(itemId, { status: value });
-      if (value === 'freigegeben') {
-        await skripteService.markiereVideosSkriptFreigegeben(itemId);
-      }
-      await patchWorkflowItem(detail, 'skripte', itemId, { status: value });
+      // Status und Checkbox meinen dieselbe Freigabe: jeder Status ungleich
+      // 'freigegeben' nimmt den Haken an allen verknüpften Videos raus.
+      const freigegeben = skriptFreigegebenFuerStatus(value);
+      await skripteService.setVideosSkriptFreigegeben(itemId, freigegeben);
+      syncSkriptFreigabeLocal(detail, itemId, { freigegeben, status: value }, patchWorkflowItem);
       window.toastSystem?.show('Skript-Status aktualisiert', 'success');
     }
   } catch (error) {

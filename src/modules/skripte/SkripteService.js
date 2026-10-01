@@ -367,9 +367,14 @@ export class SkripteService {
 
   /** Intern: Checkbox „Skript freigegeben“ an allen Videos dieses Skripts. */
   async markiereVideosSkriptFreigegeben(skriptId) {
+    return this.setVideosSkriptFreigegeben(skriptId, true);
+  }
+
+  /** Checkbox an allen Videos dieses Skripts setzen oder zurücknehmen. */
+  async setVideosSkriptFreigegeben(skriptId, freigegeben) {
     const { error } = await this.db
       .from('kooperation_videos')
-      .update({ skript_freigegeben: true })
+      .update({ skript_freigegeben: Boolean(freigegeben) })
       .eq('skript_id', skriptId);
     if (error) throw new Error(error.message);
   }

@@ -18,8 +18,10 @@ import {
   DEFAULT_WORKFLOW_TAB,
   unmountVertraegePane,
   startWorkflowPrefetch,
-  cancelWorkflowPrefetch
+  cancelWorkflowPrefetch,
+  patchWorkflowItem
 } from './KampagneDetailWorkflow.js';
+import { syncSkriptFreigabeLocal, videoGehoertZuSkript } from './skriptFreigabeSync.js';
 import { nutzungsrechteModal } from './NutzungsrechteModal.js';
 import { unmountCastingWorksheet } from './KampagneDetailCasting.js';
 import { unmountKonzeptWorksheet } from './KampagneDetailKonzept.js';
@@ -116,6 +118,7 @@ export class KampagneDetail {
 
     this._isMounted = true;
     cancelWorkflowPrefetch(this);
+    this._teardownSkripteRealtime();
     this._destroyDrawers();
     unmountCastingWorksheet(this);
     unmountKonzeptWorksheet(this);
@@ -407,6 +410,7 @@ export class KampagneDetail {
       this.kooperationenVideoTable.bindEvents();
       this.kooperationenVideoTable.initFloatingScrollbar();
       this.kooperationenVideoTable.initRealtimeSubscription();
+      this._initSkripteRealtime();
       this.kooperationenVideoTable.loadColumnWidths();
 
       if (this._visibilityHandler) {
@@ -472,6 +476,69 @@ export class KampagneDetail {
       this._unmountKanban();
       void this._remountVideoTable();
     }
+  }
+
+  /**
+   * Realtime auf skripte: Kundenfreigabe (RPC) oder ein Status-Wechsel in
+   * einem anderen Tab/Fenster setzt Status-Select im Skripte-Pane und die
+   * Checkboxen in der Produktionstabelle live nach. Eigene Writes sind schon
+   * lokal synchronisiert und werden ueber den Diff-Check uebersprungen.
+   */
+  _initSkripteRealtime() {
+    if (this._skripteChannel || !window.supabase?.channel || !this.kampagneId) return;
+    this._skripteChannel = window.supabase
+      .channel(`kampagne-skripte-${this.kampagneId}`, {
+        config: { broadcast: { self: false } }
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'skripte',
+        filter: `kampagne_id=eq.${this.kampagneId}`
+      }, (payload) => this._handleSkriptRealtimeUpdate(payload))
+      .subscribe((status, err) => {
+        if (status === 'CHANNEL_ERROR') {
+          console.error('REALTIME: Skripte-Channel Error:', err);
+          this._teardownSkripteRealtime();
+          setTimeout(() => {
+            if (this._isMounted) this._initSkripteRealtime();
+          }, 5000);
+        }
+      });
+  }
+
+  _teardownSkripteRealtime() {
+    if (this._skripteChannel) {
+      window.supabase?.removeChannel(this._skripteChannel);
+      this._skripteChannel = null;
+    }
+  }
+
+  _handleSkriptRealtimeUpdate(payload) {
+    const skript = payload?.new;
+    if (!skript?.id || skript.status === undefined) return;
+    const freigegeben = skript.status === 'freigegeben';
+
+    // Nur patchen, wenn sich lokal etwas unterscheidet — eigene Writes sind
+    // bereits synchronisiert und wuerden sonst unnoetig Store-Events feuern.
+    let dirty = false;
+    const cached = this._workflowData?.skripte?.find((s) => s.id === skript.id);
+    if (cached && cached.status !== skript.status) dirty = true;
+    if (!dirty && this.store?.videos) {
+      for (const list of Object.values(this.store.videos)) {
+        for (const video of list) {
+          if (!videoGehoertZuSkript(video, skript.id)) continue;
+          if ((video.skript_freigegeben || false) !== freigegeben || video.skript?.status !== skript.status) {
+            dirty = true;
+            break;
+          }
+        }
+        if (dirty) break;
+      }
+    }
+    if (!dirty) return;
+
+    syncSkriptFreigabeLocal(this, skript.id, { freigegeben, status: skript.status }, patchWorkflowItem);
   }
 
   _unmountVideoTable() {
@@ -548,6 +615,7 @@ export class KampagneDetail {
     this._isMounted = false;
     this._initPromise = null;
     cancelWorkflowPrefetch(this);
+    this._teardownSkripteRealtime();
 
     teardownEvents();
     this._destroyDrawers();

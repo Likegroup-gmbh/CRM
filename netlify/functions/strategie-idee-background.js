@@ -82,9 +82,10 @@ exports.handler = async (event) => {
   }
 
   const anzahl = normalisiereAnzahl(job.input);
+  const hinweis = typeof job.input?.hinweis === 'string' ? job.input.hinweis.trim() : '';
   const labels = {
     ...THINKING_LABELS,
-    generieren: `Claude entwirft ${anzahl} Videoideen`
+    generieren: `Liky entwirft ${anzahl} Videoideen`
   };
 
   let queue = Promise.resolve();
@@ -117,7 +118,7 @@ exports.handler = async (event) => {
       feature: 'strategie_idee'
     });
 
-    const { stable, task } = buildPrompt({ ...input, anzahl });
+    const { stable, task } = buildPrompt({ ...input, anzahl, hinweis });
     const tool = konzeptTool(anzahl);
     const rufeClaude = () => callClaude({
       model: MODELS.konzept,
@@ -128,7 +129,7 @@ exports.handler = async (event) => {
       toolForced: true
     });
 
-    schreibeStep('generieren', `Claude entwirft ${anzahl} Videoideen`);
+    schreibeStep('generieren', `Liky entwirft ${anzahl} Videoideen`);
     letzterResult = await rufeClaude();
     schreibeStep('pruefen', 'Ideen werden validiert');
     let geprueft = letzterResult.json

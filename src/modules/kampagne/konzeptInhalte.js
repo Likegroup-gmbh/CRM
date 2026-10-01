@@ -26,7 +26,8 @@ function displayIdee(idee) {
     screenshot_url: idee.screenshot_url || null,
     beschreibung: idee.beschreibung || null,
     strategie_id: idee.strategie_id || null,
-    video_link: idee.video_link || null
+    video_link: idee.video_link || null,
+    produkt: idee.produkt ? { id: idee.produkt.id, name: idee.produkt.name } : null
   };
 }
 
@@ -100,6 +101,9 @@ export function zuordnenKonzeptInhalte(kooperationen, videosByKoopId, ideen, skr
         if (skript) {
           next.skript = { id: skript.id, titel: skript.titel, status: skript.status };
           next._skriptAusKonzept = true;
+          // Virtuell verknüpft: die Freigabe-Checkbox spiegelt den
+          // Skript-Status, die DB-Spalte des Videos bleibt unbeteiligt.
+          next.skript_freigegeben = skript.status === 'freigegeben';
         }
       }
 
@@ -134,7 +138,7 @@ export async function loadKonzeptInhalte(client, { kampagneId, produktionId = nu
 
   const { data: items, error: itemsError } = await client
     .from('strategie_items')
-    .select('id, beschreibung, screenshot_url, video_link, strategie_id, sortierung, video_umgesetzt, ist_vorschlag, creator_id, casting_eintrag:creator_auswahl_item_id(creator_id)')
+    .select('id, beschreibung, screenshot_url, video_link, strategie_id, sortierung, video_umgesetzt, ist_vorschlag, creator_id, produkt:produkt_id(id, name), casting_eintrag:creator_auswahl_item_id(creator_id)')
     .in('strategie_id', liste.map(s => s.id))
     .eq('video_umgesetzt', true)
     .order('sortierung', { ascending: true });

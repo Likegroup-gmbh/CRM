@@ -4,7 +4,7 @@
 // Was Liky darf, steht in likyCapabilities (persona: extract url+pdf, chat true).
 
 import { renderThinking, pushStep } from '../../core/chat/thinking.js';
-import { isLikyPdfName, likyPdfTagHtml } from '../../core/chat/likyComposer.js';
+import { isLikyPdfName, likyPdfTagHtml, setLikySendBusy } from '../../core/chat/likyComposer.js';
 import { ExtractReviewLayer } from '../../core/form/ai/ExtractReviewLayer.js';
 import { ExtractCostBadge } from '../../core/form/ai/ExtractCostBadge.js';
 import { toAbsoluteUrl, requestExtractJob } from '../../core/form/ai/SiteExtractHandler.js';
@@ -52,6 +52,7 @@ export class PersonaLikyPanel {
     this.received = [];
     this.pendingFile = null;
     this._abort = null;
+    this._laufAbort = null;
     this._chatLog = null;
   }
 
@@ -149,7 +150,11 @@ export class PersonaLikyPanel {
   }
 
   async onSend() {
-    if (this.running) return;
+    // Im Lauf ist der Button Stopp: Klick bricht ab, keine zweite Nachricht
+    if (this.running) {
+      this.abortLauf();
+      return;
+    }
     const input = document.getElementById('persona-liky-input');
 
     if (this.pendingFile) {
@@ -225,6 +230,7 @@ export class PersonaLikyPanel {
       const result = await requestExtractJob({
         entity: ENTITY,
         url,
+        signal: this._laufAbort?.signal,
         onStep: ({ step, label, steps }) => {
           if (Array.isArray(steps) && steps.length) this.setSteps(steps);
           else this.addStep(step, label);
@@ -235,6 +241,10 @@ export class PersonaLikyPanel {
       costBadge.show(result);
       this.finishExtract({ ok: true, applied, situations, felder: Object.keys(result.fields || {}).length });
     } catch (error) {
+      if (error?.name === 'AbortError') {
+        this.finishAbort();
+        return;
+      }
       console.error('Persona-Extract:', error);
       this.finishExtract({ ok: false, error: error.message });
     } finally {
@@ -260,6 +270,10 @@ export class PersonaLikyPanel {
       costBadge.show(result);
       this.finishExtract({ ok: true, applied, situations, felder: Object.keys(result.fields || {}).length });
     } catch (error) {
+      if (error?.name === 'AbortError') {
+        this.finishAbort();
+        return;
+      }
       console.error('Persona-PDF-Extract:', error);
       this.finishExtract({ ok: false, error: error.message });
     } finally {
@@ -301,6 +315,14 @@ export class PersonaLikyPanel {
     this.closeTurnWith(lines.join(' '));
   }
 
+  /** Abbruch: Thinking schliessen, knapper Hinweis statt Ergebnis. */
+  finishAbort() {
+    if (this.slot && this.received.length) {
+      renderThinking(this.slot, this.received, { done: true });
+    }
+    this.closeTurnWith('Abgebrochen.');
+  }
+
   // ---------------------------------------------------------------
   // Chat
   // ---------------------------------------------------------------
@@ -327,6 +349,10 @@ export class PersonaLikyPanel {
       }
       this.closeTurnWith(situations ? `${reply} Audience Situations liegen im Dokument.` : reply);
     } catch (error) {
+      if (error?.name === 'AbortError') {
+        this.finishAbort();
+        return;
+      }
       console.error('Persona-Chat:', error);
       this.addError(error.message);
     } finally {
@@ -367,9 +393,13 @@ export class PersonaLikyPanel {
 
   async pollChatJob(jobId) {
     const deadline = Date.now() + POLL_TIMEOUT_MS;
+    const signal = this._laufAbort?.signal;
     let letzterStep = null;
 
     while (Date.now() < deadline) {
+      if (signal?.aborted) {
+        throw new DOMException('Vom Nutzer abgebrochen', 'AbortError');
+      }
       await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
       const { data: row, error } = await window.supabase
         .from('persona_liky_jobs')
@@ -562,11 +592,18 @@ export class PersonaLikyPanel {
 
   setRunning(running) {
     this.running = running;
-    const send = document.getElementById('persona-liky-send');
-    if (send) {
-      send.disabled = running;
-      send.classList.toggle('is-loading', running);
+    if (running) {
+      this._laufAbort = new AbortController();
+    } else {
+      this._laufAbort = null;
     }
+    const send = document.getElementById('persona-liky-send');
+    setLikySendBusy(send, running);
+  }
+
+  /** Stopp-Klick: Poll beenden, Ergebnis wird nicht mehr angewendet. */
+  abortLauf() {
+    this._laufAbort?.abort();
   }
 
   scrollToEnd() {
@@ -576,6 +613,10 @@ export class PersonaLikyPanel {
   destroy() {
     this._chatLog?.destroy();
     this._chatLog = null;
+    if (this._laufAbort) {
+      try { this._laufAbort.abort(); } catch (_) { /* noop */ }
+      this._laufAbort = null;
+    }
     if (this._abort) {
       try { this._abort.abort(); } catch (_) { /* noop */ }
       this._abort = null;

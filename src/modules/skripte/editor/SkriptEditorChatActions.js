@@ -25,6 +25,8 @@ export class SkriptEditorChatActions {
     // In-Flight-Guard wie acceptLaeuft: Doppel-Enter/Doppel-Klick wuerde
     // sonst zwei User-Messages + zwei pending Jobs + zwei Claude-Calls bauen
     if (v.sendLaeuft) return;
+    // Laufender Auftrag: keine zweite Nachricht (der Button ist dann Stopp)
+    if (v.likyLaeuft?.()) return;
     v.sendLaeuft = true;
     try {
       await this._sendChat();

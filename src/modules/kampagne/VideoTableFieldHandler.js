@@ -8,6 +8,9 @@ import { saveStillFeedbackSlot } from '../../core/videoFeedback/StillFeedbackRep
 import { CustomColumnFieldHandler } from './columns/CustomColumnFieldHandler.js';
 import { formatCompactNumber, formatExactNumber, parseCompactNumber } from '../../core/format/compactNumber.js';
 import { assertVerkaufspreisDelta } from '../produktion/produktionsbudget.js';
+import { skripteService } from '../skripte/SkripteService.js';
+import { patchWorkflowItem } from './KampagneDetailWorkflow.js';
+import { skriptStatusFuerCheckbox, syncSkriptFreigabeLocal } from './skriptFreigabeSync.js';
 
 /**
  * Overlay einer kompakt formatierten Zahlenzelle nachziehen. Der Input haelt
@@ -43,6 +46,44 @@ export class VideoTableFieldHandler {
     } catch (e) {
       console.warn('⚠️ Budget-Check Trigger fehlgeschlagen:', e);
     }
+  }
+
+  /**
+   * Checkbox „Skript freigegeben“ und skripte.status meinen dieselbe Freigabe:
+   * Anhaken gibt das verknüpfte Skript frei, Abhaken nimmt eine bestehende
+   * Freigabe zurück (Status 'final'). Alle Videos desselben Skripts ziehen mit.
+   */
+  async _syncSkriptStatusZurCheckbox(videoId, freigegeben) {
+    const t = this.table;
+    const store = this._getStore();
+    let video = null;
+    for (const koopId of Object.keys(t.videos || {})) {
+      video = t.videos[koopId].find((v) => v.id === videoId);
+      if (video) break;
+    }
+    const skriptId = video?.skript_id || video?.skript?.id || null;
+    if (!skriptId) {
+      window.toastSystem?.show('Kein Skript verknüpft – Haken gilt nur für dieses Video', 'info');
+      return;
+    }
+
+    let aktuellerStatus = video?.skript?.status;
+    if (!aktuellerStatus) {
+      const skript = await skripteService.loadSkript(skriptId);
+      aktuellerStatus = skript?.status || null;
+    }
+
+    const status = skriptStatusFuerCheckbox(freigegeben, aktuellerStatus);
+    if (status && status !== aktuellerStatus) {
+      await skripteService.updateSkript(skriptId, { status });
+    }
+    await skripteService.setVideosSkriptFreigegeben(skriptId, freigegeben);
+    syncSkriptFreigabeLocal(
+      t._detail,
+      skriptId,
+      { freigegeben, status: status || aktuellerStatus },
+      patchWorkflowItem
+    );
   }
 
   async handleFieldUpdate(field) {
@@ -237,6 +278,10 @@ export class VideoTableFieldHandler {
 
           if (entity === 'video' && fieldName === 'verkaufspreis_netto') {
             this._triggerBudgetCheck();
+          }
+
+          if (entity === 'video' && fieldName === 'skript_freigegeben') {
+            await this._syncSkriptStatusZurCheckbox(id, value);
           }
         }
       }

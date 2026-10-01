@@ -75,6 +75,7 @@ export class SkriptEditorGeneration {
     v.genStatus = { laeuft: true, step: 'pending', progress_steps: pendingThinking() };
     v.renderDoc();
     v.renderChat({ forceScroll: true });
+    v.updateSendButton?.();
 
     try {
       const { jobId, stop } = await skriptAuftrag.starteJob({
@@ -90,6 +91,7 @@ export class SkriptEditorGeneration {
       v.genStatus = { error: err.message };
       v.renderDoc();
       v.renderChat({ forceScroll: true });
+      v.updateSendButton?.();
     }
   }
 
@@ -106,6 +108,7 @@ export class SkriptEditorGeneration {
       v.genStatus = { error: job.error_message || 'Unbekannt' };
       v.renderChat({ forceScroll: true });
       this.setGenButtonAktiv(true);
+      v.updateSendButton?.();
       return;
     }
 
@@ -125,6 +128,7 @@ export class SkriptEditorGeneration {
     v.genStatus = null;
     v.genPayload = null;
     v.genStubId = null;
+    v.updateSendButton?.();
     window.toastSystem?.success('Skript generiert');
 
     // Liste aktualisieren, damit das neue Skript links auftaucht -
@@ -169,5 +173,6 @@ export class SkriptEditorGeneration {
     v.renderDoc();
     v.renderChat({ forceScroll: true });
     this.setGenButtonAktiv(true);
+    v.updateSendButton?.();
   }
 }

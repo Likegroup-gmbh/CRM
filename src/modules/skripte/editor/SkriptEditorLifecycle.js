@@ -336,10 +336,18 @@ SkriptEditorView.prototype.bindEvents = function() {
     this._format.anwendenShortcut(zelle, taste === 'b' ? 'bold' : 'italic');
   });
 
-  document.getElementById('ed-send')?.addEventListener('click', () => this.sendChat());
+  document.getElementById('ed-send')?.addEventListener('click', () => {
+    if (this.likyLaeuft()) {
+      this.stopLikyLauf();
+      return;
+    }
+    this.sendChat();
+  });
   input?.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      // Im Lauf nicht senden und nicht stoppen - getippter Text bleibt stehen
+      if (this.likyLaeuft()) return;
       this.sendChat();
     }
     if (e.key === 'Escape') {

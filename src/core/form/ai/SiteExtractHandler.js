@@ -18,7 +18,7 @@ import { applyExtractedLogo, clearExtractedLogo } from './ExtractLogoApplier.js'
 import { ExtractCostBadge } from './ExtractCostBadge.js';
 import { logExtractDiagnostics, nullergebnisHinweis } from './ExtractDiagnostics.js';
 import { likyCanExtractPdf } from '../../chat/likyCapabilities.js';
-import { likyPdfTagHtml } from '../../chat/likyComposer.js';
+import { likyPdfTagHtml, setLikySendBusy } from '../../chat/likyComposer.js';
 
 const ENDPOINT = '/.netlify/functions/site-extract-background';
 const PDF_ENDPOINT = '/.netlify/functions/produkt-pdf-background';
@@ -97,8 +97,9 @@ function warte(ms) {
  * @param {string} opts.url
  * @param {string} [opts.endpoint] - Default Shop-URL. Produkt-PDF geht an produkt-pdf-background.
  * @param {Function} [opts.onStep] - ({ step, label, steps }) => void
+ * @param {AbortSignal} [opts.signal] - Abbruch: Poll endet mit AbortError, das Ergebnis wird nicht angewendet
  */
-export async function requestExtractJob({ entity, url, endpoint = ENDPOINT, onStep = () => {} } = {}) {
+export async function requestExtractJob({ entity, url, endpoint = ENDPOINT, onStep = () => {}, signal = null } = {}) {
   const db = window.supabase;
   const session = await getSession();
   if (!db || !session) throw new Error('Keine aktive Sitzung');
@@ -125,6 +126,9 @@ export async function requestExtractJob({ entity, url, endpoint = ENDPOINT, onSt
   let letzterStep = null;
 
   while (Date.now() < deadline) {
+    if (signal?.aborted) {
+      throw new DOMException('Vom Nutzer abgebrochen', 'AbortError');
+    }
     await warte(POLL_INTERVAL_MS);
 
     const { data: row, error: pollError } = await db.from('extract_jobs')
@@ -164,9 +168,15 @@ class ButtonState {
     this.button = button;
     this.label = button.querySelector('.url-extract-btn__label');
     this.originalLabel = this.label?.textContent || '';
+    this.round = button.classList.contains('doc-chat__send');
   }
 
   busy() {
+    if (this.round) {
+      // Runder Liky-Button: Stopp-Icon statt Spinner, klickbar fuer Abbruch
+      setLikySendBusy(this.button, true);
+      return;
+    }
     this.button.disabled = true;
     this.button.classList.add('is-loading');
     if (this.label) this.label.textContent = 'Liest…';
@@ -177,6 +187,10 @@ class ButtonState {
   }
 
   idle() {
+    if (this.round) {
+      setLikySendBusy(this.button, false);
+      return;
+    }
     this.button.disabled = false;
     this.button.classList.remove('is-loading');
     if (this.label) this.label.textContent = this.originalLabel;
@@ -194,12 +208,18 @@ export class SiteExtractHandler {
     this.review = new ExtractReviewLayer(form);
     this.running = false;
     this.pendingPdf = null;
+    this._laufAbort = null;
   }
 
   bind() {
     const buttons = this.form.querySelectorAll('[data-ai-extract]');
     buttons.forEach((button) => {
       button.addEventListener('click', () => {
+        // Runder Liky-Button im Lauf: Klick = Stopp, kein zweiter Job
+        if (this.running) {
+          this._laufAbort?.abort();
+          return;
+        }
         if (this.pendingPdf) {
           const file = this.pendingPdf;
           this.clearPendingPdf();
@@ -282,6 +302,7 @@ export class SiteExtractHandler {
     }
 
     this.running = true;
+    this._laufAbort = new AbortController();
     state.busy();
     emit('siteExtractStarted', { entity: this.entity, form: this.form, url: file.name, via: 'pdf' });
     emit('siteExtractProgress', { entity: this.entity, step: 'start', label: 'Ich lese das PDF' });
@@ -304,17 +325,20 @@ export class SiteExtractHandler {
         fields: result.fields || {}
       });
     } catch (error) {
-      notifyError(`PDF konnte nicht ausgelesen werden: ${error.message}`);
-      emit('siteExtractFinished', {
-        entity: this.entity,
-        form: this.form,
-        ok: false,
-        via: 'pdf',
-        error: error.message
-      });
+      if (error?.name !== 'AbortError') {
+        notifyError(`PDF konnte nicht ausgelesen werden: ${error.message}`);
+        emit('siteExtractFinished', {
+          entity: this.entity,
+          form: this.form,
+          ok: false,
+          via: 'pdf',
+          error: error.message
+        });
+      }
     } finally {
       state.idle();
       this.running = false;
+      this._laufAbort = null;
     }
   }
 
@@ -345,6 +369,7 @@ export class SiteExtractHandler {
     const state = new ButtonState(button);
     const costBadge = new ExtractCostBadge(this.form, button);
     this.running = true;
+    this._laufAbort = new AbortController();
     state.busy();
     emit('siteExtractStarted', { entity: this.entity, form: this.form, url });
     emit('siteExtractProgress', {
@@ -382,16 +407,19 @@ export class SiteExtractHandler {
         fields: result.fields || {}
       });
     } catch (error) {
-      notifyError(`Webseite konnte nicht ausgelesen werden: ${error.message}`);
-      emit('siteExtractFinished', {
-        entity: this.entity,
-        form: this.form,
-        ok: false,
-        error: error.message
-      });
+      if (error?.name !== 'AbortError') {
+        notifyError(`Webseite konnte nicht ausgelesen werden: ${error.message}`);
+        emit('siteExtractFinished', {
+          entity: this.entity,
+          form: this.form,
+          ok: false,
+          error: error.message
+        });
+      }
     } finally {
       state.idle();
       this.running = false;
+      this._laufAbort = null;
     }
   }
 
@@ -404,6 +432,7 @@ export class SiteExtractHandler {
       entity: this.entity,
       url,
       endpoint,
+      signal: this._laufAbort?.signal,
       onStep: ({ step, label, steps }) => {
         state?.step(STEP_LABELS[step] || 'Liest…');
         emit('siteExtractProgress', {

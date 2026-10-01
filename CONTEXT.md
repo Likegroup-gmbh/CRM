@@ -292,6 +292,15 @@ KI-generierte Videoidee in einem Konzept, noch nicht übernommen. Dieselbe Zeile
 Videoidee, visuell abgetrennt. Übernehmen macht sie zur normalen Videoidee; Verwerfen löscht sie.
 _Avoid_: Creative Angle, Grobkonzept, Casting-Vorschlag
 
+**Umschreiben**:
+Die Beschreibung eines Videoidee-Vorschlags neu schreiben. Dieselbe Zeile, das Flag bleibt.
+_Avoid_: Neu generieren (das ist Ersetzen), Bearbeiten im Drawer
+
+**Ersetzen**:
+Die genannten Videoidee-Vorschläge durch neu entworfene ablösen. Die alten bleiben,
+bis die neuen in der Tabelle liegen.
+_Avoid_: Umschreiben (dieselbe Zeile bleibt), Neu entwerfen (addiert, verwirft nichts)
+
 **Skript**:
 Text für genau ein Video und genau einen Creator: den der verknüpften Kooperation, sonst den Creator der Videoidee. Organic und Influencer sind eine Empfehlung von Person zu Person, außer ein Don't oder das Briefing verlangt etwas anderes. Paid bleibt ein Performance-Creative.
 _Avoid_: Drehbuch, Copy

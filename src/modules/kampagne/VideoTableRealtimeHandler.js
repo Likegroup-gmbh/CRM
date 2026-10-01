@@ -123,6 +123,19 @@ export class VideoTableRealtimeHandler {
     if (this._isOwnUpdate(payload.new?.id)) return;
 
     const updatedVideo = payload.new;
+
+    // Virtuell über das Konzept zugeordnete Videos haben keine skript_id in
+    // der DB — ihre Freigabe-Checkbox folgt dem Skript-Status, nicht der
+    // Spalte. Das Payload traegt den rohen Spaltenwert, also ableiten.
+    let existing = null;
+    for (const koopId in this.table.videos) {
+      existing = this.table.videos[koopId].find(v => v.id === updatedVideo.id);
+      if (existing) break;
+    }
+    if (existing?._skriptAusKonzept && existing.skript) {
+      updatedVideo.skript_freigegeben = existing.skript.status === 'freigegeben';
+    }
+
     if (this.table.store) {
       this.table.store.updateVideo(updatedVideo.id, updatedVideo);
     } else {

@@ -825,6 +825,24 @@
   opacity: 0.85;
 }
 
+/* Lauf: Pfeil weicht dem Stopp-Icon, Button bleibt klickbar (Klick = Abbruch) */
+.skripte-editor-send .skripte-editor-send-icon--stop {
+  display: none;
+}
+
+.skripte-editor-send.is-stop {
+  background: var(--gray-300);
+  color: var(--text-inverse);
+}
+
+.skripte-editor-send.is-stop .skripte-editor-send-icon--send {
+  display: none;
+}
+
+.skripte-editor-send.is-stop .skripte-editor-send-icon--stop {
+  display: inline-flex;
+}
+
 /* ---------------------------------------------------------------------------
    Liky: Positionierung/Head/Buttons liegen in der ChatPanelShell
    (assets/styles/chat-panel.css). Hier bleiben nur die Inner-Styles des

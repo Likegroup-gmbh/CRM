@@ -15,7 +15,7 @@
 // DOM bei jedem Step neu).
 
 import { renderThinking, pushStep } from '../../../core/chat/thinking.js';
-import { isLikyPdfName, likyPdfTagHtml } from '../../../core/chat/likyComposer.js';
+import { isLikyPdfName, likyPdfTagHtml, setLikySendBusy } from '../../../core/chat/likyComposer.js';
 import { BriefingExtractApply, coerceFieldMap } from './BriefingExtractApply.js';
 import { flattenFields, getStepsForBereich } from './fieldConfig.js';
 import { likyCanExtractPdf, likyHasChat } from '../../../core/chat/likyCapabilities.js';
@@ -115,6 +115,7 @@ export class BriefingLikyPanel {
     this.turn = null;
     this.slot = null;
     this.received = [];
+    this._laufAbort = null;
     this._chatLog = null;
   }
 
@@ -253,7 +254,11 @@ export class BriefingLikyPanel {
   }
 
   async onSend() {
-    if (this.running) return;
+    // Im Lauf ist der Button Stopp: Klick bricht ab, keine zweite Nachricht
+    if (this.running) {
+      this.abortLauf();
+      return;
+    }
     const input = document.getElementById('briefing-liky-input');
     const text = (input?.value || '').trim();
 
@@ -312,6 +317,10 @@ export class BriefingLikyPanel {
       this.openLikyTurn();
       this.showResult(result, applied, skipped);
     } catch (error) {
+      if (error?.name === 'AbortError') {
+        this.finishAbort();
+        return;
+      }
       console.error('Briefing-Extract:', error);
       this.addError(error.message);
     } finally {
@@ -394,6 +403,10 @@ export class BriefingLikyPanel {
 
       this.pushLiky(result.reply || 'Verstanden.');
     } catch (error) {
+      if (error?.name === 'AbortError') {
+        this.finishAbort();
+        return;
+      }
       console.error('Briefing-Chat:', error);
       this.addError(error.message);
     } finally {
@@ -439,9 +452,13 @@ export class BriefingLikyPanel {
 
   async pollJob(jobId) {
     const deadline = Date.now() + POLL_TIMEOUT_MS;
+    const signal = this._laufAbort?.signal;
     let letzterStep = null;
 
     while (Date.now() < deadline) {
+      if (signal?.aborted) {
+        throw new DOMException('Vom Nutzer abgebrochen', 'AbortError');
+      }
       await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
 
       const { data: row, error } = await window.supabase
@@ -545,6 +562,17 @@ export class BriefingLikyPanel {
     this.pushLiky(text);
   }
 
+  /** Abbruch: Thinking schliessen, knapper Hinweis statt Ergebnis. */
+  finishAbort() {
+    if (this.slot && this.received.length) {
+      renderThinking(this.slot, this.received, { done: true });
+    }
+    if (this.turn) this.turn.remove();
+    this.turn = null;
+    this.slot = null;
+    this.pushLiky('Abgebrochen.');
+  }
+
   async saveMessage(rolle, inhalt) {
     if (!this.briefing.editId) return;
     try {
@@ -598,11 +626,18 @@ export class BriefingLikyPanel {
 
   setRunning(running) {
     this.running = running;
-    const send = document.getElementById('briefing-liky-send');
-    if (send) {
-      send.disabled = running;
-      send.classList.toggle('is-loading', running);
+    if (running) {
+      this._laufAbort = new AbortController();
+    } else {
+      this._laufAbort = null;
     }
+    const send = document.getElementById('briefing-liky-send');
+    setLikySendBusy(send, running);
+  }
+
+  /** Stopp-Klick: Poll beenden, Ergebnis wird nicht mehr angewendet. */
+  abortLauf() {
+    this._laufAbort?.abort();
   }
 
   scrollToEnd() {
