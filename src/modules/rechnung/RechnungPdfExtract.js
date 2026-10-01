@@ -6,19 +6,15 @@
 // Misserfolg bleibt das Formular unveraendert manuell nutzbar, und die PDF
 // haengt bereits am pdf_file-Uploader des Formulars.
 
-import { calculateKoopAbrechenbarkeit } from '../../core/budget/koopFakturierung.js';
+import { ladeAbrechenbarkeit } from '../../core/budget/koopAbrechenbarkeitLaden.js';
+import { applySearchableSelection } from '../../core/form/logic/FormSearchableSelect.js';
+import { escapeHtml, formatEuro } from '../../core/format.js';
 import { KampagneUtils } from '../kampagne/KampagneUtils.js';
 
 const ENDPOINT = '/.netlify/functions/rechnung-pdf-background';
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 3 * 60 * 1000;
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
-
-const formatEuro = (v) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v ?? 0);
-
-const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({
-  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-}[c]));
 
 export function renderRechnungExtractCard() {
   return `
@@ -43,6 +39,8 @@ export class RechnungPdfExtract {
     this.extractedFields = null;
     this._reapplyOnNextPrefill = false;
     this._laeuft = false;
+    this._wendetAn = false;
+    this._manuellGeaendert = new Set();
   }
 
   bind(container, form) {
@@ -75,13 +73,21 @@ export class RechnungPdfExtract {
     });
 
     // Nach dem Uebernehmen des Kooperations-Vorschlags prefillt onKoopChange
-    // die Betragsfelder — die PDF-Werte sind aber die Wahrheit und gewinnen
-    // genau dieses eine Mal.
+    // die Betragsfelder. PDF-Werte kommen zurueck, ausser der Mitarbeiter
+    // hat das Feld zwischen Auslesung und Uebernahme selbst geaendert.
+    form.addEventListener('input', (e) => this.merkeManuelleAenderung(e));
+    form.addEventListener('change', (e) => this.merkeManuelleAenderung(e));
     form.addEventListener('rechnung:koop-prefilled', () => {
       if (!this._reapplyOnNextPrefill || !this.extractedFields) return;
       this._reapplyOnNextPrefill = false;
-      this.applyFields(this.extractedFields, { force: true });
+      this.applyFields(this.extractedFields, { force: true, geschuetzt: this._manuellGeaendert });
     });
+  }
+
+  merkeManuelleAenderung(event) {
+    if (this._wendetAn) return;
+    const name = event.target?.name;
+    if (name) this._manuellGeaendert.add(name);
   }
 
   setStatus(html, tone = 'info') {
@@ -103,6 +109,7 @@ export class RechnungPdfExtract {
     }
 
     this._laeuft = true;
+    this._manuellGeaendert = new Set();
     this.setStatus('Ich lese die Rechnung…');
 
     try {
@@ -204,16 +211,24 @@ export class RechnungPdfExtract {
     throw new Error('Zeitüberschreitung bei der Auslesung');
   }
 
-  // Fuellt leere Felder. force=true (nach Kooperations-Uebernahme) ueberschreibt
-  // den Koop-Prefill — die PDF ist die Wahrheit fuer die Betraege.
-  applyFields(fields, { force = false } = {}) {
+  // Fuellt leere Felder. force=true (nach Kooperations-Uebernahme) schreibt
+  // PDF-Betraege zurueck, die der Koop-Prefill ueberschrieben hat.
+  // geschuetzt: Felder, die der Mitarbeiter danach selbst geaendert hat.
+  applyFields(fields, { force = false, geschuetzt = null } = {}) {
     if (!this.form || !fields) return 0;
+    this._wendetAn = true;
+    try {
     let befuellt = 0;
+
+    const darfSetzen = (name, input) => {
+      if (geschuetzt?.has(name)) return false;
+      if (!force && String(input.value ?? '').trim() !== '') return false;
+      return true;
+    };
 
     const setBetrag = (name, eintrag) => {
       const input = this.form.querySelector(`input[name="${name}"]`);
-      if (!input || !eintrag) return;
-      if (!force && input.value.trim() !== '') return;
+      if (!input || !eintrag || !darfSetzen(name, input)) return;
       input.value = Number(eintrag.value).toFixed(2);
       input.dispatchEvent(new Event('input', { bubbles: true }));
       befuellt++;
@@ -232,20 +247,18 @@ export class RechnungPdfExtract {
     }
 
     if (fields.ksk_betrag && Number(fields.ksk_betrag.value) > 0) {
-      const input = this.form.querySelector('input[name="ksk_betrag"]');
-      const wrapper = input?.closest('.form-field');
-      if (wrapper) wrapper.style.display = '';
       setBetrag('ksk_betrag', fields.ksk_betrag);
     }
 
-    // Steuer-Logik: PDF schlaegt Creator-Stammdaten (umsatzsteuerpflichtig)
-    if (fields.ust_ausgewiesen?.value === false) {
+    // Steuer-Logik: PDF schlaegt Creator-Stammdaten (umsatzsteuerpflichtig),
+    // nicht aber eine Korrektur des Mitarbeiters.
+    if (fields.ust_ausgewiesen?.value === false && !geschuetzt?.has('ust_aktiv')) {
       const toggle = this.form.querySelector('input[name="ust_aktiv"]');
       if (toggle && toggle.checked) {
         toggle.checked = false;
         toggle.dispatchEvent(new Event('change', { bubbles: true }));
       }
-    } else if (fields.ust_prozent && Number(fields.ust_prozent.value) > 0) {
+    } else if (fields.ust_prozent && Number(fields.ust_prozent.value) > 0 && !geschuetzt?.has('ust_prozent')) {
       const prozentInput = this.form.querySelector('input[name="ust_prozent"]');
       if (prozentInput && prozentInput.value !== String(fields.ust_prozent.value)) {
         prozentInput.value = String(fields.ust_prozent.value);
@@ -253,7 +266,7 @@ export class RechnungPdfExtract {
       }
     }
 
-    if (fields.skonto_prozent && Number(fields.skonto_prozent.value) === 3) {
+    if (fields.skonto_prozent && Number(fields.skonto_prozent.value) === 3 && !geschuetzt?.has('skonto')) {
       const skontoToggle = this.form.querySelector('input[name="skonto"]');
       if (skontoToggle && !skontoToggle.checked) {
         skontoToggle.checked = true;
@@ -263,8 +276,7 @@ export class RechnungPdfExtract {
 
     const setDatum = (name, eintrag) => {
       const input = this.form.querySelector(`input[name="${name}"]`);
-      if (!input || !eintrag) return;
-      if (!force && input.value.trim() !== '') return;
+      if (!input || !eintrag || !darfSetzen(name, input)) return;
       input.value = eintrag.value;
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -276,8 +288,10 @@ export class RechnungPdfExtract {
     // Neuberechnung sicher anstossen (debouncedBerechne lauscht auf nettobetrag)
     const nettoInput = this.form.querySelector('input[name="nettobetrag"]');
     nettoInput?.dispatchEvent(new Event('input', { bubbles: true }));
-
     return befuellt;
+    } finally {
+      this._wendetAn = false;
+    }
   }
 
   zeigeErgebnis(result, befuellt) {
@@ -315,31 +329,18 @@ export class RechnungPdfExtract {
         .limit(10);
       if (!koops?.length) return;
 
-      const ids = koops.map((k) => k.id);
-      const [{ data: rechnungen }, { data: videos }, { data: kampagnen }] = await Promise.all([
-        window.supabase
-          .from('rechnung')
-          .select('kooperation_id, nettobetrag, nettobetrag_steuerfrei, ksk_betrag, ist_schlussrechnung')
-          .in('kooperation_id', ids),
-        window.supabase
-          .from('kooperation_videos')
-          .select('kooperation_id, einkaufspreis_netto')
-          .in('kooperation_id', ids),
-        window.supabase
-          .from('kampagne')
-          .select('id, kampagnenname, eigener_name')
-          .in('id', [...new Set(koops.map((k) => k.kampagne_id).filter(Boolean))])
+      const ids = [...new Set(koops.map((k) => k.kampagne_id).filter(Boolean))];
+      const [{ abrechenbarkeit }, { data: kampagnen }] = await Promise.all([
+        ladeAbrechenbarkeit(window.supabase, koops),
+        ids.length
+          ? window.supabase.from('kampagne').select('id, kampagnenname, eigener_name').in('id', ids)
+          : Promise.resolve({ data: [] })
       ]);
 
       const kampMap = (kampagnen || []).reduce((acc, k) => {
         acc[k.id] = KampagneUtils.getDisplayName(k);
         return acc;
       }, {});
-      const abrechenbarkeit = calculateKoopAbrechenbarkeit({
-        kooperationen: koops,
-        videos: videos || [],
-        rechnungen: rechnungen || []
-      });
       const offene = koops.filter((k) => abrechenbarkeit.get(k.id)?.abrechenbar);
       if (!offene.length) return;
 
@@ -394,32 +395,10 @@ export class RechnungPdfExtract {
     }
   }
 
-  // Searchable-Select programmatisch setzen (spiegelt FormSearchableSelect._selectOption)
   setKoopSelect(value, label) {
     const select = this.form.querySelector('select[name="kooperation_id"]')
       || this.form.querySelector('select#field-kooperation_id')
       || this.form.querySelector('select[data-field-name="kooperation_id"]');
-    if (!select) return false;
-
-    let opt = Array.from(select.options).find((o) => o.value === value);
-    if (!opt) {
-      opt = document.createElement('option');
-      opt.value = value;
-      opt.textContent = label;
-      select.appendChild(opt);
-    }
-    select.value = value;
-
-    const hidden = document.getElementById(`${select.id}-hidden`);
-    if (hidden) hidden.value = value;
-
-    const input = select.parentNode.querySelector('.searchable-select-input');
-    if (input) {
-      input.value = label;
-      if (input.hasAttribute('data-was-required')) input.setCustomValidity('');
-    }
-
-    select.dispatchEvent(new Event('change', { bubbles: true }));
-    return true;
+    return applySearchableSelection(select, { value, label });
   }
 }

@@ -12,6 +12,27 @@ function betrag(v) {
   return parseFloat(v) || 0;
 }
 
+// Video-EK schlaegt den Kooperations-EK nur, wo ein Video-EK gepflegt ist.
+// Eine Video-Zeile ohne Einkaufspreis ist kein Soll: dann gilt der
+// Kooperations-EK (ADR 0015 — unpruefbar nur, wenn weder Kooperations-EK
+// noch Video-EK gepflegt sind).
+function videoSollNachKoop(videos) {
+  const summe = new Map();
+  const gepflegt = new Set();
+  videos.forEach(v => {
+    if (!v.kooperation_id) return;
+    if (v.einkaufspreis_netto == null || v.einkaufspreis_netto === '') return;
+    gepflegt.add(v.kooperation_id);
+    summe.set(v.kooperation_id, (summe.get(v.kooperation_id) || 0) + betrag(v.einkaufspreis_netto));
+  });
+  return { summe, gepflegt };
+}
+
+function sollFuerKoop(koop, videoSoll) {
+  if (videoSoll.gepflegt.has(koop.id)) return videoSoll.summe.get(koop.id) || 0;
+  return betrag(koop.einkaufspreis_netto);
+}
+
 // Abrechenbarkeit fuer den Kooperations-Selektor der Rechnungserstellung
 // (ADR 0004, ADR 0015). Soll und fakturiert sind reines Honorar: Video-EK
 // schlaegt Kooperations-EK, fakturiert = nettobetrag + nettobetrag_steuerfrei.
@@ -21,16 +42,7 @@ function betrag(v) {
 // Rueckgabe: Map(koopId -> { soll, fakturiert, fakturiertKsk, rest,
 // anzahlRechnungen, hatSchlussrechnung, abrechenbar }).
 export function calculateKoopAbrechenbarkeit({ kooperationen = [], videos = [], rechnungen = [] } = {}) {
-  const videoEkByKoop = new Map();
-  const koopMitVideos = new Set();
-  videos.forEach(v => {
-    if (!v.kooperation_id) return;
-    koopMitVideos.add(v.kooperation_id);
-    videoEkByKoop.set(
-      v.kooperation_id,
-      (videoEkByKoop.get(v.kooperation_id) || 0) + betrag(v.einkaufspreis_netto)
-    );
-  });
+  const videoSoll = videoSollNachKoop(videos);
 
   const fakturiertByKoop = new Map();
   const fakturiertKskByKoop = new Map();
@@ -47,9 +59,7 @@ export function calculateKoopAbrechenbarkeit({ kooperationen = [], videos = [], 
 
   const ergebnis = new Map();
   kooperationen.forEach(k => {
-    const soll = koopMitVideos.has(k.id)
-      ? (videoEkByKoop.get(k.id) || 0)
-      : betrag(k.einkaufspreis_netto);
+    const soll = sollFuerKoop(k, videoSoll);
     const fakturiert = fakturiertByKoop.get(k.id) || 0;
     const fakturiertKsk = fakturiertKskByKoop.get(k.id) || 0;
     const rest = soll - fakturiert;
@@ -121,16 +131,7 @@ export function calculateKoopFakturierung({
 } = {}) {
   const kampagneToAuftrag = new Map(kampagnen.map(k => [k.id, k.auftrag_id]));
 
-  const videoEkByKoop = new Map();
-  const koopMitVideos = new Set();
-  videos.forEach(v => {
-    if (!v.kooperation_id) return;
-    koopMitVideos.add(v.kooperation_id);
-    videoEkByKoop.set(
-      v.kooperation_id,
-      (videoEkByKoop.get(v.kooperation_id) || 0) + betrag(v.einkaufspreis_netto)
-    );
-  });
+  const videoSoll = videoSollNachKoop(videos);
 
   // Fakturiert ist das Honorar (netto + steuerfrei), ohne KSK/Zusatzkosten.
   const fakturiertByKoop = new Map();
@@ -168,9 +169,7 @@ export function calculateKoopFakturierung({
     // Soll ist reines Honorar — der KSK-Selbstzahler-Aufschlag gehoert
     // nicht dazu (ADR 0015, separates Konto). Dadurch loest sich der
     // fruehere Dauer-Rest in KSK-Hoehe bei Selbstzahlern auf.
-    const soll = koopMitVideos.has(k.id)
-      ? (videoEkByKoop.get(k.id) || 0)
-      : betrag(k.einkaufspreis_netto);
+    const soll = sollFuerKoop(k, videoSoll);
     const fakturiert = fakturiertByKoop.get(k.id) || 0;
     const rest = soll - fakturiert;
 

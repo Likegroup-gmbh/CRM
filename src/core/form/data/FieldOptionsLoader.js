@@ -4,8 +4,8 @@
 // `this` als DynamicDataLoader-Instanz (für Zugriff auf cache, dataService, etc.).
 
 import { KampagneUtils } from '../../../modules/kampagne/KampagneUtils.js';
-
-const formatEuro = (v) => new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(v ?? 0);
+import { RECHNUNG_ABRECHEN_SELECT, VIDEO_EK_SELECT } from '../../budget/koopAbrechenbarkeitLaden.js';
+import { formatEuro } from '../../format.js';
 
 // Feldoptionen laden - grosser Dispatcher je nach Feld-Typ
 // `this` = DynamicDataLoader
@@ -341,7 +341,7 @@ export async function loadKooperationenOhneRechnung() {
 
     const { data: rechnungen, error: rErr } = await window.supabase
       .from('rechnung')
-      .select('kooperation_id, nettobetrag, nettobetrag_steuerfrei, ksk_betrag, ist_schlussrechnung')
+      .select(RECHNUNG_ABRECHEN_SELECT)
       .not('kooperation_id', 'is', null);
     if (rErr) {
       console.error('❌ Fehler beim Laden vorhandener Rechnungen:', rErr);
@@ -365,7 +365,7 @@ export async function loadKooperationenOhneRechnung() {
     if (mitRechnung.size > 0) {
       try {
         const { fetchAllRows } = await import('../../fetchAllRows.js');
-        videos = await fetchAllRows(window.supabase, 'kooperation_videos', 'kooperation_id, einkaufspreis_netto');
+        videos = await fetchAllRows(window.supabase, 'kooperation_videos', VIDEO_EK_SELECT);
       } catch (vErr) {
         console.warn('⚠️ Kooperations-Videos konnten nicht geladen werden:', vErr);
       }
@@ -459,6 +459,9 @@ export async function loadKooperationenOhneRechnung() {
           subtitleParts.push(`Bereits fakturiert: ${formatEuro(info.fakturiert)} · Noch abrechenbar: ${formatEuro(Math.max(info.rest, 0))}`);
         } else {
           subtitleParts.push('Bereits fakturiert – Soll nicht gepflegt');
+        }
+        if (info?.fakturiertKsk > 0) {
+          subtitleParts.push(`KSK (Creator führt selbst ab): ${formatEuro(info.fakturiertKsk)}`);
         }
       }
 
