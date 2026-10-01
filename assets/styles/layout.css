@@ -250,6 +250,24 @@
   margin-left: var(--sidebar-width-collapsed);
 }
 
+/* ===== SIDEBAR BEI SCHMALEM VIEWPORT =====
+   Klasse setzt das Pre-Paint-Script und NavigationSystem (SIDEBAR_NARROW_QUERY).
+   Die Sidebar hat sonst keinen eigenen Hintergrund (die graue Fläche ist der
+   body, der durchscheint). Ausgeklappt liegt sie als Overlay ÜBER dem Inhalt
+   und braucht deshalb eine deckende Fläche plus Schatten. Der Inhalt rückt
+   nur bis zur Icon-Leiste auf, auch wenn die Sidebar darüber liegt. */
+.sidebar-narrow .main-content {
+  margin-left: var(--sidebar-width-collapsed);
+}
+
+.sidebar-narrow .sidebar {
+  background: var(--gray-50);
+}
+
+.sidebar-narrow:not(.sidebar-collapsed) .sidebar {
+  box-shadow: var(--shadow-lg);
+}
+
 /* ===== NAVIGATION ===== */
 .nav-list {
   list-style: none;

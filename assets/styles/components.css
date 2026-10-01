@@ -240,15 +240,6 @@ tr {
     flex-direction: column;
   }
 
-
-  /* Schmaler Viewport: Sidebar ist auto-eingeklappt (Icon-Leiste, siehe
-     NavigationSystem._bindSidebarAutoCollapse) bzw. liegt ausgeklappt als
-     Overlay über dem Inhalt — der Inhalt rückt daher nur bis zur Icon-Leiste
-     auf, nie unter die Sidebar. */
-  .main-content {
-    margin-left: var(--sidebar-width-collapsed);
-  }
-
   .main-header {
     padding: var(--space-md);
   }

@@ -9,6 +9,11 @@ export const COLLAPSE_TITLES = {
   expanded: 'Navigation verkleinern'
 };
 
+// Eine Quelle für die Sidebar bei schmalem Viewport. Das Pre-Paint-Script in
+// index.html wiederholt den String (es läuft vor dem Modul-Import) und setzt
+// dieselbe Klasse `sidebar-narrow`, an der layout.css hängt.
+export const SIDEBAR_NARROW_QUERY = '(max-width: 768px)';
+
 export function bindCollapsible({
   root,
   toggleBtn,
