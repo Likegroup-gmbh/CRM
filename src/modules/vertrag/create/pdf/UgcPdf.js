@@ -3,6 +3,7 @@
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
+import { drawDrittbeguenstigtenKlausel } from './DrittbeguenstigtenKlausel.js';
 import { createPdfLayout } from '../../../../core/pdf/PdfTextFlow.js';
 import { loadLikeGroupLogoPng, drawLikeGroupLogo, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
 
@@ -666,6 +667,14 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
           return layout.paginated(vertrag.weitere_bestimmungen, { y });
         }, { gap: 14, head: 20, splittable: true });
       }
+
+      y = drawDrittbeguenstigtenKlausel(doc, {
+        firmenname: kunde?.firmenname,
+        lang,
+        y,
+        maxContentY: MAX_CONTENT_Y,
+        onPageBreak
+      });
 
       // Unterschrift (nur Creator erforderlich) - garantiert genug Platz vor der Fußzeile
       y = layout.section(y, (y) => {

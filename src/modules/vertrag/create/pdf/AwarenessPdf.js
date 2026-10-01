@@ -3,8 +3,8 @@
 // Original-Vorlagen (DE_TT/DE_IGR Agreement Awareness 2025).
 // - Deckblatt (Seite 1, gestapelt wie Standard-Influencer-Vertrag) und Anhaenge:
 //   einsprachig, Sprache = lang (Split-Button)
-// - Seite 2: Praeambel + "ES WURDE ZUGESTIMMT..." + § 6 Rechte des Kunden als
-//   beguenstigte Dritte (Abs. 1/4/5, nur Deutsch; "EHG" = Platzhalter fuer kunde.firmenname)
+// - Seite 2: Praeambel + "ES WURDE ZUGESTIMMT..." + Rechte des Kunden als
+//   beguenstigte Dritte (EF § 6 Abs. 1/4/5, Sprache = lang; "EHG" = kunde.firmenname)
 // - Hauptteil (SPECIAL/GENERAL TERMS, 1.1-10.10): immer bilingual (EN|DE)
 // - Extra-Seite "Weitere Bestimmungen" (nur wenn vertrag.weitere_bestimmungen
 //   gefuellt): eigene Seite nach 10.10, vor der Haupt-Unterschrift
@@ -14,6 +14,7 @@
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
 import { loadLikeGroupLogoPng, drawLikeGroupLogo } from '../../../../core/pdf/PdfBrand.js';
+import { buildDrittbeguenstigtenKlausel } from './DrittbeguenstigtenKlausel.js';
 
 VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = this.getContractLanguage(vertrag)) {
   try {
@@ -491,22 +492,11 @@ VertraegeCreate.prototype.generateAwarenessPDF = async function(vertrag, lang = 
       ? 'AGREED TO ENTER INTO AGREEMENT UNDER THESE CONDITIONS:'
       : 'ES WURDE ZUGESTIMMT, UNTER DIESEN BEDINGUNGEN EIN ABKOMMEN ZU SCHLIESSEN:', { style: 'bold' });
 
-    // Rechte des Kunden als beguenstigte Dritte (Abs. 1-3) — ohne §-Nummer,
-    // volle Breite, Sprache per lang. "EHG" im Originaltext = Platzhalter fuer den Kunden.
-    const ehg = ph(kunde.firmenname, 20);
+    // Rechte des Kunden als beguenstigte Dritte (EF § 6 Abs. 1/4/5, intern 1–3).
+    const klausel = buildDrittbeguenstigtenKlausel(kunde.firmenname, lang);
     y += 4;
-    para(en
-      ? `Rights of ${ehg} as third-party beneficiary`
-      : `Rechte von ${ehg} als begünstigte Dritte`, { style: 'bold' });
-    para(en
-      ? `1. ${ehg} is a third-party beneficiary within the meaning of § 328 BGB (German Civil Code) and acquires the own rights against the creator as set out below. The rights created in favour of ${ehg} may not be subsequently revoked or restricted in text form without the consent of ${ehg}.`
-      : `1. ${ehg} ist begünstigte Dritte im Sinne von § 328 BGB und erwirbt die nachfolgend bestimmten eigenen Rechte gegen den Creator. Die zugunsten von ${ehg} entstandenen Rechte können ohne Zustimmung von ${ehg} in Textform nicht nachträglich aufgehoben oder beschränkt werden.`);
-    para(en
-      ? `2. Technical coordination is generally handled via the agency. ${ehg} may issue directly binding instructions to the creator insofar as these serve to comply with the project sheet, the briefing, technical or brand-related specifications or the avoidance of legal risks. In the event of contradictory instructions, the creator shall inform the agency and ${ehg} without undue delay. In case of doubt, the instruction of ${ehg} shall prevail.`
-      : `2. Die fachliche Abstimmung erfolgt grundsätzlich über die Agentur. ${ehg} darf dem Creator unmittelbar verbindliche Weisungen erteilen, soweit diese der Einhaltung des Projektblatts, des Briefings, technischer oder markenbezogener Vorgaben oder der Vermeidung rechtlicher Risiken dienen. Bei widersprechenden Weisungen informiert der Creator Agentur und ${ehg} unverzüglich. Im Zweifel geht die Weisung von ${ehg} vor.`);
-    para(en
-      ? '3. The statutory objections of the creator under this contract remain unaffected.'
-      : '3. Die gesetzlichen Einwendungen des Creators aus diesem Vertrag bleiben bestehen.');
+    para(klausel.title, { style: 'bold' });
+    klausel.paragraphs.forEach((paragraph) => para(paragraph));
 
     // ============================================
     // SPECIAL TERMS (bilingual)

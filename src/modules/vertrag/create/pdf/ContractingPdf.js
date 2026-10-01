@@ -4,6 +4,7 @@
 
 import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
+import { drawDrittbeguenstigtenKlausel } from './DrittbeguenstigtenKlausel.js';
 import { renderPaginatedText, renderZusatzBestimmung } from '../../../../core/pdf/PdfTextFlow.js';
 import { buildContractingAuftragnehmerLines } from './ContractingAuftragnehmerLines.js';
 import { loadLikeGroupLogoPng, drawLikeGroupLogo, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
@@ -625,6 +626,14 @@ VertraegeCreate.prototype.generateContractingPDF = async function(vertrag, lang 
       y += 8;
       y = addWrappedText(vertrag.weitere_bestimmungen, 14, y, 180);
     }
+
+    y = drawDrittbeguenstigtenKlausel(doc, {
+      firmenname: kunde?.firmenname,
+      lang,
+      y,
+      maxContentY: MAX_CONTENT_Y,
+      onPageBreak
+    });
 
     // Unterschriften (Block benötigt ~71mm ab Start, daher 90 anfordern)
     checkPageBreak(90);
