@@ -4,6 +4,8 @@
 // Persona/Briefing: AbortSignal stoppt den Poll, Ergebnis wird nicht angewendet.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 
 const { mockService } = vi.hoisted(() => ({
   mockService: {
@@ -126,6 +128,24 @@ describe('setLikySendBusy', () => {
 
   it('null-Button ist kein Fehler', () => {
     expect(() => setLikySendBusy(null, true)).not.toThrow();
+  });
+});
+
+describe('Sende-Button-Styles gelten auch im Konzept-Panel', () => {
+  // Der Konzept-Chat rendert renderLikySend in .konzept-liky, nicht in
+  // .doc__side. Ohne den zweiten Host stehen Pfeil, Stopp-Icon und Spinner
+  // gleichzeitig im Button (keine Versteckregel greift).
+  const css = readFileSync(resolve(__dirname, '../../assets/styles/doc.css'), 'utf8');
+
+  it.each([
+    '.doc-chat__send .doc-chat__send-icon--stop',
+    '.doc-chat__send.is-stop .doc-chat__send-icon--send',
+    '.doc-chat__send.is-stop .doc-chat__send-icon--stop',
+    '.doc-chat__send .spinner-small',
+    '.doc-chat__send.is-loading .doc-chat__send-icon',
+    '.doc-chat__send.is-loading .spinner-small'
+  ])('%s ist fuer .konzept-liky deklariert', (selector) => {
+    expect(css).toContain(`.konzept-liky ${selector}`);
   });
 });
 

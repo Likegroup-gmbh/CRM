@@ -266,6 +266,17 @@
   padding: 0 var(--space-lg) var(--space-lg);
 }
 
+.konzept-liky__input {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-sm);
+}
+
+.konzept-liky__input .doc-chat__input {
+  flex: 1;
+  min-width: 0;
+}
+
 .konzept-liky__input textarea {
   display: block;
   width: 100%;

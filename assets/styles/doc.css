@@ -963,8 +963,11 @@
   display: none;
 }
 
-/* Runder Absende-Button, Werte wie .skripte-editor-send */
-.doc__side .doc-chat__send {
+/* Runder Absende-Button, Werte wie .skripte-editor-send.
+   Hosts: die Seitenspalte (.doc__side) und das Konzept-Panel (.konzept-liky,
+   chat-inline-question.css) - beide rendern denselben Button aus renderLikySend. */
+.doc__side .doc-chat__send,
+.konzept-liky .doc-chat__send {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -980,52 +983,62 @@
   transition: opacity 0.15s ease;
 }
 
-.doc__side .doc-chat__send svg {
+.doc__side .doc-chat__send svg,
+.konzept-liky .doc-chat__send svg {
   width: var(--icon-xs);
   height: var(--icon-xs);
 }
 
-.doc__side .doc-chat__send:hover:not(:disabled) {
+.doc__side .doc-chat__send:hover:not(:disabled),
+.konzept-liky .doc-chat__send:hover:not(:disabled) {
   background: var(--gray-900);
   color: var(--text-inverse);
   opacity: 0.85;
 }
 
-.doc__side .doc-chat__send:disabled {
+.doc__side .doc-chat__send:disabled,
+.konzept-liky .doc-chat__send:disabled {
   background: var(--gray-300);
   color: var(--text-inverse);
 }
 
 /* Lauf: Pfeil weicht dem Stopp-Icon, Button bleibt klickbar (Klick = Abbruch) */
-.doc__side .doc-chat__send .doc-chat__send-icon--stop {
+.doc__side .doc-chat__send .doc-chat__send-icon--stop,
+.konzept-liky .doc-chat__send .doc-chat__send-icon--stop {
   display: none;
 }
 
-.doc__side .doc-chat__send.is-stop {
+.doc__side .doc-chat__send.is-stop,
+.konzept-liky .doc-chat__send.is-stop {
   background: var(--gray-300);
   color: var(--text-inverse);
 }
 
-.doc__side .doc-chat__send.is-stop .doc-chat__send-icon--send {
+.doc__side .doc-chat__send.is-stop .doc-chat__send-icon--send,
+.konzept-liky .doc-chat__send.is-stop .doc-chat__send-icon--send {
   display: none;
 }
 
-.doc__side .doc-chat__send.is-stop .doc-chat__send-icon--stop {
+.doc__side .doc-chat__send.is-stop .doc-chat__send-icon--stop,
+.konzept-liky .doc-chat__send.is-stop .doc-chat__send-icon--stop {
   display: inline-flex;
 }
 
 /* Beim Laden tritt der Kreis-Spinner an die Stelle des Icons
    (gleiches Verhalten wie .url-extract-btn in components.css) */
-.doc__side .doc-chat__send .spinner-small {
+.doc__side .doc-chat__send .spinner-small,
+.konzept-liky .doc-chat__send .spinner-small {
   display: none;
   margin: 0;
 }
 
-.doc__side .doc-chat__send.is-loading .doc-chat__send-icon {
+.doc__side .doc-chat__send.is-loading .doc-chat__send-icon,
+.konzept-liky .doc-chat__send.is-loading .doc-chat__send-icon {
   display: none;
 }
 
-.doc__side .doc-chat__send.is-loading .spinner-small {
+.doc__side .doc-chat__send.is-loading .spinner-small,
+.konzept-liky .doc-chat__send.is-loading .spinner-small {
   display: inline-block;
 }
 
