@@ -239,12 +239,7 @@ tr {
   .page-wrapper {
     flex-direction: column;
   }
-  
-  
-  .main-content {
-    margin-left: 0;
-  }
-  
+
   .main-header {
     padding: var(--space-md);
   }

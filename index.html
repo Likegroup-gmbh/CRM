@@ -36,8 +36,13 @@
   <div id="login-root"></div>
   <div id="app-root" class="page-wrapper" style="display: none;">
     <script>
-      if (localStorage.getItem('sidebar-collapsed') === 'true') {
-        document.currentScript.parentElement.classList.add('sidebar-collapsed');
+      // Muss SIDEBAR_NARROW_QUERY in src/core/collapsiblePanel.js entsprechen
+      // (dieses Script läuft vor dem Modul-Import).
+      var appRoot = document.currentScript.parentElement;
+      var sidebarNarrow = window.matchMedia('(max-width: 768px)').matches;
+      if (sidebarNarrow) appRoot.classList.add('sidebar-narrow');
+      if (localStorage.getItem('sidebar-collapsed') === 'true' || sidebarNarrow) {
+        appRoot.classList.add('sidebar-collapsed');
       }
     </script>
     <aside class="sidebar">
