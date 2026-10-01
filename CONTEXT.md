@@ -331,8 +331,12 @@ Auftrag im Editor, Situation und Einstieg zu wechseln. Claims, Don'ts und Besetz
 _Avoid_: Neuformulierung, Hook-Variante, Videoidee
 
 **Festgezogen**:
-Zelle eines Skripts, die ein späterer Auftrag nicht ersetzen darf, solange der Auftrag nicht genau diese Zelle verlangt. Ein Satz darin ist nur geschützt, wenn er markiert ist.
+Zelle eines Skripts, die ein späterer Auftrag nicht ersetzen darf, solange der Auftrag nicht genau diese Zelle verlangt. Ein Satz darin ist nur geschützt, wenn er markiert ist. Ein Auftrag mit Umfang Alles oder ein benannter Teil öffnet die Zellen in diesem Umfang; eine Markierung allein nicht.
 _Avoid_: Freigabe, Skript-Freigabe, Kundenfreigabe
+
+**Umfang**:
+Reichweite eines Auftrags im Editor. Steht im Text: Alles, ein benannter Teil (Hook, Hauptteil, CTA) oder eine Markierung. Alles und ein benannter Teil schlagen die Markierung und öffnen Festgezogen in diesem Umfang. Benannter Teil meint Was gesagt wird und Was zu sehen ist derselben Sektion. Ohne Umfang und ohne Markierung fragt Liky einmal nach der Sektion.
+_Avoid_: Sektion, Spalte, Kontext
 
 **Festlegung**:
 Fakt am Skript, der ab dann in jedem weiteren Auftrag gilt, ohne ihn neu zu nennen. Entsteht aus einer ausdrücklichen Anweisung oder einer Ablehnung, nicht aus dem angenommenen Wortlaut. Zum Beispiel die Besetzung, ein abgelehnter Ansatz oder ein Tarifverbot.

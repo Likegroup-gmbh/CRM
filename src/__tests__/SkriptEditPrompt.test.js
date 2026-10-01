@@ -263,19 +263,29 @@ describe('buildEditPrompt Visual-Stil', () => {
     expect(stable).not.toContain('HOOK (was zu sehen ist)');
   });
 
-  it('chat auf Grid: Live-Stand, Spaltenwahl, visueller Stil', () => {
+  it('chat auf Grid: Umfang statt Spaltenwahl, visueller Stil', () => {
     const { stable, task } = buildEditPrompt(baseCtx(), MESSAGE);
     expect(task.indexOf('ist der Vorschlag die Basis')).toBeLessThan(task.indexOf('# AKTUELLES SKRIPT'));
-    expect(task).toContain('# SPALTE\n');
-    expect(task).toContain('spalte=visuell');
-    expect(task).toContain('ganze_sektion=true');
-    expect(task).toContain('derselben Sektion');
-    expect(task).toContain('Felder: antwort, sektion, vorschlag_text, spalte, ganze_sektion');
-    expect(task).not.toContain('# SPALTE: Was gesagt wird');
+    expect(task).toContain('# UMFANG\n');
+    expect(task).toContain('aenderungen');
+    expect(task).toContain('„alles“');
+    expect(task).toContain('„nur Hauptteil“');
+    expect(task).toContain('„nicht erwähnen“');
+    expect(task).toContain('„nicht zeigen“');
+    expect(task).toContain('Felder: antwort, sektion, vorschlag_text, spalte, ganze_sektion, aenderungen');
+    expect(task).not.toContain('# SPALTE\n');
     expect(task).not.toContain('kein neues Storyboard');
     expect(stable).toContain('# VISUELLER STIL');
     expect(stable).not.toContain('VISUAL-BEISPIELE');
     expect(stable).not.toContain('DARF-NICHT-IM-CHAT');
+  });
+
+  it('chat: der Rückfragen-Dialog steht nicht im Edit-Prompt', () => {
+    const { task } = buildEditPrompt(baseCtx({
+      rueckfragen: 'User: Brot ist das Gericht\nLiky: notiert'
+    }), MESSAGE);
+    expect(task).not.toContain('GEKLAERTE RUECKFRAGEN');
+    expect(task).not.toContain('Brot ist das Gericht');
   });
 
   it('chat mit Visual-Markierung bleibt Neubau-fähig, kein Storyboard-Lock', () => {
@@ -286,8 +296,8 @@ describe('buildEditPrompt Visual-Stil', () => {
       selektion_text: 'Alter Shot',
       inhalt: 'Bitte nur das Visual an den gesprochenen Text anpassen'
     });
-    expect(task).toContain('ganze_sektion=true');
-    expect(task).toContain('Alte Regie nur behalten');
+    expect(task).toContain('# UMFANG\n');
+    expect(task).toContain('Nur eine Markierung');
     expect(task).not.toContain('kein neues Storyboard');
     expect(task).not.toContain('Zeitmarker und Blöcke stehen lassen. Ändere nur was verlangt wird');
   });

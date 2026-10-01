@@ -127,6 +127,19 @@ export function messageHtml(m, { istFragenModus = false, genLaeuft = false, vera
     </div>
   ` : '';
 
+  const aenderungen = Array.isArray(m.aenderungen) ? m.aenderungen : [];
+  const aenderungenBlock = aenderungen.length ? `
+    <div class="skripte-editor-vorschlag ${m.status === 'angenommen' ? 'is-angenommen' : ''} ${m.status === 'abgelehnt' ? 'is-abgelehnt' : ''}">
+      <div class="skripte-editor-vorschlag-label">Vorschlag · ${aenderungen.length} Zellen</div>
+      ${aenderungen.map((a) => `
+        <div class="skripte-editor-vorschlag-zelle">
+          <div class="skripte-editor-vorschlag-label">${escapeHtml(sektionAnzeige(a.sektion, a.spalte === 'visuell'))}</div>
+          <div class="skripte-editor-vorschlag-text">${escapeHtml(a.vorschlag_text || '')}</div>
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
+
   let footer = '';
   if (m.aktion === 'rueckfrage') {
     // status 'vorschlag' = alle Fragen geklaert -> Generierung anbieten
@@ -171,6 +184,7 @@ export function messageHtml(m, { istFragenModus = false, genLaeuft = false, vera
       ${tag}
       ${m.inhalt ? `<div class="skripte-editor-msg-text">${escapeHtml(m.inhalt)}</div>` : ''}
       ${vorschlagBlock}
+      ${aenderungenBlock}
       ${footer}
     </div>
   `;

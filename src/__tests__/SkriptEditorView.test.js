@@ -935,6 +935,37 @@ describe('SkriptEditorView Inline-Edit', () => {
     expect(view.skript.hook_visuell).not.toContain('Alter Shot');
   });
 
+  it('acceptVorschlag mit aenderungen schreibt alle Zellen und eine Version', async () => {
+    window.toastSystem = { success: vi.fn(), error: vi.fn() };
+    await view.render(container, 's1');
+    mockService.updateSkript.mockClear();
+    mockService.createVersion.mockClear();
+
+    await view.acceptVorschlag({
+      id: 'm-bundle',
+      sektion: 'gesamt',
+      ist_visuell: false,
+      aktion: 'chat',
+      status: 'vorschlag',
+      selektion_text: null,
+      vorschlag_text: null,
+      aenderungen: [
+        { sektion: 'hook', spalte: 'gesprochen', vorschlag_text: 'Neuer Hook' },
+        { sektion: 'hauptteil', spalte: 'visuell', vorschlag_text: 'Neue Regie' }
+      ]
+    });
+
+    expect(mockService.updateSkript).toHaveBeenCalledWith('s1', {
+      hook: 'Neuer Hook',
+      hauptteil_visuell: 'Neue Regie',
+      festgezogen: ['hook', 'hauptteil_visuell']
+    });
+    expect(view.skript.hook).toBe('Neuer Hook');
+    expect(view.skript.hauptteil_visuell).toBe('Neue Regie');
+    expect(mockService.createVersion).toHaveBeenCalledTimes(1);
+    expect(mockService.createVersion.mock.calls[0][1]).toBe('Chat · 2 Zellen');
+  });
+
   it('Tippen in Zelle loescht pending Selektion', async () => {
     await view.render(container, 's1');
     view.selektion = { sektion: 'hook', text: 'Hook-Text' };

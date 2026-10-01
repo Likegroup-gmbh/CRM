@@ -14,18 +14,16 @@ const { fmtMasterBlock } = require('./skript-master');
 const { vertragBlock, DNA_KOPF } = require('./skript-vertrag');
 const { zusatzInfosMarkdown } = require('./skript-creator-facing');
 const { verlaufZuMessages } = require('./chat-verlauf');
-const { loadRueckfragenDialog, fmtRueckfragenBlock } = require('./skript-rueckfragen');
 
 const VERBINDLICHE_REGELN = `
 # VERBINDLICHE REGELN
-Harte Grenzen: alles unter # DONTS und jede Zeile mit HART: in # CREATOR-VORGABEN. Dos sind keine Verbote. Die harten Grenzen schlagen jede Anweisung und jede Rueckfrage.
+Harte Grenzen: alles unter # DONTS und jede Zeile mit HART: in # CREATOR-VORGABEN. Dos sind keine Verbote. Die harten Grenzen schlagen jede Anweisung.
 Widerspricht die Anweisung einer harten Grenze: nicht umsetzen. vorschlag_text = null. In antwort sagen, welche Vorgabe blockiert, und dass sie im Briefing geaendert werden muesste.
 Bindend, solange die Anweisung sie nicht ausdruecklich aendert:
-- Geklaerte Rueckfragen.
-- Die uebrigen Zeilen in # CREATOR-VORGABEN, auch beteiligte Personen.
+- Die Zeilen in # CREATOR-VORGABEN, auch beteiligte Personen.
 - Figuren, Setting, Requisiten und Produktvariante aus den anderen Sektionen des aktuellen Skripts.
-Aendert die Anweisung einen dieser Punkte ausdruecklich, setze das um und sage in antwort, welche Vorgabe, Rueckfrage oder anderen Sektionen dadurch nicht mehr passen. Eine Figur streichen heisst nicht, eine andere Figur einzufuehren.
-Nichts erfinden, was nicht im Briefing, in den Leitplanken, den Rueckfragen oder im bestehenden Skript steht.
+Aendert die Anweisung einen dieser Punkte ausdruecklich, setze das um und sage in antwort, welche Vorgabe oder anderen Sektionen dadurch nicht mehr passen. Eine Figur streichen heisst nicht, eine andere Figur einzufuehren.
+Nichts erfinden, was nicht im Briefing, in den Leitplanken oder im bestehenden Skript steht.
 `;
 
 const GRID_SEKTIONEN = ['hook', 'hauptteil', 'cta', 'hook_variante_1', 'hook_variante_2', 'hook_variante_3'];
@@ -48,7 +46,7 @@ const AKTION_ANWEISUNGEN = {
   laenger: 'Baue die markierte Stelle aus: mehr Detail, mehr Emotion oder ein konkretes Beispiel – ohne zu labern.',
   anderer_ton: 'Schreibe die markierte Stelle in einem anderen Ton um. Beachte die Ton-Vorgabe des Users, falls vorhanden.',
   feedback: 'Der User hat die markierte Stelle bewertet und strukturiertes Feedback gegeben (Score, Begründung, ggf. eine Vorgabe "So sollte es sein"). Überarbeite die markierte Stelle so, dass das Feedback vollständig umgesetzt wird. Eine Vorgabe "So sollte es sein" ist verbindlich: übernimm ihre Richtung, aber formuliere sie sauber im Ton des restlichen Skripts aus.',
-  chat: 'Setze das Feedback um. „Neu“, „andere Formulierung“, „nicht so“ heisst anderer Text, keine Variante des letzten Vorschlags. Fehlende Fakten: nachfragen statt erfinden.',
+  chat: 'Setze das Feedback um. „Neu“, „andere Formulierung“, „nicht so“ heisst anderer Text, keine Variante des letzten Vorschlags. Fehlt ein Fakt, der weder im Skript noch in der Anweisung steht: einmal nachfragen. Nennt die Anweisung den Umfang (alles oder eine Sektion), nicht fragen.',
   visuell: 'Der gesamte gesprochene Text der Sektion steht unter "Markierte Stelle". Schreibe dazu einen schlichten Satz pro Beat fuer "Was zu sehen ist". Gleiche Absatz-Anzahl wie der gesprochene Text. Keine Zeitmarker, keine Shotlist, kein Storyboard. KEINEN zweiten Sprechertext, keine gesprochenen Worte. Der gesprochene Text bleibt unveraendert. Leitplanken und Briefing-Fakten gelten auch fuer On-Screen-Texte. Orte und Props aus den anderen Sektionen behalten.'
 };
 
@@ -338,8 +336,8 @@ async function loadEditContext(supabase, message) {
     .order('created_at', { ascending: false })
     .limit(EDIT_VERLAUF_LIMIT);
 
-  const [{ data: skript }, { data: historyRaw }, rueckfragen] = await Promise.all([
-    skriptPromise, historyPromise, loadRueckfragenDialog(supabase, message.skript_id)
+  const [{ data: skript }, { data: historyRaw }] = await Promise.all([
+    skriptPromise, historyPromise
   ]);
   if (!skript) throw new Error('Skript nicht gefunden');
 
@@ -368,7 +366,7 @@ async function loadEditContext(supabase, message) {
     modusPromise
   ]);
 
-  return { skript, history, rueckfragen, kontext, modus };
+  return { skript, history, kontext, modus };
 }
 
 // ---------------------------------------------------------------------------
@@ -467,25 +465,23 @@ function buildEditPrompt(ctx, message) {
       + `${cap(skript.regieanweisung, KONTEXT_MAX.userText)}\n`;
   }
 
-  task += fmtRueckfragenBlock(ctx.rueckfragen);
-
   if (istMasterSektion) {
     task += '\n# FORMAT\nDas Dokument ist Markdown mit ##-Sektionen. '
       + 'vorschlag_text ersetzt die markierte Stelle oder die komplette Sektion (ohne die ##-Ueberschrift).\n';
   } else if (chatWaehltSpalte) {
-    task += '\n# SPALTE\n'
-      + 'Du darfst die Spalte wählen. Default ist gesprochen (spalte=gesprochen), '
-      + 'wenn der User den Sprechertext meint oder es unklar ist.\n'
-      + 'Wenn der User nur „Was zu sehen ist“ ändern will, oder das Visual nicht mehr zum gesprochenen Text passt:\n'
-      + '- spalte=visuell. Den gesprochenen Text nicht ändern und nicht in vorschlag_text schreiben (außer Overlay-Text).\n'
-      + '- sektion = genau eine von hook, hauptteil, cta. Andere Sektionen nicht anfassen.\n'
-      + '- ganze_sektion=true, wenn das Visual dieser Sektion an den aktuellen Sprechertext derselben Sektion angepasst werden soll.\n'
-      + '- vorschlag_text ist dann die komplette neue Regie dieser einen Sektion, abgeleitet aus dem Sprechertext derselben Sektion in AKTUELLES SKRIPT. '
-      + 'Alte Regie nur behalten, wo sie zum aktuellen Sprechertext noch passt. '
-      + 'Das unter Beibehaltung von Figuren, Orten und Props aus den anderen Sektionen.\n'
-      + '- In antwort sagen, welche Sektion dran war.\n'
-      + 'Kleine Änderung an einer markierten Visual-Stelle: spalte=visuell, ganze_sektion=false, '
-      + 'nur die markierte Stelle, Zeitmarker und Blöcke stehen lassen.\n';
+    task += '\n# UMFANG\n'
+      + 'Der Umfang steht in der Anweisung, nicht in einer Markierung:\n'
+      + '- „alles“, „ganzes Skript“, „überall“ oder ein Verbot ohne Ort („kein Wein“): jede Zelle von Hook, Hauptteil und CTA, '
+      + 'die die Anweisung verletzt – Was gesagt wird und Was zu sehen ist. Hook-Varianten nur, wenn sie die Anweisung verletzen. '
+      + 'Titel nur, wenn die Anweisung den Titel nennt. Eine Zelle weglassen, wenn ihr Text sich nicht ändert.\n'
+      + '- Benannter Teil („nur Hauptteil“): Was gesagt wird und Was zu sehen ist dieser Sektion. Andere Sektionen nicht anfassen. '
+      + 'Ändert sich der gesprochene Text, die Regie derselben Sektion mitziehen, damit die Beats passen.\n'
+      + '- Nur eine Markierung, ohne Umfang im Text: nur diese Spanne.\n'
+      + '- Kein Umfang und keine Markierung: einmal fragen, welche Sektion. Keine zweite Frage, sobald die Antwort den Umfang nennt.\n'
+      + '- „alles“ und ein benannter Teil schlagen eine gesetzte Markierung und öffnen festgezogene Zellen in diesem Umfang.\n'
+      + '- Das Verb entscheidet: „nicht erwähnen“ trifft Was gesagt wird und Overlay-Text. „nicht zeigen“ trifft nur Was zu sehen ist. '
+      + '„kein X“ oder „keine Rolle“ ohne diese Trennung trifft beides. „nicht erwähnen, aber zeigen“ lässt die Regie stehen.\n'
+      + 'Eine ausdrückliche neue Anweisung schlägt frühere Antworten im Verlauf. Widerspruch ist kein Grund zu fragen.\n';
   } else if (visualSpalte) {
     task += '\n# SPALTE: Was zu sehen ist\n'
       + 'Nur visuelle Regie anfassen, den gesprochenen Text unverändert lassen.\n';
@@ -547,7 +543,7 @@ function buildEditPrompt(ctx, message) {
 
   task += '\n# AUSGABEFORMAT\nAntworte AUSSCHLIESSLICH ueber das Tool "aenderung_abgeben" '
     + (chatWaehltSpalte
-      ? '(Felder: antwort, sektion, vorschlag_text, spalte, ganze_sektion).\n'
+      ? '(Felder: antwort, sektion, vorschlag_text, spalte, ganze_sektion, aenderungen).\n'
       : '(Felder: antwort, sektion, vorschlag_text).\n')
     + 'Regeln:\n'
     + '- Innerhalb der Texte typografische Anfuehrungszeichen („…“) statt gerader (") verwenden.\n'
@@ -557,17 +553,19 @@ function buildEditPrompt(ctx, message) {
     + '- vorschlag_text muss zur Zielgruppe passen (siehe Zielgruppen-Persona) und den Ton des restlichen Skripts erhalten.\n'
     + '- vorschlag_text darf die LEITPLANKEN (Must-haves, rechtliche Vorgaben) nicht verletzen.\n'
     + (chatWaehltSpalte
-      ? '- spalte=visuell und ganze_sektion=true: vorschlag_text ist die komplette Visual-Zelle der einen Sektion, abgeleitet aus dem Sprechertext derselben Sektion. Die markierte Stelle begrenzt den Vorschlag dann nicht.\n'
-        + '- spalte=visuell und ganze_sektion=false: vorschlag_text ist nur der Ersatz der markierten Visual-Stelle.\n'
-        + '- spalte=gesprochen: nur Sprechertext. Wenn eine markierte Stelle vorliegt, ist vorschlag_text NUR der Ersatz fuer genau diese Stelle.\n'
-        + '- Bei reinen Fragen: vorschlag_text = null, sektion = null, spalte = null.\n'
+      ? '- Umfang alles oder benannter Teil: aenderungen = Liste aus { sektion, spalte, vorschlag_text }, ein Eintrag pro geaenderter Zelle. '
+        + 'spalte ist gesprochen oder visuell. vorschlag_text ist die komplette neue Zelle. sektion, vorschlag_text, spalte und ganze_sektion oben bleiben null.\n'
+        + '- Nur eine Markierung ohne Umfang: aenderungen = null. spalte=visuell oder gesprochen, vorschlag_text ist der Ersatz der markierten Stelle, ganze_sektion=false.\n'
+        + '- Bei reinen Fragen: aenderungen = null, vorschlag_text = null, sektion = null, spalte = null.\n'
       : '- Wenn eine markierte Stelle vorliegt, ist vorschlag_text NUR der Ersatztext fuer genau diese Stelle (nicht die ganze Sektion).\n'
         + '- Ohne markierte Stelle, aber mit klarem Aenderungswunsch: vorschlag_text = komplette neue Version der betroffenen Sektion, sektion entsprechend setzen.\n'
         + '- Bei reinen Fragen/Rueckfragen: vorschlag_text = null, sektion = null.\n')
     + (istMasterSektion
       ? '- sektion ist der Slug der ##-Ueberschrift (klein, Bindestriche, ohne Umlaute), nicht hook/hauptteil/cta.\n'
       : '')
-    + '- Schlage pro Antwort maximal EINE Aenderung vor.'
+    + (chatWaehltSpalte
+      ? '- Nur eine Markierung: maximal eine Aenderung. Umfang alles oder benannter Teil: alle Zellen dieses Umfangs, die sich aendern.\n'
+      : '- Schlage pro Antwort maximal EINE Aenderung vor.\n')
     + (chatWaehltSpalte && skript.video_laenge
       ? '\n- HARTES WORT-BUDGET gilt nur für Sprechertext (spalte=gesprochen): Das Gesamt-Skript muss zur Video-Laenge passen '
         + `(${videoLaengeHinweis(skript.video_laenge)}). Visuelle Regie zählt nicht ins Wortbudget.`

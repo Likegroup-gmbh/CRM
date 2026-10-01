@@ -12,6 +12,22 @@ function zielZelle(m) {
   return m.sektion;
 }
 
+/** Alle Zellen einer Message: eine oder die Liste aus aenderungen. */
+function zielZellen(m) {
+  const liste = Array.isArray(m?.aenderungen) ? m.aenderungen : [];
+  if (liste.length) {
+    return liste
+      .map((a) => {
+        const sektion = String(a?.sektion || '').trim();
+        if (!sektion) return null;
+        return sektion === 'titel' ? 'titel' : (a?.spalte === 'visuell' ? VISUELL_FIELD[sektion] : sektion);
+      })
+      .filter(Boolean);
+  }
+  const eine = zielZelle(m);
+  return eine ? [eine] : [];
+}
+
 function aktuellerText(skript, zelle) {
   if (!skript || !zelle) return '';
   if (GRID_SEKTIONEN.includes(zelle) || Object.values(VISUELL_FIELD).includes(zelle)) {
@@ -27,16 +43,20 @@ function zeit(wert) {
 
 export function istVeraltet(msg, messages, skript) {
   if (msg?.status !== 'vorschlag' || msg.aktion === 'rueckfrage' || msg.aktion === 'visuell') return false;
-  const zelle = zielZelle(msg);
+  const zellen = zielZellen(msg);
   const erstellt = zeit(msg.created_at);
-  if (!zelle || erstellt == null) return false;
+  if (!zellen.length || erstellt == null) return false;
 
+  // Mehrere Zellen: ein spaeterer Accept auf irgendeiner davon macht das
+  // ganze Bundle veraltet. Eine halbe Uebernahme wuerde die Anweisung
+  // (z.B. ein Verbot) in den uebrigen Zellen stehen lassen.
   const spaeterAngenommen = (messages || []).some((o) => o.id !== msg.id
     && o.status === 'angenommen'
-    && zielZelle(o) === zelle
+    && zielZellen(o).some((z) => zellen.includes(z))
     && (zeit(o.updated_at) ?? 0) > erstellt);
   if (!spaeterAngenommen) return false;
 
+  if (zellen.length > 1) return true;
   if (!msg.selektion_text) return true;
-  return !aktuellerText(skript, zelle).includes(msg.selektion_text);
+  return !aktuellerText(skript, zellen[0]).includes(msg.selektion_text);
 }

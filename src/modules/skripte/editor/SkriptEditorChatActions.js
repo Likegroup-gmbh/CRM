@@ -12,6 +12,23 @@ import { sektionAnzeige, sektionAnzeigeKurz, skriptStand, manuellBeschreibung } 
 import { istMasterSkript, replaceMasterSektion, masterSektionBody } from '../master/skriptMasterFormat.js';
 import { istVeraltet } from './skriptEditorVeraltet.js';
 
+/** Zellen eines Mehr-Zellen-Auftrags: [{ feld, text }]. */
+function aenderungZellen(msg) {
+  const liste = Array.isArray(msg?.aenderungen) ? msg.aenderungen : [];
+  return liste
+    .map((a) => {
+      const sektion = String(a?.sektion || '').trim();
+      if (!sektion) return null;
+      const feld = sektion === 'titel'
+        ? 'titel'
+        : (a?.spalte === 'visuell' ? VISUELL_FIELD[sektion] : sektion);
+      if (!feld) return null;
+      const text = String(a?.vorschlag_text || '').trim();
+      return text ? { feld, text } : null;
+    })
+    .filter(Boolean);
+}
+
 export class SkriptEditorChatActions {
   constructor(view) {
     this.view = view;
@@ -255,6 +272,9 @@ export class SkriptEditorChatActions {
       return;
     }
 
+    const zellen = aenderungZellen(msg);
+    if (zellen.length) return this.acceptAenderungen(msg, zellen);
+
     const sektion = msg.sektion;
     const istTitel = sektion === 'titel';
     if (!istTitel && !GRID_SEKTIONEN.includes(sektion)) {
@@ -308,6 +328,46 @@ export class SkriptEditorChatActions {
       v.skript[feld] = neu;
 
       const beschreibung = `${AKTION_LABELS[msg.aktion] || 'Änderung'} · ${sektionAnzeigeKurz(sektion, msg.ist_visuell)}`;
+      const neueVersion = await skripteService.createVersion(v.skript, beschreibung, vorherigerStand, v.aktiveVersion);
+      v.aktiveVersion = neueVersion;
+      v.skript.aktive_version_nr = neueVersion.version_nr;
+      v.skript.aktive_sub_nr = neueVersion.sub_nr;
+      v.versionen = await skripteService.getVersionen(v.skript.id);
+
+      await skripteService.updateChatMessage(msg.id, { status: 'angenommen' });
+      msg.status = 'angenommen';
+      msg.updated_at = new Date().toISOString();
+
+      v.renderDoc();
+      v.renderChat();
+      v.renderVersionSelect();
+      window.toastSystem?.success(`Übernommen – jetzt ${skripteService.versionLabel(neueVersion)}`);
+    } catch (err) {
+      window.toastSystem?.error(err.message);
+      btns.forEach((b) => { b.disabled = false; });
+    } finally {
+      v.acceptLaeuft = false;
+    }
+  }
+
+  /** Mehr-Zellen-Auftrag: alle Felder in einem Update, eine Version. */
+  async acceptAenderungen(msg, zellen) {
+    const v = this.view;
+    const vorherigerStand = skriptStand(v.skript);
+    await v.inlineEdit.flush();
+    v.acceptLaeuft = true;
+    const btns = v.container?.querySelectorAll(`[data-msg-id="${msg.id}"]`) || [];
+    btns.forEach((b) => { b.disabled = true; });
+
+    try {
+      const patch = {};
+      for (const z of zellen) patch[z.feld] = z.text;
+      const festgezogen = zellen.reduce((liste, z) => this.mitFestgezogen(z.feld, liste), null);
+      await skripteService.updateSkript(v.skript.id, { ...patch, festgezogen });
+      v.skript.festgezogen = festgezogen;
+      Object.assign(v.skript, patch);
+
+      const beschreibung = `${AKTION_LABELS[msg.aktion] || 'Änderung'} · ${zellen.length} Zellen`;
       const neueVersion = await skripteService.createVersion(v.skript, beschreibung, vorherigerStand, v.aktiveVersion);
       v.aktiveVersion = neueVersion;
       v.skript.aktive_version_nr = neueVersion.version_nr;
@@ -431,11 +491,11 @@ export class SkriptEditorChatActions {
     }
   }
 
-  mitFestgezogen(feld) {
-    const liste = Array.isArray(this.view.skript?.festgezogen) ? this.view.skript.festgezogen.slice() : [];
-    if (feld && !liste.includes(feld)) liste.push(feld);
-    this.view.skript.festgezogen = liste;
-    return liste;
+  mitFestgezogen(feld, liste = null) {
+    const basis = liste || (Array.isArray(this.view.skript?.festgezogen) ? this.view.skript.festgezogen.slice() : []);
+    if (feld && !basis.includes(feld)) basis.push(feld);
+    if (!liste) this.view.skript.festgezogen = basis;
+    return basis;
   }
 
   async haengeFestlegung(text, quelle) {

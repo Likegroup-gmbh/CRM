@@ -300,7 +300,7 @@ describe('buildEditPrompt: VERBINDLICHE REGELN in allen Zweigen', () => {
 
   it('Chat-Visual behaelt Figuren, Orte und Props', () => {
     const { task } = buildEditPrompt(ctx(), CHAT_GRID);
-    expect(task).toContain('unter Beibehaltung von Figuren, Orten und Props aus den anderen Sektionen');
+    expect(task).toContain('Figuren, Setting, Requisiten und Produktvariante aus den anderen Sektionen');
   });
 
   it('Visual-Ausgabeformat: bei Regelverstoss vorschlag_text = null', () => {
@@ -397,17 +397,16 @@ describe('loadEditContext', () => {
   });
   const message = messages[messages.length - 1];
 
-  it('Rueckfrage bleibt trotz 13 Edit-Messages, tote Status zaehlen nicht', async () => {
+  it('Edit laedt den Rueckfragen-Dialog nicht; Verlauf bleibt auf 12 Edit-Messages', async () => {
     const c = await loadEditContext(supabase, { ...message, skript_id: 's1' });
-    expect(c.rueckfragen).toContain('User: CTA ist Link in der Bio');
-    expect(c.rueckfragen).not.toContain('ABGEBROCHEN');
+    expect(c.rueckfragen).toBeUndefined();
     expect(c.history).toHaveLength(12);
     expect(c.history.some((h) => h.aktion === 'rueckfrage')).toBe(false);
     expect(c.history.some((h) => ['error', 'cancelled', 'running'].includes(h.status))).toBe(false);
 
     const { task } = buildEditPrompt(c, message);
-    expect(task).toContain('# GEKLAERTE RUECKFRAGEN (verbindliche Antworten des Users - haben Vorrang vor widerspruechlichen CRM-Daten, aber nicht vor den harten Grenzen aus dem Briefing)');
-    expect(task).toContain('Link in der Bio');
+    expect(task).not.toContain('# GEKLAERTE RUECKFRAGEN');
+    expect(task).not.toContain('rueckfragen_dialog');
   });
 
   it('Briefing voll geladen: Donts und Dos im Edit-Prompt', async () => {

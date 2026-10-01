@@ -39,6 +39,19 @@ const EDIT_TOOL = {
       ganze_sektion: {
         type: 'boolean',
         description: 'Nur freier Chat: true = vorschlag_text ersetzt die ganze Zelle der Sektion, nicht nur die markierte Stelle.'
+      },
+      aenderungen: {
+        type: ['array', 'null'],
+        description: 'Nur freier Chat bei Umfang alles oder benannter Teil: ein Eintrag pro geaenderter Zelle.',
+        items: {
+          type: 'object',
+          properties: {
+            sektion: { type: 'string', description: 'hook, hauptteil, cta, hook_variante_1..3 oder titel' },
+            spalte: { type: 'string', description: 'gesprochen oder visuell' },
+            vorschlag_text: { type: 'string', description: 'Komplette neue Zelle' }
+          },
+          required: ['sektion', 'spalte', 'vorschlag_text']
+        }
       }
     },
     required: ['antwort', 'sektion', 'vorschlag_text']
@@ -142,7 +155,7 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     }
 
     const parsed = result.json || extractJson(result.text, {
-      keys: ['antwort', 'sektion', 'vorschlag_text', 'spalte', 'ganze_sektion', 'titel', 'festlegung']
+      keys: ['antwort', 'sektion', 'vorschlag_text', 'spalte', 'ganze_sektion', 'titel', 'festlegung', 'aenderungen']
     });
     let vorschlag = stripToolXml(parsed.vorschlag_text);
     const antwort = stripToolXml(parsed.antwort);
@@ -181,6 +194,42 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
       vorschlag = stempelSekunden(draft)[visKey] || vorschlag;
     }
 
+    // Freier Chat mit Umfang: Liste der geaenderten Zellen. Jede wird wie
+    // eine einzelne Zelle geprueft; die Visual-Zellen bekommen die Sekunden
+    // aus dem gesamten Entwurf, nicht nur aus der eigenen Zelle.
+    const aenderungen = (message.aktion === 'chat' && Array.isArray(parsed.aenderungen))
+      ? parsed.aenderungen
+          .filter((a) => a && typeof a === 'object')
+          .map((a) => ({
+            sektion: String(a.sektion || '').trim(),
+            spalte: a.spalte === 'visuell' ? 'visuell' : 'gesprochen',
+            vorschlag_text: stripToolXml(a.vorschlag_text)
+          }))
+          .filter((a) => a.vorschlag_text && (GRID_SEKTIONEN.includes(a.sektion) || a.sektion === 'titel'))
+      : null;
+    if (aenderungen && aenderungen.length) {
+      const draft = {
+        hook: ctx.skript.hook,
+        hauptteil: ctx.skript.hauptteil,
+        cta: ctx.skript.cta,
+        hook_visuell: ctx.skript.hook_visuell,
+        hauptteil_visuell: ctx.skript.hauptteil_visuell,
+        cta_visuell: ctx.skript.cta_visuell
+      };
+      for (const a of aenderungen) {
+        const feld = a.sektion === 'titel' ? 'titel' : (a.spalte === 'visuell' ? `${a.sektion}_visuell` : a.sektion);
+        if (feld !== 'titel') draft[feld] = a.vorschlag_text;
+      }
+      const gestempelt = stempelSekunden(draft);
+      for (const a of aenderungen) {
+        if (a.spalte === 'visuell' && ['hook', 'hauptteil', 'cta'].includes(a.sektion)) {
+          a.vorschlag_text = gestempelt[`${a.sektion}_visuell`] || a.vorschlag_text;
+        }
+      }
+      vorschlag = null;
+      sektion = null;
+    }
+
     const festlegungText = stripToolXml(parsed.festlegung);
     if (festlegungText) {
       const liste = Array.isArray(ctx.skript.festlegungen) ? ctx.skript.festlegungen.slice() : [];
@@ -210,10 +259,11 @@ exports.handler = withSkriptHandler(async ({ supabase, user, payload }) => {
     });
 
     await supabase.from('skript_chat_messages').update({
-      status: vorschlag && sektion && sektion !== 'gesamt' ? 'vorschlag' : 'fertig',
+      status: (aenderungen && aenderungen.length) || (vorschlag && sektion && sektion !== 'gesamt') ? 'vorschlag' : 'fertig',
       inhalt: antwort,
       vorschlag_text: vorschlag,
-      sektion: sektion || message.sektion,
+      aenderungen: aenderungen && aenderungen.length ? aenderungen : null,
+      sektion: (aenderungen && aenderungen.length) ? 'gesamt' : (sektion || message.sektion),
       ist_visuell: sektion === 'titel' ? false : spalte.ist_visuell,
       selektion_text: sektion === 'titel' ? null : spalte.selektion_text,
       model: result.model,

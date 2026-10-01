@@ -59,4 +59,28 @@ describe('istVeraltet', () => {
     expect(istVeraltet(offen({ aktion: 'visuell' }), [angenommen()], skript)).toBe(false);
     expect(istVeraltet(offen({ aktion: 'rueckfrage' }), [angenommen()], skript)).toBe(false);
   });
+
+  it('Bundle: Accept auf einer der Zellen macht das ganze Bundle veraltet', () => {
+    const bundle = offen({
+      sektion: 'gesamt',
+      selektion_text: null,
+      vorschlag_text: null,
+      aenderungen: [
+        { sektion: 'hook', spalte: 'gesprochen', vorschlag_text: 'Neuer Hook' },
+        { sektion: 'cta', spalte: 'visuell', vorschlag_text: 'Neue Regie' }
+      ]
+    });
+    expect(istVeraltet(bundle, [angenommen(), bundle], skript)).toBe(true);
+    expect(istVeraltet(bundle, [angenommen({ sektion: 'hauptteil' }), bundle], skript)).toBe(false);
+  });
+
+  it('Bundle ohne spaeteren Accept: nicht veraltet', () => {
+    const bundle = offen({
+      sektion: 'gesamt',
+      selektion_text: null,
+      vorschlag_text: null,
+      aenderungen: [{ sektion: 'hook', spalte: 'gesprochen', vorschlag_text: 'Neuer Hook' }]
+    });
+    expect(istVeraltet(bundle, [bundle], skript)).toBe(false);
+  });
 });
