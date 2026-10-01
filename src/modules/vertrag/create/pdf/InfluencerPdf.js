@@ -6,6 +6,7 @@ import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
 import { renderPaginatedText, renderZusatzBestimmung } from './PdfTextFlow.js';
 import { KSK_SELBSTZAHLER_VERTRAGSTEXT_DE } from '../../../../core/budget/kskSelbstzahler.js';
 import { loadLikeGroupLogoPng, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
+import { drawDrittbeguenstigtenKlausel } from './DrittbeguenstigtenKlausel.js';
 
 VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang = this.getContractLanguage(vertrag)) {
     try {
@@ -567,6 +568,14 @@ VertraegeCreate.prototype.generateInfluencerPDF = async function(vertrag, lang =
         y += 8;
         y = addWrappedText(vertrag.weitere_bestimmungen, 14, y, 180);
       }
+
+      y = drawDrittbeguenstigtenKlausel(doc, {
+        firmenname: kunde?.firmenname,
+        lang,
+        y,
+        maxContentY: MAX_CONTENT_Y,
+        onPageBreak
+      });
 
       // Unterschriften
       checkPageBreak(45);

@@ -5,6 +5,7 @@ import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
 import { ensureSpace, renderPaginatedText, renderZusatzBestimmung } from './PdfTextFlow.js';
 import { loadLikeGroupLogoPng, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
+import { drawDrittbeguenstigtenKlausel } from './DrittbeguenstigtenKlausel.js';
 
 VertraegeCreate.prototype.generatePDF = async function(vertrag) {
     const lang = this.getContractLanguage(vertrag);
@@ -623,6 +624,14 @@ VertraegeCreate.prototype.generatePDF = async function(vertrag) {
         // Zeilenweise paginieren, damit langer Freitext nie in Fußzeile/Seitenrand läuft
         y = renderPaginatedText(doc, vertrag.weitere_bestimmungen, { y, maxContentY: MAX_CONTENT_Y, onPageBreak });
       }
+
+      y = drawDrittbeguenstigtenKlausel(doc, {
+        firmenname: kunde?.firmenname,
+        lang,
+        y,
+        maxContentY: MAX_CONTENT_Y,
+        onPageBreak
+      });
 
       // Unterschrift (nur Creator erforderlich) - garantiert genug Platz vor der Fußzeile
       y = ensureSpace(y + 25, 22, MAX_CONTENT_Y, onPageBreak);

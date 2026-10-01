@@ -5,6 +5,7 @@ import { VertraegeCreate } from '../VertraegeCreateCore.js';
 import { uploadGeneratedVertragPdf } from './VertragPdfUpload.js';
 import { ensureSpace, renderPaginatedText, renderZusatzBestimmung } from './PdfTextFlow.js';
 import { loadLikeGroupLogoPng, likeGroupFooterLine } from '../../../../core/pdf/PdfBrand.js';
+import { drawDrittbeguenstigtenKlausel } from './DrittbeguenstigtenKlausel.js';
 
 VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = this.getContractLanguage(vertrag)) {
     try {
@@ -488,6 +489,14 @@ VertraegeCreate.prototype.generateVideografPDF = async function(vertrag, lang = 
         y += 8;
         y = addWrappedText(vertrag.weitere_bestimmungen, 14, y, 180);
       }
+
+      y = drawDrittbeguenstigtenKlausel(doc, {
+        firmenname: kunde?.firmenname,
+        lang,
+        y,
+        maxContentY: MAX_CONTENT_Y,
+        onPageBreak
+      });
 
       // Unterschrift - garantiert genug Platz vor der Fußzeile
       y = ensureSpace(y + 20, 22, MAX_CONTENT_Y, onPageBreak);
