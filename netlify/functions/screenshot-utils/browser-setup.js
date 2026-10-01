@@ -26,6 +26,8 @@ const stealth = StealthPlugin({
 });
 puppeteerExtra.use(stealth);
 
+const { chromiumExecutablePath } = require('./chromium-path');
+
 async function launchBrowser(platform) {
   const isMobile = isMobilePlatform(platform);
   const viewport = isMobile ? VIEWPORTS.mobile : VIEWPORTS.desktop;
@@ -45,7 +47,7 @@ async function launchBrowser(platform) {
       '--window-size=1920,1080'
     ],
     defaultViewport: viewport,
-    executablePath: await chromium.executablePath(),
+    executablePath: await chromiumExecutablePath(),
     headless: 'new',
     ignoreDefaultArgs: ['--enable-automation']
   });
@@ -159,4 +161,4 @@ async function injectAntiBotScripts(page) {
   });
 }
 
-module.exports = { launchBrowser, setupPage };
+module.exports = { launchBrowser, setupPage, chromiumExecutablePath };
