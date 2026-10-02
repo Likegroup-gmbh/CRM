@@ -445,15 +445,24 @@ VertraegeCreate.prototype.updateCreatorAddressPreview = function(creator) {
 
 // Schreibt Firmenname (falls Hauptadresse = Firma) plus Strasse/PLZ/Land in ein PDF.
 // Gibt die Y-Position nach der letzten Adresszeile zurueck.
+// Zeilen mit DB-Inhalt werden umgebrochen (zentriert, max. 170mm), damit lange Firmen-/
+// Strassennamen nie ueber den Seitenrand laufen. y = Baseline der letzten Zeile.
 VertraegeCreate.prototype.appendPdfCreatorContractAddress = function(doc, y, address, landFallback, x = 105) {
+    const centerLine = (text) => {
+      const lines = typeof doc.splitTextToSize === 'function' ? doc.splitTextToSize(text, 170) : [text];
+      lines.forEach((l, i) => {
+        if (i > 0) y += 5;
+        doc.text(l, x, y, { align: 'center' });
+      });
+    };
     if (address?.source === 'firma' && address.name) {
-      doc.text(`Firma: ${address.name}`, x, y, { align: 'center' });
+      centerLine(`Firma: ${address.name}`);
       y += 5;
     }
-    doc.text(`${address?.strasse || ''} ${address?.hausnummer || ''}`.trim(), x, y, { align: 'center' });
+    centerLine(`${address?.strasse || ''} ${address?.hausnummer || ''}`.trim());
     y += 5;
-    doc.text(`${address?.plz || ''} ${address?.stadt || ''}`.trim(), x, y, { align: 'center' });
+    centerLine(`${address?.plz || ''} ${address?.stadt || ''}`.trim());
     y += 5;
-    doc.text(`${address?.land || landFallback || 'Deutschland'}`, x, y, { align: 'center' });
+    centerLine(`${address?.land || landFallback || 'Deutschland'}`);
     return y;
 };
